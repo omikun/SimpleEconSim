@@ -1,0 +1,921 @@
+food {'food': 2, 'wood': 0, 'furniture': 0}
+food {'food': 2, 'wood': 0, 'furniture': 0}
+food {'food': 2, 'wood': 0, 'furniture': 0}
+food {'food': 2, 'wood': 0, 'furniture': 0}
+food {'food': 2, 'wood': 0, 'furniture': 0}
+food {'food': 2, 'wood': 0, 'furniture': 0}
+food {'food': 2, 'wood': 0, 'furniture': 0}
+food {'food': 2, 'wood': 0, 'furniture': 0}
+food {'food': 2, 'wood': 0, 'furniture': 0}
+food {'food': 2, 'wood': 0, 'furniture': 0}
+wood {'food': 2, 'wood': 0, 'furniture': 0}
+wood {'food': 2, 'wood': 0, 'furniture': 0}
+wood {'food': 2, 'wood': 0, 'furniture': 0}
+wood {'food': 2, 'wood': 0, 'furniture': 0}
+wood {'food': 2, 'wood': 0, 'furniture': 0}
+wood {'food': 2, 'wood': 0, 'furniture': 0}
+wood {'food': 2, 'wood': 0, 'furniture': 0}
+wood {'food': 2, 'wood': 0, 'furniture': 0}
+furniture {'food': 2, 'wood': 10, 'furniture': 0}
+furniture {'food': 2, 'wood': 10, 'furniture': 0}
+F,F,F,F,F,F,F,F,F,F,W,W,W,W,W,W,W,W,C,C,
+2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,10,10,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0 agent 0 {'food': 2, 'wood': 0, 'furniture': 0}
+0 agent 0 built 4 food {'food': 6, 'wood': 0, 'furniture': 0}
+0 agent 1 {'food': 2, 'wood': 0, 'furniture': 0}
+0 agent 1 built 4 food {'food': 6, 'wood': 0, 'furniture': 0}
+0 agent 2 {'food': 2, 'wood': 0, 'furniture': 0}
+0 agent 2 built 4 food {'food': 6, 'wood': 0, 'furniture': 0}
+0 agent 3 {'food': 2, 'wood': 0, 'furniture': 0}
+0 agent 3 built 4 food {'food': 6, 'wood': 0, 'furniture': 0}
+0 agent 4 {'food': 2, 'wood': 0, 'furniture': 0}
+0 agent 4 built 4 food {'food': 6, 'wood': 0, 'furniture': 0}
+0 agent 5 {'food': 2, 'wood': 0, 'furniture': 0}
+0 agent 5 built 4 food {'food': 6, 'wood': 0, 'furniture': 0}
+0 agent 6 {'food': 2, 'wood': 0, 'furniture': 0}
+0 agent 6 built 4 food {'food': 6, 'wood': 0, 'furniture': 0}
+0 agent 7 {'food': 2, 'wood': 0, 'furniture': 0}
+0 agent 7 built 4 food {'food': 6, 'wood': 0, 'furniture': 0}
+0 agent 8 {'food': 2, 'wood': 0, 'furniture': 0}
+0 agent 8 built 4 food {'food': 6, 'wood': 0, 'furniture': 0}
+0 agent 9 {'food': 2, 'wood': 0, 'furniture': 0}
+0 agent 9 built 4 food {'food': 6, 'wood': 0, 'furniture': 0}
+0 agent 10 {'food': 2, 'wood': 0, 'furniture': 0}
+0 agent 10 built 2 wood {'food': 2, 'wood': 2, 'furniture': 0}
+0 agent 11 {'food': 2, 'wood': 0, 'furniture': 0}
+0 agent 11 built 2 wood {'food': 2, 'wood': 2, 'furniture': 0}
+0 agent 12 {'food': 2, 'wood': 0, 'furniture': 0}
+0 agent 12 built 2 wood {'food': 2, 'wood': 2, 'furniture': 0}
+0 agent 13 {'food': 2, 'wood': 0, 'furniture': 0}
+0 agent 13 built 2 wood {'food': 2, 'wood': 2, 'furniture': 0}
+0 agent 14 {'food': 2, 'wood': 0, 'furniture': 0}
+0 agent 14 built 2 wood {'food': 2, 'wood': 2, 'furniture': 0}
+0 agent 15 {'food': 2, 'wood': 0, 'furniture': 0}
+0 agent 15 built 2 wood {'food': 2, 'wood': 2, 'furniture': 0}
+0 agent 16 {'food': 2, 'wood': 0, 'furniture': 0}
+0 agent 16 built 2 wood {'food': 2, 'wood': 2, 'furniture': 0}
+0 agent 17 {'food': 2, 'wood': 0, 'furniture': 0}
+0 agent 17 built 2 wood {'food': 2, 'wood': 2, 'furniture': 0}
+0 agent 18 {'food': 2, 'wood': 10, 'furniture': 0}
+0 agent 18 built 1 furniture {'food': 2, 'wood': 2, 'furniture': 1}
+0 agent 19 {'food': 2, 'wood': 10, 'furniture': 0}
+0 agent 19 built 1 furniture {'food': 2, 'wood': 2, 'furniture': 1}
+0 trading  food  asks:  60  bids:  80
+0 trading  food  id: 0 ask:  6  handout:  6.0
+0 trading  food  id: 1 ask:  6  handout:  6.0
+0 trading  food  id: 2 ask:  6  handout:  6.0
+0 trading  food  id: 3 ask:  6  handout:  6.0
+0 trading  food  id: 4 ask:  6  handout:  6.0
+0 trading  food  id: 5 ask:  6  handout:  6.0
+0 trading  food  id: 6 ask:  6  handout:  6.0
+0 trading  food  id: 7 ask:  6  handout:  6.0
+0 trading  food  id: 8 ask:  6  handout:  6.0
+0 trading  food  id: 9 ask:  6  handout:  6.0
+0 trading  food  id: 10 bid:  8  received:  6.0
+0 trading  food  id: 11 bid:  8  received:  6.0
+0 trading  food  id: 12 bid:  8  received:  6.0
+0 trading  food  id: 13 bid:  8  received:  6.0
+0 trading  food  id: 14 bid:  8  received:  6.0
+0 trading  food  id: 15 bid:  8  received:  6.0
+0 trading  food  id: 16 bid:  8  received:  6.0
+0 trading  food  id: 17 bid:  8  received:  6.0
+0 trading  food  id: 18 bid:  8  received:  6.0
+0 trading  food  id: 19 bid:  8  received:  6.0
+0  trades:  food  traded:  60.0
+0 trading  wood  asks:  16  bids:  100
+0 trading  wood  id: 10 ask:  2  handout:  2.0
+0 trading  wood  id: 11 ask:  2  handout:  2.0
+0 trading  wood  id: 12 ask:  2  handout:  2.0
+0 trading  wood  id: 13 ask:  2  handout:  2.0
+0 trading  wood  id: 14 ask:  2  handout:  2.0
+0 trading  wood  id: 15 ask:  2  handout:  2.0
+0 trading  wood  id: 16 ask:  2  handout:  2.0
+0 trading  wood  id: 17 ask:  2  handout:  2.0
+0 trading  wood  id: 0 bid:  10  received:  1.6
+0 trading  wood  id: 1 bid:  10  received:  1.6
+0 trading  wood  id: 2 bid:  10  received:  1.6
+0 trading  wood  id: 3 bid:  10  received:  1.6
+0 trading  wood  id: 4 bid:  10  received:  1.6
+0 trading  wood  id: 5 bid:  10  received:  1.6
+0 trading  wood  id: 6 bid:  10  received:  1.6
+0 trading  wood  id: 7 bid:  10  received:  1.6
+0 trading  wood  id: 8 bid:  10  received:  1.6
+0 trading  wood  id: 9 bid:  10  received:  1.6
+0  trades:  wood  traded:  16.0
+0 trading  furniture  asks:  2  bids:  180
+0 trading  furniture  id: 18 ask:  1  handout:  1.0
+0 trading  furniture  id: 19 ask:  1  handout:  1.0
+0 trading  furniture  id: 0 bid:  10  received:  0.1111111111111111
+0 trading  furniture  id: 1 bid:  10  received:  0.1111111111111111
+0 trading  furniture  id: 2 bid:  10  received:  0.1111111111111111
+0 trading  furniture  id: 3 bid:  10  received:  0.1111111111111111
+0 trading  furniture  id: 4 bid:  10  received:  0.1111111111111111
+0 trading  furniture  id: 5 bid:  10  received:  0.1111111111111111
+0 trading  furniture  id: 6 bid:  10  received:  0.1111111111111111
+0 trading  furniture  id: 7 bid:  10  received:  0.1111111111111111
+0 trading  furniture  id: 8 bid:  10  received:  0.1111111111111111
+0 trading  furniture  id: 9 bid:  10  received:  0.1111111111111111
+0 trading  furniture  id: 10 bid:  10  received:  0.1111111111111111
+0 trading  furniture  id: 11 bid:  10  received:  0.1111111111111111
+0 trading  furniture  id: 12 bid:  10  received:  0.1111111111111111
+0 trading  furniture  id: 13 bid:  10  received:  0.1111111111111111
+0 trading  furniture  id: 14 bid:  10  received:  0.1111111111111111
+0 trading  furniture  id: 15 bid:  10  received:  0.1111111111111111
+0 trading  furniture  id: 16 bid:  10  received:  0.1111111111111111
+0 trading  furniture  id: 17 bid:  10  received:  0.1111111111111111
+0  trades:  furniture  traded:  2.0
+living
+F,F,F,F,F,F,F,F,F,F,W,W,W,W,W,W,W,W,C,C,
+0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,7.0,7.0,7.0,7.0,7.0,7.0,7.0,7.0,7.0,7.0,
+1.6,1.6,1.6,1.6,1.6,1.6,1.6,1.6,1.6,1.6,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2,2,
+0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.0,0.0,
+1 agent 0 {'food': 0.0, 'wood': 1.6, 'furniture': 0.1111111111111111}
+1 agent 0 built 4 food {'food': 4.0, 'wood': 1.6, 'furniture': 0.1111111111111111}
+1 agent 1 {'food': 0.0, 'wood': 1.6, 'furniture': 0.1111111111111111}
+1 agent 1 built 4 food {'food': 4.0, 'wood': 1.6, 'furniture': 0.1111111111111111}
+1 agent 2 {'food': 0.0, 'wood': 1.6, 'furniture': 0.1111111111111111}
+1 agent 2 built 4 food {'food': 4.0, 'wood': 1.6, 'furniture': 0.1111111111111111}
+1 agent 3 {'food': 0.0, 'wood': 1.6, 'furniture': 0.1111111111111111}
+1 agent 3 built 4 food {'food': 4.0, 'wood': 1.6, 'furniture': 0.1111111111111111}
+1 agent 4 {'food': 0.0, 'wood': 1.6, 'furniture': 0.1111111111111111}
+1 agent 4 built 4 food {'food': 4.0, 'wood': 1.6, 'furniture': 0.1111111111111111}
+1 agent 5 {'food': 0.0, 'wood': 1.6, 'furniture': 0.1111111111111111}
+1 agent 5 built 4 food {'food': 4.0, 'wood': 1.6, 'furniture': 0.1111111111111111}
+1 agent 6 {'food': 0.0, 'wood': 1.6, 'furniture': 0.1111111111111111}
+1 agent 6 built 4 food {'food': 4.0, 'wood': 1.6, 'furniture': 0.1111111111111111}
+1 agent 7 {'food': 0.0, 'wood': 1.6, 'furniture': 0.1111111111111111}
+1 agent 7 built 4 food {'food': 4.0, 'wood': 1.6, 'furniture': 0.1111111111111111}
+1 agent 8 {'food': 0.0, 'wood': 1.6, 'furniture': 0.1111111111111111}
+1 agent 8 built 4 food {'food': 4.0, 'wood': 1.6, 'furniture': 0.1111111111111111}
+1 agent 9 {'food': 0.0, 'wood': 1.6, 'furniture': 0.1111111111111111}
+1 agent 9 built 4 food {'food': 4.0, 'wood': 1.6, 'furniture': 0.1111111111111111}
+1 agent 10 {'food': 7.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+1 agent 10 built 2 wood {'food': 7.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+1 agent 11 {'food': 7.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+1 agent 11 built 2 wood {'food': 7.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+1 agent 12 {'food': 7.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+1 agent 12 built 2 wood {'food': 7.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+1 agent 13 {'food': 7.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+1 agent 13 built 2 wood {'food': 7.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+1 agent 14 {'food': 7.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+1 agent 14 built 2 wood {'food': 7.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+1 agent 15 {'food': 7.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+1 agent 15 built 2 wood {'food': 7.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+1 agent 16 {'food': 7.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+1 agent 16 built 2 wood {'food': 7.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+1 agent 17 {'food': 7.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+1 agent 17 built 2 wood {'food': 7.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+1 agent 18 {'food': 7.0, 'wood': 2, 'furniture': 0.0}
+1 agent 18 built 0 furniture {'food': 7.0, 'wood': 2, 'furniture': 0.0}
+1 agent 19 {'food': 7.0, 'wood': 2, 'furniture': 0.0}
+1 agent 19 built 0 furniture {'food': 7.0, 'wood': 2, 'furniture': 0.0}
+1 trading  food  asks:  40.0  bids:  30.0
+1 trading  food  id: 0 ask:  4.0  handout:  3.0
+1 trading  food  id: 1 ask:  4.0  handout:  3.0
+1 trading  food  id: 2 ask:  4.0  handout:  3.0
+1 trading  food  id: 3 ask:  4.0  handout:  3.0
+1 trading  food  id: 4 ask:  4.0  handout:  3.0
+1 trading  food  id: 5 ask:  4.0  handout:  3.0
+1 trading  food  id: 6 ask:  4.0  handout:  3.0
+1 trading  food  id: 7 ask:  4.0  handout:  3.0
+1 trading  food  id: 8 ask:  4.0  handout:  3.0
+1 trading  food  id: 9 ask:  4.0  handout:  3.0
+1 trading  food  id: 10 bid:  3.0  received:  3.0
+1 trading  food  id: 11 bid:  3.0  received:  3.0
+1 trading  food  id: 12 bid:  3.0  received:  3.0
+1 trading  food  id: 13 bid:  3.0  received:  3.0
+1 trading  food  id: 14 bid:  3.0  received:  3.0
+1 trading  food  id: 15 bid:  3.0  received:  3.0
+1 trading  food  id: 16 bid:  3.0  received:  3.0
+1 trading  food  id: 17 bid:  3.0  received:  3.0
+1 trading  food  id: 18 bid:  3.0  received:  3.0
+1 trading  food  id: 19 bid:  3.0  received:  3.0
+1  trades:  food  traded:  30.0
+1 trading  wood  asks:  16.0  bids:  84.00000000000001
+1 trading  wood  id: 10 ask:  2.0  handout:  2.0
+1 trading  wood  id: 11 ask:  2.0  handout:  2.0
+1 trading  wood  id: 12 ask:  2.0  handout:  2.0
+1 trading  wood  id: 13 ask:  2.0  handout:  2.0
+1 trading  wood  id: 14 ask:  2.0  handout:  2.0
+1 trading  wood  id: 15 ask:  2.0  handout:  2.0
+1 trading  wood  id: 16 ask:  2.0  handout:  2.0
+1 trading  wood  id: 17 ask:  2.0  handout:  2.0
+1 trading  wood  id: 0 bid:  8.4  received:  1.5999999999999999
+1 trading  wood  id: 1 bid:  8.4  received:  1.5999999999999999
+1 trading  wood  id: 2 bid:  8.4  received:  1.5999999999999999
+1 trading  wood  id: 3 bid:  8.4  received:  1.5999999999999999
+1 trading  wood  id: 4 bid:  8.4  received:  1.5999999999999999
+1 trading  wood  id: 5 bid:  8.4  received:  1.5999999999999999
+1 trading  wood  id: 6 bid:  8.4  received:  1.5999999999999999
+1 trading  wood  id: 7 bid:  8.4  received:  1.5999999999999999
+1 trading  wood  id: 8 bid:  8.4  received:  1.5999999999999999
+1 trading  wood  id: 9 bid:  8.4  received:  1.5999999999999999
+1  trades:  wood  traded:  16.0
+1 trading  furniture  asks:  0  bids:  177.99999999999997
+living
+F,F,F,F,F,F,F,F,F,F,W,W,W,W,W,W,W,W,C,C,
+0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,9.0,9.0,9.0,9.0,9.0,9.0,9.0,9.0,9.0,9.0,
+2.2,2.2,2.2,2.2,2.2,2.2,2.2,2.2,2.2,2.2,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2,2,
+0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.0,0.0,
+2 agent 0 {'food': 0.0, 'wood': 2.2, 'furniture': 0.1111111111111111}
+2 agent 0 built 4 food {'food': 4.0, 'wood': 2.2, 'furniture': 0.1111111111111111}
+2 agent 1 {'food': 0.0, 'wood': 2.2, 'furniture': 0.1111111111111111}
+2 agent 1 built 4 food {'food': 4.0, 'wood': 2.2, 'furniture': 0.1111111111111111}
+2 agent 2 {'food': 0.0, 'wood': 2.2, 'furniture': 0.1111111111111111}
+2 agent 2 built 4 food {'food': 4.0, 'wood': 2.2, 'furniture': 0.1111111111111111}
+2 agent 3 {'food': 0.0, 'wood': 2.2, 'furniture': 0.1111111111111111}
+2 agent 3 built 4 food {'food': 4.0, 'wood': 2.2, 'furniture': 0.1111111111111111}
+2 agent 4 {'food': 0.0, 'wood': 2.2, 'furniture': 0.1111111111111111}
+2 agent 4 built 4 food {'food': 4.0, 'wood': 2.2, 'furniture': 0.1111111111111111}
+2 agent 5 {'food': 0.0, 'wood': 2.2, 'furniture': 0.1111111111111111}
+2 agent 5 built 4 food {'food': 4.0, 'wood': 2.2, 'furniture': 0.1111111111111111}
+2 agent 6 {'food': 0.0, 'wood': 2.2, 'furniture': 0.1111111111111111}
+2 agent 6 built 4 food {'food': 4.0, 'wood': 2.2, 'furniture': 0.1111111111111111}
+2 agent 7 {'food': 0.0, 'wood': 2.2, 'furniture': 0.1111111111111111}
+2 agent 7 built 4 food {'food': 4.0, 'wood': 2.2, 'furniture': 0.1111111111111111}
+2 agent 8 {'food': 0.0, 'wood': 2.2, 'furniture': 0.1111111111111111}
+2 agent 8 built 4 food {'food': 4.0, 'wood': 2.2, 'furniture': 0.1111111111111111}
+2 agent 9 {'food': 0.0, 'wood': 2.2, 'furniture': 0.1111111111111111}
+2 agent 9 built 4 food {'food': 4.0, 'wood': 2.2, 'furniture': 0.1111111111111111}
+2 agent 10 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+2 agent 10 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+2 agent 11 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+2 agent 11 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+2 agent 12 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+2 agent 12 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+2 agent 13 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+2 agent 13 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+2 agent 14 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+2 agent 14 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+2 agent 15 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+2 agent 15 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+2 agent 16 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+2 agent 16 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+2 agent 17 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+2 agent 17 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+2 agent 18 {'food': 9.0, 'wood': 2, 'furniture': 0.0}
+2 agent 18 built 0 furniture {'food': 9.0, 'wood': 2, 'furniture': 0.0}
+2 agent 19 {'food': 9.0, 'wood': 2, 'furniture': 0.0}
+2 agent 19 built 0 furniture {'food': 9.0, 'wood': 2, 'furniture': 0.0}
+2 trading  food  asks:  40.0  bids:  10.0
+2 trading  food  id: 0 ask:  4.0  handout:  1.0
+2 trading  food  id: 1 ask:  4.0  handout:  1.0
+2 trading  food  id: 2 ask:  4.0  handout:  1.0
+2 trading  food  id: 3 ask:  4.0  handout:  1.0
+2 trading  food  id: 4 ask:  4.0  handout:  1.0
+2 trading  food  id: 5 ask:  4.0  handout:  1.0
+2 trading  food  id: 6 ask:  4.0  handout:  1.0
+2 trading  food  id: 7 ask:  4.0  handout:  1.0
+2 trading  food  id: 8 ask:  4.0  handout:  1.0
+2 trading  food  id: 9 ask:  4.0  handout:  1.0
+2 trading  food  id: 10 bid:  1.0  received:  1.0
+2 trading  food  id: 11 bid:  1.0  received:  1.0
+2 trading  food  id: 12 bid:  1.0  received:  1.0
+2 trading  food  id: 13 bid:  1.0  received:  1.0
+2 trading  food  id: 14 bid:  1.0  received:  1.0
+2 trading  food  id: 15 bid:  1.0  received:  1.0
+2 trading  food  id: 16 bid:  1.0  received:  1.0
+2 trading  food  id: 17 bid:  1.0  received:  1.0
+2 trading  food  id: 18 bid:  1.0  received:  1.0
+2 trading  food  id: 19 bid:  1.0  received:  1.0
+2  trades:  food  traded:  10.0
+2 trading  wood  asks:  16.0  bids:  77.99999999999999
+2 trading  wood  id: 10 ask:  2.0  handout:  2.0
+2 trading  wood  id: 11 ask:  2.0  handout:  2.0
+2 trading  wood  id: 12 ask:  2.0  handout:  2.0
+2 trading  wood  id: 13 ask:  2.0  handout:  2.0
+2 trading  wood  id: 14 ask:  2.0  handout:  2.0
+2 trading  wood  id: 15 ask:  2.0  handout:  2.0
+2 trading  wood  id: 16 ask:  2.0  handout:  2.0
+2 trading  wood  id: 17 ask:  2.0  handout:  2.0
+2 trading  wood  id: 0 bid:  7.8  received:  1.6000000000000003
+2 trading  wood  id: 1 bid:  7.8  received:  1.6000000000000003
+2 trading  wood  id: 2 bid:  7.8  received:  1.6000000000000003
+2 trading  wood  id: 3 bid:  7.8  received:  1.6000000000000003
+2 trading  wood  id: 4 bid:  7.8  received:  1.6000000000000003
+2 trading  wood  id: 5 bid:  7.8  received:  1.6000000000000003
+2 trading  wood  id: 6 bid:  7.8  received:  1.6000000000000003
+2 trading  wood  id: 7 bid:  7.8  received:  1.6000000000000003
+2 trading  wood  id: 8 bid:  7.8  received:  1.6000000000000003
+2 trading  wood  id: 9 bid:  7.8  received:  1.6000000000000003
+2  trades:  wood  traded:  16.0
+2 trading  furniture  asks:  0  bids:  177.99999999999997
+living
+F,F,F,F,F,F,F,F,F,F,W,W,W,W,W,W,W,W,C,C,
+2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,2.0,9.0,9.0,9.0,9.0,9.0,9.0,9.0,9.0,9.0,9.0,
+2.8,2.8,2.8,2.8,2.8,2.8,2.8,2.8,2.8,2.8,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2,2,
+0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.0,0.0,
+3 agent 0 {'food': 2.0, 'wood': 2.8000000000000007, 'furniture': 0.1111111111111111}
+3 agent 0 built 4 food {'food': 6.0, 'wood': 2.8000000000000007, 'furniture': 0.1111111111111111}
+3 agent 1 {'food': 2.0, 'wood': 2.8000000000000007, 'furniture': 0.1111111111111111}
+3 agent 1 built 4 food {'food': 6.0, 'wood': 2.8000000000000007, 'furniture': 0.1111111111111111}
+3 agent 2 {'food': 2.0, 'wood': 2.8000000000000007, 'furniture': 0.1111111111111111}
+3 agent 2 built 4 food {'food': 6.0, 'wood': 2.8000000000000007, 'furniture': 0.1111111111111111}
+3 agent 3 {'food': 2.0, 'wood': 2.8000000000000007, 'furniture': 0.1111111111111111}
+3 agent 3 built 4 food {'food': 6.0, 'wood': 2.8000000000000007, 'furniture': 0.1111111111111111}
+3 agent 4 {'food': 2.0, 'wood': 2.8000000000000007, 'furniture': 0.1111111111111111}
+3 agent 4 built 4 food {'food': 6.0, 'wood': 2.8000000000000007, 'furniture': 0.1111111111111111}
+3 agent 5 {'food': 2.0, 'wood': 2.8000000000000007, 'furniture': 0.1111111111111111}
+3 agent 5 built 4 food {'food': 6.0, 'wood': 2.8000000000000007, 'furniture': 0.1111111111111111}
+3 agent 6 {'food': 2.0, 'wood': 2.8000000000000007, 'furniture': 0.1111111111111111}
+3 agent 6 built 4 food {'food': 6.0, 'wood': 2.8000000000000007, 'furniture': 0.1111111111111111}
+3 agent 7 {'food': 2.0, 'wood': 2.8000000000000007, 'furniture': 0.1111111111111111}
+3 agent 7 built 4 food {'food': 6.0, 'wood': 2.8000000000000007, 'furniture': 0.1111111111111111}
+3 agent 8 {'food': 2.0, 'wood': 2.8000000000000007, 'furniture': 0.1111111111111111}
+3 agent 8 built 4 food {'food': 6.0, 'wood': 2.8000000000000007, 'furniture': 0.1111111111111111}
+3 agent 9 {'food': 2.0, 'wood': 2.8000000000000007, 'furniture': 0.1111111111111111}
+3 agent 9 built 4 food {'food': 6.0, 'wood': 2.8000000000000007, 'furniture': 0.1111111111111111}
+3 agent 10 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+3 agent 10 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+3 agent 11 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+3 agent 11 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+3 agent 12 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+3 agent 12 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+3 agent 13 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+3 agent 13 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+3 agent 14 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+3 agent 14 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+3 agent 15 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+3 agent 15 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+3 agent 16 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+3 agent 16 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+3 agent 17 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+3 agent 17 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+3 agent 18 {'food': 9.0, 'wood': 2, 'furniture': 0.0}
+3 agent 18 built 0 furniture {'food': 9.0, 'wood': 2, 'furniture': 0.0}
+3 agent 19 {'food': 9.0, 'wood': 2, 'furniture': 0.0}
+3 agent 19 built 0 furniture {'food': 9.0, 'wood': 2, 'furniture': 0.0}
+3 trading  food  asks:  60.0  bids:  10.0
+3 trading  food  id: 0 ask:  6.0  handout:  1.0
+3 trading  food  id: 1 ask:  6.0  handout:  1.0
+3 trading  food  id: 2 ask:  6.0  handout:  1.0
+3 trading  food  id: 3 ask:  6.0  handout:  1.0
+3 trading  food  id: 4 ask:  6.0  handout:  1.0
+3 trading  food  id: 5 ask:  6.0  handout:  1.0
+3 trading  food  id: 6 ask:  6.0  handout:  1.0
+3 trading  food  id: 7 ask:  6.0  handout:  1.0
+3 trading  food  id: 8 ask:  6.0  handout:  1.0
+3 trading  food  id: 9 ask:  6.0  handout:  1.0
+3 trading  food  id: 10 bid:  1.0  received:  1.0
+3 trading  food  id: 11 bid:  1.0  received:  1.0
+3 trading  food  id: 12 bid:  1.0  received:  1.0
+3 trading  food  id: 13 bid:  1.0  received:  1.0
+3 trading  food  id: 14 bid:  1.0  received:  1.0
+3 trading  food  id: 15 bid:  1.0  received:  1.0
+3 trading  food  id: 16 bid:  1.0  received:  1.0
+3 trading  food  id: 17 bid:  1.0  received:  1.0
+3 trading  food  id: 18 bid:  1.0  received:  1.0
+3 trading  food  id: 19 bid:  1.0  received:  1.0
+3  trades:  food  traded:  10.0
+3 trading  wood  asks:  16.0  bids:  72.00000000000001
+3 trading  wood  id: 10 ask:  2.0  handout:  2.0
+3 trading  wood  id: 11 ask:  2.0  handout:  2.0
+3 trading  wood  id: 12 ask:  2.0  handout:  2.0
+3 trading  wood  id: 13 ask:  2.0  handout:  2.0
+3 trading  wood  id: 14 ask:  2.0  handout:  2.0
+3 trading  wood  id: 15 ask:  2.0  handout:  2.0
+3 trading  wood  id: 16 ask:  2.0  handout:  2.0
+3 trading  wood  id: 17 ask:  2.0  handout:  2.0
+3 trading  wood  id: 0 bid:  7.199999999999999  received:  1.5999999999999994
+3 trading  wood  id: 1 bid:  7.199999999999999  received:  1.5999999999999994
+3 trading  wood  id: 2 bid:  7.199999999999999  received:  1.5999999999999994
+3 trading  wood  id: 3 bid:  7.199999999999999  received:  1.5999999999999994
+3 trading  wood  id: 4 bid:  7.199999999999999  received:  1.5999999999999994
+3 trading  wood  id: 5 bid:  7.199999999999999  received:  1.5999999999999994
+3 trading  wood  id: 6 bid:  7.199999999999999  received:  1.5999999999999994
+3 trading  wood  id: 7 bid:  7.199999999999999  received:  1.5999999999999994
+3 trading  wood  id: 8 bid:  7.199999999999999  received:  1.5999999999999994
+3 trading  wood  id: 9 bid:  7.199999999999999  received:  1.5999999999999994
+3  trades:  wood  traded:  16.0
+3 trading  furniture  asks:  0  bids:  177.99999999999997
+living
+F,F,F,F,F,F,F,F,F,F,W,W,W,W,W,W,W,W,C,C,
+4.0,4.0,4.0,4.0,4.0,4.0,4.0,4.0,4.0,4.0,9.0,9.0,9.0,9.0,9.0,9.0,9.0,9.0,9.0,9.0,
+3.4,3.4,3.4,3.4,3.4,3.4,3.4,3.4,3.4,3.4,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2,2,
+0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.0,0.0,
+4 agent 0 {'food': 4.0, 'wood': 3.4000000000000004, 'furniture': 0.1111111111111111}
+4 agent 0 built 4 food {'food': 8.0, 'wood': 3.4000000000000004, 'furniture': 0.1111111111111111}
+4 agent 1 {'food': 4.0, 'wood': 3.4000000000000004, 'furniture': 0.1111111111111111}
+4 agent 1 built 4 food {'food': 8.0, 'wood': 3.4000000000000004, 'furniture': 0.1111111111111111}
+4 agent 2 {'food': 4.0, 'wood': 3.4000000000000004, 'furniture': 0.1111111111111111}
+4 agent 2 built 4 food {'food': 8.0, 'wood': 3.4000000000000004, 'furniture': 0.1111111111111111}
+4 agent 3 {'food': 4.0, 'wood': 3.4000000000000004, 'furniture': 0.1111111111111111}
+4 agent 3 built 4 food {'food': 8.0, 'wood': 3.4000000000000004, 'furniture': 0.1111111111111111}
+4 agent 4 {'food': 4.0, 'wood': 3.4000000000000004, 'furniture': 0.1111111111111111}
+4 agent 4 built 4 food {'food': 8.0, 'wood': 3.4000000000000004, 'furniture': 0.1111111111111111}
+4 agent 5 {'food': 4.0, 'wood': 3.4000000000000004, 'furniture': 0.1111111111111111}
+4 agent 5 built 4 food {'food': 8.0, 'wood': 3.4000000000000004, 'furniture': 0.1111111111111111}
+4 agent 6 {'food': 4.0, 'wood': 3.4000000000000004, 'furniture': 0.1111111111111111}
+4 agent 6 built 4 food {'food': 8.0, 'wood': 3.4000000000000004, 'furniture': 0.1111111111111111}
+4 agent 7 {'food': 4.0, 'wood': 3.4000000000000004, 'furniture': 0.1111111111111111}
+4 agent 7 built 4 food {'food': 8.0, 'wood': 3.4000000000000004, 'furniture': 0.1111111111111111}
+4 agent 8 {'food': 4.0, 'wood': 3.4000000000000004, 'furniture': 0.1111111111111111}
+4 agent 8 built 4 food {'food': 8.0, 'wood': 3.4000000000000004, 'furniture': 0.1111111111111111}
+4 agent 9 {'food': 4.0, 'wood': 3.4000000000000004, 'furniture': 0.1111111111111111}
+4 agent 9 built 4 food {'food': 8.0, 'wood': 3.4000000000000004, 'furniture': 0.1111111111111111}
+4 agent 10 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+4 agent 10 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+4 agent 11 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+4 agent 11 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+4 agent 12 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+4 agent 12 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+4 agent 13 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+4 agent 13 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+4 agent 14 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+4 agent 14 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+4 agent 15 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+4 agent 15 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+4 agent 16 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+4 agent 16 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+4 agent 17 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+4 agent 17 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+4 agent 18 {'food': 9.0, 'wood': 2, 'furniture': 0.0}
+4 agent 18 built 0 furniture {'food': 9.0, 'wood': 2, 'furniture': 0.0}
+4 agent 19 {'food': 9.0, 'wood': 2, 'furniture': 0.0}
+4 agent 19 built 0 furniture {'food': 9.0, 'wood': 2, 'furniture': 0.0}
+4 trading  food  asks:  80.0  bids:  10.0
+4 trading  food  id: 0 ask:  8.0  handout:  1.0
+4 trading  food  id: 1 ask:  8.0  handout:  1.0
+4 trading  food  id: 2 ask:  8.0  handout:  1.0
+4 trading  food  id: 3 ask:  8.0  handout:  1.0
+4 trading  food  id: 4 ask:  8.0  handout:  1.0
+4 trading  food  id: 5 ask:  8.0  handout:  1.0
+4 trading  food  id: 6 ask:  8.0  handout:  1.0
+4 trading  food  id: 7 ask:  8.0  handout:  1.0
+4 trading  food  id: 8 ask:  8.0  handout:  1.0
+4 trading  food  id: 9 ask:  8.0  handout:  1.0
+4 trading  food  id: 10 bid:  1.0  received:  1.0
+4 trading  food  id: 11 bid:  1.0  received:  1.0
+4 trading  food  id: 12 bid:  1.0  received:  1.0
+4 trading  food  id: 13 bid:  1.0  received:  1.0
+4 trading  food  id: 14 bid:  1.0  received:  1.0
+4 trading  food  id: 15 bid:  1.0  received:  1.0
+4 trading  food  id: 16 bid:  1.0  received:  1.0
+4 trading  food  id: 17 bid:  1.0  received:  1.0
+4 trading  food  id: 18 bid:  1.0  received:  1.0
+4 trading  food  id: 19 bid:  1.0  received:  1.0
+4  trades:  food  traded:  10.0
+4 trading  wood  asks:  16.0  bids:  66.0
+4 trading  wood  id: 10 ask:  2.0  handout:  2.0
+4 trading  wood  id: 11 ask:  2.0  handout:  2.0
+4 trading  wood  id: 12 ask:  2.0  handout:  2.0
+4 trading  wood  id: 13 ask:  2.0  handout:  2.0
+4 trading  wood  id: 14 ask:  2.0  handout:  2.0
+4 trading  wood  id: 15 ask:  2.0  handout:  2.0
+4 trading  wood  id: 16 ask:  2.0  handout:  2.0
+4 trading  wood  id: 17 ask:  2.0  handout:  2.0
+4 trading  wood  id: 0 bid:  6.6  received:  1.5999999999999999
+4 trading  wood  id: 1 bid:  6.6  received:  1.5999999999999999
+4 trading  wood  id: 2 bid:  6.6  received:  1.5999999999999999
+4 trading  wood  id: 3 bid:  6.6  received:  1.5999999999999999
+4 trading  wood  id: 4 bid:  6.6  received:  1.5999999999999999
+4 trading  wood  id: 5 bid:  6.6  received:  1.5999999999999999
+4 trading  wood  id: 6 bid:  6.6  received:  1.5999999999999999
+4 trading  wood  id: 7 bid:  6.6  received:  1.5999999999999999
+4 trading  wood  id: 8 bid:  6.6  received:  1.5999999999999999
+4 trading  wood  id: 9 bid:  6.6  received:  1.5999999999999999
+4  trades:  wood  traded:  16.0
+4 trading  furniture  asks:  0  bids:  177.99999999999997
+living
+F,F,F,F,F,F,F,F,F,F,W,W,W,W,W,W,W,W,C,C,
+6.0,6.0,6.0,6.0,6.0,6.0,6.0,6.0,6.0,6.0,9.0,9.0,9.0,9.0,9.0,9.0,9.0,9.0,9.0,9.0,
+4.0,4.0,4.0,4.0,4.0,4.0,4.0,4.0,4.0,4.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2,2,
+0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.0,0.0,
+5 agent 0 {'food': 6.0, 'wood': 4.0, 'furniture': 0.1111111111111111}
+5 agent 0 built 4 food {'food': 10.0, 'wood': 4.0, 'furniture': 0.1111111111111111}
+5 agent 1 {'food': 6.0, 'wood': 4.0, 'furniture': 0.1111111111111111}
+5 agent 1 built 4 food {'food': 10.0, 'wood': 4.0, 'furniture': 0.1111111111111111}
+5 agent 2 {'food': 6.0, 'wood': 4.0, 'furniture': 0.1111111111111111}
+5 agent 2 built 4 food {'food': 10.0, 'wood': 4.0, 'furniture': 0.1111111111111111}
+5 agent 3 {'food': 6.0, 'wood': 4.0, 'furniture': 0.1111111111111111}
+5 agent 3 built 4 food {'food': 10.0, 'wood': 4.0, 'furniture': 0.1111111111111111}
+5 agent 4 {'food': 6.0, 'wood': 4.0, 'furniture': 0.1111111111111111}
+5 agent 4 built 4 food {'food': 10.0, 'wood': 4.0, 'furniture': 0.1111111111111111}
+5 agent 5 {'food': 6.0, 'wood': 4.0, 'furniture': 0.1111111111111111}
+5 agent 5 built 4 food {'food': 10.0, 'wood': 4.0, 'furniture': 0.1111111111111111}
+5 agent 6 {'food': 6.0, 'wood': 4.0, 'furniture': 0.1111111111111111}
+5 agent 6 built 4 food {'food': 10.0, 'wood': 4.0, 'furniture': 0.1111111111111111}
+5 agent 7 {'food': 6.0, 'wood': 4.0, 'furniture': 0.1111111111111111}
+5 agent 7 built 4 food {'food': 10.0, 'wood': 4.0, 'furniture': 0.1111111111111111}
+5 agent 8 {'food': 6.0, 'wood': 4.0, 'furniture': 0.1111111111111111}
+5 agent 8 built 4 food {'food': 10.0, 'wood': 4.0, 'furniture': 0.1111111111111111}
+5 agent 9 {'food': 6.0, 'wood': 4.0, 'furniture': 0.1111111111111111}
+5 agent 9 built 4 food {'food': 10.0, 'wood': 4.0, 'furniture': 0.1111111111111111}
+5 agent 10 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+5 agent 10 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+5 agent 11 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+5 agent 11 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+5 agent 12 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+5 agent 12 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+5 agent 13 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+5 agent 13 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+5 agent 14 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+5 agent 14 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+5 agent 15 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+5 agent 15 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+5 agent 16 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+5 agent 16 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+5 agent 17 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+5 agent 17 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+5 agent 18 {'food': 9.0, 'wood': 2, 'furniture': 0.0}
+5 agent 18 built 0 furniture {'food': 9.0, 'wood': 2, 'furniture': 0.0}
+5 agent 19 {'food': 9.0, 'wood': 2, 'furniture': 0.0}
+5 agent 19 built 0 furniture {'food': 9.0, 'wood': 2, 'furniture': 0.0}
+5 trading  food  asks:  100.0  bids:  10.0
+5 trading  food  id: 0 ask:  10.0  handout:  1.0
+5 trading  food  id: 1 ask:  10.0  handout:  1.0
+5 trading  food  id: 2 ask:  10.0  handout:  1.0
+5 trading  food  id: 3 ask:  10.0  handout:  1.0
+5 trading  food  id: 4 ask:  10.0  handout:  1.0
+5 trading  food  id: 5 ask:  10.0  handout:  1.0
+5 trading  food  id: 6 ask:  10.0  handout:  1.0
+5 trading  food  id: 7 ask:  10.0  handout:  1.0
+5 trading  food  id: 8 ask:  10.0  handout:  1.0
+5 trading  food  id: 9 ask:  10.0  handout:  1.0
+5 trading  food  id: 10 bid:  1.0  received:  1.0
+5 trading  food  id: 11 bid:  1.0  received:  1.0
+5 trading  food  id: 12 bid:  1.0  received:  1.0
+5 trading  food  id: 13 bid:  1.0  received:  1.0
+5 trading  food  id: 14 bid:  1.0  received:  1.0
+5 trading  food  id: 15 bid:  1.0  received:  1.0
+5 trading  food  id: 16 bid:  1.0  received:  1.0
+5 trading  food  id: 17 bid:  1.0  received:  1.0
+5 trading  food  id: 18 bid:  1.0  received:  1.0
+5 trading  food  id: 19 bid:  1.0  received:  1.0
+5  trades:  food  traded:  10.0
+5 trading  wood  asks:  16.0  bids:  60.0
+5 trading  wood  id: 10 ask:  2.0  handout:  2.0
+5 trading  wood  id: 11 ask:  2.0  handout:  2.0
+5 trading  wood  id: 12 ask:  2.0  handout:  2.0
+5 trading  wood  id: 13 ask:  2.0  handout:  2.0
+5 trading  wood  id: 14 ask:  2.0  handout:  2.0
+5 trading  wood  id: 15 ask:  2.0  handout:  2.0
+5 trading  wood  id: 16 ask:  2.0  handout:  2.0
+5 trading  wood  id: 17 ask:  2.0  handout:  2.0
+5 trading  wood  id: 0 bid:  6.0  received:  1.6
+5 trading  wood  id: 1 bid:  6.0  received:  1.6
+5 trading  wood  id: 2 bid:  6.0  received:  1.6
+5 trading  wood  id: 3 bid:  6.0  received:  1.6
+5 trading  wood  id: 4 bid:  6.0  received:  1.6
+5 trading  wood  id: 5 bid:  6.0  received:  1.6
+5 trading  wood  id: 6 bid:  6.0  received:  1.6
+5 trading  wood  id: 7 bid:  6.0  received:  1.6
+5 trading  wood  id: 8 bid:  6.0  received:  1.6
+5 trading  wood  id: 9 bid:  6.0  received:  1.6
+5  trades:  wood  traded:  16.0
+5 trading  furniture  asks:  0  bids:  177.99999999999997
+living
+F,F,F,F,F,F,F,F,F,F,W,W,W,W,W,W,W,W,C,C,
+8.0,8.0,8.0,8.0,8.0,8.0,8.0,8.0,8.0,8.0,9.0,9.0,9.0,9.0,9.0,9.0,9.0,9.0,9.0,9.0,
+4.6,4.6,4.6,4.6,4.6,4.6,4.6,4.6,4.6,4.6,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2,2,
+0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.0,0.0,
+6 agent 0 {'food': 8.0, 'wood': 4.6, 'furniture': 0.1111111111111111}
+6 agent 0 built 4 food {'food': 12.0, 'wood': 4.6, 'furniture': 0.1111111111111111}
+6 agent 1 {'food': 8.0, 'wood': 4.6, 'furniture': 0.1111111111111111}
+6 agent 1 built 4 food {'food': 12.0, 'wood': 4.6, 'furniture': 0.1111111111111111}
+6 agent 2 {'food': 8.0, 'wood': 4.6, 'furniture': 0.1111111111111111}
+6 agent 2 built 4 food {'food': 12.0, 'wood': 4.6, 'furniture': 0.1111111111111111}
+6 agent 3 {'food': 8.0, 'wood': 4.6, 'furniture': 0.1111111111111111}
+6 agent 3 built 4 food {'food': 12.0, 'wood': 4.6, 'furniture': 0.1111111111111111}
+6 agent 4 {'food': 8.0, 'wood': 4.6, 'furniture': 0.1111111111111111}
+6 agent 4 built 4 food {'food': 12.0, 'wood': 4.6, 'furniture': 0.1111111111111111}
+6 agent 5 {'food': 8.0, 'wood': 4.6, 'furniture': 0.1111111111111111}
+6 agent 5 built 4 food {'food': 12.0, 'wood': 4.6, 'furniture': 0.1111111111111111}
+6 agent 6 {'food': 8.0, 'wood': 4.6, 'furniture': 0.1111111111111111}
+6 agent 6 built 4 food {'food': 12.0, 'wood': 4.6, 'furniture': 0.1111111111111111}
+6 agent 7 {'food': 8.0, 'wood': 4.6, 'furniture': 0.1111111111111111}
+6 agent 7 built 4 food {'food': 12.0, 'wood': 4.6, 'furniture': 0.1111111111111111}
+6 agent 8 {'food': 8.0, 'wood': 4.6, 'furniture': 0.1111111111111111}
+6 agent 8 built 4 food {'food': 12.0, 'wood': 4.6, 'furniture': 0.1111111111111111}
+6 agent 9 {'food': 8.0, 'wood': 4.6, 'furniture': 0.1111111111111111}
+6 agent 9 built 4 food {'food': 12.0, 'wood': 4.6, 'furniture': 0.1111111111111111}
+6 agent 10 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+6 agent 10 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+6 agent 11 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+6 agent 11 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+6 agent 12 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+6 agent 12 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+6 agent 13 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+6 agent 13 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+6 agent 14 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+6 agent 14 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+6 agent 15 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+6 agent 15 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+6 agent 16 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+6 agent 16 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+6 agent 17 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+6 agent 17 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+6 agent 18 {'food': 9.0, 'wood': 2, 'furniture': 0.0}
+6 agent 18 built 0 furniture {'food': 9.0, 'wood': 2, 'furniture': 0.0}
+6 agent 19 {'food': 9.0, 'wood': 2, 'furniture': 0.0}
+6 agent 19 built 0 furniture {'food': 9.0, 'wood': 2, 'furniture': 0.0}
+6 trading  food  asks:  120.0  bids:  10.0
+6 trading  food  id: 0 ask:  12.0  handout:  1.0
+6 trading  food  id: 1 ask:  12.0  handout:  1.0
+6 trading  food  id: 2 ask:  12.0  handout:  1.0
+6 trading  food  id: 3 ask:  12.0  handout:  1.0
+6 trading  food  id: 4 ask:  12.0  handout:  1.0
+6 trading  food  id: 5 ask:  12.0  handout:  1.0
+6 trading  food  id: 6 ask:  12.0  handout:  1.0
+6 trading  food  id: 7 ask:  12.0  handout:  1.0
+6 trading  food  id: 8 ask:  12.0  handout:  1.0
+6 trading  food  id: 9 ask:  12.0  handout:  1.0
+6 trading  food  id: 10 bid:  1.0  received:  1.0
+6 trading  food  id: 11 bid:  1.0  received:  1.0
+6 trading  food  id: 12 bid:  1.0  received:  1.0
+6 trading  food  id: 13 bid:  1.0  received:  1.0
+6 trading  food  id: 14 bid:  1.0  received:  1.0
+6 trading  food  id: 15 bid:  1.0  received:  1.0
+6 trading  food  id: 16 bid:  1.0  received:  1.0
+6 trading  food  id: 17 bid:  1.0  received:  1.0
+6 trading  food  id: 18 bid:  1.0  received:  1.0
+6 trading  food  id: 19 bid:  1.0  received:  1.0
+6  trades:  food  traded:  10.0
+6 trading  wood  asks:  16.0  bids:  53.99999999999999
+6 trading  wood  id: 10 ask:  2.0  handout:  2.0
+6 trading  wood  id: 11 ask:  2.0  handout:  2.0
+6 trading  wood  id: 12 ask:  2.0  handout:  2.0
+6 trading  wood  id: 13 ask:  2.0  handout:  2.0
+6 trading  wood  id: 14 ask:  2.0  handout:  2.0
+6 trading  wood  id: 15 ask:  2.0  handout:  2.0
+6 trading  wood  id: 16 ask:  2.0  handout:  2.0
+6 trading  wood  id: 17 ask:  2.0  handout:  2.0
+6 trading  wood  id: 0 bid:  5.4  received:  1.6000000000000003
+6 trading  wood  id: 1 bid:  5.4  received:  1.6000000000000003
+6 trading  wood  id: 2 bid:  5.4  received:  1.6000000000000003
+6 trading  wood  id: 3 bid:  5.4  received:  1.6000000000000003
+6 trading  wood  id: 4 bid:  5.4  received:  1.6000000000000003
+6 trading  wood  id: 5 bid:  5.4  received:  1.6000000000000003
+6 trading  wood  id: 6 bid:  5.4  received:  1.6000000000000003
+6 trading  wood  id: 7 bid:  5.4  received:  1.6000000000000003
+6 trading  wood  id: 8 bid:  5.4  received:  1.6000000000000003
+6 trading  wood  id: 9 bid:  5.4  received:  1.6000000000000003
+6  trades:  wood  traded:  16.0
+6 trading  furniture  asks:  0  bids:  177.99999999999997
+living
+F,F,F,F,F,F,F,F,F,F,W,W,W,W,W,W,W,W,C,C,
+10.0,10.0,10.0,10.0,10.0,10.0,10.0,10.0,10.0,10.0,9.0,9.0,9.0,9.0,9.0,9.0,9.0,9.0,9.0,9.0,
+5.2,5.2,5.2,5.2,5.2,5.2,5.2,5.2,5.2,5.2,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2,2,
+0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.0,0.0,
+7 agent 0 {'food': 10.0, 'wood': 5.2, 'furniture': 0.1111111111111111}
+7 agent 0 built 4 food {'food': 14.0, 'wood': 5.2, 'furniture': 0.1111111111111111}
+7 agent 1 {'food': 10.0, 'wood': 5.2, 'furniture': 0.1111111111111111}
+7 agent 1 built 4 food {'food': 14.0, 'wood': 5.2, 'furniture': 0.1111111111111111}
+7 agent 2 {'food': 10.0, 'wood': 5.2, 'furniture': 0.1111111111111111}
+7 agent 2 built 4 food {'food': 14.0, 'wood': 5.2, 'furniture': 0.1111111111111111}
+7 agent 3 {'food': 10.0, 'wood': 5.2, 'furniture': 0.1111111111111111}
+7 agent 3 built 4 food {'food': 14.0, 'wood': 5.2, 'furniture': 0.1111111111111111}
+7 agent 4 {'food': 10.0, 'wood': 5.2, 'furniture': 0.1111111111111111}
+7 agent 4 built 4 food {'food': 14.0, 'wood': 5.2, 'furniture': 0.1111111111111111}
+7 agent 5 {'food': 10.0, 'wood': 5.2, 'furniture': 0.1111111111111111}
+7 agent 5 built 4 food {'food': 14.0, 'wood': 5.2, 'furniture': 0.1111111111111111}
+7 agent 6 {'food': 10.0, 'wood': 5.2, 'furniture': 0.1111111111111111}
+7 agent 6 built 4 food {'food': 14.0, 'wood': 5.2, 'furniture': 0.1111111111111111}
+7 agent 7 {'food': 10.0, 'wood': 5.2, 'furniture': 0.1111111111111111}
+7 agent 7 built 4 food {'food': 14.0, 'wood': 5.2, 'furniture': 0.1111111111111111}
+7 agent 8 {'food': 10.0, 'wood': 5.2, 'furniture': 0.1111111111111111}
+7 agent 8 built 4 food {'food': 14.0, 'wood': 5.2, 'furniture': 0.1111111111111111}
+7 agent 9 {'food': 10.0, 'wood': 5.2, 'furniture': 0.1111111111111111}
+7 agent 9 built 4 food {'food': 14.0, 'wood': 5.2, 'furniture': 0.1111111111111111}
+7 agent 10 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+7 agent 10 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+7 agent 11 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+7 agent 11 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+7 agent 12 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+7 agent 12 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+7 agent 13 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+7 agent 13 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+7 agent 14 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+7 agent 14 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+7 agent 15 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+7 agent 15 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+7 agent 16 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+7 agent 16 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+7 agent 17 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+7 agent 17 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+7 agent 18 {'food': 9.0, 'wood': 2, 'furniture': 0.0}
+7 agent 18 built 0 furniture {'food': 9.0, 'wood': 2, 'furniture': 0.0}
+7 agent 19 {'food': 9.0, 'wood': 2, 'furniture': 0.0}
+7 agent 19 built 0 furniture {'food': 9.0, 'wood': 2, 'furniture': 0.0}
+7 trading  food  asks:  140.0  bids:  10.0
+7 trading  food  id: 0 ask:  14.0  handout:  1.0
+7 trading  food  id: 1 ask:  14.0  handout:  1.0
+7 trading  food  id: 2 ask:  14.0  handout:  1.0
+7 trading  food  id: 3 ask:  14.0  handout:  1.0
+7 trading  food  id: 4 ask:  14.0  handout:  1.0
+7 trading  food  id: 5 ask:  14.0  handout:  1.0
+7 trading  food  id: 6 ask:  14.0  handout:  1.0
+7 trading  food  id: 7 ask:  14.0  handout:  1.0
+7 trading  food  id: 8 ask:  14.0  handout:  1.0
+7 trading  food  id: 9 ask:  14.0  handout:  1.0
+7 trading  food  id: 10 bid:  1.0  received:  1.0
+7 trading  food  id: 11 bid:  1.0  received:  1.0
+7 trading  food  id: 12 bid:  1.0  received:  1.0
+7 trading  food  id: 13 bid:  1.0  received:  1.0
+7 trading  food  id: 14 bid:  1.0  received:  1.0
+7 trading  food  id: 15 bid:  1.0  received:  1.0
+7 trading  food  id: 16 bid:  1.0  received:  1.0
+7 trading  food  id: 17 bid:  1.0  received:  1.0
+7 trading  food  id: 18 bid:  1.0  received:  1.0
+7 trading  food  id: 19 bid:  1.0  received:  1.0
+7  trades:  food  traded:  10.0
+7 trading  wood  asks:  16.0  bids:  47.99999999999999
+7 trading  wood  id: 10 ask:  2.0  handout:  2.0
+7 trading  wood  id: 11 ask:  2.0  handout:  2.0
+7 trading  wood  id: 12 ask:  2.0  handout:  2.0
+7 trading  wood  id: 13 ask:  2.0  handout:  2.0
+7 trading  wood  id: 14 ask:  2.0  handout:  2.0
+7 trading  wood  id: 15 ask:  2.0  handout:  2.0
+7 trading  wood  id: 16 ask:  2.0  handout:  2.0
+7 trading  wood  id: 17 ask:  2.0  handout:  2.0
+7 trading  wood  id: 0 bid:  4.8  received:  1.6
+7 trading  wood  id: 1 bid:  4.8  received:  1.6
+7 trading  wood  id: 2 bid:  4.8  received:  1.6
+7 trading  wood  id: 3 bid:  4.8  received:  1.6
+7 trading  wood  id: 4 bid:  4.8  received:  1.6
+7 trading  wood  id: 5 bid:  4.8  received:  1.6
+7 trading  wood  id: 6 bid:  4.8  received:  1.6
+7 trading  wood  id: 7 bid:  4.8  received:  1.6
+7 trading  wood  id: 8 bid:  4.8  received:  1.6
+7 trading  wood  id: 9 bid:  4.8  received:  1.6
+7  trades:  wood  traded:  16.0
+7 trading  furniture  asks:  0  bids:  177.99999999999997
+living
+F,F,F,F,F,F,F,F,F,F,W,W,W,W,W,W,W,W,C,C,
+12.0,12.0,12.0,12.0,12.0,12.0,12.0,12.0,12.0,12.0,9.0,9.0,9.0,9.0,9.0,9.0,9.0,9.0,9.0,9.0,
+5.8,5.8,5.8,5.8,5.8,5.8,5.8,5.8,5.8,5.8,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2,2,
+0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.0,0.0,
+8 agent 0 {'food': 12.0, 'wood': 5.800000000000001, 'furniture': 0.1111111111111111}
+8 agent 0 built 4 food {'food': 16.0, 'wood': 5.800000000000001, 'furniture': 0.1111111111111111}
+8 agent 1 {'food': 12.0, 'wood': 5.800000000000001, 'furniture': 0.1111111111111111}
+8 agent 1 built 4 food {'food': 16.0, 'wood': 5.800000000000001, 'furniture': 0.1111111111111111}
+8 agent 2 {'food': 12.0, 'wood': 5.800000000000001, 'furniture': 0.1111111111111111}
+8 agent 2 built 4 food {'food': 16.0, 'wood': 5.800000000000001, 'furniture': 0.1111111111111111}
+8 agent 3 {'food': 12.0, 'wood': 5.800000000000001, 'furniture': 0.1111111111111111}
+8 agent 3 built 4 food {'food': 16.0, 'wood': 5.800000000000001, 'furniture': 0.1111111111111111}
+8 agent 4 {'food': 12.0, 'wood': 5.800000000000001, 'furniture': 0.1111111111111111}
+8 agent 4 built 4 food {'food': 16.0, 'wood': 5.800000000000001, 'furniture': 0.1111111111111111}
+8 agent 5 {'food': 12.0, 'wood': 5.800000000000001, 'furniture': 0.1111111111111111}
+8 agent 5 built 4 food {'food': 16.0, 'wood': 5.800000000000001, 'furniture': 0.1111111111111111}
+8 agent 6 {'food': 12.0, 'wood': 5.800000000000001, 'furniture': 0.1111111111111111}
+8 agent 6 built 4 food {'food': 16.0, 'wood': 5.800000000000001, 'furniture': 0.1111111111111111}
+8 agent 7 {'food': 12.0, 'wood': 5.800000000000001, 'furniture': 0.1111111111111111}
+8 agent 7 built 4 food {'food': 16.0, 'wood': 5.800000000000001, 'furniture': 0.1111111111111111}
+8 agent 8 {'food': 12.0, 'wood': 5.800000000000001, 'furniture': 0.1111111111111111}
+8 agent 8 built 4 food {'food': 16.0, 'wood': 5.800000000000001, 'furniture': 0.1111111111111111}
+8 agent 9 {'food': 12.0, 'wood': 5.800000000000001, 'furniture': 0.1111111111111111}
+8 agent 9 built 4 food {'food': 16.0, 'wood': 5.800000000000001, 'furniture': 0.1111111111111111}
+8 agent 10 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+8 agent 10 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+8 agent 11 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+8 agent 11 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+8 agent 12 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+8 agent 12 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+8 agent 13 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+8 agent 13 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+8 agent 14 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+8 agent 14 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+8 agent 15 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+8 agent 15 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+8 agent 16 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+8 agent 16 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+8 agent 17 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+8 agent 17 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+8 agent 18 {'food': 9.0, 'wood': 2, 'furniture': 0.0}
+8 agent 18 built 0 furniture {'food': 9.0, 'wood': 2, 'furniture': 0.0}
+8 agent 19 {'food': 9.0, 'wood': 2, 'furniture': 0.0}
+8 agent 19 built 0 furniture {'food': 9.0, 'wood': 2, 'furniture': 0.0}
+8 trading  food  asks:  160.0  bids:  10.0
+8 trading  food  id: 0 ask:  16.0  handout:  1.0
+8 trading  food  id: 1 ask:  16.0  handout:  1.0
+8 trading  food  id: 2 ask:  16.0  handout:  1.0
+8 trading  food  id: 3 ask:  16.0  handout:  1.0
+8 trading  food  id: 4 ask:  16.0  handout:  1.0
+8 trading  food  id: 5 ask:  16.0  handout:  1.0
+8 trading  food  id: 6 ask:  16.0  handout:  1.0
+8 trading  food  id: 7 ask:  16.0  handout:  1.0
+8 trading  food  id: 8 ask:  16.0  handout:  1.0
+8 trading  food  id: 9 ask:  16.0  handout:  1.0
+8 trading  food  id: 10 bid:  1.0  received:  1.0
+8 trading  food  id: 11 bid:  1.0  received:  1.0
+8 trading  food  id: 12 bid:  1.0  received:  1.0
+8 trading  food  id: 13 bid:  1.0  received:  1.0
+8 trading  food  id: 14 bid:  1.0  received:  1.0
+8 trading  food  id: 15 bid:  1.0  received:  1.0
+8 trading  food  id: 16 bid:  1.0  received:  1.0
+8 trading  food  id: 17 bid:  1.0  received:  1.0
+8 trading  food  id: 18 bid:  1.0  received:  1.0
+8 trading  food  id: 19 bid:  1.0  received:  1.0
+8  trades:  food  traded:  10.0
+8 trading  wood  asks:  16.0  bids:  42.0
+8 trading  wood  id: 10 ask:  2.0  handout:  2.0
+8 trading  wood  id: 11 ask:  2.0  handout:  2.0
+8 trading  wood  id: 12 ask:  2.0  handout:  2.0
+8 trading  wood  id: 13 ask:  2.0  handout:  2.0
+8 trading  wood  id: 14 ask:  2.0  handout:  2.0
+8 trading  wood  id: 15 ask:  2.0  handout:  2.0
+8 trading  wood  id: 16 ask:  2.0  handout:  2.0
+8 trading  wood  id: 17 ask:  2.0  handout:  2.0
+8 trading  wood  id: 0 bid:  4.199999999999999  received:  1.5999999999999996
+8 trading  wood  id: 1 bid:  4.199999999999999  received:  1.5999999999999996
+8 trading  wood  id: 2 bid:  4.199999999999999  received:  1.5999999999999996
+8 trading  wood  id: 3 bid:  4.199999999999999  received:  1.5999999999999996
+8 trading  wood  id: 4 bid:  4.199999999999999  received:  1.5999999999999996
+8 trading  wood  id: 5 bid:  4.199999999999999  received:  1.5999999999999996
+8 trading  wood  id: 6 bid:  4.199999999999999  received:  1.5999999999999996
+8 trading  wood  id: 7 bid:  4.199999999999999  received:  1.5999999999999996
+8 trading  wood  id: 8 bid:  4.199999999999999  received:  1.5999999999999996
+8 trading  wood  id: 9 bid:  4.199999999999999  received:  1.5999999999999996
+8  trades:  wood  traded:  16.0
+8 trading  furniture  asks:  0  bids:  177.99999999999997
+living
+F,F,F,F,F,F,F,F,F,F,W,W,W,W,W,W,W,W,C,C,
+14.0,14.0,14.0,14.0,14.0,14.0,14.0,14.0,14.0,14.0,9.0,9.0,9.0,9.0,9.0,9.0,9.0,9.0,9.0,9.0,
+6.4,6.4,6.4,6.4,6.4,6.4,6.4,6.4,6.4,6.4,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2,2,
+0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.0,0.0,
+9 agent 0 {'food': 14.0, 'wood': 6.4, 'furniture': 0.1111111111111111}
+9 agent 0 built 4 food {'food': 18.0, 'wood': 6.4, 'furniture': 0.1111111111111111}
+9 agent 1 {'food': 14.0, 'wood': 6.4, 'furniture': 0.1111111111111111}
+9 agent 1 built 4 food {'food': 18.0, 'wood': 6.4, 'furniture': 0.1111111111111111}
+9 agent 2 {'food': 14.0, 'wood': 6.4, 'furniture': 0.1111111111111111}
+9 agent 2 built 4 food {'food': 18.0, 'wood': 6.4, 'furniture': 0.1111111111111111}
+9 agent 3 {'food': 14.0, 'wood': 6.4, 'furniture': 0.1111111111111111}
+9 agent 3 built 4 food {'food': 18.0, 'wood': 6.4, 'furniture': 0.1111111111111111}
+9 agent 4 {'food': 14.0, 'wood': 6.4, 'furniture': 0.1111111111111111}
+9 agent 4 built 4 food {'food': 18.0, 'wood': 6.4, 'furniture': 0.1111111111111111}
+9 agent 5 {'food': 14.0, 'wood': 6.4, 'furniture': 0.1111111111111111}
+9 agent 5 built 4 food {'food': 18.0, 'wood': 6.4, 'furniture': 0.1111111111111111}
+9 agent 6 {'food': 14.0, 'wood': 6.4, 'furniture': 0.1111111111111111}
+9 agent 6 built 4 food {'food': 18.0, 'wood': 6.4, 'furniture': 0.1111111111111111}
+9 agent 7 {'food': 14.0, 'wood': 6.4, 'furniture': 0.1111111111111111}
+9 agent 7 built 4 food {'food': 18.0, 'wood': 6.4, 'furniture': 0.1111111111111111}
+9 agent 8 {'food': 14.0, 'wood': 6.4, 'furniture': 0.1111111111111111}
+9 agent 8 built 4 food {'food': 18.0, 'wood': 6.4, 'furniture': 0.1111111111111111}
+9 agent 9 {'food': 14.0, 'wood': 6.4, 'furniture': 0.1111111111111111}
+9 agent 9 built 4 food {'food': 18.0, 'wood': 6.4, 'furniture': 0.1111111111111111}
+9 agent 10 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+9 agent 10 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+9 agent 11 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+9 agent 11 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+9 agent 12 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+9 agent 12 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+9 agent 13 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+9 agent 13 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+9 agent 14 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+9 agent 14 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+9 agent 15 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+9 agent 15 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+9 agent 16 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+9 agent 16 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+9 agent 17 {'food': 9.0, 'wood': 0.0, 'furniture': 0.1111111111111111}
+9 agent 17 built 2 wood {'food': 9.0, 'wood': 2.0, 'furniture': 0.1111111111111111}
+9 agent 18 {'food': 9.0, 'wood': 2, 'furniture': 0.0}
+9 agent 18 built 0 furniture {'food': 9.0, 'wood': 2, 'furniture': 0.0}
+9 agent 19 {'food': 9.0, 'wood': 2, 'furniture': 0.0}
+9 agent 19 built 0 furniture {'food': 9.0, 'wood': 2, 'furniture': 0.0}
+9 trading  food  asks:  180.0  bids:  10.0
+9 trading  food  id: 0 ask:  18.0  handout:  1.0
+9 trading  food  id: 1 ask:  18.0  handout:  1.0
+9 trading  food  id: 2 ask:  18.0  handout:  1.0
+9 trading  food  id: 3 ask:  18.0  handout:  1.0
+9 trading  food  id: 4 ask:  18.0  handout:  1.0
+9 trading  food  id: 5 ask:  18.0  handout:  1.0
+9 trading  food  id: 6 ask:  18.0  handout:  1.0
+9 trading  food  id: 7 ask:  18.0  handout:  1.0
+9 trading  food  id: 8 ask:  18.0  handout:  1.0
+9 trading  food  id: 9 ask:  18.0  handout:  1.0
+9 trading  food  id: 10 bid:  1.0  received:  1.0
+9 trading  food  id: 11 bid:  1.0  received:  1.0
+9 trading  food  id: 12 bid:  1.0  received:  1.0
+9 trading  food  id: 13 bid:  1.0  received:  1.0
+9 trading  food  id: 14 bid:  1.0  received:  1.0
+9 trading  food  id: 15 bid:  1.0  received:  1.0
+9 trading  food  id: 16 bid:  1.0  received:  1.0
+9 trading  food  id: 17 bid:  1.0  received:  1.0
+9 trading  food  id: 18 bid:  1.0  received:  1.0
+9 trading  food  id: 19 bid:  1.0  received:  1.0
+9  trades:  food  traded:  10.0
+9 trading  wood  asks:  16.0  bids:  36.00000000000001
+9 trading  wood  id: 10 ask:  2.0  handout:  2.0
+9 trading  wood  id: 11 ask:  2.0  handout:  2.0
+9 trading  wood  id: 12 ask:  2.0  handout:  2.0
+9 trading  wood  id: 13 ask:  2.0  handout:  2.0
+9 trading  wood  id: 14 ask:  2.0  handout:  2.0
+9 trading  wood  id: 15 ask:  2.0  handout:  2.0
+9 trading  wood  id: 16 ask:  2.0  handout:  2.0
+9 trading  wood  id: 17 ask:  2.0  handout:  2.0
+9 trading  wood  id: 0 bid:  3.5999999999999996  received:  1.5999999999999994
+9 trading  wood  id: 1 bid:  3.5999999999999996  received:  1.5999999999999994
+9 trading  wood  id: 2 bid:  3.5999999999999996  received:  1.5999999999999994
+9 trading  wood  id: 3 bid:  3.5999999999999996  received:  1.5999999999999994
+9 trading  wood  id: 4 bid:  3.5999999999999996  received:  1.5999999999999994
+9 trading  wood  id: 5 bid:  3.5999999999999996  received:  1.5999999999999994
+9 trading  wood  id: 6 bid:  3.5999999999999996  received:  1.5999999999999994
+9 trading  wood  id: 7 bid:  3.5999999999999996  received:  1.5999999999999994
+9 trading  wood  id: 8 bid:  3.5999999999999996  received:  1.5999999999999994
+9 trading  wood  id: 9 bid:  3.5999999999999996  received:  1.5999999999999994
+9  trades:  wood  traded:  16.0
+9 trading  furniture  asks:  0  bids:  177.99999999999997
+living
