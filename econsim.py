@@ -6,9 +6,10 @@ import bisect
 
 agentid = 0
 class Agent:
-    def __init__(self):
+    def __init__(self, t):
         global agentid
         self.id = agentid
+        self.birthRound = t
         agentid += 1
         self.bid = 0
         self.ask = 0
@@ -96,10 +97,12 @@ def Produce(t, agents):
                 agent.inv[com] -= recipe['numInput']
 
         #print("agent: ", agent)
-        agent.inv[output] += numOutput
+        age = t - agent.birthRound if output == 'food' else 0
+        agent.inv[output] += numOutput + age
         print(t, agent.name(), 'built',numOutput, output, agent.inv)
         i+=1
 
+mostDemand = 'none'
 def Trade(t, agents):
     #what if all trade are moneyless and communistic? take all food and redistribute
         #sum all demands, subtract from askers proportional to their inventory
@@ -107,6 +110,8 @@ def Trade(t, agents):
 
     #take all wood and redistribute?
     #take all furnitures and redistribute?
+    global mostDemand
+    maxExcessDemand = 0
     for good, _ in recipes.items():
         print(t, 'bids and asks for ', good)
         #get total bids and asks
@@ -132,6 +137,10 @@ def Trade(t, agents):
 
         #take goods from askers
         totalTrades = min(totalAsks, totalBids)
+        excessDemand = totalBids - totalTrades
+        if (maxExcessDemand < excessDemand):
+            maxExcessDemand = excessDemand
+            mostDemand = good
         print(t, "trading ", good, " asks: ", totalAsks, " bids: ", totalBids)
 
         if totalTrades == 0:
@@ -196,11 +205,12 @@ def Live(t, agents):
         if agent.hungry_steps == 0:
             if agent.lastRepro + birthGap < t and random.random() < p_birth:
                 agent.lastRepro = t
-                new_agent = Agent()
+                new_agent = Agent(t)
                 giveFood = min(2, agent.inv['food'])
                 agent.inv['food'] -= giveFood
                 #find the smallest number of professions and use that one, since no one makes money
-                output = FindSmallestTrade(agents)
+                #output = FindSmallestTrade(agents)
+                output = mostDemand
                 print(t, "new agent of ", output)
                 numInput = 0
                 InitAgent(new_agent, output, numInput, giveFood)
@@ -237,7 +247,7 @@ def PrintStats(t, agents):
     print(msg)
 
 def main():
-    agents = [Agent() for _ in range(num_agents)]
+    agents = [Agent(0) for _ in range(num_agents)]
     InitAgents(agents)
     for t in range(time_steps):
         PrintStats(t, agents)
