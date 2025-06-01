@@ -35,7 +35,7 @@ profession = {'food':'F', 'wood':'W', 'furniture':'C', 'none':'-'}
 # Parameters
 time_steps = 500
 p_birth = .01
-birthGap = 5
+birthGap = 7
 starve_limit = 6
 
 food_pop = []
@@ -82,6 +82,8 @@ def InitAgent(agent, output, numInput, numFood):
 
 def Produce(t, agents):
     i=0
+    numFarmers = sum(1 if agent.output == 'food' else 0 for agent in agents)
+    numLoggers = sum(1 if agent.output == 'wood' else 0 for agent in agents)
     for agent in agents:
         output = agent.output
         print(t, agent.name(), agent.inv)
@@ -98,7 +100,12 @@ def Produce(t, agents):
 
         #print("agent: ", agent)
         age = t - agent.birthRound if output == 'food' else 0
-        agent.inv[output] += numOutput + age
+        numOutput += math.log2(age+1)
+        if output == 'food':
+            numOutput = min(numOutput, 200 / numFarmers)
+        if output == 'wood':
+            numOutput = min(numOutput, 100 / numLoggers)
+        agent.inv[output] += numOutput
         print(t, agent.name(), 'built',numOutput, output, agent.inv)
         i+=1
 
@@ -138,7 +145,7 @@ def Trade(t, agents):
         #take goods from askers
         totalTrades = min(totalAsks, totalBids)
         excessDemand = totalBids - totalTrades
-        if (maxExcessDemand < excessDemand):
+        if (maxExcessDemand < excessDemand): #and limit not reached
             maxExcessDemand = excessDemand
             mostDemand = good
         print(t, "trading ", good, " asks: ", totalAsks, " bids: ", totalBids)
@@ -194,7 +201,7 @@ def Live(t, agents):
         if agent.output != 'food' and agent.inv['food'] > 0:
             food = agent.inv['food']
             bins = [5,10,15]
-            foodRate = [1, 4, 6]
+            foodRate = [1, 2, 5]
             #eatFood = 1 if (agent.inv['food'] < 10) else 3.5#1.25
             eatFood = foodRate[bisect.bisect(bins,food)]
             agent.inv['food'] -= eatFood
@@ -267,7 +274,7 @@ def main():
     # Plot results
     figure, axis = plt.subplots(3, 1)
     figure.set_figwidth(10)
-    figure.set_figheight(10)
+    figure.set_figheight(14)
     axis[1].plot(foodInv, label='FoodInv', color='green')
     axis[1].plot(woodInv, label='WoodInv', color='red')
     axis[1].plot(carpInv, label='carpInv', color='blue')
@@ -281,9 +288,10 @@ def main():
     axis[2].set_xlabel("Time Step")
     axis[2].set_ylabel("Population")
     axis[2].set_title("Population vs time")
-    axis[0].plot(wood_pop, food_pop)
-    axis[0].set_xlabel("wood Population (x)")
-    axis[0].set_ylabel("food Population (y)")
+    axis[0].plot(food_pop, wood_pop)
+    axis[0].plot(food_pop, carp_pop)
+    axis[0].set_xlabel("food Population (x)")
+    axis[0].set_ylabel("wood/carpenter Population (y)")
     axis[0].set_title("Phase plot")
     plt.legend()
     plt.grid(True)
