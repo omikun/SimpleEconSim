@@ -28,10 +28,11 @@ inventoryLimit = 10
 num_agents = 20
 recipes = {}
 goods = ['food', 'wood', 'furniture']
-recipes['food'] = {'commodity': 'food', 'production': 4, 'price': 1, 'numInput': 0}
-recipes['wood'] = {'commodity': 'wood', 'production': 2, 'price': 2, 'numInput': 0}
-recipes['furniture'] = {'commodity': 'furniture', 'production': 1, 'input': 'wood', 'numInput': 8, 'price': 20}
+recipes['food'] = {'commodity': 'food', 'production': 4, 'price': 1, 'numInput': 0, 'maxtotalprod': 100}
+recipes['wood'] = {'commodity': 'wood', 'production': 2, 'price': 2, 'numInput': 0, 'maxtotalprod': 30}
+recipes['furniture'] = {'commodity': 'furniture', 'production': 1, 'input': 'wood', 'numInput': 8, 'price': 20, 'maxtotalprod':400}
 profession = {'food':'F', 'wood':'W', 'furniture':'C', 'none':'-'}
+totalProd = dict()
 # Parameters
 time_steps = 500
 p_birth = .01
@@ -84,9 +85,10 @@ def Produce(t, agents):
     i=0
     numFarmers = sum(1 if agent.output == 'food' else 0 for agent in agents)
     numLoggers = sum(1 if agent.output == 'wood' else 0 for agent in agents)
+    totalProd.clear()
     for agent in agents:
         output = agent.output
-        print(t, agent.name(), agent.inv)
+        print(t, agent.name(), agent.inv, 'hungry_steps', agent.hungry_steps)
         recipe = recipes[output]
         #produce
         numOutput = 0
@@ -102,10 +104,12 @@ def Produce(t, agents):
         age = t - agent.birthRound if output == 'food' else 0
         numOutput += math.log2(age+1)
         if output == 'food':
-            numOutput = min(numOutput, 200 / numFarmers)
+            numOutput = min(numOutput, recipe['maxtotalprod'] / numFarmers)
         if output == 'wood':
-            numOutput = min(numOutput, 100 / numLoggers)
+            numOutput = min(numOutput, recipe['maxtotalprod'] / numLoggers)
         agent.inv[output] += numOutput
+        totalProd.setdefault(output, 0)
+        totalProd[output] += numOutput
         print(t, agent.name(), 'built',numOutput, output, agent.inv)
         i+=1
 
@@ -145,7 +149,7 @@ def Trade(t, agents):
         #take goods from askers
         totalTrades = min(totalAsks, totalBids)
         excessDemand = totalBids - totalTrades
-        if (maxExcessDemand < excessDemand): #and limit not reached
+        if (maxExcessDemand < excessDemand):# and totalProd[good] < recipes[good]['maxtotalprod']): #and limit not reached
             maxExcessDemand = excessDemand
             mostDemand = good
         print(t, "trading ", good, " asks: ", totalAsks, " bids: ", totalBids)
@@ -198,14 +202,14 @@ def Live(t, agents):
             numFurn += 1
 
         #life cycle
-        if agent.output != 'food' and agent.inv['food'] > 0:
+        if agent.output != 'food' and agent.inv['food'] >= 1:
             food = agent.inv['food']
             bins = [5,10,15]
             foodRate = [1, 2, 5]
             #eatFood = 1 if (agent.inv['food'] < 10) else 3.5#1.25
             eatFood = foodRate[bisect.bisect(bins,food)]
             agent.inv['food'] -= eatFood
-            numfood += 1
+            numfood += eatFood
             agent.hungry_steps = 0
         elif agent.output != 'food':
             agent.hungry_steps += 1
@@ -226,6 +230,7 @@ def Live(t, agents):
             new_agents.append(agent)
         else:
             print(agent.name(), 'has starved to death')
+ #"hungry_steps:",agent.hungry_steps)
 
     print("consumed ", numfood, "food", numwood, "wood", numFurn, "furnitures")
     return new_agents
@@ -257,7 +262,7 @@ def main():
     agents = [Agent(0) for _ in range(num_agents)]
     InitAgents(agents)
     for t in range(time_steps):
-        PrintStats(t, agents)
+        #PrintStats(t, agents)
         Produce(t, agents)
         Trade(t, agents)
         agents = Live(t, agents)
