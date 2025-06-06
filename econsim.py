@@ -3,6 +3,8 @@ import math
 import matplotlib.pyplot as plt
 import copy
 import bisect
+#import econsim_trade as trade
+import econsim_trade_unity as trade
 
 agentid = 0
 class Agent:
@@ -24,7 +26,6 @@ class Agent:
 
 # Initial populations
 #agent_template = {'profession': 'none','hungry_steps': 0, 'cash':10, 'inv': {}}
-inventoryLimit = 10
 num_agents = 20
 recipes = {}
 goods = ['food', 'wood', 'furniture']
@@ -34,12 +35,13 @@ recipes['furniture'] = {'commodity': 'furniture', 'production': 1, 'input': 'woo
 profession = {'food':'F', 'wood':'W', 'furniture':'C', 'none':'-'}
 totalProd = dict()
 # Parameters
-time_steps = 500
+time_steps = 1000
 p_birth = .01
 birthGap = 7
-starve_limit = 6
+starve_limit = 12
 
 food_pop = []
+dead_pop = [0]
 wood_pop = []
 carp_pop = []
 foodInv = []
@@ -107,92 +109,25 @@ def Produce(t, agents):
             numOutput = min(numOutput, recipe['maxtotalprod'] / numFarmers)
         if output == 'wood':
             numOutput = min(numOutput, recipe['maxtotalprod'] / numLoggers)
+        numOutput = math.floor(numOutput)
+
         agent.inv[output] += numOutput
         totalProd.setdefault(output, 0)
         totalProd[output] += numOutput
         print(t, agent.name(), 'built',numOutput, output, agent.inv)
         i+=1
 
-mostDemand = 'none'
-def Trade(t, agents):
-    #what if all trade are moneyless and communistic? take all food and redistribute
-        #sum all demands, subtract from askers proportional to their inventory
-        #if asks < bids, give to bidders with least units
-
-    #take all wood and redistribute?
-    #take all furnitures and redistribute?
-    global mostDemand
-    maxExcessDemand = 0
-    for good, _ in recipes.items():
-        print(t, 'bids and asks for ', good)
-        #get total bids and asks
-        totalBids = 0
-        totalAsks = 0
-        i = 0
-        for agent in agents:
-            agent.bid = 0
-            agent.ask = 0
-            recipe = recipes[agent.output]
-            divisor = 1 if (good == 'food') else 10
-            if GetInputCom(agent) == good:
-                agent.bid = max(0, recipe['numInput'] - agent.inv.get(good, 0))
-            elif agent.output != good:
-                agent.bid = max(0, inventoryLimit - agent.inv.get(good,0)) / divisor
-            print(t, agent.name(), 'bid', agent.bid, 'input', GetInputCom(agent), 'recipe for', recipe['commodity'], 'num input', recipe['numInput'], agent.inv[good])
-            totalBids += agent.bid
-
-            if agent.output == good:
-                agent.ask = max(0, agent.inv.get(good, 0))
-                totalAsks += agent.ask
-            i += 1
-
-        #take goods from askers
-        totalTrades = min(totalAsks, totalBids)
-        excessDemand = totalBids - totalTrades
-        if (maxExcessDemand < excessDemand):# and totalProd[good] < recipes[good]['maxtotalprod']): #and limit not reached
-            maxExcessDemand = excessDemand
-            mostDemand = good
-        print(t, "trading ", good, " asks: ", totalAsks, " bids: ", totalBids)
-
-        if totalTrades == 0:
-            continue
-
-        totalHandout = 0
-        i = 0
-        for agent in agents:
-            if agent.output == good:
-                ask = agent.ask
-                handout = ask / totalAsks * totalTrades
-                agent.inv[good] -= handout
-                totalHandout += handout
-
-                print(t, 'trading ', good, ' id:', str(i), 'ask: ', ask, ' handout: ', handout)
-            i+= 1
-        assert math.isclose(totalHandout, totalTrades), 'handout-' + str(totalHandout) + ' not same as trades-' + str(totalTrades)
-
-        #give goods to bidders
-        totalReceived = 0
-        i = 0
-        for agent in agents:
-            bid = agent.bid
-            received = bid / totalBids * totalTrades
-            if received > 0:
-                print(t, 'trading ', good, ' id:', str(i), 'bid: ', bid, ' received: ', received)
-                agent.inv[good] += received
-                totalReceived += received
-            i += 1
-        assert math.isclose(totalHandout, totalReceived), 'handout-' + str(totalHandout) + ' not same as received-' + str(totalReceived)
-
-        print(t, " trades: ", good, " traded: ", totalHandout)
 
 
 def Live(t, agents):
+    global dead_pop
     new_agents = []
     #eat food/starve
     print("living")
     numfood = 0
     numwood = 0
     numFurn = 0
+    numdead = dead_pop[-1]
     for agent in agents:
         if agent.inv.get('wood', 0) > 2 and GetInputCom(agent) != 'wood' and GetOutputCom(agent) != 'wood':
             agent.inv['wood'] -= 1
@@ -202,7 +137,7 @@ def Live(t, agents):
             numFurn += 1
 
         #life cycle
-        if agent.output != 'food' and agent.inv['food'] >= 1:
+        if agent.inv['food'] >= 1:
             food = agent.inv['food']
             bins = [5,10,15]
             foodRate = [1, 2, 5]
@@ -221,7 +156,9 @@ def Live(t, agents):
                 agent.inv['food'] -= giveFood
                 #find the smallest number of professions and use that one, since no one makes money
                 #output = FindSmallestTrade(agents)
-                output = mostDemand
+                output = trade.mostDemand
+                if NumAgents(agents, output) > 40:
+                    output = 'wood'
                 print(t, "new agent of ", output)
                 numInput = 0
                 InitAgent(new_agent, output, numInput, giveFood)
@@ -229,19 +166,16 @@ def Live(t, agents):
         if agent.hungry_steps < starve_limit:
             new_agents.append(agent)
         else:
-            print(agent.name(), 'has starved to death')
+            print(t, agent.name(), 'has starved to death')
+            numdead += 1
  #"hungry_steps:",agent.hungry_steps)
+    dead_pop.append(numdead)
 
     print("consumed ", numfood, "food", numwood, "wood", numFurn, "furnitures")
     return new_agents
 
-
-def FindSmallestTrade(agents):
-    counts = dict()
-    for agent in agents:
-        counts.setdefault(agent.output, 0)
-        counts[agent.output] += 1
-    return min(counts, key=counts.get)
+def NumAgents(agents, good):
+    return sum(1 if agent.output == good else 0 for agent in agents)
 
 def PrintStats(t, agents):
     msg = ""
@@ -264,7 +198,7 @@ def main():
     for t in range(time_steps):
         #PrintStats(t, agents)
         Produce(t, agents)
-        Trade(t, agents)
+        trade.Trade(t, agents, recipes)
         agents = Live(t, agents)
 
 
@@ -290,6 +224,7 @@ def main():
     axis[2].plot(food_pop, label='Food', color='green')
     axis[2].plot(wood_pop, label='Wood', color='red')
     axis[2].plot(carp_pop, label='carp', color='blue')
+    axis[2].plot(dead_pop, label='dead', color='black')
     axis[2].set_xlabel("Time Step")
     axis[2].set_ylabel("Population")
     axis[2].set_title("Population vs time")
