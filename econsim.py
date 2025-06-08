@@ -23,19 +23,22 @@ class Agent:
 
     def name(self):
         return 'agent'+str(self.id)
+    def age(self, t):
+        return t - self.birthRound
 
 # Initial populations
 #agent_template = {'profession': 'none','hungry_steps': 0, 'cash':10, 'inv': {}}
 num_agents = 20
 recipes = {}
 goods = ['food', 'wood', 'furniture']
+overProductionDerate = .5
 recipes['food'] = {'commodity': 'food', 'production': 4, 'price': 1, 'numInput': 0, 'maxtotalprod': 100}
 recipes['wood'] = {'commodity': 'wood', 'production': 2, 'price': 2, 'numInput': 0, 'maxtotalprod': 30}
 recipes['furniture'] = {'commodity': 'furniture', 'production': 1, 'input': 'wood', 'numInput': 8, 'price': 20, 'maxtotalprod':400}
 profession = {'food':'F', 'wood':'W', 'furniture':'C', 'none':'-'}
 totalProd = dict()
 # Parameters
-time_steps = 1000
+time_steps = 400
 p_birth = .01
 birthGap = 7
 starve_limit = 12
@@ -105,8 +108,11 @@ def Produce(t, agents):
         #print("agent: ", agent)
         age = t - agent.birthRound if output == 'food' else 0
         numOutput += math.log2(age+1)
+        #derate factor based on overproduction
         if output == 'food':
-            numOutput = min(numOutput, recipe['maxtotalprod'] / numFarmers)
+            productionSlice = recipe['maxtotalprod'] / numFarmers
+            if (numOutput > productionSlice):
+                    numOutput = numOutput * overProductionDerate
         if output == 'wood':
             numOutput = min(numOutput, recipe['maxtotalprod'] / numLoggers)
         numOutput = math.floor(numOutput)
@@ -164,7 +170,12 @@ def Live(t, agents):
                 InitAgent(new_agent, output, numInput, giveFood)
                 new_agents.append(new_agent)
         if agent.hungry_steps < starve_limit:
-            new_agents.append(agent)
+            #die of old age
+            if random.random() > pow(agent.age(t) / 1000, 2):
+                new_agents.append(agent)
+            else:
+                print(t, agent.name(), 'has died due to age')
+                numdead += 1
         else:
             print(t, agent.name(), 'has starved to death')
             numdead += 1
