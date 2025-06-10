@@ -5,6 +5,7 @@ import copy
 import bisect
 #import econsim_trade as trade
 import econsim_trade_unity as trade
+from collections import defaultdict
 
 agentid = 0
 class Agent:
@@ -32,13 +33,13 @@ num_agents = 20
 recipes = {}
 goods = ['food', 'wood', 'furniture']
 overProductionDerate = .5
-recipes['food'] = {'commodity': 'food', 'production': 4, 'price': 1, 'numInput': 0, 'maxtotalprod': 100}
+recipes['food'] = {'commodity': 'food', 'production': 4, 'price': 1, 'numInput': 0, 'maxtotalprod': 200}
 recipes['wood'] = {'commodity': 'wood', 'production': 2, 'price': 2, 'numInput': 0, 'maxtotalprod': 30}
 recipes['furniture'] = {'commodity': 'furniture', 'production': 1, 'input': 'wood', 'numInput': 8, 'price': 20, 'maxtotalprod':400}
 profession = {'food':'F', 'wood':'W', 'furniture':'C', 'none':'-'}
-totalProd = dict()
+totalProd = defaultdict(int)
 # Parameters
-time_steps = 400
+time_steps = 2000
 p_birth = .01
 birthGap = 7
 starve_limit = 12
@@ -88,8 +89,11 @@ def InitAgent(agent, output, numInput, numFood):
 
 def Produce(t, agents):
     i=0
-    numFarmers = sum(1 if agent.output == 'food' else 0 for agent in agents)
-    numLoggers = sum(1 if agent.output == 'wood' else 0 for agent in agents)
+    global goods
+    numAgentsPerGood = dict()
+    for good in goods:
+        numAgentsPerGood[good] = NumAgents(agents, good)
+
     totalProd.clear()
     for agent in agents:
         output = agent.output
@@ -107,21 +111,19 @@ def Produce(t, agents):
 
         #print("agent: ", agent)
         age = t - agent.birthRound if output == 'food' else 0
-        numOutput += math.log2(age+1)
+        numOutput += math.log10(age+1)
         #derate factor based on overproduction
-        if output == 'food':
-            productionSlice = recipe['maxtotalprod'] / numFarmers
-            if (numOutput > productionSlice):
-                    numOutput = numOutput * overProductionDerate
-        if output == 'wood':
-            numOutput = min(numOutput, recipe['maxtotalprod'] / numLoggers)
-        numOutput = math.floor(numOutput)
+        if output == 'food' or output == 'wood':
+            numOutput = min(numOutput, recipe['maxtotalprod'] / numAgentsPerGood[output])
+        #numOutput = math.floor(numOutput)
 
         agent.inv[output] += numOutput
-        totalProd.setdefault(output, 0)
         totalProd[output] += numOutput
         print(t, agent.name(), 'built',numOutput, output, agent.inv)
         i+=1
+
+    for good, produced in totalProd.items():
+        print(t, numAgentsPerGood[good],'produced', produced, good)
 
 
 
@@ -152,7 +154,7 @@ def Live(t, agents):
             agent.inv['food'] -= eatFood
             numfood += eatFood
             agent.hungry_steps = 0
-        elif agent.output != 'food':
+        else:
             agent.hungry_steps += 1
         if agent.hungry_steps == 0:
             if agent.lastRepro + birthGap < t and random.random() < p_birth:
@@ -163,8 +165,8 @@ def Live(t, agents):
                 #find the smallest number of professions and use that one, since no one makes money
                 #output = FindSmallestTrade(agents)
                 output = trade.mostDemand
-                if NumAgents(agents, output) > 40:
-                    output = 'wood'
+                #if NumAgents(agents, output) > 40:
+                    #output = 'wood'
                 print(t, "new agent of ", output)
                 numInput = 0
                 InitAgent(new_agent, output, numInput, giveFood)
@@ -186,7 +188,7 @@ def Live(t, agents):
     return new_agents
 
 def NumAgents(agents, good):
-    return sum(1 if agent.output == good else 0 for agent in agents)
+    return sum(agent.output == good for agent in agents)
 
 def PrintStats(t, agents):
     msg = ""
@@ -207,6 +209,10 @@ def main():
     agents = [Agent(0) for _ in range(num_agents)]
     InitAgents(agents)
     for t in range(time_steps):
+        if t == 800:
+            recipes['food']['maxtotalprod'] = 50
+        if t == 1300:
+            recipes['food']['maxtotalprod'] = 400
         #PrintStats(t, agents)
         Produce(t, agents)
         trade.Trade(t, agents, recipes)
@@ -224,7 +230,8 @@ def main():
     # Plot results
     figure, axis = plt.subplots(3, 1)
     figure.set_figwidth(10)
-    figure.set_figheight(14)
+    figure.set_figheight(10)
+    plt.subplots_adjust(top=0.95, bottom=0.05, hspace=0.3)
     axis[1].plot(foodInv, label='FoodInv', color='green')
     axis[1].plot(woodInv, label='WoodInv', color='red')
     axis[1].plot(carpInv, label='carpInv', color='blue')
@@ -235,7 +242,7 @@ def main():
     axis[2].plot(food_pop, label='Food', color='green')
     axis[2].plot(wood_pop, label='Wood', color='red')
     axis[2].plot(carp_pop, label='carp', color='blue')
-    axis[2].plot(dead_pop, label='dead', color='black')
+    #axis[2].plot(dead_pop, label='dead', color='black')
     axis[2].set_xlabel("Time Step")
     axis[2].set_ylabel("Population")
     axis[2].set_title("Population vs time")
