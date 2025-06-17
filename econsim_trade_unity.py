@@ -1,6 +1,7 @@
 import math
 
 inventoryLimit = 10
+gov = dict()
 def GetInputCom(agent, recipes):
     recipe = recipes[agent.output]
     inputCom = recipe.get('input', 'none')
@@ -23,13 +24,11 @@ def Trade(t, agents, recipes):
         #get total bids and asks
         totalBids = 0
         totalAsks = 0
-        i = 0
         for agent in agents:
             agent.bid = 0
             agent.ask = 0
             recipe = recipes[agent.output]
             divisor = 1 if (good == 'food') else 10
-            #get bids
             if GetInputCom(agent, recipes) == good:
                 agent.bid = max(0, recipe['numInput'] - agent.inv.get(good, 0))
             elif agent.output != good:
@@ -37,11 +36,12 @@ def Trade(t, agents, recipes):
             print(t, agent.name(), 'bid', agent.bid, 'input', GetInputCom(agent, recipes), 'recipe for', recipe['commodity'], 'num input', recipe['numInput'], agent.inv[good])
             totalBids += agent.bid
 
-            #get asks
             if agent.output == good:
-                agent.ask = max(0, agent.inv.get(good, 0))
+                if good == 'food':
+                    agent.ask = max(0, agent.inv.get(good, 0)-1)
+                else:
+                    agent.ask = max(0, agent.inv.get(good, 0))
                 totalAsks += agent.ask
-            i += 1
 
         #take goods from askers
         totalTrades = min(totalAsks, totalBids)
@@ -55,7 +55,9 @@ def Trade(t, agents, recipes):
             continue
 
         totalHandout = 0
-        i = 0
+        #sort agents by hungry_steps if food in descending order
+        if good == 'food':
+            agents.sort(key=lambda a: a.hungry_steps, reverse=True)
         for agent in agents:
             if agent.output == good:
                 ask = agent.ask
@@ -63,22 +65,27 @@ def Trade(t, agents, recipes):
                 agent.inv[good] -= handout
                 totalHandout += handout
 
-                print(t, 'trading ', good, ' id:', str(i), 'ask: ', ask, ' handout: ', handout)
-            i+= 1
-        assert math.isclose(totalHandout, totalTrades), 'handout-' + str(totalHandout) + ' not same as trades-' + str(totalTrades)
+                print(t, 'trading ', good, agent.name(), 'ask: ', ask, ' handout: ', handout)
+        assert math.isclose(totalHandout, totalTrades), 'handout:' + str(totalHandout) + ' not same as trades:' + str(totalTrades)
 
         #give goods to bidders
         totalReceived = 0
-        i = 0
         for agent in agents:
             bid = agent.bid
             received = bid / totalBids * totalTrades
+            received = max(1, received)
+            if totalReceived + received > totalHandout:
+                break
             if received > 0:
-                print(t, 'trading ', good, ' id:', str(i), 'bid: ', bid, ' received: ', received)
+                print(t, 'trading ', good, agent.name(), 'bid: ', bid, ' received: ', received)
                 agent.inv[good] += received
                 totalReceived += received
-            i += 1
-        assert math.isclose(totalHandout, totalReceived), 'handout-' + str(totalHandout) + ' not same as received-' + str(totalReceived)
+
+        if (totalReceived < totalHandout):
+            gov.setdefault(good, 0)
+            gov[good] += totalTrades - totalHandout
+        else:
+            assert math.isclose(totalHandout, totalReceived), 'handout-' + str(totalHandout) + ' not same as received-' + str(totalReceived)
 
         print(t, " trades: ", good, " traded: ", totalHandout)
 

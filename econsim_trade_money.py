@@ -1,4 +1,5 @@
 import math
+import bisect
 
 inventoryLimit = 10
 def GetInputCom(agent, recipes):
@@ -7,15 +8,24 @@ def GetInputCom(agent, recipes):
     return inputCom
 def GetOutputCom(agent):
     return agent.output
+class Offer:
+    def __init__(self, isBid, agent, price, quantity):
+        self.isBid = isBid
+        self.agent = agent
+        self.price = price
+        self.quantity = quantity
 
+def lerp(a, b, t):
+    return a + (b - a) * t
+        
 mostDemand = 'none'
 def Trade(t, agents, recipes):
-    #what if all trade are moneyless and communistic? take all food and redistribute
-        #sum all demands, subtract from askers proportional to their inventory
-        #if asks < bids, give to bidders with least units
-
-    #take all wood and redistribute?
-    #take all furnitures and redistribute?
+    #supply vs demand curve? but this curve is on the change in price, not the price it self
+    # when demand > supply, price increases by 1-5%
+    # when demand < supply, price stays same
+    # when demand < supply/2, price drops 1-5%
+    # when demand < supply/5, price drops by 5-10%
+    
     global mostDemand
     maxExcessDemand = 0
     for good, _ in recipes.items():
@@ -23,10 +33,9 @@ def Trade(t, agents, recipes):
         #get total bids and asks
         totalBids = 0
         totalAsks = 0
-        i = 0
+        bids = list()
+        asks = list()
         for agent in agents:
-            agent.bid = 0
-            agent.ask = 0
             recipe = recipes[agent.output]
             divisor = 1 if (good == 'food') else 10
             #get bids
@@ -34,6 +43,8 @@ def Trade(t, agents, recipes):
                 agent.bid = max(0, recipe['numInput'] - agent.inv.get(good, 0))
             elif agent.output != good:
                 agent.bid = max(0, inventoryLimit - agent.inv.get(good,0)) / divisor
+            else:
+                agent.bid = 0
             print(t, agent.name(), 'bid', agent.bid, 'input', GetInputCom(agent, recipes), 'recipe for', recipe['commodity'], 'num input', recipe['numInput'], agent.inv[good])
             totalBids += agent.bid
 
@@ -41,7 +52,8 @@ def Trade(t, agents, recipes):
             if agent.output == good:
                 agent.ask = max(0, agent.inv.get(good, 0))
                 totalAsks += agent.ask
-            i += 1
+            else:
+                agent.ask = 0
 
         #take goods from askers
         totalTrades = min(totalAsks, totalBids)
@@ -49,38 +61,59 @@ def Trade(t, agents, recipes):
         if (maxExcessDemand < excessDemand):# and totalProd[good] < recipes[good]['maxtotalprod']): #and limit not reached
             maxExcessDemand = excessDemand
             mostDemand = good
-        print(t, "trading ", good, " asks: ", totalAsks, " bids: ", totalBids)
 
         if totalTrades == 0:
             continue
 
-        totalHandout = 0
-        i = 0
-        for agent in agents:
-            if agent.output == good:
-                ask = agent.ask
-                handout = ask / totalAsks * totalTrades
-                agent.inv[good] -= handout
-                totalHandout += handout
+        demandRatio = totalBids / totalAsks
+        
+        recipe = recipes[good]
+        price = recipe['price']
+        if demandRatio >= 1:
+            price *= lerp(1.01, 1.05, demandRatio - 1)
+        elif demandRatio < .5:
+            price *= lerp(.99, .95, demandRatio * 2)
+        recipe['price'] = price
 
-                print(t, 'trading ', good, ' id:', str(i), 'ask: ', ask, ' handout: ', handout)
-            i+= 1
-        assert math.isclose(totalHandout, totalTrades), 'handout-' + str(totalHandout) + ' not same as trades-' + str(totalTrades)
+        print(t, "trading ", good, " at $", price, "demandRatio:", demandRatio, " asks: ", totalAsks, " bids: ", totalBids)
+        
+        # for agent in agents:
+        #     if agent.output == good:
+        #         ask = agent.ask
+        #         handout = ask / totalAsks * totalTrades
+        #         agent.inv[good] -= handout
 
         #give goods to bidders
-        totalReceived = 0
-        i = 0
-        for agent in agents:
-            bid = agent.bid
-            received = bid / totalBids * totalTrades
-            if received > 0:
-                print(t, 'trading ', good, ' id:', str(i), 'bid: ', bid, ' received: ', received)
-                agent.inv[good] += received
-                totalReceived += received
-            i += 1
-        assert math.isclose(totalHandout, totalReceived), 'handout-' + str(totalHandout) + ' not same as received-' + str(totalReceived)
+        totalBought = 0
+        bidders = sorted(agents, key=lambda a: a.bid, reverse=True) #most demanding agent first
+        totalCashTransfered = 0
+        for agent in bidders:
+            if totalAsks > totalBought:
+                bid = agent.bid
+                remaining = totalAsks - totalBought
+                affordable = int(agent.cash / price)
+                bought = min(bid, min(remaining, affordable))
+                cash = bought * price
+                agent.cash -= cash
+                totalCashTransfered += cash
+                if bought > 0:
+                    print(t, agent.name(), 'bought ', bought, good, ', bid: ', bid)
+                    agent.inv[good] += bought
+                    totalBought += bought
 
-        print(t, " trades: ", good, " traded: ", totalHandout)
+        askers = sorted(agents, key=lambda a: a.ask, reverse=True)
+        totalSold = 0
+        for agent in askers:
+            if totalSold < totalBought and totalCashTransfered > 0:
+                ask = agent.ask
+                remaining = totalBought - totalSold
+                sold = min(ask, totalSold - totalBought)
+                totalSold += sold
+                agent.cash += sold * price
+                if sold > 0:
+                    print(t, agent.name(), 'sold ', sold, good, ', ask: ', ask)
+
+        print(t, "demand:", demandRatio, "price:", price, "trades: ", good, " traded: ", 0)
 
 
 def FindSmallestTrade(agents):

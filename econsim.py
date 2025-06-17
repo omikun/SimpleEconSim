@@ -4,7 +4,8 @@ import matplotlib.pyplot as plt
 import copy
 import bisect
 #import econsim_trade as trade
-import econsim_trade_unity as trade
+#import econsim_trade_unity as trade
+import econsim_trade_money as trade
 from collections import defaultdict
 
 agentid = 0
@@ -18,7 +19,7 @@ class Agent:
         self.ask = 0
         self.output = 'none'
         self.hungry_steps = 0
-        self.cash = 10
+        self.cash = 100
         self.inv = {}
         self.lastRepro = 0
 
@@ -39,7 +40,7 @@ recipes['furniture'] = {'commodity': 'furniture', 'production': 1, 'input': 'woo
 profession = {'food':'F', 'wood':'W', 'furniture':'C', 'none':'-'}
 totalProd = defaultdict(int)
 # Parameters
-time_steps = 2000
+time_steps = 20
 p_birth = .01
 birthGap = 7
 starve_limit = 12
@@ -148,7 +149,7 @@ def Live(t, agents):
         if agent.inv['food'] >= 1:
             food = agent.inv['food']
             bins = [5,10,15]
-            foodRate = [1, 2, 5]
+            foodRate = [1, 2, 4, 5]
             #eatFood = 1 if (agent.inv['food'] < 10) else 3.5#1.25
             eatFood = foodRate[bisect.bisect(bins,food)]
             agent.inv['food'] -= eatFood
@@ -213,6 +214,8 @@ def main():
             recipes['food']['maxtotalprod'] = 50
         if t == 1300:
             recipes['food']['maxtotalprod'] = 400
+        if t == 2300:
+            recipes['food']['maxtotalprod'] = 100
         #PrintStats(t, agents)
         Produce(t, agents)
         trade.Trade(t, agents, recipes)
