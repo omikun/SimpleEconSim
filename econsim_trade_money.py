@@ -28,10 +28,13 @@ def Trade(t, agents, recipes, demands, sold_log):
     
     global mostDemand
     maxExcessDemand = 0
-    goods = ['food', 'wood', 'furniture']
     for agent in agents:
         agent.remainingCash = agent.cash
+
+    goods = ['food', 'wood', 'furniture']
+    num = 4
     for good in goods:
+        num -= 1
     #for good, _ in recipes.items():
         print(t, 'bids and asks for ', good)
         #get total bids and asks
@@ -47,7 +50,7 @@ def Trade(t, agents, recipes, demands, sold_log):
             if GetInputCom(agent, recipes) == good:
                 agent.bid = max(0, recipe['numInput'] - agent.inv.get(good, 0))
             elif agent.output != good and agent.remainingCash > goodPrice:
-                agent.bid = min(1, int(agent.remainingCash / goodPrice))
+                agent.bid = min(num, int(agent.remainingCash / goodPrice))
                 #agent.bid = max(0, inventoryLimit - agent.inv.get(good,0)) / divisor
             else:
                 agent.bid = 0
@@ -94,10 +97,11 @@ def Trade(t, agents, recipes, demands, sold_log):
 
         #give goods to bidders
         totalBought = 0
-        bidders = sorted(agents, key=lambda a: a.bid, reverse=True) #most demanding agent first
+        bidders = sorted(agents, key=lambda a: a.hungry_steps, reverse=True) #most demanding agent first
         totalCashTransfered = 0
         for agent in bidders:
             if totalAsks > totalBought:
+                prevCash = agent.cash
                 bid = agent.bid
                 remaining = totalAsks - totalBought
                 affordable = int(agent.cash / price)
@@ -108,11 +112,11 @@ def Trade(t, agents, recipes, demands, sold_log):
                 totalCashTransfered += cash
                 if bought > 0:
                     #print(t, agent.name(), 'bought ', bought, good, ', bid: ', bid)
-                    print(t, agent.name(), 'has $', cash, 'bought ', bought, good, ', bid: ', bid, 'affordable: ', affordable, 'remaining:', remaining)
+                    print(t, agent.name(), 'had $', prevCash, 'now', agent.cash, 'bought ', bought, good, ', bid: ', bid, 'affordable: ', affordable, 'remaining:', remaining)
                     agent.inv[good] += bought
                     totalBought += bought
                 else:
-                    print(t, agent.name(), 'has $', cash, 'bought ', bought, good, ', bid: ', bid, 'affordable: ', affordable, 'remaining:', remaining)
+                    print(t, agent.name(), 'had $', prevCash, 'now', agent.cash, 'bought ', bought, good, ', bid: ', bid, 'affordable: ', affordable, 'remaining:', remaining)
 
         askers = sorted(agents, key=lambda a: a.ask, reverse=True)
         totalSold = 0
