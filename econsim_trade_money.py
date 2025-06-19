@@ -19,7 +19,7 @@ def lerp(a, b, t):
     return a + (b - a) * t
         
 mostDemand = 'none'
-def Trade(t, agents, recipes):
+def Trade(t, agents, recipes, demands, sold_log):
     #supply vs demand curve? but this curve is on the change in price, not the price it self
     # when demand > supply, price increases by 1-5%
     # when demand < supply, price stays same
@@ -28,23 +28,30 @@ def Trade(t, agents, recipes):
     
     global mostDemand
     maxExcessDemand = 0
-    for good, _ in recipes.items():
+    goods = ['food', 'wood', 'furniture']
+    for agent in agents:
+        agent.remainingCash = agent.cash
+    for good in goods:
+    #for good, _ in recipes.items():
         print(t, 'bids and asks for ', good)
         #get total bids and asks
         totalBids = 0
         totalAsks = 0
         bids = list()
         asks = list()
+        goodPrice = recipes[good]['price']
         for agent in agents:
             recipe = recipes[agent.output]
             divisor = 1 if (good == 'food') else 10
             #get bids
             if GetInputCom(agent, recipes) == good:
                 agent.bid = max(0, recipe['numInput'] - agent.inv.get(good, 0))
-            elif agent.output != good:
-                agent.bid = max(0, inventoryLimit - agent.inv.get(good,0)) / divisor
+            elif agent.output != good and agent.remainingCash > goodPrice:
+                agent.bid = min(1, int(agent.remainingCash / goodPrice))
+                #agent.bid = max(0, inventoryLimit - agent.inv.get(good,0)) / divisor
             else:
                 agent.bid = 0
+            agent.remainingCash -= agent.bid * goodPrice
             print(t, agent.name(), 'bid', agent.bid, 'input', GetInputCom(agent, recipes), 'recipe for', recipe['commodity'], 'num input', recipe['numInput'], agent.inv[good])
             totalBids += agent.bid
 
@@ -66,6 +73,8 @@ def Trade(t, agents, recipes):
             continue
 
         demandRatio = totalBids / totalAsks
+        demands.setdefault(good, [])
+        demands[good].append(demandRatio)
         
         recipe = recipes[good]
         price = recipe['price']
@@ -95,11 +104,15 @@ def Trade(t, agents, recipes):
                 bought = min(bid, min(remaining, affordable))
                 cash = bought * price
                 agent.cash -= cash
+                assert agent.cash >= 0, 'neg cash, bought $' + str(cash) + ' now has ' + str(agent.cash)
                 totalCashTransfered += cash
                 if bought > 0:
-                    print(t, agent.name(), 'bought ', bought, good, ', bid: ', bid)
+                    #print(t, agent.name(), 'bought ', bought, good, ', bid: ', bid)
+                    print(t, agent.name(), 'has $', cash, 'bought ', bought, good, ', bid: ', bid, 'affordable: ', affordable, 'remaining:', remaining)
                     agent.inv[good] += bought
                     totalBought += bought
+                else:
+                    print(t, agent.name(), 'has $', cash, 'bought ', bought, good, ', bid: ', bid, 'affordable: ', affordable, 'remaining:', remaining)
 
         askers = sorted(agents, key=lambda a: a.ask, reverse=True)
         totalSold = 0
@@ -107,13 +120,15 @@ def Trade(t, agents, recipes):
             if totalSold < totalBought and totalCashTransfered > 0:
                 ask = agent.ask
                 remaining = totalBought - totalSold
-                sold = min(ask, totalSold - totalBought)
+                sold = min(ask, remaining)
+                assert sold >= 0, 'neg sold ' + str(sold)
                 totalSold += sold
                 agent.cash += sold * price
                 if sold > 0:
                     print(t, agent.name(), 'sold ', sold, good, ', ask: ', ask)
 
         print(t, "demand:", demandRatio, "price:", price, "trades: ", good, " traded: ", 0)
+        sold_log[good].append(totalSold)
 
 
 def FindSmallestTrade(agents):

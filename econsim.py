@@ -36,14 +36,14 @@ goods = ['food', 'wood', 'furniture']
 overProductionDerate = .5
 recipes['food'] = {'commodity': 'food', 'production': 4, 'price': 1, 'numInput': 0, 'maxtotalprod': 200}
 recipes['wood'] = {'commodity': 'wood', 'production': 2, 'price': 2, 'numInput': 0, 'maxtotalprod': 30}
-recipes['furniture'] = {'commodity': 'furniture', 'production': 1, 'input': 'wood', 'numInput': 8, 'price': 20, 'maxtotalprod':400}
+recipes['furniture'] = {'commodity': 'furniture', 'production': 1, 'input': 'wood', 'numInput': 4, 'price': 10, 'maxtotalprod':400}
 profession = {'food':'F', 'wood':'W', 'furniture':'C', 'none':'-'}
 totalProd = defaultdict(int)
 # Parameters
-time_steps = 20
+time_steps = 300
 p_birth = .01
 birthGap = 7
-starve_limit = 12
+starve_limit = 18
 
 food_pop = []
 dead_pop = [0]
@@ -52,6 +52,10 @@ carp_pop = []
 foodInv = []
 woodInv = []
 carpInv = []
+demands = dict()
+demands['food'] = []
+demands['wood'] = []
+demands['furniture'] = []
 
 #init
 def GetInputCom(agent):
@@ -206,6 +210,9 @@ def PrintStats(t, agents):
         msg += str(round(agent.inv.get('furniture',0), 1)) + ','
     print(msg)
 
+cash_log = {'food':[], 'wood':[], 'furniture':[]}
+price_log = {'food':[], 'wood':[], 'furniture':[]}
+sold_log = {'food':[], 'wood':[], 'furniture':[]}
 def main():
     agents = [Agent(0) for _ in range(num_agents)]
     InitAgents(agents)
@@ -218,7 +225,8 @@ def main():
             recipes['food']['maxtotalprod'] = 100
         #PrintStats(t, agents)
         Produce(t, agents)
-        trade.Trade(t, agents, recipes)
+        #trade.Trade(t, agents, recipes)
+        trade.Trade(t, agents, recipes, demands, sold_log)
         agents = Live(t, agents)
 
 
@@ -229,33 +237,75 @@ def main():
         food_pop.append(sum(agent.output == 'food' for agent in agents))
         wood_pop.append(sum(agent.output == 'wood' for agent in agents))
         carp_pop.append(sum(agent.output == 'furniture' for agent in agents))
+        cash_log['food'].append(sum(agent.cash if agent.output == 'food' else 0 for agent in agents ))
+        cash_log['wood'].append(sum(agent.cash if agent.output == 'wood' else 0 for agent in agents ))
+        cash_log['furniture'].append(sum(agent.cash if agent.output == 'furniture' else 0 for agent in agents ))
+        price_log['food'].append(recipes['food']['price'])
+        price_log['wood'].append(recipes['wood']['price'])
+        price_log['furniture'].append(recipes['furniture']['price'])
 
     # Plot results
-    figure, axis = plt.subplots(3, 1)
+    figure, axis = plt.subplots(4, 2)
+    axis = axis.flatten()
+    figure.patch.set_facecolor('lightgrey')
     figure.set_figwidth(10)
-    figure.set_figheight(10)
+    figure.set_figheight(16)
     plt.subplots_adjust(top=0.95, bottom=0.05, hspace=0.3)
+
+    axis[0].set_title("Phase plot")
+    axis[0].set_xlabel("food Population (x)")
+    axis[0].set_ylabel("wood/carpenter Population (y)")
+    axis[0].plot(food_pop, wood_pop, color='red')
+    axis[0].plot(food_pop, carp_pop, color='blue')
+
+    axis[1].set_title("Inventory vs time ")
+    #axis[1].set_xlabel("Time Step")
+    axis[1].set_ylabel("Inventory")
     axis[1].plot(foodInv, label='FoodInv', color='green')
     axis[1].plot(woodInv, label='WoodInv', color='red')
     axis[1].plot(carpInv, label='carpInv', color='blue')
-    axis[1].set_xlabel("Time Step")
-    axis[1].set_ylabel("Inventory")
-    axis[1].set_title("Inventory vs time ")
 
+    axis[2].set_title("Population vs time")
+    #axis[2].set_xlabel("Time Step")
+    axis[2].set_ylabel("Population")
     axis[2].plot(food_pop, label='Food', color='green')
     axis[2].plot(wood_pop, label='Wood', color='red')
     axis[2].plot(carp_pop, label='carp', color='blue')
     #axis[2].plot(dead_pop, label='dead', color='black')
-    axis[2].set_xlabel("Time Step")
-    axis[2].set_ylabel("Population")
-    axis[2].set_title("Population vs time")
-    axis[0].plot(food_pop, wood_pop)
-    axis[0].plot(food_pop, carp_pop)
-    axis[0].set_xlabel("food Population (x)")
-    axis[0].set_ylabel("wood/carpenter Population (y)")
-    axis[0].set_title("Phase plot")
+
+    axis[3].set_title("Demands vs time")
+    #axis[3].set_xlabel("Time Step")
+    axis[3].set_ylabel("Demands (log scale)")
+    #axis[3].set_yscale('log')
+    axis[3].plot(demands['food'], label='Food', color='green')
+    axis[3].plot(demands['wood'], label='Wood', color='red')
+    axis[3].plot(demands['furniture'], label='carp', color='blue')
+
+    axis[4].set_title("Cash vs time")
+    #axis[4].set_xlabel("Time Step")
+    axis[4].set_ylabel("Cash")
+    axis[4].plot(cash_log['food'], label='Food', color='green')
+    axis[4].plot(cash_log['wood'], label='Wood', color='red')
+    axis[4].plot(cash_log['furniture'], label='carp', color='blue')
+
+    axis[5].set_title("Price vs time")
+    #axis[5].set_xlabel("Time Step")
+    axis[5].set_ylabel("Price")
+    axis[5].plot(price_log['food'], label='Food', color='green')
+    axis[5].plot(price_log['wood'], label='Wood', color='red')
+    axis[5].plot(price_log['furniture'], label='carp', color='blue')
+
+    axis[6].set_title("Sold vs time")
+    #axis[6].set_xlabel("Time Step")
+    axis[6].set_ylabel("Sold")
+    axis[6].plot(sold_log['food'], label='Food', color='green')
+    axis[6].plot(sold_log['wood'], label='Wood', color='red')
+    axis[6].plot(sold_log['furniture'], label='carp', color='blue')
+    
     plt.legend()
     plt.grid(True)
+    for ax in axis:
+        ax.set_facecolor('lightgrey')
     plt.show()
 
 if __name__ == "__main__":
