@@ -87,7 +87,8 @@ def Trade(t, agents, recipes, demands, sold_log):
             price *= lerp(.99, .95, demandRatio * 2)
         recipe['price'] = price
 
-        print(t, "trading ", good, " at $", price, "demandRatio:", demandRatio, " asks: ", totalAsks, " bids: ", totalBids)
+        print(t, "trading ", good, " at $", round(price, 2), "demandRatio:", round(demandRatio, 2) , 
+              " asks: ", round(totalAsks, 2), " bids: ", round(totalBids, 2))
         
         # for agent in agents:
         #     if agent.output == good:

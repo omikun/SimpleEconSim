@@ -9,22 +9,26 @@ import econsim_trade_money as trade
 from collections import defaultdict
 
 agentid = 0
+govCash = 0
 class Agent:
     def __init__(self, t):
         global agentid
         self.id = agentid
         self.birthRound = t
+        self.alive = True
+        self.parent = None
+        self.descendents = []
         agentid += 1
         self.bid = 0
         self.ask = 0
         self.output = 'none'
         self.hungry_steps = 0
-        self.cash = 100
+        self.cash = 0
         self.inv = {}
         self.lastRepro = 0
 
     def name(self):
-        return 'agent'+str(self.id)
+        return 'agent'+str(self.id)+'-'+self.output
     def age(self, t):
         return t - self.birthRound
 
@@ -35,15 +39,15 @@ recipes = {}
 goods = ['food', 'wood', 'furniture']
 overProductionDerate = .5
 recipes['food'] = {'commodity': 'food', 'production': 4, 'price': 1, 'numInput': 0, 'maxtotalprod': 200}
-recipes['wood'] = {'commodity': 'wood', 'production': 2, 'price': 2, 'numInput': 0, 'maxtotalprod': 30}
-recipes['furniture'] = {'commodity': 'furniture', 'production': 1, 'input': 'wood', 'numInput': 4, 'price': 10, 'maxtotalprod':400}
+recipes['wood'] = {'commodity': 'wood', 'production': 2, 'price': 1, 'numInput': 0, 'maxtotalprod': 30}
+recipes['furniture'] = {'commodity': 'furniture', 'production': 1, 'input': 'wood', 'numInput': 8, 'price': 10, 'maxtotalprod':400}
 profession = {'food':'F', 'wood':'W', 'furniture':'C', 'none':'-'}
 totalProd = defaultdict(int)
 # Parameters
-time_steps = 300
-p_birth = .01
+time_steps = 1000
+p_birth = .15
 birthGap = 7
-starve_limit = 18
+starve_limit = 20
 
 food_pop = []
 dead_pop = [0]
@@ -78,11 +82,12 @@ def InitAgents(agents):
             output = 'furniture'
 
         #init inventory
-        InitAgent(agent, output, 10, 2)
+        InitAgent(agent, output, 10, 2, 100)
 
 
-def InitAgent(agent, output, numInput, numFood):
+def InitAgent(agent, output, numInput, numFood, cash):
     agent.output = output
+    agent.cash = cash
     recipe = recipes[agent.output]
     inputCom = recipe.get('input', 'none')
     for good in goods:
@@ -134,6 +139,7 @@ def Produce(t, agents):
 
 def Live(t, agents):
     global dead_pop
+    global govCash
     new_agents = []
     #eat food/starve
     print("living")
@@ -162,10 +168,12 @@ def Live(t, agents):
         else:
             agent.hungry_steps += 1
         if agent.hungry_steps == 0:
-            if agent.lastRepro + birthGap < t and random.random() < p_birth:
+            if agent.lastRepro + birthGap < t and random.random() < p_birth and agent.cash > 10:
                 agent.lastRepro = t
                 new_agent = Agent(t)
-                giveFood = min(2, agent.inv['food'])
+                new_agent.parent = agent
+                agent.descendents.append(new_agent)
+                giveFood = min(2, agent.inv['food']) ##potentiall food coming from thin air - need gov support
                 agent.inv['food'] -= giveFood
                 #find the smallest number of professions and use that one, since no one makes money
                 #output = FindSmallestTrade(agents)
@@ -174,18 +182,37 @@ def Live(t, agents):
                     #output = 'wood'
                 print(t, "new agent of ", output)
                 numInput = 0
-                InitAgent(new_agent, output, numInput, giveFood)
+                cash = min(4, agent.cash)
+                agent.cash -= cash
+                InitAgent(new_agent, output, numInput, giveFood, cash)
                 new_agents.append(new_agent)
         if agent.hungry_steps < starve_limit:
             #die of old age
             if random.random() > pow(agent.age(t) / 1000, 2):
                 new_agents.append(agent)
             else:
+                agent.alive = False
                 print(t, agent.name(), 'has died due to age')
-                numdead += 1
         else:
             print(t, agent.name(), 'has starved to death')
             numdead += 1
+            agent.alive = False
+        
+        if not agent.alive:
+            livingDescendents = [agent for agent in agent.descendents if agent.alive]
+            print(t, agent.name(), 'died, has', agent.cash, ' #descendents:', len(livingDescendents),
+                  [agent.name() for agent in livingDescendents])
+            numdead += 1
+            #find descendents
+            #descendents = [agent for agent in agents if agent.parent == agent]
+            #assert len(descendents) == len(agent.descendents), 'descdendents dont match!'
+            if len(livingDescendents) > 0:
+                inheritence = agent.cash / len(livingDescendents)
+                for descendent in livingDescendents:
+                    descendent.cash += inheritence
+            else:
+                govCash += agent.cash
+            
  #"hungry_steps:",agent.hungry_steps)
     dead_pop.append(numdead)
 
@@ -210,10 +237,13 @@ def PrintStats(t, agents):
         msg += str(round(agent.inv.get('furniture',0), 1)) + ','
     print(msg)
 
-cash_log = {'food':[], 'wood':[], 'furniture':[]}
+cash_log = {'food':[], 'wood':[], 'furniture':[], 'gov':[]}
+totalCash_log = []
 price_log = {'food':[], 'wood':[], 'furniture':[]}
 sold_log = {'food':[], 'wood':[], 'furniture':[]}
+
 def main():
+    global govCash
     agents = [Agent(0) for _ in range(num_agents)]
     InitAgents(agents)
     for t in range(time_steps):
@@ -229,17 +259,21 @@ def main():
         trade.Trade(t, agents, recipes, demands, sold_log)
         agents = Live(t, agents)
 
-
         # Track population
         foodInv.append(sum(agent.inv.get('food', 0) for agent in agents))
         woodInv.append(sum(agent.inv.get('wood', 0) for agent in agents))
         carpInv.append(sum(agent.inv.get('furniture', 0) for agent in agents))
+        
         food_pop.append(sum(agent.output == 'food' for agent in agents))
         wood_pop.append(sum(agent.output == 'wood' for agent in agents))
         carp_pop.append(sum(agent.output == 'furniture' for agent in agents))
+        
         cash_log['food'].append(sum(agent.cash if agent.output == 'food' else 0 for agent in agents ))
         cash_log['wood'].append(sum(agent.cash if agent.output == 'wood' else 0 for agent in agents ))
         cash_log['furniture'].append(sum(agent.cash if agent.output == 'furniture' else 0 for agent in agents ))
+        cash_log['gov'].append(govCash)
+        totalCash_log.append(sum(agent.cash for agent in agents) + govCash)
+        
         price_log['food'].append(recipes['food']['price'])
         price_log['wood'].append(recipes['wood']['price'])
         price_log['furniture'].append(recipes['furniture']['price'])
@@ -248,7 +282,7 @@ def main():
     figure, axis = plt.subplots(4, 2)
     axis = axis.flatten()
     figure.patch.set_facecolor('lightgrey')
-    figure.set_figwidth(10)
+    figure.set_figwidth(14)
     figure.set_figheight(16)
     plt.subplots_adjust(top=0.95, bottom=0.05, hspace=0.3)
 
@@ -276,7 +310,7 @@ def main():
     axis[3].set_title("Demands vs time")
     #axis[3].set_xlabel("Time Step")
     axis[3].set_ylabel("Demands (log scale)")
-    #axis[3].set_yscale('log')
+    axis[3].set_yscale('log')
     axis[3].plot(demands['food'], label='Food', color='green')
     axis[3].plot(demands['wood'], label='Wood', color='red')
     axis[3].plot(demands['furniture'], label='carp', color='blue')
@@ -287,6 +321,8 @@ def main():
     axis[4].plot(cash_log['food'], label='Food', color='green')
     axis[4].plot(cash_log['wood'], label='Wood', color='red')
     axis[4].plot(cash_log['furniture'], label='carp', color='blue')
+    axis[4].plot(cash_log['gov'], label='gov', color='yellow')
+    axis[4].plot(totalCash_log, label='total', color='black')
 
     axis[5].set_title("Price vs time")
     #axis[5].set_xlabel("Time Step")
