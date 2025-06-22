@@ -51,6 +51,7 @@ def Trade(t, agents, recipes, demands, sold_log):
                 agent.bid = max(0, recipe['numInput'] - agent.inv.get(good, 0))
             elif agent.output != good and agent.remainingCash > goodPrice:
                 agent.bid = min(num, int(agent.remainingCash / goodPrice))
+                agent.bid = min(agent.bid, max(0, recipes[good]['maxinv'] - agent.inv.get(good, 0)))
                 #agent.bid = max(0, inventoryLimit - agent.inv.get(good,0)) / divisor
             else:
                 agent.bid = 0
