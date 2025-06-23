@@ -45,7 +45,8 @@ profession = {'food':'F', 'wood':'W', 'furniture':'C', 'none':'-'}
 totalProd = defaultdict(int)
 # Parameters
 time_steps = 1000
-p_birth = .15
+p_birth = .04
+p_death = .1
 birthGap = 7
 starve_limit = 20
 
@@ -186,10 +187,12 @@ def Live(t, agents):
                 agent.cash -= cash
                 InitAgent(new_agent, output, numInput, giveFood, cash)
                 new_agents.append(new_agent)
+                
         if agent.hungry_steps < starve_limit:
             #die of old age
             #if random.random() > math.exp(-agent.age(t) / 80) / 50: #pow(agent.age(t) / 1000, 2):
-            if random.random() > pow(agent.age(t) / 2000, 2):
+            #if random.random() > pow(agent.age(t) / 2000, 2):
+            if random.random() > [0.0002,0.0003,0.0007,0.0013,0.0025,0.006,0.013,0.027,0.06,0.13][min(agent.age(t)//30, 9)]:
                 new_agents.append(agent)
             else:
                 agent.alive = False
