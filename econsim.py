@@ -165,7 +165,7 @@ def Live(t, agents):
             agent.inv['food'] -= eatFood
             numfood += eatFood
             agent.hungry_steps = 0
-        else:
+        elif agent.output != 'food':
             agent.hungry_steps += 1
             
         if agent.hungry_steps == 0:
@@ -179,6 +179,9 @@ def Live(t, agents):
                 #find the smallest number of professions and use that one, since no one makes money
                 #output = FindSmallestTrade(agents)
                 output = trade.mostDemand
+                #some fraction keeps parent's profession
+                if random.random() < .5:
+                    output = agent.output
                 #if NumAgents(agents, output) > 40:
                     #output = 'wood'
                 print(t, "new agent of ", output)
@@ -261,6 +264,7 @@ def main():
     global govCash
     agents = [Agent(0) for _ in range(num_agents)]
     InitAgents(agents)
+    prevTotalCash = (sum(agent.cash for agent in agents) + govCash)
     for t in range(time_steps):
         if t == 800:
             recipes['food']['maxtotalprod'] = 50
@@ -293,6 +297,11 @@ def main():
         price_log['food'].append(recipes['food']['price'])
         price_log['wood'].append(recipes['wood']['price'])
         price_log['furniture'].append(recipes['furniture']['price'])
+        
+        if math.fabs(prevTotalCash - totalCash_log[-1]) > 10:
+            print(t, "total cash not matching", prevTotalCash, '!=', totalCash_log[-1])
+            # break
+        prevTotalCash = totalCash_log[-1]
 
     # Plot results
     figure, axis = plt.subplots(4, 2)
