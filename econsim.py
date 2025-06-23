@@ -40,7 +40,7 @@ goods = ['food', 'wood', 'furniture']
 overProductionDerate = .5
 recipes['food'] = {'commodity': 'food', 'production': 4, 'price': 1, 'numInput': 0, 'maxtotalprod': 200, 'maxinv': 20}
 recipes['wood'] = {'commodity': 'wood', 'production': 2, 'price': 1, 'numInput': 0, 'maxtotalprod': 30, 'maxinv': 10}
-recipes['furniture'] = {'commodity': 'furniture', 'production': 1, 'input': 'wood', 'numInput': 8, 'price': 60, 'maxtotalprod':400, 'maxinv': 2}
+recipes['furniture'] = {'commodity': 'furniture', 'production': 1, 'input': 'wood', 'numInput': 8, 'price': 20, 'maxtotalprod':400, 'maxinv': 2}
 profession = {'food':'F', 'wood':'W', 'furniture':'C', 'none':'-'}
 totalProd = defaultdict(int)
 # Parameters
@@ -115,7 +115,7 @@ def Produce(t, agents):
             numOutput = recipe['production'] 
         else:
             com = recipe['input']
-            if agent.inv[com] >= recipe['numInput'] and agent.inv[output] < recipe['maxinv']:
+            if agent.inv[com] >= recipe['numInput'] and agent.inv[output] < 20:
                 numOutput = recipe['production'] 
                 agent.inv[com] -= recipe['numInput']
 
@@ -150,7 +150,7 @@ def Live(t, agents):
         if agent.inv.get('wood', 0) > 2 and GetInputCom(agent) != 'wood' and GetOutputCom(agent) != 'wood':
             agent.inv['wood'] -= 1
             numwood += 1
-        if agent.inv.get('furniture', 0) > 2 and GetOutputCom(agent) != 'furniture':
+        if agent.inv.get('furniture', 0) > 0 and GetOutputCom(agent) != 'furniture' and random.random() < .02:
             agent.inv['furniture'] -= 1
             numFurn += 1
 
@@ -213,6 +213,13 @@ def Live(t, agents):
             else:
                 govCash += agent.cash
             
+    if govCash > 0:
+        starving_agents = [agent for agent in agents if agent.hungry_steps > 0 ]
+        if len(starving_agents) > 0:
+            wellfare = govCash / len(starving_agents)
+            for agent in starving_agents:
+                agent.cash += wellfare
+            govCash = 0
  #"hungry_steps:",agent.hungry_steps)
     dead_pop.append(numdead)
 
@@ -303,7 +310,7 @@ def main():
     axis[2].set_title("Population vs time")
     #axis[2].set_xlabel("Time Step")
     axis[2].set_ylabel("Population")
-    axis[2].set_yscale('log')
+    # axis[2].set_yscale('log')
     axis[2].plot(food_pop, label='Food', color='green')
     axis[2].plot(wood_pop, label='Wood', color='red')
     axis[2].plot(carp_pop, label='carp', color='blue')
@@ -330,6 +337,7 @@ def main():
     axis[5].set_title("Price vs time")
     #axis[5].set_xlabel("Time Step")
     axis[5].set_ylabel("Price")
+    axis[5].set_yscale('log')
     axis[5].plot(price_log['food'], label='Food', color='green')
     axis[5].plot(price_log['wood'], label='Wood', color='red')
     axis[5].plot(price_log['furniture'], label='carp', color='blue')
@@ -337,7 +345,7 @@ def main():
     axis[6].set_title("Sold vs time")
     #axis[6].set_xlabel("Time Step")
     axis[6].set_ylabel("Sold")
-    axis[6].set_yscale('log')
+    # axis[6].set_yscale('log')
     axis[6].plot(sold_log['food'], label='Food', color='green')
     axis[6].plot(sold_log['wood'], label='Wood', color='red')
     axis[6].plot(sold_log['furniture'], label='carp', color='blue')

@@ -32,9 +32,9 @@ def Trade(t, agents, recipes, demands, sold_log):
         agent.remainingCash = agent.cash
 
     goods = ['food', 'wood', 'furniture']
-    num = 4
+    num = 16
     for good in goods:
-        num -= 1
+        num /= 4
     #for good, _ in recipes.items():
         print(t, 'bids and asks for ', good)
         #get total bids and asks
@@ -45,7 +45,7 @@ def Trade(t, agents, recipes, demands, sold_log):
         goodPrice = recipes[good]['price']
         for agent in agents:
             recipe = recipes[agent.output]
-            divisor = 1 if (good == 'food') else 10
+            #divisor = 1 if (good == 'food') else 10
             #get bids
             if GetInputCom(agent, recipes) == good:
                 agent.bid = max(0, recipe['numInput'] - agent.inv.get(good, 0))
