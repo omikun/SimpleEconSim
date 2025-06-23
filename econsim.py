@@ -1,3 +1,4 @@
+import sys 
 import random
 import math
 import matplotlib.pyplot as plt
@@ -44,7 +45,7 @@ recipes['furniture'] = {'commodity': 'furniture', 'production': 1, 'input': 'woo
 profession = {'food':'F', 'wood':'W', 'furniture':'C', 'none':'-'}
 totalProd = defaultdict(int)
 # Parameters
-time_steps = 1000
+time_steps = 300
 p_birth = .04
 p_death = .1
 birthGap = 7
@@ -262,6 +263,7 @@ sold_log = {'food':[], 'wood':[], 'furniture':[]}
 
 def main():
     global govCash
+    time_steps = int(sys.argv[1])
     agents = [Agent(0) for _ in range(num_agents)]
     InitAgents(agents)
     prevTotalCash = (sum(agent.cash for agent in agents) + govCash)
@@ -377,10 +379,10 @@ def main():
     
     #plt.legend()
     # Get legend handles and labels from one axis (assuming they’re the same across all)
-    handles, labels = axis[0].get_legend_handles_labels()
+    handles, labels = axis[2].get_legend_handles_labels() #need label in that axis
 
     # Add a single global legend
-    figure.legend(handles, labels, loc='lower right', ncol=1, fontsize='small') 
+    figure.legend(handles, labels, loc='center', ncol=1, fontsize='small') 
     
     plt.grid(True)
     for ax in axis:
