@@ -86,6 +86,7 @@ def Trade(t, agents, recipes, demands, sold_log):
             price *= lerp(1.01, 1.05, demandRatio - 1)
         elif demandRatio < .5:
             price *= lerp(.99, .95, demandRatio * 2)
+        price = max(.01, price)
         recipe['price'] = price
 
         print(t, "trading ", good, " at $", round(price, 2), "demandRatio:", round(demandRatio, 2) , 

@@ -134,7 +134,7 @@ def Produce(t, agents):
     for good, produced in totalProd.items():
         print(t, numAgentsPerGood[good],'produced', produced, good)
 
-
+hungry_log = {'food':[], 'wood':[], 'furniture':[]}
 
 def Live(t, agents):
     global dead_pop
@@ -166,6 +166,7 @@ def Live(t, agents):
             agent.hungry_steps = 0
         else:
             agent.hungry_steps += 1
+            
         if agent.hungry_steps == 0:
             if agent.lastRepro + birthGap < t and random.random() < p_birth and agent.cash > 5:
                 agent.lastRepro = t
@@ -220,7 +221,11 @@ def Live(t, agents):
             for agent in starving_agents:
                 agent.cash += wellfare
             govCash = 0
- #"hungry_steps:",agent.hungry_steps)
+
+
+    for good in goods:
+        hungry_log[good].append(sum(1 for agent in agents if agent.output == good and agent.hungry_steps > 0))
+        
     dead_pop.append(numdead)
 
     print("consumed ", numfood, "food", numwood, "wood", numFurn, "furnitures")
@@ -349,8 +354,22 @@ def main():
     axis[6].plot(sold_log['food'], label='Food', color='green')
     axis[6].plot(sold_log['wood'], label='Wood', color='red')
     axis[6].plot(sold_log['furniture'], label='carp', color='blue')
+
+    axis[7].set_title("Hunger vs time")
+    #axis[7].set_xlabel("Time Step")
+    axis[7].set_ylabel("Num hungry")
+    # axis[7].set_yscale('log')
+    axis[7].plot(hungry_log['food'], label='Food', color='green')
+    axis[7].plot(hungry_log['wood'], label='Wood', color='red')
+    axis[7].plot(hungry_log['furniture'], label='carp', color='blue')
     
-    plt.legend()
+    #plt.legend()
+    # Get legend handles and labels from one axis (assuming they’re the same across all)
+    handles, labels = axis[0].get_legend_handles_labels()
+
+    # Add a single global legend
+    figure.legend(handles, labels, loc='lower right', ncol=1, fontsize='small') 
+    
     plt.grid(True)
     for ax in axis:
         ax.set_facecolor('lightgrey')
