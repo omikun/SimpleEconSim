@@ -1,6 +1,7 @@
 import sys 
 import random
 import math
+from statistics import mean
 import matplotlib.pyplot as plt
 import copy
 import bisect
@@ -53,12 +54,16 @@ starve_limit = 20
 
 food_pop = []
 dead_pop = [0]
+deadstarve_pop = [0]
 total_pop = []
 wood_pop = []
 carp_pop = []
 foodInv = []
 woodInv = []
 carpInv = []
+perCapitaFoodInv = []
+perCapitaWoodInv = []
+perCapitaCarpInv = []
 demands = dict()
 demands['food'] = []
 demands['wood'] = []
@@ -111,13 +116,16 @@ def Produce(t, agents):
         output = agent.output
         print(t, agent.name(), agent.inv, 'hungry_steps', agent.hungry_steps)
         recipe = recipes[output]
+        if (agent.inv[output] >= 20):
+            continue
+            
         #produce
         numOutput = 0
         if recipe['numInput'] == 0:
             numOutput = recipe['production'] 
         else:
             com = recipe['input']
-            if agent.inv[com] >= recipe['numInput'] and agent.inv[output] < 20:
+            if (agent.inv[com] >= recipe['numInput']):
                 numOutput = recipe['production'] 
                 agent.inv[com] -= recipe['numInput']
 
@@ -140,6 +148,7 @@ hungry_log = {'food':[], 'wood':[], 'furniture':[]}
 
 def Live(t, agents):
     global dead_pop
+    global deadstarve_pop
     global govCash
     new_agents = []
     #eat food/starve
@@ -147,7 +156,9 @@ def Live(t, agents):
     numfood = 0
     numwood = 0
     numFurn = 0
-    numdead = dead_pop[-1]
+    numdead = 0 #dead_pop[-1]
+    numdeadstarve = deadstarve_pop[-1]
+    prevGovCash = govCash
     for agent in agents:
         if agent.inv.get('wood', 0) > 2 and GetInputCom(agent) != 'wood' and GetOutputCom(agent) != 'wood':
             agent.inv['wood'] -= 1
@@ -204,6 +215,7 @@ def Live(t, agents):
         else:
             print(t, agent.name(), 'has starved to death')
             numdead += 1
+            numdeadstarve += 1
             agent.alive = False
         
         if not agent.alive:
@@ -222,18 +234,22 @@ def Live(t, agents):
                 govCash += agent.cash
             
     if govCash > 0:
-        starving_agents = [agent for agent in agents if agent.hungry_steps > 0 ]
+        print(t, 'gov cash prev:', prevGovCash, 'now', govCash)
+        starving_agents = [agent for agent in new_agents if agent.hungry_steps > 0 ]
         if len(starving_agents) > 0:
             wellfare = govCash / len(starving_agents)
             for agent in starving_agents:
                 agent.cash += wellfare
-            govCash = 0
+                govCash -= wellfare
 
 
     for good in goods:
         hungry_log[good].append(sum(1 for agent in agents if agent.output == good and agent.hungry_steps > 0))
         
     dead_pop.append(numdead)
+    deadstarve_pop.append(numdeadstarve)
+    print(t, 'num dead', numdead)
+    #dead_pop.append(sum(dead_pop)-numdead)
 
     print("consumed ", numfood, "food", numwood, "wood", numFurn, "furnitures")
     return new_agents
@@ -285,6 +301,10 @@ def main():
         woodInv.append(sum(agent.inv.get('wood', 0) for agent in agents))
         carpInv.append(sum(agent.inv.get('furniture', 0) for agent in agents))
         
+        perCapitaFoodInv.append(mean(agent.inv['food'] for agent in agents if agent.output != 'food'))
+        perCapitaWoodInv.append(mean(agent.inv['wood'] for agent in agents if agent.output != 'wood'))
+        perCapitaCarpInv.append(mean(agent.inv['furniture'] for agent in agents if agent.output != 'furniture'))
+        
         food_pop.append(sum(agent.output == 'food' for agent in agents))
         wood_pop.append(sum(agent.output == 'wood' for agent in agents))
         carp_pop.append(sum(agent.output == 'furniture' for agent in agents))
@@ -313,11 +333,18 @@ def main():
     figure.set_figheight(16)
     plt.subplots_adjust(top=0.95, bottom=0.05, hspace=0.3)
 
-    axis[0].set_title("Phase plot")
-    axis[0].set_xlabel("food Population (x)")
-    axis[0].set_ylabel("wood/carpenter Population (y)")
-    axis[0].plot(food_pop, wood_pop, color='red')
-    axis[0].plot(food_pop, carp_pop, color='blue')
+    #axis[0].set_title("Phase plot")
+    #axis[0].set_xlabel("food Population (x)")
+    #axis[0].set_ylabel("wood/carpenter Population (y)")
+    #axis[0].plot(food_pop, wood_pop, color='red')
+    #axis[0].plot(food_pop, carp_pop, color='blue')
+    
+    axis[0].set_title("Inventory Per capita (excluding producers)")
+    #axis[0].set_xlabel("time ")
+    axis[0].set_ylabel("Inventory per capita")
+    axis[0].plot(perCapitaFoodInv, label='Food', color='green')
+    axis[0].plot(perCapitaWoodInv, label='Wood', color='red')
+    axis[0].plot(perCapitaCarpInv, label='Furniture', color='blue')
 
     axis[1].set_title("Inventory vs time ")
     #axis[1].set_xlabel("Time Step")
@@ -334,7 +361,7 @@ def main():
     axis[2].plot(wood_pop, label='Wood', color='red')
     axis[2].plot(carp_pop, label='carp', color='blue')
     axis[2].plot(total_pop, label='total', color='black')
-    #axis[2].plot(dead_pop, label='dead', color='black')
+    axis[2].plot([-x for x in deadstarve_pop], label='dead', color='purple')
 
     axis[3].set_title("Demands vs time")
     #axis[3].set_xlabel("Time Step")
