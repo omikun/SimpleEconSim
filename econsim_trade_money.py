@@ -1,10 +1,11 @@
 import math
 import bisect
+from goods import Goods
 
 inventoryLimit = 10
 def GetInputCom(agent, recipes):
     recipe = recipes[agent.output]
-    inputCom = recipe.get('input', 'none')
+    inputCom = recipe.get('input', Good.none)
     return inputCom
 def GetOutputCom(agent):
     return agent.output
@@ -34,6 +35,7 @@ class Loan:
         return self.principle_paid >= self.principle
 
     def getInterest(self):
+        remainingPrinciple = self.principle - self.principle_paid
         return self.interest_rate * remainingPrinciple
     def getPaymentAmount(self):
         remainingPrinciple = self.principle - self.principle_paid
@@ -55,7 +57,7 @@ class Bank():
         
 bank = Bank()
 
-mostDemand = 'none'
+mostDemand = Good.none
 def Trade(t, agents, recipes, demands, sold_log, bought_log):
     global bank
     #supply vs demand curve? but this curve is on the change in price, not the price it self
@@ -65,12 +67,12 @@ def Trade(t, agents, recipes, demands, sold_log, bought_log):
     # when demand < supply/5, price drops by 5-10%
     
     global mostDemand
-    mostDemand = 'gov'
+    mostDemand = Good.gov
     maxExcessDemand = 0
     for agent in agents:
         agent.remainingCash = agent.cash
 
-    goods = ['food', 'wood', 'furniture']
+    goods = [Good.food, Good.wood, Good.furn]
     num_desired = 16
     allGoodsPrice = sum(recipes[good]['price'] for good in goods)
     for good in goods:
@@ -86,7 +88,7 @@ def Trade(t, agents, recipes, demands, sold_log, bought_log):
         goodPrice = recipes[good]['price']
         for agent in agents:
             recipe = recipes[agent.output]
-            #divisor = 1 if (good == 'food') else 10
+            #divisor = 1 if (good == Good.food) else 10
             #get bids
             if GetInputCom(agent, recipes) == good:
                 agent.bid = max(0, recipe['numInput'] - agent.inv.get(good, 0))
@@ -94,7 +96,7 @@ def Trade(t, agents, recipes, demands, sold_log, bought_log):
                 # num_desired = clamp(4 / num_desired * (agent.remainingCash // allGoodsPrice), num_desired, num_desired*2)
                 num_affordable = min(num_desired, agent.remainingCash // goodPrice)
                 num_storable = max(0, recipes[good]['maxinv'] - agent.inv.get(good, 0))
-                # if good == 'furniture':
+                # if good == Good.furn:
                 #     num_storable = recipes[good]['price'] / 4 / agent.remainingCash
                 
                 agent.bid = min(num_affordable, num_storable)
@@ -103,7 +105,7 @@ def Trade(t, agents, recipes, demands, sold_log, bought_log):
                 agent.bid = 0
 
             #borrow money from bank
-            if good == 'food' and agent.bid == 0 and agent.hungry_steps > 2:
+            if good == Good.food and agent.bid == 0 and agent.hungry_steps > 2:
                 loan = price * 40
                 agent.cash += loan
                 agent.loans.append(Loan(agent, loan, bank.interest_rate))
