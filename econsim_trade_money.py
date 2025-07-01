@@ -58,7 +58,7 @@ class Bank():
 bank = Bank()
 
 mostDemand = Goods.none
-def Trade(t, agents, recipes, demands, sold_log, bought_log):
+def Trade(t, agents, recipes, demand_ratio_log, demand_log, supply_log, sold_log, bought_log):
     global bank
     #supply vs demand curve? but this curve is on the change in price, not the price it self
     # when demand > supply, price increases by 1-5%
@@ -82,8 +82,6 @@ def Trade(t, agents, recipes, demands, sold_log, bought_log):
         #get total bids and asks
         totalBids = 0
         totalAsks = 0
-        bids = list()
-        asks = list()
         price = recipes[good]['price']
         goodPrice = recipes[good]['price']
         for agent in agents:
@@ -133,8 +131,10 @@ def Trade(t, agents, recipes, demands, sold_log, bought_log):
             continue
 
         demandRatio = totalBids / totalAsks
-        demands.setdefault(good, [])
-        demands[good].append(demandRatio)
+        demand_ratio_log.setdefault(good, [])
+        demand_ratio_log[good].append(demandRatio)
+        demand_log[good].append(totalBids)
+        supply_log[good].append(totalAsks)
         
         recipe = recipes[good]
         price = recipe['price']
@@ -142,7 +142,7 @@ def Trade(t, agents, recipes, demands, sold_log, bought_log):
             price *= lerp(1.01, 1.05, demandRatio - 1)
         elif demandRatio < .5:
             price *= lerp(.99, .95, demandRatio * 2)
-        price = max(.01, price)
+        price = max(.5, price)
         recipe['price'] = price
 
         print(t, "trading ", good, " at $", round(price, 2), "demandRatio:", round(demandRatio, 2) , 
