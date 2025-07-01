@@ -13,8 +13,7 @@ from collections import defaultdict
 
 agentid = 0
 govCash = 0
-
-
+govInv = defaultdict(int)
 
 class Agent:
     def __init__(self, t):
@@ -45,9 +44,9 @@ num_agents = 20
 recipes = {}
 goods = [Goods.food, Goods.wood, Goods.furn, Goods.gov]
 overProductionDerate = .5
-recipes[Goods.food] = {'commodity': Goods.food, 'production': 4, 'price': 1, 'numInput': 0, 'maxtotalprod': 200, 'maxinv': 20}
+recipes[Goods.food] = {'commodity': Goods.food, 'production': 4, 'price': 1, 'numInput': 0, 'maxtotalprod': 100, 'maxinv': 20}
 recipes[Goods.wood] = {'commodity': Goods.wood, 'production': 2, 'price': 1, 'numInput': 0, 'maxtotalprod': 30, 'maxinv': 10}
-recipes[Goods.furn] = {'commodity': Goods.furn, 'production': 1, 'input': Goods.wood, 'numInput': 10, 'price': 15, 'maxtotalprod':2, 'maxinv': 2}
+recipes[Goods.furn] = {'commodity': Goods.furn, 'production': 1, 'input': Goods.wood, 'numInput': 10, 'price': 15, 'maxtotalprod':6, 'maxinv': 3}
 recipes[Goods.gov] = {'commodity': Goods.gov, 'production': 0, 'numInput': 0, 'price': 1, 'maxtotalprod':0, 'maxinv': 0}
 profession = {Goods.food:'F', Goods.wood:'W', Goods.furn:'C', Goods.gov:'G', Goods.none:'-'}
 totalProd = defaultdict(int)
@@ -64,16 +63,22 @@ total_pop = []
 pop_log = {}
 inv_log = {}
 hungry_log = {}
-demands = dict()
+production_log = {}
+demand_ratio_log = dict()
+supply_log = dict()
+demand_log = dict()
 perCapitaInv = dict()
 
 for good in goods:
     pop_log[good] = []
     hungry_log[good] = []
     if good != Goods.gov:
-        demands[good] = []
+        demand_ratio_log[good] = []
+        demand_log[good] = []
+        supply_log[good] = []
         inv_log[good] = []
         perCapitaInv[good] = []
+        production_log[good] = []
 
 #init
 def GetInputCom(agent):
@@ -156,6 +161,9 @@ def Produce(t, agents):
         totalProd[output] += numOutput
         print(t, agent.name(), 'built',numOutput, output, agent.inv)
 
+    for good in goods:
+        if good != Goods.gov:
+            production_log[good].append(totalProd[good])
     for good, produced in totalProd.items():
         print(t, numAgentsPerGoods[good],'produced', produced, good)
 
@@ -164,6 +172,8 @@ def Live(t, agents):
     global dead_pop
     global deadstarve_pop
     global govCash
+    global govInv
+    global production_log
     new_agents = []
     #eat food/starve
     print("living")
@@ -208,6 +218,9 @@ def Live(t, agents):
                 #some fraction keeps parent's profession
                 if output == Goods.food or random.random() < .5:
                     output = agent.output
+                #if aggregate output already at max, pick gov
+                if output != Goods.gov and recipes[output]['maxtotalprod'] - 5 <= production_log[output][-1]:
+                    output = Goods.gov
                 #if NumAgents(agents, output) > 40:
                     #output = Goods.wood
                 print(t, "new agent of ", output)
@@ -244,6 +257,18 @@ def Live(t, agents):
                 inheritence = agent.cash / len(livingDescendents)
                 for descendent in livingDescendents:
                     descendent.cash += inheritence
+                for good, amount in agent.inv.items():
+                    profDescendents = [agent for agent in livingDescendents if agent.output == good]
+                    if len(profDescendents) > 0:
+                        inheritence = amount / len(profDescendents)
+                        for descendent in profDescendents:
+                            descendent.inv[good] += inheritence
+                    else:
+                        govAgents = [agent for agent in agents if agent.output == Goods.gov]
+                        inheritance = amount / len(govAgents)
+                        for govAgent in govAgents:
+                            govAgent.inv[good] += inheritance
+                    #govInv[good] += amount
             else:
                 govCash += agent.cash
             
@@ -323,16 +348,16 @@ def main():
     InitAgents(agents)
     prevTotalCash = (sum(agent.cash for agent in agents) + govCash)
     for t in range(time_steps):
-        if t == 800:
-            recipes[Goods.food]['maxtotalprod'] = 50
-        if t == 1300:
-            recipes[Goods.food]['maxtotalprod'] = 400
-        if t == 2300:
-            recipes[Goods.food]['maxtotalprod'] = 100
+        # if t == 800:
+        #     recipes[Goods.food]['maxtotalprod'] = 50
+        # if t == 1300:
+        #     recipes[Goods.food]['maxtotalprod'] = 400
+        # if t == 2300:
+        #     recipes[Goods.food]['maxtotalprod'] = 100
         #PrintStats(t, agents)
         Produce(t, agents)
         #trade.Trade(t, agents, recipes)
-        trade.Trade(t, agents, recipes, demands, sold_log, bought_log)
+        trade.Trade(t, agents, recipes, demand_ratio_log, demand_log, supply_log, sold_log, bought_log)
         agents = Live(t, agents)
 
         for good in goods:
@@ -361,7 +386,7 @@ def main():
     axis = axis.flatten()
     figure.patch.set_facecolor('lightgrey')
     figure.set_figwidth(20)
-    figure.set_figheight(16)
+    figure.set_figheight(12)
     plt.subplots_adjust(top=0.98, bottom=0.02, hspace=0.05)
 
     #axis[0].set_title("Phase plot")
@@ -407,15 +432,24 @@ def main():
         axis[axisId].plot(gini_log[good], label=labels[good], color=colors[good])
 
     axisId += 1
-    axisId += 1
-    axis[axisId].set_title("Demands vs time")
+    axis[axisId].set_title("Demands Ratio vs time")
     #axis[axisId].set_xlabel("Time Step")
     axis[axisId].set_ylabel("Demands (log scale)")
     axis[axisId].set_yscale('log')
-    axis[axisId].plot(demands[Goods.food], label='Food', color='green')
-    axis[axisId].plot(demands[Goods.wood], label='Wood', color='red')
-    axis[axisId].plot(demands[Goods.furn], label='carp', color='blue')
+    for good in goods:
+        if good != Goods.gov:
+            axis[axisId].plot(demand_ratio_log[good], label=labels[good], color=colors[good])
 
+    axisId += 1
+    #production
+    axis[axisId].set_title("Production vs time")
+    #axis[axisId].set_xlabel("Time Step")
+    axis[axisId].set_ylabel("Units Produced per round")
+    axis[axisId].set_yscale('log')
+    for good in goods:
+        if good != Goods.gov:
+            axis[axisId].plot(production_log[good], label=labels[good], color=colors[good])
+    
     axisId += 1
     axis[axisId].set_title("Inventory Per capita (excluding producers)")
     #axis[0].set_xlabel("time ")
@@ -428,75 +462,70 @@ def main():
     axis[axisId].set_title("Cash vs time")
     #axis[axisId].set_xlabel("Time Step")
     axis[axisId].set_ylabel("Cash")
-    axis[axisId].plot(cash_log[Goods.food], label='Food', color='green')
-    axis[axisId].plot(cash_log[Goods.wood], label='Wood', color='red')
-    axis[axisId].plot(cash_log[Goods.furn], label='carp', color='blue')
-    axis[axisId].plot(cash_log[Goods.gov], label='gov', color='yellow')
+    axis[axisId].set_yscale('log', base=2)
+    for good in goods:
+        axis[axisId].plot(cash_log[good], label=labels[good], color=colors[good])
     axis[axisId].plot(totalCash_log, label='total', color='black')
 
     axisId += 1
+    axis[axisId].set_title("Demand vs time")
+    #axis[axisId].set_xlabel("Time Step")
+    axis[axisId].set_ylabel("Demands (log scale)")
+    axis[axisId].set_yscale('log', base=2)
+    for good in goods:
+        if good != Goods.gov:
+            axis[axisId].plot(demand_log[good], label=labels[good], color=colors[good])
+
+
     axisId += 1
     axis[axisId].set_title("Sold vs time")
     #axis[axisId].set_xlabel("Time Step")
     axis[axisId].set_ylabel("Sold")
-    # axis[axisId].set_yscale('log')
-    axis[axisId].plot(sold_log[Goods.food], label='Food', color='green')
-    axis[axisId].plot(sold_log[Goods.wood], label='Wood', color='red')
-    axis[axisId].plot(sold_log[Goods.furn], label='carp', color='blue')
+    axis[axisId].set_yscale('log', base=2)
+    for good in goods:
+        if good != Goods.gov:
+            axis[axisId].plot(sold_log[good], label=labels[good], color=colors[good])
 
     axisId += 1
     axis[axisId].set_title("Price vs time")
     #axis[axisId].set_xlabel("Time Step")
     axis[axisId].set_ylabel("Price")
-    axis[axisId].set_yscale('log')
-    axis[axisId].plot(price_log[Goods.food], label='Food', color='green')
-    axis[axisId].plot(price_log[Goods.wood], label='Wood', color='red')
-    axis[axisId].plot(price_log[Goods.furn], label='carp', color='blue')
+    axis[axisId].set_yscale('log', base=2)
+    for good in goods:
+        if good != Goods.gov:
+            axis[axisId].plot(price_log[good], label=labels[good], color=colors[good])
 
     axisId += 1
     axis[axisId].set_title("Hunger vs time")
     #axis[axisId].set_xlabel("Time Step")
     axis[axisId].set_ylabel("Num hungry")
-    # axis[axisId].set_yscale('log')
-    axis[axisId].plot(hungry_log[Goods.food], label='Food', color='green')
-    axis[axisId].plot(hungry_log[Goods.wood], label='Wood', color='red')
-    axis[axisId].plot(hungry_log[Goods.furn], label='carp', color='blue')
-    axis[axisId].plot(hungry_log[Goods.gov], label='gov', color='yellow')
+    axis[axisId].set_yscale('log', base=2)
+    for good in goods:
+        axis[axisId].plot(hungry_log[good], label=labels[good], color=colors[good])
 
     axisId += 1
-    axisId += 1
-    axis[axisId].set_title("Farmer Purchases")
+    axis[axisId].set_title("Supply vs time")
     #axis[axisId].set_xlabel("Time Step")
-    axis[axisId].set_ylabel("Bought")
-    # axis[axisId].set_yscale('log')
-    axis[axisId].plot(bought_log[Goods.food][Goods.food], label='Food', color='green')
-    axis[axisId].plot(bought_log[Goods.food][Goods.wood], label='Wood', color='red')
-    axis[axisId].plot(bought_log[Goods.food][Goods.furn], label='carp', color='blue')
+    axis[axisId].set_ylabel("Supply (log scale)")
+    axis[axisId].set_yscale('log', base=2)
+    for good in goods:
+        if good != Goods.gov:
+            axis[axisId].plot(supply_log[good], label=labels[good], color=colors[good])
+
     axisId += 1
-    axis[axisId].set_title("Logger Purchases")
-    #axis[axisId].set_xlabel("Time Step")
-    axis[axisId].set_ylabel("Bought")
-    # axis[axisId].set_yscale('log')
-    axis[axisId].plot(bought_log[Goods.wood][Goods.food], label='Food', color='green')
-    axis[axisId].plot(bought_log[Goods.wood][Goods.wood], label='Wood', color='red')
-    axis[axisId].plot(bought_log[Goods.wood][Goods.furn], label='carp', color='blue')
-    axisId += 1
-    axis[axisId].set_title("Carpenter Purchases")
-    #axis[axisId].set_xlabel("Time Step")
-    axis[axisId].set_ylabel("Bought")
-    # axis[axisId].set_yscale('log')
-    axis[axisId].plot(bought_log[Goods.furn][Goods.food], label='Food', color='green')
-    axis[axisId].plot(bought_log[Goods.furn][Goods.wood], label='Wood', color='red')
-    axis[axisId].plot(bought_log[Goods.furn][Goods.furn], label='carp', color='blue')
-    axisId += 1
-    axis[axisId].set_title("Gov agent Purchases")
-    #axis[axisId].set_xlabel("Time Step")
-    axis[axisId].set_ylabel("Bought")
-    # axis[axisId].set_yscale('log')
-    axis[axisId].plot(bought_log[Goods.gov][Goods.food], label='Food', color='green')
-    axis[axisId].plot(bought_log[Goods.gov][Goods.wood], label='Wood', color='red')
-    axis[axisId].plot(bought_log[Goods.gov][Goods.furn], label='carp', color='blue')
-    
+    #purchases
+    titles = ["Farmer", "Logger", "Carpenter", "Gov agent"]
+    for i in range(len(titles)):
+        axis[axisId+i].set_title(titles[i]+" Purchases")
+        axis[axisId+i].set_ylabel("Bought")
+        axis[axisId].set_yscale('log', base=2)
+    i = 0
+    for prof in goods:
+        for good in goods:
+            if good != Goods.gov:
+                axis[axisId+i].plot(bought_log[prof][good], label=labels[good], color=colors[good])
+        i += 1
+            
     #plt.legend()
     # Get legend handles and labels from one axis (assuming they’re the same across all)
     handles, labels = axis[2].get_legend_handles_labels() #need label in that axis
