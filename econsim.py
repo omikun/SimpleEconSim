@@ -37,6 +37,9 @@ class Agent:
         return 'agent'+str(self.id)+'-'+profession[self.output]
     def age(self, t):
         return t - self.birthRound
+    
+    def oweThisTurn(self):
+        return sum(loan.getPaymentAmount() for loan in self.loans)
 
 # Initial populations
 #agent_template = {'profession': Goods.none,'hungry_steps': 0, 'cash':10, 'inv': {}}

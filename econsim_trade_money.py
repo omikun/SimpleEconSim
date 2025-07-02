@@ -23,7 +23,8 @@ def clamp(x, minx, maxx):
     return max(minx, min(x, maxx))
 
 class Loan:
-    def __init__(self, agent, principle, interest_rate):
+    def __init__(self, bank, agent, principle, interest_rate):
+        self.bank = bank
         self.agent = agent
         self.principle = principle
         self.interest_rate = interest_rate
@@ -45,8 +46,10 @@ class Loan:
 
     def pay(self, amount):
         interest_paid = min(self.getInterest(), amount)
-        self.principle_paid += max(0, amount - interest_paid)
+        principlePaid = max(0, amount - interest_paid)
+        self.principle_paid += principlePaid
         self.interest_paid += interest_paid
+        bank.PayPrinciple(principlePaid)
 
 class Bank():
     def __init__(self):
@@ -54,9 +57,40 @@ class Bank():
         self.total_deposits = 200
         self.reserve_fraction = .1
         self.loans = []
+        self.outstandingDebt = 0
+    def Borrow(self, agent, amount):
+        borrowableAmount = self.total_deposits * (1-self.reserve_fraction) - self.outstandingDebt
+        amount = clamp(amount, 0, borrowableAmount)
+        loan = Loan(self, agent, amount, self.interest_rate)
+        
+        agent.cash += amount
+        agent.loans.append(loan)
+        self.loans.append(loan)
+        self.outstandingDebt += amount
+        
+    def PayPrinciple(self, amount):
+        self.outstandingDebt -= amount
+        
         
 bank = Bank()
 
+def Borrow(agent, foodPrice, bank):
+    loan = foodPrice * 1.2
+    agent.cash += loan
+    agent.loans.append(Loan(bank, agent, loan, bank.interest_rate))
+    
+def BorrowToPayLoans(agent):
+    if agent.cash < agent.oweThisTurn():
+        needed = agent.oweThisTurn() - agent.cash
+        Borrow(agent, needed * 2, bank)
+        
+def PayLoans(agent):
+    for loan in agent.loans:
+        payment = min(agent.cash, loan.getPaymentAmount())
+        loan.pay(payment)
+        agent.cash -= payment
+        
+        
 mostDemand = Goods.none
 def Trade(t, agents, recipes, demand_ratio_log, demand_log, supply_log, sold_log, bought_log):
     global bank
@@ -69,12 +103,19 @@ def Trade(t, agents, recipes, demand_ratio_log, demand_log, supply_log, sold_log
     global mostDemand
     mostDemand = Goods.gov
     maxExcessDemand = 0
-    for agent in agents:
-        agent.remainingCash = agent.cash
 
     goods = [Goods.food, Goods.wood, Goods.furn]
     num_desired = 16
     allGoodsPrice = sum(recipes[good]['price'] for good in goods)
+    foodPrice = recipes[Goods.food]['price']
+    for agent in agents:
+        BorrowToPayLoans(agent)
+        PayLoans(agent)
+        if (agent.output != Goods.food 
+                and agent.cash < foodPrice and agent.hungry_steps > 10):
+            Borrow(agent, foodPrice, bank)
+        agent.remainingCash = agent.cash
+            
     for good in goods:
         num_desired /= 4
     #for good, _ in recipes.items():
@@ -102,13 +143,6 @@ def Trade(t, agents, recipes, demand_ratio_log, demand_log, supply_log, sold_log
             else:
                 agent.bid = 0
 
-            #borrow money from bank
-            if good == Goods.food and agent.bid == 0 and agent.hungry_steps > 10:
-                loan = price * 40
-                agent.cash += loan
-                agent.loans.append(Loan(agent, loan, bank.interest_rate))
-                agent.bid = 1
-                
             agent.remainingCash -= agent.bid * goodPrice
             print(t, agent.name(), 'bid', agent.bid, 'input', GetInputCom(agent, recipes), 'recipe for', recipe['commodity'], 'num input', recipe['numInput'], agent.inv[good])
             totalBids += agent.bid
