@@ -14,7 +14,6 @@ from collections import defaultdict
 agentid = 0
 govCash = 0
 govInv = defaultdict(int)
-
 class Agent:
     def __init__(self, t):
         global agentid
@@ -321,6 +320,7 @@ for good in goods:
     gini_log[good] = []
     
 totalCash_log = []
+bankCash_log = []
 price_log = {Goods.food:[], Goods.wood:[], Goods.furn:[]}
 sold_log = {Goods.food:[], Goods.wood:[], Goods.furn:[]}
 bought_log = dict()
@@ -373,7 +373,8 @@ def main():
                 price_log[good].append(recipes[good]['price'])
 
         total_pop.append(sum(log[-1] for log in pop_log.values()))
-        totalCash_log.append(sum(agent.cash for agent in agents) + govCash)
+        bankCash_log.append(trade.bank.total_deposits - trade.bank.total_liabilities)
+        totalCash_log.append(sum(agent.cash for agent in agents) + govCash + bankCash_log[-1])
 
         for prof in goods:
             for good in goods:
@@ -469,6 +470,7 @@ def main():
     for good in goods:
         axis[axisId].plot(cash_log[good], label=labels[good], color=colors[good])
     axis[axisId].plot(totalCash_log, label='total', color='black')
+    axis[axisId].plot(bankCash_log, label='bank', color='purple')
 
     axisId += 1
     axis[axisId].set_title("Demand vs time")

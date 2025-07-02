@@ -1,5 +1,7 @@
 import math
 import bisect
+import random
+from collections import defaultdict
 from goods import Goods
 
 inventoryLimit = 10
@@ -30,7 +32,7 @@ class Loan:
         self.interest_rate = interest_rate
         self.interest_paid = 0
         self.principle_paid = 0
-        self.num_payments = 30
+        self.num_payments = 100
 
     def isPaid(self):
         return self.principle_paid >= self.principle
@@ -53,42 +55,65 @@ class Loan:
 
 class Bank():
     def __init__(self):
-        self.interest_rate = .1
+        self.interest_rate = .001
         self.total_deposits = 200
         self.reserve_fraction = .1
         self.loans = []
-        self.outstandingDebt = 0
+        self.total_liabilities = 0
+        self.deposits = defaultdict(int)
+        
     def Borrow(self, agent, amount):
-        borrowableAmount = self.total_deposits * (1-self.reserve_fraction) - self.outstandingDebt
+        borrowableAmount = self.total_deposits * (1-self.reserve_fraction) - self.total_liabilities
         amount = clamp(amount, 0, borrowableAmount)
+        print("borrowing from bank with $", self.total_deposits, " deposit and $", self.total_liabilities, "borrowable: $", borrowableAmount, " lending: $", amount)
+        if amount == 0:
+            return
         loan = Loan(self, agent, amount, self.interest_rate)
         
         agent.cash += amount
         agent.loans.append(loan)
         self.loans.append(loan)
-        self.outstandingDebt += amount
+        self.total_liabilities += amount
         
     def PayPrinciple(self, amount):
-        self.outstandingDebt -= amount
+        self.total_liabilities -= amount
+        
+    def Deposit(self, agent, amount):
+        agent.cash -= amount
+        self.total_deposits += amount
+        self.deposits[agent] += amount
+    
+    def Withdraw(self, agent, amount):
+        amount = clamp(amount, 0, self.deposits[agent])
+        agent.cash += amount
+        self.total_deposits -= amount
+        self.deposits[agent] -= amount
         
         
 bank = Bank()
 
 def Borrow(agent, foodPrice, bank):
-    loan = foodPrice * 1.2
-    agent.cash += loan
-    agent.loans.append(Loan(bank, agent, loan, bank.interest_rate))
+    amount = foodPrice * 1.2
+    bank.Borrow(agent, amount)
     
-def BorrowToPayLoans(agent):
-    if agent.cash < agent.oweThisTurn():
-        needed = agent.oweThisTurn() - agent.cash
+def BorrowIfNeedTo(agent):
+    wealth = agent.cash + bank.deposits[agent]
+    if wealth < agent.oweThisTurn():
+        needed = agent.oweThisTurn() - wealth
         Borrow(agent, needed * 2, bank)
         
 def PayLoans(agent):
+    wealth = agent.cash + bank.deposits[agent]
+    paidAmount = 0
     for loan in agent.loans:
-        payment = min(agent.cash, loan.getPaymentAmount())
+        payment = min(wealth, loan.getPaymentAmount())
         loan.pay(payment)
-        agent.cash -= payment
+        paidAmount += payment
+    withdrawAmount = paidAmount - agent.cash
+    if withdrawAmount > 0:
+        bank.Withdraw(agent, withdrawAmount)
+    else:
+        agent.cash -= paidAmount
         
         
 mostDemand = Goods.none
@@ -108,12 +133,21 @@ def Trade(t, agents, recipes, demand_ratio_log, demand_log, supply_log, sold_log
     num_desired = 16
     allGoodsPrice = sum(recipes[good]['price'] for good in goods)
     foodPrice = recipes[Goods.food]['price']
+    random.shuffle(agents)
+    
+    #borrow and deposit
     for agent in agents:
-        BorrowToPayLoans(agent)
+        BorrowIfNeedTo(agent)
         PayLoans(agent)
         if (agent.output != Goods.food 
                 and agent.cash < foodPrice and agent.hungry_steps > 10):
             Borrow(agent, foodPrice, bank)
+        
+        if agent.cash > allGoodsPrice * 30:
+            amount = agent.cash - allGoodsPrice * 30
+            bank.Deposit(agent, amount)
+            agent.cash -= amount
+            
         agent.remainingCash = agent.cash
             
     for good in goods:
