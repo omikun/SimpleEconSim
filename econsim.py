@@ -10,10 +10,12 @@ import bisect
 #import econsim_trade_unity as trade
 import econsim_trade_money as trade
 from collections import defaultdict
+from logger import *
 
 agentid = 0
 govCash = 0
 govInv = defaultdict(int)
+
 class Agent:
     def __init__(self, t):
         global agentid
@@ -114,15 +116,14 @@ def InitAgent(agent, output, numInput, numFood, cash, delta=0):
     if agent.output in recipes:
         recipe = recipes[agent.output]
     else:
-        print(profession[agent.output], 'not in dictionary', recipes)
-        assert(False)
+        logger.error(profession[agent.output], 'not in dictionary', recipes)
     inputCom = recipe.get('input', Goods.none)
     for good in goods:
         agent.inv[good] = 0
     if inputCom != Goods.none:
         agent.inv[inputCom] = numInput
     agent.inv[Goods.food] = numFood
-    print('init', agent.output, agent.inv)
+    loginfo('init', agent.output, agent.inv)
 
 def Produce(t, agents):
     global goods
@@ -133,7 +134,7 @@ def Produce(t, agents):
     totalProd.clear()
     for agent in agents:
         output = agent.output
-        print(t, agent.name(), agent.inv, 'hungry_steps', agent.hungry_steps)
+        loginfo(t, agent.name(), agent.inv, 'hungry_steps', agent.hungry_steps)
         recipe = recipes[output]
         if (agent.inv[output] >= 20):
             continue
@@ -148,7 +149,6 @@ def Produce(t, agents):
                 numOutput = recipe['production'] 
                 agent.inv[com] -= recipe['numInput']
 
-        #print("agent: ", agent)
         age = t - agent.birthRound if output == Goods.food else 0
         numOutput += math.log10(age+1)
         
@@ -161,13 +161,13 @@ def Produce(t, agents):
 
         agent.inv[output] += numOutput
         totalProd[output] += numOutput
-        print(t, agent.name(), 'built',numOutput, output, agent.inv)
+        loginfo(t, agent.name(), 'built',numOutput, output, agent.inv)
 
     for good in goods:
         if good != Goods.gov:
             production_log[good].append(totalProd[good])
     for good, produced in totalProd.items():
-        print(t, numAgentsPerGoods[good],'produced', produced, good)
+        loginfo(t, numAgentsPerGoods[good],'produced', produced, good)
 
 
 def Live(t, agents):
@@ -178,7 +178,6 @@ def Live(t, agents):
     global production_log
     new_agents = []
     #eat food/starve
-    print("living")
     numfood = 0
     numwood = 0
     numFurn = 0
@@ -225,7 +224,7 @@ def Live(t, agents):
                     output = Goods.gov
                 #if NumAgents(agents, output) > 40:
                     #output = Goods.wood
-                print(t, "new agent of ", output)
+                logdebug(t, "new agent of ", output)
                 numInput = 0
                 cash = min(4, agent.cash)
                 agent.cash -= cash
@@ -240,16 +239,16 @@ def Live(t, agents):
                 new_agents.append(agent)
             else:
                 agent.alive = False
-                print(t, agent.name(), 'has died due to age')
+                logdebug(t, agent.name(), 'has died due to age')
         else:
-            print(t, agent.name(), 'has starved to death')
+            logdebug(t, agent.name(), 'has starved to death')
             numdead += 1
             numdeadstarve += 1
             agent.alive = False
         
         if not agent.alive:
             livingDescendents = [agent for agent in agent.descendents if agent.alive]
-            print(t, agent.name(), 'died, has', agent.cash, ' #descendents:', len(livingDescendents),
+            logdebug(t, agent.name(), 'died, has', agent.cash, ' #descendents:', len(livingDescendents),
                   [agent.name() for agent in livingDescendents])
             numdead += 1
             #find descendents
@@ -257,6 +256,7 @@ def Live(t, agents):
             #assert len(descendents) == len(agent.descendents), 'descdendents dont match!'
             if len(livingDescendents) > 0:
                 inheritence = agent.cash / len(livingDescendents)
+                govAgents = [agent for agent in agents if agent.output == Goods.gov]
                 for descendent in livingDescendents:
                     descendent.cash += inheritence
                 for good, amount in agent.inv.items():
@@ -266,7 +266,8 @@ def Live(t, agents):
                         for descendent in profDescendents:
                             descendent.inv[good] += inheritence
                     else:
-                        govAgents = [agent for agent in agents if agent.output == Goods.gov]
+                        if len(govAgents) == 0:
+                            continue
                         inheritance = amount / len(govAgents)
                         for govAgent in govAgents:
                             govAgent.inv[good] += inheritance
@@ -275,7 +276,7 @@ def Live(t, agents):
                 govCash += agent.cash
             
     if govCash > 0:
-        print(t, 'gov cash prev:', prevGovCash, 'now', govCash)
+        logdebug(t, 'gov cash prev:', prevGovCash, 'now', govCash)
         starving_agents = [agent for agent in new_agents if agent.hungry_steps > 0 ]
         if len(starving_agents) > 0:
             wellfare = govCash / len(starving_agents)
@@ -289,10 +290,10 @@ def Live(t, agents):
         
     dead_pop.append(numdead)
     deadstarve_pop.append(numdeadstarve)
-    print(t, 'num dead', numdead)
+    logdebug(t, 'num dead', numdead)
     #dead_pop.append(sum(dead_pop)-numdead)
 
-    print("consumed ", numfood, "food", numwood, "wood", numFurn, "furn")
+    logdebug("consumed ", numfood, "food", numwood, "wood", numFurn, "furn")
     return new_agents
 
 def NumAgents(agents, good):
@@ -311,7 +312,7 @@ def PrintStats(t, agents):
     msg += "\n"
     for agent in agents:
         msg += str(round(agent.inv.get(Goods.furn,0), 1)) + ','
-    print(msg)
+    loginfo(msg)
 
 cash_log = {}
 gini_log = {}
@@ -369,7 +370,9 @@ def main():
             gini_log[good].append(compute_gini(agents, good))
             if good != Goods.gov:
                 inv_log[good].append(sum(agent.inv.get(good, 0) for agent in agents))
-                perCapitaInv[good].append(mean(agent.inv[good] for agent in agents if agent.output != good))
+                newlist = [agent.inv[good] for agent in agents if agent.output != good]
+                avgInv = sum(newlist) if newlist else 0
+                perCapitaInv[good].append(avgInv)
                 price_log[good].append(recipes[good]['price'])
 
         total_pop.append(sum(log[-1] for log in pop_log.values()))
@@ -381,7 +384,7 @@ def main():
                 bought_log[prof][good].append(0)
                 
         if math.fabs(prevTotalCash - totalCash_log[-1]) > 10:
-            print(t, "total cash not matching", prevTotalCash, '!=', totalCash_log[-1])
+            logwarning(t, "total cash not matching", prevTotalCash, '!=', totalCash_log[-1])
             # break
         prevTotalCash = totalCash_log[-1]
 

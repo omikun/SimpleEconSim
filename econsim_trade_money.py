@@ -3,6 +3,7 @@ import bisect
 import random
 from collections import defaultdict
 from goods import Goods
+from logger import *
 
 inventoryLimit = 10
 def GetInputCom(agent, recipes):
@@ -65,7 +66,7 @@ class Bank():
     def Borrow(self, agent, amount):
         borrowableAmount = self.total_deposits * (1-self.reserve_fraction) - self.total_liabilities
         amount = clamp(amount, 0, borrowableAmount)
-        print("borrowing from bank with $", self.total_deposits, " deposit and $", self.total_liabilities, "borrowable: $", borrowableAmount, " lending: $", amount)
+        loginfo("borrowing from bank with $", self.total_deposits, " deposit and $", self.total_liabilities, "borrowable: $", borrowableAmount, " lending: $", amount)
         if amount == 0:
             return
         loan = Loan(self, agent, amount, self.interest_rate)
@@ -153,7 +154,7 @@ def Trade(t, agents, recipes, demand_ratio_log, demand_log, supply_log, sold_log
     for good in goods:
         num_desired /= 4
     #for good, _ in recipes.items():
-        print(t, 'bids and asks for ', good)
+        loginfo(t, 'bids and asks for ', good)
         #get total bids and asks
         totalBids = 0
         totalAsks = 0
@@ -178,7 +179,7 @@ def Trade(t, agents, recipes, demand_ratio_log, demand_log, supply_log, sold_log
                 agent.bid = 0
 
             agent.remainingCash -= agent.bid * goodPrice
-            print(t, agent.name(), 'bid', agent.bid, 'input', GetInputCom(agent, recipes), 'recipe for', recipe['commodity'], 'num input', recipe['numInput'], agent.inv[good])
+            loginfo(t, agent.name(), 'bid', agent.bid, 'input', GetInputCom(agent, recipes), 'recipe for', recipe['commodity'], 'num input', recipe['numInput'], agent.inv[good])
             totalBids += agent.bid
 
             #get asks
@@ -213,7 +214,7 @@ def Trade(t, agents, recipes, demand_ratio_log, demand_log, supply_log, sold_log
         price = max(.5, price)
         recipe['price'] = price
 
-        print(t, "trading ", good, " at $", round(price, 2), "demandRatio:", round(demandRatio, 2) , 
+        logdebug(t, "trading ", good, " at $", round(price, 2), "demandRatio:", round(demandRatio, 2) , 
               " asks: ", round(totalAsks, 2), " bids: ", round(totalBids, 2))
         
         # for agent in agents:
@@ -238,13 +239,13 @@ def Trade(t, agents, recipes, demand_ratio_log, demand_log, supply_log, sold_log
                 assert agent.cash >= 0, 'neg cash, bought $' + str(cash) + ' now has ' + str(agent.cash)
                 totalCashTransfered += cash
                 if bought > 0:
-                    #print(t, agent.name(), 'bought ', bought, good, ', bid: ', bid)
-                    print(t, agent.name(), 'had $', prevCash, 'now', agent.cash, 'bought ', bought, good, ', bid: ', bid, 'affordable: ', affordable, 'remaining:', remaining)
+                    #logdebug(t, agent.name(), 'bought ', bought, good, ', bid: ', bid)
+                    logdebug(t, agent.name(), 'had $', prevCash, 'now', agent.cash, 'bought ', bought, good, ', bid: ', bid, 'affordable: ', affordable, 'remaining:', remaining)
                     agent.inv[good] += bought
                     totalBought += bought
                     bought_log[agent.output][good][-1] += bought
                 else:
-                    print(t, agent.name(), 'had $', prevCash, 'now', agent.cash, 'bought ', bought, good, ', bid: ', bid, 'affordable: ', affordable, 'remaining:', remaining)
+                    logdebug(t, agent.name(), 'had $', prevCash, 'now', agent.cash, 'bought ', bought, good, ', bid: ', bid, 'affordable: ', affordable, 'remaining:', remaining)
 
         askers = sorted(agents, key=lambda a: a.ask, reverse=True)
         totalSold = 0
@@ -257,9 +258,9 @@ def Trade(t, agents, recipes, demand_ratio_log, demand_log, supply_log, sold_log
                 totalSold += sold
                 agent.cash += sold * price
                 if sold > 0:
-                    print(t, agent.name(), 'sold ', sold, good, ', ask: ', ask)
+                    loginfo(t, agent.name(), 'sold ', sold, good, ', ask: ', ask)
 
-        print(t, "demand:", demandRatio, "price:", price, "trades: ", good, " traded: ", 0)
+        loginfo(t, "demand:", demandRatio, "price:", price, "trades: ", good, " traded: ", 0)
         sold_log[good].append(totalSold)
 
 
