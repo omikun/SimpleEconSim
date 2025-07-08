@@ -3,28 +3,25 @@ import random
 import math
 from statistics import mean
 import matplotlib.pyplot as plt
+
+import econsim_live as Living
+import econsim_states
+from econsim_states import *
 from goods import Goods
-import copy
-import bisect
 #import econsim_trade as trade
 #import econsim_trade_unity as trade
 import econsim_trade_money as trade
-from collections import defaultdict
 from logger import *
 
-agentid = 0
-govCash = 0
-govInv = defaultdict(int)
 
 class Agent:
     def __init__(self, t):
-        global agentid
-        self.id = agentid
+        self.id = econsim_states.agentid
         self.birthRound = t
         self.alive = True
         self.parent = None
         self.descendents = []
-        agentid += 1
+        econsim_states.agentid += 1
         self.bid = 0
         self.ask = 0
         self.output = Goods.none
@@ -35,7 +32,7 @@ class Agent:
         self.loans = []
 
     def name(self):
-        return 'agent'+str(self.id)+'-'+profession[self.output]
+        return 'agent'+str(self.id)+'-'+ profession[self.output]
     def age(self, t):
         return t - self.birthRound
     
@@ -44,34 +41,11 @@ class Agent:
 
 # Initial populations
 #agent_template = {'profession': Goods.none,'hungry_steps': 0, 'cash':10, 'inv': {}}
-num_agents = 20
-recipes = {}
-goods = [Goods.food, Goods.wood, Goods.furn, Goods.gov]
-overProductionDerate = .5
 recipes[Goods.food] = {'commodity': Goods.food, 'production': 4, 'price': 1, 'numInput': 0, 'maxtotalprod': 100, 'maxinv': 20}
 recipes[Goods.wood] = {'commodity': Goods.wood, 'production': 2, 'price': 1, 'numInput': 0, 'maxtotalprod': 30, 'maxinv': 10}
 recipes[Goods.furn] = {'commodity': Goods.furn, 'production': 1, 'input': Goods.wood, 'numInput': 10, 'price': 15, 'maxtotalprod':6, 'maxinv': 3}
 recipes[Goods.gov] = {'commodity': Goods.gov, 'production': 0, 'numInput': 0, 'price': 1, 'maxtotalprod':0, 'maxinv': 0}
-profession = {Goods.food:'F', Goods.wood:'W', Goods.furn:'C', Goods.gov:'G', Goods.none:'-'}
-totalProd = defaultdict(int)
 # Parameters
-time_steps = 300
-p_birth = .04
-p_death = .1
-birthGap = 7
-starve_limit = 20
-
-dead_pop = [0]
-deadstarve_pop = [0]
-total_pop = []
-pop_log = {}
-inv_log = {}
-hungry_log = {}
-production_log = {}
-demand_ratio_log = dict()
-supply_log = dict()
-demand_log = dict()
-perCapitaInv = dict()
 
 for good in goods:
     pop_log[good] = []
@@ -126,9 +100,8 @@ def InitAgent(agent, output, numInput, numFood, cash, delta=0):
     loginfo('init', agent.output, agent.inv)
 
 def Produce(t, agents):
-    global goods
     numAgentsPerGoods = dict()
-    for good in goods:
+    for good in econsim_states.goods:
         numAgentsPerGoods[good] = NumAgents(agents, good)
 
     totalProd.clear()
@@ -163,138 +136,12 @@ def Produce(t, agents):
         totalProd[output] += numOutput
         loginfo(t, agent.name(), 'built',numOutput, output, agent.inv)
 
-    for good in goods:
+    for good in econsim_states.goods:
         if good != Goods.gov:
             production_log[good].append(totalProd[good])
     for good, produced in totalProd.items():
         loginfo(t, numAgentsPerGoods[good],'produced', produced, good)
 
-
-def Live(t, agents):
-    global dead_pop
-    global deadstarve_pop
-    global govCash
-    global govInv
-    global production_log
-    new_agents = []
-    #eat food/starve
-    numfood = 0
-    numwood = 0
-    numFurn = 0
-    numdead = 0 #dead_pop[-1]
-    numdeadstarve = deadstarve_pop[-1]
-    prevGovCash = govCash
-    for agent in agents:
-        if agent.inv.get(Goods.wood, 0) > 2 and GetInputCom(agent) != Goods.wood and GetOutputCom(agent) != Goods.wood:
-            agent.inv[Goods.wood] -= 1
-            numwood += 1
-        if agent.inv.get(Goods.furn, 0) > 0 and GetOutputCom(agent) != Goods.furn and random.random() < .02:
-            agent.inv[Goods.furn] -= 1
-            numFurn += 1
-
-        #life cycle
-        if agent.inv[Goods.food] >= 1:
-            food = agent.inv[Goods.food]
-            bins = [5,10,15]
-            foodRate = [1, 2, 4, 8]
-            #eatFood = 1 if (agent.inv[Goods.food] < 10) else 3.5#1.25
-            eatFood = foodRate[bisect.bisect(bins,food)]
-            agent.inv[Goods.food] -= eatFood
-            numfood += eatFood
-            agent.hungry_steps = 0
-        elif agent.output != Goods.food:
-            agent.hungry_steps += 1
-            
-        if agent.hungry_steps == 0:
-            if agent.lastRepro + birthGap < t and random.random() < p_birth and agent.cash > 5 and len(agents) < 512:
-                agent.lastRepro = t
-                new_agent = Agent(t)
-                new_agent.parent = agent
-                agent.descendents.append(new_agent)
-                giveFood = min(2, agent.inv[Goods.food]) ##potentiall food coming from thin air - need gov support
-                agent.inv[Goods.food] -= giveFood
-                #find the smallest number of professions and use that one, since no one makes money
-                #output = FindSmallestTrade(agents)
-                output = trade.mostDemand
-                #some fraction keeps parent's profession
-                if output == Goods.food or random.random() < .5:
-                    output = agent.output
-                #if aggregate output already at max, pick gov
-                if output != Goods.gov and recipes[output]['maxtotalprod'] + 5 <= production_log[output][-1]:
-                    output = Goods.gov
-                #if NumAgents(agents, output) > 40:
-                    #output = Goods.wood
-                logdebug(t, "new agent of ", output)
-                numInput = 0
-                cash = min(4, agent.cash)
-                agent.cash -= cash
-                InitAgent(new_agent, output, numInput, giveFood, cash)
-                new_agents.append(new_agent)
-                
-        if agent.hungry_steps < starve_limit:
-            #die of old age
-            #if random.random() > math.exp(-agent.age(t) / 80) / 50: #pow(agent.age(t) / 1000, 2):
-            #if random.random() > pow(agent.age(t) / 2000, 2):
-            if random.random() > [0.0002,0.0003,0.0007,0.0013,0.0025,0.006,0.013,0.027,0.06,0.13][min(agent.age(t)//30, 9)]:
-                new_agents.append(agent)
-            else:
-                agent.alive = False
-                logdebug(t, agent.name(), 'has died due to age')
-        else:
-            logdebug(t, agent.name(), 'has starved to death')
-            numdead += 1
-            numdeadstarve += 1
-            agent.alive = False
-        
-        if not agent.alive:
-            livingDescendents = [agent for agent in agent.descendents if agent.alive]
-            logdebug(t, agent.name(), 'died, has', agent.cash, ' #descendents:', len(livingDescendents),
-                  [agent.name() for agent in livingDescendents])
-            numdead += 1
-            #find descendents
-            #descendents = [agent for agent in agents if agent.parent == agent]
-            #assert len(descendents) == len(agent.descendents), 'descdendents dont match!'
-            if len(livingDescendents) > 0:
-                inheritence = agent.cash / len(livingDescendents)
-                govAgents = [agent for agent in agents if agent.output == Goods.gov]
-                for descendent in livingDescendents:
-                    descendent.cash += inheritence
-                for good, amount in agent.inv.items():
-                    profDescendents = [agent for agent in livingDescendents if agent.output == good]
-                    if len(profDescendents) > 0:
-                        inheritence = amount / len(profDescendents)
-                        for descendent in profDescendents:
-                            descendent.inv[good] += inheritence
-                    else:
-                        if len(govAgents) == 0:
-                            continue
-                        inheritance = amount / len(govAgents)
-                        for govAgent in govAgents:
-                            govAgent.inv[good] += inheritance
-                    #govInv[good] += amount
-            else:
-                govCash += agent.cash
-            
-    if govCash > 0:
-        logdebug(t, 'gov cash prev:', prevGovCash, 'now', govCash)
-        starving_agents = [agent for agent in new_agents if agent.hungry_steps > 0 ]
-        if len(starving_agents) > 0:
-            wellfare = govCash / len(starving_agents)
-            for agent in starving_agents:
-                agent.cash += wellfare
-                govCash -= wellfare
-
-
-    for good in goods:
-        hungry_log[good].append(sum(1 for agent in agents if agent.output == good and agent.hungry_steps > 0))
-        
-    dead_pop.append(numdead)
-    deadstarve_pop.append(numdeadstarve)
-    logdebug(t, 'num dead', numdead)
-    #dead_pop.append(sum(dead_pop)-numdead)
-
-    logdebug("consumed ", numfood, "food", numwood, "wood", numFurn, "furn")
-    return new_agents
 
 def NumAgents(agents, good):
     return sum(agent.output == good for agent in agents)
@@ -314,17 +161,11 @@ def PrintStats(t, agents):
         msg += str(round(agent.inv.get(Goods.furn,0), 1)) + ','
     loginfo(msg)
 
-cash_log = {}
-gini_log = {}
+
 for good in goods:
     cash_log[good] = []
     gini_log[good] = []
-    
-totalCash_log = []
-bankCash_log = []
-price_log = {Goods.food:[], Goods.wood:[], Goods.furn:[]}
-sold_log = {Goods.food:[], Goods.wood:[], Goods.furn:[]}
-bought_log = dict()
+
 for prof in goods:
     bought_log[prof] = dict()
     for good in goods:
@@ -346,11 +187,11 @@ def compute_gini(agents, good):
     return gini
 
 def main():
-    global govCash
+    logInit()
     time_steps = int(sys.argv[1])
     agents = [Agent(0) for _ in range(num_agents)]
     InitAgents(agents)
-    prevTotalCash = (sum(agent.cash for agent in agents) + govCash)
+    prevTotalCash = (sum(agent.cash for agent in agents) + econsim_states.govCash)
     for t in range(time_steps):
         # if t == 800:
         #     recipes[Goods.food]['maxtotalprod'] = 50
@@ -362,28 +203,28 @@ def main():
         Produce(t, agents)
         #trade.Trade(t, agents, recipes)
         trade.Trade(t, agents, recipes, demand_ratio_log, demand_log, supply_log, sold_log, bought_log)
-        agents = Live(t, agents)
+        agents = Living.Live(t, agents)
 
         for good in goods:
             pop_log[good].append(sum(agent.output == good for agent in agents))
-            cash_log[good].append(sum(agent.cash if agent.output == good else 0 for agent in agents ))
+            cash_log[good].append(sum(agent.cash if agent.output == good else 0 for agent in agents))
             gini_log[good].append(compute_gini(agents, good))
             if good != Goods.gov:
                 inv_log[good].append(sum(agent.inv.get(good, 0) for agent in agents))
                 newlist = [agent.inv[good] for agent in agents if agent.output != good]
-                avgInv = sum(newlist) if newlist else 0
+                avgInv = mean(newlist) if newlist else 0
                 perCapitaInv[good].append(avgInv)
                 price_log[good].append(recipes[good]['price'])
 
         total_pop.append(sum(log[-1] for log in pop_log.values()))
         bankCash_log.append(trade.bank.total_deposits - trade.bank.total_liabilities)
-        totalCash_log.append(sum(agent.cash for agent in agents) + govCash + bankCash_log[-1])
+        totalCash_log.append(sum(agent.cash for agent in agents) + econsim_states.govCash + bankCash_log[-1])
 
         for prof in goods:
             for good in goods:
                 bought_log[prof][good].append(0)
                 
-        if math.fabs(prevTotalCash - totalCash_log[-1]) > 10:
+        if math.fabs(prevTotalCash - totalCash_log[-1]) > 3:
             logwarning(t, "total cash not matching", prevTotalCash, '!=', totalCash_log[-1])
             # break
         prevTotalCash = totalCash_log[-1]
@@ -469,7 +310,7 @@ def main():
     axis[axisId].set_title("Cash vs time")
     #axis[axisId].set_xlabel("Time Step")
     axis[axisId].set_ylabel("Cash")
-    axis[axisId].set_yscale('log', base=2)
+    # axis[axisId].set_yscale('log', base=2)
     for good in goods:
         axis[axisId].plot(cash_log[good], label=labels[good], color=colors[good])
     axis[axisId].plot(totalCash_log, label='total', color='black')

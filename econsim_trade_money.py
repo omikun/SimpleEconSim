@@ -97,8 +97,11 @@ def Borrow(agent, foodPrice, bank):
     amount = foodPrice * 1.2
     bank.Borrow(agent, amount)
     
-def BorrowIfNeedTo(agent):
+def GetWealth(agent):
     wealth = agent.cash + bank.deposits[agent]
+    return wealth
+def BorrowIfNeedTo(agent):
+    wealth = GetWealth(agent)
     if wealth < agent.oweThisTurn():
         needed = agent.oweThisTurn() - wealth
         Borrow(agent, needed * 2, bank)
