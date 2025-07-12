@@ -4,7 +4,7 @@ import random
 from econsim_states import *
 import econsim_trade_money as trade
 from econsim import GetInputCom, GetOutputCom, Agent, InitAgent
-from econsim_states import recipes, goods, p_birth, birthGap, starve_limit, hungry_log
+from econsim_states import *
 from goods import Goods
 from logger import logdebug
 

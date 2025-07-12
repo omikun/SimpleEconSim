@@ -13,15 +13,14 @@ from goods import Goods
 import econsim_trade_money as trade
 from logger import *
 
-
 class Agent:
     def __init__(self, t):
         self.id = econsim_states.agentid
+        econsim_states.agentid += 1
         self.birthRound = t
         self.alive = True
         self.parent = None
         self.descendents = []
-        econsim_states.agentid += 1
         self.bid = 0
         self.ask = 0
         self.output = Goods.none
@@ -35,6 +34,9 @@ class Agent:
         return 'agent'+str(self.id)+'-'+ profession[self.output]
     def age(self, t):
         return t - self.birthRound
+    
+    def wealth(self):
+        return self.cash + trade.bank.deposits[self]
     
     def oweThisTurn(self):
         return sum(loan.getPaymentAmount() for loan in self.loans)
@@ -81,12 +83,14 @@ def InitAgents(agents):
             output = Goods.gov
 
         #init inventory
-        InitAgent(agent, output, 10, 2, 60, 40)
+        delta = 40
+        cash = 60 + random.randint(-delta, delta)
+        InitAgent(agent, output, 10, 2, cash)
 
 
 def InitAgent(agent, output, numInput, numFood, cash, delta=0):
     agent.output = output
-    agent.cash = cash + random.randint(-delta, delta)
+    agent.cash = cash
     if agent.output in recipes:
         recipe = recipes[agent.output]
     else:
@@ -186,7 +190,12 @@ def compute_gini(agents, good):
     gini = diffsum / (2 * n * n * mean_cash)
     return gini
 
+def getTotalCash(agents):
+    bankCash = bankCash_log[-1] if bankCash_log else 0
+    return sum(agent.wealth() for agent in agents) + econsim_states.govCash + bankCash
+
 def main():
+    epsilon = 1e-8
     logInit()
     time_steps = int(sys.argv[1])
     agents = [Agent(0) for _ in range(num_agents)]
@@ -203,6 +212,11 @@ def main():
         Produce(t, agents)
         #trade.Trade(t, agents, recipes)
         trade.Trade(t, agents, recipes, demand_ratio_log, demand_log, supply_log, sold_log, bought_log)
+        tempTotalCash = getTotalCash(agents)
+        diff = math.fabs(tempTotalCash - prevTotalCash) 
+        if diff > epsilon:
+            loginfo(t, "post trade total cash", prevTotalCash, '!=', tempTotalCash, diff)
+        
         agents = Living.Live(t, agents)
 
         for good in goods:
@@ -218,14 +232,15 @@ def main():
 
         total_pop.append(sum(log[-1] for log in pop_log.values()))
         bankCash_log.append(trade.bank.total_deposits - trade.bank.total_liabilities)
-        totalCash_log.append(sum(agent.cash for agent in agents) + econsim_states.govCash + bankCash_log[-1])
+        totalCash_log.append(getTotalCash(agents))
 
         for prof in goods:
             for good in goods:
                 bought_log[prof][good].append(0)
                 
-        if math.fabs(prevTotalCash - totalCash_log[-1]) > 3:
-            logwarning(t, "total cash not matching", prevTotalCash, '!=', totalCash_log[-1])
+        diff = math.fabs(prevTotalCash - totalCash_log[-1])
+        if diff > epsilon:
+            logwarning(t, "total cash not matching", prevTotalCash, '!=', totalCash_log[-1], 'diff', diff)
             # break
         prevTotalCash = totalCash_log[-1]
 

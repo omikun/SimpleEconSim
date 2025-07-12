@@ -4,6 +4,7 @@ import random
 from collections import defaultdict
 from goods import Goods
 from logger import *
+from econsim_states import *
 
 inventoryLimit = 10
 def GetInputCom(agent, recipes):
@@ -63,10 +64,10 @@ class Bank():
         self.total_liabilities = 0
         self.deposits = defaultdict(int)
         
-    def Borrow(self, agent, amount):
+    def Borrow(self, t, agent, amount):
         borrowableAmount = self.total_deposits * (1-self.reserve_fraction) - self.total_liabilities
         amount = clamp(amount, 0, borrowableAmount)
-        loginfo("borrowing from bank with $", self.total_deposits, " deposit and $", self.total_liabilities, "borrowable: $", borrowableAmount, " lending: $", amount)
+        loginfo(t, "borrowing from bank with $", self.total_deposits, " deposit and $", self.total_liabilities, "borrowable: $", borrowableAmount, " lending: $", amount)
         if amount == 0:
             return
         loan = Loan(self, agent, amount, self.interest_rate)
@@ -93,18 +94,15 @@ class Bank():
         
 bank = Bank()
 
-def Borrow(agent, foodPrice, bank):
+def Borrow(t, agent, foodPrice, bank):
     amount = foodPrice * 1.2
-    bank.Borrow(agent, amount)
+    bank.Borrow(t, agent, amount)
     
-def GetWealth(agent):
-    wealth = agent.cash + bank.deposits[agent]
-    return wealth
-def BorrowIfNeedTo(agent):
-    wealth = GetWealth(agent)
+def BorrowIfNeedTo(t, agent):
+    wealth = agent.wealth()
     if wealth < agent.oweThisTurn():
         needed = agent.oweThisTurn() - wealth
-        Borrow(agent, needed * 2, bank)
+        Borrow(t, agent, needed * 2, bank)
         
 def PayLoans(agent):
     wealth = agent.cash + bank.deposits[agent]
@@ -122,6 +120,7 @@ def PayLoans(agent):
         
 mostDemand = Goods.none
 def Trade(t, agents, recipes, demand_ratio_log, demand_log, supply_log, sold_log, bought_log):
+    prevTotalCash = getTotalCash(agents)
     global bank
     #supply vs demand curve? but this curve is on the change in price, not the price it self
     # when demand > supply, price increases by 1-5%
@@ -138,22 +137,26 @@ def Trade(t, agents, recipes, demand_ratio_log, demand_log, supply_log, sold_log
     allGoodsPrice = sum(recipes[good]['price'] for good in goods)
     foodPrice = recipes[Goods.food]['price']
     random.shuffle(agents)
-    
+
+    reportCash(t, agents, prevTotalCash, "pre borrow and deposit", True)
     #borrow and deposit
     for agent in agents:
-        BorrowIfNeedTo(agent)
+        BorrowIfNeedTo(t, agent)
         PayLoans(agent)
         if (agent.output != Goods.food 
                 and agent.cash < foodPrice and agent.hungry_steps > 10):
-            Borrow(agent, foodPrice, bank)
+            Borrow(t, agent, foodPrice, bank)
+            reportCash(t, agents, prevTotalCash, agent.name() + " post borrow ")
         
         if agent.cash > allGoodsPrice * 30:
             amount = agent.cash - allGoodsPrice * 30
             bank.Deposit(agent, amount)
             agent.cash -= amount
+            reportCash(t, agents, prevTotalCash, agent.name() + " post deposit ")
             
         agent.remainingCash = agent.cash
-            
+
+    reportCash(t, agents, prevTotalCash, "post borrow and deposit")
     for good in goods:
         num_desired /= 4
     #for good, _ in recipes.items():
@@ -229,18 +232,18 @@ def Trade(t, agents, recipes, demand_ratio_log, demand_log, supply_log, sold_log
         #give goods to bidders
         totalBought = 0
         bidders = sorted(agents, key=lambda a: a.hungry_steps, reverse=True) #most demanding agent first
-        totalCashTransfered = 0
+        totalCashPurchase = 0
         for agent in bidders:
             if totalAsks > totalBought:
                 prevCash = agent.cash
                 bid = agent.bid
                 remaining = totalAsks - totalBought
                 affordable = int(agent.cash / price)
-                bought = min(bid, min(remaining, affordable))
+                bought = max(0, min(bid, min(remaining, affordable)))
                 cash = bought * price
                 agent.cash -= cash
                 assert agent.cash >= 0, 'neg cash, bought $' + str(cash) + ' now has ' + str(agent.cash)
-                totalCashTransfered += cash
+                totalCashPurchase += cash
                 if bought > 0:
                     #logdebug(t, agent.name(), 'bought ', bought, good, ', bid: ', bid)
                     logdebug(t, agent.name(), 'had $', prevCash, 'now', agent.cash, 'bought ', bought, good, ', bid: ', bid, 'affordable: ', affordable, 'remaining:', remaining)
@@ -252,20 +255,35 @@ def Trade(t, agents, recipes, demand_ratio_log, demand_log, supply_log, sold_log
 
         askers = sorted(agents, key=lambda a: a.ask, reverse=True)
         totalSold = 0
+        totalCashSold = 0
         for agent in askers:
-            if totalSold < totalBought and totalCashTransfered > 0:
+            if totalSold < totalBought and totalCashPurchase > totalCashSold:
                 ask = agent.ask
                 remaining = totalBought - totalSold
                 sold = min(ask, remaining)
                 assert sold >= 0, 'neg sold ' + str(sold)
                 totalSold += sold
                 agent.cash += sold * price
+                totalCashSold += sold * price
                 if sold > 0:
                     loginfo(t, agent.name(), 'sold ', sold, good, ', ask: ', ask)
 
-        loginfo(t, "demand:", demandRatio, "price:", price, "trades: ", good, " traded: ", 0)
-        sold_log[good].append(totalSold)
+        diff = math.fabs(totalCashSold - totalCashPurchase)
+        if diff > .1:
+            logwarning(t, "traded", good, "demand:", demandRatio, "price:", price, "trades: ", good, " traded: ", 0, "total bought", totalBought, "totalSold", totalSold, "cash bought $", totalCashPurchase, "cash sold $", totalCashSold, "diff", math.fabs(totalCashSold - totalCashPurchase))
 
+        sold_log[good].append(totalSold)
+        reportCash(t, agents, prevTotalCash, "post trade " + str(good))
+def reportCash(t, agents, prevTotalCash, msg, print=False): 
+    tempTotalCash = getTotalCash(agents)
+    diff = math.fabs(tempTotalCash - prevTotalCash)
+    epsilon = 1e-8
+    if diff > epsilon or print:
+        loginfo(t, msg, "total cash", prevTotalCash, '!=', tempTotalCash, diff)
+
+def getTotalCash(agents):
+    bankCash = bankCash_log[-1] if bankCash_log else 0
+    return sum(agent.cash for agent in agents) + govCash + bankCash
 
 def FindSmallestTrade(agents):
     counts = dict()
