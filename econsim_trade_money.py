@@ -216,7 +216,7 @@ def Trade(t, agents, recipes, demand_ratio_log, demand_log, supply_log, sold_log
         if demandRatio >= 1:
             price *= lerp(1.01, 1.05, demandRatio - 1)
         elif demandRatio < .5:
-            price *= lerp(.99, .95, demandRatio * 2)
+            price *= lerp(1, .98, demandRatio * 2)
         price = max(.5, price)
         recipe['price'] = price
 

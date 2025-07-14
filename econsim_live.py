@@ -93,7 +93,7 @@ def Live(t, agents):
             #find descendents
             #descendents = [agent for agent in agents if agent.parent == agent]
             #assert len(descendents) == len(agent.descendents), 'descdendents dont match!'
-            wealth = trade.GetWealth(agent)
+            wealth = agent.wealth()
             if wealth <= 0:
                 continue
             if len(livingDescendents) > 0:
