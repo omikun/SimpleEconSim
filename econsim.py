@@ -291,7 +291,8 @@ def main():
     #axis[axisId].set_xlabel("Time Step")
     axis[axisId].set_ylabel("Cash")
     
-    for good in goods:
+    rotGoods = [goods[-1]] + goods[:-1]
+    for good in rotGoods:
         axis[axisId].plot(gini_log[good], label=labels[good], color=colors[good])
 
     axisId += 1
