@@ -28,6 +28,7 @@ class Agent:
         self.cash = 0
         self.inv = {}
         self.cost_basis = {}
+        self.lastCareerSwitch = 0
         self.lastRepro = 0
         self.loans = []
 
@@ -116,33 +117,35 @@ def Produce(t, agents):
         recipe = recipes[output]
         maxinv = recipe['maxinv']
             
-        #produce - scale down as inventory approaches maxinv
+        #produce - calculate probability of a full production cycle
         numOutput = 0
         inv_ratio = agent.inv.get(output, 0) / maxinv if maxinv > 0 else 1
         if inv_ratio >= 1:
             totalProd[output] += 0
             continue
-        
-        if recipe['numInput'] == 0:
-            numOutput = recipe['production'] 
-        else:
+            
+        has_inputs = True
+        if recipe['numInput'] > 0:
             com = recipe['input']
-            if (agent.inv[com] >= recipe['numInput']):
-                numOutput = recipe['production'] 
-                agent.inv[com] -= recipe['numInput']
-
-        age = t - agent.birthRound if output == Goods.food else 0
-        numOutput += math.log10(age+1)
-        
-        if agent.hungry_steps > 0:
-            numOutput *= 1 / agent.hungry_steps
-        #derate factor based on overproduction
-        if output == Goods.food or output == Goods.wood:
-            numOutput = min(numOutput, recipe['maxtotalprod'] / numAgentsPerGoods[output])
-        
-        # Slow production as inventory fills up
-        numOutput *= max(0, 1 - inv_ratio)
-        #numOutput = math.floor(numOutput)
+            if agent.inv.get(com, 0) < recipe['numInput']:
+                has_inputs = False
+                
+        if has_inputs and recipe.get('production', 0) > 0:
+            chance = 1.0
+            
+            if agent.hungry_steps > 0:
+                chance *= 1 / agent.hungry_steps
+                
+            if output == Goods.food or output == Goods.wood:
+                max_per_agent = recipe['maxtotalprod'] / max(1, numAgentsPerGoods[output])
+                chance *= min(1.0, max_per_agent / recipe['production'])
+                
+            chance *= max(0, 1 - inv_ratio)
+            
+            if random.random() < chance:
+                if recipe['numInput'] > 0:
+                    agent.inv[recipe['input']] -= recipe['numInput']
+                numOutput = recipe['production']
 
         agent.inv[output] += numOutput
         totalProd[output] += numOutput
