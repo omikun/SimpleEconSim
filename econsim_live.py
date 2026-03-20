@@ -43,6 +43,13 @@ def Live(t, agents):
             agent.hungry_steps = 0
         elif agent.output != Goods.food:
             agent.hungry_steps += 1
+        
+        # Career switching: struggling agents switch to most in-demand profession
+        if agent.hungry_steps > 5 and agent.cash < 10 and trade.mostDemand != Goods.gov:
+            if agent.output != trade.mostDemand:
+                logdebug(t, agent.name(), 'switching career to', profession[trade.mostDemand])
+                agent.output = trade.mostDemand
+                agent.hungry_steps = 0
             
         if agent.hungry_steps == 0:
             if agent.lastRepro + birthGap < t and random.random() < p_birth and agent.cash > 5 and len(agents) < 512:

@@ -232,6 +232,14 @@ def BiddersBuyGood(t, agents, good, bought_log, price, totalAsks, totalBought):
                 # logdebug(t, agent.name(), 'bought ', bought, good, ', bid: ', bid)
                 logdebug(t, agent.name(), 'had $', prevCash, 'now', agent.cash, 'bought ', bought, good, ', bid: ', bid,
                          'affordable: ', affordable, 'remaining:', remaining)
+                # Update cost basis (weighted average of what agent actually paid)
+                old_qty = agent.inv.get(good, 0)
+                old_cost = agent.cost_basis.get(good, 0)
+                total_qty = old_qty + bought
+                if total_qty > 0:
+                    agent.cost_basis[good] = (old_qty * old_cost + bought * price) / total_qty
+                else:
+                    agent.cost_basis[good] = price
                 agent.inv[good] += bought
                 totalBought += bought
                 bought_log[agent.output][good][-1] += bought
@@ -246,8 +254,10 @@ def SetMarketPrice(demandRatio, good, recipes):
     price = recipe['price']
     if demandRatio >= 1:
         price *= lerp(1.01, 1.05, demandRatio - 1)
+    elif demandRatio < 0.2:
+        price *= lerp(0.90, 0.95, demandRatio / 0.2)  # 5-10% drop when very oversupplied
     elif demandRatio < .5:
-        price *= lerp(1, .98, demandRatio * 2)
+        price *= lerp(0.95, 1.0, (demandRatio - 0.2) / 0.3)  # 0-5% drop
     price = max(.5, price)
     recipe['price'] = price
     return price
@@ -261,14 +271,16 @@ def GatherBidsAsks(t, agents, good, goodPrice, num_desired, recipes, totalAsks, 
         if GetInputCom(agent, recipes) == good:
             agent.bid = max(0, recipe['numInput'] - agent.inv.get(good, 0))
         elif agent.output != good and agent.remainingCash > goodPrice:
-            # num_desired = clamp(4 / num_desired * (agent.remainingCash // allGoodsPrice), num_desired, num_desired*2)
             num_affordable = min(num_desired, agent.remainingCash // goodPrice)
             num_storable = max(0, recipes[good]['maxinv'] - agent.inv.get(good, 0))
-            # if good == Goods.furn:
-            #     num_storable = recipes[good]['price'] / 4 / agent.remainingCash
 
             agent.bid = min(num_affordable, num_storable)
-            # agent.bid = max(0, inventoryLimit - agent.inv.get(good,0)) / divisor
+            
+            # Consumption-based demand: wealthy agents buy more non-essentials
+            if good != Goods.food and agent.remainingCash > goodPrice * 10:
+                discretionary = agent.remainingCash // (goodPrice * 10)
+                agent.bid += min(discretionary, num_storable - agent.bid)
+                agent.bid = max(0, min(agent.bid, num_storable))
         else:
             agent.bid = 0
 
@@ -279,7 +291,17 @@ def GatherBidsAsks(t, agents, good, goodPrice, num_desired, recipes, totalAsks, 
 
         # get asks
         if agent.output == good:
-            agent.ask = max(0, agent.inv.get(good, 0))
+            cost_to_make = 0
+            if recipe.get('numInput', 0) > 0 and recipe.get('production', 0) > 0:
+                input_com = recipe['input']
+                input_cost = agent.cost_basis.get(input_com, 0)
+                cost_to_make = (recipe['numInput'] * input_cost) / recipe['production']
+                
+            if goodPrice >= cost_to_make:
+                agent.ask = max(0, agent.inv.get(good, 0))
+            else:
+                agent.ask = 0
+                
             totalAsks += agent.ask
         else:
             agent.ask = 0

@@ -1,6 +1,6 @@
 import logging
 
-logLevel = logging.ERROR
+logLevel = logging.DEBUG
 logging.basicConfig(level=logLevel)
 logger = logging.getLogger(__name__)
 

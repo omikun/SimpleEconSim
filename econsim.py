@@ -27,6 +27,7 @@ class Agent:
         self.hungry_steps = 0
         self.cash = 0
         self.inv = {}
+        self.cost_basis = {}
         self.lastRepro = 0
         self.loans = []
 
@@ -113,11 +114,15 @@ def Produce(t, agents):
         output = agent.output
         loginfo(t, agent.name(), agent.inv, 'hungry_steps', agent.hungry_steps)
         recipe = recipes[output]
-        if (agent.inv[output] >= 20):
-            continue
+        maxinv = recipe['maxinv']
             
-        #produce
+        #produce - scale down as inventory approaches maxinv
         numOutput = 0
+        inv_ratio = agent.inv.get(output, 0) / maxinv if maxinv > 0 else 1
+        if inv_ratio >= 1:
+            totalProd[output] += 0
+            continue
+        
         if recipe['numInput'] == 0:
             numOutput = recipe['production'] 
         else:
@@ -134,6 +139,9 @@ def Produce(t, agents):
         #derate factor based on overproduction
         if output == Goods.food or output == Goods.wood:
             numOutput = min(numOutput, recipe['maxtotalprod'] / numAgentsPerGoods[output])
+        
+        # Slow production as inventory fills up
+        numOutput *= max(0, 1 - inv_ratio)
         #numOutput = math.floor(numOutput)
 
         agent.inv[output] += numOutput
