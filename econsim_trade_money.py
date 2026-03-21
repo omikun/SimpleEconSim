@@ -276,9 +276,9 @@ def GatherBidsAsks(t, agents, good, goodPrice, num_desired, recipes, totalAsks, 
 
             agent.bid = min(num_affordable, num_storable)
             
-            # Consumption-based demand: wealthy agents buy more non-essentials
-            if good != Goods.food and agent.remainingCash > goodPrice * 10:
-                discretionary = agent.remainingCash // (goodPrice * 10)
+            # Consumption-based demand: wealthy agents occasionally buy non-essentials
+            if good != Goods.food and agent.remainingCash > goodPrice * 4:
+                discretionary = min(1, agent.remainingCash // (goodPrice * 4))
                 agent.bid += min(discretionary, num_storable - agent.bid)
                 agent.bid = max(0, min(agent.bid, num_storable))
         else:

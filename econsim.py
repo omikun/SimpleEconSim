@@ -45,7 +45,7 @@ class Agent:
 
 # Initial populations
 #agent_template = {'profession': Goods.none,'hungry_steps': 0, 'cash':10, 'inv': {}}
-recipes[Goods.food] = {'commodity': Goods.food, 'production': 4, 'price': 1, 'numInput': 0, 'maxtotalprod': 100, 'maxinv': 20}
+recipes[Goods.food] = {'commodity': Goods.food, 'production': 2, 'price': 1, 'numInput': 0, 'maxtotalprod': 100, 'maxinv': 20}
 recipes[Goods.wood] = {'commodity': Goods.wood, 'production': 2, 'price': 1, 'numInput': 0, 'maxtotalprod': 30, 'maxinv': 10}
 recipes[Goods.furn] = {'commodity': Goods.furn, 'production': 1, 'input': Goods.wood, 'numInput': 10, 'price': 15, 'maxtotalprod':6, 'maxinv': 3}
 recipes[Goods.gov] = {'commodity': Goods.gov, 'production': 0, 'numInput': 0, 'price': 1, 'maxtotalprod':0, 'maxinv': 0}
@@ -75,18 +75,18 @@ def InitAgents(agents):
         agent = agents[a]
         output = Goods.none
 
-        if a < 10:
+        if a < 13:
             output = Goods.food
         elif a < 16:
             output = Goods.wood
-        elif a < 20:
+        elif a < 18:
             output = Goods.furn
-        elif a < 30:
+        else:            
             output = Goods.gov
 
         #init inventory
-        delta = 40
-        cash = 60 + random.randint(-delta, delta)
+        delta = 20
+        cash = 120 + random.randint(-delta, delta)
         InitAgent(agent, output, 10, 2, cash)
 
 

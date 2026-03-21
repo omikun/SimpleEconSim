@@ -34,7 +34,7 @@ def Live(t, agents):
         #life cycle
         if agent.inv[Goods.food] >= 1:
             food = agent.inv[Goods.food]
-            bins = [5,10,15]
+            bins = [2,10,18]
             foodRate = [1, 2, 4, 8]
             #eatFood = 1 if (agent.inv[Goods.food] < 10) else 3.5#1.25
             eatFood = foodRate[bisect.bisect(bins,food)]
