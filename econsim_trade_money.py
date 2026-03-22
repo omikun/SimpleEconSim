@@ -208,6 +208,7 @@ def AskersSellGood(askers, good, price, t, totalBought, totalCashPurchase, total
             assert sold >= 0, 'neg sold ' + str(sold)
             totalSold += sold
             agent.cash += sold * price
+            agent.inv[good] -= sold
             totalCashSold += sold * price
             if sold > 0:
                 loginfo(t, agent.name(), 'sold ', sold, good, ', ask: ', ask)
