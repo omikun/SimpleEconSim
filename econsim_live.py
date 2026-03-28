@@ -32,24 +32,31 @@ def Live(t, agents):
             numFurn += 1
 
         #life cycle
-        if agent.inv[Goods.food] >= 1:
-            food = agent.inv[Goods.food]
-            bins = [2,10,18]
-            foodRate = [1, 2, 4, 8]
-            #eatFood = 1 if (agent.inv[Goods.food] < 10) else 3.5#1.25
-            eatFood = foodRate[bisect.bisect(bins,food)]
-            agent.inv[Goods.food] -= eatFood
-            numfood += eatFood
+        if agent.inv.get(Goods.food, 0) >= 4:
+            agent.inv[Goods.food] -= 4
+            numfood += 4
             agent.hungry_steps = 0
-        elif agent.output != Goods.food:
+        elif agent.inv.get(Goods.food, 0) > 0:
+            agent.inv[Goods.food] = 0
+            agent.hungry_steps = 0
+        else:
+            numfood += agent.inv.get(Goods.food, 0)
+            agent.inv[Goods.food] = 0
             agent.hungry_steps += 1
         
-        # Career switching: struggling agents switch to most in-demand profession
-        if agent.hungry_steps > 5 and agent.cash < 10 and trade.mostDemand != Goods.gov:
-            if agent.output != trade.mostDemand and (t - getattr(agent, 'lastCareerSwitch', 0) > 10):
-                logdebug(t, agent.name(), 'switching career to', profession[trade.mostDemand])
+        # Career switching: EMERGENCY survival (> 5) or Economic Mobility (Cash < 20)
+        if agent.hungry_steps > 5:
+            if agent.output != Goods.food:
+                logdebug(t, agent.name(), 'EMERGENCY! switching to farmer')
+                agent.output = Goods.food
+                agent.lastCareerSwitch = t
+        elif agent.hungry_steps > 2 and (t - getattr(agent, 'lastCareerSwitch', 0) > 10):
+            if trade.mostDemand != Goods.gov and agent.output != trade.mostDemand:
+                logdebug(t, agent.name(), 'hungry, switching to in-demand career:', profession[trade.mostDemand])
+        elif agent.cash < 20 and (t - getattr(agent, 'lastCareerSwitch', 0) > 10):
+            if trade.mostDemand != Goods.gov and agent.output != trade.mostDemand:
+                logdebug(t, agent.name(), 'poor, switching to in-demand career:', profession[trade.mostDemand])
                 agent.output = trade.mostDemand
-                agent.hungry_steps = 0
                 agent.lastCareerSwitch = t
             
         if agent.hungry_steps == 0:

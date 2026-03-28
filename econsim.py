@@ -45,7 +45,7 @@ class Agent:
 
 # Initial populations
 #agent_template = {'profession': Goods.none,'hungry_steps': 0, 'cash':10, 'inv': {}}
-recipes[Goods.food] = {'commodity': Goods.food, 'production': 2, 'price': 1, 'numInput': 0, 'maxtotalprod': 100, 'maxinv': 20}
+recipes[Goods.food] = {'commodity': Goods.food, 'production': 5, 'price': 1, 'numInput': 0, 'maxtotalprod': 100, 'maxinv': 20}
 recipes[Goods.wood] = {'commodity': Goods.wood, 'production': 2, 'price': 1, 'numInput': 0, 'maxtotalprod': 30, 'maxinv': 10}
 recipes[Goods.furn] = {'commodity': Goods.furn, 'production': 1, 'input': Goods.wood, 'numInput': 10, 'price': 15, 'maxtotalprod':6, 'maxinv': 3}
 recipes[Goods.gov] = {'commodity': Goods.gov, 'production': 0, 'numInput': 0, 'price': 1, 'maxtotalprod':0, 'maxinv': 0}
@@ -412,7 +412,16 @@ def main():
     plt.grid(True)
     for ax in axis:
         ax.set_facecolor('lightgrey')
-    plt.show()
-
+        
+    print("\n--- Final Evaluation Summary ---")
+    for good in goods:
+        pop = pop_log.get(good, [0])[-1] if pop_log.get(good) else 0
+        price = price_log.get(good, [1.0])[-1] if good != Goods.gov and price_log.get(good) else 1.0
+        inv = inv_log.get(good, [0])[-1] if good != Goods.gov and inv_log.get(good) else 0
+        cash = cash_log.get(good, [0])[-1] if cash_log.get(good) else 0
+        print(f"{profession.get(good, str(good))}: Pop={pop}, Price={price:.2f}, Inv={inv:.2f}, Cash={cash:.2f}")
+    print(f"Total Pop: {total_pop[-1] if total_pop else 0}, Dead/Starved: {deadstarve_pop[-1] if deadstarve_pop else 0}")
+    print("--------------------------------\n")
+    plt.savefig('sim_output.png')
 if __name__ == "__main__":
     main()
