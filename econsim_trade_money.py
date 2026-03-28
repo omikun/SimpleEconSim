@@ -166,16 +166,20 @@ def Trade(t, agents, recipes, demand_ratio_log, demand_log, supply_log, sold_log
             maxExcessDemand = excessDemand
             mostDemand = good
 
-        if totalTrades == 0:
+        if totalAsks == 0 and totalBids == 0:
             continue
-
-        demandRatio = totalBids / totalAsks
+            
+        demandRatio = 5.0 if totalAsks == 0 else totalBids / totalAsks
+        
         demand_ratio_log.setdefault(good, [])
         demand_ratio_log[good].append(demandRatio)
         demand_log[good].append(totalBids)
         supply_log[good].append(totalAsks)
 
         price = SetMarketPrice(demandRatio, good, recipes)
+
+        if totalTrades == 0:
+            continue
 
         logdebug(t, "trading ", good, " at $", round(price, 2), "demandRatio:", round(demandRatio, 2) , 
               " asks: ", round(totalAsks, 2), " bids: ", round(totalBids, 2))
@@ -308,7 +312,7 @@ def GatherBidsAsks(t, agents, good, goodPrice, num_desired, recipes, totalAsks, 
                 cost_to_make = (recipe['numInput'] * input_cost) / recipe['production']
                 
             if good == Goods.food and agent.output == Goods.food:
-                    agent.ask = max(0, agent.ask - 4)
+                    agent.ask = max(0, agent.inv.get(good, 0) - 4)
             elif goodPrice >= cost_to_make:
                 agent.ask = max(0, agent.inv.get(good, 0))
             else:
