@@ -44,13 +44,13 @@ def Live(t, agents):
             agent.inv[Goods.food] = 0
             agent.hungry_steps += 1
         
-        # Career switching: EMERGENCY survival (> 5) or Economic Mobility (Cash < 20)
-        if agent.hungry_steps > 5:
+        # Career switching: EMERGENCY survival (> 2) or Economic Mobility (Cash < 20)
+        if agent.hungry_steps > 2:
             if agent.output != Goods.food:
                 logdebug(t, agent.name(), 'EMERGENCY! switching to farmer')
                 agent.output = Goods.food
                 agent.lastCareerSwitch = t
-        elif agent.hungry_steps > 2 and (t - getattr(agent, 'lastCareerSwitch', 0) > 10):
+        elif agent.hungry_steps > 1 and (t - getattr(agent, 'lastCareerSwitch', 0) > 10):
             if trade.mostDemand != Goods.gov and agent.output != trade.mostDemand:
                 logdebug(t, agent.name(), 'hungry, switching to in-demand career:', profession[trade.mostDemand])
         elif agent.cash < 20 and (t - getattr(agent, 'lastCareerSwitch', 0) > 10):
