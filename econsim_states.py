@@ -2,7 +2,7 @@ from collections import defaultdict
 
 from goods import Goods
 
-num_agents = 20
+num_agents = 110
 recipes = {}
 goods = [Goods.food, Goods.wood, Goods.furn, Goods.gov]
 overProductionDerate = .5

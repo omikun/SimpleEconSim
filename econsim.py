@@ -75,11 +75,11 @@ def InitAgents(agents):
         agent = agents[a]
         output = Goods.none
 
-        if a < 13:
+        if a < 90:
             output = Goods.food
-        elif a < 16:
+        elif a < 97:
             output = Goods.wood
-        elif a < 18:
+        elif a < 99:
             output = Goods.furn
         else:            
             output = Goods.gov
