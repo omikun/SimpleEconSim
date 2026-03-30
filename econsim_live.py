@@ -23,6 +23,8 @@ def Live(t, agents):
     numdead = 0 #dead_pop[-1]
     numdeadstarve = deadstarve_pop[-1]
     prevGovCash = govCash
+    numSwitches = 0
+    random.shuffle(agents)
     for agent in agents:
         if agent.inv.get(Goods.wood, 0) > 2 and GetInputCom(agent) != Goods.wood and GetOutputCom(agent) != Goods.wood:
             agent.inv[Goods.wood] -= 1
@@ -45,21 +47,29 @@ def Live(t, agents):
             agent.hungry_steps += 1
         
         # Career switching: EMERGENCY survival (> 2) or Economic Mobility (Cash < 20)
+        didSwitch = False
         if agent.hungry_steps > 2:
-            if agent.output != Goods.food:
+            if agent.output != Goods.food and numSwitches < max_career_switches:
                 logdebug(t, agent.name(), 'EMERGENCY! switching to farmer')
                 agent.output = Goods.food
                 agent.lastCareerSwitch = t
-        elif agent.hungry_steps > 1 and (t - getattr(agent, 'lastCareerSwitch', 0) > 10):
-            if trade.mostDemand != Goods.gov and agent.output != trade.mostDemand:
-                logdebug(t, agent.name(), 'hungry, switching to in-demand career:', profession[trade.mostDemand])
-                agent.output = trade.mostDemand
-                agent.lastCareerSwitch = t
-        elif agent.cash < 20 and (t - getattr(agent, 'lastCareerSwitch', 0) > 10):
-            if trade.mostDemand != Goods.gov and agent.output != trade.mostDemand:
-                logdebug(t, agent.name(), 'poor, switching to in-demand career:', profession[trade.mostDemand])
-                agent.output = trade.mostDemand
-                agent.lastCareerSwitch = t
+                numSwitches += 1
+                didSwitch = True
+        elif numSwitches < max_career_switches:
+            if agent.hungry_steps > 1 and (t - getattr(agent, 'lastCareerSwitch', 0) > 10):
+                if trade.mostDemand != Goods.gov and agent.output != trade.mostDemand:
+                    logdebug(t, agent.name(), 'hungry, switching to in-demand career:', profession[trade.mostDemand])
+                    agent.output = trade.mostDemand
+                    agent.lastCareerSwitch = t
+                    numSwitches += 1
+                    didSwitch = True
+            elif agent.cash < 20 and (t - getattr(agent, 'lastCareerSwitch', 0) > 10):
+                if trade.mostDemand != Goods.gov and agent.output != trade.mostDemand:
+                    logdebug(t, agent.name(), 'poor, switching to in-demand career:', profession[trade.mostDemand])
+                    agent.output = trade.mostDemand
+                    agent.lastCareerSwitch = t
+                    numSwitches += 1
+                    didSwitch = True
             
         if agent.hungry_steps == 0:
             if agent.lastRepro + birthGap < t and random.random() < p_birth and agent.cash > 5 and len(agents) < 512:

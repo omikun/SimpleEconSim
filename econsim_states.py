@@ -12,6 +12,7 @@ time_steps = 300
 p_birth = .04
 p_death = .1
 birthGap = 7
+max_career_switches = 5
 starve_limit = 20
 dead_pop = [0]
 deadstarve_pop = [0]
