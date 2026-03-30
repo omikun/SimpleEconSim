@@ -68,7 +68,7 @@ class Bank():
         borrowableAmount = self.total_deposits * (1-self.reserve_fraction) - self.total_liabilities
         amount = clamp(amount, 0, borrowableAmount)
         loginfo(t, "borrowing from bank with $", self.total_deposits, " deposit and $", self.total_liabilities, "borrowable: $", borrowableAmount, " lending: $", amount)
-        if amount == 0:
+        if amount <= 0:
             return
         loan = Loan(self, agent, amount, self.interest_rate)
         
@@ -81,6 +81,7 @@ class Bank():
         self.total_liabilities -= amount
         
     def Deposit(self, agent, amount):
+        assert(agent.cash >= amount)
         agent.cash -= amount
         self.total_deposits += amount
         self.deposits[agent] += amount
@@ -103,19 +104,31 @@ def BorrowIfNeedTo(t, agent):
     if wealth < agent.oweThisTurn():
         needed = agent.oweThisTurn() - wealth
         Borrow(t, agent, needed * 2, bank)
-        
+
 def PayLoans(agent):
-    wealth = agent.cash + bank.deposits[agent]
-    paidAmount = 0
+    # 1. Determine total liquid assets
+    total_wealth = agent.cash + bank.deposits[agent]
+    remaining_wealth = total_wealth
+    total_paid = 0
+    
+    # 2. Calculate and apply payments based on REMAINING wealth
     for loan in agent.loans:
-        payment = min(wealth, loan.getPaymentAmount())
+        payment = min(remaining_wealth, loan.getPaymentAmount())
         loan.pay(payment)
-        paidAmount += payment
-    withdrawAmount = paidAmount - agent.cash
-    if withdrawAmount > 0:
-        bank.Withdraw(agent, withdrawAmount)
-    else:
-        agent.cash -= paidAmount
+        total_paid += payment
+        remaining_wealth -= payment
+    
+    # 3. Handle cash and bank withdrawals
+    if total_paid > 0:
+        if total_paid > agent.cash:
+            # We need more than what's in pocket, withdraw from bank
+            needed_from_bank = total_paid - agent.cash
+            bank.Withdraw(agent, needed_from_bank)
+            
+        # 4. Now subtract the total amount from the (potentially updated) cash balance
+        agent.cash -= total_paid
+    # 5. Cleanup: Remove fully paid loans
+    agent.loans = [l for l in agent.loans if not l.isPaid()]
         
         
 mostDemand = Goods.none
@@ -236,7 +249,7 @@ def BiddersBuyGood(t, agents, good, bought_log, price, totalAsks, totalBought):
             bought = max(0, min(bid, min(remaining, affordable)))
             cash = bought * price
             agent.cash -= cash
-            assert agent.cash >= 0, 'neg cash, bought $' + str(cash) + ' now has ' + str(agent.cash)
+            assert agent.cash >= 0, 'neg cash, bought $' + str(cash) + ' of ' + good + ' now has ' + str(agent.cash)
             totalCashPurchase += cash
             if bought > 0:
                 # logdebug(t, agent.name(), 'bought ', bought, good, ', bid: ', bid)
@@ -336,7 +349,6 @@ def DecideBorrowDeposit(agents, allGoodsPrice, bank, foodPrice, prevTotalCash, t
         if agent.cash > allGoodsPrice * 30:
             amount = agent.cash - allGoodsPrice * 30
             bank.Deposit(agent, amount)
-            agent.cash -= amount
             reportCash(t, agents, prevTotalCash, agent.name() + " post deposit ")
 
         agent.remainingCash = agent.cash

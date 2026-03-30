@@ -47,29 +47,25 @@ def Live(t, agents):
             agent.hungry_steps += 1
         
         # Career switching: EMERGENCY survival (> 2) or Economic Mobility (Cash < 20)
-        didSwitch = False
-        if agent.hungry_steps > 2:
-            if agent.output != Goods.food and numSwitches < max_career_switches:
-                logdebug(t, agent.name(), 'EMERGENCY! switching to farmer')
-                agent.output = Goods.food
-                agent.lastCareerSwitch = t
-                numSwitches += 1
-                didSwitch = True
-        elif numSwitches < max_career_switches:
+        if numSwitches < max_career_switches:
+            if agent.hungry_steps > 2:
+                if agent.output != Goods.food:
+                    logdebug(t, agent.name(), 'EMERGENCY! switching to farmer')
+                    agent.output = Goods.food
+                    agent.lastCareerSwitch = t
+                    numSwitches += 1
             if agent.hungry_steps > 1 and (t - getattr(agent, 'lastCareerSwitch', 0) > 10):
                 if trade.mostDemand != Goods.gov and agent.output != trade.mostDemand:
                     logdebug(t, agent.name(), 'hungry, switching to in-demand career:', profession[trade.mostDemand])
                     agent.output = trade.mostDemand
                     agent.lastCareerSwitch = t
                     numSwitches += 1
-                    didSwitch = True
             elif agent.cash < 20 and (t - getattr(agent, 'lastCareerSwitch', 0) > 10):
                 if trade.mostDemand != Goods.gov and agent.output != trade.mostDemand:
                     logdebug(t, agent.name(), 'poor, switching to in-demand career:', profession[trade.mostDemand])
                     agent.output = trade.mostDemand
                     agent.lastCareerSwitch = t
                     numSwitches += 1
-                    didSwitch = True
             
         if agent.hungry_steps == 0:
             if agent.lastRepro + birthGap < t and random.random() < p_birth and agent.cash > 5 and len(agents) < 512:
@@ -124,16 +120,17 @@ def Live(t, agents):
             if wealth <= 0:
                 continue
             if len(livingDescendents) > 0:
-                inheritence = wealth / len(livingDescendents)
+                inheritance = wealth / len(livingDescendents)
+                assert(inheritance >= 0)
                 govAgents = [agent for agent in agents if agent.output == Goods.gov]
                 for descendent in livingDescendents:
-                    descendent.cash += inheritence
+                    descendent.cash += inheritance
                 for good, amount in agent.inv.items():
                     profDescendents = [agent for agent in livingDescendents if agent.output == good]
                     if len(profDescendents) > 0:
-                        inheritence = amount / len(profDescendents)
+                        inheritance = amount / len(profDescendents)
                         for descendent in profDescendents:
-                            descendent.inv[good] += inheritence
+                            descendent.inv[good] += inheritance
                     else:
                         if len(govAgents) == 0:
                             continue
@@ -149,6 +146,7 @@ def Live(t, agents):
         starving_agents = [agent for agent in new_agents if agent.hungry_steps > 0 ]
         if len(starving_agents) > 0:
             wellfare = govCash / len(starving_agents)
+            assert(wellfare >= 0)
             for agent in starving_agents:
                 agent.cash += wellfare
                 govCash -= wellfare
