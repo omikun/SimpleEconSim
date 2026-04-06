@@ -143,7 +143,7 @@ def Trade(t, agents, recipes, demand_ratio_log, demand_log, supply_log, sold_log
     
     global mostDemand
     mostDemand = Goods.gov
-    maxExcessDemand = 0
+    maxDemandRatio = 0
 
     goods = [Goods.food, Goods.wood, Goods.furn]
     num_desired = 16
@@ -174,15 +174,22 @@ def Trade(t, agents, recipes, demand_ratio_log, demand_log, supply_log, sold_log
 
         #take goods from askers
         totalTrades = min(totalAsks, totalBids)
-        excessDemand = max(0, totalBids - totalTrades)
-        if (maxExcessDemand < excessDemand):# and totalProd[good] < recipes[good]['maxtotalprod']): #and limit not reached
-            maxExcessDemand = excessDemand
-            mostDemand = good
 
         if totalAsks == 0 and totalBids == 0:
+            recipe = recipes[good]
+            cost_to_make = 1.0
+            if recipe.get('numInput', 0) > 0 and recipe.get('production', 0) > 0:
+                input_cost = recipes[recipe['input']]['price']
+                cost_to_make = (recipe['numInput'] * input_cost) / recipe['production']
+            if recipe['price'] > cost_to_make * 1.05:
+                recipe['price'] = max(cost_to_make, recipe['price'] * 0.95)
             continue
             
         demandRatio = 5.0 if totalAsks == 0 else totalBids / totalAsks
+        
+        if (maxDemandRatio < demandRatio) and totalBids > 0:
+            maxDemandRatio = demandRatio
+            mostDemand = good
         
         demand_ratio_log.setdefault(good, [])
         demand_ratio_log[good].append(demandRatio)
@@ -345,6 +352,16 @@ def DecideBorrowDeposit(agents, allGoodsPrice, bank, foodPrice, prevTotalCash, t
                 and agent.cash < foodPrice and agent.hungry_steps > 10):
             Borrow(t, agent, foodPrice, bank)
             reportCash(t, agents, prevTotalCash, agent.name() + " post borrow ")
+
+        if agent.output in recipes and recipes[agent.output].get('numInput', 0) > 0:
+            input_com = recipes[agent.output]['input']
+            input_price = recipes[input_com]['price']
+            num_input = recipes[agent.output]['numInput']
+            cost = input_price * num_input
+            if agent.cash < cost:
+                amount_needed = cost - agent.cash
+                bank.Borrow(t, agent, amount_needed)
+                reportCash(t, agents, prevTotalCash, agent.name() + " post business borrow ")
 
         if agent.cash > allGoodsPrice * 30:
             amount = agent.cash - allGoodsPrice * 30

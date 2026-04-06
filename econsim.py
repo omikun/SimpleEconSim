@@ -46,8 +46,8 @@ class Agent:
 # Initial populations
 #agent_template = {'profession': Goods.none,'hungry_steps': 0, 'cash':10, 'inv': {}}
 recipes[Goods.food] = {'commodity': Goods.food, 'production': 5, 'price': 1, 'numInput': 0, 'maxtotalprod': 10000, 'maxinv': 20}
-recipes[Goods.wood] = {'commodity': Goods.wood, 'production': 2, 'price': 1, 'numInput': 0, 'maxtotalprod': 30, 'maxinv': 10}
-recipes[Goods.furn] = {'commodity': Goods.furn, 'production': 1, 'input': Goods.wood, 'numInput': 4, 'price': 25, 'maxtotalprod':16, 'maxinv': 5}
+recipes[Goods.wood] = {'commodity': Goods.wood, 'production': 2, 'price': 1, 'numInput': 0, 'maxtotalprod': 3000, 'maxinv': 10}
+recipes[Goods.furn] = {'commodity': Goods.furn, 'production': 1, 'input': Goods.wood, 'numInput': 4, 'price': 25, 'maxtotalprod':300, 'maxinv': 5}
 recipes[Goods.gov] = {'commodity': Goods.gov, 'production': 0, 'numInput': 0, 'price': 1, 'maxtotalprod':0, 'maxinv': 0}
 # Parameters
 

@@ -29,7 +29,7 @@ def Live(t, agents):
         if agent.inv.get(Goods.wood, 0) > 2 and GetInputCom(agent) != Goods.wood and GetOutputCom(agent) != Goods.wood:
             agent.inv[Goods.wood] -= 1
             numwood += 1
-        if agent.inv.get(Goods.furn, 0) > 0 and GetOutputCom(agent) != Goods.furn and random.random() < .02:
+        if agent.inv.get(Goods.furn, 0) > 0 and GetOutputCom(agent) != Goods.furn and random.random() < .066:
             agent.inv[Goods.furn] -= 1
             numFurn += 1
 
@@ -61,14 +61,21 @@ def Live(t, agents):
                     agent.lastCareerSwitch = t
                     numSwitches += 1
             elif agent.cash < 20 and (t - getattr(agent, 'lastCareerSwitch', 0) > 10):
-                if trade.mostDemand != Goods.gov and agent.output != trade.mostDemand:
+                if random.random() < 0.1:
+                    choices = [g for g in goods if g != Goods.gov]
+                    if choices:
+                        agent.output = random.choice(choices)
+                        logdebug(t, agent.name(), 'poor, exploring random career:', profession[agent.output])
+                        agent.lastCareerSwitch = t
+                        numSwitches += 1
+                elif trade.mostDemand != Goods.gov and agent.output != trade.mostDemand:
                     logdebug(t, agent.name(), 'poor, switching to in-demand career:', profession[trade.mostDemand])
                     agent.output = trade.mostDemand
                     agent.lastCareerSwitch = t
                     numSwitches += 1
             
         if agent.hungry_steps == 0:
-            if agent.lastRepro + birthGap < t and random.random() < p_birth and agent.cash > 5 and len(agents) < 512:
+            if agent.lastRepro + birthGap < t and random.random() < p_birth and agent.cash > recipes[Goods.food]['price'] * 4 and len(agents) < 512:
                 agent.lastRepro = t
                 new_agent = Agent(t)
                 new_agent.parent = agent
@@ -77,10 +84,15 @@ def Live(t, agents):
                 agent.inv[Goods.food] -= giveFood
                 #find the smallest number of professions and use that one, since no one makes money
                 #output = FindSmallestTrade(agents)
-                output = trade.mostDemand
-                #some fraction keeps parent's profession
-                if output == Goods.food or random.random() < .5:
-                    output = agent.output
+                empty_professions = [g for g in goods if g != Goods.gov and sum(1 for a in agents if a.output == g) == 0]
+                if empty_professions:
+                    output = empty_professions[0]
+                    logdebug(t, "seeding extinct profession:", profession[output])
+                else:
+                    output = trade.mostDemand
+                    #some fraction keeps parent's profession
+                    if output == Goods.food or random.random() < .5:
+                        output = agent.output
                 #if aggregate output already at max, pick gov
                 if output != Goods.gov and recipes[output]['maxtotalprod'] + 5 <= production_log[output][-1]:
                     output = Goods.gov
