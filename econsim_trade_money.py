@@ -290,6 +290,14 @@ def SetMarketPrice(demandRatio, good, recipes):
         price *= lerp(0.90, 0.95, demandRatio / 0.2)  # 5-10% drop when very oversupplied
     elif demandRatio < .5:
         price *= lerp(0.95, 1.0, (demandRatio - 0.2) / 0.3)  # 0-5% drop
+    
+    # Enforce fundamental bankruptcy floor
+    cost_to_make = 1.0
+    if recipe.get('numInput', 0) > 0 and recipe.get('production', 0) > 0:
+        input_cost = recipes[recipe['input']]['price']
+        cost_to_make = (recipe['numInput'] * input_cost) / recipe['production']
+        
+    price = max(cost_to_make, price)
     price = max(0.1, price)
     recipe['price'] = price
     return price

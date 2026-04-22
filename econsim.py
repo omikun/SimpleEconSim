@@ -38,7 +38,9 @@ class Agent:
         return t - self.birthRound
     
     def wealth(self):
-        return self.cash + trade.bank.deposits[self]
+        inv_value = sum(amount * recipes[good]['price'] for good, amount in self.inv.items() if good in recipes)
+        debt_value = sum(loan.principle for loan in self.loans)
+        return self.cash + trade.bank.deposits.get(self, 0) + inv_value - debt_value
     
     def oweThisTurn(self):
         return sum(loan.getPaymentAmount() for loan in self.loans)
