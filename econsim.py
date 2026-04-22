@@ -204,8 +204,9 @@ def compute_gini(agents, good):
     return gini
 
 def getTotalCash(agents):
-    bankCash = bankCash_log[-1] if bankCash_log else 0
-    return sum(agent.wealth() for agent in agents) + econsim_states.govCash + bankCash
+    # Calculate bank's exact physical reserves at this exact millisecond
+    bankCash = trade.bank.total_deposits - trade.bank.total_liabilities
+    return sum(agent.cash for agent in agents) + econsim_states.govCash + bankCash
 
 def main():
     epsilon = 1e-8

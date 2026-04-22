@@ -54,6 +54,7 @@ class Loan:
         self.principle_paid += principlePaid
         self.interest_paid += interest_paid
         bank.PayPrinciple(principlePaid)
+        bank.PayInterest(interest_paid)
 
 class Bank():
     def __init__(self):
@@ -79,6 +80,9 @@ class Bank():
         
     def PayPrinciple(self, amount):
         self.total_liabilities -= amount
+
+    def PayInterest(self, amount):
+        self.total_deposits += amount
         
     def Deposit(self, agent, amount):
         assert(agent.cash >= amount)
@@ -183,6 +187,8 @@ def Trade(t, agents, recipes, demand_ratio_log, demand_log, supply_log, sold_log
                 cost_to_make = (recipe['numInput'] * input_cost) / recipe['production']
             if recipe['price'] > cost_to_make * 1.05:
                 recipe['price'] = max(cost_to_make, recipe['price'] * 0.95)
+            
+            recipe['price'] = max(cost_to_make, recipe['price'])
             continue
             
         demandRatio = 5.0 if totalAsks == 0 else totalBids / totalAsks
@@ -387,7 +393,7 @@ def reportCash(t, agents, prevTotalCash, msg, print=False):
         loginfo(t, msg, "total cash", prevTotalCash, '!=', tempTotalCash, diff)
 
 def getTotalCash(agents):
-    bankCash = bankCash_log[-1] if bankCash_log else 0
+    bankCash = bank.total_deposits - bank.total_liabilities
     return sum(agent.cash for agent in agents) + govCash + bankCash
 
 def FindSmallestTrade(agents):
