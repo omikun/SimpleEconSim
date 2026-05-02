@@ -1,10 +1,10 @@
 import bisect
 import random
 
+import econsim_states
 from econsim_states import *
 import econsim_trade_money as trade
 from econsim import GetInputCom, GetOutputCom, Agent, InitAgent
-from econsim_states import *
 from goods import Goods
 from logger import logdebug
 
@@ -12,8 +12,6 @@ from logger import logdebug
 def Live(t, agents):
     global dead_pop
     global deadstarve_pop
-    global govCash
-    global govInv
     global production_log
     new_agents = []
     #eat food/starve
@@ -22,7 +20,7 @@ def Live(t, agents):
     numFurn = 0
     numdead = 0 #dead_pop[-1]
     numdeadstarve = deadstarve_pop[-1]
-    prevGovCash = govCash
+    prevGovCash = econsim_states.govCash
     numSwitches = 0
     random.shuffle(agents)
     for agent in agents:
@@ -120,48 +118,81 @@ def Live(t, agents):
             numdeadstarve += 1
             agent.alive = False
         
+            agent.alive = False
+        
         if not agent.alive:
             livingDescendents = [agent for agent in agent.descendents if agent.alive]
             logdebug(t, agent.name(), 'died, has', agent.cash, ' #descendents:', len(livingDescendents),
                   [agent.name() for agent in livingDescendents])
             numdead += 1
-            #find descendents
-            #descendents = [agent for agent in agents if agent.parent == agent]
-            #assert len(descendents) == len(agent.descendents), 'descdendents dont match!'
-            wealth = agent.wealth()
-            if wealth <= 0:
-                continue
-            if len(livingDescendents) > 0:
-                inheritance = wealth / len(livingDescendents)
-                assert(inheritance >= 0)
-                govAgents = [agent for agent in agents if agent.output == Goods.gov]
-                for descendent in livingDescendents:
-                    descendent.cash += inheritance
-                for good, amount in agent.inv.items():
-                    profDescendents = [agent for agent in livingDescendents if agent.output == good]
-                    if len(profDescendents) > 0:
-                        inheritance = amount / len(profDescendents)
-                        for descendent in profDescendents:
-                            descendent.inv[good] += inheritance
-                    else:
-                        if len(govAgents) == 0:
-                            continue
-                        inheritance = amount / len(govAgents)
-                        for govAgent in govAgents:
-                            govAgent.inv[good] += inheritance
-                    #govInv[good] += amount
-            else:
-                govCash += wealth
             
-    if govCash > 0:
-        logdebug(t, 'gov cash prev:', prevGovCash, 'now', govCash)
+            # --- MONEY CONSERVATION FIX ---
+            # 1. Handle Debt: If the agent dies, the bank must write off the principle
+            total_debt = sum(loan.principle for loan in agent.loans)
+            if total_debt > 0:
+                trade.bank.total_liabilities -= total_debt
+                # Clean up bank's loan tracking
+                trade.bank.loans = [l for l in trade.bank.loans if l.agent != agent]
+            
+            # 2. Inherit Cash and Deposits (Whole units only)
+            inheritance_cash = agent.cash
+            inheritance_deposits = trade.bank.deposits.get(agent, 0)
+            
+            if len(livingDescendents) > 0:
+                # Distribute whole units of cash
+                cash_share = int(inheritance_cash // len(livingDescendents))
+                cash_remainder = inheritance_cash - (cash_share * len(livingDescendents))
+                
+                # Distribute whole units of bank deposits
+                deposit_share = int(inheritance_deposits // len(livingDescendents))
+                deposit_remainder = inheritance_deposits - (deposit_share * len(livingDescendents))
+                
+                for descendent in livingDescendents:
+                    descendent.cash += cash_share
+                    trade.bank.deposits[descendent] += deposit_share
+                
+                # Remainders go to the government
+                econsim_states.govCash += cash_remainder
+                econsim_states.govCash += deposit_remainder
+                if deposit_remainder > 0:
+                    trade.bank.total_deposits -= deposit_remainder
+                
+                # 3. Inherit physical inventory (Whole units only)
+                for good, amount in agent.inv.items():
+                    target_heirs = [agent for agent in livingDescendents if agent.output == good]
+                    if not target_heirs:
+                        target_heirs = livingDescendents # Fallback to all heirs if none match profession
+                    
+                    unit_share = int(amount // len(target_heirs))
+                    unit_remainder = amount - (unit_share * len(target_heirs))
+                    
+                    for descendent in target_heirs:
+                        descendent.inv[good] += unit_share
+                    
+                    # Decimal remainders of physical goods go to government stores
+                    if unit_remainder > 0:
+                        econsim_states.govInv[good] += unit_remainder
+            else:
+                # No heirs: assets go to government
+                econsim_states.govCash += inheritance_cash
+                # Gov doesn't have an agent object usually, so just add to govCash
+                # CRITICAL: If we move deposits to govCash, we must remove it from the bank's total
+                econsim_states.govCash += inheritance_deposits
+                trade.bank.total_deposits -= inheritance_deposits
+            
+            # Clear the dead agent's bank account
+            if agent in trade.bank.deposits:
+                del trade.bank.deposits[agent]
+            
+    if econsim_states.govCash > 0:
+        logdebug(t, 'gov cash prev:', prevGovCash, 'now', econsim_states.govCash)
         starving_agents = [agent for agent in new_agents if agent.hungry_steps > 0 ]
         if len(starving_agents) > 0:
-            wellfare = govCash / len(starving_agents)
+            wellfare = econsim_states.govCash / len(starving_agents)
             assert(wellfare >= 0)
             for agent in starving_agents:
                 agent.cash += wellfare
-                govCash -= wellfare
+                econsim_states.govCash -= wellfare
 
 
     for good in goods:

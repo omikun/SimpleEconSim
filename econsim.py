@@ -214,7 +214,7 @@ def main():
     time_steps = int(sys.argv[1])
     agents = [Agent(0) for _ in range(num_agents)]
     InitAgents(agents)
-    prevTotalCash = (sum(agent.cash for agent in agents) + econsim_states.govCash)
+    prevTotalCash = (sum(agent.cash for agent in agents) + econsim_states.govCash + (trade.bank.total_deposits - trade.bank.total_liabilities))
     for t in range(time_steps):
         # if t == 800:
         #     recipes[Goods.food]['maxtotalprod'] = 50
