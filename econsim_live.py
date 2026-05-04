@@ -127,14 +127,44 @@ def Live(t, agents):
             numdead += 1
             
             # --- MONEY CONSERVATION FIX ---
-            # 1. Handle Debt: If the agent dies, the bank must write off the principle
-            total_debt = sum(loan.principle for loan in agent.loans)
-            if total_debt > 0:
-                trade.bank.total_liabilities -= total_debt
-                # Clean up bank's loan tracking
-                trade.bank.loans = [l for l in trade.bank.loans if l.agent != agent]
+            # 1. Repay debt using agent's cash and deposits
+            total_wealth = agent.cash + trade.bank.deposits.get(agent, 0)
+            remaining_wealth = total_wealth
+            total_paid = 0
             
-            # 2. Inherit Cash and Deposits (Whole units only)
+            for loan in agent.loans:
+                amount_to_clear = (loan.principle - loan.principle_paid) + loan.getInterest()
+                payment = min(remaining_wealth, amount_to_clear)
+                if payment > 0:
+                    loan.pay(payment)
+                    total_paid += payment
+                    remaining_wealth -= payment
+                    
+            if total_paid > 0:
+                if total_paid > agent.cash:
+                    needed_from_bank = total_paid - agent.cash
+                    trade.bank.Withdraw(agent, needed_from_bank)
+                agent.cash -= total_paid
+                
+            agent.loans = [l for l in agent.loans if not l.isPaid()]
+            
+            # 2. Distribute remaining debt to heirs or bank takes the loss
+            remaining_principle = sum(l.principle - l.principle_paid for l in agent.loans)
+            if remaining_principle > 0:
+                trade.bank.total_liabilities -= remaining_principle
+                trade.bank.loans = [l for l in trade.bank.loans if l not in agent.loans]
+                
+                if len(livingDescendents) > 0:
+                    principle_share = remaining_principle / len(livingDescendents)
+                    for descendent in livingDescendents:
+                        new_loan = trade.Loan(trade.bank, descendent, principle_share, trade.bank.interest_rate)
+                        descendent.loans.append(new_loan)
+                        trade.bank.loans.append(new_loan)
+                        trade.bank.total_liabilities += principle_share
+                else:
+                    trade.bank.total_deposits -= remaining_principle
+            
+            # 3. Inherit Cash and Deposits (Whole units only)
             inheritance_cash = agent.cash
             inheritance_deposits = trade.bank.deposits.get(agent, 0)
             
