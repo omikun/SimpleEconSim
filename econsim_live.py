@@ -162,6 +162,9 @@ def Live(t, agents):
                         trade.bank.loans.append(new_loan)
                         trade.bank.total_liabilities += principle_share
                 else:
+                    # No heirs: bank absorbs the loss
+                    if remaining_principle > trade.bank.total_deposits:
+                        trade.bank.RequestBailout(t, remaining_principle)
                     trade.bank.total_deposits -= remaining_principle
             
             # 3. Inherit Cash and Deposits (Whole units only)

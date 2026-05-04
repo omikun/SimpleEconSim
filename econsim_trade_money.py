@@ -5,6 +5,7 @@ from collections import defaultdict
 from goods import Goods
 from logger import *
 from econsim_states import *
+import econsim_states
 
 inventoryLimit = 10
 def GetInputCom(agent, recipes):
@@ -95,8 +96,32 @@ class Bank():
         agent.cash += amount
         self.total_deposits -= amount
         self.deposits[agent] -= amount
-        
-        
+
+    def RequestBailout(self, t, loss_amount):
+        """Request a government bailout when the bank can't absorb a loss.
+        The bailout covers the immediate deficit plus a buffer of 20% of
+        outstanding liabilities so another bailout won't be needed for 10+ turns."""
+        deficit = max(0, loss_amount - self.total_deposits)
+        buffer = self.total_liabilities * 0.2
+        bailout_amount = deficit + buffer
+        bailout_amount = max(bailout_amount, loss_amount)  # at minimum cover the loss
+
+        approved, amount = gov_decide_bailout(t, self, bailout_amount)
+        if approved and amount > 0:
+            econsim_states.govCash -= amount
+            self.total_deposits += amount
+            logwarning(t, "BAILOUT: government injected $", round(amount, 2),
+                       "into bank. govCash now $", round(econsim_states.govCash, 2))
+        return approved
+
+
+def gov_decide_bailout(t, bank, requested_amount):
+    """Government decides whether to approve a bank bailout.
+    Currently defaults to auto-approve. Returns (approved, amount)."""
+    # Auto-approve: give the full requested amount even if govCash goes negative
+    return True, requested_amount
+
+
 bank = Bank()
 
 def Borrow(t, agent, foodPrice, bank):
