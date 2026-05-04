@@ -261,8 +261,8 @@ def BiddersBuyGood(t, agents, good, bought_log, price, totalAsks, totalBought):
             affordable = int(agent.cash / price)
             bought = max(0, min(bid, min(remaining, affordable)))
             cash = bought * price
-            agent.cash -= cash
-            assert agent.cash >= 0, 'neg cash, bought $' + str(cash) + ' of ' + good + ' now has ' + str(agent.cash)
+            agent.cash = max(0.0, agent.cash - cash)
+            assert agent.cash >= -1e-5, 'neg cash, bought $' + str(cash) + ' of ' + str(good) + ' now has ' + str(agent.cash)
             totalCashPurchase += cash
             if bought > 0:
                 # logdebug(t, agent.name(), 'bought ', bought, good, ', bid: ', bid)
@@ -346,7 +346,7 @@ def GatherBidsAsks(t, agents, good, goodPrice, num_desired, recipes, totalAsks, 
                 cost_to_make = (recipe['numInput'] * input_cost) / recipe['production']
                 
             if good == Goods.food and agent.output == Goods.food:
-                    agent.ask = max(0, agent.inv.get(good, 0) - 4)
+                    agent.ask = max(0, agent.inv.get(good, 0) - 2)
             elif goodPrice >= cost_to_make:
                 agent.ask = max(0, agent.inv.get(good, 0))
             else:

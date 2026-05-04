@@ -49,7 +49,7 @@ class Agent:
 #agent_template = {'profession': Goods.none,'hungry_steps': 0, 'cash':10, 'inv': {}}
 recipes[Goods.food] = {'commodity': Goods.food, 'production': 5, 'price': 1, 'numInput': 0, 'maxtotalprod': 10000, 'maxinv': 20}
 recipes[Goods.wood] = {'commodity': Goods.wood, 'production': 2, 'price': 1, 'numInput': 0, 'maxtotalprod': 3000, 'maxinv': 10}
-recipes[Goods.furn] = {'commodity': Goods.furn, 'production': 1, 'input': Goods.wood, 'numInput': 4, 'price': 25, 'maxtotalprod':300, 'maxinv': 5}
+recipes[Goods.furn] = {'commodity': Goods.furn, 'production': 1, 'input': Goods.wood, 'numInput': 2, 'price': 25, 'maxtotalprod':300, 'maxinv': 5}
 recipes[Goods.gov] = {'commodity': Goods.gov, 'production': 0, 'numInput': 0, 'price': 1, 'maxtotalprod':0, 'maxinv': 0}
 # Parameters
 
@@ -216,12 +216,9 @@ def main():
     InitAgents(agents)
     prevTotalCash = (sum(agent.cash for agent in agents) + econsim_states.govCash + (trade.bank.total_deposits - trade.bank.total_liabilities))
     for t in range(time_steps):
-        # if t == 800:
-        #     recipes[Goods.food]['maxtotalprod'] = 50
-        # if t == 1300:
-        #     recipes[Goods.food]['maxtotalprod'] = 400
-        # if t == 2300:
-        #     recipes[Goods.food]['maxtotalprod'] = 100
+        if t == 100:
+            recipes[Goods.food]['maxtotalprod'] *= 2
+            logwarning(t, "Doubled max total production for food to:", recipes[Goods.food]['maxtotalprod'])
         #PrintStats(t, agents)
         Produce(t, agents)
         #trade.Trade(t, agents, recipes)

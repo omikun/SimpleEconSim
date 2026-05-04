@@ -73,7 +73,7 @@ def Live(t, agents):
                     numSwitches += 1
             
         if agent.hungry_steps == 0:
-            if agent.lastRepro + birthGap < t and random.random() < p_birth and agent.cash > recipes[Goods.food]['price'] * 4 and len(agents) < 512:
+            if agent.lastRepro + birthGap < t and random.random() < p_birth and agent.cash > 20 and agent.inv.get(Goods.food, 0) >= 2 and len(agents) < 512:
                 agent.lastRepro = t
                 new_agent = Agent(t)
                 new_agent.parent = agent
@@ -179,6 +179,8 @@ def Live(t, agents):
                 # CRITICAL: If we move deposits to govCash, we must remove it from the bank's total
                 econsim_states.govCash += inheritance_deposits
                 trade.bank.total_deposits -= inheritance_deposits
+                for good, amount in agent.inv.items():
+                    econsim_states.govInv[good] += amount
             
             # Clear the dead agent's bank account
             if agent in trade.bank.deposits:

@@ -1,22 +1,16 @@
 import logging
 
-logLevel = logging.DEBUG
-logging.basicConfig(level=logLevel)
+logLevel = logging.WARNING
 logger = logging.getLogger(__name__)
+logger.setLevel(logLevel)
 
-# File handler
-file_handler = logging.FileHandler('econsim.log')
+# File handler (mode='w' to clear old logs on restart)
+file_handler = logging.FileHandler('econsim.log', mode='w')
 file_handler.setLevel(logLevel)
 file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
 
-# Console handler
-console_handler = logging.StreamHandler()
-console_handler.setLevel(logLevel)
-console_handler.setFormatter(logging.Formatter('%(levelname)s - %(message)s'))
-
 # Add handlers to the logger
 logger.addHandler(file_handler)
-logger.addHandler(console_handler)
 
 # Example
 def logInit():
@@ -25,7 +19,7 @@ def logInit():
 
 def logdebug(*args):
     msg = ' '.join(map(str, args))
-    logger.warning(msg)
+    logger.debug(msg)
 
 def logwarning(*args):
     msg = ' '.join(map(str, args))
