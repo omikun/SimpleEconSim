@@ -227,7 +227,7 @@ def Trade(t, agents, recipes, demand_ratio_log, demand_log, supply_log, sold_log
         demand_log[good].append(totalBids)
         supply_log[good].append(totalAsks)
 
-        price = SetMarketPrice(demandRatio, good, recipes)
+        price = SetMarketPrice(demandRatio, good, recipes, agents)
 
         if totalTrades == 0:
             continue
@@ -310,7 +310,7 @@ def BiddersBuyGood(t, agents, good, bought_log, price, totalAsks, totalBought):
     return totalBought, totalCashPurchase
 
 
-def SetMarketPrice(demandRatio, good, recipes):
+def SetMarketPrice(demandRatio, good, recipes, agents=None):
     recipe = recipes[good]
     price = recipe['price']
     if demandRatio >= 1:
@@ -328,6 +328,18 @@ def SetMarketPrice(demandRatio, good, recipes):
         input_cost = recipes[recipe['input']]['price']
         cost_to_make = (recipe['numInput'] * input_cost) / recipe['production']
         
+    # Dynamic price floor adjustment based on producer poorness and hungriness
+    if agents and good != Goods.gov:
+        producers = [a for a in agents if a.output == good]
+        if producers:
+            total_multiplier = 0
+            for a in producers:
+                poor_factor = clamp(a.cash / 20.0, 0.2, 1.0)
+                hungry_factor = max(0.1, 0.8 ** a.hungry_steps)
+                total_multiplier += poor_factor * hungry_factor
+            avg_multiplier = total_multiplier / len(producers)
+            cost_to_make *= avg_multiplier
+            
     price = max(cost_to_make, price)
     price = max(0.1, price)
     recipe['price'] = price
