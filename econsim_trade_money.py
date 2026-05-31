@@ -256,7 +256,14 @@ def Trade(t, agents, recipes, demand_ratio_log, demand_log, supply_log, sold_log
             logwarning(t, "traded", good, "demand:", demandRatio, "price:", price, "trades: ", good, " traded: ", 0, "total bought", totalBought, "totalSold", totalSold, "cash bought $", totalCashPurchase, "cash sold $", totalCashSold, "diff", math.fabs(totalCashSold - totalCashPurchase))
 
         sold_log[good].append(totalSold)
-        reportCash(t, agents, prevTotalCash, "post trade " + str(good))
+        reportCash(t, agents, prevTotalCash, "post primary trade " + str(good))
+        
+        # Execute secondary market
+        sec_traded, sec_value = SecondaryTrade(t, agents, good, price, recipes)
+        if sec_traded > 0:
+            logdebug(t, "secondary traded", good, "vol:", sec_traded, "value:$", round(sec_value, 2))
+            
+        reportCash(t, agents, prevTotalCash, "post secondary trade " + str(good))
 
 
 def AskersSellGood(askers, good, price, t, totalBought, totalCashPurchase, totalCashSold, totalSold):
@@ -420,6 +427,141 @@ def DecideBorrowDeposit(agents, allGoodsPrice, bank, foodPrice, prevTotalCash, t
             reportCash(t, agents, prevTotalCash, agent.name() + " post deposit ")
 
         agent.remainingCash = agent.cash
+
+
+def SecondaryTrade(t, agents, good, current_market_price, recipes):
+    """
+    Executes a secondary market for the good after the primary market clears.
+    Sellers (with excess inventory) set their own discounted prices based on distress.
+    Buyers bid higher based on their hunger or low inventory.
+    """
+    # 1. Gather Secondary Asks
+    secondary_asks = []
+    for agent in agents:
+        # Check if agent has excess inventory to sell
+        remaining_inv = agent.inv.get(good, 0)
+        
+        # Determine how much they want to keep vs sell
+        # Farmers keep 2 food. Others sell all excess.
+        keep_amount = 2 if (good == Goods.food and agent.output == Goods.food) else 0
+        sellable = max(0, remaining_inv - keep_amount)
+        
+        if sellable > 0 and agent.output == good:
+            # Determine asking price. Distressed agents discount more heavily.
+            poor_factor = clamp(agent.cash / 20.0, 0.2, 1.0)
+            hungry_factor = max(0.1, 0.8 ** agent.hungry_steps)
+            distress_factor = poor_factor * hungry_factor
+            
+            # Floor asking price at the fundamental cost_to_make adjusted by distress
+            recipe = recipes[good]
+            cost_to_make = 1.0
+            if recipe.get('numInput', 0) > 0 and recipe.get('production', 0) > 0:
+                input_cost = recipes[recipe['input']]['price']
+                cost_to_make = (recipe['numInput'] * input_cost) / recipe['production']
+                
+            min_ask = max(0.1, cost_to_make * distress_factor)
+            
+            # Ask price is discounted from market price based on distress, but no lower than min_ask
+            ask_price = max(min_ask, current_market_price * distress_factor)
+            
+            secondary_asks.append(Offer(False, agent, ask_price, sellable))
+
+    # 2. Gather Secondary Bids
+    secondary_bids = []
+    recipe = recipes[good]
+    for agent in agents:
+        if agent.output == good:
+            continue # Producers don't buy their own good
+            
+        desired = 0
+        if GetInputCom(agent, recipes) == good:
+            desired = max(0, recipe['numInput'] - agent.inv.get(good, 0))
+        else:
+            num_storable = max(0, recipe['maxinv'] - agent.inv.get(good, 0))
+            if good == Goods.food:
+                desired = min(16, num_storable) # Food is always desired
+            elif agent.remainingCash > current_market_price * 2:
+                # Occasional buyers
+                desired = min(1, num_storable)
+        
+        if desired > 0 and agent.remainingCash > 0:
+            # Determine max willing to pay. 
+            # If hungry, willing to pay more for food. If low inventory, willing to pay more.
+            premium = 1.0
+            if good == Goods.food and agent.hungry_steps > 0:
+                premium = min(5.0, 1.0 + 0.5 * agent.hungry_steps) # Pay up to 5x for food if starving
+            elif GetInputCom(agent, recipes) == good and agent.inv.get(good, 0) == 0:
+                premium = 1.5 # Pay 50% premium for critical inputs
+                
+            max_willing_to_pay = current_market_price * premium
+            
+            # They bid up to their max_willing_to_pay, but bounded by their actual cash
+            affordable_qty = agent.remainingCash / max_willing_to_pay
+            if affordable_qty >= 1:
+                bid_qty = min(desired, int(affordable_qty))
+                secondary_bids.append(Offer(True, agent, max_willing_to_pay, bid_qty))
+            elif agent.remainingCash >= current_market_price * 0.5:
+                # If they can't afford a full unit at max_willing_to_pay, but have some cash,
+                # they place a lowball bid for 1 unit with whatever cash they have.
+                secondary_bids.append(Offer(True, agent, agent.remainingCash, 1))
+
+    # 3. Match Orders (Simplistic continuous double auction)
+    # Sort asks lowest price first
+    secondary_asks.sort(key=lambda x: x.price)
+    # Sort bids highest price first
+    secondary_bids.sort(key=lambda x: x.price, reverse=True)
+    
+    total_secondary_traded = 0
+    total_secondary_value = 0
+    
+    ask_idx = 0
+    bid_idx = 0
+    
+    while ask_idx < len(secondary_asks) and bid_idx < len(secondary_bids):
+        ask = secondary_asks[ask_idx]
+        bid = secondary_bids[bid_idx]
+        
+        if bid.price >= ask.price:
+            # Match! Trade clears at the midpoint price
+            clear_price = (bid.price + ask.price) / 2.0
+            trade_qty = min(ask.quantity, bid.quantity)
+            
+            # Ensure buyer can actually afford the clear_price * trade_qty
+            max_affordable = int(bid.agent.remainingCash / clear_price) if clear_price > 0 else trade_qty
+            trade_qty = min(trade_qty, max_affordable)
+            
+            if trade_qty > 0:
+                cost = trade_qty * clear_price
+                
+                # Execute trade
+                bid.agent.remainingCash -= cost
+                bid.agent.cash -= cost
+                ask.agent.cash += cost
+                
+                bid.agent.inv[good] += trade_qty
+                ask.agent.inv[good] -= trade_qty
+                
+                # Update cost basis for buyer
+                old_qty = bid.agent.inv.get(good, 0) - trade_qty
+                old_cost = bid.agent.cost_basis.get(good, 0)
+                if bid.agent.inv[good] > 0:
+                    bid.agent.cost_basis[good] = (old_qty * old_cost + cost) / bid.agent.inv[good]
+                
+                total_secondary_traded += trade_qty
+                total_secondary_value += cost
+                
+                # Update remaining quantities
+                ask.quantity -= trade_qty
+                bid.quantity -= trade_qty
+                
+                loginfo(t, "SECONDARY TRADE:", bid.agent.name(), "bought", trade_qty, good, "from", ask.agent.name(), "at $", round(clear_price, 2))
+                
+        if ask.quantity <= 0:
+            ask_idx += 1
+        if bid.quantity <= 0 or bid.price < ask.price:
+            bid_idx += 1
+            
+    return total_secondary_traded, total_secondary_value
 
 
 def reportCash(t, agents, prevTotalCash, msg, print=False): 
