@@ -31,6 +31,10 @@ class Agent:
         self.lastCareerSwitch = 0
         self.lastRepro = 0
         self.loans = []
+        self.employer = None
+        self.employees = []
+        self.is_corp = False
+        self.wage = 0
 
     def name(self):
         return 'agent'+str(self.id)+'-'+ profession[self.output]
@@ -107,6 +111,89 @@ def InitAgent(agent, output, numInput, numFood, cash, delta=0):
     agent.inv[Goods.food] = numFood
     loginfo('init', agent.output, agent.inv)
 
+def RunLaborMarket(t, agents):
+    # 1. Clean up references of dead agents (self-healing)
+    living_agents_set = set(agents)
+    for agent in agents:
+        if agent.employer and agent.employer not in living_agents_set:
+            agent.employer = None
+        if agent.is_corp:
+            agent.employees = [e for e in agent.employees if e in living_agents_set and e.employer == agent]
+            
+    # 2. Layoffs due to lack of cash
+    for agent in agents:
+        if agent.is_corp and len(agent.employees) > 0:
+            # Need to be able to pay wages this turn
+            total_wage_needed = len(agent.employees) * agent.wage
+            while agent.cash < total_wage_needed and len(agent.employees) > 0:
+                # Lay off last hired employee
+                emp = agent.employees.pop()
+                emp.employer = None
+                total_wage_needed = len(agent.employees) * agent.wage
+                loginfo(t, agent.name(), "laid off", emp.name(), "due to insufficient cash. Remaining:", len(agent.employees))
+            
+            # If no employees left, dissolve corporation status
+            if len(agent.employees) == 0:
+                agent.is_corp = False
+                
+    # 3. Incorporation: highly wealthy independent agents form corporations
+    for agent in agents:
+        if agent.employer is None and not agent.is_corp and agent.cash > 400:
+            agent.is_corp = True
+            # Dynamically set starting wage based on current prices, or a healthy default
+            food_price = recipes[Goods.food]['price']
+            agent.wage = max(15, int(food_price * 3 + 5))
+            loginfo(t, agent.name(), "incorporated! Starting wage:", agent.wage)
+            
+    # 4. Hiring
+    # Only active corporations with high cash reserves (at least 2 turns of payroll for current + 1 extra) hire
+    for agent in agents:
+        if agent.is_corp:
+            # Max corporation size limit for stability
+            if len(agent.employees) >= 15:
+                continue
+                
+            payroll = len(agent.employees) * agent.wage
+            needed_cash_to_hire = (payroll + agent.wage) * 2
+            
+            if agent.cash > needed_cash_to_hire:
+                # Find eligible candidates: independent (no employer), not a corporation themselves
+                candidates = [a for a in agents if a.employer is None and not a.is_corp and a != agent]
+                # Distressed candidates first: hungry or low cash
+                distressed = [c for c in candidates if c.hungry_steps > 0 or c.cash < 40]
+                # If no distressed candidates, pick from other candidates
+                pool = distressed if distressed else candidates
+                
+                if pool:
+                    # Pick one candidate
+                    candidate = random.choice(pool)
+                    candidate.employer = agent
+                    agent.employees.append(candidate)
+                    # Align employee profession with employer
+                    candidate.output = agent.output
+                    loginfo(t, agent.name(), "hired", candidate.name(), "at wage", agent.wage)
+                    
+    # 5. Wage Payments
+    for agent in agents:
+        if agent.is_corp and len(agent.employees) > 0:
+            for emp in agent.employees:
+                wage_to_pay = min(agent.cash, agent.wage)
+                agent.cash -= wage_to_pay
+                emp.cash += wage_to_pay
+                loginfo(t, agent.name(), "paid wage of", wage_to_pay, "to", emp.name())
+                
+    # 6. Wage dynamic adjustments
+    for agent in agents:
+        if agent.is_corp and len(agent.employees) > 0:
+            # If cash is high, raise wage to retain talent and attract more
+            if agent.cash > 600:
+                agent.wage = int(agent.wage * 1.05)
+                loginfo(t, agent.name(), "raised wage to", agent.wage)
+            # If cash is getting lower (less than 3 turns of wage bills), reduce wage to prevent layoffs
+            elif agent.cash < len(agent.employees) * agent.wage * 3:
+                agent.wage = max(5, int(agent.wage * 0.95))
+                loginfo(t, agent.name(), "lowered wage to", agent.wage)
+
 def Produce(t, agents):
     numAgentsPerGoods = dict()
     for good in econsim_states.goods:
@@ -114,44 +201,96 @@ def Produce(t, agents):
 
     totalProd.clear()
     for agent in agents:
+        if agent.employer is not None:
+            # Employees do not produce independently
+            continue
+            
         output = agent.output
         loginfo(t, agent.name(), agent.inv, 'hungry_steps', agent.hungry_steps)
         recipe = recipes[output]
-        maxinv = recipe['maxinv']
+        
+        if agent.is_corp and len(agent.employees) > 0:
+            num_employees = len(agent.employees)
+            maxinv = recipe['maxinv'] * (1 + num_employees)
             
-        #produce - calculate probability of a full production cycle
-        numOutput = 0
-        inv_ratio = agent.inv.get(output, 0) / maxinv if maxinv > 0 else 1
-        if inv_ratio >= 1:
-            totalProd[output] += 0
-            continue
-            
-        has_inputs = True
-        if recipe['numInput'] > 0:
-            com = recipe['input']
-            if agent.inv.get(com, 0) < recipe['numInput']:
-                has_inputs = False
+            inv_ratio = agent.inv.get(output, 0) / maxinv if maxinv > 0 else 1
+            if inv_ratio >= 1:
+                totalProd[output] += 0
+                continue
                 
-        if has_inputs and recipe.get('production', 0) > 0:
-            chance = 1.0
-            
-            if agent.hungry_steps > 0:
-                chance *= 1 / (1 + agent.hungry_steps * 0.2)
+            num_slots = num_employees
+            if recipe.get('numInput', 0) > 0:
+                com = recipe['input']
+                available_inputs = agent.inv.get(com, 0)
+                inputs_per_slot = recipe['numInput']
+                active_slots = int(min(num_slots, available_inputs // inputs_per_slot))
+            else:
+                active_slots = int(num_slots)
                 
-            if output == Goods.food or output == Goods.wood:
-                max_per_agent = recipe['maxtotalprod'] / max(1, numAgentsPerGoods[output])
-                chance *= min(1.0, max_per_agent / recipe['production'])
+            if active_slots > 0 and recipe.get('production', 0) > 0:
+                # Synergy formula: the more employees, the higher per employee production bonus (+15% per employee)
+                synergy = 1.0 + 0.15 * num_employees
+                base_prod = recipe['production']
+                prod_per_slot = base_prod * synergy
                 
-            chance *= max(0, 1 - inv_ratio)
+                chance = 1.0
+                if agent.hungry_steps > 0:
+                    chance *= 1 / (1 + agent.hungry_steps * 0.2)
+                    
+                if output == Goods.food or output == Goods.wood:
+                    max_per_agent = recipe['maxtotalprod'] / max(1, numAgentsPerGoods[output])
+                    chance *= min(1.0, max_per_agent / base_prod)
+                    
+                chance *= max(0, 1 - inv_ratio)
+                
+                successful_slots = 0
+                for _ in range(active_slots):
+                    if random.random() < chance:
+                        successful_slots += 1
+                        
+                if successful_slots > 0:
+                    if recipe.get('numInput', 0) > 0:
+                        agent.inv[recipe['input']] -= successful_slots * recipe['numInput']
+                    numOutput = int(successful_slots * prod_per_slot)
+                    if numOutput == 0:
+                        numOutput = 1
+                    agent.inv[output] += numOutput
+                    totalProd[output] += numOutput
+                    loginfo(t, agent.name(), 'corp built', numOutput, output, 'slots', successful_slots, 'synergy', synergy)
+        else:
+            maxinv = recipe['maxinv']
+            inv_ratio = agent.inv.get(output, 0) / maxinv if maxinv > 0 else 1
+            if inv_ratio >= 1:
+                totalProd[output] += 0
+                continue
+                
+            has_inputs = True
+            if recipe['numInput'] > 0:
+                com = recipe['input']
+                if agent.inv.get(com, 0) < recipe['numInput']:
+                    has_inputs = False
+                    
+            numOutput = 0
+            if has_inputs and recipe.get('production', 0) > 0:
+                chance = 1.0
+                
+                if agent.hungry_steps > 0:
+                    chance *= 1 / (1 + agent.hungry_steps * 0.2)
+                    
+                if output == Goods.food or output == Goods.wood:
+                    max_per_agent = recipe['maxtotalprod'] / max(1, numAgentsPerGoods[output])
+                    chance *= min(1.0, max_per_agent / recipe['production'])
+                    
+                chance *= max(0, 1 - inv_ratio)
+                
+                if random.random() < chance:
+                    if recipe['numInput'] > 0:
+                        agent.inv[recipe['input']] -= recipe['numInput']
+                    numOutput = recipe['production']
             
-            if random.random() < chance:
-                if recipe['numInput'] > 0:
-                    agent.inv[recipe['input']] -= recipe['numInput']
-                numOutput = recipe['production']
-
-        agent.inv[output] += numOutput
-        totalProd[output] += numOutput
-        loginfo(t, agent.name(), 'built',numOutput, output, agent.inv)
+            agent.inv[output] += numOutput
+            totalProd[output] += numOutput
+            loginfo(t, agent.name(), 'built', numOutput, output, agent.inv)
 
     for good in econsim_states.goods:
         if good != Goods.gov:
@@ -220,6 +359,7 @@ def main():
             recipes[Goods.food]['maxtotalprod'] *= 2
             logwarning(t, "Doubled max total production for food to:", recipes[Goods.food]['maxtotalprod'])
         #PrintStats(t, agents)
+        RunLaborMarket(t, agents)
         Produce(t, agents)
         #trade.Trade(t, agents, recipes)
         trade.Trade(t, agents, recipes, demand_ratio_log, demand_log, supply_log, sold_log, bought_log)
@@ -421,6 +561,15 @@ def main():
         cash = cash_log.get(good, [0])[-1] if cash_log.get(good) else 0
         print(f"{profession.get(good, str(good))}: Pop={pop}, Price={price:.2f}, Inv={inv:.2f}, Cash={cash:.2f}")
     print(f"Total Pop: {total_pop[-1] if total_pop else 0}, Dead/Starved: {deadstarve_pop[-1] if deadstarve_pop else 0}")
+    
+    num_corps = sum(1 for agent in agents if agent.is_corp)
+    total_employees = sum(len(agent.employees) for agent in agents if agent.is_corp)
+    print(f"Active Corporations: {num_corps}")
+    print(f"Total Employees in Corps: {total_employees}")
+    for agent in agents:
+        if agent.is_corp:
+            print(f"  - {agent.name()}: {len(agent.employees)} employees, Cash: {agent.cash:.2f}, Wage: {agent.wage}")
+    
     print("--------------------------------\n")
     plt.savefig('sim_output.png')
 if __name__ == "__main__":

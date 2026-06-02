@@ -45,7 +45,9 @@ def Live(t, agents):
             agent.hungry_steps += 1
         
         # Career switching: EMERGENCY survival (> 2) or Economic Mobility (Cash < 20)
-        if numSwitches < max_career_switches:
+        # Employees do NOT switch careers independently, as their profession is locked to their employer.
+        is_employee = getattr(agent, 'employer', None) is not None
+        if not is_employee and numSwitches < max_career_switches:
             if agent.hungry_steps > 2:
                 if agent.output != Goods.food:
                     logdebug(t, agent.name(), 'EMERGENCY! switching to farmer')
@@ -121,6 +123,20 @@ def Live(t, agents):
             agent.alive = False
         
         if not agent.alive:
+            # Clean up corporation/employee links
+            if getattr(agent, 'employer', None) is not None:
+                # Remove from employer's employee list
+                employer = agent.employer
+                if hasattr(employer, 'employees') and agent in employer.employees:
+                    employer.employees.remove(agent)
+                agent.employer = None
+            if getattr(agent, 'is_corp', False) and hasattr(agent, 'employees'):
+                # Dissolve firm: set all employees' employer to None
+                for emp in agent.employees:
+                    emp.employer = None
+                agent.employees = []
+                agent.is_corp = False
+
             livingDescendents = [agent for agent in agent.descendents if agent.alive]
             logdebug(t, agent.name(), 'died, has', agent.cash, ' #descendents:', len(livingDescendents),
                   [agent.name() for agent in livingDescendents])

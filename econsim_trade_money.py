@@ -357,14 +357,24 @@ def GatherBidsAsks(t, agents, good, goodPrice, num_desired, recipes, totalAsks, 
     for agent in agents:
         recipe = recipes[agent.output]
         # divisor = 1 if (good == Goods.food) else 10
+        
+        is_employee = getattr(agent, 'employer', None) is not None
+        
         # get bids
-        if GetInputCom(agent, recipes) == good:
-            desired = max(0, recipe['numInput'] - agent.inv.get(good, 0))
+        if not is_employee and GetInputCom(agent, recipes) == good:
+            # Corporate/Independent producer input bidding
+            num_employees = len(agent.employees) if getattr(agent, 'is_corp', False) else 0
+            multiplier = 1 + num_employees
+            desired = max(0, recipe['numInput'] * multiplier - agent.inv.get(good, 0))
             affordable = agent.remainingCash // goodPrice if goodPrice > 0 else desired
             agent.bid = int(min(desired, affordable))
-        elif agent.output != good and agent.remainingCash > goodPrice:
+        elif (is_employee or agent.output != good) and agent.remainingCash > goodPrice:
+            # Consumer bidding
             num_affordable = min(num_desired, agent.remainingCash // goodPrice)
-            num_storable = max(0, recipes[good]['maxinv'] - agent.inv.get(good, 0))
+            maxinv_limit = recipes[good]['maxinv']
+            if getattr(agent, 'is_corp', False):
+                maxinv_limit *= (1 + len(agent.employees))
+            num_storable = max(0, maxinv_limit - agent.inv.get(good, 0))
 
             agent.bid = min(num_affordable, num_storable)
             
@@ -382,7 +392,7 @@ def GatherBidsAsks(t, agents, good, goodPrice, num_desired, recipes, totalAsks, 
         totalBids += agent.bid
 
         # get asks
-        if agent.output == good or (agent.output == Goods.gov and agent.inv.get(good, 0) > 0):
+        if not is_employee and (agent.output == good or (agent.output == Goods.gov and agent.inv.get(good, 0) > 0)):
             cost_to_make = 0
             if agent.output == good and recipe.get('numInput', 0) > 0 and recipe.get('production', 0) > 0:
                 input_com = recipe['input']
@@ -438,6 +448,7 @@ def SecondaryTrade(t, agents, good, current_market_price, recipes):
     # 1. Gather Secondary Asks
     secondary_asks = []
     for agent in agents:
+        is_employee = getattr(agent, 'employer', None) is not None
         # Check if agent has excess inventory to sell
         remaining_inv = agent.inv.get(good, 0)
         
@@ -446,7 +457,7 @@ def SecondaryTrade(t, agents, good, current_market_price, recipes):
         keep_amount = 2 if (good == Goods.food and agent.output == Goods.food) else 0
         sellable = max(0, remaining_inv - keep_amount)
         
-        if sellable > 0 and agent.output == good:
+        if sellable > 0 and agent.output == good and not is_employee:
             # Determine asking price. Distressed agents discount more heavily.
             poor_factor = clamp(agent.cash / 20.0, 0.2, 1.0)
             hungry_factor = max(0.1, 0.8 ** agent.hungry_steps)
@@ -470,14 +481,19 @@ def SecondaryTrade(t, agents, good, current_market_price, recipes):
     secondary_bids = []
     recipe = recipes[good]
     for agent in agents:
-        if agent.output == good:
+        is_employee = getattr(agent, 'employer', None) is not None
+        if not is_employee and agent.output == good:
             continue # Producers don't buy their own good
             
         desired = 0
-        if GetInputCom(agent, recipes) == good:
-            desired = max(0, recipe['numInput'] - agent.inv.get(good, 0))
+        if not is_employee and GetInputCom(agent, recipes) == good:
+            num_employees = len(agent.employees) if getattr(agent, 'is_corp', False) else 0
+            desired = max(0, recipe['numInput'] * (1 + num_employees) - agent.inv.get(good, 0))
         else:
-            num_storable = max(0, recipe['maxinv'] - agent.inv.get(good, 0))
+            maxinv_limit = recipe['maxinv']
+            if getattr(agent, 'is_corp', False):
+                maxinv_limit *= (1 + len(agent.employees))
+            num_storable = max(0, maxinv_limit - agent.inv.get(good, 0))
             if good == Goods.food:
                 desired = min(16, num_storable) # Food is always desired
             elif agent.remainingCash > current_market_price * 2:
@@ -490,7 +506,7 @@ def SecondaryTrade(t, agents, good, current_market_price, recipes):
             premium = 1.0
             if good == Goods.food and agent.hungry_steps > 0:
                 premium = min(5.0, 1.0 + 0.5 * agent.hungry_steps) # Pay up to 5x for food if starving
-            elif GetInputCom(agent, recipes) == good and agent.inv.get(good, 0) == 0:
+            elif not is_employee and GetInputCom(agent, recipes) == good and agent.inv.get(good, 0) == 0:
                 premium = 1.5 # Pay 50% premium for critical inputs
                 
             max_willing_to_pay = current_market_price * premium
