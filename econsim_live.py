@@ -136,6 +136,36 @@ def Live(t, agents):
                     emp.employer = None
                 agent.employees = []
                 agent.is_corp = False
+                # Clear owner's company_owned reference
+                if agent.owner is not None:
+                    agent.owner.company_owned = None
+                    agent.owner = None
+
+            # Handle company ownership when founder dies
+            if getattr(agent, 'company_owned', None) is not None:
+                company = agent.company_owned
+                living_descendents = [d for d in agent.descendents if d.alive]
+                if len(living_descendents) > 0:
+                    # Pass company to wealthiest descendant
+                    heir = max(living_descendents, key=lambda d: d.cash)
+                    company.owner = heir
+                    heir.company_owned = company
+                    logdebug(t, agent.name(), 'company', company.name(), 'inherited by', heir.name())
+                else:
+                    # No living descendants: pass company to oldest employee, or dissolve if none
+                    if company.alive and company.is_corp and len(company.employees) > 0:
+                        oldest_emp = min(company.employees, key=lambda e: e.hiredAt)
+                        company.owner = oldest_emp
+                        oldest_emp.company_owned = company
+                        logdebug(t, agent.name(), 'company', company.name(), 'inherited by oldest employee', oldest_emp.name())
+                    elif company.alive and company.is_corp:
+                        logdebug(t, agent.name(), 'company', company.name(), 'dissolved (no heirs, no employees)')
+                        for emp in company.employees:
+                            emp.employer = None
+                        company.employees = []
+                        company.is_corp = False
+                        company.owner = None
+                agent.company_owned = None
 
             livingDescendents = [agent for agent in agent.descendents if agent.alive]
             logdebug(t, agent.name(), 'died, has', agent.cash, ' #descendents:', len(livingDescendents),

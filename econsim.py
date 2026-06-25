@@ -35,6 +35,9 @@ class Agent:
         self.employees = []
         self.is_corp = False
         self.wage = 0
+        self.hiredAt = 0
+        self.owner = None
+        self.company_owned = None
 
     def name(self):
         return 'agent'+str(self.id)+'-'+ profession[self.output]
@@ -135,15 +138,48 @@ def RunLaborMarket(t, agents):
             # If no employees left, dissolve corporation status
             if len(agent.employees) == 0:
                 agent.is_corp = False
+                if agent.owner is not None:
+                    agent.owner.company_owned = None
+                    loginfo(t, agent.name(), "dissolved company, owner", agent.owner.name(), "released")
                 
-    # 3. Incorporation: highly wealthy independent agents form corporations
+    # 3. Incorporation: highly wealthy independent agents spawn company agents
+    new_company_agents = []
     for agent in agents:
-        if agent.employer is None and not agent.is_corp and agent.cash > 400:
-            agent.is_corp = True
-            # Dynamically set starting wage based on current prices, or a healthy default
+        if agent.employer is None and not agent.is_corp and agent.cash > 400 and agent.company_owned is None:
             food_price = recipes[Goods.food]['price']
-            agent.wage = max(15, int(food_price * 3 + 5))
-            loginfo(t, agent.name(), "incorporated! Starting wage:", agent.wage)
+            
+            # Create separate company agent
+            company = Agent(t)
+            company.is_corp = True
+            company.output = agent.output
+            company.owner = agent
+            agent.company_owned = company
+            
+            # Initialize inventory for all goods
+            for good in goods:
+                company.inv[good] = 0
+            
+            # Calculate startup capital
+            owner_equity = min(agent.cash * 0.5, agent.cash - 40)  # keep at least 40 for living
+            startup_target = max(200, food_price * 15)
+            shortfall = max(0, startup_target - owner_equity)
+            
+            # Founder borrows from bank to fund the company
+            if shortfall > 0:
+                trade.bank.Borrow(t, agent, shortfall)
+            
+            # Transfer owner equity to company
+            agent.cash -= owner_equity
+            company.cash = owner_equity + shortfall
+            
+            # Dynamically set starting wage
+            company.wage = max(15, int(food_price * 3 + 5))
+            
+            loginfo(t, agent.name(), "founded company", company.name(), 
+                    "with $", company.cash, "(equity:", owner_equity, "borrowed:", shortfall,
+                    ") wage:", company.wage)
+            
+            new_company_agents.append(company)
             
     # 4. Hiring
     # Only active corporations with high cash reserves (at least 2 turns of payroll for current + 1 extra) hire
@@ -168,6 +204,7 @@ def RunLaborMarket(t, agents):
                     # Pick one candidate
                     candidate = random.choice(pool)
                     candidate.employer = agent
+                    candidate.hiredAt = t
                     agent.employees.append(candidate)
                     # Align employee profession with employer
                     candidate.output = agent.output
@@ -193,6 +230,8 @@ def RunLaborMarket(t, agents):
             elif agent.cash < len(agent.employees) * agent.wage * 3:
                 agent.wage = max(5, int(agent.wage * 0.95))
                 loginfo(t, agent.name(), "lowered wage to", agent.wage)
+
+    return new_company_agents
 
 def Produce(t, agents):
     numAgentsPerGoods = dict()
@@ -359,7 +398,9 @@ def main():
             recipes[Goods.food]['maxtotalprod'] *= 2
             logwarning(t, "Doubled max total production for food to:", recipes[Goods.food]['maxtotalprod'])
         #PrintStats(t, agents)
-        RunLaborMarket(t, agents)
+        new_company_agents = RunLaborMarket(t, agents)
+        if new_company_agents:
+            agents.extend(new_company_agents)
         Produce(t, agents)
         #trade.Trade(t, agents, recipes)
         trade.Trade(t, agents, recipes, demand_ratio_log, demand_log, supply_log, sold_log, bought_log)
