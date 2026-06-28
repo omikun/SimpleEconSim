@@ -38,6 +38,7 @@ class Agent:
         self.hiredAt = 0
         self.owner = None
         self.company_owned = None
+        self.max_employees = 0
 
     def name(self):
         return 'agent'+str(self.id)+'-'+ profession[self.output]
@@ -172,8 +173,9 @@ def RunLaborMarket(t, agents):
             agent.cash -= owner_equity
             company.cash = owner_equity + shortfall
             
-            # Dynamically set starting wage
+            # Dynamically set starting wage and max employee limit
             company.wage = max(15, int(food_price * 3 + 5))
+            company.max_employees = random.randint(10, 25)
             
             loginfo(t, agent.name(), "founded company", company.name(), 
                     "with $", company.cash, "(equity:", owner_equity, "borrowed:", shortfall,
@@ -185,20 +187,21 @@ def RunLaborMarket(t, agents):
     # Only active corporations with high cash reserves (at least 2 turns of payroll for current + 1 extra) hire
     for agent in agents:
         if agent.is_corp:
-            # Max corporation size limit for stability
-            if len(agent.employees) >= 15:
+            # Max corporation size limit (per-agent adjustable)
+            if len(agent.employees) >= agent.max_employees:
                 continue
                 
             payroll = len(agent.employees) * agent.wage
             needed_cash_to_hire = (payroll + agent.wage) * 2
             
             if agent.cash > needed_cash_to_hire:
+                hired = False
                 # Find eligible candidates: independent (no employer), not a corporation themselves
                 candidates = [a for a in agents if a.employer is None and not a.is_corp and a != agent]
                 # Distressed candidates first: hungry or low cash
                 distressed = [c for c in candidates if c.hungry_steps > 0 or c.cash < 40]
                 # If no distressed candidates, pick from other candidates
-                pool = distressed if distressed else candidates
+                pool = distressed #agents don't look for work unless distressed # if distressed else candidates
                 
                 if pool:
                     # Pick one candidate
@@ -209,6 +212,35 @@ def RunLaborMarket(t, agents):
                     # Align employee profession with employer
                     candidate.output = agent.output
                     loginfo(t, agent.name(), "hired", candidate.name(), "at wage", agent.wage)
+                    hired = True
+                    
+                # 4b. Poaching: if no independent distressed agents available and still want to grow,
+                # offer higher wages to poach employees from other companies
+                if not hired:
+                    poachable = [e for e in agents if e.employer is not None 
+                                 and e.employer != agent 
+                                 and e.employer.is_corp 
+                                 and len(e.employer.employees) > 1]  # don't dissolve source company
+                    if poachable:
+                        target = random.choice(poachable)
+                        old_employer = target.employer
+                        old_wage = old_employer.wage
+                        # Offer at least 10% more than their current wage, or 5% more than our own
+                        offer_wage = max(int(old_wage * 1.1), int(agent.wage * 1.05))
+                        
+                        if agent.cash > (payroll + offer_wage) * 2:
+                            # Employee quits old job
+                            old_employer.employees.remove(target)
+                            target.employer = None
+                            
+                            # Joins new company
+                            target.employer = agent
+                            target.hiredAt = t
+                            target.output = agent.output
+                            agent.employees.append(target)
+                            agent.wage = max(agent.wage, offer_wage)  # match higher wage
+                            loginfo(t, agent.name(), "poached", target.name(), 
+                                    "from", old_employer.name(), "at wage", agent.wage)
                     
     # 5. Wage Payments
     for agent in agents:
@@ -223,8 +255,8 @@ def RunLaborMarket(t, agents):
     for agent in agents:
         if agent.is_corp and len(agent.employees) > 0:
             # If cash is high, raise wage to retain talent and attract more
-            if agent.cash > 600:
-                agent.wage = int(agent.wage * 1.05)
+            if agent.cash > 600 and len(agent.employees) < (agent.max_employees // 2):
+                agent.wage = int(agent.wage * 1.01)
                 loginfo(t, agent.name(), "raised wage to", agent.wage)
             # If cash is getting lower (less than 3 turns of wage bills), reduce wage to prevent layoffs
             elif agent.cash < len(agent.employees) * agent.wage * 3:
@@ -609,7 +641,7 @@ def main():
     print(f"Total Employees in Corps: {total_employees}")
     for agent in agents:
         if agent.is_corp:
-            print(f"  - {agent.name()}: {len(agent.employees)} employees, Cash: {agent.cash:.2f}, Wage: {agent.wage}")
+            print(f"  - {agent.name()}: {len(agent.employees)}/{agent.max_employees} employees, Cash: {agent.cash:.2f}, Wage: {agent.wage}")
     
     print("--------------------------------\n")
     plt.savefig('sim_output.png')
