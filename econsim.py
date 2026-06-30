@@ -124,11 +124,17 @@ def RunLaborMarket(t, agents):
         if agent.is_corp:
             agent.employees = [e for e in agent.employees if e in living_agents_set and e.employer == agent]
             
-    # 2. Layoffs due to lack of cash
+    # 2. Borrow or layoff due to lack of cash
     for agent in agents:
         if agent.is_corp and len(agent.employees) > 0:
-            # Need to be able to pay wages this turn
             total_wage_needed = len(agent.employees) * agent.wage
+            # Try to borrow from bank before laying off
+            if agent.cash < total_wage_needed:
+                shortfall = total_wage_needed - agent.cash
+                trade.bank.Borrow(t, agent, shortfall)
+                loginfo(t, agent.name(), "borrowed $", min(shortfall, trade.bank.total_deposits - trade.bank.total_liabilities), 
+                        "from bank to cover payroll. cash:", agent.cash)
+            # Still can't pay? Lay off
             while agent.cash < total_wage_needed and len(agent.employees) > 0:
                 # Lay off last hired employee
                 emp = agent.employees.pop()
@@ -156,13 +162,14 @@ def RunLaborMarket(t, agents):
             company.owner = agent
             agent.company_owned = company
             
-            # Initialize inventory for all goods
+            # Transfer founder's entire inventory to company
             for good in goods:
-                company.inv[good] = 0
+                company.inv[good] = agent.inv.get(good, 0)
+                agent.inv[good] = 0
             
             # Calculate startup capital
-            owner_equity = min(agent.cash * 0.5, agent.cash - 40)  # keep at least 40 for living
-            startup_target = max(200, food_price * 15)
+            owner_equity = min(agent.cash * 0.3, agent.cash - 60)  # keep at least 60 for living
+            startup_target = max(300, food_price * 20)
             shortfall = max(0, startup_target - owner_equity)
             
             # Founder borrows from bank to fund the company
@@ -173,8 +180,9 @@ def RunLaborMarket(t, agents):
             agent.cash -= owner_equity
             company.cash = owner_equity + shortfall
             
-            # Dynamically set starting wage and max employee limit
-            company.wage = max(15, int(food_price * 3 + 5))
+            # Set starting wage at food_price * 1.1 (dynamic wage + poaching will affect all future wages)
+            # Floor is 1/3 of food market price so wages track the economy
+            company.wage = max(max(1, int(food_price / 3)), int(food_price * 1.1))
             company.max_employees = random.randint(10, 25)
             
             loginfo(t, agent.name(), "founded company", company.name(), 
@@ -242,16 +250,7 @@ def RunLaborMarket(t, agents):
                             loginfo(t, agent.name(), "poached", target.name(), 
                                     "from", old_employer.name(), "at wage", agent.wage)
                     
-    # 5. Wage Payments
-    for agent in agents:
-        if agent.is_corp and len(agent.employees) > 0:
-            for emp in agent.employees:
-                wage_to_pay = min(agent.cash, agent.wage)
-                agent.cash -= wage_to_pay
-                emp.cash += wage_to_pay
-                loginfo(t, agent.name(), "paid wage of", wage_to_pay, "to", emp.name())
-                
-    # 6. Wage dynamic adjustments
+    # 5. Wage dynamic adjustments (WAGE PAYMENTS moved after Trade - called from main())
     for agent in agents:
         if agent.is_corp and len(agent.employees) > 0:
             # If cash is high, raise wage to retain talent and attract more
@@ -260,10 +259,21 @@ def RunLaborMarket(t, agents):
                 loginfo(t, agent.name(), "raised wage to", agent.wage)
             # If cash is getting lower (less than 3 turns of wage bills), reduce wage to prevent layoffs
             elif agent.cash < len(agent.employees) * agent.wage * 3:
-                agent.wage = max(5, int(agent.wage * 0.95))
+                agent.wage = max(max(1, int(recipes[Goods.food]['price'] / 3)), int(agent.wage * 0.95))
                 loginfo(t, agent.name(), "lowered wage to", agent.wage)
 
     return new_company_agents
+
+def PayWages(t, agents):
+    """Pay wages to employees AFTER production and trade,
+    so companies earn revenue before paying out."""
+    for agent in agents:
+        if agent.is_corp and len(agent.employees) > 0:
+            for emp in agent.employees:
+                wage_to_pay = min(agent.cash, agent.wage)
+                agent.cash -= wage_to_pay
+                emp.cash += wage_to_pay
+                loginfo(t, agent.name(), "paid wage of", wage_to_pay, "to", emp.name())
 
 def Produce(t, agents):
     numAgentsPerGoods = dict()
@@ -299,8 +309,15 @@ def Produce(t, agents):
                 active_slots = int(num_slots)
                 
             if active_slots > 0 and recipe.get('production', 0) > 0:
-                # Synergy formula: the more employees, the higher per employee production bonus (+15% per employee)
-                synergy = 1.0 + 0.15 * num_employees
+                # Tiered synergy: larger companies get better per-employee production bonuses
+                if num_employees >= 12:
+                    synergy = 1.0 + 0.30 * num_employees
+                elif num_employees >= 8:
+                    synergy = 1.0 + 0.25 * num_employees
+                elif num_employees >= 4:
+                    synergy = 1.0 + 0.20 * num_employees
+                else:
+                    synergy = 1.0 + 0.15 * num_employees
                 base_prod = recipe['production']
                 prod_per_slot = base_prod * synergy
                 
@@ -436,6 +453,7 @@ def main():
         Produce(t, agents)
         #trade.Trade(t, agents, recipes)
         trade.Trade(t, agents, recipes, demand_ratio_log, demand_log, supply_log, sold_log, bought_log)
+        PayWages(t, agents)  # Pay wages AFTER production and trade
         tempTotalCash = getTotalCash(agents)
         diff = math.fabs(tempTotalCash - prevTotalCash) 
         if diff > epsilon:

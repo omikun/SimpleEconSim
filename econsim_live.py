@@ -6,13 +6,32 @@ from econsim_states import *
 import econsim_trade_money as trade
 from econsim import GetInputCom, GetOutputCom, Agent, InitAgent
 from goods import Goods
-from logger import logdebug
+from logger import logdebug, loginfo
+
+
+def ApplyEconomicPressure(t, agents):
+    """Gradually increase distress in the population to create labor supply.
+    Non-employees face random economic shocks and progressive poverty stress."""
+    for agent in agents:
+        if agent.employer is None and not agent.is_corp:
+            # Random economic shocks: bad harvest, unexpected expense, etc.
+            if random.random() < 0.02:  # 2% chance per turn
+                loss = max(1, int(agent.cash * 0.1))
+                agent.cash = max(0, agent.cash - loss)
+                loginfo(t, agent.name(), 'hit by economic shock, lost', loss, 'cash')
+
+            # Progressive distress: low cash makes agents hungry from poverty stress
+            if agent.cash < 30 and agent.hungry_steps == 0:
+                if random.random() < 0.05:  # 5% chance to get hungry from poverty stress
+                    agent.hungry_steps += 1
+                    loginfo(t, agent.name(), 'became hungry from economic stress')
 
 
 def Live(t, agents):
     global dead_pop
     global deadstarve_pop
     global production_log
+
     new_agents = []
     #eat food/starve
     numfood = 0
@@ -74,13 +93,28 @@ def Live(t, agents):
                     agent.lastCareerSwitch = t
                     numSwitches += 1
             
+        # Active job-seeking: if independent and struggling, try to get hired
+        if not is_employee and not getattr(agent, 'is_corp', False) and agent.company_owned is None:
+            if agent.cash < 5 or agent.hungry_steps > 0:
+                # Find a company with headroom within their own profession
+                employers = [a for a in agents if a.is_corp 
+                             and len(a.employees) < a.max_employees 
+                             and a.output == agent.output
+                             and a.cash > (len(a.employees) * a.wage + a.wage) * 2]
+                if employers:
+                    employer = random.choice(employers)
+                    agent.employer = employer
+                    agent.hiredAt = t
+                    employer.employees.append(agent)
+                    loginfo(t, agent.name(), 'sought employment at', employer.name(), 'wage', employer.wage)
+                    
         if agent.hungry_steps == 0:
             if agent.lastRepro + birthGap < t and random.random() < p_birth and agent.cash > 20 and agent.inv.get(Goods.food, 0) >= 2 and len(agents) < 512:
                 agent.lastRepro = t
                 new_agent = Agent(t)
                 new_agent.parent = agent
                 agent.descendents.append(new_agent)
-                giveFood = min(2, agent.inv[Goods.food]) ##potentiall food coming from thin air - need gov support
+                giveFood = min(1, agent.inv[Goods.food])  # Lower birth seeds: only 1 food
                 agent.inv[Goods.food] -= giveFood
                 #find the smallest number of professions and use that one, since no one makes money
                 #output = FindSmallestTrade(agents)
@@ -100,7 +134,7 @@ def Live(t, agents):
                     #output = Goods.wood
                 logdebug(t, "new agent of ", output)
                 numInput = 0
-                cash = min(4, agent.cash)
+                cash = min(1, agent.cash)  # Lower birth seeds: only 1 cash
                 agent.cash -= cash
                 InitAgent(new_agent, output, numInput, giveFood, cash)
                 new_agents.append(new_agent)
@@ -113,7 +147,7 @@ def Live(t, agents):
                 new_agents.append(agent)
             else:
                 agent.alive = False
-                logdebug(t, agent.name(), 'has died due to age')
+                loginfo(t, agent.name(), 'has died due to age')
         else:
             logdebug(t, agent.name(), 'has starved to death')
             numdead += 1
@@ -152,7 +186,7 @@ def Live(t, agents):
                     heir.company_owned = company
                     logdebug(t, agent.name(), 'company', company.name(), 'inherited by', heir.name())
                 else:
-                    # No living descendants: pass company to oldest employee, or dissolve if none
+                    # No living descendants: pass company to longest-tenured employee, or dissolve if none
                     if company.alive and company.is_corp and len(company.employees) > 0:
                         oldest_emp = min(company.employees, key=lambda e: e.hiredAt)
                         company.owner = oldest_emp
