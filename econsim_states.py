@@ -17,6 +17,7 @@ starve_limit = 20
 dead_pop = [0]
 deadstarve_pop = [0]
 total_pop = []
+pop_change_rate_log = []
 pop_log = {}
 inv_log = {}
 hungry_log = {}

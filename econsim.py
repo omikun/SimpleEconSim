@@ -476,6 +476,18 @@ def main():
         bankCash_log.append(trade.bank.total_deposits - trade.bank.total_liabilities)
         totalCash_log.append(getTotalCash(agents))
 
+        # Compute population change rate per 10 turns
+        if len(total_pop) >= 10:
+            pop_10_turns_ago = total_pop[-(10)]
+            current_pop = total_pop[-1]
+            if pop_10_turns_ago > 0:
+                pop_change_pct = (current_pop - pop_10_turns_ago) / pop_10_turns_ago * 100
+            else:
+                pop_change_pct = 0
+        else:
+            pop_change_pct = 0
+        pop_change_rate_log.append(pop_change_pct)
+
         for prof in goods:
             for good in goods:
                 bought_log[prof][good].append(0)
@@ -487,7 +499,7 @@ def main():
         prevTotalCash = totalCash_log[-1]
 
     # Plot results
-    figure, axis = plt.subplots(4, 4)
+    figure, axis = plt.subplots(5, 4)
     axis = axis.flatten()
     figure.patch.set_facecolor('lightgrey')
     figure.set_figwidth(20)
@@ -620,6 +632,12 @@ def main():
             axis[axisId].plot(supply_log[good], label=labels[good], color=colors[good])
 
     axisId += 1
+    axis[axisId].set_title("Pop Change Rate (per 10 turns %)")
+    axis[axisId].set_ylabel("% change")
+    axis[axisId].axhline(y=0, color='gray', linestyle='--', linewidth=0.5)
+    axis[axisId].plot(pop_change_rate_log, color='black')
+    
+    axisId += 1
     #purchases
     titles = ["Farmer", "Logger", "Carpenter", "Gov agent"]
     for i in range(len(titles)):
@@ -661,6 +679,35 @@ def main():
         if agent.is_corp:
             print(f"  - {agent.name()}: {len(agent.employees)}/{agent.max_employees} employees, Cash: {agent.cash:.2f}, Wage: {agent.wage}")
     
+    # --- Money Distribution Report ---
+    corp_cash = sum(agent.cash for agent in agents if agent.is_corp)
+    corp_employee_cash = sum(agent.cash for agent in agents if getattr(agent, 'employer', None) is not None)
+    independent_cash = sum(agent.cash for agent in agents if agent.employer is None and not agent.is_corp)
+    print("\n--- Money Distribution ---")
+    print(f"Corporations ({num_corps}):             ${corp_cash:.2f}")
+    print(f"Corporate employees ({total_employees}):  ${corp_employee_cash:.2f}")
+    print(f"Independent agents:                  ${independent_cash:.2f}")
+    print(f"Government:                          ${econsim_states.govCash:.2f}")
+    bank_capital = trade.bank.total_deposits - trade.bank.total_liabilities
+    print(f"Bank (deposits - liab):              ${bank_capital:.2f}")
+    total_cash = getTotalCash(agents)
+    print(f"Total Cash in Economy:               ${total_cash:.2f}")
+    trade_cash_in_bank = sum(trade.bank.deposits.values())
+    print(f"Bank deposits held:                  ${trade.bank.total_deposits:.2f}")
+    print(f"Bank liabilities (loans):            ${trade.bank.total_liabilities:.2f}")
+    print("--------------------------------")
+    
+    # --- Bank Profit & Loss Report ---
+    print("\n--- Bank Profit & Loss (cumulative) ---")
+    print(f"Loan interest earned (cumulative):    ${trade.bank.total_interest_earned:.2f}")
+    print(f"Deposit interest paid (cumulative):   ${trade.bank.total_deposit_interest_paid:.2f}")
+    bank_profit = trade.bank.total_interest_earned - trade.bank.total_deposit_interest_paid
+    print(f"Net profit:                           ${bank_profit:.2f}")
+    if trade.bank.total_deposit_interest_paid > 0:
+        ratio = trade.bank.total_interest_earned / trade.bank.total_deposit_interest_paid
+        print(f"Profit ratio (earned / paid):         {ratio:.2f}x")
+    else:
+        print(f"Profit ratio (earned / paid):         N/A (no deposit interest paid)")
     print("--------------------------------\n")
     plt.savefig('sim_output.png')
 if __name__ == "__main__":

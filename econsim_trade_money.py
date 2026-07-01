@@ -60,11 +60,14 @@ class Loan:
 class Bank():
     def __init__(self):
         self.interest_rate = .001
-        self.total_deposits = 200
+        self.deposit_interest_rate = 0.0005
+        self.total_deposits = 2000
         self.reserve_fraction = .1
         self.loans = []
         self.total_liabilities = 0
         self.deposits = defaultdict(int)
+        self.total_interest_earned = 0
+        self.total_deposit_interest_paid = 0
         
     def Borrow(self, t, agent, amount):
         borrowableAmount = self.total_deposits * (1-self.reserve_fraction) - self.total_liabilities
@@ -84,6 +87,7 @@ class Bank():
 
     def PayInterest(self, amount):
         self.total_deposits += amount
+        self.total_interest_earned += amount
         
     def Deposit(self, agent, amount):
         assert(agent.cash >= amount)
@@ -113,6 +117,18 @@ class Bank():
             logwarning(t, "BAILOUT: government injected $", round(amount, 2),
                        "into bank. govCash now $", round(econsim_states.govCash, 2))
         return approved
+
+    def PayDepositInterest(self):
+        """Pay interest to all depositors based on their deposit balance."""
+        total_payout = 0
+        for agent, amount in list(self.deposits.items()):
+            interest = amount * self.deposit_interest_rate
+            if interest > 0:
+                agent.cash += interest
+                self.total_deposits -= interest
+                self.total_deposit_interest_paid += interest
+                total_payout += interest
+        return total_payout
 
 
 def gov_decide_bailout(t, bank, requested_amount):
@@ -179,6 +195,11 @@ def Trade(t, agents, recipes, demand_ratio_log, demand_log, supply_log, sold_log
     allGoodsPrice = sum(recipes[good]['price'] for good in goods)
     foodPrice = recipes[Goods.food]['price']
     random.shuffle(agents)
+
+    # Pay deposit interest before trade cycle
+    interest_paid = bank.PayDepositInterest()
+    if interest_paid > 0:
+        loginfo(t, "Bank paid $", round(interest_paid, 2), "in deposit interest")
 
     reportCash(t, agents, prevTotalCash, "pre borrow and deposit", True)
     #borrow and deposit
@@ -360,6 +381,14 @@ def GatherBidsAsks(t, agents, good, goodPrice, num_desired, recipes, totalAsks, 
         
         is_employee = getattr(agent, 'employer', None) is not None
         
+        # Fix 1: Withdraw from bank deposits if cash is low for purchasing
+        bank_balance = bank.deposits.get(agent, 0)
+        if bank_balance > 0:
+            desired_cash = goodPrice * num_desired
+            if agent.remainingCash < desired_cash:
+                needed = desired_cash - agent.remainingCash
+                bank.Withdraw(agent, min(bank_balance, needed))
+        
         # get bids
         if not is_employee and GetInputCom(agent, recipes) == good:
             # Corporate/Independent producer input bidding
@@ -418,8 +447,14 @@ def DecideBorrowDeposit(agents, allGoodsPrice, bank, foodPrice, prevTotalCash, t
         PayLoans(agent)
         if (agent.output != Goods.food
                 and agent.cash < foodPrice and agent.hungry_steps > 10):
-            Borrow(t, agent, foodPrice, bank)
-            reportCash(t, agents, prevTotalCash, agent.name() + " post borrow ")
+            # Fix 4: Withdraw from bank before borrowing for food
+            bank_balance = bank.deposits.get(agent, 0)
+            if bank_balance > 0:
+                needed = foodPrice - agent.cash
+                bank.Withdraw(agent, min(bank_balance, needed))
+            if agent.cash < foodPrice:
+                Borrow(t, agent, foodPrice, bank)
+                reportCash(t, agents, prevTotalCash, agent.name() + " post borrow ")
 
         if agent.output in recipes and recipes[agent.output].get('numInput', 0) > 0:
             input_com = recipes[agent.output]['input']
@@ -427,9 +462,15 @@ def DecideBorrowDeposit(agents, allGoodsPrice, bank, foodPrice, prevTotalCash, t
             num_input = recipes[agent.output]['numInput']
             cost = input_price * num_input
             if agent.cash < cost:
+                # Fix 4: Withdraw from bank before borrowing for inputs
                 amount_needed = cost - agent.cash
-                bank.Borrow(t, agent, amount_needed)
-                reportCash(t, agents, prevTotalCash, agent.name() + " post business borrow ")
+                bank_balance = bank.deposits.get(agent, 0)
+                if bank_balance > 0:
+                    bank.Withdraw(agent, min(bank_balance, amount_needed))
+                if agent.cash < cost:
+                    amount_needed = cost - agent.cash
+                    bank.Borrow(t, agent, amount_needed)
+                    reportCash(t, agents, prevTotalCash, agent.name() + " post business borrow ")
 
         if agent.cash > allGoodsPrice * 30:
             amount = agent.cash - allGoodsPrice * 30
