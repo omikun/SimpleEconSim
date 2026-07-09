@@ -109,7 +109,7 @@ def Live(t, agents):
                     loginfo(t, agent.name(), 'sought employment at', employer.name(), 'wage', employer.wage)
                     
         if agent.hungry_steps == 0:
-            if agent.lastRepro + birthGap < t and random.random() < p_birth and agent.cash > 20 and agent.inv.get(Goods.food, 0) >= 2 and len(agents) < 512:
+            if agent.lastRepro + birthGap < t and random.random() < p_birth and agent.cash > 20 and agent.inv.get(Goods.food, 0) >= 2:
                 agent.lastRepro = t
                 new_agent = Agent(t)
                 new_agent.parent = agent
