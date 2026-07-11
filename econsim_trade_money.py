@@ -368,6 +368,16 @@ def BiddersBuyGood(t, agents, good, bought_log, price, totalAsks, totalBought):
 def SetMarketPrice(demandRatio, good, recipes, agents=None):
     recipe = recipes[good]
     price = recipe['price']
+    
+    # FIX 1: Compute fundamental floor BEFORE any dynamic adjustments
+    fundamental_cost = 1.0
+    if recipe.get('numInput', 0) > 0 and recipe.get('production', 0) > 0:
+        input_cost = recipes[recipe['input']]['price']
+        fundamental_cost = (recipe['numInput'] * input_cost) / recipe['production']
+    
+    # Minimum 10% profit margin above fundamental cost
+    min_price_floor = fundamental_cost * 1.10
+    
     if demandRatio >= 1:
         # Cap the max multiplier at 20% max increase per round to prevent ratchet effect
         clamped_ratio = min(5.0, demandRatio - 1)
@@ -377,13 +387,8 @@ def SetMarketPrice(demandRatio, good, recipes, agents=None):
     elif demandRatio < .5:
         price *= lerp(0.95, 1.0, (demandRatio - 0.2) / 0.3)  # 0-5% drop
     
-    # Enforce fundamental bankruptcy floor
-    cost_to_make = 1.0
-    if recipe.get('numInput', 0) > 0 and recipe.get('production', 0) > 0:
-        input_cost = recipes[recipe['input']]['price']
-        cost_to_make = (recipe['numInput'] * input_cost) / recipe['production']
-        
-    # Dynamic price floor adjustment based on producer poorness and hungriness
+    # FIX 1: Dynamic producer distress adjustment should ONLY apply above the floor
+    # It can reduce prices but NOT below the fundamental floor * 1.10
     if agents and good != Goods.gov:
         producers = [a for a in agents if a.output == good]
         if producers:
@@ -393,9 +398,15 @@ def SetMarketPrice(demandRatio, good, recipes, agents=None):
                 hungry_factor = max(0.1, 0.8 ** a.hungry_steps)
                 total_multiplier += poor_factor * hungry_factor
             avg_multiplier = total_multiplier / len(producers)
-            cost_to_make *= avg_multiplier
             
-    price = max(cost_to_make, price)
+            # Apply dynamic adjustment, but cap it at the floor
+            dynamic_adjusted_price = fundamental_cost * avg_multiplier
+            # Only allow dynamic adjustment if it would be ABOVE the floor
+            # If below floor, price stays at floor
+            price = max(price, dynamic_adjusted_price)
+    
+    # FIX 1: Hard floor at fundamental cost + 10% margin
+    price = max(min_price_floor, price)
     price = max(0.1, price)
     recipe['price'] = price
     return price
@@ -448,9 +459,12 @@ def GatherBidsAsks(t, agents, good, goodPrice, num_desired, recipes, totalAsks, 
                     agent.bid += extra
                     loginfo(t, agent.name(), 'wealth consumption bid +', extra, good)
             
-            # Consumption-based demand: wealthy agents occasionally buy non-essentials
+            # FIX 2: Stronger consumption-based demand for wealthy agents
+            # Non-food goods: bid for up to num_desired units if wealthy enough
             if good != Goods.food and agent.remainingCash > goodPrice * 4:
-                discretionary = min(1, agent.remainingCash // (goodPrice * 4))
+                # Wealthier agents buy more discretionary goods
+                wealth_bonus = min(total_wealth / (goodPrice * 40), 5.0)  # up to 5x multiplier
+                discretionary = min(int(wealth_bonus), agent.remainingCash // goodPrice)
                 agent.bid += min(discretionary, num_storable - agent.bid)
                 agent.bid = max(0, min(agent.bid, num_storable))
         else:
@@ -533,6 +547,14 @@ def SecondaryTrade(t, agents, good, current_market_price, recipes):
     Sellers (with excess inventory) set their own discounted prices based on distress.
     Buyers bid higher based on their hunger or low inventory.
     """
+    # FIX 1: Compute fundamental floor for secondary market prices
+    recipe = recipes[good]
+    fundamental_cost = 1.0
+    if recipe.get('numInput', 0) > 0 and recipe.get('production', 0) > 0:
+        input_cost = recipes[recipe['input']]['price']
+        fundamental_cost = (recipe['numInput'] * input_cost) / recipe['production']
+    min_secondary_price = fundamental_cost * 1.05  # 5% minimum margin in secondary
+    
     # 1. Gather Secondary Asks
     secondary_asks = []
     for agent in agents:
@@ -551,14 +573,8 @@ def SecondaryTrade(t, agents, good, current_market_price, recipes):
             hungry_factor = max(0.1, 0.8 ** agent.hungry_steps)
             distress_factor = poor_factor * hungry_factor
             
-            # Floor asking price at the fundamental cost_to_make adjusted by distress
-            recipe = recipes[good]
-            cost_to_make = 1.0
-            if recipe.get('numInput', 0) > 0 and recipe.get('production', 0) > 0:
-                input_cost = recipes[recipe['input']]['price']
-                cost_to_make = (recipe['numInput'] * input_cost) / recipe['production']
-                
-            min_ask = max(0.1, cost_to_make * distress_factor)
+            # FIX 1: Secondary market floor at fundamental_cost * 1.05
+            min_ask = min_secondary_price * distress_factor
             
             # Ask price is discounted from market price based on distress, but no lower than min_ask
             ask_price = max(min_ask, current_market_price * distress_factor)
@@ -567,7 +583,6 @@ def SecondaryTrade(t, agents, good, current_market_price, recipes):
 
     # 2. Gather Secondary Bids
     secondary_bids = []
-    recipe = recipes[good]
     for agent in agents:
         is_employee = getattr(agent, 'employer', None) is not None
         if not is_employee and agent.output == good:

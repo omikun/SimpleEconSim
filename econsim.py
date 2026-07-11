@@ -39,6 +39,11 @@ class Agent:
         self.owner = None
         self.company_owned = None
         self.max_employees = 0
+        self.tax_loss_carryforward = 0.0  # Carryforward losses for tax purposes
+        self._start_cash = 0  # Income tracking
+        self._start_deposits = 0
+        self._delta_cash = 0
+        self._delta_deposits = 0
 
     def name(self):
         return 'agent'+str(self.id)+'-'+ profession[self.output]
@@ -49,6 +54,11 @@ class Agent:
         inv_value = sum(amount * recipes[good]['price'] for good, amount in self.inv.items() if good in recipes)
         debt_value = sum(loan.principle for loan in self.loans)
         return self.cash + trade.bank.deposits.get(self, 0) + inv_value - debt_value
+    
+    def net_income(self):
+        """Calculate net liquid income this turn from cash and bank deposit changes."""
+        # Uses the delta_cash and delta_deposits recorded by the main loop
+        return getattr(self, '_delta_cash', 0) + getattr(self, '_delta_deposits', 0)
     
     def oweThisTurn(self):
         return sum(loan.getPaymentAmount() for loan in self.loans)
@@ -448,6 +458,11 @@ def main():
     InitAgents(agents)
     prevTotalCash = (sum(agent.cash for agent in agents) + econsim_states.govCash + (trade.bank.total_deposits - trade.bank.total_liabilities))
     for t in range(time_steps):
+        # FIX 3: Record starting cash + deposits for income tracking
+        for agent in agents:
+            agent._start_cash = agent.cash
+            agent._start_deposits = trade.bank.deposits.get(agent, 0)
+        
         #PrintStats(t, agents)
         new_company_agents = RunLaborMarket(t, agents)
         if new_company_agents:
@@ -457,6 +472,50 @@ def main():
         trade.Trade(t, agents, recipes, demand_ratio_log, demand_log, supply_log, sold_log, bought_log)
         PayWages(t, agents)  # Pay wages AFTER production and trade
 
+        # FIX 3: Calculate income deltas and tax top 10% wealthiest
+        for agent in agents:
+            end_cash = agent.cash
+            end_deposits = trade.bank.deposits.get(agent, 0)
+            agent._delta_cash = end_cash - agent._start_cash
+            agent._delta_deposits = end_deposits - agent._start_deposits
+        
+        # Tax the top 10% wealthiest agents
+        living_agents = [a for a in agents if a.alive]
+        if len(living_agents) > 10:
+            # Sort by wealth descending
+            sorted_agents = sorted(living_agents, key=lambda a: a.wealth(), reverse=True)
+            top_count = max(1, int(len(sorted_agents) * 0.1))  # Top 10%
+            top_agents = sorted_agents[:top_count]
+            
+            total_tax_collected = 0.0
+            for agent in top_agents:
+                net_income = agent._delta_cash + agent._delta_deposits
+                taxable_income = net_income + agent.tax_loss_carryforward
+                if taxable_income > 0:
+                    tax_amount = taxable_income * 0.5
+                    # Collect from cash first, then from deposits if needed
+                    # Simpler: calculate total available and take from cash + deposits
+                    bank_balance = trade.bank.deposits.get(agent, 0)
+                    total_available = agent.cash + bank_balance
+                    actual_tax = min(tax_amount, total_available)
+                    if actual_tax > 0:
+                        cash_taken = min(agent.cash, actual_tax)
+                        agent.cash -= cash_taken
+                        deposit_taken = min(bank_balance, actual_tax - cash_taken)
+                        if deposit_taken > 0:
+                            trade.bank.Withdraw(agent, deposit_taken)
+                    
+                    agent.tax_loss_carryforward = 0.0
+                    econsim_states.govCash += actual_tax
+                    total_tax_collected += actual_tax
+                    logdebug(t, agent.name(), f"taxed ${actual_tax:.2f} (income=${net_income:.2f})")
+                else:
+                    # Accumulate loss carryforward
+                    agent.tax_loss_carryforward += net_income  # net_income is negative here
+            
+            if total_tax_collected > 0:
+                loginfo(t, f"FIX 3: Taxed top {top_count} agents, collected ${total_tax_collected:.2f}")
+        
         # --- GDP Logging ---
         total_gdp = 0
         for good in goods:
@@ -510,6 +569,14 @@ def main():
             logwarning(t, "total cash not matching", prevTotalCash, '!=', totalCash_log[-1], 'diff', diff)
             # break
         prevTotalCash = totalCash_log[-1]
+        
+        # TEST A: Log cash drain ratio every 100 turns
+        if t % 100 == 0:
+            circ_cash = sum(a.cash for a in agents)
+            bank_dep = trade.bank.total_deposits
+            bank_liab = trade.bank.total_liabilities
+            leaked_ratio = bank_dep / max(1, circ_cash)
+            print(f"--- TEST A: Turn {t}: circulating=${circ_cash:.0f}, bank_deposits=${bank_dep:.0f}, bank_liabilities=${bank_liab:.0f}, ratio={leaked_ratio:.1f}x")
 
     # Plot results
     figure, axis = plt.subplots(5, 4)
@@ -683,7 +750,7 @@ def main():
         i += 1
             
     #plt.legend()
-    # Get legend handles and labels from one axis (assuming they’re the same across all)
+    # Get legend handles and labels from one axis (assuming they're the same across all)
     legend_handles, legend_labels = axis[2].get_legend_handles_labels() #need label in that axis
 
     # Add a single global legend
