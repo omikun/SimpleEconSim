@@ -28,6 +28,7 @@ demand_log = dict()
 perCapitaInv = dict()
 agentid = 0
 govCash = 0
+govDebt = 0  # Government debt to the bank
 govInv = defaultdict(int)
 cash_log = {}
 gini_log = {}

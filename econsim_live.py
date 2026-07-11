@@ -41,6 +41,42 @@ def Live(t, agents):
     numdead = 0 #dead_pop[-1]
     numdeadstarve = deadstarve_pop[-1]
     prevGovCash = econsim_states.govCash
+    
+    # GOVERNMENT FOOD AID (FIX: no one starves > 3 days; newborns get 1 food for 10 turns)
+    food_price = recipes[Goods.food]['price']
+    for agent in agents:
+        if agent.is_corp:
+            continue
+        needs_food = 0
+        # Newborns (age <= 10): 1 free food per turn
+        if agent.age(t) <= 10:
+            needs_food = 1
+        # Starving > 3 days: emergency food (enough to eat 4 this turn)
+        if agent.hungry_steps > 3:
+            current_food = agent.inv.get(Goods.food, 0)
+            needed_for_meal = max(0, 4 - current_food)
+            # Don't double-count: newborns already get 1
+            if agent.age(t) <= 10:
+                needed_for_meal = max(0, needed_for_meal - 1)
+            needs_food = max(needs_food, needed_for_meal)
+        
+        if needs_food > 0:
+            cost = needs_food * food_price
+            # Government borrows from bank if it doesn't have enough cash
+            if econsim_states.govCash < cost:
+                shortfall = cost - econsim_states.govCash
+                trade.bank.total_deposits += shortfall  # Bank creates money
+                econsim_states.govDebt += shortfall
+                econsim_states.govCash += shortfall
+                loginfo(t, "GOVERNMENT BORROWED $", round(shortfall, 2),
+                        "from bank for food aid. Total govDebt: $", round(econsim_states.govDebt, 2))
+            # Give food directly
+            agent.inv[Goods.food] += needs_food
+            econsim_states.govCash -= cost
+            if agent.hungry_steps > 3:
+                loginfo(t, agent.name(), f"received emergency food aid ({needs_food} food)")
+            else:
+                loginfo(t, agent.name(), f"received newborn food aid ({needs_food} food)")
     numSwitches = 0
     random.shuffle(agents)
 

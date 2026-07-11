@@ -458,7 +458,7 @@ def main():
     InitAgents(agents)
     prevTotalCash = (sum(agent.cash for agent in agents) + econsim_states.govCash + (trade.bank.total_deposits - trade.bank.total_liabilities))
     for t in range(time_steps):
-        # FIX 3: Record starting cash + deposits for income tracking
+        # Record start-of-turn cash + deposits for income tracking
         for agent in agents:
             agent._start_cash = agent.cash
             agent._start_deposits = trade.bank.deposits.get(agent, 0)
@@ -472,19 +472,17 @@ def main():
         trade.Trade(t, agents, recipes, demand_ratio_log, demand_log, supply_log, sold_log, bought_log)
         PayWages(t, agents)  # Pay wages AFTER production and trade
 
-        # FIX 3: Calculate income deltas and tax top 10% wealthiest
+        # FIX 3: Tax top 10% wealthiest agents at 50% of net income
         for agent in agents:
             end_cash = agent.cash
             end_deposits = trade.bank.deposits.get(agent, 0)
             agent._delta_cash = end_cash - agent._start_cash
             agent._delta_deposits = end_deposits - agent._start_deposits
         
-        # Tax the top 10% wealthiest agents
         living_agents = [a for a in agents if a.alive]
         if len(living_agents) > 10:
-            # Sort by wealth descending
             sorted_agents = sorted(living_agents, key=lambda a: a.wealth(), reverse=True)
-            top_count = max(1, int(len(sorted_agents) * 0.1))  # Top 10%
+            top_count = max(1, int(len(sorted_agents) * 0.1))
             top_agents = sorted_agents[:top_count]
             
             total_tax_collected = 0.0
@@ -504,18 +502,16 @@ def main():
                         deposit_taken = min(bank_balance, actual_tax - cash_taken)
                         if deposit_taken > 0:
                             trade.bank.Withdraw(agent, deposit_taken)
-                    
                     agent.tax_loss_carryforward = 0.0
                     econsim_states.govCash += actual_tax
                     total_tax_collected += actual_tax
-                    logdebug(t, agent.name(), f"taxed ${actual_tax:.2f} (income=${net_income:.2f})")
                 else:
                     # Accumulate loss carryforward
                     agent.tax_loss_carryforward += net_income  # net_income is negative here
             
-            if total_tax_collected > 0:
-                loginfo(t, f"FIX 3: Taxed top {top_count} agents, collected ${total_tax_collected:.2f}")
-        
+            if total_tax_collected > 0 and t % 50 == 0:
+                print(f"  TAX: collected ${total_tax_collected:.2f} from top {top_count} agents, govCash=${econsim_states.govCash:.2f}")
+
         # --- GDP Logging ---
         total_gdp = 0
         for good in goods:

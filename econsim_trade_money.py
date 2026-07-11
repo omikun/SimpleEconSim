@@ -375,8 +375,20 @@ def SetMarketPrice(demandRatio, good, recipes, agents=None):
         input_cost = recipes[recipe['input']]['price']
         fundamental_cost = (recipe['numInput'] * input_cost) / recipe['production']
     
-    # Minimum 10% profit margin above fundamental cost
-    min_price_floor = fundamental_cost * 1.10
+    # Dynamic floor based on food cost of living
+    food_price = recipes.get(Goods.food, {}).get('price', 1.0)
+    
+    # Minimum floor: raw goods must sustain their producers
+    # A woodcutter (production=2) needs to afford 4 food per turn: floor = 4*food_price/2 = 2*food_price
+    # A farmer (production=5) needs to afford 4 food per turn: floor = 4*food_price/5 = 0.8*food_price
+    production_rate = recipe.get('production', 1)
+    living_cost_floor = (4 * food_price) / max(1, production_rate)
+    
+    # Processed goods (have inputs) need cost + 10% margin
+    if recipe.get('numInput', 0) > 0:
+        min_price_floor = max(fundamental_cost * 1.10, living_cost_floor)
+    else:
+        min_price_floor = max(living_cost_floor, 0.10)  # Raw goods need living cost floor
     
     if demandRatio >= 1:
         # Cap the max multiplier at 20% max increase per round to prevent ratchet effect
