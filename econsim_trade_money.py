@@ -61,6 +61,7 @@ class Bank():
     def __init__(self):
         self.interest_rate = .001
         self.deposit_interest_rate = 0.0005
+        self.base_deposit_interest_rate = 0.0005
         self.total_deposits = 2000
         self.reserve_fraction = .1
         self.loans = []
@@ -68,6 +69,7 @@ class Bank():
         self.deposits = defaultdict(int)
         self.total_interest_earned = 0
         self.total_deposit_interest_paid = 0
+        self.turn_loan_interest = 0  # reset each turn for profit checking
         
     def Borrow(self, t, agent, amount):
         borrowableAmount = self.total_deposits * (1-self.reserve_fraction) - self.total_liabilities
@@ -118,16 +120,41 @@ class Bank():
                        "into bank. govCash now $", round(econsim_states.govCash, 2))
         return approved
 
-    def PayDepositInterest(self):
-        """Pay interest to all depositors based on their deposit balance."""
+    def PayDepositInterest(self, agents):
+        """Pay interest to all depositors based on their deposit balance.
+        Interest rate is reduced as deposit ratio increases (Fix F).
+        Capped to 80% of this turn's estimated loan interest income so bank stays profitable."""
+        # Calculate deposit ratio: total_deposits / circulating cash
+        circulating_cash = max(1, sum(agent.cash for agent in agents))
+        deposit_ratio = self.total_deposits / circulating_cash
+        
+        # Sliding scale for deposit interest (Fix F):
+        # <5x: full rate; 5-10x: reduced; >10x: minimal
+        if deposit_ratio < 5:
+            self.deposit_interest_rate = self.base_deposit_interest_rate
+        elif deposit_ratio < 10:
+            self.deposit_interest_rate = self.base_deposit_interest_rate * 0.4  # 0.0002
+        else:
+            self.deposit_interest_rate = self.base_deposit_interest_rate * 0.1  # 0.00005
+        
+        # Estimate this turn's loan interest income from outstanding loans
+        estimated_loan_interest = sum(
+            loan.getInterest() for loan in self.loans
+        )
+        # Cap payout at 80% of expected loan interest to ensure 20% bank margin
+        max_total_payout = estimated_loan_interest * 0.8
+        
         total_payout = 0
         for agent, amount in list(self.deposits.items()):
             interest = amount * self.deposit_interest_rate
             if interest > 0:
-                agent.cash += interest
-                self.total_deposits -= interest
-                self.total_deposit_interest_paid += interest
-                total_payout += interest
+                remaining_capacity = max(0, max_total_payout - total_payout)
+                interest = min(interest, remaining_capacity)
+                if interest > 0:
+                    agent.cash += interest
+                    self.total_deposits -= interest
+                    self.total_deposit_interest_paid += interest
+                    total_payout += interest
         return total_payout
 
 
@@ -196,10 +223,10 @@ def Trade(t, agents, recipes, demand_ratio_log, demand_log, supply_log, sold_log
     foodPrice = recipes[Goods.food]['price']
     random.shuffle(agents)
 
-    # Pay deposit interest before trade cycle
-    interest_paid = bank.PayDepositInterest()
+    # Pay deposit interest before trade cycle (Fix F: sliding rate)
+    interest_paid = bank.PayDepositInterest(agents)
     if interest_paid > 0:
-        loginfo(t, "Bank paid $", round(interest_paid, 2), "in deposit interest")
+        loginfo(t, "Bank paid $", round(interest_paid, 2), "in deposit interest at rate", bank.deposit_interest_rate)
 
     reportCash(t, agents, prevTotalCash, "pre borrow and deposit", True)
     #borrow and deposit
@@ -389,6 +416,10 @@ def GatherBidsAsks(t, agents, good, goodPrice, num_desired, recipes, totalAsks, 
                 needed = desired_cash - agent.remainingCash
                 bank.Withdraw(agent, min(bank_balance, needed))
         
+        # Fix A: Consumption desire — wealthy agents want more
+        total_wealth = agent.cash + bank.deposits.get(agent, 0)
+        wealth_threshold = goodPrice * 40
+        
         # get bids
         if not is_employee and GetInputCom(agent, recipes) == good:
             # Corporate/Independent producer input bidding
@@ -406,6 +437,16 @@ def GatherBidsAsks(t, agents, good, goodPrice, num_desired, recipes, totalAsks, 
             num_storable = max(0, maxinv_limit - agent.inv.get(good, 0))
 
             agent.bid = min(num_affordable, num_storable)
+            
+            # Fix A: Wealthy agents with high total wealth buy extra food/luxury
+            if total_wealth > wealth_threshold:
+                # Extra consumption: bid for up to 50% more than base desire
+                extra_desire = min(num_desired // 2, agent.remainingCash // goodPrice)
+                extra_storable = max(0, int(maxinv_limit * 1.5) - agent.inv.get(good, 0))
+                extra = min(extra_desire, extra_storable - agent.bid)
+                if extra > 0:
+                    agent.bid += extra
+                    loginfo(t, agent.name(), 'wealth consumption bid +', extra, good)
             
             # Consumption-based demand: wealthy agents occasionally buy non-essentials
             if good != Goods.food and agent.remainingCash > goodPrice * 4:
@@ -472,8 +513,14 @@ def DecideBorrowDeposit(agents, allGoodsPrice, bank, foodPrice, prevTotalCash, t
                     bank.Borrow(t, agent, amount_needed)
                     reportCash(t, agents, prevTotalCash, agent.name() + " post business borrow ")
 
-        if agent.cash > allGoodsPrice * 30:
-            amount = agent.cash - allGoodsPrice * 30
+        # Fix B: Cap deposits at 70% of liquid wealth, raise threshold to 100x
+        total_liquid = agent.cash + bank.deposits.get(agent, 0)
+        current_deposits = bank.deposits.get(agent, 0)
+        max_deposits = total_liquid * 0.7  # max 70% in bank
+        excess_deposit_capacity = max(0, max_deposits - current_deposits)
+        
+        if agent.cash > allGoodsPrice * 100 and excess_deposit_capacity > 0:
+            amount = min(agent.cash - allGoodsPrice * 100, excess_deposit_capacity)
             bank.Deposit(agent, amount)
             reportCash(t, agents, prevTotalCash, agent.name() + " post deposit ")
 

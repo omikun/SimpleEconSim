@@ -180,9 +180,12 @@ def RunLaborMarket(t, agents):
             agent.cash -= owner_equity
             company.cash = owner_equity + shortfall
             
-            # Set starting wage at food_price * 1.1 (dynamic wage + poaching will affect all future wages)
-            # Floor is 1/3 of food market price so wages track the economy
-            company.wage = max(max(1, int(food_price / 3)), int(food_price * 1.1))
+            # Fix C: Competitive starting wage (float, not int)
+            sector_wages = [a.wage for a in agents if a.is_corp and a.output == agent.output and a.wage > 0]
+            if sector_wages:
+                company.wage = max(sector_wages) * 1.05  # Beat the competition
+            else:
+                company.wage = max(1.0, food_price * 1.5)  # No competitors, min $1
             company.max_employees = random.randint(10, 25)
             
             loginfo(t, agent.name(), "founded company", company.name(), 
@@ -234,7 +237,7 @@ def RunLaborMarket(t, agents):
                         old_employer = target.employer
                         old_wage = old_employer.wage
                         # Offer at least 10% more than their current wage, or 5% more than our own
-                        offer_wage = max(int(old_wage * 1.1), int(agent.wage * 1.05))
+                        offer_wage = max(old_wage * 1.1, agent.wage * 1.05)
                         
                         if agent.cash > (payroll + offer_wage) * 2:
                             # Employee quits old job
@@ -253,13 +256,15 @@ def RunLaborMarket(t, agents):
     # 5. Wage dynamic adjustments (WAGE PAYMENTS moved after Trade - called from main())
     for agent in agents:
         if agent.is_corp and len(agent.employees) > 0:
-            # If cash is high, raise wage to retain talent and attract more
-            if agent.cash > 600 and len(agent.employees) < (agent.max_employees // 2):
-                agent.wage = int(agent.wage * 1.01)
-                loginfo(t, agent.name(), "raised wage to", agent.wage)
+            payroll = len(agent.employees) * agent.wage
+            # Fix C: Raise wage when profitable and have room to grow
+            if agent.cash > payroll * 5 and len(agent.employees) < agent.max_employees:
+                # Raise wage to attract more workers
+                agent.wage = agent.wage * 1.02
+                loginfo(t, agent.name(), "raised wage to", agent.wage, "(profitable, room to grow)")
             # If cash is getting lower (less than 3 turns of wage bills), reduce wage to prevent layoffs
-            elif agent.cash < len(agent.employees) * agent.wage * 3:
-                agent.wage = max(max(1, int(recipes[Goods.food]['price'] / 3)), int(agent.wage * 0.95))
+            elif agent.cash < payroll * 3:
+                agent.wage = agent.wage * 0.95
                 loginfo(t, agent.name(), "lowered wage to", agent.wage)
 
     return new_company_agents
