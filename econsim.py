@@ -448,9 +448,6 @@ def main():
     InitAgents(agents)
     prevTotalCash = (sum(agent.cash for agent in agents) + econsim_states.govCash + (trade.bank.total_deposits - trade.bank.total_liabilities))
     for t in range(time_steps):
-        if t == 100:
-            recipes[Goods.food]['maxtotalprod'] *= 2
-            logwarning(t, "Doubled max total production for food to:", recipes[Goods.food]['maxtotalprod'])
         #PrintStats(t, agents)
         new_company_agents = RunLaborMarket(t, agents)
         if new_company_agents:
@@ -459,6 +456,17 @@ def main():
         #trade.Trade(t, agents, recipes)
         trade.Trade(t, agents, recipes, demand_ratio_log, demand_log, supply_log, sold_log, bought_log)
         PayWages(t, agents)  # Pay wages AFTER production and trade
+
+        # --- GDP Logging ---
+        total_gdp = 0
+        for good in goods:
+            if good != Goods.gov:
+                gdp_value = production_log[good][-1] * recipes[good]['price']
+                total_gdp += gdp_value
+                gdp_by_profession_log[good].append(gdp_value)
+        gdp_log.append(total_gdp)
+        # --------------------
+
         tempTotalCash = getTotalCash(agents)
         diff = math.fabs(tempTotalCash - prevTotalCash) 
         if diff > epsilon:
@@ -643,6 +651,24 @@ def main():
     axis[axisId].plot(pop_change_rate_log, color='black')
     
     axisId += 1
+    # GDP (total)
+    axis[axisId].set_title("GDP vs time (total)")
+    #axis[axisId].set_xlabel("Time Step")
+    axis[axisId].set_ylabel("GDP (value)")
+    axis[axisId].set_yscale('log', base=2)
+    axis[axisId].plot(gdp_log, color='black')
+    
+    axisId += 1
+    # GDP by profession
+    axis[axisId].set_title("GDP vs time (by profession)")
+    #axis[axisId].set_xlabel("Time Step")
+    axis[axisId].set_ylabel("GDP (value)")
+    axis[axisId].set_yscale('log', base=2)
+    for good in goods:
+        if good != Goods.gov:
+            axis[axisId].plot(gdp_by_profession_log[good], label=labels[good], color=colors[good])
+    
+    axisId += 1
     #purchases
     titles = ["Farmer", "Logger", "Carpenter", "Gov agent"]
     for i in range(len(titles)):
@@ -658,10 +684,10 @@ def main():
             
     #plt.legend()
     # Get legend handles and labels from one axis (assuming they’re the same across all)
-    handles, labels = axis[2].get_legend_handles_labels() #need label in that axis
+    legend_handles, legend_labels = axis[2].get_legend_handles_labels() #need label in that axis
 
     # Add a single global legend
-    figure.legend(handles, labels, loc='upper right', ncol=1, fontsize='small') 
+    figure.legend(legend_handles, legend_labels, loc='upper right', ncol=1, fontsize='small') 
     
     plt.grid(True)
     for ax in axis:
@@ -713,6 +739,16 @@ def main():
         print(f"Profit ratio (earned / paid):         {ratio:.2f}x")
     else:
         print(f"Profit ratio (earned / paid):         N/A (no deposit interest paid)")
+    print("--------------------------------\n")
+
+    # --- GDP Summary ---
+    print("\n--- GDP Summary ---")
+    print(f"Total GDP (cumulative):            ${sum(gdp_log):.2f}")
+    print(f"Final GDP per turn:                ${gdp_log[-1] if gdp_log else 0:.2f}")
+    for good in goods:
+        if good != Goods.gov:
+            final_gdp = gdp_by_profession_log[good][-1] if gdp_by_profession_log.get(good) else 0
+            print(f"  {labels[good]} GDP per turn:           ${final_gdp:.2f}")
     print("--------------------------------\n")
     plt.savefig('sim_output.png')
 if __name__ == "__main__":

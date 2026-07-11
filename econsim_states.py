@@ -36,3 +36,5 @@ bankCash_log = []
 price_log = {Goods.food:[], Goods.wood:[], Goods.furn:[]}
 sold_log = {Goods.food:[], Goods.wood:[], Goods.furn:[]}
 bought_log = dict()
+gdp_log = []
+gdp_by_profession_log = {Goods.food:[], Goods.wood:[], Goods.furn:[]}
