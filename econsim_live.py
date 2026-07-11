@@ -43,21 +43,50 @@ def Live(t, agents):
     prevGovCash = econsim_states.govCash
     numSwitches = 0
     random.shuffle(agents)
+
+    # Hoist bottleneck computation outside agent loop (Fix E)
+    choices_list = [g for g in goods if g != Goods.gov]
+    bottleneck_sector = Goods.none
+    bottleneck_ratio = 0
+    bottleneck_weights = [1] * len(choices_list)
+    for candidate_good in goods:
+        if candidate_good == Goods.gov:
+            continue
+        recipe = recipes.get(candidate_good)
+        if recipe and recipe.get('numInput', 0) > 0:
+            input_good = recipe['input']
+            num_consumers = sum(1 for a in agents if GetInputCom(a) == input_good and not a.is_corp and a.employer is None)
+            num_producers = sum(1 for a in agents if a.output == input_good and not a.is_corp and a.employer is None)
+            pressure = (num_consumers * recipe['numInput']) / max(1, num_producers)
+            if pressure > bottleneck_ratio and pressure > 2.0:
+                bottleneck_ratio = pressure
+                bottleneck_sector = input_good
+    if bottleneck_sector != Goods.none:
+        bottleneck_weights = [3 if g == bottleneck_sector else 1 for g in choices_list]
+
     for agent in agents:
-        # Fix A: Luxury consumption — wealthy agents consume extra goods
+        # Corps skip life-cycle entirely — preserve in population but skip eating/aging/repro
+        if agent.is_corp:
+            new_agents.append(agent)
+            continue
+
+        # Generalized luxury consumption for wealthy non-corp agents (Fix A)
         total_liquid = agent.cash + trade.bank.deposits.get(agent, 0)
         food_price = recipes.get(Goods.food, {}).get('price', 1)
         if total_liquid > food_price * 40:
-            # Wealthy: consume furniture for comfort (higher chance)
-            if agent.inv.get(Goods.furn, 0) > 0 and GetOutputCom(agent) != Goods.furn and random.random() < .15:
-                agent.inv[Goods.furn] -= 1
-                numFurn += 1
-                loginfo(t, agent.name(), 'wealthy, consumed furniture')
-            # Wealthy: occasional wood use (home improvement)
-            if total_liquid > food_price * 80 and agent.inv.get(Goods.wood, 0) > 2 and GetInputCom(agent) != Goods.wood and GetOutputCom(agent) != Goods.wood and random.random() < .08:
-                agent.inv[Goods.wood] -= 1
-                numwood += 1
-                loginfo(t, agent.name(), 'wealthy, consumed wood')
+            for luxury_good in goods:
+                if luxury_good in (Goods.food, Goods.gov):
+                    continue
+                good_price = recipes.get(luxury_good, {}).get('price', 1)
+                if agent.inv.get(luxury_good, 0) > 0 and GetOutputCom(agent) != luxury_good:
+                    consumption_chance = 0.15 * (1.0 / max(1, good_price))
+                    if random.random() < min(0.3, consumption_chance):
+                        agent.inv[luxury_good] -= 1
+                        if luxury_good == Goods.furn:
+                            numFurn += 1
+                        elif luxury_good == Goods.wood:
+                            numwood += 1
+                        loginfo(t, agent.name(), 'wealthy, consumed', profession[luxury_good])
         
         if agent.inv.get(Goods.wood, 0) > 2 and GetInputCom(agent) != Goods.wood and GetOutputCom(agent) != Goods.wood:
             agent.inv[Goods.wood] -= 1
@@ -96,34 +125,10 @@ def Live(t, agents):
                     agent.lastCareerSwitch = t
                     numSwitches += 1
             elif agent.cash < 20 and (t - getattr(agent, 'lastCareerSwitch', 0) > 10):
-                # Fix E: Detect input bottlenecks generically from recipes
-                bottleneck_sector = Goods.none
-                bottleneck_ratio = 0
-                for candidate_good in goods:
-                    if candidate_good == Goods.gov:
-                        continue
-                    recipe = recipes.get(candidate_good)
-                    if recipe and recipe.get('numInput', 0) > 0:
-                        input_good = recipe['input']
-                        num_consumers = sum(1 for a in agents if GetInputCom(a) == input_good and getattr(a, 'employer', None) is None)
-                        num_producers = sum(1 for a in agents if a.output == input_good and a.employer is None)
-                        if num_producers > 0:
-                            pressure = (num_consumers * recipe['numInput']) / num_producers
-                        else:
-                            pressure = 99  # Infinite pressure if no producers
-                        if pressure > bottleneck_ratio and pressure > 2.0:
-                            bottleneck_ratio = pressure
-                            bottleneck_sector = input_good
-                
+                # Fix E: Use hoisted bottleneck detection
                 if random.random() < 0.1:
-                    choices = [g for g in goods if g != Goods.gov]
-                    if choices:
-                        # Weight choices: bottleneck sectors get 3x weight
-                        if bottleneck_sector != Goods.none:
-                            weights = [3 if g == bottleneck_sector else 1 for g in choices]
-                        else:
-                            weights = [1 for g in choices]
-                        agent.output = random.choices(choices, weights=weights, k=1)[0]
+                    if choices_list:
+                        agent.output = random.choices(choices_list, weights=bottleneck_weights, k=1)[0]
                         logdebug(t, agent.name(), 'poor, exploring random career:', profession[agent.output])
                         agent.lastCareerSwitch = t
                         numSwitches += 1
@@ -133,12 +138,9 @@ def Live(t, agents):
                     target_recipe = recipes.get(target)
                     if target_recipe and target_recipe.get('numInput', 0) > 0:
                         input_good = target_recipe['input']
-                        num_consumers = sum(1 for a in agents if GetInputCom(a) == input_good and getattr(a, 'employer', None) is None)
-                        num_producers = sum(1 for a in agents if a.output == input_good and a.employer is None)
-                        if num_producers > 0:
-                            pressure = (num_consumers * target_recipe['numInput']) / num_producers
-                        else:
-                            pressure = 99
+                        num_consumers = sum(1 for a in agents if GetInputCom(a) == input_good and not a.is_corp and a.employer is None)
+                        num_producers = sum(1 for a in agents if a.output == input_good and not a.is_corp and a.employer is None)
+                        pressure = (num_consumers * target_recipe['numInput']) / max(1, num_producers)
                         if pressure > 2.0:
                             target = input_good
                             logdebug(t, agent.name(), 'redirected to bottleneck input:', profession[target])
