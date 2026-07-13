@@ -502,6 +502,7 @@ def main():
                         deposit_taken = min(bank_balance, actual_tax - cash_taken)
                         if deposit_taken > 0:
                             trade.bank.Withdraw(agent, deposit_taken)
+                            agent.cash -= deposit_taken  # Withdraw adds to cash; remove it as tax
                     agent.tax_loss_carryforward = 0.0
                     econsim_states.govCash += actual_tax
                     total_tax_collected += actual_tax
@@ -522,12 +523,15 @@ def main():
         gdp_log.append(total_gdp)
         # --------------------
 
-        tempTotalCash = getTotalCash(agents)
-        diff = math.fabs(tempTotalCash - prevTotalCash) 
-        if diff > epsilon:
-            loginfo(t, "post trade total cash", prevTotalCash, '!=', tempTotalCash, diff)
+        # TRACK CASH BEFORE AND AFTER Live()
+        cash_before_live = getTotalCash(agents)
         
         agents = Living.Live(t, agents)
+        
+        cash_after_live = getTotalCash(agents)
+        live_diff = cash_after_live - cash_before_live
+        if abs(live_diff) > 0.1:
+            print(f"{t}  CASH LEAK: Live() changed total by ${live_diff:.2f}")
 
         for good in goods:
             pop_log[good].append(sum(agent.output == good for agent in agents))
