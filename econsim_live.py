@@ -40,43 +40,14 @@ def Live(t, agents):
     numFurn = 0
     numdead = 0 #dead_pop[-1]
     numdeadstarve = deadstarve_pop[-1]
-    prevGovCash = econsim_states.govCash
     
     # GOVERNMENT FOOD AID (FIX: no one starves > 3 days; newborns get 1 food for 10 turns)
     food_price = recipes[Goods.food]['price']
-    for agent in agents:
-        if agent.is_corp:
-            continue
-        needs_food = 0
-        # Newborns (age <= 10): 1 free food per turn
-        if agent.age(t) <= 10:
-            needs_food = 1
-        # Starving > 3 days: emergency food (enough to eat 4 this turn)
-        if agent.hungry_steps > 3:
-            current_food = agent.inv.get(Goods.food, 0)
-            needed_for_meal = max(0, 4 - current_food)
-            # Don't double-count: newborns already get 1
-            if agent.age(t) <= 10:
-                needed_for_meal = max(0, needed_for_meal - 1)
-            needs_food = max(needs_food, needed_for_meal)
-        
-        if needs_food > 0:
-            cost = needs_food * food_price
-            # Government borrows from bank if it doesn't have enough cash
-            if econsim_states.govCash < cost:
-                shortfall = cost - econsim_states.govCash
-                trade.bank.total_deposits += shortfall  # Bank creates money
-                econsim_states.govDebt += shortfall
-                econsim_states.govCash += shortfall
-                loginfo(t, "GOVERNMENT BORROWED $", round(shortfall, 2),
-                        "from bank for food aid. Total govDebt: $", round(econsim_states.govDebt, 2))
-            # Give food directly
-            agent.inv[Goods.food] += needs_food
-            econsim_states.govCash -= cost
-            if agent.hungry_steps > 3:
-                loginfo(t, agent.name(), f"received emergency food aid ({needs_food} food)")
-            else:
-                loginfo(t, agent.name(), f"received newborn food aid ({needs_food} food)")
+    if econsim_states.default_gov is not None:
+        econsim_states.default_gov.provide_food_aid(t, agents, food_price)
+    else:
+        logwarning(t, "No government exists to provide food aid!")
+    
     numSwitches = 0
     random.shuffle(agents)
 
@@ -338,67 +309,50 @@ def Live(t, agents):
                         trade.bank.RequestBailout(t, remaining_principle)
                     trade.bank.total_deposits -= remaining_principle
             
-            # 3. Inherit Cash and Deposits (Whole units only)
+            # 3. Inherit Cash and Deposits (exact float division, no truncation)
             inheritance_cash = agent.cash
             inheritance_deposits = trade.bank.deposits.get(agent, 0)
+            gov = econsim_states.default_gov
             
             if len(livingDescendents) > 0:
-                # Distribute whole units of cash
-                cash_share = int(inheritance_cash // len(livingDescendents))
-                cash_remainder = inheritance_cash - (cash_share * len(livingDescendents))
-                
-                # Distribute whole units of bank deposits
-                deposit_share = int(inheritance_deposits // len(livingDescendents))
-                deposit_remainder = inheritance_deposits - (deposit_share * len(livingDescendents))
+                num_heirs = len(livingDescendents)
+                cash_share = inheritance_cash / num_heirs
+                deposit_share = inheritance_deposits / num_heirs
                 
                 for descendent in livingDescendents:
                     descendent.cash += cash_share
                     trade.bank.deposits[descendent] += deposit_share
                 
-                # Remainders go to the government
-                econsim_states.govCash += cash_remainder
-                econsim_states.govCash += deposit_remainder
-                if deposit_remainder > 0:
-                    trade.bank.total_deposits -= deposit_remainder
-                
-                # 3. Inherit physical inventory (Whole units only)
+                # Inherit physical inventory (exact float division)
                 for good, amount in agent.inv.items():
                     target_heirs = [agent for agent in livingDescendents if agent.output == good]
                     if not target_heirs:
                         target_heirs = livingDescendents # Fallback to all heirs if none match profession
                     
-                    unit_share = int(amount // len(target_heirs))
-                    unit_remainder = amount - (unit_share * len(target_heirs))
-                    
+                    inv_share = amount / len(target_heirs)
                     for descendent in target_heirs:
-                        descendent.inv[good] += unit_share
-                    
-                    # Decimal remainders of physical goods go to government stores
-                    if unit_remainder > 0:
-                        econsim_states.govInv[good] += unit_remainder
+                        descendent.inv[good] += inv_share
             else:
                 # No heirs: assets go to government
-                econsim_states.govCash += inheritance_cash
-                # Gov doesn't have an agent object usually, so just add to govCash
-                # CRITICAL: If we move deposits to govCash, we must remove it from the bank's total
-                econsim_states.govCash += inheritance_deposits
-                trade.bank.total_deposits -= inheritance_deposits
-                for good, amount in agent.inv.items():
-                    econsim_states.govInv[good] += amount
+                if gov is not None:
+                    gov.agent.cash += inheritance_cash
+                    # Deposits: transfer to gov agent's bank account
+                    if inheritance_deposits > 0:
+                        trade.bank.deposits[gov.agent] = trade.bank.deposits.get(gov.agent, 0) + inheritance_deposits
+                    trade.bank.total_deposits -= inheritance_deposits
+                    for good, amount in agent.inv.items():
+                        gov.agent.inv[good] = gov.agent.inv.get(good, 0) + amount
             
             # Clear the dead agent's bank account
             if agent in trade.bank.deposits:
                 del trade.bank.deposits[agent]
-            
-    if econsim_states.govCash > 0:
-        logdebug(t, 'gov cash prev:', prevGovCash, 'now', econsim_states.govCash)
-        starving_agents = [agent for agent in new_agents if agent.hungry_steps > 0 ]
-        if len(starving_agents) > 0:
-            wellfare = econsim_states.govCash / len(starving_agents)
-            assert(wellfare >= 0)
-            for agent in starving_agents:
-                agent.cash += wellfare
-                econsim_states.govCash -= wellfare
+    
+    # Welfare: distribute excess government cash to starving agents
+    if econsim_states.default_gov is not None:
+        # Keep a small reserve for next turn's food aid
+        food_price = recipes.get(Goods.food, {}).get('price', 1)
+        reserve = food_price * 20  # Keep enough for ~5 starving agents
+        econsim_states.default_gov.distribute_welfare(t, new_agents, min_reserve=reserve)
 
 
     for good in goods:

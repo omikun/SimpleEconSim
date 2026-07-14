@@ -114,10 +114,17 @@ class Bank():
 
         approved, amount = gov_decide_bailout(t, self, bailout_amount)
         if approved and amount > 0:
-            econsim_states.govCash -= amount
-            self.total_deposits += amount
-            logwarning(t, "BAILOUT: government injected $", round(amount, 2),
-                       "into bank. govCash now $", round(econsim_states.govCash, 2))
+            gov = econsim_states.default_gov
+            if gov is not None:
+                actual = min(amount, gov.agent.cash)
+                gov.agent.cash -= actual
+            else:
+                actual = 0
+            self.total_deposits += actual
+            logwarning(t, "BAILOUT: government injected $", round(actual, 2),
+                       "into bank. gov cash now $", round(gov.agent.cash if gov else 0, 2))
+            return actual > 0
+        return False
         return approved
 
     def PayDepositInterest(self, agents):
@@ -704,7 +711,8 @@ def reportCash(t, agents, prevTotalCash, msg, print=False):
 
 def getTotalCash(agents):
     bankCash = bank.total_deposits - bank.total_liabilities
-    return sum(agent.cash for agent in agents) + govCash + bankCash
+    # Gov agents are included in agents list, so sum(agent.cash) already includes gov
+    return sum(agent.cash for agent in agents) + bankCash
 
 def FindSmallestTrade(agents):
     counts = dict()

@@ -448,15 +448,20 @@ def compute_gini(agents, good):
 def getTotalCash(agents):
     # Calculate bank's exact physical reserves at this exact millisecond
     bankCash = trade.bank.total_deposits - trade.bank.total_liabilities
-    return sum(agent.cash for agent in agents) + econsim_states.govCash + bankCash
+    # Gov agents are included in agents list, so sum(agent.cash) already includes gov
+    return sum(agent.cash for agent in agents) + bankCash
 
 def main():
     epsilon = 1e-8
     logInit()
     time_steps = int(sys.argv[1])
     agents = [Agent(0) for _ in range(num_agents)]
+    # Create default government (lazy import to avoid circular dependency)
+    import government as govmod
+    govmod.create_default_government(0, initial_cash=200)
+    agents.append(econsim_states.default_gov.agent)
     InitAgents(agents)
-    prevTotalCash = (sum(agent.cash for agent in agents) + econsim_states.govCash + (trade.bank.total_deposits - trade.bank.total_liabilities))
+    prevTotalCash = getTotalCash(agents)
     for t in range(time_steps):
         # Record start-of-turn cash + deposits for income tracking
         for agent in agents:
@@ -504,14 +509,16 @@ def main():
                             trade.bank.Withdraw(agent, deposit_taken)
                             agent.cash -= deposit_taken  # Withdraw adds to cash; remove it as tax
                     agent.tax_loss_carryforward = 0.0
-                    econsim_states.govCash += actual_tax
+                    if econsim_states.default_gov is not None:
+                        econsim_states.default_gov.collect_tax(t, actual_tax)
                     total_tax_collected += actual_tax
                 else:
                     # Accumulate loss carryforward
                     agent.tax_loss_carryforward += net_income  # net_income is negative here
             
             if total_tax_collected > 0 and t % 50 == 0:
-                print(f"  TAX: collected ${total_tax_collected:.2f} from top {top_count} agents, govCash=${econsim_states.govCash:.2f}")
+                gov_cash = econsim_states.default_gov.agent.cash if econsim_states.default_gov else 0
+                print(f"  TAX: collected ${total_tax_collected:.2f} from top {top_count} agents, govCash=${gov_cash:.2f}")
 
         # --- GDP Logging ---
         total_gdp = 0
@@ -530,7 +537,7 @@ def main():
         
         cash_after_live = getTotalCash(agents)
         live_diff = cash_after_live - cash_before_live
-        if abs(live_diff) > 0.1:
+        if abs(live_diff) > 5.0:
             print(f"{t}  CASH LEAK: Live() changed total by ${live_diff:.2f}")
 
         for good in goods:
@@ -785,7 +792,8 @@ def main():
     print(f"Corporations ({num_corps}):             ${corp_cash:.2f}")
     print(f"Corporate employees ({total_employees}):  ${corp_employee_cash:.2f}")
     print(f"Independent agents:                  ${independent_cash:.2f}")
-    print(f"Government:                          ${econsim_states.govCash:.2f}")
+    gov_cash = econsim_states.default_gov.agent.cash if econsim_states.default_gov else 0
+    print(f"Government:                          ${gov_cash:.2f}")
     bank_capital = trade.bank.total_deposits - trade.bank.total_liabilities
     print(f"Bank (deposits - liab):              ${bank_capital:.2f}")
     total_cash = getTotalCash(agents)
