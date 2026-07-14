@@ -309,29 +309,36 @@ def Live(t, agents):
                         trade.bank.RequestBailout(t, remaining_principle)
                     trade.bank.total_deposits -= remaining_principle
             
-            # 3. Inherit Cash and Deposits (exact float division, no truncation)
+            # 3. Inherit Cash and Deposits (integer division, remainder to first heir)
             inheritance_cash = agent.cash
             inheritance_deposits = trade.bank.deposits.get(agent, 0)
             gov = econsim_states.default_gov
             
             if len(livingDescendents) > 0:
                 num_heirs = len(livingDescendents)
-                cash_share = inheritance_cash / num_heirs
-                deposit_share = inheritance_deposits / num_heirs
+                # Convert bank deposits to cash before inheritance
+                if inheritance_deposits > 0:
+                    trade.bank.Withdraw(agent, inheritance_deposits)
+                    inheritance_cash += inheritance_deposits
                 
-                for descendent in livingDescendents:
-                    descendent.cash += cash_share
-                    trade.bank.deposits[descendent] += deposit_share
+                cash_share = int(inheritance_cash // num_heirs)
+                cash_remainder = inheritance_cash - (cash_share * num_heirs)
                 
-                # Inherit physical inventory (exact float division)
+                for i, descendent in enumerate(livingDescendents):
+                    extra_cash = cash_remainder if i == 0 else 0
+                    descendent.cash += cash_share + extra_cash
+                
+                # Inherit physical inventory (integer division, remainder to first matching heir)
                 for good, amount in agent.inv.items():
                     target_heirs = [agent for agent in livingDescendents if agent.output == good]
                     if not target_heirs:
                         target_heirs = livingDescendents # Fallback to all heirs if none match profession
                     
-                    inv_share = amount / len(target_heirs)
-                    for descendent in target_heirs:
-                        descendent.inv[good] += inv_share
+                    inv_share = int(amount // len(target_heirs))
+                    inv_remainder = amount - (inv_share * len(target_heirs))
+                    for i, descendent in enumerate(target_heirs):
+                        extra_inv = inv_remainder if i == 0 else 0
+                        descendent.inv[good] += inv_share + extra_inv
             else:
                 # No heirs: assets go to government
                 if gov is not None:
@@ -343,6 +350,8 @@ def Live(t, agents):
                     for good, amount in agent.inv.items():
                         gov.agent.inv[good] = gov.agent.inv.get(good, 0) + amount
             
+            # Zero out dead agent's assets so they don't leak from the cash sum
+            agent.cash = 0
             # Clear the dead agent's bank account
             if agent in trade.bank.deposits:
                 del trade.bank.deposits[agent]
