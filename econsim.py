@@ -41,6 +41,8 @@ class Agent:
         self.max_employees = 0
         self.consumption_mult = 1.0  # Wealth-based consumption multiplier (sqrt of wealth/CoL, clamped 1-10)
         self.tax_loss_carryforward = 0.0  # Carryforward losses for tax purposes
+        self.retained_earnings = 0.0  # Cumulative undistributed corporate profit
+        self.owner_loan = 0.0  # Amount owner has loaned to the corp
         self._start_cash = 0  # Income tracking
         self._start_deposits = 0
         self._delta_cash = 0
@@ -472,6 +474,98 @@ def RecalculateConsumptionMultipliers(agents):
         else:
             agent.consumption_mult = 1.0
 
+def DistributeOwnerProfits(t, agents):
+    """Distribute corporate profits to owners.
+
+    Each corporation pays its owner:
+    1. Base salary equal to the employee wage (same pay as any employee)
+    2. Progressive profit share on retained earnings, asymptotically approaching 25%
+       Formula: share_rate = 0.25 * ratio / (ratio + 5)
+       where ratio = retained_earnings / operating_expenses
+
+    If corp runs low on cash, owner may inject personal cash as a repayable loan.
+    Owner loans are repaid before profit distribution in future turns.
+    """
+    for agent in agents:
+        if not agent.is_corp or not agent.alive:
+            continue
+        if agent.owner is None or not getattr(agent.owner, 'alive', False):
+            continue
+
+        owner = agent.owner
+        payroll = max(1, len(agent.employees) * agent.wage)
+        operating_expenses = payroll * 2  # wages + input cost buffer
+
+        # First: repay owner loan from previous bailouts before any distribution
+        if agent.owner_loan > 0:
+            # Repay from this turn's positive cash flow, capped at available cash above reserve
+            avail_for_repayment = max(0, agent.cash - payroll * 2)
+            repay = min(agent.owner_loan, avail_for_repayment)
+            if repay > 0:
+                agent.cash -= repay
+                owner.cash += repay
+                agent.owner_loan -= repay
+                loginfo(t, agent.name(), "repaid owner loan $", round(repay, 2),
+                        "to", owner.name(), "remaining loan $", round(agent.owner_loan, 2))
+
+        # Calculate this turn's profit after all wages, trade, and loan repayment
+        profit = max(0, agent._delta_cash + agent._delta_deposits)
+        if profit <= 0 and agent.cash <= payroll * 2:
+            # Corp is struggling — skip distribution, may need owner bailout below
+            pass
+        else:
+            # Add remaining profit to retained earnings
+            agent.retained_earnings += profit
+
+        # 1. Owner base salary (same as employee wage)
+        base_wage = agent.wage
+        # Only pay base wage if corp has 2x payroll reserve after payment
+        if agent.cash > payroll * 2 + base_wage:
+            agent.cash -= base_wage
+            owner.cash += base_wage
+            loginfo(t, agent.name(), "paid owner base wage $", round(base_wage, 2), "to", owner.name())
+        else:
+            base_wage = 0  # Not enough cash for base wage
+
+        # 2. Progressive profit share on retained earnings
+        if agent.retained_earnings > 0 and agent.cash > payroll * 2:
+            # ratio = retained_earnings / operating_expenses
+            ratio = agent.retained_earnings / operating_expenses
+            # Asymptotic: approaches 25% as ratio → ∞
+            share_rate = 0.25 * ratio / (ratio + 5)
+            # Owner's profit share draw this turn
+            profit_draw = share_rate * agent.retained_earnings
+            # Cap to available cash above 2x payroll reserve
+            max_available = max(0, agent.cash - payroll * 2)
+            profit_draw = min(profit_draw, max_available)
+            if profit_draw > 0:
+                agent.cash -= profit_draw
+                owner.cash += profit_draw
+                agent.retained_earnings -= profit_draw
+                loginfo(t, agent.name(), "paid owner profit share $", round(profit_draw, 2),
+                        "to", owner.name(), "(rate=", round(share_rate, 4),
+                        ", ratio=", round(ratio, 2), ")")
+                # Log for reporting
+                if not hasattr(owner, 'owner_payouts'):
+                    owner.owner_payouts = []
+                owner.owner_payouts.append(base_wage + profit_draw)
+
+        # 3. Owner bailout: if corp can't cover payroll, owner injects cash as loan
+        if agent.cash < payroll:
+            needed = payroll - agent.cash
+            # Owner keeps at least 4 food worth of cash for living
+            food_price = recipes.get(Goods.food, {}).get('price', 1)
+            owner_reserve = food_price * 4
+            inject = min(needed, max(0, owner.cash - owner_reserve))
+            if inject > 0:
+                owner.cash -= inject
+                agent.cash += inject
+                agent.owner_loan += inject
+                loginfo(t, agent.name(), "owner", owner.name(),
+                        "injected $", round(inject, 2), "as loan to cover payroll",
+                        "total loan $", round(agent.owner_loan, 2))
+
+
 def main():
     epsilon = 1e-8
     logInit()
@@ -502,6 +596,7 @@ def main():
         #trade.Trade(t, agents, recipes)
         trade.Trade(t, agents, recipes, demand_ratio_log, demand_log, supply_log, sold_log, bought_log)
         PayWages(t, agents)  # Pay wages AFTER production and trade
+        DistributeOwnerProfits(t, agents)  # Pay owner base wage + profit share
 
         # FIX 3: Tax top 10% wealthiest agents at 50% of net income
         for agent in agents:
@@ -830,6 +925,23 @@ def main():
     corp_cash = sum(agent.cash for agent in agents if agent.is_corp)
     corp_employee_cash = sum(agent.cash for agent in agents if getattr(agent, 'employer', None) is not None)
     independent_cash = sum(agent.cash for agent in agents if agent.employer is None and not agent.is_corp)
+    # --- Owner Payout Summary ---
+    total_owner_pay = 0
+    total_retained = 0
+    total_owner_loan = 0
+    for agent in agents:
+        if agent.is_corp:
+            total_retained += agent.retained_earnings
+            total_owner_loan += agent.owner_loan
+        if hasattr(agent, 'owner_payouts') and agent.owner_payouts:
+            total_owner_pay += sum(agent.owner_payouts)
+    if total_owner_pay > 0 or total_retained > 0 or total_owner_loan > 0:
+        print(f"\n--- Owner Compensation Summary (to {num_corps} corps) ---")
+        print(f"Total owner payouts (cumulative):    ${total_owner_pay:.2f}")
+        print(f"Total retained earnings (corps):     ${total_retained:.2f}")
+        print(f"Total owner loans outstanding:       ${total_owner_loan:.2f}")
+        print("--------------------------------")
+
     print("\n--- Money Distribution ---")
     print(f"Corporations ({num_corps}):             ${corp_cash:.2f}")
     print(f"Corporate employees ({total_employees}):  ${corp_employee_cash:.2f}")
