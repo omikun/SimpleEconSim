@@ -306,34 +306,12 @@ class Government:
     def __repr__(self):
         return f"Government({self.name})"
 
-    def borrow(self, t, amount, bank):
-        """Borrow from the bank with a proper loan. Returns actual amount borrowed."""
-        if amount <= 0:
-            return 0
-        prev_cash = self.agent.cash
-        pre_total_deposits = bank.total_deposits
-        pre_total_liabilities = bank.total_liabilities
-        bank.Borrow(t, self.agent, amount)
-        actual_borrowed = self.agent.cash - prev_cash
-        if actual_borrowed > 0:
-            self.debt += actual_borrowed
-            loginfo(t, f"Government({self.name}) borrowed ${actual_borrowed:.2f} from bank. "
-                    f"Total gov debt: ${self.debt:.2f}")
-        return actual_borrowed
-
     def collect_tax(self, t, amount):
         """Receive tax revenue. Returns amount received."""
         if amount > 0:
             self.agent.cash += amount
             loginfo(t, f"Government({self.name}) collected ${amount:.2f} in taxes")
         return amount
-
-    def get_cash(self):
-        return self.agent.cash
-
-    def get_total_wealth(self):
-        """Total liquid wealth (cash + bank deposits)."""
-        return self.agent.cash + trade.bank.deposits.get(self.agent, 0)
 
     def provide_food_aid(self, t, agents, food_price):
         """Provide emergency food to starving agents and food to newborns.
@@ -399,18 +377,6 @@ class Government:
         logdebug(t, f"Government({self.name}) distributed ${total_distributed:.2f} welfare "
                     f"to {len(starving_agents)} agents")
         return total_distributed
-
-    def inherit_remainders(self, t, remainder_cash, remainder_deposits, remainder_inv=None):
-        """Receive remainder inheritance (when heirs get whole-unit shares)."""
-        if remainder_cash > 0:
-            self.agent.cash += remainder_cash
-        if remainder_deposits > 0:
-            trade.bank.Deposit(self.agent, remainder_deposits)
-        if remainder_inv:
-            for good, amount in remainder_inv.items():
-                if amount > 0:
-                    self.agent.inv[good] = self.agent.inv.get(good, 0) + amount
-
 
 def create_default_government(t, initial_cash=200):
     """Create the default government for the simulation."""
