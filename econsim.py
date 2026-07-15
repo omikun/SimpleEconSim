@@ -39,6 +39,7 @@ class Agent:
         self.owner = None
         self.company_owned = None
         self.max_employees = 0
+        self.consumption_mult = 1.0  # Wealth-based consumption multiplier (sqrt of wealth/CoL, clamped 1-10)
         self.tax_loss_carryforward = 0.0  # Carryforward losses for tax purposes
         self._start_cash = 0  # Income tracking
         self._start_deposits = 0
@@ -451,6 +452,26 @@ def getTotalCash(agents):
     # Gov agents are included in agents list, so sum(agent.cash) already includes gov
     return sum(agent.cash for agent in agents) + bankCash
 
+def RecalculateConsumptionMultipliers(agents):
+    """Recalculate consumption_mult for every living agent based on wealth / cost of living.
+    Call every 10 turns. Formula: sqrt(wealth / CoL), clamped to [1.0, 10.0].
+    If wealth <= CoL, multiplier stays at 1.0 (no overconsumption)."""
+    food_price = recipes.get(Goods.food, {}).get('price', 1)
+    wood_price = recipes.get(Goods.wood, {}).get('price', 1)
+    furn_price = recipes.get(Goods.furn, {}).get('price', 1)
+    # Cost of Living: 4 food + 1 wood + 0.25 furniture per turn
+    col = 4 * food_price + 1 * wood_price + 0.25 * furn_price
+    col = max(0.1, col)  # prevent division by zero
+    for agent in agents:
+        if not agent.alive or getattr(agent, 'is_corp', False):
+            continue
+        w = agent.wealth()
+        if w > col:
+            raw = math.sqrt(w / col)
+            agent.consumption_mult = max(1.0, min(10.0, raw))
+        else:
+            agent.consumption_mult = 1.0
+
 def main():
     epsilon = 1e-8
     logInit()
@@ -529,6 +550,10 @@ def main():
                 gdp_by_profession_log[good].append(gdp_value)
         gdp_log.append(total_gdp)
         # --------------------
+
+        # Recalculate consumption multipliers every 10 turns
+        if t > 0 and t % 10 == 0:
+            RecalculateConsumptionMultipliers(agents)
 
         # TRACK CASH BEFORE AND AFTER Live()
         cash_before_live = getTotalCash(agents)
@@ -775,6 +800,15 @@ def main():
         cash = cash_log.get(good, [0])[-1] if cash_log.get(good) else 0
         print(f"{profession.get(good, str(good))}: Pop={pop}, Price={price:.2f}, Inv={inv:.2f}, Cash={cash:.2f}")
     print(f"Total Pop: {total_pop[-1] if total_pop else 0}, Dead/Starved: {deadstarve_pop[-1] if deadstarve_pop else 0}")
+    # --- Demand Metrics ---
+    print("\n--- Demand Metrics (last 10 avg) ---")
+    for good in goods:
+        if good != Goods.gov:
+            last10_dr = demand_ratio_log.get(good, [])[-10:] if demand_ratio_log.get(good) else []
+            last10_sold = sold_log.get(good, [])[-10:] if sold_log.get(good) else []
+            avg_dr = sum(last10_dr)/len(last10_dr) if last10_dr else 0
+            avg_sold = sum(last10_sold)/len(last10_sold) if last10_sold else 0
+            print(f"  {labels[good]}: demand_ratio={avg_dr:.2f}, sold={avg_sold:.0f}")
     
     num_corps = sum(1 for agent in agents if agent.is_corp)
     total_employees = sum(len(agent.employees) for agent in agents if agent.is_corp)

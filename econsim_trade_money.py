@@ -446,9 +446,8 @@ def GatherBidsAsks(t, agents, good, goodPrice, num_desired, recipes, totalAsks, 
                 needed = desired_cash - agent.remainingCash
                 bank.Withdraw(agent, min(bank_balance, needed))
         
-        # Fix A: Consumption desire — wealthy agents want more
-        total_wealth = agent.cash + bank.deposits.get(agent, 0)
-        wealth_threshold = goodPrice * 40
+        # Consumption multiplier based on sqrt(wealth / CoL), set in main loop every 10 turns
+        mult = getattr(agent, 'consumption_mult', 1.0)
         
         # get bids
         if not is_employee and GetInputCom(agent, recipes) == good:
@@ -456,36 +455,34 @@ def GatherBidsAsks(t, agents, good, goodPrice, num_desired, recipes, totalAsks, 
             num_employees = len(agent.employees) if getattr(agent, 'is_corp', False) else 0
             multiplier = 1 + num_employees
             desired = max(0, recipe['numInput'] * multiplier - agent.inv.get(good, 0))
+            # Richer producers bid more for inputs (hoarding)
+            if mult > 1.0:
+                desired = int(desired * mult)
             affordable = agent.remainingCash // goodPrice if goodPrice > 0 else desired
             agent.bid = int(min(desired, affordable))
         elif (is_employee or agent.output != good) and agent.remainingCash > goodPrice:
             # Consumer bidding
-            num_affordable = min(num_desired, agent.remainingCash // goodPrice)
             maxinv_limit = recipes[good]['maxinv']
             if getattr(agent, 'is_corp', False):
                 maxinv_limit *= (1 + len(agent.employees))
+            # Wealthier agents can store more (larger homes/warehouses), capped at 3x
+            if mult > 1.0:
+                maxinv_limit = int(maxinv_limit * min(mult, 3.0))
             num_storable = max(0, maxinv_limit - agent.inv.get(good, 0))
-
-            agent.bid = min(num_affordable, num_storable)
             
-            # Fix A: Wealthy agents with high total wealth buy extra food/luxury
-            if total_wealth > wealth_threshold:
-                # Extra consumption: bid for up to 50% more than base desire
-                extra_desire = min(num_desired // 2, agent.remainingCash // goodPrice)
-                extra_storable = max(0, int(maxinv_limit * 1.5) - agent.inv.get(good, 0))
-                extra = min(extra_desire, extra_storable - agent.bid)
-                if extra > 0:
-                    agent.bid += extra
-                    loginfo(t, agent.name(), 'wealth consumption bid +', extra, good)
+            # Base bid scaled by consumption multiplier
+            base_desire = min(num_desired, agent.remainingCash // goodPrice)
+            scaled_desire = int(base_desire * mult)
+            agent.bid = min(scaled_desire, num_storable)
             
-            # FIX 2: Stronger consumption-based demand for wealthy agents
-            # Non-food goods: bid for up to num_desired units if wealthy enough
-            if good != Goods.food and agent.remainingCash > goodPrice * 4:
-                # Wealthier agents buy more discretionary goods
-                wealth_bonus = min(total_wealth / (goodPrice * 40), 5.0)  # up to 5x multiplier
-                discretionary = min(int(wealth_bonus), agent.remainingCash // goodPrice)
-                agent.bid += min(discretionary, num_storable - agent.bid)
-                agent.bid = max(0, min(agent.bid, num_storable))
+            # Extra discretionary spending for high consumption agents
+            if mult > 2.0 and good != Goods.food:
+                # Higher multipliers drive luxury/discretionary bidding
+                extra_affordable = min(int(num_desired * (mult - 1.0)), agent.remainingCash // goodPrice) if goodPrice > 0 else 0
+                agent.bid += min(extra_affordable, num_storable - agent.bid)
+                loginfo(t, agent.name(), 'wealth consumption (mult=' + str(round(mult, 2)) + ') bid extra for', good)
+            
+            agent.bid = max(0, min(agent.bid, num_storable))
         else:
             agent.bid = 0
 
@@ -546,14 +543,22 @@ def DecideBorrowDeposit(agents, allGoodsPrice, bank, foodPrice, prevTotalCash, t
                     bank.Borrow(t, agent, amount_needed)
                     reportCash(t, agents, prevTotalCash, agent.name() + " post business borrow ")
 
-        # Fix B: Cap deposits at 70% of liquid wealth, raise threshold to 100x
+        # Fix B: Cap deposits based on consumption_mult to encourage spending
+        mult = getattr(agent, 'consumption_mult', 1.0)
         total_liquid = agent.cash + bank.deposits.get(agent, 0)
         current_deposits = bank.deposits.get(agent, 0)
-        max_deposits = total_liquid * 0.7  # max 70% in bank
+        
+        # Higher consumption_mult = lower deposit cap (spend instead of save)
+        # Mult 1.0 → 70% cap, Mult 2.0 → 50%, Mult 10.0 → 30%
+        deposit_frac = max(0.30, min(0.70, 0.70 / max(1.0, mult)))
+        # Higher mult = lower cash floor (keep less idle cash)
+        cash_floor = int(allGoodsPrice * (100 / max(1.0, mult)))
+        
+        max_deposits = total_liquid * deposit_frac
         excess_deposit_capacity = max(0, max_deposits - current_deposits)
         
-        if agent.cash > allGoodsPrice * 100 and excess_deposit_capacity > 0:
-            amount = min(agent.cash - allGoodsPrice * 100, excess_deposit_capacity)
+        if agent.cash > cash_floor and excess_deposit_capacity > 0:
+            amount = min(agent.cash - cash_floor, excess_deposit_capacity)
             bank.Deposit(agent, amount)
             reportCash(t, agents, prevTotalCash, agent.name() + " post deposit ")
 
@@ -625,11 +630,21 @@ def SecondaryTrade(t, agents, good, current_market_price, recipes):
         if desired > 0 and agent.remainingCash > 0:
             # Determine max willing to pay. 
             # If hungry, willing to pay more for food. If low inventory, willing to pay more.
+            mult = getattr(agent, 'consumption_mult', 1.0)
+            
             premium = 1.0
             if good == Goods.food and agent.hungry_steps > 0:
-                premium = min(5.0, 1.0 + 0.5 * agent.hungry_steps) # Pay up to 5x for food if starving
+                # Wealthier agents (higher consumption_mult) pay more for food when hungry
+                base_premium = 1.0 + 0.5 * agent.hungry_steps
+                # Scale premium by consumption_mult
+                premium = min(10.0, base_premium * mult * 0.5)
             elif not is_employee and GetInputCom(agent, recipes) == good and agent.inv.get(good, 0) == 0:
-                premium = 1.5 # Pay 50% premium for critical inputs
+                # Spending more for critical inputs based on consumption_mult
+                premium = 1.0 + (mult - 1.0) * 0.5  # mult=2→1.5x, mult=10→5.5x
+                premium = max(1.5, min(5.5, premium))
+            elif mult > 2.0 and good != Goods.food:
+                # High consumption agents pay more for luxury goods
+                premium = 1.0 + (mult - 1.0) * 0.3  # mult=2→1.3x, mult=10→3.7x
                 
             max_willing_to_pay = current_market_price * premium
             

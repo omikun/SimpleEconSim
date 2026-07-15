@@ -78,22 +78,45 @@ def Live(t, agents):
             continue
 
         # Generalized luxury consumption for wealthy non-corp agents (Fix A)
-        total_liquid = agent.cash + trade.bank.deposits.get(agent, 0)
-        food_price = recipes.get(Goods.food, {}).get('price', 1)
-        if total_liquid > food_price * 40:
+        # Uses consumption_mult (sqrt of wealth/CoL), recomputed every 10 turns
+        mult = getattr(agent, 'consumption_mult', 1.0)
+        
+        if mult > 1.0:
+            # Extra food consumption based on multiplier
+            if mult >= 5.0 and agent.inv.get(Goods.food, 0) > 6:
+                # Very high multiplier: extra 2 food (lavish dining)
+                agent.inv[Goods.food] -= 2
+                numfood += 2
+                loginfo(t, agent.name(), 'high consumption (mult=' + str(round(mult, 2)) + '), consumed extra food (+2)')
+            elif mult >= 2.0 and agent.inv.get(Goods.food, 0) > 5:
+                # Moderate multiplier: extra 1 food (dining out)
+                agent.inv[Goods.food] -= 1
+                numfood += 1
+                loginfo(t, agent.name(), 'elevated consumption (mult=' + str(round(mult, 2)) + '), consumed extra food (+1)')
+            
+            # Luxury goods consumption
             for luxury_good in goods:
                 if luxury_good in (Goods.food, Goods.gov):
                     continue
                 good_price = recipes.get(luxury_good, {}).get('price', 1)
                 if agent.inv.get(luxury_good, 0) > 0 and GetOutputCom(agent) != luxury_good:
-                    consumption_chance = 0.15 * (1.0 / max(1, good_price))
-                    if random.random() < min(0.3, consumption_chance):
-                        agent.inv[luxury_good] -= 1
-                        if luxury_good == Goods.furn:
-                            numFurn += 1
-                        elif luxury_good == Goods.wood:
-                            numwood += 1
-                        loginfo(t, agent.name(), 'wealthy, consumed', profession[luxury_good])
+                    # Consumption chance scales with multiplier
+                    consumption_chance = (0.1 + 0.05 * (mult - 1.0)) * (1.0 / max(1, good_price))
+                    # Max consume per turn scales with multiplier
+                    max_consume = min(5, max(1, int(mult * 0.5)))
+                    # Capped max chance
+                    capped_chance = min(0.6, consumption_chance)
+                    
+                    if random.random() < capped_chance:
+                        consume_qty = random.randint(1, max_consume)
+                        actual_consume = min(consume_qty, agent.inv.get(luxury_good, 0))
+                        if actual_consume > 0:
+                            agent.inv[luxury_good] -= actual_consume
+                            if luxury_good == Goods.furn:
+                                numFurn += actual_consume
+                            elif luxury_good == Goods.wood:
+                                numwood += actual_consume
+                            loginfo(t, agent.name(), 'wealth consumption (mult=' + str(round(mult, 2)) + '), consumed', actual_consume, profession[luxury_good])
         
         if agent.inv.get(Goods.wood, 0) > 2 and GetInputCom(agent) != Goods.wood and GetOutputCom(agent) != Goods.wood:
             agent.inv[Goods.wood] -= 1
