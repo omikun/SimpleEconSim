@@ -479,9 +479,14 @@ def main():
     agents = [Agent(0) for _ in range(num_agents)]
     # Create default government (lazy import to avoid circular dependency)
     import government as govmod
-    govmod.create_default_government(0, initial_cash=200)
+    gov = govmod.create_default_government(0, initial_cash=200)
     agents.append(econsim_states.default_gov.agent)
     InitAgents(agents)
+
+    # Register all initial agents as citizens of the default government
+    for agent in agents:
+        if hasattr(agent, 'id'):
+            gov._add_citizen(agent)
     prevTotalCash = getTotalCash(agents)
     for t in range(time_steps):
         # Record start-of-turn cash + deposits for income tracking
@@ -515,6 +520,9 @@ def main():
             for agent in top_agents:
                 net_income = agent._delta_cash + agent._delta_deposits
                 taxable_income = net_income + agent.tax_loss_carryforward
+                # POPULATION POLICY: Child Tax Deduction — reduce taxable income per child
+                child_deduction = econsim_states.default_gov.compute_child_tax_deduction(agent) if econsim_states.default_gov else 0.0
+                taxable_income = max(0.0, taxable_income - child_deduction)
                 if taxable_income > 0:
                     tax_amount = taxable_income * 0.5
                     # Collect from cash first, then from deposits if needed

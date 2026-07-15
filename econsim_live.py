@@ -7,7 +7,7 @@ from econsim_states import *
 import econsim_trade_money as trade
 from econsim import GetInputCom, GetOutputCom, Agent, InitAgent
 from goods import Goods
-from logger import logdebug, loginfo
+from logger import logdebug, loginfo, logwarning
 
 
 def ApplyEconomicPressure(t, agents):
@@ -40,6 +40,27 @@ def Live(t, agents):
     numFurn = 0
     numdead = 0 #dead_pop[-1]
     numdeadstarve = deadstarve_pop[-1]
+    
+    # =============================================================
+    #  POPULATION POLICY: UBI — per-turn cash to all citizens
+    #  (Runs before food aid so poorest can afford food)
+    # =============================================================
+    for gov in econsim_states.governments:
+        gov.distribute_ubi(t, agents)
+
+    # =============================================================
+    #  POPULATION POLICY: Immigration — inject new agents
+    # =============================================================
+    for gov in econsim_states.governments:
+        immigrants = gov.spawn_immigrants(t)
+        if immigrants:
+            agents.extend(immigrants)
+
+    # =============================================================
+    #  POPULATION POLICY: Parental Leave — process payments
+    # =============================================================
+    for gov in econsim_states.governments:
+        gov.process_parental_leave(t, agents)
     
     # GOVERNMENT FOOD AID (FIX: no one starves > 3 days; newborns get 1 food for 10 turns)
     food_price = recipes[Goods.food]['price']
@@ -78,45 +99,35 @@ def Live(t, agents):
             continue
 
         # Generalized luxury consumption for wealthy non-corp agents (Fix A)
-        # Uses consumption_mult (sqrt of wealth/CoL), recomputed every 10 turns
+        # deterministic consumption every turn, scaled by consumption_mult
         mult = getattr(agent, 'consumption_mult', 1.0)
         
         if mult > 1.0:
-            # Extra food consumption based on multiplier
-            if mult >= 5.0 and agent.inv.get(Goods.food, 0) > 6:
-                # Very high multiplier: extra 2 food (lavish dining)
-                agent.inv[Goods.food] -= 2
-                numfood += 2
-                loginfo(t, agent.name(), 'high consumption (mult=' + str(round(mult, 2)) + '), consumed extra food (+2)')
-            elif mult >= 2.0 and agent.inv.get(Goods.food, 0) > 5:
-                # Moderate multiplier: extra 1 food (dining out)
-                agent.inv[Goods.food] -= 1
-                numfood += 1
-                loginfo(t, agent.name(), 'elevated consumption (mult=' + str(round(mult, 2)) + '), consumed extra food (+1)')
+            # Extra food consumption based on multiplier (deterministic every turn)
+            extra_food = 0
+            if mult >= 5.0:
+                extra_food = 2
+            elif mult >= 2.0:
+                extra_food = 1
+            if extra_food > 0 and agent.inv.get(Goods.food, 0) >= extra_food + 4:
+                agent.inv[Goods.food] -= extra_food
+                numfood += extra_food
+                loginfo(t, agent.name(), 'wealth consumption (mult=' + str(round(mult, 2)) + '), consumed extra food +' + str(extra_food))
             
-            # Luxury goods consumption
+            # Luxury goods consumption (deterministic every turn)
             for luxury_good in goods:
                 if luxury_good in (Goods.food, Goods.gov):
                     continue
-                good_price = recipes.get(luxury_good, {}).get('price', 1)
                 if agent.inv.get(luxury_good, 0) > 0 and GetOutputCom(agent) != luxury_good:
-                    # Consumption chance scales with multiplier
-                    consumption_chance = (0.1 + 0.05 * (mult - 1.0)) * (1.0 / max(1, good_price))
-                    # Max consume per turn scales with multiplier
-                    max_consume = min(5, max(1, int(mult * 0.5)))
-                    # Capped max chance
-                    capped_chance = min(0.6, consumption_chance)
-                    
-                    if random.random() < capped_chance:
-                        consume_qty = random.randint(1, max_consume)
-                        actual_consume = min(consume_qty, agent.inv.get(luxury_good, 0))
-                        if actual_consume > 0:
-                            agent.inv[luxury_good] -= actual_consume
-                            if luxury_good == Goods.furn:
-                                numFurn += actual_consume
-                            elif luxury_good == Goods.wood:
-                                numwood += actual_consume
-                            loginfo(t, agent.name(), 'wealth consumption (mult=' + str(round(mult, 2)) + '), consumed', actual_consume, profession[luxury_good])
+                    # Consume based on multiplier: higher mult = more units per turn
+                    consume_qty = min(max(1, int(mult * 0.5)), agent.inv.get(luxury_good, 0), 5)
+                    if consume_qty > 0:
+                        agent.inv[luxury_good] -= consume_qty
+                        if luxury_good == Goods.furn:
+                            numFurn += consume_qty
+                        elif luxury_good == Goods.wood:
+                            numwood += consume_qty
+                        loginfo(t, agent.name(), 'wealth consumption (mult=' + str(round(mult, 2)) + '), consumed', consume_qty, profession[luxury_good])
         
         if agent.inv.get(Goods.wood, 0) > 2 and GetInputCom(agent) != Goods.wood and GetOutputCom(agent) != Goods.wood:
             agent.inv[Goods.wood] -= 1
@@ -193,12 +204,29 @@ def Live(t, agents):
                     employer.employees.append(agent)
                     loginfo(t, agent.name(), 'sought employment at', employer.name(), 'wage', employer.wage)
                     
+        # =============================================================
+        #  REPRODUCTION
+        # =============================================================
         if agent.hungry_steps == 0:
-            if agent.lastRepro + birthGap < t and random.random() < p_birth and agent.cash > 20 and agent.inv.get(Goods.food, 0) >= 2:
+            # Compute baseline birth probability
+            birth_prob = p_birth
+
+            # POPULATION POLICY: Fertility Multiplier — scale p_birth
+            import government as govmod  # lazy import to avoid circular dependency
+            gov = govmod.find_government_for_agent(agent)
+            if gov is not None:
+                birth_prob *= gov.get_fertility_multiplier()
+
+            if agent.lastRepro + birthGap < t and random.random() < birth_prob and agent.cash > 20 and agent.inv.get(Goods.food, 0) >= 2:
                 agent.lastRepro = t
                 new_agent = Agent(t)
                 new_agent.parent = agent
                 agent.descendents.append(new_agent)
+                
+                # POPULATION POLICY: Register newborn as citizen of parent's government
+                if gov is not None:
+                    gov._add_citizen(new_agent)
+                
                 giveFood = min(1, agent.inv[Goods.food])  # Lower birth seeds: only 1 food
                 agent.inv[Goods.food] -= giveFood
                 #find the smallest number of professions and use that one, since no one makes money
@@ -215,20 +243,41 @@ def Live(t, agents):
                 #if aggregate output already at max, pick gov
                 if output != Goods.gov and recipes[output]['maxtotalprod'] + 5 <= production_log[output][-1]:
                     output = Goods.gov
-                #if NumAgents(agents, output) > 40:
-                    #output = Goods.wood
                 logdebug(t, "new agent of ", output)
                 numInput = 0
                 cash = min(1, agent.cash)  # Lower birth seeds: only 1 cash
                 agent.cash -= cash
                 InitAgent(new_agent, output, numInput, giveFood, cash)
                 new_agents.append(new_agent)
+
+                # =========================================================
+                #  POPULATION POLICY: Baby Bonus — one-time cash to parent
+                # =========================================================
+                if gov is not None:
+                    gov.provide_baby_bonus(t, agent, new_agent)
+
+                # =========================================================
+                #  POPULATION POLICY: Parental Leave — grant leave to parent
+                # =========================================================
+                if gov is not None:
+                    gov.grant_parental_leave(t, agent)
                 
+        # =============================================================
+        #  DEATH
+        # =============================================================
         if agent.hungry_steps < starve_limit:
             #die of old age
-            #if random.random() > math.exp(-agent.age(t) / 80) / 50: #pow(agent.age(t) / 1000, 2):
-            #if random.random() > pow(agent.age(t) / 2000, 2):
-            if random.random() > [0.0002,0.0003,0.0007,0.0013,0.0025,0.006,0.013,0.027,0.06,0.13][min(agent.age(t)//30, 9)]:
+            base_death_prob = [0.0002,0.0003,0.0007,0.0013,0.0025,0.006,0.013,0.027,0.06,0.13][min(agent.age(t)//30, 9)]
+
+            # POPULATION POLICY: Mortality Reduction — scale death prob
+            import government as govmod  # lazy import to avoid circular dependency
+            gov = govmod.find_government_for_agent(agent)
+            if gov is not None:
+                adjusted_prob = gov.get_death_probability(agent, base_death_prob)
+            else:
+                adjusted_prob = base_death_prob
+
+            if random.random() > adjusted_prob:
                 new_agents.append(agent)
             else:
                 agent.alive = False
@@ -393,7 +442,6 @@ def Live(t, agents):
     dead_pop.append(numdead)
     deadstarve_pop.append(numdeadstarve)
     logdebug(t, 'num dead', numdead)
-    #dead_pop.append(sum(dead_pop)-numdead)
 
     logdebug("consumed ", numfood, "food", numwood, "wood", numFurn, "furn")
     return new_agents
