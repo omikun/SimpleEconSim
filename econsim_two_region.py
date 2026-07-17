@@ -470,9 +470,11 @@ class Region:
         self.trade_balance_log: list = []   # net export value per turn (export_val_total - import_val_total)
         self.pipeline_depth_log: list = []  # total units in transit per turn
         self.trader_cash_log: list = []     # total cash held by traders in this region
+        self.price_spread_log: dict = {}    # price_spread_log[good] = [price_diff_turn, ...]
 
         for g in [Goods.food, Goods.wood, Goods.furn]:
             self.export_vol[g] = []
+            self.price_spread_log[g] = []
             self.export_val[g] = []
             self.import_vol[g] = []
             self.import_val[g] = []
@@ -1275,6 +1277,13 @@ class Region:
         self._plot_gdp(axis, aid); aid += 1
         self._plot_gdp_prof(axis, aid, colors, labels); aid += 1
         self._plot_purchases(axis, aid, colors, labels)
+        aid += 4  # purchases uses 4 subplots (aid+0..aid+3)
+
+        # Trade analytics subplots (slots 20-23)
+        self._plot_trade_balance(axis, aid); aid += 1
+        self._plot_trade_volume(axis, aid, colors, labels); aid += 1
+        self._plot_price_spread(axis, aid, colors, labels); aid += 1
+        self._plot_trader_wealth_pipeline(axis, aid); aid += 1
 
         lh, ll = axis[2].get_legend_handles_labels()
         fig.legend(lh, ll, loc='upper right', ncol=1, fontsize='small')
@@ -1411,6 +1420,43 @@ class Region:
                     axis[aid + i].plot(self.bought_log[prof][g], label=labels[g], color=colors[g])
             i += 1
 
+    # ---- Trade analytics subplots ----
+
+    def _plot_trade_balance(self, axis, aid):
+        axis[aid].set_title("Trade Balance (net export value)")
+        axis[aid].set_ylabel("$ per turn")
+        axis[aid].axhline(y=0, color='gray', linestyle='--', linewidth=0.5)
+        axis[aid].plot(self.trade_balance_log, color='black')
+
+    def _plot_trade_volume(self, axis, aid, colors, labels):
+        axis[aid].set_title("Trade Volume (export)")
+        axis[aid].set_ylabel("Units")
+        for g in [Goods.food, Goods.wood, Goods.furn]:
+            if self.export_vol.get(g):
+                axis[aid].plot(self.export_vol[g], label=f"EXP {labels[g]}", color=colors[g], linestyle='-')
+        for g in [Goods.food, Goods.wood, Goods.furn]:
+            if self.import_vol.get(g):
+                axis[aid].plot(self.import_vol[g], label=f"IMP {labels[g]}", color=colors[g], linestyle=':')
+
+    def _plot_price_spread(self, axis, aid, colors, labels):
+        axis[aid].set_title("Price Spread (A-B abs diff)")
+        axis[aid].set_ylabel("Price diff $")
+        for g in [Goods.food, Goods.wood, Goods.furn]:
+            if self.price_spread_log.get(g):
+                axis[aid].plot(self.price_spread_log[g], label=labels[g], color=colors[g])
+
+    def _plot_trader_wealth_pipeline(self, axis, aid):
+        axis[aid].set_title("Trader Wealth & Pipeline")
+        axis[aid].set_ylabel("Cash $")
+        ax2 = axis[aid].twinx()
+        ax2.set_ylabel("Pipeline units", color='gray')
+        axis[aid].plot(self.trader_cash_log, color='green', label='Trader cash')
+        ax2.plot(self.pipeline_depth_log, color='orange', linestyle='--', label='Pipeline depth')
+        lines1, labels1 = axis[aid].get_legend_handles_labels()
+        lines2, labels2 = ax2.get_legend_handles_labels()
+        axis[aid].legend(lines1 + lines2, labels1 + labels2, loc='best', fontsize='x-small')
+        ax2.tick_params(axis='y', colors='gray')
+
 
 # =============================================================================
 # Inter-region transport & foreign-sell
@@ -1508,6 +1554,23 @@ def foreign_sell(t, dest_region, source_region):
               f"sold {total_sold_qty} units worth ${total_sold_value:.2f} "
               f"({dict(trade_volumes)})")
 
+    # Populate trade logs on both regions (ensure arrays align)
+    for good in [Goods.food, Goods.wood, Goods.furn]:
+        vol_sold = trade_volumes[good]
+        val_sold = trade_values[good]
+        # Source region: export
+        if vol_sold > 0:
+            source_region.export_vol[good].append(vol_sold)
+            source_region.export_val[good].append(val_sold)
+            # Dest region: import
+            dest_region.import_vol[good].append(vol_sold)
+            dest_region.import_val[good].append(val_sold)
+        else:
+            source_region.export_vol[good].append(0)
+            source_region.export_val[good].append(0.0)
+            dest_region.import_vol[good].append(0)
+            dest_region.import_val[good].append(0.0)
+
     return total_sold_qty, total_sold_value
 
 
@@ -1536,6 +1599,15 @@ def main():
         process_transport(t, region_a, region_b)
         foreign_sell(t, region_a, region_b)  # B's traders sell in A
         foreign_sell(t, region_b, region_a)  # A's traders sell in B
+
+        # Log price spread between regions
+        for g in [Goods.food, Goods.wood, Goods.furn]:
+            pa = region_a.recipes[g]['price']
+            pb = region_b.recipes[g]['price']
+            spread = abs(pa - pb)
+            region_a.price_spread_log[g].append(spread)
+            region_b.price_spread_log[g].append(spread)
+
         if t % 50 == 0:
             print(f"Progress: turn {t}/{time_steps}")
 
@@ -1561,6 +1633,30 @@ def main():
         print(f"  Total Pop: {tp}, Dead/Starved: {ds}")
         gdp = region.gdp_log[-1] if region.gdp_log else 0
         print(f"  Final GDP/turn: ${gdp:.2f}")
+
+        # Trade summary stats
+        total_export = sum(sum(v) for v in region.export_vol.values())
+        total_import = sum(sum(v) for v in region.import_vol.values())
+        total_export_val = sum(sum(v) for v in region.export_val.values())
+        total_import_val = sum(sum(v) for v in region.import_val.values())
+        print(f"  Total Exports: {total_export} units (${total_export_val:.2f})")
+        print(f"  Total Imports: {total_import} units (${total_import_val:.2f})")
+        net_trade = total_export_val - total_import_val
+        sign = "+" if net_trade >= 0 else ""
+        print(f"  Net Trade Balance: {sign}${net_trade:.2f}")
+        avg_spread = {}
+        for g in [Goods.food, Goods.wood, Goods.furn]:
+            if region.price_spread_log.get(g) and len(region.price_spread_log[g]) > 0:
+                avg_spread[g] = sum(region.price_spread_log[g]) / len(region.price_spread_log[g])
+        if avg_spread:
+            spread_str = ", ".join(f"{Goods(g).name}: ${s:.2f}" for g, s in avg_spread.items())
+            print(f"  Avg Price Spread: {spread_str}")
+        trader_roi = 0.0
+        init_trader_cash = region.trader_cash_log[0] if region.trader_cash_log else 1
+        final_trader_cash = region.trader_cash_log[-1] if region.trader_cash_log else 0
+        if init_trader_cash > 0:
+            trader_roi = (final_trader_cash - init_trader_cash) / init_trader_cash * 100
+        print(f"  Trader ROI: {trader_roi:.1f}% (${init_trader_cash:.0f}→${final_trader_cash:.0f})")
 
     print("\nDone.")
 
