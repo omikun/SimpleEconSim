@@ -62,6 +62,7 @@ recipes[Goods.gov] = {
 # Set default transport delay (turns) — future: configured per region-pair
 TRANSPORT_DELAY = 1
 TRADERS_PER_REGION = 5
+MAX_TRADER_FRACTION = 0.2   # max fraction of population that can be traders
 
 
 # =============================================================================
@@ -901,9 +902,9 @@ class Region:
             self._borrow_food(a, fp)
             self._borrow_inp(a)
             self._dep_excess(a, agp)
-            # Trader survival borrowing: borrow enough to survive 10 turns
+            # Trader survival borrowing: borrow enough to survive 3 turns only
             if getattr(a, 'is_trader', False):
-                survival_cost = fp * 10  # 10 turns of food
+                survival_cost = fp * 3  # 3 turns of food
                 if a.cash < survival_cost:
                     self.bank.Borrow(t, a, survival_cost - a.cash)
             a.remainingCash = a.cash
@@ -1272,20 +1273,29 @@ class Region:
                 self.recipes[g]['price'] < self.dest_region.recipes[g]['price'] * 0.95
                 for g in [Goods.wood, Goods.furn]
             )
+            # Count current traders for cap check
+            trader_count = sum(1 for a in result if getattr(a, 'is_trader', False))
+            max_traders = int(len(result) * MAX_TRADER_FRACTION)
             for agent in result:
                 if getattr(agent, 'is_corp', False):
                     continue
-                # Trader inheritance: children of traders become traders
+                # Trader inheritance: children of traders become traders (50% chance)
                 parent = getattr(agent, 'parent', None)
-                if parent is not None and getattr(parent, 'is_trader', False) and not getattr(agent, 'is_trader', False):
+                if (parent is not None and getattr(parent, 'is_trader', False)
+                        and not getattr(agent, 'is_trader', False)
+                        and trader_count < max_traders
+                        and random.random() < 0.5):
                     _make_trader(agent, self)
+                    trader_count += 1
                     loginfo(t, f"{agent.name()} inherited trader from parent {parent.name()}")
-                # Career switch to trader: struggling agents with arbitrage opportunity
+                # Career switch to trader: struggling agents with arbitrage opportunity (0.3% chance)
                 elif (not getattr(agent, 'is_trader', False)
                       and has_arbitrage
                       and (agent.cash < 20 or agent.hungry_steps > 0)
-                      and random.random() < 0.03):
+                      and trader_count < max_traders
+                      and random.random() < 0.003):
                     _make_trader(agent, self)
+                    trader_count += 1
                     loginfo(t, f"{agent.name()} switched to trader (cash=${agent.cash:.0f})")
 
         return result
