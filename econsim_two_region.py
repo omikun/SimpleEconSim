@@ -419,6 +419,62 @@ sys.modules['government'] = gov_shim
 
 
 # =============================================================================
+# Helper: convert an agent to a trader
+# =============================================================================
+
+def _make_trader(agent, region):
+    """Set an agent's fields to make them a trader."""
+    agent.is_trader = True
+    agent.home_region = region.name
+    agent.dest_region = region.dest_region
+    agent.output = Goods.food  # use food so they can survive
+    # Initialize trader fields if they don't exist (econsim.Agent may not have them)
+    if not hasattr(agent, 'inv_export'):
+        agent.inv_export = defaultdict(int)
+    if not hasattr(agent, 'transport_pipeline'):
+        agent.transport_pipeline = []
+    if not hasattr(agent, 'inv_foreign'):
+        agent.inv_foreign = defaultdict(int)
+    agent.inv_export.clear()
+    agent.transport_pipeline.clear()
+    agent.inv_foreign.clear()
+    # Ensure they have the _process_pipeline method
+    _pip_fn = _agent_process_pipeline
+    agent._process_pipeline = lambda: _pip_fn(agent)
+    # Ensure they have the name method
+    if not hasattr(agent, 'name') or not callable(agent.name):
+        agent.name = lambda: f"agent{agent.id}"
+    # Ensure they have transport_delay
+    if not hasattr(agent, 'transport_delay'):
+        agent.transport_delay = TRANSPORT_DELAY
+    # Ensure they have cost_basis
+    if not hasattr(agent, 'cost_basis'):
+        agent.cost_basis = {}
+    # Ensure they have home_region
+    if not hasattr(agent, 'home_region'):
+        agent.home_region = region.name
+    # Ensure they have is_trader (set above but may be overwritten by Live)
+    agent.is_trader = True
+    # Ensure they have dest_region
+    if not hasattr(agent, 'dest_region'):
+        agent.dest_region = region.dest_region
+    # Ensure they have output
+    if not hasattr(agent, 'output'):
+        agent.output = Goods.food
+    # Ensure they have employment fields
+    if not hasattr(agent, 'employer'):
+        agent.employer = None
+    if not hasattr(agent, 'is_corp'):
+        agent.is_corp = False
+    if not hasattr(agent, 'inv'):
+        agent.inv = {}
+    # Ensure they have 4 food to survive
+    agent.inv[Goods.food] = max(agent.inv.get(Goods.food, 0), 4)
+    agent.employer = None  # quit any job
+    loginfo(0, f"{agent.name()} became a trader in {region.name}")
+
+
+# =============================================================================
 # Region class
 # =============================================================================
 
@@ -471,6 +527,7 @@ class Region:
         self.pipeline_depth_log: list = []  # total units in transit per turn
         self.trader_cash_log: list = []     # total cash held by traders in this region
         self.price_spread_log: dict = {}    # price_spread_log[good] = [price_diff_turn, ...]
+        self.dest_region = None             # other region for arbitrage checks
 
         for g in [Goods.food, Goods.wood, Goods.furn]:
             self.export_vol[g] = []
@@ -1209,6 +1266,28 @@ class Region:
             _lm.deadstarve_pop = st.deadstarve_pop
             _lm.starve_limit = st.starve_limit
 
+        # Post-processing: trader inheritance + career switching
+        if self.dest_region is not None and t > 0:
+            has_arbitrage = any(
+                self.recipes[g]['price'] < self.dest_region.recipes[g]['price'] * 0.95
+                for g in [Goods.wood, Goods.furn]
+            )
+            for agent in result:
+                if getattr(agent, 'is_corp', False):
+                    continue
+                # Trader inheritance: children of traders become traders
+                parent = getattr(agent, 'parent', None)
+                if parent is not None and getattr(parent, 'is_trader', False) and not getattr(agent, 'is_trader', False):
+                    _make_trader(agent, self)
+                    loginfo(t, f"{agent.name()} inherited trader from parent {parent.name()}")
+                # Career switch to trader: struggling agents with arbitrage opportunity
+                elif (not getattr(agent, 'is_trader', False)
+                      and has_arbitrage
+                      and (agent.cash < 20 or agent.hungry_steps > 0)
+                      and random.random() < 0.03):
+                    _make_trader(agent, self)
+                    loginfo(t, f"{agent.name()} switched to trader (cash=${agent.cash:.0f})")
+
         return result
 
     def _log_gdp(self):
@@ -1227,7 +1306,6 @@ class Region:
 
         for g in self.goods:
             if g == Goods.food:
-                # Use food_agents (excluding traders) for food metrics
                 self.pop_log[g].append(len(food_agents))
                 self.cash_log[g].append(sum(a.cash for a in food_agents))
                 self.gini_log[g].append(_local_compute_gini(food_agents, g))
@@ -1248,13 +1326,13 @@ class Region:
         # Log trader-specific metrics
         self.pop_log['trader'].append(len(trader_agents))
         self.cash_log['trader'].append(sum(a.cash for a in trader_agents))
-        self.gini_log['trader'].append(_local_compute_gini(trader_agents, Goods.food))  # dummy good for gini
+        self.gini_log['trader'].append(_local_compute_gini(trader_agents, Goods.food))
         self.hungry_log['trader'].append(sum(1 for a in trader_agents if a.hungry_steps > 0))
         self.inv_log['trader'].append(sum(a.inv.get(g, 0) for a in trader_agents for g in [Goods.food, Goods.wood, Goods.furn]))
         nl_t = [a.inv.get(Goods.food, 0) for a in trader_agents if a.output != Goods.food]
         self.per_capita_inv['trader'].append(mean(nl_t) if nl_t else 0)
-        self.production_log['trader'].append(0)  # traders don't produce
-        self.gdp_by_profession_log['trader'].append(0)  # traders contribute no GDP
+        self.production_log['trader'].append(0)
+        self.gdp_by_profession_log['trader'].append(0)
 
     def _log_pop_rate(self):
         if len(self.total_pop) >= 10:
@@ -1270,12 +1348,9 @@ class Region:
     # ------------------------------------------------------------------
 
     def _log_trade_metrics(self, t):
-        """Log current trade metrics for this region."""
-        # Trader cash
         trader_cash = sum(a.cash for a in self.agents if getattr(a, 'is_trader', False))
         self.trader_cash_log.append(trader_cash)
 
-        # Pipeline depth
         total_in_transit = 0
         for a in self.agents:
             if getattr(a, 'is_trader', False):
@@ -1283,8 +1358,6 @@ class Region:
                     total_in_transit += entry['qty']
         self.pipeline_depth_log.append(total_in_transit)
 
-        # Export/import volumes: these are populated by foreign_sell via the region references
-        # Ensure every good has an entry for this turn
         for g in [Goods.food, Goods.wood, Goods.furn]:
             if len(self.export_vol[g]) < t:
                 self.export_vol[g].append(0)
@@ -1292,7 +1365,6 @@ class Region:
                 self.import_vol[g].append(0)
                 self.import_val[g].append(0.0)
 
-        # Trade balance = total export value this turn - total import value this turn
         total_export_val = sum(self.export_val[g][-1] for g in [Goods.food, Goods.wood, Goods.furn] if self.export_val[g])
         total_import_val = sum(self.import_val[g][-1] for g in [Goods.food, Goods.wood, Goods.furn] if self.import_val[g])
         self.trade_balance_log.append(total_export_val - total_import_val)
@@ -1325,7 +1397,7 @@ class Region:
         self._plot_gdp(axis, aid); aid += 1
         self._plot_gdp_prof(axis, aid, colors, labels); aid += 1
         self._plot_purchases(axis, aid, colors, labels)
-        aid += 4  # purchases uses 4 subplots (aid+0..aid+3)
+        aid += 4
 
         # Trade analytics subplots (slots 20-23)
         self._plot_trade_balance(axis, aid); aid += 1
@@ -1529,9 +1601,7 @@ class Region:
 # =============================================================================
 
 def process_transport(t, region_a, region_b):
-    """Process transport pipelines for all traders in both regions.
-    Decrements turns_left, moves completed shipments to inv_foreign,
-    then pushes new exports (inv_export) into the pipeline."""
+    """Process transport pipelines for all traders in both regions."""
     for trader in region_a.agents:
         if not getattr(trader, 'is_trader', False):
             continue
@@ -1542,11 +1612,7 @@ def process_transport(t, region_a, region_b):
         trader._process_pipeline()
 
 
-# Add _process_pipeline method to Agent via monkey-patching
 def _agent_process_pipeline(self):
-    """Decrement pipeline, move arrived goods to inv_foreign,
-    then push current inv_export into new pipeline entries."""
-    # Step 1: decrement and move arrived goods
     new_pipeline = []
     for entry in self.transport_pipeline:
         entry['turns_left'] -= 1
@@ -1555,7 +1621,6 @@ def _agent_process_pipeline(self):
         else:
             new_pipeline.append(entry)
     self.transport_pipeline = new_pipeline
-    # Step 2: push inv_export into pipeline
     for good, qty in list(self.inv_export.items()):
         if qty > 0:
             self.transport_pipeline.append({
@@ -1568,10 +1633,6 @@ Agent._process_pipeline = _agent_process_pipeline
 
 
 def foreign_sell(t, dest_region, source_region):
-    """Traders from source_region sell their inv_foreign goods
-    into dest_region's market at dest_region's prices.
-    Cash flows from dest_region buyers → source_region trader cash."""
-    # Find traders from source_region who have inv_foreign
     traders = [a for a in source_region.agents
                if getattr(a, 'is_trader', False) and getattr(a, 'home_region', None) == source_region.name]
     total_sold_value = 0.0
@@ -1585,10 +1646,7 @@ def foreign_sell(t, dest_region, source_region):
             if qty <= 0:
                 continue
             price = dest_region.recipes[good]['price']
-            # Price discount to ensure sale
             ask_price = price * 0.95
-
-            # Find buyers in dest_region (agents with remaining cash)
             buyers = [a for a in dest_region.agents
                       if not getattr(a, 'is_trader', False) and a.cash > ask_price]
             random.shuffle(buyers)
@@ -1596,15 +1654,13 @@ def foreign_sell(t, dest_region, source_region):
             for buyer in buyers:
                 if remaining <= 0:
                     break
-                # Buyer can afford at most their cash / ask_price
                 max_buy = int(buyer.cash / ask_price)
                 if max_buy <= 0:
                     continue
-                bought = min(remaining, max_buy, 3)  # at most 3 per buyer
+                bought = min(remaining, max_buy, 3)
                 cash = bought * ask_price
                 buyer.cash -= cash
                 trader.cash += cash
-                # Goods go to buyer's inv
                 oq = buyer.inv.get(good, 0)
                 oc = buyer.cost_basis.get(good, 0)
                 buyer.cost_basis[good] = ((oq * oc + bought * ask_price) / (oq + bought)) if (oq + bought) > 0 else ask_price
@@ -1621,15 +1677,12 @@ def foreign_sell(t, dest_region, source_region):
               f"sold {total_sold_qty} units worth ${total_sold_value:.2f} "
               f"({dict(trade_volumes)})")
 
-    # Populate trade logs on both regions (ensure arrays align)
     for good in [Goods.food, Goods.wood, Goods.furn]:
         vol_sold = trade_volumes[good]
         val_sold = trade_values[good]
-        # Source region: export
         if vol_sold > 0:
             source_region.export_vol[good].append(vol_sold)
             source_region.export_val[good].append(val_sold)
-            # Dest region: import
             dest_region.import_vol[good].append(vol_sold)
             dest_region.import_val[good].append(val_sold)
         else:
@@ -1656,7 +1709,13 @@ def main():
     region_a = Region("Region_A", t=0, num_agents=110)
     region_b = Region("Region_B", t=0, num_agents=110)
 
-    # Wire destination regions for trader profitability checks
+    # Regional specialization
+    region_a.recipes[Goods.food]['production'] *= 2
+    region_b.recipes[Goods.wood]['production'] *= 2
+
+    # Wire destination regions
+    region_a.dest_region = region_b
+    region_b.dest_region = region_a
     for trader in region_a.agents:
         if getattr(trader, 'is_trader', False):
             trader.dest_region = region_b
@@ -1670,12 +1729,10 @@ def main():
     for t in range(1, time_steps + 1):
         region_a.step(t)
         region_b.step(t)
-        # Inter-region trade: transport -> foreign sell both directions
         process_transport(t, region_a, region_b)
-        foreign_sell(t, region_a, region_b)  # B's traders sell in A
-        foreign_sell(t, region_b, region_a)  # A's traders sell in B
+        foreign_sell(t, region_a, region_b)
+        foreign_sell(t, region_b, region_a)
 
-        # Log price spread between regions
         for g in [Goods.food, Goods.wood, Goods.furn]:
             pa = region_a.recipes[g]['price']
             pb = region_b.recipes[g]['price']
@@ -1709,7 +1766,6 @@ def main():
         gdp = region.gdp_log[-1] if region.gdp_log else 0
         print(f"  Final GDP/turn: ${gdp:.2f}")
 
-        # Trade summary stats
         total_export = sum(sum(v) for v in region.export_vol.values())
         total_import = sum(sum(v) for v in region.import_vol.values())
         total_export_val = sum(sum(v) for v in region.export_val.values())
