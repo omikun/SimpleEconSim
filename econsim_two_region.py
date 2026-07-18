@@ -60,7 +60,7 @@ recipes[Goods.gov] = {
     'maxtotalprod': 0, 'maxinv': 0,
 }
 # Set default transport delay (turns) — future: configured per region-pair
-TRANSPORT_DELAY = 3
+TRANSPORT_DELAY = 1
 TRADERS_PER_REGION = 5
 
 
@@ -489,15 +489,27 @@ class Region:
                 self.inv_log[g] = []
                 self.per_capita_inv[g] = []
                 self.production_log[g] = []
+        # Add trader tracking to per-profession logs
+        self.pop_log['trader'] = []
+        self.hungry_log['trader'] = []
+        self.inv_log['trader'] = []
+        self.per_capita_inv['trader'] = []
+        self.production_log['trader'] = []
 
         for g in self.goods:
             self.cash_log[g] = []
             self.gini_log[g] = []
+        self.cash_log['trader'] = []
+        self.gini_log['trader'] = []
+        self.gdp_by_profession_log['trader'] = []
 
         for prof in self.goods:
             self.bought_log[prof] = {}
             for g in self.goods:
                 self.bought_log[prof][g] = [0]
+        self.bought_log['trader'] = {}
+        for g in self.goods:
+            self.bought_log['trader'][g] = [0]
 
         # Create agents
         self._create_agents(t, num_agents)
@@ -726,7 +738,7 @@ class Region:
         napg = {g: _local_num_agents(self.agents, g) for g in self.goods}
         ltp = defaultdict(int)
         for a in self.agents:
-            if a.employer or a.output == Goods.gov:
+            if a.employer or a.output == Goods.gov or getattr(a, 'is_trader', False):
                 continue
             r = self.recipes[a.output]
             if a.is_corp and len(a.employees) > 0:
@@ -832,6 +844,11 @@ class Region:
             self._borrow_food(a, fp)
             self._borrow_inp(a)
             self._dep_excess(a, agp)
+            # Trader survival borrowing: borrow enough to survive 10 turns
+            if getattr(a, 'is_trader', False):
+                survival_cost = fp * 10  # 10 turns of food
+                if a.cash < survival_cost:
+                    self.bank.Borrow(t, a, survival_cost - a.cash)
             a.remainingCash = a.cash
 
     def _borrow_food(self, agent, fp):
@@ -959,8 +976,18 @@ class Region:
                 tcp += cash
                 if bought > 0:
                     if getattr(a, 'is_trader', False) and good != Goods.food:
-                        # Trader export inventory
+                        # Trader export inventory — track cost basis for profitability check
                         a.inv_export[good] += bought
+                        prev_cost = getattr(a, 'export_cost_basis', {}).get(good, 0)
+                        prev_qty = getattr(a, 'export_cost_basis_qty', {}).get(good, 0)
+                        if not hasattr(a, 'export_cost_basis'):
+                            a.export_cost_basis = defaultdict(float)
+                        if not hasattr(a, 'export_cost_basis_qty'):
+                            a.export_cost_basis_qty = defaultdict(int)
+                        new_total = prev_cost + bought * price
+                        new_qty = prev_qty + bought
+                        a.export_cost_basis[good] = new_total
+                        a.export_cost_basis_qty[good] = new_qty
                     else:
                         # Normal agent or trader buying food
                         oq = a.inv.get(good, 0)
@@ -1198,15 +1225,40 @@ class Region:
         self.gdp_log.append(total)
 
     def _log_metrics(self, t):
+        # Separate trader agents from food producers
+        food_agents = [a for a in self.agents if a.output == Goods.food and not getattr(a, 'is_trader', False)]
+        trader_agents = [a for a in self.agents if getattr(a, 'is_trader', False)]
+
         for g in self.goods:
-            self.pop_log[g].append(sum(1 for a in self.agents if a.output == g))
-            self.cash_log[g].append(sum(a.cash for a in self.agents if a.output == g))
-            self.gini_log[g].append(_local_compute_gini(self.agents, g))
+            if g == Goods.food:
+                # Use food_agents (excluding traders) for food metrics
+                self.pop_log[g].append(len(food_agents))
+                self.cash_log[g].append(sum(a.cash for a in food_agents))
+                self.gini_log[g].append(_local_compute_gini(food_agents, g))
+            else:
+                self.pop_log[g].append(sum(1 for a in self.agents if a.output == g))
+                self.cash_log[g].append(sum(a.cash for a in self.agents if a.output == g))
+                self.gini_log[g].append(_local_compute_gini(self.agents, g))
             if g != Goods.gov:
-                self.inv_log[g].append(sum(a.inv.get(g, 0) for a in self.agents))
-                nl = [a.inv[g] for a in self.agents if a.output != g]
+                if g == Goods.food:
+                    self.inv_log[g].append(sum(a.inv.get(g, 0) for a in food_agents))
+                    nl = [a.inv[g] for a in food_agents if a.output != g]
+                else:
+                    self.inv_log[g].append(sum(a.inv.get(g, 0) for a in self.agents))
+                    nl = [a.inv[g] for a in self.agents if a.output != g]
                 self.per_capita_inv[g].append(mean(nl) if nl else 0)
                 self.price_log[g].append(self.recipes[g]['price'])
+
+        # Log trader-specific metrics
+        self.pop_log['trader'].append(len(trader_agents))
+        self.cash_log['trader'].append(sum(a.cash for a in trader_agents))
+        self.gini_log['trader'].append(_local_compute_gini(trader_agents, Goods.food))  # dummy good for gini
+        self.hungry_log['trader'].append(sum(1 for a in trader_agents if a.hungry_steps > 0))
+        self.inv_log['trader'].append(sum(a.inv.get(g, 0) for a in trader_agents for g in [Goods.food, Goods.wood, Goods.furn]))
+        nl_t = [a.inv.get(Goods.food, 0) for a in trader_agents if a.output != Goods.food]
+        self.per_capita_inv['trader'].append(mean(nl_t) if nl_t else 0)
+        self.production_log['trader'].append(0)  # traders don't produce
+        self.gdp_by_profession_log['trader'].append(0)  # traders contribute no GDP
 
     def _log_pop_rate(self):
         if len(self.total_pop) >= 10:
@@ -1257,8 +1309,8 @@ class Region:
         fig.set_figheight(12)
         plt.subplots_adjust(top=0.98, bottom=0.02, hspace=0.05)
 
-        colors = {Goods.food: 'green', Goods.wood: 'red', Goods.furn: 'blue', Goods.gov: 'yellow'}
-        labels = {Goods.food: 'Food', Goods.wood: 'Wood', Goods.furn: 'carp', Goods.gov: 'gov'}
+        colors = {Goods.food: 'green', Goods.wood: 'red', Goods.furn: 'blue', Goods.gov: 'yellow', 'trader': 'purple'}
+        labels = {Goods.food: 'Food', Goods.wood: 'Wood', Goods.furn: 'carp', Goods.gov: 'gov', 'trader': 'Traders'}
 
         aid = 0
         self._plot_pop(axis, aid, colors, labels); aid += 1
@@ -1301,6 +1353,8 @@ class Region:
         axis[aid].set_yscale('log', base=2)
         for g in self.goods:
             axis[aid].plot(self.pop_log[g], label=labels[g], color=colors[g])
+        if 'trader' in self.pop_log and self.pop_log['trader']:
+            axis[aid].plot(self.pop_log['trader'], label=labels['trader'], color=colors['trader'])
         axis[aid].plot(self.total_pop, label='total', color='black')
         axis[aid].plot([-x for x in self.deadstarve_pop], label='dead', color='purple')
 
@@ -1310,6 +1364,8 @@ class Region:
         for g in self.goods:
             if g != Goods.gov:
                 axis[aid].plot(self.inv_log[g], label=labels[g], color=colors[g])
+        if 'trader' in self.inv_log and self.inv_log['trader']:
+            axis[aid].plot(self.inv_log['trader'], label=labels['trader'], color=colors['trader'])
 
     def _plot_gini(self, axis, aid, colors, labels):
         axis[aid].set_title("Gini coefficient")
@@ -1317,6 +1373,8 @@ class Region:
         rg = [self.goods[-1]] + self.goods[:-1]
         for g in rg:
             axis[aid].plot(self.gini_log[g], label=labels[g], color=colors[g])
+        if 'trader' in self.gini_log and self.gini_log['trader']:
+            axis[aid].plot(self.gini_log['trader'], label=labels['trader'], color=colors['trader'])
 
     def _plot_dr(self, axis, aid, colors, labels):
         axis[aid].set_title("Demands Ratio vs time")
@@ -1333,6 +1391,8 @@ class Region:
         for g in self.goods:
             if g != Goods.gov:
                 axis[aid].plot(self.production_log[g], label=labels[g], color=colors[g])
+        if 'trader' in self.production_log and self.production_log['trader']:
+            axis[aid].plot(self.production_log['trader'], label=labels['trader'], color=colors['trader'], linestyle=':')
 
     def _plot_pci(self, axis, aid, colors, labels):
         axis[aid].set_title("Inventory Per capita (excl producers)")
@@ -1340,12 +1400,17 @@ class Region:
         for g in self.goods:
             if g != Goods.gov:
                 axis[aid].plot(self.per_capita_inv[g], label=labels[g], color=colors[g])
+        if 'trader' in self.per_capita_inv and self.per_capita_inv['trader']:
+            axis[aid].plot(self.per_capita_inv['trader'], label=labels['trader'], color=colors['trader'])
 
     def _plot_cash(self, axis, aid, colors, labels):
         axis[aid].set_title("Cash vs time")
         axis[aid].set_ylabel("Cash")
+        axis[aid].set_yscale('log', base=2)
         for g in self.goods:
             axis[aid].plot(self.cash_log[g], label=labels[g], color=colors[g])
+        if 'trader' in self.cash_log and self.cash_log['trader']:
+            axis[aid].plot(self.cash_log['trader'], label=labels['trader'], color=colors['trader'])
         axis[aid].plot(self.total_cash_log, label='total', color='black')
         axis[aid].plot(self.bank_cash_log, label='bank', color='purple')
 
@@ -1379,6 +1444,8 @@ class Region:
         axis[aid].set_yscale('log', base=2)
         for g in self.goods:
             axis[aid].plot(self.hungry_log[g], label=labels[g], color=colors[g])
+        if 'trader' in self.hungry_log and self.hungry_log['trader']:
+            axis[aid].plot(self.hungry_log['trader'], label=labels['trader'], color=colors['trader'])
 
     def _plot_supply(self, axis, aid, colors, labels):
         axis[aid].set_title("Supply vs time")
@@ -1407,6 +1474,8 @@ class Region:
         for g in self.goods:
             if g != Goods.gov:
                 axis[aid].plot(self.gdp_by_profession_log[g], label=labels[g], color=colors[g])
+        if 'trader' in self.gdp_by_profession_log and self.gdp_by_profession_log['trader']:
+            axis[aid].plot(self.gdp_by_profession_log['trader'], label=labels['trader'], color=colors['trader'], linestyle=':')
 
     def _plot_purchases(self, axis, aid, colors, labels):
         titles = ["Farmer", "Logger", "Carpenter", "Gov agent"]
@@ -1441,6 +1510,7 @@ class Region:
     def _plot_price_spread(self, axis, aid, colors, labels):
         axis[aid].set_title("Price Spread (A-B abs diff)")
         axis[aid].set_ylabel("Price diff $")
+        axis[aid].set_yscale('log', base=2)
         for g in [Goods.food, Goods.wood, Goods.furn]:
             if self.price_spread_log.get(g):
                 axis[aid].plot(self.price_spread_log[g], label=labels[g], color=colors[g])
@@ -1521,6 +1591,13 @@ def foreign_sell(t, dest_region, source_region):
             price = dest_region.recipes[good]['price']
             # Price discount to ensure sale
             ask_price = price * 0.95
+
+            # Profitability gate: only sell if ask_price exceeds avg cost basis at home
+            cost_basis_val = (getattr(trader, 'export_cost_basis', {}).get(good, 0)
+                              / max(1, getattr(trader, 'export_cost_basis_qty', {}).get(good, 1)))
+            if ask_price <= cost_basis_val:
+                continue  # skip unprofitable
+
             # Find buyers in dest_region (agents with remaining cash)
             buyers = [a for a in dest_region.agents
                       if not getattr(a, 'is_trader', False) and a.cash > ask_price]
