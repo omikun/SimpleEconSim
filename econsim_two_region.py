@@ -908,6 +908,12 @@ class Region:
     def _calc_bid(self, agent, good, gp, cdes, ar, ie, mult):
         # ---- Trader: bid into inv_export ----
         if getattr(agent, 'is_trader', False):
+            # Pre-purchase profitability: skip if destination price <= home price
+            dest = getattr(agent, 'dest_region', None)
+            if dest is not None and good != Goods.food:
+                dest_ask = dest.recipes[good]['price'] * 0.95
+                if dest_ask <= gp:
+                    return 0  # not profitable to ship
             max_trader_inv = ar['maxinv']
             total_holding = agent.inv.get(good, 0) + agent.inv_export.get(good, 0) + agent.inv_foreign.get(good, 0)
             for pipe in agent.transport_pipeline:
@@ -976,18 +982,8 @@ class Region:
                 tcp += cash
                 if bought > 0:
                     if getattr(a, 'is_trader', False) and good != Goods.food:
-                        # Trader export inventory — track cost basis for profitability check
+                        # Trader export inventory
                         a.inv_export[good] += bought
-                        prev_cost = getattr(a, 'export_cost_basis', {}).get(good, 0)
-                        prev_qty = getattr(a, 'export_cost_basis_qty', {}).get(good, 0)
-                        if not hasattr(a, 'export_cost_basis'):
-                            a.export_cost_basis = defaultdict(float)
-                        if not hasattr(a, 'export_cost_basis_qty'):
-                            a.export_cost_basis_qty = defaultdict(int)
-                        new_total = prev_cost + bought * price
-                        new_qty = prev_qty + bought
-                        a.export_cost_basis[good] = new_total
-                        a.export_cost_basis_qty[good] = new_qty
                     else:
                         # Normal agent or trader buying food
                         oq = a.inv.get(good, 0)
@@ -1592,12 +1588,6 @@ def foreign_sell(t, dest_region, source_region):
             # Price discount to ensure sale
             ask_price = price * 0.95
 
-            # Profitability gate: only sell if ask_price exceeds avg cost basis at home
-            cost_basis_val = (getattr(trader, 'export_cost_basis', {}).get(good, 0)
-                              / max(1, getattr(trader, 'export_cost_basis_qty', {}).get(good, 1)))
-            if ask_price <= cost_basis_val:
-                continue  # skip unprofitable
-
             # Find buyers in dest_region (agents with remaining cash)
             buyers = [a for a in dest_region.agents
                       if not getattr(a, 'is_trader', False) and a.cash > ask_price]
@@ -1665,6 +1655,14 @@ def main():
 
     region_a = Region("Region_A", t=0, num_agents=110)
     region_b = Region("Region_B", t=0, num_agents=110)
+
+    # Wire destination regions for trader profitability checks
+    for trader in region_a.agents:
+        if getattr(trader, 'is_trader', False):
+            trader.dest_region = region_b
+    for trader in region_b.agents:
+        if getattr(trader, 'is_trader', False):
+            trader.dest_region = region_a
 
     print(f"Region_A: {len(region_a.agents)} agents, Gov: ${region_a.gov.agent.cash:.2f}")
     print(f"Region_B: {len(region_b.agents)} agents, Gov: ${region_b.gov.agent.cash:.2f}")
