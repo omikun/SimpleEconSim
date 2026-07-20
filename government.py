@@ -9,7 +9,7 @@ import math
 import random
 
 import econsim_states
-from econsim import Agent, InitAgent
+from agent import Agent, InitAgent
 from goods import Goods
 from logger import loginfo, logwarning, logdebug
 import econsim_trade_money as trade

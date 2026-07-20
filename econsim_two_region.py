@@ -24,12 +24,14 @@ import matplotlib.pyplot as plt
 from goods import Goods
 from econsim_states import (
     recipes, goods, profession, p_birth, p_death, birthGap,
-    max_career_switches, starve_limit, agentid,
+    max_career_switches, starve_limit,
 )
 from logger import loginfo, logwarning, logdebug, logInit
 
 import econsim_states as st
 import econsim_trade_money as _tm
+import government as govmod
+from agent import Agent, InitAgent
 
 
 # =============================================================================
@@ -73,101 +75,6 @@ DEFAULT_PROFESSION_DIST = {
 
 
 # =============================================================================
-# Global agent ID counter (shared across all regions)
-# =============================================================================
-
-_agentid_counter = [0]
-
-
-def _next_agent_id() -> int:
-    _agentid_counter[0] += 1
-    return _agentid_counter[0]
-
-
-# =============================================================================
-# Minimal Agent class (avoids importing econsim.py which has circular deps)
-# =============================================================================
-
-class Agent:
-    """Agent with all fields needed by the simulation."""
-
-    def __init__(self, t):
-        self.id = _next_agent_id()
-        self.birthRound = t
-        self.alive = True
-        self.parent = None
-        self.descendents = []
-        self.bid = 0
-        self.ask = 0
-        self.output = Goods.none
-        self.hungry_steps = 0
-        self.cash = 0
-        self.inv = {}
-        self.cost_basis = {}
-        self.lastCareerSwitch = 0
-        self.lastRepro = 0
-        self.loans = []
-        self.employer = None
-        self.employees = []
-        self.is_corp = False
-        self.wage = 0
-        self.hiredAt = 0
-        self.owner = None
-        self.company_owned = None
-        self.max_employees = 0
-        self.consumption_mult = 1.0
-        self.tax_loss_carryforward = 0.0
-        self.retained_earnings = 0.0
-        self.owner_loan = 0.0
-        self._start_cash = 0
-        self._start_deposits = 0
-        self._delta_cash = 0
-        self._delta_deposits = 0
-        self.region = None
-        self.is_gov = False
-        # ---- Trader fields ----
-        self.is_trader = False
-        self.home_region = None
-        self.inv_export = defaultdict(int)      # goods bought at home, waiting to be shipped
-        self.transport_pipeline = []            # list of {'turns_left', 'good', 'qty'}
-        self.inv_foreign = defaultdict(int)     # goods arrived abroad, ready to sell
-        self.transport_delay = TRANSPORT_DELAY
-
-    def name(self):
-        return 'agent' + str(self.id) + '-' + profession[self.output]
-
-    def age(self, t):
-        return t - self.birthRound
-
-    def wealth(self):
-        inv_value = sum(
-            amount * recipes[good]['price']
-            for good, amount in self.inv.items()
-            if good in recipes
-        )
-        debt_value = sum(loan.principle for loan in self.loans)
-        bank = getattr(self, '_bank_ref', None)
-        dep = bank.deposits.get(self, 0) if bank else 0
-        return self.cash + dep + inv_value - debt_value
-
-    def oweThisTurn(self):
-        return sum(loan.getPaymentAmount() for loan in self.loans)
-
-
-def InitAgent(agent, output, numInput, numFood, cash, delta=0):
-    """Initialize agent inventory and output using global recipes."""
-    agent.output = output
-    agent.cash = cash
-    recipe = recipes.get(output, {})
-    input_com = recipe.get('input', Goods.none)
-    for g in goods:
-        agent.inv[g] = 0
-    if input_com != Goods.none:
-        agent.inv[input_com] = numInput
-    agent.inv[Goods.food] = numFood
-
-
-# =============================================================================
 # Local helpers
 # =============================================================================
 
@@ -196,237 +103,6 @@ def _local_get_total_cash(agents, bank):
 
 
 # =============================================================================
-# Minimal Government class (replaces government.py to avoid circular imports)
-# =============================================================================
-
-class MinGov:
-    """Minimal government providing all methods called by econsim_live.Live()."""
-
-    def __init__(self, name, t, initial_cash=200):
-        self.name = name
-        self.agent = Agent(t)
-        self.agent.output = Goods.gov
-        self.agent.is_corp = False
-        self.agent.is_gov = True
-        InitAgent(self.agent, Goods.gov, 0, 0, initial_cash)
-        self.citizen_ids = set()
-        # ---- Population policy config ----
-        self.baby_bonus_enabled = False
-        self.baby_bonus_amount = 50.0
-        self.ubi_enabled = False
-        self.ubi_amount_per_turn = 2.0
-        self.child_food_aid_max_age = 10
-        self.fertility_multiplier = 1.0
-        self.immigration_enabled = False
-        self.immigration_per_interval = 5
-        self.immigration_interval = 50
-        self._last_immigration_turn = 0
-        self.child_tax_deduction_enabled = False
-        self.child_tax_deduction_per_child = 10.0
-        self.parental_leave_enabled = False
-        self.parental_leave_duration = 10
-        self.parental_leave_amount_per_turn = 3.0
-        self.mortality_multiplier = 1.0
-
-    def __repr__(self):
-        return f"MinGov({self.name})"
-
-    def _is_citizen(self, agent):
-        return agent.id in self.citizen_ids
-
-    def _add_citizen(self, agent):
-        self.citizen_ids.add(agent.id)
-
-    # ---- UBI ----
-    def distribute_ubi(self, t, agents):
-        if not self.ubi_enabled or self.ubi_amount_per_turn <= 0:
-            return 0.0
-        total = 0.0
-        for a in agents:
-            if a.is_corp or not a.alive:
-                continue
-            if not self._is_citizen(a):
-                continue
-            a.cash += self.ubi_amount_per_turn
-            total += self.ubi_amount_per_turn
-        if total > 0 and self.agent.cash >= total:
-            self.agent.cash -= total
-        elif total > 0:
-            scale = self.agent.cash / total if total > 0 else 0
-            for a in agents:
-                if a.is_corp or not a.alive:
-                    continue
-                if not self._is_citizen(a):
-                    continue
-                a.cash -= self.ubi_amount_per_turn
-                a.cash += self.ubi_amount_per_turn * scale
-            self.agent.cash = 0.0
-        return total
-
-    # ---- Immigration ----
-    def spawn_immigrants(self, t):
-        if not self.immigration_enabled:
-            return []
-        if t - self._last_immigration_turn < self.immigration_interval:
-            return []
-        self._last_immigration_turn = t
-        new_agents = []
-        profs = [g for g in goods if g != Goods.gov]
-        for _ in range(self.immigration_per_interval):
-            output = random.choice(profs)
-            immigrant = Agent(t)
-            immigrant.output = output
-            immigrant.cash = 50.0 + random.uniform(0, 30)
-            immigrant.inv[Goods.food] = 4
-            immigrant.inv[output] = 2
-            self._add_citizen(immigrant)
-            new_agents.append(immigrant)
-        return new_agents
-
-    # ---- Parental leave ----
-    def grant_parental_leave(self, t, parent):
-        if not self.parental_leave_enabled or self.parental_leave_duration <= 0:
-            return
-        parent._parental_leave_turns_remaining = self.parental_leave_duration
-
-    def process_parental_leave(self, t, agents):
-        if not self.parental_leave_enabled:
-            return 0.0
-        total = 0.0
-        for a in agents:
-            if a.is_corp or not a.alive:
-                continue
-            rem = getattr(a, '_parental_leave_turns_remaining', 0)
-            if rem <= 0:
-                continue
-            pay = min(self.parental_leave_amount_per_turn, self.agent.cash)
-            if pay > 0:
-                self.agent.cash -= pay
-                a.cash += pay
-                total += pay
-            a._parental_leave_turns_remaining = rem - 1
-        return total
-
-    # ---- Baby bonus ----
-    def provide_baby_bonus(self, t, parent, newborn):
-        if not self.baby_bonus_enabled or self.baby_bonus_amount <= 0:
-            return 0.0
-        if self.agent.cash < self.baby_bonus_amount:
-            return 0.0
-        self.agent.cash -= self.baby_bonus_amount
-        parent.cash += self.baby_bonus_amount
-        return self.baby_bonus_amount
-
-    # ---- Food aid ----
-    def provide_food_aid(self, t, agents, food_price):
-        child_max_age = self.child_food_aid_max_age
-        total_cost = 0
-        for a in agents:
-            if a.is_corp:
-                continue
-            needs = 0
-            if a.age(t) <= child_max_age:
-                needs = 1
-            if a.hungry_steps > 3:
-                cur = a.inv.get(Goods.food, 0)
-                needed = max(0, 4 - cur)
-                if a.age(t) <= child_max_age:
-                    needed = max(0, needed - 1)
-                needs = max(needs, needed)
-            if needs > 0:
-                a.inv[Goods.food] += needs
-                total_cost += needs * food_price
-        return total_cost
-
-    # ---- Welfare ----
-    def distribute_welfare(self, t, agents, min_reserve=0):
-        distributable = max(0, self.agent.cash - min_reserve)
-        if distributable <= 0:
-            return 0
-        starving = [a for a in agents if a.hungry_steps > 0 and not a.is_corp]
-        if not starving:
-            return 0
-        wf = distributable / len(starving)
-        total = 0
-        for a in starving:
-            a.cash += wf
-            total += wf
-        self.agent.cash -= total
-        return total
-
-    # ---- Tax ----
-    def collect_tax(self, t, amount):
-        if amount > 0:
-            self.agent.cash += amount
-        return amount
-
-    # ---- Child tax deduction ----
-    def compute_child_tax_deduction(self, agent):
-        if not self.child_tax_deduction_enabled:
-            return 0.0
-        living = [d for d in getattr(agent, 'descendents', []) if d.alive]
-        return len(living) * self.child_tax_deduction_per_child
-
-    # ---- Fertility multiplier ----
-    def get_fertility_multiplier(self):
-        return max(0.0, self.fertility_multiplier)
-
-    # ---- Mortality reduction ----
-    def get_death_probability(self, agent, base_probability):
-        return max(0.0, min(1.0, base_probability * self.mortality_multiplier))
-
-    # ---- Convenience methods called by find_government_for_agent ----
-    def provide_food_aid(self, t, agents, food_price):
-        return self._provide_food_aid(t, agents, food_price)
-
-    def _provide_food_aid(self, t, agents, food_price):
-        """Duplicate to avoid method-override confusion; called from Live()."""
-        child_max_age = self.child_food_aid_max_age
-        total_cost = 0
-        for a in agents:
-            if a.is_corp:
-                continue
-            needs = 0
-            if a.age(t) <= child_max_age:
-                needs = 1
-            if a.hungry_steps > 3:
-                cur = a.inv.get(Goods.food, 0)
-                needed = max(0, 4 - cur)
-                if a.age(t) <= child_max_age:
-                    needed = max(0, needed - 1)
-                needs = max(needs, needed)
-            if needs > 0:
-                a.inv[Goods.food] += needs
-                total_cost += needs * food_price
-        return total_cost
-
-
-# =============================================================================
-# Convenience: find the government for an agent (used by econsim_live)
-# =============================================================================
-
-def find_gov_for_agent(agent):
-    """Return the MinGov that claims *agent*, or the first available."""
-    for gov in st.governments:
-        if agent.id in gov.citizen_ids:
-            return gov
-    return st.default_gov
-
-
-# Patch into econsim_states so _lm.Live() can find it
-st.find_government_for_agent = find_gov_for_agent
-
-# Also patch the module so that econsim_live's import of government works
-# We need to ensure government.find_government_for_agent exists
-import types
-gov_shim = types.ModuleType('government')
-gov_shim.find_government_for_agent = find_gov_for_agent
-gov_shim.Government = MinGov
-gov_shim.create_default_government = lambda t, initial_cash=200: None
-sys.modules['government'] = gov_shim
-
-
-# =============================================================================
 # Helper: convert an agent to a trader
 # =============================================================================
 
@@ -436,47 +112,12 @@ def _make_trader(agent, region):
     agent.home_region = region.name
     agent.dest_region = region.dest_region
     agent.output = Goods.food  # use food so they can survive
-    # Initialize trader fields if they don't exist (econsim.Agent may not have them)
-    if not hasattr(agent, 'inv_export'):
-        agent.inv_export = defaultdict(int)
-    if not hasattr(agent, 'transport_pipeline'):
-        agent.transport_pipeline = []
-    if not hasattr(agent, 'inv_foreign'):
-        agent.inv_foreign = defaultdict(int)
     agent.inv_export.clear()
     agent.transport_pipeline.clear()
     agent.inv_foreign.clear()
-    # Ensure they have the _process_pipeline method
     _pip_fn = _agent_process_pipeline
     agent._process_pipeline = lambda: _pip_fn(agent)
-    # Ensure they have the name method
-    if not hasattr(agent, 'name') or not callable(agent.name):
-        agent.name = lambda: f"agent{agent.id}"
-    # Ensure they have transport_delay
-    if not hasattr(agent, 'transport_delay'):
-        agent.transport_delay = TRANSPORT_DELAY
-    # Ensure they have cost_basis
-    if not hasattr(agent, 'cost_basis'):
-        agent.cost_basis = {}
-    # Ensure they have home_region
-    if not hasattr(agent, 'home_region'):
-        agent.home_region = region.name
-    # Ensure they have is_trader (set above but may be overwritten by Live)
-    agent.is_trader = True
-    # Ensure they have dest_region
-    if not hasattr(agent, 'dest_region'):
-        agent.dest_region = region.dest_region
-    # Ensure they have output
-    if not hasattr(agent, 'output'):
-        agent.output = Goods.food
-    # Ensure they have employment fields
-    if not hasattr(agent, 'employer'):
-        agent.employer = None
-    if not hasattr(agent, 'is_corp'):
-        agent.is_corp = False
-    if not hasattr(agent, 'inv'):
-        agent.inv = {}
-    # Ensure they have 4 food to survive
+    agent.transport_delay = TRANSPORT_DELAY
     agent.inv[Goods.food] = max(agent.inv.get(Goods.food, 0), 4)
     agent.employer = None  # quit any job
     loginfo(0, f"{agent.name()} became a trader in {region.name}")
@@ -508,7 +149,7 @@ class Region:
         self.bank = _tm.Bank()
 
         # Own government
-        self.gov = MinGov(name, t, initial_cash=200)
+        self.gov = govmod.Government(name, t, initial_cash=200)
         self.gov.agent.is_gov = True
 
         # Logging state (mirrors econsim_states globals)
@@ -1749,7 +1390,7 @@ def main():
     random.seed(42)
 
     region_a = Region("Region_A", t=0, num_agents=110,
-                       profession_distribution={Goods.food: 0.61, Goods.wood: 0.06, Goods.furn: 0.02})
+                       profession_distribution={Goods.food: 0.41, Goods.wood: 0.06, Goods.furn: 0.02})
     region_b = Region("Region_B", t=0, num_agents=110)
 
     # Regional specialization

@@ -12,64 +12,7 @@ from goods import Goods
 # import econsim_trade_unity as trade
 import econsim_trade_money as trade
 from logger import *
-
-
-# =============================================================================
-# Agent class
-# =============================================================================
-
-class Agent:
-    def __init__(self, t):
-        self.id = econsim_states.agentid
-        econsim_states.agentid += 1
-        self.birthRound = t
-        self.alive = True
-        self.parent = None
-        self.descendents = []
-        self.bid = 0
-        self.ask = 0
-        self.output = Goods.none
-        self.hungry_steps = 0
-        self.cash = 0
-        self.inv = {}
-        self.cost_basis = {}
-        self.lastCareerSwitch = 0
-        self.lastRepro = 0
-        self.loans = []
-        self.employer = None
-        self.employees = []
-        self.is_corp = False
-        self.wage = 0
-        self.hiredAt = 0
-        self.owner = None
-        self.company_owned = None
-        self.max_employees = 0
-        self.consumption_mult = 1.0
-        self.tax_loss_carryforward = 0.0
-        self.retained_earnings = 0.0
-        self.owner_loan = 0.0
-        self._start_cash = 0
-        self._start_deposits = 0
-        self._delta_cash = 0
-        self._delta_deposits = 0
-
-    def name(self):
-        return 'agent' + str(self.id) + '-' + profession[self.output]
-
-    def age(self, t):
-        return t - self.birthRound
-
-    def wealth(self):
-        inv_value = sum(
-            amount * recipes[good]['price']
-            for good, amount in self.inv.items()
-            if good in recipes
-        )
-        debt_value = sum(loan.principle for loan in self.loans)
-        return self.cash + trade.bank.deposits.get(self, 0) + inv_value - debt_value
-
-    def oweThisTurn(self):
-        return sum(loan.getPaymentAmount() for loan in self.loans)
+from agent import Agent, InitAgent, GetInputCom, GetOutputCom
 
 
 # =============================================================================
@@ -106,18 +49,8 @@ for good in goods:
 
 
 # =============================================================================
-# Agent initialisation helpers
+# Agent initialisation (uses helpers from agent.py module)
 # =============================================================================
-
-def GetInputCom(agent):
-    """Return the input commodity required for *agent*'s output good."""
-    recipe = recipes[agent.output]
-    return recipe.get('input', Goods.none)
-
-
-def GetOutputCom(agent):
-    return agent.output
-
 
 def InitAgents(agents):
     for a in range(num_agents):
@@ -133,22 +66,6 @@ def InitAgents(agents):
         delta = 20
         cash = 120 + random.randint(-delta, delta)
         InitAgent(agent, output, 10, 2, cash)
-
-
-def InitAgent(agent, output, numInput, numFood, cash, delta=0):
-    agent.output = output
-    agent.cash = cash
-    if agent.output in recipes:
-        recipe = recipes[agent.output]
-    else:
-        logger.error(profession[agent.output], 'not in dictionary', recipes)
-    inputCom = recipe.get('input', Goods.none)
-    for good in goods:
-        agent.inv[good] = 0
-    if inputCom != Goods.none:
-        agent.inv[inputCom] = numInput
-    agent.inv[Goods.food] = numFood
-    loginfo('init', agent.output, agent.inv)
 
 
 for good in goods:

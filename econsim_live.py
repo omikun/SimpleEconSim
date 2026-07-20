@@ -5,7 +5,7 @@ import math
 import econsim_states
 from econsim_states import *
 import econsim_trade_money as trade
-from econsim import GetInputCom, GetOutputCom, Agent, InitAgent
+from agent import Agent, InitAgent, GetInputCom, GetOutputCom
 from goods import Goods
 from logger import logdebug, loginfo, logwarning
 
