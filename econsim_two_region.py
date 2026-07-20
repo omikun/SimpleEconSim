@@ -64,6 +64,13 @@ TRANSPORT_DELAY = 1
 TRADERS_PER_REGION = 5
 MAX_TRADER_FRACTION = 0.2   # max fraction of population that can be traders
 
+# Default profession distribution (fractions summing to ≤1.0, remainder → gov)
+DEFAULT_PROFESSION_DIST = {
+    Goods.food: 0.82,
+    Goods.wood: 0.06,
+    Goods.furn: 0.02,
+}
+
 
 # =============================================================================
 # Global agent ID counter (shared across all regions)
@@ -482,9 +489,16 @@ def _make_trader(agent, region):
 class Region:
     """A self-contained region with its own government, bank, agents, and logs."""
 
-    def __init__(self, name: str, t: int, num_agents: int = 110):
+    def __init__(self, name: str, t: int, num_agents: int = 110,
+                 profession_distribution: dict = None, num_traders: int = None):
         self.name = name
         self.agents: list = []
+        if profession_distribution is None:
+            profession_distribution = dict(DEFAULT_PROFESSION_DIST)
+        self.profession_distribution = profession_distribution.copy()
+        if num_traders is None:
+            num_traders = TRADERS_PER_REGION
+        self._num_traders = num_traders
 
         # Deep-copy global config
         self.recipes = copy.deepcopy(recipes)
@@ -578,24 +592,33 @@ class Region:
     # ------------------------------------------------------------------
 
     def _create_agents(self, t: int, n: int):
-        agents = [Agent(t) for _ in range(n)]
-        for i, agent in enumerate(agents):
-            if i < int(n * 0.82):
-                output = Goods.food
-            elif i < int(n * 0.88):
-                output = Goods.wood
-            elif i < int(n * 0.90):
-                output = Goods.furn
-            else:
-                output = Goods.gov
-            delta = 20
-            cash = 120 + random.randint(-delta, delta)
-            InitAgent(agent, output, 10, 2, cash)
-            agent.region = self.name
-            agent._bank_ref = self.bank
+        # Build profession counts from distribution fractions
+        prof_counts = {}
+        total_assignable = 0
+        for prof, frac in self.profession_distribution.items():
+            count = int(n * frac)
+            prof_counts[prof] = count
+            total_assignable += count
+        # Any remaining agents become gov agents
+        prof_counts[Goods.gov] = max(0, n - total_assignable)
+
+        loginfo(t, f"Region '{self.name}' profession allocation: { {str(k): v for k, v in prof_counts.items()} }")
+
+        # Create agents for each profession
+        agents = []
+        for prof, count in prof_counts.items():
+            for _ in range(count):
+                agent = Agent(t)
+                output = prof
+                delta = 20
+                cash = 120 + random.randint(-delta, delta)
+                InitAgent(agent, output, 10, 2, cash)
+                agent.region = self.name
+                agent._bank_ref = self.bank
+                agents.append(agent)
 
         # Add traders
-        for _ in range(TRADERS_PER_REGION):
+        for _ in range(self._num_traders):
             trader = Agent(t)
             trader.is_trader = True
             trader.output = Goods.food  # use food so they can survive like normal agents
@@ -968,7 +991,7 @@ class Region:
         if getattr(agent, 'is_trader', False):
             # Pre-purchase profitability: skip if destination price <= home price
             dest = getattr(agent, 'dest_region', None)
-            if dest is not None and good != Goods.food:
+            if dest is not None:
                 dest_ask = dest.recipes[good]['price'] * 0.95
                 if dest_ask <= gp:
                     return 0  # not profitable to ship
@@ -1039,11 +1062,20 @@ class Region:
                 a.cash = max(0.0, a.cash - cash)
                 tcp += cash
                 if bought > 0:
-                    if getattr(a, 'is_trader', False) and good != Goods.food:
-                        # Trader export inventory
-                        a.inv_export[good] += bought
+                    if getattr(a, 'is_trader', False):
+                        if good != Goods.food:
+                            # Non-food: export only
+                            a.inv_export[good] += bought
+                        else:
+                            # Food: reserve 8 for consumption, export the rest
+                            food_needed = max(0, 8 - a.inv.get(good, 0))
+                            keep = min(food_needed, bought)
+                            export = bought - keep
+                            a.inv[good] += keep
+                            if export > 0:
+                                a.inv_export[good] += export
                     else:
-                        # Normal agent or trader buying food
+                        # Normal agent
                         oq = a.inv.get(good, 0)
                         oc = a.cost_basis.get(good, 0)
                         a.cost_basis[good] = ((oq * oc + bought * price) / (oq + bought)) if (oq + bought) > 0 else price
@@ -1716,7 +1748,8 @@ def main():
 
     random.seed(42)
 
-    region_a = Region("Region_A", t=0, num_agents=110)
+    region_a = Region("Region_A", t=0, num_agents=110,
+                       profession_distribution={Goods.food: 0.61, Goods.wood: 0.06, Goods.furn: 0.02})
     region_b = Region("Region_B", t=0, num_agents=110)
 
     # Regional specialization
