@@ -530,7 +530,7 @@ class Region:
                 logwarning(t, f"Region '{self.name}' trade {good}: ${total_cash_sales - total_cash_purchases:.2f}")
             self.sold_log[good].append(total_sold)
 
-        _tm.most_demand = most_demand_good
+        self.most_demand = most_demand_good
 
     def _decide_borrow_deposit(self, agents, all_goods_price, food_price, t):
         for a in agents:
@@ -866,7 +866,7 @@ class Region:
             p_birth=probability_birth,
             birth_gap=birth_gap,
             bank=self.bank,
-            most_demand=_tm.most_demand,
+            most_demand=self.most_demand,
         )
         result = _lm.Live(t, self.agents, context=ctx)
 
@@ -1169,7 +1169,7 @@ class Region:
         figure.patch.set_facecolor('lightgrey')
         figure.set_figwidth(20)
         figure.set_figheight(12)
-        plt.subplots_adjust(top=0.98, bottom=0.02, hspace=0.05)
+        plt.subplots_adjust(top=0.95, bottom=0.04, hspace=0.35, wspace=0.25)
         colors = {
             Goods.food: 'green',
             Goods.wood: 'red',

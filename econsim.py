@@ -27,6 +27,7 @@ from econsim_states import (
 import econsim_states
 from logger import loginfo, logdebug, logwarning, logInit, logerror
 
+from econsim_live import LiveContext
 import econsim_live as Living
 import econsim_trade_money as trade
 from agent import Agent, initialize_agent, get_input_commodity, get_output_commodity
@@ -494,8 +495,25 @@ def main():
         _log_gdp(agents)
         if t > 0 and t % 10 == 0:
             recalculate_consumption_multipliers(agents)
+        _live_ctx = LiveContext(
+            recipes=recipes,
+            goods=goods,
+            governments=governments,
+            default_gov=default_government,
+            hungry_log=hungry_log,
+            dead_pop=dead_pop,
+            deadstarve_pop=dead_starved_population,
+            production_log=production_log,
+            starve_limit=starvation_limit,
+            profession=profession,
+            max_career_switches=max_career_switches,
+            p_birth=probability_birth,
+            birth_gap=birth_gap,
+            bank=trade.bank,
+            most_demand=Goods.food,
+        )
         cash_before_live = get_total_cash(agents, trade.bank)
-        agents = Living.Live(t, agents)
+        agents = Living.Live(t, agents, context=_live_ctx)
         cash_after_live = get_total_cash(agents, trade.bank)
         live_diff = cash_after_live - cash_before_live
         if abs(live_diff) > 5.0:
@@ -635,7 +653,7 @@ def _plot_results(agents):
     figure.patch.set_facecolor('lightgrey')
     figure.set_figwidth(20)
     figure.set_figheight(12)
-    plt.subplots_adjust(top=0.98, bottom=0.02, hspace=0.05)
+    plt.subplots_adjust(top=0.95, bottom=0.04, hspace=0.35, wspace=0.25)
     colors = {
         Goods.food: 'green',
         Goods.wood: 'red',
