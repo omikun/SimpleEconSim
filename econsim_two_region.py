@@ -1331,6 +1331,11 @@ def foreign_sell(t, dest_region, source_region):
     trade_volumes = defaultdict(int)
     trade_values = defaultdict(float)
 
+    # Accumulators for recycling totals (printed once per call)
+    total_trader_profit = 0.0
+    total_bank_recycle = 0.0
+    total_tariff = 0.0
+
     for trader in traders:
         for good in [Goods.food, Goods.wood, Goods.furn]:
             qty = trader.inv_foreign.get(good, 0)
@@ -1351,7 +1356,17 @@ def foreign_sell(t, dest_region, source_region):
                 bought = min(remaining, max_buy, 3)
                 cash = bought * ask_price
                 buyer.cash -= cash
-                trader.cash += cash
+                # #2: Trader profit recycling — 20% stays in destination bank
+                trader_share = cash * 0.70
+                bank_share = cash * 0.20
+                # #3: Import tariff — 10% to destination government
+                tariff_share = cash * 0.10
+                trader.cash += trader_share
+                dest_region.bank.total_deposits += bank_share
+                dest_region.gov.agent.cash += tariff_share
+                total_trader_profit += trader_share
+                total_bank_recycle += bank_share
+                total_tariff += tariff_share
                 oq = buyer.inv.get(good, 0)
                 oc = buyer.cost_basis.get(good, 0)
                 buyer.cost_basis[good] = ((oq * oc + bought * ask_price) / (oq + bought)) if (oq + bought) > 0 else ask_price
@@ -1366,7 +1381,10 @@ def foreign_sell(t, dest_region, source_region):
     if total_sold_qty > 0:
         print(f"  TRADE {source_region.name}→{dest_region.name}: "
               f"sold {total_sold_qty} units worth ${total_sold_value:.2f} "
-              f"({dict(trade_volumes)})")
+              f"({dict(trade_volumes)})"
+              f"  trader ${total_trader_profit:.2f}"
+              f"  bank recycle ${total_bank_recycle:.2f}"
+              f"  tariff ${total_tariff:.2f}")
 
     for good in [Goods.food, Goods.wood, Goods.furn]:
         vol_sold = trade_volumes[good]
