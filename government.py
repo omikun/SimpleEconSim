@@ -97,6 +97,11 @@ class Government:
         #     in the local economy (currently 20% in foreign_sell).
         self.trader_recycling_enabled = True
 
+        # 11. Floating Exchange Rate (market-driven currency adjustment)
+        #     When enabled, the exchange rate adjusts based on cumulative
+        #     trade balance to self-correct import/export imbalances.
+        self.floating_exchange_rate_enabled = True
+
     # ------------------------------------------------------------------
     #  Internal helpers
     # ------------------------------------------------------------------

@@ -184,6 +184,9 @@ class Region:
         self.trader_cash_log: list = []     # total cash held by traders in this region
         self.price_spread_log: dict = {}    # price_spread_log[good] = [price_diff_turn, ...]
         self.dest_region = None             # other region for arbitrage checks
+        # ---- Phase 2: Floating exchange rate ----
+        self.exchange_rate = 1.0            # units of foreign currency per 1 unit of ours
+        self.cumulative_trade_balance = 0.0 # positive = export surplus, negative = import deficit
 
         for g in [Goods.food, Goods.wood, Goods.furn]:
             self.export_vol[g] = []
@@ -1343,6 +1346,11 @@ def foreign_sell(t, dest_region, source_region):
                 continue
             price = dest_region.recipes[good]['price']
             ask_price = price * 0.95
+            # Phase 2: Exchange rate adjustment for source region's buyers
+            # If source region's currency is weak (rate < 1.0), imports cost more
+            fx = getattr(source_region, 'exchange_rate', 1.0)
+            if fx != 1.0 and getattr(source_region.gov, 'floating_exchange_rate_enabled', True):
+                ask_price = ask_price / fx
             buyers = [a for a in dest_region.agents
                       if not getattr(a, 'is_trader', False) and a.cash > ask_price]
             random.shuffle(buyers)
@@ -1466,6 +1474,17 @@ def main():
         process_transport(t, region_a, region_b)
         foreign_sell(t, region_a, region_b)
         foreign_sell(t, region_b, region_a)
+
+        # Phase 2: Adjust exchange rates based on trade balance
+        for region, other in [(region_a, region_b), (region_b, region_a)]:
+            turn_export = sum(region.export_val[g][-1] for g in [Goods.food, Goods.wood, Goods.furn] if region.export_val[g])
+            turn_import = sum(region.import_val[g][-1] for g in [Goods.food, Goods.wood, Goods.furn] if region.import_val[g])
+            region.cumulative_trade_balance += (turn_export - turn_import)
+            if getattr(region.gov, 'floating_exchange_rate_enabled', True):
+                # 0.5% adjustment per unit of cumulative imbalance
+                adj = region.cumulative_trade_balance * 0.000005
+                region.exchange_rate *= (1 + adj)
+                region.exchange_rate = max(0.1, min(10.0, region.exchange_rate))
 
         for g in [Goods.food, Goods.wood, Goods.furn]:
             pa = region_a.recipes[g]['price']
