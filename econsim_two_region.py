@@ -290,8 +290,6 @@ class Region:
     # ------------------------------------------------------------------
 
     def step(self, t: int):
-        _tm.bank = self.bank
-
         self._record_start()
 
         new_cos = self._run_labour(t)
@@ -529,9 +527,6 @@ class Region:
     # ---- Trade ----
 
     def _trade(self, t):
-        ob = _tm.bank
-        _tm.bank = self.bank
-
         tg = [Goods.food, Goods.wood, Goods.furn]
         agp = sum(self.recipes[g]['price'] for g in tg)
         fp = self.recipes[Goods.food]['price']
@@ -568,12 +563,10 @@ class Region:
         # Update mostDemand so career switching works correctly
         _tm.mostDemand = most_demand_good
 
-        _tm.bank = ob
-
     def _decide_borrow_dep(self, agents, agp, fp, t):
         for a in agents:
-            _tm.BorrowIfNeedTo(t, a)
-            _tm.PayLoans(a)
+            _tm.BorrowIfNeedTo(t, a, bank=self.bank)
+            _tm.PayLoans(a, bank=self.bank)
             self._borrow_food(a, fp)
             self._borrow_inp(a)
             self._dep_excess(a, agp)

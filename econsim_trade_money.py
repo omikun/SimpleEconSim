@@ -64,12 +64,12 @@ class Loan:
         principlePaid = max(0, amount - interest_paid)
         self.principle_paid += principlePaid
         self.interest_paid += interest_paid
-        bank.PayPrinciple(principlePaid)
-        bank.PayInterest(interest_paid)
+        self.bank.PayPrinciple(principlePaid)
+        self.bank.PayInterest(interest_paid)
 
 
 class Bank():
-    def __init__(self):
+    def __init__(self, gov=None):
         self.interest_rate = .001
         self.deposit_interest_rate = 0.0005
         self.base_deposit_interest_rate = 0.0005
@@ -81,6 +81,7 @@ class Bank():
         self.total_interest_earned = 0
         self.total_deposit_interest_paid = 0
         self.turn_loan_interest = 0
+        self.gov = gov  # Reference to government for bailout decisions
 
     def Borrow(self, t, agent, amount):
         borrowableAmount = (self.total_deposits * (1 - self.reserve_fraction)
@@ -123,7 +124,7 @@ class Bank():
         bailout_amount = max(bailout_amount, loss_amount)
         approved, amount = gov_decide_bailout(t, self, bailout_amount)
         if approved and amount > 0:
-            gov = econsim_states.default_gov
+            gov = getattr(self, 'gov', None)
             if gov is not None:
                 actual = min(amount, gov.agent.cash)
                 gov.agent.cash -= actual
@@ -180,14 +181,22 @@ def Borrow(t, agent, foodPrice, bank):
     bank.Borrow(t, agent, amount)
 
 
-def BorrowIfNeedTo(t, agent):
+def BorrowIfNeedTo(t, agent, bank=None):
+    if bank is None:
+        bank = globals().get('bank', None)
+        if bank is None:
+            return
     wealth = agent.wealth()
     if wealth < agent.oweThisTurn():
         needed = agent.oweThisTurn() - wealth
         Borrow(t, agent, needed * 2, bank)
 
 
-def PayLoans(agent):
+def PayLoans(agent, bank=None):
+    if bank is None:
+        bank = globals().get('bank', None)
+        if bank is None:
+            return
     total_wealth = agent.cash + bank.deposits[agent]
     remaining_wealth = total_wealth
     total_paid = 0
@@ -213,8 +222,8 @@ mostDemand = Goods.none
 
 def Trade(t, agents, recipes, demand_ratio_log, demand_log,
           supply_log, sold_log, bought_log):
-    prevTotalCash = getTotalCash(agents)
-    global bank, mostDemand
+    prevTotalCash = getTotalCash(agents, bank)
+    global mostDemand
     mostDemand = Goods.gov
     maxDemandRatio = 0
     goods = [Goods.food, Goods.wood, Goods.furn]
@@ -309,7 +318,7 @@ def GatherBidsAsks(t, agents, good, goodPrice, num_desired, recipes,
     for agent in agents:
         agent_rec = recipes[agent.output]
         is_employee = getattr(agent, 'employer', None) is not None
-        _withdraw_if_low_cash(agent, goodPrice, num_desired)
+        _withdraw_if_low_cash(agent, goodPrice, num_desired, bank)
         mult = getattr(agent, 'consumption_mult', 1.0)
         bid = _compute_bid(agent, good, goodPrice, num_desired, agent_rec,
                            is_employee, mult, recipes)
@@ -326,7 +335,7 @@ def GatherBidsAsks(t, agents, good, goodPrice, num_desired, recipes,
     return totalAsks, totalBids
 
 
-def _withdraw_if_low_cash(agent, goodPrice, num_desired):
+def _withdraw_if_low_cash(agent, goodPrice, num_desired, bank):
     """Withdraw from bank deposits if cash is low for purchasing."""
     bank_balance = bank.deposits.get(agent, 0)
     if bank_balance > 0:
@@ -510,15 +519,15 @@ def SetMarketPrice(demandRatio, good, recipes, agents=None):
 def DecideBorrowDeposit(agents, allGoodsPrice, bank, foodPrice,
                         prevTotalCash, t):
     for agent in agents:
-        BorrowIfNeedTo(t, agent)
-        PayLoans(agent)
-        _maybe_borrow_food_money(t, agent, foodPrice)
-        _maybe_borrow_inputs(t, agent)
-        _deposit_excess_cash(t, agent, allGoodsPrice)
+        BorrowIfNeedTo(t, agent, bank=bank)
+        PayLoans(agent, bank=bank)
+        _maybe_borrow_food_money(t, agent, foodPrice, bank)
+        _maybe_borrow_inputs(t, agent, bank)
+        _deposit_excess_cash(t, agent, allGoodsPrice, bank)
         agent.remainingCash = agent.cash
 
 
-def _maybe_borrow_food_money(t, agent, foodPrice):
+def _maybe_borrow_food_money(t, agent, foodPrice, bank):
     """Borrow for food if starving and no cash."""
     if agent.output != Goods.food and agent.cash < foodPrice \
        and agent.hungry_steps > 10:
@@ -530,7 +539,7 @@ def _maybe_borrow_food_money(t, agent, foodPrice):
             Borrow(t, agent, foodPrice, bank)
 
 
-def _maybe_borrow_inputs(t, agent):
+def _maybe_borrow_inputs(t, agent, bank):
     """Borrow for business inputs if insufficient cash."""
     if agent.output not in recipes:
         return
@@ -551,7 +560,7 @@ def _maybe_borrow_inputs(t, agent):
         bank.Borrow(t, agent, amount_needed)
 
 
-def _deposit_excess_cash(t, agent, allGoodsPrice):
+def _deposit_excess_cash(t, agent, allGoodsPrice, bank):
     """Deposit excess cash above a consumption-multiplier-based floor."""
     mult = getattr(agent, 'consumption_mult', 1.0)
     total_liquid = agent.cash + bank.deposits.get(agent, 0)
@@ -708,7 +717,7 @@ def _match_secondary_orders(asks, bids, good, t):
 # =============================================================================
 
 def reportCash(t, agents, prevTotalCash, msg, print=False):
-    tempTotalCash = getTotalCash(agents)
+    tempTotalCash = getTotalCash(agents, bank)
     diff = math.fabs(tempTotalCash - prevTotalCash)
     epsilon = 1e-8
     if diff > epsilon or print:
@@ -716,6 +725,10 @@ def reportCash(t, agents, prevTotalCash, msg, print=False):
                 diff)
 
 
-def getTotalCash(agents):
+def getTotalCash(agents, bank=None):
+    if bank is None:
+        bank = globals().get('bank', None)
+        if bank is None:
+            return sum(agent.cash for agent in agents)
     bankCash = bank.total_deposits - bank.total_liabilities
     return sum(agent.cash for agent in agents) + bankCash
