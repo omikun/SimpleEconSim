@@ -1,6 +1,8 @@
 import bisect
 import random
 import math
+from dataclasses import dataclass
+from typing import Optional, Any
 
 import econsim_states
 from econsim_states import *
@@ -11,74 +13,133 @@ from logger import logdebug, loginfo, logwarning
 
 
 # =============================================================================
+# LiveContext: bundles all stateful globals into a parameter object
+# =============================================================================
+
+@dataclass
+class LiveContext:
+    """Context object replacing global state reads/writes in Live().
+    
+    The single-region callers (econsim.py) pass no context and Live() auto-builds
+    from module-level globals for backward compatibility.
+    The two-region caller (econsim_two_region.py) builds a LiveContext from
+    per-region state and passes it explicitly, avoiding global patching.
+    """
+    recipes: dict
+    goods: list
+    governments: list
+    default_gov: Any                # Government | None
+    hungry_log: dict
+    dead_pop: list
+    deadstarve_pop: list
+    production_log: dict
+    starve_limit: int
+    profession: dict
+    max_career_switches: int
+    p_birth: float
+    birth_gap: int
+    bank: Any                       # Bank singleton (trade.bank or region.bank)
+    most_demand: Any                # Goods enum (trade.mostDemand or computed value)
+
+
+def _build_context_from_globals() -> LiveContext:
+    """Build a LiveContext from the current module/global state."""
+    return LiveContext(
+        recipes=recipes,
+        goods=goods,
+        governments=econsim_states.governments,
+        default_gov=econsim_states.default_gov,
+        hungry_log=hungry_log,
+        dead_pop=dead_pop,
+        deadstarve_pop=deadstarve_pop,
+        production_log=production_log,
+        starve_limit=starve_limit,
+        profession=profession,
+        max_career_switches=max_career_switches,
+        p_birth=p_birth,
+        birth_gap=birthGap,
+        bank=trade.bank,
+        most_demand=trade.mostDemand,
+    )
+
+
+# =============================================================================
 # TOP-LEVEL ENTRY POINT
 # =============================================================================
 
-def Live(t, agents):
-    """Process one turn of the life-cycle for all agents (in place)."""
-    global dead_pop, deadstarve_pop, production_log
+def Live(t, agents, context: Optional[LiveContext] = None):
+    """Process one turn of the life-cycle for all agents (in place).
+    
+    When *context* is None (single-region callers), read/write global state
+    directly via _build_context_from_globals() for backward compatibility.
+    When *context* is provided (two-region callers), all reads/writes go
+    through the context object — no global patching needed.
+    """
+    if context is None:
+        ctx = _build_context_from_globals()
+    else:
+        ctx = context
 
     # ---- Pre-life-cycle government transfers ----
-    for gov in econsim_states.governments:
+    for gov in ctx.governments:
         gov.distribute_ubi(t, agents)
-    for gov in econsim_states.governments:
+    for gov in ctx.governments:
         immigrants = gov.spawn_immigrants(t)
         if immigrants:
             agents.extend(immigrants)
-    for gov in econsim_states.governments:
+    for gov in ctx.governments:
         gov.process_parental_leave(t, agents)
 
     # ---- Government food aid ----
-    food_price = recipes[Goods.food]['price']
-    if econsim_states.default_gov is not None:
-        econsim_states.default_gov.provide_food_aid(t, agents, food_price)
+    food_price = ctx.recipes[Goods.food]['price']
+    if ctx.default_gov is not None:
+        ctx.default_gov.provide_food_aid(t, agents, food_price)
     else:
         logwarning(t, "No government exists to provide food aid!")
 
     # ---- Career-switching bottleneck analysis (hoisted) ----
-    choices_list = [g for g in goods if g != Goods.gov]
-    bottleneck_weights = _compute_bottleneck_weights(agents, choices_list)
+    choices_list = [g for g in ctx.goods if g != Goods.gov]
+    bottleneck_weights = _compute_bottleneck_weights(ctx, agents, choices_list)
 
     # ---- Per-agent life-cycle ----
     new_agents = []
     numSwitches = 0
     numfood = numwood = numFurn = 0
     numdead = 0
-    numdeadstarve = deadstarve_pop[-1]
+    numdeadstarve = ctx.deadstarve_pop[-1]
 
     random.shuffle(agents)
     for agent in agents:
         if agent.is_corp:
             new_agents.append(agent)
             continue
-        numfood, numwood, numFurn = _consume_goods(agent, numfood, numwood, numFurn)
+        numfood, numwood, numFurn = _consume_goods(ctx, agent, numfood, numwood, numFurn)
         _consume_daily_food(agent)
-        numfood, numSwitches = _handle_career_switching(t, agent, agents,
-                                                        choices_list,
-                                                        bottleneck_weights,
-                                                        numSwitches)
+        numfood, numSwitches = _handle_career_switching(ctx, t, agent, agents,
+                                                         choices_list,
+                                                         bottleneck_weights,
+                                                         numSwitches)
         _handle_job_seeking(t, agent, agents)
-        numfood = _handle_reproduction(t, agent, agents, new_agents)
-        died = _handle_death(t, agent, agents)
+        numfood = _handle_reproduction(ctx, t, agent, agents, new_agents)
+        died = _handle_death(ctx, t, agent, agents)
         if died:
             numdead += 1
-            numdeadstarve += 1 if agent.hungry_steps >= starve_limit else 0
+            numdeadstarve += 1 if agent.hungry_steps >= ctx.starve_limit else 0
         else:
             new_agents.append(agent)
 
     # ---- Post-life-cycle welfare ----
-    if econsim_states.default_gov is not None:
-        food_price = recipes.get(Goods.food, {}).get('price', 1)
+    if ctx.default_gov is not None:
+        food_price = ctx.recipes.get(Goods.food, {}).get('price', 1)
         reserve = food_price * 20
-        econsim_states.default_gov.distribute_welfare(t, new_agents,
-                                                       min_reserve=reserve)
+        ctx.default_gov.distribute_welfare(t, new_agents, min_reserve=reserve)
 
     # ---- Logging ----
-    for good in goods:
-        hungry_log[good].append(
+    for good in ctx.goods:
+        ctx.hungry_log[good].append(
             sum(1 for a in agents if a.output == good and a.hungry_steps > 0))
-    dead_pop.append(numdead)
-    deadstarve_pop.append(numdeadstarve)
+    ctx.dead_pop.append(numdead)
+    ctx.deadstarve_pop.append(numdeadstarve)
     logdebug(t, 'num dead', numdead)
     logdebug("consumed ", numfood, "food", numwood, "wood", numFurn, "furn")
     return new_agents
@@ -88,15 +149,15 @@ def Live(t, agents):
 # BOTTLENECK DETECTION
 # =============================================================================
 
-def _compute_bottleneck_weights(agents, choices_list):
+def _compute_bottleneck_weights(ctx: LiveContext, agents, choices_list):
     """Hoisted computation: which sector is most input-constrained?"""
     bottleneck_sector = Goods.none
     bottleneck_ratio = 0
     weights = [1] * len(choices_list)
-    for candidate_good in goods:
+    for candidate_good in ctx.goods:
         if candidate_good == Goods.gov:
             continue
-        recipe = recipes.get(candidate_good)
+        recipe = ctx.recipes.get(candidate_good)
         if recipe and recipe.get('numInput', 0) > 0:
             input_good = recipe['input']
             num_consumers = sum(
@@ -122,7 +183,7 @@ def _compute_bottleneck_weights(agents, choices_list):
 # CONSUMPTION
 # =============================================================================
 
-def _consume_goods(agent, numfood, numwood, numFurn):
+def _consume_goods(ctx: LiveContext, agent, numfood, numwood, numFurn):
     """Wealthy consumption (luxury goods & extra food) based on consumption_mult."""
     mult = getattr(agent, 'consumption_mult', 1.0)
     if mult > 1.0:
@@ -137,7 +198,7 @@ def _consume_goods(agent, numfood, numwood, numFurn):
             loginfo('', agent.name(),
                     'wealth consumption (mult=' + str(round(mult, 2))
                     + '), consumed extra food +' + str(extra_food))
-        for luxury_good in goods:
+        for luxury_good in ctx.goods:
             if luxury_good in (Goods.food, Goods.gov):
                 continue
             if agent.inv.get(luxury_good, 0) > 0 and GetOutputCom(agent) != luxury_good:
@@ -152,7 +213,7 @@ def _consume_goods(agent, numfood, numwood, numFurn):
                     loginfo('', agent.name(),
                             'wealth consumption (mult=' + str(round(mult, 2))
                             + '), consumed', consume_qty,
-                            profession[luxury_good])
+                            ctx.profession[luxury_good])
     # Basic wood/furniture consumption
     if agent.inv.get(Goods.wood, 0) > 2 and GetInputCom(agent) != Goods.wood \
        and GetOutputCom(agent) != Goods.wood:
@@ -182,11 +243,11 @@ def _consume_daily_food(agent):
 # CAREER SWITCHING
 # =============================================================================
 
-def _handle_career_switching(t, agent, agents, choices_list,
-                              bottleneck_weights, numSwitches):
+def _handle_career_switching(ctx: LiveContext, t, agent, agents,
+                              choices_list, bottleneck_weights, numSwitches):
     """Emergency / mobility career changes for independent agents."""
     is_employee = getattr(agent, 'employer', None) is not None
-    if is_employee or numSwitches >= max_career_switches:
+    if is_employee or numSwitches >= ctx.max_career_switches:
         return 0, numSwitches
     if agent.hungry_steps > 2:
         if agent.output != Goods.food:
@@ -196,10 +257,10 @@ def _handle_career_switching(t, agent, agents, choices_list,
             numSwitches += 1
             return 0, numSwitches
     if agent.hungry_steps > 1 and (t - getattr(agent, 'lastCareerSwitch', 0) > 10):
-        if trade.mostDemand != Goods.gov and agent.output != trade.mostDemand:
+        if ctx.most_demand != Goods.gov and agent.output != ctx.most_demand:
             logdebug(t, agent.name(), 'hungry, switching to in-demand career:',
-                     profession[trade.mostDemand])
-            agent.output = trade.mostDemand
+                     ctx.profession[ctx.most_demand])
+            agent.output = ctx.most_demand
             agent.lastCareerSwitch = t
             numSwitches += 1
             return 0, numSwitches
@@ -209,13 +270,13 @@ def _handle_career_switching(t, agent, agents, choices_list,
                 agent.output = random.choices(choices_list,
                                               weights=bottleneck_weights, k=1)[0]
                 logdebug(t, agent.name(), 'poor, exploring random career:',
-                         profession[agent.output])
+                         ctx.profession[agent.output])
                 agent.lastCareerSwitch = t
                 numSwitches += 1
                 return 0, numSwitches
-        elif trade.mostDemand != Goods.gov and agent.output != trade.mostDemand:
-            target = trade.mostDemand
-            target_recipe = recipes.get(target)
+        elif ctx.most_demand != Goods.gov and agent.output != ctx.most_demand:
+            target = ctx.most_demand
+            target_recipe = ctx.recipes.get(target)
             if target_recipe and target_recipe.get('numInput', 0) > 0:
                 input_good = target_recipe['input']
                 num_consumers = sum(
@@ -231,7 +292,7 @@ def _handle_career_switching(t, agent, agents, choices_list,
                 if pressure > 2.0:
                     target = input_good
                     logdebug(t, agent.name(), 'redirected to bottleneck input:',
-                             profession[target])
+                             ctx.profession[target])
             agent.output = target
             agent.lastCareerSwitch = t
             numSwitches += 1
@@ -271,17 +332,17 @@ def _handle_job_seeking(t, agent, agents):
 # REPRODUCTION
 # =============================================================================
 
-def _handle_reproduction(t, agent, agents, new_agents):
+def _handle_reproduction(ctx: LiveContext, t, agent, agents, new_agents):
     """Handle birth of new agents."""
     numfood = 0
     if agent.hungry_steps > 0:
         return 0
     import government as govmod
     gov = govmod.find_government_for_agent(agent)
-    birth_prob = p_birth
+    birth_prob = ctx.p_birth
     if gov is not None:
         birth_prob *= gov.get_fertility_multiplier()
-    if agent.lastRepro + birthGap < t and random.random() < birth_prob \
+    if agent.lastRepro + ctx.birth_gap < t and random.random() < birth_prob \
        and agent.cash > 20 and agent.inv.get(Goods.food, 0) >= 2:
         agent.lastRepro = t
         new_agent = Agent(t)
@@ -292,18 +353,18 @@ def _handle_reproduction(t, agent, agents, new_agents):
         giveFood = min(1, agent.inv[Goods.food])
         agent.inv[Goods.food] -= giveFood
         empty_professions = [
-            g for g in goods if g != Goods.gov
+            g for g in ctx.goods if g != Goods.gov
             and sum(1 for a in agents if a.output == g) == 0
         ]
         if empty_professions:
             output = empty_professions[0]
-            logdebug(t, "seeding extinct profession:", profession[output])
+            logdebug(t, "seeding extinct profession:", ctx.profession[output])
         else:
-            output = trade.mostDemand
+            output = ctx.most_demand
             if output == Goods.food or random.random() < .5:
                 output = agent.output
-        if output != Goods.gov and recipes[output]['maxtotalprod'] + 5 \
-           <= production_log[output][-1]:
+        if output != Goods.gov and ctx.recipes[output]['maxtotalprod'] + 5 \
+           <= ctx.production_log[output][-1]:
             output = Goods.gov
         logdebug(t, "new agent of ", output)
         numInput = 0
@@ -322,9 +383,9 @@ def _handle_reproduction(t, agent, agents, new_agents):
 # DEATH
 # =============================================================================
 
-def _handle_death(t, agent, agents):
+def _handle_death(ctx: LiveContext, t, agent, agents):
     """Determine if agent dies (starvation or old age). Clean up assets."""
-    if agent.hungry_steps < starve_limit:
+    if agent.hungry_steps < ctx.starve_limit:
         base_death_prob = [0.0002, 0.0003, 0.0007, 0.0013, 0.0025,
                            0.006, 0.013, 0.027, 0.06, 0.13]
         import government as govmod
@@ -348,9 +409,9 @@ def _handle_death(t, agent, agents):
     logdebug(t, agent.name(), 'died, has', agent.cash,
              ' #descendents:', len(livingDescendents),
              [a.name() for a in livingDescendents])
-    _handle_debt_inheritance(t, agent, livingDescendents)
-    _handle_wealth_inheritance(t, agent, livingDescendents)
-    _zero_out_dead_agent(agent)
+    _handle_debt_inheritance(ctx, t, agent, livingDescendents)
+    _handle_wealth_inheritance(ctx, t, agent, livingDescendents)
+    _zero_out_dead_agent(ctx, agent)
     return True
 
 
@@ -400,9 +461,9 @@ def _handle_company_inheritance(t, agent):
     agent.company_owned = None
 
 
-def _handle_debt_inheritance(t, agent, livingDescendents):
+def _handle_debt_inheritance(ctx: LiveContext, t, agent, livingDescendents):
     """Repay debt from agent's cash/deposits; remainder passed to heirs or bank."""
-    total_wealth = agent.cash + trade.bank.deposits.get(agent, 0)
+    total_wealth = agent.cash + ctx.bank.deposits.get(agent, 0)
     remaining_wealth = total_wealth
     total_paid = 0
     for loan in agent.loans:
@@ -415,35 +476,35 @@ def _handle_debt_inheritance(t, agent, livingDescendents):
     if total_paid > 0:
         if total_paid > agent.cash:
             needed_from_bank = total_paid - agent.cash
-            trade.bank.Withdraw(agent, needed_from_bank)
+            ctx.bank.Withdraw(agent, needed_from_bank)
         agent.cash -= total_paid
     agent.loans = [l for l in agent.loans if not l.isPaid()]
     remaining_principle = sum(l.principle - l.principle_paid for l in agent.loans)
     if remaining_principle > 0:
-        trade.bank.total_liabilities -= remaining_principle
-        trade.bank.loans = [l for l in trade.bank.loans if l not in agent.loans]
+        ctx.bank.total_liabilities -= remaining_principle
+        ctx.bank.loans = [l for l in ctx.bank.loans if l not in agent.loans]
         if len(livingDescendents) > 0:
             principle_share = remaining_principle / len(livingDescendents)
             for descendent in livingDescendents:
-                new_loan = trade.Loan(trade.bank, descendent, principle_share,
-                                      trade.bank.interest_rate)
+                new_loan = trade.Loan(ctx.bank, descendent, principle_share,
+                                      ctx.bank.interest_rate)
                 descendent.loans.append(new_loan)
-                trade.bank.loans.append(new_loan)
-                trade.bank.total_liabilities += principle_share
+                ctx.bank.loans.append(new_loan)
+                ctx.bank.total_liabilities += principle_share
         else:
-            if remaining_principle > trade.bank.total_deposits:
-                trade.bank.RequestBailout(t, remaining_principle)
-            trade.bank.total_deposits -= remaining_principle
+            if remaining_principle > ctx.bank.total_deposits:
+                ctx.bank.RequestBailout(t, remaining_principle)
+            ctx.bank.total_deposits -= remaining_principle
 
 
-def _handle_wealth_inheritance(t, agent, livingDescendents):
+def _handle_wealth_inheritance(ctx: LiveContext, t, agent, livingDescendents):
     """Distribute remaining cash, deposits, and inventory to heirs or government."""
     inheritance_cash = agent.cash
-    inheritance_deposits = trade.bank.deposits.get(agent, 0)
-    gov = econsim_states.default_gov
+    inheritance_deposits = ctx.bank.deposits.get(agent, 0)
+    gov = ctx.default_gov
     if len(livingDescendents) > 0:
         if inheritance_deposits > 0:
-            trade.bank.Withdraw(agent, inheritance_deposits)
+            ctx.bank.Withdraw(agent, inheritance_deposits)
             inheritance_cash += inheritance_deposits
         num_heirs = len(livingDescendents)
         cash_share = int(inheritance_cash // num_heirs)
@@ -464,15 +525,15 @@ def _handle_wealth_inheritance(t, agent, livingDescendents):
         if gov is not None:
             gov.agent.cash += inheritance_cash
             if inheritance_deposits > 0:
-                trade.bank.deposits[gov.agent] = \
-                    trade.bank.deposits.get(gov.agent, 0) + inheritance_deposits
-            trade.bank.total_deposits -= inheritance_deposits
+                ctx.bank.deposits[gov.agent] = \
+                    ctx.bank.deposits.get(gov.agent, 0) + inheritance_deposits
+            ctx.bank.total_deposits -= inheritance_deposits
             for good, amount in agent.inv.items():
                 gov.agent.inv[good] = gov.agent.inv.get(good, 0) + amount
 
 
-def _zero_out_dead_agent(agent):
+def _zero_out_dead_agent(ctx: LiveContext, agent):
     """Clear dead agent's assets so they don't leak from the cash sum."""
     agent.cash = 0
-    if agent in trade.bank.deposits:
-        del trade.bank.deposits[agent]
+    if agent in ctx.bank.deposits:
+        del ctx.bank.deposits[agent]

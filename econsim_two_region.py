@@ -893,63 +893,28 @@ class Region:
             a.consumption_mult = max(1.0, min(10.0, math.sqrt(w / col))) if w > col else 1.0
 
     def _live(self, t):
-        """Run life-cycle by patching global state."""
+        """Run life-cycle using LiveContext (no global state patching needed)."""
         import econsim_live as _lm
+        from econsim_live import LiveContext
 
-        ob = _tm.bank
-        _tm.bank = self.bank
-        # mostDemand is already set by _trade() — do not clobber it
-
-        # Save
-        og = st.governments
-        od = st.default_gov
-        o_pl = st.pop_log
-        o_hl = st.hungry_log
-        o_dp = st.dead_pop
-        o_dsp = st.deadstarve_pop
-        o_rec = st.recipes
-        o_sl = st.starve_limit
-
-        # Patch st globals
-        st.governments = [self.gov]
-        st.default_gov = self.gov
-        st.pop_log = self.pop_log
-        st.hungry_log = self.hungry_log
-        st.dead_pop = self.dead_pop
-        st.deadstarve_pop = self.deadstarve_pop
-        st.recipes = self.recipes
-        st.starve_limit = starve_limit
-
-        # Also patch the live module's local references (imported via from econsim_states import *)
-        _lm.production_log = self.production_log
-        _lm.recipes = self.recipes
-        _lm.pop_log = self.pop_log
-        _lm.hungry_log = self.hungry_log
-        _lm.dead_pop = self.dead_pop
-        _lm.deadstarve_pop = self.deadstarve_pop
-        _lm.starve_limit = starve_limit
-
-        try:
-            result = _lm.Live(t, self.agents)
-        finally:
-            st.governments = og
-            st.default_gov = od
-            st.pop_log = o_pl
-            st.hungry_log = o_hl
-            st.dead_pop = o_dp
-            st.deadstarve_pop = o_dsp
-            st.recipes = o_rec
-            st.starve_limit = o_sl
-            _tm.bank = ob
-
-            # Restore live module references
-            _lm.production_log = st.production_log
-            _lm.recipes = st.recipes
-            _lm.pop_log = st.pop_log
-            _lm.hungry_log = st.hungry_log
-            _lm.dead_pop = st.dead_pop
-            _lm.deadstarve_pop = st.deadstarve_pop
-            _lm.starve_limit = st.starve_limit
+        ctx = LiveContext(
+            recipes=self.recipes,
+            goods=self.goods,
+            governments=[self.gov],
+            default_gov=self.gov,
+            hungry_log=self.hungry_log,
+            dead_pop=self.dead_pop,
+            deadstarve_pop=self.deadstarve_pop,
+            production_log=self.production_log,
+            starve_limit=starve_limit,
+            profession=st.profession,
+            max_career_switches=max_career_switches,
+            p_birth=p_birth,
+            birth_gap=birthGap,
+            bank=self.bank,
+            most_demand=_tm.mostDemand,
+        )
+        result = _lm.Live(t, self.agents, context=ctx)
 
         # Post-processing: trader inheritance + career switching
         if self.dest_region is not None and t > 0:
