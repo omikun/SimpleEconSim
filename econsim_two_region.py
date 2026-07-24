@@ -536,6 +536,8 @@ class Region:
         self.bank.PayDepositInterest(self.agents)
         self._decide_borrow_dep(self.agents, agp, fp, t)
 
+        max_demand_ratio = 0
+        most_demand_good = Goods.food
         for good in tg:
             cdes = 16 if good == Goods.food else 10 if good == Goods.wood else max(1, int(16 / max(1, self.recipes[good]['price'])))
             price = self.recipes[good]['price']
@@ -547,6 +549,9 @@ class Region:
             self.demand_ratio_log[good].append(dr)
             self.demand_log[good].append(tb)
             self.supply_log[good].append(ta)
+            if max_demand_ratio < dr and tb > 0:
+                max_demand_ratio = dr
+                most_demand_good = good
             price = self._set_price(dr, good)
             if min(ta, tb) == 0:
                 continue
@@ -556,6 +561,9 @@ class Region:
             if math.fabs(tcs - tcp) > 0.1:
                 logwarning(t, f"Region '{self.name}' trade {good}: ${tcs - tcp:.2f}")
             self.sold_log[good].append(tsold)
+
+        # Update mostDemand so career switching works correctly
+        _tm.mostDemand = most_demand_good
 
         _tm.bank = ob
 
@@ -887,7 +895,7 @@ class Region:
 
         ob = _tm.bank
         _tm.bank = self.bank
-        _tm.mostDemand = Goods.gov
+        # mostDemand is already set by _trade() — do not clobber it
 
         # Save
         og = st.governments
@@ -1389,9 +1397,14 @@ def main():
 
     random.seed(42)
 
+    # Region A: food-surplus economy (2× food production)
+    # 75% farmers, 11% woodcutters, 3.7% carpenters, ~10% gov
     region_a = Region("Region_A", t=0, num_agents=110,
-                       profession_distribution={Goods.food: 0.41, Goods.wood: 0.06, Goods.furn: 0.02})
-    region_b = Region("Region_B", t=0, num_agents=110)
+                       profession_distribution={Goods.food: 0.753, Goods.wood: 0.110, Goods.furn: 0.037})
+    # Region B: specialization-aligned distribution (2× wood production)
+    # 50% farmers, 35% woodcutters, 5% carpenters, ~10% gov
+    region_b = Region("Region_B", t=0, num_agents=110,
+                       profession_distribution={Goods.food: 0.50, Goods.wood: 0.35, Goods.furn: 0.05})
 
     # Regional specialization
     region_a.recipes[Goods.food]['production'] *= 2
