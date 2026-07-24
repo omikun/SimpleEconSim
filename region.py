@@ -13,9 +13,9 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-from goods import Goods
+from goods import Goods, profession
 from econsim_states import (
-    recipes, goods, profession, p_birth, p_death, birthGap,
+    recipes, goods, p_birth, p_death, birthGap,
     max_career_switches, starve_limit,
 )
 from logger import loginfo, logwarning, logdebug

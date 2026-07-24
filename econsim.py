@@ -1,18 +1,34 @@
-import sys 
+"""
+Single-region economic simulation.
+
+Usage:
+    python3 econsim.py [time_steps]
+"""
+
+import sys
 import random
 import math
 from statistics import mean
 import matplotlib.pyplot as plt
 
-import econsim_live as Living
-import econsim_states
-from econsim_states import *
-from goods import Goods
-import econsim_trade_money as trade
-from logger import *
-from agent import Agent, InitAgent, GetInputCom, GetOutputCom
+from goods import Goods, profession
+from region import compute_gini as region_gini, get_total_cash
+from econsim_states import (
+    recipes, goods, p_birth, p_death, birthGap,
+    max_career_switches, starve_limit, num_agents,
+    totalProd, agentid,
+    pop_log, inv_log, hungry_log, production_log,
+    demand_ratio_log, supply_log, demand_log,
+    perCapitaInv, cash_log, gini_log, totalCash_log, bankCash_log,
+    price_log, sold_log, bought_log, dead_pop, deadstarve_pop,
+    total_pop, pop_change_rate_log, gdp_log, gdp_by_profession_log,
+    governments, default_gov,
+)
+from logger import loginfo, logdebug, logwarning, logInit, logerror
 
-from region import count_agents, compute_gini, get_total_cash
+import econsim_live as Living
+import econsim_trade_money as trade
+from agent import Agent, InitAgent, GetInputCom, GetOutputCom
 
 
 # =============================================================================
@@ -238,8 +254,8 @@ def PayWages(t, agents):
 
 def Produce(t, agents):
     numAgentsPerGoods = {}
-    for good in econsim_states.goods:
-        numAgentsPerGoods[good] = count_agents(agents, good)
+    for good in goods:
+        numAgentsPerGoods[good] = sum(agent.output == good for agent in agents)
     totalProd.clear()
     for agent in agents:
         if agent.employer is not None:
@@ -251,7 +267,7 @@ def Produce(t, agents):
             _produce_corp(t, agent, recipe, output, numAgentsPerGoods)
         else:
             _produce_independent(t, agent, recipe, output, numAgentsPerGoods)
-    for good in econsim_states.goods:
+    for good in goods:
         if good != Goods.gov:
             production_log[good].append(totalProd[good])
     for good, produced in totalProd.items():
@@ -341,10 +357,10 @@ def _produce_independent(t, agent, recipe, output, numAgentsPerGoods):
 # GINI / CASH helpers
 # =============================================================================
 
+
+
 def RecalculateConsumptionMultipliers(agents):
-    """Recalculate consumption_mult for every living agent based on wealth / CoL.
-    Formula: sqrt(wealth / CoL), clamped to [1.0, 10.0].
-    If wealth <= CoL, multiplier stays at 1.0 (no overconsumption)."""
+    """Recalculate consumption_mult for every living agent based on wealth / CoL."""
     food_price = recipes.get(Goods.food, {}).get('price', 1)
     wood_price = recipes.get(Goods.wood, {}).get('price', 1)
     furn_price = recipes.get(Goods.furn, {}).get('price', 1)
@@ -366,13 +382,7 @@ def RecalculateConsumptionMultipliers(agents):
 # =============================================================================
 
 def DistributeOwnerProfits(t, agents):
-    """Distribute corporate profits to owners:
-
-    1. Repay owner loan from previous bailouts
-    2. Base salary equal to employee wage
-    3. Progressive profit share on retained earnings (approaches 25%)
-    4. Owner bailout when corp runs low on cash (injects as loan)
-    """
+    """Distribute corporate profits to owners."""
     for agent in agents:
         if not agent.is_corp or not agent.alive:
             continue
@@ -462,12 +472,12 @@ def main():
     agents = [Agent(0) for _ in range(num_agents)]
     import government as govmod
     gov = govmod.create_default_government(0, initial_cash=200)
-    agents.append(econsim_states.default_gov.agent)
+    agents.append(default_gov.agent)
     InitAgents(agents)
     for agent in agents:
         if hasattr(agent, 'id'):
             gov._add_citizen(agent)
-    prevTotalCash = get_total_cash(agents)
+    prevTotalCash = get_total_cash(agents, trade.bank)
     for t in range(time_steps):
         _record_start_of_turn(agents)
         new_company_agents = RunLaborMarket(t, agents)
@@ -483,16 +493,16 @@ def main():
         _log_gdp(agents)
         if t > 0 and t % 10 == 0:
             RecalculateConsumptionMultipliers(agents)
-        cash_before_live = get_total_cash(agents)
+        cash_before_live = get_total_cash(agents, trade.bank)
         agents = Living.Live(t, agents)
-        cash_after_live = get_total_cash(agents)
+        cash_after_live = get_total_cash(agents, trade.bank)
         live_diff = cash_after_live - cash_before_live
         if abs(live_diff) > 5.0:
             print(f"{t}  CASH LEAK: Live() changed total by ${live_diff:.2f}")
         _log_all_metrics(t, agents)
         total_pop.append(sum(log[-1] for log in pop_log.values()))
         bankCash_log.append(trade.bank.total_deposits - trade.bank.total_liabilities)
-        totalCash_log.append(get_total_cash(agents))
+        totalCash_log.append(get_total_cash(agents, trade.bank))
         _log_pop_change_rate()
         for prof in goods:
             for good in goods:
@@ -542,8 +552,8 @@ def _collect_top_tax(t, agents):
         net_income = agent._delta_cash + agent._delta_deposits
         taxable_income = net_income + agent.tax_loss_carryforward
         child_deduction = (
-            econsim_states.default_gov.compute_child_tax_deduction(agent)
-            if econsim_states.default_gov else 0.0
+            default_gov.compute_child_tax_deduction(agent)
+            if default_gov else 0.0
         )
         taxable_income = max(0.0, taxable_income - child_deduction)
         if taxable_income > 0:
@@ -559,15 +569,15 @@ def _collect_top_tax(t, agents):
                     trade.bank.Withdraw(agent, deposit_taken)
                     agent.cash -= deposit_taken
             agent.tax_loss_carryforward = 0.0
-            if econsim_states.default_gov is not None:
-                econsim_states.default_gov.collect_tax(t, actual_tax)
+            if default_gov is not None:
+                default_gov.collect_tax(t, actual_tax)
             total_tax_collected += actual_tax
         else:
             agent.tax_loss_carryforward += net_income
     if total_tax_collected > 0 and t % 50 == 0:
         gov_cash = (
-            econsim_states.default_gov.agent.cash
-            if econsim_states.default_gov else 0
+            default_gov.agent.cash
+            if default_gov else 0
         )
         print(f"  TAX: collected ${total_tax_collected:.2f} from top "
               f"{top_count} agents, govCash=${gov_cash:.2f}")
@@ -589,7 +599,7 @@ def _log_all_metrics(t, agents):
         cash_log[good].append(
             sum(agent.cash if agent.output == good else 0 for agent in agents)
         )
-        gini_log[good].append(compute_gini(agents, good))
+        gini_log[good].append(region_gini(agents, good))
         if good != Goods.gov:
             inv_log[good].append(sum(agent.inv.get(good, 0) for agent in agents))
             newlist = [agent.inv[good] for agent in agents
