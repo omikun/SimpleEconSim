@@ -1369,22 +1369,15 @@ def foreign_sell(t, dest_region, source_region):
                 bank_share = 0.0
                 tariff_share = 0.0
 
-                # #2: Trader profit recycling (gated by destination gov policy)
+                # Deduct 20% for trader profit recycling (gated by destination gov policy)
                 if getattr(dest_region.gov, 'trader_recycling_enabled', True):
-                    trader_share = cash * 0.80
                     bank_share = cash * 0.20
+                    trader_share -= bank_share
 
-                # #3: Import tariff (gated by destination gov policy)
+                # Deduct 10% for import tariff (gated by destination gov policy)
                 if getattr(dest_region.gov, 'import_tariff_enabled', True):
-                    if bank_share > 0:
-                        # Both enabled: split from trader's 80%
-                        trader_share = cash * 0.70
-                        bank_share = cash * 0.20
-                        tariff_share = cash * 0.10
-                    else:
-                        # Only tariff enabled: split from full cash
-                        trader_share = cash * 0.90
-                        tariff_share = cash * 0.10
+                    tariff_share = cash * 0.10
+                    trader_share -= tariff_share
 
                 trader.cash += trader_share
                 if bank_share > 0:
