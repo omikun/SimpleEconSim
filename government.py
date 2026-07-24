@@ -9,7 +9,7 @@ import math
 import random
 
 import econsim_states
-from agent import Agent, InitAgent
+from agent import Agent, initialize_agent
 from goods import Goods
 from logger import loginfo, logwarning, logdebug
 import econsim_trade_money as trade
@@ -27,9 +27,9 @@ class Government:
         self.name = name
         self.agent = Agent(t)
         self.agent.output = Goods.gov
-        self.agent.is_corp = False
-        self.agent.is_gov = True
-        InitAgent(self.agent, Goods.gov, 0, 0, initial_cash)
+        self.agent.is_corporation = False
+        self.agent.is_government = True
+        initialize_agent(self.agent, Goods.gov, 0, 0, initial_cash)
         self.food_inventory = {}
         self.debt = 0  # Optional tracking of total borrowed (not needed for accounting)
 
@@ -58,7 +58,7 @@ class Government:
         self.child_food_aid_max_age = 10  # default matches current hardcoded value
 
         # 4. Fertility Multiplier (direct pronatalist incentive)
-        #     Scales p_birth for this government's citizens.
+        #     Scales probability_birth for this government's citizens.
         self.fertility_multiplier = 1.0
 
         # 5. Immigration (Canada / Australia points-based model)
@@ -153,7 +153,7 @@ class Government:
 
         total = 0.0
         for agent in agents:
-            if agent.is_corp or agent.alive is False:
+            if agent.is_corporation or agent.alive is False:
                 continue
             if not self._is_citizen(agent):
                 continue
@@ -163,7 +163,7 @@ class Government:
         if total > 0 and self.agent.cash >= total:
             self.agent.cash -= total
             logdebug(t, f"Government({self.name}) distributed ${total:.2f} UBI "
-                     f"to {len([a for a in agents if self._is_citizen(a) and not a.is_corp])} citizens")
+                     f"to {len([a for a in agents if self._is_citizen(a) and not a.is_corporation])} citizens")
         elif total > 0:
             # Gov can't fully fund — distribute whatever is available
             shortfall = total - self.agent.cash
@@ -171,7 +171,7 @@ class Government:
             if self.agent.cash > 0:
                 scale = self.agent.cash / total
                 for agent in agents:
-                    if agent.is_corp or agent.alive is False:
+                    if agent.is_corporation or agent.alive is False:
                         continue
                     if not self._is_citizen(agent):
                         continue
@@ -197,7 +197,7 @@ class Government:
     #  4. Fertility Multiplier
     # ------------------------------------------------------------------
     def get_fertility_multiplier(self):
-        """Return the multiplier applied to the base ``p_birth`` probability."""
+        """Return the multiplier applied to the base ``probability_birth`` probability."""
         return max(0.0, self.fertility_multiplier)
 
     # ------------------------------------------------------------------
@@ -208,7 +208,7 @@ class Government:
 
         Returns:
             list[Agent]: Newly created immigrant agents (empty list if interval
-                         not reached or feature disabled).
+                          not reached or feature disabled).
         """
         if not self.immigration_enabled:
             return []
@@ -226,9 +226,9 @@ class Government:
             immigrant = Agent(t)
             immigrant.output = output
             immigrant.cash = 50.0 + random.uniform(0, 30)
-            immigrant.inv[Goods.food] = 4
+            immigrant.inventory[Goods.food] = 4
             # Give a small inventory of their own profession's output
-            immigrant.inv[output] = 2
+            immigrant.inventory[output] = 2
 
             # Register as citizen
             self._add_citizen(immigrant)
@@ -250,8 +250,8 @@ class Government:
         """
         if not self.child_tax_deduction_enabled:
             return 0.0
-        living_descendents = [d for d in getattr(agent, 'descendents', []) if d.alive]
-        num_children = len(living_descendents)
+        living_descendants = [d for d in getattr(agent, 'descendants', []) if d.alive]
+        num_children = len(living_descendants)
         deduction = num_children * self.child_tax_deduction_per_child
         return max(0.0, deduction)
 
@@ -281,7 +281,7 @@ class Government:
 
         total = 0.0
         for agent in agents:
-            if agent.is_corp or agent.alive is False:
+            if agent.is_corporation or agent.alive is False:
                 continue
             remaining = getattr(agent, '_parental_leave_turns_remaining', 0)
             if remaining <= 0:
@@ -343,7 +343,7 @@ class Government:
         child_max_age = self.get_child_food_aid_max_age()
         total_cost = 0
         for agent in agents:
-            if agent.is_corp:
+            if agent.is_corporation:
                 continue
             needs_food = 0
             # Newborns / children: 1 free food per turn up to child_food_aid_max_age
@@ -351,7 +351,7 @@ class Government:
                 needs_food = 1
             # Starving > 3 days: emergency food (enough to eat 4 this turn)
             if agent.hungry_steps > 3:
-                current_food = agent.inv.get(Goods.food, 0)
+                current_food = agent.inventory.get(Goods.food, 0)
                 needed_for_meal = max(0, 4 - current_food)
                 # Don't double-count: children already get 1
                 if agent.age(t) <= child_max_age:
@@ -361,7 +361,7 @@ class Government:
             if needs_food > 0:
                 # Give food directly at no cash cost (social service)
                 # Food is created from thin air for emergency aid
-                agent.inv[Goods.food] += needs_food
+                agent.inventory[Goods.food] += needs_food
                 total_cost += needs_food * food_price  # For accounting purposes only
                 if agent.hungry_steps > 3:
                     loginfo(t, agent.name(), f"received emergency food aid ({needs_food} food)")
@@ -382,15 +382,15 @@ class Government:
             return 0
 
         starving_agents = [agent for agent in agents
-                           if agent.hungry_steps > 0 and not agent.is_corp]
+                           if agent.hungry_steps > 0 and not agent.is_corporation]
         if not starving_agents:
             return 0
 
-        wellfare = distributable / len(starving_agents)
+        welfare = distributable / len(starving_agents)
         total_distributed = 0
         for agent in starving_agents:
-            agent.cash += wellfare
-            total_distributed += wellfare
+            agent.cash += welfare
+            total_distributed += welfare
 
         self.agent.cash -= total_distributed
         logdebug(t, f"Government({self.name}) distributed ${total_distributed:.2f} welfare "
@@ -401,7 +401,7 @@ def create_default_government(t, initial_cash=200):
     """Create the default government for the simulation."""
     gov = Government("Default", t, initial_cash)
     econsim_states.governments.append(gov)
-    econsim_states.default_gov = gov
+    econsim_states.default_government = gov
     loginfo(t, f"Created default government with ${initial_cash:.2f}")
     return gov
 
@@ -416,4 +416,4 @@ def find_government_for_agent(agent):
     for gov in econsim_states.governments:
         if agent.id in gov.citizen_ids:
             return gov
-    return econsim_states.default_gov
+    return econsim_states.default_government

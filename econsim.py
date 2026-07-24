@@ -14,21 +14,22 @@ import matplotlib.pyplot as plt
 from goods import Goods, profession
 from region import compute_gini as region_gini, get_total_cash
 from econsim_states import (
-    recipes, goods, p_birth, p_death, birthGap,
-    max_career_switches, starve_limit, num_agents,
-    totalProd, agentid,
-    pop_log, inv_log, hungry_log, production_log,
+    recipes, goods, probability_birth, probability_death, birth_gap,
+    max_career_switches, starvation_limit, number_of_agents,
+    total_production, agent_id_counter,
+    population_log, inventory_log, hungry_log, production_log,
     demand_ratio_log, supply_log, demand_log,
-    perCapitaInv, cash_log, gini_log, totalCash_log, bankCash_log,
-    price_log, sold_log, bought_log, dead_pop, deadstarve_pop,
-    total_pop, pop_change_rate_log, gdp_log, gdp_by_profession_log,
-    governments, default_gov,
+    per_capita_inventory, cash_log, gini_log, total_cash_log, bank_cash_log,
+    price_log, sold_log, bought_log, dead_pop, dead_starved_population,
+    total_population, population_change_rate_log, gdp_log, gdp_by_profession_log,
+    governments, default_government,
 )
+import econsim_states
 from logger import loginfo, logdebug, logwarning, logInit, logerror
 
 import econsim_live as Living
 import econsim_trade_money as trade
-from agent import Agent, InitAgent, GetInputCom, GetOutputCom
+from agent import Agent, initialize_agent, get_input_commodity, get_output_commodity
 
 
 # =============================================================================
@@ -36,14 +37,14 @@ from agent import Agent, InitAgent, GetInputCom, GetOutputCom
 # =============================================================================
 
 for good in goods:
-    pop_log[good] = []
+    population_log[good] = []
     hungry_log[good] = []
     if good != Goods.gov:
         demand_ratio_log[good] = []
         demand_log[good] = []
         supply_log[good] = []
-        inv_log[good] = []
-        perCapitaInv[good] = []
+        inventory_log[good] = []
+        per_capita_inventory[good] = []
         production_log[good] = []
 
 
@@ -51,27 +52,27 @@ for good in goods:
 # Agent initialisation (uses helpers from agent.py module)
 # =============================================================================
 
-def InitAgents(agents):
-    for a in range(num_agents):
+def initialize_agents(agents):
+    for a in range(number_of_agents):
         agent = agents[a]
         if a < 90:
             output = Goods.food
         elif a < 97:
             output = Goods.wood
         elif a < 99:
-            output = Goods.furn
+            output = Goods.furniture
         else:
             output = Goods.gov
         delta = 20
         cash = 120 + random.randint(-delta, delta)
-        InitAgent(agent, output, 10, 2, cash)
+        initialize_agent(agent, output, 10, 2, cash)
 
 
 for good in goods:
     cash_log[good] = []
     gini_log[good] = []
 
-price_log = {Goods.food: [], Goods.wood: [], Goods.furn: []}
+price_log = {Goods.food: [], Goods.wood: [], Goods.furniture: []}
 
 for prof in goods:
     bought_log[prof] = {}
@@ -83,7 +84,7 @@ for prof in goods:
 # LABOUR MARKET
 # =============================================================================
 
-def RunLaborMarket(t, agents):
+def run_labour_market(t, agents):
     _cleanup_dead_references(agents)
     _borrow_or_layoff(t, agents)
     new_company_agents = _handle_incorporation(t, agents)
@@ -97,7 +98,7 @@ def _cleanup_dead_references(agents):
     for agent in agents:
         if agent.employer and agent.employer not in living_agents_set:
             agent.employer = None
-        if agent.is_corp:
+        if agent.is_corporation:
             agent.employees = [
                 e for e in agent.employees
                 if e in living_agents_set and e.employer == agent
@@ -106,7 +107,7 @@ def _cleanup_dead_references(agents):
 
 def _borrow_or_layoff(t, agents):
     for agent in agents:
-        if not agent.is_corp or len(agent.employees) == 0:
+        if not agent.is_corporation or len(agent.employees) == 0:
             continue
         total_wage_needed = len(agent.employees) * agent.wage
         if agent.cash < total_wage_needed:
@@ -122,7 +123,7 @@ def _borrow_or_layoff(t, agents):
             loginfo(t, agent.name(), "laid off", emp.name(),
                     "due to insufficient cash. Remaining:", len(agent.employees))
         if len(agent.employees) == 0:
-            agent.is_corp = False
+            agent.is_corporation = False
             if agent.owner is not None:
                 agent.owner.company_owned = None
                 loginfo(t, agent.name(), "dissolved company, owner",
@@ -132,19 +133,19 @@ def _borrow_or_layoff(t, agents):
 def _handle_incorporation(t, agents):
     new_company_agents = []
     for agent in agents:
-        if agent.employer is not None or agent.is_corp or agent.cash <= 400:
+        if agent.employer is not None or agent.is_corporation or agent.cash <= 400:
             continue
         if agent.company_owned is not None:
             continue
         food_price = recipes[Goods.food]['price']
         company = Agent(t)
-        company.is_corp = True
+        company.is_corporation = True
         company.output = agent.output
         company.owner = agent
         agent.company_owned = company
         for good in goods:
-            company.inv[good] = agent.inv.get(good, 0)
-            agent.inv[good] = 0
+            company.inventory[good] = agent.inventory.get(good, 0)
+            agent.inventory[good] = 0
         owner_equity = min(agent.cash * 0.3, agent.cash - 60)
         startup_target = max(300, food_price * 20)
         shortfall = max(0, startup_target - owner_equity)
@@ -154,7 +155,7 @@ def _handle_incorporation(t, agents):
         company.cash = owner_equity + shortfall
         sector_wages = [
             a.wage for a in agents
-            if a.is_corp and a.output == agent.output and a.wage > 0
+            if a.is_corporation and a.output == agent.output and a.wage > 0
         ]
         if sector_wages:
             company.wage = max(sector_wages) * 1.05
@@ -170,7 +171,7 @@ def _handle_incorporation(t, agents):
 
 def _hire_workers(t, agents):
     for agent in agents:
-        if not agent.is_corp:
+        if not agent.is_corporation:
             continue
         if len(agent.employees) >= agent.max_employees:
             continue
@@ -181,7 +182,7 @@ def _hire_workers(t, agents):
         hired = False
         candidates = [
             a for a in agents
-            if a.employer is None and not a.is_corp and a != agent
+            if a.employer is None and not a.is_corporation and a != agent
         ]
         distressed = [c for c in candidates
                       if c.hungry_steps > 0 or c.cash < 40]
@@ -189,7 +190,7 @@ def _hire_workers(t, agents):
         if pool:
             candidate = random.choice(pool)
             candidate.employer = agent
-            candidate.hiredAt = t
+            candidate.hired_at = t
             agent.employees.append(candidate)
             candidate.output = agent.output
             loginfo(t, agent.name(), "hired", candidate.name(),
@@ -200,7 +201,7 @@ def _hire_workers(t, agents):
                 e for e in agents
                 if e.employer is not None
                 and e.employer != agent
-                and e.employer.is_corp
+                and e.employer.is_corporation
                 and len(e.employer.employees) > 1
             ]
             if poachable:
@@ -212,7 +213,7 @@ def _hire_workers(t, agents):
                     old_employer.employees.remove(target)
                     target.employer = None
                     target.employer = agent
-                    target.hiredAt = t
+                    target.hired_at = t
                     target.output = agent.output
                     agent.employees.append(target)
                     agent.wage = max(agent.wage, offer_wage)
@@ -223,7 +224,7 @@ def _hire_workers(t, agents):
 
 def _adjust_wages(t, agents):
     for agent in agents:
-        if not agent.is_corp or len(agent.employees) == 0:
+        if not agent.is_corporation or len(agent.employees) == 0:
             continue
         payroll = len(agent.employees) * agent.wage
         if agent.cash > payroll * 5 and len(agent.employees) < agent.max_employees:
@@ -239,7 +240,7 @@ def PayWages(t, agents):
     """Pay wages to employees AFTER production and trade,
     so companies earn revenue before paying out."""
     for agent in agents:
-        if agent.is_corp and len(agent.employees) > 0:
+        if agent.is_corporation and len(agent.employees) > 0:
             for emp in agent.employees:
                 wage_to_pay = min(agent.cash, agent.wage)
                 agent.cash -= wage_to_pay
@@ -253,38 +254,38 @@ def PayWages(t, agents):
 # =============================================================================
 
 def Produce(t, agents):
-    numAgentsPerGoods = {}
+    num_agents_per_good = {}
     for good in goods:
-        numAgentsPerGoods[good] = sum(agent.output == good for agent in agents)
-    totalProd.clear()
+        num_agents_per_good[good] = sum(agent.output == good for agent in agents)
+    total_production.clear()
     for agent in agents:
         if agent.employer is not None:
             continue
         output = agent.output
-        loginfo(t, agent.name(), agent.inv, 'hungry_steps', agent.hungry_steps)
+        loginfo(t, agent.name(), agent.inventory, 'hungry_steps', agent.hungry_steps)
         recipe = recipes[output]
-        if agent.is_corp and len(agent.employees) > 0:
-            _produce_corp(t, agent, recipe, output, numAgentsPerGoods)
+        if agent.is_corporation and len(agent.employees) > 0:
+            _produce_corporation(t, agent, recipe, output, num_agents_per_good)
         else:
-            _produce_independent(t, agent, recipe, output, numAgentsPerGoods)
+            _produce_independent(t, agent, recipe, output, num_agents_per_good)
     for good in goods:
         if good != Goods.gov:
-            production_log[good].append(totalProd[good])
-    for good, produced in totalProd.items():
-        loginfo(t, numAgentsPerGoods[good], 'produced', produced, good)
+            production_log[good].append(total_production[good])
+    for good, produced in total_production.items():
+        loginfo(t, num_agents_per_good[good], 'produced', produced, good)
 
 
-def _produce_corp(t, agent, recipe, output, numAgentsPerGoods):
+def _produce_corporation(t, agent, recipe, output, num_agents_per_good):
     num_employees = len(agent.employees)
-    maxinv = recipe['maxinv'] * (1 + num_employees)
-    inv_ratio = agent.inv.get(output, 0) / maxinv if maxinv > 0 else 1
-    if inv_ratio >= 1:
-        totalProd[output] += 0
+    max_inventory = recipe['maxinv'] * (1 + num_employees)
+    inventory_ratio = agent.inventory.get(output, 0) / max_inventory if max_inventory > 0 else 1
+    if inventory_ratio >= 1:
+        total_production[output] += 0
         return
     num_slots = num_employees
     if recipe.get('numInput', 0) > 0:
-        com = recipe['input']
-        available_inputs = agent.inv.get(com, 0)
+        commodity = recipe['input']
+        available_inputs = agent.inventory.get(commodity, 0)
         inputs_per_slot = recipe['numInput']
         active_slots = int(min(num_slots, available_inputs // inputs_per_slot))
     else:
@@ -299,58 +300,58 @@ def _produce_corp(t, agent, recipe, output, numAgentsPerGoods):
         synergy = 1.0 + 0.20 * num_employees
     else:
         synergy = 1.0 + 0.15 * num_employees
-    base_prod = recipe['production']
-    prod_per_slot = base_prod * synergy
+    base_production = recipe['production']
+    production_per_slot = base_production * synergy
     chance = 1.0
     if agent.hungry_steps > 0:
         chance *= 1 / (1 + agent.hungry_steps * 0.2)
     if output in (Goods.food, Goods.wood):
-        max_per_agent = recipe['maxtotalprod'] / max(1, numAgentsPerGoods[output])
-        chance *= min(1.0, max_per_agent / base_prod)
-    chance *= max(0, 1 - inv_ratio)
+        max_per_agent = recipe['maxtotalprod'] / max(1, num_agents_per_good[output])
+        chance *= min(1.0, max_per_agent / base_production)
+    chance *= max(0, 1 - inventory_ratio)
     successful_slots = 0
     for _ in range(active_slots):
         if random.random() < chance:
             successful_slots += 1
     if successful_slots > 0:
         if recipe.get('numInput', 0) > 0:
-            agent.inv[recipe['input']] -= successful_slots * recipe['numInput']
-        numOutput = int(successful_slots * prod_per_slot)
-        if numOutput == 0:
-            numOutput = 1
-        agent.inv[output] += numOutput
-        totalProd[output] += numOutput
-        loginfo(t, agent.name(), 'corp built', numOutput, output,
+            agent.inventory[recipe['input']] -= successful_slots * recipe['numInput']
+        num_output = int(successful_slots * production_per_slot)
+        if num_output == 0:
+            num_output = 1
+        agent.inventory[output] += num_output
+        total_production[output] += num_output
+        loginfo(t, agent.name(), 'corp built', num_output, output,
                 'slots', successful_slots, 'synergy', synergy)
 
 
-def _produce_independent(t, agent, recipe, output, numAgentsPerGoods):
-    maxinv = recipe['maxinv']
-    inv_ratio = agent.inv.get(output, 0) / maxinv if maxinv > 0 else 1
-    if inv_ratio >= 1:
-        totalProd[output] += 0
+def _produce_independent(t, agent, recipe, output, num_agents_per_good):
+    max_inventory = recipe['maxinv']
+    inventory_ratio = agent.inventory.get(output, 0) / max_inventory if max_inventory > 0 else 1
+    if inventory_ratio >= 1:
+        total_production[output] += 0
         return
     has_inputs = True
     if recipe['numInput'] > 0:
-        com = recipe['input']
-        if agent.inv.get(com, 0) < recipe['numInput']:
+        commodity = recipe['input']
+        if agent.inventory.get(commodity, 0) < recipe['numInput']:
             has_inputs = False
-    numOutput = 0
+    num_output = 0
     if has_inputs and recipe.get('production', 0) > 0:
         chance = 1.0
         if agent.hungry_steps > 0:
             chance *= 1 / (1 + agent.hungry_steps * 0.2)
         if output in (Goods.food, Goods.wood):
-            max_per_agent = recipe['maxtotalprod'] / max(1, numAgentsPerGoods[output])
+            max_per_agent = recipe['maxtotalprod'] / max(1, num_agents_per_good[output])
             chance *= min(1.0, max_per_agent / recipe['production'])
-        chance *= max(0, 1 - inv_ratio)
+        chance *= max(0, 1 - inventory_ratio)
         if random.random() < chance:
             if recipe['numInput'] > 0:
-                agent.inv[recipe['input']] -= recipe['numInput']
-            numOutput = recipe['production']
-    agent.inv[output] += numOutput
-    totalProd[output] += numOutput
-    loginfo(t, agent.name(), 'built', numOutput, output, agent.inv)
+                agent.inventory[recipe['input']] -= recipe['numInput']
+            num_output = recipe['production']
+    agent.inventory[output] += num_output
+    total_production[output] += num_output
+    loginfo(t, agent.name(), 'built', num_output, output, agent.inventory)
 
 
 # =============================================================================
@@ -359,32 +360,32 @@ def _produce_independent(t, agent, recipe, output, numAgentsPerGoods):
 
 
 
-def RecalculateConsumptionMultipliers(agents):
-    """Recalculate consumption_mult for every living agent based on wealth / CoL."""
+def recalculate_consumption_multipliers(agents):
+    """Recalculate consumption_multiplier for every living agent based on wealth / cost of living."""
     food_price = recipes.get(Goods.food, {}).get('price', 1)
     wood_price = recipes.get(Goods.wood, {}).get('price', 1)
-    furn_price = recipes.get(Goods.furn, {}).get('price', 1)
-    col = 4 * food_price + 1 * wood_price + 0.25 * furn_price
-    col = max(0.1, col)
+    furn_price = recipes.get(Goods.furniture, {}).get('price', 1)
+    cost_of_living = 4 * food_price + 1 * wood_price + 0.25 * furn_price
+    cost_of_living = max(0.1, cost_of_living)
     for agent in agents:
-        if not agent.alive or getattr(agent, 'is_corp', False):
+        if not agent.alive or getattr(agent, 'is_corporation', False):
             continue
-        w = agent.wealth()
-        if w > col:
-            raw = math.sqrt(w / col)
-            agent.consumption_mult = max(1.0, min(10.0, raw))
+        wealth = agent.wealth()
+        if wealth > cost_of_living:
+            raw = math.sqrt(wealth / cost_of_living)
+            agent.consumption_multiplier = max(1.0, min(10.0, raw))
         else:
-            agent.consumption_mult = 1.0
+            agent.consumption_multiplier = 1.0
 
 
 # =============================================================================
 # OWNER PROFIT DISTRIBUTION
 # =============================================================================
 
-def DistributeOwnerProfits(t, agents):
+def distribute_owner_profits(t, agents):
     """Distribute corporate profits to owners."""
     for agent in agents:
-        if not agent.is_corp or not agent.alive:
+        if not agent.is_corporation or not agent.alive:
             continue
         if agent.owner is None or not getattr(agent.owner, 'alive', False):
             continue
@@ -403,8 +404,8 @@ def DistributeOwnerProfits(t, agents):
 def _repay_owner_loan(t, agent, owner, payroll):
     if agent.owner_loan <= 0:
         return
-    avail_for_repayment = max(0, agent.cash - payroll * 2)
-    repay = min(agent.owner_loan, avail_for_repayment)
+    available_for_repayment = max(0, agent.cash - payroll * 2)
+    repay = min(agent.owner_loan, available_for_repayment)
     if repay > 0:
         agent.cash -= repay
         owner.cash += repay
@@ -469,30 +470,30 @@ def main():
     epsilon = 1e-8
     logInit()
     time_steps = int(sys.argv[1])
-    agents = [Agent(0) for _ in range(num_agents)]
+    agents = [Agent(0) for _ in range(number_of_agents)]
     import government as govmod
-    gov = govmod.create_default_government(0, initial_cash=200)
-    agents.append(default_gov.agent)
-    InitAgents(agents)
+    government = govmod.create_default_government(0, initial_cash=200)
+    agents.append(government.agent)
+    initialize_agents(agents)
     for agent in agents:
         if hasattr(agent, 'id'):
-            gov._add_citizen(agent)
-    prevTotalCash = get_total_cash(agents, trade.bank)
+            government._add_citizen(agent)
+    previous_total_cash = get_total_cash(agents, trade.bank)
     for t in range(time_steps):
         _record_start_of_turn(agents)
-        new_company_agents = RunLaborMarket(t, agents)
+        new_company_agents = run_labour_market(t, agents)
         if new_company_agents:
             agents.extend(new_company_agents)
         Produce(t, agents)
         trade.Trade(t, agents, recipes, demand_ratio_log, demand_log,
                     supply_log, sold_log, bought_log)
         PayWages(t, agents)
-        DistributeOwnerProfits(t, agents)
+        distribute_owner_profits(t, agents)
         _record_delta_income(agents)
         _collect_top_tax(t, agents)
         _log_gdp(agents)
         if t > 0 and t % 10 == 0:
-            RecalculateConsumptionMultipliers(agents)
+            recalculate_consumption_multipliers(agents)
         cash_before_live = get_total_cash(agents, trade.bank)
         agents = Living.Live(t, agents)
         cash_after_live = get_total_cash(agents, trade.bank)
@@ -500,26 +501,26 @@ def main():
         if abs(live_diff) > 5.0:
             print(f"{t}  CASH LEAK: Live() changed total by ${live_diff:.2f}")
         _log_all_metrics(t, agents)
-        total_pop.append(sum(log[-1] for log in pop_log.values()))
-        bankCash_log.append(trade.bank.total_deposits - trade.bank.total_liabilities)
-        totalCash_log.append(get_total_cash(agents, trade.bank))
-        _log_pop_change_rate()
+        total_population.append(sum(log[-1] for log in population_log.values()))
+        bank_cash_log.append(trade.bank.total_deposits - trade.bank.total_liabilities)
+        total_cash_log.append(get_total_cash(agents, trade.bank))
+        _log_population_change_rate()
         for prof in goods:
             for good in goods:
                 bought_log[prof][good].append(0)
-        diff = math.fabs(prevTotalCash - totalCash_log[-1])
-        if diff > epsilon:
-            logwarning(t, "total cash not matching", prevTotalCash,
-                       '!=', totalCash_log[-1], 'diff', diff)
-        prevTotalCash = totalCash_log[-1]
+        difference = math.fabs(previous_total_cash - total_cash_log[-1])
+        if difference > epsilon:
+            logwarning(t, "total cash not matching", previous_total_cash,
+                       '!=', total_cash_log[-1], 'diff', difference)
+        previous_total_cash = total_cash_log[-1]
         if t % 100 == 0:
-            circ_cash = sum(a.cash for a in agents)
-            bank_dep = trade.bank.total_deposits
-            bank_liab = trade.bank.total_liabilities
-            ratio = bank_dep / max(1, circ_cash)
-            print(f"--- TEST A: Turn {t}: circulating=${circ_cash:.0f}, "
-                  f"bank_deposits=${bank_dep:.0f}, "
-                  f"bank_liabilities=${bank_liab:.0f}, ratio={ratio:.1f}x")
+            circulating_cash = sum(a.cash for a in agents)
+            bank_deposits = trade.bank.total_deposits
+            bank_liabilities = trade.bank.total_liabilities
+            ratio = bank_deposits / max(1, circulating_cash)
+            print(f"--- TEST A: Turn {t}: circulating=${circulating_cash:.0f}, "
+                  f"bank_deposits=${bank_deposits:.0f}, "
+                  f"bank_liabilities=${bank_liabilities:.0f}, ratio={ratio:.1f}x")
     _plot_results(agents)
 
 
@@ -552,8 +553,8 @@ def _collect_top_tax(t, agents):
         net_income = agent._delta_cash + agent._delta_deposits
         taxable_income = net_income + agent.tax_loss_carryforward
         child_deduction = (
-            default_gov.compute_child_tax_deduction(agent)
-            if default_gov else 0.0
+            econsim_states.default_government.compute_child_tax_deduction(agent)
+            if econsim_states.default_government else 0.0
         )
         taxable_income = max(0.0, taxable_income - child_deduction)
         if taxable_income > 0:
@@ -569,15 +570,15 @@ def _collect_top_tax(t, agents):
                     trade.bank.Withdraw(agent, deposit_taken)
                     agent.cash -= deposit_taken
             agent.tax_loss_carryforward = 0.0
-            if default_gov is not None:
-                default_gov.collect_tax(t, actual_tax)
+            if econsim_states.default_government is not None:
+                econsim_states.default_government.collect_tax(t, actual_tax)
             total_tax_collected += actual_tax
         else:
             agent.tax_loss_carryforward += net_income
     if total_tax_collected > 0 and t % 50 == 0:
         gov_cash = (
-            default_gov.agent.cash
-            if default_gov else 0
+            econsim_states.default_government.agent.cash
+            if econsim_states.default_government else 0
         )
         print(f"  TAX: collected ${total_tax_collected:.2f} from top "
               f"{top_count} agents, govCash=${gov_cash:.2f}")
@@ -595,24 +596,24 @@ def _log_gdp(agents):
 
 def _log_all_metrics(t, agents):
     for good in goods:
-        pop_log[good].append(sum(agent.output == good for agent in agents))
+        population_log[good].append(sum(agent.output == good for agent in agents))
         cash_log[good].append(
             sum(agent.cash if agent.output == good else 0 for agent in agents)
         )
         gini_log[good].append(region_gini(agents, good))
         if good != Goods.gov:
-            inv_log[good].append(sum(agent.inv.get(good, 0) for agent in agents))
-            newlist = [agent.inv[good] for agent in agents
+            inventory_log[good].append(sum(agent.inventory.get(good, 0) for agent in agents))
+            newlist = [agent.inventory[good] for agent in agents
                        if agent.output != good]
-            avgInv = mean(newlist) if newlist else 0
-            perCapitaInv[good].append(avgInv)
+            avg_inv = mean(newlist) if newlist else 0
+            per_capita_inventory[good].append(avg_inv)
             price_log[good].append(recipes[good]['price'])
 
 
-def _log_pop_change_rate():
-    if len(total_pop) >= 10:
-        pop_10_turns_ago = total_pop[-(10)]
-        current_pop = total_pop[-1]
+def _log_population_change_rate():
+    if len(total_population) >= 10:
+        pop_10_turns_ago = total_population[-(10)]
+        current_pop = total_population[-1]
         if pop_10_turns_ago > 0:
             pop_change_pct = (
                 (current_pop - pop_10_turns_ago) / pop_10_turns_ago * 100
@@ -621,7 +622,7 @@ def _log_pop_change_rate():
             pop_change_pct = 0
     else:
         pop_change_pct = 0
-    pop_change_rate_log.append(pop_change_pct)
+    population_change_rate_log.append(pop_change_pct)
 
 
 # =============================================================================
@@ -638,46 +639,46 @@ def _plot_results(agents):
     colors = {
         Goods.food: 'green',
         Goods.wood: 'red',
-        Goods.furn: 'blue',
+        Goods.furniture: 'blue',
         Goods.gov: 'yellow',
     }
     labels = {
         Goods.food: 'Food',
         Goods.wood: 'Wood',
-        Goods.furn: 'carp',
+        Goods.furniture: 'Furniture',
         Goods.gov: 'gov',
     }
-    axisId = 0
-    _plot_population(axis, axisId, colors, labels)
-    axisId += 1
-    _plot_inventory(axis, axisId, colors, labels)
-    axisId += 1
-    _plot_gini(axis, axisId, colors, labels)
-    axisId += 1
-    _plot_demand_ratio(axis, axisId, colors, labels)
-    axisId += 1
-    _plot_production(axis, axisId, colors, labels)
-    axisId += 1
-    _plot_per_capita_inv(axis, axisId, colors, labels)
-    axisId += 1
-    _plot_cash(axis, axisId, colors, labels)
-    axisId += 1
-    _plot_demand(axis, axisId, colors, labels)
-    axisId += 1
-    _plot_sold(axis, axisId, colors, labels)
-    axisId += 1
-    _plot_price(axis, axisId, colors, labels)
-    axisId += 1
-    _plot_hunger(axis, axisId, colors, labels)
-    axisId += 1
-    _plot_supply(axis, axisId, colors, labels)
-    axisId += 1
-    _plot_pop_change_rate(axis, axisId)
-    axisId += 1
-    _plot_gdp(axis, axisId, colors, labels)
-    axisId += 1
-    _plot_purchases(axis, axisId, colors, labels)
-    axisId += 1
+    axis_id = 0
+    _plot_population(axis, axis_id, colors, labels)
+    axis_id += 1
+    _plot_inventory(axis, axis_id, colors, labels)
+    axis_id += 1
+    _plot_gini(axis, axis_id, colors, labels)
+    axis_id += 1
+    _plot_demand_ratio(axis, axis_id, colors, labels)
+    axis_id += 1
+    _plot_production(axis, axis_id, colors, labels)
+    axis_id += 1
+    _plot_per_capita_inv(axis, axis_id, colors, labels)
+    axis_id += 1
+    _plot_cash(axis, axis_id, colors, labels)
+    axis_id += 1
+    _plot_demand(axis, axis_id, colors, labels)
+    axis_id += 1
+    _plot_sold(axis, axis_id, colors, labels)
+    axis_id += 1
+    _plot_price(axis, axis_id, colors, labels)
+    axis_id += 1
+    _plot_hunger(axis, axis_id, colors, labels)
+    axis_id += 1
+    _plot_supply(axis, axis_id, colors, labels)
+    axis_id += 1
+    _plot_pop_change_rate(axis, axis_id)
+    axis_id += 1
+    _plot_gdp(axis, axis_id, colors, labels)
+    axis_id += 1
+    _plot_purchases(axis, axis_id, colors, labels)
+    axis_id += 1
     lh, ll = axis[2].get_legend_handles_labels()
     figure.legend(lh, ll, loc='upper right', ncol=1, fontsize='small')
     plt.grid(True)
@@ -689,150 +690,150 @@ def _plot_results(agents):
     _print_final_stats(agents)
 
 
-def _plot_population(axis, axisId, colors, labels):
-    axis[axisId].set_title("Population vs time")
-    axis[axisId].set_ylabel("Population")
-    axis[axisId].set_yscale('log', base=2)
+def _plot_population(axis, axis_id, colors, labels):
+    axis[axis_id].set_title("Population vs time")
+    axis[axis_id].set_ylabel("Population")
+    axis[axis_id].set_yscale('log', base=2)
     for good in goods:
-        axis[axisId].plot(pop_log[good], label=labels[good],
+        axis[axis_id].plot(population_log[good], label=labels[good],
                        color=colors[good])
-    axis[axisId].plot(total_pop, label='total', color='black')
-    axis[axisId].plot([-x for x in deadstarve_pop], label='dead', color='purple')
+    axis[axis_id].plot(total_population, label='total', color='black')
+    axis[axis_id].plot([-x for x in dead_starved_population], label='dead', color='purple')
 
 
-def _plot_inventory(axis, axisId, colors, labels):
-    axis[axisId].set_title("Inventory vs time")
-    axis[axisId].set_ylabel("Inventory")
+def _plot_inventory(axis, axis_id, colors, labels):
+    axis[axis_id].set_title("Inventory vs time")
+    axis[axis_id].set_ylabel("Inventory")
     for good in goods:
         if good != Goods.gov:
-            axis[axisId].plot(inv_log[good], label=labels[good],
+            axis[axis_id].plot(inventory_log[good], label=labels[good],
                            color=colors[good])
 
 
-def _plot_gini(axis, axisId, colors, labels):
-    axis[axisId].set_title("Gini coefficient")
-    axis[axisId].set_ylabel("Cash")
+def _plot_gini(axis, axis_id, colors, labels):
+    axis[axis_id].set_title("Gini coefficient")
+    axis[axis_id].set_ylabel("Cash")
     for good in goods:
-        axis[axisId].plot(gini_log[good], label=labels[good],
-                       color=colors[good])
-
-
-def _plot_demand_ratio(axis, axisId, colors, labels):
-    axis[axisId].set_title("Demands Ratio vs time")
-    axis[axisId].set_ylabel("Demands (log scale)")
-    axis[axisId].set_yscale('log')
-    for good in goods:
-        if good != Goods.gov:
-            axis[axisId].plot(demand_ratio_log[good], label=labels[good],
-                           color=colors[good])
-
-
-def _plot_production(axis, axisId, colors, labels):
-    axis[axisId].set_title("Production vs time")
-    axis[axisId].set_ylabel("Units/round")
-    axis[axisId].set_yscale('log')
-    for good in goods:
-        if good != Goods.gov:
-            axis[axisId].plot(production_log[good], label=labels[good],
-                           color=colors[good])
-
-
-def _plot_per_capita_inv(axis, axisId, colors, labels):
-    axis[axisId].set_title("Inventory Per capita (excl producers)")
-    axis[axisId].set_ylabel("Inv per cap")
-    for good in goods:
-        if good != Goods.gov:
-            axis[axisId].plot(perCapitaInv[good], label=labels[good],
-                           color=colors[good])
-
-
-def _plot_cash(axis, axisId, colors, labels):
-    axis[axisId].set_title("Cash vs time")
-    axis[axisId].set_ylabel("Cash")
-    axis[axisId].set_yscale('log', base=2)
-    for good in goods:
-        axis[axisId].plot(cash_log[good], label=labels[good],
-                       color=colors[good])
-    axis[axisId].plot(totalCash_log, label='total', color='black')
-    axis[axisId].plot(bankCash_log, label='bank', color='purple')
-
-
-def _plot_demand(axis, axisId, colors, labels):
-    axis[axisId].set_title("Demand vs time")
-    axis[axisId].set_ylabel("Demands (log)")
-    axis[axisId].set_yscale('log', base=2)
-    for good in goods:
-        if good != Goods.gov:
-            axis[axisId].plot(demand_log[good], label=labels[good],
-                           color=colors[good])
-
-
-def _plot_sold(axis, axisId, colors, labels):
-    axis[axisId].set_title("Sold vs time")
-    axis[axisId].set_ylabel("Sold (log)")
-    axis[axisId].set_yscale('log', base=2)
-    for good in goods:
-        if good != Goods.gov:
-            axis[axisId].plot(sold_log[good], label=labels[good],
-                           color=colors[good])
-
-
-def _plot_price(axis, axisId, colors, labels):
-    axis[axisId].set_title("Price vs time")
-    axis[axisId].set_ylabel("Price")
-    axis[axisId].set_yscale('log', base=2)
-    for good in goods:
-        if good != Goods.gov:
-            axis[axisId].plot(price_log[good], label=labels[good],
-                           color=colors[good])
-
-
-def _plot_hunger(axis, axisId, colors, labels):
-    axis[axisId].set_title("Hunger vs time")
-    axis[axisId].set_ylabel("Num hungry")
-    axis[axisId].set_yscale('log', base=2)
-    for good in goods:
-        axis[axisId].plot(hungry_log[good], label=labels[good],
+        axis[axis_id].plot(gini_log[good], label=labels[good],
                        color=colors[good])
 
 
-def _plot_supply(axis, axisId, colors, labels):
-    axis[axisId].set_title("Supply vs time")
-    axis[axisId].set_ylabel("Supply (log)")
-    axis[axisId].set_yscale('log', base=2)
+def _plot_demand_ratio(axis, axis_id, colors, labels):
+    axis[axis_id].set_title("Demand Ratio vs time")
+    axis[axis_id].set_ylabel("Demand Ratio (log scale)")
+    axis[axis_id].set_yscale('log')
     for good in goods:
         if good != Goods.gov:
-            axis[axisId].plot(supply_log[good], label=labels[good],
+            axis[axis_id].plot(demand_ratio_log[good], label=labels[good],
                            color=colors[good])
 
 
-def _plot_pop_change_rate(axis, axisId):
-    axis[axisId].set_title("Pop Change Rate (per 10 turns %)")
-    axis[axisId].set_ylabel("% change")
-    axis[axisId].axhline(y=0, color='gray', linestyle='--', linewidth=0.5)
-    axis[axisId].plot(pop_change_rate_log, color='black')
-
-
-def _plot_gdp(axis, axisId, colors, labels):
-    axis[axisId].set_title("GDP vs time")
-    axis[axisId].set_ylabel("Total GDP (value)")
-    axis[axisId].set_yscale('log', base=2)
+def _plot_production(axis, axis_id, colors, labels):
+    axis[axis_id].set_title("Production vs time")
+    axis[axis_id].set_ylabel("Units/round")
+    axis[axis_id].set_yscale('log')
     for good in goods:
         if good != Goods.gov:
-            axis[axisId].plot(gdp_by_profession_log[good], label=labels[good],
+            axis[axis_id].plot(production_log[good], label=labels[good],
                            color=colors[good])
-    axis[axisId].plot(gdp_log, label='All', color='black')
 
 
-def _plot_purchases(axis, axisId, colors, labels):
+def _plot_per_capita_inv(axis, axis_id, colors, labels):
+    axis[axis_id].set_title("Inventory Per capita (excl producers)")
+    axis[axis_id].set_ylabel("Inv per cap")
+    for good in goods:
+        if good != Goods.gov:
+            axis[axis_id].plot(per_capita_inventory[good], label=labels[good],
+                           color=colors[good])
+
+
+def _plot_cash(axis, axis_id, colors, labels):
+    axis[axis_id].set_title("Cash vs time")
+    axis[axis_id].set_ylabel("Cash")
+    axis[axis_id].set_yscale('log', base=2)
+    for good in goods:
+        axis[axis_id].plot(cash_log[good], label=labels[good],
+                       color=colors[good])
+    axis[axis_id].plot(total_cash_log, label='total', color='black')
+    axis[axis_id].plot(bank_cash_log, label='bank', color='purple')
+
+
+def _plot_demand(axis, axis_id, colors, labels):
+    axis[axis_id].set_title("Demand vs time")
+    axis[axis_id].set_ylabel("Demand (log)")
+    axis[axis_id].set_yscale('log', base=2)
+    for good in goods:
+        if good != Goods.gov:
+            axis[axis_id].plot(demand_log[good], label=labels[good],
+                           color=colors[good])
+
+
+def _plot_sold(axis, axis_id, colors, labels):
+    axis[axis_id].set_title("Sold vs time")
+    axis[axis_id].set_ylabel("Sold (log)")
+    axis[axis_id].set_yscale('log', base=2)
+    for good in goods:
+        if good != Goods.gov:
+            axis[axis_id].plot(sold_log[good], label=labels[good],
+                           color=colors[good])
+
+
+def _plot_price(axis, axis_id, colors, labels):
+    axis[axis_id].set_title("Price vs time")
+    axis[axis_id].set_ylabel("Price")
+    axis[axis_id].set_yscale('log', base=2)
+    for good in goods:
+        if good != Goods.gov:
+            axis[axis_id].plot(price_log[good], label=labels[good],
+                           color=colors[good])
+
+
+def _plot_hunger(axis, axis_id, colors, labels):
+    axis[axis_id].set_title("Hunger vs time")
+    axis[axis_id].set_ylabel("Num hungry")
+    axis[axis_id].set_yscale('log', base=2)
+    for good in goods:
+        axis[axis_id].plot(hungry_log[good], label=labels[good],
+                       color=colors[good])
+
+
+def _plot_supply(axis, axis_id, colors, labels):
+    axis[axis_id].set_title("Supply vs time")
+    axis[axis_id].set_ylabel("Supply (log)")
+    axis[axis_id].set_yscale('log', base=2)
+    for good in goods:
+        if good != Goods.gov:
+            axis[axis_id].plot(supply_log[good], label=labels[good],
+                           color=colors[good])
+
+
+def _plot_pop_change_rate(axis, axis_id):
+    axis[axis_id].set_title("Pop Change Rate (per 10 turns %)")
+    axis[axis_id].set_ylabel("% change")
+    axis[axis_id].axhline(y=0, color='gray', linestyle='--', linewidth=0.5)
+    axis[axis_id].plot(population_change_rate_log, color='black')
+
+
+def _plot_gdp(axis, axis_id, colors, labels):
+    axis[axis_id].set_title("GDP vs time")
+    axis[axis_id].set_ylabel("Total GDP (value)")
+    axis[axis_id].set_yscale('log', base=2)
+    for good in goods:
+        if good != Goods.gov:
+            axis[axis_id].plot(gdp_by_profession_log[good], label=labels[good],
+                           color=colors[good])
+    axis[axis_id].plot(gdp_log, label='All', color='black')
+
+
+def _plot_purchases(axis, axis_id, colors, labels):
     titles = ["Farmer", "Logger", "Carpenter", "Gov agent"]
     for i in range(len(titles)):
-        axis[axisId + i].set_title(titles[i] + " Purchases")
-        axis[axisId + i].set_ylabel("Bought")
+        axis[axis_id + i].set_title(titles[i] + " Purchases")
+        axis[axis_id + i].set_ylabel("Bought")
     i = 0
     for prof in goods:
         for good in goods:
-            axis[axisId + i].plot(bought_log[prof][good], label=labels[good],
+            axis[axis_id + i].plot(bought_log[prof][good], label=labels[good],
                                color=colors[good])
         i += 1
 
@@ -843,16 +844,16 @@ def _print_final_stats(agents):
     print("=" * 60)
     print()
     for good in goods:
-        pop = pop_log[good][-1] if pop_log[good] else 0
+        pop = population_log[good][-1] if population_log[good] else 0
         price = (price_log[good][-1] if good != Goods.gov and price_log[good]
                  else recipes[good]['price'])
-        inv = (inv_log[good][-1] if good != Goods.gov and inv_log[good] else 0)
+        inv = (inventory_log[good][-1] if good != Goods.gov and inventory_log[good] else 0)
         cash = cash_log[good][-1] if cash_log[good] else 0
         print(f"  {good}: Pop={pop}, Price={price:.2f}, Inv={inv:.2f}, "
               f"Cash={cash:.2f}")
     print()
-    print(f"  Total Population (last): {total_pop[-1]}")
-    print(f"  Total Dead/Starved: {deadstarve_pop[-1]}")
+    print(f"  Total Population (last): {total_population[-1]}")
+    print(f"  Total Dead/Starved: {dead_starved_population[-1]}")
     if gdp_log:
         print(f"  Final GDP/turn: ${gdp_log[-1]:.2f}")
     print()

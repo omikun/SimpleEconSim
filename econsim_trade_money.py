@@ -7,22 +7,22 @@ from logger import *
 from econsim_states import *
 import econsim_states
 
-inventoryLimit = 10
+inventory_limit = 10
 
 
-def GetInputCom(agent, recipes):
+def get_input_commodity(agent, recipes):
     recipe = recipes[agent.output]
-    inputCom = recipe.get('input', Goods.none)
-    return inputCom
+    input_com = recipe.get('input', Goods.none)
+    return input_com
 
 
-def GetOutputCom(agent):
+def get_output_commodity(agent):
     return agent.output
 
 
 class Offer:
-    def __init__(self, isBid, agent, price, quantity):
-        self.isBid = isBid
+    def __init__(self, is_bid, agent, price, quantity):
+        self.is_bid = is_bid
         self.agent = agent
         self.price = price
         self.quantity = quantity
@@ -32,8 +32,8 @@ def lerp(a, b, t):
     return a + (b - a) * t
 
 
-def clamp(x, minx, maxx):
-    return max(minx, min(x, maxx))
+def clamp(x, min_x, max_x):
+    return max(min_x, min(x, max_x))
 
 
 class Loan:
@@ -50,22 +50,22 @@ class Loan:
         return self.principle_paid >= self.principle
 
     def getInterest(self):
-        remainingPrinciple = self.principle - self.principle_paid
-        return self.interest_rate * remainingPrinciple
+        remaining_principle = self.principle - self.principle_paid
+        return self.interest_rate * remaining_principle
 
     def getPaymentAmount(self):
-        remainingPrinciple = self.principle - self.principle_paid
+        remaining_principle = self.principle - self.principle_paid
         interest = self.getInterest()
         payment = interest + self.principle / self.num_payments
         return payment
 
     def pay(self, amount):
         interest_paid = min(self.getInterest(), amount)
-        principlePaid = max(0, amount - interest_paid)
-        self.principle_paid += principlePaid
+        principle_paid = max(0, amount - interest_paid)
+        self.principle_paid += principle_paid
         self.interest_paid += interest_paid
-        self.bank.PayPrinciple(principlePaid)
-        self.bank.PayInterest(interest_paid)
+        self.bank.pay_principle(principle_paid)
+        self.bank.pay_interest(interest_paid)
 
 
 class Bank():
@@ -84,12 +84,12 @@ class Bank():
         self.gov = gov  # Reference to government for bailout decisions
 
     def Borrow(self, t, agent, amount):
-        borrowableAmount = (self.total_deposits * (1 - self.reserve_fraction)
-                            - self.total_liabilities)
-        amount = clamp(amount, 0, borrowableAmount)
+        borrowable_amount = (self.total_deposits * (1 - self.reserve_fraction)
+                             - self.total_liabilities)
+        amount = clamp(amount, 0, borrowable_amount)
         loginfo(t, "borrowing from bank with $", self.total_deposits,
                 " deposit and $", self.total_liabilities,
-                "borrowable: $", borrowableAmount, " lending: $", amount)
+                "borrowable: $", borrowable_amount, " lending: $", amount)
         if amount <= 0:
             return
         loan = Loan(self, agent, amount, self.interest_rate)
@@ -98,10 +98,10 @@ class Bank():
         self.loans.append(loan)
         self.total_liabilities += amount
 
-    def PayPrinciple(self, amount):
+    def pay_principle(self, amount):
         self.total_liabilities -= amount
 
-    def PayInterest(self, amount):
+    def pay_interest(self, amount):
         self.total_deposits += amount
         self.total_interest_earned += amount
 
@@ -176,19 +176,19 @@ def gov_decide_bailout(t, bank, requested_amount):
 bank = Bank()
 
 
-def Borrow(t, agent, foodPrice, bank):
-    amount = foodPrice * 1.2
+def Borrow(t, agent, food_price, bank):
+    amount = food_price * 1.2
     bank.Borrow(t, agent, amount)
 
 
-def BorrowIfNeedTo(t, agent, bank=None):
+def borrow_if_needed(t, agent, bank=None):
     if bank is None:
         bank = globals().get('bank', None)
         if bank is None:
             return
     wealth = agent.wealth()
-    if wealth < agent.oweThisTurn():
-        needed = agent.oweThisTurn() - wealth
+    if wealth < agent.owed_this_turn():
+        needed = agent.owed_this_turn() - wealth
         Borrow(t, agent, needed * 2, bank)
 
 
@@ -213,7 +213,7 @@ def PayLoans(agent, bank=None):
     agent.loans = [l for l in agent.loans if not l.isPaid()]
 
 
-mostDemand = Goods.none
+most_demand = Goods.none
 
 
 # =============================================================================
@@ -222,23 +222,23 @@ mostDemand = Goods.none
 
 def Trade(t, agents, recipes, demand_ratio_log, demand_log,
           supply_log, sold_log, bought_log):
-    prevTotalCash = getTotalCash(agents, bank)
-    global mostDemand
-    mostDemand = Goods.gov
-    maxDemandRatio = 0
-    goods = [Goods.food, Goods.wood, Goods.furn]
-    num_desired = 16
-    allGoodsPrice = sum(recipes[good]['price'] for good in goods)
-    foodPrice = recipes[Goods.food]['price']
+    previous_total_cash = get_total_cash(agents, bank)
+    global most_demand
+    most_demand = Goods.gov
+    max_demand_ratio = 0
+    goods = [Goods.food, Goods.wood, Goods.furniture]
+    number_desired = 16
+    all_goods_price = sum(recipes[good]['price'] for good in goods)
+    food_price = recipes[Goods.food]['price']
     random.shuffle(agents)
     interest_paid = bank.PayDepositInterest(agents)
     if interest_paid > 0:
         loginfo(t, "Bank paid $", round(interest_paid, 2),
                 "in deposit interest at rate", bank.deposit_interest_rate)
-    reportCash(t, agents, prevTotalCash, "pre borrow and deposit", True)
-    DecideBorrowDeposit(agents, allGoodsPrice, bank, foodPrice,
-                        prevTotalCash, t)
-    reportCash(t, agents, prevTotalCash, "post borrow and deposit")
+    report_cash(t, agents, previous_total_cash, "pre borrow and deposit", True)
+    decide_borrow_deposit(agents, all_goods_price, bank, food_price,
+                          previous_total_cash, t)
+    report_cash(t, agents, previous_total_cash, "post borrow and deposit")
     for good in goods:
         if good == Goods.food:
             current_desired = 16
@@ -248,49 +248,49 @@ def Trade(t, agents, recipes, demand_ratio_log, demand_log,
             current_desired = max(1, int(16 / max(1, recipes[good]['price'])))
         loginfo(t, 'bids and asks for ', good)
         price = recipes[good]['price']
-        totalAsks, totalBids = GatherBidsAsks(t, agents, good, price,
-                                              current_desired, recipes,
-                                              0, 0)
-        totalTrades = min(totalAsks, totalBids)
-        if totalAsks == 0 and totalBids == 0:
+        total_asks, total_bids = gather_bids_asks(t, agents, good, price,
+                                                   current_desired, recipes,
+                                                   0, 0)
+        total_trades = min(total_asks, total_bids)
+        if total_asks == 0 and total_bids == 0:
             _price_default_decay(good, recipes)
             continue
-        demandRatio = 5.0 if totalAsks == 0 else totalBids / totalAsks
-        if maxDemandRatio < demandRatio and totalBids > 0:
-            maxDemandRatio = demandRatio
-            mostDemand = good
+        demand_ratio = 5.0 if total_asks == 0 else total_bids / total_asks
+        if max_demand_ratio < demand_ratio and total_bids > 0:
+            max_demand_ratio = demand_ratio
+            most_demand = good
         demand_ratio_log.setdefault(good, [])
-        demand_ratio_log[good].append(demandRatio)
-        demand_log[good].append(totalBids)
-        supply_log[good].append(totalAsks)
-        price = SetMarketPrice(demandRatio, good, recipes, agents)
-        if totalTrades == 0:
+        demand_ratio_log[good].append(demand_ratio)
+        demand_log[good].append(total_bids)
+        supply_log[good].append(total_asks)
+        price = set_market_price(demand_ratio, good, recipes, agents)
+        if total_trades == 0:
             continue
         logdebug(t, "trading ", good, " at $", round(price, 2),
-                 "demandRatio:", round(demandRatio, 2),
-                 " asks: ", round(totalAsks, 2),
-                 " bids: ", round(totalBids, 2))
-        totalBought, totalCashPurchase = \
-            BiddersBuyGood(t, agents, good, bought_log, price, totalAsks, 0)
+                 "demand_ratio:", round(demand_ratio, 2),
+                 " asks: ", round(total_asks, 2),
+                 " bids: ", round(total_bids, 2))
+        total_bought, total_cash_purchases = \
+            bidders_buy_good(t, agents, good, bought_log, price, total_asks, 0)
         askers = sorted(agents, key=lambda a: a.ask, reverse=True)
-        totalCashSold, totalSold = \
-            AskersSellGood(askers, good, price, t, totalBought,
-                           totalCashPurchase, 0, 0)
-        diff = math.fabs(totalCashSold - totalCashPurchase)
+        total_cash_sales, total_sold = \
+            askers_sell_good(askers, good, price, t, total_bought,
+                             total_cash_purchases, 0, 0)
+        diff = math.fabs(total_cash_sales - total_cash_purchases)
         if diff > .1:
-            logwarning(t, "traded", good, "demand:", demandRatio,
+            logwarning(t, "traded", good, "demand:", demand_ratio,
                        "price:", price, "trades: ", good, " traded: ", 0,
-                       "total bought", totalBought, "totalSold", totalSold,
-                       "cash bought $", totalCashPurchase,
-                       "cash sold $", totalCashSold, "diff",
-                       math.fabs(totalCashSold - totalCashPurchase))
-        sold_log[good].append(totalSold)
-        reportCash(t, agents, prevTotalCash, "post primary trade " + str(good))
-        sec_traded, sec_value = SecondaryTrade(t, agents, good, price, recipes)
+                       "total bought", total_bought, "totalSold", total_sold,
+                       "cash bought $", total_cash_purchases,
+                       "cash sold $", total_cash_sales, "diff",
+                       math.fabs(total_cash_sales - total_cash_purchases))
+        sold_log[good].append(total_sold)
+        report_cash(t, agents, previous_total_cash, "post primary trade " + str(good))
+        sec_traded, sec_value = secondary_trade(t, agents, good, price, recipes)
         if sec_traded > 0:
             logdebug(t, "secondary traded", good, "vol:", sec_traded,
                      "value:$", round(sec_value, 2))
-        reportCash(t, agents, prevTotalCash, "post secondary trade " + str(good))
+        report_cash(t, agents, previous_total_cash, "post secondary trade " + str(good))
 
 
 # =============================================================================
@@ -313,69 +313,69 @@ def _price_default_decay(good, recipes):
 # BIDS & ASKS
 # =============================================================================
 
-def GatherBidsAsks(t, agents, good, goodPrice, num_desired, recipes,
-                   totalAsks, totalBids):
+def gather_bids_asks(t, agents, good, good_price, number_desired, recipes,
+                    total_asks, total_bids):
     for agent in agents:
         agent_rec = recipes[agent.output]
         is_employee = getattr(agent, 'employer', None) is not None
-        _withdraw_if_low_cash(agent, goodPrice, num_desired, bank)
-        mult = getattr(agent, 'consumption_mult', 1.0)
-        bid = _compute_bid(agent, good, goodPrice, num_desired, agent_rec,
+        _withdraw_if_low_cash(agent, good_price, number_desired, bank)
+        mult = getattr(agent, 'consumption_multiplier', 1.0)
+        bid = _compute_bid(agent, good, good_price, number_desired, agent_rec,
                            is_employee, mult, recipes)
         agent.bid = bid
-        agent.remainingCash -= agent.bid * goodPrice
+        agent.remainingCash -= agent.bid * good_price
         loginfo(t, agent.name(), 'bid', agent.bid, 'input',
-                GetInputCom(agent, recipes), 'recipe for',
+                get_input_commodity(agent, recipes), 'recipe for',
                 agent_rec['commodity'], 'num input', agent_rec['numInput'],
-                agent.inv[good])
-        totalBids += agent.bid
-        ask = _compute_ask(agent, good, goodPrice, recipes, is_employee)
+                agent.inventory[good])
+        total_bids += agent.bid
+        ask = _compute_ask(agent, good, good_price, recipes, is_employee)
         agent.ask = ask
-        totalAsks += agent.ask
-    return totalAsks, totalBids
+        total_asks += agent.ask
+    return total_asks, total_bids
 
 
-def _withdraw_if_low_cash(agent, goodPrice, num_desired, bank):
+def _withdraw_if_low_cash(agent, good_price, number_desired, bank):
     """Withdraw from bank deposits if cash is low for purchasing."""
     bank_balance = bank.deposits.get(agent, 0)
     if bank_balance > 0:
-        desired_cash = goodPrice * num_desired
+        desired_cash = good_price * number_desired
         if agent.remainingCash < desired_cash:
             needed = desired_cash - agent.remainingCash
             bank.Withdraw(agent, min(bank_balance, needed))
 
 
-def _compute_bid(agent, good, goodPrice, num_desired, agent_rec, is_employee,
+def _compute_bid(agent, good, good_price, number_desired, agent_rec, is_employee,
                  mult, recipes):
-    """Compute how much *agent* wants to buy of *good* at *goodPrice*."""
-    if not is_employee and GetInputCom(agent, recipes) == good:
+    """Compute how much *agent* wants to buy of *good* at *good_price*."""
+    if not is_employee and get_input_commodity(agent, recipes) == good:
         # Corporate/Independent producer input bidding
-        num_employees = len(agent.employees) if getattr(agent, 'is_corp',
+        num_employees = len(agent.employees) if getattr(agent, 'is_corporation',
                                                         False) else 0
         multiplier = 1 + num_employees
         desired = max(0, agent_rec['numInput'] * multiplier
-                      - agent.inv.get(good, 0))
+                      - agent.inventory.get(good, 0))
         if mult > 1.0:
             desired = int(desired * mult)
-        affordable = agent.remainingCash // goodPrice if goodPrice > 0 else desired
+        affordable = agent.remainingCash // good_price if good_price > 0 else desired
         return int(min(desired, affordable))
-    elif (is_employee or agent.output != good) and agent.remainingCash > goodPrice:
+    elif (is_employee or agent.output != good) and agent.remainingCash > good_price:
         # Consumer bidding
         maxinv_limit = agent_rec['maxinv']
-        if getattr(agent, 'is_corp', False):
+        if getattr(agent, 'is_corporation', False):
             maxinv_limit *= (1 + len(agent.employees))
         if mult > 1.0:
             maxinv_limit = int(maxinv_limit * min(mult, 3.0))
-        num_storable = max(0, maxinv_limit - agent.inv.get(good, 0))
-        base_desire = min(num_desired,
-                          agent.remainingCash // goodPrice)
+        num_storable = max(0, maxinv_limit - agent.inventory.get(good, 0))
+        base_desire = min(number_desired,
+                          agent.remainingCash // good_price)
         scaled_desire = int(base_desire * mult)
         bid = min(scaled_desire, num_storable)
         if mult > 2.0 and good != Goods.food:
             extra_affordable = min(
-                int(num_desired * (mult - 1.0)),
-                agent.remainingCash // goodPrice
-            ) if goodPrice > 0 else 0
+                int(number_desired * (mult - 1.0)),
+                agent.remainingCash // good_price
+            ) if good_price > 0 else 0
             bid += min(extra_affordable, num_storable - bid)
             loginfo('', agent.name(),
                     'wealth consumption (mult=' + str(round(mult, 2))
@@ -384,15 +384,15 @@ def _compute_bid(agent, good, goodPrice, num_desired, agent_rec, is_employee,
     return 0
 
 
-def _compute_ask(agent, good, goodPrice, recipes, is_employee):
-    """Compute how much *agent* wants to sell of *good* at *goodPrice*."""
+def _compute_ask(agent, good, good_price, recipes, is_employee):
+    """Compute how much *agent* wants to sell of *good* at *good_price*."""
     if is_employee:
         return 0
     if agent.output != good and agent.output != Goods.gov:
-        if agent.inv.get(good, 0) <= 0:
+        if agent.inventory.get(good, 0) <= 0:
             return 0
     if agent.output == good or (agent.output == Goods.gov
-                                and agent.inv.get(good, 0) > 0):
+                                and agent.inventory.get(good, 0) > 0):
         cost_to_make = 0
         agent_rec = recipes.get(good, {})
         if agent.output == good and agent_rec.get('numInput', 0) > 0 \
@@ -402,9 +402,9 @@ def _compute_ask(agent, good, goodPrice, recipes, is_employee):
             cost_to_make = ((agent_rec['numInput'] * input_cost)
                             / agent_rec['production'])
         if good == Goods.food and agent.output == Goods.food:
-            return max(0, agent.inv.get(good, 0) - 2)
-        elif goodPrice >= cost_to_make:
-            return max(0, agent.inv.get(good, 0))
+            return max(0, agent.inventory.get(good, 0) - 2)
+        elif good_price >= cost_to_make:
+            return max(0, agent.inventory.get(good, 0))
     return 0
 
 
@@ -412,32 +412,32 @@ def _compute_ask(agent, good, goodPrice, recipes, is_employee):
 # EXECUTION: buyers & sellers
 # =============================================================================
 
-def AskersSellGood(askers, good, price, t, totalBought, totalCashPurchase,
-                   totalCashSold, totalSold):
+def askers_sell_good(askers, good, price, t, total_bought, total_cash_purchases,
+                    total_cash_sales, total_sold):
     for agent in askers:
-        if totalSold < totalBought and totalCashPurchase > totalCashSold:
+        if total_sold < total_bought and total_cash_purchases > total_cash_sales:
             ask = agent.ask
-            remaining = totalBought - totalSold
+            remaining = total_bought - total_sold
             sold = min(ask, remaining)
             assert sold >= 0, 'neg sold ' + str(sold)
-            totalSold += sold
+            total_sold += sold
             agent.cash += sold * price
-            agent.inv[good] -= sold
-            totalCashSold += sold * price
+            agent.inventory[good] -= sold
+            total_cash_sales += sold * price
             if sold > 0:
                 loginfo(t, agent.name(), 'sold ', sold, good, ', ask: ', ask)
-    return totalCashSold, totalSold
+    return total_cash_sales, total_sold
 
 
-def BiddersBuyGood(t, agents, good, bought_log, price, totalAsks,
-                   totalBought):
+def bidders_buy_good(t, agents, good, bought_log, price, total_asks,
+                    total_bought):
     bidders = sorted(agents, key=lambda a: a.hungry_steps, reverse=True)
-    totalCashPurchase = 0
+    total_cash_purchases = 0
     for agent in bidders:
-        if totalAsks > totalBought:
+        if total_asks > total_bought:
             prevCash = agent.cash
             bid = agent.bid
-            remaining = totalAsks - totalBought
+            remaining = total_asks - total_bought
             affordable = int(agent.cash / price)
             bought = max(0, min(bid, min(remaining, affordable)))
             cash = bought * price
@@ -445,13 +445,13 @@ def BiddersBuyGood(t, agents, good, bought_log, price, totalAsks,
             assert agent.cash >= -1e-5, (
                 'neg cash, bought $' + str(cash) + ' of ' + str(good)
                 + ' now has ' + str(agent.cash))
-            totalCashPurchase += cash
+            total_cash_purchases += cash
             if bought > 0:
                 logdebug(t, agent.name(), 'had $', prevCash, 'now',
                          agent.cash, 'bought ', bought, good, ', bid: ',
                          bid, 'affordable: ', affordable, 'remaining:',
                          remaining)
-                old_qty = agent.inv.get(good, 0)
+                old_qty = agent.inventory.get(good, 0)
                 old_cost = agent.cost_basis.get(good, 0)
                 total_qty = old_qty + bought
                 if total_qty > 0:
@@ -459,22 +459,22 @@ def BiddersBuyGood(t, agents, good, bought_log, price, totalAsks,
                                                + bought * price) / total_qty)
                 else:
                     agent.cost_basis[good] = price
-                agent.inv[good] += bought
-                totalBought += bought
+                agent.inventory[good] += bought
+                total_bought += bought
                 bought_log[agent.output][good][-1] += bought
             else:
                 logdebug(t, agent.name(), 'had $', prevCash, 'now',
                          agent.cash, 'bought ', bought, good, ', bid: ',
                          bid, 'affordable: ', affordable, 'remaining:',
                          remaining)
-    return totalBought, totalCashPurchase
+    return total_bought, total_cash_purchases
 
 
 # =============================================================================
 # MARKET PRICE
 # =============================================================================
 
-def SetMarketPrice(demandRatio, good, recipes, agents=None):
+def set_market_price(demand_ratio, good, recipes, agents=None):
     recipe = recipes[good]
     price = recipe['price']
     fundamental_cost = 1.0
@@ -488,13 +488,13 @@ def SetMarketPrice(demandRatio, good, recipes, agents=None):
         min_price_floor = max(fundamental_cost * 1.10, living_cost_floor)
     else:
         min_price_floor = max(living_cost_floor, 0.10)
-    if demandRatio >= 1:
-        clamped_ratio = min(5.0, demandRatio - 1)
+    if demand_ratio >= 1:
+        clamped_ratio = min(5.0, demand_ratio - 1)
         price *= lerp(1.01, 1.20, clamped_ratio / 5.0)
-    elif demandRatio < 0.2:
-        price *= lerp(0.90, 0.95, demandRatio / 0.2)
-    elif demandRatio < .5:
-        price *= lerp(0.95, 1.0, (demandRatio - 0.2) / 0.3)
+    elif demand_ratio < 0.2:
+        price *= lerp(0.90, 0.95, demand_ratio / 0.2)
+    elif demand_ratio < .5:
+        price *= lerp(0.95, 1.0, (demand_ratio - 0.2) / 0.3)
     if agents and good != Goods.gov:
         producers = [a for a in agents if a.output == good]
         if producers:
@@ -516,27 +516,27 @@ def SetMarketPrice(demandRatio, good, recipes, agents=None):
 # BORROW / DEPOSIT DECISIONS
 # =============================================================================
 
-def DecideBorrowDeposit(agents, allGoodsPrice, bank, foodPrice,
-                        prevTotalCash, t):
+def decide_borrow_deposit(agents, all_goods_price, bank, food_price,
+                          previous_total_cash, t):
     for agent in agents:
-        BorrowIfNeedTo(t, agent, bank=bank)
+        borrow_if_needed(t, agent, bank=bank)
         PayLoans(agent, bank=bank)
-        _maybe_borrow_food_money(t, agent, foodPrice, bank)
+        _maybe_borrow_food_money(t, agent, food_price, bank)
         _maybe_borrow_inputs(t, agent, bank)
-        _deposit_excess_cash(t, agent, allGoodsPrice, bank)
+        _deposit_excess_cash(t, agent, all_goods_price, bank)
         agent.remainingCash = agent.cash
 
 
-def _maybe_borrow_food_money(t, agent, foodPrice, bank):
+def _maybe_borrow_food_money(t, agent, food_price, bank):
     """Borrow for food if starving and no cash."""
-    if agent.output != Goods.food and agent.cash < foodPrice \
+    if agent.output != Goods.food and agent.cash < food_price \
        and agent.hungry_steps > 10:
         bank_balance = bank.deposits.get(agent, 0)
         if bank_balance > 0:
-            needed = foodPrice - agent.cash
+            needed = food_price - agent.cash
             bank.Withdraw(agent, min(bank_balance, needed))
-        if agent.cash < foodPrice:
-            Borrow(t, agent, foodPrice, bank)
+        if agent.cash < food_price:
+            Borrow(t, agent, food_price, bank)
 
 
 def _maybe_borrow_inputs(t, agent, bank):
@@ -560,13 +560,13 @@ def _maybe_borrow_inputs(t, agent, bank):
         bank.Borrow(t, agent, amount_needed)
 
 
-def _deposit_excess_cash(t, agent, allGoodsPrice, bank):
+def _deposit_excess_cash(t, agent, all_goods_price, bank):
     """Deposit excess cash above a consumption-multiplier-based floor."""
-    mult = getattr(agent, 'consumption_mult', 1.0)
+    mult = getattr(agent, 'consumption_multiplier', 1.0)
     total_liquid = agent.cash + bank.deposits.get(agent, 0)
     current_deposits = bank.deposits.get(agent, 0)
     deposit_frac = max(0.30, min(0.70, 0.70 / max(1.0, mult)))
-    cash_floor = int(allGoodsPrice * (100 / max(1.0, mult)))
+    cash_floor = int(all_goods_price * (100 / max(1.0, mult)))
     max_deposits = total_liquid * deposit_frac
     excess_deposit_capacity = max(0, max_deposits - current_deposits)
     if agent.cash > cash_floor and excess_deposit_capacity > 0:
@@ -578,7 +578,7 @@ def _deposit_excess_cash(t, agent, allGoodsPrice, bank):
 # SECONDARY MARKET
 # =============================================================================
 
-def SecondaryTrade(t, agents, good, current_market_price, recipes):
+def secondary_trade(t, agents, good, current_market_price, recipes):
     """Execute a secondary market: distressed sellers, premium buyers."""
     recipe = recipes[good]
     fundamental_cost = 1.0
@@ -598,7 +598,7 @@ def _gather_secondary_asks(agents, good, market_price, min_price):
     asks = []
     for agent in agents:
         is_employee = getattr(agent, 'employer', None) is not None
-        remaining_inv = agent.inv.get(good, 0)
+        remaining_inv = agent.inventory.get(good, 0)
         keep_amount = 2 if (good == Goods.food
                             and agent.output == Goods.food) else 0
         sellable = max(0, remaining_inv - keep_amount)
@@ -620,17 +620,17 @@ def _gather_secondary_bids(agents, good, market_price, recipes):
         if not is_employee and agent.output == good:
             continue
         desired = 0
-        if not is_employee and GetInputCom(agent, recipes) == good:
-            num_employees = len(agent.employees) if getattr(agent, 'is_corp',
+        if not is_employee and get_input_commodity(agent, recipes) == good:
+            num_employees = len(agent.employees) if getattr(agent, 'is_corporation',
                                                             False) else 0
             agent_rec = recipes[agent.output]
             desired = max(0, recipes[good]['numInput'] * (1 + num_employees)
-                          - agent.inv.get(good, 0))
+                          - agent.inventory.get(good, 0))
         else:
             maxinv_limit = recipes[good]['maxinv']
-            if getattr(agent, 'is_corp', False):
+            if getattr(agent, 'is_corporation', False):
                 maxinv_limit *= (1 + len(agent.employees))
-            num_storable = max(0, maxinv_limit - agent.inv.get(good, 0))
+            num_storable = max(0, maxinv_limit - agent.inventory.get(good, 0))
             if good == Goods.food:
                 desired = min(16, num_storable)
             elif agent.remainingCash > market_price * 2:
@@ -650,13 +650,13 @@ def _gather_secondary_bids(agents, good, market_price, recipes):
 def _compute_bid_premium(agent, good, market_price, recipes):
     """How much above market price is *agent* willing to pay?"""
     is_employee = getattr(agent, 'employer', None) is not None
-    mult = getattr(agent, 'consumption_mult', 1.0)
+    mult = getattr(agent, 'consumption_multiplier', 1.0)
     if good == Goods.food and agent.hungry_steps > 0:
         base_premium = 1.0 + 0.5 * agent.hungry_steps
         return min(10.0, base_premium * mult * 0.5)
     elif (not is_employee and agent.output in recipes
-          and GetInputCom(agent, recipes) == good
-          and agent.inv.get(good, 0) == 0):
+          and get_input_commodity(agent, recipes) == good
+          and agent.inventory.get(good, 0) == 0):
         premium = 1.0 + (mult - 1.0) * 0.5
         return max(1.5, min(5.5, premium))
     elif mult > 2.0 and good != Goods.food:
@@ -688,14 +688,14 @@ def _match_secondary_orders(asks, bids, good, t):
                 bid.agent.remainingCash -= cost
                 bid.agent.cash -= cost
                 ask.agent.cash += cost
-                bid.agent.inv[good] += trade_qty
-                ask.agent.inv[good] -= trade_qty
-                old_qty = bid.agent.inv.get(good, 0) - trade_qty
+                bid.agent.inventory[good] += trade_qty
+                ask.agent.inventory[good] -= trade_qty
+                old_qty = bid.agent.inventory.get(good, 0) - trade_qty
                 old_cost = bid.agent.cost_basis.get(good, 0)
-                if bid.agent.inv[good] > 0:
+                if bid.agent.inventory[good] > 0:
                     bid.agent.cost_basis[good] = (
                         (old_qty * old_cost + cost)
-                        / bid.agent.inv[good]
+                        / bid.agent.inventory[good]
                     )
                 total_traded += trade_qty
                 total_value += cost
@@ -716,19 +716,19 @@ def _match_secondary_orders(asks, bids, good, t):
 # HELPERS
 # =============================================================================
 
-def reportCash(t, agents, prevTotalCash, msg, print=False):
-    tempTotalCash = getTotalCash(agents, bank)
-    diff = math.fabs(tempTotalCash - prevTotalCash)
+def report_cash(t, agents, previous_total_cash, msg, print=False):
+    temp_total_cash = get_total_cash(agents, bank)
+    diff = math.fabs(temp_total_cash - previous_total_cash)
     epsilon = 1e-8
     if diff > epsilon or print:
-        loginfo(t, msg, "total cash", prevTotalCash, '!=', tempTotalCash,
+        loginfo(t, msg, "total cash", previous_total_cash, '!=', temp_total_cash,
                 diff)
 
 
-def getTotalCash(agents, bank=None):
+def get_total_cash(agents, bank=None):
     if bank is None:
         bank = globals().get('bank', None)
         if bank is None:
             return sum(agent.cash for agent in agents)
-    bankCash = bank.total_deposits - bank.total_liabilities
-    return sum(agent.cash for agent in agents) + bankCash
+    bank_equity = bank.total_deposits - bank.total_liabilities
+    return sum(agent.cash for agent in agents) + bank_equity

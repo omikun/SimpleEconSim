@@ -11,7 +11,7 @@ introduce circular dependencies.
 
 from collections import defaultdict
 
-from goods import Goods
+from goods import Goods, profession
 import econsim_states as st
 
 
@@ -36,29 +36,29 @@ class Agent:
 
     def __init__(self, t):
         self.id = _next_agent_id()
-        self.birthRound = t
+        self.birth_round = t
         self.alive = True
         self.parent = None
-        self.descendents = []
+        self.descendants = []
         self.bid = 0
         self.ask = 0
         self.output = Goods.none
         self.hungry_steps = 0
         self.cash = 0
-        self.inv = {}
+        self.inventory = {}
         self.cost_basis = {}
-        self.lastCareerSwitch = 0
-        self.lastRepro = 0
+        self.last_career_switch = 0
+        self.last_reproduction = 0
         self.loans = []
         self.employer = None
         self.employees = []
-        self.is_corp = False
+        self.is_corporation = False
         self.wage = 0
-        self.hiredAt = 0
+        self.hired_at = 0
         self.owner = None
         self.company_owned = None
         self.max_employees = 0
-        self.consumption_mult = 1.0
+        self.consumption_multiplier = 1.0
         self.tax_loss_carryforward = 0.0
         self.retained_earnings = 0.0
         self.owner_loan = 0.0
@@ -69,35 +69,35 @@ class Agent:
         # ---- Region / government fields ----
         self.region = None
         self._bank_ref = None
-        self.is_gov = False
+        self.is_government = False
         # ---- Trader fields (two-region simulation) ----
         self.is_trader = False
         self.home_region = None
-        self.dest_region = None
-        self.inv_export = defaultdict(int)          # goods bought at home, waiting to be shipped
-        self.transport_pipeline = []                # list of {'turns_left', 'good', 'qty'}
-        self.inv_foreign = defaultdict(int)         # goods arrived abroad, ready to sell
-        self.transport_delay = 1                    # default; overridden per region-pair
+        self.destination_region = None
+        self.inventory_export = defaultdict(int)          # goods bought at home, waiting to be shipped
+        self.transport_pipeline = []                      # list of {'turns_left', 'good', 'quantity'}
+        self.inventory_foreign = defaultdict(int)         # goods arrived abroad, ready to sell
+        self.transport_delay = 1                          # default; overridden per region-pair
 
     def name(self):
-        prof_label = st.profession.get(self.output, '-')
+        prof_label = profession.get(self.output, '-')
         return f'agent{self.id}-{prof_label}'
 
     def age(self, t):
-        return t - self.birthRound
+        return t - self.birth_round
 
     def wealth(self):
-        inv_value = sum(
+        inventory_value = sum(
             amount * st.recipes[good]['price']
-            for good, amount in self.inv.items()
+            for good, amount in self.inventory.items()
             if good in st.recipes
         )
         debt_value = sum(loan.principle for loan in self.loans)
         bank = self._bank_ref
-        dep = bank.deposits.get(self, 0) if bank else 0
-        return self.cash + dep + inv_value - debt_value
+        deposit = bank.deposits.get(self, 0) if bank else 0
+        return self.cash + deposit + inventory_value - debt_value
 
-    def oweThisTurn(self):
+    def owed_this_turn(self):
         return sum(loan.getPaymentAmount() for loan in self.loans)
 
 
@@ -105,28 +105,28 @@ class Agent:
 # Helper: initialise an agent's inventory and output
 # =============================================================================
 
-def InitAgent(agent, output, numInput, numFood, cash, delta=0):
+def initialize_agent(agent, output, number_input, number_food, cash, delta=0):
     """Set an agent's output, cash, and inventory using the global recipes dict."""
     agent.output = output
     agent.cash = cash
     recipe = st.recipes.get(output, {})
     input_com = recipe.get('input', Goods.none)
     for g in st.goods:
-        agent.inv[g] = 0
+        agent.inventory[g] = 0
     if input_com != Goods.none:
-        agent.inv[input_com] = numInput
-    agent.inv[Goods.food] = numFood
+        agent.inventory[input_com] = number_input
+    agent.inventory[Goods.food] = number_food
 
 
 # =============================================================================
 # Helpers used by econsim_live
 # =============================================================================
 
-def GetInputCom(agent):
+def get_input_commodity(agent):
     """Return the input commodity required for *agent*'s output good."""
     recipe = st.recipes.get(agent.output, {})
     return recipe.get('input', Goods.none)
 
 
-def GetOutputCom(agent):
+def get_output_commodity(agent):
     return agent.output
