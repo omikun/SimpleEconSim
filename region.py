@@ -278,11 +278,7 @@ class Region:
         if t > 0 and t % 10 == 0:
             self._recalculate_multipliers()
 
-        cash_before = self._total_cash()
         self.agents = self._live(t)
-        cash_after = self._total_cash()
-        if abs(cash_after - cash_before) > 5.0:
-            print(f"  Region '{self.name}' T={t}: CASH LEAK ${cash_after-cash_before:.2f}")
 
         self._log_metrics(t)
         self.total_population.append(sum(v[-1] for v in self.population_log.values()))

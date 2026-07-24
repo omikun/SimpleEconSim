@@ -16,7 +16,7 @@ import random
 from collections import defaultdict
 
 from goods import Goods, profession
-from region import Region
+from region import Region, get_total_cash
 from econsim_states import starvation_limit, max_career_switches, probability_birth, birth_gap
 from logger import loginfo, logInit
 
@@ -193,11 +193,15 @@ def main():
     print(f"Region_B: {len(region_b.agents)} agents, Gov: ${region_b.gov.agent.cash:.2f}")
 
     for t in range(1, time_steps + 1):
+        cash_before = get_total_cash(region_a.agents, region_a.bank) + get_total_cash(region_b.agents, region_b.bank)
         region_a.step(t)
         region_b.step(t)
         process_transport(t, region_a, region_b)
         foreign_sell(t, region_a, region_b)
         foreign_sell(t, region_b, region_a)
+        cash_after = get_total_cash(region_a.agents, region_a.bank) + get_total_cash(region_b.agents, region_b.bank)
+        if abs(cash_after - cash_before) > 5.0:
+            print(f"  T={t}: COMBINED CASH LEAK ${cash_after-cash_before:.2f}")
 
         for region, other in [(region_a, region_b), (region_b, region_a)]:
             turn_export = sum(region.export_val[g][-1] for g in [Goods.food, Goods.wood, Goods.furniture] if region.export_val[g])
