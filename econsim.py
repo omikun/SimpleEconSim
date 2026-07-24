@@ -8,33 +8,16 @@ import econsim_live as Living
 import econsim_states
 from econsim_states import *
 from goods import Goods
-# import econsim_trade as trade
-# import econsim_trade_unity as trade
 import econsim_trade_money as trade
 from logger import *
 from agent import Agent, InitAgent, GetInputCom, GetOutputCom
+
+from region import count_agents, compute_gini, get_total_cash
 
 
 # =============================================================================
 # Module-level initialisation
 # =============================================================================
-
-recipes[Goods.food] = {
-    'commodity': Goods.food, 'production': 5, 'price': 1, 'numInput': 0,
-    'maxtotalprod': 10000, 'maxinv': 20,
-}
-recipes[Goods.wood] = {
-    'commodity': Goods.wood, 'production': 2, 'price': 1, 'numInput': 0,
-    'maxtotalprod': 3000, 'maxinv': 10,
-}
-recipes[Goods.furn] = {
-    'commodity': Goods.furn, 'production': 1, 'input': Goods.wood,
-    'numInput': 2, 'price': 25, 'maxtotalprod': 300, 'maxinv': 5,
-}
-recipes[Goods.gov] = {
-    'commodity': Goods.gov, 'production': 0, 'numInput': 0, 'price': 1,
-    'maxtotalprod': 0, 'maxinv': 0,
-}
 
 for good in goods:
     pop_log[good] = []
@@ -78,14 +61,6 @@ for prof in goods:
     bought_log[prof] = {}
     for good in goods:
         bought_log[prof][good] = [0]
-
-
-# =============================================================================
-# NumAgents
-# =============================================================================
-
-def NumAgents(agents, good):
-    return sum(agent.output == good for agent in agents)
 
 
 # =============================================================================
@@ -264,7 +239,7 @@ def PayWages(t, agents):
 def Produce(t, agents):
     numAgentsPerGoods = {}
     for good in econsim_states.goods:
-        numAgentsPerGoods[good] = NumAgents(agents, good)
+        numAgentsPerGoods[good] = count_agents(agents, good)
     totalProd.clear()
     for agent in agents:
         if agent.employer is not None:
@@ -365,26 +340,6 @@ def _produce_independent(t, agent, recipe, output, numAgentsPerGoods):
 # =============================================================================
 # GINI / CASH helpers
 # =============================================================================
-
-def compute_gini(agents, good):
-    values = sorted([agent.cash for agent in agents if agent.output == good])
-    n = len(values)
-    if n == 0:
-        return 0
-    mean_cash = sum(values) / n
-    if mean_cash == 0:
-        return 0
-    diffsum = 0
-    for i in range(n):
-        for j in range(n):
-            diffsum += abs(values[i] - values[j])
-    return diffsum / (2 * n * n * mean_cash)
-
-
-def getTotalCash(agents):
-    bankCash = trade.bank.total_deposits - trade.bank.total_liabilities
-    return sum(agent.cash for agent in agents) + bankCash
-
 
 def RecalculateConsumptionMultipliers(agents):
     """Recalculate consumption_mult for every living agent based on wealth / CoL.
@@ -512,7 +467,7 @@ def main():
     for agent in agents:
         if hasattr(agent, 'id'):
             gov._add_citizen(agent)
-    prevTotalCash = getTotalCash(agents)
+    prevTotalCash = get_total_cash(agents)
     for t in range(time_steps):
         _record_start_of_turn(agents)
         new_company_agents = RunLaborMarket(t, agents)
@@ -528,16 +483,16 @@ def main():
         _log_gdp(agents)
         if t > 0 and t % 10 == 0:
             RecalculateConsumptionMultipliers(agents)
-        cash_before_live = getTotalCash(agents)
+        cash_before_live = get_total_cash(agents)
         agents = Living.Live(t, agents)
-        cash_after_live = getTotalCash(agents)
+        cash_after_live = get_total_cash(agents)
         live_diff = cash_after_live - cash_before_live
         if abs(live_diff) > 5.0:
             print(f"{t}  CASH LEAK: Live() changed total by ${live_diff:.2f}")
         _log_all_metrics(t, agents)
         total_pop.append(sum(log[-1] for log in pop_log.values()))
         bankCash_log.append(trade.bank.total_deposits - trade.bank.total_liabilities)
-        totalCash_log.append(getTotalCash(agents))
+        totalCash_log.append(get_total_cash(agents))
         _log_pop_change_rate()
         for prof in goods:
             for good in goods:
@@ -709,19 +664,19 @@ def _plot_results(agents):
     axisId += 1
     _plot_pop_change_rate(axis, axisId)
     axisId += 1
-    _plot_gdp_total(axis, axisId)
-    axisId += 1
-    _plot_gdp_by_profession(axis, axisId, colors, labels)
+    _plot_gdp(axis, axisId, colors, labels)
     axisId += 1
     _plot_purchases(axis, axisId, colors, labels)
-    legend_handles, legend_labels = axis[2].get_legend_handles_labels()
-    figure.legend(legend_handles, legend_labels,
-                  loc='upper right', ncol=1, fontsize='small')
+    axisId += 1
+    lh, ll = axis[2].get_legend_handles_labels()
+    figure.legend(lh, ll, loc='upper right', ncol=1, fontsize='small')
     plt.grid(True)
     for ax in axis:
         ax.set_facecolor('lightgrey')
-    _print_final_report(agents)
-    plt.savefig('sim_output.png')
+    plt.savefig("sim_output.png")
+    plt.close(figure)
+    print("Plot saved to sim_output.png")
+    _print_final_stats(agents)
 
 
 def _plot_population(axis, axisId, colors, labels):
@@ -729,7 +684,8 @@ def _plot_population(axis, axisId, colors, labels):
     axis[axisId].set_ylabel("Population")
     axis[axisId].set_yscale('log', base=2)
     for good in goods:
-        axis[axisId].plot(pop_log[good], label=labels[good], color=colors[good])
+        axis[axisId].plot(pop_log[good], label=labels[good],
+                       color=colors[good])
     axis[axisId].plot(total_pop, label='total', color='black')
     axis[axisId].plot([-x for x in deadstarve_pop], label='dead', color='purple')
 
@@ -740,16 +696,15 @@ def _plot_inventory(axis, axisId, colors, labels):
     for good in goods:
         if good != Goods.gov:
             axis[axisId].plot(inv_log[good], label=labels[good],
-                              color=colors[good])
+                           color=colors[good])
 
 
 def _plot_gini(axis, axisId, colors, labels):
     axis[axisId].set_title("Gini coefficient")
     axis[axisId].set_ylabel("Cash")
-    rotGoods = [goods[-1]] + goods[:-1]
-    for good in rotGoods:
+    for good in goods:
         axis[axisId].plot(gini_log[good], label=labels[good],
-                          color=colors[good])
+                       color=colors[good])
 
 
 def _plot_demand_ratio(axis, axisId, colors, labels):
@@ -759,56 +714,57 @@ def _plot_demand_ratio(axis, axisId, colors, labels):
     for good in goods:
         if good != Goods.gov:
             axis[axisId].plot(demand_ratio_log[good], label=labels[good],
-                              color=colors[good])
+                           color=colors[good])
 
 
 def _plot_production(axis, axisId, colors, labels):
     axis[axisId].set_title("Production vs time")
-    axis[axisId].set_ylabel("Units Produced per round")
+    axis[axisId].set_ylabel("Units/round")
     axis[axisId].set_yscale('log')
     for good in goods:
         if good != Goods.gov:
             axis[axisId].plot(production_log[good], label=labels[good],
-                              color=colors[good])
+                           color=colors[good])
 
 
 def _plot_per_capita_inv(axis, axisId, colors, labels):
-    axis[axisId].set_title("Inventory Per capita (excluding producers)")
-    axis[axisId].set_ylabel("Inventory per capita")
+    axis[axisId].set_title("Inventory Per capita (excl producers)")
+    axis[axisId].set_ylabel("Inv per cap")
     for good in goods:
         if good != Goods.gov:
             axis[axisId].plot(perCapitaInv[good], label=labels[good],
-                              color=colors[good])
+                           color=colors[good])
 
 
 def _plot_cash(axis, axisId, colors, labels):
     axis[axisId].set_title("Cash vs time")
     axis[axisId].set_ylabel("Cash")
+    axis[axisId].set_yscale('log', base=2)
     for good in goods:
         axis[axisId].plot(cash_log[good], label=labels[good],
-                          color=colors[good])
+                       color=colors[good])
     axis[axisId].plot(totalCash_log, label='total', color='black')
     axis[axisId].plot(bankCash_log, label='bank', color='purple')
 
 
 def _plot_demand(axis, axisId, colors, labels):
     axis[axisId].set_title("Demand vs time")
-    axis[axisId].set_ylabel("Demands (log scale)")
+    axis[axisId].set_ylabel("Demands (log)")
     axis[axisId].set_yscale('log', base=2)
     for good in goods:
         if good != Goods.gov:
             axis[axisId].plot(demand_log[good], label=labels[good],
-                              color=colors[good])
+                           color=colors[good])
 
 
 def _plot_sold(axis, axisId, colors, labels):
     axis[axisId].set_title("Sold vs time")
-    axis[axisId].set_ylabel("Sold")
+    axis[axisId].set_ylabel("Sold (log)")
     axis[axisId].set_yscale('log', base=2)
     for good in goods:
         if good != Goods.gov:
             axis[axisId].plot(sold_log[good], label=labels[good],
-                              color=colors[good])
+                           color=colors[good])
 
 
 def _plot_price(axis, axisId, colors, labels):
@@ -818,7 +774,7 @@ def _plot_price(axis, axisId, colors, labels):
     for good in goods:
         if good != Goods.gov:
             axis[axisId].plot(price_log[good], label=labels[good],
-                              color=colors[good])
+                           color=colors[good])
 
 
 def _plot_hunger(axis, axisId, colors, labels):
@@ -827,17 +783,17 @@ def _plot_hunger(axis, axisId, colors, labels):
     axis[axisId].set_yscale('log', base=2)
     for good in goods:
         axis[axisId].plot(hungry_log[good], label=labels[good],
-                          color=colors[good])
+                       color=colors[good])
 
 
 def _plot_supply(axis, axisId, colors, labels):
     axis[axisId].set_title("Supply vs time")
-    axis[axisId].set_ylabel("Supply (log scale)")
+    axis[axisId].set_ylabel("Supply (log)")
     axis[axisId].set_yscale('log', base=2)
     for good in goods:
         if good != Goods.gov:
             axis[axisId].plot(supply_log[good], label=labels[good],
-                              color=colors[good])
+                           color=colors[good])
 
 
 def _plot_pop_change_rate(axis, axisId):
@@ -847,21 +803,15 @@ def _plot_pop_change_rate(axis, axisId):
     axis[axisId].plot(pop_change_rate_log, color='black')
 
 
-def _plot_gdp_total(axis, axisId):
-    axis[axisId].set_title("GDP vs time (total)")
-    axis[axisId].set_ylabel("GDP (value)")
-    axis[axisId].set_yscale('log', base=2)
-    axis[axisId].plot(gdp_log, color='black')
-
-
-def _plot_gdp_by_profession(axis, axisId, colors, labels):
-    axis[axisId].set_title("GDP vs time (by profession)")
-    axis[axisId].set_ylabel("GDP (value)")
+def _plot_gdp(axis, axisId, colors, labels):
+    axis[axisId].set_title("GDP vs time")
+    axis[axisId].set_ylabel("Total GDP (value)")
     axis[axisId].set_yscale('log', base=2)
     for good in goods:
         if good != Goods.gov:
-            axis[axisId].plot(gdp_by_profession_log[good],
-                              label=labels[good], color=colors[good])
+            axis[axisId].plot(gdp_by_profession_log[good], label=labels[good],
+                           color=colors[good])
+    axis[axisId].plot(gdp_log, label='All', color='black')
 
 
 def _plot_purchases(axis, axisId, colors, labels):
@@ -872,114 +822,37 @@ def _plot_purchases(axis, axisId, colors, labels):
     i = 0
     for prof in goods:
         for good in goods:
-            if good != Goods.gov:
-                axis[axisId + i].plot(bought_log[prof][good],
-                                      label=labels[good],
-                                      color=colors[good])
+            axis[axisId + i].plot(bought_log[prof][good], label=labels[good],
+                               color=colors[good])
         i += 1
 
 
-def _print_final_report(agents):
-    labels = {
-        Goods.food: 'Food',
-        Goods.wood: 'Wood',
-        Goods.furn: 'carp',
-        Goods.gov: 'gov',
-    }
-    print("\n--- Final Evaluation Summary ---")
+def _print_final_stats(agents):
+    print("\n" + "=" * 60)
+    print("FINAL STATS")
+    print("=" * 60)
+    print()
     for good in goods:
-        pop = pop_log.get(good, [0])[-1] if pop_log.get(good) else 0
-        price = (price_log.get(good, [1.0])[-1]
-                 if good != Goods.gov and price_log.get(good) else 1.0)
-        inv = (inv_log.get(good, [0])[-1]
-               if good != Goods.gov and inv_log.get(good) else 0)
-        cash = cash_log.get(good, [0])[-1] if cash_log.get(good) else 0
-        print(f"{profession.get(good, str(good))}: Pop={pop}, "
-              f"Price={price:.2f}, Inv={inv:.2f}, Cash={cash:.2f}")
-    print(f"Total Pop: {total_pop[-1] if total_pop else 0}, "
-          f"Dead/Starved: {deadstarve_pop[-1] if deadstarve_pop else 0}")
-    print("\n--- Demand Metrics (last 10 avg) ---")
+        pop = pop_log[good][-1] if pop_log[good] else 0
+        price = (price_log[good][-1] if good != Goods.gov and price_log[good]
+                 else recipes[good]['price'])
+        inv = (inv_log[good][-1] if good != Goods.gov and inv_log[good] else 0)
+        cash = cash_log[good][-1] if cash_log[good] else 0
+        print(f"  {good}: Pop={pop}, Price={price:.2f}, Inv={inv:.2f}, "
+              f"Cash={cash:.2f}")
+    print()
+    print(f"  Total Population (last): {total_pop[-1]}")
+    print(f"  Total Dead/Starved: {deadstarve_pop[-1]}")
+    if gdp_log:
+        print(f"  Final GDP/turn: ${gdp_log[-1]:.2f}")
+    print()
+    print("GDP breakdown per turn:")
     for good in goods:
         if good != Goods.gov:
-            last10_dr = (demand_ratio_log.get(good, [])[-10:]
-                         if demand_ratio_log.get(good) else [])
-            last10_sold = (sold_log.get(good, [])[-10:]
-                           if sold_log.get(good) else [])
-            avg_dr = sum(last10_dr) / len(last10_dr) if last10_dr else 0
-            avg_sold = sum(last10_sold) / len(last10_sold) if last10_sold else 0
-            print(f"  {labels[good]}: demand_ratio={avg_dr:.2f}, "
-                  f"sold={avg_sold:.0f}")
-    num_corps = sum(1 for agent in agents if agent.is_corp)
-    total_employees = sum(len(agent.employees) for agent in agents if agent.is_corp)
-    print(f"Active Corporations: {num_corps}")
-    print(f"Total Employees in Corps: {total_employees}")
-    for agent in agents:
-        if agent.is_corp:
-            print(f"  - {agent.name()}: {len(agent.employees)}/"
-                  f"{agent.max_employees} employees, "
-                  f"Cash: {agent.cash:.2f}, Wage: {agent.wage}")
-    corp_cash = sum(agent.cash for agent in agents if agent.is_corp)
-    corp_employee_cash = sum(
-        agent.cash for agent in agents
-        if getattr(agent, 'employer', None) is not None
-    )
-    independent_cash = sum(
-        agent.cash for agent in agents
-        if agent.employer is None and not agent.is_corp
-    )
-    total_owner_pay = 0
-    total_retained = 0
-    total_owner_loan = 0
-    for agent in agents:
-        if agent.is_corp:
-            total_retained += agent.retained_earnings
-            total_owner_loan += agent.owner_loan
-        if hasattr(agent, 'owner_payouts') and agent.owner_payouts:
-            total_owner_pay += sum(agent.owner_payouts)
-    if total_owner_pay > 0 or total_retained > 0 or total_owner_loan > 0:
-        print(f"\n--- Owner Compensation Summary (to {num_corps} corps) ---")
-        print(f"Total owner payouts (cumulative):    ${total_owner_pay:.2f}")
-        print(f"Total retained earnings (corps):     ${total_retained:.2f}")
-        print(f"Total owner loans outstanding:       ${total_owner_loan:.2f}")
-        print("--------------------------------")
-    print("\n--- Money Distribution ---")
-    print(f"Corporations ({num_corps}):             ${corp_cash:.2f}")
-    print(f"Corporate employees ({total_employees}):  ${corp_employee_cash:.2f}")
-    print(f"Independent agents:                  ${independent_cash:.2f}")
-    gov_cash = (econsim_states.default_gov.agent.cash
-                if econsim_states.default_gov else 0)
-    print(f"Government:                          ${gov_cash:.2f}")
-    bank_capital = trade.bank.total_deposits - trade.bank.total_liabilities
-    print(f"Bank (deposits - liab):              ${bank_capital:.2f}")
-    total_cash = getTotalCash(agents)
-    print(f"Total Cash in Economy:               ${total_cash:.2f}")
-    print(f"Bank deposits held:                  ${trade.bank.total_deposits:.2f}")
-    print(f"Bank liabilities (loans):            ${trade.bank.total_liabilities:.2f}")
+            gdp_val = (production_log[good][-1] * recipes[good]['price']
+                       if production_log[good] else 0)
+            print(f"  {Goods(good).name} GDP per turn:\t\t${gdp_val:.2f}")
     print("--------------------------------")
-    print("\n--- Bank Profit & Loss (cumulative) ---")
-    print(f"Loan interest earned (cumulative):    "
-          f"${trade.bank.total_interest_earned:.2f}")
-    print(f"Deposit interest paid (cumulative):   "
-          f"${trade.bank.total_deposit_interest_paid:.2f}")
-    bank_profit = (trade.bank.total_interest_earned
-                   - trade.bank.total_deposit_interest_paid)
-    print(f"Net profit:                           ${bank_profit:.2f}")
-    if trade.bank.total_deposit_interest_paid > 0:
-        ratio = (trade.bank.total_interest_earned
-                 / trade.bank.total_deposit_interest_paid)
-        print(f"Profit ratio (earned / paid):         {ratio:.2f}x")
-    else:
-        print("Profit ratio (earned / paid):         N/A (no deposit interest paid)")
-    print("--------------------------------\n")
-    print("\n--- GDP Summary ---")
-    print(f"Total GDP (cumulative):            ${sum(gdp_log):.2f}")
-    print(f"Final GDP per turn:                ${gdp_log[-1] if gdp_log else 0:.2f}")
-    for good in goods:
-        if good != Goods.gov:
-            final_gdp = (gdp_by_profession_log[good][-1]
-                         if gdp_by_profession_log.get(good) else 0)
-            print(f"  {labels[good]} GDP per turn:           ${final_gdp:.2f}")
-    print("--------------------------------\n")
 
 
 if __name__ == "__main__":
