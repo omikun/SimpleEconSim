@@ -1356,14 +1356,33 @@ def foreign_sell(t, dest_region, source_region):
                 bought = min(remaining, max_buy, 3)
                 cash = bought * ask_price
                 buyer.cash -= cash
-                # #2: Trader profit recycling — 20% stays in destination bank
-                trader_share = cash * 0.70
-                bank_share = cash * 0.20
-                # #3: Import tariff — 10% to destination government
-                tariff_share = cash * 0.10
+                # Default: trader keeps all (no recycling)
+                trader_share = cash
+                bank_share = 0.0
+                tariff_share = 0.0
+
+                # #2: Trader profit recycling (gated by destination gov policy)
+                if getattr(dest_region.gov, 'trader_recycling_enabled', True):
+                    trader_share = cash * 0.80
+                    bank_share = cash * 0.20
+
+                # #3: Import tariff (gated by destination gov policy)
+                if getattr(dest_region.gov, 'import_tariff_enabled', True):
+                    if bank_share > 0:
+                        # Both enabled: split from trader's 80%
+                        trader_share = cash * 0.70
+                        bank_share = cash * 0.20
+                        tariff_share = cash * 0.10
+                    else:
+                        # Only tariff enabled: split from full cash
+                        trader_share = cash * 0.90
+                        tariff_share = cash * 0.10
+
                 trader.cash += trader_share
-                dest_region.bank.total_deposits += bank_share
-                dest_region.gov.agent.cash += tariff_share
+                if bank_share > 0:
+                    dest_region.bank.total_deposits += bank_share
+                if tariff_share > 0:
+                    dest_region.gov.agent.cash += tariff_share
                 total_trader_profit += trader_share
                 total_bank_recycle += bank_share
                 total_tariff += tariff_share

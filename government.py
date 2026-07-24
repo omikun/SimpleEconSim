@@ -83,6 +83,20 @@ class Government:
         #     Multiplier applied to base death probability; < 1.0 lengthens lifespan.
         self.mortality_multiplier = 1.0
 
+        # ========== Trade Policy Configuration ==========
+        # All default to enabled for backward compatibility.
+
+        # 9. Import Tariff (revenue on foreign goods entering the region)
+        #     When enabled, a fraction of each import sale goes to the
+        #     destination government (currently 10% in foreign_sell).
+        self.import_tariff_enabled = True
+
+        # 10. Trader Profit Recycling (capital controls / reserve requirement)
+        #     When enabled, a fraction of each import sale is deposited
+        #     directly into the destination region's bank to keep liquidity
+        #     in the local economy (currently 20% in foreign_sell).
+        self.trader_recycling_enabled = True
+
     # ------------------------------------------------------------------
     #  Internal helpers
     # ------------------------------------------------------------------
