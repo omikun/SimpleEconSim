@@ -2,10 +2,8 @@ import bisect
 import random
 import math
 from dataclasses import dataclass
-from typing import Optional, Any
+from typing import Any
 
-import econsim_states
-from econsim_states import *
 import econsim_trade_money as trade
 from agent import Agent, initialize_agent, get_input_commodity, get_output_commodity
 from goods import Goods, profession
@@ -39,46 +37,19 @@ class LiveContext:
     p_birth: float
     birth_gap: int
     bank: Any                       # Bank singleton (trade.bank or region.bank)
-    most_demand: Any                # Goods enum (trade.mostDemand or computed value)
-
-
-def _build_context_from_globals() -> LiveContext:
-    """Build a LiveContext from the current module/global state."""
-    return LiveContext(
-        recipes=recipes,
-        goods=goods,
-        governments=econsim_states.governments,
-        default_gov=econsim_states.default_government,
-        hungry_log=hungry_log,
-        dead_pop=dead_pop,
-        deadstarve_pop=dead_starved_population,
-        production_log=production_log,
-        starve_limit=starvation_limit,
-        profession=profession,
-        max_career_switches=max_career_switches,
-        p_birth=probability_birth,
-        birth_gap=birth_gap,
-        bank=trade.bank,
-        most_demand=trade.most_demand,
-    )
+    most_demand: Any                # Goods enum (computed value)
 
 
 # =============================================================================
 # TOP-LEVEL ENTRY POINT
 # =============================================================================
 
-def Live(t, agents, context: Optional[LiveContext] = None):
+def Live(t, agents, context: LiveContext):
     """Process one turn of the life-cycle for all agents (in place).
     
-    When *context* is None (single-region callers), read/write global state
-    directly via _build_context_from_globals() for backward compatibility.
-    When *context* is provided (two-region callers), all reads/writes go
-    through the context object — no global patching needed.
+    All reads/writes go through *context* — no global state patching needed.
     """
-    if context is None:
-        ctx = _build_context_from_globals()
-    else:
-        ctx = context
+    ctx = context
 
     # ---- Pre-life-cycle government transfers ----
     for government in ctx.governments:

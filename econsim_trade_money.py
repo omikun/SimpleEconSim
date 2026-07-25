@@ -4,8 +4,7 @@ import random
 from collections import defaultdict
 from goods import Goods
 from logger import *
-from econsim_states import *
-import econsim_states
+from econsim_states import recipes
 
 inventory_limit = 10
 
@@ -213,9 +212,6 @@ def PayLoans(agent, bank=None):
     agent.loans = [l for l in agent.loans if not l.isPaid()]
 
 
-most_demand = Goods.none
-
-
 # =============================================================================
 # TRADE — entry point
 # =============================================================================
@@ -223,8 +219,6 @@ most_demand = Goods.none
 def Trade(t, agents, recipes, demand_ratio_log, demand_log,
           supply_log, sold_log, bought_log):
     previous_total_cash = get_total_cash(agents, bank)
-    global most_demand
-    most_demand = Goods.gov
     max_demand_ratio = 0
     goods = [Goods.food, Goods.wood, Goods.furniture]
     number_desired = 16
@@ -258,7 +252,6 @@ def Trade(t, agents, recipes, demand_ratio_log, demand_log,
         demand_ratio = 5.0 if total_asks == 0 else total_bids / total_asks
         if max_demand_ratio < demand_ratio and total_bids > 0:
             max_demand_ratio = demand_ratio
-            most_demand = good
         demand_ratio_log.setdefault(good, [])
         demand_ratio_log[good].append(demand_ratio)
         demand_log[good].append(total_bids)
