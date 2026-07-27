@@ -25,6 +25,10 @@ import government as govmod
 from agent import Agent, initialize_agent
 from charity import Charity
 from random_cache import rand
+try:
+    import region_core as _c
+except ImportError:
+    _c = None
 
 
 # =============================================================================
@@ -493,7 +497,10 @@ class Region:
             chance *= min(1.0, recipe['maxtotalprod'] / max(1, num_agents_per_good[output]) / base_production)
         chance *= max(0, 1 - agent.inv_get(output, 0) / max_inventory)
         vals = rand.random_n(active_slots)
-        successful_slots = sum(1 for v in vals if v < chance)
+        if _c is not None:
+            successful_slots = _c.produce_corporation_slots(active_slots, chance, vals)
+        else:
+            successful_slots = sum(1 for v in vals if v < chance)
         if successful_slots:
             if recipe.get('numInput', 0) > 0:
                 agent.inv_add(recipe['input'], -successful_slots * recipe['numInput'])
@@ -516,7 +523,12 @@ class Region:
             if output in (Goods.food, Goods.wood):
                 chance *= min(1.0, recipe['maxtotalprod'] / max(1, num_agents_per_good[output]) / recipe['production'])
             chance *= max(0, 1 - agent.inv_get(output, 0) / max_inventory)
-            if rand.random() < chance:
+            rand_val = rand.random()
+            if _c is not None:
+                made = _c.produce_independent_check(chance, rand_val)
+            else:
+                made = 1 if rand_val < chance else 0
+            if made:
                 if recipe['numInput'] > 0:
                     agent.inv_add(recipe['input'], -recipe['numInput'])
                 num_output = recipe['production']
