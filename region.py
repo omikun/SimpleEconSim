@@ -69,19 +69,20 @@ def count_agents(agents, good):
 
 
 def compute_gini(agents, good):
-    """Gini coefficient over cash held by agents producing *good*."""
+    """Gini coefficient over cash held by agents producing *good*.
+    
+    Uses O(n log n) algorithm instead of the naive O(n^2) double loop.
+    """
     vals = sorted([agent.cash for agent in agents if agent.output == good])
     n = len(vals)
     if n == 0:
         return 0
-    mean_cash = sum(vals) / n
-    if mean_cash == 0:
+    total = sum(vals)
+    if total == 0:
         return 0
-    total_difference = 0
-    for i in range(n):
-        for j in range(n):
-            total_difference += abs(vals[i] - vals[j])
-    return total_difference / (2 * n * n * mean_cash)
+    # G = (2 * sum((i+1) * y_i)) / (n * sum(y_i)) - (n+1)/n
+    weighted_sum = sum((i + 1) * v for i, v in enumerate(vals))
+    return (2 * weighted_sum) / (n * total) - (n + 1) / n
 
 
 def get_total_cash(agents, bank=None):

@@ -80,6 +80,7 @@ def Live(t, agents, context: LiveContext):
     number_dead_starved = ctx.deadstarve_pop[-1]
 
     random.shuffle(agents)
+    employer_cache = _build_employer_cache(agents)
     for agent in agents:
         if agent.is_corporation:
             new_agents.append(agent)
@@ -90,7 +91,7 @@ def Live(t, agents, context: LiveContext):
                                                           choices_list,
                                                           bottleneck_weights,
                                                           number_of_switches)
-        _handle_job_seeking(t, agent, agents)
+        _handle_job_seeking(t, agent, employer_cache)
         number_food_consumed = _handle_reproduction(ctx, t, agent, agents, new_agents)
         died = _handle_death(ctx, t, agent, agents)
         if died:
@@ -274,8 +275,22 @@ def _handle_career_switching(ctx: LiveContext, t, agent, agents,
 # JOB SEEKING
 # =============================================================================
 
-def _handle_job_seeking(t, agent, agents):
-    """Independent struggling agents actively seek employment."""
+def _build_employer_cache(agents):
+    """Pre-compute eligible employers by output (avoids O(n²) scan)."""
+    cache = {}
+    for a in agents:
+        if a.is_corporation and len(a.employees) < a.max_employees:
+            cash_ok = a.cash > (len(a.employees) * a.wage + a.wage) * 2
+            if cash_ok:
+                cache.setdefault(a.output, []).append(a)
+    return cache
+
+
+def _handle_job_seeking(t, agent, employer_cache):
+    """Independent struggling agents actively seek employment.
+    
+    Uses pre-computed employer_cache to avoid O(n) scan per agent.
+    """
     is_employee = getattr(agent, 'employer', None) is not None
     if is_employee or getattr(agent, 'is_corporation', False):
         return
@@ -283,13 +298,7 @@ def _handle_job_seeking(t, agent, agents):
         return
     if agent.cash >= 5 and agent.hungry_steps <= 0:
         return
-    employers = [
-        a for a in agents
-        if a.is_corporation
-        and len(a.employees) < a.max_employees
-        and a.output == agent.output
-        and a.cash > (len(a.employees) * a.wage + a.wage) * 2
-    ]
+    employers = employer_cache.get(agent.output, [])
     if employers:
         employer = random.choice(employers)
         agent.employer = employer
