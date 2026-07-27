@@ -505,9 +505,10 @@ def _handle_wealth_inheritance(ctx: LiveContext, t, agent, living_descendants):
         if government is not None:
             government.agent.cash += inheritance_cash
             if inheritance_deposits > 0:
+                # Transfer deposit to government (total_deposits unchanged — it's a transfer)
                 ctx.bank.deposits[government.agent] = \
                     ctx.bank.deposits.get(government.agent, 0) + inheritance_deposits
-            ctx.bank.total_deposits -= inheritance_deposits
+                ctx.bank.deposits[agent] = 0  # zero out so _zero_out_dead_agent's deletion is harmless
             for good, amount in agent.inventory.items():
                 government.agent.inventory[good] = government.agent.inventory.get(good, 0) + amount
 

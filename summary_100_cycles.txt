@@ -1,0 +1,9 @@
+
+--- Final Evaluation Summary ---
+F: Pop=99, Price=6.13, Inv=170.00, Cash=1324.59
+W: Pop=86, Price=17.88, Inv=233.00, Cash=1044.41
+C: Pop=0, Price=93.93, Inv=11.00, Cash=0.00
+G: Pop=3, Price=1.00, Inv=0.00, Cash=12.00
+Total Pop: 188, Dead/Starved: 0
+--------------------------------
+

@@ -387,7 +387,7 @@ class Region:
             startup_target = max(300, food_price * 20)
             shortfall = max(0, startup_target - equity)
             if shortfall > 0:
-                self.bank.Borrow(t, a, shortfall)
+                self.bank.Borrow(t, company, shortfall)
             a.cash -= equity
             company.cash = equity + shortfall
             sector_wages = [x.wage for x in self.agents if x.is_corporation and x.output == a.output and x.wage > 0]
@@ -521,7 +521,7 @@ class Region:
         self.bank.PayDepositInterest(self.agents)
         self._decide_borrow_deposit(self.agents, all_goods_price, food_price, t)
 
-        # Single pass: gather bids/asks for all goods at once
+        # Single pass: gather bids/asks for all goods, stored per-good on agent
         recipes = self.recipes
         agents = self.agents
         desired_food = 16
@@ -546,6 +546,9 @@ class Region:
                 ask = self._calculate_ask(a, g, p, is_emp)
                 a.ask = ask
                 total_asks[g] += ask
+                # Store per-good bid/ask for _buy/_sell later
+                setattr(a, f'bid_{g}', bid)
+                setattr(a, f'ask_{g}', ask)
 
         max_demand_ratio = 0
         most_demand_good = Goods.food
@@ -736,7 +739,9 @@ class Region:
         total_cash_purchases = 0.0
         for a in bidders:
             if total_asks > total_bought:
-                bought = max(0, min(a.bid, min(total_asks - total_bought, int(a.cash / price))))
+                # Use per-good bid stored during the single-pass gather
+                agent_bid = getattr(a, f'bid_{good}', a.bid)
+                bought = max(0, min(agent_bid, min(total_asks - total_bought, int(a.cash / price))))
                 cash = bought * price
                 a.cash = max(0.0, a.cash - cash)
                 total_cash_purchases += cash
@@ -765,7 +770,9 @@ class Region:
         total_cash_sales = 0.0
         for a in askers:
             if total_sold < total_bought and total_cash_purchases > total_cash_sales:
-                sold = min(a.ask, total_bought - total_sold)
+                # Use per-good ask stored during the single-pass gather
+                agent_ask = getattr(a, f'ask_{good}', a.ask)
+                sold = min(agent_ask, total_bought - total_sold)
                 total_sold += sold
                 a.cash += sold * price
                 a.inventory[good] -= sold
