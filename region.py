@@ -611,7 +611,7 @@ class Region:
             if space <= 0 or agent.remainingCash < good_price:
                 return 0
             affordable = agent.remainingCash // good_price
-            bid = min(space, affordable, 5)
+            bid = min(space, affordable)
             return max(0, bid)
         if not is_employee and self._input_good(agent) == good:
             num_employees = len(agent.employees) if agent.is_corporation else 0
