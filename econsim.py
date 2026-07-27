@@ -536,7 +536,7 @@ def main():
             bank_deposits = trade.bank.total_deposits
             bank_liabilities = trade.bank.total_liabilities
             ratio = bank_deposits / max(1, circulating_cash)
-            print(f"--- TEST A: Turn {t}: circulating=${circulating_cash:.0f}, "
+            print(f"--- Bank Health T={t}: circulating=${circulating_cash:.0f}, "
                   f"bank_deposits=${bank_deposits:.0f}, "
                   f"bank_liabilities=${bank_liabilities:.0f}, ratio={ratio:.1f}x")
     _plot_results(agents)

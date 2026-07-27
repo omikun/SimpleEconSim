@@ -135,13 +135,13 @@ def foreign_sell(t, destination_region, source_region):
                 trade_values[good] += cash
             trader.inventory_foreign[good] = remaining
 
-    if total_sold_value > 0:
-        print(f"  TRADE {source_region.name}->{destination_region.name}: "
-              f"sold {total_sold_quantity} units worth ${total_sold_value:.2f} "
-              f"({dict(trade_volumes)})"
-              f"  trader ${total_trader_profit:.2f}"
-              f"  bank recycle ${total_bank_recycle:.2f}"
-              f"  tariff ${total_tariff:.2f}")
+    if total_sold_value > 0 and t % 50 == 0:
+        loginfo(t, f"TRADE {source_region.name}->{destination_region.name}: "
+                f"sold {total_sold_quantity} units worth ${total_sold_value:.2f} "
+                f"({dict(trade_volumes)})"
+                f"  trader ${total_trader_profit:.2f}"
+                f"  bank recycle ${total_bank_recycle:.2f}"
+                f"  tariff ${total_tariff:.2f}")
 
     for good in [Goods.food, Goods.wood, Goods.furniture]:
         volume_sold = trade_volumes[good]
