@@ -23,6 +23,7 @@ from logger import loginfo, logwarning, logdebug
 import econsim_trade_money as _tm
 import government as govmod
 from agent import Agent, initialize_agent
+from charity import Charity
 
 
 # =============================================================================
@@ -202,6 +203,9 @@ class Region:
         for g in self.goods:
             self.bought_log['trader'][g] = [0]
 
+        # Charity (independent food redistribution)
+        self.charity = Charity(name, self.recipes)
+
         # Create agents
         self._create_agents(t, number_of_agents)
         self._register_citizens()
@@ -263,6 +267,9 @@ class Region:
     def step(self, t: int):
         self._record_start()
 
+        # Charity collects donations (before trade so it has cash to buy food)
+        self.charity.collect_donations(t, self.agents, self.bank)
+
         new_companies = self._run_labour(t)
         if new_companies:
             self.agents.extend(new_companies)
@@ -279,6 +286,9 @@ class Region:
             self._recalculate_multipliers()
 
         self.agents = self._live(t)
+
+        # Charity distributes food to hungry and young agents
+        self.charity.distribute_food(t, self.agents)
 
         self._log_metrics(t)
         self.total_population.append(sum(v[-1] for v in self.population_log.values()))
@@ -525,6 +535,33 @@ class Region:
             if math.fabs(total_cash_sales - total_cash_purchases) > 0.1:
                 logwarning(t, f"Region '{self.name}' trade {good}: ${total_cash_sales - total_cash_purchases:.2f}")
             self.sold_log[good].append(total_sold)
+
+            # ---- Charity food purchase (buys from remaining food asks) ----
+            if good == Goods.food:
+                charity_bid = self.charity.bid_food(price, current_desired)
+                if charity_bid > 0:
+                    # food producers who still have surplus after normal sell
+                    food_askers = [a for a in askers if a.output == Goods.food
+                                   and a.inventory.get(Goods.food, 0) > 2]
+                    charity_bought = 0
+                    for seller in food_askers:
+                        if charity_bid <= 0 or self.charity.cash < price:
+                            break
+                        available = seller.inventory.get(Goods.food, 0) - 2  # keep 2 for self
+                        if available <= 0:
+                            continue
+                        bought = min(charity_bid, available, int(self.charity.cash / price))
+                        if bought > 0:
+                            seller.inventory[Goods.food] -= bought
+                            seller.cash += bought * price
+                            self.charity.pay_for_food(bought * price)
+                            self.charity.receive_food(bought)
+                            charity_bid -= bought
+                            charity_bought += bought
+                    if charity_bought > 0:
+                        total_sold += charity_bought
+                        self.sold_log[good][-1] += charity_bought
+                        loginfo(t, f"{self.charity.name} bought {charity_bought} food at ${price:.2f}")
 
         self.most_demand = most_demand_good
 

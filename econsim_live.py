@@ -314,7 +314,7 @@ def _handle_reproduction(ctx: LiveContext, t, agent, agents, new_agents):
     if government is not None:
         birth_prob *= government.get_fertility_multiplier()
     if agent.last_reproduction + ctx.birth_gap < t and random.random() < birth_prob \
-       and agent.cash > 20 and agent.inventory.get(Goods.food, 0) >= 2:
+       and agent.inventory.get(Goods.food, 0) >= 2:
         agent.last_reproduction = t
         new_agent = Agent(t)
         new_agent.parent = agent
