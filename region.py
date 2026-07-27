@@ -110,6 +110,7 @@ class Region:
                  transport_delay: int = 1):
         self.name = name
         self.agents: list = []
+        self.max_agents = 10000      # Population cap for LiveContext
         self.transport_delay = transport_delay
         if profession_distribution is None:
             profession_distribution = dict(DEFAULT_PROFESSION_DISTRIBUTION)
@@ -944,6 +945,7 @@ class Region:
             birth_gap=birth_gap,
             bank=self.bank,
             most_demand=self.most_demand,
+            max_agents=self.max_agents,
         )
         result = _lm.Live(t, self.agents, context=ctx)
 

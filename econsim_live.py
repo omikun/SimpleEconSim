@@ -38,6 +38,7 @@ class LiveContext:
     birth_gap: int
     bank: Any                       # Bank singleton (trade.bank or region.bank)
     most_demand: Any                # Goods enum (computed value)
+    max_agents: int = 10000         # Hard population cap (0 = unlimited)
 
 
 # =============================================================================
@@ -324,6 +325,9 @@ def _handle_reproduction(ctx: LiveContext, t, agent, agents, new_agents):
         birth_prob *= government.get_fertility_multiplier()
     if agent.last_reproduction + ctx.birth_gap < t and random.random() < birth_prob \
        and agent.inventory.get(Goods.food, 0) >= 2:
+        # Check population cap
+        if ctx.max_agents > 0 and len(agents) + len(new_agents) >= ctx.max_agents:
+            return 0
         agent.last_reproduction = t
         new_agent = Agent(t)
         new_agent.parent = agent
