@@ -8,6 +8,7 @@ import econsim_trade_money as trade
 from agent import Agent, initialize_agent, get_input_commodity, get_output_commodity
 from goods import Goods, profession
 from logger import logdebug, loginfo, logwarning
+from random_cache import rand
 
 
 # =============================================================================
@@ -82,6 +83,7 @@ def Live(t, agents, context: LiveContext):
 
     random.shuffle(agents)
     employer_cache = _build_employer_cache(agents)
+    rand.reset()
     for agent in agents:
         if agent.is_corporation:
             new_agents.append(agent)
@@ -193,7 +195,7 @@ def _consume_goods(ctx: LiveContext, agent, number_food_consumed, number_wood_co
         agent.inv_add(Goods.wood, -1)
         number_wood_consumed += 1
     if agent.inv_get(Goods.furniture, 0) > 0 and get_output_commodity(agent) != Goods.furniture \
-       and random.random() < .066:
+       and rand.random() < .066:
         agent.inv_add(Goods.furniture, -1)
         number_furniture_consumed += 1
     return number_food_consumed, number_wood_consumed, number_furniture_consumed
@@ -239,10 +241,9 @@ def _handle_career_switching(ctx: LiveContext, t, agent, agents,
             number_of_switches += 1
             return 0, number_of_switches
     elif agent.cash < 20 and (t - getattr(agent, 'last_career_switch', 0) > 10):
-        if random.random() < 0.1:
+        if rand.random() < 0.1:
             if choices_list:
-                agent.output = random.choices(choices_list,
-                                              weights=bottleneck_weights, k=1)[0]
+                agent.output = rand.choice(choices_list)
                 logdebug(t, agent.name(), 'poor, exploring random career:',
                          ctx.profession[agent.output])
                 agent.last_career_switch = t
@@ -302,7 +303,7 @@ def _handle_job_seeking(t, agent, employer_cache):
         return
     employers = employer_cache.get(agent.output, [])
     if employers:
-        employer = random.choice(employers)
+        employer = rand.choice(employers)
         agent.employer = employer
         agent.hired_at = t
         employer.employees.append(agent)
@@ -324,7 +325,7 @@ def _handle_reproduction(ctx: LiveContext, t, agent, agents, new_agents):
     birth_prob = ctx.p_birth
     if government is not None:
         birth_prob *= government.get_fertility_multiplier()
-    if agent.last_reproduction + ctx.birth_gap < t and random.random() < birth_prob \
+    if agent.last_reproduction + ctx.birth_gap < t and rand.random() < birth_prob \
        and agent.inv_get(Goods.food, 0) >= 2:
         # Check population cap
         if ctx.max_agents > 0 and len(agents) + len(new_agents) >= ctx.max_agents:
@@ -346,7 +347,7 @@ def _handle_reproduction(ctx: LiveContext, t, agent, agents, new_agents):
             logdebug(t, "seeding extinct profession:", ctx.profession[output])
         else:
             output = ctx.most_demand
-            if output == Goods.food or random.random() < .5:
+            if output == Goods.food or rand.random() < .5:
                 output = agent.output
         if output != Goods.gov and ctx.recipes[output]['maxtotalprod'] + 5 \
            <= ctx.production_log[output][-1]:
@@ -380,7 +381,7 @@ def _handle_death(ctx: LiveContext, t, agent, agents):
                 agent, base_death_prob[min(agent.age(t) // 30, 9)])
         else:
             adjusted_prob = base_death_prob[min(agent.age(t) // 30, 9)]
-        if random.random() > adjusted_prob:
+        if rand.random() > adjusted_prob:
             return False  # survived
         agent.alive = False
         loginfo(t, agent.name(), 'has died due to age')

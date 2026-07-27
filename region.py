@@ -24,6 +24,7 @@ import econsim_trade_money as _tm
 import government as govmod
 from agent import Agent, initialize_agent
 from charity import Charity
+from random_cache import rand
 
 
 # =============================================================================
@@ -276,6 +277,7 @@ class Region:
     # ------------------------------------------------------------------
 
     def step(self, t: int):
+        rand.reset()
         self._record_start()
 
         # Clear per-agent caches for this turn
@@ -402,7 +404,7 @@ class Region:
             company.cash = equity + shortfall
             sector_wages = [x.wage for x in self.agents if x.is_corporation and x.output == a.output and x.wage > 0]
             company.wage = max(sector_wages) * 1.05 if sector_wages else max(1.0, food_price * 1.5)
-            company.max_employees = random.randint(10, 25)
+            company.max_employees = rand.randint(10, 25)
             new_companies.append(company)
         return new_companies
 
@@ -416,7 +418,7 @@ class Region:
             candidates = [x for x in self.agents if x.employer is None and not x.is_corporation and x != a]
             distressed = [c for c in candidates if c.hungry_steps > 0 or c.cash < 40]
             if distressed:
-                c = random.choice(distressed)
+                c = rand.choice(distressed)
                 c.employer = a
                 c.hired_at = t
                 a.employees.append(c)
@@ -425,7 +427,7 @@ class Region:
                 poachable = [e for e in self.agents if e.employer and e.employer != a
                              and e.employer.is_corporation and len(e.employer.employees) > 1]
                 if poachable:
-                    target = random.choice(poachable)
+                    target = rand.choice(poachable)
                     old_employer = target.employer
                     offer_wage = max(old_employer.wage * 1.1, a.wage * 1.05)
                     if a.cash > (payroll + offer_wage) * 2:
@@ -492,7 +494,8 @@ class Region:
         if output in (Goods.food, Goods.wood):
             chance *= min(1.0, recipe['maxtotalprod'] / max(1, num_agents_per_good[output]) / base_production)
         chance *= max(0, 1 - agent.inv_get(output, 0) / max_inventory)
-        successful_slots = sum(1 for _ in range(active_slots) if random.random() < chance)
+        vals = rand.random_n(active_slots)
+        successful_slots = sum(1 for v in vals if v < chance)
         if successful_slots:
             if recipe.get('numInput', 0) > 0:
                 agent.inv_add(recipe['input'], -successful_slots * recipe['numInput'])
@@ -515,7 +518,7 @@ class Region:
             if output in (Goods.food, Goods.wood):
                 chance *= min(1.0, recipe['maxtotalprod'] / max(1, num_agents_per_good[output]) / recipe['production'])
             chance *= max(0, 1 - agent.inv_get(output, 0) / max_inventory)
-            if random.random() < chance:
+            if rand.random() < chance:
                 if recipe['numInput'] > 0:
                     agent.inv_add(recipe['input'], -recipe['numInput'])
                 num_output = recipe['production']
@@ -973,7 +976,7 @@ class Region:
                 if (parent is not None and parent.is_trader
                         and not agent.is_trader
                         and trader_count < max_traders
-                        and random.random() < 0.5):
+                        and rand.random() < 0.5):
                     self._make_trader_internal(agent)
                     trader_count += 1
                     loginfo(t, f"{agent.name()} inherited trader from parent {parent.name()}")
@@ -981,7 +984,7 @@ class Region:
                       and has_arbitrage
                       and (agent.cash < 20 or agent.hungry_steps > 0)
                       and trader_count < max_traders
-                      and random.random() < 0.003):
+                      and rand.random() < 0.003):
                     self._make_trader_internal(agent)
                     trader_count += 1
                     loginfo(t, f"{agent.name()} switched to trader (cash=${agent.cash:.0f})")
