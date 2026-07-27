@@ -135,7 +135,7 @@ class Charity:
             if self.food_inventory <= 0:
                 break
             self.food_inventory -= 1
-            recipient.inventory[Goods.food] = recipient.inventory.get(Goods.food, 0) + 1
+            recipient.inv_add(Goods.food, 1)
             food_given += 1
             recipients += 1
             if recipient.hungry_steps > 0:

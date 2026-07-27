@@ -165,8 +165,8 @@ def _consume_goods(ctx: LiveContext, agent, number_food_consumed, number_wood_co
             extra_food = 2
         elif mult >= 2.0:
             extra_food = 1
-        if extra_food > 0 and agent.inventory.get(Goods.food, 0) >= extra_food + 4:
-            agent.inventory[Goods.food] -= extra_food
+        if extra_food > 0 and agent.inv_get(Goods.food, 0) >= extra_food + 4:
+            agent.inv_add(Goods.food, -extra_food)
             number_food_consumed += extra_food
             loginfo('', agent.name(),
                     'wealth consumption (mult=' + str(round(mult, 2))
@@ -174,11 +174,11 @@ def _consume_goods(ctx: LiveContext, agent, number_food_consumed, number_wood_co
         for luxury_good in ctx.goods:
             if luxury_good in (Goods.food, Goods.gov):
                 continue
-            if agent.inventory.get(luxury_good, 0) > 0 and get_output_commodity(agent) != luxury_good:
+            if agent.inv_get(luxury_good, 0) > 0 and get_output_commodity(agent) != luxury_good:
                 consume_qty = min(max(1, int(mult * 0.5)),
-                                  agent.inventory.get(luxury_good, 0), 5)
+                                  agent.inv_get(luxury_good, 0), 5)
                 if consume_qty > 0:
-                    agent.inventory[luxury_good] -= consume_qty
+                    agent.inv_add(luxury_good, -consume_qty)
                     if luxury_good == Goods.furniture:
                         number_furniture_consumed += consume_qty
                     elif luxury_good == Goods.wood:
@@ -188,27 +188,28 @@ def _consume_goods(ctx: LiveContext, agent, number_food_consumed, number_wood_co
                             + '), consumed', consume_qty,
                             ctx.profession[luxury_good])
     # Basic wood/furniture consumption
-    if agent.inventory.get(Goods.wood, 0) > 2 and get_input_commodity(agent) != Goods.wood \
+    if agent.inv_get(Goods.wood, 0) > 2 and get_input_commodity(agent) != Goods.wood \
        and get_output_commodity(agent) != Goods.wood:
-        agent.inventory[Goods.wood] -= 1
+        agent.inv_add(Goods.wood, -1)
         number_wood_consumed += 1
-    if agent.inventory.get(Goods.furniture, 0) > 0 and get_output_commodity(agent) != Goods.furniture \
+    if agent.inv_get(Goods.furniture, 0) > 0 and get_output_commodity(agent) != Goods.furniture \
        and random.random() < .066:
-        agent.inventory[Goods.furniture] -= 1
+        agent.inv_add(Goods.furniture, -1)
         number_furniture_consumed += 1
     return number_food_consumed, number_wood_consumed, number_furniture_consumed
 
 
 def _consume_daily_food(agent):
     """Consume 4 food from inventory (or go hungry)."""
-    if agent.inventory.get(Goods.food, 0) >= 4:
-        agent.inventory[Goods.food] -= 4
+    food_count = agent.inv_get(Goods.food, 0)
+    if food_count >= 4:
+        agent.inv_add(Goods.food, -4)
         agent.hungry_steps = 0
-    elif agent.inventory.get(Goods.food, 0) > 0:
-        agent.inventory[Goods.food] = 0
+    elif food_count > 0:
+        agent.inv_set(Goods.food, 0)
         agent.hungry_steps = 0
     else:
-        agent.inventory[Goods.food] = 0
+        agent.inv_set(Goods.food, 0)
         agent.hungry_steps += 1
 
 
@@ -324,7 +325,7 @@ def _handle_reproduction(ctx: LiveContext, t, agent, agents, new_agents):
     if government is not None:
         birth_prob *= government.get_fertility_multiplier()
     if agent.last_reproduction + ctx.birth_gap < t and random.random() < birth_prob \
-       and agent.inventory.get(Goods.food, 0) >= 2:
+       and agent.inv_get(Goods.food, 0) >= 2:
         # Check population cap
         if ctx.max_agents > 0 and len(agents) + len(new_agents) >= ctx.max_agents:
             return 0
@@ -334,8 +335,8 @@ def _handle_reproduction(ctx: LiveContext, t, agent, agents, new_agents):
         agent.descendants.append(new_agent)
         if government is not None:
             government._add_citizen(new_agent)
-        food_to_give = min(1, agent.inventory[Goods.food])
-        agent.inventory[Goods.food] -= food_to_give
+        food_to_give = min(1, agent.inv_get(Goods.food))
+        agent.inv_add(Goods.food, -food_to_give)
         empty_professions = [
             g for g in ctx.goods if g != Goods.gov
             and sum(1 for a in agents if a.output == g) == 0
@@ -371,7 +372,7 @@ def _handle_death(ctx: LiveContext, t, agent, agents):
     """Determine if agent dies (starvation or old age). Clean up assets."""
     if agent.hungry_steps < ctx.starve_limit:
         base_death_prob = [0.0002, 0.0003, 0.0007, 0.0013, 0.0025,
-                           0.006, 0.013, 0.027, 0.06, 0.13]
+                            0.006, 0.013, 0.027, 0.06, 0.13]
         import government as govmod
         government = govmod.find_government_for_agent(agent)
         if government is not None:
@@ -496,15 +497,21 @@ def _handle_wealth_inheritance(ctx: LiveContext, t, agent, living_descendants):
         for i, descendent in enumerate(living_descendants):
             extra_cash = cash_remainder if i == 0 else 0
             descendent.cash += cash_share + extra_cash
-        for good, amount in agent.inventory.items():
-            target_heirs = [d for d in living_descendants if d.output == good]
+        # Distribute inventory — iterate over Goods enum (list-based inventory)
+        for g_enum in Goods:
+            if g_enum == Goods.none:
+                continue
+            amount = agent.inventory[g_enum.value]
+            if amount == 0:
+                continue
+            target_heirs = [d for d in living_descendants if d.output == g_enum]
             if not target_heirs:
                 target_heirs = living_descendants
             inv_share = int(amount // len(target_heirs))
             inv_remainder = amount - (inv_share * len(target_heirs))
             for i, descendent in enumerate(target_heirs):
                 extra_inv = inv_remainder if i == 0 else 0
-                descendent.inventory[good] += inv_share + extra_inv
+                descendent.inventory[g_enum.value] += inv_share + extra_inv
     else:
         if government is not None:
             government.agent.cash += inheritance_cash
@@ -513,8 +520,13 @@ def _handle_wealth_inheritance(ctx: LiveContext, t, agent, living_descendants):
                 ctx.bank.deposits[government.agent] = \
                     ctx.bank.deposits.get(government.agent, 0) + inheritance_deposits
                 ctx.bank.deposits[agent] = 0  # zero out so _zero_out_dead_agent's deletion is harmless
-            for good, amount in agent.inventory.items():
-                government.agent.inventory[good] = government.agent.inventory.get(good, 0) + amount
+            # Transfer all inventory to government
+            for g_enum in Goods:
+                if g_enum == Goods.none:
+                    continue
+                amount = agent.inventory[g_enum.value]
+                if amount > 0:
+                    government.agent.inventory[g_enum.value] += amount
 
 
 def _zero_out_dead_agent(ctx: LiveContext, agent):

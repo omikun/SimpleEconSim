@@ -52,18 +52,22 @@ def _agent_process_pipeline(self):
     for entry in self.transport_pipeline:
         entry['turns_left'] -= 1
         if entry['turns_left'] <= 0:
-            self.inventory_foreign[entry['good']] += entry['quantity']
+            good = entry['good']
+            self.inventory_foreign[good.value] += entry['quantity']
         else:
             new_pipeline.append(entry)
     self.transport_pipeline = new_pipeline
-    for good, qty in list(self.inventory_export.items()):
+    for good in list(Goods):
+        if good == Goods.none:
+            continue
+        qty = self.inventory_export[good.value]
         if qty > 0:
             self.transport_pipeline.append({
                 'turns_left': self.transport_delay,
                 'good': good,
                 'quantity': qty,
             })
-            self.inventory_export[good] = 0
+            self.inventory_export[good.value] = 0
 
 
 from agent import Agent
@@ -85,7 +89,7 @@ def foreign_sell(t, destination_region, source_region):
 
     for trader in traders:
         for good in [Goods.food, Goods.wood, Goods.furniture]:
-            qty = trader.inventory_foreign.get(good, 0)
+            qty = trader.inventory_foreign[good.value]
             if qty <= 0:
                 continue
             price = destination_region.recipes[good]['price']
@@ -125,16 +129,16 @@ def foreign_sell(t, destination_region, source_region):
                 total_trader_profit += trader_share
                 total_bank_recycle += bank_share
                 total_tariff += tariff_share
-                old_quantity = buyer.inventory.get(good, 0)
-                old_cost = buyer.cost_basis.get(good, 0)
-                buyer.cost_basis[good] = ((old_quantity * old_cost + bought * ask_price) / (old_quantity + bought)) if (old_quantity + bought) > 0 else ask_price
-                buyer.inventory[good] += bought
+                old_quantity = buyer.inv_get(good, 0)
+                old_cost = buyer.cost_get(good, 0)
+                buyer.cost_set(good, ((old_quantity * old_cost + bought * ask_price) / (old_quantity + bought)) if (old_quantity + bought) > 0 else ask_price)
+                buyer.inv_add(good, bought)
                 remaining -= bought
                 total_sold_quantity += bought
                 total_sold_value += cash
                 trade_volumes[good] += bought
                 trade_values[good] += cash
-            trader.inventory_foreign[good] = remaining
+            trader.inventory_foreign[good.value] = remaining
 
     if total_sold_value > 0 and t % 50 == 0:
         loginfo(t, f"TRADE {source_region.name}->{destination_region.name}: "

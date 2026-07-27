@@ -145,8 +145,8 @@ def _handle_incorporation(t, agents):
         company.owner = agent
         agent.company_owned = company
         for good in goods:
-            company.inventory[good] = agent.inventory.get(good, 0)
-            agent.inventory[good] = 0
+            company.inventory[good.value] = agent.inv_get(good, 0)
+            agent.inv_set(good, 0)
         owner_equity = min(agent.cash * 0.3, agent.cash - 60)
         startup_target = max(300, food_price * 20)
         shortfall = max(0, startup_target - owner_equity)
@@ -279,14 +279,14 @@ def Produce(t, agents):
 def _produce_corporation(t, agent, recipe, output, num_agents_per_good):
     num_employees = len(agent.employees)
     max_inventory = recipe['maxinv'] * (1 + num_employees)
-    inventory_ratio = agent.inventory.get(output, 0) / max_inventory if max_inventory > 0 else 1
+    inventory_ratio = agent.inv_get(output, 0) / max_inventory if max_inventory > 0 else 1
     if inventory_ratio >= 1:
         total_production[output] += 0
         return
     num_slots = num_employees
     if recipe.get('numInput', 0) > 0:
         commodity = recipe['input']
-        available_inputs = agent.inventory.get(commodity, 0)
+        available_inputs = agent.inv_get(commodity, 0)
         inputs_per_slot = recipe['numInput']
         active_slots = int(min(num_slots, available_inputs // inputs_per_slot))
     else:
@@ -316,11 +316,11 @@ def _produce_corporation(t, agent, recipe, output, num_agents_per_good):
             successful_slots += 1
     if successful_slots > 0:
         if recipe.get('numInput', 0) > 0:
-            agent.inventory[recipe['input']] -= successful_slots * recipe['numInput']
+            agent.inv_add(recipe['input'], -successful_slots * recipe['numInput'])
         num_output = int(successful_slots * production_per_slot)
         if num_output == 0:
             num_output = 1
-        agent.inventory[output] += num_output
+        agent.inv_add(output, num_output)
         total_production[output] += num_output
         loginfo(t, agent.name(), 'corp built', num_output, output,
                 'slots', successful_slots, 'synergy', synergy)
@@ -328,14 +328,14 @@ def _produce_corporation(t, agent, recipe, output, num_agents_per_good):
 
 def _produce_independent(t, agent, recipe, output, num_agents_per_good):
     max_inventory = recipe['maxinv']
-    inventory_ratio = agent.inventory.get(output, 0) / max_inventory if max_inventory > 0 else 1
+    inventory_ratio = agent.inv_get(output, 0) / max_inventory if max_inventory > 0 else 1
     if inventory_ratio >= 1:
         total_production[output] += 0
         return
     has_inputs = True
     if recipe['numInput'] > 0:
         commodity = recipe['input']
-        if agent.inventory.get(commodity, 0) < recipe['numInput']:
+        if agent.inv_get(commodity, 0) < recipe['numInput']:
             has_inputs = False
     num_output = 0
     if has_inputs and recipe.get('production', 0) > 0:
@@ -348,9 +348,9 @@ def _produce_independent(t, agent, recipe, output, num_agents_per_good):
         chance *= max(0, 1 - inventory_ratio)
         if random.random() < chance:
             if recipe['numInput'] > 0:
-                agent.inventory[recipe['input']] -= recipe['numInput']
+                agent.inv_add(recipe['input'], -recipe['numInput'])
             num_output = recipe['production']
-    agent.inventory[output] += num_output
+    agent.inv_add(output, num_output)
     total_production[output] += num_output
     loginfo(t, agent.name(), 'built', num_output, output, agent.inventory)
 
@@ -620,8 +620,8 @@ def _log_all_metrics(t, agents):
         )
         gini_log[good].append(region_gini(agents, good))
         if good != Goods.gov:
-            inventory_log[good].append(sum(agent.inventory.get(good, 0) for agent in agents))
-            newlist = [agent.inventory[good] for agent in agents
+            inventory_log[good].append(sum(agent.inv_get(good, 0) for agent in agents))
+            newlist = [agent.inv_get(good, 0) for agent in agents
                        if agent.output != good]
             avg_inv = mean(newlist) if newlist else 0
             per_capita_inventory[good].append(avg_inv)

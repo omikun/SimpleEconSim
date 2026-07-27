@@ -226,9 +226,9 @@ class Government:
             immigrant = Agent(t)
             immigrant.output = output
             immigrant.cash = 50.0 + random.uniform(0, 30)
-            immigrant.inventory[Goods.food] = 4
+            immigrant.inv_set(Goods.food, 4)
             # Give a small inventory of their own profession's output
-            immigrant.inventory[output] = 2
+            immigrant.inv_set(output, 2)
 
             # Register as citizen
             self._add_citizen(immigrant)
@@ -351,7 +351,7 @@ class Government:
                 needs_food = 1
             # Starving > 3 days: emergency food (enough to eat 4 this turn)
             if agent.hungry_steps > 3:
-                current_food = agent.inventory.get(Goods.food, 0)
+                current_food = agent.inv_get(Goods.food, 0)
                 needed_for_meal = max(0, 4 - current_food)
                 # Don't double-count: children already get 1
                 if agent.age(t) <= child_max_age:
@@ -361,7 +361,7 @@ class Government:
             if needs_food > 0:
                 # Give food directly at no cash cost (social service)
                 # Food is created from thin air for emergency aid
-                agent.inventory[Goods.food] += needs_food
+                agent.inv_add(Goods.food, needs_food)
                 total_cost += needs_food * food_price  # For accounting purposes only
                 if agent.hungry_steps > 3:
                     loginfo(t, agent.name(), f"received emergency food aid ({needs_food} food)")

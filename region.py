@@ -60,6 +60,13 @@ DEFAULT_PROFESSION_DISTRIBUTION = {
 
 
 # =============================================================================
+# SoA constant: max pre-allocated slots
+# =============================================================================
+
+MAX_AGENTS = 10000
+
+
+# =============================================================================
 # Shared helpers (replacing duplicates in econsim.py / econsim_two_region.py)
 # =============================================================================
 
@@ -109,8 +116,8 @@ class Region:
                  profession_distribution: dict = None, number_of_traders: int = None,
                  transport_delay: int = 1):
         self.name = name
-        self.agents: list = []
-        self.max_agents = 10000      # Population cap for LiveContext
+        self.agents: list = []          # compact list of living agents (no Nones)
+        self.max_agents = MAX_AGENTS    # Population cap for LiveContext
         self.transport_delay = transport_delay
         if profession_distribution is None:
             profession_distribution = dict(DEFAULT_PROFESSION_DISTRIBUTION)
@@ -247,9 +254,11 @@ class Region:
             trader.region = self.name
             trader.cash = 200.0
             trader._bank_ref = self.bank
-            for g in goods:
-                trader.inventory[g] = 0
-            trader.inventory[Goods.food] = 4
+            for g in Goods:
+                if g == Goods.none:
+                    continue
+                trader.inventory[g.value] = 0
+            trader.inventory[Goods.food.value] = 4
             agents.append(trader)
 
         agents.append(self.gov.agent)
@@ -382,8 +391,8 @@ class Region:
             company._bank_ref = self.bank
             a.company_owned = company
             for g in self.goods:
-                company.inventory[g] = a.inventory.get(g, 0)
-                a.inventory[g] = 0
+                company.inventory[g.value] = a.inv_get(g, 0)
+                a.inv_set(g, 0)
             equity = min(a.cash * 0.3, a.cash - 60)
             startup_target = max(300, food_price * 20)
             shortfall = max(0, startup_target - equity)
@@ -464,11 +473,11 @@ class Region:
     def _produce_corporation(self, agent, recipe, output, num_agents_per_good, local_total_production):
         num_employees = len(agent.employees)
         max_inventory = recipe['maxinv'] * (1 + num_employees)
-        if agent.inventory.get(output, 0) / max_inventory >= 1:
+        if agent.inv_get(output, 0) / max_inventory >= 1:
             return
         num_slots = num_employees
         if recipe.get('numInput', 0) > 0:
-            available = agent.inventory.get(recipe['input'], 0)
+            available = agent.inv_get(recipe['input'], 0)
             active_slots = int(min(num_slots, available // recipe['numInput']))
         else:
             active_slots = int(num_slots)
@@ -482,21 +491,21 @@ class Region:
             chance *= 1 / (1 + agent.hungry_steps * 0.2)
         if output in (Goods.food, Goods.wood):
             chance *= min(1.0, recipe['maxtotalprod'] / max(1, num_agents_per_good[output]) / base_production)
-        chance *= max(0, 1 - agent.inventory.get(output, 0) / max_inventory)
+        chance *= max(0, 1 - agent.inv_get(output, 0) / max_inventory)
         successful_slots = sum(1 for _ in range(active_slots) if random.random() < chance)
         if successful_slots:
             if recipe.get('numInput', 0) > 0:
-                agent.inventory[recipe['input']] -= successful_slots * recipe['numInput']
+                agent.inv_add(recipe['input'], -successful_slots * recipe['numInput'])
             num_output = int(successful_slots * production_per_slot) or 1
-            agent.inventory[output] += num_output
+            agent.inv_add(output, num_output)
             local_total_production[output] += num_output
 
     def _produce_independent(self, agent, recipe, output, num_agents_per_good, local_total_production):
         max_inventory = recipe['maxinv']
-        if agent.inventory.get(output, 0) / max_inventory >= 1:
+        if agent.inv_get(output, 0) / max_inventory >= 1:
             return
         has_inputs = True
-        if recipe['numInput'] > 0 and agent.inventory.get(recipe['input'], 0) < recipe['numInput']:
+        if recipe['numInput'] > 0 and agent.inv_get(recipe['input'], 0) < recipe['numInput']:
             has_inputs = False
         num_output = 0
         if has_inputs and recipe.get('production', 0) > 0:
@@ -505,12 +514,12 @@ class Region:
                 chance *= 1 / (1 + agent.hungry_steps * 0.2)
             if output in (Goods.food, Goods.wood):
                 chance *= min(1.0, recipe['maxtotalprod'] / max(1, num_agents_per_good[output]) / recipe['production'])
-            chance *= max(0, 1 - agent.inventory.get(output, 0) / max_inventory)
+            chance *= max(0, 1 - agent.inv_get(output, 0) / max_inventory)
             if random.random() < chance:
                 if recipe['numInput'] > 0:
-                    agent.inventory[recipe['input']] -= recipe['numInput']
+                    agent.inv_add(recipe['input'], -recipe['numInput'])
                 num_output = recipe['production']
-        agent.inventory[output] += num_output
+        agent.inv_add(output, num_output)
         local_total_production[output] += num_output
 
     # ---- Trade ----
@@ -548,8 +557,8 @@ class Region:
                 a.ask = ask
                 total_asks[g] += ask
                 # Store per-good bid/ask for _buy/_sell later
-                setattr(a, f'bid_{g}', bid)
-                setattr(a, f'ask_{g}', ask)
+                setattr(a, f'bid_{g.name}', bid)
+                setattr(a, f'ask_{g.name}', ask)
 
         max_demand_ratio = 0
         most_demand_good = Goods.food
@@ -579,17 +588,17 @@ class Region:
                 charity_bid = self.charity.bid_food(price, desires[good])
                 if charity_bid > 0:
                     food_askers = [a for a in askers if a.output == Goods.food
-                                   and a.inventory.get(Goods.food, 0) > 2]
+                                   and a.inv_get(Goods.food, 0) > 2]
                     charity_bought = 0
                     for seller in food_askers:
                         if charity_bid <= 0 or self.charity.cash < price:
                             break
-                        available = seller.inventory.get(Goods.food, 0) - 2
+                        available = seller.inv_get(Goods.food, 0) - 2
                         if available <= 0:
                             continue
                         bought = min(charity_bid, available, int(self.charity.cash / price))
                         if bought > 0:
-                            seller.inventory[Goods.food] -= bought
+                            seller.inv_add(Goods.food, -bought)
                             seller.cash += bought * price
                             self.charity.pay_for_food(bought * price)
                             self.charity.receive_food(bought)
@@ -677,7 +686,7 @@ class Region:
                 if destination_ask <= good_price:
                     return 0
             max_trader_inventory = agent_recipe['maxinv']
-            total_holding = agent.inventory.get(good, 0) + agent.inventory_export.get(good, 0) + agent.inventory_foreign.get(good, 0)
+            total_holding = agent.inv_get(good, 0) + agent.inventory_export[good.value] + agent.inventory_foreign[good.value]
             for pipe in agent.transport_pipeline:
                 if pipe['good'] == good:
                     total_holding += pipe['quantity']
@@ -689,7 +698,7 @@ class Region:
             return max(0, bid)
         if not is_employee and self._input_good(agent) == good:
             num_employees = len(agent.employees) if agent.is_corporation else 0
-            desired = max(0, agent_recipe['numInput'] * (1 + num_employees) - agent.inventory.get(good, 0))
+            desired = max(0, agent_recipe['numInput'] * (1 + num_employees) - agent.inv_get(good, 0))
             if mult > 1.0:
                 desired = int(desired * mult)
             affordable = agent.remainingCash // good_price if good_price > 0 else desired
@@ -700,7 +709,7 @@ class Region:
                 max_inventory_limit *= (1 + len(agent.employees))
             if mult > 1.0:
                 max_inventory_limit = int(max_inventory_limit * min(mult, 3.0))
-            num_storable = max(0, max_inventory_limit - agent.inventory.get(good, 0))
+            num_storable = max(0, max_inventory_limit - agent.inv_get(good, 0))
             base_desire = min(current_desired, agent.remainingCash // good_price)
             bid = min(int(base_desire * mult), num_storable)
             if mult > 2.0 and good != Goods.food:
@@ -715,16 +724,16 @@ class Region:
         if is_employee:
             return 0
         if agent.output != good and agent.output != Goods.gov:
-            return 0 if agent.inventory.get(good, 0) <= 0 else 0
-        if agent.output == good or (agent.output == Goods.gov and agent.inventory.get(good, 0) > 0):
+            return 0 if agent.inv_get(good, 0) <= 0 else 0
+        if agent.output == good or (agent.output == Goods.gov and agent.inv_get(good, 0) > 0):
             cost_to_make = 0.0
             agent_recipe = self.recipes.get(good, {})
             if agent.output == good and agent_recipe.get('numInput', 0) > 0 and agent_recipe.get('production', 0) > 0:
-                cost_to_make = (agent_recipe['numInput'] * agent.cost_basis.get(agent_recipe['input'], 0)) / agent_recipe['production']
+                cost_to_make = (agent_recipe['numInput'] * agent.cost_get(agent_recipe['input'], 0)) / agent_recipe['production']
             if good == Goods.food and agent.output == Goods.food:
-                return max(0, agent.inventory.get(good, 0) - 2)
+                return max(0, agent.inv_get(good, 0) - 2)
             elif good_price >= cost_to_make:
-                return max(0, agent.inventory.get(good, 0))
+                return max(0, agent.inv_get(good, 0))
         return 0
 
     def _input_good(self, agent):
@@ -741,7 +750,7 @@ class Region:
         for a in bidders:
             if total_asks > total_bought:
                 # Use per-good bid stored during the single-pass gather
-                agent_bid = getattr(a, f'bid_{good}', a.bid)
+                agent_bid = getattr(a, f'bid_{good.name}', a.bid)
                 bought = max(0, min(agent_bid, min(total_asks - total_bought, int(a.cash / price))))
                 cash = bought * price
                 a.cash = max(0.0, a.cash - cash)
@@ -749,19 +758,19 @@ class Region:
                 if bought > 0:
                     if a.is_trader:
                         if good != Goods.food:
-                            a.inventory_export[good] += bought
+                            a.inventory_export[good.value] += bought
                         else:
-                            food_needed = max(0, 8 - a.inventory.get(good, 0))
+                            food_needed = max(0, 8 - a.inv_get(good, 0))
                             keep = min(food_needed, bought)
                             export = bought - keep
-                            a.inventory[good] += keep
+                            a.inv_add(good, keep)
                             if export > 0:
-                                a.inventory_export[good] += export
+                                a.inventory_export[good.value] += export
                     else:
-                        old_quantity = a.inventory.get(good, 0)
-                        old_cost = a.cost_basis.get(good, 0)
-                        a.cost_basis[good] = ((old_quantity * old_cost + bought * price) / (old_quantity + bought)) if (old_quantity + bought) > 0 else price
-                        a.inventory[good] += bought
+                        old_quantity = a.inv_get(good, 0)
+                        old_cost = a.cost_get(good, 0)
+                        a.cost_set(good, ((old_quantity * old_cost + bought * price) / (old_quantity + bought)) if (old_quantity + bought) > 0 else price)
+                        a.inv_add(good, bought)
                     total_bought += bought
                     self.bought_log[a.output][good][-1] += bought
         return total_bought, total_cash_purchases
@@ -772,11 +781,11 @@ class Region:
         for a in askers:
             if total_sold < total_bought and total_cash_purchases > total_cash_sales:
                 # Use per-good ask stored during the single-pass gather
-                agent_ask = getattr(a, f'ask_{good}', a.ask)
+                agent_ask = getattr(a, f'ask_{good.name}', a.ask)
                 sold = min(agent_ask, total_bought - total_sold)
                 total_sold += sold
                 a.cash += sold * price
-                a.inventory[good] -= sold
+                a.inv_add(good, -sold)
                 total_cash_sales += sold * price
         return total_cash_sales, total_sold
 
@@ -985,11 +994,15 @@ class Region:
         agent.home_region = self.name
         agent.destination_region = self.destination_region
         agent.output = Goods.food
-        agent.inventory_export.clear()
+        # Zero out export/foreign lists
+        for g in Goods:
+            if g == Goods.none:
+                continue
+            agent.inventory_export[g.value] = 0
+            agent.inventory_foreign[g.value] = 0
         agent.transport_pipeline.clear()
-        agent.inventory_foreign.clear()
         agent.transport_delay = 1  # TRANSPORT_DELAY
-        agent.inventory[Goods.food] = max(agent.inventory.get(Goods.food, 0), 4)
+        agent.inv_set(Goods.food, max(agent.inv_get(Goods.food, 0), 4))
         agent.employer = None
 
     def _log_gdp(self):
@@ -1016,7 +1029,7 @@ class Region:
             if a.is_trader:
                 trader_agents.append(a)
                 by_output['trader'].append(a)
-                total_inv_trader += a.inventory.get(Goods.food, 0) + a.inventory.get(Goods.wood, 0) + a.inventory.get(Goods.furniture, 0)
+                total_inv_trader += a.inv_get(Goods.food, 0) + a.inv_get(Goods.wood, 0) + a.inv_get(Goods.furniture, 0)
                 # Traders also counted as food producers — skip adding to goods by_output
                 continue
             if a.output == Goods.food:
@@ -1024,13 +1037,13 @@ class Region:
                 by_output[Goods.food].append(a)
                 total_cash_by_output[Goods.food] += a.cash
                 if Goods.food != Goods.gov:
-                    total_inv_by_output[Goods.food] += a.inventory.get(Goods.food, 0)
+                    total_inv_by_output[Goods.food] += a.inv_get(Goods.food, 0)
             elif a.output != Goods.gov:
                 o = a.output
                 by_output[o].append(a)
                 total_cash_by_output[o] += a.cash
                 if o != Goods.gov:
-                    total_inv_by_output[o] += a.inventory.get(o, 0)
+                    total_inv_by_output[o] += a.inv_get(o, 0)
 
         compute_gini_this_turn = (t % 10 == 0)
 
@@ -1046,7 +1059,7 @@ class Region:
             if g != Goods.gov:
                 self.inventory_log[g].append(total_inv_by_output.get(g, 0.0))
                 # Per-capita non-producer inventory (agents not producing this good)
-                non_prod = [a.inventory.get(g, 0) for a in agents if a.output != g and not a.is_trader]
+                non_prod = [a.inv_get(g, 0) for a in agents if a.output != g and not a.is_trader]
                 self.per_capita_inventory[g].append(mean(non_prod) if non_prod else 0)
                 self.price_log[g].append(self.recipes[g]['price'])
 
@@ -1059,7 +1072,7 @@ class Region:
             self.gini_log['trader'].append(self.gini_log['trader'][-1] if self.gini_log['trader'] else 0)
         self.hungry_log['trader'].append(sum(1 for a in trader_agents if a.hungry_steps > 0))
         self.inventory_log['trader'].append(total_inv_trader)
-        non_trader = [a.inventory.get(Goods.food, 0) for a in trader_agents if a.output != Goods.food]
+        non_trader = [a.inv_get(Goods.food, 0) for a in trader_agents if a.output != Goods.food]
         self.per_capita_inventory['trader'].append(mean(non_trader) if non_trader else 0)
         self.production_log['trader'].append(0)
         self.gdp_by_profession_log['trader'].append(0)

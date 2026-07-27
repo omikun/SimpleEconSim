@@ -16,6 +16,15 @@ import econsim_states as st
 
 
 # =============================================================================
+# Number of goods (for pre-allocating arrays)
+# =============================================================================
+
+# IntEnum auto() assigns 1-based values.  We need max()+1 so index 5 is valid
+# for Goods.none (value=5).
+_NUM_GOODS = max(g.value for g in Goods) + 1
+
+
+# =============================================================================
 # Global agent ID counter (shared across all modules)
 # =============================================================================
 
@@ -32,7 +41,37 @@ def _next_agent_id() -> int:
 # =============================================================================
 
 class Agent:
-    """Agent with all fields needed by the simulation modules."""
+    """Agent with all fields needed by the simulation modules.
+
+    inventory, inventory_export, inventory_foreign, and cost_basis are
+    lists indexed by good.value (0–4), NOT dicts.  This eliminates the
+    #1 profile hot spot: 617K dict.get() calls per turn.
+    """
+
+    __slots__ = (
+        'id', 'birth_round', 'alive', 'parent', 'descendants',
+        'bid', 'ask',
+        'output',
+        'hungry_steps', 'cash', 'remainingCash',
+        'inventory', 'cost_basis',
+        'last_career_switch', 'last_reproduction',
+        'loans',
+        'employer', 'employees', 'is_corporation', 'wage', 'hired_at',
+        'owner', 'company_owned', 'max_employees',
+        'consumption_multiplier',
+        'tax_loss_carryforward', 'retained_earnings', 'owner_loan',
+        '_start_cash', '_start_deposits', '_delta_cash', '_delta_deposits',
+        'region', '_bank_ref', 'is_government',
+        'is_trader', 'home_region', 'destination_region',
+        'inventory_export', 'transport_pipeline', 'inventory_foreign',
+        'transport_delay',
+        # ---- SoA slot index + cache ----
+        # ---- Per-good bid/ask (set via setattr in region._trade) ----
+        'bid_food', 'bid_wood', 'bid_furniture',
+        'ask_food', 'ask_wood', 'ask_furniture',
+        # ---- SoA slot index + cache ----
+        '_slot', '_cached_wealth',
+    )
 
     def __init__(self, t):
         self.id = _next_agent_id()
@@ -45,8 +84,9 @@ class Agent:
         self.output = Goods.none
         self.hungry_steps = 0
         self.cash = 0
-        self.inventory = {}
-        self.cost_basis = {}
+        # Inventory as list indexed by good.value — not a dict
+        self.inventory = [0] * _NUM_GOODS
+        self.cost_basis = [0.0] * _NUM_GOODS
         self.last_career_switch = 0
         self.last_reproduction = 0
         self.loans = []
@@ -74,10 +114,14 @@ class Agent:
         self.is_trader = False
         self.home_region = None
         self.destination_region = None
-        self.inventory_export = defaultdict(int)          # goods bought at home, waiting to be shipped
-        self.transport_pipeline = []                      # list of {'turns_left', 'good', 'quantity'}
-        self.inventory_foreign = defaultdict(int)         # goods arrived abroad, ready to sell
-        self.transport_delay = 1                          # default; overridden per region-pair
+        self.inventory_export = [0] * _NUM_GOODS      # list, not defaultdict
+        self.transport_pipeline = []                  # list of {'turns_left', 'good', 'quantity'}
+        self.inventory_foreign = [0] * _NUM_GOODS     # list, not defaultdict
+        self.transport_delay = 1                      # default; overridden per region-pair
+        # ---- SoA slot index (assigned by Region) ----
+        self._slot = -1
+        self.remainingCash = 0
+        self._cached_wealth = None
 
     def name(self):
         prof_label = profession.get(self.output, '-')
@@ -86,18 +130,18 @@ class Agent:
     def age(self, t):
         return t - self.birth_round
 
-    # Cache for wealth: cleared at the start of each step()
-    _cached_wealth = None
-
+    # Note: _cached_wealth is initialized to None in __init__ (it's in __slots__)
     def wealth(self):
         if self._cached_wealth is not None:
             return self._cached_wealth
         r = st.recipes
         inv_val = 0.0
         inv = self.inventory
-        for good, amount in inv.items():
-            if good in r:
-                inv_val += amount * r[good]['price']
+        for g_enum in Goods:
+            gv = g_enum.value
+            amount = inv[gv]
+            if amount and g_enum in r:
+                inv_val += amount * r[g_enum]['price']
         debt = 0.0
         for loan in self.loans:
             debt += loan.principle
@@ -113,6 +157,28 @@ class Agent:
     def owed_this_turn(self):
         return sum(loan.getPaymentAmount() for loan in self.loans)
 
+    # ---- Helper: get inventory value by good enum (replaces .get) ----
+    def inv_get(self, good, default=0):
+        """Return inventory[good.value] with a default fallback (like dict.get)."""
+        val = self.inventory[good.value]
+        return val if val else default
+
+    def inv_set(self, good, value):
+        """Set inventory[good.value]."""
+        self.inventory[good.value] = value
+
+    def inv_add(self, good, delta):
+        """Add delta to inventory[good.value]."""
+        self.inventory[good.value] += delta
+
+    # ---- Same for cost_basis ----
+    def cost_get(self, good, default=0.0):
+        val = self.cost_basis[good.value]
+        return val if val else default
+
+    def cost_set(self, good, value):
+        self.cost_basis[good.value] = value
+
 
 # =============================================================================
 # Helper: initialise an agent's inventory and output
@@ -124,11 +190,12 @@ def initialize_agent(agent, output, number_input, number_food, cash, delta=0):
     agent.cash = cash
     recipe = st.recipes.get(output, {})
     input_com = recipe.get('input', Goods.none)
-    for g in st.goods:
-        agent.inventory[g] = 0
+    # Zero out all inventory slots, then set what's needed
+    for g in Goods:
+        agent.inventory[g.value] = 0
     if input_com != Goods.none:
-        agent.inventory[input_com] = number_input
-    agent.inventory[Goods.food] = number_food
+        agent.inventory[input_com.value] = number_input
+    agent.inventory[Goods.food.value] = number_food
 
 
 # =============================================================================

@@ -320,7 +320,7 @@ def gather_bids_asks(t, agents, good, good_price, number_desired, recipes,
         loginfo(t, agent.name(), 'bid', agent.bid, 'input',
                 get_input_commodity(agent, recipes), 'recipe for',
                 agent_rec['commodity'], 'num input', agent_rec['numInput'],
-                agent.inventory[good])
+                agent.inventory[good.value])
         total_bids += agent.bid
         ask = _compute_ask(agent, good, good_price, recipes, is_employee)
         agent.ask = ask
@@ -347,7 +347,7 @@ def _compute_bid(agent, good, good_price, number_desired, agent_rec, is_employee
                                                         False) else 0
         multiplier = 1 + num_employees
         desired = max(0, agent_rec['numInput'] * multiplier
-                      - agent.inventory.get(good, 0))
+                      - agent.inv_get(good, 0))
         if mult > 1.0:
             desired = int(desired * mult)
         affordable = agent.remainingCash // good_price if good_price > 0 else desired
@@ -359,7 +359,7 @@ def _compute_bid(agent, good, good_price, number_desired, agent_rec, is_employee
             maxinv_limit *= (1 + len(agent.employees))
         if mult > 1.0:
             maxinv_limit = int(maxinv_limit * min(mult, 3.0))
-        num_storable = max(0, maxinv_limit - agent.inventory.get(good, 0))
+        num_storable = max(0, maxinv_limit - agent.inv_get(good, 0))
         base_desire = min(number_desired,
                           agent.remainingCash // good_price)
         scaled_desire = int(base_desire * mult)
@@ -382,22 +382,22 @@ def _compute_ask(agent, good, good_price, recipes, is_employee):
     if is_employee:
         return 0
     if agent.output != good and agent.output != Goods.gov:
-        if agent.inventory.get(good, 0) <= 0:
+        if agent.inv_get(good, 0) <= 0:
             return 0
     if agent.output == good or (agent.output == Goods.gov
-                                and agent.inventory.get(good, 0) > 0):
+                                and agent.inv_get(good, 0) > 0):
         cost_to_make = 0
         agent_rec = recipes.get(good, {})
         if agent.output == good and agent_rec.get('numInput', 0) > 0 \
            and agent_rec.get('production', 0) > 0:
             input_com = agent_rec['input']
-            input_cost = agent.cost_basis.get(input_com, 0)
+            input_cost = agent.cost_get(input_com, 0)
             cost_to_make = ((agent_rec['numInput'] * input_cost)
                             / agent_rec['production'])
         if good == Goods.food and agent.output == Goods.food:
-            return max(0, agent.inventory.get(good, 0) - 2)
+            return max(0, agent.inv_get(good, 0) - 2)
         elif good_price >= cost_to_make:
-            return max(0, agent.inventory.get(good, 0))
+            return max(0, agent.inv_get(good, 0))
     return 0
 
 
@@ -415,7 +415,7 @@ def askers_sell_good(askers, good, price, t, total_bought, total_cash_purchases,
             assert sold >= 0, 'neg sold ' + str(sold)
             total_sold += sold
             agent.cash += sold * price
-            agent.inventory[good] -= sold
+            agent.inv_add(good, -sold)
             total_cash_sales += sold * price
             if sold > 0:
                 loginfo(t, agent.name(), 'sold ', sold, good, ', ask: ', ask)
@@ -444,15 +444,14 @@ def bidders_buy_good(t, agents, good, bought_log, price, total_asks,
                          agent.cash, 'bought ', bought, good, ', bid: ',
                          bid, 'affordable: ', affordable, 'remaining:',
                          remaining)
-                old_qty = agent.inventory.get(good, 0)
-                old_cost = agent.cost_basis.get(good, 0)
+                old_qty = agent.inv_get(good, 0)
+                old_cost = agent.cost_get(good, 0)
                 total_qty = old_qty + bought
                 if total_qty > 0:
-                    agent.cost_basis[good] = ((old_qty * old_cost
-                                               + bought * price) / total_qty)
+                    agent.cost_set(good, (old_qty * old_cost + bought * price) / total_qty)
                 else:
-                    agent.cost_basis[good] = price
-                agent.inventory[good] += bought
+                    agent.cost_set(good, price)
+                agent.inv_add(good, bought)
                 total_bought += bought
                 bought_log[agent.output][good][-1] += bought
             else:
@@ -591,7 +590,7 @@ def _gather_secondary_asks(agents, good, market_price, min_price):
     asks = []
     for agent in agents:
         is_employee = getattr(agent, 'employer', None) is not None
-        remaining_inv = agent.inventory.get(good, 0)
+        remaining_inv = agent.inv_get(good, 0)
         keep_amount = 2 if (good == Goods.food
                             and agent.output == Goods.food) else 0
         sellable = max(0, remaining_inv - keep_amount)
@@ -618,12 +617,12 @@ def _gather_secondary_bids(agents, good, market_price, recipes):
                                                             False) else 0
             agent_rec = recipes[agent.output]
             desired = max(0, recipes[good]['numInput'] * (1 + num_employees)
-                          - agent.inventory.get(good, 0))
+                          - agent.inv_get(good, 0))
         else:
             maxinv_limit = recipes[good]['maxinv']
             if getattr(agent, 'is_corporation', False):
                 maxinv_limit *= (1 + len(agent.employees))
-            num_storable = max(0, maxinv_limit - agent.inventory.get(good, 0))
+            num_storable = max(0, maxinv_limit - agent.inv_get(good, 0))
             if good == Goods.food:
                 desired = min(16, num_storable)
             elif agent.remainingCash > market_price * 2:
@@ -649,7 +648,7 @@ def _compute_bid_premium(agent, good, market_price, recipes):
         return min(10.0, base_premium * mult * 0.5)
     elif (not is_employee and agent.output in recipes
           and get_input_commodity(agent, recipes) == good
-          and agent.inventory.get(good, 0) == 0):
+          and agent.inv_get(good, 0) == 0):
         premium = 1.0 + (mult - 1.0) * 0.5
         return max(1.5, min(5.5, premium))
     elif mult > 2.0 and good != Goods.food:
@@ -681,15 +680,12 @@ def _match_secondary_orders(asks, bids, good, t):
                 bid.agent.remainingCash -= cost
                 bid.agent.cash -= cost
                 ask.agent.cash += cost
-                bid.agent.inventory[good] += trade_qty
-                ask.agent.inventory[good] -= trade_qty
-                old_qty = bid.agent.inventory.get(good, 0) - trade_qty
-                old_cost = bid.agent.cost_basis.get(good, 0)
-                if bid.agent.inventory[good] > 0:
-                    bid.agent.cost_basis[good] = (
-                        (old_qty * old_cost + cost)
-                        / bid.agent.inventory[good]
-                    )
+                bid.agent.inv_add(good, trade_qty)
+                ask.agent.inv_add(good, -trade_qty)
+                old_qty = bid.agent.inv_get(good, 0) - trade_qty
+                old_cost = bid.agent.cost_get(good, 0)
+                if bid.agent.inv_get(good, 0) > 0:
+                    bid.agent.cost_set(good, (old_qty * old_cost + cost) / bid.agent.inv_get(good, 0))
                 total_traded += trade_qty
                 total_value += cost
                 ask.quantity -= trade_qty
