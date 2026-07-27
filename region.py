@@ -313,8 +313,6 @@ class Region:
         self.total_cash_log.append(self._total_cash())
         self._log_population_rate()
 
-        self._log_trade_metrics(t)
-
         for p in self.goods:
             for g in self.goods:
                 self.bought_log[p][g].append(0)
