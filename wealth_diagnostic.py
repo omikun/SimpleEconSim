@@ -251,7 +251,8 @@ def main():
                     box_labels.append(prof_labels[prof])
 
             if box_data:
-                bp = ax_box.boxplot(box_data, labels=box_labels, patch_artist=True)
+                bp = ax_box.boxplot(box_data, patch_artist=True)
+                ax_box.set_xticklabels(box_labels)
                 for patch, color in zip(bp['boxes'], [colors_map[Goods.food], colors_map[Goods.wood], colors_map[Goods.furniture]]):
                     patch.set_facecolor(color)
                     patch.set_alpha(0.3)
