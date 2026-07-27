@@ -71,8 +71,9 @@ Agent._process_pipeline = _agent_process_pipeline
 
 
 def foreign_sell(t, destination_region, source_region):
+    sname = source_region.name
     traders = [a for a in source_region.agents
-               if getattr(a, 'is_trader', False) and getattr(a, 'home_region', None) == source_region.name]
+               if a.is_trader and a.home_region == sname]
     total_sold_value = 0.0
     total_sold_quantity = 0
     trade_volumes = defaultdict(int)
@@ -89,8 +90,8 @@ def foreign_sell(t, destination_region, source_region):
                 continue
             price = destination_region.recipes[good]['price']
             ask_price = price * 0.95
-            fx_rate = getattr(source_region, 'exchange_rate', 1.0)
-            if fx_rate != 1.0 and getattr(source_region.gov, 'floating_exchange_rate_enabled', True):
+            fx_rate = source_region.exchange_rate
+            if fx_rate != 1.0 and source_region.gov.floating_exchange_rate_enabled:
                 ask_price = ask_price / fx_rate
             buyers = [a for a in destination_region.agents
                       if not getattr(a, 'is_trader', False) and a.cash > ask_price]
@@ -109,10 +110,10 @@ def foreign_sell(t, destination_region, source_region):
                 bank_share = 0.0
                 tariff_share = 0.0
 
-                if getattr(destination_region.gov, 'trader_recycling_enabled', True):
+                if destination_region.gov.trader_recycling_enabled:
                     bank_share = cash * 0.20
                     trader_share -= bank_share
-                if getattr(destination_region.gov, 'import_tariff_enabled', True):
+                if destination_region.gov.import_tariff_enabled:
                     tariff_share = cash * 0.10
                     trader_share -= tariff_share
 

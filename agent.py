@@ -86,16 +86,29 @@ class Agent:
     def age(self, t):
         return t - self.birth_round
 
+    # Cache for wealth: cleared at the start of each step()
+    _cached_wealth = None
+
     def wealth(self):
-        inventory_value = sum(
-            amount * st.recipes[good]['price']
-            for good, amount in self.inventory.items()
-            if good in st.recipes
-        )
-        debt_value = sum(loan.principle for loan in self.loans)
+        if self._cached_wealth is not None:
+            return self._cached_wealth
+        r = st.recipes
+        inv_val = 0.0
+        inv = self.inventory
+        for good, amount in inv.items():
+            if good in r:
+                inv_val += amount * r[good]['price']
+        debt = 0.0
+        for loan in self.loans:
+            debt += loan.principle
         bank = self._bank_ref
         deposit = bank.deposits.get(self, 0) if bank else 0
-        return self.cash + deposit + inventory_value - debt_value
+        w = self.cash + deposit + inv_val - debt
+        self._cached_wealth = w
+        return w
+
+    def clear_wealth_cache(self):
+        self._cached_wealth = None
 
     def owed_this_turn(self):
         return sum(loan.getPaymentAmount() for loan in self.loans)

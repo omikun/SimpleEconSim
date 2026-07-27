@@ -61,8 +61,8 @@ class Charity:
         # ---- Wealthy individual donations ----
         non_corp = [a for a in agents
                     if not a.is_corporation
-                    and not getattr(a, 'is_trader', False)
-                    and not getattr(a, 'is_government', False)
+                    and not a.is_trader
+                    and not a.is_government
                     and a.alive]
         # Sort by wealth descending
         non_corp.sort(key=lambda a: a.wealth(), reverse=True)
