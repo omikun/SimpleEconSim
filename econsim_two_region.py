@@ -273,7 +273,17 @@ def main():
         final_trader_cash = region.trader_cash_log[-1] if region.trader_cash_log else 0
         if init_trader_cash > 0:
             trader_roi = (final_trader_cash - init_trader_cash) / init_trader_cash * 100
-        print(f"  Trader ROI: {trader_roi:.1f}% (${init_trader_cash:.0f}->${final_trader_cash:.0f})")
+        # Charity summary
+        c = region.charity.log
+        print(f"  Charity: ${c['donations_collected']:.2f} collected, "
+              f"{c['food_distributed']} food to {c['recipients']} recipients, "
+              f"{c['food_purchased']} purchased")
+
+        # Trader summary
+        traders = [a for a in region.agents if a.is_trader]
+        print(f"  Traders: {len(traders)} traders, "
+              f"${sum(a.cash for a in traders):.2f} total cash, "
+              f"ROI: {trader_roi:.1f}% (${init_trader_cash:.0f}->${final_trader_cash:.0f})")
 
     print("\nDone.")
 

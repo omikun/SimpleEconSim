@@ -582,8 +582,8 @@ class Region:
         # Cache trade fee multiplier for this turn (used by traders to
         # evaluate cross-region profitability).  If no destination region
         # (single-region sim), default to 0.95 so traders still check.
-        dest = getattr(self, 'destination_region', None)
-        if dest is not None and getattr(dest, 'gov', None) is not None:
+        dest = self.destination_region
+        if dest is not None and dest.gov is not None:
             self._trade_fee_mult = dest.gov.get_trade_fee_multiplier()
         else:
             self._trade_fee_mult = 0.95
@@ -686,13 +686,12 @@ class Region:
                 # borrow to scale up working capital.
                 dest = a.destination_region
                 if dest is not None and a.cash < food_price * 20:
-                    fee_mult = getattr(self, '_trade_fee_mult', 0.95)
                     for g in [Goods.wood, Goods.furniture]:
                         local = self.recipes.get(g, {}).get('price', 0)
                         if local <= 0:
                             continue
                         remote = dest.recipes.get(g, {}).get('price', 0)
-                        effective = remote * fee_mult
+                        effective = remote * self._trade_fee_mult
                         if effective > local * 1.01:
                             target = local * 15
                             total_liquid = a.cash + self.bank.deposits.get(a, 0)
@@ -730,7 +729,7 @@ class Region:
         total_liquid = agent.cash + self.bank.deposits.get(agent, 0)
         current_deposits = self.bank.deposits.get(agent, 0)
         # Traders keep most of their capital liquid for buying opportunities
-        if getattr(agent, 'is_trader', False):
+        if agent.is_trader:
             deposit_fraction = 0.10  # only lock 10%
         else:
             deposit_fraction = max(0.30, min(0.70, 0.70 / max(1.0, mult)))
@@ -767,8 +766,7 @@ class Region:
             destination = agent.destination_region
             if destination is not None:
                 # Use cached fee multiplier to check true profitability
-                fee_mult = getattr(self, '_trade_fee_mult', 0.95)
-                effective_sell = destination.recipes[good]['price'] * fee_mult
+                effective_sell = destination.recipes[good]['price'] * self._trade_fee_mult
                 if effective_sell <= good_price * 1.01:  # need at least 1% margin
                     return 0
             max_trader_inventory = agent_recipe['maxinv']
@@ -1171,6 +1169,15 @@ class Region:
         self.production_log['trader'].append(0)
         self.gdp_by_profession_log['trader'].append(0)
 
+        # Also populate trade metric logs (these were previously in a separate
+        # _log_trade_metrics that was never called). Compute in the same pass.
+        self.trader_cash_log.append(sum(a.cash for a in trader_agents))
+        pipeline_qty = 0
+        for a in trader_agents:
+            for entry in a.transport_pipeline:
+                pipeline_qty += entry['quantity']
+        self.pipeline_depth_log.append(pipeline_qty)
+
     def _log_population_rate(self):
         if len(self.total_population) >= 10:
             pop_10_ago = self.total_population[-10]
@@ -1179,32 +1186,6 @@ class Region:
         else:
             population_change_pct = 0
         self.population_change_rate_log.append(population_change_pct)
-
-    # ------------------------------------------------------------------
-    # Trade logging
-    # ------------------------------------------------------------------
-
-    def _log_trade_metrics(self, t):
-        trader_cash = sum(a.cash for a in self.agents if a.is_trader)
-        self.trader_cash_log.append(trader_cash)
-
-        total_in_transit = 0
-        for a in self.agents:
-            if a.is_trader:
-                for entry in a.transport_pipeline:
-                    total_in_transit += entry['quantity']
-        self.pipeline_depth_log.append(total_in_transit)
-
-        for g in [Goods.food, Goods.wood, Goods.furniture]:
-            if len(self.export_vol[g]) < t:
-                self.export_vol[g].append(0)
-                self.export_val[g].append(0.0)
-                self.import_vol[g].append(0)
-                self.import_val[g].append(0.0)
-
-        total_export_val = sum(self.export_val[g][-1] for g in [Goods.food, Goods.wood, Goods.furniture] if self.export_val[g])
-        total_import_val = sum(self.import_val[g][-1] for g in [Goods.food, Goods.wood, Goods.furniture] if self.import_val[g])
-        self.trade_balance_log.append(total_export_val - total_import_val)
 
     # ------------------------------------------------------------------
     # Plotting
