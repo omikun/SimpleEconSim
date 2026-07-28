@@ -806,8 +806,13 @@ class Region:
 
     def _calculate_ask(self, agent, good, good_price, is_employee):
         if agent.is_trader:
-            # Traders can sell export inventory locally (e.g., re-exports
-            # or goods they couldn't move cross-region)
+            # Only sell export inventory locally if local price beats
+            # the expected foreign net (destination price × fee multiplier).
+            dest = self.destination_region
+            if dest is not None:
+                foreign_net = dest.recipes.get(good, {}).get('price', 0) * self._trade_fee_mult
+                if good_price <= foreign_net:
+                    return 0  # better to sell cross-region
             return max(0, agent.inventory_export[good.value])
         if is_employee:
             return 0
