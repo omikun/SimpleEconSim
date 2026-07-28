@@ -357,7 +357,7 @@ class Region:
         liabilities = self.bank.total_liabilities
         bank_equity = deposits - liabilities
         total = agent_cash + bank_equity
-        if total < 0 or agent_cash < 0 or deposits < 0 or liabilities < 0 or (100 <= t <= 200 and t % 10 == 0):
+        if total < 0 or agent_cash < 0 or deposits < 0 or liabilities < 0:
             print(f"  CASH AUDIT [{label}] T={t}: "
                   f"agents=${agent_cash:.0f} "
                   f"deposits=${deposits:.0f} "
@@ -578,6 +578,16 @@ class Region:
         all_goods_price = sum(self.recipes[g]['price'] for g in trade_goods)
         food_price = self.recipes[Goods.food]['price']
         self.bank.PayDepositInterest(self.agents)
+
+        # Cache trade fee multiplier for this turn (used by traders to
+        # evaluate cross-region profitability).  If no destination region
+        # (single-region sim), default to 0.95 so traders still check.
+        dest = getattr(self, 'destination_region', None)
+        if dest is not None and getattr(dest, 'gov', None) is not None:
+            self._trade_fee_mult = dest.gov.get_trade_fee_multiplier()
+        else:
+            self._trade_fee_mult = 0.95
+
         self._decide_borrow_deposit(self.agents, all_goods_price, food_price, t)
 
         # Single pass: gather bids/asks for all goods, stored per-good on agent
@@ -672,6 +682,26 @@ class Region:
                 survival_cost = food_price * 3
                 if a.cash < survival_cost:
                     self.bank.Borrow(t, a, survival_cost - a.cash)
+                # Trade-financing borrow: if profitable cross-region trade exists,
+                # borrow to scale up working capital.
+                dest = a.destination_region
+                if dest is not None and a.cash < food_price * 20:
+                    fee_mult = getattr(self, '_trade_fee_mult', 0.95)
+                    for g in [Goods.wood, Goods.furniture]:
+                        local = self.recipes.get(g, {}).get('price', 0)
+                        if local <= 0:
+                            continue
+                        remote = dest.recipes.get(g, {}).get('price', 0)
+                        effective = remote * fee_mult
+                        if effective > local * 1.01:
+                            target = local * 15
+                            total_liquid = a.cash + self.bank.deposits.get(a, 0)
+                            if total_liquid < target:
+                                if self.bank.deposits.get(a, 0) > 0:
+                                    self.bank.Withdraw(a, self.bank.deposits.get(a, 0))
+                                if a.cash < target:
+                                    self.bank.Borrow(t, a, target - a.cash)
+                            break
             a.remainingCash = a.cash
 
     def _borrow_food(self, agent, food_price):
@@ -699,7 +729,11 @@ class Region:
         mult = agent.consumption_multiplier
         total_liquid = agent.cash + self.bank.deposits.get(agent, 0)
         current_deposits = self.bank.deposits.get(agent, 0)
-        deposit_fraction = max(0.30, min(0.70, 0.70 / max(1.0, mult)))
+        # Traders keep most of their capital liquid for buying opportunities
+        if getattr(agent, 'is_trader', False):
+            deposit_fraction = 0.10  # only lock 10%
+        else:
+            deposit_fraction = max(0.30, min(0.70, 0.70 / max(1.0, mult)))
         cash_floor = int(all_goods_price * (100 / max(1.0, mult)))
         max_deposits = total_liquid * deposit_fraction
         excess = max(0, max_deposits - current_deposits)
@@ -732,8 +766,10 @@ class Region:
         if agent.is_trader:
             destination = agent.destination_region
             if destination is not None:
-                destination_ask = destination.recipes[good]['price'] * 0.95
-                if destination_ask <= good_price:
+                # Use cached fee multiplier to check true profitability
+                fee_mult = getattr(self, '_trade_fee_mult', 0.95)
+                effective_sell = destination.recipes[good]['price'] * fee_mult
+                if effective_sell <= good_price * 1.01:  # need at least 1% margin
                     return 0
             max_trader_inventory = agent_recipe['maxinv']
             total_holding = agent.inv_get(good, 0) + agent.inventory_export[good.value] + agent.inventory_foreign[good.value]
@@ -770,7 +806,9 @@ class Region:
 
     def _calculate_ask(self, agent, good, good_price, is_employee):
         if agent.is_trader:
-            return 0
+            # Traders can sell export inventory locally (e.g., re-exports
+            # or goods they couldn't move cross-region)
+            return max(0, agent.inventory_export[good.value])
         if is_employee:
             return 0
         if agent.output != good and agent.output != Goods.gov:

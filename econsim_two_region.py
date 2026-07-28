@@ -115,10 +115,10 @@ def foreign_sell(t, destination_region, source_region):
                 tariff_share = 0.0
 
                 if destination_region.gov.trader_recycling_enabled:
-                    bank_share = cash * 0.20
+                    bank_share = cash * destination_region.gov.trader_recycling_rate
                     trader_share -= bank_share
                 if destination_region.gov.import_tariff_enabled:
-                    tariff_share = cash * 0.10
+                    tariff_share = cash * destination_region.gov.import_tariff_rate
                     trader_share -= tariff_share
 
                 trader.cash += trader_share

@@ -90,12 +90,14 @@ class Government:
         #     When enabled, a fraction of each import sale goes to the
         #     destination government (currently 10% in foreign_sell).
         self.import_tariff_enabled = True
+        self.import_tariff_rate = 0.10   # fraction of import sale to gov
 
         # 10. Trader Profit Recycling (capital controls / reserve requirement)
         #     When enabled, a fraction of each import sale is deposited
         #     directly into the destination region's bank to keep liquidity
         #     in the local economy (currently 20% in foreign_sell).
         self.trader_recycling_enabled = True
+        self.trader_recycling_rate = 0.20  # fraction of import sale to bank
 
         # 11. Floating Exchange Rate (market-driven currency adjustment)
         #     When enabled, the exchange rate adjusts based on cumulative
@@ -324,6 +326,20 @@ class Government:
 
     def __repr__(self):
         return f"Government({self.name})"
+
+    def get_trade_fee_multiplier(self):
+        """Return the net fraction of a trader's sale price they actually keep
+        after all destination-region fees (recycling, tariff, ask discount).
+
+        A region's traders use this when deciding whether a cross-region
+        trade is profitable.
+        """
+        m = 0.95  # base ask discount (sell at 95% of dest price)
+        if self.trader_recycling_enabled:
+            m *= (1 - self.trader_recycling_rate)
+        if self.import_tariff_enabled:
+            m *= (1 - self.import_tariff_rate)
+        return m
 
     def collect_tax(self, t, amount):
         """Receive tax revenue. Returns amount received."""
