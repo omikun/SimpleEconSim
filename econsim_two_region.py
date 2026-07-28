@@ -198,13 +198,15 @@ def main():
     print(f"Region_B: {len(region_b.agents)} agents, Gov: ${region_b.gov.agent.cash:.2f}")
 
     for t in range(1, time_steps + 1):
-        cash_before = get_total_cash(region_a.agents, region_a.bank) + get_total_cash(region_b.agents, region_b.bank)
+        cash_before = (get_total_cash(region_a.agents, region_a.bank) + region_a.charity.cash
+                       + get_total_cash(region_b.agents, region_b.bank) + region_b.charity.cash)
         region_a.step(t)
         region_b.step(t)
         process_transport(t, region_a, region_b)
         foreign_sell(t, region_a, region_b)
         foreign_sell(t, region_b, region_a)
-        cash_after = get_total_cash(region_a.agents, region_a.bank) + get_total_cash(region_b.agents, region_b.bank)
+        cash_after = (get_total_cash(region_a.agents, region_a.bank) + region_a.charity.cash
+                      + get_total_cash(region_b.agents, region_b.bank) + region_b.charity.cash)
         if abs(cash_after - cash_before) > 5.0:
             print(f"  T={t}: COMBINED CASH LEAK ${cash_after-cash_before:.2f}")
 

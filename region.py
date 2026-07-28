@@ -283,6 +283,7 @@ class Region:
     def step(self, t: int):
         rand.reset()
         self._record_start()
+        self._audit_cash(t, "step_start")
 
         # Clear per-agent caches for this turn
         for a in self.agents:
@@ -290,26 +291,40 @@ class Region:
 
         # Charity collects donations (before trade so it has cash to buy food)
         self.charity.collect_donations(t, self.agents, self.bank)
+        self._audit_cash(t, "charity_done")
 
         new_companies = self._run_labour(t)
         if new_companies:
             self.agents.extend(new_companies)
+        self._audit_cash(t, "labour_done")
 
         self._produce(t)
+        self._audit_cash(t, "produce_done")
+
         self._trade(t)
+        self._audit_cash(t, "trade_done")
+
         self._pay_wages(t)
+        self._audit_cash(t, "wages_done")
+
         self._distribute_profits(t)
+        self._audit_cash(t, "profits_done")
+
         self._record_delta()
         self._collect_tax(t)
+        self._audit_cash(t, "tax_done")
+
         self._log_gdp()
 
         if t > 0 and t % 10 == 0:
             self._recalculate_multipliers()
 
         self.agents = self._live(t)
+        self._audit_cash(t, "live_done")
 
         # Charity distributes food to hungry and young agents
         self.charity.distribute_food(t, self.agents)
+        self._audit_cash(t, "charity_food_done")
 
         self._log_metrics(t)
         self.total_population.append(sum(v[-1] for v in self.population_log.values()))
@@ -335,6 +350,21 @@ class Region:
 
     # ---- Internal helpers ----
 
+    def _audit_cash(self, t, label):
+        """Log all cash components when anomalies occur (or sampled every 10 turns between 100-200)."""
+        agent_cash = sum(a.cash for a in self.agents)
+        deposits = self.bank.total_deposits
+        liabilities = self.bank.total_liabilities
+        bank_equity = deposits - liabilities
+        total = agent_cash + bank_equity
+        if total < 0 or agent_cash < 0 or deposits < 0 or liabilities < 0 or (100 <= t <= 200 and t % 10 == 0):
+            print(f"  CASH AUDIT [{label}] T={t}: "
+                  f"agents=${agent_cash:.0f} "
+                  f"deposits=${deposits:.0f} "
+                  f"liabilities=${liabilities:.0f} "
+                  f"bank_eq=${bank_equity:.0f} "
+                  f"TOTAL=${total:.0f}")
+
     def _record_start(self):
         for a in self.agents:
             a._start_cash = a.cash
@@ -346,7 +376,13 @@ class Region:
             a._delta_deposits = self.bank.deposits.get(a, 0) - a._start_deposits
 
     def _total_cash(self):
-        return get_total_cash(self.agents, self.bank)
+        """Total cash including agents, bank equity, and charity's hand cash.
+        
+        Charity's bank deposits are already in bank_equity via total_deposits.
+        We just need to add charity's hand cash (which get_total_cash misses
+        because the charity Agent is not in self.agents).
+        """
+        return get_total_cash(self.agents, self.bank) + self.charity.agent.cash
 
     # ---- Labour ----
 

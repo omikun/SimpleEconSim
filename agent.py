@@ -62,7 +62,7 @@ class Agent:
         'tax_loss_carryforward', 'retained_earnings', 'owner_loan',
         '_start_cash', '_start_deposits', '_delta_cash', '_delta_deposits',
         'region', '_bank_ref', 'is_government',
-        'is_trader', 'home_region', 'destination_region',
+        'is_charity', 'is_trader', 'home_region', 'destination_region',
         'inventory_export', 'transport_pipeline', 'inventory_foreign',
         'transport_delay',
         # ---- SoA slot index + cache ----
