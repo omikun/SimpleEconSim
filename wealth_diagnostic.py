@@ -134,7 +134,7 @@ def print_wealth_diagnostic(region, label):
         tag_str = ','.join(tags)
         output = str(a.output).split('.')[-1]
         dep = bank.deposits.get(a, 0)
-        inv_val = sum(qty * region.recipes[good]['price'] for good, qty in a.inventory.items() if good in region.recipes)
+        inv_val = sum(a.inv_get(g, 0) * region.recipes[g]['price'] for g in [Goods.food, Goods.wood, Goods.furniture] if g in region.recipes)
         debt = sum(l.principle - l.principle_paid for l in a.loans)
         print(f"  {i+1:>2}. {a.name():>20} [{output:>9}] {tag_str:>8} cash=${a.cash:>7.2f} dep=${dep:>7.2f} inv=${inv_val:>7.2f} debt=${debt:>7.2f} wealth=${wealth:>8.2f}")
 
