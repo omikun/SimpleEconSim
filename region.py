@@ -1130,6 +1130,16 @@ class Region:
     # Plotting
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _smooth(data, window=5):
+        """5-turn rolling average. First (window-1) points use raw values."""
+        if len(data) < window:
+            return data
+        result = list(data[:window - 1])
+        for i in range(window - 1, len(data)):
+            result.append(sum(data[i - window + 1:i + 1]) / window)
+        return result
+
     def _plot_population(self, axis, axis_id, colors, labels):
         axis[axis_id].set_title("Population vs time")
         axis[axis_id].set_ylabel("Population")
@@ -1137,16 +1147,22 @@ class Region:
         for g in self.goods:
             axis[axis_id].plot(self.population_log[g], label=labels[g],
                            color=colors[g])
+        if 'trader' in self.population_log and any(v > 0 for v in self.population_log['trader']):
+            axis[axis_id].plot(self.population_log['trader'], label='Trader',
+                           color='orange')
         axis[axis_id].plot(self.total_population, label='total', color='black')
         axis[axis_id].plot([-x for x in self.dead_starved_population], label='dead', color='purple')
 
     def _plot_inventory(self, axis, axis_id, colors, labels):
-        axis[axis_id].set_title("Inventory vs time")
+        axis[axis_id].set_title("Inventory vs time (5-turn avg)")
         axis[axis_id].set_ylabel("Inventory")
         for g in self.goods:
             if g != Goods.gov:
-                axis[axis_id].plot(self.inventory_log[g], label=labels[g],
+                axis[axis_id].plot(self._smooth(self.inventory_log[g]), label=labels[g],
                                color=colors[g])
+        if 'trader' in self.inventory_log and any(v > 0 for v in self.inventory_log['trader']):
+            axis[axis_id].plot(self._smooth(self.inventory_log['trader']), label='Trader',
+                           color='orange')
 
     def _plot_gini(self, axis, axis_id, colors, labels):
         axis[axis_id].set_title("Gini coefficient")
@@ -1165,12 +1181,12 @@ class Region:
                                color=colors[g])
 
     def _plot_production(self, axis, axis_id, colors, labels):
-        axis[axis_id].set_title("Production vs time")
+        axis[axis_id].set_title("Production vs time (5-turn avg)")
         axis[axis_id].set_ylabel("Units/round")
         axis[axis_id].set_yscale('log')
         for g in self.goods:
             if g != Goods.gov:
-                axis[axis_id].plot(self.production_log[g], label=labels[g],
+                axis[axis_id].plot(self._smooth(self.production_log[g]), label=labels[g],
                                color=colors[g])
 
     def _plot_per_capita_inventory(self, axis, axis_id, colors, labels):
@@ -1182,22 +1198,25 @@ class Region:
                                color=colors[g])
 
     def _plot_cash(self, axis, axis_id, colors, labels):
-        axis[axis_id].set_title("Cash vs time")
+        axis[axis_id].set_title("Cash vs time (5-turn avg)")
         axis[axis_id].set_ylabel("Cash")
         axis[axis_id].set_yscale('log', base=2)
         for g in self.goods:
-            axis[axis_id].plot(self.cash_log[g], label=labels[g],
+            axis[axis_id].plot(self._smooth(self.cash_log[g]), label=labels[g],
                            color=colors[g])
-        axis[axis_id].plot(self.total_cash_log, label='total', color='black')
-        axis[axis_id].plot(self.bank_cash_log, label='bank', color='purple')
+        if 'trader' in self.cash_log and any(v > 0 for v in self.cash_log['trader']):
+            axis[axis_id].plot(self._smooth(self.cash_log['trader']), label='Trader',
+                           color='orange')
+        axis[axis_id].plot(self._smooth(self.total_cash_log), label='total', color='black')
+        axis[axis_id].plot(self._smooth(self.bank_cash_log), label='bank', color='purple')
 
     def _plot_demand(self, axis, axis_id, colors, labels):
-        axis[axis_id].set_title("Demand vs time")
+        axis[axis_id].set_title("Demand vs time (5-turn avg)")
         axis[axis_id].set_ylabel("Demand (log)")
         axis[axis_id].set_yscale('log', base=2)
         for g in self.goods:
             if g != Goods.gov:
-                axis[axis_id].plot(self.demand_log[g], label=labels[g],
+                axis[axis_id].plot(self._smooth(self.demand_log[g]), label=labels[g],
                                color=colors[g])
 
     def _plot_sold(self, axis, axis_id, colors, labels):
@@ -1219,20 +1238,23 @@ class Region:
                                color=colors[g])
 
     def _plot_hunger(self, axis, axis_id, colors, labels):
-        axis[axis_id].set_title("Hunger vs time")
+        axis[axis_id].set_title("Hunger vs time (5-turn avg)")
         axis[axis_id].set_ylabel("Num hungry")
         axis[axis_id].set_yscale('log', base=2)
         for g in self.goods:
-            axis[axis_id].plot(self.hungry_log[g], label=labels[g],
+            axis[axis_id].plot(self._smooth(self.hungry_log[g]), label=labels[g],
                            color=colors[g])
+        if 'trader' in self.hungry_log and any(v > 0 for v in self.hungry_log['trader']):
+            axis[axis_id].plot(self._smooth(self.hungry_log['trader']), label='Trader',
+                           color='orange')
 
     def _plot_supply(self, axis, axis_id, colors, labels):
-        axis[axis_id].set_title("Supply vs time")
+        axis[axis_id].set_title("Supply vs time (5-turn avg)")
         axis[axis_id].set_ylabel("Supply (log)")
         axis[axis_id].set_yscale('log', base=2)
         for g in self.goods:
             if g != Goods.gov:
-                axis[axis_id].plot(self.supply_log[g], label=labels[g],
+                axis[axis_id].plot(self._smooth(self.supply_log[g]), label=labels[g],
                                color=colors[g])
 
     def _plot_population_change_rate(self, axis, axis_id):
@@ -1242,14 +1264,17 @@ class Region:
         axis[axis_id].plot(self.population_change_rate_log, color='black')
 
     def _plot_gdp(self, axis, axis_id, colors, labels):
-        axis[axis_id].set_title("GDP vs time")
+        axis[axis_id].set_title("GDP vs time (5-turn avg)")
         axis[axis_id].set_ylabel("Total GDP (value)")
         axis[axis_id].set_yscale('log', base=2)
         for g in self.goods:
             if g != Goods.gov:
-                axis[axis_id].plot(self.gdp_by_profession_log[g], label=labels[g],
+                axis[axis_id].plot(self._smooth(self.gdp_by_profession_log[g]), label=labels[g],
                                color=colors[g])
-        axis[axis_id].plot(self.gdp_log, label='All', color='black')
+        if 'trader' in self.gdp_by_profession_log and any(v > 0 for v in self.gdp_by_profession_log['trader']):
+            axis[axis_id].plot(self._smooth(self.gdp_by_profession_log['trader']), label='Trader',
+                           color='orange')
+        axis[axis_id].plot(self._smooth(self.gdp_log), label='All', color='black')
 
     def _plot_purchases(self, axis, axis_id, colors, labels):
         titles = ["Farmer", "Logger", "Carpenter", "Gov agent"]
@@ -1270,9 +1295,10 @@ class Region:
         axis[axis_id].plot(self.trade_balance_log, color='black')
 
     def _plot_exchange_rate(self, axis, axis_id):
-        axis[axis_id].set_title("Exchange Rate")
+        axis[axis_id].set_title("Exchange Rate (5-turn avg)")
         axis[axis_id].set_ylabel("Rate")
-        axis[axis_id].plot([self.exchange_rate] * len(self.total_cash_log),
+        raw = [self.exchange_rate] * len(self.total_cash_log)
+        axis[axis_id].plot(self._smooth(raw),
                           color='purple', marker='o', markersize=1)
 
     def _plot_trader_cash(self, axis, axis_id):
@@ -1359,8 +1385,14 @@ class Region:
         axis_id += 1
         self._plot_price_spread(axis, axis_id, colors, labels)
 
-        handle, label = axis[2].get_legend_handles_labels()
-        figure.legend(handle, label, loc='upper right', ncol=1, fontsize='small')
+        handles, labels_list = [], []
+        for ax in axis:
+            h, l = ax.get_legend_handles_labels()
+            for hi, li in zip(h, l):
+                if li not in labels_list:
+                    handles.append(hi)
+                    labels_list.append(li)
+        figure.legend(handles, labels_list, loc='upper right', ncol=1, fontsize='small')
         plt.grid(True)
         for ax in axis:
             ax.set_facecolor('lightgrey')

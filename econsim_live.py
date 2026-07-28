@@ -487,9 +487,21 @@ def _handle_debt_inheritance(ctx: LiveContext, t, agent, living_descendants):
                 ctx.bank.loans.append(new_loan)
                 ctx.bank.total_liabilities += principle_share
         else:
+            # Write down only what deposits can absorb. If bailout fails,
+            # the excess bad debt is absorbed as a liability write-down
+            # (equity stays zero rather than going negative).
+            write_down = min(remaining_principle, ctx.bank.total_deposits)
             if remaining_principle > ctx.bank.total_deposits:
-                ctx.bank.RequestBailout(t, remaining_principle)
-            ctx.bank.total_deposits -= remaining_principle
+                bailout_ok = ctx.bank.RequestBailout(t, remaining_principle)
+                if bailout_ok:
+                    write_down = min(remaining_principle, ctx.bank.total_deposits)
+                else:
+                    # Bailout failed — write down excess as lost liabilities
+                    excess = remaining_principle - ctx.bank.total_deposits
+                    ctx.bank.total_liabilities -= excess
+                    loginfo(t, f"Bailout failed: write down ${excess:.2f} "
+                            f"in liabilities (no government funds)")
+            ctx.bank.total_deposits -= write_down
 
 
 def _handle_wealth_inheritance(ctx: LiveContext, t, agent, living_descendants):
