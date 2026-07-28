@@ -7,6 +7,8 @@ Uses an Agent instance internally. All unspent cash is deposited in the bank
 to keep total_deposits healthy. Cash is withdrawn as needed for food purchases.
 """
 
+import random
+
 from goods import Goods
 from logger import loginfo
 from agent import Agent
@@ -89,6 +91,18 @@ class Charity:
         char_wealth = self.agent.cash + bank.deposits.get(self.agent, 0)
         low_cash = char_wealth < food_price * self.low_cash_threshold_multiplier
 
+        # Determine how many hungry agents exist and our food target (150% of 1/3)
+        hungry_count = len([a for a in agents if a.alive and a.hungry_steps > 0
+                            and not a.is_corporation])
+        max_feed = max(1, hungry_count // 3)
+        self._food_target = max_feed * 1.5
+        self._hungry_count = hungry_count
+
+        # Stop taking donations if we already have enough food-equivalent
+        food_value = self.food_inventory + char_wealth / food_price
+        if food_value >= self._food_target:
+            return
+
         total_donated = 0.0
 
         # ---- Corporate donations ----
@@ -163,7 +177,10 @@ class Charity:
             return 0
 
         affordable_from_wealth = char_wealth // food_price
-        potential_bid = min(space, affordable_from_wealth, current_desired)
+        # Cap at the food target (150% of 1/3 of hungry agents)
+        target = getattr(self, '_food_target', 50)
+        needed = max(0, target - self.food_inventory)
+        potential_bid = min(space, affordable_from_wealth, current_desired, needed)
         if potential_bid <= 0:
             return 0
 
@@ -196,13 +213,21 @@ class Charity:
     # ------------------------------------------------------------------
 
     def distribute_food(self, t, agents):
-        """Give 1 food per agent to hungry agents first, then young agents."""
+        """Give 1 food per agent to ~1/3 of hungry agents (randomized), then
+        to young agents from any remaining inventory."""
         if self.food_inventory <= 0:
             return
 
         hungry = [a for a in agents if a.alive and a.hungry_steps > 0
                   and not a.is_corporation]
-        hungry.sort(key=lambda a: -a.hungry_steps)
+
+        # Randomly select ~1/3 of hungry agents to feed this turn
+        max_feed = max(1, len(hungry) // 3)
+        if len(hungry) > max_feed:
+            random.shuffle(hungry)
+            selected = hungry[:max_feed]
+        else:
+            selected = hungry
 
         young = [a for a in agents if a.alive and a.age(t) <= 10
                  and a.hungry_steps == 0 and not a.is_corporation]
@@ -210,7 +235,7 @@ class Charity:
         recipients = 0
         food_given = 0
 
-        for recipient in hungry + young:
+        for recipient in selected + young:
             if self.food_inventory <= 0:
                 break
             self.food_inventory -= 1
