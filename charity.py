@@ -3,9 +3,8 @@ Charity: a non-government entity that collects donations from wealthy agents
 and corporations, buys food at market price, and distributes it to the hungry
 and young.
 
-Uses an Agent instance internally. All cash stays in the agent's hand (not
-deposited in the bank), so that _total_cash() can account for it without
-double-counting.
+Uses an Agent instance internally. All unspent cash is deposited in the bank
+to keep total_deposits healthy. Cash is withdrawn as needed for food purchases.
 """
 
 from goods import Goods
@@ -16,20 +15,17 @@ from agent import Agent
 class Charity:
     """Independent charity that redistributes food to the needy.
 
-    Cash is held in an internal Agent (not in self.agents list) and kept
-    as hand cash (not deposited). This way get_total_cash() picks it up
-    via _total_cash()'s explicit + charity.agent.cash without double
-    counting deposits.
+    Cash is held in an internal Agent (not in region.agents list).
+    Unspent cash is deposited in the bank; it is withdrawn as needed
+    for food purchases. _total_cash() adds charity.agent.cash to
+    compensate for the bank deposit reduction when cash is in hand.
     """
 
     def __init__(self, name, recipes):
         self.name = f"{name}-Charity"
         self.recipes = recipes
 
-        # Internal Agent used purely for cash management.
-        # NOT added to region.agents — it does not participate in the
-        # life-cycle, labour, production, or trade (except for a special
-        # post-trade food purchase).
+        # Internal Agent for cash management. NOT added to region.agents.
         self.agent = Agent(0)
         self.agent.output = Goods.food
         self.agent.is_charity = True
@@ -48,10 +44,35 @@ class Charity:
         self.wealthy_fraction = 0.20
         self.max_food_per_agent = 1
 
+    # ------------------------------------------------------------------
+    # Cash helpers
+    # ------------------------------------------------------------------
+
     @property
     def cash(self):
-        """Current spendable cash (agent's hand cash)."""
+        """Current hand cash (agent.cash)."""
         return self.agent.cash
+
+    @property
+    def total_liquid(self):
+        """Total liquid wealth including bank deposits."""
+        bank = getattr(self.agent, '_bank_ref', None)
+        deposit = bank.deposits.get(self.agent, 0) if bank else 0
+        return self.agent.cash + deposit
+
+    def deposit_all(self, bank):
+        """Move all hand cash into bank deposits."""
+        if self.agent.cash > 0:
+            bank.Deposit(self.agent, self.agent.cash)
+
+    def withdraw_for_purchase(self, bank, needed):
+        """Ensure agent has at least *needed* cash for a purchase."""
+        if self.agent.cash >= needed:
+            return
+        shortfall = needed - self.agent.cash
+        available = bank.deposits.get(self.agent, 0)
+        if available > 0:
+            bank.Withdraw(self.agent, min(available, shortfall))
 
     # ------------------------------------------------------------------
     # Donations
@@ -60,12 +81,13 @@ class Charity:
     def collect_donations(self, t, agents, bank):
         """Collect donations from corporations and wealthy individuals.
 
-        Cash stays in charity's agent hand (not deposited) so that
-        _total_cash() can account for it without double-counting
-        (charity agent is not in self.agents).
+        After collection, all cash is deposited into the bank
+        (except what's needed for immediate food bidding).
+        The _trade loop will withdraw cash when charity bids on food.
         """
         food_price = self.recipes.get(Goods.food, {}).get('price', 1.0)
-        low_cash = self.agent.cash < food_price * self.low_cash_threshold_multiplier
+        char_wealth = self.agent.cash + bank.deposits.get(self.agent, 0)
+        low_cash = char_wealth < food_price * self.low_cash_threshold_multiplier
 
         total_donated = 0.0
 
@@ -101,7 +123,6 @@ class Charity:
             excess = w - self.wealth_donation_threshold
             donate_pct = self.wealthy_donate_emergency_pct if low_cash else self.wealthy_donate_normal_pct
             donation = min(excess * donate_pct, agent.cash + bank.deposits.get(agent, 0))
-            # Withdraw from bank if agent doesn't have enough hand cash
             from_bank = min(donation, max(0, donation - agent.cash), bank.deposits.get(agent, 0))
             if from_bank > 0:
                 bank.Withdraw(agent, from_bank)
@@ -110,23 +131,47 @@ class Charity:
             total_donated += donation
             loginfo(t, f"{self.name} received ${donation:.2f} donation from {agent.name()}")
 
+        # Store bank reference on agent so total_liquid property works
+        self.agent._bank_ref = bank
+
+        # Deposit all collected cash
+        if self.agent.cash > 0:
+            bank.Deposit(self.agent, self.agent.cash)
+
         self.log["donations_collected"] += total_donated
         if total_donated > 0 and t % 50 == 0:
+            char_wealth_after = self.agent.cash + bank.deposits.get(self.agent, 0)
             print(f"  {self.name}: collected ${total_donated:.2f} in donations "
-                  f"(charity cash: ${self.agent.cash:.2f})")
+                  f"(charity wealth: ${char_wealth_after:.2f})")
 
     # ------------------------------------------------------------------
     # Food bidding & purchase (called by region._trade)
     # ------------------------------------------------------------------
 
-    def bid_food(self, food_price, current_desired):
-        """Return the quantity of food this charity wants to buy this turn."""
+    def bid_food(self, food_price, current_desired, bank):
+        """Return the quantity of food this charity wants to buy this turn.
+
+        Withdraws enough cash from the bank to cover the bid if needed.
+        """
         max_inventory = 50
         space = max_inventory - self.food_inventory
-        if space <= 0 or self.agent.cash < food_price:
+        if space <= 0:
             return 0
-        affordable = self.agent.cash // food_price
-        return min(space, affordable, current_desired)
+
+        char_wealth = self.agent.cash + bank.deposits.get(self.agent, 0)
+        if char_wealth < food_price:
+            return 0
+
+        affordable_from_wealth = char_wealth // food_price
+        potential_bid = min(space, affordable_from_wealth, current_desired)
+        if potential_bid <= 0:
+            return 0
+
+        # Withdraw enough to cover the bid
+        needed = potential_bid * food_price
+        self.withdraw_for_purchase(bank, needed)
+
+        return potential_bid
 
     def receive_food(self, quantity):
         """Record food purchased during trade."""
@@ -136,6 +181,15 @@ class Charity:
     def pay_for_food(self, cost):
         """Deduct cash for food purchased (from agent's hand)."""
         self.agent.cash -= cost
+
+    # ------------------------------------------------------------------
+    # Post-trade deposit
+    # ------------------------------------------------------------------
+
+    def deposit_remaining(self, bank):
+        """Deposit any leftover hand cash back into the bank."""
+        if self.agent.cash > 0:
+            bank.Deposit(self.agent, self.agent.cash)
 
     # ------------------------------------------------------------------
     # Food distribution

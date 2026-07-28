@@ -634,7 +634,7 @@ class Region:
 
             # Charity food purchase
             if good == Goods.food:
-                charity_bid = self.charity.bid_food(price, desires[good])
+                charity_bid = self.charity.bid_food(price, desires[good], self.bank)
                 if charity_bid > 0:
                     food_askers = [a for a in askers if a.output == Goods.food
                                    and a.inv_get(Goods.food, 0) > 2]
@@ -657,6 +657,7 @@ class Region:
                         total_sold += charity_bought
                         self.sold_log[good][-1] += charity_bought
                         loginfo(t, f"{self.charity.name} bought {charity_bought} food at ${price:.2f}")
+                self.charity.deposit_remaining(self.bank)
 
         self.most_demand = most_demand_good
 
