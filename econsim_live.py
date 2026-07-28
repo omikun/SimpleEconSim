@@ -39,7 +39,8 @@ class LiveContext:
     birth_gap: int
     bank: Any                       # Bank singleton (trade.bank or region.bank)
     most_demand: Any                # Goods enum (computed value)
-    max_agents: int = 10000         # Hard population cap (0 = unlimited)
+    max_agents: int = 400         # Hard population cap (0 = unlimited)
+    carrying_capacity: int = 400  # Density-dependent mortality soft ceiling
 
 
 # =============================================================================
@@ -381,6 +382,14 @@ def _handle_death(ctx: LiveContext, t, agent, agents):
                 agent, base_death_prob[min(agent.age(t) // 30, 9)])
         else:
             adjusted_prob = base_death_prob[min(agent.age(t) // 30, 9)]
+        # Density-dependent mortality: death probability ramps up as population
+        # approaches carrying_capacity (logistic-style soft ceiling).
+        current_pop = len(agents)
+        threshold = ctx.carrying_capacity * 0.85  # ~340
+        if current_pop > threshold:
+            overage = current_pop - threshold
+            crowding_factor = 1.0 + (overage / (ctx.carrying_capacity * 0.15)) * 4.0
+            adjusted_prob *= crowding_factor
         if rand.random() > adjusted_prob:
             return False  # survived
         agent.alive = False

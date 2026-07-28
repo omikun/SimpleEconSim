@@ -38,7 +38,7 @@ except ImportError:
 _recipes_init = {
     Goods.food: {
         'commodity': Goods.food, 'production': 5, 'price': 1, 'numInput': 0,
-        'maxtotalprod': 10000, 'maxinv': 20,
+        'maxtotalprod': 2000, 'maxinv': 20,
     },
     Goods.wood: {
         'commodity': Goods.wood, 'production': 2, 'price': 1, 'numInput': 0,
@@ -68,7 +68,7 @@ DEFAULT_PROFESSION_DISTRIBUTION = {
 # SoA constant: max pre-allocated slots
 # =============================================================================
 
-MAX_AGENTS = 10000
+MAX_AGENTS = 500
 
 
 # =============================================================================
@@ -968,6 +968,7 @@ class Region:
             bank=self.bank,
             most_demand=self.most_demand,
             max_agents=self.max_agents,
+            carrying_capacity=self.max_agents,
         )
         result = _lm.Live(t, self.agents, context=ctx)
 

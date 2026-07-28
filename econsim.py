@@ -511,6 +511,7 @@ def main():
             birth_gap=birth_gap,
             bank=trade.bank,
             most_demand=Goods.food,
+            carrying_capacity=400,
         )
         cash_before_live = get_total_cash(agents, trade.bank)
         agents = Living.Live(t, agents, context=_live_ctx)
