@@ -173,6 +173,9 @@ def main():
     cumulative_births = 0
     cumulative_deaths = 0
 
+    # Collect wealth percentiles per profession (sample every 5 turns)
+    wealth_history = {'Region_A': {}, 'Region_B': {}}
+
     for t in range(1, time_steps + 1):
         n_before = len(region_a.agents) + len(region_b.agents)
 
@@ -189,6 +192,18 @@ def main():
         elif diff < 0:
             cumulative_deaths -= diff
 
+        # Sample wealth distribution every 5 turns
+        if t % 5 == 0 or t == 1:
+            for rname, region in [('Region_A', region_a), ('Region_B', region_b)]:
+                bank = region.bank
+                regular = [a for a in region.agents if not a.is_corporation
+                           and not getattr(a, 'is_trader', False) and not getattr(a, 'is_government', False)]
+                frame = {}
+                for prof in [Goods.food, Goods.wood, Goods.furniture]:
+                    vals = [a.cash + bank.deposits.get(a, 0) for a in regular if a.output == prof]
+                    frame[prof] = vals
+                wealth_history[rname][t] = frame
+
     current_t = time_steps
 
     print(f"\n{'='*70}")
@@ -203,12 +218,10 @@ def main():
     print_wealth_diagnostic(region_a, "REGION A")
     print_wealth_diagnostic(region_b, "REGION B")
 
-    # ---- Wealth histogram + box plots ----
+    # ---- Wealth evolution plot (percentiles over time) ----
     try:
         import matplotlib.pyplot as plt
-
-        fig, axes = plt.subplots(2, 4, figsize=(20, 8))
-        fig.suptitle(f"Wealth Distribution — Turn {time_steps}", fontsize=14)
+        import matplotlib.ticker as ticker
 
         colors_map = {
             Goods.food: 'green',
@@ -217,71 +230,60 @@ def main():
             Goods.gov: 'yellow',
         }
         prof_labels = {Goods.food: 'Food', Goods.wood: 'Wood', Goods.furniture: 'Furniture'}
+        region_names = ['Region_A', 'Region_B']
+        region_labels = {'Region_A': 'Region A', 'Region_B': 'Region B'}
 
-        for col, (region, label) in enumerate(zip([region_a, region_b], ['Region A', 'Region B'])):
-            bank = region.bank
-            ax_bar = axes[0, col]
-            ax_box = axes[1, col]
+        fig, axes = plt.subplots(2, 3, figsize=(16, 9))
+        fig.suptitle("Wealth Distribution Evolution (cash + deposits, non-corp, non-trader)", fontsize=14)
 
-            # ---- Bar chart (sorted wealth) ----
-            all_agents = [a for a in region.agents if not a.is_corporation and not getattr(a, 'is_trader', False) and not getattr(a, 'is_government', False)]
-            wealth_vals = [a.cash + bank.deposits.get(a, 0) for a in all_agents]
-            prof_labels_list = [a.output for a in all_agents]
+        for row, rname in enumerate(region_names):
+            for col, prof in enumerate([Goods.food, Goods.wood, Goods.furniture]):
+                ax = axes[row, col]
+                turns = sorted(wealth_history[rname].keys())
+                if not turns:
+                    ax.set_title(f"{region_labels[rname]} — {prof_labels[prof]} (no data)")
+                    continue
 
-            paired = sorted(zip(wealth_vals, prof_labels_list), key=lambda x: -x[0])
-            wealth_vals_sorted = [p[0] for p in paired]
-            prof_labels_sorted = [p[1] for p in paired]
+                # Build arrays per turn
+                percentiles = {'p10': [], 'p25': [], 'p50': [], 'p75': [], 'p90': []}
+                for t in turns:
+                    vals = sorted(wealth_history[rname][t][prof])
+                    n = len(vals)
+                    if n == 0:
+                        for k in percentiles:
+                            percentiles[k].append(0)
+                        continue
+                    percentiles['p10'].append(vals[n * 10 // 100])
+                    percentiles['p25'].append(vals[n * 25 // 100])
+                    percentiles['p50'].append(vals[n // 2])
+                    percentiles['p75'].append(vals[n * 75 // 100])
+                    percentiles['p90'].append(vals[n * 90 // 100])
 
-            ax_bar.bar(range(len(wealth_vals_sorted)), wealth_vals_sorted,
-                      color=[colors_map.get(p, 'grey') for p in prof_labels_sorted])
-            ax_bar.set_title(f"{label} — {len(all_agents)} non-corp agents (sorted)")
-            ax_bar.set_ylabel("Cash + deposits ($)")
-            ax_bar.axhline(y=20, color='gray', linestyle='--', linewidth=0.5, label='Repro threshold')
-            ax_bar.axhline(y=4, color='purple', linestyle=':', linewidth=0.5, label='Food floor')
-            ax_bar.legend(fontsize='x-small')
-
-            # ---- Box plot (per profession) ----
-            box_data = []
-            box_labels = []
-            for prof in [Goods.food, Goods.wood, Goods.furniture]:
-                prof_agents = [a for a in all_agents if a.output == prof]
-                if prof_agents:
-                    vals = [a.cash + bank.deposits.get(a, 0) for a in prof_agents]
-                    box_data.append(vals)
-                    box_labels.append(prof_labels[prof])
-
-            if box_data:
-                bp = ax_box.boxplot(box_data, patch_artist=True)
-                ax_box.set_xticklabels(box_labels)
-                for patch, color in zip(bp['boxes'], [colors_map[Goods.food], colors_map[Goods.wood], colors_map[Goods.furniture]]):
-                    patch.set_facecolor(color)
-                    patch.set_alpha(0.3)
-                ax_box.set_yscale('symlog')  # log-like but handles zeros
-                ax_box.set_ylabel("Cash + deposits ($)")
-                ax_box.set_title(f"{label} — Intra-profession boxplot")
-                ax_box.axhline(y=20, color='gray', linestyle='--', linewidth=0.5, label='Repro threshold ($20)')
-                ax_box.legend(fontsize='x-small')
-
-            # ---- Gini trend (from logs) ----
-            ax_gini = axes[0, 3] if col == 0 else axes[1, 3]
-            ax_gini.set_title(f"Gini by Profession — {label}")
-            ax_gini.set_ylabel("Gini coefficient")
-            for prof in [Goods.food, Goods.wood, Goods.furniture]:
-                if region.gini_log.get(prof):
-                    ax_gini.plot(region.gini_log[prof], label=prof_labels[prof], color=colors_map[prof])
-            ax_gini.legend(fontsize='x-small')
-
-        # Remove unused subplot if needed
-        if len(axes.flat) > 8:
-            for idx in range(8, len(axes.flat)):
-                fig.delaxes(axes.flat[idx])
+                ax.fill_between(turns, percentiles['p10'], percentiles['p90'],
+                                alpha=0.15, color=colors_map[prof])
+                ax.fill_between(turns, percentiles['p25'], percentiles['p75'],
+                                alpha=0.30, color=colors_map[prof])
+                ax.plot(turns, percentiles['p50'], color=colors_map[prof],
+                        linewidth=2, label='Median')
+                ax.plot(turns, percentiles['p25'], color=colors_map[prof],
+                        linewidth=1, linestyle='--', alpha=0.7, label='p25/p75')
+                ax.plot(turns, percentiles['p75'], color=colors_map[prof],
+                        linewidth=1, linestyle='--', alpha=0.7)
+                ax.axhline(y=20, color='gray', linestyle=':', linewidth=0.5, label='Repro ($20)')
+                ax.set_yscale('symlog')
+                ax.set_title(f"{region_labels[rname]} — {prof_labels[prof]}")
+                ax.set_ylabel("Cash + deposits ($)")
+                ax.set_xlabel("Turn")
+                ax.legend(fontsize='x-small')
 
         plt.tight_layout()
         plt.savefig("wealth_diagnostic.png")
         plt.close(fig)
-        print(f"\nWealth histogram + box plots saved to wealth_diagnostic.png")
+        print(f"\nWealth evolution plot saved to wealth_diagnostic.png")
     except Exception as e:
         print(f"\nCould not generate plots: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 if __name__ == "__main__":
