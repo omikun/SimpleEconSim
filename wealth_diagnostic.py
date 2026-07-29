@@ -202,16 +202,18 @@ def main():
                 cat_agents = {c: [] for c in cat_labels}
                 for a in region.agents:
                     wealth = a.cash + bank.deposits.get(a, 0)
+                    debt = sum(l.principle - l.principle_paid for l in a.loans) if a.loans else 0
                     if a.is_trader:
-                        cat_agents['Trader'].append((wealth, a.id))
+                        cat_agents['Trader'].append((wealth, debt, a.id))
                     elif a.is_government:
-                        cat_agents['Gov'].append((wealth, a.id))
+                        cat_agents['Gov'].append((wealth, debt, a.id))
                     else:
                         cat = output_to_cat.get(a.output, 'Food')
-                        cat_agents[cat].append((wealth, a.id))
+                        cat_agents[cat].append((wealth, debt, a.id))
                 # Bank as a pseudo-agent with fixed id -1
                 bank_wealth = bank.total_deposits - bank.total_liabilities
-                cat_agents['Bank'].append((bank_wealth, -1))
+                bank_liab = bank.total_liabilities
+                cat_agents['Bank'].append((bank_wealth, bank_liab, -1))
                 snapshots[rname][t] = cat_agents
 
     current_t = time_steps
@@ -265,9 +267,10 @@ def main():
                     # Sort by wealth descending for visual clarity
                     entries_sorted = sorted(entries, key=lambda x: -x[0])
                     vals = [e[0] for e in entries_sorted]
-                    ids = [e[1] for e in entries_sorted]
+                    debts = [e[1] for e in entries_sorted]
+                    ids = [e[2] for e in entries_sorted]
                     all_ids.update(ids)
-                    per_turn_data.append((t, vals, ids))
+                    per_turn_data.append((t, vals, debts, ids))
 
                 if not all_ids:
                     ax.set_title(f"{cat} (no agents)")
@@ -283,19 +286,27 @@ def main():
                     rgba = cmap(0.2 + 0.8 * i / max(n_ids - 1, 1))
                     id_color[aid] = rgba
 
-                # Build stacked bar chart
+                # Build stacked bar chart: wealth above zero, debt below zero
                 x_pos = np.arange(len(per_turn_data))
                 bar_width = 0.8
-                # For each turn, the bottom is cumulative stack for that bar
-                for turn_idx, (t, vals, ids) in enumerate(per_turn_data):
+                for turn_idx, (t, vals, debts, ids) in enumerate(per_turn_data):
+                    # Wealth (positive)
                     bottom = 0
-                    bars = []
-                    for i, (v, aid) in enumerate(zip(vals, ids)):
-                        if v != 0:
+                    for v, d, aid in zip(vals, debts, ids):
+                        if v > 0:
                             color = id_color.get(aid, 'gray')
                             ax.bar(turn_idx, v, bottom=bottom, width=bar_width,
                                    color=color, edgecolor='none')
                             bottom += v
+                    # Debt (negative, below zero)
+                    bottom = 0
+                    for v, d, aid in zip(vals, debts, ids):
+                        if d > 0:
+                            color = id_color.get(aid, 'gray')
+                            ax.bar(turn_idx, -d, bottom=bottom, width=bar_width,
+                                   color=color, edgecolor='none', alpha=0.4, hatch='//')
+                            bottom -= d
+                ax.axhline(y=0, color='black', linewidth=0.5)
 
                 ax.set_xticks(x_pos)
                 ax.set_xticklabels([str(t) for t in turns], rotation=45, fontsize=8)
@@ -316,7 +327,10 @@ def main():
                         plt.Rectangle((0, 0), 1, 1, color='gray', alpha=0.3,
                                       label=f'...{len(sorted_ids)-20} more')
                     )
-                ax.legend(handles=legend_patches, fontsize=5, ncol=2, loc='upper left')
+                # Add debt legend entry via proxy artist
+                debt_patch = plt.Rectangle((0, 0), 1, 1, color='gray', alpha=0.4, hatch='//',
+                                            label='Debt')
+                ax.legend(handles=legend_patches + [debt_patch], fontsize=5, ncol=2, loc='upper left')
 
             plt.tight_layout()
             plt.savefig(f"wealth_{rname}.png")
