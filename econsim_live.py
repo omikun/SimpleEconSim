@@ -64,13 +64,6 @@ def Live(t, agents, context: LiveContext):
     for government in ctx.governments:
         government.process_parental_leave(t, agents)
 
-    # ---- Government food aid ----
-    food_price = ctx.recipes[Goods.food]['price']
-    if ctx.default_gov is not None:
-        ctx.default_gov.provide_food_aid(t, agents, food_price)
-    else:
-        logwarning(t, "No government exists to provide food aid!")
-
     # ---- Career-switching bottleneck analysis (hoisted) ----
     choices_list = [g for g in ctx.goods if g != Goods.gov]
     bottleneck_weights = _compute_bottleneck_weights(ctx, agents, choices_list)
@@ -86,7 +79,8 @@ def Live(t, agents, context: LiveContext):
     employer_cache = _build_employer_cache(agents)
     rand.reset()
     for agent in agents:
-        if agent.is_corporation:
+        # Corporations and governments are immortal entities — skip lifecycle
+        if agent.is_corporation or agent.is_government:
             new_agents.append(agent)
             continue
         number_food_consumed, number_wood_consumed, number_furniture_consumed = _consume_goods(ctx, agent, number_food_consumed, number_wood_consumed, number_furniture_consumed)
@@ -104,10 +98,16 @@ def Live(t, agents, context: LiveContext):
         else:
             new_agents.append(agent)
 
-    # ---- Post-life-cycle welfare ----
+    # ---- Post-life-cycle government programs ----
+    food_price = ctx.recipes.get(Goods.food, {}).get('price', 1)
+
+    # Government food aid: 1 food per starving agent, scaled by available funds
+    for government in ctx.governments:
+        government.provide_food_aid(t, new_agents, food_price)
+
+    # Welfare: distribute cash to starving, but only excess above a real reserve
     if ctx.default_gov is not None:
-        food_price = ctx.recipes.get(Goods.food, {}).get('price', 1)
-        reserve = food_price * 20
+        reserve = ctx.default_gov.target_food_reserve * food_price * 2  # double reserve for welfare
         ctx.default_gov.distribute_welfare(t, new_agents, min_reserve=reserve)
 
     # ---- Logging ----

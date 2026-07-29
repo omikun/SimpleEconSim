@@ -30,7 +30,7 @@ class Government:
         self.agent.is_corporation = False
         self.agent.is_government = True
         initialize_agent(self.agent, Goods.gov, 0, 0, initial_cash)
-        self.food_inventory = {}
+        self.food_inventory = 0   # food units gov has purchased and stored
         self.debt = 0  # Optional tracking of total borrowed (not needed for accounting)
 
         # ========== Multi-Region Support ==========
@@ -103,6 +103,17 @@ class Government:
         #     When enabled, the exchange rate adjusts based on cumulative
         #     trade balance to self-correct import/export imbalances.
         self.floating_exchange_rate_enabled = True
+
+        # ========== Food Aid / Welfare Configuration ==========
+
+        # Number of food units the gov tries to keep in inventory as a buffer
+        # for lean turns. Combined with cash reserve, this ensures gov can
+        # provide emergency food for at least ~10 turns at low revenue.
+        self.target_food_reserve = 100
+        # Minimum fraction of starving agents to feed (even if low on funds)
+        self.food_aid_min_coverage = 0.1
+        # Maximum fraction to feed (capped even with ample funds)
+        self.food_aid_max_coverage = 0.5
 
     # ------------------------------------------------------------------
     #  Internal helpers
@@ -348,43 +359,132 @@ class Government:
             loginfo(t, f"Government({self.name}) collected ${amount:.2f} in taxes")
         return amount
 
+    # ==================================================================
+    #  Food Purchasing (called by region._trade, like charity)
+    # ==================================================================
+
+    def bid_food(self, food_price, current_desired, bank):
+        """Return the quantity of food this government wants to buy this turn.
+
+        Gov tries to maintain target_food_reserve as a buffer. Withdraws
+        cash from bank as needed.
+        """
+        max_inventory = self.target_food_reserve * 2  # cap at 2x target
+        space = max_inventory - self.food_inventory
+        if space <= 0:
+            return 0
+
+        gov_wealth = self.agent.cash + bank.deposits.get(self.agent, 0)
+        if gov_wealth < food_price:
+            return 0
+
+        affordable = gov_wealth // food_price
+        needed = max(0, self.target_food_reserve - self.food_inventory)
+        potential_bid = min(space, affordable, current_desired, needed)
+        if potential_bid <= 0:
+            return 0
+
+        # Withdraw enough cash from bank to cover the bid
+        needed_cash = potential_bid * food_price
+        if self.agent.cash < needed_cash:
+            from_bank = min(needed_cash - self.agent.cash,
+                            bank.deposits.get(self.agent, 0))
+            if from_bank > 0:
+                bank.Withdraw(self.agent, from_bank)
+
+        return potential_bid
+
+    def receive_food(self, quantity):
+        """Record food purchased during trade."""
+        self.food_inventory += quantity
+
+    def pay_for_food(self, cost):
+        """Deduct cash for food purchased."""
+        self.agent.cash -= cost
+
+    def deposit_remaining(self, bank):
+        """Deposit leftover hand cash back into bank."""
+        if self.agent.cash > 0:
+            bank.Deposit(self.agent, self.agent.cash)
+
+    # ==================================================================
+    #  Food Aid (post-lifecycle, uses inventory + scales by funds)
+    # ==================================================================
+
     def provide_food_aid(self, t, agents, food_price):
-        """Provide emergency food to starving agents and food to newborns.
+        """Give 1 food per starving agent, scaled by available reserves.
 
-        Uses ``child_food_aid_max_age`` (configurable) instead of a hardcoded
-        age cutoff.
+        Coverage ranges from food_aid_min_coverage (0.1) to
+        food_aid_max_coverage (0.5) depending on how much excess
+        food inventory + cash the government has above its target reserve.
 
-        Returns total cost of food aid provided.
+        Children under child_food_aid_max_age get 1 food unconditionally
+        if inventory permits.
+
+        Returns total food given.
         """
         child_max_age = self.get_child_food_aid_max_age()
-        total_cost = 0
-        for agent in agents:
-            if agent.is_corporation:
-                continue
-            needs_food = 0
-            # Newborns / children: 1 free food per turn up to child_food_aid_max_age
-            if agent.age(t) <= child_max_age:
-                needs_food = 1
-            # Starving > 3 days: emergency food (enough to eat 4 this turn)
-            if agent.hungry_steps > 3:
-                current_food = agent.inv_get(Goods.food, 0)
-                needed_for_meal = max(0, 4 - current_food)
-                # Don't double-count: children already get 1
-                if agent.age(t) <= child_max_age:
-                    needed_for_meal = max(0, needed_for_meal - 1)
-                needs_food = max(needs_food, needed_for_meal)
 
-            if needs_food > 0:
-                # Give food directly at no cash cost (social service)
-                # Food is created from thin air for emergency aid
-                agent.inv_add(Goods.food, needs_food)
-                total_cost += needs_food * food_price  # For accounting purposes only
-                if agent.hungry_steps > 3:
-                    loginfo(t, agent.name(), f"received emergency food aid ({needs_food} food)")
-                else:
-                    loginfo(t, agent.name(), f"received child food aid ({needs_food} food)")
+        # Separate candidates: children and starving agents
+        candidates = [a for a in agents
+                      if not a.is_corporation and not a.is_government]
+        children = [a for a in candidates
+                    if a.age(t) <= child_max_age and a.hungry_steps == 0]
+        starving = [a for a in candidates if a.hungry_steps > 0]
 
-        return total_cost
+        total_food_given = 0
+
+        # 1. Children: feed all if we have enough food
+        for child in children:
+            if self.food_inventory <= 0:
+                break
+            self.food_inventory -= 1
+            child.inv_add(Goods.food, 1)
+            total_food_given += 1
+            loginfo(t, f"Government({self.name}) child food aid to {child.name()}")
+
+        # 2. Determine how many starving to feed based on available surplus
+        if self.food_inventory > 0 and starving:
+            # Compute surplus: food + cash reserves above target
+            cash_above_reserve = max(0, self.agent.cash
+                                     - self.target_food_reserve * food_price)
+            food_surplus = self.food_inventory + (cash_above_reserve // food_price)
+            desired_feed = len(starving)
+
+            if food_surplus >= desired_feed:
+                # Ample funds: feed max_coverage
+                feed_count = max(1, int(desired_feed * self.food_aid_max_coverage))
+            elif food_surplus >= desired_feed * self.food_aid_min_coverage:
+                # Moderate: feed proportionally
+                coverage = self.food_aid_min_coverage + 0.4 * (
+                    food_surplus / (desired_feed * self.food_aid_max_coverage)
+                )
+                feed_count = max(1, min(desired_feed,
+                                        int(desired_feed * coverage)))
+            else:
+                # Low reserves: feed min_coverage
+                feed_count = max(1, int(desired_feed * self.food_aid_min_coverage))
+
+            feed_count = min(int(feed_count), self.food_inventory, len(starving))
+
+            # Randomly select starving agents to feed
+            if feed_count < len(starving):
+                random.shuffle(starving)
+            fed = starving[:int(feed_count)]
+
+            for agent in fed:
+                self.food_inventory -= 1
+                agent.inv_add(Goods.food, 1)
+                total_food_given += 1
+                loginfo(t, f"Government({self.name}) food aid to {agent.name()} "
+                        f"(hungry_steps={agent.hungry_steps})")
+
+        if total_food_given > 0:
+            loginfo(t, f"Government({self.name}) distributed {total_food_given} food "
+                    f"(remaining inventory: {self.food_inventory}, "
+                    f"cash: ${self.agent.cash:.2f})")
+
+        return total_food_given
 
     def distribute_welfare(self, t, agents, min_reserve=0):
         """Distribute all excess cash above min_reserve to starving agents.

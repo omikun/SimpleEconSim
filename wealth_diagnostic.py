@@ -176,7 +176,7 @@ def main():
     # Collect agent-level snapshots every 10 turns
     # snapshots[region][turn] = {category: [(wealth, agent_id), ...]}
     snapshots = {'Region_A': {}, 'Region_B': {}}
-    cat_labels = ['Food', 'Wood', 'Furniture', 'Trader', 'Gov', 'Bank']
+    cat_labels = ['Food', 'Wood', 'Furniture', 'Trader', 'Institutions']
     output_to_cat = {Goods.food: 'Food', Goods.wood: 'Wood', Goods.furniture: 'Furniture'}
 
     for t in range(1, time_steps + 1):
@@ -206,14 +206,21 @@ def main():
                     if a.is_trader:
                         cat_agents['Trader'].append((wealth, debt, a.id))
                     elif a.is_government:
-                        cat_agents['Gov'].append((wealth, debt, a.id))
+                        # Gov goes into Institutions with fixed id -10
+                        cat_agents['Institutions'].append((wealth, debt, -10))
                     else:
                         cat = output_to_cat.get(a.output, 'Food')
                         cat_agents[cat].append((wealth, debt, a.id))
-                # Bank as a pseudo-agent with fixed id -1
+                # Bank as a pseudo-agent with fixed id -20
                 bank_wealth = bank.total_deposits - bank.total_liabilities
                 bank_liab = bank.total_liabilities
-                cat_agents['Bank'].append((bank_wealth, bank_liab, -1))
+                cat_agents['Institutions'].append((bank_wealth, bank_liab, -20))
+                # Charity as a pseudo-agent with fixed id -30
+                charity = region.charity
+                food_price = region.recipes.get(Goods.food, {}).get('price', 1.0)
+                charity_wealth = charity.agent.cash + bank.deposits.get(charity.agent, 0) \
+                                 + charity.food_inventory * food_price
+                cat_agents['Institutions'].append((charity_wealth, 0, -30))
                 snapshots[rname][t] = cat_agents
 
     current_t = time_steps
@@ -238,19 +245,19 @@ def main():
 
         region_names = ['Region_A', 'Region_B']
         region_labels = {'Region_A': 'Region A', 'Region_B': 'Region B'}
-        cat_labels = ['Food', 'Wood', 'Furniture', 'Trader', 'Gov', 'Bank']
-        cat_colors = {
-            'Food': 'green', 'Wood': 'red', 'Furniture': 'blue',
-            'Trader': 'orange', 'Gov': 'yellow', 'Bank': 'purple',
-        }
+        cat_labels = ['Food', 'Wood', 'Furniture', 'Trader', 'Institutions']
 
-        fig, axes = plt.subplots(2, 6, figsize=(28, 12))
+        fig, axes = plt.subplots(2, 5, figsize=(24, 12))
         fig.suptitle("Wealth by Category (cash + deposits) — Region A top, Region B bottom", fontsize=16)
 
-        # Each category gets its own colormap for visual distinction
-        cmap_names = ['viridis', 'plasma', 'inferno', 'magma', 'cividis', 'coolwarm']
+        # Each non-Institutions category gets its own colormap
+        cmap_names = ['viridis', 'plasma', 'inferno', 'magma', 'Set1']
+        # Fixed institution colors: Gov=gold, Bank=purple, Charity=teal
+        inst_colors = {-10: '#FFD700', -20: '#8B008B', -30: '#008080'}
+        inst_labels = {-10: 'Gov', -20: 'Bank', -30: 'Charity'}
 
         for idx, cat in enumerate(cat_labels):
+            is_institutions = (cat == 'Institutions')
             for row, rname in enumerate(region_names):
                 region = region_a if rname == 'Region_A' else region_b
                 turns = sorted(snapshots[rname].keys())
@@ -276,14 +283,18 @@ def main():
                     ax.set_title(f"{region_labels[rname]} {cat} (no agents)")
                     continue
 
-                # Assign colors per agent from this category's colormap
-                sorted_ids = sorted(all_ids)
-                n_ids = len(sorted_ids)
-                cmap = plt.get_cmap(cmap_names[idx])
-                id_color = {}
-                for i, aid in enumerate(sorted_ids):
-                    rgba = cmap(0.2 + 0.8 * i / max(n_ids - 1, 1))
-                    id_color[aid] = rgba
+                # Assign colors
+                if is_institutions:
+                    # Fixed distinct colors per institution
+                    id_color = inst_colors
+                else:
+                    sorted_ids = sorted(all_ids)
+                    n_ids = len(sorted_ids)
+                    cmap = plt.get_cmap(cmap_names[idx])
+                    id_color = {}
+                    for i, aid in enumerate(sorted_ids):
+                        rgba = cmap(0.2 + 0.8 * i / max(n_ids - 1, 1))
+                        id_color[aid] = rgba
 
                 # Build stacked bars
                 x_pos = np.arange(len(per_turn_data))
@@ -301,7 +312,7 @@ def main():
                         if d > 0:
                             color = id_color.get(aid, 'gray')
                             ax.bar(turn_idx, -d, bottom=bottom, width=bar_width,
-                                   color=color, edgecolor='none', alpha=0.4, hatch='//')
+                                   color=color, edgecolor='none')
                             bottom -= d
                 ax.axhline(y=0, color='black', linewidth=0.5)
 
@@ -317,17 +328,33 @@ def main():
                 if idx == 0:
                     ax.set_ylabel("Wealth ($)")
 
-                # Colorbar (only on bottom row or non-conflicting)
-                sm = plt.cm.ScalarMappable(cmap=cmap, norm=plt.Normalize(vmin=sorted_ids[0], vmax=sorted_ids[-1]))
-                sm.set_array([])
-                cbar = plt.colorbar(sm, ax=ax, orientation='vertical', shrink=0.5, pad=0.02)
-                cbar.set_label('Agent ID', fontsize=6)
-                cbar.ax.tick_params(labelsize=5)
-
-                # Debt legend
-                debt_patch = plt.Rectangle((0, 0), 1, 1, color='gray', alpha=0.4, hatch='//',
-                                            label='Debt')
-                ax.legend(handles=[debt_patch], fontsize=6, loc='upper left')
+                if is_institutions:
+                    # Fixed-color legend (Gov, Bank, Charity) + Debt
+                    patches = []
+                    for fid in [-10, -20, -30]:
+                        patches.append(plt.Rectangle((0, 0), 1, 1,
+                                       color=inst_colors[fid], label=inst_labels[fid]))
+                    debt_patch = plt.Rectangle((0, 0), 1, 1, color='gray',
+                                               label='Bank Debt')
+                    patches.append(debt_patch)
+                    ax.legend(handles=patches, fontsize=7, loc='upper left')
+                else:
+                    # Colorbar for per-agent categories
+                    sorted_ids = sorted(all_ids)
+                    n_ids = len(sorted_ids)
+                    cmap = plt.get_cmap(cmap_names[idx])
+                    sm = plt.cm.ScalarMappable(cmap=cmap,
+                                               norm=plt.Normalize(vmin=sorted_ids[0],
+                                                                  vmax=sorted_ids[-1]))
+                    sm.set_array([])
+                    cbar = plt.colorbar(sm, ax=ax, orientation='vertical',
+                                        shrink=0.5, pad=0.02)
+                    cbar.set_label('Agent ID', fontsize=6)
+                    cbar.ax.tick_params(labelsize=5)
+                    # Debt legend
+                    debt_patch = plt.Rectangle((0, 0), 1, 1, color='gray',
+                                               label='Debt')
+                    ax.legend(handles=[debt_patch], fontsize=6, loc='upper left')
 
         plt.tight_layout()
         plt.savefig("wealth_stacked.png")

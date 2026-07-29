@@ -669,6 +669,35 @@ class Region:
                         loginfo(t, f"{self.charity.name} bought {charity_bought} food at ${price:.2f}")
                 self.charity.deposit_remaining(self.bank)
 
+                # Government food purchase
+                if hasattr(self, 'gov'):
+                    gov_bid = self.gov.bid_food(price, desires[good], self.bank)
+                    if gov_bid > 0:
+                        gov_askers = [a for a in askers if a.output == Goods.food
+                                       and a.inv_get(Goods.food, 0) > 2]
+                        gov_bought = 0
+                        for seller in gov_askers:
+                            if gov_bid <= 0 or self.gov.agent.cash < price:
+                                break
+                            available = seller.inv_get(Goods.food, 0) - 2
+                            if available <= 0:
+                                continue
+                            bought = min(gov_bid, available,
+                                         int(self.gov.agent.cash / price))
+                            if bought > 0:
+                                seller.inv_add(Goods.food, -bought)
+                                seller.cash += bought * price
+                                self.gov.pay_for_food(bought * price)
+                                self.gov.receive_food(bought)
+                                gov_bid -= bought
+                                gov_bought += bought
+                        if gov_bought > 0:
+                            total_sold += gov_bought
+                            self.sold_log[good][-1] += gov_bought
+                            loginfo(t, f"Government({self.gov.name}) bought "
+                                    f"{gov_bought} food at ${price:.2f}")
+                    self.gov.deposit_remaining(self.bank)
+
         self.most_demand = most_demand_good
 
     def _decide_borrow_deposit(self, agents, all_goods_price, food_price, t):
