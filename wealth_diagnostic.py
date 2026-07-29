@@ -253,6 +253,9 @@ def main():
             fig, axes = plt.subplots(2, 3, figsize=(18, 10))
             fig.suptitle(f"{region_labels[rname]} — Wealth by Category (cash + deposits)", fontsize=14)
 
+            # Each category gets its own colormap for visual distinction
+            cmap_names = ['viridis', 'plasma', 'inferno', 'magma', 'cividis', 'coolwarm']
+
             for idx, cat in enumerate(cat_labels):
                 row = idx // 3
                 col = idx % 3
@@ -276,11 +279,11 @@ def main():
                     ax.set_title(f"{cat} (no agents)")
                     continue
 
-                # Assign each unique agent id a color from a palette
+                # Assign each unique agent id a color from a per-category colormap
                 sorted_ids = sorted(all_ids)
-                # Use a colormap that varies by creation order
                 n_ids = len(sorted_ids)
-                cmap = plt.cm.viridis if n_ids > 1 else plt.cm.Reds
+                cmap = plt.get_cmap(cmap_names[idx % len(cmap_names)])
+                norm = plt.Normalize(vmin=0, vmax=max(n_ids - 1, 1))
                 id_color = {}
                 for i, aid in enumerate(sorted_ids):
                     rgba = cmap(0.2 + 0.8 * i / max(n_ids - 1, 1))
@@ -308,29 +311,28 @@ def main():
                             bottom -= d
                 ax.axhline(y=0, color='black', linewidth=0.5)
 
-                ax.set_xticks(x_pos)
-                ax.set_xticklabels([str(t) for t in turns], rotation=45, fontsize=8)
+                # Space x ticks every 2 to avoid overlap
+                step = max(1, len(turns) // 6)
+                tick_indices = list(range(0, len(turns), step))
+                ax.set_xticks(tick_indices)
+                ax.set_xticklabels([str(turns[i]) for i in tick_indices], fontsize=8)
                 ax.set_yscale('symlog')
                 ax.set_title(cat, fontsize=12)
                 ax.set_ylabel("Wealth ($)")
                 ax.set_xlabel("Turn")
 
-                # Legend: show a few sample colors
-                legend_patches = []
-                for aid in list(sorted_ids)[:20]:
-                    rgba = id_color[aid]
-                    legend_patches.append(
-                        plt.Rectangle((0, 0), 1, 1, color=rgba, label=f'#{aid}')
-                    )
-                if len(sorted_ids) > 20:
-                    legend_patches.append(
-                        plt.Rectangle((0, 0), 1, 1, color='gray', alpha=0.3,
-                                      label=f'...{len(sorted_ids)-20} more')
-                    )
-                # Add debt legend entry via proxy artist
+                # Colorbar legend showing the agent-id gradient
+                # Create a ScalarMappable for the colorbar
+                sm = plt.cm.ScalarMappable(cmap=cmap, norm=plt.Normalize(vmin=sorted_ids[0], vmax=sorted_ids[-1]))
+                sm.set_array([])
+                cbar = plt.colorbar(sm, ax=ax, orientation='vertical', shrink=0.6, pad=0.02)
+                cbar.set_label('Agent ID', fontsize=7)
+                cbar.ax.tick_params(labelsize=6)
+
+                # Debt legend entry via proxy artist (avoids bar artifact)
                 debt_patch = plt.Rectangle((0, 0), 1, 1, color='gray', alpha=0.4, hatch='//',
                                             label='Debt')
-                ax.legend(handles=legend_patches + [debt_patch], fontsize=5, ncol=2, loc='upper left')
+                ax.legend(handles=[debt_patch], fontsize=7, loc='upper left')
 
             plt.tight_layout()
             plt.savefig(f"wealth_{rname}.png")
