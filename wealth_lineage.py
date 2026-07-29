@@ -181,7 +181,7 @@ def main():
         # ---- Identify top lineages ----
         founding_ids = set()
         for a in region_a.agents + region_b.agents:
-            if getattr(a, 'is_trader', False) or getattr(a, 'is_government', False):
+            if getattr(a, 'is_government', False):
                 continue
             if a.id not in parent_map:
                 founding_ids.add(a.id)
@@ -238,32 +238,26 @@ def main():
 
             # BFS for generation depth
             queue = [(fid, 0)]
-            visited = set()
+            bfs_visited = set()
+            all_members = list(lineage_founder_map.get(fid, [fid]))
+            member_set = set(all_members)
 
-            # Also collect final wealth & profession for each node
             snap_final = wealth_snapshots.get(time_steps, {})
 
-            # Get pre-death wealth for deceased nodes from inheritance_events
+            # Collect final wealth and profession for all lineage members
             final_wealth = {}
             final_prof = {}
             final_debt = {}
             final_alive = {}
 
-            # Initialize with founding agent
-            final_wealth[fid] = founder_wealth_at_end.get(fid, 0)
-            final_prof[fid] = PROF_NAMES.get(region_a.agents[0].output, '?')
-            final_alive[fid] = True
-            final_debt[fid] = 0
-
-            # Collect all lineage members with wealth
-            for aid in lineage_founder_map[fid]:
+            for aid in all_members:
                 if aid in snap_final:
                     w, d, prof, alive = snap_final[aid]
                     final_wealth[aid] = w - d
                     final_prof[aid] = prof
                     final_alive[aid] = alive
                     final_debt[aid] = d
-                # Also check inheritance events (for dead agents' wealth at death)
+                # Also check inheritance events (wealth at death for deceased)
                 for evt in inheritance_events:
                     if evt[1] == aid and evt[3] != 0:
                         if aid not in final_wealth or final_wealth[aid] == 0:
@@ -272,24 +266,32 @@ def main():
                             final_alive[aid] = False
                             final_debt[aid] = evt[5]
                             break
+                # Defaults
+                if aid not in final_wealth:
+                    final_wealth[aid] = 0
+                    final_prof[aid] = '?'
+                    final_alive[aid] = True
+                    final_debt[aid] = 0
 
+            # BFS pass: compute generation depth
             while queue:
                 aid, gen = queue.pop(0)
-                if aid in visited:
+                if aid in bfs_visited:
                     continue
-                visited.add(aid)
+                bfs_visited.add(aid)
                 max_gen = max(max_gen, gen)
-                kids = [c for c, p in parent_map.items() if p == aid]
+                kids = [c for c, p in parent_map.items() if p == aid and c in member_set]
                 for k in kids:
                     queue.append((k, gen + 1))
 
-            # Now assign x positions via in-order traversal
+            # Assign x positions via in-order traversal (separate visited set!)
+            assign_visited = set()
             x_counter = [0]
             def assign_x(aid, gen):
-                if aid not in visited:
+                if aid in assign_visited:
                     return
-                visited.add(aid)
-                kids = sorted([c for c, p in parent_map.items() if p == aid],
+                assign_visited.add(aid)
+                kids = sorted([c for c, p in parent_map.items() if p == aid and c in member_set],
                               key=lambda k: final_wealth.get(k, 0), reverse=True)
                 for k in kids:
                     assign_x(k, gen + 1)
@@ -301,7 +303,7 @@ def main():
                     x = x_counter[0]
                     x_counter[0] += 1
                 nodes[aid] = {
-                    'gen': gen,
+                    'gen': gen + 1,  # +1 so root is at y=1
                     'x': x,
                     'kids': kids,
                     'wealth': final_wealth.get(aid, 0),
@@ -311,9 +313,8 @@ def main():
                     'debt': final_debt.get(aid, 0),
                 }
 
-            visited = set()
             assign_x(fid, 0)
-            return nodes, max_gen
+            return nodes, max_gen + 1
 
         # Build all trees
         all_trees = {}  # fid -> nodes dict
