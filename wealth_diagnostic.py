@@ -173,8 +173,11 @@ def main():
     cumulative_births = 0
     cumulative_deaths = 0
 
-    # Collect wealth percentiles per profession (sample every 5 turns)
-    wealth_history = {'Region_A': {}, 'Region_B': {}}
+    # Collect agent-level snapshots every 10 turns
+    # snapshots[region][turn] = {category: [(wealth, agent_id), ...]}
+    snapshots = {'Region_A': {}, 'Region_B': {}}
+    cat_labels = ['Food', 'Wood', 'Furniture', 'Trader', 'Gov', 'Bank']
+    output_to_cat = {Goods.food: 'Food', Goods.wood: 'Wood', Goods.furniture: 'Furniture'}
 
     for t in range(1, time_steps + 1):
         n_before = len(region_a.agents) + len(region_b.agents)
@@ -192,17 +195,24 @@ def main():
         elif diff < 0:
             cumulative_deaths -= diff
 
-        # Sample wealth distribution every 5 turns
-        if t % 5 == 0 or t == 1:
+        # Snapshot every 10 turns
+        if t % 10 == 0:
             for rname, region in [('Region_A', region_a), ('Region_B', region_b)]:
                 bank = region.bank
-                regular = [a for a in region.agents if not a.is_corporation
-                           and not getattr(a, 'is_trader', False) and not getattr(a, 'is_government', False)]
-                frame = {}
-                for prof in [Goods.food, Goods.wood, Goods.furniture]:
-                    vals = [a.cash + bank.deposits.get(a, 0) for a in regular if a.output == prof]
-                    frame[prof] = vals
-                wealth_history[rname][t] = frame
+                cat_agents = {c: [] for c in cat_labels}
+                for a in region.agents:
+                    wealth = a.cash + bank.deposits.get(a, 0)
+                    if a.is_trader:
+                        cat_agents['Trader'].append((wealth, a.id))
+                    elif a.is_government:
+                        cat_agents['Gov'].append((wealth, a.id))
+                    else:
+                        cat = output_to_cat.get(a.output, 'Food')
+                        cat_agents[cat].append((wealth, a.id))
+                # Bank as a pseudo-agent with fixed id -1
+                bank_wealth = bank.total_deposits - bank.total_liabilities
+                cat_agents['Bank'].append((bank_wealth, -1))
+                snapshots[rname][t] = cat_agents
 
     current_t = time_steps
 
@@ -218,68 +228,101 @@ def main():
     print_wealth_diagnostic(region_a, "REGION A")
     print_wealth_diagnostic(region_b, "REGION B")
 
-    # ---- Wealth evolution plot (percentiles over time) ----
+    # ---- Stacked bar chart: one bar per snapshot turn, segments = agents ----
     try:
         import matplotlib.pyplot as plt
-        import matplotlib.ticker as ticker
+        from matplotlib.colors import to_rgba, to_hex
+        import numpy as np
 
-        colors_map = {
-            Goods.food: 'green',
-            Goods.wood: 'red',
-            Goods.furniture: 'blue',
-            Goods.gov: 'yellow',
-        }
-        prof_labels = {Goods.food: 'Food', Goods.wood: 'Wood', Goods.furniture: 'Furniture'}
         region_names = ['Region_A', 'Region_B']
         region_labels = {'Region_A': 'Region A', 'Region_B': 'Region B'}
+        cat_labels = ['Food', 'Wood', 'Furniture', 'Trader', 'Gov', 'Bank']
+        cat_colors = {
+            'Food': 'green', 'Wood': 'red', 'Furniture': 'blue',
+            'Trader': 'orange', 'Gov': 'yellow', 'Bank': 'purple',
+        }
 
-        fig, axes = plt.subplots(2, 3, figsize=(16, 9))
-        fig.suptitle("Wealth Distribution Evolution (cash + deposits, non-corp, non-trader)", fontsize=14)
+        for rname in region_names:
+            region = region_a if rname == 'Region_A' else region_b
+            turns = sorted(snapshots[rname].keys())
+            if not turns:
+                continue
 
-        for row, rname in enumerate(region_names):
-            for col, prof in enumerate([Goods.food, Goods.wood, Goods.furniture]):
+            fig, axes = plt.subplots(2, 3, figsize=(18, 10))
+            fig.suptitle(f"{region_labels[rname]} — Wealth by Category (cash + deposits)", fontsize=14)
+
+            for idx, cat in enumerate(cat_labels):
+                row = idx // 3
+                col = idx % 3
                 ax = axes[row, col]
-                turns = sorted(wealth_history[rname].keys())
-                if not turns:
-                    ax.set_title(f"{region_labels[rname]} — {prof_labels[prof]} (no data)")
+
+                # Collect per-turn: sorted agent wealths for this category
+                # Also track agent_ids so each agent gets a consistent color across turns
+                all_ids = set()
+                per_turn_data = []
+                for t in turns:
+                    entries = snapshots[rname][t][cat]
+                    # Sort by wealth descending for visual clarity
+                    entries_sorted = sorted(entries, key=lambda x: -x[0])
+                    vals = [e[0] for e in entries_sorted]
+                    ids = [e[1] for e in entries_sorted]
+                    all_ids.update(ids)
+                    per_turn_data.append((t, vals, ids))
+
+                if not all_ids:
+                    ax.set_title(f"{cat} (no agents)")
                     continue
 
-                # Build arrays per turn
-                percentiles = {'p10': [], 'p25': [], 'p50': [], 'p75': [], 'p90': []}
-                for t in turns:
-                    vals = sorted(wealth_history[rname][t][prof])
-                    n = len(vals)
-                    if n == 0:
-                        for k in percentiles:
-                            percentiles[k].append(0)
-                        continue
-                    percentiles['p10'].append(vals[n * 10 // 100])
-                    percentiles['p25'].append(vals[n * 25 // 100])
-                    percentiles['p50'].append(vals[n // 2])
-                    percentiles['p75'].append(vals[n * 75 // 100])
-                    percentiles['p90'].append(vals[n * 90 // 100])
+                # Assign each unique agent id a color from a palette
+                sorted_ids = sorted(all_ids)
+                # Use a colormap that varies by creation order
+                n_ids = len(sorted_ids)
+                cmap = plt.cm.viridis if n_ids > 1 else plt.cm.Reds
+                id_color = {}
+                for i, aid in enumerate(sorted_ids):
+                    rgba = cmap(0.2 + 0.8 * i / max(n_ids - 1, 1))
+                    id_color[aid] = rgba
 
-                ax.fill_between(turns, percentiles['p10'], percentiles['p90'],
-                                alpha=0.15, color=colors_map[prof])
-                ax.fill_between(turns, percentiles['p25'], percentiles['p75'],
-                                alpha=0.30, color=colors_map[prof])
-                ax.plot(turns, percentiles['p50'], color=colors_map[prof],
-                        linewidth=2, label='Median')
-                ax.plot(turns, percentiles['p25'], color=colors_map[prof],
-                        linewidth=1, linestyle='--', alpha=0.7, label='p25/p75')
-                ax.plot(turns, percentiles['p75'], color=colors_map[prof],
-                        linewidth=1, linestyle='--', alpha=0.7)
-                ax.axhline(y=20, color='gray', linestyle=':', linewidth=0.5, label='Repro ($20)')
+                # Build stacked bar chart
+                x_pos = np.arange(len(per_turn_data))
+                bar_width = 0.8
+                # For each turn, the bottom is cumulative stack for that bar
+                for turn_idx, (t, vals, ids) in enumerate(per_turn_data):
+                    bottom = 0
+                    bars = []
+                    for i, (v, aid) in enumerate(zip(vals, ids)):
+                        if v != 0:
+                            color = id_color.get(aid, 'gray')
+                            ax.bar(turn_idx, v, bottom=bottom, width=bar_width,
+                                   color=color, edgecolor='none')
+                            bottom += v
+
+                ax.set_xticks(x_pos)
+                ax.set_xticklabels([str(t) for t in turns], rotation=45, fontsize=8)
                 ax.set_yscale('symlog')
-                ax.set_title(f"{region_labels[rname]} — {prof_labels[prof]}")
-                ax.set_ylabel("Cash + deposits ($)")
+                ax.set_title(cat, fontsize=12)
+                ax.set_ylabel("Wealth ($)")
                 ax.set_xlabel("Turn")
-                ax.legend(fontsize='x-small')
 
-        plt.tight_layout()
-        plt.savefig("wealth_diagnostic.png")
-        plt.close(fig)
-        print(f"\nWealth evolution plot saved to wealth_diagnostic.png")
+                # Legend: show a few sample colors
+                legend_patches = []
+                for aid in list(sorted_ids)[:20]:
+                    rgba = id_color[aid]
+                    legend_patches.append(
+                        plt.Rectangle((0, 0), 1, 1, color=rgba, label=f'#{aid}')
+                    )
+                if len(sorted_ids) > 20:
+                    legend_patches.append(
+                        plt.Rectangle((0, 0), 1, 1, color='gray', alpha=0.3,
+                                      label=f'...{len(sorted_ids)-20} more')
+                    )
+                ax.legend(handles=legend_patches, fontsize=5, ncol=2, loc='upper left')
+
+            plt.tight_layout()
+            plt.savefig(f"wealth_{rname}.png")
+            plt.close(fig)
+            print(f"  Wealth stacked bar saved to wealth_{rname}.png")
+
     except Exception as e:
         print(f"\nCould not generate plots: {e}")
         import traceback
