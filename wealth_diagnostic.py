@@ -244,30 +244,27 @@ def main():
             'Trader': 'orange', 'Gov': 'yellow', 'Bank': 'purple',
         }
 
-        for rname in region_names:
-            region = region_a if rname == 'Region_A' else region_b
-            turns = sorted(snapshots[rname].keys())
-            if not turns:
-                continue
+        fig, axes = plt.subplots(2, 6, figsize=(28, 12))
+        fig.suptitle("Wealth by Category (cash + deposits) — Region A top, Region B bottom", fontsize=16)
 
-            fig, axes = plt.subplots(2, 3, figsize=(18, 10))
-            fig.suptitle(f"{region_labels[rname]} — Wealth by Category (cash + deposits)", fontsize=14)
+        # Each category gets its own colormap for visual distinction
+        cmap_names = ['viridis', 'plasma', 'inferno', 'magma', 'cividis', 'coolwarm']
 
-            # Each category gets its own colormap for visual distinction
-            cmap_names = ['viridis', 'plasma', 'inferno', 'magma', 'cividis', 'coolwarm']
+        for idx, cat in enumerate(cat_labels):
+            for row, rname in enumerate(region_names):
+                region = region_a if rname == 'Region_A' else region_b
+                turns = sorted(snapshots[rname].keys())
+                ax = axes[row, idx]
 
-            for idx, cat in enumerate(cat_labels):
-                row = idx // 3
-                col = idx % 3
-                ax = axes[row, col]
+                if not turns:
+                    ax.set_title(f"{region_labels[rname]} {cat} (no data)")
+                    continue
 
                 # Collect per-turn: sorted agent wealths for this category
-                # Also track agent_ids so each agent gets a consistent color across turns
                 all_ids = set()
                 per_turn_data = []
                 for t in turns:
                     entries = snapshots[rname][t][cat]
-                    # Sort by wealth descending for visual clarity
                     entries_sorted = sorted(entries, key=lambda x: -x[0])
                     vals = [e[0] for e in entries_sorted]
                     debts = [e[1] for e in entries_sorted]
@@ -276,24 +273,22 @@ def main():
                     per_turn_data.append((t, vals, debts, ids))
 
                 if not all_ids:
-                    ax.set_title(f"{cat} (no agents)")
+                    ax.set_title(f"{region_labels[rname]} {cat} (no agents)")
                     continue
 
-                # Assign each unique agent id a color from a per-category colormap
+                # Assign colors per agent from this category's colormap
                 sorted_ids = sorted(all_ids)
                 n_ids = len(sorted_ids)
-                cmap = plt.get_cmap(cmap_names[idx % len(cmap_names)])
-                norm = plt.Normalize(vmin=0, vmax=max(n_ids - 1, 1))
+                cmap = plt.get_cmap(cmap_names[idx])
                 id_color = {}
                 for i, aid in enumerate(sorted_ids):
                     rgba = cmap(0.2 + 0.8 * i / max(n_ids - 1, 1))
                     id_color[aid] = rgba
 
-                # Build stacked bar chart: wealth above zero, debt below zero
+                # Build stacked bars
                 x_pos = np.arange(len(per_turn_data))
                 bar_width = 0.8
                 for turn_idx, (t, vals, debts, ids) in enumerate(per_turn_data):
-                    # Wealth (positive)
                     bottom = 0
                     for v, d, aid in zip(vals, debts, ids):
                         if v > 0:
@@ -301,7 +296,6 @@ def main():
                             ax.bar(turn_idx, v, bottom=bottom, width=bar_width,
                                    color=color, edgecolor='none')
                             bottom += v
-                    # Debt (negative, below zero)
                     bottom = 0
                     for v, d, aid in zip(vals, debts, ids):
                         if d > 0:
@@ -311,33 +305,34 @@ def main():
                             bottom -= d
                 ax.axhline(y=0, color='black', linewidth=0.5)
 
-                # Space x ticks every 2 to avoid overlap
                 step = max(1, len(turns) // 6)
                 tick_indices = list(range(0, len(turns), step))
                 ax.set_xticks(tick_indices)
-                ax.set_xticklabels([str(turns[i]) for i in tick_indices], fontsize=8)
+                ax.set_xticklabels([str(turns[i]) for i in tick_indices], fontsize=7)
                 ax.set_yscale('symlog')
-                ax.set_title(cat, fontsize=12)
-                ax.set_ylabel("Wealth ($)")
-                ax.set_xlabel("Turn")
+                title = f"{region_labels[rname]} {cat}"
+                if row == 0 and idx >= 3:
+                    title = f"{region_labels[rname]}\n{cat}"
+                ax.set_title(title, fontsize=10)
+                if idx == 0:
+                    ax.set_ylabel("Wealth ($)")
 
-                # Colorbar legend showing the agent-id gradient
-                # Create a ScalarMappable for the colorbar
+                # Colorbar (only on bottom row or non-conflicting)
                 sm = plt.cm.ScalarMappable(cmap=cmap, norm=plt.Normalize(vmin=sorted_ids[0], vmax=sorted_ids[-1]))
                 sm.set_array([])
-                cbar = plt.colorbar(sm, ax=ax, orientation='vertical', shrink=0.6, pad=0.02)
-                cbar.set_label('Agent ID', fontsize=7)
-                cbar.ax.tick_params(labelsize=6)
+                cbar = plt.colorbar(sm, ax=ax, orientation='vertical', shrink=0.5, pad=0.02)
+                cbar.set_label('Agent ID', fontsize=6)
+                cbar.ax.tick_params(labelsize=5)
 
-                # Debt legend entry via proxy artist (avoids bar artifact)
+                # Debt legend
                 debt_patch = plt.Rectangle((0, 0), 1, 1, color='gray', alpha=0.4, hatch='//',
                                             label='Debt')
-                ax.legend(handles=[debt_patch], fontsize=7, loc='upper left')
+                ax.legend(handles=[debt_patch], fontsize=6, loc='upper left')
 
-            plt.tight_layout()
-            plt.savefig(f"wealth_{rname}.png")
-            plt.close(fig)
-            print(f"  Wealth stacked bar saved to wealth_{rname}.png")
+        plt.tight_layout()
+        plt.savefig("wealth_stacked.png")
+        plt.close(fig)
+        print(f"  Wealth stacked bar saved to wealth_stacked.png")
 
     except Exception as e:
         print(f"\nCould not generate plots: {e}")
