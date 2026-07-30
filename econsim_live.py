@@ -399,6 +399,25 @@ def _handle_death(ctx: LiveContext, t, agent, agents):
                 agent, base_death_prob[min(agent.age(t) // 30, 9)])
         else:
             adjusted_prob = base_death_prob[min(agent.age(t) // 30, 9)]
+        # Wealth-based mortality reduction: wealth protects from early death
+        # by providing better nutrition, healthcare access, and living conditions.
+        # Effect diminishes with age: full effect when young, negligible when old.
+        agent_age = agent.age(t)
+        if agent_age < 210 and adjusted_prob > 0:
+            food_price = ctx.recipes.get(Goods.food, {}).get('price', 1)
+            wood_price = ctx.recipes.get(Goods.wood, {}).get('price', 1)
+            furn_price = ctx.recipes.get(Goods.furniture, {}).get('price', 1)
+            col = max(0.1, 4 * food_price + 1 * wood_price + 0.25 * furn_price)
+            wealth = agent.wealth()
+            if wealth > col:
+                # At 10x cost of living: 10% of base death prob
+                # Age factor: linearly fades from 1.0 at birth to 0.0 at age 210
+                age_weight = max(0.0, 1.0 - agent_age / 210.0)
+                wealth_factor = col / max(0.01, wealth)
+                wealth_factor = max(0.10, min(1.0, wealth_factor))
+                # Blend: only reduce prob when young, full reduction when very young
+                mortality_discount = 1.0 - (1.0 - wealth_factor) * age_weight
+                adjusted_prob *= mortality_discount
         # Density-dependent mortality: death probability ramps up as population
         # approaches carrying_capacity (logistic-style soft ceiling).
         current_pop = len(agents)
