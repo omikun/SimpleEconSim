@@ -177,9 +177,9 @@ def main():
 
     random.seed(42)
 
-    region_a = Region("Region_A", t=0, number_of_agents=110,
+    region_a = Region("Region_A", t=0, number_of_agents=55,
                        profession_distribution={Goods.food: 0.753, Goods.wood: 0.110, Goods.furniture: 0.037})
-    region_b = Region("Region_B", t=0, number_of_agents=110,
+    region_b = Region("Region_B", t=0, number_of_agents=55,
                        profession_distribution={Goods.food: 0.50, Goods.wood: 0.35, Goods.furniture: 0.05})
 
     region_a.recipes[Goods.food]['production'] *= 2
