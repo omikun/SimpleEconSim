@@ -319,8 +319,9 @@ def main():
         ax_tree.set_ylim(-0.5, max_gen + 1.0)
         # Remove aspect equal to allow stretching both axes to fill
         ax_tree.axis('off')
-        ax_tree.set_title(f"All {len(all_nodes)} Agents: node size = net worth, color = profession\n"
-                          "Gray arrows = parent→child, Bold colored arrows = inheritance",
+        ax_tree.set_title(f"All {total_nodes} Agents (300 turns): "
+                          f"node size = net worth, color = profession, "
+                          f"opacity = alive/dead",
                           fontsize=13, loc='left')
 
         # Plot birth edges (thin gray) — use nd['x'] directly as the x coordinate
@@ -417,6 +418,77 @@ def main():
             ax_tree.text(gov_x, -0.5 if label == 'Gov B' else -0.3,
                         f'{label}\n${gw:.0f}',
                         fontsize=8, ha='center', va='top', fontweight='bold')
+
+        # =========================================================================
+        # LEGEND
+        # =========================================================================
+        leg_x = x_left + (x_right - x_left) * 0.02
+        leg_y = max_gen + 0.3  # above the top generation
+        leg_items = []
+        col = 0
+        # Use ax_tree.text for legend items to avoid cluttering with patches
+        lines = [
+            # (label, marker, marker_color, edge_color, marker_size, shape)
+            ("─── Gray arrow: parent → child (birth)", None, None, None, None, None),
+            ("─── Colored arrow: deceased → heir (inheritance, width ∝ $)", None, None, None, None, None),
+            ("─── Gold arrow: estate → Government (no heirs)", None, None, None, None, None),
+            ("", None, None, None, None, None),  # blank line
+        ]
+        profession_entries = [
+            ("○ Circle = Food (green)", 'o', '#2ecc71'),
+            ("○ Circle = Wood (red)", 'o', '#e74c3c'),
+            ("○ Circle = Furniture (blue)", 'o', '#3498db'),
+            ("□ Square = Trader (orange)", 's', '#f39c12'),
+            ("△ Triangle = Corp (purple)", '^', '#9b59b6'),
+            ("◇ Diamond = Gov (gold)", 'D', '#f1c40f'),
+        ]
+
+        style_entries = [
+            "Opacity: 0.9 = alive, 0.4 = dead",
+            "Node size = net worth (log scale)",
+            "Label: agent name + $net worth (labeled if size > 30pt)",
+        ]
+
+        # Draw legend items as text with inline symbol annotations
+        leg_y_start = leg_y
+        x_start = leg_x
+        y_cursor = leg_y_start
+
+        # Section 1: Edge types
+        ax_tree.text(x_start, y_cursor, "EDGES:", fontsize=9, fontweight='bold',
+                     va='bottom', ha='left', alpha=0.8)
+        y_cursor -= 0.35
+        ax_tree.text(x_start, y_cursor, "– Gray arrow: parent → child (birth)",
+                     fontsize=8, va='center', ha='left', alpha=0.8)
+        y_cursor -= 0.25
+        ax_tree.text(x_start, y_cursor, "– Bold colored: deceased → heir (inheritance, width ∝ $)",
+                     fontsize=8, va='center', ha='left', alpha=0.8)
+        y_cursor -= 0.25
+        ax_tree.text(x_start, y_cursor, "– Gold arrow: estate → Gov (no heirs)",
+                     fontsize=8, va='center', ha='left', alpha=0.8)
+        y_cursor -= 0.40
+
+        # Section 2: Node shapes / professions
+        ax_tree.text(x_start, y_cursor, "NODES:", fontsize=9, fontweight='bold',
+                     va='bottom', ha='left', alpha=0.8)
+        y_cursor -= 0.35
+        for label, marker, mcolor in profession_entries:
+            ax_tree.scatter(x_start + 4, y_cursor, s=80, c=mcolor,
+                           alpha=0.9, edgecolors='black', linewidth=0.3,
+                           marker=marker, zorder=10)
+            ax_tree.text(x_start + 8, y_cursor, label, fontsize=8,
+                        va='center', ha='left', alpha=0.8)
+            y_cursor -= 0.28
+        y_cursor -= 0.12
+
+        # Section 3: Style
+        ax_tree.text(x_start, y_cursor, "STYLE:", fontsize=9, fontweight='bold',
+                     va='bottom', ha='left', alpha=0.8)
+        y_cursor -= 0.35
+        for line in style_entries:
+            ax_tree.text(x_start, y_cursor, "– " + line, fontsize=8,
+                        va='center', ha='left', alpha=0.8)
+            y_cursor -= 0.25
 
         # ---- Print summary stats ----
         print(f"\n--- Wealth Transfer by Deceased Profession ---")
