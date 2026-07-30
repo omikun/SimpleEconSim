@@ -110,9 +110,9 @@ def main():
 
     random.seed(42)
 
-    region_a = Region("Region_A", t=0, number_of_agents=110,
+    region_a = Region("Region_A", t=0, number_of_agents=55,
                        profession_distribution={Goods.food: 0.753, Goods.wood: 0.110, Goods.furniture: 0.037})
-    region_b = Region("Region_B", t=0, number_of_agents=110,
+    region_b = Region("Region_B", t=0, number_of_agents=55,
                        profession_distribution={Goods.food: 0.50, Goods.wood: 0.35, Goods.furniture: 0.05})
 
     region_a.recipes[Goods.food]['production'] *= 2
@@ -177,6 +177,7 @@ def main():
         from matplotlib.patches import FancyBboxPatch, FancyArrowPatch
         from matplotlib.colors import to_rgba
         import numpy as np
+        from adjustText import adjust_text
 
         # =========================================================================
         # Build unified tree of ALL agents
@@ -380,6 +381,7 @@ def main():
                 )
 
         # Plot all nodes
+        all_labels = []
         for aid, nd in all_nodes.items():
             x = nd['x']
             y = nd['gen']
@@ -401,12 +403,19 @@ def main():
             ax_tree.scatter(x, y, s=size, c=color, alpha=alpha,
                            edgecolors=edge, linewidth=0.3, marker=marker, zorder=5)
 
-            # Label larger nodes
+            # Label larger nodes — collect for adjust_text to avoid overlap
             if size > 30:
                 short_name = name.split('-')[0] if '-' in name else name
-                ax_tree.text(x, y - 0.25, f'{short_name}\n${w:.0f}',
-                            fontsize=4 + size / 50, ha='center',
-                            va='top', alpha=0.8)
+                t = ax_tree.text(x, y - 0.25, f'{short_name}\n${w:.0f}',
+                                fontsize=4 + size / 50, ha='center',
+                                va='top', alpha=0.8)
+                all_labels.append(t)
+
+        # Repel labels away from each other without moving scatter positions
+        if all_labels:
+            adjust_text(all_labels, ax=ax_tree, expand=(1.2, 1.4),
+                        arrowprops=dict(arrowstyle='-', color='gray', lw=0.3),
+                        force_text=(0.5, 0.5))
 
         # Government diamonds
         gov_x = x_right - 1
