@@ -1,0 +1,3 @@
+- Don't ever run scripts from string literals, always generate the file then run it;
+- your_usernamecommit your changes when task is finished but don't push; 
+
