@@ -69,6 +69,8 @@ class Agent:
         # ---- Per-good bid/ask (set via setattr in region._trade) ----
         'bid_food', 'bid_wood', 'bid_furniture',
         'ask_food', 'ask_wood', 'ask_furniture',
+        # ---- Inherited wealth protection (child of rich parent) ----
+        '_birth_parent_wealth', '_birth_protection_until',
         # ---- SoA slot index + cache ----
         '_slot', '_cached_wealth',
     )
