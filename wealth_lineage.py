@@ -284,47 +284,52 @@ def main():
         # FIGURE
         # =========================================================================
 
-        fig = plt.figure(figsize=(36, 20))
-        fig.suptitle(f"Wealth Lineage — Family Tree of All Agents ({len(all_nodes)} nodes)",
-                     fontsize=18, y=0.97)
-
         # Collect wealth values for sizing
         all_wealth_vals = [nd['wealth'] for nd in all_nodes.values() if nd['wealth'] > 0]
         max_w = max(all_wealth_vals) if all_wealth_vals else 1
 
         def node_size(wealth):
             if wealth <= 0:
-                return 15
+                return 12
             base = math.log(max(1.001, max_w))
             norm = math.log(max(1.001, wealth)) / base
-            return 15 + norm * 200
+            return 12 + norm * 150
 
-        # Compute layout: x from x_position, y from generation, scale to figure
+        # Compute layout dimensions
         max_gen = max((nd['gen'] for nd in all_nodes.values()), default=1)
+        total_nodes = len(all_nodes)
+
+        # Figure: tall, fills the area. Height proportional to generations.
+        fig_h = max(20, min(60, max_gen * 1.2))
+        fig_w = max(20, min(50, total_nodes / max_gen * 0.4))
+        fig = plt.figure(figsize=(fig_w, fig_h))
+        fig.suptitle(f"Wealth Lineage — All {total_nodes} Agents (300 turns)",
+                     fontsize=16, y=0.98)
+
+        # Scale x: use full figure width
         max_x_pos = max((nd['x'] for nd in all_nodes.values()), default=1)
+        x_margin = max_x_pos * 0.02
+        x_left = -x_margin
+        x_right = max_x_pos + x_margin
 
-        # Scale: map x to [0, 100], y to [0, max_gen]
-        x_scale = 90.0 / max(max_x_pos, 1)
-        y_scale = 1.0  # 1 unit per generation
-
-        # ---- Main panel: Genealogical Tree ----
-        ax_tree = fig.add_axes([0.02, 0.08, 0.68, 0.85])
-        ax_tree.set_xlim(-2, 92)
-        ax_tree.set_ylim(-0.5, max_gen + 1.5)
+        # ---- Main panel spans full width ----
+        ax_tree = fig.add_axes([0.01, 0.03, 0.98, 0.92])
+        ax_tree.set_xlim(x_left, x_right)
+        ax_tree.set_ylim(-0.5, max_gen + 1.0)
         ax_tree.set_aspect('equal')
         ax_tree.axis('off')
         ax_tree.set_title(f"All {len(all_nodes)} Agents: node size = net worth, color = profession\n"
                           "Gray arrows = parent→child, Bold colored arrows = inheritance",
                           fontsize=13, loc='left')
 
-        # Plot birth edges (thin gray)
+        # Plot birth edges (thin gray) — use nd['x'] directly as the x coordinate
         for aid, nd in all_nodes.items():
-            sx = nd['x'] * x_scale
+            sx = nd['x']
             sy = nd['gen']
             for kid_id in nd['kids']:
                 if kid_id in all_nodes:
                     kid = all_nodes[kid_id]
-                    ex = kid['x'] * x_scale
+                    ex = kid['x']
                     ey = kid['gen']
                     ax_tree.annotate('',
                         xy=(ex, ey), xytext=(sx, sy),
@@ -335,7 +340,6 @@ def main():
                     )
 
         # Plot inheritance edges (bold, colored by deceased profession)
-        gov_nodes = {}
         for evt in inheritance_events:
             t, aid, prof, total_val, wealth, debt, heirs, to_gov = evt
             if total_val <= 0:
@@ -343,13 +347,13 @@ def main():
             if aid not in all_nodes:
                 continue
             src = all_nodes[aid]
-            sx = src['x'] * x_scale
+            sx = src['x']
             sy = src['gen']
 
             for hid in heirs:
                 if hid in all_nodes:
                     dst = all_nodes[hid]
-                    ex = dst['x'] * x_scale
+                    ex = dst['x']
                     ey = dst['gen']
                     lw = max(0.5, min(5, total_val / 200))
                     color = PROF_COLORS.get(prof, '#888')
@@ -362,8 +366,7 @@ def main():
                     )
 
             if to_gov:
-                # Arrow to government (draw to right side)
-                gov_x = 93
+                gov_x = x_right - 1
                 gov_y = 0
                 lw = max(0.5, min(5, total_val / 200))
                 ax_tree.annotate('',
@@ -376,7 +379,7 @@ def main():
 
         # Plot all nodes
         for aid, nd in all_nodes.items():
-            x = nd['x'] * x_scale
+            x = nd['x']
             y = nd['gen']
             prof = nd['prof']
             w = nd['wealth']
@@ -403,96 +406,16 @@ def main():
                             fontsize=4 + size / 50, ha='center',
                             va='top', alpha=0.8)
 
-        # Government diamond on the right
+        # Government diamonds
+        gov_x = x_right - 1
         for label, gw in [('Gov A', 22721), ('Gov B', 4836)]:
-            ax_tree.scatter(93, 0, s=node_size(gw), c='gold',
+            ax_tree.scatter(gov_x, 0.5 if label == 'Gov B' else 0,
+                           s=node_size(gw), c='gold',
                            alpha=0.9, edgecolors='black', linewidth=1.5,
                            marker='D', zorder=6)
-            ax_tree.text(93, -0.5, f'{label}\n${gw:.0f}',
-                        fontsize=9, ha='center', va='top', fontweight='bold')
-
-        # ---- Right panel: Inheritance Sankey (aggregate flows) ----
-        ax_sankey = fig.add_axes([0.73, 0.08, 0.25, 0.85])
-        ax_sankey.set_title("Aggregate Inheritance Flows\nby Profession (300 turns)",
-                           fontsize=13)
-        ax_sankey.axis('off')
-
-        # Build flow matrix: source -> dest profession
-        flow_matrix = defaultdict(lambda: defaultdict(float))
-        for evt in inheritance_events:
-            t, aid, prof, total_val, wealth, debt, heirs, to_gov = evt
-            if total_val <= 0:
-                continue
-            if to_gov:
-                flow_matrix[prof]['Gov'] += total_val
-            else:
-                # Determine heir professions
-                for hid in heirs:
-                    hprof = '?'
-                    if hid in wealth_snapshots.get(time_steps, {}):
-                        hprof = wealth_snapshots[time_steps][hid][2]
-                    else:
-                        # Check final snapshot
-                        for snap_t in reversed(sorted(wealth_snapshots.keys())):
-                            if hid in wealth_snapshots[snap_t]:
-                                hprof = wealth_snapshots[snap_t][hid][2]
-                                break
-                    flow_matrix[prof][hprof] += total_val / max(1, len(heirs))
-
-        all_profs = sorted(set(list(flow_matrix.keys()) + ['Gov']))
-        # Remove self-loops for clarity
-        n = len(all_profs)
-        if n > 1:
-            # Draw a simple Sankey-like grid
-            cmap = PROF_COLORS
-            for i, src in enumerate(all_profs):
-                for j, dst in enumerate(all_profs):
-                    if src == dst:
-                        continue
-                    val = flow_matrix.get(src, {}).get(dst, 0)
-                    if val < 10:
-                        continue
-                    # Draw a curved arrow from (i) to (j)
-                    y1 = 0.9 - i * 0.12
-                    y2 = 0.9 - j * 0.12
-                    lw = max(1, min(12, val / 50))
-                    color = cmap.get(src, '#888')
-                    ax_sankey.annotate('',
-                        xy=(0.85, y2), xytext=(0.15, y1),
-                        arrowprops=dict(arrowstyle='->',
-                                       color=color,
-                                       lw=lw,
-                                       connectionstyle='arc3,rad=0.15'),
-                    )
-                    # Label for large flows
-                    if val > 100:
-                        mx, my = 0.5, (y1 + y2) / 2
-                        ax_sankey.text(mx, my + 0.02, f'${val:.0f}',
-                                      fontsize=7, color=color,
-                                      ha='center', va='bottom')
-
-            # Source labels (left)
-            for i, prof in enumerate(all_profs):
-                y = 0.9 - i * 0.12
-                ax_sankey.text(0.05, y, prof, fontsize=10,
-                              color=cmap.get(prof, '#000'),
-                              ha='left', va='center', fontweight='bold')
-                # Total outflow
-                total_out = sum(flow_matrix.get(prof, {}).values())
-                ax_sankey.text(0.12, y - 0.03, f'out: ${total_out:.0f}',
-                              fontsize=6, color='#666',
-                              ha='left', va='top')
-
-            # Destination labels (right)
-            for j, prof in enumerate(all_profs):
-                y = 0.9 - j * 0.12
-                ax_sankey.text(0.88, y, prof, fontsize=10,
-                              color=cmap.get(prof, '#000'),
-                              ha='right', va='center', fontweight='bold')
-                total_in = sum(flow_matrix[s].get(prof, 0) for s in all_profs)
-                ax_sankey.text(0.82, y - 0.03, f'in: ${total_in:.0f}',
-                              fontsize=6, color='#666',
-                              ha='right', va='top')
+            ax_tree.text(gov_x, -0.5 if label == 'Gov B' else -0.3,
+                        f'{label}\n${gw:.0f}',
+                        fontsize=8, ha='center', va='top', fontweight='bold')
 
         # ---- Print summary stats ----
         print(f"\n--- Wealth Transfer by Deceased Profession ---")
