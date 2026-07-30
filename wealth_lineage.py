@@ -178,320 +178,237 @@ def main():
         from matplotlib.colors import to_rgba
         import numpy as np
 
-        # ---- Identify top lineages ----
-        founding_ids = set()
-        for a in region_a.agents + region_b.agents:
-            if getattr(a, 'is_government', False):
-                continue
-            if a.id not in parent_map:
-                founding_ids.add(a.id)
-
-        def get_lineage(fid):
-            ids = set([fid])
-            stack = [fid]
-            while stack:
-                cur = stack.pop()
-                kids = [c for c, p in parent_map.items() if p == cur and c not in ids]
-                for k in kids:
-                    ids.add(k)
-                    stack.append(k)
-            return ids
-
-        founder_wealth_at_end = {}
-        for fid in list(founding_ids)[:200]:
-            lineage_ids = get_lineage(fid)
-            total = 0
-            if time_steps in wealth_snapshots:
-                snap = wealth_snapshots[time_steps]
-                for aid in lineage_ids:
-                    if aid in snap:
-                        w, d, prof, alive = snap[aid]
-                        if alive and not prof == 'Gov':
-                            total += (w - d)
-            if total > 0:
-                founder_wealth_at_end[fid] = total
-
-        # Top 5 lineages + their full member data
-        top_founders = sorted(founder_wealth_at_end.keys(),
-                              key=lambda x: -founder_wealth_at_end[x])[:5]
-
-        # Collect all lineage nodes
-        lineage_ids = set()
-        lineage_founder_map = {}
-        for fid in top_founders:
-            lineage_ids.update(get_lineage(fid))
-            lineage_founder_map[fid] = get_lineage(fid)
-
-        # Also add the government nodes (immortal, always present)
-        gov_a = region_a.gov.agent
-        gov_b = region_b.gov.agent
-
         # =========================================================================
-        # Build genealogical tree layout
+        # Build unified tree of ALL agents
         # =========================================================================
-        # For each top lineage, compute generation depth and sibling ordering
 
-        def compute_tree(fid):
-            """Return dict of aid -> {gen, x_offset, children, wealth, prof, name, alive}"""
-            nodes = {}
-            max_gen = 0
+        snap_final = wealth_snapshots.get(time_steps, {})
 
-            # BFS for generation depth
-            queue = [(fid, 0)]
-            bfs_visited = set()
-            all_members = list(lineage_founder_map.get(fid, [fid]))
-            member_set = set(all_members)
+        # Collect every agent ID that ever existed (from parent_map + snapshots)
+        all_agent_ids = set(parent_map.keys())
+        for aids in parent_map.values():
+            all_agent_ids.add(aids)
+        for snap in wealth_snapshots.values():
+            for aid in snap:
+                all_agent_ids.add(aid)
 
-            snap_final = wealth_snapshots.get(time_steps, {})
+        # Determine profession, wealth, alive status for every agent
+        agent_info = {}
+        for aid in all_agent_ids:
+            prof = '?'
+            wealth = 0
+            alive = True
+            debt = 0
+            if aid in snap_final:
+                w, d, prof, alive = snap_final[aid]
+                wealth = w - d  # net worth
+            # Override with inheritance data for deceased
+            for evt in inheritance_events:
+                if evt[1] == aid and evt[3] != 0:
+                    wealth = evt[3]
+                    prof = evt[2]
+                    alive = False
+                    debt = evt[5]
+                    break
+            agent_info[aid] = (wealth, prof, alive, debt)
 
-            # Collect final wealth and profession for all lineage members
-            final_wealth = {}
-            final_prof = {}
-            final_debt = {}
-            final_alive = {}
+        # Identify founding agents (no parent recorded, or parent not in our set)
+        # Walk up through parent_map to find founders
+        def find_root(aid):
+            visited = set()
+            cur = aid
+            while cur in parent_map and cur not in visited:
+                visited.add(cur)
+                cur = parent_map[cur]
+            return cur
 
-            for aid in all_members:
-                if aid in snap_final:
-                    w, d, prof, alive = snap_final[aid]
-                    final_wealth[aid] = w - d
-                    final_prof[aid] = prof
-                    final_alive[aid] = alive
-                    final_debt[aid] = d
-                # Also check inheritance events (wealth at death for deceased)
-                for evt in inheritance_events:
-                    if evt[1] == aid and evt[3] != 0:
-                        if aid not in final_wealth or final_wealth[aid] == 0:
-                            final_wealth[aid] = evt[3]
-                            final_prof[aid] = evt[2]
-                            final_alive[aid] = False
-                            final_debt[aid] = evt[5]
-                            break
-                # Defaults
-                if aid not in final_wealth:
-                    final_wealth[aid] = 0
-                    final_prof[aid] = '?'
-                    final_alive[aid] = True
-                    final_debt[aid] = 0
+        all_roots = set()
+        for aid in all_agent_ids:
+            r = find_root(aid)
+            if r is not None:
+                all_roots.add(r)
 
-            # BFS pass: compute generation depth
-            while queue:
-                aid, gen = queue.pop(0)
-                if aid in bfs_visited:
+        # Build all nodes in one pass using BFS from all roots
+        all_nodes = {}
+        max_global_gen = 0
+        x_global_counter = [0]
+
+        # Process each root's tree independently, but interleave x positions
+        for root_id in sorted(all_roots):
+            # BFS to get depth
+            bfs_q = [(root_id, 0)]
+            bfs_seen = set()
+            local_nodes = {}
+
+            while bfs_q:
+                aid, gen = bfs_q.pop(0)
+                if aid in bfs_seen:
                     continue
-                bfs_visited.add(aid)
-                max_gen = max(max_gen, gen)
-                kids = [c for c, p in parent_map.items() if p == aid and c in member_set]
+                bfs_seen.add(aid)
+                max_global_gen = max(max_global_gen, gen)
+                kids = sorted([c for c, p in parent_map.items() if p == aid],
+                              key=lambda k: agent_info.get(k, (0,'',True,0))[0], reverse=True)
                 for k in kids:
-                    queue.append((k, gen + 1))
+                    bfs_q.append((k, gen + 1))
 
-            # Assign x positions via in-order traversal (separate visited set!)
-            assign_visited = set()
-            x_counter = [0]
-            def assign_x(aid, gen):
-                if aid in assign_visited:
+            # Assign x positions with pre-order traversal
+            assign_seen = set()
+            def assign_x_preorder(aid, gen):
+                if aid in assign_seen:
                     return
-                assign_visited.add(aid)
-                kids = sorted([c for c, p in parent_map.items() if p == aid and c in member_set],
-                              key=lambda k: final_wealth.get(k, 0), reverse=True)
-                for k in kids:
-                    assign_x(k, gen + 1)
-                # Midpoint of children's x positions, or a new slot
-                child_positions = [nodes.get(k, {}).get('x', x_counter[0]) for k in kids]
-                if child_positions:
-                    x = sum(child_positions) / len(child_positions)
-                else:
-                    x = x_counter[0]
-                    x_counter[0] += 1
-                nodes[aid] = {
-                    'gen': gen + 1,  # +1 so root is at y=1
+                assign_seen.add(aid)
+                kids = sorted([c for c, p in parent_map.items() if p == aid],
+                              key=lambda k: agent_info.get(k, (0,'',True,0))[0], reverse=True)
+                # Assign this node now
+                w, prof, alive, debt = agent_info.get(aid, (0, '?', True, 0))
+                x = x_global_counter[0]
+                x_global_counter[0] += 1
+                all_nodes[aid] = {
+                    'gen': gen + 1,
                     'x': x,
                     'kids': kids,
-                    'wealth': final_wealth.get(aid, 0),
-                    'prof': final_prof.get(aid, '?'),
+                    'wealth': w,
+                    'prof': prof,
                     'name': agent_names.get(aid, f'a{aid}'),
-                    'alive': final_alive.get(aid, True),
-                    'debt': final_debt.get(aid, 0),
+                    'alive': alive,
+                    'debt': debt,
                 }
+                for k in kids:
+                    assign_x_preorder(k, gen + 1)
 
-            assign_x(fid, 0)
-            return nodes, max_gen + 1
+            assign_x_preorder(root_id, 0)
 
-        # Build all trees
-        all_trees = {}  # fid -> nodes dict
-        max_gen_global = 0
-        for fid in top_founders:
-            tree, mg = compute_tree(fid)
-            all_trees[fid] = tree
-            max_gen_global = max(max_gen_global, mg)
+        max_gen_global = max_global_gen
 
         # =========================================================================
         # FIGURE
         # =========================================================================
 
         fig = plt.figure(figsize=(36, 20))
-        fig.suptitle(f"Wealth Lineage — Family Tree & Inheritance Flows "
-                     f"(top {len(top_founders)} founding lineages shown)",
+        fig.suptitle(f"Wealth Lineage — Family Tree of All Agents ({len(all_nodes)} nodes)",
                      fontsize=18, y=0.97)
 
-        # Layout: each lineage gets its own x band, but within the same gen row
-        lineage_spacing = 3.0
-        x_offsets = {}
-        for idx, fid in enumerate(top_founders):
-            x_offsets[fid] = idx * lineage_spacing
-
-        # Collect all agent wealth ranges for sizing
-        all_wealth_vals = []
-        for tree in all_trees.values():
-            for aid, nd in tree.items():
-                v = nd['wealth']
-                if v > 0:
-                    all_wealth_vals.append(v)
-        if not all_wealth_vals:
-            all_wealth_vals = [1]
-
-        min_w = min(all_wealth_vals)
-        max_w = max(all_wealth_vals)
+        # Collect wealth values for sizing
+        all_wealth_vals = [nd['wealth'] for nd in all_nodes.values() if nd['wealth'] > 0]
+        max_w = max(all_wealth_vals) if all_wealth_vals else 1
 
         def node_size(wealth):
-            """Map wealth to area in points^2."""
             if wealth <= 0:
-                return 20
+                return 15
             base = math.log(max(1.001, max_w))
             norm = math.log(max(1.001, wealth)) / base
-            return 30 + norm * 400
+            return 15 + norm * 200
+
+        # Compute layout: x from x_position, y from generation, scale to figure
+        max_gen = max((nd['gen'] for nd in all_nodes.values()), default=1)
+        max_x_pos = max((nd['x'] for nd in all_nodes.values()), default=1)
+
+        # Scale: map x to [0, 100], y to [0, max_gen]
+        x_scale = 90.0 / max(max_x_pos, 1)
+        y_scale = 1.0  # 1 unit per generation
 
         # ---- Main panel: Genealogical Tree ----
         ax_tree = fig.add_axes([0.02, 0.08, 0.68, 0.85])
-        max_x = max(x_offsets.values()) + 5.0
-        ax_tree.set_xlim(-1, max_x)
-        ax_tree.set_ylim(-0.5, max_gen_global + 2)
+        ax_tree.set_xlim(-2, 92)
+        ax_tree.set_ylim(-0.5, max_gen + 1.5)
         ax_tree.set_aspect('equal')
         ax_tree.axis('off')
-        ax_tree.set_title("Wealth Flow Through Generations\n"
-                          "(node size = net worth • color = profession • "
-                          "→ birth • → inheritance)",
+        ax_tree.set_title(f"All {len(all_nodes)} Agents: node size = net worth, color = profession\n"
+                          "Gray arrows = parent→child, Bold colored arrows = inheritance",
                           fontsize=13, loc='left')
 
-        # Max nodes per generation for height scaling
-        max_nodes_in_gen = defaultdict(int)
-        for fid, tree in all_trees.items():
-            for aid, nd in tree.items():
-                max_nodes_in_gen[nd['gen']] = max(max_nodes_in_gen[nd['gen']], 1)
-
-        # Plot birth edges (thin)
-        for fid, tree in all_trees.items():
-            xoff = x_offsets[fid]
-            for aid, nd in tree.items():
-                for kid_id in nd['kids']:
-                    if kid_id in tree:
-                        kid = tree[kid_id]
-                        ax_tree.annotate('',
-                            xy=(xoff + kid['x'] * 0.4, kid['gen']),
-                            xytext=(xoff + nd['x'] * 0.4, nd['gen']),
-                            arrowprops=dict(arrowstyle='->',
-                                           color='lightgray',
-                                           lw=0.5,
-                                           connectionstyle='arc3,rad=0.15'),
-                        )
+        # Plot birth edges (thin gray)
+        for aid, nd in all_nodes.items():
+            sx = nd['x'] * x_scale
+            sy = nd['gen']
+            for kid_id in nd['kids']:
+                if kid_id in all_nodes:
+                    kid = all_nodes[kid_id]
+                    ex = kid['x'] * x_scale
+                    ey = kid['gen']
+                    ax_tree.annotate('',
+                        xy=(ex, ey), xytext=(sx, sy),
+                        arrowprops=dict(arrowstyle='->',
+                                       color='lightgray',
+                                       lw=0.3,
+                                       connectionstyle='arc3,rad=0.1'),
+                    )
 
         # Plot inheritance edges (bold, colored by deceased profession)
+        gov_nodes = {}
         for evt in inheritance_events:
             t, aid, prof, total_val, wealth, debt, heirs, to_gov = evt
             if total_val <= 0:
                 continue
-            # Find which lineage this belongs to
-            source_lineage = None
-            source_node = None
-            for fid, tree in all_trees.items():
-                if aid in tree:
-                    source_lineage = fid
-                    source_node = tree.get(aid)
-                    break
-            if source_node is None:
+            if aid not in all_nodes:
                 continue
-
-            xoff = x_offsets[source_lineage]
-            sx = xoff + source_node['x'] * 0.4
-            sy = source_node['gen']
+            src = all_nodes[aid]
+            sx = src['x'] * x_scale
+            sy = src['gen']
 
             for hid in heirs:
-                # Find heir in same tree
-                for fid2, tree2 in all_trees.items():
-                    if hid in tree2:
-                        heir_node = tree2[hid]
-                        ex = x_offsets[fid2] + heir_node['x'] * 0.4
-                        ey = heir_node['gen']
-                        # Bold arrow: width proportional to wealth
-                        lw = max(1, min(8, total_val / 100))
-                        color = PROF_COLORS.get(prof, '#888')
-                        ax_tree.annotate('',
-                            xy=(ex, ey), xytext=(sx, sy),
-                            arrowprops=dict(arrowstyle='->',
-                                           color=color,
-                                           lw=lw,
-                                           connectionstyle='arc3,rad=0.25'),
-                        )
-                        # Label with dollar amount at midpoint
-                        mx = (sx + ex) / 2
-                        my = (sy + ey) / 2 + 0.1
-                        ax_tree.text(mx, my, f'${total_val:.0f}',
-                                    fontsize=6, color=color,
-                                    ha='center', va='bottom',
-                                    alpha=0.8)
+                if hid in all_nodes:
+                    dst = all_nodes[hid]
+                    ex = dst['x'] * x_scale
+                    ey = dst['gen']
+                    lw = max(0.5, min(5, total_val / 200))
+                    color = PROF_COLORS.get(prof, '#888')
+                    ax_tree.annotate('',
+                        xy=(ex, ey), xytext=(sx, sy),
+                        arrowprops=dict(arrowstyle='->',
+                                       color=color,
+                                       lw=lw,
+                                       connectionstyle='arc3,rad=0.2'),
+                    )
 
             if to_gov:
-                # Arrow to gov node
-                color = PROF_COLORS.get(prof, '#888')
-                gov_a_x = -1.0 + max(x_offsets.values()) + 2.0
-                gov_a_y = -0.5
-                lw = max(1, min(8, total_val / 100))
+                # Arrow to government (draw to right side)
+                gov_x = 93
+                gov_y = 0
+                lw = max(0.5, min(5, total_val / 200))
                 ax_tree.annotate('',
-                    xy=(gov_a_x, gov_a_y), xytext=(sx, sy),
+                    xy=(gov_x, gov_y), xytext=(sx, sy),
                     arrowprops=dict(arrowstyle='->',
                                    color='gold',
                                    lw=lw,
-                                   connectionstyle='arc3,rad=0.3'),
+                                   connectionstyle='arc3,rad=0.2'),
                 )
-                ax_tree.text((sx + gov_a_x) / 2, (sy + gov_a_y) / 2 + 0.1,
-                            f'${total_val:.0f}', fontsize=6, color='gold',
-                            ha='center', va='bottom', alpha=0.8)
 
-        # Plot nodes
-        for fid, tree in all_trees.items():
-            xoff = x_offsets[fid]
-            for aid, nd in tree.items():
-                x = xoff + nd['x'] * 0.4
-                y = nd['gen']
-                w = nd['wealth']
-                prof = nd['prof']
-                name = nd['name']
-                color = PROF_COLORS.get(prof, '#888')
-                size = node_size(w)
-                if nd['alive']:
-                    alpha = 0.95
-                    edge = 'black'
-                else:
-                    alpha = 0.5
-                    edge = '#666'
-                ax_tree.scatter(x, y, s=size, c=color, alpha=alpha,
-                               edgecolors=edge, linewidth=0.5, zorder=5)
+        # Plot all nodes
+        for aid, nd in all_nodes.items():
+            x = nd['x'] * x_scale
+            y = nd['gen']
+            prof = nd['prof']
+            w = nd['wealth']
+            name = nd['name']
+            color = PROF_COLORS.get(prof, '#888')
+            size = node_size(w)
+            alpha = 0.9 if nd['alive'] else 0.4
+            edge = 'black' if nd['alive'] else '#666'
+            marker = 'o'
+            if prof == 'Gov':
+                marker = 'D'
+                color = 'gold'
+            elif prof == 'Trader':
+                marker = 's'
+            elif prof == 'Corp':
+                marker = '^'
+            ax_tree.scatter(x, y, s=size, c=color, alpha=alpha,
+                           edgecolors=edge, linewidth=0.3, marker=marker, zorder=5)
 
-                # Label
-                if size > 40:
-                    label = f"{name.split('-')[0]}\n${w:.0f}"
-                    ax_tree.text(x, y - 0.2, label,
-                                fontsize=5 + size / 100, ha='center',
-                                va='top', alpha=0.9)
+            # Label larger nodes
+            if size > 30:
+                short_name = name.split('-')[0] if '-' in name else name
+                ax_tree.text(x, y - 0.25, f'{short_name}\n${w:.0f}',
+                            fontsize=4 + size / 50, ha='center',
+                            va='top', alpha=0.8)
 
-        # Government node(s)
-        for gov_agent, gx_off, label in [(gov_a, max(x_offsets.values()) + 2.5, 'Gov A'),
-                                          (gov_b, max(x_offsets.values()) + 4.0, 'Gov B')]:
-            snap_final = wealth_snapshots.get(time_steps, {})
-            gw = snap_final.get(gov_agent.id, (0, 0, 'Gov', True))[0]
-            ax_tree.scatter(gx_off, -0.5, s=node_size(gw), c='gold',
+        # Government diamond on the right
+        for label, gw in [('Gov A', 22721), ('Gov B', 4836)]:
+            ax_tree.scatter(93, 0, s=node_size(gw), c='gold',
                            alpha=0.9, edgecolors='black', linewidth=1.5,
                            marker='D', zorder=6)
-            ax_tree.text(gx_off, -0.9, f'{label}\n${gw:.0f}',
+            ax_tree.text(93, -0.5, f'{label}\n${gw:.0f}',
                         fontsize=9, ha='center', va='top', fontweight='bold')
 
         # ---- Right panel: Inheritance Sankey (aggregate flows) ----
