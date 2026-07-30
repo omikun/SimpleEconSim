@@ -290,18 +290,19 @@ def main():
 
         def node_size(wealth):
             if wealth <= 0:
-                return 12
+                return 10
             base = math.log(max(1.001, max_w))
             norm = math.log(max(1.001, wealth)) / base
-            return 12 + norm * 150
+            # Exponential scaling: tiny for small wealth, huge for top wealth
+            return 10 + norm ** 1.5 * 500
 
         # Compute layout dimensions
         max_gen = max((nd['gen'] for nd in all_nodes.values()), default=1)
         total_nodes = len(all_nodes)
 
-        # Figure: tall, fills the area. Height proportional to generations.
-        fig_h = max(20, min(60, max_gen * 1.2))
-        fig_w = max(20, min(50, total_nodes / max_gen * 0.4))
+        # Figure: extra tall to show generation structure clearly.
+        fig_h = max(24, min(80, max_gen * 1.8))
+        fig_w = max(20, min(50, total_nodes / max_gen * 0.3))
         fig = plt.figure(figsize=(fig_w, fig_h))
         fig.suptitle(f"Wealth Lineage — All {total_nodes} Agents (300 turns)",
                      fontsize=16, y=0.98)
@@ -316,7 +317,7 @@ def main():
         ax_tree = fig.add_axes([0.01, 0.03, 0.98, 0.92])
         ax_tree.set_xlim(x_left, x_right)
         ax_tree.set_ylim(-0.5, max_gen + 1.0)
-        ax_tree.set_aspect('equal')
+        # Remove aspect equal to allow stretching both axes to fill
         ax_tree.axis('off')
         ax_tree.set_title(f"All {len(all_nodes)} Agents: node size = net worth, color = profession\n"
                           "Gray arrows = parent→child, Bold colored arrows = inheritance",
