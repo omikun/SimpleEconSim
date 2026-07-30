@@ -372,7 +372,7 @@ def _handle_reproduction(ctx: LiveContext, t, agent, agents, new_agents):
             output = Goods.gov
         logdebug(t, "new agent of ", output)
         number_input = 0
-        cash = min(agent.cash, max(1, int(abs(agent.wealth()) ** 0.68)))
+        cash = min(agent.cash, max(1, int(abs(agent.wealth()) ** 0.72)))
         agent.cash -= cash
         initialize_agent(new_agent, output, number_input, food_to_give, cash)
         new_agents.append(new_agent)
@@ -410,11 +410,11 @@ def _handle_death(ctx: LiveContext, t, agent, agents):
             col = max(0.1, 4 * food_price + 1 * wood_price + 0.25 * furn_price)
             wealth = agent.wealth()
             if wealth > col:
-                # At 10x cost of living: 10% of base death prob
-                # Age factor: linearly fades from 1.0 at birth to 0.0 at age 210
-                age_weight = max(0.0, 1.0 - agent_age / 210.0)
-                wealth_factor = col / max(0.01, wealth)
-                wealth_factor = max(0.10, min(1.0, wealth_factor))
+                # At 10x cost of living: 1% of base death prob (100x less)
+                # Age factor: stays ~flat for most of life, then drops sharply near death
+                age_weight = max(0.0, 1.0 - (agent_age / 210.0) ** 6)
+                wealth_factor = (col / max(0.01, wealth)) ** 2
+                wealth_factor = max(0.01, min(1.0, wealth_factor))
                 # Blend: only reduce prob when young, full reduction when very young
                 mortality_discount = 1.0 - (1.0 - wealth_factor) * age_weight
                 adjusted_prob *= mortality_discount
