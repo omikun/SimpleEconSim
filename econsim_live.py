@@ -372,7 +372,7 @@ def _handle_reproduction(ctx: LiveContext, t, agent, agents, new_agents):
             output = Goods.gov
         logdebug(t, "new agent of ", output)
         number_input = 0
-        cash = min(1, agent.cash)
+        cash = min(agent.cash, max(1, int(abs(agent.wealth()) ** 0.68)))
         agent.cash -= cash
         initialize_agent(new_agent, output, number_input, food_to_give, cash)
         new_agents.append(new_agent)
