@@ -317,7 +317,11 @@ def _handle_job_seeking(t, agent, employer_cache):
 # =============================================================================
 
 def _handle_reproduction(ctx: LiveContext, t, agent, agents, new_agents):
-    """Handle birth of new agents."""
+    """Handle birth of new agents.
+
+    Wealthy agents reproduce more (up to 5x base rate), reflecting better
+    nutrition, access to childcare, and social stability.
+    """
     number_food_consumed = 0
     if agent.hungry_steps > 0:
         return 0
@@ -326,6 +330,19 @@ def _handle_reproduction(ctx: LiveContext, t, agent, agents, new_agents):
     birth_prob = ctx.p_birth
     if government is not None:
         birth_prob *= government.get_fertility_multiplier()
+
+    # Wealth-based fertility bonus: richer agents reproduce more
+    food_price = ctx.recipes.get(Goods.food, {}).get('price', 1)
+    wood_price = ctx.recipes.get(Goods.wood, {}).get('price', 1)
+    furn_price = ctx.recipes.get(Goods.furniture, {}).get('price', 1)
+    cost_of_living = max(0.1, 4 * food_price + 1 * wood_price + 0.25 * furn_price)
+    wealth = agent.wealth()
+    if wealth > cost_of_living:
+        # Scale: at 10x cost_of_living, birth rate is 4x base
+        wealth_factor = 1.0 + (wealth / cost_of_living) * 0.3
+        wealth_factor = min(5.0, wealth_factor)
+        birth_prob *= wealth_factor
+
     if agent.last_reproduction + ctx.birth_gap < t and rand.random() < birth_prob \
        and agent.inv_get(Goods.food, 0) >= 2:
         # Check population cap
