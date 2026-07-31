@@ -205,6 +205,13 @@ def main():
         for aid in death_turn:
             all_agent_ids.add(aid)
 
+        # Agents who died with no living heirs (estate → government)
+        no_heir_deaths = set()
+        for evt in inheritance_events:
+            t, aid, prof, total_val, wealth, debt, heirs, to_gov = evt
+            if to_gov and aid in all_agent_ids:
+                no_heir_deaths.add(aid)
+
         # Per-agent data
         agent_data = {}
         for aid in all_agent_ids:
@@ -277,6 +284,10 @@ def main():
                        c='black' if d['alive'] else 'none',
                        facecolors='none' if not d['alive'] else 'black',
                        edgecolors='black', linewidths=0.4, zorder=4)
+            # Unique symbol: red X = died with no heirs (estate → government)
+            if aid in no_heir_deaths:
+                ax.scatter([d['end']], [ry], s=30, marker='x',
+                           c='red', linewidths=1.0, zorder=5)
 
         # Inheritance arrows: parent bar end → child bar start
         for evt in inheritance_events:
@@ -296,9 +307,10 @@ def main():
                                        connectionstyle='arc3,rad=-0.15'),
                         zorder=2)
 
-        # Labels for top-wealth agents (adjustText avoids overlap)
+        # Label top 10% wealthy agents (adjustText avoids overlap)
+        n_top = max(5, int(len(all_agent_ids) * 0.10))
         top_aids = sorted(all_agent_ids,
-                          key=lambda a: agent_data[a]['wealth'], reverse=True)[:15]
+                          key=lambda a: agent_data[a]['wealth'], reverse=True)[:n_top]
         labels = []
         for aid in top_aids:
             d = agent_data[aid]
