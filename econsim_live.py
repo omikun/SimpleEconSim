@@ -41,6 +41,7 @@ class LiveContext:
     most_demand: Any                # Goods enum (computed value)
     max_agents: int = 400         # Hard population cap (0 = unlimited)
     carrying_capacity: int = 400  # Density-dependent mortality soft ceiling
+    cost_of_living: float = 11.25  # Cached 4 food + 1 wood + 0.25 furniture
 
 
 # =============================================================================
@@ -332,10 +333,7 @@ def _handle_reproduction(ctx: LiveContext, t, agent, agents, new_agents):
         birth_prob *= government.get_fertility_multiplier()
 
     # Wealth-based fertility bonus: richer agents reproduce more
-    food_price = ctx.recipes.get(Goods.food, {}).get('price', 1)
-    wood_price = ctx.recipes.get(Goods.wood, {}).get('price', 1)
-    furn_price = ctx.recipes.get(Goods.furniture, {}).get('price', 1)
-    cost_of_living = max(0.1, 4 * food_price + 1 * wood_price + 0.25 * furn_price)
+    cost_of_living = ctx.cost_of_living
     wealth = agent.wealth()
     if wealth > cost_of_living:
         # Scale: at 10x cost_of_living, birth rate is 4x base
@@ -414,10 +412,7 @@ def _handle_death(ctx: LiveContext, t, agent, agents):
         # Effect diminishes with age: full effect when young, negligible when old.
         agent_age = agent.age(t)
         if agent_age < 210 and adjusted_prob > 0:
-            food_price = ctx.recipes.get(Goods.food, {}).get('price', 1)
-            wood_price = ctx.recipes.get(Goods.wood, {}).get('price', 1)
-            furn_price = ctx.recipes.get(Goods.furniture, {}).get('price', 1)
-            col = max(0.1, 4 * food_price + 1 * wood_price + 0.25 * furn_price)
+            col = ctx.cost_of_living
             wealth = agent.wealth()
             if wealth > col:
                 # At 10x cost of living: 1% of base death prob (100x less)

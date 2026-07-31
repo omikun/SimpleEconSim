@@ -219,6 +219,8 @@ class Region:
 
         # Charity (independent food redistribution)
         self.charity = Charity(name, self.recipes)
+        # Cost of living, cached once per turn (4 food + 1 wood + 0.25 furniture)
+        self.cost_of_living = 11.25
 
         # Create agents
         self._create_agents(t, number_of_agents)
@@ -282,6 +284,11 @@ class Region:
 
     def step(self, t: int):
         rand.reset()
+        # Cache cost of living for this turn (prices may have shifted)
+        food_price = self.recipes[Goods.food]['price']
+        wood_price = self.recipes[Goods.wood]['price']
+        furn_price = self.recipes[Goods.furniture]['price']
+        self.cost_of_living = max(0.1, 4 * food_price + 1 * wood_price + 0.25 * furn_price)
         self._record_start()
         self._audit_cash(t, "step_start")
 
@@ -700,13 +707,6 @@ class Region:
 
         self.most_demand = most_demand_good
 
-    def _cost_of_living(self):
-        """Current cost of living: 4 food + 1 wood + 0.25 furniture per turn."""
-        food_price = self.recipes.get(Goods.food, {}).get('price', 1)
-        wood_price = self.recipes.get(Goods.wood, {}).get('price', 1)
-        furn_price = self.recipes.get(Goods.furniture, {}).get('price', 1)
-        return max(0.1, 4 * food_price + 1 * wood_price + 0.25 * furn_price)
-
     def _decide_borrow_deposit(self, agents, all_goods_price, food_price, t):
         for a in agents:
             _tm.borrow_if_needed(t, a, bank=self.bank)
@@ -715,15 +715,12 @@ class Region:
             self._borrow_inputs(a)
             self._deposit_excess(a, all_goods_price)
             if a.is_trader:
-                # Traders keep a 5x cost-of-living cash reserve at all times.
-                trader_reserve = self._cost_of_living() * 5
-                # Survival borrowing: borrow + withdraw deposits to reach reserve
+                # Traders keep total wealth (cash + deposits) >= 5x cost of living.
+                trader_reserve = self.cost_of_living * 5
+                # Borrow only if total liquid wealth falls below the reserve.
                 total_liquid = a.cash + self.bank.deposits.get(a, 0)
                 if total_liquid < trader_reserve:
                     self.bank.Borrow(t, a, trader_reserve - total_liquid)
-                    if a.cash < trader_reserve and self.bank.deposits.get(a, 0) > 0:
-                        self.bank.Withdraw(a, min(self.bank.deposits.get(a, 0),
-                                                  trader_reserve - a.cash))
                 # Trade-financing borrow: scale working capital while keeping
                 # the reserve intact after buying goods.
                 dest = a.destination_region
@@ -738,10 +735,7 @@ class Region:
                             target = local * 15 + trader_reserve
                             total_liquid = a.cash + self.bank.deposits.get(a, 0)
                             if total_liquid < target:
-                                if self.bank.deposits.get(a, 0) > 0:
-                                    self.bank.Withdraw(a, self.bank.deposits.get(a, 0))
-                                if a.cash < target:
-                                    self.bank.Borrow(t, a, target - a.cash)
+                                self.bank.Borrow(t, a, target - total_liquid)
                             break
             a.remainingCash = a.cash
 
@@ -818,7 +812,7 @@ class Region:
                     total_holding += pipe['quantity']
             space = max(0, max_trader_inventory - total_holding)
             # Keep 5x cost-of-living cash reserve after buying goods
-            spendable = max(0, agent.remainingCash - self._cost_of_living() * 5)
+            spendable = max(0, agent.remainingCash - self.cost_of_living * 5)
             if space <= 0 or spendable < good_price:
                 return 0
             affordable = spendable // good_price
@@ -1144,10 +1138,7 @@ class Region:
                   f"debt=${loans_outstanding:.2f}")
 
     def _recalculate_multipliers(self):
-        food_price = self.recipes.get(Goods.food, {}).get('price', 1)
-        wood_price = self.recipes.get(Goods.wood, {}).get('price', 1)
-        furn_price = self.recipes.get(Goods.furniture, {}).get('price', 1)
-        cost_of_living = max(0.1, 4 * food_price + 1 * wood_price + 0.25 * furn_price)
+        cost_of_living = self.cost_of_living
         for a in self.agents:
             if not a.alive or a.is_corporation:
                 continue
@@ -1177,6 +1168,7 @@ class Region:
             most_demand=self.most_demand,
             max_agents=self.max_agents,
             carrying_capacity=self.max_agents,
+            cost_of_living=self.cost_of_living,
         )
         result = _lm.Live(t, self.agents, context=ctx)
 
