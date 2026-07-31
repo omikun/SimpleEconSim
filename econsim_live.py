@@ -42,6 +42,7 @@ class LiveContext:
     max_agents: int = 400         # Hard population cap (0 = unlimited)
     carrying_capacity: int = 400  # Density-dependent mortality soft ceiling
     cost_of_living: float = 11.25  # Cached 4 food + 1 wood + 0.25 furniture
+    food_price: float = 1.0        # Cached food price from Region.step()
 
 
 # =============================================================================
@@ -100,7 +101,7 @@ def Live(t, agents, context: LiveContext):
             new_agents.append(agent)
 
     # ---- Post-life-cycle government programs ----
-    food_price = ctx.recipes.get(Goods.food, {}).get('price', 1)
+    food_price = ctx.food_price
 
     # Government food aid: 1 food per starving agent, scaled by available funds
     for government in ctx.governments:

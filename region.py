@@ -221,6 +221,11 @@ class Region:
         self.charity = Charity(name, self.recipes)
         # Cost of living, cached once per turn (4 food + 1 wood + 0.25 furniture)
         self.cost_of_living = 11.25
+        # Prices, cached once per turn (avoid repeated dict lookups)
+        self.food_price = 1.0
+        self.all_goods_price = 3.0
+        # Cached list of living trader agents (avoid O(N) filter per call)
+        self.trader_agents = []
 
         # Create agents
         self._create_agents(t, number_of_agents)
@@ -267,6 +272,7 @@ class Region:
                 trader.inventory[g.value] = 0
             trader.inventory[Goods.food.value] = 4
             agents.append(trader)
+            self.trader_agents.append(trader)
 
         agents.append(self.gov.agent)
         self.gov.agent.region = self.name
@@ -284,11 +290,13 @@ class Region:
 
     def step(self, t: int):
         rand.reset()
-        # Cache cost of living for this turn (prices may have shifted)
+        # Cache prices for this turn (prices may have shifted)
         food_price = self.recipes[Goods.food]['price']
         wood_price = self.recipes[Goods.wood]['price']
         furn_price = self.recipes[Goods.furniture]['price']
         self.cost_of_living = max(0.1, 4 * food_price + 1 * wood_price + 0.25 * furn_price)
+        self.food_price = food_price
+        self.all_goods_price = food_price + wood_price + furn_price
         self._record_start()
         self._audit_cash(t, "step_start")
 
@@ -327,6 +335,8 @@ class Region:
             self._recalculate_multipliers()
 
         self.agents = self._live(t)
+        # Rebuild trader cache (drops dead traders, includes newly converted)
+        self.trader_agents = [a for a in self.agents if a.is_trader]
         self._audit_cash(t, "live_done")
 
         # Charity distributes food to hungry and young agents
@@ -430,7 +440,7 @@ class Region:
         for a in self.agents:
             if a.employer or a.is_corporation or a.cash <= 400 or a.company_owned:
                 continue
-            food_price = self.recipes[Goods.food]['price']
+            food_price = self.food_price
             company = Agent(t)
             company.is_corporation = True
             company.output = a.output
@@ -582,8 +592,8 @@ class Region:
 
     def _trade(self, t):
         trade_goods = [Goods.food, Goods.wood, Goods.furniture]
-        all_goods_price = sum(self.recipes[g]['price'] for g in trade_goods)
-        food_price = self.recipes[Goods.food]['price']
+        all_goods_price = self.all_goods_price
+        food_price = self.food_price
         self.bank.PayDepositInterest(self.agents)
 
         # Cache trade fee multiplier for this turn (used by traders to
@@ -935,7 +945,7 @@ class Region:
         if r.get('numInput', 0) > 0 and r.get('production', 0) > 0:
             input_cost = self.recipes[r['input']]['price']
             fundamental_cost = (r['numInput'] * input_cost) / r['production']
-        food_price = self.recipes.get(Goods.food, {}).get('price', 1.0)
+        food_price = self.food_price
         living_cost_floor = (4 * food_price) / max(1, r.get('production', 1))
 
         def lerp(a, b, t):
@@ -1010,7 +1020,7 @@ class Region:
     def _bailout_owner(self, agent, owner, payroll):
         if agent.cash >= payroll:
             return
-        food_price = self.recipes.get(Goods.food, {}).get('price', 1)
+        food_price = self.food_price
         inject = min(payroll - agent.cash, max(0, owner.cash - food_price * 4))
         if inject > 0:
             owner.cash -= inject
@@ -1030,7 +1040,7 @@ class Region:
         """
         gov = self.gov.agent
         bank = self.bank
-        food_price = self.recipes.get(Goods.food, {}).get('price', 1)
+        food_price = self.food_price
 
         # ---- 1. Service existing government debt ----
         for loan in gov.loans[:]:
@@ -1169,6 +1179,7 @@ class Region:
             max_agents=self.max_agents,
             carrying_capacity=self.max_agents,
             cost_of_living=self.cost_of_living,
+            food_price=self.food_price,
         )
         result = _lm.Live(t, self.agents, context=ctx)
 
@@ -1234,17 +1245,13 @@ class Region:
         by_output = {g: [] for g in self.goods}
         by_output['trader'] = []
         food_agents = []
-        trader_agents = []
         total_cash_by_output = {g: 0.0 for g in self.goods}
         total_inv_by_output = {g: 0.0 for g in self.goods if g != Goods.gov}
         total_inv_trader = 0.0
 
         for a in agents:
             if a.is_trader:
-                trader_agents.append(a)
-                by_output['trader'].append(a)
-                total_inv_trader += a.inv_get(Goods.food, 0) + a.inv_get(Goods.wood, 0) + a.inv_get(Goods.furniture, 0)
-                # Traders also counted as food producers — skip adding to goods by_output
+                # Traders handled from cached self.trader_agents list below
                 continue
             if a.output == Goods.food:
                 food_agents.append(a)
@@ -1258,6 +1265,12 @@ class Region:
                 total_cash_by_output[o] += a.cash
                 if o != Goods.gov:
                     total_inv_by_output[o] += a.inv_get(o, 0)
+
+        # Trader data from the cached list (no per-agent filter needed)
+        trader_agents = self.trader_agents
+        by_output['trader'] = trader_agents
+        for a in trader_agents:
+            total_inv_trader += a.inv_get(Goods.food, 0) + a.inv_get(Goods.wood, 0) + a.inv_get(Goods.furniture, 0)
 
         compute_gini_this_turn = (t % 10 == 0)
 

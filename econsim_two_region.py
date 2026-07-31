@@ -76,8 +76,9 @@ Agent._process_pipeline = _agent_process_pipeline
 
 def foreign_sell(t, destination_region, source_region):
     sname = source_region.name
-    traders = [a for a in source_region.agents
-               if a.is_trader and a.home_region == sname]
+    # Use cached trader list (maintained on Region) — avoid O(N) filter per call
+    traders = [a for a in source_region.trader_agents
+               if a.home_region == sname]
     total_sold_value = 0.0
     total_sold_quantity = 0
     trade_volumes = defaultdict(int)
