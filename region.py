@@ -700,6 +700,13 @@ class Region:
 
         self.most_demand = most_demand_good
 
+    def _cost_of_living(self):
+        """Current cost of living: 4 food + 1 wood + 0.25 furniture per turn."""
+        food_price = self.recipes.get(Goods.food, {}).get('price', 1)
+        wood_price = self.recipes.get(Goods.wood, {}).get('price', 1)
+        furn_price = self.recipes.get(Goods.furniture, {}).get('price', 1)
+        return max(0.1, 4 * food_price + 1 * wood_price + 0.25 * furn_price)
+
     def _decide_borrow_deposit(self, agents, all_goods_price, food_price, t):
         for a in agents:
             _tm.borrow_if_needed(t, a, bank=self.bank)
@@ -708,13 +715,19 @@ class Region:
             self._borrow_inputs(a)
             self._deposit_excess(a, all_goods_price)
             if a.is_trader:
-                survival_cost = food_price * 3
-                if a.cash < survival_cost:
-                    self.bank.Borrow(t, a, survival_cost - a.cash)
-                # Trade-financing borrow: if profitable cross-region trade exists,
-                # borrow to scale up working capital.
+                # Traders keep a 5x cost-of-living cash reserve at all times.
+                trader_reserve = self._cost_of_living() * 5
+                # Survival borrowing: borrow + withdraw deposits to reach reserve
+                total_liquid = a.cash + self.bank.deposits.get(a, 0)
+                if total_liquid < trader_reserve:
+                    self.bank.Borrow(t, a, trader_reserve - total_liquid)
+                    if a.cash < trader_reserve and self.bank.deposits.get(a, 0) > 0:
+                        self.bank.Withdraw(a, min(self.bank.deposits.get(a, 0),
+                                                  trader_reserve - a.cash))
+                # Trade-financing borrow: scale working capital while keeping
+                # the reserve intact after buying goods.
                 dest = a.destination_region
-                if dest is not None and a.cash < food_price * 20:
+                if dest is not None:
                     for g in [Goods.wood, Goods.furniture]:
                         local = self.recipes.get(g, {}).get('price', 0)
                         if local <= 0:
@@ -722,7 +735,7 @@ class Region:
                         remote = dest.recipes.get(g, {}).get('price', 0)
                         effective = remote * self._trade_fee_mult
                         if effective > local * 1.01:
-                            target = local * 15
+                            target = local * 15 + trader_reserve
                             total_liquid = a.cash + self.bank.deposits.get(a, 0)
                             if total_liquid < target:
                                 if self.bank.deposits.get(a, 0) > 0:
@@ -804,9 +817,11 @@ class Region:
                 if pipe['good'] == good:
                     total_holding += pipe['quantity']
             space = max(0, max_trader_inventory - total_holding)
-            if space <= 0 or agent.remainingCash < good_price:
+            # Keep 5x cost-of-living cash reserve after buying goods
+            spendable = max(0, agent.remainingCash - self._cost_of_living() * 5)
+            if space <= 0 or spendable < good_price:
                 return 0
-            affordable = agent.remainingCash // good_price
+            affordable = spendable // good_price
             bid = min(space, affordable)
             return max(0, bid)
         if not is_employee and self._input_good(agent) == good:
