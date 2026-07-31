@@ -117,7 +117,7 @@ class Government:
 
         # ========== Fiscal Policy Configuration ==========
         # Tax rate applied to top 10% taxable income (0.05 - 0.75 range).
-        self.tax_rate = 0.50
+        self.tax_rate = 0.25
         # How often (in turns) the government re-evaluates its tax rate.
         self.tax_adjust_interval = 100
         # Per-turn log of how much the gov borrowed (deficit financing).
