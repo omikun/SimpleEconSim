@@ -1011,36 +1011,122 @@ class Region:
     # ---- Tax ----
 
     def _collect_tax(self, t):
-        living = [a for a in self.agents if a.alive]
-        if len(living) <= 10:
-            return
-        sorted_agents = sorted(living, key=lambda a: a.wealth(), reverse=True)
-        top_count = max(1, int(len(sorted_agents) * 0.1))
-        top = sorted_agents[:top_count]
-        total = 0.0
-        for a in top:
-            net_income = a._delta_cash + a._delta_deposits
-            taxable = max(0.0, net_income + a.tax_loss_carryforward)
-            if hasattr(self.gov, 'compute_child_tax_deduction'):
-                taxable = max(0.0, taxable - self.gov.compute_child_tax_deduction(a))
-            if taxable > 0:
-                tax_amount = taxable * 0.5
-                bank_balance = self.bank.deposits.get(a, 0)
-                actual = min(tax_amount, a.cash + bank_balance)
-                if actual > 0:
-                    cash_taken = min(a.cash, actual)
-                    a.cash -= cash_taken
-                    deposit_taken = min(bank_balance, actual - cash_taken)
-                    if deposit_taken > 0:
-                        self.bank.Withdraw(a, deposit_taken)
-                        a.cash -= deposit_taken
-                a.tax_loss_carryforward = 0.0
-                self.gov.collect_tax(t, actual)
-                total += actual
+        """Budget-balanced taxation with deficit financing.
+
+        The government only taxes enough to cover its target reserve (net worth
+        shortfall).  If tax revenue is insufficient, it borrows from the bank
+        (bank.Borrow).  Existing loans are serviced first (interest + principal)
+        using the same Loan machinery as all other borrowers.  The tax rate is
+        re-evaluated every tax_adjust_interval turns based on recent deficits.
+        """
+        gov = self.gov.agent
+        bank = self.bank
+        food_price = self.recipes.get(Goods.food, {}).get('price', 1)
+
+        # ---- 1. Service existing government debt ----
+        for loan in gov.loans[:]:
+            remaining = loan.principle - loan.principle_paid
+            if remaining <= 0:
+                gov.loans.remove(loan)
+                if loan in bank.loans:
+                    bank.loans.remove(loan)
+                continue
+            amount_due = remaining + loan.getInterest()
+            available = gov.cash + bank.deposits.get(gov, 0)
+            payment = min(amount_due, available)
+            if payment > 0:
+                if gov.cash < payment:
+                    bank.Withdraw(gov, payment - gov.cash)
+                gov.cash -= payment
+                loan.pay(payment)
+            if loan.isPaid():
+                gov.loans.remove(loan)
+                if loan in bank.loans:
+                    bank.loans.remove(loan)
+
+        # ---- 2. Compute deficit against target reserve ----
+        loans_outstanding = sum(l.principle - l.principle_paid for l in gov.loans)
+        net_worth = (gov.cash + bank.deposits.get(gov, 0)
+                     + self.gov.food_inventory * food_price - loans_outstanding)
+        reserve = self.gov.target_food_reserve * food_price * 2
+        deficit = max(0.0, reserve - net_worth)
+
+        # ---- 3. Tax top 10% just enough to cover the deficit ----
+        tax_collected = 0.0
+        top_count = 0
+        if deficit > 0:
+            living = [a for a in self.agents if a.alive]
+            if len(living) > 10:
+                sorted_agents = sorted(living, key=lambda a: a.wealth(), reverse=True)
+                top_count = max(1, int(len(sorted_agents) * 0.1))
+                top = sorted_agents[:top_count]
+                tax_bills = []
+                total_taxable = 0.0
+                for a in top:
+                    net_income = a._delta_cash + a._delta_deposits
+                    taxable = max(0.0, net_income + a.tax_loss_carryforward)
+                    if hasattr(self.gov, 'compute_child_tax_deduction'):
+                        taxable = max(0.0, taxable - self.gov.compute_child_tax_deduction(a))
+                    tax_bills.append((a, taxable, net_income))
+                    total_taxable += taxable
+                if total_taxable > 0:
+                    # Cap the rate at gov.tax_rate; only tax what's needed
+                    effective_rate = min(self.gov.tax_rate, deficit / total_taxable)
+                    for a, taxable, net_income in tax_bills:
+                        if taxable <= 0:
+                            a.tax_loss_carryforward += net_income
+                            continue
+                        tax_amount = taxable * effective_rate
+                        bank_balance = bank.deposits.get(a, 0)
+                        actual = min(tax_amount, a.cash + bank_balance)
+                        if actual > 0:
+                            cash_taken = min(a.cash, actual)
+                            a.cash -= cash_taken
+                            deposit_taken = min(bank_balance, actual - cash_taken)
+                            if deposit_taken > 0:
+                                bank.Withdraw(a, deposit_taken)
+                                a.cash -= deposit_taken
+                        a.tax_loss_carryforward = 0.0
+                        self.gov.collect_tax(t, actual)
+                        tax_collected += actual
+
+        # ---- 4. If still short, borrow from the bank (reuse bank functions) ----
+        gap = max(0.0, deficit - tax_collected)
+        self.gov.borrow_log.append(gap)
+        if gap > 0.01:
+            before_liab = bank.total_liabilities
+            bank.Borrow(t, gov, gap)
+            borrowed = bank.total_liabilities - before_liab
+            if borrowed > 0:
+                loginfo(t, f"Government({self.gov.name}) borrowed ${borrowed:.2f} "
+                        f"to cover deficit (gap ${gap:.2f})")
             else:
-                a.tax_loss_carryforward += net_income
-        if total > 0 and t % 50 == 0:
-            print(f"  Region '{self.name}' TAX: ${total:.2f} from top {top_count}, gov=${self.gov.agent.cash:.2f}")
+                logwarning(t, f"Government({self.gov.name}) could not borrow "
+                              f"${gap:.2f} (bank capacity exhausted)")
+
+        # ---- 5. Re-evaluate tax rate every interval ----
+        if (t % self.gov.tax_adjust_interval == 0
+                and len(self.gov.borrow_log) >= self.gov.tax_adjust_interval):
+            recent_gaps = self.gov.borrow_log[-self.gov.tax_adjust_interval:]
+            avg_gap = sum(recent_gaps) / len(recent_gaps)
+            if avg_gap > reserve * 0.1:
+                # Persistent deficits → raise taxes
+                new_rate = self.gov.tax_rate * 1.5
+            elif avg_gap == 0 and net_worth > reserve * 2:
+                # Comfortable surplus → cut taxes
+                new_rate = self.gov.tax_rate * 0.7
+            else:
+                new_rate = self.gov.tax_rate
+            self.gov.tax_rate = max(0.05, min(0.75, new_rate))
+            self.gov.tax_rate_log.append((t, self.gov.tax_rate))
+            print(f"  Region '{self.name}' fiscal: gov_net=${net_worth:.0f}, "
+                  f"reserve=${reserve:.0f}, avg_gap=${avg_gap:.2f}, "
+                  f"tax_rate={self.gov.tax_rate:.2f}")
+
+        if tax_collected > 0 and t % 50 == 0:
+            print(f"  Region '{self.name}' TAX: ${tax_collected:.2f} from top "
+                  f"{top_count}, gov=${self.gov.agent.cash:.2f}, "
+                  f"debt=${loans_outstanding:.2f}")
 
     def _recalculate_multipliers(self):
         food_price = self.recipes.get(Goods.food, {}).get('price', 1)

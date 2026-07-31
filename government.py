@@ -115,6 +115,16 @@ class Government:
         # Maximum fraction to feed (capped even with ample funds)
         self.food_aid_max_coverage = 0.5
 
+        # ========== Fiscal Policy Configuration ==========
+        # Tax rate applied to top 10% taxable income (0.05 - 0.75 range).
+        self.tax_rate = 0.50
+        # How often (in turns) the government re-evaluates its tax rate.
+        self.tax_adjust_interval = 100
+        # Per-turn log of how much the gov borrowed (deficit financing).
+        self.borrow_log = []
+        # Log of (turn, tax_rate) after each adjustment.
+        self.tax_rate_log = []
+
     # ------------------------------------------------------------------
     #  Internal helpers
     # ------------------------------------------------------------------
