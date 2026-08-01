@@ -48,6 +48,7 @@ def process_transport(t, region_a, region_b):
 
 
 def _agent_process_pipeline(self):
+    # ---- Step 1: arrive expired pipeline entries ----
     new_pipeline = []
     for entry in self.transport_pipeline:
         entry['turns_left'] -= 1
@@ -57,17 +58,46 @@ def _agent_process_pipeline(self):
         else:
             new_pipeline.append(entry)
     self.transport_pipeline = new_pipeline
+
+    # ---- Step 2: consume transport units to move export goods ----
+    transport_units = self.inventory[Goods.transport.value]
+    transport_capacity = _transport_capacity_per_unit()
+    max_movable = transport_units * transport_capacity
+    total_moved = 0
+
     for good in list(Goods):
-        if good == Goods.none:
+        if good == Goods.none or good == Goods.transport:
             continue
         qty = self.inventory_export[good.value]
-        if qty > 0:
-            self.transport_pipeline.append({
-                'turns_left': self.transport_delay,
-                'good': good,
-                'quantity': qty,
-            })
-            self.inventory_export[good.value] = 0
+        if qty <= 0:
+            continue
+        movable = min(qty, max_movable - total_moved)
+        if movable <= 0:
+            continue
+        self.transport_pipeline.append({
+            'turns_left': self.transport_delay,
+            'good': good,
+            'quantity': movable,
+        })
+        self.inventory_export[good.value] -= movable
+        total_moved += movable
+
+    # Consume transport units: ceil(total_moved / capacity)
+    if total_moved > 0:
+        consumed = _div_ceil(total_moved, transport_capacity)
+        self.inventory[Goods.transport.value] -= min(consumed, self.inventory[Goods.transport.value])
+
+    # Transport is a perishable service: any leftover decays each turn
+    self.inventory[Goods.transport.value] = 0
+
+def _transport_capacity_per_unit():
+    """Goods moved per transport unit (from recipe). Returns 10 as default."""
+    from econsim_states import recipes
+    return recipes.get(Goods.transport, {}).get('capacity', 10)
+
+def _div_ceil(a, b):
+    """Integer ceiling division: ceil(a / b)."""
+    return (a + b - 1) // b
 
 
 from agent import Agent

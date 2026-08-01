@@ -959,7 +959,11 @@ class Region:
                 total_cash_purchases += cash
                 if bought > 0:
                     if a.is_trader:
-                        if good != Goods.food:
+                        # Transport goes to personal inventory (consumed locally
+                        # to move goods), not exported
+                        if good == Goods.transport:
+                            a.inv_add(good, bought)
+                        elif good != Goods.food:
                             a.inventory_export[good.value] += bought
                         else:
                             food_needed = max(0, 8 - a.inv_get(good, 0))
