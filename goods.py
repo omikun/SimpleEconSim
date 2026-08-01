@@ -4,6 +4,7 @@ class Goods(IntEnum):
     food = auto()
     wood = auto()
     furniture = auto()
+    transport = auto()
     gov = auto()
     none = auto()
 
@@ -13,6 +14,7 @@ profession = {
     Goods.food: 'F',
     Goods.wood: 'W',
     Goods.furniture: 'C',
+    Goods.transport: 'P',
     Goods.gov: 'G',
     Goods.none: '-',
 }

@@ -266,7 +266,8 @@ def main():
 
     for region in (region_a, region_b):
         print(f"\n--- {region.name} ---")
-        labels = {Goods.food: 'Food', Goods.wood: 'Wood', Goods.furniture: 'Furniture', Goods.gov: 'Gov'}
+        labels = {Goods.food: 'Food', Goods.wood: 'Wood', Goods.furniture: 'Furniture',
+                  Goods.transport: 'Transport', Goods.gov: 'Gov'}
         for g in region.goods:
             pop = region.population_log.get(g, [0])[-1] if region.population_log.get(g) else 0
             price = (region.price_log.get(g, [1.0])[-1] if g != Goods.gov and region.price_log.get(g) else 1.0)

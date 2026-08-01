@@ -73,7 +73,7 @@ for good in goods:
     cash_log[good] = []
     gini_log[good] = []
 
-price_log = {Goods.food: [], Goods.wood: [], Goods.furniture: []}
+price_log = {Goods.food: [], Goods.wood: [], Goods.furniture: [], Goods.transport: []}
 
 for prof in goods:
     bought_log[prof] = {}
@@ -668,12 +668,14 @@ def _plot_results(agents):
         Goods.food: 'green',
         Goods.wood: 'red',
         Goods.furniture: 'blue',
+        Goods.transport: 'purple',
         Goods.gov: 'yellow',
     }
     labels = {
         Goods.food: 'Food',
         Goods.wood: 'Wood',
         Goods.furniture: 'Furniture',
+        Goods.transport: 'Transport',
         Goods.gov: 'gov',
     }
     axis_id = 0

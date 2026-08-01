@@ -35,16 +35,17 @@ PROF_NAMES = {
     Goods.food: 'Food',
     Goods.wood: 'Wood',
     Goods.furniture: 'Furniture',
+    Goods.transport: 'Transport',
     Goods.gov: 'Gov',
 }
 
 PROF_COLORS = {
     'Food': '#2ecc71', 'Wood': '#e74c3c', 'Furniture': '#3498db',
-    'Trader': '#f39c12', 'Corp': '#9b59b6', 'Gov': '#f1c40f',
-    '?': '#95a5a6',
+    'Transport': '#8e44ad', 'Trader': '#f39c12', 'Corp': '#9b59b6',
+    'Gov': '#f1c40f', '?': '#95a5a6',
 }
 
-PROF_ORDER = ['Food', 'Wood', 'Furniture', 'Trader', 'Corp', 'Gov', '?']
+PROF_ORDER = ['Food', 'Wood', 'Furniture', 'Transport', 'Trader', 'Corp', 'Gov', '?']
 
 
 # =============================================================================

@@ -48,19 +48,25 @@ _recipes_init = {
         'commodity': Goods.furniture, 'production': 1, 'input': Goods.wood,
         'numInput': 2, 'price': 25, 'maxtotalprod': 300, 'maxinv': 5,
     },
+    Goods.transport: {
+        'commodity': Goods.transport, 'production': 1, 'price': 1, 'numInput': 0,
+        'maxtotalprod': 1000, 'maxinv': 1, 'capacity': 10,
+    },
     Goods.gov: {
         'commodity': Goods.gov, 'production': 0, 'numInput': 0, 'price': 1,
         'maxtotalprod': 0, 'maxinv': 0,
     },
 }
+
 for _g, _r in _recipes_init.items():
     recipes[_g] = _r
 
 # Default profession distribution (fractions summing to <= 1.0, remainder -> gov)
 DEFAULT_PROFESSION_DISTRIBUTION = {
-    Goods.food: 0.82,
-    Goods.wood: 0.06,
-    Goods.furniture: 0.02,
+    Goods.food: 0.72,
+    Goods.wood: 0.05,
+    Goods.furniture: 0.01,
+    Goods.transport: 0.08,
 }
 
 
@@ -156,11 +162,11 @@ class Region:
         self.gini_log: dict = {}
         self.total_cash_log: list = []
         self.bank_cash_log: list = []
-        self.price_log: dict = {Goods.food: [], Goods.wood: [], Goods.furniture: []}
-        self.sold_log: dict = {Goods.food: [], Goods.wood: [], Goods.furniture: []}
+        self.price_log: dict = {Goods.food: [], Goods.wood: [], Goods.furniture: [], Goods.transport: []}
+        self.sold_log: dict = {Goods.food: [], Goods.wood: [], Goods.furniture: [], Goods.transport: []}
         self.bought_log: dict = {}
         self.gdp_log: list = []
-        self.gdp_by_profession_log: dict = {Goods.food: [], Goods.wood: [], Goods.furniture: []}
+        self.gdp_by_profession_log: dict = {Goods.food: [], Goods.wood: [], Goods.furniture: [], Goods.transport: []}
         self.total_population: list = []
         self.population_change_rate_log: list = []
         self.dead_pop: list = [0]
@@ -179,7 +185,7 @@ class Region:
         self.exchange_rate = 1.0
         self.cumulative_trade_balance = 0.0
 
-        for g in [Goods.food, Goods.wood, Goods.furniture]:
+        for g in [Goods.food, Goods.wood, Goods.furniture, Goods.transport]:
             self.export_vol[g] = []
             self.price_spread_log[g] = []
             self.export_val[g] = []
@@ -591,7 +597,7 @@ class Region:
     # ---- Trade ----
 
     def _trade(self, t):
-        trade_goods = [Goods.food, Goods.wood, Goods.furniture]
+        trade_goods = [Goods.food, Goods.wood, Goods.furniture, Goods.transport]
         all_goods_price = self.all_goods_price
         food_price = self.food_price
         self.bank.PayDepositInterest(self.agents)
@@ -613,7 +619,8 @@ class Region:
         desired_food = 16
         desired_wood = 10
         desired_furn = max(1, int(16 / max(1, recipes[Goods.furniture]['price'])))
-        desires = {Goods.food: desired_food, Goods.wood: desired_wood, Goods.furniture: desired_furn}
+        desires = {Goods.food: desired_food, Goods.wood: desired_wood,
+                   Goods.furniture: desired_furn, Goods.transport: 0}
         prices = {g: recipes[g]['price'] for g in trade_goods}
         total_asks = {g: 0 for g in trade_goods}
         total_bids = {g: 0 for g in trade_goods}
@@ -808,6 +815,9 @@ class Region:
             self.bank.Withdraw(agent, min(bank_balance, good_price * current_desired - agent.remainingCash))
 
     def _calculate_bid(self, agent, good, good_price, current_desired, agent_recipe, is_employee, mult):
+        # Transport is a producer-to-trader service: non-traders never bid.
+        if good == Goods.transport and not agent.is_trader:
+            return 0
         if agent.is_trader:
             # Traders buy food for themselves (up to 2 days' supply) — they
             # don't produce, so they must eat from the market like everyone else.
@@ -1540,12 +1550,14 @@ class Region:
             Goods.food: 'green',
             Goods.wood: 'red',
             Goods.furniture: 'blue',
+            Goods.transport: 'purple',
             Goods.gov: 'yellow',
         }
         labels = {
             Goods.food: 'Food',
             Goods.wood: 'Wood',
             Goods.furniture: 'Furniture',
+            Goods.transport: 'Transport',
             Goods.gov: 'Gov',
         }
         axis_id = 0

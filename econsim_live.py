@@ -179,6 +179,9 @@ def _consume_goods(ctx: LiveContext, agent, number_food_consumed, number_wood_co
         for luxury_good in ctx.goods:
             if luxury_good in (Goods.food, Goods.gov):
                 continue
+            # Transport is a service (not a consumable luxury good)
+            if luxury_good == Goods.transport:
+                continue
             if agent.inv_get(luxury_good, 0) > 0 and get_output_commodity(agent) != luxury_good:
                 consume_qty = min(max(1, int(mult * 0.5)),
                                   agent.inv_get(luxury_good, 0), 5)
@@ -360,11 +363,11 @@ def _handle_reproduction(ctx: LiveContext, t, agent, agents, new_agents):
         # rather than children.  Richer trader → fewer allowed children.
         if agent.is_trader:
             if wealth > cost_of_living * 6:
-                max_children = 0
-            elif wealth > cost_of_living * 3:
-                max_children = 1
-            else:
                 max_children = 2
+            elif wealth > cost_of_living * 3:
+                max_children = 4
+            else:
+                max_children = 8
             living_children = sum(1 for d in agent.descendants if d.alive)
             if living_children >= max_children:
                 return 0

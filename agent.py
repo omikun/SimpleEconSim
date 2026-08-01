@@ -67,8 +67,8 @@ class Agent:
         'transport_delay',
         # ---- SoA slot index + cache ----
         # ---- Per-good bid/ask (set via setattr in region._trade) ----
-        'bid_food', 'bid_wood', 'bid_furniture',
-        'ask_food', 'ask_wood', 'ask_furniture',
+        'bid_food', 'bid_wood', 'bid_furniture', 'bid_transport',
+        'ask_food', 'ask_wood', 'ask_furniture', 'ask_transport',
         # ---- Inherited wealth protection (child of rich parent) ----
         '_birth_parent_wealth', '_birth_protection_until',
         # ---- SoA slot index + cache ----
@@ -124,6 +124,8 @@ class Agent:
         self._slot = -1
         self.remainingCash = 0
         self._cached_wealth = None
+        self.bid_transport = 0
+        self.ask_transport = 0
 
     def name(self):
         prof_label = profession.get(self.output, '-')
