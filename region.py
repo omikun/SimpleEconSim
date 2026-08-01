@@ -651,6 +651,9 @@ class Region:
             if ta == 0 and tb == 0:
                 self._price_decay(good)
                 continue
+            # Imports add to effective supply, suppressing local prices
+            if self.import_vol.get(good) and self.import_vol[good]:
+                ta += self.import_vol[good][-1]
             demand_ratio = 5.0 if ta == 0 else tb / ta
             self.demand_ratio_log[good].append(demand_ratio)
             self.demand_log[good].append(tb)
