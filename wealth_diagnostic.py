@@ -3,8 +3,16 @@
 Wealth diagnostic: traces cash distribution and generates a wealth histogram
 with detailed intra-profession inequality metrics.
 
-Usage:
+Can run standalone:
     python3 wealth_diagnostic.py [time_steps]
+
+Or as an importable module driven by econsim_two_region.py:
+    import wealth_diagnostic
+    wealth_diagnostic.init_collectors()
+    # ... in the simulation loop ...
+    wealth_diagnostic.record_turn(t, region_a, region_b)
+    # ... after the loop ...
+    wealth_diagnostic.generate_plots(time_steps, region_a, region_b)
 """
 
 import sys
@@ -16,6 +24,78 @@ from goods import Goods, profession
 from region import Region, get_total_cash
 from logger import logInit
 import econsim_two_region as sim
+
+
+# =============================================================================
+# Collector lifecycle (used by both standalone main() and econsim_two_region)
+# =============================================================================
+
+snapshots = {}          # region_name -> {turn: {category: [(wealth, debt, id)]}}
+cumulative_births = 0
+cumulative_deaths = 0
+current_t = 0
+_prev_agent_ids = set()   # agent IDs present as of the previous record_turn
+_seeded = False           # first call seeds baseline; migrations are not births
+
+OUTPUT_TO_CAT = {Goods.food: 'Food', Goods.wood: 'Wood', Goods.furniture: 'Furniture'}
+CAT_LABELS = ['Food', 'Wood', 'Furniture', 'Trader', 'Institutions']
+
+
+def init_collectors():
+    """Reset all collectors before a run."""
+    global snapshots, cumulative_births, cumulative_deaths, current_t, \
+        _prev_agent_ids, _seeded
+    snapshots = {'Region_A': {}, 'Region_B': {}}
+    cumulative_births = 0
+    cumulative_deaths = 0
+    current_t = 0
+    _prev_agent_ids = set()
+    _seeded = False
+
+
+def record_turn(t, region_a, region_b):
+    """Record birth/death deltas and wealth snapshots for simulation turn t.
+
+    The caller (econsim_two_region or standalone main) has already run
+    step/transport/foreign_sell for this turn before calling us.
+    Births are agents whose ID was not present last turn; deaths are agents
+    whose ID disappeared from both regions' living-agent lists.
+    """
+    global cumulative_births, cumulative_deaths, current_t, _prev_agent_ids, _seeded
+    current_t = t
+    current_ids = {a.id for a in region_a.agents} | {a.id for a in region_b.agents}
+    if not _seeded:
+        # Baseline: initial population is treated as pre-existing, not births
+        _prev_agent_ids = current_ids
+        _seeded = True
+    else:
+        cumulative_births += len(current_ids - _prev_agent_ids)
+        cumulative_deaths += len(_prev_agent_ids - current_ids)
+        _prev_agent_ids = current_ids
+
+    if t % 10 == 0:
+        for rname, region in [('Region_A', region_a), ('Region_B', region_b)]:
+            bank = region.bank
+            cat_agents = {c: [] for c in CAT_LABELS}
+            for a in region.agents:
+                wealth = a.cash + bank.deposits.get(a, 0)
+                debt = sum(l.principle - l.principle_paid for l in a.loans) if a.loans else 0
+                if a.is_trader:
+                    cat_agents['Trader'].append((wealth, debt, a.id))
+                elif a.is_government:
+                    cat_agents['Institutions'].append((wealth, debt, -10))
+                else:
+                    cat = OUTPUT_TO_CAT.get(a.output, 'Food')
+                    cat_agents[cat].append((wealth, debt, a.id))
+            bank_wealth = bank.total_deposits - bank.total_liabilities
+            bank_liab = bank.total_liabilities
+            cat_agents['Institutions'].append((bank_wealth, bank_liab, -20))
+            charity = region.charity
+            food_price = region.recipes.get(Goods.food, {}).get('price', 1.0)
+            charity_wealth = charity.agent.cash + bank.deposits.get(charity.agent, 0) \
+                             + charity.food_inventory * food_price
+            cat_agents['Institutions'].append((charity_wealth, 0, -30))
+            snapshots[rname][t] = cat_agents
 
 
 def stats(vals):
@@ -33,12 +113,15 @@ def stats(vals):
     return (mn, mx, avg, med, std, n)
 
 
-def print_wealth_diagnostic(region, label):
+def print_wealth_diagnostic(region, label, turn=None):
+    """Print cash distribution and intra-profession inequality for a region."""
+    if turn is None:
+        turn = current_t
     agents = region.agents
     bank = region.bank
 
     print(f"\n{'='*70}")
-    print(f"{label} — Wealth Diagnostics (Turn {current_t})")
+    print(f"{label} — Wealth Diagnostics (Turn {turn})")
     print(f"{'='*70}")
 
     total_cash = get_total_cash(agents, bank)
@@ -97,7 +180,7 @@ def print_wealth_diagnostic(region, label):
         wealth_vals = [a.cash + bank.deposits.get(a, 0) for a in prof_agents]
         mn, mx, avg, med, std, n = stats(wealth_vals)
         pct_below_20 = sum(1 for v in wealth_vals if v < 20) / n * 100
-        
+
         # Separate corp-owned (employees) vs independent
         employees = [a for a in prof_agents if a.employer is not None]
         independents = [a for a in prof_agents if a.employer is None]
@@ -109,7 +192,7 @@ def print_wealth_diagnostic(region, label):
         print(f"    % below $20: {pct_below_20:.1f}%  (reproduction-critical threshold)")
         if std > 0:
             print(f"    gini-estimate (simplified): {std / (avg * 2) * 100:.1f}%")
-        
+
         if employees and independents:
             e_mn, e_mx, e_avg, e_med, e_std, e_n = stats(emp_wealth)
             i_mn, i_mx, i_avg, i_med, i_std, i_n = stats(ind_wealth)
@@ -140,102 +223,22 @@ def print_wealth_diagnostic(region, label):
 
 
 # =============================================================================
-# MAIN
+# ANALYSIS & VISUALIZATION
 # =============================================================================
 
-def main():
-    time_steps = int(sys.argv[1]) if len(sys.argv) > 1 else 200
-    global current_t
-
-    logInit()
-    print(f"Wealth Diagnostic: {time_steps} turns\n")
-
-    random.seed(42)
-
-    region_a = Region("Region_A", t=0, number_of_agents=110,
-                       profession_distribution={Goods.food: 0.753, Goods.wood: 0.110, Goods.furniture: 0.037})
-    region_b = Region("Region_B", t=0, number_of_agents=110,
-                       profession_distribution={Goods.food: 0.50, Goods.wood: 0.35, Goods.furniture: 0.05})
-
-    region_a.recipes[Goods.food]['production'] *= 2
-    region_b.recipes[Goods.wood]['production'] *= 2
-
-    region_a.destination_region = region_b
-    region_b.destination_region = region_a
-    for trader in region_a.agents:
-        if getattr(trader, 'is_trader', False):
-            trader.destination_region = region_b
-    for trader in region_b.agents:
-        if getattr(trader, 'is_trader', False):
-            trader.destination_region = region_a
-
-    # Track births and deaths
-    cumulative_births = 0
-    cumulative_deaths = 0
-
-    # Collect agent-level snapshots every 10 turns
-    # snapshots[region][turn] = {category: [(wealth, agent_id), ...]}
-    snapshots = {'Region_A': {}, 'Region_B': {}}
-    cat_labels = ['Food', 'Wood', 'Furniture', 'Trader', 'Institutions']
-    output_to_cat = {Goods.food: 'Food', Goods.wood: 'Wood', Goods.furniture: 'Furniture'}
-
-    for t in range(1, time_steps + 1):
-        n_before = len(region_a.agents) + len(region_b.agents)
-
-        region_a.step(t)
-        region_b.step(t)
-        sim.process_transport(t, region_a, region_b)
-        sim.foreign_sell(t, region_a, region_b)
-        sim.foreign_sell(t, region_b, region_a)
-
-        n_after = len(region_a.agents) + len(region_b.agents)
-        diff = n_after - n_before
-        if diff > 0:
-            cumulative_births += diff
-        elif diff < 0:
-            cumulative_deaths -= diff
-
-        # Snapshot every 10 turns
-        if t % 10 == 0:
-            for rname, region in [('Region_A', region_a), ('Region_B', region_b)]:
-                bank = region.bank
-                cat_agents = {c: [] for c in cat_labels}
-                for a in region.agents:
-                    wealth = a.cash + bank.deposits.get(a, 0)
-                    debt = sum(l.principle - l.principle_paid for l in a.loans) if a.loans else 0
-                    if a.is_trader:
-                        cat_agents['Trader'].append((wealth, debt, a.id))
-                    elif a.is_government:
-                        # Gov goes into Institutions with fixed id -10
-                        cat_agents['Institutions'].append((wealth, debt, -10))
-                    else:
-                        cat = output_to_cat.get(a.output, 'Food')
-                        cat_agents[cat].append((wealth, debt, a.id))
-                # Bank as a pseudo-agent with fixed id -20
-                bank_wealth = bank.total_deposits - bank.total_liabilities
-                bank_liab = bank.total_liabilities
-                cat_agents['Institutions'].append((bank_wealth, bank_liab, -20))
-                # Charity as a pseudo-agent with fixed id -30
-                charity = region.charity
-                food_price = region.recipes.get(Goods.food, {}).get('price', 1.0)
-                charity_wealth = charity.agent.cash + bank.deposits.get(charity.agent, 0) \
-                                 + charity.food_inventory * food_price
-                cat_agents['Institutions'].append((charity_wealth, 0, -30))
-                snapshots[rname][t] = cat_agents
-
-    current_t = time_steps
-
+def generate_plots(time_steps, region_a, region_b):
+    """Produce the wealth stacked bar chart and diagnostic output."""
     print(f"\n{'='*70}")
     print(f"POPULATION DYNAMICS (over {time_steps} turns)")
     print(f"{'='*70}")
-    print(f"Region A final pop: {len(region_a.agents)} (initial: 110)")
-    print(f"Region B final pop: {len(region_b.agents)} (initial: 110)")
+    print(f"Region A final pop: {len(region_a.agents)}")
+    print(f"Region B final pop: {len(region_b.agents)}")
     print(f"Cumulative births: {cumulative_births}")
     print(f"Cumulative deaths: {cumulative_deaths}")
     print(f"Net change: {cumulative_births - cumulative_deaths}")
 
-    print_wealth_diagnostic(region_a, "REGION A")
-    print_wealth_diagnostic(region_b, "REGION B")
+    print_wealth_diagnostic(region_a, "REGION A", time_steps)
+    print_wealth_diagnostic(region_b, "REGION B", time_steps)
 
     # ---- Stacked bar chart: one bar per snapshot turn, segments = agents ----
     try:
@@ -365,6 +368,48 @@ def main():
         print(f"\nCould not generate plots: {e}")
         import traceback
         traceback.print_exc()
+
+
+# =============================================================================
+# MAIN (standalone)
+# =============================================================================
+
+def main():
+    time_steps = int(sys.argv[1]) if len(sys.argv) > 1 else 200
+
+    logInit()
+    print(f"Wealth Diagnostic: {time_steps} turns\n")
+
+    init_collectors()
+
+    random.seed(42)
+
+    region_a = Region("Region_A", t=0, number_of_agents=110,
+                       profession_distribution={Goods.food: 0.753, Goods.wood: 0.110, Goods.furniture: 0.037})
+    region_b = Region("Region_B", t=0, number_of_agents=110,
+                       profession_distribution={Goods.food: 0.50, Goods.wood: 0.35, Goods.furniture: 0.05})
+
+    region_a.recipes[Goods.food]['production'] *= 2
+    region_b.recipes[Goods.wood]['production'] *= 2
+
+    region_a.destination_region = region_b
+    region_b.destination_region = region_a
+    for trader in region_a.agents:
+        if getattr(trader, 'is_trader', False):
+            trader.destination_region = region_b
+    for trader in region_b.agents:
+        if getattr(trader, 'is_trader', False):
+            trader.destination_region = region_a
+
+    for t in range(1, time_steps + 1):
+        region_a.step(t)
+        region_b.step(t)
+        sim.process_transport(t, region_a, region_b)
+        sim.foreign_sell(t, region_a, region_b)
+        sim.foreign_sell(t, region_b, region_a)
+        record_turn(t, region_a, region_b)
+
+    generate_plots(time_steps, region_a, region_b)
 
 
 if __name__ == "__main__":
