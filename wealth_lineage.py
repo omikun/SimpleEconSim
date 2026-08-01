@@ -4,8 +4,16 @@ Wealth Lineage Diagnostic: trace debt, inheritance, and wealth accumulation
 across generations.  Monitors every death/inheritance event, every birth,
 and every borrow, then produces a Gantt-style lifespan chart.
 
-Usage:
+Can run standalone:
     python3 wealth_lineage.py [time_steps]
+
+Or as an importable module driven by econsim_two_region.py:
+    import wealth_lineage
+    wealth_lineage.init_collectors()
+    # ... in the simulation loop ...
+    wealth_lineage.record_turn(t, region_a, region_b)
+    # ... after the loop ...
+    wealth_lineage.generate_plots(time_steps, region_a, region_b)
 """
 
 import sys
@@ -30,6 +38,8 @@ wealth_snapshots = {}
 agent_birth = {}   # aid -> birth_round
 death_turn = {}    # aid -> turn of death (if died)
 death_causes = {}  # aid -> (turn, prof_name, cause)
+agent_names = {}   # aid -> display name
+birth_counter = 0
 
 PROF_NAMES = {
     Goods.food: 'Food',
@@ -46,6 +56,9 @@ PROF_COLORS = {
 }
 
 PROF_ORDER = ['Food', 'Wood', 'Furniture', 'Transport', 'Trader', 'Corp', 'Gov', '?']
+
+# Idempotency guard: monkey patches install only once per interpreter
+_patched = False
 
 
 # =============================================================================
@@ -129,77 +142,60 @@ def _patch_lifecycle():
 
 
 # =============================================================================
-# MAIN
+# Collector lifecycle (used by both standalone main() and econsim_two_region)
 # =============================================================================
 
-def main():
-    time_steps = int(sys.argv[1]) if len(sys.argv) > 1 else 300
-
-    logInit()
-    print(f"Wealth Lineage Diagnostic: {time_steps} turns\n")
-
-    _patch_bank()
-    _patch_lifecycle()
-
-    random.seed(42)
-
-    region_a = Region("Region_A", t=0, number_of_agents=55,
-                       profession_distribution={Goods.food: 0.753, Goods.wood: 0.110, Goods.furniture: 0.037})
-    region_b = Region("Region_B", t=0, number_of_agents=55,
-                       profession_distribution={Goods.food: 0.50, Goods.wood: 0.35, Goods.furniture: 0.05})
-
-    region_a.recipes[Goods.food]['production'] *= 2
-    region_b.recipes[Goods.wood]['production'] *= 2
-
-    region_a.destination_region = region_b
-    region_b.destination_region = region_a
-    for trader in region_a.agents:
-        if getattr(trader, 'is_trader', False):
-            trader.destination_region = region_b
-    for trader in region_b.agents:
-        if getattr(trader, 'is_trader', False):
-            trader.destination_region = region_a
-
+def init_collectors():
+    """Reset all collectors and install instrumentation (idempotent)."""
+    global inheritance_events, borrow_events, parent_map, pre_mortem_state, \
+        wealth_snapshots, agent_birth, death_turn, death_causes, \
+        agent_names, birth_counter, _patched
+    inheritance_events = []
+    borrow_events = []
+    parent_map = {}
+    pre_mortem_state = {}
+    wealth_snapshots = {}
+    agent_birth = {}
+    death_turn = {}
+    death_causes = {}
     agent_names = {}
-    for a in region_a.agents + region_b.agents:
-        agent_names[a.id] = a.name()
-        agent_birth[a.id] = a.birth_round
-        if hasattr(a, 'parent') and a.parent is not None:
-            parent_map[a.id] = a.parent.id
-
     birth_counter = 0
+    if not _patched:
+        _patch_bank()
+        _patch_lifecycle()
+        _patched = True
 
-    for t in range(1, time_steps + 1):
-        if t % 10 == 0:
-            snap = {}
-            for rname, region in [('Region_A', region_a), ('Region_B', region_b)]:
-                for a in region.agents:
-                    w = a.cash + region.bank.deposits.get(a, 0)
-                    d = sum(l.principle - l.principle_paid for l in a.loans) if a.loans else 0
-                    prof = 'Trader' if getattr(a, 'is_trader', False) else PROF_NAMES.get(a.output, '?')
-                    if getattr(a, 'is_government', False): prof = 'Gov'
-                    elif getattr(a, 'is_corporation', False): prof = 'Corp'
-                    snap[a.id] = (w, d, prof, a.alive)
-            wealth_snapshots[t] = snap
 
-        region_a.step(t)
-        region_b.step(t)
-        sim.process_transport(t, region_a, region_b)
-        sim.foreign_sell(t, region_a, region_b)
-        sim.foreign_sell(t, region_b, region_a)
+def record_turn(t, region_a, region_b):
+    """Record births, parent links, and wealth snapshots for simulation turn t."""
+    global birth_counter
+    if t % 10 == 0:
+        snap = {}
+        for rname, region in [('Region_A', region_a), ('Region_B', region_b)]:
+            for a in region.agents:
+                w = a.cash + region.bank.deposits.get(a, 0)
+                d = sum(l.principle - l.principle_paid for l in a.loans) if a.loans else 0
+                prof = 'Trader' if getattr(a, 'is_trader', False) else PROF_NAMES.get(a.output, '?')
+                if getattr(a, 'is_government', False): prof = 'Gov'
+                elif getattr(a, 'is_corporation', False): prof = 'Corp'
+                snap[a.id] = (w, d, prof, a.alive)
+        wealth_snapshots[t] = snap
 
-        for a in region_a.agents + region_b.agents:
-            if a.id not in agent_names:
-                agent_names[a.id] = a.name()
-                agent_birth[a.id] = a.birth_round
-                birth_counter += 1
-                if hasattr(a, 'parent') and a.parent is not None:
-                    parent_map[a.id] = a.parent.id
+    for a in region_a.agents + region_b.agents:
+        if a.id not in agent_names:
+            agent_names[a.id] = a.name()
+            agent_birth[a.id] = a.birth_round
+            birth_counter += 1
+            if hasattr(a, 'parent') and a.parent is not None:
+                parent_map[a.id] = a.parent.id
 
-    # =========================================================================
-    # ANALYSIS & VISUALIZATION
-    # =========================================================================
 
+# =============================================================================
+# ANALYSIS & VISUALIZATION
+# =============================================================================
+
+def generate_plots(time_steps, region_a, region_b):
+    """Produce the Gantt chart, inheritance summary, and death-cause table."""
     print(f"\n{'='*70}")
     print(f"INTERGENERATIONAL WEALTH TRANSFER SUMMARY")
     print(f"{'='*70}")
@@ -354,7 +350,6 @@ def main():
                         arrowprops=dict(arrowstyle='-', color='gray', lw=0.3))
 
         # White separators between profession groups
-        prev_prof = rows[0][1] if rows else None
         last_y_by_prof = {}
         for aid, ry in rows:
             last_y_by_prof[agent_data[aid]['prof']] = ry
@@ -440,6 +435,48 @@ def main():
             total += n
         row += f"{total:>8}"
         print(row)
+
+
+# =============================================================================
+# MAIN (standalone)
+# =============================================================================
+
+def main():
+    time_steps = int(sys.argv[1]) if len(sys.argv) > 1 else 300
+
+    logInit()
+    print(f"Wealth Lineage Diagnostic: {time_steps} turns\n")
+
+    init_collectors()
+
+    random.seed(42)
+
+    region_a = Region("Region_A", t=0, number_of_agents=55,
+                       profession_distribution={Goods.food: 0.753, Goods.wood: 0.110, Goods.furniture: 0.037})
+    region_b = Region("Region_B", t=0, number_of_agents=55,
+                       profession_distribution={Goods.food: 0.50, Goods.wood: 0.35, Goods.furniture: 0.05})
+
+    region_a.recipes[Goods.food]['production'] *= 2
+    region_b.recipes[Goods.wood]['production'] *= 2
+
+    region_a.destination_region = region_b
+    region_b.destination_region = region_a
+    for trader in region_a.agents:
+        if getattr(trader, 'is_trader', False):
+            trader.destination_region = region_b
+    for trader in region_b.agents:
+        if getattr(trader, 'is_trader', False):
+            trader.destination_region = region_a
+
+    for t in range(1, time_steps + 1):
+        region_a.step(t)
+        region_b.step(t)
+        sim.process_transport(t, region_a, region_b)
+        sim.foreign_sell(t, region_a, region_b)
+        sim.foreign_sell(t, region_b, region_a)
+        record_turn(t, region_a, region_b)
+
+    generate_plots(time_steps, region_a, region_b)
 
 
 if __name__ == "__main__":
