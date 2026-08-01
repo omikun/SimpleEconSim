@@ -183,6 +183,7 @@ class Region:
         self.price_spread_log: dict = {}
         self.destination_region = None
         self.exchange_rate = 1.0
+        self.exchange_rate_log = []
         self.cumulative_trade_balance = 0.0
 
         for g in [Goods.food, Goods.wood, Goods.furniture, Goods.transport]:
@@ -1597,9 +1598,15 @@ class Region:
     def _plot_exchange_rate(self, axis, axis_id):
         axis[axis_id].set_title("Exchange Rate (5-turn avg)")
         axis[axis_id].set_ylabel("Rate")
-        raw = [self.exchange_rate] * len(self.total_cash_log)
-        axis[axis_id].plot(self._smooth(raw),
-                          color='purple', marker='o', markersize=1)
+        if self.exchange_rate_log:
+            data = self._smooth(self.exchange_rate_log)
+            axis[axis_id].plot(data, color='purple', marker='o', markersize=1)
+        else:
+            # No per-turn history recorded (e.g. floating rate disabled):
+            # fall back to a flat line at the current rate.
+            raw = [self.exchange_rate] * len(self.total_cash_log)
+            axis[axis_id].plot(self._smooth(raw),
+                              color='purple', marker='o', markersize=1)
 
     def _plot_trader_cash(self, axis, axis_id):
         axis[axis_id].set_title("Trader Cash")

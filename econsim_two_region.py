@@ -284,6 +284,7 @@ def main():
                 adj = region.cumulative_trade_balance * 0.000005
                 region.exchange_rate *= (1 + adj)
                 region.exchange_rate = max(0.1, min(10.0, region.exchange_rate))
+            region.exchange_rate_log.append(region.exchange_rate)
 
         for g in [Goods.food, Goods.wood, Goods.furniture]:
             price_a = region_a.recipes[g]['price']
