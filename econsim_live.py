@@ -262,7 +262,15 @@ def _handle_career_switching(ctx: LiveContext, t, agent, agents,
     elif agent.cash < 20 and (t - getattr(agent, 'last_career_switch', 0) > 10):
         if rand.random() < 0.1:
             if choices_list:
-                agent.output = rand.choice(choices_list)
+                # Government-subsidized apprenticeships: bias toward
+                # endangered professions (pop < 3) to prevent extinction.
+                endangered = _endangered_professions(ctx, agents, choices_list)
+                if endangered and rand.random() < 0.5:
+                    output = rand.choice(endangered)
+                    _grant_apprenticeship_subsidy(agent, output, t, ctx)
+                else:
+                    output = rand.choice(choices_list)
+                agent.output = output
                 logdebug(t, agent.name(), 'poor, exploring random career:',
                          ctx.profession[agent.output])
                 agent.last_career_switch = t
@@ -296,6 +304,47 @@ def _handle_career_switching(ctx: LiveContext, t, agent, agents,
 # =============================================================================
 # JOB SEEKING
 # =============================================================================
+
+def _count_producers(output, agents):
+    """Count non-trader producers for a given good."""
+    return sum(1 for a in agents if a.alive and a.output == output and not a.is_trader)
+
+
+def _endangered_professions(ctx, agents, choices_list):
+    """Return list of professions with fewer than 3 non-trader producers."""
+    endangered = []
+    for g in choices_list:
+        if _count_producers(g, agents) < 3:
+            endangered.append(g)
+    return endangered
+
+
+def _grant_apprenticeship_subsidy(agent, output, t, ctx):
+    """Government-subsidized apprenticeship for endangered professions.
+    
+    The government pays a cash bonus (1x-2x cost of living) to agents
+    who switch into an endangered profession.  The agent also receives
+    4 free food and has hunger reset so they can survive the career change.
+    """
+    # Parametric bonus formula: all non-food professions get 2x COL
+    # because they require tools/materials; food gets 1x
+    multiplier = 2.0 if output != Goods.food else 1.0
+    col = ctx.cost_of_living
+    subsidy = multiplier * col
+    # Pay from government cash if available
+    gov = ctx.default_gov
+    if gov is not None and gov.agent.cash > 0:
+        actual = min(subsidy, gov.agent.cash)
+        gov.agent.cash -= actual
+    else:
+        actual = 0.0
+    agent.cash += actual
+    agent.hungry_steps = 0
+    agent.inv_set(Goods.food, max(agent.inv_get(Goods.food, 0), 4))
+    if actual > 0:
+        loginfo(t, f"{agent.name()} apprenticeship to {ctx.profession[output]}, "
+                f"subsidy ${actual:.0f}")
+
 
 def _build_employer_cache(agents):
     """Pre-compute eligible employers by output (avoids O(n²) scan)."""
