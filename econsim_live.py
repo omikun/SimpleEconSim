@@ -215,6 +215,19 @@ def _consume_daily_food(agent):
         agent.hungry_steps = 0
     else:
         agent.inv_set(Goods.food, 0)
+        # Traders tap into foreign/export food inventory (they travel and
+        # carry wares across regions — food is eaten en route).
+        if agent.is_trader:
+            foreign_food = agent.inventory_foreign[Goods.food.value]
+            if foreign_food >= 4:
+                agent.inventory_foreign[Goods.food.value] -= 4
+                agent.hungry_steps = 0
+                return
+            export_food = agent.inventory_export[Goods.food.value]
+            if export_food >= 4:
+                agent.inventory_export[Goods.food.value] -= 4
+                agent.hungry_steps = 0
+                return
         agent.hungry_steps += 1
 
 
@@ -321,8 +334,10 @@ def _handle_job_seeking(t, agent, employer_cache):
 def _handle_reproduction(ctx: LiveContext, t, agent, agents, new_agents):
     """Handle birth of new agents.
 
-    Wealthy agents reproduce more (up to 5x base rate), reflecting better
-    nutrition, access to childcare, and social stability.
+    Wealthier agents reproduce LESS (inverse of the old wealth bonus): the
+    wealthy face opportunity costs — they invest in careers, trade, and
+    business rather than large families.  Wealthy traders additionally cap
+    their number of living children.
     """
     number_food_consumed = 0
     if agent.hungry_steps > 0:
@@ -333,14 +348,26 @@ def _handle_reproduction(ctx: LiveContext, t, agent, agents, new_agents):
     if government is not None:
         birth_prob *= government.get_fertility_multiplier()
 
-    # Wealth-based fertility bonus: richer agents reproduce more
+    # Wealth-based fertility reduction: richer agents reproduce less.
+    # At 1x cost of living: ~0.77x base rate; at 10x: ~0.25x base rate.
     cost_of_living = ctx.cost_of_living
     wealth = agent.wealth()
     if wealth > cost_of_living:
-        # Scale: at 10x cost_of_living, birth rate is 4x base
-        wealth_factor = 1.0 + (wealth / cost_of_living) * 0.3
-        wealth_factor = min(5.0, wealth_factor)
+        wealth_factor = 1.0 / (1.0 + (wealth / cost_of_living) * 0.3)
+        wealth_factor = max(0.25, wealth_factor)
         birth_prob *= wealth_factor
+        # Wealthy traders cap family size: they invest in their business
+        # rather than children.  Richer trader → fewer allowed children.
+        if agent.is_trader:
+            if wealth > cost_of_living * 6:
+                max_children = 0
+            elif wealth > cost_of_living * 3:
+                max_children = 1
+            else:
+                max_children = 2
+            living_children = sum(1 for d in agent.descendants if d.alive)
+            if living_children >= max_children:
+                return 0
 
     if agent.last_reproduction + ctx.birth_gap < t and rand.random() < birth_prob \
        and agent.inv_get(Goods.food, 0) >= 2:

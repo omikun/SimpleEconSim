@@ -809,6 +809,14 @@ class Region:
 
     def _calculate_bid(self, agent, good, good_price, current_desired, agent_recipe, is_employee, mult):
         if agent.is_trader:
+            # Traders buy food for themselves (up to 2 days' supply) — they
+            # don't produce, so they must eat from the market like everyone else.
+            if good == Goods.food:
+                food_on_hand = agent.inv_get(Goods.food, 0)
+                need = max(0, 8 - food_on_hand)
+                spendable = max(0, agent.remainingCash - self.cost_of_living * 5)
+                affordable = int(spendable // good_price)
+                return min(need, affordable)
             destination = agent.destination_region
             if destination is not None:
                 # Use cached fee multiplier to check true profitability

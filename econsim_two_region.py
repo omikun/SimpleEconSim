@@ -141,6 +141,32 @@ def foreign_sell(t, destination_region, source_region):
                 trade_values[good] += cash
             trader.inventory_foreign[good.value] = remaining
 
+        # Traders buy food for themselves at the destination out of sales
+        # proceeds (they are away from home and must eat from local markets).
+        if trader.inv_get(Goods.food, 0) < 8:
+            food_price = destination_region.recipes[Goods.food]['price']
+            need = 8 - trader.inv_get(Goods.food, 0)
+            afford = int(trader.cash / food_price) if food_price > 0 else 0
+            to_buy = min(need, afford)
+            if to_buy > 0:
+                sellers = [a for a in destination_region.agents
+                           if a.output == Goods.food
+                           and a.inv_get(Goods.food, 0) > 2
+                           and not getattr(a, 'is_trader', False)]
+                bought = 0
+                for seller in sellers:
+                    if bought >= to_buy:
+                        break
+                    available = seller.inv_get(Goods.food, 0) - 2
+                    if available <= 0:
+                        continue
+                    take = min(available, to_buy - bought)
+                    seller.inv_add(Goods.food, -take)
+                    seller.cash += take * food_price
+                    trader.cash -= take * food_price
+                    trader.inv_add(Goods.food, take)
+                    bought += take
+
     if total_sold_value > 0 and t % 50 == 0:
         loginfo(t, f"TRADE {source_region.name}->{destination_region.name}: "
                 f"sold {total_sold_quantity} units worth ${total_sold_value:.2f} "

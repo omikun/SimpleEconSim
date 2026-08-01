@@ -29,6 +29,7 @@ pre_mortem_state = {}
 wealth_snapshots = {}
 agent_birth = {}   # aid -> birth_round
 death_turn = {}    # aid -> turn of death (if died)
+death_causes = {}  # aid -> (turn, prof_name, cause)
 
 PROF_NAMES = {
     Goods.food: 'Food',
@@ -50,6 +51,34 @@ PROF_ORDER = ['Food', 'Wood', 'Furniture', 'Trader', 'Corp', 'Gov', '?']
 # Instrumentation (monkey-patches)
 # =============================================================================
 
+def _prof_name(agent):
+    """Human-readable profession name for an agent."""
+    if getattr(agent, 'is_trader', False):
+        return 'Trader'
+    if getattr(agent, 'is_corporation', False):
+        return 'Corp'
+    if getattr(agent, 'is_government', False):
+        return 'Gov'
+    return PROF_NAMES.get(agent.output, str(agent.output))
+
+
+def _determine_death_cause(ctx, t, agent, agents):
+    """Classify the cause of death before _handle_death mutates the agent."""
+    if agent.hungry_steps >= ctx.starve_limit:
+        return 'Starved'
+    age = agent.age(t)
+    wealth = agent.wealth()
+    has_wealth = age < 210 and wealth > ctx.cost_of_living
+    crowded = len(agents) > ctx.carrying_capacity * 0.85
+    if has_wealth and crowded:
+        return 'Age+Wealth+Crowded'
+    if has_wealth:
+        return 'Age+Wealth'
+    if crowded:
+        return 'Age+Crowded'
+    return 'Age'
+
+
 def _patch_bank():
     import econsim_trade_money as _tm
     orig_borrow = _tm.Bank.Borrow
@@ -66,8 +95,6 @@ def _patch_lifecycle():
 
     orig_death = _lm._handle_death
     def patched_death(ctx, t, agent, agents):
-        # Record death turn for lifespan chart
-        death_turn[agent.id] = t
         wealth = agent.cash + ctx.bank.deposits.get(agent, 0)
         debt = sum(l.principle - l.principle_paid for l in agent.loans) if agent.loans else 0
         total_val = wealth + sum(
@@ -75,7 +102,12 @@ def _patch_lifecycle():
             for g in [Goods.food, Goods.wood, Goods.furniture]
         ) - debt
         pre_mortem_state[agent.id] = {'total': total_val, 'wealth': wealth, 'debt': debt}
-        return orig_death(ctx, t, agent, agents)
+        cause = _determine_death_cause(ctx, t, agent, agents)
+        result = orig_death(ctx, t, agent, agents)
+        if result:
+            death_turn[agent.id] = t
+            death_causes[agent.id] = (t, _prof_name(agent), cause)
+        return result
     _lm._handle_death = patched_death
 
     orig_wealth = _lm._handle_wealth_inheritance
@@ -86,11 +118,7 @@ def _patch_lifecycle():
         total_val = state.get('total', 0)
         heir_ids = [d.id for d in living_descendants]
         went_to_gov = (len(living_descendants) == 0 and ctx.default_gov is not None)
-        output = agent.output
-        if getattr(agent, 'is_trader', False): prof_name = 'Trader'
-        elif getattr(agent, 'is_corporation', False): prof_name = 'Corp'
-        elif getattr(agent, 'is_government', False): prof_name = 'Gov'
-        else: prof_name = PROF_NAMES.get(output, str(output))
+        prof_name = _prof_name(agent)
         inheritance_events.append((
             t, agent.id, prof_name, total_val,
             wealth_val, debt_val, heir_ids, went_to_gov,
@@ -393,6 +421,24 @@ def main():
         print(f"\nCould not generate plots: {e}")
         import traceback
         traceback.print_exc()
+
+    # =========================================================================
+    # DEATH CAUSES BY PROFESSION
+    # =========================================================================
+    print(f"\n--- Death Causes by Profession ({time_steps} turns) ---")
+    causes = ['Starved', 'Age', 'Age+Wealth', 'Age+Crowded', 'Age+Wealth+Crowded']
+    profs = sorted({p for _, p, _ in death_causes.values()})
+    header = (" " * 12) + "".join(f"{c:>18}" for c in causes) + f"{'Total':>8}"
+    print(header)
+    for prof in profs:
+        row = f"{prof:>12}"
+        total = 0
+        for c in causes:
+            n = sum(1 for _, p, cc in death_causes.values() if p == prof and cc == c)
+            row += f"{n:>18}"
+            total += n
+        row += f"{total:>8}"
+        print(row)
 
 
 if __name__ == "__main__":
