@@ -426,6 +426,20 @@ def _handle_reproduction(ctx: LiveContext, t, agent, agents, new_agents):
 # DEATH
 # =============================================================================
 
+def _is_last_of_profession(agent, agents, ctx):
+    """Return True if agent is the sole producer of their profession.
+    
+    Does not apply to traders, corporations, government agents, or gov output.
+    """
+    if agent.is_trader or agent.is_corporation or agent.is_government:
+        return False
+    output = agent.output
+    if output == Goods.gov:
+        return False
+    count = sum(1 for a in agents if a.alive and a.output == output and not a.is_trader)
+    return count <= 1
+
+
 def _handle_death(ctx: LiveContext, t, agent, agents):
     """Determine if agent dies (starvation or old age). Clean up assets."""
     if agent.hungry_steps < ctx.starve_limit:
@@ -470,6 +484,10 @@ def _handle_death(ctx: LiveContext, t, agent, agents):
             overage = current_pop - threshold
             crowding_factor = 1.0 + (overage / (ctx.carrying_capacity * 0.15)) * 4.0
             adjusted_prob *= crowding_factor
+        # Last-of-profession safety net: the final producer of any good
+        # (excluding gov) cannot die — prevents profession extinction.
+        if _is_last_of_profession(agent, agents, ctx):
+            return False
         if rand.random() > adjusted_prob:
             return False  # survived
         agent.alive = False
