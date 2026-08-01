@@ -19,6 +19,8 @@ from goods import Goods, profession
 from region import Region, get_total_cash
 from econsim_states import starvation_limit, max_career_switches, probability_birth, birth_gap
 from logger import loginfo, logInit
+import wealth_lineage
+import wealth_diagnostic
 
 
 # =============================================================================
@@ -255,6 +257,10 @@ def main():
     print(f"Region_A: {len(region_a.agents)} agents, Gov: ${region_a.gov.agent.cash:.2f}")
     print(f"Region_B: {len(region_b.agents)} agents, Gov: ${region_b.gov.agent.cash:.2f}")
 
+    # Instrument diagnostics so they record from THIS simulation run
+    wealth_lineage.init_collectors()
+    wealth_diagnostic.init_collectors()
+
     for t in range(1, time_steps + 1):
         cash_before = (get_total_cash(region_a.agents, region_a.bank) + region_a.charity.cash
                        + get_total_cash(region_b.agents, region_b.bank) + region_b.charity.cash)
@@ -263,6 +269,8 @@ def main():
         process_transport(t, region_a, region_b)
         foreign_sell(t, region_a, region_b)
         foreign_sell(t, region_b, region_a)
+        wealth_lineage.record_turn(t, region_a, region_b)
+        wealth_diagnostic.record_turn(t, region_a, region_b)
         cash_after = (get_total_cash(region_a.agents, region_a.bank) + region_a.charity.cash
                       + get_total_cash(region_b.agents, region_b.bank) + region_b.charity.cash)
         if abs(cash_after - cash_before) > 5.0:
@@ -290,6 +298,8 @@ def main():
     print("\nGenerating plots...")
     region_a.plot("region_a_output.png")
     region_b.plot("region_b_output.png")
+    wealth_lineage.generate_plots(time_steps, region_a, region_b)
+    wealth_diagnostic.generate_plots(time_steps, region_a, region_b)
 
     print("\n" + "=" * 60)
     print("FINAL SUMMARY =")
