@@ -1250,7 +1250,9 @@ class Region:
         )
         result = _lm.Live(t, self.agents, context=ctx)
 
-        # Post-processing: trader inheritance + career switching (two-region only)
+        # Post-processing: trader exit + inheritance + career switching
+        self._process_trader_exits(t, result)
+
         if self.destination_region is not None and t > 0 and hasattr(self, 'destination_region'):
             has_arbitrage = any(
                 self.recipes[g]['price'] < self.destination_region.recipes[g]['price'] * 0.95
@@ -1279,6 +1281,38 @@ class Region:
                     loginfo(t, f"{agent.name()} switched to trader (cash=${agent.cash:.0f})")
 
         return result
+
+    def _exit_trader(self, agent):
+        """Convert a trader back to a food producer (exit the profession)."""
+        agent.is_trader = False
+        agent.output = Goods.food
+        for g in Goods:
+            if g == Goods.none:
+                continue
+            agent.inventory_export[g.value] = 0
+            agent.inventory_foreign[g.value] = 0
+        agent.transport_pipeline.clear()
+        agent.hungry_steps = 0
+        agent.employer = None
+
+    def _process_trader_exits(self, t, agents):
+        """Evaluate trader profitability and exit unprofitable traders every 20 turns."""
+        if t % 20 != 0:
+            return
+        col = self.cost_of_living
+        grace_period = 40  # turns before new traders can be forced out
+        for agent in agents:
+            if not agent.is_trader or not agent.alive:
+                continue
+            age = t - agent.birth_round
+            if age < grace_period:
+                agent._trader_revenue_check = agent._trader_revenue
+                continue
+            period_revenue = agent._trader_revenue - agent._trader_revenue_check
+            if period_revenue < col:
+                self._exit_trader(agent)
+                loginfo(t, f"{agent.name()} exited trading (revenue ${period_revenue:.0f} < col ${col:.0f})")
+            agent._trader_revenue_check = agent._trader_revenue
 
     def _make_trader_internal(self, agent):
         """Set an agent's fields to make them a trader (internal version)."""

@@ -73,6 +73,8 @@ class Agent:
         '_birth_parent_wealth', '_birth_protection_until',
         # ---- SoA slot index + cache ----
         '_slot', '_cached_wealth',
+        # ---- Trader revenue tracking ----
+        '_trader_revenue', '_trader_revenue_check',
     )
 
     def __init__(self, t):
@@ -126,6 +128,8 @@ class Agent:
         self._cached_wealth = None
         self.bid_transport = 0
         self.ask_transport = 0
+        self._trader_revenue = 0.0
+        self._trader_revenue_check = 0.0
 
     def name(self):
         prof_label = profession.get(self.output, '-')

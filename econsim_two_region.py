@@ -153,6 +153,7 @@ def foreign_sell(t, destination_region, source_region):
                     trader_share -= tariff_share
 
                 trader.cash += trader_share
+                trader._trader_revenue += trader_share
                 if bank_share > 0:
                     destination_region.bank.total_deposits += bank_share
                 if tariff_share > 0:
