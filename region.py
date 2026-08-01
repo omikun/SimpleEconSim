@@ -597,7 +597,6 @@ class Region:
     # ---- Trade ----
 
     def _trade(self, t):
-        trade_goods = [Goods.food, Goods.wood, Goods.furniture, Goods.transport]
         all_goods_price = self.all_goods_price
         food_price = self.food_price
         self.bank.PayDepositInterest(self.agents)
@@ -613,22 +612,23 @@ class Region:
 
         self._decide_borrow_deposit(self.agents, all_goods_price, food_price, t)
 
-        # Single pass: gather bids/asks for all goods, stored per-good on agent
+        # ---- Phase A: trade food, wood, furniture ----
         recipes = self.recipes
         agents = self.agents
+        goods_goods = [Goods.food, Goods.wood, Goods.furniture]
         desired_food = 16
         desired_wood = 10
         desired_furn = max(1, int(16 / max(1, recipes[Goods.furniture]['price'])))
         desires = {Goods.food: desired_food, Goods.wood: desired_wood,
-                   Goods.furniture: desired_furn, Goods.transport: 0}
-        prices = {g: recipes[g]['price'] for g in trade_goods}
-        total_asks = {g: 0 for g in trade_goods}
-        total_bids = {g: 0 for g in trade_goods}
+                   Goods.furniture: desired_furn}
+        prices = {g: recipes[g]['price'] for g in goods_goods}
+        total_asks = {g: 0 for g in goods_goods}
+        total_bids = {g: 0 for g in goods_goods}
         for a in agents:
             ar = recipes[a.output]
             is_emp = a.employer is not None
             mult = a.consumption_multiplier
-            for g in trade_goods:
+            for g in goods_goods:
                 p = prices[g]
                 d = desires[g]
                 self._withdraw_if_needed(a, p, d)
@@ -645,7 +645,7 @@ class Region:
 
         max_demand_ratio = 0
         most_demand_good = Goods.food
-        for good in trade_goods:
+        for good in goods_goods:
             ta = total_asks[good]
             tb = total_bids[good]
             if ta == 0 and tb == 0:
@@ -722,7 +722,52 @@ class Region:
                                     f"{gov_bought} food at ${price:.2f}")
                     self.gov.deposit_remaining(self.bank)
 
+        # ---- Phase B: trade transport (traders now know export volume) ----
+        transport_price = recipes[Goods.transport]['price']
+        tr_asks = 0
+        tr_bids = 0
+        for a in agents:
+            tr_bid = self._calculate_transport_bid(a, transport_price)
+            a.bid_transport = tr_bid
+            a.remainingCash -= tr_bid * transport_price
+            tr_bids += tr_bid
+            tr_ask = self._calculate_ask(a, Goods.transport, transport_price, a.employer is not None)
+            a.ask_transport = tr_ask
+            tr_asks += tr_ask
+        if tr_asks == 0 and tr_bids == 0:
+            self._price_decay(Goods.transport)
+        else:
+            dr = 5.0 if tr_asks == 0 else tr_bids / tr_asks
+            self.demand_ratio_log[Goods.transport].append(dr)
+            self.demand_log[Goods.transport].append(tr_bids)
+            self.supply_log[Goods.transport].append(tr_asks)
+            if max_demand_ratio < dr and tr_bids > 0:
+                max_demand_ratio = dr
+            price = self._set_price(dr, Goods.transport)
+            if dr > 0 and tr_bids > 0 and tr_asks > 0:
+                total_bought, _ = self._buy(t, Goods.transport, price, tr_asks)
+                askers = sorted(agents, key=lambda a: a.ask_transport, reverse=True)
+                _, total_sold = self._sell(askers, Goods.transport, price, t, total_bought, 0)
+                self.sold_log[Goods.transport].append(total_sold)
+            else:
+                self.sold_log[Goods.transport].append(0)
+
         self.most_demand = most_demand_good
+
+    def _calculate_transport_bid(self, agent, transport_price):
+        """Traders bid transport based on goods waiting in export inventory."""
+        if not agent.is_trader:
+            return 0
+        capacity = self.recipes[Goods.transport]['capacity']
+        total_export = sum(agent.inventory_export[g.value] for g in [Goods.food, Goods.wood, Goods.furniture])
+        if total_export <= 0:
+            return 0
+        needed = max(1, (total_export + capacity - 1) // capacity)  # ceil division
+        spendable = max(0, agent.remainingCash - self.cost_of_living * 5)
+        affordable = int(spendable // transport_price) if transport_price > 0 else needed
+        # Don't buy more than maxinv (non-storable, maxinv=1, but future-proof)
+        max_buy = min(needed, self.recipes[Goods.transport]['maxinv'])
+        return min(max_buy, affordable)
 
     def _decide_borrow_deposit(self, agents, all_goods_price, food_price, t):
         for a in agents:
