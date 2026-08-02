@@ -184,6 +184,7 @@ class Region:
         self.destination_region = None
         self.exchange_rate = 1.0
         self.exchange_rate_log = []
+        self.trade_flow_log = []
         self.cumulative_trade_balance = 0.0
 
         for g in [Goods.food, Goods.wood, Goods.furniture, Goods.transport]:
@@ -878,8 +879,9 @@ class Region:
                 return min(need, affordable)
             destination = agent.destination_region
             if destination is not None:
-                # Use cached fee multiplier to check true profitability
-                effective_sell = destination.recipes[good]['price'] * self._trade_fee_mult
+                # Use cached fee multiplier + FX to check true profitability
+                # (foreign_sell prices exports at dest price * fee mult * fx).
+                effective_sell = destination.recipes[good]['price'] * self._trade_fee_mult * self.exchange_rate
                 if effective_sell <= good_price * 1.01:  # need at least 1% margin
                     return 0
             max_trader_inventory = agent_recipe['maxinv']
@@ -920,10 +922,10 @@ class Region:
     def _calculate_ask(self, agent, good, good_price, is_employee):
         if agent.is_trader:
             # Only sell export inventory locally if local price beats
-            # the expected foreign net (destination price × fee multiplier).
+            # the expected foreign net (dest price × fee mult × FX).
             dest = self.destination_region
             if dest is not None:
-                foreign_net = dest.recipes.get(good, {}).get('price', 0) * self._trade_fee_mult
+                foreign_net = dest.recipes.get(good, {}).get('price', 0) * self._trade_fee_mult * self.exchange_rate
                 if good_price <= foreign_net:
                     return 0  # better to sell cross-region
             return max(0, agent.inventory_export[good.value])

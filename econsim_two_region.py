@@ -32,6 +32,30 @@ profession[Goods.none] = 'T'  # traders show as 'T'
 MAX_TRADER_FRACTION = 0.2
 TRANSPORT_DELAY = 1
 
+# Floating exchange rate tuning: recent net trade flows (rolling window, not
+# cumulative stock) drive the rate; a gentle reversion pulls toward parity.
+FX_WINDOW = 40            # rolling window (turns) of net flows used
+FX_SENSITIVITY = 0.00005  # rate change per $ of average recent flow
+FX_REVERT = 0.01          # per-turn pull toward parity (1.0)
+
+
+def update_exchange_rate(region):
+    """Adjust a region's floating exchange rate from recent net trade flows.
+
+    Surplus recent flows push the rate up (currency strengthens, pricing its
+    exports higher abroad, self-correcting).  Balanced trade relaxes it back
+    toward parity.  Records the rate into exchange_rate_log each call.
+    """
+    if not getattr(region.gov, 'floating_exchange_rate_enabled', True):
+        region.exchange_rate_log.append(region.exchange_rate)
+        return
+    recent = region.trade_flow_log[-FX_WINDOW:]
+    flow = sum(recent) / len(recent) if recent else 0.0
+    region.exchange_rate *= (1 + flow * FX_SENSITIVITY)
+    region.exchange_rate += (1.0 - region.exchange_rate) * FX_REVERT
+    region.exchange_rate = max(0.5, min(2.0, region.exchange_rate))
+    region.exchange_rate_log.append(region.exchange_rate)
+
 
 # =============================================================================
 # Inter-region transport & foreign-sell
@@ -129,7 +153,9 @@ def foreign_sell(t, destination_region, source_region):
             ask_price = price * 0.95
             fx_rate = source_region.exchange_rate
             if fx_rate != 1.0 and source_region.gov.floating_exchange_rate_enabled:
-                ask_price = ask_price / fx_rate
+                # Stronger currency (rate > 1) makes this region's exports
+                # pricier abroad, damping a trade surplus (self-correcting).
+                ask_price = ask_price * fx_rate
             buyers = [a for a in destination_region.agents
                       if not getattr(a, 'is_trader', False) and a.cash > ask_price]
             random.shuffle(buyers)
@@ -280,11 +306,8 @@ def main():
             turn_export = sum(region.export_val[g][-1] for g in [Goods.food, Goods.wood, Goods.furniture] if region.export_val[g])
             turn_import = sum(region.import_val[g][-1] for g in [Goods.food, Goods.wood, Goods.furniture] if region.import_val[g])
             region.cumulative_trade_balance += (turn_export - turn_import)
-            if getattr(region.gov, 'floating_exchange_rate_enabled', True):
-                adj = region.cumulative_trade_balance * 0.000005
-                region.exchange_rate *= (1 + adj)
-                region.exchange_rate = max(0.1, min(10.0, region.exchange_rate))
-            region.exchange_rate_log.append(region.exchange_rate)
+            region.trade_flow_log.append(turn_export - turn_import)
+            update_exchange_rate(region)
 
         for g in [Goods.food, Goods.wood, Goods.furniture]:
             price_a = region_a.recipes[g]['price']
