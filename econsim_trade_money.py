@@ -82,6 +82,10 @@ class Bank():
         self.turn_loan_interest = 0
         self.gov = gov  # Reference to government for bailout decisions
 
+        # ---- Multi-currency FX (Phase 1) ----
+        self.foreign_reserves = defaultdict(float)   # currency -> holdings
+        self.fx_pool = 0.0                           # domestic money for FX desk
+
     def Borrow(self, t, agent, amount):
         borrowable_amount = (self.total_deposits * (1 - self.reserve_fraction)
                              - self.total_liabilities)

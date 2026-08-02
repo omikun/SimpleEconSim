@@ -99,10 +99,12 @@ class Government:
         self.trader_recycling_enabled = True
         self.trader_recycling_rate = 0.20  # fraction of import sale to bank
 
-        # 11. Floating Exchange Rate (market-driven currency adjustment)
-        #     When enabled, the exchange rate adjusts based on cumulative
-        #     trade balance to self-correct import/export imbalances.
-        self.floating_exchange_rate_enabled = True
+        # 11. FX regime (Phase 1: central-bank quote with reserves)
+        #     'fixed'    - mid pinned at parity; convertibility reserve-capped.
+        #     'managed'  (default) - reserve-pressure rule moves the mid.
+        #     'floating' - Phase 3 order book; for now behaves like managed.
+        self.floating_exchange_rate_enabled = True  # legacy alias
+        self.fx_regime = 'managed'
 
         # ========== Food Aid / Welfare Configuration ==========
 
@@ -522,6 +524,7 @@ class Government:
         logdebug(t, f"Government({self.name}) distributed ${total_distributed:.2f} welfare "
                     f"to {len(starving_agents)} agents")
         return total_distributed
+
 
 def create_default_government(t, initial_cash=200):
     """Create the default government for the simulation."""

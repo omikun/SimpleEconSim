@@ -21,6 +21,7 @@ from econsim_states import starvation_limit, max_career_switches, probability_bi
 from logger import loginfo, logInit
 import wealth_lineage
 import wealth_diagnostic
+import forex as fx
 
 
 # =============================================================================
@@ -40,12 +41,18 @@ FX_REVERT = 0.01          # per-turn pull toward parity (1.0)
 
 
 def update_exchange_rate(region):
-    """Adjust a region's floating exchange rate from recent net trade flows.
+    """Adjust the region's exchange rate.
 
-    Surplus recent flows push the rate up (currency strengthens, pricing its
-    exports higher abroad, self-correcting).  Balanced trade relaxes it back
-    toward parity.  Records the rate into exchange_rate_log each call.
+    Phase 1: delegates to the region's ForexDesk (central-bank quote with
+    reserve constraints) when wired.  Falls back to the legacy trade-flow
+    heuristic when no desk exists (e.g. single-region or external scripts).
     """
+    desk = getattr(region, 'forex', None)
+    if desk is not None:
+        desk.update(0, bank=getattr(region, 'bank', None),
+                    fx_regime=getattr(region.gov, 'fx_regime', 'managed'))
+        desk.save_rate(region)
+        return region.exchange_rate
     if not getattr(region.gov, 'floating_exchange_rate_enabled', True):
         region.exchange_rate_log.append(region.exchange_rate)
         return
@@ -135,6 +142,9 @@ def foreign_sell(t, destination_region, source_region):
     # Use cached trader list (maintained on Region) — avoid O(N) filter per call
     traders = [a for a in source_region.trader_agents
                if a.home_region == sname]
+    use_fx = (getattr(source_region, 'forex', None) is not None
+              and getattr(source_region, 'home_currency', None) is not None)
+    dest_currency = destination_region.home_currency
     total_sold_value = 0.0
     total_sold_quantity = 0
     trade_volumes = defaultdict(int)
@@ -151,11 +161,6 @@ def foreign_sell(t, destination_region, source_region):
                 continue
             price = destination_region.recipes[good]['price']
             ask_price = price * 0.95
-            fx_rate = source_region.exchange_rate
-            if fx_rate != 1.0 and source_region.gov.floating_exchange_rate_enabled:
-                # Stronger currency (rate > 1) makes this region's exports
-                # pricier abroad, damping a trade surplus (self-correcting).
-                ask_price = ask_price * fx_rate
             buyers = [a for a in destination_region.agents
                       if not getattr(a, 'is_trader', False) and a.cash > ask_price]
             random.shuffle(buyers)
@@ -180,7 +185,10 @@ def foreign_sell(t, destination_region, source_region):
                     tariff_share = cash * destination_region.gov.import_tariff_rate
                     trader_share -= tariff_share
 
-                trader.cash += trader_share
+                if use_fx:
+                    trader.wallets[dest_currency] += trader_share
+                else:
+                    trader.cash += trader_share
                 trader._trader_revenue += trader_share
                 if bank_share > 0:
                     destination_region.bank.total_deposits += bank_share
@@ -205,7 +213,11 @@ def foreign_sell(t, destination_region, source_region):
         if trader.inv_get(Goods.food, 0) < 8:
             food_price = destination_region.recipes[Goods.food]['price']
             need = 8 - trader.inv_get(Goods.food, 0)
-            afford = int(trader.cash / food_price) if food_price > 0 else 0
+            if use_fx:
+                wallet_bal = trader.wallets.get(dest_currency, 0.0)
+                afford = int(wallet_bal / food_price) if food_price > 0 else 0
+            else:
+                afford = int(trader.cash / food_price) if food_price > 0 else 0
             to_buy = min(need, afford)
             if to_buy > 0:
                 sellers = [a for a in destination_region.agents
@@ -222,9 +234,15 @@ def foreign_sell(t, destination_region, source_region):
                     take = min(available, to_buy - bought)
                     seller.inv_add(Goods.food, -take)
                     seller.cash += take * food_price
-                    trader.cash -= take * food_price
+                    if use_fx:
+                        trader.wallets[dest_currency] -= take * food_price
+                    else:
+                        trader.cash -= take * food_price
                     trader.inv_add(Goods.food, take)
                     bought += take
+
+    if use_fx:
+        fx.repatriate_traders(traders, source_region, t)
 
     if total_sold_value > 0 and t % 50 == 0:
         loginfo(t, f"TRADE {source_region.name}->{destination_region.name}: "
@@ -280,6 +298,9 @@ def main():
         if getattr(trader, 'is_trader', False):
             trader.destination_region = region_a
 
+    fx.connect_regions(region_a, region_b, t=0)
+    currencies = [region_a.home_currency, region_b.home_currency]
+
     print(f"Region_A: {len(region_a.agents)} agents, Gov: ${region_a.gov.agent.cash:.2f}")
     print(f"Region_B: {len(region_b.agents)} agents, Gov: ${region_b.gov.agent.cash:.2f}")
 
@@ -288,6 +309,8 @@ def main():
     wealth_diagnostic.init_collectors()
 
     for t in range(1, time_steps + 1):
+        curr_before = {c: fx.audit_currency_total([region_a, region_b], c)
+                       for c in currencies}
         cash_before = (get_total_cash(region_a.agents, region_a.bank) + region_a.charity.cash
                        + get_total_cash(region_b.agents, region_b.bank) + region_b.charity.cash)
         region_a.step(t)
@@ -301,6 +324,11 @@ def main():
                       + get_total_cash(region_b.agents, region_b.bank) + region_b.charity.cash)
         if abs(cash_after - cash_before) > 5.0:
             print(f"  T={t}: COMBINED CASH LEAK ${cash_after-cash_before:.2f}")
+
+        for c in currencies:
+            delta = fx.audit_currency_total([region_a, region_b], c) - curr_before[c]
+            if abs(delta) > 5.0:
+                print(f"  T={t}: CURRENCY {c!r} SUPPLY SHIFT ${delta:.2f}")
 
         for region, other in [(region_a, region_b), (region_b, region_a)]:
             turn_export = sum(region.export_val[g][-1] for g in [Goods.food, Goods.wood, Goods.furniture] if region.export_val[g])
@@ -377,6 +405,14 @@ def main():
         print(f"  Traders: {len(traders)} traders, "
               f"${sum(a.cash for a in traders):.2f} total cash, "
               f"ROI: {trader_roi:.1f}% (${init_trader_cash:.0f}->${final_trader_cash:.0f})")
+
+        desk = getattr(region, "forex", None)
+        if desk is not None:
+            bank = region.bank
+            print(f"  FX Desk: mid={desk.mid:.4f} ({region.home_currency} per 1 "
+                  f"{desk.other}), spread={desk.spread:.2%}, "
+                  f"reserves={ {k: round(v, 2) for k, v in dict(bank.foreign_reserves).items()} }, "
+                  f"fx_pool=${bank.fx_pool:.2f}")
 
     print("\nDone.")
 

@@ -65,6 +65,7 @@ class Agent:
         'is_charity', 'is_trader', 'home_region', 'destination_region',
         'inventory_export', 'transport_pipeline', 'inventory_foreign',
         'transport_delay',
+        'wallets', 'home_currency',
         # ---- SoA slot index + cache ----
         # ---- Per-good bid/ask (set via setattr in region._trade) ----
         'bid_food', 'bid_wood', 'bid_furniture', 'bid_transport',
@@ -122,6 +123,9 @@ class Agent:
         self.transport_pipeline = []                  # list of {'turns_left', 'good', 'quantity'}
         self.inventory_foreign = [0] * _NUM_GOODS     # list, not defaultdict
         self.transport_delay = 1                      # default; overridden per region-pair
+        # ---- Multi-currency wallets (Phase 1 FX) ----
+        self.wallets = defaultdict(float)             # currency -> balance (foreign only)
+        self.home_currency = None                     # set by Region
         # ---- SoA slot index (assigned by Region) ----
         self._slot = -1
         self.remainingCash = 0

@@ -666,6 +666,14 @@ def _handle_wealth_inheritance(ctx: LiveContext, t, agent, living_descendants):
         for i, descendent in enumerate(living_descendants):
             extra_cash = cash_remainder if i == 0 else 0
             descendent.cash += cash_share + extra_cash
+        # Distribute foreign-currency wallets evenly to heirs
+        for currency, bal in list(agent.wallets.items()):
+            if bal <= 0:
+                continue
+            wallet_share = bal / num_heirs
+            for descendent in living_descendants:
+                descendent.wallets[currency] += wallet_share
+                agent.wallets[currency] = 0.0
         # Distribute inventory — iterate over Goods enum (list-based inventory)
         for g_enum in Goods:
             if g_enum == Goods.none:
@@ -684,6 +692,12 @@ def _handle_wealth_inheritance(ctx: LiveContext, t, agent, living_descendants):
     else:
         if government is not None:
             government.agent.cash += inheritance_cash
+            # Transfer foreign-currency wallets to government
+            for currency, bal in list(agent.wallets.items()):
+                if bal <= 0:
+                    continue
+                government.agent.wallets[currency] += bal
+                agent.wallets[currency] = 0.0
             if inheritance_deposits > 0:
                 # Transfer deposit to government (total_deposits unchanged — it's a transfer)
                 ctx.bank.deposits[government.agent] = \
@@ -703,3 +717,4 @@ def _zero_out_dead_agent(ctx: LiveContext, agent):
     agent.cash = 0
     if agent in ctx.bank.deposits:
         del ctx.bank.deposits[agent]
+    agent.wallets.clear()

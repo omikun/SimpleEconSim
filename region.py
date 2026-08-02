@@ -105,10 +105,14 @@ def compute_gini(agents, good):
 
 def get_total_cash(agents, bank=None):
     """Total cash in the system: agent cash + bank equity.
-    
+
     *bank* defaults to the module-level *trade.bank* for backward compat
     with econsim.py (single-region).  Callers with per-region banks pass
     explicitly.
+
+    Foreign-currency wallets are excluded here to keep the legacy
+    single-currency conservation checks intact; per-currency audits use
+    forex.audit_currency_total instead.
     """
     if bank is None:
         return sum(agent.cash for agent in agents)
@@ -127,6 +131,7 @@ class Region:
                  profession_distribution: dict = None, number_of_traders: int = None,
                  transport_delay: int = 1):
         self.name = name
+        self.home_currency = name       # Phase 1 FX: each region mints its own
         self.agents: list = []          # compact list of living agents (no Nones)
         self.max_agents = MAX_AGENTS    # Population cap for LiveContext
         self.transport_delay = transport_delay
@@ -264,6 +269,7 @@ class Region:
                 initialize_agent(agent, output, 10, 2, cash)
                 agent.region = self.name
                 agent._bank_ref = self.bank
+                agent.home_currency = self.home_currency
                 agents.append(agent)
 
         for _ in range(self._number_of_traders):
@@ -274,6 +280,7 @@ class Region:
             trader.region = self.name
             trader.cash = 200.0
             trader._bank_ref = self.bank
+            trader.home_currency = self.home_currency
             for g in Goods:
                 if g == Goods.none:
                     continue
@@ -285,6 +292,7 @@ class Region:
         agents.append(self.gov.agent)
         self.gov.agent.region = self.name
         self.gov.agent._bank_ref = self.bank
+        self.gov.agent.home_currency = self.home_currency
         self.agents = agents
 
     def _register_citizens(self):
@@ -881,7 +889,11 @@ class Region:
             if destination is not None:
                 # Use cached fee multiplier + FX to check true profitability
                 # (foreign_sell prices exports at dest price * fee mult * fx).
-                effective_sell = destination.recipes[good]['price'] * self._trade_fee_mult * self.exchange_rate
+                fx_rate = self.exchange_rate
+                desk = getattr(self, 'forex', None)
+                if desk is not None:
+                    fx_rate = desk.buy_rate()
+                effective_sell = destination.recipes[good]['price'] * self._trade_fee_mult * fx_rate
                 if effective_sell <= good_price * 1.01:  # need at least 1% margin
                     return 0
             max_trader_inventory = agent_recipe['maxinv']
@@ -925,7 +937,11 @@ class Region:
             # the expected foreign net (dest price × fee mult × FX).
             dest = self.destination_region
             if dest is not None:
-                foreign_net = dest.recipes.get(good, {}).get('price', 0) * self._trade_fee_mult * self.exchange_rate
+                fx_rate = self.exchange_rate
+                desk = getattr(self, 'forex', None)
+                if desk is not None:
+                    fx_rate = desk.buy_rate()
+                foreign_net = dest.recipes.get(good, {}).get('price', 0) * self._trade_fee_mult * fx_rate
                 if good_price <= foreign_net:
                     return 0  # better to sell cross-region
             return max(0, agent.inventory_export[good.value])
