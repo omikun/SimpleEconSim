@@ -137,6 +137,23 @@ from agent import Agent
 Agent._process_pipeline = _agent_process_pipeline
 
 
+def _pending_imports(dest, src):
+    """Goods that *src*'s traders have physically delivered to *dest*.
+
+    Returns {Goods.good: [(trader, qty), ...]}.  The main loop installs this
+    on each destination before step so the round-1 auction can include them.
+    """
+    pend = {}
+    for trader in src.trader_agents:
+        if getattr(trader, 'destination_region', None) is not dest:
+            continue
+        for g in (Goods.food, Goods.wood, Goods.furniture):
+            qty = trader.inventory_foreign[g.value]
+            if qty > 0:
+                pend.setdefault(g, []).append((trader, qty))
+    return pend
+
+
 def foreign_sell(t, destination_region, source_region):
     sname = source_region.name
     # Use cached trader list (maintained on Region) — avoid O(N) filter per call
@@ -263,6 +280,11 @@ def foreign_sell(t, destination_region, source_region):
     for good in [Goods.food, Goods.wood, Goods.furniture]:
         volume_sold = trade_volumes[good]
         value_sold = trade_values[good]
+        # Phase 4: add what sold through the round-1 auction on the
+        # destination (credits source traders in destination-currency wallets).
+        aq, av = destination_region._auction_import_sales.get(good, (0, 0.0))
+        volume_sold += aq
+        value_sold += av
         if volume_sold > 0:
             source_region.export_vol[good].append(volume_sold)
             source_region.export_val[good].append(value_sold)
@@ -320,6 +342,10 @@ def main():
         curr_before = {c: fx.audit_currency_total([region_a, region_b], c)
                        for c in currencies}
         cash_before = sum(curr_before.values())
+        region_a.pending_imports = _pending_imports(region_a, region_b)
+        region_b.pending_imports = _pending_imports(region_b, region_a)
+        region_a._auction_import_sales = {}
+        region_b._auction_import_sales = {}
         region_a.step(t)
         region_b.step(t)
         process_transport(t, region_a, region_b)
