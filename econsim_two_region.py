@@ -186,7 +186,7 @@ def foreign_sell(t, destination_region, source_region):
                     trader_share -= tariff_share
 
                 if use_fx:
-                    trader.wallets[dest_currency] += trader_share
+                    fx.fx_add(trader, dest_currency, trader_share)
                 else:
                     trader.cash += trader_share
                 trader._trader_revenue += trader_share
@@ -214,7 +214,7 @@ def foreign_sell(t, destination_region, source_region):
             food_price = destination_region.recipes[Goods.food]['price']
             need = 8 - trader.inv_get(Goods.food, 0)
             if use_fx:
-                wallet_bal = trader.wallets.get(dest_currency, 0.0)
+                wallet_bal = fx.fx_balance(trader, dest_currency)
                 afford = int(wallet_bal / food_price) if food_price > 0 else 0
             else:
                 afford = int(trader.cash / food_price) if food_price > 0 else 0
@@ -235,7 +235,7 @@ def foreign_sell(t, destination_region, source_region):
                     seller.inv_add(Goods.food, -take)
                     seller.cash += take * food_price
                     if use_fx:
-                        trader.wallets[dest_currency] -= take * food_price
+                        fx.fx_sub(trader, dest_currency, take * food_price)
                     else:
                         trader.cash -= take * food_price
                     trader.inv_add(Goods.food, take)
@@ -311,8 +311,7 @@ def main():
     for t in range(1, time_steps + 1):
         curr_before = {c: fx.audit_currency_total([region_a, region_b], c)
                        for c in currencies}
-        cash_before = (get_total_cash(region_a.agents, region_a.bank) + region_a.charity.cash
-                       + get_total_cash(region_b.agents, region_b.bank) + region_b.charity.cash)
+        cash_before = sum(curr_before.values())
         region_a.step(t)
         region_b.step(t)
         process_transport(t, region_a, region_b)
@@ -320,8 +319,8 @@ def main():
         foreign_sell(t, region_b, region_a)
         wealth_lineage.record_turn(t, region_a, region_b)
         wealth_diagnostic.record_turn(t, region_a, region_b)
-        cash_after = (get_total_cash(region_a.agents, region_a.bank) + region_a.charity.cash
-                      + get_total_cash(region_b.agents, region_b.bank) + region_b.charity.cash)
+        cash_after = sum(fx.audit_currency_total([region_a, region_b], c)
+                         for c in currencies)
         if abs(cash_after - cash_before) > 5.0:
             print(f"  T={t}: COMBINED CASH LEAK ${cash_after-cash_before:.2f}")
 

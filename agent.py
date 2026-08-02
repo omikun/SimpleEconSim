@@ -123,8 +123,11 @@ class Agent:
         self.transport_pipeline = []                  # list of {'turns_left', 'good', 'quantity'}
         self.inventory_foreign = [0] * _NUM_GOODS     # list, not defaultdict
         self.transport_delay = 1                      # default; overridden per region-pair
-        # ---- Multi-currency wallets (Phase 1 FX) ----
-        self.wallets = defaultdict(float)             # currency -> balance (foreign only)
+        # ---- Multi-currency wallets (Phase 2: lazy, practical) ----
+        # Only traders normally need foreign balances.  Non-traders keep this
+        # as None (no empty-dict allocation); forex.fx_add() materializes a
+        # dict lazily when a balance is actually needed (e.g. inheritance).
+        self.wallets = None                           # dict | None
         self.home_currency = None                     # set by Region
         # ---- SoA slot index (assigned by Region) ----
         self._slot = -1

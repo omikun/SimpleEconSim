@@ -9,6 +9,7 @@ from agent import Agent, initialize_agent, get_input_commodity, get_output_commo
 from goods import Goods, profession
 from logger import logdebug, loginfo, logwarning
 from random_cache import rand
+import forex as fx
 
 
 # =============================================================================
@@ -666,14 +667,17 @@ def _handle_wealth_inheritance(ctx: LiveContext, t, agent, living_descendants):
         for i, descendent in enumerate(living_descendants):
             extra_cash = cash_remainder if i == 0 else 0
             descendent.cash += cash_share + extra_cash
-        # Distribute foreign-currency wallets evenly to heirs
-        for currency, bal in list(agent.wallets.items()):
-            if bal <= 0:
-                continue
-            wallet_share = bal / num_heirs
-            for descendent in living_descendants:
-                descendent.wallets[currency] += wallet_share
-                agent.wallets[currency] = 0.0
+        # Distribute foreign-currency wallets evenly to heirs (None-safe:
+        # non-traders never have a wallet, so this loop is a no-op).
+        dead_w = getattr(agent, 'wallets', None)
+        if dead_w:
+            for currency, bal in list(dead_w.items()):
+                if bal <= 0:
+                    continue
+                wallet_share = bal / num_heirs
+                for descendent in living_descendants:
+                    fx.fx_add(descendent, currency, wallet_share)
+                dead_w[currency] = 0.0
         # Distribute inventory — iterate over Goods enum (list-based inventory)
         for g_enum in Goods:
             if g_enum == Goods.none:
@@ -692,12 +696,14 @@ def _handle_wealth_inheritance(ctx: LiveContext, t, agent, living_descendants):
     else:
         if government is not None:
             government.agent.cash += inheritance_cash
-            # Transfer foreign-currency wallets to government
-            for currency, bal in list(agent.wallets.items()):
-                if bal <= 0:
-                    continue
-                government.agent.wallets[currency] += bal
-                agent.wallets[currency] = 0.0
+            # Transfer foreign-currency wallets to government (None-safe)
+            dead_w = getattr(agent, 'wallets', None)
+            if dead_w:
+                for currency, bal in list(dead_w.items()):
+                    if bal <= 0:
+                        continue
+                    fx.fx_add(government.agent, currency, bal)
+                    dead_w[currency] = 0.0
             if inheritance_deposits > 0:
                 # Transfer deposit to government (total_deposits unchanged — it's a transfer)
                 ctx.bank.deposits[government.agent] = \
@@ -717,4 +723,6 @@ def _zero_out_dead_agent(ctx: LiveContext, agent):
     agent.cash = 0
     if agent in ctx.bank.deposits:
         del ctx.bank.deposits[agent]
-    agent.wallets.clear()
+    dead_w = getattr(agent, 'wallets', None)
+    if dead_w is not None:
+        dead_w.clear()

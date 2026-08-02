@@ -22,6 +22,47 @@ DESK_SPREAD = 0.02               # round-trip cost fraction (2%)
 DESK_BAND = (0.5, 2.0)           # rate bounds (policy floor/ceiling)
 
 
+def fx_wallets(a):
+    """Return a's wallet dict, lazily creating it if needed."""
+    w = getattr(a, 'wallets', None)
+    if w is None:
+        w = {}
+        a.wallets = w
+    return w
+
+
+def fx_balance(a, currency):
+    """Balance of *currency* in a's wallet (None-safe, no allocation)."""
+    w = getattr(a, 'wallets', None)
+    return w.get(currency, 0.0) if w else 0.0
+
+
+def fx_add(a, currency, amount):
+    """Add to a's wallet balance; returns new balance. Lazy materialize."""
+    if amount == 0:
+        return fx_balance(a, currency)
+    w = fx_wallets(a)
+    w[currency] = w.get(currency, 0.0) + amount
+
+
+def fx_sub(a, currency, amount):
+    """Subtract from a's wallet balance (floored at 0). Returns new balance."""
+    if amount == 0:
+        return fx_balance(a, currency)
+    w = getattr(a, 'wallets', None)
+    if w is None:
+        return 0.0
+    w[currency] = max(0.0, w.get(currency, 0.0) - amount)
+    return w[currency]
+
+
+def fx_clear(a):
+    """Drop a's wallet entirely (dead agents, no-heir escheat)."""
+    w = getattr(a, 'wallets', None)
+    if w is not None:
+        w.clear()
+
+
 class ForexDesk:
     """A region's central-bank FX desk quoting home<->foreign rates.
 
@@ -122,7 +163,7 @@ def sell_fx_to_bank(bank, trader, currency, amount, rate):
     bank fx_pool -home; trader cash +home.  Both currencies conserved.
     Returns home amount actually paid.
     """
-    amount = min(amount, trader.wallets.get(currency, 0.0))
+    amount = min(amount, fx_balance(trader, currency))
     if amount <= 0:
         return 0.0
     home = amount * rate
@@ -132,7 +173,7 @@ def sell_fx_to_bank(bank, trader, currency, amount, rate):
         amount = home / rate if rate > 0 else 0.0
     if amount <= 0:
         return 0.0
-    trader.wallets[currency] -= amount
+    fx_sub(trader, currency, amount)
     bank.foreign_reserves[currency] += amount
     bank.fx_pool -= home
     trader.cash += home
@@ -154,7 +195,7 @@ def buy_fx_from_bank(bank, trader, currency, amount, rate):
         amount = home / rate if rate > 0 else 0.0
     if amount <= 0:
         return 0.0
-    trader.wallets[currency] += amount
+    fx_add(trader, currency, amount)
     bank.foreign_reserves[currency] -= amount
     bank.fx_pool += home
     trader.cash -= home
@@ -173,7 +214,7 @@ def repatriate_trader(trader, region, t):
     desk = getattr(region, 'forex', None)
     if desk is None or not getattr(trader, 'is_trader', False):
         return 0.0
-    bal = trader.wallets.get(desk.other, 0.0)
+    bal = fx_balance(trader, desk.other)
     if bal <= 0:
         return 0.0
     rate = desk.buy_rate()
@@ -214,16 +255,64 @@ def connect_regions(region_a, region_b, t=0):
                        bank=region_b.bank)
     region_a.forex = desk_a
     region_b.forex = desk_b
-    _seed_trader_wallets(region_a, region_b)
-    _seed_trader_wallets(region_b, region_a)
+    seed_trader_wallet(region_a, region_b, t)
+    seed_trader_wallet(region_b, region_a, t)
     return desk_a, desk_b
 
 
-def _seed_trader_wallets(region, partner):
-    """Give each trader a small float of the partner currency for travel."""
+def _give_working_capital(trader, bank, currency, amount, rate):
+    """Trader buys *amount* of foreign *currency* from its home bank.
+
+    Conservation-safe replacement for the old free seed: home money moves
+    from the trader's deposit into the bank's fx_pool, and foreign money
+    moves from the bank's reserves into the trader's wallet.  Both
+    currencies are conserved; nothing is printed.
+    Returns foreign amount actually obtained.
+    """
+    if amount <= 0:
+        return 0.0
+    amount = min(amount, bank.foreign_reserves.get(currency, 0.0))
+    if amount <= 0:
+        return 0.0
+    home = amount * rate
+    max_home = bank.deposits.get(trader, 0) + trader.cash
+    if home > max_home:
+        home = max_home
+        amount = home / rate if rate > 0 else 0.0
+    if amount <= 0:
+        return 0.0
+    # Home leg: draw from trader deposit first, then cash
+    from_deposit = min(home, bank.deposits.get(trader, 0))
+    if from_deposit > 0:
+        bank.total_deposits -= from_deposit
+        bank.deposits[trader] -= from_deposit
+    home_cash = home - from_deposit
+    if home_cash > 0:
+        trader.cash -= home_cash
+    bank.fx_pool += home
+    # Foreign leg: reserves -> wallet
+    bank.foreign_reserves[currency] -= amount
+    fx_add(trader, currency, amount)
+    return amount
+
+
+def seed_trader_wallet(region, partner, t=0):
+    """Give each trader an initial foreign float OUT OF WORKING CAPITAL.
+
+    The old _seed_trader_wallets printed 100 of partner currency per trader
+    out of thin air.  Now traders buy their float from the home bank:
+      home deposit/cash -> fx_pool  (home currency conserved)
+      reserves -> wallet            (foreign currency conserved)
+
+    Returns total foreign amount seeded.
+    """
+    total = 0.0
     for a in region.agents:
-        if getattr(a, 'is_trader', False):
-            a.wallets.setdefault(partner.home_currency, 100.0)
+        if not getattr(a, 'is_trader', False):
+            continue
+        total += _give_working_capital(a, region.bank, partner.home_currency,
+                                       100.0, region.forex.sell_rate())
+    return total
 
 
 def audit_currency_total(regions, currency):
@@ -243,7 +332,7 @@ def audit_currency_total(regions, currency):
             if getattr(r, 'charity', None) is not None:
                 total += r.charity.agent.cash
         # Foreign currency held by this region's agents (wallets)
-        total += sum(a.wallets.get(currency, 0.0) for a in r.agents)
+        total += sum(fx_balance(a, currency) for a in r.agents)
         # Foreign currency held by this region's bank (reserves)
         total += bank.foreign_reserves.get(currency, 0.0)
     return total
