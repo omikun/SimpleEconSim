@@ -84,8 +84,83 @@ class ForexDesk:
         self.adj_speed = float(adj_speed)
         self.band = band
         self.log = []  # (t, mid, reserves) history
+        # Interbank order book (Phase 3): entries are
+        #   {'kind': 'bid'|'ask', 'trader': trader, 'qty': float, 'rate': float}
+        self.book = []
         if bank is not None:
             self._seed_bank(bank, initial_reserves)
+
+    def post_order(self, kind, trader, qty, rate):
+        """Post a bid (buy foreign) or ask (sell foreign) to this desk's book."""
+        if qty <= 0 or rate <= 0:
+            return 0.0
+        self.book.append({'kind': kind, 'trader': trader, 'qty': qty,
+                          'rate': rate})
+        return qty
+
+    def clear_book(self):
+        """Match crossed orders inside the bank's rate band.
+
+        A bid (buy foreign) at rate B crosses an ask (sell foreign) at rate A
+        when B >= A.  Matching transfers foreign between the two traders'
+        wallets bilaterally, and home cash between them:  the bidder pays
+        (qty * A) home cash to the asker, both in home currency.  This is
+        conservation-safe (home cash moves home-cash; foreign wallet moves
+        foreign wallet).  Uses the ASK's rate A as the trade price so the
+        bidder gets the more favorable fill for the market maker.
+        Returns total home value matched.
+        """
+        total_home = 0.0
+        bids = [o for o in self.book if o['kind'] == 'bid']
+        asks = [o for o in self.book if o['kind'] == 'ask']
+        # Sort: highest bids first, lowest asks first (best price)
+        bids.sort(key=lambda o: -o['rate'])
+        asks.sort(key=lambda o: o['rate'])
+        i = j = 0
+        _heartbeat = len(bids) + len(asks) + 1  # defensive: every iteration
+        # must advance at least one pointer; cap anyway to avoid deadlock
+        while i < len(bids) and j < len(asks) and _heartbeat > 0:
+            _heartbeat -= 1
+            b = bids[i]
+            a = asks[j]
+            if b['rate'] < a['rate']:
+                i += 1
+                continue  # no cross; move to next bid
+            price = a['rate']  # match at ask rate
+            btrader = b['trader']
+            atrader = a['trader']
+            # Cap the match by the asker's ACTUAL wallet balance (the posted
+            # qty may exceed it if the ask persisted across turns while the
+            # trader's wallet shrank).  Also cap by the bidder's home cash.
+            avail_foreign = fx_balance(atrader, self.other)
+            qty = min(b['qty'], a['qty'], avail_foreign)
+            if qty <= 0:
+                j += 1
+                continue
+            home = qty * price
+            if btrader.cash < home:
+                home = btrader.cash
+                qty = home / price if price > 0 else 0.0
+            if qty <= 0:
+                i += 1
+                continue
+            # Home leg (both are home-region traders)
+            btrader.cash -= home
+            atrader.cash += home
+            # Foreign leg: transfer exactly what fx_sub actually removes
+            before = fx_balance(atrader, self.other)
+            fx_sub(atrader, self.other, qty)
+            moved = before - fx_balance(atrader, self.other)
+            fx_add(btrader, self.other, moved)
+            total_home += moved * price
+            b['qty'] -= moved
+            a['qty'] -= moved
+            if a['qty'] <= 0 or fx_balance(atrader, self.other) <= 0:
+                j += 1
+            if b['qty'] <= 0:
+                i += 1
+        self.book = [o for o in self.book if o['qty'] > 0]
+        return total_home
 
     def _seed_bank(self, bank, initial_reserves):
         """Seed the bank's foreign-reserve war chest + domestic FX pool."""
@@ -336,3 +411,87 @@ def audit_currency_total(regions, currency):
         # Foreign currency held by this region's bank (reserves)
         total += bank.foreign_reserves.get(currency, 0.0)
     return total
+
+# =============================================================================
+# Phase 3: interbank market cycle (bids + clear + desk last resort)
+# =============================================================================
+
+WORKING_CAPITAL_TARGET = 100.0  # desired foreign float per trader
+
+
+def set_working_capital_target(amount):
+    """Globally adjust the per-trader foreign working-capital target."""
+    global WORKING_CAPITAL_TARGET
+    WORKING_CAPITAL_TARGET = float(amount)
+
+
+def cycle_market(region_a, region_b, t=0):
+    """Run one interbank market cycle across both desks.
+
+    For each desk:
+      * post a BID for each home trader's working-capital shortfall of the
+        other currency (bounded by cash they can actually pay),
+      * clear_book() matches crossing bids/asks wallet-to-wallet (conserved),
+      * residual ASKs are repatriated by the desk (fx_pool-capped) — desk as
+        market-maker of last resort,
+      * residual BIDs buy from the desk's foreign reserves (reserve-capped).
+
+    Conservation: book matches move home cash trader-to-trader and foreign
+    wallet-to-wallet; desk legs use the existing reserve-capped conversions.
+    Returns {'Region_A': value, 'Region_B': value} matched per desk.
+    """
+    result = {}
+
+    for region, partner in ((region_a, region_b), (region_b, region_a)):
+        desk = getattr(region, 'forex', None)
+        if desk is None:
+            continue
+        other = partner.home_currency
+        bank = region.bank
+
+        # ---- Post working-capital BIDs (buy foreign to fund travel) ----
+        for trader in region.trader_agents:
+            if trader.home_region != region.name:
+                continue
+            cur_bal = fx_balance(trader, other)
+            shortfall = max(0.0, WORKING_CAPITAL_TARGET - cur_bal)
+            if shortfall <= 0:
+                continue
+            rate = desk.sell_rate()
+            affordable = trader.cash / rate if rate > 0 else 0.0
+            qty = min(shortfall, affordable)
+            if qty > 0:
+                desk.post_order('bid', trader, qty, rate)
+
+        # ---- Clear the book (wallet-to-wallet, conserved) ----
+        matched = desk.clear_book()
+        result[region.name] = matched
+
+        # ---- Desk last resort: repatriate residual asks ----
+        repatriate_traders(region.trader_agents, region, t)
+
+        # ---- Desk last resort: fill residual bids from reserves ----
+        for order in list(desk.book):
+            if order['kind'] != 'bid':
+                continue
+            trader = order['trader']
+            qty = order['qty']
+            if qty <= 0:
+                continue
+            bought = buy_fx_from_bank(bank, trader, other, qty,
+                                      desk.sell_rate())
+            if bought > 0:
+                order['qty'] -= bought
+        # Drop fully-filled bids and STALE asks (trader's wallet was drained
+        # by repatriation this same turn, so those asks can never fill).
+        # Without this, foreign_sell stacks a fresh ask per turn and the book
+        # grows without bound -> O(T^2) hang.
+        desk.book = [o for o in desk.book
+                     if o['qty'] > 0 and o['kind'] == 'ask'
+                     and fx_balance(o['trader'], other) > 0]
+
+    return result
+
+
+def _get_working_capital_target():
+    return WORKING_CAPITAL_TARGET

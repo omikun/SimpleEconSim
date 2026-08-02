@@ -242,7 +242,15 @@ def foreign_sell(t, destination_region, source_region):
                     bought += take
 
     if use_fx:
-        fx.repatriate_traders(traders, source_region, t)
+        # Phase 3: post leftover foreign earnings as ASKs on the home desk's
+        # order book (book persists across turns so they can cross with
+        # next-turn working-capital bids).  Residuals are repatriated by
+        # fx.cycle_market (desk last resort) at the end of the turn.
+        desk = source_region.forex
+        for trader in traders:
+            bal = fx.fx_balance(trader, dest_currency)
+            if bal > 0:
+                desk.post_order('ask', trader, bal, desk.buy_rate())
 
     if total_sold_value > 0 and t % 50 == 0:
         loginfo(t, f"TRADE {source_region.name}->{destination_region.name}: "
@@ -317,6 +325,7 @@ def main():
         process_transport(t, region_a, region_b)
         foreign_sell(t, region_a, region_b)
         foreign_sell(t, region_b, region_a)
+        fx.cycle_market(region_a, region_b, t)
         wealth_lineage.record_turn(t, region_a, region_b)
         wealth_diagnostic.record_turn(t, region_a, region_b)
         cash_after = sum(fx.audit_currency_total([region_a, region_b], c)

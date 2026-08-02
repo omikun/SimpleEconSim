@@ -94,12 +94,13 @@ class Bank():
                 " deposit and $", self.total_liabilities,
                 "borrowable: $", borrowable_amount, " lending: $", amount)
         if amount <= 0:
-            return
+            return amount
         loan = Loan(self, agent, amount, self.interest_rate)
         agent.cash += amount
         agent.loans.append(loan)
         self.loans.append(loan)
         self.total_liabilities += amount
+        return amount
 
     def pay_principle(self, amount):
         self.total_liabilities -= amount

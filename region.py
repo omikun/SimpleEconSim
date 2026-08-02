@@ -469,10 +469,11 @@ class Region:
             equity = min(a.cash * 0.3, a.cash - 60)
             startup_target = max(300, food_price * 20)
             shortfall = max(0, startup_target - equity)
+            loaned = 0.0
             if shortfall > 0:
-                self.bank.Borrow(t, company, shortfall)
+                loaned = self.bank.Borrow(t, company, shortfall)
             a.cash -= equity
-            company.cash = equity + shortfall
+            company.cash = equity + loaned
             sector_wages = [x.wage for x in self.agents if x.is_corporation and x.output == a.output and x.wage > 0]
             company.wage = max(sector_wages) * 1.05 if sector_wages else max(1.0, food_price * 1.5)
             company.max_employees = rand.randint(10, 25)
@@ -661,13 +662,19 @@ class Region:
             if ta == 0 and tb == 0:
                 self._price_decay(good)
                 continue
-            # Imports add to effective supply, suppressing local prices
+            # Imports add to effective supply ONLY for price discovery
+            # (suppressing local prices).  The market still clears against
+            # LOCAL asks only: imported goods are already sold to destination
+            # buyers by foreign_sell, so letting _buy fill against imported
+            # units would take real cash out with no local seller to receive
+            # it (money destruction = import value).
+            price_ta = ta
             if self.import_vol.get(good) and self.import_vol[good]:
-                ta += self.import_vol[good][-1]
-            demand_ratio = 5.0 if ta == 0 else tb / ta
+                price_ta += self.import_vol[good][-1]
+            demand_ratio = 5.0 if price_ta == 0 else tb / price_ta
             self.demand_ratio_log[good].append(demand_ratio)
             self.demand_log[good].append(tb)
-            self.supply_log[good].append(ta)
+            self.supply_log[good].append(price_ta)
             if max_demand_ratio < demand_ratio and tb > 0:
                 max_demand_ratio = demand_ratio
                 most_demand_good = good
@@ -758,9 +765,10 @@ class Region:
                 max_demand_ratio = dr
             price = self._set_price(dr, Goods.transport)
             if dr > 0 and tr_bids > 0 and tr_asks > 0:
-                total_bought, _ = self._buy(t, Goods.transport, price, tr_asks)
+                total_bought, tcash = self._buy(t, Goods.transport, price, tr_asks)
                 askers = sorted(agents, key=lambda a: a.ask_transport, reverse=True)
-                _, total_sold = self._sell(askers, Goods.transport, price, t, total_bought, 0)
+                _, total_sold = self._sell(askers, Goods.transport, price, t,
+                                           total_bought, tcash)
                 self.sold_log[Goods.transport].append(total_sold)
             else:
                 self.sold_log[Goods.transport].append(0)
