@@ -921,7 +921,13 @@ class Region:
                 # a pure arbitrage-spread test (no fee/fx double-count).
                 dest_price = destination.recipes.get(good, {}).get('price', 0)
                 min_margin = self.IMPORT_MARGIN_MIN  # 5%
-                if dest_price <= good_price * (1.0 + min_margin):
+                # FX-adjusted parity: traders repatriate destination earnings
+                # at their HOME desk's buy rate.  A raw price-spread test
+                # ignores conversion (spread + managed-float drift) and lets
+                # traders buy on phantom arbitrage that conversion erases.
+                desk = getattr(self, 'forex', None)
+                home_per_dest = desk.buy_rate() if desk is not None else 1.0
+                if dest_price * home_per_dest <= good_price * (1.0 + min_margin):
                     return 0
             max_trader_inventory = agent_recipe['maxinv']
             total_holding = agent.inv_get(good, 0) + agent.inventory_export[good.value] + agent.inventory_foreign[good.value]
@@ -1022,16 +1028,23 @@ class Region:
         Repatriate_rate (dest->home) includes the FX spread, so the trader
         nets the margin after conversion.  Tariff passes through into price.
         """
-        home_price_now = self.recipes.get(good, {}).get('price', 0)
-        cost_home = max(0.05, trader.cost_get(good, 0), home_price_now)
+        cost_home = max(0.05, trader.cost_get(good, 0))
+        src_region = getattr(self, 'destination_region', None)
+        if cost_home <= 0.05 + 1e-9 and src_region is not None:
+            cost_home = max(0.05, src_region.recipes.get(good, {}).get('price', 0.0))
         margin = self.IMPORT_MARGIN_MIN + (
             self.IMPORT_MARGIN_MAX - self.IMPORT_MARGIN_MIN) * (
                 abs(hash((trader.id, good))) % 1000) / 1000.0
         tariff = getattr(self.gov, 'import_tariff_rate', 0.0)
-        dest_desk = getattr(self.destination_region, 'forex', None)
+        dest_desk = getattr(src_region, 'forex', None) if src_region is not None else None
         buy_rate = dest_desk.buy_rate() if dest_desk is not None else 1.0
         denom = max(0.05, (1.0 - tariff) * buy_rate)
-        return cost_home * (1.0 + margin) / denom
+        ask = cost_home * (1.0 + margin) / denom
+        dest_price = self.recipes.get(good, {}).get('price', 0.0)
+        if dest_price > 0:
+            cap = dest_price * (1.0 + self.IMPORT_MARGIN_MIN)
+            ask = min(ask, cap)
+        return max(0.05, ask)
 
     def _update_price_ref(self, good, demand_ratio):
         """Bounded move-toward-target price reference WITH supply scarcity.
@@ -1179,13 +1192,24 @@ class Region:
                     if good == Goods.transport:
                         buyer.inv_add(good, take)
                     elif good != Goods.food:
+                        old_q = buyer.inv_get(good, 0)
+                        old_c = buyer.cost_get(good, 0)
+                        total_q = old_q + take
+                        buyer.cost_set(good, ((old_q * old_c + take * ask)
+                                              / total_q) if total_q > 0 else ask)
                         buyer.inventory_export[good.value] += take
                     else:
                         food_needed = max(0, 8 - buyer.inv_get(good, 0))
                         keep = min(food_needed, take)
                         buyer.inv_add(good, keep)
                         if take - keep > 0:
-                            buyer.inventory_export[good.value] += take - keep
+                            export = take - keep
+                            old_q = buyer.inv_get(good, 0)
+                            old_c = buyer.cost_get(good, 0)
+                            total_q = old_q + export
+                            buyer.cost_set(good, ((old_q * old_c + export * ask)
+                                                  / total_q) if total_q > 0 else ask)
+                            buyer.inventory_export[good.value] += export
                 else:
                     buyer.inv_add(good, take)   # non-trader: personal stock
                 cash_collected += cost
@@ -1606,9 +1630,26 @@ class Region:
                 agent._trader_revenue_check = agent._trader_revenue
                 continue
             period_revenue = agent._trader_revenue - agent._trader_revenue_check
-            if period_revenue < col:
+            # Opportunity-cost benchmark: cover living costs PLUS 2%/turn on
+            # capital parked in tradable goods (inventory_export + in-transit +
+            # foreign-side), so unprofitable arbitrageurs get evicted instead
+            # of surviving forever and diluting trader ROI.
+            committed = 0.0
+            for g in Goods:
+                if g == Goods.none or g == Goods.transport:
+                    continue
+                q = (agent.inventory_export[g.value]
+                     + agent.inventory_foreign[g.value])
+                for pipe in agent.transport_pipeline:
+                    if pipe['good'] == g:
+                        q += pipe['quantity']
+                if q > 0:
+                    committed += q * agent.cost_get(g, 0)
+            benchmark = col + 0.02 * committed
+            if period_revenue < benchmark:
                 self._exit_trader(agent)
-                loginfo(t, f"{agent.name()} exited trading (revenue ${period_revenue:.0f} < col ${col:.0f})")
+                loginfo(t, f"{agent.name()} exited trading "
+                        f"(revenue ${period_revenue:.0f} < ${benchmark:.0f})")
             agent._trader_revenue_check = agent._trader_revenue
 
     def _make_trader_internal(self, agent):

@@ -12,6 +12,8 @@ Phase 3 (interbank order book) can layer on top by quoting inside the
 band exposed here (mid / spread / band) without restructuring.
 """
 
+import math
+
 
 DESK_FX_POOL_SEED = 2000.0      # domestic money the bank sets aside for FX
 DESK_FX_POOL_TARGET_FRAC = 0.15  # mean-revert fx_pool toward 15% of deposits
@@ -22,7 +24,10 @@ DESK_INITIAL_RESERVES = 3000.0   # war-chest of foreign currency at start
 #  realized trade volume, stalling convertibility)
 DESK_ADJ_SPEED = 0.05            # per-turn rate adjustment speed
 DESK_SPREAD = 0.02               # round-trip cost fraction (2%)
-DESK_BAND = (0.5, 2.0)           # rate bounds (policy floor/ceiling)
+DESK_BAND = (0.4, 2.5)           # rate bounds (policy floor/ceiling);
+# widened from (0.5, 2.0): sustained reserve pressure pinned both desks
+# at the ceiling even after damping — more room lets the float express
+# relative competitiveness instead of resting on the band wall
 
 
 def fx_wallets(a):
@@ -86,6 +91,7 @@ class ForexDesk:
         self.target_reserves = float(target_reserves)
         self.adj_speed = float(adj_speed)
         self.band = band
+        self.ppp_target = 1.0  # PPP anchor: home basket / foreign basket
         self.log = []  # (t, mid, reserves) history
         # Interbank order book (Phase 3): entries are
         #   {'kind': 'bid'|'ask', 'trader': trader, 'qty': float, 'rate': float}
@@ -196,12 +202,16 @@ class ForexDesk:
     # Reserve-pressure update (managed float)
     # ------------------------------------------------------------------
 
-    def update(self, t, bank=None, fx_regime='managed'):
+    def update(self, t, bank=None, fx_regime='managed', ppp_target=None):
         """Adjust mid from reserve pressure and record history.
 
         *fixed*: mid pinned at 1.0 (parity) — convertibility still reserve-capped.
         *managed* (default): mid moved by reserve-pressure rule.
         *floating*: Phase 3 order book; for now behaves like managed.
+
+        Phase 6: log-space capped step (the old multiplicative update
+        compounded past the band once a desk drained) + a slow PPP anchor so
+        the rate tracks relative basket costs instead of drifting to the band.
         """
         bank = bank if bank is not None else self.bank
         if bank is None:
@@ -222,8 +232,17 @@ class ForexDesk:
             ratio = reserves / self.target_reserves if self.target_reserves > 0 else 1.0
             # Drain (ratio < 1) -> foreign scarce -> mid up (home weakens),
             # discouraging imports and encouraging exports / repatriation.
-            self.mid *= 1.0 + self.adj_speed * (1.0 - ratio)
-            self.mid = max(self.band[0], min(self.band[1], self.mid))
+            # Log-space BOUNDED step: can't overshoot the band in one turn.
+            pressure = self.adj_speed * (1.0 / max(0.05, ratio) - 1.0)
+            pressure = max(-0.02, min(0.02, pressure))
+            new_mid = self.mid * math.exp(pressure)
+            # PPP anchor: slow pull toward partner/home basket-cost ratio.
+            if ppp_target is not None and ppp_target > 0:
+                self.ppp_target = ppp_target
+            if self.ppp_target > 0:
+                ppp_gap = math.log(self.ppp_target / max(0.01, self.mid))
+                new_mid *= math.exp(0.005 * ppp_gap)
+            self.mid = max(self.band[0], min(self.band[1], new_mid))
 
         self.log.append((t, self.mid, reserves))
         return self.mid

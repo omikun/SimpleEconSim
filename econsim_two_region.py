@@ -49,8 +49,16 @@ def update_exchange_rate(region):
     """
     desk = getattr(region, 'forex', None)
     if desk is not None:
+        # PPP anchor: basket cost in partner / basket cost at home.
+        partner = region.destination_region
+        ppp = 1.0
+        if partner is not None:
+            home_col = max(0.1, region.cost_of_living)
+            partner_col = max(0.1, partner.cost_of_living)
+            ppp = partner_col / home_col
         desk.update(0, bank=getattr(region, 'bank', None),
-                    fx_regime=getattr(region.gov, 'fx_regime', 'managed'))
+                    fx_regime=getattr(region.gov, 'fx_regime', 'managed'),
+                    ppp_target=ppp)
         desk.save_rate(region)
         return region.exchange_rate
     if not getattr(region.gov, 'floating_exchange_rate_enabled', True):
@@ -240,6 +248,22 @@ def foreign_sell(t, destination_region, source_region):
     return total_sold_quantity, total_sold_value
 
 
+def trader_wealth(region):
+    """Total trader wealth in home currency.
+
+    Cash + bank deposits + foreign wallet converted at the home desk's
+    current buy rate (the rate at which the trader could repatriate today).
+    """
+    total = 0.0
+    desk = getattr(region, 'forex', None)
+    for a in region.trader_agents:
+        w = a.cash + region.bank.deposits.get(a, 0)
+        if desk is not None:
+            w += fx.fx_balance(a, desk.other) * desk.buy_rate()
+        total += w
+    return total
+
+
 # =============================================================================
 # MAIN
 # =============================================================================
@@ -252,9 +276,9 @@ def main():
 
     random.seed(42)
 
-    region_a = Region("Region_A", t=0, number_of_agents=55,
+    region_a = Region("Region_A", t=0, number_of_agents=110,
                        profession_distribution={Goods.food: 0.753, Goods.wood: 0.110, Goods.furniture: 0.037})
-    region_b = Region("Region_B", t=0, number_of_agents=55,
+    region_b = Region("Region_B", t=0, number_of_agents=110,
                        profession_distribution={Goods.food: 0.50, Goods.wood: 0.35, Goods.furniture: 0.05})
 
     region_a.recipes[Goods.food]['production'] *= 2
@@ -270,6 +294,8 @@ def main():
             trader.destination_region = region_a
 
     fx.connect_regions(region_a, region_b, t=0)
+    region_a._init_trader_wealth = trader_wealth(region_a)
+    region_b._init_trader_wealth = trader_wealth(region_b)
     currencies = [region_a.home_currency, region_b.home_currency]
 
     print(f"Region_A: {len(region_a.agents)} agents, Gov: ${region_a.gov.agent.cash:.2f}")
@@ -364,22 +390,30 @@ def main():
         if avg_spread:
             spread_str = ", ".join(f"{Goods(g).name}: ${s:.2f}" for g, s in avg_spread.items())
             print(f"  Avg Price Spread: {spread_str}")
+        init_trader_wealth = getattr(region, '_init_trader_wealth', 0.0)
+        final_traders = [a for a in region.agents if a.is_trader]
+        final_cash = sum(a.cash for a in final_traders)
+        final_deposits = sum(region.bank.deposits.get(a, 0) for a in final_traders)
+        desk = getattr(region, 'forex', None)
+        final_wallet = 0.0
+        if desk is not None:
+            final_wallet = sum(fx.fx_balance(a, desk.other) for a in final_traders) * desk.buy_rate()
+        final_trader_wealth = final_cash + final_deposits + final_wallet
         trader_roi = 0.0
-        init_trader_cash = region.trader_cash_log[0] if region.trader_cash_log else 1
-        final_trader_cash = region.trader_cash_log[-1] if region.trader_cash_log else 0
-        if init_trader_cash > 0:
-            trader_roi = (final_trader_cash - init_trader_cash) / init_trader_cash * 100
+        if init_trader_wealth > 0:
+            trader_roi = (final_trader_wealth - init_trader_wealth) / init_trader_wealth * 100
         # Charity summary
         c = region.charity.log
         print(f"  Charity: ${c['donations_collected']:.2f} collected, "
               f"{c['food_distributed']} food to {c['recipients']} recipients, "
               f"{c['food_purchased']} purchased")
 
-        # Trader summary
-        traders = [a for a in region.agents if a.is_trader]
-        print(f"  Traders: {len(traders)} traders, "
-              f"${sum(a.cash for a in traders):.2f} total cash, "
-              f"ROI: {trader_roi:.1f}% (${init_trader_cash:.0f}->${final_trader_cash:.0f})")
+        # Trader summary (wealth = cash + deposits + foreign wallet @ buy rate)
+        print(f"  Traders: {len(final_traders)} traders, "
+              f"cash ${final_cash:.0f}, deposits ${final_deposits:.0f}, "
+              f"wallet ${final_wallet:.0f}, wealth ${final_trader_wealth:.0f} "
+              f"(start ${init_trader_wealth:.0f}), "
+              f"ROI: {trader_roi:.1f}%")
 
         desk = getattr(region, "forex", None)
         if desk is not None:
