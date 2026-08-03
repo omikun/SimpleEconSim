@@ -60,6 +60,7 @@ class Agent:
         'owner', 'company_owned', 'max_employees',
         'consumption_multiplier',
         'tax_loss_carryforward', 'retained_earnings', 'owner_loan',
+        'owner_payouts',
         '_start_cash', '_start_deposits', '_delta_cash', '_delta_deposits',
         'region', '_bank_ref', 'is_government',
         'is_charity', 'is_trader', 'home_region', 'destination_region',

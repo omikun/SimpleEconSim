@@ -1766,8 +1766,8 @@ class Region:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _smooth(data, window=5):
-        """5-turn rolling average. First (window-1) points use raw values."""
+    def _smooth(data, window=10):
+        """10-turn rolling average. First (window-1) points use raw values."""
         if len(data) < window:
             return data
         result = list(data[:window - 1])
@@ -1789,7 +1789,7 @@ class Region:
         axis[axis_id].plot([-x for x in self.dead_starved_population], label='dead', color='purple')
 
     def _plot_inventory(self, axis, axis_id, colors, labels):
-        axis[axis_id].set_title("Inventory vs time (5-turn avg)")
+        axis[axis_id].set_title("Inventory vs time (10-turn avg)")
         axis[axis_id].set_ylabel("Inventory")
         for g in self.goods:
             if g != Goods.gov:
@@ -1816,7 +1816,7 @@ class Region:
                                color=colors[g])
 
     def _plot_production(self, axis, axis_id, colors, labels):
-        axis[axis_id].set_title("Production vs time (5-turn avg)")
+        axis[axis_id].set_title("Production vs time (10-turn avg)")
         axis[axis_id].set_ylabel("Units/round")
         axis[axis_id].set_yscale('log')
         for g in self.goods:
@@ -1833,9 +1833,10 @@ class Region:
                                color=colors[g])
 
     def _plot_cash(self, axis, axis_id, colors, labels):
-        axis[axis_id].set_title("Cash vs time (5-turn avg)")
+        axis[axis_id].set_title("Cash vs time (10-turn avg)")
         axis[axis_id].set_ylabel("Cash")
         axis[axis_id].set_yscale('log', base=2)
+        axis[axis_id].set_ylim(bottom=2 ** -3)
         for g in self.goods:
             axis[axis_id].plot(self._smooth(self.cash_log[g]), label=labels[g],
                            color=colors[g])
@@ -1846,7 +1847,7 @@ class Region:
         axis[axis_id].plot(self._smooth(self.bank_cash_log), label='bank', color='purple')
 
     def _plot_demand(self, axis, axis_id, colors, labels):
-        axis[axis_id].set_title("Demand vs time (5-turn avg)")
+        axis[axis_id].set_title("Demand vs time (10-turn avg)")
         axis[axis_id].set_ylabel("Demand (log)")
         axis[axis_id].set_yscale('log', base=2)
         for g in self.goods:
@@ -1873,7 +1874,7 @@ class Region:
                                color=colors[g])
 
     def _plot_hunger(self, axis, axis_id, colors, labels):
-        axis[axis_id].set_title("Hunger vs time (5-turn avg)")
+        axis[axis_id].set_title("Hunger vs time (10-turn avg)")
         axis[axis_id].set_ylabel("Num hungry")
         axis[axis_id].set_yscale('log', base=2)
         for g in self.goods:
@@ -1884,7 +1885,7 @@ class Region:
                            color='orange')
 
     def _plot_supply(self, axis, axis_id, colors, labels):
-        axis[axis_id].set_title("Supply vs time (5-turn avg)")
+        axis[axis_id].set_title("Supply vs time (10-turn avg)")
         axis[axis_id].set_ylabel("Supply (log)")
         axis[axis_id].set_yscale('log', base=2)
         for g in self.goods:
@@ -1899,7 +1900,7 @@ class Region:
         axis[axis_id].plot(self.population_change_rate_log, color='black')
 
     def _plot_gdp(self, axis, axis_id, colors, labels):
-        axis[axis_id].set_title("GDP vs time (5-turn avg)")
+        axis[axis_id].set_title("GDP vs time (10-turn avg)")
         axis[axis_id].set_ylabel("Total GDP (value)")
         axis[axis_id].set_yscale('log', base=2)
         for g in self.goods:
@@ -1930,7 +1931,7 @@ class Region:
         axis[axis_id].plot(self.trade_balance_log, color='black')
 
     def _plot_exchange_rate(self, axis, axis_id):
-        axis[axis_id].set_title("Exchange Rate (5-turn avg)")
+        axis[axis_id].set_title("Exchange Rate (10-turn avg)")
         axis[axis_id].set_ylabel("Rate")
         if self.exchange_rate_log:
             data = self._smooth(self.exchange_rate_log)

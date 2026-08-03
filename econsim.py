@@ -647,8 +647,8 @@ def _log_population_change_rate():
 # PLOTTING & FINAL REPORT
 # =============================================================================
 
-def _smooth(data, window=5):
-    """5-turn rolling average. First (window-1) points use raw values."""
+def _smooth(data, window=10):
+    """10-turn rolling average. First (window-1) points use raw values."""
     if len(data) < window:
         return data
     result = list(data[:window - 1])
@@ -738,7 +738,7 @@ def _plot_population(axis, axis_id, colors, labels):
 
 
 def _plot_inventory(axis, axis_id, colors, labels):
-    axis[axis_id].set_title("Inventory vs time (5-turn avg)")
+    axis[axis_id].set_title("Inventory vs time (10-turn avg)")
     axis[axis_id].set_ylabel("Inventory")
     for good in goods:
         if good != Goods.gov:
@@ -765,7 +765,7 @@ def _plot_demand_ratio(axis, axis_id, colors, labels):
 
 
 def _plot_production(axis, axis_id, colors, labels):
-    axis[axis_id].set_title("Production vs time (5-turn avg)")
+    axis[axis_id].set_title("Production vs time (10-turn avg)")
     axis[axis_id].set_ylabel("Units/round")
     axis[axis_id].set_yscale('log')
     for good in goods:
@@ -784,9 +784,10 @@ def _plot_per_capita_inv(axis, axis_id, colors, labels):
 
 
 def _plot_cash(axis, axis_id, colors, labels):
-    axis[axis_id].set_title("Cash vs time (5-turn avg)")
+    axis[axis_id].set_title("Cash vs time (10-turn avg)")
     axis[axis_id].set_ylabel("Cash")
     axis[axis_id].set_yscale('log', base=2)
+    axis[axis_id].set_ylim(bottom=2 ** -3)
     for good in goods:
         axis[axis_id].plot(_smooth(cash_log[good]), label=labels[good],
                        color=colors[good])
@@ -795,7 +796,7 @@ def _plot_cash(axis, axis_id, colors, labels):
 
 
 def _plot_demand(axis, axis_id, colors, labels):
-    axis[axis_id].set_title("Demand vs time (5-turn avg)")
+    axis[axis_id].set_title("Demand vs time (10-turn avg)")
     axis[axis_id].set_ylabel("Demand (log)")
     axis[axis_id].set_yscale('log', base=2)
     for good in goods:
@@ -825,7 +826,7 @@ def _plot_price(axis, axis_id, colors, labels):
 
 
 def _plot_hunger(axis, axis_id, colors, labels):
-    axis[axis_id].set_title("Hunger vs time (5-turn avg)")
+    axis[axis_id].set_title("Hunger vs time (10-turn avg)")
     axis[axis_id].set_ylabel("Num hungry")
     axis[axis_id].set_yscale('log', base=2)
     for good in goods:
@@ -834,7 +835,7 @@ def _plot_hunger(axis, axis_id, colors, labels):
 
 
 def _plot_supply(axis, axis_id, colors, labels):
-    axis[axis_id].set_title("Supply vs time (5-turn avg)")
+    axis[axis_id].set_title("Supply vs time (10-turn avg)")
     axis[axis_id].set_ylabel("Supply (log)")
     axis[axis_id].set_yscale('log', base=2)
     for good in goods:
@@ -851,7 +852,7 @@ def _plot_pop_change_rate(axis, axis_id):
 
 
 def _plot_gdp(axis, axis_id, colors, labels):
-    axis[axis_id].set_title("GDP vs time (5-turn avg)")
+    axis[axis_id].set_title("GDP vs time (10-turn avg)")
     axis[axis_id].set_ylabel("Total GDP (value)")
     axis[axis_id].set_yscale('log', base=2)
     for good in goods:
