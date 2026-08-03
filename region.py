@@ -196,6 +196,7 @@ class Region:
         self.exchange_rate_log = []
         self.trade_flow_log = []
         self.cumulative_trade_balance = 0.0
+        self.foreign_reserves_log = []  # per-turn: {currency: amount}
 
         for g in [Goods.food, Goods.wood, Goods.furniture, Goods.transport]:
             self.export_vol[g] = []
@@ -239,6 +240,7 @@ class Region:
         self.charity = Charity(name, self.recipes)
         # Cost of living, cached once per turn (4 food + 1 wood + 0.25 furniture)
         self.cost_of_living = 11.25
+        self.cost_of_living_log = []   # per-turn history (for real FX / deflation)
         # Prices, cached once per turn (avoid repeated dict lookups)
         self.food_price = 1.0
         self.all_goods_price = 3.0
@@ -385,6 +387,7 @@ class Region:
 
         self._log_metrics(t)
         self.total_population.append(sum(v[-1] for v in self.population_log.values()))
+        self.cost_of_living_log.append(self.cost_of_living)
         self.bank_cash_log.append(self.bank.total_deposits - self.bank.total_liabilities)
         self.total_cash_log.append(self._total_cash())
         self._log_population_rate()

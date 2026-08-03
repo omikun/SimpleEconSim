@@ -62,6 +62,8 @@ def update_exchange_rate(region):
                     fx_regime=getattr(region.gov, 'fx_regime', 'managed'),
                     ppp_target=ppp)
         desk.save_rate(region)
+        # Record the per-turn rate history so plots/dashboards show movement.
+        region.exchange_rate_log.append(region.exchange_rate)
         return region.exchange_rate
     if not getattr(region.gov, 'floating_exchange_rate_enabled', True):
         region.exchange_rate_log.append(region.exchange_rate)
@@ -342,6 +344,8 @@ def main():
             region.cumulative_trade_balance += (turn_export - turn_import)
             region.trade_flow_log.append(turn_export - turn_import)
             update_exchange_rate(region)
+            # Per-turn foreign reserves snapshot (for balance-of-payments plot)
+            region.foreign_reserves_log.append(dict(region.bank.foreign_reserves))
 
         for g in [Goods.food, Goods.wood, Goods.furniture]:
             price_a = region_a.recipes[g]['price']

@@ -93,14 +93,17 @@ def _real_exchange_rate(region, other):
     """Nominal rate adjusted for price levels (CPI proxy = cost of living).
 
     real = nominal * (home_CPI / foreign_CPI).  A value > 1 means home goods
-    are expensive relative to foreign after conversion.
+    are expensive relative to foreign after conversion.  Uses the per-turn
+    cost_of_living_log when available so the real rate tracks inflation.
     """
     nominal = region.exchange_rate_log or [region.exchange_rate]
+    home_col = region.cost_of_living_log or [region.cost_of_living]
+    other_col = other.cost_of_living_log or [other.cost_of_living]
     real = []
     for i, rate in enumerate(nominal):
-        home_cpi = max(0.1, region.cost_of_living)
-        other_cpi = max(0.1, other.cost_of_living)
-        real.append(rate * (home_cpi / other_cpi))
+        h = home_col[i] if i < len(home_col) else home_col[-1]
+        o = other_col[i] if i < len(other_col) else other_col[-1]
+        real.append(rate * (max(0.1, h) / max(0.1, o)))
     return real
 
 
@@ -205,11 +208,13 @@ def generate_dashboard(region_a, region_b, filename=OUTPUT_FILE):
     ax = axes[2, 0]
     for region, label, col in [(region_a, 'Region A', COLORS['A']),
                                (region_b, 'Region B', COLORS['B'])]:
-        reserves = []
-        # foreign_reserves is a dict currency->amount; use partner currency
         partner_cur = region_a.name if region is region_b else region_b.name
-        for _ in range(len(region.total_cash_log)):
-            reserves.append(region.bank.foreign_reserves.get(partner_cur, 0.0))
+        # Per-turn snapshots (list of {currency: amount}) when available;
+        # otherwise fall back to the current balance repeated.
+        if region.foreign_reserves_log:
+            reserves = [snap.get(partner_cur, 0.0) for snap in region.foreign_reserves_log]
+        else:
+            reserves = [region.bank.foreign_reserves.get(partner_cur, 0.0)] * len(region.total_cash_log)
         ax.plot(_smooth(reserves), label=f"{label} reserves", color=col)
     ax.set_title("Foreign Reserves (partner currency)")
     ax.set_ylabel("Reserve units")
@@ -290,6 +295,11 @@ def main(time_steps=60):
         sim.settle_trade(t, region_a, region_b)
         sim.settle_trade(t, region_b, region_a)
         sim.fx.cycle_market(region_a, region_b, t)
+        # Mirror the two-region driver: update FX so exchange_rate_log fills.
+        sim.update_exchange_rate(region_a)
+        sim.update_exchange_rate(region_b)
+        region_a.foreign_reserves_log.append(dict(region_a.bank.foreign_reserves))
+        region_b.foreign_reserves_log.append(dict(region_b.bank.foreign_reserves))
 
     generate_dashboard(region_a, region_b)
 
