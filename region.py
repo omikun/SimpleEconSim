@@ -1836,7 +1836,6 @@ class Region:
         axis[axis_id].set_title("Cash vs time (10-turn avg)")
         axis[axis_id].set_ylabel("Cash")
         axis[axis_id].set_yscale('log', base=2)
-        axis[axis_id].set_ylim(bottom=2 ** -3)
         for g in self.goods:
             axis[axis_id].plot(self._smooth(self.cash_log[g]), label=labels[g],
                            color=colors[g])
@@ -1845,6 +1844,8 @@ class Region:
                            color='orange')
         axis[axis_id].plot(self._smooth(self.total_cash_log), label='total', color='black')
         axis[axis_id].plot(self._smooth(self.bank_cash_log), label='bank', color='purple')
+        # Set the floor AFTER plotting so the upper limit still autoscales to fit the data
+        axis[axis_id].set_ylim(bottom=2 ** -3)
 
     def _plot_demand(self, axis, axis_id, colors, labels):
         axis[axis_id].set_title("Demand vs time (10-turn avg)")

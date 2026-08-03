@@ -787,12 +787,13 @@ def _plot_cash(axis, axis_id, colors, labels):
     axis[axis_id].set_title("Cash vs time (10-turn avg)")
     axis[axis_id].set_ylabel("Cash")
     axis[axis_id].set_yscale('log', base=2)
-    axis[axis_id].set_ylim(bottom=2 ** -3)
     for good in goods:
         axis[axis_id].plot(_smooth(cash_log[good]), label=labels[good],
                        color=colors[good])
     axis[axis_id].plot(_smooth(total_cash_log), label='total', color='black')
     axis[axis_id].plot(_smooth(bank_cash_log), label='bank', color='purple')
+    # Set the floor AFTER plotting so the upper limit still autoscales to fit the data
+    axis[axis_id].set_ylim(bottom=2 ** -3)
 
 
 def _plot_demand(axis, axis_id, colors, labels):
