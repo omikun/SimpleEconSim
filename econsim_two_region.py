@@ -356,6 +356,8 @@ def main():
     print("\nGenerating plots...")
     region_a.plot("region_a_output.png")
     region_b.plot("region_b_output.png")
+    import trade_dashboard
+    trade_dashboard.generate_dashboard(region_a, region_b)
     wealth_lineage.generate_plots(time_steps, region_a, region_b)
     wealth_diagnostic.generate_plots(time_steps, region_a, region_b)
 

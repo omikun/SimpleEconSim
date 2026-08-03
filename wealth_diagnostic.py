@@ -421,6 +421,8 @@ def main():
         sim.settle_trade(t, region_b, region_a)
         record_turn(t, region_a, region_b)
 
+    import trade_dashboard
+    trade_dashboard.generate_dashboard(region_a, region_b)
     generate_plots(time_steps, region_a, region_b)
 
 
