@@ -167,66 +167,29 @@ def foreign_sell(t, destination_region, source_region):
     trade_volumes = defaultdict(int)
     trade_values = defaultdict(float)
 
-    total_trader_profit = 0.0
-    total_bank_recycle = 0.0
-    total_tariff = 0.0
+    # Phase 5 (Option 1): ALL imports are sold through the destination's
+    # round-1 priced auction (which cleared during step, decrementing
+    # inventory_foreign).  No direct after-market dumping at 0.95x anymore;
+    # unsold imports stay in inventory_foreign and re-offer next turn until
+    # the book buys them at their own cost+margin ask.
+    for good in [Goods.food, Goods.wood, Goods.furniture]:
+        aq, av = destination_region._auction_import_sales.get(good, (0, 0.0))
+        if aq > 0:
+            source_region.export_vol[good].append(aq)
+            source_region.export_val[good].append(av)
+            destination_region.import_vol[good].append(aq)
+            destination_region.import_val[good].append(av)
+            total_sold_quantity += aq
+            total_sold_value += av
+        else:
+            source_region.export_vol[good].append(0)
+            source_region.export_val[good].append(0.0)
+            destination_region.import_vol[good].append(0)
+            destination_region.import_val[good].append(0.0)
 
+    # Traders buy food for themselves at the destination out of sales
+    # proceeds (they are away from home and must eat from local markets).
     for trader in traders:
-        for good in [Goods.food, Goods.wood, Goods.furniture]:
-            qty = trader.inventory_foreign[good.value]
-            if qty <= 0:
-                continue
-            price = destination_region.recipes[good]['price']
-            ask_price = price * 0.95
-            buyers = [a for a in destination_region.agents
-                      if not getattr(a, 'is_trader', False) and a.cash > ask_price]
-            random.shuffle(buyers)
-            remaining = qty
-            for buyer in buyers:
-                if remaining <= 0:
-                    break
-                max_buy = int(buyer.cash / ask_price)
-                if max_buy <= 0:
-                    continue
-                bought = min(remaining, max_buy, 3)
-                cash = bought * ask_price
-                buyer.cash -= cash
-                trader_share = cash
-                bank_share = 0.0
-                tariff_share = 0.0
-
-                if destination_region.gov.trader_recycling_enabled:
-                    bank_share = cash * destination_region.gov.trader_recycling_rate
-                    trader_share -= bank_share
-                if destination_region.gov.import_tariff_enabled:
-                    tariff_share = cash * destination_region.gov.import_tariff_rate
-                    trader_share -= tariff_share
-
-                if use_fx:
-                    fx.fx_add(trader, dest_currency, trader_share)
-                else:
-                    trader.cash += trader_share
-                trader._trader_revenue += trader_share
-                if bank_share > 0:
-                    destination_region.bank.total_deposits += bank_share
-                if tariff_share > 0:
-                    destination_region.gov.agent.cash += tariff_share
-                total_trader_profit += trader_share
-                total_bank_recycle += bank_share
-                total_tariff += tariff_share
-                old_quantity = buyer.inv_get(good, 0)
-                old_cost = buyer.cost_get(good, 0)
-                buyer.cost_set(good, ((old_quantity * old_cost + bought * ask_price) / (old_quantity + bought)) if (old_quantity + bought) > 0 else ask_price)
-                buyer.inv_add(good, bought)
-                remaining -= bought
-                total_sold_quantity += bought
-                total_sold_value += cash
-                trade_volumes[good] += bought
-                trade_values[good] += cash
-            trader.inventory_foreign[good.value] = remaining
-
-        # Traders buy food for themselves at the destination out of sales
-        # proceeds (they are away from home and must eat from local markets).
         if trader.inv_get(Goods.food, 0) < 8:
             food_price = destination_region.recipes[Goods.food]['price']
             need = 8 - trader.inv_get(Goods.food, 0)
@@ -272,29 +235,7 @@ def foreign_sell(t, destination_region, source_region):
     if total_sold_value > 0 and t % 50 == 0:
         loginfo(t, f"TRADE {source_region.name}->{destination_region.name}: "
                 f"sold {total_sold_quantity} units worth ${total_sold_value:.2f} "
-                f"({dict(trade_volumes)})"
-                f"  trader ${total_trader_profit:.2f}"
-                f"  bank recycle ${total_bank_recycle:.2f}"
-                f"  tariff ${total_tariff:.2f}")
-
-    for good in [Goods.food, Goods.wood, Goods.furniture]:
-        volume_sold = trade_volumes[good]
-        value_sold = trade_values[good]
-        # Phase 4: add what sold through the round-1 auction on the
-        # destination (credits source traders in destination-currency wallets).
-        aq, av = destination_region._auction_import_sales.get(good, (0, 0.0))
-        volume_sold += aq
-        value_sold += av
-        if volume_sold > 0:
-            source_region.export_vol[good].append(volume_sold)
-            source_region.export_val[good].append(value_sold)
-            destination_region.import_vol[good].append(volume_sold)
-            destination_region.import_val[good].append(value_sold)
-        else:
-            source_region.export_vol[good].append(0)
-            source_region.export_val[good].append(0.0)
-            destination_region.import_vol[good].append(0)
-            destination_region.import_val[good].append(0.0)
+                f"through the priced auction")
 
     return total_sold_quantity, total_sold_value
 

@@ -15,8 +15,11 @@ band exposed here (mid / spread / band) without restructuring.
 
 DESK_FX_POOL_SEED = 2000.0      # domestic money the bank sets aside for FX
 DESK_FX_POOL_TARGET_FRAC = 0.15  # mean-revert fx_pool toward 15% of deposits
-DESK_TARGET_RESERVES = 1200.0    # desired holdings of each foreign currency
-DESK_INITIAL_RESERVES = 1000.0   # war-chest of foreign currency at start
+DESK_TARGET_RESERVES = 2500.0    # desired holdings of each foreign currency
+DESK_INITIAL_RESERVES = 3000.0   # war-chest of foreign currency at start
+# (raised from 1000/1200: 100-turn runs drained both desks to 0 reserves and
+#  pinned the rate at the band ceiling — initial stock was far below the
+#  realized trade volume, stalling convertibility)
 DESK_ADJ_SPEED = 0.05            # per-turn rate adjustment speed
 DESK_SPREAD = 0.02               # round-trip cost fraction (2%)
 DESK_BAND = (0.5, 2.0)           # rate bounds (policy floor/ceiling)

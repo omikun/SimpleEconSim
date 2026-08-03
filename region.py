@@ -247,6 +247,12 @@ class Region:
         # foreign_sell can log it (and only sell the leftover).
         self.pending_imports = {}
         self._auction_import_sales = {}
+        # Phase 5 (Option C): slow sector price reference per good (VWAP +
+        # demand/supply), and per-turn realized trade history for the VWAP.
+        self._price_ref = {g: max(0.1, self.recipes[g].get('price', 1.0))
+                           for g in self.goods
+                           if g != Goods.gov and g != Goods.transport}
+        self._trade_prices = defaultdict(list)  # good -> [price, ...] realized
 
         # Create agents
         self._create_agents(t, number_of_agents)
@@ -667,8 +673,8 @@ class Region:
         for good in goods_goods:
             ta = total_asks[good]
             tb = total_bids[good]
-            # Phase 4: arrived imports join the round-1 auction supply so they
-            # can genuinely displace local goods at the market price.
+            # Phase 5 (Option C): imports + local asks merge into a PRICED
+            # book; each ask transacts at ITS OWN price, cheapest first.
             imp_pool, imp_total = self._gather_import_pool(good)
             if ta == 0 and imp_total == 0 and tb == 0:
                 self._price_decay(good)
@@ -681,21 +687,19 @@ class Region:
             if max_demand_ratio < demand_ratio and tb > 0:
                 max_demand_ratio = demand_ratio
                 most_demand_good = good
-            price = self._set_price(demand_ratio, good)
+            self._update_price_ref(good, demand_ratio)
+            ref = self._price_ref[good]
+            price = ref  # sector reference price for charity/gov buyers
             if min(price_ta, tb) == 0:
                 self._auction_import_sales[good] = (0, 0.0)
                 continue
-            total_bought, total_cash_purchases = self._buy(t, good, price, price_ta)
+            total_bought, tcash, realized = self._clear_discriminatory(
+                good, ref, price_ta, tb, imp_pool, agents, t)
+            self.sold_log[good].append(total_bought)
+            self._trade_prices[good].append(realized)
+            total_sold = total_bought  # for charity/gov food blocks below
+            # Charity/gov food buyers still need askers (ask quantity sort)
             askers = sorted(agents, key=lambda a: a.ask, reverse=True)
-            total_cash_sales, total_sold = self._sell(askers, good, price, t, total_bought, total_cash_purchases)
-            # Imports absorb the residual demand (locals already sold first).
-            imp_sold = 0
-            imp_value = 0.0
-            if imp_pool and total_bought > total_sold:
-                imp_sold, imp_value = self._sell_imports(imp_pool, good, price,
-                                                         total_bought - total_sold)
-            self._auction_import_sales[good] = (imp_sold, imp_value)
-            self.sold_log[good].append(total_sold + imp_sold)
 
             # Charity food purchase
             if good == Goods.food:
@@ -858,13 +862,16 @@ class Region:
         mult = agent.consumption_multiplier
         total_liquid = agent.cash + self.bank.deposits.get(agent, 0)
         current_deposits = self.bank.deposits.get(agent, 0)
-        # Traders keep most of their capital liquid for buying opportunities
         if agent.is_trader:
-            deposit_fraction = 0.10  # only lock 10%
+            # Traders keep EVERYTHING they need for buying in cash; deposit
+            # only excess above a working-capital floor (5x cost of living +
+            # 15x goods price — matches the trade-financing borrow target).
+            deposit_fraction = 0.10  # applied to above-floor portion
+            cash_floor = int(self.cost_of_living * 5) + int(all_goods_price * 15)
         else:
             deposit_fraction = max(0.30, min(0.70, 0.70 / max(1.0, mult)))
-        cash_floor = int(all_goods_price * (100 / max(1.0, mult)))
-        max_deposits = total_liquid * deposit_fraction
+            cash_floor = int(all_goods_price * (100 / max(1.0, mult)))
+        max_deposits = max(0.0, total_liquid - cash_floor) * deposit_fraction
         excess = max(0, max_deposits - current_deposits)
         if agent.cash > cash_floor and excess > 0:
             self.bank.Deposit(agent, min(agent.cash - cash_floor, excess))
@@ -906,14 +913,15 @@ class Region:
                 return min(need, affordable)
             destination = agent.destination_region
             if destination is not None:
-                # Use cached fee multiplier + FX to check true profitability
-                # (foreign_sell prices exports at dest price * fee mult * fx).
-                fx_rate = self.exchange_rate
-                desk = getattr(self, 'forex', None)
-                if desk is not None:
-                    fx_rate = desk.buy_rate()
-                effective_sell = destination.recipes[good]['price'] * self._trade_fee_mult * fx_rate
-                if effective_sell <= good_price * 1.01:  # need at least 1% margin
+                # Phase-5 (Option 1) gate: the import ask already passes the
+                # tariff and FX through (cost*(1+margin)/((1-tariff)*buy_rate)),
+                # so profitability is guaranteed by the ask construction.  The
+                # only real requirement is that the destination price exceeds
+                # the local price by at least the minimum import margin —
+                # a pure arbitrage-spread test (no fee/fx double-count).
+                dest_price = destination.recipes.get(good, {}).get('price', 0)
+                min_margin = self.IMPORT_MARGIN_MIN  # 5%
+                if dest_price <= good_price * (1.0 + min_margin):
                     return 0
             max_trader_inventory = agent_recipe['maxinv']
             total_holding = agent.inv_get(good, 0) + agent.inventory_export[good.value] + agent.inventory_foreign[good.value]
@@ -982,6 +990,103 @@ class Region:
     def _input_good(self, agent):
         return self.recipes[agent.output].get('input', Goods.none)
 
+    ASK_URGENCY_MIN = 0.7   # floor multiplier
+    ASK_URGENCY_MAX = 1.8   # ceiling multiplier
+    IMPORT_MARGIN_MIN = 0.05
+    IMPORT_MARGIN_MAX = 0.10
+
+    def _calculate_ask_price(self, agent, good, ref):
+        """Per-agent local ask price for output *good*.
+
+        Base is the sector reference; per-agent urgency scales it:
+          - low stock / near-empty => scarcity => HIGHER price (last units dear)
+          - high stock / near cap   => clearance => LOWER price (fire-sale)
+          - hungry                  => urgency => LOWER price (sell fast, buy food)
+        Bound to [ASK_URGENCY_MIN, ASK_URGENCY_MAX].
+        """
+        if agent.is_trader or agent.output != good:
+            return ref
+        stock = agent.inv_get(good, 0)
+        maxinv = self.recipes.get(good, {}).get('maxinv', 10)
+        ratio = stock / max(1, maxinv)
+        scarcity = 1.4 - 0.4 * max(0.0, min(1.0, ratio))  # 1.4 empty .. 1.0 full
+        hungry = getattr(agent, 'hungry_steps', 0)
+        urgency = max(0.0, 1.0 - 0.12 * hungry)  # hungry => lower ask
+        mult = scarcity * urgency
+        mult = max(self.ASK_URGENCY_MIN, min(self.ASK_URGENCY_MAX, mult))
+        return ref * mult
+
+    def _import_ask_price(self, trader, good):
+        """Import ask: cost_home*(1+margin) / ((1 - tariff) * repatriate_rate).
+
+        Repatriate_rate (dest->home) includes the FX spread, so the trader
+        nets the margin after conversion.  Tariff passes through into price.
+        """
+        home_price_now = self.recipes.get(good, {}).get('price', 0)
+        cost_home = max(0.05, trader.cost_get(good, 0), home_price_now)
+        margin = self.IMPORT_MARGIN_MIN + (
+            self.IMPORT_MARGIN_MAX - self.IMPORT_MARGIN_MIN) * (
+                abs(hash((trader.id, good))) % 1000) / 1000.0
+        tariff = getattr(self.gov, 'import_tariff_rate', 0.0)
+        dest_desk = getattr(self.destination_region, 'forex', None)
+        buy_rate = dest_desk.buy_rate() if dest_desk is not None else 1.0
+        denom = max(0.05, (1.0 - tariff) * buy_rate)
+        return cost_home * (1.0 + margin) / denom
+
+    def _update_price_ref(self, good, demand_ratio):
+        """Bounded move-toward-target price reference WITH supply scarcity.
+
+        NOT multiplicative (a multiplicative update compounds ref * step when
+        demand_ratio > 1 and flies to the cap, starving everyone, killing
+        exports, and preventing imports).  Instead move a fraction of the gap
+        to a target, so the reference is asymptotically stable yet still reacts
+        fast to real supply shocks, and eases gently on gluts.  Also syncs
+        recipes[g]['price'] so legacy readers see one coherent price.
+
+        The demand_ratio alone is blind to supply shocks while inventories
+        still buffer asks, so we ADD a regional scarcity signal (average stock
+        per producer vs target).  A forest fire: production collapses -> stock
+        drains -> scarcity rises -> price rises that same round, cash-rationing
+        preserves remaining inventory, and it settles back once production
+        recovers (scarcity -> 0, glut pull returns).
+        """
+        ref = self._price_ref[good]
+        # Demand pull (bids/asks ratio), bounded by tanh
+        inflation = 0.25 * math.tanh(demand_ratio - 1.0)
+
+        # Supply scarcity: producers' average inventory vs a 60%-of-maxinv
+        # target.  0 = normal stock, 1 = empty (prices on the ceiling).
+        maxinv = self.recipes.get(good, {}).get('maxinv', 10)
+        producers = [a for a in self.agents
+                     if a.output == good and not getattr(a, 'is_trader', False)]
+        if producers:
+            avg_inv = sum(a.inv_get(good, 0) for a in producers) / len(producers)
+        else:
+            avg_inv = 0.0
+        scarcity = max(0.0, min(1.0, 1.0 - avg_inv / max(0.1, maxinv * 0.6)))
+
+        influence = inflation + 0.30 * scarcity
+        influence = max(-0.35, min(0.50, influence))
+        target = ref * (1.0 + influence)
+        ref = ref + (target - ref) * 0.25
+        # Blend recent realized trade prices (VWAP) so ref tracks actuals
+        recent = self._trade_prices.get(good, [])[-12:]
+        if recent:
+            vwap = sum(recent) / len(recent)
+            ref = 0.7 * ref + 0.3 * vwap
+        # Cost floor keeps prices from collapsing below production cost
+        r = self.recipes.get(good, {})
+        cost_floor = 1.0
+        if r.get('numInput', 0) > 0 and r.get('production', 0) > 0:
+            cost_floor = max(0.1, (r['numInput'] * self.recipes[r['input']]['price'])
+                             / r['production'])
+        ref = max(cost_floor, ref)
+        ref = max(0.1, min(50.0, ref))
+        self._price_ref[good] = ref
+        # Sync the legacy recipe price so all readers see the same number
+        if good in self.recipes:
+            self.recipes[good]['price'] = ref
+
     def _gather_import_pool(self, good):
         """Return (pool, total) of pending import asks for *good*.
 
@@ -1000,6 +1105,98 @@ class Region:
                 pool.append([trader, qty])
                 total += qty
         return pool, total
+
+    def _clear_discriminatory(self, good, ref, total_asks, total_bids,
+                               imp_pool, agents, t):
+        """Cheapest-first pay-as-bid clear for one good.
+
+        Builds [(ask_price, qty, seller, is_import)] for local producers and
+        import lots, sorts ascending, walks buyers (hungry first); each unit
+        sells at ITS OWN ask.  Locals get cash; import owners get
+        dest-currency wallets.  Records import sales in _auction_import_sales.
+        Returns (units_bought, cash_collected, realized_vwap).
+        """
+        book = []
+        for a in agents:
+            if a.output != good or getattr(a, 'is_trader', False) or not getattr(a, 'alive', True):
+                continue
+            qty = a.inventory[good.value]
+            if good == Goods.food:
+                qty = max(0, qty - 2)   # producers keep 2 for themselves
+            if qty > 0:
+                book.append([self._calculate_ask_price(a, good, ref), qty, a, False])
+        for item in imp_pool:
+            trader, qty = item[0], item[1]
+            ask = self._import_ask_price(trader, good)
+            book.append([ask, qty, trader, True])
+        book.sort(key=lambda o: o[0])  # ascending price
+
+        if not hasattr(self, '_cached_hungry_sorted') or self._cached_hungry_turn != t:
+            self._cached_hungry_sorted = sorted(
+                agents, key=lambda a: a.hungry_steps, reverse=True)
+            self._cached_hungry_turn = t
+        buyers = self._cached_hungry_sorted
+
+        cash_collected = 0.0
+        units = 0
+        prices = []
+        imp_units = 0
+        imp_value = 0.0
+        bi = 0
+        for b in book:
+            ask, qty, seller, is_import = b
+            if qty <= 0 or units >= total_bids:
+                continue
+            remaining = qty
+            while remaining > 0 and units < total_bids and bi < len(buyers):
+                buyer = buyers[bi]
+                afford = int(buyer.cash / ask) if ask > 0 else 0
+                take = min(remaining, max(0, afford))
+                if take <= 0:
+                    bi += 1
+                    continue
+                cost = take * ask
+                buyer.cash -= cost
+                if is_import:
+                    # Split buyer payment between trader (in dest-currency
+                    # wallet) and the destination government's import tariff
+                    tau = getattr(self.gov, 'import_tariff_rate', 0.0) \
+                        if getattr(self.gov, 'import_tariff_enabled', False) \
+                        else 0.0
+                    trader_share = cost * (1.0 - tau)
+                    tariff_share = cost * tau
+                    _fx.fx_add(seller, self.home_currency, trader_share)
+                    if tariff_share > 0:
+                        self.gov.agent.cash += tariff_share
+                    seller.inventory_foreign[good.value] -= take
+                    imp_units += take
+                    imp_value += cost
+                else:
+                    seller.cash += cost
+                    seller.inventory[good.value] -= take
+                # Deliver to buyer — traders route exports like _buy did
+                if getattr(buyer, 'is_trader', False):
+                    if good == Goods.transport:
+                        buyer.inv_add(good, take)
+                    elif good != Goods.food:
+                        buyer.inventory_export[good.value] += take
+                    else:
+                        food_needed = max(0, 8 - buyer.inv_get(good, 0))
+                        keep = min(food_needed, take)
+                        buyer.inv_add(good, keep)
+                        if take - keep > 0:
+                            buyer.inventory_export[good.value] += take - keep
+                else:
+                    buyer.inv_add(good, take)   # non-trader: personal stock
+                cash_collected += cost
+                units += take
+                prices.extend([ask] * int(take))
+                remaining -= take
+                if buyer.cash < ask:
+                    bi += 1
+        self._auction_import_sales[good] = (imp_units, imp_value)
+        realized = sum(prices) / len(prices) if prices else ref
+        return units, cash_collected, realized
 
     def _sell_imports(self, pool, good, price, remaining_qty):
         """Sell remaining auction demand to import owners.
@@ -1052,6 +1249,13 @@ class Region:
                         if good == Goods.transport:
                             a.inv_add(good, bought)
                         elif good != Goods.food:
+                            # Record cost basis for export goods so imports are
+                            # priced at cost+margin, not a floor
+                            old_q = a.inv_get(good, 0)
+                            old_c = a.cost_get(good, 0)
+                            total_q = old_q + bought
+                            a.cost_set(good, ((old_q * old_c + bought * price)
+                                              / total_q) if total_q > 0 else price)
                             a.inventory_export[good.value] += bought
                         else:
                             food_needed = max(0, 8 - a.inv_get(good, 0))
@@ -1059,6 +1263,11 @@ class Region:
                             export = bought - keep
                             a.inv_add(good, keep)
                             if export > 0:
+                                old_q = a.inv_get(good, 0)
+                                old_c = a.cost_get(good, 0)
+                                total_q = old_q + export
+                                a.cost_set(good, ((old_q * old_c + export * price)
+                                                  / total_q) if total_q > 0 else price)
                                 a.inventory_export[good.value] += export
                     else:
                         old_quantity = a.inv_get(good, 0)
