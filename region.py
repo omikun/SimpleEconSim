@@ -139,9 +139,13 @@ class Region:
         if profession_distribution is None:
             profession_distribution = dict(DEFAULT_PROFESSION_DISTRIBUTION)
         self.profession_distribution = profession_distribution.copy()
+        # Traders per good type (food/wood/furniture — transport excluded).
         if number_of_traders is None:
-            number_of_traders = 5
+            number_of_traders = 3
         self._number_of_traders = number_of_traders
+        # Structural export route to the destination region (wired by the
+        # two-region driver).  One directional Route per region pair.
+        self.route = None
 
         # Deep-copy global config
         self.recipes = copy.deepcopy(recipes)
@@ -286,22 +290,27 @@ class Region:
                 agent.home_currency = self.home_currency
                 agents.append(agent)
 
-        for _ in range(self._number_of_traders):
-            trader = Agent(t)
-            trader.is_trader = True
-            trader.output = Goods.food
-            trader.home_region = self.name
-            trader.region = self.name
-            trader.cash = 200.0
-            trader._bank_ref = self.bank
-            trader.home_currency = self.home_currency
-            for g in Goods:
-                if g == Goods.none:
-                    continue
-                trader.inventory[g.value] = 0
-            trader.inventory[Goods.food.value] = 4
-            agents.append(trader)
-            self.trader_agents.append(trader)
+        # One trader per good type (food/wood/furniture — transport excluded),
+        # each specializing in arbitraging a single good.
+        trader_goods = [Goods.food, Goods.wood, Goods.furniture]
+        for trade_good in trader_goods:
+            for _ in range(self._number_of_traders):
+                trader = Agent(t)
+                trader.is_trader = True
+                trader.output = Goods.food
+                trader.trade_good = trade_good
+                trader.home_region = self.name
+                trader.region = self.name
+                trader.cash = 200.0
+                trader._bank_ref = self.bank
+                trader.home_currency = self.home_currency
+                for g in Goods:
+                    if g == Goods.none:
+                        continue
+                    trader.inventory[g.value] = 0
+                trader.inventory[Goods.food.value] = 4
+                agents.append(trader)
+                self.trader_agents.append(trader)
 
         agents.append(self.gov.agent)
         self.gov.agent.region = self.name
@@ -347,6 +356,7 @@ class Region:
         self._audit_cash(t, "produce_done")
 
         self._trade(t)
+        self._post_exports_to_route()
         self._audit_cash(t, "trade_done")
 
         self._pay_wages(t)
@@ -805,6 +815,27 @@ class Region:
         max_buy = min(needed, self.recipes[Goods.transport]['maxinv'])
         return min(max_buy, affordable)
 
+    def _transport_cost_per_unit(self):
+        """Home-currency transport cost to move one unit of a good."""
+        capacity = self.recipes.get(Goods.transport, {}).get('capacity', 10)
+        return self.recipes[Goods.transport]['price'] / max(1, capacity)
+
+    def _post_exports_to_route(self):
+        """Move all traders' export inventory onto the structural Route.
+
+        Conservation: goods move from inventory_export into the route's
+        pending queue; the route delivers them to inventory_foreign later.
+        """
+        if self.route is None:
+            return
+        for trader in self.trader_agents:
+            if not trader.is_trader:
+                continue
+            for g in [Goods.food, Goods.wood, Goods.furniture]:
+                qty = trader.inventory_export[g.value]
+                if qty > 0:
+                    self.route.post(trader, g, qty)
+
     def _decide_borrow_deposit(self, agents, all_goods_price, food_price, t):
         for a in agents:
             _tm.borrow_if_needed(t, a, bank=self.bank)
@@ -911,29 +942,29 @@ class Region:
                 spendable = max(0, agent.remainingCash - self.cost_of_living * 5)
                 affordable = int(spendable // good_price)
                 return min(need, affordable)
+            # Specialization: an export bid is only allowed on the trader's
+            # trade_good (transport is handled separately; food eaten above).
+            if agent.trade_good is not None and good != agent.trade_good:
+                return 0
             destination = agent.destination_region
             if destination is not None:
-                # Phase-5 (Option 1) gate: the import ask already passes the
-                # tariff and FX through (cost*(1+margin)/((1-tariff)*buy_rate)),
-                # so profitability is guaranteed by the ask construction.  The
-                # only real requirement is that the destination price exceeds
-                # the local price by at least the minimum import margin —
-                # a pure arbitrage-spread test (no fee/fx double-count).
+                # Transport-cost-aware arbitrage gate: the net foreign price
+                # (dest price × repatriate FX rate) must beat the home price
+                # PLUS the cost of shipping the good, by at least the minimum
+                # import margin.  This prevents buying goods whose delivery
+                # cost makes the round trip unprofitable.
                 dest_price = destination.recipes.get(good, {}).get('price', 0)
                 min_margin = self.IMPORT_MARGIN_MIN  # 5%
-                # FX-adjusted parity: traders repatriate destination earnings
-                # at their HOME desk's buy rate.  A raw price-spread test
-                # ignores conversion (spread + managed-float drift) and lets
-                # traders buy on phantom arbitrage that conversion erases.
                 desk = getattr(self, 'forex', None)
                 home_per_dest = desk.buy_rate() if desk is not None else 1.0
-                if dest_price * home_per_dest <= good_price * (1.0 + min_margin):
+                net_foreign = dest_price * home_per_dest
+                transport_cost = self._transport_cost_per_unit()
+                if net_foreign <= (good_price + transport_cost) * (1.0 + min_margin):
                     return 0
             max_trader_inventory = agent_recipe['maxinv']
             total_holding = agent.inv_get(good, 0) + agent.inventory_export[good.value] + agent.inventory_foreign[good.value]
-            for pipe in agent.transport_pipeline:
-                if pipe['good'] == good:
-                    total_holding += pipe['quantity']
+            if self.route is not None:
+                total_holding += self.route.holdings_of(agent).get(good, 0)
             space = max(0, max_trader_inventory - total_holding)
             # Keep 5x cost-of-living cash reserve after buying goods
             spendable = max(0, agent.remainingCash - self.cost_of_living * 5)
@@ -1603,18 +1634,89 @@ class Region:
 
         return result
 
+    def _liquidation_price(self, good, cost_basis):
+        """Discounted resale price (70% of cost basis) for trader exit lots."""
+        return max(0.05, cost_basis * 0.7)
+
     def _exit_trader(self, agent):
-        """Convert a trader back to a food producer (exit the profession)."""
+        """Liquidate a trader's goods and loans, then exit the profession.
+
+        Conservation: goods are never destroyed.  Cargo on the route is
+        reclaimed into inventory_export; all export/foreign lots are offered
+        to another home trader at 70% of cost basis (cash transfers between
+        agents) or escheat to the government's inventory if no buyer exists
+        (the gov's cash is untouched — the goods simply change owner).
+        Liquidation proceeds plus any remaining cash are used to pay off as
+        much of the agent's bank debt as possible (cash down, liability down);
+        residual debt stays with the ex-trader.
+        """
+        # 1. Reclaim any cargo still in transit back to the exporter
+        if self.route is not None:
+            self.route.reclaim(agent)
+
+        # 2. Gather all tradable lots (export + foreign)
+        lots = []
+        for g in [Goods.food, Goods.wood, Goods.furniture]:
+            qty = agent.inventory_export[g.value] + agent.inventory_foreign[g.value]
+            if qty > 0:
+                lots.append((g, qty, agent.cost_get(g, 0)))
+
+        # 3. Sell lots to another home-region trader at a discount
+        buyers = [a for a in self.trader_agents
+                  if a is not agent and getattr(a, 'is_trader', False)]
+        for good, qty, cost in lots:
+            price = self._liquidation_price(good, cost)
+            buyer = None
+            for cand in buyers:
+                if (cand.trade_good == good or cand.trade_good is None) \
+                        and cand.cash >= price * qty:
+                    buyer = cand
+                    break
+            if buyer is not None:
+                # Money and goods both transfer between agents — conserved.
+                total = price * qty
+                buyer.cash -= total
+                agent.cash += total
+                self._give_goods(buyer, good, qty, price)
+                loginfo(0, f"liquidation: {agent.name()} sold {qty} {good} "
+                        f"to {buyer.name()} at ${price:.2f}")
+            else:
+                # No buyer: goods escheat to the government inventory.
+                self.gov.receive_food(qty) if good == Goods.food else None
+                self.gov.agent.inv_add(good, qty) if good != Goods.food else None
+                loginfo(0, f"liquidation: {agent.name()} {qty} {good} "
+                        f"escheated to gov inventory")
+            agent.inventory_export[good.value] = 0
+            agent.inventory_foreign[good.value] = 0
+
+        # 4. Pay down loans with all remaining liquid cash (conserved:
+        #    bank cash falls by exactly the principal+interest paid).
+        while agent.cash > 0 and agent.loans:
+            loan = agent.loans[0]
+            payment = min(agent.cash, loan.getPaymentAmount())
+            if payment <= 0:
+                break
+            agent.cash -= payment
+            loan.pay(payment)
+            if loan.isPaid():
+                agent.loans.pop(0)
+
+        # 5. Zero remaining trade state and reset to food producer
         agent.is_trader = False
         agent.output = Goods.food
-        for g in Goods:
-            if g == Goods.none:
-                continue
-            agent.inventory_export[g.value] = 0
-            agent.inventory_foreign[g.value] = 0
-        agent.transport_pipeline.clear()
+        agent.trade_good = None
         agent.hungry_steps = 0
         agent.employer = None
+
+    def _give_goods(self, agent, good, qty, price):
+        """Add *qty* of *good* to *agent*'s local inventory (used in
+        liquidation transfers).  Cost basis is blended at the transfer price."""
+        old_q = agent.inv_get(good, 0)
+        old_c = agent.cost_get(good, 0)
+        total_q = old_q + qty
+        new_cost = ((old_q * old_c + qty * price) / total_q) if total_q > 0 else price
+        agent.cost_set(good, new_cost)
+        agent.inv_add(good, qty)
 
     def _process_trader_exits(self, t, agents):
         """Evaluate trader profitability and exit unprofitable traders every 20 turns."""
@@ -1640,9 +1742,8 @@ class Region:
                     continue
                 q = (agent.inventory_export[g.value]
                      + agent.inventory_foreign[g.value])
-                for pipe in agent.transport_pipeline:
-                    if pipe['good'] == g:
-                        q += pipe['quantity']
+                if self.route is not None:
+                    q += self.route.holdings_of(agent).get(g, 0)
                 if q > 0:
                     committed += q * agent.cost_get(g, 0)
             benchmark = col + 0.02 * committed
@@ -1653,19 +1754,34 @@ class Region:
             agent._trader_revenue_check = agent._trader_revenue
 
     def _make_trader_internal(self, agent):
-        """Set an agent's fields to make them a trader (internal version)."""
+        """Set an agent's fields to make them a trader (internal version).
+
+        The new trader inherits a specialty matching the goods most in
+        demand: pick whichever good has the largest local/destination
+        price gap (defaulting to food).
+        """
+        best_good = Goods.food
+        best_gap = -1.0
+        dest = self.destination_region
+        if dest is not None:
+            for g in [Goods.food, Goods.wood, Goods.furniture]:
+                gap = dest.recipes[g]['price'] - self.recipes[g]['price']
+                if gap > best_gap:
+                    best_gap = gap
+                    best_good = g
         agent.is_trader = True
         agent.home_region = self.name
         agent.destination_region = self.destination_region
         agent.output = Goods.food
-        # Zero out export/foreign lists
+        agent.trade_good = best_good
+        # Zero out export/foreign lists and any stale route cargo
         for g in Goods:
             if g == Goods.none:
                 continue
             agent.inventory_export[g.value] = 0
             agent.inventory_foreign[g.value] = 0
-        agent.transport_pipeline.clear()
-        agent.transport_delay = 1  # TRANSPORT_DELAY
+        if self.route is not None:
+            self.route.reclaim(agent)
         agent.inv_set(Goods.food, max(agent.inv_get(Goods.food, 0), 4))
         agent.employer = None
 
@@ -1747,9 +1863,11 @@ class Region:
         # _log_trade_metrics that was never called). Compute in the same pass.
         self.trader_cash_log.append(sum(a.cash for a in trader_agents))
         pipeline_qty = 0
-        for a in trader_agents:
-            for entry in a.transport_pipeline:
-                pipeline_qty += entry['quantity']
+        if self.route is not None:
+            pipeline_qty = sum(
+                self.route.in_transit_total(g)
+                for g in [Goods.food, Goods.wood, Goods.furniture]
+            )
         self.pipeline_depth_log.append(pipeline_qty)
 
     def _log_population_rate(self):

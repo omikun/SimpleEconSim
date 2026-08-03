@@ -384,10 +384,14 @@ def main():
 
     random.seed(42)
 
-    region_a = Region("Region_A", t=0, number_of_agents=110,
-                       profession_distribution={Goods.food: 0.753, Goods.wood: 0.110, Goods.furniture: 0.037})
-    region_b = Region("Region_B", t=0, number_of_agents=110,
-                       profession_distribution={Goods.food: 0.50, Goods.wood: 0.35, Goods.furniture: 0.05})
+    from transporter import Route
+
+    region_a = Region("Region_A", t=0, number_of_agents=200,
+                       profession_distribution={Goods.food: 0.753, Goods.wood: 0.110, Goods.furniture: 0.037},
+                       number_of_traders=3)
+    region_b = Region("Region_B", t=0, number_of_agents=200,
+                       profession_distribution={Goods.food: 0.50, Goods.wood: 0.35, Goods.furniture: 0.05},
+                       number_of_traders=3)
 
     region_a.recipes[Goods.food]['production'] *= 2
     region_b.recipes[Goods.wood]['production'] *= 2
@@ -401,12 +405,20 @@ def main():
         if getattr(trader, 'is_trader', False):
             trader.destination_region = region_a
 
+    region_a.route = Route(f"{region_a.name}->{region_b.name}",
+                           region_a, region_b, base_delay=sim.TRANSPORT_DELAY)
+    region_b.route = Route(f"{region_b.name}->{region_a.name}",
+                           region_b, region_a, base_delay=sim.TRANSPORT_DELAY)
+
     for t in range(1, time_steps + 1):
         region_a.step(t)
         region_b.step(t)
-        sim.process_transport(t, region_a, region_b)
-        sim.foreign_sell(t, region_a, region_b)
-        sim.foreign_sell(t, region_b, region_a)
+        region_a.route.advance()
+        region_a.route.deliver_pending()
+        region_b.route.advance()
+        region_b.route.deliver_pending()
+        sim.settle_trade(t, region_a, region_b)
+        sim.settle_trade(t, region_b, region_a)
         record_turn(t, region_a, region_b)
 
     generate_plots(time_steps, region_a, region_b)

@@ -64,6 +64,7 @@ class Agent:
         '_start_cash', '_start_deposits', '_delta_cash', '_delta_deposits',
         'region', '_bank_ref', 'is_government',
         'is_charity', 'is_trader', 'home_region', 'destination_region',
+        'trade_good',
         'inventory_export', 'transport_pipeline', 'inventory_foreign',
         'transport_delay',
         'wallets', 'home_currency',
@@ -120,6 +121,7 @@ class Agent:
         self.is_trader = False
         self.home_region = None
         self.destination_region = None
+        self.trade_good = None   # trader's export specialty (None for non-traders)
         self.inventory_export = [0] * _NUM_GOODS      # list, not defaultdict
         self.transport_pipeline = []                  # list of {'turns_left', 'good', 'quantity'}
         self.inventory_foreign = [0] * _NUM_GOODS     # list, not defaultdict

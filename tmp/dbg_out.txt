@@ -1,0 +1,4 @@
+T2 B agent415-F trade_good=FOOD local_food=4 export_food=0 foreign_food=0 route_food=0 cost_food=0.00 cash=89
+T4 B agent415-F trade_good=FOOD local_food=4 export_food=0 foreign_food=0 route_food=0 cost_food=0.00 cash=82
+T8 B agent415-F trade_good=FOOD local_food=4 export_food=0 foreign_food=0 route_food=0 cost_food=0.00 cash=86
+T16 B agent415-C trade_good=FOOD local_food=3 export_food=0 foreign_food=82 route_food=0 cost_food=1.53 cash=0

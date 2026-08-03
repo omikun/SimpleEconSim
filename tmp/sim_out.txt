@@ -1,0 +1,777 @@
+Two-Region Simulation: 60 time steps per region
+
+Region_A: 210 agents, Gov: $200.00
+Region_B: 210 agents, Gov: $200.00
+  [TRADER AUDIT] T=2 Region_B: 1 unprofitable holdings, stranded value $116
+      agent417-F: 127 1 @ $0.91 loss/unit
+  [TRADER AUDIT] T=3 Region_B: 1 unprofitable holdings, stranded value $113
+      agent417-F: 127 1 @ $0.89 loss/unit
+  [TRADER AUDIT] T=4 Region_B: 1 unprofitable holdings, stranded value $113
+      agent417-F: 127 1 @ $0.89 loss/unit
+  [TRADER AUDIT] T=5 Region_B: 1 unprofitable holdings, stranded value $105
+      agent417-F: 123 1 @ $0.86 loss/unit
+  [TRADER AUDIT] T=6 Region_B: 1 unprofitable holdings, stranded value $104
+      agent417-F: 123 1 @ $0.85 loss/unit
+  [TRADER AUDIT] T=7 Region_B: 1 unprofitable holdings, stranded value $100
+      agent417-F: 123 1 @ $0.81 loss/unit
+  [TRADER AUDIT] T=8 Region_B: 1 unprofitable holdings, stranded value $95
+      agent417-F: 119 1 @ $0.80 loss/unit
+  [TRADER AUDIT] T=9 Region_B: 1 unprofitable holdings, stranded value $88
+      agent417-F: 115 1 @ $0.77 loss/unit
+  [TRADER AUDIT] T=10 Region_B: 1 unprofitable holdings, stranded value $126
+      agent417-F: 115 1 @ $1.09 loss/unit
+  [TRADER AUDIT] T=11 Region_B: 1 unprofitable holdings, stranded value $123
+      agent417-F: 115 1 @ $1.07 loss/unit
+  [TRADER AUDIT] T=12 Region_B: 1 unprofitable holdings, stranded value $124
+      agent417-F: 115 1 @ $1.08 loss/unit
+  [TRADER AUDIT] T=13 Region_B: 3 unprofitable holdings, stranded value $150
+      agent417-F: 115 1 @ $1.06 loss/unit
+      agent421-F: 1 3 @ $13.84 loss/unit
+      agent415-F: 1 3 @ $13.84 loss/unit
+  [TRADER AUDIT] T=14 Region_B: 5 unprofitable holdings, stranded value $397
+      agent422-C: 140 1 @ $1.13 loss/unit
+      agent417-F: 115 1 @ $1.08 loss/unit
+      agent415-C: 82 1 @ $1.07 loss/unit
+      agent421-F: 1 3 @ $13.90 loss/unit
+      agent415-C: 1 3 @ $13.90 loss/unit
+  [TRADER AUDIT] T=15 Region_B: 3 unprofitable holdings, stranded value $357
+      agent422-C: 140 1 @ $1.09 loss/unit
+      agent417-F: 115 1 @ $1.05 loss/unit
+      agent415-C: 82 1 @ $1.03 loss/unit
+  [TRADER AUDIT] T=16 Region_A: 1 unprofitable holdings, stranded value $135
+      agent203-C: 56 2 @ $2.41 loss/unit
+  [TRADER AUDIT] T=16 Region_B: 3 unprofitable holdings, stranded value $359
+      agent422-C: 140 1 @ $1.10 loss/unit
+      agent417-F: 115 1 @ $1.05 loss/unit
+      agent415-C: 82 1 @ $1.04 loss/unit
+  [TRADER AUDIT] T=17 Region_A: 1 unprofitable holdings, stranded value $128
+      agent203-C: 56 2 @ $2.29 loss/unit
+  [TRADER AUDIT] T=17 Region_B: 4 unprofitable holdings, stranded value $481
+      agent422-C: 136 1 @ $1.09 loss/unit
+      agent418-F: 125 1 @ $1.02 loss/unit
+      agent417-F: 115 1 @ $1.05 loss/unit
+      agent415-C: 82 1 @ $1.03 loss/unit
+  [TRADER AUDIT] T=18 Region_A: 3 unprofitable holdings, stranded value $257
+      agent209-W: 72 2 @ $2.60 loss/unit
+      agent203-C: 43 2 @ $1.55 loss/unit
+      agent209-W: 1 3 @ $2.97 loss/unit
+  [TRADER AUDIT] T=18 Region_B: 5 unprofitable holdings, stranded value $550
+      agent422-C: 132 1 @ $1.10 loss/unit
+      agent418-F: 125 1 @ $1.02 loss/unit
+      agent417-F: 111 1 @ $1.05 loss/unit
+      agent415-C: 82 1 @ $1.04 loss/unit
+      agent345-F: 79 1 @ $0.97 loss/unit
+  [TRADER AUDIT] T=19 Region_A: 4 unprofitable holdings, stranded value $301
+      agent209-W: 72 2 @ $2.47 loss/unit
+      agent203-C: 43 2 @ $1.43 loss/unit
+      agent206-W: 22 2 @ $2.71 loss/unit
+      agent209-W: 1 3 @ $1.88 loss/unit
+  [TRADER AUDIT] T=19 Region_B: 5 unprofitable holdings, stranded value $541
+      agent422-C: 132 1 @ $1.09 loss/unit
+      agent418-F: 125 1 @ $1.01 loss/unit
+      agent417-F: 107 1 @ $1.04 loss/unit
+      agent415-C: 82 1 @ $1.03 loss/unit
+      agent345-F: 79 1 @ $0.96 loss/unit
+  [TRADER AUDIT] T=20 Region_A: 2 unprofitable holdings, stranded value $102
+      agent206-W: 22 2 @ $2.60 loss/unit
+      agent203-C: 28 2 @ $1.61 loss/unit
+  [TRADER AUDIT] T=20 Region_B: 5 unprofitable holdings, stranded value $535
+      agent422-C: 132 1 @ $1.09 loss/unit
+      agent418-F: 125 1 @ $1.01 loss/unit
+      agent417-F: 103 1 @ $1.05 loss/unit
+      agent415-C: 82 1 @ $1.03 loss/unit
+      agent345-F: 75 1 @ $0.97 loss/unit
+  [TRADER AUDIT] T=21 Region_A: 2 unprofitable holdings, stranded value $45
+      agent203-C: 28 2 @ $1.50 loss/unit
+      agent205-F: 2 3 @ $1.54 loss/unit
+  [TRADER AUDIT] T=21 Region_B: 5 unprofitable holdings, stranded value $530
+      agent422-C: 128 1 @ $1.10 loss/unit
+      agent418-F: 121 1 @ $1.03 loss/unit
+      agent417-F: 103 1 @ $1.06 loss/unit
+      agent415-C: 82 1 @ $1.04 loss/unit
+      agent345-F: 71 1 @ $0.98 loss/unit
+  [TRADER AUDIT] T=22 Region_A: 1 unprofitable holdings, stranded value $3
+      agent205-F: 2 3 @ $1.42 loss/unit
+  [TRADER AUDIT] T=22 Region_B: 5 unprofitable holdings, stranded value $537
+      agent422-C: 128 1 @ $1.12 loss/unit
+      agent418-F: 121 1 @ $1.04 loss/unit
+      agent417-F: 103 1 @ $1.07 loss/unit
+      agent415-C: 82 1 @ $1.06 loss/unit
+      agent345-F: 71 1 @ $1.00 loss/unit
+  [TRADER AUDIT] T=23 Region_A: 1 unprofitable holdings, stranded value $67
+      agent210-F: 43 2 @ $1.56 loss/unit
+  [TRADER AUDIT] T=23 Region_B: 7 unprofitable holdings, stranded value $591
+      agent422-C: 128 1 @ $1.15 loss/unit
+      agent418-F: 121 1 @ $1.08 loss/unit
+      agent417-F: 103 1 @ $1.11 loss/unit
+      agent415-C: 82 1 @ $1.09 loss/unit
+      agent345-F: 71 1 @ $1.03 loss/unit
+  [TRADER AUDIT] T=24 Region_A: 2 unprofitable holdings, stranded value $143
+      agent207-F: 28 2 @ $2.81 loss/unit
+      agent210-F: 43 2 @ $1.50 loss/unit
+  [TRADER AUDIT] T=24 Region_B: 13 unprofitable holdings, stranded value $592
+      agent422-C: 128 1 @ $1.17 loss/unit
+      agent418-W: 121 1 @ $1.10 loss/unit
+      agent417-F: 103 1 @ $1.13 loss/unit
+      agent415-C: 82 1 @ $1.11 loss/unit
+      agent345-F: 71 1 @ $1.05 loss/unit
+  [TRADER AUDIT] T=25 Region_A: 4 unprofitable holdings, stranded value $332
+      agent209-W: 14 3 @ $10.42 loss/unit
+      agent206-W: 50 2 @ $1.57 loss/unit
+      agent207-F: 28 2 @ $2.72 loss/unit
+      agent203-C: 50 2 @ $0.63 loss/unit
+  [TRADER AUDIT] T=25 Region_B: 14 unprofitable holdings, stranded value $803
+      agent422-C: 128 1 @ $1.18 loss/unit
+      agent418-W: 123 1 @ $1.12 loss/unit
+      agent417-F: 103 1 @ $1.14 loss/unit
+      agent417-F: 69 3 @ $1.65 loss/unit
+      agent415-C: 82 1 @ $1.12 loss/unit
+  [TRADER AUDIT] T=26 Region_A: 4 unprofitable holdings, stranded value $798
+      agent209-W: 37 3 @ $11.68 loss/unit
+      agent209-W: 91 2 @ $2.87 loss/unit
+      agent206-W: 50 2 @ $1.52 loss/unit
+      agent203-C: 50 2 @ $0.58 loss/unit
+  [TRADER AUDIT] T=26 Region_B: 8 unprofitable holdings, stranded value $837
+      agent417-F: 69 3 @ $2.61 loss/unit
+      agent422-C: 128 1 @ $1.19 loss/unit
+      agent418-W: 123 1 @ $1.12 loss/unit
+      agent417-F: 103 1 @ $1.14 loss/unit
+      agent415-C: 82 1 @ $1.13 loss/unit
+  [TRADER AUDIT] T=27 Region_A: 4 unprofitable holdings, stranded value $539
+      agent209-W: 140 2 @ $3.07 loss/unit
+      agent204-F: 30 2 @ $1.61 loss/unit
+      agent208-F: 28 2 @ $1.61 loss/unit
+      agent206-W: 10 2 @ $1.61 loss/unit
+  [TRADER AUDIT] T=27 Region_B: 8 unprofitable holdings, stranded value $881
+      agent421-F: 283 1 @ $1.15 loss/unit
+      agent417-F: 103 1 @ $1.17 loss/unit
+      agent415-C: 82 1 @ $1.15 loss/unit
+      agent417-F: 26 3 @ $3.56 loss/unit
+      agent345-F: 71 1 @ $1.09 loss/unit
+  [TRADER AUDIT] T=28 Region_A: 8 unprofitable holdings, stranded value $479
+      agent203-C: 135 2 @ $1.63 loss/unit
+      agent209-W: 49 2 @ $3.02 loss/unit
+      agent204-F: 30 2 @ $1.56 loss/unit
+      agent208-F: 28 2 @ $1.56 loss/unit
+      agent206-W: 10 2 @ $1.56 loss/unit
+  [TRADER AUDIT] T=28 Region_B: 10 unprofitable holdings, stranded value $1,307
+      agent417-F: 302.0 1 @ $1.18 loss/unit
+      agent421-F: 283 1 @ $1.17 loss/unit
+      agent414-F: 223 1 @ $1.13 loss/unit
+      agent439-F: 73 1 @ $1.05 loss/unit
+      agent422-C: 21 3 @ $3.62 loss/unit
+  [TRADER AUDIT] T=29 Region_A: 8 unprofitable holdings, stranded value $1,344
+      agent209-W: 340 2 @ $3.05 loss/unit
+      agent203-C: 135 2 @ $1.61 loss/unit
+      agent207-F: 43 2 @ $1.70 loss/unit
+      agent209-W: 51 3 @ $0.19 loss/unit
+      agent211-F: 1 3 @ $2.69 loss/unit
+  [TRADER AUDIT] T=29 Region_B: 11 unprofitable holdings, stranded value $1,124
+      agent417-F: 302.0 1 @ $1.18 loss/unit
+      agent414-F: 223 1 @ $1.13 loss/unit
+      agent421-F: 107 1 @ $1.17 loss/unit
+      agent422-C: 21 3 @ $4.50 loss/unit
+      agent420-F: 74 1 @ $1.04 loss/unit
+  [TRADER AUDIT] T=30 Region_A: 10 unprofitable holdings, stranded value $1,765
+      agent209-W: 572 2 @ $1.99 loss/unit
+      agent203-C: 173 2 @ $1.99 loss/unit
+      agent209-W: 51 3 @ $1.86 loss/unit
+      agent490-F: 50 2 @ $1.78 loss/unit
+      agent207-F: 41 2 @ $1.74 loss/unit
+  [TRADER AUDIT] T=30 Region_B: 8 unprofitable holdings, stranded value $713
+      agent414-F: 223 1 @ $1.15 loss/unit
+      agent422-C: 21 3 @ $5.38 loss/unit
+      agent417-F: 14 3 @ $6.25 loss/unit
+      agent418-W: 17 3 @ $4.58 loss/unit
+      agent420-F: 74 1 @ $1.05 loss/unit
+  [TRADER AUDIT] T=31 Region_A: 11 unprofitable holdings, stranded value $1,249
+      agent209-W: 232 2 @ $2.09 loss/unit
+      agent203-C: 173 2 @ $2.09 loss/unit
+      agent209-W: 51 3 @ $3.37 loss/unit
+      agent490-F: 50 2 @ $1.88 loss/unit
+      agent211-F: 47 2 @ $1.84 loss/unit
+  [TRADER AUDIT] T=31 Region_B: 8 unprofitable holdings, stranded value $762
+      agent414-F: 223 1 @ $1.16 loss/unit
+      agent422-C: 21 3 @ $6.22 loss/unit
+      agent417-F: 14 3 @ $7.10 loss/unit
+      agent418-W: 17 3 @ $5.43 loss/unit
+      agent420-F: 74 1 @ $1.06 loss/unit
+  [TRADER AUDIT] T=32 Region_A: 11 unprofitable holdings, stranded value $714
+      agent209-W: 51 3 @ $4.80 loss/unit
+      agent211-F: 61 2 @ $2.49 loss/unit
+      agent205-C: 71 2 @ $1.83 loss/unit
+      agent203-C: 31 2 @ $2.66 loss/unit
+      agent490-F: 27 2 @ $1.34 loss/unit
+  [TRADER AUDIT] T=32 Region_B: 9 unprofitable holdings, stranded value $766
+      agent414-F: 223 1 @ $1.18 loss/unit
+      agent417-F: 14 3 @ $7.93 loss/unit
+      agent418-W: 17 3 @ $6.26 loss/unit
+      agent422-C: 22 3 @ $3.79 loss/unit
+      agent420-F: 74 1 @ $1.08 loss/unit
+  [TRADER AUDIT] T=33 Region_A: 14 unprofitable holdings, stranded value $983
+      agent209-W: 51 3 @ $6.27 loss/unit
+      agent211-F: 61 2 @ $2.58 loss/unit
+      agent205-C: 71 2 @ $1.92 loss/unit
+      agent203-C: 16 3 @ $6.27 loss/unit
+      agent203-C: 31 2 @ $2.74 loss/unit
+  [TRADER AUDIT] T=33 Region_B: 11 unprofitable holdings, stranded value $845
+      agent414-F: 223 1 @ $1.20 loss/unit
+      agent417-F: 14 3 @ $8.74 loss/unit
+      agent418-W: 17 3 @ $7.07 loss/unit
+      agent422-C: 22 3 @ $4.60 loss/unit
+      agent420-F: 74 1 @ $1.10 loss/unit
+  [TRADER AUDIT] T=34 Region_A: 17 unprofitable holdings, stranded value $1,433
+      agent209-W: 51 3 @ $7.66 loss/unit
+      agent211-F: 176 2 @ $1.81 loss/unit
+      agent205-C: 71 2 @ $1.99 loss/unit
+      agent207-F: 69 2 @ $1.81 loss/unit
+      agent203-C: 16 3 @ $7.66 loss/unit
+  [TRADER AUDIT] T=34 Region_B: 19 unprofitable holdings, stranded value $986
+      agent414-F: 223 1 @ $1.21 loss/unit
+      agent418-C: 17 3 @ $7.99 loss/unit
+      agent417-W: 14 3 @ $9.66 loss/unit
+      agent422-C: 22 3 @ $5.52 loss/unit
+      agent420-F: 74 1 @ $1.12 loss/unit
+  [TRADER AUDIT] T=35 Region_A: 17 unprofitable holdings, stranded value $1,732
+      agent209-W: 51 3 @ $8.98 loss/unit
+      agent211-F: 176 2 @ $1.88 loss/unit
+      agent210-F: 127 2 @ $1.81 loss/unit
+      agent205-C: 71 2 @ $2.06 loss/unit
+      agent203-C: 16 3 @ $8.98 loss/unit
+  [TRADER AUDIT] T=35 Region_B: 22 unprofitable holdings, stranded value $1,164
+      agent414-F: 223 1 @ $1.19 loss/unit
+      agent418-C: 17 3 @ $9.15 loss/unit
+      agent417-W: 14 3 @ $10.82 loss/unit
+      agent422-C: 22 3 @ $6.68 loss/unit
+      agent417-W: 369 2 @ $0.27 loss/unit
+  [TRADER AUDIT] T=36 Region_A: 14 unprofitable holdings, stranded value $1,763
+      agent209-W: 51 3 @ $10.26 loss/unit
+      agent211-F: 197 2 @ $1.37 loss/unit
+      agent210-F: 127 2 @ $1.88 loss/unit
+      agent203-C: 16 3 @ $10.26 loss/unit
+      agent205-C: 71 2 @ $2.12 loss/unit
+  [TRADER AUDIT] T=36 Region_B: 24 unprofitable holdings, stranded value $1,405
+      agent414-F: 223 1 @ $1.20 loss/unit
+      agent418-C: 17 3 @ $10.50 loss/unit
+      agent422-C: 22 3 @ $8.03 loss/unit
+      agent417-W: 14 3 @ $12.17 loss/unit
+      agent417-W: 369 2 @ $0.37 loss/unit
+  [TRADER AUDIT] T=37 Region_A: 14 unprofitable holdings, stranded value $1,894
+      agent209-W: 51 3 @ $11.48 loss/unit
+      agent211-F: 197 2 @ $1.43 loss/unit
+      agent210-F: 127 2 @ $1.95 loss/unit
+      agent203-C: 16 3 @ $11.48 loss/unit
+      agent205-C: 71 2 @ $2.19 loss/unit
+  [TRADER AUDIT] T=37 Region_B: 24 unprofitable holdings, stranded value $1,549
+      agent414-F: 223 1 @ $1.21 loss/unit
+      agent422-C: 22 3 @ $9.41 loss/unit
+      agent418-C: 17 3 @ $11.88 loss/unit
+      agent417-W: 14 3 @ $13.55 loss/unit
+      agent417-W: 369 2 @ $0.45 loss/unit
+  [TRADER AUDIT] T=38 Region_A: 14 unprofitable holdings, stranded value $2,444
+      agent209-W: 51 3 @ $12.66 loss/unit
+      agent207-F: 224 2 @ $1.86 loss/unit
+      agent211-F: 197 2 @ $1.50 loss/unit
+      agent210-F: 127 2 @ $2.01 loss/unit
+      agent203-C: 16 3 @ $12.66 loss/unit
+  [TRADER AUDIT] T=38 Region_B: 25 unprofitable holdings, stranded value $1,764
+      agent414-F: 223 1 @ $1.22 loss/unit
+      agent422-C: 22 3 @ $10.66 loss/unit
+      agent418-C: 17 3 @ $13.13 loss/unit
+      agent417-W: 14 3 @ $14.80 loss/unit
+      agent417-W: 369 2 @ $0.54 loss/unit
+  [TRADER AUDIT] T=39 Region_A: 16 unprofitable holdings, stranded value $4,226
+      agent210-F: 4709 1 @ $0.27 loss/unit
+      agent209-W: 51 3 @ $13.83 loss/unit
+      agent207-F: 224 2 @ $1.93 loss/unit
+      agent211-F: 197 2 @ $1.57 loss/unit
+      agent210-F: 127 2 @ $2.08 loss/unit
+  [TRADER AUDIT] T=39 Region_B: 29 unprofitable holdings, stranded value $1,898
+      agent414-F: 223 1 @ $1.23 loss/unit
+      agent422-C: 22 3 @ $11.87 loss/unit
+      agent418-C: 17 3 @ $14.34 loss/unit
+      agent417-W: 369 2 @ $0.62 loss/unit
+      agent417-W: 14 3 @ $16.01 loss/unit
+  [TRADER AUDIT] T=40 Region_A: 17 unprofitable holdings, stranded value $4,604
+      agent210-F: 4709 1 @ $0.30 loss/unit
+      agent209-W: 51 3 @ $14.96 loss/unit
+      agent207-F: 224 2 @ $2.00 loss/unit
+      agent211-F: 197 2 @ $1.63 loss/unit
+      agent210-F: 127 2 @ $2.15 loss/unit
+  [TRADER AUDIT] T=40 Region_B: 29 unprofitable holdings, stranded value $2,203
+      agent419-F: 261.0 1 @ $1.09 loss/unit
+      agent422-C: 22 3 @ $12.97 loss/unit
+      agent414-F: 223 1 @ $1.24 loss/unit
+      agent418-C: 17 3 @ $15.44 loss/unit
+      agent417-W: 369 2 @ $0.70 loss/unit
+  [TRADER AUDIT] T=41 Region_A: 17 unprofitable holdings, stranded value $4,938
+      agent210-F: 4709 1 @ $0.34 loss/unit
+      agent209-W: 51 3 @ $16.07 loss/unit
+      agent207-F: 224 2 @ $2.07 loss/unit
+      agent211-F: 197 2 @ $1.70 loss/unit
+      agent210-F: 127 2 @ $2.22 loss/unit
+  [TRADER AUDIT] T=41 Region_B: 29 unprofitable holdings, stranded value $2,305
+      agent422-C: 22 3 @ $13.97 loss/unit
+      agent419-F: 261.0 1 @ $1.09 loss/unit
+      agent417-W: 369 2 @ $0.76 loss/unit
+      agent418-C: 17 3 @ $16.44 loss/unit
+      agent414-F: 223 1 @ $1.24 loss/unit
+  [TRADER AUDIT] T=42 Region_A: 17 unprofitable holdings, stranded value $5,333
+      agent210-F: 4709 1 @ $0.37 loss/unit
+      agent209-W: 51 3 @ $17.14 loss/unit
+      agent207-F: 224 2 @ $2.14 loss/unit
+      agent210-F: 250 2 @ $1.78 loss/unit
+      agent208-F: 131 2 @ $2.07 loss/unit
+  [TRADER AUDIT] T=42 Region_B: 31 unprofitable holdings, stranded value $2,410
+      agent422-C: 22 3 @ $14.91 loss/unit
+      agent417-W: 369 2 @ $0.84 loss/unit
+      agent418-C: 17 3 @ $17.37 loss/unit
+      agent419-F: 261.0 1 @ $1.10 loss/unit
+      agent414-F: 223 1 @ $1.24 loss/unit
+  [TRADER AUDIT] T=43 Region_A: 19 unprofitable holdings, stranded value $5,738
+      agent210-F: 4709 1 @ $0.41 loss/unit
+      agent209-W: 51 3 @ $18.16 loss/unit
+      agent207-F: 224 2 @ $2.21 loss/unit
+      agent210-F: 250 2 @ $1.85 loss/unit
+      agent203-C: 21 3 @ $13.09 loss/unit
+  [TRADER AUDIT] T=43 Region_B: 34 unprofitable holdings, stranded value $2,551
+      agent422-C: 22 3 @ $15.79 loss/unit
+      agent417-W: 369 2 @ $0.93 loss/unit
+      agent418-C: 17 3 @ $18.26 loss/unit
+      agent419-F: 261.0 1 @ $1.10 loss/unit
+      agent417-W: 14 3 @ $19.93 loss/unit
+  [TRADER AUDIT] T=44 Region_A: 17 unprofitable holdings, stranded value $5,961
+      agent210-F: 4709 1 @ $0.44 loss/unit
+      agent209-W: 51 3 @ $19.16 loss/unit
+      agent207-F: 224 2 @ $2.28 loss/unit
+      agent210-F: 250 2 @ $1.92 loss/unit
+      agent203-C: 21 3 @ $14.08 loss/unit
+  [TRADER AUDIT] T=44 Region_B: 35 unprofitable holdings, stranded value $2,589
+      agent417-W: 369 2 @ $1.03 loss/unit
+      agent422-C: 22 3 @ $16.64 loss/unit
+      agent418-C: 17 3 @ $19.11 loss/unit
+      agent419-F: 261.0 1 @ $1.11 loss/unit
+      agent414-F: 223 1 @ $1.26 loss/unit
+  [TRADER AUDIT] T=45 Region_A: 18 unprofitable holdings, stranded value $6,529
+      agent210-F: 4709 1 @ $0.47 loss/unit
+      agent209-W: 51 3 @ $20.11 loss/unit
+      agent210-F: 337 2 @ $1.92 loss/unit
+      agent207-F: 224 2 @ $2.34 loss/unit
+      agent203-C: 21 3 @ $15.04 loss/unit
+  [TRADER AUDIT] T=45 Region_B: 38 unprofitable holdings, stranded value $2,725
+      agent417-W: 369 2 @ $1.11 loss/unit
+      agent422-C: 22 3 @ $17.48 loss/unit
+      agent418-C: 17 3 @ $19.94 loss/unit
+      agent419-F: 261.0 1 @ $1.11 loss/unit
+      agent414-F: 223 1 @ $1.26 loss/unit
+  [TRADER AUDIT] T=46 Region_A: 19 unprofitable holdings, stranded value $7,328
+      agent210-F: 4709 1 @ $0.50 loss/unit
+      agent209-W: 109 3 @ $13.47 loss/unit
+      agent210-F: 337 2 @ $1.98 loss/unit
+      agent207-F: 224 2 @ $2.40 loss/unit
+      agent203-C: 21 3 @ $15.96 loss/unit
+  [TRADER AUDIT] T=46 Region_B: 39 unprofitable holdings, stranded value $3,092
+      agent417-W: 369 2 @ $1.21 loss/unit
+      agent422-C: 22 3 @ $18.37 loss/unit
+      agent418-C: 17 3 @ $20.84 loss/unit
+      agent419-F: 261.0 1 @ $1.12 loss/unit
+      agent414-F: 223 1 @ $1.27 loss/unit
+  [TRADER AUDIT] T=47 Region_A: 22 unprofitable holdings, stranded value $8,770
+      agent210-F: 4709 1 @ $0.53 loss/unit
+      agent209-W: 109 3 @ $14.36 loss/unit
+      agent210-F: 446 2 @ $1.87 loss/unit
+      agent210-F: 54 3 @ $13.78 loss/unit
+      agent207-F: 224 2 @ $2.46 loss/unit
+  [TRADER AUDIT] T=47 Region_B: 40 unprofitable holdings, stranded value $3,210
+      agent417-W: 369 2 @ $1.29 loss/unit
+      agent422-C: 22 3 @ $19.22 loss/unit
+      agent418-C: 17 3 @ $21.69 loss/unit
+      agent419-F: 261.0 1 @ $1.12 loss/unit
+      agent414-F: 223 1 @ $1.27 loss/unit
+  [TRADER AUDIT] T=48 Region_A: 23 unprofitable holdings, stranded value $10,085
+      agent210-F: 4869.0 1 @ $0.55 loss/unit
+      agent209-W: 109 3 @ $15.22 loss/unit
+      agent210-F: 109 3 @ $14.05 loss/unit
+      agent210-F: 510 2 @ $1.85 loss/unit
+      agent207-F: 224 2 @ $2.51 loss/unit
+  [TRADER AUDIT] T=48 Region_B: 45 unprofitable holdings, stranded value $3,721
+      agent417-W: 369 2 @ $1.37 loss/unit
+      agent422-C: 22 3 @ $20.07 loss/unit
+      agent418-C: 17 3 @ $22.54 loss/unit
+      agent421-F: 28 3 @ $12.16 loss/unit
+      agent419-F: 261.0 1 @ $1.13 loss/unit
+  [TRADER AUDIT] T=49 Region_A: 25 unprofitable holdings, stranded value $10,641
+      agent210-F: 4869.0 1 @ $0.58 loss/unit
+      agent209-W: 109 3 @ $16.06 loss/unit
+      agent210-F: 109 3 @ $14.89 loss/unit
+      agent210-F: 510 2 @ $1.90 loss/unit
+      agent207-F: 224 2 @ $2.56 loss/unit
+  [TRADER AUDIT] T=49 Region_B: 48 unprofitable holdings, stranded value $3,990
+      agent417-W: 369 2 @ $1.44 loss/unit
+      agent422-C: 22 3 @ $20.88 loss/unit
+      agent418-C: 17 3 @ $23.35 loss/unit
+      agent421-F: 28 3 @ $12.98 loss/unit
+      agent419-F: 261.0 1 @ $1.14 loss/unit
+  Region_A-Charity: distributed 16 food to 16 agents (remaining food: 0.0, cash: $0.00)
+  Region_B-Charity: distributed 16 food to 16 agents (remaining food: 0.0, cash: $0.00)
+  [TRADER AUDIT] T=50 Region_A: 26 unprofitable holdings, stranded value $11,121
+      agent210-F: 4869.0 1 @ $0.60 loss/unit
+      agent209-W: 109 3 @ $16.89 loss/unit
+      agent210-F: 109 3 @ $15.71 loss/unit
+      agent210-F: 510 2 @ $1.95 loss/unit
+      agent207-F: 224 2 @ $2.61 loss/unit
+  [TRADER AUDIT] T=50 Region_B: 48 unprofitable holdings, stranded value $4,121
+      agent417-W: 369 2 @ $1.51 loss/unit
+      agent422-C: 22 3 @ $21.74 loss/unit
+      agent418-C: 17 3 @ $24.21 loss/unit
+      agent421-F: 28 3 @ $13.83 loss/unit
+      agent419-F: 261.0 1 @ $1.14 loss/unit
+Progress: turn 50/60
+  [TRADER AUDIT] T=51 Region_A: 27 unprofitable holdings, stranded value $11,621
+      agent210-F: 4869.0 1 @ $0.62 loss/unit
+      agent209-W: 109 3 @ $17.67 loss/unit
+      agent210-F: 109 3 @ $16.50 loss/unit
+      agent210-F: 510 2 @ $2.00 loss/unit
+      agent207-F: 224 2 @ $2.67 loss/unit
+  [TRADER AUDIT] T=51 Region_B: 48 unprofitable holdings, stranded value $4,244
+      agent417-W: 369 2 @ $1.58 loss/unit
+      agent422-C: 22 3 @ $22.54 loss/unit
+      agent418-C: 17 3 @ $25.01 loss/unit
+      agent421-F: 28 3 @ $14.63 loss/unit
+      agent419-F: 261.0 1 @ $1.15 loss/unit
+  [TRADER AUDIT] T=52 Region_A: 27 unprofitable holdings, stranded value $12,105
+      agent210-F: 4869.0 1 @ $0.65 loss/unit
+      agent209-W: 109 3 @ $18.43 loss/unit
+      agent210-F: 109 3 @ $17.26 loss/unit
+      agent210-F: 510 2 @ $2.05 loss/unit
+      agent207-F: 224 2 @ $2.71 loss/unit
+  [TRADER AUDIT] T=52 Region_B: 50 unprofitable holdings, stranded value $4,369
+      agent417-W: 369 2 @ $1.64 loss/unit
+      agent422-C: 22 3 @ $23.29 loss/unit
+      agent418-C: 17 3 @ $25.76 loss/unit
+      agent421-F: 28 3 @ $15.38 loss/unit
+      agent419-F: 261.0 1 @ $1.15 loss/unit
+  [TRADER AUDIT] T=53 Region_A: 27 unprofitable holdings, stranded value $13,493
+      agent210-F: 5205.0 1 @ $0.67 loss/unit
+      agent210-F: 181 3 @ $14.99 loss/unit
+      agent209-W: 109 3 @ $19.16 loss/unit
+      agent210-F: 510 2 @ $2.09 loss/unit
+      agent207-F: 224 2 @ $2.76 loss/unit
+  [TRADER AUDIT] T=53 Region_B: 51 unprofitable holdings, stranded value $4,493
+      agent417-W: 369 2 @ $1.71 loss/unit
+      agent422-C: 22 3 @ $23.97 loss/unit
+      agent421-F: 28 3 @ $16.06 loss/unit
+      agent418-C: 17 3 @ $26.44 loss/unit
+      agent417-W: 20 3 @ $15.14 loss/unit
+  [TRADER AUDIT] T=54 Region_A: 28 unprofitable holdings, stranded value $14,368
+      agent210-F: 5205.0 1 @ $0.69 loss/unit
+      agent210-F: 181 3 @ $15.69 loss/unit
+      agent209-W: 109 3 @ $19.86 loss/unit
+      agent210-F: 510 2 @ $2.14 loss/unit
+      agent207-F: 224 2 @ $2.81 loss/unit
+  [TRADER AUDIT] T=54 Region_B: 49 unprofitable holdings, stranded value $4,368
+      agent422-C: 22 3 @ $24.64 loss/unit
+      agent421-F: 28 3 @ $16.73 loss/unit
+      agent418-C: 17 3 @ $27.10 loss/unit
+      agent417-W: 458 2 @ $0.96 loss/unit
+      agent417-W: 20 3 @ $15.80 loss/unit
+  [TRADER AUDIT] T=55 Region_A: 31 unprofitable holdings, stranded value $14,978
+      agent210-F: 5205.0 1 @ $0.71 loss/unit
+      agent210-F: 181 3 @ $16.37 loss/unit
+      agent209-W: 109 3 @ $20.54 loss/unit
+      agent210-F: 510 2 @ $2.19 loss/unit
+      agent612-F: 908 1 @ $0.71 loss/unit
+  [TRADER AUDIT] T=55 Region_B: 49 unprofitable holdings, stranded value $4,898
+      agent421-F: 60 3 @ $14.32 loss/unit
+      agent422-C: 22 3 @ $25.29 loss/unit
+      agent418-C: 17 3 @ $27.76 loss/unit
+      agent417-W: 458 2 @ $1.01 loss/unit
+      agent417-W: 20 3 @ $16.46 loss/unit
+  [TRADER AUDIT] T=56 Region_A: 32 unprofitable holdings, stranded value $15,792
+      agent210-F: 5205.0 1 @ $0.73 loss/unit
+      agent210-F: 181 3 @ $17.02 loss/unit
+      agent209-W: 109 3 @ $21.19 loss/unit
+      agent210-F: 510 2 @ $2.23 loss/unit
+      agent207-F: 55 3 @ $15.46 loss/unit
+  [TRADER AUDIT] T=56 Region_B: 51 unprofitable holdings, stranded value $5,048
+      agent421-F: 60 3 @ $14.95 loss/unit
+      agent422-C: 22 3 @ $25.93 loss/unit
+      agent417-W: 458 2 @ $1.06 loss/unit
+      agent418-C: 17 3 @ $28.40 loss/unit
+      agent417-W: 20 3 @ $17.09 loss/unit
+  [TRADER AUDIT] T=57 Region_A: 32 unprofitable holdings, stranded value $16,710
+      agent210-F: 5205.0 1 @ $0.75 loss/unit/Users/sli/Code/region.py:2069: UserWarning: Data has no positive values, and therefore cannot be log-scaled.
+  axis[axis_id].set_yscale('log', base=2)
+/Users/sli/Code/wealth_lineage.py:308: UserWarning: You passed both c and facecolor/facecolors for the markers. c has precedence over facecolor/facecolors. This behavior may change in the future.
+  ax.scatter([d['end']], [ry], s=14,
+
+      agent210-F: 181 3 @ $17.65 loss/unit
+      agent209-W: 109 3 @ $21.82 loss/unit
+      agent210-F: 510 2 @ $2.27 loss/unit
+      agent207-F: 55 3 @ $16.09 loss/unit
+  [TRADER AUDIT] T=57 Region_B: 51 unprofitable holdings, stranded value $5,198
+      agent421-F: 60 3 @ $15.57 loss/unit
+      agent422-C: 22 3 @ $26.55 loss/unit
+      agent418-C: 17 3 @ $29.02 loss/unit
+      agent417-W: 488 2 @ $1.01 loss/unit
+      agent417-W: 20 3 @ $17.71 loss/unit
+  [TRADER AUDIT] T=58 Region_A: 32 unprofitable holdings, stranded value $17,621
+      agent210-F: 5205.0 1 @ $0.77 loss/unit
+      agent210-F: 181 3 @ $18.27 loss/unit
+      agent209-W: 109 3 @ $22.44 loss/unit
+      agent210-F: 510 2 @ $2.31 loss/unit
+      agent207-F: 55 3 @ $16.72 loss/unit
+  [TRADER AUDIT] T=58 Region_B: 57 unprofitable holdings, stranded value $5,385
+      agent421-F: 60 3 @ $16.10 loss/unit
+      agent422-C: 22 3 @ $27.08 loss/unit
+      agent417-W: 488 2 @ $1.05 loss/unit
+      agent418-C: 17 3 @ $29.55 loss/unit
+      agent417-W: 20 3 @ $18.25 loss/unit
+  [TRADER AUDIT] T=59 Region_A: 33 unprofitable holdings, stranded value $18,902
+      agent210-F: 5205.0 1 @ $0.79 loss/unit
+      agent210-F: 249 3 @ $15.95 loss/unit
+      agent209-W: 109 3 @ $23.04 loss/unit
+      agent210-F: 510 2 @ $2.35 loss/unit
+      agent207-F: 55 3 @ $17.32 loss/unit
+  [TRADER AUDIT] T=59 Region_B: 59 unprofitable holdings, stranded value $5,526
+      agent421-F: 60 3 @ $16.65 loss/unit
+      agent422-C: 22 3 @ $27.63 loss/unit
+      agent417-W: 488 2 @ $1.09 loss/unit
+      agent418-C: 17 3 @ $30.10 loss/unit
+      agent417-W: 20 3 @ $18.80 loss/unit
+  [TRADER AUDIT] T=60 Region_A: 30 unprofitable holdings, stranded value $9,844
+      agent209-W: 109 3 @ $23.60 loss/unit
+      agent207-F: 55 3 @ $17.88 loss/unit
+      agent612-F: 904 1 @ $0.81 loss/unit
+      agent490-F: 372 2 @ $1.81 loss/unit
+      agent207-F: 332 2 @ $1.86 loss/unit
+  [TRADER AUDIT] T=60 Region_B: 44 unprofitable holdings, stranded value $2,785
+      agent417-W: 488 2 @ $1.13 loss/unit
+      agent417-W: 20 3 @ $19.34 loss/unit
+      agent564-F: 271.0 1 @ $0.90 loss/unit
+      agent420-W: 191.0 1 @ $1.05 loss/unit
+      agent345-F: 149 1 @ $1.05 loss/unit
+
+Generating plots...
+Plot saved to region_a_output.png
+Plot saved to region_b_output.png
+
+======================================================================
+INTERGENERATIONAL WEALTH TRANSFER SUMMARY
+======================================================================
+Total births: 668
+Total deaths tracked: 5
+Total borrow events: 4669
+
+--- Wealth Transfer by Deceased Profession ---
+          Wood:   2 deaths, total=$      70, debt=$       0, to_gov=$      70, to_heirs=$       0
+          Food:   2 deaths, total=$      21, debt=$       0, to_gov=$      12, to_heirs=$      10
+     Furniture:   1 deaths, total=$      21, debt=$       1, to_gov=$      21, to_heirs=$       0
+
+--- Top 10 Net Worth Holders (Turn 60) ---
+   1.           agent539-F [    Corp] net=$   10034 ALIVE
+   2.           agent164-W [Furniture] net=$    8683 ALIVE
+   3.           agent390-C [Furniture] net=$    8586 ALIVE
+   4.           agent544-W [    Wood] net=$    6310 ALIVE
+   5.           agent448-C [    Corp] net=$    5547 ALIVE
+   6.           agent580-F [    Corp] net=$    5363 ALIVE
+   7.           agent389-C [Furniture] net=$    5168 ALIVE
+   8.           agent451-W [    Corp] net=$    4131 ALIVE
+   9.           agent510-C [    Corp] net=$    3575 ALIVE
+  10.           agent522-F [    Food] net=$    2833 ALIVE
+
+--- Borrowing Summary ---
+Total borrowed: $1881912 across 4669 loans
+
+Plot saved to wealth_lineage.png
+
+--- Death Causes by Profession (60 turns) ---
+                       Starved               Age        Age+Wealth       Age+CrowdedAge+Wealth+Crowded   Total
+        Food                 0                 2                 0                 0                 0       2
+   Furniture                 0                 0                 1                 0                 0       1
+        Wood                 0                 1                 1                 0                 0       2
+
+======================================================================
+POPULATION DYNAMICS (over 60 turns)
+======================================================================
+Region A final pop: 336
+Region B final pop: 327
+Cumulative births: 248
+Cumulative deaths: 5
+Net change: 243
+
+======================================================================
+REGION A — Wealth Diagnostics (Turn 60)
+======================================================================
+Total system cash: $  21433.45
+  Agent cash:      $  19129.76
+  Bank equity:     $   2303.69
+    deposits:      $  18793.82
+    liabilities:   $ -16490.14
+
+Agent count: 336 total (314 regular, 4 corps, 17 traders, 1 gov)
+
+Cash by type:
+  Regular agents:  $  10007.28
+  Corps:           $   5822.16
+  Traders:         $   3300.33
+  Government:      $      0.00
+
+Bank deposits by type:
+  Regular agents:  $   2866.96
+  Corps:           $  12087.37
+  Traders:         $    388.90
+  Government:      $    319.68
+
+Corporate retained earnings (total): $ 6330.79
+  Corp cash on hand:                 $ 5822.16
+            agent510-C output=        3 cash=$2709.94 retained=$2511.10 employees=12
+            agent451-W output=        2 cash=$  11.85 retained=$1548.74 employees=25
+            agent539-F output=        1 cash=$3076.48 retained=$1327.74 employees=110
+            agent616-F output=        1 cash=$  23.88 retained=$ 943.20 employees=17
+
+======================================================================
+INTRA-PROFESSION INEQUALITY (cash + deposits)
+======================================================================
+
+             1:
+    count=158  min=$   0.05  max=$  2352.86  avg=$  19.83  median=$   2.90  std=$ 186.37
+    % below $20: 92.4%  (reproduction-critical threshold)
+    gini-estimate (simplified): 469.9%
+    ├─ Employees (119): avg=$   2.69 median=$   2.86 min=$   1.43 max=$  10.02
+    └─ Independent (39): avg=$  72.12 median=$   5.25 min=$   0.05 max=$2352.86
+
+             2:
+    count=127  min=$   0.00  max=$    66.09  avg=$   5.35  median=$   0.85  std=$  10.31
+    % below $20: 89.0%  (reproduction-critical threshold)
+    gini-estimate (simplified): 96.3%
+    ├─ Employees (24): avg=$   2.23 median=$   1.40 min=$   0.63 max=$  17.51
+    └─ Independent (103): avg=$   6.08 median=$   0.68 min=$   0.00 max=$  66.09
+
+             3:
+    count= 26  min=$   0.07  max=$  8689.29  avg=$ 339.53  median=$   4.31  std=$1670.00
+    % below $20: 92.3%  (reproduction-critical threshold)
+    gini-estimate (simplified): 245.9%
+    ├─ Employees (11): avg=$   9.32 median=$   4.31 min=$   1.24 max=$  65.02
+    └─ Independent (15): avg=$ 581.68 median=$   1.96 min=$   0.07 max=$8689.29
+
+======================================================================
+TOP 10 RICHEST AGENTS (wealth = cash + deposits + inventory - debt)
+======================================================================
+   1.           agent539-F [        1]     CORP cash=$3076.48 dep=$6992.02 inv=$2711.30 debt=$  34.83 wealth=$12808.35
+   2.           agent451-W [        2]     CORP cash=$  11.85 dep=$4223.26 inv=$9049.77 debt=$ 104.04 wealth=$12375.14
+   3.           agent164-C [        3]          cash=$6437.09 dep=$2252.21 inv=$3910.36 debt=$   6.24 wealth=$11562.49
+   4.           agent510-C [        3]     CORP cash=$2709.94 dep=$ 872.08 inv=$7725.78 debt=$   7.18 wealth=$10755.73
+   5.           agent616-F [        1]     CORP cash=$  23.88 dep=$   0.00 inv=$3532.47 debt=$   0.00 wealth=$ 2579.77
+   6.           agent209-W [        2]   TRADER cash=$2661.70 dep=$ 341.32 inv=$   8.00 debt=$ 274.76 wealth=$ 2490.54
+   7.           agent210-F [        1]          cash=$1738.11 dep=$ 614.75 inv=$   2.00 debt=$   0.00 wealth=$ 2020.75
+   8.             agent1-G [        5]      GOV cash=$   0.00 dep=$ 319.68 inv=$10087.51 debt=$   0.00 wealth=$  507.64
+   9.           agent612-F [        1]   TRADER cash=$ 178.05 dep=$   0.00 inv=$   8.00 debt=$  20.58 wealth=$  189.83
+  10.           agent114-W [        2]          cash=$  66.09 dep=$   0.00 inv=$ 153.53 debt=$  22.22 wealth=$  183.92
+
+======================================================================
+REGION B — Wealth Diagnostics (Turn 60)
+======================================================================
+Total system cash: $  26284.02
+  Agent cash:      $  22380.25
+  Bank equity:     $   3903.77
+    deposits:      $  18079.28
+    liabilities:   $ -14175.51
+
+Agent count: 327 total (291 regular, 4 corps, 31 traders, 1 gov)
+
+Cash by type:
+  Regular agents:  $  18941.69
+  Corps:           $   3333.13
+  Traders:         $     79.74
+  Government:      $     25.69
+
+Bank deposits by type:
+  Regular agents:  $   7585.48
+  Corps:           $   7819.52
+  Traders:         $      0.00
+  Government:      $    174.83
+
+Corporate retained earnings (total): $ 8316.30
+  Corp cash on hand:                 $ 3333.13
+            agent580-F output=        1 cash=$3039.60 retained=$5084.19 employees=49
+            agent448-C output=        3 cash=$  61.04 retained=$2008.46 employees=16
+            agent471-C output=        3 cash=$  74.56 retained=$ 858.68 employees=24
+            agent590-F output=        1 cash=$ 157.94 retained=$ 364.97 employees=11
+
+======================================================================
+INTRA-PROFESSION INEQUALITY (cash + deposits)
+======================================================================
+
+             1:
+    count=128  min=$   0.00  max=$  2936.77  avg=$  33.88  median=$   1.58  std=$ 263.76
+    % below $20: 93.8%  (reproduction-critical threshold)
+    gini-estimate (simplified): 389.2%
+    ├─ Employees (53): avg=$   4.19 median=$   2.59 min=$   1.36 max=$  91.38
+    └─ Independent (75): avg=$  54.87 median=$   0.76 min=$   0.00 max=$2936.77
+
+             2:
+    count=107  min=$   0.00  max=$  6335.74  avg=$  71.81  median=$  14.42  std=$ 608.69
+    % below $20: 77.6%  (reproduction-critical threshold)
+    gini-estimate (simplified): 423.8%
+    all 107 agents are independent
+
+             3:
+    count= 52  min=$   0.00  max=$  8587.36  avg=$ 278.92  median=$   6.37  std=$1362.85
+    % below $20: 88.5%  (reproduction-critical threshold)
+    gini-estimate (simplified): 244.3%
+    ├─ Employees (39): avg=$  18.46 median=$   6.70 min=$   0.00 max=$ 394.89
+    └─ Independent (13): avg=$1060.30 median=$   0.66 min=$   0.00 max=$8587.36
+
+======================================================================
+TOP 10 RICHEST AGENTS (wealth = cash + deposits + inventory - debt)
+======================================================================
+   1.           agent390-C [        3]          cash=$3170.16 dep=$5417.19 inv=$15658.79 debt=$   1.37 wealth=$22411.63
+   2.           agent448-C [        3]     CORP cash=$  61.04 dep=$5496.05 inv=$8825.75 debt=$  10.29 wealth=$13168.55
+   3.           agent580-F [        1]     CORP cash=$3039.60 dep=$2323.47 inv=$5994.28 debt=$   0.00 wealth=$12089.24
+   4.           agent544-W [        2]          cash=$6335.74 dep=$   0.00 inv=$10388.19 debt=$  25.94 wealth=$10192.41
+   5.           agent389-C [        3]          cash=$3453.86 dep=$1715.80 inv=$3762.50 debt=$   1.53 wealth=$ 7918.01
+   6.           agent514-F [        1]          cash=$ 530.48 dep=$   0.00 inv=$8491.73 debt=$   0.00 wealth=$ 5967.72
+   7.           agent590-F [        1]     CORP cash=$ 157.94 dep=$   0.00 inv=$7640.41 debt=$   0.00 wealth=$ 5802.36
+   8.           agent471-C [        3]     CORP cash=$  74.56 dep=$   0.00 inv=$5400.45 debt=$   0.00 wealth=$ 3994.74
+   9.           agent522-F [        1]          cash=$2674.88 dep=$ 261.89 inv=$1492.37 debt=$ 104.11 wealth=$ 2094.48
+  10.           agent529-W [        2]          cash=$  68.46 dep=$  91.92 inv=$ 604.85 debt=$   0.00 wealth=$  805.38
+  Wealth stacked bar saved to wealth_stacked.png
+
+============================================================
+FINAL SUMMARY =
+============================================================
+
+--- Region_A ---
+  Food: Pop=160, Price=1.00, Inv=2495.00, Cash=5550.60
+  Wood: Pop=128, Price=2.35, Inv=1034.00, Cash=691.76
+  Furniture: Pop=27, Price=34.88, Inv=78.00, Cash=9285.47
+  Transport: Pop=3, Price=4.00, Inv=3.00, Cash=233.61
+  Gov: Pop=0, Price=1.00, Inv=0.00, Cash=0.00
+  Total Pop: 335, Dead/Starved: 0
+  Final GDP/turn: $3461.74
+  Total Exports: 3900 units ($7640.56)
+  Total Imports: 2407 units ($13670.52)
+  Net Trade Balance: $-6029.96
+  Avg Price Spread: food: $0.35, wood: $0.97, furniture: $1.87
+  Charity: $1587.30 collected, 638 food to 638 recipients, 638.0 purchased
+  Traders: 17 traders, cash $3300, deposits $389, wallet $997, wealth $4686 (start $1782), ROI: 163.0%
+  FX Desk: mid=0.5800 (Region_A per 1 Region_B), spread=2.00%, reserves={'Region_B': 4606.87}, fx_pool=$256.67
+
+--- Region_B ---
+  Food: Pop=130, Price=1.01, Inv=4207.00, Cash=7126.18
+  Wood: Pop=107, Price=1.85, Inv=2129.00, Cash=7591.56
+  Furniture: Pop=55, Price=32.90, Inv=374.00, Cash=7532.30
+  Transport: Pop=3, Price=4.10, Inv=3.00, Cash=1.38
+  Gov: Pop=0, Price=1.00, Inv=0.00, Cash=0.00
+  Total Pop: 326, Dead/Starved: 0
+  Final GDP/turn: $4732.34
+  Total Exports: 2407 units ($13670.52)
+  Total Imports: 3900 units ($7640.56)
+  Net Trade Balance: +$6029.96
+  Avg Price Spread: food: $0.35, wood: $0.97, furniture: $1.87
+  Charity: $1289.45 collected, 791 food to 791 recipients, 791.0 purchased
+  Traders: 31 traders, cash $80, deposits $0, wallet $2581, wealth $2661 (start $1782), ROI: 49.3%
+  FX Desk: mid=0.5156 (Region_B per 1 Region_A), spread=2.00%, reserves={'Region_A': 4943.29}, fx_pool=$72.81
+
+Done.

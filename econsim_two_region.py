@@ -3,8 +3,9 @@
 Two-region economic simulation.
 
 Initializes two independent regions, each with its own Government, bank, agent
-population, and logging state.  Trade flows between regions via trader agents
-with transport delay.  Supports per-government policy toggles and floating
+population, and logging state.  Trade flows between regions via specialized
+trader agents through a structural Route (transporter.py) that owns delivery
+time and congestion.  Supports per-government policy toggles and floating
 exchange rates.
 
 Usage:
@@ -19,6 +20,7 @@ from goods import Goods, profession
 from region import Region, get_total_cash
 from econsim_states import starvation_limit, max_career_switches, probability_birth, birth_gap
 from logger import loginfo, logInit
+from transporter import Route
 import wealth_lineage
 import wealth_diagnostic
 import forex as fx
@@ -73,77 +75,8 @@ def update_exchange_rate(region):
 
 
 # =============================================================================
-# Inter-region transport & foreign-sell
+# Inter-region settlement (imports are sold in the destination's auction)
 # =============================================================================
-
-def process_transport(t, region_a, region_b):
-    """Process transport pipelines for all traders in both regions."""
-    for trader in region_a.agents:
-        if not getattr(trader, 'is_trader', False):
-            continue
-        trader._process_pipeline()
-    for trader in region_b.agents:
-        if not getattr(trader, 'is_trader', False):
-            continue
-        trader._process_pipeline()
-
-
-def _agent_process_pipeline(self):
-    # ---- Step 1: arrive expired pipeline entries ----
-    new_pipeline = []
-    for entry in self.transport_pipeline:
-        entry['turns_left'] -= 1
-        if entry['turns_left'] <= 0:
-            good = entry['good']
-            self.inventory_foreign[good.value] += entry['quantity']
-        else:
-            new_pipeline.append(entry)
-    self.transport_pipeline = new_pipeline
-
-    # ---- Step 2: consume transport units to move export goods ----
-    transport_units = self.inventory[Goods.transport.value]
-    transport_capacity = _transport_capacity_per_unit()
-    max_movable = transport_units * transport_capacity
-    total_moved = 0
-
-    for good in list(Goods):
-        if good == Goods.none or good == Goods.transport:
-            continue
-        qty = self.inventory_export[good.value]
-        if qty <= 0:
-            continue
-        movable = min(qty, max_movable - total_moved)
-        if movable <= 0:
-            continue
-        self.transport_pipeline.append({
-            'turns_left': self.transport_delay,
-            'good': good,
-            'quantity': movable,
-        })
-        self.inventory_export[good.value] -= movable
-        total_moved += movable
-
-    # Consume transport units: ceil(total_moved / capacity)
-    if total_moved > 0:
-        consumed = _div_ceil(total_moved, transport_capacity)
-        self.inventory[Goods.transport.value] -= min(consumed, self.inventory[Goods.transport.value])
-
-    # Transport is a perishable service: any leftover decays each turn
-    self.inventory[Goods.transport.value] = 0
-
-def _transport_capacity_per_unit():
-    """Goods moved per transport unit (from recipe). Returns 10 as default."""
-    from econsim_states import recipes
-    return recipes.get(Goods.transport, {}).get('capacity', 10)
-
-def _div_ceil(a, b):
-    """Integer ceiling division: ceil(a / b)."""
-    return (a + b - 1) // b
-
-
-from agent import Agent
-Agent._process_pipeline = _agent_process_pipeline
-
 
 def _pending_imports(dest, src):
     """Goods that *src*'s traders have physically delivered to *dest*.
@@ -162,7 +95,15 @@ def _pending_imports(dest, src):
     return pend
 
 
-def foreign_sell(t, destination_region, source_region):
+def settle_trade(t, destination_region, source_region):
+    """Post-auction settlement for a region pair.
+
+    Import goods themselves are sold inside the destination's round-1 priced
+    auction (Region._clear_discriminatory) during step(); this function:
+      1. logs the auction's sales into export/import volume & value logs,
+      2. lets away-traders buy food at the destination out of their wallet,
+      3. posts leftover foreign earnings as ASKs on the home FX desk.
+    """
     sname = source_region.name
     # Use cached trader list (maintained on Region) — avoid O(N) filter per call
     traders = [a for a in source_region.trader_agents
@@ -172,14 +113,8 @@ def foreign_sell(t, destination_region, source_region):
     dest_currency = destination_region.home_currency
     total_sold_value = 0.0
     total_sold_quantity = 0
-    trade_volumes = defaultdict(int)
-    trade_values = defaultdict(float)
 
-    # Phase 5 (Option 1): ALL imports are sold through the destination's
-    # round-1 priced auction (which cleared during step, decrementing
-    # inventory_foreign).  No direct after-market dumping at 0.95x anymore;
-    # unsold imports stay in inventory_foreign and re-offer next turn until
-    # the book buys them at their own cost+margin ask.
+    # 1. Log what the destination's priced auction sold for us this turn.
     for good in [Goods.food, Goods.wood, Goods.furniture]:
         aq, av = destination_region._auction_import_sales.get(good, (0, 0.0))
         if aq > 0:
@@ -195,8 +130,8 @@ def foreign_sell(t, destination_region, source_region):
             destination_region.import_vol[good].append(0)
             destination_region.import_val[good].append(0.0)
 
-    # Traders buy food for themselves at the destination out of sales
-    # proceeds (they are away from home and must eat from local markets).
+    # 2. Traders buy food for themselves at the destination out of sales
+    #    proceeds (they are away from home and must eat from local markets).
     for trader in traders:
         if trader.inv_get(Goods.food, 0) < 8:
             food_price = destination_region.recipes[Goods.food]['price']
@@ -229,11 +164,11 @@ def foreign_sell(t, destination_region, source_region):
                     trader.inv_add(Goods.food, take)
                     bought += take
 
+    # 3. Post leftover foreign earnings as ASKs on the home desk's order book
+    #    (book persists across turns so they can cross with next-turn
+    #    working-capital bids).  Residuals are repatriated by fx.cycle_market
+    #    (desk last resort) at the end of the turn.
     if use_fx:
-        # Phase 3: post leftover foreign earnings as ASKs on the home desk's
-        # order book (book persists across turns so they can cross with
-        # next-turn working-capital bids).  Residuals are repatriated by
-        # fx.cycle_market (desk last resort) at the end of the turn.
         desk = source_region.forex
         for trader in traders:
             bal = fx.fx_balance(trader, dest_currency)
@@ -264,6 +199,60 @@ def trader_wealth(region):
     return total
 
 
+def check_trader_holdings(region, other, t):
+    """Sanity-check that no trader holds goods that can't clear a profit.
+
+    Audit-only: for every good a trader holds (export, in-transit, or
+    foreign), compute the deliverable foreign net
+        dest_price × home_per_dest − (cost_basis + transport_cost)
+    and warn if it is negative.  Because prices move between buy and
+    delivery, some price-drift losses are expected; this audit's job is to
+    surface *sustained* stranding (destinations where local producers
+    persistently undercut the import).  Prints a per-turn summary with the
+    largest violations, capped to avoid log spam.
+    """
+    violations = 0
+    stranded_value = 0.0
+    worst = []
+    transport_cost = region._transport_cost_per_unit()
+    desk = getattr(region, 'forex', None)
+    home_per_dest = desk.buy_rate() if desk is not None else 1.0
+    for trader in region.trader_agents:
+        if not getattr(trader, 'is_trader', False):
+            continue
+        holdings = {}
+        for g in [Goods.food, Goods.wood, Goods.furniture]:
+            qty = (trader.inventory_export[g.value]
+                   + trader.inventory_foreign[g.value])
+            if region.route is not None:
+                qty += region.route.holdings_of(trader).get(g, 0)
+            if g != Goods.food:
+                # Local stock for non-food goods is trade inventory.  For
+                # food, local stock is the personal eating buffer (≤ 8 units)
+                # which is consumed, never shipped — exclude it.
+                qty += trader.inv_get(g, 0)
+            if qty > 0:
+                holdings[g] = qty
+        for g, qty in holdings.items():
+            dest_price = other.recipes.get(g, {}).get('price', 0)
+            cost = trader.cost_get(g, 0)
+            if cost <= 0:
+                cost = region.recipes.get(g, {}).get('price', 0)
+            net_foreign = dest_price * home_per_dest
+            loss_per_unit = (cost + transport_cost) - net_foreign
+            if loss_per_unit > 0:
+                violations += 1
+                stranded_value += loss_per_unit * qty
+                worst.append((loss_per_unit * qty, trader.name(), qty, g, loss_per_unit))
+    if violations > 0:
+        worst.sort(reverse=True)
+        print(f"  [TRADER AUDIT] T={t} {region.name}: {violations} unprofitable "
+              f"holdings, stranded value ${stranded_value:,.0f}")
+        for loss, name, qty, g, unit in worst[:5]:
+            print(f"      {name}: {qty} {g} @ ${unit:.2f} loss/unit")
+    return violations
+
+
 # =============================================================================
 # MAIN
 # =============================================================================
@@ -276,10 +265,13 @@ def main():
 
     random.seed(42)
 
-    region_a = Region("Region_A", t=0, number_of_agents=110,
-                       profession_distribution={Goods.food: 0.753, Goods.wood: 0.110, Goods.furniture: 0.037})
-    region_b = Region("Region_B", t=0, number_of_agents=110,
-                       profession_distribution={Goods.food: 0.50, Goods.wood: 0.35, Goods.furniture: 0.05})
+    # 3 traders per good type (food/wood/furniture) = 9 traders, 200 agents.
+    region_a = Region("Region_A", t=0, number_of_agents=200,
+                       profession_distribution={Goods.food: 0.753, Goods.wood: 0.110, Goods.furniture: 0.037},
+                       number_of_traders=3)
+    region_b = Region("Region_B", t=0, number_of_agents=200,
+                       profession_distribution={Goods.food: 0.50, Goods.wood: 0.35, Goods.furniture: 0.05},
+                       number_of_traders=3)
 
     region_a.recipes[Goods.food]['production'] *= 2
     region_b.recipes[Goods.wood]['production'] *= 2
@@ -292,6 +284,12 @@ def main():
     for trader in region_b.agents:
         if getattr(trader, 'is_trader', False):
             trader.destination_region = region_a
+
+    # Wire the structural routes (one directional Route per region pair).
+    region_a.route = Route(f"{region_a.name}->{region_b.name}",
+                           region_a, region_b, base_delay=TRANSPORT_DELAY)
+    region_b.route = Route(f"{region_b.name}->{region_a.name}",
+                           region_b, region_a, base_delay=TRANSPORT_DELAY)
 
     fx.connect_regions(region_a, region_b, t=0)
     region_a._init_trader_wealth = trader_wealth(region_a)
@@ -315,10 +313,17 @@ def main():
         region_b._auction_import_sales = {}
         region_a.step(t)
         region_b.step(t)
-        process_transport(t, region_a, region_b)
-        foreign_sell(t, region_a, region_b)
-        foreign_sell(t, region_b, region_a)
+        # Advance routes: deliver matured cargo, load freshly posted cargo.
+        region_a.route.advance()
+        region_a.route.deliver_pending()
+        region_b.route.advance()
+        region_b.route.deliver_pending()
+        settle_trade(t, region_a, region_b)
+        settle_trade(t, region_b, region_a)
         fx.cycle_market(region_a, region_b, t)
+        # Sanity check: no profitable-trader invariant violations.
+        check_trader_holdings(region_a, region_b, t)
+        check_trader_holdings(region_b, region_a, t)
         wealth_lineage.record_turn(t, region_a, region_b)
         wealth_diagnostic.record_turn(t, region_a, region_b)
         cash_after = sum(fx.audit_currency_total([region_a, region_b], c)
