@@ -126,6 +126,12 @@ class Government:
         self.borrow_log = []
         # Log of (turn, tax_rate) after each adjustment.
         self.tax_rate_log = []
+        # Per-turn income decomposition (monetary income credited to gov cash /
+        # deposits).  Lists of {turn, tax, tariff, inheritance} dicts, one per
+        # turn, appended by seal_income() at the end of each Region.step().
+        self.income_log = []
+        # Accumulators for the current turn (reset by seal_income).
+        self._income_pending = {}
 
     # ------------------------------------------------------------------
     #  Internal helpers
@@ -368,8 +374,49 @@ class Government:
         """Receive tax revenue. Returns amount received."""
         if amount > 0:
             self.agent.cash += amount
+            self.record_income(t, 'tax', amount)
             loginfo(t, f"Government({self.name}) collected ${amount:.2f} in taxes")
         return amount
+
+    def receive_tariff(self, t, amount):
+        """Credit import-tariff revenue to the government and log it.
+
+        Called from Region._clear_discriminatory when an import sale is
+        settled; the buyer's payment is split between the trader's
+        destination-currency wallet and this tariff share.
+        """
+        if amount > 0:
+            self.agent.cash += amount
+            self.record_income(t, 'tariff', amount)
+
+    def record_income(self, t, source, amount):
+        """Accumulate a per-turn income amount under *source*.
+
+        Sources: 'tax', 'tariff', 'inheritance'.  Amounts are summed into
+        _income_pending for the current turn and snapshotted by seal_income().
+        """
+        if amount <= 0:
+            return
+        pending = self._income_pending
+        pending[source] = pending.get(source, 0.0) + amount
+
+    def seal_income(self, t):
+        """Append this turn's income snapshot to income_log and reset.
+
+        Must be called exactly once per turn, after every income source for
+        that turn has recorded (Region.step() calls this at the very end of
+        the turn body).
+        """
+        pending = self._income_pending
+        snapshot = {
+            'turn': t,
+            'tax': pending.get('tax', 0.0),
+            'tariff': pending.get('tariff', 0.0),
+            'inheritance': pending.get('inheritance', 0.0),
+        }
+        self.income_log.append(snapshot)
+        self._income_pending = {}
+        return snapshot
 
     # ==================================================================
     #  Food Purchasing (called by region._trade, like charity)

@@ -386,6 +386,7 @@ class Region:
         self._audit_cash(t, "charity_food_done")
 
         self._log_metrics(t)
+        self.gov.seal_income(t)
         self.total_population.append(sum(v[-1] for v in self.population_log.values()))
         self.cost_of_living_log.append(self.cost_of_living)
         self.bank_cash_log.append(self.bank.total_deposits - self.bank.total_liabilities)
@@ -1214,7 +1215,7 @@ class Region:
                     tariff_share = cost * tau
                     _fx.fx_add(seller, self.home_currency, trader_share)
                     if tariff_share > 0:
-                        self.gov.agent.cash += tariff_share
+                        self.gov.receive_tariff(t, tariff_share)
                     seller.inventory_foreign[good.value] -= take
                     imp_units += take
                     imp_value += cost

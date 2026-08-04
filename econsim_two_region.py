@@ -434,6 +434,17 @@ def main():
                   f"reserves={ {k: round(v, 2) for k, v in dict(bank.foreign_reserves).items()} }, "
                   f"fx_pool=${bank.fx_pool:.2f}")
 
+        # Government income decomposition
+        income_log = getattr(region.gov, 'income_log', None)
+        if income_log:
+            total_tax = sum(snap.get('tax', 0.0) for snap in income_log)
+            total_tariff = sum(snap.get('tariff', 0.0) for snap in income_log)
+            total_inheritance = sum(snap.get('inheritance', 0.0) for snap in income_log)
+            print(f"  Gov Income: Tax ${total_tax:.2f}, Tariff ${total_tariff:.2f}, "
+                  f"Inheritance ${total_inheritance:.2f}, "
+                  f"Total ${total_tax + total_tariff + total_inheritance:.2f} "
+                  f"(gov cash ${region.gov.agent.cash:.2f})")
+
     print("\nDone.")
 
 

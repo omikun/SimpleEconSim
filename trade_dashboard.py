@@ -21,6 +21,11 @@ perspective:
     (H) Pipeline depth & unsold foreign inventory (supply-chain stress)
     (I) Real per-capita GDP overlay (region A vs B)
 
+  Row 4 — Government income decomposition:
+    (J) Region A government income by source (tax / tariff / inheritance)
+    (K) Region B government income by source
+    (L) Cumulative government income, both regions
+
 All panels read from the Region logs already produced by the sim; no
 new simulation logging is required.  Uses the 10-turn rolling average
 convention from region._smooth where trends matter.
@@ -107,6 +112,20 @@ def _real_exchange_rate(region, other):
     return real
 
 
+def _gov_income_series(region, source):
+    """Per-turn government income from *source* (''tax'', ''tariff'',
+    ''inheritance''), read from gov.income_log when available."""
+    log = getattr(region.gov, 'income_log', None)
+    if not log:
+        return [0.0] * len(region.total_cash_log)
+    return [snap.get(source, 0.0) for snap in log]
+
+
+def _gov_income_total(region, source):
+    """Cumulative (summed) government income from *source* over the run."""
+    return sum(_gov_income_series(region, source))
+
+
 def _terms_of_trade(region, other):
     """Export price index / import price index per turn.
 
@@ -134,7 +153,7 @@ def generate_dashboard(region_a, region_b, filename=OUTPUT_FILE):
     goods = [Goods.food, Goods.wood, Goods.furniture]
     color_map = {Goods.food: 'green', Goods.wood: 'red', Goods.furniture: 'blue'}
 
-    fig, axes = plt.subplots(3, 3, figsize=(18, 13))
+    fig, axes = plt.subplots(4, 3, figsize=(18, 17))
     fig.suptitle("Two-Region Trade Dashboard", fontsize=16, y=0.98)
 
     # ---------- A: Net exports ----------
@@ -246,6 +265,37 @@ def generate_dashboard(region_a, region_b, filename=OUTPUT_FILE):
         ax.plot(_smooth(real), label=label, color=col)
     ax.set_title("Real per-capita GDP (deflated by food price)")
     ax.set_ylabel("Units / agent")
+    ax.legend()
+
+    # ---------- Row 4: Government income decomposition ----------
+    gov_sources = ['tax', 'tariff', 'inheritance']
+    gov_colors = {'tax': '#2ca02c', 'tariff': '#9467bd', 'inheritance': '#ff7f0e'}
+    gov_labels = {'tax': 'Tax', 'tariff': 'Tariff', 'inheritance': 'Inheritance'}
+
+    for ax, region, label in [(axes[3, 0], region_a, 'Region A'),
+                              (axes[3, 1], region_b, 'Region B')]:
+        series = {s: _gov_income_series(region, s) for s in gov_sources}
+        x = list(range(len(series['tax'])))
+        ax.stackplot(x, [series[s] for s in gov_sources],
+                     labels=[gov_labels[s] for s in gov_sources],
+                     colors=[gov_colors[s] for s in gov_sources], alpha=0.8)
+        ax.set_title(f"{label} Government Income by Source")
+        ax.set_ylabel("$ / turn")
+        ax.legend(loc='upper left', fontsize='small')
+
+    ax = axes[3, 2]
+    for region, label, col in [(region_a, 'Region A', COLORS['A']),
+                               (region_b, 'Region B', COLORS['B'])]:
+        total = [sum(_gov_income_series(region, s)[i] for s in gov_sources)
+                 for i in range(len(_gov_income_series(region, 'tax')))]
+        cum = []
+        running = 0.0
+        for v in total:
+            running += v
+            cum.append(running)
+        ax.plot(_smooth(cum), label=label, color=col)
+    ax.set_title("Cumulative Government Income")
+    ax.set_ylabel("$ (cumulative)")
     ax.legend()
 
     fig.tight_layout(rect=[0, 0, 1, 0.96])

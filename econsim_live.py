@@ -701,6 +701,13 @@ def _handle_wealth_inheritance(ctx: LiveContext, t, agent, living_descendants):
     else:
         if government is not None:
             government.agent.cash += inheritance_cash
+            # Note: inheritance_deposits below are converted to cash on
+            # withdrawal in the heir branch; here they transfer as a deposit
+            # (bank.deposits unchanged — a transfer), so count both as
+            # inheritance income in the government's income log.
+            if inheritance_cash > 0 or inheritance_deposits > 0:
+                government.record_income(t, 'inheritance',
+                                         inheritance_cash + inheritance_deposits)
             # Transfer foreign-currency wallets to government (None-safe)
             dead_w = getattr(agent, 'wallets', None)
             if dead_w:
