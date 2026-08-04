@@ -1071,9 +1071,16 @@ class Region:
             self.IMPORT_MARGIN_MAX - self.IMPORT_MARGIN_MIN) * (
                 abs(hash((trader.id, good))) % 1000) / 1000.0
         tariff = getattr(self.gov, 'import_tariff_rate', 0.0)
+        # Duty drawback: the trader pays the tariff on sale but is refunded
+        # drawback_rate of it, so the effective tariff hit embedded in the
+        # ask is tariff_rate x (1 - drawback_rate).
+        drawback = (getattr(self.gov, 'import_drawback_rate', 0.0)
+                    if getattr(self.gov, 'import_drawback_enabled', False)
+                    else 0.0)
+        effective_tariff = tariff * (1.0 - drawback)
         dest_desk = getattr(src_region, 'forex', None) if src_region is not None else None
         buy_rate = dest_desk.buy_rate() if dest_desk is not None else 1.0
-        denom = max(0.05, (1.0 - tariff) * buy_rate)
+        denom = max(0.05, (1.0 - effective_tariff) * buy_rate)
         ask = cost_home * (1.0 + margin) / denom
         dest_price = self.recipes.get(good, {}).get('price', 0.0)
         if dest_price > 0:
@@ -1207,15 +1214,24 @@ class Region:
                 buyer.cash -= cost
                 if is_import:
                     # Split buyer payment between trader (in dest-currency
-                    # wallet) and the destination government's import tariff
+                    # wallet) and the destination government's import tariff.
+                    # Duty drawback: a fraction of the tariff is refunded back
+                    # to the selling trader (real-world duty drawback / bonded
+                    # warehouse recycling), so only the net share is gov
+                    # revenue.  Both halves are transfers — conserved.
                     tau = getattr(self.gov, 'import_tariff_rate', 0.0) \
                         if getattr(self.gov, 'import_tariff_enabled', False) \
                         else 0.0
+                    drawback = getattr(self.gov, 'import_drawback_rate', 0.0) \
+                        if getattr(self.gov, 'import_drawback_enabled', False) \
+                        else 0.0
                     trader_share = cost * (1.0 - tau)
                     tariff_share = cost * tau
-                    _fx.fx_add(seller, self.home_currency, trader_share)
-                    if tariff_share > 0:
-                        self.gov.receive_tariff(t, tariff_share)
+                    rebate = tariff_share * drawback
+                    gov_share = tariff_share - rebate
+                    _fx.fx_add(seller, self.home_currency, trader_share + rebate)
+                    if gov_share > 0:
+                        self.gov.receive_tariff(t, gov_share)
                     seller.inventory_foreign[good.value] -= take
                     imp_units += take
                     imp_value += cost
@@ -1599,6 +1615,7 @@ class Region:
             birth_gap=birth_gap,
             bank=self.bank,
             most_demand=self.most_demand,
+            charity=self.charity,
             max_agents=self.max_agents,
             carrying_capacity=self.max_agents,
             cost_of_living=self.cost_of_living,

@@ -40,6 +40,7 @@ class LiveContext:
     birth_gap: int
     bank: Any                       # Bank singleton (trade.bank or region.bank)
     most_demand: Any                # Goods enum (computed value)
+    charity: Any = None             # Regional Charity (for heirless bequests)
     max_agents: int = 400         # Hard population cap (0 = unlimited)
     carrying_capacity: int = 400  # Density-dependent mortality soft ceiling
     cost_of_living: float = 11.25  # Cached 4 food + 1 wood + 0.25 furniture
@@ -699,35 +700,64 @@ def _handle_wealth_inheritance(ctx: LiveContext, t, agent, living_descendants):
                 extra_inv = inv_remainder if i == 0 else 0
                 descendent.inventory[g_enum.value] += inv_share + extra_inv
     else:
+        # Heirless estate: charitable bequest default (real-world: no family
+        # -> bequest to charity; state escheat is a last resort).  The
+        # government keeps only a probate fee; the rest goes to the regional
+        # charity.  All transfers are conserved (cash/deposits/fx wallets
+        # move owner; food units move inventory).
+        probate = getattr(government, 'probate_fee_rate', 0.0) if government else 0.0
+        gov_share = inheritance_cash * probate
+        charity_share = inheritance_cash - gov_share
         if government is not None:
-            government.agent.cash += inheritance_cash
-            # Note: inheritance_deposits below are converted to cash on
-            # withdrawal in the heir branch; here they transfer as a deposit
-            # (bank.deposits unchanged — a transfer), so count both as
-            # inheritance income in the government's income log.
-            if inheritance_cash > 0 or inheritance_deposits > 0:
-                government.record_income(t, 'inheritance',
-                                         inheritance_cash + inheritance_deposits)
-            # Transfer foreign-currency wallets to government (None-safe)
-            dead_w = getattr(agent, 'wallets', None)
-            if dead_w:
-                for currency, bal in list(dead_w.items()):
-                    if bal <= 0:
-                        continue
-                    fx.fx_add(government.agent, currency, bal)
-                    dead_w[currency] = 0.0
-            if inheritance_deposits > 0:
-                # Transfer deposit to government (total_deposits unchanged — it's a transfer)
-                ctx.bank.deposits[government.agent] = \
-                    ctx.bank.deposits.get(government.agent, 0) + inheritance_deposits
-                ctx.bank.deposits[agent] = 0  # zero out so _zero_out_dead_agent's deletion is harmless
-            # Transfer all inventory to government
-            for g_enum in Goods:
-                if g_enum == Goods.none:
+            government.agent.cash += gov_share
+            if gov_share > 0:
+                government.record_income(t, 'inheritance', gov_share)
+        charity = getattr(ctx, 'charity', None)
+        if charity is not None and charity_share > 0:
+            charity.agent.cash += charity_share
+        elif charity is None:
+            # No charity wired (single-region compat): keep the leftover
+            # with the government (legacy behavior).
+            if government is not None and charity_share > 0:
+                government.agent.cash += charity_share
+                government.record_income(t, 'inheritance', charity_share)
+        # Transfer foreign-currency wallets to government (None-safe)
+        dead_w = getattr(agent, 'wallets', None)
+        if dead_w:
+            for currency, bal in list(dead_w.items()):
+                if bal <= 0:
                     continue
-                amount = agent.inventory[g_enum.value]
-                if amount > 0:
-                    government.agent.inventory[g_enum.value] += amount
+                fx.fx_add(government.agent, currency, bal)
+                dead_w[currency] = 0.0
+        if inheritance_deposits > 0:
+            # Transfer deposit: probate fee to government, rest to charity
+            # (total_deposits unchanged — it's a transfer).
+            deposit_gov = inheritance_deposits * probate
+            deposit_charity = inheritance_deposits - deposit_gov
+            if government is not None and deposit_gov > 0:
+                ctx.bank.deposits[government.agent] = \
+                    ctx.bank.deposits.get(government.agent, 0) + deposit_gov
+                government.record_income(t, 'inheritance', deposit_gov)
+            if charity is not None and deposit_charity > 0:
+                ctx.bank.deposits[charity.agent] = \
+                    ctx.bank.deposits.get(charity.agent, 0) + deposit_charity
+            elif charity is None and government is not None and deposit_charity > 0:
+                ctx.bank.deposits[government.agent] = \
+                    ctx.bank.deposits.get(government.agent, 0) + deposit_charity
+                government.record_income(t, 'inheritance', deposit_charity)
+            ctx.bank.deposits[agent] = 0  # zero out so _zero_out_dead_agent's deletion is harmless
+        # Transfer all inventory: food to charity, non-food to government
+        # (as before; gov food reserve / liquidation path is unchanged).
+        for g_enum in Goods:
+            if g_enum == Goods.none:
+                continue
+            amount = agent.inventory[g_enum.value]
+            if amount <= 0:
+                continue
+            if g_enum == Goods.food and charity is not None:
+                charity.receive_food(amount)
+            elif government is not None:
+                government.agent.inventory[g_enum.value] += amount
 
 
 def _raise_insolvency(t, bank, agent, shortfall):

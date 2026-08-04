@@ -88,9 +88,26 @@ class Government:
 
         # 9. Import Tariff (revenue on foreign goods entering the region)
         #     When enabled, a fraction of each import sale goes to the
-        #     destination government (currently 10% in foreign_sell).
+        #     destination government.  Reduced from 10% to 3% (trade
+        #     liberalization / FTA-style tariff cut).
         self.import_tariff_enabled = True
-        self.import_tariff_rate = 0.10   # fraction of import sale to gov
+        self.import_tariff_rate = 0.03   # fraction of import sale to gov
+
+        # 9b. Duty Drawback (tariff recycling)
+        #     Real-world: importing firms get refunds on duties when the
+        #     goods are re-sold (US duty drawback, EU bonded warehouses).
+        #     The seller keeps this fraction of the tariff; only the
+        #     remainder is government revenue.  Reduced tariff income AND
+        #     better trader margins.
+        self.import_drawback_enabled = True
+        self.import_drawback_rate = 0.70  # fraction of tariff refunded to seller
+
+        # 12. Probate Fee (heirless estates)
+        #     Real-world: people without family leave bequests to charity;
+        #     the state only takes a probate fee (bona vacantia escheat is a
+        #     last resort).  The government keeps this fraction of each
+        #     heirless estate; the rest goes to the regional charity.
+        self.probate_fee_rate = 0.30  # fraction of heirless estate to gov
 
         # 10. Trader Profit Recycling (capital controls / reserve requirement)
         #     When enabled, a fraction of each import sale is deposited
@@ -367,7 +384,11 @@ class Government:
         if self.trader_recycling_enabled:
             m *= (1 - self.trader_recycling_rate)
         if self.import_tariff_enabled:
-            m *= (1 - self.import_tariff_rate)
+            # Net tariff hit after duty drawback: the trader pays the tariff
+            # on the sale but is refunded the drawback rate of it, so the
+            # actual cost is tariff_rate x (1 - drawback_rate).
+            net_tariff = self.import_tariff_rate * (1.0 - self.import_drawback_rate)
+            m *= (1.0 - net_tariff)
         return m
 
     def collect_tax(self, t, amount):
