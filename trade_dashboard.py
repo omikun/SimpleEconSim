@@ -94,6 +94,19 @@ def _net_exports(region):
     return [e - i for e, i in zip(ex, im)]
 
 
+def _net_exports_by_good(region, good):
+    """Per-good net exports (export value - import value) per turn."""
+    ex = region.export_val.get(good, [0])
+    im = region.import_val.get(good, [0])
+    n = max(len(ex), len(im))
+    out = []
+    for i in range(n):
+        e = ex[i] if i < len(ex) else 0.0
+        m = im[i] if i < len(im) else 0.0
+        out.append(e - m)
+    return out
+
+
 def _real_exchange_rate(region, other):
     """Nominal rate adjusted for price levels (CPI proxy = cost of living).
 
@@ -156,14 +169,21 @@ def generate_dashboard(region_a, region_b, filename=OUTPUT_FILE):
     fig, axes = plt.subplots(4, 3, figsize=(18, 17))
     fig.suptitle("Two-Region Trade Dashboard", fontsize=16, y=0.98)
 
-    # ---------- A: Net exports ----------
+    # ---------- A: Net exports, broken down by good ----------
     ax = axes[0, 0]
     ax.axhline(y=0, color='gray', linestyle='--', linewidth=0.5)
-    ax.plot(_smooth(_net_exports(region_a)), label='Region A', color=COLORS['A'])
-    ax.plot(_smooth(_net_exports(region_b)), label='Region B', color=COLORS['B'])
-    ax.set_title("Net Exports (export val - import val)")
+    # Per-good net exports (solid), totals (thick dashed)
+    for region, label, col in [(region_a, 'Region A', COLORS['A']),
+                               (region_b, 'Region B', COLORS['B'])]:
+        for g in goods:
+            data = _smooth(_net_exports_by_good(region, g))
+            ax.plot(data, label=f"{label} {Goods(g).name}", color=color_map[g],
+                    linestyle='-' if label == 'Region A' else ':')
+        ax.plot(_smooth(_net_exports(region)), label=f"{label} total",
+                color=col, linewidth=2.5, linestyle='--', alpha=0.7)
+    ax.set_title("Net Exports by Good (export val - import val; dashes = total)")
     ax.set_ylabel("Value / turn")
-    ax.legend()
+    ax.legend(fontsize='small', ncol=2)
 
     # ---------- B: Trade openness ----------
     ax = axes[0, 1]
