@@ -413,6 +413,12 @@ def generate_plots(time_steps, region_a, region_b):
         plt.close(fig)
         print(f"\nPlot saved to wealth_lineage.png")
 
+        # =====================================================================
+        # SECOND PLOT: family-tree / genogram — parent → child lineage with
+        # lifespan overlap on the same time axis
+        # =====================================================================
+        generate_family_plot(time_steps, plt, mpatches, adjust_text)
+
     except Exception as e:
         print(f"\nCould not generate plots: {e}")
         import traceback
@@ -435,6 +441,227 @@ def generate_plots(time_steps, region_a, region_b):
             total += n
         row += f"{total:>8}"
         print(row)
+
+
+def generate_family_plot(time_steps, plt=None, mpatches=None, adjust_text=None):
+    """Draw a family-tree / genogram: who descended from whom, with lifespan
+    overlap.
+
+    Uses the already-collected genealogy (parent_map: child -> parent, birth
+    round, death turn).  Each lineage (a root with descendants) is drawn as a
+    vertical tree: the root bar sits on the top row of its family block,
+    children one row below, grandchildren below them, etc.  Bars span
+    birth -> death (or end of sim) on the shared time (x) axis, so horizontal
+    overlap = agents alive at the same time.  Parent -> child edges drop from
+    the parent's bar to the child's birth at the child's row.
+
+    Only lineages with >= 2 members are drawn (singletons have no tree), and
+    the display is capped to the largest families when the population is huge
+    (the first Gantt chart already shows every agent).
+    """
+    import matplotlib.pyplot as _plt
+    import matplotlib.patches as _mpatches
+    plt = plt or _plt
+    mpatches = mpatches or _mpatches
+    adjust_text = adjust_text  # optional; only used if provided
+
+    # ---- Build the genealogy forest from parent_map ----
+    children_of = defaultdict(list)
+    parents = {}
+    for child, parent in parent_map.items():
+        children_of[parent].append(child)
+        parents[child] = parent
+
+    all_lineages = set()
+    for child in parent_map:
+        p = child
+        while p in parents:
+            p = parents[p]
+        all_lineages.add(p)  # root of the chain containing child
+
+    # Members of each lineage (root + descendants), with generation depth
+    lineage_members = {}   # root -> {aid: generation}
+    member_sets = {}
+    for root in all_lineages:
+        members = {root: 0}
+        queue = [root]
+        while queue:
+            aid = queue.pop(0)
+            gen = members[aid]
+            for kid in children_of.get(aid, []):
+                members[kid] = gen + 1
+                queue.append(kid)
+        lineage_members[root] = members
+        member_sets[root] = set(members)
+
+    # Sort lineages: by earliest birth in the family, then size (big first)
+    def _lineage_order_key(root):
+        births = [agent_birth.get(m, 0) for m in lineage_members[root]]
+        return (min(births), -len(lineage_members[root]), root)
+    ordered_roots = sorted(all_lineages, key=_lineage_order_key)
+
+    # Restrict to lineages with >= 2 members, cap total displayed agents
+    MAX_DISPLAY = 600
+    candidates = [r for r in ordered_roots if len(lineage_members[r]) >= 2]
+    picked = []
+    total_shown = 0
+    for r in candidates:
+        if total_shown + len(lineage_members[r]) > MAX_DISPLAY:
+            break
+        picked.append(r)
+        total_shown += len(lineage_members[r])
+
+    # ---- Row layout: each family is a contiguous block; parents on higher
+    # rows than children (generations ordered root-first) ----
+    row_of = {}
+    agent_row_family = {}
+    y_cursor = 0
+    family_blocks = []  # (root, y0, y1) for separators
+    for root in picked:
+        members = lineage_members[root]
+        y0 = y_cursor
+        max_gen = max(members.values())
+        # Group members by generation depth (0 = root, 1 = children, ...)
+        gen_rows = {}
+        for aid, gen in members.items():
+            gen_rows.setdefault(gen, []).append(aid)
+        # Emit one contiguous row per agent, generation by generation
+        for gen in range(max_gen + 1):
+            aids = sorted(gen_rows.get(gen, []), key=lambda a: agent_birth.get(a, 0))
+            for aid in aids:
+                row_of[aid] = y_cursor
+                agent_row_family[aid] = root
+                y_cursor += 1
+        y1 = y_cursor
+        family_blocks.append((root, y0, y1))
+        # one blank row between families
+        y_cursor += 1
+    total_rows = y_cursor
+
+    # ---- Figure ----
+    fig_h = max(6.0, min(60.0, total_rows * 0.30))
+    fig = plt.figure(figsize=(20, fig_h))
+    fig.suptitle(f"Family Trees — {len(picked)} lineages, {total_shown} agents "
+                 f"({time_steps} turns)\nparent above child = descent; "
+                 f"x-overlap = lifespans overlap",
+                 fontsize=15, y=0.98)
+    ax = fig.add_axes([0.02, 0.04, 0.95, 0.88])
+    ax.set_xlim(0, time_steps)
+    ax.set_ylim(-0.5, total_rows - 0.5)
+    ax.set_yticks([])
+    ax.set_xlabel("Turn")
+    ax.invert_yaxis()  # root at top, descendants below
+
+    bar_h = 0.62
+    # Bars first, then edges, then markers/labels on top
+    for aid, row in sorted(row_of.items(), key=lambda kv: kv[1]):
+        birth = agent_birth.get(aid, 0)
+        end = death_turn.get(aid, time_steps)
+        # Infer profession from death/inheritance records, else snapshot
+        prof = '?'
+        alive = True
+        for evt in inheritance_events:
+            if evt[1] == aid:
+                prof = evt[2]
+                alive = False
+                break
+        if prof == '?' and time_steps in wealth_snapshots:
+            for snap_aid, (w, d, p, living) in wealth_snapshots[time_steps].items():
+                if snap_aid == aid:
+                    prof = p
+                    alive = living
+                    break
+        color = PROF_COLORS.get(prof, '#888')
+        width = max(0.5, end - birth)
+        alpha = 0.45 if not alive else 0.95
+        ax.barh(row, width, left=birth, height=bar_h, color=color,
+                alpha=alpha, edgecolor='black', linewidth=0.2, zorder=3)
+
+    # Parent -> child edge (from parent bar to child birth, child row)
+    for child, parent in parent_map.items():
+        if child not in row_of or parent not in row_of:
+            continue
+        if agent_row_family.get(child) != agent_row_family.get(parent):
+            continue
+        y_parent = row_of[parent]
+        y_child = row_of[child]
+        parent_end = death_turn.get(parent, time_steps)
+        child_birth = agent_birth.get(child, 0)
+        color = 'gray'
+        # Vertical drop at parent end, horizontal to child birth, vertical to child
+        ax.plot([parent_end, parent_end], [y_parent + bar_h/2, (y_parent + y_child)/2],
+                color=color, lw=0.6, alpha=0.5, zorder=1)
+        ax.plot([parent_end, child_birth], [(y_parent + y_child)/2, (y_parent + y_child)/2],
+                color=color, lw=0.6, alpha=0.5, zorder=1)
+        ax.plot([child_birth, child_birth], [(y_parent + y_child)/2, y_child - bar_h/2],
+                color=color, lw=0.6, alpha=0.5, zorder=1)
+
+    # End markers + labels
+    label_texts = []
+    for aid, row in sorted(row_of.items(), key=lambda kv: kv[1]):
+        birth = agent_birth.get(aid, 0)
+        end = death_turn.get(aid, time_steps)
+        prof = '?'
+        for evt in inheritance_events:
+            if evt[1] == aid:
+                prof = evt[2]
+                break
+        if prof == '?' and time_steps in wealth_snapshots:
+            for snap_aid, (w, d, p, living) in wealth_snapshots[time_steps].items():
+                if snap_aid == aid:
+                    prof = p
+                    break
+        alive = aid not in death_turn
+        ax.scatter([end], [row], s=12,
+                   c='none' if not alive else 'black',
+                   facecolors='none' if not alive else 'black',
+                   edgecolors='black', linewidths=0.4, zorder=4)
+        # Label when the bar is wide enough
+        if end - birth >= 3:
+            short = agent_names.get(aid, f'a{aid}')
+            short = short.split('-')[0] if '-' in short else short
+            txt = ax.text(birth + 0.4, row, f"{short}·{prof[:1]}"[:20],
+                          fontsize=5, va='center', ha='left', alpha=0.85, zorder=5)
+            label_texts.append(txt)
+    if label_texts and adjust_text is not None:
+        try:
+            adjust_text(label_texts, ax=ax, expand=(1.05, 1.2),
+                        arrowprops=dict(arrowstyle='-', color='gray', lw=0.2))
+        except Exception:
+            pass  # label overlap avoidance is best-effort
+
+    # White separator lines between families
+    for root, y0, y1 in family_blocks:
+        ax.axhline(y1 - 0.5, color='white', linewidth=1.5, zorder=5)
+
+    # Legend: profession colors + markers
+    prof_counts = defaultdict(int)
+    for aid in row_of:
+        prof = '?'
+        for evt in inheritance_events:
+            if evt[1] == aid:
+                prof = evt[2]
+                break
+        if prof == '?' and time_steps in wealth_snapshots:
+            for snap_aid, (w, d, p, living) in wealth_snapshots[time_steps].items():
+                if snap_aid == aid:
+                    prof = p
+                    break
+        prof_counts[prof] += 1
+    handles = [ _mpatches.Rectangle((0, 0), 1, 1, color=PROF_COLORS[p], alpha=0.85)
+                for p in PROF_ORDER if p in prof_counts ]
+    labels = [ f"{p} ({prof_counts[p]})" for p in PROF_ORDER if p in prof_counts ]
+    handles.append(plt.Line2D([0], [0], marker='o', color='w', markerfacecolor='black',
+                              markersize=5, label='Alive at end'))
+    handles.append(plt.Line2D([0], [0], marker='o', color='w', markerfacecolor='none',
+                              markeredgecolor='black', markersize=5, label='Died'))
+    labels += ['Alive at end', 'Died']
+    ax.legend(handles, labels, loc='upper right', fontsize=8, title="Profession",
+              title_fontsize=9)
+
+    plt.savefig("wealth_lineage_family.png", dpi=150, bbox_inches='tight')
+    plt.close(fig)
+    print(f"Plot saved to wealth_lineage_family.png")
 
 
 # =============================================================================
