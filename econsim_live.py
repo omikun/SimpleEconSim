@@ -453,18 +453,42 @@ def _handle_reproduction(ctx: LiveContext, t, agent, agents, new_agents):
         logdebug(t, "new agent of ", output)
         number_input = 0
         wealth_val = abs(agent.wealth())
-        # Trust fund: rich parents guarantee child enough to survive (2x cost of living)
-        cash = min(agent.cash, max(
-            int(wealth_val ** 0.72),                   # existing gradient
-            int(cost_of_living * 2) if wealth_val > cost_of_living * 4 else 1
-        ))
+        liquid = agent.cash + ctx.bank.deposits.get(agent, 0)
+        if wealth_val > cost_of_living * 4:
+            # Rich families: a bounded FAMILY TRUST seeded at birth, funded
+            # ONLY from surplus above a liquidity floor, so the family
+            # business / trading capital stays intact (a 10%-of-wealth
+            # bequest drained trader working capital and the exit benchmark
+            # evicted every trader).  The trust is sized to keep the child
+            # "somewhat wealthy" — a few multiples of the cost of living —
+            # which is enough to hold the wealth-mortality discount, and the
+            # inherited bridge below keeps the line protected through its
+            # prime years.  Conserved: cash moves parent -> child, deposits
+            # fall by the same amount.
+            if agent.is_trader:
+                floor = int(cost_of_living * 10) + int(ctx.food_price * 45)
+            else:
+                floor = int(cost_of_living * 2)
+            surplus = max(0, liquid - floor)
+            # Trust target: 3-5x cost of living, gently scaled by wealth
+            trust_target = min(int(cost_of_living * 5),
+                               int(cost_of_living * 3 + wealth_val * 0.02))
+            cash = min(trust_target, surplus)
+        else:
+            # Standard birth endowment (original behavior).
+            cash = min(agent.cash, max(int(wealth_val ** 0.72), 1))
+        if cash > agent.cash:
+            need = cash - agent.cash
+            ctx.bank.Withdraw(agent, min(need, ctx.bank.deposits.get(agent, 0)))
         agent.cash -= cash
         initialize_agent(new_agent, output, number_input, food_to_give, cash)
-        # Inherited mortality protection: child of rich parent gets parent's mortality
-        # discount for first 50 turns (representing family support network).
+        # Inherited mortality protection: the richer the parent, the longer
+        # the family-support bridge (50-200 turns).  After it fades, the
+        # child's OWN trust-funded wealth (>= cost of living) keeps the
+        # mortality discount active.
         if wealth_val > cost_of_living * 4:
             new_agent._birth_parent_wealth = wealth_val
-            new_agent._birth_protection_until = t + 50
+            new_agent._birth_protection_until = t + max(50, min(200, int(cash)))
         new_agents.append(new_agent)
         if government is not None:
             government.provide_baby_bonus(t, agent, new_agent)
@@ -517,12 +541,17 @@ def _handle_death(ctx: LiveContext, t, agent, agents):
                 wealth_factor = (col / max(0.01, wealth)) ** 2
                 wealth_factor = max(0.01, min(1.0, wealth_factor))
                 # Inherited mortality protection: child of rich parent borrows parent's
-                # wealth_factor for first 50 turns (family support), fading linearly.
+                # wealth_factor while the family-support bridge is active, fading
+                # linearly over the LAST 50 turns before expiry.  The bridge lasts
+                # 50-200 turns (scaled by the bequest), keeping wealthy lines alive
+                # through their prime years.
                 if hasattr(agent, '_birth_parent_wealth') and t < getattr(agent, '_birth_protection_until', 0):
                     parent_wealth_factor = (col / max(0.01, agent._birth_parent_wealth)) ** 2
                     parent_wealth_factor = max(0.01, min(1.0, parent_wealth_factor))
-                    # Fade from full inherited bonus to own wealth_factor over 50 turns
-                    fade = max(0.0, (agent._birth_protection_until - t) / 50.0)
+                    # Clamp fade to [0,1]: with bridges >50 turns the unclamped
+                    # formula amplified wealth_factor past 1.0 and INVERTED the
+                    # protection into extra mortality for rich children.
+                    fade = max(0.0, min(1.0, (agent._birth_protection_until - t) / 50.0))
                     wealth_factor = wealth_factor * (1 - fade) + parent_wealth_factor * fade
                 # Blend: only reduce prob when young, full reduction when very young
                 mortality_discount = 1.0 - (1.0 - wealth_factor) * age_weight
@@ -549,7 +578,7 @@ def _handle_death(ctx: LiveContext, t, agent, agents):
     # ---- Cleanup on death ----
     _cleanup_dead_agent_links(agent)
     _handle_company_inheritance(t, agent)
-    living_descendants = [a for a in agent.descendants if a.alive]
+    living_descendants = _living_descendants_recursive(agent)
     logdebug(t, agent.name(), 'died, has', agent.cash,
              ' #descendants:', len(living_descendants),
              [a.name() for a in living_descendants])
@@ -557,6 +586,28 @@ def _handle_death(ctx: LiveContext, t, agent, agents):
     _handle_wealth_inheritance(ctx, t, agent, living_descendants)
     _zero_out_dead_agent(ctx, agent)
     return True
+
+
+def _living_descendants_recursive(agent):
+    """All living descendants (children + grandchildren per branch, BFS).
+
+    Real inheritance law passes estates to grandchildren *per stirpes* when a
+    child predeceases the decedent.  This recursive lookup makes 'heirless'
+    mean truly no living descendant anywhere down the line, instead of only
+    checking direct children.
+    """
+    seen = set()
+    out = []
+    queue = list(getattr(agent, 'descendants', []))
+    while queue:
+        d = queue.pop(0)
+        if d.id in seen:
+            continue
+        seen.add(d.id)
+        if getattr(d, 'alive', False):
+            out.append(d)
+        queue.extend(getattr(d, 'descendants', []))
+    return out
 
 
 def _cleanup_dead_agent_links(agent):
@@ -581,7 +632,7 @@ def _handle_company_inheritance(t, agent):
     if getattr(agent, 'company_owned', None) is None:
         return
     company = agent.company_owned
-    living_descendants = [d for d in agent.descendants if d.alive]
+    living_descendants = _living_descendants_recursive(agent)
     if len(living_descendants) > 0:
         heir = max(living_descendants, key=lambda d: d.cash)
         company.owner = heir

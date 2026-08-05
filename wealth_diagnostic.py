@@ -83,7 +83,12 @@ def record_turn(t, region_a, region_b):
                 if a.is_trader:
                     cat_agents['Trader'].append((wealth, debt, a.id))
                 elif a.is_government:
-                    cat_agents['Institutions'].append((wealth, debt, -10))
+                    # Gov wealth = cash + deposits + food-reserve buffer
+                    # (the food reserve is real purchasing-power the chart
+                    # previously omitted).
+                    gov_food_price = region.recipes.get(Goods.food, {}).get('price', 1.0)
+                    gov_food = region.gov.food_inventory * gov_food_price
+                    cat_agents['Institutions'].append((wealth + gov_food, debt, -10))
                 else:
                     cat = OUTPUT_TO_CAT.get(a.output, 'Food')
                     cat_agents[cat].append((wealth, debt, a.id))
