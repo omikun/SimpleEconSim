@@ -538,12 +538,25 @@ def generate_family_plot(time_steps, plt=None, mpatches=None, adjust_text=None):
         y_cursor += 1
     total_rows = y_cursor
 
+    # ---- Wealth at end of life / end of sim, and inheritance events ----
+    inheritance_by_aid = {evt[1]: evt for evt in inheritance_events}
+    end_wealth = {}
+    for aid in row_of:
+        evt = inheritance_by_aid.get(aid)
+        if evt is not None:
+            end_wealth[aid] = evt[3]  # total wealth at death (cash+inv-debt)
+        elif time_steps in wealth_snapshots and aid in wealth_snapshots[time_steps]:
+            w, d, p, living = wealth_snapshots[time_steps][aid]
+            end_wealth[aid] = w - d   # net wealth at end of sim
+        else:
+            end_wealth[aid] = 0.0
+
     # ---- Figure ----
     fig_h = max(6.0, min(60.0, total_rows * 0.30))
     fig = plt.figure(figsize=(20, fig_h))
     fig.suptitle(f"Family Trees — {len(picked)} lineages, {total_shown} agents "
-                 f"({time_steps} turns)\nparent above child = descent; "
-                 f"x-overlap = lifespans overlap",
+                 f"({time_steps} turns)\nparent above child = descent, "
+                 f"arrows = inheritance, $ = wealth at end; x-overlap = lifespans overlap",
                  fontsize=15, y=0.98)
     ax = fig.add_axes([0.02, 0.04, 0.95, 0.88])
     ax.set_xlim(0, time_steps)
@@ -596,6 +609,30 @@ def generate_family_plot(time_steps, plt=None, mpatches=None, adjust_text=None):
         ax.plot([child_birth, child_birth], [(y_parent + y_child)/2, y_child - bar_h/2],
                 color=color, lw=0.6, alpha=0.5, zorder=1)
 
+    # Inheritance arrows: deceased parent's death point -> each heir's birth
+    # (line weight scales with the estate value, color = decedent's profession)
+    for evt in inheritance_events:
+        t, aid, prof, total_val, wealth_val, debt_val, heirs, to_gov = evt
+        if aid not in row_of or total_val <= 0 or not heirs:
+            continue
+        parent_end = death_turn.get(aid, t)
+        pcolor = PROF_COLORS.get(prof, '#888')
+        lw = max(0.4, min(3.0, total_val / 300))
+        y_parent_row = row_of[aid]
+        for hid in heirs:
+            if hid not in row_of:
+                continue
+            if agent_row_family.get(hid) != agent_row_family.get(aid):
+                continue
+            y_heir_row = row_of[hid]
+            heir_birth = agent_birth.get(hid, 0)
+            ax.annotate('',
+                xy=(heir_birth, y_heir_row),
+                xytext=(parent_end, y_parent_row),
+                arrowprops=dict(arrowstyle='->', color=pcolor, lw=lw, alpha=0.55,
+                                connectionstyle='arc3,rad=0.15'),
+                zorder=2)
+
     # End markers + labels
     label_texts = []
     for aid, row in sorted(row_of.items(), key=lambda kv: kv[1]):
@@ -616,6 +653,11 @@ def generate_family_plot(time_steps, plt=None, mpatches=None, adjust_text=None):
                    c='none' if not alive else 'black',
                    facecolors='none' if not alive else 'black',
                    edgecolors='black', linewidths=0.4, zorder=4)
+        # Wealth at end of life (deceased) or end of sim (alive)
+        w_end = end_wealth.get(aid, 0.0)
+        if w_end > 0:
+            ax.text(end + 0.6, row, f"${w_end:.0f}", fontsize=5, va='center',
+                    ha='left', alpha=0.9, zorder=5)
         # Label when the bar is wide enough
         if end - birth >= 3:
             short = agent_names.get(aid, f'a{aid}')
