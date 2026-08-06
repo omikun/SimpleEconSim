@@ -610,14 +610,15 @@ def generate_family_plot(time_steps, plt=None, mpatches=None, adjust_text=None):
                 color=color, lw=0.6, alpha=0.5, zorder=1)
 
     # Inheritance arrows: deceased parent's death point -> each heir's birth
-    # (line weight scales with the estate value, color = decedent's profession)
+    # (fully OPAQUE so the flow is easy to read; line weight scales with the
+    # estate value, color = decedent's profession)
     for evt in inheritance_events:
         t, aid, prof, total_val, wealth_val, debt_val, heirs, to_gov = evt
         if aid not in row_of or total_val <= 0 or not heirs:
             continue
         parent_end = death_turn.get(aid, t)
         pcolor = PROF_COLORS.get(prof, '#888')
-        lw = max(0.4, min(3.0, total_val / 300))
+        lw = max(0.6, min(3.5, total_val / 250))
         y_parent_row = row_of[aid]
         for hid in heirs:
             if hid not in row_of:
@@ -629,9 +630,9 @@ def generate_family_plot(time_steps, plt=None, mpatches=None, adjust_text=None):
             ax.annotate('',
                 xy=(heir_birth, y_heir_row),
                 xytext=(parent_end, y_parent_row),
-                arrowprops=dict(arrowstyle='->', color=pcolor, lw=lw, alpha=0.55,
+                arrowprops=dict(arrowstyle='->', color=pcolor, lw=lw, alpha=1.0,
                                 connectionstyle='arc3,rad=0.15'),
-                zorder=2)
+                zorder=6)
 
     # End markers + labels
     label_texts = []
