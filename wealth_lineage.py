@@ -650,14 +650,18 @@ def generate_family_plot(time_steps, plt=None, mpatches=None, adjust_text=None):
                     prof = p
                     break
         alive = aid not in death_turn
+        age_end = end - birth  # age at death, or age at end of sim
         ax.scatter([end], [row], s=12,
                    c='none' if not alive else 'black',
                    facecolors='none' if not alive else 'black',
                    edgecolors='black', linewidths=0.4, zorder=4)
-        # Wealth at end of life (deceased) or end of sim (alive)
+        # Wealth + age at end of life (deceased) or end of sim (alive)
         w_end = end_wealth.get(aid, 0.0)
         if w_end > 0:
-            ax.text(end + 0.6, row, f"${w_end:.0f}", fontsize=5, va='center',
+            ax.text(end + 0.6, row, f"${w_end:.0f} · {age_end}y", fontsize=5,
+                    va='center', ha='left', alpha=0.9, zorder=5)
+        elif age_end >= 0:
+            ax.text(end + 0.6, row, f"{age_end}y", fontsize=5, va='center',
                     ha='left', alpha=0.9, zorder=5)
         # Label when the bar is wide enough
         if end - birth >= 3:
