@@ -483,12 +483,12 @@ def _handle_reproduction(ctx: LiveContext, t, agent, agents, new_agents):
         agent.cash -= cash
         initialize_agent(new_agent, output, number_input, food_to_give, cash)
         # Inherited mortality protection: the richer the parent, the longer
-        # the family-support bridge (50-200 turns).  After it fades, the
-        # child's OWN trust-funded wealth (>= cost of living) keeps the
-        # mortality discount active.
+        # the family-support bridge (25-100 turns, halved with the halved
+        # lifespans).  After it fades, the child's OWN trust-funded wealth
+        # (>= cost of living) keeps the mortality discount active.
         if wealth_val > cost_of_living * 4:
             new_agent._birth_parent_wealth = wealth_val
-            new_agent._birth_protection_until = t + max(50, min(200, int(cash)))
+            new_agent._birth_protection_until = t + max(25, min(100, int(cash)))
         new_agents.append(new_agent)
         if government is not None:
             government.provide_baby_bonus(t, agent, new_agent)
@@ -523,35 +523,39 @@ def _handle_death(ctx: LiveContext, t, agent, agents):
         import government as govmod
         government = govmod.find_government_for_agent(agent)
         if government is not None:
+            # 15-turn age buckets: the mortality schedule advances TWICE as
+            # fast, halving typical lifespans (~300 turns -> ~150).
             adjusted_prob = government.get_death_probability(
-                agent, base_death_prob[min(agent.age(t) // 30, 9)])
+                agent, base_death_prob[min(agent.age(t) // 15, 9)])
         else:
-            adjusted_prob = base_death_prob[min(agent.age(t) // 30, 9)]
+            adjusted_prob = base_death_prob[min(agent.age(t) // 15, 9)]
         # Wealth-based mortality reduction: wealth protects from early death
         # by providing better nutrition, healthcare access, and living conditions.
         # Effect diminishes with age: full effect when young, negligible when old.
         agent_age = agent.age(t)
-        if agent_age < 210 and adjusted_prob > 0:
+        # Lifespans halved: the wealth-mortality discount now covers the first
+        # half of the halved schedule (105 turns vs 210).
+        if agent_age < 105 and adjusted_prob > 0:
             col = ctx.cost_of_living
             wealth = agent.wealth()
             if wealth > col:
                 # At 10x cost of living: 1% of base death prob (100x less)
                 # Age factor: stays ~flat for most of life, then drops sharply near death
-                age_weight = max(0.0, 1.0 - (agent_age / 210.0) ** 6)
+                age_weight = max(0.0, 1.0 - (agent_age / 105.0) ** 6)
                 wealth_factor = (col / max(0.01, wealth)) ** 2
                 wealth_factor = max(0.01, min(1.0, wealth_factor))
                 # Inherited mortality protection: child of rich parent borrows parent's
                 # wealth_factor while the family-support bridge is active, fading
-                # linearly over the LAST 50 turns before expiry.  The bridge lasts
-                # 50-200 turns (scaled by the bequest), keeping wealthy lines alive
-                # through their prime years.
+                # linearly over the LAST 25 turns before expiry.  The bridge lasts
+                # 25-100 turns (scaled by the bequest, halved with the lifespans),
+                # keeping wealthy lines alive through their prime years.
                 if hasattr(agent, '_birth_parent_wealth') and t < getattr(agent, '_birth_protection_until', 0):
                     parent_wealth_factor = (col / max(0.01, agent._birth_parent_wealth)) ** 2
                     parent_wealth_factor = max(0.01, min(1.0, parent_wealth_factor))
-                    # Clamp fade to [0,1]: with bridges >50 turns the unclamped
+                    # Clamp fade to [0,1]: with bridges >25 turns the unclamped
                     # formula amplified wealth_factor past 1.0 and INVERTED the
                     # protection into extra mortality for rich children.
-                    fade = max(0.0, min(1.0, (agent._birth_protection_until - t) / 50.0))
+                    fade = max(0.0, min(1.0, (agent._birth_protection_until - t) / 25.0))
                     wealth_factor = wealth_factor * (1 - fade) + parent_wealth_factor * fade
                 # Blend: only reduce prob when young, full reduction when very young
                 mortality_discount = 1.0 - (1.0 - wealth_factor) * age_weight

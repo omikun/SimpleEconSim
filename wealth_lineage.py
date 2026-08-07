@@ -82,7 +82,8 @@ def _determine_death_cause(ctx, t, agent, agents):
         return 'Starved'
     age = agent.age(t)
     wealth = agent.wealth()
-    has_wealth = age < 210 and wealth > ctx.cost_of_living
+    # 105 matches the halved wealth-mortality gate in econsim_live._handle_death
+    has_wealth = age < 105 and wealth > ctx.cost_of_living
     crowded = len(agents) > ctx.carrying_capacity * 0.85
     if has_wealth and crowded:
         return 'Age+Wealth+Crowded'
