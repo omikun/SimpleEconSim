@@ -315,6 +315,116 @@ Priority action items per phase live in **`priority_tasks.md`**.
 
 ---
 
+## 13b. Tech stack & engine
+
+**Architecture: the simulation is the product; the game client presents it.**
+Do NOT rebuild the economy in Unity. The conserved-money engine is already
+written, tuned, and audit-hardened in Python. Use it as a **headless
+simulation server**; the game becomes a **thin presentation layer**.
+
+```
+┌────────────────────────────┐
+│  GAME CLIENT (Godot / Unity│  renders map + dashboards + archives,
+│  / web)                    │  sends INTENTS only (policy toggles,
+│  never touches money/goods │  campaign $, army moves, evictions)
+└──────────────┬─────────────┘
+               │ JSON over WebSocket / stdio / localhost REST
+┌──────────────▼─────────────┐
+│  PYTHON SIM SERVER         │  = existing engine + Nation/Tile wrapper
+│  runs turn, validates all  │  → returns world-state + event log
+│  intents, enforces audit   │
+└────────────────────────────┘
+```
+
+- **Turn-based async**: client sends intent set for turn N → sim advances →
+  client renders new state + events. The existing `econsim_two_region.py`
+  main loop is the reference server loop (step regions → routes → FX →
+  per-currency conservation audit each turn).
+- The client is **authority-free**: it reads JSON world-state and forwards
+  intents. This is what makes the "money trail" trust feature real — the
+  server guarantees conservation, so the player cannot cheat.
+
+### Engine options
+
+| Option | Pros | Cons | Verdict |
+|---|---|---|---|
+| **Unity** | Biggest asset ecosystem, C#, strong UI Toolkit for dashboards, free tier | Heavier for 2D strategy; C# if not already fluent | Good **final** engine |
+| **Godot 4** | Free/FOSS, lightweight, excellent 2D, GDScript is easy, exports everywhere | Smaller pro asset store | Best **rapid prototype + likely final** for a 2D game |
+| **Web (React + Phaser/ECharts)** | Zero install; charts are trivial (ECharts); map via Canvas/Three.js | Browser perf wall for huge agent counts — fine at tile scale | Great **playable web demo** |
+| **Pygame** | Stays in Python, fastest wiring to sim | Looks like a prototype; you'll outgrow it | Weekend feasibility demo only |
+| **TUI / matplotlib** | Free, already works (`wealth_lineage`, `trade_dashboard`) | Not a game | The "state archive," not the game |
+
+**Recommendation:** start with **Godot 4 for the 2D client**, or skip an
+engine for the first playable with a thin **web client (React + ECharts)**.
+Validate the political loops (elections, coups, protests, migration) before
+committing to any engine. Graphics only need to be *good enough to read* —
+the differentiator is simulation depth + legibility.
+
+### Graphics style — 2D, not 3D
+
+A Civ-like tile game with heavy dashboards and a money-trail archive is
+**2D-first**:
+
+- **Map view**: flat political tile map (square or hex), tiles tinted by
+  nation + terrain (fertility/minerals), icons for army units, unrest badges.
+- **Density rendering, not individual sprites**: never render 500 agents.
+  Render tile-level population heat + **hero agents** (candidates, generals,
+  faction leaders, the player's dynasty) as named portraits. This matches
+  the legibility pillar — you see the people who matter.
+- **Panels**: charts ARE the graphics — population, prices, gini, trade,
+  protest energy, the money trail. Render engine-native charts (Godot chart
+  addon / ECharts); keep matplotlib outputs as the exportable state archive.
+- **Style direction**: Crusader Kings parchment-and-quill × clean economic
+  dashboard. Avoid isometric unless artist time exists.
+
+### Assets — free / CC0, prototype-safe
+
+- **Kenney.nl** — best first stop: tile sets, UI packs, audio, all CC0.
+- **OpenGameArt.org** — 2D tile/portrait library; check per-asset license.
+- **itch.io free game-asset sections** — 2D + UI kits; verify CC0/MIT.
+- **Quaternius** — free low-poly 3D if ever needed.
+- **Google Fonts** — open-licensed type (serif display + clean UI face).
+- **Kenney audio / Freesound.org (CC0)** — SFX; ambient music later.
+
+Caution: AI-generated art is fine for internal placeholders, but a released
+game needs a clean license or your own pipeline.
+
+### Concrete MVP path
+
+1. **Pin the simulation API first**: JSON **world-state schema** (tiles,
+   nations, agent summaries, factions, protest energy, treasury, event log)
+   + **intent schema** (set policy X; spend $Y; army move; eviction). This
+   becomes the client contract for any engine.
+2. **Wrap the sim as a server**: `sim_server.py` — load scenario, run turn
+   on request, return world-state diff; reuse the audit code as an integrity
+   check that rejects any conservation-breaking intent.
+3. **Cheapest feasibility client**: Godot 2D tile map OR web (React +
+   ECharts + canvas map). Goal: *feel* the election/protest/coup loop in an
+   afternoon.
+4. **Pin determinism**: set `PYTHONHASHSEED` and use the seeded per-turn RNG
+   (the sim already uses `random.seed(42)` / `random_cache`) so replays and
+   multiplayer are reproducible. Gotcha: `hash((trader.id, good))` in
+   `region.py` is per-process stable, not cross-process — replace before
+   multiplayer.
+5. **Pick the final engine from the playtest** — the JSON API means zero sim
+   changes when switching clients.
+6. **Then presentational polish**: hero portraits (high-impact, small cost),
+   terrain painting, animated protest density, money-trail receipts panel as
+   the centerpiece UI.
+
+### Design-time gotchas
+
+- **Rendering scale**: feed tile-level stats (population/cash/gini per
+  good), not raw agent lists — the sim already computes these.
+- **Server/client duplication**: client treats sim state as opaque facts to
+  display, never a balance source of truth.
+- **Turn length**: GDD §14 proposes 1 turn = 1 season; that is the server
+  tick too.
+- **Multiplayer later**: the authority-server model is already the
+  multiplayer architecture — add a lobby/relay, thin clients unchanged.
+
+---
+
 ## 14. Open questions to steer iteration
 
 1. **Cadence** — each turn = a month? a season? a quarter? (Affects age/lifespan tuning.)

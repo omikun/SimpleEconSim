@@ -213,6 +213,36 @@ alliances, betrayals, and migrations; every outcome traces to agents/factions;
       count > 2000; profile with `profile_current.py`.
 - [ ] **C.3** Repo hygiene — keep `tmp/` diagnostics out of commits; revert
       regenerated PNGs before committing (existing repo rule).
+- [ ] **C.4** Client contract — define JSON **world-state schema** (tiles,
+      nations, agent summaries, factions, protest energy, treasury, event
+      log) + **intent schema** (set policy X, spend $Y, army move,
+      eviction). This is the contract any engine can render against.
+      - Acceptance: a sample 3-tile run dumps a complete world-state JSON.
+- [ ] **C.5** `sim_server.py` — headless wrapper: load scenario, run one
+      turn on request, return world-state diff; reuse the existing audit
+      code to reject any conservation-breaking intent.
+      - Acceptance: reject-a-bad-intent test passes (e.g. negative spend
+        refused); 0 LEAK after 300t through the server.
+- [ ] **C.6** Determinism pin — set `PYTHONHASHSEED`; replace per-process
+      `hash((trader.id, good))` (region.py `_import_ask_price`) with a
+      stable deterministic mix before multiplayer.
+      - Acceptance: two fresh processes with same seed produce identical
+        turn-by-turn world-state.
+- [ ] **C.7** Feasibility client (engine decision) — Godot 4 2D tile map OR
+      web (React + ECharts + canvas map) wired to `sim_server.py`. Goal:
+      *feel* the election / protest / coup loop on a 3–5 tile map.
+      - Acceptance: live run shows treasury, protest bars, event log; a
+        policy intent visibly changes tile state next turn.
+- [ ] **C.8** Rendering spec — density rendering (tile population heat),
+      hero agents (candidates/generals/faction leaders as named portraits),
+      engine-native charts replacing matplotlib for in-game panels.
+      - Acceptance: 2,000-agent sim renders as tile-level stats with zero
+        per-agent sprites; hero roster lists ≤ 40 named agents.
+- [ ] **C.9** Asset pack selection — Kenney CC0 tile/UI packs, OpenGameArt /
+      itch CC0/MIT sets, Google Fonts (serif display + UI face), Kenney
+      audio + Freesound CC0 SFX.
+      - Acceptance: an `assets/` dir with licenses documented; no
+        non-CC0/MIT assets in the repo.
 
 ---
 
