@@ -232,6 +232,10 @@ class Region:
         self.factions = FactionSystem()
         self.faction_support_log = []   # per-turn: {name: support}
         self._build_identity_factions()
+        # M2.3/M2.4: grievances + protest energy per tile.  Pure-state
+        # aggregates (no money/goods move), logged per turn.
+        self.protest_energy_log = []    # per-turn scalar
+        self.faction_grievance_log = []  # per-turn {name: grievance}
 
         for g in [Goods.food, Goods.wood, Goods.furniture, Goods.transport]:
             self.export_vol[g] = []
@@ -387,9 +391,95 @@ class Region:
         self._refresh_faction_membership()
         self._apply_policy_satisfaction()
         eligible = {a.id for a in self.agents if getattr(a, 'alive', True)}
+        # M2.3: accumulate grievances from tile-level distress using M1 memory.
+        # The return value is the per-turn *addition* per faction (the distress
+        # rate), which M2.4 uses so protest energy tracks recent conditions
+        # instead of saturating on the lifetime accumulation.
+        adds = self._accumulate_grievances(t)
         self.factions.step(eligible)
         snap = {name: f.support for name, f in self.factions.factions.items()}
         self.faction_support_log.append(snap)
+        # M2.4: aggregate grievance -> per-tile protest energy.
+        gv = {name: f.total_grievance() for name, f in self.factions.factions.items()}
+        self.faction_grievance_log.append(gv)
+        self.protest_energy_log.append(self._protest_energy(adds))
+
+    def _accumulate_grievances(self, t):
+        """Add per-turn grievance sources to each faction (M2.3).
+
+        Sources blend tile-level stats with M1 memory:
+          - hunger: starving agents' mem_hunger + current hungry count
+          - gini: per-good cash inequality for the tile
+          - tax: effective tax rate
+          - unemployment: fraction of non-corp adults without employer
+
+        Returns {faction_name: total_added_this_turn} (the distress rate,
+        consumed by M2.4).  Everything is a read — no money moves.
+        """
+        agents = self.agents
+        adds = {}
+        if not agents:
+            return adds
+        # hunger
+        hungry_now = sum(1 for a in agents
+                         if not a.is_corporation and not a.is_government
+                         and a.hungry_steps > 0)
+        mem_hunger = sum(a.mem_avg('mem_hunger', 0.0)
+                         for a in agents
+                         if not a.is_corporation and not a.is_government)
+        hunger_score = min(3.0, hungry_now / 30.0 + mem_hunger / 120.0)
+        # gini
+        gini = 0.0
+        for g in (Goods.food, Goods.wood, Goods.furniture):
+            vals = sorted(a.cash for a in agents if a.output == g)
+            if len(vals) > 5:
+                n = len(vals)
+                s = sum(vals)
+                if s > 0:
+                    wsum = sum((i + 1) * v for i, v in enumerate(vals))
+                    gini = max(gini, (2 * wsum) / (n * s) - (n + 1) / n)
+        # tax (effective)
+        tax = self.gov.tax_rate
+        # unemployment: non-corp adults with no employer
+        adults = [a for a in agents
+                  if not a.is_corporation and not a.is_government
+                  and a.age(t) > 20]
+        unemp = (sum(1 for a in adults if a.employer is None
+                     and not a.is_trader) / max(1, len(adults)))
+        # Factions share the tile-level pain; each with a kind-multiplier so
+        # the mix differs (political factions feel taxes/unemployment more,
+        # religious feel hunger/inequality more, ethnic the same classic set).
+        for f in self.factions.factions.values():
+            if f.kind == 'political':
+                n_add = (hunger_score * 0.6 + gini * 1.2
+                         + tax * 1.5 + unemp * 1.5)
+                f.add_grievance('hunger', hunger_score * 0.6)
+                f.add_grievance('gini', gini * 1.2)
+                f.add_grievance('tax', tax * 1.5)
+                f.add_grievance('unemployment', unemp * 1.5)
+            else:
+                n_add = hunger_score + gini + tax + unemp
+                f.add_grievance('hunger', hunger_score)
+                f.add_grievance('gini', gini)
+                f.add_grievance('tax', tax)
+                f.add_grievance('unemployment', unemp)
+            adds[f.name] = n_add
+        return adds
+
+    @staticmethod
+    def _protest_energy(adds):
+        """M2.4: per-tile protest score from the *rate* of fresh grievance.
+
+        Average per-faction grievance-adds this turn drive the score
+        (roughly 1.0 baseline, 4.0 = distressed), compressed to [0, 10].
+        Using the recent rate keeps the measure correlated with current
+        hunger/gini/tax rather than saturating on lifetime accumulation.
+        """
+        if not adds:
+            return 0.0
+        avg = sum(adds.values()) / len(adds)
+        score = min(10.0, avg * 2.0)
+        return max(0.0, score)
 
     # ------------------------------------------------------------------
     # Agent creation
