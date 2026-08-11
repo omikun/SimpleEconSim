@@ -1,0 +1,12 @@
+T1: in-flight finality + parked-goods reroute logistics
+
+- _repoint_traders no longer reclaims in-transit cargo on dest switch
+  (reclaim stays for death/exit only, preserving the M0.5 escheat fix)
+- Route.advance parks old-destination deliveries in trader.parked_foreign;
+  Route.post_parked re-ships parked lots toward a new destination
+- Parked goods sell in place at the abandoned tile's auction (is_parked tag;
+  settlement decrements parked_foreign); unsold lots stay parked
+- resolve_parked re-routes only after a dest change AND strictly-better net
+  margin; death escheats parked goods; exit liquidation folds parked in
+- Verified 0 LEAK / 0 SHIFT / no INSOLVENCY on sim_ring 300, sim_nation 100,
+  econsim_two_region 30; probe_t1_parked PASS (241 dest switches)

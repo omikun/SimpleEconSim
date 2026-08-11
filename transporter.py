@@ -32,6 +32,7 @@ class Route:
         self.pending = []       # posted this turn: [trader, good, qty, location]
         self.in_transit = []    # en route:        [trader, good, qty, turns_left, location]
         self.delivered_this_turn = []   # (trader, good, qty) matured this turn
+        self.parked_this_turn = []      # (trader, good, qty) matured into parked_foreign
 
     # ------------------------------------------------------------------
     # Posting
@@ -51,6 +52,21 @@ class Route:
         self.pending.append([trader, good, qty, self.src.name])
         return qty
 
+    def post_parked(self, trader, good, qty):
+        """T1: post cargo from a trader's PARKED pool at this route's source.
+
+        Used when goods matured at an old destination the trader left, and it
+        is now worth re-shipping them toward this route's dst.  Goods move:
+        trader.parked_foreign[src.name] -> this route's pending queue.
+        """
+        src_name = self.src.name
+        qty = int(min(qty, trader.parked_get(src_name, good, 0)))
+        if qty <= 0:
+            return 0
+        trader.parked_sub(src_name, good, qty)
+        self.pending.append([trader, good, qty, src_name])
+        return qty
+
     # ------------------------------------------------------------------
     # Advance / delivery
     # ------------------------------------------------------------------
@@ -63,12 +79,20 @@ class Route:
         """
         remaining = []
         self.delivered_this_turn = []
+        self.parked_this_turn = []
         for entry in self.in_transit:
             entry[3] -= 1
             if entry[3] <= 0:
                 trader, good, qty = entry[0], entry[1], entry[2]
-                trader.inventory_foreign[good.value] += qty
-                self.delivered_this_turn.append((trader, good, qty))
+                # T1: the cargo matures HERE (this route's dst) no matter what.
+                # If the trader re-pointed away, park it instead of letting it
+                # ride the trader's new destination.
+                if getattr(trader, 'destination_region', None) is not self.dst:
+                    trader.parked_add(self.dst.name, good, qty)
+                    self.parked_this_turn.append((trader, good, qty))
+                else:
+                    trader.inventory_foreign[good.value] += qty
+                    self.delivered_this_turn.append((trader, good, qty))
             else:
                 remaining.append(entry)
         self.in_transit = remaining

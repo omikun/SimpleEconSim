@@ -20,8 +20,8 @@ from goods import Goods
 from region import Region
 from logger import logInit
 import forex as fx
-from world_trade import (pending_imports, settle_trade, trader_wealth,
-                         check_trader_holdings)
+from world_trade import (pending_imports, resolve_parked, settle_trade,
+                         trader_wealth, check_trader_holdings)
 
 
 TRANSPORT_DELAY = 1
@@ -120,11 +120,13 @@ def main():
         for r in regions:
             r.step(t)
 
-        # Advance/deliver all routes
+        # Advance/deliver all routes, then resolve parked lots (T1.3).  Parked
+        # goods sell via the NEXT turn's auction; profitable re-routes ship now.
         for r in regions:
             for rt in r._all_routes():
                 rt.advance()
                 rt.deliver_pending()
+        resolve_parked(regions)
 
         # Settlement for every ordered pair
         for r, other in pair_orders:

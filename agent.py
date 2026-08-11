@@ -66,7 +66,7 @@ class Agent:
         'is_charity', 'is_trader', 'home_region', 'destination_region',
         'trade_good',
         'inventory_export', 'transport_pipeline', 'inventory_foreign',
-        'transport_delay',
+        'parked_foreign', 'transport_delay',
         'wallets', 'home_currency',
         # ---- SoA slot index + cache ----
         # ---- Per-good bid/ask (set via setattr in region._trade) ----
@@ -125,6 +125,7 @@ class Agent:
         self.inventory_export = [0] * _NUM_GOODS      # list, not defaultdict
         self.transport_pipeline = []                  # list of {'turns_left', 'good', 'quantity'}
         self.inventory_foreign = [0] * _NUM_GOODS     # list, not defaultdict
+        self.parked_foreign = {}                      # T1: reg_name -> [0]*_NUM_GOODS
         self.transport_delay = 1                      # default; overridden per region-pair
         # ---- Multi-currency wallets (Phase 2: lazy, practical) ----
         # Only traders normally need foreign balances.  Non-traders keep this
@@ -196,6 +197,39 @@ class Agent:
 
     def cost_set(self, good, value):
         self.cost_basis[good.value] = value
+
+    # ---- T1: parked-foreign pool (per-destination) ----
+    def parked_get(self, region_name, good, default=0):
+        """Quantity of *good* parked at *region_name* (0 if none)."""
+        bucket = self.parked_foreign.get(region_name)
+        if not bucket:
+            return default
+        val = bucket[good.value]
+        return val if val else default
+
+    def parked_add(self, region_name, good, qty):
+        """Add *qty* of *good* to the parked pool at *region_name*."""
+        bucket = self.parked_foreign.get(region_name)
+        if bucket is None:
+            bucket = [0] * _NUM_GOODS
+            self.parked_foreign[region_name] = bucket
+        bucket[good.value] += qty
+
+    def parked_sub(self, region_name, good, qty):
+        """Remove *qty* of *good* from the parked pool at *region_name*."""
+        bucket = self.parked_foreign.get(region_name)
+        if bucket is None:
+            return
+        bucket[good.value] = max(0, bucket[good.value] - qty)
+        if not any(bucket):
+            self.parked_foreign.pop(region_name, None)
+
+    def parked_total(self, good):
+        """Total parked quantity of *good* across all regions."""
+        total = 0
+        for bucket in self.parked_foreign.values():
+            total += bucket[good.value]
+        return total
 
 
 # =============================================================================

@@ -20,7 +20,8 @@ from region import Region
 from nation import Nation
 from logger import logInit
 import forex as fx
-from world_trade import (pending_imports, settle_trade, trader_wealth)
+from world_trade import (pending_imports, resolve_parked, settle_trade,
+                         trader_wealth)
 
 
 def make_tile(name, prof, terrain=None, climate='temperate'):
@@ -129,6 +130,8 @@ def main():
             for rt in r._all_routes():
                 rt.advance()
                 rt.deliver_pending()
+
+        resolve_parked(tiles)
 
         for r, other in pair_orders:
             settle_trade(t, other, r)

@@ -595,6 +595,7 @@ def _handle_death(ctx: LiveContext, t, agent, agents):
     # can escheat them, and guarantees no future route delivery credits land
     # on the invisible account.
     _reclaim_dead_route_cargo(ctx, agent)
+    _escheat_dead_parked_goods(ctx, agent)
     _handle_debt_inheritance(ctx, t, agent, living_descendants)
     _handle_wealth_inheritance(ctx, t, agent, living_descendants)
     _zero_out_dead_agent(ctx, agent)
@@ -618,6 +619,36 @@ def _reclaim_dead_route_cargo(ctx: LiveContext, agent):
         return
     for rt in src._all_routes():
         rt.reclaim(agent)
+
+
+def _escheat_dead_parked_goods(ctx: LiveContext, agent):
+    """T1: a dead trader's parked goods escheat to the tile that holds them.
+
+    Parked goods are physical lots sitting at an OLD destination tile.  If the
+    trader dies, those goods would otherwise vanish (no account holds them).
+    Escheat them to that tile's government inventory so goods are conserved.
+    """
+    if not getattr(agent, 'parked_foreign', None):
+        return
+    src = getattr(ctx, 'source_region', None)
+    if src is None:
+        agent.parked_foreign = {}
+        return
+    from goods import Goods as _G
+    for reg_name, bucket in list(agent.parked_foreign.items()):
+        tile = src.neighbors.get(reg_name)
+        if tile is None:
+            continue
+        for g in (_G.food, _G.wood, _G.furniture):
+            qty = bucket[g.value]
+            if qty <= 0:
+                continue
+            if g == _G.food:
+                tile.gov.receive_food(qty)
+            else:
+                tile.gov.agent.inv_add(g, qty)
+        bucket[:] = [0] * len(bucket)
+    agent.parked_foreign = {}
 
 
 def _living_descendants_recursive(agent):

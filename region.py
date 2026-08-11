@@ -889,9 +889,13 @@ class Region:
 
         Evaluates the net foreign price (dest price x per-dest FX buy rate)
         minus local price + transport + margin for the trader's trade_good,
-        and picks the neighbour with the largest positive spread.  When a
-        trader switches destination, in-flight cargo on the old route is
-        reclaimed into inventory_export so nothing ships to the wrong tile.
+        and picks the neighbour with the largest positive spread.
+
+        T1: cargo already committed to a route is FINAL.  We do NOT reclaim
+        in-transit/pending goods when the trader switches destination — they
+        mature at their original destination and either sell there or, if the
+        trader has changed destination AND a third-tile reroute is profitable,
+        get re-posted onward from that tile (see _handle_parked_goods).
         """
         if not self.neighbors:
             return
@@ -917,12 +921,8 @@ class Region:
                     best = other
             if best is None or best_score <= 0:
                 continue
-            old = getattr(trader, 'destination_region', None)
-            if old is not None and old is not best:
-                old_route = self.routes.get(old.name)
-                if old_route is not None:
-                    old_route.reclaim(trader)  # in-transit -> inventory_export
-            trader.destination_region = best
+            if best is not getattr(trader, 'destination_region', None):
+                trader.destination_region = best
 
     def _transport_cost_per_unit(self):
         """Home-currency transport cost to move one unit of a good."""
@@ -1274,9 +1274,11 @@ class Region:
             return [], 0
         pool = []
         total = 0
-        for trader, qty in entries:
+        for e in entries:
+            trader, qty = e[0], e[1]
+            is_parked = e[2] if len(e) > 2 else False
             if qty > 0 and getattr(trader, 'is_trader', False):
-                pool.append([trader, qty])
+                pool.append([trader, qty, is_parked])
                 total += qty
         return pool, total
 
@@ -1302,7 +1304,8 @@ class Region:
         for item in imp_pool:
             trader, qty = item[0], item[1]
             ask = self._import_ask_price(trader, good)
-            book.append([ask, qty, trader, True])
+            is_parked = item[2] if len(item) > 2 else False
+            book.append([ask, qty, trader, True, is_parked])
         book.sort(key=lambda o: o[0])  # ascending price
 
         if not hasattr(self, '_cached_hungry_sorted') or self._cached_hungry_turn != t:
@@ -1318,7 +1321,8 @@ class Region:
         imp_value = 0.0
         bi = 0
         for b in book:
-            ask, qty, seller, is_import = b
+            ask, qty, seller, is_import = b[0], b[1], b[2], b[3]
+            is_parked = b[4] if len(b) > 4 else False
             if qty <= 0 or units >= total_bids:
                 continue
             remaining = qty
@@ -1342,7 +1346,10 @@ class Region:
                     if not getattr(seller, 'alive', True):
                         self.gov.agent.cash += cost
                         self.gov.record_income(t, 'import_escheat', cost)
-                        seller.inventory_foreign[good.value] -= take
+                        if is_parked:
+                            seller.parked_sub(self.name, good, take)
+                        else:
+                            seller.inventory_foreign[good.value] -= take
                     # Same-currency imports (a trader from a tile of the SAME
                     # nation, sharing this region's home currency) settle in
                     # home cash with no FX wallet and no import tariff — the
@@ -1350,7 +1357,10 @@ class Region:
                     # border tile) but money is conserved within one currency.
                     elif getattr(seller, 'home_currency', None) == self.home_currency:
                         seller.cash += cost
-                        seller.inventory_foreign[good.value] -= take
+                        if is_parked:
+                            seller.parked_sub(self.name, good, take)
+                        else:
+                            seller.inventory_foreign[good.value] -= take
                     else:
                         # Split buyer payment between trader (in dest-currency
                         # wallet) and the destination government's import tariff.
@@ -1371,7 +1381,10 @@ class Region:
                         _fx.fx_add(seller, self.home_currency, trader_share + rebate)
                         if gov_share > 0:
                             self.gov.receive_tariff(t, gov_share)
-                        seller.inventory_foreign[good.value] -= take
+                        if is_parked:
+                            seller.parked_sub(self.name, good, take)
+                        else:
+                            seller.inventory_foreign[good.value] -= take
                     imp_units += take
                     imp_value += cost
                 else:
@@ -1427,11 +1440,15 @@ class Region:
         for item in pool:
             if remaining_qty <= 0:
                 break
-            trader, qty = item
+            trader, qty = item[0], item[1]
+            is_parked = item[2] if len(item) > 2 else False
             take = min(qty, remaining_qty)
             if take <= 0:
                 continue
-            trader.inventory_foreign[good.value] -= take
+            if is_parked:
+                trader.parked_sub(self.name, good, take)
+            else:
+                trader.inventory_foreign[good.value] -= take
             home = take * price
             _fx.fx_add(trader, self.home_currency, home)
             item[1] -= take
@@ -1816,10 +1833,14 @@ class Region:
         for rt in self._all_routes():
             rt.reclaim(agent)
 
-        # 2. Gather all tradable lots (export + foreign)
+        # 2. Gather all tradable lots (export + foreign + parked)
+        #    Parked goods sit at OLD destination tiles; fold them into the
+        #    liquidation so no goods are stranded on exit.
         lots = []
         for g in [Goods.food, Goods.wood, Goods.furniture]:
-            qty = agent.inventory_export[g.value] + agent.inventory_foreign[g.value]
+            qty = (agent.inventory_export[g.value]
+                   + agent.inventory_foreign[g.value]
+                   + agent.parked_total(g))
             if qty > 0:
                 lots.append((g, qty, agent.cost_get(g, 0)))
 
@@ -1850,6 +1871,7 @@ class Region:
                         f"escheated to gov inventory")
             agent.inventory_export[good.value] = 0
             agent.inventory_foreign[good.value] = 0
+            agent.parked_foreign = {}
 
         # 4. Pay down loans with all remaining liquid cash (conserved:
         #    bank cash falls by exactly the principal+interest paid).
@@ -1903,7 +1925,8 @@ class Region:
                 if g == Goods.none or g == Goods.transport:
                     continue
                 q = (agent.inventory_export[g.value]
-                     + agent.inventory_foreign[g.value])
+                     + agent.inventory_foreign[g.value]
+                     + agent.parked_total(g))
                 for rt in self._all_routes():
                     q += rt.holdings_of(agent).get(g, 0)
                 if q > 0:
@@ -1942,6 +1965,7 @@ class Region:
                 continue
             agent.inventory_export[g.value] = 0
             agent.inventory_foreign[g.value] = 0
+        agent.parked_foreign = {}
         for rt in self._all_routes():
             rt.reclaim(agent)
         agent.inv_set(Goods.food, max(agent.inv_get(Goods.food, 0), 4))
