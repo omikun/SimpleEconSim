@@ -236,6 +236,9 @@ class Region:
         # aggregates (no money/goods move), logged per turn.
         self.protest_energy_log = []    # per-turn scalar
         self.faction_grievance_log = []  # per-turn {name: grievance}
+        # M2.5/M2.6: unrest escalation events + repression seeds.
+        self.unrest_log = []            # per-turn {stage, looted, ...}
+        self.unrest_flag = False        # one-shot: ladder triggered this turn
 
         for g in [Goods.food, Goods.wood, Goods.furniture, Goods.transport]:
             self.export_vol[g] = []
@@ -614,6 +617,10 @@ class Region:
         # M2.2: refresh membership from M1 identity tags, apply policy
         # satisfaction, and log per-faction support for this turn.
         self._step_factions(t)
+        # M2.5: run the escalation ladder (unrest -> ... -> takeover).
+        from unrest import step_unrest
+        ev = step_unrest(self, t)
+        self.unrest_flag = ev['stage'] != 'calm'
         self.gov.seal_income(t)
         self.total_population.append(sum(v[-1] for v in self.population_log.values()))
         self.cost_of_living_log.append(self.cost_of_living)
