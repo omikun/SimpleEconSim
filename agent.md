@@ -61,6 +61,15 @@ on meaningful horizons; dashboard PNGs render. M0 scripts additionally require
   intent).  Run: `python3 hexview.py`.
 - Verified: `tmp/probe_hex.py` (adjacency + pixel↔axial round-trip + SDL-dummy
   render after 10 steps with 0 violations); M1 gate + `sim_nation 100` still clean.
+- **V2 (committed separately: V2a `e5e0a6f`, V2b `84f8d19`, V2c `09a0bd2`)**
+  — hover chart dashboard (6 live mini-charts per hex: prices, pop/hunger,
+  production, trade flow, gov income, gini/migration; Tab grid / 1-6 zoom),
+  on-map economic indicators (animated trade-flow arrows scaled by
+  export/import value, population-heat fill, activity badges: demand alert,
+  hunger, trader count, gini dot, migration arrow, hot/cold food-price
+  arbitrage ring, +B/-D pop deltas), and an `N`-toggle national HUD strip
+  (per-nation treasury sparkline + export/import bars + regime/legitimacy).
+  All drawn in pure pygame; probe renders map + charts + HUD headlessly.
 
 ## Architecture
 - `region.py` — `Region`: per-region bank, Government, agents, logs; `step(t)` orders

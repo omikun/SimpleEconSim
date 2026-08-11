@@ -77,6 +77,18 @@ phase-bisect / event-ledger probes (untracked: `tmp/probe_ga*.py`, `tmp/probe_be
 - Step loop mirrors `sim_nation.main()`; verified by `tmp/probe_hex.py`
   (adjacency + pixel↔axial round-trip + SDL-dummy render after 10 steps,
   0 violations).  M1 gate + `sim_nation 100` still clean.
+- **V2a** hover chart dashboard (6 pure-pygame mini-charts per hex: prices,
+  pop/hunger, production, trade flow, gov income, gini/migration; Tab grid /
+  1–6 zoom, live per turn).
+- **V2b** on-map indicators: animated trade-flow arrows (width/direction from
+  export/import value), population-heat fill, activity badges (demand alert,
+  hunger, trader count, gini dot, migration arrow, hot/cold food-price ring),
+  +B/−D per-turn pop deltas.
+- **V2c** national HUD strip (`N` toggle): per-nation regime/legitimacy/pop
+  header + treasury sparkline + export/import bars over the window.
+- V2 commits: `e5e0a6f` (V2a), `84f8d19` (V2b), `09a0bd2` (V2c); probe now
+  renders map + hover charts + HUD headlessly (0 violations) and the M1
+  behavior-drift gate stays clean.
 
 ## Earlier status (pre-M0, still PASSING)
 - `python3 econsim_two_region.py 30` — no LEAK/SHIFT, ROI positive both sides

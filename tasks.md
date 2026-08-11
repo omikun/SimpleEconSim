@@ -48,6 +48,18 @@ Invariant: 0 LEAK / 0 SUPPLY SHIFT / no BANK INSOLVENCY.
 - [x] Verified: tmp/probe_hex.py — 4 wired edges all hex-adjacent; pixel<->
   axial round-trip PASS; SDL-dummy render after 10 steps, 0 violations,
   1200x800 screenshot. M1 gate + sim_nation 100 still clean.
+- [x] **V2a** hover chart dashboard: hovering a hex shows a 2x3 grid of six
+  pure-pygame mini-charts (prices, population/hunger, production, trade
+  flow bars, gov-income stacked, gini/migration), Tab=grid / 1-6=zoom,
+  live-updating each turn.
+- [x] **V2b** on-map indicators: animated trade-flow arrows on wired edges
+  (width/direction from export/import value), population-heat hex fill,
+  activity badges (demand alert, hunger, trader count, gini dot, migration
+  arrow, hot/cold food-price arbitrage ring), +B/-D per-turn pop deltas.
+- [x] **V2c** national HUD strip (N toggle): per-nation regime/legitimacy/pop
+  header + treasury sparkline + export/import bars over the window.
+- [x] V2 gate: tmp/probe_hex.py renders map + hover charts + HUD headlessly
+  (0 audit violations, screenshots); M1 behavior-drift gate still clean.
 
 ## NEXT — TBD
 (priority_tasks.md / gdd.md roadmap: M2 Factions & Unrest is next)
