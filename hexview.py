@@ -18,7 +18,9 @@ Controls:
     S / -> : step one turn (when paused)
     Tab    : chart grid view
     1 .. 6 : zoom one of the six hover charts
-    Esc/Q  : quit
+    N      : toggle the national HUD strip
+    H / ?  : help menu explaining every UI/UX element (Up/Down scroll)
+    Esc/Q  : quit (Esc closes help first)
     Hover  : tile tooltip + chart dashboard
 
 Usage:
@@ -136,6 +138,8 @@ def build_world_view():
         'violations': [],
         'hud': False,       # V2c: national HUD strip toggle (N)
         'nation_history': [],   # per-turn per-nation snapshots
+        'help_open': False, # V2e: help menu overlay (H / ?)
+        'help_scroll': 0,   # help overlay scroll (lines)
     }
 
 
@@ -756,6 +760,95 @@ def _draw_nation_hud(surface, world, font_small):
         surface.blit(netline, (x0, cy + line_h + 22))
 
 
+def _draw_help(surface, world, font_small):
+    """V2e: full-screen help overlay explaining every UI/UX element."""
+    if not world.get('help_open', False):
+        return
+    title_font = pygame.font.Font(None, 30)
+    header_font = pygame.font.Font(None, 22)
+    body_font = font_small
+
+    overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+    overlay.fill((16, 16, 22, 242))
+    surface.blit(overlay, (0, 0))
+    surface.blit(title_font.render(
+        'REGNUM — Control & UI Reference', True, ACCENT), (24, 14))
+
+    sections = [
+        ('KEYBOARD', [
+            'Space .......... play / pause (auto-advance ~150 ms/turn)',
+            'S or -> ........ step one turn (while paused)',
+            'Tab ............ chart-grid view on the hovered hex',
+            '1 .. 6 ......... zoom the 1st..6th hover chart',
+            'N .............. toggle the national HUD strip',
+            'H or ? ......... toggle this help (Up/Down scrolls)',
+            'Esc ............ close help first; Q quits either way',
+        ]),
+        ('MAP (HEXES)', [
+            'Hex fill = owner nation; brighter fill = higher population (heat).',
+            'Hex name headline; below it: pop / food $ / trader count.',
+            'Amber wedge = food terrain; green wedge = wood/forest; white dot = cold.',
+            'Orange dot = high demand.  Red dot = many hungry this turn.',
+            'Green T# = trader count.  Purple dot = high gini.',
+            'Cyan up-arrow = strong migration intent.',
+            'Hot ring = food price ABOVE neighbours; cold ring = BELOW (arbitrage).',
+            'Cyan edge strokes + moving dot = trade flow; width = volume,',
+            'direction points from net exporter to net importer.',
+            '+N / -N under the name = this turn\'s population change.',
+        ]),
+        ('RIGHT PANEL (HOVER A HEX)', [
+            'Top: turn counter, per-currency totals (AL / BE / GA), play state.',
+            'Hovering a hex shows a 2x3 grid of six live mini-charts:',
+            '  1 Prices      2 Population/Hunger   3 Production',
+            '  4 Trade flow (exports vs imports)',
+            '  5 Government income (tax / tariff / inheritance)',
+            '  6 Gini / Migration intent',
+            'Tab returns to the grid; 1..6 zooms one chart.',
+            'Bottom line: green "Conserved" or red "AUDIT VIOLATION"',
+            '(per-currency supply-shift or leak > $5.0 this turn).',
+        ]),
+        ('NATIONAL HUD STRIP (N)', [
+            'One column per nation: name (currency) + regime + legitimacy.',
+            'Cyan polyline = treasury over the chart window.',
+            'Green bars = exports; red bars = imports (same window).',
+            'Bottom: live population, last treasury, net trade balance.',
+        ]),
+    ]
+
+    # Flatten entries, wrapping body text to the panel width.
+    wrapped = []
+    max_w = WIDTH - 72
+    for header, lines in sections:
+        wrapped.append((0, 'header', header))
+        for ln in lines:
+            cur = ''
+            for w in ln.split(' '):
+                test = (cur + ' ' + w).strip()
+                if body_font.size(test)[0] <= max_w or not cur:
+                    cur = test
+                else:
+                    wrapped.append((8, 'body', cur))
+                    cur = w
+            wrapped.append((8, 'body', cur))
+
+    line_h = 20
+    visible = 32
+    scroll = world.get('help_scroll', 0)
+    scroll = max(0, min(scroll, max(0, len(wrapped) - visible)))
+    y = 52
+    for i in range(scroll, min(len(wrapped), scroll + visible)):
+        indent, kind, text = wrapped[i]
+        color = ACCENT if kind == 'header' else TEXT
+        f = header_font if kind == 'header' else body_font
+        surface.blit(f.render(text, True, color), (24 + indent, y))
+        y += line_h
+
+    if len(wrapped) > visible:
+        hint = body_font.render(
+            'Up / Down scrolls • Esc closes • Q quits', True, ACCENT)
+        surface.blit(hint, (24, HEIGHT - 28))
+
+
 def render_frame(surface, world):
     """Draw one full frame (map + panel).  Reusable by the headless probe."""
     font = pygame.font.Font(None, 28)
@@ -764,6 +857,7 @@ def render_frame(surface, world):
     _draw_hex_map(surface, world, font, font_small)
     _audit_panel(surface, world, font, font_small)
     _draw_nation_hud(surface, world, font_small)
+    _draw_help(surface, world, font_small)
 
 
 # ---------------------------------------------------------------------------
@@ -794,8 +888,21 @@ def main():
             if event.type == pygame.QUIT:
                 running = False
             elif event.type == pygame.KEYDOWN:
-                if event.key in (pygame.K_ESCAPE, pygame.K_q):
+                if event.key == pygame.K_ESCAPE:
+                    if world.get('help_open'):
+                        world['help_open'] = False
+                    else:
+                        running = False
+                elif event.key == pygame.K_q:
                     running = False
+                elif event.key == pygame.K_h or event.key == pygame.K_QUESTION:
+                    world['help_open'] = not world.get('help_open', False)
+                    world['help_scroll'] = 0
+                elif world.get('help_open') and event.key == pygame.K_UP:
+                    world['help_scroll'] = max(
+                        0, world.get('help_scroll', 0) - 5)
+                elif world.get('help_open') and event.key == pygame.K_DOWN:
+                    world['help_scroll'] = world.get('help_scroll', 0) + 5
                 elif event.key == pygame.K_SPACE:
                     world['playing'] = not world['playing']
                     last_tick = now

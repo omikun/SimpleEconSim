@@ -70,6 +70,13 @@ on meaningful horizons; dashboard PNGs render. M0 scripts additionally require
   arbitrage ring, +B/-D pop deltas), and an `N`-toggle national HUD strip
   (per-nation treasury sparkline + export/import bars + regime/legitimacy).
   All drawn in pure pygame; probe renders map + charts + HUD headlessly.
+- **V2e (committed `help-menu`)**: `H`/`?` toggles a full-screen help overlay
+  explaining every keyboard control and every map/panel/HUD element, with
+  Up/Down scrolling and Esc-to-close.
+- **NOTE (interpreter)**: `hexview.py` must be run with the project venv that
+  has pygame+matplotlib: `source venv/bin/activate` (or
+  `/Users/sli/Code/venv/bin/python hexview.py`).  The system `python3` (3.14)
+  lacks pygame, so the viewer would silently show only sim logs.
 
 ## Architecture
 - `region.py` — `Region`: per-region bank, Government, agents, logs; `step(t)` orders
