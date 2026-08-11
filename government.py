@@ -9,7 +9,7 @@ import math
 import random
 
 import econsim_states
-from agent import Agent, initialize_agent
+from agent import Agent, initialize_agent, seed_traits
 from goods import Goods
 from logger import loginfo, logwarning, logdebug
 import econsim_trade_money as trade
@@ -273,6 +273,7 @@ class Government:
 
             immigrant = Agent(t)
             immigrant.output = output
+            seed_traits(immigrant)
             immigrant.cash = 50.0 + random.uniform(0, 30)
             immigrant.inv_set(Goods.food, 4)
             # Give a small inventory of their own profession's output

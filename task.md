@@ -1,6 +1,6 @@
 # SimpleEconSim — Task Handoff
 
-Last updated: 2026-08-10 21:33 PDT · HEAD: `be8de3a` (3 local commits ahead of origin/main; nothing pushed)
+Last updated: 2026-08-11 09:16 PDT · HEAD: `f627d5f` + M1 (4+ local commits ahead of origin/main; nothing pushed)
 
 ## M0 — Nation & Tiles (committed, PASSING)
 
@@ -49,6 +49,20 @@ phase-bisect / event-ledger probes (untracked: `tmp/probe_ga*.py`, `tmp/probe_be
 - `sim_ring.py` — clean (3-tile ring remains byte-clean)
 - `econsim_two_region.py 30` — no LEAK/SHIFT/INSOLVENCY regression
 - `tile_map.png` renders
+
+## M1 — People: traits, memory, learning (committed, PASSING)
+- `agent.py`: M1.1 traits (ambition/loyalty/charisma/risk_tolerance/bigotry dict/
+  productivity/fertility/religiousness) via `seed_traits(agent, parent=None)`;
+  M1.2 identity tags (ethnicity/religion/politics, 2% mutation);
+  M1.3 bounded memory rings (cap 32) `mem_push/mem_last/mem_avg/mem_recent`.
+- `econsim_live.py`: heritable seeding in `_handle_reproduction`; `mem_hunger` on
+  consumption; M1.4 `_learned_switch_choice` (bottleneck + demand history +
+  hunger memory + ambition) for poor-agent career switches.
+- `region.py`: `mem_wages` on wage payment; M1.5 `_migration_intent_score()` +
+  `migration_intent_log` (score-only stub, no movement).
+- Companies seed traits (region.py + econsim.py) so dissolved remnants keep identity.
+- **M1 gate** `tmp/behavior_drift.py`: 3-tile ring, 300t × 3 seeds — 0 LEAK /
+  0 SUPPLY SHIFT / no insolvency; memory ≤ 32; identities present.
 
 ## Earlier status (pre-M0, still PASSING)
 - `python3 econsim_two_region.py 30` — no LEAK/SHIFT, ROI positive both sides

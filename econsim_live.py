@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import econsim_trade_money as trade
-from agent import Agent, initialize_agent, get_input_commodity, get_output_commodity
+from agent import Agent, initialize_agent, get_input_commodity, get_output_commodity, seed_traits
 from goods import Goods, profession
 from logger import logdebug, loginfo, logwarning
 from random_cache import rand
@@ -228,18 +228,79 @@ def _consume_daily_food(agent):
             if foreign_food >= 4:
                 agent.inventory_foreign[Goods.food.value] -= 4
                 agent.hungry_steps = 0
+                agent.mem_push('mem_hunger', agent.hungry_steps)
                 return
             export_food = agent.inventory_export[Goods.food.value]
             if export_food >= 4:
                 agent.inventory_export[Goods.food.value] -= 4
                 agent.hungry_steps = 0
+                agent.mem_push('mem_hunger', agent.hungry_steps)
                 return
         agent.hungry_steps += 1
+    # M1.3: bounded hunger memory (drives grievance + career learning)
+    agent.mem_push('mem_hunger', agent.hungry_steps)
 
 
 # =============================================================================
 # CAREER SWITCHING
 # =============================================================================
+
+def _learned_switch_choice(ctx: LiveContext, agent, choices_list, bottleneck_weights):
+    """Personalized career-switch target using M1.3 memory (M1.4).
+
+    Replaces the uniform random pick with a weighted choice that blends:
+      1. base weight 1.0 per sector,
+      2. the hoisted bottleneck weights (3x for the input-constrained sector),
+      3. learned demand_ratio history — sectors whose recent demand/supply
+         ratio averaged > 1.2 get up to a 2x boost (agents who *watched* a
+         sector do well drift toward it),
+      4. hunger memory — an agent that has repeatedly gone hungry (mean
+         mem_hunger over the last 8 turns > 0) strongly prefers food,
+      5. the ambition trait — high ambition amplifies the pull toward the
+         single most-in-demand sector (career-climbing), low ambition
+         dampens it (risk-averse stay-put bias).
+
+    The choice is still stochastic and bounded: it only picks among the
+    existing choices_list and can never exceed the per-turn switch cap, so
+    behavior drifts without destabilizing conservation.
+    """
+    weights = []
+    # Recent demand-ratio history per sector (last 8 entries).  The log is
+    # owned by the Region (LiveContext.source_region); legacy single-region
+    # callers may not wire it, so degrade to an empty history.
+    dr_log = getattr(getattr(ctx, 'source_region', None), 'demand_ratio_log', {}) \
+        or {}
+    for i, g in enumerate(choices_list):
+        w = 1.0 * bottleneck_weights[i]
+        hist = dr_log.get(g, [])[-8:]
+        if hist:
+            avg_ratio = sum(hist) / len(hist)
+            if avg_ratio > 1.2:
+                w *= min(2.0, 0.5 + avg_ratio)
+        weights.append(w)
+    # Hunger memory: repeatedly-hungry agents learn to value food security.
+    hunger_avg = getattr(agent, 'mem_avg', lambda k, d=0.0: d)('mem_hunger', 0.0)
+    if hunger_avg > 0:
+        for i, g in enumerate(choices_list):
+            if g == Goods.food:
+                weights[i] *= (1.0 + min(2.0, hunger_avg))
+    # Ambition: stronger pull toward the most-in-demand sector.
+    ambition = getattr(agent, 'ambition', 0.5)
+    if ctx.most_demand != Goods.gov:
+        for i, g in enumerate(choices_list):
+            if g == ctx.most_demand:
+                weights[i] *= (1.0 + 0.8 * ambition)
+    total = sum(weights)
+    if total <= 0:
+        return rand.choice(choices_list)
+    roll = rand.random() * total
+    acc = 0.0
+    for i, w in enumerate(weights):
+        acc += w
+        if roll < acc:
+            return choices_list[i]
+    return choices_list[-1]
+
 
 def _handle_career_switching(ctx: LiveContext, t, agent, agents,
                               choices_list, bottleneck_weights, number_of_switches):
@@ -272,9 +333,13 @@ def _handle_career_switching(ctx: LiveContext, t, agent, agents,
                     output = rand.choice(endangered)
                     _grant_apprenticeship_subsidy(agent, output, t, ctx)
                 else:
-                    output = rand.choice(choices_list)
+                    # M1.4: learn from demand history + hunger memory
+                    # instead of a uniform random draw, so agents demonstrably
+                    # differ in behavior by trait and memory.
+                    output = _learned_switch_choice(
+                        ctx, agent, choices_list, bottleneck_weights)
                 agent.output = output
-                logdebug(t, agent.name(), 'poor, exploring random career:',
+                logdebug(t, agent.name(), 'poor, exploring learned career:',
                          ctx.profession[agent.output])
                 agent.last_career_switch = t
                 number_of_switches += 1
@@ -432,6 +497,7 @@ def _handle_reproduction(ctx: LiveContext, t, agent, agents, new_agents):
         agent.last_reproduction = t
         new_agent = Agent(t)
         new_agent.parent = agent
+        seed_traits(new_agent, parent=agent)
         agent.descendants.append(new_agent)
         if government is not None:
             government._add_citizen(new_agent)

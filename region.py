@@ -22,7 +22,7 @@ from logger import loginfo, logwarning, logdebug
 
 import econsim_trade_money as _tm
 import government as govmod
-from agent import Agent, initialize_agent
+from agent import Agent, initialize_agent, seed_traits
 from charity import Charity
 from random_cache import rand
 import forex as _fx
@@ -223,6 +223,8 @@ class Region:
         self.trade_flow_log = []
         self.cumulative_trade_balance = 0.0
         self.foreign_reserves_log = []  # per-turn: {currency: amount}
+        # M1.5: per-turn migration intent score (score-only stub; feeds M4).
+        self.migration_intent_log = []
 
         for g in [Goods.food, Goods.wood, Goods.furniture, Goods.transport]:
             self.export_vol[g] = []
@@ -313,6 +315,7 @@ class Region:
                 delta = 20
                 cash = 120 + random.randint(-delta, delta)
                 initialize_agent(agent, output, 10, 2, cash)
+                seed_traits(agent)
                 agent.region = self.name
                 agent._bank_ref = self.bank
                 agent.home_currency = self.home_currency
@@ -327,6 +330,7 @@ class Region:
                 trader.is_trader = True
                 trader.output = Goods.food
                 trader.trade_good = trade_good
+                seed_traits(trader)
                 trader.home_region = self.name
                 trader.region = self.name
                 trader.cash = 200.0
@@ -416,6 +420,8 @@ class Region:
         self._audit_cash(t, "charity_food_done")
 
         self._log_metrics(t)
+        # M1.5: migration intent score (logged per tile; no agents move yet)
+        self.migration_intent_log.append(self._migration_intent_score())
         self.gov.seal_income(t)
         self.total_population.append(sum(v[-1] for v in self.population_log.values()))
         self.cost_of_living_log.append(self.cost_of_living)
@@ -517,6 +523,7 @@ class Region:
             food_price = self.food_price
             company = Agent(t)
             company.is_corporation = True
+            seed_traits(company)
             company.output = a.output
             company.owner = a
             company._bank_ref = self.bank
@@ -856,6 +863,55 @@ class Region:
         # Don't buy more than maxinv (non-storable, maxinv=1, but future-proof)
         max_buy = min(needed, self.recipes[Goods.transport]['maxinv'])
         return min(max_buy, affordable)
+
+    # ---- M0.3 adjacency / multi-route ----
+    # ---- M1.5 migration intent (score-only stub) ----
+
+    def _migration_intent_score(self):
+        """Compute a per-tile migration intent score (M1.5).
+
+        Higher score = more residents want to LEAVE this tile.  Blends:
+          - avg remembered wage (mem_wages mean; low wage -> higher intent),
+          - home vs neighbor price differential (higher local prices vs
+            neighbors -> higher intent), and
+          - risk_tolerance (the trait scales how strongly the differential
+            is felt).
+
+        Score-only: agents never move.  Feeds M4 (Territory & Migration).
+        Pure read of existing state — no conservation impact.
+        """
+        agents = self.agents
+        if not agents:
+            return 0.0
+        # Average remembered wage across residents (bounded memory).
+        wage_scores = []
+        for a in agents:
+            avg = getattr(a, 'mem_avg', lambda k, d=0.0: d)('mem_wages', None)
+            if avg is not None:
+                wage_scores.append(avg)
+        avg_wage = sum(wage_scores) / len(wage_scores) if wage_scores else 0.0
+        # Wage pull: 0 wage memory -> neutral 0; below ~5 -> weak intent.
+        wage_intent = 0.0
+        if avg_wage > 0 and avg_wage < 5.0:
+            wage_intent = 1.0 - (avg_wage / 5.0)
+        # Price differential: average local vs neighbor food price gap.
+        diff = 0.0
+        if self.neighbors:
+            local_food = self.recipes.get(Goods.food, {}).get('price', 1.0)
+            neighbor_prices = [
+                other.recipes.get(Goods.food, {}).get('price', 1.0)
+                for other in self.neighbors.values()
+                if getattr(other, 'recipes', None)
+            ]
+            if neighbor_prices:
+                avg_neighbor = sum(neighbor_prices) / len(neighbor_prices)
+                if avg_neighbor > 0:
+                    # Positive if local is MORE expensive than neighbors.
+                    diff = max(0.0, (local_food - avg_neighbor) / max(1.0, avg_neighbor))
+        # Risk tolerance amplifies how strongly the differential is felt.
+        risk = sum(getattr(a, 'risk_tolerance', 0.5) for a in agents) / len(agents)
+        score = wage_intent * 0.5 + diff * (0.5 + risk)
+        return max(0.0, min(10.0, score))
 
     # ---- M0.3 adjacency / multi-route ----
 
@@ -1567,6 +1623,9 @@ class Region:
                     wage_to_pay = min(a.cash, a.wage)
                     a.cash -= wage_to_pay
                     e.cash += wage_to_pay
+                    # M1.3: bounded expected-wage memory (drives career /
+                    # migration learning; pure state, no conservation impact)
+                    e.mem_push('mem_wages', wage_to_pay)
 
     # ---- Owner profit ----
 

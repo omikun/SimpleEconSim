@@ -26,6 +26,24 @@ on meaningful horizons; dashboard PNGs render. M0 scripts additionally require
 (`sim_nation.py` alerts above the 5.0 audit threshold), and `sim_ring.py` prints
 "SUPPLY SHIFT: 0" / "CASH LEAK: 0" / "BANK INSOLVENCY: 0".
 
+## M1 — People: traits, memory, learning (committed 2026-08-11)
+- `agent.py` — M1.1 traits (`ambition`, `loyalty`, `charisma`, `risk_tolerance`,
+  `bigotry` {group→[0,1]}, `productivity`, `fertility`, `religiousness`) seeded by
+  the leaf helper `seed_traits(agent, parent=None)` (heritable `clamp(parent +
+  gauss(0,0.15))`; orphans/immigrants uniform-random).  M1.2 identity tags
+  (`ethnicity`/`religion`/`politics`) inherit with 2% mutation.  M1.3 bounded
+  memory ring buffers via `mem_push/mem_last/mem_avg/mem_recent` (cap 32).
+- `econsim_live.py` — `seed_traits(new_agent, parent=agent)` in `_handle_reproduction`;
+  `_consume_daily_food` pushes `mem_hunger`; M1.4 `_learned_switch_choice` blends
+  bottleneck weights + demand_ratio history + `mem_hunger` + `ambition` into the
+  poor-agent career-switch draw.
+- `region.py` — `_pay_wages` pushes `mem_wages`; `_migration_intent_score()` /
+  `migration_intent_log` is the M1.5 score-only stub (no agents move yet).
+- Companies (region.py `_incorporate` + econsim.py `_handle_incorporation`) also
+  seed traits so dissolved-company remnants never lose identity.
+- Gate: `tmp/behavior_drift.py` — 3-tile ring, 300 turns x 3 seeds,
+  0 LEAK / 0 SUPPLY SHIFT / no insolvency, memory ≤ 32, identities present.
+
 ## Architecture
 - `region.py` — `Region`: per-region bank, Government, agents, logs; `step(t)` orders
   labour → produce → trade (priced auction `_clear_discriminatory`) → wages → profits →

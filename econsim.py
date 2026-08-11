@@ -30,7 +30,7 @@ from logger import loginfo, logdebug, logwarning, logInit, logerror
 from econsim_live import LiveContext
 import econsim_live as Living
 import econsim_trade_money as trade
-from agent import Agent, initialize_agent, get_input_commodity, get_output_commodity
+from agent import Agent, initialize_agent, get_input_commodity, get_output_commodity, seed_traits
 
 
 # =============================================================================
@@ -141,6 +141,7 @@ def _handle_incorporation(t, agents):
         food_price = recipes[Goods.food]['price']
         company = Agent(t)
         company.is_corporation = True
+        seed_traits(company)
         company.output = agent.output
         company.owner = agent
         agent.company_owned = company

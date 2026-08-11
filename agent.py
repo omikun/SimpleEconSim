@@ -9,6 +9,7 @@ econsim_trade_money, government, or econsim_two_region — doing so would
 introduce circular dependencies.
 """
 
+import random
 from collections import defaultdict
 
 from goods import Goods, profession
@@ -78,6 +79,13 @@ class Agent:
         '_slot', '_cached_wealth',
         # ---- Trader revenue tracking ----
         '_trader_revenue', '_trader_revenue_check',
+        # ---- M1.1 traits (birth-seeded, heritable +mutation) ----
+        'ambition', 'loyalty', 'charisma', 'risk_tolerance',
+        'bigotry', 'productivity', 'fertility', 'religiousness',
+        # ---- M1.2 identity tags ----
+        'ethnicity', 'religion', 'politics',
+        # ---- M1.3 bounded memory buffers ----
+        'memory',
     )
 
     def __init__(self, t):
@@ -141,6 +149,23 @@ class Agent:
         self.ask_transport = 0
         self._trader_revenue = 0.0
         self._trader_revenue_check = 0.0
+        # ---- M1.1 traits (seeded at birth via seed_traits; neutral defaults
+        # here so corporations / government agents (created without seeding)
+        # stay unaffected) ----
+        self.ambition = 0.5
+        self.loyalty = 0.5
+        self.charisma = 0.5
+        self.risk_tolerance = 0.5
+        self.bigotry = {}                    # dict: group -> animosity [0,1]
+        self.productivity = 0.5
+        self.fertility = 0.5
+        self.religiousness = 0.5
+        # ---- M1.2 identity tags (seeded at birth) ----
+        self.ethnicity = None
+        self.religion = None
+        self.politics = None
+        # ---- M1.3 bounded memory buffers ----
+        self.memory = {}                     # key -> capped list (32)
 
     def name(self):
         prof_label = profession.get(self.output, '-')
@@ -231,6 +256,44 @@ class Agent:
             total += bucket[good.value]
         return total
 
+    # ---- M1.3 bounded memory ring buffer ----
+    def mem_push(self, key, value):
+        """Append *value* to the memory buffer under *key*.
+
+        Each buffer is a bounded ring (cap 32): the oldest entries drop
+        off first, so memory can never grow unbounded.
+        """
+        buf = self.memory.get(key)
+        if buf is None:
+            buf = []
+            self.memory[key] = buf
+        buf.append(value)
+        if len(buf) > MEM_CAP:
+            del buf[:len(buf) - MEM_CAP]
+        return buf
+
+    def mem_last(self, key, default=None):
+        """Return the most recent memory entry under *key* (or *default*)."""
+        buf = self.memory.get(key)
+        return buf[-1] if buf else default
+
+    def mem_avg(self, key, default=0.0):
+        """Arithmetic mean of the memory buffer under *key* (or *default*)."""
+        buf = self.memory.get(key)
+        if not buf:
+            return default
+        try:
+            return sum(buf) / len(buf)
+        except TypeError:
+            return default
+
+    def mem_recent(self, key, n=8):
+        """Return up to *n* most recent entries under *key* (oldest first)."""
+        buf = self.memory.get(key)
+        if not buf:
+            return []
+        return buf[-n:]
+
 
 # =============================================================================
 # Helper: initialise an agent's inventory and output
@@ -262,3 +325,92 @@ def get_input_commodity(agent):
 
 def get_output_commodity(agent):
     return agent.output
+
+
+# =============================================================================
+# M1.1 Traits: birth-seeded, heritable with mutation
+# =============================================================================
+
+# Trait names that are plain floats in [0, 1].  bigotry is a dict and is
+# handled separately (per-entry noise, keys preserved).
+_TRAIT_SCALARS = (
+    'ambition', 'loyalty', 'charisma', 'risk_tolerance',
+    'productivity', 'fertility', 'religiousness',
+)
+
+# ---- M1.3 cap for every memory buffer ----
+MEM_CAP = 32
+
+# ---- M1.2 identity tag pools (small, stable sets) ----
+_ETHNICITIES = ('yoro', 'kest', 'veln', 'omar')
+_RELIGIONS = ('sol', 'luna', 'terra')
+_POLITICS = ('conservative', 'liberal', 'populist')
+
+# Small chance each identity tag mutates away from the parent's on birth.
+_IDENTITY_MUTATION_P = 0.02
+
+
+def _clamp01(x):
+    return max(0.0, min(1.0, x))
+
+
+def _gauss_noise(std=0.15):
+    """Symmetric gaussian noise about 0, returned signed."""
+    return random.gauss(0.0, std)
+
+
+def _rand_identity(identity_pool):
+    return identity_pool[random.randrange(len(identity_pool))]
+
+
+def seed_identity(agent, parent=None):
+    """Seed an agent's M1.2 identity tags.
+
+    Without a parent (founders / immigrants / orphans): every tag is drawn
+    uniform-random from its pool.  With a parent: each tag inherits by
+    default, mutating to a random tag with probability ``_IDENTITY_MUTATION_P``.
+    Pure state — no conservation impact.
+    """
+    pools = (_ETHNICITIES, _RELIGIONS, _POLITICS)
+    attrs = ('ethnicity', 'religion', 'politics')
+    for attr, pool in zip(attrs, pools):
+        parent_tag = getattr(parent, attr, None) if parent is not None else None
+        if parent_tag is None or random.random() < _IDENTITY_MUTATION_P:
+            setattr(agent, attr, _rand_identity(pool))
+        else:
+            setattr(agent, attr, parent_tag)
+    return agent
+
+
+def seed_traits(agent, parent=None, groups=()):
+    """Seed an agent's M1.1 trait fields AND M1.2 identity tags.
+
+    *parent* is None for founders / immigrants / orphans: every scalar
+    trait is drawn uniform-random; bigotry starts empty; identity tags
+    are drawn uniform-random.
+
+    With a parent, each scalar inherits ``clamp(parent + gauss(0, 0.15))``,
+    the bigotry dict copies the parent's animosities with per-entry
+    gaussian noise (entries absent in the parent stay 0), and identity
+    tags inherit with a small mutation probability.
+
+    *groups* is an iterable of identity groups (ethnicity / religion /
+    politics) to pre-warm bigotry keys (animosity 0) so lookup never
+    misses.  Pure state — no conservation impact.
+    """
+    seed_identity(agent, parent=parent)
+    if parent is None:
+        for name in _TRAIT_SCALARS:
+            setattr(agent, name, random.random())
+        agent.bigotry = {}
+    else:
+        for name in _TRAIT_SCALARS:
+            setattr(agent, name, _clamp01(getattr(parent, name) + _gauss_noise(0.15)))
+        parent_big = getattr(parent, 'bigotry', None) or {}
+        agent.bigotry = {}
+        for group, anim in parent_big.items():
+            agent.bigotry[group] = _clamp01(anim + _gauss_noise(0.15))
+    for group in groups:
+        if group not in agent.bigotry:
+            agent.bigotry[group] = 0.0
+    return agent
