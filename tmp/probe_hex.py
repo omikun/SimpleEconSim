@@ -76,6 +76,14 @@ def check_dummy_render():
     hv.render_frame(surface, world)
     pygame.image.save(surface, "hexview_frame.png")
 
+    # V2c: also render the national HUD strip overlay headlessly.
+    world["hud"] = True
+    hv.render_frame(surface, world)
+    pygame.image.save(surface, "hexview_hud.png")
+    hud_count = len(world["nation_history"])
+    print(f"      HUD strip: nation_history={hud_count} snapshots, "
+          f"screenshot -> hexview_hud.png")
+
     totals_str = ", ".join(f"{k}={round(v)}"
                            for k, v in world["currency_totals"].items())
     print(f"[3/3] dummy render: stepped to T={world['turn']}, "
@@ -83,7 +91,7 @@ def check_dummy_render():
     print(f"      screenshot -> hexview_frame.png "
           f"({surface.get_width()}x{surface.get_height()})")
     pygame.quit()
-    return violations_total == 0
+    return violations_total == 0 and hud_count > 0
 
 
 def main():

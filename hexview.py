@@ -134,6 +134,8 @@ def build_world_view():
         'currency_totals': {c: fx.audit_currency_total(tiles, c)
                             for c in currencies},
         'violations': [],
+        'hud': False,       # V2c: national HUD strip toggle (N)
+        'nation_history': [],   # per-turn per-nation snapshots
     }
 
 
@@ -206,6 +208,31 @@ def step_world(world):
     world['currency_totals'] = {c: fx.audit_currency_total(tiles, c)
                                 for c in currencies}
     world['violations'] = violations
+
+    # V2c: per-nation snapshot for the national HUD strip.
+    for n in world['nations']:
+        tr = n.treasury()
+        pop = sum(r.total_population[-1] if r.total_population
+                  else len(r.agents) for r in n.tiles)
+        ex = sum(sum(v) for r in n.tiles
+                 for v in r.export_val.values())
+        im = sum(sum(v) for r in n.tiles
+                 for v in r.import_val.values())
+        world['nation_history'].append({
+            'name': n.name,
+            'treasury': tr['total'],
+            'exports': ex,
+            'imports': im,
+            'pop': pop,
+            'legitimacy': n.legitimacy,
+            'regime': n.regime_type,
+            'currency': n.currency,
+            'turn': t,
+        })
+    # Bound the history (sparkline window).
+    hist = world['nation_history']
+    if len(hist) > 250:
+        del hist[:len(hist) - 250]
     return violations
 
 
@@ -584,6 +611,12 @@ def _draw_chart_large(surface, chart, font, font_small, window, y0, y1):
 
 def _audit_panel(surface, world, font, font_small):
     """Right-hand panel: header info + hover charts + audit readout."""
+    hud_on = world.get('hud', False)
+    chart_bottom = 640 if hud_on else 700
+    chart_hint_y = chart_bottom + 6
+    audit_y = 748 if hud_on else 736
+    audit_vgap = 12
+    audit_head_y = audit_y - 24
     pygame.draw.rect(surface, PANEL_BG,
                      (PANEL_LEFT - 10, 10, WIDTH - PANEL_LEFT - 6,
                       HEIGHT - 20))
@@ -615,32 +648,112 @@ def _audit_panel(surface, world, font, font_small):
         view = world.get('view', 0)
         if view == 0:
             _draw_chart_grid(surface, charts, font, font_small, world['window'],
-                             185, 700)
+                             185, chart_bottom)
             hint = font_small.render(
-                f"{region.name}: Tab=grid  1-6=zoom", True, DIM)
-            surface.blit(hint, (PANEL_LEFT, 706))
+                f"{region.name}: Tab=grid  1-6=zoom  N=hud", True, DIM)
+            surface.blit(hint, (PANEL_LEFT, chart_hint_y))
         else:
             idx = max(0, min(len(charts) - 1, view - 1))
             _draw_chart_large(surface, charts[idx], font, font_small,
-                              world['window'], 185, 700)
+                              world['window'], 185, chart_bottom)
             hint = font_small.render(
-                f"{charts[idx][0]}  (Tab=grid)", True, DIM)
-            surface.blit(hint, (PANEL_LEFT, 706))
+                f"{charts[idx][0]}  (Tab=grid  N=hud)", True, DIM)
+            surface.blit(hint, (PANEL_LEFT, chart_hint_y))
     else:
         hint = font_small.render("Hover a hex for charts", True, DIM)
         surface.blit(hint, (PANEL_LEFT, 190))
+        if hud_on:
+            hint2 = font_small.render("N = hide national HUD", True, DIM)
+            surface.blit(hint2, (PANEL_LEFT, 210))
 
     if world.get('violations'):
         v1 = font.render("AUDIT VIOLATION", True, RED)
-        surface.blit(v1, (PANEL_LEFT, HEIGHT - 90))
+        surface.blit(v1, (PANEL_LEFT, audit_head_y))
         vline = font_small.render(
             "; ".join(f"T{v[0]} {v[1]} {v[2]:+.2f}"
                       for v in world['violations']),
             True, RED)
-        surface.blit(vline, (PANEL_LEFT, HEIGHT - 64))
+        surface.blit(vline, (PANEL_LEFT, audit_head_y + audit_vgap))
     else:
         ok = font.render("Conserved: 0 LEAK / 0 SHIFT", True, GREEN)
-        surface.blit(ok, (PANEL_LEFT, HEIGHT - 64))
+        surface.blit(ok, (PANEL_LEFT, audit_y))
+
+
+def _draw_nation_hud(surface, world, font_small):
+    """V2c: bottom national HUD strip — per-nation treasury/export/import
+    time-series sparklines plus regime/legitimacy/pop summary.
+
+    Pure pygame drawing from world['nation_history'] (appended each turn).
+    Toggled by the N key; drawn as a semi-opaque overlay across the bottom.
+    """
+    if not world.get('hud', False) or not world['nation_history']:
+        return
+    font = font_small
+    strip_rect = (0, HEIGHT - 140, WIDTH, 140)
+    overlay = pygame.Surface((strip_rect[2], strip_rect[3]),
+                             pygame.SRCALPHA)
+    overlay.fill((34, 34, 42, 235))
+    surface.blit(overlay, (strip_rect[0], strip_rect[1]))
+
+    nations = world['nations']
+    ncol = len(nations)
+    col_w = WIDTH // ncol
+    hist = world['nation_history']
+    window = world['window']
+    for i, n in enumerate(nations):
+        x0 = i * col_w + 8
+        y0 = strip_rect[1] + 6
+        # Header line: name + regime + legitimacy
+        header = font.render(
+            f"{n.name} ({n.currency})  {n.regime_type}  "
+            f"legit {n.legitimacy:.2f}", True, ACCENT)
+        surface.blit(header, (x0, y0))
+        # Per-nation history subset
+        nh = [h for h in hist if h['name'] == n.name][-window:]
+        if not nh:
+            continue
+        # Treasury sparkline
+        treas = [h['treasury'] for h in nh]
+        exps = [h['exports'] for h in nh]
+        imps = [h['imports'] for h in nh]
+        pop = nh[-1]['pop']
+        cy = y0 + 22
+        line_h = 24
+        # Normalize within column
+        vmax = max(max(treas), max(exps + imps), 1.0)
+        def scale(v):
+            return v / vmax
+        # Draw treasury polyline (cyan)
+        pts = []
+        npts = len(treas)
+        for j, v in enumerate(treas):
+            x = x0 + j * (col_w - 16) / max(1, npts - 1)
+            y = cy + line_h - scale(v) * line_h
+            pts.append((x, y))
+        pygame.draw.lines(surface, (120, 200, 220), False, pts, 2)
+        # Exports (green) / imports (red) thin bars along the same baseline
+        bx = x0
+        bw = max(2, (col_w - 16) / max(1, npts))
+        for j in range(npts):
+            eh = scale(exps[j]) * line_h
+            ih = scale(imps[j]) * line_h
+            if eh > 0.5:
+                pygame.draw.rect(surface, _EXP_C,
+                                 (bx, cy + line_h - eh, bw * 0.45, eh))
+            if ih > 0.5:
+                pygame.draw.rect(surface, _IMP_C,
+                                 (bx + bw * 0.55, cy + line_h - ih,
+                                  bw * 0.45, ih))
+            bx += bw
+        # Pop text at bottom
+        popline = font.render(f"pop {pop}", True, TEXT)
+        surface.blit(popline, (x0, cy + line_h + 4))
+        # Last treasury / net exports values
+        net = nh[-1]['exports'] - nh[-1]['imports']
+        sign = "+" if net >= 0 else ""
+        netline = font.render(f"treasury ${nh[-1]['treasury']:,.0f}  "
+                              f"net {sign}${net:,.0f}", True, DIM)
+        surface.blit(netline, (x0, cy + line_h + 22))
 
 
 def render_frame(surface, world):
@@ -650,6 +763,7 @@ def render_frame(surface, world):
     surface.fill(BG)
     _draw_hex_map(surface, world, font, font_small)
     _audit_panel(surface, world, font, font_small)
+    _draw_nation_hud(surface, world, font_small)
 
 
 # ---------------------------------------------------------------------------
@@ -688,6 +802,8 @@ def main():
                 elif event.key in (pygame.K_s, pygame.K_RIGHT):
                     if not world['playing']:
                         step_world(world)
+                elif event.key == pygame.K_n:
+                    world['hud'] = not world.get('hud', False)
                 elif event.key == pygame.K_TAB:
                     world['view'] = 0
                 elif pygame.K_1 <= event.key <= pygame.K_6:
