@@ -27,6 +27,7 @@ from charity import Charity
 from random_cache import rand
 import forex as _fx
 from transporter import Route
+from faction import Faction, FactionSystem, IDENTITY_TEMPLATES
 try:
     import region_core as _c
 except ImportError:
@@ -226,6 +227,12 @@ class Region:
         # M1.5: per-turn migration intent score (score-only stub; feeds M4).
         self.migration_intent_log = []
 
+        # M2.1/M2.2: factions — identity mix per tile, policy->demand
+        # satisfaction, and a per-turn support log (plotted by the viewer).
+        self.factions = FactionSystem()
+        self.faction_support_log = []   # per-turn: {name: support}
+        self._build_identity_factions()
+
         for g in [Goods.food, Goods.wood, Goods.furniture, Goods.transport]:
             self.export_vol[g] = []
             self.price_spread_log[g] = []
@@ -291,6 +298,98 @@ class Region:
         # Create agents
         self._create_agents(t, number_of_agents)
         self._register_citizens()
+
+    # ------------------------------------------------------------------
+    # M2.1/M2.2: factions
+    # ------------------------------------------------------------------
+
+    def _build_identity_factions(self):
+        """Create one faction per M1 identity tag kind (Yor/Kest/..., Sol/
+        Luna/Terra, Conservative/Liberal/Populist) with policy demands.
+
+        Membership is rebuilt each turn from live agent identity tags
+        (_refresh_faction_membership), so births/immigrants/deaths are
+        automatically reflected without touching creation sites.
+        """
+        from agent import _ETHNICITIES, _RELIGIONS, _POLITICS
+        for pool in (_ETHNICITIES, _RELIGIONS, _POLITICS):
+            for tag in pool:
+                kind = ('ethnicity' if pool is _ETHNICITIES
+                        else 'religion' if pool is _RELIGIONS
+                        else 'political')
+                f = Faction(tag.capitalize(), kind)
+                # e.g. ethnic factions demand native rights; religious and
+                # political factions lean fiscal/welfare/immigration.
+                if kind == 'ethnicity':
+                    f.add_demand('native_rights', weight=1.2)
+                else:
+                    f.add_demand('welfare', weight=1.0)
+                    f.add_demand('tax_cut', weight=0.8)
+                    f.add_demand('tariff', weight=0.6)
+                    if kind == 'political':
+                        f.add_demand('immigration', weight=0.9)
+                self.factions.register(f)
+
+    def _refresh_faction_membership(self):
+        """Overwrite each identity faction's membership from live agent
+        identity tags (agents remain members of *all* factions their tags
+        match → overlapping membership)."""
+        for f in self.factions.factions.values():
+            f.membership = set()
+        for a in self.agents:
+            if not getattr(a, 'alive', True):
+                continue
+            for attr, kind in (('ethnicity', 'ethnicity'),
+                               ('religion', 'religion'),
+                               ('politics', 'political')):
+                tag = getattr(a, attr, None)
+                if tag is None:
+                    continue
+                f = self.factions.get(tag.capitalize())
+                if f is not None:
+                    f.membership.add(a.id)
+
+    def _apply_policy_satisfaction(self):
+        """Map the tile government's existing policy knobs to faction demand
+        satisfaction (M2.2).
+
+        All reads — no money moves.  Each satisfied value is 0..1.
+        """
+        gov = self.gov
+        # tax_cut: satisfied = tax rate far from the top (low tax).
+        tax_sat = max(0.0, min(1.0, 1.0 - gov.tax_rate / 0.75))
+        # welfare: UBI enabled is fully satisfying; else scale by whether
+        # the gov holds a food reserve / hands out welfare.
+        welfare_sat = 1.0 if getattr(gov, 'ubi_enabled', False) else 0.35
+        # tariff: protectionist factions like a high tariff.
+        tariff_sat = max(0.0, min(1.0, gov.import_tariff_rate / 0.15))
+        # immigration: open borders satisfy immigration demand.
+        imm_sat = 1.0 if getattr(gov, 'immigration_enabled', False) else 0.2
+        # native_rights: no dedicated knob yet — neutral baseline.
+        native_sat = 0.3
+
+        for f in self.factions.factions.values():
+            for d in f.demands:
+                if d.name == 'tax_cut':
+                    d.satisfied = tax_sat
+                elif d.name == 'welfare':
+                    d.satisfied = welfare_sat
+                elif d.name == 'tariff':
+                    d.satisfied = tariff_sat
+                elif d.name == 'immigration':
+                    d.satisfied = imm_sat
+                elif d.name == 'native_rights':
+                    d.satisfied = native_sat
+
+    def _step_factions(self, t):
+        """One turn of faction bookkeeping: membership, policy satisfaction,
+        support, and a per-turn support snapshot."""
+        self._refresh_faction_membership()
+        self._apply_policy_satisfaction()
+        eligible = {a.id for a in self.agents if getattr(a, 'alive', True)}
+        self.factions.step(eligible)
+        snap = {name: f.support for name, f in self.factions.factions.items()}
+        self.faction_support_log.append(snap)
 
     # ------------------------------------------------------------------
     # Agent creation
@@ -422,6 +521,9 @@ class Region:
         self._log_metrics(t)
         # M1.5: migration intent score (logged per tile; no agents move yet)
         self.migration_intent_log.append(self._migration_intent_score())
+        # M2.2: refresh membership from M1 identity tags, apply policy
+        # satisfaction, and log per-faction support for this turn.
+        self._step_factions(t)
         self.gov.seal_income(t)
         self.total_population.append(sum(v[-1] for v in self.population_log.values()))
         self.cost_of_living_log.append(self.cost_of_living)
