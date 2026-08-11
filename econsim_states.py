@@ -15,7 +15,7 @@ from goods import Goods
 # Simulation constants
 number_of_agents = 110
 time_steps = 300
-probability_birth = 0.04
+probability_birth = 0.14
 probability_death = 0.05
 birth_gap = 7
 max_career_switches = 5

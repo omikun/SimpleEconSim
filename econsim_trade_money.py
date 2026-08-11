@@ -59,6 +59,11 @@ class Loan:
         return payment
 
     def pay(self, amount):
+        # Conservation guard: a negative "payment" (possible when the agent's
+        # total wealth fell below zero) would pay NEGATIVE interest into the
+        # bank — destroying deposits without any cash transfer.  Clamp to 0.
+        if amount <= 0:
+            return
         interest_paid = min(self.getInterest(), amount)
         principle_paid = max(0, amount - interest_paid)
         self.principle_paid += principle_paid
@@ -205,6 +210,13 @@ def PayLoans(agent, bank=None):
     remaining_wealth = total_wealth
     total_paid = 0
     for loan in agent.loans:
+        # Conservation guard: never pay more than the agent actually holds.
+        # A negative remaining_wealth (overdrawn agent) must not produce a
+        # negative "payment" — that would flow negative interest into the
+        # bank and destroy deposits without any cash transfer.  Also ensures
+        # agent.cash can't be driven further negative by the Withdraw path.
+        if remaining_wealth <= 0:
+            break
         payment = min(remaining_wealth, loan.getPaymentAmount())
         loan.pay(payment)
         total_paid += payment

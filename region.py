@@ -26,6 +26,7 @@ from agent import Agent, initialize_agent
 from charity import Charity
 from random_cache import rand
 import forex as _fx
+from transporter import Route
 try:
     import region_core as _c
 except ImportError:
@@ -130,12 +131,21 @@ class Region:
 
     def __init__(self, name: str, t: int, number_of_agents: int = 110,
                  profession_distribution: dict = None, number_of_traders: int = None,
-                 transport_delay: int = 1):
+                 transport_delay: int = 1,
+                 terrain: dict = None, climate: str = 'temperate'):
         self.name = name
         self.home_currency = name       # Phase 1 FX: each region mints its own
         self.agents: list = []          # compact list of living agents (no Nones)
         self.max_agents = MAX_AGENTS    # Population cap for LiveContext
         self.transport_delay = transport_delay
+        # ---- Terrain / climate (M0.2) ----
+        # terrain: {Goods.good: production multiplier} e.g. {Goods.food: 1.5}
+        # for a fertile tile.  Applied at the legitimate production point in
+        # _produce_* so goods are never created outside production.
+        self.terrain = terrain if terrain is not None else {}
+        # climate: 'temperate' | 'cold' ... cold tiles eat more (higher COL).
+        self.climate = climate
+        self.col_multiplier = 1.2 if climate == 'cold' else 1.0
         if profession_distribution is None:
             profession_distribution = dict(DEFAULT_PROFESSION_DISTRIBUTION)
         self.profession_distribution = profession_distribution.copy()
@@ -146,6 +156,22 @@ class Region:
         # Structural export route to the destination region (wired by the
         # two-region driver).  One directional Route per region pair.
         self.route = None
+        # ---- M0.3 adjacency + multi-route ----
+        # neighbors: {neighbor_name: Region} for all reachable tiles.
+        # routes:    {neighbor_name: Route} one directional Route per neighbor.
+        # forex_desks: {neighbor_name: ForexDesk} one desk per neighbor.
+        # ``route`` / ``destination_region`` / ``forex`` stay as legacy
+        # aliases for the primary neighbour so single-partner drivers
+        # (econsim_two_region.py) run untouched.
+        self.neighbors = {}
+        self.routes = {}
+        self.forex_desks = {}
+        # ---- M0.4 ownership ----
+        # owner_nation: the Nation controlling this tile (None = unclaimed).
+        # claims: {nation_name: strength} for every claimant (owning nation
+        # keeps its entry at 1.0; foreign entries are pending/invasive).
+        self.owner_nation = None
+        self.claims = {}
 
         # Deep-copy global config
         self.recipes = copy.deepcopy(recipes)
@@ -335,11 +361,15 @@ class Region:
         food_price = self.recipes[Goods.food]['price']
         wood_price = self.recipes[Goods.wood]['price']
         furn_price = self.recipes[Goods.furniture]['price']
-        self.cost_of_living = max(0.1, 4 * food_price + 1 * wood_price + 0.25 * furn_price)
+        self.cost_of_living = max(0.1, (4 * food_price + 1 * wood_price + 0.25 * furn_price)
+                                  * self.col_multiplier)
         self.food_price = food_price
         self.all_goods_price = food_price + wood_price + furn_price
         self._record_start()
         self._audit_cash(t, "step_start")
+
+        # M0.3: re-point each trader at the best-margin neighbour before trade
+        self._repoint_traders()
 
         # Clear per-agent caches for this turn
         for a in self.agents:
@@ -550,6 +580,14 @@ class Region:
 
     # ---- Production ----
 
+    def terrain_bonus(self, good):
+        """Production multiplier from terrain for *good* (default 1.0).
+
+        Applied at the legitimate production point in _produce_* so goods
+        are only ever created by production, not by the terrain modifier.
+        """
+        return self.terrain.get(good, 1.0)
+
     def _produce(self, t):
         # Compute counts once — avoid dict comprehension iteration per turn
         num_agents_per_good = {}
@@ -587,7 +625,7 @@ class Region:
             return
         synergy = 1.0 + (0.15 if num_employees < 4 else 0.20 if num_employees < 8 else 0.25 if num_employees < 12 else 0.30) * num_employees
         base_production = recipe['production']
-        production_per_slot = base_production * synergy
+        production_per_slot = base_production * synergy * self.terrain_bonus(output)
         chance = 1.0
         if agent.hungry_steps > 0:
             chance *= 1 / (1 + agent.hungry_steps * 0.2)
@@ -629,7 +667,7 @@ class Region:
             if made:
                 if recipe['numInput'] > 0:
                     agent.inv_add(recipe['input'], -recipe['numInput'])
-                num_output = recipe['production']
+                num_output = int(recipe['production'] * self.terrain_bonus(output))
         agent.inv_add(output, num_output)
         local_total_production[output] += num_output
 
@@ -819,26 +857,102 @@ class Region:
         max_buy = min(needed, self.recipes[Goods.transport]['maxinv'])
         return min(max_buy, affordable)
 
+    # ---- M0.3 adjacency / multi-route ----
+
+    def add_neighbor(self, other, t=0):
+        """Register *other* as a reachable tile of this region.
+
+        Wires the neighbor map, a directional Route to it (kept under
+        ``routes[other.name]``), and — for the first neighbor — the legacy
+        ``route`` / ``destination_region`` aliases so single-partner drivers
+        keep working.  FX desks are wired separately (fx.connect_desks).
+        """
+        self.neighbors[other.name] = other
+        route = Route(f"{self.name}->{other.name}", self, other,
+                      base_delay=self.transport_delay)
+        self.routes[other.name] = route
+        if self.destination_region is None:
+            self.destination_region = other
+            self.route = route
+            for trader in self.trader_agents:
+                trader.destination_region = other
+        return route
+
+    def _all_routes(self):
+        """Every directional Route owned by this region (multi-route aware)."""
+        if self.routes:
+            return list(self.routes.values())
+        return [self.route] if self.route is not None else []
+
+    def _repoint_traders(self):
+        """Re-point each trader at the best-margin neighbour (M0.3).
+
+        Evaluates the net foreign price (dest price x per-dest FX buy rate)
+        minus local price + transport + margin for the trader's trade_good,
+        and picks the neighbour with the largest positive spread.  When a
+        trader switches destination, in-flight cargo on the old route is
+        reclaimed into inventory_export so nothing ships to the wrong tile.
+        """
+        if not self.neighbors:
+            return
+        for trader in self.trader_agents:
+            if not getattr(trader, 'is_trader', False):
+                continue
+            good = trader.trade_good or Goods.food
+            local_price = self.recipes.get(good, {}).get('price', 0.0)
+            transport_cost = self._transport_cost_per_unit()
+            floor = (local_price + transport_cost) * (1.0 + self.IMPORT_MARGIN_MIN)
+            best = None
+            best_score = -1e18
+            for name, other in self.neighbors.items():
+                if not other or getattr(other, 'recipes', None) is None:
+                    continue
+                desk = self.forex_desks.get(name)
+                rate = desk.buy_rate() if desk is not None else 1.0
+                dest_price = other.recipes.get(good, {}).get('price', 0.0)
+                net_foreign = dest_price * rate
+                score = net_foreign - floor
+                if score > best_score:
+                    best_score = score
+                    best = other
+            if best is None or best_score <= 0:
+                continue
+            old = getattr(trader, 'destination_region', None)
+            if old is not None and old is not best:
+                old_route = self.routes.get(old.name)
+                if old_route is not None:
+                    old_route.reclaim(trader)  # in-transit -> inventory_export
+            trader.destination_region = best
+
     def _transport_cost_per_unit(self):
         """Home-currency transport cost to move one unit of a good."""
         capacity = self.recipes.get(Goods.transport, {}).get('capacity', 10)
         return self.recipes[Goods.transport]['price'] / max(1, capacity)
 
     def _post_exports_to_route(self):
-        """Move all traders' export inventory onto the structural Route.
+        """Move all traders' export inventory onto their destination Route.
 
         Conservation: goods move from inventory_export into the route's
         pending queue; the route delivers them to inventory_foreign later.
+        Each trader posts to the route of its chosen destination.
         """
-        if self.route is None:
+        if not self._all_routes():
             return
         for trader in self.trader_agents:
             if not trader.is_trader:
                 continue
+            dest = getattr(trader, 'destination_region', None)
+            route = None
+            if dest is not None:
+                route = self.routes.get(dest.name)
+            if route is None:
+                route = self.route
+            if route is None:
+                continue
             for g in [Goods.food, Goods.wood, Goods.furniture]:
                 qty = trader.inventory_export[g.value]
                 if qty > 0:
-                    self.route.post(trader, g, qty)
+                    route.post(trader, g, qty)
 
     def _decide_borrow_deposit(self, agents, all_goods_price, food_price, t):
         for a in agents:
@@ -858,12 +972,14 @@ class Region:
                 # the reserve intact after buying goods.
                 dest = a.destination_region
                 if dest is not None:
+                    fee = (dest.gov.get_trade_fee_multiplier()
+                           if dest.gov is not None else self._trade_fee_mult)
                     for g in [Goods.wood, Goods.furniture]:
                         local = self.recipes.get(g, {}).get('price', 0)
                         if local <= 0:
                             continue
                         remote = dest.recipes.get(g, {}).get('price', 0)
-                        effective = remote * self._trade_fee_mult
+                        effective = remote * fee
                         if effective > local * 1.01:
                             target = local * 15 + trader_reserve
                             total_liquid = a.cash + self.bank.deposits.get(a, 0)
@@ -959,7 +1075,7 @@ class Region:
                 # cost makes the round trip unprofitable.
                 dest_price = destination.recipes.get(good, {}).get('price', 0)
                 min_margin = self.IMPORT_MARGIN_MIN  # 5%
-                desk = getattr(self, 'forex', None)
+                desk = self.forex_desks.get(destination.name) or getattr(self, 'forex', None)
                 home_per_dest = desk.buy_rate() if desk is not None else 1.0
                 net_foreign = dest_price * home_per_dest
                 transport_cost = self._transport_cost_per_unit()
@@ -967,8 +1083,8 @@ class Region:
                     return 0
             max_trader_inventory = agent_recipe['maxinv']
             total_holding = agent.inv_get(good, 0) + agent.inventory_export[good.value] + agent.inventory_foreign[good.value]
-            if self.route is not None:
-                total_holding += self.route.holdings_of(agent).get(good, 0)
+            for rt in self._all_routes():
+                total_holding += rt.holdings_of(agent).get(good, 0)
             space = max(0, max_trader_inventory - total_holding)
             # Keep 5x cost-of-living cash reserve after buying goods
             spendable = max(0, agent.remainingCash - self.cost_of_living * 5)
@@ -1003,13 +1119,12 @@ class Region:
         if agent.is_trader:
             # Only sell export inventory locally if local price beats
             # the expected foreign net (dest price × fee mult × FX).
-            dest = self.destination_region
+            dest = getattr(agent, 'destination_region', None) or self.destination_region
             if dest is not None:
-                fx_rate = self.exchange_rate
-                desk = getattr(self, 'forex', None)
-                if desk is not None:
-                    fx_rate = desk.buy_rate()
-                foreign_net = dest.recipes.get(good, {}).get('price', 0) * self._trade_fee_mult * fx_rate
+                desk = self.forex_desks.get(dest.name) or getattr(self, 'forex', None)
+                fx_rate = desk.buy_rate() if desk is not None else self.exchange_rate
+                fee = dest.gov.get_trade_fee_multiplier() if dest.gov is not None else self._trade_fee_mult
+                foreign_net = dest.recipes.get(good, {}).get('price', 0) * fee * fx_rate
                 if good_price <= foreign_net:
                     return 0  # better to sell cross-region
             return max(0, agent.inventory_export[good.value])
@@ -1064,7 +1179,8 @@ class Region:
         nets the margin after conversion.  Tariff passes through into price.
         """
         cost_home = max(0.05, trader.cost_get(good, 0))
-        src_region = getattr(self, 'destination_region', None)
+        src_region = self.neighbors.get(getattr(trader, 'home_region', None)) \
+            or getattr(self, 'destination_region', None)
         if cost_home <= 0.05 + 1e-9 and src_region is not None:
             cost_home = max(0.05, src_region.recipes.get(good, {}).get('price', 0.0))
         margin = self.IMPORT_MARGIN_MIN + (
@@ -1078,7 +1194,10 @@ class Region:
                     if getattr(self.gov, 'import_drawback_enabled', False)
                     else 0.0)
         effective_tariff = tariff * (1.0 - drawback)
-        dest_desk = getattr(src_region, 'forex', None) if src_region is not None else None
+        dest_desk = None
+        if src_region is not None:
+            dest_desk = src_region.forex_desks.get(self.name) \
+                or getattr(src_region, 'forex', None)
         buy_rate = dest_desk.buy_rate() if dest_desk is not None else 1.0
         denom = max(0.05, (1.0 - effective_tariff) * buy_rate)
         ask = cost_home * (1.0 + margin) / denom
@@ -1213,26 +1332,46 @@ class Region:
                 cost = take * ask
                 buyer.cash -= cost
                 if is_import:
-                    # Split buyer payment between trader (in dest-currency
-                    # wallet) and the destination government's import tariff.
-                    # Duty drawback: a fraction of the tariff is refunded back
-                    # to the selling trader (real-world duty drawback / bonded
-                    # warehouse recycling), so only the net share is gov
-                    # revenue.  Both halves are transfers — conserved.
-                    tau = getattr(self.gov, 'import_tariff_rate', 0.0) \
-                        if getattr(self.gov, 'import_tariff_enabled', False) \
-                        else 0.0
-                    drawback = getattr(self.gov, 'import_drawback_rate', 0.0) \
-                        if getattr(self.gov, 'import_drawback_enabled', False) \
-                        else 0.0
-                    trader_share = cost * (1.0 - tau)
-                    tariff_share = cost * tau
-                    rebate = tariff_share * drawback
-                    gov_share = tariff_share - rebate
-                    _fx.fx_add(seller, self.home_currency, trader_share + rebate)
-                    if gov_share > 0:
-                        self.gov.receive_tariff(t, gov_share)
-                    seller.inventory_foreign[good.value] -= take
+                    # Corpse-escheat: the selling trader died this turn
+                    # (cargo was already delivered into this market's import
+                    # pool before death).  Routing the payment to its cleared
+                    # wallet would leak that currency — the corpse is no
+                    # longer in any region's living-agents list, so the audit
+                    # can't see the credit.  Escheat the full sale to this
+                    # destination government (a countable cash account).
+                    if not getattr(seller, 'alive', True):
+                        self.gov.agent.cash += cost
+                        self.gov.record_income(t, 'import_escheat', cost)
+                        seller.inventory_foreign[good.value] -= take
+                    # Same-currency imports (a trader from a tile of the SAME
+                    # nation, sharing this region's home currency) settle in
+                    # home cash with no FX wallet and no import tariff — the
+                    # region still logs them as imports (goods crossed a
+                    # border tile) but money is conserved within one currency.
+                    elif getattr(seller, 'home_currency', None) == self.home_currency:
+                        seller.cash += cost
+                        seller.inventory_foreign[good.value] -= take
+                    else:
+                        # Split buyer payment between trader (in dest-currency
+                        # wallet) and the destination government's import tariff.
+                        # Duty drawback: a fraction of the tariff is refunded
+                        # back to the selling trader (real-world duty drawback /
+                        # bonded warehouse recycling), so only the net share is
+                        # gov revenue.  Both halves are transfers — conserved.
+                        tau = getattr(self.gov, 'import_tariff_rate', 0.0) \
+                            if getattr(self.gov, 'import_tariff_enabled', False) \
+                            else 0.0
+                        drawback = getattr(self.gov, 'import_drawback_rate', 0.0) \
+                            if getattr(self.gov, 'import_drawback_enabled', False) \
+                            else 0.0
+                        trader_share = cost * (1.0 - tau)
+                        tariff_share = cost * tau
+                        rebate = tariff_share * drawback
+                        gov_share = tariff_share - rebate
+                        _fx.fx_add(seller, self.home_currency, trader_share + rebate)
+                        if gov_share > 0:
+                            self.gov.receive_tariff(t, gov_share)
+                        seller.inventory_foreign[good.value] -= take
                     imp_units += take
                     imp_value += cost
                 else:
@@ -1620,16 +1759,18 @@ class Region:
             carrying_capacity=self.max_agents,
             cost_of_living=self.cost_of_living,
             food_price=self.food_price,
+            source_region=self,
         )
         result = _lm.Live(t, self.agents, context=ctx)
 
         # Post-processing: trader exit + inheritance + career switching
         self._process_trader_exits(t, result)
 
-        if self.destination_region is not None and t > 0 and hasattr(self, 'destination_region'):
+        if (self.neighbors or self.destination_region is not None) and t > 0:
             has_arbitrage = any(
-                self.recipes[g]['price'] < self.destination_region.recipes[g]['price'] * 0.95
+                self.recipes[g]['price'] < other.recipes[g]['price'] * 0.95
                 for g in [Goods.wood, Goods.furniture]
+                for other in (list(self.neighbors.values()) or [self.destination_region])
             )
             trader_count = sum(1 for a in result if a.is_trader)
             max_traders = int(len(result) * 0.2)
@@ -1672,8 +1813,8 @@ class Region:
         residual debt stays with the ex-trader.
         """
         # 1. Reclaim any cargo still in transit back to the exporter
-        if self.route is not None:
-            self.route.reclaim(agent)
+        for rt in self._all_routes():
+            rt.reclaim(agent)
 
         # 2. Gather all tradable lots (export + foreign)
         lots = []
@@ -1763,8 +1904,8 @@ class Region:
                     continue
                 q = (agent.inventory_export[g.value]
                      + agent.inventory_foreign[g.value])
-                if self.route is not None:
-                    q += self.route.holdings_of(agent).get(g, 0)
+                for rt in self._all_routes():
+                    q += rt.holdings_of(agent).get(g, 0)
                 if q > 0:
                     committed += q * agent.cost_get(g, 0)
             benchmark = col + 0.02 * committed
@@ -1801,8 +1942,8 @@ class Region:
                 continue
             agent.inventory_export[g.value] = 0
             agent.inventory_foreign[g.value] = 0
-        if self.route is not None:
-            self.route.reclaim(agent)
+        for rt in self._all_routes():
+            rt.reclaim(agent)
         agent.inv_set(Goods.food, max(agent.inv_get(Goods.food, 0), 4))
         agent.employer = None
 
@@ -1884,9 +2025,9 @@ class Region:
         # _log_trade_metrics that was never called). Compute in the same pass.
         self.trader_cash_log.append(sum(a.cash for a in trader_agents))
         pipeline_qty = 0
-        if self.route is not None:
-            pipeline_qty = sum(
-                self.route.in_transit_total(g)
+        for rt in self._all_routes():
+            pipeline_qty += sum(
+                rt.in_transit_total(g)
                 for g in [Goods.food, Goods.wood, Goods.furniture]
             )
         self.pipeline_depth_log.append(pipeline_qty)

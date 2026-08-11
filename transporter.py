@@ -29,8 +29,9 @@ class Route:
         self.dst = dst          # destination Region
         self.base_delay = base_delay
         self.capacity_per_unit = capacity_per_unit
-        self.pending = []       # posted this turn: [trader, good, qty]
-        self.in_transit = []    # en route:        [trader, good, qty, turns_left]
+        self.pending = []       # posted this turn: [trader, good, qty, location]
+        self.in_transit = []    # en route:        [trader, good, qty, turns_left, location]
+        self.delivered_this_turn = []   # (trader, good, qty) matured this turn
 
     # ------------------------------------------------------------------
     # Posting
@@ -45,7 +46,9 @@ class Route:
         if qty <= 0:
             return 0
         trader.inventory_export[good.value] -= qty
-        self.pending.append([trader, good, qty])
+        # M0.3: every shipment carries its current tile location; starts at
+        # the source tile, ready for multi-hop paths on a future map.
+        self.pending.append([trader, good, qty, self.src.name])
         return qty
 
     # ------------------------------------------------------------------
@@ -59,11 +62,13 @@ class Route:
         trader's ``inventory_foreign`` (the destination import pool).
         """
         remaining = []
+        self.delivered_this_turn = []
         for entry in self.in_transit:
             entry[3] -= 1
             if entry[3] <= 0:
                 trader, good, qty = entry[0], entry[1], entry[2]
                 trader.inventory_foreign[good.value] += qty
+                self.delivered_this_turn.append((trader, good, qty))
             else:
                 remaining.append(entry)
         self.in_transit = remaining
@@ -73,8 +78,9 @@ class Route:
         depth = len(self.in_transit)
         for entry in self.pending:
             trader, good, qty = entry[0], entry[1], entry[2]
+            location = entry[3] if len(entry) > 3 else self.src.name
             delay = self.base_delay + depth // max(1, self.capacity_per_unit)
-            self.in_transit.append([trader, good, qty, delay])
+            self.in_transit.append([trader, good, qty, delay, location])
             depth += 1
         self.pending = []
 

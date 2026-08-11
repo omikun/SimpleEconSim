@@ -393,7 +393,7 @@ def _give_working_capital(trader, bank, currency, amount, rate):
     return amount
 
 
-def seed_trader_wallet(region, partner, t=0):
+def seed_trader_wallet(region, partner, t=0, desk=None):
     """Give each trader an initial foreign float OUT OF WORKING CAPITAL.
 
     The old _seed_trader_wallets printed 100 of partner currency per trader
@@ -401,15 +401,44 @@ def seed_trader_wallet(region, partner, t=0):
       home deposit/cash -> fx_pool  (home currency conserved)
       reserves -> wallet            (foreign currency conserved)
 
+    *desk* selects the conversion desk (defaults to region.forex).  In a
+    multi-neighbor world each trader may float in several partner currencies,
+    so callers pass the per-partner desk.
+
     Returns total foreign amount seeded.
     """
+    desk = desk if desk is not None else region.forex
     total = 0.0
     for a in region.agents:
         if not getattr(a, 'is_trader', False):
             continue
         total += _give_working_capital(a, region.bank, partner.home_currency,
-                                       100.0, region.forex.sell_rate())
+                                       100.0, desk.sell_rate())
     return total
+
+
+def connect_desks(region, partner, t=0):
+    """Wire a bilateral desk pair for a multi-neighbor setup.
+
+    Creates a ForexDesk on each region (home=own, other=partner), stores it
+    in the region's ``forex_desks[partner.name]``, seeds trader wallets with
+    the partner currency, and — when the partner is the region's primary
+    ``destination_region`` — keeps the legacy ``region.forex`` alias in sync.
+    Returns (desk_region, desk_partner).
+    """
+    desk = ForexDesk(region.home_currency, partner.home_currency,
+                     bank=region.bank)
+    pdesk = ForexDesk(partner.home_currency, region.home_currency,
+                      bank=partner.bank)
+    region.forex_desks[partner.name] = desk
+    partner.forex_desks[region.name] = pdesk
+    if getattr(region, 'destination_region', None) is partner:
+        region.forex = desk
+    if getattr(partner, 'destination_region', None) is region:
+        partner.forex = pdesk
+    seed_trader_wallet(region, partner, t, desk=desk)
+    seed_trader_wallet(partner, region, t, desk=pdesk)
+    return desk, pdesk
 
 
 def audit_currency_total(regions, currency):
@@ -512,6 +541,96 @@ def cycle_market(region_a, region_b, t=0):
                      if o['qty'] > 0 and o['kind'] == 'ask'
                      and fx_balance(o['trader'], other) > 0]
 
+    return result
+
+
+def _cycle_one_desk(region, partner, desk, t):
+    """Run one desk's interbank cycle for region<->partner.
+
+    Shared by cycle_market (legacy single-partner) and cycle_all_markets
+    (multi-neighbor).  See cycle_market docstring for mechanics.
+    Returns home value matched on this desk.
+    """
+    other = partner.home_currency
+    bank = region.bank
+
+    # ---- Post working-capital BIDs (buy foreign to fund travel) ----
+    for trader in region.trader_agents:
+        if trader.home_region != region.name:
+            continue
+        cur_bal = fx_balance(trader, other)
+        shortfall = max(0.0, WORKING_CAPITAL_TARGET - cur_bal)
+        if shortfall <= 0:
+            continue
+        rate = desk.sell_rate()
+        affordable = trader.cash / rate if rate > 0 else 0.0
+        qty = min(shortfall, affordable)
+        if qty > 0:
+            desk.post_order('bid', trader, qty, rate)
+
+    # ---- Clear the book (wallet-to-wallet, conserved) ----
+    matched = desk.clear_book()
+
+    # ---- Desk last resort: repatriate residual asks ----
+    for trader in region.trader_agents:
+        if trader.home_region != region.name:
+            continue
+        bal = fx_balance(trader, other)
+        if bal > 0:
+            rate = desk.buy_rate()
+            home = sell_fx_to_bank(bank, trader, other, bal, rate)
+            if home > 0:
+                trader._trader_revenue += home
+
+    # ---- Desk last resort: fill residual bids from reserves ----
+    for order in list(desk.book):
+        if order['kind'] != 'bid':
+            continue
+        trader = order['trader']
+        qty = order['qty']
+        if qty <= 0:
+            continue
+        bought = buy_fx_from_bank(bank, trader, other, qty, desk.sell_rate())
+        if bought > 0:
+            order['qty'] -= bought
+
+    # Drop fully-filled bids and STALE asks (trader's wallet was drained
+    # by repatriation this same turn, so those asks can never fill).
+    desk.book = [o for o in desk.book
+                 if o['qty'] > 0 and o['kind'] == 'ask'
+                 and fx_balance(o['trader'], other) > 0]
+    return matched
+
+
+def cycle_all_markets(regions, t=0):
+    """Run one interbank cycle across every region-neighbour desk.
+
+    For each region and each of its forex_desks (one per neighbour), run the
+    cycle body (bid / clear / repatriate / desk-fill).  Legacy single-partner
+    setups with only ``region.forex`` set are also served.
+    Returns {f'{region.name}->{partner.name}': matched_value} for each desk.
+    """
+    result = {}
+    for region in regions:
+        desks = getattr(region, 'forex_desks', None)
+        if desks:
+            for pname, desk in desks.items():
+                partner = region.neighbors.get(pname)
+                if partner is None:
+                    # desk exists but neighbor list not wired (shouldn't
+                    # happen in ring/nation setups); fall back to name match
+                    partner = next((r for r in regions if r.name == pname), None)
+                if partner is None:
+                    continue
+                result[f"{region.name}->{pname}"] = _cycle_one_desk(
+                    region, partner, desk, t)
+        else:
+            desk = getattr(region, 'forex', None)
+            if desk is not None:
+                partner = getattr(region, 'destination_region', None)
+                if partner is not None:
+                    result[f"{region.name}->{partner.name}"] = _cycle_one_desk(
+                        region, partner, desk, t)
     return result
 
 

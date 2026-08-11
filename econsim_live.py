@@ -45,6 +45,7 @@ class LiveContext:
     carrying_capacity: int = 400  # Density-dependent mortality soft ceiling
     cost_of_living: float = 11.25  # Cached 4 food + 1 wood + 0.25 furniture
     food_price: float = 1.0        # Cached food price from Region.step()
+    source_region: Any = None      # Owning Region (for route cleanup on death)
 
 
 # =============================================================================
@@ -586,10 +587,37 @@ def _handle_death(ctx: LiveContext, t, agent, agents):
     logdebug(t, agent.name(), 'died, has', agent.cash,
              ' #descendants:', len(living_descendants),
              [a.name() for a in living_descendants])
+    # Reclaim any in-transit route cargo BEFORE the wallet is inherited/
+    # cleared: a dead trader's goods must never mature on a route and later
+    # be sold into its corpse wallet (which no audit can see), which would
+    # leak the destination-side payment.  Reclaim returns the goods to the
+    # dead agent's inventory_export where the inheritance/distribution path
+    # can escheat them, and guarantees no future route delivery credits land
+    # on the invisible account.
+    _reclaim_dead_route_cargo(ctx, agent)
     _handle_debt_inheritance(ctx, t, agent, living_descendants)
     _handle_wealth_inheritance(ctx, t, agent, living_descendants)
     _zero_out_dead_agent(ctx, agent)
     return True
+
+
+def _reclaim_dead_route_cargo(ctx: LiveContext, agent):
+    """Return a dying trader's in-transit cargo to its export inventory.
+
+    Guards the per-currency audit: if a trader dies while goods are en
+    route, those goods would later mature into ``inventory_foreign`` and be
+    sold at the destination, crediting the dead agent's (cleared) wallet —
+    invisible to ``audit_currency_total`` because the corpse is no longer in
+    any region's living agents list.  Reclaiming keeps goods with the estate
+    so every future credit targets a countable account.
+    """
+    src = getattr(ctx, 'source_region', None)
+    if src is None:
+        # Legacy single-region compatibility (no region wiring): nothing to
+        # reclaim because no structural routes exist.
+        return
+    for rt in src._all_routes():
+        rt.reclaim(agent)
 
 
 def _living_descendants_recursive(agent):
