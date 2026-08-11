@@ -44,6 +44,24 @@ on meaningful horizons; dashboard PNGs render. M0 scripts additionally require
 - Gate: `tmp/behavior_drift.py` — 3-tile ring, 300 turns x 3 seeds,
   0 LEAK / 0 SUPPLY SHIFT / no insolvency, memory ≤ 32, identities present.
 
+## V1 — Pygame hex viewer (committed 2026-08-11)
+- `hexmap.py` — pure axial pointy-top hex geometry (`axial_to_pixel`,
+  `hex_corners`, `pixel_to_axial` with cube rounding, `hex_distance` /
+  `adjacent`) plus `LAYOUT_2X3` mapping the M0 2x3 tile grid onto hex
+  coordinates.  Every edge `sim_nation` wires is hex-adjacent (0 non-adjacent
+  verified), so hexes share full edges like Civilization with no engine change.
+- `hexview.py` — pygame presentation layer (thin, per gdd.md): builds the
+  world with `sim_nation.build_world()`, steps the engine turn
+  (tiles → routes → `resolve_parked` → `settle_trade` → `fx.cycle_all_markets`
+  → PPP desk updates) and audits every nation currency each turn.
+  Hexes tint by owner nation; each hex shows name + pop/food price/trader
+  count and vector terrain glyphs (wheat/forest/cold).  `Space` play/pause,
+  `S`/`→` step, `Esc`/`Q` quit, hover shows a tile tooltip panel
+  (nation, regime, legitimacy, treasury, prices, pop, traders, migration
+  intent).  Run: `python3 hexview.py`.
+- Verified: `tmp/probe_hex.py` (adjacency + pixel↔axial round-trip + SDL-dummy
+  render after 10 steps with 0 violations); M1 gate + `sim_nation 100` still clean.
+
 ## Architecture
 - `region.py` — `Region`: per-region bank, Government, agents, logs; `step(t)` orders
   labour → produce → trade (priced auction `_clear_discriminatory`) → wages → profits →

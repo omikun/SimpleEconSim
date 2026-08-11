@@ -64,6 +64,20 @@ phase-bisect / event-ledger probes (untracked: `tmp/probe_ga*.py`, `tmp/probe_be
 - **M1 gate** `tmp/behavior_drift.py`: 3-tile ring, 300t × 3 seeds — 0 LEAK /
   0 SUPPLY SHIFT / no insolvency; memory ≤ 32; identities present.
 
+## V1 — Pygame hex viewer (committed, PASSING)
+- `hexmap.py` — axial pointy-top hex geometry (`axial_to_pixel`/`hex_corners`/
+  `pixel_to_axial` with cube rounding/`hex_distance`/`adjacent`) + `LAYOUT_2X3`
+  mapping the M0 2×3 grid onto hex coordinates.  All sim-wired edges are
+  hex-adjacent (0 non-adjacent verified), so hexes share full edges like Civ.
+- `hexview.py` — pygame viewer: hexes tinted by owner nation, name + pop/food/
+  trader text, vector terrain glyphs (wheat/forest/cold), Space play/pause,
+  S/→ step, Esc/Q quit, hover tooltip (nation/regime/legitimacy/treasury/
+  prices/pop/traders/migration-intent), live per-currency audit readout with
+  red-flag on >5.0 violation.  Run: `python3 hexview.py`.
+- Step loop mirrors `sim_nation.main()`; verified by `tmp/probe_hex.py`
+  (adjacency + pixel↔axial round-trip + SDL-dummy render after 10 steps,
+  0 violations).  M1 gate + `sim_nation 100` still clean.
+
 ## Earlier status (pre-M0, still PASSING)
 - `python3 econsim_two_region.py 30` — no LEAK/SHIFT, ROI positive both sides
 - `python3 econsim_two_region.py 300` — no LEAK/SHIFT; A-trader decline at 300t is

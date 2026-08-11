@@ -32,12 +32,25 @@ Invariant: 0 LEAK / 0 SUPPLY SHIFT / no BANK INSOLVENCY.
 - [x] M1 gate: tmp/behavior_drift.py 300t x 3 seeds — 0 LEAK/SHIFT,
   no insolvency; memory <= 32; identity all seeded.
 
-## AFTER — V1 Pygame hex viewer (in-process; pygame installed)
-- hexmap.py / hexview.py: axial hex grid; M0 2x3 map; terrain glyphs +
-  pop/food/traders; play/pause/step; hover tooltip; live audit readout.
+## DONE — V1 Pygame hex viewer (committed; never push)
+- [x] hexmap.py: axial pointy-top hex geometry (axial_to_pixel, hex_corners,
+  pixel_to_axial with cube rounding, hex_distance/adjacent) + LAYOUT_2X3 —
+  the M0 2x3 grid maps 1:1 onto hex adjacency, so all wired edges share
+  full hex edges like Civilization (verified: 0 non-adjacent).
+- [x] hexview.py: pygame app — hexes tinted by owner nation (same palette as
+  tile_map.png), name + pop/food-price/trader text, vector terrain glyphs
+  (wheat wedge / forest wedge / cold snow-dot), play/pause (Space), step
+  (S/->), Esc/Q quit, hover tooltip (nation/regime/legitimacy/treasury/
+  prices/pop/traders/migration-intent), live per-currency audit readout with
+  red-flag on >5.0 SUPPLY SHIFT / CASH LEAK.
+- [x] Step loop mirrors sim_nation.main() exactly (tiles -> routes ->
+  resolve_parked -> settle_trade -> cycle markets -> PPP desks -> audit).
+- [x] Verified: tmp/probe_hex.py — 4 wired edges all hex-adjacent; pixel<->
+  axial round-trip PASS; SDL-dummy render after 10 steps, 0 violations,
+  1200x800 screenshot. M1 gate + sim_nation 100 still clean.
 
-## NEXT — V1 Pygame hex viewer
-(see AFTER below — still pending)
+## NEXT — TBD
+(priority_tasks.md / gdd.md roadmap: M2 Factions & Unrest is next)
 
 ## FINAL
 - Docs: update agent.md + task.md + tasks.md.
