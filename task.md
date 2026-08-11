@@ -1,6 +1,6 @@
 # SimpleEconSim — Task Handoff
 
-Last updated: 2026-08-10 21:30 PDT · HEAD: `791ada4` (3 local commits ahead of origin/main; nothing pushed)
+Last updated: 2026-08-10 21:33 PDT · HEAD: `be8de3a` (3 local commits ahead of origin/main; nothing pushed)
 
 ## M0 — Nation & Tiles (committed, PASSING)
 
@@ -9,7 +9,7 @@ Last updated: 2026-08-10 21:30 PDT · HEAD: `791ada4` (3 local commits ahead of 
 - `f222b71` — **M0: Nation & Tiles** — nation.py, terrain hooks, adjacency + multi-route,
   ownership, sim_ring.py + sim_nation.py, tile-map sketch, **FX conservation audit fixes**
   (9 files, +1101/−57)
-- `791ada4` — Docs: record M0 completion in agent.md + task.md (agent guide + handoff)
+- `be8de3a` — Docs: record M0 completion in agent.md + task.md (agent guide + handoff)
 
 ### M0 milestone contents
 - **M0.1 `nation.py`** — `Nation`: owns one or more tiles (Regions), `treasury()`,

@@ -1,0 +1,4 @@
+Docs: point task.md handoff at the final docs commit hash
+
+The previous docs commit was amended (791ada4 -> be8de3a), so update
+task.md's header + commit chain to reference be8de3a. No code changes.
