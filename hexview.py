@@ -91,6 +91,19 @@ _GINI_C = (200, 120, 230)
 _MIG_C = (120, 200, 220)
 _CHART_BOX = (72, 72, 84)
 
+# V2b: on-map economic/trade indicators.
+_ARROW_PHASE = 9       # animation step counter for trade-flow arrows
+_TRADE_WINDOW = 8      # turns of export/import value averaged for arrows
+BADGE_ORANGE = (240, 150, 60)
+BADGE_RED = (235, 70, 70)
+BADGE_TRA = (90, 210, 120)
+BADGE_GINI = (190, 110, 230)
+HOT_RING = (235, 120, 60)
+COLD_RING = (110, 170, 235)
+
+# Keeps track of last-turn population per region name for delta badges.
+_pops = {}
+
 
 def _hex_px(q, r):
     x, y = axial_to_pixel(q, r, HEX_SIZE)
@@ -233,6 +246,125 @@ def _draw_terrain_glyph(surface, region, cx, cy):
         pygame.draw.circle(surface, (240, 245, 250), (cx, y), 4)
 
 
+def _region_pop(region):
+    """Current population count for *region* (log-based or live agent count)."""
+    if region.total_population:
+        return region.total_population[-1]
+    return len(region.agents)
+
+
+def _draw_pop_heat(surface, region, pts, cx, cy):
+    """Brighten the hex fill by population density (density rendering)."""
+    pop = _region_pop(region)
+    max_pop = 420.0  # normalization: sim_nation tiles hover near 300-420
+    f = min(0.45, 0.18 * (pop / max_pop))
+    extra = (int(255 * f), int(255 * f), int(245 * f))
+    base = _nation_color(region)
+    blended = tuple(min(255, int(v) + e) for v, e in zip(base, extra))
+    pygame.draw.polygon(surface, blended, pts)
+
+
+def _trade_flow_pairs(world):
+    """Return [(x1,y1,x2,y2, strength, dir_flip)] for each wired edge.
+
+    Strength and direction come from the last *_TRADE_WINDOW* turns of the
+    exporter's export_val and the importer's import_val on that edge pair.
+    """
+    tiles = world['tiles']
+    pair_orders = world['pair_orders']
+    out = []
+    for r, other in pair_orders:
+        exp = sum(sum(v) for v in r.export_val.values()) or 0.0
+        imp = sum(sum(v) for v in r.import_val.values()) or 0.0
+        # net flow on this directed pair (r -> other)
+        strength = exp + imp
+        if strength <= 0:
+            continue
+        c1 = _hex_px(*LAYOUT_2X3[r.name])
+        c2 = _hex_px(*LAYOUT_2X3[other.name])
+        # scale strength to a line width 1..8
+        width = max(1, min(8, int(strength / 3000.0) + 1))
+        # direction: exporter -> importer if net export positive
+        flip = exp >= imp
+        out.append((c1, c2, width, flip))
+    return out
+
+
+def _draw_trade_arrows(surface, world, frame):
+    """Animated arrows on wired edges scaled by recent trade value."""
+    for c1, c2, width, flip in _trade_flow_pairs(world):
+        (x1, y1), (x2, y2) = c1, c2
+        # midpoint + perpendicular offset running phase
+        mx, my = (x1 + x2) // 2, (y1 + y2) // 2
+        dx, dy = x2 - x1, y2 - y1
+        length = max(1, int((dx * dx + dy * dy) ** 0.5))
+        ux, uy = dx / length, dy / length
+        if flip:
+            x1, y1, x2, y2 = x2, y2, x1, y1
+        phase = (frame // 2) % 12
+        off = phase - 6
+        mx2 = int(x1 + ux * (length / 2 + off * 2))
+        my2 = int(y1 + uy * (length / 2 + off * 2))
+        # draw line + animated dot
+        pygame.draw.line(surface, (80, 190, 220), (x1, y1), (x2, y2), width)
+        pygame.draw.circle(surface, (180, 230, 245), (mx2, my2), 3)
+
+
+def _draw_activity_badges(surface, region, cx, cy, font_small):
+    """Small indicators around the hex: demand, hunger, trader, gini, price ring."""
+    # food price vs neighbor average -> border tint of arbitrage pressure
+    food = region.recipes[Goods.food]['price']
+    neighbors = [n for n in region.neighbors.values()
+                 if getattr(n, 'recipes', None)]
+    if neighbors:
+        avg = sum(n.recipes[Goods.food]['price'] for n in neighbors) / len(neighbors)
+        ring_color = HOT_RING if food > avg * 1.15 else \
+                     COLD_RING if food < avg * 0.85 else None
+        if ring_color is not None:
+            pygame.draw.circle(surface, ring_color, (cx, cy), HEX_SIZE - 8, 2)
+    # demand ratio alert
+    dr = region.demand_ratio_log.get(Goods.food, [])
+    if dr and dr[-1] > 1.5:
+        pygame.draw.circle(surface, BADGE_ORANGE, (cx + 32, cy - 34), 7)
+    # recent hunger (any profession hungry this turn)
+    if any(region.hungry_log[g] and region.hungry_log[g][-1] > 5
+           for g in (Goods.food, Goods.wood, Goods.furniture)):
+        pygame.draw.circle(surface, BADGE_RED, (cx - 32, cy - 34), 7)
+    # trader count badge
+    traders = sum(1 for a in region.agents if a.is_trader)
+    if traders > 0:
+        t = font_small.render(f"T{traders}", True, BADGE_TRA)
+        surface.blit(t, (cx + 24, cy + 30))
+    # gini dot
+    gini = region.gini_log.get(Goods.food, [])
+    if gini and gini[-1] > 0.6:
+        pygame.draw.circle(surface, BADGE_GINI, (cx - 32, cy + 30), 5)
+    # migration intent arrow
+    mig = region.migration_intent_log
+    if mig and mig[-1] > 2.0:
+        pts = [(cx + 22, cy - 44), (cx + 22, cy - 54),
+               (cx + 28, cy - 46)]
+        pygame.draw.polygon(surface, _MIG_C, pts)
+
+
+def _draw_pop_delta(surface, region, cx, cy, font_small):
+    """+B / -D per-turn population delta badge under the hex name."""
+    if not region.total_population or len(region.total_population) < 2:
+        return
+    prev = _pops.get(region.name)
+    cur = region.total_population[-1]
+    if prev is None:
+        _pops[region.name] = cur
+        return
+    delta = cur - prev
+    _pops[region.name] = cur
+    if delta >= 0:
+        txt = font_small.render(f"+{delta}", True, GREEN)
+    else:
+        txt = font_small.render(f"{delta}", True, RED)
+    surface.blit(txt, txt.get_rect(center=(cx, cy - 44)))
+
+
 def _draw_hex_map(surface, world, font, font_small):
     tiles = world['tiles']
     for region in tiles:
@@ -241,8 +373,7 @@ def _draw_hex_map(surface, world, font, font_small):
             continue
         cx, cy = _hex_px(*coords)
         pts = hex_corners((cx, cy), HEX_SIZE - 1)
-        color = _nation_color(region)
-        pygame.draw.polygon(surface, color, pts)
+        _draw_pop_heat(surface, region, pts, cx, cy)
         pygame.draw.polygon(surface, HEX_EDGE, pts, 2)
         # Name headline
         name_surf = font.render(region.name, True, TEXT)
@@ -256,6 +387,9 @@ def _draw_hex_map(surface, world, font, font_small):
         surface.blit(s2, s2.get_rect(center=(cx, cy + 12)))
         surface.blit(s3, s3.get_rect(center=(cx, cy + 26)))
         _draw_terrain_glyph(surface, region, cx, cy - 34)
+        _draw_activity_badges(surface, region, cx, cy, font_small)
+        _draw_pop_delta(surface, region, cx, cy, font_small)
+    _draw_trade_arrows(surface, world, world.get('frame', 0))
 
 
 # ---------------------------------------------------------------------------
@@ -533,6 +667,10 @@ def main():
     world = build_world_view()
     world['playing'] = False
     world['hover_region'] = None
+    world['frame'] = 0
+    # prime the population-delta cache
+    for r in world['tiles']:
+        _pops[r.name] = _region_pop(r)
 
     last_tick = pygame.time.get_ticks()
     running = True
@@ -559,6 +697,7 @@ def main():
         if world['playing'] and now - last_tick >= TURN_MS:
             step_world(world)
             last_tick = now
+        world['frame'] = (world.get('frame', 0) + 1) % 600
 
         # Hover hit-test (map area only)
         mx, my = pygame.mouse.get_pos()
