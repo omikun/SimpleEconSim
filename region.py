@@ -431,6 +431,13 @@ class Region:
                          for a in agents
                          if not a.is_corporation and not a.is_government)
         hunger_score = min(3.0, hungry_now / 30.0 + mem_hunger / 120.0)
+        # M2.6: repression memory (mem_casualties / mem_promises) raises
+        # FUTURE grievance — the 2-turn-delayed effect of earlier repression.
+        trauma = sum(a.mem_avg('mem_casualties', 0.0)
+                     + a.mem_avg('mem_promises', 0.0)
+                     for a in agents
+                     if not a.is_corporation and not a.is_government)
+        trauma_score = min(2.0, trauma / 60.0)
         # gini
         gini = 0.0
         for g in (Goods.food, Goods.wood, Goods.furniture):
@@ -455,17 +462,19 @@ class Region:
         for f in self.factions.factions.values():
             if f.kind == 'political':
                 n_add = (hunger_score * 0.6 + gini * 1.2
-                         + tax * 1.5 + unemp * 1.5)
+                         + tax * 1.5 + unemp * 1.5 + trauma_score)
                 f.add_grievance('hunger', hunger_score * 0.6)
                 f.add_grievance('gini', gini * 1.2)
                 f.add_grievance('tax', tax * 1.5)
                 f.add_grievance('unemployment', unemp * 1.5)
+                f.add_grievance('repression', trauma_score)
             else:
-                n_add = hunger_score + gini + tax + unemp
+                n_add = hunger_score + gini + tax + unemp + trauma_score
                 f.add_grievance('hunger', hunger_score)
                 f.add_grievance('gini', gini)
                 f.add_grievance('tax', tax)
                 f.add_grievance('unemployment', unemp)
+                f.add_grievance('repression', trauma_score)
             adds[f.name] = n_add
         return adds
 
