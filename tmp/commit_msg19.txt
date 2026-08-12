@@ -1,0 +1,25 @@
+M2 conservation fixes: _buy negative-cash mint + PayDepositInterest cap
+
+The M1 gate (behavior_drift.py, 3 seeds x 300t in one process) exposed two
+latent pre-M2 conservation bugs once the unrest ladder changed the economy's
+trajectory:
+
+1. Region._buy: a.cash = max(0.0, a.cash - cash) erased pre-existing
+   negative agent cash (debt) whenever bought==0. Seven agents at T=243
+   carried negative balances summing to exactly 6.6553 C — the gate's
+   "CURRENCY 'C' SUPPLY SHIFT $6.66". Cash now moves only when a purchase
+   actually happened (bought > 0); debt stays on the books and is serviced
+   by the loan/wage machinery.
+
+2. Bank.PayDepositInterest: the payout cap only bounded against loan
+   interest, not the deposit pool. When deposits were thin, interest
+   payouts drove total_deposits negative (minting currency on the audit:
+   home bank equity = deposits - liabilities). Payout is now also capped to
+   max(0, total_deposits).
+
+Docs updated (agent.md / task.md / tasks.md) with the M2 milestone, the two
+fixes, and the remaining IN-PROGRESS seed-1337 BANK INSOLVENCY investigation
+(deposit ledger already -299 before the death write-down at T=293; probing
+the first total_deposits < 0 crossing with tmp/probe_all_deposits.py).
+
+No push.</｜｜DSML｜｜>

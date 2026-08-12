@@ -90,6 +90,49 @@ phase-bisect / event-ledger probes (untracked: `tmp/probe_ga*.py`, `tmp/probe_be
   renders map + hover charts + HUD headlessly (0 violations) and the M1
   behavior-drift gate stays clean.
 
+## M2 — Factions & Unrest (committed except conservation fixes; gate in progress)
+- `faction.py` — `Demand`/`Faction`/`FactionSystem`: overlapping membership by
+  agent id, ranked demands, source-keyed grievances, live support measure.
+- `region.py` wiring: per-tile identity factions (ethnicity/religion/politics
+  from M1 tags), Government policy knobs → demand `satisfied` + per-turn
+  `faction_support_log`; M2.3/M2.4 grievance accumulation (hunger/gini/tax/
+  unemployment via M1 `mem_*`) + rate-driven `protest_energy_log`.
+- `unrest.py` (M2.5/M2.6) — escalation ladder (calm→unrest→protest→mob→
+  compromise→takeover, all transfers conserved: `_loot_and_burn`,
+  `_forced_compromise`, `_takeover`) + `apply_repression` (legitimacy cost +
+  `mem_casualties`/`mem_promises` seeds → delayed TRAUMA grievance in M2.6
+  closure commit `face804`).
+- M2 commits: `0d45334` (M2.1), `0d9878b` (M2.2), `f0f9142` (M2.3+M2.4),
+  `7aea20f` (M2.5+M2.6), `face804` (M2.6 closure: trauma memory).  Gate
+  `tmp/probe_m2.py` PASS (famine → … → compromise, 0 conservation violations).
+
+### M2 conservation fixes (uncommitted — in this commit)
+1. **`Region._buy` negative-cash mint (seed-7 C $6.66)** — `a.cash =
+   max(0.0, a.cash - cash)` erased pre-existing negative balances (debt) when
+   `bought==0` — minted exactly 6.6553 C at T=243 in the gate's one-process
+   multi-seed run.  Fix: move cash only when `bought > 0`.
+2. **`Bank.PayDepositInterest` deposit-pool overflow** — payout capped at
+   `min(estimated_loan_interest*0.6, max(0, total_deposits))` so the deposit
+   ledger can never go negative.
+
+### IN PROGRESS — seed-1337 BANK INSOLVENCY (T=293)
+```
+RuntimeError: BANK INSOLVENCY: write-down would make deposits negative
+  turn=293  shortfall=$8.28
+  bank: total_deposits=-299.23 total_liabilities=8331.53 equity=-8630.76
+  dying agent id=8097 cash=0 deposits=0 loans owed=$8.28 (1 loans) age=153
+  gov cash=0.0
+```
+- Deposit ledger is already **−299 before** the death write-down → the death is
+  the tripwire, not the bug; a separate ledger drift compounds it.
+- Not `PayDepositInterest` (cap applied; −299.23 byte-identical). Tiny phantom
+  drift observed at seed42 T=2 (gap 0.38 between `sum(deposits)+2000` and
+  `total_deposits`) — trailing symptom of the same ledger-divergence source.
+- Tooling: `tmp/probe_all_deposits.py` (property-patches `Bank.total_deposits`;
+  catches the RuntimeError to print `sum(deposits)` vs scalar + liabilities;
+  logs PHANTOM-DEPOSIT DRIFT) — being iterated to reach seed 1337 T=293 and
+  print the first `<0` crossing with caller trace.
+
 ## Earlier status (pre-M0, still PASSING)
 - `python3 econsim_two_region.py 30` — no LEAK/SHIFT, ROI positive both sides
 - `python3 econsim_two_region.py 300` — no LEAK/SHIFT; A-trader decline at 300t is
@@ -107,8 +150,8 @@ phase-bisect / event-ledger probes (untracked: `tmp/probe_ga*.py`, `tmp/probe_be
    `bid_food`/loan service always use hand cash so deposits are never touched.
 4. **Poverty → heirless root cause** — 96% of deaths are poor (<$20). Address poverty
    (food aid/welfare, wage floors, charity rate) rather than inheritance rules.
-5. **Deposit-ledger divergence** — bank bad-debt/interest mechanism; only revisit if the
-   user asks about total-deposits accounting.
+5. **Deposit-ledger divergence** — bank bad-debt/interest mechanism; **NOW under
+   investigation as the M2 seed-1337 insolvency root cause** (see IN PROGRESS above).
 6. **Charity food hoarding** — charity can hold hundreds of food units; `max_food_per_agent=1`
    and distribution covers ~1/3 of hungry + young only.
 7. **`agent.md` / `task.md`** — update both when the next session changes behavior or commits.

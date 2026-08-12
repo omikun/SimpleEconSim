@@ -149,7 +149,9 @@ class Bank():
     def PayDepositInterest(self, agents):
         """Pay interest to all depositors based on their deposit balance.
         Interest rate is reduced as deposit ratio increases (Fix F).
-        Capped to 60% of estimated loan interest so bank keeps 40% margin."""
+        Capped to 60% of estimated loan interest so bank keeps 40% margin,
+        AND to the available deposit pool so total_deposits can never go
+        negative (a negative deposit ledger would mint currency)."""
         circulating_cash = max(1, sum(agent.cash for agent in agents))
         deposit_ratio = self.total_deposits / circulating_cash
         if deposit_ratio < 5:
@@ -161,7 +163,10 @@ class Bank():
         estimated_loan_interest = sum(
             loan.getInterest() for loan in self.loans
         )
-        max_total_payout = estimated_loan_interest * 0.6
+        max_total_payout = min(
+            estimated_loan_interest * 0.6,
+            max(0.0, self.total_deposits),
+        )
         total_payout = 0
         for agent, amount in list(self.deposits.items()):
             interest = amount * self.deposit_interest_rate

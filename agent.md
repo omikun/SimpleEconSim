@@ -78,6 +78,37 @@ on meaningful horizons; dashboard PNGs render. M0 scripts additionally require
   `/Users/sli/Code/venv/bin/python hexview.py`).  The system `python3` (3.14)
   lacks pygame, so the viewer would silently show only sim logs.
 
+## M2 — Factions & Unrest (2026-08-12; committed through face804, fixes pending)
+- `faction.py` — leaf-level `Demand`/`Faction`/`FactionSystem` (no sim imports):
+  overlapping membership by agent id, ranked policy demands, source-keyed
+  grievances (hunger/tax/gini/unemployment/repression), live `compute_support`,
+  per-turn `decay_grievances`.
+- `region.py` wiring — per-tile identity factions built from M1 tags
+  (ethnicity Yor/Kest/Veln/Omar, religion Sol/Luna/Terra, politics
+  Conservative/Liberal/Populist); `_apply_policy_satisfaction` maps Government
+  knobs (tax_rate, UBI, import_tariff, immigration) to each faction's demand
+  `satisfied`; `_step_factions` refreshes membership from live tags, logs
+  `faction_support_log`, accumulates grievances from tile distress + M1
+  `mem_hunger`/`mem_wages` and (M2.6) `mem_casualties`/`mem_promises` trauma,
+  and appends rate-driven `protest_energy_log`.
+- `unrest.py` — `step_unrest(region, t)` escalation ladder with thresholds
+  (UNREST 2.0 / PROTEST 4.0 / MOB 6.5 / COMPROMISE 8.0 / TAKEOVER 9.5);
+  mob loot/burn, forced compromise (flips the largest faction's top demand +
+  legitimacy −0.1), popular-front takeover (legitimacy 0 + regime flip); all
+  effects are conserved transfers.  `apply_repression(cost_legitimacy)` —
+  quells fresh grievance × 0.6 and seeds `mem_casualties`/`mem_promises`
+  (delayed future grievance via `_accumulate_grievances`).
+- Runs in `Region.step` after `_step_factions`, before `gov.seal_income`.
+- **Conservation fix #1 (`region.py` `_buy`)**: `a.cash = max(0.0, a.cash - cash)`
+  erased pre-existing negative cash (debt) when `bought==0` — a mint.  Cash now
+  moves only when `bought > 0`; debt is serviced by loan/wage flows.
+- **Conservation fix #2 (`econsim_trade_money.py` `PayDepositInterest`)**:
+  per-turn payout capped to `min(loan_interest*0.6, max(0, total_deposits))`
+  so the deposit ledger cannot go negative.
+- **Known open issue**: M1 gate seed-1337 still aborts at T=293 with
+  `BANK INSOLVENCY: write-down would make deposits negative` (deposit ledger
+  already −299 before the death). Under investigation — see tasks.md.
+
 ## Architecture
 - `region.py` — `Region`: per-region bank, Government, agents, logs; `step(t)` orders
   labour → produce → trade (priced auction `_clear_discriminatory`) → wages → profits →

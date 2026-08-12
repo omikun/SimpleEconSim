@@ -1735,7 +1735,12 @@ class Region:
                 agent_bid = getattr(a, f'bid_{good.name}', a.bid)
                 bought = max(0, min(agent_bid, min(total_asks - total_bought, int(a.cash / price))))
                 cash = bought * price
-                a.cash = max(0.0, a.cash - cash)
+                # Conservation: only move cash when a purchase actually
+                # happened.  When bought==0 the max(0, ...) floor would erase
+                # a pre-existing negative balance (debt) without any offsetting
+                # credit — minting money.  Debt is serviced by loan/wage flows.
+                if bought > 0:
+                    a.cash = max(0.0, a.cash - cash)
                 total_cash_purchases += cash
                 if bought > 0:
                     if a.is_trader:
