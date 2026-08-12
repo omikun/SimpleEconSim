@@ -115,23 +115,34 @@ phase-bisect / event-ledger probes (untracked: `tmp/probe_ga*.py`, `tmp/probe_be
    `min(estimated_loan_interest*0.6, max(0, total_deposits))` so the deposit
    ledger can never go negative.
 
-### IN PROGRESS — seed-1337 BANK INSOLVENCY (T=293)
+### DONE — seed-1337 BANK INSOLVENCY FIXED (scalar/dict divergence)
+Root cause (from `tmp/probe_all_deposits.py` at T=293):
+`sum_deposits_dict=17492.50` vs `total_deposits=-299.23` → the per-agent
+deposit DICT and scalar had diverged ~$17.8k.  Heirless bad-debt forgiveness
+only wrote down the scalar, never the per-agent dict → depositors never
+absorbed losses while the scalar drained negative.
+- Fix `econsim_live.py`: `_forgive_bad_debt` + `_deposit_pool` — heirless
+  forgiveness now writes down BOTH scalar and per-agent dict pro-rata
+  (floored per depositor), government bailout cushioned against the real dict
+  pool, insolvency raised only when the TRUE pool is genuinely insufficient.
+- Fix `econsim_trade_money.py`: `RequestBailout` also credits the gov's
+  per-agent dict entry (keeps dict/scalar in sync).
+- **Result: `behavior_drift.py` GATE PASS (3 seeds × 300t, 0 LEAK / 0 SUPPLY
+  SHIFT / no insolvency); `probe_m2.py` GATE PASS.**
+
+### IN PROGRESS — sim_nation 100: genuine bank insolvency at T=74
 ```
-RuntimeError: BANK INSOLVENCY: write-down would make deposits negative
-  turn=293  shortfall=$8.28
-  bank: total_deposits=-299.23 total_liabilities=8331.53 equity=-8630.76
-  dying agent id=8097 cash=0 deposits=0 loans owed=$8.28 (1 loans) age=153
-  gov cash=0.0
+turn=74 shortfall=$116.92  bank: total_deposits=2076.56
+  total_liabilities=2652.99 equity=-576.44 deposit_dict_pool=1.43
+  bank loans outstanding=$2652.99 (319 loans)  gov cash=0.0
 ```
-- Deposit ledger is already **−299 before** the death write-down → the death is
-  the tripwire, not the bug; a separate ledger drift compounds it.
-- Not `PayDepositInterest` (cap applied; −299.23 byte-identical). Tiny phantom
-  drift observed at seed42 T=2 (gap 0.38 between `sum(deposits)+2000` and
-  `total_deposits`) — trailing symptom of the same ledger-divergence source.
-- Tooling: `tmp/probe_all_deposits.py` (property-patches `Bank.total_deposits`;
-  catches the RuntimeError to print `sum(deposits)` vs scalar + liabilities;
-  logs PHANTOM-DEPOSIT DRIFT) — being iterated to reach seed 1337 T=293 and
-  print the first `<0` crossing with caller trace.
+- Real deposit pool only $1.43 + gov $0 cash → a **genuinely insolvent tile
+  bank** (no countable capital to absorb a dying agent's $116.92 bad debt).
+  Pre-M2 this was silently absorbed from the phantom 2000-base scalar.
+- The exception is the engine refusing to destroy money (conservation-safe).
+  Needs an economic-tune fix (bank capital buffer / lender-of-last-resort /
+  treasury-backed bailout), NOT a silent write-off.
+- Compare: `task.md` §Potential follow-ups item 5 (deposit-ledger divergence).
 
 ## Earlier status (pre-M0, still PASSING)
 - `python3 econsim_two_region.py 30` — no LEAK/SHIFT, ROI positive both sides

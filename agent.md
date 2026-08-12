@@ -105,9 +105,17 @@ on meaningful horizons; dashboard PNGs render. M0 scripts additionally require
 - **Conservation fix #2 (`econsim_trade_money.py` `PayDepositInterest`)**:
   per-turn payout capped to `min(loan_interest*0.6, max(0, total_deposits))`
   so the deposit ledger cannot go negative.
-- **Known open issue**: M1 gate seed-1337 still aborts at T=293 with
-  `BANK INSOLVENCY: write-down would make deposits negative` (deposit ledger
-  already −299 before the death). Under investigation — see tasks.md.
+- **Conservation fix #3 (`econsim_live.py` / `econsim_trade_money.py`)**:
+  heirless bad-debt forgiveness previously wrote down only `total_deposits`
+  (scalar), never the per-agent deposit dict — the scalar drained negative
+  (~−299 at ring seed-1337 T=293).  `_forgive_bad_debt` now writes down BOTH
+  scalar and per-agent dict pro-rata (floored per depositor); `RequestBailout`
+  keeps the gov's dict entry in sync.  M1 gate (3 seeds × 300t) now PASSES.
+- **Open issue (economic-tune, not a mint)**: `sim_nation 100` aborts at T=74
+  with a genuinely insolvent tile bank (real deposit pool $1.43, gov cash $0,
+  shortfall $116.92).  The engine correctly refuses to destroy money; a bank
+  capital buffer or treasury-backed lender-of-last-resort is needed — see
+  tasks.md.
 
 ## Architecture
 - `region.py` — `Region`: per-region bank, Government, agents, logs; `step(t)` orders

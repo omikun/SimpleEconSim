@@ -137,6 +137,10 @@ class Bank():
             if gov is not None:
                 actual = min(amount, gov.agent.cash)
                 gov.agent.cash -= actual
+                # Credit the government's per-agent deposit ledger too, so the
+                # deposit DICT stays in sync with the scalar (the dict is the
+                # true withdrawable pool used by bad-debt forgiveness).
+                self.deposits[gov.agent] += actual
             else:
                 actual = 0
             self.total_deposits += actual

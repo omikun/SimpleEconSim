@@ -785,6 +785,62 @@ def _handle_company_inheritance(t, agent):
     agent.company_owned = None
 
 
+def _deposit_pool(bank):
+    """True deposit pool = the per-agent ledger (sum of deposits dict).
+
+    bank.total_deposits is a parallel scalar that history has shown can
+    diverge (forgiveness write-downs and retained interest move the scalar
+    but not the dict).  The dict is the money depositors can actually
+    withdraw, so write-downs and insolvency checks must use it.
+    """
+    return sum(bank.deposits.values())
+
+
+def _forgive_bad_debt(bank, amount, t):
+    """Conservation-safe heirless bad-debt forgiveness.
+
+    The loan liability was already removed (total_liabilities -= R).  To
+    keep the audited total (agent cash + deposits - liabilities) unchanged,
+    the DEPOSIT LEDGER must be written down by R — BOTH the per-agent dict
+    (depositors genuinely absorb the loss, pro-rata, floored at 0) and the
+    scalar.  A government bailout cushions the pool first when R exceeds it.
+    Returns True if fully absorbed.
+    """
+    if amount <= 0:
+        return True
+    pool = _deposit_pool(bank)
+    # Government bailout moves real gov cash into deposits first (conserved).
+    if amount > pool:
+        injected = 0.0
+        for i in range(2):  # bailout can be partially funded; retry once
+            bank.RequestBailout(t, amount)
+            new_pool = _deposit_pool(bank)
+            if new_pool <= pool:
+                break
+            injected += new_pool - pool
+            pool = new_pool
+            if pool >= amount:
+                break
+        if injected > 0:
+            logwarning(t, f"GOV BAILOUT injected ${injected:.2f} to cover "
+                          f"${amount:.2f} forgiven bad debt; depositors "
+                          f"protected by gov capital")
+    pool = _deposit_pool(bank)
+    if amount > pool:
+        # Genuine insolvency: refuse to silently destroy money.
+        _raise_insolvency(t, bank, None, amount)
+    # Pro-rata write-down of the per-agent dict (floored at 0 per depositor).
+    total_absorb = min(amount, pool)
+    if total_absorb > 0:
+        for owner, bal in list(bank.deposits.items()):
+            if bal <= 0:
+                continue
+            share = bal * (total_absorb / pool)
+            bank.deposits[owner] = max(0.0, bal - share)
+        bank.total_deposits -= total_absorb
+    return total_absorb >= amount
+
+
 def _handle_debt_inheritance(ctx: LiveContext, t, agent, living_descendants):
     """Repay debt from agent's cash/deposits; remainder passed to heirs or bank."""
     total_wealth = agent.cash + ctx.bank.deposits.get(agent, 0)
@@ -816,26 +872,7 @@ def _handle_debt_inheritance(ctx: LiveContext, t, agent, living_descendants):
                 ctx.bank.loans.append(new_loan)
                 ctx.bank.total_liabilities += principle_share
         else:
-            # Phase 3 (option b): conservation-safe forgiveness.
-            # The loan was already forgiven above (total_liabilities -= R).
-            # To keep the audited total (agent cash + deposits - liabilities)
-            # unchanged, the deposit pool MUST be written down by the FULL R.
-            # A government bailout cushions the pool first (gov cash -> bank
-            # deposits; both audited, so conserved), letting depositors absorb
-            # only R - actual.  If R still exceeds deposits after the
-            # injection, deposits would go negative -> genuine insolvency:
-            # raise with a diagnostic trace rather than silently destroy money.
-            if remaining_principle > ctx.bank.total_deposits:
-                # RequestBailout moves real gov cash into deposits (conserved)
-                bailout_ok = ctx.bank.RequestBailout(t, remaining_principle)
-                if bailout_ok:
-                    logwarning(t, f"GOV BAILOUT injected funds covering "
-                                  f"${remaining_principle - ctx.bank.total_deposits:.2f} "
-                                  f"of ${remaining_principle:.2f} forgiven bad debt; "
-                                  f"depositors protected by gov capital")
-            if remaining_principle > ctx.bank.total_deposits:
-                _raise_insolvency(t, ctx.bank, agent, remaining_principle)
-            ctx.bank.total_deposits -= remaining_principle
+            _forgive_bad_debt(ctx.bank, remaining_principle, t)
 
 
 def _handle_wealth_inheritance(ctx: LiveContext, t, agent, living_descendants):
@@ -945,12 +982,14 @@ def _raise_insolvency(t, bank, agent, shortfall):
 
     Indicates the bank cannot absorb a forgiven loan even after government
     bailout — a genuine insolvency.  Refuse to silently destroy money; dump
-    enough state to debug what caused it.
+    enough state to debug what caused it.  *agent* may be None (bad-debt
+    forgiveness without a specific dying debtor).
     """
     import sys
     import traceback
     outstanding = sum((l.principle - l.principle_paid) for l in bank.loans)
-    agent_owed = sum((l.principle - l.principle_paid) for l in agent.loans)
+    agent_owed = sum((l.principle - l.principle_paid) for l in agent.loans) \
+        if agent is not None else 0.0
     gov_cash = getattr(getattr(bank, 'gov', None), 'agent', None)
     gov_cash = gov_cash.cash if gov_cash is not None else None
     print(f"\n=== BANK INSOLVENCY DETECTED (write-down would make deposits negative) ===",
@@ -958,14 +997,16 @@ def _raise_insolvency(t, bank, agent, shortfall):
     print(f"  turn={t}  shortfall=${shortfall:.2f}", file=sys.stderr)
     print(f"  bank: total_deposits={bank.total_deposits:.2f} "
           f"total_liabilities={bank.total_liabilities:.2f} "
-          f"equity={bank.total_deposits - bank.total_liabilities:.2f}",
+          f"equity={bank.total_deposits - bank.total_liabilities:.2f} "
+          f"deposit_dict_pool={sum(bank.deposits.values()):.2f}",
           file=sys.stderr)
     print(f"  bank loans outstanding=${outstanding:.2f} ({len(bank.loans)} loans)",
           file=sys.stderr)
-    print(f"  dying agent id={agent.id} cash={agent.cash:.2f} "
-          f"deposits={bank.deposits.get(agent, 0):.2f} "
-          f"loans owed=${agent_owed:.2f} ({len(agent.loans)} loans) "
-          f"age={t - agent.birth_round}", file=sys.stderr)
+    if agent is not None:
+        print(f"  dying agent id={agent.id} cash={agent.cash:.2f} "
+              f"deposits={bank.deposits.get(agent, 0):.2f} "
+              f"loans owed=${agent_owed:.2f} ({len(agent.loans)} loans) "
+              f"age={t - agent.birth_round}", file=sys.stderr)
     print(f"  gov cash={gov_cash}", file=sys.stderr)
     print(f"  fx_pool={bank.fx_pool:.2f} "
           f"foreign_reserves={dict(bank.foreign_reserves)}", file=sys.stderr)

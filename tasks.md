@@ -84,35 +84,43 @@ Invariant: 0 LEAK / 0 SUPPLY SHIFT / no BANK INSOLVENCY.
   available deposit pool (`max_total_payout = min(loan_interest*0.6,
   max(0, total_deposits))`) so deposit-ledger can never overflow.
 
-## IN PROGRESS — M2 conservation gate: seed-1337 BANK INSOLVENCY
-Gate tmp/behavior_drift.py still fails seed 1337 at T=293:
+## DONE — M2 conservation gate: seed-1337 BANK INSOLVENCY FIXED
+Root cause (from tmp/probe_all_deposits.py user run at T=293):
+`sum_deposits_dict=17492.50` while `total_deposits=-299.23` → the per-agent
+deposit DICT and the scalar had diverged by ~$17.8k.  Heirless bad-debt
+forgiveness only wrote down `total_deposits` (scalar), never the per-agent
+dict, so depositors never absorbed losses while the scalar drained negative.
+- Fix (econsim_live.py): `_forgive_bad_debt` + `_deposit_pool` — forgiveness
+  now writes down BOTH the scalar and the per-agent dict **pro-rata** (floored
+  per depositor), with government bailout cushioned against the real dict pool
+  and insolvency raised only when the TRUE pool is genuinely insufficient.
+- Fix (econsim_trade_money.py): `RequestBailout` also credits the government's
+  per-agent dict entry, keeping dict/scalar in sync.
+- Result: **`tmp/behavior_drift.py` GATE PASS — 3 seeds × 300t, 0 LEAK /
+  0 SUPPLY SHIFT / no insolvency**; `tmp/probe_m2.py` GATE PASS.
+
+## IN PROGRESS — sim_nation 100: genuine bank insolvency at T=74
+With the honest forfeiture now in place (no phantom-scalar absorption),
+sim_nation 100 aborts:
 ```
-RuntimeError: BANK INSOLVENCY: write-down would make deposits negative
-  turn=293  shortfall=$8.28
-  bank: total_deposits=-299.23 total_liabilities=8331.53 equity=-8630.76
-  dying agent id=8097 cash=0 deposits=0 loans owed=$8.28 (1 loans) age=153
-  gov cash=0.0
+turn=74 shortfall=$116.92  bank: total_deposits=2076.56
+  total_liabilities=2652.99 equity=-576.44 deposit_dict_pool=1.43
+  bank loans outstanding=$2652.99 (319 loans)  gov cash=0.0
 ```
-- Not caused by unrest.py (no money ops) — 7aea20f pushed the trajectory onto
-  a latent pre-M2 conservation bug (same as fix #1).
-- NOT PayDepositInterest (interest cap applied; -299.23 byte-identical).
-- The bank's deposit ledger is already -299 BEFORE the death write-down; the
-  death is the tripwire, not the bug.  Earlier tiny phantom-drift observed at
-  seed42 T=2 (sum(deposits)+2000 vs total_deposits gap 0.38) — likely the same
-  ledger divergence compounding.
-- Tooling so far: tmp/probe_all_deposits.py (property-patches Bank.total_
-  deposits; catches RuntimeError and prints sum(deposits) vs scalar + liab;
-  logs PHANTOM-DEPOSIT DRIFT) — currently being iterated to run all 3 seeds.
+- The real deposit pool is only $1.43 and the government has $0 cash — a
+  **genuinely insolvent tile bank** (real depositor money + gov capital cannot
+  cover a dying agent's $116.92 bad debt).  Pre-M2 this was silently absorbed
+  from the phantom 2000-base scalar (the same bug class that broke the ring).
+- The exception is the engine refusing to destroy money — conservation-safe.
+  It needs an economic-tune fix (larger bank capital, lender-of-last-resort,
+  or gov treasury-backed bailout), NOT a silent write-off.
 
 ## NEXT — M2 finish
-1. Isolate the first `total_deposits < 0` crossing (probe_all_deposits.py,
-   iterate to reach seed 1337 T=293 and print the crossing + caller trace).
-2. Fix the ledger-drift source (suspect: dead-agent deposit deletion without
-   scalar write-down, or a Withdraw/Deposit imbalance in the live/death path).
-3. Re-verify: M1 gate (3 seeds PASS), probe_m2 PASS, sim_nation 100, sim_ring
-   300, probe_hex — all 0 LEAK / 0 SUPPLY SHIFT / no insolvency.
-4. Docs: update agent.md + task.md + tasks.md.  Commit (no push) — include
-   the two conservation fixes above + probes + docs.
+1. Resolve sim_nation's genuine insolvency (T=74): give banks a real capital/equity
+   buffer or a government treasury-backed lender-of-last-resort so bad debt is
+   absorbed against countable capital — never phantom scalar, never silent.
+2. Re-verify: sim_nation 100 (PASS), probe_hex (headless render), sim_ring 300.
+3. Docs: update agent.md + task.md + tasks.md.  Commit (no push).
 
 ## FINAL
 - Docs: update agent.md + task.md + tasks.md.
