@@ -125,6 +125,15 @@ def _hex_px(q, r):
     return (int(x + _OFFSET_X), int(y + _OFFSET_Y))
 
 
+def _tile_at(world, mx, my):
+    """Return the Region under pixel (mx, my), or None (map area only)."""
+    if mx >= MAP_RIGHT:
+        return None
+    q, r = pixel_to_axial(mx - _OFFSET_X, my - _OFFSET_Y, HEX_SIZE)
+    name = REVERSE_LAYOUT.get((q, r))
+    return world['by_name'].get(name) if name is not None else None
+
+
 # ---------------------------------------------------------------------------
 # World stepping (mirrors sim_nation.main() exactly)
 # ---------------------------------------------------------------------------
@@ -143,6 +152,7 @@ def build_world_view():
         'currencies': currencies,
         'pair_orders': pair_orders,
         'by_name': by_name,
+        'selected_region': None,   # click-to-pin: stats stay on this tile
         'turn': 0,
         'view': 0,          # 0 = grid of all 6 charts; 1..6 = zoom one chart
         'window': 100,      # sparkline window (in turns)
@@ -437,6 +447,9 @@ def _draw_hex_map(surface, world, font, font_small):
         pts = hex_corners((cx, cy), HEX_SIZE - 1)
         _draw_pop_heat(surface, region, pts, cx, cy)
         pygame.draw.polygon(surface, HEX_EDGE, pts, 2)
+        # Pinned (clicked) tile gets a bright accent border.
+        if region is world.get('selected_region'):
+            pygame.draw.polygon(surface, ACCENT, pts, 4)
         # Name headline
         name_surf = font.render(region.name, True, TEXT)
         surface.blit(name_surf, name_surf.get_rect(center=(cx, cy - 20)))
@@ -703,7 +716,8 @@ def _audit_panel(surface, world, font, font_small):
         pn = font_small.render("[ PAUSED ]  S=step  Space=play", True, DIM)
     surface.blit(pn, (PANEL_LEFT, 148))
 
-    region = world.get('hover_region')
+    pinned = world.get('selected_region')
+    region = pinned or world.get('hover_region')
     if region is not None:
         charts = _tile_charts(region)
         view = world.get('view', 0)
@@ -722,8 +736,13 @@ def _audit_panel(surface, world, font, font_small):
             surface.blit(hint, (PANEL_LEFT, chart_hint_y))
         # M3: regime readout line — protest / unrest / top faction / nation ruling
         _draw_regime_readout(surface, region, font_small, y=chart_hint_y + 18)
+        if pinned is region:
+            # Pinned: one more line with the owning nation's treasury/opposition
+            # so the stats persist even after the mouse leaves the tile.
+            _draw_nation_summary(surface, region, font_small,
+                                 y=chart_hint_y + 34)
     else:
-        hint = font_small.render("Hover a hex for charts", True, DIM)
+        hint = font_small.render("Hover or click a hex for its charts", True, DIM)
         surface.blit(hint, (PANEL_LEFT, 190))
         if hud_on:
             hint2 = font_small.render("N = hide national HUD", True, DIM)
@@ -740,6 +759,21 @@ def _audit_panel(surface, world, font, font_small):
     else:
         ok = font.render("Conserved: 0 LEAK / 0 SHIFT", True, GREEN)
         surface.blit(ok, (PANEL_LEFT, audit_y))
+
+
+def _draw_nation_summary(surface, region, font_small, y):
+    """One line of nation-level stats shown under the M3 readout when a tile
+    is pinned (clicked): treasury total + regime + legitimacy + ruling."""
+    owner = getattr(region, 'owner_nation', None)
+    if owner is None:
+        return
+    tr = owner.treasury()
+    line = font_small.render(
+        f"{owner.name} treasury ${tr['total']:,.0f}  {owner.regime_type}  "
+        f"legit {owner.legitimacy:.2f}"
+        + (f"  ruling {owner.ruling_faction}" if owner.ruling_faction else ""),
+        True, ACCENT)
+    surface.blit(line, (PANEL_LEFT, y))
 
 
 def _draw_nation_hud(surface, world, font_small):
@@ -873,6 +907,9 @@ def _draw_help(surface, world, font_small):
             '+N / -N under the name = this turn\'s population change.',
             'Top-center colored dot = unrest stage (U=unrest P=protest M=mob',
             'C=compromise T=takeover), shown only while the ladder is active.',
+            'Click a tile to PIN it (thick gold border): that tile\'s charts',
+            '+ regime readout + nation summary stay pinned until you click',
+            'elsewhere.  Hovering still works over the unpinned map.',
         ]),
         ('RIGHT PANEL (HOVER A HEX)', [
             'Top: turn counter, per-currency totals (AL / BE / GA), play state.',
@@ -883,7 +920,8 @@ def _draw_help(surface, world, font_small):
             '  6 Gini / Migration intent',
             'Tab returns to the grid; 1..6 zooms one chart.',
             'Below the grid (M3): protest energy / unrest stage / top faction,',
-            'plus the owner nation\'s legitimacy and ruling faction.',
+            'plus the owner nation\'s legitimacy and ruling faction.  A pinned',
+            'tile adds a second line with its nation\'s treasury + regime.',
             'Bottom line: green "Conserved" or red "AUDIT VIOLATION"',
             '(per-currency supply-shift or leak > $5.0 this turn).',
         ]),
@@ -969,6 +1007,12 @@ def main():
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
+            elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                # Click-to-pin: keep this tile's stats in the panel.
+                clicked = _tile_at(world, *event.pos)
+                if clicked is not None:
+                    world['selected_region'] = clicked
+                    world['view'] = 0
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     if world.get('help_open'):
