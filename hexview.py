@@ -42,6 +42,7 @@ from logger import logInit
 import forex as fx
 from world_trade import pending_imports, resolve_parked, settle_trade, trader_wealth
 from sim_nation import build_world
+from regime import step_regime
 from hexmap import (LAYOUT_2X3, axial_to_pixel, hex_corners, pixel_to_axial)
 
 # ---------------------------------------------------------------------------
@@ -102,6 +103,18 @@ BADGE_TRA = (90, 210, 120)
 BADGE_GINI = (190, 110, 230)
 HOT_RING = (235, 120, 60)
 COLD_RING = (110, 170, 235)
+
+# M3: unrest-stage badge colors (ladder calm->unrest->protest->mob->compromise->takeover).
+UNREST_COLORS = {
+    'unrest': (230, 170, 60),
+    'protest': (240, 140, 40),
+    'mob': (235, 70, 70),
+    'compromise': (160, 230, 90),
+    'takeover': (180, 100, 230),
+}
+# M3: regime-event flash glyph colors (election vs coup).
+ELECTION_C = (110, 200, 250)
+COUP_C = (235, 90, 90)
 
 # Keeps track of last-turn population per region name for delta badges.
 _pops = {}
@@ -179,6 +192,13 @@ def step_world(world):
 
     fx.cycle_all_markets(tiles, t)
 
+    # M3: regime bookkeeping per nation (elections / coups / legitimacy).
+    regime_events = {}
+    for n in world['nations']:
+        ev = step_regime(n, t)
+        if ev:
+            regime_events[n.name] = ev[-1]
+
     for r, other in pair_orders:
         desk = r.forex_desks.get(other.name)
         if desk is not None:
@@ -231,6 +251,9 @@ def step_world(world):
             'legitimacy': n.legitimacy,
             'regime': n.regime_type,
             'currency': n.currency,
+            'ruling': getattr(n, 'ruling_faction', None),
+            'opposition': list(getattr(n, 'opposition', [])),
+            'event': regime_events.get(n.name),
             'turn': t,
         })
     # Bound the history (sparkline window).
@@ -376,6 +399,14 @@ def _draw_activity_badges(surface, region, cx, cy, font_small):
         pts = [(cx + 22, cy - 44), (cx + 22, cy - 54),
                (cx + 28, cy - 46)]
         pygame.draw.polygon(surface, _MIG_C, pts)
+    # M3: unrest-stage badge when the ladder fired this turn (not calm).
+    unrest = region.unrest_log[-1] if region.unrest_log else {}
+    stage = unrest.get('stage', 'calm')
+    if stage != 'calm' and stage in UNREST_COLORS:
+        color = UNREST_COLORS[stage]
+        pygame.draw.circle(surface, color, (cx, cy - 48), 8)
+        tag = font_small.render(stage[0].upper(), True, (255, 255, 255))
+        surface.blit(tag, tag.get_rect(center=(cx, cy - 48)))
 
 
 def _draw_pop_delta(surface, region, cx, cy, font_small):
@@ -613,6 +644,32 @@ def _draw_chart_large(surface, chart, font, font_small, window, y0, y1):
     _draw_chart_cell(surface, chart, rect, font, font_small, window)
 
 
+def _draw_regime_readout(surface, region, font_small, y):
+    """M3: one-line readout of protest energy / unrest stage / top faction /
+    the owning nation's legitimacy + ruling faction."""
+    protest = (region.protest_energy_log[-1]
+               if region.protest_energy_log else 0.0)
+    unrest = region.unrest_log[-1] if region.unrest_log else {}
+    stage = unrest.get('stage', 'calm')
+    # top faction by latest support snapshot
+    top = None
+    if region.faction_support_log:
+        snap = region.faction_support_log[-1]
+        if snap:
+            top = max(snap, key=lambda k: snap[k])
+    owner = getattr(region, 'owner_nation', None)
+    owner_s = ""
+    if owner is not None:
+        ruling = getattr(owner, 'ruling_faction', None)
+        owner_s = f"  {owner.name}: legit {owner.legitimacy:.2f}" \
+                  + (f" ruling {ruling}" if ruling else "")
+    line = font_small.render(
+        f"protest {protest:.1f}  unrest {stage}"
+        + (f"  top {top}" if top else "")
+        + owner_s, True, DIM)
+    surface.blit(line, (PANEL_LEFT, y))
+
+
 def _audit_panel(surface, world, font, font_small):
     """Right-hand panel: header info + hover charts + audit readout."""
     hud_on = world.get('hud', False)
@@ -663,6 +720,8 @@ def _audit_panel(surface, world, font, font_small):
             hint = font_small.render(
                 f"{charts[idx][0]}  (Tab=grid  N=hud)", True, DIM)
             surface.blit(hint, (PANEL_LEFT, chart_hint_y))
+        # M3: regime readout line — protest / unrest / top faction / nation ruling
+        _draw_regime_readout(surface, region, font_small, y=chart_hint_y + 18)
     else:
         hint = font_small.render("Hover a hex for charts", True, DIM)
         surface.blit(hint, (PANEL_LEFT, 190))
@@ -707,15 +766,32 @@ def _draw_nation_hud(surface, world, font_small):
     for i, n in enumerate(nations):
         x0 = i * col_w + 8
         y0 = strip_rect[1] + 6
-        # Header line: name + regime + legitimacy
-        header = font.render(
-            f"{n.name} ({n.currency})  {n.regime_type}  "
-            f"legit {n.legitimacy:.2f}", True, ACCENT)
-        surface.blit(header, (x0, y0))
-        # Per-nation history subset
+        # Per-nation history subset (computed first so the ticker + sparkline
+        # both read the same latest snapshot).
         nh = [h for h in hist if h['name'] == n.name][-window:]
         if not nh:
             continue
+        # Header line: name + regime + legitimacy + ruling faction + opposition
+        ruling = getattr(n, 'ruling_faction', None)
+        opp = getattr(n, 'opposition', []) or []
+        ruling_s = f"  ruling {ruling}" if ruling else ""
+        opp_s = f"  opp:{','.join(opp)}" if opp else ""
+        header = font.render(
+            f"{n.name} ({n.currency})  {n.regime_type}  "
+            f"legit {n.legitimacy:.2f}{ruling_s}{opp_s}", True, ACCENT)
+        surface.blit(header, (x0, y0))
+        # M3: regime-event ticker (latest election/coup this turn)
+        ev = nh[-1].get('event')
+        if ev is not None:
+            if ev.get('kind') == 'election':
+                tline = font.render(
+                    f"T{ev.get('turn')} election: {ev.get('winner_faction')}",
+                    True, ELECTION_C)
+            else:
+                tline = font.render(
+                    f"T{ev.get('turn')} coup! {ev.get('old_regime')}->"
+                    f"{ev.get('new_regime')}", True, COUP_C)
+            surface.blit(tline, (x0, y0 + 18))
         # Treasury sparkline
         treas = [h['treasury'] for h in nh]
         exps = [h['exports'] for h in nh]
@@ -795,6 +871,8 @@ def _draw_help(surface, world, font_small):
             'Cyan edge strokes + moving dot = trade flow; width = volume,',
             'direction points from net exporter to net importer.',
             '+N / -N under the name = this turn\'s population change.',
+            'Top-center colored dot = unrest stage (U=unrest P=protest M=mob',
+            'C=compromise T=takeover), shown only while the ladder is active.',
         ]),
         ('RIGHT PANEL (HOVER A HEX)', [
             'Top: turn counter, per-currency totals (AL / BE / GA), play state.',
@@ -804,11 +882,15 @@ def _draw_help(surface, world, font_small):
             '  5 Government income (tax / tariff / inheritance)',
             '  6 Gini / Migration intent',
             'Tab returns to the grid; 1..6 zooms one chart.',
+            'Below the grid (M3): protest energy / unrest stage / top faction,',
+            'plus the owner nation\'s legitimacy and ruling faction.',
             'Bottom line: green "Conserved" or red "AUDIT VIOLATION"',
             '(per-currency supply-shift or leak > $5.0 this turn).',
         ]),
         ('NATIONAL HUD STRIP (N)', [
-            'One column per nation: name (currency) + regime + legitimacy.',
+            'One column per nation: name (currency) + regime + legitimacy',
+            '+ ruling faction + opposition list (M3).',
+            'Line below the header = election/coup ticker for that turn.',
             'Cyan polyline = treasury over the chart window.',
             'Green bars = exports; red bars = imports (same window).',
             'Bottom: live population, last treasury, net trade balance.',
