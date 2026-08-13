@@ -56,6 +56,7 @@ PANEL_LEFT = MAP_RIGHT + 12
 HEX_SIZE = 55
 FPS = 60
 TURN_MS = 150
+TOP_BAR_H = 52             # Civ-style selected-nation stats strip at the top
 
 # Nation palette matching sim_nation.draw_map (matplotlib map).
 NATION_COLORS = {
@@ -75,7 +76,7 @@ ACCENT = (240, 200, 90)
 # Map offset so the 2x3 layout is centered in the map area.
 # center of layout: A1(0,0)->(0,0); G2(1,2)->(190.5, 165); pad by hex radius.
 _OFFSET_X = (MAP_RIGHT / 2.0) - 95.0
-_OFFSET_Y = (HEIGHT / 2.0) - 82.0
+_OFFSET_Y = (HEIGHT / 2.0) - 82.0 + TOP_BAR_H
 
 REVERSE_LAYOUT = {v: k for k, v in LAYOUT_2X3.items()}
 
@@ -132,6 +133,14 @@ def _tile_at(world, mx, my):
     q, r = pixel_to_axial(mx - _OFFSET_X, my - _OFFSET_Y, HEX_SIZE)
     name = REVERSE_LAYOUT.get((q, r))
     return world['by_name'].get(name) if name is not None else None
+
+
+def _selected_nation(world):
+    """Nation shown in the top bar: pinned tile's owner, else first nation."""
+    pinned = world.get('selected_region')
+    if pinned is not None and getattr(pinned, 'owner_nation', None) is not None:
+        return pinned.owner_nation
+    return world['nations'][0] if world['nations'] else None
 
 
 # ---------------------------------------------------------------------------
@@ -657,6 +666,61 @@ def _draw_chart_large(surface, chart, font, font_small, window, y0, y1):
     _draw_chart_cell(surface, chart, rect, font, font_small, window)
 
 
+def _draw_top_bar(surface, world, font_small):
+    """Civ-style top strip: stats for the currently selected nation.
+
+    The nation follows the pinned tile's owner (or the first nation before
+    anything is pinned).  Columns: name/regime/legitimacy, population,
+    treasury (+ food), cost of living, GDP/turn, export/import/net, and
+    trader wealth.
+    """
+    n = _selected_nation(world)
+    if n is None:
+        return
+    font = font_small
+    pygame.draw.rect(surface, (34, 34, 42),
+                     (0, 0, WIDTH, TOP_BAR_H))
+    pygame.draw.line(surface, HEX_EDGE, (0, TOP_BAR_H), (WIDTH, TOP_BAR_H), 2)
+
+    tiles = n.tiles
+    pop = sum(r.total_population[-1] if r.total_population else len(r.agents)
+              for r in tiles)
+    tr = n.treasury()
+    col = (sum(r.cost_of_living for r in tiles) / len(tiles)
+           if tiles else 0.0)
+    gdp = sum(r.gdp_log[-1] if r.gdp_log else 0.0 for r in tiles)
+    exports = sum(sum(v) for r in tiles
+                  for v in r.export_val.values())
+    imports = sum(sum(v) for r in tiles
+                  for v in r.import_val.values())
+    net = exports - imports
+    trade_w = sum(trader_wealth(r) for r in tiles)
+
+    ruling = getattr(n, 'ruling_faction', None)
+    ruler = f"  ruling {ruling}" if ruling else ""
+    head = font.render(
+        f"{n.name} ({n.currency})  {n.regime_type}  legit {n.legitimacy:.2f}"
+        f"{ruler}  tiles {len(tiles)}", True, ACCENT)
+    surface.blit(head, (8, 6))
+
+    stats = [
+        (f"Pop {pop}", TEXT),
+        (f"Treasury ${tr['total']:,.0f} ({tr['food']} food)", TEXT),
+        (f"CoL {col:.2f}", TEXT),
+        (f"GDP ${gdp:,.0f}", TEXT),
+        (f"Ex ${exports:,.0f}", _EXP_C),
+        (f"Im ${imports:,.0f}", _IMP_C),
+        (f"Net {'+' if net >= 0 else ''}{net:,.0f}",
+         GREEN if net >= 0 else RED),
+        (f"Trade ${trade_w:,.0f}", _MIG_C),
+    ]
+    x = 8
+    for text, color in stats:
+        label = font.render(text, True, color)
+        surface.blit(label, (x, 30))
+        x += label.get_width() + 22
+
+
 def _draw_regime_readout(surface, region, font_small, y):
     """M3: one-line readout of protest energy / unrest stage / top faction /
     the owning nation's legitimacy + ruling faction."""
@@ -686,25 +750,26 @@ def _draw_regime_readout(surface, region, font_small, y):
 def _audit_panel(surface, world, font, font_small):
     """Right-hand panel: header info + hover charts + audit readout."""
     hud_on = world.get('hud', False)
-    chart_bottom = 640 if hud_on else 700
+    d = TOP_BAR_H                        # shift everything below the top bar
+    chart_bottom = 640 + d if hud_on else 700 + d
     chart_hint_y = chart_bottom + 6
-    audit_y = 748 if hud_on else 736
+    audit_y = 748 + d if hud_on else 736 + d
     audit_vgap = 12
     audit_head_y = audit_y - 24
     pygame.draw.rect(surface, PANEL_BG,
-                     (PANEL_LEFT - 10, 10, WIDTH - PANEL_LEFT - 6,
-                      HEIGHT - 20))
+                     (PANEL_LEFT - 10, 10 + d, WIDTH - PANEL_LEFT - 6,
+                      HEIGHT - 20 - d))
 
     title = font.render("REGNUM — Hex View", True, ACCENT)
-    surface.blit(title, (PANEL_LEFT, 20))
+    surface.blit(title, (PANEL_LEFT, 20 + d))
 
     t_ = world['turn']
     turn_line = font_small.render(f"Turn: {t_}  "
                                   f"win={world['window']}t", True, TEXT)
-    surface.blit(turn_line, (PANEL_LEFT, 50))
+    surface.blit(turn_line, (PANEL_LEFT, 50 + d))
 
     cursors = world.get('currency_totals', {})
-    y = 80
+    y = 80 + d
     for c, total in cursors.items():
         line = font_small.render(f"{c}: ${total:,.0f}", True, TEXT)
         surface.blit(line, (PANEL_LEFT, y))
@@ -714,7 +779,7 @@ def _audit_panel(surface, world, font, font_small):
         pn = font_small.render("[ PLAYING ]  Space=pause  Q=quit", True, GREEN)
     else:
         pn = font_small.render("[ PAUSED ]  S=step  Space=play", True, DIM)
-    surface.blit(pn, (PANEL_LEFT, 148))
+    surface.blit(pn, (PANEL_LEFT, 148 + d))
 
     pinned = world.get('selected_region')
     region = pinned or world.get('hover_region')
@@ -723,14 +788,14 @@ def _audit_panel(surface, world, font, font_small):
         view = world.get('view', 0)
         if view == 0:
             _draw_chart_grid(surface, charts, font, font_small, world['window'],
-                             185, chart_bottom)
+                             185 + d, chart_bottom)
             hint = font_small.render(
                 f"{region.name}: Tab=grid  1-6=zoom  N=hud", True, DIM)
             surface.blit(hint, (PANEL_LEFT, chart_hint_y))
         else:
             idx = max(0, min(len(charts) - 1, view - 1))
             _draw_chart_large(surface, charts[idx], font, font_small,
-                              world['window'], 185, chart_bottom)
+                              world['window'], 185 + d, chart_bottom)
             hint = font_small.render(
                 f"{charts[idx][0]}  (Tab=grid  N=hud)", True, DIM)
             surface.blit(hint, (PANEL_LEFT, chart_hint_y))
@@ -743,10 +808,10 @@ def _audit_panel(surface, world, font, font_small):
                                  y=chart_hint_y + 34)
     else:
         hint = font_small.render("Hover or click a hex for its charts", True, DIM)
-        surface.blit(hint, (PANEL_LEFT, 190))
+        surface.blit(hint, (PANEL_LEFT, 190 + d))
         if hud_on:
             hint2 = font_small.render("N = hide national HUD", True, DIM)
-            surface.blit(hint2, (PANEL_LEFT, 210))
+            surface.blit(hint2, (PANEL_LEFT, 210 + d))
 
     if world.get('violations'):
         v1 = font.render("AUDIT VIOLATION", True, RED)
@@ -894,6 +959,13 @@ def _draw_help(surface, world, font_small):
             'H or ? ......... toggle this help (Up/Down scrolls)',
             'Esc ............ close help first; Q quits either way',
         ]),
+        ('TOP BAR (SELECTED NATION)', [
+            'Full-width strip at the very top.  Follows the PINNED tile\'s',
+            'nation (first nation before anything is clicked).',
+            'Left: name (currency) + regime + legitimacy + ruling + tiles.',
+            'Right: Pop / Treasury (cash+deposits, food) / CoL / GDP per turn,',
+            'Exports / Imports / Net balance / Trader wealth.',
+        ]),
         ('MAP (HEXES)', [
             'Hex fill = owner nation; brighter fill = higher population (heat).',
             'Hex name headline; below it: pop / food $ / trader count.',
@@ -974,6 +1046,7 @@ def render_frame(surface, world):
     font = pygame.font.Font(None, 28)
     font_small = pygame.font.Font(None, 22)
     surface.fill(BG)
+    _draw_top_bar(surface, world, font_small)
     _draw_hex_map(surface, world, font, font_small)
     _audit_panel(surface, world, font, font_small)
     _draw_nation_hud(surface, world, font_small)
