@@ -63,7 +63,7 @@ def Live(t, agents, context: LiveContext):
     for government in ctx.governments:
         government.distribute_ubi(t, agents)
     for government in ctx.governments:
-        immigrants = government.spawn_immigrants(t)
+        immigrants = government.spawn_immigrants(t, agents)
         if immigrants:
             agents.extend(immigrants)
     for government in ctx.governments:
@@ -810,7 +810,7 @@ def _forgive_bad_debt(bank, amount, t):
          per-agent deposit dict (real depositor money, floored at 0).
       3. STATE last — any remainder is recapitalized by the owning tile's
          treasury (lender of last resort): real gov cash moves into bank
-         capital, the state taking an equity stake.
+         capital.
 
     Returns True if the loss is fully absorbed (no genuine insolvency).
     """
@@ -839,7 +839,7 @@ def _forgive_bad_debt(bank, amount, t):
                           f"(shareholders took ${capital_absorb:.2f})")
         remaining -= dep_absorb
 
-    # 3. Nation treasury recapitalization (lender of last resort).
+    # 3. Tile treasury recapitalization (lender of last resort).
     if remaining > 0:
         remaining -= _recapitalize(bank, remaining, t)
 
@@ -854,7 +854,6 @@ def _recapitalize(bank, shortfall, t):
     Moves the owning tile government's cash into bank capital — gov cash
     falls (counted in the per-currency audit via ``r.agents``), bank capital
     rises (counted in ``bank.equity``), so the currency total is unchanged.
-    The state takes an equity stake (state_equity bookkeeping, no money).
     Returns the amount injected.
     """
     gov = getattr(bank, 'gov', None)
@@ -865,9 +864,8 @@ def _recapitalize(bank, shortfall, t):
         return 0.0
     gov.agent.cash -= take
     bank.capital += take
-    bank.state_equity += take
     logwarning(t, f"RECAPITALIZATION: ${take:.2f} treasury capital injected "
-                  f"into bank (state takes equity; capital ${bank.capital:.2f})")
+                  f"into bank (capital ${bank.capital:.2f})")
     return take
 
 

@@ -183,8 +183,7 @@ class Region:
         # Own government
         self.gov = govmod.Government(name, t, initial_cash=200)
         self.gov.agent.is_government = True
-        self.bank.gov = self.gov  # wire gov reference for bailouts
-        self.bank.region = self    # wire owning tile for recapitalization
+        self.bank.gov = self.gov  # wire tile gov for recapitalization (lender of last resort)
 
         # Logging state (mirrors econsim_states globals)
         self.population_log: dict = {}

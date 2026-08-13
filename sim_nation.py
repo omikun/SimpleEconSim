@@ -22,6 +22,7 @@ from logger import logInit
 import forex as fx
 from world_trade import (pending_imports, resolve_parked, settle_trade,
                          trader_wealth)
+from regime import step_regime
 
 
 def make_tile(name, prof, terrain=None, climate='temperate'):
@@ -137,6 +138,10 @@ def main():
             settle_trade(t, other, r)
 
         fx.cycle_all_markets(tiles, t)
+
+        # M3: regime bookkeeping per nation (elections / coups / legitimacy).
+        for n in nations:
+            step_regime(n, t)
 
         for r, other in pair_orders:
             desk = r.forex_desks.get(other.name)

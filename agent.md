@@ -122,7 +122,43 @@ on meaningful horizons; dashboard PNGs render. M0 scripts additionally require
   is paid out of `capital`, and `Bank.equity = capital + total_deposits −
   total_liabilities`.  Heirless bad debt is absorbed in seniority order
   (shareholders → depositors pro-rata → tile treasury via `_recapitalize`).
-  Verified: sim_nation 100 / sim_ring 300 / M1 gate / probe_m2 / probe_hex all PASS.
+   Verified: sim_nation 100 / sim_ring 300 / M1 gate / probe_m2 / probe_hex all PASS.
+
+## M3 — Regimes: elections, coups, continuity (committed; never push)
+- `election.py` — leaf-level `Candidate` (`eq=False`, identity-hashed) + election
+  mechanics.  `generate_candidates(nation, t)` builds one candidate per faction
+  (highest-charisma adult member) with a platform from that faction's demands.
+  `campaign_finance(nation, cand, amount)` transfers tile-treasury cash → candidate
+  cash (conserved; both counted in `audit_currency_total`) and accrues popularity at
+  a charisma-diluted rate (`CHARISMA_DILUTION_FLOOR` + (1−floor)·charisma).  `run_election`
+  records `nation._incumbent_faction` for betrayal memory.
+- `faction_weighted_vote` — adult (age>20) voters support their most-influential
+  faction's candidate; if that candidate is the incumbent AND the voter's
+  `mem_promises` mean > 0.5, the voter **defects to the strongest rival**, which is
+  what flips election outcomes (M3.3 acceptance).
+- `coup.py` — `find_generals` scores adults by ambition/charisma/loyalty; `coup_chance`
+  fires below `COUP_LEGITIMACY_TRIGGER` (scaled by the top general + legitimacy
+  shortfall); `execute_coup` seizes tile-treasury cash → the general (conserved),
+  flips regime to autocracy, purges the deposed faction via `mem_casualties` /
+  `mem_promises` seeds (memory only, no wealth destruction).
+- `regime.py` — `step_regime(nation, t)` is the per-turn orchestrator: coup check →
+  `track_legitimacy` (legitimacy drifts toward population faction support) → election
+  cadence (democracies every `ELECTION_INTERVAL`, snap on `SNAP_ELECTION_LEGITIMACY`).
+  `apply_platform` flips only the conserved tax knob; UBI/tariff/immigration stay at
+  defaults (their money paths are not yet conservation-validated).  `agitate` /
+  `unrest_intent` are the M3.6 engine-only opposition-continuity intents.
+- `nation.py` — M3 state: `ruling_faction`, `opposition` (with per-faction
+  `is_opposition` flag), `_incumbent_faction`, and `regime_log` (the per-turn
+  election/coup money-trail archive).
+- **Conservation fix (immigration mint)**: `Government.spawn_immigrants(t, agents)`
+  no longer mints $50–80 unsourced cash.  Immigrants are chain-migrants derived from
+  an existing adult citizen — the parent splits off a bounded cash share + a food
+  grant and the child inherits traits/identity, so **every agent traces to another
+  agent** and no money/goods are created.
+- **Gate** `tmp/probe_m3.py`: scripted election (campaign $100k, leak $0) + betrayal
+  flip (Yoro→Terra) + scripted coup (seize conserved, regime→autocracy) — 0 LEAK /
+  SHIFT / INSOLVENCY.  Full suite (sim_nation 100, sim_ring 300, M1 gate, probe_m2,
+  probe_hex) passes.
 
 ## Architecture
 - `region.py` — `Region`: per-region bank, Government, agents, logs; `step(t)` orders

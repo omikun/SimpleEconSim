@@ -1,6 +1,6 @@
 # SimpleEconSim — Task Handoff
 
-Last updated: 2026-08-11 09:16 PDT · HEAD: `f627d5f` + M1 (4+ local commits ahead of origin/main; nothing pushed)
+Last updated: 2026-08-13 · HEAD: `aaec56e` + M3 (local; nothing pushed)
 
 ## M0 — Nation & Tiles (committed, PASSING)
 
@@ -154,6 +154,34 @@ capital structure instead of any silent write-off:
 - **Verified**: `sim_nation 100` PASS (0 shift/leak/insolvency),
   `sim_ring 300` PASS, M1 gate `behavior_drift` PASS (3 seeds × 300t),
   `probe_m2` PASS, `probe_hex` PASS.
+
+## M3 — Regimes (committed, PASSING)
+- [x] M3.1 `election.py` — `Candidate` (charisma + backing faction + platform
+  from faction demands); `generate_candidates` pool per election.
+- [x] M3.2 campaign finance — `campaign_finance` transfers tile-treasury cash →
+  candidate cash (conserved) at charisma-diluted popularity rate.
+- [x] M3.3 faction-weighted voting — `faction_weighted_vote`: adult voters vote
+  their most-influential faction's candidate, DEFECT to the strongest rival on
+  broken-promise memory (`mem_promises` > 0.5) — flips the outcome.
+- [x] M3.4 legitimacy + cadence — `regime.track_legitimacy` drifts toward
+  population faction support; democracies run fixed-interval elections, any
+  regime snaps on collapse; winner's platform flips the TAX knob.
+- [x] M3.5 `coup.py` — `find_generals` (ambition/charisma/loyalty), per-turn
+  `coup_chance`, `execute_coup` (treasury seizure → general = conserved,
+  regime → autocracy, purge as memory seeds). Reuses the M2.5 takeover seam.
+- [x] M3.6 player-faction continuity — engine-only opposition state:
+  `Nation.ruling_faction` / `opposition` / faction `is_opposition` + `agitate`
+  / `unrest_intent` intents (full UI deferred to C.7 client).
+- [x] `regime.step_regime` wired into `sim_nation.main`; `Nation.regime_log`
+  archives the election/coup money-trail.
+- [x] **Conservation fix (immigration mint)** — `Government.spawn_immigrants`
+  no longer mints $50–80 unsourced cash; immigrants are chain-migrants derived
+  from an existing adult (parent cash split + food grant, traits inherited) so
+  every agent traces to another agent.  `apply_platform` flips only the
+  conserved tax knob (UBI/tariff/immigration stay at defaults until validated).
+- [x] **Gate** `tmp/probe_m3.py`: election (campaign $100k, leak $0) + betrayal
+  flip + coup (seizure conserved) — 0 LEAK/SHIFT/INSOLVENCY.  Full suite
+  (sim_nation 100, sim_ring 300, M1 gate, probe_m2, probe_hex) PASS.
 
 ## Earlier status (pre-M0, still PASSING)
 - `python3 econsim_two_region.py 30` — no LEAK/SHIFT, ROI positive both sides

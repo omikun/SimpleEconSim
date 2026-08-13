@@ -251,12 +251,18 @@ class Government:
     # ------------------------------------------------------------------
     #  5. Immigration  (Canada / Australia points-based)
     # ------------------------------------------------------------------
-    def spawn_immigrants(self, t):
+    def spawn_immigrants(self, t, agents):
         """Create new immigrant agents if the immigration interval has elapsed.
+
+        Conservation-safe: immigrants are NEVER minted out of thin air.  Each
+        is derived from an existing adult citizen (a "chain migrant" split
+        off a resident), inheriting traits+identity and a conservative share
+        of the parent's cash — so every agent traces to another agent and the
+        per-currency total never changes.
 
         Returns:
             list[Agent]: Newly created immigrant agents (empty list if interval
-                          not reached or feature disabled).
+                          not reached, feature disabled, or no eligible parent).
         """
         if not self.immigration_enabled:
             return []
@@ -265,26 +271,49 @@ class Government:
             return []
         self._last_immigration_turn = t
 
+        # Eligible resident adults (non-corp, non-gov) we can split off.
+        parents = [a for a in agents
+                   if getattr(a, 'alive', True)
+                   and not getattr(a, 'is_corporation', False)
+                   and not getattr(a, 'is_government', False)
+                   and not getattr(a, 'is_trader', False)
+                   and a.age(t) > 20
+                   and a.cash > 40]
+        if not parents:
+            return []
+
         new_agents = []
         for _ in range(self.immigration_per_interval):
-            # Pick a random non-gov profession
-            professions = [g for g in econsim_states.goods if g != Goods.gov]
-            output = random.choice(professions)
+            parent = random.choice(parents)
+            # Split the parent's cash: the child takes a bounded share, the
+            # parent keeps the rest — a pure transfer, no money created.
+            share = min(parent.cash * 0.3, 50.0)
+            share = min(share, parent.cash - 10.0)
+            share = max(0.0, share)
 
             immigrant = Agent(t)
-            immigrant.output = output
-            seed_traits(immigrant)
-            immigrant.cash = 50.0 + random.uniform(0, 30)
-            immigrant.inv_set(Goods.food, 4)
-            # Give a small inventory of their own profession's output
-            immigrant.inv_set(output, 2)
+            immigrant.parent = parent
+            immigrant.output = parent.output
+            seed_traits(immigrant, parent=parent)
+            initialize_agent(immigrant, parent.output, 0, 0, share)
+
+            parent.cash -= share
+            if parent.descendants is None:
+                parent.descendants = []
+            parent.descendants.append(immigrant)
+            # Transfer a small food grant from the parent (conserved — the
+            # parent's inventory falls by exactly what the child receives).
+            food_grant = max(0, min(4, parent.inv_get(Goods.food, 0) // 2))
+            if food_grant > 0:
+                parent.inv_add(Goods.food, -food_grant)
+                immigrant.inv_set(Goods.food, food_grant)
 
             # Register as citizen
             self._add_citizen(immigrant)
 
             new_agents.append(immigrant)
             loginfo(t, f"Government({self.name}) accepted immigrant {immigrant.name()} "
-                    f"with ${immigrant.cash:.2f}")
+                    f"derived from {parent.name()} (share ${share:.2f})")
 
         return new_agents
 

@@ -91,16 +91,11 @@ class Bank():
         self.total_interest_earned = 0
         self.total_deposit_interest_paid = 0
         self.turn_loan_interest = 0
-        self.gov = gov  # Reference to government for bailout decisions
+        self.gov = gov  # Reference to tile government (lender of last resort)
 
         # ---- Multi-currency FX (Phase 1) ----
         self.foreign_reserves = defaultdict(float)   # currency -> holdings
         self.fx_pool = 0.0                           # domestic money for FX desk
-
-        # ---- Lender-of-last-resort back-refs (wired by Region / Nation) ----
-        self.region = None        # owning Region (tile)
-        self.owner_nation = None  # owning Nation (for treasury recapitalization)
-        self.state_equity = 0.0   # bookkeeping: state ownership stake (no money)
 
     @property
     def equity(self):
@@ -147,30 +142,6 @@ class Bank():
         self.total_deposits -= amount
         self.deposits[agent] -= amount
 
-    def RequestBailout(self, t, loss_amount):
-        deficit = max(0, loss_amount - self.total_deposits)
-        buffer = self.total_liabilities * 0.2
-        bailout_amount = deficit + buffer
-        bailout_amount = max(bailout_amount, loss_amount)
-        approved, amount = gov_decide_bailout(t, self, bailout_amount)
-        if approved and amount > 0:
-            gov = getattr(self, 'gov', None)
-            if gov is not None:
-                actual = min(amount, gov.agent.cash)
-                gov.agent.cash -= actual
-                # Credit the government's per-agent deposit ledger too, so the
-                # deposit DICT stays in sync with the scalar (the dict is the
-                # true withdrawable pool used by bad-debt forgiveness).
-                self.deposits[gov.agent] += actual
-            else:
-                actual = 0
-            self.total_deposits += actual
-            logwarning(t, "BAILOUT: government injected $", round(actual, 2),
-                       "into bank. gov cash now $",
-                       round(gov.agent.cash if gov else 0, 2))
-            return actual > 0
-        return False
-
     def PayDepositInterest(self, agents):
         """Pay interest to all depositors based on their deposit balance.
 
@@ -207,12 +178,6 @@ class Bank():
                     self.total_deposit_interest_paid += interest
                     total_payout += interest
         return total_payout
-
-
-def gov_decide_bailout(t, bank, requested_amount):
-    """Government decides whether to approve a bank bailout.
-    Currently defaults to auto-approve. Returns (approved, amount)."""
-    return True, requested_amount
 
 
 bank = Bank()

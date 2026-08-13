@@ -123,14 +123,50 @@ Fixed with a proper capital structure — NOT a silent write-off:
   PASS, M1 gate `behavior_drift` PASS (3 seeds × 300t), `probe_m2` PASS,
   `probe_hex` PASS.
 
-## NEXT — M2 finish
-1. Done (resolved via real bank capital + treasury recapitalization).
-2. Re-verified: sim_nation 100, probe_hex, sim_ring 300, M1 gate, probe_m2 — all PASS.
-3. Docs (agent.md + task.md + tasks.md) updated in this commit.  Commit (no push).
+## DONE — Cleanup pass (M2 follow-through, committed; never push)
+- Removed the dead `RequestBailout` / `gov_decide_bailout` pair and the
+  write-only `Bank.owner_nation` / `Bank.region` / `Bank.state_equity`
+  backrefs.  `_recapitalize` sources the tile treasury via `bank.gov` (the
+  actual recap source); `_forgive_bad_debt` seniority docs corrected to
+  "shareholders → depositors → tile treasury".  `Nation.add_tile` /
+  `Region.__init__` no longer wire the unused backrefs.  sim_nation 100 +
+  full suite still green.
+
+## DONE — M3 Regimes (committed; never push)
+- [x] M3.1 `election.py` — `Candidate` (charisma + backing faction + platform
+  from faction demands); `generate_candidates` pool per election.
+- [x] M3.2 campaign finance — `campaign_finance` transfers tile-treasury cash
+  → candidate cash (conserved) at a charisma-diluted popularity rate.
+- [x] M3.3 faction-weighted voting — `faction_weighted_vote`: adult voters
+  vote their most-influential faction's candidate and DEFECT to the strongest
+  rival when broken-promise memory (mem_promises > 0.5) targets the incumbent.
+- [x] M3.4 legitimacy + cadence — `regime.track_legitimacy` drifts toward
+  population faction support; democracies run fixed-interval elections, any
+  regime snaps on legitimacy collapse; winner's platform flips the TAX knob.
+- [x] M3.5 `coup.py` — `find_generals` (ambition+charisma+loyalty), per-turn
+  `coup_chance` trigger, `execute_coup` (treasury seizure to the general =
+  conserved transfer, regime → autocracy, deposed-faction purge as memory
+  seeds).  Reuses the M2.5 takeover seam.
+- [x] M3.6 player-faction continuity — engine-only opposition state:
+  `Nation.ruling_faction` / `Nation.opposition` / faction `is_opposition`,
+  plus `agitate(nation, faction)` and `unrest_intent(nation)` intents.
+- [x] `regime.step_regime` wired into `sim_nation.main`; per-turn
+  `Nation.regime_log` archives the election/coup money-trail.
+- [x] **Conservation fix (immigration mint)**: `Government.spawn_immigrants`
+  no longer mints $50–80 unsourced cash.  Immigrants are now chain-migrants
+  derived from an existing adult citizen (parent cash split + food grant,
+  traits inherited) — every agent traces to another agent.  `apply_platform`
+  flips only the conserved tax knob; the UBI/tariff/immigration toggles stay
+  at defaults (their money paths are not yet conservation-validated).
+- [x] **M3 gate** `tmp/probe_m3.py`: scripted election (campaign $100k, leak
+  $0) + betrayal flip (Yoro→Terra) + scripted coup (seizure conserved, regime
+  flip) — 0 LEAK / SHIFT / INSOLVENCY.
+- [x] Regression suite: sim_nation 100, sim_ring 300, M1 gate behavior_drift,
+  probe_m2, probe_hex — all PASS.
 
 ## FINAL
 - Docs: update agent.md + task.md + tasks.md.
-- Commits: T1 done -> M1 -> V1 -> M2 (in progress). No push.
+- Commits: T1 → M1 → V1 → M2 → M3 (done). No push.
 
 ## Known quirks (don't fix unless asked)
 - Long commands with '&' fail to transmit; write tmp/*.sh and bash it.

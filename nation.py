@@ -67,6 +67,14 @@ class Nation:
                          else DEFAULT_LEGITIMACY)))
         self.tiles: list = []
         self.claims: dict = {name: 1.0}
+        # ---- M3 regime state (population-driven consent / ruling faction) ----
+        # ruling_faction: name of the faction currently holding power (None =
+        # no faction in power).  opposition: list of faction names that were
+        # deposed and continue as opposition (M3.6 engine-only UI seam).
+        self.ruling_faction = None
+        self.opposition: list = []
+        self._incumbent_faction = None   # incumbent for betrayal memory (M3.3)
+        self.regime_log: list = []       # per-turn regime events (state archive)
 
         # One sovereign Government per Nation.  The Government class already
         # owns `regions` + `citizen_ids`; add_tile wires them.
@@ -92,9 +100,6 @@ class Nation:
         """
         region.owner_nation = self
         region.home_currency = self.currency
-        # Wire the tile bank's lender-of-last-resort back-ref (treasury recall).
-        if getattr(region, 'bank', None) is not None:
-            region.bank.owner_nation = self
         # Sync the government's currency pointer (kept in lockstep).
         self.government.currency = self.currency
         # Record the owning nation's claim on the tile (strength 1.0).

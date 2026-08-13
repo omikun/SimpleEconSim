@@ -102,28 +102,29 @@ runs end-to-end with conservation intact.
 
 ## M3 — Regimes  *(priority 4)*
 
-- [ ] **M3.1** `election.py` — candidates from trait.charisma + faction
+- [x] **M3.1** `election.py` — candidates from trait.charisma + faction
       membership; platforms from faction demands.
       - Acceptance: candidate pool generated per election cycle.
-- [ ] **M3.2** Campaign finance — treasury → candidate popularity at
+- [x] **M3.2** Campaign finance — treasury → candidate popularity at
       charisma-diluted rate (conserved transfer).
       - Acceptance: $10k spent on low-charisma candidate yields less
         popularity than on high-charisma; audit shows the transfer.
-- [ ] **M3.3** Faction-weighted voting — adults vote by faction influence +
+- [x] **M3.3** Faction-weighted voting — adults vote by faction influence +
       memory (broken-promise betrayal).
       - Acceptance: election outcome flips when big faction betrayed.
-- [ ] **M3.4** Legitimacy tracking + election cadence (fixed interval or
+- [x] **M3.4** Legitimacy tracking + election cadence (fixed interval or
       legitimacy collapse).
       - Acceptance: losing coalition takes over; policy set flips.
-- [ ] **M3.5** `coup.py` — generals (agents with popularity/loyalty/ambition);
+- [x] **M3.5** `coup.py` — generals (agents with popularity/loyalty/ambition);
       trigger check each turn; coup = treasury seizure (transfer), regime
       switch, possible purge.
       - Acceptance: engineered coup (low legitimacy + popular general)
         fires; treasury conserved; old elite's portable wealth becomes
         refugee capital (M4 hook).
-- [ ] **M3.6** Player-faction continuity — if player's faction loses, they
+- [x] **M3.6** Player-faction continuity — if player's faction loses, they
       may continue as opposition.
-      - Acceptance: opposition-mode UI stub exposes agitate/unrest actions.
+      - Acceptance: opposition-mode UI stub exposes agitate/unrest intents
+        (engine-only state now; full UI in C.7 client).
 
 **M3 exit criteria:** a full election cycle and a full coup each run with
 conserved transitions; state archive shows the money trail for both.
