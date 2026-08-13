@@ -119,8 +119,7 @@ def get_total_cash(agents, bank=None):
     """
     if bank is None:
         return sum(agent.cash for agent in agents)
-    bank_equity = bank.total_deposits - bank.total_liabilities
-    return sum(a.cash for a in agents) + bank_equity
+    return sum(a.cash for a in agents) + bank.equity
 
 
 # =============================================================================
@@ -185,6 +184,7 @@ class Region:
         self.gov = govmod.Government(name, t, initial_cash=200)
         self.gov.agent.is_government = True
         self.bank.gov = self.gov  # wire gov reference for bailouts
+        self.bank.region = self    # wire owning tile for recapitalization
 
         # Logging state (mirrors econsim_states globals)
         self.population_log: dict = {}
@@ -633,7 +633,7 @@ class Region:
         self.gov.seal_income(t)
         self.total_population.append(sum(v[-1] for v in self.population_log.values()))
         self.cost_of_living_log.append(self.cost_of_living)
-        self.bank_cash_log.append(self.bank.total_deposits - self.bank.total_liabilities)
+        self.bank_cash_log.append(self.bank.equity)
         self.total_cash_log.append(self._total_cash())
         self._log_population_rate()
 
@@ -660,7 +660,7 @@ class Region:
         agent_cash = sum(a.cash for a in self.agents)
         deposits = self.bank.total_deposits
         liabilities = self.bank.total_liabilities
-        bank_equity = deposits - liabilities
+        bank_equity = self.bank.equity
         total = agent_cash + bank_equity
         if total < 0 or agent_cash < 0 or deposits < 0 or liabilities < 0:
             print(f"  CASH AUDIT [{label}] T={t}: "

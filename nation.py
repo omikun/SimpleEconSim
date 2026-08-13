@@ -92,6 +92,9 @@ class Nation:
         """
         region.owner_nation = self
         region.home_currency = self.currency
+        # Wire the tile bank's lender-of-last-resort back-ref (treasury recall).
+        if getattr(region, 'bank', None) is not None:
+            region.bank.owner_nation = self
         # Sync the government's currency pointer (kept in lockstep).
         self.government.currency = self.currency
         # Record the owning nation's claim on the tile (strength 1.0).

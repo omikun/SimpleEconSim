@@ -92,7 +92,7 @@ def record_turn(t, region_a, region_b):
                 else:
                     cat = OUTPUT_TO_CAT.get(a.output, 'Food')
                     cat_agents[cat].append((wealth, debt, a.id))
-            bank_wealth = bank.total_deposits - bank.total_liabilities
+            bank_wealth = bank.equity
             bank_liab = bank.total_liabilities
             cat_agents['Institutions'].append((bank_wealth, bank_liab, -20))
             charity = region.charity
@@ -131,7 +131,7 @@ def print_wealth_diagnostic(region, label, turn=None):
 
     total_cash = get_total_cash(agents, bank)
     agent_cash_sum = sum(a.cash for a in agents)
-    bank_equity = bank.total_deposits - bank.total_liabilities
+    bank_equity = bank.equity
 
     print(f"Total system cash: ${total_cash:>10.2f}")
     print(f"  Agent cash:      ${agent_cash_sum:>10.2f}")

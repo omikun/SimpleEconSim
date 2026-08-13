@@ -453,7 +453,7 @@ def audit_currency_total(regions, currency):
         bank = r.bank
         if r.home_currency == currency:
             total += sum(a.cash for a in r.agents)
-            total += bank.total_deposits - bank.total_liabilities
+            total += bank.equity
             total += bank.fx_pool
             if getattr(r, 'charity', None) is not None:
                 total += r.charity.agent.cash

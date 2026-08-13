@@ -130,19 +130,30 @@ absorbed losses while the scalar drained negative.
 - **Result: `behavior_drift.py` GATE PASS (3 seeds × 300t, 0 LEAK / 0 SUPPLY
   SHIFT / no insolvency); `probe_m2.py` GATE PASS.**
 
-### IN PROGRESS — sim_nation 100: genuine bank insolvency at T=74
-```
-turn=74 shortfall=$116.92  bank: total_deposits=2076.56
-  total_liabilities=2652.99 equity=-576.44 deposit_dict_pool=1.43
-  bank loans outstanding=$2652.99 (319 loans)  gov cash=0.0
-```
-- Real deposit pool only $1.43 + gov $0 cash → a **genuinely insolvent tile
-  bank** (no countable capital to absorb a dying agent's $116.92 bad debt).
-  Pre-M2 this was silently absorbed from the phantom 2000-base scalar.
-- The exception is the engine refusing to destroy money (conservation-safe).
-  Needs an economic-tune fix (bank capital buffer / lender-of-last-resort /
-  treasury-backed bailout), NOT a silent write-off.
-- Compare: `task.md` §Potential follow-ups item 5 (deposit-ledger divergence).
+### DONE — sim_nation 100: genuine bank insolvency → real bank capital + recapitalization
+The honest forfeiture exposed a **genuinely insolvent tile bank** at T=74
+(`shortfall=$116.92`, deposit pool $1.43, gov cash $0) — pre-M2 this was
+silently absorbed from the phantom 2000-base scalar.  Fixed with a proper
+capital structure instead of any silent write-off:
+
+- **`Bank.capital`** (econsim_trade_money.py): the old phantom 2000-base that
+  lived inside `total_deposits` is now explicit shareholder equity (seeded
+  2000).  `total_deposits` starts at 0 and stays in lockstep with the per-agent
+  dict.  Loan interest accrues to `capital` (retained earnings); deposit
+  interest is paid OUT OF `capital`, never out of deposits.  `Bank.equity`
+  property = `capital + total_deposits − total_liabilities`.
+- **Seniority-order bad-debt forgiveness** (econsim_live.py `_forgive_bad_debt`):
+  shareholders absorb first (capital write-down), then depositors pro-rata
+  (the real dict pool), then the tile treasury (lender of last resort).
+- **`_recapitalize`**: tile gov cash → bank capital (state takes equity,
+  `state_equity` bookkeeping); conserved because gov cash is counted in
+  `r.agents` and bank capital in `bank.equity`.
+- **Equity readers updated** (forex.py `audit_currency_total`, region.py,
+  econsim.py, wealth_diagnostic.py) to use `bank.equity`; `Nation.add_tile`
+  wires `bank.owner_nation` for treasury recall.
+- **Verified**: `sim_nation 100` PASS (0 shift/leak/insolvency),
+  `sim_ring 300` PASS, M1 gate `behavior_drift` PASS (3 seeds × 300t),
+  `probe_m2` PASS, `probe_hex` PASS.
 
 ## Earlier status (pre-M0, still PASSING)
 - `python3 econsim_two_region.py 30` — no LEAK/SHIFT, ROI positive both sides
@@ -161,8 +172,9 @@ turn=74 shortfall=$116.92  bank: total_deposits=2076.56
    `bid_food`/loan service always use hand cash so deposits are never touched.
 4. **Poverty → heirless root cause** — 96% of deaths are poor (<$20). Address poverty
    (food aid/welfare, wage floors, charity rate) rather than inheritance rules.
-5. **Deposit-ledger divergence** — bank bad-debt/interest mechanism; **NOW under
-   investigation as the M2 seed-1337 insolvency root cause** (see IN PROGRESS above).
+5. **Deposit-ledger divergence** — resolved: the seed-1337 scalar/dict divergence
+   and the sim_nation phantom-base insolvency were fixed by the real capital tier
+   + seniority forgiveness (see DONE sections above).
 6. **Charity food hoarding** — charity can hold hundreds of food units; `max_food_per_agent=1`
    and distribution covers ~1/3 of hungry + young only.
 7. **`agent.md` / `task.md`** — update both when the next session changes behavior or commits.

@@ -797,48 +797,78 @@ def _deposit_pool(bank):
 
 
 def _forgive_bad_debt(bank, amount, t):
-    """Conservation-safe heirless bad-debt forgiveness.
+    """Conservation-safe heirless bad-debt forgiveness, in seniority order.
 
-    The loan liability was already removed (total_liabilities -= R).  To
-    keep the audited total (agent cash + deposits - liabilities) unchanged,
-    the DEPOSIT LEDGER must be written down by R — BOTH the per-agent dict
-    (depositors genuinely absorb the loss, pro-rata, floored at 0) and the
-    scalar.  A government bailout cushions the pool first when R exceeds it.
-    Returns True if fully absorbed.
+    The forgiven loan's liability was already removed by the caller
+    (``total_liabilities -= R``).  To keep the audited total unchanged, the
+    loss R must be absorbed on the equity side in STRICT seniority order:
+
+      1. SHAREHOLDERS first — bank capital absorbs R up to available capital
+         (Basel-style loss absorption against REAL countable equity, never
+         the old phantom scalar).
+      2. DEPOSITORS second — any remainder is bailed in pro-rata across the
+         per-agent deposit dict (real depositor money, floored at 0).
+      3. STATE last — any remainder is recapitalized by the owning tile's
+         treasury (lender of last resort): real gov cash moves into bank
+         capital, the state taking an equity stake.
+
+    Returns True if the loss is fully absorbed (no genuine insolvency).
     """
     if amount <= 0:
         return True
-    pool = _deposit_pool(bank)
-    # Government bailout moves real gov cash into deposits first (conserved).
-    if amount > pool:
-        injected = 0.0
-        for i in range(2):  # bailout can be partially funded; retry once
-            bank.RequestBailout(t, amount)
-            new_pool = _deposit_pool(bank)
-            if new_pool <= pool:
-                break
-            injected += new_pool - pool
-            pool = new_pool
-            if pool >= amount:
-                break
-        if injected > 0:
-            logwarning(t, f"GOV BAILOUT injected ${injected:.2f} to cover "
-                          f"${amount:.2f} forgiven bad debt; depositors "
-                          f"protected by gov capital")
-    pool = _deposit_pool(bank)
-    if amount > pool:
-        # Genuine insolvency: refuse to silently destroy money.
-        _raise_insolvency(t, bank, None, amount)
-    # Pro-rata write-down of the per-agent dict (floored at 0 per depositor).
-    total_absorb = min(amount, pool)
-    if total_absorb > 0:
-        for owner, bal in list(bank.deposits.items()):
-            if bal <= 0:
-                continue
-            share = bal * (total_absorb / pool)
-            bank.deposits[owner] = max(0.0, bal - share)
-        bank.total_deposits -= total_absorb
-    return total_absorb >= amount
+
+    # 1. Shareholders absorb first.
+    capital_absorb = min(amount, max(0.0, bank.capital))
+    if capital_absorb > 0:
+        bank.capital -= capital_absorb
+    remaining = amount - capital_absorb
+
+    # 2. Depositors bailed in pro-rata (real dict pool, never below zero).
+    if remaining > 0:
+        pool = _deposit_pool(bank)
+        dep_absorb = min(remaining, pool)
+        if dep_absorb > 0:
+            for owner, bal in list(bank.deposits.items()):
+                if bal <= 0:
+                    continue
+                share = bal * (dep_absorb / pool)
+                bank.deposits[owner] = max(0.0, bal - share)
+            bank.total_deposits -= dep_absorb
+            logwarning(t, f"DEPOSITOR BAIL-IN: ${dep_absorb:.2f} of "
+                          f"${amount:.2f} bad debt absorbed by depositors "
+                          f"(shareholders took ${capital_absorb:.2f})")
+        remaining -= dep_absorb
+
+    # 3. Nation treasury recapitalization (lender of last resort).
+    if remaining > 0:
+        remaining -= _recapitalize(bank, remaining, t)
+
+    if remaining > 1e-9:
+        _raise_insolvency(t, bank, None, remaining)
+    return remaining <= 1e-9
+
+
+def _recapitalize(bank, shortfall, t):
+    """Tile treasury lender-of-last-resort recapitalization (conserved).
+
+    Moves the owning tile government's cash into bank capital — gov cash
+    falls (counted in the per-currency audit via ``r.agents``), bank capital
+    rises (counted in ``bank.equity``), so the currency total is unchanged.
+    The state takes an equity stake (state_equity bookkeeping, no money).
+    Returns the amount injected.
+    """
+    gov = getattr(bank, 'gov', None)
+    if gov is None:
+        return 0.0
+    take = min(max(0.0, shortfall), max(0.0, gov.agent.cash))
+    if take <= 0:
+        return 0.0
+    gov.agent.cash -= take
+    bank.capital += take
+    bank.state_equity += take
+    logwarning(t, f"RECAPITALIZATION: ${take:.2f} treasury capital injected "
+                  f"into bank (state takes equity; capital ${bank.capital:.2f})")
+    return take
 
 
 def _handle_debt_inheritance(ctx: LiveContext, t, agent, living_descendants):
@@ -995,9 +1025,10 @@ def _raise_insolvency(t, bank, agent, shortfall):
     print(f"\n=== BANK INSOLVENCY DETECTED (write-down would make deposits negative) ===",
           file=sys.stderr)
     print(f"  turn={t}  shortfall=${shortfall:.2f}", file=sys.stderr)
-    print(f"  bank: total_deposits={bank.total_deposits:.2f} "
+    print(f"  bank: capital={bank.capital:.2f} "
+          f"total_deposits={bank.total_deposits:.2f} "
           f"total_liabilities={bank.total_liabilities:.2f} "
-          f"equity={bank.total_deposits - bank.total_liabilities:.2f} "
+          f"equity={bank.equity:.2f} "
           f"deposit_dict_pool={sum(bank.deposits.values()):.2f}",
           file=sys.stderr)
     print(f"  bank loans outstanding=${outstanding:.2f} ({len(bank.loans)} loans)",

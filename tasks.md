@@ -99,28 +99,34 @@ dict, so depositors never absorbed losses while the scalar drained negative.
 - Result: **`tmp/behavior_drift.py` GATE PASS — 3 seeds × 300t, 0 LEAK /
   0 SUPPLY SHIFT / no insolvency**; `tmp/probe_m2.py` GATE PASS.
 
-## IN PROGRESS — sim_nation 100: genuine bank insolvency at T=74
-With the honest forfeiture now in place (no phantom-scalar absorption),
-sim_nation 100 aborts:
+## DONE — sim_nation 100: genuine bank insolvency → real bank capital (committed; never push)
+The honest forfeiture (no phantom-scalar absorption) exposed a **genuinely
+insolvent tile bank** at T=74:
 ```
 turn=74 shortfall=$116.92  bank: total_deposits=2076.56
   total_liabilities=2652.99 equity=-576.44 deposit_dict_pool=1.43
   bank loans outstanding=$2652.99 (319 loans)  gov cash=0.0
 ```
-- The real deposit pool is only $1.43 and the government has $0 cash — a
-  **genuinely insolvent tile bank** (real depositor money + gov capital cannot
-  cover a dying agent's $116.92 bad debt).  Pre-M2 this was silently absorbed
-  from the phantom 2000-base scalar (the same bug class that broke the ring).
-- The exception is the engine refusing to destroy money — conservation-safe.
-  It needs an economic-tune fix (larger bank capital, lender-of-last-resort,
-  or gov treasury-backed bailout), NOT a silent write-off.
+Fixed with a proper capital structure — NOT a silent write-off:
+- **`Bank.capital`** (econsim_trade_money.py): the phantom 2000-base now lives
+  as explicit shareholder equity; `total_deposits` starts at 0 and stays in
+  lockstep with the per-agent dict.  Loan interest → `capital` (retained
+  earnings); deposit interest paid out of `capital`.  `Bank.equity` =
+  `capital + total_deposits − total_liabilities`.
+- **Seniority-order `_forgive_bad_debt`** (econsim_live.py): shareholders first
+  (capital write-down), then depositors pro-rata (real dict pool), then tile
+  treasury via new `_recapitalize` (gov cash → bank capital, state takes
+  `state_equity`).  All conserved.
+- **Equity readers** use `bank.equity` (forex.py audit, region.py, econsim.py,
+  wealth_diagnostic.py); `Nation.add_tile` wires `bank.owner_nation`.
+- **Verified**: `sim_nation 100` PASS (0 shift/leak/insolvency), `sim_ring 300`
+  PASS, M1 gate `behavior_drift` PASS (3 seeds × 300t), `probe_m2` PASS,
+  `probe_hex` PASS.
 
 ## NEXT — M2 finish
-1. Resolve sim_nation's genuine insolvency (T=74): give banks a real capital/equity
-   buffer or a government treasury-backed lender-of-last-resort so bad debt is
-   absorbed against countable capital — never phantom scalar, never silent.
-2. Re-verify: sim_nation 100 (PASS), probe_hex (headless render), sim_ring 300.
-3. Docs: update agent.md + task.md + tasks.md.  Commit (no push).
+1. Done (resolved via real bank capital + treasury recapitalization).
+2. Re-verified: sim_nation 100, probe_hex, sim_ring 300, M1 gate, probe_m2 — all PASS.
+3. Docs (agent.md + task.md + tasks.md) updated in this commit.  Commit (no push).
 
 ## FINAL
 - Docs: update agent.md + task.md + tasks.md.

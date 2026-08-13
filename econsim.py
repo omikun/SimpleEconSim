@@ -115,7 +115,7 @@ def _borrow_or_layoff(t, agents):
             shortfall = total_wage_needed - agent.cash
             trade.bank.Borrow(t, agent, shortfall)
             loginfo(t, agent.name(), "borrowed $",
-                    min(shortfall, trade.bank.total_deposits - trade.bank.total_liabilities),
+                    min(shortfall, trade.bank.equity),
                     "from bank to cover payroll. cash:", agent.cash)
         while agent.cash < total_wage_needed and len(agent.employees) > 0:
             emp = agent.employees.pop()
@@ -522,7 +522,7 @@ def main():
             print(f"{t}  CASH LEAK: Live() changed total by ${live_diff:.2f}")
         _log_all_metrics(t, agents)
         total_population.append(sum(log[-1] for log in population_log.values()))
-        bank_cash_log.append(trade.bank.total_deposits - trade.bank.total_liabilities)
+        bank_cash_log.append(trade.bank.equity)
         total_cash_log.append(get_total_cash(agents, trade.bank))
         _log_population_change_rate()
         for prof in goods:

@@ -77,7 +77,13 @@ class Bank():
         self.interest_rate = .001
         self.deposit_interest_rate = 0.0005
         self.base_deposit_interest_rate = 0.0005
-        self.total_deposits = 2000
+        # Shareholder equity: seed capital + retained earnings (loan interest
+        # less deposit interest) less bad-debt write-downs.  The old phantom
+        # 2000-base that lived inside total_deposits is now an explicit,
+        # countable capital tier — losses absorb here FIRST (Basel-style loss
+        # absorption) before any depositor is touched.
+        self.capital = 2000.0
+        self.total_deposits = 0.0
         self.reserve_fraction = .1
         self.loans = []
         self.total_liabilities = 0
@@ -91,8 +97,19 @@ class Bank():
         self.foreign_reserves = defaultdict(float)   # currency -> holdings
         self.fx_pool = 0.0                           # domestic money for FX desk
 
+        # ---- Lender-of-last-resort back-refs (wired by Region / Nation) ----
+        self.region = None        # owning Region (tile)
+        self.owner_nation = None  # owning Nation (for treasury recapitalization)
+        self.state_equity = 0.0   # bookkeeping: state ownership stake (no money)
+
+    @property
+    def equity(self):
+        """Real countable net worth: capital + deposits - loans outstanding."""
+        return self.capital + self.total_deposits - self.total_liabilities
+
     def Borrow(self, t, agent, amount):
-        borrowable_amount = (self.total_deposits * (1 - self.reserve_fraction)
+        borrowable_amount = ((self.capital + self.total_deposits)
+                             * (1 - self.reserve_fraction)
                              - self.total_liabilities)
         amount = clamp(amount, 0, borrowable_amount)
         loginfo(t, "borrowing from bank with $", self.total_deposits,
@@ -111,7 +128,11 @@ class Bank():
         self.total_liabilities -= amount
 
     def pay_interest(self, amount):
-        self.total_deposits += amount
+        # Retained earnings accrue to bank capital (shareholder equity), NOT to
+        # deposits.  Crediting interest to total_deposits (the old behaviour)
+        # was the phantom-base divergence source: it grew the deposit scalar
+        # without a matching per-agent dict entry.
+        self.capital += amount
         self.total_interest_earned += amount
 
     def Deposit(self, agent, amount):
@@ -152,10 +173,13 @@ class Bank():
 
     def PayDepositInterest(self, agents):
         """Pay interest to all depositors based on their deposit balance.
-        Interest rate is reduced as deposit ratio increases (Fix F).
-        Capped to 60% of estimated loan interest so bank keeps 40% margin,
-        AND to the available deposit pool so total_deposits can never go
-        negative (a negative deposit ledger would mint currency)."""
+
+        Interest rate is reduced as deposit ratio increases (Fix F).  Payout is
+        funded out of bank CAPITAL (retained earnings from loan interest), NOT
+        out of deposits, so total_deposits stays in lockstep with the per-agent
+        dict.  Capped to 60% of estimated loan interest (bank keeps 40% margin)
+        and to available capital so capital never turns negative.
+        """
         circulating_cash = max(1, sum(agent.cash for agent in agents))
         deposit_ratio = self.total_deposits / circulating_cash
         if deposit_ratio < 5:
@@ -169,7 +193,7 @@ class Bank():
         )
         max_total_payout = min(
             estimated_loan_interest * 0.6,
-            max(0.0, self.total_deposits),
+            max(0.0, self.capital),
         )
         total_payout = 0
         for agent, amount in list(self.deposits.items()):
@@ -179,7 +203,7 @@ class Bank():
                 interest = min(interest, remaining_capacity)
                 if interest > 0:
                     agent.cash += interest
-                    self.total_deposits -= interest
+                    self.capital -= interest
                     self.total_deposit_interest_paid += interest
                     total_payout += interest
         return total_payout
@@ -745,5 +769,4 @@ def get_total_cash(agents, bank=None):
         bank = globals().get('bank', None)
         if bank is None:
             return sum(agent.cash for agent in agents)
-    bank_equity = bank.total_deposits - bank.total_liabilities
-    return sum(agent.cash for agent in agents) + bank_equity
+    return sum(agent.cash for agent in agents) + bank.equity

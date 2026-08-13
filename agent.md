@@ -103,19 +103,26 @@ on meaningful horizons; dashboard PNGs render. M0 scripts additionally require
   erased pre-existing negative cash (debt) when `bought==0` — a mint.  Cash now
   moves only when `bought > 0`; debt is serviced by loan/wage flows.
 - **Conservation fix #2 (`econsim_trade_money.py` `PayDepositInterest`)**:
-  per-turn payout capped to `min(loan_interest*0.6, max(0, total_deposits))`
-  so the deposit ledger cannot go negative.
+  payout funded out of bank `capital` (not deposits) and capped to
+  `min(loan_interest*0.6, max(0, capital))`, so `total_deposits` stays in
+  lockstep with the per-agent dict.
 - **Conservation fix #3 (`econsim_live.py` / `econsim_trade_money.py`)**:
   heirless bad-debt forgiveness previously wrote down only `total_deposits`
   (scalar), never the per-agent deposit dict — the scalar drained negative
-  (~−299 at ring seed-1337 T=293).  `_forgive_bad_debt` now writes down BOTH
-  scalar and per-agent dict pro-rata (floored per depositor); `RequestBailout`
-  keeps the gov's dict entry in sync.  M1 gate (3 seeds × 300t) now PASSES.
-- **Open issue (economic-tune, not a mint)**: `sim_nation 100` aborts at T=74
-  with a genuinely insolvent tile bank (real deposit pool $1.43, gov cash $0,
-  shortfall $116.92).  The engine correctly refuses to destroy money; a bank
-  capital buffer or treasury-backed lender-of-last-resort is needed — see
-  tasks.md.
+  (~−299 at ring seed-1337 T=293).  `_forgive_bad_debt` now absorbs the loss
+  in strict seniority order — bank `capital` first, then the per-agent dict
+  pro-rata (floored per depositor), then tile-treasury `_recapitalize` — and
+  `RequestBailout` keeps the gov's dict entry in sync.  M1 gate (3 seeds ×
+  300t) now PASSES.
+- **Resolved (bank capital, not a mint)**: `sim_nation 100` previously aborted
+  at T=74 with a genuinely insolvent tile bank (deposit pool $1.43, gov $0,
+  shortfall $116.92).  Now the bank has a real capital tier: `Bank.capital`
+  (explicit shareholder equity, seeded 2000 — the old phantom 2000-base moved
+  out of `total_deposits`), loan interest accrues to `capital`, deposit interest
+  is paid out of `capital`, and `Bank.equity = capital + total_deposits −
+  total_liabilities`.  Heirless bad debt is absorbed in seniority order
+  (shareholders → depositors pro-rata → tile treasury via `_recapitalize`).
+  Verified: sim_nation 100 / sim_ring 300 / M1 gate / probe_m2 / probe_hex all PASS.
 
 ## Architecture
 - `region.py` — `Region`: per-region bank, Government, agents, logs; `step(t)` orders
@@ -148,10 +155,11 @@ on meaningful horizons; dashboard PNGs render. M0 scripts additionally require
 - Tariff in `_clear_discriminatory`: `gov_share = tariff × (1 − drawback)`, rebate back to
   seller wallet. `gov.receive_tariff()` logs only the gov share.
 - Heirless estates: 30% probate to gov, 70% to regional Charity (`LiveContext.charity`).
-- Deposit ledger can diverge from `bank.total_deposits` — that's the bank's
-  bad-debt forgiveness / retained interest, **not** the gov slice. Don't "fix" unless asked.
+- `bank.total_deposits` now stays in lockstep with the per-agent dict (the old
+  scalar/dict divergence is fixed); bank net worth is `bank.equity` =
+  `capital + total_deposits − total_liabilities`.
 - **FX conservation (M0.5 audit, commit `f222b71`)** — `fx.audit_currency_total(regions, currency)`
-  sums home-tile cash + bank equity (deposits−liabilities) + fx_pool + charity cash +
+  sums home-tile cash + bank equity (`bank.equity`) + fx_pool + charity cash +
   all agents' FX wallets + all banks' foreign reserves. Two leaks were found and fixed:
   - **Negative `Loan.pay`** (`econsim_trade_money.py`): an overdrawn agent made the
     "payment" negative; `min(interest, negative)` destroyed bank deposits with no cash
