@@ -172,3 +172,121 @@ Fixed with a proper capital structure — NOT a silent write-off:
 - Long commands with '&' fail to transmit; write tmp/*.sh and bash it.
 - pending_imports emits 3-tuples (trader, qty, is_parked).
 - two-region plot needs `pip install adjustText`.
+
+---
+
+# v3_wilderness — PLAN (parked; do NOT implement yet)
+
+Goal: 10×8 (80-tile) "wilderness" map — 3 nations with 2–3 owned tiles (100
+agents/tile), the rest unclaimed frontier homesteaded by migrating agents, with
+trade, claims, and a turn ticker.  Decisions locked in with the user below;
+no code has been written for this section yet.
+
+## Locked-in rulings (user decisions, 2026-08-13)
+
+- **Headless first.** Implement `sim_world.py` + engines and validate with a
+  probe BEFORE touching the pygame viewer.
+- **Wilderness pop is a scalar, not agents.** Each unclaimed tile gets a
+  random `wilderness_pop` in 0–50 at world build.  No agent objects are
+  spawned for these "natives"; they never tick (no births/deaths/consumption/
+  production) and exist ONLY as a pop-count denominator for the claim rule.
+- **Unclaimed tiles are currency-less.** `home_currency = None`, no bank, no
+  government, no charity, no factions, no tariffs.  Subsistence-only.
+- **Homesteaders carry their money in their wallet.** On migrating to an
+  unclaimed tile, `agent.cash` moves into `agent.wallets[agent.home_currency]`
+  so the per-currency audit (`audit_currency_total` sums all agents' FX
+  wallets regardless of residence) stays leak-free.  On unclaimed tiles,
+  agents hold only wallet money.
+- **origin_nation is set once and NEVER updated.** `origin_nation` is the
+  persistent homeland: inherited from the parent at birth (else seeded from
+  the birth tile's nation).  It does not change when an agent moves.
+  Citizenship (`government._add_citizen`) is what changes on move.  The
+  claim rule counts `origin_nation == X` — if we kept re-pointing origin on
+  every move, the fraction would trivially be 100% and claims would be
+  meaningless.  This is the point of keeping it stable.
+- **Traders are a no-interest wilderness bank.** A trader sells goods to
+  homesteaders ALWAYS at `(market price + transport) × 1.20`, credited to the
+  homesteader's wallet in the trader's home currency (homesteader "owes").
+  The trader collects the homesteader's outputs; each leg is a real
+  inventory/cash transfer — nothing is created.  It tracks the differential
+  (value of goods collected minus value of goods loaned), and when positive
+  pays HALF the differential to the homesteader at market rate in the
+  trader's home currency.
+- **Foreign homesteaders are NOT skipped.** Wallets are multi-currency;
+  homesteaders never pay cash — they only receive money from traders when
+  they have surplus.  No FX conversion ever happens.
+- **Two-resource rule dropped.** Only `food` and `wood` exist, so no
+  profession/resource gating is needed beyond homesteading-is-universal.
+
+## Mechanism spec
+
+1. **Model foundation**
+   - `Agent.origin_nation` (persistent homeland; seed at birth; never update).
+   - `agent.is_homesteader` flag.
+   - `Region.unclaimed` / `Region.wilderness_pop` (scalar) fields; unclaimed
+     tiles get `home_currency=None` + no bank/gov/charity/factions.
+   - Wallet portability helper: move `cash` → `wallets[home_currency]` when
+     entering an unclaimed tile (reversable on claim).
+
+2. **`sim_world.py` (new)** — 10×8 world builder
+   - 3 nations × 2–3 random claimed tiles, 100 agents each (normal seeding).
+   - Remaining 62± tiles unclaimed; `wilderness_pop = randint(0, 50)`.
+   - Wire adjacency (rectangular/grid neighboring) + trader routes owned →
+     owned and owned → adjacent unclaimed tiles.
+
+3. **`migration.py` (new)**
+   - Real movement (M1.5 was score-only): on per-tile immigration pressure
+     threshold, move a bounded number of agents to the best adjacent tile.
+   - Conserved: cash → wallet, inventory moves with the agent; cooldown to
+     avoid ping-pong; on landing unclaimed → `is_homesteader=True`.
+
+4. **Homesteading**
+   - `is_homesteader` agents on unclaimed tiles forage `+1 food` every 3
+     turns; must be LOGGED (production_log or a homestead ledger) else GDP
+     and the supply audit drift.
+
+5. **Trader wilderness settlement (extend transporter/world_trade)**
+   - `settle_wilderness(trader, tile, t)`: sell at `(price+transport)×1.20`
+     (wallet credit in trader currency); collect homesteader outputs; track
+     per-(trader, tile) value differential; when collected > loaned, pay
+     `0.5 × diff` at market rate to the homesteader's wallet.  All legs are
+     transfers — no mint.
+
+6. **`claims.py` (new)** — each turn, for each unclaimed tile:
+   - `pop = homesteader_agents_count + wilderness_pop` (natives count).
+   - If `pop > 0` and `max_X count(origin_nation==X) / pop ≥ 0.5`: X claims.
+   - On claim: `home_currency = X.currency`; convert X-origin homesteaders'
+     wallets back into hand cash/deposits (others stay foreign wallets);
+     build bank/gov/charity/factions normally; append to `nation.claim_log`.
+
+7. **Ticker (viewer later)**
+   - `nation.claim_log` + migration events; render a scrolling strip.
+
+8. **Generalize `hexmap` / `hexview` (LAST, after engines green)**
+   - Dynamic axial layout for 10×8; dynamic `NATION_COLORS`; camera/scroll;
+     top bar already follows `_selected_nation` (keep 3-nation defaults for
+     the 6-tile legacy layout — parameterize by world).
+   - Pinned-panel + top bar need `home_currency=None` -> "Unclaimed" handling.
+
+## Order of work (correctness first)
+
+1. Model foundation: `origin_nation` + `is_homesteader` + wallet portability +
+   unclaimed-tile fields (audit-safe by construction).
+2. `sim_world.py` 10×8 builder (headless).
+3. `migration.py` + homestead foraging.
+4. Trader wilderness settlement.
+5. `claims.py` + claim_log.
+6. Probe: 0 LEAK / 0 SUPPLY SHIFT across all nation currencies; claims fire;
+   migration happens; trader settlement conserved.  Perf smoke: 80 tiles.
+7. Generalize `hexmap`/`hexview` + ticker.
+8. Docs (agent.md / task.md / tasks.md / priority_tasks.md) + commit (no push).
+
+## Risks still to validate
+- `audit_currency_total` on `home_currency=None` tiles must skip them for home
+  sums (wallets already counted globally).
+- Trader wallet denom: every sell is in trader currency — multi-currency
+  wallets must never reconcile to a single currency.
+- Claim-time wallet→cash conversion must be reversed exactly on claim.
+- Perf: 80 `Region.step()` per turn ≈ 13× current cost; cython only speeds
+  production — smoke test early and consider stepping only "active" tiles
+  (owned or homesteader-populated).
