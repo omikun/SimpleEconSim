@@ -1,51 +1,63 @@
 # REGNUM — Session Progress
 
-**Session topic (2026-08-17):** item (3) — perf smoke + generalize hexmap/hexview + ticker, upgraded to a **real 6-neighbor hex world** per user request.
+**Session topic 1 (2026-08-17, DONE):** item (3) — true 6-neighbor hex world (9x9=81), perf smoke, worldview viewer + ticker.
+Committed: `331b05b` (no push).
 
-**HEAD when starting:** d4c67eb (never push).
-
----
-
-## Locked plan
-
-1. **`hexmap.py`** — add pure-geometry helpers (no sim imports):
-   - `HEX_DIRS` (6 axial dirs), `offset_to_axial(row,col)` / `axial_to_offset(q,r)` (odd-r offset),
-   - `rectangular_hex_layout(rows, cols)` → `{name: (q, r)}` for `r{r}c{c}` tiles,
-   - `axial_neighbors(q, r)` → 6 axial neighbor coords,
-   - `hex_bbox(layout, size)` → pixel extents for centering/camera clamp,
-   - generalize `edge_list_from_tiles` / `assert_edges_are_hex_adjacent` with `layout=LAYOUT_2X3` default (legacy byte-identical).
-2. **`sim_world.py`** — 9×9 (81 tiles) pointy-top hex topology: replace 4-neighbor orthogonal wiring with 6-neighbor axial wiring; simplify forex-desk connection to `neighbors.values()`; update strings/constants.
-3. **Perf smoke** — `tmp/world_perf.py`: build hex world, a few headless turns, report turns/sec (80+ `Region.step()`/turn).
-4. **`worldview.py`** (new) — hex-world viewer: `build_world_view()` + `step_world()` mirroring `sim_world.main()` exactly (migration/claims/ledger DESTROY accounting), hex grid render tinted by owner nation, "Unclaimed" grey tiles (no gov/recipes/faction readouts), camera pan/zoom, hover/pin, **ticker** strip of MIGRATE/CLAIM/DESTROY events.
-5. **Probe** — `tmp/probe_worldview.py`: SDL-dummy — adjacency proof (0 bad edges), pixel↔axial round-trip (81 tiles), step ~20 turns, render screenshots (map + ticker). Report (not hard-fail) on late-run BE−/GA+ shifts (item 1 still open).
-6. **Regression + commit (no push)** — sim_nation 100, sim_ring 300, tmp/behavior_drift.py, tmp/probe_hex.py, tmp/probe_worldview.py; commit message → tmp/commit_msg28.txt → `git commit -F`.
-
-## Risks
-- hexmap.py defaults must keep LAYOUT_2X3/probe_hex green.
-- worldview.step_world must match sim_world.main()'s ledger.reset()/cleared() handling.
-- Unclaimed tiles: guard `gov is None` / missing logs everywhere.
+**Session topic 2 (2026-08-17, CURRENT):** user follow-up —
+  1. restore the per-region GRAPH PANEL (V2a hover charts: Prices, Pop/Hunger,
+     Production, Trade flow, Gov income, Gini/Migration) into worldview.py,
+  2. make each nation's STARTING tiles CONTIGUOUS (cluster growth on the hex
+     grid), with sizes **Alpha=3 / Beta=4 / Gamma=5** tiles.
 
 ---
 
-## Progress
+## Locked plan (topic 2)
 
-- [x] Create progress.md with locked plan
-- [x] hexmap.py helpers (layout/neighbors/bbox/adjective proof)
-- [x] sim_world.py 9x9 hex topology
-- [x] Perf smoke passes — tmp/verify_hex_adj.py: 81 tiles, 0 bad edges,
-      interior all 6-neighbor, pixel<->axial round-trip PASS,
-      10 turns in 1.14s (8.76 turns/sec), 0 SUPPLY SHIFT
-- [x] worldview.py viewer + ticker — 9x9 hex map, camera pan/zoom, Unclaimed
-      guards, MIGRATE/CLAIM/DESTROY ticker, audit overlay
-- [x] probe_worldview.py PASS (SDL dummy) — 81 tiles, 0 bad edges,
-      round-trip PASS, stepped to T=20 with 0 violations (0 shift entries),
-      screenshots worldview_frame/wild/zoom.png; pygame found at
-      /Users/sli/Code/venv/bin/python3
-- [x] Regression suite GREEN (venv python 3.13):
-      sim_nation 100 (0 LEAK/SHIFT), sim_ring 300 (0 LEAK/SHIFT),
-      behavior_drift GATE PASS (3 seeds x 300t), probe_m2 PASS,
-      probe_m3 PASS (via PYTHONPATH=/Users/sli/Code), probe_hex PASS
-      (legacy layout unchanged), probe_worldview PASS
-- [x] World 40-turn hex gate CLEAN: 527 MIGRATE, 10 CLAIM, 0 DESTROY,
-      0 SUPPLY SHIFT > 5.0; 72 wilderness tiles, 48 homesteaders
-- [x] Commit (no push) — hex-world viewer milestone
+1. **sim_world.py**: cluster-growth claims — pick a random unclaimed seed cell,
+   grow via BFS into unclaimed hex-adjacent cells (odd-r offset lookup, no
+   dependence on already-wired Region.neighbors); sizes 3/4/5; rebuild in place
+   with make_claimed; reject already-taken cells.
+2. **worldview.py**: right chart panel (MAP_RIGHT=1100, PANEL_LEFT=1112):
+   - port _tile_charts / _sum_turns / _plot_line_chart / _plot_bar_pairs /
+     _plot_stacked_bars / _chart_labels / _draw_chart_cell / grid / large from
+     hexview.py (pure pygame),
+   - guard unclaimed tiles (gov None -> empty gov income; .get()-defaults for
+     all logs),
+   - panel shows pinned (else hovered) tile charts; Tab = grid, 1..6 = zoom,
+   - fold the per-currency audit readout into the panel top (drop the old
+     top-right map overlay), camera/tile_at/clamp constrained to MAP_RIGHT,
+   - keep top bar, ticker, pan/zoom/help.
+3. **tmp/probe_worldview.py**: add contiguity check (each nation's axial hex
+   cells are BFS-connected) + render chart panel (grid view + zoom 1) for a
+   claimed and an unclaimed tile; keep 20-turn step + audit + screenshots.
+4. Verify: probe_worldview PASS, world 40-turn gate 0 SUPPLY SHIFT,
+   sim_nation/sim_ring untouched (different builders).
+5. Update progress.md + tmp/commit_msg29.txt + `git commit -F` (no push).
+
+---
+
+## Progress (topic 1, DONE)
+
+- [x] hexmap.py helpers + layout generalization (legacy probe_hex green)
+- [x] sim_world.py 9x9 hex topology (interior 6-neighbor)
+- [x] Perf smoke: 8.76 turns/sec, 0 SUPPLY SHIFT (tmp/verify_hex_adj.py)
+- [x] worldview.py viewer + ticker + camera (committed 331b05b)
+- [x] probe_worldview PASS (SDL dummy T=20, 0 violations)
+- [x] Regression green (sim_nation/ring/drift/m2/m3/hex/worldview)
+- [x] World 40-turn gate clean (527 MIGRATE / 10 CLAIM / 0 SHIFT)
+
+## Progress (topic 2)
+
+- [x] sim_world.py contiguous cluster claims — BFS cluster growth on the hex
+      grid; Alpha=3 / Beta=4 / Gamma=5; tmp/check_clusters.py PASS
+      (all contiguous, sizes exact)
+- [x] worldview.py chart panel — V2a six-chart dashboard ported (Prices,
+      Pop/Hunger, Production, Trade flow, Gov income, Gini/Migration),
+      Tab=grid / 1..6=zoom, audit folded into panel, unclaimed-tile guards
+      (gov None safe), camera/hit-test constrained to MAP_RIGHT
+- [x] probe_worldview.py — 5/5 PASS: adjacency (0 bad), round-trip,
+      cluster contiguity 3/4/5, dummy render T=20 (0 violations, 0 shifts),
+      ticker archived; screenshots worldview_charts/chart1/wild.png
+- [x] World 40-turn gate CLEAN: 720 MIGRATE / 6 CLAIM / 0 DESTROY /
+      0 SUPPLY SHIFT; nations end at 4/5/9 tiles (12 start + 6 claims)
+- [x] Commit (no push) — topic 2 milestone

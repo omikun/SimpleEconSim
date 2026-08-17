@@ -2,11 +2,11 @@
 """
 REGNUM v3_wilderness — 9x9 hex headless world (M0.5-style driver).
 
-Three Nations each randomly claim 2-3 tiles (100 agents / tile).  The rest of
-the 81-tile honeycomb is UNCLAIMED wilderness: ``Region(wilderness=True)``
-with a non-ticking ``wilderness_pop`` in 0..50, no bank/gov/charity/factions,
-and no minted agents.  Homesteaders will arrive in a later milestone
-(migration).
+Three Nations each claim a CONTIGUOUS hex cluster (Alpha=3, Beta=4, Gamma=5
+tiles; 100 agents / tile).  The rest of the 81-tile honeycomb is UNCLAIMED
+wilderness: ``Region(wilderness=True)`` with a non-ticking
+``wilderness_pop`` in 0..50, no bank/gov/charity/factions, and no minted
+agents.  Homesteaders will arrive in a later milestone (migration).
 
 Wiring:
   - True hex adjacency: the 9x9 rectangular odd-r offset grid maps 1:1 onto a
@@ -88,25 +88,66 @@ def build_world(seed=42):
             tiles.append(tile)
         grid.append(row)
 
-    # ---- Nations claim 2-3 random tiles each (disjoint) ----
-    claimed_by = {"Alpha": "AL", "Beta": "BE", "Gamma": "GA"}
+    # ---- Nations claim contiguous hex clusters (disjoint) ----
+    # Sizes are locked with the user: Alpha 3, Beta 4, Gamma 5 tiles.
+    claimed_by = {"Alpha": ("AL", 3), "Beta": ("BE", 4), "Gamma": ("GA", 5)}
     nations = []
-    claimed_pool = list(tiles)
-    random.shuffle(claimed_pool)
-    cursor = 0
-    for nname, cur in claimed_by.items():
+
+    def _unclaimed_cells():
+        return {(r, c) for r in range(GRID_ROWS) for c in range(GRID_COLS)
+                if getattr(grid[r][c], 'owner_nation', None) is None}
+
+    for nname, (cur, n_tiles) in claimed_by.items():
         n = Nation(nname, currency=cur,
                    regime_type="autocracy" if nname != "Gamma" else "democracy")
         nations.append(n)
-        n_tiles = random.randint(2, 3)
-        for _ in range(n_tiles):
-            tile = claimed_pool[cursor]
-            cursor += 1
+        open_cells = _unclaimed_cells()
+        # BFS cluster growth: seed at a random unclaimed cell, then keep
+        # absorbing random unclaimed hex-adjacent cells until the target
+        # size is reached.  This keeps every nation's starting tiles in ONE
+        # connected component (the hex adjacency is computed via the same
+        # odd-r layout used by the wiring pass below).
+        seed_r, seed_c = random.choice(sorted(open_cells))
+        cluster = [(seed_r, seed_c)]
+        frontier = [(seed_r, seed_c)]
+        seen = {(seed_r, seed_c)}
+        while len(cluster) < n_tiles:
+            grown = False
+            random.shuffle(frontier)
+            for pr, pc in frontier:
+                q, axr = _LAYOUT[f"r{pr}c{pc}"]
+                for nq, nar in axial_neighbors(q, axr):
+                    nc, nr = axial_to_offset(nq, nar)
+                    if not (0 <= nr < GRID_ROWS and 0 <= nc < GRID_COLS):
+                        continue
+                    key = (nr, nc)
+                    if key in seen or getattr(grid[nr][nc], 'owner_nation', None) is not None:
+                        continue
+                    seen.add(key)
+                    cluster.append(key)
+                    frontier.append(key)
+                    grown = True
+                    if len(cluster) >= n_tiles:
+                        break
+                if len(cluster) >= n_tiles:
+                    break
+            if not grown:
+                # Full grid is an edge case; fall back to any unclaimed cell.
+                rest = sorted(_unclaimed_cells() - seen)
+                if not rest:
+                    break
+                extra = rest[0]
+                seen.add(extra)
+                cluster.append(extra)
+                frontier.append(extra)
+
+        for rr, cc in cluster:
+            tile = grid[rr][cc]
             # Rebuild this tile as a claimed tile (replacing wilderness).
             idx = tiles.index(tile)
             claimed = make_claimed(tile.name, profs)
             tiles[idx] = claimed
-            grid[idx // GRID_COLS][idx % GRID_COLS] = claimed
+            grid[rr][cc] = claimed
             n.add_tile(claimed)
 
     # ---- True hex adjacency (routes every edge) ----

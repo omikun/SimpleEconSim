@@ -3,29 +3,31 @@
 REGNUM v3_wilderness — Pygame hex-world viewer for the 9x9 honeycomb.
 
 Thin presentation layer over the conserved-money engine (gdd.md): it builds
-sim_world.build_world() (9x9 = 81 tiles, true 6-neighbor hex topology), steps
-the world with the EXACT sim_world.main() turn order + per-currency audit
-(including the ledger DESTROY exemption), and renders the honeycomb tinted by
-owner nation.  Unclaimed (wilderness) tiles render grey with their homesteader
-count + wilderness_pop.
+sim_world.build_world() (9x9 = 81 tiles, true 6-neighbor hex topology, each
+nation a contiguous 3/4/5-tile cluster), steps the world with the EXACT
+sim_world.main() turn order + per-currency audit (including the ledger DESTROY
+exemption), and renders the honeycomb tinted by owner nation.  Unclaimed
+(wilderness) tiles render grey with their homesteader count + wilderness_pop.
 
 Features:
   - True hex grid: every interior tile is edge-adjacent to all six neighbors.
+  - Right panel: the V2a per-tile chart dashboard (Prices, Population/Hunger,
+    Production, Trade flow, Gov income, Gini/Migration) for the hovered or
+    pinned tile, plus the per-currency audit readout.  Unclaimed tiles are
+    guarded (no bank/gov/factions => empty/inert charts, no crashes).
   - Camera: pan (arrows / WASD / middle-drag), zoom (+ / - / mouse wheel).
-  - Hover / click-to-pin tile cards; unclaimed tiles are guarded (no bank /
-    gov / charity / factions readouts there).
-  - Ticker: bottom strip scrolling MIGRATE / CLAIM / DESTROY events,
-    color-coded, fed by run_migrations / check_and_apply_claims / ledger.
-  - Audit overlay: per-currency totals + red-flag on > $5.0 SUPPLY SHIFT.
+  - Ticker: bottom strip scrolling MIGRATE / CLAIM / DESTROY events.
+  - Audit readout in the panel; red flag on > $5.0 SUPPLY SHIFT / leak.
 
 Controls:
     Space  : play / pause (auto-advance ~150 ms/turn)
     S / -> : step one turn (when paused)
     Arrows / WASD : pan the camera
     + / -  : zoom in / out (mouse wheel too)
+    Tab    : chart grid view    1 .. 6 : zoom one chart
+    Click  : pin a tile (charts stay); hover works over the unpinned map
     H / ?  : help menu
     Esc/Q  : quit
-    Click  : pin a tile (stats stay); hover works over the unpinned map
 
 Usage:
     python3 worldview.py
@@ -59,6 +61,8 @@ from sim_world import build_world, GRID_ROWS, GRID_COLS
 # ---------------------------------------------------------------------------
 
 WIDTH, HEIGHT = 1400, 900
+MAP_RIGHT = 1060            # map area spans x in [0, MAP_RIGHT)
+PANEL_LEFT = MAP_RIGHT + 12
 HEX_SIZE = 50
 FPS = 60
 TURN_MS = 150
@@ -88,7 +92,7 @@ MIG_C = (120, 200, 220)
 CLAIM_C = (240, 200, 90)
 DESTROY_C = (235, 90, 90)
 
-# Series colors for hover charts / legends.
+# Chart series colors.
 _FOOD_C = (120, 200, 80)
 _WOOD_C = (190, 150, 70)
 _FURN_C = (90, 140, 230)
@@ -100,6 +104,7 @@ _TAX_C = (240, 200, 90)
 _TAR_C = (110, 150, 235)
 _INH_C = (200, 120, 230)
 _GINI_C = (200, 120, 230)
+_MIG_C = (120, 200, 220)
 _CHART_BOX = (72, 72, 84)
 
 BADGE_ORANGE = (240, 150, 60)
@@ -137,17 +142,17 @@ def _reverse_layout():
 # ---------------------------------------------------------------------------
 
 def _clamp_cam(world):
-    """Keep the (scaled) hex bbox within the viewport, centered when smaller."""
+    """Keep the (scaled) hex bbox within the map viewport, centered if smaller."""
     cam = world['cam']
     zoom = cam['zoom']
     x0, y0, x1, y1 = world['bbox']
     sx0, sy0, sx1, sy1 = x0 * zoom, y0 * zoom, x1 * zoom, y1 * zoom
-    map_w, map_h = WIDTH - 2 * _MARGIN, (HEIGHT - TOP_BAR_H - TICKER_H) - 2 * _MARGIN
+    map_w, map_h = MAP_RIGHT - 2 * _MARGIN, (HEIGHT - TOP_BAR_H - TICKER_H) - 2 * _MARGIN
     # X clamp
     if sx1 - sx0 <= map_w:
-        cam['ox'] = (WIDTH - (sx0 + sx1)) / 2.0
+        cam['ox'] = (MAP_RIGHT - (sx0 + sx1)) / 2.0
     else:
-        cam['ox'] = max(_MARGIN - sx0, min(WIDTH - _MARGIN - sx1, cam['ox']))
+        cam['ox'] = max(_MARGIN - sx0, min(MAP_RIGHT - _MARGIN - sx1, cam['ox']))
     # Y clamp (play area between top bar and ticker)
     top = TOP_BAR_H + _MARGIN
     bottom = HEIGHT - TICKER_H - _MARGIN
@@ -164,7 +169,7 @@ def _hex_px(world, q, r):
 
 def _tile_at(world, mx, my):
     """Return the Region under screen pixel (mx, my), or None."""
-    if my < TOP_BAR_H or my > HEIGHT - TICKER_H:
+    if mx >= MAP_RIGHT or my < TOP_BAR_H or my > HEIGHT - TICKER_H:
         return None
     cam = world['cam']
     q, r = pixel_to_axial((mx - cam['ox']) / cam['zoom'],
@@ -210,6 +215,8 @@ def build_world_view():
         'playing': False,
         'hover_region': None,
         'frame': 0,
+        'view': 0,             # 0 = chart grid; 1..6 = zoom one chart
+        'window': 100,         # chart sparkline window (turns)
         'currency_totals': {c: fx.audit_currency_total(tiles, c)
                             for c in currencies},
         'violations': [],
@@ -342,7 +349,7 @@ def step_world(world):
 
 
 # ---------------------------------------------------------------------------
-# Rendering helpers
+# Rendering helpers (map)
 # ---------------------------------------------------------------------------
 
 def _nation_color(region):
@@ -367,9 +374,7 @@ def _tile_stats(region):
     if getattr(region, 'owner_nation', None) is None:
         hs = _homesteaders(region)
         wild = getattr(region, 'wilderness_pop', 0)
-        food = f"food --"
-        traders = ""
-        return f"hs {hs}+{wild}n", food, traders
+        return f"hs {hs}+{wild}n", f"food --", ""
     pop = _region_pop(region)
     food = region.recipes[Goods.food]['price']
     traders = sum(1 for a in region.agents if a.is_trader)
@@ -423,7 +428,6 @@ def _draw_edges(surface, world):
         c1 = _hex_px(world, *world['layout'][r.name])
         c2 = _hex_px(world, *world['layout'][other.name])
         pygame.draw.line(surface, EDGE_LINE, c1, c2, 1)
-    # wilderness edges
     for r in world['tiles']:
         if getattr(r, 'owner_nation', None) is not None:
             continue
@@ -456,7 +460,6 @@ def _draw_trade_arrows(surface, world):
 def _draw_activity_badges(surface, region, cx, cy, font_small):
     """Small indicators around the hex (claimed-only readouts)."""
     if getattr(region, 'owner_nation', None) is None:
-        # Wilderness: green "W" tag for frontier.
         pygame.draw.circle(surface, (90, 210, 120), (cx, cy - 48), 8)
         tag = font_small.render("W", True, (255, 255, 255))
         surface.blit(tag, tag.get_rect(center=(cx, cy - 48)))
@@ -543,14 +546,14 @@ def _draw_hex_map(surface, world, font, font_small):
 
 
 # ---------------------------------------------------------------------------
-# Top bar + audit overlay
+# Top bar
 # ---------------------------------------------------------------------------
 
 def _draw_top_bar(surface, world, font_small):
     """Civ-style top strip: stats for the currently selected nation."""
     n = _selected_nation(world)
-    pygame.draw.rect(surface, (34, 34, 42), (0, 0, WIDTH, TOP_BAR_H))
-    pygame.draw.line(surface, HEX_EDGE, (0, TOP_BAR_H), (WIDTH, TOP_BAR_H), 2)
+    pygame.draw.rect(surface, (34, 34, 42), (0, 0, MAP_RIGHT, TOP_BAR_H))
+    pygame.draw.line(surface, HEX_EDGE, (0, TOP_BAR_H), (MAP_RIGHT, TOP_BAR_H), 2)
     font = font_small
     if n is None:
         head = font.render("REGNUM v3 — 9x9 Hex World", True, ACCENT)
@@ -589,84 +592,293 @@ def _draw_top_bar(surface, world, font_small):
         x += label.get_width() + 22
 
 
-def _draw_audit_overlay(surface, world, font):
-    """Top-right overlay: per-currency totals + violation flags."""
-    x = WIDTH - 260
-    y = TOP_BAR_H + 10
-    pygame.draw.rect(surface, (34, 34, 42),
-                     (x - 6, y - 4, 250, 24 + 22 * len(world['currencies'])))
-    title = font.render("Audit", True, ACCENT)
-    surface.blit(title, (x, y))
-    y += 24
-    for c, total in world['currency_totals'].items():
-        line = font.render(f"{c}: ${total:,.0f}", True, TEXT)
-        surface.blit(line, (x, y))
+# ---------------------------------------------------------------------------
+# V2a chart machinery (ported from hexview.py, with wilderness guards)
+# ---------------------------------------------------------------------------
+
+def _sum_turns(lists):
+    """Per-turn totals across a list of equal-length per-turn series."""
+    n = max((len(s) for s in lists), default=0)
+    return [sum(s[i] for s in lists if i < len(s)) for i in range(n)]
+
+
+def _tile_charts(region):
+    """Six (title, kind, series, colors, labels) charts; safe for unclaimed."""
+    g = lambda gd: region.price_log.get(gd, [])
+    pop = region.total_population or []
+    hs = [region.hungry_log.get(gd, []) for gd in (Goods.food, Goods.wood,
+                                                   Goods.furniture)]
+    hungry = ([sum(row) for row in zip(*hs)] if all(hs)
+              else [sum(row) for row in zip(*[h for h in hs if h])])
+    exp = [region.export_val.get(gd, []) for gd in (Goods.food, Goods.wood,
+                                                    Goods.furniture)]
+    imp = [region.import_val.get(gd, []) for gd in (Goods.food, Goods.wood,
+                                                    Goods.furniture)]
+    gov = getattr(region, 'gov', None)
+    income = getattr(gov, 'income_log', []) if gov is not None else []
+    tax = [e.get('tax', 0.0) for e in income]
+    tariff = [e.get('tariff', 0.0) for e in income]
+    inherit = [e.get('inheritance', 0.0) for e in income]
+    return [
+        ("Prices", "line",
+         [g(Goods.food), g(Goods.wood), g(Goods.furniture)],
+         [_FOOD_C, _WOOD_C, _FURN_C], ["food", "wood", "furn"]),
+        ("Population / Hunger", "line",
+         [pop, hungry], [_POP_C, _HUNGER_C], ["pop", "hungry"]),
+        ("Production", "line",
+         [region.production_log.get(gd, []) for gd in (Goods.food, Goods.wood,
+                                                       Goods.furniture)],
+         [_FOOD_C, _WOOD_C, _FURN_C], ["food", "wood", "furn"]),
+        ("Trade flow", "bars",
+         [_sum_turns(exp), _sum_turns(imp)],
+         [_EXP_C, _IMP_C], ["export", "import"]),
+        ("Gov income", "stack",
+         [tax, tariff, inherit],
+         [_TAX_C, _TAR_C, _INH_C], ["tax", "tariff", "inherit"]),
+        ("Gini / Migration", "line",
+         [region.gini_log.get(Goods.food, []), region.migration_intent_log],
+         [_GINI_C, _MIG_C], ["gini", "migr"]),
+    ]
+
+
+def _chart_labels(surface, labels, colors, font, rect, y_start=2, step=13):
+    y = y_start
+    for label, color in zip(labels, colors):
+        txt = font.render(label, True, color)
+        surface.blit(txt, (rect[0] + 4, rect[1] + y))
+        y += step
+
+
+def _plot_line_chart(surface, rect, series_list, colors, labels, window, font):
+    """Axes box + one normalized polyline per series (last *window* turns)."""
+    x0, y0, w, h = rect
+    pygame.draw.rect(surface, _CHART_BOX, rect, 1)
+    data = [s[-window:] for s in series_list]
+    if not any(data):
+        _chart_labels(surface, labels, colors, font, rect)
+        return
+    vals = [v for d in data for v in d]
+    vmin, vmax = min(vals), max(vals)
+    if vmax - vmin < 1e-9:
+        vmax = vmin + 1.0
+    n = max(len(d) for d in data)
+    if n < 2:
+        _chart_labels(surface, labels, colors, font, rect)
+        return
+    label_h = 14 + 13 * len(colors)
+    iw, ih = w - 12, h - label_h - 6
+    for d, color in zip(data, colors):
+        pts = []
+        for j, v in enumerate(d):
+            x = x0 + 6 + j * iw / (n - 1)
+            y = y0 + h - 5 - ((v - vmin) / (vmax - vmin)) * ih
+            pts.append((x, y))
+        pygame.draw.lines(surface, color, False, pts, 2)
+    _chart_labels(surface, labels, colors, font, rect)
+
+
+def _plot_bar_pairs(surface, rect, series_list, colors, labels, window, font):
+    """Side-by-side per-turn bars for two series (e.g. export vs import)."""
+    x0, y0, w, h = rect
+    pygame.draw.rect(surface, _CHART_BOX, rect, 1)
+    n = max((len(s) for s in series_list), default=0)
+    n_show = min(window, n)
+    if n_show <= 0:
+        _chart_labels(surface, labels, colors, font, rect)
+        return
+    vmax = max((v for s in series_list for v in s[-n_show:]), default=1.0)
+    if vmax <= 0:
+        vmax = 1.0
+    stride = max(1, n_show // 90)
+    label_h = 14 + 13 * len(colors)
+    iw = (w - 12) / n_show
+    nser = len(series_list)
+    for i in range(n_show):
+        if i % stride:
+            continue
+        bw = max(2, iw * 0.85 / nser)
+        for k, (s, color) in enumerate(zip(series_list, colors)):
+            v = s[i] if i < len(s) else 0.0
+            bh = (v / vmax) * (h - label_h - 8)
+            bx = x0 + 6 + i * iw + k * bw
+            if bh > 0.5:
+                pygame.draw.rect(surface, color,
+                                 (bx, y0 + h - 6 - bh, bw, bh))
+    _chart_labels(surface, labels, colors, font, rect)
+
+
+def _plot_stacked_bars(surface, rect, series_list, colors, labels, window, font):
+    """Stacked per-turn bars (gov income decomposition)."""
+    x0, y0, w, h = rect
+    pygame.draw.rect(surface, _CHART_BOX, rect, 1)
+    n = max((len(s) for s in series_list), default=0)
+    n_show = min(window, n)
+    if n_show <= 0:
+        _chart_labels(surface, labels, colors, font, rect)
+        return
+    totals = [sum(s[i] for s in series_list if i < len(s))
+              for i in range(n_show)]
+    vmax = max(totals, default=1.0)
+    if vmax <= 0:
+        vmax = 1.0
+    stride = max(1, n_show // 90)
+    label_h = 14 + 13 * len(colors)
+    iw = (w - 12) / n_show
+    for i in range(n_show):
+        if i % stride:
+            continue
+        bw = max(2, iw * 0.85)
+        bx = x0 + 6 + i * iw
+        y = y0 + h - 6
+        for s, color in zip(series_list, colors):
+            v = s[i] if i < len(s) else 0.0
+            bh = (v / vmax) * (h - label_h - 8)
+            if bh > 0.5:
+                pygame.draw.rect(surface, color, (bx, y - bh, bw, bh))
+                y -= bh
+    _chart_labels(surface, labels, colors, font, rect)
+
+
+def _draw_chart_cell(surface, chart, rect, font, font_small, window):
+    """Draw one chart (title + plot) into *rect*."""
+    title, kind, series, colors, labels = chart
+    tsurf = font_small.render(title, True, ACCENT)
+    surface.blit(tsurf, (rect[0] + 4, rect[1] + 2))
+    plot_rect = (rect[0], rect[1] + 20, rect[2], rect[3] - 20)
+    if kind == 'line':
+        _plot_line_chart(surface, plot_rect, series, colors, labels, window,
+                         font_small)
+    elif kind == 'bars':
+        _plot_bar_pairs(surface, plot_rect, series, colors, labels, window,
+                        font_small)
+    elif kind == 'stack':
+        _plot_stacked_bars(surface, plot_rect, series, colors, labels, window,
+                           font_small)
+
+
+def _draw_chart_grid(surface, charts, font, font_small, window, y0, y1):
+    """2-column x 3-row grid of all six charts in the panel area."""
+    left = PANEL_LEFT + 6
+    right = WIDTH - 8
+    top, bottom = y0, y1
+    cols, rows = 2, 3
+    cw = (right - left) // cols
+    ch = (bottom - top) // rows
+    idx = 0
+    for r in range(rows):
+        for c in range(cols):
+            if idx >= len(charts):
+                break
+            rect = (left + c * cw, top + r * ch, cw - 4, ch - 4)
+            _draw_chart_cell(surface, charts[idx], rect, font, font_small,
+                             window)
+            idx += 1
+
+
+def _draw_chart_large(surface, chart, font, font_small, window, y0, y1):
+    """Single chart drawn large (zoom view 1..6)."""
+    rect = (PANEL_LEFT + 6, y0, WIDTH - 14 - PANEL_LEFT, y1 - y0)
+    _draw_chart_cell(surface, chart, rect, font, font_small, window)
+
+
+# ---------------------------------------------------------------------------
+# Right panel (header + audit + per-tile charts)
+# ---------------------------------------------------------------------------
+
+def _draw_regime_readout(surface, region, font_small, y):
+    """M3 line: protest / unrest / top faction / owner nation - unclaimed safe."""
+    if getattr(region, 'owner_nation', None) is None:
+        line = font_small.render("unclaimed wilderness", True, DIM)
+        surface.blit(line, (PANEL_LEFT, y))
+        return
+    protest = (region.protest_energy_log[-1]
+               if region.protest_energy_log else 0.0)
+    unrest = region.unrest_log[-1] if region.unrest_log else {}
+    stage = unrest.get('stage', 'calm')
+    top = None
+    if region.faction_support_log:
+        snap = region.faction_support_log[-1]
+        if snap:
+            top = max(snap, key=lambda k: snap[k])
+    owner = getattr(region, 'owner_nation', None)
+    owner_s = ""
+    if owner is not None:
+        ruling = getattr(owner, 'ruling_faction', None)
+        owner_s = f"  {owner.name}: legit {owner.legitimacy:.2f}" \
+                  + (f" ruling {ruling}" if ruling else "")
+    line = font_small.render(
+        f"protest {protest:.1f}  unrest {stage}"
+        + (f"  top {top}" if top else "")
+        + owner_s, True, DIM)
+    surface.blit(line, (PANEL_LEFT, y))
+
+
+def _draw_panel(surface, world, font, font_small):
+    """Right-hand panel: header, play state, audit, per-tile charts."""
+    d = TOP_BAR_H
+    panel_w = WIDTH - PANEL_LEFT - 6
+    panel_h = HEIGHT - 20 - d - TICKER_H
+    pygame.draw.rect(surface, PANEL_BG,
+                     (PANEL_LEFT - 10, 10 + d, panel_w + 4, panel_h))
+
+    title = font.render("REGNUM — Hex World", True, ACCENT)
+    surface.blit(title, (PANEL_LEFT, 20 + d))
+
+    t_ = world['turn']
+    turn_line = font_small.render(f"Turn: {t_}  win={world['window']}t", True, TEXT)
+    surface.blit(turn_line, (PANEL_LEFT, 50 + d))
+
+    cursors = world.get('currency_totals', {})
+    y = 80 + d
+    for c, total in cursors.items():
+        line = font_small.render(f"{c}: ${total:,.0f}", True, TEXT)
+        surface.blit(line, (PANEL_LEFT, y))
         y += 22
+
+    if world.get('playing'):
+        pn = font_small.render("[ PLAYING ]  Space=pause", True, GREEN)
+    else:
+        pn = font_small.render("[ PAUSED ]  S=step  Space=play", True, DIM)
+    surface.blit(pn, (PANEL_LEFT, 148 + d))
+
+    region = world.get('selected_region') or world.get('hover_region')
+    chart_top = 185 + d
+    chart_bottom = HEIGHT - TICKER_H - 96
+    if region is not None:
+        head = font_small.render(region.name, True, TEXT)
+        surface.blit(head, (PANEL_LEFT, chart_top - 6))
+        charts = _tile_charts(region)
+        view = world.get('view', 0)
+        if view == 0:
+            _draw_chart_grid(surface, charts, font, font_small, world['window'],
+                             chart_top + 4, chart_bottom)
+            hint = font_small.render(
+                f"{region.name}: Tab=grid  1-6=zoom", True, DIM)
+            surface.blit(hint, (PANEL_LEFT, chart_bottom + 6))
+        else:
+            idx = max(0, min(len(charts) - 1, view - 1))
+            _draw_chart_large(surface, charts[idx], font, font_small,
+                              world['window'], chart_top + 4, chart_bottom)
+            hint = font_small.render(
+                f"{charts[idx][0]}  (Tab=grid)", True, DIM)
+            surface.blit(hint, (PANEL_LEFT, chart_bottom + 6))
+        _draw_regime_readout(surface, region, font_small, chart_bottom + 24)
+    else:
+        hint = font_small.render("Hover or click a hex for its charts", True, DIM)
+        surface.blit(hint, (PANEL_LEFT, 190 + d))
+
+    audit_y = HEIGHT - TICKER_H - 28
     if world.get('violations'):
-        v = world['violations']
-        vline = font.render(f"{len(v)} VIOLATION(S)", True, RED)
-        surface.blit(vline, (x, y))
-
-
-# ---------------------------------------------------------------------------
-# Hover / pinned tile card
-# ---------------------------------------------------------------------------
-
-def _tile_card(region, font_small):
-    """List of (text, color) rows for the hover/pinned card."""
-    lines = [("UNCLAIMED" if getattr(region, 'owner_nation', None) is None
-              else f"{region.owner_nation.name} ({region.owner_nation.currency})",
-              ACCENT if getattr(region, 'owner_nation', None) is not None
-              else DIM),
-             (f"homesteaders {_homesteaders(region)}", TEXT),
-             (f"wilderness_pop {getattr(region, 'wilderness_pop', 0)}", DIM)]
-    if getattr(region, 'owner_nation', None) is not None:
-        pop = _region_pop(region)
-        food = region.recipes[Goods.food]['price']
-        wood = region.recipes[Goods.wood]['price']
-        furn = region.recipes[Goods.furniture]['price']
-        traders = sum(1 for a in region.agents if a.is_trader)
-        gdp = region.gdp_log[-1] if region.gdp_log else 0.0
-        lines += [
-            (f"pop {pop}  traders {traders}", TEXT),
-            (f"food ${food:.2f}  wood ${wood:.2f}  furn ${furn:.2f}", DIM),
-            (f"GDP/turn ${gdp:,.0f}", GREEN),
-            (f"CoL {region.cost_of_living:.2f}", DIM),
-        ]
-        unrest = region.unrest_log[-1] if region.unrest_log else {}
-        stage = unrest.get('stage', 'calm')
-        protest = (region.protest_energy_log[-1]
-                   if region.protest_energy_log else 0.0)
-        lines.append((f"protest {protest:.1f}  unrest {stage}", DIM))
-        if region.faction_support_log:
-            snap = region.faction_support_log[-1]
-            if snap:
-                top = max(snap, key=lambda k: snap[k])
-                lines.append((f"top faction {top}", DIM))
-    # Tile-local treasury/trend bits.
-    if region.trade_flow_log:
-        last = region.trade_flow_log[-1]
-        lines.append((f"net trade {last:+.0f}", GREEN if last >= 0 else RED))
-    return lines
-
-
-def _draw_hover_card(surface, region, font_small):
-    """Rounded card pinned top-left of the play area."""
-    rows = _tile_card(region, font_small)
-    w = 300
-    h = 16 + 20 * len(rows)
-    x, y = 10, TOP_BAR_H + 10
-    card = pygame.Surface((w, h), pygame.SRCALPHA)
-    card.fill((34, 34, 42, 235))
-    surface.blit(card, (x, y))
-    pygame.draw.rect(surface, ACCENT, (x, y, w, h), 1)
-    head = font_small.render(region.name, True, TEXT)
-    surface.blit(head, (x + 8, y + 4))
-    yy = y + 20
-    for text, color in rows:
-        line = font_small.render(text, True, color)
-        surface.blit(line, (x + 8, yy))
-        yy += 20
+        v1 = font.render("AUDIT VIOLATION", True, RED)
+        surface.blit(v1, (PANEL_LEFT, audit_y - 4))
+        vline = font_small.render(
+            "; ".join(f"T{v[0]} {v[1]} {v[2]:+.2f}"
+                      for v in world['violations']),
+            True, RED)
+        surface.blit(vline, (PANEL_LEFT, audit_y + 18))
+    else:
+        ok = font.render("Conserved: 0 LEAK / 0 SHIFT", True, GREEN)
+        surface.blit(ok, (PANEL_LEFT, audit_y))
 
 
 # ---------------------------------------------------------------------------
@@ -708,7 +920,9 @@ def _draw_help(surface, world, font_small):
         'S or -> ........ step one turn (while paused)',
         'Arrows / WASD .. pan the camera',
         '+ / - / wheel .. zoom in / out',
-        'Click .......... pin a tile (stats stay anchored)',
+        'Tab ............ chart-grid view (hovered/pinned tile)',
+        '1 .. 6 ......... zoom one of the six charts',
+        'Click .......... pin a tile (charts stay anchored)',
         'H or ? ......... toggle this help',
         'Esc ............ close help first; Q quits either way',
         '',
@@ -716,8 +930,9 @@ def _draw_help(surface, world, font_small):
         '= frontier; orange dot = homesteaders present.  Colored hex = owned',
         'by a nation; brighter fill = higher population (heat).  Thin cyan',
         'arrows = net trade flow on claimed edges.  Bottom strip = world',
-        'ticker (MIGRATE cyan / CLAIM gold / DESTROY red).  Top-right overlay',
-        '= per-currency audit totals; red flag on any > $5 SUPPLY SHIFT.',
+        'ticker (MIGRATE cyan / CLAIM gold / DESTROY red).  Right panel =',
+        'per-currency audit + six live per-tile charts (guarded for',
+        'unclaimed tiles).',
     ]
     max_w = WIDTH - 72
     wrapped = []
@@ -743,16 +958,13 @@ def _draw_help(surface, world, font_small):
 # ---------------------------------------------------------------------------
 
 def render_frame(surface, world):
-    """Draw one full frame (map + top bar + audit + ticker)."""
+    """Draw one full frame (map + top bar + panel + ticker + help)."""
     font = pygame.font.Font(None, 28)
     font_small = pygame.font.Font(None, 22)
     surface.fill(BG)
     _draw_top_bar(surface, world, font_small)
     _draw_hex_map(surface, world, font, font_small)
-    _draw_audit_overlay(surface, world, font)
-    region = world.get('selected_region') or world.get('hover_region')
-    if region is not None:
-        _draw_hover_card(surface, region, font_small)
+    _draw_panel(surface, world, font, font_small)
     _draw_ticker(surface, world, font_small)
     _draw_help(surface, world, font_small)
 
@@ -787,6 +999,7 @@ def main():
                 clicked = _tile_at(world, *event.pos)
                 if clicked is not None:
                     world['selected_region'] = clicked
+                    world['view'] = 0
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 2:
                 drag = True
                 pygame.mouse.get_rel()
@@ -819,6 +1032,10 @@ def main():
                 elif event.key in (pygame.K_s, pygame.K_RIGHT):
                     if not world['playing']:
                         step_world(world)
+                elif event.key == pygame.K_TAB:
+                    world['view'] = 0
+                elif pygame.K_1 <= event.key <= pygame.K_6:
+                    world['view'] = event.key - pygame.K_1 + 1
                 elif event.key in (pygame.K_LEFT, pygame.K_a):
                     world['cam']['ox'] += 30
                     _clamp_cam(world)
@@ -829,8 +1046,7 @@ def main():
                     world['cam']['oy'] += 30
                     _clamp_cam(world)
                 elif event.key in (pygame.K_DOWN, pygame.K_s):
-                    # note: s steps when paused; pan-down on WASD is d? keep s = step
-                    pass
+                    pass  # s steps when paused; pan-down handled below
                 elif event.key in (pygame.K_PLUS, pygame.K_EQUALS):
                     world['cam']['zoom'] = min(2.5, world['cam']['zoom'] * 1.15)
                     _clamp_cam(world)
@@ -845,7 +1061,7 @@ def main():
 
         world['hover_region'] = None
         mx, my = pygame.mouse.get_pos()
-        if TOP_BAR_H <= my <= HEIGHT - TICKER_H:
+        if mx < MAP_RIGHT and TOP_BAR_H <= my <= HEIGHT - TICKER_H:
             world['hover_region'] = _tile_at(world, mx, my)
 
         render_frame(surface, world)

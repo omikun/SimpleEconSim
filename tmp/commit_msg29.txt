@@ -1,0 +1,21 @@
+worldview: per-region chart panel + contiguous nation clusters (3/4/5)
+
+- sim_world.py: nations now claim CONTIGUOUS hex clusters via BFS cluster
+  growth on the odd-r honeycomb (seed cell + absorb hex-adjacent unclaimed
+  cells).  Sizes locked: Alpha=3, Beta=4, Gamma=5 tiles.  Verified by
+  tmp/check_clusters.py (all three contiguous, sizes exact) and in
+  probe_worldview step 3.
+- worldview.py: restored the V2a per-region chart dashboard in a right panel
+  (MAP_RIGHT=1060): Prices, Population/Hunger, Production, Trade flow,
+  Gov income, Gini/Migration — Tab=grid, 1..6=zoom, live-updating each turn.
+  Pinned (else hovered) tile feeds the charts; UNCLAIMED tiles are guarded
+  (gov None => empty income series, .get()-defaults, "unclaimed wilderness"
+  readout).  Per-currency audit readout folded into the panel; camera
+  pan/zoom + hit-testing constrained to the map area; top bar + MIGRATE/
+  CLAIM/DESTROY ticker + help kept.
+- tmp/probe_worldview.py: 5/5 PASS — 81-tile adjacency (0 bad edges),
+  pixel<->axial round-trip, cluster contiguity 3/4/5, dummy render T=20 with
+  0 violations/0 shifts, ticker archived; screenshots
+  worldview_charts/chart1/wild.png.
+- World 40-turn gate CLEAN: 720 MIGRATE / 6 CLAIM / 0 DESTROY /
+  0 SUPPLY SHIFT; nations end the gate at 4/5/9 tiles.
