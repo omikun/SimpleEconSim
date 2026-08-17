@@ -484,21 +484,36 @@ def audit_currency_total(regions, currency):
     Conservation invariant: each currency's total is unchanged by trade and
     FX conversion (fx_pool pays out home money only; reserves just shift
     foreign money between holders).
+
+    v3 provinces: several tiles may SHARE one bank / one charity (via an
+    InstitutionBundle).  Counting ``bank.equity``/``fx_pool``/reserves or
+    ``charity.agent.cash`` on EVERY member tile would double-count the shared
+    institution — a phantom SUPPLY SHIFT.  Each distinct bank/charity is
+    therefore counted ONCE (id()-seen set).  In the legacy 1:1 layout every
+    id appears exactly once, so behavior is byte-identical.
     """
     total = 0.0
+    seen_banks = set()
+    seen_charities = set()
+    seen_reserves = set()
     for r in regions:
         bank = getattr(r, 'bank', None)
         if r.home_currency == currency:
             total += sum(a.cash for a in r.agents)
-            if bank is not None:
+            if bank is not None and id(bank) not in seen_banks:
+                seen_banks.add(id(bank))
                 total += bank.equity
                 total += bank.fx_pool
-            if getattr(r, 'charity', None) is not None:
-                total += r.charity.agent.cash
+            charity = getattr(r, 'charity', None)
+            if charity is not None and id(charity) not in seen_charities:
+                seen_charities.add(id(charity))
+                total += charity.agent.cash
         # Foreign currency held by this region's agents (wallets)
         total += sum(fx_balance(a, currency) for a in r.agents)
-        # Foreign currency held by this region's bank (reserves)
-        if bank is not None:
+        # Foreign currency held by this region's bank (reserves) — once per bank
+        # per CURRENCY (runs for every currency, unlike the home-equity block).
+        if bank is not None and id(bank) not in seen_reserves:
+            seen_reserves.add(id(bank))
             total += bank.foreign_reserves.get(currency, 0.0)
     return total
 

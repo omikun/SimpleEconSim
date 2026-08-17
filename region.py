@@ -133,7 +133,8 @@ class Region:
                  profession_distribution: dict = None, number_of_traders: int = None,
                  transport_delay: int = 1,
                  terrain: dict = None, climate: str = 'temperate',
-                 wilderness: bool = False, wilderness_pop: int = None):
+                 wilderness: bool = False, wilderness_pop: int = None,
+                 institutions=None, seat_gov=True):
         self.name = name
         # ---- v3_wilderness: unclaimed-tile construction ----
         # wilderness=True: currency-less (home_currency=None), NO bank / gov /
@@ -193,15 +194,25 @@ class Region:
         self.goods = list(goods)
 
         # ---- Institutions (v3 province model) ----
-        # One InstitutionBundle per tile in the legacy 1:1 layout.  Region's
+        # One InstitutionBundle per tile in the legacy 1:1 layout
+        # (``institutions=None``).  In a province layout, tiles are
+        # CONSTRUCTED with the shared bundle so no per-tile bank/government/
+        # charity with countable capital is ever abandoned.  Region's
         # ``bank`` / ``gov`` / ``charity`` properties forward to the bundle,
-        # so the ~40 existing read sites keep working unchanged.  Milestone E
-        # lets several tiles point at ONE shared bundle (a province); the
-        # per-currency audit then dedupes shared institutions.  Wilderness
+        # so the ~40 existing read sites keep working unchanged.  Wilderness
         # tiles get a bundle where all three are None (no institutions).
-        self._institutions = make_bundle(name, self.recipes, t=t,
-                                         initial_cash=200.0,
-                                         wilderness=wilderness)
+        self.province = None
+        # Only ONE tile of a shared (province) bundle may append the shared
+        # government agent to its ``agents`` list; otherwise the per-currency
+        # audit (sum of ``a.cash`` over each tile's agents) counts the same
+        # gov agent once per member tile.  Legacy tiles default True.
+        self._seat_gov_agent = bool(seat_gov)
+        if institutions is not None:
+            self._institutions = institutions
+        else:
+            self._institutions = make_bundle(name, self.recipes, t=t,
+                                             initial_cash=200.0,
+                                             wilderness=wilderness)
 
         # Logging state (mirrors econsim_states globals)
         self.population_log: dict = {}
@@ -616,10 +627,11 @@ class Region:
                 agents.append(trader)
                 self.trader_agents.append(trader)
 
-        agents.append(self.gov.agent)
-        self.gov.agent.region = self.name
-        self.gov.agent._bank_ref = self.bank
-        self.gov.agent.home_currency = self.home_currency
+        if self._seat_gov_agent:
+            agents.append(self.gov.agent)
+            self.gov.agent.region = self.name
+            self.gov.agent._bank_ref = self.bank
+            self.gov.agent.home_currency = self.home_currency
         self.agents = agents
 
     def _register_citizens(self):
@@ -632,11 +644,25 @@ class Region:
     # ------------------------------------------------------------------
 
     def step(self, t: int):
+        """Main step.  Legacy (province is None) runs the full per-tile turn
+        including this tile's own institutions.  Provincial tiles step the
+        per-tile economy only — the shared charity/bank/government flows run
+        once per province via ``Province.step``."""
 # ===== v3 refactor (wilderness.py owns wilderness behaviors) =====
         if self.wilderness:
             import wilderness as _wd
             _wd.step_wilderness(self, t)
             return
+        self.step_economy(t)
+
+    def step_economy(self, t: int):
+        """Per-tile economy + (when ``province is None``) this tile's own
+        institutional flows in the original legacy order.
+
+        Provincial tiles (``province`` set) SKIP the three institutionals
+        that ``Province.step`` runs once across all members: charity collect,
+        deposit interest, charity distribute, and gov seal_income."""
+        legacy = getattr(self, 'province', None) is None
 
         rand.reset()
         # Cache prices for this turn (prices may have shifted)
@@ -658,8 +684,9 @@ class Region:
             a.clear_wealth_cache()
 
         # Charity collects donations (before trade so it has cash to buy food)
-        self.charity.collect_donations(t, self.agents, self.bank)
-        self._audit_cash(t, "charity_done")
+        if legacy:
+            self.charity.collect_donations(t, self.agents, self.bank)
+            self._audit_cash(t, "charity_done")
 
         new_companies = self._run_labour(t)
         if new_companies:
@@ -694,8 +721,9 @@ class Region:
         self._audit_cash(t, "live_done")
 
         # Charity distributes food to hungry and young agents
-        self.charity.distribute_food(t, self.agents)
-        self._audit_cash(t, "charity_food_done")
+        if legacy:
+            self.charity.distribute_food(t, self.agents)
+            self._audit_cash(t, "charity_food_done")
 
         self._log_metrics(t)
         # M1.5: migration intent score (logged per tile; no agents move yet)
@@ -707,7 +735,8 @@ class Region:
         from unrest import step_unrest
         ev = step_unrest(self, t)
         self.unrest_flag = ev['stage'] != 'calm'
-        self.gov.seal_income(t)
+        if legacy:
+            self.gov.seal_income(t)
         self.total_population.append(sum(v[-1] for v in self.population_log.values()))
         self.cost_of_living_log.append(self.cost_of_living)
         self.bank_cash_log.append(self.bank.equity)
@@ -970,7 +999,8 @@ class Region:
     def _trade(self, t):
         all_goods_price = self.all_goods_price
         food_price = self.food_price
-        self.bank.PayDepositInterest(self.agents)
+        if getattr(self, 'province', None) is None:
+            self.bank.PayDepositInterest(self.agents)
 
         # Cache trade fee multiplier for this turn (used by traders to
         # evaluate cross-region profitability).  If no destination region
@@ -2012,7 +2042,14 @@ class Region:
         (bank.Borrow).  Existing loans are serviced first (interest + principal)
         using the same Loan machinery as all other borrowers.  The tax rate is
         re-evaluated every tax_adjust_interval turns based on recent deficits.
+
+        v3 provinces: the shared government is taxed ONCE per province — only
+        the first (gov-seated) member tile runs this; the other members skip
+        so the same gov cannot be hit by N deficits in one turn.
         """
+        if getattr(self, 'province', None) is not None \
+                and not getattr(self, '_seat_gov_agent', True):
+            return
         gov = self.gov.agent
         bank = self.bank
         food_price = self.food_price

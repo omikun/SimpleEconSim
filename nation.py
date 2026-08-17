@@ -66,6 +66,7 @@ class Nation:
             max(0.0, min(1.0, legitimacy if legitimacy is not None
                          else DEFAULT_LEGITIMACY)))
         self.tiles: list = []
+        self.provinces: list = []   # v3 province model (shared institutions)
         self.claims: dict = {name: 1.0}
         # ---- M3 regime state (population-driven consent / ruling faction) ----
         # ruling_faction: name of the faction currently holding power (None =

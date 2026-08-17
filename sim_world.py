@@ -38,8 +38,10 @@ from world_trade import (pending_imports, resolve_parked, settle_trade,
 from regime import step_regime
 from migration import run_migrations
 from trade_settle import settle_wilderness
+
 from claims import check_and_apply_claims
 from hexmap import (rectangular_hex_layout, axial_neighbors, axial_to_offset)
+from province import Province, partition_contiguous
 import ledger
 
 
@@ -141,14 +143,30 @@ def build_world(seed=42):
                 cluster.append(extra)
                 frontier.append(extra)
 
-        for rr, cc in cluster:
-            tile = grid[rr][cc]
-            # Rebuild this tile as a claimed tile (replacing wilderness).
-            idx = tiles.index(tile)
-            claimed = make_claimed(tile.name, profs)
-            tiles[idx] = claimed
-            grid[rr][cc] = claimed
-            n.add_tile(claimed)
+        # ---- v3 provinces: split each nation's contiguous cluster into
+        #      1-3 contiguous sub-provinces, each sharing ONE bundle of
+        #      bank/government/charity.  Member tiles are CONSTRUCTED with
+        #      the shared bundle (``institutions=...``) so no per-tile bank
+        #      capital is ever abandoned; the shared government agent is
+        #      seated only on the province's first tile.  The per-currency
+        #      audit dedupes shared banks/charities (id-seen set). ----
+        n_parts = 1 if len(cluster) < 3 else (2 if len(cluster) <= 4 else 3)
+        parts = partition_contiguous(cluster, _LAYOUT, n_parts)
+        for part in parts:
+            prov = Province(f"{nname}-{len(n.provinces)+1}", n, t=0)
+            for i, (rr, cc) in enumerate(part):
+                tile = grid[rr][cc]
+                idx = tiles.index(tile)
+                claimed = Region(tile.name, t=0, number_of_agents=100,
+                                 profession_distribution=profs,
+                                 number_of_traders=2,
+                                 institutions=prov.institutions,
+                                 seat_gov=(i == 0))
+                tiles[idx] = claimed
+                grid[rr][cc] = claimed
+                prov.add_tile(claimed)
+                n.add_tile(claimed)
+            n.provinces.append(prov)
 
     # ---- True hex adjacency (routes every edge) ----
     for r in range(GRID_ROWS):
@@ -229,7 +247,20 @@ def main():
             r.pending_imports = pending
             r._auction_import_sales = {}
 
+        # v3 provinces: provincial tiles run the ONCE-PER-PROVINCE flow
+        # (shared charity/bank/gov); legacy / wilderness tiles keep the
+        # per-tile r.step() path.  Province.step calls each member tile's
+        # step_economy() (guarded so the shared institutionals don't double).
+        _provinces = [p for n in nations for p in getattr(n, 'provinces', [])]
+        _prov_tiles = {}
+        for p in _provinces:
+            for r in p.tiles:
+                _prov_tiles[r.name] = r
+        for p in _provinces:
+            p.step(t)
         for r in tiles:
+            if r.name in _prov_tiles:
+                continue
             r.step(t)
 
         for r in tiles:

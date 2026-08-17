@@ -44,6 +44,20 @@ Plus ~40 read sites of `region.bank/.gov/.charity` across region.py, world_trade
       now forwarding properties; construction via make_bundle (wilderness = all
       None); step() untouched (byte-identical).  Gate: sim_nation 100, sim_ring
       300, behavior_drift GATE, probe_m2/m3/hex/worldview all PASS +
-      verify_hex_adj 10t 0 SUPPLY SHIFT.  **Committed (no push).**
-- [ ] Milestone E — Province + shared bundle + audit dedupe + claims (commit 2)
+      verify_hex_adj 10t 0 SUPPLY SHIFT.  **Committed 688a9a5 (no push).**
+- [x] Milestone E — Province + shared bundle + audit dedupe DONE:
+      province.py Province (ONE shared InstitutionBundle per province,
+      partitioned 1-3 per nation from the contiguous cluster via
+      partition_contiguous); region.py guards (seat_gov append-once +
+      _collect_tax runs only on the seat tile); forex.audit_currency_total
+      id-dedupes shared banks/charities/reserves (per-currency); nation.py
+      provinces list; sim_world builds provinces (member tiles CONSTRUCTED
+      with the shared bundle, no capital abandonment) and drives the
+      once-per-province step loop.  Gate: 40t province world 0 SUPPLY
+      SHIFT; sim_nation/ring/drift/m2/m3/hex/worldview/verify ALL PASS.
+      **Committed (no push).**  NOTE: claims.py intentionally still uses
+      the legacy per-tile institutions (fresh claims start 0-capital per
+      the founding-charter rule; wrapping them in a standard Province
+      would mint capital/gov cash) — province-ifying claims is the next
+      step.
 - [ ] Milestone F — seeding + viewer province-highlight + tile/nation stats (commit 3)
