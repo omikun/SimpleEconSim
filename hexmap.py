@@ -85,17 +85,19 @@ def adjacent(a, b):
     return d == 1
 
 
-def edge_list_from_tiles(tiles):
+def edge_list_from_tiles(tiles, layout=LAYOUT_2X3):
     """Extract the unique undirected neighbor edges actually wired by the sim.
 
     Each Region carries ``neighbors`` (set when routes/desks were wired), so
     this is the ground truth of connectivity — same edges sim_nation used.
-    Returns a list of ((q1,r1),(q2,r2)) hex pairs via LAYOUT_2X3.
+    *layout* maps region name -> axial (q, r); it defaults to the legacy 2x3
+    map so existing callers (probe_hex) are byte-identical.
+    Returns a list of ((q1,r1),(q2,r2)) hex pairs.
     """
     edges = []
     seen = set()
     for t in tiles:
-        coords_a = LAYOUT_2X3.get(t.name)
+        coords_a = layout.get(t.name)
         if coords_a is None:
             continue
         for other_name in getattr(t, 'neighbors', {}):
@@ -103,20 +105,75 @@ def edge_list_from_tiles(tiles):
             if key in seen:
                 continue
             seen.add(key)
-            coords_b = LAYOUT_2X3.get(other_name)
+            coords_b = layout.get(other_name)
             if coords_b is not None:
                 edges.append((coords_a, coords_b))
     return edges
 
 
-def assert_edges_are_hex_adjacent(tiles):
+def assert_edges_are_hex_adjacent(tiles, layout=LAYOUT_2X3):
     """Return the list of edges that are NOT hex-adjacent (should be empty).
 
     This is the "all hexes connect like Civilization" proof: every edge the
-    simulation wired must map to two hexes sharing a full edge.
+    simulation wired must map to two hexes sharing a full edge.  *layout*
+    defaults to the legacy 2x3 map.
     """
     bad = []
-    for a, b in edge_list_from_tiles(tiles):
+    for a, b in edge_list_from_tiles(tiles, layout=layout):
         if not adjacent(a, b):
             bad.append((a, b))
     return bad
+
+
+# ---------------------------------------------------------------------------
+# v3_wilderness: offset rectangular hex layout (real 6-neighbor honeycomb)
+# ---------------------------------------------------------------------------
+
+#: The six axial unit-step directions of a pointy-top hex lattice.
+HEX_DIRS = ((1, 0), (-1, 0), (0, 1), (0, -1), (1, -1), (-1, 1))
+
+
+def offset_to_axial(col, row):
+    """Odd-r offset (col, row) -> axial (q, r) for a pointy-top hex grid.
+
+    Odd rows are shifted right by half a hex (standard odd-r offset), which
+    lets a rectangular (row, col) region grid map 1:1 onto a honeycomb where
+    interior tiles have exactly six edge-adjacent neighbors.
+    """
+    return col - row // 2, row
+
+
+def axial_to_offset(q, r):
+    """Axial (q, r) -> odd-r offset (col, row) (pointy-top, odd rows right)."""
+    return q + r // 2, r
+
+
+def rectangular_hex_layout(rows, cols):
+    """Rectangular odd-r hex map: grid (row, col) -> axial (q, r).
+
+    *rows* x *cols* tiles named ``r{row}c{col}`` (matches sim_world grid
+    addressing).  Interior tiles have all six axial neighbors edge-adjacent,
+    so the "all hexes connect like Civilization" proof holds for the world.
+    """
+    return {f"r{r}c{c}": offset_to_axial(c, r)
+            for r in range(rows) for c in range(cols)}
+
+
+def axial_neighbors(q, r):
+    """The six axial coordinates adjacent to (q, r)."""
+    return [(q + dq, r + dr) for dq, dr in HEX_DIRS]
+
+
+def hex_bbox(layout, size):
+    """Bounding box (x0, y0, x1, y1) in pixels covering *layout* at *size*.
+
+    Includes the hex radius padding so a camera clamp keeps every hex fully
+    on screen (used by worldview for centering + pan limits).
+    """
+    xs, ys = [], []
+    for q, r in layout.values():
+        x, y = axial_to_pixel(q, r, size)
+        xs.append(x)
+        ys.append(y)
+    return (min(xs) - size, min(ys) - size,
+            max(xs) + size, max(ys) + size)

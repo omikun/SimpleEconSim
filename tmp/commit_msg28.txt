@@ -1,0 +1,22 @@
+v3 hex world + worldview (item 3): true 6-neighbor honeycomb, perf smoke, ticker
+
+- hexmap.py: offset_to_axial/axial_to_offset, rectangular_hex_layout (9x9
+  odd-r row-shift, names r{row}c{col}), HEX_DIRS, axial_neighbors, hex_bbox;
+  edge_list_from_tiles / assert_edges_are_hex_adjacent get layout=LAYOUT_2X3
+  default (legacy probe still green: 4 edges, 0 bad, round-trip PASS)
+- sim_world.py: 9x9 = 81-tile hex topology (was 4-neighbor orthogonal 10x8);
+  interior tiles edge all SIX axial neighbors; forex desks over
+  neighbors.values(); strings/constants updated
+- worldview.py (new): pygame viewer for the 9x9 honeycomb - nation tints +
+  pop-heat, grey UNCLAIMED tiles (homesteader/wilderness_pop, no
+  gov/recipes/faction readouts), pan (arrows/WASD/middle-drag) + zoom
+  (+/-/wheel), hover + click-to-pin card, audit overlay, MIGRATE/CLAIM/
+  DESTROY ticker; step_world mirrors sim_world.main() incl. ledger.cleared
+- perf: 10 turns in 1.14s (8.76 t/s), 0 SUPPLY SHIFT; 40-turn gate: 527
+  MIGRATE, 10 CLAIM, 0 DESTROY, 0 SHIFT
+- regression green (venv py3.13): sim_nation 100, sim_ring 300,
+  behavior_drift GATE, probe_m2, probe_m3, probe_hex, probe_worldview
+- pygame at /Users/sli/Code/venv/bin/python3 (found by tmp/find_pygame.py)
+
+Still open: late-run BE-/GA+ shift (T=77-90), 120-turn gate 0 unaccounted,
+docs + wrap-up.

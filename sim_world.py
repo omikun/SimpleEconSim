@@ -1,16 +1,19 @@
 #!/usr/bin/env python3
 """
-REGNUM v3_wilderness — 10x8 headless world (M0.5-style driver).
+REGNUM v3_wilderness — 9x9 hex headless world (M0.5-style driver).
 
 Three Nations each randomly claim 2-3 tiles (100 agents / tile).  The rest of
-the 80-tile grid is UNCLAIMED wilderness: ``Region(wilderness=True)`` with a
-non-ticking ``wilderness_pop`` in 0..50, no bank/gov/charity/factions, and
-no minted agents.  Homesteaders will arrive in a later milestone (migration).
+the 81-tile honeycomb is UNCLAIMED wilderness: ``Region(wilderness=True)``
+with a non-ticking ``wilderness_pop`` in 0..50, no bank/gov/charity/factions,
+and no minted agents.  Homesteaders will arrive in a later milestone
+(migration).
 
 Wiring:
-  - Full grid adjacency: every tile is a neighbor (and has a Route) to its
-    orthogonal neighbors — owned->owned and owned->adjacent-unclaimed both
-    get structural routes (the trader settlement milestone uses them).
+  - True hex adjacency: the 9x9 rectangular odd-r offset grid maps 1:1 onto a
+    pointy-top honeycomb (see hexmap.rectangular_hex_layout), so every
+    INTERIOR tile is edge-adjacent to exactly SIX neighbors.  Owned->owned
+    and owned->adjacent-unclaimed both get structural routes (the trader
+    settlement milestone uses them).
   - ForexDesks ONLY between claimed tiles (unclaimed tiles have no bank and
     no home currency, so no desks can exist there).
 
@@ -36,11 +39,17 @@ from regime import step_regime
 from migration import run_migrations
 from trade_settle import settle_wilderness
 from claims import check_and_apply_claims
+from hexmap import (rectangular_hex_layout, axial_neighbors, axial_to_offset)
 import ledger
 
 
-GRID_COLS = 10
-GRID_ROWS = 8
+GRID_COLS = 9
+GRID_ROWS = 9
+# ---- True hex adjacency: every interior tile edges SIX axial neighbors.
+#      The 9x9 odd-r offset grid maps 1:1 onto the honeycomb; engines
+#      (migration/claims/trade) are neighbor-agnostic, so they pick up the
+#      six-way connectivity with no changes.
+_LAYOUT = rectangular_hex_layout(GRID_ROWS, GRID_COLS)
 
 
 def _professions():
@@ -60,7 +69,7 @@ def make_wilderness(name):
 
 
 def build_world(seed=42):
-    """Build the 10x8 world and return (tiles, nations, grid).
+    """Build the 9x9 hex world and return (tiles, nations, grid).
 
     grid: list of lists (rows x cols) of the same Region objects as *tiles*,
     so callers can address tiles by (row, col).
@@ -100,36 +109,33 @@ def build_world(seed=42):
             grid[idx // GRID_COLS][idx % GRID_COLS] = claimed
             n.add_tile(claimed)
 
-    # ---- Full grid adjacency (routes every edge) ----
+    # ---- True hex adjacency (routes every edge) ----
     for r in range(GRID_ROWS):
         for c in range(GRID_COLS):
             tile = grid[r][c]
-            for dr, dc in ((0, 1), (1, 0), (0, -1), (-1, 0)):
-                nr, nc = r + dr, c + dc
+            q, axr = _LAYOUT[tile.name]
+            for nq, nar in axial_neighbors(q, axr):
+                nc, nr = axial_to_offset(nq, nar)
                 if 0 <= nr < GRID_ROWS and 0 <= nc < GRID_COLS:
                     other = grid[nr][nc]
                     if other.name not in tile.neighbors:
                         tile.add_neighbor(other)
 
-    # ---- ForexDesks only between claimed tiles ----
+    # ---- ForexDesks only between claimed (neighbor) tiles ----
     seen = set()
     for r in range(GRID_ROWS):
         for c in range(GRID_COLS):
             a = grid[r][c]
             if getattr(a, 'owner_nation', None) is None:
                 continue
-            for dr, dc in ((0, 1), (1, 0), (0, -1), (-1, 0)):
-                nr, nc = r + dr, c + dc
-                if not (0 <= nr < GRID_ROWS and 0 <= nc < GRID_COLS):
+            for other in a.neighbors.values():
+                if getattr(other, 'owner_nation', None) is None:
                     continue
-                b = grid[nr][nc]
-                if getattr(b, 'owner_nation', None) is None:
-                    continue
-                key = tuple(sorted((a.name, b.name)))
+                key = tuple(sorted((a.name, other.name)))
                 if key in seen:
                     continue
                 seen.add(key)
-                fx.connect_desks(a, b, t=0)
+                fx.connect_desks(a, other, t=0)
 
     for r in tiles:
         # trader_wealth reads region.bank.deposits — wilderness tiles have no
@@ -145,7 +151,7 @@ def main():
     time_steps = int(sys.argv[1]) if len(sys.argv) > 1 else 30
     logInit()
     random.seed(42)
-    print(f"v3_wilderness: 10x8 world ({GRID_COLS}x{GRID_ROWS}), "
+    print(f"v3_wilderness: 9x9 hex world ({GRID_COLS}x{GRID_ROWS}), "
           f"{time_steps} turns\n")
 
     tiles, nations, _grid = build_world()
