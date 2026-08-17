@@ -351,18 +351,36 @@ no code has been written for this section yet.
 - world120 now RUNS to T=119+ (was T=55 crash) but REMAINING cross-currency shifts
   (mostly BE+/GA- pairs ~$5-65: T=60, 70-78, 81-91) and one T=91 $65 swing are UNRESOLVED.
 
-### Next steps (resume here)
-1. Chase the BE+/GA- cross-currency shifts (T=60, 70-78, 81-91; mostly -GA/+BE pairs).
-   Phase-bisect a late claim turn with tmp/dbg_claim34.py style probe.
-2. Prime suspect: decash_wallet only de-cashes the CLAIMING currency at claim time — foreign
-   wallets (e.g. GA homesteaders on a BE-claimed tile, or vice-versa) may be double/under-counted
-   when the audit's home-currency sum + global wallet sum overlap on residents whose home_currency
-   changed.  Verify audit_currency_total's home-cash vs wallet handling for claimed-tile residents.
-3. Check fx.connect_desks mid-run for newly-claimed neighbors (only claimed->claimed desks;
-   pair_orders rebuild at claim time already re-pairs).
-4. Re-run 40/120 gate to 0 unaccounted once the BE+/GA- class is fixed.
-5. Perf smoke (80 tiles) + generalize hexmap/hexview + ticker (migrate/claims/DESTROY events).
-6. Docs (agent.md/task.md/tasks.md/priority_tasks.md) + commit (no push) once gate green.
+### PARTIAL FIX (2026-08-16) — death-path cross-currency settlement
+Phase-bisect probes (tmp/dbg_bega_shifts.py, tmp/dbg_stepper_tile.py,
+tmp/dbg_subphase2.py, tmp/dbg_live_fine.py, tmp/dbg_death_sub.py) traced the
+AL-/BE+ SUPPLY SHIFTs to the DEATH path:
+
+1. **Foreign-bank loans paid from death-tile cash** (T=60 AL -12.48 / BE
+   +11.97).  `Loan.pay()` credits the ISSUING bank (audited under its tile's
+   currency), but `_handle_debt_inheritance` funded it from the death-tile's
+   ctx.bank cash.  Fix: foreign loans settle FIRST from the agent's FX wallet
+   in the loan bank's currency; same-tile cash now services only ctx.bank
+   loans; the rest flows to per-bank split/forgive at the ISSUING bank.
+   Result: T=60 now AL -0.01 / BE -0.13 / GA +0.14.
+2. **Wealth-inheritance denomination**: bequests now pay out in the RESIDENCE
+   tile's currency (what the audit counts), not the corpse's attribute.
+3. **Newborn home_currency**: child inherits the RESIDENCE tile currency first.
+
+Legacy regression GREEN: sim_nation 100 / sim_ring 300 / behavior_drift PASS.
+
+### Still open (resume here)
+1. **Late-run BE-/GA+ second class** (T=77-90, ~6-14/turn: T=85 r1c8 BE -11.19
+   / GA +11.19, T=89 BE -11.04 / GA +13.87).  Per-tile attribution points at
+   the frontier-bank bad-debt / burial path: `_forgive_bad_debt` + per-bank
+   loan inheritance writing non-issuing banks' ledgers.  Phase-bisect T=85
+   r1c8 with a loan-bank == ctx.bank sanity dump, then route forgiveness
+   strictly by `loan.bank`.
+2. Re-run 40/120 gate to 0 unaccounted once the GA+ class is fixed.
+3. Perf smoke (80 tiles) + generalize hexmap/hexview + ticker (migrate/claims/
+   DESTROY events).
+4. Docs (agent.md/task.md/tasks.md/priority_tasks.md) + commit (no push) once
+   gate green.
 
 ---
 

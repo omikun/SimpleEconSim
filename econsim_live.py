@@ -499,7 +499,15 @@ def _handle_reproduction(ctx: LiveContext, t, agent, agents, new_agents):
         new_agent.parent = agent
         # v3: homeland inherited from the parent (set once; never re-pointed).
         new_agent.origin_nation = getattr(agent, 'origin_nation', None)
-        new_agent.home_currency = getattr(agent, 'home_currency', None) or (getattr(ctx.source_region, 'home_currency', None) if getattr(ctx, 'source_region', None) else None)
+        # v3: the NEWBORN lives on the same RESIDENCE TILE as the parent, and
+        # audit_currency_total counts hand cash by the residence tile's
+        # home_currency.  The home_currency ATTRIBUTE must therefore be the
+        # tile's currency FIRST; an agent's attribute can disagree with the
+        # tile (e.g. a trader whose attribute tracks its homeland after a
+        # claim), and copying the parent's attribute would denominate the
+        # child's endowed hand cash differently than where it is counted —
+        # the live-phase AL-/BE+ cross-currency SUPPLY SHIFT.
+        new_agent.home_currency = (getattr(ctx.source_region, 'home_currency', None) if getattr(ctx, 'source_region', None) else None) or getattr(agent, 'home_currency', None)
         new_agent._bank_ref = getattr(agent, '_bank_ref', None) or getattr(ctx, 'bank', None)
         new_agent.region = getattr(agent, 'region', None) or (getattr(ctx.source_region, 'name', None) if getattr(ctx, 'source_region', None) else None)
         seed_traits(new_agent, parent=agent)
@@ -891,12 +899,97 @@ def _recapitalize(bank, shortfall, t):
     return take
 
 
+def _loan_bank_currency(loan):
+    """Currency of the BANK that issued *loan* (its owning tile's currency).
+
+    Banks carry ``gov`` (the tile Government); the government agent's
+    ``home_currency`` is the tile's currency (wired by region._create_agents
+    and claims.py at founding).  Falls back to None for legacy single-region
+    banks with no gov wiring, in which case the caller treats the loan as
+    same-currency.
+    """
+    bank = getattr(loan, 'bank', None) or ctx_bank_of(None)
+    if bank is None:
+        return None
+    gov = getattr(bank, 'gov', None)
+    if gov is None:
+        return None
+    return getattr(getattr(gov, 'agent', None), 'home_currency', None)
+
+
+def ctx_bank_of(_unused):
+    """Placeholder resolved by the caller below (kept for readme clarity)."""
+    return None
+
+
+def _pay_loan_from_wallet(agent, loan, amount):
+    """Pay *loan* using the agent's FX wallet in the ISSUING bank's currency.
+
+    Conservation: ``loan.pay()`` credits the issuing bank's equity /
+    liabilities — both counted in the AUDIT under the issuing bank's tile
+    currency (``bank.equity`` is summed when ``r.home_currency == currency``
+    for the bank's tile).  For the total of that currency to be preserved,
+    the PAYER's debit must also be in that currency.  A migrated homesteader
+    carries its origin-currency money in its FX wallet (migration.py
+    walletizes origin cash before moving), so matching wallet funds are the
+    correct, conserved source.  Returns the amount actually paid.
+    """
+    w = getattr(agent, 'wallets', None) or {}
+    bal = w.get(loan_currency, 0.0) if (loan_currency := _loan_bank_currency(loan)) else 0.0
+    if bal <= 0:
+        return 0.0
+    amt = min(amount, bal)
+    w[loan_currency] -= amt
+    loan.pay(amt)
+    return amt
+
+
 def _handle_debt_inheritance(ctx: LiveContext, t, agent, living_descendants):
-    """Repay debt from agent's cash/deposits; remainder passed to heirs or bank."""
+    """Repay debt from agent's cash/deposits; remainder passed to heirs or bank.
+
+    v3 conservation fix: a LOAN's payment is credited to the bank that
+    ISSUED it (``loan.bank``), whose equity is counted under the ISSUING
+    tile's currency in the audit.  When a homesteader migrated from another
+    nation (e.g. BE) and dies on the death tile (e.g. AL), its loans sit at
+    the BE home bank.  Paying them from the death tile's ``ctx.bank``
+    deposits / hand cash would draw AL-denominated money while crediting BE
+    equity — the classic AL-/BE+ cross-currency SUPPLY SHIFT pair.  Instead,
+    foreign loans are settled FIRST from the agent's FX wallet in the loan
+    bank's currency (migration walletizes origin cash into the wallet);
+    the death-tile cash/deposits only service SAME-tile loans.
+    """
+    # 1. Foreign-currency loans: settle from matching FX wallets first
+    #    (conserved: wallet debit in the issuing bank's currency offsets
+    #    the issuing bank's equity/liability credit in that same currency).
+    for loan in list(agent.loans):
+        lcur = _loan_bank_currency(loan)
+        if lcur is None or lcur == getattr(ctx.source_region, 'home_currency', None):
+            continue  # same-currency loan handled below
+        amount_to_clear = (loan.principle - loan.principle_paid) + loan.getInterest()
+        if amount_to_clear <= 0:
+            continue
+        w = getattr(agent, 'wallets', None) or {}
+        bal = w.get(lcur, 0.0)
+        if bal <= 0:
+            continue
+        amt = min(bal, amount_to_clear)
+        w[lcur] -= amt
+        loan.pay(amt)
+
+    # 2. Same-tile (ctx bank) loans: repay from death-tile cash/deposits.
+    #    CRITICAL: only loans whose issuing bank IS the death-tile bank may
+    #    be paid from death-tile money.  A foreign-bank loan (issued by a
+    #    different nation's bank) that was not fully cleared by the matching
+    #    FX wallet above must flow to the per-bank settlement section below
+    #    (heir split / forgiveness at the ISSUING bank), NOT be repaid with
+    #    the death tile's cash — paying a BE-bank loan with AL cash credits
+    #    BE bank equity while debiting AL, the exact AL-/BE+ pair.
     total_wealth = agent.cash + ctx.bank.deposits.get(agent, 0)
     remaining_wealth = total_wealth
     total_paid = 0
     for loan in agent.loans:
+        if getattr(loan, 'bank', None) is not ctx.bank:
+            continue  # foreign-bank loan — settle via split/forgive below
         amount_to_clear = (loan.principle - loan.principle_paid) + loan.getInterest()
         payment = min(remaining_wealth, amount_to_clear)
         if payment > 0:
@@ -960,7 +1053,18 @@ def _handle_wealth_inheritance(ctx: LiveContext, t, agent, living_descendants):
             # audit_currency_total regardless of residence, whereas hand
             # cash is only counted on the tile whose home_currency
             # matches.  Same-bank heirs keep hand cash as before.
-            decedent_currency = getattr(agent, 'home_currency', None) or (getattr(ctx.source_region, 'home_currency', None) if getattr(ctx, 'source_region', None) else None)
+            # v3: hand cash is counted by audit_currency_total under the
+            # RESIDENCE TILE's currency, NOT the decedent's home_currency
+            # attribute.  A foreign resident (BE trader on an AL tile) keeps
+            # its attribute pointing at its homeland, but its hand cash is
+            # physically on the AL tile and counted as AL while alive.  If
+            # inheritance pays out under the attribute, the same dollar
+            # vanishes from AL and appears in BE — the classic AL-/BE+
+            # cross-currency SUPPLY SHIFT.  Pay out under the source tile's
+            # currency so the audit sees the same denomination before/after.
+            decedent_currency = getattr(ctx.source_region, 'home_currency', None) if getattr(ctx, 'source_region', None) else None
+            if decedent_currency is None:
+                decedent_currency = getattr(agent, 'home_currency', None)
             if getattr(descendent, '_bank_ref', None) is ctx.bank and ctx.bank is not None:
                 descendent.cash += cash_share + extra_cash
             elif decedent_currency:
