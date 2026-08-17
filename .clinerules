@@ -1,3 +1,5 @@
 - Don't ever run scripts from string literals, always generate the file then run it;
 - your_usernamecommit your changes when task is finished but don't push; 
+__Process lessons__: (a) `t-` overlong heredocs/commit messages get truncated — write commit message to file first, then `git commit -F`; (b) malformed XML closing tags (`</path>` instead of `</tool>`) cause repeated tool failures; (c) when probe output is noisy from cross-tile migration/claim movement, isolate via per-tile/per-subphase snapshots around the real step.
+
 
