@@ -24,6 +24,7 @@ import econsim_trade_money as _tm
 import government as govmod
 from agent import Agent, initialize_agent, seed_traits
 from charity import Charity
+from province import make_bundle
 from random_cache import rand
 import forex as _fx
 from transporter import Route
@@ -191,16 +192,16 @@ class Region:
         self.recipes = copy.deepcopy(recipes)
         self.goods = list(goods)
 
-        # Own bank (None on unclaimed wilderness — no banking there).
-        self.bank = _tm.Bank() if not wilderness else None
-
-        # Own government (None on unclaimed wilderness).
-        if wilderness:
-            self.gov = None
-        else:
-            self.gov = govmod.Government(name, t, initial_cash=200)
-            self.gov.agent.is_government = True
-            self.bank.gov = self.gov  # wire tile gov for recapitalization
+        # ---- Institutions (v3 province model) ----
+        # One InstitutionBundle per tile in the legacy 1:1 layout.  Region's
+        # ``bank`` / ``gov`` / ``charity`` properties forward to the bundle,
+        # so the ~40 existing read sites keep working unchanged.  Milestone E
+        # lets several tiles point at ONE shared bundle (a province); the
+        # per-currency audit then dedupes shared institutions.  Wilderness
+        # tiles get a bundle where all three are None (no institutions).
+        self._institutions = make_bundle(name, self.recipes, t=t,
+                                         initial_cash=200.0,
+                                         wilderness=wilderness)
 
         # Logging state (mirrors econsim_states globals)
         self.population_log: dict = {}
@@ -302,8 +303,6 @@ class Region:
         for g in self.goods:
             self.bought_log['trader'][g] = [0]
 
-        # Charity (independent food redistribution) — None on wilderness.
-        self.charity = Charity(name, self.recipes) if not wilderness else None
         # Cost of living, cached once per turn (4 food + 1 wood + 0.25 furniture)
         self.cost_of_living = 11.25
         self.cost_of_living_log = []   # per-turn history (for real FX / deflation)
@@ -331,6 +330,52 @@ class Region:
         if not wilderness:
             self._create_agents(t, number_of_agents)
             self._register_citizens()
+
+    # ------------------------------------------------------------------
+    # Institutions (v3 province model)
+    # ------------------------------------------------------------------
+    # ``bank`` / ``gov`` / ``charity`` forward to the owning
+    # ``InstitutionBundle``.  In the legacy 1:1 layout every tile owns its
+    # own bundle; in the province layout several tiles share one bundle.  The
+    # setters let construction/claim code (e.g. claims.py assigning
+    # ``tile.bank`` / ``tile.gov`` / ``tile.charity``) keep routing into the
+    # bundle without any caller changes.
+
+    @property
+    def bank(self):
+        if getattr(self, '_institutions', None) is None:
+            return None
+        return self._institutions.bank
+
+    @bank.setter
+    def bank(self, value):
+        if getattr(self, '_institutions', None) is None:
+            return
+        self._institutions.bank = value
+
+    @property
+    def gov(self):
+        if getattr(self, '_institutions', None) is None:
+            return None
+        return self._institutions.gov
+
+    @gov.setter
+    def gov(self, value):
+        if getattr(self, '_institutions', None) is None:
+            return
+        self._institutions.gov = value
+
+    @property
+    def charity(self):
+        if getattr(self, '_institutions', None) is None:
+            return None
+        return self._institutions.charity
+
+    @charity.setter
+    def charity(self, value):
+        if getattr(self, '_institutions', None) is None:
+            return
+        self._institutions.charity = value
 
     # ------------------------------------------------------------------
     # M2.1/M2.2: factions

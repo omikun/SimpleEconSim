@@ -1,63 +1,49 @@
 # REGNUM — Session Progress
 
-**Session topic 1 (2026-08-17, DONE):** item (3) — true 6-neighbor hex world (9x9=81), perf smoke, worldview viewer + ticker.
-Committed: `331b05b` (no push).
-
-**Session topic 2 (2026-08-17, CURRENT):** user follow-up —
-  1. restore the per-region GRAPH PANEL (V2a hover charts: Prices, Pop/Hunger,
-     Production, Trade flow, Gov income, Gini/Migration) into worldview.py,
-  2. make each nation's STARTING tiles CONTIGUOUS (cluster growth on the hex
-     grid), with sizes **Alpha=3 / Beta=4 / Gamma=5** tiles.
+**Topic (2026-08-17):** Provinces (shared gov/bank/charity across tiles), random seeding, per-tile vs per-nation sidebar stats, province highlight.
+Agreement: **commit after each phase** (no push), refactor-first, every milestone gated on 0 SUPPLY SHIFT.
 
 ---
 
-## Locked plan (topic 2)
+## Why this is complex
 
-1. **sim_world.py**: cluster-growth claims — pick a random unclaimed seed cell,
-   grow via BFS into unclaimed hex-adjacent cells (odd-r offset lookup, no
-   dependence on already-wired Region.neighbors); sizes 3/4/5; rebuild in place
-   with make_claimed; reject already-taken cells.
-2. **worldview.py**: right chart panel (MAP_RIGHT=1100, PANEL_LEFT=1112):
-   - port _tile_charts / _sum_turns / _plot_line_chart / _plot_bar_pairs /
-     _plot_stacked_bars / _chart_labels / _draw_chart_cell / grid / large from
-     hexview.py (pure pygame),
-   - guard unclaimed tiles (gov None -> empty gov income; .get()-defaults for
-     all logs),
-   - panel shows pinned (else hovered) tile charts; Tab = grid, 1..6 = zoom,
-   - fold the per-currency audit readout into the panel top (drop the old
-     top-right map overlay), camera/tile_at/clamp constrained to MAP_RIGHT,
-   - keep top bar, ticker, pan/zoom/help.
-3. **tmp/probe_worldview.py**: add contiguity check (each nation's axial hex
-   cells are BFS-connected) + render chart panel (grid view + zoom 1) for a
-   claimed and an unclaimed tile; keep 20-turn step + audit + screenshots.
-4. Verify: probe_worldview PASS, world 40-turn gate 0 SUPPLY SHIFT,
-   sim_nation/sim_ring untouched (different builders).
-5. Update progress.md + tmp/commit_msg29.txt + `git commit -F` (no push).
+The engine assumes **one tile = one full institution set**. That invariant is load-bearing in:
+1. `Region.__init__` — builds its own bank / gov / charity per tile.
+2. `Region.step()` — ONE method interleaves per-tile economy (production/prices/auction) with institutional flows (charity collect/distribute mid-auction, gov tax/food-buy/borrow, bank deposit interest) running once per tile.
+3. `forex.audit_currency_total` — sums `bank.equity`, `bank.fx_pool`, `charity.agent.cash` **per tile**. Sharing one bank across tiles without dedup ⇒ double-count ⇒ phantom SUPPLY SHIFT.
+Plus ~40 read sites of `region.bank/.gov/.charity` across region.py, world_trade.py, forex.py, econsim_live.py, claims.py, viewers, drivers.
+
+## Refactor-first ordering (each phase committed + green before next)
+
+### Milestone D — zero-behavior-change extraction (commit 1)
+- New `InstitutionBundle` holder (bank/government/charity) in province.py-style module.
+- `Region` keeps `self.bank/.gov/.charity` as **properties** forwarding to the bundle → all ~40 read sites compile unchanged.
+- Extract institutional chunks of `Region.step()` into named helpers called in the SAME order → byte-identical behavior.
+- GATE: full regression (sim_nation/ring/behavior_drift/probe_hex/probe_worldview) + 40-turn world = 0 SHIFT.
+
+### Milestone E — Province + shared institutions + audit dedupe (commit 2)
+- `Province` owns ONE bundle; several Regions point at it (economy still per-tile).
+- Institutional steps move from "per-tile inside step" to "once per province per turn".
+- `forex.audit_currency_total` dedupes shared bank/charity (id()-seen set).
+- `claims.py`: fresh claim → NEW single-tile province (existing per-claim institutions become the province's).
+- `Nation`: add `provinces` list; treasury/stats aggregate via provinces (legacy Nation.government unchanged; sim_nation/sim_ring NOT converted).
+- GATE: 40-turn AND 120-turn world = 0 SHIFT.
+
+### Milestone F — seeding + viewer UX (commit 3)
+- Random seed: `--seed N` launch arg (`sim_world` + `worldview`); default entropy (remove `random.seed(42)` hardcodes).
+- Sidebar: per-tile ⇄ per-nation toggle (new key, e.g. V); per-region CoL line; tile CoL + climate display.
+- Selecting a tile highlights its whole province on the hex map.
+- Update `tmp/probe_worldview.py` (contiguity, highlight render, seed determinism, both panels).
+- GATE: probe PASS + 40-turn 0 SHIFT.
 
 ---
 
-## Progress (topic 1, DONE)
-
-- [x] hexmap.py helpers + layout generalization (legacy probe_hex green)
-- [x] sim_world.py 9x9 hex topology (interior 6-neighbor)
-- [x] Perf smoke: 8.76 turns/sec, 0 SUPPLY SHIFT (tmp/verify_hex_adj.py)
-- [x] worldview.py viewer + ticker + camera (committed 331b05b)
-- [x] probe_worldview PASS (SDL dummy T=20, 0 violations)
-- [x] Regression green (sim_nation/ring/drift/m2/m3/hex/worldview)
-- [x] World 40-turn gate clean (527 MIGRATE / 10 CLAIM / 0 SHIFT)
-
-## Progress (topic 2)
-
-- [x] sim_world.py contiguous cluster claims — BFS cluster growth on the hex
-      grid; Alpha=3 / Beta=4 / Gamma=5; tmp/check_clusters.py PASS
-      (all contiguous, sizes exact)
-- [x] worldview.py chart panel — V2a six-chart dashboard ported (Prices,
-      Pop/Hunger, Production, Trade flow, Gov income, Gini/Migration),
-      Tab=grid / 1..6=zoom, audit folded into panel, unclaimed-tile guards
-      (gov None safe), camera/hit-test constrained to MAP_RIGHT
-- [x] probe_worldview.py — 5/5 PASS: adjacency (0 bad), round-trip,
-      cluster contiguity 3/4/5, dummy render T=20 (0 violations, 0 shifts),
-      ticker archived; screenshots worldview_charts/chart1/wild.png
-- [x] World 40-turn gate CLEAN: 720 MIGRATE / 6 CLAIM / 0 DESTROY /
-      0 SUPPLY SHIFT; nations end at 4/5/9 tiles (12 start + 6 claims)
-- [x] Commit (no push) — topic 2 milestone
+## Progress
+- [x] Milestone D — InstitutionBundle extraction DONE:
+      province.py InstitutionBundle (bank/gov/charity); Region.bank/.gov/.charity
+      now forwarding properties; construction via make_bundle (wilderness = all
+      None); step() untouched (byte-identical).  Gate: sim_nation 100, sim_ring
+      300, behavior_drift GATE, probe_m2/m3/hex/worldview all PASS +
+      verify_hex_adj 10t 0 SUPPLY SHIFT.  **Committed (no push).**
+- [ ] Milestone E — Province + shared bundle + audit dedupe + claims (commit 2)
+- [ ] Milestone F — seeding + viewer province-highlight + tile/nation stats (commit 3)
