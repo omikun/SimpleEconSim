@@ -72,7 +72,6 @@ DEFAULT_PROFESSION_DISTRIBUTION = {
     Goods.transport: 0.08,
 }
 
-
 # =============================================================================
 # SoA constant: max pre-allocated slots
 # =============================================================================
@@ -132,9 +131,24 @@ class Region:
     def __init__(self, name: str, t: int, number_of_agents: int = 110,
                  profession_distribution: dict = None, number_of_traders: int = None,
                  transport_delay: int = 1,
-                 terrain: dict = None, climate: str = 'temperate'):
+                 terrain: dict = None, climate: str = 'temperate',
+                 wilderness: bool = False, wilderness_pop: int = None):
         self.name = name
+        # ---- v3_wilderness: unclaimed-tile construction ----
+        # wilderness=True: currency-less (home_currency=None), NO bank / gov /
+        # charity / factions, starts EMPTY (no agents minted).  Homesteaders
+        # are moved in later via enter_agent / migration.  wilderness_pop is
+        # a non-ticking scalar (0-50 "natives") that acts only as a pop-count
+        # denominator for the claim rule.
+        self.wilderness = wilderness
+        if wilderness:
+            self.wilderness_pop = (random.randint(0, 50) if wilderness_pop is None
+                                   else int(wilderness_pop))
+        else:
+            self.wilderness_pop = 0
         self.home_currency = name       # Phase 1 FX: each region mints its own
+        if wilderness:
+            self.home_currency = None   # no domestic currency on unclaimed land
         self.agents: list = []          # compact list of living agents (no Nones)
         self.max_agents = MAX_AGENTS    # Population cap for LiveContext
         self.transport_delay = transport_delay
@@ -177,13 +191,16 @@ class Region:
         self.recipes = copy.deepcopy(recipes)
         self.goods = list(goods)
 
-        # Own bank
-        self.bank = _tm.Bank()
+        # Own bank (None on unclaimed wilderness — no banking there).
+        self.bank = _tm.Bank() if not wilderness else None
 
-        # Own government
-        self.gov = govmod.Government(name, t, initial_cash=200)
-        self.gov.agent.is_government = True
-        self.bank.gov = self.gov  # wire tile gov for recapitalization (lender of last resort)
+        # Own government (None on unclaimed wilderness).
+        if wilderness:
+            self.gov = None
+        else:
+            self.gov = govmod.Government(name, t, initial_cash=200)
+            self.gov.agent.is_government = True
+            self.bank.gov = self.gov  # wire tile gov for recapitalization
 
         # Logging state (mirrors econsim_states globals)
         self.population_log: dict = {}
@@ -225,12 +242,20 @@ class Region:
         self.foreign_reserves_log = []  # per-turn: {currency: amount}
         # M1.5: per-turn migration intent score (score-only stub; feeds M4).
         self.migration_intent_log = []
+# ===== v3 refactor (wilderness.py owns wilderness behaviors) =====
+        # v3: per-turn (t, foraged, homesteader_count) on unclaimed tiles
+        self.forage_log = []
+        # v3: per-turn wilderness settlement rounds
+        # (t, trader, sold, collected, diff, paid)
+        self.settlement_log = []
+
 
         # M2.1/M2.2: factions — identity mix per tile, policy->demand
         # satisfaction, and a per-turn support log (plotted by the viewer).
         self.factions = FactionSystem()
         self.faction_support_log = []   # per-turn: {name: support}
-        self._build_identity_factions()
+        if not wilderness:
+            self._build_identity_factions()
         # M2.3/M2.4: grievances + protest energy per tile.  Pure-state
         # aggregates (no money/goods move), logged per turn.
         self.protest_energy_log = []    # per-turn scalar
@@ -277,8 +302,8 @@ class Region:
         for g in self.goods:
             self.bought_log['trader'][g] = [0]
 
-        # Charity (independent food redistribution)
-        self.charity = Charity(name, self.recipes)
+        # Charity (independent food redistribution) — None on wilderness.
+        self.charity = Charity(name, self.recipes) if not wilderness else None
         # Cost of living, cached once per turn (4 food + 1 wood + 0.25 furniture)
         self.cost_of_living = 11.25
         self.cost_of_living_log = []   # per-turn history (for real FX / deflation)
@@ -301,9 +326,11 @@ class Region:
                            if g != Goods.gov and g != Goods.transport}
         self._trade_prices = defaultdict(list)  # good -> [price, ...] realized
 
-        # Create agents
-        self._create_agents(t, number_of_agents)
-        self._register_citizens()
+        # Create agents — wilderness tiles start EMPTY (no minted population;
+        # homesteaders arrive via migration / enter_agent later).
+        if not wilderness:
+            self._create_agents(t, number_of_agents)
+            self._register_citizens()
 
     # ------------------------------------------------------------------
     # M2.1/M2.2: factions
@@ -560,6 +587,12 @@ class Region:
     # ------------------------------------------------------------------
 
     def step(self, t: int):
+# ===== v3 refactor (wilderness.py owns wilderness behaviors) =====
+        if self.wilderness:
+            import wilderness as _wd
+            _wd.step_wilderness(self, t)
+            return
+
         rand.reset()
         # Cache prices for this turn (prices may have shifted)
         food_price = self.recipes[Goods.food]['price']
@@ -734,6 +767,8 @@ class Region:
             company.output = a.output
             company.owner = a
             company._bank_ref = self.bank
+            company.home_currency = self.home_currency
+            company.region = self.name
             a.company_owned = company
             for g in self.goods:
                 company.inventory[g.value] = a.inv_get(g, 0)
@@ -1607,8 +1642,9 @@ class Region:
                     # can't see the credit.  Escheat the full sale to this
                     # destination government (a countable cash account).
                     if not getattr(seller, 'alive', True):
-                        self.gov.agent.cash += cost
-                        self.gov.record_income(t, 'import_escheat', cost)
+                        if getattr(self, 'gov', None) is not None:
+                            self.gov.agent.cash += cost
+                            self.gov.record_income(t, 'import_escheat', cost)
                         if is_parked:
                             seller.parked_sub(self.name, good, take)
                         else:
@@ -1857,19 +1893,34 @@ class Region:
             self._pay_profit_share(a, owner, payroll)
             self._bailout_owner(a, owner, payroll)
 
+    def _credit_owner_pay(self, owner, amount):
+        """Credit an owner's share, routing through the FX wallet when
+        the owner lives on a DIFFERENT (or wilderness) tile so the
+        per-currency audit still counts the money."""
+        if amount <= 0:
+            return
+        if getattr(owner, '_bank_ref', None) is self.bank:
+            owner.cash += amount
+        else:
+            import forex as _fx2
+            if self.home_currency:
+                _fx2.fx_add(owner, self.home_currency, amount)
+            else:
+                owner.cash += amount
+
     def _repay_owner_loan(self, agent, owner, payroll):
         if agent.owner_loan <= 0:
             return
         repay = min(agent.owner_loan, max(0, agent.cash - payroll * 2))
         if repay > 0:
             agent.cash -= repay
-            owner.cash += repay
+            self._credit_owner_pay(owner, repay)
             agent.owner_loan -= repay
 
     def _pay_base_salary(self, agent, owner, payroll):
         if agent.cash > payroll * 2 + agent.wage:
             agent.cash -= agent.wage
-            owner.cash += agent.wage
+            self._credit_owner_pay(owner, agent.wage)
 
     def _pay_profit_share(self, agent, owner, payroll):
         if agent.retained_earnings <= 0 or agent.cash <= payroll * 2:
@@ -1880,18 +1931,31 @@ class Region:
         profit_draw = min(share_rate * agent.retained_earnings, max(0, agent.cash - payroll * 2))
         if profit_draw > 0:
             agent.cash -= profit_draw
-            owner.cash += profit_draw
+            self._credit_owner_pay(owner, profit_draw)
             agent.retained_earnings -= profit_draw
 
     def _bailout_owner(self, agent, owner, payroll):
         if agent.cash >= payroll:
             return
         food_price = self.food_price
-        inject = min(payroll - agent.cash, max(0, owner.cash - food_price * 4))
-        if inject > 0:
-            owner.cash -= inject
-            agent.cash += inject
-            agent.owner_loan += inject
+        if getattr(owner, '_bank_ref', None) is self.bank:
+            avail = max(0.0, owner.cash - food_price * 4)
+            inject = min(payroll - agent.cash, avail)
+            if inject > 0:
+                owner.cash -= inject
+                agent.cash += inject
+                agent.owner_loan += inject
+        else:
+            # Owner lives on another tile: bailout must come from owner's wallet
+            # in this company's home currency to prevent cross-currency minting/leaks.
+            import forex as _fx2
+            if self.home_currency:
+                avail = _fx2.fx_balance(owner, self.home_currency)
+                inject = min(payroll - agent.cash, max(0.0, avail))
+                if inject > 0:
+                    _fx2.fx_add(owner, self.home_currency, -inject)
+                    agent.cash += inject
+                    agent.owner_loan += inject
 
     # ---- Tax ----
 

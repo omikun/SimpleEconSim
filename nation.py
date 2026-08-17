@@ -75,6 +75,7 @@ class Nation:
         self.opposition: list = []
         self._incumbent_faction = None   # incumbent for betrayal memory (M3.3)
         self.regime_log: list = []       # per-turn regime events (state archive)
+        self.claim_log: list = []        # per-turn claim events (v3 claims)
 
         # One sovereign Government per Nation.  The Government class already
         # owns `regions` + `citizen_ids`; add_tile wires them.
@@ -115,6 +116,12 @@ class Nation:
             self.government._add_citizen(agent)
             agent.region = region.name
             agent.home_currency = self.currency
+            # v3: seed the persistent homeland once at claim time (the
+            # tile is the birth homeland for founders).  NEVER updated on
+            # later moves - only citizenship changes; the claim rule
+            # counts stable origin_nation so it stays meaningful.
+            if getattr(agent, 'origin_nation', None) is None:
+                agent.origin_nation = self.name
 
     def remove_tile(self, region) -> bool:
         """Release sovereignty over *region* without transferring it.

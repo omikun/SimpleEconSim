@@ -497,6 +497,11 @@ def _handle_reproduction(ctx: LiveContext, t, agent, agents, new_agents):
         agent.last_reproduction = t
         new_agent = Agent(t)
         new_agent.parent = agent
+        # v3: homeland inherited from the parent (set once; never re-pointed).
+        new_agent.origin_nation = getattr(agent, 'origin_nation', None)
+        new_agent.home_currency = getattr(agent, 'home_currency', None) or (getattr(ctx.source_region, 'home_currency', None) if getattr(ctx, 'source_region', None) else None)
+        new_agent._bank_ref = getattr(agent, '_bank_ref', None) or getattr(ctx, 'bank', None)
+        new_agent.region = getattr(agent, 'region', None) or (getattr(ctx.source_region, 'name', None) if getattr(ctx, 'source_region', None) else None)
         seed_traits(new_agent, parent=agent)
         agent.descendants.append(new_agent)
         if government is not None:
@@ -709,10 +714,11 @@ def _escheat_dead_parked_goods(ctx: LiveContext, agent):
             qty = bucket[g.value]
             if qty <= 0:
                 continue
-            if g == _G.food:
-                tile.gov.receive_food(qty)
-            else:
-                tile.gov.agent.inv_add(g, qty)
+            if getattr(tile, 'gov', None) is not None:
+                if g == _G.food:
+                    tile.gov.receive_food(qty)
+                else:
+                    tile.gov.agent.inv_add(g, qty)
         bucket[:] = [0] * len(bucket)
     agent.parked_foreign = {}
 
@@ -843,9 +849,25 @@ def _forgive_bad_debt(bank, amount, t):
     if remaining > 0:
         remaining -= _recapitalize(bank, remaining, t)
 
+    # 4. Genuine bank failure: the seniority chain (shareholders ->
+    # depositors -> tile treasury) is exhausted.  Do NOT silently destroy
+    # money and do NOT hard-abort the sim.  The remaining shortfall is a
+    # REAL loss that shareholders absorb by pushing equity negative.
+    # Conservation holds exactly: the caller already removed the loan from
+    # ``total_liabilities``, so for ``equity = capital + deposits - liab``
+    # to fall by the same amount, ``capital`` drops by ``remaining`` (into
+    # negative territory).  The audit counts ``bank.equity``, so negative
+    # equity reads as the honest "bank failed" wealth destruction — no
+    # currency is created or deleted elsewhere.  Frontier banks with thin
+    # founding charters (v3 wilderness claims) can hit this on an unusually
+    # large heirless default; the tile keeps living and the bank runs with
+    # negative equity until loan interest (retained earnings) rebuilds it.
     if remaining > 1e-9:
-        _raise_insolvency(t, bank, None, remaining)
-    return remaining <= 1e-9
+        bank.capital -= remaining
+        logwarning(t, f"BANK FAILURE: ${remaining:.2f} heirless bad debt "
+                      f"unabsorbed after seniority order — equity goes "
+                      f"negative (capital ${bank.capital:.2f}).")
+    return True
 
 
 def _recapitalize(bank, shortfall, t):
@@ -887,20 +909,35 @@ def _handle_debt_inheritance(ctx: LiveContext, t, agent, living_descendants):
             ctx.bank.Withdraw(agent, needed_from_bank)
         agent.cash -= total_paid
     agent.loans = [l for l in agent.loans if not l.isPaid()]
-    remaining_principle = sum(l.principle - l.principle_paid for l in agent.loans)
-    if remaining_principle > 0:
-        ctx.bank.total_liabilities -= remaining_principle
-        ctx.bank.loans = [l for l in ctx.bank.loans if l not in agent.loans]
+
+    # Settlement & split must key off the bank that ACTUALLY issued each
+    # loan (``loan.bank``), not ctx.bank.  A migrating homesteader can die
+    # on a tile that is NOT home to the bank that lent the money: writing
+    # ``ctx.bank.total_liabilities`` down for every loan lets the frontier
+    # tile's bank absorb a liability reduction with no matching loan in its
+    # book — total_liabilities goes deeply negative and the audit reads the
+    # difference as fresh equity (a $216 phantom at T=55).
+    loans_by_bank = {}
+    for _l in agent.loans:
+        _b = getattr(_l, 'bank', None) or ctx.bank
+        loans_by_bank.setdefault(_b, []).append(_l)
+
+    for bank, blist in loans_by_bank.items():
+        remaining_principle = sum(l.principle - l.principle_paid for l in blist)
+        if remaining_principle <= 0:
+            continue
+        bank.total_liabilities -= remaining_principle
+        bank.loans = [l for l in bank.loans if l not in blist]
         if len(living_descendants) > 0:
             principle_share = remaining_principle / len(living_descendants)
             for descendent in living_descendants:
-                new_loan = trade.Loan(ctx.bank, descendent, principle_share,
-                                      ctx.bank.interest_rate)
+                new_loan = trade.Loan(bank, descendent, principle_share,
+                                      bank.interest_rate)
                 descendent.loans.append(new_loan)
-                ctx.bank.loans.append(new_loan)
-                ctx.bank.total_liabilities += principle_share
+                bank.loans.append(new_loan)
+                bank.total_liabilities += principle_share
         else:
-            _forgive_bad_debt(ctx.bank, remaining_principle, t)
+            _forgive_bad_debt(bank, remaining_principle, t)
 
 
 def _handle_wealth_inheritance(ctx: LiveContext, t, agent, living_descendants):
@@ -917,7 +954,20 @@ def _handle_wealth_inheritance(ctx: LiveContext, t, agent, living_descendants):
         cash_remainder = inheritance_cash - (cash_share * num_heirs)
         for i, descendent in enumerate(living_descendants):
             extra_cash = cash_remainder if i == 0 else 0
-            descendent.cash += cash_share + extra_cash
+            # v3: a heir that lives on a DIFFERENT tile (or wilderness,
+            # no home currency) receives its share in the FX wallet under
+            # the decedent's currency - wallets are counted globally by
+            # audit_currency_total regardless of residence, whereas hand
+            # cash is only counted on the tile whose home_currency
+            # matches.  Same-bank heirs keep hand cash as before.
+            decedent_currency = getattr(agent, 'home_currency', None) or (getattr(ctx.source_region, 'home_currency', None) if getattr(ctx, 'source_region', None) else None)
+            if getattr(descendent, '_bank_ref', None) is ctx.bank and ctx.bank is not None:
+                descendent.cash += cash_share + extra_cash
+            elif decedent_currency:
+                fx.fx_add(descendent, decedent_currency,
+                          cash_share + extra_cash)
+            else:
+                descendent.cash += cash_share + extra_cash
         # Distribute foreign-currency wallets evenly to heirs (None-safe:
         # non-traders never have a wallet, so this loop is a no-op).
         dead_w = getattr(agent, 'wallets', None)
@@ -962,23 +1012,40 @@ def _handle_wealth_inheritance(ctx: LiveContext, t, agent, living_descendants):
             charity.agent.cash += charity_share
         elif charity is None:
             # No charity wired (single-region compat): keep the leftover
-            # with the government (legacy behavior).
+            # with the government (legacy behavior).  With NO government
+            # either (state-less wilderness tile), the estate legitimately
+            # disappears into the void — record it as destruction.
             if government is not None and charity_share > 0:
                 government.agent.cash += charity_share
                 government.record_income(t, 'inheritance', charity_share)
-        # Transfer foreign-currency wallets to government (None-safe)
+            elif charity_share > 0:
+                from ledger import record as _rec_dest
+                _rec_dest(t, getattr(agent, 'home_currency', None),
+                          charity_share, 'heirless-no-state-cash')
+        # Transfer foreign-currency wallets to government (None-safe).  With
+        # NO government (state-less wilderness tile), the wallet vanishes
+        # with the estate — record it as destruction.
         dead_w = getattr(agent, 'wallets', None)
         if dead_w:
             for currency, bal in list(dead_w.items()):
                 if bal <= 0:
                     continue
-                fx.fx_add(government.agent, currency, bal)
+                if government is not None:
+                    fx.fx_add(government.agent, currency, bal)
+                else:
+                    from ledger import record as _rec_dest2
+                    _rec_dest2(t, currency, bal, 'heirless-no-state-wallet')
                 dead_w[currency] = 0.0
         if inheritance_deposits > 0:
             # Transfer deposit: probate fee to government, rest to charity
-            # (total_deposits unchanged — it's a transfer).
+            # (total_deposits unchanged — it's a transfer).  With NO
+            # government AND NO charity, the deposit is destroyed — record it.
             deposit_gov = inheritance_deposits * probate
             deposit_charity = inheritance_deposits - deposit_gov
+            if government is None and charity is None:
+                from ledger import record as _rec_dep
+                _rec_dep(t, getattr(agent, 'home_currency', None),
+                         inheritance_deposits, 'heirless-no-state-deposit')
             if government is not None and deposit_gov > 0:
                 ctx.bank.deposits[government.agent] = \
                     ctx.bank.deposits.get(government.agent, 0) + deposit_gov

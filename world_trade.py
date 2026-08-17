@@ -136,7 +136,14 @@ def settle_trade(t, destination_region, source_region):
     auction's import sales, let away-traders buy food at the destination out
     of their wallet, and post leftover foreign earnings as ASKs on the home
     desk for this specific partner currency.  Returns (qty, value).
+
+    v3_wilderness: a WILDERNESS destination (no bank, no currency, no market)
+    is serviced exclusively by trade_settle.settle_wilderness — arriving here
+    would credit homesteader sellers in a None-keyed wallet and leak past the
+    per-currency audit, so skip it.
     """
+    if getattr(destination_region, 'wilderness', False):
+        return 0, 0.0
     sname = source_region.name
     traders = [a for a in source_region.trader_agents
                if a.home_region == sname]

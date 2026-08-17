@@ -293,6 +293,11 @@ class Government:
 
             immigrant = Agent(t)
             immigrant.parent = parent
+            # v3: homeland inherited from the sponsor (set once; never re-pointed).
+            immigrant.origin_nation = getattr(parent, 'origin_nation', None)
+            immigrant.home_currency = getattr(parent, 'home_currency', None)
+            immigrant._bank_ref = getattr(parent, '_bank_ref', None)
+            immigrant.region = getattr(parent, 'region', None)
             immigrant.output = parent.output
             seed_traits(immigrant, parent=parent)
             initialize_agent(immigrant, parent.output, 0, 0, share)

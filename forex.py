@@ -71,6 +71,36 @@ def fx_clear(a):
         w.clear()
 
 
+def walletize(a, currency):
+    """Move an agent's hand cash into its FX wallet for *currency* (v3).
+
+    Wilderness tiles have no bank and no domestic currency, so resident
+    homesteaders carry their money in their FX wallet instead of hand cash.
+    Conservation: ``a.cash`` falls by exactly the amount added to the wallet,
+    so the per-currency audit (which sums every agent's FX wallets across all
+    tiles regardless of residence) sees the same total as before conversion.
+    """
+    cash = a.cash
+    if cash > 0:
+        a.cash = 0.0
+        fx_add(a, currency, cash)
+    return cash
+
+
+def decash_wallet(a, currency):
+    """Move an agent's FX wallet balance for *currency* back to hand cash (v3).
+
+    Inverse of :func:`walletize`.  Used when a wilderness tile is claimed (the
+    tile gains a home currency + bank) and when a homesteader migrates onto a
+    claimed tile.  Returns the amount moved.
+    """
+    bal = fx_balance(a, currency)
+    if bal > 0:
+        fx_sub(a, currency, bal)
+        a.cash += bal
+    return bal
+
+
 class ForexDesk:
     """A region's central-bank FX desk quoting home<->foreign rates.
 
@@ -82,7 +112,8 @@ class ForexDesk:
                  mid=1.0, spread=DESK_SPREAD,
                  target_reserves=DESK_TARGET_RESERVES,
                  initial_reserves=DESK_INITIAL_RESERVES,
-                 adj_speed=DESK_ADJ_SPEED, band=DESK_BAND):
+                 adj_speed=DESK_ADJ_SPEED, band=DESK_BAND,
+                 seed_reserves=True):
         self.home = home_currency
         self.other = other_currency
         self.bank = bank
@@ -96,7 +127,7 @@ class ForexDesk:
         # Interbank order book (Phase 3): entries are
         #   {'kind': 'bid'|'ask', 'trader': trader, 'qty': float, 'rate': float}
         self.book = []
-        if bank is not None:
+        if bank is not None and seed_reserves:
             self._seed_bank(bank, initial_reserves)
 
     def post_order(self, kind, trader, qty, rate):
@@ -173,8 +204,9 @@ class ForexDesk:
 
     def _seed_bank(self, bank, initial_reserves):
         """Seed the bank's foreign-reserve war chest + domestic FX pool."""
-        bank.foreign_reserves.setdefault(self.other, float(initial_reserves))
-        if bank.fx_pool <= 0:
+        if initial_reserves > 0:
+            bank.foreign_reserves.setdefault(self.other, float(initial_reserves))
+        if bank.fx_pool <= 0 and DESK_FX_POOL_SEED > 0:
             bank.fx_pool = DESK_FX_POOL_SEED
 
     # ------------------------------------------------------------------
@@ -426,18 +458,23 @@ def connect_desks(region, partner, t=0):
     ``destination_region`` — keeps the legacy ``region.forex`` alias in sync.
     Returns (desk_region, desk_partner).
     """
+    seed = (t == 0)
+    init_res = DESK_INITIAL_RESERVES if seed else 0.0
     desk = ForexDesk(region.home_currency, partner.home_currency,
-                     bank=region.bank)
+                     bank=region.bank, initial_reserves=init_res,
+                     seed_reserves=seed)
     pdesk = ForexDesk(partner.home_currency, region.home_currency,
-                      bank=partner.bank)
+                      bank=partner.bank, initial_reserves=init_res,
+                      seed_reserves=seed)
     region.forex_desks[partner.name] = desk
     partner.forex_desks[region.name] = pdesk
     if getattr(region, 'destination_region', None) is partner:
         region.forex = desk
     if getattr(partner, 'destination_region', None) is region:
         partner.forex = pdesk
-    seed_trader_wallet(region, partner, t, desk=desk)
-    seed_trader_wallet(partner, region, t, desk=pdesk)
+    if seed:
+        seed_trader_wallet(region, partner, t, desk=desk)
+        seed_trader_wallet(partner, region, t, desk=pdesk)
     return desk, pdesk
 
 
@@ -450,17 +487,19 @@ def audit_currency_total(regions, currency):
     """
     total = 0.0
     for r in regions:
-        bank = r.bank
+        bank = getattr(r, 'bank', None)
         if r.home_currency == currency:
             total += sum(a.cash for a in r.agents)
-            total += bank.equity
-            total += bank.fx_pool
+            if bank is not None:
+                total += bank.equity
+                total += bank.fx_pool
             if getattr(r, 'charity', None) is not None:
                 total += r.charity.agent.cash
         # Foreign currency held by this region's agents (wallets)
         total += sum(fx_balance(a, currency) for a in r.agents)
         # Foreign currency held by this region's bank (reserves)
-        total += bank.foreign_reserves.get(currency, 0.0)
+        if bank is not None:
+            total += bank.foreign_reserves.get(currency, 0.0)
     return total
 
 # =============================================================================

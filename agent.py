@@ -69,6 +69,9 @@ class Agent:
         'inventory_export', 'transport_pipeline', 'inventory_foreign',
         'parked_foreign', 'transport_delay',
         'wallets', 'home_currency',
+        # ---- v3_wilderness: persistent homeland + homesteading ----
+        'origin_nation', 'is_homesteader', 'homestead_since',
+        'last_forage_turn', 'last_migration_turn',
         # ---- SoA slot index + cache ----
         # ---- Per-good bid/ask (set via setattr in region._trade) ----
         'bid_food', 'bid_wood', 'bid_furniture', 'bid_transport',
@@ -141,6 +144,22 @@ class Agent:
         # dict lazily when a balance is actually needed (e.g. inheritance).
         self.wallets = None                           # dict | None
         self.home_currency = None                     # set by Region
+        # ---- v3_wilderness: persistent homeland + homesteading ----
+        # origin_nation: the nation this agent was born into (set once; NEVER
+        # updated on move — only citizenship changes).  None for agents born
+        # before the field existed / non-nation contexts.
+        self.origin_nation = None
+        # is_homesteader: True while the agent lives on an UNCLAIMED tile.
+        # Homesteaders forage food from the wild; moving onto any claimed
+        # tile immediately clears this flag (homesteading ends).
+        self.is_homesteader = False
+        # homestead_since: turn the agent became a homesteader (ticker/UI).
+        self.homestead_since = None
+        # last_forage_turn: last turn this homesteader foraged (+1 food).
+        self.last_forage_turn = 0
+        # last_migration_turn: last turn this agent migrated (cooldown anti
+        # ping-pong; combined with the destination hop limit).
+        self.last_migration_turn = 0
         # ---- SoA slot index (assigned by Region) ----
         self._slot = -1
         self.remainingCash = 0

@@ -268,6 +268,21 @@ no code has been written for this section yet.
      the 6-tile legacy layout — parameterize by world).
    - Pinned-panel + top bar need `home_currency=None` -> "Unclaimed" handling.
 
+### v3 file layout (new features in new files)
+- **wilderness.py** (NEW) — ALL unclaimed-tile behavior: FORAGE_INTERVAL,
+  enter_wilderness (walletize cash + is_homesteader=True), enter_claimed
+  (de-cash + homesteader status LOST), forage, step_wilderness.  region.py
+  only holds construction flags + a one-line step() delegate.
+- **migration.py** (NEW, later) — real conserved movement.
+- **claims.py** (NEW, later) — 50% rule + currency backfill + claim_log.
+- Trader wilderness settlement gets its own module later.
+
+### New locked rulings (2026-08-14)
+- **Foraging ONLY on unclaimed tiles.** Homesteaders forage +1 food / 3
+  turns ONLY while on an unclaimed tile; claimed tiles never forage.
+- **Homesteader status is lost on claimed tiles.** A homesteader who moves
+  to any claimed tile immediately clears is_homesteader + homestead_since.
+
 ## Order of work (correctness first)
 
 1. Model foundation: `origin_nation` + `is_homesteader` + wallet portability +
@@ -290,3 +305,110 @@ no code has been written for this section yet.
 - Perf: 80 `Region.step()` per turn ≈ 13× current cost; cython only speeds
   production — smoke test early and consider stepping only "active" tiles
   (owned or homesteader-populated).
+
+### New locked ruling (2026-08-14, v3)
+- **Only the poor homestead.** Company owners (founder/owner of a corporation)
+  and wealthy agents (`wealth() > 60`) NEVER become homesteaders — only the
+  poor go the homesteader route.  They may still migrate between CLAIMED tiles.
+
+### v3 residual (tracked)
+- Long 120-turn runs still show occasional rare GA/BE/BE offsets (e.g.
+  T=54 GA -41).  Root class: RNG-dependent cross-tile birth/death events strand
+  hand cash on wilderness agents (ghost-cash).  Harden by enforcing "wilderness
+  agents never hold hand cash" centrally in enter_wilderness.
+
+## v3 progress checkpoint (2026-08-16) — CONTINUE HERE (conservation fixes landed)
+
+### Done in this session (all local, uncommitted since b9c9ee7)
+- Model foundation: Agent.origin_nation (set once, never re-pointed) + is_homesteader/homestead_since/last_forage_turn/last_migration_turn; cash portability via fx.walletize/decash_wallet.
+- region.py narrowed: wilderness construction (no bank/gov/charity/factions, EMPTY start); step() delegates to wilderness.step_wilderness.
+- wilderness.py: forage (1 food/3 turns, wild only), enter_wilderness (walletize + flag), enter_claimed (homestead status LOST + de-cash), step_wilderness (logged).
+- sim_world.py: 10x8 builder (3 nations x 2-3 tiles, 100 agents/tile; 72 wilderness tiles, wilderness_pop 0-50), full adjacency, ForexDesks only between claimed; loop = pending->step->routes->parked->settle(claimed)->FX->migrate->settle_wilderness->regime->PPP->audit.
+- migration.py: real conserved move (pressure>=0.2, max 3/tile, cooldown 20); homesteading ONLY for poor (owners/wealth>60 never wild); origin-tile currency walletized BEFORE wilderness entry (ghost-safe).
+- trade_settle.py: no-interest wilderness bank, sell (price+transport)*1.20 funded from trader cash, collect outputs, half-diff paid from trader cash; settlement_log.
+- world_trade.settle_trade: wilderness destinations skipped (None-currency leak); commerce pairs claimed-only.
+- ledger.py: heirless-no-state cash/wallet/deposit destruction RECORDED; sim_world alarm EXEMPTS recorded destruction + prints DESTROY lines; goods-at-sea accounted-tolerated (future cargo milestone).
+- econsim_live: cross-tile heir/owner payouts walletized; heirless-no-state records.
+
+### Verified state (2026-08-16 rerun on current tree)
+- **claims.py now FIRES end-to-end** — the old "no claims" world120*.out files were stale
+  (pre-claims).  40-turn gate: Gamma r0c7 (T=24), Alpha r4c5/r3c1/r2c0, Beta r1c2/r4c1...
+- **Fix A (claims.py)**: fresh-claim Government agent is now appended to tile.agents with
+  region/_bank_ref/home_currency wired (region._create_agents does this for normal tiles).
+  Without it, every $ the new gov collects (taxes/probate/import-escheat) left the audit =
+  the step-phase GA sink (-84.18 -> -0.02 at T=34).
+- **Fix B (claims.py)**: frontier banks get a conserved founding charter — residents pool
+  5% of their just-de-cashed cash (capped $10) into bank.capital.  Kills the zero-capital
+  instant-insolvency.
+- **Fix C (econsim_live._handle_debt_inheritance)**: debt groups by issuing bank (loan.bank),
+  not ctx.bank — a homesteader dying at a frontier tile was writing total_liabilities down
+  for another bank's loans (-$216 phantom at T=55).
+- **Fix D (econsim_live._forgive_bad_debt)**: genuine-failure tier — after shareholders/
+  depositors/treasury, the shortfall writes capital negative (conserved; caller already
+  removed the loan from liabilities; audit sees negative equity).  No more RuntimeError abort.
+- Regression suite STILL GREEN: sim_nation 100 / sim_ring 300 / behavior_drift / probe_m2 /
+  probe_hex all PASS.
+- world120 now RUNS to T=119+ (was T=55 crash) but REMAINING cross-currency shifts
+  (mostly BE+/GA- pairs ~$5-65: T=60, 70-78, 81-91) and one T=91 $65 swing are UNRESOLVED.
+
+### Next steps (resume here)
+1. Chase the BE+/GA- cross-currency shifts (T=60, 70-78, 81-91; mostly -GA/+BE pairs).
+   Phase-bisect a late claim turn with tmp/dbg_claim34.py style probe.
+2. Prime suspect: decash_wallet only de-cashes the CLAIMING currency at claim time — foreign
+   wallets (e.g. GA homesteaders on a BE-claimed tile, or vice-versa) may be double/under-counted
+   when the audit's home-currency sum + global wallet sum overlap on residents whose home_currency
+   changed.  Verify audit_currency_total's home-cash vs wallet handling for claimed-tile residents.
+3. Check fx.connect_desks mid-run for newly-claimed neighbors (only claimed->claimed desks;
+   pair_orders rebuild at claim time already re-pairs).
+4. Re-run 40/120 gate to 0 unaccounted once the BE+/GA- class is fixed.
+5. Perf smoke (80 tiles) + generalize hexmap/hexview + ticker (migrate/claims/DESTROY events).
+6. Docs (agent.md/task.md/tasks.md/priority_tasks.md) + commit (no push) once gate green.
+
+---
+
+# v3_bank_network — PLAN (approved 2026-08-16; DO NOT implement yet)
+
+Goal: per-Nation bank network so a distressed tile bank is rescued by stronger
+nation banks + the national government. Every leg is an intra-nation
+SAME-CURRENCY transfer, so `audit_currency_total` (sums `bank.equity` across
+all banks of that currency) sees no net change. Legacy drivers stay
+byte-identical when the master switch is OFF.
+
+## Locked-in rulings (user, 2026-08-16)
+1. `Nation.bank_network_enabled` — master switch (default OFF for legacy
+   sim_nation/sim_ring; ON for sim_world). When ON it enables BOTH bank-to-bank
+   swaps AND the national-government backstop (one switch, per user).
+2. `Nation.founder_dividends_enabled` — separate per-nation switch, DEFAULT ON.
+3. `Nation.swap_interest_enabled` — separate per-nation switch, DEFAULT ON.
+
+## Spec
+1. Registry: `Nation.banks: list[Bank]`; populated in `Nation.add_tile`
+   (auto-onboards future claims.py banks); unregister in remove/_reparent.
+2. Founder shares: `claims.py` founding charter records `bank.founders[agent]`;
+   every DIVIDEND_INTERVAL (10) pay pro-rata dividend from `bank.capital`
+   capped to a safety floor (capital down, founder cash up = transfer). Founder
+   death: stake inherits per-stirpes else escheats (stake cancelled, funds stay
+   in capital). Honors founder_dividends_enabled.
+3. Swap: distress = `equity < equity_floor`; contributors = same-nation banks
+   above a participation threshold, largest-capital-first, exposure-capped.
+   Swap is an inter-bank liability: source `capital -= X`,
+   `swap_assets[target] += X`; target `capital += X`,
+   `swap_liabilities[source] += X` (audit-flat). Repay principal (+ interest if
+   swap_interest_enabled) once recovered above a repayment floor.
+4. National backstop (same switch as #3): extend `_recapitalize` to try tile gov
+   then sovereign Nation.government; fund via optional federal remittance
+   (tile govs remit a fraction of tax/tariff/probate to national gov).
+5. Ticker: `Nation.bank_event_log` entries {t, kind: swap|swap_repay|recap|
+   bank_failure|dividend, from_bank, to_bank, amount}; wire into sim_world
+   world_events archive with MIGRATE/CLAIM/DESTROY.
+
+## Order of work
+1 registry -> 2 founder shares+dividend -> 3 swap+interest -> 4 backstop+
+remittance -> 5 scripted probe (force distress; audit flat across legs; other
+nations untouched) -> 6 sim_world 40/120 network ON 0 SHIFT -> 7 legacy suite
+network OFF unchanged -> 8 viewer ticker.
+
+## Risks
+- Swap/recap only within one nation's currency. Never cross-nation.
+- Dividend must never push capital below the safety floor.
+- Exposure cap + seniority prevent one strong bank being drained by many weak.
