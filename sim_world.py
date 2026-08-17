@@ -70,13 +70,17 @@ def make_wilderness(name):
     return Region(name, t=0, wilderness=True)
 
 
-def build_world(seed=42):
+def build_world(seed=None):
     """Build the 9x9 hex world and return (tiles, nations, grid).
 
     grid: list of lists (rows x cols) of the same Region objects as *tiles*,
-    so callers can address tiles by (row, col).
+    so callers can address tiles by (row, col).  ``seed=None`` seeds from
+    system entropy (nondeterministic); pass an int for reproducible worlds.
     """
-    random.seed(seed)
+    if seed is not None:
+        random.seed(seed)
+    else:
+        random.seed()
     profs = _professions()
 
     tiles = []
@@ -207,13 +211,31 @@ def build_world(seed=42):
 
 
 def main():
-    time_steps = int(sys.argv[1]) if len(sys.argv) > 1 else 30
+    time_steps = 30
+    seed = None
+    args = sys.argv[1:]
+    i = 0
+    while i < len(args):
+        if args[i] == '--seed' and i + 1 < len(args):
+            seed = int(args[i + 1])
+            i += 2
+        elif args[i] == '-t' and i + 1 < len(args):
+            time_steps = int(args[i + 1])
+            i += 2
+        elif args[i].isdigit():
+            time_steps = int(args[i])
+            i += 1
+        else:
+            i += 1
     logInit()
-    random.seed(42)
+    if seed is not None:
+        random.seed(seed)
+    else:
+        random.seed()
     print(f"v3_wilderness: 9x9 hex world ({GRID_COLS}x{GRID_ROWS}), "
           f"{time_steps} turns\n")
 
-    tiles, nations, _grid = build_world()
+    tiles, nations, _grid = build_world(seed=seed)
     currencies = [n.currency for n in nations]
     # Commerce pairs run through the priced-auction / FX machinery, which
     # requires a destination BANK + currency.  Wilderness tiles (no bank, no

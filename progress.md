@@ -60,4 +60,14 @@ Plus ~40 read sites of `region.bank/.gov/.charity` across region.py, world_trade
       the founding-charter rule; wrapping them in a standard Province
       would mint capital/gov cash) — province-ifying claims is the next
       step.
-- [ ] Milestone F — seeding + viewer province-highlight + tile/nation stats (commit 3)
+- [x] Milestone F — seeding + viewer UX DONE:
+      sim_world/worldview accept `--seed N` (default entropy); worldview
+      step_world is province-aware (shared bundle once per province; legacy/
+      wild tiles unchanged); selecting a tile highlights its WHOLE province
+      (accent border); V toggles per-tile <-> per-nation sidebar scope (nation
+      aggregates: pop/treasury/avg CoL/GDP/legit); tile header shows province
+      name + per-region CoL + climate.  Gate: sim_nation 100 / sim_ring 300 /
+      behavior_drift GATE / m2 / m3 / probe_hex / probe_worldview /
+      verify_milestone_e — ALL PASS.  **Committed (no push).**
+      Follow-up queued: claims.py province-ifying (adopt existing 0-capital
+      institutions, no seeding), tasks.md docs + wrap-up.

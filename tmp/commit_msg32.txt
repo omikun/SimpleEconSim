@@ -1,0 +1,25 @@
+Milestone F: random seeding + viewer province-highlight + per-tile/per-nation stats
+
+=== WHAT ===
+- sim_world.py: build_world(seed=None) defaults to entropy; main() parses
+  --seed N / -t N / positional turns.
+- worldview.py: build_world_view(seed=None) + main() --seed; step_world is
+  now province-aware (shared bundle institutionals run once per province,
+  member tiles step per-tile economy only, legacy/wild keep r.step()) so the
+  viewer's audit matches sim_world exactly.
+- Selecting a tile highlights its WHOLE province on the hex map (accent
+  border on every member tile; _province_members helper).
+- V toggles the sidebar scope: 'tile' (six per-region charts + province name
+  + per-region CoL + climate) <-> 'nation' (name/regime/legitimacy/tiles/pop/
+  treasury/avg CoL/GDP aggregate).
+- Empty-unclaimed pin still guarded (no gov/recipes/factions).
+- Help text lists V toggle; state dict gains 'scope'.
+
+=== GATES (ALL GREEN) ===
+- tmp/run_milestoneE_gate.sh ALL PASS: province world 40t 0 SUPPLY SHIFT,
+  sim_nation 100 / sim_ring 300 / behavior_drift GATE / probe_m2 / probe_m3 /
+  probe_hex / probe_worldview / verify_milestone_e.
+
+Follow-up queued (per progress.md): claims.py province-ifying (adopt the
+existing 0-capital per-claim institutions without seeding new capital), then
+tasks.md/docs wrap-up.  Never push.

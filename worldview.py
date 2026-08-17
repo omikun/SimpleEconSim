@@ -190,10 +190,16 @@ def _selected_nation(world):
 # World stepping (mirrors sim_world.main() exactly)
 # ---------------------------------------------------------------------------
 
-def build_world_view():
-    """Build the 9x9 hex world + prepare viewer state."""
-    random.seed(42)
-    tiles, nations, _grid = build_world()
+def build_world_view(seed=None):
+    """Build the 9x9 hex world + prepare viewer state.
+
+    ``seed=None`` seeds from entropy; an int makes the world reproducible.
+    """
+    if seed is not None:
+        random.seed(seed)
+    else:
+        random.seed()
+    tiles, nations, _grid = build_world(seed=seed)
     currencies = [n.currency for n in nations]
     layout = _layout()
     pair_orders = [(r, o) for r in tiles for o in tiles if o is not r
@@ -221,6 +227,7 @@ def build_world_view():
                             for c in currencies},
         'violations': [],
         'ticker_events': [],      # bounded list of {kind, text, t}
+        'scope': 'tile',          # 'tile' = per-region charts; 'nation' = aggregates
         'help_open': False,
         'help_scroll': 0,
     }
@@ -255,7 +262,19 @@ def step_world(world):
         r.pending_imports = pending
         r._auction_import_sales = {}
 
+    # v3 provinces: shared institutionals run ONCE per province; member tiles
+    # step their per-tile economy only.  Legacy/unclaimed tiles keep r.step().
+    _provinces = [p for n in world['nations']
+                  for p in getattr(n, 'provinces', [])]
+    _prov_tiles = {}
+    for p in _provinces:
+        for r in p.tiles:
+            _prov_tiles[r.name] = r
+    for p in _provinces:
+        p.step(t)
     for r in tiles:
+        if r.name in _prov_tiles:
+            continue
         r.step(t)
 
     for r in tiles:
@@ -514,9 +533,21 @@ def _draw_pop_delta(surface, region, cx, cy, font_small):
     surface.blit(txt, txt.get_rect(center=(cx, cy - 38)))
 
 
+def _province_members(world, region):
+    """Tiles in the same province as *region* (or just the tile if none)."""
+    prov = getattr(region, 'province', None)
+    if prov is not None:
+        return list(prov.tiles)
+    return [region]
+
+
 def _draw_hex_map(surface, world, font, font_small):
     tiles = world['tiles']
     layout = world['layout']
+    highlighted = set()
+    sel = world.get('selected_region')
+    if sel is not None:
+        highlighted = {r.name for r in _province_members(world, sel)}
     for region in tiles:
         coords = layout.get(region.name)
         if coords is None:
@@ -526,7 +557,8 @@ def _draw_hex_map(surface, world, font, font_small):
         _draw_pop_heat(surface, region, pts, cx, cy)
         edge = WILD_EDGE if getattr(region, 'owner_nation', None) is None else HEX_EDGE
         pygame.draw.polygon(surface, edge, pts, 2)
-        if region is world.get('selected_region'):
+        if region.name in highlighted:
+            # v3: selecting a tile highlights its WHOLE province.
             pygame.draw.polygon(surface, ACCENT, pts, 4)
         name_surf = font.render(region.name, True, TEXT)
         surface.blit(name_surf, name_surf.get_rect(center=(cx, cy - 20)))
@@ -844,9 +876,47 @@ def _draw_panel(surface, world, font, font_small):
     region = world.get('selected_region') or world.get('hover_region')
     chart_top = 185 + d
     chart_bottom = HEIGHT - TICKER_H - 96
+    scope = world.get('scope', 'tile')
+    if scope == 'nation':
+        # per-NATION scope: aggregate the owner nation's stats instead of the
+        # tile charts.  (V toggles tile <-> nation.)
+        n = _selected_nation(world)
+        if n is not None:
+            owner_pop = sum(r.total_population[-1] if r.total_population
+                            else len(r.agents) for r in n.tiles)
+            tr = n.treasury()
+            col = (sum(r.cost_of_living for r in n.tiles) / max(1, len(n.tiles)))
+            gdp = sum(r.gdp_log[-1] if r.gdp_log else 0.0 for r in n.tiles)
+            lines = [
+                (f"{n.name} ({n.currency})  {n.regime_type}", ACCENT),
+                (f"legit {n.legitimacy:.2f}  tiles {len(n.tiles)}", TEXT),
+                (f"pop {owner_pop}", TEXT),
+                (f"treasury ${tr['total']:,.0f} ({tr['food']} food)", TEXT),
+                (f"avg CoL {col:.2f}", DIM),
+                (f"GDP/turn ${gdp:,.0f}", GREEN),
+            ]
+            yy = chart_top + 4
+            for text, color in lines:
+                line = font_small.render(text, True, color)
+                surface.blit(line, (PANEL_LEFT, yy))
+                yy += 20
+            hint = font_small.render(
+                f"NATION scope (V=tile)  press V to toggle", True, DIM)
+            surface.blit(hint, (PANEL_LEFT, chart_bottom + 6))
+            _draw_regime_readout(surface, region if region is not None else n.tiles[0],
+                                 font_small, chart_bottom + 24)
+        return
     if region is not None:
-        head = font_small.render(region.name, True, TEXT)
+        prov_s = ""
+        if getattr(region, 'province', None) is not None:
+            prov_s = f"  [{region.province.name}]"
+        head = font_small.render(f"{region.name}{prov_s}", True, TEXT)
         surface.blit(head, (PANEL_LEFT, chart_top - 6))
+        # per-region CoL + climate on the tile card header line.
+        col_line = font_small.render(
+            f"CoL {region.cost_of_living:.2f}  {region.climate}  "
+            f"(V=nation)", True, DIM)
+        surface.blit(col_line, (PANEL_LEFT, chart_top - 6 + 16))
         charts = _tile_charts(region)
         view = world.get('view', 0)
         if view == 0:
@@ -974,14 +1044,26 @@ def render_frame(surface, world):
 # ---------------------------------------------------------------------------
 
 def main():
+    seed = None
+    args = sys.argv[1:]
+    i = 0
+    while i < len(args):
+        if args[i] == '--seed' and i + 1 < len(args):
+            seed = int(args[i + 1])
+            i += 2
+        else:
+            i += 1
     logInit()
-    random.seed(42)
+    if seed is not None:
+        random.seed(seed)
+    else:
+        random.seed()
     pygame.init()
     surface = pygame.display.set_mode((WIDTH, HEIGHT))
     pygame.display.set_caption("REGNUM v3 — Hex World")
     clock = pygame.time.Clock()
 
-    world = build_world_view()
+    world = build_world_view(seed=seed)
     _pops.clear()
     for r in world['tiles']:
         if getattr(r, 'owner_nation', None) is not None:
@@ -1034,6 +1116,8 @@ def main():
                         step_world(world)
                 elif event.key == pygame.K_TAB:
                     world['view'] = 0
+                elif event.key == pygame.K_v:
+                    world['scope'] = 'nation' if world.get('scope', 'tile') == 'tile' else 'tile'
                 elif pygame.K_1 <= event.key <= pygame.K_6:
                     world['view'] = event.key - pygame.K_1 + 1
                 elif event.key in (pygame.K_LEFT, pygame.K_a):
