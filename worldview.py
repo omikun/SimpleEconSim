@@ -1,6 +1,6 @@
 """
 REGNUM v3_wilderness — Pygame hex-world viewer for the 9x9 honeycomb.
-Features cursor-anchored smooth map zoom and a 10-chart interactive sidebar.
+Features cursor-anchored smooth map zoom, middle-mouse drag panning, WASD/arrow pan, and a 10-chart interactive sidebar.
 """
 
 import os
@@ -129,9 +129,9 @@ def main():
                 # 1. Check Zoom HUD buttons
                 hud_action = zoom_hud_hit(event.pos)
                 if hud_action == 'in':
-                    zoom_cam_at(world, 1.2, MAP_RIGHT // 2, HEIGHT // 2)
+                    zoom_cam_at(world, 1.25, MAP_RIGHT // 2, HEIGHT // 2)
                 elif hud_action == 'out':
-                    zoom_cam_at(world, 1.0 / 1.2, MAP_RIGHT // 2, HEIGHT // 2)
+                    zoom_cam_at(world, 1.0 / 1.25, MAP_RIGHT // 2, HEIGHT // 2)
                 elif hud_action == 'reset':
                     reset_cam(world)
                 else:
@@ -155,13 +155,13 @@ def main():
                             clicked = tile_at(world, *event.pos)
                             if clicked is not None:
                                 world['selected_region'] = clicked
-            elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 2:
+            elif event.type == pygame.MOUSEBUTTONDOWN and event.button in (2, 3):
+                # Middle or Right mouse drag to pan
                 drag = True
-                pygame.mouse.get_rel()
-            elif event.type == pygame.MOUSEBUTTONUP and event.button == 2:
+            elif event.type == pygame.MOUSEBUTTONUP and event.button in (2, 3):
                 drag = False
             elif event.type == pygame.MOUSEMOTION and drag:
-                dx, dy = pygame.mouse.get_rel()
+                dx, dy = event.rel
                 world['cam']['ox'] += dx
                 world['cam']['oy'] += dy
                 clamp_cam(world)
@@ -170,9 +170,6 @@ def main():
                 if mx < MAP_RIGHT:
                     factor = 1.15 ** event.y
                     zoom_cam_at(world, factor, mx, my)
-                else:
-                    # Sidebar scroll / window adjustment
-                    pass
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     if world.get('help_open'):
@@ -190,7 +187,7 @@ def main():
                 elif event.key == pygame.K_SPACE:
                     world['playing'] = not world['playing']
                     last_tick = now
-                elif event.key in (pygame.K_s, pygame.K_RIGHT):
+                elif event.key in (pygame.K_n, pygame.K_PERIOD):
                     if not world['playing']:
                         step_world(world)
                 elif event.key == pygame.K_TAB:
@@ -200,21 +197,21 @@ def main():
                 elif pygame.K_1 <= event.key <= pygame.K_9:
                     world['view'] = event.key - pygame.K_1 + 1
                 elif event.key == pygame.K_0:
-                    # Key 0 zooms chart 10 or resets view
                     world['view'] = 10 if world.get('view') != 10 else 0
                 elif event.key in (pygame.K_r, pygame.K_HOME):
                     reset_cam(world)
+                # WASD and Arrow keys for smooth panning
                 elif event.key in (pygame.K_LEFT, pygame.K_a):
-                    world['cam']['ox'] += 30
+                    world['cam']['ox'] += 40
                     clamp_cam(world)
                 elif event.key in (pygame.K_RIGHT, pygame.K_d):
-                    world['cam']['ox'] -= 30
+                    world['cam']['ox'] -= 40
                     clamp_cam(world)
                 elif event.key in (pygame.K_UP, pygame.K_w):
-                    world['cam']['oy'] += 30
+                    world['cam']['oy'] += 40
                     clamp_cam(world)
-                elif event.key in (pygame.K_DOWN,):
-                    world['cam']['oy'] -= 30
+                elif event.key in (pygame.K_DOWN, pygame.K_s):
+                    world['cam']['oy'] -= 40
                     clamp_cam(world)
                 elif event.key in (pygame.K_PLUS, pygame.K_EQUALS):
                     zoom_cam_at(world, 1.15, MAP_RIGHT // 2, HEIGHT // 2)

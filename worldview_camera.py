@@ -13,25 +13,29 @@ _MARGIN = 24
 
 
 def clamp_cam(world):
-    """Keep the (scaled) hex bbox within the map viewport, centered if smaller."""
+    """Keep the hex map within bounds while allowing generous panning."""
     cam = world['cam']
     zoom = cam['zoom']
     x0, y0, x1, y1 = world['bbox']
     sx0, sy0, sx1, sy1 = x0 * zoom, y0 * zoom, x1 * zoom, y1 * zoom
-    map_w = MAP_RIGHT - 2 * _MARGIN
-    map_h = (HEIGHT - TOP_BAR_H - TICKER_H) - 2 * _MARGIN
-    # X clamp
-    if sx1 - sx0 <= map_w:
+
+    # Map viewport bounds: X in [0, MAP_RIGHT], Y in [TOP_BAR_H, HEIGHT - TICKER_H]
+    # Allow panning across the viewport; only clamp if the map is dragged far off-screen
+    min_ox = 100 - sx1
+    max_ox = (MAP_RIGHT - 100) - sx0
+    if min_ox > max_ox:
         cam['ox'] = (MAP_RIGHT - (sx0 + sx1)) / 2.0
     else:
-        cam['ox'] = max(_MARGIN - sx0, min(MAP_RIGHT - _MARGIN - sx1, cam['ox']))
-    # Y clamp (play area between top bar and ticker)
-    top = TOP_BAR_H + _MARGIN
-    bottom = HEIGHT - TICKER_H - _MARGIN
-    if sy1 - sy0 <= bottom - top:
+        cam['ox'] = max(min_ox, min(max_ox, cam['ox']))
+
+    top = TOP_BAR_H
+    bottom = HEIGHT - TICKER_H
+    min_oy = top + 80 - sy1
+    max_oy = bottom - 80 - sy0
+    if min_oy > max_oy:
         cam['oy'] = (top + bottom - (sy0 + sy1)) / 2.0
     else:
-        cam['oy'] = max(top - sy0, min(bottom - sy1, cam['oy']))
+        cam['oy'] = max(min_oy, min(max_oy, cam['oy']))
 
 
 def zoom_cam_at(world, factor, mx, my):
@@ -50,10 +54,13 @@ def zoom_cam_at(world, factor, mx, my):
 
 
 def reset_cam(world):
-    """Reset zoom to 1.0 and re-center the map."""
+    """Reset zoom to 1.0 and center the map in the viewport."""
     world['cam']['zoom'] = 1.0
-    world['cam']['ox'] = 0.0
-    world['cam']['oy'] = 0.0
+    x0, y0, x1, y1 = world['bbox']
+    top = TOP_BAR_H
+    bottom = HEIGHT - TICKER_H
+    world['cam']['ox'] = (MAP_RIGHT - (x0 + x1)) / 2.0
+    world['cam']['oy'] = (top + bottom - (y0 + y1)) / 2.0
     clamp_cam(world)
 
 

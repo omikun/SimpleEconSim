@@ -253,8 +253,9 @@ def draw_help(surface, world, font_small):
                  (24, 14))
     lines = [
         'Space .......... play / pause (~150 ms/turn)',
-        'S or -> ........ step one turn (while paused)',
-        'Arrows / WASD .. pan the camera',
+        'N or . ......... step one turn (while paused)',
+        'WASD / Arrows .. pan the camera',
+        'Middle / Right . drag to pan the map',
         '+ / - / wheel .. smooth cursor-anchored zoom in / out',
         '0 or R ......... reset map zoom (1:1 center)',
         'Tab / Esc ...... return to 10-chart grid view',
