@@ -181,11 +181,14 @@ def check_and_apply_claims(t, tiles, nations):
                     a.cash -= sub
                     prov.bank.capital += sub
 
-            # 4. Connect ForexDesks with claimed neighbors
+            # 4. Connect ForexDesks with claimed neighbors & mass convert foreign wallets
             for other in tile.neighbors.values():
                 if not getattr(other, 'wilderness', False) and getattr(other, 'owner_nation', None) is not None:
                     if tile.forex_desks.get(other.name) is None:
                         fx.connect_desks(tile, other, t=t)
+
+            # Mass convert non-trader settlers' foreign currency to local currency
+            fx.convert_non_trader_wallets(tile.agents, tile, t=t)
 
             # 5. Logging
             event = {

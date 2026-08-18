@@ -464,6 +464,21 @@ Upgraded `worldview.py` with cursor-anchored smooth map zoom, on-screen zoom HUD
 
 ---
 
+## DONE — Non-Trader Foreign Currency Auto-Conversion & Mass Claim Conversion
+Implemented automated conversion of foreign-currency wallet balances to domestic hand cash for non-trader citizens:
+- `forex.py`: Added `convert_non_trader_wallets(agents, region, t)` to exchange non-traders' foreign wallet holdings into domestic hand cash via the region's central bank `ForexDesk` up to available `fx_pool`. Conserved: wallet -foreign, bank reserves +foreign, bank fx_pool -home, citizen cash +home.
+- `claims.py`: Runs mass conversion across all settler agents immediately upon claiming a wilderness tile and connecting Forex desks.
+- `sim_engine.py`: Integrated per-turn conversion across all claimed regions so foreign currency acquired through migration or inheritance is continuously converted into active domestic purchasing power.
+
+### Verification
+- `sim_world.py 80`: PASS (80 turns, 81 hex tiles, 0 leaks).
+- `sim_nation.py 50`: PASS (50 turns, 3 nations x 2 tiles, 0 errors).
+- `sim_ring.py 100`: PASS (100 turns, 3-region ring, 0 errors).
+- `econsim_two_region.py 30`: PASS (30 turns, wealth diagnostics clean).
+- `tmp/probe_worldview.py`: PASS (5/5 headless checks).
+
+---
+
 # v3_bank_network — PLAN (approved 2026-08-16; DO NOT implement yet)
 
 Goal: per-Nation bank network so a distressed tile bank is rescued by stronger

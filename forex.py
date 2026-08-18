@@ -368,6 +368,48 @@ def repatriate_traders(agents, region, t):
     return total
 
 
+def convert_non_trader_wallets(agents, region, t=0):
+    """Convert foreign-currency wallet balances held by non-trader citizens to home cash.
+
+    Uses the region bank's ForexDesks up to available bank fx_pool.
+    Conservation-safe: citizen wallet -foreign, bank reserves +foreign,
+    bank fx_pool -home, citizen cash +home.
+    """
+    bank = getattr(region, 'bank', None)
+    if bank is None:
+        return 0.0
+    home_currency = getattr(region, 'home_currency', None)
+    if home_currency is None:
+        return 0.0
+    total_converted = 0.0
+    desks = getattr(region, 'forex_desks', {})
+    for a in agents:
+        if getattr(a, 'is_trader', False) or getattr(a, 'is_government', False):
+            continue
+        w = getattr(a, 'wallets', None)
+        if not w:
+            continue
+        for foreign_cur, bal in list(w.items()):
+            if foreign_cur == home_currency:
+                decash_wallet(a, home_currency)
+                continue
+            if bal <= 0:
+                continue
+            # Look for an active ForexDesk for this partner currency
+            rate = 1.0 * (1.0 - DESK_SPREAD / 2.0)
+            if desks:
+                for desk in desks.values():
+                    if getattr(desk, 'other', None) == foreign_cur:
+                        rate = desk.buy_rate()
+                        break
+            elif getattr(region, 'forex', None) is not None and region.forex.other == foreign_cur:
+                rate = region.forex.buy_rate()
+
+            paid = sell_fx_to_bank(bank, a, foreign_cur, bal, rate)
+            total_converted += paid
+    return total_converted
+
+
 # =============================================================================
 # Setup + per-currency audit
 # =============================================================================

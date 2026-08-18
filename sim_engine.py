@@ -77,8 +77,11 @@ def step_turn(t: int, tiles: list, nations: list = None,
     for r, other in pair_orders:
         settle_trade(t, other, r)
 
-    # 6. Cycle all forex markets
+    # 6. Cycle all forex markets & convert non-trader foreign wallets
     fx.cycle_all_markets(tiles, t)
+    for r in tiles:
+        if getattr(r, 'owner_nation', None) is not None:
+            fx.convert_non_trader_wallets(r.agents, r, t)
 
     # 7. Migrations
     mig_events = run_migrations(t, tiles)
