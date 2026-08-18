@@ -245,44 +245,155 @@ def draw_ticker(surface, world, font_small):
 def draw_help(surface, world, font_small):
     if not world.get('help_open', False):
         return
-    title_font = pygame.font.Font(None, 30)
+    title_font = pygame.font.Font(None, 32)
+    header_font = pygame.font.Font(None, 24)
     overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
-    overlay.fill((16, 16, 22, 242))
+    overlay.fill((14, 14, 20, 246))
     surface.blit(overlay, (0, 0))
-    surface.blit(title_font.render('REGNUM v3 — Hex World Controls', True, ACCENT),
-                 (24, 14))
-    lines = [
-        'Space .......... play / pause (~150 ms/turn)',
-        'N or . ......... step one turn (while paused)',
-        'WASD / Arrows .. pan the camera',
-        'Middle / Right . drag to pan the map',
-        '+ / - / wheel .. smooth cursor-anchored zoom in / out',
-        '0 or R ......... reset map zoom (1:1 center)',
-        'Tab / Esc ...... return to 10-chart grid view',
-        '1 .. 9, 0 ...... zoom into any of the 10 sidebar charts',
-        'Click chart .... click any mini-chart to zoom into detailed view',
-        'Click hex ...... pin a tile (charts stay anchored)',
-        'H or ? ......... toggle this help',
-        'Esc ............ close help first; Q quits either way',
-        '',
-        'Right panel features 10 live graphs: Prices, Pop/Hunger, Production,',
-        'Trade Flow, Gov Income, Gini/Migration, Inventories, Protest Energy,',
-        'GDP Output, and Demand Ratios.',
+
+    # Modal Header
+    surface.blit(title_font.render('REGNUM v3 — Comprehensive Map & Controls Guide (Press H or Esc to Close)', True, ACCENT),
+                 (32, 20))
+    pygame.draw.line(surface, (70, 70, 85), (32, 54), (WIDTH - 32, 54), 1)
+
+    # 3-Column Layout: (Col1: Controls & Sidebar), (Col2: Hex Map & Labels), (Col3: Badges, Rings & Glyphs)
+    col_w = (WIDTH - 96) // 3
+    col1_x = 32
+    col2_x = 32 + col_w + 16
+    col3_x = 32 + (col_w + 16) * 2
+
+    # Column 1: Controls & Navigation
+    y = 68
+    surface.blit(header_font.render('1. CONTROLS & NAVIGATION', True, ACCENT), (col1_x, y))
+    y += 28
+    col1_items = [
+        ("Space", "Play / pause auto-step (~150ms)"),
+        ("N or .", "Step 1 turn (while paused)"),
+        ("WASD / Arrows", "Pan map camera in 4 directions"),
+        ("Middle/Right Drag", "Hold & drag mouse to pan map"),
+        ("Mouse Wheel", "Smooth zoom anchored at cursor"),
+        ("0 or R / Home", "Reset zoom & center map (1:1)"),
+        ("On-Screen [+] / [-]", "Map zoom HUD buttons (top-right)"),
+        ("Tab / Esc", "Return to 10-chart grid view"),
+        ("1 .. 9, 0", "Zoom into individual sidebar chart"),
+        ("Click Mini-Chart", "Instant click-to-zoom for chart"),
+        ("Click Hex Tile", "Pin tile (locks sidebar readout)"),
+        ("V", "Toggle Tile vs Nation scope view"),
+        ("H or ?", "Toggle this help guide overlay"),
+        ("Q or Esc", "Close help modal / Quit"),
     ]
-    max_w = WIDTH - 72
-    wrapped = []
-    for ln in lines:
-        cur = ''
-        for w in ln.split(' '):
-            test = (cur + ' ' + w).strip()
-            if font_small.size(test)[0] <= max_w or not cur:
-                cur = test
-            else:
-                wrapped.append(cur)
-                cur = w
-        wrapped.append(cur)
-    y = 52
-    for text in wrapped:
-        color = TEXT if text else (16, 16, 22)
-        surface.blit(font_small.render(text, True, color), (24, y))
+    for key, desc in col1_items:
+        k_surf = font_small.render(f"{key:<16}", True, (255, 255, 255))
+        d_surf = font_small.render(desc, True, DIM)
+        surface.blit(k_surf, (col1_x, y))
+        surface.blit(d_surf, (col1_x + 130, y))
         y += 20
+
+    y += 10
+    surface.blit(header_font.render('SIDEBAR 10-CHART SUITE', True, ACCENT), (col1_x, y))
+    y += 24
+    charts_desc = [
+        "1. Prices (Food/Wood/Furniture)",
+        "2. Pop / Hunger (Living vs Starving)",
+        "3. Production (Physical output volume)",
+        "4. Trade Flow (Export vs Import bars)",
+        "5. Gov Income (Tax / Tariff / Inherit)",
+        "6. Gini / Migr (Inequality & Intent)",
+        "7. Inventories (Local warehouse stock)",
+        "8. Protest / Energy (Grievance energy)",
+        "9. GDP Output (Gross economic product)",
+        "10. Demand Ratios (Market scarcity)",
+    ]
+    for item in charts_desc:
+        surface.blit(font_small.render(item, True, TEXT), (col1_x, y))
+        y += 18
+
+    # Column 2: Hex Colors & Labels
+    y = 68
+    surface.blit(header_font.render('2. MAP COLORS & LABELS', True, ACCENT), (col2_x, y))
+    y += 28
+
+    color_items = [
+        ("Mint Green Hex", "Nation Alpha sovereign territory", (141, 211, 199)),
+        ("Pale Yellow Hex", "Nation Beta sovereign territory", (255, 255, 179)),
+        ("Lavender Hex", "Nation Gamma sovereign territory", (190, 186, 218)),
+        ("Dark Grey Hex", "Unclaimed wilderness (unsettled)", (120, 120, 128)),
+        ("Luminance Glow", "Pop heatmap (brighter = denser pop)", (255, 255, 220)),
+        ("Gold Outline", "Province grouping (pinned + members)", ACCENT),
+    ]
+    for title, desc, col in color_items:
+        pygame.draw.rect(surface, col, (col2_x, y + 2, 12, 12), border_radius=2)
+        surface.blit(font_small.render(title, True, col), (col2_x + 20, y))
+        surface.blit(font_small.render(desc, True, DIM), (col2_x + 20, y + 15))
+        y += 34
+
+    y += 6
+    surface.blit(header_font.render('TILE TEXT SUMMARY', True, ACCENT), (col2_x, y))
+    y += 24
+    text_items = [
+        ("rXcY", "Hex axial coordinates (Row X, Col Y)"),
+        ("pop <N>", "Total living agents residing on tile"),
+        ("food $<P>", "Local market clearing price for food"),
+        ("tr <N>", "Count of active merchant traders based here"),
+        ("hs <H>+<W>n", "Homesteaders (H) + wilderness pop (W)"),
+        ("+N / -N", "Net pop delta from last turn (Green/Red)"),
+    ]
+    for tag, desc in text_items:
+        surface.blit(font_small.render(f"{tag:<12}", True, (255, 255, 255)), (col2_x, y))
+        surface.blit(font_small.render(desc, True, DIM), (col2_x + 90, y))
+        y += 20
+
+    y += 10
+    surface.blit(header_font.render('TRADE NETWORK & TICKER', True, ACCENT), (col2_x, y))
+    y += 24
+    net_items = [
+        ("Grey Lines", "Overland trade routes connecting hexes"),
+        ("Cyan Arrows", "Active bilateral trade (width = volume)"),
+        ("Pulsing Dots", "Trade animation showing shipment direction"),
+        ("MIGRATE (Cyan)", "Agents moving across tiles / homesteading"),
+        ("CLAIM (Gold)", "Wilderness tile annexed by a nation"),
+        ("DESTROY (Red)", "Business bankruptcy or debt liquidation"),
+    ]
+    for tag, desc in net_items:
+        surface.blit(font_small.render(tag, True, TEXT), (col2_x, y))
+        surface.blit(font_small.render(desc, True, DIM), (col2_x, y + 14))
+        y += 30
+
+    # Column 3: Badges, Rings & Glyphs
+    y = 68
+    surface.blit(header_font.render('3. BADGES, RINGS & GLYPHS', True, ACCENT), (col3_x, y))
+    y += 28
+
+    badge_items = [
+        ("Green [ W ]", "Frontier wilderness border tile", (90, 210, 120)),
+        ("Orange [ U ]", "Unrest stage (discontent brewing)", (230, 170, 60)),
+        ("Deep Orange [ P ]", "Protest stage (street demonstrations)", (240, 140, 40)),
+        ("Bright Red [ M ]", "Mob stage (riots / unrest violence)", (235, 70, 70)),
+        ("Lime Green [ C ]", "Compromise stage (regime concessions)", (160, 230, 90)),
+        ("Purple [ T ]", "Takeover stage (regime overthrown)", (180, 100, 230)),
+        ("Orange Top Dot", "Food demand scarcity alert (ratio > 1.5)", (240, 150, 60)),
+        ("Red Left Dot", "Severe hunger warning (>5 starving agents)", (235, 70, 70)),
+        ("Green Tag T<N>", "Active traders operating on tile", (90, 210, 120)),
+        ("Purple Left Dot", "High wealth inequality warning (Gini > 0.6)", (190, 110, 230)),
+    ]
+    for tag, desc, col in badge_items:
+        pygame.draw.circle(surface, col, (col3_x + 6, y + 8), 5)
+        surface.blit(font_small.render(tag, True, col), (col3_x + 18, y))
+        surface.blit(font_small.render(desc, True, DIM), (col3_x + 18, y + 14))
+        y += 30
+
+    y += 6
+    surface.blit(header_font.render('TERRAIN GLYPHS & ARBITRAGE', True, ACCENT), (col3_x, y))
+    y += 24
+    glyph_items = [
+        ("Gold Triangle", "Fertile Farmland (food productivity bonus > 1.3x)", (240, 200, 90)),
+        ("Green Triangle", "Dense Forest (timber productivity bonus > 1.3x)", (110, 190, 110)),
+        ("White Circle", "Cold Climate (higher heating/food living cost)", (240, 245, 250)),
+        ("Orange Hot Ring", "Local food price is >15% higher than neighbors", (235, 120, 60)),
+        ("Blue Cold Ring", "Local food price is >15% cheaper than neighbors", (110, 170, 235)),
+    ]
+    for tag, desc, col in glyph_items:
+        pygame.draw.circle(surface, col, (col3_x + 6, y + 8), 5)
+        surface.blit(font_small.render(tag, True, col), (col3_x + 18, y))
+        surface.blit(font_small.render(desc, True, DIM), (col3_x + 18, y + 14))
+        y += 30
