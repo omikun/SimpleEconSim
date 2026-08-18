@@ -27,95 +27,36 @@ import econsim_two_region as sim
 
 
 # =============================================================================
-# Collector lifecycle (used by both standalone main() and econsim_two_region)
-# =============================================================================
+from wealth_collector import WealthCollector, compute_stats, OUTPUT_TO_CAT, CAT_LABELS
 
-snapshots = {}          # region_name -> {turn: {category: [(wealth, debt, id)]}}
+_collector = WealthCollector()
+snapshots = _collector.snapshots
 cumulative_births = 0
 cumulative_deaths = 0
 current_t = 0
-_prev_agent_ids = set()   # agent IDs present as of the previous record_turn
-_seeded = False           # first call seeds baseline; migrations are not births
-
-OUTPUT_TO_CAT = {Goods.food: 'Food', Goods.wood: 'Wood', Goods.furniture: 'Furniture'}
-CAT_LABELS = ['Food', 'Wood', 'Furniture', 'Trader', 'Institutions']
 
 
 def init_collectors():
     """Reset all collectors before a run."""
-    global snapshots, cumulative_births, cumulative_deaths, current_t, \
-        _prev_agent_ids, _seeded
-    snapshots = {'Region_A': {}, 'Region_B': {}}
+    global snapshots, cumulative_births, cumulative_deaths, current_t
+    _collector.reset()
+    snapshots = _collector.snapshots
     cumulative_births = 0
     cumulative_deaths = 0
     current_t = 0
-    _prev_agent_ids = set()
-    _seeded = False
 
 
 def record_turn(t, region_a, region_b):
-    """Record birth/death deltas and wealth snapshots for simulation turn t.
-
-    The caller (econsim_two_region or standalone main) has already run
-    step/transport/foreign_sell for this turn before calling us.
-    Births are agents whose ID was not present last turn; deaths are agents
-    whose ID disappeared from both regions' living-agent lists.
-    """
-    global cumulative_births, cumulative_deaths, current_t, _prev_agent_ids, _seeded
-    current_t = t
-    current_ids = {a.id for a in region_a.agents} | {a.id for a in region_b.agents}
-    if not _seeded:
-        # Baseline: initial population is treated as pre-existing, not births
-        _prev_agent_ids = current_ids
-        _seeded = True
-    else:
-        cumulative_births += len(current_ids - _prev_agent_ids)
-        cumulative_deaths += len(_prev_agent_ids - current_ids)
-        _prev_agent_ids = current_ids
-
-    if t % 10 == 0:
-        for rname, region in [('Region_A', region_a), ('Region_B', region_b)]:
-            bank = region.bank
-            cat_agents = {c: [] for c in CAT_LABELS}
-            for a in region.agents:
-                wealth = a.cash + bank.deposits.get(a, 0)
-                debt = sum(l.principle - l.principle_paid for l in a.loans) if a.loans else 0
-                if a.is_trader:
-                    cat_agents['Trader'].append((wealth, debt, a.id))
-                elif a.is_government:
-                    # Gov wealth = cash + deposits + food-reserve buffer
-                    # (the food reserve is real purchasing-power the chart
-                    # previously omitted).
-                    gov_food_price = region.recipes.get(Goods.food, {}).get('price', 1.0)
-                    gov_food = region.gov.food_inventory * gov_food_price
-                    cat_agents['Institutions'].append((wealth + gov_food, debt, -10))
-                else:
-                    cat = OUTPUT_TO_CAT.get(a.output, 'Food')
-                    cat_agents[cat].append((wealth, debt, a.id))
-            bank_wealth = bank.equity
-            bank_liab = bank.total_liabilities
-            cat_agents['Institutions'].append((bank_wealth, bank_liab, -20))
-            charity = region.charity
-            food_price = region.recipes.get(Goods.food, {}).get('price', 1.0)
-            charity_wealth = charity.agent.cash + bank.deposits.get(charity.agent, 0) \
-                             + charity.food_inventory * food_price
-            cat_agents['Institutions'].append((charity_wealth, 0, -30))
-            snapshots[rname][t] = cat_agents
+    """Record birth/death deltas and wealth snapshots for simulation turn t."""
+    global snapshots, cumulative_births, cumulative_deaths, current_t
+    _collector.record_turn(t, region_a, region_b)
+    snapshots = _collector.snapshots
+    cumulative_births = _collector.cumulative_births
+    cumulative_deaths = _collector.cumulative_deaths
+    current_t = _collector.current_t
 
 
-def stats(vals):
-    """Return (min, max, mean, median, std, count) for a list of numbers."""
-    n = len(vals)
-    if n == 0:
-        return (0, 0, 0, 0, 0, 0)
-    s = sorted(vals)
-    mn = s[0]
-    mx = s[-1]
-    avg = sum(vals) / n
-    med = s[n // 2]
-    var = sum((v - avg) ** 2 for v in vals) / n
-    std = math.sqrt(var)
-    return (mn, mx, avg, med, std, n)
+stats = compute_stats
 
 
 def print_wealth_diagnostic(region, label, turn=None):

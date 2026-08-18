@@ -22,6 +22,7 @@ from logger import logInit
 import forex as fx
 from world_trade import (pending_imports, resolve_parked, settle_trade,
                          trader_wealth, check_trader_holdings)
+import sim_engine
 
 
 TRANSPORT_DELAY = 1
@@ -101,53 +102,13 @@ def main():
     pair_orders = [(r, o) for r in regions for o in regions if o is not r]
 
     for t in range(1, time_steps + 1):
-        curr_before = {c: fx.audit_currency_total(regions, c) for c in currencies}
-        cash_before = sum(curr_before.values())
+        violations, _ = sim_engine.step_turn(
+            t, regions, pair_orders=pair_orders, currencies=currencies,
+            ledger_exempt=False
+        )
 
-        # Install pending imports + clear auction sales.  Traders re-point
-        # inside Region.step() (single repoint per turn keeps destination
-        # switches from splitting a route mid-auction).
-        for r in regions:
-            pending = {}
-            for other in regions:
-                if other is r:
-                    continue
-                for g, entries in pending_imports(r, other).items():
-                    pending.setdefault(g, []).extend(entries)
-            r.pending_imports = pending
-            r._auction_import_sales = {}
-
-        for r in regions:
-            r.step(t)
-
-        # Advance/deliver all routes, then resolve parked lots (T1.3).  Parked
-        # goods sell via the NEXT turn's auction; profitable re-routes ship now.
-        for r in regions:
-            for rt in r._all_routes():
-                rt.advance()
-                rt.deliver_pending()
-        resolve_parked(regions)
-
-        # Settlement for every ordered pair
-        for r, other in pair_orders:
-            settle_trade(t, other, r)
-
-        # FX: one interbank cycle across all desks
-        fx.cycle_all_markets(regions, t)
-
-        # Per-pair exchange-rate updates
-        for r, other in pair_orders:
-            update_exchange_rate_pair(r, other)
-
-        # Conservation checks per currency
-        for c in currencies:
-            delta = fx.audit_currency_total(regions, c) - curr_before[c]
-            if abs(delta) > 5.0:
-                print(f"  T={t}: CURRENCY {c!r} SUPPLY SHIFT ${delta:.2f}")
-
-        cash_after = sum(fx.audit_currency_total(regions, c) for c in currencies)
-        if abs(cash_after - cash_before) > 5.0:
-            print(f"  T={t}: COMBINED CASH LEAK ${cash_after - cash_before:.2f}")
+        for v in violations:
+            print(f"  T={v[0]}: CURRENCY {v[1]!r} SUPPLY SHIFT ${v[2]:.2f}")
 
         # Trade-flow + price-spread logging
         for r in regions:

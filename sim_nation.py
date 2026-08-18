@@ -23,6 +23,7 @@ import forex as fx
 from world_trade import (pending_imports, resolve_parked, settle_trade,
                          trader_wealth)
 from regime import step_regime
+import sim_engine
 
 
 def make_tile(name, prof, terrain=None, climate='temperate'):
@@ -111,66 +112,13 @@ def main():
               f"legitimacy={n.legitimacy}")
 
     for t in range(1, time_steps + 1):
-        curr_before = {c: fx.audit_currency_total(tiles, c) for c in currencies}
-        cash_before = sum(curr_before.values())
+        violations, _ = sim_engine.step_turn(
+            t, tiles, nations=nations, pair_orders=pair_orders,
+            currencies=currencies, ledger_exempt=False
+        )
 
-        for r in tiles:
-            pending = {}
-            for other in tiles:
-                if other is r or other not in r.neighbors.values():
-                    continue
-                for g, entries in pending_imports(r, other).items():
-                    pending.setdefault(g, []).extend(entries)
-            r.pending_imports = pending
-            r._auction_import_sales = {}
-
-        for r in tiles:
-            r.step(t)
-
-        for r in tiles:
-            for rt in r._all_routes():
-                rt.advance()
-                rt.deliver_pending()
-
-        resolve_parked(tiles)
-
-        for r, other in pair_orders:
-            settle_trade(t, other, r)
-
-        fx.cycle_all_markets(tiles, t)
-
-        # M3: regime bookkeeping per nation (elections / coups / legitimacy).
-        for n in nations:
-            step_regime(n, t)
-
-        for r, other in pair_orders:
-            desk = r.forex_desks.get(other.name)
-            if desk is not None:
-                ppp = max(0.1, other.cost_of_living) / max(0.1, r.cost_of_living)
-                desk.update(0, bank=r.bank, fx_regime='managed', ppp_target=ppp)
-                if getattr(r, 'destination_region', None) is other:
-                    desk.save_rate(r)
-
-        for c in currencies:
-            delta = fx.audit_currency_total(tiles, c) - curr_before[c]
-            if abs(delta) > 5.0:
-                print(f"  T={t}: CURRENCY {c!r} SUPPLY SHIFT ${delta:.2f}")
-        cash_after = sum(fx.audit_currency_total(tiles, c) for c in currencies)
-        if abs(cash_after - cash_before) > 5.0:
-            print(f"  T={t}: COMBINED CASH LEAK ${cash_after - cash_before:.2f}")
-
-        for r in tiles:
-            for other in tiles:
-                if other is r or other not in r.neighbors.values():
-                    continue
-                turn_export = sum(r.export_val[g][-1]
-                                  for g in [Goods.food, Goods.wood, Goods.furniture]
-                                  if r.export_val[g])
-                turn_import = sum(r.import_val[g][-1]
-                                  for g in [Goods.food, Goods.wood, Goods.furniture]
-                                  if r.import_val[g])
-                r.cumulative_trade_balance += (turn_export - turn_import)
-                r.trade_flow_log.append(turn_export - turn_import)
+        for v in violations:
+            print(f"  T={v[0]}: CURRENCY {v[1]!r} SUPPLY SHIFT ${v[2]:.2f}")
 
         if t % 50 == 0:
             print(f"Progress: turn {t}/{time_steps}")

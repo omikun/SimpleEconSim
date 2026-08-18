@@ -43,6 +43,7 @@ from claims import check_and_apply_claims
 from hexmap import (rectangular_hex_layout, axial_neighbors, axial_to_offset)
 from province import Province, partition_contiguous
 import ledger
+import sim_engine
 
 
 GRID_COLS = 9
@@ -261,121 +262,22 @@ def main():
     ledger.reset()
 
     for t in range(1, time_steps + 1):
-        curr_before = {c: fx.audit_currency_total(tiles, c) for c in currencies}
+        def on_event(turn, kind, text):
+            print(f"  T={turn}: {text}")
 
-        for r in tiles:
-            pending = {}
-            for other in tiles:
-                if other is r or other not in r.neighbors.values():
-                    continue
-                for g, entries in pending_imports(r, other).items():
-                    pending.setdefault(g, []).extend(entries)
-            r.pending_imports = pending
-            r._auction_import_sales = {}
+        violations, claim_events = sim_engine.step_turn(
+            t, tiles, nations=nations, pair_orders=pair_orders,
+            currencies=currencies, on_event=on_event, ledger_exempt=True
+        )
 
-        # v3 provinces: provincial tiles run the ONCE-PER-PROVINCE flow
-        # (shared charity/bank/gov); legacy / wilderness tiles keep the
-        # per-tile r.step() path.  Province.step calls each member tile's
-        # step_economy() (guarded so the shared institutionals don't double).
-        _provinces = [p for n in nations for p in getattr(n, 'provinces', [])]
-        _prov_tiles = {}
-        for p in _provinces:
-            for r in p.tiles:
-                _prov_tiles[r.name] = r
-        for p in _provinces:
-            p.step(t)
-        for r in tiles:
-            if r.name in _prov_tiles:
-                continue
-            r.step(t)
+        for v in violations:
+            print(f"  T={v[0]}: CURRENCY {v[1]!r} SUPPLY SHIFT ${v[2]:.2f}")
 
-        for r in tiles:
-            for rt in r._all_routes():
-                rt.advance()
-                rt.deliver_pending()
-
-        resolve_parked(tiles)
-
-        for r, other in pair_orders:
-            settle_trade(t, other, r)
-
-        fx.cycle_all_markets(tiles, t)
-
-        # v3: real conserved movement (claimed tiles under pressure push
-        # residents toward wilderness / other nations).  Events feed the
-        # world ticker archive.
-        mig_events = run_migrations(t, tiles)
-        world_events.extend(mig_events)
-        if mig_events:
-            for ev in mig_events:
-                print(f"  T={t}: MIGRATE a{ev['agent_id']} "
-                      f"{ev['from']} -> {ev['to']} ({ev['via']})")
-
-        # v3: claims milestone — evaluate 50% majority claim rule on wilderness tiles
-        claim_events = check_and_apply_claims(t, tiles, nations)
-        world_events.extend(claim_events)
         if claim_events:
-            for ev in claim_events:
-                print(f"  T={t}: CLAIM {ev['nation']} claimed {ev['tile']} "
-                      f"({ev['origin_count']}/{ev['pop']} {ev['share']*100:.1f}%)")
             pair_orders = [(r, o) for r in tiles for o in tiles if o is not r
                            and r.neighbors.get(o.name) is not None
                            and not getattr(o, 'wilderness', False)
                            and not getattr(r, 'wilderness', False)]
-
-        # v3: trader wilderness settlement — every claimed tile's
-        # traders service adjacent UNCLAIMED tiles with homesteaders
-        # (no-interest loan of goods, collect outputs, half-diff payout).
-        for r in tiles:
-            if getattr(r, 'owner_nation', None) is None or not r.trader_agents:
-                continue
-            for other in r.neighbors.values():
-                if not getattr(other, 'wilderness', False):
-                    continue
-                if not any(getattr(a, 'is_homesteader', False) for a in other.agents):
-                    continue
-                for trader in r.trader_agents:
-                    settle_wilderness(trader, other, t)
-
-        for n in nations:
-            step_regime(n, t)
-
-        for r, other in pair_orders:
-            desk = r.forex_desks.get(other.name)
-            if desk is not None:
-                ppp = max(0.1, other.cost_of_living) / max(0.1, r.cost_of_living)
-                desk.update(0, bank=r.bank, fx_regime='managed', ppp_target=ppp)
-                if getattr(r, 'destination_region', None) is other:
-                    desk.save_rate(r)
-
-        for c in currencies:
-            delta = fx.audit_currency_total(tiles, c) - curr_before[c]
-            # v3: legitimate destruction (heirless estate on a state-less
-            # wilderness tile, future lost-at-sea cargo) is RECORDED in the
-            # ledger and exempt — the alarm fires only on unexplained losses.
-            recorded = ledger.cleared(t, c)
-            unaccounted = delta + recorded
-            if abs(unaccounted) > 5.0:
-                print(f"  T={t}: CURRENCY {c!r} SUPPLY SHIFT ${unaccounted:.2f}"
-                      f" (raw {delta:+.2f}, destruction {recorded:.2f})")
-        for ev in ledger.all_events():
-            if ev['t'] != t:
-                continue
-            print(f"  T={t}: DESTROY {ev['currency'] or '-'} "
-                  f"{ev['amount']:.2f} ({ev['reason']})")
-
-        for r in tiles:
-            for other in tiles:
-                if other is r or other not in r.neighbors.values():
-                    continue
-                turn_export = sum(r.export_val[g][-1]
-                                  for g in [Goods.food, Goods.wood, Goods.furniture]
-                                  if r.export_val[g])
-                turn_import = sum(r.import_val[g][-1]
-                                  for g in [Goods.food, Goods.wood, Goods.furniture]
-                                  if r.import_val[g])
-                r.cumulative_trade_balance += (turn_export - turn_import)
-                r.trade_flow_log.append(turn_export - turn_import)
 
         if t % 10 == 0:
             print(f"Progress: turn {t}/{time_steps}")

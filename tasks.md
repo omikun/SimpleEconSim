@@ -418,6 +418,28 @@ Extracted monolithic `worldview.py` (1,159 lines) into clean, extensible sub-mod
 
 ---
 
+## DONE — System-Wide Modular Pipeline & Extensibility Refactor
+Consolidated duplicate simulation loops, decomposed the 1,225-line demographic monolith, unified wealth diagnostics, and consolidated viewers:
+- `sim_engine.py`: Canonical, multi-level simulation engine implementing the 12-phase pipeline (inter-tile logistics, trade settlement, forex cycle, migration, claims, national regimes, and audits). Unifies `sim_world.py`, `sim_nation.py`, `sim_ring.py`, and `worldview_engine.py`.
+- `demographics_consumption.py`: Daily food consumption, luxury goods intake, and bottleneck analysis.
+- `demographics_career.py`: M1 memory-driven career switches, apprenticeship subsidies, and job matching.
+- `demographics_reproduction.py`: Agent births, fertility scaling, and heritable traits.
+- `demographics_estate.py`: Mortality, corporate succession, debt resolution, bad debt write-downs, wealth inheritance, and escheat.
+- `econsim_live.py`: Slim orchestrator class preserving `LiveContext` and `Live()`.
+- `hexview.py`: Refactored to reuse `worldview_*` modules and `sim_engine`, eliminating 800+ lines of duplicate rendering and stepping code.
+- `wealth_collector.py`: Unified snapshot recorder for agent wealth, debt, and demographic transitions.
+
+### Verification
+- `sim_world.py 80`: PASS (80 turns, 81 hex tiles, 0 leaks).
+- `sim_nation.py 50`: PASS (50 turns, 3 nations x 2 tiles, 0 errors).
+- `sim_ring.py 100`: PASS (100 turns, 3-region ring, 0 errors).
+- `econsim_two_region.py 30`: PASS (30 turns, wealth diagnostics clean).
+- `tmp/probe_worldview.py`: PASS (5/5 headless checks).
+- `tmp/probe_hex.py`: PASS (3/3 checks).
+- `tmp/probe_hex_m3.py`: PASS (0 leaks, legitimacy drift confirmed).
+
+---
+
 # v3_bank_network — PLAN (approved 2026-08-16; DO NOT implement yet)
 
 Goal: per-Nation bank network so a distressed tile bank is rescued by stronger
