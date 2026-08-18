@@ -1,14 +1,12 @@
 """
 REGNUM v3_wilderness — Pygame hex-world viewer for the 9x9 honeycomb.
-Presentation layer over the conserved-money engine, modularized for extensibility.
+Features cursor-anchored smooth map zoom and a 10-chart interactive sidebar.
 """
 
 import os
 import random
 import sys
 
-# IMPORTANT: keep this line BEFORE pygame so headless tests (SDL_VIDEODRIVER=dummy)
-# and interactive runs both work.
 os.environ.setdefault('SDL_AUDIODRIVER', 'dummy')
 
 import pygame
@@ -17,12 +15,12 @@ from logger import logInit
 # Import sub-modules
 from worldview_camera import (
     WIDTH, HEIGHT, MAP_RIGHT, TOP_BAR_H, TICKER_H, HEX_SIZE,
-    clamp_cam, hex_px, tile_at
+    clamp_cam, zoom_cam_at, reset_cam, hex_px, tile_at
 )
 from worldview_charts import (
     PANEL_LEFT, sum_turns, tile_charts, chart_labels,
     plot_line_chart, plot_bar_pairs, plot_stacked_bars,
-    draw_chart_cell, draw_chart_grid, draw_chart_large
+    draw_chart_cell, draw_chart_grid, draw_chart_large, chart_at_pixel
 )
 from worldview_map import (
     NATION_COLORS, WILD_COLOR, WILD_EDGE, HEX_EDGE, TEXT, DIM, RED, GREEN, ACCENT, EDGE_LINE,
@@ -32,7 +30,7 @@ from worldview_map import (
 )
 from worldview_ui import (
     PANEL_BG, selected_nation, draw_top_bar, draw_regime_readout,
-    draw_panel, draw_ticker, draw_help
+    draw_panel, draw_ticker, draw_help, draw_zoom_hud, zoom_hud_hit
 )
 from worldview_engine import (
     get_layout, get_reverse_layout, build_world_view, ticker_push, step_world
@@ -79,14 +77,15 @@ _draw_ticker = draw_ticker
 _draw_help = draw_help
 
 
-def render_frame(surface, world):
-    """Draw one full frame (map + top bar + panel + ticker + help)."""
+def render_frame(surface, world, mouse_pos=None):
+    """Draw one full frame (map + top bar + panel + ticker + zoom hud + help)."""
     font = pygame.font.Font(None, 28)
     font_small = pygame.font.Font(None, 22)
     surface.fill(BG)
     draw_top_bar(surface, world, font_small)
     draw_hex_map(surface, world, font, font_small)
-    draw_panel(surface, world, font, font_small)
+    draw_zoom_hud(surface, font_small, mouse_pos=mouse_pos)
+    draw_panel(surface, world, font, font_small, mouse_pos=mouse_pos)
     draw_ticker(surface, world, font_small)
     draw_help(surface, world, font_small)
 
@@ -122,13 +121,40 @@ def main():
     drag = False
     while running:
         now = pygame.time.get_ticks()
+        mouse_pos = pygame.mouse.get_pos()
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                clicked = tile_at(world, *event.pos)
-                if clicked is not None:
-                    world['selected_region'] = clicked
+                # 1. Check Zoom HUD buttons
+                hud_action = zoom_hud_hit(event.pos)
+                if hud_action == 'in':
+                    zoom_cam_at(world, 1.2, MAP_RIGHT // 2, HEIGHT // 2)
+                elif hud_action == 'out':
+                    zoom_cam_at(world, 1.0 / 1.2, MAP_RIGHT // 2, HEIGHT // 2)
+                elif hud_action == 'reset':
+                    reset_cam(world)
+                else:
+                    # 2. Check sidebar chart clicks
+                    chart_top = 178 + TOP_BAR_H + 30
+                    chart_bottom = HEIGHT - TICKER_H - 96
+                    if world.get('view', 0) == 0:
+                        clicked_chart = chart_at_pixel(event.pos, chart_top, chart_bottom, num_charts=10)
+                        if clicked_chart is not None:
+                            world['view'] = clicked_chart
+                        else:
+                            # 3. Check Hex tile picking
+                            clicked = tile_at(world, *event.pos)
+                            if clicked is not None:
+                                world['selected_region'] = clicked
+                    else:
+                        # Click in zoom view returns to grid view (or pins a tile)
+                        if event.pos[0] >= PANEL_LEFT:
+                            world['view'] = 0
+                        else:
+                            clicked = tile_at(world, *event.pos)
+                            if clicked is not None:
+                                world['selected_region'] = clicked
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 2:
                 drag = True
                 pygame.mouse.get_rel()
@@ -140,13 +166,19 @@ def main():
                 world['cam']['oy'] += dy
                 clamp_cam(world)
             elif event.type == pygame.MOUSEWHEEL:
-                z = world['cam']['zoom']
-                world['cam']['zoom'] = max(0.4, min(2.5, z * (1.15 ** event.y)))
-                clamp_cam(world)
+                mx, my = pygame.mouse.get_pos()
+                if mx < MAP_RIGHT:
+                    factor = 1.15 ** event.y
+                    zoom_cam_at(world, factor, mx, my)
+                else:
+                    # Sidebar scroll / window adjustment
+                    pass
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     if world.get('help_open'):
                         world['help_open'] = False
+                    elif world.get('view', 0) != 0:
+                        world['view'] = 0
                     else:
                         running = False
                 elif event.key == pygame.K_q:
@@ -165,8 +197,13 @@ def main():
                     world['view'] = 0
                 elif event.key == pygame.K_v:
                     world['scope'] = 'nation' if world.get('scope', 'tile') == 'tile' else 'tile'
-                elif pygame.K_1 <= event.key <= pygame.K_6:
+                elif pygame.K_1 <= event.key <= pygame.K_9:
                     world['view'] = event.key - pygame.K_1 + 1
+                elif event.key == pygame.K_0:
+                    # Key 0 zooms chart 10 or resets view
+                    world['view'] = 10 if world.get('view') != 10 else 0
+                elif event.key in (pygame.K_r, pygame.K_HOME):
+                    reset_cam(world)
                 elif event.key in (pygame.K_LEFT, pygame.K_a):
                     world['cam']['ox'] += 30
                     clamp_cam(world)
@@ -176,14 +213,13 @@ def main():
                 elif event.key in (pygame.K_UP, pygame.K_w):
                     world['cam']['oy'] += 30
                     clamp_cam(world)
-                elif event.key in (pygame.K_DOWN, pygame.K_s):
-                    pass
+                elif event.key in (pygame.K_DOWN,):
+                    world['cam']['oy'] -= 30
+                    clamp_cam(world)
                 elif event.key in (pygame.K_PLUS, pygame.K_EQUALS):
-                    world['cam']['zoom'] = min(2.5, world['cam']['zoom'] * 1.15)
-                    clamp_cam(world)
+                    zoom_cam_at(world, 1.15, MAP_RIGHT // 2, HEIGHT // 2)
                 elif event.key == pygame.K_MINUS:
-                    world['cam']['zoom'] = max(0.4, world['cam']['zoom'] / 1.15)
-                    clamp_cam(world)
+                    zoom_cam_at(world, 1.0 / 1.15, MAP_RIGHT // 2, HEIGHT // 2)
 
         if world['playing'] and now - last_tick >= TURN_MS:
             step_world(world)
@@ -191,11 +227,11 @@ def main():
         world['frame'] = (world.get('frame', 0) + 1) % 600
 
         world['hover_region'] = None
-        mx, my = pygame.mouse.get_pos()
+        mx, my = mouse_pos
         if mx < MAP_RIGHT and TOP_BAR_H <= my <= HEIGHT - TICKER_H:
             world['hover_region'] = tile_at(world, mx, my)
 
-        render_frame(surface, world)
+        render_frame(surface, world, mouse_pos=mouse_pos)
         pygame.display.flip()
         clock.tick(FPS)
 

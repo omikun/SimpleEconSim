@@ -1,5 +1,5 @@
 """
-UI components: top stats bar, right panel, regime readout, ticker, and help overlay.
+UI components: top stats bar, right panel, regime readout, ticker, zoom HUD, and help overlay.
 """
 
 import pygame
@@ -9,6 +9,41 @@ from worldview_charts import (PANEL_LEFT, draw_chart_grid, draw_chart_large,
 from worldview_map import HEX_EDGE, ACCENT, TEXT, DIM, RED, GREEN, UNREST_COLORS
 
 PANEL_BG = (40, 40, 48)
+
+# Zoom HUD button rectangles: (x, y, w, h)
+ZOOM_BTN_IN = (MAP_RIGHT - 110, TOP_BAR_H + 12, 30, 26)
+ZOOM_BTN_OUT = (MAP_RIGHT - 75, TOP_BAR_H + 12, 30, 26)
+ZOOM_BTN_RESET = (MAP_RIGHT - 40, TOP_BAR_H + 12, 32, 26)
+
+
+def draw_zoom_hud(surface, font_small, mouse_pos=None):
+    """Draw on-screen zoom control buttons in the top-right corner of the map area."""
+    mx, my = mouse_pos if mouse_pos else (-1, -1)
+    buttons = [
+        (ZOOM_BTN_IN, "+", "Zoom In"),
+        (ZOOM_BTN_OUT, "-", "Zoom Out"),
+        (ZOOM_BTN_RESET, "1:1", "Reset Zoom"),
+    ]
+    for rect, label, _tip in buttons:
+        is_hover = rect[0] <= mx <= rect[0] + rect[2] and rect[1] <= my <= rect[1] + rect[3]
+        bg_color = (60, 60, 75) if is_hover else (38, 38, 48)
+        border_color = ACCENT if is_hover else (80, 80, 95)
+        pygame.draw.rect(surface, bg_color, rect, border_radius=4)
+        pygame.draw.rect(surface, border_color, rect, 1, border_radius=4)
+        tsurf = font_small.render(label, True, (255, 255, 255) if is_hover else TEXT)
+        surface.blit(tsurf, tsurf.get_rect(center=(rect[0] + rect[2] // 2, rect[1] + rect[3] // 2)))
+
+
+def zoom_hud_hit(pos):
+    """Return 'in', 'out', 'reset', or None if a zoom button was clicked."""
+    mx, my = pos
+    if ZOOM_BTN_IN[0] <= mx <= ZOOM_BTN_IN[0] + ZOOM_BTN_IN[2] and ZOOM_BTN_IN[1] <= my <= ZOOM_BTN_IN[1] + ZOOM_BTN_IN[3]:
+        return 'in'
+    if ZOOM_BTN_OUT[0] <= mx <= ZOOM_BTN_OUT[0] + ZOOM_BTN_OUT[2] and ZOOM_BTN_OUT[1] <= my <= ZOOM_BTN_OUT[1] + ZOOM_BTN_OUT[3]:
+        return 'out'
+    if ZOOM_BTN_RESET[0] <= mx <= ZOOM_BTN_RESET[0] + ZOOM_BTN_RESET[2] and ZOOM_BTN_RESET[1] <= my <= ZOOM_BTN_RESET[1] + ZOOM_BTN_RESET[3]:
+        return 'reset'
+    return None
 
 
 def selected_nation(world):
@@ -89,7 +124,7 @@ def draw_regime_readout(surface, region, font_small, y):
     surface.blit(line, (PANEL_LEFT, y))
 
 
-def draw_panel(surface, world, font, font_small):
+def draw_panel(surface, world, font, font_small, mouse_pos=None):
     """Right-hand panel: header, play state, audit, per-tile charts."""
     d = TOP_BAR_H
     panel_w = WIDTH - PANEL_LEFT - 6
@@ -101,27 +136,26 @@ def draw_panel(surface, world, font, font_small):
     surface.blit(title, (PANEL_LEFT, 20 + d))
 
     t_ = world['turn']
-    turn_line = font_small.render(f"Turn: {t_}  win={world['window']}t", True, TEXT)
+    turn_line = font_small.render(f"Turn: {t_}  win={world['window']}t  zoom={world['cam']['zoom']:.2f}x", True, TEXT)
     surface.blit(turn_line, (PANEL_LEFT, 50 + d))
 
     cursors = world.get('currency_totals', {})
-    y = 80 + d
+    y = 76 + d
     for c, total in cursors.items():
         line = font_small.render(f"{c}: ${total:,.0f}", True, TEXT)
         surface.blit(line, (PANEL_LEFT, y))
-        y += 22
+        y += 20
 
     if world.get('playing'):
         pn = font_small.render("[ PLAYING ]  Space=pause", True, GREEN)
     else:
         pn = font_small.render("[ PAUSED ]  S=step  Space=play", True, DIM)
-    surface.blit(pn, (PANEL_LEFT, 148 + d))
+    surface.blit(pn, (PANEL_LEFT, 142 + d))
 
     region = world.get('selected_region') or world.get('hover_region')
-    chart_top = 185 + d
+    chart_top = 178 + d
     chart_bottom = HEIGHT - TICKER_H - 96
-    scope = world.get('scope', 'tile')
-    if scope == 'nation':
+    if world.get('scope', 'tile') == 'nation':
         n = selected_nation(world)
         if n is not None:
             owner_pop = sum(r.total_population[-1] if r.total_population
@@ -155,27 +189,26 @@ def draw_panel(surface, world, font, font_small):
         head = font_small.render(f"{region.name}{prov_s}", True, TEXT)
         surface.blit(head, (PANEL_LEFT, chart_top - 6))
         col_line = font_small.render(
-            f"CoL {region.cost_of_living:.2f}  {region.climate}  "
-            f"(V=nation)", True, DIM)
+            f"CoL {region.cost_of_living:.2f}  {region.climate}  (V=nation)", True, DIM)
         surface.blit(col_line, (PANEL_LEFT, chart_top - 6 + 16))
         charts = tile_charts(region)
         view = world.get('view', 0)
         if view == 0:
             draw_chart_grid(surface, charts, font, font_small, world['window'],
-                            chart_top + 4, chart_bottom)
+                            chart_top + 30, chart_bottom, mouse_pos=mouse_pos)
             hint = font_small.render(
-                f"{region.name}: Tab=grid  1-6=zoom", True, DIM)
+                f"Click/1-9,0: Zoom chart  Tab: Grid", True, DIM)
             surface.blit(hint, (PANEL_LEFT, chart_bottom + 6))
         else:
             idx = max(0, min(len(charts) - 1, view - 1))
             draw_chart_large(surface, charts[idx], font, font_small,
-                             world['window'], chart_top + 4, chart_bottom)
+                             world['window'], chart_top + 16, chart_bottom)
             hint = font_small.render(
-                f"{charts[idx][0]}  (Tab=grid)", True, DIM)
+                f"{charts[idx][0]}  (Click or Tab/Esc = Grid)", True, DIM)
             surface.blit(hint, (PANEL_LEFT, chart_bottom + 6))
         draw_regime_readout(surface, region, font_small, chart_bottom + 24)
     else:
-        hint = font_small.render("Hover or click a hex for its charts", True, DIM)
+        hint = font_small.render("Hover or click a hex for charts", True, DIM)
         surface.blit(hint, (PANEL_LEFT, 190 + d))
 
     audit_y = HEIGHT - TICKER_H - 28
@@ -222,20 +255,18 @@ def draw_help(surface, world, font_small):
         'Space .......... play / pause (~150 ms/turn)',
         'S or -> ........ step one turn (while paused)',
         'Arrows / WASD .. pan the camera',
-        '+ / - / wheel .. zoom in / out',
-        'Tab ............ chart-grid view (hovered/pinned tile)',
-        '1 .. 6 ......... zoom one of the six charts',
-        'Click .......... pin a tile (charts stay anchored)',
+        '+ / - / wheel .. smooth cursor-anchored zoom in / out',
+        '0 or R ......... reset map zoom (1:1 center)',
+        'Tab / Esc ...... return to 10-chart grid view',
+        '1 .. 9, 0 ...... zoom into any of the 10 sidebar charts',
+        'Click chart .... click any mini-chart to zoom into detailed view',
+        'Click hex ...... pin a tile (charts stay anchored)',
         'H or ? ......... toggle this help',
         'Esc ............ close help first; Q quits either way',
         '',
-        'Grey hex = UNCLAIMED wilderness (no bank/gov/factions).  Green W tag',
-        '= frontier; orange dot = homesteaders present.  Colored hex = owned',
-        'by a nation; brighter fill = higher population (heat).  Thin cyan',
-        'arrows = net trade flow on claimed edges.  Bottom strip = world',
-        'ticker (MIGRATE cyan / CLAIM gold / DESTROY red).  Right panel =',
-        'per-currency audit + six live per-tile charts (guarded for',
-        'unclaimed tiles).',
+        'Right panel features 10 live graphs: Prices, Pop/Hunger, Production,',
+        'Trade Flow, Gov Income, Gini/Migration, Inventories, Protest Energy,',
+        'GDP Output, and Demand Ratios.',
     ]
     max_w = WIDTH - 72
     wrapped = []

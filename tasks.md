@@ -440,6 +440,30 @@ Consolidated duplicate simulation loops, decomposed the 1,225-line demographic m
 
 ---
 
+## DONE — Smooth Map Zoom & 10-Chart Interactive Sidebar
+Upgraded `worldview.py` with cursor-anchored smooth map zoom, on-screen zoom HUD buttons, and an expanded 10-graph interactive sidebar:
+- `worldview_camera.py`: Added `zoom_cam_at(world, factor, mx, my)` for cursor-anchored scaling and `reset_cam(world)` for 1:1 view reset.
+- `worldview_charts.py`: Expanded to 10 live time-series graphs:
+  1. **Prices**: Food, Wood, Furniture
+  2. **Population / Hunger**: Population & Starving count
+  3. **Production**: Food, Wood, Furniture output
+  4. **Trade Flow**: Exports vs Imports
+  5. **Gov Income**: Taxes, Tariffs, Inheritance
+  6. **Gini / Migration**: Gini index & Migration intent
+  7. **Inventories**: Warehouse stock (Food, Wood, Furniture)
+  8. **Protest / Energy**: Social protest energy & grievance level
+  9. **GDP Output**: Gross domestic product per turn
+  10. **Demand Ratios**: Market scarcity / supply pressure (Food, Wood, Furniture)
+- Added `chart_at_pixel` for click-to-zoom and detailed min/max/current statistics readouts in `draw_chart_large`.
+- `worldview_ui.py`: Added on-screen `[+]`, `[-]`, and `[1:1]` zoom buttons in the top-right map header, updated help guide.
+- `worldview.py`: Wired mousewheel cursor-anchored zoom, HUD button hits, sidebar chart clicks (`view = 1..10`), and keyboard keys (`1..9`, `0`, `+`, `-`, `R`).
+
+### Verification
+- `tmp/probe_worldview.py`: PASS (5/5 headless checks).
+- `sim_world.py 40`: PASS (40 turns, 81 hex tiles, clean execution).
+
+---
+
 # v3_bank_network — PLAN (approved 2026-08-16; DO NOT implement yet)
 
 Goal: per-Nation bank network so a distressed tile bank is rescued by stronger

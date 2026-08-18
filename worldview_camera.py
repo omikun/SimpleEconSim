@@ -34,6 +34,29 @@ def clamp_cam(world):
         cam['oy'] = max(top - sy0, min(bottom - sy1, cam['oy']))
 
 
+def zoom_cam_at(world, factor, mx, my):
+    """Zoom camera anchored at screen pixel (mx, my)."""
+    cam = world['cam']
+    old_zoom = cam['zoom']
+    new_zoom = max(0.35, min(3.0, old_zoom * factor))
+    if abs(new_zoom - old_zoom) < 1e-6:
+        return
+    # Anchor: keep the world coordinate under (mx, my) fixed on screen
+    ratio = new_zoom / old_zoom
+    cam['ox'] = mx - (mx - cam['ox']) * ratio
+    cam['oy'] = my - (my - cam['oy']) * ratio
+    cam['zoom'] = new_zoom
+    clamp_cam(world)
+
+
+def reset_cam(world):
+    """Reset zoom to 1.0 and re-center the map."""
+    world['cam']['zoom'] = 1.0
+    world['cam']['ox'] = 0.0
+    world['cam']['oy'] = 0.0
+    clamp_cam(world)
+
+
 def hex_px(world, q, r):
     """Convert axial hex (q, r) to screen pixel coordinates with pan and zoom."""
     x, y = axial_to_pixel(q, r, HEX_SIZE * world['cam']['zoom'])
