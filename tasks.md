@@ -384,6 +384,25 @@ Legacy regression GREEN: sim_nation 100 / sim_ring 300 / behavior_drift PASS.
 
 ---
 
+## DONE — Region Modular Refactor
+Extracted monolithic `region.py` (2,768 lines) into clean, single-responsibility sub-modules while preserving 100% backward compatibility and exact conservation invariants:
+- `region_plotting.py`: Matplotlib subplot rendering (`plot_region`, `smooth`, 19 subplot functions); eliminates heavy matplotlib overhead from headless runs.
+- `region_factions.py`: Identity faction registration, policy satisfaction, grievance accumulation, and protest energy calculation (`step_factions`).
+- `region_labor.py`: Labor market cleanup, firm incorporation, worker hiring/poaching, layoffs, dynamic wage adjustments (`run_labour`).
+- `region_production.py`: Corporation synergies, active slot execution with Cython acceleration fallback, independent crafting, and terrain bonuses (`produce`).
+- `region_finance.py`: Corporate wage payouts, dividend profit sharing, cross-currency owner bailouts, deficit-balanced progressive taxation (`distribute_profits`, `collect_tax`).
+- `region_logistics.py`: Multi-neighbor route management, trader arbitrage repointing, export posting, migration intent scoring, and trader exit/liquidation (`repoint_traders`, `exit_trader`, `process_trader_exits`).
+- `region_market.py`: 2-phase discriminatory pay-as-bid double auction clearing, price reference & supply scarcity updating, liquidity deposits/borrows, import pools, and transport bids (`trade`).
+- `region.py`: Slimmed down to an orchestrator class delegating to sub-modules with backward-compatible method aliases.
+
+### Verification
+- `sim_world.py 80`: PASS (80 turns across 81 hex tiles, clean execution).
+- `sim_ring.py 100`: PASS (100 turns, 3-region ring, 0 errors).
+- `sim_nation.py 50`: PASS (50 turns, 3 nations x 2 tiles, 0 errors).
+- `econsim_two_region.py 30`: PASS (30 turns, wealth diagnostics & trade balance clean).
+
+---
+
 # v3_bank_network — PLAN (approved 2026-08-16; DO NOT implement yet)
 
 Goal: per-Nation bank network so a distressed tile bank is rescued by stronger
