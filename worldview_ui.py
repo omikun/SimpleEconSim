@@ -1,0 +1,256 @@
+"""
+UI components: top stats bar, right panel, regime readout, ticker, and help overlay.
+"""
+
+import pygame
+from worldview_camera import WIDTH, HEIGHT, MAP_RIGHT, TOP_BAR_H, TICKER_H
+from worldview_charts import (PANEL_LEFT, draw_chart_grid, draw_chart_large,
+                              tile_charts, EXP_C, IMP_C)
+from worldview_map import HEX_EDGE, ACCENT, TEXT, DIM, RED, GREEN, UNREST_COLORS
+
+PANEL_BG = (40, 40, 48)
+
+
+def selected_nation(world):
+    pinned = world.get('selected_region')
+    if pinned is not None and getattr(pinned, 'owner_nation', None) is not None:
+        return pinned.owner_nation
+    return world['nations'][0] if world['nations'] else None
+
+
+def draw_top_bar(surface, world, font_small):
+    """Civ-style top strip: stats for the currently selected nation."""
+    n = selected_nation(world)
+    pygame.draw.rect(surface, (34, 34, 42), (0, 0, MAP_RIGHT, TOP_BAR_H))
+    pygame.draw.line(surface, HEX_EDGE, (0, TOP_BAR_H), (MAP_RIGHT, TOP_BAR_H), 2)
+    font = font_small
+    if n is None:
+        head = font.render("REGNUM v3 — 9x9 Hex World", True, ACCENT)
+        surface.blit(head, (8, 14))
+        return
+    tiles = n.tiles
+    pop = sum(r.total_population[-1] if r.total_population else len(r.agents)
+              for r in tiles)
+    tr = n.treasury()
+    col = (sum(r.cost_of_living for r in tiles) / len(tiles)
+           if tiles else 0.0)
+    gdp = sum(r.gdp_log[-1] if r.gdp_log else 0.0 for r in tiles)
+    exports = sum(sum(v) for r in tiles for v in r.export_val.values())
+    imports = sum(sum(v) for r in tiles for v in r.import_val.values())
+    net = exports - imports
+    ruling = getattr(n, 'ruling_faction', None)
+    ruler = f"  ruling {ruling}" if ruling else ""
+    head = font.render(
+        f"{n.name} ({n.currency})  {n.regime_type}  legit {n.legitimacy:.2f}"
+        f"{ruler}  tiles {len(tiles)}", True, ACCENT)
+    surface.blit(head, (8, 6))
+    stats = [
+        (f"Pop {pop}", TEXT),
+        (f"Treasury ${tr['total']:,.0f} ({tr['food']} food)", TEXT),
+        (f"CoL {col:.2f}", TEXT),
+        (f"GDP ${gdp:,.0f}", TEXT),
+        (f"Ex ${exports:,.0f}", EXP_C),
+        (f"Im ${imports:,.0f}", IMP_C),
+        (f"Net {'+' if net >= 0 else ''}{net:,.0f}",
+         GREEN if net >= 0 else RED),
+    ]
+    x = 8
+    for text, color in stats:
+        label = font.render(text, True, color)
+        surface.blit(label, (x, 30))
+        x += label.get_width() + 22
+
+
+def draw_regime_readout(surface, region, font_small, y):
+    """Protest / unrest / top faction / owner nation readout."""
+    if getattr(region, 'owner_nation', None) is None:
+        line = font_small.render("unclaimed wilderness", True, DIM)
+        surface.blit(line, (PANEL_LEFT, y))
+        return
+    protest = (region.protest_energy_log[-1]
+               if region.protest_energy_log else 0.0)
+    unrest = region.unrest_log[-1] if region.unrest_log else {}
+    stage = unrest.get('stage', 'calm')
+    top = None
+    if region.faction_support_log:
+        snap = region.faction_support_log[-1]
+        if snap:
+            top = max(snap, key=lambda k: snap[k])
+    owner = getattr(region, 'owner_nation', None)
+    owner_s = ""
+    if owner is not None:
+        ruling = getattr(owner, 'ruling_faction', None)
+        owner_s = f"  {owner.name}: legit {owner.legitimacy:.2f}" \
+                  + (f" ruling {ruling}" if ruling else "")
+    line = font_small.render(
+        f"protest {protest:.1f}  unrest {stage}"
+        + (f"  top {top}" if top else "")
+        + owner_s, True, DIM)
+    surface.blit(line, (PANEL_LEFT, y))
+
+
+def draw_panel(surface, world, font, font_small):
+    """Right-hand panel: header, play state, audit, per-tile charts."""
+    d = TOP_BAR_H
+    panel_w = WIDTH - PANEL_LEFT - 6
+    panel_h = HEIGHT - 20 - d - TICKER_H
+    pygame.draw.rect(surface, PANEL_BG,
+                     (PANEL_LEFT - 10, 10 + d, panel_w + 4, panel_h))
+
+    title = font.render("REGNUM — Hex World", True, ACCENT)
+    surface.blit(title, (PANEL_LEFT, 20 + d))
+
+    t_ = world['turn']
+    turn_line = font_small.render(f"Turn: {t_}  win={world['window']}t", True, TEXT)
+    surface.blit(turn_line, (PANEL_LEFT, 50 + d))
+
+    cursors = world.get('currency_totals', {})
+    y = 80 + d
+    for c, total in cursors.items():
+        line = font_small.render(f"{c}: ${total:,.0f}", True, TEXT)
+        surface.blit(line, (PANEL_LEFT, y))
+        y += 22
+
+    if world.get('playing'):
+        pn = font_small.render("[ PLAYING ]  Space=pause", True, GREEN)
+    else:
+        pn = font_small.render("[ PAUSED ]  S=step  Space=play", True, DIM)
+    surface.blit(pn, (PANEL_LEFT, 148 + d))
+
+    region = world.get('selected_region') or world.get('hover_region')
+    chart_top = 185 + d
+    chart_bottom = HEIGHT - TICKER_H - 96
+    scope = world.get('scope', 'tile')
+    if scope == 'nation':
+        n = selected_nation(world)
+        if n is not None:
+            owner_pop = sum(r.total_population[-1] if r.total_population
+                            else len(r.agents) for r in n.tiles)
+            tr = n.treasury()
+            col = (sum(r.cost_of_living for r in n.tiles) / max(1, len(n.tiles)))
+            gdp = sum(r.gdp_log[-1] if r.gdp_log else 0.0 for r in n.tiles)
+            lines = [
+                (f"{n.name} ({n.currency})  {n.regime_type}", ACCENT),
+                (f"legit {n.legitimacy:.2f}  tiles {len(n.tiles)}", TEXT),
+                (f"pop {owner_pop}", TEXT),
+                (f"treasury ${tr['total']:,.0f} ({tr['food']} food)", TEXT),
+                (f"avg CoL {col:.2f}", DIM),
+                (f"GDP/turn ${gdp:,.0f}", GREEN),
+            ]
+            yy = chart_top + 4
+            for text, color in lines:
+                line = font_small.render(text, True, color)
+                surface.blit(line, (PANEL_LEFT, yy))
+                yy += 20
+            hint = font_small.render(
+                f"NATION scope (V=tile)  press V to toggle", True, DIM)
+            surface.blit(hint, (PANEL_LEFT, chart_bottom + 6))
+            draw_regime_readout(surface, region if region is not None else n.tiles[0],
+                                font_small, chart_bottom + 24)
+        return
+    if region is not None:
+        prov_s = ""
+        if getattr(region, 'province', None) is not None:
+            prov_s = f"  [{region.province.name}]"
+        head = font_small.render(f"{region.name}{prov_s}", True, TEXT)
+        surface.blit(head, (PANEL_LEFT, chart_top - 6))
+        col_line = font_small.render(
+            f"CoL {region.cost_of_living:.2f}  {region.climate}  "
+            f"(V=nation)", True, DIM)
+        surface.blit(col_line, (PANEL_LEFT, chart_top - 6 + 16))
+        charts = tile_charts(region)
+        view = world.get('view', 0)
+        if view == 0:
+            draw_chart_grid(surface, charts, font, font_small, world['window'],
+                            chart_top + 4, chart_bottom)
+            hint = font_small.render(
+                f"{region.name}: Tab=grid  1-6=zoom", True, DIM)
+            surface.blit(hint, (PANEL_LEFT, chart_bottom + 6))
+        else:
+            idx = max(0, min(len(charts) - 1, view - 1))
+            draw_chart_large(surface, charts[idx], font, font_small,
+                             world['window'], chart_top + 4, chart_bottom)
+            hint = font_small.render(
+                f"{charts[idx][0]}  (Tab=grid)", True, DIM)
+            surface.blit(hint, (PANEL_LEFT, chart_bottom + 6))
+        draw_regime_readout(surface, region, font_small, chart_bottom + 24)
+    else:
+        hint = font_small.render("Hover or click a hex for its charts", True, DIM)
+        surface.blit(hint, (PANEL_LEFT, 190 + d))
+
+    audit_y = HEIGHT - TICKER_H - 28
+    if world.get('violations'):
+        v1 = font.render("AUDIT VIOLATION", True, RED)
+        surface.blit(v1, (PANEL_LEFT, audit_y - 4))
+        vline = font_small.render(
+            "; ".join(f"T{v[0]} {v[1]} {v[2]:+.2f}"
+                      for v in world['violations']),
+            True, RED)
+        surface.blit(vline, (PANEL_LEFT, audit_y + 18))
+    else:
+        ok = font.render("Conserved: 0 LEAK / 0 SHIFT", True, GREEN)
+        surface.blit(ok, (PANEL_LEFT, audit_y))
+
+
+def draw_ticker(surface, world, font_small):
+    """Bottom strip: scrolling archive of MIGRATE / CLAIM / DESTROY events."""
+    y0 = HEIGHT - TICKER_H
+    pygame.draw.rect(surface, (34, 34, 42), (0, y0, WIDTH, TICKER_H))
+    pygame.draw.line(surface, HEX_EDGE, (0, y0), (WIDTH, y0), 2)
+    title = font_small.render("Ticker", True, ACCENT)
+    surface.blit(title, (8, y0 + 4))
+    events = world['ticker_events']
+    visible = 3
+    start = max(0, len(events) - visible)
+    yy = y0 + 6
+    for ev in events[start:]:
+        line = font_small.render(f"T{ev['t']}  {ev['text']}", True, ev['color'])
+        surface.blit(line, (78, yy))
+        yy += 18
+
+
+def draw_help(surface, world, font_small):
+    if not world.get('help_open', False):
+        return
+    title_font = pygame.font.Font(None, 30)
+    overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+    overlay.fill((16, 16, 22, 242))
+    surface.blit(overlay, (0, 0))
+    surface.blit(title_font.render('REGNUM v3 — Hex World Controls', True, ACCENT),
+                 (24, 14))
+    lines = [
+        'Space .......... play / pause (~150 ms/turn)',
+        'S or -> ........ step one turn (while paused)',
+        'Arrows / WASD .. pan the camera',
+        '+ / - / wheel .. zoom in / out',
+        'Tab ............ chart-grid view (hovered/pinned tile)',
+        '1 .. 6 ......... zoom one of the six charts',
+        'Click .......... pin a tile (charts stay anchored)',
+        'H or ? ......... toggle this help',
+        'Esc ............ close help first; Q quits either way',
+        '',
+        'Grey hex = UNCLAIMED wilderness (no bank/gov/factions).  Green W tag',
+        '= frontier; orange dot = homesteaders present.  Colored hex = owned',
+        'by a nation; brighter fill = higher population (heat).  Thin cyan',
+        'arrows = net trade flow on claimed edges.  Bottom strip = world',
+        'ticker (MIGRATE cyan / CLAIM gold / DESTROY red).  Right panel =',
+        'per-currency audit + six live per-tile charts (guarded for',
+        'unclaimed tiles).',
+    ]
+    max_w = WIDTH - 72
+    wrapped = []
+    for ln in lines:
+        cur = ''
+        for w in ln.split(' '):
+            test = (cur + ' ' + w).strip()
+            if font_small.size(test)[0] <= max_w or not cur:
+                cur = test
+            else:
+                wrapped.append(cur)
+                cur = w
+        wrapped.append(cur)
+    y = 52
+    for text in wrapped:
+        color = TEXT if text else (16, 16, 22)
+        surface.blit(font_small.render(text, True, color), (24, y))
+        y += 20

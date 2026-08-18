@@ -403,6 +403,21 @@ Extracted monolithic `region.py` (2,768 lines) into clean, single-responsibility
 
 ---
 
+## DONE — Worldview Modular Refactor
+Extracted monolithic `worldview.py` (1,159 lines) into clean, extensible sub-modules while preserving 100% backward compatibility and test verification with `tmp/probe_worldview.py`:
+- `worldview_camera.py`: Viewport bounds clamping, axial-to-screen projection with pan/zoom, screen-to-axial hex tile picking (`clamp_cam`, `hex_px`, `tile_at`).
+- `worldview_charts.py`: Pygame time-series chart rendering (polylines, paired bar charts, stacked bar charts) and 2x3 grid / large zoom dashboard layouts (`tile_charts`, `draw_chart_grid`, `draw_chart_large`).
+- `worldview_map.py`: Hex polygons, terrain glyphs, population heatmap, trade animation arrows, activity badges, population delta tags, and province highlight grouping (`draw_hex_map`).
+- `worldview_ui.py`: Civ-style top stats bar, right panel with currency audit readouts, regime status, event ticker feed, and controls help modal (`draw_top_bar`, `draw_panel`, `draw_ticker`, `draw_help`).
+- `worldview_engine.py`: 81-hex world state initialization, simulation turn step runner, and event ticker queue management (`build_world_view`, `step_world`).
+- `worldview.py`: Slim orchestrator, frame renderer, event loop, and public exports.
+
+### Verification
+- `tmp/probe_worldview.py`: PASS (5/5 checks: adjacency, pixel roundtrip, nation contiguity, headless dummy render, ticker events).
+- `sim_world.py 40`: PASS (40 turns, 81 hex tiles, clean execution).
+
+---
+
 # v3_bank_network — PLAN (approved 2026-08-16; DO NOT implement yet)
 
 Goal: per-Nation bank network so a distressed tile bank is rescued by stronger
