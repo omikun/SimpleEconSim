@@ -1,5 +1,6 @@
 """
 Hexagonal map rendering, terrain glyphs, population heatmaps, trade animations, and status badges.
+Multi-province color highlighting for the selected nation.
 """
 
 import pygame
@@ -12,6 +13,19 @@ NATION_COLORS = {
     'Beta':  (255, 255, 179),
     'Gamma': (190, 186, 218),
 }
+
+# Palette of distinct, vibrant highlight colors for each province of a selected nation
+PROVINCE_COLORS = [
+    (245, 190, 60),   # 1. Vibrant Gold / Amber
+    (60, 210, 230),   # 2. Bright Cyan / Turquoise
+    (240, 95, 155),   # 3. Vivid Coral / Magenta
+    (110, 235, 130),  # 4. Emerald Green
+    (175, 120, 245),  # 5. Electric Purple
+    (245, 130, 45),   # 6. Tangerine Orange
+    (80, 160, 245),   # 7. Sky Blue
+    (230, 230, 90),   # 8. Bright Lime Yellow
+]
+
 WILD_COLOR = (96, 96, 100)
 WILD_EDGE = (70, 70, 76)
 HEX_EDGE = (20, 20, 20)
@@ -212,13 +226,21 @@ def province_members(world, region):
 
 
 def draw_hex_map(surface, world, font, font_small):
-    """Draw full hex grid map with terrain, population heatmap, badges, edges, and trade animations."""
+    """Draw full hex grid map with multi-province color highlighting."""
     tiles = world['tiles']
     layout = world['layout']
-    highlighted = set()
     sel = world.get('selected_region')
-    if sel is not None:
-        highlighted = {r.name for r in province_members(world, sel)}
+
+    # Build province color highlight map for the selected nation
+    highlight_map = {}
+    if sel is not None and getattr(sel, 'owner_nation', None) is not None:
+        nation = sel.owner_nation
+        provinces = getattr(nation, 'provinces', [])
+        for i, prov in enumerate(provinces):
+            color = PROVINCE_COLORS[i % len(PROVINCE_COLORS)]
+            for r in prov.tiles:
+                highlight_map[r.name] = (color, prov.name)
+
     for region in tiles:
         coords = layout.get(region.name)
         if coords is None:
@@ -228,8 +250,16 @@ def draw_hex_map(surface, world, font, font_small):
         draw_pop_heat(surface, region, pts, cx, cy)
         edge = WILD_EDGE if getattr(region, 'owner_nation', None) is None else HEX_EDGE
         pygame.draw.polygon(surface, edge, pts, 2)
-        if region.name in highlighted:
-            pygame.draw.polygon(surface, ACCENT, pts, 4)
+
+        # Province highlight border
+        if region.name in highlight_map:
+            color, _pname = highlight_map[region.name]
+            pygame.draw.polygon(surface, color, pts, 3)
+
+        # Selected tile focal highlight
+        if sel is region:
+            pygame.draw.polygon(surface, (255, 255, 255), pts, 4 if region.name not in highlight_map else 2)
+
         name_surf = font.render(region.name, True, TEXT)
         surface.blit(name_surf, name_surf.get_rect(center=(cx, cy - 20)))
         line1, line2, line3 = tile_stats(region)

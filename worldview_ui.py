@@ -2,11 +2,13 @@
 UI components: top stats bar, right panel, regime readout, ticker, zoom HUD, and help overlay.
 """
 
+from collections import Counter
 import pygame
+from goods import Goods
 from worldview_camera import WIDTH, HEIGHT, MAP_RIGHT, TOP_BAR_H, TICKER_H
 from worldview_charts import (PANEL_LEFT, draw_chart_grid, draw_chart_large,
                               tile_charts, EXP_C, IMP_C)
-from worldview_map import HEX_EDGE, ACCENT, TEXT, DIM, RED, GREEN, UNREST_COLORS
+from worldview_map import HEX_EDGE, ACCENT, TEXT, DIM, RED, GREEN, UNREST_COLORS, PROVINCE_COLORS
 
 PANEL_BG = (40, 40, 48)
 
@@ -77,7 +79,7 @@ def draw_top_bar(surface, world, font_small):
     ruler = f"  ruling {ruling}" if ruling else ""
     head = font.render(
         f"{n.name} ({n.currency})  {n.regime_type}  legit {n.legitimacy:.2f}"
-        f"{ruler}  tiles {len(tiles)}", True, ACCENT)
+        f"{ruler}  provinces {len(n.provinces)}  tiles {len(tiles)}", True, ACCENT)
     surface.blit(head, (8, 6))
     stats = [
         (f"Pop {pop}", TEXT),
@@ -99,7 +101,8 @@ def draw_top_bar(surface, world, font_small):
 def draw_regime_readout(surface, region, font_small, y):
     """Protest / unrest / top faction / owner nation readout."""
     if getattr(region, 'owner_nation', None) is None:
-        line = font_small.render("unclaimed wilderness", True, DIM)
+        hs = sum(1 for a in region.agents if getattr(a, 'is_homesteader', False))
+        line = font_small.render(f"unclaimed wilderness  (homesteaders: {hs})", True, DIM)
         surface.blit(line, (PANEL_LEFT, y))
         return
     protest = (region.protest_energy_log[-1]
@@ -125,7 +128,7 @@ def draw_regime_readout(surface, region, font_small, y):
 
 
 def draw_panel(surface, world, font, font_small, mouse_pos=None):
-    """Right-hand panel: header, play state, audit, per-tile charts."""
+    """Right-hand panel: header, play state, audit, per-tile charts, wilderness card."""
     d = TOP_BAR_H
     panel_w = WIDTH - PANEL_LEFT - 6
     panel_h = HEIGHT - 20 - d - TICKER_H
@@ -155,6 +158,7 @@ def draw_panel(surface, world, font, font_small, mouse_pos=None):
     region = world.get('selected_region') or world.get('hover_region')
     chart_top = 178 + d
     chart_bottom = HEIGHT - TICKER_H - 96
+
     if world.get('scope', 'tile') == 'nation':
         n = selected_nation(world)
         if n is not None:
@@ -165,7 +169,7 @@ def draw_panel(surface, world, font, font_small, mouse_pos=None):
             gdp = sum(r.gdp_log[-1] if r.gdp_log else 0.0 for r in n.tiles)
             lines = [
                 (f"{n.name} ({n.currency})  {n.regime_type}", ACCENT),
-                (f"legit {n.legitimacy:.2f}  tiles {len(n.tiles)}", TEXT),
+                (f"legit {n.legitimacy:.2f}  provinces {len(n.provinces)}  tiles {len(n.tiles)}", TEXT),
                 (f"pop {owner_pop}", TEXT),
                 (f"treasury ${tr['total']:,.0f} ({tr['food']} food)", TEXT),
                 (f"avg CoL {col:.2f}", DIM),
@@ -182,11 +186,84 @@ def draw_panel(surface, world, font, font_small, mouse_pos=None):
             draw_regime_readout(surface, region if region is not None else n.tiles[0],
                                 font_small, chart_bottom + 24)
         return
+
+    # Check if region is Wilderness
+    if region is not None and getattr(region, 'owner_nation', None) is None:
+        head = font.render(f"{region.name} — Frontier Wilderness", True, ACCENT)
+        surface.blit(head, (PANEL_LEFT, chart_top - 6))
+        col_line = font_small.render(
+            f"Climate: {region.climate.capitalize()}  |  CoL: {region.cost_of_living:.2f}", True, DIM)
+        surface.blit(col_line, (PANEL_LEFT, chart_top + 20))
+
+        hs_agents = [a for a in region.agents if getattr(a, 'is_homesteader', False)]
+        wild_native = getattr(region, 'wilderness_pop', 0)
+        total_settlers = len(hs_agents) + wild_native
+        origin_counts = Counter(getattr(a, 'origin_nation', 'Unknown') for a in hs_agents)
+
+        yy = chart_top + 48
+        surface.blit(font_small.render("FRONTIER DEMOGRAPHICS", True, ACCENT), (PANEL_LEFT, yy))
+        yy += 20
+        surface.blit(font_small.render(f"Homesteaders: {len(hs_agents)}", True, TEXT), (PANEL_LEFT, yy))
+        yy += 18
+        surface.blit(font_small.render(f"Native Wilderness Pop: {wild_native}", True, TEXT), (PANEL_LEFT, yy))
+        yy += 18
+        surface.blit(font_small.render(f"Total Frontier Pop: {total_settlers}", True, (255, 255, 255)), (PANEL_LEFT, yy))
+        yy += 24
+
+        surface.blit(font_small.render("SETTLER HOMELANDS (50% Claim Rule)", True, ACCENT), (PANEL_LEFT, yy))
+        yy += 20
+        if origin_counts:
+            for nation_name, cnt in origin_counts.most_common():
+                pct = (cnt / total_settlers) * 100 if total_settlers > 0 else 0
+                claimable = " (CLAIM MAJORITY!)" if cnt / float(total_settlers) > 0.50 else ""
+                color = GREEN if claimable else TEXT
+                surface.blit(font_small.render(f"• {nation_name}: {cnt} ({pct:.1f}%){claimable}", True, color), (PANEL_LEFT, yy))
+                yy += 18
+        else:
+            surface.blit(font_small.render("No homesteaders present yet", True, DIM), (PANEL_LEFT, yy))
+            yy += 18
+
+        yy += 10
+        surface.blit(font_small.render("NATURAL PRODUCTIVITY", True, ACCENT), (PANEL_LEFT, yy))
+        yy += 20
+        food_bonus = region.terrain.get(Goods.food, 1.0)
+        wood_bonus = region.terrain.get(Goods.wood, 1.0)
+        surface.blit(font_small.render(f"Farmland Fertility: {food_bonus:.2f}x {'(High)' if food_bonus > 1.3 else ''}", True, TEXT), (PANEL_LEFT, yy))
+        yy += 18
+        surface.blit(font_small.render(f"Forest Density: {wood_bonus:.2f}x {'(Dense)' if wood_bonus > 1.3 else ''}", True, TEXT), (PANEL_LEFT, yy))
+        yy += 24
+
+        surface.blit(font_small.render("NEIGHBORING CLAIMED HOSTS", True, ACCENT), (PANEL_LEFT, yy))
+        yy += 20
+        claimed_neighbors = [n for n in region.neighbors.values() if getattr(n, 'owner_nation', None) is not None]
+        if claimed_neighbors:
+            for nb in claimed_neighbors[:4]:
+                prov_name = nb.province.name if getattr(nb, 'province', None) else nb.owner_nation.name
+                surface.blit(font_small.render(f"• {nb.name} ({nb.owner_nation.name} - {prov_name})", True, DIM), (PANEL_LEFT, yy))
+                yy += 18
+        else:
+            surface.blit(font_small.render("Deep frontier wilderness", True, DIM), (PANEL_LEFT, yy))
+            yy += 18
+
+        draw_regime_readout(surface, region, font_small, chart_bottom + 24)
+        return
+
+    # Claimed Tile 10-Chart Dashboard
     if region is not None:
         prov_s = ""
+        prov_color = TEXT
         if getattr(region, 'province', None) is not None:
-            prov_s = f"  [{region.province.name}]"
-        head = font_small.render(f"{region.name}{prov_s}", True, TEXT)
+            prov = region.province
+            nation = getattr(region, 'owner_nation', None)
+            if nation and getattr(nation, 'provinces', None):
+                try:
+                    p_idx = nation.provinces.index(prov)
+                    prov_color = PROVINCE_COLORS[p_idx % len(PROVINCE_COLORS)]
+                except ValueError:
+                    prov_color = ACCENT
+            prov_s = f"  [{prov.name}]"
+
+        head = font_small.render(f"{region.name}{prov_s}", True, prov_color)
         surface.blit(head, (PANEL_LEFT, chart_top - 6))
         col_line = font_small.render(
             f"CoL {region.cost_of_living:.2f}  {region.climate}  (V=nation)", True, DIM)
@@ -319,7 +396,7 @@ def draw_help(surface, world, font_small):
         ("Lavender Hex", "Nation Gamma sovereign territory", (190, 186, 218)),
         ("Dark Grey Hex", "Unclaimed wilderness (unsettled)", (120, 120, 128)),
         ("Luminance Glow", "Pop heatmap (brighter = denser pop)", (255, 255, 220)),
-        ("Gold Outline", "Province grouping (pinned + members)", ACCENT),
+        ("Province Outlines", "Multi-color province borders per nation", (60, 210, 230)),
     ]
     for title, desc, col in color_items:
         pygame.draw.rect(surface, col, (col2_x, y + 2, 12, 12), border_radius=2)
@@ -376,7 +453,7 @@ def draw_help(surface, world, font_small):
         ("Green Tag T<N>", "Active traders operating on tile", (90, 210, 120)),
         ("Purple Left Dot", "High wealth inequality warning (Gini > 0.6)", (190, 110, 230)),
     ]
-    for tag, desc, col in badge_items:
+    for tag, desc in badge_items:
         pygame.draw.circle(surface, col, (col3_x + 6, y + 8), 5)
         surface.blit(font_small.render(tag, True, col), (col3_x + 18, y))
         surface.blit(font_small.render(desc, True, DIM), (col3_x + 18, y + 14))
@@ -392,7 +469,7 @@ def draw_help(surface, world, font_small):
         ("Orange Hot Ring", "Local food price is >15% higher than neighbors", (235, 120, 60)),
         ("Blue Cold Ring", "Local food price is >15% cheaper than neighbors", (110, 170, 235)),
     ]
-    for tag, desc, col in glyph_items:
+    for tag, desc in glyph_items:
         pygame.draw.circle(surface, col, (col3_x + 6, y + 8), 5)
         surface.blit(font_small.render(tag, True, col), (col3_x + 18, y))
         surface.blit(font_small.render(desc, True, DIM), (col3_x + 18, y + 14))
