@@ -1,6 +1,7 @@
 """
 REGNUM v3_wilderness — Pygame hex-world viewer for the 9x9 honeycomb.
-Features cursor-anchored smooth map zoom, middle-mouse drag panning, WASD/arrow pan, and a 10-chart interactive sidebar.
+Features cursor-anchored smooth map zoom, middle-mouse drag panning, WASD/arrow pan,
+a 10-chart interactive sidebar, multi-province highlights, and cross-nation comparison leaderboard table.
 """
 
 import os
@@ -30,7 +31,8 @@ from worldview_map import (
 )
 from worldview_ui import (
     PANEL_BG, selected_nation, draw_top_bar, draw_regime_readout,
-    draw_panel, draw_ticker, draw_help, draw_zoom_hud, zoom_hud_hit
+    draw_panel, draw_ticker, draw_help, draw_zoom_hud, zoom_hud_hit,
+    compare_btn_hit, draw_nations_comparison
 )
 from worldview_engine import (
     get_layout, get_reverse_layout, build_world_view, ticker_push, step_world
@@ -78,15 +80,16 @@ _draw_help = draw_help
 
 
 def render_frame(surface, world, mouse_pos=None):
-    """Draw one full frame (map + top bar + panel + ticker + zoom hud + help)."""
+    """Draw one full frame (map + top bar + panel + ticker + zoom hud + comparison table + help)."""
     font = pygame.font.Font(None, 28)
     font_small = pygame.font.Font(None, 22)
     surface.fill(BG)
-    draw_top_bar(surface, world, font_small)
+    draw_top_bar(surface, world, font_small, mouse_pos=mouse_pos)
     draw_hex_map(surface, world, font, font_small)
     draw_zoom_hud(surface, font_small, mouse_pos=mouse_pos)
     draw_panel(surface, world, font, font_small, mouse_pos=mouse_pos)
     draw_ticker(surface, world, font_small)
+    draw_nations_comparison(surface, world, font, font_small)
     draw_help(surface, world, font_small)
 
 
@@ -126,7 +129,17 @@ def main():
             if event.type == pygame.QUIT:
                 running = False
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                # 1. Check Zoom HUD buttons
+                # 0. Check if Comparison Table is open (click anywhere closes it)
+                if world.get('compare_open'):
+                    world['compare_open'] = False
+                    continue
+
+                # 1. Check Compare Nations top bar button
+                if compare_btn_hit(event.pos):
+                    world['compare_open'] = not world.get('compare_open', False)
+                    continue
+
+                # 2. Check Zoom HUD buttons
                 hud_action = zoom_hud_hit(event.pos)
                 if hud_action == 'in':
                     zoom_cam_at(world, 1.25, MAP_RIGHT // 2, HEIGHT // 2)
@@ -135,7 +148,7 @@ def main():
                 elif hud_action == 'reset':
                     reset_cam(world)
                 else:
-                    # 2. Check sidebar chart clicks
+                    # 3. Check sidebar chart clicks
                     chart_top = 178 + TOP_BAR_H + 30
                     chart_bottom = HEIGHT - TICKER_H - 96
                     if world.get('view', 0) == 0:
@@ -143,7 +156,7 @@ def main():
                         if clicked_chart is not None:
                             world['view'] = clicked_chart
                         else:
-                            # 3. Check Hex tile picking
+                            # 4. Check Hex tile picking
                             clicked = tile_at(world, *event.pos)
                             if clicked is not None:
                                 world['selected_region'] = clicked
@@ -172,7 +185,9 @@ def main():
                     zoom_cam_at(world, factor, mx, my)
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
-                    if world.get('help_open'):
+                    if world.get('compare_open'):
+                        world['compare_open'] = False
+                    elif world.get('help_open'):
                         world['help_open'] = False
                     elif world.get('view', 0) != 0:
                         world['view'] = 0
@@ -180,9 +195,11 @@ def main():
                         running = False
                 elif event.key == pygame.K_q:
                     running = False
+                elif event.key == pygame.K_c:
+                    world['compare_open'] = not world.get('compare_open', False)
                 elif event.key == pygame.K_h or event.key == pygame.K_QUESTION:
                     world['help_open'] = not world.get('help_open', False)
-                elif world.get('help_open'):
+                elif world.get('help_open') or world.get('compare_open'):
                     pass
                 elif event.key == pygame.K_SPACE:
                     world['playing'] = not world['playing']

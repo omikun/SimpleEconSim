@@ -1,5 +1,6 @@
 """
-UI components: top stats bar, right panel, regime readout, ticker, zoom HUD, and help overlay.
+UI components: top stats bar, right panel, regime readout, ticker, zoom HUD, help overlay,
+and cross-nation comparative leaderboard table.
 """
 
 from collections import Counter
@@ -8,7 +9,8 @@ from goods import Goods
 from worldview_camera import WIDTH, HEIGHT, MAP_RIGHT, TOP_BAR_H, TICKER_H
 from worldview_charts import (PANEL_LEFT, draw_chart_grid, draw_chart_large,
                               tile_charts, EXP_C, IMP_C)
-from worldview_map import HEX_EDGE, ACCENT, TEXT, DIM, RED, GREEN, UNREST_COLORS, PROVINCE_COLORS
+from worldview_map import (HEX_EDGE, ACCENT, TEXT, DIM, RED, GREEN, UNREST_COLORS,
+                           PROVINCE_COLORS, NATION_COLORS)
 
 PANEL_BG = (40, 40, 48)
 
@@ -16,6 +18,9 @@ PANEL_BG = (40, 40, 48)
 ZOOM_BTN_IN = (MAP_RIGHT - 110, TOP_BAR_H + 12, 30, 26)
 ZOOM_BTN_OUT = (MAP_RIGHT - 75, TOP_BAR_H + 12, 30, 26)
 ZOOM_BTN_RESET = (MAP_RIGHT - 40, TOP_BAR_H + 12, 32, 26)
+
+# Compare Nations button in top bar
+COMPARE_BTN = (MAP_RIGHT - 150, 12, 138, 28)
 
 
 def draw_zoom_hud(surface, font_small, mouse_pos=None):
@@ -48,6 +53,12 @@ def zoom_hud_hit(pos):
     return None
 
 
+def compare_btn_hit(pos):
+    """Return True if the top-bar Compare Nations button was clicked."""
+    mx, my = pos
+    return COMPARE_BTN[0] <= mx <= COMPARE_BTN[0] + COMPARE_BTN[2] and COMPARE_BTN[1] <= my <= COMPARE_BTN[1] + COMPARE_BTN[3]
+
+
 def selected_nation(world):
     pinned = world.get('selected_region')
     if pinned is not None and getattr(pinned, 'owner_nation', None) is not None:
@@ -55,8 +66,8 @@ def selected_nation(world):
     return world['nations'][0] if world['nations'] else None
 
 
-def draw_top_bar(surface, world, font_small):
-    """Civ-style top strip: stats for the currently selected nation."""
+def draw_top_bar(surface, world, font_small, mouse_pos=None):
+    """Civ-style top strip: stats for the currently selected nation + compare button."""
     n = selected_nation(world)
     pygame.draw.rect(surface, (34, 34, 42), (0, 0, MAP_RIGHT, TOP_BAR_H))
     pygame.draw.line(surface, HEX_EDGE, (0, TOP_BAR_H), (MAP_RIGHT, TOP_BAR_H), 2)
@@ -64,38 +75,49 @@ def draw_top_bar(surface, world, font_small):
     if n is None:
         head = font.render("REGNUM v3 — 9x9 Hex World", True, ACCENT)
         surface.blit(head, (8, 14))
-        return
-    tiles = n.tiles
-    pop = sum(r.total_population[-1] if r.total_population else len(r.agents)
-              for r in tiles)
-    tr = n.treasury()
-    col = (sum(r.cost_of_living for r in tiles) / len(tiles)
-           if tiles else 0.0)
-    gdp = sum(r.gdp_log[-1] if r.gdp_log else 0.0 for r in tiles)
-    exports = sum(sum(v) for r in tiles for v in r.export_val.values())
-    imports = sum(sum(v) for r in tiles for v in r.import_val.values())
-    net = exports - imports
-    ruling = getattr(n, 'ruling_faction', None)
-    ruler = f"  ruling {ruling}" if ruling else ""
-    head = font.render(
-        f"{n.name} ({n.currency})  {n.regime_type}  legit {n.legitimacy:.2f}"
-        f"{ruler}  provinces {len(n.provinces)}  tiles {len(tiles)}", True, ACCENT)
-    surface.blit(head, (8, 6))
-    stats = [
-        (f"Pop {pop}", TEXT),
-        (f"Treasury ${tr['total']:,.0f} ({tr['food']} food)", TEXT),
-        (f"CoL {col:.2f}", TEXT),
-        (f"GDP ${gdp:,.0f}", TEXT),
-        (f"Ex ${exports:,.0f}", EXP_C),
-        (f"Im ${imports:,.0f}", IMP_C),
-        (f"Net {'+' if net >= 0 else ''}{net:,.0f}",
-         GREEN if net >= 0 else RED),
-    ]
-    x = 8
-    for text, color in stats:
-        label = font.render(text, True, color)
-        surface.blit(label, (x, 30))
-        x += label.get_width() + 22
+    else:
+        tiles = n.tiles
+        pop = sum(r.total_population[-1] if r.total_population else len(r.agents)
+                  for r in tiles)
+        tr = n.treasury()
+        col = (sum(r.cost_of_living for r in tiles) / len(tiles)
+               if tiles else 0.0)
+        gdp = sum(r.gdp_log[-1] if r.gdp_log else 0.0 for r in tiles)
+        exports = sum(sum(v) for r in tiles for v in r.export_val.values())
+        imports = sum(sum(v) for r in tiles for v in r.import_val.values())
+        net = exports - imports
+        ruling = getattr(n, 'ruling_faction', None)
+        ruler = f"  ruling {ruling}" if ruling else ""
+        head = font.render(
+            f"{n.name} ({n.currency})  {n.regime_type}  legit {n.legitimacy:.2f}"
+            f"{ruler}  provinces {len(n.provinces)}  tiles {len(tiles)}", True, ACCENT)
+        surface.blit(head, (8, 6))
+        stats = [
+            (f"Pop {pop}", TEXT),
+            (f"Treasury ${tr['total']:,.0f} ({tr['food']} food)", TEXT),
+            (f"CoL {col:.2f}", TEXT),
+            (f"GDP ${gdp:,.0f}", TEXT),
+            (f"Ex ${exports:,.0f}", EXP_C),
+            (f"Im ${imports:,.0f}", IMP_C),
+            (f"Net {'+' if net >= 0 else ''}{net:,.0f}",
+             GREEN if net >= 0 else RED),
+        ]
+        x = 8
+        for text, color in stats:
+            label = font.render(text, True, color)
+            surface.blit(label, (x, 30))
+            x += label.get_width() + 18
+
+    # Compare Nations Button
+    mx, my = mouse_pos if mouse_pos else (-1, -1)
+    is_hover = compare_btn_hit((mx, my))
+    is_open = world.get('compare_open', False)
+    btn_bg = (70, 70, 90) if is_open else ((55, 55, 70) if is_hover else (38, 38, 48))
+    btn_border = ACCENT if (is_hover or is_open) else (90, 90, 105)
+    pygame.draw.rect(surface, btn_bg, COMPARE_BTN, border_radius=5)
+    pygame.draw.rect(surface, btn_border, COMPARE_BTN, 1, border_radius=5)
+    btn_txt = font_small.render("Compare (C)", True, (255, 255, 255) if (is_hover or is_open) else TEXT)
+    surface.blit(btn_txt, btn_txt.get_rect(center=(COMPARE_BTN[0] + COMPARE_BTN[2] // 2, COMPARE_BTN[1] + COMPARE_BTN[3] // 2)))
 
 
 def draw_regime_readout(surface, region, font_small, y):
@@ -319,6 +341,181 @@ def draw_ticker(surface, world, font_small):
         yy += 18
 
 
+def draw_nations_comparison(surface, world, font, font_small):
+    """Full-screen comparative tabular modal comparing all nations side-by-side."""
+    if not world.get('compare_open', False):
+        return
+
+    title_font = pygame.font.Font(None, 30)
+    section_font = pygame.font.Font(None, 24)
+    cell_font = pygame.font.Font(None, 21)
+
+    overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+    overlay.fill((12, 12, 18, 248))
+    surface.blit(overlay, (0, 0))
+
+    # Modal Box Window
+    box_x, box_y, box_w, box_h = 36, 24, WIDTH - 72, HEIGHT - 48
+    pygame.draw.rect(surface, (22, 22, 30), (box_x, box_y, box_w, box_h), border_radius=8)
+    pygame.draw.rect(surface, (70, 70, 90), (box_x, box_y, box_w, box_h), 2, border_radius=8)
+
+    # Header
+    title = title_font.render("REGNUM v3 — Cross-Nation Macroeconomic & Geopolitical Comparison", True, ACCENT)
+    surface.blit(title, (box_x + 20, box_y + 14))
+    close_hint = font_small.render("[Press C, Esc, or Click to Close]", True, DIM)
+    surface.blit(close_hint, (box_x + box_w - close_hint.get_width() - 20, box_y + 18))
+    pygame.draw.line(surface, (60, 60, 75), (box_x + 16, box_y + 46), (box_x + box_w - 16, box_y + 46), 1)
+
+    nations = world.get('nations', [])
+    if not nations:
+        return
+
+    # Calculate metrics for each nation
+    nation_data = []
+    for n in nations:
+        tiles = n.tiles
+        pop = sum(r.total_population[-1] if r.total_population else len(r.agents) for r in tiles)
+        hungry = sum(sum(r.hungry_log[g][-1] if (g in r.hungry_log and r.hungry_log[g]) else 0
+                         for g in (Goods.food, Goods.wood, Goods.furniture)) for r in tiles)
+        gdp = sum(r.gdp_log[-1] if r.gdp_log else 0.0 for r in tiles)
+        col = (sum(r.cost_of_living for r in tiles) / len(tiles)) if tiles else 0.0
+        food_p = (sum(r.recipes[Goods.food]['price'] for r in tiles) / len(tiles)) if tiles else 0.0
+        wood_p = (sum(r.recipes[Goods.wood]['price'] for r in tiles) / len(tiles)) if tiles else 0.0
+        furn_p = (sum(r.recipes[Goods.furniture]['price'] for r in tiles) / len(tiles)) if tiles else 0.0
+
+        tr = n.treasury()
+        exports = sum(sum(v) for r in tiles for v in r.export_val.values())
+        imports = sum(sum(v) for r in tiles for v in r.import_val.values())
+        net_trade = exports - imports
+        traders = sum(sum(1 for a in r.agents if a.is_trader) for r in tiles)
+
+        seen_b = set()
+        total_dep = 0.0
+        total_eq = 0.0
+        for r in tiles:
+            b = getattr(r, 'bank', None)
+            if b is not None and id(b) not in seen_b:
+                seen_b.add(id(b))
+                total_dep += b.total_deposits
+                total_eq += b.equity
+
+        avg_protest = (sum(r.protest_energy_log[-1] if r.protest_energy_log else 0.0
+                           for r in tiles) / len(tiles)) if tiles else 0.0
+
+        nation_data.append({
+            'nation': n,
+            'color': NATION_COLORS.get(n.name, TEXT),
+            'tiles': len(tiles),
+            'provinces': len(n.provinces),
+            'pop': pop,
+            'hungry': hungry,
+            'gdp': gdp,
+            'col': col,
+            'food_p': food_p,
+            'wood_p': wood_p,
+            'furn_p': furn_p,
+            'tr_cash': tr['cash'],
+            'tr_dep': tr['deposits'],
+            'tr_food': tr['food'],
+            'tr_total': tr['total'],
+            'exports': exports,
+            'imports': imports,
+            'net_trade': net_trade,
+            'traders': traders,
+            'bank_dep': total_dep,
+            'bank_eq': total_eq,
+            'legitimacy': n.legitimacy,
+            'regime': n.regime_type,
+            'ruling': getattr(n, 'ruling_faction', '-') or '-',
+            'protest': avg_protest,
+        })
+
+    # Column Layout
+    label_col_w = 310
+    col_w = (box_w - label_col_w - 40) // max(1, len(nations))
+
+    # Table Header
+    y = box_y + 56
+    surface.blit(cell_font.render("METRIC / INDICATOR", True, ACCENT), (box_x + 24, y + 4))
+    for i, data in enumerate(nation_data):
+        cx = box_x + label_col_w + i * col_w
+        n = data['nation']
+        col_box = (cx, y, col_w - 10, 32)
+        pygame.draw.rect(surface, (34, 34, 46), col_box, border_radius=4)
+        pygame.draw.rect(surface, data['color'], col_box, 1, border_radius=4)
+        n_label = font.render(f"{n.name} ({n.currency})", True, data['color'])
+        surface.blit(n_label, n_label.get_rect(center=(cx + (col_w - 10) // 2, y + 16)))
+
+    y += 42
+    table_sections = [
+        ("SOVEREIGNTY & GEOGRAPHY", [
+            ("Claimed Hex Tiles", lambda d: f"{d['tiles']} tiles", False),
+            ("Active Provinces", lambda d: f"{d['provinces']} provinces", False),
+            ("Government Regime", lambda d: f"{d['regime']}", False),
+            ("Legitimacy Score", lambda d: f"{d['legitimacy']:.2f}", True),
+            ("Ruling Faction", lambda d: f"{d['ruling']}", False),
+        ]),
+        ("DEMOGRAPHICS & SOCIAL STABILITY", [
+            ("Total Living Population", lambda d: f"{d['pop']:,} citizens", True),
+            ("Starving / Severe Hunger", lambda d: f"{d['hungry']} agents", False),
+            ("Avg Social Protest Energy", lambda d: f"{d['protest']:.2f}", False),
+        ]),
+        ("MACROECONOMICS & MARKET PRICES", [
+            ("Gross Domestic Product (GDP/t)", lambda d: f"${d['gdp']:,.2f}", True),
+            ("Average Cost of Living (CoL)", lambda d: f"{d['col']:.2f}", False),
+            ("Average Food Price", lambda d: f"${d['food_p']:.2f}", False),
+            ("Average Wood / Timber Price", lambda d: f"${d['wood_p']:.2f}", False),
+            ("Average Furniture Price", lambda d: f"${d['furn_p']:.2f}", False),
+        ]),
+        ("PUBLIC TREASURY & RESERVES", [
+            ("Treasury Total Wealth", lambda d: f"${d['tr_total']:,.2f}", True),
+            ("Treasury Cash on Hand", lambda d: f"${d['tr_cash']:,.2f}", False),
+            ("Treasury Bank Deposits", lambda d: f"${d['tr_dep']:,.2f}", False),
+            ("Strategic Food Reserve", lambda d: f"{d['tr_food']} units", False),
+        ]),
+        ("INTERNATIONAL TRADE & LOGISTICS", [
+            ("Total Exports Value", lambda d: f"${d['exports']:,.2f}", True),
+            ("Total Imports Value", lambda d: f"${d['imports']:,.2f}", False),
+            ("Net Trade Balance", lambda d: f"{'+' if d['net_trade']>=0 else ''}${d['net_trade']:,.2f}", True),
+            ("Active Merchant Traders", lambda d: f"{d['traders']} traders", False),
+        ]),
+        ("COMMERCIAL BANKING SYSTEM", [
+            ("Total Bank Deposits", lambda d: f"${d['bank_dep']:,.2f}", False),
+            ("Total Bank Equity / Capital", lambda d: f"${d['bank_eq']:,.2f}", True),
+        ]),
+    ]
+
+    row_h = 21
+    for sec_title, rows in table_sections:
+        # Section Header Row
+        sec_rect = (box_x + 16, y, box_w - 32, 22)
+        pygame.draw.rect(surface, (30, 30, 42), sec_rect)
+        surface.blit(section_font.render(sec_title, True, ACCENT), (box_x + 22, y + 2))
+        y += 24
+
+        for row_idx, (label, fmt, is_key) in enumerate(rows):
+            row_bg = (24, 24, 32) if row_idx % 2 == 0 else (28, 28, 38)
+            pygame.draw.rect(surface, row_bg, (box_x + 16, y, box_w - 32, row_h))
+
+            # Label Column
+            lbl_color = (255, 255, 255) if is_key else TEXT
+            surface.blit(cell_font.render(label, True, lbl_color), (box_x + 24, y + 3))
+
+            # Data Columns
+            for i, data in enumerate(nation_data):
+                cx = box_x + label_col_w + i * col_w
+                val_str = fmt(data)
+                val_color = TEXT
+                if label == "Net Trade Balance":
+                    val_color = GREEN if data['net_trade'] >= 0 else RED
+                elif is_key:
+                    val_color = ACCENT
+                val_surf = cell_font.render(val_str, True, val_color)
+                surface.blit(val_surf, (cx + 8, y + 3))
+
+            y += row_h
+
+
 def draw_help(surface, world, font_small):
     if not world.get('help_open', False):
         return
@@ -350,6 +547,7 @@ def draw_help(surface, world, font_small):
         ("Middle/Right Drag", "Hold & drag mouse to pan map"),
         ("Mouse Wheel", "Smooth zoom anchored at cursor"),
         ("0 or R / Home", "Reset zoom & center map (1:1)"),
+        ("C or [Compare]", "Open cross-nation comparison table"),
         ("On-Screen [+] / [-]", "Map zoom HUD buttons (top-right)"),
         ("Tab / Esc", "Return to 10-chart grid view"),
         ("1 .. 9, 0", "Zoom into individual sidebar chart"),
@@ -357,7 +555,7 @@ def draw_help(surface, world, font_small):
         ("Click Hex Tile", "Pin tile (locks sidebar readout)"),
         ("V", "Toggle Tile vs Nation scope view"),
         ("H or ?", "Toggle this help guide overlay"),
-        ("Q or Esc", "Close help modal / Quit"),
+        ("Q or Esc", "Close modal / Quit"),
     ]
     for key, desc in col1_items:
         k_surf = font_small.render(f"{key:<16}", True, (255, 255, 255))
