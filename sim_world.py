@@ -154,7 +154,11 @@ def build_world(seed=None):
         #      capital is ever abandoned; the shared government agent is
         #      seated only on the province's first tile.  The per-currency
         #      audit dedupes shared banks/charities (id-seen set). ----
-        n_parts = 1 if len(cluster) < 3 else (2 if len(cluster) <= 4 else 3)
+        # v3.1: balanced provinces — every STARTING province is 2-3 tiles (few
+        # 1- or 5-tile provinces): Alpha(3)->1 part of 3, Beta(4)->[2,2],
+        # Gamma(5)->[2,3].  partition_contiguous uses the farthest-pair seed
+        # + smallest-part BFS growth to keep each part balanced AND contiguous.
+        n_parts = 1 if len(cluster) < 4 else 2
         parts = partition_contiguous(cluster, _LAYOUT, n_parts)
         for part in parts:
             prov = Province(f"{nname}-{len(n.provinces)+1}", n, t=0)

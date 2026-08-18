@@ -1080,8 +1080,9 @@ def main():
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 clicked = _tile_at(world, *event.pos)
                 if clicked is not None:
+                    # v3: preserve the chart view (e.g. zoomed pop graph) when
+                    # pinning a different tile.
                     world['selected_region'] = clicked
-                    world['view'] = 0
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 2:
                 drag = True
                 pygame.mouse.get_rel()
