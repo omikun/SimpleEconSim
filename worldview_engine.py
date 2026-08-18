@@ -6,7 +6,7 @@ import random
 import forex as fx
 from hexmap import rectangular_hex_layout, hex_bbox
 from sim_world import build_world, GRID_ROWS, GRID_COLS
-from worldview_camera import HEX_SIZE, clamp_cam
+from worldview_camera import HEX_SIZE, clamp_cam, reset_cam
 from worldview_charts import MIG_C
 from worldview_map import ACCENT as CLAIM_C, RED as DESTROY_C
 import sim_engine
@@ -58,7 +58,7 @@ def build_world_view(seed=None):
         'help_open': False,
         'help_scroll': 0,
     }
-    clamp_cam(world)
+    reset_cam(world)
     return world
 
 

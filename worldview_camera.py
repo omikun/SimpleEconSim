@@ -20,11 +20,11 @@ def clamp_cam(world):
     sx0, sy0, sx1, sy1 = x0 * zoom, y0 * zoom, x1 * zoom, y1 * zoom
 
     # Map viewport bounds: X in [0, MAP_RIGHT], Y in [TOP_BAR_H, HEIGHT - TICKER_H]
-    # Allow panning across the viewport; only clamp if the map is dragged far off-screen
     min_ox = 100 - sx1
     max_ox = (MAP_RIGHT - 100) - sx0
     if min_ox > max_ox:
-        cam['ox'] = (MAP_RIGHT - (sx0 + sx1)) / 2.0
+        target_cx = MAP_RIGHT / 2.0
+        cam['ox'] = target_cx - ((x0 + x1) / 2.0) * zoom
     else:
         cam['ox'] = max(min_ox, min(max_ox, cam['ox']))
 
@@ -33,7 +33,8 @@ def clamp_cam(world):
     min_oy = top + 80 - sy1
     max_oy = bottom - 80 - sy0
     if min_oy > max_oy:
-        cam['oy'] = (top + bottom - (sy0 + sy1)) / 2.0
+        target_cy = top + (bottom - top) / 2.0
+        cam['oy'] = target_cy - ((y0 + y1) / 2.0) * zoom
     else:
         cam['oy'] = max(min_oy, min(max_oy, cam['oy']))
 
@@ -54,13 +55,20 @@ def zoom_cam_at(world, factor, mx, my):
 
 
 def reset_cam(world):
-    """Reset zoom to 1.0 and center the map in the viewport."""
-    world['cam']['zoom'] = 1.0
+    """Fit and center the entire hex map cleanly in the viewport."""
     x0, y0, x1, y1 = world['bbox']
-    top = TOP_BAR_H
-    bottom = HEIGHT - TICKER_H
-    world['cam']['ox'] = (MAP_RIGHT - (x0 + x1)) / 2.0
-    world['cam']['oy'] = (top + bottom - (y0 + y1)) / 2.0
+    bw = max(1.0, x1 - x0)
+    bh = max(1.0, y1 - y0)
+    vw = MAP_RIGHT - 2 * _MARGIN
+    vh = (HEIGHT - TOP_BAR_H - TICKER_H) - 2 * _MARGIN
+
+    fit_zoom = min(vw / bw, vh / bh) * 0.95
+    world['cam']['zoom'] = round(fit_zoom, 2)
+
+    target_cx = MAP_RIGHT / 2.0
+    target_cy = TOP_BAR_H + (HEIGHT - TOP_BAR_H - TICKER_H) / 2.0
+    world['cam']['ox'] = target_cx - ((x0 + x1) / 2.0) * world['cam']['zoom']
+    world['cam']['oy'] = target_cy - ((y0 + y1) / 2.0) * world['cam']['zoom']
     clamp_cam(world)
 
 
