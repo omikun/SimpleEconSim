@@ -326,7 +326,7 @@ def draw_tab2_goods(surface, world, box_x, start_y, box_w, box_h, font, cell_fon
             inv_cur = sum(r.inventory_log[active_good][-1] if (active_good in r.inventory_log and r.inventory_log[active_good]) else 0.0 for r in tiles)
             inv_prev = sum(get_prev(r.inventory_log[active_good], default=0.0) if active_good in r.inventory_log else 0.0 for r in tiles)
 
-            producers = sum(sum(1 for a in r.agents if not a.is_trader and getattr(a, 'profession', None) == active_good) for r in tiles)
+            producers = sum(sum(1 for a in r.agents if getattr(a, 'alive', True) and not getattr(a, 'is_trader', False) and getattr(a, 'output', None) == active_good) for r in tiles)
             labor_prod = (prod_cur / max(1, producers)) if producers > 0 else 0.0
             inv_capita = (inv_cur / max(1, pop))
             inv_producer = (inv_cur / max(1, producers)) if producers > 0 else 0.0
