@@ -174,7 +174,7 @@ def draw_panel(surface, world, font, font_small, mouse_pos=None):
     if world.get('playing'):
         pn = font_small.render("[ PLAYING ]  Space=pause", True, GREEN)
     else:
-        pn = font_small.render("[ PAUSED ]  S=step  Space=play", True, DIM)
+        pn = font_small.render("[ PAUSED ]  N=step  Space=play", True, DIM)
     surface.blit(pn, (PANEL_LEFT, 142 + d))
 
     region = world.get('selected_region') or world.get('hover_region')

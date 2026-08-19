@@ -238,8 +238,8 @@ def main():
                     world['playing'] = not world['playing']
                     last_tick = now
                 elif event.key in (pygame.K_n, pygame.K_PERIOD):
-                    if not world['playing']:
-                        step_world(world)
+                    world['playing'] = False
+                    step_world(world)
                 elif event.key == pygame.K_TAB:
                     world['view'] = 0
                 elif event.key == pygame.K_v:
