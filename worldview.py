@@ -1,7 +1,7 @@
 """
 REGNUM v3_wilderness — Pygame hex-world viewer for the 9x9 honeycomb.
 Features cursor-anchored smooth map zoom, middle-mouse drag panning, WASD/arrow pan,
-a 10-chart interactive sidebar, multi-province highlights, and cross-nation comparison leaderboard table.
+a 10-chart interactive sidebar, multi-province highlights, and 3-tab cross-nation comparative accounts suite.
 """
 
 import os
@@ -11,6 +11,7 @@ import sys
 os.environ.setdefault('SDL_AUDIODRIVER', 'dummy')
 
 import pygame
+from goods import Goods
 from logger import logInit
 
 # Import sub-modules
@@ -32,7 +33,10 @@ from worldview_map import (
 from worldview_ui import (
     PANEL_BG, selected_nation, draw_top_bar, draw_regime_readout,
     draw_panel, draw_ticker, draw_help, draw_zoom_hud, zoom_hud_hit,
-    compare_btn_hit, draw_nations_comparison
+    compare_btn_hit
+)
+from worldview_compare import (
+    draw_nations_comparison, compare_tab_hit
 )
 from worldview_engine import (
     get_layout, get_reverse_layout, build_world_view, ticker_push, step_world
@@ -89,7 +93,7 @@ def render_frame(surface, world, mouse_pos=None):
     draw_zoom_hud(surface, font_small, mouse_pos=mouse_pos)
     draw_panel(surface, world, font, font_small, mouse_pos=mouse_pos)
     draw_ticker(surface, world, font_small)
-    draw_nations_comparison(surface, world, font, font_small)
+    draw_nations_comparison(surface, world, font, font_small, mouse_pos=mouse_pos)
     draw_help(surface, world, font_small)
 
 
@@ -129,10 +133,19 @@ def main():
             if event.type == pygame.QUIT:
                 running = False
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                # 0. Check if Comparison Table is open (click anywhere closes it)
+                # 0. Check if Comparison Table is open
                 if world.get('compare_open'):
-                    world['compare_open'] = False
-                    continue
+                    tab_hit = compare_tab_hit(event.pos, 30, 20)
+                    if tab_hit is not None:
+                        if tab_hit[0] == 'tab':
+                            world['compare_tab'] = tab_hit[1]
+                        elif tab_hit[0] == 'good':
+                            world['compare_good'] = tab_hit[1]
+                        continue
+                    # Click outside header tabs or outside modal closes it
+                    if event.pos[0] < 30 or event.pos[0] > WIDTH - 30 or event.pos[1] < 20 or event.pos[1] > HEIGHT - 20 or event.pos[1] < 48:
+                        world['compare_open'] = False
+                        continue
 
                 # 1. Check Compare Nations top bar button
                 if compare_btn_hit(event.pos):
@@ -184,10 +197,30 @@ def main():
                     factor = 1.15 ** event.y
                     zoom_cam_at(world, factor, mx, my)
             elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_ESCAPE:
-                    if world.get('compare_open'):
+                # If comparison modal is open, intercept navigation keys
+                if world.get('compare_open'):
+                    if event.key in (pygame.K_1, pygame.K_KP1):
+                        world['compare_tab'] = 1
+                    elif event.key in (pygame.K_2, pygame.K_KP2):
+                        world['compare_tab'] = 2
+                    elif event.key in (pygame.K_3, pygame.K_KP3):
+                        world['compare_tab'] = 3
+                    elif event.key in (pygame.K_TAB, pygame.K_RIGHT):
+                        world['compare_tab'] = (world.get('compare_tab', 1) % 3) + 1
+                    elif event.key == pygame.K_LEFT:
+                        world['compare_tab'] = 3 if world.get('compare_tab', 1) == 1 else world.get('compare_tab', 1) - 1
+                    elif event.key == pygame.K_f:
+                        world['compare_good'] = Goods.food
+                    elif event.key == pygame.K_w:
+                        world['compare_good'] = Goods.wood
+                    elif event.key == pygame.K_u:
+                        world['compare_good'] = Goods.furniture
+                    elif event.key in (pygame.K_ESCAPE, pygame.K_c):
                         world['compare_open'] = False
-                    elif world.get('help_open'):
+                    continue
+
+                if event.key == pygame.K_ESCAPE:
+                    if world.get('help_open'):
                         world['help_open'] = False
                     elif world.get('view', 0) != 0:
                         world['view'] = 0
@@ -199,7 +232,7 @@ def main():
                     world['compare_open'] = not world.get('compare_open', False)
                 elif event.key == pygame.K_h or event.key == pygame.K_QUESTION:
                     world['help_open'] = not world.get('help_open', False)
-                elif world.get('help_open') or world.get('compare_open'):
+                elif world.get('help_open'):
                     pass
                 elif event.key == pygame.K_SPACE:
                     world['playing'] = not world['playing']

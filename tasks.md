@@ -479,6 +479,19 @@ Implemented automated conversion of foreign-currency wallet balances to domestic
 
 ---
 
+## DONE — 3-Tab Macro & Provincial Comparison Suite with Delta Tracking
+Added an in-depth 3-tab cross-nation and provincial economic comparison suite in `worldview_compare.py`, `worldview_ui.py`, and `worldview.py`:
+- **Tab 1: National Accounts & Leaderboard**: Nominal GDP, Real Chained GDP, GDP per capita, Cost of living (CPI), population, starvation count, Gini coefficient, social protest energy, treasury reserves, strategic food stockpiles, trade balances, and regime legitimacy with per-turn delta tracking ($\pm\Delta$).
+- **Tab 2: Goods Market & Provincial Real Economy**: Broken down by Country $\to$ Province for Food, Wood, Furniture: local clearing prices, output volume, labor productivity, inventory per capita, inventory per producer, demand vs supply, demand ratio ($D/S$), export/import value, and net sector balance with per-turn deltas ($\pm\Delta$).
+- **Tab 3: External Sector, Forex & Banking**: Broken down by Country $\to$ Province: central bank exchange rate quotes, PPP valuation gap (% over/undervalued), bank FX liquidity pool, foreign currency reserves war chest, commercial bank deposits, central bank equity/capital, and solvency ratios with per-turn deltas ($\pm\Delta$).
+- **Navigation**: Switched via `[ 1. Leaderboard ]`, `[ 2. Goods ]`, `[ 3. Forex & Banking ]` tab buttons, keyboard keys `1`, `2`, `3`, `Tab`, `Left/Right`, and good selector keys `F`, `W`, `U`.
+
+### Verification
+- `tmp/probe_tabs.py`: PASS (all 3 tabs and sub-goods rendered cleanly).
+- `tmp/probe_worldview.py`: PASS (5/5 headless checks).
+
+---
+
 # v3_bank_network — PLAN (approved 2026-08-16; DO NOT implement yet)
 
 Goal: per-Nation bank network so a distressed tile bank is rescued by stronger
