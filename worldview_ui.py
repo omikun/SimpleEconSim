@@ -1,6 +1,5 @@
 """
-UI components: top stats bar, right panel, regime readout, ticker, zoom HUD, help overlay,
-and cross-nation comparative leaderboard table.
+UI components: top stats bar, right panel, regime readout, ticker, zoom HUD, and help overlay.
 """
 
 from collections import Counter
@@ -11,6 +10,7 @@ from worldview_charts import (PANEL_LEFT, draw_chart_grid, draw_chart_large,
                               tile_charts, EXP_C, IMP_C)
 from worldview_map import (HEX_EDGE, ACCENT, TEXT, DIM, RED, GREEN, UNREST_COLORS,
                            PROVINCE_COLORS, NATION_COLORS)
+from worldview_compare import draw_nations_comparison, compare_tab_hit
 
 PANEL_BG = (40, 40, 48)
 
@@ -341,9 +341,6 @@ def draw_ticker(surface, world, font_small):
         yy += 18
 
 
-from worldview_compare import draw_nations_comparison, compare_tab_hit
-
-
 def draw_help(surface, world, font_small):
     if not world.get('help_open', False):
         return
@@ -358,7 +355,7 @@ def draw_help(surface, world, font_small):
                  (32, 20))
     pygame.draw.line(surface, (70, 70, 85), (32, 54), (WIDTH - 32, 54), 1)
 
-    # 3-Column Layout: (Col1: Controls & Sidebar), (Col2: Hex Map & Labels), (Col3: Badges, Rings & Glyphs)
+    # 3-Column Layout: (Col1: Controls & Accounts Suite), (Col2: Hex Map & Labels), (Col3: Badges, Rings & Glyphs)
     col_w = (WIDTH - 96) // 3
     col1_x = 32
     col2_x = 32 + col_w + 16
@@ -375,40 +372,36 @@ def draw_help(surface, world, font_small):
         ("Middle/Right Drag", "Hold & drag mouse to pan map"),
         ("Mouse Wheel", "Smooth zoom anchored at cursor"),
         ("0 or R / Home", "Reset zoom & center map (1:1)"),
-        ("C or [Compare]", "Open cross-nation comparison table"),
+        ("C or [Compare]", "Open 3-Tab Economic Accounts Suite"),
+        ("1, 2, 3 in Table", "Switch Macro / Goods / FX tabs"),
+        ("F, W, U in Table", "Switch Food / Wood / Furniture"),
         ("On-Screen [+] / [-]", "Map zoom HUD buttons (top-right)"),
         ("Tab / Esc", "Return to 10-chart grid view"),
         ("1 .. 9, 0", "Zoom into individual sidebar chart"),
         ("Click Mini-Chart", "Instant click-to-zoom for chart"),
-        ("Click Hex Tile", "Pin tile (locks sidebar readout)"),
+        ("Click Hex Tile", "Pin tile (multi-province highlights)"),
         ("V", "Toggle Tile vs Nation scope view"),
         ("H or ?", "Toggle this help guide overlay"),
         ("Q or Esc", "Close modal / Quit"),
     ]
     for key, desc in col1_items:
-        k_surf = font_small.render(f"{key:<16}", True, (255, 255, 255))
+        k_surf = font_small.render(f"{key:<17}", True, (255, 255, 255))
         d_surf = font_small.render(desc, True, DIM)
         surface.blit(k_surf, (col1_x, y))
         surface.blit(d_surf, (col1_x + 130, y))
         y += 20
 
-    y += 10
-    surface.blit(header_font.render('SIDEBAR 10-CHART SUITE', True, ACCENT), (col1_x, y))
-    y += 24
-    charts_desc = [
-        "1. Prices (Food/Wood/Furniture)",
-        "2. Pop / Hunger (Living vs Starving)",
-        "3. Production (Physical output volume)",
-        "4. Trade Flow (Export vs Import bars)",
-        "5. Gov Income (Tax / Tariff / Inherit)",
-        "6. Gini / Migr (Inequality & Intent)",
-        "7. Inventories (Local warehouse stock)",
-        "8. Protest / Energy (Grievance energy)",
-        "9. GDP Output (Gross economic product)",
-        "10. Demand Ratios (Market scarcity)",
+    y += 8
+    surface.blit(header_font.render('ECONOMIC ACCOUNTS SUITE (C)', True, ACCENT), (col1_x, y))
+    y += 22
+    suite_desc = [
+        "Tab 1: Macro Accounts & Leaderboard (GDP/CoL/Pop)",
+        "Tab 2: Goods & Provincial Economy (Prices/Inv/D vs S)",
+        "Tab 3: External Sector, FX & Banking (Rates/Equity)",
+        "* All metrics feature real-time turn deltas (+/-Delta)",
     ]
-    for item in charts_desc:
-        surface.blit(font_small.render(item, True, TEXT), (col1_x, y))
+    for item in suite_desc:
+        surface.blit(font_small.render(item, True, ACCENT if '*' in item else TEXT), (col1_x, y))
         y += 18
 
     # Column 2: Hex Colors & Labels
@@ -479,7 +472,7 @@ def draw_help(surface, world, font_small):
         ("Green Tag T<N>", "Active traders operating on tile", (90, 210, 120)),
         ("Purple Left Dot", "High wealth inequality warning (Gini > 0.6)", (190, 110, 230)),
     ]
-    for tag, desc in badge_items:
+    for tag, desc, col in badge_items:
         pygame.draw.circle(surface, col, (col3_x + 6, y + 8), 5)
         surface.blit(font_small.render(tag, True, col), (col3_x + 18, y))
         surface.blit(font_small.render(desc, True, DIM), (col3_x + 18, y + 14))
@@ -495,7 +488,7 @@ def draw_help(surface, world, font_small):
         ("Orange Hot Ring", "Local food price is >15% higher than neighbors", (235, 120, 60)),
         ("Blue Cold Ring", "Local food price is >15% cheaper than neighbors", (110, 170, 235)),
     ]
-    for tag, desc in glyph_items:
+    for tag, desc, col in glyph_items:
         pygame.draw.circle(surface, col, (col3_x + 6, y + 8), 5)
         surface.blit(font_small.render(tag, True, col), (col3_x + 18, y))
         surface.blit(font_small.render(desc, True, DIM), (col3_x + 18, y + 14))
