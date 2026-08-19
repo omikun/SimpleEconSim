@@ -1,7 +1,8 @@
 """
 REGNUM v3_wilderness — Pygame hex-world viewer for the 9x9 honeycomb.
 Features cursor-anchored smooth map zoom, middle-mouse drag panning, WASD/arrow pan,
-a 10-chart interactive sidebar, multi-province highlights, and 3-tab cross-nation comparative accounts suite.
+a 10-chart interactive sidebar, multi-province highlights, 3-tab comparative accounts suite,
+and a 2-page paginated help guide with economic metrics glossary.
 """
 
 import os
@@ -33,7 +34,7 @@ from worldview_map import (
 from worldview_ui import (
     PANEL_BG, selected_nation, draw_top_bar, draw_regime_readout,
     draw_panel, draw_ticker, draw_help, draw_zoom_hud, zoom_hud_hit,
-    compare_btn_hit
+    compare_btn_hit, help_page_hit
 )
 from worldview_compare import (
     draw_nations_comparison, compare_tab_hit
@@ -94,7 +95,7 @@ def render_frame(surface, world, mouse_pos=None):
     draw_panel(surface, world, font, font_small, mouse_pos=mouse_pos)
     draw_ticker(surface, world, font_small)
     draw_nations_comparison(surface, world, font, font_small, mouse_pos=mouse_pos)
-    draw_help(surface, world, font_small)
+    draw_help(surface, world, font_small, mouse_pos=mouse_pos)
 
 
 def main():
@@ -133,7 +134,17 @@ def main():
             if event.type == pygame.QUIT:
                 running = False
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                # 0. Check if Comparison Table is open
+                # 0a. Check if Help Guide is open
+                if world.get('help_open'):
+                    p_hit = help_page_hit(event.pos)
+                    if p_hit is not None:
+                        world['help_page'] = p_hit
+                        continue
+                    if event.pos[0] < 32 or event.pos[0] > WIDTH - 32 or event.pos[1] < 18 or event.pos[1] > HEIGHT - 18 or event.pos[1] < 56:
+                        world['help_open'] = False
+                        continue
+
+                # 0b. Check if Comparison Table is open
                 if world.get('compare_open'):
                     tab_hit = compare_tab_hit(event.pos, 30, 20)
                     if tab_hit is not None:
@@ -197,6 +208,18 @@ def main():
                     factor = 1.15 ** event.y
                     zoom_cam_at(world, factor, mx, my)
             elif event.type == pygame.KEYDOWN:
+                # If help guide is open, intercept page keys
+                if world.get('help_open'):
+                    if event.key in (pygame.K_1, pygame.K_KP1, pygame.K_PAGEUP, pygame.K_LEFT):
+                        world['help_page'] = 1
+                    elif event.key in (pygame.K_2, pygame.K_KP2, pygame.K_PAGEDOWN, pygame.K_RIGHT):
+                        world['help_page'] = 2
+                    elif event.key == pygame.K_TAB:
+                        world['help_page'] = 2 if world.get('help_page', 1) == 1 else 1
+                    elif event.key in (pygame.K_ESCAPE, pygame.K_q, pygame.K_h, pygame.K_QUESTION):
+                        world['help_open'] = False
+                    continue
+
                 # If comparison modal is open, intercept navigation keys
                 if world.get('compare_open'):
                     if event.key in (pygame.K_1, pygame.K_KP1):
@@ -220,9 +243,7 @@ def main():
                     continue
 
                 if event.key == pygame.K_ESCAPE:
-                    if world.get('help_open'):
-                        world['help_open'] = False
-                    elif world.get('view', 0) != 0:
+                    if world.get('view', 0) != 0:
                         world['view'] = 0
                     else:
                         running = False
@@ -232,8 +253,6 @@ def main():
                     world['compare_open'] = not world.get('compare_open', False)
                 elif event.key == pygame.K_h or event.key == pygame.K_QUESTION:
                     world['help_open'] = not world.get('help_open', False)
-                elif world.get('help_open'):
-                    pass
                 elif event.key == pygame.K_SPACE:
                     world['playing'] = not world['playing']
                     last_tick = now

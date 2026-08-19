@@ -1,5 +1,5 @@
 """
-UI components: top stats bar, right panel, regime readout, ticker, zoom HUD, and help overlay.
+UI components: top stats bar, right panel, regime readout, ticker, zoom HUD, and 2-page paginated help overlay.
 """
 
 from collections import Counter
@@ -21,6 +21,10 @@ ZOOM_BTN_RESET = (MAP_RIGHT - 40, TOP_BAR_H + 12, 32, 26)
 
 # Compare Nations button in top bar
 COMPARE_BTN = (MAP_RIGHT - 150, 12, 138, 28)
+
+# Help Page Tab Rectangles
+HELP_TAB1_RECT = (32, 56, 310, 28)
+HELP_TAB2_RECT = (352, 56, 350, 28)
 
 
 def draw_zoom_hud(surface, font_small, mouse_pos=None):
@@ -57,6 +61,16 @@ def compare_btn_hit(pos):
     """Return True if the top-bar Compare Nations button was clicked."""
     mx, my = pos
     return COMPARE_BTN[0] <= mx <= COMPARE_BTN[0] + COMPARE_BTN[2] and COMPARE_BTN[1] <= my <= COMPARE_BTN[1] + COMPARE_BTN[3]
+
+
+def help_page_hit(pos):
+    """Return 1 or 2 if a help page tab was clicked, else None."""
+    mx, my = pos
+    if HELP_TAB1_RECT[0] <= mx <= HELP_TAB1_RECT[0] + HELP_TAB1_RECT[2] and HELP_TAB1_RECT[1] <= my <= HELP_TAB1_RECT[1] + HELP_TAB1_RECT[3]:
+        return 1
+    if HELP_TAB2_RECT[0] <= mx <= HELP_TAB2_RECT[0] + HELP_TAB2_RECT[2] and HELP_TAB2_RECT[1] <= my <= HELP_TAB2_RECT[1] + HELP_TAB2_RECT[3]:
+        return 2
+    return None
 
 
 def selected_nation(world):
@@ -341,155 +355,283 @@ def draw_ticker(surface, world, font_small):
         yy += 18
 
 
-def draw_help(surface, world, font_small):
+def draw_help(surface, world, font_small, mouse_pos=None):
+    """2-Page Paginated Help Guide: Page 1 (Controls & Map), Page 2 (3-Tab Economic Glossary)."""
     if not world.get('help_open', False):
         return
-    title_font = pygame.font.Font(None, 32)
-    header_font = pygame.font.Font(None, 24)
+
+    title_font = pygame.font.Font(None, 30)
+    header_font = pygame.font.Font(None, 23)
+    item_font = pygame.font.Font(None, 20)
+
     overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
-    overlay.fill((14, 14, 20, 246))
+    overlay.fill((12, 12, 18, 248))
     surface.blit(overlay, (0, 0))
 
-    # Modal Header
-    surface.blit(title_font.render('REGNUM v3 — Comprehensive Map & Controls Guide (Press H or Esc to Close)', True, ACCENT),
-                 (32, 20))
-    pygame.draw.line(surface, (70, 70, 85), (32, 54), (WIDTH - 32, 54), 1)
+    cur_page = world.get('help_page', 1)
 
-    # 3-Column Layout: (Col1: Controls & Accounts Suite), (Col2: Hex Map & Labels), (Col3: Badges, Rings & Glyphs)
+    # Modal Header
+    surface.blit(title_font.render('REGNUM v3 — Comprehensive Reference & Economic Guide', True, ACCENT),
+                 (32, 18))
+    close_hint = font_small.render("[Press H, Esc, or Click to Close | Page 1 / 2 to switch]", True, DIM)
+    surface.blit(close_hint, (WIDTH - close_hint.get_width() - 32, 22))
+
+    # Page Tab Headers
+    mx, my = mouse_pos if mouse_pos else (-1, -1)
+    for p_num, rect, label in [(1, HELP_TAB1_RECT, "Page 1: Map Controls & Visual Legend"),
+                               (2, HELP_TAB2_RECT, "Page 2: Economic Metrics & Accounts Glossary")]:
+        is_sel = (cur_page == p_num)
+        is_hov = rect[0] <= mx <= rect[0] + rect[2] and rect[1] <= my <= rect[1] + rect[3]
+        bg = (50, 50, 70) if is_sel else ((40, 40, 54) if is_hov else (28, 28, 38))
+        border_c = ACCENT if is_sel else ((110, 110, 130) if is_hov else (60, 60, 75))
+        pygame.draw.rect(surface, bg, rect, border_radius=4)
+        pygame.draw.rect(surface, border_c, rect, 1, border_radius=4)
+        tsurf = font_small.render(label, True, (255, 255, 255) if is_sel else (TEXT if is_hov else DIM))
+        surface.blit(tsurf, tsurf.get_rect(center=(rect[0] + rect[2] // 2, rect[1] + rect[3] // 2)))
+
+    pygame.draw.line(surface, (70, 70, 85), (32, 94), (WIDTH - 32, 94), 1)
+
     col_w = (WIDTH - 96) // 3
     col1_x = 32
     col2_x = 32 + col_w + 16
     col3_x = 32 + (col_w + 16) * 2
 
-    # Column 1: Controls & Navigation
-    y = 68
-    surface.blit(header_font.render('1. CONTROLS & NAVIGATION', True, ACCENT), (col1_x, y))
-    y += 28
-    col1_items = [
-        ("Space", "Play / pause auto-step (~150ms)"),
-        ("N or .", "Step 1 turn (while paused)"),
-        ("WASD / Arrows", "Pan map camera in 4 directions"),
-        ("Middle/Right Drag", "Hold & drag mouse to pan map"),
-        ("Mouse Wheel", "Smooth zoom anchored at cursor"),
-        ("0 or R / Home", "Reset zoom & center map (1:1)"),
-        ("C or [Compare]", "Open 3-Tab Economic Accounts Suite"),
-        ("1, 2, 3 in Table", "Switch Macro / Goods / FX tabs"),
-        ("F, W, U in Table", "Switch Food / Wood / Furniture"),
-        ("On-Screen [+] / [-]", "Map zoom HUD buttons (top-right)"),
-        ("Tab / Esc", "Return to 10-chart grid view"),
-        ("1 .. 9, 0", "Zoom into individual sidebar chart"),
-        ("Click Mini-Chart", "Instant click-to-zoom for chart"),
-        ("Click Hex Tile", "Pin tile (multi-province highlights)"),
-        ("V", "Toggle Tile vs Nation scope view"),
-        ("H or ?", "Toggle this help guide overlay"),
-        ("Q or Esc", "Close modal / Quit"),
-    ]
-    for key, desc in col1_items:
-        k_surf = font_small.render(f"{key:<17}", True, (255, 255, 255))
-        d_surf = font_small.render(desc, True, DIM)
-        surface.blit(k_surf, (col1_x, y))
-        surface.blit(d_surf, (col1_x + 130, y))
+    # =========================================================================
+    # PAGE 1: CONTROLS, CHARTS & MAP VISUAL LEGEND
+    # =========================================================================
+    if cur_page == 1:
+        # Column 1: Controls & Accounts Suite Navigation
+        y = 104
+        surface.blit(header_font.render('1. CONTROLS & NAVIGATION', True, ACCENT), (col1_x, y))
+        y += 24
+        col1_items = [
+            ("Space", "Play / pause auto-step (~150ms)"),
+            ("N or .", "Step 1 turn (while paused)"),
+            ("WASD / Arrows", "Pan map camera in 4 directions"),
+            ("Middle/Right Drag", "Hold & drag mouse to pan map"),
+            ("Mouse Wheel", "Smooth zoom anchored at cursor"),
+            ("0 or R / Home", "Reset zoom & center map (1:1)"),
+            ("C or [Compare]", "Open 3-Tab Economic Accounts Suite"),
+            ("1, 2, 3 in Table", "Switch Macro / Goods / FX tabs"),
+            ("F, W, U in Table", "Switch Food / Wood / Furniture"),
+            ("On-Screen [+] / [-]", "Map zoom HUD buttons (top-right)"),
+            ("Tab / Esc", "Return to 10-chart grid view"),
+            ("1 .. 9, 0", "Zoom into individual sidebar chart"),
+            ("Click Mini-Chart", "Instant click-to-zoom for chart"),
+            ("Click Hex Tile", "Pin tile (multi-province highlights)"),
+            ("V", "Toggle Tile vs Nation scope view"),
+            ("H or ?", "Toggle this help guide overlay"),
+            ("Q or Esc", "Close modal / Quit"),
+        ]
+        for key, desc in col1_items:
+            k_surf = font_small.render(f"{key:<17}", True, (255, 255, 255))
+            d_surf = font_small.render(desc, True, DIM)
+            surface.blit(k_surf, (col1_x, y))
+            surface.blit(d_surf, (col1_x + 130, y))
+            y += 18
+
+        y += 8
+        surface.blit(header_font.render('ECONOMIC ACCOUNTS SUITE (C)', True, ACCENT), (col1_x, y))
         y += 20
+        suite_desc = [
+            "Tab 1: Macro Accounts & Leaderboard (GDP/CoL/Pop)",
+            "Tab 2: Goods & Provincial Economy (Prices/Inv/D vs S)",
+            "Tab 3: External Sector, FX & Banking (Rates/Equity)",
+            "* All metrics feature real-time turn deltas (+/-Delta)",
+        ]
+        for item in suite_desc:
+            surface.blit(font_small.render(item, True, ACCENT if '*' in item else TEXT), (col1_x, y))
+            y += 16
 
-    y += 8
-    surface.blit(header_font.render('ECONOMIC ACCOUNTS SUITE (C)', True, ACCENT), (col1_x, y))
-    y += 22
-    suite_desc = [
-        "Tab 1: Macro Accounts & Leaderboard (GDP/CoL/Pop)",
-        "Tab 2: Goods & Provincial Economy (Prices/Inv/D vs S)",
-        "Tab 3: External Sector, FX & Banking (Rates/Equity)",
-        "* All metrics feature real-time turn deltas (+/-Delta)",
-    ]
-    for item in suite_desc:
-        surface.blit(font_small.render(item, True, ACCENT if '*' in item else TEXT), (col1_x, y))
-        y += 18
+        # Column 2: Hex Colors & Labels
+        y = 104
+        surface.blit(header_font.render('2. MAP COLORS & LABELS', True, ACCENT), (col2_x, y))
+        y += 24
 
-    # Column 2: Hex Colors & Labels
-    y = 68
-    surface.blit(header_font.render('2. MAP COLORS & LABELS', True, ACCENT), (col2_x, y))
-    y += 28
+        color_items = [
+            ("Mint Green Hex", "Nation Alpha sovereign territory", (141, 211, 199)),
+            ("Pale Yellow Hex", "Nation Beta sovereign territory", (255, 255, 179)),
+            ("Lavender Hex", "Nation Gamma sovereign territory", (190, 186, 218)),
+            ("Dark Grey Hex", "Unclaimed wilderness (unsettled)", (120, 120, 128)),
+            ("Luminance Glow", "Pop heatmap (brighter = denser pop)", (255, 255, 220)),
+            ("Province Outlines", "Multi-color province borders per nation", (60, 210, 230)),
+        ]
+        for title, desc, col in color_items:
+            pygame.draw.rect(surface, col, (col2_x, y + 2, 10, 10), border_radius=2)
+            surface.blit(font_small.render(title, True, col), (col2_x + 18, y))
+            surface.blit(font_small.render(desc, True, DIM), (col2_x + 18, y + 13))
+            y += 28
 
-    color_items = [
-        ("Mint Green Hex", "Nation Alpha sovereign territory", (141, 211, 199)),
-        ("Pale Yellow Hex", "Nation Beta sovereign territory", (255, 255, 179)),
-        ("Lavender Hex", "Nation Gamma sovereign territory", (190, 186, 218)),
-        ("Dark Grey Hex", "Unclaimed wilderness (unsettled)", (120, 120, 128)),
-        ("Luminance Glow", "Pop heatmap (brighter = denser pop)", (255, 255, 220)),
-        ("Province Outlines", "Multi-color province borders per nation", (60, 210, 230)),
-    ]
-    for title, desc, col in color_items:
-        pygame.draw.rect(surface, col, (col2_x, y + 2, 12, 12), border_radius=2)
-        surface.blit(font_small.render(title, True, col), (col2_x + 20, y))
-        surface.blit(font_small.render(desc, True, DIM), (col2_x + 20, y + 15))
-        y += 34
-
-    y += 6
-    surface.blit(header_font.render('TILE TEXT SUMMARY', True, ACCENT), (col2_x, y))
-    y += 24
-    text_items = [
-        ("rXcY", "Hex axial coordinates (Row X, Col Y)"),
-        ("pop <N>", "Total living agents residing on tile"),
-        ("food $<P>", "Local market clearing price for food"),
-        ("tr <N>", "Count of active merchant traders based here"),
-        ("hs <H>+<W>n", "Homesteaders (H) + wilderness pop (W)"),
-        ("+N / -N", "Net pop delta from last turn (Green/Red)"),
-    ]
-    for tag, desc in text_items:
-        surface.blit(font_small.render(f"{tag:<12}", True, (255, 255, 255)), (col2_x, y))
-        surface.blit(font_small.render(desc, True, DIM), (col2_x + 90, y))
+        y += 4
+        surface.blit(header_font.render('TILE TEXT SUMMARY', True, ACCENT), (col2_x, y))
         y += 20
+        text_items = [
+            ("rXcY", "Hex axial coordinates (Row X, Col Y)"),
+            ("pop <N>", "Total living agents residing on tile"),
+            ("food $<P>", "Local market clearing price for food"),
+            ("tr <N>", "Count of active merchant traders based here"),
+            ("hs <H>+<W>n", "Homesteaders (H) + wilderness pop (W)"),
+            ("+N / -N", "Net pop delta from last turn (Green/Red)"),
+        ]
+        for tag, desc in text_items:
+            surface.blit(font_small.render(f"{tag:<12}", True, (255, 255, 255)), (col2_x, y))
+            surface.blit(font_small.render(desc, True, DIM), (col2_x + 85, y))
+            y += 17
 
-    y += 10
-    surface.blit(header_font.render('TRADE NETWORK & TICKER', True, ACCENT), (col2_x, y))
-    y += 24
-    net_items = [
-        ("Grey Lines", "Overland trade routes connecting hexes"),
-        ("Cyan Arrows", "Active bilateral trade (width = volume)"),
-        ("Pulsing Dots", "Trade animation showing shipment direction"),
-        ("MIGRATE (Cyan)", "Agents moving across tiles / homesteading"),
-        ("CLAIM (Gold)", "Wilderness tile annexed by a nation"),
-        ("DESTROY (Red)", "Business bankruptcy or debt liquidation"),
-    ]
-    for tag, desc in net_items:
-        surface.blit(font_small.render(tag, True, TEXT), (col2_x, y))
-        surface.blit(font_small.render(desc, True, DIM), (col2_x, y + 14))
-        y += 30
+        y += 6
+        surface.blit(header_font.render('TRADE NETWORK & TICKER', True, ACCENT), (col2_x, y))
+        y += 20
+        net_items = [
+            ("Grey Lines", "Overland trade routes connecting hexes"),
+            ("Cyan Arrows", "Active bilateral trade (width = volume)"),
+            ("Pulsing Dots", "Trade animation showing shipment direction"),
+            ("MIGRATE (Cyan)", "Agents moving across tiles / homesteading"),
+            ("CLAIM (Gold)", "Wilderness tile annexed by a nation"),
+            ("DESTROY (Red)", "Business bankruptcy or debt liquidation"),
+        ]
+        for tag, desc in net_items:
+            surface.blit(font_small.render(tag, True, TEXT), (col2_x, y))
+            surface.blit(font_small.render(desc, True, DIM), (col2_x, y + 12))
+            y += 25
 
-    # Column 3: Badges, Rings & Glyphs
-    y = 68
-    surface.blit(header_font.render('3. BADGES, RINGS & GLYPHS', True, ACCENT), (col3_x, y))
-    y += 28
+        # Column 3: Badges, Rings & Glyphs
+        y = 104
+        surface.blit(header_font.render('3. BADGES, RINGS & GLYPHS', True, ACCENT), (col3_x, y))
+        y += 24
 
-    badge_items = [
-        ("Green [ W ]", "Frontier wilderness border tile", (90, 210, 120)),
-        ("Orange [ U ]", "Unrest stage (discontent brewing)", (230, 170, 60)),
-        ("Deep Orange [ P ]", "Protest stage (street demonstrations)", (240, 140, 40)),
-        ("Bright Red [ M ]", "Mob stage (riots / unrest violence)", (235, 70, 70)),
-        ("Lime Green [ C ]", "Compromise stage (regime concessions)", (160, 230, 90)),
-        ("Purple [ T ]", "Takeover stage (regime overthrown)", (180, 100, 230)),
-        ("Orange Top Dot", "Food demand scarcity alert (ratio > 1.5)", (240, 150, 60)),
-        ("Red Left Dot", "Severe hunger warning (>5 starving agents)", (235, 70, 70)),
-        ("Green Tag T<N>", "Active traders operating on tile", (90, 210, 120)),
-        ("Purple Left Dot", "High wealth inequality warning (Gini > 0.6)", (190, 110, 230)),
-    ]
-    for tag, desc, col in badge_items:
-        pygame.draw.circle(surface, col, (col3_x + 6, y + 8), 5)
-        surface.blit(font_small.render(tag, True, col), (col3_x + 18, y))
-        surface.blit(font_small.render(desc, True, DIM), (col3_x + 18, y + 14))
-        y += 30
+        badge_items = [
+            ("Green [ W ]", "Frontier wilderness border tile", (90, 210, 120)),
+            ("Orange [ U ]", "Unrest stage (discontent brewing)", (230, 170, 60)),
+            ("Deep Orange [ P ]", "Protest stage (street demonstrations)", (240, 140, 40)),
+            ("Bright Red [ M ]", "Mob stage (riots / unrest violence)", (235, 70, 70)),
+            ("Lime Green [ C ]", "Compromise stage (regime concessions)", (160, 230, 90)),
+            ("Purple [ T ]", "Takeover stage (regime overthrown)", (180, 100, 230)),
+            ("Orange Top Dot", "Food demand scarcity alert (ratio > 1.5)", (240, 150, 60)),
+            ("Red Left Dot", "Severe hunger warning (>5 starving agents)", (235, 70, 70)),
+            ("Green Tag T<N>", "Active traders operating on tile", (90, 210, 120)),
+            ("Purple Left Dot", "High wealth inequality warning (Gini > 0.6)", (190, 110, 230)),
+        ]
+        for tag, desc, col in badge_items:
+            pygame.draw.circle(surface, col, (col3_x + 5, y + 7), 4)
+            surface.blit(font_small.render(tag, True, col), (col3_x + 16, y))
+            surface.blit(font_small.render(desc, True, DIM), (col3_x + 16, y + 12))
+            y += 25
 
-    y += 6
-    surface.blit(header_font.render('TERRAIN GLYPHS & ARBITRAGE', True, ACCENT), (col3_x, y))
-    y += 24
-    glyph_items = [
-        ("Gold Triangle", "Fertile Farmland (food productivity bonus > 1.3x)", (240, 200, 90)),
-        ("Green Triangle", "Dense Forest (timber productivity bonus > 1.3x)", (110, 190, 110)),
-        ("White Circle", "Cold Climate (higher heating/food living cost)", (240, 245, 250)),
-        ("Orange Hot Ring", "Local food price is >15% higher than neighbors", (235, 120, 60)),
-        ("Blue Cold Ring", "Local food price is >15% cheaper than neighbors", (110, 170, 235)),
-    ]
-    for tag, desc, col in glyph_items:
-        pygame.draw.circle(surface, col, (col3_x + 6, y + 8), 5)
-        surface.blit(font_small.render(tag, True, col), (col3_x + 18, y))
-        surface.blit(font_small.render(desc, True, DIM), (col3_x + 18, y + 14))
-        y += 30
+        y += 4
+        surface.blit(header_font.render('TERRAIN GLYPHS & ARBITRAGE', True, ACCENT), (col3_x, y))
+        y += 20
+        glyph_items = [
+            ("Gold Triangle", "Fertile Farmland (food productivity bonus > 1.3x)", (240, 200, 90)),
+            ("Green Triangle", "Dense Forest (timber productivity bonus > 1.3x)", (110, 190, 110)),
+            ("White Circle", "Cold Climate (higher heating/food living cost)", (240, 245, 250)),
+            ("Orange Hot Ring", "Local food price is >15% higher than neighbors", (235, 120, 60)),
+            ("Blue Cold Ring", "Local food price is >15% cheaper than neighbors", (110, 170, 235)),
+        ]
+        for tag, desc, col in glyph_items:
+            pygame.draw.circle(surface, col, (col3_x + 5, y + 7), 4)
+            surface.blit(font_small.render(tag, True, col), (col3_x + 16, y))
+            surface.blit(font_small.render(desc, True, DIM), (col3_x + 16, y + 12))
+            y += 25
+
+    # =========================================================================
+    # PAGE 2: ECONOMIC METRICS & 3-TAB ACCOUNTS GLOSSARY
+    # =========================================================================
+    elif cur_page == 2:
+        # Column 1: Tab 1 - Macro Accounts & Leaderboard
+        y = 104
+        surface.blit(header_font.render('TAB 1: MACRO ACCOUNTS & LEADERBOARD', True, ACCENT), (col1_x, y))
+        y += 24
+        tab1_glossary = [
+            ("Nominal GDP ($/turn)", "Total value of all finished goods produced and cleared in market auctions at current clearing prices."),
+            ("Real Chained GDP ($)", "Physical production valued at fixed baseline basket prices. Isolates true physical output growth from price inflation."),
+            ("GDP per Capita ($)", "Average gross economic output produced per living citizen (Nominal GDP / Living Population)."),
+            ("Cost of Living (CoL / CPI)", "Price index of the essential subsistence basket (Food, Wood heating, Furniture shelter)."),
+            ("Gini Inequality Index", "Wealth concentration ratio (0.0 = perfect equality, 1.0 = hyper-inequality with extreme elite capture)."),
+            ("Severe Hunger Count", "Count of impoverished citizens unable to purchase minimum subsistence rations (starvation risk)."),
+            ("Social Protest Energy", "Civil discontent energy accumulated from inequality, high food costs, and corruption towards riots/coups."),
+            ("Treasury Total Reserves ($)", "Sovereign liquidity held by the government in hand cash and central bank deposits."),
+            ("Strategic Food Reserve", "Physical grain stockpiles held in government silos for emergency famine relief and market stability."),
+            ("Regime Legitimacy (0-1.0)", "Public acceptance of government authority. High legitimacy deters civil unrest and coups."),
+        ]
+        for term, explanation in tab1_glossary:
+            surface.blit(font_small.render(term, True, (255, 255, 255)), (col1_x, y))
+            y += 15
+            # Wrap explanation
+            words = explanation.split()
+            line = ""
+            for w in words:
+                test_line = line + (" " if line else "") + w
+                if item_font.size(test_line)[0] > col_w - 10:
+                    surface.blit(item_font.render(line, True, DIM), (col1_x, y))
+                    y += 13
+                    line = w
+                else:
+                    line = test_line
+            if line:
+                surface.blit(item_font.render(line, True, DIM), (col1_x, y))
+                y += 13
+            y += 6
+
+        # Column 2: Tab 2 - Goods & Provincial Economy
+        y = 104
+        surface.blit(header_font.render('TAB 2: GOODS MARKET & PROVINCES', True, ACCENT), (col2_x, y))
+        y += 24
+        tab2_glossary = [
+            ("Market Clearing Price ($)", "Equilibrium price established in double auctions where local buyers and sellers match."),
+            ("Physical Output (Units)", "Total gross quantity of physical units harvested, cut, or crafted by producers this turn."),
+            ("Labor Productivity", "Output units generated per active worker agent in that specific commodity profession."),
+            ("Inventory per Capita", "Total warehouse inventory divided by total living population (community reserve buffer)."),
+            ("Inventory per Producer", "Warehouse buffer stock held per farmer, lumberjack, or craftsperson (producer safety cushion)."),
+            ("Demand vs Supply (D / S)", "Total units of buy orders submitted vs sell orders offered in local pay-as-bid auctions."),
+            ("Demand Ratio (D/S)", "Market scarcity index (>1.0 = demand exceeds supply / price inflation; <1.0 = supply glut / deflation)."),
+            ("Sector Net Trade ($)", "Export revenues minus import expenditures for that specific commodity category."),
+        ]
+        for term, explanation in tab2_glossary:
+            surface.blit(font_small.render(term, True, (255, 255, 255)), (col2_x, y))
+            y += 15
+            words = explanation.split()
+            line = ""
+            for w in words:
+                test_line = line + (" " if line else "") + w
+                if item_font.size(test_line)[0] > col_w - 10:
+                    surface.blit(item_font.render(line, True, DIM), (col2_x, y))
+                    y += 13
+                    line = w
+                else:
+                    line = test_line
+            if line:
+                surface.blit(item_font.render(line, True, DIM), (col2_x, y))
+                y += 13
+            y += 7
+
+        # Column 3: Tab 3 - External Sector, Forex & Banking
+        y = 104
+        surface.blit(header_font.render('TAB 3: FX, MONETARY & BANKING', True, ACCENT), (col3_x, y))
+        y += 24
+        tab3_glossary = [
+            ("ForexDesk Mid Quote", "Central bank exchange rate: units of domestic currency required to purchase 1 unit of foreign currency."),
+            ("PPP Valuation Gap (%)", "Exchange rate deviation from Purchasing Power Parity. (+% = undervalued / cheap exports, -% = overvalued currency)."),
+            ("Bank Domestic FX Pool ($)", "Domestic cash liquidity set aside by the provincial central bank to buy foreign currency from exporters."),
+            ("Foreign Reserves War Chest", "Foreign paper currency stored in bank vaults to supply local traders purchasing imports abroad."),
+            ("Commercial Bank Deposits ($)", "Customer savings liabilities owed by the provincial bank to private citizens and corporations."),
+            ("Bank Equity Capital ($)", "Share capital and retained earnings absorbing loan defaults and bad debts (solvency cushion)."),
+            ("Solvency Ratio (Equity/Deposits)", "Capital adequacy ratio (>15% = rock-solid credit buffer, <5% = distress zone / insolvency risk)."),
+            ("Net Trade Balance ($)", "Aggregate foreign trade surplus (+) or deficit (-) across all commodities."),
+        ]
+        for term, explanation in tab3_glossary:
+            surface.blit(font_small.render(term, True, (255, 255, 255)), (col3_x, y))
+            y += 15
+            words = explanation.split()
+            line = ""
+            for w in words:
+                test_line = line + (" " if line else "") + w
+                if item_font.size(test_line)[0] > col_w - 10:
+                    surface.blit(item_font.render(line, True, DIM), (col3_x, y))
+                    y += 13
+                    line = w
+                else:
+                    line = test_line
+            if line:
+                surface.blit(item_font.render(line, True, DIM), (col3_x, y))
+                y += 13
+            y += 7
