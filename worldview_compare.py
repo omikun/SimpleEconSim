@@ -3,7 +3,7 @@ REGNUM v3_wilderness — Cross-Nation & Provincial Economic Comparison Suite.
 Provides a comprehensive 3-tab analytical accounts dashboard with turn delta tracking:
   Tab 1: Macro Accounts & Leaderboard
   Tab 2: Goods Market & Provincial Industrial Economy (Food / Wood / Furniture)
-  Tab 3: Monetary & Banking Accounts (NEER Quote) + Dedicated Bilateral FX Matrix
+  Tab 3: Sovereign Monetary Accounts (National NEER) + Provincial Branch Banking + Bilateral FX Matrix
 """
 
 import pygame
@@ -400,21 +400,19 @@ def draw_tab3_fx_banking(surface, world, box_x, start_y, box_w, box_h, font, cel
     y = start_y - 8
 
     # -------------------------------------------------------------------------
-    # SECTION 1: PROVINCIAL MONETARY ACCOUNTS & NEER QUOTES
+    # SECTION 1: SOVEREIGN NATIONAL ACCOUNTS & PROVINCIAL BRANCH BANKING
     # -------------------------------------------------------------------------
-    surface.blit(section_font.render("PROVINCIAL MONETARY & BANKING ACCOUNTS (Nominal Effective Exchange Rates)", True, ACCENT), (box_x + 20, y))
+    surface.blit(section_font.render("SOVEREIGN MONETARY ACCOUNTS & PROVINCIAL BRANCH BANKING", True, ACCENT), (box_x + 20, y))
     y += 22
 
     cols = [
-        ("Territory / Province", 190),
-        ("NEER Quote", 135),
-        ("Avg PPP Gap", 100),
-        ("Bank FX Pool", 130),
-        ("Foreign Reserves", 145),
-        ("Commercial Deposits", 150),
-        ("Bank Equity Buffer", 140),
-        ("Solvency Ratio", 110),
-        ("Net Trade", 125),
+        ("Province / Branch Bank", 210),
+        ("Branch Deposits", 150),
+        ("Branch Equity Buffer", 160),
+        ("Branch Solvency", 130),
+        ("Branch FX Pool", 145),
+        ("Vault Foreign Reserves", 165),
+        ("Provincial Net Trade", 150),
     ]
 
     header_rect = (box_x + 16, y, box_w - 32, 22)
@@ -429,11 +427,35 @@ def draw_tab3_fx_banking(surface, world, box_x, start_y, box_w, box_h, font, cel
     row_h = 20
 
     for n in nations:
-        nat_rect = (box_x + 16, y, box_w - 32, 20)
+        # Calculate Sovereign National Monetary Metrics across all provinces of nation n
+        nat_desks = [d for r in n.tiles for d in getattr(r, 'forex_desks', {}).values()]
+        if nat_desks:
+            rates = [d.mid for d in nat_desks]
+            prev_rates = [d.log[-2][1] if len(d.log) >= 2 else d.mid for d in nat_desks]
+            gaps = [((d.mid - getattr(d, 'ppp_target', 1.0)) / max(0.01, getattr(d, 'ppp_target', 1.0))) * 100.0 for d in nat_desks]
+            nat_neer_cur = (sum(rates) / len(rates)) * 100.0
+            nat_neer_prev = (sum(prev_rates) / len(prev_rates)) * 100.0
+            nat_gap = sum(gaps) / len(gaps)
+        else:
+            nat_neer_cur = 100.0
+            nat_neer_prev = 100.0
+            nat_gap = 0.0
+
+        nv, nd, nc = fmt_delta(nat_neer_cur, nat_neer_prev, decimals=1)
+        tot_nat_res = sum(sum(p.bank.foreign_reserves.values()) for p in n.provinces if p.bank)
+        tot_nat_dep = sum(p.bank.total_deposits for p in n.provinces if p.bank)
+        tot_nat_eq = sum(p.bank.equity for p in n.provinces if p.bank)
+        nat_solv = (tot_nat_eq / max(1.0, tot_nat_dep)) * 100.0
+        tr = n.treasury()
+
+        nat_rect = (box_x + 16, y, box_w - 32, 21)
         pygame.draw.rect(surface, SEC_BG, nat_rect)
         nat_c = NATION_COLORS.get(n.name, TEXT)
-        surface.blit(section_font.render(f"{n.name} ({n.currency}) — Monetary Desk & Central Reserves", True, nat_c), (box_x + 24, y + 2))
-        y += 21
+
+        # Render Sovereign Header Text
+        hdr_txt = f"{n.name} ({n.currency}) — Sovereign NEER: {nv} {nd if nd!='-' else ''} | Avg PPP Gap: {'+' if nat_gap>=0 else ''}{nat_gap:.1f}% | FX Reserves: ${tot_nat_res:,.1f} | Treasury: ${tr['total']:,.0f} | National Solvency: {nat_solv:.1f}%"
+        surface.blit(cell_font.render(hdr_txt, True, nat_c), (box_x + 24, y + 3))
+        y += 22
 
         for p_idx, prov in enumerate(n.provinces):
             tiles = prov.tiles
@@ -444,37 +466,13 @@ def draw_tab3_fx_banking(surface, world, box_x, start_y, box_w, box_h, font, cel
             total_dep_cur = bank.total_deposits if bank else 0.0
             total_eq_cur = bank.equity if bank else 0.0
             fx_pool_cur = bank.fx_pool if bank else 0.0
+            res_cur = sum(bank.foreign_reserves.values()) if bank else 0.0
 
             total_dep_prev = total_dep_cur
             total_eq_prev = total_eq_cur
             fx_pool_prev = fx_pool_cur
-            solvency_cur = (total_eq_cur / max(1.0, total_dep_cur)) * 100.0
-
-            # Aggregate all bilateral Forex desks across tiles in this province
-            desks_map = {}
-            for t in tiles:
-                for k, d in getattr(t, 'forex_desks', {}).items():
-                    if getattr(d, 'other', None) and d.other not in desks_map:
-                        desks_map[d.other] = d
-
-            if desks_map:
-                rates = [d.mid for d in desks_map.values()]
-                prev_rates = [d.log[-2][1] if len(d.log) >= 2 else d.mid for d in desks_map.values()]
-                gaps = [((d.mid - getattr(d, 'ppp_target', 1.0)) / max(0.01, getattr(d, 'ppp_target', 1.0))) * 100.0 for d in desks_map.values()]
-                rate_cur = sum(rates) / len(rates)
-                rate_prev = sum(prev_rates) / len(prev_rates)
-                ppp_gap = sum(gaps) / len(gaps)
-                qv, qd, qc = fmt_delta(rate_cur * 100.0, rate_prev * 100.0, decimals=1)
-                quote_str = f"{rate_cur*100.0:.1f} NEER"
-                ppp_str = f"{'+' if ppp_gap>=0 else ''}{ppp_gap:.1f}%"
-            else:
-                qv, qd, qc = "100.0 NEER", "-", DIM
-                quote_str = "100.0 NEER"
-                ppp_str = "0.0%"
-                ppp_gap = 0.0
-
-            res_cur = sum(bank.foreign_reserves.values()) if bank else 0.0
             res_prev = res_cur
+            solvency_cur = (total_eq_cur / max(1.0, total_dep_cur)) * 100.0
 
             exp_val = sum(v[-1] for r in tiles for v in r.export_val.values() if v)
             imp_val = sum(v[-1] for r in tiles for v in r.import_val.values() if v)
@@ -487,47 +485,44 @@ def draw_tab3_fx_banking(surface, world, box_x, start_y, box_w, box_h, font, cel
             p_color = PROVINCE_COLORS[p_idx % len(PROVINCE_COLORS)]
             cx = box_x + 24
 
-            surface.blit(cell_font.render(f"• {prov.name}", True, p_color), (cx, y + 2))
-            cx += 190
+            # 1. Province Name
+            surface.blit(cell_font.render(f"  • {prov.name}", True, p_color), (cx, y + 2))
+            cx += 210
 
-            q_surf = cell_font.render(quote_str, True, TEXT)
-            surface.blit(q_surf, (cx, y + 2))
-            if qd != "-":
-                surface.blit(cell_font.render(f" {qd}", True, qc), (cx + q_surf.get_width(), y + 2))
-            cx += 135
-
-            gap_c = GREEN if abs(ppp_gap) < 5.0 else (ACCENT if ppp_gap > 0 else RED)
-            surface.blit(cell_font.render(ppp_str, True, gap_c), (cx, y + 2))
-            cx += 100
-
-            fpv, fpd, fpc = fmt_delta(fx_pool_cur, fx_pool_prev, is_curr=True, decimals=1)
-            fp_surf = cell_font.render(fpv, True, TEXT)
-            surface.blit(fp_surf, (cx, y + 2))
-            surface.blit(cell_font.render(f" {fpd}", True, fpc), (cx + fp_surf.get_width(), y + 2))
-            cx += 130
-
-            rv, rd, rc = fmt_delta(res_cur, res_prev, is_curr=True, decimals=1)
-            r_surf = cell_font.render(rv, True, TEXT)
-            surface.blit(r_surf, (cx, y + 2))
-            surface.blit(cell_font.render(f" {rd}", True, rc), (cx + r_surf.get_width(), y + 2))
-            cx += 145
-
+            # 2. Commercial Deposits
             dpv, dpd, dpc = fmt_delta(total_dep_cur, total_dep_prev, is_curr=True, decimals=1)
             dp_surf = cell_font.render(dpv, True, TEXT)
             surface.blit(dp_surf, (cx, y + 2))
             surface.blit(cell_font.render(f" {dpd}", True, dpc), (cx + dp_surf.get_width(), y + 2))
             cx += 150
 
+            # 3. Bank Equity
             eqv, eqd, eqc = fmt_delta(total_eq_cur, total_eq_prev, is_curr=True, decimals=1)
             eq_surf = cell_font.render(eqv, True, GREEN if total_eq_cur > 0 else RED)
             surface.blit(eq_surf, (cx, y + 2))
             surface.blit(cell_font.render(f" {eqd}", True, eqc), (cx + eq_surf.get_width(), y + 2))
-            cx += 140
+            cx += 160
 
+            # 4. Solvency Ratio
             solv_c = GREEN if solvency_cur >= 15.0 else (ACCENT if solvency_cur >= 8.0 else RED)
             surface.blit(cell_font.render(f"{solvency_cur:.1f}%", True, solv_c), (cx, y + 2))
-            cx += 110
+            cx += 130
 
+            # 5. Bank FX Pool
+            fpv, fpd, fpc = fmt_delta(fx_pool_cur, fx_pool_prev, is_curr=True, decimals=1)
+            fp_surf = cell_font.render(fpv, True, TEXT)
+            surface.blit(fp_surf, (cx, y + 2))
+            surface.blit(cell_font.render(f" {fpd}", True, fpc), (cx + fp_surf.get_width(), y + 2))
+            cx += 145
+
+            # 6. Foreign Reserves
+            rv, rd, rc = fmt_delta(res_cur, res_prev, is_curr=True, decimals=1)
+            r_surf = cell_font.render(rv, True, TEXT)
+            surface.blit(r_surf, (cx, y + 2))
+            surface.blit(cell_font.render(f" {rd}", True, rc), (cx + r_surf.get_width(), y + 2))
+            cx += 165
+
+            # 7. Net Trade
             nt_sign = "+" if net_trade >= 0 else ""
             nt_c = GREEN if net_trade >= 0 else RED
             surface.blit(cell_font.render(f"{nt_sign}${net_trade:,.1f}", True, nt_c), (cx, y + 2))
@@ -537,7 +532,7 @@ def draw_tab3_fx_banking(surface, world, box_x, start_y, box_w, box_h, font, cel
     # -------------------------------------------------------------------------
     # SECTION 2: DEDICATED BILATERAL FOREX MATRIX & CROSS-RATES TABLE
     # -------------------------------------------------------------------------
-    y += 16
+    y += 14
     surface.blit(section_font.render("BILATERAL FOREIGN EXCHANGE MATRIX & PPP VALUATION BENCHMARKS", True, ACCENT), (box_x + 20, y))
     y += 22
 
@@ -558,13 +553,11 @@ def draw_tab3_fx_banking(surface, world, box_x, start_y, box_w, box_h, font, cel
         cx += width
     y += 24
 
-    # Extract all bilateral Forex Desks across all nations
     pair_rows = []
     for home_n in nations:
         for foreign_n in nations:
             if home_n == foreign_n:
                 continue
-            # Find representative desk between home_n and foreign_n
             target_desk = None
             for r in home_n.tiles:
                 for d in getattr(r, 'forex_desks', {}).values():
@@ -583,7 +576,6 @@ def draw_tab3_fx_banking(surface, world, box_x, start_y, box_w, box_h, font, cel
                 bid = rc * (1.0 - spread)
                 ask = rc * (1.0 + spread)
 
-                # Total reserves of foreign_n held in home_n banks
                 tot_res = sum(prov.bank.foreign_reserves.get(foreign_n.currency, 0.0) for prov in home_n.provinces if prov.bank)
 
                 pair_rows.append({
@@ -602,12 +594,10 @@ def draw_tab3_fx_banking(surface, world, box_x, start_y, box_w, box_h, font, cel
         pygame.draw.rect(surface, row_bg, (box_x + 16, y, box_w - 32, row_h))
         cx = box_x + 24
 
-        # 1. Pair Label
         home_c = NATION_COLORS.get(pdata['home_n'].name, TEXT)
         surface.blit(cell_font.render(pdata['pair_label'], True, home_c), (cx, y + 2))
         cx += 230
 
-        # 2. Exchange Rate (Mid)
         qv, qd, qc = fmt_delta(pdata['rc'], pdata['rp'], decimals=3)
         q_str = f"1 {pdata['foreign_n'].currency} = {qv} {pdata['home_n'].currency}"
         q_surf = cell_font.render(q_str, True, (255, 255, 255))
@@ -616,22 +606,18 @@ def draw_tab3_fx_banking(surface, world, box_x, start_y, box_w, box_h, font, cel
             surface.blit(cell_font.render(f" {qd}", True, qc), (cx + q_surf.get_width(), y + 2))
         cx += 210
 
-        # 3. PPP Fair Value
         surface.blit(cell_font.render(f"{pdata['tgt']:.3f} {pdata['home_n'].currency}", True, DIM), (cx, y + 2))
         cx += 160
 
-        # 4. PPP Gap
         gap_sign = "+" if pdata['gap'] >= 0 else ""
         gap_desc = "Undervalued (Exports Cheap)" if pdata['gap'] > 5.0 else ("Overvalued (Imports Cheap)" if pdata['gap'] < -5.0 else "Fairly Valued (Parity)")
         gap_c = GREEN if abs(pdata['gap']) < 5.0 else (ACCENT if pdata['gap'] > 0 else RED)
         surface.blit(cell_font.render(f"{gap_sign}{pdata['gap']:.1f}% [{gap_desc}]", True, gap_c), (cx, y + 2))
         cx += 200
 
-        # 5. Foreign Vault Reserves
         surface.blit(cell_font.render(f"${pdata['res']:,.1f} {pdata['foreign_n'].currency}", True, TEXT), (cx, y + 2))
         cx += 200
 
-        # 6. Bid / Ask Spread
         surface.blit(cell_font.render(f"{pdata['bid']:.3f} / {pdata['ask']:.3f}", True, DIM), (cx, y + 2))
 
         y += row_h
