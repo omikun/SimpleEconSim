@@ -96,6 +96,37 @@ def tile_charts(region):
     ]
 
 
+AXIS_C = (150, 150, 165)
+
+
+def fmt_chart_val(v):
+    """Compact string format for chart axis min/max values."""
+    if abs(v) >= 1_000_000:
+        return f"{v/1_000_000:.1f}M"
+    if abs(v) >= 10_000:
+        return f"{v/1_000:.0f}k"
+    if abs(v) >= 1_000:
+        return f"{v/1_000:.1f}k"
+    if abs(v) >= 100:
+        return f"{v:.0f}"
+    if abs(v) >= 10:
+        return f"{v:.1f}" if abs(v - round(v)) > 1e-4 else f"{int(round(v))}"
+    if abs(v) >= 1:
+        return f"{v:.2f}" if abs(v - round(v)) > 1e-4 else f"{int(round(v))}"
+    if abs(v) >= 0.001:
+        return f"{v:.2f}"
+    return "0"
+
+
+def draw_axis_minmax(surface, rect, vmin, vmax, font):
+    """Draw min and max scale numbers at the right edge of chart rect."""
+    x0, y0, w, h = rect
+    max_surf = font.render(fmt_chart_val(vmax), True, AXIS_C)
+    min_surf = font.render(fmt_chart_val(vmin), True, AXIS_C)
+    surface.blit(max_surf, (x0 + w - max_surf.get_width() - 4, y0 + 2))
+    surface.blit(min_surf, (x0 + w - min_surf.get_width() - 4, y0 + h - min_surf.get_height() - 2))
+
+
 def chart_labels(surface, labels, colors, font, rect, y_start=2, step=12):
     y = y_start
     for label, color in zip(labels, colors):
@@ -116,12 +147,14 @@ def plot_line_chart(surface, rect, series_list, colors, labels, window, font):
     if not vals:
         chart_labels(surface, labels, colors, font, rect)
         return
-    vmin, vmax = min(vals), max(vals)
+    actual_min, actual_max = min(vals), max(vals)
+    vmin, vmax = actual_min, actual_max
     if vmax - vmin < 1e-9:
         vmax = vmin + 1.0
     n = max(len(d) for d in data)
     if n < 2:
         chart_labels(surface, labels, colors, font, rect)
+        draw_axis_minmax(surface, rect, actual_min, actual_max, font)
         return
     label_h = min(h // 2, 12 + 11 * len(colors))
     iw, ih = max(10, w - 12), max(10, h - label_h - 6)
@@ -136,6 +169,7 @@ def plot_line_chart(surface, rect, series_list, colors, labels, window, font):
         if len(pts) >= 2:
             pygame.draw.lines(surface, color, False, pts, 2)
     chart_labels(surface, labels, colors, font, rect)
+    draw_axis_minmax(surface, rect, actual_min, actual_max, font)
 
 
 def plot_bar_pairs(surface, rect, series_list, colors, labels, window, font):
@@ -147,9 +181,10 @@ def plot_bar_pairs(surface, rect, series_list, colors, labels, window, font):
     if n_show <= 0:
         chart_labels(surface, labels, colors, font, rect)
         return
-    vmax = max((v for s in series_list for v in s[-n_show:]), default=1.0)
-    if vmax <= 0:
-        vmax = 1.0
+    vals = [v for s in series_list for v in s[-n_show:]]
+    actual_max = max(vals, default=0.0)
+    actual_min = min([0.0] + vals)
+    vmax = max(actual_max, 1.0)
     stride = max(1, n_show // 90)
     label_h = min(h // 2, 12 + 11 * len(colors))
     iw = (w - 12) / n_show
@@ -166,6 +201,7 @@ def plot_bar_pairs(surface, rect, series_list, colors, labels, window, font):
                 pygame.draw.rect(surface, color,
                                  (bx, y0 + h - 6 - bh, bw, bh))
     chart_labels(surface, labels, colors, font, rect)
+    draw_axis_minmax(surface, rect, actual_min, actual_max, font)
 
 
 def plot_stacked_bars(surface, rect, series_list, colors, labels, window, font):
@@ -179,9 +215,9 @@ def plot_stacked_bars(surface, rect, series_list, colors, labels, window, font):
         return
     totals = [sum(s[i] for s in series_list if i < len(s))
               for i in range(n_show)]
-    vmax = max(totals, default=1.0)
-    if vmax <= 0:
-        vmax = 1.0
+    actual_max = max(totals, default=0.0)
+    actual_min = min([0.0] + totals)
+    vmax = max(actual_max, 1.0)
     stride = max(1, n_show // 90)
     label_h = min(h // 2, 12 + 11 * len(colors))
     iw = (w - 12) / n_show
@@ -198,6 +234,7 @@ def plot_stacked_bars(surface, rect, series_list, colors, labels, window, font):
                 pygame.draw.rect(surface, color, (bx, y - bh, bw, bh))
                 y -= bh
     chart_labels(surface, labels, colors, font, rect)
+    draw_axis_minmax(surface, rect, actual_min, actual_max, font)
 
 
 def draw_chart_cell(surface, chart, rect, font, font_small, window, is_hovered=False):
