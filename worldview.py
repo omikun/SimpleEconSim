@@ -238,6 +238,12 @@ def main():
                         world['compare_good'] = Goods.wood
                     elif event.key == pygame.K_u:
                         world['compare_good'] = Goods.furniture
+                    elif event.key == pygame.K_SPACE:
+                        world['playing'] = not world['playing']
+                        last_tick = now
+                    elif event.key in (pygame.K_n, pygame.K_PERIOD):
+                        world['playing'] = False
+                        step_world(world)
                     elif event.key in (pygame.K_ESCAPE, pygame.K_c):
                         world['compare_open'] = False
                     continue
