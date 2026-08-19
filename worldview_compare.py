@@ -513,23 +513,27 @@ def draw_tab3_fx_banking(surface, world, box_x, start_y, box_w, box_h, font, cel
             solvency_cur = (total_eq_cur / max(1.0, total_dep_cur)) * 100.0
             solvency_prev = solvency_cur
 
-            # Representative Forex desk on first tile
-            first_t = tiles[0]
-            desk = getattr(first_t, 'forex', None)
-            if desk is None and getattr(first_t, 'forex_desks', None):
-                desk = next(iter(first_t.forex_desks.values()), None)
+            # Aggregate all bilateral Forex desks across tiles in this province
+            desks_map = {}
+            for t in tiles:
+                for k, d in getattr(t, 'forex_desks', {}).items():
+                    if getattr(d, 'other', None) and d.other not in desks_map:
+                        desks_map[d.other] = d
 
-            if desk is not None:
-                rate_cur = desk.mid
-                rate_prev = desk.log[-2][1] if len(desk.log) >= 2 else rate_cur
-                ppp_target = getattr(desk, 'ppp_target', 1.0)
-                ppp_gap = ((rate_cur - ppp_target) / max(0.01, ppp_target)) * 100.0
-                quote_str = f"{rate_cur:.3f} {desk.other}"
+            if desks_map:
+                quote_parts = []
+                ppp_parts = []
+                for cur_code, d in sorted(desks_map.items()):
+                    rc = d.mid
+                    tgt = getattr(d, 'ppp_target', 1.0)
+                    gap = ((rc - tgt) / max(0.01, tgt)) * 100.0
+                    quote_parts.append(f"{rc:.2f} {cur_code}")
+                    ppp_parts.append(f"{cur_code}:{'+' if gap>=0 else ''}{gap:.0f}%")
+                quote_str = "  ".join(quote_parts)
+                ppp_str = "  ".join(ppp_parts)
             else:
-                rate_cur = 1.0
-                rate_prev = 1.0
-                ppp_gap = 0.0
-                quote_str = "1.000 (Parity)"
+                quote_str = "1.00 (Parity)"
+                ppp_str = "0.0%"
 
             exp_val = sum(sum(v) for r in tiles for v in r.export_val.values())
             imp_val = sum(sum(v) for r in tiles for v in r.import_val.values())
@@ -546,18 +550,15 @@ def draw_tab3_fx_banking(surface, world, box_x, start_y, box_w, box_h, font, cel
             surface.blit(cell_font.render(f"• {prov.name}", True, p_color), (cx, y + 3))
             cx += 190
 
-            # 2. Forex Mid Quote
-            qv, qd, qc = fmt_delta(rate_cur, rate_prev, decimals=3)
+            # 2. Forex Mid Quotes (All bilateral pairs)
             q_surf = cell_font.render(quote_str, True, TEXT)
             surface.blit(q_surf, (cx, y + 3))
-            surface.blit(cell_font.render(f" {qd}", True, qc), (cx + q_surf.get_width(), y + 3))
-            cx += 135
+            cx += 140
 
-            # 3. PPP Gap
-            gap_sign = "+" if ppp_gap >= 0 else ""
-            gap_c = GREEN if abs(ppp_gap) < 5.0 else (ACCENT if ppp_gap > 0 else RED)
-            surface.blit(cell_font.render(f"{gap_sign}{ppp_gap:.1f}%", True, gap_c), (cx, y + 3))
-            cx += 95
+            # 3. PPP Gaps
+            gap_c = GREEN if abs(gap) < 5.0 else (ACCENT if gap > 0 else RED)
+            surface.blit(cell_font.render(ppp_str, True, gap_c), (cx, y + 3))
+            cx += 105
 
             # 4. Bank FX Pool
             fpv, fpd, fpc = fmt_delta(fx_pool_cur, fx_pool_prev, is_curr=True, decimals=1)
