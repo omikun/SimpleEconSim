@@ -1,74 +1,55 @@
 """
-worldview_compare.py — Multi-tab analytical cross-nation & provincial comparison suite.
-
-Tabs:
-1. Macro Accounts & Leaderboard (National GDP, Real/Nominal, CPI, Treasury, Trade, Demographics, Stability)
-2. Goods Market & Provincial Economy (By Country & Province: Prices, Production, Inv/Capita, Inv/Producer, D vs S, Exp vs Imp)
-3. External Sector, Forex & Banking (By Country & Province: Exchange rates, PPP gap, FX pools, Bank equity, Solvency, Deposits)
-
-Every single metric displays Current Value + Turn Delta (±Delta from last turn).
+REGNUM v3_wilderness — Cross-Nation & Provincial Economic Comparison Suite.
+Provides a comprehensive 3-tab analytical accounts dashboard with turn delta tracking:
+  Tab 1: Macro Accounts & Leaderboard
+  Tab 2: Goods Market & Provincial Industrial Economy (Food / Wood / Furniture)
+  Tab 3: External Sector, Forex & Provincial Banking System (with Scalable Currency Filter & NEER)
 """
 
-from collections import Counter
 import pygame
 from goods import Goods
 from worldview_camera import WIDTH, HEIGHT
-from worldview_map import (ACCENT, TEXT, DIM, RED, GREEN, NATION_COLORS, PROVINCE_COLORS)
+from worldview_map import (
+    NATION_COLORS, TEXT, DIM, RED, GREEN, ACCENT, PROVINCE_COLORS
+)
 
+# Colors for Table Modal
 BG_MODAL = (20, 20, 28)
-BORDER_MODAL = (70, 70, 90)
-TAB_ACTIVE_BG = (50, 50, 70)
-TAB_INACTIVE_BG = (30, 30, 40)
-ROW_BG1 = (24, 24, 32)
-ROW_BG2 = (28, 28, 38)
+BORDER_MODAL = (65, 65, 85)
+ROW_BG1 = (24, 24, 34)
+ROW_BG2 = (28, 28, 40)
 SEC_BG = (32, 32, 46)
+TAB_ACTIVE_BG = (48, 48, 68)
+TAB_INACTIVE_BG = (30, 30, 42)
 
 
-def fmt_delta(cur, prev, is_curr=False, is_pct=False, decimals=2, invert_good=False):
-    """Return formatted strings and color for current value and turn delta.
-
-    Returns (value_str, delta_str, delta_color).
-    """
-    if cur is None:
-        return "-", "", DIM
-    if prev is None:
-        prev = cur
-
-    diff = cur - prev
-    # Format value
+def fmt_delta(cur, prev, is_curr=False, decimals=2, invert_good=False):
+    """Format value and per-turn delta (+/-) with color coding."""
+    delta = cur - prev if prev is not None else 0.0
     if is_curr:
-        v_str = f"${cur:,.{decimals}f}" if abs(cur) >= 1000 else f"${cur:.{decimals}f}"
-    elif is_pct:
-        v_str = f"{cur:.1f}%"
-    elif isinstance(cur, int) or decimals == 0:
-        v_str = f"{int(round(cur)):,}"
+        val_str = f"${cur:,.{decimals}f}"
     else:
-        v_str = f"{cur:.{decimals}f}"
+        val_str = f"{cur:,.{decimals}f}" if isinstance(cur, float) else f"{cur:,}"
 
-    # Format delta
-    if abs(diff) < 0.001:
-        d_str = "(=)"
-        d_color = DIM
+    if abs(delta) < 1e-4:
+        return val_str, "-", DIM
+
+    sign = "+" if delta > 0 else ""
+    if is_curr:
+        delta_str = f"({sign}${delta:,.{decimals}f})"
     else:
-        sign = "+" if diff > 0 else "-"
-        abs_d = abs(diff)
-        if is_curr:
-            d_str = f"({sign}${abs_d:,.{decimals}f})" if abs_d >= 1000 else f"({sign}${abs_d:.{decimals}f})"
-        elif is_pct:
-            d_str = f"({sign}{abs_d:.1f}%)"
-        elif isinstance(cur, int) or decimals == 0:
-            d_str = f"({sign}{int(round(abs_d)):,})"
-        else:
-            d_str = f"({sign}{abs_d:.{decimals}f})"
+        delta_str = f"({sign}{delta:,.{decimals}f})" if isinstance(cur, float) else f"({sign}{delta:,})"
 
-        is_positive_good = (diff > 0) if not invert_good else (diff < 0)
-        d_color = GREEN if is_positive_good else RED
-
-    return v_str, d_str, d_color
+    # Positive change is usually green, unless invert_good is True (e.g. Hunger, Unrest, Prices)
+    if delta > 0:
+        color = RED if invert_good else GREEN
+    else:
+        color = GREEN if invert_good else RED
+    return val_str, delta_str, color
 
 
 def draw_tab_headers(surface, world, box_x, box_y, box_w, font, font_small, mouse_pos=None):
-    """Draw the 3 main tab buttons across the top of the comparison window."""
+    """Draw top tabs: 1. Leaderboard, 2. Goods, 3. Forex & Banking."""
     active_tab = world.get('compare_tab', 1)
     tabs = [
         (1, "1. Macro Accounts & Leaderboard"),
@@ -97,8 +78,8 @@ def draw_tab_headers(surface, world, box_x, box_y, box_w, font, font_small, mous
     return y + tab_h + 16
 
 
-def compare_tab_hit(pos, box_x, box_y):
-    """Return clicked tab ID (1, 2, 3) or clicked Good enum, or None."""
+def compare_tab_hit(pos, box_x, box_y, world=None):
+    """Return clicked tab ID (1, 2, 3), Good enum, FX Partner string, or None."""
     mx, my = pos
     tab_w = 260
     tab_h = 32
@@ -109,14 +90,27 @@ def compare_tab_hit(pos, box_x, box_y):
             return ('tab', tab_id)
         start_x += tab_w + 14
 
-    # Good sub-selectors on Tab 2: y = box_y + 90
-    good_y = box_y + 92
-    if good_y <= my <= good_y + 26:
+    # Sub-selector row at y = box_y + 92
+    sub_y = box_y + 92
+    if sub_y <= my <= sub_y + 28:
+        # Good sub-selectors on Tab 2
         gx = box_x + 20
         for g in (Goods.food, Goods.wood, Goods.furniture):
             if gx <= mx <= gx + 100:
                 return ('good', g)
             gx += 110
+
+        # FX Partner sub-selectors on Tab 3
+        px = box_x + 20
+        # All currencies button (w=170)
+        if px <= mx <= px + 170:
+            return ('fx_partner', 'ALL')
+        px += 180
+        if world and world.get('nations'):
+            for n in world['nations']:
+                if px <= mx <= px + 100:
+                    return ('fx_partner', n.currency)
+                px += 110
 
     return None
 
@@ -141,45 +135,41 @@ def draw_tab1_macro(surface, world, box_x, start_y, box_w, box_h, font, cell_fon
     for n in nations:
         tiles = n.tiles
         pop_cur = sum(r.total_population[-1] if r.total_population else len(r.agents) for r in tiles)
-        pop_prev = sum(r.total_population[-2] if len(r.total_population) >= 2 else len(r.agents) for r in tiles)
-
-        hungry_cur = sum(sum(r.hungry_log[g][-1] if (g in r.hungry_log and r.hungry_log[g]) else 0
-                             for g in (Goods.food, Goods.wood, Goods.furniture)) for r in tiles)
-        hungry_prev = sum(sum(r.hungry_log[g][-2] if (g in r.hungry_log and len(r.hungry_log[g]) >= 2) else 0
-                              for g in (Goods.food, Goods.wood, Goods.furniture)) for r in tiles)
+        pop_prev = sum(get_prev(r.total_population, default=len(r.agents)) for r in tiles)
 
         gdp_cur = sum(r.gdp_log[-1] if r.gdp_log else 0.0 for r in tiles)
-        gdp_prev = sum(r.gdp_log[-2] if len(r.gdp_log) >= 2 else 0.0 for r in tiles)
+        gdp_prev = sum(get_prev(r.gdp_log, default=0.0) for r in tiles)
 
-        # Real GDP (using base food $1.00, wood $2.00, furn $20.00)
-        base_p = {Goods.food: 1.0, Goods.wood: 2.0, Goods.furniture: 20.0}
-        real_gdp_cur = sum(sum((r.production_log[g][-1] if (g in r.production_log and r.production_log[g]) else 0) * base_p.get(g, 1.0)
-                               for g in base_p) for r in tiles)
-        real_gdp_prev = sum(sum((r.production_log[g][-2] if (g in r.production_log and len(r.production_log[g]) >= 2) else 0) * base_p.get(g, 1.0)
-                                for g in base_p) for r in tiles)
+        # Real GDP (using base-year basket prices: Food=1.0, Wood=1.5, Furniture=3.0)
+        base_prices = {Goods.food: 1.0, Goods.wood: 1.5, Goods.furniture: 3.0}
+        real_gdp_cur = sum(sum(r.production_log[g][-1] * base_prices[g] for g in (Goods.food, Goods.wood, Goods.furniture) if g in r.production_log and r.production_log[g]) for r in tiles)
+        real_gdp_prev = sum(sum(get_prev(r.production_log[g], default=0.0) * base_prices[g] for g in (Goods.food, Goods.wood, Goods.furniture) if g in r.production_log) for r in tiles)
 
         col_cur = (sum(r.cost_of_living for r in tiles) / len(tiles)) if tiles else 0.0
-        # Estimate col_prev from previous prices
-        col_prev = sum(sum(r.price_log[g][-2] if len(r.price_log[g]) >= 2 else r.price_log[g][-1]
-                           for g in (Goods.food, Goods.wood, Goods.furniture) if r.price_log[g]) / 3.0 for r in tiles) / max(1, len(tiles)) if tiles else col_cur
+        col_prev = col_cur
 
         tr = n.treasury()
-        tr_tot_cur = tr['total']
-        tr_tot_prev = tr_tot_cur  # treasury snapshot
+        tr_cur = tr['total']
+        tr_prev = tr_cur
 
-        exports_cur = sum(sum(v) for r in tiles for v in r.export_val.values())
-        imports_cur = sum(sum(v) for r in tiles for v in r.import_val.values())
-        net_trade_cur = exports_cur - imports_cur
-        net_trade_prev = net_trade_cur
+        exports = sum(v[-1] for r in tiles for v in r.export_val.values() if v)
+        imports = sum(v[-1] for r in tiles for v in r.import_val.values() if v)
+        net_trade = exports - imports
 
-        gini_cur = sum((r.gini_log[Goods.food][-1] if (Goods.food in r.gini_log and r.gini_log[Goods.food]) else 0.0) for r in tiles) / max(1, len(tiles))
-        gini_prev = sum((r.gini_log[Goods.food][-2] if (Goods.food in r.gini_log and len(r.gini_log[Goods.food]) >= 2) else gini_cur) for r in tiles) / max(1, len(tiles))
+        hungry_cur = sum(sum(r.hungry_log[g][-1] if (g in r.hungry_log and r.hungry_log[g]) else 0 for g in (Goods.food, Goods.wood, Goods.furniture)) for r in tiles)
+        hungry_prev = sum(sum(get_prev(r.hungry_log[g], default=0) if g in r.hungry_log else 0 for g in (Goods.food, Goods.wood, Goods.furniture)) for r in tiles)
+
+        def calc_gini(r, idx=-1):
+            if not getattr(r, 'gini_log', None):
+                return 0.0
+            vals = [r.gini_log[g][idx] for g in (Goods.food, Goods.wood, Goods.furniture) if g in r.gini_log and len(r.gini_log[g]) >= abs(idx)]
+            return sum(vals) / len(vals) if vals else 0.0
+
+        gini_cur = (sum(calc_gini(r, -1) for r in tiles) / len(tiles)) if tiles else 0.0
+        gini_prev = (sum(calc_gini(r, -2) for r in tiles) / len(tiles)) if tiles else 0.0
 
         protest_cur = (sum(r.protest_energy_log[-1] if r.protest_energy_log else 0.0 for r in tiles) / len(tiles)) if tiles else 0.0
-        protest_prev = (sum(r.protest_energy_log[-2] if len(r.protest_energy_log) >= 2 else 0.0 for r in tiles) / len(tiles)) if tiles else 0.0
-
-        legit_cur = n.legitimacy
-        legit_prev = legit_cur
+        protest_prev = (sum(get_prev(r.protest_energy_log, default=0.0) for r in tiles) / len(tiles)) if tiles else 0.0
 
         nation_data.append({
             'nation': n,
@@ -187,29 +177,28 @@ def draw_tab1_macro(surface, world, box_x, start_y, box_w, box_h, font, cell_fon
             'tiles': len(tiles),
             'provinces': len(n.provinces),
             'pop_cur': pop_cur, 'pop_prev': pop_prev,
-            'hungry_cur': hungry_cur, 'hungry_prev': hungry_prev,
             'gdp_cur': gdp_cur, 'gdp_prev': gdp_prev,
             'real_gdp_cur': real_gdp_cur, 'real_gdp_prev': real_gdp_prev,
-            'gdp_pc_cur': gdp_cur / max(1, pop_cur), 'gdp_pc_prev': gdp_prev / max(1, pop_prev),
+            'gdp_pc': (gdp_cur / max(1, pop_cur)),
+            'gdp_pc_prev': (gdp_prev / max(1, pop_prev)),
             'col_cur': col_cur, 'col_prev': col_prev,
-            'tr_total_cur': tr_tot_cur, 'tr_total_prev': tr_tot_prev,
-            'tr_food_cur': tr['food'], 'tr_food_prev': tr['food'],
-            'exports_cur': exports_cur, 'exports_prev': exports_cur,
-            'imports_cur': imports_cur, 'imports_prev': imports_cur,
-            'net_trade_cur': net_trade_cur, 'net_trade_prev': net_trade_prev,
+            'tr_cur': tr_cur, 'tr_prev': tr_prev,
+            'tr_food': tr['food'],
+            'exports': exports, 'imports': imports, 'net_trade': net_trade,
+            'hungry_cur': hungry_cur, 'hungry_prev': hungry_prev,
             'gini_cur': gini_cur, 'gini_prev': gini_prev,
             'protest_cur': protest_cur, 'protest_prev': protest_prev,
-            'legit_cur': legit_cur, 'legit_prev': legit_prev,
+            'legitimacy': n.legitimacy,
             'regime': n.regime_type,
             'ruling': getattr(n, 'ruling_faction', '-') or '-',
         })
 
-    label_col_w = 290
+    label_col_w = 310
     col_w = (box_w - label_col_w - 40) // max(1, len(nations))
 
-    # Header Row
+    # Header row
     y = start_y
-    surface.blit(cell_font.render("NATIONAL ACCOUNT INDICATOR", True, ACCENT), (box_x + 24, y + 4))
+    surface.blit(cell_font.render("METRIC / INDICATOR", True, ACCENT), (box_x + 24, y + 4))
     for i, data in enumerate(nation_data):
         cx = box_x + label_col_w + i * col_w
         n = data['nation']
@@ -220,40 +209,40 @@ def draw_tab1_macro(surface, world, box_x, start_y, box_w, box_h, font, cell_fon
         surface.blit(n_label, n_label.get_rect(center=(cx + (col_w - 10) // 2, y + 15)))
 
     y += 38
-    sections = [
-        ("OUTPUT, STANDARD OF LIVING & PRODUCTIVITY", [
-            ("Nominal GDP / turn", lambda d: fmt_delta(d['gdp_cur'], d['gdp_prev'], is_curr=True), True),
-            ("Real Chained GDP (Base Output)", lambda d: fmt_delta(d['real_gdp_cur'], d['real_gdp_prev'], is_curr=True), True),
-            ("GDP per Capita", lambda d: fmt_delta(d['gdp_pc_cur'], d['gdp_pc_prev'], is_curr=True), True),
-            ("Cost of Living Index (CoL)", lambda d: fmt_delta(d['col_cur'], d['col_prev'], is_curr=False, decimals=2, invert_good=True), False),
+    table_sections = [
+        ("MACROECONOMIC OUTPUT & GROWTH", [
+            ("Gross Domestic Product (Nominal GDP)", lambda d: fmt_delta(d['gdp_cur'], d['gdp_prev'], is_curr=True), True),
+            ("Real Chained GDP (Base Price Output)", lambda d: fmt_delta(d['real_gdp_cur'], d['real_gdp_prev'], is_curr=True), True),
+            ("GDP per Capita ($ / pop)", lambda d: fmt_delta(d['gdp_pc'], d['gdp_pc_prev'], is_curr=True), False),
+            ("Cost of Living Index (CPI / CoL)", lambda d: fmt_delta(d['col_cur'], d['col_prev'], decimals=2, invert_good=True), False),
         ]),
-        ("DEMOGRAPHICS & SOCIAL COHESION", [
-            ("Total Living Population", lambda d: fmt_delta(d['pop_cur'], d['pop_prev'], decimals=0), True),
-            ("Severe Hunger / Starving Count", lambda d: fmt_delta(d['hungry_cur'], d['hungry_prev'], decimals=0, invert_good=True), False),
-            ("Gini Inequality Index", lambda d: fmt_delta(d['gini_cur'], d['gini_prev'], decimals=3, invert_good=True), False),
-            ("Social Protest Grievance Energy", lambda d: fmt_delta(d['protest_cur'], d['protest_prev'], decimals=2, invert_good=True), False),
+        ("DEMOGRAPHICS, WELFARE & EQUALITY", [
+            ("Total Living Population", lambda d: fmt_delta(d['pop_cur'], d['pop_prev']), True),
+            ("Starving / Severe Hunger Count", lambda d: fmt_delta(d['hungry_cur'], d['hungry_prev'], invert_good=True), False),
+            ("Gini Wealth Inequality Index", lambda d: fmt_delta(d['gini_cur'], d['gini_prev'], decimals=3, invert_good=True), False),
+            ("Social Protest Energy Level", lambda d: fmt_delta(d['protest_cur'], d['protest_prev'], decimals=2, invert_good=True), False),
         ]),
-        ("PUBLIC FINANCE, FISCAL & TREASURY", [
-            ("Total Treasury Reserves", lambda d: fmt_delta(d['tr_total_cur'], d['tr_total_prev'], is_curr=True), True),
-            ("Strategic Food Reserve", lambda d: fmt_delta(d['tr_food_cur'], d['tr_food_prev'], decimals=0), False),
-            ("Government Regime Type", lambda d: (f"{d['regime']}", "", DIM), False),
-            ("Regime Legitimacy Rating", lambda d: fmt_delta(d['legit_cur'], d['legit_prev'], decimals=2), True),
-            ("Ruling Political Faction", lambda d: (f"{d['ruling']}", "", DIM), False),
+        ("PUBLIC TREASURY & SOVEREIGNTY", [
+            ("Treasury Total Wealth Reserves", lambda d: fmt_delta(d['tr_cur'], d['tr_prev'], is_curr=True), True),
+            ("Strategic Food Reserve Stockpile", lambda d: (f"{d['tr_food']} units", "-", DIM), False),
+            ("Government Regime Type", lambda d: (f"{d['regime']}", "-", DIM), False),
+            ("Regime Legitimacy Rating", lambda d: (f"{d['legitimacy']:.2f}", "-", DIM), True),
         ]),
-        ("INTERNATIONAL TRADE & EXTERNAL BALANCE", [
-            ("Total Exports Value", lambda d: fmt_delta(d['exports_cur'], d['exports_prev'], is_curr=True), True),
-            ("Total Imports Value", lambda d: fmt_delta(d['imports_cur'], d['imports_prev'], is_curr=True, invert_good=True), False),
-            ("Net Trade Balance (Surplus/Deficit)", lambda d: fmt_delta(d['net_trade_cur'], d['net_trade_prev'], is_curr=True), True),
+        ("EXTERNAL SECTOR & INTERNATIONAL TRADE", [
+            ("Gross Exports Value", lambda d: (f"${d['exports']:,.1f}", "-", DIM), False),
+            ("Gross Imports Value", lambda d: (f"${d['imports']:,.1f}", "-", DIM), False),
+            ("Net Trade Balance", lambda d: (f"{'+' if d['net_trade']>=0 else ''}${d['net_trade']:,.1f}", "-", GREEN if d['net_trade']>=0 else RED), True),
         ]),
     ]
 
-    row_h = 22
-    for sec_title, rows in sections:
-        pygame.draw.rect(surface, SEC_BG, (box_x + 16, y, box_w - 32, 22))
+    row_h = 20
+    for sec_title, rows in table_sections:
+        sec_rect = (box_x + 16, y, box_w - 32, 20)
+        pygame.draw.rect(surface, SEC_BG, sec_rect)
         surface.blit(section_font.render(sec_title, True, ACCENT), (box_x + 22, y + 2))
-        y += 24
+        y += 22
 
-        for row_idx, (label, fmt_func, is_key) in enumerate(rows):
+        for row_idx, (label, val_fn, is_key) in enumerate(rows):
             row_bg = ROW_BG1 if row_idx % 2 == 0 else ROW_BG2
             pygame.draw.rect(surface, row_bg, (box_x + 16, y, box_w - 32, row_h))
 
@@ -262,14 +251,12 @@ def draw_tab1_macro(surface, world, box_x, start_y, box_w, box_h, font, cell_fon
 
             for i, data in enumerate(nation_data):
                 cx = box_x + label_col_w + i * col_w
-                val_str, delta_str, delta_color = fmt_func(data)
-
-                # Render main value
-                val_surf = cell_font.render(val_str, True, ACCENT if is_key else TEXT)
+                val_str, delta_str, delta_color = val_fn(data)
+                val_color = ACCENT if is_key else TEXT
+                val_surf = cell_font.render(val_str, True, val_color)
                 surface.blit(val_surf, (cx + 8, y + 3))
 
-                # Render delta
-                if delta_str:
+                if delta_str != "-":
                     d_surf = cell_font.render(f" {delta_str}", True, delta_color)
                     surface.blit(d_surf, (cx + 8 + val_surf.get_width(), y + 3))
 
@@ -305,7 +292,6 @@ def draw_tab2_goods(surface, world, box_x, start_y, box_w, box_h, font, cell_fon
     surface.blit(section_font.render(header_title, True, ACCENT), (box_x + 20, y))
     y += 24
 
-    # Table Column Headers
     cols = [
         ("Territory / Province", 190),
         ("CoL", 70),
@@ -332,11 +318,10 @@ def draw_tab2_goods(surface, world, box_x, start_y, box_w, box_h, font, cell_fon
     row_h = 22
 
     for n in nations:
-        # Nation Group Header
         nat_rect = (box_x + 16, y, box_w - 32, 22)
         pygame.draw.rect(surface, SEC_BG, nat_rect)
         nat_c = NATION_COLORS.get(n.name, TEXT)
-        surface.blit(section_font.render(f"{n.name} ({n.currency}) — {len(n.provinces)} Provinces, {len(n.tiles)} Tiles", True, nat_c), (box_x + 24, y + 2))
+        surface.blit(section_font.render(f"{n.name} ({n.currency}) — Sovereign Provinces", True, nat_c), (box_x + 24, y + 2))
         y += 24
 
         for p_idx, prov in enumerate(n.provinces):
@@ -344,42 +329,32 @@ def draw_tab2_goods(surface, world, box_x, start_y, box_w, box_h, font, cell_fon
             if not tiles:
                 continue
 
-            pop_cur = sum(r.total_population[-1] if r.total_population else len(r.agents) for r in tiles)
-            pop_prev = sum(r.total_population[-2] if len(r.total_population) >= 2 else len(r.agents) for r in tiles)
+            pop = sum(r.total_population[-1] if r.total_population else len(r.agents) for r in tiles)
+            col = sum(r.cost_of_living for r in tiles) / len(tiles)
 
-            col_cur = sum(r.cost_of_living for r in tiles) / len(tiles)
-            col_prev = col_cur
+            p_cur = sum(r.recipes[active_good]['price'] for r in tiles) / len(tiles)
+            p_prev = sum(get_prev(r.price_log[active_good], default=p_cur) if active_good in r.price_log else p_cur for r in tiles) / len(tiles)
 
-            price_cur = sum(r.recipes[active_good]['price'] for r in tiles) / len(tiles)
-            price_prev = sum(r.price_log[active_good][-2] if len(r.price_log[active_good]) >= 2 else price_cur for r in tiles) / len(tiles)
+            prod_cur = sum(r.production_log[active_good][-1] if (active_good in r.production_log and r.production_log[active_good]) else 0.0 for r in tiles)
+            prod_prev = sum(get_prev(r.production_log[active_good], default=0.0) if active_good in r.production_log else 0.0 for r in tiles)
 
-            prod_cur = sum(r.production_log[active_good][-1] if (active_good in r.production_log and r.production_log[active_good]) else 0 for r in tiles)
-            prod_prev = sum(r.production_log[active_good][-2] if (active_good in r.production_log and len(r.production_log[active_good]) >= 2) else 0 for r in tiles)
+            inv_cur = sum(r.inventory_log[active_good][-1] if (active_good in r.inventory_log and r.inventory_log[active_good]) else 0.0 for r in tiles)
+            inv_prev = sum(get_prev(r.inventory_log[active_good], default=0.0) if active_good in r.inventory_log else 0.0 for r in tiles)
 
-            producers_cur = sum(r.population_log[active_good][-1] if (active_good in r.population_log and r.population_log[active_good]) else 0 for r in tiles)
-            producers_prev = sum(r.population_log[active_good][-2] if (active_good in r.population_log and len(r.population_log[active_good]) >= 2) else 0 for r in tiles)
+            producers = sum(sum(1 for a in r.agents if not a.is_trader and getattr(a, 'profession', None) == active_good) for r in tiles)
+            labor_prod = (prod_cur / max(1, producers)) if producers > 0 else 0.0
+            inv_capita = (inv_cur / max(1, pop))
+            inv_producer = (inv_cur / max(1, producers)) if producers > 0 else 0.0
 
-            labor_prod_cur = prod_cur / max(1, producers_cur)
-            labor_prod_prev = prod_prev / max(1, producers_prev)
-
-            inv_cur = sum(r.inventory_log[active_good][-1] if (active_good in r.inventory_log and r.inventory_log[active_good]) else 0 for r in tiles)
-            inv_prev = sum(r.inventory_log[active_good][-2] if (active_good in r.inventory_log and len(r.inventory_log[active_good]) >= 2) else 0 for r in tiles)
-
-            inv_pc_cur = inv_cur / max(1, pop_cur)
-            inv_pc_prev = inv_prev / max(1, pop_prev)
-
-            inv_pp_cur = inv_cur / max(1, producers_cur)
-            inv_pp_prev = inv_prev / max(1, producers_prev)
-
-            dem_cur = sum(r.demand_log[active_good][-1] if (active_good in r.demand_log and r.demand_log[active_good]) else 0 for r in tiles)
-            sup_cur = sum(r.supply_log[active_good][-1] if (active_good in r.supply_log and r.supply_log[active_good]) else 0 for r in tiles)
+            dem_cur = sum(r.demand_log[active_good][-1] if (active_good in r.demand_log and r.demand_log[active_good]) else 0.0 for r in tiles)
+            sup_cur = sum(r.supply_log[active_good][-1] if (active_good in r.supply_log and r.supply_log[active_good]) else 0.0 for r in tiles)
 
             dr_cur = sum(r.demand_ratio_log[active_good][-1] if (active_good in r.demand_ratio_log and r.demand_ratio_log[active_good]) else 1.0 for r in tiles) / len(tiles)
-            dr_prev = sum(r.demand_ratio_log[active_good][-2] if (active_good in r.demand_ratio_log and len(r.demand_ratio_log[active_good]) >= 2) else dr_cur for r in tiles) / len(tiles)
+            dr_prev = sum(get_prev(r.demand_ratio_log[active_good], default=1.0) if active_good in r.demand_ratio_log else 1.0 for r in tiles) / len(tiles)
 
-            exp_val = sum(r.export_val.get(active_good, [0])[-1] if (active_good in r.export_val and r.export_val[active_good]) else 0 for r in tiles)
-            imp_val = sum(r.import_val.get(active_good, [0])[-1] if (active_good in r.import_val and r.import_val[active_good]) else 0 for r in tiles)
-            net_good = exp_val - imp_val
+            exp_good = sum(r.export_val[active_good][-1] if (active_good in r.export_val and r.export_val[active_good]) else 0.0 for r in tiles)
+            imp_good = sum(r.import_val[active_good][-1] if (active_good in r.import_val and r.import_val[active_good]) else 0.0 for r in tiles)
+            net_good = exp_good - imp_good
 
             row_bg = ROW_BG1 if row_idx % 2 == 0 else ROW_BG2
             row_idx += 1
@@ -388,61 +363,42 @@ def draw_tab2_goods(surface, world, box_x, start_y, box_w, box_h, font, cell_fon
             p_color = PROVINCE_COLORS[p_idx % len(PROVINCE_COLORS)]
             cx = box_x + 24
 
-            # 1. Province Name
-            surface.blit(cell_font.render(f"• {prov.name} ({len(tiles)}t)", True, p_color), (cx, y + 3))
+            surface.blit(cell_font.render(f"• {prov.name}", True, p_color), (cx, y + 3))
             cx += 190
 
-            # 2. CoL
-            surface.blit(cell_font.render(f"{col_cur:.2f}", True, TEXT), (cx, y + 3))
+            surface.blit(cell_font.render(f"{col:.2f}", True, DIM), (cx, y + 3))
             cx += 70
 
-            # 3. Price
-            pv, pd, pc = fmt_delta(price_cur, price_prev, is_curr=True, decimals=2)
+            pv, pd, pc = fmt_delta(p_cur, p_prev, is_curr=True, decimals=2, invert_good=True)
             p_surf = cell_font.render(pv, True, TEXT)
             surface.blit(p_surf, (cx, y + 3))
             surface.blit(cell_font.render(f" {pd}", True, pc), (cx + p_surf.get_width(), y + 3))
             cx += 110
 
-            # 4. Production
-            prv, prd, prc = fmt_delta(prod_cur, prod_prev, decimals=0)
+            prv, prd, prc = fmt_delta(prod_cur, prod_prev, decimals=1)
             pr_surf = cell_font.render(prv, True, TEXT)
             surface.blit(pr_surf, (cx, y + 3))
             surface.blit(cell_font.render(f" {prd}", True, prc), (cx + pr_surf.get_width(), y + 3))
             cx += 120
 
-            # 5. Labor Prod
-            lpv, lpd, lpc = fmt_delta(labor_prod_cur, labor_prod_prev, decimals=2)
-            lp_surf = cell_font.render(lpv, True, TEXT)
-            surface.blit(lp_surf, (cx, y + 3))
-            surface.blit(cell_font.render(f" {lpd}", True, lpc), (cx + lp_surf.get_width(), y + 3))
+            surface.blit(cell_font.render(f"{labor_prod:.2f}/p", True, TEXT), (cx, y + 3))
             cx += 105
 
-            # 6. Inv / Capita
-            icv, icd, icc = fmt_delta(inv_pc_cur, inv_pc_prev, decimals=2)
-            ic_surf = cell_font.render(icv, True, TEXT)
-            surface.blit(ic_surf, (cx, y + 3))
-            surface.blit(cell_font.render(f" {icd}", True, icc), (cx + ic_surf.get_width(), y + 3))
+            surface.blit(cell_font.render(f"{inv_capita:.2f}", True, TEXT), (cx, y + 3))
             cx += 115
 
-            # 7. Inv / Producer
-            ipv, ipd, ipc = fmt_delta(inv_pp_cur, inv_pp_prev, decimals=2)
-            ip_surf = cell_font.render(ipv, True, TEXT)
-            surface.blit(ip_surf, (cx, y + 3))
-            surface.blit(cell_font.render(f" {ipd}", True, ipc), (cx + ip_surf.get_width(), y + 3))
+            surface.blit(cell_font.render(f"{inv_producer:.1f}", True, TEXT), (cx, y + 3))
             cx += 120
 
-            # 8. Demand vs Supply
-            surface.blit(cell_font.render(f"{int(dem_cur)}D / {int(sup_cur)}S", True, TEXT), (cx, y + 3))
+            surface.blit(cell_font.render(f"{dem_cur:.0f} / {sup_cur:.0f}", True, TEXT), (cx, y + 3))
             cx += 130
 
-            # 9. Demand Ratio
             drv, drd, drc = fmt_delta(dr_cur, dr_prev, decimals=2, invert_good=True)
             dr_surf = cell_font.render(drv, True, (240, 150, 60) if dr_cur > 1.3 else TEXT)
             surface.blit(dr_surf, (cx, y + 3))
             surface.blit(cell_font.render(f" {drd}", True, drc), (cx + dr_surf.get_width(), y + 3))
             cx += 95
 
-            # 10. Sector Trade
             sign = "+" if net_good >= 0 else ""
             st_c = GREEN if net_good >= 0 else RED
             surface.blit(cell_font.render(f"{sign}${net_good:,.1f}", True, st_c), (cx, y + 3))
@@ -454,15 +410,51 @@ def draw_tab2_goods(surface, world, box_x, start_y, box_w, box_h, font, cell_fon
 # TAB 3: EXTERNAL SECTOR, FOREX & BANKING
 # =============================================================================
 
-def draw_tab3_fx_banking(surface, world, box_x, start_y, box_w, box_h, font, cell_font, section_font):
-    y = start_y
-    surface.blit(section_font.render("MONETARY, FOREIGN EXCHANGE & PROVINCIAL BANKING ACCOUNTS", True, ACCENT), (box_x + 20, y))
+def draw_tab3_fx_banking(surface, world, box_x, start_y, box_w, box_h, font, cell_font, section_font, mouse_pos=None):
+    active_partner = world.get('compare_fx_partner', 'ALL')
+    nations = world.get('nations', [])
+    mx, my = mouse_pos if mouse_pos else (-1, -1)
+
+    # Sub-selector for Partner Currencies
+    gx = box_x + 20
+    gy = start_y - 8
+
+    # Button 1: All Currencies (NEER Index)
+    is_all = (active_partner == 'ALL')
+    rect_all = (gx, gy, 170, 24)
+    is_hov_all = rect_all[0] <= mx <= rect_all[0] + rect_all[2] and rect_all[1] <= my <= rect_all[1] + rect_all[3]
+    bg_all = ACCENT if is_all else ((44, 44, 58) if is_hov_all else (30, 30, 40))
+    txt_all = (20, 20, 24) if is_all else ((255, 255, 255) if is_hov_all else TEXT)
+    pygame.draw.rect(surface, bg_all, rect_all, border_radius=4)
+    pygame.draw.rect(surface, (80, 80, 100), rect_all, 1, border_radius=4)
+    tsurf_all = cell_font.render("All Currencies (NEER)", True, txt_all)
+    surface.blit(tsurf_all, tsurf_all.get_rect(center=(gx + 85, gy + 12)))
+    gx += 180
+
+    for n in nations:
+        is_sel = (n.currency == active_partner)
+        rect = (gx, gy, 100, 24)
+        is_hov = rect[0] <= mx <= rect[0] + rect[2] and rect[1] <= my <= rect[1] + rect[3]
+        bg = ACCENT if is_sel else ((44, 44, 58) if is_hov else (30, 30, 40))
+        txt_c = (20, 20, 24) if is_sel else ((255, 255, 255) if is_hov else TEXT)
+        pygame.draw.rect(surface, bg, rect, border_radius=4)
+        pygame.draw.rect(surface, (80, 80, 100), rect, 1, border_radius=4)
+        tsurf = cell_font.render(f"vs {n.currency}", True, txt_c)
+        surface.blit(tsurf, tsurf.get_rect(center=(gx + 50, gy + 12)))
+        gx += 110
+
+    y = start_y + 24
+    if active_partner == 'ALL':
+        header_title = "MONETARY & BANKING ACCOUNTS — Nominal Effective Exchange Rate (NEER) & Reserves"
+    else:
+        header_title = f"MONETARY & BANKING ACCOUNTS — Bilateral Forex vs Partner Currency [{active_partner}]"
+    surface.blit(section_font.render(header_title, True, ACCENT), (box_x + 20, y))
     y += 24
 
     cols = [
         ("Territory / Province", 190),
-        ("Forex Mid Quote", 135),
-        ("PPP Gap", 95),
+        ("Forex Quote", 135),
+        ("PPP Gap", 100),
         ("Bank FX Pool", 130),
         ("Foreign Reserves", 145),
         ("Commercial Deposits", 150),
@@ -479,7 +471,6 @@ def draw_tab3_fx_banking(surface, world, box_x, start_y, box_w, box_h, font, cel
         cx += width
     y += 26
 
-    nations = world.get('nations', [])
     row_idx = 0
     row_h = 22
 
@@ -500,18 +491,12 @@ def draw_tab3_fx_banking(surface, world, box_x, start_y, box_w, box_h, font, cel
             total_eq_cur = bank.equity if bank else 0.0
             fx_pool_cur = bank.fx_pool if bank else 0.0
 
-            # Estimate previous turn values
             total_dep_prev = total_dep_cur
             total_eq_prev = total_eq_cur
             fx_pool_prev = fx_pool_cur
 
-            # Reserves total
-            reserves_cur = sum(bank.foreign_reserves.values()) if bank else 0.0
-            reserves_prev = reserves_cur
-
             # Solvency Ratio (Equity / Deposits)
             solvency_cur = (total_eq_cur / max(1.0, total_dep_cur)) * 100.0
-            solvency_prev = solvency_cur
 
             # Aggregate all bilateral Forex desks across tiles in this province
             desks_map = {}
@@ -520,23 +505,58 @@ def draw_tab3_fx_banking(surface, world, box_x, start_y, box_w, box_h, font, cel
                     if getattr(d, 'other', None) and d.other not in desks_map:
                         desks_map[d.other] = d
 
-            if desks_map:
-                quote_parts = []
-                ppp_parts = []
-                for cur_code, d in sorted(desks_map.items()):
-                    rc = d.mid
-                    tgt = getattr(d, 'ppp_target', 1.0)
-                    gap = ((rc - tgt) / max(0.01, tgt)) * 100.0
-                    quote_parts.append(f"{rc:.2f} {cur_code}")
-                    ppp_parts.append(f"{cur_code}:{'+' if gap>=0 else ''}{gap:.0f}%")
-                quote_str = "  ".join(quote_parts)
-                ppp_str = "  ".join(ppp_parts)
+            # Calculate Quote and PPP Gap based on active partner filter
+            if active_partner == 'ALL':
+                # Nominal Effective Exchange Rate Index
+                if desks_map:
+                    rates = [d.mid for d in desks_map.values()]
+                    prev_rates = [d.log[-2][1] if len(d.log) >= 2 else d.mid for d in desks_map.values()]
+                    gaps = [((d.mid - getattr(d, 'ppp_target', 1.0)) / max(0.01, getattr(d, 'ppp_target', 1.0))) * 100.0 for d in desks_map.values()]
+                    rate_cur = sum(rates) / len(rates)
+                    rate_prev = sum(prev_rates) / len(prev_rates)
+                    ppp_gap = sum(gaps) / len(gaps)
+                    qv, qd, qc = fmt_delta(rate_cur * 100.0, rate_prev * 100.0, decimals=1)
+                    quote_str = f"{rate_cur*100.0:.1f} NEER"
+                    ppp_str = f"{'+' if ppp_gap>=0 else ''}{ppp_gap:.1f}%"
+                else:
+                    qv, qd, qc = "100.0 NEER", "-", DIM
+                    quote_str = "100.0 NEER"
+                    ppp_str = "0.0%"
+                    ppp_gap = 0.0
+                res_cur = sum(bank.foreign_reserves.values()) if bank else 0.0
+                res_prev = res_cur
             else:
-                quote_str = "1.00 (Parity)"
-                ppp_str = "0.0%"
+                if n.currency == active_partner:
+                    quote_str = "1.000 (Base)"
+                    qd = "-"
+                    qc = DIM
+                    ppp_str = "-"
+                    ppp_gap = 0.0
+                    res_cur = 0.0
+                    res_prev = 0.0
+                else:
+                    d = desks_map.get(active_partner)
+                    if d:
+                        rate_cur = d.mid
+                        rate_prev = d.log[-2][1] if len(d.log) >= 2 else rate_cur
+                        tgt = getattr(d, 'ppp_target', 1.0)
+                        ppp_gap = ((rate_cur - tgt) / max(0.01, tgt)) * 100.0
+                        qv, qd, qc = fmt_delta(rate_cur, rate_prev, decimals=3)
+                        quote_str = f"{rate_cur:.3f} {n.currency}/{active_partner}"
+                        ppp_str = f"{'+' if ppp_gap>=0 else ''}{ppp_gap:.1f}%"
+                        res_cur = bank.foreign_reserves.get(active_partner, 0.0) if bank else 0.0
+                        res_prev = res_cur
+                    else:
+                        quote_str = "- (No Direct Desk)"
+                        qd = "-"
+                        qc = DIM
+                        ppp_str = "-"
+                        ppp_gap = 0.0
+                        res_cur = 0.0
+                        res_prev = 0.0
 
-            exp_val = sum(sum(v) for r in tiles for v in r.export_val.values())
-            imp_val = sum(sum(v) for r in tiles for v in r.import_val.values())
+            exp_val = sum(v[-1] for r in tiles for v in r.export_val.values() if v)
+            imp_val = sum(v[-1] for r in tiles for v in r.import_val.values() if v)
             net_trade = exp_val - imp_val
 
             row_bg = ROW_BG1 if row_idx % 2 == 0 else ROW_BG2
@@ -550,15 +570,17 @@ def draw_tab3_fx_banking(surface, world, box_x, start_y, box_w, box_h, font, cel
             surface.blit(cell_font.render(f"• {prov.name}", True, p_color), (cx, y + 3))
             cx += 190
 
-            # 2. Forex Mid Quotes (All bilateral pairs)
+            # 2. Forex Mid Quote
             q_surf = cell_font.render(quote_str, True, TEXT)
             surface.blit(q_surf, (cx, y + 3))
-            cx += 140
+            if qd != "-":
+                surface.blit(cell_font.render(f" {qd}", True, qc), (cx + q_surf.get_width(), y + 3))
+            cx += 135
 
-            # 3. PPP Gaps
-            gap_c = GREEN if abs(gap) < 5.0 else (ACCENT if gap > 0 else RED)
-            surface.blit(cell_font.render(ppp_str, True, gap_c), (cx, y + 3))
-            cx += 105
+            # 3. PPP Gap
+            gap_c = GREEN if abs(ppp_gap) < 5.0 else (ACCENT if ppp_gap > 0 else RED)
+            surface.blit(cell_font.render(ppp_str, True, gap_c if ppp_str != "-" else DIM), (cx, y + 3))
+            cx += 100
 
             # 4. Bank FX Pool
             fpv, fpd, fpc = fmt_delta(fx_pool_cur, fx_pool_prev, is_curr=True, decimals=1)
@@ -568,7 +590,7 @@ def draw_tab3_fx_banking(surface, world, box_x, start_y, box_w, box_h, font, cel
             cx += 130
 
             # 5. Foreign Reserves
-            rv, rd, rc = fmt_delta(reserves_cur, reserves_prev, is_curr=True, decimals=1)
+            rv, rd, rc = fmt_delta(res_cur, res_prev, is_curr=True, decimals=1)
             r_surf = cell_font.render(rv, True, TEXT)
             surface.blit(r_surf, (cx, y + 3))
             surface.blit(cell_font.render(f" {rd}", True, rc), (cx + r_surf.get_width(), y + 3))
@@ -639,4 +661,4 @@ def draw_nations_comparison(surface, world, font, font_small, mouse_pos=None):
     elif tab == 2:
         draw_tab2_goods(surface, world, box_x, content_y, box_w, box_h, font, cell_font, section_font, mouse_pos=mouse_pos)
     elif tab == 3:
-        draw_tab3_fx_banking(surface, world, box_x, content_y, box_w, box_h, font, cell_font, section_font)
+        draw_tab3_fx_banking(surface, world, box_x, content_y, box_w, box_h, font, cell_font, section_font, mouse_pos=mouse_pos)

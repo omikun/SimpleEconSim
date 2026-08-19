@@ -146,12 +146,14 @@ def main():
 
                 # 0b. Check if Comparison Table is open
                 if world.get('compare_open'):
-                    tab_hit = compare_tab_hit(event.pos, 30, 20)
+                    tab_hit = compare_tab_hit(event.pos, 30, 20, world=world)
                     if tab_hit is not None:
                         if tab_hit[0] == 'tab':
                             world['compare_tab'] = tab_hit[1]
                         elif tab_hit[0] == 'good':
                             world['compare_good'] = tab_hit[1]
+                        elif tab_hit[0] == 'fx_partner':
+                            world['compare_fx_partner'] = tab_hit[1]
                         continue
                     # Click outside header tabs or outside modal closes it
                     if event.pos[0] < 30 or event.pos[0] > WIDTH - 30 or event.pos[1] < 20 or event.pos[1] > HEIGHT - 20 or event.pos[1] < 48:
@@ -238,6 +240,18 @@ def main():
                         world['compare_good'] = Goods.wood
                     elif event.key == pygame.K_u:
                         world['compare_good'] = Goods.furniture
+                    elif event.key in (pygame.K_0, pygame.K_KP0):
+                        if world.get('compare_tab') == 3:
+                            world['compare_fx_partner'] = 'ALL'
+                    elif event.key == pygame.K_a:
+                        if world.get('compare_tab') == 3:
+                            world['compare_fx_partner'] = 'AL'
+                    elif event.key == pygame.K_b:
+                        if world.get('compare_tab') == 3:
+                            world['compare_fx_partner'] = 'BE'
+                    elif event.key == pygame.K_g:
+                        if world.get('compare_tab') == 3:
+                            world['compare_fx_partner'] = 'GA'
                     elif event.key in (pygame.K_ESCAPE, pygame.K_c):
                         world['compare_open'] = False
                     continue
