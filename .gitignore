@@ -37,6 +37,7 @@ steamreviewscraper.py
 
 # Output artifacts (plots, logs, diagnostics, profiles)
 outputs/
+tmp/
 *.png
 wealth_stacked.png
 wealth_lineage.png
