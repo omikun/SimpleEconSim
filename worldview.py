@@ -34,7 +34,7 @@ from worldview_map import (
 from worldview_ui import (
     PANEL_BG, selected_nation, draw_top_bar, draw_regime_readout,
     draw_panel, draw_ticker, draw_help, draw_zoom_hud, zoom_hud_hit,
-    compare_btn_hit, help_page_hit
+    compare_btn_hit, help_page_hit, get_font
 )
 from worldview_compare import (
     draw_nations_comparison, compare_tab_hit
@@ -43,7 +43,9 @@ from worldview_engine import (
     get_layout, get_reverse_layout, build_world_view, ticker_push, step_world
 )
 
-FPS = 60
+FPS_PLAYING = 60
+FPS_IDLE = 30
+FPS = FPS_PLAYING
 TURN_MS = 150
 BG = (24, 24, 30)
 
@@ -86,8 +88,8 @@ _draw_help = draw_help
 
 def render_frame(surface, world, mouse_pos=None):
     """Draw one full frame (map + top bar + panel + ticker + zoom hud + comparison table + help)."""
-    font = pygame.font.Font(None, 28)
-    font_small = pygame.font.Font(None, 22)
+    font = get_font(28)
+    font_small = get_font(22)
     surface.fill(BG)
     draw_top_bar(surface, world, font_small, mouse_pos=mouse_pos)
     draw_hex_map(surface, world, font, font_small)
@@ -305,7 +307,8 @@ def main():
 
         render_frame(surface, world, mouse_pos=mouse_pos)
         pygame.display.flip()
-        clock.tick(FPS)
+        target_fps = FPS_PLAYING if (world.get('playing') or drag) else FPS_IDLE
+        clock.tick(target_fps)
 
     pygame.quit()
 

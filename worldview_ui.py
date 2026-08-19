@@ -14,6 +14,30 @@ from worldview_compare import draw_nations_comparison, compare_tab_hit
 
 PANEL_BG = (40, 40, 48)
 
+# Cached fonts and overlay surfaces to eliminate frame-rate allocations and high idle CPU
+_FONT_CACHE = {}
+
+
+def get_font(size):
+    """Return cached Pygame font instance for the given point size."""
+    f = _FONT_CACHE.get(size)
+    if f is None:
+        f = pygame.font.Font(None, size)
+        _FONT_CACHE[size] = f
+    return f
+
+
+_OVERLAY_SURFACE = None
+
+
+def get_modal_overlay(width=WIDTH, height=HEIGHT, color=(12, 12, 18, 248)):
+    """Return cached transparent modal overlay surface."""
+    global _OVERLAY_SURFACE
+    if _OVERLAY_SURFACE is None:
+        _OVERLAY_SURFACE = pygame.Surface((width, height), pygame.SRCALPHA)
+        _OVERLAY_SURFACE.fill(color)
+    return _OVERLAY_SURFACE
+
 # Zoom HUD button rectangles: (x, y, w, h)
 ZOOM_BTN_IN = (MAP_RIGHT - 110, TOP_BAR_H + 12, 30, 26)
 ZOOM_BTN_OUT = (MAP_RIGHT - 75, TOP_BAR_H + 12, 30, 26)
@@ -360,13 +384,11 @@ def draw_help(surface, world, font_small, mouse_pos=None):
     if not world.get('help_open', False):
         return
 
-    title_font = pygame.font.Font(None, 30)
-    header_font = pygame.font.Font(None, 23)
-    item_font = pygame.font.Font(None, 20)
+    title_font = get_font(30)
+    header_font = get_font(23)
+    item_font = get_font(20)
 
-    overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
-    overlay.fill((12, 12, 18, 248))
-    surface.blit(overlay, (0, 0))
+    surface.blit(get_modal_overlay(), (0, 0))
 
     cur_page = world.get('help_page', 1)
 

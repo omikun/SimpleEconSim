@@ -36,14 +36,16 @@ from worldview_map import (
 )
 from worldview_ui import (
     PANEL_BG, selected_nation as _selected_nation,
-    draw_regime_readout as _draw_regime_readout
+    draw_regime_readout as _draw_regime_readout, get_font
 )
 
 WIDTH, HEIGHT = 1200, 800
 MAP_RIGHT = 860
 PANEL_LEFT = MAP_RIGHT + 12
 HEX_SIZE = 55
-FPS = 60
+FPS_PLAYING = 60
+FPS_IDLE = 30
+FPS = FPS_PLAYING
 TURN_MS = 150
 TOP_BAR_H = 52
 BG = (28, 28, 34)
@@ -256,8 +258,8 @@ def _draw_panel(surface, world, font, font_small):
 
 
 def render_frame(surface, world):
-    font = pygame.font.Font(None, 28)
-    font_small = pygame.font.Font(None, 22)
+    font = get_font(28)
+    font_small = get_font(22)
     surface.fill(BG)
     _draw_top_bar(surface, world, font_small)
     _draw_hex_map(surface, world, font, font_small)
@@ -312,7 +314,8 @@ def main():
 
         render_frame(surface, world)
         pygame.display.flip()
-        clock.tick(FPS)
+        target_fps = FPS_PLAYING if world.get('playing') else FPS_IDLE
+        clock.tick(target_fps)
 
     pygame.quit()
 

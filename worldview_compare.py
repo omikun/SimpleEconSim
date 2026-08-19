@@ -627,18 +627,38 @@ def draw_tab3_fx_banking(surface, world, box_x, start_y, box_w, box_h, font, cel
 # MAIN WINDOW CONTROLLER
 # =============================================================================
 
+_FONT_CACHE = {}
+
+
+def _get_font(size):
+    f = _FONT_CACHE.get(size)
+    if f is None:
+        f = pygame.font.Font(None, size)
+        _FONT_CACHE[size] = f
+    return f
+
+
+_OVERLAY_SURFACE = None
+
+
+def _get_overlay():
+    global _OVERLAY_SURFACE
+    if _OVERLAY_SURFACE is None:
+        _OVERLAY_SURFACE = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+        _OVERLAY_SURFACE.fill((12, 12, 18, 248))
+    return _OVERLAY_SURFACE
+
+
 def draw_nations_comparison(surface, world, font, font_small, mouse_pos=None):
     """Render full-screen 3-tab comparison overlay."""
     if not world.get('compare_open', False):
         return
 
-    title_font = pygame.font.Font(None, 30)
-    section_font = pygame.font.Font(None, 23)
-    cell_font = pygame.font.Font(None, 19)
+    title_font = _get_font(30)
+    section_font = _get_font(23)
+    cell_font = _get_font(19)
 
-    overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
-    overlay.fill((12, 12, 18, 248))
-    surface.blit(overlay, (0, 0))
+    surface.blit(_get_overlay(), (0, 0))
 
     # Modal Box Window
     box_x, box_y, box_w, box_h = 30, 20, WIDTH - 60, HEIGHT - 40
