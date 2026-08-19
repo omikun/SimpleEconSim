@@ -43,9 +43,7 @@ from worldview_engine import (
     get_layout, get_reverse_layout, build_world_view, ticker_push, step_world
 )
 
-FPS_PLAYING = 60
-FPS_IDLE = 30
-FPS = FPS_PLAYING
+FPS_ACTIVE = 60
 TURN_MS = 150
 BG = (24, 24, 30)
 
@@ -85,6 +83,11 @@ _draw_panel = draw_panel
 _draw_ticker = draw_ticker
 _draw_help = draw_help
 
+# Backward-compatibility aliases for old FPS constants
+FPS_PLAYING = FPS_ACTIVE
+FPS_IDLE = 30
+FPS = FPS_ACTIVE
+
 
 def render_frame(surface, world, mouse_pos=None):
     """Draw one full frame (map + top bar + panel + ticker + zoom hud + comparison table + help)."""
@@ -98,6 +101,11 @@ def render_frame(surface, world, mouse_pos=None):
     draw_ticker(surface, world, font_small)
     draw_nations_comparison(surface, world, font, font_small, mouse_pos=mouse_pos)
     draw_help(surface, world, font_small, mouse_pos=mouse_pos)
+
+
+def _mark_dirty(world):
+    """Centralized helper to flag that a redraw is needed."""
+    world['needs_redraw'] = True
 
 
 def main():
@@ -121,6 +129,7 @@ def main():
     clock = pygame.time.Clock()
 
     world = build_world_view(seed=seed)
+    world['needs_redraw'] = True
     pops_history.clear()
     for r in world['tiles']:
         if getattr(r, 'owner_nation', None) is not None:
@@ -129,13 +138,44 @@ def main():
     last_tick = pygame.time.get_ticks()
     running = True
     drag = False
+
+    # Custom timer event for auto-play ticks (fires every TURN_MS when playing)
+    AUTOPLAY_TIMER = pygame.USEREVENT + 1
+
     while running:
+        # ── Event acquisition ──────────────────────────────────────────
+        # Three modes:
+        #  1. Modal open (compare/help) — static overlay, block thread → 0% CPU
+        #  2. Active (playing or dragging) — poll at 60 FPS
+        #  3. Idle, no modal — trade animation runs, poll at 30 FPS
+        modal_open = world.get('compare_open') or world.get('help_open')
+        is_active = world.get('playing') or drag
+        if modal_open:
+            # Static overlay — nothing animates, block until user does something.
+            first = pygame.event.wait()
+            events = [first] + list(pygame.event.get())
+        elif is_active:
+            events = pygame.event.get()
+            clock.tick(FPS_ACTIVE)
+        else:
+            # Idle but trade animation still runs — tick at 30 FPS.
+            events = pygame.event.get()
+            clock.tick(30)
+
         now = pygame.time.get_ticks()
         mouse_pos = pygame.mouse.get_pos()
-        for event in pygame.event.get():
+
+        for event in events:
             if event.type == pygame.QUIT:
                 running = False
+            elif event.type == pygame.VIDEOEXPOSE:
+                _mark_dirty(world)
+            elif event.type == pygame.ACTIVEEVENT:
+                _mark_dirty(world)
+            elif event.type == pygame.WINDOWEVENT if hasattr(pygame, 'WINDOWEVENT') else False:
+                _mark_dirty(world)
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                _mark_dirty(world)
                 # 0a. Check if Help Guide is open
                 if world.get('help_open'):
                     p_hit = help_page_hit(event.pos)
@@ -197,19 +237,26 @@ def main():
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button in (2, 3):
                 # Middle or Right mouse drag to pan
                 drag = True
+                _mark_dirty(world)
             elif event.type == pygame.MOUSEBUTTONUP and event.button in (2, 3):
                 drag = False
-            elif event.type == pygame.MOUSEMOTION and drag:
-                dx, dy = event.rel
-                world['cam']['ox'] += dx
-                world['cam']['oy'] += dy
-                clamp_cam(world)
+                _mark_dirty(world)
+            elif event.type == pygame.MOUSEMOTION:
+                if drag:
+                    dx, dy = event.rel
+                    world['cam']['ox'] += dx
+                    world['cam']['oy'] += dy
+                    clamp_cam(world)
+                    _mark_dirty(world)
+                # Hover detection handled below (batched after all events)
             elif event.type == pygame.MOUSEWHEEL:
                 mx, my = pygame.mouse.get_pos()
                 if mx < MAP_RIGHT:
                     factor = 1.15 ** event.y
                     zoom_cam_at(world, factor, mx, my)
+                    _mark_dirty(world)
             elif event.type == pygame.KEYDOWN:
+                _mark_dirty(world)
                 # If help guide is open, intercept page keys
                 if world.get('help_open'):
                     if event.key in (pygame.K_1, pygame.K_KP1, pygame.K_PAGEUP, pygame.K_LEFT):
@@ -267,6 +314,7 @@ def main():
                 elif event.key in (pygame.K_n, pygame.K_PERIOD):
                     world['playing'] = False
                     step_world(world)
+                    _mark_dirty(world)
                 elif event.key == pygame.K_TAB:
                     world['view'] = 0
                 elif event.key == pygame.K_v:
@@ -295,20 +343,36 @@ def main():
                 elif event.key == pygame.K_MINUS:
                     zoom_cam_at(world, 1.0 / 1.15, MAP_RIGHT // 2, HEIGHT // 2)
 
+        # ── Auto-play simulation tick ──────────────────────────────────
         if world['playing'] and now - last_tick >= TURN_MS:
             step_world(world)
             last_tick = now
-        world['frame'] = (world.get('frame', 0) + 1) % 600
+            _mark_dirty(world)
 
+        # ── Frame counter: always advance for trade animation ──────────
+        # When a modal is open we skip advancing (nothing animates behind it).
+        if not modal_open:
+            world['frame'] = (world.get('frame', 0) + 1) % 600
+
+        # ── Hover detection: only redraw if hovered region changed ─────
+        prev_hover = world.get('hover_region')
         world['hover_region'] = None
         mx, my = mouse_pos
         if mx < MAP_RIGHT and TOP_BAR_H <= my <= HEIGHT - TICKER_H:
             world['hover_region'] = tile_at(world, mx, my)
+        if world['hover_region'] is not prev_hover:
+            _mark_dirty(world)
 
-        render_frame(surface, world, mouse_pos=mouse_pos)
-        pygame.display.flip()
-        target_fps = FPS_PLAYING if (world.get('playing') or drag) else FPS_IDLE
-        clock.tick(target_fps)
+        # ── Animation tick: always redraw when no modal is blocking ─────
+        # This keeps trade dots and any future animations alive at idle.
+        if not modal_open:
+            _mark_dirty(world)
+
+        # ── Render only when dirty ─────────────────────────────────────
+        if world.get('needs_redraw'):
+            render_frame(surface, world, mouse_pos=mouse_pos)
+            pygame.display.flip()
+            world['needs_redraw'] = False
 
     pygame.quit()
 
