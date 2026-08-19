@@ -34,6 +34,23 @@ DEMAND_WOOD_C = (180, 220, 90)
 DEMAND_FURN_C = (130, 175, 245)
 
 
+# Game-level moving average parameter for GDP and Gov Income charts
+GDP_GOV_MA_WINDOW = 10
+MA_WINDOW = GDP_GOV_MA_WINDOW
+
+
+def moving_average(series, window=GDP_GOV_MA_WINDOW):
+    """Calculate moving average of the last `window` rounds or num rounds so far."""
+    if not series:
+        return []
+    res = []
+    for i in range(len(series)):
+        start = max(0, i - window + 1)
+        sub = series[start:i + 1]
+        res.append(sum(sub) / len(sub))
+    return res
+
+
 def sum_turns(lists):
     """Per-turn totals across a list of equal-length per-turn series."""
     n = max((len(s) for s in lists), default=0)
@@ -58,12 +75,12 @@ def tile_charts(region):
                                                     Goods.furniture)]
     gov = getattr(region, 'gov', None)
     income = getattr(gov, 'income_log', []) if gov is not None else []
-    tax = [e.get('tax', 0.0) for e in income]
-    tariff = [e.get('tariff', 0.0) for e in income]
-    inherit = [e.get('inheritance', 0.0) for e in income]
+    tax = moving_average([e.get('tax', 0.0) for e in income])
+    tariff = moving_average([e.get('tariff', 0.0) for e in income])
+    inherit = moving_average([e.get('inheritance', 0.0) for e in income])
 
     protest = region.protest_energy_log or []
-    gdp = region.gdp_log or []
+    gdp = moving_average(region.gdp_log or [])
 
     return [
         ("1. Prices", "line",
