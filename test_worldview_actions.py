@@ -100,6 +100,54 @@ class TestWorldviewActionsUI(unittest.TestCase):
         self.assertEqual(world['turn'], 50)
         print("Completed 50 turns of worldview stepping and rendering with 0 errors.")
 
+    def test_continuous_landmass_and_ocean_isolation(self):
+        """Verify that landmass is a single continuous component and ocean tiles have 0 agents/claims."""
+        from collections import deque
+        from hexmap import rectangular_hex_layout, axial_neighbors, axial_to_offset
+        from worldview_engine import step_world
+        
+        world = self.world
+        tiles = world['tiles']
+        nations = world['nations']
+        layout = world['layout']
+
+        # 1. Verify no nation started on an ocean tile
+        for n in nations:
+            for tile in n.tiles:
+                self.assertFalse(getattr(tile, 'is_ocean', False), f"Nation {n.name} claimed ocean tile {tile.name}")
+                self.assertGreaterEqual(getattr(tile, 'elevation', 0.0), 0.0, f"Nation {n.name} tile {tile.name} is below sea level")
+
+        # 2. Verify all land tiles form a single continuous component
+        land_tiles = {t.name for t in tiles if not getattr(t, 'is_ocean', False) and getattr(t, 'elevation', 0.0) >= 0.0}
+        self.assertGreater(len(land_tiles), 20, "Continent should have substantial land tiles.")
+        
+        # BFS traversal across land tiles
+        start = next(iter(land_tiles))
+        visited = {start}
+        queue = deque([start])
+        while queue:
+            curr_name = queue.popleft()
+            q, axr = layout[curr_name]
+            for nq, nar in axial_neighbors(q, axr):
+                nc, nr = axial_to_offset(nq, nar)
+                n_name = f"r{nr}c{nc}"
+                if n_name in land_tiles and n_name not in visited:
+                    visited.add(n_name)
+                    queue.append(n_name)
+
+        self.assertEqual(len(visited), len(land_tiles), "All land tiles must form ONE single continuous connected landmass.")
+
+        # 3. Step 30 turns and verify no agent ever enters or claims an ocean tile
+        for t in range(1, 31):
+            step_world(world)
+
+        for tile in tiles:
+            if getattr(tile, 'is_ocean', False) or getattr(tile, 'elevation', 0.0) < 0.0:
+                self.assertEqual(len(tile.agents), 0, f"Ocean tile {tile.name} should have 0 agents, found {len(tile.agents)}")
+                self.assertIsNone(getattr(tile, 'owner_nation', None), f"Ocean tile {tile.name} should never be claimed")
+
+        print("Verified 100% single continuous landmass connectivity and complete ocean isolation.")
+
 
 if __name__ == "__main__":
     unittest.main()

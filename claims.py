@@ -81,7 +81,7 @@ def check_and_apply_claims(t, tiles, nations):
     nation_map = {n.name: n for n in nations}
 
     for tile in tiles:
-        if not getattr(tile, 'wilderness', False):
+        if not getattr(tile, 'wilderness', False) or getattr(tile, 'is_ocean', False) or getattr(tile, 'elevation', 0.0) < 0.0:
             continue
 
         homesteaders = [a for a in tile.agents if getattr(a, 'is_homesteader', False) and getattr(a, 'alive', True)]

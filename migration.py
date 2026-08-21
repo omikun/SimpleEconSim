@@ -77,7 +77,7 @@ def _pick_destination(source, agent):
     best_foreign = None
     best_same = None
     for other in source.neighbors.values():
-        if other is source:
+        if other is source or getattr(other, 'is_ocean', False) or getattr(other, 'elevation', 0.0) < 0.0:
             continue
         if getattr(other, 'wilderness', False):
             if best_wild is None:

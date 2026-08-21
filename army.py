@@ -176,7 +176,7 @@ def step_armies(tiles: list, nations: list, t: int = 0) -> list[dict]:
             if deserters > 0 and region is not None:
                 # Look for adjacent wilderness tiles
                 wild_neighbors = [other for other in region.neighbors.values()
-                                  if getattr(other, 'wilderness', False)]
+                                  if getattr(other, 'wilderness', False) and not getattr(other, 'is_ocean', False) and getattr(other, 'elevation', 0.0) >= 0.0]
 
                 for _ in range(deserters):
                     deserter_agent = Agent(t)

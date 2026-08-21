@@ -67,9 +67,9 @@ def settle_wilderness(trader, tile, t):
       3. Track the per-(trader, tile) value differential; when collected
          value > loaned value, pay HALF the surplus to the homesteaders'
          wallets at market rate.
-
-    All legs are transfers.  Returns {sold_value, collected_value, paid}.
     """
+    if getattr(tile, 'is_ocean', False) or getattr(tile, 'elevation', 0.0) < 0.0:
+        return {'sold_value': 0.0, 'collected_value': 0.0, 'paid': 0.0}
     home_currency = trader.home_currency
     # ---- 1. Sell: loan goods to homesteaders on credit ----
     sold_value = 0.0

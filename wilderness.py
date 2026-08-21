@@ -33,21 +33,9 @@ FORAGE_INTERVAL = 3
 # =============================================================================
 
 def enter_wilderness(region, agent, t):
-    """Land *agent* on an unclaimed tile (homesteader status begins).
-
-    - hand cash -> FX wallet under the agent's current home currency (the
-      tile has no bank / no domestic currency),
-    - ``is_homesteader=True``, ``homestead_since=t``,
-    - ``home_currency=None``, ``_bank_ref=None``.
-
-    Conservation: ``agent.cash`` falls by exactly the amount added to the
-    wallet, so ``forex.audit_currency_total`` (which sums every agent's FX
-    wallets across all tiles regardless of residence) sees the same total.
-
-    Caller must remove *agent* from its previous region's ``agents`` list
-    (migration.py / settlement drivers do this).
-    Returns the cash walletized.
-    """
+    """Land *agent* on an unclaimed tile (homesteader status begins)."""
+    if getattr(region, 'is_ocean', False) or getattr(region, 'elevation', 0.0) < 0.0:
+        return 0.0
     moved = 0.0
     if agent.cash > 0 and agent.home_currency:
         moved = fx.walletize(agent, agent.home_currency)
@@ -98,13 +86,9 @@ def enter_claimed(region, agent, t):
 # =============================================================================
 
 def forage(region, t):
-    """Homesteaders on an unclaimed tile forage (+1 food) on schedule.
-
-    Only ``is_homesteader`` agents get food, and only on a wilderness tile
-    (callers gate on ``region.wilderness``).  Foraging is the sole goods
-    creation on unclaimed land — no production, births, consumption, or
-    death (natives are a non-ticking scalar).  Returns units foraged.
-    """
+    """Homesteaders on an unclaimed tile forage (+1 food) on schedule."""
+    if getattr(region, 'is_ocean', False) or getattr(region, 'elevation', 0.0) < 0.0:
+        return 0
     foraged = 0
     for a in region.agents:
         if not getattr(a, 'is_homesteader', False):

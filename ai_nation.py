@@ -163,7 +163,7 @@ class NationPolicyAI:
         candidates = set()
         for own_tile in self.nation.tiles:
             for neighbor in own_tile.neighbors.values():
-                if getattr(neighbor, 'owner_nation', None) is not self.nation:
+                if getattr(neighbor, 'owner_nation', None) is not self.nation and not getattr(neighbor, 'is_ocean', False) and getattr(neighbor, 'elevation', 0.0) >= 0.0:
                     candidates.add(neighbor)
 
         for tile in candidates:

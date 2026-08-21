@@ -95,25 +95,31 @@ def build_world(seed=None):
             tiles.append(tile)
         grid.append(row)
 
-    # ---- Nations claim contiguous hex clusters (disjoint) ----
+    # ---- Apply realistic elevation heightmap and continuous landmass ----
+    from heightmap import apply_heightmap_to_world
+    apply_heightmap_to_world(tiles, seed=seed if seed is not None else 42, grid_rows=GRID_ROWS, grid_cols=GRID_COLS)
+
+    # Ensure ocean tiles have 0 natives and 0 agents
+    for t in tiles:
+        if getattr(t, 'is_ocean', False):
+            t.wilderness_pop = 0
+            t.agents = []
+
+    # ---- Nations claim contiguous hex clusters (disjoint, strictly on land) ----
     # Sizes are locked with the user: Alpha 3, Beta 4, Gamma 5 tiles.
     claimed_by = {"Alpha": ("AL", 3), "Beta": ("BE", 4), "Gamma": ("GA", 5)}
     nations = []
 
-    def _unclaimed_cells():
+    def _unclaimed_land_cells():
         return {(r, c) for r in range(GRID_ROWS) for c in range(GRID_COLS)
-                if getattr(grid[r][c], 'owner_nation', None) is None}
+                if getattr(grid[r][c], 'owner_nation', None) is None and not getattr(grid[r][c], 'is_ocean', False)}
 
     for nname, (cur, n_tiles) in claimed_by.items():
         n = Nation(nname, currency=cur,
                    regime_type="autocracy" if nname != "Gamma" else "democracy")
         nations.append(n)
-        open_cells = _unclaimed_cells()
-        # BFS cluster growth: seed at a random unclaimed cell, then keep
-        # absorbing random unclaimed hex-adjacent cells until the target
-        # size is reached.  This keeps every nation's starting tiles in ONE
-        # connected component (the hex adjacency is computed via the same
-        # odd-r layout used by the wiring pass below).
+        open_cells = _unclaimed_land_cells()
+        # BFS cluster growth strictly on land tiles in the central continent
         seed_r, seed_c = random.choice(sorted(open_cells))
         cluster = [(seed_r, seed_c)]
         frontier = [(seed_r, seed_c)]
@@ -127,6 +133,8 @@ def build_world(seed=None):
                     nc, nr = axial_to_offset(nq, nar)
                     if not (0 <= nr < GRID_ROWS and 0 <= nc < GRID_COLS):
                         continue
+                    if getattr(grid[nr][nc], 'is_ocean', False):
+                        continue
                     key = (nr, nc)
                     if key in seen or getattr(grid[nr][nc], 'owner_nation', None) is not None:
                         continue
@@ -139,8 +147,7 @@ def build_world(seed=None):
                 if len(cluster) >= n_tiles:
                     break
             if not grown:
-                # Full grid is an edge case; fall back to any unclaimed cell.
-                rest = sorted(_unclaimed_cells() - seen)
+                rest = sorted(_unclaimed_land_cells() - seen)
                 if not rest:
                     break
                 extra = rest[0]
@@ -212,9 +219,6 @@ def build_world(seed=None):
             r._init_trader_wealth = trader_wealth(r)
         else:
             r._init_trader_wealth = 0.0
-
-    from heightmap import apply_heightmap_to_world
-    apply_heightmap_to_world(tiles, seed=seed if seed is not None else 42, grid_rows=GRID_ROWS, grid_cols=GRID_COLS)
 
     return tiles, nations, grid
 
