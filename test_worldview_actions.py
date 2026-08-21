@@ -78,26 +78,28 @@ class TestWorldviewActionsUI(unittest.TestCase):
         world['player_nation_name'] = 'Alpha'
         diplomacy = get_diplomacy()
 
-        # Target button for Beta:
-        # box_x = 24, box_w = 1400 - 48 = 1352, card_w = 1312
-        # bx = 24 + 1312 - 530 = 806
-        # by = 16 + 128 + 36 + 36 = 216
+        # Target buttons for Beta (Card 1):
+        # card_y = 16 + 128 + 36 = 180
+        # btn_x1 = 24 + 1312 - 510 = 826 (width 240) -> [826..1066]
+        # btn_x2 = 24 + 1312 - 250 = 1086 (width 240) -> [1086..1326]
+        # row1_y = 180 + 16 = 196 (height 36) -> [196..232]
+        # row2_y = 180 + 64 = 244 (height 36) -> [244..280]
         
-        # 1. Propose Trade Pact (bx = 806, by = 216)
-        hit = actions_tab_hit((820, 220), 24, 16, world)
+        # 1. Propose Trade Pact (Top Left: x=900, y=210)
+        hit = actions_tab_hit((900, 210), 24, 16, world)
         self.assertTrue(hit, "Trade pact click should register.")
         self.assertIsNotNone(world.get('action_feedback'))
         print(f"Trade click feedback: {world.get('action_feedback')}")
 
-        # 2. Declare War (bx + 390 = 1196, by = 216)
-        hit = actions_tab_hit((1210, 220), 24, 16, world)
+        # 2. Declare War (Bottom Right: x=1150, y=260)
+        hit = actions_tab_hit((1150, 260), 24, 16, world)
         self.assertTrue(hit, "Declare war click should register.")
         self.assertTrue(diplomacy.are_at_war('Alpha', 'Beta'), "Alpha and Beta should now be at war.")
         self.assertIsNotNone(world.get('action_feedback'))
         print(f"War declaration feedback: {world.get('action_feedback')}")
 
-        # 3. Sign Peace (bx + 390 = 1196, by = 216)
-        hit = actions_tab_hit((1210, 220), 24, 16, world)
+        # 3. Sign Peace (Bottom Right: x=1150, y=260)
+        hit = actions_tab_hit((1150, 260), 24, 16, world)
         self.assertTrue(hit, "Sign peace click should register.")
         self.assertFalse(diplomacy.are_at_war('Alpha', 'Beta'), "Alpha and Beta should no longer be at war.")
         print(f"Peace signing feedback: {world.get('action_feedback')}")
