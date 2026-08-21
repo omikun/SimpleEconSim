@@ -1,8 +1,18 @@
 """
-Hexagonal map rendering, terrain glyphs, population heatmaps, trade animations, and status badges.
-Multi-province color highlighting for the selected nation.
+worldview_map.py — Realistic Topographic Elevation Hex Map Rendering for REGNUM.
+
+Renders realistic procedural terrain heightmaps with:
+- Deep & Shallow Ocean with water ripples and depth colormaps
+- Coastal Lowlands & Plains
+- Highland Forests & Steppes with tree canopy clusters
+- Rolling Hills with topographic contour lines
+- Shaded Relief Rocky Mountain Ranges
+- Glacial Snow-Capped Alpine Summits
+- Translucent Nation & Multi-Province Territory Highlighting (elevation peeks through below UI text)
+- Crisp Text Rendering with altitude badges (e.g. ▲ 1,840m, ≈ -450m)
 """
 
+import math
 import pygame
 from goods import Goods
 from hexmap import hex_corners
@@ -26,14 +36,14 @@ PROVINCE_COLORS = [
     (230, 230, 90),   # 8. Bright Lime Yellow
 ]
 
-WILD_COLOR = (96, 96, 100)
-WILD_EDGE = (70, 70, 76)
-HEX_EDGE = (20, 20, 20)
-TEXT = (235, 235, 235)
-DIM = (170, 170, 180)
+WILD_COLOR = (70, 75, 80)
+WILD_EDGE = (45, 50, 58)
+HEX_EDGE = (24, 24, 30)
+TEXT = (245, 245, 250)
+DIM = (185, 190, 200)
 RED = (235, 90, 90)
-GREEN = (120, 210, 120)
-ACCENT = (240, 200, 90)
+GREEN = (120, 220, 130)
+ACCENT = (245, 210, 95)
 EDGE_LINE = (58, 58, 68)
 
 BADGE_ORANGE = (240, 150, 60)
@@ -74,41 +84,150 @@ def homesteaders(region):
 
 def tile_stats(region):
     """Summary lines printed on each hex (claimed vs unclaimed)."""
+    elev = getattr(region, 'elevation_meters', 0)
+    biome = getattr(region, 'biome', 'plains')
+
+    # Elevation label line
+    if elev < 0:
+        elev_str = f"≈ {elev:,}m"
+    elif elev >= 2000:
+        elev_str = f"▲ {elev:,}m"
+    else:
+        elev_str = f"▲ {elev:,}m"
+
     if getattr(region, 'owner_nation', None) is None:
         hs = homesteaders(region)
         wild = getattr(region, 'wilderness_pop', 0)
-        return f"hs {hs}+{wild}n", f"food --", ""
+        return elev_str, f"hs {hs}+{wild}n", ""
+    
     pop = region_pop(region)
-    food = region.recipes[Goods.food]['price']
-    traders = sum(1 for a in region.agents if a.is_trader)
-    return f"pop {pop}", f"food ${food:.2f}", f"tr {traders}"
+    food = region.recipes[Goods.food]['price'] if hasattr(region, 'recipes') and Goods.food in region.recipes else 1.0
+    traders = sum(1 for a in region.agents if getattr(a, 'is_trader', False))
+    return elev_str, f"pop {pop}  fd ${food:.1f}", f"tr {traders}" if traders > 0 else ""
+
+
+def draw_elevation_terrain(surface, region, pts, cx, cy, zoom=1.0, frame=0):
+    """Draw realistic shaded-relief elevation terrain with ocean, hills, and mountain vectors."""
+    # 1. Base terrain color (incorporates continuous elevation and shaded relief hillshading)
+    base_color = getattr(region, 'terrain_color', (65, 135, 75))
+    pygame.draw.polygon(surface, base_color, pts)
+
+    biome = getattr(region, 'biome', 'plains')
+    elev = getattr(region, 'elevation', 0.0)
+
+    # 2. Ocean Waves and Water Depth Shimmer (< 0.0)
+    if elev < 0.0 or biome in ('deep_ocean', 'shallow_ocean'):
+        wave_color = (65, 140, 190, 80) if biome == 'shallow_ocean' else (35, 80, 140, 60)
+        # Draw subtle wave lines
+        for dy in (-18, 0, 18):
+            wy = cy + int(dy * zoom)
+            wx1 = cx - int(24 * zoom)
+            wx2 = cx + int(24 * zoom)
+            phase = math.sin(frame * 0.08 + cx * 0.05 + dy) * 3 * zoom
+            pygame.draw.line(surface, wave_color[:3], (wx1, wy + int(phase)), (wx2, wy + int(phase)), 1)
+        return
+
+    # 3. Mountain Ranges and Snow-Capped Summits (>= 0.70)
+    if biome in ('mountains', 'snow_peaks') or elev >= 0.70:
+        is_snow = (biome == 'snow_peaks' or elev >= 0.88)
+        
+        # Central Mountain Peak Polygon
+        peak_top = (cx, cy - int(38 * zoom))
+        peak_left = (cx - int(28 * zoom), cy + int(10 * zoom))
+        peak_right = (cx + int(28 * zoom), cy + int(10 * zoom))
+        peak_mid = (cx + int(2 * zoom), cy + int(12 * zoom))
+
+        # Northwest Sunlit Face
+        sunlit_col = (195, 195, 205) if is_snow else (160, 155, 165)
+        pygame.draw.polygon(surface, sunlit_col, [peak_top, peak_left, peak_mid])
+
+        # Southeast Shadowed Face
+        shadow_col = (135, 135, 150) if is_snow else (95, 90, 100)
+        pygame.draw.polygon(surface, shadow_col, [peak_top, peak_mid, peak_right])
+
+        # Snow Cap
+        if is_snow:
+            snow_mid = (cx, cy - int(22 * zoom))
+            snow_left = (cx - int(12 * zoom), cy - int(18 * zoom))
+            snow_right = (cx + int(12 * zoom), cy - int(18 * zoom))
+            pygame.draw.polygon(surface, (248, 252, 255), [peak_top, snow_left, snow_mid, snow_right])
+
+        # Secondary Mountain Ridge
+        sec_top = (cx + int(16 * zoom), cy - int(26 * zoom))
+        sec_left = (cx + int(2 * zoom), cy + int(6 * zoom))
+        sec_right = (cx + int(32 * zoom), cy + int(6 * zoom))
+        pygame.draw.polygon(surface, (150, 145, 155), [sec_top, sec_left, sec_right])
+        return
+
+    # 4. Rolling Hills & Plateaus (0.45 to 0.70)
+    if biome == 'hills' or 0.45 <= elev < 0.70:
+        hill_sun = (155, 142, 102)
+        hill_shadow = (115, 102, 75)
+        # Two overlapping gentle rounded hill silhouettes
+        h1_center = (cx - int(10 * zoom), cy - int(6 * zoom))
+        pygame.draw.arc(surface, hill_sun, (h1_center[0] - int(20*zoom), h1_center[1] - int(14*zoom), int(40*zoom), int(28*zoom)), 0.2, 2.9, 2)
+        h2_center = (cx + int(12 * zoom), cy - int(2 * zoom))
+        pygame.draw.arc(surface, hill_shadow, (h2_center[0] - int(18*zoom), h2_center[1] - int(12*zoom), int(36*zoom), int(24*zoom)), 0.2, 2.9, 2)
+        return
+
+    # 5. Highland Forests (0.20 to 0.45)
+    if biome == 'forest' or 0.20 <= elev < 0.45:
+        tree_color = (38, 85, 45)
+        # Draw small vector evergreen tree clusters
+        for ox, oy in [(-14, -8), (0, -14), (14, -6), (-6, 4), (8, 6)]:
+            tx = cx + int(ox * zoom)
+            ty = cy + int(oy * zoom)
+            t_pts = [(tx, ty - int(8*zoom)), (tx - int(5*zoom), ty + int(4*zoom)), (tx + int(5*zoom), ty + int(4*zoom))]
+            pygame.draw.polygon(surface, tree_color, t_pts)
+
+
+def draw_nation_overlay(surface, region, pts):
+    """Draw semi-transparent nation territory tint so realistic elevation peeks through."""
+    owner = getattr(region, 'owner_nation', None)
+    if owner is None:
+        return
+
+    col = NATION_COLORS.get(owner.name, (180, 180, 180))
+    # Population brightness factor
+    pop = region_pop(region)
+    f = min(0.35, 0.15 * (pop / 400.0))
+    extra = int(40 * f)
+
+    # Semi-transparent overlay surface
+    # Calculate bounding box of polygon points
+    min_x = min(p[0] for p in pts)
+    max_x = max(p[0] for p in pts)
+    min_y = min(p[1] for p in pts)
+    max_y = max(p[1] for p in pts)
+    w = max(1, int(max_x - min_x) + 2)
+    h = max(1, int(max_y - min_y) + 2)
+
+    tint_surf = pygame.Surface((w, h), pygame.SRCALPHA)
+    local_pts = [(p[0] - min_x, p[1] - min_y) for p in pts]
+    
+    # Soft nation alpha wash (alpha = 55)
+    tint_color = (min(255, col[0] + extra), min(255, col[1] + extra), min(255, col[2] + extra), 60)
+    pygame.draw.polygon(tint_surf, tint_color, local_pts)
+    surface.blit(tint_surf, (min_x, min_y))
+
+
+def draw_pop_heat(surface, region, pts, cx, cy, zoom=1.0, frame=0):
+    """Draw elevation terrain and nation overlay for a hex."""
+    draw_elevation_terrain(surface, region, pts, cx, cy, zoom=zoom, frame=frame)
+    draw_nation_overlay(surface, region, pts)
 
 
 def draw_terrain_glyph(surface, region, cx, cy):
-    """Small vector terrain markers under the hex center."""
-    y = cy + 22
+    """Small vector resource markers for high-yield food/wood/cold tiles."""
+    y = cy + 26
     if region.terrain.get(Goods.food, 1.0) > 1.3:
-        pts = [(cx, y - 8), (cx - 9, y + 6), (cx + 9, y + 6)]
+        pts = [(cx - 10, y - 6), (cx - 16, y + 4), (cx - 4, y + 4)]
         pygame.draw.polygon(surface, (240, 200, 90), pts)
     if region.terrain.get(Goods.wood, 1.0) > 1.3:
-        pts = [(cx, y - 8), (cx - 9, y + 6), (cx + 9, y + 6)]
-        pygame.draw.polygon(surface, (110, 190, 110), pts)
-    if region.climate == 'cold':
-        pygame.draw.circle(surface, (240, 245, 250), (cx, y), 4)
-
-
-def draw_pop_heat(surface, region, pts, cx, cy):
-    """Brighten the hex fill by population density (claimed tiles only)."""
-    if getattr(region, 'owner_nation', None) is None:
-        pygame.draw.polygon(surface, WILD_COLOR, pts)
-        return
-    pop = region_pop(region)
-    max_pop = 420.0
-    f = min(0.45, 0.18 * (pop / max_pop))
-    extra = (int(255 * f), int(255 * f), int(245 * f))
-    base = nation_color(region)
-    blended = tuple(min(255, int(v) + e) for v, e in zip(base, extra))
-    pygame.draw.polygon(surface, blended, pts)
+        pts = [(cx + 10, y - 6), (cx + 4, y + 4), (cx + 16, y + 4)]
+        pygame.draw.polygon(surface, (110, 205, 110), pts)
+    if getattr(region, 'climate', '') == 'cold':
+        pygame.draw.circle(surface, (230, 242, 255), (cx, y), 3)
 
 
 def trade_anim(world):
@@ -163,40 +282,38 @@ def draw_trade_arrows(surface, world):
 def draw_activity_badges(surface, region, cx, cy, font_small):
     """Small indicators around the hex (claimed-only readouts)."""
     if getattr(region, 'owner_nation', None) is None:
-        pygame.draw.circle(surface, (90, 210, 120), (cx, cy - 48), 8)
-        tag = font_small.render("W", True, (255, 255, 255))
-        surface.blit(tag, tag.get_rect(center=(cx, cy - 48)))
+        if getattr(region, 'elevation', 0.0) >= 0.0:
+            pygame.draw.circle(surface, (90, 210, 120), (cx, cy - 46), 7)
+            tag = font_small.render("W", True, (255, 255, 255))
+            surface.blit(tag, tag.get_rect(center=(cx, cy - 46)))
         if homesteaders(region) > 0:
-            pygame.draw.circle(surface, BADGE_ORANGE, (cx + 32, cy - 34), 7)
+            pygame.draw.circle(surface, BADGE_ORANGE, (cx + 30, cy - 34), 6)
         return
-    food = region.recipes[Goods.food]['price']
+    food = region.recipes[Goods.food]['price'] if hasattr(region, 'recipes') and Goods.food in region.recipes else 1.0
     neighbors = [n for n in region.neighbors.values()
                  if getattr(n, 'recipes', None) and not getattr(n, 'wilderness', False)]
     if neighbors:
-        avg = sum(n.recipes[Goods.food]['price'] for n in neighbors) / len(neighbors)
+        avg = sum(n.recipes[Goods.food]['price'] for n in neighbors if Goods.food in n.recipes) / max(1, len(neighbors))
         ring_color = HOT_RING if food > avg * 1.15 else \
                      COLD_RING if food < avg * 0.85 else None
         if ring_color is not None:
             pygame.draw.circle(surface, ring_color, (cx, cy), HEX_SIZE - 8, 2)
     dr = region.demand_ratio_log.get(Goods.food, [])
     if dr and dr[-1] > 1.5:
-        pygame.draw.circle(surface, BADGE_ORANGE, (cx + 32, cy - 34), 7)
+        pygame.draw.circle(surface, BADGE_ORANGE, (cx + 30, cy - 34), 6)
     if any(region.hungry_log[g] and region.hungry_log[g][-1] > 5
-           for g in (Goods.food, Goods.wood, Goods.furniture)):
-        pygame.draw.circle(surface, BADGE_RED, (cx - 32, cy - 34), 7)
-    traders = sum(1 for a in region.agents if a.is_trader)
+           for g in (Goods.food, Goods.wood, Goods.furniture) if g in region.hungry_log):
+        pygame.draw.circle(surface, BADGE_RED, (cx - 30, cy - 34), 6)
+    traders = sum(1 for a in region.agents if getattr(a, 'is_trader', False))
     if traders > 0:
         tag = font_small.render(f"T{traders}", True, BADGE_TRA)
-        surface.blit(tag, (cx + 24, cy + 30))
-    gini = region.gini_log.get(Goods.food, [])
-    if gini and gini[-1] > 0.6:
-        pygame.draw.circle(surface, BADGE_GINI, (cx - 32, cy + 30), 5)
+        surface.blit(tag, (cx + 22, cy + 28))
     unrest = region.unrest_log[-1] if region.unrest_log else {}
     stage = unrest.get('stage', 'calm')
     if stage != 'calm' and stage in UNREST_COLORS:
-        pygame.draw.circle(surface, UNREST_COLORS[stage], (cx, cy - 48), 8)
+        pygame.draw.circle(surface, UNREST_COLORS[stage], (cx, cy - 46), 7)
         tag = font_small.render(stage[0].upper(), True, (255, 255, 255))
-        surface.blit(tag, tag.get_rect(center=(cx, cy - 48)))
+        surface.blit(tag, tag.get_rect(center=(cx, cy - 46)))
 
 
 def draw_pop_delta(surface, region, cx, cy, font_small):
@@ -214,7 +331,18 @@ def draw_pop_delta(surface, region, cx, cy, font_small):
     pops_history[region.name] = cur
     txt = font_small.render(f"+{delta}" if delta >= 0 else f"{delta}",
                             True, GREEN if delta >= 0 else RED)
-    surface.blit(txt, txt.get_rect(center=(cx, cy - 38)))
+    surface.blit(txt, txt.get_rect(center=(cx, cy - 36)))
+
+
+def draw_text_with_shadow(surface, font, text, center, color, shadow_color=(12, 12, 16)):
+    """Render text with a soft drop shadow for ultra-crisp readability over elevation terrain."""
+    cx, cy = center
+    # 4-direction shadow
+    for sx, sy in [(cx-1, cy), (cx+1, cy), (cx, cy-1), (cx, cy+1)]:
+        s_surf = font.render(text, True, shadow_color)
+        surface.blit(s_surf, s_surf.get_rect(center=(sx, sy)))
+    t_surf = font.render(text, True, color)
+    surface.blit(t_surf, t_surf.get_rect(center=(cx, cy)))
 
 
 def province_members(world, region):
@@ -226,10 +354,12 @@ def province_members(world, region):
 
 
 def draw_hex_map(surface, world, font, font_small):
-    """Draw full hex grid map with multi-province color highlighting."""
+    """Draw full hex grid map with realistic elevation heightmap, shaded relief, and territory highlights."""
     tiles = world['tiles']
     layout = world['layout']
     sel = world.get('selected_region')
+    zoom = world['cam']['zoom']
+    frame = world.get('frame', 0)
 
     # Build province color highlight map for the selected nation
     highlight_map = {}
@@ -246,32 +376,44 @@ def draw_hex_map(surface, world, font, font_small):
         if coords is None:
             continue
         cx, cy = hex_px(world, *coords)
-        pts = hex_corners((cx, cy), HEX_SIZE * world['cam']['zoom'] - 1)
-        draw_pop_heat(surface, region, pts, cx, cy)
-        edge = WILD_EDGE if getattr(region, 'owner_nation', None) is None else HEX_EDGE
-        pygame.draw.polygon(surface, edge, pts, 2)
+        pts = hex_corners((cx, cy), HEX_SIZE * zoom - 1)
 
-        # Province highlight border
+        # 1. Realistic Elevation Heightmap & Biome Topography
+        draw_elevation_terrain(surface, region, pts, cx, cy, zoom=zoom, frame=frame)
+
+        # 2. Semi-Transparent Nation Territory Overlay (preserves elevation relief underneath)
+        draw_nation_overlay(surface, region, pts)
+
+        # 3. Outer Borders
+        owner = getattr(region, 'owner_nation', None)
+        if owner is not None:
+            n_col = NATION_COLORS.get(owner.name, HEX_EDGE)
+            pygame.draw.polygon(surface, n_col, pts, max(2, int(2 * zoom)))
+        else:
+            pygame.draw.polygon(surface, WILD_EDGE, pts, 1)
+
+        # 4. Province Highlight Border
         if region.name in highlight_map:
             color, _pname = highlight_map[region.name]
-            pygame.draw.polygon(surface, color, pts, 3)
+            pygame.draw.polygon(surface, color, pts, max(3, int(3 * zoom)))
 
-        # Selected tile focal highlight
+        # 5. Selected Tile Focal Highlight
         if sel is region:
             pygame.draw.polygon(surface, (255, 255, 255), pts, 4 if region.name not in highlight_map else 2)
 
-        name_surf = font.render(region.name, True, TEXT)
-        surface.blit(name_surf, name_surf.get_rect(center=(cx, cy - 20)))
+        # 6. Readouts with Drop Shadows for Readability
+        draw_text_with_shadow(surface, font, region.name, (cx, cy - 20), TEXT)
+        
         line1, line2, line3 = tile_stats(region)
-        s1 = font_small.render(line1, True, TEXT)
-        s2 = font_small.render(line2, True, DIM)
-        surface.blit(s1, s1.get_rect(center=(cx, cy - 2)))
-        surface.blit(s2, s2.get_rect(center=(cx, cy + 12)))
+        elev_col = (140, 225, 255) if getattr(region, 'elevation', 0.0) < 0 else ((255, 240, 180) if getattr(region, 'elevation', 0.0) >= 0.70 else ACCENT)
+        draw_text_with_shadow(surface, font_small, line1, (cx, cy - 2), elev_col)
+        draw_text_with_shadow(surface, font_small, line2, (cx, cy + 12), TEXT)
         if line3:
-            s3 = font_small.render(line3, True, DIM)
-            surface.blit(s3, s3.get_rect(center=(cx, cy + 26)))
+            draw_text_with_shadow(surface, font_small, line3, (cx, cy + 24), DIM)
+
         draw_terrain_glyph(surface, region, cx, cy - 34)
         draw_activity_badges(surface, region, cx, cy, font_small)
         draw_pop_delta(surface, region, cx, cy, font_small)
+
     draw_edges(surface, world)
     draw_trade_arrows(surface, world)

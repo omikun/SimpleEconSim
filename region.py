@@ -153,6 +153,11 @@ class Region:
         self.claims = {}
         self.buildings: list = []
         self.construction_projects: list = []
+        self.elevation: float = 0.0
+        self.elevation_meters: int = 0
+        self.biome: str = 'plains'
+        self.terrain_color: tuple = (65, 135, 75)
+        self.hillshade: float = 1.0
 
         self.recipes = copy.deepcopy(recipes)
         self.goods = list(goods)

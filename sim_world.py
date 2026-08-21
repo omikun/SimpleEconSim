@@ -212,6 +212,10 @@ def build_world(seed=None):
             r._init_trader_wealth = trader_wealth(r)
         else:
             r._init_trader_wealth = 0.0
+
+    from heightmap import apply_heightmap_to_world
+    apply_heightmap_to_world(tiles, seed=seed if seed is not None else 42, grid_rows=GRID_ROWS, grid_cols=GRID_COLS)
+
     return tiles, nations, grid
 
 
