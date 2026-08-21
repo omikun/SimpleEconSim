@@ -134,7 +134,15 @@ def step_turn(t: int, tiles: list, nations: list = None,
         army_events = step_armies(tiles, nations, t)
         if on_event:
             for ev in army_events:
-                on_event(t, ev['event'], f"Army unit {ev['unit_id']} in {ev['region']} supply shortage (morale: {ev['morale']:.2f})")
+                kind = ev.get('event', 'MILITARY')
+                if kind == 'ARMY_SUPPLY_SHORTAGE':
+                    on_event(t, kind, f"Army unit {ev.get('unit_id')} in {ev.get('region', '?')} supply shortage (morale: {ev.get('morale', 0.0):.2f})")
+                elif kind == 'DESERTER_HOMESTEAD':
+                    on_event(t, kind, f"Deserter a{ev.get('agent_id')} from {ev.get('from_region', '?')} homesteaded on {ev.get('to_region', '?')} (xp: {ev.get('military_xp', 0.0):.2f})")
+                elif kind == 'DESERTER_REABSORBED':
+                    on_event(t, kind, f"Deserter a{ev.get('agent_id')} reabsorbed into {ev.get('region', '?')} labor pool (xp: {ev.get('military_xp', 0.0):.2f})")
+                else:
+                    on_event(t, kind, f"Military event on {ev.get('unit_id', '')}")
 
     # 10c. Global Diplomacy & Relations Drift
     if nations:

@@ -199,6 +199,7 @@ def step_armies(tiles: list, nations: list, t: int = 0) -> list[dict]:
                             'unit_id': unit.unit_id,
                             'event': 'DESERTER_HOMESTEAD',
                             'agent_id': deserter_agent.id,
+                            'region': region.name,
                             'from_region': region.name,
                             'to_region': wild_tile.name,
                             'military_xp': deserter_agent.military_xp
@@ -208,7 +209,7 @@ def step_armies(tiles: list, nations: list, t: int = 0) -> list[dict]:
                         deserter_agent.region = region.name
                         deserter_agent.home_currency = region.home_currency
                         deserter_agent._bank_ref = getattr(region, 'bank', None)
-                        deserter_agent.output = random.choice([Goods.food, Goods.wood, Goods.none])
+                        deserter_agent.output = random.choice([Goods.food, Goods.wood, Goods.furniture])
                         region.agents.append(deserter_agent)
                         if hasattr(gov, '_add_citizen'):
                             gov._add_citizen(deserter_agent)

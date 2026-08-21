@@ -92,14 +92,14 @@ def produce(region, t):
     """Run production phase for all active producers in region."""
     num_agents_per_good = {}
     for a in region.agents:
-        if not a.is_trader and a.output != Goods.gov:
+        if not a.is_trader and a.output != Goods.gov and a.output != Goods.none and a.output in region.recipes:
             num_agents_per_good[a.output] = num_agents_per_good.get(a.output, 0) + 1
     for g in region.goods:
         if g not in num_agents_per_good:
             num_agents_per_good[g] = 0
     local_total_production = defaultdict(int)
     for a in region.agents:
-        if a.employer or a.output == Goods.gov or a.is_trader:
+        if a.employer or a.output == Goods.gov or a.is_trader or a.output == Goods.none or a.output not in region.recipes:
             continue
         r = region.recipes[a.output]
         if a.is_corporation and len(a.employees) > 0:

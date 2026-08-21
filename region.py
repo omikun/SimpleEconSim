@@ -620,7 +620,7 @@ class Region:
                 total_cash_by_output[Goods.food] += a.cash
                 if Goods.food != Goods.gov:
                     total_inv_by_output[Goods.food] += a.inv_get(Goods.food, 0)
-            elif a.output != Goods.gov:
+            elif a.output != Goods.gov and a.output in by_output:
                 o = a.output
                 by_output[o].append(a)
                 total_cash_by_output[o] += a.cash

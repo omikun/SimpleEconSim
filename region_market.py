@@ -87,6 +87,8 @@ def withdraw_if_needed(region, agent, good_price, current_desired):
 
 
 def input_good(region, agent):
+    if getattr(agent, 'output', Goods.none) not in region.recipes:
+        return Goods.none
     return region.recipes[agent.output].get('input', Goods.none)
 
 
@@ -556,7 +558,7 @@ def trade(region, t):
     total_asks = {g: 0 for g in goods_goods}
     total_bids = {g: 0 for g in goods_goods}
     for a in agents:
-        ar = recipes[a.output]
+        ar = recipes.get(a.output, {})
         is_emp = a.employer is not None
         mult = a.consumption_multiplier
         for g in goods_goods:

@@ -68,6 +68,28 @@ class TestWorldviewActionsUI(unittest.TestCase):
         self.assertTrue(hit, "Military recruitment click should register and submit intent.")
         self.assertEqual(len(beta_nation.intents), 1, "Beta should have 1 submitted RecruitArmyIntent.")
 
+    def test_recruit_before_first_turn_and_step(self):
+        """User bug regression: recruit unit before first turn and step world across turns."""
+        from worldview_engine import step_world
+        world = self.world
+        beta_nation = next(n for n in world['nations'] if n.name == 'Beta')
+        world['player_nation_name'] = 'Beta'
+        world['selected_region'] = beta_nation.tiles[0]
+
+        # Submit recruitment intent before first turn
+        world['actions_open'] = True
+        world['actions_tab'] = 2
+        actions_tab_hit((320, 188), 24, 16, world)
+        self.assertGreater(len(beta_nation.intents), 0)
+
+        # Step the world across 5 turns without crashing
+        for _ in range(5):
+            step_world(world)
+
+        self.assertGreater(world['turn'], 1)
+        self.assertGreater(len(beta_nation.military_units), 0, "Beta should have active recruited military units.")
+        print(f"Successfully stepped world with active recruited army up to turn {world['turn']}.")
+
 
 if __name__ == "__main__":
     unittest.main()
