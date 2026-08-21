@@ -76,7 +76,10 @@ class Nation:
         self.opposition: list = []
         self._incumbent_faction = None   # incumbent for betrayal memory (M3.3)
         self.regime_log: list = []       # per-turn regime events (state archive)
-        self.claim_log: list = []        # per-turn claim events (v3 claims)
+        self.intents: list = []          # queued / pending strategic intents
+        self.construction_projects: list = []  # active construction projects
+        self.military_units: list = []   # active military units
+        self.ai = None                   # NationPolicyAI instance if AI-controlled
 
         # One sovereign Government per Nation.  The Government class already
         # owns `regions` + `citizen_ids`; add_tile wires them.
@@ -255,6 +258,22 @@ class Nation:
         #    old nation's claim (if any) is left intact as a latent claim.
         claims = self._claims_of(region)
         claims[new_nation.name] = 1.0
+
+    # ------------------------------------------------------------------
+    # Strategic Intents / Commands
+    # ------------------------------------------------------------------
+
+    def submit_intent(self, intent, t: int = 0) -> None:
+        """Submit a strategic Intent (e.g. BuildIntent) for this Nation."""
+        intent.nation_name = self.name
+        intent.submitted_turn = t
+        if self.regime_type == 'democracy':
+            intent.approval_delay = 1
+            intent.status = 'pending_approval'
+        else:
+            intent.approval_delay = 0
+            intent.status = 'approved'
+        self.intents.append(intent)
 
     # ------------------------------------------------------------------
     # Introspection

@@ -34,6 +34,13 @@ Proposed cadence: 1 turn = 1 season (3 turns/year) — revisit in §14 of gdd.md
       run 300t, print per-nation GDP/trade/food-price summary.
       - Acceptance: no exceptions; per-currency audit conserved across all
         nation currencies.
+- [x] **M0.7** Strategic Intents & Physical Construction — `intents.py` + `buildings.py`.
+      - Modular Command Pattern (`Intent` / `BuildIntent`) shared across player & AI.
+      - Autocracy executes immediately; Democracy imposes 1-turn parliamentary approval stub.
+      - Sovereign funds contractor corporation in region (conserved transfer) to build
+        structures over N turns with weather/accident overruns (1-2 turns).
+      - Completed buildings apply permanent regional and production modifiers.
+      - Acceptance: `test_intents_construction.py` runs with 0 LEAK; production bonuses verified.
 
 **M0 exit criteria:** a "govern one province" sandbox runs headless; all 9 legacy
 conservation checks still pass on `econsim_two_region.py 300`.
@@ -125,6 +132,13 @@ runs end-to-end with conservation intact.
       may continue as opposition.
       - Acceptance: opposition-mode UI stub exposes agitate/unrest intents
         (engine-only state now; full UI in C.7 client).
+- [ ] **M3.7** Real Legislature & Parliamentary Approval — replace 1-turn auto-approval
+      stub with parliamentary vote weighted by faction representation.
+      - Factions in parliament vote on strategic intents (`BuildIntent`, taxes, welfare,
+        military spend) according to faction policy demands.
+      - Low coalition support can stall, reject, or attach riders/compromises to bills.
+      - Acceptance: a bill opposed by majority factions fails parliament vote in democracy;
+        passes unhindered in autocracy.
 
 **M3 exit criteria:** a full election cycle and a full coup each run with
 conserved transitions; state archive shows the money trail for both.
@@ -171,34 +185,41 @@ intact.
 
 ## M5 — Worlds: AI, Diplomacy, Alliances  *(priority 6)*
 
-- [ ] **M5.1** `ai_nation.py` — terrain value scoring from `production_log` +
+- [x] **M5.1** `ai_nation.py` — terrain value scoring from `production_log` +
       recipe modifiers; bottleneck relief from `demand_ratio_log` /
       `price_spread_log`.
       - Acceptance: AI picks the fertile tile over the barren one (greedy
         claim test).
-- [ ] **M5.2** Vulnerability — tile vulnerable if adjacent to hostile/
+- [x] **M5.2** Vulnerability — tile vulnerable if adjacent to hostile/
       expansionist neighbor and weak local military; AI fortifies or secures
       peace.
       - Acceptance: AI moves army to threatened tile / signs treaty.
-- [ ] **M5.3** Expansion drive — claim high-value adjacent tiles; weigh
+- [x] **M5.3** Expansion drive — claim high-value adjacent tiles; weigh
       assimilate vs evict vs settle vs diplomatic fallout.
       - Acceptance: AI chooses cheapest acceptable path; player-visible
         reason string.
-- [ ] **M5.4** `diplomacy.py` — bilateral relations from ideology, shared
+- [x] **M5.4** `diplomacy.py` — bilateral relations from ideology, shared
       threats, trade intimacy, betrayal memory.
       - Acceptance: trade-pact tariff cut flows into
         `get_trade_fee_multiplier`; betrayal lowers relations.
-- [ ] **M5.5** Alliance formation — common-threat counterbalancing;
+- [x] **M5.5** Alliance formation — common-threat counterbalancing;
       military coordination + trade pact + defensive commitment.
       - Acceptance: two weak nations ally against a strong expansionist.
-- [ ] **M5.6** Ideological blocs — ideology distance + grievance →
+- [x] **M5.6** Ideological blocs — ideology distance + grievance →
       polarization; AI-vs-AI and player-vs-AI wars.
       - Acceptance: bloc war outbreak traceable to faction grievance
         (state archive).
-- [ ] **M5.7** Betrayal — AI re-evaluates when threat rating shifts;
+- [x] **M5.7** Betrayal — AI re-evaluates when threat rating shifts;
       backstab stores memory for all parties.
       - Acceptance: betrayed nation shows grievance rise; alliance
         formation post-betrayal is slower.
+- [ ] **M5.8** Private Military Corporations (PMC) & Veteran Mercenaries —
+      deserters and retired soldiers retain `agent.military_xp`; corporations
+      and wealthy factions hire veterans into private military units for
+      asset security, strike breaking, or proxy wars.
+      - Acceptance: corporate funding hires veteran agents with `military_xp`
+        into PMC units; deserters carry veteran XP into labor pool / homesteads;
+        0 LEAK.
 
 **M5 exit criteria:** N AI nations run a full sandbox (300–600t) with wars,
 alliances, betrayals, and migrations; every outcome traces to agents/factions;

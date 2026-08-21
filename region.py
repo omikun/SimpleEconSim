@@ -151,6 +151,8 @@ class Region:
         self.forex_desks = {}
         self.owner_nation = None
         self.claims = {}
+        self.buildings: list = []
+        self.construction_projects: list = []
 
         self.recipes = copy.deepcopy(recipes)
         self.goods = list(goods)

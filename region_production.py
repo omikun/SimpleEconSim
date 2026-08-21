@@ -13,8 +13,14 @@ except ImportError:
 
 
 def terrain_bonus(region, good):
-    """Production multiplier from terrain for *good* (default 1.0)."""
-    return region.terrain.get(good, 1.0)
+    """Production multiplier from terrain and installed buildings for *good* (default 1.0)."""
+    base = region.terrain.get(good, 1.0)
+    mult = 1.0
+    for b in getattr(region, 'buildings', []):
+        bonuses = getattr(b, 'production_bonuses', {})
+        if good in bonuses:
+            mult *= bonuses[good]
+    return base * mult
 
 
 def produce_corporation(region, agent, recipe, output, num_agents_per_good, local_total_production):

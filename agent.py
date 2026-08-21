@@ -89,6 +89,8 @@ class Agent:
         'ethnicity', 'religion', 'politics',
         # ---- M1.3 bounded memory buffers ----
         'memory',
+        # ---- Military & Combat Experience (M4.5 / M5.8) ----
+        'military_xp',
     )
 
     def __init__(self, t):
@@ -102,6 +104,7 @@ class Agent:
         self.output = Goods.none
         self.hungry_steps = 0
         self.cash = 0
+        self.military_xp = 0.0
         # Inventory as list indexed by good.value — not a dict
         self.inventory = [0] * _NUM_GOODS
         self.cost_basis = [0.0] * _NUM_GOODS

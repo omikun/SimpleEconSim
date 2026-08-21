@@ -16,6 +16,9 @@ from regime import step_regime
 from migration import run_migrations
 from trade_settle import settle_wilderness
 from claims import check_and_apply_claims
+from intents import step_intents_and_construction
+from army import step_armies
+from diplomacy import get_diplomacy
 import ledger
 
 
@@ -39,6 +42,18 @@ def step_turn(t: int, tiles: list, nations: list = None,
                        and r.neighbors.get(o.name) is not None
                        and not getattr(o, 'wilderness', False)
                        and not getattr(r, 'wilderness', False)]
+
+    diplomacy = get_diplomacy()
+
+    # 0a. AI Sovereign Decisions (submit intents)
+    for n in nations:
+        ai = getattr(n, 'ai', None)
+        if ai is not None and hasattr(ai, 'decide_turn'):
+            ai.decide_turn(t, tiles, nations, diplomacy)
+
+    # 0b. Strategic Intents & Construction Projects
+    if nations:
+        step_intents_and_construction(t, tiles, nations, on_event=on_event)
 
     curr_before = {c: fx.audit_currency_total(tiles, c) for c in currencies}
     violations = []
@@ -113,6 +128,17 @@ def step_turn(t: int, tiles: list, nations: list = None,
     # 10. National Regimes (elections, coups, legitimacy)
     for n in nations:
         step_regime(n, t)
+
+    # 10b. Military Upkeep & Supplies
+    if nations:
+        army_events = step_armies(tiles, nations, t)
+        if on_event:
+            for ev in army_events:
+                on_event(t, ev['event'], f"Army unit {ev['unit_id']} in {ev['region']} supply shortage (morale: {ev['morale']:.2f})")
+
+    # 10c. Global Diplomacy & Relations Drift
+    if nations:
+        diplomacy.update_relations(tiles, nations, t)
 
     # 11. Forex desks update & PPP tracking
     for r, other in pair_orders:

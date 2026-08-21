@@ -408,7 +408,7 @@ class Government:
     def __repr__(self):
         return f"Government({self.name})"
 
-    def get_trade_fee_multiplier(self):
+    def get_trade_fee_multiplier(self, source_nation: str | None = None, source_region=None):
         """Return the net fraction of a trader's sale price they actually keep
         after all destination-region fees (recycling, tariff, ask discount).
 
@@ -419,10 +419,24 @@ class Government:
         if self.trader_recycling_enabled:
             m *= (1 - self.trader_recycling_rate)
         if self.import_tariff_enabled:
-            # Net tariff hit after duty drawback: the trader pays the tariff
-            # on the sale but is refunded the drawback rate of it, so the
-            # actual cost is tariff_rate x (1 - drawback_rate).
-            net_tariff = self.import_tariff_rate * (1.0 - self.import_drawback_rate)
+            discount = 0.0
+            src_n = source_nation
+            if src_n is None and source_region is not None:
+                owner = getattr(source_region, 'owner_nation', None)
+                src_n = owner.name if owner else None
+            
+            # Destination nation identifier
+            dest_n = getattr(self, 'nation_name', None) or getattr(self, 'name', None)
+            if src_n and dest_n:
+                try:
+                    import diplomacy
+                    discount = diplomacy.get_diplomacy().get_tariff_discount(dest_n, src_n)
+                except Exception:
+                    discount = 0.0
+
+            # Net tariff hit after duty drawback and trade pact discount
+            effective_tariff_rate = self.import_tariff_rate * (1.0 - discount)
+            net_tariff = effective_tariff_rate * (1.0 - self.import_drawback_rate)
             m *= (1.0 - net_tariff)
         return m
 
