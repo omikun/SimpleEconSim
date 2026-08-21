@@ -157,6 +157,10 @@ def draw_top_bar(surface, world, font_small, mouse_pos=None):
     btn_txt = font_small.render("Compare (C)", True, (255, 255, 255) if (is_hover or is_open) else TEXT)
     surface.blit(btn_txt, btn_txt.get_rect(center=(COMPARE_BTN[0] + COMPARE_BTN[2] // 2, COMPARE_BTN[1] + COMPARE_BTN[3] // 2)))
 
+    # Top Bar Action Buttons (Diplomacy, Military)
+    from worldview_actions import draw_top_bar_action_buttons
+    draw_top_bar_action_buttons(surface, world, font_small, mouse_pos=mouse_pos)
+
 
 def draw_regime_readout(surface, region, font_small, y):
     """Protest / unrest / top faction / owner nation readout."""

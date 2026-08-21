@@ -39,6 +39,9 @@ from worldview_ui import (
 from worldview_compare import (
     draw_nations_comparison, compare_tab_hit
 )
+from worldview_actions import (
+    draw_actions_modal, actions_tab_hit, top_bar_action_hit
+)
 from worldview_engine import (
     get_layout, get_reverse_layout, build_world_view, ticker_push, step_world
 )
@@ -90,7 +93,7 @@ FPS = FPS_ACTIVE
 
 
 def render_frame(surface, world, mouse_pos=None):
-    """Draw one full frame (map + top bar + panel + ticker + zoom hud + comparison table + help)."""
+    """Draw one full frame (map + top bar + panel + ticker + zoom hud + comparison table + sovereign actions + help)."""
     font = get_font(28)
     font_small = get_font(22)
     surface.fill(BG)
@@ -100,6 +103,7 @@ def render_frame(surface, world, mouse_pos=None):
     draw_panel(surface, world, font, font_small, mouse_pos=mouse_pos)
     draw_ticker(surface, world, font_small)
     draw_nations_comparison(surface, world, font, font_small, mouse_pos=mouse_pos)
+    draw_actions_modal(surface, world, font, font_small, mouse_pos=mouse_pos)
     draw_help(surface, world, font_small, mouse_pos=mouse_pos)
 
 
@@ -148,7 +152,7 @@ def main():
         #  1. Modal open (compare/help) — static overlay, block thread → 0% CPU
         #  2. Active (playing or dragging) — poll at 60 FPS
         #  3. Idle, no modal — trade animation runs, poll at 30 FPS
-        modal_open = world.get('compare_open') or world.get('help_open')
+        modal_open = world.get('compare_open') or world.get('help_open') or world.get('actions_open')
         is_active = world.get('playing') or drag
         if modal_open:
             # Static overlay — nothing animates, block until user does something.
@@ -200,7 +204,27 @@ def main():
                         world['compare_open'] = False
                         continue
 
-                # 1. Check Compare Nations top bar button
+                # 0c. Check if Sovereign Actions Modal is open
+                if world.get('actions_open'):
+                    if actions_tab_hit(event.pos, 24, 16, world):
+                        continue
+                    # Click outside modal closes it
+                    if event.pos[0] < 24 or event.pos[0] > WIDTH - 24 or event.pos[1] < 16 or event.pos[1] > HEIGHT - 16:
+                        world['actions_open'] = False
+                        continue
+
+                # 1a. Check Top Bar Action buttons (Diplomacy / Military)
+                act_btn = top_bar_action_hit(event.pos)
+                if act_btn == 'diplomacy':
+                    world['actions_open'] = True if (not world.get('actions_open') or world.get('actions_tab') != 1) else False
+                    world['actions_tab'] = 1
+                    continue
+                elif act_btn == 'military':
+                    world['actions_open'] = True if (not world.get('actions_open') or world.get('actions_tab') != 2) else False
+                    world['actions_tab'] = 2
+                    continue
+
+                # 1b. Check Compare Nations top bar button
                 if compare_btn_hit(event.pos):
                     world['compare_open'] = not world.get('compare_open', False)
                     continue
@@ -269,6 +293,28 @@ def main():
                         world['help_open'] = False
                     continue
 
+                # If Sovereign Actions modal is open, intercept navigation keys
+                if world.get('actions_open'):
+                    if event.key in (pygame.K_1, pygame.K_KP1):
+                        world['actions_tab'] = 1
+                    elif event.key in (pygame.K_2, pygame.K_KP2):
+                        world['actions_tab'] = 2
+                    elif event.key in (pygame.K_3, pygame.K_KP3):
+                        world['actions_tab'] = 3
+                    elif event.key in (pygame.K_4, pygame.K_KP4):
+                        world['actions_tab'] = 4
+                    elif event.key == pygame.K_d:
+                        world['actions_tab'] = 1
+                    elif event.key == pygame.K_m:
+                        world['actions_tab'] = 2
+                    elif event.key in (pygame.K_TAB, pygame.K_RIGHT):
+                        world['actions_tab'] = (world.get('actions_tab', 1) % 4) + 1
+                    elif event.key == pygame.K_LEFT:
+                        world['actions_tab'] = 4 if world.get('actions_tab', 1) == 1 else world.get('actions_tab', 1) - 1
+                    elif event.key in (pygame.K_ESCAPE, pygame.K_q):
+                        world['actions_open'] = False
+                    continue
+
                 # If comparison modal is open, intercept navigation keys
                 if world.get('compare_open'):
                     if event.key in (pygame.K_1, pygame.K_KP1):
@@ -304,6 +350,12 @@ def main():
                         running = False
                 elif event.key == pygame.K_q:
                     running = False
+                elif event.key == pygame.K_d:
+                    world['actions_open'] = not world.get('actions_open', False)
+                    world['actions_tab'] = 1
+                elif event.key == pygame.K_m:
+                    world['actions_open'] = not world.get('actions_open', False)
+                    world['actions_tab'] = 2
                 elif event.key == pygame.K_c:
                     world['compare_open'] = not world.get('compare_open', False)
                 elif event.key == pygame.K_h or event.key == pygame.K_QUESTION:
