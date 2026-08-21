@@ -90,6 +90,16 @@ class TestWorldviewActionsUI(unittest.TestCase):
         self.assertGreater(len(beta_nation.military_units), 0, "Beta should have active recruited military units.")
         print(f"Successfully stepped world with active recruited army up to turn {world['turn']}.")
 
+    def test_passive_worldview_run_50_turns(self):
+        """Verify standard worldview execution w/o interaction runs seamlessly across 50 turns."""
+        from worldview_engine import step_world
+        world = self.world
+        for t in range(50):
+            step_world(world)
+            render_frame(self.surface, world)
+        self.assertEqual(world['turn'], 50)
+        print("Completed 50 turns of worldview stepping and rendering with 0 errors.")
+
 
 if __name__ == "__main__":
     unittest.main()

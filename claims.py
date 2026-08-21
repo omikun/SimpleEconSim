@@ -203,6 +203,8 @@ def check_and_apply_claims(t, tiles, nations):
                 'province': prov.name,
                 'joined': not fresh,
             }
+            if not hasattr(target_nation, 'claim_log'):
+                target_nation.claim_log = []
             target_nation.claim_log.append(event)
             claim_events.append(event)
 

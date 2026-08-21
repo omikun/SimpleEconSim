@@ -76,6 +76,7 @@ class Nation:
         self.opposition: list = []
         self._incumbent_faction = None   # incumbent for betrayal memory (M3.3)
         self.regime_log: list = []       # per-turn regime events (state archive)
+        self.claim_log: list = []        # per-turn wilderness claim events
         self.intents: list = []          # queued / pending strategic intents
         self.construction_projects: list = []  # active construction projects
         self.military_units: list = []   # active military units
