@@ -307,10 +307,20 @@ def main():
                         world['actions_tab'] = 1
                     elif event.key == pygame.K_m:
                         world['actions_tab'] = 2
+                    elif event.key == pygame.K_c:
+                        world['actions_tab'] = 3
+                    elif event.key == pygame.K_a:
+                        world['actions_tab'] = 4
                     elif event.key in (pygame.K_TAB, pygame.K_RIGHT):
                         world['actions_tab'] = (world.get('actions_tab', 1) % 4) + 1
                     elif event.key == pygame.K_LEFT:
                         world['actions_tab'] = 4 if world.get('actions_tab', 1) == 1 else world.get('actions_tab', 1) - 1
+                    elif event.key == pygame.K_SPACE:
+                        world['playing'] = not world['playing']
+                        last_tick = now
+                    elif event.key in (pygame.K_n, pygame.K_PERIOD):
+                        world['playing'] = False
+                        step_world(world)
                     elif event.key in (pygame.K_ESCAPE, pygame.K_q):
                         world['actions_open'] = False
                     continue

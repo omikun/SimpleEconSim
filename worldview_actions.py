@@ -202,6 +202,12 @@ def draw_diplomacy_tab(surface, world, box_x, y, box_w, box_h, font, font_small,
     header = font.render(f"Bilateral Relations & Treaties for {active_n.name}", True, TEXT)
     surface.blit(header, (box_x + 20, y))
 
+    feedback = world.get('action_feedback')
+    if feedback:
+        fb_text, fb_col, _ = feedback
+        fb_surf = font_small.render(f"• {fb_text}", True, fb_col)
+        surface.blit(fb_surf, (box_x + 360, y + 4))
+
     card_y = y + 36
     card_w = box_w - 40
     card_h = 105
@@ -251,27 +257,28 @@ def draw_diplomacy_tab(surface, world, box_x, y, box_w, box_h, font, font_small,
         btn_h = 28
         by = card_y + 36
 
-        # 1. Trade Pact Button
+        # 1. Trade Pact Button (Click to Propose or Cancel)
         trade_rect = (bx, by, btn_w, btn_h)
-        draw_action_button(surface, trade_rect, "Trade Pact", font_small, mx, my,
-                           disabled=has_trade or is_war, active=has_trade)
+        trade_label = "Cancel Trade" if has_trade else "Trade Pact"
+        draw_action_button(surface, trade_rect, trade_label, font_small, mx, my,
+                           disabled=is_war, active=has_trade, color=GREEN if not has_trade else (100, 220, 140))
 
-        # 2. NAP Button
+        # 2. NAP Button (Click to Propose or Cancel)
         nap_rect = (bx + 130, by, btn_w, btn_h)
-        draw_action_button(surface, nap_rect, "NAP Treaty", font_small, mx, my,
-                           disabled=has_nap or is_war, active=has_nap)
+        nap_label = "Cancel NAP" if has_nap else "NAP Treaty"
+        draw_action_button(surface, nap_rect, nap_label, font_small, mx, my,
+                           disabled=is_war, active=has_nap, color=ACCENT if not has_nap else (255, 220, 120))
 
-        # 3. Alliance Button
+        # 3. Alliance Button (Click to Propose or Cancel)
         ally_rect = (bx + 260, by, btn_w, btn_h)
-        draw_action_button(surface, ally_rect, "Def Alliance", font_small, mx, my,
-                           disabled=has_alliance or is_war, active=has_alliance)
+        ally_label = "Cancel Ally" if has_alliance else "Def Alliance"
+        draw_action_button(surface, ally_rect, ally_label, font_small, mx, my,
+                           disabled=is_war, active=has_alliance, color=(80, 200, 255))
 
-        # 4. War / Peace / Break Button
+        # 4. War / Peace Button (Click to Declare War or Sign Peace)
         war_rect = (bx + 390, by, btn_w, btn_h)
         if is_war:
             draw_action_button(surface, war_rect, "Sign Peace", font_small, mx, my, color=GREEN)
-        elif has_alliance or has_nap or has_trade:
-            draw_action_button(surface, war_rect, "Break Treaty", font_small, mx, my, color=RED)
         else:
             draw_action_button(surface, war_rect, "Declare War", font_small, mx, my, color=RED)
 
@@ -544,7 +551,7 @@ def actions_tab_hit(pos, box_x, box_y, world):
     # 3. Tab 1 Diplomacy Actions Click Handling
     if active_tab == 1 and active_n:
         other_nations = [n for n in nations if n.name != active_n.name]
-        card_y = box_y + 120 + 36
+        card_y = box_y + 128 + 36
         card_h = 105
         for other in other_nations:
             by = card_y + 36
@@ -552,34 +559,49 @@ def actions_tab_hit(pos, box_x, box_y, world):
             btn_w = 120
             btn_h = 28
 
-            # Trade Pact
+            has_trade = diplomacy.has_treaty(active_n.name, other.name, TreatyType.TRADE_PACT.value)
+            has_nap = diplomacy.has_treaty(active_n.name, other.name, TreatyType.NON_AGGRESSION.value)
+            has_alliance = diplomacy.has_treaty(active_n.name, other.name, TreatyType.DEFENSIVE_ALLIANCE.value)
+            is_war = diplomacy.are_at_war(active_n.name, other.name)
+
+            # 1. Trade Pact
             if bx <= mx <= bx + btn_w and by <= my <= by + btn_h:
-                intent = ProposeTreatyIntent(active_n.name, other.name, TreatyType.TRADE_PACT.value, t, active_n.regime_type)
-                active_n.submit_intent(intent, t)
-                return True
-            # NAP
-            if bx + 130 <= mx <= bx + 130 + btn_w and by <= my <= by + btn_h:
-                intent = ProposeTreatyIntent(active_n.name, other.name, TreatyType.NON_AGGRESSION.value, t, active_n.regime_type)
-                active_n.submit_intent(intent, t)
-                return True
-            # Defensive Alliance
-            if bx + 260 <= mx <= bx + 260 + btn_w and by <= my <= by + btn_h:
-                intent = ProposeTreatyIntent(active_n.name, other.name, TreatyType.DEFENSIVE_ALLIANCE.value, t, active_n.regime_type)
-                active_n.submit_intent(intent, t)
-                return True
-            # War / Break / Peace
-            if bx + 390 <= mx <= bx + 390 + btn_w and by <= my <= by + btn_h:
-                if diplomacy.are_at_war(active_n.name, other.name):
-                    diplomacy.sign_peace(active_n.name, other.name, t)
-                elif diplomacy.has_treaty(active_n.name, other.name, TreatyType.DEFENSIVE_ALLIANCE.value):
-                    intent = BreakTreatyIntent(active_n.name, other.name, TreatyType.DEFENSIVE_ALLIANCE.value, t, active_n.regime_type)
-                    active_n.submit_intent(intent, t)
-                elif diplomacy.has_treaty(active_n.name, other.name, TreatyType.TRADE_PACT.value):
-                    intent = BreakTreatyIntent(active_n.name, other.name, TreatyType.TRADE_PACT.value, t, active_n.regime_type)
-                    active_n.submit_intent(intent, t)
+                if has_trade:
+                    ok, reason = diplomacy.break_treaty(active_n.name, other.name, TreatyType.TRADE_PACT.value, t)
+                    world['action_feedback'] = (reason, RED, t)
                 else:
-                    intent = DeclareWarIntent(active_n.name, other.name, "Diplomatic confrontation", t, active_n.regime_type)
-                    active_n.submit_intent(intent, t)
+                    ok, reason = diplomacy.propose_treaty(active_n.name, other.name, TreatyType.TRADE_PACT.value, t)
+                    world['action_feedback'] = (reason, GREEN if ok else RED, t)
+                return True
+
+            # 2. NAP
+            if bx + 130 <= mx <= bx + 130 + btn_w and by <= my <= by + btn_h:
+                if has_nap:
+                    ok, reason = diplomacy.break_treaty(active_n.name, other.name, TreatyType.NON_AGGRESSION.value, t)
+                    world['action_feedback'] = (reason, RED, t)
+                else:
+                    ok, reason = diplomacy.propose_treaty(active_n.name, other.name, TreatyType.NON_AGGRESSION.value, t)
+                    world['action_feedback'] = (reason, ACCENT if ok else RED, t)
+                return True
+
+            # 3. Defensive Alliance
+            if bx + 260 <= mx <= bx + 260 + btn_w and by <= my <= by + btn_h:
+                if has_alliance:
+                    ok, reason = diplomacy.break_treaty(active_n.name, other.name, TreatyType.DEFENSIVE_ALLIANCE.value, t)
+                    world['action_feedback'] = (reason, RED, t)
+                else:
+                    ok, reason = diplomacy.propose_treaty(active_n.name, other.name, TreatyType.DEFENSIVE_ALLIANCE.value, t)
+                    world['action_feedback'] = (reason, (80, 200, 255) if ok else RED, t)
+                return True
+
+            # 4. War / Peace
+            if bx + 390 <= mx <= bx + 390 + btn_w and by <= my <= by + btn_h:
+                if is_war:
+                    ok, reason = diplomacy.sign_peace(active_n.name, other.name, t)
+                    world['action_feedback'] = (reason, GREEN, t)
+                else:
+                    ok, reason = diplomacy.declare_war(active_n.name, other.name, "Sovereign declaration of war", t)
+                    world['action_feedback'] = (reason, RED, t)
                 return True
 
             card_y += card_h + 12
