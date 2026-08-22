@@ -148,9 +148,32 @@ OCEAN_BASIN_NAMES = [
 ]
 
 
+COUNTRY_CURRENCIES = {
+    "United States": "USD",
+    "China": "CNY",
+    "India": "INR",
+    "Indonesia": "IDR",
+    "Brazil": "BRL",
+    "Mexico": "MXN",
+    "Nigeria": "NGN",
+    "Pakistan": "PKR",
+    "Bangladesh": "BDT",
+    "Russia": "RUB",
+}
+
+
 def get_country_names():
     """Return the list of 10 major country names."""
     return list(GLOBAL_NATION_DATA.keys())
+
+
+def get_starting_nations_claimed_by(seed=None):
+    """Return 3 starting nations with realistic country names and currency codes."""
+    return {
+        "United States": ("USD", 3),
+        "China": ("CNY", 4),
+        "India": ("INR", 5),
+    }
 
 
 def get_provinces_for_country(country_name: str):
@@ -161,17 +184,21 @@ def get_provinces_for_country(country_name: str):
 def assign_world_identities(tiles, nations):
     """Assign realistic country names to nations, state names to provinces, and city names to tiles."""
     available_countries = list(GLOBAL_NATION_DATA.keys())
-    random.shuffle(available_countries)
 
     for i, n in enumerate(nations):
-        country_name = available_countries[i % len(available_countries)]
+        country_name = n.name if n.name in GLOBAL_NATION_DATA else available_countries[i % len(available_countries)]
+        n.name = country_name
         n.display_name = country_name
+        if not hasattr(n, 'currency') or n.currency in ("AL", "BE", "GA"):
+            n.currency = COUNTRY_CURRENCIES.get(country_name, "USD")
+        
         country_data = GLOBAL_NATION_DATA[country_name]
         prov_names = list(country_data.keys())
 
         # Assign province identities
         for p_idx, prov in enumerate(getattr(n, 'provinces', [])):
             p_name = prov_names[p_idx % len(prov_names)]
+            prov.name = f"{country_name}-{p_name}"
             prov.display_name = p_name
             cities = list(country_data[p_name])
             random.shuffle(cities)

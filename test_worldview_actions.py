@@ -50,8 +50,9 @@ class TestWorldviewActionsUI(unittest.TestCase):
         world['actions_open'] = True
         world['actions_tab'] = 1
 
-        # Switch to Beta
-        world['player_nation_name'] = 'Beta'
+        # Switch to nation 1
+        target_nation = world['nations'][1]
+        world['player_nation_name'] = target_nation.name
         render_frame(self.surface, world)
 
         # Top bar action hits
@@ -60,13 +61,12 @@ class TestWorldviewActionsUI(unittest.TestCase):
 
         # Test recruiting from military tab
         world['actions_tab'] = 2
-        beta_nation = next(n for n in world['nations'] if n.name == 'Beta')
-        world['selected_region'] = beta_nation.tiles[0]
+        world['selected_region'] = target_nation.tiles[0]
         
         # Click recruit button: (box_x + 280, recruit_bar_y + 12) = (304, 184)
         hit = actions_tab_hit((320, 188), 24, 16, world)
         self.assertTrue(hit, "Military recruitment click should register and submit intent.")
-        self.assertEqual(len(beta_nation.intents), 1, "Beta should have 1 submitted RecruitArmyIntent.")
+        self.assertEqual(len(target_nation.intents), 1, f"{target_nation.name} should have 1 submitted RecruitArmyIntent.")
 
     def test_diplomacy_instant_clicks_and_war(self):
         """Verify instant out-of-turn execution for diplomacy buttons: trade, alliance, war, peace."""
@@ -75,10 +75,11 @@ class TestWorldviewActionsUI(unittest.TestCase):
         world = self.world
         world['actions_open'] = True
         world['actions_tab'] = 1
-        world['player_nation_name'] = 'Alpha'
+        n1, n2 = world['nations'][0].name, world['nations'][1].name
+        world['player_nation_name'] = n1
         diplomacy = get_diplomacy()
 
-        # Target buttons for Beta (Card 1):
+        # Target buttons for foreign nation 1 (Card 1):
         # card_y = 16 + 128 + 36 = 180
         # btn_x1 = 24 + 1312 - 510 = 826 (width 240) -> [826..1066]
         # btn_x2 = 24 + 1312 - 250 = 1086 (width 240) -> [1086..1326]
@@ -94,36 +95,36 @@ class TestWorldviewActionsUI(unittest.TestCase):
         # 2. Declare War (Bottom Right: x=1150, y=260)
         hit = actions_tab_hit((1150, 260), 24, 16, world)
         self.assertTrue(hit, "Declare war click should register.")
-        self.assertTrue(diplomacy.are_at_war('Alpha', 'Beta'), "Alpha and Beta should now be at war.")
+        self.assertTrue(diplomacy.are_at_war(n1, n2), f"{n1} and {n2} should now be at war.")
         self.assertIsNotNone(world.get('action_feedback'))
         print(f"War declaration feedback: {world.get('action_feedback')}")
 
         # 3. Sign Peace (Bottom Right: x=1150, y=260)
         hit = actions_tab_hit((1150, 260), 24, 16, world)
         self.assertTrue(hit, "Sign peace click should register.")
-        self.assertFalse(diplomacy.are_at_war('Alpha', 'Beta'), "Alpha and Beta should no longer be at war.")
+        self.assertFalse(diplomacy.are_at_war(n1, n2), f"{n1} and {n2} should no longer be at war.")
         print(f"Peace signing feedback: {world.get('action_feedback')}")
 
     def test_recruit_before_first_turn_and_step(self):
         """User bug regression: recruit unit before first turn and step world across turns."""
         from worldview_engine import step_world
         world = self.world
-        beta_nation = next(n for n in world['nations'] if n.name == 'Beta')
-        world['player_nation_name'] = 'Beta'
-        world['selected_region'] = beta_nation.tiles[0]
+        target_nation = world['nations'][1]
+        world['player_nation_name'] = target_nation.name
+        world['selected_region'] = target_nation.tiles[0]
 
         # Submit recruitment intent before first turn
         world['actions_open'] = True
         world['actions_tab'] = 2
         actions_tab_hit((320, 188), 24, 16, world)
-        self.assertGreater(len(beta_nation.intents), 0)
+        self.assertGreater(len(target_nation.intents), 0)
 
         # Step the world across 5 turns without crashing
         for _ in range(5):
             step_world(world)
 
         self.assertGreater(world['turn'], 1)
-        self.assertGreater(len(beta_nation.military_units), 0, "Beta should have active recruited military units.")
+        self.assertGreater(len(target_nation.military_units), 0, f"{target_nation.name} should have active recruited military units.")
         print(f"Successfully stepped world with active recruited army up to turn {world['turn']}.")
 
     def test_passive_worldview_run_50_turns(self):

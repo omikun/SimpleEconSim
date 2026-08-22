@@ -19,9 +19,19 @@ from hexmap import hex_corners
 from worldview_camera import hex_px, HEX_SIZE
 
 NATION_COLORS = {
-    'Alpha': (141, 211, 199),
-    'Beta':  (255, 255, 179),
-    'Gamma': (190, 186, 218),
+    'United States': (80, 160, 240),
+    'China':         (235, 80, 80),
+    'India':         (245, 160, 60),
+    'Indonesia':     (230, 90, 120),
+    'Brazil':        (80, 220, 140),
+    'Mexico':        (60, 200, 170),
+    'Nigeria':       (100, 220, 100),
+    'Pakistan':      (70, 190, 130),
+    'Bangladesh':    (80, 200, 120),
+    'Russia':        (160, 140, 240),
+    'Alpha':         (141, 211, 199),
+    'Beta':          (255, 255, 179),
+    'Gamma':         (190, 186, 218),
 }
 
 # Palette of distinct, vibrant highlight colors for each province of a selected nation

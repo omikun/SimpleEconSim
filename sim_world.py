@@ -106,8 +106,9 @@ def build_world(seed=None):
             t.agents = []
 
     # ---- Nations claim contiguous hex clusters (disjoint, strictly on land) ----
-    # Sizes are locked with the user: Alpha 3, Beta 4, Gamma 5 tiles.
-    claimed_by = {"Alpha": ("AL", 3), "Beta": ("BE", 4), "Gamma": ("GA", 5)}
+    # 3 Starting Global Powers from the 10-country database (sizes 3, 4, 5)
+    from world_names import get_starting_nations_claimed_by
+    claimed_by = get_starting_nations_claimed_by(seed=seed)
     nations = []
 
     def _unclaimed_land_cells():
@@ -116,7 +117,7 @@ def build_world(seed=None):
 
     for nname, (cur, n_tiles) in claimed_by.items():
         n = Nation(nname, currency=cur,
-                   regime_type="autocracy" if nname != "Gamma" else "democracy")
+                   regime_type="autocracy" if nname != "India" else "democracy")
         nations.append(n)
         open_cells = _unclaimed_land_cells()
         # BFS cluster growth strictly on land tiles in the central continent
