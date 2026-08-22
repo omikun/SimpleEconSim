@@ -246,27 +246,27 @@ def _generate_topographic_surface_impl(generator, bbox, width: int = 2400, heigh
     min_wy = y0 - pad_y
     max_wy = y1 + pad_y
 
+    cx_center = (x0 + x1) / 2.0
+    cy_center = (y0 + y1) / 2.0
+    span_x = (x1 - x0) / 2.0
+    span_y = (y1 - y0) / 2.0
+
     surf = pygame.Surface((width, height))
     surf.fill((12, 28, 62))
     
     step = 2
     cols = width // step + 1
     rows = height // step + 1
-    hex_size = 50.0
-    sqrt3 = math.sqrt(3.0)
 
-    # 1. Sample continuous heights grid mapped directly to hex coordinate space
+    # 1. Sample continuous heights grid mapped smoothly without any modulus or tears
     h_grid = []
     for r in range(rows):
         row_h = []
         wy = min_wy + (r / max(1, rows - 1)) * (max_wy - min_wy)
-        continuous_row = wy / (hex_size * 1.5)
+        ny = (wy - cy_center) / span_y
         for c in range(cols):
             wx = min_wx + (c / max(1, cols - 1)) * (max_wx - min_wx)
-            continuous_col = (wx / (hex_size * sqrt3)) - 0.5 * (continuous_row % 2.0)
-
-            nx = (continuous_col - (generator.grid_cols - 1) / 2.0) / (generator.grid_cols / 2.0)
-            ny = (continuous_row - (generator.grid_rows - 1) / 2.0) / (generator.grid_rows / 2.0)
+            nx = (wx - cx_center) / span_x
             h = generator.get_continuous_height(nx, ny)
             row_h.append(h)
         h_grid.append(row_h)
