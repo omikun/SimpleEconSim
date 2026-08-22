@@ -181,23 +181,35 @@ def tile_stats(region, layer_mode='overview', world=None):
             return "No Garrison", threat_str, "Vulnerability: High" if owner else "--", DIM, ACCENT if owner else DIM, RED if owner else DIM
 
     # 6. OVERVIEW LAYER (Default)
-    city_name = getattr(region, 'display_name', getattr(region, 'city_name', region.name))
+    if is_ocean:
+        return "", "", "", DIM, DIM, DIM
+
     if owner is None:
-        if is_ocean:
-            return "Open Sea (Ocean)", "Ocean Basin", "", (140, 225, 255), DIM, DIM
         hs = homesteaders(region)
         wild = getattr(region, 'wilderness_pop', 0)
-        return "Wild Frontier (Unclaimed)", f"hs {hs}+{wild}n", "", DIM, TEXT, DIM
+        if hs > 0 or wild > 0:
+            return f"hs {hs}+{wild}n", "", "", DIM, DIM, DIM
+        return "", "", "", DIM, DIM, DIM
 
-    # Claimed tile: Province & Nation overlay
+    # Claimed tile: Show Nation Name ONLY on nation capital; Province Name ONLY on province seat
+    is_nation_capital = (owner.tiles and region == owner.tiles[0])
     prov = next((p for p in getattr(owner, 'provinces', []) if region in p.tiles), None)
-    prov_name = getattr(prov, 'display_name', prov.name) if prov else getattr(region, 'province_display', 'Core')
-    n_col = NATION_COLORS.get(owner.name, ACCENT)
-    prov_nation_str = f"{prov_name} ({owner.name})"
+    is_prov_capital = (prov and prov.tiles and region == prov.tiles[0])
+
+    top_badge = ""
+    badge_col = NATION_COLORS.get(owner.name, ACCENT)
+    if is_nation_capital:
+        prov_str = getattr(prov, 'display_name', '') if prov else ''
+        top_badge = f"★ {owner.name}" + (f" — {prov_str}" if prov_str else "")
+    elif is_prov_capital and prov:
+        top_badge = f"[{getattr(prov, 'display_name', prov.name)}]"
 
     food = region.recipes[Goods.food]['price'] if hasattr(region, 'recipes') and Goods.food in region.recipes else 1.0
     traders = sum(1 for a in region.agents if getattr(a, 'is_trader', False))
-    return prov_nation_str, f"pop {pop}  fd ${food:.1f}", f"tr {traders}" if traders > 0 else "", n_col, TEXT, DIM
+    stat_line = f"pop {pop}  fd ${food:.1f}"
+    tr_line = f"tr {traders}" if traders > 0 else ""
+
+    return top_badge, stat_line, tr_line, badge_col, TEXT, DIM
 
 
 def draw_elevation_terrain(surface, region, pts, cx, cy, zoom=1.0, frame=0):
@@ -496,20 +508,35 @@ def draw_hex_map(surface, world, font, font_small):
             pygame.draw.polygon(surface, (255, 255, 255), pts, 4 if region.name not in highlight_map else 2)
 
         # 6. Readouts with Drop Shadows for Readability
-        city_title = getattr(region, 'display_name', getattr(region, 'city_name', region.name))
-        name_font = font_small if len(city_title) > 8 else font
-        draw_text_with_shadow(surface, name_font, city_title, (cx, cy - 20), (255, 255, 255))
-        
+        is_ocean = getattr(region, 'is_ocean', False) or getattr(region, 'elevation_meters', 0) < 0
+        owner = getattr(region, 'owner_nation', None)
         layer_mode = world.get('map_layer', 'overview')
-        line1, line2, line3, c1, c2, c3 = tile_stats(region, layer_mode=layer_mode, world=world)
-        draw_text_with_shadow(surface, font_small, line1, (cx, cy - 2), c1)
-        draw_text_with_shadow(surface, font_small, line2, (cx, cy + 12), c2)
-        if line3:
-            draw_text_with_shadow(surface, font_small, line3, (cx, cy + 24), c3)
 
-        draw_terrain_glyph(surface, region, cx, cy - 34)
-        draw_activity_badges(surface, region, cx, cy, font_small)
-        draw_pop_delta(surface, region, cx, cy, font_small)
+        if not is_ocean:
+            if owner is not None:
+                city_title = getattr(region, 'display_name', getattr(region, 'city_name', region.name))
+                name_font = font_small if len(city_title) > 8 else font
+                draw_text_with_shadow(surface, name_font, city_title, (cx, cy - 12), (255, 255, 255))
+            
+            line1, line2, line3, c1, c2, c3 = tile_stats(region, layer_mode=layer_mode, world=world)
+            if line1:
+                l1_y = cy - 28 if ("★" in line1 or "[" in line1) else (cy + 4 if owner is None else cy - 2)
+                draw_text_with_shadow(surface, font_small, line1, (cx, l1_y), c1)
+            if line2:
+                draw_text_with_shadow(surface, font_small, line2, (cx, cy + 8), c2)
+            if line3:
+                draw_text_with_shadow(surface, font_small, line3, (cx, cy + 22), c3)
+        else:
+            # On ocean tiles: in non-overview layers, display minimal line if present
+            if layer_mode != 'overview':
+                line1, line2, line3, c1, c2, c3 = tile_stats(region, layer_mode=layer_mode, world=world)
+                if line1:
+                    draw_text_with_shadow(surface, font_small, line1, (cx, cy), c1)
+
+        if not is_ocean:
+            draw_terrain_glyph(surface, region, cx, cy - 34)
+            draw_activity_badges(surface, region, cx, cy, font_small)
+            draw_pop_delta(surface, region, cx, cy, font_small)
 
     draw_edges(surface, world)
     draw_trade_arrows(surface, world)

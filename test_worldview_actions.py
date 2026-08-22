@@ -231,18 +231,28 @@ class TestWorldviewActionsUI(unittest.TestCase):
             self.assertTrue(hasattr(t, 'city_name'), f"Tile {t.name} must have an assigned city_name")
             self.assertTrue(hasattr(t, 'display_name'), f"Tile {t.name} must have display_name")
 
-        # Verify Overview Layer formatting
+        # Verify Overview Layer formatting (clean, single nation/province names, zero text on ocean)
+        nation_caps_seen = 0
+        prov_caps_seen = 0
         for t in tiles:
             l1, l2, l3, c1, c2, c3 = tile_stats(t, layer_mode='overview', world=world)
-            if t.owner_nation:
-                self.assertIn("(", l1, "Claimed tile Line 1 must overlay Province (Nation)")
-                self.assertIn("pop", l2, "Claimed tile Line 2 must show population")
-            elif getattr(t, 'is_ocean', False):
-                self.assertEqual(l1, "Open Sea (Ocean)")
+            if getattr(t, 'is_ocean', False):
+                self.assertEqual(l1, "", "Ocean tiles in overview must have zero text")
+                self.assertEqual(l2, "", "Ocean tiles in overview must have zero text")
+            elif t.owner_nation:
+                self.assertIn("pop", l2, "Claimed tile Line 2 must show population and food price")
+                if "★" in l1:
+                    nation_caps_seen += 1
+                elif "[" in l1:
+                    prov_caps_seen += 1
             else:
-                self.assertEqual(l1, "Wild Frontier (Unclaimed)")
+                # Wilderness tile
+                if l1:
+                    self.assertTrue(l1.startswith("hs"), "Wilderness only shows hs stats if occupied")
 
-        print("Verified 1,000-city global geographic database and Province/Nation overview formatting.")
+        self.assertEqual(nation_caps_seen, len(world['nations']), "Must have exactly 1 Nation Name badge per nation.")
+        self.assertGreater(prov_caps_seen, 0, "Must have province seat badges.")
+        print("Verified clean, decluttered overview formatting with 1 nation and 1 province name per territory.")
 
 
 if __name__ == "__main__":
