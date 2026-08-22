@@ -82,28 +82,108 @@ def homesteaders(region):
     return sum(1 for a in region.agents if getattr(a, 'is_homesteader', False))
 
 
-def tile_stats(region):
-    """Summary lines printed on each hex (claimed vs unclaimed)."""
+def tile_stats(region, layer_mode='overview', world=None):
+    """Summary lines and colors printed on each hex based on active map layer mode."""
     elev = getattr(region, 'elevation_meters', 0)
     biome = getattr(region, 'biome', 'plains')
+    is_ocean = getattr(region, 'is_ocean', False) or elev < 0
+    owner = getattr(region, 'owner_nation', None)
+    pop = region_pop(region)
 
-    # Elevation label line
-    if elev < 0:
-        elev_str = f"≈ {elev:,}m"
-    elif elev >= 2000:
-        elev_str = f"▲ {elev:,}m"
-    else:
-        elev_str = f"▲ {elev:,}m"
+    # 1. PHYSICAL & HEIGHT LAYER
+    if layer_mode == 'physical':
+        if is_ocean:
+            return f"≈ {elev:,}m", "Ocean Basin", "No Land Yield", (140, 225, 255), (100, 180, 240), DIM
+        b_name = biome.replace('_', ' ').title()
+        b_bonuses = []
+        if region.terrain.get(Goods.food, 1.0) > 1.1:
+            b_bonuses.append(f"Fd +{int((region.terrain[Goods.food]-1.0)*100)}%")
+        if region.terrain.get(Goods.wood, 1.0) > 1.1:
+            b_bonuses.append(f"Wd +{int((region.terrain[Goods.wood]-1.0)*100)}%")
+        bonus_str = " ".join(b_bonuses) if b_bonuses else "Standard Yield"
+        clim = "Cold (1.2x)" if getattr(region, 'climate', '') == 'cold' else "Temperate"
+        return f"▲ {elev:,}m", b_name, f"{bonus_str} | {clim}", (255, 240, 180), ACCENT, DIM
 
-    if getattr(region, 'owner_nation', None) is None:
+    # 2. POPULATION & UNREST LAYER
+    if layer_mode == 'population':
+        if is_ocean:
+            return "Pop: 0", "Uninhabited", "Ocean Basin", DIM, DIM, DIM
+        if owner is None:
+            hs = homesteaders(region)
+            wild = getattr(region, 'wilderness_pop', 0)
+            return f"HS Pop: {hs}", f"Natives: {wild}", "Wilderness", ACCENT, TEXT, DIM
+        hungry_cnt = 0
+        for g in (Goods.food, Goods.wood, Goods.furniture):
+            if g in region.hungry_log and region.hungry_log[g]:
+                hungry_cnt = max(hungry_cnt, region.hungry_log[g][-1])
+        h_color = RED if hungry_cnt > 5 else (ACCENT if hungry_cnt > 0 else GREEN)
+        unrest = region.unrest_log[-1] if region.unrest_log else {}
+        stage = unrest.get('stage', 'calm').upper()
+        u_col = UNREST_COLORS.get(stage.lower(), GREEN if stage == 'CALM' else ACCENT)
+        return f"Pop: {pop}", f"Hungry: {hungry_cnt}", f"Order: {stage}", TEXT, h_color, u_col
+
+    # 3. ECONOMY & WEALTH LAYER
+    if layer_mode == 'economy':
+        if is_ocean or owner is None:
+            return "GDP: $0", "Wilderness", "No Banking", DIM, DIM, DIM
+        # Nominal GDP approximation (food + wood + furniture revenue)
+        gdp = 0.0
+        for g in (Goods.food, Goods.wood, Goods.furniture):
+            out_qty = region.production_log[g][-1] if (g in region.production_log and region.production_log[g]) else 0
+            pr = region.recipes.get(g, {}).get('price', 1.0)
+            gdp += out_qty * pr
+        food_p = region.recipes.get(Goods.food, {}).get('price', 1.0)
+        wood_p = region.recipes.get(Goods.wood, {}).get('price', 1.0)
+        dep = region.bank.deposits_total() if hasattr(region, 'bank') and hasattr(region.bank, 'deposits_total') else sum(region.bank.deposits.values()) if hasattr(region, 'bank') else 0.0
+        return f"GDP: ${gdp:,.0f}", f"Fd ${food_p:.1f}  Wd ${wood_p:.1f}", f"Bank: ${dep:,.0f}", GREEN, ACCENT, TEXT
+
+    # 4. PRODUCTION & OUTPUT LAYER
+    if layer_mode == 'production':
+        if is_ocean:
+            return "Output: None", "Ocean Basin", "--", DIM, DIM, DIM
+        if owner is None:
+            return "Wilderness", "Forage Only", "--", DIM, DIM, DIM
+        fd_out = region.production_log[Goods.food][-1] if (Goods.food in region.production_log and region.production_log[Goods.food]) else 0
+        wd_out = region.production_log[Goods.wood][-1] if (Goods.wood in region.production_log and region.production_log[Goods.wood]) else 0
+        blds = getattr(region, 'buildings', [])
+        b_summary = f"Bld: {len(blds)} Active" if blds else "Bld: None"
+        workers = sum(1 for a in region.agents if getattr(a, 'output', Goods.none) != Goods.none)
+        return f"Fd: {fd_out}  Wd: {wd_out}", b_summary, f"Labor: {workers}/{pop}", ACCENT, GREEN if blds else DIM, TEXT
+
+    # 5. MILITARY & DEFENSE LAYER
+    if layer_mode == 'military':
+        if is_ocean:
+            return "No Garrison", "Ocean Basin", "Naval Zone", DIM, DIM, DIM
+        # Find units stationed in this region
+        nations = world.get('nations', []) if world else []
+        stationed_units = []
+        for n in nations:
+            for u in getattr(n, 'military_units', []):
+                if u.region_name == region.name:
+                    stationed_units.append(u)
+        if stationed_units:
+            tot_soldiers = sum(u.soldiers for u in stationed_units)
+            tot_str = sum(u.strength for u in stationed_units)
+            avg_xp = sum(u.veteran_xp for u in stationed_units) / len(stationed_units)
+            return f"⚔ {tot_soldiers} Troops", f"Strength: {tot_str:.1f}", f"XP: {avg_xp:.2f}", RED, ACCENT, GREEN
+        else:
+            threat_str = "Border: Guarded" if owner else "Wilderness"
+            return "No Garrison", threat_str, "Vulnerability: High" if owner else "--", DIM, ACCENT if owner else DIM, RED if owner else DIM
+
+    # 6. OVERVIEW LAYER (Default)
+    elev_str = f"≈ {elev:,}m" if elev < 0 else f"▲ {elev:,}m"
+    elev_col = (140, 225, 255) if elev < 0 else ((255, 240, 180) if elev >= 2000 else ACCENT)
+
+    if owner is None:
+        if is_ocean:
+            return elev_str, "Ocean Basin", "", elev_col, DIM, DIM
         hs = homesteaders(region)
         wild = getattr(region, 'wilderness_pop', 0)
-        return elev_str, f"hs {hs}+{wild}n", ""
-    
-    pop = region_pop(region)
+        return elev_str, f"hs {hs}+{wild}n", "", elev_col, TEXT, DIM
+
     food = region.recipes[Goods.food]['price'] if hasattr(region, 'recipes') and Goods.food in region.recipes else 1.0
     traders = sum(1 for a in region.agents if getattr(a, 'is_trader', False))
-    return elev_str, f"pop {pop}  fd ${food:.1f}", f"tr {traders}" if traders > 0 else ""
+    return elev_str, f"pop {pop}  fd ${food:.1f}", f"tr {traders}" if traders > 0 else "", elev_col, TEXT, DIM
 
 
 def draw_elevation_terrain(surface, region, pts, cx, cy, zoom=1.0, frame=0):
@@ -404,12 +484,12 @@ def draw_hex_map(surface, world, font, font_small):
         # 6. Readouts with Drop Shadows for Readability
         draw_text_with_shadow(surface, font, region.name, (cx, cy - 20), TEXT)
         
-        line1, line2, line3 = tile_stats(region)
-        elev_col = (140, 225, 255) if getattr(region, 'elevation', 0.0) < 0 else ((255, 240, 180) if getattr(region, 'elevation', 0.0) >= 0.70 else ACCENT)
-        draw_text_with_shadow(surface, font_small, line1, (cx, cy - 2), elev_col)
-        draw_text_with_shadow(surface, font_small, line2, (cx, cy + 12), TEXT)
+        layer_mode = world.get('map_layer', 'overview')
+        line1, line2, line3, c1, c2, c3 = tile_stats(region, layer_mode=layer_mode, world=world)
+        draw_text_with_shadow(surface, font_small, line1, (cx, cy - 2), c1)
+        draw_text_with_shadow(surface, font_small, line2, (cx, cy + 12), c2)
         if line3:
-            draw_text_with_shadow(surface, font_small, line3, (cx, cy + 24), DIM)
+            draw_text_with_shadow(surface, font_small, line3, (cx, cy + 24), c3)
 
         draw_terrain_glyph(surface, region, cx, cy - 34)
         draw_activity_badges(surface, region, cx, cy, font_small)

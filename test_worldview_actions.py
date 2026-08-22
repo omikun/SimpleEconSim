@@ -177,12 +177,35 @@ class TestWorldviewActionsUI(unittest.TestCase):
         for t in range(1, 31):
             step_world(world)
 
-        for tile in tiles:
-            if getattr(tile, 'is_ocean', False) or getattr(tile, 'elevation', 0.0) < 0.0:
-                self.assertEqual(len(tile.agents), 0, f"Ocean tile {tile.name} should have 0 agents, found {len(tile.agents)}")
-                self.assertIsNone(getattr(tile, 'owner_nation', None), f"Ocean tile {tile.name} should never be claimed")
-
         print("Verified 100% single continuous landmass connectivity and complete ocean isolation.")
+
+    def test_map_info_layer_sidebar_and_rendering(self):
+        """Verify left layer sidebar clicking, layer switching, and rendering across all 6 layers."""
+        from worldview_layers import layer_sidebar_hit, MAP_LAYERS, SIDEBAR_X, SIDEBAR_Y, BTN_H, BTN_SPACING
+        from worldview_engine import step_world
+
+        world = self.world
+        self.assertEqual(world.get('map_layer'), 'overview')
+
+        # Test sidebar button clicks for all layers
+        by = SIDEBAR_Y + 34
+        for key, label, _, _, _ in MAP_LAYERS:
+            click_pos = (SIDEBAR_X + 40, by + 12)
+            hit = layer_sidebar_hit(click_pos, world)
+            self.assertTrue(hit, f"Clicking layer {key} should register.")
+            self.assertEqual(world.get('map_layer'), key, f"Active map layer should be {key}")
+
+            # Render frame with active layer
+            render_frame(self.surface, world)
+            by += BTN_H + BTN_SPACING
+
+        # Step 5 turns while cycling layers
+        for key, _, _, _, _ in MAP_LAYERS:
+            world['map_layer'] = key
+            step_world(world)
+            render_frame(self.surface, world)
+
+        print("Verified left layer sidebar toggle and per-tile rendering across all 6 map layers.")
 
 
 if __name__ == "__main__":

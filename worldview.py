@@ -42,6 +42,9 @@ from worldview_compare import (
 from worldview_actions import (
     draw_actions_modal, actions_tab_hit, top_bar_action_hit
 )
+from worldview_layers import (
+    draw_layer_sidebar, layer_sidebar_hit, MAP_LAYERS
+)
 from worldview_engine import (
     get_layout, get_reverse_layout, build_world_view, ticker_push, step_world
 )
@@ -100,6 +103,7 @@ def render_frame(surface, world, mouse_pos=None):
     draw_top_bar(surface, world, font_small, mouse_pos=mouse_pos)
     draw_hex_map(surface, world, font, font_small)
     draw_zoom_hud(surface, font_small, mouse_pos=mouse_pos)
+    draw_layer_sidebar(surface, world, font_small, mouse_pos=mouse_pos)
     draw_panel(surface, world, font, font_small, mouse_pos=mouse_pos)
     draw_ticker(surface, world, font_small)
     draw_nations_comparison(surface, world, font, font_small, mouse_pos=mouse_pos)
@@ -227,6 +231,10 @@ def main():
                 # 1b. Check Compare Nations top bar button
                 if compare_btn_hit(event.pos):
                     world['compare_open'] = not world.get('compare_open', False)
+                    continue
+
+                # 1c. Check Left Layer Sidebar toggle dock
+                if layer_sidebar_hit(event.pos, world):
                     continue
 
                 # 2. Check Zoom HUD buttons
@@ -381,8 +389,31 @@ def main():
                     world['view'] = 0
                 elif event.key == pygame.K_v:
                     world['scope'] = 'nation' if world.get('scope', 'tile') == 'tile' else 'tile'
-                elif pygame.K_1 <= event.key <= pygame.K_9:
-                    world['view'] = event.key - pygame.K_1 + 1
+                # Map info layer hotkeys (F1..F6 and 1..6)
+                elif event.key in (pygame.K_F1, pygame.K_1, pygame.K_KP1):
+                    world['map_layer'] = 'overview'
+                    _mark_dirty(world)
+                elif event.key in (pygame.K_F2, pygame.K_2, pygame.K_KP2):
+                    world['map_layer'] = 'physical'
+                    _mark_dirty(world)
+                elif event.key in (pygame.K_F3, pygame.K_3, pygame.K_KP3):
+                    world['map_layer'] = 'population'
+                    _mark_dirty(world)
+                elif event.key in (pygame.K_F4, pygame.K_4, pygame.K_KP4):
+                    world['map_layer'] = 'economy'
+                    _mark_dirty(world)
+                elif event.key in (pygame.K_F5, pygame.K_5, pygame.K_KP5):
+                    world['map_layer'] = 'production'
+                    _mark_dirty(world)
+                elif event.key in (pygame.K_F6, pygame.K_6, pygame.K_KP6):
+                    world['map_layer'] = 'military'
+                    _mark_dirty(world)
+                elif event.key in (pygame.K_7, pygame.K_KP7):
+                    world['view'] = 7
+                elif event.key in (pygame.K_8, pygame.K_KP8):
+                    world['view'] = 8
+                elif event.key in (pygame.K_9, pygame.K_KP9):
+                    world['view'] = 9
                 elif event.key == pygame.K_0:
                     world['view'] = 10 if world.get('view') != 10 else 0
                 elif event.key in (pygame.K_r, pygame.K_HOME):

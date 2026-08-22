@@ -57,6 +57,7 @@ def build_world_view(seed=None):
         'scope': 'tile',
         'help_open': False,
         'help_scroll': 0,
+        'map_layer': 'overview',
     }
     reset_cam(world)
     return world
