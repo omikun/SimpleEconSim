@@ -458,11 +458,11 @@ def draw_hex_map(surface, world, font, font_small):
 
     # 0. Draw Continuous Topographic Elevation Background Surface with Contour Lines & Hillshading
     seed = world.get('seed', 42)
-    topo_surf = get_cached_topographic_surface(seed, bbox, canvas_w=1200, canvas_h=900)
+    topo_surf = get_cached_topographic_surface(seed, bbox, canvas_w=2400, canvas_h=1800)
 
     x0, y0, x1, y1 = bbox
-    pad_x = (x1 - x0) * 0.15
-    pad_y = (y1 - y0) * 0.15
+    pad_x = (x1 - x0) * 0.18
+    pad_y = (y1 - y0) * 0.18
     min_wx = x0 - pad_x
     min_wy = y0 - pad_y
     world_w = (x1 - x0) + 2 * pad_x

@@ -223,8 +223,8 @@ def apply_heightmap_to_world(tiles: list, seed: int = 42, grid_rows: int = 9, gr
 _TOPOGRAPHIC_SURFACE_CACHE = {}
 
 
-def get_cached_topographic_surface(seed, bbox, canvas_w=1200, canvas_h=900):
-    """Return pre-rendered, high-resolution topographic elevation surface with contour lines and hillshading."""
+def get_cached_topographic_surface(seed, bbox, canvas_w=2400, canvas_h=1800):
+    """Return pre-rendered, 4x Ultra-HD topographic elevation surface with contour lines and hillshading."""
     cache_key = (seed, bbox, canvas_w, canvas_h)
     if cache_key in _TOPOGRAPHIC_SURFACE_CACHE:
         return _TOPOGRAPHIC_SURFACE_CACHE[cache_key]
@@ -235,38 +235,38 @@ def get_cached_topographic_surface(seed, bbox, canvas_w=1200, canvas_h=900):
     return surf
 
 
-def _generate_topographic_surface_impl(generator, bbox, width: int = 1200, height: int = 900) -> "pygame.Surface":
-    """Render a high-resolution topographic map surface with contour lines and hillshading."""
+def _generate_topographic_surface_impl(generator, bbox, width: int = 2400, height: int = 1800) -> "pygame.Surface":
+    """Render a 4x high-resolution topographic map surface with contour lines and hillshading."""
     import pygame
     x0, y0, x1, y1 = bbox
-    pad_x = (x1 - x0) * 0.15
-    pad_y = (y1 - y0) * 0.15
+    pad_x = (x1 - x0) * 0.18
+    pad_y = (y1 - y0) * 0.18
     min_wx = x0 - pad_x
     max_wx = x1 + pad_x
     min_wy = y0 - pad_y
     max_wy = y1 + pad_y
 
-    cx_center = (min_wx + max_wx) / 2.0
-    cy_center = (min_wy + max_wy) / 2.0
-    span_x = (max_wx - min_wx) / 2.0
-    span_y = (max_wy - min_wy) / 2.0
-
     surf = pygame.Surface((width, height))
     surf.fill((12, 28, 62))
     
-    step = 4
+    step = 2
     cols = width // step + 1
     rows = height // step + 1
+    hex_size = 50.0
+    sqrt3 = math.sqrt(3.0)
 
-    # 1. Sample continuous heights grid
+    # 1. Sample continuous heights grid mapped directly to hex coordinate space
     h_grid = []
     for r in range(rows):
         row_h = []
         wy = min_wy + (r / max(1, rows - 1)) * (max_wy - min_wy)
-        ny = (wy - cy_center) / span_y
+        continuous_row = wy / (hex_size * 1.5)
         for c in range(cols):
             wx = min_wx + (c / max(1, cols - 1)) * (max_wx - min_wx)
-            nx = (wx - cx_center) / span_x
+            continuous_col = (wx / (hex_size * sqrt3)) - 0.5 * (continuous_row % 2.0)
+
+            nx = (continuous_col - (generator.grid_cols - 1) / 2.0) / (generator.grid_cols / 2.0)
+            ny = (continuous_row - (generator.grid_rows - 1) / 2.0) / (generator.grid_rows / 2.0)
             h = generator.get_continuous_height(nx, ny)
             row_h.append(h)
         h_grid.append(row_h)
@@ -297,24 +297,26 @@ def _generate_topographic_surface_impl(generator, bbox, width: int = 1200, heigh
             meters = generator.get_elevation_meters(h)
             is_index_contour = False
             is_contour = False
+            is_coastline = False
 
             if h >= 0.0:
-                # Index contour every 1000m
-                if abs(meters % 1000) <= 24 or abs((meters % 1000) - 1000) <= 24:
+                if abs(meters) <= 8:
+                    is_coastline = True
+                elif abs(meters % 1000) <= 12 or abs((meters % 1000) - 1000) <= 12:
                     is_index_contour = True
-                # Intermediate contour every 250m
-                elif abs(meters % 250) <= 12 or abs((meters % 250) - 250) <= 12:
+                elif abs(meters % 250) <= 6 or abs((meters % 250) - 250) <= 6:
                     is_contour = True
             else:
-                # Bathymetric ocean contours every 300m
                 abs_m = abs(meters)
-                if abs(abs_m % 300) <= 16 or abs((abs_m % 300) - 300) <= 16:
+                if abs(abs_m % 300) <= 8 or abs((abs_m % 300) - 300) <= 8:
                     is_contour = True
 
-            if is_index_contour:
-                col = (255, 255, 255) if h >= 0.85 else ((42, 38, 32) if h >= 0.65 else (38, 58, 35))
+            if is_coastline:
+                col = (195, 182, 135)
+            elif is_index_contour:
+                col = (255, 255, 255) if h >= 0.85 else ((40, 36, 30) if h >= 0.65 else (35, 55, 32))
             elif is_contour:
-                col = (18, 48, 88) if h < 0.0 else ((210, 225, 240) if h >= 0.85 else ((82, 75, 68) if h >= 0.65 else (58, 92, 55)))
+                col = (18, 48, 88) if h < 0.0 else ((210, 225, 240) if h >= 0.85 else ((80, 72, 65) if h >= 0.65 else (55, 88, 52)))
 
             pygame.draw.rect(surf, col, (px, py, step, step))
 
