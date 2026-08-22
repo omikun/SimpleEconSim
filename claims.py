@@ -190,6 +190,9 @@ def check_and_apply_claims(t, tiles, nations):
             # Mass convert non-trader settlers' foreign currency to local currency
             fx.convert_non_trader_wallets(tile.agents, tile, t=t)
 
+            tile.province_display = getattr(prov, 'display_name', prov.name)
+            tile.nation_display = getattr(target_nation, 'display_name', target_nation.name)
+
             # 5. Logging
             event = {
                 't': t,

@@ -27,6 +27,8 @@ def build_world_view(seed=None):
     else:
         random.seed()
     tiles, nations, _grid = build_world(seed=seed)
+    from world_names import assign_world_identities
+    assign_world_identities(tiles, nations)
     currencies = [n.currency for n in nations]
     layout = get_layout()
     pair_orders = [(r, o) for r in tiles for o in tiles if o is not r

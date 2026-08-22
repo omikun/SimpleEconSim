@@ -207,6 +207,42 @@ class TestWorldviewActionsUI(unittest.TestCase):
 
         print("Verified left layer sidebar toggle and per-tile rendering across all 6 map layers.")
 
+    def test_realistic_geographic_hierarchy_and_overview_layer(self):
+        """Verify 10 nations x 10 provinces x 10 cities hierarchy and overview layer overlay format."""
+        from world_names import GLOBAL_NATION_DATA, get_country_names
+        from worldview_map import tile_stats
+
+        countries = get_country_names()
+        self.assertEqual(len(countries), 10, "Must have exactly 10 populous country datasets.")
+
+        total_cities = 0
+        for c_name, provs in GLOBAL_NATION_DATA.items():
+            self.assertEqual(len(provs), 10, f"Country {c_name} must have 10 provinces.")
+            for p_name, cities in provs.items():
+                self.assertEqual(len(cities), 10, f"Province {p_name} in {c_name} must have 10 cities.")
+                total_cities += len(cities)
+
+        self.assertEqual(total_cities, 1000, "Database must contain exactly 1,000 cities.")
+
+        world = self.world
+        tiles = world['tiles']
+        for t in tiles:
+            self.assertTrue(hasattr(t, 'city_name'), f"Tile {t.name} must have an assigned city_name")
+            self.assertTrue(hasattr(t, 'display_name'), f"Tile {t.name} must have display_name")
+
+        # Verify Overview Layer formatting
+        for t in tiles:
+            l1, l2, l3, c1, c2, c3 = tile_stats(t, layer_mode='overview', world=world)
+            if t.owner_nation:
+                self.assertIn("(", l1, "Claimed tile Line 1 must overlay Province (Nation)")
+                self.assertIn("pop", l2, "Claimed tile Line 2 must show population")
+            elif getattr(t, 'is_ocean', False):
+                self.assertEqual(l1, "Open Sea (Ocean)")
+            else:
+                self.assertEqual(l1, "Wild Frontier (Unclaimed)")
+
+        print("Verified 1,000-city global geographic database and Province/Nation overview formatting.")
+
 
 if __name__ == "__main__":
     unittest.main()

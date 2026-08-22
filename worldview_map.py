@@ -171,19 +171,23 @@ def tile_stats(region, layer_mode='overview', world=None):
             return "No Garrison", threat_str, "Vulnerability: High" if owner else "--", DIM, ACCENT if owner else DIM, RED if owner else DIM
 
     # 6. OVERVIEW LAYER (Default)
-    elev_str = f"≈ {elev:,}m" if elev < 0 else f"▲ {elev:,}m"
-    elev_col = (140, 225, 255) if elev < 0 else ((255, 240, 180) if elev >= 2000 else ACCENT)
-
+    city_name = getattr(region, 'display_name', getattr(region, 'city_name', region.name))
     if owner is None:
         if is_ocean:
-            return elev_str, "Ocean Basin", "", elev_col, DIM, DIM
+            return "Open Sea (Ocean)", "Ocean Basin", "", (140, 225, 255), DIM, DIM
         hs = homesteaders(region)
         wild = getattr(region, 'wilderness_pop', 0)
-        return elev_str, f"hs {hs}+{wild}n", "", elev_col, TEXT, DIM
+        return "Wild Frontier (Unclaimed)", f"hs {hs}+{wild}n", "", DIM, TEXT, DIM
+
+    # Claimed tile: Province & Nation overlay
+    prov = next((p for p in getattr(owner, 'provinces', []) if region in p.tiles), None)
+    prov_name = getattr(prov, 'display_name', prov.name) if prov else getattr(region, 'province_display', 'Core')
+    n_col = NATION_COLORS.get(owner.name, ACCENT)
+    prov_nation_str = f"{prov_name} ({owner.name})"
 
     food = region.recipes[Goods.food]['price'] if hasattr(region, 'recipes') and Goods.food in region.recipes else 1.0
     traders = sum(1 for a in region.agents if getattr(a, 'is_trader', False))
-    return elev_str, f"pop {pop}  fd ${food:.1f}", f"tr {traders}" if traders > 0 else "", elev_col, TEXT, DIM
+    return prov_nation_str, f"pop {pop}  fd ${food:.1f}", f"tr {traders}" if traders > 0 else "", n_col, TEXT, DIM
 
 
 def draw_elevation_terrain(surface, region, pts, cx, cy, zoom=1.0, frame=0):
@@ -482,7 +486,9 @@ def draw_hex_map(surface, world, font, font_small):
             pygame.draw.polygon(surface, (255, 255, 255), pts, 4 if region.name not in highlight_map else 2)
 
         # 6. Readouts with Drop Shadows for Readability
-        draw_text_with_shadow(surface, font, region.name, (cx, cy - 20), TEXT)
+        city_title = getattr(region, 'display_name', getattr(region, 'city_name', region.name))
+        name_font = font_small if len(city_title) > 8 else font
+        draw_text_with_shadow(surface, name_font, city_title, (cx, cy - 20), (255, 255, 255))
         
         layer_mode = world.get('map_layer', 'overview')
         line1, line2, line3, c1, c2, c3 = tile_stats(region, layer_mode=layer_mode, world=world)
