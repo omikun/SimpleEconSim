@@ -34,24 +34,25 @@ TAB_ACTIVE_BG = (52, 52, 75)
 TAB_INACTIVE_BG = (28, 28, 38)
 
 # Top Bar Action Buttons: (x, y, w, h)
-DIPLOMACY_BTN = (MAP_RIGHT - 300, 12, 140, 28)
+HELP_BTN = (MAP_RIGHT - 540, 12, 85, 28)
 MILITARY_BTN = (MAP_RIGHT - 445, 12, 135, 28)
+DIPLOMACY_BTN = (MAP_RIGHT - 300, 12, 140, 28)
 
 
 def draw_top_bar_action_buttons(surface, world, font_small, mouse_pos=None):
-    """Draw top-bar shortcuts for Diplomacy (D) and Military / Command (M)."""
+    """Draw top-bar shortcuts for Help (?), Military (M), and Diplomacy (D)."""
     mx, my = mouse_pos if mouse_pos else (-1, -1)
     
-    # 1. Diplomacy Button
-    is_dip_open = world.get('actions_open') and world.get('actions_tab') == 1
-    dip_hover = DIPLOMACY_BTN[0] <= mx <= DIPLOMACY_BTN[0] + DIPLOMACY_BTN[2] and DIPLOMACY_BTN[1] <= my <= DIPLOMACY_BTN[1] + DIPLOMACY_BTN[3]
-    dip_bg = (75, 75, 100) if is_dip_open else ((60, 60, 80) if dip_hover else (40, 40, 52))
-    pygame.draw.rect(surface, dip_bg, DIPLOMACY_BTN, border_radius=5)
-    pygame.draw.rect(surface, ACCENT if (dip_hover or is_dip_open) else (90, 90, 110), DIPLOMACY_BTN, 1, border_radius=5)
-    dip_txt = font_small.render("Diplomacy (D)", True, (255, 255, 255) if (dip_hover or is_dip_open) else TEXT)
-    surface.blit(dip_txt, dip_txt.get_rect(center=(DIPLOMACY_BTN[0] + DIPLOMACY_BTN[2] // 2, DIPLOMACY_BTN[1] + DIPLOMACY_BTN[3] // 2)))
+    # 0. Help Button (?)
+    is_help_open = world.get('help_open', False)
+    help_hover = HELP_BTN[0] <= mx <= HELP_BTN[0] + HELP_BTN[2] and HELP_BTN[1] <= my <= HELP_BTN[1] + HELP_BTN[3]
+    help_bg = (75, 75, 100) if is_help_open else ((60, 60, 80) if help_hover else (40, 40, 52))
+    pygame.draw.rect(surface, help_bg, HELP_BTN, border_radius=5)
+    pygame.draw.rect(surface, ACCENT if (help_hover or is_help_open) else (90, 90, 110), HELP_BTN, 1, border_radius=5)
+    help_txt = font_small.render("Help (?)", True, (255, 255, 255) if (help_hover or is_help_open) else TEXT)
+    surface.blit(help_txt, help_txt.get_rect(center=(HELP_BTN[0] + HELP_BTN[2] // 2, HELP_BTN[1] + HELP_BTN[3] // 2)))
 
-    # 2. Military Button
+    # 1. Military Button
     is_mil_open = world.get('actions_open') and world.get('actions_tab') == 2
     mil_hover = MILITARY_BTN[0] <= mx <= MILITARY_BTN[0] + MILITARY_BTN[2] and MILITARY_BTN[1] <= my <= MILITARY_BTN[1] + MILITARY_BTN[3]
     mil_bg = (75, 75, 100) if is_mil_open else ((60, 60, 80) if mil_hover else (40, 40, 52))
@@ -60,10 +61,21 @@ def draw_top_bar_action_buttons(surface, world, font_small, mouse_pos=None):
     mil_txt = font_small.render("Military (M)", True, (255, 255, 255) if (mil_hover or is_mil_open) else TEXT)
     surface.blit(mil_txt, mil_txt.get_rect(center=(MILITARY_BTN[0] + MILITARY_BTN[2] // 2, MILITARY_BTN[1] + MILITARY_BTN[3] // 2)))
 
+    # 2. Diplomacy Button
+    is_dip_open = world.get('actions_open') and world.get('actions_tab') == 1
+    dip_hover = DIPLOMACY_BTN[0] <= mx <= DIPLOMACY_BTN[0] + DIPLOMACY_BTN[2] and DIPLOMACY_BTN[1] <= my <= DIPLOMACY_BTN[1] + DIPLOMACY_BTN[3]
+    dip_bg = (75, 75, 100) if is_dip_open else ((60, 60, 80) if dip_hover else (40, 40, 52))
+    pygame.draw.rect(surface, dip_bg, DIPLOMACY_BTN, border_radius=5)
+    pygame.draw.rect(surface, ACCENT if (dip_hover or is_dip_open) else (90, 90, 110), DIPLOMACY_BTN, 1, border_radius=5)
+    dip_txt = font_small.render("Diplomacy (D)", True, (255, 255, 255) if (dip_hover or is_dip_open) else TEXT)
+    surface.blit(dip_txt, dip_txt.get_rect(center=(DIPLOMACY_BTN[0] + DIPLOMACY_BTN[2] // 2, DIPLOMACY_BTN[1] + DIPLOMACY_BTN[3] // 2)))
+
 
 def top_bar_action_hit(pos):
-    """Return 'diplomacy', 'military', or None if an action button was clicked."""
+    """Return 'help', 'diplomacy', 'military', or None if an action button was clicked."""
     mx, my = pos
+    if HELP_BTN[0] <= mx <= HELP_BTN[0] + HELP_BTN[2] and HELP_BTN[1] <= my <= HELP_BTN[1] + HELP_BTN[3]:
+        return 'help'
     if DIPLOMACY_BTN[0] <= mx <= DIPLOMACY_BTN[0] + DIPLOMACY_BTN[2] and DIPLOMACY_BTN[1] <= my <= DIPLOMACY_BTN[1] + DIPLOMACY_BTN[3]:
         return 'diplomacy'
     if MILITARY_BTN[0] <= mx <= MILITARY_BTN[0] + MILITARY_BTN[2] and MILITARY_BTN[1] <= my <= MILITARY_BTN[1] + MILITARY_BTN[3]:

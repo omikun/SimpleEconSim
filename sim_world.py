@@ -71,17 +71,25 @@ def make_wilderness(name):
     return Region(name, t=0, wilderness=True)
 
 
-def build_world(seed=None):
+def build_world(seed=None, terrain_seed=None, nation_seed=None):
     """Build the 9x9 hex world and return (tiles, nations, grid).
 
     grid: list of lists (rows x cols) of the same Region objects as *tiles*,
-    so callers can address tiles by (row, col).  ``seed=None`` seeds from
-    system entropy (nondeterministic); pass an int for reproducible worlds.
+    so callers can address tiles by (row, col). Supports independent terrain_seed
+    and nation_seed for procedural variations.
     """
     if seed is not None:
-        random.seed(seed)
+        if terrain_seed is None:
+            terrain_seed = seed
+        if nation_seed is None:
+            nation_seed = (seed * 31 + 17) & 0x7FFFFFFF
     else:
-        random.seed()
+        if terrain_seed is None:
+            terrain_seed = random.randint(1, 999999)
+        if nation_seed is None:
+            nation_seed = random.randint(1, 999999)
+
+    rng_nation = random.Random(nation_seed)
     profs = _professions()
 
     tiles = []
@@ -97,7 +105,7 @@ def build_world(seed=None):
 
     # ---- Apply realistic elevation heightmap and continuous landmass ----
     from heightmap import apply_heightmap_to_world
-    apply_heightmap_to_world(tiles, seed=seed if seed is not None else 42, grid_rows=GRID_ROWS, grid_cols=GRID_COLS)
+    apply_heightmap_to_world(tiles, seed=terrain_seed, grid_rows=GRID_ROWS, grid_cols=GRID_COLS)
 
     # Ensure ocean tiles have 0 natives and 0 agents
     for t in tiles:
@@ -108,7 +116,7 @@ def build_world(seed=None):
     # ---- Nations claim contiguous hex clusters (disjoint, strictly on land) ----
     # 3 Starting Global Powers from the 10-country database (sizes 3, 4, 5)
     from world_names import get_starting_nations_claimed_by
-    claimed_by = get_starting_nations_claimed_by(seed=seed)
+    claimed_by = get_starting_nations_claimed_by(seed=nation_seed)
     nations = []
 
     def _unclaimed_land_cells():
@@ -116,18 +124,18 @@ def build_world(seed=None):
                 if getattr(grid[r][c], 'owner_nation', None) is None and not getattr(grid[r][c], 'is_ocean', False)}
 
     for nname, (cur, n_tiles) in claimed_by.items():
-        n = Nation(nname, currency=cur,
-                   regime_type="autocracy" if nname != "India" else "democracy")
+        regime = "democracy" if rng_nation.random() > 0.5 else "autocracy"
+        n = Nation(nname, currency=cur, regime_type=regime)
         nations.append(n)
         open_cells = _unclaimed_land_cells()
         # BFS cluster growth strictly on land tiles in the central continent
-        seed_r, seed_c = random.choice(sorted(open_cells))
+        seed_r, seed_c = rng_nation.choice(sorted(open_cells))
         cluster = [(seed_r, seed_c)]
         frontier = [(seed_r, seed_c)]
         seen = {(seed_r, seed_c)}
         while len(cluster) < n_tiles:
             grown = False
-            random.shuffle(frontier)
+            rng_nation.shuffle(frontier)
             for pr, pc in frontier:
                 q, axr = _LAYOUT[f"r{pr}c{pc}"]
                 for nq, nar in axial_neighbors(q, axr):

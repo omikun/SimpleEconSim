@@ -457,7 +457,7 @@ def draw_hex_map(surface, world, font, font_small):
     bbox = world['bbox']
 
     # 0. Draw Continuous Topographic Elevation Background Surface with Contour Lines & Hillshading
-    seed = world.get('seed', 42)
+    seed = world.get('terrain_seed', world.get('seed', 42))
     topo_surf = get_cached_topographic_surface(seed, bbox, canvas_w=2400, canvas_h=1800)
 
     x0, y0, x1, y1 = bbox
@@ -528,8 +528,22 @@ def draw_hex_map(surface, world, font, font_small):
         layer_mode = world.get('map_layer', 'overview')
 
         if not is_ocean:
-            city_title = getattr(region, 'display_name', getattr(region, 'city_name', region.name))
-            name_font = font_small if len(city_title) > 8 else font
+            raw_city = getattr(region, 'display_name', getattr(region, 'city_name', region.name))
+            is_nat_cap = getattr(region, 'is_national_capital', False) or (owner and owner.tiles and region == owner.tiles[0])
+            is_prov_cap = getattr(region, 'is_provincial_capital', False)
+            if not is_nat_cap and owner and getattr(owner, 'provinces', None):
+                prov = next((p for p in owner.provinces if region in p.tiles), None)
+                if prov and prov.tiles and region == prov.tiles[0]:
+                    is_prov_cap = True
+
+            if is_nat_cap:
+                city_title = f"★ {raw_city}"
+            elif is_prov_cap:
+                city_title = f"◆ {raw_city}"
+            else:
+                city_title = raw_city
+
+            name_font = font_small if len(city_title) > 10 else font
             line1, line2, line3, c1, c2, c3 = tile_stats(region, layer_mode=layer_mode, world=world)
 
             if layer_mode == 'overview':

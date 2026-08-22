@@ -253,6 +253,67 @@ class TestWorldviewActionsUI(unittest.TestCase):
         self.assertGreater(prov_caps_seen, 0, "Must have province seat badges.")
         print("Verified clean, decluttered overview formatting with 1 nation and 1 province name per territory.")
 
+    def test_randomized_nations_and_runtime_seeds(self):
+        """Verify runtime seed parameters and randomized starting nations from 10-country database."""
+        from worldview_engine import build_world_view
+        w1 = build_world_view(seed=101)
+        w2 = build_world_view(seed=999)
+
+        n1_names = [n.name for n in w1['nations']]
+        n2_names = [n.name for n in w2['nations']]
+
+        self.assertEqual(len(n1_names), 3)
+        self.assertEqual(len(n2_names), 3)
+        self.assertEqual(w1['seed'], 101)
+        self.assertEqual(w2['seed'], 999)
+        self.assertNotEqual(n1_names, n2_names, "Different seeds should generate different starting nation sets.")
+
+        # Test independent terrain and nation seeds
+        w3 = build_world_view(terrain_seed=555, nation_seed=777)
+        self.assertEqual(w3['terrain_seed'], 555)
+        self.assertEqual(w3['nation_seed'], 777)
+        print(f"Verified seed-driven randomized nation generation: Seed 101={n1_names}, Seed 999={n2_names}.")
+
+    def test_capital_symbols_and_claims_renaming(self):
+        """Verify national capital (★), provincial capital (◆), and dynamic wilderness claim renaming."""
+        from world_names import claim_wilderness_tile, GLOBAL_NATION_DATA
+        world = self.world
+        nation = world['nations'][0]
+
+        # National capital
+        self.assertIsNotNone(nation.capital)
+        self.assertTrue(getattr(nation.capital, 'is_national_capital', False))
+
+        # Provincial capitals
+        for prov in nation.provinces:
+            self.assertIsNotNone(prov.capital)
+            if prov.capital is not nation.capital:
+                self.assertTrue(getattr(prov.capital, 'is_provincial_capital', False))
+
+        # Test dynamic wilderness claim renaming
+        wild_tile = next(t for t in world['tiles'] if getattr(t, 'owner_nation', None) is None and not getattr(t, 'is_ocean', False))
+        claim_wilderness_tile(wild_tile, nation, prov=nation.provinces[0])
+
+        self.assertIn(wild_tile.display_name, GLOBAL_NATION_DATA[nation.name][nation.provinces[0].display_name],
+                      "Claimed tile must be renamed to an authentic city from that province.")
+        self.assertEqual(wild_tile.nation_display, nation.name)
+        print(f"Verified dynamic claim renaming: {wild_tile.name} -> '{wild_tile.display_name}' ({wild_tile.province_display}, {wild_tile.nation_display}).")
+
+    def test_help_modal_and_seed_display(self):
+        """Verify Help and Seed Registry modal toggle, hit testing, and headless rendering."""
+        from worldview_help import help_modal_hit
+        world = self.world
+        world['help_open'] = True
+
+        # Render frame with help modal open
+        render_frame(self.surface, world)
+
+        # Hit outside closes
+        hit_outside = help_modal_hit((10, 10), world)
+        self.assertTrue(hit_outside)
+        self.assertFalse(world['help_open'], "Click outside should close help modal.")
+        print("Verified Help & Seed Registry modal rendering and interaction.")
+
 
 if __name__ == "__main__":
     unittest.main()

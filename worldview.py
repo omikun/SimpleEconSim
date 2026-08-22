@@ -42,6 +42,9 @@ from worldview_compare import (
 from worldview_actions import (
     draw_actions_modal, actions_tab_hit, top_bar_action_hit
 )
+from worldview_help import (
+    draw_help_modal, help_modal_hit
+)
 from worldview_layers import (
     draw_layer_sidebar, layer_sidebar_hit, MAP_LAYERS
 )
@@ -108,7 +111,7 @@ def render_frame(surface, world, mouse_pos=None):
     draw_ticker(surface, world, font_small)
     draw_nations_comparison(surface, world, font, font_small, mouse_pos=mouse_pos)
     draw_actions_modal(surface, world, font, font_small, mouse_pos=mouse_pos)
-    draw_help(surface, world, font_small, mouse_pos=mouse_pos)
+    draw_help_modal(surface, world, font, font_small)
 
 
 def _mark_dirty(world):
@@ -117,26 +120,20 @@ def _mark_dirty(world):
 
 
 def main():
-    seed = None
-    args = sys.argv[1:]
-    i = 0
-    while i < len(args):
-        if args[i] == '--seed' and i + 1 < len(args):
-            seed = int(args[i + 1])
-            i += 2
-        else:
-            i += 1
+    import argparse
+    parser = argparse.ArgumentParser(description="REGNUM v3 — Hex World")
+    parser.add_argument('--seed', type=int, default=None, help='Unified master seed')
+    parser.add_argument('--terrain-seed', type=int, default=None, help='Procedural heightmap terrain seed')
+    parser.add_argument('--nation-seed', type=int, default=None, help='Starting nations selection and placement seed')
+    args = parser.parse_args()
+
     logInit()
-    if seed is not None:
-        random.seed(seed)
-    else:
-        random.seed()
     pygame.init()
     surface = pygame.display.set_mode((WIDTH, HEIGHT))
     pygame.display.set_caption("REGNUM v3 — Hex World")
     clock = pygame.time.Clock()
 
-    world = build_world_view(seed=seed)
+    world = build_world_view(seed=args.seed, terrain_seed=args.terrain_seed, nation_seed=args.nation_seed)
     world['needs_redraw'] = True
     pops_history.clear()
     for r in world['tiles']:
@@ -186,12 +183,7 @@ def main():
                 _mark_dirty(world)
                 # 0a. Check if Help Guide is open
                 if world.get('help_open'):
-                    p_hit = help_page_hit(event.pos)
-                    if p_hit is not None:
-                        world['help_page'] = p_hit
-                        continue
-                    if event.pos[0] < 32 or event.pos[0] > WIDTH - 32 or event.pos[1] < 18 or event.pos[1] > HEIGHT - 18 or event.pos[1] < 56:
-                        world['help_open'] = False
+                    if help_modal_hit(event.pos, world):
                         continue
 
                 # 0b. Check if Comparison Table is open
@@ -217,9 +209,12 @@ def main():
                         world['actions_open'] = False
                         continue
 
-                # 1a. Check Top Bar Action buttons (Diplomacy / Military)
+                # 1a. Check Top Bar Action buttons (Help / Diplomacy / Military)
                 act_btn = top_bar_action_hit(event.pos)
-                if act_btn == 'diplomacy':
+                if act_btn == 'help':
+                    world['help_open'] = not world.get('help_open', False)
+                    continue
+                elif act_btn == 'diplomacy':
                     world['actions_open'] = True if (not world.get('actions_open') or world.get('actions_tab') != 1) else False
                     world['actions_tab'] = 1
                     continue
@@ -384,12 +379,24 @@ def main():
                 elif event.key in (pygame.K_n, pygame.K_PERIOD):
                     world['playing'] = False
                     step_world(world)
+                elif event.key in (pygame.K_h, pygame.K_SLASH, pygame.K_QUESTION):
+                    world['help_open'] = not world.get('help_open', False)
+                    _mark_dirty(world)
+                elif event.key == pygame.K_ESCAPE:
+                    if world.get('help_open'):
+                        world['help_open'] = False
+                    elif world.get('actions_open'):
+                        world['actions_open'] = False
+                    elif world.get('compare_open'):
+                        world['compare_open'] = False
+                    else:
+                        world['selected_region'] = None
                     _mark_dirty(world)
                 elif event.key == pygame.K_TAB:
                     world['view'] = 0
                 elif event.key == pygame.K_v:
                     world['scope'] = 'nation' if world.get('scope', 'tile') == 'tile' else 'tile'
-                # Map info layer hotkeys (F1..F6 and 1..6)
+                # Map info layer hotkeys (1..6)
                 elif event.key in (pygame.K_F1, pygame.K_1, pygame.K_KP1):
                     world['map_layer'] = 'overview'
                     _mark_dirty(world)

@@ -20,15 +20,22 @@ def get_reverse_layout():
     return {v: k for k, v in get_layout().items()}
 
 
-def build_world_view(seed=None):
+def build_world_view(seed=None, terrain_seed=None, nation_seed=None):
     """Build the 9x9 hex world + prepare viewer state."""
     if seed is not None:
-        random.seed(seed)
+        if terrain_seed is None:
+            terrain_seed = seed
+        if nation_seed is None:
+            nation_seed = (seed * 31 + 17) & 0x7FFFFFFF
     else:
-        random.seed()
-    tiles, nations, _grid = build_world(seed=seed)
+        if terrain_seed is None:
+            terrain_seed = random.randint(1, 999999)
+        if nation_seed is None:
+            nation_seed = random.randint(1, 999999)
+
+    tiles, nations, _grid = build_world(seed=seed, terrain_seed=terrain_seed, nation_seed=nation_seed)
     from world_names import assign_world_identities
-    assign_world_identities(tiles, nations)
+    assign_world_identities(tiles, nations, seed=nation_seed)
     currencies = [n.currency for n in nations]
     layout = get_layout()
     pair_orders = [(r, o) for r in tiles for o in tiles if o is not r
@@ -60,6 +67,9 @@ def build_world_view(seed=None):
         'help_open': False,
         'help_scroll': 0,
         'map_layer': 'overview',
+        'seed': seed,
+        'terrain_seed': terrain_seed,
+        'nation_seed': nation_seed,
     }
     reset_cam(world)
     return world

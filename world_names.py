@@ -168,12 +168,20 @@ def get_country_names():
 
 
 def get_starting_nations_claimed_by(seed=None):
-    """Return 3 starting nations with realistic country names and currency codes."""
-    return {
-        "United States": ("USD", 3),
-        "China": ("CNY", 4),
-        "India": ("INR", 5),
-    }
+    """Return 3 starting nations chosen from the 10-country database with authentic currencies and tile quotas."""
+    all_countries = list(GLOBAL_NATION_DATA.keys())
+    if seed is not None:
+        rng = random.Random(seed)
+    else:
+        rng = random.Random()
+
+    selected = rng.sample(all_countries, 3)
+    tile_counts = [3, 4, 5]
+    out = {}
+    for country, count in zip(selected, tile_counts):
+        currency = COUNTRY_CURRENCIES.get(country, "USD")
+        out[country] = (currency, count)
+    return out
 
 
 def get_provinces_for_country(country_name: str):
@@ -181,9 +189,10 @@ def get_provinces_for_country(country_name: str):
     return GLOBAL_NATION_DATA.get(country_name, {})
 
 
-def assign_world_identities(tiles, nations):
-    """Assign realistic country names to nations, state names to provinces, and city names to tiles."""
+def assign_world_identities(tiles, nations, seed=None):
+    """Assign realistic country identities, provinces, capitals, and city names to tiles."""
     available_countries = list(GLOBAL_NATION_DATA.keys())
+    rng = random.Random(seed) if seed is not None else random.Random()
 
     for i, n in enumerate(nations):
         country_name = n.name if n.name in GLOBAL_NATION_DATA else available_countries[i % len(available_countries)]
@@ -195,31 +204,45 @@ def assign_world_identities(tiles, nations):
         country_data = GLOBAL_NATION_DATA[country_name]
         prov_names = list(country_data.keys())
 
-        # Assign province identities
+        # Nation Capital
+        national_cap_tile = n.tiles[0] if n.tiles else None
+        n.capital = national_cap_tile
+
+        # Assign province identities & capitals
+        used_cities = set()
         for p_idx, prov in enumerate(getattr(n, 'provinces', [])):
             p_name = prov_names[p_idx % len(prov_names)]
             prov.name = f"{country_name}-{p_name}"
             prov.display_name = p_name
-            cities = list(country_data[p_name])
-            random.shuffle(cities)
+            prov.capital = prov.tiles[0] if prov.tiles else None
 
-            # Assign city names to each tile in this province
+            cities_pool = list(country_data[p_name])
+
             for t_idx, tile in enumerate(prov.tiles):
-                tile.city_name = cities[t_idx % len(cities)]
-                tile.display_name = tile.city_name
+                # Pick unique city
+                city = next((c for c in cities_pool if c not in used_cities), cities_pool[t_idx % len(cities_pool)])
+                used_cities.add(city)
+
+                tile.city_name = city
+                tile.display_name = city
                 tile.province_display = p_name
                 tile.nation_display = country_name
+                
+                tile.is_national_capital = (tile is national_cap_tile)
+                tile.is_provincial_capital = (tile is prov.capital and not tile.is_national_capital)
 
     # Name remaining wilderness and ocean tiles
     wild_pool = list(WILD_TERRAIN_NAMES)
     ocean_pool = list(OCEAN_BASIN_NAMES)
-    random.shuffle(wild_pool)
-    random.shuffle(ocean_pool)
+    rng.shuffle(wild_pool)
+    rng.shuffle(ocean_pool)
 
     w_idx = 0
     o_idx = 0
     for tile in tiles:
         if not hasattr(tile, 'display_name') or getattr(tile, 'owner_nation', None) is None:
+            tile.is_national_capital = False
+            tile.is_provincial_capital = False
             if getattr(tile, 'is_ocean', False) or getattr(tile, 'elevation', 0.0) < 0.0:
                 tile.city_name = ocean_pool[o_idx % len(ocean_pool)]
                 tile.display_name = tile.city_name
@@ -232,3 +255,46 @@ def assign_world_identities(tiles, nations):
                 tile.province_display = "Wild Frontier"
                 tile.nation_display = "Unclaimed"
                 w_idx += 1
+
+
+def claim_wilderness_tile(tile, nation, prov=None):
+    """Dynamically assign an authentic city and province name when a wilderness tile is claimed."""
+    country_name = getattr(nation, 'display_name', nation.name)
+    country_data = GLOBAL_NATION_DATA.get(country_name, {})
+    if not country_data:
+        tile.province_display = getattr(prov, 'display_name', 'Core') if prov else 'Core'
+        tile.nation_display = country_name
+        return
+
+    # Find already used city and province names in this nation
+    used_cities = {getattr(t, 'city_name', '') for t in nation.tiles}
+    used_prov_names = {getattr(p, 'display_name', p.name.split('-')[-1]) for p in getattr(nation, 'provinces', [])}
+
+    if prov is None or not getattr(prov, 'display_name', None):
+        # Pick next unused province name
+        prov_names = list(country_data.keys())
+        p_name = next((p for p in prov_names if p not in used_prov_names), prov_names[0])
+        if prov:
+            prov.display_name = p_name
+            prov.name = f"{country_name}-{p_name}"
+    else:
+        p_name = prov.display_name
+
+    # Pick next unused city in this province
+    prov_cities = country_data.get(p_name, list(country_data.values())[0])
+    chosen_city = next((c for c in prov_cities if c not in used_cities), None)
+    if not chosen_city:
+        # Pick any unused city in the country
+        for c_list in country_data.values():
+            chosen_city = next((c for c in c_list if c not in used_cities), None)
+            if chosen_city:
+                break
+    if not chosen_city:
+        chosen_city = f"{p_name} New Settlement"
+
+    tile.city_name = chosen_city
+    tile.display_name = chosen_city
+    tile.province_display = p_name
+    tile.nation_display = country_name
+    tile.is_national_capital = False
+    tile.is_provincial_capital = (prov is not None and len(prov.tiles) == 1)
