@@ -246,9 +246,8 @@ class TestWorldviewActionsUI(unittest.TestCase):
                 elif "[" in l1:
                     prov_caps_seen += 1
             else:
-                # Wilderness tile
-                if l1:
-                    self.assertTrue(l1.startswith("hs"), "Wilderness only shows hs stats if occupied")
+                # Wilderness tile in Overview layer has zero text
+                self.assertEqual(l1, "", "Wilderness tiles in overview must have zero text")
 
         self.assertEqual(nation_caps_seen, len(world['nations']), "Must have exactly 1 Nation Name badge per nation.")
         self.assertGreater(prov_caps_seen, 0, "Must have province seat badges.")

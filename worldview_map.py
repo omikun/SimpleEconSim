@@ -181,14 +181,7 @@ def tile_stats(region, layer_mode='overview', world=None):
             return "No Garrison", threat_str, "Vulnerability: High" if owner else "--", DIM, ACCENT if owner else DIM, RED if owner else DIM
 
     # 6. OVERVIEW LAYER (Default)
-    if is_ocean:
-        return "", "", "", DIM, DIM, DIM
-
-    if owner is None:
-        hs = homesteaders(region)
-        wild = getattr(region, 'wilderness_pop', 0)
-        if hs > 0 or wild > 0:
-            return f"hs {hs}+{wild}n", "", "", DIM, DIM, DIM
+    if is_ocean or owner is None:
         return "", "", "", DIM, DIM, DIM
 
     # Claimed tile: Show Nation Name ONLY on nation capital; Province Name ONLY on province seat
@@ -388,10 +381,6 @@ def draw_trade_arrows(surface, world):
 def draw_activity_badges(surface, region, cx, cy, font_small):
     """Small indicators around the hex (claimed-only readouts)."""
     if getattr(region, 'owner_nation', None) is None:
-        if getattr(region, 'elevation', 0.0) >= 0.0:
-            pygame.draw.circle(surface, (90, 210, 120), (cx, cy - 46), 7)
-            tag = font_small.render("W", True, (255, 255, 255))
-            surface.blit(tag, tag.get_rect(center=(cx, cy - 46)))
         if homesteaders(region) > 0:
             pygame.draw.circle(surface, BADGE_ORANGE, (cx + 30, cy - 34), 6)
         return
