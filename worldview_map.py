@@ -16,7 +16,8 @@ import math
 import pygame
 from goods import Goods
 from hexmap import hex_corners
-from worldview_camera import hex_px, HEX_SIZE
+from worldview_camera import hex_px, HEX_SIZE, MAP_RIGHT, TOP_BAR_H, TICKER_H, HEIGHT
+from heightmap import get_cached_topographic_surface
 
 NATION_COLORS = {
     'United States': (80, 160, 240),
@@ -207,10 +208,6 @@ def tile_stats(region, layer_mode='overview', world=None):
 
 def draw_elevation_terrain(surface, region, pts, cx, cy, zoom=1.0, frame=0):
     """Draw realistic shaded-relief elevation terrain with ocean, hills, and mountain vectors."""
-    # 1. Base terrain color (incorporates continuous elevation and shaded relief hillshading)
-    base_color = getattr(region, 'terrain_color', (65, 135, 75))
-    pygame.draw.polygon(surface, base_color, pts)
-
     biome = getattr(region, 'biome', 'plains')
     elev = getattr(region, 'elevation', 0.0)
 
@@ -453,8 +450,37 @@ def draw_hex_map(surface, world, font, font_small):
     tiles = world['tiles']
     layout = world['layout']
     sel = world.get('selected_region')
-    zoom = world['cam']['zoom']
+    cam = world['cam']
+    zoom = cam['zoom']
+    ox, oy = cam['ox'], cam['oy']
     frame = world.get('frame', 0)
+    bbox = world['bbox']
+
+    # 0. Draw Continuous Topographic Elevation Background Surface with Contour Lines & Hillshading
+    seed = world.get('seed', 42)
+    topo_surf = get_cached_topographic_surface(seed, bbox, canvas_w=1200, canvas_h=900)
+
+    x0, y0, x1, y1 = bbox
+    pad_x = (x1 - x0) * 0.15
+    pad_y = (y1 - y0) * 0.15
+    min_wx = x0 - pad_x
+    min_wy = y0 - pad_y
+    world_w = (x1 - x0) + 2 * pad_x
+    world_h = (y1 - y0) + 2 * pad_y
+
+    screen_x = int(min_wx * zoom + ox)
+    screen_y = int(min_wy * zoom + oy)
+    screen_w = int(world_w * zoom)
+    screen_h = int(world_h * zoom)
+
+    # Clip map rendering strictly to viewport
+    map_clip_rect = pygame.Rect(0, TOP_BAR_H, MAP_RIGHT, HEIGHT - TOP_BAR_H - TICKER_H)
+    prev_clip = surface.get_clip()
+    surface.set_clip(map_clip_rect)
+
+    if screen_w > 0 and screen_h > 0:
+        scaled_topo = pygame.transform.smoothscale(topo_surf, (screen_w, screen_h))
+        surface.blit(scaled_topo, (screen_x, screen_y))
 
     # Build province color highlight map for the selected nation
     highlight_map = {}
@@ -485,7 +511,7 @@ def draw_hex_map(surface, world, font, font_small):
             n_col = NATION_COLORS.get(owner.name, HEX_EDGE)
             pygame.draw.polygon(surface, n_col, pts, max(2, int(2 * zoom)))
         else:
-            pygame.draw.polygon(surface, WILD_EDGE, pts, 1)
+            pygame.draw.polygon(surface, (35, 45, 55, 120), pts, 1)
 
         # 4. Province Highlight Border
         if region.name in highlight_map:
@@ -529,3 +555,4 @@ def draw_hex_map(surface, world, font, font_small):
 
     draw_edges(surface, world)
     draw_trade_arrows(surface, world)
+    surface.set_clip(prev_clip)

@@ -38,27 +38,26 @@ class HeightMapGenerator:
         self.spine_angle = rng.uniform(-0.35, 0.35)
         self.spine_offset = rng.uniform(-0.15, 0.15)
 
-    def get_raw_height(self, r: int, c: int) -> float:
-        """Calculate continuous normalized elevation in [-1.0, 1.0]."""
-        # Normalized coordinates centered at (0, 0)
-        nx = (c - (self.grid_cols - 1) / 2.0) / (self.grid_cols / 2.0)
-        ny = (r - (self.grid_rows - 1) / 2.0) / (self.grid_rows / 2.0)
-
-        # 1. Broad continental land dome (guarantees central continent)
+    def get_continuous_height(self, nx: float, ny: float) -> float:
+        """Calculate continuous normalized elevation at normalized coords (nx, ny)."""
         dist_sq = nx * nx + ny * ny
         continent_base = 0.52 - 0.72 * dist_sq
 
-        # 2. Multi-octave wave harmonics
         harmonics = 0.0
         for fx, fy, amp, px, py in self.octaves:
             harmonics += amp * math.sin(nx * fx * math.pi + px) * math.cos(ny * fy * math.pi + py)
 
-        # 3. Alpine mountain ridge
         diag = nx * math.cos(self.spine_angle) + ny * math.sin(self.spine_angle) + self.spine_offset
         ridge = math.exp(-3.2 * (diag ** 2)) * 0.60
 
         total_h = continent_base + harmonics + ridge
         return max(-1.0, min(1.0, total_h))
+
+    def get_raw_height(self, r: int, c: int) -> float:
+        """Calculate continuous normalized elevation in [-1.0, 1.0]."""
+        nx = (c - (self.grid_cols - 1) / 2.0) / (self.grid_cols / 2.0)
+        ny = (r - (self.grid_rows - 1) / 2.0) / (self.grid_rows / 2.0)
+        return self.get_continuous_height(nx, ny)
 
     def get_elevation_meters(self, h: float) -> int:
         """Convert normalized elevation [-1.0, 1.0] to realistic meters."""
@@ -219,3 +218,106 @@ def apply_heightmap_to_world(tiles: list, seed: int = 42, grid_rows: int = 9, gr
         tile.terrain_color = shaded_c
 
     return generator
+
+
+_TOPOGRAPHIC_SURFACE_CACHE = {}
+
+
+def get_cached_topographic_surface(seed, bbox, canvas_w=1200, canvas_h=900):
+    """Return pre-rendered, high-resolution topographic elevation surface with contour lines and hillshading."""
+    cache_key = (seed, bbox, canvas_w, canvas_h)
+    if cache_key in _TOPOGRAPHIC_SURFACE_CACHE:
+        return _TOPOGRAPHIC_SURFACE_CACHE[cache_key]
+
+    generator = HeightMapGenerator(seed=seed if seed is not None else 42)
+    surf = generator.generate_topographic_surface(bbox, width=canvas_w, height=canvas_h)
+    _TOPOGRAPHIC_SURFACE_CACHE[cache_key] = surf
+    return surf
+
+
+def _generate_topographic_surface_impl(generator, bbox, width: int = 1200, height: int = 900) -> "pygame.Surface":
+    """Render a high-resolution topographic map surface with contour lines and hillshading."""
+    import pygame
+    x0, y0, x1, y1 = bbox
+    pad_x = (x1 - x0) * 0.15
+    pad_y = (y1 - y0) * 0.15
+    min_wx = x0 - pad_x
+    max_wx = x1 + pad_x
+    min_wy = y0 - pad_y
+    max_wy = y1 + pad_y
+
+    cx_center = (min_wx + max_wx) / 2.0
+    cy_center = (min_wy + max_wy) / 2.0
+    span_x = (max_wx - min_wx) / 2.0
+    span_y = (max_wy - min_wy) / 2.0
+
+    surf = pygame.Surface((width, height))
+    surf.fill((12, 28, 62))
+    
+    step = 4
+    cols = width // step + 1
+    rows = height // step + 1
+
+    # 1. Sample continuous heights grid
+    h_grid = []
+    for r in range(rows):
+        row_h = []
+        wy = min_wy + (r / max(1, rows - 1)) * (max_wy - min_wy)
+        ny = (wy - cy_center) / span_y
+        for c in range(cols):
+            wx = min_wx + (c / max(1, cols - 1)) * (max_wx - min_wx)
+            nx = (wx - cx_center) / span_x
+            h = generator.get_continuous_height(nx, ny)
+            row_h.append(h)
+        h_grid.append(row_h)
+
+    # 2. Render shaded terrain and contour lines
+    sun_dx, sun_dy = -0.707, -0.707
+    
+    for r in range(rows - 1):
+        py = r * step
+        for c in range(cols - 1):
+            px = c * step
+            h = h_grid[r][c]
+            
+            # Compute gradient for analytical hillshading
+            dh_dx = (h_grid[r][min(cols-1, c+1)] - h_grid[r][max(0, c-1)]) * 0.5
+            dh_dy = (h_grid[min(rows-1, r+1)][c] - h_grid[max(0, r-1)][c]) * 0.5
+            slope_illum = -(dh_dx * sun_dx + dh_dy * sun_dy)
+            hillshade = max(0.68, min(1.36, 1.0 + slope_illum * 1.8))
+
+            # Base hypsometric / bathymetric color
+            base_c = generator.get_base_color(h)
+            r_col = min(255, max(0, int(base_c[0] * hillshade)))
+            g_col = min(255, max(0, int(base_c[1] * hillshade)))
+            b_col = min(255, max(0, int(base_c[2] * hillshade)))
+            col = (r_col, g_col, b_col)
+
+            # Check for Topographic Contour lines (Isolines)
+            meters = generator.get_elevation_meters(h)
+            is_index_contour = False
+            is_contour = False
+
+            if h >= 0.0:
+                # Index contour every 1000m
+                if abs(meters % 1000) <= 24 or abs((meters % 1000) - 1000) <= 24:
+                    is_index_contour = True
+                # Intermediate contour every 250m
+                elif abs(meters % 250) <= 12 or abs((meters % 250) - 250) <= 12:
+                    is_contour = True
+            else:
+                # Bathymetric ocean contours every 300m
+                abs_m = abs(meters)
+                if abs(abs_m % 300) <= 16 or abs((abs_m % 300) - 300) <= 16:
+                    is_contour = True
+
+            if is_index_contour:
+                col = (255, 255, 255) if h >= 0.85 else ((42, 38, 32) if h >= 0.65 else (38, 58, 35))
+            elif is_contour:
+                col = (18, 48, 88) if h < 0.0 else ((210, 225, 240) if h >= 0.85 else ((82, 75, 68) if h >= 0.65 else (58, 92, 55)))
+
+            pygame.draw.rect(surf, col, (px, py, step, step))
+
+    return surf
+
+HeightMapGenerator.generate_topographic_surface = _generate_topographic_surface_impl
