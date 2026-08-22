@@ -423,7 +423,7 @@ def draw_pop_delta(surface, region, cx, cy, font_small):
     pops_history[region.name] = cur
     txt = font_small.render(f"+{delta}" if delta >= 0 else f"{delta}",
                             True, GREEN if delta >= 0 else RED)
-    surface.blit(txt, txt.get_rect(center=(cx, cy - 36)))
+    surface.blit(txt, txt.get_rect(center=(cx + 34, cy - 24)))
 
 
 def draw_text_with_shadow(surface, font, text, center, color, shadow_color=(12, 12, 16)):
@@ -528,19 +528,34 @@ def draw_hex_map(surface, world, font, font_small):
         layer_mode = world.get('map_layer', 'overview')
 
         if not is_ocean:
-            if owner is not None:
-                city_title = getattr(region, 'display_name', getattr(region, 'city_name', region.name))
-                name_font = font_small if len(city_title) > 8 else font
-                draw_text_with_shadow(surface, name_font, city_title, (cx, cy - 12), (255, 255, 255))
-            
+            city_title = getattr(region, 'display_name', getattr(region, 'city_name', region.name))
+            name_font = font_small if len(city_title) > 8 else font
             line1, line2, line3, c1, c2, c3 = tile_stats(region, layer_mode=layer_mode, world=world)
-            if line1:
-                l1_y = cy - 28 if ("★" in line1 or "[" in line1) else (cy + 4 if owner is None else cy - 2)
-                draw_text_with_shadow(surface, font_small, line1, (cx, l1_y), c1)
-            if line2:
-                draw_text_with_shadow(surface, font_small, line2, (cx, cy + 8), c2)
-            if line3:
-                draw_text_with_shadow(surface, font_small, line3, (cx, cy + 22), c3)
+
+            if layer_mode == 'overview':
+                if owner is not None:
+                    if line1:
+                        # Nation or Province Capital
+                        draw_text_with_shadow(surface, font_small, line1, (cx, cy - 32), c1)
+                        draw_text_with_shadow(surface, name_font, city_title, (cx, cy - 18), (255, 255, 255))
+                    else:
+                        # Regular member city tile (moved comfortably high up)
+                        draw_text_with_shadow(surface, name_font, city_title, (cx, cy - 24), (255, 255, 255))
+                    
+                    if line2:
+                        draw_text_with_shadow(surface, font_small, line2, (cx, cy + 6), c2)
+                    if line3:
+                        draw_text_with_shadow(surface, font_small, line3, (cx, cy + 24), c3)
+            else:
+                # Other Layer Modes (Physical, Population, Economy, Production, Military)
+                if owner is not None:
+                    draw_text_with_shadow(surface, name_font, city_title, (cx, cy - 28), (255, 255, 255))
+                if line1:
+                    draw_text_with_shadow(surface, font_small, line1, (cx, cy - 10 if owner else cy - 14), c1)
+                if line2:
+                    draw_text_with_shadow(surface, font_small, line2, (cx, cy + 8), c2)
+                if line3:
+                    draw_text_with_shadow(surface, font_small, line3, (cx, cy + 24), c3)
         else:
             # On ocean tiles: in non-overview layers, display minimal line if present
             if layer_mode != 'overview':
