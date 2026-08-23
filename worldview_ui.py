@@ -69,6 +69,23 @@ def draw_zoom_hud(surface, font_small, mouse_pos=None):
         surface.blit(tsurf, tsurf.get_rect(center=(rect[0] + rect[2] // 2, rect[1] + rect[3] // 2)))
 
 
+# Right-hand panel top tabs (Charts vs Policies)
+CHARTS_TAB_RECT = (PANEL_LEFT, 152 + TOP_BAR_H, (WIDTH - PANEL_LEFT - 14) // 2, 22)
+POLICIES_TAB_RECT = (PANEL_LEFT + (WIDTH - PANEL_LEFT - 14) // 2 + 4, 152 + TOP_BAR_H, (WIDTH - PANEL_LEFT - 14) // 2, 22)
+
+
+def panel_tab_hit(pos):
+    """Return 'charts' or 'policies' if the right panel tab header was clicked."""
+    mx, my = pos
+    cx, cy, cw, ch = CHARTS_TAB_RECT
+    if cx <= mx <= cx + cw and cy <= my <= cy + ch:
+        return 'charts'
+    px, py, pw, ph = POLICIES_TAB_RECT
+    if px <= mx <= px + pw and py <= my <= py + ph:
+        return 'policies'
+    return None
+
+
 def zoom_hud_hit(pos):
     """Return 'in', 'out', 'reset', or None if a zoom button was clicked."""
     mx, my = pos
@@ -217,11 +234,47 @@ def draw_panel(surface, world, font, font_small, mouse_pos=None):
         pn = font_small.render("[ PLAYING ]  Space=pause", True, GREEN)
     else:
         pn = font_small.render("[ PAUSED ]  N=step  Space=play", True, DIM)
-    surface.blit(pn, (PANEL_LEFT, 142 + d))
+    surface.blit(pn, (PANEL_LEFT, 130 + d))
+
+    # Right Panel Header Tabs: [ 📊 Charts ] vs [ ⚖️ Policies ]
+    mx, my = mouse_pos if mouse_pos else (-1, -1)
+    active_tab = world.get('panel_tab', 'charts')
+
+    c_hit = panel_tab_hit((mx, my))
+    c_sel = (active_tab == 'charts')
+    c_hov = (c_hit == 'charts')
+    pygame.draw.rect(surface, (55, 75, 110) if c_sel else ((40, 48, 65) if c_hov else (28, 30, 40)), CHARTS_TAB_RECT, border_radius=4)
+    pygame.draw.rect(surface, ACCENT if c_sel else (HEX_EDGE if c_hov else (45, 52, 70)), CHARTS_TAB_RECT, 1, border_radius=4)
+    c_txt = font_small.render("📊 Charts", True, (255, 255, 255) if c_sel else (TEXT if c_hov else DIM))
+    surface.blit(c_txt, c_txt.get_rect(center=(CHARTS_TAB_RECT[0] + CHARTS_TAB_RECT[2] // 2, CHARTS_TAB_RECT[1] + CHARTS_TAB_RECT[3] // 2)))
+
+    p_sel = (active_tab == 'policies')
+    p_hov = (c_hit == 'policies')
+    pygame.draw.rect(surface, (55, 75, 110) if p_sel else ((40, 48, 65) if p_hov else (28, 30, 40)), POLICIES_TAB_RECT, border_radius=4)
+    pygame.draw.rect(surface, ACCENT if p_sel else (HEX_EDGE if p_hov else (45, 52, 70)), POLICIES_TAB_RECT, 1, border_radius=4)
+    p_txt = font_small.render("⚖️ Policies", True, (255, 255, 255) if p_sel else (TEXT if p_hov else DIM))
+    surface.blit(p_txt, p_txt.get_rect(center=(POLICIES_TAB_RECT[0] + POLICIES_TAB_RECT[2] // 2, POLICIES_TAB_RECT[1] + POLICIES_TAB_RECT[3] // 2)))
 
     region = world.get('selected_region') or world.get('hover_region')
     chart_top = 178 + d
     chart_bottom = HEIGHT - TICKER_H - 96
+
+    if active_tab == 'policies':
+        from worldview_policies import draw_policies_panel
+        draw_policies_panel(surface, world, region, font, font_small, mouse_pos=mouse_pos)
+        # Audit footer line
+        audit_y = HEIGHT - TICKER_H - 28
+        if world.get('violations'):
+            v1 = font.render("AUDIT VIOLATION", True, RED)
+            surface.blit(v1, (PANEL_LEFT, audit_y - 4))
+            vline = font_small.render(
+                "; ".join(f"T{v[0]} {v[1]} {v[2]:+.2f}" for v in world['violations']),
+                True, RED)
+            surface.blit(vline, (PANEL_LEFT, audit_y + 18))
+        else:
+            ok = font.render("Conserved: 0 LEAK / 0 SHIFT", True, GREEN)
+            surface.blit(ok, (PANEL_LEFT, audit_y))
+        return
 
     if world.get('scope', 'tile') == 'nation':
         n = selected_nation(world)

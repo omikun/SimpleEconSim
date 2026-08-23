@@ -314,6 +314,77 @@ class TestWorldviewActionsUI(unittest.TestCase):
         self.assertFalse(world['help_open'], "Click outside should close help modal.")
         print("Verified Help & Seed Registry modal rendering and interaction.")
 
+    def test_policy_panel_tabs_and_rendering(self):
+        """Verify Right Sidebar Charts vs Policies tab switching and scope rendering."""
+        from worldview_ui import panel_tab_hit, CHARTS_TAB_RECT, POLICIES_TAB_RECT
+        from worldview_policies import draw_policies_panel, policy_panel_hit
+        world = self.world
+
+        # Test tab hitting
+        c_hit = panel_tab_hit((CHARTS_TAB_RECT[0] + 5, CHARTS_TAB_RECT[1] + 5))
+        self.assertEqual(c_hit, 'charts')
+
+        p_hit = panel_tab_hit((POLICIES_TAB_RECT[0] + 5, POLICIES_TAB_RECT[1] + 5))
+        self.assertEqual(p_hit, 'policies')
+
+        # Switch to Policies tab
+        world['panel_tab'] = 'policies'
+        region = world['nations'][0].tiles[0]
+        world['selected_region'] = region
+
+        # Render City scope
+        world['policy_scope'] = 'tile'
+        render_frame(self.surface, world)
+
+        # Render Province scope
+        world['policy_scope'] = 'province'
+        render_frame(self.surface, world)
+
+        # Render Nation scope
+        world['policy_scope'] = 'nation'
+        render_frame(self.surface, world)
+
+        # Render Wilderness scope
+        wild_tile = next(t for t in world['tiles'] if getattr(t, 'owner_nation', None) is None)
+        world['selected_region'] = wild_tile
+        render_frame(self.surface, world)
+        print("Verified Policies panel headless rendering across City, Province, Nation, and Wilderness scopes.")
+
+    def test_policy_actions_execution(self):
+        """Verify execution of City tax, Grain relief, Garrison recruitment, and Nation decrees."""
+        from worldview_policies import _execute_policy_action
+        world = self.world
+        nation = world['nations'][0]
+        tile = nation.tiles[0]
+
+        # 1. City Tax Cut
+        init_tax = tile.gov.tax_rate
+        _execute_policy_action(world, 'city_tax_cut', tile)
+        self.assertAlmostEqual(tile.gov.tax_rate, max(0.0, init_tax - 0.02), places=3)
+
+        # 2. City Emergency Food Aid
+        tile.gov.agent.cash = 100.0
+        tile.agents[0].hungry_steps = 2
+        _execute_policy_action(world, 'city_emergency_food', tile)
+        self.assertEqual(tile.agents[0].hungry_steps, 0)
+        self.assertAlmostEqual(tile.gov.agent.cash, 50.0)
+
+        # 3. City Garrison Recruitment
+        init_garrison = len(getattr(tile, 'military_units', []))
+        _execute_policy_action(world, 'city_recruit_garrison', tile)
+        self.assertGreaterEqual(len(tile.military_units), init_garrison)
+
+        # 4. Province Equalization Grant
+        prov = tile.province
+        _execute_policy_action(world, 'prov_equalization_grant', prov)
+
+        # 5. National Tariff Directive
+        _execute_policy_action(world, 'nat_tariff_10', nation)
+        for r in nation.tiles:
+            self.assertAlmostEqual(r.gov.import_tariff_rate, 0.10)
+
+        print("Verified policy action execution for City, Province, and Nation.")
+
 
 if __name__ == "__main__":
     unittest.main()

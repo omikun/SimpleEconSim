@@ -34,7 +34,10 @@ from worldview_map import (
 from worldview_ui import (
     PANEL_BG, selected_nation, draw_top_bar, draw_regime_readout,
     draw_panel, draw_ticker, draw_help, draw_zoom_hud, zoom_hud_hit,
-    compare_btn_hit, help_page_hit, get_font
+    compare_btn_hit, help_page_hit, panel_tab_hit, get_font
+)
+from worldview_policies import (
+    draw_policies_panel, policy_panel_hit
 )
 from worldview_compare import (
     draw_nations_comparison, compare_tab_hit
@@ -241,26 +244,41 @@ def main():
                 elif hud_action == 'reset':
                     reset_cam(world)
                 else:
-                    # 3. Check sidebar chart clicks
-                    chart_top = 178 + TOP_BAR_H + 30
-                    chart_bottom = HEIGHT - TICKER_H - 96
-                    if world.get('view', 0) == 0:
-                        clicked_chart = chart_at_pixel(event.pos, chart_top, chart_bottom, num_charts=10)
-                        if clicked_chart is not None:
-                            world['view'] = clicked_chart
-                        else:
-                            # 4. Check Hex tile picking
+                    # 3a. Check Right Panel Tab switcher (Charts vs Policies)
+                    tab_hit = panel_tab_hit(event.pos)
+                    if tab_hit is not None:
+                        world['panel_tab'] = tab_hit
+                        continue
+
+                    # 3b. Check Policies Action clicks
+                    if world.get('panel_tab') == 'policies':
+                        if policy_panel_hit(event.pos, world):
+                            continue
+                        if event.pos[0] < MAP_RIGHT:
                             clicked = tile_at(world, *event.pos)
                             if clicked is not None:
                                 world['selected_region'] = clicked
                     else:
-                        # Click in zoom view returns to grid view (or pins a tile)
-                        if event.pos[0] >= PANEL_LEFT:
-                            world['view'] = 0
+                        # 3c. Check sidebar chart clicks
+                        chart_top = 178 + TOP_BAR_H + 30
+                        chart_bottom = HEIGHT - TICKER_H - 96
+                        if world.get('view', 0) == 0:
+                            clicked_chart = chart_at_pixel(event.pos, chart_top, chart_bottom, num_charts=10)
+                            if clicked_chart is not None:
+                                world['view'] = clicked_chart
+                            else:
+                                # 4. Check Hex tile picking
+                                clicked = tile_at(world, *event.pos)
+                                if clicked is not None:
+                                    world['selected_region'] = clicked
                         else:
-                            clicked = tile_at(world, *event.pos)
-                            if clicked is not None:
-                                world['selected_region'] = clicked
+                            # Click in zoom view returns to grid view (or pins a tile)
+                            if event.pos[0] >= PANEL_LEFT:
+                                world['view'] = 0
+                            else:
+                                clicked = tile_at(world, *event.pos)
+                                if clicked is not None:
+                                    world['selected_region'] = clicked
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button in (2, 3):
                 # Middle or Right mouse drag to pan
                 drag = True
@@ -392,10 +410,20 @@ def main():
                     else:
                         world['selected_region'] = None
                     _mark_dirty(world)
+                elif event.key == pygame.K_p:
+                    world['panel_tab'] = 'policies' if world.get('panel_tab', 'charts') == 'charts' else 'charts'
+                    _mark_dirty(world)
                 elif event.key == pygame.K_TAB:
-                    world['view'] = 0
+                    if world.get('panel_tab') == 'policies':
+                        world['panel_tab'] = 'charts'
+                    else:
+                        world['view'] = 0
                 elif event.key == pygame.K_v:
                     world['scope'] = 'nation' if world.get('scope', 'tile') == 'tile' else 'tile'
+                    # Also cycle policy scope
+                    curr_sc = world.get('policy_scope', 'tile')
+                    world['policy_scope'] = 'province' if curr_sc == 'tile' else ('nation' if curr_sc == 'province' else 'tile')
+                    _mark_dirty(world)
                 # Map info layer hotkeys (1..6)
                 elif event.key in (pygame.K_F1, pygame.K_1, pygame.K_KP1):
                     world['map_layer'] = 'overview'
