@@ -47,9 +47,8 @@ def draw_policies_panel(surface, world, region, font, font_small, mouse_pos=None
     panel_bottom = HEIGHT - TICKER_H - 36
     panel_h = panel_bottom - panel_top
 
-    # 1. Background Card for Policies Area
-    pygame.draw.rect(surface, (18, 20, 28), (PANEL_LEFT - 4, panel_top - 4, PANEL_W - 8, panel_h + 8), border_radius=6)
-    pygame.draw.rect(surface, (35, 40, 55), (PANEL_LEFT - 4, panel_top - 4, PANEL_W - 8, panel_h + 8), 1, border_radius=6)
+    if region is None and world.get('nations') and world['nations'][0].tiles:
+        region = world['nations'][0].tiles[0]
 
     owner = getattr(region, 'owner_nation', None) if region is not None else None
     is_wilderness = (region is not None and owner is None)
@@ -131,6 +130,7 @@ def _draw_city_policies(surface, world, region, start_y, font, font_small, mx, m
         return
 
     city_name = getattr(region, 'display_name', getattr(region, 'city_name', region.name))
+    owner = getattr(region, 'owner_nation', None)
     gov = getattr(region, 'gov', None)
     treasury_cash = gov.agent.cash if gov and hasattr(gov, 'agent') else (region.bank.capital if getattr(region, 'bank', None) else 0.0)
     tax_rate = gov.tax_rate if gov else 0.15
