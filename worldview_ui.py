@@ -115,14 +115,17 @@ def help_page_hit(pos):
 
 
 def selected_nation(world):
-    pinned = world.get('selected_region')
+    """Return the currently selected or hovered nation, falling back to world nations."""
+    pinned = world.get('selected_region') or world.get('hover_region')
     if pinned is not None and getattr(pinned, 'owner_nation', None) is not None:
         return pinned.owner_nation
-    return world['nations'][0] if world['nations'] else None
+    if world.get('selected_nation') is not None:
+        return world['selected_nation']
+    return world['nations'][0] if world.get('nations') else None
 
 
 def draw_top_bar(surface, world, font_small, mouse_pos=None):
-    """Civ-style top strip: stats for the currently selected nation + compare button."""
+    """Civ-style top strip: stats for the currently selected nation with turn deltas + compare button."""
     n = selected_nation(world)
     pygame.draw.rect(surface, (34, 34, 42), (0, 0, MAP_RIGHT, TOP_BAR_H))
     pygame.draw.line(surface, HEX_EDGE, (0, TOP_BAR_H), (MAP_RIGHT, TOP_BAR_H), 2)
@@ -131,31 +134,65 @@ def draw_top_bar(surface, world, font_small, mouse_pos=None):
         head = font.render("REGNUM v3 — 9x9 Hex World", True, ACCENT)
         surface.blit(head, (8, 14))
     else:
+        n_col = NATION_COLORS.get(n.name, ACCENT)
         tiles = n.tiles
-        pop = sum(r.total_population[-1] if r.total_population else len(r.agents)
-                  for r in tiles)
+        pop_cur = sum(r.total_population[-1] if r.total_population else len(r.agents) for r in tiles)
+        pop_prev = sum(r.total_population[-2] if len(r.total_population) >= 2 else (r.total_population[-1] if r.total_population else len(r.agents)) for r in tiles)
+        d_pop = pop_cur - pop_prev
+
         tr = n.treasury()
-        col = (sum(r.cost_of_living for r in tiles) / len(tiles)
-               if tiles else 0.0)
-        gdp = sum(r.gdp_log[-1] if r.gdp_log else 0.0 for r in tiles)
-        exports = sum(sum(v) for r in tiles for v in r.export_val.values())
-        imports = sum(sum(v) for r in tiles for v in r.import_val.values())
-        net = exports - imports
+        tr_cur = tr['total']
+        if not hasattr(n, '_treasury_hist'):
+            n._treasury_hist = []
+        if not n._treasury_hist or n._treasury_hist[-1][0] != world['turn']:
+            n._treasury_hist.append((world['turn'], tr_cur))
+            if len(n._treasury_hist) > 50:
+                n._treasury_hist.pop(0)
+        tr_prev = n._treasury_hist[-2][1] if len(n._treasury_hist) >= 2 else tr_cur
+        d_tr = tr_cur - tr_prev
+
+        col_cur = (sum(r.cost_of_living for r in tiles) / len(tiles)) if tiles else 0.0
+        gdp_cur = sum(r.gdp_log[-1] if r.gdp_log else 0.0 for r in tiles)
+        gdp_prev = sum(r.gdp_log[-2] if len(r.gdp_log) >= 2 else (r.gdp_log[-1] if r.gdp_log else 0.0) for r in tiles)
+        d_gdp = gdp_cur - gdp_prev
+
+        exports_cur = sum(sum(v[-1] for v in r.export_val.values() if v) for r in tiles)
+        imports_cur = sum(sum(v[-1] for v in r.import_val.values() if v) for r in tiles)
+        net_cur = exports_cur - imports_cur
+
+        exports_prev = sum(sum(v[-2] if len(v) >= 2 else v[-1] for v in r.export_val.values() if v) for r in tiles)
+        imports_prev = sum(sum(v[-2] if len(v) >= 2 else v[-1] for v in r.import_val.values() if v) for r in tiles)
+        net_prev = exports_prev - imports_prev
+        d_net = net_cur - net_prev
+
         ruling = getattr(n, 'ruling_faction', None)
         ruler = f"  ruling {ruling}" if ruling else ""
         head = font.render(
             f"{n.name} ({n.currency})  {n.regime_type}  legit {n.legitimacy:.2f}"
-            f"{ruler}  provinces {len(n.provinces)}  tiles {len(tiles)}", True, ACCENT)
+            f"{ruler}  provinces {len(n.provinces)}  tiles {len(tiles)}", True, n_col)
         surface.blit(head, (8, 6))
+
+        # Format deltas with color
+        pop_str = f"Pop {pop_cur:,}" + (f" ({'+' if d_pop > 0 else ''}{d_pop})" if d_pop != 0 else "")
+        pop_color = GREEN if d_pop > 0 else (RED if d_pop < 0 else TEXT)
+
+        tr_str = f"Treasury ${tr_cur:,.0f}" + (f" ({'+' if d_tr > 0 else ''}${d_tr:,.0f})" if abs(d_tr) >= 1.0 else "") + f" ({tr['food']} food)"
+        tr_color = GREEN if d_tr > 0.5 else (RED if d_tr < -0.5 else TEXT)
+
+        gdp_str = f"GDP ${gdp_cur:,.0f}" + (f" ({'+' if d_gdp > 0 else ''}${d_gdp:,.0f})" if abs(d_gdp) >= 1.0 else "")
+        gdp_color = GREEN if d_gdp > 0.5 else (RED if d_gdp < -0.5 else TEXT)
+
+        net_str = f"Net {'+' if net_cur >= 0 else ''}{net_cur:,.0f}" + (f" ({'+' if d_net > 0 else ''}${d_net:,.0f})" if abs(d_net) >= 1.0 else "")
+        net_color = GREEN if net_cur >= 0 else RED
+
         stats = [
-            (f"Pop {pop}", TEXT),
-            (f"Treasury ${tr['total']:,.0f} ({tr['food']} food)", TEXT),
-            (f"CoL {col:.2f}", TEXT),
-            (f"GDP ${gdp:,.0f}", TEXT),
-            (f"Ex ${exports:,.0f}", EXP_C),
-            (f"Im ${imports:,.0f}", IMP_C),
-            (f"Net {'+' if net >= 0 else ''}{net:,.0f}",
-             GREEN if net >= 0 else RED),
+            (pop_str, pop_color),
+            (tr_str, tr_color),
+            (f"CoL {col_cur:.2f}", TEXT),
+            (gdp_str, gdp_color),
+            (f"Ex ${exports_cur:,.0f}", EXP_C),
+            (f"Im ${imports_cur:,.0f}", IMP_C),
+            (net_str, net_color),
         ]
         x = 8
         for text, color in stats:
