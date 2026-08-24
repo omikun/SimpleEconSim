@@ -78,16 +78,10 @@ def build_world(seed=None, terrain_seed=None, nation_seed=None):
     so callers can address tiles by (row, col). Supports independent terrain_seed
     and nation_seed for procedural variations.
     """
-    if seed is not None:
-        if terrain_seed is None:
-            terrain_seed = seed
-        if nation_seed is None:
-            nation_seed = (seed * 31 + 17) & 0x7FFFFFFF
-    else:
-        if terrain_seed is None:
-            terrain_seed = random.randint(1, 999999)
-        if nation_seed is None:
-            nation_seed = random.randint(1, 999999)
+    if terrain_seed is None:
+        terrain_seed = seed if seed is not None else random.randint(1, 999999)
+    if nation_seed is None:
+        nation_seed = random.randint(1, 999999)
 
     rng_nation = random.Random(nation_seed)
     profs = _professions()

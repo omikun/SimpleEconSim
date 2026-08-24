@@ -191,6 +191,16 @@ class TestWorldviewActionsUI(unittest.TestCase):
         world = self.world
         self.assertEqual(world.get('map_layer'), 'overview')
 
+        # Initial state should be collapsed on startup
+        self.assertTrue(world.get('layers_collapsed', False), "Map layers must be collapsed on startup.")
+        render_frame(self.surface, world)
+
+        # Expand the sidebar
+        exp_hit = layer_sidebar_hit((SIDEBAR_X + 10, SIDEBAR_Y + 10), world)
+        self.assertTrue(exp_hit)
+        self.assertFalse(world.get('layers_collapsed'), "Clicking pill should expand sidebar.")
+        render_frame(self.surface, world)
+
         # Test sidebar button clicks for all layers
         by = SIDEBAR_Y + 34
         for key, label, _, _, _ in MAP_LAYERS:
@@ -203,16 +213,10 @@ class TestWorldviewActionsUI(unittest.TestCase):
             render_frame(self.surface, world)
             by += BTN_H + BTN_SPACING
 
-        # Test collapsing the sidebar
+        # Collapse the sidebar again
         col_hit = layer_sidebar_hit((SIDEBAR_X + 10, SIDEBAR_Y + 10), world)
         self.assertTrue(col_hit)
         self.assertTrue(world.get('layers_collapsed'), "Clicking header should collapse sidebar.")
-        render_frame(self.surface, world)
-
-        # Test expanding the sidebar
-        exp_hit = layer_sidebar_hit((SIDEBAR_X + 10, SIDEBAR_Y + 10), world)
-        self.assertTrue(exp_hit)
-        self.assertFalse(world.get('layers_collapsed'), "Clicking collapsed pill should expand sidebar.")
         render_frame(self.surface, world)
 
         # Step 5 turns while cycling layers
