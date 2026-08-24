@@ -100,14 +100,8 @@ class HeightMapGenerator:
             px, py = npx, npy
 
         h_noise = (a - 0.9) * 0.75
-        base_h = continent_base + ridge + h_noise
-        
-        # Exaggerate alpine heights into steep towering spires
-        if base_h > 0.35:
-            peak_ratio = (base_h - 0.35) / 0.65
-            total_h = base_h + 0.40 * (peak_ratio ** 1.5)
-        else:
-            total_h = base_h
+        raw_H = continent_base + ridge + h_noise
+        total_h = raw_H * 0.92 if raw_H > 0.0 else raw_H
         return max(-1.0, min(1.0, total_h))
 
     def get_raw_height(self, r: int, c: int) -> float:
@@ -391,18 +385,11 @@ def _generate_topographic_surface_impl(generator, bbox, width: int = 2400, heigh
         PX, PY = npx, npy
 
     H_noise = (a - 0.9) * 0.75
-    H = np.clip(continent_base + ridge + H_noise, -1.0, 1.0)
+    raw_H = continent_base + ridge + H_noise
+    H = np.where(raw_H > 0.0, raw_H * 0.92, raw_H)
 
-    H_noise = (a - 0.9) * 0.75
-    base_h = continent_base + ridge + H_noise
-    
-    # Exaggerate alpine heights into steep towering spires
-    peak_ratio = np.maximum(0.0, (base_h - 0.35) / 0.65)
-    H_peak = np.where(base_h > 0.35, base_h + 0.40 * (peak_ratio ** 1.5), base_h)
-    H = np.clip(H_peak, -1.0, 1.0)
-
-    # Dramatic 3D Analytical Surface Normals: High gradient scale (0.24)
-    height_exaggeration = 0.24
+    # Realistic 3D Analytical Surface Normals (Balanced gradient scale 0.14)
+    height_exaggeration = 0.14
     dHx = np.gradient(H, axis=1) * (width / 2.0) * height_exaggeration
     dHy = np.gradient(H, axis=0) * (height / 2.0) * height_exaggeration
     Nz = np.ones_like(H, dtype=np.float32)
@@ -413,27 +400,26 @@ def _generate_topographic_surface_impl(generator, bbox, width: int = 2400, heigh
 
     slope = 1.0 - Nz
 
-    # 3D Sun Lighting Direction (North-West, 40 deg elevation)
-    sun_x, sun_y, sun_z = -0.65, -0.65, 0.40
+    # Natural Sun Lighting (Higher altitude, balanced angles)
+    sun_x, sun_y, sun_z = -0.55, -0.55, 0.65
     sun_len = math.sqrt(sun_x**2 + sun_y**2 + sun_z**2)
     sun_x /= sun_len
     sun_y /= sun_len
     sun_z /= sun_len
 
     NdotL = np.clip(Nx * sun_x + Ny * sun_y + Nz * sun_z, 0.0, 1.0)
-    diffuse_sun = np.power(NdotL, 1.1)
+    diffuse_sun = np.power(NdotL, 1.05)
 
-    # Ambient Occlusion from slope & valleys
-    ao = np.clip(Nz * 0.75 + 0.25, 0.15, 1.0)
-    sky_light = ao * (Nz * 0.60 + 0.40)
+    # Soft Ambient Sky Light (Never pitch black in shadows)
+    sky_light = Nz * 0.60 + 0.40
 
-    # Ultra-Fast Vectorized Sun Raymarching for Long Cast Shadows
-    step_dx = 2.2
-    step_dy = 2.2
-    step_dz = 0.016
+    # Subtle, Crisp Mountain Shadows (Tight local shadows behind peaks)
+    step_dx = 1.8
+    step_dy = 1.8
+    step_dz = 0.040
     shadow_mask = np.ones((height, width), dtype=np.float32)
 
-    for s in range(1, 35):
+    for s in range(1, 20):
         ox = int(round(s * step_dx))
         oy = int(round(s * step_dy))
         dz = s * step_dz
@@ -442,84 +428,86 @@ def _generate_topographic_surface_impl(generator, bbox, width: int = 2400, heigh
         occluder = np.full_like(H, -1.0)
         occluder[oy:, ox:] = H[:-oy, :-ox]
         diff = occluder - (H + dz)
-        in_shadow = diff > 0.0015
-        penumbra = np.clip(1.0 - diff * 12.0, 0.08, 1.0)
+        in_shadow = diff > 0.002
+        penumbra = np.clip(1.0 - diff * 6.0, 0.35, 1.0)
         shadow_mask = np.where(in_shadow, np.minimum(shadow_mask, penumbra), shadow_mask)
 
     direct_sun = diffuse_sun * shadow_mask
 
-    # PBR Material & Biome Coloring (RGB float [0, 1])
+    # Compact, Delicate Ocean Depth (Fine coastal fringe, not chunky blobs)
     is_water = H < 0.0
-    water_depth = np.clip(-H / 0.8, 0.0, 1.0)
+    water_depth = np.clip(-H / 0.25, 0.0, 1.0)
 
-    deep_ocean = np.array([0.03, 0.08, 0.18], dtype=np.float32)
-    shallow_ocean = np.array([0.10, 0.35, 0.48], dtype=np.float32)
-    coastal_water = np.array([0.16, 0.52, 0.58], dtype=np.float32)
+    deep_ocean = np.array([0.05, 0.10, 0.22], dtype=np.float32)     # Abyssal deep blue
+    mid_ocean = np.array([0.08, 0.20, 0.38], dtype=np.float32)      # Deep sea
+    shallow_shelf = np.array([0.12, 0.35, 0.48], dtype=np.float32)  # Coastal shelf
+    coastal_sand = np.array([0.22, 0.50, 0.52], dtype=np.float32)   # Delicate turquoise shore
 
     w_col = np.where(
-        water_depth[:, :, None] > 0.3,
-        shallow_ocean * (1.0 - (water_depth[:, :, None]-0.3)/0.7) + deep_ocean * ((water_depth[:, :, None]-0.3)/0.7),
-        coastal_water * (1.0 - water_depth[:, :, None]/0.3) + shallow_ocean * (water_depth[:, :, None]/0.3)
+        water_depth[:, :, None] > 0.35,
+        mid_ocean * (1.0 - (water_depth[:, :, None]-0.35)/0.65) + deep_ocean * ((water_depth[:, :, None]-0.35)/0.65),
+        coastal_sand * (1.0 - water_depth[:, :, None]/0.35) + shallow_shelf * (water_depth[:, :, None]/0.35)
     )
 
-    # Water specular glint
     half_vec = np.array([sun_x, sun_y, sun_z + 1.0], dtype=np.float32)
     half_vec /= np.linalg.norm(half_vec)
-    specular = np.clip(Nx * half_vec[0] + Ny * half_vec[1] + Nz * half_vec[2], 0.0, 1.0)**24 * 0.35
-    w_lit = w_col * (0.50 + 0.50 * direct_sun[:, :, None]) + specular[:, :, None]
+    specular = np.clip(Nx * half_vec[0] + Ny * half_vec[1] + Nz * half_vec[2], 0.0, 1.0)**28 * 0.25
+    w_lit = w_col * (0.60 + 0.40 * direct_sun[:, :, None]) + specular[:, :, None]
 
-    # Land Biome Materials with high contrast
-    beach = np.array([0.76, 0.71, 0.53], dtype=np.float32)
-    plains = np.array([0.26, 0.46, 0.22], dtype=np.float32)
-    forest = np.array([0.13, 0.28, 0.15], dtype=np.float32)
-    hills = np.array([0.45, 0.40, 0.28], dtype=np.float32)
-    rock_strata = np.array([0.38, 0.36, 0.40], dtype=np.float32)
-    cliff_dark = np.array([0.20, 0.19, 0.22], dtype=np.float32)   # Deep dramatic basalt
-    snow = np.array([0.96, 0.98, 1.00], dtype=np.float32)
+    # Land Materials & Continuous Alpine Peak Gradients
+    beach = np.array([0.74, 0.69, 0.52], dtype=np.float32)
+    plains = np.array([0.28, 0.48, 0.24], dtype=np.float32)
+    forest = np.array([0.16, 0.32, 0.18], dtype=np.float32)
+    hills = np.array([0.46, 0.42, 0.30], dtype=np.float32)
+    rock_strata = np.array([0.42, 0.40, 0.44], dtype=np.float32)
+    cliff_dark = np.array([0.26, 0.25, 0.28], dtype=np.float32)
+    snow_base = np.array([0.88, 0.91, 0.95], dtype=np.float32)
+    snow_summit = np.array([0.98, 0.99, 1.00], dtype=np.float32)   # Crisp razor-sharp peak snow
 
     land_c = np.zeros((height, width, 3), dtype=np.float32)
 
-    # Beach [0.0, 0.05]
-    t_b = np.clip(H / 0.05, 0.0, 1.0)[:, :, None]
-    land_c = np.where(H[:, :, None] < 0.05, beach * (1.0 - t_b) + plains * t_b, land_c)
+    # Beach [0.0, 0.04]
+    t_b = np.clip(H / 0.04, 0.0, 1.0)[:, :, None]
+    land_c = np.where(H[:, :, None] < 0.04, beach * (1.0 - t_b) + plains * t_b, land_c)
 
-    # Plains [0.05, 0.25]
-    t_p = np.clip((H - 0.05) / 0.20, 0.0, 1.0)[:, :, None]
-    land_c = np.where((H[:, :, None] >= 0.05) & (H[:, :, None] < 0.25), plains * (1.0 - t_p) + forest * t_p, land_c)
+    # Plains [0.04, 0.24]
+    t_p = np.clip((H - 0.04) / 0.20, 0.0, 1.0)[:, :, None]
+    land_c = np.where((H[:, :, None] >= 0.04) & (H[:, :, None] < 0.24), plains * (1.0 - t_p) + forest * t_p, land_c)
 
-    # Forest [0.25, 0.48]
-    t_f = np.clip((H - 0.25) / 0.23, 0.0, 1.0)[:, :, None]
-    land_c = np.where((H[:, :, None] >= 0.25) & (H[:, :, None] < 0.48), forest * (1.0 - t_f) + hills * t_f, land_c)
+    # Forest [0.24, 0.48]
+    t_f = np.clip((H - 0.24) / 0.24, 0.0, 1.0)[:, :, None]
+    land_c = np.where((H[:, :, None] >= 0.24) & (H[:, :, None] < 0.48), forest * (1.0 - t_f) + hills * t_f, land_c)
 
-    # Hills [0.48, 0.70]
-    t_h = np.clip((H - 0.48) / 0.22, 0.0, 1.0)[:, :, None]
-    land_c = np.where((H[:, :, None] >= 0.48) & (H[:, :, None] < 0.70), hills * (1.0 - t_h) + rock_strata * t_h, land_c)
+    # Hills [0.48, 0.68]
+    t_h = np.clip((H - 0.48) / 0.20, 0.0, 1.0)[:, :, None]
+    land_c = np.where((H[:, :, None] >= 0.48) & (H[:, :, None] < 0.68), hills * (1.0 - t_h) + rock_strata * t_h, land_c)
 
-    # Mountains [0.70, 0.86]
-    t_m = np.clip((H - 0.70) / 0.16, 0.0, 1.0)[:, :, None]
-    land_c = np.where((H[:, :, None] >= 0.70) & (H[:, :, None] < 0.86), rock_strata * (1.0 - t_m) + snow * t_m, land_c)
+    # Mountains [0.68, 0.84]
+    t_m = np.clip((H - 0.68) / 0.16, 0.0, 1.0)[:, :, None]
+    land_c = np.where((H[:, :, None] >= 0.68) & (H[:, :, None] < 0.84), rock_strata * (1.0 - t_m) + snow_base * t_m, land_c)
 
-    # Snow Peaks [>= 0.86]
-    land_c = np.where(H[:, :, None] >= 0.86, snow, land_c)
+    # Snow Summits [>= 0.84] with pointy peak shading
+    t_peak = np.clip((H - 0.84) / 0.20, 0.0, 1.0)[:, :, None]
+    land_c = np.where(H[:, :, None] >= 0.84, snow_base * (1.0 - t_peak) + snow_summit * t_peak, land_c)
 
-    # Steep Cliff Overlay (slopes > 25 deg expose dark basalt rock faces)
-    cliff_factor = np.clip((slope - 0.08) / 0.30, 0.0, 1.0)[:, :, None]
-    cliff_col = np.where(H[:, :, None] >= 0.86, rock_strata, cliff_dark)
-    land_c = land_c * (1.0 - cliff_factor * 0.85) + cliff_col * (cliff_factor * 0.85)
+    # Cliff Face Exposure on steep slopes (> 28 deg)
+    cliff_factor = np.clip((slope - 0.10) / 0.25, 0.0, 1.0)[:, :, None]
+    cliff_col = np.where(H[:, :, None] >= 0.88, rock_strata, cliff_dark)
+    land_c = land_c * (1.0 - cliff_factor * 0.70) + cliff_col * (cliff_factor * 0.70)
 
-    # PBR Lighting Combine
-    sun_color = np.array([1.25, 1.15, 0.95], dtype=np.float32)
-    sky_color = np.array([0.18, 0.26, 0.42], dtype=np.float32)
-    total_light = (direct_sun[:, :, None] * sun_color + sky_light[:, :, None] * sky_color + 0.08)
+    # Natural Balanced Lighting
+    sun_color = np.array([1.18, 1.10, 0.96], dtype=np.float32)
+    sky_color = np.array([0.22, 0.28, 0.40], dtype=np.float32)
+    total_light = (direct_sun[:, :, None] * sun_color + sky_light[:, :, None] * sky_color + 0.12)
 
-    # Specular glint on snowy peaks
-    snow_mask = np.clip((H - 0.80) / 0.15, 0.0, 1.0)[:, :, None]
-    snow_specular = (np.clip(Nx * half_vec[0] + Ny * half_vec[1] + Nz * half_vec[2], 0.0, 1.0)**16 * 0.30)[:, :, None] * direct_sun[:, :, None]
+    # Crisp Glacial Crest Specular
+    snow_mask = np.clip((H - 0.78) / 0.18, 0.0, 1.0)[:, :, None]
+    snow_specular = (np.clip(Nx * half_vec[0] + Ny * half_vec[1] + Nz * half_vec[2], 0.0, 1.0)**20 * 0.25)[:, :, None] * direct_sun[:, :, None]
 
     land_lit = land_c * total_light + snow_mask * snow_specular
     final_rgb = np.where(is_water[:, :, None], w_lit, land_lit)
     final_rgb = np.clip(final_rgb, 0.0, 1.0)
-    final_rgb = np.power(final_rgb, 1.0 / 1.18)
+    final_rgb = np.power(final_rgb, 1.0 / 1.15)
 
     img_uint8 = (final_rgb * 255).astype(np.uint8)
     surf = pygame.surfarray.make_surface(np.transpose(img_uint8, (1, 0, 2)))
