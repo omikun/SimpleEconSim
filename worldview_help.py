@@ -32,14 +32,14 @@ def draw_help_modal(surface, world, font, font_small):
     pygame.draw.rect(surface, (70, 130, 200), (bx, by, bw, bh), 2, border_radius=8)
 
     # Title Bar
-    title_surf = font.render("★ REGNUM WORLDVIEW — SEEDS & SYSTEM GUIDE", True, (245, 210, 100))
+    title_surf = font.render("REGNUM WORLDVIEW — SEEDS & SYSTEM GUIDE", True, (245, 210, 100))
     surface.blit(title_surf, (bx + 24, by + 20))
 
     # Close Button (X)
     cx, cy, cw, ch = CLOSE_BTN_RECT
     pygame.draw.rect(surface, (45, 55, 75), (cx, cy, cw, ch), border_radius=4)
     pygame.draw.rect(surface, (140, 160, 190), (cx, cy, cw, ch), 1, border_radius=4)
-    x_tag = font.render("✕", True, (240, 240, 240))
+    x_tag = font.render("X", True, (240, 240, 240))
     surface.blit(x_tag, x_tag.get_rect(center=(cx + cw // 2, cy + ch // 2)))
 
     cur_y = by + 65
@@ -55,9 +55,9 @@ def draw_help_modal(surface, world, font, font_small):
     t_seed = world.get('terrain_seed', 'Auto')
     n_seed = world.get('nation_seed', 'Auto')
 
-    s_text1 = font_small.render(f"• Master Seed: {seed_val}    (Pass with --seed <val>)", True, (230, 235, 245))
-    s_text2 = font_small.render(f"• Terrain / Landmass Seed: {t_seed}    (--terrain-seed <val>)", True, (200, 230, 180))
-    s_text3 = font_small.render(f"• Nations & Placement Seed: {n_seed}    (--nation-seed <val>)", True, (255, 205, 150))
+    s_text1 = font_small.render(f"- Master Seed: {seed_val}    (Pass with --seed <val>)", True, (230, 235, 245))
+    s_text2 = font_small.render(f"- Terrain / Landmass Seed: {t_seed}    (--terrain-seed <val>)", True, (200, 230, 180))
+    s_text3 = font_small.render(f"- Nations & Placement Seed: {n_seed}    (--nation-seed <val>)", True, (255, 205, 150))
     surface.blit(s_text1, (bx + 34, cur_y + 36))
     surface.blit(s_text2, (bx + 34, cur_y + 56))
     surface.blit(s_text3, (bx + 520, cur_y + 56))
@@ -81,7 +81,7 @@ def draw_help_modal(surface, world, font, font_small):
         prov_summary = ", ".join(f"[{getattr(p, 'display_name', p.name)}]" for p in provs)
         
         n_line = font_small.render(
-            f"★ {n.name} ({n.currency}) — Regime: {n.regime_type.title()} | National Capital: ★ {cap_city} | Tiles: {len(n.tiles)}",
+            f"* {n.name} ({n.currency}) — Regime: {n.regime_type.title()} | Capital: {cap_city} | Tiles: {len(n.tiles)}",
             True, (245, 220, 120)
         )
         p_line = font_small.render(f"   Provinces ({len(provs)}): {prov_summary}", True, (180, 190, 210))
@@ -136,7 +136,7 @@ def draw_help_modal(surface, world, font, font_small):
         cy_k += 26
 
     # Bottom hint
-    hint_surf = font_small.render("Press [H], [Esc], or click [✕] to close this help guide.", True, (140, 160, 185))
+    hint_surf = font_small.render("Press [H], [Esc], or click [X] to close this help guide.", True, (140, 160, 185))
     surface.blit(hint_surf, hint_surf.get_rect(center=(bx + bw // 2, by + bh - 20)))
 
 

@@ -136,47 +136,32 @@ def tile_stats(region, layer_mode='overview', world=None):
     # 3. ECONOMY & WEALTH LAYER
     if layer_mode == 'economy':
         if is_ocean or owner is None:
-            return "GDP: $0", "Wilderness", "No Banking", DIM, DIM, DIM
-        # Nominal GDP approximation (food + wood + furniture revenue)
-        gdp = 0.0
-        for g in (Goods.food, Goods.wood, Goods.furniture):
-            out_qty = region.production_log[g][-1] if (g in region.production_log and region.production_log[g]) else 0
-            pr = region.recipes.get(g, {}).get('price', 1.0)
-            gdp += out_qty * pr
-        food_p = region.recipes.get(Goods.food, {}).get('price', 1.0)
-        wood_p = region.recipes.get(Goods.wood, {}).get('price', 1.0)
-        dep = region.bank.deposits_total() if hasattr(region, 'bank') and hasattr(region.bank, 'deposits_total') else sum(region.bank.deposits.values()) if hasattr(region, 'bank') else 0.0
-        return f"GDP: ${gdp:,.0f}", f"Fd ${food_p:.1f}  Wd ${wood_p:.1f}", f"Bank: ${dep:,.0f}", GREEN, ACCENT, TEXT
+            return "GDP: $0", "Wilderness" if not is_ocean else "Ocean Waters", "No Banking", DIM, DIM, DIM
+        gdp = region.gdp_log[-1] if region.gdp_log else 0.0
+        tax = region.gov.tax_rate if getattr(region, 'gov', None) else 0.15
+        curr = getattr(region, 'home_currency', getattr(owner, 'currency', 'USD') if owner else 'WLD')
+        return f"GDP ${gdp:,.0f} ({curr})", f"Tax Rate: {tax*100:.0f}%", f"Bank Cap: ${region.bank.capital:,.0f}", (120, 225, 130), ACCENT, DIM
 
     # 4. PRODUCTION & OUTPUT LAYER
     if layer_mode == 'production':
         if is_ocean:
-            return "Output: None", "Ocean Basin", "--", DIM, DIM, DIM
-        if owner is None:
-            return "Wilderness", "Forage Only", "--", DIM, DIM, DIM
-        fd_out = region.production_log[Goods.food][-1] if (Goods.food in region.production_log and region.production_log[Goods.food]) else 0
-        wd_out = region.production_log[Goods.wood][-1] if (Goods.wood in region.production_log and region.production_log[Goods.wood]) else 0
-        blds = getattr(region, 'buildings', [])
-        b_summary = f"Bld: {len(blds)} Active" if blds else "Bld: None"
-        workers = sum(1 for a in region.agents if getattr(a, 'output', Goods.none) != Goods.none)
-        return f"Fd: {fd_out}  Wd: {wd_out}", b_summary, f"Labor: {workers}/{pop}", ACCENT, GREEN if blds else DIM, TEXT
+            return "No Output", "Ocean Territory", "", DIM, DIM, DIM
+        food_p = region.production_log[Goods.food][-1] if (Goods.food in region.production_log and region.production_log[Goods.food]) else 0.0
+        wood_p = region.production_log[Goods.wood][-1] if (Goods.wood in region.production_log and region.production_log[Goods.wood]) else 0.0
+        furn_p = region.production_log[Goods.furniture][-1] if (Goods.furniture in region.production_log and region.production_log[Goods.furniture]) else 0.0
+        buildings = getattr(region, 'buildings', [])
+        b_count = len(buildings)
+        return f"Fd {food_p:.0f} | Wd {wood_p:.0f} | Fn {furn_p:.0f}", f"Industry: {b_count} Buildings", f"Farms: {sum(1 for b in buildings if b.building_type=='farm')}", (245, 210, 90), TEXT, DIM
 
     # 5. MILITARY & DEFENSE LAYER
     if layer_mode == 'military':
         if is_ocean:
-            return "No Garrison", "Ocean Basin", "Naval Zone", DIM, DIM, DIM
-        # Find units stationed in this region
-        nations = world.get('nations', []) if world else []
-        stationed_units = []
-        for n in nations:
-            for u in getattr(n, 'military_units', []):
-                if u.region_name == region.name:
-                    stationed_units.append(u)
-        if stationed_units:
-            tot_soldiers = sum(u.soldiers for u in stationed_units)
-            tot_str = sum(u.strength for u in stationed_units)
-            avg_xp = sum(u.veteran_xp for u in stationed_units) / len(stationed_units)
-            return f"⚔ {tot_soldiers} Troops", f"Strength: {tot_str:.1f}", f"XP: {avg_xp:.2f}", RED, ACCENT, GREEN
+            return "Naval Domain", "Ocean Waters", "", DIM, DIM, DIM
+        garrison_units = getattr(region, 'military_units', [])
+        total_soldiers = sum(u.soldiers for u in garrison_units)
+        if total_soldiers > 0:
+            avg_morale = sum(u.morale for u in garrison_units) / len(garrison_units)
+            return f"Garrison: {total_soldiers} Men", f"Units: {len(garrison_units)} | Morale {avg_morale*100:.0f}%", "Status: Fortified", (235, 90, 90), TEXT, GREEN
         else:
             threat_str = "Border: Guarded" if owner else "Wilderness"
             return "No Garrison", threat_str, "Vulnerability: High" if owner else "--", DIM, ACCENT if owner else DIM, RED if owner else DIM
@@ -194,7 +179,7 @@ def tile_stats(region, layer_mode='overview', world=None):
     badge_col = NATION_COLORS.get(owner.name, ACCENT)
     if is_nation_capital:
         prov_str = getattr(prov, 'display_name', '') if prov else ''
-        top_badge = f"★ {owner.name}" + (f" — {prov_str}" if prov_str else "")
+        top_badge = f"* {owner.name}" + (f" — {prov_str}" if prov_str else "")
     elif is_prov_capital and prov:
         top_badge = f"[{getattr(prov, 'display_name', prov.name)}]"
 
@@ -537,9 +522,9 @@ def draw_hex_map(surface, world, font, font_small):
                     is_prov_cap = True
 
             if is_nat_cap:
-                city_title = f"★ {raw_city}"
+                city_title = f"* {raw_city}"
             elif is_prov_cap:
-                city_title = f"◆ {raw_city}"
+                city_title = f"+ {raw_city}"
             else:
                 city_title = raw_city
 

@@ -60,7 +60,7 @@ def draw_layer_sidebar(surface, world, font_small, mouse_pos=None):
         txt = font_small.render(f"Layer: {active_short}", True, TEXT if not is_hover else (255, 255, 255))
         surface.blit(txt, (SIDEBAR_X + 22, SIDEBAR_Y + 5))
 
-        arrow = font_small.render("▼", True, active_color)
+        arrow = font_small.render("v", True, active_color)
         surface.blit(arrow, (SIDEBAR_X + pill_w - 18, SIDEBAR_Y + 5))
         return
 
@@ -79,7 +79,7 @@ def draw_layer_sidebar(surface, world, font_small, mouse_pos=None):
     col_hov = col_btn[0] <= mx <= col_btn[0] + col_btn[2] and col_btn[1] <= my <= col_btn[1] + col_btn[3]
     pygame.draw.rect(surface, (45, 48, 65) if col_hov else (28, 30, 42), col_btn, border_radius=3)
     pygame.draw.rect(surface, ACCENT if col_hov else (65, 70, 90), col_btn, 1, border_radius=3)
-    arrow_up = font_small.render("▲", True, (255, 255, 255) if col_hov else DIM)
+    arrow_up = font_small.render("^", True, (255, 255, 255) if col_hov else DIM)
     surface.blit(arrow_up, arrow_up.get_rect(center=(col_btn[0] + col_btn[2] // 2, col_btn[1] + col_btn[3] // 2)))
 
     # 3. Layer Toggle Buttons

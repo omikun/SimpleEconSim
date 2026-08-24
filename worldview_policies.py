@@ -59,9 +59,9 @@ def draw_policies_panel(surface, world, region, font, font_small, mouse_pos=None
     tab_h = 24
     tab_y = panel_top + 6
 
-    scopes = [('tile', '🏙 City'), ('province', '🏛 Province'), ('nation', '👑 Nation')]
+    scopes = [('tile', 'City'), ('province', 'Province'), ('nation', 'Nation')]
     if is_wilderness:
-        scopes = [('tile', '🏕 Frontier'), ('nation', '👑 Sponsor')]
+        scopes = [('tile', 'Frontier'), ('nation', 'Sponsor')]
 
     for i, (sc_id, sc_label) in enumerate(scopes):
         bx = PANEL_LEFT + 4 + i * (tab_w + 4)
@@ -139,7 +139,7 @@ def _draw_city_policies(surface, world, region, start_y, font, font_small, mx, m
     hungry = sum(1 for a in region.agents if not a.is_corporation and not a.is_government and a.hungry_steps > 0)
 
     # Title header
-    head = font.render(f"🏙 {city_name} — Municipal Control", True, (245, 215, 110))
+    head = font.render(f"City: {city_name} — Municipal Control", True, (245, 215, 110))
     surface.blit(head, (PANEL_LEFT + 4, start_y))
     start_y += 24
 
@@ -184,7 +184,7 @@ def _draw_city_policies(surface, world, region, start_y, font, font_small, mx, m
 
     feed_btn = (PANEL_LEFT + 12, start_y + 36, 140, 20)
     can_feed = (treasury_cash >= 50.0 or (owner and owner.treasury()['cash'] >= 50.0))
-    _draw_btn(surface, feed_btn, "🍞 Distribute Food", font_small, mx, my, enabled=can_feed, color=GREEN if can_feed else DIM)
+    _draw_btn(surface, feed_btn, "Distribute Food", font_small, mx, my, enabled=can_feed, color=GREEN if can_feed else DIM)
     _ACTION_BUTTONS.append((feed_btn, 'city_emergency_food', region))
 
     start_y += card2_h + 8
@@ -200,12 +200,12 @@ def _draw_city_policies(surface, world, region, start_y, font, font_small, mx, m
 
     mil_btn = (PANEL_LEFT + 12, start_y + 46, 120, 22)
     can_mil = (treasury_cash >= 50.0 or (owner and owner.treasury()['cash'] >= 50.0))
-    _draw_btn(surface, mil_btn, "🛡 Recruit ($50)", font_small, mx, my, enabled=can_mil, color=GREEN if can_mil else DIM)
+    _draw_btn(surface, mil_btn, "Recruit ($50)", font_small, mx, my, enabled=can_mil, color=GREEN if can_mil else DIM)
     _ACTION_BUTTONS.append((mil_btn, 'city_recruit_garrison', region))
 
     curfew_btn = (PANEL_LEFT + 140, start_y + 46, 120, 22)
     can_curfew = (protest_e >= 2.0)
-    _draw_btn(surface, curfew_btn, "🛑 Police Curfew", font_small, mx, my, enabled=can_curfew, color=RED if can_curfew else DIM)
+    _draw_btn(surface, curfew_btn, "Police Curfew", font_small, mx, my, enabled=can_curfew, color=RED if can_curfew else DIM)
     _ACTION_BUTTONS.append((curfew_btn, 'city_police_curfew', region))
 
     start_y += card3_h + 8
@@ -253,7 +253,7 @@ def _draw_province_policies(surface, world, region, start_y, font, font_small, m
     total_pop = sum(len(r.agents) for r in tiles)
     avg_col = sum(r.cost_of_living for r in tiles) / max(1, len(tiles))
 
-    head = font.render(f"🏛 {prov_name} — Provincial Council", True, (140, 200, 255))
+    head = font.render(f"Province: {prov_name} — Provincial Council", True, (140, 200, 255))
     surface.blit(head, (PANEL_LEFT + 4, start_y))
     start_y += 24
 
@@ -271,7 +271,7 @@ def _draw_province_policies(surface, world, region, start_y, font, font_small, m
     surface.blit(font_small.render("Transfers $200 from central reserves to poorest city", True, DIM), (PANEL_LEFT + 12, start_y + 24))
 
     grant_btn = (PANEL_LEFT + 12, start_y + 44, 160, 22)
-    _draw_btn(surface, grant_btn, "💰 Disburse Grant", font_small, mx, my, color=GREEN)
+    _draw_btn(surface, grant_btn, "Disburse Grant", font_small, mx, my, color=GREEN)
     _ACTION_BUTTONS.append((grant_btn, 'prov_equalization_grant', prov))
 
     start_y += c1_h + 10
@@ -286,7 +286,7 @@ def _draw_province_policies(surface, world, region, start_y, font, font_small, m
     surface.blit(font_small.render("Harmonizes inter-city trade fees across the province", True, DIM), (PANEL_LEFT + 12, start_y + 24))
 
     road_btn = (PANEL_LEFT + 12, start_y + 44, 180, 22)
-    _draw_btn(surface, road_btn, "🚚 Standardize Routes ($100)", font_small, mx, my, color=(200, 230, 150))
+    _draw_btn(surface, road_btn, "Standardize Routes ($100)", font_small, mx, my, color=(200, 230, 150))
     _ACTION_BUTTONS.append((road_btn, 'prov_standardize_routes', prov))
 
     start_y += c2_h + 10
@@ -302,7 +302,7 @@ def _draw_province_policies(surface, world, region, start_y, font, font_small, m
     surface.blit(font_small.render("Sets all member cities to uniform average tax rate", True, DIM), (PANEL_LEFT + 12, start_y + 24))
 
     tax_btn = (PANEL_LEFT + 12, start_y + 44, 160, 22)
-    _draw_btn(surface, tax_btn, "⚖️ Harmonize Taxes", font_small, mx, my, color=(240, 200, 120))
+    _draw_btn(surface, tax_btn, "Harmonize Taxes", font_small, mx, my, color=(240, 200, 120))
     _ACTION_BUTTONS.append((tax_btn, 'prov_harmonize_taxes', prov))
 
 
@@ -322,7 +322,7 @@ def _draw_nation_policies(surface, world, region, start_y, font, font_small, mx,
     tr = owner.treasury()
     total_pop = sum(len(r.agents) for r in owner.tiles)
 
-    head = font.render(f"👑 {owner.name} — Sovereign Decrees", True, (245, 210, 100))
+    head = font.render(f"Nation: {owner.name} — Sovereign Decrees", True, (245, 210, 100))
     surface.blit(head, (PANEL_LEFT + 4, start_y))
     start_y += 24
 
@@ -389,8 +389,8 @@ def _draw_nation_policies(surface, world, region, start_y, font, font_small, mx,
 
     ubi_btn = (PANEL_LEFT + 12, start_y + 46, 120, 22)
     imm_btn = (PANEL_LEFT + 140, start_y + 46, 120, 22)
-    _draw_btn(surface, ubi_btn, "💵 Enact UBI", font_small, mx, my, color=GREEN)
-    _draw_btn(surface, imm_btn, "🛂 Open Borders", font_small, mx, my, color=(160, 210, 255))
+    _draw_btn(surface, ubi_btn, "Enact UBI", font_small, mx, my, color=GREEN)
+    _draw_btn(surface, imm_btn, "Open Borders", font_small, mx, my, color=(160, 210, 255))
     _ACTION_BUTTONS.append((ubi_btn, 'nat_enact_ubi', owner))
     _ACTION_BUTTONS.append((imm_btn, 'nat_toggle_imm', owner))
 
@@ -405,7 +405,7 @@ def _draw_frontier_policies(surface, world, region, start_y, font, font_small, m
     hs_count = sum(1 for a in region.agents if getattr(a, 'is_homesteader', False))
     native_pop = getattr(region, 'wilderness_pop', 0)
 
-    head = font.render(f"🏕 {region.name} — Frontier Settlement", True, (245, 190, 80))
+    head = font.render(f"Frontier: {region.name} — Settlement", True, (245, 190, 80))
     surface.blit(head, (PANEL_LEFT + 4, start_y))
     start_y += 24
 
@@ -423,7 +423,7 @@ def _draw_frontier_policies(surface, world, region, start_y, font, font_small, m
     surface.blit(font_small.render("Recruits 5 pioneers from capital to colonize this tile", True, DIM), (PANEL_LEFT + 12, start_y + 24))
 
     exp_btn = (PANEL_LEFT + 12, start_y + 46, 160, 24)
-    _draw_btn(surface, exp_btn, "🚩 Launch Expedition", font_small, mx, my, color=GREEN)
+    _draw_btn(surface, exp_btn, "Launch Expedition", font_small, mx, my, color=GREEN)
     _ACTION_BUTTONS.append((exp_btn, 'frontier_expedition', region))
 
     start_y += c1_h + 10
@@ -438,7 +438,7 @@ def _draw_frontier_policies(surface, world, region, start_y, font, font_small, m
     surface.blit(font_small.render("Supplies 20 food & foraging tools to homesteaders", True, DIM), (PANEL_LEFT + 12, start_y + 24))
 
     grant_btn = (PANEL_LEFT + 12, start_y + 46, 160, 24)
-    _draw_btn(surface, grant_btn, "🌾 Send Pioneer Aid", font_small, mx, my, color=(200, 230, 150))
+    _draw_btn(surface, grant_btn, "Send Pioneer Aid", font_small, mx, my, color=(200, 230, 150))
     _ACTION_BUTTONS.append((grant_btn, 'frontier_pioneer_grant', region))
 
 

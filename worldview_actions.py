@@ -51,7 +51,7 @@ def draw_top_bar_action_buttons(surface, world, font_small, mouse_pos=None):
     help_bg = (75, 75, 100) if is_help_open else ((60, 60, 80) if help_hover else (40, 40, 52))
     pygame.draw.rect(surface, help_bg, HELP_BTN, border_radius=4)
     pygame.draw.rect(surface, ACCENT if (help_hover or is_help_open) else (80, 80, 100), HELP_BTN, 1, border_radius=4)
-    help_txt = font_small.render("❓ Help (?)", True, (255, 255, 255) if (help_hover or is_help_open) else TEXT)
+    help_txt = font_small.render("[?] Help (H)", True, (255, 255, 255) if (help_hover or is_help_open) else TEXT)
     surface.blit(help_txt, help_txt.get_rect(center=(HELP_BTN[0] + HELP_BTN[2] // 2, HELP_BTN[1] + HELP_BTN[3] // 2)))
 
     # 1. Compare Nations Button (C)
@@ -60,7 +60,7 @@ def draw_top_bar_action_buttons(surface, world, font_small, mouse_pos=None):
     comp_bg = (75, 75, 100) if is_comp_open else ((60, 60, 80) if comp_hover else (40, 40, 52))
     pygame.draw.rect(surface, comp_bg, COMPARE_BTN, border_radius=4)
     pygame.draw.rect(surface, ACCENT if (comp_hover or is_comp_open) else (80, 80, 100), COMPARE_BTN, 1, border_radius=4)
-    comp_txt = font_small.render("📊 Compare (C)", True, (255, 255, 255) if (comp_hover or is_comp_open) else TEXT)
+    comp_txt = font_small.render("Compare (C)", True, (255, 255, 255) if (comp_hover or is_comp_open) else TEXT)
     surface.blit(comp_txt, comp_txt.get_rect(center=(COMPARE_BTN[0] + COMPARE_BTN[2] // 2, COMPARE_BTN[1] + COMPARE_BTN[3] // 2)))
 
     # 2. Diplomacy Button (D)
@@ -69,7 +69,7 @@ def draw_top_bar_action_buttons(surface, world, font_small, mouse_pos=None):
     dip_bg = (75, 75, 100) if is_dip_open else ((60, 60, 80) if dip_hover else (40, 40, 52))
     pygame.draw.rect(surface, dip_bg, DIPLOMACY_BTN, border_radius=4)
     pygame.draw.rect(surface, ACCENT if (dip_hover or is_dip_open) else (80, 80, 100), DIPLOMACY_BTN, 1, border_radius=4)
-    dip_txt = font_small.render("📜 Diplomacy (D)", True, (255, 255, 255) if (dip_hover or is_dip_open) else TEXT)
+    dip_txt = font_small.render("Diplomacy (D)", True, (255, 255, 255) if (dip_hover or is_dip_open) else TEXT)
     surface.blit(dip_txt, dip_txt.get_rect(center=(DIPLOMACY_BTN[0] + DIPLOMACY_BTN[2] // 2, DIPLOMACY_BTN[1] + DIPLOMACY_BTN[3] // 2)))
 
     # 3. Military Button (M)
@@ -78,7 +78,7 @@ def draw_top_bar_action_buttons(surface, world, font_small, mouse_pos=None):
     mil_bg = (75, 75, 100) if is_mil_open else ((60, 60, 80) if mil_hover else (40, 40, 52))
     pygame.draw.rect(surface, mil_bg, MILITARY_BTN, border_radius=4)
     pygame.draw.rect(surface, ACCENT if (mil_hover or is_mil_open) else (80, 80, 100), MILITARY_BTN, 1, border_radius=4)
-    mil_txt = font_small.render("⚔️ Military (M)", True, (255, 255, 255) if (mil_hover or is_mil_open) else TEXT)
+    mil_txt = font_small.render("Military (M)", True, (255, 255, 255) if (mil_hover or is_mil_open) else TEXT)
     surface.blit(mil_txt, mil_txt.get_rect(center=(MILITARY_BTN[0] + MILITARY_BTN[2] // 2, MILITARY_BTN[1] + MILITARY_BTN[3] // 2)))
 
 

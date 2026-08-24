@@ -256,7 +256,7 @@ class TestWorldviewActionsUI(unittest.TestCase):
                 self.assertEqual(l2, "", "Ocean tiles in overview must have zero text")
             elif t.owner_nation:
                 self.assertIn("pop", l2, "Claimed tile Line 2 must show population and food price")
-                if "★" in l1:
+                if "*" in l1:
                     nation_caps_seen += 1
                 elif "[" in l1:
                     prov_caps_seen += 1
