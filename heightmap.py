@@ -248,8 +248,10 @@ def get_cached_topographic_surface(seed, bbox, canvas_w=2400, canvas_h=1800):
 
 
 def _generate_topographic_surface_impl(generator, bbox, width: int = 2400, height: int = 1800) -> "pygame.Surface":
-    """Render a 4x high-resolution topographic map surface with contour lines and hillshading."""
+    """Render an Ultra-HD photorealistic 3D raymarched terrain surface with cast shadows, PBR lighting, and biomes."""
     import pygame
+    import numpy as np
+
     x0, y0, x1, y1 = bbox
     pad_x = (x1 - x0) * 0.18
     pad_y = (y1 - y0) * 0.18
@@ -263,75 +265,135 @@ def _generate_topographic_surface_impl(generator, bbox, width: int = 2400, heigh
     span_x = (x1 - x0) / 2.0
     span_y = (y1 - y0) / 2.0
 
-    surf = pygame.Surface((width, height))
-    surf.fill((12, 28, 62))
-    
-    step = 2
-    cols = width // step + 1
-    rows = height // step + 1
+    # Meshgrid of normalized coords
+    y_vals = np.linspace(min_wy, max_wy, height, dtype=np.float32)
+    x_vals = np.linspace(min_wx, max_wx, width, dtype=np.float32)
+    WX, WY = np.meshgrid(x_vals, y_vals)
 
-    # 1. Sample continuous heights grid mapped smoothly without any modulus or tears
-    h_grid = []
-    for r in range(rows):
-        row_h = []
-        wy = min_wy + (r / max(1, rows - 1)) * (max_wy - min_wy)
-        ny = (wy - cy_center) / span_y
-        for c in range(cols):
-            wx = min_wx + (c / max(1, cols - 1)) * (max_wx - min_wx)
-            nx = (wx - cx_center) / span_x
-            h = generator.get_continuous_height(nx, ny)
-            row_h.append(h)
-        h_grid.append(row_h)
+    NX = (WX - cx_center) / span_x
+    NY = (WY - cy_center) / span_y
 
-    # 2. Render shaded terrain and contour lines
-    sun_dx, sun_dy = -0.707, -0.707
-    
-    for r in range(rows - 1):
-        py = r * step
-        for c in range(cols - 1):
-            px = c * step
-            h = h_grid[r][c]
-            
-            # Compute gradient for analytical hillshading
-            dh_dx = (h_grid[r][min(cols-1, c+1)] - h_grid[r][max(0, c-1)]) * 0.5
-            dh_dy = (h_grid[min(rows-1, r+1)][c] - h_grid[max(0, r-1)][c]) * 0.5
-            slope_illum = -(dh_dx * sun_dx + dh_dy * sun_dy)
-            hillshade = max(0.68, min(1.36, 1.0 + slope_illum * 1.8))
+    # Continuous Heightfield Evaluation
+    R_sq = NX**2 + NY**2
+    continent_base = 0.54 - 0.75 * R_sq
 
-            # Base hypsometric / bathymetric color
-            base_c = generator.get_base_color(h)
-            r_col = min(255, max(0, int(base_c[0] * hillshade)))
-            g_col = min(255, max(0, int(base_c[1] * hillshade)))
-            b_col = min(255, max(0, int(base_c[2] * hillshade)))
-            col = (r_col, g_col, b_col)
+    harmonics = np.zeros_like(NX, dtype=np.float32)
+    for fx, fy, amp, px, py in generator.octaves:
+        harmonics += amp * np.sin(NX * fx * np.pi + px) * np.cos(NY * fy * np.pi + py)
 
-            # Check for Topographic Contour lines (Isolines)
-            meters = generator.get_elevation_meters(h)
-            is_index_contour = False
-            is_contour = False
-            is_coastline = False
+    diag = NX * math.cos(generator.spine_angle) + NY * math.sin(generator.spine_angle) + generator.spine_offset
+    ridge = np.exp(-4.5 * (diag**2)) * 0.42
 
-            if h >= 0.0:
-                if abs(meters) <= 8:
-                    is_coastline = True
-                elif abs(meters % 1000) <= 12 or abs((meters % 1000) - 1000) <= 12:
-                    is_index_contour = True
-                elif abs(meters % 250) <= 6 or abs((meters % 250) - 250) <= 6:
-                    is_contour = True
-            else:
-                abs_m = abs(meters)
-                if abs(abs_m % 300) <= 8 or abs((abs_m % 300) - 300) <= 8:
-                    is_contour = True
+    H = np.clip(continent_base + harmonics + ridge, -1.0, 1.0)
 
-            if is_coastline:
-                col = (195, 182, 135)
-            elif is_index_contour:
-                col = (255, 255, 255) if h >= 0.85 else ((40, 36, 30) if h >= 0.65 else (35, 55, 32))
-            elif is_contour:
-                col = (18, 48, 88) if h < 0.0 else ((210, 225, 240) if h >= 0.85 else ((80, 72, 65) if h >= 0.65 else (55, 88, 52)))
+    # 3D Analytical Surface Normals
+    dHx = np.gradient(H, axis=1) * (width / 2.0) * 0.055
+    dHy = np.gradient(H, axis=0) * (height / 2.0) * 0.055
+    Nz = np.ones_like(H, dtype=np.float32)
+    norm = np.sqrt(dHx**2 + dHy**2 + Nz**2)
+    Nx = -dHx / norm
+    Ny = -dHy / norm
+    Nz = Nz / norm
 
-            pygame.draw.rect(surf, col, (px, py, step, step))
+    slope = 1.0 - Nz
 
+    # 3D Sun Lighting Direction (North-West, 45 deg elevation)
+    sun_x, sun_y, sun_z = -0.577, -0.577, 0.577
+    NdotL = np.clip(Nx * sun_x + Ny * sun_y + Nz * sun_z, 0.0, 1.0)
+    sky_light = np.clip(Nz * 0.65 + 0.35, 0.0, 1.0)
+
+    # Ultra-Fast Vectorized Sun Raymarching for Cast Shadows
+    step_dx = 1.8
+    step_dy = 1.8
+    step_dz = 0.032
+    shadow_mask = np.ones((height, width), dtype=np.float32)
+
+    for s in range(1, 28):
+        ox = int(round(s * step_dx))
+        oy = int(round(s * step_dy))
+        dz = s * step_dz
+        if oy >= height or ox >= width:
+            break
+        occluder = np.full_like(H, -1.0)
+        occluder[oy:, ox:] = H[:-oy, :-ox]
+        diff = occluder - (H + dz)
+        in_shadow = diff > 0.002
+        penumbra = np.clip(1.0 - diff * 7.5, 0.18, 1.0)
+        shadow_mask = np.where(in_shadow, np.minimum(shadow_mask, penumbra), shadow_mask)
+
+    direct_sun = NdotL * shadow_mask
+
+    # PBR Material & Biome Coloring (RGB float [0, 1])
+    is_water = H < 0.0
+    water_depth = np.clip(-H / 0.8, 0.0, 1.0)
+
+    deep_ocean = np.array([0.04, 0.09, 0.20], dtype=np.float32)
+    shallow_ocean = np.array([0.11, 0.36, 0.50], dtype=np.float32)
+    coastal_water = np.array([0.18, 0.55, 0.62], dtype=np.float32)
+
+    w_col = np.where(
+        water_depth[:, :, None] > 0.3,
+        shallow_ocean * (1.0 - (water_depth[:, :, None]-0.3)/0.7) + deep_ocean * ((water_depth[:, :, None]-0.3)/0.7),
+        coastal_water * (1.0 - water_depth[:, :, None]/0.3) + shallow_ocean * (water_depth[:, :, None]/0.3)
+    )
+
+    # Water specular glint
+    half_vec = np.array([sun_x, sun_y, sun_z + 1.0], dtype=np.float32)
+    half_vec /= np.linalg.norm(half_vec)
+    specular = np.clip(Nx * half_vec[0] + Ny * half_vec[1] + Nz * half_vec[2], 0.0, 1.0)**24 * 0.35
+    w_lit = w_col * (0.55 + 0.45 * direct_sun[:, :, None]) + specular[:, :, None]
+
+    # Land Biome Materials
+    beach = np.array([0.76, 0.71, 0.55], dtype=np.float32)
+    plains = np.array([0.28, 0.48, 0.24], dtype=np.float32)
+    forest = np.array([0.15, 0.32, 0.18], dtype=np.float32)
+    hills = np.array([0.48, 0.44, 0.32], dtype=np.float32)
+    rock_strata = np.array([0.40, 0.38, 0.42], dtype=np.float32)
+    cliff_dark = np.array([0.28, 0.27, 0.30], dtype=np.float32)
+    snow = np.array([0.94, 0.96, 0.98], dtype=np.float32)
+
+    land_c = np.zeros((height, width, 3), dtype=np.float32)
+
+    # Beach [0.0, 0.05]
+    t_b = np.clip(H / 0.05, 0.0, 1.0)[:, :, None]
+    land_c = np.where(H[:, :, None] < 0.05, beach * (1.0 - t_b) + plains * t_b, land_c)
+
+    # Plains [0.05, 0.25]
+    t_p = np.clip((H - 0.05) / 0.20, 0.0, 1.0)[:, :, None]
+    land_c = np.where((H[:, :, None] >= 0.05) & (H[:, :, None] < 0.25), plains * (1.0 - t_p) + forest * t_p, land_c)
+
+    # Forest [0.25, 0.50]
+    t_f = np.clip((H - 0.25) / 0.25, 0.0, 1.0)[:, :, None]
+    land_c = np.where((H[:, :, None] >= 0.25) & (H[:, :, None] < 0.50), forest * (1.0 - t_f) + hills * t_f, land_c)
+
+    # Hills [0.50, 0.72]
+    t_h = np.clip((H - 0.50) / 0.22, 0.0, 1.0)[:, :, None]
+    land_c = np.where((H[:, :, None] >= 0.50) & (H[:, :, None] < 0.72), hills * (1.0 - t_h) + rock_strata * t_h, land_c)
+
+    # Mountains [0.72, 0.88]
+    t_m = np.clip((H - 0.72) / 0.16, 0.0, 1.0)[:, :, None]
+    land_c = np.where((H[:, :, None] >= 0.72) & (H[:, :, None] < 0.88), rock_strata * (1.0 - t_m) + snow * t_m, land_c)
+
+    # Snow Peaks [>= 0.88]
+    land_c = np.where(H[:, :, None] >= 0.88, snow, land_c)
+
+    # Steep Cliff Overlay (slopes > 30 degrees expose dark rock faces)
+    cliff_factor = np.clip((slope - 0.12) / 0.25, 0.0, 1.0)[:, :, None]
+    cliff_col = np.where(H[:, :, None] >= 0.88, rock_strata, cliff_dark)
+    land_c = land_c * (1.0 - cliff_factor * 0.75) + cliff_col * (cliff_factor * 0.75)
+
+    # PBR Lighting Combine
+    sun_color = np.array([1.10, 1.04, 0.92], dtype=np.float32)
+    sky_color = np.array([0.22, 0.30, 0.44], dtype=np.float32)
+    total_light = (direct_sun[:, :, None] * sun_color + sky_light[:, :, None] * sky_color + 0.12)
+
+    land_lit = land_c * total_light
+    final_rgb = np.where(is_water[:, :, None], w_lit, land_lit)
+    final_rgb = np.clip(final_rgb, 0.0, 1.0)
+    final_rgb = np.power(final_rgb, 1.0 / 1.15)
+
+    img_uint8 = (final_rgb * 255).astype(np.uint8)
+    surf = pygame.surfarray.make_surface(np.transpose(img_uint8, (1, 0, 2)))
     return surf
 
 HeightMapGenerator.generate_topographic_surface = _generate_topographic_surface_impl

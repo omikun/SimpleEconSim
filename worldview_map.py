@@ -192,14 +192,14 @@ def tile_stats(region, layer_mode='overview', world=None):
 
 
 def draw_elevation_terrain(surface, region, pts, cx, cy, zoom=1.0, frame=0):
-    """Draw realistic shaded-relief elevation terrain with ocean, hills, and mountain vectors."""
+    """Draw subtle ambient wave shimmer over water while letting the 3D raymarched terrain shine through."""
     biome = getattr(region, 'biome', 'plains')
     elev = getattr(region, 'elevation', 0.0)
 
-    # 2. Ocean Waves and Water Depth Shimmer (< 0.0)
+    # Ocean Waves and Water Depth Shimmer (< 0.0)
     if elev < 0.0 or biome in ('deep_ocean', 'shallow_ocean'):
-        wave_color = (65, 140, 190, 80) if biome == 'shallow_ocean' else (35, 80, 140, 60)
-        # Draw subtle wave lines
+        wave_color = (65, 140, 190, 70) if biome == 'shallow_ocean' else (35, 80, 140, 50)
+        # Draw subtle dynamic wave shimmer lines
         for dy in (-18, 0, 18):
             wy = cy + int(dy * zoom)
             wx1 = cx - int(24 * zoom)
@@ -207,59 +207,6 @@ def draw_elevation_terrain(surface, region, pts, cx, cy, zoom=1.0, frame=0):
             phase = math.sin(frame * 0.08 + cx * 0.05 + dy) * 3 * zoom
             pygame.draw.line(surface, wave_color[:3], (wx1, wy + int(phase)), (wx2, wy + int(phase)), 1)
         return
-
-    # 3. Mountain Ranges and Snow-Capped Summits (>= 0.72)
-    if biome in ('mountains', 'snow_peaks') or elev >= 0.72:
-        is_snow = (biome == 'snow_peaks' or elev >= 0.88)
-        
-        # Central Mountain Peak Polygon
-        peak_top = (cx, cy - int(38 * zoom))
-        peak_left = (cx - int(28 * zoom), cy + int(10 * zoom))
-        peak_right = (cx + int(28 * zoom), cy + int(10 * zoom))
-        peak_mid = (cx + int(2 * zoom), cy + int(12 * zoom))
-
-        # Northwest Sunlit Face
-        sunlit_col = (195, 195, 205) if is_snow else (160, 155, 165)
-        pygame.draw.polygon(surface, sunlit_col, [peak_top, peak_left, peak_mid])
-
-        # Southeast Shadowed Face
-        shadow_col = (135, 135, 150) if is_snow else (95, 90, 100)
-        pygame.draw.polygon(surface, shadow_col, [peak_top, peak_mid, peak_right])
-
-        # Snow Cap
-        if is_snow:
-            snow_mid = (cx, cy - int(22 * zoom))
-            snow_left = (cx - int(12 * zoom), cy - int(18 * zoom))
-            snow_right = (cx + int(12 * zoom), cy - int(18 * zoom))
-            pygame.draw.polygon(surface, (248, 252, 255), [peak_top, snow_left, snow_mid, snow_right])
-
-        # Secondary Mountain Ridge
-        sec_top = (cx + int(16 * zoom), cy - int(26 * zoom))
-        sec_left = (cx + int(2 * zoom), cy + int(6 * zoom))
-        sec_right = (cx + int(32 * zoom), cy + int(6 * zoom))
-        pygame.draw.polygon(surface, (150, 145, 155), [sec_top, sec_left, sec_right])
-        return
-
-    # 4. Rolling Hills & Plateaus (0.45 to 0.72)
-    if biome == 'hills' or 0.45 <= elev < 0.72:
-        hill_sun = (155, 142, 102)
-        hill_shadow = (115, 102, 75)
-        # Two overlapping gentle rounded hill silhouettes
-        h1_center = (cx - int(10 * zoom), cy - int(6 * zoom))
-        pygame.draw.arc(surface, hill_sun, (h1_center[0] - int(20*zoom), h1_center[1] - int(14*zoom), int(40*zoom), int(28*zoom)), 0.2, 2.9, 2)
-        h2_center = (cx + int(12 * zoom), cy - int(2 * zoom))
-        pygame.draw.arc(surface, hill_shadow, (h2_center[0] - int(18*zoom), h2_center[1] - int(12*zoom), int(36*zoom), int(24*zoom)), 0.2, 2.9, 2)
-        return
-
-    # 5. Highland Forests (0.20 to 0.45)
-    if biome == 'forest' or 0.20 <= elev < 0.45:
-        tree_color = (38, 85, 45)
-        # Draw small vector evergreen tree clusters
-        for ox, oy in [(-14, -8), (0, -14), (14, -6), (-6, 4), (8, 6)]:
-            tx = cx + int(ox * zoom)
-            ty = cy + int(oy * zoom)
-            t_pts = [(tx, ty - int(8*zoom)), (tx - int(5*zoom), ty + int(4*zoom)), (tx + int(5*zoom), ty + int(4*zoom))]
-            pygame.draw.polygon(surface, tree_color, t_pts)
 
 
 def draw_nation_overlay(surface, region, pts):
