@@ -315,19 +315,23 @@ class TestWorldviewActionsUI(unittest.TestCase):
         print(f"Verified dynamic claim renaming: {wild_tile.name} -> '{wild_tile.display_name}' ({wild_tile.province_display}, {wild_tile.nation_display}).")
 
     def test_help_modal_and_seed_display(self):
-        """Verify Help and Seed Registry modal toggle, hit testing, and headless rendering."""
-        from worldview_help import help_modal_hit
+        """Verify Help and Seed Registry modal toggle, 3-page tab switching, and headless rendering."""
+        from worldview_help import help_modal_hit, HELP_TAB1_RECT, HELP_TAB2_RECT, HELP_TAB3_RECT
         world = self.world
         world['help_open'] = True
 
-        # Render frame with help modal open
-        render_frame(self.surface, world)
+        # Test Page 1, 2, 3 rendering and hit testing
+        for p, tab_rect in [(1, HELP_TAB1_RECT), (2, HELP_TAB2_RECT), (3, HELP_TAB3_RECT)]:
+            tab_hit = help_modal_hit((tab_rect[0] + 5, tab_rect[1] + 5), world)
+            self.assertTrue(tab_hit)
+            self.assertEqual(world.get('help_page'), p)
+            render_frame(self.surface, world)
 
         # Hit outside closes
         hit_outside = help_modal_hit((10, 10), world)
         self.assertTrue(hit_outside)
         self.assertFalse(world['help_open'], "Click outside should close help modal.")
-        print("Verified Help & Seed Registry modal rendering and interaction.")
+        print("Verified Help & Seed Registry 3-page modal rendering and interaction.")
 
     def test_policy_panel_tabs_and_rendering(self):
         """Verify Right Sidebar Charts vs Policies tab switching and scope rendering."""

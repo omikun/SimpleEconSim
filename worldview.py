@@ -349,6 +349,23 @@ def main():
                         world['actions_open'] = False
                     continue
 
+                # If help modal is open, intercept navigation keys
+                if world.get('help_open'):
+                    if event.key in (pygame.K_1, pygame.K_KP1):
+                        world['help_page'] = 1
+                    elif event.key in (pygame.K_2, pygame.K_KP2):
+                        world['help_page'] = 2
+                    elif event.key in (pygame.K_3, pygame.K_KP3):
+                        world['help_page'] = 3
+                    elif event.key in (pygame.K_TAB, pygame.K_RIGHT):
+                        world['help_page'] = (world.get('help_page', 1) % 3) + 1
+                    elif event.key == pygame.K_LEFT:
+                        world['help_page'] = 3 if world.get('help_page', 1) == 1 else world.get('help_page', 1) - 1
+                    elif event.key in (pygame.K_ESCAPE, pygame.K_h, pygame.K_QUESTION):
+                        world['help_open'] = False
+                    _mark_dirty(world)
+                    continue
+
                 # If comparison modal is open, intercept navigation keys
                 if world.get('compare_open'):
                     if event.key in (pygame.K_1, pygame.K_KP1):
