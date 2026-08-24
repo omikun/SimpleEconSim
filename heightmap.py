@@ -19,8 +19,11 @@ from collections import deque
 from hexmap import rectangular_hex_layout, axial_neighbors, axial_to_offset
 
 
+import numpy as np
+
+
 class HeightMapGenerator:
-    """Generates continuous continental landmasses with realistic shaded relief."""
+    """Generates continuous continental landmasses with Inigo Quilez derivative erosion fBm."""
 
     def __init__(self, seed: int = 42, grid_rows: int = 9, grid_cols: int = 9):
         self.seed = seed
@@ -28,29 +31,76 @@ class HeightMapGenerator:
         self.grid_cols = grid_cols
         self._layout = rectangular_hex_layout(grid_rows, grid_cols)
         
-        rng = random.Random(seed)
-        self.octaves = [
-            (0.85, 0.85, 0.45, rng.uniform(0, math.pi * 2), rng.uniform(0, math.pi * 2)),
-            (1.7, 1.6, 0.22, rng.uniform(0, math.pi * 2), rng.uniform(0, math.pi * 2)),
-            (3.4, 3.2, 0.12, rng.uniform(0, math.pi * 2), rng.uniform(0, math.pi * 2)),
-            (6.5, 6.0, 0.05, rng.uniform(0, math.pi * 2), rng.uniform(0, math.pi * 2)),
-        ]
-        self.spine_angle = rng.uniform(-0.35, 0.35)
-        self.spine_offset = rng.uniform(-0.15, 0.15)
+        rng = np.random.default_rng(seed if seed is not None else 42)
+        # 256x256 random texture table (equivalent to iChannel0)
+        self.noise_table = rng.uniform(0.0, 1.0, (256, 256)).astype(np.float32)
+        # Inigo Quilez rotation matrix mat2(0.8, -0.6, 0.6, 0.8)
+        self.m2 = np.array([[0.8, -0.6], [0.6, 0.8]], dtype=np.float32)
+        
+        py_rng = random.Random(seed if seed is not None else 42)
+        self.spine_angle = py_rng.uniform(-0.35, 0.35)
+        self.spine_offset = py_rng.uniform(-0.15, 0.15)
+
+    def noised_scalar(self, px: float, py: float) -> tuple[float, float, float]:
+        """Value noise with analytical derivatives for single coordinate (returns val, dx, dy)."""
+        ix = int(math.floor(px))
+        iy = int(math.floor(py))
+        fx = px - ix
+        fy = py - iy
+
+        ux = fx * fx * (3.0 - 2.0 * fx)
+        uy = fy * fy * (3.0 - 2.0 * fy)
+        dux = 6.0 * fx * (1.0 - fx)
+        duy = 6.0 * fy * (1.0 - fy)
+
+        ix0 = ix & 255
+        iy0 = iy & 255
+        ix1 = (ix + 1) & 255
+        iy1 = (iy + 1) & 255
+
+        a = float(self.noise_table[iy0, ix0])
+        b = float(self.noise_table[iy0, ix1])
+        c = float(self.noise_table[iy1, ix0])
+        d = float(self.noise_table[iy1, ix1])
+
+        k0 = a
+        k1 = b - a
+        k2 = c - a
+        k3 = a - b - c + d
+
+        val = k0 + k1 * ux + k2 * uy + k3 * ux * uy
+        dx = dux * (k1 + k3 * uy)
+        dy = duy * (k2 + k3 * ux)
+        return val, dx, dy
 
     def get_continuous_height(self, nx: float, ny: float) -> float:
-        """Calculate continuous normalized elevation at normalized coords (nx, ny)."""
+        """Calculate continuous normalized elevation with Inigo Quilez derivative erosion."""
         dist_sq = nx * nx + ny * ny
-        continent_base = 0.52 - 0.72 * dist_sq
-
-        harmonics = 0.0
-        for fx, fy, amp, px, py in self.octaves:
-            harmonics += amp * math.sin(nx * fx * math.pi + px) * math.cos(ny * fy * math.pi + py)
+        continent_base = 0.54 - 0.76 * dist_sq
 
         diag = nx * math.cos(self.spine_angle) + ny * math.sin(self.spine_angle) + self.spine_offset
-        ridge = math.exp(-4.5 * (diag ** 2)) * 0.42
+        ridge = math.exp(-4.2 * (diag ** 2)) * 0.38
 
-        total_h = continent_base + harmonics + ridge
+        # 8-octave derivative erosion loop
+        px = nx * 3.2
+        py = ny * 3.2
+        a = 0.0
+        b = 1.0
+        dx_accum = 0.0
+        dy_accum = 0.0
+
+        for _ in range(8):
+            n_val, ndx, ndy = self.noised_scalar(px, py)
+            dx_accum += ndx
+            dy_accum += ndy
+            a += b * n_val / (1.0 + (dx_accum * dx_accum + dy_accum * dy_accum))
+            b *= 0.50
+            npx = 2.0 * (0.8 * px - 0.6 * py)
+            npy = 2.0 * (0.6 * px + 0.8 * py)
+            px, py = npx, npy
+
+        h_noise = (a - 0.9) * 0.75
+        total_h = continent_base + ridge + h_noise
         return max(-1.0, min(1.0, total_h))
 
     def get_raw_height(self, r: int, c: int) -> float:
@@ -275,16 +325,66 @@ def _generate_topographic_surface_impl(generator, bbox, width: int = 2400, heigh
 
     # Continuous Heightfield Evaluation
     R_sq = NX**2 + NY**2
-    continent_base = 0.54 - 0.75 * R_sq
-
-    harmonics = np.zeros_like(NX, dtype=np.float32)
-    for fx, fy, amp, px, py in generator.octaves:
-        harmonics += amp * np.sin(NX * fx * np.pi + px) * np.cos(NY * fy * np.pi + py)
+    continent_base = 0.54 - 0.76 * R_sq
 
     diag = NX * math.cos(generator.spine_angle) + NY * math.sin(generator.spine_angle) + generator.spine_offset
-    ridge = np.exp(-4.5 * (diag**2)) * 0.42
+    ridge = np.exp(-4.2 * (diag**2)) * 0.38
 
-    H = np.clip(continent_base + harmonics + ridge, -1.0, 1.0)
+    # Inigo Quilez 10-Octave Derivative Erosion fBm
+    scale = 3.2
+    PX = NX * scale
+    PY = NY * scale
+
+    a = np.zeros_like(NX, dtype=np.float32)
+    b = 1.0
+    dx_accum = np.zeros_like(NX, dtype=np.float32)
+    dy_accum = np.zeros_like(NY, dtype=np.float32)
+    noise_tbl = generator.noise_table
+    m2 = generator.m2
+
+    for i in range(10):
+        ix = np.floor(PX).astype(np.int32)
+        iy = np.floor(PY).astype(np.int32)
+        fx = PX - ix
+        fy = PY - iy
+
+        ux = fx * fx * (3.0 - 2.0 * fx)
+        uy = fy * fy * (3.0 - 2.0 * fy)
+        dux = 6.0 * fx * (1.0 - fx)
+        duy = 6.0 * fy * (1.0 - fy)
+
+        ix0 = ix & 255
+        iy0 = iy & 255
+        ix1 = (ix + 1) & 255
+        iy1 = (iy + 1) & 255
+
+        c_a = noise_tbl[iy0, ix0]
+        c_b = noise_tbl[iy0, ix1]
+        c_c = noise_tbl[iy1, ix0]
+        c_d = noise_tbl[iy1, ix1]
+
+        k0 = c_a
+        k1 = c_b - c_a
+        k2 = c_c - c_a
+        k3 = c_a - c_b - c_c + c_d
+
+        n_val = k0 + k1 * ux + k2 * uy + k3 * ux * uy
+        ndx = dux * (k1 + k3 * uy)
+        ndy = duy * (k2 + k3 * ux)
+
+        dx_accum += ndx
+        dy_accum += ndy
+
+        erosion_term = 1.0 + (dx_accum**2 + dy_accum**2)
+        a += b * n_val / erosion_term
+
+        b *= 0.50
+        npx = 2.0 * (m2[0, 0] * PX + m2[0, 1] * PY)
+        npy = 2.0 * (m2[1, 0] * PX + m2[1, 1] * PY)
+        PX, PY = npx, npy
+
+    H_noise = (a - 0.9) * 0.75
+    H = np.clip(continent_base + ridge + H_noise, -1.0, 1.0)
 
     # 3D Analytical Surface Normals
     dHx = np.gradient(H, axis=1) * (width / 2.0) * 0.055
