@@ -208,8 +208,8 @@ def draw_elevation_terrain(surface, region, pts, cx, cy, zoom=1.0, frame=0):
             pygame.draw.line(surface, wave_color[:3], (wx1, wy + int(phase)), (wx2, wy + int(phase)), 1)
         return
 
-    # 3. Mountain Ranges and Snow-Capped Summits (>= 0.70)
-    if biome in ('mountains', 'snow_peaks') or elev >= 0.70:
+    # 3. Mountain Ranges and Snow-Capped Summits (>= 0.72)
+    if biome in ('mountains', 'snow_peaks') or elev >= 0.72:
         is_snow = (biome == 'snow_peaks' or elev >= 0.88)
         
         # Central Mountain Peak Polygon
@@ -240,8 +240,8 @@ def draw_elevation_terrain(surface, region, pts, cx, cy, zoom=1.0, frame=0):
         pygame.draw.polygon(surface, (150, 145, 155), [sec_top, sec_left, sec_right])
         return
 
-    # 4. Rolling Hills & Plateaus (0.45 to 0.70)
-    if biome == 'hills' or 0.45 <= elev < 0.70:
+    # 4. Rolling Hills & Plateaus (0.45 to 0.72)
+    if biome == 'hills' or 0.45 <= elev < 0.72:
         hill_sun = (155, 142, 102)
         hill_shadow = (115, 102, 75)
         # Two overlapping gentle rounded hill silhouettes

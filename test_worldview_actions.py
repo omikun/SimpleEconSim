@@ -177,11 +177,19 @@ class TestWorldviewActionsUI(unittest.TestCase):
 
         self.assertEqual(len(visited), len(land_tiles), "All land tiles must form ONE single continuous connected landmass.")
 
-        # 3. Step 30 turns and verify no agent ever enters or claims an ocean tile
+        # 3. Verify mountain regions are <= 20% of land tiles across multiple seeds
+        for seed_val in (42, 101, 777, 999, 12345):
+            w_test = build_world_view(seed=seed_val, terrain_seed=seed_val)
+            t_land = [t for t in w_test['tiles'] if not getattr(t, 'is_ocean', False) and getattr(t, 'elevation', 0.0) >= 0.0]
+            m_count = sum(1 for t in t_land if t.biome in ('mountains', 'snow_peaks') or t.elevation >= 0.72)
+            frac = m_count / len(t_land)
+            self.assertLessEqual(frac, 0.2001, f"Seed {seed_val}: Mountain fraction {frac:.1%} must be <= 20% of land ({m_count}/{len(t_land)})")
+
+        # 4. Step 30 turns and verify no agent ever enters or claims an ocean tile
         for t in range(1, 31):
             step_world(world)
 
-        print("Verified 100% single continuous landmass connectivity and complete ocean isolation.")
+        print("Verified 100% single continuous landmass connectivity, <= 20% mountain cap, and complete ocean isolation.")
 
     def test_map_info_layer_sidebar_and_rendering(self):
         """Verify left layer sidebar clicking, layer switching, and rendering across all 6 layers."""

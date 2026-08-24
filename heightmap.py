@@ -48,7 +48,7 @@ class HeightMapGenerator:
             harmonics += amp * math.sin(nx * fx * math.pi + px) * math.cos(ny * fy * math.pi + py)
 
         diag = nx * math.cos(self.spine_angle) + ny * math.sin(self.spine_angle) + self.spine_offset
-        ridge = math.exp(-3.2 * (diag ** 2)) * 0.60
+        ridge = math.exp(-4.5 * (diag ** 2)) * 0.42
 
         total_h = continent_base + harmonics + ridge
         return max(-1.0, min(1.0, total_h))
@@ -76,7 +76,7 @@ class HeightMapGenerator:
             return 'plains'
         elif h < 0.48:
             return 'forest'
-        elif h < 0.70:
+        elif h < 0.72:
             return 'hills'
         elif h < 0.88:
             return 'mountains'
@@ -97,11 +97,11 @@ class HeightMapGenerator:
         elif h < 0.48:
             t = (h - 0.22) / 0.26
             return self._lerp_color((52, 108, 58), (76, 114, 62), t)
-        elif h < 0.70:
-            t = (h - 0.48) / 0.22
+        elif h < 0.72:
+            t = (h - 0.48) / 0.24
             return self._lerp_color((135, 122, 84), (120, 108, 92), t)
         elif h < 0.88:
-            t = (h - 0.70) / 0.18
+            t = (h - 0.72) / 0.16
             return self._lerp_color((138, 134, 140), (175, 172, 180), t)
         else:
             t = min(1.0, (h - 0.88) / 0.12)
@@ -186,6 +186,18 @@ def apply_heightmap_to_world(tiles: list, seed: int = 42, grid_rows: int = 9, gr
         else:
             tile.is_ocean = False
 
+    # 2b. Enforce that mountain regions (elevation >= 0.72 or biome in ('mountains', 'snow_peaks'))
+    # strictly do not exceed 20% of the total land tiles
+    land_tiles = [t for t in tiles if not getattr(t, 'is_ocean', False) and t.elevation >= 0.0]
+    if land_tiles:
+        max_mountains = max(1, int(len(land_tiles) * 0.20))
+        sorted_land = sorted(land_tiles, key=lambda t: t.elevation, reverse=True)
+        for i, t in enumerate(sorted_land):
+            if i >= max_mountains and t.elevation >= 0.72:
+                # Smoothly map excess elevation into high rolling hills [0.55, 0.70]
+                t.elevation = min(0.70, max(0.55, 0.70 - (t.elevation - 0.72) * 0.25))
+
+    for tile in tiles:
         tile.elevation_meters = generator.get_elevation_meters(tile.elevation)
         tile.biome = generator.get_biome(tile.elevation)
 
