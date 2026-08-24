@@ -408,6 +408,22 @@ class TestWorldviewActionsUI(unittest.TestCase):
 
         print("Verified policy action execution for City, Province, and Nation.")
 
+    def test_system_menu_and_restart_handling(self):
+        """Verify native macOS system menu setup and restart event handling."""
+        from system_menu import setup_system_menu, RESTART_EVENT_TYPE
+        res = setup_system_menu()
+        # On macOS, setup_system_menu() should succeed
+        import sys
+        if sys.platform == 'darwin':
+            self.assertTrue(res, "Native system menu should initialize on macOS.")
+
+        # Test posting restart event
+        ev = pygame.event.Event(RESTART_EVENT_TYPE)
+        pygame.event.post(ev)
+        received = [e for e in pygame.event.get() if e.type == RESTART_EVENT_TYPE]
+        self.assertEqual(len(received), 1, "RESTART_EVENT_TYPE must be received in event queue.")
+        print("Verified system menu bar integration and restart event pipeline.")
+
 
 if __name__ == "__main__":
     unittest.main()

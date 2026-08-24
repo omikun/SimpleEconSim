@@ -129,12 +129,14 @@ def main():
     parser.add_argument('--terrain-seed', type=int, default=None, help='Procedural heightmap terrain seed')
     parser.add_argument('--nation-seed', type=int, default=None, help='Starting nations selection and placement seed')
     args = parser.parse_args()
-
     logInit()
     pygame.init()
     surface = pygame.display.set_mode((WIDTH, HEIGHT))
     pygame.display.set_caption("REGNUM v3 — Hex World")
     clock = pygame.time.Clock()
+
+    from system_menu import setup_system_menu, RESTART_EVENT_TYPE
+    setup_system_menu()
 
     world = build_world_view(seed=args.seed, terrain_seed=args.terrain_seed, nation_seed=args.nation_seed)
     world['needs_redraw'] = True
@@ -176,8 +178,15 @@ def main():
         for event in events:
             if event.type == pygame.QUIT:
                 running = False
-            elif event.type == pygame.VIDEOEXPOSE:
+            elif event.type == RESTART_EVENT_TYPE:
+                world = build_world_view(seed=args.seed, terrain_seed=args.terrain_seed, nation_seed=args.nation_seed)
+                world['needs_redraw'] = True
+                pops_history.clear()
+                for r in world['tiles']:
+                    if getattr(r, 'owner_nation', None) is not None:
+                        pops_history[r.name] = region_pop(r)
                 _mark_dirty(world)
+                continue
             elif event.type == pygame.ACTIVEEVENT:
                 _mark_dirty(world)
             elif event.type == pygame.WINDOWEVENT if hasattr(pygame, 'WINDOWEVENT') else False:
@@ -409,6 +418,15 @@ def main():
                     world['actions_tab'] = 2
                 elif event.key == pygame.K_c:
                     world['compare_open'] = not world.get('compare_open', False)
+                elif event.key == pygame.K_r and (event.mod & (pygame.KMOD_META | pygame.KMOD_CTRL)):
+                    world = build_world_view(seed=args.seed, terrain_seed=args.terrain_seed, nation_seed=args.nation_seed)
+                    world['needs_redraw'] = True
+                    pops_history.clear()
+                    for r in world['tiles']:
+                        if getattr(r, 'owner_nation', None) is not None:
+                            pops_history[r.name] = region_pop(r)
+                    _mark_dirty(world)
+                    continue
                 elif event.key == pygame.K_h or event.key == pygame.K_QUESTION:
                     world['help_open'] = not world.get('help_open', False)
                 elif event.key == pygame.K_SPACE:
