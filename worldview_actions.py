@@ -33,49 +33,62 @@ BTN_BORDER = (90, 90, 120)
 TAB_ACTIVE_BG = (52, 52, 75)
 TAB_INACTIVE_BG = (28, 28, 38)
 
-# Top Bar Action Buttons: (x, y, w, h)
-HELP_BTN = (MAP_RIGHT - 540, 12, 85, 28)
-MILITARY_BTN = (MAP_RIGHT - 445, 12, 135, 28)
-DIPLOMACY_BTN = (MAP_RIGHT - 300, 12, 140, 28)
+# Top-Right Command Buttons: (x, y, w, h)
+# Positioned directly above the right-hand sidebar panel (x = 1060..1400, y = 0..52)
+HELP_BTN = (1066, 5, 156, 20)
+COMPARE_BTN = (1228, 5, 160, 20)
+DIPLOMACY_BTN = (1066, 27, 156, 20)
+MILITARY_BTN = (1228, 27, 160, 20)
 
 
 def draw_top_bar_action_buttons(surface, world, font_small, mouse_pos=None):
-    """Draw top-bar shortcuts for Help (?), Military (M), and Diplomacy (D)."""
+    """Draw top-right shortcuts above sidebar: Help (?), Compare (C), Diplomacy (D), and Military (M)."""
     mx, my = mouse_pos if mouse_pos else (-1, -1)
     
     # 0. Help Button (?)
     is_help_open = world.get('help_open', False)
     help_hover = HELP_BTN[0] <= mx <= HELP_BTN[0] + HELP_BTN[2] and HELP_BTN[1] <= my <= HELP_BTN[1] + HELP_BTN[3]
     help_bg = (75, 75, 100) if is_help_open else ((60, 60, 80) if help_hover else (40, 40, 52))
-    pygame.draw.rect(surface, help_bg, HELP_BTN, border_radius=5)
-    pygame.draw.rect(surface, ACCENT if (help_hover or is_help_open) else (90, 90, 110), HELP_BTN, 1, border_radius=5)
-    help_txt = font_small.render("Help (?)", True, (255, 255, 255) if (help_hover or is_help_open) else TEXT)
+    pygame.draw.rect(surface, help_bg, HELP_BTN, border_radius=4)
+    pygame.draw.rect(surface, ACCENT if (help_hover or is_help_open) else (80, 80, 100), HELP_BTN, 1, border_radius=4)
+    help_txt = font_small.render("❓ Help (?)", True, (255, 255, 255) if (help_hover or is_help_open) else TEXT)
     surface.blit(help_txt, help_txt.get_rect(center=(HELP_BTN[0] + HELP_BTN[2] // 2, HELP_BTN[1] + HELP_BTN[3] // 2)))
 
-    # 1. Military Button
-    is_mil_open = world.get('actions_open') and world.get('actions_tab') == 2
-    mil_hover = MILITARY_BTN[0] <= mx <= MILITARY_BTN[0] + MILITARY_BTN[2] and MILITARY_BTN[1] <= my <= MILITARY_BTN[1] + MILITARY_BTN[3]
-    mil_bg = (75, 75, 100) if is_mil_open else ((60, 60, 80) if mil_hover else (40, 40, 52))
-    pygame.draw.rect(surface, mil_bg, MILITARY_BTN, border_radius=5)
-    pygame.draw.rect(surface, ACCENT if (mil_hover or is_mil_open) else (90, 90, 110), MILITARY_BTN, 1, border_radius=5)
-    mil_txt = font_small.render("Military (M)", True, (255, 255, 255) if (mil_hover or is_mil_open) else TEXT)
-    surface.blit(mil_txt, mil_txt.get_rect(center=(MILITARY_BTN[0] + MILITARY_BTN[2] // 2, MILITARY_BTN[1] + MILITARY_BTN[3] // 2)))
+    # 1. Compare Nations Button (C)
+    is_comp_open = world.get('compare_open', False)
+    comp_hover = COMPARE_BTN[0] <= mx <= COMPARE_BTN[0] + COMPARE_BTN[2] and COMPARE_BTN[1] <= my <= COMPARE_BTN[1] + COMPARE_BTN[3]
+    comp_bg = (75, 75, 100) if is_comp_open else ((60, 60, 80) if comp_hover else (40, 40, 52))
+    pygame.draw.rect(surface, comp_bg, COMPARE_BTN, border_radius=4)
+    pygame.draw.rect(surface, ACCENT if (comp_hover or is_comp_open) else (80, 80, 100), COMPARE_BTN, 1, border_radius=4)
+    comp_txt = font_small.render("📊 Compare (C)", True, (255, 255, 255) if (comp_hover or is_comp_open) else TEXT)
+    surface.blit(comp_txt, comp_txt.get_rect(center=(COMPARE_BTN[0] + COMPARE_BTN[2] // 2, COMPARE_BTN[1] + COMPARE_BTN[3] // 2)))
 
-    # 2. Diplomacy Button
+    # 2. Diplomacy Button (D)
     is_dip_open = world.get('actions_open') and world.get('actions_tab') == 1
     dip_hover = DIPLOMACY_BTN[0] <= mx <= DIPLOMACY_BTN[0] + DIPLOMACY_BTN[2] and DIPLOMACY_BTN[1] <= my <= DIPLOMACY_BTN[1] + DIPLOMACY_BTN[3]
     dip_bg = (75, 75, 100) if is_dip_open else ((60, 60, 80) if dip_hover else (40, 40, 52))
-    pygame.draw.rect(surface, dip_bg, DIPLOMACY_BTN, border_radius=5)
-    pygame.draw.rect(surface, ACCENT if (dip_hover or is_dip_open) else (90, 90, 110), DIPLOMACY_BTN, 1, border_radius=5)
-    dip_txt = font_small.render("Diplomacy (D)", True, (255, 255, 255) if (dip_hover or is_dip_open) else TEXT)
+    pygame.draw.rect(surface, dip_bg, DIPLOMACY_BTN, border_radius=4)
+    pygame.draw.rect(surface, ACCENT if (dip_hover or is_dip_open) else (80, 80, 100), DIPLOMACY_BTN, 1, border_radius=4)
+    dip_txt = font_small.render("📜 Diplomacy (D)", True, (255, 255, 255) if (dip_hover or is_dip_open) else TEXT)
     surface.blit(dip_txt, dip_txt.get_rect(center=(DIPLOMACY_BTN[0] + DIPLOMACY_BTN[2] // 2, DIPLOMACY_BTN[1] + DIPLOMACY_BTN[3] // 2)))
+
+    # 3. Military Button (M)
+    is_mil_open = world.get('actions_open') and world.get('actions_tab') == 2
+    mil_hover = MILITARY_BTN[0] <= mx <= MILITARY_BTN[0] + MILITARY_BTN[2] and MILITARY_BTN[1] <= my <= MILITARY_BTN[1] + MILITARY_BTN[3]
+    mil_bg = (75, 75, 100) if is_mil_open else ((60, 60, 80) if mil_hover else (40, 40, 52))
+    pygame.draw.rect(surface, mil_bg, MILITARY_BTN, border_radius=4)
+    pygame.draw.rect(surface, ACCENT if (mil_hover or is_mil_open) else (80, 80, 100), MILITARY_BTN, 1, border_radius=4)
+    mil_txt = font_small.render("⚔️ Military (M)", True, (255, 255, 255) if (mil_hover or is_mil_open) else TEXT)
+    surface.blit(mil_txt, mil_txt.get_rect(center=(MILITARY_BTN[0] + MILITARY_BTN[2] // 2, MILITARY_BTN[1] + MILITARY_BTN[3] // 2)))
 
 
 def top_bar_action_hit(pos):
-    """Return 'help', 'diplomacy', 'military', or None if an action button was clicked."""
+    """Return 'help', 'compare', 'diplomacy', 'military', or None if an action button was clicked."""
     mx, my = pos
     if HELP_BTN[0] <= mx <= HELP_BTN[0] + HELP_BTN[2] and HELP_BTN[1] <= my <= HELP_BTN[1] + HELP_BTN[3]:
         return 'help'
+    if COMPARE_BTN[0] <= mx <= COMPARE_BTN[0] + COMPARE_BTN[2] and COMPARE_BTN[1] <= my <= COMPARE_BTN[1] + COMPARE_BTN[3]:
+        return 'compare'
     if DIPLOMACY_BTN[0] <= mx <= DIPLOMACY_BTN[0] + DIPLOMACY_BTN[2] and DIPLOMACY_BTN[1] <= my <= DIPLOMACY_BTN[1] + DIPLOMACY_BTN[3]:
         return 'diplomacy'
     if MILITARY_BTN[0] <= mx <= MILITARY_BTN[0] + MILITARY_BTN[2] and MILITARY_BTN[1] <= my <= MILITARY_BTN[1] + MILITARY_BTN[3]:

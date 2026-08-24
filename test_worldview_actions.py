@@ -56,6 +56,9 @@ class TestWorldviewActionsUI(unittest.TestCase):
         render_frame(self.surface, world)
 
         # Top bar action hits
+        from worldview_actions import HELP_BTN, COMPARE_BTN
+        self.assertEqual(top_bar_action_hit((HELP_BTN[0] + 5, HELP_BTN[1] + 5)), 'help')
+        self.assertEqual(top_bar_action_hit((COMPARE_BTN[0] + 5, COMPARE_BTN[1] + 5)), 'compare')
         self.assertEqual(top_bar_action_hit((DIPLOMACY_BTN[0] + 5, DIPLOMACY_BTN[1] + 5)), 'diplomacy')
         self.assertEqual(top_bar_action_hit((MILITARY_BTN[0] + 5, MILITARY_BTN[1] + 5)), 'military')
 
@@ -200,13 +203,25 @@ class TestWorldviewActionsUI(unittest.TestCase):
             render_frame(self.surface, world)
             by += BTN_H + BTN_SPACING
 
+        # Test collapsing the sidebar
+        col_hit = layer_sidebar_hit((SIDEBAR_X + 10, SIDEBAR_Y + 10), world)
+        self.assertTrue(col_hit)
+        self.assertTrue(world.get('layers_collapsed'), "Clicking header should collapse sidebar.")
+        render_frame(self.surface, world)
+
+        # Test expanding the sidebar
+        exp_hit = layer_sidebar_hit((SIDEBAR_X + 10, SIDEBAR_Y + 10), world)
+        self.assertTrue(exp_hit)
+        self.assertFalse(world.get('layers_collapsed'), "Clicking collapsed pill should expand sidebar.")
+        render_frame(self.surface, world)
+
         # Step 5 turns while cycling layers
         for key, _, _, _, _ in MAP_LAYERS:
             world['map_layer'] = key
             step_world(world)
             render_frame(self.surface, world)
 
-        print("Verified left layer sidebar toggle and per-tile rendering across all 6 map layers.")
+        print("Verified left layer sidebar toggle, collapse/expand, and per-tile rendering across all 6 map layers.")
 
     def test_realistic_geographic_hierarchy_and_overview_layer(self):
         """Verify 10 nations x 10 provinces x 10 cities hierarchy and overview layer overlay format."""

@@ -32,20 +32,55 @@ MAP_LAYERS = [
 
 
 def draw_layer_sidebar(surface, world, font_small, mouse_pos=None):
-    """Draw interactive left sidebar dock for switching map information layers."""
+    """Draw interactive left sidebar dock for switching map information layers (collapsible)."""
     active_layer = world.get('map_layer', 'overview')
+    is_collapsed = world.get('layers_collapsed', False)
     mx, my = mouse_pos if mouse_pos else (-1, -1)
 
-    # 1. Dock Container Background (Semi-Transparent Dark Glassmorphism)
+    # Active layer lookup for collapsed summary
+    active_item = next((item for item in MAP_LAYERS if item[0] == active_layer), MAP_LAYERS[0])
+    active_color = active_item[3]
+    active_short = active_item[1].split('. ', 1)[-1]
+
+    if is_collapsed:
+        # Compact Floating Pill / Badge
+        pill_w = 174
+        pill_h = 28
+        pill_rect = (SIDEBAR_X, SIDEBAR_Y, pill_w, pill_h)
+        is_hover = pill_rect[0] <= mx <= pill_rect[0] + pill_w and pill_rect[1] <= my <= pill_rect[1] + pill_h
+
+        pill_surf = pygame.Surface((pill_w, pill_h), pygame.SRCALPHA)
+        pill_surf.fill((16, 16, 24, 240) if not is_hover else (28, 30, 44, 245))
+        surface.blit(pill_surf, (SIDEBAR_X, SIDEBAR_Y))
+        pygame.draw.rect(surface, active_color if is_hover else (60, 65, 85), pill_rect, 1, border_radius=5)
+
+        # Indicator dot
+        pygame.draw.circle(surface, active_color, (SIDEBAR_X + 12, SIDEBAR_Y + pill_h // 2), 4)
+
+        txt = font_small.render(f"Layer: {active_short}", True, TEXT if not is_hover else (255, 255, 255))
+        surface.blit(txt, (SIDEBAR_X + 22, SIDEBAR_Y + 5))
+
+        arrow = font_small.render("▼", True, active_color)
+        surface.blit(arrow, (SIDEBAR_X + pill_w - 18, SIDEBAR_Y + 5))
+        return
+
+    # 1. Expanded Dock Container Background (Semi-Transparent Dark Glassmorphism)
     dock_rect = (SIDEBAR_X, SIDEBAR_Y, SIDEBAR_W, SIDEBAR_H)
     dock_surf = pygame.Surface((SIDEBAR_W, SIDEBAR_H), pygame.SRCALPHA)
-    dock_surf.fill((16, 16, 24, 235))
+    dock_surf.fill((16, 16, 24, 240))
     surface.blit(dock_surf, (SIDEBAR_X, SIDEBAR_Y))
     pygame.draw.rect(surface, (60, 60, 80), dock_rect, 1, border_radius=6)
 
-    # 2. Header
+    # 2. Header with Collapse Button
     hdr = font_small.render("MAP INFO LAYERS", True, ACCENT)
-    surface.blit(hdr, (SIDEBAR_X + 12, SIDEBAR_Y + 10))
+    surface.blit(hdr, (SIDEBAR_X + 12, SIDEBAR_Y + 8))
+
+    col_btn = (SIDEBAR_X + SIDEBAR_W - 28, SIDEBAR_Y + 6, 20, 20)
+    col_hov = col_btn[0] <= mx <= col_btn[0] + col_btn[2] and col_btn[1] <= my <= col_btn[1] + col_btn[3]
+    pygame.draw.rect(surface, (45, 48, 65) if col_hov else (28, 30, 42), col_btn, border_radius=3)
+    pygame.draw.rect(surface, ACCENT if col_hov else (65, 70, 90), col_btn, 1, border_radius=3)
+    arrow_up = font_small.render("▲", True, (255, 255, 255) if col_hov else DIM)
+    surface.blit(arrow_up, arrow_up.get_rect(center=(col_btn[0] + col_btn[2] // 2, col_btn[1] + col_btn[3] // 2)))
 
     # 3. Layer Toggle Buttons
     by = SIDEBAR_Y + 34
@@ -82,10 +117,25 @@ def draw_layer_sidebar(surface, world, font_small, mouse_pos=None):
 
 
 def layer_sidebar_hit(pos, world):
-    """Detect click interaction on the left layer sidebar and update world['map_layer']."""
+    """Detect click interaction on the left layer sidebar and update world['map_layer'] or collapse state."""
     mx, my = pos
+    is_collapsed = world.get('layers_collapsed', False)
+
+    if is_collapsed:
+        pill_w = 174
+        pill_h = 28
+        if SIDEBAR_X <= mx <= SIDEBAR_X + pill_w and SIDEBAR_Y <= my <= SIDEBAR_Y + pill_h:
+            world['layers_collapsed'] = False
+            return True
+        return False
+
     if not (SIDEBAR_X <= mx <= SIDEBAR_X + SIDEBAR_W and SIDEBAR_Y <= my <= SIDEBAR_Y + SIDEBAR_H):
         return False
+
+    # Header / Collapse button click
+    if SIDEBAR_Y <= my <= SIDEBAR_Y + 30:
+        world['layers_collapsed'] = True
+        return True
 
     by = SIDEBAR_Y + 34
     btn_w = SIDEBAR_W - 20

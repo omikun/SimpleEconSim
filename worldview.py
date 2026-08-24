@@ -212,10 +212,13 @@ def main():
                         world['actions_open'] = False
                         continue
 
-                # 1a. Check Top Bar Action buttons (Help / Diplomacy / Military)
+                # 1a. Check Top-Right Action buttons (Help / Compare / Diplomacy / Military)
                 act_btn = top_bar_action_hit(event.pos)
                 if act_btn == 'help':
                     world['help_open'] = not world.get('help_open', False)
+                    continue
+                elif act_btn == 'compare':
+                    world['compare_open'] = not world.get('compare_open', False)
                     continue
                 elif act_btn == 'diplomacy':
                     world['actions_open'] = True if (not world.get('actions_open') or world.get('actions_tab') != 1) else False
@@ -226,7 +229,7 @@ def main():
                     world['actions_tab'] = 2
                     continue
 
-                # 1b. Check Compare Nations top bar button
+                # 1b. Check Compare Nations top bar button fallback
                 if compare_btn_hit(event.pos):
                     world['compare_open'] = not world.get('compare_open', False)
                     continue
@@ -423,6 +426,9 @@ def main():
                     # Also cycle policy scope
                     curr_sc = world.get('policy_scope', 'tile')
                     world['policy_scope'] = 'province' if curr_sc == 'tile' else ('nation' if curr_sc == 'province' else 'tile')
+                    _mark_dirty(world)
+                elif event.key == pygame.K_l:
+                    world['layers_collapsed'] = not world.get('layers_collapsed', False)
                     _mark_dirty(world)
                 # Map info layer hotkeys (1..6)
                 elif event.key in (pygame.K_F1, pygame.K_1, pygame.K_KP1):

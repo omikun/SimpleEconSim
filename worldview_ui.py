@@ -43,8 +43,8 @@ ZOOM_BTN_IN = (MAP_RIGHT - 110, TOP_BAR_H + 12, 30, 26)
 ZOOM_BTN_OUT = (MAP_RIGHT - 75, TOP_BAR_H + 12, 30, 26)
 ZOOM_BTN_RESET = (MAP_RIGHT - 40, TOP_BAR_H + 12, 32, 26)
 
-# Compare Nations button in top bar
-COMPARE_BTN = (MAP_RIGHT - 150, 12, 138, 28)
+# Compare Nations button in top-right command dock
+COMPARE_BTN = (1228, 5, 160, 20)
 
 # Help Page Tab Rectangles
 HELP_TAB1_RECT = (32, 56, 310, 28)
@@ -125,10 +125,11 @@ def selected_nation(world):
 
 
 def draw_top_bar(surface, world, font_small, mouse_pos=None):
-    """Civ-style top strip: stats for the currently selected nation with turn deltas + compare button."""
+    """Civ-style top strip: stats for the currently selected nation with turn deltas + command buttons."""
     n = selected_nation(world)
-    pygame.draw.rect(surface, (34, 34, 42), (0, 0, MAP_RIGHT, TOP_BAR_H))
-    pygame.draw.line(surface, HEX_EDGE, (0, TOP_BAR_H), (MAP_RIGHT, TOP_BAR_H), 2)
+    pygame.draw.rect(surface, (34, 34, 42), (0, 0, WIDTH, TOP_BAR_H))
+    pygame.draw.line(surface, HEX_EDGE, (0, TOP_BAR_H), (WIDTH, TOP_BAR_H), 2)
+    pygame.draw.line(surface, (55, 55, 70), (MAP_RIGHT, 0), (MAP_RIGHT, TOP_BAR_H), 1)
     font = font_small
     if n is None:
         head = font.render("REGNUM v3 — 9x9 Hex World", True, ACCENT)
@@ -182,7 +183,7 @@ def draw_top_bar(surface, world, font_small, mouse_pos=None):
         gdp_str = f"GDP ${gdp_cur:,.0f}" + (f" ({'+' if d_gdp > 0 else ''}${d_gdp:,.0f})" if abs(d_gdp) >= 1.0 else "")
         gdp_color = GREEN if d_gdp > 0.5 else (RED if d_gdp < -0.5 else TEXT)
 
-        net_str = f"Net {'+' if net_cur >= 0 else ''}{net_cur:,.0f}" + (f" ({'+' if d_net > 0 else ''}${d_net:,.0f})" if abs(d_net) >= 1.0 else "")
+        net_str = f"Net {'+' if net_cur >= 0 else ''}{net_cur:,.0f}" + (f" ({'+' if d_net > 0 else ''}{d_net:,.0f})" if abs(d_net) >= 1.0 else "")
         net_color = GREEN if net_cur >= 0 else RED
 
         stats = [
@@ -200,18 +201,7 @@ def draw_top_bar(surface, world, font_small, mouse_pos=None):
             surface.blit(label, (x, 30))
             x += label.get_width() + 18
 
-    # Compare Nations Button
-    mx, my = mouse_pos if mouse_pos else (-1, -1)
-    is_hover = compare_btn_hit((mx, my))
-    is_open = world.get('compare_open', False)
-    btn_bg = (70, 70, 90) if is_open else ((55, 55, 70) if is_hover else (38, 38, 48))
-    btn_border = ACCENT if (is_hover or is_open) else (90, 90, 105)
-    pygame.draw.rect(surface, btn_bg, COMPARE_BTN, border_radius=5)
-    pygame.draw.rect(surface, btn_border, COMPARE_BTN, 1, border_radius=5)
-    btn_txt = font_small.render("Compare (C)", True, (255, 255, 255) if (is_hover or is_open) else TEXT)
-    surface.blit(btn_txt, btn_txt.get_rect(center=(COMPARE_BTN[0] + COMPARE_BTN[2] // 2, COMPARE_BTN[1] + COMPARE_BTN[3] // 2)))
-
-    # Top Bar Action Buttons (Diplomacy, Military)
+    # Top-Right Command Buttons (Help, Compare, Diplomacy, Military)
     from worldview_actions import draw_top_bar_action_buttons
     draw_top_bar_action_buttons(surface, world, font_small, mouse_pos=mouse_pos)
 
