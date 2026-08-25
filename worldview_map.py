@@ -424,40 +424,53 @@ def draw_hex_map(surface, world, font, font_small):
             for r in prov.tiles:
                 highlight_map[r.name] = (color, prov.name)
 
+    # 1. Base Tile Overlays & 50% Transparent White Hex Outlines
+    border_overlay = pygame.Surface((MAP_RIGHT, HEIGHT), pygame.SRCALPHA)
+    hex_geom = []
+
     for region in tiles:
         coords = layout.get(region.name)
         if coords is None:
             continue
         cx, cy = hex_px(world, *coords)
         pts = hex_corners((cx, cy), HEX_SIZE * zoom - 1)
+        hex_geom.append((region, cx, cy, pts))
 
-        # 1. Realistic Elevation Heightmap & Biome Topography
+        # 1a. Ocean wave shimmer (if water)
         draw_elevation_terrain(surface, region, pts, cx, cy, zoom=zoom, frame=frame)
 
-        # 2. Semi-Transparent Nation Territory Overlay (preserves elevation relief underneath)
+        # 1b. Semi-Transparent Nation Territory Overlay
         draw_nation_overlay(surface, region, pts)
 
-        # 3. Outer Borders
+        # 1c. 50% Transparent White Hex Outline (RGBA: 255, 255, 255, 128)
+        pygame.draw.polygon(border_overlay, (255, 255, 255, 128), pts, 1)
+
+    # Blit 50% transparent white hex grid overlay
+    surface.blit(border_overlay, (0, 0))
+
+    # 2. National Borders, Province Highlights, and Selection
+    for region, cx, cy, pts in hex_geom:
         owner = getattr(region, 'owner_nation', None)
         if owner is not None:
-            n_col = NATION_COLORS.get(owner.name, HEX_EDGE)
+            n_col = NATION_COLORS.get(owner.name, (255, 255, 255))
             pygame.draw.polygon(surface, n_col, pts, max(2, int(2 * zoom)))
-        else:
-            pygame.draw.polygon(surface, (35, 45, 55, 120), pts, 1)
 
-        # 4. Province Highlight Border
         if region.name in highlight_map:
             color, _pname = highlight_map[region.name]
             pygame.draw.polygon(surface, color, pts, max(3, int(3 * zoom)))
 
-        # 5. Selected Tile Focal Highlight
         if sel is region:
             pygame.draw.polygon(surface, (255, 255, 255), pts, 4 if region.name not in highlight_map else 2)
 
-        # 6. Readouts with Drop Shadows for Readability
+    # 3. Connection Edges and Trade Arrows (RENDERED UNDER ALL TEXT)
+    draw_edges(surface, world)
+    draw_trade_arrows(surface, world)
+
+    # 4. Text, City Titles, Stats Lines, and Badges (RENDERED ON TOP OF TRADE LINES)
+    layer_mode = world.get('map_layer', 'overview')
+    for region, cx, cy, pts in hex_geom:
         is_ocean = getattr(region, 'is_ocean', False) or getattr(region, 'elevation_meters', 0) < 0
         owner = getattr(region, 'owner_nation', None)
-        layer_mode = world.get('map_layer', 'overview')
 
         if not is_ocean:
             raw_city = getattr(region, 'display_name', getattr(region, 'city_name', region.name))
@@ -514,6 +527,4 @@ def draw_hex_map(surface, world, font, font_small):
             draw_activity_badges(surface, region, cx, cy, font_small)
             draw_pop_delta(surface, region, cx, cy, font_small)
 
-    draw_edges(surface, world)
-    draw_trade_arrows(surface, world)
     surface.set_clip(prev_clip)
