@@ -9,8 +9,10 @@ from worldview_camera import WIDTH, HEIGHT, MAP_RIGHT, TOP_BAR_H, TICKER_H
 from worldview_charts import (PANEL_LEFT, draw_chart_grid, draw_chart_large,
                               tile_charts, EXP_C, IMP_C)
 from worldview_map import (HEX_EDGE, ACCENT, TEXT, DIM, RED, GREEN, UNREST_COLORS,
-                           PROVINCE_COLORS, NATION_COLORS)
+                           PROVINCE_COLORS, NATION_COLORS, BADGE_ORANGE, BADGE_RED,
+                           BADGE_TRA, BADGE_GINI)
 from worldview_compare import draw_nations_comparison, compare_tab_hit
+from diplomacy import get_diplomacy, TreatyType
 
 PANEL_BG = (40, 40, 48)
 
@@ -124,13 +126,305 @@ def selected_nation(world):
     return world['nations'][0] if world.get('nations') else None
 
 
+def draw_top_bar_dropdown_card(surface, font, font_small, title, badge_text, badge_color, lines, anchor_rect):
+    """Render a sleek floating dropdown card for hovered top-bar stat breakdowns."""
+    padding_x = 14
+    padding_y = 10
+    line_h = 17
+    
+    # Calculate required card width based on text
+    title_w = font.size(title)[0] + font_small.size(badge_text)[0] + 36
+    max_row_w = 0
+    for label, val, _ in lines:
+        if val:
+            row_w = font_small.size(label)[0] + font_small.size(val)[0] + 28
+        else:
+            row_w = font_small.size(label)[0] + 8
+        if row_w > max_row_w:
+            max_row_w = row_w
+            
+    card_w = max(310, max(title_w, max_row_w) + padding_x * 2)
+    card_h = padding_y * 2 + 22 + len(lines) * line_h + 6
+
+    # Position dropdown directly below the hovered tab, clamped cleanly to screen
+    card_x = max(8, min(WIDTH - card_w - 8, anchor_rect[0] - 6))
+    card_y = TOP_BAR_H + 4
+    
+    # Alpha card background
+    card_surf = pygame.Surface((card_w, card_h), pygame.SRCALPHA)
+    pygame.draw.rect(card_surf, (20, 22, 32, 248), (0, 0, card_w, card_h), border_radius=6)
+    pygame.draw.rect(card_surf, (75, 85, 115), (0, 0, card_w, card_h), 1, border_radius=6)
+    
+    # Header: Title & Pill Badge
+    t_surf = font.render(title, True, (255, 255, 255))
+    card_surf.blit(t_surf, (padding_x, padding_y))
+    
+    if badge_text:
+        b_surf = font_small.render(badge_text, True, badge_color)
+        b_rect = pygame.Rect(card_w - padding_x - b_surf.get_width() - 8, padding_y - 1, b_surf.get_width() + 8, 17)
+        pygame.draw.rect(card_surf, (38, 44, 58, 220), b_rect, border_radius=4)
+        pygame.draw.rect(card_surf, badge_color, b_rect, 1, border_radius=4)
+        card_surf.blit(b_surf, (b_rect.x + 4, b_rect.y + 2))
+        
+    # Divider line
+    div_y = padding_y + 20
+    pygame.draw.line(card_surf, (50, 56, 76), (padding_x, div_y), (card_w - padding_x, div_y), 1)
+    
+    # Rows
+    cur_y = div_y + 6
+    for label, val, val_col in lines:
+        if not val:
+            # Section header
+            h_surf = font_small.render(label, True, (135, 145, 170))
+            card_surf.blit(h_surf, (padding_x, cur_y))
+        else:
+            # Label
+            lbl_surf = font_small.render(label, True, (185, 190, 205))
+            card_surf.blit(lbl_surf, (padding_x, cur_y))
+            # Value
+            val_surf = font_small.render(val, True, val_col)
+            val_x = card_w - padding_x - val_surf.get_width()
+            card_surf.blit(val_surf, (val_x, cur_y))
+        cur_y += line_h
+
+    # Shadow & Blit
+    shadow_surf = pygame.Surface((card_w + 8, card_h + 8), pygame.SRCALPHA)
+    pygame.draw.rect(shadow_surf, (8, 8, 14, 140), (4, 4, card_w, card_h), border_radius=8)
+    surface.blit(shadow_surf, (card_x - 2, card_y - 2))
+    surface.blit(card_surf, (card_x, card_y))
+
+
+def _get_stat_breakdown(world, n, tiles, key):
+    """Generate detailed breakdown metrics and factor rows for the hovered top bar stat."""
+    turn = world.get('turn', 0)
+    agents = [a for r in tiles for a in getattr(r, 'agents', []) if getattr(a, 'alive', True)]
+    adults = [a for a in agents if not a.is_corporation and not a.is_government and a.age(turn) > 20]
+    unemp_adults = sum(1 for a in adults if a.employer is None and not a.is_trader)
+    unemp_rate = unemp_adults / max(1, len(adults))
+    
+    hungry_now = sum(1 for a in agents if not a.is_corporation and not a.is_government and getattr(a, 'hungry_steps', 0) > 0)
+    mem_hunger = sum(a.mem_avg('mem_hunger', 0.0) for a in agents if not a.is_corporation and not a.is_government)
+    trauma = sum(a.mem_avg('mem_casualties', 0.0) + a.mem_avg('mem_promises', 0.0) for a in agents if not a.is_corporation and not a.is_government)
+    
+    # Calculate Gini across regions
+    avg_gini = 0.0
+    for r in tiles:
+        for g in (Goods.food, Goods.wood, Goods.furniture):
+            vals = sorted(a.cash for a in r.agents if getattr(a, 'output', None) == g)
+            if len(vals) > 5:
+                n_v = len(vals)
+                s_v = sum(vals)
+                if s_v > 0:
+                    wsum = sum((i + 1) * v for i, v in enumerate(vals))
+                    avg_gini = max(avg_gini, (2 * wsum) / (n_v * s_v) - (n_v + 1) / n_v)
+
+    tax_rate = (sum(r.gov.tax_rate for r in tiles) / len(tiles)) if tiles else 0.25
+    tariff_rate = (sum(r.gov.import_tariff_rate for r in tiles) / len(tiles)) if tiles else 0.05
+    total_garrison = sum(len(getattr(r, 'army', [])) for r in tiles)
+    
+    # Identify top aggrieved faction
+    all_factions = {}
+    for r in tiles:
+        if hasattr(r, 'factions') and r.factions:
+            for fname, f in r.factions.factions.items():
+                if fname not in all_factions:
+                    all_factions[fname] = {'gv': 0.0, 'kind': f.kind, 'demand': f.demands[0].name if f.demands else 'None'}
+                all_factions[fname]['gv'] += f.total_grievance()
+    top_f = max(all_factions.items(), key=lambda x: x[1]['gv']) if all_factions else ("None", {'kind': '', 'demand': 'None', 'gv': 0.0})
+
+    if key == 'protest':
+        protest_cur = (sum(r.protest_energy_log[-1] if r.protest_energy_log else 0.0 for r in tiles) / len(tiles)) if tiles else 0.0
+        protest_prev = (sum(r.protest_energy_log[-2] if len(r.protest_energy_log) >= 2 else (r.protest_energy_log[-1] if r.protest_energy_log else 0.0) for r in tiles) / len(tiles)) if tiles else 0.0
+        d_p = protest_cur - protest_prev
+        
+        stage = "Calm"
+        st_color = GREEN
+        if protest_cur >= 9.5:
+            stage, st_color = "Takeover", RED
+        elif protest_cur >= 8.0:
+            stage, st_color = "Compromise", RED
+        elif protest_cur >= 6.5:
+            stage, st_color = "Mob/Riot", RED
+        elif protest_cur >= 4.0:
+            stage, st_color = "Protest", BADGE_ORANGE
+        elif protest_cur >= 2.0:
+            stage, st_color = "Unrest", BADGE_ORANGE
+            
+        lines = [
+            ("Average Protest Energy", f"{protest_cur:.2f} / 10.00", st_color),
+            ("Turn Delta", f"{'+' if d_p > 0 else ''}{d_p:.2f} per turn", RED if d_p > 0 else (GREEN if d_p < 0 else TEXT)),
+            ("--- Grievance Drivers ---", "", DIM),
+            ("• Unemployment Rate", f"{unemp_rate:.1%} ({unemp_adults}/{len(adults)} adults)", RED if unemp_rate > 0.3 else TEXT),
+            ("• Wealth Disparity (Gini)", f"{avg_gini:.2f} index", BADGE_ORANGE if avg_gini > 0.4 else TEXT),
+            ("• Hunger & Malnutrition", f"{hungry_now} hungry ({mem_hunger / 120.0:.2f} mem)", RED if hungry_now > 0 else GREEN),
+            ("• Income Tax Burden", f"{tax_rate:.1%} effective rate", TEXT),
+            ("• Repression & Casualties", f"{trauma / 60.0:.2f} trauma score", RED if trauma > 0 else TEXT),
+            ("--- Suppression & Politics ---", "", DIM),
+            ("• Stationed Garrison", f"{total_garrison} soldiers (-{total_garrison * 0.05:.2f} / turn)", GREEN if total_garrison > 0 else TEXT),
+            ("• Top Discontent Faction", f"{top_f[0]} ({top_f[1]['demand']})", ACCENT),
+        ]
+        return "Civil Unrest & Protest Breakdown", f"Stage: {stage}", st_color, lines
+
+    elif key == 'pop':
+        pop_cur = sum(r.total_population[-1] if r.total_population else len(r.agents) for r in tiles)
+        pop_prev = sum(r.total_population[-2] if len(r.total_population) >= 2 else (r.total_population[-1] if r.total_population else len(r.agents)) for r in tiles)
+        d_pop = pop_cur - pop_prev
+        tot_traders = sum(1 for a in agents if getattr(a, 'is_trader', False))
+        tot_homesteaders = sum(1 for a in agents if getattr(a, 'is_homesteader', False))
+        employed_workers = len(adults) - unemp_adults
+        
+        lines = [
+            ("Total Population", f"{pop_cur:,} living citizens", TEXT),
+            ("Turn Growth Delta", f"{'+' if d_pop > 0 else ''}{d_pop} net", GREEN if d_pop > 0 else (RED if d_pop < 0 else TEXT)),
+            ("Working Adults (>20 yrs)", f"{len(adults):,} ({len(adults) / max(1, pop_cur):.1%})", TEXT),
+            ("Youth & Children (<=20 yrs)", f"{max(0, pop_cur - len(adults)):,}", TEXT),
+            ("Employed Corporate Workers", f"{employed_workers:,} laborers", GREEN),
+            ("Unemployed Adults", f"{unemp_adults:,} looking for work", RED if unemp_adults > 0 else TEXT),
+            ("Independent Traders", f"{tot_traders:,} active traders", BADGE_TRA),
+            ("Homesteaders & Settlers", f"{tot_homesteaders:,} pioneers", BADGE_ORANGE),
+            ("Undernourished Citizens", f"{hungry_now:,} hungry", RED if hungry_now > 0 else GREEN),
+        ]
+        return "Demographics & Population Breakdown", f"{pop_cur:,} Pops", ACCENT, lines
+
+    elif key == 'treasury':
+        tr = n.treasury()
+        tr_cur = tr['total']
+        tr_prev = n._treasury_hist[-2][1] if hasattr(n, '_treasury_hist') and len(n._treasury_hist) >= 2 else tr_cur
+        d_tr = tr_cur - tr_prev
+        tot_debt = sum(getattr(r.gov, 'debt', 0.0) for r in tiles)
+        
+        lines = [
+            ("Liquid Treasury Vault", f"${tr_cur:,.0f} {n.currency}", GREEN if tr_cur > 0 else RED),
+            ("Emergency Food Granary", f"{tr['food']} food units", TEXT),
+            ("Turn Balance Delta", f"{'+' if d_tr > 0 else ''}${d_tr:,.0f} / turn", GREEN if d_tr > 0 else (RED if d_tr < 0 else TEXT)),
+            ("Average Tax Revenue", f"{tax_rate:.1%} income tax rate", TEXT),
+            ("Import Tariff Inflow", f"{tariff_rate:.1%} customs rate", TEXT),
+            ("Active Soldier Payroll", f"{total_garrison} standing troops", TEXT),
+            ("Outstanding Public Debt", f"${tot_debt:,.0f}", RED if tot_debt > 0 else GREEN),
+        ]
+        return "National Treasury & Fiscal Reserves", f"${tr_cur:,.0f}", GREEN if tr_cur > 0 else RED, lines
+
+    elif key == 'col':
+        col_cur = (sum(r.cost_of_living for r in tiles) / len(tiles)) if tiles else 0.0
+        avg_food = sum(r.recipes[Goods.food]['price'] for r in tiles if Goods.food in r.recipes) / max(1, len(tiles))
+        avg_wood = sum(r.recipes[Goods.wood]['price'] for r in tiles if Goods.wood in r.recipes) / max(1, len(tiles))
+        avg_furn = sum(r.recipes[Goods.furniture]['price'] for r in tiles if Goods.furniture in r.recipes) / max(1, len(tiles))
+        
+        wages = [a.wage for a in agents if hasattr(a, 'wage') and a.wage > 0]
+        avg_wage = (sum(wages) / len(wages)) if wages else 1.0
+        
+        lines = [
+            ("Average Cost of Living", f"Index {col_cur:.2f}", TEXT),
+            ("Food Market Basket Price", f"${avg_food:.2f} / food unit", BADGE_ORANGE if avg_food > 2.0 else TEXT),
+            ("Timber / Wood Price", f"${avg_wood:.2f} / timber unit", TEXT),
+            ("Manufactured Furniture", f"${avg_furn:.2f} / furniture unit", TEXT),
+            ("Average Employee Wage", f"${avg_wage:.2f} / turn", GREEN),
+            ("Wage-to-Food Ratio", f"{avg_wage / max(0.01, avg_food):.1f}x food purchasing power", GREEN if avg_wage >= avg_food else RED),
+        ]
+        return "Cost of Living & Market Basket", f"CoL {col_cur:.2f}", ACCENT, lines
+
+    elif key == 'gdp':
+        gdp_cur = sum(r.gdp_log[-1] if r.gdp_log else 0.0 for r in tiles)
+        gdp_prev = sum(r.gdp_log[-2] if len(r.gdp_log) >= 2 else (r.gdp_log[-1] if r.gdp_log else 0.0) for r in tiles)
+        d_gdp = gdp_cur - gdp_prev
+        pop_cur = sum(r.total_population[-1] if r.total_population else len(r.agents) for r in tiles)
+        
+        lines = [
+            ("Gross Domestic Product", f"${gdp_cur:,.0f} total value", ACCENT),
+            ("Turn Growth Delta", f"{'+' if d_gdp > 0 else ''}${d_gdp:,.0f} / turn", GREEN if d_gdp > 0 else (RED if d_gdp < 0 else TEXT)),
+            ("GDP per Capita", f"${gdp_cur / max(1, pop_cur):,.1f} / citizen", TEXT),
+            ("Territorial Hexes", f"{len(tiles)} productive regions", TEXT),
+            ("National Provinces", f"{len(n.provinces)} administrative provinces", TEXT),
+        ]
+        return "Gross Domestic Product & Production", f"${gdp_cur:,.0f}", ACCENT, lines
+
+    elif key == 'ex':
+        exports_cur = sum(sum(v[-1] for v in r.export_val.values() if v) for r in tiles)
+        exports_prev = sum(sum(v[-2] if len(v) >= 2 else v[-1] for v in r.export_val.values() if v) for r in tiles)
+        d_ex = exports_cur - exports_prev
+        food_ex = sum(r.export_val.get(Goods.food, [0])[-1] if r.export_val.get(Goods.food) else 0 for r in tiles)
+        wood_ex = sum(r.export_val.get(Goods.wood, [0])[-1] if r.export_val.get(Goods.wood) else 0 for r in tiles)
+        furn_ex = sum(r.export_val.get(Goods.furniture, [0])[-1] if r.export_val.get(Goods.furniture) else 0 for r in tiles)
+        
+        lines = [
+            ("Total Export Value", f"${exports_cur:,.0f} shipped abroad", EXP_C),
+            ("Turn Export Delta", f"{'+' if d_ex > 0 else ''}${d_ex:,.0f} / turn", GREEN if d_ex > 0 else (RED if d_ex < 0 else TEXT)),
+            ("• Agricultural Food Exports", f"${food_ex:,.0f}", TEXT),
+            ("• Timber & Forestry Exports", f"${wood_ex:,.0f}", TEXT),
+            ("• Manufactured Goods Exports", f"${furn_ex:,.0f}", TEXT),
+        ]
+        return "Foreign Exports Breakdown", f"${exports_cur:,.0f}", EXP_C, lines
+
+    elif key == 'im':
+        imports_cur = sum(sum(v[-1] for v in r.import_val.values() if v) for r in tiles)
+        imports_prev = sum(sum(v[-2] if len(v) >= 2 else v[-1] for v in r.import_val.values() if v) for r in tiles)
+        d_im = imports_cur - imports_prev
+        food_im = sum(r.import_val.get(Goods.food, [0])[-1] if r.import_val.get(Goods.food) else 0 for r in tiles)
+        wood_im = sum(r.import_val.get(Goods.wood, [0])[-1] if r.import_val.get(Goods.wood) else 0 for r in tiles)
+        furn_im = sum(r.import_val.get(Goods.furniture, [0])[-1] if r.import_val.get(Goods.furniture) else 0 for r in tiles)
+        
+        lines = [
+            ("Total Import Value", f"${imports_cur:,.0f} imported", IMP_C),
+            ("Turn Import Delta", f"{'+' if d_im > 0 else ''}${d_im:,.0f} / turn", TEXT),
+            ("• Food Goods Imported", f"${food_im:,.0f}", TEXT),
+            ("• Timber Goods Imported", f"${wood_im:,.0f}", TEXT),
+            ("• Manufactured Imports", f"${furn_im:,.0f}", TEXT),
+            ("• Tariff Rate Applied", f"{tariff_rate:.1%}", TEXT),
+        ]
+        return "Foreign Imports Breakdown", f"${imports_cur:,.0f}", IMP_C, lines
+
+    elif key == 'net':
+        exports_cur = sum(sum(v[-1] for v in r.export_val.values() if v) for r in tiles)
+        imports_cur = sum(sum(v[-1] for v in r.import_val.values() if v) for r in tiles)
+        net_cur = exports_cur - imports_cur
+        exports_prev = sum(sum(v[-2] if len(v) >= 2 else v[-1] for v in r.export_val.values() if v) for r in tiles)
+        imports_prev = sum(sum(v[-2] if len(v) >= 2 else v[-1] for v in r.import_val.values() if v) for r in tiles)
+        net_prev = exports_prev - imports_prev
+        d_net = net_cur - net_prev
+        trade_pacts = len(get_diplomacy(world).get_treaties(n.name, treaty_type=TreatyType.TRADE_PACT))
+        
+        lines = [
+            ("Trade Balance Position", "Trade Surplus" if net_cur >= 0 else "Trade Deficit", GREEN if net_cur >= 0 else RED),
+            ("Net Trade Balance", f"{'+' if net_cur >= 0 else ''}${net_cur:,.0f}", GREEN if net_cur >= 0 else RED),
+            ("Turn Balance Delta", f"{'+' if d_net > 0 else ''}${d_net:,.0f} / turn", GREEN if d_net > 0 else (RED if d_net < 0 else TEXT)),
+            ("Total Exports", f"${exports_cur:,.0f}", EXP_C),
+            ("Total Imports", f"${imports_cur:,.0f}", IMP_C),
+            ("Bilateral Trade Pacts", f"{trade_pacts} signed treaties", ACCENT),
+        ]
+        return "Net Trade Balance & Commerce", f"{'+' if net_cur >= 0 else ''}${net_cur:,.0f}", GREEN if net_cur >= 0 else RED, lines
+
+    elif key == 'header':
+        ruling = getattr(n, 'ruling_faction', None)
+        legit = getattr(n, 'legitimacy', 1.0)
+        legit_desc = "Stable" if legit > 0.6 else ("Fragile" if legit > 0.25 else "Crisis")
+        legit_col = GREEN if legit > 0.6 else (BADGE_ORANGE if legit > 0.25 else RED)
+        treaties_cnt = len(get_diplomacy(world).get_treaties(n.name))
+        
+        lines = [
+            ("Sovereign Nation", f"{n.name} (Currency: {n.currency})", ACCENT),
+            ("Government Regime", f"{n.regime_type.title()}", TEXT),
+            ("Legitimacy Score", f"{legit:.2f} / 1.00 ({legit_desc})", legit_col),
+            ("Ruling Faction", f"{ruling or 'Popular Front'}", ACCENT),
+            ("Organized Provinces", f"{len(n.provinces)} provinces", TEXT),
+            ("Member City Hexes", f"{len(tiles)} claimed tiles", TEXT),
+            ("Active Foreign Treaties", f"{treaties_cnt} diplomatic pacts", ACCENT),
+        ]
+        return "Sovereignty & Governance Breakdown", f"{n.regime_type.title()}", ACCENT, lines
+
+    return "", "", TEXT, []
+
+
 def draw_top_bar(surface, world, font_small, mouse_pos=None):
-    """Civ-style top strip: stats for the currently selected nation with turn deltas + command buttons."""
+    """Civ-style top strip: stats for the currently selected nation with turn deltas + interactive hover breakdowns."""
     n = selected_nation(world)
     pygame.draw.rect(surface, (34, 34, 42), (0, 0, WIDTH, TOP_BAR_H))
     pygame.draw.line(surface, HEX_EDGE, (0, TOP_BAR_H), (WIDTH, TOP_BAR_H), 2)
     pygame.draw.line(surface, (55, 55, 70), (MAP_RIGHT, 0), (MAP_RIGHT, TOP_BAR_H), 1)
     font = font_small
+    font_bold = get_font(13)
+    
+    hovered_dropdown = None
+
     if n is None:
         head = font.render("REGNUM v3 — 9x9 Hex World", True, ACCENT)
         surface.blit(head, (8, 14))
@@ -166,11 +460,23 @@ def draw_top_bar(surface, world, font_small, mouse_pos=None):
         net_prev = exports_prev - imports_prev
         d_net = net_cur - net_prev
 
+        # Protest calculation
+        protest_cur = (sum(r.protest_energy_log[-1] if r.protest_energy_log else 0.0 for r in tiles) / len(tiles)) if tiles else 0.0
+        protest_prev = (sum(r.protest_energy_log[-2] if len(r.protest_energy_log) >= 2 else (r.protest_energy_log[-1] if r.protest_energy_log else 0.0) for r in tiles) / len(tiles)) if tiles else 0.0
+        d_protest = protest_cur - protest_prev
+
         ruling = getattr(n, 'ruling_faction', None)
         ruler = f"  ruling {ruling}" if ruling else ""
-        head = font.render(
-            f"{n.name} ({n.currency})  {n.regime_type}  legit {n.legitimacy:.2f}"
-            f"{ruler}  provinces {len(n.provinces)}  tiles {len(tiles)}", True, n_col)
+        head_text = f"{n.name} ({n.currency})  {n.regime_type}  legit {n.legitimacy:.2f}{ruler}  provinces {len(n.provinces)}  tiles {len(tiles)}"
+        head = font.render(head_text, True, n_col)
+        
+        # Check hover on header
+        header_rect = pygame.Rect(8, 4, head.get_width() + 10, 20)
+        mx, my = mouse_pos if mouse_pos else (-1, -1)
+        if header_rect.collidepoint(mx, my):
+            pygame.draw.rect(surface, (50, 50, 68), header_rect, border_radius=3)
+            hovered_dropdown = ('header', header_rect)
+            
         surface.blit(head, (8, 6))
 
         # Format deltas with color
@@ -186,24 +492,44 @@ def draw_top_bar(surface, world, font_small, mouse_pos=None):
         net_str = f"Net {'+' if net_cur >= 0 else ''}{net_cur:,.0f}" + (f" ({'+' if d_net > 0 else ''}{d_net:,.0f})" if abs(d_net) >= 1.0 else "")
         net_color = GREEN if net_cur >= 0 else RED
 
+        protest_str = f"Protest {protest_cur:.2f}" + (f" ({'+' if d_protest > 0 else ''}{d_protest:.2f})" if abs(d_protest) >= 0.01 else "")
+        protest_color = RED if protest_cur >= 4.0 else (BADGE_ORANGE if protest_cur >= 2.0 else (GREEN if d_protest < 0 else TEXT))
+
         stats = [
-            (pop_str, pop_color),
-            (tr_str, tr_color),
-            (f"CoL {col_cur:.2f}", TEXT),
-            (gdp_str, gdp_color),
-            (f"Ex ${exports_cur:,.0f}", EXP_C),
-            (f"Im ${imports_cur:,.0f}", IMP_C),
-            (net_str, net_color),
+            (pop_str, pop_color, 'pop'),
+            (tr_str, tr_color, 'treasury'),
+            (f"CoL {col_cur:.2f}", TEXT, 'col'),
+            (gdp_str, gdp_color, 'gdp'),
+            (f"Ex ${exports_cur:,.0f}", EXP_C, 'ex'),
+            (f"Im ${imports_cur:,.0f}", IMP_C, 'im'),
+            (net_str, net_color, 'net'),
+            (protest_str, protest_color, 'protest'),
         ]
+        
         x = 8
-        for text, color in stats:
+        for text, color, key in stats:
             label = font.render(text, True, color)
+            item_rect = pygame.Rect(x - 4, 28, label.get_width() + 8, 20)
+            
+            # Hover highlight
+            if item_rect.collidepoint(mx, my):
+                pygame.draw.rect(surface, (50, 52, 70), item_rect, border_radius=3)
+                hovered_dropdown = (key, item_rect)
+                
             surface.blit(label, (x, 30))
-            x += label.get_width() + 18
+            x += label.get_width() + 16
 
     # Top-Right Command Buttons (Help, Compare, Diplomacy, Military)
     from worldview_actions import draw_top_bar_action_buttons
     draw_top_bar_action_buttons(surface, world, font_small, mouse_pos=mouse_pos)
+
+    # Render floating stat breakdown dropdown card if hovered (and modals not open)
+    is_modal_open = world.get('help_open') or world.get('compare_open') or world.get('actions_open')
+    if hovered_dropdown and n is not None and not is_modal_open:
+        key, rect = hovered_dropdown
+        title, badge_txt, badge_col, lines = _get_stat_breakdown(world, n, n.tiles, key)
+        if lines:
+            draw_top_bar_dropdown_card(surface, font_bold, font_small, title, badge_txt, badge_col, lines, rect)
 
 
 def draw_regime_readout(surface, region, font_small, y):
