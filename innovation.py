@@ -125,7 +125,7 @@ TECH_CATALOG: dict[str, Technology] = {
         name='Four-Field Crop Rotation',
         domain=TechDomain.AGRONOMY,
         description='Restores soil fertility naturally, granting +25% baseline food productivity.',
-        base_xp_required=120.0,
+        base_xp_required=350.0,
         era=1,
         production_modifiers={Goods.food.value: 1.25},
         bottleneck_evaluator=_eval_food_bottleneck
@@ -135,7 +135,7 @@ TECH_CATALOG: dict[str, Technology] = {
         name='State Granary Silos',
         domain=TechDomain.AGRONOMY,
         description='Hermetically sealed food storage; unlocks State Granary construction.',
-        base_xp_required=260.0,
+        base_xp_required=600.0,
         era=1,
         unlocked_buildings=['granary'],
         bottleneck_evaluator=_eval_food_bottleneck
@@ -145,7 +145,7 @@ TECH_CATALOG: dict[str, Technology] = {
         name='Horse-Drawn Mechanical Reapers',
         domain=TechDomain.AGRONOMY,
         description='Drastically reduces farm labor requirement while raising harvest volume by +40%.',
-        base_xp_required=550.0,
+        base_xp_required=1200.0,
         era=2,
         production_modifiers={Goods.food.value: 1.40},
         bottleneck_evaluator=_eval_wage_labor_bottleneck
@@ -157,7 +157,7 @@ TECH_CATALOG: dict[str, Technology] = {
         name='Water-Powered Sawmills',
         domain=TechDomain.MANUFACTURING,
         description='Harnesses fluvial water flow to saw lumber; unlocks Mechanized Sawmill.',
-        base_xp_required=140.0,
+        base_xp_required=380.0,
         era=1,
         unlocked_buildings=['sawmill'],
         production_modifiers={Goods.wood.value: 1.30},
@@ -168,7 +168,7 @@ TECH_CATALOG: dict[str, Technology] = {
         name='Standardized Workshop Guilds',
         domain=TechDomain.MANUFACTURING,
         description='Specialized artisan tools and templates; unlocks Artisan Workshop & Guildhall.',
-        base_xp_required=280.0,
+        base_xp_required=650.0,
         era=1,
         unlocked_buildings=['workshop'],
         production_modifiers={Goods.furniture.value: 1.30},
@@ -181,19 +181,9 @@ TECH_CATALOG: dict[str, Technology] = {
         name='Engineered Macadam Roadbeds',
         domain=TechDomain.CIVIL_ENGINEERING,
         description='Crushed stone foundation networks; unlocks Paved Highway Networks (-40% friction).',
-        base_xp_required=150.0,
+        base_xp_required=400.0,
         era=1,
         unlocked_buildings=['paved_road'],
-        bottleneck_evaluator=_eval_mountain_bottleneck
-    ),
-    'gunpowder_blasting': Technology(
-        tech_id='gunpowder_blasting',
-        name='Gunpowder Rock Blasting & Tunneling',
-        domain=TechDomain.CIVIL_ENGINEERING,
-        description='Blasts through sheer granite cliffs; unlocks Alpine Mountain Pass Roads.',
-        base_xp_required=320.0,
-        era=2,
-        unlocked_buildings=['mountain_pass'],
         bottleneck_evaluator=_eval_mountain_bottleneck
     ),
     'fluvial_locks': Technology(
@@ -201,9 +191,19 @@ TECH_CATALOG: dict[str, Technology] = {
         name='Fluvial River Locks & Bridges',
         domain=TechDomain.CIVIL_ENGINEERING,
         description='Pioneers permanent river crossings; unlocks Fluvial River Bridges & Ports.',
-        base_xp_required=260.0,
+        base_xp_required=550.0,
         era=1,
         unlocked_buildings=['river_bridge'],
+        bottleneck_evaluator=_eval_mountain_bottleneck
+    ),
+    'gunpowder_blasting': Technology(
+        tech_id='gunpowder_blasting',
+        name='Gunpowder Rock Blasting & Tunneling',
+        domain=TechDomain.CIVIL_ENGINEERING,
+        description='Blasts through sheer granite cliffs; unlocks Alpine Mountain Pass Roads.',
+        base_xp_required=950.0,
+        era=2,
+        unlocked_buildings=['mountain_pass'],
         bottleneck_evaluator=_eval_mountain_bottleneck
     ),
 
@@ -213,7 +213,7 @@ TECH_CATALOG: dict[str, Technology] = {
         name='Double-Entry Ledger Auditing',
         domain=TechDomain.FINANCE,
         description='Improves commercial transparency, reducing bank loan defaults and liquidity panics.',
-        base_xp_required=160.0,
+        base_xp_required=420.0,
         era=1,
     ),
     'public_sanatoriums': Technology(
@@ -221,7 +221,7 @@ TECH_CATALOG: dict[str, Technology] = {
         name='Public Sanatoriums & Hygiene',
         domain=TechDomain.FINANCE,
         description='Institutional medical care; unlocks Public Sanatorium (-50% citizen mortality).',
-        base_xp_required=340.0,
+        base_xp_required=1100.0,
         era=2,
         unlocked_buildings=['sanatorium']
     ),
@@ -232,7 +232,7 @@ TECH_CATALOG: dict[str, Technology] = {
         name='Standardized Barracks Drills',
         domain=TechDomain.MILITARY,
         description='Professional training regimen; newly recruited armies start with +1.5x base veteran XP.',
-        base_xp_required=180.0,
+        base_xp_required=450.0,
         era=1,
         bottleneck_evaluator=_eval_war_bottleneck
     ),
@@ -241,7 +241,7 @@ TECH_CATALOG: dict[str, Technology] = {
         name='Blackpowder Siege Batteries',
         domain=TechDomain.MILITARY,
         description='Heavy ordnance casting; armies gain +50% combat effectiveness in siege conquest.',
-        base_xp_required=380.0,
+        base_xp_required=1300.0,
         era=2,
         bottleneck_evaluator=_eval_war_bottleneck
     ),
@@ -315,26 +315,26 @@ class InnovationSystem:
                 continue
             nat_xp = self.domain_experience.setdefault(n.name, {d.value: 0.0 for d in TechDomain})
 
-            # 1. Agronomy: Food production volume
+            # 1. Agronomy: Calibrated so ~200 food/turn yields ~3.0 XP/turn
             food_produced = sum(r.production_log.get(Goods.food, [0])[-1] if getattr(r, 'production_log', {}).get(Goods.food) else 0 for r in nat_tiles)
-            nat_xp[TechDomain.AGRONOMY.value] += food_produced * 0.15
+            nat_xp[TechDomain.AGRONOMY.value] += food_produced * 0.015
 
-            # 2. Manufacturing: Timber and Furniture production
+            # 2. Manufacturing: Timber and Furniture production (~2.5 XP/turn)
             wood_p = sum(r.production_log.get(Goods.wood, [0])[-1] if getattr(r, 'production_log', {}).get(Goods.wood) else 0 for r in nat_tiles)
             furn_p = sum(r.production_log.get(Goods.furniture, [0])[-1] if getattr(r, 'production_log', {}).get(Goods.furniture) else 0 for r in nat_tiles)
-            nat_xp[TechDomain.MANUFACTURING.value] += (wood_p * 0.20 + furn_p * 0.35)
+            nat_xp[TechDomain.MANUFACTURING.value] += (wood_p * 0.02 + furn_p * 0.035)
 
-            # 3. Civil Engineering: Freight volume across terrain
+            # 3. Civil Engineering: Freight volume across terrain (~2.0 XP/turn)
             trade_vol = sum(sum(r.export_vol[g][-1] for g in r.export_vol if r.export_vol[g]) for r in nat_tiles)
-            nat_xp[TechDomain.CIVIL_ENGINEERING.value] += trade_vol * 0.25
+            nat_xp[TechDomain.CIVIL_ENGINEERING.value] += trade_vol * 0.02
 
-            # 4. Finance: Commercial transactions & tax collections
+            # 4. Finance: Commercial transactions & tax collections (~1.5 XP/turn)
             taxes = sum(getattr(r.gov, 'tax_revenue_log', [0.0])[-1] if getattr(r.gov, 'tax_revenue_log', None) else 0.0 for r in nat_tiles)
-            nat_xp[TechDomain.FINANCE.value] += (taxes * 0.10 + len(n.provinces) * 2.0)
+            nat_xp[TechDomain.FINANCE.value] += (taxes * 0.01 + len(n.provinces) * 0.25)
 
-            # 5. Military: Active soldiers & garrisons
+            # 5. Military: Active soldiers & garrisons (~1.5 XP/turn)
             soldiers = sum(len(getattr(r, 'military_units', [])) * 10 for r in nat_tiles)
-            nat_xp[TechDomain.MILITARY.value] += (soldiers * 0.20 + 2.0)
+            nat_xp[TechDomain.MILITARY.value] += (soldiers * 0.02 + 0.2)
 
     def evaluate_breakthroughs(self, nations: list[Nation], t: int) -> list[dict]:
         """Check if cumulative experience and economic bottleneck pressure trigger a breakthrough."""
@@ -350,23 +350,27 @@ class InnovationSystem:
                     continue
 
                 xp = self.get_domain_xp(n.name, tech.domain)
-                # Calculate bottleneck pressure multiplier
+                # Calculate bottleneck pressure multiplier (e.g. 1.0x to 3.5x)
                 pressure = tech.bottleneck_evaluator(n, nat_tiles) if tech.bottleneck_evaluator else 1.0
 
-                # Check if a royal bounty exists for this tech
+                # Check if a royal bounty exists for this tech (adds massive 3.5x focused acceleration)
                 bounty_obj = next((b for b in self.active_bounties if b.nation_name == n.name and b.tech_id == tech_id), None)
                 if bounty_obj:
-                    pressure *= 2.5
+                    pressure *= 3.5
 
                 effective_xp = xp * pressure
 
                 # Threshold check & probabilistic breakthrough
                 if effective_xp >= tech.base_xp_required:
-                    chance = min(0.65, 0.15 + (effective_xp - tech.base_xp_required) / tech.base_xp_required)
-                    if rand.random() < chance:
+                    # Measured chance per turn: 6% baseline once threshold reached, boosted up to 35% with bounty
+                    base_chance = 0.06 + 0.12 * min(1.0, (effective_xp - tech.base_xp_required) / tech.base_xp_required)
+                    if bounty_obj:
+                        base_chance = min(0.40, base_chance + 0.20)
+
+                    if rand.random() < base_chance:
                         # Breakthrough achieved!
                         discovered.add(tech_id)
-                        msg = f"BREAKTHROUGH: {n.name} discovered '{tech.name}' via {tech.domain.value} practice (Bottleneck Pressure: {pressure:.1f}x)!"
+                        msg = f"BREAKTHROUGH: {n.name} discovered '{tech.name}' via {tech.domain.value} practice (Pressure: {pressure:.1f}x)!"
                         event = {'t': t, 'nation': n.name, 'tech_id': tech_id, 'tech_name': tech.name, 'event': 'DISCOVERY', 'message': msg}
                         events.append(event)
                         self.discovery_log.append(event)
@@ -409,13 +413,13 @@ class InnovationSystem:
             if not diffusable:
                 continue
 
-            # Trade intimacy calculation
+            # Trade intimacy calculation (~25-35 turns to fully diffuse)
             turn_trade = sum(r.export_val[g][-1] for g in r.export_val if r.export_vol[g])
-            base_diffusion = 0.02
-            if turn_trade > 20.0:
-                base_diffusion += 0.03
+            base_diffusion = 0.008
+            if turn_trade > 25.0:
+                base_diffusion += 0.012
             if dip.has_treaty(n_src.name, n_dst.name, TreatyType.TRADE_PACT.value):
-                base_diffusion += 0.04
+                base_diffusion += 0.015
 
             dst_prog = self.diffusion_progress.setdefault(n_dst.name, {})
 
