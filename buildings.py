@@ -76,6 +76,24 @@ BUILDING_RECIPES: dict[str, BuildingRecipe] = {
         production_bonuses={},
         description='Reduces regional transport delays and trade friction.'
     ),
+    'mountain_pass': BuildingRecipe(
+        name='mountain_pass',
+        display_name='Alpine Mountain Pass Road',
+        cost=380.0,
+        base_turns=2,
+        required_goods={Goods.wood: 6},
+        production_bonuses={},
+        description='Engineers an alpine mountain pass road to unblock overland trade across high peaks.'
+    ),
+    'river_bridge': BuildingRecipe(
+        name='river_bridge',
+        display_name='Fluvial River Bridge & Port',
+        cost=300.0,
+        base_turns=2,
+        required_goods={Goods.wood: 5},
+        production_bonuses={},
+        description='Constructs a permanent river crossing to maximize fluvial trade capacity and speed.'
+    ),
     'sanatorium': BuildingRecipe(
         name='sanatorium',
         display_name='Public Sanatorium',
@@ -162,6 +180,26 @@ class ConstructionProject:
             )
             if hasattr(self.region, 'buildings'):
                 self.region.buildings.append(building)
+                
+            # Apply dynamic geographic unblocking
+            from terrain_edges import get_edge_manager
+            em = get_edge_manager()
+            if em is not None:
+                if self.recipe.name == 'mountain_pass':
+                    for other_name in list(em.tiles_by_name.keys()):
+                        edge = em.get_edge(self.region.name, other_name)
+                        if edge and (not edge.passable or edge.edge_type.value == 'alpine_blocked' or edge.edge_type.value == 'cliff_blocked'):
+                            em.unblock_mountain_pass(self.region.name, other_name)
+                            other_tile = em.tiles_by_name.get(other_name)
+                            if other_tile and other_name not in self.region.neighbors:
+                                self.region.add_neighbor(other_tile, t)
+                                other_tile.add_neighbor(self.region, t)
+                elif self.recipe.name == 'river_bridge':
+                    for other_name in list(em.tiles_by_name.keys()):
+                        edge = em.get_edge(self.region.name, other_name)
+                        if edge and edge.is_river:
+                            em.build_river_bridge(self.region.name, other_name)
+
             msg = (f"Completed construction of {self.recipe.display_name} in {self.region.name} "
                    f"after {self.turns_elapsed} turns.")
             self.events.append({'t': t, 'event': 'COMPLETED', 'message': msg})

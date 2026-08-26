@@ -410,10 +410,12 @@ def draw_construction_tab(surface, world, box_x, y, box_w, box_h, font, font_sma
     card_w = box_w - 40
 
     recipes = [
-        ('farm', 'Commercial Farm', '$100', '+50% Food Output, +10% Labor'),
-        ('lumber_mill', 'Industrial Lumber Mill', '$120', '+50% Wood Output'),
-        ('workshop', 'Furniture Workshop', '$150', '+50% Furniture Output'),
-        ('granary', 'Provincial Granary', '$80', '+100 Food Storage Capacity'),
+        ('mountain_pass', 'Alpine Mountain Pass Road', '$380', 'Unblocks overland trade across impassable alpine ridges & steep cliffs'),
+        ('river_bridge', 'Fluvial River Bridge & Port', '$300', 'Constructs permanent river crossing & maximizes fluvial trade throughput'),
+        ('paved_road', 'Paved Highway Network', '$350', 'Reduces regional transport friction and delays by 40%'),
+        ('granary', 'State Granary', '$250', '+25% Food Output and grain reserves'),
+        ('sawmill', 'Mechanized Sawmill', '$300', '+30% Timber extraction and lumber yield'),
+        ('workshop', 'Artisan Workshop & Guild', '$400', '+30% Furniture manufacturing output'),
     ]
 
     for r_key, r_name, r_cost, r_desc in recipes:
@@ -421,21 +423,21 @@ def draw_construction_tab(surface, world, box_x, y, box_w, box_h, font, font_sma
         cost_val = recipe_obj.cost if recipe_obj else 100.0
         can_afford = treasury['total'] >= cost_val
 
-        card_rect = (box_x + 20, card_y, card_w, 68)
+        card_rect = (box_x + 20, card_y, card_w, 58)
         pygame.draw.rect(surface, CARD_BG, card_rect, border_radius=6)
         pygame.draw.rect(surface, (70, 70, 90), card_rect, 1, border_radius=6)
 
         t_lbl = font.render(f"{r_name} — Cost: {r_cost}", True, ACCENT)
-        surface.blit(t_lbl, (box_x + 36, card_y + 10))
+        surface.blit(t_lbl, (box_x + 36, card_y + 8))
 
         d_lbl = font_small.render(f"Modifiers: {r_desc}", True, DIM)
-        surface.blit(d_lbl, (box_x + 36, card_y + 36))
+        surface.blit(d_lbl, (box_x + 36, card_y + 32))
 
-        btn_rect = (box_x + card_w - 220, card_y + 18, 190, 32)
+        btn_rect = (box_x + card_w - 220, card_y + 13, 190, 32)
         draw_action_button(surface, btn_rect, f"Commission ({r_cost})", font_small, mx, my,
                            disabled=not is_owned or not can_afford)
 
-        card_y += 78
+        card_y += 66
 
     # Active Projects List
     active_projects = getattr(active_n, 'construction_projects', [])
@@ -649,16 +651,19 @@ def actions_tab_hit(pos, box_x, box_y, world):
     # 5. Tab 3 Construction Click Handling
     elif active_tab == 3 and active_n:
         card_y = box_y + 120 + 36
-        recipes = ['farm', 'lumber_mill', 'workshop', 'granary']
+        recipes = ['mountain_pass', 'river_bridge', 'paved_road', 'granary', 'sawmill', 'workshop']
         pinned_tile = world.get('selected_region')
         tile_name = pinned_tile.name if pinned_tile else (active_n.tiles[0].name if active_n.tiles else None)
         
         for r_key in recipes:
-            btn_rect = (box_x + card_w - 220, card_y + 18, 190, 32)
+            btn_rect = (box_x + card_w - 220, card_y + 13, 190, 32)
             if btn_rect[0] <= mx <= btn_rect[0] + btn_rect[2] and btn_rect[1] <= my <= btn_rect[1] + btn_rect[3] and tile_name:
                 intent = BuildIntent(active_n.name, tile_name, r_key, submitted_turn=t, regime_type=active_n.regime_type)
                 active_n.submit_intent(intent, t)
+                rec = BUILDING_RECIPES.get(r_key)
+                name_str = rec.display_name if rec else r_key
+                world['action_feedback'] = (f"Commissioned {name_str} on [{tile_name}].", GREEN, t)
                 return True
-            card_y += 78
+            card_y += 66
 
     return False

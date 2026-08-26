@@ -82,10 +82,15 @@ def repoint_traders(region):
         for name, other in region.neighbors.items():
             if not other or getattr(other, 'recipes', None) is None:
                 continue
+            from terrain_edges import get_edge_manager
+            em = get_edge_manager()
+            frict = em.get_friction(region.name, other.name) if em else 1.0
+            if frict == float('inf'):
+                continue
             desk = region.forex_desks.get(name)
             rate = desk.buy_rate() if desk is not None else 1.0
             dest_price = other.recipes.get(good, {}).get('price', 0.0)
-            net_foreign = dest_price * rate
+            net_foreign = (dest_price * rate) / max(0.2, frict)
             score = net_foreign - floor
             if score > best_score:
                 best_score = score

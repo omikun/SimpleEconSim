@@ -463,6 +463,66 @@ class TestWorldviewActionsUI(unittest.TestCase):
 
         print("Verified top bar protest metric (+delta) and interactive hover breakdown dropdowns for all stats.")
 
+    def test_geographic_trade_constraints_and_passes(self):
+        """Verify elevation relief trade barriers, river corridors, and mountain pass unblocking."""
+        from terrain_edges import get_edge_manager, EdgeType, TerrainEdgeManager
+        from hexmap import rectangular_hex_layout
+        from region import Region
+        
+        layout = rectangular_hex_layout(3, 3)
+        # Create test mock tiles with controlled elevations
+        t1 = Region("r0c0", t=0, wilderness=True)
+        t1.elevation = 0.85  # Alpine peak
+        
+        t2 = Region("r0c1", t=0, wilderness=True)
+        t2.elevation = 0.88  # Adjacent alpine peak
+        
+        t3 = Region("r1c0", t=0, wilderness=True)
+        t3.elevation = 0.10  # Lowland plains
+        
+        tiles = [t1, t2, t3]
+        em = TerrainEdgeManager(tiles, layout)
+        
+        # 1. Verify Alpine Ridge Barrier (both > 0.68)
+        edge_alpine = em.get_edge("r0c0", "r0c1")
+        self.assertIsNotNone(edge_alpine)
+        self.assertFalse(edge_alpine.passable)
+        self.assertEqual(edge_alpine.edge_type, EdgeType.ALPINE_BLOCKED)
+        self.assertEqual(edge_alpine.friction, float('inf'))
+        
+        # 2. Verify Sheer Cliff Barrier (|0.85 - 0.10| = 0.75 >= 0.40)
+        edge_cliff = em.get_edge("r0c0", "r1c0")
+        self.assertIsNotNone(edge_cliff)
+        self.assertFalse(edge_cliff.passable)
+        self.assertEqual(edge_cliff.edge_type, EdgeType.CLIFF_BLOCKED)
+        
+        # 3. Verify Dynamic Mountain Pass Construction Unblocking
+        em.unblock_mountain_pass("r0c0", "r0c1")
+        edge_pass = em.get_edge("r0c0", "r0c1")
+        self.assertTrue(edge_pass.passable)
+        self.assertEqual(edge_pass.edge_type, EdgeType.MOUNTAIN_PASS)
+        self.assertLess(edge_pass.friction, float('inf'))
+        
+        # 4. Verify River Corridor Detection
+        t_high = Region("r1c1", t=0, wilderness=True)
+        t_high.elevation = 0.40
+        t_low = Region("r1c2", t=0, wilderness=True)
+        t_low.elevation = 0.15
+        em_riv = TerrainEdgeManager([t_high, t_low], layout)
+        edge_river = em_riv.get_edge("r1c1", "r1c2")
+        self.assertIsNotNone(edge_river)
+        self.assertTrue(edge_river.is_river)
+        self.assertEqual(edge_river.friction, 0.4)
+        
+        # 5. Full Simulation Verification
+        world = build_world_view(seed=42)
+        # Verify edges and rendering run cleanly
+        render_frame(self.surface, world)
+        step_world(world)
+        render_frame(self.surface, world)
+        
+        print("Verified alpine barriers, sheer cliff blocking, river corridor flow, and dynamic mountain pass engineering.")
+
 
 if __name__ == "__main__":
     unittest.main()

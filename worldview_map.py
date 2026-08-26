@@ -273,20 +273,50 @@ def trade_anim(world):
 
 
 def draw_edges(surface, world):
-    """Static thin strokes on every wired edge (connectivity overlay)."""
-    for r, other in world['pair_orders']:
-        c1 = hex_px(world, *world['layout'][r.name])
-        c2 = hex_px(world, *world['layout'][other.name])
-        pygame.draw.line(surface, EDGE_LINE, c1, c2, 1)
-    for r in world['tiles']:
-        if getattr(r, 'owner_nation', None) is not None:
+    """Render geographic trade routes: rivers, mountain passes, standard paths, and alpine barriers."""
+    from terrain_edges import get_edge_manager, EdgeType
+    em = get_edge_manager(world.get('tiles'), world.get('layout'))
+    layout = world.get('layout', {})
+    
+    seen_edges = set()
+
+    # 1. Passable Trade Edges & River Corridors
+    for r, other in world.get('pair_orders', []):
+        key = tuple(sorted((r.name, other.name)))
+        if key in seen_edges:
             continue
-        for other in r.neighbors.values():
-            if other.name < r.name:
-                continue
-            c1 = hex_px(world, *world['layout'][r.name])
-            c2 = hex_px(world, *world['layout'][other.name])
-            pygame.draw.line(surface, (40, 40, 48), c1, c2, 1)
+        seen_edges.add(key)
+        
+        if r.name not in layout or other.name not in layout:
+            continue
+        c1 = hex_px(world, *layout[r.name])
+        c2 = hex_px(world, *layout[other.name])
+        
+        edge = em.get_edge(r.name, other.name) if em else None
+        if edge and edge.is_river:
+            # Fluvial River Corridor (Glowing Cyan-Blue)
+            pygame.draw.line(surface, (50, 130, 210), c1, c2, 3)
+            pygame.draw.line(surface, (120, 215, 255), c1, c2, 1)
+        elif edge and edge.edge_type == EdgeType.MOUNTAIN_PASS:
+            # Engineered / Natural Mountain Pass (Golden Mountain Road)
+            pygame.draw.line(surface, (230, 185, 65), c1, c2, 2)
+        else:
+            pygame.draw.line(surface, EDGE_LINE, c1, c2, 1)
+
+    # 2. Blocked Alpine & Cliff Barriers (Visual indicators)
+    if em is not None:
+        for (name_a, name_b), edge in em.edges.items():
+            if not edge.passable and (name_a, name_b) not in seen_edges:
+                if name_a in layout and name_b in layout:
+                    c1 = hex_px(world, *layout[name_a])
+                    c2 = hex_px(world, *layout[name_b])
+                    # Draw mid-point barrier hash
+                    mx = (c1[0] + c2[0]) // 2
+                    my = (c1[1] + c2[1]) // 2
+                    dx, dy = c2[0] - c1[0], c2[1] - c1[1]
+                    dist = max(1.0, math.sqrt(dx*dx + dy*dy))
+                    nx, ny = -dy / dist * 6, dx / dist * 6
+                    pygame.draw.line(surface, (190, 50, 50), (int(mx - nx), int(my - ny)), (int(mx + nx), int(my + ny)), 2)
 
 
 def draw_trade_arrows(surface, world):

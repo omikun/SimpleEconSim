@@ -187,7 +187,9 @@ def build_world(seed=None, terrain_seed=None, nation_seed=None):
                 n.add_tile(claimed)
             n.provinces.append(prov)
 
-    # ---- True hex adjacency (routes every edge) ----
+    # ---- True hex adjacency (routes every edge subject to geographic passability) ----
+    from terrain_edges import reset_edge_manager
+    edge_mgr = reset_edge_manager(tiles, _LAYOUT)
     for r in range(GRID_ROWS):
         for c in range(GRID_COLS):
             tile = grid[r][c]
@@ -196,7 +198,7 @@ def build_world(seed=None, terrain_seed=None, nation_seed=None):
                 nc, nr = axial_to_offset(nq, nar)
                 if 0 <= nr < GRID_ROWS and 0 <= nc < GRID_COLS:
                     other = grid[nr][nc]
-                    if other.name not in tile.neighbors:
+                    if other.name not in tile.neighbors and edge_mgr.is_passable(tile.name, other.name):
                         tile.add_neighbor(other)
 
     # ---- ForexDesks only between claimed (neighbor) tiles ----
