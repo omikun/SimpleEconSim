@@ -523,6 +523,44 @@ class TestWorldviewActionsUI(unittest.TestCase):
         
         print("Verified alpine barriers, sheer cliff blocking, river corridor flow, and dynamic mountain pass engineering.")
 
+    def test_induced_innovation_bounties_and_trade_diffusion(self):
+        """Verify learning-by-doing, bottleneck accelerators, royal prize bounties, and trade diffusion."""
+        from innovation import get_innovation_system, TechDomain, TECH_CATALOG
+        world = build_world_view(seed=42)
+        inno = get_innovation_system()
+        nations = world['nations']
+        tiles = world['tiles']
+        n1 = nations[0]
+        n2 = nations[1]
+
+        # 1. Verify learning-by-doing accumulates domain experience
+        init_agri = inno.get_domain_xp(n1.name, TechDomain.AGRONOMY)
+        step_world(world)
+        new_agri = inno.get_domain_xp(n1.name, TechDomain.AGRONOMY)
+        self.assertGreaterEqual(new_agri, init_agri)
+
+        # 2. Verify Royal Prize Bounty creation
+        n1.government.agent.cash = 1000.0
+        inno.get_discovered_techs(n1.name).discard('gunpowder_blasting')
+        ok = inno.post_royal_bounty(n1, 'gunpowder_blasting', 300.0, t=1)
+        self.assertTrue(ok)
+        self.assertEqual(len(inno.active_bounties), 1)
+        self.assertEqual(n1.government.agent.cash, 700.0)
+
+        # 3. Verify Tab 4 Innovation rendering
+        world['actions_open'] = True
+        world['actions_tab'] = 4
+        render_frame(self.surface, world)
+
+        # 4. Verify Trade Diffusion
+        inno.get_discovered_techs(n1.name).add('hydraulic_sawmills')
+        pair_orders = [(n1.tiles[0], n2.tiles[0])]
+        events = inno.diffuse_technologies_along_trade(pair_orders, nations, t=2)
+        diff_prog = inno.diffusion_progress.get(n2.name, {}).get('hydraulic_sawmills', 0.0)
+        self.assertGreater(diff_prog, 0.0)
+
+        print("Verified learning-by-doing, induced bottleneck multipliers, royal bounties, and trade diffusion.")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -148,6 +148,14 @@ def step_turn(t: int, tiles: list, nations: list = None,
     if nations:
         diplomacy.update_relations(tiles, nations, t)
 
+    # 10d. Induced Innovation, Learning-by-Doing & Trade Diffusion
+    if nations:
+        from innovation import step_innovation
+        inno_events = step_innovation(tiles, nations, pair_orders, t)
+        if on_event:
+            for ev in inno_events:
+                on_event(t, ev.get('event', 'INNOVATION'), ev.get('message', ''))
+
     # 11. Forex desks update & PPP tracking
     for r, other in pair_orders:
         desk = r.forex_desks.get(other.name)

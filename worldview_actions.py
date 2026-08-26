@@ -127,7 +127,7 @@ def draw_actions_modal(surface, world, font, font_small, mouse_pos=None):
     # Nation Switcher Buttons (top-right of header)
     draw_nation_switcher(surface, world, box_x, box_y + 48, font_small, mouse_pos)
 
-    # Tabs (Diplomacy, Military, Construction, AI Advisory)
+    # Tabs (Diplomacy, Military, Construction, Innovation)
     cur_y = draw_action_tabs(surface, world, box_x, box_y + 84, font_small, mouse_pos)
 
     active_tab = world.get('actions_tab', 1)
@@ -138,7 +138,7 @@ def draw_actions_modal(surface, world, font, font_small, mouse_pos=None):
     elif active_tab == 3:
         draw_construction_tab(surface, world, box_x, cur_y, box_w, box_h - (cur_y - box_y), font, font_small, mouse_pos)
     elif active_tab == 4:
-        draw_ai_advisory_tab(surface, world, box_x, cur_y, box_w, box_h - (cur_y - box_y), font, font_small, mouse_pos)
+        draw_innovation_tab(surface, world, box_x, cur_y, box_w, box_h - (cur_y - box_y), font, font_small, mouse_pos)
 
 
 def get_active_nation(world):
@@ -181,13 +181,13 @@ def draw_nation_switcher(surface, world, box_x, y, font_small, mouse_pos=None):
 
 
 def draw_action_tabs(surface, world, box_x, y, font_small, mouse_pos=None):
-    """Draw action tabs: 1. Diplomacy, 2. Military, 3. Construction, 4. AI Advisory."""
+    """Draw action tabs: 1. Diplomacy, 2. Military, 3. Construction, 4. Innovation."""
     active_tab = world.get('actions_tab', 1)
     tabs = [
         (1, "1. Diplomacy & Treaties (D)"),
         (2, "2. Military & Garrisons (M)"),
         (3, "3. Physical Construction & Intents"),
-        (4, "4. AI Sovereign Advisory"),
+        (4, "4. Innovation & Royal Bounties"),
     ]
     tab_w = 230
     tab_h = 30
@@ -463,57 +463,95 @@ def draw_construction_tab(surface, world, box_x, y, box_w, box_h, font, font_sma
 # =============================================================================
 # TAB 4: AI SOVEREIGN ADVISORY
 # =============================================================================
+# TAB 4: INDUCED INNOVATION & ROYAL BOUNTIES
+# =============================================================================
 
-def draw_ai_advisory_tab(surface, world, box_x, y, box_w, box_h, font, font_small, mouse_pos=None):
+def draw_innovation_tab(surface, world, box_x, y, box_w, box_h, font, font_small, mouse_pos=None):
     active_n = get_active_nation(world)
     if not active_n:
         return
 
     mx, my = mouse_pos if mouse_pos else (-1, -1)
-    ai = getattr(active_n, 'ai', None)
-    if ai is None:
-        ai = NationPolicyAI(active_n)
-        active_n.ai = ai
+    from innovation import get_innovation_system, TECH_CATALOG, TechDomain
+    inno = get_innovation_system()
 
-    diplomacy = get_diplomacy()
-    header = font.render(f"AI Strategic Advisory & Terrain Analysis for {active_n.name}", True, TEXT)
+    treasury = active_n.treasury()
+    header = font.render(f"Induced Innovation, Learning-by-Doing & Royal Bounties — {active_n.name} (Treasury: ${treasury['total']:,.2f})", True, TEXT)
     surface.blit(header, (box_x + 20, y))
 
     card_y = y + 36
     card_w = box_w - 40
 
-    # 1. Border Vulnerability Card
-    vuln_rect = (box_x + 20, card_y, card_w, 100)
-    pygame.draw.rect(surface, CARD_BG, vuln_rect, border_radius=6)
-    pygame.draw.rect(surface, (70, 70, 90), vuln_rect, 1, border_radius=6)
+    # 1. Domain Experience Meter Bar
+    xp_rect = (box_x + 20, card_y, card_w, 36)
+    pygame.draw.rect(surface, (28, 30, 42), xp_rect, border_radius=6)
+    pygame.draw.rect(surface, (70, 75, 95), xp_rect, 1, border_radius=6)
 
-    v_hdr = font.render("Border Vulnerability & Threat Assessment:", True, ACCENT)
-    surface.blit(v_hdr, (box_x + 36, card_y + 10))
+    xp_x = box_x + 36
+    domain_icons = [
+        (TechDomain.AGRONOMY, "🌾 Agronomy"),
+        (TechDomain.MANUFACTURING, "⚙️ Manufacturing"),
+        (TechDomain.CIVIL_ENGINEERING, "🏔️ Engineering"),
+        (TechDomain.FINANCE, "🏛️ Finance"),
+        (TechDomain.MILITARY, "⚔️ Military"),
+    ]
+    for dom, dom_label in domain_icons:
+        val = inno.get_domain_xp(active_n.name, dom)
+        lbl = font_small.render(f"{dom_label}: {val:,.1f} XP", True, ACCENT)
+        surface.blit(lbl, (xp_x, card_y + 9))
+        xp_x += 220
 
-    vy = card_y + 36
-    for tile in active_n.tiles:
-        v_score, v_reason = ai.evaluate_tile_vulnerability(tile, world.get('nations', []), diplomacy)
-        v_col = RED if v_score > 0.5 else (GREEN if v_score == 0.0 else TEXT)
-        v_txt = font_small.render(f"Tile [{tile.name}]: {v_reason}", True, v_col)
-        surface.blit(v_txt, (box_x + 36, vy))
-        vy += 20
+    card_y += 46
 
-    card_y += 114
+    # 2. Technology & Royal Bounty Cards
+    discovered = inno.get_discovered_techs(active_n.name)
+    diffusing = inno.diffusion_progress.get(active_n.name, {})
 
-    # 2. Expansion Opportunities Card
-    exp_plan = ai.evaluate_expansion(world.get('tiles', []), world.get('nations', []), diplomacy)
-    exp_rect = (box_x + 20, card_y, card_w, 80)
-    pygame.draw.rect(surface, CARD_BG, exp_rect, border_radius=6)
-    pygame.draw.rect(surface, (70, 70, 90), exp_rect, 1, border_radius=6)
+    for tech_id, tech in list(TECH_CATALOG.items())[:6]:
+        card_rect = (box_x + 20, card_y, card_w, 56)
+        pygame.draw.rect(surface, CARD_BG, card_rect, border_radius=6)
+        pygame.draw.rect(surface, (70, 70, 90), card_rect, 1, border_radius=6)
 
-    e_hdr = font.render("Top AI Expansion Recommendation:", True, ACCENT)
-    surface.blit(e_hdr, (box_x + 36, card_y + 10))
+        is_disc = tech_id in discovered
+        diff_prog = diffusing.get(tech_id, 0.0)
+        has_bounty = any(b.nation_name == active_n.name and b.tech_id == tech_id for b in inno.active_bounties)
 
-    if exp_plan:
-        e_txt = font_small.render(f"Recommended Target: [{exp_plan['tile'].name}] ({exp_plan['reason']}) — Score: {exp_plan['score']:.1f}", True, GREEN)
-    else:
-        e_txt = font_small.render("No adjacent expansion targets currently meet profitability/safety thresholds.", True, DIM)
-    surface.blit(e_txt, (box_x + 36, card_y + 40))
+        # Status badge
+        if is_disc:
+            badge_txt = "MASTERED"
+            badge_col = GREEN
+        elif diff_prog > 0:
+            badge_txt = f"DIFFUSING ({int(diff_prog*100)}%)"
+            badge_col = (80, 200, 255)
+        elif has_bounty:
+            badge_txt = "ROYAL PRIZE OFFERED"
+            badge_col = (245, 200, 70)
+        else:
+            pressure = tech.bottleneck_evaluator(active_n, active_n.tiles) if tech.bottleneck_evaluator else 1.0
+            cur_xp = inno.get_domain_xp(active_n.name, tech.domain)
+            badge_txt = f"PRESSURE: {pressure:.1f}x ({int(cur_xp)}/{int(tech.base_xp_required)} XP)"
+            badge_col = (235, 140, 50) if pressure > 1.5 else DIM
+
+        t_lbl = font.render(f"{tech.name} ({tech.domain.value.capitalize()})", True, (255, 255, 255) if is_disc else TEXT)
+        surface.blit(t_lbl, (box_x + 36, card_y + 8))
+
+        b_surf = font_small.render(f"[{badge_txt}]", True, badge_col)
+        surface.blit(b_surf, (box_x + 440, card_y + 10))
+
+        d_lbl = font_small.render(f"Effect: {tech.description}", True, DIM)
+        surface.blit(d_lbl, (box_x + 36, card_y + 32))
+
+        # Royal Bounty Button
+        btn_rect = (box_x + card_w - 230, card_y + 12, 210, 32)
+        if is_disc:
+            draw_action_button(surface, btn_rect, "Technology Unlocked", font_small, mx, my, disabled=True)
+        elif has_bounty:
+            draw_action_button(surface, btn_rect, "Bounty Active ($300)", font_small, mx, my, active=True, color=(245, 200, 70))
+        else:
+            can_afford = treasury['total'] >= 300.0
+            draw_action_button(surface, btn_rect, "Pledge Royal Prize ($300)", font_small, mx, my, disabled=not can_afford)
+
+        card_y += 64
 
 
 # =============================================================================
@@ -665,5 +703,24 @@ def actions_tab_hit(pos, box_x, box_y, world):
                 world['action_feedback'] = (f"Commissioned {name_str} on [{tile_name}].", GREEN, t)
                 return True
             card_y += 66
+
+    # 6. Tab 4 Innovation & Royal Bounties Click Handling
+    elif active_tab == 4 and active_n:
+        card_y = box_y + 120 + 36 + 46
+        from innovation import get_innovation_system, TECH_CATALOG
+        inno = get_innovation_system()
+        discovered = inno.get_discovered_techs(active_n.name)
+
+        for tech_id, tech in list(TECH_CATALOG.items())[:6]:
+            btn_rect = (box_x + card_w - 230, card_y + 12, 210, 32)
+            if btn_rect[0] <= mx <= btn_rect[0] + btn_rect[2] and btn_rect[1] <= my <= btn_rect[1] + btn_rect[3]:
+                if tech_id not in discovered and not any(b.nation_name == active_n.name and b.tech_id == tech_id for b in inno.active_bounties):
+                    ok = inno.post_royal_bounty(active_n, tech_id, 300.0, t)
+                    if ok:
+                        world['action_feedback'] = (f"Posted $300 Royal Prize for '{tech.name}'!", GREEN, t)
+                    else:
+                        world['action_feedback'] = ("Insufficient treasury funds to post prize.", RED, t)
+                    return True
+            card_y += 64
 
     return False
