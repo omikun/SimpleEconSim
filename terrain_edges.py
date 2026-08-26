@@ -134,16 +134,14 @@ class TerrainEdgeManager:
                     has_mountain_pass=has_pass, has_road=has_road
                 )
 
-        # 4. River Drainage Corridors (Downhill gradient flow)
-        # Higher elevation tile drains downhill into lower elevation tile
+        # 4. River Drainage Corridors (Downhill gradient flow & river valleys)
         is_river = False
-        if dh >= 0.06 and (h_a > 0.15 or h_b > 0.15):
-            # Check if this edge is the steepest descent downhill neighbor
+        if dh >= 0.04 and (h_a > 0.06 or h_b > 0.06) and (h_a < 0.78 or h_b < 0.78):
             is_river = True
 
         if is_river:
             edge_t = EdgeType.RIVER_DOWNSTREAM if h_a > h_b else EdgeType.RIVER_UPSTREAM
-            frict = 0.4 if h_a > h_b else 0.9
+            frict = 0.4 if h_a > h_b else 0.85
             return TerrainEdge(
                 tile_a=tile_a.name, tile_b=tile_b.name,
                 passable=True, edge_type=edge_t,

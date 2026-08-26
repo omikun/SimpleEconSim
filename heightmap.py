@@ -158,6 +158,67 @@ class HeightMapGenerator:
             t = min(1.0, (h - 0.88) / 0.12)
             return self._lerp_color((215, 222, 235), (245, 250, 255), t)
 
+    def generate_river_paths(self) -> list[list[tuple[float, float]]]:
+        """Generate 5 to 7 continuous natural river paths starting from mountain springs down to the ocean."""
+        import numpy as np
+        spring_candidates = []
+        sample_ny = np.linspace(-0.82, 0.82, 32)
+        sample_nx = np.linspace(-0.82, 0.82, 32)
+        for s_ny in sample_ny:
+            for s_nx in sample_nx:
+                h_val = self.get_continuous_height(float(s_nx), float(s_ny))
+                if 0.48 <= h_val <= 0.82:
+                    spring_candidates.append((float(s_nx), float(s_ny), h_val))
+
+        rng = random.Random(self.seed + 12345)
+        rng.shuffle(spring_candidates)
+
+        selected_springs = []
+        for sc in spring_candidates:
+            if all((sc[0] - prev[0])**2 + (sc[1] - prev[1])**2 > 0.15 for prev in selected_springs):
+                selected_springs.append(sc)
+                if len(selected_springs) >= 6:
+                    break
+
+        river_paths = []
+        for sx, sy, _ in selected_springs:
+            path = [(sx, sy)]
+            cur_x, cur_y = sx, sy
+            step_len = 0.016
+            for _ in range(130):
+                eps = 0.012
+                h_c = self.get_continuous_height(cur_x, cur_y)
+                if h_c <= -0.04:
+                    break
+                h_right = self.get_continuous_height(cur_x + eps, cur_y)
+                h_up = self.get_continuous_height(cur_x, cur_y + eps)
+                dhx = (h_right - h_c) / eps
+                dhy = (h_up - h_c) / eps
+
+                grad_mag = math.sqrt(dhx * dhx + dhy * dhy)
+                if grad_mag < 1e-4:
+                    gx, gy = -cur_x, -cur_y
+                else:
+                    gx, gy = -dhx / grad_mag, -dhy / grad_mag
+
+                # Natural meander noise
+                meander_val, _, _ = self.noised_scalar(cur_x * 7.0, cur_y * 7.0)
+                mx, my = -gy * meander_val * 0.40, gx * meander_val * 0.40
+
+                dir_x = gx + mx
+                dir_y = gy + my
+                d_len = math.sqrt(dir_x * dir_x + dir_y * dir_y)
+                if d_len > 0:
+                    dir_x /= d_len
+                    dir_y /= d_len
+
+                cur_x += dir_x * step_len
+                cur_y += dir_y * step_len
+                path.append((cur_x, cur_y))
+            if len(path) >= 6:
+                river_paths.append(path)
+        return river_paths
+
     @staticmethod
     def _lerp_color(c1: tuple, c2: tuple, t: float) -> tuple[int, int, int]:
         t = max(0.0, min(1.0, t))
@@ -505,6 +566,46 @@ def _generate_topographic_surface_impl(generator, bbox, width: int = 2400, heigh
     snow_specular = (np.clip(Nx * half_vec[0] + Ny * half_vec[1] + Nz * half_vec[2], 0.0, 1.0)**20 * 0.25)[:, :, None] * direct_sun[:, :, None]
 
     land_lit = land_c * total_light + snow_mask * snow_specular
+
+    # -------------------------------------------------------------
+    # Procedural River Overlay & Fluvial Corridors
+    # -------------------------------------------------------------
+    river_paths = generator.generate_river_paths()
+    generator.river_paths = river_paths
+
+    river_surf = pygame.Surface((width, height), pygame.SRCALPHA)
+    bank_surf = pygame.Surface((width, height), pygame.SRCALPHA)
+
+    for path in river_paths:
+        if len(path) < 2:
+            continue
+        pts = []
+        for nx_p, ny_p in path:
+            px_val = int((nx_p * span_x + cx_center - min_wx) / (max_wx - min_wx) * width)
+            py_val = int((ny_p * span_y + cy_center - min_wy) / (max_wy - min_wy) * height)
+            pts.append((px_val, py_val))
+
+        for idx in range(len(pts) - 1):
+            t_progress = idx / float(len(pts))
+            river_w = max(2, int(3 + t_progress * 9))
+            bank_w = river_w + 6
+            p1, p2 = pts[idx], pts[idx + 1]
+            pygame.draw.line(bank_surf, (80, 145, 60, 200), p1, p2, bank_w)
+            pygame.draw.line(river_surf, (35, 115, 210, 255), p1, p2, river_w)
+            pygame.draw.circle(river_surf, (35, 115, 210, 255), p2, max(1, river_w // 2))
+
+    bank_mask = (pygame.surfarray.array_alpha(bank_surf).T > 40).astype(np.float32)
+    river_mask = (pygame.surfarray.array_alpha(river_surf).T > 80).astype(np.float32)
+
+    # Riparian greenery
+    riparian_col = np.array([0.20, 0.44, 0.18], dtype=np.float32)
+    land_lit = np.where(bank_mask[:, :, None] > 0.5, land_lit * 0.45 + riparian_col * total_light * 0.55, land_lit)
+
+    # River water with sky reflection and specular
+    river_water_col = np.array([0.14, 0.44, 0.74], dtype=np.float32)
+    river_lit = river_water_col * (0.65 + 0.35 * direct_sun[:, :, None]) + specular[:, :, None] * 0.35
+    land_lit = np.where(river_mask[:, :, None] > 0.5, river_lit, land_lit)
+
     final_rgb = np.where(is_water[:, :, None], w_lit, land_lit)
     final_rgb = np.clip(final_rgb, 0.0, 1.0)
     final_rgb = np.power(final_rgb, 1.0 / 1.15)
