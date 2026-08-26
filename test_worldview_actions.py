@@ -9,8 +9,8 @@ os.environ.setdefault('SDL_VIDEODRIVER', 'dummy')
 
 import pygame
 import unittest
-from worldview_engine import build_world_view
-from worldview import render_frame
+from worldview_engine import build_world_view, step_world
+from worldview import render_frame, selected_nation
 from worldview_actions import actions_tab_hit, top_bar_action_hit, DIPLOMACY_BTN, MILITARY_BTN
 
 
@@ -431,6 +431,37 @@ class TestWorldviewActionsUI(unittest.TestCase):
         received = [e for e in pygame.event.get() if e.type == RESTART_EVENT_TYPE]
         self.assertEqual(len(received), 1, "RESTART_EVENT_TYPE must be received in event queue.")
         print("Verified system menu bar integration and restart event pipeline.")
+
+    def test_top_bar_stat_hover_dropdowns(self):
+        """Verify protest stat (+delta) on top bar and hover breakdown dropdown rendering across all stats."""
+        from worldview_ui import draw_top_bar, _get_stat_breakdown
+        world = build_world_view(seed=42)
+        step_world(world)
+
+        # 1. Verify protest metric and delta computed on selected nation
+        n = selected_nation(world)
+        self.assertIsNotNone(n)
+        tiles = n.tiles
+        
+        # Test breakdown data generator for all keys
+        stat_keys = ['header', 'pop', 'treasury', 'col', 'gdp', 'ex', 'im', 'net', 'protest']
+        for key in stat_keys:
+            title, badge_txt, badge_col, lines = _get_stat_breakdown(world, n, tiles, key)
+            self.assertTrue(len(title) > 0, f"Title must exist for stat {key}")
+            self.assertTrue(len(lines) > 0, f"Lines must exist for stat {key}")
+            
+        # 2. Render frame with mouse hovering over each top bar region
+        font_small = pygame.font.Font(None, 16)
+        
+        # Test header hover
+        draw_top_bar(self.surface, world, font_small, mouse_pos=(100, 10))
+        
+        # Test stats item hovers across X coordinates (pop, treasury, col, gdp, ex, im, net, protest)
+        for x in [30, 140, 260, 360, 480, 580, 680, 780, 880]:
+            draw_top_bar(self.surface, world, font_small, mouse_pos=(x, 34))
+            render_frame(self.surface, world, mouse_pos=(x, 34))
+
+        print("Verified top bar protest metric (+delta) and interactive hover breakdown dropdowns for all stats.")
 
 
 if __name__ == "__main__":

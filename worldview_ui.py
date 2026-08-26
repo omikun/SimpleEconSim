@@ -381,7 +381,8 @@ def _get_stat_breakdown(world, n, tiles, key):
         imports_prev = sum(sum(v[-2] if len(v) >= 2 else v[-1] for v in r.import_val.values() if v) for r in tiles)
         net_prev = exports_prev - imports_prev
         d_net = net_cur - net_prev
-        trade_pacts = len(get_diplomacy(world).get_treaties(n.name, treaty_type=TreatyType.TRADE_PACT))
+        active_tr = get_diplomacy().get_active_treaties(n.name)
+        trade_pacts = len([tr for tr in active_tr if tr.treaty_type == TreatyType.TRADE_PACT.value or tr.treaty_type == TreatyType.TRADE_PACT])
         
         lines = [
             ("Trade Balance Position", "Trade Surplus" if net_cur >= 0 else "Trade Deficit", GREEN if net_cur >= 0 else RED),
@@ -398,7 +399,7 @@ def _get_stat_breakdown(world, n, tiles, key):
         legit = getattr(n, 'legitimacy', 1.0)
         legit_desc = "Stable" if legit > 0.6 else ("Fragile" if legit > 0.25 else "Crisis")
         legit_col = GREEN if legit > 0.6 else (BADGE_ORANGE if legit > 0.25 else RED)
-        treaties_cnt = len(get_diplomacy(world).get_treaties(n.name))
+        treaties_cnt = len(get_diplomacy().get_active_treaties(n.name))
         
         lines = [
             ("Sovereign Nation", f"{n.name} (Currency: {n.currency})", ACCENT),
