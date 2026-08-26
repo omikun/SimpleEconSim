@@ -520,17 +520,31 @@ def draw_top_bar(surface, world, font_small, mouse_pos=None):
             surface.blit(label, (x, 30))
             x += label.get_width() + 16
 
+    world['_hovered_topbar_dropdown'] = hovered_dropdown
+
     # Top-Right Command Buttons (Help, Compare, Diplomacy, Military)
     from worldview_actions import draw_top_bar_action_buttons
     draw_top_bar_action_buttons(surface, world, font_small, mouse_pos=mouse_pos)
 
-    # Render floating stat breakdown dropdown card if hovered (and modals not open)
+
+def draw_top_bar_dropdown(surface, world, font_small, mouse_pos=None):
+    """Render floating stat breakdown dropdown card on top of all UI elements."""
     is_modal_open = world.get('help_open') or world.get('compare_open') or world.get('actions_open')
-    if hovered_dropdown and n is not None and not is_modal_open:
+    if is_modal_open:
+        return
+
+    n = selected_nation(world)
+    if n is None:
+        return
+
+    hovered_dropdown = world.get('_hovered_topbar_dropdown')
+    if hovered_dropdown:
         key, rect = hovered_dropdown
         title, badge_txt, badge_col, lines = _get_stat_breakdown(world, n, n.tiles, key)
         if lines:
-            draw_top_bar_dropdown_card(surface, font_bold, font_small, title, badge_txt, badge_col, lines, rect)
+            font_title = get_font(18)
+            font_body = get_font(15)
+            draw_top_bar_dropdown_card(surface, font_title, font_body, title, badge_txt, badge_col, lines, rect)
 
 
 def draw_regime_readout(surface, region, font_small, y):

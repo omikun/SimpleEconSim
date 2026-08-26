@@ -32,7 +32,7 @@ from worldview_map import (
     draw_activity_badges, draw_pop_delta, province_members, draw_hex_map, pops_history
 )
 from worldview_ui import (
-    PANEL_BG, selected_nation, draw_top_bar, draw_regime_readout,
+    PANEL_BG, selected_nation, draw_top_bar, draw_top_bar_dropdown, draw_regime_readout,
     draw_panel, draw_ticker, draw_help, draw_zoom_hud, zoom_hud_hit,
     compare_btn_hit, help_page_hit, panel_tab_hit, get_font
 )
@@ -112,6 +112,10 @@ def render_frame(surface, world, mouse_pos=None):
     draw_layer_sidebar(surface, world, font_small, mouse_pos=mouse_pos)
     draw_panel(surface, world, font, font_small, mouse_pos=mouse_pos)
     draw_ticker(surface, world, font_small)
+
+    # Floating top-bar breakdown dropdown (renders on top of map, panel, sidebar, and ticker)
+    draw_top_bar_dropdown(surface, world, font_small, mouse_pos=mouse_pos)
+
     draw_nations_comparison(surface, world, font, font_small, mouse_pos=mouse_pos)
     draw_actions_modal(surface, world, font, font_small, mouse_pos=mouse_pos)
     draw_help_modal(surface, world, font, font_small)
