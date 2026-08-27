@@ -488,6 +488,7 @@ def draw_innovation_tab(surface, world, box_x, y, box_w, box_h, font, font_small
     pygame.draw.rect(surface, (24, 26, 36), res_rect, border_radius=5)
     pygame.draw.rect(surface, (60, 65, 85), res_rect, 1, border_radius=5)
 
+    from ui_icons import get_icon, draw_icon_badge
     accessible_res = get_nation_resources(active_n, world=world)
     rx = box_x + 30
     lbl_r = font_small.render("Resources:", True, TEXT)
@@ -496,11 +497,8 @@ def draw_innovation_tab(surface, world, box_x, y, box_w, box_h, font, font_small
 
     for r_enum, r_info in RESOURCE_META.items():
         has_r = r_enum in accessible_res
-        col = r_info.color if has_r else (90, 90, 105)
-        badge_txt = f"{r_info.icon} {r_info.name}" if has_r else f"[{r_info.icon} {r_info.name}]"
-        r_surf = font_small.render(badge_txt, True, col)
-        surface.blit(r_surf, (rx, card_y + 8))
-        rx += r_surf.get_width() + 12
+        w = draw_icon_badge(surface, rx, card_y + 7, r_enum.value, r_info.name, font_small, color=r_info.color, dimmed=not has_r, icon_size=16)
+        rx += w + 14
 
     card_y += 40
 
@@ -573,16 +571,33 @@ def draw_innovation_tab(surface, world, box_x, y, box_w, box_h, font, font_small
             badge_txt = f"PRESSURE: {pressure:.1f}x ({int(cur_xp)}/{int(tech.base_xp_required)} XP)"
             badge_col = (235, 140, 50) if pressure > 1.5 else DIM
 
+        # Draw Domain icon
+        dom_icon = get_icon(tech.domain.value, size=16)
+        surface.blit(dom_icon, (box_x + 36, card_y + 9))
+
         t_lbl = font.render(f"{tech.name} ({tech.domain.value.capitalize()})", True, (255, 255, 255) if is_disc else TEXT)
-        surface.blit(t_lbl, (box_x + 36, card_y + 8))
+        surface.blit(t_lbl, (box_x + 58, card_y + 7))
 
         b_surf = font_small.render(f"[{badge_txt}]", True, badge_col)
-        surface.blit(b_surf, (box_x + 440, card_y + 10))
+        surface.blit(b_surf, (box_x + 460, card_y + 9))
 
-        # Required resources subtext
-        res_req_str = f"Requires: {', '.join(RESOURCE_META[r].icon + ' ' + RESOURCE_META[r].name for r in tech.required_resources)}" if tech.required_resources else "Requires: General Practice"
-        d_lbl = font_small.render(f"{res_req_str} — {tech.description}", True, DIM)
-        surface.blit(d_lbl, (box_x + 36, card_y + 36))
+        # Required resources subtext with mini-icons
+        sub_x = box_x + 36
+        if tech.required_resources:
+            lbl_req = font_small.render("Requires:", True, DIM)
+            surface.blit(lbl_req, (sub_x, card_y + 36))
+            sub_x += lbl_req.get_width() + 8
+            for req_r in tech.required_resources:
+                has_req = req_r in accessible_res
+                w = draw_icon_badge(surface, sub_x, card_y + 35, req_r.value, RESOURCE_META[req_r].name, font_small,
+                                    color=RESOURCE_META[req_r].color if has_req else (235, 90, 90),
+                                    dimmed=not has_req, icon_size=14)
+                sub_x += w + 8
+            dot = font_small.render("• " + tech.description, True, DIM)
+            surface.blit(dot, (sub_x, card_y + 36))
+        else:
+            d_lbl = font_small.render(f"General Practice • {tech.description}", True, DIM)
+            surface.blit(d_lbl, (sub_x, card_y + 36))
 
         # Royal Bounty Button
         btn_rect = (box_x + card_w - 230, card_y + 14, 210, 32)

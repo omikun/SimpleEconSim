@@ -652,15 +652,18 @@ def draw_panel(surface, world, font, font_small, mouse_pos=None):
     c_hov = (c_hit == 'charts')
     pygame.draw.rect(surface, (55, 75, 110) if c_sel else ((40, 48, 65) if c_hov else (28, 30, 40)), CHARTS_TAB_RECT, border_radius=4)
     pygame.draw.rect(surface, ACCENT if c_sel else (HEX_EDGE if c_hov else (45, 52, 70)), CHARTS_TAB_RECT, 1, border_radius=4)
-    c_txt = font_small.render("📊 Charts", True, (255, 255, 255) if c_sel else (TEXT if c_hov else DIM))
+    c_txt = font_small.render("Charts", True, (255, 255, 255) if c_sel else (TEXT if c_hov else DIM))
     surface.blit(c_txt, c_txt.get_rect(center=(CHARTS_TAB_RECT[0] + CHARTS_TAB_RECT[2] // 2, CHARTS_TAB_RECT[1] + CHARTS_TAB_RECT[3] // 2)))
 
     p_sel = (active_tab == 'policies')
     p_hov = (c_hit == 'policies')
     pygame.draw.rect(surface, (55, 75, 110) if p_sel else ((40, 48, 65) if p_hov else (28, 30, 40)), POLICIES_TAB_RECT, border_radius=4)
     pygame.draw.rect(surface, ACCENT if p_sel else (HEX_EDGE if p_hov else (45, 52, 70)), POLICIES_TAB_RECT, 1, border_radius=4)
-    p_txt = font_small.render("⚖️ Policies", True, (255, 255, 255) if p_sel else (TEXT if p_hov else DIM))
-    surface.blit(p_txt, p_txt.get_rect(center=(POLICIES_TAB_RECT[0] + POLICIES_TAB_RECT[2] // 2, POLICIES_TAB_RECT[1] + POLICIES_TAB_RECT[3] // 2)))
+    from ui_icons import get_icon, draw_icon_badge
+    scale_icon = get_icon('policies', 14)
+    surface.blit(scale_icon, (POLICIES_TAB_RECT[0] + 6, POLICIES_TAB_RECT[1] + 5))
+    p_txt = font_small.render("Policies", True, (255, 255, 255) if p_sel else (TEXT if p_hov else DIM))
+    surface.blit(p_txt, (POLICIES_TAB_RECT[0] + 24, POLICIES_TAB_RECT[1] + 4))
 
     region = world.get('selected_region') or world.get('hover_region')
     chart_top = 178 + d
@@ -790,17 +793,20 @@ def draw_panel(surface, world, font, font_small, mouse_pos=None):
         head = font_small.render(f"{region.name}{prov_s}", True, prov_color)
         surface.blit(head, (PANEL_LEFT, chart_top - 6))
 
-        # Natural Resources display
+        # Natural Resources display with procedural icons
         res_list = getattr(region, 'natural_resources', set())
         if res_list:
             from tile_resources import RESOURCE_META
-            res_str = "  ".join(f"{RESOURCE_META[r].icon} {RESOURCE_META[r].name}" for r in sorted(res_list, key=lambda x: x.value))
-            res_line = font_small.render(f"Deposits: {res_str}", True, (245, 210, 110))
-            surface.blit(res_line, (PANEL_LEFT, chart_top - 6 + 15))
+            dep_lbl = font_small.render("Deposits:", True, (245, 210, 110))
+            surface.blit(dep_lbl, (PANEL_LEFT, chart_top - 6 + 15))
+            dx = PANEL_LEFT + dep_lbl.get_width() + 8
+            for r in sorted(res_list, key=lambda x: x.value):
+                w = draw_icon_badge(surface, dx, chart_top - 6 + 14, r.value, RESOURCE_META[r].name, font_small, color=RESOURCE_META[r].color, icon_size=15)
+                dx += w + 8
             col_line = font_small.render(
                 f"CoL {region.cost_of_living:.2f}  {region.climate}  (V=nation)", True, DIM)
-            surface.blit(col_line, (PANEL_LEFT, chart_top - 6 + 30))
-            chart_y_offset = 44
+            surface.blit(col_line, (PANEL_LEFT, chart_top - 6 + 32))
+            chart_y_offset = 46
         else:
             col_line = font_small.render(
                 f"CoL {region.cost_of_living:.2f}  {region.climate}  (V=nation)", True, DIM)
