@@ -553,13 +553,62 @@ class TestWorldviewActionsUI(unittest.TestCase):
         render_frame(self.surface, world)
 
         # 4. Verify Trade Diffusion
-        inno.get_discovered_techs(n1.name).add('hydraulic_sawmills')
+        inno.get_discovered_techs(n1.name).add('bloomery_iron')
         pair_orders = [(n1.tiles[0], n2.tiles[0])]
         events = inno.diffuse_technologies_along_trade(pair_orders, nations, t=2)
-        diff_prog = inno.diffusion_progress.get(n2.name, {}).get('hydraulic_sawmills', 0.0)
+        diff_prog = inno.diffusion_progress.get(n2.name, {}).get('bloomery_iron', 0.0)
         self.assertGreater(diff_prog, 0.0)
 
         print("Verified learning-by-doing, induced bottleneck multipliers, royal bounties, and trade diffusion.")
+
+    def test_per_tile_resources_and_multi_era_tech_tree(self):
+        """Verify per-tile natural resources, resource prerequisites, and 4-Era progression."""
+        from tile_resources import TileResource, get_nation_resources
+        from innovation import get_innovation_system, TECH_CATALOG
+        world = build_world_view(seed=42)
+        tiles = world['tiles']
+        nations = world['nations']
+        n1 = nations[0]
+
+        # 1. Verify every tile has natural resource deposits assigned
+        for t in tiles:
+            self.assertTrue(hasattr(t, 'natural_resources'))
+            self.assertGreater(len(t.natural_resources), 0)
+
+        # 2. Verify resource prerequisite blocking
+        inno = get_innovation_system()
+        # Force n1 to lack Coal
+        for t in n1.tiles:
+            t.natural_resources = {TileResource.ARABLE_SILT, TileResource.TIMBER}
+
+        nat_res = get_nation_resources(n1, world=world)
+        self.assertNotIn(TileResource.COAL_SEAM, nat_res)
+
+        # Ensure coal_coking breakthrough cannot occur without Coal
+        inno.domain_experience[n1.name]['manufacturing'] = 5000.0
+        inno.get_discovered_techs(n1.name).add('bloomery_iron')
+        inno.evaluate_breakthroughs(nations, t=1)
+        self.assertFalse(inno.has_tech(n1.name, 'coal_coking'))
+
+        # Grant Coal deposit to tile -> now breakthrough can occur!
+        n1.tiles[0].natural_resources.add(TileResource.COAL_SEAM)
+        n1.tiles[0].natural_resources.add(TileResource.IRON_ORE)
+        nat_res_with_coal = get_nation_resources(n1, world=world)
+        self.assertIn(TileResource.COAL_SEAM, nat_res_with_coal)
+        for step_t in range(2, 35):
+            if inno.has_tech(n1.name, 'coal_coking'):
+                break
+            inno.evaluate_breakthroughs(nations, t=step_t)
+        self.assertTrue(inno.has_tech(n1.name, 'coal_coking'))
+
+        # 3. Verify all 4 Eras render in Tab 4
+        world['actions_open'] = True
+        world['actions_tab'] = 4
+        for era in [1, 2, 3, 4]:
+            world['innovation_era'] = era
+            render_frame(self.surface, world)
+
+        print("Verified per-tile natural resources, resource prerequisites, and 4-Era tech progression.")
 
 
 if __name__ == "__main__":

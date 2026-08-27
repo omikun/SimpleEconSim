@@ -225,6 +225,10 @@ def build_world(seed=None, terrain_seed=None, nation_seed=None):
         else:
             r._init_trader_wealth = 0.0
 
+    # ---- Assign Procedural Natural Resource Endowments ----
+    from tile_resources import assign_tile_resources
+    assign_tile_resources(tiles, seed=seed if seed is not None else 42)
+
     return tiles, nations, grid
 
 

@@ -35,6 +35,8 @@ if TYPE_CHECKING:
     from region import Region
 
 
+from tile_resources import TileResource, get_nation_resources
+
 class TechDomain(str, Enum):
     AGRONOMY = "agronomy"
     MANUFACTURING = "manufacturing"
@@ -51,6 +53,8 @@ class Technology:
     description: str
     base_xp_required: float
     era: int = 1
+    required_resources: list[TileResource] = field(default_factory=list)
+    required_techs: list[str] = field(default_factory=list)
     unlocked_buildings: list[str] = field(default_factory=list)
     production_modifiers: dict[str, float] = field(default_factory=dict)
     bottleneck_evaluator: Callable[[Nation, list[Region]], float] | None = None
@@ -115,11 +119,13 @@ def _eval_war_bottleneck(nation: Nation, tiles: list[Region]) -> float:
 
 
 # -----------------------------------------------------------------------------
-# Technology Catalog
+# 16-Technology Multi-Era Catalog (Medieval -> Modern)
 # -----------------------------------------------------------------------------
 
 TECH_CATALOG: dict[str, Technology] = {
-    # 1. Agronomy & Demographics
+    # =========================================================================
+    # ERA I: MEDIEVAL & FEUDAL (Era 1)
+    # =========================================================================
     'crop_rotation': Technology(
         tech_id='crop_rotation',
         name='Four-Field Crop Rotation',
@@ -127,123 +133,188 @@ TECH_CATALOG: dict[str, Technology] = {
         description='Restores soil fertility naturally, granting +25% baseline food productivity.',
         base_xp_required=350.0,
         era=1,
+        required_resources=[TileResource.ARABLE_SILT],
         production_modifiers={Goods.food.value: 1.25},
         bottleneck_evaluator=_eval_food_bottleneck
     ),
-    'granary_silos': Technology(
-        tech_id='granary_silos',
-        name='State Granary Silos',
-        domain=TechDomain.AGRONOMY,
-        description='Hermetically sealed food storage; unlocks State Granary construction.',
-        base_xp_required=600.0,
-        era=1,
-        unlocked_buildings=['granary'],
-        bottleneck_evaluator=_eval_food_bottleneck
-    ),
-    'mechanized_reaping': Technology(
-        tech_id='mechanized_reaping',
-        name='Horse-Drawn Mechanical Reapers',
-        domain=TechDomain.AGRONOMY,
-        description='Drastically reduces farm labor requirement while raising harvest volume by +40%.',
-        base_xp_required=1200.0,
-        era=2,
-        production_modifiers={Goods.food.value: 1.40},
-        bottleneck_evaluator=_eval_wage_labor_bottleneck
-    ),
-
-    # 2. Manufacturing & Metallurgy
-    'hydraulic_sawmills': Technology(
-        tech_id='hydraulic_sawmills',
-        name='Water-Powered Sawmills',
+    'bloomery_iron': Technology(
+        tech_id='bloomery_iron',
+        name='Bloomery Iron Smelting',
         domain=TechDomain.MANUFACTURING,
-        description='Harnesses fluvial water flow to saw lumber; unlocks Mechanized Sawmill.',
+        description='Smelts mountain iron with hardwood charcoal; unlocks durable tools (+25% labor output).',
         base_xp_required=380.0,
         era=1,
-        unlocked_buildings=['sawmill'],
-        production_modifiers={Goods.wood.value: 1.30},
+        required_resources=[TileResource.IRON_ORE, TileResource.TIMBER],
+        production_modifiers={Goods.wood.value: 1.25},
         bottleneck_evaluator=_eval_wage_labor_bottleneck
+    ),
+    'fluvial_watermills': Technology(
+        tech_id='fluvial_watermills',
+        name='Fluvial Watermills & Gristmills',
+        domain=TechDomain.CIVIL_ENGINEERING,
+        description='Harnesses river kinetic flow; unlocks Mechanized Sawmills & Fluvial River Bridges.',
+        base_xp_required=400.0,
+        era=1,
+        required_resources=[TileResource.TIMBER],
+        unlocked_buildings=['sawmill', 'river_bridge'],
+        bottleneck_evaluator=_eval_mountain_bottleneck
     ),
     'guild_standardization': Technology(
         tech_id='guild_standardization',
-        name='Standardized Workshop Guilds',
+        name='Standardized Guild Workshops',
         domain=TechDomain.MANUFACTURING,
-        description='Specialized artisan tools and templates; unlocks Artisan Workshop & Guildhall.',
-        base_xp_required=650.0,
+        description='Specialized artisan joinery; unlocks Artisan Workshop & Guildhall (+30% furniture).',
+        base_xp_required=450.0,
         era=1,
+        required_resources=[TileResource.TIMBER],
         unlocked_buildings=['workshop'],
         production_modifiers={Goods.furniture.value: 1.30},
         bottleneck_evaluator=_eval_wage_labor_bottleneck
     ),
 
-    # 3. Civil Engineering & Geography
-    'engineered_roadbeds': Technology(
-        tech_id='engineered_roadbeds',
-        name='Engineered Macadam Roadbeds',
-        domain=TechDomain.CIVIL_ENGINEERING,
-        description='Crushed stone foundation networks; unlocks Paved Highway Networks (-40% friction).',
-        base_xp_required=400.0,
-        era=1,
-        unlocked_buildings=['paved_road'],
-        bottleneck_evaluator=_eval_mountain_bottleneck
-    ),
-    'fluvial_locks': Technology(
-        tech_id='fluvial_locks',
-        name='Fluvial River Locks & Bridges',
-        domain=TechDomain.CIVIL_ENGINEERING,
-        description='Pioneers permanent river crossings; unlocks Fluvial River Bridges & Ports.',
-        base_xp_required=550.0,
-        era=1,
-        unlocked_buildings=['river_bridge'],
-        bottleneck_evaluator=_eval_mountain_bottleneck
-    ),
+    # =========================================================================
+    # ERA II: RENAISSANCE & COMMERCIAL (Era 2)
+    # =========================================================================
     'gunpowder_blasting': Technology(
         tech_id='gunpowder_blasting',
-        name='Gunpowder Rock Blasting & Tunneling',
+        name='Gunpowder Rock Blasting',
         domain=TechDomain.CIVIL_ENGINEERING,
         description='Blasts through sheer granite cliffs; unlocks Alpine Mountain Pass Roads.',
-        base_xp_required=950.0,
+        base_xp_required=650.0,
         era=2,
+        required_resources=[TileResource.IRON_ORE],
+        required_techs=['bloomery_iron'],
         unlocked_buildings=['mountain_pass'],
         bottleneck_evaluator=_eval_mountain_bottleneck
     ),
-
-    # 4. Finance & Institutions
-    'double_entry_bookkeeping': Technology(
-        tech_id='double_entry_bookkeeping',
-        name='Double-Entry Ledger Auditing',
-        domain=TechDomain.FINANCE,
-        description='Improves commercial transparency, reducing bank loan defaults and liquidity panics.',
-        base_xp_required=420.0,
-        era=1,
-    ),
-    'public_sanatoriums': Technology(
-        tech_id='public_sanatoriums',
-        name='Public Sanatoriums & Hygiene',
-        domain=TechDomain.FINANCE,
-        description='Institutional medical care; unlocks Public Sanatorium (-50% citizen mortality).',
-        base_xp_required=1100.0,
+    'deep_navigation': Technology(
+        tech_id='deep_navigation',
+        name='Caravel Galleons & Deep Harbors',
+        domain=TechDomain.CIVIL_ENGINEERING,
+        description='Oceanic navigation and heavy timbers; unlocks Paved Highways & Maritime Harbors.',
+        base_xp_required=700.0,
         era=2,
-        unlocked_buildings=['sanatorium']
-    ),
-
-    # 5. Military Doctrine & Logistics
-    'standardized_drills': Technology(
-        tech_id='standardized_drills',
-        name='Standardized Barracks Drills',
-        domain=TechDomain.MILITARY,
-        description='Professional training regimen; newly recruited armies start with +1.5x base veteran XP.',
-        base_xp_required=450.0,
-        era=1,
-        bottleneck_evaluator=_eval_war_bottleneck
+        required_resources=[TileResource.TIMBER, TileResource.PASTURE_FLAX],
+        unlocked_buildings=['paved_road'],
+        bottleneck_evaluator=_eval_mountain_bottleneck
     ),
     'siege_artillery': Technology(
         tech_id='siege_artillery',
         name='Blackpowder Siege Batteries',
         domain=TechDomain.MILITARY,
-        description='Heavy ordnance casting; armies gain +50% combat effectiveness in siege conquest.',
-        base_xp_required=1300.0,
+        description='Standardized cannon casting; armies gain +50% combat power in siege conquest.',
+        base_xp_required=750.0,
         era=2,
+        required_resources=[TileResource.IRON_ORE],
+        required_techs=['gunpowder_blasting'],
         bottleneck_evaluator=_eval_war_bottleneck
+    ),
+    'double_entry_bookkeeping': Technology(
+        tech_id='double_entry_bookkeeping',
+        name='Double-Entry Ledger Banking',
+        domain=TechDomain.FINANCE,
+        description='Improves commercial transparency, reducing bank loan defaults and liquidity panics.',
+        base_xp_required=600.0,
+        era=2,
+    ),
+
+    # =========================================================================
+    # ERA III: STEAM & INDUSTRIAL REVOLUTION (Era 3)
+    # =========================================================================
+    'coal_coking': Technology(
+        tech_id='coal_coking',
+        name='Coal Coking & Blast Furnaces',
+        domain=TechDomain.MANUFACTURING,
+        description='Replaces scarce charcoal with coal; multiplies metal smelting output by 3x.',
+        base_xp_required=950.0,
+        era=3,
+        required_resources=[TileResource.COAL_SEAM, TileResource.IRON_ORE],
+        required_techs=['bloomery_iron'],
+        production_modifiers={Goods.wood.value: 1.40},
+        bottleneck_evaluator=_eval_wage_labor_bottleneck
+    ),
+    'steam_engines': Technology(
+        tech_id='steam_engines',
+        name='Watt Piston Steam Engines',
+        domain=TechDomain.MANUFACTURING,
+        description='Harnesses pressurized coal steam; unlocks Steam Factories (+50% factory output).',
+        base_xp_required=1100.0,
+        era=3,
+        required_resources=[TileResource.COAL_SEAM, TileResource.IRON_ORE],
+        required_techs=['coal_coking'],
+        production_modifiers={Goods.furniture.value: 1.50},
+        bottleneck_evaluator=_eval_wage_labor_bottleneck
+    ),
+    'bessemer_steel': Technology(
+        tech_id='bessemer_steel',
+        name='Bessemer Structural Steel & Rail',
+        domain=TechDomain.CIVIL_ENGINEERING,
+        description='Mass steel decarbonization; slashes land trade friction across all routes by 70%.',
+        base_xp_required=1250.0,
+        era=3,
+        required_resources=[TileResource.COAL_SEAM, TileResource.IRON_ORE],
+        required_techs=['steam_engines'],
+        bottleneck_evaluator=_eval_mountain_bottleneck
+    ),
+    'mechanized_looms': Technology(
+        tech_id='mechanized_looms',
+        name='Mechanized Steam Loom Mills',
+        domain=TechDomain.MANUFACTURING,
+        description='Continuous steam-powered weaving; multiplies textile and garment output by 4x.',
+        base_xp_required=1050.0,
+        era=3,
+        required_resources=[TileResource.PASTURE_FLAX, TileResource.COAL_SEAM],
+        required_techs=['steam_engines'],
+        production_modifiers={Goods.furniture.value: 1.40},
+        bottleneck_evaluator=_eval_wage_labor_bottleneck
+    ),
+
+    # =========================================================================
+    # ERA IV: PETROLEUM, ELECTRIC & MODERN AGE (Era 4)
+    # =========================================================================
+    'petroleum_refining': Technology(
+        tech_id='petroleum_refining',
+        name='Petroleum Refining & Diesel',
+        domain=TechDomain.CIVIL_ENGINEERING,
+        description='Hydrocarbon cracking into diesel & asphalt; enables motorized freight transport.',
+        base_xp_required=1500.0,
+        era=4,
+        required_resources=[TileResource.CRUDE_PETROLEUM],
+        required_techs=['bessemer_steel'],
+        bottleneck_evaluator=_eval_mountain_bottleneck
+    ),
+    'dynamo_electrification': Technology(
+        tech_id='dynamo_electrification',
+        name='Dynamo Power Grids',
+        domain=TechDomain.CIVIL_ENGINEERING,
+        description='High-voltage regional transmission; unlocks 24/7 factory shifts (+35% national GDP).',
+        base_xp_required=1650.0,
+        era=4,
+        required_resources=[TileResource.RARE_MINERALS, TileResource.COAL_SEAM],
+        required_techs=['bessemer_steel'],
+        bottleneck_evaluator=_eval_wage_labor_bottleneck
+    ),
+    'synthetic_fertilizers': Technology(
+        tech_id='synthetic_fertilizers',
+        name='Haber-Bosch Synthetic Fertilizers',
+        domain=TechDomain.AGRONOMY,
+        description='Fixes atmospheric nitrogen using hydrocarbons; doubles global agricultural yields.',
+        base_xp_required=1400.0,
+        era=4,
+        required_resources=[TileResource.CRUDE_PETROLEUM, TileResource.ARABLE_SILT],
+        required_techs=['petroleum_refining'],
+        production_modifiers={Goods.food.value: 2.00},
+        bottleneck_evaluator=_eval_food_bottleneck
+    ),
+    'microelectronics': Technology(
+        tech_id='microelectronics',
+        name='Silicon Microelectronics & Computing',
+        domain=TechDomain.FINANCE,
+        description='Semiconductor transistor logic; automated market clearing and zero administrative drag.',
+        base_xp_required=1800.0,
+        era=4,
+        required_resources=[TileResource.RARE_MINERALS],
+        required_techs=['dynamo_electrification'],
     ),
 }
 
@@ -347,6 +418,15 @@ class InnovationSystem:
 
             for tech_id, tech in TECH_CATALOG.items():
                 if tech_id in discovered:
+                    continue
+
+                # 1. Technology prerequisites check
+                if tech.required_techs and not all(req in discovered for req in tech.required_techs):
+                    continue
+
+                # 2. Natural resource prerequisites check (domestic ownership or trade imports)
+                nat_res = get_nation_resources(n, nat_tiles)
+                if tech.required_resources and not all(res in nat_res for res in tech.required_resources):
                     continue
 
                 xp = self.get_domain_xp(n.name, tech.domain)

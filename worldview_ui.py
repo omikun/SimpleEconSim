@@ -750,14 +750,29 @@ def draw_panel(surface, world, font, font_small, mouse_pos=None):
 
         head = font_small.render(f"{region.name}{prov_s}", True, prov_color)
         surface.blit(head, (PANEL_LEFT, chart_top - 6))
-        col_line = font_small.render(
-            f"CoL {region.cost_of_living:.2f}  {region.climate}  (V=nation)", True, DIM)
-        surface.blit(col_line, (PANEL_LEFT, chart_top - 6 + 16))
+
+        # Natural Resources display
+        res_list = getattr(region, 'natural_resources', set())
+        if res_list:
+            from tile_resources import RESOURCE_META
+            res_str = "  ".join(f"{RESOURCE_META[r].icon} {RESOURCE_META[r].name}" for r in sorted(res_list, key=lambda x: x.value))
+            res_line = font_small.render(f"Deposits: {res_str}", True, (245, 210, 110))
+            surface.blit(res_line, (PANEL_LEFT, chart_top - 6 + 15))
+            col_line = font_small.render(
+                f"CoL {region.cost_of_living:.2f}  {region.climate}  (V=nation)", True, DIM)
+            surface.blit(col_line, (PANEL_LEFT, chart_top - 6 + 30))
+            chart_y_offset = 44
+        else:
+            col_line = font_small.render(
+                f"CoL {region.cost_of_living:.2f}  {region.climate}  (V=nation)", True, DIM)
+            surface.blit(col_line, (PANEL_LEFT, chart_top - 6 + 16))
+            chart_y_offset = 30
+
         charts = tile_charts(region)
         view = world.get('view', 0)
         if view == 0:
             draw_chart_grid(surface, charts, font, font_small, world['window'],
-                            chart_top + 30, chart_bottom, mouse_pos=mouse_pos)
+                            chart_top + chart_y_offset, chart_bottom, mouse_pos=mouse_pos)
             hint = font_small.render(
                 f"Click/1-9,0: Zoom chart  Tab: Grid", True, DIM)
             surface.blit(hint, (PANEL_LEFT, chart_bottom + 6))

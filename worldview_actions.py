@@ -473,48 +473,81 @@ def draw_innovation_tab(surface, world, box_x, y, box_w, box_h, font, font_small
 
     mx, my = mouse_pos if mouse_pos else (-1, -1)
     from innovation import get_innovation_system, TECH_CATALOG, TechDomain
+    from tile_resources import TileResource, RESOURCE_META, get_nation_resources
     inno = get_innovation_system()
 
     treasury = active_n.treasury()
-    header = font.render(f"Induced Innovation, Learning-by-Doing & Royal Bounties — {active_n.name} (Treasury: ${treasury['total']:,.2f})", True, TEXT)
+    header = font.render(f"Induced Innovation & Historical Tech Tree — {active_n.name} (Treasury: ${treasury['total']:,.2f})", True, TEXT)
     surface.blit(header, (box_x + 20, y))
 
-    card_y = y + 36
+    card_y = y + 34
     card_w = box_w - 40
 
-    # 1. Domain Experience Meter Bar
-    xp_rect = (box_x + 20, card_y, card_w, 36)
-    pygame.draw.rect(surface, (28, 30, 42), xp_rect, border_radius=6)
-    pygame.draw.rect(surface, (70, 75, 95), xp_rect, 1, border_radius=6)
+    # 1. National Resource Endowments Ribbon
+    res_rect = (box_x + 20, card_y, card_w, 32)
+    pygame.draw.rect(surface, (24, 26, 36), res_rect, border_radius=5)
+    pygame.draw.rect(surface, (60, 65, 85), res_rect, 1, border_radius=5)
 
-    xp_x = box_x + 36
-    domain_icons = [
-        (TechDomain.AGRONOMY, "🌾 Agronomy"),
-        (TechDomain.MANUFACTURING, "⚙️ Manufacturing"),
-        (TechDomain.CIVIL_ENGINEERING, "🏔️ Engineering"),
-        (TechDomain.FINANCE, "🏛️ Finance"),
-        (TechDomain.MILITARY, "⚔️ Military"),
+    accessible_res = get_nation_resources(active_n, world=world)
+    rx = box_x + 30
+    lbl_r = font_small.render("Resources:", True, TEXT)
+    surface.blit(lbl_r, (rx, card_y + 8))
+    rx += lbl_r.get_width() + 14
+
+    for r_enum, r_info in RESOURCE_META.items():
+        has_r = r_enum in accessible_res
+        col = r_info.color if has_r else (90, 90, 105)
+        badge_txt = f"{r_info.icon} {r_info.name}" if has_r else f"[{r_info.icon} {r_info.name}]"
+        r_surf = font_small.render(badge_txt, True, col)
+        surface.blit(r_surf, (rx, card_y + 8))
+        rx += r_surf.get_width() + 12
+
+    card_y += 40
+
+    # 2. Era Selector Buttons (Era I..IV)
+    cur_era = world.get('innovation_era', 1)
+    eras = [
+        (1, "Era I: Feudal & Medieval"),
+        (2, "Era II: Renaissance & Commercial"),
+        (3, "Era III: Steam & Industrial"),
+        (4, "Era IV: Petroleum & Modern"),
     ]
-    for dom, dom_label in domain_icons:
-        val = inno.get_domain_xp(active_n.name, dom)
-        lbl = font_small.render(f"{dom_label}: {val:,.1f} XP", True, ACCENT)
-        surface.blit(lbl, (xp_x, card_y + 9))
-        xp_x += 220
+    era_btn_w = (card_w - 30) // 4
+    ex = box_x + 20
+    for era_num, era_label in eras:
+        is_sel = (cur_era == era_num)
+        eb_rect = (ex, card_y, era_btn_w, 28)
+        is_h = eb_rect[0] <= mx <= eb_rect[0] + eb_rect[2] and eb_rect[1] <= my <= eb_rect[1] + eb_rect[3]
+        bg = (55, 75, 105) if is_sel else ((40, 40, 55) if is_h else (28, 28, 38))
+        border_c = ACCENT if is_sel else ((110, 110, 130) if is_h else (60, 60, 75))
+        pygame.draw.rect(surface, bg, eb_rect, border_radius=4)
+        pygame.draw.rect(surface, border_c, eb_rect, 1, border_radius=4)
+        t_col = (255, 255, 255) if is_sel else (TEXT if is_h else DIM)
+        t_s = font_small.render(era_label, True, t_col)
+        surface.blit(t_s, t_s.get_rect(center=(ex + era_btn_w // 2, card_y + 14)))
+        ex += era_btn_w + 10
 
-    card_y += 46
+    card_y += 38
 
-    # 2. Technology & Royal Bounty Cards
+    # 3. Technologies in Current Era
     discovered = inno.get_discovered_techs(active_n.name)
     diffusing = inno.diffusion_progress.get(active_n.name, {})
 
-    for tech_id, tech in list(TECH_CATALOG.items())[:6]:
-        card_rect = (box_x + 20, card_y, card_w, 56)
+    era_techs = [t for t in TECH_CATALOG.values() if t.era == cur_era]
+
+    for tech in era_techs:
+        tech_id = tech.tech_id
+        card_rect = (box_x + 20, card_y, card_w, 62)
         pygame.draw.rect(surface, CARD_BG, card_rect, border_radius=6)
         pygame.draw.rect(surface, (70, 70, 90), card_rect, 1, border_radius=6)
 
         is_disc = tech_id in discovered
         diff_prog = diffusing.get(tech_id, 0.0)
         has_bounty = any(b.nation_name == active_n.name and b.tech_id == tech_id for b in inno.active_bounties)
+
+        # Check missing prerequisites
+        missing_techs = [t_req for t_req in tech.required_techs if t_req not in discovered]
+        missing_res = [r_req for r_req in tech.required_resources if r_req not in accessible_res]
 
         # Status badge
         if is_disc:
@@ -524,8 +557,16 @@ def draw_innovation_tab(surface, world, box_x, y, box_w, box_h, font, font_small
             badge_txt = f"DIFFUSING ({int(diff_prog*100)}%)"
             badge_col = (80, 200, 255)
         elif has_bounty:
-            badge_txt = "ROYAL PRIZE OFFERED"
+            badge_txt = "ROYAL PRIZE ACTIVE"
             badge_col = (245, 200, 70)
+        elif missing_techs or missing_res:
+            reasons = []
+            if missing_techs:
+                reasons.append("Tech Pre-Reqs")
+            if missing_res:
+                reasons.append(f"Missing {', '.join(RESOURCE_META[r].name for r in missing_res)}")
+            badge_txt = f"BLOCKED: {', '.join(reasons)}"
+            badge_col = RED
         else:
             pressure = tech.bottleneck_evaluator(active_n, active_n.tiles) if tech.bottleneck_evaluator else 1.0
             cur_xp = inno.get_domain_xp(active_n.name, tech.domain)
@@ -538,20 +579,24 @@ def draw_innovation_tab(surface, world, box_x, y, box_w, box_h, font, font_small
         b_surf = font_small.render(f"[{badge_txt}]", True, badge_col)
         surface.blit(b_surf, (box_x + 440, card_y + 10))
 
-        d_lbl = font_small.render(f"Effect: {tech.description}", True, DIM)
-        surface.blit(d_lbl, (box_x + 36, card_y + 32))
+        # Required resources subtext
+        res_req_str = f"Requires: {', '.join(RESOURCE_META[r].icon + ' ' + RESOURCE_META[r].name for r in tech.required_resources)}" if tech.required_resources else "Requires: General Practice"
+        d_lbl = font_small.render(f"{res_req_str} — {tech.description}", True, DIM)
+        surface.blit(d_lbl, (box_x + 36, card_y + 36))
 
         # Royal Bounty Button
-        btn_rect = (box_x + card_w - 230, card_y + 12, 210, 32)
+        btn_rect = (box_x + card_w - 230, card_y + 14, 210, 32)
         if is_disc:
             draw_action_button(surface, btn_rect, "Technology Unlocked", font_small, mx, my, disabled=True)
         elif has_bounty:
             draw_action_button(surface, btn_rect, "Bounty Active ($300)", font_small, mx, my, active=True, color=(245, 200, 70))
+        elif missing_techs or missing_res:
+            draw_action_button(surface, btn_rect, "Pledge Royal Prize ($300)", font_small, mx, my, disabled=True)
         else:
             can_afford = treasury['total'] >= 300.0
             draw_action_button(surface, btn_rect, "Pledge Royal Prize ($300)", font_small, mx, my, disabled=not can_afford)
 
-        card_y += 64
+        card_y += 70
 
 
 # =============================================================================
@@ -706,21 +751,41 @@ def actions_tab_hit(pos, box_x, box_y, world):
 
     # 6. Tab 4 Innovation & Royal Bounties Click Handling
     elif active_tab == 4 and active_n:
-        card_y = box_y + 120 + 36 + 46
+        # Era buttons click check
+        card_y_era = box_y + 120 + 34 + 40
+        eras = [1, 2, 3, 4]
+        era_btn_w = (card_w - 30) // 4
+        ex = box_x + 20
+        for era_num in eras:
+            eb_rect = (ex, card_y_era, era_btn_w, 28)
+            if eb_rect[0] <= mx <= eb_rect[0] + eb_rect[2] and eb_rect[1] <= my <= eb_rect[1] + eb_rect[3]:
+                world['innovation_era'] = era_num
+                return True
+            ex += era_btn_w + 10
+
+        # Tech bounty buttons click check
+        card_y = box_y + 120 + 34 + 40 + 38
+        cur_era = world.get('innovation_era', 1)
         from innovation import get_innovation_system, TECH_CATALOG
+        from tile_resources import get_nation_resources
         inno = get_innovation_system()
         discovered = inno.get_discovered_techs(active_n.name)
+        accessible_res = get_nation_resources(active_n, world=world)
+        era_techs = [t for t in TECH_CATALOG.values() if t.era == cur_era]
 
-        for tech_id, tech in list(TECH_CATALOG.items())[:6]:
-            btn_rect = (box_x + card_w - 230, card_y + 12, 210, 32)
+        for tech in era_techs:
+            tech_id = tech.tech_id
+            btn_rect = (box_x + card_w - 230, card_y + 14, 210, 32)
             if btn_rect[0] <= mx <= btn_rect[0] + btn_rect[2] and btn_rect[1] <= my <= btn_rect[1] + btn_rect[3]:
-                if tech_id not in discovered and not any(b.nation_name == active_n.name and b.tech_id == tech_id for b in inno.active_bounties):
+                missing_techs = [t_req for t_req in tech.required_techs if t_req not in discovered]
+                missing_res = [r_req for r_req in tech.required_resources if r_req not in accessible_res]
+                if tech_id not in discovered and not missing_techs and not missing_res and not any(b.nation_name == active_n.name and b.tech_id == tech_id for b in inno.active_bounties):
                     ok = inno.post_royal_bounty(active_n, tech_id, 300.0, t)
                     if ok:
                         world['action_feedback'] = (f"Posted $300 Royal Prize for '{tech.name}'!", GREEN, t)
                     else:
                         world['action_feedback'] = ("Insufficient treasury funds to post prize.", RED, t)
                     return True
-            card_y += 64
+            card_y += 70
 
     return False
