@@ -2,6 +2,7 @@
 UI components: top stats bar, right panel, regime readout, ticker, zoom HUD, and 2-page paginated help overlay.
 """
 
+import os
 from collections import Counter
 import pygame
 from goods import Goods
@@ -18,13 +19,49 @@ PANEL_BG = (40, 40, 48)
 
 # Cached fonts and overlay surfaces to eliminate frame-rate allocations and high idle CPU
 _FONT_CACHE = {}
+_FONT_PATH = None
+
+
+def _find_best_font_path():
+    global _FONT_PATH
+    if _FONT_PATH is not None:
+        return _FONT_PATH
+    candidates = [
+        "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
+        "/System/Library/Fonts/Supplemental/AppleGothic.ttf",
+        "/System/Library/Fonts/SFNS.ttf",
+        "/System/Library/Fonts/Helvetica.ttc",
+        "/System/Library/Fonts/Supplemental/Arial.ttf",
+        "C:\\Windows\\Fonts\\seguiemj.ttf",
+        "C:\\Windows\\Fonts\\arial.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
+    ]
+    for p in candidates:
+        if os.path.exists(p):
+            try:
+                f = pygame.font.Font(p, 16)
+                f.render("🌾 Test", True, (255, 255, 255))
+                _FONT_PATH = p
+                return _FONT_PATH
+            except Exception:
+                continue
+    _FONT_PATH = ""
+    return _FONT_PATH
 
 
 def get_font(size):
-    """Return cached Pygame font instance for the given point size."""
+    """Return cached Pygame font instance with full Unicode/Emoji glyph support."""
     f = _FONT_CACHE.get(size)
     if f is None:
-        f = pygame.font.Font(None, size)
+        p = _find_best_font_path()
+        if p:
+            try:
+                f = pygame.font.Font(p, size)
+            except Exception:
+                f = pygame.font.Font(None, size)
+        else:
+            f = pygame.font.Font(None, size)
         _FONT_CACHE[size] = f
     return f
 

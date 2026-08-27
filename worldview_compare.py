@@ -627,15 +627,9 @@ def draw_tab3_fx_banking(surface, world, box_x, start_y, box_w, box_h, font, cel
 # MAIN WINDOW CONTROLLER
 # =============================================================================
 
-_FONT_CACHE = {}
-
-
 def _get_font(size):
-    f = _FONT_CACHE.get(size)
-    if f is None:
-        f = pygame.font.Font(None, size)
-        _FONT_CACHE[size] = f
-    return f
+    from worldview_ui import get_font
+    return get_font(size)
 
 
 _OVERLAY_SURFACE = None
