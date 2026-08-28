@@ -99,8 +99,8 @@ def draw_policies_panel(surface, world, region, font, font_small, mouse_pos=None
         _draw_nation_policies(surface, world, region, cur_y, font, font_small, mx, my)
 
 
-def _draw_btn(surface, rect, label, font_small, mx, my, enabled=True, color=TEXT, custom_bg=None):
-    """Helper to draw clickable action button and register hitbox."""
+def _draw_btn(surface, rect, label, font_small, mx, my, enabled=True, color=TEXT, custom_bg=None, icon_kind=None):
+    """Helper to draw clickable action button with optional procedural icon and register hitbox."""
     global _ACTION_BUTTONS
     bx, by, bw, bh = rect
     is_hov = (bx <= mx <= bx + bw and by <= my <= by + bh) and enabled
@@ -115,8 +115,17 @@ def _draw_btn(surface, rect, label, font_small, mx, my, enabled=True, color=TEXT
 
     pygame.draw.rect(surface, bg, rect, border_radius=4)
     pygame.draw.rect(surface, bc, rect, 1, border_radius=4)
-    txt = font_small.render(label, True, tc)
-    surface.blit(txt, txt.get_rect(center=(bx + bw // 2, by + bh // 2)))
+
+    txt_surf = font_small.render(label, True, tc)
+    if icon_kind:
+        from ui_icons import get_icon
+        icon_surf = get_icon(icon_kind, size=13)
+        total_w = 13 + 4 + txt_surf.get_width()
+        start_x = bx + (bw - total_w) // 2
+        surface.blit(icon_surf, (start_x, by + (bh - 13) // 2))
+        surface.blit(txt_surf, (start_x + 17, by + (bh - txt_surf.get_height()) // 2))
+    else:
+        surface.blit(txt_surf, txt_surf.get_rect(center=(bx + bw // 2, by + bh // 2)))
 
 
 # =============================================================================
@@ -225,10 +234,10 @@ def _draw_city_policies(surface, world, region, start_y, font, font_small, mx, m
     mill_btn = (PANEL_LEFT + 12, start_y + 48, 120, 20)
     work_btn = (PANEL_LEFT + 140, start_y + 48, 120, 20)
 
-    _draw_btn(surface, farm_btn, "🌾 Farm ($250)", font_small, mx, my, color=(200, 230, 150))
-    _draw_btn(surface, gran_btn, "🏛 Granary ($350)", font_small, mx, my, color=(240, 200, 120))
-    _draw_btn(surface, mill_btn, "🪓 Sawmill ($300)", font_small, mx, my, color=(210, 180, 140))
-    _draw_btn(surface, work_btn, "⚙️ Workshop ($450)", font_small, mx, my, color=(160, 210, 255))
+    _draw_btn(surface, farm_btn, "Farm ($250)", font_small, mx, my, color=(200, 230, 150), icon_kind='arable_silt')
+    _draw_btn(surface, gran_btn, "Granary ($350)", font_small, mx, my, color=(240, 200, 120), icon_kind='granary')
+    _draw_btn(surface, mill_btn, "Sawmill ($300)", font_small, mx, my, color=(210, 180, 140), icon_kind='timber')
+    _draw_btn(surface, work_btn, "Workshop ($450)", font_small, mx, my, color=(160, 210, 255), icon_kind='workshop')
 
     _ACTION_BUTTONS.append((farm_btn, 'build_farm', region))
     _ACTION_BUTTONS.append((gran_btn, 'build_granary', region))

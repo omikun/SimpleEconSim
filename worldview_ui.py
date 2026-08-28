@@ -505,19 +505,23 @@ def draw_top_bar(surface, world, font_small, mouse_pos=None):
         protest_prev = (sum(r.protest_energy_log[-2] if len(r.protest_energy_log) >= 2 else (r.protest_energy_log[-1] if r.protest_energy_log else 0.0) for r in tiles) / len(tiles)) if tiles else 0.0
         d_protest = protest_cur - protest_prev
 
+        from ui_icons import get_icon
+        crown_icon = get_icon('crown', 14)
+
         ruling = getattr(n, 'ruling_faction', None)
         ruler = f"  ruling {ruling}" if ruling else ""
         head_text = f"{n.name} ({n.currency})  {n.regime_type}  legit {n.legitimacy:.2f}{ruler}  provinces {len(n.provinces)}  tiles {len(tiles)}"
         head = font.render(head_text, True, n_col)
         
         # Check hover on header
-        header_rect = pygame.Rect(8, 4, head.get_width() + 10, 20)
+        header_rect = pygame.Rect(6, 4, 20 + head.get_width() + 8, 20)
         mx, my = mouse_pos if mouse_pos else (-1, -1)
         if header_rect.collidepoint(mx, my):
             pygame.draw.rect(surface, (50, 50, 68), header_rect, border_radius=3)
             hovered_dropdown = ('header', header_rect)
             
-        surface.blit(head, (8, 6))
+        surface.blit(crown_icon, (8, 7))
+        surface.blit(head, (26, 6))
 
         # Format deltas with color
         pop_str = f"Pop {pop_cur:,}" + (f" ({'+' if d_pop > 0 else ''}{d_pop})" if d_pop != 0 else "")
@@ -548,16 +552,19 @@ def draw_top_bar(surface, world, font_small, mouse_pos=None):
         
         x = 8
         for text, color, key in stats:
+            icon_surf = get_icon(key, size=13)
             label = font.render(text, True, color)
-            item_rect = pygame.Rect(x - 4, 28, label.get_width() + 8, 20)
+            total_item_w = 13 + 4 + label.get_width()
+            item_rect = pygame.Rect(x - 3, 27, total_item_w + 6, 20)
             
             # Hover highlight
             if item_rect.collidepoint(mx, my):
                 pygame.draw.rect(surface, (50, 52, 70), item_rect, border_radius=3)
                 hovered_dropdown = (key, item_rect)
                 
-            surface.blit(label, (x, 30))
-            x += label.get_width() + 16
+            surface.blit(icon_surf, (x, 30))
+            surface.blit(label, (x + 17, 30))
+            x += total_item_w + 14
 
     world['_hovered_topbar_dropdown'] = hovered_dropdown
 
