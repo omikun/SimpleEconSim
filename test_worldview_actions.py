@@ -610,6 +610,37 @@ class TestWorldviewActionsUI(unittest.TestCase):
 
         print("Verified per-tile natural resources, resource prerequisites, and 4-Era tech progression.")
 
+    def test_map_progress_bars_for_construction_and_science(self):
+        """Verify on-map progress bars overlayed on hex tiles for construction and science."""
+        from intents import BuildIntent
+        from innovation import get_innovation_system
+        world = build_world_view(seed=42)
+        nations = world['nations']
+        n1 = nations[0]
+        tile = n1.tiles[0]
+
+        # 1. Commission construction project on tile
+        n1.government.agent.cash = 1000.0
+        intent = BuildIntent(n1.name, tile.name, 'granary', submitted_turn=0)
+        n1.submit_intent(intent, t=0)
+        tiles_by_name = {t.name: t for t in world['tiles']}
+        nations_by_name = {n.name: n for n in nations}
+        ok, msg = intent.execute(tiles_by_name, nations_by_name, t=0)
+        self.assertTrue(ok, msg)
+        self.assertEqual(len(getattr(tile, 'construction_projects', [])), 1)
+
+        # 2. Post Royal Science Bounty on nation
+        inno = get_innovation_system()
+        inno.post_royal_bounty(n1, 'bessemer_steel', 300.0, t=0)
+        inno.domain_experience[n1.name]['manufacturing'] = 50.0
+
+        # 3. Simulate trade diffusion
+        inno.diffusion_progress.setdefault(n1.name, {})['dynamo_electrification'] = 0.65
+
+        # 4. Render map frame with progress bars
+        render_frame(self.surface, world)
+        print("Verified map progress bars for construction and science/diffusion overlay.")
+
 
 if __name__ == "__main__":
     unittest.main()

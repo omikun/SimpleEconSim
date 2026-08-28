@@ -399,6 +399,110 @@ def draw_text_with_shadow(surface, font, text, center, color, shadow_color=(12, 
     surface.blit(t_surf, t_surf.get_rect(center=(cx, cy)))
 
 
+def draw_tile_progress_bars(surface, region, cx, cy, font_small, world):
+    """Draw sleek on-map progress bars overlayed on hex tiles for active construction, science, and diffusion."""
+    if getattr(region, 'is_ocean', False) or getattr(region, 'elevation_meters', 0) < 0:
+        return
+
+    owner = getattr(region, 'owner_nation', None)
+    is_cap = (owner is not None and owner.tiles and region == owner.tiles[0])
+    
+    from ui_icons import get_icon
+    bar_w = 78
+    bar_h = 12
+    bar_y = cy + 34
+    
+    # 1. Construction Progress Bar
+    projects = getattr(region, 'construction_projects', [])
+    active_proj = next((p for p in projects if getattr(p, 'status', '') == 'in_progress'), None)
+    
+    if active_proj is not None:
+        pct = min(1.0, max(0.0, active_proj.turns_elapsed / max(1, active_proj.total_turns)))
+        bx = int(cx - bar_w // 2)
+        by = int(bar_y)
+        
+        # Background track
+        bg_rect = pygame.Rect(bx, by, bar_w, bar_h)
+        pygame.draw.rect(surface, (18, 20, 28, 230), bg_rect, border_radius=3)
+        
+        # Progress fill (Golden Amber / Construction Yellow)
+        fill_w = max(2, int((bar_w - 2) * pct))
+        fill_rect = pygame.Rect(bx + 1, by + 1, fill_w, bar_h - 2)
+        pygame.draw.rect(surface, (235, 175, 45), fill_rect, border_radius=2)
+        
+        # Border
+        pygame.draw.rect(surface, (120, 110, 80), bg_rect, 1, border_radius=3)
+        
+        # Mini icon & text
+        icon = get_icon(active_proj.recipe.name, size=10)
+        surface.blit(icon, (bx + 3, by + 1))
+        
+        short_name = active_proj.recipe.name.replace('_', ' ').capitalize()[:6]
+        txt = font_small.render(f"{short_name} {active_proj.turns_elapsed}/{active_proj.total_turns}t", True, (255, 255, 255))
+        surface.blit(txt, (bx + 15, by + 1))
+        
+        bar_y += 14  # Shift down if another bar exists
+        
+    # 2. Science Research / Royal Bounty / Trade Diffusion Progress Bar
+    if owner is not None:
+        from innovation import get_innovation_system, TECH_CATALOG
+        inno = get_innovation_system()
+        
+        # Check active royal bounty on capital
+        bounty = next((b for b in inno.active_bounties if b.nation_name == owner.name), None) if is_cap else None
+        
+        # Check active trade diffusion to this nation
+        diff_map = inno.diffusion_progress.get(owner.name, {})
+        active_diff = next(((t_id, prog) for t_id, prog in diff_map.items() if 0.0 < prog < 1.0), None)
+        
+        if bounty is not None:
+            tech = TECH_CATALOG.get(bounty.tech_id)
+            if tech:
+                xp = inno.get_domain_xp(owner.name, tech.domain)
+                pct = min(1.0, max(0.0, xp / max(1.0, tech.base_xp_required)))
+                bx = int(cx - bar_w // 2)
+                by = int(bar_y)
+                
+                bg_rect = pygame.Rect(bx, by, bar_w, bar_h)
+                pygame.draw.rect(surface, (18, 20, 32, 230), bg_rect, border_radius=3)
+                
+                fill_w = max(2, int((bar_w - 2) * pct))
+                fill_rect = pygame.Rect(bx + 1, by + 1, fill_w, bar_h - 2)
+                pygame.draw.rect(surface, (60, 190, 245), fill_rect, border_radius=2)
+                
+                pygame.draw.rect(surface, (70, 120, 160), bg_rect, 1, border_radius=3)
+                
+                icon = get_icon('rare_minerals', size=10)
+                surface.blit(icon, (bx + 3, by + 1))
+                
+                short_tech = tech.name.split()[0][:6]
+                txt = font_small.render(f"R&D {short_tech} {int(pct*100)}%", True, (255, 255, 255))
+                surface.blit(txt, (bx + 15, by + 1))
+                
+        elif active_diff is not None and is_cap:
+            t_id, diff_prog = active_diff
+            tech = TECH_CATALOG.get(t_id)
+            if tech:
+                bx = int(cx - bar_w // 2)
+                by = int(bar_y)
+                
+                bg_rect = pygame.Rect(bx, by, bar_w, bar_h)
+                pygame.draw.rect(surface, (24, 18, 32, 230), bg_rect, border_radius=3)
+                
+                fill_w = max(2, int((bar_w - 2) * diff_prog))
+                fill_rect = pygame.Rect(bx + 1, by + 1, fill_w, bar_h - 2)
+                pygame.draw.rect(surface, (170, 110, 240), fill_rect, border_radius=2)
+                
+                pygame.draw.rect(surface, (110, 80, 150), bg_rect, 1, border_radius=3)
+                
+                icon = get_icon('im', size=10)
+                surface.blit(icon, (bx + 3, by + 1))
+                
+                short_tech = tech.name.split()[0][:6]
+                txt = font_small.render(f"Diff {short_tech} {int(diff_prog*100)}%", True, (255, 255, 255))
+                surface.blit(txt, (bx + 15, by + 1))
+
+
 def province_members(world, region):
     """Tiles in the same province as *region* (or just the tile if none)."""
     prov = getattr(region, 'province', None)
@@ -556,5 +660,6 @@ def draw_hex_map(surface, world, font, font_small):
             draw_terrain_glyph(surface, region, cx, cy - 34)
             draw_activity_badges(surface, region, cx, cy, font_small)
             draw_pop_delta(surface, region, cx, cy, font_small)
+            draw_tile_progress_bars(surface, region, cx, cy, font_small, world)
 
     surface.set_clip(prev_clip)
