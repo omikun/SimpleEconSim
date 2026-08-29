@@ -119,7 +119,7 @@ def build_world(seed=None, terrain_seed=None, nation_seed=None):
 
     for nname, (cur, n_tiles) in claimed_by.items():
         regime = "democracy" if rng_nation.random() > 0.5 else "autocracy"
-        n = Nation(nname, currency=cur, regime_type=regime)
+        n = Nation(nname, currency=cur, regime_type=regime, initial_cash=1000.0)
         nations.append(n)
         open_cells = _unclaimed_land_cells()
         # BFS cluster growth strictly on land tiles in the central continent

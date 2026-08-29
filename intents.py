@@ -147,22 +147,60 @@ class BuildIntent(Intent):
         recipe = BUILDING_RECIPES[self.building_type]
         cost = recipe.cost
 
-        # 1. Procure funds from government (conserved transfer)
-        gov = nation.government
-        rgov = getattr(region, 'gov', gov)
-        funding_gov = rgov if (rgov.agent.cash + (region.bank.deposits.get(rgov.agent, 0.0) if hasattr(region, 'bank') else 0.0)) >= cost else gov
+        # 1. Procure funds from government (conserved transfer across sovereign treasury pool)
+        treasury = nation.treasury()
+        remaining_needed = cost
+        funding_sources = []
 
-        if funding_gov.agent.cash < cost:
-            bank = getattr(region, 'bank', None) or getattr(funding_gov, '_bank_ref', None)
-            if bank is not None:
-                needed = cost - funding_gov.agent.cash
-                withdrawable = min(needed, bank.deposits.get(funding_gov.agent, 0.0))
-                if withdrawable > 0:
-                    bank.Withdraw(funding_gov.agent, withdrawable)
+        # Try tile regional government first, then national government, then sister tiles
+        rgov = getattr(region, 'gov', None)
+        gov_pool = []
+        if rgov is not None:
+            gov_pool.append(rgov)
+        if nation.government not in gov_pool:
+            gov_pool.append(nation.government)
+        for tile in nation.tiles:
+            tgov = getattr(tile, 'gov', None)
+            if tgov and tgov not in gov_pool:
+                gov_pool.append(tgov)
 
-        if funding_gov.agent.cash < cost:
-            self.status = 'rejected'
-            return False, f"BuildIntent failed: Unable to withdraw sufficient cash (${funding_gov.agent.cash:.2f} < ${cost:.2f})."
+        for g in gov_pool:
+            if remaining_needed <= 0.001:
+                break
+            # Cash on hand
+            if g.agent.cash > 0:
+                take = min(remaining_needed, g.agent.cash)
+                g.agent.cash -= take
+                remaining_needed -= take
+                funding_sources.append((g.agent, take))
+
+            # Bank deposits
+            if remaining_needed > 0.001:
+                for b_tile in nation.tiles:
+                    bank = getattr(b_tile, 'bank', None)
+                    if bank is not None and g.agent in getattr(bank, 'deposits', {}):
+                        dep = bank.deposits[g.agent]
+                        take_dep = min(remaining_needed, dep)
+                        if take_dep > 0:
+                            bank.Withdraw(g.agent, take_dep)
+                            g.agent.cash -= take_dep
+                            remaining_needed -= take_dep
+                            funding_sources.append((g.agent, take_dep))
+                    if remaining_needed <= 0.001:
+                        break
+
+        # If slightly short but regional bank exists, allow deficit overdraft/borrowing
+        if remaining_needed > 0.01:
+            bank = getattr(region, 'bank', None)
+            if bank is not None and getattr(bank, 'capital', 0.0) >= remaining_needed:
+                bank.capital -= remaining_needed
+                remaining_needed = 0.0
+            else:
+                # Rollback partial withdrawals
+                for src_agent, amt in funding_sources:
+                    src_agent.cash += amt
+                self.status = 'rejected'
+                return False, f"BuildIntent failed: Insufficient treasury cash (${treasury['total']:.2f} < ${cost:.2f})."
 
         # 2. Hire or incorporate contractor corporation
         existing_corps = [a for a in region.agents if getattr(a, 'is_corporation', False) and getattr(a, 'alive', True)]
@@ -178,11 +216,11 @@ class BuildIntent(Intent):
             seed_traits(contractor)
             initialize_agent(contractor, Goods.wood, 0, 0, 0.0)
             region.agents.append(contractor)
+            gov = nation.government
             if hasattr(gov, '_add_citizen'):
                 gov._add_citizen(contractor)
 
         # 3. Conserved transfer: Gov pays contractor
-        funding_gov.agent.cash -= cost
         contractor.cash += cost
 
         # 4. Spawn ConstructionProject
