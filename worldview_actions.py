@@ -812,6 +812,8 @@ def actions_tab_hit(pos, box_x, box_y, world):
                     rec = BUILDING_RECIPES.get(r_key)
                     name_str = rec.display_name if rec else r_key
                     if ok:
+                        from worldview_engine import ticker_push
+                        ticker_push(world, t, 'CONSTRUCT', f"Commissioned {name_str} in {tile_name} (${rec.cost if rec else 0:.0f}).", (245, 180, 50))
                         world['action_feedback'] = (f"Commissioned {name_str} on [{tile_name}]!", GREEN, t)
                     else:
                         world['action_feedback'] = (msg, RED, t)
@@ -851,6 +853,8 @@ def actions_tab_hit(pos, box_x, box_y, world):
                 if tech_id not in discovered and not missing_techs and not missing_res and not any(b.nation_name == active_n.name and b.tech_id == tech_id for b in inno.active_bounties):
                     ok = inno.post_royal_bounty(active_n, tech_id, 300.0, t)
                     if ok:
+                        from worldview_engine import ticker_push
+                        ticker_push(world, t, 'INNOVATION', f"{active_n.name} posted $300 Royal Bounty for '{tech.name}'.", (80, 200, 255))
                         world['action_feedback'] = (f"Posted $300 Royal Prize for '{tech.name}'!", GREEN, t)
                     else:
                         world['action_feedback'] = ("Insufficient treasury funds to post prize.", RED, t)

@@ -89,7 +89,22 @@ def step_world(world):
     pair_orders = world['pair_orders']
 
     def on_event(turn, kind, text):
-        color = MIG_C if kind == 'MIGRATE' else CLAIM_C if kind == 'CLAIM' else DESTROY_C
+        if kind in ('COMPLETED', 'CONSTRUCT', 'BUILD'):
+            color = (120, 240, 150)
+        elif kind in ('OVERRUN', 'DELAY'):
+            color = (245, 180, 50)
+        elif kind in ('RESEARCH', 'TECH', 'INNOVATION'):
+            color = (80, 200, 255)
+        elif kind in ('WAR', 'BATTLE'):
+            color = (240, 80, 80)
+        elif kind in ('PEACE', 'TREATY'):
+            color = (130, 210, 240)
+        elif kind == 'MIGRATE':
+            color = MIG_C
+        elif kind == 'CLAIM':
+            color = CLAIM_C
+        else:
+            color = DESTROY_C
         ticker_push(world, turn, kind, text, color)
 
     violations, claim_events = sim_engine.step_turn(

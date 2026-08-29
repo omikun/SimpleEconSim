@@ -568,6 +568,9 @@ def _execute_policy_action(world, act_id, target):
             tiles_by_name = {r.name: r for r in world.get('tiles', [])}
             nations_by_name = {n.name: n for n in world.get('nations', [])}
             ok, msg = intent.execute(tiles_by_name, nations_by_name, world['turn'])
+            if ok:
+                from worldview_engine import ticker_push
+                ticker_push(world, world['turn'], 'CONSTRUCT', msg, (245, 180, 50))
             world['policy_feedback'] = (msg, GREEN if ok else RED)
 
     # Province Actions
