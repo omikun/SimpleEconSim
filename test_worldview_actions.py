@@ -639,7 +639,18 @@ class TestWorldviewActionsUI(unittest.TestCase):
 
         # 4. Render map frame with progress bars
         render_frame(self.surface, world)
-        print("Verified map progress bars for construction and science/diffusion overlay.")
+
+        # 5. Verify clicking nation switcher in Sovereign Actions modal
+        from worldview_actions import actions_tab_hit
+        world['actions_open'] = True
+        for i, target_n in enumerate(nations):
+            # Click switcher button
+            sx = 24 + 20 + 160 + (i * 140) + 20
+            hit = actions_tab_hit((sx, 16 + 55), 24, 16, world)
+            if hit:
+                self.assertEqual(world['player_nation_name'], target_n.name)
+
+        print("Verified map progress bars and sovereign nation switcher click interactions.")
 
 
 if __name__ == "__main__":

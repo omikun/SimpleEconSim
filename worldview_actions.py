@@ -699,6 +699,8 @@ def actions_tab_hit(pos, box_x, box_y, world):
 
     # 1. Check Nation Switcher Click: y in [box_y + 48, box_y + 74]
     if box_y + 46 <= my <= box_y + 76:
+        from worldview_ui import get_font
+        font_small = get_font(11)
         lbl_w = font_small.render("Switch Sovereign Nation:", True, (255, 255, 255)).get_width()
         sx = box_x + 20 + lbl_w + 14
         for n in nations:
