@@ -400,8 +400,9 @@ def draw_construction_tab(surface, world, box_x, y, box_w, box_h, font, font_sma
     mx, my = mouse_pos if mouse_pos else (-1, -1)
     treasury = active_n.treasury()
     pinned_tile = world.get('selected_region')
-    tile_name = pinned_tile.name if pinned_tile else (active_n.tiles[0].name if active_n.tiles else "None")
-    is_owned = pinned_tile in active_n.tiles if pinned_tile else True
+    target_tile = pinned_tile if (pinned_tile and pinned_tile in active_n.tiles) else (active_n.tiles[0] if active_n.tiles else None)
+    tile_name = getattr(target_tile, 'display_name', getattr(target_tile, 'city_name', target_tile.name)) if target_tile else "None"
+    is_owned = target_tile in active_n.tiles if target_tile else False
 
     header = font.render(f"Physical Construction & Strategic Intents on [{tile_name}] (Treasury: ${treasury['total']:,.2f})", True, TEXT)
     surface.blit(header, (box_x + 20, y))
@@ -423,9 +424,11 @@ def draw_construction_tab(surface, world, box_x, y, box_w, box_h, font, font_sma
         cost_val = recipe_obj.cost if recipe_obj else 100.0
         can_afford = treasury['total'] >= cost_val
 
-        # Check status on pinned tile
-        is_built = any(b.name == r_key for b in getattr(pinned_tile, 'buildings', [])) if pinned_tile else False
-        active_proj = next((p for p in getattr(pinned_tile, 'construction_projects', []) if p.recipe.name == r_key and p.status == 'in_progress'), None) if pinned_tile else None
+        # Check status on target tile
+        is_built = any(b.name == r_key for b in getattr(target_tile, 'buildings', [])) if target_tile else False
+        active_proj = next((p for p in getattr(target_tile, 'construction_projects', []) if p.recipe.name == r_key and p.status == 'in_progress'), None) if target_tile else None
+        if active_proj is None and active_n:
+            active_proj = next((p for p in getattr(active_n, 'construction_projects', []) if p.recipe.name == r_key and p.status == 'in_progress' and p.region == target_tile), None)
 
         card_rect = (box_x + 20, card_y, card_w, 58)
         btn_rect = (box_x + card_w - 220, card_y + 13, 190, 32)
@@ -792,13 +795,16 @@ def actions_tab_hit(pos, box_x, box_y, world):
         card_y = box_y + 120 + 36
         recipes = ['mountain_pass', 'river_bridge', 'paved_road', 'granary', 'sawmill', 'workshop']
         pinned_tile = world.get('selected_region')
-        tile_name = pinned_tile.name if pinned_tile else (active_n.tiles[0].name if active_n.tiles else None)
+        target_tile = pinned_tile if (pinned_tile and pinned_tile in active_n.tiles) else (active_n.tiles[0] if active_n.tiles else None)
+        tile_name = target_tile.name if target_tile else None
         
         for r_key in recipes:
             btn_rect = (box_x + card_w - 220, card_y + 13, 190, 32)
             if btn_rect[0] <= mx <= btn_rect[0] + btn_rect[2] and btn_rect[1] <= my <= btn_rect[1] + btn_rect[3] and tile_name:
-                is_built = any(b.name == r_key for b in getattr(pinned_tile, 'buildings', [])) if pinned_tile else False
-                active_proj = next((p for p in getattr(pinned_tile, 'construction_projects', []) if p.recipe.name == r_key and p.status == 'in_progress'), None) if pinned_tile else None
+                is_built = any(b.name == r_key for b in getattr(target_tile, 'buildings', [])) if target_tile else False
+                active_proj = next((p for p in getattr(target_tile, 'construction_projects', []) if p.recipe.name == r_key and p.status == 'in_progress'), None) if target_tile else None
+                if active_proj is None and active_n:
+                    active_proj = next((p for p in getattr(active_n, 'construction_projects', []) if p.recipe.name == r_key and p.status == 'in_progress' and p.region == target_tile), None)
                 if not is_built and active_proj is None:
                     intent = BuildIntent(active_n.name, tile_name, r_key, submitted_turn=t, regime_type=active_n.regime_type)
                     active_n.submit_intent(intent, t)
