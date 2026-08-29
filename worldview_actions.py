@@ -423,19 +423,51 @@ def draw_construction_tab(surface, world, box_x, y, box_w, box_h, font, font_sma
         cost_val = recipe_obj.cost if recipe_obj else 100.0
         can_afford = treasury['total'] >= cost_val
 
+        # Check status on pinned tile
+        is_built = any(b.name == r_key for b in getattr(pinned_tile, 'buildings', [])) if pinned_tile else False
+        active_proj = next((p for p in getattr(pinned_tile, 'construction_projects', []) if p.recipe.name == r_key and p.status == 'in_progress'), None) if pinned_tile else None
+
         card_rect = (box_x + 20, card_y, card_w, 58)
-        pygame.draw.rect(surface, CARD_BG, card_rect, border_radius=6)
-        pygame.draw.rect(surface, (70, 70, 90), card_rect, 1, border_radius=6)
-
-        t_lbl = font.render(f"{r_name} — Cost: {r_cost}", True, ACCENT)
-        surface.blit(t_lbl, (box_x + 36, card_y + 8))
-
-        d_lbl = font_small.render(f"Modifiers: {r_desc}", True, DIM)
-        surface.blit(d_lbl, (box_x + 36, card_y + 32))
-
         btn_rect = (box_x + card_w - 220, card_y + 13, 190, 32)
-        draw_action_button(surface, btn_rect, f"Commission ({r_cost})", font_small, mx, my,
-                           disabled=not is_owned or not can_afford)
+
+        if is_built:
+            # Whole card box changes color to Emerald Green
+            pygame.draw.rect(surface, (22, 44, 32), card_rect, border_radius=6)
+            pygame.draw.rect(surface, (60, 180, 100), card_rect, 1, border_radius=6)
+            t_lbl = font.render(f"{r_name} — [Installed / Active]", True, (120, 240, 150))
+            surface.blit(t_lbl, (box_x + 36, card_y + 8))
+            d_lbl = font_small.render(f"Modifiers: {r_desc}", True, DIM)
+            surface.blit(d_lbl, (box_x + 36, card_y + 32))
+            draw_action_button(surface, btn_rect, "Structure Active", font_small, mx, my, disabled=True)
+
+        elif active_proj is not None:
+            # Whole card box changes color to Construction Amber
+            pygame.draw.rect(surface, (46, 38, 20), card_rect, border_radius=6)
+            pygame.draw.rect(surface, (245, 180, 50), card_rect, 1, border_radius=6)
+            pct = min(1.0, max(0.0, active_proj.turns_elapsed / max(1, active_proj.total_turns)))
+            t_lbl = font.render(f"{r_name} — [Under Construction...]", True, (255, 210, 80))
+            surface.blit(t_lbl, (box_x + 36, card_y + 8))
+            d_lbl = font_small.render(f"Progress: {active_proj.turns_elapsed}/{active_proj.total_turns} turns ({int(pct*100)}%) — {r_desc}", True, (240, 220, 180))
+            surface.blit(d_lbl, (box_x + 36, card_y + 32))
+
+            # In-button live progress bar
+            bx, by, bw, bh = btn_rect
+            pygame.draw.rect(surface, (38, 30, 16), btn_rect, border_radius=4)
+            fill_w = max(3, int((bw - 2) * pct))
+            pygame.draw.rect(surface, (235, 175, 45), (bx + 1, by + 1, fill_w, bh - 2), border_radius=3)
+            pygame.draw.rect(surface, (245, 190, 50), btn_rect, 1, border_radius=4)
+            btn_txt = font_small.render(f"Building... {active_proj.turns_elapsed}/{active_proj.total_turns}t ({int(pct*100)}%)", True, (255, 255, 255))
+            surface.blit(btn_txt, btn_txt.get_rect(center=(bx + bw // 2, by + bh // 2)))
+
+        else:
+            pygame.draw.rect(surface, CARD_BG, card_rect, border_radius=6)
+            pygame.draw.rect(surface, (70, 70, 90), card_rect, 1, border_radius=6)
+            t_lbl = font.render(f"{r_name} — Cost: {r_cost}", True, ACCENT)
+            surface.blit(t_lbl, (box_x + 36, card_y + 8))
+            d_lbl = font_small.render(f"Modifiers: {r_desc}", True, DIM)
+            surface.blit(d_lbl, (box_x + 36, card_y + 32))
+            draw_action_button(surface, btn_rect, f"Commission ({r_cost})", font_small, mx, my,
+                               disabled=not is_owned or not can_afford)
 
         card_y += 66
 
@@ -451,10 +483,23 @@ def draw_construction_tab(surface, world, box_x, y, box_w, box_h, font, font_sma
     else:
         for p in active_projects:
             p_rect = (box_x + 20, card_y, card_w, 42)
-            pygame.draw.rect(surface, CARD_BG, p_rect, border_radius=4)
+            pct = min(1.0, max(0.0, p.turns_elapsed / max(1, p.total_turns)))
+            pygame.draw.rect(surface, (34, 30, 22) if p.status == 'in_progress' else CARD_BG, p_rect, border_radius=4)
+            pygame.draw.rect(surface, (245, 180, 50) if p.status == 'in_progress' else (70, 70, 90), p_rect, 1, border_radius=4)
+
+            # Draw progress bar track
+            if p.status == 'in_progress':
+                pb_rect = (box_x + card_w - 180, card_y + 10, 160, 22)
+                pygame.draw.rect(surface, (20, 20, 28), pb_rect, border_radius=3)
+                fill_w = max(2, int(158 * pct))
+                pygame.draw.rect(surface, (235, 175, 45), (pb_rect[0] + 1, pb_rect[1] + 1, fill_w, 20), border_radius=2)
+                pygame.draw.rect(surface, (245, 190, 50), pb_rect, 1, border_radius=3)
+                ptxt = font_small.render(f"{p.turns_elapsed}/{p.total_turns}t ({int(pct*100)}%)", True, (255, 255, 255))
+                surface.blit(ptxt, ptxt.get_rect(center=(pb_rect[0] + 80, pb_rect[1] + 11)))
+
             p_txt = font_small.render(
-                f"Project {p.project_id}: Building {p.recipe.display_name} in {p.region.name} — Progress: {p.turns_worked}/{p.total_turns} turns (Status: {p.status})",
-                True, GREEN if p.status == 'completed' else ACCENT
+                f"Project {p.project_id}: Building {p.recipe.display_name} in {p.region.name} (Status: {p.status.upper()})",
+                True, GREEN if p.status == 'completed' else (255, 215, 90)
             )
             surface.blit(p_txt, (box_x + 36, card_y + 12))
             card_y += 48
@@ -756,12 +801,21 @@ def actions_tab_hit(pos, box_x, box_y, world):
         for r_key in recipes:
             btn_rect = (box_x + card_w - 220, card_y + 13, 190, 32)
             if btn_rect[0] <= mx <= btn_rect[0] + btn_rect[2] and btn_rect[1] <= my <= btn_rect[1] + btn_rect[3] and tile_name:
-                intent = BuildIntent(active_n.name, tile_name, r_key, submitted_turn=t, regime_type=active_n.regime_type)
-                active_n.submit_intent(intent, t)
-                rec = BUILDING_RECIPES.get(r_key)
-                name_str = rec.display_name if rec else r_key
-                world['action_feedback'] = (f"Commissioned {name_str} on [{tile_name}].", GREEN, t)
-                return True
+                is_built = any(b.name == r_key for b in getattr(pinned_tile, 'buildings', [])) if pinned_tile else False
+                active_proj = next((p for p in getattr(pinned_tile, 'construction_projects', []) if p.recipe.name == r_key and p.status == 'in_progress'), None) if pinned_tile else None
+                if not is_built and active_proj is None:
+                    intent = BuildIntent(active_n.name, tile_name, r_key, submitted_turn=t, regime_type=active_n.regime_type)
+                    active_n.submit_intent(intent, t)
+                    tiles_by_name = {r.name: r for r in world.get('tiles', [])}
+                    nations_by_name = {n.name: n for n in world.get('nations', [])}
+                    ok, msg = intent.execute(tiles_by_name, nations_by_name, t)
+                    rec = BUILDING_RECIPES.get(r_key)
+                    name_str = rec.display_name if rec else r_key
+                    if ok:
+                        world['action_feedback'] = (f"Commissioned {name_str} on [{tile_name}]!", GREEN, t)
+                    else:
+                        world['action_feedback'] = (msg, RED, t)
+                    return True
             card_y += 66
 
     # 6. Tab 4 Innovation & Royal Bounties Click Handling

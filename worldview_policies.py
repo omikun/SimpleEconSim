@@ -128,6 +128,29 @@ def _draw_btn(surface, rect, label, font_small, mx, my, enabled=True, color=TEXT
         surface.blit(txt_surf, txt_surf.get_rect(center=(bx + bw // 2, by + bh // 2)))
 
 
+def _draw_progress_btn(surface, rect, label, progress, font_small, mx, my, icon_kind=None):
+    """Draw an active in-progress button with internal live progress bar gauge."""
+    bx, by, bw, bh = rect
+    # Construction Amber background
+    pygame.draw.rect(surface, (45, 36, 20), rect, border_radius=4)
+    # Fill bar gauge
+    fill_w = max(3, int((bw - 2) * progress))
+    pygame.draw.rect(surface, (215, 155, 35), (bx + 1, by + 1, fill_w, bh - 2), border_radius=3)
+    # Border
+    pygame.draw.rect(surface, (245, 190, 50), rect, 1, border_radius=4)
+
+    txt_surf = font_small.render(label, True, (255, 255, 255))
+    if icon_kind:
+        from ui_icons import get_icon
+        icon_surf = get_icon(icon_kind, size=13)
+        total_w = 13 + 4 + txt_surf.get_width()
+        start_x = bx + (bw - total_w) // 2
+        surface.blit(icon_surf, (start_x, by + (bh - 13) // 2))
+        surface.blit(txt_surf, (start_x + 17, by + (bh - txt_surf.get_height()) // 2))
+    else:
+        surface.blit(txt_surf, txt_surf.get_rect(center=(bx + bw // 2, by + bh // 2)))
+
+
 # =============================================================================
 # CITY / TILE LEVEL POLICIES
 # =============================================================================
@@ -220,29 +243,39 @@ def _draw_city_policies(surface, world, region, start_y, font, font_small, mx, m
     start_y += card3_h + 8
 
     # CARD 4: Infrastructure & Capital Construction
-    card4_h = 74
+    card4_h = 80
     c4_rect = (PANEL_LEFT + 4, start_y, PANEL_W - 24, card4_h)
     pygame.draw.rect(surface, CARD_BG, c4_rect, border_radius=5)
     pygame.draw.rect(surface, CARD_BORDER, c4_rect, 1, border_radius=5)
 
     buildings = getattr(region, 'buildings', [])
-    b_str = ", ".join(f"{b.building_type.title()}" for b in buildings) if buildings else "None"
-    surface.blit(font_small.render(f"Public Infrastructure (Active: {b_str})", True, ACCENT), (PANEL_LEFT + 12, start_y + 6))
+    b_str = ", ".join(f"{b.recipe.display_name if hasattr(b, 'recipe') else b.name.title()}" for b in buildings) if buildings else "None"
+    surface.blit(font_small.render(f"Public Infrastructure (Installed: {b_str})", True, ACCENT), (PANEL_LEFT + 12, start_y + 6))
 
-    farm_btn = (PANEL_LEFT + 12, start_y + 26, 120, 20)
-    gran_btn = (PANEL_LEFT + 140, start_y + 26, 120, 20)
-    mill_btn = (PANEL_LEFT + 12, start_y + 48, 120, 20)
-    work_btn = (PANEL_LEFT + 140, start_y + 48, 120, 20)
+    farm_btn = (PANEL_LEFT + 12, start_y + 26, 120, 22)
+    gran_btn = (PANEL_LEFT + 140, start_y + 26, 120, 22)
+    mill_btn = (PANEL_LEFT + 12, start_y + 52, 120, 22)
+    work_btn = (PANEL_LEFT + 140, start_y + 52, 120, 22)
 
-    _draw_btn(surface, farm_btn, "Farm ($250)", font_small, mx, my, color=(200, 230, 150), icon_kind='arable_silt')
-    _draw_btn(surface, gran_btn, "Granary ($350)", font_small, mx, my, color=(240, 200, 120), icon_kind='granary')
-    _draw_btn(surface, mill_btn, "Sawmill ($300)", font_small, mx, my, color=(210, 180, 140), icon_kind='timber')
-    _draw_btn(surface, work_btn, "Workshop ($450)", font_small, mx, my, color=(160, 210, 255), icon_kind='workshop')
+    struct_defs = [
+        (farm_btn, 'farm', 'Farm ($250)', (200, 230, 150), 'arable_silt', 'build_farm'),
+        (gran_btn, 'granary', 'Granary ($350)', (240, 200, 120), 'granary', 'build_granary'),
+        (mill_btn, 'sawmill', 'Sawmill ($300)', (210, 180, 140), 'timber', 'build_sawmill'),
+        (work_btn, 'workshop', 'Workshop ($450)', (160, 210, 255), 'workshop', 'build_workshop'),
+    ]
 
-    _ACTION_BUTTONS.append((farm_btn, 'build_farm', region))
-    _ACTION_BUTTONS.append((gran_btn, 'build_granary', region))
-    _ACTION_BUTTONS.append((mill_btn, 'build_sawmill', region))
-    _ACTION_BUTTONS.append((work_btn, 'build_workshop', region))
+    for rect, b_key, b_label, b_col, b_icon, act_id in struct_defs:
+        is_built = any(b.name == b_key for b in buildings)
+        active_proj = next((p for p in getattr(region, 'construction_projects', []) if p.recipe.name == b_key and p.status == 'in_progress'), None)
+        
+        if is_built:
+            _draw_btn(surface, rect, f"{b_key.title()} [Built]", font_small, mx, my, enabled=False, color=GREEN, custom_bg=(24, 46, 34), icon_kind='check')
+        elif active_proj is not None:
+            pct = min(1.0, max(0.0, active_proj.turns_elapsed / max(1, active_proj.total_turns)))
+            _draw_progress_btn(surface, rect, f"{b_key.title()} {active_proj.turns_elapsed}/{active_proj.total_turns}t", pct, font_small, mx, my, icon_kind=b_icon)
+        else:
+            _draw_btn(surface, rect, b_label, font_small, mx, my, color=b_col, icon_kind=b_icon)
+            _ACTION_BUTTONS.append((rect, act_id, region))
 
 
 # =============================================================================
@@ -530,8 +563,11 @@ def _execute_policy_action(world, act_id, target):
         b_type = b_map[act_id]
         owner = getattr(target, 'owner_nation', None)
         if owner is not None:
-            intent = BuildIntent(owner, target.name, b_type)
-            ok, msg = intent.execute(world['turn'])
+            intent = BuildIntent(owner.name, target.name, b_type, submitted_turn=world['turn'])
+            owner.submit_intent(intent, world['turn'])
+            tiles_by_name = {r.name: r for r in world.get('tiles', [])}
+            nations_by_name = {n.name: n for n in world.get('nations', [])}
+            ok, msg = intent.execute(tiles_by_name, nations_by_name, world['turn'])
             world['policy_feedback'] = (msg, GREEN if ok else RED)
 
     # Province Actions
