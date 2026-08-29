@@ -205,3 +205,60 @@ def draw_icon_badge(surface: pygame.Surface, x: int, y: int, icon_kind: str, lab
     tsurf = font_small.render(label, True, txt_col)
     surface.blit(tsurf, (x + icon_size + 5, y + 1))
     return icon_size + 5 + tsurf.get_width()
+
+
+def draw_progress_bar_button(surface: pygame.Surface, rect: tuple[int, int, int, int],
+                             label: str, progress: float, font_small: pygame.font.Font,
+                             theme: str = 'construction', icon_kind: str | None = None) -> None:
+    """Render an interactive button that has morphed into a high-visibility live progress bar gauge."""
+    bx, by, bw, bh = rect
+    pct = min(1.0, max(0.0, float(progress)))
+
+    if theme == 'science':
+        track_bg = (14, 20, 32)
+        fill_col = (45, 185, 245)
+        border_col = (70, 210, 255)
+        txt_col = (255, 255, 255)
+    elif theme == 'diffusion':
+        track_bg = (22, 16, 32)
+        fill_col = (165, 105, 235)
+        border_col = (195, 135, 255)
+        txt_col = (255, 255, 255)
+    elif theme == 'complete':
+        track_bg = (18, 42, 28)
+        fill_col = (45, 175, 95)
+        border_col = (60, 205, 115)
+        txt_col = (255, 255, 255)
+    else:  # 'construction'
+        track_bg = (24, 20, 14)
+        fill_col = (235, 175, 45)
+        border_col = (255, 200, 60)
+        txt_col = (255, 255, 255)
+
+    # Inset background track
+    pygame.draw.rect(surface, track_bg, rect, border_radius=4)
+    # Animated progress fill gauge
+    fill_w = max(3, int((bw - 2) * pct))
+    pygame.draw.rect(surface, fill_col, (bx + 1, by + 1, fill_w, bh - 2), border_radius=3)
+    # Highlight border
+    pygame.draw.rect(surface, border_col, rect, 1, border_radius=4)
+
+    # Label with icon
+    txt_surf = font_small.render(label, True, txt_col)
+    if icon_kind:
+        icon_surf = get_icon(icon_kind, size=min(14, bh - 4))
+        icon_w = icon_surf.get_width()
+        total_w = icon_w + 4 + txt_surf.get_width()
+        start_x = bx + (bw - total_w) // 2
+        # Soft shadow behind text
+        shadow = font_small.render(label, True, (10, 10, 15))
+        surface.blit(shadow, (start_x + icon_w + 5, by + (bh - txt_surf.get_height()) // 2 + 1))
+        surface.blit(icon_surf, (start_x, by + (bh - icon_surf.get_height()) // 2))
+        surface.blit(txt_surf, (start_x + icon_w + 4, by + (bh - txt_surf.get_height()) // 2))
+    else:
+        # Centered text with shadow
+        shadow = font_small.render(label, True, (10, 10, 15))
+        s_rect = shadow.get_rect(center=(bx + bw // 2 + 1, by + bh // 2 + 1))
+        surface.blit(shadow, s_rect)
+        t_rect = txt_surf.get_rect(center=(bx + bw // 2, by + bh // 2))
+        surface.blit(txt_surf, t_rect)

@@ -438,7 +438,8 @@ def draw_construction_tab(surface, world, box_x, y, box_w, box_h, font, font_sma
             surface.blit(t_lbl, (box_x + 36, card_y + 8))
             d_lbl = font_small.render(f"Modifiers: {r_desc}", True, DIM)
             surface.blit(d_lbl, (box_x + 36, card_y + 32))
-            draw_action_button(surface, btn_rect, "Structure Active", font_small, mx, my, disabled=True)
+            from ui_icons import draw_progress_bar_button
+            draw_progress_bar_button(surface, btn_rect, "Structure Active", 1.0, font_small, theme='complete', icon_kind='check')
 
         elif active_proj is not None:
             # Whole card box changes color to Construction Amber
@@ -451,13 +452,8 @@ def draw_construction_tab(surface, world, box_x, y, box_w, box_h, font, font_sma
             surface.blit(d_lbl, (box_x + 36, card_y + 32))
 
             # In-button live progress bar
-            bx, by, bw, bh = btn_rect
-            pygame.draw.rect(surface, (38, 30, 16), btn_rect, border_radius=4)
-            fill_w = max(3, int((bw - 2) * pct))
-            pygame.draw.rect(surface, (235, 175, 45), (bx + 1, by + 1, fill_w, bh - 2), border_radius=3)
-            pygame.draw.rect(surface, (245, 190, 50), btn_rect, 1, border_radius=4)
-            btn_txt = font_small.render(f"Building... {active_proj.turns_elapsed}/{active_proj.total_turns}t ({int(pct*100)}%)", True, (255, 255, 255))
-            surface.blit(btn_txt, btn_txt.get_rect(center=(bx + bw // 2, by + bh // 2)))
+            from ui_icons import draw_progress_bar_button
+            draw_progress_bar_button(surface, btn_rect, f"Building... {active_proj.turns_elapsed}/{active_proj.total_turns}t ({int(pct*100)}%)", pct, font_small, theme='construction', icon_kind=r_key)
 
         else:
             pygame.draw.rect(surface, CARD_BG, card_rect, border_radius=6)
@@ -490,12 +486,8 @@ def draw_construction_tab(surface, world, box_x, y, box_w, box_h, font, font_sma
             # Draw progress bar track
             if p.status == 'in_progress':
                 pb_rect = (box_x + card_w - 180, card_y + 10, 160, 22)
-                pygame.draw.rect(surface, (20, 20, 28), pb_rect, border_radius=3)
-                fill_w = max(2, int(158 * pct))
-                pygame.draw.rect(surface, (235, 175, 45), (pb_rect[0] + 1, pb_rect[1] + 1, fill_w, 20), border_radius=2)
-                pygame.draw.rect(surface, (245, 190, 50), pb_rect, 1, border_radius=3)
-                ptxt = font_small.render(f"{p.turns_elapsed}/{p.total_turns}t ({int(pct*100)}%)", True, (255, 255, 255))
-                surface.blit(ptxt, ptxt.get_rect(center=(pb_rect[0] + 80, pb_rect[1] + 11)))
+                from ui_icons import draw_progress_bar_button
+                draw_progress_bar_button(surface, pb_rect, f"{p.turns_elapsed}/{p.total_turns}t ({int(pct*100)}%)", pct, font_small, theme='construction', icon_kind=p.recipe.name)
 
             p_txt = font_small.render(
                 f"Project {p.project_id}: Building {p.recipe.display_name} in {p.region.name} (Status: {p.status.upper()})",
@@ -533,7 +525,7 @@ def draw_innovation_tab(surface, world, box_x, y, box_w, box_h, font, font_small
     pygame.draw.rect(surface, (24, 26, 36), res_rect, border_radius=5)
     pygame.draw.rect(surface, (60, 65, 85), res_rect, 1, border_radius=5)
 
-    from ui_icons import get_icon, draw_icon_badge
+    from ui_icons import get_icon, draw_icon_badge, draw_progress_bar_button
     accessible_res = get_nation_resources(active_n, world=world)
     rx = box_x + 30
     lbl_r = font_small.render("Resources:", True, TEXT)
@@ -644,12 +636,16 @@ def draw_innovation_tab(surface, world, box_x, y, box_w, box_h, font, font_small
             d_lbl = font_small.render(f"General Practice • {tech.description}", True, DIM)
             surface.blit(d_lbl, (sub_x, card_y + 36))
 
-        # Royal Bounty Button
+        # Royal Bounty Button / Science Progress Bar
         btn_rect = (box_x + card_w - 230, card_y + 14, 210, 32)
         if is_disc:
-            draw_action_button(surface, btn_rect, "Technology Unlocked", font_small, mx, my, disabled=True)
+            draw_progress_bar_button(surface, btn_rect, "Technology Mastered", 1.0, font_small, theme='complete', icon_kind='check')
         elif has_bounty:
-            draw_action_button(surface, btn_rect, "Bounty Active ($300)", font_small, mx, my, active=True, color=(245, 200, 70))
+            cur_xp = inno.get_domain_xp(active_n.name, tech.domain)
+            pct = min(1.0, max(0.0, cur_xp / max(1.0, tech.base_xp_required)))
+            draw_progress_bar_button(surface, btn_rect, f"Researching {int(pct*100)}% ({int(cur_xp)}/{int(tech.base_xp_required)} XP)", pct, font_small, theme='science', icon_kind='rare_minerals')
+        elif diff_prog > 0:
+            draw_progress_bar_button(surface, btn_rect, f"Diffusing... {int(diff_prog*100)}%", diff_prog, font_small, theme='diffusion', icon_kind='im')
         elif missing_techs or missing_res:
             draw_action_button(surface, btn_rect, "Pledge Royal Prize ($300)", font_small, mx, my, disabled=True)
         else:

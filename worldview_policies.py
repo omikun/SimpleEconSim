@@ -269,10 +269,12 @@ def _draw_city_policies(surface, world, region, start_y, font, font_small, mx, m
         active_proj = next((p for p in getattr(region, 'construction_projects', []) if p.recipe.name == b_key and p.status == 'in_progress'), None)
         
         if is_built:
-            _draw_btn(surface, rect, f"{b_key.title()} [Built]", font_small, mx, my, enabled=False, color=GREEN, custom_bg=(24, 46, 34), icon_kind='check')
+            from ui_icons import draw_progress_bar_button
+            draw_progress_bar_button(surface, rect, f"{b_key.capitalize()} Active", 1.0, font_small, theme='complete', icon_kind='check')
         elif active_proj is not None:
+            from ui_icons import draw_progress_bar_button
             pct = min(1.0, max(0.0, active_proj.turns_elapsed / max(1, active_proj.total_turns)))
-            _draw_progress_btn(surface, rect, f"{b_key.title()} {active_proj.turns_elapsed}/{active_proj.total_turns}t", pct, font_small, mx, my, icon_kind=b_icon)
+            draw_progress_bar_button(surface, rect, f"{b_key.capitalize()} {active_proj.turns_elapsed}/{active_proj.total_turns}t ({int(pct*100)}%)", pct, font_small, theme='construction', icon_kind=b_icon)
         else:
             _draw_btn(surface, rect, b_label, font_small, mx, my, color=b_col, icon_kind=b_icon)
             _ACTION_BUTTONS.append((rect, act_id, region))
