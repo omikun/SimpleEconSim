@@ -144,14 +144,16 @@ def draw_actions_modal(surface, world, font, font_small, mouse_pos=None):
 def get_active_nation(world):
     """Return currently active nation object controlled by player."""
     nations = world.get('nations', [])
+    pinned = world.get('selected_region')
+    if pinned is not None and getattr(pinned, 'owner_nation', None) is not None:
+        return pinned.owner_nation
     active_name = world.get('player_nation_name')
     if active_name:
         for n in nations:
             if n.name == active_name:
                 return n
-    pinned = world.get('selected_region')
-    if pinned is not None and getattr(pinned, 'owner_nation', None) is not None:
-        return pinned.owner_nation
+    if world.get('selected_nation') is not None:
+        return world['selected_nation']
     return nations[0] if nations else None
 
 
@@ -696,11 +698,13 @@ def actions_tab_hit(pos, box_x, box_y, world):
     diplomacy = get_diplomacy()
 
     # 1. Check Nation Switcher Click: y in [box_y + 48, box_y + 74]
-    if box_y + 48 <= my <= box_y + 74:
-        sx = box_x + 20 + 200
+    if box_y + 46 <= my <= box_y + 76:
+        lbl_w = font_small.render("Switch Sovereign Nation:", True, (255, 255, 255)).get_width()
+        sx = box_x + 20 + lbl_w + 14
         for n in nations:
             if sx <= mx <= sx + 130:
                 world['player_nation_name'] = n.name
+                world['selected_nation'] = n
                 world['selected_region'] = n.tiles[0] if n.tiles else None
                 return True
             sx += 140

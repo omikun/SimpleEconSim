@@ -274,6 +274,9 @@ def main():
                             clicked = tile_at(world, *event.pos)
                             if clicked is not None:
                                 world['selected_region'] = clicked
+                                if getattr(clicked, 'owner_nation', None) is not None:
+                                    world['selected_nation'] = clicked.owner_nation
+                                    world['player_nation_name'] = clicked.owner_nation.name
                     else:
                         # 3c. Check sidebar chart clicks
                         chart_top = 178 + TOP_BAR_H + 30
@@ -287,6 +290,9 @@ def main():
                                 clicked = tile_at(world, *event.pos)
                                 if clicked is not None:
                                     world['selected_region'] = clicked
+                                    if getattr(clicked, 'owner_nation', None) is not None:
+                                        world['selected_nation'] = clicked.owner_nation
+                                        world['player_nation_name'] = clicked.owner_nation.name
                         else:
                             # Click in zoom view returns to grid view (or pins a tile)
                             if event.pos[0] >= PANEL_LEFT:
@@ -295,6 +301,9 @@ def main():
                                 clicked = tile_at(world, *event.pos)
                                 if clicked is not None:
                                     world['selected_region'] = clicked
+                                    if getattr(clicked, 'owner_nation', None) is not None:
+                                        world['selected_nation'] = clicked.owner_nation
+                                        world['player_nation_name'] = clicked.owner_nation.name
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button in (2, 3):
                 # Middle or Right mouse drag to pan
                 drag = True
