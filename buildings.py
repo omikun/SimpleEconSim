@@ -22,38 +22,52 @@ if TYPE_CHECKING:
 
 
 class BuildingRecipe:
-    """Blueprint for a constructible building."""
+    """Blueprint for a constructible building across Municipal, Provincial, and National tiers."""
 
     def __init__(self, name: str, display_name: str, cost: float,
-                 base_turns: int, required_goods: dict = None,
+                 base_turns: int, tier: str = 'tile', required_goods: dict = None,
                  production_bonuses: dict = None, description: str = ""):
         self.name = name
         self.display_name = display_name
         self.cost = float(cost)
         self.base_turns = int(base_turns)
+        self.tier = tier  # 'tile' | 'province' | 'nation'
         self.required_goods = required_goods if required_goods is not None else {}
         self.production_bonuses = production_bonuses if production_bonuses is not None else {}
         self.description = description
 
     def __repr__(self):
-        return f"BuildingRecipe({self.name}, cost={self.cost}, turns={self.base_turns})"
+        return f"BuildingRecipe({self.name}, tier={self.tier}, cost={self.cost}, turns={self.base_turns})"
 
 
 BUILDING_RECIPES: dict[str, BuildingRecipe] = {
+    # ── MUNICIPAL / TILE LEVEL INFRASTRUCTURE ───────────────────────
+    'farm': BuildingRecipe(
+        name='farm',
+        display_name='Irrigation Farm Estate',
+        cost=250.0,
+        base_turns=2,
+        tier='tile',
+        required_goods={Goods.wood: 3},
+        production_bonuses={Goods.food: 1.20},
+        description='Local irrigation and farming estate (+20% Food yield).'
+    ),
     'granary': BuildingRecipe(
         name='granary',
         display_name='State Granary',
         cost=250.0,
         base_turns=2,
+        tier='tile',
         required_goods={Goods.wood: 4},
         production_bonuses={Goods.food: 1.25},
-        description='Improves grain storage and farming efficiency (+25% Food output).'
+        description='Improves grain storage and municipal food security (+25% Food output).'
     ),
     'sawmill': BuildingRecipe(
         name='sawmill',
         display_name='Mechanized Sawmill',
         cost=300.0,
         base_turns=2,
+        tier='tile',
         required_goods={Goods.wood: 6},
         production_bonuses={Goods.wood: 1.30},
         description='Water/wind-powered timber mill (+30% Wood output).'
@@ -63,45 +77,74 @@ BUILDING_RECIPES: dict[str, BuildingRecipe] = {
         display_name='Artisan Guildhall & Workshop',
         cost=400.0,
         base_turns=3,
+        tier='tile',
         required_goods={Goods.wood: 8},
         production_bonuses={Goods.furniture: 1.30},
         description='Centralized manufacturing facility (+30% Furniture output).'
     ),
+
+    # ── PROVINCIAL LEVEL PUBLIC WORKS ───────────────────────────────
     'paved_road': BuildingRecipe(
         name='paved_road',
         display_name='Paved Highway Network',
         cost=350.0,
         base_turns=2,
+        tier='province',
         required_goods={Goods.wood: 3},
         production_bonuses={},
-        description='Reduces regional transport delays and trade friction.'
-    ),
-    'mountain_pass': BuildingRecipe(
-        name='mountain_pass',
-        display_name='Alpine Mountain Pass Road',
-        cost=380.0,
-        base_turns=2,
-        required_goods={Goods.wood: 6},
-        production_bonuses={},
-        description='Engineers an alpine mountain pass road to unblock overland trade across high peaks.'
+        description='Reduces regional transport friction and inter-tile trade delays by 40%.'
     ),
     'river_bridge': BuildingRecipe(
         name='river_bridge',
         display_name='Fluvial River Bridge & Port',
         cost=300.0,
         base_turns=2,
+        tier='province',
         required_goods={Goods.wood: 5},
         production_bonuses={},
-        description='Constructs a permanent river crossing to maximize fluvial trade capacity and speed.'
+        description='Constructs permanent river crossing to maximize fluvial trade capacity and speed.'
     ),
     'sanatorium': BuildingRecipe(
         name='sanatorium',
-        display_name='Public Sanatorium',
+        display_name='Provincial Sanatorium / Hospital',
         cost=500.0,
         base_turns=3,
+        tier='province',
         required_goods={Goods.wood: 5, Goods.furniture: 2},
         production_bonuses={},
-        description='Public healthcare institution that reduces citizen mortality.'
+        description='Public healthcare institution that reduces citizen mortality across the province.'
+    ),
+
+    # ── NATIONAL / SOVEREIGN STRATEGIC PROJECTS ─────────────────────
+    'mountain_pass': BuildingRecipe(
+        name='mountain_pass',
+        display_name='Alpine Mountain Pass Road',
+        cost=380.0,
+        base_turns=2,
+        tier='nation',
+        required_goods={Goods.wood: 6},
+        production_bonuses={},
+        description='Engineers an alpine mountain pass road to unblock overland trade across high peaks.'
+    ),
+    'central_mint': BuildingRecipe(
+        name='central_mint',
+        display_name='Central Mint & Treasury Exchange',
+        cost=600.0,
+        base_turns=3,
+        tier='nation',
+        required_goods={Goods.wood: 6, Goods.furniture: 4},
+        production_bonuses={},
+        description='National monetary headquarters: stabilizes currency inflation and boosts tax efficiency (+15%).'
+    ),
+    'military_citadel': BuildingRecipe(
+        name='military_citadel',
+        display_name='Grand Military Citadel & Barracks',
+        cost=550.0,
+        base_turns=3,
+        tier='nation',
+        required_goods={Goods.wood: 8, Goods.furniture: 3},
+        production_bonuses={},
+        description='National fortress: expands garrison defense and speeds up state military training by 50%.'
     ),
 }
 

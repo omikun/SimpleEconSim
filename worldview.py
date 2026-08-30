@@ -51,6 +51,12 @@ from worldview_help import (
 from worldview_layers import (
     draw_layer_sidebar, layer_sidebar_hit, MAP_LAYERS
 )
+from worldview_build_panel import (
+    draw_build_panel, build_panel_hit
+)
+from worldview_transfer_dialog import (
+    draw_transfer_dialog, transfer_dialog_hit
+)
 from worldview_engine import (
     get_layout, get_reverse_layout, build_world_view, ticker_push, step_world
 )
@@ -110,6 +116,7 @@ def render_frame(surface, world, mouse_pos=None):
     draw_hex_map(surface, world, font, font_small)
     draw_zoom_hud(surface, font_small, mouse_pos=mouse_pos)
     draw_layer_sidebar(surface, world, font_small, mouse_pos=mouse_pos)
+    draw_build_panel(surface, world, font, font_small, mouse_pos=mouse_pos)
     draw_panel(surface, world, font, font_small, mouse_pos=mouse_pos)
     draw_ticker(surface, world, font_small)
 
@@ -119,6 +126,7 @@ def render_frame(surface, world, mouse_pos=None):
     draw_nations_comparison(surface, world, font, font_small, mouse_pos=mouse_pos)
     draw_actions_modal(surface, world, font, font_small, mouse_pos=mouse_pos)
     draw_help_modal(surface, world, font, font_small)
+    draw_transfer_dialog(surface, world, font, font_small, mouse_pos=mouse_pos)
 
 
 def _mark_dirty(world):
@@ -197,12 +205,17 @@ def main():
                 _mark_dirty(world)
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 _mark_dirty(world)
-                # 0a. Check if Help Guide is open
+                # 0a. Check if Fiscal Transfer Dialog is open
+                if world.get('transfer_dialog', {}).get('open'):
+                    if transfer_dialog_hit(event.pos, world):
+                        continue
+
+                # 0b. Check if Help Guide is open
                 if world.get('help_open'):
                     if help_modal_hit(event.pos, world):
                         continue
 
-                # 0b. Check if Comparison Table is open
+                # 0c. Check if Comparison Table is open
                 if world.get('compare_open'):
                     tab_hit = compare_tab_hit(event.pos, 30, 20, world=world)
                     if tab_hit is not None:
@@ -216,7 +229,7 @@ def main():
                         world['compare_open'] = False
                         continue
 
-                # 0c. Check if Sovereign Actions Modal is open
+                # 0d. Check if Sovereign Actions Modal is open
                 if world.get('actions_open'):
                     if actions_tab_hit(event.pos, 24, 16, world):
                         continue
@@ -249,6 +262,10 @@ def main():
 
                 # 1c. Check Left Layer Sidebar toggle dock
                 if layer_sidebar_hit(event.pos, world):
+                    continue
+
+                # 1d. Check Left Build Panel hit
+                if build_panel_hit(event.pos, world):
                     continue
 
                 # 2. Check Zoom HUD buttons
@@ -451,8 +468,13 @@ def main():
                 elif event.key in (pygame.K_h, pygame.K_SLASH, pygame.K_QUESTION):
                     world['help_open'] = not world.get('help_open', False)
                     _mark_dirty(world)
+                elif event.key == pygame.K_b:
+                    world['build_panel_open'] = not world.get('build_panel_open', True)
+                    _mark_dirty(world)
                 elif event.key == pygame.K_ESCAPE:
-                    if world.get('help_open'):
+                    if world.get('transfer_dialog', {}).get('open'):
+                        world['transfer_dialog']['open'] = False
+                    elif world.get('help_open'):
                         world['help_open'] = False
                     elif world.get('actions_open'):
                         world['actions_open'] = False

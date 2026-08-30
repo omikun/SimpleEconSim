@@ -512,3 +512,92 @@ def step_intents_and_construction(t: int, tiles: list, nations: list, on_event=N
                 projects.remove(p)
 
     return events
+
+
+# =====================================================================
+# Inter-Governmental Fiscal Transfer & Shortfall Resolution
+# =====================================================================
+
+def execute_fiscal_transfer_and_build(world, nation_name: str, region_name: str, building_type: str,
+                                      transfer_source: str, transfer_amount: float, t: int) -> tuple[bool, str]:
+    """Execute a fiscal grant or bank loan to fund a construction project shortfall."""
+    tiles_by_name = {r.name: r for r in world.get('tiles', [])}
+    nations_by_name = {n.name: n for n in world.get('nations', [])}
+
+    if nation_name not in nations_by_name or region_name not in tiles_by_name:
+        return False, "Nation or Region not found."
+
+    nation = nations_by_name[nation_name]
+    region = tiles_by_name[region_name]
+    rgov = getattr(region, 'gov', None)
+    if rgov is None:
+        return False, f"Region {region_name} has no municipal government."
+
+    recipe = BUILDING_RECIPES.get(building_type)
+    if not recipe:
+        return False, f"Unknown building recipe '{building_type}'."
+
+    transfer_amount = max(0.0, float(transfer_amount))
+
+    # 1. Execute the source transfer
+    if transfer_source == 'province_grant':
+        province = getattr(region, 'province', None)
+        prov_siblings = [t for t in getattr(province, 'tiles', []) if t != region and getattr(t, 'gov', None)]
+        nation_siblings = [t for t in nation.tiles if t != region and t not in prov_siblings and getattr(t, 'gov', None)]
+        pool_tiles = prov_siblings + nation_siblings
+        gathered = 0.0
+        for ot in pool_tiles:
+            ogov = getattr(ot, 'gov', None)
+            if ogov is not None and ogov is not rgov:
+                # 1. Cash on hand
+                if ogov.agent.cash > 0:
+                    take = min(transfer_amount - gathered, ogov.agent.cash)
+                    ogov.agent.cash -= take
+                    rgov.agent.cash += take
+                    gathered += take
+                    if gathered >= transfer_amount - 0.01:
+                        break
+                # 2. Bank deposits
+                bank = getattr(ot, 'bank', None)
+                if bank and ogov.agent in getattr(bank, 'deposits', {}):
+                    dep = bank.deposits[ogov.agent]
+                    take_dep = min(transfer_amount - gathered, dep)
+                    if take_dep > 0:
+                        bank.Withdraw(ogov.agent, take_dep)
+                        ogov.agent.cash -= take_dep
+                        rgov.agent.cash += take_dep
+                        gathered += take_dep
+                        if gathered >= transfer_amount - 0.01:
+                            break
+        if gathered < transfer_amount - 0.01 and pool_tiles:
+            return False, f"Province grant shortfall: only collected ${gathered:.2f} of ${transfer_amount:.2f}."
+
+    elif transfer_source == 'national_bailout':
+        nat_gov = nation.government
+        if nat_gov.agent.cash < transfer_amount:
+            # Check national bank deposits
+            return False, f"National sovereign treasury has insufficient cash (${nat_gov.agent.cash:.2f} < ${transfer_amount:.2f})."
+        nat_gov.agent.cash -= transfer_amount
+        rgov.agent.cash += transfer_amount
+
+    elif transfer_source == 'bank_loan':
+        bank = getattr(region, 'bank', None)
+        if bank is None or getattr(bank, 'capital', 0.0) < transfer_amount:
+            return False, f"Municipal bank has insufficient capital for loan (${getattr(bank, 'capital', 0.0):.2f} < ${transfer_amount:.2f})."
+        bank.capital -= transfer_amount
+        rgov.agent.cash += transfer_amount
+
+    # 2. Now execute BuildIntent
+    intent = BuildIntent(nation_name, region_name, building_type, submitted_turn=t, regime_type=nation.regime_type)
+    nation.submit_intent(intent, t)
+    ok, msg = intent.execute(tiles_by_name, nations_by_name, t)
+    if ok:
+        from worldview_engine import ticker_push
+        transfer_desc = {
+            'province_grant': f"funded via Provincial Grant (${transfer_amount:.0f})",
+            'national_bailout': f"funded via Sovereign National Bailout (${transfer_amount:.0f})",
+            'bank_loan': f"funded via Municipal Bank Loan (${transfer_amount:.0f})",
+        }.get(transfer_source, "")
+        ticker_push(world, t, 'CONSTRUCT', f"Commissioned {recipe.display_name} in {region_name} ({transfer_desc}).", (245, 180, 50))
+    return ok, msg
+
