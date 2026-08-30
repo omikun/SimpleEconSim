@@ -2,9 +2,9 @@
 worldview_build_panel.py — Left Build Panel for Multi-Tier Infrastructure & Governance.
 
 Shows constructible structures separated into 3 distinct governance tiers:
-1. 🏛️ Municipal / Tile Level (funded by region.gov)
-2. 🗺️ Provincial Level (funded by province.gov / member tiles)
-3. 👑 National Sovereign Level (funded by nation.government)
+1. Municipal / Tile Level (funded by region.gov)
+2. Provincial Level (funded by province.gov / member tiles)
+3. National Sovereign Level (funded by nation.government)
 
 Interactive buttons morph into live progress bar gauges when in-progress.
 If funds are insufficient, clicking opens the Fiscal Transfer & Borrowing Modal.
@@ -15,7 +15,7 @@ from worldview_camera import HEIGHT, TOP_BAR_H, TICKER_H
 from worldview_map import ACCENT, TEXT, DIM, RED, GREEN
 from buildings import BUILDING_RECIPES
 from intents import BuildIntent
-from ui_icons import draw_progress_bar_button
+from ui_icons import draw_progress_bar_button, get_icon
 
 BUILD_PANEL_X = 14
 BUILD_PANEL_Y = TOP_BAR_H + 10
@@ -24,16 +24,30 @@ BUILD_PANEL_H = HEIGHT - TOP_BAR_H - TICKER_H - 18
 
 
 def draw_build_panel(surface, world, font, font_small, mouse_pos=None):
-    """Draw the multi-tier left build panel for the selected tile."""
-    if not world.get('build_panel_open', True):
-        return
-
-    pinned = world.get('selected_region')
-    if pinned is None:
-        return
-
+    """Draw the multi-tier left build panel for the selected tile (or collapsed toggle button)."""
     mx, my = mouse_pos if mouse_pos else (-1, -1)
     x, y, w, h = BUILD_PANEL_X, BUILD_PANEL_Y, BUILD_PANEL_W, BUILD_PANEL_H
+
+    pinned = world.get('selected_region')
+
+    # If collapsed or no tile selected, render floating dock button
+    if not world.get('build_panel_open', True) or pinned is None:
+        btn_w = 146
+        btn_h = 28
+        btn_rect = (x, y, btn_w, btn_h)
+        is_hover = btn_rect[0] <= mx <= btn_rect[0] + btn_w and btn_rect[1] <= my <= btn_rect[1] + btn_h
+
+        btn_surf = pygame.Surface((btn_w, btn_h), pygame.SRCALPHA)
+        btn_surf.fill((20, 22, 32, 240) if not is_hover else (34, 38, 54, 245))
+        surface.blit(btn_surf, (x, y))
+        pygame.draw.rect(surface, ACCENT if is_hover else (70, 75, 95), btn_rect, 1, border_radius=5)
+
+        h_icon = get_icon('hammer', 14)
+        surface.blit(h_icon, (x + 8, y + 7))
+
+        txt = font_small.render("Build Menu (B)", True, (255, 255, 255) if is_hover else TEXT)
+        surface.blit(txt, (x + 28, y + 6))
+        return
 
     # Background frame
     panel_surf = pygame.Surface((w, h), pygame.SRCALPHA)
@@ -48,11 +62,15 @@ def draw_build_panel(surface, world, font, font_small, mouse_pos=None):
     prov_name = province.name if province else "Province"
     nat_name = nation.name if nation else "Wilderness"
 
-    head_txt = font.render(f"🔨 Construction: {city_name}", True, ACCENT)
-    surface.blit(head_txt, (x + 12, y + 10))
+    # Procedural hammer icon
+    h_icon = get_icon('hammer', 16)
+    surface.blit(h_icon, (x + 12, y + 12))
+
+    head_txt = font.render(f"Construction: {city_name}", True, ACCENT)
+    surface.blit(head_txt, (x + 32, y + 10))
 
     sub_txt = font_small.render(f"{prov_name} • {nat_name}", True, DIM)
-    surface.blit(sub_txt, (x + 12, y + 30))
+    surface.blit(sub_txt, (x + 32, y + 30))
 
     # Close button [X]
     close_rect = (x + w - 26, y + 8, 18, 18)
@@ -64,15 +82,16 @@ def draw_build_panel(surface, world, font, font_small, mouse_pos=None):
     cur_y = y + 50
 
     # ─────────────────────────────────────────────────────────────
-    # Tier 1: 🏛️ Municipal / Tile Level
+    # Tier 1: Municipal / Tile Level
     # ─────────────────────────────────────────────────────────────
     rgov = getattr(pinned, 'gov', None)
     tile_cash = (rgov.agent.cash if rgov else 0.0) + (pinned.bank.deposits.get(rgov.agent, 0.0) if hasattr(pinned, 'bank') and rgov else 0.0)
     
     cur_y = _draw_tier_section(
         surface, world, pinned, nation,
-        tier_title="🏛️ Municipal Infrastructure",
-        treasury_label=f"Tile Gov: ${tile_cash:,.0f}",
+        icon_kind='municipal',
+        tier_title="Municipal Infrastructure",
+        treasury_label=f"Tile: ${tile_cash:,.0f}",
         treasury_amt=tile_cash,
         recipes_keys=['farm', 'granary', 'sawmill', 'workshop'],
         x=x + 8, y=cur_y, w=w - 16,
@@ -80,14 +99,15 @@ def draw_build_panel(surface, world, font, font_small, mouse_pos=None):
     )
 
     # ─────────────────────────────────────────────────────────────
-    # Tier 2: 🗺️ Provincial Public Works
+    # Tier 2: Provincial Public Works
     # ─────────────────────────────────────────────────────────────
     prov_cash = sum(getattr(t.gov.agent, 'cash', 0.0) + (t.bank.deposits.get(t.gov.agent, 0.0) if hasattr(t, 'bank') else 0.0)
                     for t in (province.tiles if province else (nation.tiles if nation else [pinned])) if getattr(t, 'gov', None))
     
     cur_y = _draw_tier_section(
         surface, world, pinned, nation,
-        tier_title="🗺️ Provincial Public Works",
+        icon_kind='province',
+        tier_title="Provincial Public Works",
         treasury_label=f"Province: ${prov_cash:,.0f}",
         treasury_amt=prov_cash,
         recipes_keys=['paved_road', 'river_bridge', 'sanatorium'],
@@ -96,13 +116,14 @@ def draw_build_panel(surface, world, font, font_small, mouse_pos=None):
     )
 
     # ─────────────────────────────────────────────────────────────
-    # Tier 3: 👑 National Strategic Projects
+    # Tier 3: National Strategic Projects
     # ─────────────────────────────────────────────────────────────
     nat_cash = (nation.treasury()['total']) if nation else 0.0
 
     _draw_tier_section(
         surface, world, pinned, nation,
-        tier_title="👑 National Strategic Projects",
+        icon_kind='crown',
+        tier_title="National Strategic Projects",
         treasury_label=f"State: ${nat_cash:,.0f}",
         treasury_amt=nat_cash,
         recipes_keys=['mountain_pass', 'central_mint', 'military_citadel'],
@@ -111,16 +132,21 @@ def draw_build_panel(surface, world, font, font_small, mouse_pos=None):
     )
 
 
-def _draw_tier_section(surface, world, pinned, nation, tier_title, treasury_label,
+def _draw_tier_section(surface, world, pinned, nation, icon_kind, tier_title, treasury_label,
                        treasury_amt, recipes_keys, x, y, w, font, font_small, mouse_pos=None):
-    """Render one governance tier section with header and recipe buttons."""
+    """Render one governance tier section with vector icon header and recipe buttons."""
     mx, my = mouse_pos if mouse_pos else (-1, -1)
 
     # Header bar
     pygame.draw.rect(surface, (28, 30, 42), (x, y, w, 20), border_radius=4)
     pygame.draw.rect(surface, (50, 55, 75), (x, y, w, 20), 1, border_radius=4)
+
+    # Vector Icon
+    tier_ico = get_icon(icon_kind, 14)
+    surface.blit(tier_ico, (x + 6, y + 3))
+
     t_txt = font_small.render(tier_title, True, (240, 220, 140))
-    surface.blit(t_txt, (x + 6, y + 3))
+    surface.blit(t_txt, (x + 24, y + 3))
 
     tr_txt = font_small.render(treasury_label, True, (120, 220, 140))
     surface.blit(tr_txt, (x + w - tr_txt.get_width() - 6, y + 3))
@@ -165,16 +191,24 @@ def _draw_tier_section(surface, world, pinned, nation, tier_title, treasury_labe
 
 
 def build_panel_hit(pos, world) -> bool:
-    """Handle mouse clicks inside the Left Build Panel."""
-    if not world.get('build_panel_open', True):
-        return False
-
-    pinned = world.get('selected_region')
-    if pinned is None:
-        return False
-
+    """Handle mouse clicks inside the Left Build Panel or collapsed button."""
     mx, my = pos
     x, y, w, h = BUILD_PANEL_X, BUILD_PANEL_Y, BUILD_PANEL_W, BUILD_PANEL_H
+    pinned = world.get('selected_region')
+
+    # If collapsed or no tile selected, check collapsed toggle button
+    if not world.get('build_panel_open', True) or pinned is None:
+        btn_w = 146
+        btn_h = 28
+        if x <= mx <= x + btn_w and y <= my <= y + btn_h:
+            world['build_panel_open'] = True
+            if pinned is None and world.get('tiles'):
+                # Select first nation tile by default
+                nations = world.get('nations', [])
+                if nations and nations[0].tiles:
+                    world['selected_region'] = nations[0].tiles[0]
+            return True
+        return False
 
     if not (x <= mx <= x + w and y <= my <= y + h):
         return False

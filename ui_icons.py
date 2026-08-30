@@ -179,6 +179,34 @@ def get_icon(kind: str, size: int = 16) -> pygame.Surface:
         pygame.draw.line(surf, (235, 80, 80), (s * 0.25, s * 0.25), (s * 0.75, s * 0.75), max(2, int(s // 7)))
         pygame.draw.line(surf, (235, 80, 80), (s * 0.75, s * 0.25), (s * 0.25, s * 0.75), max(2, int(s // 7)))
 
+    elif kind in ('hammer', 'build', 'construction'):
+        # Crisp construction hammer
+        pygame.draw.line(surf, (190, 140, 80), (s * 0.25, s * 0.78), (s * 0.68, s * 0.32), max(2, int(s // 6)))
+        head_pts = [(s * 0.52, s * 0.2), (s * 0.78, s * 0.1), (s * 0.88, s * 0.25), (s * 0.65, s * 0.38)]
+        pygame.draw.polygon(surf, (215, 225, 245), head_pts)
+        pygame.draw.polygon(surf, (130, 145, 170), head_pts, 1)
+
+    elif kind in ('municipal', 'city', 'temple', 'pillar'):
+        # Classical municipal building / temple columns
+        pygame.draw.polygon(surf, (235, 215, 120), [(s * 0.5, s * 0.14), (s * 0.15, s * 0.4), (s * 0.85, s * 0.4)])
+        pygame.draw.rect(surf, (210, 195, 110), (s * 0.22, s * 0.4, s * 0.12, s * 0.35))
+        pygame.draw.rect(surf, (210, 195, 110), (s * 0.44, s * 0.4, s * 0.12, s * 0.35))
+        pygame.draw.rect(surf, (210, 195, 110), (s * 0.66, s * 0.4, s * 0.12, s * 0.35))
+        pygame.draw.rect(surf, (245, 225, 130), (s * 0.12, s * 0.75, s * 0.76, s * 0.12))
+
+    elif kind in ('province', 'provincial', 'shield'):
+        # Provincial heraldic shield
+        pts = [(s * 0.2, s * 0.18), (s * 0.8, s * 0.18), (s * 0.8, s * 0.55), (s * 0.5, s * 0.85), (s * 0.2, s * 0.55)]
+        pygame.draw.polygon(surf, (90, 175, 245), pts)
+        pygame.draw.polygon(surf, (160, 220, 255), pts, 1)
+        pygame.draw.line(surf, (255, 255, 255), (s * 0.5, s * 0.22), (s * 0.5, s * 0.75), 1)
+
+    elif kind in ('bank', 'loan'):
+        # Bank vault coin
+        pygame.draw.circle(surf, (130, 210, 255), (int(s * 0.5), int(s * 0.5)), int(s * 0.38))
+        pygame.draw.circle(surf, (60, 140, 220), (int(s * 0.5), int(s * 0.5)), int(s * 0.38), 1)
+        pygame.draw.line(surf, (255, 255, 255), (s * 0.5, s * 0.25), (s * 0.5, s * 0.75), 2)
+
     else:
         # Generic glowing orb
         pygame.draw.circle(surf, (200, 200, 220), (int(s * 0.5), int(s * 0.5)), int(s * 0.35))

@@ -291,6 +291,7 @@ def main():
                             clicked = tile_at(world, *event.pos)
                             if clicked is not None:
                                 world['selected_region'] = clicked
+                                world['build_panel_open'] = True
                                 if getattr(clicked, 'owner_nation', None) is not None:
                                     world['selected_nation'] = clicked.owner_nation
                                     world['player_nation_name'] = clicked.owner_nation.name
@@ -307,6 +308,7 @@ def main():
                                 clicked = tile_at(world, *event.pos)
                                 if clicked is not None:
                                     world['selected_region'] = clicked
+                                    world['build_panel_open'] = True
                                     if getattr(clicked, 'owner_nation', None) is not None:
                                         world['selected_nation'] = clicked.owner_nation
                                         world['player_nation_name'] = clicked.owner_nation.name
@@ -318,6 +320,7 @@ def main():
                                 clicked = tile_at(world, *event.pos)
                                 if clicked is not None:
                                     world['selected_region'] = clicked
+                                    world['build_panel_open'] = True
                                     if getattr(clicked, 'owner_nation', None) is not None:
                                         world['selected_nation'] = clicked.owner_nation
                                         world['player_nation_name'] = clicked.owner_nation.name

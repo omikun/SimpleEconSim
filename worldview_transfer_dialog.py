@@ -48,9 +48,13 @@ def draw_transfer_dialog(surface, world, font, font_small, mouse_pos=None):
     nation = dialog.get('nation')
     city_name = getattr(region, 'display_name', getattr(region, 'city_name', region.name if region else "Tile"))
 
-    # Title Header
-    header = font.render(f"🏛️ Fiscal Transfer Required: {recipe_name}", True, (255, 220, 100))
-    surface.blit(header, (modal_x + 24, modal_y + 20))
+    # Title Header with vector icon
+    from ui_icons import get_icon
+    m_icon = get_icon('municipal', 18)
+    surface.blit(m_icon, (modal_x + 24, modal_y + 22))
+
+    header = font.render(f"Fiscal Transfer Required: {recipe_name}", True, (255, 220, 100))
+    surface.blit(header, (modal_x + 48, modal_y + 20))
 
     sub = font_small.render(f"Level: {tier_title} Infrastructure on [{city_name}] ({nation.name if nation else ''})", True, DIM)
     surface.blit(sub, (modal_x + 24, modal_y + 46))
