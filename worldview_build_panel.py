@@ -123,7 +123,7 @@ def draw_build_panel(surface, world, font, font_small, mouse_pos=None):
     # ─────────────────────────────────────────────────────────────
     nat_cash = (nation.treasury()['total']) if nation else 0.0
 
-    _draw_tier_section(
+    cur_y = _draw_tier_section(
         surface, world, pinned, nation,
         icon_kind='crown',
         tier_title="National Strategic Projects",
@@ -133,6 +133,48 @@ def draw_build_panel(surface, world, font, font_small, mouse_pos=None):
         x=x + 8, y=cur_y, w=w - 16,
         font=font, font_small=font_small, mouse_pos=mouse_pos
     )
+
+    # ─────────────────────────────────────────────────────────────
+    # Tier 4: Manual Fiscal Equalization
+    # ─────────────────────────────────────────────────────────────
+    _draw_equalization_section(
+        surface, world, pinned, nation,
+        x=x + 8, y=cur_y, w=w - 16,
+        font_small=font_small, mouse_pos=mouse_pos
+    )
+
+
+def _draw_equalization_section(surface, world, pinned, nation, x, y, w, font_small, mouse_pos=None):
+    """Render manual Horizontal Fiscal Equalization action button."""
+    mx, my = mouse_pos if mouse_pos else (-1, -1)
+
+    # Header bar
+    pygame.draw.rect(surface, (28, 30, 42), (x, y, w, 20), border_radius=4)
+    pygame.draw.rect(surface, (50, 55, 75), (x, y, w, 20), 1, border_radius=4)
+
+    eq_ico = get_icon('scale', 14)
+    surface.blit(eq_ico, (x + 6, y + 3))
+
+    t_txt = font_small.render("Fiscal Equalization", True, (240, 220, 140))
+    surface.blit(t_txt, (x + 24, y + 3))
+
+    btn_y = y + 24
+    btn_rect = (x, btn_y, w, 26)
+
+    nat_cash = (nation.government.agent.cash) if nation else 0.0
+    can_grant = nat_cash >= 250.0
+
+    hb = btn_rect[0] <= mx <= btn_rect[0] + w and btn_rect[1] <= my <= btn_rect[1] + 26
+    bg = (32, 44, 36) if can_grant else (30, 30, 38)
+    if hb and can_grant:
+        bg = (45, 62, 50)
+    pygame.draw.rect(surface, bg, btn_rect, border_radius=4)
+    pygame.draw.rect(surface, (70, 160, 90) if can_grant else (60, 50, 55), btn_rect, 1, border_radius=4)
+
+    lbl_name = font_small.render("Disburse Equalization Grant", True, (220, 245, 225) if can_grant else (160, 160, 160))
+    lbl_cost = font_small.render("$250", True, (120, 220, 140) if can_grant else (180, 90, 90))
+    surface.blit(lbl_name, (btn_rect[0] + 8, btn_y + 5))
+    surface.blit(lbl_cost, (btn_rect[0] + w - lbl_cost.get_width() - 8, btn_y + 5))
 
 
 def _get_tier_layout(y: int, recipes_keys: list[str], x: int, w: int):
@@ -263,6 +305,17 @@ def build_panel_hit(pos, world) -> bool:
         if btn_rect[0] <= mx <= btn_rect[0] + btn_rect[2] and btn_rect[1] <= my <= btn_rect[1] + btn_rect[3]:
             _handle_build_click(world, pinned, nation, r_key, nat_cash, t)
             return True
+
+    # 4. Manual Fiscal Equalization Click
+    eq_btn_rect = (x + 8, cur_y + 24, w - 16, 26)
+    if eq_btn_rect[0] <= mx <= eq_btn_rect[0] + eq_btn_rect[2] and eq_btn_rect[1] <= my <= eq_btn_rect[1] + eq_btn_rect[3]:
+        from intents import execute_equalization_grant
+        ok, msg = execute_equalization_grant(world, nation.name, pinned.name, 'national_sovereign', 250.0, t)
+        if ok:
+            world['action_feedback'] = (msg, GREEN, t)
+        else:
+            world['action_feedback'] = (msg, RED, t)
+        return True
 
     return True
 

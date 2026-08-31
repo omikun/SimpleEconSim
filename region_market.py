@@ -358,7 +358,7 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
                     gov_share = tariff_share - rebate
                     _fx.fx_add(seller, region.home_currency, trader_share + rebate)
                     if gov_share > 0:
-                        region.gov.receive_tariff(t, gov_share)
+                        region.gov.receive_tariff(t, gov_share, region=region)
                     if is_parked:
                         seller.parked_sub(region.name, good, take)
                     else:

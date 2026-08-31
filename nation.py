@@ -164,15 +164,27 @@ class Nation:
         """
         gov = self.government
         bank = getattr(gov, '_bank_ref', None)
-        cash = gov.agent.cash
+        sovereign_cash = gov.agent.cash
+        cash = sovereign_cash
+        provincial_cash = 0.0
+        municipal_cash = 0.0
         deposits = 0.0
         if bank is not None:
             deposits = bank.deposits.get(gov.agent, 0.0)
         food = int(getattr(gov, 'food_inventory', 0))
 
+        seen_prov_govs = set()
         for region in self.tiles:
+            province = getattr(region, 'province', None)
+            prov_gov = getattr(province, 'gov', None) if province else None
+            if prov_gov is not None and prov_gov not in seen_prov_govs and prov_gov is not gov:
+                seen_prov_govs.add(prov_gov)
+                provincial_cash += prov_gov.agent.cash
+
             rgov = getattr(region, 'gov', None)
             if rgov is not None and rgov is not gov:
+                if rgov not in seen_prov_govs:
+                    municipal_cash += rgov.agent.cash
                 cash += rgov.agent.cash
                 rbank = getattr(region, 'bank', None)
                 if rbank is not None:
@@ -182,6 +194,9 @@ class Nation:
         return {
             'name': self.name,
             'currency': self.currency,
+            'sovereign_cash': sovereign_cash,
+            'provincial_cash': provincial_cash,
+            'municipal_cash': municipal_cash,
             'cash': cash,
             'deposits': deposits,
             'food': food,

@@ -448,14 +448,20 @@ class Government:
             loginfo(t, f"Government({self.name}) collected ${amount:.2f} in taxes")
         return amount
 
-    def receive_tariff(self, t, amount):
-        """Credit import-tariff revenue to the government and log it.
-
-        Called from Region._clear_discriminatory when an import sale is
-        settled; the buyer's payment is split between the trader's
-        destination-currency wallet and this tariff share.
-        """
-        if amount > 0:
+    def receive_tariff(self, t, amount, region=None):
+        """Credit import-tariff revenue. Splits 80% to National Sovereign and 20% to local port tile."""
+        if amount <= 0:
+            return
+        owner_nation = getattr(region, 'owner_nation', None) if region else None
+        nat_gov = getattr(owner_nation, 'government', None) if owner_nation else None
+        if nat_gov is not None and nat_gov is not self:
+            nat_share = round(amount * 0.80, 6)
+            local_share = amount - nat_share
+            nat_gov.agent.cash += nat_share
+            nat_gov.record_income(t, 'tariff', nat_share)
+            self.agent.cash += local_share
+            self.record_income(t, 'tariff', local_share)
+        else:
             self.agent.cash += amount
             self.record_income(t, 'tariff', amount)
 

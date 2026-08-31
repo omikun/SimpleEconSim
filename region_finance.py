@@ -177,7 +177,43 @@ def collect_tax(region, t):
                             bank.Withdraw(a, deposit_taken)
                             a.cash -= deposit_taken
                     a.tax_loss_carryforward = 0.0
-                    region.gov.collect_tax(t, actual)
+
+                    # Multi-Tier Statutory Split: 50% National Sovereign, 30% Provincial, 20% Municipal
+                    owner_nation = getattr(region, 'owner_nation', None)
+                    province = getattr(region, 'province', None)
+                    nat_gov = getattr(owner_nation, 'government', None) if owner_nation else None
+                    prov_gov = getattr(province, 'gov', None) if province else None
+                    tile_gov = region.gov
+
+                    if nat_gov is not None and nat_gov is not tile_gov:
+                        if prov_gov is not None and prov_gov is not tile_gov and prov_gov is not nat_gov:
+                            nat_share = round(actual * 0.50, 6)
+                            prov_share = round(actual * 0.30, 6)
+                            tile_share = actual - nat_share - prov_share
+
+                            nat_gov.agent.cash += nat_share
+                            nat_gov.record_income(t, 'tax', nat_share)
+
+                            prov_gov.agent.cash += prov_share
+                            prov_gov.record_income(t, 'tax', prov_share)
+
+                            tile_gov.agent.cash += tile_share
+                            tile_gov.record_income(t, 'tax', tile_share)
+                        else:
+                            # 2-Tier: 50% National, 50% Local/Provincial
+                            nat_share = round(actual * 0.50, 6)
+                            tile_share = actual - nat_share
+
+                            nat_gov.agent.cash += nat_share
+                            nat_gov.record_income(t, 'tax', nat_share)
+
+                            tile_gov.agent.cash += tile_share
+                            tile_gov.record_income(t, 'tax', tile_share)
+                    else:
+                        # Single-Tier / Independent
+                        tile_gov.agent.cash += actual
+                        tile_gov.record_income(t, 'tax', actual)
+
                     tax_collected += actual
 
     # ---- 4. If still short, borrow from the bank ----

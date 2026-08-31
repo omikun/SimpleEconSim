@@ -207,6 +207,17 @@ def get_icon(kind: str, size: int = 16) -> pygame.Surface:
         pygame.draw.circle(surf, (60, 140, 220), (int(s * 0.5), int(s * 0.5)), int(s * 0.38), 1)
         pygame.draw.line(surf, (255, 255, 255), (s * 0.5, s * 0.25), (s * 0.5, s * 0.75), 2)
 
+    elif kind in ('scale', 'equalize', 'justice', 'balance'):
+        # Scales of justice / fiscal equalization
+        pygame.draw.line(surf, (245, 215, 120), (s * 0.5, s * 0.15), (s * 0.5, s * 0.85), 2)
+        pygame.draw.line(surf, (245, 215, 120), (s * 0.18, s * 0.35), (s * 0.82, s * 0.35), 2)
+        # Left pan
+        pygame.draw.line(surf, (180, 190, 210), (s * 0.25, s * 0.35), (s * 0.25, s * 0.65), 1)
+        pygame.draw.arc(surf, (245, 215, 120), (s * 0.12, s * 0.55, s * 0.26, s * 0.2), 3.14, 0, 2)
+        # Right pan
+        pygame.draw.line(surf, (180, 190, 210), (s * 0.75, s * 0.35), (s * 0.75, s * 0.65), 1)
+        pygame.draw.arc(surf, (245, 215, 120), (s * 0.62, s * 0.55, s * 0.26, s * 0.2), 3.14, 0, 2)
+
     else:
         # Generic glowing orb
         pygame.draw.circle(surf, (200, 200, 220), (int(s * 0.5), int(s * 0.5)), int(s * 0.35))

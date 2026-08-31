@@ -601,3 +601,56 @@ def execute_fiscal_transfer_and_build(world, nation_name: str, region_name: str,
         ticker_push(world, t, 'CONSTRUCT', f"Commissioned {recipe.display_name} in {region_name} ({transfer_desc}).", (245, 180, 50))
     return ok, msg
 
+
+def execute_equalization_grant(world, nation_name: str, region_name: str, grant_source: str = 'national_sovereign', grant_amount: float = 250.0, t: int = 0) -> tuple[bool, str]:
+    """Manually transfer an Equalization Grant from Sovereign National Treasury or Provincial Pool to a distressed municipal tile."""
+    tiles_by_name = {r.name: r for r in world.get('tiles', [])}
+    nations_by_name = {n.name: n for n in world.get('nations', [])}
+
+    nation = nations_by_name.get(nation_name)
+    region = tiles_by_name.get(region_name)
+    if not nation or not region:
+        return False, "Invalid nation or region for equalization grant."
+
+    rgov = getattr(region, 'gov', None)
+    if not rgov:
+        return False, "Target region has no municipal government."
+
+    grant_amount = max(0.0, float(grant_amount))
+    if grant_amount <= 0:
+        return False, "Grant amount must be positive."
+
+    if grant_source == 'national_sovereign':
+        nat_gov = nation.government
+        if nat_gov.agent.cash < grant_amount:
+            return False, f"National sovereign treasury has insufficient cash (${nat_gov.agent.cash:.2f} < ${grant_amount:.2f})."
+        nat_gov.agent.cash -= grant_amount
+        rgov.agent.cash += grant_amount
+        source_name = "Sovereign National Treasury"
+    elif grant_source == 'provincial_pool':
+        province = getattr(region, 'province', None)
+        prov_siblings = [t_tile for t_tile in getattr(province, 'tiles', []) if t_tile != region and getattr(t_tile, 'gov', None)]
+        nation_siblings = [t_tile for t_tile in nation.tiles if t_tile != region and t_tile not in prov_siblings and getattr(t_tile, 'gov', None)]
+        pool_tiles = prov_siblings + nation_siblings
+        gathered = 0.0
+        for ot in pool_tiles:
+            ogov = getattr(ot, 'gov', None)
+            if ogov is not None and ogov is not rgov:
+                if ogov.agent.cash > 0:
+                    take = min(grant_amount - gathered, ogov.agent.cash)
+                    ogov.agent.cash -= take
+                    rgov.agent.cash += take
+                    gathered += take
+                    if gathered >= grant_amount - 0.01:
+                        break
+        if gathered < grant_amount - 0.01:
+            return False, f"Provincial pool shortfall: only collected ${gathered:.2f} of ${grant_amount:.2f}."
+        source_name = "Provincial Equalization Pool"
+    else:
+        return False, f"Unknown grant source '{grant_source}'."
+
+    from worldview_engine import ticker_push
+    city_name = getattr(region, 'display_name', getattr(region, 'city_name', region.name))
+    ticker_push(world, t, 'POLICY', f"Disbursed Equalization Grant of ${grant_amount:.0f} to {city_name} from {source_name}.", (120, 220, 140))
+    return True, f"Disbursed ${grant_amount:.0f} Equalization Grant to {city_name}."
+
