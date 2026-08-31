@@ -473,6 +473,8 @@ def main():
                     _mark_dirty(world)
                 elif event.key == pygame.K_b:
                     world['build_panel_open'] = not world.get('build_panel_open', True)
+                    if world['build_panel_open']:
+                        world['layers_collapsed'] = True
                     _mark_dirty(world)
                 elif event.key == pygame.K_ESCAPE:
                     if world.get('transfer_dialog', {}).get('open'):

@@ -49,6 +49,9 @@ def draw_build_panel(surface, world, font, font_small, mouse_pos=None):
         surface.blit(txt, (x + 28, y + 6))
         return
 
+    # Auto-collapse layer dock so it doesn't draw underneath
+    world['layers_collapsed'] = True
+
     # Background frame
     panel_surf = pygame.Surface((w, h), pygame.SRCALPHA)
     panel_surf.fill((16, 18, 26, 240))
@@ -132,6 +135,16 @@ def draw_build_panel(surface, world, font, font_small, mouse_pos=None):
     )
 
 
+def _get_tier_layout(y: int, recipes_keys: list[str], x: int, w: int):
+    """Return next section y and list of (recipe_key, button_rect) pairs."""
+    rects = []
+    by = y + 24
+    for r_key in recipes_keys:
+        rects.append((r_key, (x, by, w, 28)))
+        by += 32
+    return by + 4, rects
+
+
 def _draw_tier_section(surface, world, pinned, nation, icon_kind, tier_title, treasury_label,
                        treasury_amt, recipes_keys, x, y, w, font, font_small, mouse_pos=None):
     """Render one governance tier section with vector icon header and recipe buttons."""
@@ -151,8 +164,8 @@ def _draw_tier_section(surface, world, pinned, nation, icon_kind, tier_title, tr
     tr_txt = font_small.render(treasury_label, True, (120, 220, 140))
     surface.blit(tr_txt, (x + w - tr_txt.get_width() - 6, y + 3))
 
-    cur_y = y + 24
-    for r_key in recipes_keys:
+    next_y, btn_layouts = _get_tier_layout(y, recipes_keys, x, w)
+    for r_key, btn_rect in btn_layouts:
         recipe = BUILDING_RECIPES.get(r_key)
         if not recipe:
             continue
@@ -163,8 +176,6 @@ def _draw_tier_section(surface, world, pinned, nation, icon_kind, tier_title, tr
         if active_proj is None and nation:
             active_proj = next((p for p in getattr(nation, 'construction_projects', []) if p.recipe.name == r_key and p.status == 'in_progress' and p.region == pinned), None)
 
-        btn_rect = (x, cur_y, w, 28)
-
         if is_built:
             draw_progress_bar_button(surface, btn_rect, f"{recipe.display_name} Active", 1.0, font_small, theme='complete', icon_kind='check')
         elif active_proj is not None:
@@ -172,7 +183,7 @@ def _draw_tier_section(surface, world, pinned, nation, icon_kind, tier_title, tr
             draw_progress_bar_button(surface, btn_rect, f"{recipe.display_name}: {active_proj.turns_elapsed}/{active_proj.total_turns}t ({int(pct*100)}%)", pct, font_small, theme='construction', icon_kind=r_key)
         else:
             can_afford = treasury_amt >= cost
-            hb = btn_rect[0] <= mx <= btn_rect[0] + w and btn_rect[1] <= my <= btn_rect[1] + 28
+            hb = btn_rect[0] <= mx <= btn_rect[0] + btn_rect[2] and btn_rect[1] <= my <= btn_rect[1] + btn_rect[3]
             bg = (40, 42, 56) if can_afford else (30, 30, 38)
             if hb:
                 bg = (55, 58, 78) if can_afford else (42, 38, 42)
@@ -182,12 +193,10 @@ def _draw_tier_section(surface, world, pinned, nation, icon_kind, tier_title, tr
             # Name and Cost
             lbl_name = font_small.render(recipe.display_name, True, TEXT if can_afford else (170, 160, 160))
             lbl_cost = font_small.render(f"${cost:.0f}" if can_afford else f"${cost:.0f} [Short]", True, (245, 190, 80) if can_afford else (220, 110, 110))
-            surface.blit(lbl_name, (x + 8, cur_y + 6))
-            surface.blit(lbl_cost, (x + w - lbl_cost.get_width() - 8, cur_y + 6))
+            surface.blit(lbl_name, (btn_rect[0] + 8, btn_rect[1] + 6))
+            surface.blit(lbl_cost, (btn_rect[0] + btn_rect[2] - lbl_cost.get_width() - 8, btn_rect[1] + 6))
 
-        cur_y += 32
-
-    return cur_y + 4
+    return next_y
 
 
 def build_panel_hit(pos, world) -> bool:
@@ -202,6 +211,7 @@ def build_panel_hit(pos, world) -> bool:
         btn_h = 28
         if x <= mx <= x + btn_w and y <= my <= y + btn_h:
             world['build_panel_open'] = True
+            world['layers_collapsed'] = True
             if pinned is None and world.get('tiles'):
                 # Select first nation tile by default
                 nations = world.get('nations', [])
@@ -225,42 +235,34 @@ def build_panel_hit(pos, world) -> bool:
     province = getattr(pinned, 'province', None)
     t = world.get('turn', 1)
 
-    # Check button clicks in each tier
+    # Check button clicks in each tier using the exact same _get_tier_layout
     cur_y = y + 50
 
     # 1. Tile Tier
     rgov = getattr(pinned, 'gov', None)
     tile_cash = (rgov.agent.cash if rgov else 0.0) + (pinned.bank.deposits.get(rgov.agent, 0.0) if hasattr(pinned, 'bank') and rgov else 0.0)
-    for r_key in ['farm', 'granary', 'sawmill', 'workshop']:
-        cur_y += 24
-        btn_rect = (x + 8, cur_y, w - 16, 28)
+    cur_y, tier1_buttons = _get_tier_layout(cur_y, ['farm', 'granary', 'sawmill', 'workshop'], x + 8, w - 16)
+    for r_key, btn_rect in tier1_buttons:
         if btn_rect[0] <= mx <= btn_rect[0] + btn_rect[2] and btn_rect[1] <= my <= btn_rect[1] + btn_rect[3]:
             _handle_build_click(world, pinned, nation, r_key, tile_cash, t)
             return True
-        cur_y += 32
-    cur_y += 4
 
     # 2. Province Tier
     prov_cash = sum(getattr(tg.gov.agent, 'cash', 0.0) + (tg.bank.deposits.get(tg.gov.agent, 0.0) if hasattr(tg, 'bank') else 0.0)
                     for tg in (province.tiles if province else nation.tiles) if getattr(tg, 'gov', None))
-    for r_key in ['paved_road', 'river_bridge', 'sanatorium']:
-        cur_y += 24
-        btn_rect = (x + 8, cur_y, w - 16, 28)
+    cur_y, tier2_buttons = _get_tier_layout(cur_y, ['paved_road', 'river_bridge', 'sanatorium'], x + 8, w - 16)
+    for r_key, btn_rect in tier2_buttons:
         if btn_rect[0] <= mx <= btn_rect[0] + btn_rect[2] and btn_rect[1] <= my <= btn_rect[1] + btn_rect[3]:
             _handle_build_click(world, pinned, nation, r_key, prov_cash, t)
             return True
-        cur_y += 32
-    cur_y += 4
 
     # 3. National Sovereign Tier
     nat_cash = (nation.treasury()['total']) if nation else 0.0
-    for r_key in ['mountain_pass', 'central_mint', 'military_citadel']:
-        cur_y += 24
-        btn_rect = (x + 8, cur_y, w - 16, 28)
+    cur_y, tier3_buttons = _get_tier_layout(cur_y, ['mountain_pass', 'central_mint', 'military_citadel'], x + 8, w - 16)
+    for r_key, btn_rect in tier3_buttons:
         if btn_rect[0] <= mx <= btn_rect[0] + btn_rect[2] and btn_rect[1] <= my <= btn_rect[1] + btn_rect[3]:
             _handle_build_click(world, pinned, nation, r_key, nat_cash, t)
             return True
-        cur_y += 32
 
     return True
 
