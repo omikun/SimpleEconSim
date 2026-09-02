@@ -118,6 +118,13 @@ def step_world(world):
                                 and not getattr(o, 'wilderness', False)
                                 and not getattr(r, 'wilderness', False)]
 
+    # Step Sovereign Bond Market (coupons, maturities, defaults)
+    try:
+        from sovereign_bonds import get_bond_market
+        get_bond_market().step(world, t)
+    except Exception:
+        pass
+
     world['turn'] = t
     world['currency_totals'] = {c: fx.audit_currency_total(tiles, c)
                                 for c in currencies}

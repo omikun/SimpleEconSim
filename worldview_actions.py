@@ -139,6 +139,8 @@ def draw_actions_modal(surface, world, font, font_small, mouse_pos=None):
         draw_construction_tab(surface, world, box_x, cur_y, box_w, box_h - (cur_y - box_y), font, font_small, mouse_pos)
     elif active_tab == 4:
         draw_innovation_tab(surface, world, box_x, cur_y, box_w, box_h - (cur_y - box_y), font, font_small, mouse_pos)
+    elif active_tab == 5:
+        draw_sovereign_bonds_tab(surface, world, box_x, cur_y, box_w, box_h - (cur_y - box_y), font, font_small, mouse_pos)
 
 
 def get_active_nation(world):
@@ -183,15 +185,16 @@ def draw_nation_switcher(surface, world, box_x, y, font_small, mouse_pos=None):
 
 
 def draw_action_tabs(surface, world, box_x, y, font_small, mouse_pos=None):
-    """Draw action tabs: 1. Diplomacy, 2. Military, 3. Construction, 4. Innovation."""
+    """Draw action tabs: 1. Diplomacy, 2. Military, 3. Construction, 4. Innovation, 5. Sovereign Bonds."""
     active_tab = world.get('actions_tab', 1)
     tabs = [
         (1, "1. Diplomacy & Treaties (D)"),
-        (2, "2. Military & Garrisons (M)"),
-        (3, "3. Physical Construction & Intents"),
-        (4, "4. Innovation & Royal Bounties"),
+        (2, "2. Military & Defense (M)"),
+        (3, "3. Physical Construction"),
+        (4, "4. Innovation & Bounties"),
+        (5, "5. Sovereign Debt & Bonds"),
     ]
-    tab_w = 230
+    tab_w = 216
     tab_h = 30
     start_x = box_x + 20
     mx, my = mouse_pos if mouse_pos else (-1, -1)
@@ -207,7 +210,7 @@ def draw_action_tabs(surface, world, box_x, y, font_small, mouse_pos=None):
         txt_c = (255, 255, 255) if is_active else (TEXT if is_hover else DIM)
         tsurf = font_small.render(label, True, txt_c)
         surface.blit(tsurf, tsurf.get_rect(center=(start_x + tab_w // 2, y + tab_h // 2)))
-        start_x += tab_w + 12
+        start_x += tab_w + 10
 
     return y + tab_h + 14
 
@@ -659,6 +662,211 @@ def draw_innovation_tab(surface, world, box_x, y, box_w, box_h, font, font_small
 
         card_y += 70
 
+# =============================================================================
+# TAB 5: SOVEREIGN DEBT & ISRB BONDS
+# =============================================================================
+
+def draw_sovereign_bonds_tab(surface, world, box_x, y, box_w, box_h, font, font_small, mouse_pos=None):
+    """Draw Tab 5: Sovereign Debt, ISRB Rating Bureau, and Cross-Border Bond Market."""
+    active_n = get_active_nation(world)
+    if not active_n:
+        return
+
+    from sovereign_bonds import get_bond_market
+    market = get_bond_market()
+    isrb = market.isrb
+
+    selected_duration = world.get('bond_duration_selected', 20)
+    rating, market_yield = isrb.get_market_yield(active_n, selected_duration, world)
+    has_board_seat = active_n.name in isrb.board_seats
+    active_mod = isrb.rating_modifiers.get(active_n.name, 0)
+    treasury = active_n.treasury()
+    total_debt = sum(b.principal for b in market.get_bonds_owed_by(active_n.name))
+    foreign_reserves = sum(b.principal for b in market.get_bonds_held_by(active_n.name))
+    passive_income = sum(b.per_turn_coupon for b in market.get_bonds_held_by(active_n.name))
+    servicing_cost = sum(b.per_turn_coupon for b in market.get_bonds_owed_by(active_n.name))
+
+    mx, my = mouse_pos if mouse_pos else (-1, -1)
+    col_w = (box_w - 50) // 2
+    left_x = box_x + 20
+    right_x = box_x + 30 + col_w
+
+    # -------------------------------------------------------------------------
+    # LEFT COLUMN: ISRB BUREAU & DOMESTIC ISSUANCE
+    # -------------------------------------------------------------------------
+
+    # 1. ISRB Rating Card
+    card1_y = y
+    card1_h = 160
+    pygame.draw.rect(surface, CARD_BG, (left_x, card1_y, col_w, card1_h), border_radius=6)
+    pygame.draw.rect(surface, (60, 60, 80), (left_x, card1_y, col_w, card1_h), 1, border_radius=6)
+
+    # Title & Rating
+    from ui_icons import get_icon
+    scale_ico = get_icon('scale', 18)
+    surface.blit(scale_ico, (left_x + 14, card1_y + 12))
+    t_title = font.render("International Sovereign Rating Bureau (ISRB)", True, ACCENT)
+    surface.blit(t_title, (left_x + 38, card1_y + 10))
+
+    rating_color = (120, 240, 150) if rating in ('AAA', 'AA') else ((245, 205, 70) if rating in ('A', 'BBB') else (240, 90, 90))
+    rating_lbl = font.render(f"Rating: {rating}", True, rating_color)
+    surface.blit(rating_lbl, (left_x + 16, card1_y + 36))
+
+    seat_str = "✓ Board Member" if has_board_seat else "Standard Member"
+    stat_txt = font_small.render(
+        f"Base Yield: {market_yield*100:.2f}%/t  •  Seat: {seat_str}  •  Mod: {'+' if active_mod > 0 else ''}{active_mod}",
+        True, TEXT
+    )
+    surface.blit(stat_txt, (left_x + 150, card1_y + 40))
+
+    # Influence Actions
+    inf_hdr = font_small.render("SOVEREIGN DIPLOMATIC INFLUENCE ACTIONS:", True, DIM)
+    surface.blit(inf_hdr, (left_x + 16, card1_y + 66))
+
+    btn_w = (col_w - 40) // 3
+    bx1 = left_x + 14
+    bx2 = bx1 + btn_w + 6
+    bx3 = bx2 + btn_w + 6
+    btn_y = card1_y + 86
+
+    can_lobby = active_n.government.agent.cash >= 200.0
+    can_downgrade = active_n.government.agent.cash >= 350.0
+    can_seat = active_n.government.agent.cash >= 600.0 and not has_board_seat
+
+    draw_action_button(surface, (bx1, btn_y, btn_w, 28), "Lobby Upgrade ($200)", font_small, mx, my, disabled=not can_lobby)
+    draw_action_button(surface, (bx2, btn_y, btn_w, 28), "Audit Rival ($350)", font_small, mx, my, disabled=not can_downgrade)
+    draw_action_button(surface, (bx3, btn_y, btn_w, 28), "Board Seat ($600)" if not has_board_seat else "✓ Board Member", font_small, mx, my, disabled=not can_seat)
+
+    # Risk Warning
+    risk_lbl = font_small.render("15%-20% Risk of Rating Scandal if influence tampering is leaked by auditors.", True, (210, 160, 100))
+    surface.blit(risk_lbl, (left_x + 16, card1_y + 124))
+
+    # 2. Domestic Sovereign Debt Issuance Card
+    card2_y = card1_y + card1_h + 10
+    card2_h = box_h - card1_h - 22
+    pygame.draw.rect(surface, CARD_BG, (left_x, card2_y, col_w, card2_h), border_radius=6)
+    pygame.draw.rect(surface, (60, 60, 80), (left_x, card2_y, col_w, card2_h), 1, border_radius=6)
+
+    crown_ico = get_icon('crown', 18)
+    surface.blit(crown_ico, (left_x + 14, card2_y + 12))
+    iss_title = font.render("Issue Domestic Sovereign Debt", True, (245, 215, 120))
+    surface.blit(iss_title, (left_x + 38, card2_y + 10))
+
+    # Duration selector buttons (20t, 50t, 100t)
+    dur_lbl = font_small.render("Select Maturity Term:", True, TEXT)
+    surface.blit(dur_lbl, (left_x + 16, card2_y + 36))
+
+    d_w = 90
+    dx = left_x + 160
+    for d in (20, 50, 100):
+        _, d_yield = isrb.get_market_yield(active_n, d, world)
+        is_sel = (selected_duration == d)
+        draw_action_button(surface, (dx, card2_y + 32, d_w, 24), f"{d}t ({d_yield*100:.2f}%)", font_small, mx, my, active=is_sel)
+        dx += d_w + 8
+
+    # Issuance amounts ($500, $1,000, $2,500)
+    iss_y = card2_y + 64
+    amounts = [500.0, 1000.0, 2500.0]
+    ib_w = (col_w - 40) // 3
+    ib_x = left_x + 14
+
+    for amt in amounts:
+        _, y_rate = isrb.get_market_yield(active_n, selected_duration, world)
+        c_cost = round(amt * y_rate, 2)
+        draw_action_button(surface, (ib_x, iss_y, ib_w, 30), f"Issue ${amt:.0f}", font_small, mx, my, color=(245, 190, 80))
+        sub_c = font_small.render(f"Cost: -${c_cost:.2f}/t", True, DIM)
+        surface.blit(sub_c, (ib_x + 6, iss_y + 34))
+        ib_x += ib_w + 6
+
+    # Domestic debt summary
+    d_sum_y = iss_y + 58
+    pygame.draw.line(surface, (50, 50, 65), (left_x + 14, d_sum_y), (left_x + col_w - 14, d_sum_y), 1)
+
+    debt_txt = font_small.render(f"Outstanding Debt: ${total_debt:,.0f}  •  Per-Turn Servicing: -${servicing_cost:.2f}/turn", True, (240, 140, 120))
+    surface.blit(debt_txt, (left_x + 16, d_sum_y + 6))
+
+    # List active debt owed with redeem button
+    owed_bonds = market.get_bonds_owed_by(active_n.name)
+    list_y = d_sum_y + 26
+    if not owed_bonds:
+        no_d = font_small.render("No active domestic debt issued. State balance sheet is unencumbered.", True, (120, 220, 140))
+        surface.blit(no_d, (left_x + 16, list_y))
+    else:
+        for b in owed_bonds[:3]:
+            turns_left = max(0, b.maturity_turn - world.get('turn', 1))
+            b_txt = font_small.render(f"#{b.bond_id}: ${b.principal:.0f} owed to {b.holder_nation} (-${b.per_turn_coupon:.2f}/t, {turns_left}t left)", True, TEXT)
+            surface.blit(b_txt, (left_x + 16, list_y + 3))
+            can_redeem = active_n.government.agent.cash >= b.principal
+            draw_action_button(surface, (left_x + col_w - 110, list_y, 96, 20), "Redeem Early", font_small, mx, my, disabled=not can_redeem)
+            list_y += 24
+
+    # -------------------------------------------------------------------------
+    # RIGHT COLUMN: FOREIGN SOVEREIGN BOND MARKET & RESERVES
+    # -------------------------------------------------------------------------
+
+    # 3. Foreign Sovereign Bond Market
+    card3_y = y
+    card3_h = 220
+    pygame.draw.rect(surface, CARD_BG, (right_x, card3_y, col_w, card3_h), border_radius=6)
+    pygame.draw.rect(surface, (60, 60, 80), (right_x, card3_y, col_w, card3_h), 1, border_radius=6)
+
+    glob_ico = get_icon('im', 18)
+    surface.blit(glob_ico, (right_x + 14, card3_y + 12))
+    mkt_title = font.render("Foreign Sovereign Bond Market (Buy Foreign Debt)", True, (120, 220, 140))
+    surface.blit(mkt_title, (right_x + 38, card3_y + 10))
+
+    sub_mkt = font_small.render("Invest State Treasury cash into foreign sovereign debt to earn passive coupon yields.", True, DIM)
+    surface.blit(sub_mkt, (right_x + 16, card3_y + 32))
+
+    # Foreign listings
+    from worldview_ui import NATION_COLORS
+    other_nations = [n for n in world.get('nations', []) if n.name != active_n.name]
+    row_y = card3_y + 52
+    for other in other_nations[:3]:
+        o_rating, o_yield = isrb.get_market_yield(other, selected_duration, world)
+        col = NATION_COLORS.get(other.name, (120, 120, 120))
+        
+        pygame.draw.rect(surface, (32, 32, 44), (right_x + 14, row_y, col_w - 28, 42), border_radius=4)
+        pygame.draw.rect(surface, (55, 55, 75), (right_x + 14, row_y, col_w - 28, 42), 1, border_radius=4)
+
+        # Dot + Nation
+        pygame.draw.circle(surface, col, (right_x + 26, row_y + 21), 5)
+        n_lbl = font_small.render(f"{other.name} ({o_rating})", True, (255, 255, 255))
+        surface.blit(n_lbl, (right_x + 38, row_y + 6))
+
+        y_lbl = font_small.render(f"{selected_duration}t Yield: {o_yield*100:.2f}%/t  •  Coupon: +${500*o_yield:.2f}/t", True, (120, 220, 140))
+        surface.blit(y_lbl, (right_x + 38, row_y + 23))
+
+        can_buy = active_n.government.agent.cash >= 500.0
+        draw_action_button(surface, (right_x + col_w - 146, row_y + 7, 120, 28), "Buy $500 Bond", font_small, mx, my, disabled=not can_buy, color=(120, 220, 140))
+        row_y += 48
+
+    # 4. Active Foreign Reserves Portfolio
+    card4_y = card3_y + card3_h + 10
+    card4_h = box_h - card3_h - 22
+    pygame.draw.rect(surface, CARD_BG, (right_x, card4_y, col_w, card4_h), border_radius=6)
+    pygame.draw.rect(surface, (60, 60, 80), (right_x, card4_y, col_w, card4_h), 1, border_radius=6)
+
+    sec_ico = get_icon('treasury', 18)
+    surface.blit(sec_ico, (right_x + 14, card4_y + 12))
+    res_title = font.render("Active Foreign Reserves Portfolio", True, ACCENT)
+    surface.blit(res_title, (right_x + 38, card4_y + 10))
+
+    res_summary = font_small.render(f"Total Foreign Reserves: ${foreign_reserves:,.0f}  •  Passive Revenue: +${passive_income:.2f}/turn", True, (120, 240, 150))
+    surface.blit(res_summary, (right_x + 16, card4_y + 34))
+
+    held_bonds = market.get_bonds_held_by(active_n.name)
+    h_list_y = card4_y + 56
+    if not held_bonds:
+        no_h = font_small.render("No foreign sovereign bonds held in reserve. Purchase bonds to earn passive income.", True, DIM)
+        surface.blit(no_h, (right_x + 16, h_list_y))
+    else:
+        for b in held_bonds[:4]:
+            turns_left = max(0, b.maturity_turn - world.get('turn', 1))
+            hb_txt = font_small.render(f"• {b.issuer_nation} ${b.principal:.0f} #{b.bond_id}: +${b.per_turn_coupon:.2f}/t (Matures T={b.maturity_turn}, {turns_left}t left)", True, (220, 245, 230))
+            surface.blit(hb_txt, (right_x + 16, h_list_y + 4))
+            h_list_y += 24
+
 
 # =============================================================================
 # Helper Drawing Utilities & Click Dispatchers
@@ -714,11 +922,11 @@ def actions_tab_hit(pos, box_x, box_y, world):
     # 2. Check Action Tabs Click: y in [box_y + 84, box_y + 114]
     if box_y + 84 <= my <= box_y + 114:
         sx = box_x + 20
-        for tab_id in (1, 2, 3, 4):
-            if sx <= mx <= sx + 230:
+        for tab_id in (1, 2, 3, 4, 5):
+            if sx <= mx <= sx + 216:
                 world['actions_tab'] = tab_id
                 return True
-            sx += 242
+            sx += 226
 
     active_tab = world.get('actions_tab', 1)
     card_w = (WIDTH - 48) - 40
@@ -868,5 +1076,106 @@ def actions_tab_hit(pos, box_x, box_y, world):
                         world['action_feedback'] = ("Insufficient treasury funds to post prize.", RED, t)
                     return True
             card_y += 70
+
+    # 7. Tab 5 Sovereign Debt & ISRB Bonds Click Handling
+    elif active_tab == 5 and active_n:
+        box_w = WIDTH - 48
+        col_w = (box_w - 50) // 2
+        left_x = box_x + 20
+        right_x = box_x + 30 + col_w
+        cur_y = box_y + 128
+        selected_duration = world.get('bond_duration_selected', 20)
+
+        from sovereign_bonds import get_bond_market
+        market = get_bond_market()
+        isrb = market.isrb
+
+        # 7.1. ISRB Influence Actions
+        card1_y = cur_y
+        btn_w = (col_w - 40) // 3
+        bx1 = left_x + 14
+        bx2 = bx1 + btn_w + 6
+        bx3 = bx2 + btn_w + 6
+        btn_y = card1_y + 86
+
+        # Lobby Upgrade ($200)
+        if bx1 <= mx <= bx1 + btn_w and btn_y <= my <= btn_y + 28:
+            from intents import LobbyRatingUpgradeIntent
+            intent = LobbyRatingUpgradeIntent(active_n.name)
+            ok, msg = intent.execute({}, {n.name: n for n in nations}, t, world)
+            world['action_feedback'] = (msg, GREEN if ok else RED, t)
+            return True
+
+        # Audit Rival ($350)
+        if bx2 <= mx <= bx2 + btn_w and btn_y <= my <= btn_y + 28:
+            other_nations = [n for n in nations if n.name != active_n.name]
+            if other_nations:
+                target_nation = other_nations[0].name
+                from intents import LobbyAdversaryDowngradeIntent
+                intent = LobbyAdversaryDowngradeIntent(active_n.name, target_nation_name=target_nation)
+                ok, msg = intent.execute({}, {n.name: n for n in nations}, t, world)
+                world['action_feedback'] = (msg, GREEN if ok else RED, t)
+            return True
+
+        # Acquire Board Seat ($600)
+        if bx3 <= mx <= bx3 + btn_w and btn_y <= my <= btn_y + 28:
+            from intents import AcquireBoardSeatIntent
+            intent = AcquireBoardSeatIntent(active_n.name)
+            ok, msg = intent.execute({}, {n.name: n for n in nations}, t, world)
+            world['action_feedback'] = (msg, GREEN if ok else RED, t)
+            return True
+
+        # 7.2. Domestic Bond Issuance
+        card2_y = card1_y + 160 + 10
+        # Duration Selectors (20t, 50t, 100t)
+        d_w = 90
+        dx = left_x + 160
+        for d in (20, 50, 100):
+            if dx <= mx <= dx + d_w and card2_y + 32 <= my <= card2_y + 56:
+                world['bond_duration_selected'] = d
+                return True
+            dx += d_w + 8
+
+        # Issuance Buttons ($500, $1,000, $2,500)
+        iss_y = card2_y + 64
+        amounts = [500.0, 1000.0, 2500.0]
+        ib_w = (col_w - 40) // 3
+        ib_x = left_x + 14
+        for amt in amounts:
+            if ib_x <= mx <= ib_x + ib_w and iss_y <= my <= iss_y + 30:
+                from intents import IssueSovereignBondIntent
+                intent = IssueSovereignBondIntent(active_n.name, principal=amt, duration_turns=selected_duration)
+                ok, msg = intent.execute({}, {n.name: n for n in nations}, t, world)
+                world['action_feedback'] = (msg, GREEN if ok else RED, t)
+                return True
+            ib_x += ib_w + 6
+
+        # Redeem Early Buttons
+        owed_bonds = market.get_bonds_owed_by(active_n.name)
+        d_sum_y = iss_y + 58
+        list_y = d_sum_y + 26
+        for b in owed_bonds[:3]:
+            btn_rect = (left_x + col_w - 110, list_y, 96, 20)
+            if btn_rect[0] <= mx <= btn_rect[0] + btn_rect[2] and btn_rect[1] <= my <= btn_rect[1] + btn_rect[3]:
+                from intents import RedeemBondEarlyIntent
+                intent = RedeemBondEarlyIntent(active_n.name, bond_id=b.bond_id)
+                ok, msg = intent.execute({}, {n.name: n for n in nations}, t, world)
+                world['action_feedback'] = (msg, GREEN if ok else RED, t)
+                return True
+            list_y += 24
+
+        # 7.3. Buy Foreign Sovereign Bonds
+        card3_y = cur_y
+        other_nations = [n for n in nations if n.name != active_n.name]
+        row_y = card3_y + 52
+        for other in other_nations[:3]:
+            btn_rect = (right_x + col_w - 146, row_y + 7, 120, 28)
+            if btn_rect[0] <= mx <= btn_rect[0] + btn_rect[2] and btn_rect[1] <= my <= btn_rect[1] + btn_rect[3]:
+                from intents import BuyForeignBondIntent
+                intent = BuyForeignBondIntent(active_n.name, target_nation_name=other.name, principal=500.0, duration_turns=selected_duration)
+                ok, msg = intent.execute({}, {n.name: n for n in nations}, t, world)
+                world['action_feedback'] = (msg, GREEN if ok else RED, t)
+                return True
+            row_y += 48
 
     return False

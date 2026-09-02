@@ -16,6 +16,7 @@ Provides a unified Command Pattern architecture:
 
 from __future__ import annotations
 import uuid
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 from goods import Goods
 from buildings import BUILDING_RECIPES, ConstructionProject
@@ -653,4 +654,115 @@ def execute_equalization_grant(world, nation_name: str, region_name: str, grant_
     city_name = getattr(region, 'display_name', getattr(region, 'city_name', region.name))
     ticker_push(world, t, 'POLICY', f"Disbursed Equalization Grant of ${grant_amount:.0f} to {city_name} from {source_name}.", (120, 220, 140))
     return True, f"Disbursed ${grant_amount:.0f} Equalization Grant to {city_name}."
+
+
+class IssueSovereignBondIntent(Intent):
+    """Issue a domestic sovereign debt bond (20/50/100 turns)."""
+    def __init__(self, nation_name: str, principal: float = 1000.0, duration_turns: int = 20, submitted_turn: int = 0):
+        super().__init__(nation_name, 'issue_bond', submitted_turn)
+        self.principal = principal
+        self.duration_turns = duration_turns
+
+    def execute(self, tiles_by_name: dict, nations_by_name: dict, t: int, world: dict | None = None) -> tuple[bool, str]:
+        nation = nations_by_name.get(self.nation_name)
+        if not nation:
+            return False, f"Nation '{self.nation_name}' not found."
+        from sovereign_bonds import get_bond_market
+        market = get_bond_market()
+        ok, msg, bond = market.issue_bond(nation, None, self.principal, self.duration_turns, t, world)
+        if ok and world:
+            from worldview_engine import ticker_push
+            ticker_push(world, t, 'FINANCE', f"👑 {nation.name} issued ${self.principal:.0f} Sovereign Bond ({self.duration_turns}t).", (245, 190, 80))
+        return ok, msg
+
+
+class BuyForeignBondIntent(Intent):
+    """Purchase a foreign nation's sovereign bond into foreign exchange reserves."""
+    def __init__(self, nation_name: str, target_nation_name: str = "", principal: float = 500.0, duration_turns: int = 20, submitted_turn: int = 0):
+        super().__init__(nation_name, 'buy_bond', submitted_turn)
+        self.target_nation_name = target_nation_name
+        self.principal = principal
+        self.duration_turns = duration_turns
+
+    def execute(self, tiles_by_name: dict, nations_by_name: dict, t: int, world: dict | None = None) -> tuple[bool, str]:
+        buyer = nations_by_name.get(self.nation_name)
+        issuer = nations_by_name.get(self.target_nation_name)
+        if not buyer or not issuer:
+            return False, "Buyer or issuer nation not found."
+        from sovereign_bonds import get_bond_market
+        market = get_bond_market()
+        ok, msg, bond = market.issue_bond(issuer, buyer, self.principal, self.duration_turns, t, world)
+        if ok and world:
+            from worldview_engine import ticker_push
+            ticker_push(world, t, 'FINANCE', f"🌐 {buyer.name} purchased ${self.principal:.0f} of {issuer.name}'s {self.duration_turns}t Sovereign Bonds.", (120, 220, 140))
+        return ok, msg
+
+
+class RedeemBondEarlyIntent(Intent):
+    """Redeem and repay a sovereign bond early."""
+    def __init__(self, nation_name: str, bond_id: str = "", submitted_turn: int = 0):
+        super().__init__(nation_name, 'redeem_bond', submitted_turn)
+        self.bond_id = bond_id
+
+    def execute(self, tiles_by_name: dict, nations_by_name: dict, t: int, world: dict | None = None) -> tuple[bool, str]:
+        from sovereign_bonds import get_bond_market
+        market = get_bond_market()
+        return market.redeem_bond_early(self.bond_id, world or {}, t)
+
+
+class LobbyRatingUpgradeIntent(Intent):
+    """Lobby the ISRB for a credit rating upgrade."""
+    def __init__(self, nation_name: str, submitted_turn: int = 0):
+        super().__init__(nation_name, 'lobby_upgrade', submitted_turn)
+
+    def execute(self, tiles_by_name: dict, nations_by_name: dict, t: int, world: dict | None = None) -> tuple[bool, str]:
+        nation = nations_by_name.get(self.nation_name)
+        if not nation:
+            return False, f"Nation '{self.nation_name}' not found."
+        from sovereign_bonds import get_bond_market
+        market = get_bond_market()
+        ok, msg, is_scandal = market.isrb.lobby_upgrade(nation, t)
+        if world:
+            from worldview_engine import ticker_push
+            color = (240, 80, 80) if is_scandal else ((120, 220, 140) if ok else (220, 160, 60))
+            ticker_push(world, t, 'ALERT' if is_scandal else 'POLICY', msg, color)
+        return ok, msg
+
+
+class LobbyAdversaryDowngradeIntent(Intent):
+    """Lobby the ISRB for an aggressive audit and downgrade against a rival."""
+    def __init__(self, nation_name: str, target_nation_name: str = "", submitted_turn: int = 0):
+        super().__init__(nation_name, 'lobby_downgrade', submitted_turn)
+        self.target_nation_name = target_nation_name
+
+    def execute(self, tiles_by_name: dict, nations_by_name: dict, t: int, world: dict | None = None) -> tuple[bool, str]:
+        nation = nations_by_name.get(self.nation_name)
+        if not nation:
+            return False, f"Nation '{self.nation_name}' not found."
+        from sovereign_bonds import get_bond_market
+        market = get_bond_market()
+        ok, msg, is_scandal = market.isrb.lobby_adversary_downgrade(nation, self.target_nation_name, t)
+        if world:
+            from worldview_engine import ticker_push
+            color = (240, 80, 80) if is_scandal else ((120, 220, 140) if ok else (220, 160, 60))
+            ticker_push(world, t, 'ALERT' if is_scandal else 'POLICY', msg, color)
+        return ok, msg
+
+
+class AcquireBoardSeatIntent(Intent):
+    """Acquire a permanent seat on the ISRB Board of Governors."""
+    def __init__(self, nation_name: str, submitted_turn: int = 0):
+        super().__init__(nation_name, 'acquire_board_seat', submitted_turn)
+
+    def execute(self, tiles_by_name: dict, nations_by_name: dict, t: int, world: dict | None = None) -> tuple[bool, str]:
+        nation = nations_by_name.get(self.nation_name)
+        if not nation:
+            return False, f"Nation '{self.nation_name}' not found."
+        from sovereign_bonds import get_bond_market
+        market = get_bond_market()
+        ok, msg = market.isrb.acquire_board_seat(nation)
+        if world:
+            from worldview_engine import ticker_push
+            ticker_push(world, t, 'POLICY', msg, (245, 215, 120) if ok else (220, 160, 60))
+        return ok, msg
 
