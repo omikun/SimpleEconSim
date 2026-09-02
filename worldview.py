@@ -54,6 +54,9 @@ from worldview_layers import (
 from worldview_build_panel import (
     draw_build_panel, build_panel_hit
 )
+from worldview_gov_panel import (
+    draw_gov_panel, gov_panel_hit, draw_left_dock_buttons
+)
 from worldview_transfer_dialog import (
     draw_transfer_dialog, transfer_dialog_hit
 )
@@ -116,7 +119,9 @@ def render_frame(surface, world, mouse_pos=None):
     draw_hex_map(surface, world, font, font_small)
     draw_zoom_hud(surface, font_small, mouse_pos=mouse_pos)
     draw_layer_sidebar(surface, world, font_small, mouse_pos=mouse_pos)
+    draw_left_dock_buttons(surface, world, font_small, mouse_pos=mouse_pos)
     draw_build_panel(surface, world, font, font_small, mouse_pos=mouse_pos)
+    draw_gov_panel(surface, world, font, font_small, mouse_pos=mouse_pos)
     draw_panel(surface, world, font, font_small, mouse_pos=mouse_pos)
     draw_ticker(surface, world, font_small)
 
@@ -264,7 +269,9 @@ def main():
                 if layer_sidebar_hit(event.pos, world):
                     continue
 
-                # 1d. Check Left Build Panel hit
+                # 1d. Check Left Governance Panel & Build Panel hits
+                if gov_panel_hit(event.pos, world):
+                    continue
                 if build_panel_hit(event.pos, world):
                     continue
 
@@ -472,8 +479,15 @@ def main():
                     world['help_open'] = not world.get('help_open', False)
                     _mark_dirty(world)
                 elif event.key == pygame.K_b:
-                    world['build_panel_open'] = not world.get('build_panel_open', True)
+                    world['build_panel_open'] = not world.get('build_panel_open', False)
                     if world['build_panel_open']:
+                        world['gov_panel_open'] = False
+                        world['layers_collapsed'] = True
+                    _mark_dirty(world)
+                elif event.key == pygame.K_g:
+                    world['gov_panel_open'] = not world.get('gov_panel_open', False)
+                    if world['gov_panel_open']:
+                        world['build_panel_open'] = False
                         world['layers_collapsed'] = True
                     _mark_dirty(world)
                 elif event.key == pygame.K_ESCAPE:

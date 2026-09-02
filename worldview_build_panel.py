@@ -29,28 +29,16 @@ def draw_build_panel(surface, world, font, font_small, mouse_pos=None):
     x, y, w, h = BUILD_PANEL_X, BUILD_PANEL_Y, BUILD_PANEL_W, BUILD_PANEL_H
 
     pinned = world.get('selected_region')
+    if pinned is None and world.get('nations') and world['nations'][0].tiles:
+        pinned = world['nations'][0].tiles[0]
 
-    # If collapsed or no tile selected, render floating dock button
-    if not world.get('build_panel_open', True) or pinned is None:
-        btn_w = 146
-        btn_h = 28
-        btn_rect = (x, y, btn_w, btn_h)
-        is_hover = btn_rect[0] <= mx <= btn_rect[0] + btn_w and btn_rect[1] <= my <= btn_rect[1] + btn_h
-
-        btn_surf = pygame.Surface((btn_w, btn_h), pygame.SRCALPHA)
-        btn_surf.fill((20, 22, 32, 240) if not is_hover else (34, 38, 54, 245))
-        surface.blit(btn_surf, (x, y))
-        pygame.draw.rect(surface, ACCENT if is_hover else (70, 75, 95), btn_rect, 1, border_radius=5)
-
-        h_icon = get_icon('hammer', 14)
-        surface.blit(h_icon, (x + 8, y + 7))
-
-        txt = font_small.render("Build Menu (B)", True, (255, 255, 255) if is_hover else TEXT)
-        surface.blit(txt, (x + 28, y + 6))
+    # If collapsed or no tile selected, return
+    if not world.get('build_panel_open', False) or pinned is None:
         return
 
-    # Auto-collapse layer dock so it doesn't draw underneath
+    # Auto-collapse layer dock and close gov panel so they don't overlap
     world['layers_collapsed'] = True
+    world['gov_panel_open'] = False
 
     # Background frame
     panel_surf = pygame.Surface((w, h), pygame.SRCALPHA)
