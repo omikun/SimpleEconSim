@@ -657,7 +657,7 @@ def execute_equalization_grant(world, nation_name: str, region_name: str, grant_
 
 
 class IssueSovereignBondIntent(Intent):
-    """Issue a domestic sovereign debt bond (20/50/100 turns)."""
+    """Announce a domestic sovereign debt bond offering (1-turn advance notice, 20/50/100 turns)."""
     def __init__(self, nation_name: str, principal: float = 1000.0, duration_turns: int = 20, submitted_turn: int = 0):
         super().__init__(nation_name, 'issue_bond', submitted_turn)
         self.principal = principal
@@ -669,33 +669,37 @@ class IssueSovereignBondIntent(Intent):
             return False, f"Nation '{self.nation_name}' not found."
         from sovereign_bonds import get_bond_market
         market = get_bond_market()
-        ok, msg, bond = market.issue_bond(nation, None, self.principal, self.duration_turns, t, world)
-        if ok and world:
-            from worldview_engine import ticker_push
-            ticker_push(world, t, 'FINANCE', f"👑 {nation.name} issued ${self.principal:.0f} Sovereign Bond ({self.duration_turns}t).", (245, 190, 80))
+        ok, msg, offering = market.announce_bond_offering(nation, self.principal, self.duration_turns, t, world)
         return ok, msg
 
 
 class BuyForeignBondIntent(Intent):
-    """Purchase a foreign nation's sovereign bond into foreign exchange reserves."""
-    def __init__(self, nation_name: str, target_nation_name: str = "", principal: float = 500.0, duration_turns: int = 20, submitted_turn: int = 0):
+    """Purchase a foreign nation's sovereign bond or live offering into foreign exchange reserves."""
+    def __init__(self, nation_name: str, target_nation_name: str = "", offering_id: str = "", principal: float = 500.0, duration_turns: int = 20, submitted_turn: int = 0):
         super().__init__(nation_name, 'buy_bond', submitted_turn)
         self.target_nation_name = target_nation_name
+        self.offering_id = offering_id
         self.principal = principal
         self.duration_turns = duration_turns
 
     def execute(self, tiles_by_name: dict, nations_by_name: dict, t: int, world: dict | None = None) -> tuple[bool, str]:
         buyer = nations_by_name.get(self.nation_name)
-        issuer = nations_by_name.get(self.target_nation_name)
-        if not buyer or not issuer:
-            return False, "Buyer or issuer nation not found."
+        if not buyer:
+            return False, "Buyer nation not found."
         from sovereign_bonds import get_bond_market
         market = get_bond_market()
-        ok, msg, bond = market.issue_bond(issuer, buyer, self.principal, self.duration_turns, t, world)
-        if ok and world:
-            from worldview_engine import ticker_push
-            ticker_push(world, t, 'FINANCE', f"🌐 {buyer.name} purchased ${self.principal:.0f} of {issuer.name}'s {self.duration_turns}t Sovereign Bonds.", (120, 220, 140))
-        return ok, msg
+        if self.offering_id:
+            ok, msg, bond = market.purchase_live_offering(buyer, self.offering_id, world or {}, t)
+            return ok, msg
+        else:
+            issuer = nations_by_name.get(self.target_nation_name)
+            if not issuer:
+                return False, "Issuer nation not found."
+            ok, msg, bond = market.issue_bond(issuer, buyer, self.principal, self.duration_turns, t, world)
+            if ok and world:
+                from worldview_engine import ticker_push
+                ticker_push(world, t, 'FINANCE', f"🌐 {buyer.name} purchased ${self.principal:.0f} of {issuer.name}'s {self.duration_turns}t Sovereign Bonds.", (120, 220, 140))
+            return ok, msg
 
 
 class RedeemBondEarlyIntent(Intent):

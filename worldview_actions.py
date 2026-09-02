@@ -749,7 +749,7 @@ def draw_sovereign_bonds_tab(surface, world, box_x, y, box_w, box_h, font, font_
 
     crown_ico = get_icon('crown', 18)
     surface.blit(crown_ico, (left_x + 14, card2_y + 12))
-    iss_title = font.render("Issue Domestic Sovereign Debt", True, (245, 215, 120))
+    iss_title = font.render("Announce Sovereign Debt Offering (1-Turn Notice)", True, (245, 215, 120))
     surface.blit(iss_title, (left_x + 38, card2_y + 10))
 
     # Duration selector buttons (20t, 50t, 100t)
@@ -773,13 +773,22 @@ def draw_sovereign_bonds_tab(surface, world, box_x, y, box_w, box_h, font, font_
     for amt in amounts:
         _, y_rate = isrb.get_market_yield(active_n, selected_duration, world)
         c_cost = round(amt * y_rate, 2)
-        draw_action_button(surface, (ib_x, iss_y, ib_w, 30), f"Issue ${amt:.0f}", font_small, mx, my, color=(245, 190, 80))
-        sub_c = font_small.render(f"Cost: -${c_cost:.2f}/t", True, DIM)
-        surface.blit(sub_c, (ib_x + 6, iss_y + 34))
+        draw_action_button(surface, (ib_x, iss_y, ib_w, 30), f"Announce ${amt:.0f}", font_small, mx, my, color=(245, 190, 80))
+        sub_c = font_small.render(f"Cost: -${c_cost:.2f}/t (Live T+1)", True, DIM)
+        surface.blit(sub_c, (ib_x + 2, iss_y + 34))
         ib_x += ib_w + 6
 
+    # Pending Announced Offerings
+    pending_offerings = [o for o in market.get_announced_offerings() if o.issuer_nation == active_n.name]
+    ann_y = iss_y + 54
+    if pending_offerings:
+        for po in pending_offerings[:2]:
+            p_lbl = font_small.render(f"📢 Offering #{po.offering_id}: ${po.principal:.0f} ({po.duration_turns}t @ {po.coupon_rate*100:.2f}%) opens Turn {po.live_turn}.", True, (245, 190, 80))
+            surface.blit(p_lbl, (left_x + 16, ann_y))
+            ann_y += 18
+
     # Domestic debt summary
-    d_sum_y = iss_y + 58
+    d_sum_y = max(iss_y + 60, ann_y + 4)
     pygame.draw.line(surface, (50, 50, 65), (left_x + 14, d_sum_y), (left_x + col_w - 14, d_sum_y), 1)
 
     debt_txt = font_small.render(f"Outstanding Debt: ${total_debt:,.0f}  •  Per-Turn Servicing: -${servicing_cost:.2f}/turn", True, (240, 140, 120))
@@ -815,10 +824,10 @@ def draw_sovereign_bonds_tab(surface, world, box_x, y, box_w, box_h, font, font_
     mkt_title = font.render("Foreign Sovereign Bond Market (Buy Foreign Debt)", True, (120, 220, 140))
     surface.blit(mkt_title, (right_x + 38, card3_y + 10))
 
-    sub_mkt = font_small.render("Invest State Treasury cash into foreign sovereign debt to earn passive coupon yields.", True, DIM)
+    sub_mkt = font_small.render("Friendly nations auto-bid on announced offerings when live (T+1). You can also buy reserves.", True, DIM)
     surface.blit(sub_mkt, (right_x + 16, card3_y + 32))
 
-    # Foreign listings
+    # Foreign listings & live offerings
     from worldview_ui import NATION_COLORS
     other_nations = [n for n in world.get('nations', []) if n.name != active_n.name]
     row_y = card3_y + 52
@@ -829,16 +838,30 @@ def draw_sovereign_bonds_tab(surface, world, box_x, y, box_w, box_h, font, font_
         pygame.draw.rect(surface, (32, 32, 44), (right_x + 14, row_y, col_w - 28, 42), border_radius=4)
         pygame.draw.rect(surface, (55, 55, 75), (right_x + 14, row_y, col_w - 28, 42), 1, border_radius=4)
 
+        # Check for live offering from other nation
+        live_off = next((o for o in market.get_live_offerings() if o.issuer_nation == other.name), None)
+        ann_off = next((o for o in market.get_announced_offerings() if o.issuer_nation == other.name), None)
+
         # Dot + Nation
         pygame.draw.circle(surface, col, (right_x + 26, row_y + 21), 5)
         n_lbl = font_small.render(f"{other.name} ({o_rating})", True, (255, 255, 255))
         surface.blit(n_lbl, (right_x + 38, row_y + 6))
 
-        y_lbl = font_small.render(f"{selected_duration}t Yield: {o_yield*100:.2f}%/t  •  Coupon: +${500*o_yield:.2f}/t", True, (120, 220, 140))
-        surface.blit(y_lbl, (right_x + 38, row_y + 23))
+        if live_off:
+            y_lbl = font_small.render(f"🔔 LIVE AUCTION: ${live_off.principal:.0f} ({live_off.duration_turns}t @ {live_off.coupon_rate*100:.2f}%)", True, (245, 205, 70))
+            surface.blit(y_lbl, (right_x + 38, row_y + 23))
+            can_buy = active_n.government.agent.cash >= live_off.principal
+            draw_action_button(surface, (right_x + col_w - 146, row_y + 7, 120, 28), f"Buy ${live_off.principal:.0f}", font_small, mx, my, disabled=not can_buy, color=(245, 205, 70))
+        elif ann_off:
+            y_lbl = font_small.render(f"📢 Announced: ${ann_off.principal:.0f} (Opens Turn {ann_off.live_turn})", True, (220, 160, 60))
+            surface.blit(y_lbl, (right_x + 38, row_y + 23))
+            draw_action_button(surface, (right_x + col_w - 146, row_y + 7, 120, 28), f"Live T={ann_off.live_turn}", font_small, mx, my, disabled=True)
+        else:
+            y_lbl = font_small.render(f"{selected_duration}t Yield: {o_yield*100:.2f}%/t  •  Coupon: +${500*o_yield:.2f}/t", True, (120, 220, 140))
+            surface.blit(y_lbl, (right_x + 38, row_y + 23))
+            can_buy = active_n.government.agent.cash >= 500.0
+            draw_action_button(surface, (right_x + col_w - 146, row_y + 7, 120, 28), "Buy $500 Bond", font_small, mx, my, disabled=not can_buy, color=(120, 220, 140))
 
-        can_buy = active_n.government.agent.cash >= 500.0
-        draw_action_button(surface, (right_x + col_w - 146, row_y + 7, 120, 28), "Buy $500 Bond", font_small, mx, my, disabled=not can_buy, color=(120, 220, 140))
         row_y += 48
 
     # 4. Active Foreign Reserves Portfolio
@@ -1171,8 +1194,12 @@ def actions_tab_hit(pos, box_x, box_y, world):
         for other in other_nations[:3]:
             btn_rect = (right_x + col_w - 146, row_y + 7, 120, 28)
             if btn_rect[0] <= mx <= btn_rect[0] + btn_rect[2] and btn_rect[1] <= my <= btn_rect[1] + btn_rect[3]:
+                live_off = next((o for o in market.get_live_offerings() if o.issuer_nation == other.name), None)
                 from intents import BuyForeignBondIntent
-                intent = BuyForeignBondIntent(active_n.name, target_nation_name=other.name, principal=500.0, duration_turns=selected_duration)
+                if live_off:
+                    intent = BuyForeignBondIntent(active_n.name, target_nation_name=other.name, offering_id=live_off.offering_id, principal=live_off.principal, duration_turns=live_off.duration_turns)
+                else:
+                    intent = BuyForeignBondIntent(active_n.name, target_nation_name=other.name, principal=500.0, duration_turns=selected_duration)
                 ok, msg = intent.execute({}, {n.name: n for n in nations}, t, world)
                 world['action_feedback'] = (msg, GREEN if ok else RED, t)
                 return True
