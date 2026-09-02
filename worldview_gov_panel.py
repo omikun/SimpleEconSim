@@ -120,10 +120,10 @@ def draw_gov_panel(surface, world, font, font_small, mouse_pos=None):
     # Scope Switcher Tabs
     scope_y = y + 50
     active_scope = world.get('policy_scope', 'tile')
-    scopes = [('tile', 'City (🏛️)'), ('province', 'Province (🗺️)'), ('nation', 'Nation (👑)')]
+    scopes = [('tile', 'City', 'municipal'), ('province', 'Province', 'roads'), ('nation', 'Nation', 'crown')]
     tab_w = (w - 24) // 3
 
-    for i, (sc_id, sc_label) in enumerate(scopes):
+    for i, (sc_id, sc_label, sc_ico) in enumerate(scopes):
         tx = x + 8 + i * (tab_w + 4)
         t_rect = (tx, scope_y, tab_w, 24)
         is_sel = (active_scope == sc_id)
@@ -136,7 +136,11 @@ def draw_gov_panel(surface, world, font, font_small, mouse_pos=None):
 
         tc = (255, 255, 255) if is_sel else (TEXT if is_hov else DIM)
         tsurf = font_small.render(sc_label, True, tc)
-        surface.blit(tsurf, tsurf.get_rect(center=(tx + tab_w // 2, scope_y + 12)))
+        ico = get_icon(sc_ico, size=12)
+        tot_w = 12 + 4 + tsurf.get_width()
+        start_x = tx + (tab_w - tot_w) // 2
+        surface.blit(ico, (start_x, scope_y + (24 - 12) // 2))
+        surface.blit(tsurf, (start_x + 16, scope_y + (24 - tsurf.get_height()) // 2))
 
     cur_y = scope_y + 32
 
@@ -190,7 +194,9 @@ def _draw_left_city_scope(surface, world, region, nation, start_y, x, w, font, f
     pygame.draw.rect(surface, CARD_BG, c1_rect, border_radius=5)
     pygame.draw.rect(surface, CARD_BORDER, c1_rect, 1, border_radius=5)
 
-    surface.blit(font_small.render(f"🏛️ Municipal Treasury: ${tile_cash:,.0f}", True, (120, 240, 150)), (x + 16, start_y + 8))
+    m_ico = get_icon('municipal', 14)
+    surface.blit(m_ico, (x + 16, start_y + 8))
+    surface.blit(font_small.render(f"Municipal Treasury: ${tile_cash:,.0f}", True, (120, 240, 150)), (x + 34, start_y + 7))
     surface.blit(font_small.render(f"Tax Rate: {tax_rate*100:.1f}%  •  Protest Energy: {protest_e:.2f}", True, (220, 230, 245)), (x + 16, start_y + 26))
     food_inv = getattr(rgov, 'food_inventory', getattr(rgov, 'food_reserve', 0.0)) if rgov else 0.0
     surface.blit(font_small.render(f"Hungry Citizens: {hungry}  •  Food Inventory: {food_inv:.1f}", True, (245, 180, 80)), (x + 16, start_y + 44))
@@ -250,7 +256,9 @@ def _draw_left_province_scope(surface, world, region, province, nation, start_y,
     pygame.draw.rect(surface, CARD_BORDER, c1_rect, 1, border_radius=5)
 
     p_name = province.name if province else "Province"
-    surface.blit(font_small.render(f"🗺️ Province: {p_name}", True, (245, 215, 120)), (x + 16, start_y + 8))
+    p_ico = get_icon('roads', 14)
+    surface.blit(p_ico, (x + 16, start_y + 8))
+    surface.blit(font_small.render(f"Province: {p_name}", True, (245, 215, 120)), (x + 34, start_y + 7))
     surface.blit(font_small.render(f"Provincial Treasury: ${prov_cash:,.0f}", True, (120, 240, 150)), (x + 16, start_y + 26))
     surface.blit(font_small.render(f"Member Territories: {member_count} Cities / Tiles", True, (220, 230, 245)), (x + 16, start_y + 44))
 
@@ -299,7 +307,9 @@ def _draw_left_nation_scope(surface, world, region, nation, start_y, x, w, font,
     pygame.draw.rect(surface, CARD_BORDER, c1_rect, 1, border_radius=5)
 
     n_name = nation.name if nation else "Sovereign State"
-    surface.blit(font_small.render(f"👑 Nation: {n_name}", True, (245, 215, 120)), (x + 16, start_y + 8))
+    n_ico = get_icon('crown', 14)
+    surface.blit(n_ico, (x + 16, start_y + 8))
+    surface.blit(font_small.render(f"Nation: {n_name}", True, (245, 215, 120)), (x + 34, start_y + 7))
     surface.blit(font_small.render(f"Sovereign Treasury: ${nat_cash:,.0f} (Tot: ${tot_cash:,.0f})", True, (120, 240, 150)), (x + 16, start_y + 26))
     surface.blit(font_small.render(f"ISRB Rating: {rating}  •  Yield: {market_yield*100:.2f}%/t", True, (220, 230, 245)), (x + 16, start_y + 44))
 
