@@ -160,7 +160,30 @@ class TestGeographicDemographicsAndTrade(unittest.TestCase):
             for t in land:
                 self.assertGreaterEqual(len(t.neighbors), 1, f"Tile {t.name} in seed {seed} has 0 trade partners")
 
+    def test_world_names_expanded_countries_and_starting_nations(self):
+        """Verify Japan, Korea, Vietnam, Britain, France, Germany, Italy, Spain and US/China/Japan start."""
+        from world_names import GLOBAL_NATION_DATA, COUNTRY_CURRENCIES, get_starting_nations_claimed_by
+        requested = ["Japan", "Korea", "Vietnam", "Britain", "France", "Germany", "Italy", "Spain"]
+        for c in requested:
+            self.assertIn(c, GLOBAL_NATION_DATA, f"{c} missing from GLOBAL_NATION_DATA")
+            provinces = GLOBAL_NATION_DATA[c]
+            self.assertEqual(len(provinces), 10, f"{c} does not have 10 provinces")
+            for p, cities in provinces.items():
+                self.assertEqual(len(cities), 10, f"{c}-{p} does not have 10 cities")
+            self.assertIn(c, COUNTRY_CURRENCIES, f"{c} missing currency")
+
+        self.assertEqual(COUNTRY_CURRENCIES["Japan"], "JPY")
+        self.assertEqual(COUNTRY_CURRENCIES["Korea"], "KRW")
+        self.assertEqual(COUNTRY_CURRENCIES["Vietnam"], "VND")
+        self.assertEqual(COUNTRY_CURRENCIES["Britain"], "GBP")
+
+        # Every game starts with US, China, and Japan
+        for s in (42, 101, 777, 999):
+            starting = get_starting_nations_claimed_by(seed=s)
+            self.assertEqual(list(starting.keys()), ["United States", "China", "Japan"])
+
 
 if __name__ == "__main__":
     unittest.main()
+
 

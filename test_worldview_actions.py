@@ -241,16 +241,17 @@ class TestWorldviewActionsUI(unittest.TestCase):
         from worldview_map import tile_stats
 
         countries = get_country_names()
-        self.assertEqual(len(countries), 10, "Must have exactly 10 populous country datasets.")
+        self.assertEqual(len(countries), 18, "Must have 18 country datasets.")
 
         total_cities = 0
-        for c_name, provs in GLOBAL_NATION_DATA.items():
+        for c_name in countries:
+            provs = GLOBAL_NATION_DATA[c_name]
             self.assertEqual(len(provs), 10, f"Country {c_name} must have 10 provinces.")
             for p_name, cities in provs.items():
                 self.assertEqual(len(cities), 10, f"Province {p_name} in {c_name} must have 10 cities.")
                 total_cities += len(cities)
 
-        self.assertEqual(total_cities, 1000, "Database must contain exactly 1,000 cities.")
+        self.assertEqual(total_cities, 1800, "Database must contain exactly 1,800 cities.")
 
         world = self.world
         tiles = world['tiles']
@@ -280,8 +281,8 @@ class TestWorldviewActionsUI(unittest.TestCase):
         self.assertGreater(prov_caps_seen, 0, "Must have province seat badges.")
         print("Verified clean, decluttered overview formatting with 1 nation and 1 province name per territory.")
 
-    def test_randomized_nations_and_runtime_seeds(self):
-        """Verify runtime seed parameters and randomized starting nations from 10-country database."""
+    def test_starting_nations_and_runtime_seeds(self):
+        """Verify starting nations strictly include US, China, and Japan, and runtime seeds."""
         from worldview_engine import build_world_view
         w1 = build_world_view(seed=101)
         w2 = build_world_view(seed=999)
@@ -293,13 +294,15 @@ class TestWorldviewActionsUI(unittest.TestCase):
         self.assertEqual(len(n2_names), 3)
         self.assertEqual(w1['seed'], 101)
         self.assertEqual(w2['seed'], 999)
-        self.assertNotEqual(n1_names, n2_names, "Different seeds should generate different starting nation sets.")
+        self.assertEqual(set(n1_names), {"United States", "China", "Japan"})
+        self.assertEqual(set(n2_names), {"United States", "China", "Japan"})
 
         # Test independent terrain and nation seeds
         w3 = build_world_view(terrain_seed=555, nation_seed=777)
         self.assertEqual(w3['terrain_seed'], 555)
         self.assertEqual(w3['nation_seed'], 777)
-        print(f"Verified seed-driven randomized nation generation: Seed 101={n1_names}, Seed 999={n2_names}.")
+        self.assertEqual(set(n.name for n in w3['nations']), {"United States", "China", "Japan"})
+        print(f"Verified game starts with US, China, Japan: Seed 101={n1_names}, Seed 999={n2_names}.")
 
     def test_capital_symbols_and_claims_renaming(self):
         """Verify national capital (★), provincial capital (◆), and dynamic wilderness claim renaming."""

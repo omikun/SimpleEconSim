@@ -131,7 +131,108 @@ GLOBAL_NATION_DATA = {
         "Samara Oblast": ["Samara", "Tolyatti", "Syzran", "Novokuybyshevsk", "Chapayevsk", "Zhigulyovsk", "Otradny", "Kinel", "Pokhvistnevo", "Oktyabrsk"],
         "Nizhny Novgorod Oblast": ["Nizhny Novgorod", "Dzerzhinsk", "Arzamas", "Sarov", "Bor", "Kstovo", "Pavlovo", "Vyksa", "Balakhna", "Zavolzhye"],
     },
+    "Japan": {
+        "Kanto": ["Tokyo", "Yokohama", "Kawasaki", "Saitama", "Chiba", "Sagamihara", "Hachioji", "Funabashi", "Kawaguchi", "Machida"],
+        "Kansai": ["Osaka", "Kyoto", "Kobe", "Sakai", "Higashiosaka", "Nishinomiya", "Amagasaki", "Nara", "Otsu", "Wakayama"],
+        "Chubu": ["Nagoya", "Shizuoka", "Hamamatsu", "Niigata", "Kanazawa", "Toyama", "Gifu", "Toyota", "Fukui", "Nagano"],
+        "Kyushu": ["Fukuoka", "Kitakyushu", "Kumamoto", "Kagoshima", "Oita", "Nagasaki", "Miyazaki", "Kurume", "Sasebo", "Saga"],
+        "Tohoku": ["Sendai", "Iwaki", "Koriyama", "Aomori", "Morioka", "Akita", "Yamagata", "Fukushima", "Hachinohe", "Hirosaki"],
+        "Hokkaido": ["Sapporo", "Asahikawa", "Hakodate", "Tomakomai", "Obihiro", "Kushiro", "Ebetsu", "Otaru", "Kitami", "Muroran"],
+        "Chugoku": ["Hiroshima", "Okayama", "Kurashiki", "Fukuyama", "Shimonoseki", "Kure", "Matsue", "Tottori", "Ube", "Yamaguchi"],
+        "Shikoku": ["Matsuyama", "Takamatsu", "Kochi", "Tokushima", "Imabari", "Niihama", "Marugame", "Saijo", "Uwajima", "Sakaide"],
+        "Okinawa": ["Naha", "Okinawa City", "Uruma", "Urasoe", "Ginowan", "Nago", "Tomigusuku", "Itoman", "Miyakojima", "Ishigaki"],
+        "Shinshu": ["Matsumoto", "Ueda", "Iida", "Saku", "Azumino", "Chino", "Shiojiri", "Suwa", "Ina", "Komoro"],
+    },
+    "Korea": {
+        "Gyeonggi": ["Suwon", "Seongnam", "Goyang", "Yongin", "Bucheon", "Ansan", "Anyang", "Hwaseong", "Pyeongtaek", "Uijeongbu"],
+        "Seoul Capital": ["Jongno", "Gangnam", "Songpa", "Mapo", "Yeongdeungpo", "Seocho", "Yongsan", "Jung-gu", "Seongbuk", "Nowon"],
+        "Busan Region": ["Haeundae", "Sasang", "Saha", "Busanjin", "Dongnae", "Nam-gu", "Buk-gu", "Yeongdo", "Geumjeong", "Gijang"],
+        "Incheon Region": ["Bupyeong", "Namdong", "Yeonsu", "Michuhol", "Seo-gu", "Gyeyang", "Jung-gu", "Dong-gu", "Ganghwa", "Ongjin"],
+        "Gyeongsangnam": ["Changwon", "Gimhae", "Jinju", "Yangsan", "Geoje", "Tongyeong", "Sacheon", "Miryang", "Haman", "Changnyeong"],
+        "Gyeongsangbuk": ["Pohang", "Gumi", "Gyeongju", "Gyeongsan", "Andong", "Gimcheon", "Yeongju", "Sangju", "Yeongcheon", "Mungyeong"],
+        "Chungcheongnam": ["Cheonan", "Asan", "Seosan", "Dangjin", "Gongju", "Boryeong", "Nonsan", "Gyeryong", "Hongseong", "Yesan"],
+        "Jeollanam": ["Yeosu", "Suncheon", "Mokpo", "Naju", "Gwangyang", "Muan", "Haenam", "Goheung", "Hwasun", "Yeongam"],
+        "Jeollabuk": ["Jeonju", "Iksan", "Gunsan", "Jeongeup", "Namwon", "Gimje", "Wanju", "Gochang", "Buan", "Sunchang"],
+        "Gangwon": ["Chuncheon", "Wonju", "Gangneung", "Donghae", "Sokcho", "Samcheok", "Taebaek", "Hongcheon", "Hoengseong", "Pyeongchang"],
+    },
+    "Vietnam": {
+        "Red River Delta": ["Hanoi", "Hai Phong", "Bac Ninh", "Hai Duong", "Nam Dinh", "Thai Binh", "Ninh Binh", "Hung Yen", "Phu Ly", "Vinh Yen"],
+        "Southeast": ["Ho Chi Minh City", "Bien Hoa", "Vung Tau", "Thu Dau Mot", "Di An", "Thuan An", "Ba Ria", "Dong Xoai", "Tay Ninh", "Long Khanh"],
+        "Mekong Delta": ["Can Tho", "Rach Gia", "Long Xuyen", "My Tho", "Ca Mau", "Soc Trang", "Bac Lieu", "Tra Vinh", "Ben Tre", "Tan An"],
+        "South Central Coast": ["Da Nang", "Nha Trang", "Quy Nhon", "Phan Thiet", "Tuy Hoa", "Tam Ky", "Quang Ngai", "Phan Rang", "Cam Ranh", "Hoi An"],
+        "North Central Coast": ["Hue", "Vinh", "Thanh Hoa", "Dong Hoi", "Ha Tinh", "Dong Ha", "Sam Son", "Bim Son", "Ky Anh", "Ba Don"],
+        "Central Highlands": ["Da Lat", "Buon Ma Thuot", "Pleiku", "Kon Tum", "Gia Nghia", "Bao Loc", "An Khe", "Ayun Pa", "Bu Dop", "Ea Kar"],
+        "Northeast": ["Ha Long", "Thai Nguyen", "Viet Tri", "Cam Pha", "Uong Bi", "Bac Giang", "Lang Son", "Tuyen Quang", "Yen Bai", "Cao Bang"],
+        "Northwest": ["Dien Bien Phu", "Son La", "Hoa Binh", "Lao Cai", "Lai Chau", "Sa Pa", "Nghia Lo", "Mai Chau", "Moc Chau", "Muong Lay"],
+        "Binh Dinh Coast": ["Hoai Nhon", "An Nhon", "Phu My", "Phu Cat", "Tay Son", "Hoai An", "Van Canh", "Vinh Thanh", "Tuy Phuoc", "Tam Quan"],
+        "Quang Nam": ["Nui Thanh", "Dien Ban", "Dai Loc", "Duy Xuyen", "Thang Binh", "Que Son", "Tien Phuoc", "Bac Tra My", "Nam Tra My", "Dong Giang"],
+    },
+    "Britain": {
+        "Greater London": ["Westminster", "Camden", "Greenwich", "Kensington", "Croydon", "Bromley", "Islington", "Hackney", "Southwark", "Ealing"],
+        "South East": ["Brighton", "Oxford", "Southampton", "Portsmouth", "Reading", "Milton Keynes", "Slough", "Canterbury", "Winchester", "Guildford"],
+        "North West": ["Manchester", "Liverpool", "Bolton", "Warrington", "Preston", "Blackpool", "Chester", "Salford", "Stockport", "Blackburn"],
+        "West Midlands": ["Birmingham", "Coventry", "Wolverhampton", "Solihull", "Stoke-on-Trent", "Dudley", "Walsall", "Telford", "Worcester", "Hereford"],
+        "Yorkshire": ["Leeds", "Sheffield", "Bradford", "York", "Hull", "Huddersfield", "Doncaster", "Rotherham", "Wakefield", "Harrogate"],
+        "Scotland": ["Edinburgh", "Glasgow", "Aberdeen", "Dundee", "Inverness", "Stirling", "Perth", "Paisley", "East Kilbride", "Dunfermline"],
+        "South West": ["Bristol", "Plymouth", "Exeter", "Bournemouth", "Gloucester", "Cheltenham", "Bath", "Swindon", "Torquay", "Salisbury"],
+        "East Midlands": ["Nottingham", "Leicester", "Derby", "Northampton", "Lincoln", "Chesterfield", "Mansfield", "Loughborough", "Kettering", "Corby"],
+        "Wales": ["Cardiff", "Swansea", "Newport", "Wrexham", "Bangor", "Barry", "Neath", "Cwmbran", "Llanelli", "Bridgend"],
+        "North East": ["Newcastle", "Sunderland", "Middlesbrough", "Durham", "Darlington", "Gateshead", "Hartlepool", "South Shields", "Stockton-on-Tees", "Tynemouth"],
+    },
+    "France": {
+        "Île-de-France": ["Paris", "Boulogne-Billancourt", "Saint-Denis", "Argenteuil", "Montreuil", "Nanterre", "Créteil", "Versailles", "Courbevoie", "Vitry-sur-Seine"],
+        "Auvergne-Rhône-Alpes": ["Lyon", "Saint-Étienne", "Grenoble", "Villeurbanne", "Clermont-Ferrand", "Annecy", "Chambéry", "Vénissieux", "Valence", "Vaulx-en-Velin"],
+        "Provence-Alpes-Côte d'Azur": ["Marseille", "Nice", "Toulon", "Aix-en-Provence", "Avignon", "Cannes", "Antibes", "La Seyne-sur-Mer", "Hyères", "Arles"],
+        "Occitanie": ["Toulouse", "Montpellier", "Nîmes", "Perpignan", "Béziers", "Montauban", "Narbonne", "Albi", "Carcassonne", "Sète"],
+        "Nouvelle-Aquitaine": ["Bordeaux", "Limoges", "Poitiers", "Pau", "La Rochelle", "Mérignac", "Pessac", "Bayonne", "Angoulême", "Agen"],
+        "Hauts-de-France": ["Lille", "Amiens", "Roubaix", "Tourcoing", "Dunkirk", "Calais", "Villeneuve-d'Ascq", "Saint-Quentin", "Beauvais", "Valenciennes"],
+        "Grand Est": ["Strasbourg", "Reims", "Metz", "Mulhouse", "Nancy", "Colmar", "Troyes", "Charleville-Mézières", "Châlons-en-Champagne", "Thionville"],
+        "Pays de la Loire": ["Nantes", "Angers", "Le Mans", "Saint-Nazaire", "Cholet", "La Roche-sur-Yon", "Laval", "Saint-Herblain", "Rezé", "Saumur"],
+        "Brittany": ["Rennes", "Brest", "Quimper", "Lorient", "Vannes", "Saint-Malo", "Saint-Brieuc", "Lanester", "Fougères", "Concarneau"],
+        "Normandy": ["Rouen", "Le Havre", "Caen", "Cherbourg", "Évreux", "Dieppe", "Sotteville-lès-Rouen", "Saint-Étienne-du-Rouvray", "Alençon", "Vernon"],
+    },
+    "Germany": {
+        "Bavaria": ["Munich", "Nuremberg", "Augsburg", "Regensburg", "Ingolstadt", "Würzburg", "Fürth", "Erlangen", "Bamberg", "Bayreuth"],
+        "North Rhine-Westphalia": ["Cologne", "Düsseldorf", "Dortmund", "Essen", "Duisburg", "Bochum", "Wuppertal", "Bielefeld", "Bonn", "Münster"],
+        "Baden-Württemberg": ["Stuttgart", "Mannheim", "Karlsruhe", "Freiburg", "Heidelberg", "Heilbronn", "Ulm", "Pforzheim", "Reutlingen", "Esslingen"],
+        "Lower Saxony": ["Hanover", "Braunschweig", "Oldenburg", "Osnabrück", "Wolfsburg", "Göttingen", "Salzgitter", "Hildesheim", "Delmenhorst", "Wilhelmshaven"],
+        "Hesse": ["Frankfurt", "Wiesbaden", "Kassel", "Darmstadt", "Offenbach", "Hanau", "Gießen", "Marburg", "Fulda", "Rüsselsheim"],
+        "Saxony": ["Leipzig", "Dresden", "Chemnitz", "Zwickau", "Plauen", "Görlitz", "Freiberg", "Bautzen", "Pirna", "Freital"],
+        "Berlin-Brandenburg": ["Berlin", "Potsdam", "Cottbus", "Brandenburg an der Havel", "Frankfurt an der Oder", "Oranienburg", "Falkensee", "Eberswalde", "Bernau", "Königs Wusterhausen"],
+        "Hamburg Region": ["Hamburg", "Altona", "Bergedorf", "Harburg", "Wandsbek", "Eimsbüttel", "Norderstedt", "Ahrensburg", "Wedel", "Pinneberg"],
+        "Rhineland-Palatinate": ["Mainz", "Ludwigshafen", "Koblenz", "Trier", "Kaiserslautern", "Worms", "Neuwied", "Neustadt", "Speyer", "Bad Kreuznach"],
+        "Schleswig-Holstein": ["Kiel", "Lübeck", "Flensburg", "Neumünster", "Norderstedt", "Elmshorn", "Pinneberg", "Itzehoe", "Wedel", "Rendsburg"],
+    },
+    "Italy": {
+        "Lombardy": ["Milan", "Brescia", "Monza", "Bergamo", "Busto Arsizio", "Como", "Sesto San Giovanni", "Varese", "Cinisello Balsamo", "Pavia"],
+        "Lazio": ["Rome", "Latina", "Guidonia Montecelio", "Fiumicino", "Aprilia", "Viterbo", "Pomezia", "Tivoli", "Anzio", "Velletri"],
+        "Campania": ["Naples", "Salerno", "Giugliano in Campania", "Torre del Greco", "Pozzuoli", "Casoria", "Caserta", "Castellammare di Stabia", "Afragola", "Benevento"],
+        "Veneto": ["Venice", "Verona", "Padua", "Vicenza", "Treviso", "Rovigo", "Chioggia", "Bassano del Grappa", "San Donà di Piave", "Schio"],
+        "Sicily": ["Palermo", "Catania", "Messina", "Syracuse", "Marsala", "Gela", "Ragusa", "Trapani", "Caltanissetta", "Agrigento"],
+        "Emilia-Romagna": ["Bologna", "Parma", "Modena", "Reggio Emilia", "Ravenna", "Rimini", "Ferrara", "Forlì", "Piacenza", "Cesena"],
+        "Piedmont": ["Turin", "Novara", "Alessandria", "Asti", "Moncalieri", "Cuneo", "Collegno", "Rivoli", "Vercelli", "Biella"],
+        "Tuscany": ["Florence", "Prato", "Livorno", "Arezzo", "Pistoia", "Pisa", "Lucca", "Grosseto", "Massa", "Carrara"],
+        "Apulia": ["Bari", "Taranto", "Foggia", "Andria", "Lecce", "Barletta", "Brindisi", "Altamura", "Molfetta", "Cerignola"],
+        "Liguria": ["Genoa", "La Spezia", "Savona", "Sanremo", "Imperia", "Rapallo", "Chiavari", "Ventimiglia", "Albenga", "Sarzana"],
+    },
+    "Spain": {
+        "Madrid": ["Madrid", "Móstoles", "Alcalá de Henares", "Fuenlabrada", "Leganés", "Getafe", "Alcorcón", "Torrejón de Ardoz", "Parla", "Alcobendas"],
+        "Catalonia": ["Barcelona", "L'Hospitalet de Llobregat", "Badalona", "Terrassa", "Sabadell", "Lleida", "Tarragona", "Mataró", "Santa Coloma de Gramenet", "Reus"],
+        "Andalusia": ["Seville", "Málaga", "Córdoba", "Granada", "Jerez de la Frontera", "Almería", "Huelva", "Marbella", "Dos Hermanas", "Algeciras"],
+        "Valencia": ["Valencia", "Alicante", "Elche", "Castellón de la Plana", "Torrevieja", "Orihuela", "Gandia", "Torrent", "Benidorm", "Sagunto"],
+        "Galicia": ["Vigo", "A Coruña", "Ourense", "Lugo", "Santiago de Compostela", "Pontevedra", "Ferrol", "Vilagarcía de Arousa", "Narón", "Oleiros"],
+        "Castile and León": ["Valladolid", "Burgos", "Salamanca", "León", "Palencia", "Ponferrada", "Zamora", "Segovia", "Ávila", "Soria"],
+        "Basque Country": ["Bilbao", "Vitoria-Gasteiz", "San Sebastián", "Barakaldo", "Getxo", "Irun", "Portugalete", "Santurtzi", "Basauri", "Errenteria"],
+        "Canary Islands": ["Las Palmas", "Santa Cruz de Tenerife", "San Cristóbal de La Laguna", "Telde", "Arona", "Santa Lucía de Tirajana", "Arrecife", "San Bartolomé de Tirajana", "Granadilla de Abona", "Adeje"],
+        "Castilla-La Mancha": ["Albacete", "Talavera de la Reina", "Guadalajara", "Toledo", "Ciudad Real", "Cuenca", "Puertollano", "Tomelloso", "Azuqueca de Henares", "Alcázar de San Juan"],
+        "Aragon": ["Zaragoza", "Huesca", "Teruel", "Calatayud", "Utebo", "Monzón", "Barbastro", "Ejea de los Caballeros", "Alcañiz", "Fraga"],
+    },
 }
+
+# Aliases for flexibility
+GLOBAL_NATION_DATA["US"] = GLOBAL_NATION_DATA["United States"]
+GLOBAL_NATION_DATA["UK"] = GLOBAL_NATION_DATA["Britain"]
+GLOBAL_NATION_DATA["South Korea"] = GLOBAL_NATION_DATA["Korea"]
 
 # Evocative wilderness terrain names for uncolonized tiles
 WILD_TERRAIN_NAMES = [
@@ -151,6 +252,7 @@ OCEAN_BASIN_NAMES = [
 COUNTRY_CURRENCIES = {
     "United States": "USD",
     "China": "CNY",
+    "Japan": "JPY",
     "India": "INR",
     "Indonesia": "IDR",
     "Brazil": "BRL",
@@ -159,23 +261,28 @@ COUNTRY_CURRENCIES = {
     "Pakistan": "PKR",
     "Bangladesh": "BDT",
     "Russia": "RUB",
+    "Korea": "KRW",
+    "Vietnam": "VND",
+    "Britain": "GBP",
+    "France": "EUR",
+    "Germany": "EUR",
+    "Italy": "EUR",
+    "Spain": "EUR",
+    # Aliases
+    "US": "USD",
+    "UK": "GBP",
+    "South Korea": "KRW",
 }
 
 
 def get_country_names():
-    """Return the list of 10 major country names."""
-    return list(GLOBAL_NATION_DATA.keys())
+    """Return the list of major country names."""
+    return [k for k in GLOBAL_NATION_DATA.keys() if k not in ("US", "UK", "South Korea")]
 
 
 def get_starting_nations_claimed_by(seed=None):
-    """Return 3 starting nations chosen from the 10-country database with authentic currencies and tile quotas."""
-    all_countries = list(GLOBAL_NATION_DATA.keys())
-    if seed is not None:
-        rng = random.Random(seed)
-    else:
-        rng = random.Random()
-
-    selected = rng.sample(all_countries, 3)
+    """Return 3 starting nations: strictly starts each game with US, China, and Japan with authentic currencies and tile quotas."""
+    selected = ["United States", "China", "Japan"]
     tile_counts = [3, 4, 5]
     out = {}
     for country, count in zip(selected, tile_counts):
