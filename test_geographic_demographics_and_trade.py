@@ -131,5 +131,36 @@ class TestGeographicDemographicsAndTrade(unittest.TestCase):
         self.assertGreater(score_mountain, score_plain)
 
 
+    def test_all_land_tiles_single_connected_component(self):
+        """Verify 100% single connected component: every land tile is reachable even if via 1 trade route."""
+        for seed in (42, 101, 500, 999, 12345):
+            tiles, nations, grid = build_world(seed=seed)
+            land = [t for t in tiles if not getattr(t, 'is_ocean', False)]
+            visited = set()
+            comps = []
+            for t in land:
+                if t.name not in visited:
+                    comp = []
+                    queue = [t]
+                    visited.add(t.name)
+                    while queue:
+                        curr = queue.pop(0)
+                        comp.append(curr)
+                        for n in curr.neighbors.values():
+                            if n.name not in visited and not getattr(n, 'is_ocean', False):
+                                visited.add(n.name)
+                                queue.append(n)
+                    comps.append(comp)
+
+            # Exactly 1 single connected component!
+            self.assertEqual(len(comps), 1, f"Seed {seed} had {len(comps)} disconnected land components")
+            self.assertEqual(len(comps[0]), len(land))
+
+            # Every land tile has at least 1 trade route
+            for t in land:
+                self.assertGreaterEqual(len(t.neighbors), 1, f"Tile {t.name} in seed {seed} has 0 trade partners")
+
+
 if __name__ == "__main__":
     unittest.main()
+

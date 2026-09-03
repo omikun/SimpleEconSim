@@ -376,6 +376,103 @@ def build_world(seed=None, terrain_seed=None, nation_seed=None):
             victim.neighbors.pop(t.name, None)
             victim.routes.pop(t.name, None)
 
+    # Pass 4: Global Connectivity Bridging (Ensure 100% of land tiles are connected to each other)
+    land_tiles = [t for t in tiles if not getattr(t, 'is_ocean', False)]
+
+    def _get_trade_components():
+        visited = set()
+        comps = []
+        for lt in land_tiles:
+            if lt.name not in visited:
+                comp = []
+                queue = [lt]
+                visited.add(lt.name)
+                while queue:
+                    curr = queue.pop(0)
+                    comp.append(curr)
+                    for n in curr.neighbors.values():
+                        if n.name not in visited and not getattr(n, 'is_ocean', False):
+                            visited.add(n.name)
+                            queue.append(n)
+                comps.append(comp)
+        return comps
+
+    def _can_prune_internal_edge(u, v, comp_nodes):
+        # Returns True if edge (u, v) is a cycle edge and can be removed without disconnecting comp_nodes
+        comp_set = {cn.name for cn in comp_nodes}
+        visited = {u.name}
+        queue = [n for n in u.neighbors.values() if n is not v and n.name in comp_set]
+        visited.update(n.name for n in queue)
+        while queue:
+            curr = queue.pop(0)
+            if curr is v:
+                return True
+            for n in curr.neighbors.values():
+                if n.name in comp_set and n.name not in visited:
+                    visited.add(n.name)
+                    queue.append(n)
+        return False
+
+    trade_comps = _get_trade_components()
+    while len(trade_comps) > 1:
+        trade_comps.sort(key=len, reverse=True)
+        main_comp = trade_comps[0]
+        main_names = {t.name for t in main_comp}
+
+        candidates = []
+        for other_comp in trade_comps[1:]:
+            for t in other_comp:
+                q, axr = _LAYOUT[t.name]
+                for nq, nar in axial_neighbors(q, axr):
+                    nc, nr = axial_to_offset(nq, nar)
+                    if 0 <= nr < GRID_ROWS and 0 <= nc < GRID_COLS:
+                        other = grid[nr][nc]
+                        if other.name in main_names:
+                            cap_t = _max_trade_partners(t)
+                            cap_o = _max_trade_partners(other)
+                            room_t = len(t.neighbors) < cap_t
+                            room_o = len(other.neighbors) < cap_o
+
+                            prune_t = None
+                            if not room_t:
+                                for n in list(t.neighbors.values()):
+                                    if n.name not in main_names and _can_prune_internal_edge(t, n, other_comp):
+                                        prune_t = n
+                                        break
+
+                            prune_o = None
+                            if not room_o:
+                                for n in list(other.neighbors.values()):
+                                    if n.name in main_names and _can_prune_internal_edge(other, n, main_comp):
+                                        prune_o = n
+                                        break
+
+                            feasible = (room_t or prune_t is not None) and (room_o or prune_o is not None)
+                            dh = abs(t.elevation - other.elevation)
+                            score = (1000.0 if feasible else 0.0) + (100.0 if (room_t and room_o) else 0.0) - dh * 20.0
+                            candidates.append((score, t, other, prune_t, prune_o))
+
+        candidates.sort(key=lambda x: x[0], reverse=True)
+        if candidates:
+            score, u, v, prune_u, prune_v = candidates[0]
+            if prune_u:
+                u.neighbors.pop(prune_u.name, None)
+                u.routes.pop(prune_u.name, None)
+                prune_u.neighbors.pop(u.name, None)
+                prune_u.routes.pop(u.name, None)
+            if prune_v:
+                v.neighbors.pop(prune_v.name, None)
+                v.routes.pop(prune_v.name, None)
+                prune_v.neighbors.pop(v.name, None)
+                prune_v.routes.pop(v.name, None)
+
+            edge_mgr.unblock_mountain_pass(u.name, v.name)
+            u.add_neighbor(v)
+            v.add_neighbor(u)
+            trade_comps = _get_trade_components()
+        else:
+            break
+
     # ---- ForexDesks only between claimed (neighbor) tiles ----
     seen = set()
     for r in range(GRID_ROWS):
