@@ -501,7 +501,12 @@ def build_world(seed=None, terrain_seed=None, nation_seed=None):
     from tile_resources import assign_tile_resources
     assign_tile_resources(tiles, seed=seed if seed is not None else 42)
 
+    # ---- Assign Realistic Country Identities, Capitals & City Names ----
+    from world_names import assign_world_identities
+    assign_world_identities(tiles, nations, seed=nation_seed)
+
     return tiles, nations, grid
+
 
 
 def main():

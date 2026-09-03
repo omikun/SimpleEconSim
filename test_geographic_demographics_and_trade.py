@@ -182,8 +182,50 @@ class TestGeographicDemographicsAndTrade(unittest.TestCase):
             starting = get_starting_nations_claimed_by(seed=s)
             self.assertEqual(list(starting.keys()), ["United States", "China", "Japan"])
 
+    def test_real_national_and_provincial_capitals(self):
+        """Verify real national and provincial capitals are used across nations and provinces."""
+        from world_names import (
+            get_national_capital, get_provincial_capital, NATIONAL_CAPITALS, PROVINCIAL_CAPITALS
+        )
+        # Check national capitals
+        self.assertEqual(get_national_capital("United States"), "Washington, D.C.")
+        self.assertEqual(get_national_capital("China"), "Beijing")
+        self.assertEqual(get_national_capital("Japan"), "Tokyo")
+        self.assertEqual(get_national_capital("Britain"), "London")
+        self.assertEqual(get_national_capital("France"), "Paris")
+        self.assertEqual(get_national_capital("Germany"), "Berlin")
+        self.assertEqual(get_national_capital("Italy"), "Rome")
+        self.assertEqual(get_national_capital("Spain"), "Madrid")
+        self.assertEqual(get_national_capital("Korea"), "Seoul")
+        self.assertEqual(get_national_capital("Vietnam"), "Hanoi")
+
+        # Check key real provincial capitals
+        self.assertEqual(get_provincial_capital("United States", "California"), "Sacramento")
+        self.assertEqual(get_provincial_capital("United States", "Texas"), "Austin")
+        self.assertEqual(get_provincial_capital("United States", "New York"), "Albany")
+        self.assertEqual(get_provincial_capital("United States", "Florida"), "Tallahassee")
+        self.assertEqual(get_provincial_capital("Germany", "North Rhine-Westphalia"), "Düsseldorf")
+        self.assertEqual(get_provincial_capital("Germany", "Hesse"), "Wiesbaden")
+        self.assertEqual(get_provincial_capital("Germany", "Bavaria"), "Munich")
+        self.assertEqual(get_provincial_capital("Spain", "Galicia"), "Santiago de Compostela")
+        self.assertEqual(get_provincial_capital("Spain", "Basque Country"), "Vitoria-Gasteiz")
+        self.assertEqual(get_provincial_capital("China", "Guangdong"), "Guangzhou")
+
+        # Verify in built world that national capital tile has the real national capital
+        tiles, nations, grid = build_world(seed=42)
+        for n in nations:
+            expected_nat_cap = get_national_capital(n.name)
+            self.assertEqual(n.capital.city_name, expected_nat_cap,
+                             f"{n.name} capital should be {expected_nat_cap}, got {n.capital.city_name}")
+            for prov in getattr(n, 'provinces', []):
+                if prov.capital and prov.capital is not n.capital:
+                    expected_prov_cap = get_provincial_capital(n.name, prov.display_name)
+                    self.assertEqual(prov.capital.city_name, expected_prov_cap,
+                                     f"{n.name}-{prov.display_name} capital should be {expected_prov_cap}, got {prov.capital.city_name}")
+
 
 if __name__ == "__main__":
     unittest.main()
+
 
 

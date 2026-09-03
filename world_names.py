@@ -12,16 +12,16 @@ import random
 # 10 Populous Countries -> 10 States/Provinces -> 10 Cities each
 GLOBAL_NATION_DATA = {
     "United States": {
-        "California": ["Los Angeles", "San Diego", "San Jose", "San Francisco", "Fresno", "Sacramento", "Long Beach", "Oakland", "Bakersfield", "Anaheim"],
-        "Texas": ["Houston", "San Antonio", "Dallas", "Austin", "Fort Worth", "El Paso", "Arlington", "Corpus Christi", "Plano", "Lubbock"],
-        "Florida": ["Jacksonville", "Miami", "Tampa", "Orlando", "St. Petersburg", "Hialeah", "Port St. Lucie", "Cape Coral", "Tallahassee", "Fort Lauderdale"],
-        "New York": ["New York City", "Buffalo", "Rochester", "Yonkers", "Syracuse", "Albany", "New Rochelle", "Mount Vernon", "Schenectady", "Utica"],
-        "Pennsylvania": ["Philadelphia", "Pittsburgh", "Allentown", "Reading", "Erie", "Upper Darby", "Scranton", "Bethlehem", "Lancaster", "Harrisburg"],
-        "Illinois": ["Chicago", "Aurora", "Joliet", "Naperville", "Rockford", "Elgin", "Springfield", "Peoria", "Waukegan", "Champaign"],
+        "California": ["Sacramento", "Los Angeles", "San Diego", "San Jose", "San Francisco", "Fresno", "Long Beach", "Oakland", "Bakersfield", "Anaheim"],
+        "Texas": ["Austin", "Houston", "San Antonio", "Dallas", "Fort Worth", "El Paso", "Arlington", "Corpus Christi", "Plano", "Lubbock"],
+        "Florida": ["Tallahassee", "Jacksonville", "Miami", "Tampa", "Orlando", "St. Petersburg", "Hialeah", "Port St. Lucie", "Cape Coral", "Fort Lauderdale"],
+        "New York": ["Albany", "New York City", "Buffalo", "Rochester", "Yonkers", "Syracuse", "New Rochelle", "Mount Vernon", "Schenectady", "Utica"],
+        "Pennsylvania": ["Harrisburg", "Philadelphia", "Pittsburgh", "Allentown", "Reading", "Erie", "Upper Darby", "Scranton", "Bethlehem", "Lancaster"],
+        "Illinois": ["Springfield", "Chicago", "Aurora", "Joliet", "Naperville", "Rockford", "Elgin", "Peoria", "Waukegan", "Champaign"],
         "Ohio": ["Columbus", "Cleveland", "Cincinnati", "Toledo", "Akron", "Dayton", "Parma", "Canton", "Lorain", "Hamilton"],
         "Georgia": ["Atlanta", "Columbus", "Augusta", "Macon", "Savannah", "Athens", "Sandy Springs", "South Fulton", "Roswell", "Johns Creek"],
-        "North Carolina": ["Charlotte", "Raleigh", "Greensboro", "Durham", "Winston-Salem", "Fayetteville", "Cary", "Wilmington", "High Point", "Concord"],
-        "Michigan": ["Detroit", "Grand Rapids", "Warren", "Sterling Heights", "Ann Arbor", "Lansing", "Dearborn", "Clinton", "Livonia", "Troy"],
+        "North Carolina": ["Raleigh", "Charlotte", "Greensboro", "Durham", "Winston-Salem", "Fayetteville", "Cary", "Wilmington", "High Point", "Concord"],
+        "Michigan": ["Lansing", "Detroit", "Grand Rapids", "Warren", "Sterling Heights", "Ann Arbor", "Dearborn", "Clinton", "Livonia", "Troy"],
     },
     "China": {
         "Guangdong": ["Guangzhou", "Shenzhen", "Dongguan", "Foshan", "Huizhou", "Zhongshan", "Shantou", "Jiangmen", "Zhanjiang", "Zhuhai"],
@@ -40,19 +40,19 @@ GLOBAL_NATION_DATA = {
         "Maharashtra": ["Mumbai", "Pune", "Nagpur", "Thane", "Nashik", "Kalyan", "Aurangabad", "Solapur", "Amravati", "Kolhapur"],
         "Bihar": ["Patna", "Gaya", "Bhagalpur", "Muzaffarpur", "Purnia", "Darbhanga", "Bihar Sharif", "Arrah", "Begusarai", "Katihar"],
         "West Bengal": ["Kolkata", "Howrah", "Asansol", "Siliguri", "Durgapur", "Bardhaman", "Malda", "Baharampur", "Habra", "Kharagpur"],
-        "Madhya Pradesh": ["Indore", "Bhopal", "Jabalpur", "Gwalior", "Ujjain", "Sagar", "Dewas", "Satna", "Ratlam", "Rewa"],
+        "Madhya Pradesh": ["Bhopal", "Indore", "Jabalpur", "Gwalior", "Ujjain", "Sagar", "Dewas", "Satna", "Ratlam", "Rewa"],
         "Tamil Nadu": ["Chennai", "Coimbatore", "Madurai", "Tiruchirappalli", "Salem", "Tiruppur", "Erode", "Vellore", "Thoothukudi", "Dindigul"],
         "Rajasthan": ["Jaipur", "Jodhpur", "Kota", "Bikaner", "Ajmer", "Udaipur", "Bhilwara", "Alwar", "Bharatpur", "Sikar"],
         "Karnataka": ["Bengaluru", "Mysuru", "Hubballi", "Mangaluru", "Belagavi", "Davanagere", "Ballari", "Vijayapura", "Shivamogga", "Tumakuru"],
-        "Gujarat": ["Ahmedabad", "Surat", "Vadodara", "Rajkot", "Bhavnagar", "Jamnagar", "Junagadh", "Gandhinagar", "Anand", "Navsari"],
-        "Andhra Pradesh": ["Visakhapatnam", "Vijayawada", "Guntur", "Nellore", "Kurnool", "Kakinada", "Rajahmundry", "Tirupati", "Kadapa", "Anantapur"],
+        "Gujarat": ["Gandhinagar", "Ahmedabad", "Surat", "Vadodara", "Rajkot", "Bhavnagar", "Jamnagar", "Junagadh", "Anand", "Navsari"],
+        "Andhra Pradesh": ["Amaravati", "Visakhapatnam", "Vijayawada", "Guntur", "Nellore", "Kurnool", "Kakinada", "Rajahmundry", "Tirupati", "Kadapa"],
     },
     "Indonesia": {
         "West Java": ["Bandung", "Bekasi", "Depok", "Bogor", "Tasikmalaya", "Cimahi", "Sukabumi", "Cirebon", "Garut", "Purwakarta"],
         "East Java": ["Surabaya", "Malang", "Kediri", "Probolinggo", "Pasuruan", "Madiun", "Batu", "Blitar", "Mojokerto", "Banyuwangi"],
         "Central Java": ["Semarang", "Surakarta", "Tegal", "Pekalongan", "Magelang", "Salatiga", "Purwokerto", "Cilacap", "Kudus", "Klaten"],
         "North Sumatra": ["Medan", "Pematangsiantar", "Binjai", "Tebing Tinggi", "Tanjungbalai", "Sibolga", "Padang Sidempuan", "Gunungsitoli", "Kabanjahe", "Balige"],
-        "Banten": ["Tangerang", "South Tangerang", "Serang", "Cilegon", "Pandeglang", "Rangkasbitung", "Tigaraksa", "Ciruas", "Malingping", "Labuan"],
+        "Banten": ["Serang", "Tangerang", "South Tangerang", "Cilegon", "Pandeglang", "Rangkasbitung", "Tigaraksa", "Ciruas", "Malingping", "Labuan"],
         "South Sumatra": ["Palembang", "Prabumulih", "Lubuklinggau", "Pagar Alam", "Baturaja", "Kayu Agung", "Lahat", "Muara Enim", "Sekayu", "Indralaya"],
         "Riau": ["Pekanbaru", "Dumai", "Duri", "Bengkalis", "Siak", "Rengat", "Bangkinang", "Pangkalan Kerinci", "Pasir Pengaraian", "Bagansiapiapi"],
         "South Sulawesi": ["Makassar", "Palopo", "Parepare", "Maros", "Gowa", "Watampone", "Bulukumba", "Sengkang", "Bantaeng", "Jeneponto"],
@@ -69,19 +69,19 @@ GLOBAL_NATION_DATA = {
         "Pernambuco": ["Recife", "Jaboatão dos Guararapes", "Olinda", "Caruaru", "Petrolina", "Paulista", "Cabo de Santo Agostinho", "Camaragibe", "Garanhuns", "Vitória de Santo Antão"],
         "Ceará": ["Fortaleza", "Caucaia", "Juazeiro do Norte", "Maracanaú", "Sobral", "Crato", "Itapipoca", "Maranguape", "Iguatu", "Quixadá"],
         "Pará": ["Belém", "Ananindeua", "Santarém", "Marabá", "Parauapebas", "Castanhal", "Abaetetuba", "Cametá", "Marituba", "Bragança"],
-        "Santa Catarina": ["Joinville", "Florianópolis", "Blumenau", "São José", "Chapecó", "Itajaí", "Criciúma", "Jaraguá do Sul", "Palhoça", "Lages"],
+        "Santa Catarina": ["Florianópolis", "Joinville", "Blumenau", "São José", "Chapecó", "Itajaí", "Criciúma", "Jaraguá do Sul", "Palhoça", "Lages"],
     },
     "Mexico": {
-        "State of Mexico": ["Ecatepec", "Nezahualcóyotl", "Toluca", "Naucalpan", "Chimalhuacán", "Tlalnepantla", "Cuautitlán Izcalli", "Tecámac", "Ixtapaluca", "Atizapán"],
+        "State of Mexico": ["Toluca", "Ecatepec", "Nezahualcóyotl", "Naucalpan", "Chimalhuacán", "Tlalnepantla", "Cuautitlán Izcalli", "Tecámac", "Ixtapaluca", "Atizapán"],
         "Jalisco": ["Guadalajara", "Zapopan", "Tlaquepaque", "Tonalá", "Tlajomulco", "Puerto Vallarta", "Lagos de Moreno", "Tepatitlán", "Ciudad Guzmán", "Ocotlán"],
-        "Veracruz": ["Veracruz", "Xalapa", "Coatzacoalcos", "Poza Rica", "Córdoba", "Boca del Río", "Orizaba", "Minatitlán", "Tuxpan", "San Andrés Tuxtla"],
+        "Veracruz": ["Xalapa", "Veracruz", "Coatzacoalcos", "Poza Rica", "Córdoba", "Boca del Río", "Orizaba", "Minatitlán", "Tuxpan", "San Andrés Tuxtla"],
         "Puebla": ["Puebla", "Tehuacán", "San Martín Texmelucan", "Atlixco", "San Pedro Cholula", "Amozoc", "Huauchinango", "Teziutlán", "San Andrés Cholula", "Izúcar de Matamoros"],
-        "Guanajuato": ["León", "Irapuato", "Celaya", "Salamanca", "Silao", "Guanajuato", "San Miguel de Allende", "Dolores Hidalgo", "Valle de Santiago", "Cortazar"],
+        "Guanajuato": ["Guanajuato", "León", "Irapuato", "Celaya", "Salamanca", "Silao", "San Miguel de Allende", "Dolores Hidalgo", "Valle de Santiago", "Cortazar"],
         "Nuevo León": ["Monterrey", "Guadalupe", "San Nicolás", "Apodaca", "General Escobedo", "Santa Catarina", "Juárez", "San Pedro Garza García", "Cadereyta", "García"],
         "Chiapas": ["Tuxtla Gutiérrez", "Tapachula", "San Cristóbal", "Comitán", "Chiapa de Corzo", "Palenque", "Ocosingo", "Villaflores", "Tonalá", "Huixtla"],
         "Michoacán": ["Morelia", "Uruapan", "Zamora", "Lázaro Cárdenas", "Zitácuaro", "Apatzingán", "Hidalgo", "La Piedad", "Pátzcuaro", "Sahuayo"],
         "Oaxaca": ["Oaxaca de Juárez", "Salina Cruz", "Juchitán", "Tuxtepec", "Tehuantepec", "Huajuapan", "Puerto Escondido", "Huatulco", "Miahuatlán", "Tlaxiaco"],
-        "Chihuahua": ["Ciudad Juárez", "Chihuahua", "Cuauhtémoc", "Delicias", "Parral", "Nuevo Casas Grandes", "Camargo", "Jiménez", "Ojinaga", "Meoqui"],
+        "Chihuahua": ["Chihuahua", "Ciudad Juárez", "Cuauhtémoc", "Delicias", "Parral", "Nuevo Casas Grandes", "Camargo", "Jiménez", "Ojinaga", "Meoqui"],
     },
     "Nigeria": {
         "Lagos": ["Ikeja", "Lagos Island", "Epe", "Ikorodu", "Badagry", "Surulere", "Yaba", "Apapa", "Lekki", "Agege"],
@@ -89,8 +89,8 @@ GLOBAL_NATION_DATA = {
         "Kaduna": ["Kaduna", "Zaria", "Kafanchan", "Kagoro", "Saminaka", "Birnin Gwari", "Zonkwa", "Makarfi", "Giwa", "Kachia"],
         "Rivers": ["Port Harcourt", "Obio-Akpor", "Bonny", "Eleme", "Okrika", "Degema", "Ahoada", "Opobo", "Bori", "Omoku"],
         "Oyo": ["Ibadan", "Ogbomosho", "Oyo Town", "Iseyin", "Saki", "Kishi", "Eruwa", "Igboho", "Kisi", "Lalupon"],
-        "Delta": ["Warri", "Asaba", "Sapele", "Ughelli", "Agbor", "Effurun", "Oghara", "Ozoro", "Kwale", "Burutu"],
-        "Anambra": ["Onitsha", "Awka", "Nnewi", "Ekwulobia", "Ihiala", "Aguata", "Ogidi", "Abagana", "Nkpor", "Obosi"],
+        "Delta": ["Asaba", "Warri", "Sapele", "Ughelli", "Agbor", "Effurun", "Oghara", "Ozoro", "Kwale", "Burutu"],
+        "Anambra": ["Awka", "Onitsha", "Nnewi", "Ekwulobia", "Ihiala", "Aguata", "Ogidi", "Abagana", "Nkpor", "Obosi"],
         "Edo": ["Benin City", "Auchi", "Uromi", "Ekpoma", "Igarra", "Irrua", "Sabongida-Ora", "Abudu", "Ubiaja", "Agenebode"],
         "Ogun": ["Abeokuta", "Ijebu Ode", "Sagamu", "Ota", "Ilaro", "Ifo", "Ago Iwoye", "Ijebu Igbo", "Ayetoro", "Owode"],
         "Enugu": ["Enugu", "Nsukka", "Oji River", "Udi", "Awgu", "Enugu-Ezike", "Agre", "Nike", "Ngwo", "Eha Amufu"],
@@ -103,9 +103,9 @@ GLOBAL_NATION_DATA = {
         "Islamabad": ["Islamabad", "Margalla", "Rawal", "Nilore", "Sihala", "Golra", "Tarlai", "Sohan", "Koral", "Bara Kahu"],
         "Azad Kashmir": ["Muzaffarabad", "Mirpur", "Kotli", "Rawalakot", "Bagh", "Bhimber", "Pallandri", "Hattian", "Haveli", "Chakswari"],
         "Gilgit-Baltistan": ["Gilgit", "Skardu", "Chilas", "Hunza", "Ghizer", "Ghanche", "Astore", "Nagar", "Shigar", "Kharmang"],
-        "Faisalabad Region": ["Samundri", "Jaranwala", "Tandlianwala", "Chak Jhumra", "Khurrianwala", "Dijkot", "Mamu Kanjan", "Satiana", "Saluni", "Gojra"],
-        "Rawalpindi Region": ["Gujar Khan", "Taxila", "Murree", "Kahuta", "Kallar Syedan", "Kotli Sattian", "Wah Cantt", "Daultala", "Mandra", "Chak Beli"],
-        "Multan Region": ["Shujabad", "Jalalpur Pirwala", "Makhdoom Rashid", "Lar", "Basti Malook", "Qadirpur Ran", "Raza Abad", "Bahauddin", "Muzaffarabad", "Suraj Miani"],
+        "Faisalabad Region": ["Faisalabad", "Samundri", "Jaranwala", "Tandlianwala", "Chak Jhumra", "Khurrianwala", "Dijkot", "Mamu Kanjan", "Satiana", "Saluni"],
+        "Rawalpindi Region": ["Rawalpindi", "Gujar Khan", "Taxila", "Murree", "Kahuta", "Kallar Syedan", "Kotli Sattian", "Wah Cantt", "Daultala", "Mandra"],
+        "Multan Region": ["Multan", "Shujabad", "Jalalpur Pirwala", "Makhdoom Rashid", "Lar", "Basti Malook", "Qadirpur Ran", "Raza Abad", "Bahauddin", "Suraj Miani"],
     },
     "Bangladesh": {
         "Dhaka": ["Dhaka", "Gazipur", "Narayanganj", "Tangail", "Narsingdi", "Faridpur", "Manikganj", "Munshiganj", "Gopalganj", "Madaripur"],
@@ -120,7 +120,7 @@ GLOBAL_NATION_DATA = {
         "Bogura Region": ["Bogura City", "Sherpur", "Shibganj", "Gabtali", "Kahaloo", "Dhunat", "Adamdighi", "Dupchanchia", "Sonatala", "Sariakandi"],
     },
     "Russia": {
-        "Moscow Oblast": ["Balashikha", "Podolsk", "Khimki", "Mytishchi", "Korolyov", "Lyubertsy", "Krasnogorsk", "Elektrostal", "Kolomna", "Odintsovo"],
+        "Moscow Oblast": ["Krasnogorsk", "Balashikha", "Podolsk", "Khimki", "Mytishchi", "Korolyov", "Lyubertsy", "Elektrostal", "Kolomna", "Odintsovo"],
         "Saint Petersburg": ["Saint Petersburg", "Kolpino", "Pushkin", "Petergof", "Kronshtadt", "Sestroretsk", "Lomonosov", "Zelenogorsk", "Pavlovsk", "Krasnoye Selo"],
         "Krasnodar Krai": ["Krasnodar", "Sochi", "Novorossiysk", "Armavir", "Yeysk", "Anapa", "Gelendzhik", "Kropotkin", "Slavyansk", "Tuapse"],
         "Tatarstan": ["Kazan", "Naberezhnye Chelny", "Nizhnekamsk", "Almetyevsk", "Zelenodolsk", "Bugulma", "Yelabuga", "Leninogorsk", "Chistopol", "Zainsk"],
@@ -141,17 +141,17 @@ GLOBAL_NATION_DATA = {
         "Chugoku": ["Hiroshima", "Okayama", "Kurashiki", "Fukuyama", "Shimonoseki", "Kure", "Matsue", "Tottori", "Ube", "Yamaguchi"],
         "Shikoku": ["Matsuyama", "Takamatsu", "Kochi", "Tokushima", "Imabari", "Niihama", "Marugame", "Saijo", "Uwajima", "Sakaide"],
         "Okinawa": ["Naha", "Okinawa City", "Uruma", "Urasoe", "Ginowan", "Nago", "Tomigusuku", "Itoman", "Miyakojima", "Ishigaki"],
-        "Shinshu": ["Matsumoto", "Ueda", "Iida", "Saku", "Azumino", "Chino", "Shiojiri", "Suwa", "Ina", "Komoro"],
+        "Shinshu": ["Nagano", "Matsumoto", "Ueda", "Iida", "Saku", "Azumino", "Chino", "Shiojiri", "Suwa", "Ina"],
     },
     "Korea": {
         "Gyeonggi": ["Suwon", "Seongnam", "Goyang", "Yongin", "Bucheon", "Ansan", "Anyang", "Hwaseong", "Pyeongtaek", "Uijeongbu"],
-        "Seoul Capital": ["Jongno", "Gangnam", "Songpa", "Mapo", "Yeongdeungpo", "Seocho", "Yongsan", "Jung-gu", "Seongbuk", "Nowon"],
-        "Busan Region": ["Haeundae", "Sasang", "Saha", "Busanjin", "Dongnae", "Nam-gu", "Buk-gu", "Yeongdo", "Geumjeong", "Gijang"],
-        "Incheon Region": ["Bupyeong", "Namdong", "Yeonsu", "Michuhol", "Seo-gu", "Gyeyang", "Jung-gu", "Dong-gu", "Ganghwa", "Ongjin"],
+        "Seoul Capital": ["Seoul", "Jongno", "Gangnam", "Songpa", "Mapo", "Yeongdeungpo", "Seocho", "Yongsan", "Jung-gu", "Seongbuk"],
+        "Busan Region": ["Busan", "Haeundae", "Sasang", "Saha", "Busanjin", "Dongnae", "Nam-gu", "Buk-gu", "Yeongdo", "Geumjeong"],
+        "Incheon Region": ["Incheon", "Bupyeong", "Namdong", "Yeonsu", "Michuhol", "Seo-gu", "Gyeyang", "Jung-gu", "Dong-gu", "Ganghwa"],
         "Gyeongsangnam": ["Changwon", "Gimhae", "Jinju", "Yangsan", "Geoje", "Tongyeong", "Sacheon", "Miryang", "Haman", "Changnyeong"],
-        "Gyeongsangbuk": ["Pohang", "Gumi", "Gyeongju", "Gyeongsan", "Andong", "Gimcheon", "Yeongju", "Sangju", "Yeongcheon", "Mungyeong"],
-        "Chungcheongnam": ["Cheonan", "Asan", "Seosan", "Dangjin", "Gongju", "Boryeong", "Nonsan", "Gyeryong", "Hongseong", "Yesan"],
-        "Jeollanam": ["Yeosu", "Suncheon", "Mokpo", "Naju", "Gwangyang", "Muan", "Haenam", "Goheung", "Hwasun", "Yeongam"],
+        "Gyeongsangbuk": ["Andong", "Pohang", "Gumi", "Gyeongju", "Gyeongsan", "Gimcheon", "Yeongju", "Sangju", "Yeongcheon", "Mungyeong"],
+        "Chungcheongnam": ["Hongseong", "Cheonan", "Asan", "Seosan", "Dangjin", "Gongju", "Boryeong", "Nonsan", "Gyeryong", "Yesan"],
+        "Jeollanam": ["Muan", "Yeosu", "Suncheon", "Mokpo", "Naju", "Gwangyang", "Haenam", "Goheung", "Hwasun", "Yeongam"],
         "Jeollabuk": ["Jeonju", "Iksan", "Gunsan", "Jeongeup", "Namwon", "Gimje", "Wanju", "Gochang", "Buan", "Sunchang"],
         "Gangwon": ["Chuncheon", "Wonju", "Gangneung", "Donghae", "Sokcho", "Samcheok", "Taebaek", "Hongcheon", "Hoengseong", "Pyeongchang"],
     },
@@ -161,15 +161,15 @@ GLOBAL_NATION_DATA = {
         "Mekong Delta": ["Can Tho", "Rach Gia", "Long Xuyen", "My Tho", "Ca Mau", "Soc Trang", "Bac Lieu", "Tra Vinh", "Ben Tre", "Tan An"],
         "South Central Coast": ["Da Nang", "Nha Trang", "Quy Nhon", "Phan Thiet", "Tuy Hoa", "Tam Ky", "Quang Ngai", "Phan Rang", "Cam Ranh", "Hoi An"],
         "North Central Coast": ["Hue", "Vinh", "Thanh Hoa", "Dong Hoi", "Ha Tinh", "Dong Ha", "Sam Son", "Bim Son", "Ky Anh", "Ba Don"],
-        "Central Highlands": ["Da Lat", "Buon Ma Thuot", "Pleiku", "Kon Tum", "Gia Nghia", "Bao Loc", "An Khe", "Ayun Pa", "Bu Dop", "Ea Kar"],
+        "Central Highlands": ["Pleiku", "Da Lat", "Buon Ma Thuot", "Kon Tum", "Gia Nghia", "Bao Loc", "An Khe", "Ayun Pa", "Bu Dop", "Ea Kar"],
         "Northeast": ["Ha Long", "Thai Nguyen", "Viet Tri", "Cam Pha", "Uong Bi", "Bac Giang", "Lang Son", "Tuyen Quang", "Yen Bai", "Cao Bang"],
         "Northwest": ["Dien Bien Phu", "Son La", "Hoa Binh", "Lao Cai", "Lai Chau", "Sa Pa", "Nghia Lo", "Mai Chau", "Moc Chau", "Muong Lay"],
-        "Binh Dinh Coast": ["Hoai Nhon", "An Nhon", "Phu My", "Phu Cat", "Tay Son", "Hoai An", "Van Canh", "Vinh Thanh", "Tuy Phuoc", "Tam Quan"],
-        "Quang Nam": ["Nui Thanh", "Dien Ban", "Dai Loc", "Duy Xuyen", "Thang Binh", "Que Son", "Tien Phuoc", "Bac Tra My", "Nam Tra My", "Dong Giang"],
+        "Binh Dinh Coast": ["Quy Nhon", "Hoai Nhon", "An Nhon", "Phu My", "Phu Cat", "Tay Son", "Hoai An", "Van Canh", "Vinh Thanh", "Tuy Phuoc"],
+        "Quang Nam": ["Tam Ky", "Nui Thanh", "Dien Ban", "Dai Loc", "Duy Xuyen", "Thang Binh", "Que Son", "Tien Phuoc", "Bac Tra My", "Nam Tra My"],
     },
     "Britain": {
-        "Greater London": ["Westminster", "Camden", "Greenwich", "Kensington", "Croydon", "Bromley", "Islington", "Hackney", "Southwark", "Ealing"],
-        "South East": ["Brighton", "Oxford", "Southampton", "Portsmouth", "Reading", "Milton Keynes", "Slough", "Canterbury", "Winchester", "Guildford"],
+        "Greater London": ["London", "Westminster", "Camden", "Greenwich", "Kensington", "Croydon", "Bromley", "Islington", "Hackney", "Southwark"],
+        "South East": ["Guildford", "Brighton", "Oxford", "Southampton", "Portsmouth", "Reading", "Milton Keynes", "Slough", "Canterbury", "Winchester"],
         "North West": ["Manchester", "Liverpool", "Bolton", "Warrington", "Preston", "Blackpool", "Chester", "Salford", "Stockport", "Blackburn"],
         "West Midlands": ["Birmingham", "Coventry", "Wolverhampton", "Solihull", "Stoke-on-Trent", "Dudley", "Walsall", "Telford", "Worcester", "Hereford"],
         "Yorkshire": ["Leeds", "Sheffield", "Bradford", "York", "Hull", "Huddersfield", "Doncaster", "Rotherham", "Wakefield", "Harrogate"],
@@ -193,12 +193,12 @@ GLOBAL_NATION_DATA = {
     },
     "Germany": {
         "Bavaria": ["Munich", "Nuremberg", "Augsburg", "Regensburg", "Ingolstadt", "Würzburg", "Fürth", "Erlangen", "Bamberg", "Bayreuth"],
-        "North Rhine-Westphalia": ["Cologne", "Düsseldorf", "Dortmund", "Essen", "Duisburg", "Bochum", "Wuppertal", "Bielefeld", "Bonn", "Münster"],
+        "North Rhine-Westphalia": ["Düsseldorf", "Cologne", "Dortmund", "Essen", "Duisburg", "Bochum", "Wuppertal", "Bielefeld", "Bonn", "Münster"],
         "Baden-Württemberg": ["Stuttgart", "Mannheim", "Karlsruhe", "Freiburg", "Heidelberg", "Heilbronn", "Ulm", "Pforzheim", "Reutlingen", "Esslingen"],
         "Lower Saxony": ["Hanover", "Braunschweig", "Oldenburg", "Osnabrück", "Wolfsburg", "Göttingen", "Salzgitter", "Hildesheim", "Delmenhorst", "Wilhelmshaven"],
-        "Hesse": ["Frankfurt", "Wiesbaden", "Kassel", "Darmstadt", "Offenbach", "Hanau", "Gießen", "Marburg", "Fulda", "Rüsselsheim"],
-        "Saxony": ["Leipzig", "Dresden", "Chemnitz", "Zwickau", "Plauen", "Görlitz", "Freiberg", "Bautzen", "Pirna", "Freital"],
-        "Berlin-Brandenburg": ["Berlin", "Potsdam", "Cottbus", "Brandenburg an der Havel", "Frankfurt an der Oder", "Oranienburg", "Falkensee", "Eberswalde", "Bernau", "Königs Wusterhausen"],
+        "Hesse": ["Wiesbaden", "Frankfurt", "Kassel", "Darmstadt", "Offenbach", "Hanau", "Gießen", "Marburg", "Fulda", "Rüsselsheim"],
+        "Saxony": ["Dresden", "Leipzig", "Chemnitz", "Zwickau", "Plauen", "Görlitz", "Freiberg", "Bautzen", "Pirna", "Freital"],
+        "Berlin-Brandenburg": ["Potsdam", "Berlin", "Cottbus", "Brandenburg an der Havel", "Frankfurt an der Oder", "Oranienburg", "Falkensee", "Eberswalde", "Bernau", "Königs Wusterhausen"],
         "Hamburg Region": ["Hamburg", "Altona", "Bergedorf", "Harburg", "Wandsbek", "Eimsbüttel", "Norderstedt", "Ahrensburg", "Wedel", "Pinneberg"],
         "Rhineland-Palatinate": ["Mainz", "Ludwigshafen", "Koblenz", "Trier", "Kaiserslautern", "Worms", "Neuwied", "Neustadt", "Speyer", "Bad Kreuznach"],
         "Schleswig-Holstein": ["Kiel", "Lübeck", "Flensburg", "Neumünster", "Norderstedt", "Elmshorn", "Pinneberg", "Itzehoe", "Wedel", "Rendsburg"],
@@ -220,11 +220,11 @@ GLOBAL_NATION_DATA = {
         "Catalonia": ["Barcelona", "L'Hospitalet de Llobregat", "Badalona", "Terrassa", "Sabadell", "Lleida", "Tarragona", "Mataró", "Santa Coloma de Gramenet", "Reus"],
         "Andalusia": ["Seville", "Málaga", "Córdoba", "Granada", "Jerez de la Frontera", "Almería", "Huelva", "Marbella", "Dos Hermanas", "Algeciras"],
         "Valencia": ["Valencia", "Alicante", "Elche", "Castellón de la Plana", "Torrevieja", "Orihuela", "Gandia", "Torrent", "Benidorm", "Sagunto"],
-        "Galicia": ["Vigo", "A Coruña", "Ourense", "Lugo", "Santiago de Compostela", "Pontevedra", "Ferrol", "Vilagarcía de Arousa", "Narón", "Oleiros"],
+        "Galicia": ["Santiago de Compostela", "Vigo", "A Coruña", "Ourense", "Lugo", "Pontevedra", "Ferrol", "Vilagarcía de Arousa", "Narón", "Oleiros"],
         "Castile and León": ["Valladolid", "Burgos", "Salamanca", "León", "Palencia", "Ponferrada", "Zamora", "Segovia", "Ávila", "Soria"],
-        "Basque Country": ["Bilbao", "Vitoria-Gasteiz", "San Sebastián", "Barakaldo", "Getxo", "Irun", "Portugalete", "Santurtzi", "Basauri", "Errenteria"],
-        "Canary Islands": ["Las Palmas", "Santa Cruz de Tenerife", "San Cristóbal de La Laguna", "Telde", "Arona", "Santa Lucía de Tirajana", "Arrecife", "San Bartolomé de Tirajana", "Granadilla de Abona", "Adeje"],
-        "Castilla-La Mancha": ["Albacete", "Talavera de la Reina", "Guadalajara", "Toledo", "Ciudad Real", "Cuenca", "Puertollano", "Tomelloso", "Azuqueca de Henares", "Alcázar de San Juan"],
+        "Basque Country": ["Vitoria-Gasteiz", "Bilbao", "San Sebastián", "Barakaldo", "Getxo", "Irun", "Portugalete", "Santurtzi", "Basauri", "Errenteria"],
+        "Canary Islands": ["Santa Cruz de Tenerife", "Las Palmas", "San Cristóbal de La Laguna", "Telde", "Arona", "Santa Lucía de Tirajana", "Arrecife", "San Bartolomé de Tirajana", "Granadilla de Abona", "Adeje"],
+        "Castilla-La Mancha": ["Toledo", "Albacete", "Talavera de la Reina", "Guadalajara", "Ciudad Real", "Cuenca", "Puertollano", "Tomelloso", "Azuqueca de Henares", "Alcázar de San Juan"],
         "Aragon": ["Zaragoza", "Huesca", "Teruel", "Calatayud", "Utebo", "Monzón", "Barbastro", "Ejea de los Caballeros", "Alcañiz", "Fraga"],
     },
 }
@@ -274,6 +274,52 @@ COUNTRY_CURRENCIES = {
     "South Korea": "KRW",
 }
 
+# Real official national capitals for all nations
+NATIONAL_CAPITALS = {
+    "United States": "Washington, D.C.",
+    "China": "Beijing",
+    "Japan": "Tokyo",
+    "Korea": "Seoul",
+    "Vietnam": "Hanoi",
+    "Britain": "London",
+    "France": "Paris",
+    "Germany": "Berlin",
+    "Italy": "Rome",
+    "Spain": "Madrid",
+    "India": "New Delhi",
+    "Indonesia": "Jakarta",
+    "Brazil": "Brasília",
+    "Mexico": "Mexico City",
+    "Nigeria": "Abuja",
+    "Pakistan": "Islamabad",
+    "Bangladesh": "Dhaka",
+    "Russia": "Moscow",
+    # Aliases
+    "US": "Washington, D.C.",
+    "UK": "London",
+    "South Korea": "Seoul",
+}
+
+# The first city in each province's list is the official real provincial capital
+PROVINCIAL_CAPITALS = {
+    (country, prov): cities[0]
+    for country, prov_dict in GLOBAL_NATION_DATA.items()
+    for prov, cities in prov_dict.items()
+}
+
+
+def get_national_capital(country_name: str) -> str:
+    """Return the official real national capital for a given country."""
+    return NATIONAL_CAPITALS.get(country_name, "Capital City")
+
+
+def get_provincial_capital(country_name: str, province_name: str) -> str:
+    """Return the official real provincial capital for a given province in a country."""
+    return PROVINCIAL_CAPITALS.get(
+        (country_name, province_name),
+        GLOBAL_NATION_DATA.get(country_name, {}).get(province_name, ["Provincial Capital"])[0]
+    )
+
 
 def get_country_names():
     """Return the list of major country names."""
@@ -311,28 +357,50 @@ def assign_world_identities(tiles, nations, seed=None):
         country_data = GLOBAL_NATION_DATA[country_name]
         prov_names = list(country_data.keys())
 
-        # Nation Capital
+        # Real National Capital
+        national_cap_name = get_national_capital(country_name)
         national_cap_tile = n.tiles[0] if n.tiles else None
         n.capital = national_cap_tile
 
         # Assign province identities & capitals
         used_cities = set()
+        if national_cap_tile:
+            used_cities.add(national_cap_name)
+
         for p_idx, prov in enumerate(getattr(n, 'provinces', [])):
             p_name = prov_names[p_idx % len(prov_names)]
             prov.name = f"{country_name}-{p_name}"
             prov.display_name = p_name
-            prov.capital = prov.tiles[0] if prov.tiles else None
 
             cities_pool = list(country_data[p_name])
+            real_prov_cap = get_provincial_capital(country_name, p_name)
+
+            # Designate provincial capital:
+            # If national capital is in this province and there are other tiles, make another tile provincial capital
+            if national_cap_tile in prov.tiles and len(prov.tiles) > 1:
+                prov.capital = next(t for t in prov.tiles if t is not national_cap_tile)
+            else:
+                prov.capital = prov.tiles[0] if prov.tiles else None
 
             for t_idx, tile in enumerate(prov.tiles):
-                # Pick unique city
-                city = next((c for c in cities_pool if c not in used_cities), cities_pool[t_idx % len(cities_pool)])
-                used_cities.add(city)
+                if tile is national_cap_tile:
+                    city = national_cap_name
+                    if country_name in ("United States", "US"):
+                        tile_prov_disp = "District of Columbia"
+                    else:
+                        tile_prov_disp = p_name
+                elif tile is prov.capital:
+                    city = real_prov_cap
+                    used_cities.add(city)
+                    tile_prov_disp = p_name
+                else:
+                    city = next((c for c in cities_pool if c not in used_cities and c != real_prov_cap), cities_pool[t_idx % len(cities_pool)])
+                    used_cities.add(city)
+                    tile_prov_disp = p_name
 
                 tile.city_name = city
                 tile.display_name = city
-                tile.province_display = p_name
+                tile.province_display = tile_prov_disp
                 tile.nation_display = country_name
                 
                 tile.is_national_capital = (tile is national_cap_tile)
