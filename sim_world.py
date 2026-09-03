@@ -55,8 +55,54 @@ GRID_ROWS = 9
 _LAYOUT = rectangular_hex_layout(GRID_ROWS, GRID_COLS)
 
 
+def _starting_population_for_tile(tile) -> int:
+    """Starting population scaled by geography and carrying capacity.
+    - Mountains: ~45 agents (sparse highlands)
+    - Hills/Highlands: ~75 agents
+    - Lowlands/Plains: ~95 agents
+    - Coasts: ~135 agents (flourishing maritime/delta hubs)
+    """
+    if getattr(tile, 'is_ocean', False):
+        return 0
+    elev = getattr(tile, 'elevation', 0.20)
+    biome = getattr(tile, 'biome', 'plains')
+    is_mountain = (elev >= 0.72) or (biome in ('mountains', 'snow_peaks'))
+    is_coast = getattr(tile, 'is_coast', False) or (biome == 'coast')
+
+    if is_mountain:
+        return 45
+    elif is_coast:
+        return 135
+    elif elev >= 0.40:
+        return 75
+    else:
+        return 95
+
+
+def _professions_for_tile(tile) -> dict:
+    """Terrain-aware profession distribution.
+    - Mountains: No trees -> 0 loggers, 0 carpenters, 100% food gatherers/miners.
+    - Coasts: Maritime/delta food surplus -> 85% farmers/fishers, 10% wood, 5% furniture.
+    - Lowlands/Plains: Standard agrarian-craftsman balance (60% food, 25% wood, 15% furniture).
+    """
+    elev = getattr(tile, 'elevation', 0.20)
+    biome = getattr(tile, 'biome', 'plains')
+    is_mountain = (elev >= 0.72) or (biome in ('mountains', 'snow_peaks'))
+    is_coast = getattr(tile, 'is_coast', False) or (biome == 'coast')
+
+    if is_mountain:
+        # Strictly no trees in the mountains: 0 loggers, 0 carpenters
+        return {Goods.food: 1.0, Goods.wood: 0.0, Goods.furniture: 0.0}
+    elif is_coast:
+        # More farmers/fishers on coastal tiles
+        return {Goods.food: 0.85, Goods.wood: 0.10, Goods.furniture: 0.05}
+    else:
+        return {Goods.food: 0.60, Goods.wood: 0.25, Goods.furniture: 0.15}
+
+
 def _professions():
-    return {Goods.food: 0.60, Goods.wood: 0.25, Goods.furniture: 0.08}
+    """Fallback default baseline professions."""
+    return {Goods.food: 0.60, Goods.wood: 0.25, Goods.furniture: 0.15}
 
 
 def make_claimed(name, profs):
@@ -84,7 +130,6 @@ def build_world(seed=None, terrain_seed=None, nation_seed=None):
         nation_seed = random.randint(1, 999999)
 
     rng_nation = random.Random(nation_seed)
-    profs = _professions()
 
     tiles = []
     grid = []
@@ -101,11 +146,13 @@ def build_world(seed=None, terrain_seed=None, nation_seed=None):
     from heightmap import apply_heightmap_to_world
     apply_heightmap_to_world(tiles, seed=terrain_seed, grid_rows=GRID_ROWS, grid_cols=GRID_COLS)
 
-    # Ensure ocean tiles have 0 natives and 0 agents
+    # Ensure ocean tiles have 0 natives and 0 agents, and scale wilderness population by geography
     for t in tiles:
         if getattr(t, 'is_ocean', False):
             t.wilderness_pop = 0
             t.agents = []
+        else:
+            t.wilderness_pop = int(_starting_population_for_tile(t) * 0.8)
 
     # ---- Nations claim contiguous hex clusters (disjoint, strictly on land) ----
     # 3 Starting Global Powers from the 10-country database (sizes 3, 4, 5)
@@ -176,30 +223,158 @@ def build_world(seed=None, terrain_seed=None, nation_seed=None):
             for i, (rr, cc) in enumerate(part):
                 tile = grid[rr][cc]
                 idx = tiles.index(tile)
-                claimed = Region(tile.name, t=0, number_of_agents=100,
-                                 profession_distribution=profs,
+                init_pop = _starting_population_for_tile(tile)
+                init_profs = _professions_for_tile(tile)
+                claimed = Region(tile.name, t=0, number_of_agents=init_pop,
+                                 profession_distribution=init_profs,
                                  number_of_traders=2,
                                  institutions=prov.institutions,
                                  seat_gov=(i == 0))
+                # CRITICAL: Preserve all terrain, elevation, and biome attributes!
+                claimed.elevation = tile.elevation
+                claimed.elevation_meters = tile.elevation_meters
+                claimed.biome = tile.biome
+                claimed.terrain_color = tile.terrain_color
+                claimed.hillshade = tile.hillshade
+                claimed.is_ocean = getattr(tile, 'is_ocean', False)
+                claimed.is_coast = getattr(tile, 'is_coast', False)
+                claimed.is_river_corridor = getattr(tile, 'is_river_corridor', False)
+                claimed.grid_r = getattr(tile, 'grid_r', rr)
+                claimed.grid_c = getattr(tile, 'grid_c', cc)
+
                 tiles[idx] = claimed
                 grid[rr][cc] = claimed
                 prov.add_tile(claimed)
                 n.add_tile(claimed)
             n.provinces.append(prov)
 
-    # ---- True hex adjacency (routes every edge subject to geographic passability) ----
+    # ---- Geographic Passability & Trade Network Degree Capping ----
+    # Mountains: strictly 1 or 2 neighbors it can trade with
+    # Most tiles: no more than 3 trading partners
     from terrain_edges import reset_edge_manager
     edge_mgr = reset_edge_manager(tiles, _LAYOUT)
+
+    # Guarantee that every mountain peak has at least 1 or 2 passable mountain passes
+    for tile in tiles:
+        if getattr(tile, 'is_ocean', False):
+            continue
+        elev = getattr(tile, 'elevation', 0.20)
+        biome = getattr(tile, 'biome', 'plains')
+        if (elev >= 0.72) or (biome in ('mountains', 'snow_peaks')):
+            q, axr = _LAYOUT[tile.name]
+            candidates = []
+            passable_count = 0
+            for nq, nar in axial_neighbors(q, axr):
+                nc, nr = axial_to_offset(nq, nar)
+                if 0 <= nr < GRID_ROWS and 0 <= nc < GRID_COLS:
+                    other = grid[nr][nc]
+                    if not getattr(other, 'is_ocean', False):
+                        edge = edge_mgr.get_edge(tile.name, other.name)
+                        if edge and edge.passable:
+                            passable_count += 1
+                        if edge:
+                            candidates.append((edge.elevation_delta, other.name))
+            if passable_count == 0 and candidates:
+                candidates.sort(key=lambda x: x[0])
+                for _, other_name in candidates[:min(2, len(candidates))]:
+                    edge_mgr.unblock_mountain_pass(tile.name, other_name)
+
+    def _max_trade_partners(t) -> int:
+        elev = getattr(t, 'elevation', 0.20)
+        biome = getattr(t, 'biome', 'plains')
+        if (elev >= 0.72) or (biome in ('mountains', 'snow_peaks')):
+            return 2
+        return 3
+
+    # Gather all candidate passable land-to-land undirected edges
+    candidate_edges = []
+    seen_cand = set()
     for r in range(GRID_ROWS):
         for c in range(GRID_COLS):
             tile = grid[r][c]
+            if getattr(tile, 'is_ocean', False):
+                continue
             q, axr = _LAYOUT[tile.name]
             for nq, nar in axial_neighbors(q, axr):
                 nc, nr = axial_to_offset(nq, nar)
                 if 0 <= nr < GRID_ROWS and 0 <= nc < GRID_COLS:
                     other = grid[nr][nc]
-                    if other.name not in tile.neighbors and edge_mgr.is_passable(tile.name, other.name):
-                        tile.add_neighbor(other)
+                    if getattr(other, 'is_ocean', False):
+                        continue
+                    edge_key = tuple(sorted((tile.name, other.name)))
+                    if edge_key in seen_cand:
+                        continue
+                    if edge_mgr.is_passable(tile.name, other.name):
+                        seen_cand.add(edge_key)
+                        edge = edge_mgr.get_edge(tile.name, other.name)
+                        score = 100.0
+                        if edge and edge.is_river:
+                            score += 150.0
+                        if edge and edge.has_mountain_pass:
+                            score += 80.0
+                        tile_nation = getattr(tile, 'owner_nation', None)
+                        other_nation = getattr(other, 'owner_nation', None)
+                        if tile_nation is not None and tile_nation == other_nation:
+                            score += 40.0
+                        frict = edge.friction if edge else 1.0
+                        dh = abs(tile.elevation - other.elevation)
+                        score -= frict * 15.0 + dh * 30.0
+                        candidate_edges.append((score, tile, other))
+
+    # Sort edges by corridor priority (best routes first)
+    candidate_edges.sort(key=lambda x: x[0], reverse=True)
+
+    # Pass 1: Ensure every land tile with available passable candidates gets at least 1 connection
+    tile_cand_map = {}
+    for score, t_a, t_b in candidate_edges:
+        tile_cand_map.setdefault(t_a.name, []).append((score, t_b))
+        tile_cand_map.setdefault(t_b.name, []).append((score, t_a))
+
+    for t in tiles:
+        if getattr(t, 'is_ocean', False):
+            continue
+        if len(t.neighbors) == 0 and t.name in tile_cand_map:
+            # Pick best available candidate
+            for _, cand in tile_cand_map[t.name]:
+                if len(cand.neighbors) < _max_trade_partners(cand):
+                    t.add_neighbor(cand)
+                    cand.add_neighbor(t)
+                    break
+            if len(t.neighbors) == 0 and tile_cand_map[t.name]:
+                # Pick candidate with lowest current degree (preferring non-mountains)
+                sorted_cands = sorted(tile_cand_map[t.name], key=lambda sc: (
+                    1 if (_max_trade_partners(sc[1]) == 2 and len(sc[1].neighbors) >= 2) else 0,
+                    len(sc[1].neighbors),
+                    -sc[0]
+                ))
+                best_cand = sorted_cands[0][1]
+                if len(best_cand.neighbors) < _max_trade_partners(best_cand):
+                    t.add_neighbor(best_cand)
+                    best_cand.add_neighbor(t)
+
+    # Pass 2: Greedily connect high-value corridors up to degree caps
+    for _, t_a, t_b in candidate_edges:
+        cap_a = _max_trade_partners(t_a)
+        cap_b = _max_trade_partners(t_b)
+        if len(t_a.neighbors) < cap_a and len(t_b.neighbors) < cap_b:
+            if t_b.name not in t_a.neighbors:
+                t_a.add_neighbor(t_b)
+                t_b.add_neighbor(t_a)
+
+    # Pass 3: Strict degree cap post-condition guarantee
+    for t in tiles:
+        if getattr(t, 'is_ocean', False):
+            continue
+        max_cap = _max_trade_partners(t)
+        while len(t.neighbors) > max_cap:
+            removable = [n for n in t.neighbors.values() if len(n.neighbors) > 1]
+            if not removable:
+                removable = list(t.neighbors.values())
+            victim = max(removable, key=lambda n: abs(t.elevation - n.elevation) + edge_mgr.get_friction(t.name, n.name))
+            t.neighbors.pop(victim.name, None)
+            t.routes.pop(victim.name, None)
+            victim.neighbors.pop(t.name, None)
+            victim.routes.pop(t.name, None)
 
     # ---- ForexDesks only between claimed (neighbor) tiles ----
     seen = set()

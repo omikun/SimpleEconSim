@@ -105,13 +105,13 @@ def assign_tile_resources(tiles: list[Region], heightmap_gen=None, seed: int = 4
         elev = getattr(r, 'elevation', 0.20)
         res_set: set[TileResource] = set()
 
-        # 1. High Mountains (Elev >= 0.65)
+        # 1. High Mountains (Elev >= 0.65) - zero timber, rich mineral endowments
         if elev >= 0.65:
             res_set.add(TileResource.IRON_ORE)
-            if rng.random() < 0.45:
+            if rng.random() < 0.50:
                 res_set.add(TileResource.RARE_MINERALS)
-            elif rng.random() < 0.35:
-                res_set.add(TileResource.TIMBER)
+            if rng.random() < 0.40:
+                res_set.add(TileResource.COAL_SEAM)
 
         # 2. Highlands & Foothills (Elev in [0.35, 0.65))
         elif elev >= 0.35:
@@ -143,9 +143,9 @@ def assign_tile_resources(tiles: list[Region], heightmap_gen=None, seed: int = 4
             else:
                 res_set.add(TileResource.PASTURE_FLAX)
 
-        # Fallback guarantee: every tile has at least 1 resource
+        # Fallback guarantee: every tile has at least 1 resource (strictly no timber in mountains)
         if not res_set:
-            res_set.add(TileResource.ARABLE_SILT if elev < 0.4 else TileResource.TIMBER)
+            res_set.add(TileResource.ARABLE_SILT if elev < 0.35 else (TileResource.IRON_ORE if elev >= 0.65 else TileResource.TIMBER))
 
         r.natural_resources = res_set
 

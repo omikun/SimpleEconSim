@@ -632,7 +632,8 @@ class TestWorldviewActionsUI(unittest.TestCase):
         # 2. Post Royal Science Bounty on nation
         inno = get_innovation_system()
         inno.post_royal_bounty(n1, 'bessemer_steel', 300.0, t=0)
-        inno.domain_experience[n1.name]['manufacturing'] = 50.0
+        from innovation import TechDomain
+        inno.domain_experience.setdefault(n1.name, {d.value: 0.0 for d in TechDomain})['manufacturing'] = 50.0
 
         # 3. Simulate trade diffusion
         inno.diffusion_progress.setdefault(n1.name, {})['dynamo_electrification'] = 0.65

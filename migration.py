@@ -64,6 +64,23 @@ def _homestead_eligible(agent):
     return True
 
 
+def _score_wilderness_attractiveness(tile) -> float:
+    """Attractiveness of an unclaimed wilderness tile for homesteaders/pioneers."""
+    score = 10.0
+    # Natural mineral resources (iron ore, coal, rare minerals create mining rushes into mountains)
+    resources = getattr(tile, 'natural_resources', set())
+    for r in resources:
+        r_val = getattr(r, 'value', str(r))
+        if r_val in ('iron_ore', 'rare_minerals', 'coal_seam'):
+            score += 20.0  # Big pioneer mineral rush pull
+        elif r_val in ('arable_silt', 'pasture_flax'):
+            score += 10.0
+    # Carrying capacity headroom: pioneers prefer rich territory with low congestion
+    current_pop = getattr(tile, 'wilderness_pop', 0) + sum(1 for a in getattr(tile, 'agents', []) if getattr(a, 'is_homesteader', False))
+    score += max(0.0, 40.0 - current_pop * 0.4)
+    return score
+
+
 def _pick_destination(source, agent):
     """Best adjacent tile for *agent* to move to (None if none qualify).
 
@@ -74,14 +91,17 @@ def _pick_destination(source, agent):
       3. claimed neighbors of the same nation (internal move, lowest pull).
     """
     best_wild = None
+    best_wild_score = -1e9
     best_foreign = None
     best_same = None
     for other in source.neighbors.values():
         if other is source or getattr(other, 'is_ocean', False) or getattr(other, 'elevation', 0.0) < 0.0:
             continue
         if getattr(other, 'wilderness', False):
-            if best_wild is None:
+            w_score = _score_wilderness_attractiveness(other)
+            if w_score > best_wild_score:
                 best_wild = other
+                best_wild_score = w_score
             continue
         owner = getattr(other, 'owner_nation', None)
         me = getattr(agent, 'origin_nation', None)

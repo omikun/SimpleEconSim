@@ -384,7 +384,9 @@ class InnovationSystem:
             nat_tiles = n.tiles
             if not nat_tiles:
                 continue
-            nat_xp = self.domain_experience.setdefault(n.name, {d.value: 0.0 for d in TechDomain})
+            nat_xp = self.domain_experience.setdefault(n.name, {})
+            for d in TechDomain:
+                nat_xp.setdefault(d.value, 0.0)
 
             # 1. Agronomy: Calibrated so ~200 food/turn yields ~3.0 XP/turn
             food_produced = sum(r.production_log.get(Goods.food, [0])[-1] if getattr(r, 'production_log', {}).get(Goods.food) else 0 for r in nat_tiles)

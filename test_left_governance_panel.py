@@ -92,7 +92,7 @@ class TestLeftGovernancePanel(unittest.TestCase):
 
         draw_gov_panel(self.surface, world, self.font, self.font_small)
 
-        scope_y = GOV_PANEL_Y + 50
+        scope_y = GOV_PANEL_Y + 80
         cur_y = scope_y + 32
         tax_card_y = cur_y + 76 + 10
 
@@ -127,7 +127,7 @@ class TestLeftGovernancePanel(unittest.TestCase):
             province.gov.agent.cash = 500.0
             draw_gov_panel(self.surface, world, self.font, self.font_small)
 
-            scope_y = GOV_PANEL_Y + 50
+            scope_y = GOV_PANEL_Y + 80
             cur_y = scope_y + 32
             dec_card_y = cur_y + 76 + 10
             p1_x = GOV_PANEL_X + 16 + 10
@@ -143,7 +143,7 @@ class TestLeftGovernancePanel(unittest.TestCase):
             nation.government.agent.cash = 1000.0
             draw_gov_panel(self.surface, world, self.font, self.font_small)
 
-            scope_y = GOV_PANEL_Y + 50
+            scope_y = GOV_PANEL_Y + 80
             cur_y = scope_y + 32
             dec_card_y = cur_y + 76 + 10
             n1_x = GOV_PANEL_X + 16 + 10

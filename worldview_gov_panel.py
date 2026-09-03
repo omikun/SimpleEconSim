@@ -341,14 +341,14 @@ def gov_panel_hit(pos, world) -> bool:
     if drawer_top_tabs_hit(pos, world, x, y + 48, w):
         return True
 
-    # Scope Switcher Tabs (new layout at y + 80, legacy at y + 50)
+    # Scope Switcher Tabs (y + 80)
     tab_w = (w - 24) // 3
-    for scope_y_test in (y + 48 + 24 + 8, y + 50):
-        for i, (sc_id, _) in enumerate([('tile', 'City'), ('province', 'Province'), ('nation', 'Nation')]):
-            tx = x + 8 + i * (tab_w + 4)
-            if tx <= mx <= tx + tab_w and scope_y_test <= my <= scope_y_test + 24:
-                world['policy_scope'] = sc_id
-                return True
+    scope_y = y + 80
+    for i, (sc_id, _) in enumerate([('tile', 'City'), ('province', 'Province'), ('nation', 'Nation')]):
+        tx = x + 8 + i * (tab_w + 4)
+        if tx <= mx <= tx + tab_w and scope_y <= my <= scope_y + 24:
+            world['policy_scope'] = sc_id
+            return True
 
     pinned = world.get('selected_region')
     if pinned is None and world.get('nations') and world['nations'][0].tiles:
@@ -364,73 +364,71 @@ def gov_panel_hit(pos, world) -> bool:
     nat_gov = getattr(nation, 'government', None) if nation else None
     active_scope = world.get('policy_scope', 'tile')
 
-    for base_scope_y in (y + 48 + 24 + 8, y + 50):
-        scope_y = base_scope_y
-        cur_y = scope_y + 32
+    cur_y = scope_y + 32
 
-        # --- CITY / TILE SCOPE CLICKS ---
-        if active_scope == 'tile' and rgov:
-            card1_h = 76
-            start_y = cur_y
-            tax_card_y = start_y + card1_h + 10
+    # --- CITY / TILE SCOPE CLICKS ---
+    if active_scope == 'tile' and rgov:
+        card1_h = 76
+        start_y = cur_y
+        tax_card_y = start_y + card1_h + 10
 
-            # [-2% Tax]
-            b1_rect = (x + 16, tax_card_y + 28, 80, 22)
-            if b1_rect[0] <= mx <= b1_rect[0] + 80 and b1_rect[1] <= my <= b1_rect[1] + 22:
-                rgov.tax_rate = max(0.02, round(rgov.tax_rate - 0.02, 3))
+        # [-2% Tax]
+        b1_rect = (x + 16, tax_card_y + 28, 80, 22)
+        if b1_rect[0] <= mx <= b1_rect[0] + 80 and b1_rect[1] <= my <= b1_rect[1] + 22:
+            rgov.tax_rate = max(0.02, round(rgov.tax_rate - 0.02, 3))
+            from worldview_engine import ticker_push
+            ticker_push(world, t, 'POLICY', f"Decreed Tax Cut in {pinned.name}: New Rate {rgov.tax_rate*100:.1f}%.", (120, 220, 140))
+            return True
+
+        # [+2% Tax]
+        b2_rect = (x + 102, tax_card_y + 28, 80, 22)
+        if b2_rect[0] <= mx <= b2_rect[0] + 80 and b2_rect[1] <= my <= b2_rect[1] + 22:
+            rgov.tax_rate = min(0.60, round(rgov.tax_rate + 0.02, 3))
+            from worldview_engine import ticker_push
+            ticker_push(world, t, 'POLICY', f"Decreed Tax Hike in {pinned.name}: New Rate {rgov.tax_rate*100:.1f}%.", (245, 180, 50))
+            return True
+
+        # UBI Toggle
+        b3_rect = (x + 16, tax_card_y + 52, w - 32, 22)
+        if b3_rect[0] <= mx <= b3_rect[0] + w - 32 and b3_rect[1] <= my <= b3_rect[1] + 22:
+            rgov.ubi_active = not getattr(rgov, 'ubi_active', False)
+            status_str = "enacted" if rgov.ubi_active else "repealed"
+            from worldview_engine import ticker_push
+            ticker_push(world, t, 'POLICY', f"Universal Basic Income {status_str} in {pinned.name}.", (120, 220, 140) if rgov.ubi_active else (240, 80, 80))
+            return True
+
+        # Decrees
+        dec_card_y = tax_card_y + 80 + 10
+
+        # Food Relief ($50)
+        d1_rect = (x + 16, dec_card_y + 28, w - 32, 28)
+        if d1_rect[0] <= mx <= d1_rect[0] + w - 32 and d1_rect[1] <= my <= d1_rect[1] + 28:
+            if rgov.agent.cash >= 50.0:
+                rgov.agent.cash -= 50.0
+                rgov.food_inventory += 20.0
                 from worldview_engine import ticker_push
-                ticker_push(world, t, 'POLICY', f"Decreed Tax Cut in {pinned.name}: New Rate {rgov.tax_rate*100:.1f}%.", (120, 220, 140))
-                return True
+                ticker_push(world, t, 'POLICY', f"Disbursed $50 Emergency Food Rations in {pinned.name}.", (120, 220, 140))
+            return True
 
-            # [+2% Tax]
-            b2_rect = (x + 102, tax_card_y + 28, 80, 22)
-            if b2_rect[0] <= mx <= b2_rect[0] + 80 and b2_rect[1] <= my <= b2_rect[1] + 22:
-                rgov.tax_rate = min(0.60, round(rgov.tax_rate + 0.02, 3))
+        # Subsidize Farming ($100)
+        d2_rect = (x + 16, dec_card_y + 60, w - 32, 28)
+        if d2_rect[0] <= mx <= d2_rect[0] + w - 32 and d2_rect[1] <= my <= d2_rect[1] + 28:
+            if rgov.agent.cash >= 100.0:
+                rgov.agent.cash -= 100.0
                 from worldview_engine import ticker_push
-                ticker_push(world, t, 'POLICY', f"Decreed Tax Hike in {pinned.name}: New Rate {rgov.tax_rate*100:.1f}%.", (245, 180, 50))
-                return True
+                ticker_push(world, t, 'POLICY', f"Granted $100 Agricultural Subsidy to farms in {pinned.name}.", (120, 220, 140))
+            return True
 
-            # UBI Toggle
-            b3_rect = (x + 16, tax_card_y + 52, w - 32, 22)
-            if b3_rect[0] <= mx <= b3_rect[0] + w - 32 and b3_rect[1] <= my <= b3_rect[1] + 22:
-                rgov.ubi_active = not getattr(rgov, 'ubi_active', False)
-                status_str = "enacted" if rgov.ubi_active else "repealed"
+        # Law Enforcement / Safety Patrol ($60)
+        d3_rect = (x + 16, dec_card_y + 92, w - 32, 28)
+        if d3_rect[0] <= mx <= d3_rect[0] + w - 32 and d3_rect[1] <= my <= d3_rect[1] + 28:
+            if rgov.agent.cash >= 60.0:
+                rgov.agent.cash -= 60.0
+                if pinned.protest_energy_log:
+                    pinned.protest_energy_log[-1] = max(0.0, pinned.protest_energy_log[-1] - 0.40)
                 from worldview_engine import ticker_push
-                ticker_push(world, t, 'POLICY', f"Universal Basic Income {status_str} in {pinned.name}.", (120, 220, 140) if rgov.ubi_active else (240, 80, 80))
-                return True
-
-            # Decrees
-            dec_card_y = tax_card_y + 80 + 10
-
-            # Food Relief ($50)
-            d1_rect = (x + 16, dec_card_y + 28, w - 32, 28)
-            if d1_rect[0] <= mx <= d1_rect[0] + w - 32 and d1_rect[1] <= my <= d1_rect[1] + 28:
-                if rgov.agent.cash >= 50.0:
-                    rgov.agent.cash -= 50.0
-                    rgov.food_inventory += 20.0
-                    from worldview_engine import ticker_push
-                    ticker_push(world, t, 'POLICY', f"Disbursed $50 Emergency Food Rations in {pinned.name}.", (120, 220, 140))
-                return True
-
-            # Subsidize Farming ($100)
-            d2_rect = (x + 16, dec_card_y + 60, w - 32, 28)
-            if d2_rect[0] <= mx <= d2_rect[0] + w - 32 and d2_rect[1] <= my <= d2_rect[1] + 28:
-                if rgov.agent.cash >= 100.0:
-                    rgov.agent.cash -= 100.0
-                    from worldview_engine import ticker_push
-                    ticker_push(world, t, 'POLICY', f"Granted $100 Agricultural Subsidy to farms in {pinned.name}.", (120, 220, 140))
-                return True
-
-            # Law Enforcement / Safety Patrol ($60)
-            d3_rect = (x + 16, dec_card_y + 92, w - 32, 28)
-            if d3_rect[0] <= mx <= d3_rect[0] + w - 32 and d3_rect[1] <= my <= d3_rect[1] + 28:
-                if rgov.agent.cash >= 60.0:
-                    rgov.agent.cash -= 60.0
-                    if pinned.protest_energy_log:
-                        pinned.protest_energy_log[-1] = max(0.0, pinned.protest_energy_log[-1] - 0.40)
-                    from worldview_engine import ticker_push
-                    ticker_push(world, t, 'POLICY', f"Deployed Public Safety Patrols in {pinned.name} (-0.40 Protest).", (120, 220, 140))
-                return True
+                ticker_push(world, t, 'POLICY', f"Deployed Public Safety Patrols in {pinned.name} (-0.40 Protest).", (120, 220, 140))
+            return True
 
         # --- PROVINCE SCOPE CLICKS ---
         elif active_scope == 'province' and prov_gov:
