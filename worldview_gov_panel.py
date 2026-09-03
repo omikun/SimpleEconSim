@@ -28,46 +28,9 @@ BTN_BORDER = (70, 85, 115)
 
 
 def draw_left_dock_buttons(surface, world, font_small, mouse_pos=None):
-    """Draw the floating left dock toggle buttons for [🔨 Build Menu (B)] and [🏛️ Governance (G)]."""
-    mx, my = mouse_pos if mouse_pos else (-1, -1)
-    x = GOV_PANEL_X
-    btn_w = 146
-    btn_h = 28
-
-    build_open = world.get('build_panel_open', False)
-    gov_open = world.get('gov_panel_open', False)
-
-    # 1. Build Menu Toggle Button (Top)
-    y_build = GOV_PANEL_Y
-    if not build_open and not gov_open:
-        r_build = (x, y_build, btn_w, btn_h)
-        hov_build = r_build[0] <= mx <= r_build[0] + btn_w and r_build[1] <= my <= r_build[1] + btn_h
-
-        btn_surf = pygame.Surface((btn_w, btn_h), pygame.SRCALPHA)
-        btn_surf.fill((20, 22, 32, 240) if not hov_build else (34, 38, 54, 245))
-        surface.blit(btn_surf, (x, y_build))
-        pygame.draw.rect(surface, ACCENT if hov_build else (70, 75, 95), r_build, 1, border_radius=5)
-
-        h_icon = get_icon('hammer', 14)
-        surface.blit(h_icon, (x + 8, y_build + 7))
-        txt = font_small.render("Build Menu (B)", True, (255, 255, 255) if hov_build else TEXT)
-        surface.blit(txt, (x + 28, y_build + 6))
-
-    # 2. Governance Toggle Button (Below Build Button)
-    y_gov = GOV_PANEL_Y + (0 if build_open else 34)
-    if not gov_open and not build_open:
-        r_gov = (x, y_gov, btn_w, btn_h)
-        hov_gov = r_gov[0] <= mx <= r_gov[0] + btn_w and r_gov[1] <= my <= r_gov[1] + btn_h
-
-        btn_surf = pygame.Surface((btn_w, btn_h), pygame.SRCALPHA)
-        btn_surf.fill((20, 22, 32, 240) if not hov_gov else (34, 38, 54, 245))
-        surface.blit(btn_surf, (x, y_gov))
-        pygame.draw.rect(surface, ACCENT if hov_gov else (70, 75, 95), r_gov, 1, border_radius=5)
-
-        g_icon = get_icon('municipal', 14)
-        surface.blit(g_icon, (x + 8, y_gov + 7))
-        txt = font_small.render("Governance (G)", True, (255, 255, 255) if hov_gov else TEXT)
-        surface.blit(txt, (x + 28, y_gov + 6))
+    """Draw the floating left dock toggle buttons for all left-hand panels."""
+    from worldview_left_dock import draw_left_dock_buttons as _draw_dock
+    _draw_dock(surface, world, font_small, mouse_pos)
 
 
 def draw_gov_panel(surface, world, font, font_small, mouse_pos=None):
@@ -77,6 +40,12 @@ def draw_gov_panel(surface, world, font, font_small, mouse_pos=None):
 
     # Auto-collapse layer dock so it doesn't draw underneath
     world['layers_collapsed'] = True
+    world['build_panel_open'] = False
+    world['diplomacy_panel_open'] = False
+    world['debt_panel_open'] = False
+    world['science_panel_open'] = False
+    world['military_panel_open'] = False
+    world['left_panel'] = 'governance'
 
     mx, my = mouse_pos if mouse_pos else (-1, -1)
     x, y, w, h = GOV_PANEL_X, GOV_PANEL_Y, GOV_PANEL_W, GOV_PANEL_H
@@ -117,8 +86,12 @@ def draw_gov_panel(surface, world, font, font_small, mouse_pos=None):
     x_txt = font_small.render("×", True, (255, 255, 255) if hc else DIM)
     surface.blit(x_txt, (close_rect[0] + 4, close_rect[1] + 1))
 
+    # Drawer Top Switcher Tabs
+    from worldview_left_dock import draw_drawer_top_tabs
+    cur_y = draw_drawer_top_tabs(surface, world, x, y + 48, w, 'governance', font_small, mouse_pos)
+
     # Scope Switcher Tabs
-    scope_y = y + 50
+    scope_y = cur_y
     active_scope = world.get('policy_scope', 'tile')
     scopes = [('tile', 'City', 'municipal'), ('province', 'Province', 'roads'), ('nation', 'Nation', 'crown')]
     tab_w = (w - 24) // 3
@@ -350,38 +323,32 @@ def gov_panel_hit(pos, world) -> bool:
     gov_open = world.get('gov_panel_open', False)
 
     # 1. Left Dock Button Clicks (when panels are closed)
-    btn_w = 146
-    btn_h = 28
-    if not build_open and not gov_open:
-        # Build Button
-        if x <= mx <= x + btn_w and GOV_PANEL_Y <= my <= GOV_PANEL_Y + btn_h:
-            world['build_panel_open'] = True
-            world['gov_panel_open'] = False
-            return True
-        # Governance Button
-        if x <= mx <= x + btn_w and GOV_PANEL_Y + 34 <= my <= GOV_PANEL_Y + 34 + btn_h:
-            world['gov_panel_open'] = True
-            world['build_panel_open'] = False
-            return True
-
-    # If Governance panel is not open, return False
+    from worldview_left_dock import left_dock_buttons_hit, open_left_panel
     if not gov_open:
+        if left_dock_buttons_hit(pos, world):
+            return True
         return False
 
     # Close button [X]
     close_rect = (x + w - 26, y + 8, 18, 18)
     if close_rect[0] <= mx <= close_rect[0] + 18 and close_rect[1] <= my <= close_rect[1] + 18:
-        world['gov_panel_open'] = False
+        from worldview_left_dock import close_left_panels
+        close_left_panels(world)
         return True
 
-    # Scope Switcher Tabs
-    scope_y = y + 50
+    # Drawer Top Switcher
+    from worldview_left_dock import drawer_top_tabs_hit
+    if drawer_top_tabs_hit(pos, world, x, y + 48, w):
+        return True
+
+    # Scope Switcher Tabs (new layout at y + 80, legacy at y + 50)
     tab_w = (w - 24) // 3
-    for i, (sc_id, _) in enumerate([('tile', 'City'), ('province', 'Province'), ('nation', 'Nation')]):
-        tx = x + 8 + i * (tab_w + 4)
-        if tx <= mx <= tx + tab_w and scope_y <= my <= scope_y + 24:
-            world['policy_scope'] = sc_id
-            return True
+    for scope_y_test in (y + 48 + 24 + 8, y + 50):
+        for i, (sc_id, _) in enumerate([('tile', 'City'), ('province', 'Province'), ('nation', 'Nation')]):
+            tx = x + 8 + i * (tab_w + 4)
+            if tx <= mx <= tx + tab_w and scope_y_test <= my <= scope_y_test + 24:
+                world['policy_scope'] = sc_id
+                return True
 
     pinned = world.get('selected_region')
     if pinned is None and world.get('nations') and world['nations'][0].tiles:
@@ -397,129 +364,133 @@ def gov_panel_hit(pos, world) -> bool:
     nat_gov = getattr(nation, 'government', None) if nation else None
     active_scope = world.get('policy_scope', 'tile')
 
-    cur_y = scope_y + 32
+    for base_scope_y in (y + 48 + 24 + 8, y + 50):
+        scope_y = base_scope_y
+        cur_y = scope_y + 32
 
-    # --- CITY / TILE SCOPE CLICKS ---
-    if active_scope == 'tile' and rgov:
-        card1_h = 76
-        cur_y = start_y = cur_y
-        tax_card_y = start_y + card1_h + 10
+        # --- CITY / TILE SCOPE CLICKS ---
+        if active_scope == 'tile' and rgov:
+            card1_h = 76
+            start_y = cur_y
+            tax_card_y = start_y + card1_h + 10
 
-        # [-2% Tax]
-        b1_rect = (x + 16, tax_card_y + 28, 80, 22)
-        if b1_rect[0] <= mx <= b1_rect[0] + 80 and b1_rect[1] <= my <= b1_rect[1] + 22:
-            rgov.tax_rate = max(0.02, round(rgov.tax_rate - 0.02, 3))
-            from worldview_engine import ticker_push
-            ticker_push(world, t, 'POLICY', f"Decreed Tax Cut in {pinned.name}: New Rate {rgov.tax_rate*100:.1f}%.", (120, 220, 140))
-            return True
-
-        # [+2% Tax]
-        b2_rect = (x + 102, tax_card_y + 28, 80, 22)
-        if b2_rect[0] <= mx <= b2_rect[0] + 80 and b2_rect[1] <= my <= b2_rect[1] + 22:
-            rgov.tax_rate = min(0.60, round(rgov.tax_rate + 0.02, 3))
-            from worldview_engine import ticker_push
-            ticker_push(world, t, 'POLICY', f"Decreed Tax Hike in {pinned.name}: New Rate {rgov.tax_rate*100:.1f}%.", (245, 180, 50))
-            return True
-
-        # UBI Toggle
-        b3_rect = (x + 16, tax_card_y + 52, w - 32, 22)
-        if b3_rect[0] <= mx <= b3_rect[0] + w - 32 and b3_rect[1] <= my <= b3_rect[1] + 22:
-            rgov.ubi_active = not getattr(rgov, 'ubi_active', False)
-            status_str = "enacted" if rgov.ubi_active else "repealed"
-            from worldview_engine import ticker_push
-            ticker_push(world, t, 'POLICY', f"Universal Basic Income {status_str} in {pinned.name}.", (120, 220, 140) if rgov.ubi_active else (240, 80, 80))
-            return True
-
-        # Decrees
-        dec_card_y = tax_card_y + 80 + 10
-
-        # Food Relief ($50)
-        d1_rect = (x + 16, dec_card_y + 28, w - 32, 28)
-        if d1_rect[0] <= mx <= d1_rect[0] + w - 32 and d1_rect[1] <= my <= d1_rect[1] + 28:
-            if rgov.agent.cash >= 50.0:
-                rgov.agent.cash -= 50.0
-                rgov.food_inventory += 20.0
+            # [-2% Tax]
+            b1_rect = (x + 16, tax_card_y + 28, 80, 22)
+            if b1_rect[0] <= mx <= b1_rect[0] + 80 and b1_rect[1] <= my <= b1_rect[1] + 22:
+                rgov.tax_rate = max(0.02, round(rgov.tax_rate - 0.02, 3))
                 from worldview_engine import ticker_push
-                ticker_push(world, t, 'POLICY', f"Disbursed $50 Emergency Food Rations in {pinned.name}.", (120, 220, 140))
-            return True
+                ticker_push(world, t, 'POLICY', f"Decreed Tax Cut in {pinned.name}: New Rate {rgov.tax_rate*100:.1f}%.", (120, 220, 140))
+                return True
 
-        # Subsidize Farming ($100)
-        d2_rect = (x + 16, dec_card_y + 60, w - 32, 28)
-        if d2_rect[0] <= mx <= d2_rect[0] + w - 32 and d2_rect[1] <= my <= d2_rect[1] + 28:
-            if rgov.agent.cash >= 100.0:
-                rgov.agent.cash -= 100.0
+            # [+2% Tax]
+            b2_rect = (x + 102, tax_card_y + 28, 80, 22)
+            if b2_rect[0] <= mx <= b2_rect[0] + 80 and b2_rect[1] <= my <= b2_rect[1] + 22:
+                rgov.tax_rate = min(0.60, round(rgov.tax_rate + 0.02, 3))
                 from worldview_engine import ticker_push
-                ticker_push(world, t, 'POLICY', f"Granted $100 Agricultural Subsidy to farms in {pinned.name}.", (120, 220, 140))
-            return True
+                ticker_push(world, t, 'POLICY', f"Decreed Tax Hike in {pinned.name}: New Rate {rgov.tax_rate*100:.1f}%.", (245, 180, 50))
+                return True
 
-        # Law Enforcement / Safety Patrol ($60)
-        d3_rect = (x + 16, dec_card_y + 92, w - 32, 28)
-        if d3_rect[0] <= mx <= d3_rect[0] + w - 32 and d3_rect[1] <= my <= d3_rect[1] + 28:
-            if rgov.agent.cash >= 60.0:
-                rgov.agent.cash -= 60.0
-                if pinned.protest_energy_log:
-                    pinned.protest_energy_log[-1] = max(0.0, pinned.protest_energy_log[-1] - 0.40)
+            # UBI Toggle
+            b3_rect = (x + 16, tax_card_y + 52, w - 32, 22)
+            if b3_rect[0] <= mx <= b3_rect[0] + w - 32 and b3_rect[1] <= my <= b3_rect[1] + 22:
+                rgov.ubi_active = not getattr(rgov, 'ubi_active', False)
+                status_str = "enacted" if rgov.ubi_active else "repealed"
                 from worldview_engine import ticker_push
-                ticker_push(world, t, 'POLICY', f"Deployed Public Safety Patrols in {pinned.name} (-0.40 Protest).", (120, 220, 140))
-            return True
+                ticker_push(world, t, 'POLICY', f"Universal Basic Income {status_str} in {pinned.name}.", (120, 220, 140) if rgov.ubi_active else (240, 80, 80))
+                return True
 
-    # --- PROVINCE SCOPE CLICKS ---
-    elif active_scope == 'province' and prov_gov:
-        card1_h = 76
-        cur_y = dec_card_y = cur_y + card1_h + 10
+            # Decrees
+            dec_card_y = tax_card_y + 80 + 10
 
-        # Pave Highway ($120)
-        p1_rect = (x + 16, dec_card_y + 28, w - 32, 28)
-        if p1_rect[0] <= mx <= p1_rect[0] + w - 32 and p1_rect[1] <= my <= p1_rect[1] + 28:
-            if prov_gov.agent.cash >= 120.0:
-                prov_gov.agent.cash -= 120.0
-                from worldview_engine import ticker_push
-                ticker_push(world, t, 'POLICY', f"Provincial Administration funded $120 Highway Maintenance in {province.name}.", (120, 220, 140))
-            return True
+            # Food Relief ($50)
+            d1_rect = (x + 16, dec_card_y + 28, w - 32, 28)
+            if d1_rect[0] <= mx <= d1_rect[0] + w - 32 and d1_rect[1] <= my <= d1_rect[1] + 28:
+                if rgov.agent.cash >= 50.0:
+                    rgov.agent.cash -= 50.0
+                    rgov.food_inventory += 20.0
+                    from worldview_engine import ticker_push
+                    ticker_push(world, t, 'POLICY', f"Disbursed $50 Emergency Food Rations in {pinned.name}.", (120, 220, 140))
+                return True
 
-        # Health Initiative ($150)
-        p2_rect = (x + 16, dec_card_y + 60, w - 32, 28)
-        if p2_rect[0] <= mx <= p2_rect[0] + w - 32 and p2_rect[1] <= my <= p2_rect[1] + 28:
-            if prov_gov.agent.cash >= 150.0:
-                prov_gov.agent.cash -= 150.0
-                from worldview_engine import ticker_push
-                ticker_push(world, t, 'POLICY', f"Provincial Administration launched $150 Healthcare Program in {province.name}.", (120, 220, 140))
-            return True
+            # Subsidize Farming ($100)
+            d2_rect = (x + 16, dec_card_y + 60, w - 32, 28)
+            if d2_rect[0] <= mx <= d2_rect[0] + w - 32 and d2_rect[1] <= my <= d2_rect[1] + 28:
+                if rgov.agent.cash >= 100.0:
+                    rgov.agent.cash -= 100.0
+                    from worldview_engine import ticker_push
+                    ticker_push(world, t, 'POLICY', f"Granted $100 Agricultural Subsidy to farms in {pinned.name}.", (120, 220, 140))
+                return True
 
-        # Provincial Equalization ($200)
-        p3_rect = (x + 16, dec_card_y + 92, w - 32, 28)
-        if p3_rect[0] <= mx <= p3_rect[0] + w - 32 and p3_rect[1] <= my <= p3_rect[1] + 28:
-            from intents import execute_equalization_grant
-            execute_equalization_grant(world, nation.name, pinned.name, 'provincial_pool', 200.0, t)
-            return True
+            # Law Enforcement / Safety Patrol ($60)
+            d3_rect = (x + 16, dec_card_y + 92, w - 32, 28)
+            if d3_rect[0] <= mx <= d3_rect[0] + w - 32 and d3_rect[1] <= my <= d3_rect[1] + 28:
+                if rgov.agent.cash >= 60.0:
+                    rgov.agent.cash -= 60.0
+                    if pinned.protest_energy_log:
+                        pinned.protest_energy_log[-1] = max(0.0, pinned.protest_energy_log[-1] - 0.40)
+                    from worldview_engine import ticker_push
+                    ticker_push(world, t, 'POLICY', f"Deployed Public Safety Patrols in {pinned.name} (-0.40 Protest).", (120, 220, 140))
+                return True
 
-    # --- NATION SCOPE CLICKS ---
-    elif active_scope == 'nation' and nat_gov and nation:
-        card1_h = 76
-        cur_y = dec_card_y = cur_y + card1_h + 10
+        # --- PROVINCE SCOPE CLICKS ---
+        elif active_scope == 'province' and prov_gov:
+            card1_h = 76
+            dec_card_y = cur_y + card1_h + 10
 
-        # Fund Science Prize ($300)
-        n1_rect = (x + 16, dec_card_y + 28, w - 32, 28)
-        if n1_rect[0] <= mx <= n1_rect[0] + w - 32 and n1_rect[1] <= my <= n1_rect[1] + 28:
-            if nat_gov.agent.cash >= 300.0:
-                nat_gov.agent.cash -= 300.0
-                from worldview_engine import ticker_push
-                ticker_push(world, t, 'INNOVATION', f"{nation.name} funded a $300 Sovereign Science Grant.", (80, 200, 255))
-            return True
+            # Pave Highway ($120)
+            p1_rect = (x + 16, dec_card_y + 28, w - 32, 28)
+            if p1_rect[0] <= mx <= p1_rect[0] + w - 32 and p1_rect[1] <= my <= p1_rect[1] + 28:
+                if prov_gov.agent.cash >= 120.0:
+                    prov_gov.agent.cash -= 120.0
+                    from worldview_engine import ticker_push
+                    ticker_push(world, t, 'POLICY', f"Provincial Administration funded $120 Highway Maintenance in {province.name}.", (120, 220, 140))
+                return True
 
-        # Mobilize Garrison ($250)
-        n2_rect = (x + 16, dec_card_y + 60, w - 32, 28)
-        if n2_rect[0] <= mx <= n2_rect[0] + w - 32 and n2_rect[1] <= my <= n2_rect[1] + 28:
-            from intents import RecruitArmyIntent
-            intent = RecruitArmyIntent(nation.name, pinned.name, 15, wage=1.0, submitted_turn=t, regime_type=nation.regime_type)
-            nation.submit_intent(intent, t)
-            return True
+            # Health Initiative ($150)
+            p2_rect = (x + 16, dec_card_y + 60, w - 32, 28)
+            if p2_rect[0] <= mx <= p2_rect[0] + w - 32 and p2_rect[1] <= my <= p2_rect[1] + 28:
+                if prov_gov.agent.cash >= 150.0:
+                    prov_gov.agent.cash -= 150.0
+                    from worldview_engine import ticker_push
+                    ticker_push(world, t, 'POLICY', f"Provincial Administration launched $150 Healthcare Program in {province.name}.", (120, 220, 140))
+                return True
 
-        # Sovereign Fiscal Equalization ($250)
-        n3_rect = (x + 16, dec_card_y + 92, w - 32, 28)
-        if n3_rect[0] <= mx <= n3_rect[0] + w - 32 and n3_rect[1] <= my <= n3_rect[1] + 28:
-            from intents import execute_equalization_grant
-            execute_equalization_grant(world, nation.name, pinned.name, 'national_sovereign', 250.0, t)
-            return True
+            # Provincial Equalization ($200)
+            p3_rect = (x + 16, dec_card_y + 92, w - 32, 28)
+            if p3_rect[0] <= mx <= p3_rect[0] + w - 32 and p3_rect[1] <= my <= p3_rect[1] + 28:
+                from intents import execute_equalization_grant
+                execute_equalization_grant(world, nation.name, pinned.name, 'provincial_pool', 200.0, t)
+                return True
+
+        # --- NATION SCOPE CLICKS ---
+        elif active_scope == 'nation' and nat_gov and nation:
+            card1_h = 76
+            dec_card_y = cur_y + card1_h + 10
+
+            # Fund Science Prize ($300)
+            n1_rect = (x + 16, dec_card_y + 28, w - 32, 28)
+            if n1_rect[0] <= mx <= n1_rect[0] + w - 32 and n1_rect[1] <= my <= n1_rect[1] + 28:
+                if nat_gov.agent.cash >= 300.0:
+                    nat_gov.agent.cash -= 300.0
+                    from worldview_engine import ticker_push
+                    ticker_push(world, t, 'INNOVATION', f"{nation.name} funded a $300 Sovereign Science Grant.", (80, 200, 255))
+                return True
+
+            # Mobilize Garrison ($250)
+            n2_rect = (x + 16, dec_card_y + 60, w - 32, 28)
+            if n2_rect[0] <= mx <= n2_rect[0] + w - 32 and n2_rect[1] <= my <= n2_rect[1] + 28:
+                from intents import RecruitArmyIntent
+                intent = RecruitArmyIntent(nation.name, pinned.name, 15, wage=1.0, submitted_turn=t, regime_type=nation.regime_type)
+                nation.submit_intent(intent, t)
+                return True
+
+            # Sovereign Fiscal Equalization ($250)
+            n3_rect = (x + 16, dec_card_y + 92, w - 32, 28)
+            if n3_rect[0] <= mx <= n3_rect[0] + w - 32 and n3_rect[1] <= my <= n3_rect[1] + 28:
+                from intents import execute_equalization_grant
+                execute_equalization_grant(world, nation.name, pinned.name, 'national_sovereign', 250.0, t)
+                return True
+
+    return False
 
     return False

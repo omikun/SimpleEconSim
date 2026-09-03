@@ -36,9 +36,14 @@ def draw_build_panel(surface, world, font, font_small, mouse_pos=None):
     if not world.get('build_panel_open', False) or pinned is None:
         return
 
-    # Auto-collapse layer dock and close gov panel so they don't overlap
+    # Auto-collapse layer dock and close other left panels so they don't overlap
     world['layers_collapsed'] = True
     world['gov_panel_open'] = False
+    world['diplomacy_panel_open'] = False
+    world['debt_panel_open'] = False
+    world['science_panel_open'] = False
+    world['military_panel_open'] = False
+    world['left_panel'] = 'build'
 
     # Background frame
     panel_surf = pygame.Surface((w, h), pygame.SRCALPHA)
@@ -69,8 +74,9 @@ def draw_build_panel(surface, world, font, font_small, mouse_pos=None):
     pygame.draw.rect(surface, (60, 60, 80) if hc else (35, 35, 48), close_rect, border_radius=3)
     x_txt = font_small.render("×", True, (255, 255, 255) if hc else DIM)
     surface.blit(x_txt, (close_rect[0] + 4, close_rect[1] + 1))
-
-    cur_y = y + 50
+    # Drawer Top Switcher Tabs
+    from worldview_left_dock import draw_drawer_top_tabs
+    cur_y = draw_drawer_top_tabs(surface, world, x, y + 48, w, 'build', font_small, mouse_pos)
 
     # ─────────────────────────────────────────────────────────────
     # Tier 1: Municipal / Tile Level
@@ -255,7 +261,13 @@ def build_panel_hit(pos, world) -> bool:
 
     # Close button [X]
     if x + w - 26 <= mx <= x + w - 8 and y + 8 <= my <= y + 26:
-        world['build_panel_open'] = False
+        from worldview_left_dock import close_left_panels
+        close_left_panels(world)
+        return True
+
+    # Drawer Top Switcher
+    from worldview_left_dock import drawer_top_tabs_hit
+    if drawer_top_tabs_hit(pos, world, x, y + 48, w):
         return True
 
     nation = getattr(pinned, 'owner_nation', None)
@@ -265,34 +277,34 @@ def build_panel_hit(pos, world) -> bool:
     province = getattr(pinned, 'province', None)
     t = world.get('turn', 1)
 
-    # Check button clicks in each tier using the exact same _get_tier_layout
-    cur_y = y + 50
+    # Check button clicks in each tier (new layout with tabs at y+80, fallback to y+50)
+    for base_y in (y + 48 + 24 + 8, y + 50):
+        cur_y = base_y
+        # 1. Tile Tier
+        rgov = getattr(pinned, 'gov', None)
+        tile_cash = (rgov.agent.cash if rgov else 0.0) + (pinned.bank.deposits.get(rgov.agent, 0.0) if hasattr(pinned, 'bank') and rgov else 0.0)
+        cur_y, tier1_buttons = _get_tier_layout(cur_y, ['farm', 'granary', 'sawmill', 'workshop'], x + 8, w - 16)
+        for r_key, btn_rect in tier1_buttons:
+            if btn_rect[0] <= mx <= btn_rect[0] + btn_rect[2] and btn_rect[1] <= my <= btn_rect[1] + btn_rect[3]:
+                _handle_build_click(world, pinned, nation, r_key, tile_cash, t)
+                return True
 
-    # 1. Tile Tier
-    rgov = getattr(pinned, 'gov', None)
-    tile_cash = (rgov.agent.cash if rgov else 0.0) + (pinned.bank.deposits.get(rgov.agent, 0.0) if hasattr(pinned, 'bank') and rgov else 0.0)
-    cur_y, tier1_buttons = _get_tier_layout(cur_y, ['farm', 'granary', 'sawmill', 'workshop'], x + 8, w - 16)
-    for r_key, btn_rect in tier1_buttons:
-        if btn_rect[0] <= mx <= btn_rect[0] + btn_rect[2] and btn_rect[1] <= my <= btn_rect[1] + btn_rect[3]:
-            _handle_build_click(world, pinned, nation, r_key, tile_cash, t)
-            return True
+        # 2. Province Tier
+        prov_cash = sum(getattr(tg.gov.agent, 'cash', 0.0) + (tg.bank.deposits.get(tg.gov.agent, 0.0) if hasattr(tg, 'bank') else 0.0)
+                        for tg in (province.tiles if province else nation.tiles) if getattr(tg, 'gov', None))
+        cur_y, tier2_buttons = _get_tier_layout(cur_y, ['paved_road', 'river_bridge', 'sanatorium'], x + 8, w - 16)
+        for r_key, btn_rect in tier2_buttons:
+            if btn_rect[0] <= mx <= btn_rect[0] + btn_rect[2] and btn_rect[1] <= my <= btn_rect[1] + btn_rect[3]:
+                _handle_build_click(world, pinned, nation, r_key, prov_cash, t)
+                return True
 
-    # 2. Province Tier
-    prov_cash = sum(getattr(tg.gov.agent, 'cash', 0.0) + (tg.bank.deposits.get(tg.gov.agent, 0.0) if hasattr(tg, 'bank') else 0.0)
-                    for tg in (province.tiles if province else nation.tiles) if getattr(tg, 'gov', None))
-    cur_y, tier2_buttons = _get_tier_layout(cur_y, ['paved_road', 'river_bridge', 'sanatorium'], x + 8, w - 16)
-    for r_key, btn_rect in tier2_buttons:
-        if btn_rect[0] <= mx <= btn_rect[0] + btn_rect[2] and btn_rect[1] <= my <= btn_rect[1] + btn_rect[3]:
-            _handle_build_click(world, pinned, nation, r_key, prov_cash, t)
-            return True
-
-    # 3. National Sovereign Tier
-    nat_cash = (nation.treasury()['total']) if nation else 0.0
-    cur_y, tier3_buttons = _get_tier_layout(cur_y, ['mountain_pass', 'central_mint', 'military_citadel'], x + 8, w - 16)
-    for r_key, btn_rect in tier3_buttons:
-        if btn_rect[0] <= mx <= btn_rect[0] + btn_rect[2] and btn_rect[1] <= my <= btn_rect[1] + btn_rect[3]:
-            _handle_build_click(world, pinned, nation, r_key, nat_cash, t)
-            return True
+        # 3. National Sovereign Tier
+        nat_cash = (nation.treasury()['total']) if nation else 0.0
+        cur_y, tier3_buttons = _get_tier_layout(cur_y, ['mountain_pass', 'central_mint', 'military_citadel'], x + 8, w - 16)
+        for r_key, btn_rect in tier3_buttons:
+            if btn_rect[0] <= mx <= btn_rect[0] + btn_rect[2] and btn_rect[1] <= my <= btn_rect[1] + btn_rect[3]:
+                _handle_build_click(world, pinned, nation, r_key, nat_cash, t)
+                return True
 
     # 4. Manual Fiscal Equalization Click
     eq_btn_rect = (x + 8, cur_y + 24, w - 16, 26)

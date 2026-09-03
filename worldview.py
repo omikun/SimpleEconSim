@@ -57,6 +57,21 @@ from worldview_build_panel import (
 from worldview_gov_panel import (
     draw_gov_panel, gov_panel_hit, draw_left_dock_buttons
 )
+from worldview_diplomacy_panel import (
+    draw_diplomacy_panel, diplomacy_panel_hit
+)
+from worldview_debt_panel import (
+    draw_debt_panel, debt_panel_hit
+)
+from worldview_science_panel import (
+    draw_science_panel, science_panel_hit
+)
+from worldview_military_panel import (
+    draw_military_panel, military_panel_hit
+)
+from worldview_left_dock import (
+    open_left_panel, close_left_panels, is_any_left_panel_open, left_dock_buttons_hit
+)
 from worldview_transfer_dialog import (
     draw_transfer_dialog, transfer_dialog_hit
 )
@@ -122,6 +137,10 @@ def render_frame(surface, world, mouse_pos=None):
     draw_left_dock_buttons(surface, world, font_small, mouse_pos=mouse_pos)
     draw_build_panel(surface, world, font, font_small, mouse_pos=mouse_pos)
     draw_gov_panel(surface, world, font, font_small, mouse_pos=mouse_pos)
+    draw_diplomacy_panel(surface, world, font, font_small, mouse_pos=mouse_pos)
+    draw_debt_panel(surface, world, font, font_small, mouse_pos=mouse_pos)
+    draw_science_panel(surface, world, font, font_small, mouse_pos=mouse_pos)
+    draw_military_panel(surface, world, font, font_small, mouse_pos=mouse_pos)
     draw_panel(surface, world, font, font_small, mouse_pos=mouse_pos)
     draw_ticker(surface, world, font_small)
 
@@ -269,10 +288,20 @@ def main():
                 if layer_sidebar_hit(event.pos, world):
                     continue
 
-                # 1d. Check Left Governance Panel & Build Panel hits
+                # 1d. Check Left Drawer hits (Build, Governance, Diplomacy, Debt, Science, Military)
+                if left_dock_buttons_hit(event.pos, world):
+                    continue
                 if gov_panel_hit(event.pos, world):
                     continue
                 if build_panel_hit(event.pos, world):
+                    continue
+                if diplomacy_panel_hit(event.pos, world):
+                    continue
+                if debt_panel_hit(event.pos, world):
+                    continue
+                if science_panel_hit(event.pos, world):
+                    continue
+                if military_panel_hit(event.pos, world):
                     continue
 
                 # 2. Check Zoom HUD buttons
@@ -479,16 +508,28 @@ def main():
                     world['help_open'] = not world.get('help_open', False)
                     _mark_dirty(world)
                 elif event.key == pygame.K_b:
-                    world['build_panel_open'] = not world.get('build_panel_open', False)
-                    if world['build_panel_open']:
-                        world['gov_panel_open'] = False
-                        world['layers_collapsed'] = True
+                    is_open = world.get('build_panel_open', False)
+                    open_left_panel(world, None if is_open else 'build')
                     _mark_dirty(world)
                 elif event.key == pygame.K_g:
-                    world['gov_panel_open'] = not world.get('gov_panel_open', False)
-                    if world['gov_panel_open']:
-                        world['build_panel_open'] = False
-                        world['layers_collapsed'] = True
+                    is_open = world.get('gov_panel_open', False)
+                    open_left_panel(world, None if is_open else 'governance')
+                    _mark_dirty(world)
+                elif event.key == pygame.K_d:
+                    is_open = world.get('diplomacy_panel_open', False)
+                    open_left_panel(world, None if is_open else 'diplomacy')
+                    _mark_dirty(world)
+                elif event.key == pygame.K_s:
+                    is_open = world.get('debt_panel_open', False)
+                    open_left_panel(world, None if is_open else 'debt')
+                    _mark_dirty(world)
+                elif event.key in (pygame.K_t, pygame.K_i):
+                    is_open = world.get('science_panel_open', False)
+                    open_left_panel(world, None if is_open else 'science')
+                    _mark_dirty(world)
+                elif event.key == pygame.K_m:
+                    is_open = world.get('military_panel_open', False)
+                    open_left_panel(world, None if is_open else 'military')
                     _mark_dirty(world)
                 elif event.key == pygame.K_ESCAPE:
                     if world.get('transfer_dialog', {}).get('open'):
@@ -499,6 +540,8 @@ def main():
                         world['actions_open'] = False
                     elif world.get('compare_open'):
                         world['compare_open'] = False
+                    elif is_any_left_panel_open(world):
+                        close_left_panels(world)
                     else:
                         world['selected_region'] = None
                     _mark_dirty(world)
