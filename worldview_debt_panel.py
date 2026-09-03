@@ -242,7 +242,7 @@ def draw_debt_panel(surface: pygame.Surface, world: dict, font: pygame.font.Font
         surface.blit(font.render("Cross-Border Bond Market", True, ACCENT), (x + 16, cur_y + 8))
 
         # Live offerings from foreign nations
-        foreign_offerings = [o for o in market.active_offerings if o.issuer_nation != active_n.name and o.status == 'live']
+        foreign_offerings = [o for o in market.get_live_offerings() if o.issuer_nation != active_n.name]
         oy = cur_y + 32
 
         if not foreign_offerings:
@@ -386,14 +386,17 @@ def debt_panel_hit(pos: tuple[int, int], world: dict) -> bool:
     else:
         # Scope == 'foreign'
         cur_y += 90 + 10 + 32
-        foreign_offerings = [o for o in market.active_offerings if o.issuer_nation != active_n.name and o.status == 'live']
+        foreign_offerings = [o for o in market.get_live_offerings() if o.issuer_nation != active_n.name]
         for off in foreign_offerings[:3]:
             if x + 16 <= mx <= x + 16 + w - 32 and cur_y <= my <= cur_y + 28:
                 if gov_cash >= off.principal:
-                    gov.agent.cash -= off.principal
-                    market.purchase_bond(active_n.name, off.issuer_nation, off.principal, off.coupon_rate, off.duration_turns, t)
-                    off.status = 'filled'
-                    ticker_push(world, t, 'BONDS', f"{active_n.name} purchased ${off.principal:.0f} {off.issuer_nation} sovereign bonds into foreign reserves.", (120, 240, 150))
+                    if hasattr(market, 'purchase_live_offering'):
+                        market.purchase_live_offering(active_n, off.offering_id, world, t)
+                    else:
+                        gov.agent.cash -= off.principal
+                        market.purchase_bond(active_n.name, off.issuer_nation, off.principal, off.coupon_rate, off.duration_turns, t)
+                        off.status = 'filled'
+                        ticker_push(world, t, 'BONDS', f"{active_n.name} purchased ${off.principal:.0f} {off.issuer_nation} sovereign bonds into foreign reserves.", (120, 240, 150))
                 return True
             cur_y += 34
 

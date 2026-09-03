@@ -239,6 +239,11 @@ class SovereignBondMarket:
 
         return True, f"Announced ${principal:.0f} ({duration_turns}t @ {yield_rate*100:.2f}%/t) Sovereign Bond Offering #{offering_id}. Live next turn.", offering
 
+    @property
+    def active_offerings(self) -> list[BondOffering]:
+        """Backward-compatible alias for offerings list."""
+        return self.offerings
+
     def get_announced_offerings(self) -> list[BondOffering]:
         """Return list of upcoming bond offerings currently in the 1-turn announcement window."""
         return [o for o in self.offerings if o.status == "announced"]
@@ -246,6 +251,24 @@ class SovereignBondMarket:
     def get_live_offerings(self) -> list[BondOffering]:
         """Return list of active live bond offerings open for purchase."""
         return [o for o in self.offerings if o.status == "live"]
+
+    def purchase_bond(self, buyer_nation_name: str, issuer_nation_name: str,
+                      principal: float, coupon_rate: float, duration_turns: int, t: int) -> SovereignBond:
+        """Helper to directly create and record a purchased bond in foreign reserves."""
+        bond_id = f"bnd_{uuid.uuid4().hex[:6]}"
+        bond = SovereignBond(
+            bond_id=bond_id,
+            issuer_nation=issuer_nation_name,
+            holder_nation=buyer_nation_name,
+            principal=principal,
+            coupon_rate=coupon_rate,
+            duration_turns=duration_turns,
+            issued_turn=t,
+            maturity_turn=t + duration_turns,
+            status="active"
+        )
+        self.bonds.append(bond)
+        return bond
 
     def purchase_live_offering(self, buyer: Nation, offering_id: str,
                                world: dict, t: int) -> tuple[bool, str, SovereignBond | None]:
