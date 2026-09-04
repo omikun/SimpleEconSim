@@ -85,20 +85,12 @@ def enter_claimed(region, agent, t):
 # Foraging (the ONLY goods creation on unclaimed land)
 # =============================================================================
 
+import foraging as _foraging
+
+
 def forage(region, t):
     """Homesteaders on an unclaimed tile forage (+1 food) on schedule."""
-    if getattr(region, 'is_ocean', False) or getattr(region, 'elevation', 0.0) < 0.0:
-        return 0
-    foraged = 0
-    for a in region.agents:
-        if not getattr(a, 'is_homesteader', False):
-            continue
-        last = getattr(a, 'last_forage_turn', t)
-        if t - last >= FORAGE_INTERVAL:
-            a.inv_add(Goods.food, 1)
-            a.last_forage_turn = t
-            foraged += 1
-    return foraged
+    return _foraging.forage_tile(region, t)
 
 
 # =============================================================================

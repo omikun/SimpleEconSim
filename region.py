@@ -29,6 +29,8 @@ import region_finance as _fin
 import region_logistics as _logistics
 import region_factions as _factions
 import region_plotting as _plot
+import foraging as _forage
+import feudal_tribute as _tribute
 
 
 # =============================================================================
@@ -467,9 +469,14 @@ class Region:
         # Repoint traders to best-margin neighbor
         _logistics.repoint_traders(self)
 
-        # Clear per-agent wealth caches
+        # Clear per-agent wealth caches and reset food source counters
         for a in self.agents:
+            a.food_foraged = 0
+            a.food_purchased = 0
             a.clear_wealth_cache()
+
+        # Commons foraging: serfs gather subsistence food from feudal commons
+        _forage.forage_tile(self, t)
 
         # Charity donations
         if legacy:
@@ -485,6 +492,9 @@ class Region:
         # Production
         _prod.produce(self, t)
         self._audit_cash(t, "produce_done")
+
+        # Feudal tribute: lords collect in-kind share of harvest from serfs
+        _tribute.collect_tribute(self, t)
 
         # Trade & Route export posting
         _market.trade(self, t)

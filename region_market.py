@@ -393,6 +393,8 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
                         buyer.inventory_export[good.value] += export
             else:
                 buyer.inv_add(good, take)
+                if good == Goods.food:
+                    buyer.food_purchased += int(take)
             cash_collected += cost
             units += take
             prices.extend([ask] * int(take))
@@ -473,6 +475,8 @@ def legacy_buy(region, t, good, price, total_asks):
                     old_cost = a.cost_get(good, 0)
                     a.cost_set(good, ((old_quantity * old_cost + bought * price) / (old_quantity + bought)) if (old_quantity + bought) > 0 else price)
                     a.inv_add(good, bought)
+                    if good == Goods.food:
+                        a.food_purchased += int(bought)
                 total_bought += bought
                 region.bought_log[a.output][good][-1] += bought
     return total_bought, total_cash_purchases
