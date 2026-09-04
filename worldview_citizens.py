@@ -48,6 +48,8 @@ def _get_class_series(class_logs: list[dict], key: str) -> list[int]:
 
 def tile_citizen_charts(region):
     """4 comprehensive citizen status charts for a single tile/city."""
+    if not region:
+        return []
     clogs = getattr(region, 'social_class_log', []) or []
     serfs = _get_class_series(clogs, 'serf')
     tenants = _get_class_series(clogs, 'tenant')
@@ -202,6 +204,9 @@ def draw_citizens_panel(surface, world, region, font, font_small, mouse_pos=None
     panel_bottom = HEIGHT - TICKER_H - 24
     mx, my = mouse_pos if mouse_pos else (-1, -1)
 
+    if region is None and world.get('nations') and world['nations'][0].tiles:
+        region = world['nations'][0].tiles[0]
+
     scope = world.get('citizen_scope', world.get('scope', 'tile'))
     nation = getattr(region, 'owner_nation', None) if region is not None else None
     if nation is None and world.get('nations'):
@@ -244,7 +249,7 @@ def draw_citizens_panel(surface, world, region, font, font_small, mouse_pos=None
         bourg_c = sum(d.get('petty_bourgeois', 0) + d.get('industrialist', 0) for d in clogs)
         title_txt = f"{nation.name} Citizens ({total_pop:,} Pop)"
         charts = nation_citizen_charts(nation)
-    else:
+    elif region is not None:
         agents = getattr(region, 'agents', [])
         total_pop = len(agents)
         clog = region.social_class_log[-1] if getattr(region, 'social_class_log', None) else {}
@@ -255,7 +260,12 @@ def draw_citizens_panel(surface, world, region, font, font_small, mouse_pos=None
         gentry_c = clog.get('lord', 0) + clog.get('landlord', 0)
         bourg_c = clog.get('petty_bourgeois', 0) + clog.get('industrialist', 0)
         title_txt = f"{region.name} Citizens ({total_pop} Pop)"
-        charts = tile_citizen_charts(region) if region else []
+        charts = tile_citizen_charts(region)
+    else:
+        total_pop = 0
+        serf_c = tenant_c = prole_c = disposs_c = gentry_c = bourg_c = 0
+        title_txt = "No Region Selected"
+        charts = []
 
     surface.blit(font_small.render(title_txt, True, ACCENT), (PANEL_LEFT + 12, card_y + 5))
 
@@ -294,12 +304,16 @@ def draw_citizens_panel(surface, world, region, font, font_small, mouse_pos=None
     chart_y1 = panel_bottom
 
     c_view = world.get('citizen_chart_view', 0)
-    if c_view == 0:
+    if c_view == 0 or not charts:
         # Draw 2x2 grid
-        draw_chart_grid(surface, charts, font, font_small, world['window'],
-                        chart_y0, chart_y1, mouse_pos=mouse_pos)
-        hint = font_small.render("Click chart to zoom | Tab/Esc = Grid", True, DIM)
-        surface.blit(hint, (PANEL_LEFT + 6, chart_y1 + 4))
+        if charts:
+            draw_chart_grid(surface, charts, font, font_small, world['window'],
+                            chart_y0, chart_y1, mouse_pos=mouse_pos)
+            hint = font_small.render("Click chart to zoom | Tab/Esc = Grid", True, DIM)
+            surface.blit(hint, (PANEL_LEFT + 6, chart_y1 + 4))
+        else:
+            hint = font_small.render("Hover or click a hex for citizen data", True, DIM)
+            surface.blit(hint, (PANEL_LEFT + 12, chart_y0 + 20))
     else:
         idx = max(0, min(len(charts) - 1, c_view - 1))
         draw_chart_large(surface, charts[idx], font, font_small,
