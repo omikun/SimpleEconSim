@@ -1,14 +1,15 @@
-# ENCLOSURE: The Cost of Capital — Game Design Document
+# WAR BY OTHER MEANS: Economic Total War — Game Design Document
 
-**Working Titles:**
-- **ENCLOSURE: The Cost of Capital** *(Primary Working Title)*
-- **PRIMITIVE ACCUMULATION**
-- **DEAD LABOR** *(Marxian allusion: "Capital is dead labor, which, vampire-like, lives only by sucking living labor...")*
-- **THE EXTERNALITY ENGINE**
-- **COMMODIFIED: The Great Separation**
-- **METABOLIC RIFT**
-- **SURPLUS & RUIN**
-- **THE IRON CAGE**
+**Working Title Candidates (with Strategy & Economic Warfare Twists):**
+- **WAR BY OTHER MEANS: Economic Total War** *(Clausewitzian inversion: capital and financial markets as supreme instruments of conquest)*
+- **HEARTS OF CAPITAL: Sovereign Debt & The Extractive State** *(Subversion of 'Hearts of Iron'—industrial mobilization directed at extracting living labor rather than frontlines)*
+- **TOTAL COMMODITY: The Great Separation** *(Subversion of 'Total War'—every aspect of human life, land, and time subordinated to market discipline)*
+- **SHOCK DOCTRINE: Grand Economic Warfare** *(The weaponization of financial crises, sovereign debt traps, and forced privatization)*
+- **COMMAND & COMMODIFY** *(Subversion of 'Command & Conquer'—compelling populations into market dependency)*
+- **THE ART OF DEBT: Sovereign Warfare** *(Subversion of 'The Art of War'—conquering sovereign nations via 100-turn bonds, central bank reserves, and currency crises)*
+- **FINANCIAL BLITZKRIEG: The Enclosure of Nations** *(Modern economic warfare: structural adjustment, capital flight, and resource extraction)*
+- **ENCLOSURE: A Grand Strategy of Capital** *(The foundational historical crime: fencing off the commons to force people into wage labor)*
+- **MUTUALLY ASSURED ACCUMULATION** *(Cold War doctrine inverted: infinite compound growth colliding with planetary ecological limits)*
 
 **Engine Basis:** SimpleEconSim (`sim_world.py`, `region.py`, `forex.py`, `sovereign_bonds.py`, `unrest.py`, `buildings.py`, `wealth_lineage.py`, `transporter.py`).
 Each region is a living simulation of individual human agents who possess cash, debts, skills, kin lineage, memory, and physical needs. Every transfer of money, resource, or labor is strictly conserved down to the penny. The accounting audit is not just an invariant—it is an indictment.
@@ -314,3 +315,53 @@ The game does not mandate a singular teleology; it challenges the player to navi
   - Implement anti-enclosure revolts, Luddite sabotage, general strikes, and revolutionary communes.
 - **Phase 5: The "Money Trail" Audit UI**
   - Build interactive state archive visualization tracing accumulated wealth directly back to the labor and environmental costs extracted to produce it.
+
+---
+
+## 13. Genre Positioning & Comparisons to Strategy Classics
+
+This game occupies a distinct, disruptive position within the grand strategy, 4X, and political economy genres. It borrows structural systems from classic titles while radically subverting their core ideological assumptions.
+
+### 13.1 Comparison with Major Strategy Benchmarks
+
+#### 1. Victoria 3 & Victoria 2 (Paradox Interactive)
+- **Shared DNA:** Pop-driven demographics (Pops), multi-step production pipelines, domestic and international market access, interest groups (Landowners, Industrialists, Trade Unions), and legislative reforms.
+- **The Twist / Subversion:**
+  - *Subverting the Liberal Growth Fantasy:* In *Victoria 3*, Standard of Living (SoL) rises almost monotonically with GDP; industrialization is depicted as an engine that inevitably raises human welfare. In our game, industrialization triggers the **Immiseration Paradox**: aggregate output explodes, yet workers are more exhausted, alienated, biologically depleted, and indebted as costs are offloaded onto their bodies.
+  - *Conserved Money vs. Minting Magic:* *Victoria* spawns money via arbitrary "minting" formulas and soft debt pools. Our simulation runs on an ironclad **conserved-money invariant**—every dollar hoarded by an oligarch is a dollar removed from the circulation of wages.
+  - *Primitive Accumulation:* Shifting away from customary land in *Victoria* is a sterile legislative vote; in our game, **enclosure is an active, coercive, and violent dispossession** of living human communities.
+
+#### 2. Civilization VI & Old World (Firaxis / Mohawk Games)
+- **Shared DNA:** 2D tile-based territory, regional biomes, resource deposits, borders, infrastructure, and national treasuries.
+- **The Twist / Subversion:**
+  - *The Myth of Terra Nullius:* *Civilization* begins with a settler stepping onto an "empty" wilderness waiting for a flag. In our game, **every tile begins fully inhabited** by indigenous peoples and customary peasant communes in ecological and reciprocal balance. Territorial expansion is never "settling the empty wild"—it is always **expropriation, unequal treaty, or military eviction**.
+  - *Bottom-Up Class Resistance:* In *Civ*, rulers click a button and workers instantly erect wonders. In our game, workers hold strikes, sabotage machinery, and mount armed insurrections when pushed past their biological limits.
+
+#### 3. Frostpunk (11 bit studios)
+- **Shared DNA:** The visceral, moral weight of labor exploitation: extended 14-hour shifts, child labor, perilous mine shafts, bodily attrition, and escalating popular discontent.
+- **The Twist / Subversion:**
+  - In *Frostpunk*, labor brutality is rationalized by an external, existential crisis (apocalyptic winter). In our game, the brutality is **internally generated by the market mechanism itself**: capital demands 16-hour shifts and child labor not to survive an ice age, but to out-compete rivals, service 50-turn bond coupons, and maximize quarterly surplus value.
+
+#### 4. Suzerain (Torpor Games)
+- **Shared DNA:** Political-economic tightropes: balancing budgets against oligarchs and socialist unions, national debt rating pressures, and the ever-present threat of a military coup.
+- **The Twist / Subversion:**
+  - *Suzerain* relies on narrative decision trees with scripted event flags. Our game achieves these same political crises organically through a **continuous, bottom-up agent-based economic and financial simulation**.
+
+#### 5. Hearts of Iron IV (Paradox Interactive) & Modern Economic Warfare
+- **Shared DNA:** Grand wartime mobilization, resource bottlenecks, and the geopolitical struggle for hegemony.
+- **The Twist / Subversion:**
+  - While *Hearts of Iron* simulates total military war on the battlefield, our game simulates **Economic Total War**: weaponizing sovereign bond markets (20/50/100-turn auctions), orchestrating currency runs through central bank FX desks, foreclosing on sovereign collateral, and extracting raw resources from indebted vassals without firing a shot.
+
+---
+
+### 13.2 Structural Comparison Matrix
+
+| System Dimension | Traditional 4X (*Civilization*, *Old World*) | Paradox Grand Strategy (*Victoria 3*) | **WAR BY OTHER MEANS / ENCLOSURE** |
+|---|---|---|---|
+| **World Map at Start** | Empty wilderness to claim | Pre-set nations, passive subsistence | **Fully inhabited customary commons & reciprocity** |
+| **Growth Arc** | Infinite upward progress | Industrialization raises living standards | **Immiseration paradox: tech explodes, human life degrades** |
+| **Money Simulation** | Abstract treasury counter | Floating currency with minting magic | **Strictly conserved-money ledger audit down to the cent** |
+| **Environmental Cost** | Static hex yields | Infinite resource exploitation | **Metabolic rift: soil exhaustion, river poisoning, collapse** |
+| **Sovereign Finance** | Simple loans / flat interest | National debt pool | **20/50/100-turn bonds, foreign auctions, debt vassalage** |
+| **The Working Class** | Passive production multiplier | Demographic Pops with SoL wants | **Alienated living labor fighting on an escalation ladder** |
+| **Warfare Doctrine** | Military units clashing on tiles | Frontlines & colonial expeditions | **Economic warfare: debt traps, enclosure, monetary embargoes** |
