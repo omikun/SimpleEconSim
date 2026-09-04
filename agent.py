@@ -91,6 +91,10 @@ class Agent:
         'memory',
         # ---- Military & Combat Experience (M4.5 / M5.8) ----
         'military_xp',
+        # ---- P1: Feudal land tenure & enclosure ----
+        'is_lord', 'land_plots',
+        'food_foraged', 'food_purchased',
+        'social_class',
     )
 
     def __init__(self, t):
@@ -188,6 +192,12 @@ class Agent:
         self.politics = None
         # ---- M1.3 bounded memory buffers ----
         self.memory = {}                     # key -> capped list (32)
+        # ---- P1: Feudal land tenure & enclosure ----
+        self.is_lord = False                 # holds feudal land title
+        self.land_plots = []                 # list of plot_id strings
+        self.food_foraged = 0                # food gathered from commons this turn
+        self.food_purchased = 0              # food bought on market this turn
+        self.social_class = None             # computed each turn (SocialClass enum value)
 
     def name(self):
         prof_label = profession.get(self.output, '-')

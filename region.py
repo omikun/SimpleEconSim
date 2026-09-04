@@ -19,6 +19,7 @@ from agent import Agent, initialize_agent, seed_traits
 from province import make_bundle
 from random_cache import rand
 from faction import FactionSystem
+from land_tenure import TileTenure, LandPlot, TenureStatus
 
 # Subsystem modules
 import region_labor as _labor
@@ -158,6 +159,10 @@ class Region:
         self.biome: str = 'plains'
         self.terrain_color: tuple = (65, 135, 75)
         self.hillshade: float = 1.0
+
+        # Land tenure: feudal plots with customary rights (P1)
+        self.tenure = TileTenure()
+        self.tenure_log: list = []  # time-series of commons_access
 
         self.recipes = copy.deepcopy(recipes)
         self.goods = list(goods)
@@ -323,30 +328,81 @@ class Region:
     # ------------------------------------------------------------------
 
     def _create_agents(self, t: int, n: int):
-        profession_counts = {}
-        total_assignable = 0
-        for prof, fraction in self.profession_distribution.items():
-            count = int(n * fraction)
-            profession_counts[prof] = count
-            total_assignable += count
-        profession_counts[Goods.gov] = max(0, n - total_assignable)
+        """Create a feudal starting population: lords, serfs, artisans, traders.
 
-        loginfo(t, f"Region '{self.name}' profession allocation: { {str(k): v for k, v in profession_counts.items()} }")
-
+        Lords (~3%) hold feudal title over the tile, collect in-kind tribute.
+        Serfs (~90%) are the working population who depend on commons access.
+        Artisans (~5%) are skilled crafts workers with moderate wealth.
+        Traders (per existing logic) handle inter-tile commerce.
+        """
         agents = []
-        for prof, count in profession_counts.items():
-            for _ in range(count):
-                agent = Agent(t)
-                output = prof
-                delta = 20
-                cash = 120 + random.randint(-delta, delta)
-                initialize_agent(agent, output, 10, 2, cash)
-                seed_traits(agent)
-                agent.region = self.name
-                agent._bank_ref = self.bank
-                agent.home_currency = self.home_currency
-                agents.append(agent)
 
+        # ---- Lords: ~3% of population, wealthy, hold feudal title ----
+        n_lords = max(1, int(n * 0.03))
+        lord_fraction = 1.0 / n_lords
+        for i in range(n_lords):
+            lord = Agent(t)
+            initialize_agent(lord, Goods.gov, 10, 2, 500 + random.randint(0, 300))
+            seed_traits(lord)
+            lord.is_lord = True
+            lord.ambition = max(lord.ambition, 0.6)
+            lord.region = self.name
+            lord._bank_ref = self.bank
+            lord.home_currency = self.home_currency
+            # Create feudal land plot for this lord
+            plot = LandPlot(
+                plot_id=f"{self.name}-lord-{i}",
+                tile_name=self.name,
+                lord_id=lord.id,
+                fraction=lord_fraction,
+                tenure=TenureStatus.FEUDAL,
+                tribute_rate=0.5,
+            )
+            lord.land_plots = [plot.plot_id]
+            self.tenure.add_plot(plot)
+            agents.append(lord)
+
+        # ---- Serfs: ~90% of population, poor, depend on commons ----
+        n_serfs = n - n_lords - max(1, int(n * 0.05))
+        serf_prof_counts = {}
+        serf_total = 0
+        for prof, fraction in self.profession_distribution.items():
+            count = int(n_serfs * fraction)
+            serf_prof_counts[prof] = count
+            serf_total += count
+        # Remaining serfs assigned to food production
+        serf_prof_counts[Goods.food] = serf_prof_counts.get(Goods.food, 0) + max(0, n_serfs - serf_total)
+
+        for prof, count in serf_prof_counts.items():
+            for _ in range(count):
+                serf = Agent(t)
+                cash = 40 + random.randint(0, 40)
+                initialize_agent(serf, prof, 10, 2, cash)
+                seed_traits(serf)
+                serf.region = self.name
+                serf._bank_ref = self.bank
+                serf.home_currency = self.home_currency
+                agents.append(serf)
+
+        # ---- Artisans: ~5%, moderate wealth, skilled crafts ----
+        n_artisans = max(1, int(n * 0.05))
+        artisan_profs = [Goods.wood, Goods.furniture]
+        for j in range(n_artisans):
+            artisan = Agent(t)
+            prof = artisan_profs[j % len(artisan_profs)]
+            initialize_agent(artisan, prof, 10, 2, 100 + random.randint(0, 50))
+            seed_traits(artisan)
+            artisan.productivity = max(artisan.productivity, 0.6)
+            artisan.region = self.name
+            artisan._bank_ref = self.bank
+            artisan.home_currency = self.home_currency
+            agents.append(artisan)
+
+        n_created = len(agents)
+        loginfo(t, f"Region '{self.name}' feudal pop: {n_lords} lords, "
+                   f"{n_serfs} serfs, {n_artisans} artisans = {n_created}")
+
+        # ---- Traders (unchanged from existing logic) ----
         trader_goods = [Goods.food, Goods.wood, Goods.furniture]
         for trade_good in trader_goods:
             for _ in range(self._number_of_traders):
@@ -368,6 +424,7 @@ class Region:
                 agents.append(trader)
                 self.trader_agents.append(trader)
 
+        # ---- Government agent (unchanged) ----
         if self._seat_gov_agent:
             agents.append(self.gov.agent)
             self.gov.agent.region = self.name
@@ -474,6 +531,7 @@ class Region:
 
         self.total_population.append(sum(v[-1] for v in self.population_log.values()))
         self.cost_of_living_log.append(self.cost_of_living)
+        self.tenure_log.append(self.tenure.commons_access)
         self.bank_cash_log.append(self.bank.equity)
         self.total_cash_log.append(self._total_cash())
         self._log_population_rate()
