@@ -770,3 +770,55 @@ class AcquireBoardSeatIntent(Intent):
             ticker_push(world, t, 'POLICY', msg, (245, 215, 120) if ok else (220, 160, 60))
         return ok, msg
 
+
+class EncloseCommonsIntent(Intent):
+    """Sovereign decree to enclose feudal land on a tile, stripping customary usufruct rights."""
+
+    def __init__(self, nation_name: str, tile_name: str, plot_id: str,
+                 rent_rate: float = 3.0, submitted_turn: int = 0,
+                 regime_type: str = 'autocracy'):
+        super().__init__(nation_name, 'ENCLOSE_COMMONS', submitted_turn, regime_type)
+        self.tile_name = tile_name
+        self.plot_id = plot_id
+        self.rent_rate = rent_rate
+
+    def validate(self, tiles_by_name: dict, nations_by_name: dict, t: int) -> tuple[bool, str]:
+        ok, msg = super().validate(tiles_by_name, nations_by_name, t)
+        if not ok:
+            return False, msg
+        tile = tiles_by_name.get(self.tile_name)
+        if not tile:
+            return False, f"Tile '{self.tile_name}' not found."
+        nation = nations_by_name.get(self.nation_name)
+        if getattr(tile, 'owner_nation', None) != nation:
+            return False, f"Tile '{self.tile_name}' does not belong to {self.nation_name}."
+        tenure = getattr(tile, 'tenure', None)
+        if not tenure:
+            return False, f"Tile '{self.tile_name}' has no land tenure."
+        plot = tenure.find_plot(self.plot_id)
+        if not plot:
+            return False, f"Plot '{self.plot_id}' not found on tile '{self.tile_name}'."
+        from land_tenure import TenureStatus
+        if plot.tenure != TenureStatus.FEUDAL:
+            return False, f"Plot '{self.plot_id}' is already {plot.tenure.value}."
+        return True, "Valid"
+
+    def execute(self, tiles_by_name: dict, nations_by_name: dict, t: int, world: dict | None = None) -> tuple[bool, str]:
+        val_ok, val_msg = self.validate(tiles_by_name, nations_by_name, t)
+        if not val_ok:
+            self.status = 'rejected'
+            return False, val_msg
+
+        tile = tiles_by_name[self.tile_name]
+        from enclosure import execute_enclosure
+        ok, msg, events = execute_enclosure(tile, self.plot_id, t, rent_rate=self.rent_rate)
+        self.status = 'completed' if ok else 'failed'
+        self.logs.append(msg)
+        if world and ok:
+            try:
+                from worldview_engine import ticker_push
+                ticker_push(world, t, 'ENCLOSURE', msg, (230, 140, 70))
+            except ImportError:
+                pass
+        return ok, msg
+

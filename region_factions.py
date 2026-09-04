@@ -106,22 +106,30 @@ def accumulate_grievances(region, t):
     unemp = (sum(1 for a in adults if a.employer is None
                  and not a.is_trader) / max(1, len(adults)))
 
+    # eviction / enclosure memory (P1)
+    eviction = sum(a.mem_avg('mem_eviction', 0.0)
+                   for a in agents
+                   if not a.is_corporation and not a.is_government)
+    eviction_score = min(2.5, eviction / 40.0)
+
     for f in region.factions.factions.values():
         if f.kind == 'political':
             n_add = (hunger_score * 0.6 + gini * 1.2
-                     + tax * 1.5 + unemp * 1.5 + trauma_score)
+                     + tax * 1.5 + unemp * 1.5 + trauma_score + eviction_score * 1.2)
             f.add_grievance('hunger', hunger_score * 0.6)
             f.add_grievance('gini', gini * 1.2)
             f.add_grievance('tax', tax * 1.5)
             f.add_grievance('unemployment', unemp * 1.5)
             f.add_grievance('repression', trauma_score)
+            f.add_grievance('enclosure', eviction_score * 1.2)
         else:
-            n_add = hunger_score + gini + tax + unemp + trauma_score
+            n_add = hunger_score + gini + tax + unemp + trauma_score + eviction_score * 1.5
             f.add_grievance('hunger', hunger_score)
             f.add_grievance('gini', gini)
             f.add_grievance('tax', tax)
             f.add_grievance('unemployment', unemp)
             f.add_grievance('repression', trauma_score)
+            f.add_grievance('enclosure', eviction_score * 1.5)
         adds[f.name] = n_add
     return adds
 
