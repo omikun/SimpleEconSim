@@ -14,6 +14,7 @@ from worldview_map import (HEX_EDGE, ACCENT, TEXT, DIM, RED, GREEN, UNREST_COLOR
                            BADGE_TRA, BADGE_GINI)
 from worldview_compare import draw_nations_comparison, compare_tab_hit
 from diplomacy import get_diplomacy, TreatyType
+from ui_icons import get_icon, draw_icon_badge
 
 PANEL_BG = (40, 40, 48)
 
