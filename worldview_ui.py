@@ -110,17 +110,23 @@ def draw_zoom_hud(surface, font_small, mouse_pos=None):
         surface.blit(tsurf, tsurf.get_rect(center=(rect[0] + rect[2] // 2, rect[1] + rect[3] // 2)))
 
 
-# Right-hand panel top tabs (Charts vs Policies)
-CHARTS_TAB_RECT = (PANEL_LEFT, 152 + TOP_BAR_H, (WIDTH - PANEL_LEFT - 14) // 2, 22)
-POLICIES_TAB_RECT = (PANEL_LEFT + (WIDTH - PANEL_LEFT - 14) // 2 + 4, 152 + TOP_BAR_H, (WIDTH - PANEL_LEFT - 14) // 2, 22)
+# Right-hand panel top tabs (Charts vs Citizens vs Policies)
+_TOTAL_TAB_W = WIDTH - PANEL_LEFT - 14
+_TAB_W = (_TOTAL_TAB_W - 8) // 3
+CHARTS_TAB_RECT = (PANEL_LEFT, 152 + TOP_BAR_H, _TAB_W, 22)
+CITIZENS_TAB_RECT = (PANEL_LEFT + _TAB_W + 4, 152 + TOP_BAR_H, _TAB_W, 22)
+POLICIES_TAB_RECT = (PANEL_LEFT + 2 * (_TAB_W + 4), 152 + TOP_BAR_H, _TOTAL_TAB_W - 2 * (_TAB_W + 4), 22)
 
 
 def panel_tab_hit(pos):
-    """Return 'charts' or 'policies' if the right panel tab header was clicked."""
+    """Return 'charts', 'citizens', or 'policies' if the right panel tab header was clicked."""
     mx, my = pos
     cx, cy, cw, ch = CHARTS_TAB_RECT
     if cx <= mx <= cx + cw and cy <= my <= cy + ch:
         return 'charts'
+    zx, zy, zw, zh = CITIZENS_TAB_RECT
+    if zx <= mx <= zx + zw and zy <= my <= zy + zh:
+        return 'citizens'
     px, py, pw, ph = POLICIES_TAB_RECT
     if px <= mx <= px + pw and py <= my <= py + ph:
         return 'policies'
@@ -650,7 +656,7 @@ def draw_panel(surface, world, font, font_small, mouse_pos=None):
         pn = font_small.render("[ PAUSED ]  N=step  Space=play", True, DIM)
     surface.blit(pn, (PANEL_LEFT, 130 + d))
 
-    # Right Panel Header Tabs: [ 📊 Charts ] vs [ ⚖️ Policies ]
+    # Right Panel Header Tabs: [ 📊 Charts ] vs [ 👥 Citizens ] vs [ ⚖️ Policies ]
     mx, my = mouse_pos if mouse_pos else (-1, -1)
     active_tab = world.get('panel_tab', 'charts')
 
@@ -662,24 +668,25 @@ def draw_panel(surface, world, font, font_small, mouse_pos=None):
     c_txt = font_small.render("Charts", True, (255, 255, 255) if c_sel else (TEXT if c_hov else DIM))
     surface.blit(c_txt, c_txt.get_rect(center=(CHARTS_TAB_RECT[0] + CHARTS_TAB_RECT[2] // 2, CHARTS_TAB_RECT[1] + CHARTS_TAB_RECT[3] // 2)))
 
+    z_sel = (active_tab == 'citizens')
+    z_hov = (c_hit == 'citizens')
+    pygame.draw.rect(surface, (55, 75, 110) if z_sel else ((40, 48, 65) if z_hov else (28, 30, 40)), CITIZENS_TAB_RECT, border_radius=4)
+    pygame.draw.rect(surface, ACCENT if z_sel else (HEX_EDGE if z_hov else (45, 52, 70)), CITIZENS_TAB_RECT, 1, border_radius=4)
+    z_txt = font_small.render("Citizens", True, (255, 255, 255) if z_sel else (TEXT if z_hov else DIM))
+    surface.blit(z_txt, z_txt.get_rect(center=(CITIZENS_TAB_RECT[0] + CITIZENS_TAB_RECT[2] // 2, CITIZENS_TAB_RECT[1] + CITIZENS_TAB_RECT[3] // 2)))
+
     p_sel = (active_tab == 'policies')
     p_hov = (c_hit == 'policies')
     pygame.draw.rect(surface, (55, 75, 110) if p_sel else ((40, 48, 65) if p_hov else (28, 30, 40)), POLICIES_TAB_RECT, border_radius=4)
     pygame.draw.rect(surface, ACCENT if p_sel else (HEX_EDGE if p_hov else (45, 52, 70)), POLICIES_TAB_RECT, 1, border_radius=4)
-    from ui_icons import get_icon, draw_icon_badge
-    scale_icon = get_icon('policies', 14)
-    surface.blit(scale_icon, (POLICIES_TAB_RECT[0] + 6, POLICIES_TAB_RECT[1] + 5))
     p_txt = font_small.render("Policies", True, (255, 255, 255) if p_sel else (TEXT if p_hov else DIM))
-    surface.blit(p_txt, (POLICIES_TAB_RECT[0] + 24, POLICIES_TAB_RECT[1] + 4))
+    surface.blit(p_txt, p_txt.get_rect(center=(POLICIES_TAB_RECT[0] + POLICIES_TAB_RECT[2] // 2, POLICIES_TAB_RECT[1] + POLICIES_TAB_RECT[3] // 2)))
 
     region = world.get('selected_region') or world.get('hover_region')
     chart_top = 178 + d
     chart_bottom = HEIGHT - TICKER_H - 96
 
-    if active_tab == 'policies':
-        from worldview_policies import draw_policies_panel
-        draw_policies_panel(surface, world, region, font, font_small, mouse_pos=mouse_pos)
-        # Audit footer line
+    def _render_audit_footer():
         audit_y = HEIGHT - TICKER_H - 28
         if world.get('violations'):
             v1 = font.render("AUDIT VIOLATION", True, RED)
@@ -691,6 +698,17 @@ def draw_panel(surface, world, font, font_small, mouse_pos=None):
         else:
             ok = font.render("Conserved: 0 LEAK / 0 SHIFT", True, GREEN)
             surface.blit(ok, (PANEL_LEFT, audit_y))
+
+    if active_tab == 'policies':
+        from worldview_policies import draw_policies_panel
+        draw_policies_panel(surface, world, region, font, font_small, mouse_pos=mouse_pos)
+        _render_audit_footer()
+        return
+
+    if active_tab == 'citizens':
+        from worldview_citizens import draw_citizens_panel
+        draw_citizens_panel(surface, world, region, font, font_small, mouse_pos=mouse_pos)
+        _render_audit_footer()
         return
 
     if world.get('scope', 'tile') == 'nation':
@@ -714,9 +732,24 @@ def draw_panel(surface, world, font, font_small, mouse_pos=None):
                 line = font_small.render(text, True, color)
                 surface.blit(line, (PANEL_LEFT, yy))
                 yy += 20
-            hint = font_small.render(
-                f"NATION scope (V=tile)  press V to toggle", True, DIM)
-            surface.blit(hint, (PANEL_LEFT, chart_bottom + 6))
+            from worldview_citizens import nation_citizen_charts
+            nat_charts = nation_citizen_charts(n)
+            view = world.get('view', 0)
+            if view == 0:
+                if nat_charts:
+                    draw_chart_grid(surface, nat_charts, font, font_small, world['window'],
+                                    yy + 8, chart_bottom, mouse_pos=mouse_pos)
+                hint = font_small.render(
+                    f"NATION scope (V=tile)  Click/1-4: Zoom chart", True, DIM)
+                surface.blit(hint, (PANEL_LEFT, chart_bottom + 6))
+            else:
+                idx = max(0, min(len(nat_charts) - 1, view - 1)) if nat_charts else 0
+                if nat_charts:
+                    draw_chart_large(surface, nat_charts[idx], font, font_small,
+                                     world['window'], yy + 8, chart_bottom)
+                hint = font_small.render(
+                    f"{nat_charts[idx][0] if nat_charts else ''}  (Tab/Esc = Grid)", True, DIM)
+                surface.blit(hint, (PANEL_LEFT, chart_bottom + 6))
             draw_regime_readout(surface, region if region is not None else n.tiles[0],
                                 font_small, chart_bottom + 24)
         return

@@ -331,6 +331,18 @@ def main():
                                 if getattr(clicked, 'owner_nation', None) is not None:
                                     world['selected_nation'] = clicked.owner_nation
                                     world['player_nation_name'] = clicked.owner_nation.name
+                    elif world.get('panel_tab') == 'citizens':
+                        from worldview_citizens import citizen_panel_hit
+                        if citizen_panel_hit(event.pos, world):
+                            continue
+                        if event.pos[0] < MAP_RIGHT:
+                            clicked = tile_at(world, *event.pos)
+                            if clicked is not None:
+                                world['selected_region'] = clicked
+                                world['build_panel_open'] = True
+                                if getattr(clicked, 'owner_nation', None) is not None:
+                                    world['selected_nation'] = clicked.owner_nation
+                                    world['player_nation_name'] = clicked.owner_nation.name
                     else:
                         # 3c. Check sidebar chart clicks
                         chart_top = 178 + TOP_BAR_H + 30
@@ -532,7 +544,9 @@ def main():
                     open_left_panel(world, None if is_open else 'military')
                     _mark_dirty(world)
                 elif event.key == pygame.K_ESCAPE:
-                    if world.get('transfer_dialog', {}).get('open'):
+                    if world.get('citizen_chart_view', 0) != 0:
+                        world['citizen_chart_view'] = 0
+                    elif world.get('transfer_dialog', {}).get('open'):
                         world['transfer_dialog']['open'] = False
                     elif world.get('help_open'):
                         world['help_open'] = False
@@ -549,7 +563,9 @@ def main():
                     world['panel_tab'] = 'policies' if world.get('panel_tab', 'charts') == 'charts' else 'charts'
                     _mark_dirty(world)
                 elif event.key == pygame.K_TAB:
-                    if world.get('panel_tab') == 'policies':
+                    if world.get('panel_tab') == 'citizens':
+                        world['citizen_chart_view'] = 0
+                    elif world.get('panel_tab') == 'policies':
                         world['panel_tab'] = 'charts'
                     else:
                         world['view'] = 0

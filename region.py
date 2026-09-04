@@ -168,6 +168,10 @@ class Region:
         self.tenure = TileTenure()
         self.tenure_log: list = []  # time-series of commons_access
         self.social_class_log: list = []  # time-series of class distribution
+        self.food_foraged_log: list = []  # time-series of total food foraged
+        self.food_purchased_log: list = []  # time-series of total food bought
+        self.rent_collected_log: list = []  # time-series of cash rent collected
+        self.rent_arrears_log: list = []  # time-series of rent unpaid
 
         self.recipes = copy.deepcopy(recipes)
         self.goods = list(goods)
@@ -512,7 +516,9 @@ class Region:
         self._audit_cash(t, "profits_done")
 
         # Cash rent collection on enclosed plots (P1.4)
-        _rent.collect_rents(self, t)
+        rent_coll, rent_arr, _ = _rent.collect_rents(self, t)
+        self.rent_collected_log.append(rent_coll)
+        self.rent_arrears_log.append(rent_arr)
         self._audit_cash(t, "rent_done")
 
         # Tax
@@ -553,6 +559,8 @@ class Region:
         self.total_population.append(sum(v[-1] for v in self.population_log.values()))
         self.cost_of_living_log.append(self.cost_of_living)
         self.tenure_log.append(self.tenure.commons_access)
+        self.food_foraged_log.append(sum(getattr(a, 'food_foraged', 0) for a in self.agents))
+        self.food_purchased_log.append(sum(getattr(a, 'food_purchased', 0) for a in self.agents))
         self.bank_cash_log.append(self.bank.equity)
         self.total_cash_log.append(self._total_cash())
         self._log_population_rate()
