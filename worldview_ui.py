@@ -802,23 +802,29 @@ def draw_panel(surface, world, font, font_small, mouse_pos=None):
 
         # Natural Resources display with procedural icons
         res_list = getattr(region, 'natural_resources', set())
+        y_cursor = chart_top - 6 + 14
         if res_list:
             from tile_resources import RESOURCE_META
             dep_lbl = font_small.render("Deposits:", True, (245, 210, 110))
-            surface.blit(dep_lbl, (PANEL_LEFT, chart_top - 6 + 15))
+            surface.blit(dep_lbl, (PANEL_LEFT, y_cursor))
             dx = PANEL_LEFT + dep_lbl.get_width() + 8
             for r in sorted(res_list, key=lambda x: x.value):
-                w = draw_icon_badge(surface, dx, chart_top - 6 + 14, r.value, RESOURCE_META[r].name, font_small, color=RESOURCE_META[r].color, icon_size=15)
+                w = draw_icon_badge(surface, dx, y_cursor - 1, r.value, RESOURCE_META[r].name, font_small, color=RESOURCE_META[r].color, icon_size=15)
                 dx += w + 8
-            col_line = font_small.render(
-                f"CoL {region.cost_of_living:.2f}  {region.climate}  (V=nation)", True, DIM)
-            surface.blit(col_line, (PANEL_LEFT, chart_top - 6 + 32))
-            chart_y_offset = 46
-        else:
-            col_line = font_small.render(
-                f"CoL {region.cost_of_living:.2f}  {region.climate}  (V=nation)", True, DIM)
-            surface.blit(col_line, (PANEL_LEFT, chart_top - 6 + 16))
-            chart_y_offset = 30
+            y_cursor += 18
+
+        # Land tenure status strip (P1.4)
+        tenure = getattr(region, 'tenure', None)
+        if tenure and tenure.plots:
+            t_txt = f"Tenure: Feudal {tenure.feudal_fraction*100:.0f}% | Encl {tenure.enclosed_fraction*100:.0f}% | Commons: {tenure.commons_access*100:.0f}%"
+            t_color = (130, 210, 140) if tenure.commons_access > 0.5 else (230, 140, 70)
+            surface.blit(font_small.render(t_txt, True, t_color), (PANEL_LEFT, y_cursor))
+            y_cursor += 16
+
+        col_line = font_small.render(
+            f"CoL {region.cost_of_living:.2f}  {region.climate}  (V=nation)", True, DIM)
+        surface.blit(col_line, (PANEL_LEFT, y_cursor))
+        chart_y_offset = (y_cursor - (chart_top - 6)) + 14
 
         charts = tile_charts(region)
         view = world.get('view', 0)

@@ -25,9 +25,22 @@ def build_identity_factions(region):
                     f.add_demand('immigration', weight=0.9)
             region.factions.register(f)
 
+    # Class factions (P1.4)
+    class_factions = [
+        ('Gentry', [('tax_cut', 1.2), ('enclosure', 1.5)]),
+        ('Peasantry', [('welfare', 1.0), ('commons_protection', 1.5)]),
+        ('Proletariat', [('welfare', 1.2), ('wage_subsidy', 1.0)]),
+        ('Bourgeoisie', [('tariff', 0.8), ('tax_cut', 1.0)]),
+    ]
+    for cname, demands in class_factions:
+        cf = Faction(cname, 'class')
+        for dname, dweight in demands:
+            cf.add_demand(dname, weight=dweight)
+        region.factions.register(cf)
+
 
 def refresh_faction_membership(region):
-    """Overwrite each identity faction's membership from live agent identity tags."""
+    """Overwrite each identity faction's membership from live agent identity tags and social class."""
     for f in region.factions.factions.values():
         f.membership = set()
     for a in region.agents:
@@ -43,15 +56,35 @@ def refresh_faction_membership(region):
             if f is not None:
                 f.membership.add(a.id)
 
+        # Class faction mapping
+        sclass = getattr(a, 'social_class', None)
+        if sclass in ('lord', 'landlord'):
+            cf = region.factions.get('Gentry')
+            if cf: cf.membership.add(a.id)
+        elif sclass in ('serf', 'tenant'):
+            cf = region.factions.get('Peasantry')
+            if cf: cf.membership.add(a.id)
+        elif sclass in ('proletarian', 'dispossessed'):
+            cf = region.factions.get('Proletariat')
+            if cf: cf.membership.add(a.id)
+        elif sclass in ('industrialist', 'petty_bourgeois'):
+            cf = region.factions.get('Bourgeoisie')
+            if cf: cf.membership.add(a.id)
+
 
 def apply_policy_satisfaction(region):
-    """Map the tile government's existing policy knobs to faction demand satisfaction."""
+    """Map the tile government's existing policy knobs and land tenure to faction demand satisfaction."""
     gov = region.gov
     tax_sat = max(0.0, min(1.0, 1.0 - gov.tax_rate / 0.75))
     welfare_sat = 1.0 if getattr(gov, 'ubi_enabled', False) else 0.35
     tariff_sat = max(0.0, min(1.0, gov.import_tariff_rate / 0.15))
     imm_sat = 1.0 if getattr(gov, 'immigration_enabled', False) else 0.2
     native_sat = 0.3
+
+    # Land tenure satisfaction (P1.4)
+    commons = region.tenure.commons_access if getattr(region, 'tenure', None) else 1.0
+    enclosure_sat = 1.0 - commons
+    commons_sat = commons
 
     for f in region.factions.factions.values():
         for d in f.demands:
@@ -63,6 +96,12 @@ def apply_policy_satisfaction(region):
                 d.satisfied = tariff_sat
             elif d.name == 'immigration':
                 d.satisfied = imm_sat
+            elif d.name == 'enclosure':
+                d.satisfied = enclosure_sat
+            elif d.name == 'commons_protection':
+                d.satisfied = commons_sat
+            elif d.name == 'wage_subsidy':
+                d.satisfied = welfare_sat
             elif d.name == 'native_rights':
                 d.satisfied = native_sat
 

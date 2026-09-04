@@ -31,6 +31,8 @@ import region_factions as _factions
 import region_plotting as _plot
 import foraging as _forage
 import feudal_tribute as _tribute
+import land_rent as _rent
+import social_class as _sclass
 
 
 # =============================================================================
@@ -165,6 +167,7 @@ class Region:
         # Land tenure: feudal plots with customary rights (P1)
         self.tenure = TileTenure()
         self.tenure_log: list = []  # time-series of commons_access
+        self.social_class_log: list = []  # time-series of class distribution
 
         self.recipes = copy.deepcopy(recipes)
         self.goods = list(goods)
@@ -508,6 +511,10 @@ class Region:
         _fin.distribute_profits(self, t)
         self._audit_cash(t, "profits_done")
 
+        # Cash rent collection on enclosed plots (P1.4)
+        _rent.collect_rents(self, t)
+        self._audit_cash(t, "rent_done")
+
         # Tax
         self._record_delta()
         _fin.collect_tax(self, t)
@@ -522,6 +529,10 @@ class Region:
         self.agents = self._live(t)
         self.trader_agents = [a for a in self.agents if a.is_trader]
         self._audit_cash(t, "live_done")
+
+        # Dynamic social class evaluation (P1.4)
+        class_dist = _sclass.update_tile_social_classes(self)
+        self.social_class_log.append(class_dist)
 
         # Charity food distribution
         if legacy:

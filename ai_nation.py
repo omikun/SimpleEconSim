@@ -350,4 +350,32 @@ class NationPolicyAI:
                 # Build infrastructure or commission frontier company
                 pass
 
+        # 4. Feudal Enclosure Evaluation (P1.4)
+        if t >= 5 and t % 5 == 0:
+            for tile in self.nation.tiles:
+                tenure = getattr(tile, 'tenure', None)
+                if not tenure:
+                    continue
+                feudal = tenure.feudal_plots()
+                if not feudal:
+                    continue
+                pe = tile.protest_energy_log[-1] if getattr(tile, 'protest_energy_log', None) else 0.0
+                if pe < 4.5:
+                    plot = feudal[0]
+                    from enclosure import calculate_charter_fee
+                    fee = calculate_charter_fee(plot)
+                    lord = next((a for a in tile.agents if a.id == plot.lord_id), None)
+                    if lord and lord.cash >= fee:
+                        from intents import EncloseCommonsIntent
+                        intent = EncloseCommonsIntent(
+                            nation_name=self.nation.name,
+                            tile_name=tile.name,
+                            plot_id=plot.plot_id,
+                            submitted_turn=t,
+                            regime_type=self.nation.regime_type
+                        )
+                        self.nation.submit_intent(intent, t)
+                        submitted.append(intent)
+                        break
+
         return submitted

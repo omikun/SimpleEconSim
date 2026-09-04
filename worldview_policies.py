@@ -279,6 +279,36 @@ def _draw_city_policies(surface, world, region, start_y, font, font_small, mx, m
             _draw_btn(surface, rect, b_label, font_small, mx, my, color=b_col, icon_kind=b_icon)
             _ACTION_BUTTONS.append((rect, act_id, region))
 
+    start_y += card4_h + 8
+
+    # CARD 5: Land Tenure & Enclosure Decrees (P1.4)
+    tenure = getattr(region, 'tenure', None)
+    if tenure and tenure.plots:
+        card5_h = 76
+        c5_rect = (PANEL_LEFT + 4, start_y, PANEL_W - 24, card5_h)
+        pygame.draw.rect(surface, CARD_BG, c5_rect, border_radius=5)
+        pygame.draw.rect(surface, CARD_BORDER, c5_rect, 1, border_radius=5)
+
+        commons_pct = tenure.commons_access * 100
+        surface.blit(font_small.render(f"Land Tenure: Commons Access {commons_pct:.0f}%", True, (235, 185, 80)), (PANEL_LEFT + 12, start_y + 8))
+        desc = f"Feudal: {tenure.feudal_fraction*100:.0f}% | Enclosed: {tenure.enclosed_fraction*100:.0f}%"
+        surface.blit(font_small.render(desc, True, DIM), (PANEL_LEFT + 12, start_y + 24))
+
+        feudal_plots = tenure.feudal_plots()
+        if feudal_plots:
+            first_feudal = feudal_plots[0]
+            from enclosure import calculate_charter_fee
+            fee = calculate_charter_fee(first_feudal)
+            lord = next((a for a in region.agents if a.id == first_feudal.lord_id), None)
+            can_enclose = (lord is not None and lord.cash >= fee)
+            enc_btn = (PANEL_LEFT + 12, start_y + 46, 170, 22)
+            _draw_btn(surface, enc_btn, f"Enclose Plot (${fee:.0f})", font_small, mx, my,
+                       enabled=can_enclose, color=(240, 140, 70) if can_enclose else DIM)
+            _ACTION_BUTTONS.append((enc_btn, 'city_enclose_plot', (region, first_feudal.plot_id)))
+        else:
+            surface.blit(font_small.render("All customary commons enclosed.", True, (130, 200, 140)), (PANEL_LEFT + 12, start_y + 48))
+        start_y += card5_h + 8
+
 
 # =============================================================================
 # PROVINCE LEVEL POLICIES
@@ -574,6 +604,19 @@ def _execute_policy_action(world, act_id, target):
                 from worldview_engine import ticker_push
                 ticker_push(world, world['turn'], 'CONSTRUCT', msg, (245, 180, 50))
             world['policy_feedback'] = (msg, GREEN if ok else RED)
+
+    # City Feudal Enclosure Decree
+    elif act_id == 'city_enclose_plot':
+        reg, plot_id = target
+        from enclosure import execute_enclosure
+        ok, msg, events = execute_enclosure(reg, plot_id, world['turn'])
+        if ok:
+            try:
+                from worldview_engine import ticker_push
+                ticker_push(world, world['turn'], 'ENCLOSURE', msg, (230, 140, 70))
+            except ImportError:
+                pass
+        world['policy_feedback'] = (msg, (230, 140, 70) if ok else RED)
 
     # Province Actions
     elif act_id == 'prov_equalization_grant':
