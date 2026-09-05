@@ -173,6 +173,13 @@ class Region:
         self.rent_collected_log: list = []  # time-series of cash rent collected
         self.rent_arrears_log: list = []  # time-series of rent unpaid
 
+        # P2: Labor commodification & surplus value
+        self.workday_cap: float = 16.0  # legal maximum shift hours (defaults to unrestricted)
+        self.safety_mandate: float = 0.0  # legal minimum safety spend per worker
+        self.avg_shift_hours_log: list = []  # time-series of avg shift hours
+        self.surplus_value_log: list = []  # time-series of total surplus value extracted ($)
+        self.rate_of_exploitation_log: list = []  # time-series of s/v exploitation rate
+
         self.recipes = copy.deepcopy(recipes)
         self.goods = list(goods)
 
@@ -527,6 +534,13 @@ class Region:
         self._audit_cash(t, "tax_done")
 
         self._log_gdp()
+
+        # Surplus value & labor metrics (P2.1)
+        from labor_contract import aggregate_tile_surplus
+        surplus_stats = aggregate_tile_surplus(self)
+        self.avg_shift_hours_log.append(surplus_stats['avg_shift_hours'])
+        self.surplus_value_log.append(surplus_stats['total_surplus_value'])
+        self.rate_of_exploitation_log.append(surplus_stats['avg_rate_of_exploitation'])
 
         if t > 0 and t % 10 == 0:
             _fin.recalculate_multipliers(self)

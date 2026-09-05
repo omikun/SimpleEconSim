@@ -174,3 +174,6 @@ def step_wilderness(region, t):
     region.food_purchased_log.append(0)
     region.rent_collected_log.append(0.0)
     region.rent_arrears_log.append(0.0)
+    region.avg_shift_hours_log.append(8.0)
+    region.surplus_value_log.append(0.0)
+    region.rate_of_exploitation_log.append(0.0)

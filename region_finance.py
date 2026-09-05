@@ -15,6 +15,7 @@ def pay_wages(region, t):
                 wage_to_pay = min(a.cash, a.wage)
                 a.cash -= wage_to_pay
                 e.cash += wage_to_pay
+                e.wages_received = wage_to_pay
                 e.mem_push('mem_wages', wage_to_pay)
 
 

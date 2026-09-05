@@ -5,6 +5,7 @@ Labor market, hiring, firm incorporation, and wage adjustment for a Region.
 from agent import Agent, seed_traits
 from goods import Goods
 from random_cache import rand
+from labor_contract import evaluate_firm_contracts
 
 
 def cleanup_labor(region):
@@ -65,6 +66,10 @@ def incorporate(region, t):
         sector_wages = [x.wage for x in region.agents if x.is_corporation and x.output == a.output and x.wage > 0]
         company.wage = max(sector_wages) * 1.05 if sector_wages else max(1.0, food_price * 1.5)
         company.max_employees = rand.randint(10, 25)
+        company.machinery_level = 1
+        company.broken_machinery = 0
+        company.shift_hours = 8.0
+        company.safety_investment = getattr(region, 'safety_mandate', 0.0)
         new_companies.append(company)
     return new_companies
 
@@ -83,6 +88,7 @@ def hire_workers(region, t):
             c = rand.choice(distressed)
             c.employer = a
             c.hired_at = t
+            c.shift_hours = getattr(a, 'shift_hours', 8.0)
             a.employees.append(c)
             c.output = a.output
         else:
@@ -96,6 +102,7 @@ def hire_workers(region, t):
                     old_employer.employees.remove(target)
                     target.employer = a
                     target.hired_at = t
+                    target.shift_hours = getattr(a, 'shift_hours', 8.0)
                     target.output = a.output
                     a.employees.append(target)
                     a.wage = max(a.wage, offer_wage)
@@ -120,4 +127,13 @@ def run_labour(region, t):
     new_companies = incorporate(region, t)
     hire_workers(region, t)
     adjust_wages(region, t)
+    for a in region.agents:
+        if getattr(a, 'is_corporation', False):
+            evaluate_firm_contracts(a, region, t)
+            safety_inv = getattr(a, 'safety_investment', 0.0)
+            if safety_inv > 0.0 and len(a.employees) > 0 and getattr(region, 'gov', None) and getattr(region.gov, 'agent', None):
+                cost = min(a.cash, len(a.employees) * safety_inv)
+                if cost > 0.0:
+                    a.cash -= cost
+                    region.gov.agent.cash += cost
     return new_companies

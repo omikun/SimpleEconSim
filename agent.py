@@ -95,6 +95,12 @@ class Agent:
         'is_lord', 'land_plots',
         'food_foraged', 'food_purchased',
         'social_class',
+        # ---- P2: Labor commodification & surplus value ----
+        'shift_hours', 'safety_investment',
+        'machinery_level', 'broken_machinery',
+        'surplus_value_extracted', 'rate_of_exploitation',
+        'wages_received', 'workplace_accident',
+        '_latest_labor_stats',
     )
 
     def __init__(self, t):
@@ -198,6 +204,16 @@ class Agent:
         self.food_foraged = 0                # food gathered from commons this turn
         self.food_purchased = 0              # food bought on market this turn
         self.social_class = None             # computed each turn (SocialClass enum value)
+        # ---- P2 fields ----
+        self.shift_hours = 8.0               # customary baseline
+        self.safety_investment = 0.0         # cash spent on safety per worker
+        self.machinery_level = 1             # default machinery units for firms
+        self.broken_machinery = 0            # damaged machinery pending replacement
+        self.surplus_value_extracted = 0.0   # s extracted this turn
+        self.rate_of_exploitation = 0.0      # s/v this turn
+        self.wages_received = 0.0            # wages paid to this worker this turn
+        self.workplace_accident = False      # true if injured this turn
+        self._latest_labor_stats = None      # FirmLaborStats dataclass reference
 
     def name(self):
         prof_label = profession.get(self.output, '-')
