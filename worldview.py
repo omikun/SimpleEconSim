@@ -75,6 +75,9 @@ from worldview_left_dock import (
 from worldview_transfer_dialog import (
     draw_transfer_dialog, transfer_dialog_hit
 )
+from worldview_tooltips import (
+    draw_left_panel_tooltip
+)
 from worldview_engine import (
     get_layout, get_reverse_layout, build_world_view, ticker_push, step_world
 )
@@ -127,6 +130,7 @@ FPS = FPS_ACTIVE
 
 def render_frame(surface, world, mouse_pos=None):
     """Draw one full frame (map + top bar + panel + ticker + zoom hud + comparison table + sovereign actions + help)."""
+    world['_hovered_left_tooltip'] = None
     font = get_font(28)
     font_small = get_font(22)
     surface.fill(BG)
@@ -151,6 +155,9 @@ def render_frame(surface, world, mouse_pos=None):
     draw_actions_modal(surface, world, font, font_small, mouse_pos=mouse_pos)
     draw_help_modal(surface, world, font, font_small)
     draw_transfer_dialog(surface, world, font, font_small, mouse_pos=mouse_pos)
+
+    # Floating left-panel detailed button tooltips
+    draw_left_panel_tooltip(surface, world, font_small, mouse_pos=mouse_pos)
 
 
 def _mark_dirty(world):

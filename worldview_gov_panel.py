@@ -14,6 +14,7 @@ from worldview_camera import HEIGHT, TOP_BAR_H, TICKER_H
 from worldview_map import ACCENT, TEXT, DIM, RED, GREEN
 from ui_icons import get_icon
 from unrest import apply_repression
+from worldview_tooltips import get_button_tooltip_data
 
 GOV_PANEL_X = 14
 GOV_PANEL_Y = TOP_BAR_H + 10
@@ -26,6 +27,8 @@ BTN_BG = (36, 42, 58)
 BTN_HOVER = (52, 60, 84)
 BTN_BORDER = (70, 85, 115)
 
+_GOV_BUTTONS: list[tuple[tuple[int, int, int, int], str, any]] = []
+
 
 def draw_left_dock_buttons(surface, world, font_small, mouse_pos=None):
     """Draw the floating left dock toggle buttons for all left-hand panels."""
@@ -33,8 +36,53 @@ def draw_left_dock_buttons(surface, world, font_small, mouse_pos=None):
     _draw_dock(surface, world, font_small, mouse_pos)
 
 
+def _draw_gov_btn(surface, rect, label, font_small, mx, my, act_id, target,
+                  enabled=True, color=TEXT, custom_bg=None, icon_kind=None,
+                  world=None, region=None, nation=None, province=None):
+    """Draw an interactive policy decree button, register hit rect, and attach tooltip."""
+    global _GOV_BUTTONS
+    bx, by, bw, bh = rect
+    is_hov = (bx <= mx <= bx + bw and by <= my <= by + bh)
+
+    if enabled:
+        _GOV_BUTTONS.append((rect, act_id, target))
+
+    # Tooltip detection
+    if is_hov and act_id and world is not None:
+        tdata = get_button_tooltip_data(act_id, world, region=region, nation=nation, province=province)
+        if tdata:
+            tdata['btn_rect'] = rect
+            world['_hovered_left_tooltip'] = tdata
+
+    if not enabled:
+        bg = (24, 26, 34)
+        bc = (40, 42, 54)
+        tc = (70, 75, 90)
+    else:
+        bg = custom_bg if custom_bg else (BTN_HOVER if is_hov else BTN_BG)
+        bc = ACCENT if is_hov else BTN_BORDER
+        tc = (255, 255, 255) if is_hov else color
+
+    pygame.draw.rect(surface, bg, rect, border_radius=4)
+    pygame.draw.rect(surface, bc, rect, 1, border_radius=4)
+
+    txt_surf = font_small.render(label, True, tc)
+    if icon_kind:
+        ico = get_icon(icon_kind, size=13)
+        total_w = 13 + 4 + txt_surf.get_width()
+        start_x = bx + (bw - total_w) // 2
+        surface.blit(ico, (start_x, by + (bh - 13) // 2))
+        surface.blit(txt_surf, (start_x + 17, by + (bh - txt_surf.get_height()) // 2))
+    else:
+        surface.blit(txt_surf, txt_surf.get_rect(center=(bx + bw // 2, by + bh // 2)))
+
+
 def draw_gov_panel(surface, world, font, font_small, mouse_pos=None):
     """Draw the left-hand Governance & Policies Panel for the selected tile/province/nation."""
+    global _GOV_BUTTONS
+    _GOV_BUTTONS = []
+    world['_hovered_left_tooltip'] = None
+
     if not world.get('gov_panel_open', False):
         return
 
@@ -66,11 +114,12 @@ def draw_gov_panel(surface, world, font, font_small, mouse_pos=None):
     city_name = getattr(pinned, 'display_name', getattr(pinned, 'city_name', pinned.name))
     nation = getattr(pinned, 'owner_nation', None)
     province = getattr(pinned, 'province', None)
+    is_wilderness = (nation is None)
     prov_name = province.name if province else "Province"
-    nat_name = nation.name if nation else "Wilderness"
+    nat_name = nation.name if nation else "Wilderness Frontier"
 
     # Header
-    g_icon = get_icon('municipal', 16)
+    g_icon = get_icon('camp' if is_wilderness else 'municipal', 16)
     surface.blit(g_icon, (x + 12, y + 12))
 
     head_txt = font.render(f"Governance: {city_name}", True, (245, 215, 110))
@@ -93,8 +142,13 @@ def draw_gov_panel(surface, world, font, font_small, mouse_pos=None):
     # Scope Switcher Tabs
     scope_y = cur_y
     active_scope = world.get('policy_scope', 'tile')
-    scopes = [('tile', 'City', 'municipal'), ('province', 'Province', 'roads'), ('nation', 'Nation', 'crown')]
-    tab_w = (w - 24) // 3
+
+    if is_wilderness:
+        scopes = [('tile', 'Frontier', 'camp'), ('nation', 'Sponsor', 'crown')]
+    else:
+        scopes = [('tile', 'City', 'municipal'), ('province', 'Province', 'roads'), ('nation', 'Nation', 'crown')]
+
+    tab_w = (w - 24) // len(scopes)
 
     for i, (sc_id, sc_label, sc_ico) in enumerate(scopes):
         tx = x + 8 + i * (tab_w + 4)
@@ -118,7 +172,9 @@ def draw_gov_panel(surface, world, font, font_small, mouse_pos=None):
     cur_y = scope_y + 32
 
     # Render Scope Content
-    if active_scope == 'tile':
+    if is_wilderness and active_scope == 'tile':
+        _draw_left_frontier_scope(surface, world, pinned, cur_y, x, w, font, font_small, mx, my)
+    elif active_scope == 'tile':
         _draw_left_city_scope(surface, world, pinned, nation, cur_y, x, w, font, font_small, mx, my)
     elif active_scope == 'province':
         _draw_left_province_scope(surface, world, pinned, province, nation, cur_y, x, w, font, font_small, mx, my)
@@ -126,40 +182,52 @@ def draw_gov_panel(surface, world, font, font_small, mouse_pos=None):
         _draw_left_nation_scope(surface, world, pinned, nation, cur_y, x, w, font, font_small, mx, my)
 
 
-def _draw_btn(surface, rect, label, font_small, mx, my, enabled=True, color=TEXT, custom_bg=None, icon_kind=None):
-    bx, by, bw, bh = rect
-    is_hov = (bx <= mx <= bx + bw and by <= my <= by + bh) and enabled
-    if not enabled:
-        bg = (24, 26, 34)
-        bc = (40, 42, 54)
-        tc = (70, 75, 90)
-    else:
-        bg = custom_bg if custom_bg else (BTN_HOVER if is_hov else BTN_BG)
-        bc = ACCENT if is_hov else BTN_BORDER
-        tc = (255, 255, 255) if is_hov else color
+def _draw_left_frontier_scope(surface, world, region, start_y, x, w, font, font_small, mx, my):
+    """Render Frontier Wilderness colonization and settlement cards."""
+    hs_count = sum(1 for a in region.agents if getattr(a, 'is_homesteader', False))
+    native_pop = getattr(region, 'wilderness_pop', 0)
+    sponsor = world['nations'][0] if world.get('nations') else None
 
-    pygame.draw.rect(surface, bg, rect, border_radius=4)
-    pygame.draw.rect(surface, bc, rect, 1, border_radius=4)
+    # 1. Frontier Status Card
+    c1_h = 72
+    c1_rect = (x + 8, start_y, w - 16, c1_h)
+    pygame.draw.rect(surface, CARD_BG, c1_rect, border_radius=5)
+    pygame.draw.rect(surface, CARD_BORDER, c1_rect, 1, border_radius=5)
 
-    txt_surf = font_small.render(label, True, tc)
-    if icon_kind:
-        ico = get_icon(icon_kind, size=13)
-        total_w = 13 + 4 + txt_surf.get_width()
-        start_x = bx + (bw - total_w) // 2
-        surface.blit(ico, (start_x, by + (bh - 13) // 2))
-        surface.blit(txt_surf, (start_x + 17, by + (bh - txt_surf.get_height()) // 2))
-    else:
-        surface.blit(txt_surf, txt_surf.get_rect(center=(bx + bw // 2, by + bh // 2)))
+    surface.blit(get_icon('camp', 14), (x + 16, start_y + 8))
+    surface.blit(font_small.render("Unclaimed Frontier Territory", True, (245, 190, 80)), (x + 34, start_y + 7))
+    surface.blit(font_small.render(f"Homesteaders: {hs_count}  •  Indigenous: {native_pop}", True, (220, 230, 245)), (x + 16, start_y + 26))
+    surface.blit(font_small.render("Territorial Claim Threshold: 50%+ Settlers", True, DIM), (x + 16, start_y + 44))
+
+    cur_y = start_y + c1_h + 10
+
+    # 2. Colonization Decrees Card
+    c2_h = 92
+    c2_rect = (x + 8, cur_y, w - 16, c2_h)
+    pygame.draw.rect(surface, CARD_BG, c2_rect, border_radius=5)
+    pygame.draw.rect(surface, CARD_BORDER, c2_rect, 1, border_radius=5)
+
+    surface.blit(font_small.render("Frontier Settlement Decrees:", True, ACCENT), (x + 16, cur_y + 8))
+
+    d1_rect = (x + 16, cur_y + 28, w - 32, 26)
+    _draw_gov_btn(surface, d1_rect, "Sponsor Settlers ($100)", font_small, mx, my,
+                  'frontier_expedition', region, enabled=True, color=GREEN, icon_kind='settler',
+                  world=world, region=region, nation=sponsor)
+
+    d2_rect = (x + 16, cur_y + 58, w - 32, 26)
+    _draw_gov_btn(surface, d2_rect, "Send Pioneer Aid ($40)", font_small, mx, my,
+                  'frontier_pioneer_grant', region, enabled=True, color=(160, 220, 150), icon_kind='food',
+                  world=world, region=region, nation=sponsor)
 
 
 def _draw_left_city_scope(surface, world, region, nation, start_y, x, w, font, font_small, mx, my):
     """Render City / Tile governance cards."""
     rgov = getattr(region, 'gov', None)
-    tile_cash = (rgov.agent.cash if rgov else 0.0) + (region.bank.deposits.get(rgov.agent, 0.0) if hasattr(region, 'bank') and rgov else 0.0)
+    tile_cash = (rgov.agent.cash if rgov and hasattr(rgov, 'agent') else 0.0) + (region.bank.deposits.get(rgov.agent, 0.0) if hasattr(region, 'bank') and rgov and hasattr(rgov, 'agent') else 0.0)
     tax_rate = rgov.tax_rate if rgov else 0.15
     hungry = sum(1 for a in region.agents if not a.is_corporation and not a.is_government and a.hungry_steps > 0)
     protest_e = region.protest_energy_log[-1] if region.protest_energy_log else 0.0
-    ubi_active = getattr(rgov, 'ubi_active', False)
+    ubi_active = getattr(rgov, 'ubi_enabled', getattr(rgov, 'ubi_active', False))
 
     # 1. Municipal Treasury & Stats Card
     card1_h = 76
@@ -167,53 +235,98 @@ def _draw_left_city_scope(surface, world, region, nation, start_y, x, w, font, f
     pygame.draw.rect(surface, CARD_BG, c1_rect, border_radius=5)
     pygame.draw.rect(surface, CARD_BORDER, c1_rect, 1, border_radius=5)
 
-    m_ico = get_icon('municipal', 14)
-    surface.blit(m_ico, (x + 16, start_y + 8))
+    surface.blit(get_icon('municipal', 14), (x + 16, start_y + 8))
     surface.blit(font_small.render(f"Municipal Treasury: ${tile_cash:,.0f}", True, (120, 240, 150)), (x + 34, start_y + 7))
-    surface.blit(font_small.render(f"Tax Rate: {tax_rate*100:.1f}%  •  Protest Energy: {protest_e:.2f}", True, (220, 230, 245)), (x + 16, start_y + 26))
+    surface.blit(font_small.render(f"Tax Rate: {tax_rate*100:.1f}%  •  Protest: {protest_e:.2f}", True, (220, 230, 245)), (x + 16, start_y + 26))
     food_inv = getattr(rgov, 'food_inventory', getattr(rgov, 'food_reserve', 0.0)) if rgov else 0.0
-    surface.blit(font_small.render(f"Hungry Citizens: {hungry}  •  Food Inventory: {food_inv:.1f}", True, (245, 180, 80)), (x + 16, start_y + 44))
+    surface.blit(font_small.render(f"Hungry Citizens: {hungry}  •  Food Inv: {food_inv:.1f}", True, (245, 180, 80)), (x + 16, start_y + 44))
 
-    cur_y = start_y + card1_h + 10
+    cur_y = start_y + card1_h + 8
 
     # 2. Tax Adjusters & UBI Card
-    card2_h = 80
+    card2_h = 78
     c2_rect = (x + 8, cur_y, w - 16, card2_h)
     pygame.draw.rect(surface, CARD_BG, c2_rect, border_radius=5)
     pygame.draw.rect(surface, CARD_BORDER, c2_rect, 1, border_radius=5)
 
     surface.blit(font_small.render("Fiscal Taxation & Welfare:", True, (245, 215, 120)), (x + 16, cur_y + 8))
 
-    b1_rect = (x + 16, cur_y + 28, 80, 22)
-    b2_rect = (x + 102, cur_y + 28, 80, 22)
-    _draw_btn(surface, b1_rect, "[-2% Tax]", font_small, mx, my, enabled=(tax_rate > 0.02))
-    _draw_btn(surface, b2_rect, "[+2% Tax]", font_small, mx, my, enabled=(tax_rate < 0.60))
+    b1_rect = (x + 16, cur_y + 26, (w - 38) // 2, 22)
+    b2_rect = (x + 22 + (w - 38) // 2, cur_y + 26, (w - 38) // 2, 22)
+    _draw_gov_btn(surface, b1_rect, "[-2% Tax]", font_small, mx, my,
+                  'city_tax_cut', region, enabled=(tax_rate > 0.02),
+                  world=world, region=region, nation=nation)
+    _draw_gov_btn(surface, b2_rect, "[+2% Tax]", font_small, mx, my,
+                  'city_tax_raise', region, enabled=(tax_rate < 0.60),
+                  world=world, region=region, nation=nation)
 
-    b3_rect = (x + 16, cur_y + 52, w - 32, 22)
+    b3_rect = (x + 16, cur_y + 50, w - 32, 22)
     ubi_lbl = "UBI Welfare: Active ($5/t)" if ubi_active else "Enact UBI Welfare ($5/t)"
-    _draw_btn(surface, b3_rect, ubi_lbl, font_small, mx, my, enabled=True, color=(120, 240, 150) if ubi_active else TEXT)
+    _draw_gov_btn(surface, b3_rect, ubi_lbl, font_small, mx, my,
+                  'city_toggle_ubi', region, enabled=True,
+                  color=(120, 240, 150) if ubi_active else TEXT,
+                  world=world, region=region, nation=nation)
 
-    cur_y += card2_h + 10
+    cur_y += card2_h + 8
 
     # 3. Municipal Policy Decrees Card
-    card3_h = 135
+    card3_h = 122 if protest_e < 1.5 else 150
     c3_rect = (x + 8, cur_y, w - 16, card3_h)
     pygame.draw.rect(surface, CARD_BG, c3_rect, border_radius=5)
     pygame.draw.rect(surface, CARD_BORDER, c3_rect, 1, border_radius=5)
 
     surface.blit(font_small.render("Municipal Policy Decrees:", True, ACCENT), (x + 16, cur_y + 8))
 
-    # Decree 1: Emergency Food Rations ($50)
-    d1_rect = (x + 16, cur_y + 28, w - 32, 28)
-    _draw_btn(surface, d1_rect, "Disburse Food Relief ($50)", font_small, mx, my, enabled=(tile_cash >= 50.0), icon_kind='food')
+    d1_rect = (x + 16, cur_y + 26, w - 32, 26)
+    _draw_gov_btn(surface, d1_rect, "Disburse Food Relief ($50)", font_small, mx, my,
+                  'city_emergency_food', region, enabled=(tile_cash >= 50.0), icon_kind='food',
+                  world=world, region=region, nation=nation)
 
-    # Decree 2: Agricultural Subsidy ($100)
-    d2_rect = (x + 16, cur_y + 60, w - 32, 28)
-    _draw_btn(surface, d2_rect, "Subsidize Farming ($100)", font_small, mx, my, enabled=(tile_cash >= 100.0), icon_kind='farm')
+    d2_rect = (x + 16, cur_y + 56, w - 32, 26)
+    _draw_gov_btn(surface, d2_rect, "Subsidize Farming ($100)", font_small, mx, my,
+                  'city_farm_subsidy', region, enabled=(tile_cash >= 100.0), icon_kind='farm',
+                  world=world, region=region, nation=nation)
 
-    # Decree 3: Law Enforcement & Anti-Riot Patrol ($60)
-    d3_rect = (x + 16, cur_y + 92, w - 32, 28)
-    _draw_btn(surface, d3_rect, "Deploy Safety Patrol ($60)", font_small, mx, my, enabled=(tile_cash >= 60.0), icon_kind='shield')
+    d3_rect = (x + 16, cur_y + 86, w - 32, 26)
+    _draw_gov_btn(surface, d3_rect, "Deploy Safety Patrol ($60)", font_small, mx, my,
+                  'city_safety_patrol', region, enabled=(tile_cash >= 60.0), icon_kind='shield',
+                  world=world, region=region, nation=nation)
+
+    if protest_e >= 1.5:
+        d4_rect = (x + 16, cur_y + 116, w - 32, 26)
+        _draw_gov_btn(surface, d4_rect, "Enforce Police Curfew", font_small, mx, my,
+                      'city_police_curfew', region, enabled=True, color=RED, icon_kind='shield',
+                      world=world, region=region, nation=nation)
+
+    cur_y += card3_h + 8
+
+    # 4. Feudal Land Tenure & Enclosure Card (P1.4)
+    tenure = getattr(region, 'tenure', None)
+    if tenure and tenure.plots:
+        card4_h = 74
+        c4_rect = (x + 8, cur_y, w - 16, card4_h)
+        pygame.draw.rect(surface, CARD_BG, c4_rect, border_radius=5)
+        pygame.draw.rect(surface, CARD_BORDER, c4_rect, 1, border_radius=5)
+
+        commons_pct = tenure.commons_access * 100
+        surface.blit(font_small.render(f"Land Tenure: Commons Access {commons_pct:.0f}%", True, (235, 185, 80)), (x + 16, cur_y + 8))
+        desc = f"Feudal: {tenure.feudal_fraction*100:.0f}%  •  Enclosed: {tenure.enclosed_fraction*100:.0f}%"
+        surface.blit(font_small.render(desc, True, DIM), (x + 16, cur_y + 24))
+
+        feudal_plots = tenure.feudal_plots()
+        if feudal_plots:
+            first_feudal = feudal_plots[0]
+            from enclosure import calculate_charter_fee
+            fee = calculate_charter_fee(first_feudal)
+            lord = next((a for a in region.agents if a.id == first_feudal.lord_id), None)
+            can_enclose = (lord is not None and lord.cash >= fee)
+            enc_btn = (x + 16, cur_y + 44, w - 32, 22)
+            _draw_gov_btn(surface, enc_btn, f"Enclose Feudal Plot (${fee:.0f})", font_small, mx, my,
+                          'city_enclose_plot', (region, first_feudal.plot_id),
+                          enabled=can_enclose, color=(240, 140, 70) if can_enclose else DIM,
+                          world=world, region=region, nation=nation)
+        else:
+            surface.blit(font_small.render("Customary commons fully enclosed.", True, (130, 200, 140)), (x + 16, cur_y + 46))
 
 
 def _draw_left_province_scope(surface, world, region, province, nation, start_y, x, w, font, font_small, mx, my):
@@ -229,42 +342,59 @@ def _draw_left_province_scope(surface, world, region, province, nation, start_y,
     pygame.draw.rect(surface, CARD_BORDER, c1_rect, 1, border_radius=5)
 
     p_name = province.name if province else "Province"
-    p_ico = get_icon('roads', 14)
-    surface.blit(p_ico, (x + 16, start_y + 8))
+    surface.blit(get_icon('roads', 14), (x + 16, start_y + 8))
     surface.blit(font_small.render(f"Province: {p_name}", True, (245, 215, 120)), (x + 34, start_y + 7))
     surface.blit(font_small.render(f"Provincial Treasury: ${prov_cash:,.0f}", True, (120, 240, 150)), (x + 16, start_y + 26))
     surface.blit(font_small.render(f"Member Territories: {member_count} Cities / Tiles", True, (220, 230, 245)), (x + 16, start_y + 44))
 
-    cur_y = start_y + card1_h + 10
+    cur_y = start_y + card1_h + 8
 
-    # 2. Provincial Decrees Card
-    card2_h = 160
+    # 2. Provincial Strategic Actions Card
+    card2_h = 118
     c2_rect = (x + 8, cur_y, w - 16, card2_h)
     pygame.draw.rect(surface, CARD_BG, c2_rect, border_radius=5)
     pygame.draw.rect(surface, CARD_BORDER, c2_rect, 1, border_radius=5)
 
-    surface.blit(font_small.render("Provincial Strategic Actions:", True, ACCENT), (x + 16, cur_y + 8))
+    surface.blit(font_small.render("Provincial Strategic Decrees:", True, ACCENT), (x + 16, cur_y + 8))
 
-    # Decree 1: Maintain Highway Network ($120)
-    p1_rect = (x + 16, cur_y + 28, w - 32, 28)
-    _draw_btn(surface, p1_rect, "Pave Regional Highway ($120)", font_small, mx, my, enabled=(prov_cash >= 120.0), icon_kind='roads')
+    p1_rect = (x + 16, cur_y + 26, w - 32, 26)
+    _draw_gov_btn(surface, p1_rect, "Pave Regional Highway ($120)", font_small, mx, my,
+                  'prov_pave_highway', province, enabled=(prov_cash >= 120.0), icon_kind='roads',
+                  world=world, region=region, nation=nation, province=province)
 
-    # Decree 2: Regional Healthcare ($150)
-    p2_rect = (x + 16, cur_y + 60, w - 32, 28)
-    _draw_btn(surface, p2_rect, "Regional Health Initiative ($150)", font_small, mx, my, enabled=(prov_cash >= 150.0), icon_kind='heart')
+    p2_rect = (x + 16, cur_y + 56, w - 32, 26)
+    _draw_gov_btn(surface, p2_rect, "Regional Health Initiative ($150)", font_small, mx, my,
+                  'prov_healthcare', province, enabled=(prov_cash >= 150.0), icon_kind='heart',
+                  world=world, region=region, nation=nation, province=province)
 
-    # Decree 3: Provincial Equalization Fund ($200)
-    p3_rect = (x + 16, cur_y + 92, w - 32, 28)
-    _draw_btn(surface, p3_rect, "Provincial Equalization ($200)", font_small, mx, my, enabled=(prov_cash >= 200.0), icon_kind='scale')
+    p3_rect = (x + 16, cur_y + 86, w - 32, 26)
+    _draw_gov_btn(surface, p3_rect, "Provincial Equalization ($200)", font_small, mx, my,
+                  'prov_equalization', province, enabled=(prov_cash >= 200.0), icon_kind='scale',
+                  world=world, region=region, nation=nation, province=province)
 
-    # Subtext
-    sub_desc = font_small.render("Funded via 30% statutory provincial tax share.", True, DIM)
-    surface.blit(sub_desc, (x + 16, cur_y + 130))
+    cur_y += card2_h + 8
+
+    # 3. Logistics & Tax Harmonization Card
+    card3_h = 78
+    c3_rect = (x + 8, cur_y, w - 16, card3_h)
+    pygame.draw.rect(surface, CARD_BG, c3_rect, border_radius=5)
+    pygame.draw.rect(surface, CARD_BORDER, c3_rect, 1, border_radius=5)
+
+    surface.blit(font_small.render("Provincial Harmonization Accords:", True, (140, 200, 255)), (x + 16, cur_y + 8))
+
+    r1_rect = (x + 16, cur_y + 26, w - 32, 22)
+    _draw_gov_btn(surface, r1_rect, "Standardize Routes ($100)", font_small, mx, my,
+                  'prov_standardize_routes', province, enabled=True, color=(200, 230, 150),
+                  world=world, region=region, nation=nation, province=province)
+
+    r2_rect = (x + 16, cur_y + 50, w - 32, 22)
+    _draw_gov_btn(surface, r2_rect, "Harmonize Taxes (Uniform)", font_small, mx, my,
+                  'prov_harmonize_taxes', province, enabled=True, color=(240, 200, 120),
+                  world=world, region=region, nation=nation, province=province)
 
 
 def _draw_left_nation_scope(surface, world, region, nation, start_y, x, w, font, font_small, mx, my):
     """Render National Sovereign governance cards."""
-    nat_gov = getattr(nation, 'government', None) if nation else None
     treasury = nation.treasury() if nation else {'total': 0.0, 'sovereign_cash': 0.0}
     nat_cash = treasury.get('sovereign_cash', 0.0)
     tot_cash = treasury.get('total', 0.0)
@@ -274,60 +404,111 @@ def _draw_left_nation_scope(surface, world, region, nation, start_y, x, w, font,
     rating, market_yield = market.isrb.get_market_yield(nation, 20, world) if nation else ("N/A", 0.0)
 
     # 1. Sovereign Treasury & ISRB Rating Card
-    card1_h = 76
+    card1_h = 74
     c1_rect = (x + 8, start_y, w - 16, card1_h)
     pygame.draw.rect(surface, CARD_BG, c1_rect, border_radius=5)
     pygame.draw.rect(surface, CARD_BORDER, c1_rect, 1, border_radius=5)
 
     n_name = nation.name if nation else "Sovereign State"
-    n_ico = get_icon('crown', 14)
-    surface.blit(n_ico, (x + 16, start_y + 8))
+    surface.blit(get_icon('crown', 14), (x + 16, start_y + 8))
     surface.blit(font_small.render(f"Nation: {n_name}", True, (245, 215, 120)), (x + 34, start_y + 7))
-    surface.blit(font_small.render(f"Sovereign Treasury: ${nat_cash:,.0f} (Tot: ${tot_cash:,.0f})", True, (120, 240, 150)), (x + 16, start_y + 26))
-    surface.blit(font_small.render(f"ISRB Rating: {rating}  •  Yield: {market_yield*100:.2f}%/t", True, (220, 230, 245)), (x + 16, start_y + 44))
+    surface.blit(font_small.render(f"Treasury: ${nat_cash:,.0f} (Tot: ${tot_cash:,.0f})", True, (120, 240, 150)), (x + 16, start_y + 26))
+    surface.blit(font_small.render(f"ISRB: {rating} • Yield: {market_yield*100:.2f}%/t", True, (220, 230, 245)), (x + 16, start_y + 44))
 
-    cur_y = start_y + card1_h + 10
+    cur_y = start_y + card1_h + 8
 
     # 2. National Strategic Decrees Card
-    card2_h = 160
+    card2_h = 118
     c2_rect = (x + 8, cur_y, w - 16, card2_h)
     pygame.draw.rect(surface, CARD_BG, c2_rect, border_radius=5)
     pygame.draw.rect(surface, CARD_BORDER, c2_rect, 1, border_radius=5)
 
-    surface.blit(font_small.render("National Sovereign Decrees:", True, ACCENT), (x + 16, cur_y + 8))
+    surface.blit(font_small.render("National Strategic Decrees:", True, ACCENT), (x + 16, cur_y + 8))
 
-    # Decree 1: National Research Bounty ($300)
-    n1_rect = (x + 16, cur_y + 28, w - 32, 28)
-    _draw_btn(surface, n1_rect, "Fund Science Prize ($300)", font_small, mx, my, enabled=(nat_cash >= 300.0), icon_kind='science')
+    n1_rect = (x + 16, cur_y + 26, w - 32, 26)
+    _draw_gov_btn(surface, n1_rect, "Fund Science Prize ($300)", font_small, mx, my,
+                  'nat_science_prize', nation, enabled=(nat_cash >= 300.0), icon_kind='science',
+                  world=world, region=region, nation=nation)
 
-    # Decree 2: Recruit & Mobilize Garrison ($250)
-    n2_rect = (x + 16, cur_y + 60, w - 32, 28)
-    _draw_btn(surface, n2_rect, "Mobilize Standing Army ($250)", font_small, mx, my, enabled=(nat_cash >= 250.0), icon_kind='sword')
+    n2_rect = (x + 16, cur_y + 56, w - 32, 26)
+    _draw_gov_btn(surface, n2_rect, "Mobilize Standing Army ($250)", font_small, mx, my,
+                  'nat_mobilize_army', nation, enabled=(nat_cash >= 250.0), icon_kind='sword',
+                  world=world, region=region, nation=nation)
 
-    # Decree 3: Sovereign Fiscal Equalization ($250)
-    n3_rect = (x + 16, cur_y + 92, w - 32, 28)
-    _draw_btn(surface, n3_rect, "Disburse Sovereign Grant ($250)", font_small, mx, my, enabled=(nat_cash >= 250.0), icon_kind='scale')
+    n3_rect = (x + 16, cur_y + 86, w - 32, 26)
+    _draw_gov_btn(surface, n3_rect, "Sovereign Equalization ($250)", font_small, mx, my,
+                  'nat_sovereign_grant', nation, enabled=(nat_cash >= 250.0), icon_kind='scale',
+                  world=world, region=region, nation=nation)
 
-    # Subtext
-    sub_desc = font_small.render("Funded via 50% state tax + 80% customs tariffs.", True, DIM)
-    surface.blit(sub_desc, (x + 16, cur_y + 130))
+    cur_y += card2_h + 8
+
+    # 3. Statutory Tax & Customs Tariffs Card
+    card3_h = 76
+    c3_rect = (x + 8, cur_y, w - 16, card3_h)
+    pygame.draw.rect(surface, CARD_BG, c3_rect, border_radius=5)
+    pygame.draw.rect(surface, CARD_BORDER, c3_rect, 1, border_radius=5)
+
+    surface.blit(font_small.render("Statutory Tax & Customs Tariffs:", True, (245, 180, 50)), (x + 16, cur_y + 6))
+
+    tw = (w - 44) // 4
+    for i, t_val in enumerate([10, 15, 25, 35]):
+        bx = x + 16 + i * (tw + 4)
+        _draw_gov_btn(surface, (bx, cur_y + 24, tw, 20), f"{t_val}%", font_small, mx, my,
+                      f'nat_tax_{t_val}', nation, enabled=True,
+                      world=world, region=region, nation=nation)
+
+    for i, (tar_val, tar_lbl) in enumerate([(0, "0%"), (5, "5%"), (10, "10%"), (15, "15%")]):
+        bx = x + 16 + i * (tw + 4)
+        _draw_gov_btn(surface, (bx, cur_y + 48, tw, 20), tar_lbl, font_small, mx, my,
+                      f'nat_tariff_{tar_val}', nation, enabled=True,
+                      world=world, region=region, nation=nation)
+
+    cur_y += card3_h + 8
+
+    # 4. Labor Regulation & Social Directives Card
+    card4_h = 98
+    c4_rect = (x + 8, cur_y, w - 16, card4_h)
+    pygame.draw.rect(surface, CARD_BG, c4_rect, border_radius=5)
+    pygame.draw.rect(surface, CARD_BORDER, c4_rect, 1, border_radius=5)
+
+    surface.blit(font_small.render("Labor & Welfare Legislation:", True, (240, 140, 80)), (x + 16, cur_y + 6))
+
+    bw_half = (w - 38) // 2
+    has_ten = getattr(nation, 'ten_hour_act', False) if nation else False
+    has_safe = getattr(nation, 'factory_safety_act', False) if nation else False
+
+    # Row 1: UBI and Open Borders
+    _draw_gov_btn(surface, (x + 16, cur_y + 24, bw_half, 20), "Empire UBI", font_small, mx, my,
+                  'nat_enact_ubi', nation, enabled=True, color=GREEN,
+                  world=world, region=region, nation=nation)
+    _draw_gov_btn(surface, (x + 22 + bw_half, cur_y + 24, bw_half, 20), "Borders", font_small, mx, my,
+                  'nat_toggle_imm', nation, enabled=True, color=(160, 210, 255),
+                  world=world, region=region, nation=nation)
+
+    # Row 2: Ten-Hour Act and Safety Mandate
+    _draw_gov_btn(surface, (x + 16, cur_y + 48, bw_half, 20), "Ten-Hour Act" if not has_ten else "Ten-Hour: PASS",
+                  font_small, mx, my, 'nat_ten_hour_act', nation, enabled=not has_ten,
+                  color=GREEN if has_ten else TEXT, world=world, region=region, nation=nation)
+    _draw_gov_btn(surface, (x + 22 + bw_half, cur_y + 48, bw_half, 20), "Safety Mandate" if not has_safe else "Safety: PASS",
+                  font_small, mx, my, 'nat_safety_mandate', nation, enabled=not has_safe,
+                  color=GREEN if has_safe else TEXT, world=world, region=region, nation=nation)
+
+    # Row 3: Mass Spectacle / Entertainment
+    _draw_gov_btn(surface, (x + 16, cur_y + 72, w - 32, 20), "Subsidize Spectacle ($50)", font_small, mx, my,
+                  'nat_subsidize_entertainment', nation, enabled=True, color=(70, 195, 235),
+                  world=world, region=region, nation=nation)
 
 
 def gov_panel_hit(pos, world) -> bool:
-    """Handle click interactions on the Left Governance Panel and Left Dock Buttons."""
+    """Handle click interactions on the Left Governance Panel and registered buttons."""
+    global _GOV_BUTTONS
     mx, my = pos
     x, y, w, h = GOV_PANEL_X, GOV_PANEL_Y, GOV_PANEL_W, GOV_PANEL_H
-    t = world.get('turn', 1)
 
-    build_open = world.get('build_panel_open', False)
-    gov_open = world.get('gov_panel_open', False)
-
-    # 1. Left Dock Button Clicks (when panels are closed)
-    from worldview_left_dock import left_dock_buttons_hit, open_left_panel
-    if not gov_open:
-        if left_dock_buttons_hit(pos, world):
-            return True
-        return False
+    # Left Dock Buttons when closed
+    from worldview_left_dock import left_dock_buttons_hit
+    if not world.get('gov_panel_open', False):
+        return left_dock_buttons_hit(pos, world)
 
     # Close button [X]
     close_rect = (x + w - 26, y + 8, 18, 18)
@@ -341,154 +522,102 @@ def gov_panel_hit(pos, world) -> bool:
     if drawer_top_tabs_hit(pos, world, x, y + 48, w):
         return True
 
-    # Scope Switcher Tabs (y + 80)
-    tab_w = (w - 24) // 3
+    # Scope Switcher Tabs
+    pinned = world.get('selected_region')
+    if pinned is None and world.get('nations') and world['nations'][0].tiles:
+        pinned = world['nations'][0].tiles[0]
+
+    is_wilderness = (pinned is not None and getattr(pinned, 'owner_nation', None) is None)
+    scopes = [('tile', 'Frontier'), ('nation', 'Sponsor')] if is_wilderness else [('tile', 'City'), ('province', 'Province'), ('nation', 'Nation')]
+    tab_w = (w - 24) // len(scopes)
     scope_y = y + 80
-    for i, (sc_id, _) in enumerate([('tile', 'City'), ('province', 'Province'), ('nation', 'Nation')]):
+
+    for i, (sc_id, _) in enumerate(scopes):
         tx = x + 8 + i * (tab_w + 4)
         if tx <= mx <= tx + tab_w and scope_y <= my <= scope_y + 24:
             world['policy_scope'] = sc_id
             return True
 
-    pinned = world.get('selected_region')
-    if pinned is None and world.get('nations') and world['nations'][0].tiles:
-        pinned = world['nations'][0].tiles[0]
-
-    if pinned is None:
-        return False
-
-    nation = getattr(pinned, 'owner_nation', None)
-    province = getattr(pinned, 'province', None)
-    rgov = getattr(pinned, 'gov', None)
-    prov_gov = getattr(province, 'gov', None) if province else None
-    nat_gov = getattr(nation, 'government', None) if nation else None
-    active_scope = world.get('policy_scope', 'tile')
-
-    cur_y = scope_y + 32
-
-    # --- CITY / TILE SCOPE CLICKS ---
-    if active_scope == 'tile' and rgov:
-        card1_h = 76
-        start_y = cur_y
-        tax_card_y = start_y + card1_h + 10
-
-        # [-2% Tax]
-        b1_rect = (x + 16, tax_card_y + 28, 80, 22)
-        if b1_rect[0] <= mx <= b1_rect[0] + 80 and b1_rect[1] <= my <= b1_rect[1] + 22:
-            rgov.tax_rate = max(0.02, round(rgov.tax_rate - 0.02, 3))
-            from worldview_engine import ticker_push
-            ticker_push(world, t, 'POLICY', f"Decreed Tax Cut in {pinned.name}: New Rate {rgov.tax_rate*100:.1f}%.", (120, 220, 140))
+    # Check registered policy buttons
+    for rect, act_id, target in _GOV_BUTTONS:
+        bx, by, bw, bh = rect
+        if bx <= mx <= bx + bw and by <= my <= by + bh:
+            _execute_gov_policy(world, act_id, target)
             return True
-
-        # [+2% Tax]
-        b2_rect = (x + 102, tax_card_y + 28, 80, 22)
-        if b2_rect[0] <= mx <= b2_rect[0] + 80 and b2_rect[1] <= my <= b2_rect[1] + 22:
-            rgov.tax_rate = min(0.60, round(rgov.tax_rate + 0.02, 3))
-            from worldview_engine import ticker_push
-            ticker_push(world, t, 'POLICY', f"Decreed Tax Hike in {pinned.name}: New Rate {rgov.tax_rate*100:.1f}%.", (245, 180, 50))
-            return True
-
-        # UBI Toggle
-        b3_rect = (x + 16, tax_card_y + 52, w - 32, 22)
-        if b3_rect[0] <= mx <= b3_rect[0] + w - 32 and b3_rect[1] <= my <= b3_rect[1] + 22:
-            rgov.ubi_active = not getattr(rgov, 'ubi_active', False)
-            status_str = "enacted" if rgov.ubi_active else "repealed"
-            from worldview_engine import ticker_push
-            ticker_push(world, t, 'POLICY', f"Universal Basic Income {status_str} in {pinned.name}.", (120, 220, 140) if rgov.ubi_active else (240, 80, 80))
-            return True
-
-        # Decrees
-        dec_card_y = tax_card_y + 80 + 10
-
-        # Food Relief ($50)
-        d1_rect = (x + 16, dec_card_y + 28, w - 32, 28)
-        if d1_rect[0] <= mx <= d1_rect[0] + w - 32 and d1_rect[1] <= my <= d1_rect[1] + 28:
-            if rgov.agent.cash >= 50.0:
-                rgov.agent.cash -= 50.0
-                rgov.food_inventory += 20.0
-                from worldview_engine import ticker_push
-                ticker_push(world, t, 'POLICY', f"Disbursed $50 Emergency Food Rations in {pinned.name}.", (120, 220, 140))
-            return True
-
-        # Subsidize Farming ($100)
-        d2_rect = (x + 16, dec_card_y + 60, w - 32, 28)
-        if d2_rect[0] <= mx <= d2_rect[0] + w - 32 and d2_rect[1] <= my <= d2_rect[1] + 28:
-            if rgov.agent.cash >= 100.0:
-                rgov.agent.cash -= 100.0
-                from worldview_engine import ticker_push
-                ticker_push(world, t, 'POLICY', f"Granted $100 Agricultural Subsidy to farms in {pinned.name}.", (120, 220, 140))
-            return True
-
-        # Law Enforcement / Safety Patrol ($60)
-        d3_rect = (x + 16, dec_card_y + 92, w - 32, 28)
-        if d3_rect[0] <= mx <= d3_rect[0] + w - 32 and d3_rect[1] <= my <= d3_rect[1] + 28:
-            if rgov.agent.cash >= 60.0:
-                rgov.agent.cash -= 60.0
-                if pinned.protest_energy_log:
-                    pinned.protest_energy_log[-1] = max(0.0, pinned.protest_energy_log[-1] - 0.40)
-                from worldview_engine import ticker_push
-                ticker_push(world, t, 'POLICY', f"Deployed Public Safety Patrols in {pinned.name} (-0.40 Protest).", (120, 220, 140))
-            return True
-
-        # --- PROVINCE SCOPE CLICKS ---
-        elif active_scope == 'province' and prov_gov:
-            card1_h = 76
-            dec_card_y = cur_y + card1_h + 10
-
-            # Pave Highway ($120)
-            p1_rect = (x + 16, dec_card_y + 28, w - 32, 28)
-            if p1_rect[0] <= mx <= p1_rect[0] + w - 32 and p1_rect[1] <= my <= p1_rect[1] + 28:
-                if prov_gov.agent.cash >= 120.0:
-                    prov_gov.agent.cash -= 120.0
-                    from worldview_engine import ticker_push
-                    ticker_push(world, t, 'POLICY', f"Provincial Administration funded $120 Highway Maintenance in {province.name}.", (120, 220, 140))
-                return True
-
-            # Health Initiative ($150)
-            p2_rect = (x + 16, dec_card_y + 60, w - 32, 28)
-            if p2_rect[0] <= mx <= p2_rect[0] + w - 32 and p2_rect[1] <= my <= p2_rect[1] + 28:
-                if prov_gov.agent.cash >= 150.0:
-                    prov_gov.agent.cash -= 150.0
-                    from worldview_engine import ticker_push
-                    ticker_push(world, t, 'POLICY', f"Provincial Administration launched $150 Healthcare Program in {province.name}.", (120, 220, 140))
-                return True
-
-            # Provincial Equalization ($200)
-            p3_rect = (x + 16, dec_card_y + 92, w - 32, 28)
-            if p3_rect[0] <= mx <= p3_rect[0] + w - 32 and p3_rect[1] <= my <= p3_rect[1] + 28:
-                from intents import execute_equalization_grant
-                execute_equalization_grant(world, nation.name, pinned.name, 'provincial_pool', 200.0, t)
-                return True
-
-        # --- NATION SCOPE CLICKS ---
-        elif active_scope == 'nation' and nat_gov and nation:
-            card1_h = 76
-            dec_card_y = cur_y + card1_h + 10
-
-            # Fund Science Prize ($300)
-            n1_rect = (x + 16, dec_card_y + 28, w - 32, 28)
-            if n1_rect[0] <= mx <= n1_rect[0] + w - 32 and n1_rect[1] <= my <= n1_rect[1] + 28:
-                if nat_gov.agent.cash >= 300.0:
-                    nat_gov.agent.cash -= 300.0
-                    from worldview_engine import ticker_push
-                    ticker_push(world, t, 'INNOVATION', f"{nation.name} funded a $300 Sovereign Science Grant.", (80, 200, 255))
-                return True
-
-            # Mobilize Garrison ($250)
-            n2_rect = (x + 16, dec_card_y + 60, w - 32, 28)
-            if n2_rect[0] <= mx <= n2_rect[0] + w - 32 and n2_rect[1] <= my <= n2_rect[1] + 28:
-                from intents import RecruitArmyIntent
-                intent = RecruitArmyIntent(nation.name, pinned.name, 15, wage=1.0, submitted_turn=t, regime_type=nation.regime_type)
-                nation.submit_intent(intent, t)
-                return True
-
-            # Sovereign Fiscal Equalization ($250)
-            n3_rect = (x + 16, dec_card_y + 92, w - 32, 28)
-            if n3_rect[0] <= mx <= n3_rect[0] + w - 32 and n3_rect[1] <= my <= n3_rect[1] + 28:
-                from intents import execute_equalization_grant
-                execute_equalization_grant(world, nation.name, pinned.name, 'national_sovereign', 250.0, t)
-                return True
 
     return False
 
-    return False
+
+def _execute_gov_policy(world: dict, act_id: str, target: any):
+    """Execute triggered policy decree and notify world engine ticker."""
+    t = world.get('turn', 1)
+    from worldview_engine import ticker_push
+
+    # 1. Custom City actions
+    if act_id == 'city_farm_subsidy':
+        rgov = getattr(target, 'gov', None)
+        if rgov and rgov.agent.cash >= 100.0:
+            rgov.agent.cash -= 100.0
+            ticker_push(world, t, 'POLICY', f"Granted $100 Agricultural Subsidy to farms in {target.name}.", (120, 220, 140))
+        return
+
+    if act_id == 'city_safety_patrol':
+        rgov = getattr(target, 'gov', None)
+        if rgov and rgov.agent.cash >= 60.0:
+            rgov.agent.cash -= 60.0
+            if target.protest_energy_log:
+                target.protest_energy_log[-1] = max(0.0, target.protest_energy_log[-1] - 0.40)
+            ticker_push(world, t, 'POLICY', f"Deployed Public Safety Patrols in {target.name} (-0.40 Protest).", (120, 220, 140))
+        return
+
+    # 2. Custom Province actions
+    if act_id == 'prov_pave_highway':
+        prov_gov = getattr(target, 'gov', None)
+        if prov_gov and prov_gov.agent.cash >= 120.0:
+            prov_gov.agent.cash -= 120.0
+            ticker_push(world, t, 'POLICY', f"Provincial Administration funded $120 Highway Maintenance in {target.name}.", (120, 220, 140))
+        return
+
+    if act_id == 'prov_healthcare':
+        prov_gov = getattr(target, 'gov', None)
+        if prov_gov and prov_gov.agent.cash >= 150.0:
+            prov_gov.agent.cash -= 150.0
+            ticker_push(world, t, 'POLICY', f"Provincial Administration launched $150 Healthcare Program in {target.name}.", (120, 220, 140))
+        return
+
+    if act_id == 'prov_equalization':
+        from intents import execute_equalization_grant
+        pinned = world.get('selected_region')
+        nation = getattr(pinned, 'owner_nation', None)
+        nat_name = nation.name if nation else ""
+        reg_name = pinned.name if pinned else ""
+        execute_equalization_grant(world, nat_name, reg_name, 'provincial_pool', 200.0, t)
+        return
+
+    # 3. Custom Nation actions
+    if act_id == 'nat_science_prize':
+        nat_gov = getattr(target, 'government', None)
+        if nat_gov and nat_gov.agent.cash >= 300.0:
+            nat_gov.agent.cash -= 300.0
+            ticker_push(world, t, 'INNOVATION', f"{target.name} funded a $300 Sovereign Science Grant.", (80, 200, 255))
+        return
+
+    if act_id == 'nat_mobilize_army':
+        pinned = world.get('selected_region')
+        reg_name = pinned.name if pinned else target.tiles[0].name
+        from intents import RecruitArmyIntent
+        intent = RecruitArmyIntent(target.name, reg_name, 15, wage=1.0, submitted_turn=t, regime_type=target.regime_type)
+        target.submit_intent(intent, t)
+        ticker_push(world, t, 'MILITARY', f"Mobilized standing army division in {reg_name}.", (240, 100, 100))
+        return
+
+    if act_id == 'nat_sovereign_grant':
+        from intents import execute_equalization_grant
+        pinned = world.get('selected_region')
+        reg_name = pinned.name if pinned else target.tiles[0].name
+        execute_equalization_grant(world, target.name, reg_name, 'national_sovereign', 250.0, t)
+        return
+
+    # 4. Delegate to worldview_policies for all standard policy actions
+    from worldview_policies import _execute_policy_action
+    _execute_policy_action(world, act_id, target)

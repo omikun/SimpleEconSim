@@ -111,16 +111,16 @@ def draw_zoom_hud(surface, font_small, mouse_pos=None):
         surface.blit(tsurf, tsurf.get_rect(center=(rect[0] + rect[2] // 2, rect[1] + rect[3] // 2)))
 
 
-# Right-hand panel top tabs (Charts vs Citizens vs Policies)
+# Right-hand panel top tabs (Charts vs Citizens)
 _TOTAL_TAB_W = WIDTH - PANEL_LEFT - 14
-_TAB_W = (_TOTAL_TAB_W - 8) // 3
+_TAB_W = (_TOTAL_TAB_W - 4) // 2
 CHARTS_TAB_RECT = (PANEL_LEFT, 152 + TOP_BAR_H, _TAB_W, 22)
-CITIZENS_TAB_RECT = (PANEL_LEFT + _TAB_W + 4, 152 + TOP_BAR_H, _TAB_W, 22)
-POLICIES_TAB_RECT = (PANEL_LEFT + 2 * (_TAB_W + 4), 152 + TOP_BAR_H, _TOTAL_TAB_W - 2 * (_TAB_W + 4), 22)
+CITIZENS_TAB_RECT = (PANEL_LEFT + _TAB_W + 4, 152 + TOP_BAR_H, _TOTAL_TAB_W - _TAB_W - 4, 22)
+POLICIES_TAB_RECT = (-200, -200, 10, 10)  # Deprecated — merged into left Governance panel
 
 
 def panel_tab_hit(pos):
-    """Return 'charts', 'citizens', or 'policies' if the right panel tab header was clicked."""
+    """Return 'charts' or 'citizens' if the right panel tab header was clicked."""
     mx, my = pos
     cx, cy, cw, ch = CHARTS_TAB_RECT
     if cx <= mx <= cx + cw and cy <= my <= cy + ch:
@@ -128,9 +128,6 @@ def panel_tab_hit(pos):
     zx, zy, zw, zh = CITIZENS_TAB_RECT
     if zx <= mx <= zx + zw and zy <= my <= zy + zh:
         return 'citizens'
-    px, py, pw, ph = POLICIES_TAB_RECT
-    if px <= mx <= px + pw and py <= my <= py + ph:
-        return 'policies'
     return None
 
 
@@ -676,13 +673,6 @@ def draw_panel(surface, world, font, font_small, mouse_pos=None):
     z_txt = font_small.render("Citizens", True, (255, 255, 255) if z_sel else (TEXT if z_hov else DIM))
     surface.blit(z_txt, z_txt.get_rect(center=(CITIZENS_TAB_RECT[0] + CITIZENS_TAB_RECT[2] // 2, CITIZENS_TAB_RECT[1] + CITIZENS_TAB_RECT[3] // 2)))
 
-    p_sel = (active_tab == 'policies')
-    p_hov = (c_hit == 'policies')
-    pygame.draw.rect(surface, (55, 75, 110) if p_sel else ((40, 48, 65) if p_hov else (28, 30, 40)), POLICIES_TAB_RECT, border_radius=4)
-    pygame.draw.rect(surface, ACCENT if p_sel else (HEX_EDGE if p_hov else (45, 52, 70)), POLICIES_TAB_RECT, 1, border_radius=4)
-    p_txt = font_small.render("Policies", True, (255, 255, 255) if p_sel else (TEXT if p_hov else DIM))
-    surface.blit(p_txt, p_txt.get_rect(center=(POLICIES_TAB_RECT[0] + POLICIES_TAB_RECT[2] // 2, POLICIES_TAB_RECT[1] + POLICIES_TAB_RECT[3] // 2)))
-
     region = world.get('selected_region') or world.get('hover_region')
     chart_top = 178 + d
     chart_bottom = HEIGHT - TICKER_H - 96
@@ -699,12 +689,6 @@ def draw_panel(surface, world, font, font_small, mouse_pos=None):
         else:
             ok = font.render("Conserved: 0 LEAK / 0 SHIFT", True, GREEN)
             surface.blit(ok, (PANEL_LEFT, audit_y))
-
-    if active_tab == 'policies':
-        from worldview_policies import draw_policies_panel
-        draw_policies_panel(surface, world, region, font, font_small, mouse_pos=mouse_pos)
-        _render_audit_footer()
-        return
 
     if active_tab == 'citizens':
         from worldview_citizens import draw_citizens_panel
@@ -757,7 +741,8 @@ def draw_panel(surface, world, font, font_small, mouse_pos=None):
 
     # Check if region is Wilderness
     if region is not None and getattr(region, 'owner_nation', None) is None:
-        head = font.render(f"{region.name} — Frontier Wilderness", True, ACCENT)
+        wild_name = getattr(region, 'display_name', getattr(region, 'city_name', region.name))
+        head = font.render(f"{wild_name} — Frontier Wilderness", True, ACCENT)
         surface.blit(head, (PANEL_LEFT, chart_top - 6))
         col_line = font_small.render(
             f"Climate: {region.climate.capitalize()}  |  CoL: {region.cost_of_living:.2f}", True, DIM)
@@ -806,8 +791,9 @@ def draw_panel(surface, world, font, font_small, mouse_pos=None):
         claimed_neighbors = [n for n in region.neighbors.values() if getattr(n, 'owner_nation', None) is not None]
         if claimed_neighbors:
             for nb in claimed_neighbors[:4]:
-                prov_name = nb.province.name if getattr(nb, 'province', None) else nb.owner_nation.name
-                surface.blit(font_small.render(f"• {nb.name} ({nb.owner_nation.name} - {prov_name})", True, DIM), (PANEL_LEFT, yy))
+                nb_name = getattr(nb, 'display_name', getattr(nb, 'city_name', nb.name))
+                prov_name = getattr(nb.province, 'display_name', nb.province.name) if getattr(nb, 'province', None) else nb.owner_nation.name
+                surface.blit(font_small.render(f"• {nb_name} ({nb.owner_nation.name} - {prov_name})", True, DIM), (PANEL_LEFT, yy))
                 yy += 18
         else:
             surface.blit(font_small.render("Deep frontier wilderness", True, DIM), (PANEL_LEFT, yy))
@@ -818,10 +804,12 @@ def draw_panel(surface, world, font, font_small, mouse_pos=None):
 
     # Claimed Tile 10-Chart Dashboard
     if region is not None:
+        city_name = getattr(region, 'display_name', getattr(region, 'city_name', region.name))
         prov_s = ""
         prov_color = TEXT
         if getattr(region, 'province', None) is not None:
             prov = region.province
+            prov_name = getattr(prov, 'display_name', prov.name)
             nation = getattr(region, 'owner_nation', None)
             if nation and getattr(nation, 'provinces', None):
                 try:
@@ -829,9 +817,9 @@ def draw_panel(surface, world, font, font_small, mouse_pos=None):
                     prov_color = PROVINCE_COLORS[p_idx % len(PROVINCE_COLORS)]
                 except ValueError:
                     prov_color = ACCENT
-            prov_s = f"  [{prov.name}]"
+            prov_s = f"  [{prov_name}]"
 
-        head = font_small.render(f"{region.name}{prov_s}", True, prov_color)
+        head = font_small.render(f"{city_name}{prov_s}", True, prov_color)
         surface.blit(head, (PANEL_LEFT, chart_top - 6))
 
         # Natural Resources display with procedural icons

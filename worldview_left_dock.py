@@ -111,6 +111,13 @@ def draw_left_dock_buttons(surface: pygame.Surface, world: dict, font_small: pyg
         by = DOCK_Y + i * (btn_h + DOCK_SPACING)
         rect = (x, by, btn_w, btn_h)
         is_hov = rect[0] <= mx <= rect[0] + btn_w and rect[1] <= my <= rect[1] + btn_h
+        if is_hov:
+            from worldview_tooltips import get_button_tooltip_data
+            pinned = world.get('selected_region')
+            tdata = get_button_tooltip_data(f"dock_{p_id}", world, pinned)
+            if tdata:
+                tdata['btn_rect'] = rect
+                world['_hovered_left_tooltip'] = tdata
 
         btn_surf = pygame.Surface((btn_w, btn_h), pygame.SRCALPHA)
         btn_surf.fill((20, 22, 32, 240) if not is_hov else (34, 40, 58, 245))
@@ -138,6 +145,13 @@ def draw_drawer_top_tabs(surface: pygame.Surface, world: dict, x: int, y: int, w
         t_rect = (tx, y, tab_w, tab_h)
         is_sel = (active_panel == p_id)
         is_hov = t_rect[0] <= mx <= t_rect[0] + tab_w and t_rect[1] <= my <= t_rect[1] + tab_h
+        if is_hov:
+            from worldview_tooltips import get_button_tooltip_data
+            pinned = world.get('selected_region')
+            tdata = get_button_tooltip_data(f"dock_{p_id}", world, pinned)
+            if tdata:
+                tdata['btn_rect'] = t_rect
+                world['_hovered_left_tooltip'] = tdata
 
         bg = (52, 72, 100) if is_sel else ((38, 42, 56) if is_hov else (26, 28, 38))
         bc = ACCENT if is_sel else ((85, 95, 120) if is_hov else (50, 55, 72))

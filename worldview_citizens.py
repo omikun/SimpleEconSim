@@ -223,7 +223,8 @@ def draw_citizens_panel(surface, world, region, font, font_small, mouse_pos=None
 
     pygame.draw.rect(surface, (55, 75, 110) if scope == 'tile' else ((40, 48, 65) if is_tile_hov else (28, 30, 40)), tile_btn, border_radius=4)
     pygame.draw.rect(surface, ACCENT if scope == 'tile' else (HEX_EDGE if is_tile_hov else (45, 52, 70)), tile_btn, 1, border_radius=4)
-    t_lbl = font_small.render(f"Tile: {region.name if region else 'None'}", True, (255, 255, 255) if scope == 'tile' else TEXT)
+    city_name = getattr(region, 'display_name', getattr(region, 'city_name', region.name)) if region else 'None'
+    t_lbl = font_small.render(f"Tile: {city_name}", True, (255, 255, 255) if scope == 'tile' else TEXT)
     surface.blit(t_lbl, t_lbl.get_rect(center=(tile_btn[0] + btn_w // 2, tile_btn[1] + btn_h // 2)))
 
     pygame.draw.rect(surface, (55, 75, 110) if scope == 'nation' else ((40, 48, 65) if is_nat_hov else (28, 30, 40)), nat_btn, border_radius=4)
@@ -282,7 +283,7 @@ def draw_citizens_panel(surface, world, region, font, font_small, mouse_pos=None
         disposs_c = clog.get('dispossessed', 0)
         gentry_c = clog.get('lord', 0) + clog.get('landlord', 0)
         bourg_c = clog.get('petty_bourgeois', 0) + clog.get('industrialist', 0)
-        title_txt = f"{region.name} Citizens ({total_pop} Pop)"
+        title_txt = f"{city_name} Citizens ({total_pop} Pop)"
         charts = tile_citizen_charts(region)
     else:
         total_pop = 0

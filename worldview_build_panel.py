@@ -162,6 +162,12 @@ def _draw_equalization_section(surface, world, pinned, nation, x, y, w, font_sma
     bg = (32, 44, 36) if can_grant else (30, 30, 38)
     if hb and can_grant:
         bg = (45, 62, 50)
+    if hb:
+        from worldview_tooltips import get_button_tooltip_data
+        tdata = get_button_tooltip_data('nat_sovereign_grant', world, pinned, nation)
+        if tdata:
+            tdata['btn_rect'] = btn_rect
+            world['_hovered_left_tooltip'] = tdata
     pygame.draw.rect(surface, bg, btn_rect, border_radius=4)
     pygame.draw.rect(surface, (70, 160, 90) if can_grant else (60, 50, 55), btn_rect, 1, border_radius=4)
 
@@ -223,6 +229,11 @@ def _draw_tier_section(surface, world, pinned, nation, icon_kind, tier_title, tr
             bg = (40, 42, 56) if can_afford else (30, 30, 38)
             if hb:
                 bg = (55, 58, 78) if can_afford else (42, 38, 42)
+                from worldview_tooltips import get_button_tooltip_data
+                tdata = get_button_tooltip_data(f"build_{r_key}", world, pinned, nation)
+                if tdata:
+                    tdata['btn_rect'] = btn_rect
+                    world['_hovered_left_tooltip'] = tdata
             pygame.draw.rect(surface, bg, btn_rect, border_radius=4)
             pygame.draw.rect(surface, (80, 85, 115) if can_afford else (60, 50, 55), btn_rect, 1, border_radius=4)
 

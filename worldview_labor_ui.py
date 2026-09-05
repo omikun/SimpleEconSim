@@ -177,7 +177,8 @@ def draw_labor_dashboard(surface, world, region, font, font_small, mouse_pos=Non
         ent_vals = [getattr(r, 'entertainment_level', 0.0) for r in nation.tiles]
         avg_ent = (sum(ent_vals) / len(ent_vals)) * 100.0 if ent_vals else 0.0
     elif region is not None:
-        title_txt = f"{region.name} Labor & Alienation"
+        city_name = getattr(region, 'display_name', getattr(region, 'city_name', region.name))
+        title_txt = f"{city_name} Labor & Alienation"
         charts = tile_labor_charts(region)
         cap_val = getattr(region, 'max_workday_hours', 16.0)
         has_ten = getattr(region, 'ten_hour_act', False) or cap_val <= 10.0

@@ -12,6 +12,7 @@ import random
 # 10 Populous Countries -> 10 States/Provinces -> 10 Cities each
 GLOBAL_NATION_DATA = {
     "United States": {
+        "District of Columbia": ["Washington, D.C.", "Georgetown", "Capitol Hill", "Foggy Bottom", "Dupont Circle", "Anacostia", "Adams Morgan", "Tenleytown", "Petworth", "Brookland"],
         "California": ["Sacramento", "Los Angeles", "San Diego", "San Jose", "San Francisco", "Fresno", "Long Beach", "Oakland", "Bakersfield", "Anaheim"],
         "Texas": ["Austin", "Houston", "San Antonio", "Dallas", "Fort Worth", "El Paso", "Arlington", "Corpus Christi", "Plano", "Lubbock"],
         "Florida": ["Tallahassee", "Jacksonville", "Miami", "Tampa", "Orlando", "St. Petersburg", "Hialeah", "Port St. Lucie", "Cape Coral", "Fort Lauderdale"],
@@ -21,9 +22,9 @@ GLOBAL_NATION_DATA = {
         "Ohio": ["Columbus", "Cleveland", "Cincinnati", "Toledo", "Akron", "Dayton", "Parma", "Canton", "Lorain", "Hamilton"],
         "Georgia": ["Atlanta", "Columbus", "Augusta", "Macon", "Savannah", "Athens", "Sandy Springs", "South Fulton", "Roswell", "Johns Creek"],
         "North Carolina": ["Raleigh", "Charlotte", "Greensboro", "Durham", "Winston-Salem", "Fayetteville", "Cary", "Wilmington", "High Point", "Concord"],
-        "Michigan": ["Lansing", "Detroit", "Grand Rapids", "Warren", "Sterling Heights", "Ann Arbor", "Dearborn", "Clinton", "Livonia", "Troy"],
     },
     "China": {
+        "Beijing Municipality": ["Beijing", "Chaoyang", "Haidian", "Fengtai", "Dongcheng", "Xicheng", "Tongzhou", "Changping", "Daxing", "Shunyi"],
         "Guangdong": ["Guangzhou", "Shenzhen", "Dongguan", "Foshan", "Huizhou", "Zhongshan", "Shantou", "Jiangmen", "Zhanjiang", "Zhuhai"],
         "Shandong": ["Jinan", "Qingdao", "Yantai", "Weifang", "Zibo", "Jining", "Linyi", "Taian", "Dezhou", "Liaocheng"],
         "Henan": ["Zhengzhou", "Luoyang", "Nanyang", "Kaifeng", "Xinxiang", "Anyang", "Xuchang", "Pingdingshan", "Jiaozuo", "Shangqiu"],
@@ -33,7 +34,6 @@ GLOBAL_NATION_DATA = {
         "Zhejiang": ["Hangzhou", "Ningbo", "Wenzhou", "Shaoxing", "Jiaxing", "Jinhua", "Taizhou", "Huzhou", "Quzhou", "Zhoushan"],
         "Hunan": ["Changsha", "Hengyang", "Zhuzhou", "Xiangtan", "Yueyang", "Changde", "Yiyang", "Chenzhou", "Yongzhou", "Huaihua"],
         "Anhui": ["Hefei", "Wuhu", "Bengbu", "Huainan", "Maanshan", "Huaibei", "Tongling", "Anqing", "Huangshan", "Chuzhou"],
-        "Hubei": ["Wuhan", "Xiangyang", "Yichang", "Jingzhou", "Huangshi", "Shiyan", "Xiaogan", "Huanggang", "Xianning", "Suizhou"],
     },
     "India": {
         "Uttar Pradesh": ["Lucknow", "Kanpur", "Varanasi", "Agra", "Prayagraj", "Meerut", "Ghaziabad", "Bareilly", "Aligarh", "Moradabad"],
@@ -120,7 +120,7 @@ GLOBAL_NATION_DATA = {
         "Bogura Region": ["Bogura City", "Sherpur", "Shibganj", "Gabtali", "Kahaloo", "Dhunat", "Adamdighi", "Dupchanchia", "Sonatala", "Sariakandi"],
     },
     "Russia": {
-        "Moscow Oblast": ["Krasnogorsk", "Balashikha", "Podolsk", "Khimki", "Mytishchi", "Korolyov", "Lyubertsy", "Elektrostal", "Kolomna", "Odintsovo"],
+        "Moscow Oblast": ["Moscow", "Krasnogorsk", "Balashikha", "Podolsk", "Khimki", "Mytishchi", "Korolyov", "Lyubertsy", "Elektrostal", "Kolomna"],
         "Saint Petersburg": ["Saint Petersburg", "Kolpino", "Pushkin", "Petergof", "Kronshtadt", "Sestroretsk", "Lomonosov", "Zelenogorsk", "Pavlovsk", "Krasnoye Selo"],
         "Krasnodar Krai": ["Krasnodar", "Sochi", "Novorossiysk", "Armavir", "Yeysk", "Anapa", "Gelendzhik", "Kropotkin", "Slavyansk", "Tuapse"],
         "Tatarstan": ["Kazan", "Naberezhnye Chelny", "Nizhnekamsk", "Almetyevsk", "Zelenodolsk", "Bugulma", "Yelabuga", "Leninogorsk", "Chistopol", "Zainsk"],
@@ -198,7 +198,7 @@ GLOBAL_NATION_DATA = {
         "Lower Saxony": ["Hanover", "Braunschweig", "Oldenburg", "Osnabrück", "Wolfsburg", "Göttingen", "Salzgitter", "Hildesheim", "Delmenhorst", "Wilhelmshaven"],
         "Hesse": ["Wiesbaden", "Frankfurt", "Kassel", "Darmstadt", "Offenbach", "Hanau", "Gießen", "Marburg", "Fulda", "Rüsselsheim"],
         "Saxony": ["Dresden", "Leipzig", "Chemnitz", "Zwickau", "Plauen", "Görlitz", "Freiberg", "Bautzen", "Pirna", "Freital"],
-        "Berlin-Brandenburg": ["Potsdam", "Berlin", "Cottbus", "Brandenburg an der Havel", "Frankfurt an der Oder", "Oranienburg", "Falkensee", "Eberswalde", "Bernau", "Königs Wusterhausen"],
+        "Berlin-Brandenburg": ["Berlin", "Potsdam", "Cottbus", "Brandenburg an der Havel", "Frankfurt an der Oder", "Oranienburg", "Falkensee", "Eberswalde", "Bernau", "Königs Wusterhausen"],
         "Hamburg Region": ["Hamburg", "Altona", "Bergedorf", "Harburg", "Wandsbek", "Eimsbüttel", "Norderstedt", "Ahrensburg", "Wedel", "Pinneberg"],
         "Rhineland-Palatinate": ["Mainz", "Ludwigshafen", "Koblenz", "Trier", "Kaiserslautern", "Worms", "Neuwied", "Neustadt", "Speyer", "Bad Kreuznach"],
         "Schleswig-Holstein": ["Kiel", "Lübeck", "Flensburg", "Neumünster", "Norderstedt", "Elmshorn", "Pinneberg", "Itzehoe", "Wedel", "Rendsburg"],
@@ -362,13 +362,32 @@ def assign_world_identities(tiles, nations, seed=None):
         national_cap_tile = n.tiles[0] if n.tiles else None
         n.capital = national_cap_tile
 
-        # Assign province identities & capitals
-        used_cities = set()
-        if national_cap_tile:
-            used_cities.add(national_cap_name)
+        # Identify which province contains the national capital
+        cap_prov_name = None
+        for p_name, cities in country_data.items():
+            if national_cap_name in cities or p_name == national_cap_name:
+                cap_prov_name = p_name
+                break
+        if cap_prov_name is None:
+            cap_prov_name = list(country_data.keys())[0]
 
-        for p_idx, prov in enumerate(getattr(n, 'provinces', [])):
-            p_name = prov_names[p_idx % len(prov_names)]
+        # Prioritize the capital province first
+        prov_names = [cap_prov_name] + [p for p in country_data.keys() if p != cap_prov_name]
+
+        # Find which province contains the national capital tile
+        prov_with_cap = next((p for p in getattr(n, 'provinces', []) if national_cap_tile in p.tiles),
+                             getattr(n, 'provinces', [None])[0])
+
+        used_cities = set()
+        used_provs = set()
+
+        for prov in getattr(n, 'provinces', []):
+            if prov is prov_with_cap:
+                p_name = cap_prov_name
+            else:
+                p_name = next((p for p in prov_names if p not in used_provs and p != cap_prov_name), prov_names[0])
+            used_provs.add(p_name)
+
             prov.name = f"{country_name}-{p_name}"
             prov.display_name = p_name
 
@@ -376,19 +395,17 @@ def assign_world_identities(tiles, nations, seed=None):
             real_prov_cap = get_provincial_capital(country_name, p_name)
 
             # Designate provincial capital:
-            # If national capital is in this province and there are other tiles, make another tile provincial capital
-            if national_cap_tile in prov.tiles and len(prov.tiles) > 1:
-                prov.capital = next(t for t in prov.tiles if t is not national_cap_tile)
+            # Nations may have the same tile for both national capital and provincial capital
+            if national_cap_tile in prov.tiles:
+                prov.capital = national_cap_tile
             else:
                 prov.capital = prov.tiles[0] if prov.tiles else None
 
             for t_idx, tile in enumerate(prov.tiles):
                 if tile is national_cap_tile:
                     city = national_cap_name
-                    if country_name in ("United States", "US"):
-                        tile_prov_disp = "District of Columbia"
-                    else:
-                        tile_prov_disp = p_name
+                    used_cities.add(city)
+                    tile_prov_disp = p_name
                 elif tile is prov.capital:
                     city = real_prov_cap
                     used_cities.add(city)
@@ -402,9 +419,9 @@ def assign_world_identities(tiles, nations, seed=None):
                 tile.display_name = city
                 tile.province_display = tile_prov_disp
                 tile.nation_display = country_name
-                
+
                 tile.is_national_capital = (tile is national_cap_tile)
-                tile.is_provincial_capital = (tile is prov.capital and not tile.is_national_capital)
+                tile.is_provincial_capital = (tile is prov.capital)
 
     # Name remaining wilderness and ocean tiles
     wild_pool = list(WILD_TERRAIN_NAMES)

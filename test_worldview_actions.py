@@ -349,20 +349,19 @@ class TestWorldviewActionsUI(unittest.TestCase):
         print("Verified Help & Seed Registry 3-page modal rendering and interaction.")
 
     def test_policy_panel_tabs_and_rendering(self):
-        """Verify Right Sidebar Charts vs Policies tab switching and scope rendering."""
-        from worldview_ui import panel_tab_hit, CHARTS_TAB_RECT, POLICIES_TAB_RECT
-        from worldview_policies import draw_policies_panel, policy_panel_hit
+        """Verify Right Sidebar Charts vs Citizens tab switching and Left Governance scope rendering."""
+        from worldview_ui import panel_tab_hit, CHARTS_TAB_RECT, CITIZENS_TAB_RECT
         world = self.world
 
         # Test tab hitting
         c_hit = panel_tab_hit((CHARTS_TAB_RECT[0] + 5, CHARTS_TAB_RECT[1] + 5))
         self.assertEqual(c_hit, 'charts')
 
-        p_hit = panel_tab_hit((POLICIES_TAB_RECT[0] + 5, POLICIES_TAB_RECT[1] + 5))
-        self.assertEqual(p_hit, 'policies')
+        cit_hit = panel_tab_hit((CITIZENS_TAB_RECT[0] + 5, CITIZENS_TAB_RECT[1] + 5))
+        self.assertEqual(cit_hit, 'citizens')
 
-        # Switch to Policies tab
-        world['panel_tab'] = 'policies'
+        # Open Left Governance panel
+        world['gov_panel_open'] = True
         region = world['nations'][0].tiles[0]
         world['selected_region'] = region
 
@@ -382,7 +381,7 @@ class TestWorldviewActionsUI(unittest.TestCase):
         wild_tile = next(t for t in world['tiles'] if getattr(t, 'owner_nation', None) is None)
         world['selected_region'] = wild_tile
         render_frame(self.surface, world)
-        print("Verified Policies panel headless rendering across City, Province, Nation, and Wilderness scopes.")
+        print("Verified Governance & Policies panel headless rendering across City, Province, Nation, and Wilderness scopes.")
 
     def test_policy_actions_execution(self):
         """Verify execution of City tax, Grain relief, Garrison recruitment, and Nation decrees."""
