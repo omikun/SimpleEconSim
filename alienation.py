@@ -82,6 +82,8 @@ def step_health_attrition(agent, region, t: int) -> float:
 
     # Low safety standard penalty (for employed factory/mine workers)
     if getattr(agent, 'employer', None) is not None:
+        if getattr(region, 'factory_safety_act', False):
+            safety_inv = max(safety_inv, 0.85)
         delta += 0.02 * max(0.0, 1.0 - min(1.0, safety_inv))
 
         # Roll for workplace accident (crushed fingers, mine cave-ins, lung rot)

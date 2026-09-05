@@ -250,6 +250,13 @@ def run_election(nation, t, campaign_budget=0.0):
         for c in candidates[:n]:
             campaign_finance(nation, c, share, t)
 
+    # Capitalist PAC backlash: enragers fund the opposition if pro-labor laws exist
+    try:
+        from labor_politics import capitalist_electoral_backlash
+        capitalist_electoral_backlash(nation, candidates, t)
+    except ImportError:
+        pass
+
     votes = faction_weighted_vote(nation, candidates, t)
     winner = max(votes, key=lambda c: votes[c]) if votes else candidates[0]
     nation._incumbent_faction = winner.backing_faction

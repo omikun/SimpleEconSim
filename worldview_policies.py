@@ -468,6 +468,33 @@ def _draw_nation_policies(surface, world, region, start_y, font, font_small, mx,
     _ACTION_BUTTONS.append((ubi_btn, 'nat_enact_ubi', owner))
     _ACTION_BUTTONS.append((imm_btn, 'nat_toggle_imm', owner))
 
+    start_y += c3_h + 8
+
+    # CARD 4: Labor Regulation & Mass Pacifier Decrees
+    c4_h = 76
+    c4_rect = (PANEL_LEFT + 4, start_y, PANEL_W - 24, c4_h)
+    pygame.draw.rect(surface, CARD_BG, c4_rect, border_radius=5)
+    pygame.draw.rect(surface, CARD_BORDER, c4_rect, 1, border_radius=5)
+
+    surface.blit(font_small.render("Labor Regulation & Mass Pacifier", True, (240, 140, 80)), (PANEL_LEFT + 12, start_y + 8))
+    has_ten = getattr(owner, 'ten_hour_act', False) or getattr(owner, 'max_workday_hours', 16.0) <= 10.0
+    has_safe = getattr(owner, 'factory_safety_act', False)
+
+    ten_btn = (PANEL_LEFT + 12, start_y + 26, 115, 20)
+    safe_btn = (PANEL_LEFT + 135, start_y + 26, 115, 20)
+    spec_btn = (PANEL_LEFT + 12, start_y + 50, 238, 20)
+
+    _draw_btn(surface, ten_btn, "Ten-Hour Act" if not has_ten else "Ten-Hour: PASS", font_small, mx, my,
+              enabled=not has_ten, color=GREEN if has_ten else TEXT)
+    _draw_btn(surface, safe_btn, "Safety Mandate" if not has_safe else "Safety: PASS", font_small, mx, my,
+              enabled=not has_safe, color=GREEN if has_safe else TEXT)
+    _draw_btn(surface, spec_btn, "Subsidize Spectacle ($50)", font_small, mx, my,
+              color=(70, 195, 235))
+
+    _ACTION_BUTTONS.append((ten_btn, 'nat_ten_hour_act', owner))
+    _ACTION_BUTTONS.append((safe_btn, 'nat_safety_mandate', owner))
+    _ACTION_BUTTONS.append((spec_btn, 'nat_subsidize_entertainment', owner))
+
 
 # =============================================================================
 # FRONTIER WILDERNESS POLICIES
@@ -656,6 +683,18 @@ def _execute_policy_action(world, act_id, target):
         for r in target.tiles:
             r.gov.immigration_enabled = not cur
         world['policy_feedback'] = (f"Immigration policy: {'Open Borders' if not cur else 'Closed'}.", (160, 210, 255))
+    elif act_id == 'nat_ten_hour_act':
+        from labor_politics import enact_ten_hour_act
+        ok, msg = enact_ten_hour_act(target)
+        world['policy_feedback'] = (msg, GREEN if ok else RED)
+    elif act_id == 'nat_safety_mandate':
+        from labor_politics import enact_factory_safety_act
+        ok, msg = enact_factory_safety_act(target)
+        world['policy_feedback'] = (msg, GREEN if ok else RED)
+    elif act_id == 'nat_subsidize_entertainment':
+        from labor_politics import subsidize_mass_entertainment
+        ok, msg = subsidize_mass_entertainment(target, cost=50.0)
+        world['policy_feedback'] = (msg, (70, 195, 235) if ok else RED)
 
     # Frontier Actions
     elif act_id == 'frontier_expedition':

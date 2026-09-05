@@ -231,8 +231,31 @@ def draw_citizens_panel(surface, world, region, font, font_small, mouse_pos=None
     n_lbl = font_small.render(f"Nation: {nation.name if nation else 'None'}", True, (255, 255, 255) if scope == 'nation' else TEXT)
     surface.blit(n_lbl, n_lbl.get_rect(center=(nat_btn[0] + btn_w // 2, nat_btn[1] + btn_h // 2)))
 
+    # 1b. Sub-Tab Switcher: [ Class & Tenure ]  [ Labor & Alienation ]
+    subtab = world.get('citizen_subtab', 'class')
+    sub_class_btn = (PANEL_LEFT + 6, panel_top + 28, btn_w, 20)
+    sub_labor_btn = (PANEL_LEFT + 10 + btn_w, panel_top + 28, btn_w, 20)
+
+    is_sc_hov = sub_class_btn[0] <= mx <= sub_class_btn[0] + btn_w and sub_class_btn[1] <= my <= sub_class_btn[1] + 20
+    is_sl_hov = sub_labor_btn[0] <= mx <= sub_labor_btn[0] + btn_w and sub_labor_btn[1] <= my <= sub_labor_btn[1] + 20
+
+    pygame.draw.rect(surface, (50, 70, 95) if subtab == 'class' else ((35, 42, 55) if is_sc_hov else (24, 26, 35)), sub_class_btn, border_radius=4)
+    pygame.draw.rect(surface, (110, 205, 130) if subtab == 'class' else (HEX_EDGE if is_sc_hov else (45, 52, 70)), sub_class_btn, 1, border_radius=4)
+    sc_lbl = font_small.render("Class & Tenure", True, (255, 255, 255) if subtab == 'class' else TEXT)
+    surface.blit(sc_lbl, sc_lbl.get_rect(center=(sub_class_btn[0] + btn_w // 2, sub_class_btn[1] + 10)))
+
+    pygame.draw.rect(surface, (70, 50, 90) if subtab == 'labor' else ((35, 42, 55) if is_sl_hov else (24, 26, 35)), sub_labor_btn, border_radius=4)
+    pygame.draw.rect(surface, (230, 90, 90) if subtab == 'labor' else (HEX_EDGE if is_sl_hov else (45, 52, 70)), sub_labor_btn, 1, border_radius=4)
+    sl_lbl = font_small.render("Labor & Alienation", True, (255, 255, 255) if subtab == 'labor' else TEXT)
+    surface.blit(sl_lbl, sl_lbl.get_rect(center=(sub_labor_btn[0] + btn_w // 2, sub_labor_btn[1] + 10)))
+
+    if subtab == 'labor':
+        from worldview_labor_ui import draw_labor_dashboard
+        draw_labor_dashboard(surface, world, region, font, font_small, mouse_pos=mouse_pos)
+        return
+
     # 2. Live Citizen Status KPI Card
-    card_y = panel_top + 32
+    card_y = panel_top + 52
     card_h = 60
     card_rect = (PANEL_LEFT + 6, card_y, PANEL_W - 14, card_h)
     pygame.draw.rect(surface, (24, 26, 36), card_rect, border_radius=5)
@@ -340,8 +363,20 @@ def citizen_panel_hit(pos, world):
         world['citizen_scope'] = 'nation'
         return True
 
+    # Sub-tab Toggle
+    sub_class_btn = (PANEL_LEFT + 6, panel_top + 28, btn_w, 20)
+    sub_labor_btn = (PANEL_LEFT + 10 + btn_w, panel_top + 28, btn_w, 20)
+    if sub_class_btn[0] <= mx <= sub_class_btn[0] + btn_w and sub_class_btn[1] <= my <= sub_class_btn[1] + 20:
+        world['citizen_subtab'] = 'class'
+        world['citizen_chart_view'] = 0
+        return True
+    if sub_labor_btn[0] <= mx <= sub_labor_btn[0] + btn_w and sub_labor_btn[1] <= my <= sub_labor_btn[1] + 20:
+        world['citizen_subtab'] = 'labor'
+        world['citizen_chart_view'] = 0
+        return True
+
     # Chart Zoom Hit
-    chart_y0 = panel_top + 32 + 60 + 8
+    chart_y0 = panel_top + 52 + 60 + 8
     chart_y1 = HEIGHT - TICKER_H - 24
     if world.get('citizen_chart_view', 0) == 0:
         # 4 charts in a 2x2 grid

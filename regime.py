@@ -89,6 +89,20 @@ def apply_platform(nation, candidate):
         if platform.get('tax_cut', 0.0) >= 0.5:
             gov.tax_rate = max(0.05, gov.tax_rate * 0.5)
 
+    backing = getattr(candidate, 'backing_faction', '') or ''
+    if backing in ('Bourgeoisie', 'Gentry') or platform.get('deregulation', 0.0) >= 0.5:
+        try:
+            from labor_politics import repeal_labor_laws
+            repeal_labor_laws(nation)
+        except ImportError:
+            pass
+    elif backing == 'Proletariat' or platform.get('workday_reduction', 0.0) >= 0.5:
+        try:
+            from labor_politics import enact_ten_hour_act
+            enact_ten_hour_act(nation)
+        except ImportError:
+            pass
+
 
 def _record_opposition(nation, deposed_faction):
     """M3.6: move the deposed faction into opposition (is_opposition flag)."""
@@ -155,6 +169,14 @@ def step_regime(nation, t, rng=None):
 
     # 2. Legitimacy tracking
     track_legitimacy(nation)
+
+    # 2b. Workplace resistance and uprising pressure
+    try:
+        from labor_politics import evaluate_uprising_pressure
+        uprising_evs = evaluate_uprising_pressure(nation, t)
+        events.extend(uprising_evs)
+    except ImportError:
+        pass
 
     # Persist turn-aligned election state keys lazily.
     if not hasattr(nation, '_last_election'):

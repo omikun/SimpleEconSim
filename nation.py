@@ -81,6 +81,10 @@ class Nation:
         self.construction_projects: list = []  # active construction projects
         self.military_units: list = []   # active military units
         self.ai = None                   # NationPolicyAI instance if AI-controlled
+        # Phase 2: Labor legislation state
+        self.ten_hour_act = False
+        self.max_workday_hours = 16.0
+        self.factory_safety_act = False
 
         # One sovereign Government per Nation.  The Government class already
         # owns `regions` + `citizen_ids`; add_tile wires them.
