@@ -295,6 +295,11 @@ class Nation:
             intent.status = 'approved'
         self.intents.append(intent)
 
+    @property
+    def intent_queue(self) -> list:
+        """Alias for intents queue."""
+        return self.intents
+
     # ------------------------------------------------------------------
     # Introspection
     # ------------------------------------------------------------------

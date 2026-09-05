@@ -43,9 +43,17 @@ def _get_active_nation(world: dict):
     return nations[0] if nations else None
 
 
-def _draw_btn(surface, rect, label, font_small, mx, my, enabled=True, color=TEXT, custom_bg=None, icon_kind=None):
+def _draw_btn(surface, rect, label, font_small, mx, my, enabled=True, color=TEXT, custom_bg=None, icon_kind=None,
+              btn_id: str = None, world: dict = None, region=None, nation=None):
     bx, by, bw, bh = rect
     is_hov = (bx <= mx <= bx + bw and by <= my <= by + bh) and enabled
+    if is_hov and btn_id and world is not None:
+        from worldview_tooltips import get_button_tooltip_data
+        tdata = get_button_tooltip_data(btn_id, world, region=region, nation=nation)
+        if tdata:
+            tdata['btn_rect'] = rect
+            world['_hovered_left_tooltip'] = tdata
+
     if not enabled:
         bg = (24, 26, 34)
         bc = (40, 42, 54)
@@ -138,7 +146,8 @@ def draw_military_panel(surface: pygame.Surface, world: dict, font: pygame.font.
 
     can_recruit = is_owned and gov_cash >= 15.0
     _draw_btn(surface, (x + 16, cur_y + 56, w - 32, 28), "Recruit Unit (15 soldiers, $15)", font_small, mx, my,
-              enabled=can_recruit, color=(120, 240, 150), icon_kind='military')
+              enabled=can_recruit, color=(120, 240, 150), icon_kind='military',
+              btn_id='mil_recruit_unit', world=world, region=target_tile, nation=active_n)
 
     cur_y += card2_h + 10
 

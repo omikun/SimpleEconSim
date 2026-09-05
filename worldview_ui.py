@@ -638,21 +638,74 @@ def draw_panel(surface, world, font, font_small, mouse_pos=None):
     surface.blit(title, (PANEL_LEFT, 20 + d))
 
     t_ = world['turn']
-    turn_line = font_small.render(f"Turn: {t_}  win={world['window']}t  zoom={world['cam']['zoom']:.2f}x", True, TEXT)
-    surface.blit(turn_line, (PANEL_LEFT, 50 + d))
-
-    cursors = world.get('currency_totals', {})
-    y = 76 + d
-    for c, total in cursors.items():
-        line = font_small.render(f"{c}: ${total:,.0f}", True, TEXT)
-        surface.blit(line, (PANEL_LEFT, y))
-        y += 20
+    turn_line = font_small.render(f"Turn: {t_}  (win={world['window']}t)", True, TEXT)
+    surface.blit(turn_line, (PANEL_LEFT, 46 + d))
 
     if world.get('playing'):
-        pn = font_small.render("[ PLAYING ]  Space=pause", True, GREEN)
+        pn = font_small.render("[ PLAYING ]", True, GREEN)
     else:
-        pn = font_small.render("[ PAUSED ]  N=step  Space=play", True, DIM)
-    surface.blit(pn, (PANEL_LEFT, 130 + d))
+        pn = font_small.render("[ PAUSED ]", True, (245, 180, 50))
+    surface.blit(pn, (PANEL_LEFT + panel_w - pn.get_width() - 8, 46 + d))
+
+    # Selected Tile Fiscal & Government Card (replacing old USD/CNY/JPY forex list)
+    sel_reg = world.get('selected_region') or world.get('hover_region')
+    if sel_reg is None and world.get('tiles'):
+        sel_reg = world['tiles'][0]
+
+    card_rect = (PANEL_LEFT, 68 + d, panel_w - 6, 76)
+    pygame.draw.rect(surface, (22, 25, 36), card_rect, border_radius=5)
+    pygame.draw.rect(surface, (50, 58, 80), card_rect, 1, border_radius=5)
+
+    if sel_reg:
+        city_name = getattr(sel_reg, 'display_name', getattr(sel_reg, 'city_name', sel_reg.name))
+        owner_nat = getattr(sel_reg, 'owner_nation', None)
+        nat_name = owner_nat.name if owner_nat else "Frontier"
+        gov = getattr(sel_reg, 'gov', None)
+        gov_cash = gov.agent.cash if gov and hasattr(gov, 'agent') else 0.0
+        gov_bank = sel_reg.bank.deposits.get(gov.agent, 0.0) if hasattr(sel_reg, 'bank') and gov else 0.0
+        tot_treasury = gov_cash + gov_bank
+        gov_debt = sum(getattr(l, 'principle', 0.0) - getattr(l, 'principle_paid', 0.0) for l in getattr(gov.agent, 'loans', [])) if (gov and hasattr(gov, 'agent')) else 0.0
+
+        # Burn rate / fiscal cashflow
+        tax_hist = getattr(gov, 'tax_collected_history', []) if gov else []
+        recent_tax = tax_hist[-1] if tax_hist else 0.0
+        recent_exp = 0.0
+        if gov and getattr(gov, 'ubi_enabled', False):
+            recent_exp += len(sel_reg.agents) * getattr(gov, 'ubi_amount_per_turn', 5.0)
+        if gov_debt > 0:
+            recent_exp += gov_debt * 0.02
+        net_cashflow = recent_tax - recent_exp
+        cflow_str = f"+${net_cashflow:,.1f}/t" if net_cashflow >= 0 else f"-${abs(net_cashflow):,.1f}/t"
+        cflow_col = (120, 240, 150) if net_cashflow >= 0 else (245, 90, 90)
+
+        # Active projects on tile
+        active_p = next((p for p in getattr(sel_reg, 'construction_projects', []) if p.status == 'in_progress'), None)
+        if not active_p and owner_nat:
+            active_p = next((p for p in getattr(owner_nat, 'construction_projects', []) if p.status == 'in_progress' and p.region == sel_reg), None)
+        if active_p:
+            pct = int((active_p.turns_elapsed / max(1, active_p.total_turns)) * 100)
+            proj_str = f"{active_p.recipe.display_name} ({active_p.turns_elapsed}/{active_p.total_turns}t, {pct}%)"
+            proj_col = (245, 205, 90)
+        else:
+            proj_str = "None (All Idle)"
+            proj_col = DIM
+
+        # Draw Government card lines
+        ico_gov = get_icon('municipal', 13)
+        surface.blit(ico_gov, (PANEL_LEFT + 8, 72 + d))
+        h_txt = font_small.render(f"{city_name} Gov ({nat_name})", True, ACCENT)
+        surface.blit(h_txt, (PANEL_LEFT + 24, 71 + d))
+
+        r1 = font_small.render(f"Treasury: ${tot_treasury:,.0f}  •  Debt: ${gov_debt:,.0f}", True, (120, 220, 150) if tot_treasury > 0 else TEXT)
+        surface.blit(r1, (PANEL_LEFT + 8, 89 + d))
+
+        r2_lbl = font_small.render("Net Flow: ", True, DIM)
+        r2_val = font_small.render(cflow_str, True, cflow_col)
+        surface.blit(r2_lbl, (PANEL_LEFT + 8, 107 + d))
+        surface.blit(r2_val, (PANEL_LEFT + 8 + r2_lbl.get_width(), 107 + d))
+
+        r3 = font_small.render(f"Project: {proj_str}", True, proj_col)
+        surface.blit(r3, (PANEL_LEFT + 8, 125 + d))
 
     # Right Panel Header Tabs: [ 📊 Charts ] vs [ 👥 Citizens ] vs [ ⚖️ Policies ]
     mx, my = mouse_pos if mouse_pos else (-1, -1)

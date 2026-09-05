@@ -52,9 +52,17 @@ def _get_active_nation(world: dict):
     return nations[0] if nations else None
 
 
-def _draw_btn(surface, rect, label, font_small, mx, my, enabled=True, color=TEXT, custom_bg=None, icon_kind=None):
+def _draw_btn(surface, rect, label, font_small, mx, my, enabled=True, color=TEXT, custom_bg=None, icon_kind=None,
+              btn_id: str = None, world: dict = None, nation=None):
     bx, by, bw, bh = rect
     is_hov = (bx <= mx <= bx + bw and by <= my <= by + bh) and enabled
+    if is_hov and btn_id and world is not None:
+        from worldview_tooltips import get_button_tooltip_data
+        tdata = get_button_tooltip_data(btn_id, world, nation=nation)
+        if tdata:
+            tdata['btn_rect'] = rect
+            world['_hovered_left_tooltip'] = tdata
+
     if not enabled:
         bg = (24, 26, 34)
         bc = (40, 42, 54)
@@ -137,6 +145,13 @@ def draw_debt_panel(surface: pygame.Surface, world: dict, font: pygame.font.Font
         s_rect = (sx, cur_y, sc_w, 24)
         is_sel = (scope == s_id)
         is_hov = s_rect[0] <= mx <= s_rect[0] + sc_w and s_rect[1] <= my <= s_rect[1] + 24
+        if is_hov and world is not None:
+            from worldview_tooltips import get_button_tooltip_data
+            tdata = get_button_tooltip_data(f"debt_scope_{s_id}", world, nation=active_n)
+            if tdata:
+                tdata['btn_rect'] = s_rect
+                world['_hovered_left_tooltip'] = tdata
+
         bg = (52, 72, 100) if is_sel else ((38, 42, 56) if is_hov else (24, 26, 36))
         pygame.draw.rect(surface, bg, s_rect, border_radius=4)
         pygame.draw.rect(surface, ACCENT if is_sel else (60, 65, 80), s_rect, 1, border_radius=4)
@@ -168,17 +183,20 @@ def draw_debt_panel(surface: pygame.Surface, world: dict, font: pygame.font.Font
 
         can_lobby = gov_cash >= 200.0
         _draw_btn(surface, (x + 16, by, btn_w, btn_h), "Lobby Upgrade ($200)", font_small, mx, my,
-                  enabled=can_lobby, color=(120, 240, 150))
+                  enabled=can_lobby, color=(120, 240, 150),
+                  btn_id='debt_lobby_isrb', world=world, nation=active_n)
         by += btn_h + 4
 
         can_audit = gov_cash >= 350.0
         _draw_btn(surface, (x + 16, by, btn_w, btn_h), "Audit Rival ($350)", font_small, mx, my,
-                  enabled=can_audit, color=(245, 180, 50))
+                  enabled=can_audit, color=(245, 180, 50),
+                  btn_id='debt_audit_rival', world=world, nation=active_n)
         by += btn_h + 4
 
         can_seat = gov_cash >= 600.0 and not has_board_seat
         _draw_btn(surface, (x + 16, by, btn_w, btn_h), "Board Seat ($600)" if not has_board_seat else "✓ Board Seat Owned", font_small, mx, my,
-                  enabled=can_seat, color=(80, 200, 255))
+                  enabled=can_seat, color=(80, 200, 255),
+                  btn_id='debt_board_seat', world=world, nation=active_n)
 
         cur_y += card1_h + 10
 
@@ -199,6 +217,13 @@ def draw_debt_panel(surface: pygame.Surface, world: dict, font: pygame.font.Font
             t_rect = (tx, cur_y + 48, term_w, 22)
             is_sel = (selected_duration == t_val)
             is_hov = t_rect[0] <= mx <= t_rect[0] + term_w and t_rect[1] <= my <= t_rect[1] + 22
+            if is_hov and world is not None:
+                from worldview_tooltips import get_button_tooltip_data
+                tdata = get_button_tooltip_data(f"debt_dur_{t_val}", world, nation=active_n)
+                if tdata:
+                    tdata['btn_rect'] = t_rect
+                    world['_hovered_left_tooltip'] = tdata
+
             bg = (52, 72, 100) if is_sel else ((38, 42, 56) if is_hov else (26, 28, 38))
             pygame.draw.rect(surface, bg, t_rect, border_radius=3)
             pygame.draw.rect(surface, ACCENT if is_sel else (60, 65, 80), t_rect, 1, border_radius=3)
@@ -208,10 +233,12 @@ def draw_debt_panel(surface: pygame.Surface, world: dict, font: pygame.font.Font
         # Offering Announcement Buttons
         oy = cur_y + 80
         _draw_btn(surface, (x + 16, oy, w - 32, 26), f"Announce $500 Offering ({market_yield*100:.2f}%)", font_small, mx, my,
-                  enabled=True, color=(120, 240, 150), icon_kind='scale')
+                  enabled=True, color=(120, 240, 150), icon_kind='scale',
+                  btn_id='debt_issue_500', world=world, nation=active_n)
         oy += 32
         _draw_btn(surface, (x + 16, oy, w - 32, 26), f"Announce $1,000 Offering ({market_yield*100:.2f}%)", font_small, mx, my,
-                  enabled=True, color=ACCENT, icon_kind='scale')
+                  enabled=True, color=ACCENT, icon_kind='scale',
+                  btn_id='debt_issue_1000', world=world, nation=active_n)
 
         # Outstanding Debt Summary
         oy += 34
@@ -253,7 +280,8 @@ def draw_debt_panel(surface: pygame.Surface, world: dict, font: pygame.font.Font
                 can_buy = gov_cash >= off.principal
                 b_lbl = f"Buy {off.issuer_nation} ${off.principal:.0f} ({off.coupon_rate*100:.2f}%)"
                 _draw_btn(surface, (x + 16, oy, w - 32, 28), b_lbl, font_small, mx, my,
-                          enabled=can_buy, color=(120, 240, 150), icon_kind='bank')
+                          enabled=can_buy, color=(120, 240, 150), icon_kind='bank',
+                          btn_id='debt_buy_bond', world=world, nation=active_n)
                 oy += 34
 
         # List of bonds held

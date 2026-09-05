@@ -18,7 +18,7 @@ from worldview_tooltips import get_button_tooltip_data
 
 GOV_PANEL_X = 14
 GOV_PANEL_Y = TOP_BAR_H + 10
-GOV_PANEL_W = 286
+GOV_PANEL_W = 310
 GOV_PANEL_H = HEIGHT - TOP_BAR_H - TICKER_H - 18
 
 CARD_BG = (24, 26, 36)
@@ -259,11 +259,19 @@ def _draw_left_city_scope(surface, world, region, nation, start_y, x, w, font, f
                   'city_tax_raise', region, enabled=(tax_rate < 0.60),
                   world=world, region=region, nation=nation)
 
+    pop_count = len([a for a in region.agents if not a.is_corporation and not a.is_government and a.alive])
+    ubi_turn = pop_count * 5.0
+    ubi_mandate = pop_count * 50.0
+    turns_rem = getattr(rgov, 'ubi_mandate_turns_left', 10 if ubi_active else 0)
+
     b3_rect = (x + 16, cur_y + 50, w - 32, 22)
-    ubi_lbl = "UBI Welfare: Active ($5/t)" if ubi_active else "Enact UBI Welfare ($5/t)"
+    if ubi_active:
+        ubi_lbl = f"UBI Active: {turns_rem}t rem (${ubi_turn:,.0f}/t)"
+    else:
+        ubi_lbl = f"Enact UBI (10t: ${ubi_mandate:,.0f} @ $5/cit)"
     _draw_gov_btn(surface, b3_rect, ubi_lbl, font_small, mx, my,
                   'city_toggle_ubi', region, enabled=True,
-                  color=(120, 240, 150) if ubi_active else TEXT,
+                  color=(120, 240, 150) if ubi_active else (TEXT if tile_cash >= ubi_mandate else (245, 190, 80)),
                   world=world, region=region, nation=nation)
 
     cur_y += card2_h + 8
@@ -277,18 +285,21 @@ def _draw_left_city_scope(surface, world, region, nation, start_y, x, w, font, f
     surface.blit(font_small.render("Municipal Policy Decrees:", True, ACCENT), (x + 16, cur_y + 8))
 
     d1_rect = (x + 16, cur_y + 26, w - 32, 26)
-    _draw_gov_btn(surface, d1_rect, "Disburse Food Relief ($50)", font_small, mx, my,
-                  'city_emergency_food', region, enabled=(tile_cash >= 50.0), icon_kind='food',
+    _draw_gov_btn(surface, d1_rect, "Disburse Food Relief ($50)" if tile_cash >= 50 else "Disburse Food Relief ($50) [Short]", font_small, mx, my,
+                  'city_emergency_food', region, enabled=True, icon_kind='food',
+                  color=(120, 240, 150) if tile_cash >= 50 else (245, 180, 80),
                   world=world, region=region, nation=nation)
 
     d2_rect = (x + 16, cur_y + 56, w - 32, 26)
-    _draw_gov_btn(surface, d2_rect, "Subsidize Farming ($100)", font_small, mx, my,
-                  'city_farm_subsidy', region, enabled=(tile_cash >= 100.0), icon_kind='farm',
+    _draw_gov_btn(surface, d2_rect, "Subsidize Farming ($100)" if tile_cash >= 100 else "Subsidize Farming ($100) [Short]", font_small, mx, my,
+                  'city_farm_subsidy', region, enabled=True, icon_kind='farm',
+                  color=(120, 240, 150) if tile_cash >= 100 else (245, 180, 80),
                   world=world, region=region, nation=nation)
 
     d3_rect = (x + 16, cur_y + 86, w - 32, 26)
-    _draw_gov_btn(surface, d3_rect, "Deploy Safety Patrol ($60)", font_small, mx, my,
-                  'city_safety_patrol', region, enabled=(tile_cash >= 60.0), icon_kind='shield',
+    _draw_gov_btn(surface, d3_rect, "Deploy Safety Patrol ($60)" if tile_cash >= 60 else "Deploy Safety Patrol ($60) [Short]", font_small, mx, my,
+                  'city_safety_patrol', region, enabled=True, icon_kind='shield',
+                  color=(120, 240, 150) if tile_cash >= 60 else (245, 180, 80),
                   world=world, region=region, nation=nation)
 
     if protest_e >= 1.5:
@@ -553,35 +564,147 @@ def _execute_gov_policy(world: dict, act_id: str, target: any):
     from worldview_engine import ticker_push
 
     # 1. Custom City actions
+    if act_id == 'city_toggle_ubi':
+        rgov = getattr(target, 'gov', None)
+        if not rgov:
+            return
+        pop_count = len([a for a in target.agents if not a.is_corporation and not a.is_government and a.alive])
+        mandate_cost = pop_count * 50.0
+        on_hand = (rgov.agent.cash if rgov else 0.0)
+        if getattr(rgov, 'ubi_enabled', False):
+            rgov.ubi_enabled = False
+            rgov.ubi_mandate_turns_left = 0
+            ticker_push(world, t, 'POLICY', f"Repealed Universal Basic Income in {target.name}.", (245, 180, 50))
+            return
+        elif on_hand >= mandate_cost:
+            rgov.ubi_enabled = True
+            rgov.ubi_mandate_turns_left = 10
+            rgov.agent.cash -= mandate_cost
+            ticker_push(world, t, 'POLICY', f"Enacted 10-Turn UBI in {target.name} (${mandate_cost:,.0f} budget committed).", (120, 240, 150))
+            return
+        else:
+            nation = getattr(target, 'owner_nation', None)
+            world['transfer_dialog'] = {
+                'open': True,
+                'action_kind': 'policy',
+                'policy_id': 'city_toggle_ubi',
+                'policy_name': f"Universal Basic Income (10-Turn Mandate, ${mandate_cost:,.0f})",
+                'cost': mandate_cost,
+                'on_hand': on_hand,
+                'region': target,
+                'nation': nation,
+            }
+            return
+
+    if act_id == 'city_emergency_food':
+        rgov = getattr(target, 'gov', None)
+        if not rgov:
+            return
+        on_hand = rgov.agent.cash
+        if on_hand >= 50.0:
+            from worldview_policies import _execute_policy_action
+            _execute_policy_action(world, 'city_food_relief', target)
+        else:
+            nation = getattr(target, 'owner_nation', None)
+            world['transfer_dialog'] = {
+                'open': True,
+                'action_kind': 'policy',
+                'policy_id': 'city_emergency_food',
+                'policy_name': "Emergency Grain Relief ($50)",
+                'cost': 50.0,
+                'on_hand': on_hand,
+                'region': target,
+                'nation': nation,
+            }
+        return
+
     if act_id == 'city_farm_subsidy':
         rgov = getattr(target, 'gov', None)
-        if rgov and rgov.agent.cash >= 100.0:
+        if not rgov:
+            return
+        on_hand = rgov.agent.cash
+        if on_hand >= 100.0:
             rgov.agent.cash -= 100.0
             ticker_push(world, t, 'POLICY', f"Granted $100 Agricultural Subsidy to farms in {target.name}.", (120, 220, 140))
+        else:
+            nation = getattr(target, 'owner_nation', None)
+            world['transfer_dialog'] = {
+                'open': True,
+                'action_kind': 'policy',
+                'policy_id': 'city_farm_subsidy',
+                'policy_name': "Agricultural Development Subsidy ($100)",
+                'cost': 100.0,
+                'on_hand': on_hand,
+                'region': target,
+                'nation': nation,
+            }
         return
 
     if act_id == 'city_safety_patrol':
         rgov = getattr(target, 'gov', None)
-        if rgov and rgov.agent.cash >= 60.0:
+        if not rgov:
+            return
+        on_hand = rgov.agent.cash
+        if on_hand >= 60.0:
             rgov.agent.cash -= 60.0
             if target.protest_energy_log:
                 target.protest_energy_log[-1] = max(0.0, target.protest_energy_log[-1] - 0.40)
             ticker_push(world, t, 'POLICY', f"Deployed Public Safety Patrols in {target.name} (-0.40 Protest).", (120, 220, 140))
+        else:
+            nation = getattr(target, 'owner_nation', None)
+            world['transfer_dialog'] = {
+                'open': True,
+                'action_kind': 'policy',
+                'policy_id': 'city_safety_patrol',
+                'policy_name': "Constabulary Safety Patrol ($60)",
+                'cost': 60.0,
+                'on_hand': on_hand,
+                'region': target,
+                'nation': nation,
+            }
         return
 
     # 2. Custom Province actions
     if act_id == 'prov_pave_highway':
         prov_gov = getattr(target, 'gov', None)
-        if prov_gov and prov_gov.agent.cash >= 120.0:
+        on_hand = prov_gov.agent.cash if prov_gov and hasattr(prov_gov, 'agent') else 0.0
+        if on_hand >= 120.0:
             prov_gov.agent.cash -= 120.0
             ticker_push(world, t, 'POLICY', f"Provincial Administration funded $120 Highway Maintenance in {target.name}.", (120, 220, 140))
+        else:
+            pinned = world.get('selected_region')
+            nation = getattr(pinned, 'owner_nation', None)
+            world['transfer_dialog'] = {
+                'open': True,
+                'action_kind': 'policy',
+                'policy_id': 'prov_pave_highway',
+                'policy_name': f"Pave Regional Highway in {target.name} ($120)",
+                'cost': 120.0,
+                'on_hand': on_hand,
+                'region': pinned,
+                'nation': nation,
+            }
         return
 
     if act_id == 'prov_healthcare':
         prov_gov = getattr(target, 'gov', None)
-        if prov_gov and prov_gov.agent.cash >= 150.0:
+        on_hand = prov_gov.agent.cash if prov_gov and hasattr(prov_gov, 'agent') else 0.0
+        if on_hand >= 150.0:
             prov_gov.agent.cash -= 150.0
             ticker_push(world, t, 'POLICY', f"Provincial Administration launched $150 Healthcare Program in {target.name}.", (120, 220, 140))
+        else:
+            pinned = world.get('selected_region')
+            nation = getattr(pinned, 'owner_nation', None)
+            world['transfer_dialog'] = {
+                'open': True,
+                'action_kind': 'policy',
+                'policy_id': 'prov_healthcare',
+                'policy_name': f"Provincial Health & Sanitation in {target.name} ($150)",
+                'cost': 150.0,
+                'on_hand': on_hand,
+                'region': pinned,
+                'nation': nation,
+            }
         return
 
     if act_id == 'prov_equalization':

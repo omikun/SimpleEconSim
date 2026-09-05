@@ -260,11 +260,16 @@ class RecruitArmyIntent(Intent):
     def __init__(self, nation_name: str, region_name: str, soldier_count: int,
                  wage: float = 1.0, equipment: float = 1.0,
                  submitted_turn: int = 0, regime_type: str = 'autocracy'):
-        super().__init__(nation_name, 'RECRUIT_ARMY', submitted_turn, regime_type)
+        super().__init__(nation_name, 'recruit_army', submitted_turn, regime_type)
         self.region_name = region_name
         self.soldier_count = soldier_count
         self.wage = wage
         self.equipment = equipment
+
+    @property
+    def soldiers(self) -> int:
+        """Alias for soldier_count."""
+        return self.soldier_count
 
     def validate(self, tiles_by_name: dict[str, Region],
                  nations_by_name: dict[str, Nation], t: int) -> tuple[bool, str]:

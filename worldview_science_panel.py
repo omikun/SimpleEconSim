@@ -49,9 +49,17 @@ def _get_active_nation(world: dict):
     return nations[0] if nations else None
 
 
-def _draw_btn(surface, rect, label, font_small, mx, my, enabled=True, color=TEXT, custom_bg=None, icon_kind=None):
+def _draw_btn(surface, rect, label, font_small, mx, my, enabled=True, color=TEXT, custom_bg=None, icon_kind=None,
+              btn_id: str = None, world: dict = None, nation=None):
     bx, by, bw, bh = rect
     is_hov = (bx <= mx <= bx + bw and by <= my <= by + bh) and enabled
+    if is_hov and btn_id and world is not None:
+        from worldview_tooltips import get_button_tooltip_data
+        tdata = get_button_tooltip_data(btn_id, world, nation=nation)
+        if tdata:
+            tdata['btn_rect'] = rect
+            world['_hovered_left_tooltip'] = tdata
+
     if not enabled:
         bg = (24, 26, 34)
         bc = (40, 42, 54)
@@ -128,6 +136,15 @@ def draw_science_panel(surface: pygame.Surface, world: dict, font: pygame.font.F
     for r_enum, r_info in RESOURCE_META.items():
         has_r = r_enum in accessible_res
         ico = get_icon(r_enum.value, size=16)
+        r_rect = (rx, cur_y + 12, 18, 18)
+        is_r_hov = rx <= mx <= rx + 18 and cur_y + 12 <= my <= cur_y + 30
+        if is_r_hov and world is not None:
+            from worldview_tooltips import get_button_tooltip_data
+            tdata = get_button_tooltip_data(f"res_{r_enum.value}", world, nation=active_n)
+            if tdata:
+                tdata['btn_rect'] = r_rect
+                world['_hovered_left_tooltip'] = tdata
+
         if not has_r:
             faded = ico.copy()
             faded.fill((90, 90, 100, 120), special_flags=pygame.BLEND_RGBA_MULT)
@@ -147,6 +164,12 @@ def draw_science_panel(surface: pygame.Surface, world: dict, font: pygame.font.F
         e_rect = (ex, cur_y, era_w, 24)
         is_sel = (cur_era == e_num)
         is_hov = e_rect[0] <= mx <= e_rect[0] + era_w and e_rect[1] <= my <= e_rect[1] + 24
+        if is_hov and world is not None:
+            from worldview_tooltips import get_button_tooltip_data
+            tdata = get_button_tooltip_data(f"sci_era_{e_num}", world, nation=active_n)
+            if tdata:
+                tdata['btn_rect'] = e_rect
+                world['_hovered_left_tooltip'] = tdata
 
         bg = (52, 72, 100) if is_sel else ((38, 42, 56) if is_hov else (24, 26, 36))
         pygame.draw.rect(surface, bg, e_rect, border_radius=4)
@@ -208,6 +231,17 @@ def draw_science_panel(surface: pygame.Surface, world: dict, font: pygame.font.F
 
         # Action Button or Progress Bar
         btn_rect = (x + 16, cur_y + 46, w - 32, 26)
+
+        # Card & button hover detection
+        is_card_hov = card_rect[0] <= mx <= card_rect[0] + card_rect[2] and card_rect[1] <= my <= card_rect[1] + card_rect[3]
+        is_btn_hov = btn_rect[0] <= mx <= btn_rect[0] + btn_rect[2] and btn_rect[1] <= my <= btn_rect[1] + btn_rect[3]
+        if is_card_hov and world is not None and not is_btn_hov:
+            from worldview_tooltips import get_button_tooltip_data
+            tdata = get_button_tooltip_data(f"tech_{tech_id}", world, nation=active_n)
+            if tdata:
+                tdata['btn_rect'] = card_rect
+                world['_hovered_left_tooltip'] = tdata
+
         if is_disc:
             draw_progress_bar_button(surface, btn_rect, "Technology Mastered", 1.0, font_small, theme='complete', icon_kind='check')
         elif has_bounty:
@@ -217,11 +251,13 @@ def draw_science_panel(surface: pygame.Surface, world: dict, font: pygame.font.F
         elif diff_prog > 0:
             draw_progress_bar_button(surface, btn_rect, f"Diffusing {int(diff_prog*100)}%", diff_prog, font_small, theme='diffusion', icon_kind='im')
         elif missing_techs or missing_res:
-            _draw_btn(surface, btn_rect, "Pledge Prize ($300)", font_small, mx, my, enabled=False)
+            _draw_btn(surface, btn_rect, "Pledge Prize ($300)", font_small, mx, my, enabled=False,
+                      btn_id=f"sci_pledge_{tech_id}", world=world, nation=active_n)
         else:
             can_afford = gov_cash >= 300.0
             _draw_btn(surface, btn_rect, "Pledge Royal Prize ($300)", font_small, mx, my,
-                      enabled=can_afford, color=ACCENT, icon_kind='treasury')
+                      enabled=can_afford, color=ACCENT, icon_kind='treasury',
+                      btn_id=f"sci_pledge_{tech_id}", world=world, nation=active_n)
 
         cur_y += t_card_h + 8
 

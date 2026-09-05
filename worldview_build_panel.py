@@ -19,7 +19,7 @@ from ui_icons import draw_progress_bar_button, get_icon
 
 BUILD_PANEL_X = 14
 BUILD_PANEL_Y = TOP_BAR_H + 10
-BUILD_PANEL_W = 286
+BUILD_PANEL_W = 310
 BUILD_PANEL_H = HEIGHT - TOP_BAR_H - TICKER_H - 18
 
 

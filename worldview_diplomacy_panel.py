@@ -49,9 +49,17 @@ def _get_active_nation(world: dict):
     return nations[0] if nations else None
 
 
-def _draw_btn(surface, rect, label, font_small, mx, my, enabled=True, color=TEXT, custom_bg=None, icon_kind=None):
+def _draw_btn(surface, rect, label, font_small, mx, my, enabled=True, color=TEXT, custom_bg=None, icon_kind=None,
+              btn_id: str = None, world: dict = None, nation=None):
     bx, by, bw, bh = rect
     is_hov = (bx <= mx <= bx + bw and by <= my <= by + bh) and enabled
+    if is_hov and btn_id and world is not None:
+        from worldview_tooltips import get_button_tooltip_data
+        tdata = get_button_tooltip_data(btn_id, world, nation=nation)
+        if tdata:
+            tdata['btn_rect'] = rect
+            world['_hovered_left_tooltip'] = tdata
+
     if not enabled:
         bg = (24, 26, 34)
         bc = (40, 42, 54)
@@ -140,7 +148,13 @@ def draw_diplomacy_panel(surface: pygame.Surface, world: dict, font: pygame.font
         tx = x + 12 + i * (tab_w + t_gap)
         t_rect = (tx, cur_y, tab_w, tab_h)
         is_sel = (o_nat.name == target_n.name)
-        is_hov = t_rect[0] <= mx <= t_rect[0] + tab_w and t_rect[1] <= my <= t_rect[1] + tab_h
+        is_hov = tx <= mx <= tx + tab_w and cur_y <= my <= cur_y + tab_h
+        if is_hov and world is not None:
+            from worldview_tooltips import get_button_tooltip_data
+            tdata = get_button_tooltip_data(f"dip_target_{o_nat.name}", world, nation=active_n)
+            if tdata:
+                tdata['btn_rect'] = t_rect
+                world['_hovered_left_tooltip'] = tdata
 
         n_col = NATION_COLORS.get(o_nat.name, ACCENT)
         bg = (45, 55, 78) if is_sel else ((35, 38, 50) if is_hov else (24, 26, 36))
@@ -213,36 +227,42 @@ def draw_diplomacy_panel(surface: pygame.Surface, world: dict, font: pygame.font
     trade_lbl = "Cancel Trade Pact" if has_trade else "+ Propose Trade Pact"
     _draw_btn(surface, (btn_x, btn_y, btn_w, btn_h), trade_lbl, font_small, mx, my,
               enabled=not is_war, color=GREEN if not has_trade else (120, 220, 140),
-              custom_bg=(30, 48, 40) if has_trade else None, icon_kind='ex')
+              custom_bg=(30, 48, 40) if has_trade else None, icon_kind='ex',
+              btn_id='dip_trade_pact', world=world, nation=active_n)
     btn_y += btn_h + 6
 
     # 2. Non-Aggression Pact Toggle
     nap_lbl = "Cancel Non-Aggression Pact" if has_nap else "+ Propose NAP Treaty"
     _draw_btn(surface, (btn_x, btn_y, btn_w, btn_h), nap_lbl, font_small, mx, my,
               enabled=not is_war, color=ACCENT if not has_nap else (245, 215, 110),
-              custom_bg=(45, 45, 32) if has_nap else None, icon_kind='shield')
+              custom_bg=(45, 45, 32) if has_nap else None, icon_kind='shield',
+              btn_id='dip_nap', world=world, nation=active_n)
     btn_y += btn_h + 6
 
     # 3. Defensive Alliance Toggle
     ally_lbl = "Cancel Defensive Alliance" if has_alliance else "+ Form Defensive Alliance"
     _draw_btn(surface, (btn_x, btn_y, btn_w, btn_h), ally_lbl, font_small, mx, my,
               enabled=not is_war, color=(80, 200, 255),
-              custom_bg=(30, 45, 65) if has_alliance else None, icon_kind='crown')
+              custom_bg=(30, 45, 65) if has_alliance else None, icon_kind='crown',
+              btn_id='dip_alliance', world=world, nation=active_n)
     btn_y += btn_h + 6
 
     # 4. War / Peace Decree
     if is_war:
         _draw_btn(surface, (btn_x, btn_y, btn_w, btn_h), "Sign Peace Treaty", font_small, mx, my,
-                  enabled=True, color=GREEN, custom_bg=(30, 50, 36), icon_kind='check')
+                  enabled=True, color=GREEN, custom_bg=(30, 50, 36), icon_kind='check',
+                  btn_id='dip_war_peace', world=world, nation=active_n)
     else:
         _draw_btn(surface, (btn_x, btn_y, btn_w, btn_h), "Declare War", font_small, mx, my,
-                  enabled=True, color=RED, custom_bg=(55, 25, 25), icon_kind='military')
+                  enabled=True, color=RED, custom_bg=(55, 25, 25), icon_kind='military',
+                  btn_id='dip_war_peace', world=world, nation=active_n)
     btn_y += btn_h + 6
 
     # 5. Foreign Aid Gift ($100)
     can_aid = treasury_cash >= 100.0 and not is_war
     _draw_btn(surface, (btn_x, btn_y, btn_w, btn_h), "Send Foreign Aid ($100)", font_small, mx, my,
-              enabled=can_aid, color=(120, 240, 150), icon_kind='treasury')
+              enabled=can_aid, color=(120, 240, 150), icon_kind='treasury',
+              btn_id='dip_foreign_aid', world=world, nation=active_n)
 
     cur_y += dec_card_h + 10
 

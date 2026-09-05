@@ -134,30 +134,41 @@ def render_frame(surface, world, mouse_pos=None):
     font = get_font(28)
     font_small = get_font(22)
     surface.fill(BG)
-    draw_top_bar(surface, world, font_small, mouse_pos=mouse_pos)
+    # Check if a modal dialog covers the screen
+    modal_active = bool(
+        world.get('transfer_dialog', {}).get('open') or
+        world.get('actions_modal_open') or
+        world.get('help_open') or
+        world.get('comparison_open')
+    )
+    effective_mouse = None if modal_active else mouse_pos
+
+    draw_top_bar(surface, world, font_small, mouse_pos=effective_mouse)
     draw_hex_map(surface, world, font, font_small)
-    draw_zoom_hud(surface, font_small, mouse_pos=mouse_pos)
-    draw_layer_sidebar(surface, world, font_small, mouse_pos=mouse_pos)
-    draw_left_dock_buttons(surface, world, font_small, mouse_pos=mouse_pos)
-    draw_build_panel(surface, world, font, font_small, mouse_pos=mouse_pos)
-    draw_gov_panel(surface, world, font, font_small, mouse_pos=mouse_pos)
-    draw_diplomacy_panel(surface, world, font, font_small, mouse_pos=mouse_pos)
-    draw_debt_panel(surface, world, font, font_small, mouse_pos=mouse_pos)
-    draw_science_panel(surface, world, font, font_small, mouse_pos=mouse_pos)
-    draw_military_panel(surface, world, font, font_small, mouse_pos=mouse_pos)
-    draw_panel(surface, world, font, font_small, mouse_pos=mouse_pos)
+    draw_zoom_hud(surface, font_small, mouse_pos=effective_mouse)
+    draw_layer_sidebar(surface, world, font_small, mouse_pos=effective_mouse)
+    draw_left_dock_buttons(surface, world, font_small, mouse_pos=effective_mouse)
+    draw_build_panel(surface, world, font, font_small, mouse_pos=effective_mouse)
+    draw_gov_panel(surface, world, font, font_small, mouse_pos=effective_mouse)
+    draw_diplomacy_panel(surface, world, font, font_small, mouse_pos=effective_mouse)
+    draw_debt_panel(surface, world, font, font_small, mouse_pos=effective_mouse)
+    draw_science_panel(surface, world, font, font_small, mouse_pos=effective_mouse)
+    draw_military_panel(surface, world, font, font_small, mouse_pos=effective_mouse)
+    draw_panel(surface, world, font, font_small, mouse_pos=effective_mouse)
     draw_ticker(surface, world, font_small)
 
     # Floating top-bar breakdown dropdown (renders on top of map, panel, sidebar, and ticker)
-    draw_top_bar_dropdown(surface, world, font_small, mouse_pos=mouse_pos)
+    if not modal_active:
+        draw_top_bar_dropdown(surface, world, font_small, mouse_pos=mouse_pos)
 
     draw_nations_comparison(surface, world, font, font_small, mouse_pos=mouse_pos)
     draw_actions_modal(surface, world, font, font_small, mouse_pos=mouse_pos)
     draw_help_modal(surface, world, font, font_small)
     draw_transfer_dialog(surface, world, font, font_small, mouse_pos=mouse_pos)
 
-    # Floating left-panel detailed button tooltips
-    draw_left_panel_tooltip(surface, world, font_small, mouse_pos=mouse_pos)
+    # Floating left-panel detailed button tooltips (disabled when modal dialog covers screen)
+    if not modal_active:
+        draw_left_panel_tooltip(surface, world, font_small, mouse_pos=mouse_pos)
 
 
 def _mark_dirty(world):

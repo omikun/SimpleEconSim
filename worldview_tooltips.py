@@ -15,7 +15,7 @@ from worldview_map import ACCENT, TEXT, DIM, RED, GREEN
 from ui_icons import get_icon
 
 # Dimensions
-CARD_MAX_W = 440
+CARD_MAX_W = 480
 PADDING_X = 16
 PADDING_Y = 14
 
@@ -73,6 +73,9 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
     # -------------------------------------------------------------------------
     # CITY / TILE SCOPE POLICIES
     # -------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
+    # CITY / TILE SCOPE POLICIES
+    # -------------------------------------------------------------------------
     if btn_id == 'city_tax_cut':
         return {
             'title': "Municipal Tax Cut [-2%]",
@@ -81,11 +84,8 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
             'category': "City Fiscal Decree",
             'cost': "Revenue Trade-off: Lowers ongoing income tax yield",
             'desc': [
-                "Reduces municipal income tax by 2.0% (down to 2.0% floor).",
-                "Leaves more liquid cash in citizen pockets, directly boosting",
-                "purchasing power for food and consumer wares. Subdues civil",
-                "discontent and protest energy.",
-                "Trade-off: Less public treasury intake for emergency relief."
+                "Reduces municipal income tax by 2.0% (down to a statutory 2.0% floor). Leaves more disposable cash in citizen pockets, directly boosting local purchasing power for market food and consumer wares.",
+                "Subdues civil discontent and lowers popular protest energy. Trade-off: Reduces city treasury revenue available for public grain reserves and civic infrastructure."
             ],
             'stats': [
                 ("Current Tax Rate", f"{tax_rate*100:.1f}% -> {max(2.0, (tax_rate-0.02)*100):.1f}%", ACCENT),
@@ -101,12 +101,10 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
             'badge': "TREASURY YIELD",
             'badge_col': (245, 180, 50),
             'category': "City Fiscal Decree",
-            'cost': "Unrest Risk: Increases cost of living pressure",
+            'cost': "Unrest Risk: Squeezes citizen living margins",
             'desc': [
-                "Raises statutory municipal income tax by 2.0% (capped at 60%).",
-                "Supplies city treasury with vital revenues to fund grain reserves,",
-                "public civic construction, and constabulary patrols.",
-                "Trade-off: Squeezes worker living margins and elevates civic unrest."
+                "Raises statutory municipal income tax by 2.0% (capped at 60.0%). Supplies the city treasury with crucial funds needed to maintain emergency food reserves, civic buildings, and police patrols.",
+                "Trade-off: Depletes worker disposable income, aggravating poverty and escalating civil protest energy across the municipality."
             ],
             'stats': [
                 ("Current Tax Rate", f"{tax_rate*100:.1f}% -> {min(60.0, (tax_rate+0.02)*100):.1f}%", ACCENT),
@@ -119,23 +117,24 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
     if btn_id in ('city_toggle_ubi', 'city_ubi'):
         ubi_on = getattr(gov, 'ubi_enabled', getattr(gov, 'ubi_active', False)) if gov else False
         cost_p_t = pop_count * 5.0
+        total_10t = cost_p_t * 10.0
         return {
             'title': f"Universal Basic Income: {'Active' if ubi_on else 'Inactive'}",
             'badge': "ANTI-POVERTY" if not ubi_on else "ACTIVE MANDATE",
             'badge_col': GREEN if not ubi_on else ACCENT,
             'category': "Municipal Welfare Safety Net",
-            'cost': f"Cost: ${cost_p_t:,.0f}/turn ($5/citizen from city treasury)" if not ubi_on else "Click to repeal UBI",
+            'cost': f"Cost: ${total_10t:,.0f} for 10-turn period (${cost_p_t:,.0f}/t @ $5/cit)" if not ubi_on else "Click to repeal UBI",
             'desc': [
-                "Disburses a guaranteed $5 cash stipend each turn to all residents.",
-                "Eradicates extreme poverty, ensures citizens can buy market grain,",
-                "and stabilizes domestic consumer goods circulation.",
-                "Requires robust municipal treasury reserves to sustain."
+                "Disburses a guaranteed $5 cash stipend each turn to all registered residents, committed for a 10-turn policy duration.",
+                "Eradicates extreme poverty, ensures every worker can afford market food, and stabilizes aggregate consumer demand.",
+                "Money Destination: Disbursed directly from municipal treasury reserves into citizen personal cash wallets every turn. Citizens spend this basic income on local market food (grain) and consumer goods, circulating money back to farmers, merchants, and artisan workshops."
             ],
             'stats': [
                 ("UBI Status", "ENABLED" if ubi_on else "DISABLED", GREEN if ubi_on else DIM),
                 ("Eligible Population", f"{pop_count} Citizens", TEXT),
-                ("Est. Cost Per Turn", f"${cost_p_t:,.0f}/t", (245, 180, 50)),
-                ("Treasury Reserves", f"${tile_cash:,.0f}", (120, 240, 150)),
+                ("Est. Cost Per Turn", f"${cost_p_t:,.0f}/t ($5/cit)", (245, 180, 50)),
+                ("10-Turn Commitment", f"${total_10t:,.0f} Total", (245, 215, 110)),
+                ("Treasury Reserves", f"${tile_cash:,.0f}", (120, 240, 150) if tile_cash >= total_10t else RED),
             ]
         }
 
@@ -147,10 +146,8 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
             'category': "Municipal Emergency Aid",
             'cost': "Cost: $50 from municipal treasury or city bank",
             'desc': [
-                "Purchases and distributes 30 food rations to starving citizens.",
-                "Immediately resets hunger counters to zero, halts malnutrition",
-                "attrition, and quells imminent bread riots.",
-                "Targeted strictly at citizens with positive hungry steps."
+                "Purchases and distributes 30 food rations directly to starving citizens. Instantly resets hunger counters to zero, halts malnutrition attrition, and quells imminent bread riots.",
+                "Money Destination: Paid directly to local market grain merchants and warehouse suppliers to purchase 30 food rations, which are immediately distributed to malnourished citizens."
             ],
             'stats': [
                 ("Hungry Citizens", f"{hungry} Starving", RED if hungry > 0 else GREEN),
@@ -168,10 +165,9 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
             'category': "Municipal Economic Development",
             'cost': "Cost: $100 from municipal treasury",
             'desc': [
-                "Disburses grants directly into local farm estates and grain growers.",
-                "Expands agricultural hiring, lowers baseline market food prices,",
-                "and generates grain surpluses to insulate city from shortages.",
-                "Permanent positive boost to agricultural productivity."
+                "Disburses capital development grants directly to agricultural estates and grain growers, expanding farm employment and lowering baseline food prices.",
+                "Insulates the municipality against regional crop failures and stabilizes urban grain markets.",
+                "Money Destination: Paid as capital grants to local farming enterprises and agrarian landlords to purchase draught oxen, iron plows, fertilizer, and high-yield seed."
             ],
             'stats': [
                 ("Farmland Fertility", f"{fert:.2f}x Baseline", (120, 240, 150)),
@@ -187,10 +183,9 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
             'category': "Civil Security & Law Enforcement",
             'cost': "Cost: $60 police operational upkeep",
             'desc': [
-                "Mobilizes night patrols and enforces curfew across city districts.",
-                "Instantly suppresses active riots and slashes popular protest",
-                "energy by 0.35 points across the municipality.",
-                "Trade-off: Builds long-term state resentment if unrest is not resolved."
+                "Mobilizes armed constabulary patrols and enforces evening curfews across municipal districts. Instantly suppresses riots and reduces popular protest energy by 0.35 points.",
+                "Trade-off: Builds long-term state grievance if underlying poverty or working condition demands are left unaddressed.",
+                "Money Destination: Paid to municipal police constables and night watchmen as service wages, equipment allowances, and patrol provisions."
             ],
             'stats': [
                 ("Current Protest Energy", f"{protest_e:.2f}", RED if protest_e > 0.4 else (240, 180, 50)),
@@ -207,10 +202,8 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
             'category': "Military Recruitment",
             'cost': "Cost: $50 uniform & equipment levy",
             'desc': [
-                "Musters 5 adult citizens into permanent garrison company.",
-                "Fortifies city against external invasion, deters rebellions,",
-                "and absorbs idle labor into state payroll.",
-                "Soldiers require continuous supply maintenance and grain upkeep."
+                "Musters 5 adult citizens into the permanent city garrison company, fortifying the territory against foreign assault and deterring insurgent uprisings.",
+                "Money Destination: $50 is disbursed to local artisan armorers and munitions workshops for uniforms and flintlocks, with a portion paid as cash enlistment bonuses to new recruits."
             ],
             'stats': [
                 ("Active Garrison", f"{garrison} Soldiers", ACCENT),
@@ -221,23 +214,26 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
     if btn_id == 'city_enclose_plot':
         tenure = getattr(pinned, 'tenure', None) if pinned else None
         feudal_pct = tenure.feudal_fraction * 100 if tenure else 0
-        fee = 50.0
+        fee = 500.0
+        if tenure and getattr(tenure, 'plots', None):
+            from enclosure import calculate_charter_fee
+            f_plot = next((p for p in tenure.plots if getattr(getattr(p, 'tenure', None), 'name', '') == 'FEUDAL'), None)
+            if f_plot:
+                fee = calculate_charter_fee(f_plot)
         return {
             'title': "Enclose Common Land (Crown Charter)",
             'badge': "FEUDAL PRIVATIZATION",
             'badge_col': (230, 140, 70),
             'category': "Agrarian Land Tenure Reform",
-            'cost': f"Charter Fee: Lord pays ~${fee:.0f} to crown treasury",
+            'cost': f"Charter Fee: Landlord pays ~${fee:.0f} to municipal treasury",
             'desc': [
-                "Abolishes customary serf foraging rights on parcel, privatizing",
-                "land into enclosed commercial estates under landlord tenure.",
-                "Pleases the Gentry faction and yields crown charter fee revenues.",
-                "Severe trade-off: Dispossesses commoners, turning serfs into tenants",
-                "or landless laborers and triggering long-term protest."
+                "Abolishes customary serf foraging rights on parcel, privatizing the commons into enclosed commercial estates under landlord tenure.",
+                "Pleases the Gentry faction and yields crown charter revenues. Severe trade-off: Dispossesses commoners, turning serfs into rent-paying tenants or landless wage laborers and triggering long-term protest.",
+                f"Money Destination: The private estate wealth of the acquiring aristocratic landlord pays this statutory ${fee:.0f} charter fee directly into the public city/crown treasury to gain legal property title."
             ],
             'stats': [
                 ("Feudal Commons Remaining", f"{feudal_pct:.0f}%", (130, 210, 140)),
-                ("Charter Fee Payout", f"+${fee:.0f} to Gov", GREEN),
+                ("Statutory Fee Inflow", f"+${fee:.0f} to Gov", GREEN),
             ]
         }
 
@@ -252,10 +248,9 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
             'category': "Provincial Infrastructure",
             'cost': "Cost: $120 from provincial treasury",
             'desc': [
-                "Paves macadamized highway connectors between province cities.",
-                "Permanently lowers logistics transport delay and route friction",
-                "by 30%, speeding trade arbitrage and commodity delivery.",
-                "Bridges price disparities across provincial markets."
+                "Constructs macadamized highway connectors between provincial cities, permanently reducing logistics transport delays and road friction by 30%.",
+                "Speeds commodity delivery and bridges price disparities across provincial consumer markets.",
+                "Money Destination: Paid to provincial road civil engineering contractor corps and stone quarry teams to pave highway connectors."
             ],
             'stats': [
                 ("Provincial Treasury", f"${prov_cash:,.0f}", (120, 240, 150) if prov_cash >= 120 else RED),
@@ -271,10 +266,9 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
             'category': "Provincial Public Health",
             'cost': "Cost: $150 from provincial treasury",
             'desc': [
-                "Establishes sanatoriums, clean wells, and quarantine posts.",
-                "Reduces industrial health attrition from toxic factory shifts",
-                "and cuts demographic mortality across all member territories.",
-                "Protects workforce life expectancy and reproductive health."
+                "Establishes sanatoriums, clean artesian wells, and quarantine posts across all provincial territories.",
+                "Reduces industrial health attrition from toxic factory shifts and cuts demographic mortality, protecting workforce longevity.",
+                "Money Destination: Paid to municipal physicians, apothecary druggists, and sanitary well-diggers to install clean water systems and medical dispensaries."
             ],
             'stats': [
                 ("Provincial Treasury", f"${prov_cash:,.0f}", (120, 240, 150) if prov_cash >= 150 else RED),
@@ -289,10 +283,9 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
             'category': "Provincial Fiscal Transfers",
             'cost': "Cost: $200 grant from provincial treasury",
             'desc': [
-                "Transfers capital grant to the poorest city bank in the province.",
-                "Prevents insolvency and local credit freezes, restoring private",
-                "lending and commercial business investments in struggling towns.",
-                "Maintains balanced regional development across the province."
+                "Transfers a capital grant to the poorest municipal bank in the province, preventing insolvency and credit freezes.",
+                "Restores private commercial lending and business investments in struggling towns, maintaining balanced regional growth.",
+                "Money Destination: Transferred directly from the provincial treasury as a recapitalization grant into the vault of the poorest municipal bank in the province."
             ],
             'stats': [
                 ("Provincial Treasury", f"${prov_cash:,.0f}", (120, 240, 150) if prov_cash >= 200 else RED),
@@ -307,10 +300,8 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
             'category': "Provincial Governance",
             'cost': "Cost: Free (Regulatory Alignment)",
             'desc': [
-                "Calculates the average tax rate across all member cities and",
-                "enforces it uniformly throughout the province.",
-                "Eliminates internal tax havens and harmful fiscal arbitrage",
-                "between neighboring municipal jurisdictions."
+                "Calculates the weighted average tax rate across all member cities and enforces it uniformly throughout the province.",
+                "Eliminates internal tax havens and harmful fiscal arbitrage between neighboring municipal jurisdictions."
             ],
             'stats': [
                 ("Member Territories", f"{len(getattr(prov, 'tiles', []))}", TEXT),
@@ -325,8 +316,7 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
             'category': "Provincial Logistics",
             'cost': "Cost: Free (Administrative Accord)",
             'desc': [
-                "Harmonizes regional toll charges, wagon axle weights, and river",
-                "navigation rules to streamline inter-city freight traffic."
+                "Harmonizes regional toll charges, wagon axle standards, and river navigation rules to streamline inter-city freight traffic."
             ],
             'stats': [
                 ("Provincial Treasury", f"${prov_cash:,.0f}", (120, 240, 150)),
@@ -345,9 +335,8 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
             'category': "National Fiscal Policy",
             'cost': "Mandatory statutory tax rate for all provinces",
             'desc': [
-                f"Decrees statutory {rate}% income tax across all nation's cities.",
-                "Overrides disparate local rates to centralize state revenues",
-                "for national defense, scientific grants, and sovereign projects."
+                f"Decrees a statutory {rate}% income tax across all nation's cities.",
+                "Overrides disparate local rates to centralize state revenues for national defense, scientific research, and sovereign projects."
             ],
             'stats': [
                 ("New Statutory Baseline", f"{rate}%", ACCENT),
@@ -382,9 +371,8 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
             'category': "Sovereign Social Accord",
             'cost': "Mandates UBI across all provinces and constituent cities",
             'desc': [
-                "Orders every municipal government to establish guaranteed UBI.",
-                "Eradicates famine and destitute poverty nationwide, boosting",
-                "aggregate consumer demand across all domestic markets."
+                "Orders every municipal government to establish guaranteed basic income for all citizens, committed across a 10-turn policy period.",
+                "Eradicates famine and destitute poverty nationwide, boosting consumer demand across all domestic markets."
             ],
             'stats': [
                 ("Sovereign Treasury", f"${tot_cash:,.0f} Total", (120, 240, 150)),
@@ -399,8 +387,7 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
             'category': "Border Control",
             'cost': "Toggles border access for foreign migrant labor",
             'desc': [
-                "Open borders welcome foreign immigrants into underpopulated cities",
-                "to staff industrial factories, mills, and frontier homesteads.",
+                "Open borders welcome foreign immigrants into underpopulated cities to staff industrial factories, mills, and frontier homesteads.",
                 "Closed borders protect domestic wages and minimize cultural strain."
             ],
             'stats': [
@@ -416,9 +403,8 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
             'category': "National Science & Research",
             'cost': "Cost: $300 prize bounty from sovereign treasury",
             'desc': [
-                "Funds national research grants and rewards technological discovery.",
-                "Spurs breakthroughs in steam mechanization, corporate finance,",
-                "and agronomy, accelerating domestic productivity growth."
+                "Funds national research grants and rewards technological discovery in bottleneck domains, accelerating domestic productivity growth.",
+                "Money Destination: Awarded as a royal bounty to academic universities, inventors, and guild researchers who achieve technological breakthroughs."
             ],
             'stats': [
                 ("Sovereign Treasury", f"${nat_cash:,.0f}", (120, 240, 150) if nat_cash >= 300 else RED),
@@ -433,9 +419,8 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
             'category': "Sovereign Defense Command",
             'cost': "Cost: $250 mobilization & armaments levy",
             'desc': [
-                "Levies and equips an elite national army division under direct",
-                "sovereign command, capable of maneuvering across the hex world.",
-                "Deters foreign military aggression and secures sovereign borders."
+                "Levies and equips an elite national army division under direct sovereign command, capable of maneuvering across the hex world.",
+                "Money Destination: Paid to military foundries, ordnance contractors, and standing soldier enlistment bounties."
             ],
             'stats': [
                 ("Sovereign Treasury", f"${nat_cash:,.0f}", (120, 240, 150) if nat_cash >= 250 else RED),
@@ -450,9 +435,8 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
             'category': "Sovereign Fiscal Equalization",
             'cost': "Cost: $250 grant from sovereign treasury",
             'desc': [
-                "Disburses crown wealth to impoverished provincial treasuries.",
-                "Bolsters national creditworthiness, enhances sovereign bond",
-                "ratings on the ISRB market, and reduces regional inequality."
+                "Disburses crown wealth to impoverished provincial treasuries, bolstering national creditworthiness and reducing regional inequality.",
+                "Money Destination: Transferred from national sovereign treasury directly into underdeveloped provincial and municipal city treasuries."
             ],
             'stats': [
                 ("Sovereign Treasury", f"${nat_cash:,.0f}", (120, 240, 150) if nat_cash >= 250 else RED),
@@ -468,12 +452,9 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
             'category': "National Labor Legislation",
             'cost': "Political Risk: Alienates capitalists & prompts electoral backlash",
             'desc': [
-                "Legally caps factory and mill shifts to a maximum of 10.0 hours/day.",
-                "Corporations cannot voluntarily reduce shift hours under competition;",
-                "only statutory law forces shift reductions.",
-                "Dramatically reduces health attrition and quells strike uprisings.",
-                "Trade-off: Squeezes surplus value (s/v), enraging capitalists who pool",
-                "PAC warchests to finance opposition candidates and oust the regime."
+                "Legally caps factory and mill shifts to a maximum of 10.0 hours/day. Corporations cannot voluntarily reduce shift hours under competition; only statutory law forces shift reductions.",
+                "Dramatically reduces worker health attrition and quells strike uprisings.",
+                "Trade-off: Squeezes surplus value, enraging capitalists who pool PAC warchests to finance opposition candidates and oust the regime."
             ],
             'stats': [
                 ("Workday Cap", "10.0h" if has_ten else "16.0h -> 10.0h", GREEN),
@@ -490,10 +471,8 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
             'category': "National Workplace Safety Law",
             'cost': "Industrial Burden: Requires machinery guards and safety investment",
             'desc': [
-                "Mandates protective gear, machinery shields, and fire exits.",
-                "Reduces disabling factory casualties, mangled limbs, and workplace",
-                "mortality by over 70%. Halts Luddite machine sabotage.",
-                "Improves long-term worker longevity and biological productivity."
+                "Mandates protective gear, machinery shields, and fire exits in all industrial mills and factories.",
+                "Reduces disabling factory casualties, mangled limbs, and workplace mortality by over 70%, putting an end to Luddite machine sabotage."
             ],
             'stats': [
                 ("Safety Regulation", "MANDATED" if has_safe else "UNREGULATED", GREEN if has_safe else RED),
@@ -509,9 +488,8 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
             'cost': "Cost: $50 public spectacle subsidy from treasury",
             'desc': [
                 "Subsidizes commercial music halls, theater, saloons, and public games.",
-                "Mass entertainment acts as an isolation pacifier: dampens worker",
-                "rebellion energy, lowers class consciousness, and prevents strike organizing.",
-                "Safeguards industrial peace and protects capitalists from uprisings."
+                "Mass entertainment acts as an isolation pacifier: dampens worker rebellion energy, lowers class consciousness, and prevents strike organizing.",
+                "Money Destination: Paid to saloonkeepers, theater troupes, music hall owners, and spectacle impresarios to stage mass public amusements."
             ],
             'stats': [
                 ("Sovereign Treasury", f"${nat_cash:,.0f}", (120, 240, 150) if nat_cash >= 50 else RED),
@@ -729,6 +707,41 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
             'btn_id': btn_id
         }
 
+    # -------------------------------------------------------------------------
+    # SCIENCE, DIPLOMACY, DEBT & MILITARY EXTENDED TOOLTIPS
+    # -------------------------------------------------------------------------
+    from worldview_tooltips_extra import (
+        build_science_resource_tooltip,
+        build_science_tech_tooltip,
+        build_diplomacy_tooltip,
+        build_debt_tooltip,
+        build_military_tooltip
+    )
+    if btn_id.startswith('res_'):
+        res_tip = build_science_resource_tooltip(btn_id, world, nation=owner)
+        if res_tip:
+            return res_tip
+
+    if btn_id.startswith('sci_') or btn_id.startswith('tech_'):
+        sci_tip = build_science_tech_tooltip(btn_id, world, nation=owner)
+        if sci_tip:
+            return sci_tip
+
+    if btn_id.startswith('dip_'):
+        dip_tip = build_diplomacy_tooltip(btn_id, world, nation=owner)
+        if dip_tip:
+            return dip_tip
+
+    if btn_id.startswith('debt_'):
+        debt_tip = build_debt_tooltip(btn_id, world, nation=owner)
+        if debt_tip:
+            return debt_tip
+
+    if btn_id.startswith('mil_'):
+        mil_tip = build_military_tooltip(btn_id, world, region=pinned, nation=owner)
+        if mil_tip:
+            return mil_tip
+
     return None
 
 
@@ -751,6 +764,8 @@ def _infer_icon_for_btn(btn_id: str, tooltip: dict) -> str:
             'central_mint': 'finance',
             'military_citadel': 'military',
         }.get(rkey, 'hammer')
+    if b.startswith('res_'):
+        return b[4:]
     if 'tier_municipal' in b or 'municipal' in b:
         return 'municipal'
     if 'tier_province' in b or 'province' in b:
@@ -851,10 +866,16 @@ def draw_left_panel_tooltip(surface, world: dict, font_small, mouse_pos=None):
     cost_lines = wrap_text(cost_str, font_small, usable_w - 24) if cost_str else []
     cost_box_h = (len(cost_lines) * line_h + 10) if cost_lines else 0
 
-    # 3. Description Lines
-    wrapped_desc = []
+    # 3. Description Lines (Grouped by Paragraph with soft wraps)
+    wrapped_paras: list[list[str]] = []
+    total_desc_lines_count = 0
     for raw_line in desc_lines:
-        wrapped_desc.extend(wrap_text(raw_line, font_small, usable_w))
+        lines = wrap_text(raw_line, font_small, usable_w)
+        if lines:
+            wrapped_paras.append(lines)
+            total_desc_lines_count += len(lines)
+
+    para_gap = 5
 
     # 4. Compute Card Height dynamically
     card_h = PADDING_Y + header_h + 8  # header + gap
@@ -862,7 +883,7 @@ def draw_left_panel_tooltip(surface, world: dict, font_small, mouse_pos=None):
     card_h += 8  # gap after divider
     if cost_lines:
         card_h += cost_box_h + 8  # cost box + gap
-    card_h += len(wrapped_desc) * line_h + 4  # desc lines + gap
+    card_h += total_desc_lines_count * line_h + max(0, len(wrapped_paras) - 1) * para_gap + 4
     if stats:
         card_h += 6  # gap
         card_h += 1  # stats divider
@@ -928,11 +949,14 @@ def draw_left_panel_tooltip(surface, world: dict, font_small, mouse_pos=None):
 
         cur_y += cost_box_h + 8
 
-    # 9. Render Description Lines
-    for dl in wrapped_desc:
-        d_surf = font_small.render(dl, True, (215, 225, 240))
-        card_surf.blit(d_surf, (PADDING_X, cur_y))
-        cur_y += line_h
+    # 9. Render Description Lines (Paragraphs with spacing)
+    for p_idx, para_lines in enumerate(wrapped_paras):
+        for dl in para_lines:
+            d_surf = font_small.render(dl, True, (215, 225, 240))
+            card_surf.blit(d_surf, (PADDING_X, cur_y))
+            cur_y += line_h
+        if p_idx < len(wrapped_paras) - 1:
+            cur_y += para_gap
 
     # 10. Render Live Stats Breakdown
     if stats:

@@ -220,6 +220,38 @@ class DiplomacySystem:
         self.diplomacy_log.append(event)
         return {'success': True, 'event': event, 'message': event['message']}
 
+    def sign_treaty(self, proposer: str, target: str, treaty_type: str, t: int = 0) -> tuple[bool, str]:
+        """Convenience alias to propose and sign a treaty."""
+        return self.propose_treaty(proposer, target, treaty_type, t)
+
+    def cancel_treaty(self, breaker: str, partner: str, treaty_type: str, t: int = 0,
+                      reason: str = "diplomatic cancellation") -> dict:
+        """Convenience alias to cancel an active treaty amicably."""
+        broken_treaty = None
+        for tr in self.get_active_treaties(breaker, partner):
+            if tr.treaty_type == treaty_type:
+                tr.status = "cancelled"
+                tr.broken_by = breaker
+                tr.broken_turn = t
+                broken_treaty = tr
+                break
+
+        if broken_treaty is None:
+            return {'success': False, 'message': f"No active {treaty_type} found to cancel."}
+
+        event = {
+            't': t,
+            'event': 'TREATY_CANCELLED',
+            'treaty_id': broken_treaty.treaty_id,
+            'breaker': breaker,
+            'partner': partner,
+            'type': treaty_type,
+            'reason': reason,
+            'message': f"{breaker} cancelled {treaty_type} with {partner} at T={t} ({reason})."
+        }
+        self.diplomacy_log.append(event)
+        return {'success': True, 'event': event, 'message': event['message']}
+
     # ------------------------------------------------------------------
     # War & Alliance Mechanics
     # ------------------------------------------------------------------
