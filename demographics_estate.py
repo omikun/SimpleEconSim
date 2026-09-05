@@ -408,6 +408,11 @@ def handle_death(ctx, t, agent, agents):
             crowding_factor = 1.0 + (overage / (ctx.carrying_capacity * 0.15)) * 4.0
             adjusted_prob *= crowding_factor
 
+        # P2: Physiological health attrition increases mortality from industrial disease / wear
+        attrition = getattr(agent, 'health_attrition', 0.0)
+        if attrition > 0.0:
+            adjusted_prob *= (1.0 + min(3.0, attrition * 1.5))
+
         if is_last_of_profession(agent, agents, ctx):
             return False
         if rand.random() > adjusted_prob:

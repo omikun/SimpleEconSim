@@ -177,3 +177,8 @@ def step_wilderness(region, t):
     region.avg_shift_hours_log.append(8.0)
     region.surplus_value_log.append(0.0)
     region.rate_of_exploitation_log.append(0.0)
+    region.avg_alienation_log.append(0.0)
+    region.avg_health_attrition_log.append(0.0)
+    region.avg_consciousness_log.append(0.0)
+    region.workplace_accidents_log.append(0)
+    region.entertainment_log.append(0.0)

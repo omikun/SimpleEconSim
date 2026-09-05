@@ -179,6 +179,12 @@ class Region:
         self.avg_shift_hours_log: list = []  # time-series of avg shift hours
         self.surplus_value_log: list = []  # time-series of total surplus value extracted ($)
         self.rate_of_exploitation_log: list = []  # time-series of s/v exploitation rate
+        self.entertainment_level: float = 0.0  # commercial/state entertainment pacifier
+        self.avg_alienation_log: list = []  # time-series of avg 4D alienation (0-1)
+        self.avg_health_attrition_log: list = []  # time-series of avg bodily wear & tear
+        self.avg_consciousness_log: list = []  # time-series of worker class consciousness
+        self.workplace_accidents_log: list = []  # time-series of disabling factory accidents
+        self.entertainment_log: list = []  # time-series of entertainment investment
 
         self.recipes = copy.deepcopy(recipes)
         self.goods = list(goods)
@@ -553,6 +559,10 @@ class Region:
         # Dynamic social class evaluation (P1.4)
         class_dist = _sclass.update_tile_social_classes(self)
         self.social_class_log.append(class_dist)
+
+        # Alienation, Health Attrition & Despair (P2.2)
+        from alienation import step_tile_alienation
+        step_tile_alienation(self, t)
 
         # Charity food distribution
         if legacy:

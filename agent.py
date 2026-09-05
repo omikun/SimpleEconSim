@@ -95,12 +95,13 @@ class Agent:
         'is_lord', 'land_plots',
         'food_foraged', 'food_purchased',
         'social_class',
-        # ---- P2: Labor commodification & surplus value ----
+        # ---- P2: Labor commodification, alienation & psychology ----
         'shift_hours', 'safety_investment',
         'machinery_level', 'broken_machinery',
         'surplus_value_extracted', 'rate_of_exploitation',
         'wages_received', 'workplace_accident',
         '_latest_labor_stats',
+        'alienation', 'health_attrition', 'despair', 'class_consciousness',
     )
 
     def __init__(self, t):
@@ -214,6 +215,10 @@ class Agent:
         self.wages_received = 0.0            # wages paid to this worker this turn
         self.workplace_accident = False      # true if injured this turn
         self._latest_labor_stats = None      # FirmLaborStats dataclass reference
+        self.alienation = 0.0                # composite 4D alienation index (0.0 to 1.0)
+        self.health_attrition = 0.0          # bodily wear, industrial disease & fatigue (0.0 to 2.5)
+        self.despair = 0.0                   # acute despair driving vice spending (0.0 to 1.0)
+        self.class_consciousness = 0.0       # worker political consciousness (0.0 to 1.0)
 
     def name(self):
         prof_label = profession.get(self.output, '-')
