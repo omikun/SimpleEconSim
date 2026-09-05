@@ -15,13 +15,38 @@ from worldview_map import ACCENT, TEXT, DIM, RED, GREEN
 from ui_icons import get_icon
 
 # Dimensions
-CARD_MAX_W = 340
-PADDING_X = 14
-PADDING_Y = 12
-LINE_H = 16
+CARD_MAX_W = 440
+PADDING_X = 16
+PADDING_Y = 14
 
 
-def get_button_tooltip_data(btn_id: str, world: dict, region=None, nation=None, province=None) -> dict | None:
+def wrap_text(text: str, font: pygame.font.Font, max_width: int) -> list[str]:
+    """Wrap text into multiple lines so that none exceed max_width."""
+    if not text:
+        return []
+    lines = []
+    for raw_paragraph in text.split('\n'):
+        words = raw_paragraph.split(' ')
+        current_line = []
+        for word in words:
+            if not word:
+                continue
+            test_line = ' '.join(current_line + [word])
+            if font.size(test_line)[0] <= max_width:
+                current_line.append(word)
+            else:
+                if current_line:
+                    lines.append(' '.join(current_line))
+                    current_line = [word]
+                else:
+                    lines.append(word)
+                    current_line = []
+        if current_line:
+            lines.append(' '.join(current_line))
+    return lines
+
+
+def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None, province=None) -> dict | None:
     """Generate detailed mechanism description, achievement context, and live stat breakdown."""
     pinned = region or world.get('selected_region')
     if pinned is None and world.get('nations') and world['nations'][0].tiles:
@@ -543,14 +568,37 @@ def get_button_tooltip_data(btn_id: str, world: dict, region=None, nation=None, 
         bonus_str = ", ".join(f"+{int((v-1.0)*100)}% {k.value}" for k, v in recipe.production_bonuses.items()) if recipe.production_bonuses else "Structural modifier"
 
         is_built = any(b.name == clean_bkey for b in getattr(pinned, 'buildings', [])) if pinned else False
-        status_txt = "ALREADY INSTALLED" if is_built else f"Ready to Construct ({recipe.base_turns} Turns)"
+        active_proj = next((p for p in getattr(pinned, 'construction_projects', []) if p.recipe.name == clean_bkey and p.status == 'in_progress'), None)
+        if active_proj is None and owner:
+            active_proj = next((p for p in getattr(owner, 'construction_projects', []) if p.recipe.name == clean_bkey and p.status == 'in_progress' and p.region == pinned), None)
+
+        if is_built:
+            status_txt = "ALREADY INSTALLED (Active Modifier)"
+        elif active_proj is not None:
+            pct = active_proj.turns_elapsed / max(1, active_proj.total_turns)
+            status_txt = f"UNDER CONSTRUCTION ({active_proj.turns_elapsed}/{active_proj.total_turns} Turns - {int(pct*100)}%)"
+        else:
+            status_txt = f"Ready to Construct ({recipe.base_turns} Turns)"
+
+        recipe_icons = {
+            'farm': 'grain',
+            'granary': 'granary',
+            'sawmill': 'timber',
+            'workshop': 'manufacturing',
+            'paved_road': 'civil_engineering',
+            'river_bridge': 'civil_engineering',
+            'sanatorium': 'municipal',
+            'mountain_pass': 'mountain',
+            'central_mint': 'finance',
+            'military_citadel': 'military',
+        }
 
         return {
             'title': f"Construct {recipe.display_name}",
             'badge': f"{recipe.tier.upper()} TIER",
             'badge_col': (120, 200, 240) if recipe.tier == 'tile' else ((245, 205, 90) if recipe.tier == 'province' else (240, 120, 120)),
             'category': f"{tier_str} Capital Project",
-            'cost': f"Cost: ${recipe.cost:,.0f} & {recipe.base_turns} turns (Materials: {mat_str})",
+            'cost': f"Requirements: ${recipe.cost:,.0f} & {recipe.base_turns} turns (Materials: {mat_str})",
             'desc': [
                 recipe.description,
                 f"Production Benefit: {bonus_str}.",
@@ -558,10 +606,96 @@ def get_button_tooltip_data(btn_id: str, world: dict, region=None, nation=None, 
                 "Weather and labor friction may cause small completion variations."
             ],
             'stats': [
-                ("Project Status", status_txt, GREEN if is_built else ACCENT),
+                ("Project Status", status_txt, GREEN if is_built else ((245, 205, 90) if active_proj else ACCENT)),
                 ("Base Capital Cost", f"${recipe.cost:,.0f}", (120, 240, 150)),
                 ("Construction Duration", f"{recipe.base_turns} turns", TEXT),
-            ]
+            ],
+            'icon': recipe_icons.get(clean_bkey, 'hammer'),
+            'btn_id': btn_id
+        }
+
+    # -------------------------------------------------------------------------
+    # TIER HEADER OVERVIEWS
+    # -------------------------------------------------------------------------
+    if btn_id == 'tier_municipal':
+        return {
+            'title': "Municipal Infrastructure Tier",
+            'badge': "LOCAL TILE",
+            'badge_col': (120, 200, 240),
+            'category': "City Level Public Works",
+            'cost': "Funding Source: Local municipal treasury & tile bank reserves",
+            'desc': [
+                "Local municipal infrastructure projects directly improve city output,",
+                "food security, and resource harvesting within this specific territory.",
+                "Contracted through local corporations and funded by city taxes."
+            ],
+            'stats': [
+                ("Available Tile Treasury", f"${tile_cash:,.0f}", (120, 240, 150)),
+                ("City Population", f"{pop_count} Citizens", TEXT),
+            ],
+            'icon': 'municipal',
+            'btn_id': btn_id
+        }
+
+    if btn_id == 'tier_province':
+        return {
+            'title': "Provincial Public Works Tier",
+            'badge': "PROVINCIAL",
+            'badge_col': (245, 205, 90),
+            'category': "Province Level Public Works",
+            'cost': "Funding Source: Pooled provincial municipal treasuries",
+            'desc': [
+                "Province-wide public works improve logistics, health, and transport",
+                "corridors across all constituent cities in the province.",
+                "Reduces regional trade delays and healthcare mortality."
+            ],
+            'stats': [
+                ("Provincial Pooled Treasury", f"${prov_cash:,.0f}", (120, 240, 150)),
+                ("Constituent Territories", f"{len(getattr(prov, 'tiles', []))} Cities" if prov else "1 City", TEXT),
+            ],
+            'icon': 'province',
+            'btn_id': btn_id
+        }
+
+    if btn_id in ('tier_nation', 'tier_crown'):
+        return {
+            'title': "National Strategic Projects Tier",
+            'badge': "SOVEREIGN",
+            'badge_col': (240, 120, 120),
+            'category': "Empire Level Strategic Works",
+            'cost': "Funding Source: National sovereign treasury reserves",
+            'desc': [
+                "Grand strategic undertakings that transform national capabilities:",
+                "alpine mountain passes, central mint monetary stabilization,",
+                "and imperial military citadels for empire defense."
+            ],
+            'stats': [
+                ("Sovereign Treasury Cash", f"${nat_cash:,.0f}", (120, 240, 150)),
+                ("National Total Wealth", f"${tot_cash:,.0f}", ACCENT),
+            ],
+            'icon': 'crown',
+            'btn_id': btn_id
+        }
+
+    if btn_id in ('tier_equalization', 'tier_scale'):
+        return {
+            'title': "Fiscal Equalization System",
+            'badge': "HORIZONTAL EQUALIZATION",
+            'badge_col': (245, 215, 110),
+            'category': "Fiscal Federalism & Wealth Transfers",
+            'cost': "Manual grant: $250 transfer from sovereign treasury to territory",
+            'desc': [
+                "Transfers capital grants from rich federal reserves directly into",
+                "struggling local bank reserves and municipal treasuries.",
+                "Prevents bankruptcies, relieves regional debt crises, and preserves",
+                "national cohesion across developing frontier provinces."
+            ],
+            'stats': [
+                ("Sovereign Treasury Cash", f"${nat_cash:,.0f}", (120, 240, 150) if nat_cash >= 250 else RED),
+                ("Target Tile Treasury", f"${tile_cash:,.0f}", (120, 240, 150)),
+            ],
+            'icon': 'scale',
+            'btn_id': btn_id
         }
 
     # -------------------------------------------------------------------------
@@ -569,15 +703,15 @@ def get_button_tooltip_data(btn_id: str, world: dict, region=None, nation=None, 
     # -------------------------------------------------------------------------
     dock_key = btn_id[5:] if btn_id.startswith('dock_') else btn_id
     dock_catalog = {
-        'build': ("Build & Public Infrastructure (B)", "CONSTRUCTION", ACCENT, "Multi-tier civic construction menu for irrigation, mills, roads, and monuments."),
-        'governance': ("Governance & Policy Decrees (G)", "PUBLIC ORDER", (245, 215, 110), "Interactive policy drawer for city tax cuts, famine relief, provincial equalizations, and national labor laws."),
-        'diplomacy': ("Diplomacy & Foreign Relations (D)", "STATECRAFT", (140, 190, 240), "Manage treaties, borders, alliances, trade embargoes, and sovereign claims."),
-        'debt': ("Sovereign Bonds & Central Banking (S)", "CREDIT & FISCAL", (130, 220, 150), "Issue sovereign debt securities, manage ISRB yield spreads, and regulate national central banking."),
-        'science': ("Science & Industrial Innovation (T)", "TECHNOLOGY", (190, 140, 245), "Track and reward breakthrough technologies across mechanization, agrarian tools, and corporate finance."),
-        'military': ("Military & Garrison Command (M)", "WARFARE", (240, 100, 100), "Review standing garrisons, field armies, expeditionary divisions, and recruitment levies.")
+        'build': ("Build & Public Infrastructure (B)", "CONSTRUCTION", ACCENT, "Multi-tier civic construction menu for irrigation, mills, roads, and monuments.", "hammer"),
+        'governance': ("Governance & Policy Decrees (G)", "PUBLIC ORDER", (245, 215, 110), "Interactive policy drawer for city tax cuts, famine relief, provincial equalizations, and national labor laws.", "policies"),
+        'diplomacy': ("Diplomacy & Foreign Relations (D)", "STATECRAFT", (140, 190, 240), "Manage treaties, borders, alliances, trade embargoes, and sovereign claims.", "crown"),
+        'debt': ("Sovereign Bonds & Central Banking (S)", "CREDIT & FISCAL", (130, 220, 150), "Issue sovereign debt securities, manage ISRB yield spreads, and regulate national central banking.", "bank"),
+        'science': ("Science & Industrial Innovation (T)", "TECHNOLOGY", (190, 140, 245), "Track and reward breakthrough technologies across mechanization, agrarian tools, and corporate finance.", "rare_minerals"),
+        'military': ("Military & Garrison Command (M)", "WARFARE", (240, 100, 100), "Review standing garrisons, field armies, expeditionary divisions, and recruitment levies.", "military")
     }
     if dock_key in dock_catalog:
-        title, badge, b_col, desc = dock_catalog[dock_key]
+        title, badge, b_col, desc, ico_name = dock_catalog[dock_key]
         return {
             'title': title,
             'badge': badge,
@@ -590,14 +724,93 @@ def get_button_tooltip_data(btn_id: str, world: dict, region=None, nation=None, 
             ],
             'stats': [
                 ("Selected Tile", getattr(pinned, 'display_name', getattr(pinned, 'city_name', pinned.name)) if pinned else "None", TEXT),
-            ]
+            ],
+            'icon': ico_name,
+            'btn_id': btn_id
         }
 
     return None
 
 
+def _infer_icon_for_btn(btn_id: str, tooltip: dict) -> str:
+    """Infer procedural vector icon key for any button or mechanism."""
+    if 'icon' in tooltip:
+        return tooltip['icon']
+    b = btn_id.lower()
+    if b.startswith('build_'):
+        rkey = b[6:]
+        return {
+            'farm': 'grain',
+            'granary': 'granary',
+            'sawmill': 'timber',
+            'workshop': 'manufacturing',
+            'paved_road': 'civil_engineering',
+            'river_bridge': 'civil_engineering',
+            'sanatorium': 'municipal',
+            'mountain_pass': 'mountain',
+            'central_mint': 'finance',
+            'military_citadel': 'military',
+        }.get(rkey, 'hammer')
+    if 'tier_municipal' in b or 'municipal' in b:
+        return 'municipal'
+    if 'tier_province' in b or 'province' in b:
+        return 'province'
+    if 'tier_crown' in b or 'tier_nation' in b or 'crown' in b:
+        return 'crown'
+    if 'tier_equalization' in b or 'equalization' in b or 'grant' in b:
+        return 'scale'
+    if 'tax' in b or 'treasury' in b:
+        return 'treasury'
+    if 'tariff' in b or 'ex' in b:
+        return 'ex'
+    if 'ubi' in b:
+        return 'pop'
+    if 'food' in b or 'famine' in b or 'grain' in b:
+        return 'grain'
+    if 'farm' in b or 'crop' in b:
+        return 'grain'
+    if 'patrol' in b or 'curfew' in b or 'police' in b:
+        return 'military'
+    if 'garrison' in b or 'army' in b or 'mobilize' in b or 'war' in b:
+        return 'military'
+    if 'road' in b or 'route' in b or 'bridge' in b or 'highway' in b or 'transport' in b:
+        return 'civil_engineering'
+    if 'health' in b or 'sanatorium' in b or 'hospital' in b:
+        return 'municipal'
+    if 'frontier' in b or 'pioneer' in b or 'settler' in b:
+        return 'pasture'
+    if 'science' in b or 'innovation' in b or 'prize' in b or 'tech' in b:
+        return 'rare_minerals'
+    if 'ten_hour' in b or 'labor' in b or 'safety' in b:
+        return 'policies'
+    if 'entertainment' in b or 'spectacle' in b or 'theater' in b:
+        return 'pop'
+    if 'dock_build' in b or b == 'build':
+        return 'hammer'
+    if 'dock_gov' in b or b == 'governance':
+        return 'policies'
+    if 'dock_diplomacy' in b or b == 'diplomacy':
+        return 'crown'
+    if 'dock_debt' in b or b == 'debt':
+        return 'bank'
+    if 'dock_science' in b or b == 'science':
+        return 'rare_minerals'
+    if 'dock_military' in b or b == 'military':
+        return 'military'
+    return 'policies'
+
+
+def get_button_tooltip_data(btn_id: str, world: dict, region=None, nation=None, province=None) -> dict | None:
+    """Generate detailed mechanism description, achievement context, and live stat breakdown."""
+    data = _build_button_tooltip_raw(btn_id, world, region=region, nation=nation, province=province)
+    if data:
+        data.setdefault('btn_id', btn_id)
+        data['icon'] = _infer_icon_for_btn(btn_id, data)
+    return data
+
+
 def draw_left_panel_tooltip(surface, world: dict, font_small, mouse_pos=None):
-    """Render sleek floating tooltip card for the currently hovered left-panel button."""
+    """Render sleek, dynamically-sized floating tooltip card for the currently hovered left-panel button."""
     tooltip = world.get('_hovered_left_tooltip')
     if not tooltip or not mouse_pos:
         return
@@ -611,72 +824,135 @@ def draw_left_panel_tooltip(surface, world: dict, font_small, mouse_pos=None):
     desc_lines = tooltip.get('desc', [])
     stats = tooltip.get('stats', [])
     rect = tooltip.get('btn_rect', (mx, my, 20, 20))
+    btn_id = tooltip.get('btn_id', '')
+    icon_kind = tooltip.get('icon') or _infer_icon_for_btn(btn_id, tooltip)
 
-    # Calculate card dimensions
+    line_h = max(20, font_small.get_height() + 3)
     card_w = CARD_MAX_W
-    body_h = (len(desc_lines) * LINE_H) + (len(stats) * (LINE_H + 2)) + 70
-    card_h = max(110, body_h)
+    usable_w = card_w - (PADDING_X * 2)
 
-    # Position to the right of the button, clamped to screen
-    card_x = rect[0] + rect[2] + 12
-    if card_x + card_w > WIDTH - 10:
-        card_x = max(10, rect[0] - card_w - 12)
+    # 1. Header Measurements
+    icon_box_size = 40
+    hx = PADDING_X + icon_box_size + 10
 
-    card_y = max(TOP_BAR_H + 8, min(HEIGHT - TICKER_H - card_h - 10, rect[1] - 10))
-
-    # Background Surface with alpha
-    card_surf = pygame.Surface((card_w, card_h), pygame.SRCALPHA)
-    card_surf.fill((18, 20, 30, 248))
-    pygame.draw.rect(card_surf, (65, 75, 105), (0, 0, card_w, card_h), 1, border_radius=6)
-
-    # 1. Header (Title & Category)
-    t_surf = font_small.render(title, True, (255, 255, 255))
-    card_surf.blit(t_surf, (PADDING_X, PADDING_Y))
-
-    cat_surf = font_small.render(category, True, DIM)
-    card_surf.blit(cat_surf, (PADDING_X, PADDING_Y + 16))
-
-    # Pill badge
+    badge_w = 0
     if badge_txt:
         b_surf = font_small.render(badge_txt, True, badge_col)
-        bw = b_surf.get_width() + 10
-        bx = card_w - PADDING_X - bw
-        by = PADDING_Y
-        pygame.draw.rect(card_surf, (35, 42, 58), (bx, by, bw, 18), border_radius=4)
-        pygame.draw.rect(card_surf, badge_col, (bx, by, bw, 18), 1, border_radius=4)
-        card_surf.blit(b_surf, (bx + 5, by + 2))
+        badge_w = b_surf.get_width() + 14
 
-    # Divider
-    div_y = PADDING_Y + 34
-    pygame.draw.line(card_surf, (45, 52, 75), (PADDING_X, div_y), (card_w - PADDING_X, div_y), 1)
+    title_avail_w = usable_w - (icon_box_size + 10) - (badge_w + 8 if badge_w else 0)
+    title_lines = wrap_text(title, font_small, title_avail_w)
+    if not title_lines:
+        title_lines = [title]
 
-    # 2. Cost / Requirement row
-    cur_y = div_y + 6
-    if cost_str:
-        cost_surf = font_small.render(cost_str, True, (245, 195, 90))
-        card_surf.blit(cost_surf, (PADDING_X, cur_y))
-        cur_y += LINE_H + 4
+    header_h = max(icon_box_size, len(title_lines) * line_h + font_small.get_height() + 4)
 
-    # 3. Mechanism Description Lines
-    for line in desc_lines:
-        l_surf = font_small.render(line, True, (210, 220, 235))
-        card_surf.blit(l_surf, (PADDING_X, cur_y))
-        cur_y += LINE_H
+    # 2. Cost Measurements
+    cost_lines = wrap_text(cost_str, font_small, usable_w - 24) if cost_str else []
+    cost_box_h = (len(cost_lines) * line_h + 10) if cost_lines else 0
 
-    # 4. Live Stats Breakdown Section
+    # 3. Description Lines
+    wrapped_desc = []
+    for raw_line in desc_lines:
+        wrapped_desc.extend(wrap_text(raw_line, font_small, usable_w))
+
+    # 4. Compute Card Height dynamically
+    card_h = PADDING_Y + header_h + 8  # header + gap
+    card_h += 1  # divider
+    card_h += 8  # gap after divider
+    if cost_lines:
+        card_h += cost_box_h + 8  # cost box + gap
+    card_h += len(wrapped_desc) * line_h + 4  # desc lines + gap
     if stats:
-        cur_y += 4
-        pygame.draw.line(card_surf, (40, 48, 68), (PADDING_X, cur_y), (card_w - PADDING_X, cur_y), 1)
-        cur_y += 5
-        stat_hdr = font_small.render("LIVE IMPACT & STATE BREAKDOWN:", True, (140, 155, 180))
-        card_surf.blit(stat_hdr, (PADDING_X, cur_y))
-        cur_y += LINE_H
+        card_h += 6  # gap
+        card_h += 1  # stats divider
+        card_h += 6  # gap
+        card_h += line_h + 4  # stats section header
+        card_h += len(stats) * (line_h + 5)  # stats rows
+    card_h += PADDING_Y + 4
 
-        for s_lbl, s_val, s_col in stats:
-            lbl_surf = font_small.render(s_lbl, True, TEXT)
+    # 5. Position to the right of the button, clamped to screen
+    card_x = rect[0] + rect[2] + 12
+    if card_x + card_w > WIDTH - 12:
+        card_x = max(12, rect[0] - card_w - 12)
+
+    card_y = max(TOP_BAR_H + 8, min(HEIGHT - TICKER_H - card_h - 10, rect[1] - 8))
+    if card_y + card_h > HEIGHT - TICKER_H - 10:
+        card_y = max(TOP_BAR_H + 8, HEIGHT - TICKER_H - card_h - 10)
+
+    # 6. Render Card Background Surface
+    card_surf = pygame.Surface((card_w, card_h), pygame.SRCALPHA)
+    card_surf.fill((16, 18, 28, 250))
+    pygame.draw.rect(card_surf, (65, 78, 112), (0, 0, card_w, card_h), 1, border_radius=8)
+
+    # 7. Render Header
+    icon_box_rect = (PADDING_X, PADDING_Y, icon_box_size, icon_box_size)
+    pygame.draw.rect(card_surf, (28, 34, 48), icon_box_rect, border_radius=6)
+    pygame.draw.rect(card_surf, (68, 84, 122), icon_box_rect, 1, border_radius=6)
+    ico_surf = get_icon(icon_kind, size=28)
+    card_surf.blit(ico_surf, (PADDING_X + 6, PADDING_Y + 6))
+
+    if badge_txt:
+        bx = card_w - PADDING_X - badge_w
+        by = PADDING_Y
+        bh = max(20, font_small.get_height() + 3)
+        pygame.draw.rect(card_surf, (35, 42, 60), (bx, by, badge_w, bh), border_radius=4)
+        pygame.draw.rect(card_surf, badge_col, (bx, by, badge_w, bh), 1, border_radius=4)
+        card_surf.blit(b_surf, (bx + 7, by + 1))
+
+    ty = PADDING_Y
+    for tl in title_lines:
+        t_surf = font_small.render(tl, True, (255, 255, 255))
+        card_surf.blit(t_surf, (hx, ty))
+        ty += line_h
+
+    cat_surf = font_small.render(category, True, (150, 165, 195))
+    card_surf.blit(cat_surf, (hx, ty))
+
+    div_y = PADDING_Y + header_h + 8
+    pygame.draw.line(card_surf, (48, 56, 80), (PADDING_X, div_y), (card_w - PADDING_X, div_y), 1)
+
+    cur_y = div_y + 8
+
+    # 8. Render Cost Box
+    if cost_lines:
+        c_box_rect = (PADDING_X, cur_y, usable_w, cost_box_h)
+        pygame.draw.rect(card_surf, (36, 32, 24), c_box_rect, border_radius=5)
+        pygame.draw.rect(card_surf, (115, 95, 48), c_box_rect, 1, border_radius=5)
+
+        cy = cur_y + 5
+        for cl in cost_lines:
+            c_surf = font_small.render(cl, True, (250, 215, 110))
+            card_surf.blit(c_surf, (PADDING_X + 10, cy))
+            cy += line_h
+
+        cur_y += cost_box_h + 8
+
+    # 9. Render Description Lines
+    for dl in wrapped_desc:
+        d_surf = font_small.render(dl, True, (215, 225, 240))
+        card_surf.blit(d_surf, (PADDING_X, cur_y))
+        cur_y += line_h
+
+    # 10. Render Live Stats Breakdown
+    if stats:
+        cur_y += 6
+        pygame.draw.line(card_surf, (44, 52, 75), (PADDING_X, cur_y), (card_w - PADDING_X, cur_y), 1)
+        cur_y += 6
+
+        stat_hdr = font_small.render("LIVE IMPACT & STATE BREAKDOWN:", True, (145, 165, 200))
+        card_surf.blit(stat_hdr, (PADDING_X, cur_y))
+        cur_y += line_h + 4
+
+        for idx, (s_lbl, s_val, s_col) in enumerate(stats):
+            row_rect = (PADDING_X, cur_y, usable_w, line_h + 3)
+            row_bg = (24, 28, 42) if (idx % 2 == 0) else (18, 22, 34)
+            pygame.draw.rect(card_surf, row_bg, row_rect, border_radius=3)
+
+            lbl_surf = font_small.render(s_lbl, True, (190, 200, 215))
             val_surf = font_small.render(s_val, True, s_col)
-            card_surf.blit(lbl_surf, (PADDING_X + 6, cur_y))
-            card_surf.blit(val_surf, (card_w - PADDING_X - val_surf.get_width() - 4, cur_y))
-            cur_y += LINE_H + 2
+            card_surf.blit(lbl_surf, (PADDING_X + 8, cur_y + 1))
+            card_surf.blit(val_surf, (card_w - PADDING_X - val_surf.get_width() - 8, cur_y + 1))
+            cur_y += line_h + 5
 
     surface.blit(card_surf, (card_x, card_y))

@@ -81,7 +81,6 @@ def draw_gov_panel(surface, world, font, font_small, mouse_pos=None):
     """Draw the left-hand Governance & Policies Panel for the selected tile/province/nation."""
     global _GOV_BUTTONS
     _GOV_BUTTONS = []
-    world['_hovered_left_tooltip'] = None
 
     if not world.get('gov_panel_open', False):
         return

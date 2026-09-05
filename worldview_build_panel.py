@@ -143,13 +143,22 @@ def _draw_equalization_section(surface, world, pinned, nation, x, y, w, font_sma
     mx, my = mouse_pos if mouse_pos else (-1, -1)
 
     # Header bar
-    pygame.draw.rect(surface, (28, 30, 42), (x, y, w, 20), border_radius=4)
-    pygame.draw.rect(surface, (50, 55, 75), (x, y, w, 20), 1, border_radius=4)
+    eq_hdr_rect = (x, y, w, 20)
+    eq_hdr_hover = eq_hdr_rect[0] <= mx <= eq_hdr_rect[0] + w and eq_hdr_rect[1] <= my <= eq_hdr_rect[1] + 20
+    if eq_hdr_hover:
+        from worldview_tooltips import get_button_tooltip_data
+        tdata = get_button_tooltip_data("tier_equalization", world, pinned, nation)
+        if tdata:
+            tdata['btn_rect'] = eq_hdr_rect
+            world['_hovered_left_tooltip'] = tdata
+
+    pygame.draw.rect(surface, (36, 40, 56) if eq_hdr_hover else (28, 30, 42), eq_hdr_rect, border_radius=4)
+    pygame.draw.rect(surface, (80, 95, 130) if eq_hdr_hover else (50, 55, 75), eq_hdr_rect, 1, border_radius=4)
 
     eq_ico = get_icon('scale', 14)
     surface.blit(eq_ico, (x + 6, y + 3))
 
-    t_txt = font_small.render("Fiscal Equalization", True, (240, 220, 140))
+    t_txt = font_small.render("Fiscal Equalization", True, (255, 235, 160) if eq_hdr_hover else (240, 220, 140))
     surface.blit(t_txt, (x + 24, y + 3))
 
     btn_y = y + 24
@@ -193,14 +202,23 @@ def _draw_tier_section(surface, world, pinned, nation, icon_kind, tier_title, tr
     mx, my = mouse_pos if mouse_pos else (-1, -1)
 
     # Header bar
-    pygame.draw.rect(surface, (28, 30, 42), (x, y, w, 20), border_radius=4)
-    pygame.draw.rect(surface, (50, 55, 75), (x, y, w, 20), 1, border_radius=4)
+    hdr_rect = (x, y, w, 20)
+    hdr_hover = hdr_rect[0] <= mx <= hdr_rect[0] + w and hdr_rect[1] <= my <= hdr_rect[1] + 20
+    if hdr_hover:
+        from worldview_tooltips import get_button_tooltip_data
+        tdata = get_button_tooltip_data(f"tier_{icon_kind}", world, pinned, nation)
+        if tdata:
+            tdata['btn_rect'] = hdr_rect
+            world['_hovered_left_tooltip'] = tdata
+
+    pygame.draw.rect(surface, (36, 40, 56) if hdr_hover else (28, 30, 42), hdr_rect, border_radius=4)
+    pygame.draw.rect(surface, (80, 95, 130) if hdr_hover else (50, 55, 75), hdr_rect, 1, border_radius=4)
 
     # Vector Icon
     tier_ico = get_icon(icon_kind, 14)
     surface.blit(tier_ico, (x + 6, y + 3))
 
-    t_txt = font_small.render(tier_title, True, (240, 220, 140))
+    t_txt = font_small.render(tier_title, True, (255, 235, 160) if hdr_hover else (240, 220, 140))
     surface.blit(t_txt, (x + 24, y + 3))
 
     tr_txt = font_small.render(treasury_label, True, (120, 220, 140))
@@ -218,6 +236,14 @@ def _draw_tier_section(surface, world, pinned, nation, icon_kind, tier_title, tr
         if active_proj is None and nation:
             active_proj = next((p for p in getattr(nation, 'construction_projects', []) if p.recipe.name == r_key and p.status == 'in_progress' and p.region == pinned), None)
 
+        hb = btn_rect[0] <= mx <= btn_rect[0] + btn_rect[2] and btn_rect[1] <= my <= btn_rect[1] + btn_rect[3]
+        if hb:
+            from worldview_tooltips import get_button_tooltip_data
+            tdata = get_button_tooltip_data(f"build_{r_key}", world, pinned, nation)
+            if tdata:
+                tdata['btn_rect'] = btn_rect
+                world['_hovered_left_tooltip'] = tdata
+
         if is_built:
             draw_progress_bar_button(surface, btn_rect, f"{recipe.display_name} Active", 1.0, font_small, theme='complete', icon_kind='check')
         elif active_proj is not None:
@@ -225,15 +251,7 @@ def _draw_tier_section(surface, world, pinned, nation, icon_kind, tier_title, tr
             draw_progress_bar_button(surface, btn_rect, f"{recipe.display_name}: {active_proj.turns_elapsed}/{active_proj.total_turns}t ({int(pct*100)}%)", pct, font_small, theme='construction', icon_kind=r_key)
         else:
             can_afford = treasury_amt >= cost
-            hb = btn_rect[0] <= mx <= btn_rect[0] + btn_rect[2] and btn_rect[1] <= my <= btn_rect[1] + btn_rect[3]
-            bg = (40, 42, 56) if can_afford else (30, 30, 38)
-            if hb:
-                bg = (55, 58, 78) if can_afford else (42, 38, 42)
-                from worldview_tooltips import get_button_tooltip_data
-                tdata = get_button_tooltip_data(f"build_{r_key}", world, pinned, nation)
-                if tdata:
-                    tdata['btn_rect'] = btn_rect
-                    world['_hovered_left_tooltip'] = tdata
+            bg = (55, 58, 78) if (hb and can_afford) else ((42, 38, 42) if hb else ((40, 42, 56) if can_afford else (30, 30, 38)))
             pygame.draw.rect(surface, bg, btn_rect, border_radius=4)
             pygame.draw.rect(surface, (80, 85, 115) if can_afford else (60, 50, 55), btn_rect, 1, border_radius=4)
 
