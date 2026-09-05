@@ -182,3 +182,6 @@ def step_wilderness(region, t):
     region.avg_consciousness_log.append(0.0)
     region.workplace_accidents_log.append(0)
     region.entertainment_log.append(0.0)
+    region.strikers_log.append(0)
+    region.broken_machinery_log.append(0)
+    region.sabotage_log.append(0)

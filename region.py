@@ -185,6 +185,9 @@ class Region:
         self.avg_consciousness_log: list = []  # time-series of worker class consciousness
         self.workplace_accidents_log: list = []  # time-series of disabling factory accidents
         self.entertainment_log: list = []  # time-series of entertainment investment
+        self.strikers_log: list = []  # time-series of active striking workers
+        self.broken_machinery_log: list = []  # time-series of broken factory machines
+        self.sabotage_log: list = []  # time-series of machines sabotaged this turn
 
         self.recipes = copy.deepcopy(recipes)
         self.goods = list(goods)
@@ -508,6 +511,14 @@ class Region:
         if new_companies:
             self.agents.extend(new_companies)
         self._audit_cash(t, "labour_done")
+
+        # Workplace resistance: strikes, sabotage, and machinery repairs (P2.3)
+        from labor_resistance import step_workplace_resistance
+        res_info = step_workplace_resistance(self, t)
+        self.strikers_log.append(res_info['strikers'])
+        self.broken_machinery_log.append(res_info['broken_machinery'])
+        self.sabotage_log.append(res_info['smashed_this_turn'])
+        self._audit_cash(t, "resistance_done")
 
         # Production
         _prod.produce(self, t)

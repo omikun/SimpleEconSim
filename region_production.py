@@ -26,8 +26,12 @@ def terrain_bonus(region, good):
 
 def produce_corporation(region, agent, recipe, output, num_agents_per_good, local_total_production):
     """Run production logic for a corporate employer."""
-    num_employees = len(agent.employees)
-    max_inventory = recipe['maxinv'] * (1 + num_employees)
+    # P2.3: Striking workers withhold living labor power
+    working_employees = [e for e in agent.employees if not getattr(e, 'is_striking', False)]
+    num_employees = len(working_employees)
+    if num_employees == 0:
+        return
+    max_inventory = recipe['maxinv'] * (1 + len(agent.employees))
     if agent.inv_get(output, 0) / max_inventory >= 1:
         return
     num_slots = num_employees

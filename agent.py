@@ -102,6 +102,7 @@ class Agent:
         'wages_received', 'workplace_accident',
         '_latest_labor_stats',
         'alienation', 'health_attrition', 'despair', 'class_consciousness',
+        'is_striking', 'is_on_strike',
     )
 
     def __init__(self, t):
@@ -219,6 +220,8 @@ class Agent:
         self.health_attrition = 0.0          # bodily wear, industrial disease & fatigue (0.0 to 2.5)
         self.despair = 0.0                   # acute despair driving vice spending (0.0 to 1.0)
         self.class_consciousness = 0.0       # worker political consciousness (0.0 to 1.0)
+        self.is_striking = False             # true if withholding labor on strike
+        self.is_on_strike = False            # true if firm operations shut down by strike
 
     def name(self):
         prof_label = profession.get(self.output, '-')

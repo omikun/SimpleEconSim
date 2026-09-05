@@ -151,24 +151,41 @@ def accumulate_grievances(region, t):
                    if not a.is_corporation and not a.is_government)
     eviction_score = min(2.5, eviction / 40.0)
 
+    # labor exploitation, shift hours & casualties (P2.3)
+    shifts = getattr(region, 'avg_shift_hours_log', [])
+    avg_shift = shifts[-1] if shifts else 8.0
+    shift_score = min(2.0, max(0.0, (avg_shift - 8.0) / 4.0))
+
+    accidents = getattr(region, 'workplace_accidents_log', [])
+    accident_count = accidents[-1] if accidents else 0
+    accident_score = min(2.0, accident_count * 0.4)
+
+    strikers_count = sum(1 for a in agents if getattr(a, 'is_striking', False))
+    strike_score = min(2.5, strikers_count / 8.0)
+    labor_grievance = shift_score + accident_score + strike_score
+
     for f in region.factions.factions.values():
         if f.kind == 'political':
             n_add = (hunger_score * 0.6 + gini * 1.2
-                     + tax * 1.5 + unemp * 1.5 + trauma_score + eviction_score * 1.2)
+                     + tax * 1.5 + unemp * 1.5 + trauma_score + eviction_score * 1.2
+                     + labor_grievance * 1.2)
             f.add_grievance('hunger', hunger_score * 0.6)
             f.add_grievance('gini', gini * 1.2)
             f.add_grievance('tax', tax * 1.5)
             f.add_grievance('unemployment', unemp * 1.5)
             f.add_grievance('repression', trauma_score)
             f.add_grievance('enclosure', eviction_score * 1.2)
+            f.add_grievance('labor', labor_grievance * 1.2)
         else:
-            n_add = hunger_score + gini + tax + unemp + trauma_score + eviction_score * 1.5
+            n_add = (hunger_score + gini + tax + unemp + trauma_score
+                     + eviction_score * 1.5 + labor_grievance * 1.5)
             f.add_grievance('hunger', hunger_score)
             f.add_grievance('gini', gini)
             f.add_grievance('tax', tax)
             f.add_grievance('unemployment', unemp)
             f.add_grievance('repression', trauma_score)
             f.add_grievance('enclosure', eviction_score * 1.5)
+            f.add_grievance('labor', labor_grievance * 1.5)
         adds[f.name] = n_add
     return adds
 
