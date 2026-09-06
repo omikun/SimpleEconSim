@@ -378,8 +378,9 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
                 cx, cy = axial_to_pixel(q, r, HEX_SIZE)
                 is_ocean = getattr(t, 'is_ocean', False)
                 elev = getattr(t, 'elevation', 0.0)
-                tile_dict[(q, r)] = (float(elev), is_ocean, (cx, cy))
-                if not is_ocean and (elev >= 0.65 or getattr(t, 'biome', '') in ('mountains', 'snow_peaks')):
+                biome = getattr(t, 'biome', 'plains')
+                tile_dict[(q, r)] = (float(elev), is_ocean, (cx, cy), biome)
+                if not is_ocean and (elev >= 0.65 or biome in ('mountains', 'snow_peaks')):
                     mountain_centers.append((cx, cy))
     else:
         for name, (q, r) in layout.items():
@@ -389,7 +390,8 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
             )
             cx, cy = axial_to_pixel(q, r, HEX_SIZE)
             is_ocean = h < 0.0
-            tile_dict[(q, r)] = (h, is_ocean, (cx, cy))
+            biome = generator.get_biome(h)
+            tile_dict[(q, r)] = (h, is_ocean, (cx, cy), biome)
             if not is_ocean and h >= 0.65:
                 mountain_centers.append((cx, cy))
 
@@ -413,8 +415,8 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
     NX = (WX - cx_center) / span_x
     NY = (WY - cy_center) / span_y
 
-    # 1. Full-strength Original 10-Octave Inigo Quilez Derivative Erosion fBm
-    scale = 3.2
+    # 1. 7-Octave Inigo Quilez Derivative Erosion fBm (eliminates noisy 1-pixel grain)
+    scale = 3.0
     PX = NX * scale
     PY = NY * scale
 
@@ -425,7 +427,7 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
     noise_tbl = generator.noise_table
     m2 = generator.m2
 
-    for i in range(10):
+    for i in range(7):
         ix = np.floor(PX).astype(np.int32)
         iy = np.floor(PY).astype(np.int32)
         fx = PX - ix
@@ -458,7 +460,7 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
         dx_accum += ndx
         dy_accum += ndy
 
-        erosion_term = 1.0 + (dx_accum**2 + dy_accum**2)
+        erosion_term = 1.0 + (dx_accum**2 + dy_accum**2) * 0.75
         a += b * n_val / erosion_term
 
         b *= 0.50
@@ -466,12 +468,12 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
         npy = 2.0 * (m2[1, 0] * PX + m2[1, 1] * PY)
         PX, PY = npx, npy
 
-    H_noise = (a - 0.9) * 0.75
+    H_noise = (a - 0.85) * 0.70
 
-    # 2. Hex Conformation via Smooth Land/Mountain Potential Field
-    warp_amp = HEX_SIZE * 0.14
-    XW = WX + dx_accum * 0.25 * warp_amp
-    YW = WY + dy_accum * 0.25 * warp_amp
+    # 2. Hex Conformation & True Biome Fields
+    warp_amp = HEX_SIZE * 0.12
+    XW = WX + dx_accum * 0.20 * warp_amp
+    YW = WY + dy_accum * 0.20 * warp_amp
 
     q_frac = (_SQRT3 / 3.0 * XW - 1.0 / 3.0 * YW) / HEX_SIZE
     r_frac = (2.0 / 3.0 * YW) / HEX_SIZE
@@ -498,14 +500,28 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
     r_size = max_r - min_r + 1
 
     grid_land = np.zeros((r_size, q_size), dtype=np.float32)
+    grid_forest = np.zeros((r_size, q_size), dtype=np.float32)
     grid_mountain = np.zeros((r_size, q_size), dtype=np.float32)
+    grid_snow = np.zeros((r_size, q_size), dtype=np.float32)
+    grid_hills = np.zeros((r_size, q_size), dtype=np.float32)
 
-    for (q, r), (elev, is_ocean, _) in tile_dict.items():
-        grid_land[r - min_r, q - min_q] = 0.0 if is_ocean else 1.0
-        grid_mountain[r - min_r, q - min_q] = 1.0 if (not is_ocean and elev >= 0.65) else 0.0
+    for (q, r), (elev, is_ocean, _, biome) in tile_dict.items():
+        if not is_ocean:
+            grid_land[r - min_r, q - min_q] = 1.0
+            if biome == 'forest':
+                grid_forest[r - min_r, q - min_q] = 1.0
+            elif biome in ('mountains', 'snow_peaks') or elev >= 0.65:
+                grid_mountain[r - min_r, q - min_q] = 1.0
+                if biome == 'snow_peaks' or elev >= 0.88:
+                    grid_snow[r - min_r, q - min_q] = 1.0
+            elif biome == 'hills':
+                grid_hills[r - min_r, q - min_q] = 1.0
 
     H_land_sum = np.zeros_like(WX, dtype=np.float32)
+    H_forest_sum = np.zeros_like(WX, dtype=np.float32)
     H_mount_sum = np.zeros_like(WX, dtype=np.float32)
+    H_snow_sum = np.zeros_like(WX, dtype=np.float32)
+    H_hills_sum = np.zeros_like(WX, dtype=np.float32)
     W_total = np.zeros_like(WX, dtype=np.float32)
 
     R_blend = HEX_SIZE * 1.85
@@ -519,7 +535,10 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
         in_bounds = (qc >= min_q) & (qc <= max_q) & (rc >= min_r) & (rc <= max_r)
 
         l_cand = np.where(in_bounds, grid_land[rc_clamped, qc_clamped], 0.0)
+        f_cand = np.where(in_bounds, grid_forest[rc_clamped, qc_clamped], 0.0)
         m_cand = np.where(in_bounds, grid_mountain[rc_clamped, qc_clamped], 0.0)
+        s_cand = np.where(in_bounds, grid_snow[rc_clamped, qc_clamped], 0.0)
+        h_cand = np.where(in_bounds, grid_hills[rc_clamped, qc_clamped], 0.0)
 
         cx_cand = HEX_SIZE * _SQRT3 * (qc + rc / 2.0)
         cy_cand = HEX_SIZE * 1.5 * rc
@@ -527,22 +546,33 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
 
         w = np.maximum(0.0, 1.0 - (d2 / R2))**3.0
         H_land_sum += w * l_cand
+        H_forest_sum += w * f_cand
         H_mount_sum += w * m_cand
+        H_snow_sum += w * s_cand
+        H_hills_sum += w * h_cand
         W_total += w
 
     H_land_prob = H_land_sum / (W_total + 1e-6)
+    H_forest_prob = H_forest_sum / (W_total + 1e-6)
     H_mount_prob = H_mount_sum / (W_total + 1e-6)
+    H_snow_prob = H_snow_sum / (W_total + 1e-6)
+    H_hills_prob = H_hills_sum / (W_total + 1e-6)
 
-    # 3. Macro continent shape conforming to hex land outline
+    # 3. Macro continent shape & height modulation
     continent_base = (H_land_prob - 0.42) * 0.95
     mountain_ridge = H_mount_prob * 0.45
 
-    # Flatter/smoother plains: attenuate high-frequency roughness in lowlands
-    # while keeping full ruggedness in mountains and hills
-    plains_smooth_mult = 0.55 + 0.45 * np.clip(mountain_ridge / 0.20, 0.0, 1.0)
-    modulated_H_noise = H_noise * plains_smooth_mult
+    # Smooth plains in lowlands, rugged alpine relief on mountains
+    plains_factor = np.clip(1.0 - H_forest_prob - H_mount_prob - H_hills_prob, 0.0, 1.0)
+    roughness_mult = 0.40 * plains_factor + 0.65 * H_forest_prob + 1.00 * H_mount_prob + 0.75 * H_hills_prob
+    roughness_mult = np.clip(roughness_mult, 0.35, 1.0)
 
-    raw_H = continent_base + mountain_ridge + modulated_H_noise
+    # Multi-scale volumetric tree canopy relief in forest zones
+    canopy_w1 = np.sin(XW / 18.0) * np.cos(YW / 18.0)
+    canopy_w2 = np.sin((XW * 0.8 + YW * 0.6) / 10.0 + canopy_w1 * 1.2) * 0.5 + 0.5
+    canopy_bumps = np.maximum(0.0, np.sin(canopy_w2 * math.pi))**1.5 * 0.035 * H_forest_prob
+
+    raw_H = continent_base + mountain_ridge + H_noise * roughness_mult + canopy_bumps
 
     # Submerge any phantom specks in deep ocean
     deep_ocean_mask = H_land_prob < 0.12
@@ -551,8 +581,8 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
     # Scale land elevation smoothly
     H = np.where(raw_H > 0.0, raw_H * 0.92, raw_H)
 
-    # Realistic 3D Analytical Surface Normals (Balanced gradient scale 0.14)
-    height_exaggeration = 0.14
+    # Realistic 3D Analytical Surface Normals (Balanced gradient scale 0.13)
+    height_exaggeration = 0.13
     dHx = np.gradient(H, axis=1) * (width / 2.0) * height_exaggeration
     dHy = np.gradient(H, axis=0) * (height / 2.0) * height_exaggeration
     Nz = np.ones_like(H, dtype=np.float32)
@@ -617,63 +647,62 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
     specular = np.clip(Nx * half_vec[0] + Ny * half_vec[1] + Nz * half_vec[2], 0.0, 1.0)**28 * 0.25
     w_lit = w_col * (0.60 + 0.40 * direct_sun[:, :, None]) + specular[:, :, None]
 
-    # Land Materials & Continuous Alpine Peak Gradients
-    beach = np.array([0.74, 0.69, 0.52], dtype=np.float32)
-    plains = np.array([0.32, 0.52, 0.26], dtype=np.float32)      # Lush, smoother grassy meadow
-    forest_deep = np.array([0.10, 0.26, 0.12], dtype=np.float32) # Rich deep conifer/pine
-    forest_lush = np.array([0.16, 0.38, 0.18], dtype=np.float32) # Vibrant deciduous green
-    hills = np.array([0.46, 0.42, 0.30], dtype=np.float32)
+    # Land Biome Materials
+    beach = np.array([0.76, 0.72, 0.54], dtype=np.float32)
+    plains = np.array([0.36, 0.58, 0.30], dtype=np.float32) # Clean, lush meadow
+    
+    # Rich multi-toned forest canopy (evergreen emerald & deep spruce)
+    forest_deep = np.array([0.09, 0.25, 0.12], dtype=np.float32)
+    forest_lush = np.array([0.15, 0.40, 0.18], dtype=np.float32)
+    forest_canopy_color = forest_deep * (1.0 - canopy_w2[:, :, None] * 0.55) + forest_lush * (canopy_w2[:, :, None] * 0.55)
+
+    hills = np.array([0.48, 0.44, 0.32], dtype=np.float32)
     rock_slate = np.array([0.38, 0.36, 0.39], dtype=np.float32)  # Dark mountain slate
     rock_granite = np.array([0.50, 0.48, 0.52], dtype=np.float32)# High rocky crags (no snow)
     cliff_dark = np.array([0.24, 0.23, 0.26], dtype=np.float32)
     snow_base = np.array([0.90, 0.93, 0.97], dtype=np.float32)   # Glacial snow (ONLY >= 0.88)
     snow_summit = np.array([0.99, 0.99, 1.00], dtype=np.float32)
 
-    # Procedural Forest Canopy Texture Clumping (multi-scale noise)
-    canopy_var = np.sin(NX * 45.0 + np.cos(NY * 45.0) * 2.0) * np.cos(NY * 45.0) * 0.5 + 0.5
-    forest_textured = forest_deep * (1.0 - canopy_var[:, :, None] * 0.45) + forest_lush * (canopy_var[:, :, None] * 0.45)
+    # 4. Continuous Biome-Aware Material Composition
+    # Start with base lowland plains
+    land_c = np.tile(plains[None, None, :], (height, width, 1))
 
-    land_c = np.zeros((height, width, 3), dtype=np.float32)
+    # Blend Forest according to actual hex forest probability
+    f_weight = np.clip(H_forest_prob * 1.5, 0.0, 1.0)[:, :, None]
+    land_c = land_c * (1.0 - f_weight) + forest_canopy_color * f_weight
 
-    # Beach [0.0, 0.04]
-    t_b = np.clip(H / 0.04, 0.0, 1.0)[:, :, None]
-    land_c = np.where(H[:, :, None] < 0.04, beach * (1.0 - t_b) + plains * t_b, land_c)
+    # Blend Hills
+    h_weight = np.clip(H_hills_prob * 1.3, 0.0, 1.0)[:, :, None]
+    land_c = land_c * (1.0 - h_weight * 0.7) + hills * (h_weight * 0.7)
 
-    # Plains [0.04, 0.22] - Smooth & flat
-    t_p = np.clip((H - 0.04) / 0.18, 0.0, 1.0)[:, :, None]
-    land_c = np.where((H[:, :, None] >= 0.04) & (H[:, :, None] < 0.22), plains * (1.0 - t_p) + forest_textured * t_p, land_c)
+    # Blend Mountains (slate & granite crags)
+    m_weight = np.clip(H_mount_prob * 1.4 + np.clip((H - 0.70)/0.18, 0.0, 1.0), 0.0, 1.0)[:, :, None]
+    m_rock = rock_slate * (1.0 - np.clip((H - 0.72)/0.16, 0.0, 1.0)[:, :, None]) + rock_granite * np.clip((H - 0.72)/0.16, 0.0, 1.0)[:, :, None]
+    land_c = land_c * (1.0 - m_weight) + m_rock * m_weight
 
-    # Forest [0.22, 0.48] - Rich varied woodland canopy
-    t_f = np.clip((H - 0.22) / 0.26, 0.0, 1.0)[:, :, None]
-    land_c = np.where((H[:, :, None] >= 0.22) & (H[:, :, None] < 0.48), forest_textured * (1.0 - t_f) + hills * t_f, land_c)
-
-    # Hills [0.48, 0.70]
-    t_h = np.clip((H - 0.48) / 0.22, 0.0, 1.0)[:, :, None]
-    land_c = np.where((H[:, :, None] >= 0.48) & (H[:, :, None] < 0.70), hills * (1.0 - t_h) + rock_slate * t_h, land_c)
-
-    # Mountains [0.70, 0.88] - Rocky crags, granite, slate (STRICTLY NO SNOW)
-    t_m = np.clip((H - 0.70) / 0.18, 0.0, 1.0)[:, :, None]
-    land_c = np.where((H[:, :, None] >= 0.70) & (H[:, :, None] < 0.88), rock_slate * (1.0 - t_m) + rock_granite * t_m, land_c)
-
-    # Snow Peaks [>= 0.88] - ONLY snow mountain tiles have snow white color
-    t_peak = np.clip((H - 0.88) / 0.12, 0.0, 1.0)[:, :, None]
-    land_c = np.where(H[:, :, None] >= 0.88, rock_granite * (1.0 - t_peak) + (snow_base * (1.0 - t_peak*0.5) + snow_summit * (t_peak*0.5)) * t_peak, land_c)
-
-    # Cliff Face Exposure on steep slopes (> 28 deg)
-    cliff_factor = np.clip((slope - 0.10) / 0.25, 0.0, 1.0)[:, :, None]
+    # Cliff Face Exposure (ONLY on steep rocky slopes in mountain/hill biomes, NOT on green shores)
+    rock_presence = np.clip(H_mount_prob * 1.5 + H_hills_prob * 0.5, 0.0, 1.0)[:, :, None]
+    cliff_factor = np.clip((slope - 0.16) / 0.20, 0.0, 1.0)[:, :, None] * rock_presence
     cliff_col = np.where(H[:, :, None] >= 0.88, rock_granite, cliff_dark)
-    land_c = land_c * (1.0 - cliff_factor * 0.70) + cliff_col * (cliff_factor * 0.70)
+    land_c = land_c * (1.0 - cliff_factor * 0.65) + cliff_col * (cliff_factor * 0.65)
+
+    # Blend Beach ONLY at the immediate water edge (H in [0.0, 0.035])
+    beach_mask = np.clip((0.035 - H) / 0.035, 0.0, 1.0)[:, :, None]
+    land_c = land_c * (1.0 - beach_mask) + beach * beach_mask
+
+    # Snow Peaks (Strictly high elevation AND snow peak field)
+    snow_weight = np.clip(H_snow_prob * 1.5, 0.0, 1.0) * np.clip((H - 0.82) / 0.10, 0.0, 1.0)
+    snow_col = snow_base * (1.0 - np.clip((H - 0.88)/0.12, 0.0, 1.0)[:, :, None]) + snow_summit * np.clip((H - 0.88)/0.12, 0.0, 1.0)[:, :, None]
+    land_c = land_c * (1.0 - snow_weight[:, :, None]) + snow_col * snow_weight[:, :, None]
 
     # Natural Balanced Lighting
     sun_color = np.array([1.18, 1.10, 0.96], dtype=np.float32)
     sky_color = np.array([0.22, 0.28, 0.40], dtype=np.float32)
     total_light = (direct_sun[:, :, None] * sun_color + sky_light[:, :, None] * sky_color + 0.12)
 
-    # Crisp Glacial Crest Specular (STRICTLY for Snow Peaks >= 0.88)
-    snow_mask = np.clip((H - 0.88) / 0.10, 0.0, 1.0)[:, :, None]
+    # Crisp Glacial Crest Specular (STRICTLY for Snow Peaks)
     snow_specular = (np.clip(Nx * half_vec[0] + Ny * half_vec[1] + Nz * half_vec[2], 0.0, 1.0)**20 * 0.25)[:, :, None] * direct_sun[:, :, None]
-
-    land_lit = land_c * total_light + snow_mask * snow_specular
+    land_lit = land_c * total_light + snow_weight[:, :, None] * snow_specular
 
     # -------------------------------------------------------------
     # Procedural River Overlay & Fluvial Corridors
