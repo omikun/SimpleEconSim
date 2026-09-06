@@ -16,7 +16,7 @@ Ensures that the entire landmass is ONE continuous chunk (1 connected component)
 import math
 import random
 from collections import deque
-from hexmap import rectangular_hex_layout, axial_neighbors, axial_to_offset
+from hexmap import rectangular_hex_layout, axial_neighbors, axial_to_offset, axial_to_pixel, HEX_DIRS, _SQRT3
 
 
 import numpy as np
@@ -342,27 +342,56 @@ def apply_heightmap_to_world(tiles: list, seed: int = 42, grid_rows: int = 9, gr
         tile.terrain_color = shaded_c
 
     return generator
-
-
 _TOPOGRAPHIC_SURFACE_CACHE = {}
 
 
-def get_cached_topographic_surface(seed, bbox, canvas_w=2400, canvas_h=1800):
-    """Return pre-rendered, 4x Ultra-HD topographic elevation surface with contour lines and hillshading."""
-    cache_key = (seed, bbox, canvas_w, canvas_h)
+def get_cached_topographic_surface(seed, bbox, tiles=None, layout=None, canvas_w=2400, canvas_h=1800):
+    """Return pre-rendered, 4x Ultra-HD topographic elevation surface conforming closely to the hex tile map."""
+    tile_sig = tuple((t.name, round(getattr(t, 'elevation', 0.0), 3), bool(getattr(t, 'is_ocean', False))) for t in tiles) if tiles else None
+    cache_key = (seed, bbox, canvas_w, canvas_h, tile_sig)
     if cache_key in _TOPOGRAPHIC_SURFACE_CACHE:
         return _TOPOGRAPHIC_SURFACE_CACHE[cache_key]
 
     generator = HeightMapGenerator(seed=seed if seed is not None else 42)
-    surf = generator.generate_topographic_surface(bbox, width=canvas_w, height=canvas_h)
+    surf = generator.generate_topographic_surface(bbox, tiles=tiles, layout=layout, width=canvas_w, height=canvas_h)
     _TOPOGRAPHIC_SURFACE_CACHE[cache_key] = surf
     return surf
-
-
-def _generate_topographic_surface_impl(generator, bbox, width: int = 2400, height: int = 1800) -> "pygame.Surface":
-    """Render an Ultra-HD photorealistic 3D raymarched terrain surface with cast shadows, PBR lighting, and biomes."""
+def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None, width: int = 2400, height: int = 1800) -> "pygame.Surface":
+    """Render an Ultra-HD photorealistic 3D raymarched terrain surface with full-strength derivative erosion fractals conforming to the hex tile map."""
     import pygame
     import numpy as np
+    import random
+
+    HEX_SIZE = 50
+
+    if layout is None:
+        layout = rectangular_hex_layout(generator.grid_rows, generator.grid_cols)
+
+    tile_dict = {}
+    mountain_centers = []
+
+    if tiles is not None:
+        for t in tiles:
+            coords = layout.get(t.name)
+            if coords is not None:
+                q, r = coords
+                cx, cy = axial_to_pixel(q, r, HEX_SIZE)
+                is_ocean = getattr(t, 'is_ocean', False)
+                elev = getattr(t, 'elevation', 0.0)
+                tile_dict[(q, r)] = (float(elev), is_ocean, (cx, cy))
+                if not is_ocean and (elev >= 0.65 or getattr(t, 'biome', '') in ('mountains', 'snow_peaks')):
+                    mountain_centers.append((cx, cy))
+    else:
+        for name, (q, r) in layout.items():
+            h = generator.get_continuous_height(
+                (q - (generator.grid_cols - 1) / 2.0) / (generator.grid_cols / 2.0),
+                (r - (generator.grid_rows - 1) / 2.0) / (generator.grid_rows / 2.0)
+            )
+            cx, cy = axial_to_pixel(q, r, HEX_SIZE)
+            is_ocean = h < 0.0
+            tile_dict[(q, r)] = (h, is_ocean, (cx, cy))
+            if not is_ocean and h >= 0.65:
+                mountain_centers.append((cx, cy))
 
     x0, y0, x1, y1 = bbox
     pad_x = (x1 - x0) * 0.18
@@ -372,12 +401,11 @@ def _generate_topographic_surface_impl(generator, bbox, width: int = 2400, heigh
     min_wy = y0 - pad_y
     max_wy = y1 + pad_y
 
-    cx_center = (x0 + x1) / 2.0
-    cy_center = (y0 + y1) / 2.0
     span_x = (x1 - x0) / 2.0
     span_y = (y1 - y0) / 2.0
+    cx_center = (x0 + x1) / 2.0
+    cy_center = (y0 + y1) / 2.0
 
-    # Meshgrid of normalized coords
     y_vals = np.linspace(min_wy, max_wy, height, dtype=np.float32)
     x_vals = np.linspace(min_wx, max_wx, width, dtype=np.float32)
     WX, WY = np.meshgrid(x_vals, y_vals)
@@ -385,14 +413,7 @@ def _generate_topographic_surface_impl(generator, bbox, width: int = 2400, heigh
     NX = (WX - cx_center) / span_x
     NY = (WY - cy_center) / span_y
 
-    # Continuous Heightfield Evaluation
-    R_sq = NX**2 + NY**2
-    continent_base = 0.54 - 0.76 * R_sq
-
-    diag = NX * math.cos(generator.spine_angle) + NY * math.sin(generator.spine_angle) + generator.spine_offset
-    ridge = np.exp(-4.2 * (diag**2)) * 0.38
-
-    # Inigo Quilez 10-Octave Derivative Erosion fBm
+    # 1. Full-strength Original 10-Octave Inigo Quilez Derivative Erosion fBm
     scale = 3.2
     PX = NX * scale
     PY = NY * scale
@@ -446,7 +467,83 @@ def _generate_topographic_surface_impl(generator, bbox, width: int = 2400, heigh
         PX, PY = npx, npy
 
     H_noise = (a - 0.9) * 0.75
-    raw_H = continent_base + ridge + H_noise
+
+    # 2. Hex Conformation via Smooth Land/Mountain Potential Field
+    warp_amp = HEX_SIZE * 0.14
+    XW = WX + dx_accum * 0.25 * warp_amp
+    YW = WY + dy_accum * 0.25 * warp_amp
+
+    q_frac = (_SQRT3 / 3.0 * XW - 1.0 / 3.0 * YW) / HEX_SIZE
+    r_frac = (2.0 / 3.0 * YW) / HEX_SIZE
+    x_cube = q_frac
+    y_cube = r_frac
+    z_cube = -q_frac - r_frac
+    rx = np.round(x_cube).astype(np.int32)
+    ry = np.round(y_cube).astype(np.int32)
+    rz = np.round(z_cube).astype(np.int32)
+    dx = np.abs(rx - x_cube)
+    dy = np.abs(ry - y_cube)
+    dz = np.abs(rz - z_cube)
+    mask_x = (dx > dy) & (dx > dz)
+    mask_y = (~mask_x) & (dy > dz)
+    q_near = np.where(mask_x, -ry - rz, rx)
+    r_near = np.where(mask_y, -rx - rz, ry)
+
+    all_dirs = ((0, 0),) + HEX_DIRS
+    all_qs = [q for q, r in tile_dict.keys()]
+    all_rs = [r for q, r in tile_dict.keys()]
+    min_q, max_q = min(all_qs) - 2, max(all_qs) + 2
+    min_r, max_r = min(all_rs) - 2, max(all_rs) + 2
+    q_size = max_q - min_q + 1
+    r_size = max_r - min_r + 1
+
+    grid_land = np.zeros((r_size, q_size), dtype=np.float32)
+    grid_mountain = np.zeros((r_size, q_size), dtype=np.float32)
+
+    for (q, r), (elev, is_ocean, _) in tile_dict.items():
+        grid_land[r - min_r, q - min_q] = 0.0 if is_ocean else 1.0
+        grid_mountain[r - min_r, q - min_q] = 1.0 if (not is_ocean and elev >= 0.65) else 0.0
+
+    H_land_sum = np.zeros_like(WX, dtype=np.float32)
+    H_mount_sum = np.zeros_like(WX, dtype=np.float32)
+    W_total = np.zeros_like(WX, dtype=np.float32)
+
+    R_blend = HEX_SIZE * 1.85
+    R2 = R_blend * R_blend
+
+    for dq, dr in all_dirs:
+        qc = q_near + dq
+        rc = r_near + dr
+        qc_clamped = np.clip(qc - min_q, 0, q_size - 1)
+        rc_clamped = np.clip(rc - min_r, 0, r_size - 1)
+        in_bounds = (qc >= min_q) & (qc <= max_q) & (rc >= min_r) & (rc <= max_r)
+
+        l_cand = np.where(in_bounds, grid_land[rc_clamped, qc_clamped], 0.0)
+        m_cand = np.where(in_bounds, grid_mountain[rc_clamped, qc_clamped], 0.0)
+
+        cx_cand = HEX_SIZE * _SQRT3 * (qc + rc / 2.0)
+        cy_cand = HEX_SIZE * 1.5 * rc
+        d2 = (XW - cx_cand)**2 + (YW - cy_cand)**2
+
+        w = np.maximum(0.0, 1.0 - (d2 / R2))**3.0
+        H_land_sum += w * l_cand
+        H_mount_sum += w * m_cand
+        W_total += w
+
+    H_land_prob = H_land_sum / (W_total + 1e-6)
+    H_mount_prob = H_mount_sum / (W_total + 1e-6)
+
+    # 3. Macro continent shape conforming to hex land outline + full fractal noise
+    continent_base = (H_land_prob - 0.42) * 0.95
+    mountain_ridge = H_mount_prob * 0.45
+
+    raw_H = continent_base + mountain_ridge + H_noise
+
+    # Submerge any phantom specks in deep ocean
+    deep_ocean_mask = H_land_prob < 0.12
+    raw_H = np.where(deep_ocean_mask, np.minimum(-0.15, raw_H), raw_H)
+
+    # Scale land elevation smoothly
     H = np.where(raw_H > 0.0, raw_H * 0.92, raw_H)
 
     # Realistic 3D Analytical Surface Normals (Balanced gradient scale 0.14)
@@ -495,7 +592,7 @@ def _generate_topographic_surface_impl(generator, bbox, width: int = 2400, heigh
 
     direct_sun = diffuse_sun * shadow_mask
 
-    # Compact, Delicate Ocean Depth (Fine coastal fringe, not chunky blobs)
+    # Compact, Delicate Ocean Depth
     is_water = H < 0.0
     water_depth = np.clip(-H / 0.25, 0.0, 1.0)
 
@@ -523,7 +620,7 @@ def _generate_topographic_surface_impl(generator, bbox, width: int = 2400, heigh
     rock_strata = np.array([0.42, 0.40, 0.44], dtype=np.float32)
     cliff_dark = np.array([0.26, 0.25, 0.28], dtype=np.float32)
     snow_base = np.array([0.88, 0.91, 0.95], dtype=np.float32)
-    snow_summit = np.array([0.98, 0.99, 1.00], dtype=np.float32)   # Crisp razor-sharp peak snow
+    snow_summit = np.array([0.98, 0.99, 1.00], dtype=np.float32)
 
     land_c = np.zeros((height, width, 3), dtype=np.float32)
 
@@ -570,29 +667,102 @@ def _generate_topographic_surface_impl(generator, bbox, width: int = 2400, heigh
     # -------------------------------------------------------------
     # Procedural River Overlay & Fluvial Corridors
     # -------------------------------------------------------------
-    river_paths = generator.generate_river_paths()
-    generator.river_paths = river_paths
-
     river_surf = pygame.Surface((width, height), pygame.SRCALPHA)
     bank_surf = pygame.Surface((width, height), pygame.SRCALPHA)
 
-    for path in river_paths:
-        if len(path) < 2:
-            continue
-        pts = []
-        for nx_p, ny_p in path:
-            px_val = int((nx_p * span_x + cx_center - min_wx) / (max_wx - min_wx) * width)
-            py_val = int((ny_p * span_y + cy_center - min_wy) / (max_wy - min_wy) * height)
-            pts.append((px_val, py_val))
+    springs = []
+    if mountain_centers:
+        springs = list(mountain_centers)
+    else:
+        if tiles is not None:
+            for t in tiles:
+                if getattr(t, 'elevation', 0.0) >= 0.65 and not getattr(t, 'is_ocean', False):
+                    coords = layout.get(t.name)
+                    if coords is not None:
+                        q, r = coords
+                        cx, cy = axial_to_pixel(q, r, HEX_SIZE)
+                        springs.append((cx, cy))
+        else:
+            sample_ny = np.linspace(-0.82, 0.82, 32)
+            sample_nx = np.linspace(-0.82, 0.82, 32)
+            for s_ny in sample_ny:
+                for s_nx in sample_nx:
+                    h_val = generator.get_continuous_height(float(s_nx), float(s_ny))
+                    if 0.48 <= h_val <= 0.82:
+                        px_c = float(s_nx * span_x + cx_center)
+                        py_c = float(s_ny * span_y + cy_center)
+                        springs.append((px_c, py_c))
 
-        for idx in range(len(pts) - 1):
-            t_progress = idx / float(len(pts))
-            river_w = max(2, int(3 + t_progress * 9))
-            bank_w = river_w + 6
-            p1, p2 = pts[idx], pts[idx + 1]
-            pygame.draw.line(bank_surf, (80, 145, 60, 200), p1, p2, bank_w)
-            pygame.draw.line(river_surf, (35, 115, 210, 255), p1, p2, river_w)
-            pygame.draw.circle(river_surf, (35, 115, 210, 255), p2, max(1, river_w // 2))
+    rng_riv = random.Random(generator.seed + 999)
+    rng_riv.shuffle(springs)
+
+    selected_springs = []
+    for sc in springs:
+        if all((sc[0] - prev[0])**2 + (sc[1] - prev[1])**2 > (HEX_SIZE * 2.0)**2 for prev in selected_springs):
+            selected_springs.append(sc)
+            if len(selected_springs) >= 5:
+                break
+
+    for sx, sy in selected_springs:
+        cur_x, cur_y = sx, sy
+        pts = [(int((cur_x - min_wx) / (max_wx - min_wx) * width), int((cur_y - min_wy) / (max_wy - min_wy) * height))]
+        vel_x, vel_y = 0.0, 0.0
+        visited_pts = {(pts[0][0] // 8, pts[0][1] // 8)}
+
+        for _ in range(150):
+            px_i = int(round((cur_x - min_wx) / (max_wx - min_wx) * (width - 1)))
+            py_i = int(round((cur_y - min_wy) / (max_wy - min_wy) * (height - 1)))
+            if not (4 <= px_i < width - 4 and 4 <= py_i < height - 4):
+                break
+            h_val = H[py_i, px_i]
+            if h_val <= -0.01:
+                break
+
+            dhx_val = H[py_i, px_i + 3] - H[py_i, px_i - 3]
+            dhy_val = H[py_i + 3, px_i] - H[py_i - 3, px_i]
+            g_mag = math.sqrt(dhx_val**2 + dhy_val**2)
+
+            out_x = (cur_x - cx_center) / span_x
+            out_y = (cur_y - cy_center) / span_y
+            out_len = math.sqrt(out_x**2 + out_y**2) + 1e-5
+            out_x /= out_len
+            out_y /= out_len
+
+            if g_mag > 1e-4:
+                grad_x = -dhx_val / g_mag
+                grad_y = -dhy_val / g_mag
+                target_vx = grad_x * 0.70 + out_x * 0.30
+                target_vy = grad_y * 0.70 + out_y * 0.30
+            else:
+                target_vx = out_x
+                target_vy = out_y
+
+            t_len = math.sqrt(target_vx**2 + target_vy**2) + 1e-5
+            target_vx /= t_len
+            target_vy /= t_len
+
+            vel_x = vel_x * 0.60 + target_vx * 0.40
+            vel_y = vel_y * 0.60 + target_vy * 0.40
+            v_len = math.sqrt(vel_x**2 + vel_y**2) + 1e-5
+            vel_x /= v_len
+            vel_y /= v_len
+
+            cur_x += vel_x * 10.0
+            cur_y += vel_y * 10.0
+            p_pix = (int((cur_x - min_wx) / (max_wx - min_wx) * width), int((cur_y - min_wy) / (max_wy - min_wy) * height))
+            grid_pt = (p_pix[0] // 8, p_pix[1] // 8)
+            if grid_pt in visited_pts:
+                break
+            visited_pts.add(grid_pt)
+            pts.append(p_pix)
+
+        if len(pts) >= 8:
+            for idx in range(len(pts) - 1):
+                t_p = idx / float(len(pts))
+                rw = max(2, int(3 + t_p * 7))
+                bw = rw + 5
+                pygame.draw.line(bank_surf, (70, 140, 50, 180), pts[idx], pts[idx + 1], bw)
+                pygame.draw.line(river_surf, (35, 115, 210, 255), pts[idx], pts[idx + 1], rw)
 
     bank_mask = (pygame.surfarray.array_alpha(bank_surf).T > 40).astype(np.float32)
     river_mask = (pygame.surfarray.array_alpha(river_surf).T > 80).astype(np.float32)
@@ -613,5 +783,6 @@ def _generate_topographic_surface_impl(generator, bbox, width: int = 2400, heigh
     img_uint8 = (final_rgb * 255).astype(np.uint8)
     surf = pygame.surfarray.make_surface(np.transpose(img_uint8, (1, 0, 2)))
     return surf
+
 
 HeightMapGenerator.generate_topographic_surface = _generate_topographic_surface_impl
