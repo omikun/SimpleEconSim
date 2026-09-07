@@ -159,15 +159,15 @@ class HeightMapGenerator:
             return self._lerp_color((215, 222, 235), (245, 250, 255), t)
 
     def generate_river_paths(self) -> list[list[tuple[float, float]]]:
-        """Generate 5 to 7 continuous natural river paths starting from mountain springs down to the ocean."""
+        """Generate continuous natural river paths flowing strictly downhill from mountain springs to the ocean or inland lakes."""
         import numpy as np
         spring_candidates = []
-        sample_ny = np.linspace(-0.82, 0.82, 32)
-        sample_nx = np.linspace(-0.82, 0.82, 32)
+        sample_ny = np.linspace(-0.80, 0.80, 32)
+        sample_nx = np.linspace(-0.80, 0.80, 32)
         for s_ny in sample_ny:
             for s_nx in sample_nx:
                 h_val = self.get_continuous_height(float(s_nx), float(s_ny))
-                if 0.48 <= h_val <= 0.82:
+                if 0.50 <= h_val <= 0.85:
                     spring_candidates.append((float(s_nx), float(s_ny), h_val))
 
         rng = random.Random(self.seed + 12345)
@@ -175,48 +175,71 @@ class HeightMapGenerator:
 
         selected_springs = []
         for sc in spring_candidates:
-            if all((sc[0] - prev[0])**2 + (sc[1] - prev[1])**2 > 0.15 for prev in selected_springs):
+            if all((sc[0] - prev[0])**2 + (sc[1] - prev[1])**2 > 0.12 for prev in selected_springs):
                 selected_springs.append(sc)
-                if len(selected_springs) >= 6:
+                if len(selected_springs) >= 8:
                     break
 
         river_paths = []
+        step_len = 0.015
+
         for sx, sy, _ in selected_springs:
             path = [(sx, sy)]
             cur_x, cur_y = sx, sy
-            step_len = 0.016
-            for _ in range(130):
-                eps = 0.012
+            vel_x, vel_y = 0.0, 0.0
+            reached_water = False
+
+            for _ in range(160):
                 h_c = self.get_continuous_height(cur_x, cur_y)
-                if h_c <= -0.04:
+                if h_c <= 0.005:
+                    reached_water = True
                     break
-                h_right = self.get_continuous_height(cur_x + eps, cur_y)
-                h_up = self.get_continuous_height(cur_x, cur_y + eps)
-                dhx = (h_right - h_c) / eps
-                dhy = (h_up - h_c) / eps
 
-                grad_mag = math.sqrt(dhx * dhx + dhy * dhy)
-                if grad_mag < 1e-4:
-                    gx, gy = -cur_x, -cur_y
+                best_dir = None
+                best_dh = 0.0
+
+                # 16-point directional downhill check (H_cand < H_c)
+                for a_idx in range(16):
+                    ang = a_idx * (2.0 * math.pi / 16.0)
+                    dx = math.cos(ang)
+                    dy = math.sin(ang)
+                    c_x = cur_x + dx * step_len
+                    c_y = cur_y + dy * step_len
+                    h_cand = self.get_continuous_height(c_x, c_y)
+                    dh = h_c - h_cand
+                    if dh > 0.0001:
+                        score = dh
+                        if vel_x != 0.0 or vel_y != 0.0:
+                            score += max(0.0, dx * vel_x + dy * vel_y) * 0.002
+                        if score > best_dh:
+                            best_dh = score
+                            best_dir = (dx, dy)
+
+                if best_dir is None:
+                    # Depression / sink reached (inland lake)
+                    if len(path) >= 6:
+                        reached_water = True
+                    break
+
+                target_vx, target_vy = best_dir
+                if vel_x == 0.0 and vel_y == 0.0:
+                    vel_x, vel_y = target_vx, target_vy
                 else:
-                    gx, gy = -dhx / grad_mag, -dhy / grad_mag
+                    vel_x = vel_x * 0.35 + target_vx * 0.65
+                    vel_y = vel_y * 0.35 + target_vy * 0.65
+                    v_len = math.sqrt(vel_x**2 + vel_y**2) + 1e-6
+                    vel_x /= v_len
+                    vel_y /= v_len
 
-                # Natural meander noise
-                meander_val, _, _ = self.noised_scalar(cur_x * 7.0, cur_y * 7.0)
-                mx, my = -gy * meander_val * 0.40, gx * meander_val * 0.40
-
-                dir_x = gx + mx
-                dir_y = gy + my
-                d_len = math.sqrt(dir_x * dir_x + dir_y * dir_y)
-                if d_len > 0:
-                    dir_x /= d_len
-                    dir_y /= d_len
-
-                cur_x += dir_x * step_len
-                cur_y += dir_y * step_len
+                cur_x += vel_x * step_len
+                cur_y += vel_y * step_len
                 path.append((cur_x, cur_y))
-            if len(path) >= 6:
+
+            if reached_water and len(path) >= 6:
                 river_paths.append(path)
+                if len(river_paths) >= 5:
+                    break
+
         return river_paths
 
     @staticmethod
@@ -705,62 +728,91 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
     land_lit = land_c * total_light + snow_weight[:, :, None] * snow_specular
 
     # -------------------------------------------------------------
-    # Procedural River Overlay & Fluvial Corridors
+    # Procedural Downhill River & Lake System
     # -------------------------------------------------------------
     river_surf = pygame.Surface((width, height), pygame.SRCALPHA)
     bank_surf = pygame.Surface((width, height), pygame.SRCALPHA)
 
-    springs = []
+    spring_candidates = []
     if mountain_centers:
-        springs = list(mountain_centers)
+        for cx, cy in mountain_centers:
+            px = int(round((cx - min_wx) / (max_wx - min_wx) * (width - 1)))
+            py = int(round((cy - min_wy) / (max_wy - min_wy) * (height - 1)))
+            if 4 <= px < width - 4 and 4 <= py < height - 4:
+                spring_candidates.append((cx, cy, H[py, px]))
+
+    if tiles is not None:
+        for t in tiles:
+            if getattr(t, 'elevation', 0.0) >= 0.50 and not getattr(t, 'is_ocean', False):
+                coords = layout.get(t.name)
+                if coords is not None:
+                    q, r = coords
+                    cx, cy = axial_to_pixel(q, r, HEX_SIZE)
+                    px = int(round((cx - min_wx) / (max_wx - min_wx) * (width - 1)))
+                    py = int(round((cy - min_wy) / (max_wy - min_wy) * (height - 1)))
+                    if 4 <= px < width - 4 and 4 <= py < height - 4:
+                        spring_candidates.append((cx, cy, H[py, px]))
     else:
-        if tiles is not None:
-            for t in tiles:
-                if getattr(t, 'elevation', 0.0) >= 0.65 and not getattr(t, 'is_ocean', False):
-                    coords = layout.get(t.name)
-                    if coords is not None:
-                        q, r = coords
-                        cx, cy = axial_to_pixel(q, r, HEX_SIZE)
-                        springs.append((cx, cy))
-        else:
-            sample_ny = np.linspace(-0.82, 0.82, 32)
-            sample_nx = np.linspace(-0.82, 0.82, 32)
-            for s_ny in sample_ny:
-                for s_nx in sample_nx:
-                    h_val = generator.get_continuous_height(float(s_nx), float(s_ny))
-                    if 0.48 <= h_val <= 0.82:
-                        px_c = float(s_nx * span_x + cx_center)
-                        py_c = float(s_ny * span_y + cy_center)
-                        springs.append((px_c, py_c))
+        sample_ny = np.linspace(-0.80, 0.80, 30)
+        sample_nx = np.linspace(-0.80, 0.80, 30)
+        for s_ny in sample_ny:
+            for s_nx in sample_nx:
+                px_c = float(s_nx * span_x + cx_center)
+                py_c = float(s_ny * span_y + cy_center)
+                px = int(round((px_c - min_wx) / (max_wx - min_wx) * (width - 1)))
+                py = int(round((py_c - min_wy) / (max_wy - min_wy) * (height - 1)))
+                if 4 <= px < width - 4 and 4 <= py < height - 4:
+                    h_val = H[py, px]
+                    if 0.50 <= h_val <= 0.85:
+                        spring_candidates.append((px_c, py_c, h_val))
 
     rng_riv = random.Random(generator.seed + 999)
-    rng_riv.shuffle(springs)
+    rng_riv.shuffle(spring_candidates)
 
     selected_springs = []
-    for sc in springs:
-        if all((sc[0] - prev[0])**2 + (sc[1] - prev[1])**2 > (HEX_SIZE * 2.0)**2 for prev in selected_springs):
+    for sc in spring_candidates:
+        if all((sc[0] - prev[0])**2 + (sc[1] - prev[1])**2 > (HEX_SIZE * 1.6)**2 for prev in selected_springs):
             selected_springs.append(sc)
-            if len(selected_springs) >= 5:
+            if len(selected_springs) >= 8:
                 break
 
-    for sx, sy in selected_springs:
+    valid_rivers_count = 0
+
+    for sx, sy, _ in selected_springs:
         cur_x, cur_y = sx, sy
         pts = [(int((cur_x - min_wx) / (max_wx - min_wx) * width), int((cur_y - min_wy) / (max_wy - min_wy) * height))]
         vel_x, vel_y = 0.0, 0.0
-        visited_pts = {(pts[0][0] // 8, pts[0][1] // 8)}
+        visited_pts = {(pts[0][0] // 6, pts[0][1] // 6)}
 
-        for _ in range(150):
+        step_dist = 6.0
+        reached_ocean = False
+        reached_lake = False
+        lake_info = None
+
+        for _ in range(250):
             px_i = int(round((cur_x - min_wx) / (max_wx - min_wx) * (width - 1)))
             py_i = int(round((cur_y - min_wy) / (max_wy - min_wy) * (height - 1)))
+
             if not (4 <= px_i < width - 4 and 4 <= py_i < height - 4):
                 break
-            h_val = H[py_i, px_i]
-            if h_val <= -0.01:
+
+            h_now = H[py_i, px_i]
+
+            # Reached ocean waterline
+            if h_now <= 0.005:
+                reached_ocean = True
+                # Small estuary extension into shallow water
+                if vel_x != 0.0 or vel_y != 0.0:
+                    for _ in range(2):
+                        cur_x += vel_x * step_dist
+                        cur_y += vel_y * step_dist
+                        p_pix = (int((cur_x - min_wx) / (max_wx - min_wx) * width), int((cur_y - min_wy) / (max_wy - min_wy) * height))
+                        pts.append(p_pix)
                 break
 
-            dhx_val = H[py_i, px_i + 3] - H[py_i, px_i - 3]
-            dhy_val = H[py_i + 3, px_i] - H[py_i - 3, px_i]
-            g_mag = math.sqrt(dhx_val**2 + dhy_val**2)
+            # Check 16 angular directions for strictly downhill descent (H_cand < H_now - 0.0001)
+            best_dir = None
+            best_score = -1e9
 
             out_x = (cur_x - cx_center) / span_x
             out_y = (cur_y - cy_center) / span_y
@@ -768,41 +820,111 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
             out_x /= out_len
             out_y /= out_len
 
-            if g_mag > 1e-4:
-                grad_x = -dhx_val / g_mag
-                grad_y = -dhy_val / g_mag
-                target_vx = grad_x * 0.70 + out_x * 0.30
-                target_vy = grad_y * 0.70 + out_y * 0.30
+            num_angles = 16
+            for a_idx in range(num_angles):
+                ang = a_idx * (2.0 * math.pi / num_angles)
+                dx = math.cos(ang)
+                dy = math.sin(ang)
+
+                cand_x = cur_x + dx * step_dist
+                cand_y = cur_y + dy * step_dist
+                c_px = int(round((cand_x - min_wx) / (max_wx - min_wx) * (width - 1)))
+                c_py = int(round((cand_y - min_wy) / (max_wy - min_wy) * (height - 1)))
+
+                if not (2 <= c_px < width - 2 and 2 <= c_py < height - 2):
+                    continue
+
+                cand_h = H[c_py, c_px]
+                dh = h_now - cand_h  # Positive if strictly downhill
+
+                if dh > 0.0001:
+                    score = dh * 10.0
+                    # Align with velocity momentum and natural seaward flow
+                    if vel_x != 0.0 or vel_y != 0.0:
+                        score += (dx * vel_x + dy * vel_y) * 0.005
+                    score += (dx * out_x + dy * out_y) * 0.003
+                    if score > best_score:
+                        best_score = score
+                        best_dir = (dx, dy, cand_h)
+
+            # If no short downhill step, check lookahead radius (step_dist * 2.5) to bridge small local flats
+            if best_dir is None:
+                for a_idx in range(num_angles):
+                    ang = a_idx * (2.0 * math.pi / num_angles)
+                    dx = math.cos(ang)
+                    dy = math.sin(ang)
+                    cand_x = cur_x + dx * (step_dist * 2.5)
+                    cand_y = cur_y + dy * (step_dist * 2.5)
+                    c_px = int(round((cand_x - min_wx) / (max_wx - min_wx) * (width - 1)))
+                    c_py = int(round((cand_y - min_wy) / (max_wy - min_wy) * (height - 1)))
+                    if 2 <= c_px < width - 2 and 2 <= c_py < height - 2:
+                        cand_h = H[c_py, c_px]
+                        if cand_h < h_now - 0.0005:
+                            best_dir = (dx, dy, cand_h)
+                            break
+
+            if best_dir is None:
+                # Trapped in a local inland depression / pit!
+                # If the river has flown a reasonable distance from source (>= 8 points), render as an inland lake!
+                if len(pts) >= 8 and h_now < 0.45:
+                    reached_lake = True
+                    lake_info = (pts[-1], 18)
+                break
+
+            target_vx, target_vy, _ = best_dir
+            if vel_x == 0.0 and vel_y == 0.0:
+                vel_x, vel_y = target_vx, target_vy
             else:
-                target_vx = out_x
-                target_vy = out_y
+                v_blend_x = vel_x * 0.35 + target_vx * 0.65
+                v_blend_y = vel_y * 0.35 + target_vy * 0.65
+                v_len = math.sqrt(v_blend_x**2 + v_blend_y**2) + 1e-6
+                v_blend_x /= v_len
+                v_blend_y /= v_len
 
-            t_len = math.sqrt(target_vx**2 + target_vy**2) + 1e-5
-            target_vx /= t_len
-            target_vy /= t_len
+                # Ensure blended direction is STILL strictly downhill
+                test_px = int(round((cur_x + v_blend_x * step_dist - min_wx) / (max_wx - min_wx) * (width - 1)))
+                test_py = int(round((cur_y + v_blend_y * step_dist - min_wy) / (max_wy - min_wy) * (height - 1)))
+                if 2 <= test_px < width - 2 and 2 <= test_py < height - 2 and H[test_py, test_px] < h_now:
+                    vel_x, vel_y = v_blend_x, v_blend_y
+                else:
+                    vel_x, vel_y = target_vx, target_vy
 
-            vel_x = vel_x * 0.60 + target_vx * 0.40
-            vel_y = vel_y * 0.60 + target_vy * 0.40
-            v_len = math.sqrt(vel_x**2 + vel_y**2) + 1e-5
-            vel_x /= v_len
-            vel_y /= v_len
-
-            cur_x += vel_x * 10.0
-            cur_y += vel_y * 10.0
+            cur_x += vel_x * step_dist
+            cur_y += vel_y * step_dist
             p_pix = (int((cur_x - min_wx) / (max_wx - min_wx) * width), int((cur_y - min_wy) / (max_wy - min_wy) * height))
-            grid_pt = (p_pix[0] // 8, p_pix[1] // 8)
+            grid_pt = (p_pix[0] // 6, p_pix[1] // 6)
             if grid_pt in visited_pts:
+                # If looped into itself, terminate into a lake basin if long enough
+                if len(pts) >= 8 and h_now < 0.45:
+                    reached_lake = True
+                    lake_info = (pts[-1], 18)
                 break
             visited_pts.add(grid_pt)
             pts.append(p_pix)
 
-        if len(pts) >= 8:
+        # Draw river path if valid (reached ocean or inland lake)
+        if (reached_ocean or reached_lake) and len(pts) >= 8:
+            valid_rivers_count += 1
             for idx in range(len(pts) - 1):
                 t_p = idx / float(len(pts))
-                rw = max(2, int(3 + t_p * 7))
-                bw = rw + 5
+                rw = max(2, int(2 + t_p * 6))
+                bw = rw + 4
                 pygame.draw.line(bank_surf, (70, 140, 50, 180), pts[idx], pts[idx + 1], bw)
                 pygame.draw.line(river_surf, (35, 115, 210, 255), pts[idx], pts[idx + 1], rw)
+
+            # Render inland lake if endorheic sink
+            if reached_lake and lake_info is not None:
+                l_center, l_radius = lake_info
+                # Draw organic contoured lake
+                pygame.draw.circle(bank_surf, (70, 140, 50, 210), l_center, l_radius + 5)
+                pygame.draw.circle(river_surf, (28, 105, 195, 255), l_center, l_radius)
+                # Overlapping sub-circle for organic lake shape
+                sub_center = (l_center[0] + 6, l_center[1] - 4)
+                pygame.draw.circle(bank_surf, (70, 140, 50, 210), sub_center, l_radius - 2 + 5)
+                pygame.draw.circle(river_surf, (32, 115, 205, 255), sub_center, l_radius - 2)
+
+            if valid_rivers_count >= 6:
+                break
 
     bank_mask = (pygame.surfarray.array_alpha(bank_surf).T > 40).astype(np.float32)
     river_mask = (pygame.surfarray.array_alpha(river_surf).T > 80).astype(np.float32)
