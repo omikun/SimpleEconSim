@@ -535,7 +535,7 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
                 grid_forest[r - min_r, q - min_q] = 1.0
             elif biome in ('mountains', 'snow_peaks') or elev >= 0.65:
                 grid_mountain[r - min_r, q - min_q] = 1.0
-                if biome == 'snow_peaks' or elev >= 0.88:
+                if biome == 'snow_peaks':
                     grid_snow[r - min_r, q - min_q] = 1.0
             elif biome == 'hills':
                 grid_hills[r - min_r, q - min_q] = 1.0
@@ -547,7 +547,7 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
     H_hills_sum = np.zeros_like(WX, dtype=np.float32)
     W_total = np.zeros_like(WX, dtype=np.float32)
 
-    R_blend = HEX_SIZE * 1.85
+    R_blend = HEX_SIZE * 2.2
     R2 = R_blend * R_blend
 
     for dq, dr in all_dirs:
@@ -567,7 +567,7 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
         cy_cand = HEX_SIZE * 1.5 * rc
         d2 = (XW - cx_cand)**2 + (YW - cy_cand)**2
 
-        w = np.maximum(0.0, 1.0 - (d2 / R2))**3.0
+        w = np.maximum(0.0, 1.0 - (d2 / R2))**2.5
         H_land_sum += w * l_cand
         H_forest_sum += w * f_cand
         H_mount_sum += w * m_cand
@@ -581,28 +581,80 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
     H_snow_prob = H_snow_sum / (W_total + 1e-6)
     H_hills_prob = H_hills_sum / (W_total + 1e-6)
 
-    # 3. Macro continent shape & height modulation
-    continent_base = (H_land_prob - 0.42) * 0.95
-    mountain_ridge = H_mount_prob * 0.45
+    # 3. Macro continent shape & height modulation:
+    # Plains: Flat and sitting just above sea level (0.06 - 0.10)
+    land_shelf = np.where(H_land_prob < 0.38, (H_land_prob - 0.38) * 0.85, 0.08 + (H_land_prob - 0.38) * 0.04)
+    
+    # Hills lift gently from plains
+    hill_ridge = H_hills_prob * 0.28
 
-    # Smooth plains in lowlands, rugged alpine relief on mountains
+    # 4. Continuous Mountain Ranges with Triangular Crumpled Foil Geometry
+    mount_range_mask = np.clip(H_mount_prob * 1.5 + H_snow_prob * 0.6, 0.0, 1.0)
+    mount_range_mask = mount_range_mask ** 0.80
+
+    # Multi-scale triangular fold planes (Crumpled Aluminum Foil)
+    scale1 = 1.0 / (HEX_SIZE * 3.2)
+    FX1 = (WX + 50.0) * scale1
+    FY1 = (WY - 30.0) * scale1
+
+    angles1 = [0.35, 1.40, 2.44, 3.49]
+    folds1 = []
+    for ang in angles1:
+        u = FX1 * math.cos(ang) + FY1 * math.sin(ang)
+        tri = 1.0 - 2.0 * np.abs(u - np.round(u))
+        folds1.append(tri)
+
+    f1, f2, f3, f4 = folds1[0], folds1[1], folds1[2], folds1[3]
+    tri_facets_macro = np.maximum(np.maximum(f1 + f2, f2 + f3), np.maximum(f3 + f4, f4 + f1)) * 0.5
+    peak_facets_macro = (f1 * f2 * f3 * f4) ** 0.35
+
+    scale2 = scale1 * 2.1
+    FX2 = (WX - 110.0) * scale2
+    FY2 = (WY + 70.0) * scale2
+    angles2 = [0.75, 1.80, 2.85]
+    folds2 = []
+    for ang in angles2:
+        u = FX2 * math.cos(ang) + FY2 * math.sin(ang)
+        tri = 1.0 - 2.0 * np.abs(u - np.round(u))
+        folds2.append(tri)
+
+    tri_facets_mid = np.maximum(folds2[0] + folds2[1], np.maximum(folds2[1] + folds2[2], folds2[2] + folds2[0])) * 0.5
+
+    scale3 = scale1 * 4.2
+    FX3 = (WX + 80.0) * scale3
+    FY3 = (WY + 120.0) * scale3
+    angles3 = [0.20, 1.25, 2.30]
+    folds3 = []
+    for ang in angles3:
+        u = FX3 * math.cos(ang) + FY3 * math.sin(ang)
+        tri = 1.0 - 2.0 * np.abs(u - np.round(u))
+        folds3.append(tri)
+    tri_facets_fine = np.maximum(folds3[0] + folds3[1], np.maximum(folds3[1] + folds3[2], folds3[2] + folds3[0])) * 0.5
+
+    foil_geom = (tri_facets_macro * 0.52 + peak_facets_macro * 0.28 + tri_facets_mid * 0.24 + tri_facets_fine * 0.10)
+    foil_geom = np.power(np.clip(foil_geom, 0.0, 1.2), 1.30)
+
+    # Mountain elevation combines continuous range spine with sharp foil facets
+    mountain_ridge = mount_range_mask * (0.12 + 0.92 * foil_geom)
+
+    # Plains roughness is virtually zero (flat lowlands just above sea level),
+    # Forest has gentle canopy bumps, hills have gentle slope
     plains_factor = np.clip(1.0 - H_forest_prob - H_mount_prob - H_hills_prob, 0.0, 1.0)
-    roughness_mult = 0.40 * plains_factor + 0.65 * H_forest_prob + 1.00 * H_mount_prob + 0.75 * H_hills_prob
-    roughness_mult = np.clip(roughness_mult, 0.35, 1.0)
+    noise_amplitude = 0.006 * plains_factor + 0.025 * H_forest_prob + 0.035 * H_hills_prob
 
     # Multi-scale volumetric tree canopy relief in forest zones
     canopy_w1 = np.sin(XW / 18.0) * np.cos(YW / 18.0)
     canopy_w2 = np.sin((XW * 0.8 + YW * 0.6) / 10.0 + canopy_w1 * 1.2) * 0.5 + 0.5
     canopy_bumps = np.maximum(0.0, np.sin(canopy_w2 * math.pi))**1.5 * 0.035 * H_forest_prob
 
-    raw_H = continent_base + mountain_ridge + H_noise * roughness_mult + canopy_bumps
+    raw_H = land_shelf + hill_ridge + mountain_ridge + H_noise * noise_amplitude + canopy_bumps
 
     # Submerge any phantom specks in deep ocean
     deep_ocean_mask = H_land_prob < 0.12
-    raw_H = np.where(deep_ocean_mask, np.minimum(-0.15, raw_H), raw_H)
+    raw_H = np.where(deep_ocean_mask, np.minimum(-0.18, raw_H), raw_H)
 
-    # Scale land elevation smoothly
-    H = np.where(raw_H > 0.0, raw_H * 0.92, raw_H)
+    # Land elevation
+    H = raw_H
 
     # Realistic 3D Analytical Surface Normals (Balanced gradient scale 0.13)
     height_exaggeration = 0.13
@@ -617,7 +669,7 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
     slope = 1.0 - Nz
 
     # Natural Sun Lighting (Higher altitude, balanced angles)
-    sun_x, sun_y, sun_z = -0.55, -0.55, 0.65
+    sun_x, sun_y, sun_z = -0.55, -0.55, 0.70
     sun_len = math.sqrt(sun_x**2 + sun_y**2 + sun_z**2)
     sun_x /= sun_len
     sun_y /= sun_len
@@ -630,12 +682,12 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
     sky_light = Nz * 0.60 + 0.40
 
     # Subtle, Crisp Mountain Shadows (Tight local shadows behind peaks)
-    step_dx = 1.8
-    step_dy = 1.8
-    step_dz = 0.040
+    step_dx = 3.0
+    step_dy = 3.0
+    step_dz = 0.065
     shadow_mask = np.ones((height, width), dtype=np.float32)
 
-    for s in range(1, 20):
+    for s in range(1, 14):
         ox = int(round(s * step_dx))
         oy = int(round(s * step_dy))
         dz = s * step_dz
@@ -644,8 +696,8 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
         occluder = np.full_like(H, -1.0)
         occluder[oy:, ox:] = H[:-oy, :-ox]
         diff = occluder - (H + dz)
-        in_shadow = diff > 0.002
-        penumbra = np.clip(1.0 - diff * 6.0, 0.35, 1.0)
+        in_shadow = diff > 0.012
+        penumbra = np.clip(1.0 - diff * 3.5, 0.50, 1.0)
         shadow_mask = np.where(in_shadow, np.minimum(shadow_mask, penumbra), shadow_mask)
 
     direct_sun = diffuse_sun * shadow_mask
@@ -670,7 +722,7 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
     specular = np.clip(Nx * half_vec[0] + Ny * half_vec[1] + Nz * half_vec[2], 0.0, 1.0)**28 * 0.25
     w_lit = w_col * (0.60 + 0.40 * direct_sun[:, :, None]) + specular[:, :, None]
 
-    # Land Biome Materials
+    # Land Biome Materials (Authentic Alpine Rock & Snow Palette)
     beach = np.array([0.76, 0.72, 0.54], dtype=np.float32)
     plains = np.array([0.36, 0.58, 0.30], dtype=np.float32) # Clean, lush meadow
     
@@ -680,11 +732,11 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
     forest_canopy_color = forest_deep * (1.0 - canopy_w2[:, :, None] * 0.55) + forest_lush * (canopy_w2[:, :, None] * 0.55)
 
     hills = np.array([0.48, 0.44, 0.32], dtype=np.float32)
-    rock_slate = np.array([0.38, 0.36, 0.39], dtype=np.float32)  # Dark mountain slate
-    rock_granite = np.array([0.50, 0.48, 0.52], dtype=np.float32)# High rocky crags (no snow)
-    cliff_dark = np.array([0.24, 0.23, 0.26], dtype=np.float32)
-    snow_base = np.array([0.90, 0.93, 0.97], dtype=np.float32)   # Glacial snow (ONLY >= 0.88)
-    snow_summit = np.array([0.99, 0.99, 1.00], dtype=np.float32)
+    rock_slate = np.array([0.44, 0.43, 0.47], dtype=np.float32)  # Natural slate rock
+    rock_granite = np.array([0.56, 0.55, 0.59], dtype=np.float32)# Sunlit granite rock
+    cliff_dark = np.array([0.32, 0.31, 0.35], dtype=np.float32)  # Deep rock crevice
+    snow_base = np.array([0.92, 0.95, 0.98], dtype=np.float32)   # Glacial snow
+    snow_summit = np.array([1.00, 1.00, 1.00], dtype=np.float32)
 
     # 4. Continuous Biome-Aware Material Composition
     # Start with base lowland plains
@@ -698,24 +750,24 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
     h_weight = np.clip(H_hills_prob * 1.3, 0.0, 1.0)[:, :, None]
     land_c = land_c * (1.0 - h_weight * 0.7) + hills * (h_weight * 0.7)
 
-    # Blend Mountains (slate & granite crags)
-    m_weight = np.clip(H_mount_prob * 1.4 + np.clip((H - 0.70)/0.18, 0.0, 1.0), 0.0, 1.0)[:, :, None]
-    m_rock = rock_slate * (1.0 - np.clip((H - 0.72)/0.16, 0.0, 1.0)[:, :, None]) + rock_granite * np.clip((H - 0.72)/0.16, 0.0, 1.0)[:, :, None]
+    # Blend Mountains (slate & granite faceted rock)
+    m_weight = np.clip(H_mount_prob * 1.5 + np.clip((H - 0.22)/0.25, 0.0, 1.0), 0.0, 1.0)[:, :, None]
+    m_rock = rock_slate * (1.0 - np.clip((H - 0.35)/0.35, 0.0, 1.0)[:, :, None]) + rock_granite * np.clip((H - 0.35)/0.35, 0.0, 1.0)[:, :, None]
     land_c = land_c * (1.0 - m_weight) + m_rock * m_weight
 
-    # Cliff Face Exposure (ONLY on steep rocky slopes in mountain/hill biomes, NOT on green shores)
+    # Cliff Face Exposure (sharp faceted planar rock walls)
     rock_presence = np.clip(H_mount_prob * 1.5 + H_hills_prob * 0.5, 0.0, 1.0)[:, :, None]
-    cliff_factor = np.clip((slope - 0.16) / 0.20, 0.0, 1.0)[:, :, None] * rock_presence
-    cliff_col = np.where(H[:, :, None] >= 0.88, rock_granite, cliff_dark)
-    land_c = land_c * (1.0 - cliff_factor * 0.65) + cliff_col * (cliff_factor * 0.65)
+    cliff_factor = np.clip((slope - 0.18) / 0.20, 0.0, 1.0)[:, :, None] * rock_presence
+    cliff_col = np.where(H[:, :, None] >= 0.85, rock_granite, cliff_dark)
+    land_c = land_c * (1.0 - cliff_factor * 0.30) + cliff_col * (cliff_factor * 0.30)
 
     # Blend Beach ONLY at the immediate water edge (H in [0.0, 0.035])
     beach_mask = np.clip((0.035 - H) / 0.035, 0.0, 1.0)[:, :, None]
     land_c = land_c * (1.0 - beach_mask) + beach * beach_mask
 
-    # Snow Peaks (Strictly high elevation AND snow peak field)
-    snow_weight = np.clip(H_snow_prob * 1.5, 0.0, 1.0) * np.clip((H - 0.82) / 0.10, 0.0, 1.0)
-    snow_col = snow_base * (1.0 - np.clip((H - 0.88)/0.12, 0.0, 1.0)[:, :, None]) + snow_summit * np.clip((H - 0.88)/0.12, 0.0, 1.0)[:, :, None]
+    # Snow Peaks (STRICTLY snow mountain tiles and high summits >= 0.76)
+    snow_weight = np.clip(H_snow_prob * 1.6, 0.0, 1.0) * np.clip((H - 0.74) / 0.12, 0.0, 1.0)
+    snow_col = snow_base * (1.0 - np.clip((H - 0.82)/0.12, 0.0, 1.0)[:, :, None]) + snow_summit * np.clip((H - 0.82)/0.12, 0.0, 1.0)[:, :, None]
     land_c = land_c * (1.0 - snow_weight[:, :, None]) + snow_col * snow_weight[:, :, None]
 
     # Natural Balanced Lighting
