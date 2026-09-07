@@ -681,6 +681,266 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
     mount_treeline = np.clip(1.0 - mount_range_mask * 2.2, 0.0, 1.0)
     treeline_factor = elev_treeline * mount_treeline
 
+    # -------------------------------------------------------------
+    # Procedural Hydraulic Valley Carving & Depression-Flooded Lakes
+    # -------------------------------------------------------------
+    spring_candidates = []
+    if mountain_centers:
+        for cx, cy in mountain_centers:
+            px = int(round((cx - min_wx) / (max_wx - min_wx) * (width - 1)))
+            py = int(round((cy - min_wy) / (max_wy - min_wy) * (height - 1)))
+            if 4 <= px < width - 4 and 4 <= py < height - 4:
+                spring_candidates.append((cx, cy, base_ground_H[py, px]))
+
+    if tiles is not None:
+        for t in tiles:
+            if getattr(t, 'elevation', 0.0) >= 0.50 and not getattr(t, 'is_ocean', False):
+                coords = layout.get(t.name)
+                if coords is not None:
+                    q, r = coords
+                    cx, cy = axial_to_pixel(q, r, HEX_SIZE)
+                    px = int(round((cx - min_wx) / (max_wx - min_wx) * (width - 1)))
+                    py = int(round((cy - min_wy) / (max_wy - min_wy) * (height - 1)))
+                    if 4 <= px < width - 4 and 4 <= py < height - 4:
+                        spring_candidates.append((cx, cy, base_ground_H[py, px]))
+    else:
+        sample_ny = np.linspace(-0.80, 0.80, 30)
+        sample_nx = np.linspace(-0.80, 0.80, 30)
+        for s_ny in sample_ny:
+            for s_nx in sample_nx:
+                px_c = float(s_nx * span_x + cx_center)
+                py_c = float(s_ny * span_y + cy_center)
+                px = int(round((px_c - min_wx) / (max_wx - min_wx) * (width - 1)))
+                py = int(round((py_c - min_wy) / (max_wy - min_wy) * (height - 1)))
+                if 4 <= px < width - 4 and 4 <= py < height - 4:
+                    h_val = base_ground_H[py, px]
+                    if 0.45 <= h_val <= 0.85:
+                        spring_candidates.append((px_c, py_c, h_val))
+
+    rng_riv = random.Random(generator.seed + 999)
+    rng_riv.shuffle(spring_candidates)
+
+    selected_springs = []
+    for sc in spring_candidates:
+        if all((sc[0] - prev[0])**2 + (sc[1] - prev[1])**2 > (HEX_SIZE * 1.6)**2 for prev in selected_springs):
+            selected_springs.append(sc)
+            if len(selected_springs) >= 8:
+                break
+
+    carved_ground_H = base_ground_H.copy()
+    water_surface_H = np.full((height, width), -999.0, dtype=np.float32)
+    is_river_water = np.zeros((height, width), dtype=bool)
+    is_lake_water = np.zeros((height, width), dtype=bool)
+    river_valley_bank = np.zeros((height, width), dtype=np.float32)
+
+    valid_rivers_count = 0
+
+    for sx, sy, _ in selected_springs:
+        cur_x, cur_y = sx, sy
+        px_0 = int(round((cur_x - min_wx) / (max_wx - min_wx) * (width - 1)))
+        py_0 = int(round((cur_y - min_wy) / (max_wy - min_wy) * (height - 1)))
+        pts = [(cur_x, cur_y, px_0, py_0, base_ground_H[py_0, px_0])]
+        vel_x, vel_y = 0.0, 0.0
+        visited_pts = {(px_0 // 6, py_0 // 6)}
+
+        step_dist = 6.0
+        reached_ocean = False
+        reached_lake = False
+        pit_point = None
+
+        for _ in range(250):
+            px_i = int(round((cur_x - min_wx) / (max_wx - min_wx) * (width - 1)))
+            py_i = int(round((cur_y - min_wy) / (max_wy - min_wy) * (height - 1)))
+
+            if not (4 <= px_i < width - 4 and 4 <= py_i < height - 4):
+                break
+
+            h_now = base_ground_H[py_i, px_i]
+
+            if h_now <= 0.005:
+                reached_ocean = True
+                if vel_x != 0.0 or vel_y != 0.0:
+                    for _ in range(2):
+                        cur_x += vel_x * step_dist
+                        cur_y += vel_y * step_dist
+                        p_x = int(round((cur_x - min_wx) / (max_wx - min_wx) * (width - 1)))
+                        p_y = int(round((cur_y - min_wy) / (max_wy - min_wy) * (height - 1)))
+                        pts.append((cur_x, cur_y, p_x, p_y, 0.0))
+                break
+
+            best_dir = None
+            best_score = -1e9
+
+            out_x = (cur_x - cx_center) / span_x
+            out_y = (cur_y - cy_center) / span_y
+            out_len = math.sqrt(out_x**2 + out_y**2) + 1e-5
+            out_x /= out_len
+            out_y /= out_len
+
+            num_angles = 16
+            for a_idx in range(num_angles):
+                ang = a_idx * (2.0 * math.pi / num_angles)
+                dx = math.cos(ang)
+                dy = math.sin(ang)
+
+                cand_x = cur_x + dx * step_dist
+                cand_y = cur_y + dy * step_dist
+                c_px = int(round((cand_x - min_wx) / (max_wx - min_wx) * (width - 1)))
+                c_py = int(round((cand_y - min_wy) / (max_wy - min_wy) * (height - 1)))
+
+                if not (2 <= c_px < width - 2 and 2 <= c_py < height - 2):
+                    continue
+
+                cand_h = base_ground_H[c_py, c_px]
+                dh = h_now - cand_h
+
+                if dh > 0.0001:
+                    score = dh * 10.0
+                    if vel_x != 0.0 or vel_y != 0.0:
+                        score += (dx * vel_x + dy * vel_y) * 0.005
+                    score += (dx * out_x + dy * out_y) * 0.003
+                    if score > best_score:
+                        best_score = score
+                        best_dir = (dx, dy, cand_h)
+
+            if best_dir is None:
+                for a_idx in range(num_angles):
+                    ang = a_idx * (2.0 * math.pi / num_angles)
+                    dx = math.cos(ang)
+                    dy = math.sin(ang)
+                    cand_x = cur_x + dx * (step_dist * 2.5)
+                    cand_y = cur_y + dy * (step_dist * 2.5)
+                    c_px = int(round((cand_x - min_wx) / (max_wx - min_wx) * (width - 1)))
+                    c_py = int(round((cand_y - min_wy) / (max_wy - min_wy) * (height - 1)))
+                    if 2 <= c_px < width - 2 and 2 <= c_py < height - 2:
+                        cand_h = base_ground_H[c_py, c_px]
+                        if cand_h < h_now - 0.0005:
+                            best_dir = (dx, dy, cand_h)
+                            break
+
+            if best_dir is None:
+                if len(pts) >= 8 and h_now < 0.45:
+                    reached_lake = True
+                    pit_point = (px_i, py_i, h_now)
+                break
+
+            target_vx, target_vy, _ = best_dir
+            if vel_x == 0.0 and vel_y == 0.0:
+                vel_x, vel_y = target_vx, target_vy
+            else:
+                v_blend_x = vel_x * 0.35 + target_vx * 0.65
+                v_blend_y = vel_y * 0.35 + target_vy * 0.65
+                v_len = math.sqrt(v_blend_x**2 + v_blend_y**2) + 1e-6
+                v_blend_x /= v_len
+                v_blend_y /= v_len
+
+                test_px = int(round((cur_x + v_blend_x * step_dist - min_wx) / (max_wx - min_wx) * (width - 1)))
+                test_py = int(round((cur_y + v_blend_y * step_dist - min_wy) / (max_wy - min_wy) * (height - 1)))
+                if 2 <= test_px < width - 2 and 2 <= test_py < height - 2 and base_ground_H[test_py, test_px] < h_now:
+                    vel_x, vel_y = v_blend_x, v_blend_y
+                else:
+                    vel_x, vel_y = target_vx, target_vy
+
+            cur_x += vel_x * step_dist
+            cur_y += vel_y * step_dist
+            p_pix_x = int(round((cur_x - min_wx) / (max_wx - min_wx) * (width - 1)))
+            p_pix_y = int(round((cur_y - min_wy) / (max_wy - min_wy) * (height - 1)))
+            grid_pt = (p_pix_x // 6, p_pix_y // 6)
+            if grid_pt in visited_pts:
+                if len(pts) >= 8 and h_now < 0.45:
+                    reached_lake = True
+                    pit_point = (p_pix_x, p_pix_y, h_now)
+                break
+            visited_pts.add(grid_pt)
+            pts.append((cur_x, cur_y, p_pix_x, p_pix_y, base_ground_H[p_pix_y, p_pix_x]))
+
+        # Hydraulic River Valley Carving
+        if (reached_ocean or reached_lake) and len(pts) >= 8:
+            valid_rivers_count += 1
+            n_pts = len(pts)
+            water_levels = np.array([pts[k][4] for k in range(n_pts)], dtype=np.float32)
+            for k in range(1, n_pts):
+                water_levels[k] = min(water_levels[k], water_levels[k-1] - 0.0005)
+
+            for idx in range(n_pts - 1):
+                t_prog = idx / float(n_pts)
+                p1 = (pts[idx][2], pts[idx][3])
+                p2 = (pts[idx + 1][2], pts[idx + 1][3])
+                seg_hw = water_levels[idx]
+
+                rw = 2.0 + t_prog * 3.5          # River water width radius (2 to 5.5px)
+                vw = rw + 10.0 + t_prog * 8.0     # Carved valley width radius (12 to 23px)
+
+                min_x_seg = max(0, int(min(p1[0], p2[0]) - vw - 2))
+                max_x_seg = min(width - 1, int(max(p1[0], p2[0]) + vw + 2))
+                min_y_seg = max(0, int(min(p1[1], p2[1]) - vw - 2))
+                max_y_seg = min(height - 1, int(max(p1[1], p2[1]) + vw + 2))
+
+                if max_x_seg > min_x_seg and max_y_seg > min_y_seg:
+                    grid_y, grid_x = np.ogrid[min_y_seg:max_y_seg+1, min_x_seg:max_x_seg+1]
+                    vx = p2[0] - p1[0]
+                    vy = p2[1] - p1[1]
+                    seg_len2 = max(1e-4, vx**2 + vy**2)
+                    proj = ((grid_x - p1[0]) * vx + (grid_y - p1[1]) * vy) / seg_len2
+                    proj = np.clip(proj, 0.0, 1.0)
+                    near_x = p1[0] + proj * vx
+                    near_y = p1[1] + proj * vy
+                    dist = np.sqrt((grid_x - near_x)**2 + (grid_y - near_y)**2)
+
+                    # River Channel
+                    in_river = dist <= rw
+                    is_river_water[min_y_seg:max_y_seg+1, min_x_seg:max_x_seg+1] |= in_river
+                    sub_w_H = water_surface_H[min_y_seg:max_y_seg+1, min_x_seg:max_x_seg+1]
+                    water_surface_H[min_y_seg:max_y_seg+1, min_x_seg:max_x_seg+1] = np.where(
+                        in_river, np.maximum(sub_w_H, seg_hw), sub_w_H
+                    )
+
+                    # Valley Carving (cuts terrain smoothly down to river level)
+                    in_valley = dist <= vw
+                    t_val = np.clip((dist - rw) / np.maximum(1e-4, vw - rw), 0.0, 1.0)
+                    s_val = t_val * t_val * (3.0 - 2.0 * t_val)
+                    
+                    sub_H = carved_ground_H[min_y_seg:max_y_seg+1, min_x_seg:max_x_seg+1]
+                    target_carved_H = (seg_hw - 0.008) * (1.0 - s_val) + sub_H * s_val
+                    carved_ground_H[min_y_seg:max_y_seg+1, min_x_seg:max_x_seg+1] = np.where(
+                        in_valley, np.minimum(sub_H, target_carved_H), sub_H
+                    )
+                    sub_bank = river_valley_bank[min_y_seg:max_y_seg+1, min_x_seg:max_x_seg+1]
+                    river_valley_bank[min_y_seg:max_y_seg+1, min_x_seg:max_x_seg+1] = np.where(
+                        in_valley, np.maximum(sub_bank, (1.0 - t_val)), sub_bank
+                    )
+
+            # Depression Flooding for Inland Lakes
+            if reached_lake and pit_point is not None:
+                px_pit, py_pit, h_pit = pit_point
+                H_lake = h_pit + 0.032  # Floods local pit up to rim
+                
+                from collections import deque
+                q_bfs = deque([(py_pit, px_pit)])
+                lake_submask = np.zeros((height, width), dtype=bool)
+                lake_submask[py_pit, px_pit] = True
+                max_rad2 = (HEX_SIZE * 0.85)**2
+
+                while q_bfs:
+                    cy_l, cx_l = q_bfs.popleft()
+                    for dy_l, dx_l in ((-1,0), (1,0), (0,-1), (0,1)):
+                        ny_l, nx_l = cy_l + dy_l, cx_l + dx_l
+                        if 0 <= ny_l < height and 0 <= nx_l < width and not lake_submask[ny_l, nx_l]:
+                            dist2 = (nx_l - px_pit)**2 + (ny_l - py_pit)**2
+                            if dist2 <= max_rad2 and carved_ground_H[ny_l, nx_l] <= H_lake + 0.004:
+                                lake_submask[ny_l, nx_l] = True
+                                q_bfs.append((ny_l, nx_l))
+
+                # Apply flat lake surface
+                is_lake_water |= lake_submask
+                water_surface_H = np.where(lake_submask, H_lake, water_surface_H)
+                carved_ground_H = np.where(lake_submask, np.minimum(carved_ground_H, H_lake - 0.012), carved_ground_H)
+
+            if valid_rivers_count >= 6:
+                break
+
+    is_inland_water = is_river_water | is_lake_water
+
     # -------------------------------------------------------------------------
     # Tall, Pointy, 10x Smaller Whole Trees (Strictly in Forest Biomes)
     # -------------------------------------------------------------------------
@@ -763,8 +1023,8 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
             # Binary whole-tree forest presence: 1.0 if tree center is in forest, 0.0 otherwise
             is_forest_tree = np.where(in_tr_bounds, grid_forest[r_tr_clamped, q_tr_clamped], 0.0)
 
-            # Natural density variation inside forests & alpine treeline cutoff
-            tree_present = (is_forest_tree > 0.5) & (v_v < 0.88) & (treeline_factor > 0.05)
+            # Natural density variation inside forests & alpine treeline cutoff, excluding inland water
+            tree_present = (is_forest_tree > 0.5) & (v_v < 0.88) & (treeline_factor > 0.05) & (~is_inland_water)
 
             r_u = (g_u - f_u + o_u) * tree_cell_size
             r_v = (g_v - f_v + o_v) * tree_cell_size
@@ -795,15 +1055,15 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
     # Complete whole-tree canopy relief (no partial tree slicing)
     tree_canopy_relief = tree_height_accum
 
-    # Combine Base Elevation
-    raw_H = base_ground_H + tree_canopy_relief
+    # Combine Base Elevation with Carved Valleys, Flat Inland Water, and Trees
+    raw_H = np.where(is_inland_water, water_surface_H, carved_ground_H + tree_canopy_relief)
 
     deep_ocean_mask = H_land_prob < 0.10
     raw_H = np.where(deep_ocean_mask, np.minimum(-0.20, raw_H), raw_H)
 
     H = raw_H
 
-    # Surface normals (incorporates pointy tree spire details)
+    # Surface normals (incorporates pointy tree spire details and flat water)
     height_exaggeration = 0.13
     dHx = np.gradient(H, axis=1) * (width / 2.0) * height_exaggeration
     dHy = np.gradient(H, axis=0) * (height / 2.0) * height_exaggeration
@@ -812,6 +1072,11 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
     Nx = -dHx / norm
     Ny = -dHy / norm
     Nz = Nz / norm
+
+    # Flatten normals on inland water (rivers and lakes are perfectly flat and smooth)
+    Nx = np.where(is_inland_water, 0.0, Nx)
+    Ny = np.where(is_inland_water, 0.0, Ny)
+    Nz = np.where(is_inland_water, 1.0, Nz)
     slope = 1.0 - Nz
 
     # Lighting
@@ -846,8 +1111,8 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
 
     direct_sun = diffuse_sun * shadow_mask
 
-    # Water & Coastal Waters
-    is_water = H < 0.0
+    # Ocean Water & Coastal Waters
+    is_ocean_water = H < 0.0
     water_depth = np.clip(-H / 0.25, 0.0, 1.0)
     deep_ocean = np.array([0.05, 0.10, 0.22], dtype=np.float32)
     mid_ocean = np.array([0.08, 0.20, 0.38], dtype=np.float32)
@@ -862,7 +1127,15 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
     half_vec = np.array([sun_x, sun_y, sun_z + 1.0], dtype=np.float32)
     half_vec /= np.linalg.norm(half_vec)
     specular = np.clip(Nx * half_vec[0] + Ny * half_vec[1] + Nz * half_vec[2], 0.0, 1.0)**28 * 0.25
-    w_lit = w_col * (0.60 + 0.40 * direct_sun[:, :, None]) + specular[:, :, None]
+    ocean_lit = w_col * (0.60 + 0.40 * direct_sun[:, :, None]) + specular[:, :, None]
+
+    # --- Inland Rivers & Lakes Flat Smooth Water Shader ---
+    inland_water_depth = np.clip((water_surface_H - carved_ground_H) / 0.025, 0.0, 1.0)[:, :, None]
+    lake_deep = np.array([0.10, 0.28, 0.54], dtype=np.float32)
+    lake_shallow = np.array([0.22, 0.52, 0.68], dtype=np.float32)
+    inland_water_col = lake_shallow * (1.0 - inland_water_depth) + lake_deep * inland_water_depth
+    inland_specular = (np.clip(half_vec[2], 0.0, 1.0)**32 * 0.35) * direct_sun[:, :, None]
+    inland_water_lit = inland_water_col * (0.65 + 0.35 * direct_sun[:, :, None]) + inland_specular
 
     # --- Rich Varied Biome Materials & Inigo Quilez Procedural Textures ---
     # 1. EXPANSIVE & PROMINENT BEACHES (Large, wide sandy coastal shores & dunes)
@@ -898,7 +1171,6 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
 
     woodland_floor = np.array([0.20, 0.42, 0.18], dtype=np.float32) # Deep forest floor
 
-    # Interpolate tree color from IQ oMat
     t_mat = tree_mat_accum[:, :, None]
     tree_base_col = np.where(
         t_mat < 0.35,
@@ -909,7 +1181,6 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
             forest_olive * (1.0 - (t_mat-0.70)/0.30) + forest_golden * ((t_mat-0.70)/0.30)
         )
     )
-    # Apply crown height profile ambient occlusion from IQ oHei (sharp highlight at tip, dark base)
     crown_ao = (0.50 + 0.50 * tree_hei_accum[:, :, None])
     forest_canopy_color = tree_base_col * crown_ao
 
@@ -928,6 +1199,10 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
 
     # --- Continuous Biome Ground Composition ---
     ground_c = plains_col.copy()
+
+    # Blend Riparian lush green valley slopes along carved river valleys
+    riparian_turf = np.array([0.22, 0.50, 0.20], dtype=np.float32)
+    ground_c = ground_c * (1.0 - river_valley_bank[:, :, None] * 0.70) + riparian_turf * (river_valley_bank[:, :, None] * 0.70)
 
     # Blend Woodland Floor on forest hexes (modulated by treeline so high mountains stay stone)
     f_floor_weight = np.clip(H_forest_prob * 1.4, 0.0, 1.0) * treeline_factor
@@ -962,252 +1237,18 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
     tree_mask = np.clip(tree_height_accum / 0.003, 0.0, 1.0)[:, :, None]
     land_c = ground_c * (1.0 - tree_mask) + forest_canopy_color * tree_mask
 
-    # Blend Hills
-    h_weight = np.clip(H_hills_prob * 1.3, 0.0, 1.0)[:, :, None]
-    land_c = land_c * (1.0 - h_weight * 0.75) + hills_col * (h_weight * 0.75)
-
-    # Blend Mountain rock
-    m_weight = np.clip(H_mount_prob * 1.5 + np.clip((H - 0.22)/0.25, 0.0, 1.0), 0.0, 1.0)[:, :, None]
-    m_rock = rock_slate * (1.0 - np.clip((H - 0.35)/0.35, 0.0, 1.0)[:, :, None]) + rock_granite * np.clip((H - 0.35)/0.35, 0.0, 1.0)[:, :, None]
-    m_rock = np.where(slope[:, :, None] < 0.12, rock_scree, m_rock)
-    land_c = land_c * (1.0 - m_weight) + m_rock * m_weight
-
-    # Cliff rock exposure on steep slopes in mountain/hill areas
-    rock_presence = np.clip(H_mount_prob * 1.5 + H_hills_prob * 0.5, 0.0, 1.0)[:, :, None]
-    cliff_factor = np.clip((slope - 0.16) / 0.20, 0.0, 1.0)[:, :, None] * rock_presence
-    cliff_col = np.where(H[:, :, None] >= 0.85, rock_granite, cliff_dark)
-    land_c = land_c * (1.0 - cliff_factor * 0.40) + cliff_col * (cliff_factor * 0.40)
-
-    # EXPANSIVE BEACHES: Wide sandy beaches extending along coast up to H=0.075
-    beach_mask = np.clip((0.075 - H) / 0.075, 0.0, 1.0)[:, :, None]
-    land_c = land_c * (1.0 - beach_mask) + beach_col * beach_mask
-
-    # Snow Peaks (STRICTLY snow mountain tiles and high summits >= 0.76)
-    snow_weight = np.clip(H_snow_prob * 1.6, 0.0, 1.0) * np.clip((H - 0.74) / 0.12, 0.0, 1.0)
-    snow_col = snow_base * (1.0 - np.clip((H - 0.82)/0.12, 0.0, 1.0)[:, :, None]) + snow_summit * np.clip((H - 0.82)/0.12, 0.0, 1.0)[:, :, None]
-    land_c = land_c * (1.0 - snow_weight[:, :, None]) + snow_col * snow_weight[:, :, None]
-
-    # Natural Balanced Lighting
+    # Lighting
     sun_color = np.array([1.18, 1.10, 0.96], dtype=np.float32)
     sky_color = np.array([0.22, 0.28, 0.40], dtype=np.float32)
     total_light = (direct_sun[:, :, None] * sun_color + sky_light[:, :, None] * sky_color + 0.12)
 
-    # Crisp Glacial Crest Specular (STRICTLY for Snow Peaks)
     snow_specular = (np.clip(Nx * half_vec[0] + Ny * half_vec[1] + Nz * half_vec[2], 0.0, 1.0)**20 * 0.25)[:, :, None] * direct_sun[:, :, None]
     land_lit = land_c * total_light + snow_weight[:, :, None] * snow_specular
 
-    # -------------------------------------------------------------
-    # Procedural Downhill River & Lake System
-    # -------------------------------------------------------------
-    river_surf = pygame.Surface((width, height), pygame.SRCALPHA)
-    bank_surf = pygame.Surface((width, height), pygame.SRCALPHA)
+    # Composite: Ocean -> Land -> Inland Rivers & Lakes (Smooth untextured flat water)
+    final_rgb = np.where(is_ocean_water[:, :, None], ocean_lit, land_lit)
+    final_rgb = np.where(is_inland_water[:, :, None], inland_water_lit, final_rgb)
 
-    spring_candidates = []
-    if mountain_centers:
-        for cx, cy in mountain_centers:
-            px = int(round((cx - min_wx) / (max_wx - min_wx) * (width - 1)))
-            py = int(round((cy - min_wy) / (max_wy - min_wy) * (height - 1)))
-            if 4 <= px < width - 4 and 4 <= py < height - 4:
-                spring_candidates.append((cx, cy, H[py, px]))
-
-    if tiles is not None:
-        for t in tiles:
-            if getattr(t, 'elevation', 0.0) >= 0.50 and not getattr(t, 'is_ocean', False):
-                coords = layout.get(t.name)
-                if coords is not None:
-                    q, r = coords
-                    cx, cy = axial_to_pixel(q, r, HEX_SIZE)
-                    px = int(round((cx - min_wx) / (max_wx - min_wx) * (width - 1)))
-                    py = int(round((cy - min_wy) / (max_wy - min_wy) * (height - 1)))
-                    if 4 <= px < width - 4 and 4 <= py < height - 4:
-                        spring_candidates.append((cx, cy, H[py, px]))
-    else:
-        sample_ny = np.linspace(-0.80, 0.80, 30)
-        sample_nx = np.linspace(-0.80, 0.80, 30)
-        for s_ny in sample_ny:
-            for s_nx in sample_nx:
-                px_c = float(s_nx * span_x + cx_center)
-                py_c = float(s_ny * span_y + cy_center)
-                px = int(round((px_c - min_wx) / (max_wx - min_wx) * (width - 1)))
-                py = int(round((py_c - min_wy) / (max_wy - min_wy) * (height - 1)))
-                if 4 <= px < width - 4 and 4 <= py < height - 4:
-                    h_val = H[py, px]
-                    if 0.50 <= h_val <= 0.85:
-                        spring_candidates.append((px_c, py_c, h_val))
-
-    rng_riv = random.Random(generator.seed + 999)
-    rng_riv.shuffle(spring_candidates)
-
-    selected_springs = []
-    for sc in spring_candidates:
-        if all((sc[0] - prev[0])**2 + (sc[1] - prev[1])**2 > (HEX_SIZE * 1.6)**2 for prev in selected_springs):
-            selected_springs.append(sc)
-            if len(selected_springs) >= 8:
-                break
-
-    valid_rivers_count = 0
-
-    for sx, sy, _ in selected_springs:
-        cur_x, cur_y = sx, sy
-        pts = [(int((cur_x - min_wx) / (max_wx - min_wx) * width), int((cur_y - min_wy) / (max_wy - min_wy) * height))]
-        vel_x, vel_y = 0.0, 0.0
-        visited_pts = {(pts[0][0] // 6, pts[0][1] // 6)}
-
-        step_dist = 6.0
-        reached_ocean = False
-        reached_lake = False
-        lake_info = None
-
-        for _ in range(250):
-            px_i = int(round((cur_x - min_wx) / (max_wx - min_wx) * (width - 1)))
-            py_i = int(round((cur_y - min_wy) / (max_wy - min_wy) * (height - 1)))
-
-            if not (4 <= px_i < width - 4 and 4 <= py_i < height - 4):
-                break
-
-            h_now = H[py_i, px_i]
-
-            # Reached ocean waterline
-            if h_now <= 0.005:
-                reached_ocean = True
-                # Small estuary extension into shallow water
-                if vel_x != 0.0 or vel_y != 0.0:
-                    for _ in range(2):
-                        cur_x += vel_x * step_dist
-                        cur_y += vel_y * step_dist
-                        p_pix = (int((cur_x - min_wx) / (max_wx - min_wx) * width), int((cur_y - min_wy) / (max_wy - min_wy) * height))
-                        pts.append(p_pix)
-                break
-
-            # Check 16 angular directions for strictly downhill descent (H_cand < H_now - 0.0001)
-            best_dir = None
-            best_score = -1e9
-
-            out_x = (cur_x - cx_center) / span_x
-            out_y = (cur_y - cy_center) / span_y
-            out_len = math.sqrt(out_x**2 + out_y**2) + 1e-5
-            out_x /= out_len
-            out_y /= out_len
-
-            num_angles = 16
-            for a_idx in range(num_angles):
-                ang = a_idx * (2.0 * math.pi / num_angles)
-                dx = math.cos(ang)
-                dy = math.sin(ang)
-
-                cand_x = cur_x + dx * step_dist
-                cand_y = cur_y + dy * step_dist
-                c_px = int(round((cand_x - min_wx) / (max_wx - min_wx) * (width - 1)))
-                c_py = int(round((cand_y - min_wy) / (max_wy - min_wy) * (height - 1)))
-
-                if not (2 <= c_px < width - 2 and 2 <= c_py < height - 2):
-                    continue
-
-                cand_h = H[c_py, c_px]
-                dh = h_now - cand_h  # Positive if strictly downhill
-
-                if dh > 0.0001:
-                    score = dh * 10.0
-                    # Align with velocity momentum and natural seaward flow
-                    if vel_x != 0.0 or vel_y != 0.0:
-                        score += (dx * vel_x + dy * vel_y) * 0.005
-                    score += (dx * out_x + dy * out_y) * 0.003
-                    if score > best_score:
-                        best_score = score
-                        best_dir = (dx, dy, cand_h)
-
-            # If no short downhill step, check lookahead radius (step_dist * 2.5) to bridge small local flats
-            if best_dir is None:
-                for a_idx in range(num_angles):
-                    ang = a_idx * (2.0 * math.pi / num_angles)
-                    dx = math.cos(ang)
-                    dy = math.sin(ang)
-                    cand_x = cur_x + dx * (step_dist * 2.5)
-                    cand_y = cur_y + dy * (step_dist * 2.5)
-                    c_px = int(round((cand_x - min_wx) / (max_wx - min_wx) * (width - 1)))
-                    c_py = int(round((cand_y - min_wy) / (max_wy - min_wy) * (height - 1)))
-                    if 2 <= c_px < width - 2 and 2 <= c_py < height - 2:
-                        cand_h = H[c_py, c_px]
-                        if cand_h < h_now - 0.0005:
-                            best_dir = (dx, dy, cand_h)
-                            break
-
-            if best_dir is None:
-                # Trapped in a local inland depression / pit!
-                # If the river has flown a reasonable distance from source (>= 8 points), render as an inland lake!
-                if len(pts) >= 8 and h_now < 0.45:
-                    reached_lake = True
-                    lake_info = (pts[-1], 18)
-                break
-
-            target_vx, target_vy, _ = best_dir
-            if vel_x == 0.0 and vel_y == 0.0:
-                vel_x, vel_y = target_vx, target_vy
-            else:
-                v_blend_x = vel_x * 0.35 + target_vx * 0.65
-                v_blend_y = vel_y * 0.35 + target_vy * 0.65
-                v_len = math.sqrt(v_blend_x**2 + v_blend_y**2) + 1e-6
-                v_blend_x /= v_len
-                v_blend_y /= v_len
-
-                # Ensure blended direction is STILL strictly downhill
-                test_px = int(round((cur_x + v_blend_x * step_dist - min_wx) / (max_wx - min_wx) * (width - 1)))
-                test_py = int(round((cur_y + v_blend_y * step_dist - min_wy) / (max_wy - min_wy) * (height - 1)))
-                if 2 <= test_px < width - 2 and 2 <= test_py < height - 2 and H[test_py, test_px] < h_now:
-                    vel_x, vel_y = v_blend_x, v_blend_y
-                else:
-                    vel_x, vel_y = target_vx, target_vy
-
-            cur_x += vel_x * step_dist
-            cur_y += vel_y * step_dist
-            p_pix = (int((cur_x - min_wx) / (max_wx - min_wx) * width), int((cur_y - min_wy) / (max_wy - min_wy) * height))
-            grid_pt = (p_pix[0] // 6, p_pix[1] // 6)
-            if grid_pt in visited_pts:
-                # If looped into itself, terminate into a lake basin if long enough
-                if len(pts) >= 8 and h_now < 0.45:
-                    reached_lake = True
-                    lake_info = (pts[-1], 18)
-                break
-            visited_pts.add(grid_pt)
-            pts.append(p_pix)
-
-        # Draw river path if valid (reached ocean or inland lake)
-        if (reached_ocean or reached_lake) and len(pts) >= 8:
-            valid_rivers_count += 1
-            for idx in range(len(pts) - 1):
-                t_p = idx / float(len(pts))
-                rw = max(2, int(2 + t_p * 6))
-                bw = rw + 4
-                pygame.draw.line(bank_surf, (70, 140, 50, 180), pts[idx], pts[idx + 1], bw)
-                pygame.draw.line(river_surf, (35, 115, 210, 255), pts[idx], pts[idx + 1], rw)
-
-            # Render inland lake if endorheic sink
-            if reached_lake and lake_info is not None:
-                l_center, l_radius = lake_info
-                # Draw organic contoured lake
-                pygame.draw.circle(bank_surf, (70, 140, 50, 210), l_center, l_radius + 5)
-                pygame.draw.circle(river_surf, (28, 105, 195, 255), l_center, l_radius)
-                # Overlapping sub-circle for organic lake shape
-                sub_center = (l_center[0] + 6, l_center[1] - 4)
-                pygame.draw.circle(bank_surf, (70, 140, 50, 210), sub_center, l_radius - 2 + 5)
-                pygame.draw.circle(river_surf, (32, 115, 205, 255), sub_center, l_radius - 2)
-
-            if valid_rivers_count >= 6:
-                break
-
-    bank_mask = (pygame.surfarray.array_alpha(bank_surf).T > 40).astype(np.float32)
-    river_mask = (pygame.surfarray.array_alpha(river_surf).T > 80).astype(np.float32)
-
-    # Riparian greenery
-    riparian_col = np.array([0.20, 0.44, 0.18], dtype=np.float32)
-    land_lit = np.where(bank_mask[:, :, None] > 0.5, land_lit * 0.45 + riparian_col * total_light * 0.55, land_lit)
-
-    # River water with sky reflection and specular
-    river_water_col = np.array([0.14, 0.44, 0.74], dtype=np.float32)
-    river_lit = river_water_col * (0.65 + 0.35 * direct_sun[:, :, None]) + specular[:, :, None] * 0.35
-    land_lit = np.where(river_mask[:, :, None] > 0.5, river_lit, land_lit)
-
-    final_rgb = np.where(is_water[:, :, None], w_lit, land_lit)
     final_rgb = np.clip(final_rgb, 0.0, 1.0)
     final_rgb = np.power(final_rgb, 1.0 / 1.15)
 
