@@ -671,6 +671,16 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
     mount_range_mask = np.clip(H_mount_prob * 1.5 + H_snow_prob * 0.6, 0.0, 1.0) ** 0.85
     mountain_ridge = mount_range_mask * (0.16 + 0.88 * mount_relief)
 
+    # Base Ground Elevation
+    base_ground_H = land_shelf + hill_ridge + mountain_ridge + plains_details * (1.0 - mount_range_mask)
+
+    # Alpine Treeline: Trees do not climb high into the mountain peaks
+    # Below elevation 0.20 and mountain mask 0.15: 100% full tree density
+    # Above elevation 0.36 or mountain mask 0.35: 0% trees (rocky alpine peaks & cliffs)
+    elev_treeline = np.clip(1.0 - (base_ground_H - 0.20) / 0.16, 0.0, 1.0)
+    mount_treeline = np.clip(1.0 - mount_range_mask * 2.2, 0.0, 1.0)
+    treeline_factor = elev_treeline * mount_treeline
+
     # -------------------------------------------------------------------------
     # Tall, Pointy, 10x Smaller Whole Trees (Strictly in Forest Biomes)
     # -------------------------------------------------------------------------
@@ -726,9 +736,15 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
             tree_cx = (cell_u + o_u) * tree_cell_size
             tree_cy = (cell_v + o_v) * tree_cell_size
 
+            # Organic meandering warp for forest boundary (80% hex alignment + 20% natural fractal meander)
+            warp_fx = (np.sin(tree_cy * 0.075 + 1.3) * 0.65 + np.cos(tree_cx * 0.045 - tree_cy * 0.035) * 0.35)
+            warp_fy = (np.cos(tree_cx * 0.075 + 2.7) * 0.65 + np.sin(tree_cx * 0.035 + tree_cy * 0.045) * 0.35)
+            tree_cx_w = tree_cx + warp_fx * (HEX_SIZE * 0.20)
+            tree_cy_w = tree_cy + warp_fy * (HEX_SIZE * 0.20)
+
             # Check if this WHOLE tree center is located in a Forest hex
-            q_tc = (_SQRT3 / 3.0 * tree_cx - 1.0 / 3.0 * tree_cy) / HEX_SIZE
-            r_tc = (2.0 / 3.0 * tree_cy) / HEX_SIZE
+            q_tc = (_SQRT3 / 3.0 * tree_cx_w - 1.0 / 3.0 * tree_cy_w) / HEX_SIZE
+            r_tc = (2.0 / 3.0 * tree_cy_w) / HEX_SIZE
             rx_tc = np.round(q_tc).astype(np.int32)
             ry_tc = np.round(r_tc).astype(np.int32)
             rz_tc = np.round(-q_tc - r_tc).astype(np.int32)
@@ -747,13 +763,13 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
             # Binary whole-tree forest presence: 1.0 if tree center is in forest, 0.0 otherwise
             is_forest_tree = np.where(in_tr_bounds, grid_forest[r_tr_clamped, q_tr_clamped], 0.0)
 
-            # Natural density variation inside forests
-            tree_present = (is_forest_tree > 0.5) & (v_v < 0.88)
+            # Natural density variation inside forests & alpine treeline cutoff
+            tree_present = (is_forest_tree > 0.5) & (v_v < 0.88) & (treeline_factor > 0.05)
 
             r_u = (g_u - f_u + o_u) * tree_cell_size
             r_v = (g_v - f_v + o_v) * tree_cell_size
 
-            t_height = kMaxTreeHeight * (0.6 + 0.6 * v_u)
+            t_height = kMaxTreeHeight * (0.6 + 0.6 * v_u) * (0.3 + 0.7 * treeline_factor)
             t_width = base_tree_width * (0.7 + 0.3 * v_u + 0.2 * v_v)
 
             # Conifer vs deciduous spire
@@ -780,7 +796,7 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
     tree_canopy_relief = tree_height_accum
 
     # Combine Base Elevation
-    raw_H = land_shelf + hill_ridge + mountain_ridge + plains_details * (1.0 - mount_range_mask) + tree_canopy_relief
+    raw_H = base_ground_H + tree_canopy_relief
 
     deep_ocean_mask = H_land_prob < 0.10
     raw_H = np.where(deep_ocean_mask, np.minimum(-0.20, raw_H), raw_H)
@@ -910,16 +926,41 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
     snow_base = np.array([0.92, 0.95, 0.98], dtype=np.float32)
     snow_summit = np.array([1.00, 1.00, 1.00], dtype=np.float32)
 
-    # --- Continuous Biome Composition ---
-    land_c = plains_col.copy()
+    # --- Continuous Biome Ground Composition ---
+    ground_c = plains_col.copy()
 
-    # Blend Forest floor on forest hexes
-    f_floor_weight = np.clip(H_forest_prob * 1.4, 0.0, 1.0)[:, :, None]
-    land_c = land_c * (1.0 - f_floor_weight * 0.75) + woodland_floor * (f_floor_weight * 0.75)
+    # Blend Woodland Floor on forest hexes (modulated by treeline so high mountains stay stone)
+    f_floor_weight = np.clip(H_forest_prob * 1.4, 0.0, 1.0) * treeline_factor
+    ground_c = ground_c * (1.0 - f_floor_weight[:, :, None] * 0.75) + woodland_floor * (f_floor_weight[:, :, None] * 0.75)
 
-    # Place whole tree spires on top
+    # Blend Hills
+    h_weight = np.clip(H_hills_prob * 1.3, 0.0, 1.0)[:, :, None]
+    ground_c = ground_c * (1.0 - h_weight * 0.75) + hills_col * (h_weight * 0.75)
+
+    # Blend Mountain rock
+    m_weight = np.clip(H_mount_prob * 1.5 + np.clip((H - 0.22)/0.25, 0.0, 1.0), 0.0, 1.0)[:, :, None]
+    m_rock = rock_slate * (1.0 - np.clip((H - 0.35)/0.35, 0.0, 1.0)[:, :, None]) + rock_granite * np.clip((H - 0.35)/0.35, 0.0, 1.0)[:, :, None]
+    m_rock = np.where(slope[:, :, None] < 0.12, rock_scree, m_rock)
+    ground_c = ground_c * (1.0 - m_weight) + m_rock * m_weight
+
+    # Cliff rock exposure on steep slopes in mountain/hill areas
+    rock_presence = np.clip(H_mount_prob * 1.5 + H_hills_prob * 0.5, 0.0, 1.0)[:, :, None]
+    cliff_factor = np.clip((slope - 0.16) / 0.20, 0.0, 1.0)[:, :, None] * rock_presence
+    cliff_col = np.where(H[:, :, None] >= 0.85, rock_granite, cliff_dark)
+    ground_c = ground_c * (1.0 - cliff_factor * 0.40) + cliff_col * (cliff_factor * 0.40)
+
+    # EXPANSIVE BEACHES: Wide sandy beaches extending along coast up to H=0.075
+    beach_mask = np.clip((0.075 - H) / 0.075, 0.0, 1.0)[:, :, None]
+    ground_c = ground_c * (1.0 - beach_mask) + beach_col * beach_mask
+
+    # Snow Peaks (STRICTLY snow mountain tiles and high summits >= 0.76)
+    snow_weight = np.clip(H_snow_prob * 1.6, 0.0, 1.0) * np.clip((H - 0.74) / 0.12, 0.0, 1.0)
+    snow_col = snow_base * (1.0 - np.clip((H - 0.82)/0.12, 0.0, 1.0)[:, :, None]) + snow_summit * np.clip((H - 0.82)/0.12, 0.0, 1.0)[:, :, None]
+    ground_c = ground_c * (1.0 - snow_weight[:, :, None]) + snow_col * snow_weight[:, :, None]
+
+    # --- Place Green 3D Tree Canopies on top of ground (TREES ARE ALWAYS GREEN) ---
     tree_mask = np.clip(tree_height_accum / 0.003, 0.0, 1.0)[:, :, None]
-    land_c = land_c * (1.0 - tree_mask) + forest_canopy_color * tree_mask
+    land_c = ground_c * (1.0 - tree_mask) + forest_canopy_color * tree_mask
 
     # Blend Hills
     h_weight = np.clip(H_hills_prob * 1.3, 0.0, 1.0)[:, :, None]
