@@ -672,7 +672,7 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
     mountain_ridge = mount_range_mask * (0.16 + 0.88 * mount_relief)
 
     # -------------------------------------------------------------------------
-    # Inigo Quilez treesMap Algorithm for Forests
+    # Tall, Pointy, 10x Smaller Whole Trees (Strictly in Forest Biomes)
     # -------------------------------------------------------------------------
     def hash2_vec(cx_arr, cy_arr):
         p1 = cx_arr * 127.1 + cy_arr * 311.7
@@ -686,13 +686,8 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
         h = np.sin(p) * 43758.5453
         return h - np.floor(h)
 
-    # Macro forest species / density variation (bb in IQ code)
-    bb_scale = 1.0 / (HEX_SIZE * 2.8)
-    bb_val, _, _ = iq_noised(WX * bb_scale, WY * bb_scale)
-    bb = bb_val - 0.50
-
-    # Grid evaluation (p.xz / 2.0 in IQ code -> scaled by tree spacing cell ~15px)
-    tree_cell_size = 15.0
+    # 10x smaller tree spacing: ~2.6px per tree cell
+    tree_cell_size = 2.6
     u_grid = WX / tree_cell_size
     v_grid = WY / tree_cell_size
 
@@ -704,10 +699,14 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
     step_u = np.where(f_u < 0.5, 1.0, 0.0)
     step_v = np.where(f_v < 0.5, 1.0, 0.0)
 
-    kMaxTreeHeight = 0.038
-    base_tree_width = tree_cell_size * 0.70
+    # Macro forest species / density variation (bb in IQ code)
+    bb_scale = 1.0 / (HEX_SIZE * 1.5)
+    bb_val, _, _ = iq_noised(WX * bb_scale, WY * bb_scale)
+    bb = bb_val - 0.50
 
-    tree_d = np.full_like(WX, 999.0, dtype=np.float32)
+    kMaxTreeHeight = 0.024
+    base_tree_width = 1.85  # Tiny 1.85px radius
+
     tree_height_accum = np.zeros_like(WX, dtype=np.float32)
     tree_mat_accum = np.zeros_like(WX, dtype=np.float32)
     tree_hei_accum = np.zeros_like(WX, dtype=np.float32)
@@ -723,48 +722,62 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
             o_u, o_v = hash2_vec(cell_u, cell_v)
             v_u, v_v = hash2_vec(cell_u + 13.1, cell_v + 71.7)
 
+            # Exact world center position of this tree instance
+            tree_cx = (cell_u + o_u) * tree_cell_size
+            tree_cy = (cell_v + o_v) * tree_cell_size
+
+            # Check if this WHOLE tree center is located in a Forest hex
+            q_tc = (_SQRT3 / 3.0 * tree_cx - 1.0 / 3.0 * tree_cy) / HEX_SIZE
+            r_tc = (2.0 / 3.0 * tree_cy) / HEX_SIZE
+            rx_tc = np.round(q_tc).astype(np.int32)
+            ry_tc = np.round(r_tc).astype(np.int32)
+            rz_tc = np.round(-q_tc - r_tc).astype(np.int32)
+            dx_tc = np.abs(rx_tc - q_tc)
+            dy_tc = np.abs(ry_tc - r_tc)
+            dz_tc = np.abs(rz_tc - (-q_tc - r_tc))
+            mx_tc = (dx_tc > dy_tc) & (dx_tc > dz_tc)
+            my_tc = (~mx_tc) & (dy_tc > dz_tc)
+            q_tree = np.where(mx_tc, -ry_tc - rz_tc, rx_tc)
+            r_tree = np.where(my_tc, -rx_tc - rz_tc, ry_tc)
+
+            q_tr_clamped = np.clip(q_tree - min_q, 0, q_size - 1)
+            r_tr_clamped = np.clip(r_tree - min_r, 0, r_size - 1)
+            in_tr_bounds = (q_tree >= min_q) & (q_tree <= max_q) & (r_tree >= min_r) & (r_tree <= max_r)
+            
+            # Binary whole-tree forest presence: 1.0 if tree center is in forest, 0.0 otherwise
+            is_forest_tree = np.where(in_tr_bounds, grid_forest[r_tr_clamped, q_tr_clamped], 0.0)
+
+            # Natural density variation inside forests
+            tree_present = (is_forest_tree > 0.5) & (v_v < 0.88)
+
             r_u = (g_u - f_u + o_u) * tree_cell_size
             r_v = (g_v - f_v + o_v) * tree_cell_size
 
-            t_height = kMaxTreeHeight * (0.4 + 0.8 * v_u)
-            t_width = base_tree_width * (0.5 + 0.2 * v_u + 0.3 * v_v)
+            t_height = kMaxTreeHeight * (0.6 + 0.6 * v_u)
+            t_width = base_tree_width * (0.7 + 0.3 * v_u + 0.2 * v_v)
 
-            # Species adaptation: narrow conifer vs broad deciduous
-            t_width = np.where(bb < 0.0, t_width * 0.55, t_width)
-            t_height = np.where(bb >= 0.0, t_height * 0.72, t_height)
+            # Conifer vs deciduous spire
+            t_width = np.where(bb < 0.0, t_width * 0.70, t_width)
+            t_height = np.where(bb >= 0.0, t_height * 0.85, t_height)
 
-            # Distance from point to tree center
             r_dist = np.sqrt(r_u**2 + r_v**2)
             q_norm = r_dist / np.maximum(1e-4, t_width)
 
-            # Ellipsoid dome distance
-            k_dist = (q_norm - 1.0) * t_width
-            in_crown = q_norm < 1.0
+            # Tall, pointy conical / gothic spire profile
+            in_crown = (q_norm < 1.0) & tree_present
+            pointy_profile = np.maximum(0.0, 1.0 - q_norm) ** 0.65
+            dome_h = np.where(in_crown, t_height * pointy_profile, 0.0)
 
-            # Crown dome height
-            dome_h = np.where(in_crown, t_height * np.sqrt(np.maximum(0.0, 1.0 - q_norm**2)), 0.0)
-
-            # Track closest / dominant tree crown
-            is_closer = k_dist < tree_d
-            tree_d = np.where(is_closer, k_dist, tree_d)
-
-            # Material ID & crown height profile
             cand_mat = 0.5 * hash1_vec(cell_u, cell_v + 111.0) + np.where(bb > 0.0, 0.5, 0.0)
-            cand_hei = np.where(in_crown, np.sqrt(np.maximum(0.0, 1.0 - q_norm**2)) * (0.5 + 0.5 * q_norm), 0.0)
+            cand_hei = np.where(in_crown, pointy_profile, 0.0)
 
-            tree_height_accum = np.maximum(tree_height_accum, dome_h)
-            tree_mat_accum = np.where(is_closer, cand_mat, tree_mat_accum)
-            tree_hei_accum = np.where(is_closer, cand_hei, tree_hei_accum)
+            is_higher = dome_h > tree_height_accum
+            tree_height_accum = np.where(is_higher, dome_h, tree_height_accum)
+            tree_mat_accum = np.where(is_higher, cand_mat, tree_mat_accum)
+            tree_hei_accum = np.where(is_higher, cand_hei, tree_hei_accum)
 
-    # Foliage distortion: fbm_4(p * 3.0); s = s * s (Leaf clumping texture)
-    distort_p1, _, _ = iq_noised(WX / 5.0, WY / 5.0)
-    distort_p2, _, _ = iq_noised(WX / 2.5 + 13.7, WY / 2.5 + 47.1)
-    foliage_s = (distort_p1 * 0.7 + distort_p2 * 0.3)
-    foliage_s = foliage_s * foliage_s
-    tree_distortion = foliage_s * 0.008
-
-    # Complete IQ Tree Canopy Field
-    tree_canopy_relief = (tree_height_accum + np.where(tree_height_accum > 0.001, tree_distortion, 0.0)) * H_forest_prob
+    # Complete whole-tree canopy relief (no partial tree slicing)
+    tree_canopy_relief = tree_height_accum
 
     # Combine Base Elevation
     raw_H = land_shelf + hill_ridge + mountain_ridge + plains_details * (1.0 - mount_range_mask) + tree_canopy_relief
@@ -774,7 +787,7 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
 
     H = raw_H
 
-    # Surface normals (incorporates micro-fractal turf detail & IQ tree crowns)
+    # Surface normals (incorporates pointy tree spire details)
     height_exaggeration = 0.13
     dHx = np.gradient(H, axis=1) * (width / 2.0) * height_exaggeration
     dHy = np.gradient(H, axis=0) * (height / 2.0) * height_exaggeration
@@ -862,10 +875,12 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
     plains_col = plains_col * (1.0 - t_grass3 * 0.25) + grass_loam * (t_grass3 * 0.25)
 
     # 3. IQ TREES & FOREST CANOPY MATERIAL (Individual tree species colors & canopy volume AO)
-    forest_spruce = np.array([0.06, 0.20, 0.09], dtype=np.float32)  # Dark evergreen
-    forest_emerald = np.array([0.14, 0.38, 0.16], dtype=np.float32) # Vibrant broadleaf
-    forest_olive = np.array([0.22, 0.36, 0.14], dtype=np.float32)   # Olive canopy
-    forest_golden = np.array([0.32, 0.42, 0.16], dtype=np.float32)  # Golden autumn tree
+    forest_spruce = np.array([0.05, 0.18, 0.08], dtype=np.float32)  # Dark conifer needle
+    forest_emerald = np.array([0.12, 0.35, 0.14], dtype=np.float32) # Vibrant emerald spruce
+    forest_olive = np.array([0.18, 0.32, 0.12], dtype=np.float32)   # Olive canopy
+    forest_golden = np.array([0.28, 0.36, 0.14], dtype=np.float32)  # Golden pine
+
+    woodland_floor = np.array([0.20, 0.42, 0.18], dtype=np.float32) # Deep forest floor
 
     # Interpolate tree color from IQ oMat
     t_mat = tree_mat_accum[:, :, None]
@@ -878,8 +893,8 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
             forest_olive * (1.0 - (t_mat-0.70)/0.30) + forest_golden * ((t_mat-0.70)/0.30)
         )
     )
-    # Apply crown height profile ambient occlusion from IQ oHei
-    crown_ao = (0.65 + 0.35 * tree_hei_accum[:, :, None])
+    # Apply crown height profile ambient occlusion from IQ oHei (sharp highlight at tip, dark base)
+    crown_ao = (0.50 + 0.50 * tree_hei_accum[:, :, None])
     forest_canopy_color = tree_base_col * crown_ao
 
     # 4. HILLS & HIGHLANDS
@@ -898,9 +913,13 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
     # --- Continuous Biome Composition ---
     land_c = plains_col.copy()
 
-    # Blend Forest
-    f_weight = np.clip(H_forest_prob * 1.5, 0.0, 1.0)[:, :, None]
-    land_c = land_c * (1.0 - f_weight) + forest_canopy_color * f_weight
+    # Blend Forest floor on forest hexes
+    f_floor_weight = np.clip(H_forest_prob * 1.4, 0.0, 1.0)[:, :, None]
+    land_c = land_c * (1.0 - f_floor_weight * 0.75) + woodland_floor * (f_floor_weight * 0.75)
+
+    # Place whole tree spires on top
+    tree_mask = np.clip(tree_height_accum / 0.003, 0.0, 1.0)[:, :, None]
+    land_c = land_c * (1.0 - tree_mask) + forest_canopy_color * tree_mask
 
     # Blend Hills
     h_weight = np.clip(H_hills_prob * 1.3, 0.0, 1.0)[:, :, None]
