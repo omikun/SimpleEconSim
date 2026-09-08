@@ -508,6 +508,13 @@ def _draw_left_nation_scope(surface, world, region, nation, start_y, x, w, font,
                   'nat_subsidize_entertainment', nation, enabled=True, color=(70, 195, 235),
                   world=world, region=region, nation=nation)
 
+    cur_y += card4_h + 8
+
+    # 5. Electoral Struggle & Capitalist Backlash Barometer Card (Visualization 5)
+    baro_h = 78
+    from worldview_vis_radar import draw_electoral_barometer
+    draw_electoral_barometer(surface, (x + 8, cur_y, w - 16, baro_h), nation, font_small)
+
 
 def gov_panel_hit(pos, world) -> bool:
     """Handle click interactions on the Left Governance Panel and registered buttons."""

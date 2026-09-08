@@ -323,9 +323,35 @@ def draw_citizens_panel(surface, world, region, font, font_small, mouse_pos=None
               f"Disp {disposs_c} | Gent {gentry_c}")
     surface.blit(font_small.render(s_desc, True, (190, 205, 220)), (PANEL_LEFT + 12, card_y + 38))
 
-    # 3. Chart Grid or Zoom View
-    chart_y0 = card_y + card_h + 8
+    # 2b. View Switcher: [ Historical Charts ]  [ Wealth Pyramid & Lorenz ]
+    c_mode = world.get('citizen_class_mode', 'charts')
+    mode_w = (PANEL_W - 20) // 2
+    btn_charts = (PANEL_LEFT + 6, card_y + card_h + 6, mode_w, 20)
+    btn_pyr = (PANEL_LEFT + 10 + mode_w, card_y + card_h + 6, mode_w, 20)
+
+    is_ch_hov = btn_charts[0] <= mx <= btn_charts[0] + mode_w and btn_charts[1] <= my <= btn_charts[1] + 20
+    is_py_hov = btn_pyr[0] <= mx <= btn_pyr[0] + mode_w and btn_pyr[1] <= my <= btn_pyr[1] + 20
+
+    pygame.draw.rect(surface, (45, 55, 75) if c_mode == 'charts' else ((32, 38, 50) if is_ch_hov else (22, 24, 34)), btn_charts, border_radius=4)
+    pygame.draw.rect(surface, ACCENT if c_mode == 'charts' else (HEX_EDGE if is_ch_hov else (45, 52, 70)), btn_charts, 1, border_radius=4)
+    surface.blit(font_small.render("Historical Charts", True, (255, 255, 255) if c_mode == 'charts' else TEXT), (btn_charts[0] + 10, btn_charts[1] + 2))
+
+    pygame.draw.rect(surface, (75, 65, 45) if c_mode == 'pyramid' else ((32, 38, 50) if is_py_hov else (22, 24, 34)), btn_pyr, border_radius=4)
+    pygame.draw.rect(surface, (245, 210, 80) if c_mode == 'pyramid' else (HEX_EDGE if is_py_hov else (45, 52, 70)), btn_pyr, 1, border_radius=4)
+    surface.blit(font_small.render("Pyramid & Lorenz", True, (255, 255, 255) if c_mode == 'pyramid' else TEXT), (btn_pyr[0] + 10, btn_pyr[1] + 2))
+
+    # 3. Chart Grid, Zoom View, or Wealth Pyramid
+    chart_y0 = card_y + card_h + 30
     chart_y1 = panel_bottom
+
+    if c_mode == 'pyramid':
+        from worldview_vis_pyramid import draw_class_wealth_pyramid, draw_lorenz_curve
+        target = region if scope == 'tile' else nation
+        avail_h = chart_y1 - chart_y0 - 6
+        h_each = avail_h // 2
+        draw_class_wealth_pyramid(surface, (PANEL_LEFT + 6, chart_y0, PANEL_W - 12, h_each), target, font_small)
+        draw_lorenz_curve(surface, (PANEL_LEFT + 6, chart_y0 + h_each + 6, PANEL_W - 12, h_each), target, font_small)
+        return
 
     c_view = world.get('citizen_chart_view', 0)
     if c_view == 0 or not charts:
@@ -376,19 +402,35 @@ def citizen_panel_hit(pos, world):
         world['citizen_chart_view'] = 0
         return True
 
-    # Chart Zoom Hit
-    chart_y0 = panel_top + 52 + 60 + 8
-    chart_y1 = HEIGHT - TICKER_H - 24
-    if world.get('citizen_chart_view', 0) == 0:
-        # 4 charts in a 2x2 grid
-        hit_idx = chart_at_pixel(pos, chart_y0, chart_y1, num_charts=4)
-        if hit_idx is not None:
-            world['citizen_chart_view'] = hit_idx
-            return True
-    else:
-        # In zoom mode, clicking anywhere in the chart area returns to grid
-        if PANEL_LEFT + 6 <= mx <= WIDTH - 8 and chart_y0 <= my <= chart_y1:
-            world['citizen_chart_view'] = 0
-            return True
+    # If in labor subtab, pass to labor panel hit
+    if world.get('citizen_subtab') == 'labor':
+        from worldview_labor_ui import labor_panel_hit
+        return labor_panel_hit(pos, world)
+
+    # Class View Mode Toggle (Charts vs Pyramid)
+    card_y = panel_top + 52
+    card_h = 60
+    btn_charts = (PANEL_LEFT + 6, card_y + card_h + 6, btn_w, 20)
+    btn_pyr = (PANEL_LEFT + 10 + btn_w, card_y + card_h + 6, btn_w, 20)
+    if btn_charts[0] <= mx <= btn_charts[0] + btn_w and btn_charts[1] <= my <= btn_charts[1] + 20:
+        world['citizen_class_mode'] = 'charts'
+        return True
+    if btn_pyr[0] <= mx <= btn_pyr[0] + btn_w and btn_pyr[1] <= my <= btn_pyr[1] + 20:
+        world['citizen_class_mode'] = 'pyramid'
+        return True
+
+    # Chart Zoom Hit (when in charts mode)
+    if world.get('citizen_class_mode', 'charts') == 'charts':
+        chart_y0 = card_y + card_h + 30
+        chart_y1 = HEIGHT - TICKER_H - 24
+        if world.get('citizen_chart_view', 0) == 0:
+            hit_idx = chart_at_pixel(pos, chart_y0, chart_y1, num_charts=4)
+            if hit_idx is not None:
+                world['citizen_chart_view'] = hit_idx
+                return True
+        else:
+            if PANEL_LEFT + 6 <= mx <= WIDTH - 8 and chart_y0 <= my <= chart_y1:
+                world['citizen_chart_view'] = 0
+                return True
 
     return False

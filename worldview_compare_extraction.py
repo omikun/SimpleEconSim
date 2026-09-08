@@ -125,6 +125,30 @@ def draw_tab4_extraction(surface, world, box_x, start_y, box_w, box_h, font, cel
         surface.blit(tsurf, tsurf.get_rect(center=(gx + 60, gy + 12)))
         gx += 130
 
+    # Mode Sub-Selectors: [ Data Table ]  [ Circuit of Capital (M->C->P->C'->M') & TRPF ]
+    active_mode = world.get('compare_ext_mode', 'table')
+    mode_btns = [
+        ('table', 'Data Table', 120),
+        ('circuit', "Capital Circuit & TRPF Curve", 220),
+    ]
+    mx_x = box_x + 430
+    for m_key, m_label, m_w in mode_btns:
+        is_sel = (m_key == active_mode)
+        rect = (mx_x, gy, m_w, 24)
+        is_hov = rect[0] <= mx <= rect[0] + rect[2] and rect[1] <= my <= rect[1] + rect[3]
+        bg = (235, 195, 75) if is_sel else ((44, 44, 58) if is_hov else (30, 30, 40))
+        txt_c = (20, 20, 24) if is_sel else ((255, 255, 255) if is_hov else TEXT)
+        pygame.draw.rect(surface, bg, rect, border_radius=4)
+        pygame.draw.rect(surface, (140, 120, 60) if is_sel else (80, 80, 100), rect, 1, border_radius=4)
+        tsurf = cell_font.render(m_label, True, txt_c)
+        surface.blit(tsurf, tsurf.get_rect(center=(mx_x + m_w // 2, gy + 12)))
+        mx_x += m_w + 10
+
+    if active_mode == 'circuit':
+        from worldview_vis_circuits import draw_circuit_of_capital_sankey
+        draw_circuit_of_capital_sankey(surface, world, box_x, start_y + 16, box_w, box_h - (start_y + 16 - 20) - 20, font, cell_font, section_font, mouse_pos=mouse_pos)
+        return
+
     y = start_y + 24
 
     # Collect and aggregate tile stats

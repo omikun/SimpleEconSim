@@ -618,11 +618,12 @@ def main():
                     _mark_dirty(world)
                 elif event.key in (pygame.K_F6, pygame.K_6, pygame.K_KP6):
                     world['map_layer'] = 'military'
+                elif event.key in (pygame.K_F7, pygame.K_7, pygame.K_KP7):
+                    world['map_layer'] = 'enclosure'
                     _mark_dirty(world)
-                elif event.key in (pygame.K_7, pygame.K_KP7):
-                    world['view'] = 7
-                elif event.key in (pygame.K_8, pygame.K_KP8):
-                    world['view'] = 8
+                elif event.key in (pygame.K_F8, pygame.K_8, pygame.K_KP8):
+                    world['map_layer'] = 'exploitation'
+                    _mark_dirty(world)
                 elif event.key in (pygame.K_9, pygame.K_KP9):
                     world['view'] = 9
                 elif event.key == pygame.K_0:

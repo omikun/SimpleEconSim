@@ -28,6 +28,8 @@ MAP_LAYERS = [
     ('economy', '4. Economy & Wealth', '4', (120, 225, 130), 'Regional GDP, price basket & deposits'),
     ('production', '5. Production & Output', '5', (245, 210, 90), 'Resource outputs & completed buildings'),
     ('military', '6. Military & Defense', '6', (235, 80, 80), 'Troops, garrison strength & border threat'),
+    ('enclosure', '7. Land Tenure', '7', (215, 175, 75), 'Customary commons vs enclosed plots'),
+    ('exploitation', '8. Exploitation & Strikes', '8', (235, 75, 75), 'Surplus rate s/v & active wildcat strikes'),
 ]
 
 DOCK_H = 36 + len(MAP_LAYERS) * (BTN_H + BTN_SPACING) + 4  # 262px

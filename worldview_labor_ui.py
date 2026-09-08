@@ -150,6 +150,7 @@ def draw_labor_dashboard(surface, world, region, font, font_small, mouse_pos=Non
     panel_top = 180 + d
     panel_bottom = HEIGHT - TICKER_H - 24
     scope = world.get('citizen_scope', 'tile')
+    mx, my = mouse_pos if mouse_pos else (-1, -1)
 
     nation = None
     if region is not None and getattr(region, 'owner_nation', None) is not None:
@@ -211,9 +212,32 @@ def draw_labor_dashboard(surface, world, region, font, font_small, mouse_pos=Non
     metric_s = f"Shift: {avg_shift:.1f}h | Strikers: {strikers_cnt} | Broken: {broken_cnt} | Spectacle: {avg_ent:.0f}%"
     surface.blit(font_small.render(metric_s, True, (190, 205, 220)), (PANEL_LEFT + 12, card_y + 40))
 
-    # Render Charts
-    chart_y0 = card_y + card_h + 8
+    # View Mode Switcher: [ Historical Charts ]  [ 4D Alienation Radar ]
+    l_mode = world.get('labor_sub_mode', 'charts')
+    mode_w = (PANEL_W - 20) // 2
+    btn_charts = (PANEL_LEFT + 6, card_y + card_h + 6, mode_w, 20)
+    btn_radar = (PANEL_LEFT + 10 + mode_w, card_y + card_h + 6, mode_w, 20)
+
+    is_ch_hov = btn_charts[0] <= mx <= btn_charts[0] + mode_w and btn_charts[1] <= my <= btn_charts[1] + 20
+    is_rd_hov = btn_radar[0] <= mx <= btn_radar[0] + mode_w and btn_radar[1] <= my <= btn_radar[1] + 20
+
+    pygame.draw.rect(surface, (45, 55, 75) if l_mode == 'charts' else ((32, 38, 50) if is_ch_hov else (22, 24, 34)), btn_charts, border_radius=4)
+    pygame.draw.rect(surface, ACCENT if l_mode == 'charts' else (HEX_EDGE if is_ch_hov else (45, 52, 70)), btn_charts, 1, border_radius=4)
+    surface.blit(font_small.render("Historical Charts", True, (255, 255, 255) if l_mode == 'charts' else TEXT), (btn_charts[0] + 10, btn_charts[1] + 2))
+
+    pygame.draw.rect(surface, (70, 45, 80) if l_mode == 'radar' else ((32, 38, 50) if is_rd_hov else (22, 24, 34)), btn_radar, border_radius=4)
+    pygame.draw.rect(surface, (180, 120, 220) if l_mode == 'radar' else (HEX_EDGE if is_rd_hov else (45, 52, 70)), btn_radar, 1, border_radius=4)
+    surface.blit(font_small.render("4D Alienation Radar", True, (255, 255, 255) if l_mode == 'radar' else TEXT), (btn_radar[0] + 10, btn_radar[1] + 2))
+
+    # Render Charts or 4D Radar
+    chart_y0 = card_y + card_h + 30
     chart_y1 = panel_bottom
+
+    if l_mode == 'radar':
+        from worldview_vis_radar import draw_alienation_radar
+        target = region if scope == 'tile' else nation
+        draw_alienation_radar(surface, (PANEL_LEFT + 6, chart_y0, PANEL_W - 12, chart_y1 - chart_y0 - 8), target, font_small)
+        return
 
     c_view = world.get('citizen_chart_view', 0)
     if c_view == 0 or not charts:
@@ -231,3 +255,39 @@ def draw_labor_dashboard(surface, world, region, font, font_small, mouse_pos=Non
                          world['window'], chart_y0, chart_y1)
         hint = font_small.render(f"{charts[idx][0]} (Click/Esc = Grid)", True, DIM)
         surface.blit(hint, (PANEL_LEFT + 6, chart_y1 + 4))
+
+
+def labor_panel_hit(pos, world):
+    """Handle clicks inside the Labor & Alienation panel."""
+    mx, my = pos
+    d = TOP_BAR_H
+    panel_top = 180 + d
+    btn_w = (PANEL_W - 20) // 2
+    card_y = panel_top + 52
+    card_h = 60
+
+    # View Mode Toggle (Charts vs Radar)
+    btn_charts = (PANEL_LEFT + 6, card_y + card_h + 6, btn_w, 20)
+    btn_radar = (PANEL_LEFT + 10 + btn_w, card_y + card_h + 6, btn_w, 20)
+    if btn_charts[0] <= mx <= btn_charts[0] + btn_w and btn_charts[1] <= my <= btn_charts[1] + 20:
+        world['labor_sub_mode'] = 'charts'
+        return True
+    if btn_radar[0] <= mx <= btn_radar[0] + btn_w and btn_radar[1] <= my <= btn_radar[1] + 20:
+        world['labor_sub_mode'] = 'radar'
+        return True
+
+    # Chart Zoom Hit (when in charts mode)
+    if world.get('labor_sub_mode', 'charts') == 'charts':
+        chart_y0 = card_y + card_h + 30
+        chart_y1 = HEIGHT - TICKER_H - 24
+        if world.get('citizen_chart_view', 0) == 0:
+            hit_idx = chart_at_pixel(pos, chart_y0, chart_y1, num_charts=4)
+            if hit_idx is not None:
+                world['citizen_chart_view'] = hit_idx
+                return True
+        else:
+            if PANEL_LEFT + 6 <= mx <= WIDTH - 8 and chart_y0 <= my <= chart_y1:
+                world['citizen_chart_view'] = 0
+                return True
+
+    return False

@@ -166,6 +166,42 @@ def tile_stats(region, layer_mode='overview', world=None):
             threat_str = "Border: Guarded" if owner else "Wilderness"
             return "No Garrison", threat_str, "Vulnerability: High" if owner else "--", DIM, ACCENT if owner else DIM, RED if owner else DIM
 
+    # 7. LAND TENURE & ENCLOSURE LAYER
+    if layer_mode == 'enclosure':
+        if is_ocean:
+            return "No Land Tenure", "Ocean Waters", "", DIM, DIM, DIM
+        tenure = getattr(region, 'tenure', None)
+        if tenure:
+            commons_pct = tenure.commons_access * 100.0
+            feudal_pct = tenure.feudal_fraction * 100.0
+            encl_pct = tenure.enclosed_fraction * 100.0
+            rent = region.rent_collected_log[-1] if getattr(region, 'rent_collected_log', None) else 0.0
+            top_badge = f"Commons: {commons_pct:.0f}%"
+            stat_line = f"Feud {feudal_pct:.0f}% | Encl {encl_pct:.0f}%"
+            tr_line = f"Rent: ${rent:,.0f}" if rent > 0 else "Free Customary"
+            b_col = (110, 215, 130) if commons_pct > 60 else ((240, 185, 75) if commons_pct > 25 else (230, 110, 60))
+            return top_badge, stat_line, tr_line, b_col, TEXT, DIM
+        else:
+            return "Wilderness Commons", "Customary Foraging", "No Enclosure", (110, 215, 130), TEXT, DIM
+
+    # 8. EXPLOITATION (s/v) & STRIKES LAYER
+    if layer_mode == 'exploitation':
+        if is_ocean:
+            return "No Industry", "Ocean Waters", "", DIM, DIM, DIM
+        sv_log = getattr(region, 'rate_of_exploitation_log', [])
+        sv = sv_log[-1] if sv_log else 0.0
+        shift_log = getattr(region, 'avg_shift_hours_log', [])
+        sh = shift_log[-1] if shift_log else 8.0
+        strikers = region.strikers_log[-1] if getattr(region, 'strikers_log', None) else 0
+        broken = region.broken_machinery_log[-1] if getattr(region, 'broken_machinery_log', None) else 0
+
+        top_badge = f"s/v: {sv*100:.0f}% ({sh:.1f}h)"
+        stat_line = f"Strikers: {strikers} | Smashed: {broken}"
+        tr_line = "WILDCAT STRIKE!" if (strikers > 0 or broken > 0) else "Peaceful Factory"
+        b_col = RED if (strikers > 0 or broken > 0 or sv > 1.0) else ((240, 180, 80) if sv > 0.4 else (100, 180, 240))
+        t_col = RED if (strikers > 0 or broken > 0) else GREEN
+        return top_badge, stat_line, tr_line, b_col, TEXT, t_col
+
     # 6. OVERVIEW LAYER (Default)
     if is_ocean or owner is None:
         return "", "", "", DIM, DIM, DIM
@@ -237,6 +273,51 @@ def draw_nation_overlay(surface, region, pts):
     tint_color = (min(255, col[0] + extra), min(255, col[1] + extra), min(255, col[2] + extra), 60)
     pygame.draw.polygon(tint_surf, tint_color, local_pts)
     surface.blit(tint_surf, (min_x, min_y))
+
+
+def draw_thematic_choropleth(surface, region, pts, layer_mode, frame=0):
+    """Draw Layer 7 (Land Tenure / Enclosure) or Layer 8 (Exploitation / Strikes) choropleth tint."""
+    is_ocean = getattr(region, 'is_ocean', False) or getattr(region, 'elevation', 0) < 0
+    if is_ocean:
+        return
+
+    min_x = min(p[0] for p in pts)
+    max_x = max(p[0] for p in pts)
+    min_y = min(p[1] for p in pts)
+    max_y = max(p[1] for p in pts)
+    w = max(1, int(max_x - min_x) + 2)
+    h = max(1, int(max_y - min_y) + 2)
+
+    tint_surf = pygame.Surface((w, h), pygame.SRCALPHA)
+    local_pts = [(p[0] - min_x, p[1] - min_y) for p in pts]
+
+    if layer_mode == 'enclosure':
+        tenure = getattr(region, 'tenure', None)
+        c_acc = tenure.commons_access if tenure else 1.0
+        # Blend from lush green (c_acc=1.0) to parched amber/brown (c_acc=0.0)
+        cr = int(60 * c_acc + 195 * (1.0 - c_acc))
+        cg = int(190 * c_acc + 95 * (1.0 - c_acc))
+        cb = int(90 * c_acc + 40 * (1.0 - c_acc))
+        pygame.draw.polygon(tint_surf, (cr, cg, cb, 90), local_pts)
+        surface.blit(tint_surf, (min_x, min_y))
+
+    elif layer_mode == 'exploitation':
+        sv_log = getattr(region, 'rate_of_exploitation_log', [])
+        sv = sv_log[-1] if sv_log else 0.5
+        ratio = min(1.0, max(0.0, sv / 1.5))
+        # Blend from deep blue (low s/v) to hot crimson (high s/v)
+        cr = int(50 * (1.0 - ratio) + 235 * ratio)
+        cg = int(120 * (1.0 - ratio) + 45 * ratio)
+        cb = int(220 * (1.0 - ratio) + 65 * ratio)
+        pygame.draw.polygon(tint_surf, (cr, cg, cb, 95), local_pts)
+        surface.blit(tint_surf, (min_x, min_y))
+
+        # Flashing strike warning border on hex
+        strikers = getattr(region, 'strikers_log', [0])[-1] if getattr(region, 'strikers_log', None) else 0
+        broken = getattr(region, 'broken_machinery_log', [0])[-1] if getattr(region, 'broken_machinery_log', None) else 0
+        if strikers > 0 or broken > 0:
+            pulse = int(140 + 115 * math.sin(frame * 0.2))
+            pygame.draw.polygon(surface, (255, 60, 60, pulse), pts, 3)
 
 
 def draw_pop_heat(surface, region, pts, cx, cy, zoom=1.0, frame=0):
@@ -573,8 +654,11 @@ def draw_hex_map(surface, world, font, font_small):
         # 1a. Ocean wave shimmer (if water)
         draw_elevation_terrain(surface, region, pts, cx, cy, zoom=zoom, frame=frame)
 
-        # 1b. Semi-Transparent Nation Territory Overlay
+        # 1b. Semi-Transparent Nation Territory Overlay & Thematic Choropleth
         draw_nation_overlay(surface, region, pts)
+        active_layer = world.get('map_layer', 'overview')
+        if active_layer in ('enclosure', 'exploitation'):
+            draw_thematic_choropleth(surface, region, pts, active_layer, frame=frame)
 
         # 1c. 50% Transparent White Hex Outline (RGBA: 255, 255, 255, 128)
         pygame.draw.polygon(border_overlay, (255, 255, 255, 128), pts, 1)

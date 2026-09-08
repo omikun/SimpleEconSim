@@ -144,6 +144,30 @@ def draw_tab5_protest(surface, world, box_x, start_y, box_w, box_h, font, cell_f
         surface.blit(tsurf, tsurf.get_rect(center=(gx + 60, gy + 12)))
         gx += 130
 
+    # Mode Sub-Selectors: [ Grievance Table ]  [ Rebellion Attractor (Phase-Space) ]
+    active_mode = world.get('compare_protest_mode', 'table')
+    mode_btns = [
+        ('table', 'Grievance Table', 130),
+        ('attractor', 'Rebellion Attractor (Phase-Space)', 240),
+    ]
+    mx_x = box_x + 430
+    for m_key, m_label, m_w in mode_btns:
+        is_sel = (m_key == active_mode)
+        rect = (mx_x, gy, m_w, 24)
+        is_hov = rect[0] <= mx <= rect[0] + rect[2] and rect[1] <= my <= rect[1] + rect[3]
+        bg = (235, 90, 90) if is_sel else ((44, 44, 58) if is_hov else (30, 30, 40))
+        txt_c = (20, 20, 24) if is_sel else ((255, 255, 255) if is_hov else TEXT)
+        pygame.draw.rect(surface, bg, rect, border_radius=4)
+        pygame.draw.rect(surface, (140, 60, 60) if is_sel else (80, 80, 100), rect, 1, border_radius=4)
+        tsurf = cell_font.render(m_label, True, txt_c)
+        surface.blit(tsurf, tsurf.get_rect(center=(mx_x + m_w // 2, gy + 12)))
+        mx_x += m_w + 10
+
+    if active_mode == 'attractor':
+        from worldview_vis_protest_attractor import draw_rebellion_attractor_phasespace
+        draw_rebellion_attractor_phasespace(surface, (box_x + 16, start_y + 16, box_w - 32, box_h - (start_y + 16 - 20) - 20), world, font, cell_font, section_font, mouse_pos=mouse_pos)
+        return
+
     y = start_y + 24
 
     # Aggregate tile grievances

@@ -101,7 +101,7 @@ def compare_tab_hit(pos, box_x, box_y, world=None):
                     return ('good', g)
                 gx += 110
 
-    # Scope sub-selectors on Tab 4: y = box_y + 88
+    # Scope and Mode sub-selectors on Tab 4: y = box_y + 88
     if world and world.get('compare_tab') == 4:
         sub_y = box_y + 88
         if sub_y <= my <= sub_y + 28:
@@ -112,7 +112,19 @@ def compare_tab_hit(pos, box_x, box_y, world=None):
                     return ('scope_ext', s_key)
                 gx += 130
 
-    # Scope sub-selectors on Tab 5: y = box_y + 88
+            mx_x = box_x + 430
+            for m_key, m_w in (('table', 120), ('circuit', 220)):
+                if mx_x <= mx <= mx_x + m_w:
+                    world['compare_ext_mode'] = m_key
+                    return ('mode_ext', m_key)
+                mx_x += m_w + 10
+
+        if world.get('compare_ext_mode') == 'circuit':
+            from worldview_vis_circuits import circuit_sankey_hit
+            if circuit_sankey_hit(pos, world, box_x, box_y + 88 + 16, box_w - 60 if 'box_w' in locals() else 1140, 600):
+                return ('circuit_nation', world.get('compare_circuit_nation', 0))
+
+    # Scope and Mode sub-selectors on Tab 5: y = box_y + 88
     if world and world.get('compare_tab') == 5:
         sub_y = box_y + 88
         if sub_y <= my <= sub_y + 28:
@@ -122,6 +134,13 @@ def compare_tab_hit(pos, box_x, box_y, world=None):
                     world['compare_protest_scope'] = s_key
                     return ('scope_protest', s_key)
                 gx += 130
+
+            mx_x = box_x + 430
+            for m_key, m_w in (('table', 130), ('attractor', 240)):
+                if mx_x <= mx <= mx_x + m_w:
+                    world['compare_protest_mode'] = m_key
+                    return ('mode_protest', m_key)
+                mx_x += m_w + 10
 
     return None
 
