@@ -727,6 +727,21 @@ def draw_panel(surface, world, font, font_small, mouse_pos=None):
     surface.blit(z_txt, z_txt.get_rect(center=(CITIZENS_TAB_RECT[0] + CITIZENS_TAB_RECT[2] // 2, CITIZENS_TAB_RECT[1] + CITIZENS_TAB_RECT[3] // 2)))
 
     region = world.get('selected_region') or world.get('hover_region')
+
+    # Hover tooltips for top sidebar tabs
+    if c_hov and not world.get('_hovered_left_tooltip'):
+        from worldview_tooltips import get_button_tooltip_data
+        tdata = get_button_tooltip_data('tab_charts', world, region=region)
+        if tdata:
+            tdata['btn_rect'] = CHARTS_TAB_RECT
+            world['_hovered_left_tooltip'] = tdata
+    elif z_hov and not world.get('_hovered_left_tooltip'):
+        from worldview_tooltips import get_button_tooltip_data
+        tdata = get_button_tooltip_data('tab_citizens', world, region=region)
+        if tdata:
+            tdata['btn_rect'] = CITIZENS_TAB_RECT
+            world['_hovered_left_tooltip'] = tdata
+
     chart_top = 178 + d
     chart_bottom = HEIGHT - TICKER_H - 96
 
@@ -776,7 +791,7 @@ def draw_panel(surface, world, font, font_small, mouse_pos=None):
             if view == 0:
                 if nat_charts:
                     draw_chart_grid(surface, nat_charts, font, font_small, world['window'],
-                                    yy + 8, chart_bottom, mouse_pos=mouse_pos)
+                                    yy + 8, chart_bottom, mouse_pos=mouse_pos, world=world, region=region)
                 hint = font_small.render(
                     f"NATION scope (V=tile)  Click/1-4: Zoom chart", True, DIM)
                 surface.blit(hint, (PANEL_LEFT, chart_bottom + 6))
@@ -784,7 +799,7 @@ def draw_panel(surface, world, font, font_small, mouse_pos=None):
                 idx = max(0, min(len(nat_charts) - 1, view - 1)) if nat_charts else 0
                 if nat_charts:
                     draw_chart_large(surface, nat_charts[idx], font, font_small,
-                                     world['window'], yy + 8, chart_bottom)
+                                     world['window'], yy + 8, chart_bottom, mouse_pos=mouse_pos, world=world, region=region, chart_idx=view)
                 hint = font_small.render(
                     f"{nat_charts[idx][0] if nat_charts else ''}  (Tab/Esc = Grid)", True, DIM)
                 surface.blit(hint, (PANEL_LEFT, chart_bottom + 6))
@@ -905,14 +920,14 @@ def draw_panel(surface, world, font, font_small, mouse_pos=None):
         view = world.get('view', 0)
         if view == 0:
             draw_chart_grid(surface, charts, font, font_small, world['window'],
-                            chart_top + chart_y_offset, chart_bottom, mouse_pos=mouse_pos)
+                            chart_top + chart_y_offset, chart_bottom, mouse_pos=mouse_pos, world=world, region=region)
             hint = font_small.render(
                 f"Click/1-9,0: Zoom chart  Tab: Grid", True, DIM)
             surface.blit(hint, (PANEL_LEFT, chart_bottom + 6))
         else:
             idx = max(0, min(len(charts) - 1, view - 1))
             draw_chart_large(surface, charts[idx], font, font_small,
-                             world['window'], chart_top + 16, chart_bottom)
+                             world['window'], chart_top + 16, chart_bottom, mouse_pos=mouse_pos, world=world, region=region, chart_idx=view)
             hint = font_small.render(
                 f"{charts[idx][0]}  (Click or Tab/Esc = Grid)", True, DIM)
             surface.blit(hint, (PANEL_LEFT, chart_bottom + 6))

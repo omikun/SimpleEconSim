@@ -67,6 +67,12 @@ def draw_tab_headers(surface, world, box_x, box_y, box_w, font, font_small, mous
         is_active = (active_tab == tab_id)
         rect = (start_x, y, tab_w, tab_h)
         is_hover = rect[0] <= mx <= rect[0] + rect[2] and rect[1] <= my <= rect[1] + rect[3]
+        if is_hover and world is not None and not world.get('_hovered_left_tooltip'):
+            from worldview_tooltips import get_button_tooltip_data
+            tdata = get_button_tooltip_data(f"compare_tab_{tab_id}", world)
+            if tdata:
+                tdata['btn_rect'] = rect
+                world['_hovered_left_tooltip'] = tdata
         bg = TAB_ACTIVE_BG if is_active else ((42, 42, 56) if is_hover else TAB_INACTIVE_BG)
         border_c = ACCENT if is_active else ((120, 120, 140) if is_hover else (60, 60, 75))
         pygame.draw.rect(surface, bg, rect, border_radius=5)
@@ -308,6 +314,12 @@ def draw_tab2_goods(surface, world, box_x, start_y, box_w, box_h, font, cell_fon
         is_sel = (g == active_good)
         rect = (gx, gy, 100, 24)
         is_hov = rect[0] <= mx <= rect[0] + rect[2] and rect[1] <= my <= rect[1] + rect[3]
+        if is_hov and world is not None and not world.get('_hovered_left_tooltip'):
+            from worldview_tooltips import get_button_tooltip_data
+            tdata = get_button_tooltip_data(f"compare_filter_{g.name.lower()}", world)
+            if tdata:
+                tdata['btn_rect'] = rect
+                world['_hovered_left_tooltip'] = tdata
         bg = ACCENT if is_sel else ((44, 44, 58) if is_hov else (30, 30, 40))
         txt_c = (20, 20, 24) if is_sel else ((255, 255, 255) if is_hov else TEXT)
         pygame.draw.rect(surface, bg, rect, border_radius=4)
@@ -726,3 +738,8 @@ def draw_nations_comparison(surface, world, font, font_small, mouse_pos=None):
     elif tab == 5:
         from worldview_compare_protest import draw_tab5_protest
         draw_tab5_protest(surface, world, box_x, content_y, box_w, box_h, font, cell_font, section_font, mouse_pos=mouse_pos)
+
+    # Render floating tooltip card if hovering over tab or good pill
+    if world.get('_hovered_left_tooltip') and mouse_pos:
+        from worldview_tooltips import draw_left_panel_tooltip
+        draw_left_panel_tooltip(surface, world, font_small, mouse_pos=mouse_pos)

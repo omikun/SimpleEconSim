@@ -274,7 +274,7 @@ def draw_chart_cell(surface, chart, rect, font, font_small, window, is_hovered=F
                           font_small)
 
 
-def draw_chart_grid(surface, charts, font, font_small, window, y0, y1, mouse_pos=None):
+def draw_chart_grid(surface, charts, font, font_small, window, y0, y1, mouse_pos=None, world=None, region=None):
     """2-column x 5-row responsive grid of all 10 charts in the panel area."""
     left = PANEL_LEFT + 6
     right = WIDTH - 8
@@ -293,6 +293,13 @@ def draw_chart_grid(surface, charts, font, font_small, window, y0, y1, mouse_pos
                 mx, my = mouse_pos
                 if rect[0] <= mx <= rect[0] + rect[2] and rect[1] <= my <= rect[1] + rect[3]:
                     is_hovered = True
+                    if world is not None and not world.get('_hovered_left_tooltip'):
+                        from worldview_tooltips import get_button_tooltip_data
+                        chart_num = idx + 1
+                        tdata = get_button_tooltip_data(f"chart_{chart_num}", world, region=region)
+                        if tdata:
+                            tdata['btn_rect'] = rect
+                            world['_hovered_left_tooltip'] = tdata
             draw_chart_cell(surface, charts[idx], rect, font, font_small,
                             window, is_hovered=is_hovered)
             idx += 1
@@ -317,12 +324,23 @@ def chart_at_pixel(pos, y0, y1, num_charts=10):
     return None
 
 
-def draw_chart_large(surface, chart, font, font_small, window, y0, y1):
+def draw_chart_large(surface, chart, font, font_small, window, y0, y1, mouse_pos=None, world=None, region=None, chart_idx=None):
     """Detailed single chart drawn large with min/max/current statistics readout."""
     title, kind, series, colors, labels = chart
     rect = (PANEL_LEFT + 6, y0, WIDTH - 14 - PANEL_LEFT, y1 - y0)
     pygame.draw.rect(surface, (34, 34, 44), rect)
     pygame.draw.rect(surface, CHART_BOX, rect, 1)
+
+    # Hover tooltip for zoomed chart
+    if mouse_pos and world is not None and not world.get('_hovered_left_tooltip'):
+        mx, my = mouse_pos
+        if rect[0] <= mx <= rect[0] + rect[2] and rect[1] <= my <= rect[1] + rect[3]:
+            from worldview_tooltips import get_button_tooltip_data
+            tip_id = f"chart_{chart_idx}" if chart_idx else "chart_1"
+            tdata = get_button_tooltip_data(tip_id, world, region=region)
+            if tdata:
+                tdata['btn_rect'] = (rect[0], rect[1], rect[2], 40)
+                world['_hovered_left_tooltip'] = tdata
 
     # Title header
     tsurf = font.render(f"Zoom: {title}", True, ACCENT)

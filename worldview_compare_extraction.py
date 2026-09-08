@@ -117,6 +117,11 @@ def draw_tab4_extraction(surface, world, box_x, start_y, box_w, box_h, font, cel
         is_sel = (s_key == active_scope)
         rect = (gx, gy, 120, 24)
         is_hov = rect[0] <= mx <= rect[0] + rect[2] and rect[1] <= my <= rect[1] + rect[3]
+        if is_hov:
+            from worldview_tooltips import get_button_tooltip_data
+            tip = get_button_tooltip_data(f'compare_ext_scope_{s_key}', world)
+            if tip:
+                world['_hovered_left_tooltip'] = (rect, tip)
         bg = ACCENT if is_sel else ((44, 44, 58) if is_hov else (30, 30, 40))
         txt_c = (20, 20, 24) if is_sel else ((255, 255, 255) if is_hov else TEXT)
         pygame.draw.rect(surface, bg, rect, border_radius=4)
@@ -136,6 +141,11 @@ def draw_tab4_extraction(surface, world, box_x, start_y, box_w, box_h, font, cel
         is_sel = (m_key == active_mode)
         rect = (mx_x, gy, m_w, 24)
         is_hov = rect[0] <= mx <= rect[0] + rect[2] and rect[1] <= my <= rect[1] + rect[3]
+        if is_hov:
+            from worldview_tooltips import get_button_tooltip_data
+            tip = get_button_tooltip_data(f'compare_ext_mode_{m_key}', world)
+            if tip:
+                world['_hovered_left_tooltip'] = (rect, tip)
         bg = (235, 195, 75) if is_sel else ((44, 44, 58) if is_hov else (30, 30, 40))
         txt_c = (20, 20, 24) if is_sel else ((255, 255, 255) if is_hov else TEXT)
         pygame.draw.rect(surface, bg, rect, border_radius=4)
@@ -291,7 +301,27 @@ def draw_tab4_extraction(surface, world, box_x, start_y, box_w, box_h, font, cel
     hdr_rect = (box_x + 16, y, box_w - 32, 24)
     pygame.draw.rect(surface, (34, 34, 48), hdr_rect)
     tx = box_x + 24
+    hdr_tips = {
+        "Tribute (Lords)": 'hdr_ext_tribute',
+        "Rent (Landlords)": 'hdr_ext_rent',
+        "Surplus Value (s/v)": 'hdr_ext_surplus',
+        "Exploit (s/v)": 'hdr_ext_exploit',
+        "Municipal Tax": 'hdr_ext_tax_muni',
+        "Province Tax": 'hdr_ext_tax_prov',
+        "Sovereign Tax": 'hdr_ext_tax_nat',
+        "Total Extraction": 'hdr_ext_total',
+        "Physical Wear": 'hdr_ext_attrition',
+        "Alienation %": 'hdr_ext_alienation',
+    }
     for title, width in cols:
+        col_rect = (tx, y, width, 24)
+        if col_rect[0] <= mx <= col_rect[0] + width and col_rect[1] <= my <= col_rect[1] + 24:
+            tip_id = hdr_tips.get(title)
+            if tip_id:
+                from worldview_tooltips import get_button_tooltip_data
+                tip = get_button_tooltip_data(tip_id, world)
+                if tip:
+                    world['_hovered_left_tooltip'] = (col_rect, tip)
         surface.blit(cell_font.render(title, True, ACCENT), (tx, y + 4))
         tx += width
     y += 26

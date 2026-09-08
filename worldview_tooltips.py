@@ -742,6 +742,40 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
         if mil_tip:
             return mil_tip
 
+    # -------------------------------------------------------------------------
+    # CHARTS, CITIZEN STATUS, LABOR & COMPARISON TOOLTIPS
+    # -------------------------------------------------------------------------
+    from worldview_tooltips_visualizations import build_visualization_tooltip
+    vis_tip = build_visualization_tooltip(btn_id, world, region=pinned, nation=owner, province=prov)
+    if vis_tip:
+        return vis_tip
+
+    from worldview_tooltips_charts import (
+        build_sidebar_chart_tooltip,
+        build_citizen_tooltip,
+        build_labor_tooltip,
+        build_compare_tooltip
+    )
+    if btn_id.startswith('chart_'):
+        tip = build_sidebar_chart_tooltip(btn_id, world, region=pinned, nation=owner)
+        if tip:
+            return tip
+
+    if btn_id.startswith('citizen_') or btn_id in ('tab_charts', 'tab_citizens'):
+        tip = build_citizen_tooltip(btn_id, world, region=pinned, nation=owner)
+        if tip:
+            return tip
+
+    if btn_id.startswith('labor_'):
+        tip = build_labor_tooltip(btn_id, world, region=pinned, nation=owner)
+        if tip:
+            return tip
+
+    if btn_id.startswith('compare_'):
+        tip = build_compare_tooltip(btn_id, world)
+        if tip:
+            return tip
+
     return None
 
 
@@ -766,52 +800,26 @@ def _infer_icon_for_btn(btn_id: str, tooltip: dict) -> str:
         }.get(rkey, 'hammer')
     if b.startswith('res_'):
         return b[4:]
-    if 'tier_municipal' in b or 'municipal' in b:
-        return 'municipal'
-    if 'tier_province' in b or 'province' in b:
-        return 'province'
-    if 'tier_crown' in b or 'tier_nation' in b or 'crown' in b:
-        return 'crown'
-    if 'tier_equalization' in b or 'equalization' in b or 'grant' in b:
-        return 'scale'
-    if 'tax' in b or 'treasury' in b:
-        return 'treasury'
-    if 'tariff' in b or 'ex' in b:
-        return 'ex'
-    if 'ubi' in b:
-        return 'pop'
-    if 'food' in b or 'famine' in b or 'grain' in b:
-        return 'grain'
-    if 'farm' in b or 'crop' in b:
-        return 'grain'
-    if 'patrol' in b or 'curfew' in b or 'police' in b:
-        return 'military'
-    if 'garrison' in b or 'army' in b or 'mobilize' in b or 'war' in b:
-        return 'military'
-    if 'road' in b or 'route' in b or 'bridge' in b or 'highway' in b or 'transport' in b:
-        return 'civil_engineering'
-    if 'health' in b or 'sanatorium' in b or 'hospital' in b:
-        return 'municipal'
-    if 'frontier' in b or 'pioneer' in b or 'settler' in b:
-        return 'pasture'
-    if 'science' in b or 'innovation' in b or 'prize' in b or 'tech' in b:
-        return 'rare_minerals'
-    if 'ten_hour' in b or 'labor' in b or 'safety' in b:
-        return 'policies'
-    if 'entertainment' in b or 'spectacle' in b or 'theater' in b:
-        return 'pop'
-    if 'dock_build' in b or b == 'build':
-        return 'hammer'
-    if 'dock_gov' in b or b == 'governance':
-        return 'policies'
-    if 'dock_diplomacy' in b or b == 'diplomacy':
-        return 'crown'
-    if 'dock_debt' in b or b == 'debt':
-        return 'bank'
-    if 'dock_science' in b or b == 'science':
-        return 'rare_minerals'
-    if 'dock_military' in b or b == 'military':
-        return 'military'
+    KEYWORD_ICONS = [
+        (('tier_municipal', 'municipal', 'health', 'sanatorium', 'hospital'), 'municipal'),
+        (('tier_province', 'province'), 'province'),
+        (('tier_crown', 'tier_nation', 'crown', 'dock_diplomacy', 'diplomacy'), 'crown'),
+        (('tier_equalization', 'equalization', 'grant'), 'scale'),
+        (('tax', 'treasury'), 'treasury'),
+        (('tariff', 'ex'), 'ex'),
+        (('ubi', 'entertainment', 'spectacle', 'theater', 'pop'), 'pop'),
+        (('food', 'famine', 'grain', 'farm', 'crop'), 'grain'),
+        (('patrol', 'curfew', 'police', 'garrison', 'army', 'mobilize', 'war', 'military'), 'military'),
+        (('road', 'route', 'bridge', 'highway', 'transport'), 'civil_engineering'),
+        (('frontier', 'pioneer', 'settler'), 'pasture'),
+        (('science', 'innovation', 'prize', 'tech', 'dock_science'), 'rare_minerals'),
+        (('ten_hour', 'labor', 'safety', 'dock_gov', 'governance'), 'policies'),
+        (('dock_build', 'build'), 'hammer'),
+        (('dock_debt', 'debt', 'bank'), 'bank'),
+    ]
+    for keywords, icon_name in KEYWORD_ICONS:
+        if any(k in b for k in keywords):
+            return icon_name
     return 'policies'
 
 

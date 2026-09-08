@@ -250,6 +250,30 @@ def draw_citizens_panel(surface, world, region, font, font_small, mouse_pos=None
     sl_lbl = font_small.render("Labor & Alienation", True, (255, 255, 255) if subtab == 'labor' else TEXT)
     surface.blit(sl_lbl, sl_lbl.get_rect(center=(sub_labor_btn[0] + btn_w // 2, sub_labor_btn[1] + 10)))
 
+    # Hover tooltips for scope, subtabs, and modes
+    if not world.get('_hovered_left_tooltip'):
+        from worldview_tooltips import get_button_tooltip_data
+        if is_tile_hov:
+            tdata = get_button_tooltip_data('citizen_scope_tile', world, region=region)
+            if tdata:
+                tdata['btn_rect'] = tile_btn
+                world['_hovered_left_tooltip'] = tdata
+        elif is_nat_hov:
+            tdata = get_button_tooltip_data('citizen_scope_nation', world, region=region, nation=nation)
+            if tdata:
+                tdata['btn_rect'] = nat_btn
+                world['_hovered_left_tooltip'] = tdata
+        elif is_sc_hov:
+            tdata = get_button_tooltip_data('citizen_subtab_class', world, region=region)
+            if tdata:
+                tdata['btn_rect'] = sub_class_btn
+                world['_hovered_left_tooltip'] = tdata
+        elif is_sl_hov:
+            tdata = get_button_tooltip_data('citizen_subtab_labor', world, region=region)
+            if tdata:
+                tdata['btn_rect'] = sub_labor_btn
+                world['_hovered_left_tooltip'] = tdata
+
     if subtab == 'labor':
         from worldview_labor_ui import draw_labor_dashboard
         draw_labor_dashboard(surface, world, region, font, font_small, mouse_pos=mouse_pos)
@@ -332,6 +356,19 @@ def draw_citizens_panel(surface, world, region, font, font_small, mouse_pos=None
     is_ch_hov = btn_charts[0] <= mx <= btn_charts[0] + mode_w and btn_charts[1] <= my <= btn_charts[1] + 20
     is_py_hov = btn_pyr[0] <= mx <= btn_pyr[0] + mode_w and btn_pyr[1] <= my <= btn_pyr[1] + 20
 
+    if not world.get('_hovered_left_tooltip'):
+        from worldview_tooltips import get_button_tooltip_data
+        if is_ch_hov:
+            tdata = get_button_tooltip_data('citizen_mode_charts', world, region=region)
+            if tdata:
+                tdata['btn_rect'] = btn_charts
+                world['_hovered_left_tooltip'] = tdata
+        elif is_py_hov:
+            tdata = get_button_tooltip_data('citizen_mode_pyramid', world, region=region)
+            if tdata:
+                tdata['btn_rect'] = btn_pyr
+                world['_hovered_left_tooltip'] = tdata
+
     pygame.draw.rect(surface, (45, 55, 75) if c_mode == 'charts' else ((32, 38, 50) if is_ch_hov else (22, 24, 34)), btn_charts, border_radius=4)
     pygame.draw.rect(surface, ACCENT if c_mode == 'charts' else (HEX_EDGE if is_ch_hov else (45, 52, 70)), btn_charts, 1, border_radius=4)
     surface.blit(font_small.render("Historical Charts", True, (255, 255, 255) if c_mode == 'charts' else TEXT), (btn_charts[0] + 10, btn_charts[1] + 2))
@@ -349,16 +386,47 @@ def draw_citizens_panel(surface, world, region, font, font_small, mouse_pos=None
         target = region if scope == 'tile' else nation
         avail_h = chart_y1 - chart_y0 - 6
         h_each = avail_h // 2
-        draw_class_wealth_pyramid(surface, (PANEL_LEFT + 6, chart_y0, PANEL_W - 12, h_each), target, font_small)
-        draw_lorenz_curve(surface, (PANEL_LEFT + 6, chart_y0 + h_each + 6, PANEL_W - 12, h_each), target, font_small)
+        pyr_rect = (PANEL_LEFT + 6, chart_y0, PANEL_W - 12, h_each)
+        lor_rect = (PANEL_LEFT + 6, chart_y0 + h_each + 6, PANEL_W - 12, h_each)
+
+        if mouse_pos and not world.get('_hovered_left_tooltip'):
+            from worldview_tooltips import get_button_tooltip_data
+            if pyr_rect[0] <= mx <= pyr_rect[0] + pyr_rect[2] and pyr_rect[1] <= my <= pyr_rect[1] + pyr_rect[3]:
+                tdata = get_button_tooltip_data('citizen_viz_pyramid', world, region=region)
+                if tdata:
+                    tdata['btn_rect'] = pyr_rect
+                    world['_hovered_left_tooltip'] = tdata
+            elif lor_rect[0] <= mx <= lor_rect[0] + lor_rect[2] and lor_rect[1] <= my <= lor_rect[1] + lor_rect[3]:
+                tdata = get_button_tooltip_data('citizen_viz_lorenz', world, region=region)
+                if tdata:
+                    tdata['btn_rect'] = lor_rect
+                    world['_hovered_left_tooltip'] = tdata
+
+        draw_class_wealth_pyramid(surface, pyr_rect, target, font_small)
+        draw_lorenz_curve(surface, lor_rect, target, font_small)
         return
 
     c_view = world.get('citizen_chart_view', 0)
     if c_view == 0 or not charts:
         # Draw 2x2 grid
         if charts:
+            left = PANEL_LEFT + 6
+            right = WIDTH - 8
+            cw = (right - left) // 2
+            ch = (chart_y1 - chart_y0) // 2
+            for idx, ch_data in enumerate(charts[:4]):
+                r_idx, c_idx = divmod(idx, 2)
+                ch_rect = (left + c_idx * cw, chart_y0 + r_idx * ch, cw - 4, ch - 4)
+                if mouse_pos and not world.get('_hovered_left_tooltip'):
+                    if ch_rect[0] <= mx <= ch_rect[0] + ch_rect[2] and ch_rect[1] <= my <= ch_rect[1] + ch_rect[3]:
+                        from worldview_tooltips import get_button_tooltip_data
+                        tdata = get_button_tooltip_data(f"citizen_chart_{idx+1}", world, region=region)
+                        if tdata:
+                            tdata['btn_rect'] = ch_rect
+                            world['_hovered_left_tooltip'] = tdata
+
             draw_chart_grid(surface, charts, font, font_small, world['window'],
-                            chart_y0, chart_y1, mouse_pos=mouse_pos)
+                            chart_y0, chart_y1, mouse_pos=mouse_pos, world=world, region=region)
             hint = font_small.render("Click chart to zoom | Tab/Esc = Grid", True, DIM)
             surface.blit(hint, (PANEL_LEFT + 6, chart_y1 + 4))
         else:
@@ -366,8 +434,17 @@ def draw_citizens_panel(surface, world, region, font, font_small, mouse_pos=None
             surface.blit(hint, (PANEL_LEFT + 12, chart_y0 + 20))
     else:
         idx = max(0, min(len(charts) - 1, c_view - 1))
+        large_rect = (PANEL_LEFT + 6, chart_y0, WIDTH - 14 - PANEL_LEFT, chart_y1 - chart_y0)
+        if mouse_pos and not world.get('_hovered_left_tooltip'):
+            if large_rect[0] <= mx <= large_rect[0] + large_rect[2] and large_rect[1] <= my <= large_rect[1] + large_rect[3]:
+                from worldview_tooltips import get_button_tooltip_data
+                tdata = get_button_tooltip_data(f"citizen_chart_{idx+1}", world, region=region)
+                if tdata:
+                    tdata['btn_rect'] = large_rect
+                    world['_hovered_left_tooltip'] = tdata
+
         draw_chart_large(surface, charts[idx], font, font_small,
-                         world['window'], chart_y0, chart_y1)
+                         world['window'], chart_y0, chart_y1, mouse_pos=mouse_pos, world=world, region=region, chart_idx=c_view)
         hint = font_small.render(f"{charts[idx][0]} (Click/Esc = Grid)", True, DIM)
         surface.blit(hint, (PANEL_LEFT + 6, chart_y1 + 4))
 

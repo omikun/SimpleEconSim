@@ -91,6 +91,11 @@ def draw_circuit_of_capital_sankey(surface, world, box_x, box_y, box_w, box_h, f
         btn_r = (nx + i * 115, box_y + 8, 110, 24)
         is_sel = (i == n_idx)
         is_hov = btn_r[0] <= mx <= btn_r[0] + btn_r[2] and btn_r[1] <= my <= btn_r[1] + btn_r[3]
+        if is_hov:
+            from worldview_tooltips import get_button_tooltip_data
+            tip = get_button_tooltip_data('circuit_nation_btn', world, nation=n)
+            if tip:
+                world['_hovered_left_tooltip'] = (btn_r, tip)
         bg = ACCENT if is_sel else ((44, 44, 58) if is_hov else (30, 30, 42))
         pygame.draw.rect(surface, bg, btn_r, border_radius=4)
         pygame.draw.rect(surface, (80, 80, 100), btn_r, 1, border_radius=4)
@@ -276,7 +281,13 @@ def draw_circuit_of_capital_sankey(surface, world, box_x, box_y, box_w, box_h, f
     # Draw TRPF curve in bottom strip
     trpf_y = box_y + box_h - 185
     trpf_h = 175
-    draw_trpf_curve(surface, (box_x + 30, trpf_y, box_w - 60, trpf_h), active_nation, _get_font(12))
+    trpf_rect = (box_x + 30, trpf_y, box_w - 60, trpf_h)
+    if trpf_rect[0] <= mx <= trpf_rect[0] + trpf_rect[2] and trpf_rect[1] <= my <= trpf_rect[1] + 28:
+        from worldview_tooltips import get_button_tooltip_data
+        tip = get_button_tooltip_data('trpf_curve_plot', world, nation=active_nation)
+        if tip:
+            world['_hovered_left_tooltip'] = (trpf_rect, tip)
+    draw_trpf_curve(surface, trpf_rect, active_nation, _get_font(12))
 
 
 def circuit_sankey_hit(pos, world, box_x, box_y, box_w, box_h):

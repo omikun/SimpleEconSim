@@ -136,6 +136,11 @@ def draw_tab5_protest(surface, world, box_x, start_y, box_w, box_h, font, cell_f
         is_sel = (s_key == active_scope)
         rect = (gx, gy, 120, 24)
         is_hov = rect[0] <= mx <= rect[0] + rect[2] and rect[1] <= my <= rect[1] + rect[3]
+        if is_hov:
+            from worldview_tooltips import get_button_tooltip_data
+            tip = get_button_tooltip_data(f'compare_protest_scope_{s_key}', world)
+            if tip:
+                world['_hovered_left_tooltip'] = (rect, tip)
         bg = ACCENT if is_sel else ((44, 44, 58) if is_hov else (30, 30, 40))
         txt_c = (20, 20, 24) if is_sel else ((255, 255, 255) if is_hov else TEXT)
         pygame.draw.rect(surface, bg, rect, border_radius=4)
@@ -155,6 +160,11 @@ def draw_tab5_protest(surface, world, box_x, start_y, box_w, box_h, font, cell_f
         is_sel = (m_key == active_mode)
         rect = (mx_x, gy, m_w, 24)
         is_hov = rect[0] <= mx <= rect[0] + rect[2] and rect[1] <= my <= rect[1] + rect[3]
+        if is_hov:
+            from worldview_tooltips import get_button_tooltip_data
+            tip = get_button_tooltip_data(f'compare_protest_mode_{m_key}', world)
+            if tip:
+                world['_hovered_left_tooltip'] = (rect, tip)
         bg = (235, 90, 90) if is_sel else ((44, 44, 58) if is_hov else (30, 30, 40))
         txt_c = (20, 20, 24) if is_sel else ((255, 255, 255) if is_hov else TEXT)
         pygame.draw.rect(surface, bg, rect, border_radius=4)
@@ -286,7 +296,24 @@ def draw_tab5_protest(surface, world, box_x, start_y, box_w, box_h, font, cell_f
     hdr_rect = (box_x + 16, y, box_w - 32, 24)
     pygame.draw.rect(surface, (34, 34, 48), hdr_rect)
     tx = box_x + 24
+    hdr_tips = {
+        "Protest Score": 'hdr_protest_score',
+        "Overworked Shifts": 'hdr_protest_overwork',
+        "Rent & Enclosure": 'hdr_protest_enclosure',
+        "Food Deprivation": 'hdr_protest_hunger',
+        "Strikes & Accidents": 'hdr_protest_strikes',
+        "Taxes & State": 'hdr_protest_state',
+        "Primary Grievance Driver": 'hdr_protest_driver',
+    }
     for title, width in cols:
+        col_rect = (tx, y, width, 24)
+        if col_rect[0] <= mx <= col_rect[0] + width and col_rect[1] <= my <= col_rect[1] + 24:
+            tip_id = hdr_tips.get(title)
+            if tip_id:
+                from worldview_tooltips import get_button_tooltip_data
+                tip = get_button_tooltip_data(tip_id, world)
+                if tip:
+                    world['_hovered_left_tooltip'] = (col_rect, tip)
         surface.blit(cell_font.render(title, True, ACCENT), (tx, y + 4))
         tx += width
     y += 26

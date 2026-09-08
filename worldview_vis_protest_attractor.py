@@ -91,6 +91,13 @@ def draw_rebellion_attractor_phasespace(surface, rect, world, font, cell_font, s
             pygame.draw.line(surface, (180, 50, 60, 60), p1, p2, 1)
 
     hz_label = _get_font(11).render("[ WILDCAT STRIKE & LUDDITE SABOTAGE ZONE ]", True, (255, 140, 140))
+    lbl_rect = (hz_x + 8, hz_y + 6, hz_w - 16, 22)
+    mx, my = mouse_pos if mouse_pos else (-1, -1)
+    if lbl_rect[0] <= mx <= lbl_rect[0] + lbl_rect[2] and lbl_rect[1] <= my <= lbl_rect[1] + lbl_rect[3]:
+        from worldview_tooltips import get_button_tooltip_data
+        tip = get_button_tooltip_data('attractor_hazard_zone', world)
+        if tip:
+            world['_hovered_left_tooltip'] = (lbl_rect, tip)
     surface.blit(hz_label, (hz_x + 12, hz_y + 10))
 
     # 4. Collect territory data points

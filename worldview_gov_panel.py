@@ -512,8 +512,15 @@ def _draw_left_nation_scope(surface, world, region, nation, start_y, x, w, font,
 
     # 5. Electoral Struggle & Capitalist Backlash Barometer Card (Visualization 5)
     baro_h = 78
+    baro_rect = (x + 8, cur_y, w - 16, baro_h)
+    if mx >= 0 and my >= 0 and not world.get('_hovered_left_tooltip'):
+        if baro_rect[0] <= mx <= baro_rect[0] + baro_rect[2] and baro_rect[1] <= my <= baro_rect[1] + baro_rect[3]:
+            from worldview_tooltips import get_button_tooltip_data
+            tdata = get_button_tooltip_data('gov_electoral_barometer', world, nation=nation)
+            if tdata:
+                world['_hovered_left_tooltip'] = (baro_rect, tdata)
     from worldview_vis_radar import draw_electoral_barometer
-    draw_electoral_barometer(surface, (x + 8, cur_y, w - 16, baro_h), nation, font_small)
+    draw_electoral_barometer(surface, baro_rect, nation, font_small)
 
 
 def gov_panel_hit(pos, world) -> bool:

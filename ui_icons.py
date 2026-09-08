@@ -218,6 +218,68 @@ def get_icon(kind: str, size: int = 16) -> pygame.Surface:
         pygame.draw.line(surf, (180, 190, 210), (s * 0.75, s * 0.35), (s * 0.75, s * 0.65), 1)
         pygame.draw.arc(surf, (245, 215, 120), (s * 0.62, s * 0.55, s * 0.26, s * 0.2), 3.14, 0, 2)
 
+    elif kind in ('chart', 'graph', 'timeseries'):
+        # Line chart with axis and trendline
+        pygame.draw.line(surf, (150, 160, 185), (s * 0.15, s * 0.85), (s * 0.88, s * 0.85), 2)
+        pygame.draw.line(surf, (150, 160, 185), (s * 0.15, s * 0.15), (s * 0.15, s * 0.85), 2)
+        pts = [(s * 0.22, s * 0.72), (s * 0.42, s * 0.52), (s * 0.62, s * 0.62), (s * 0.85, s * 0.28)]
+        pygame.draw.lines(surf, (245, 205, 70), False, pts, 2)
+        for px, py in pts:
+            pygame.draw.circle(surf, (255, 240, 150), (int(px), int(py)), max(1, int(s // 10)))
+
+    elif kind in ('pyramid', 'hierarchy', 'classes'):
+        # 3-tiered social wealth pyramid
+        pygame.draw.polygon(surf, (215, 175, 70), [(s * 0.5, s * 0.15), (s * 0.38, s * 0.38), (s * 0.62, s * 0.38)])
+        pygame.draw.polygon(surf, (90, 165, 235), [(s * 0.36, s * 0.42), (s * 0.24, s * 0.65), (s * 0.76, s * 0.65), (s * 0.64, s * 0.42)])
+        pygame.draw.polygon(surf, (110, 205, 130), [(s * 0.22, s * 0.69), (s * 0.1, s * 0.88), (s * 0.9, s * 0.88), (s * 0.78, s * 0.69)])
+
+    elif kind in ('lorenz', 'inequality', 'gini'):
+        # Lorenz distribution curve
+        pygame.draw.rect(surf, (60, 65, 80), (s * 0.15, s * 0.15, s * 0.7, s * 0.7), 1)
+        pygame.draw.line(surf, (120, 130, 150), (s * 0.15, s * 0.85), (s * 0.85, s * 0.15), 1)
+        # Bowed Lorenz curve
+        cpts = [(s * 0.15, s * 0.85), (s * 0.4, s * 0.82), (s * 0.65, s * 0.65), (s * 0.85, s * 0.15)]
+        pygame.draw.lines(surf, (230, 185, 70), False, cpts, 2)
+
+    elif kind in ('labor', 'worker', 'proletarian'):
+        # Worker silhouette with wrench
+        pygame.draw.circle(surf, (220, 95, 95), (int(s * 0.4), int(s * 0.3)), int(s * 0.18))
+        pygame.draw.ellipse(surf, (220, 95, 95), (s * 0.15, s * 0.5, s * 0.5, s * 0.4))
+        # Wrench tool
+        pygame.draw.line(surf, (210, 215, 230), (s * 0.55, s * 0.8), (s * 0.85, s * 0.35), 2)
+        pygame.draw.circle(surf, (210, 215, 230), (int(s * 0.85), int(s * 0.35)), int(s // 6), 1)
+
+    elif kind in ('clock', 'hours', 'workday'):
+        # Clock face with hands
+        pygame.draw.circle(surf, (100, 185, 245), (int(s * 0.5), int(s * 0.5)), int(s * 0.4), 2)
+        pygame.draw.line(surf, (255, 255, 255), (s * 0.5, s * 0.5), (s * 0.5, s * 0.25), 2)
+        pygame.draw.line(surf, (255, 255, 255), (s * 0.5, s * 0.5), (s * 0.72, s * 0.5), 2)
+        pygame.draw.circle(surf, (255, 255, 255), (int(s * 0.5), int(s * 0.5)), 2)
+
+    elif kind in ('theatre', 'circus', 'spectacle', 'entertainment'):
+        # Entertainment mask / star
+        pygame.draw.circle(surf, (235, 140, 245), (int(s * 0.5), int(s * 0.48)), int(s * 0.38))
+        pygame.draw.circle(surf, (30, 25, 45), (int(s * 0.38), int(s * 0.42)), max(1, int(s // 9)))
+        pygame.draw.circle(surf, (30, 25, 45), (int(s * 0.62), int(s * 0.42)), max(1, int(s // 9)))
+        pygame.draw.arc(surf, (30, 25, 45), (s * 0.32, s * 0.45, s * 0.36, s * 0.28), 3.14, 0, 2)
+
+    elif kind in ('strike', 'walkout', 'fist'):
+        # Raised worker fist / flag
+        pygame.draw.line(surf, (235, 75, 75), (s * 0.25, s * 0.85), (s * 0.25, s * 0.15), 2)
+        pygame.draw.polygon(surf, (235, 75, 75), [(s * 0.25, s * 0.15), (s * 0.85, s * 0.35), (s * 0.25, s * 0.55)])
+
+    elif kind in ('sabotage', 'luddite'):
+        # Broken cog / wrench strike
+        pygame.draw.circle(surf, (220, 140, 40), (int(s * 0.5), int(s * 0.5)), int(s * 0.38), 2)
+        pygame.draw.line(surf, (245, 80, 80), (s * 0.2, s * 0.2), (s * 0.8, s * 0.8), 2)
+
+    elif kind in ('gentry', 'landlord', 'feudal'):
+        # Aristocratic mantle & seal
+        pygame.draw.circle(surf, (165, 115, 230), (int(s * 0.5), int(s * 0.32)), int(s * 0.2))
+        pts = [(s * 0.2, s * 0.85), (s * 0.5, s * 0.52), (s * 0.8, s * 0.85)]
+        pygame.draw.polygon(surf, (165, 115, 230), pts)
+        pygame.draw.circle(surf, (245, 215, 90), (int(s * 0.5), int(s * 0.68)), int(s // 7))
+
     else:
         # Generic glowing orb
         pygame.draw.circle(surf, (200, 200, 220), (int(s * 0.5), int(s * 0.5)), int(s * 0.35))

@@ -15,6 +15,7 @@ Docked in the bottom-left corner with a sleek upward drop-up menu.
 import pygame
 from worldview_camera import HEIGHT, TICKER_H
 from worldview_map import ACCENT, TEXT, DIM, RED, GREEN
+from worldview_tooltips import get_button_tooltip_data
 
 SIDEBAR_X = 14
 SIDEBAR_W = 184
@@ -71,6 +72,11 @@ def draw_layer_sidebar(surface, world, font_small, mouse_pos=None):
         # Upward chevron icon indicating drop-up expansion
         arrow = font_small.render("▲", True, active_color)
         surface.blit(arrow, (SIDEBAR_X + SIDEBAR_W - 18, PILL_Y + 6))
+
+        if is_hover and not world.get('_hovered_left_tooltip'):
+            tdata = get_button_tooltip_data(f"layer_{active_layer}", world)
+            if tdata:
+                world['_hovered_left_tooltip'] = (pill_rect, tdata)
         return
 
     # 1. Expanded Drop-Up Container Background (Semi-Transparent Glassmorphism)
@@ -121,6 +127,11 @@ def draw_layer_sidebar(surface, world, font_small, mouse_pos=None):
 
         tsurf = font_small.render(label, True, txt_col)
         surface.blit(tsurf, (bx + 10, by + 8))
+
+        if is_hover and not world.get('_hovered_left_tooltip'):
+            tdata = get_button_tooltip_data(f"layer_{key}", world)
+            if tdata:
+                world['_hovered_left_tooltip'] = (b_rect, tdata)
 
         by += BTN_H + BTN_SPACING
 
