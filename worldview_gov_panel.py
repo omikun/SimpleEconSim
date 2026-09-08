@@ -518,7 +518,8 @@ def _draw_left_nation_scope(surface, world, region, nation, start_y, x, w, font,
             from worldview_tooltips import get_button_tooltip_data
             tdata = get_button_tooltip_data('gov_electoral_barometer', world, nation=nation)
             if tdata:
-                world['_hovered_left_tooltip'] = (baro_rect, tdata)
+                tdata['btn_rect'] = baro_rect
+                world['_hovered_left_tooltip'] = tdata
     from worldview_vis_radar import draw_electoral_barometer
     draw_electoral_barometer(surface, baro_rect, nation, font_small)
 

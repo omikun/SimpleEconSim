@@ -121,7 +121,8 @@ def draw_tab4_extraction(surface, world, box_x, start_y, box_w, box_h, font, cel
             from worldview_tooltips import get_button_tooltip_data
             tip = get_button_tooltip_data(f'compare_ext_scope_{s_key}', world)
             if tip:
-                world['_hovered_left_tooltip'] = (rect, tip)
+                tip['btn_rect'] = rect
+                world['_hovered_left_tooltip'] = tip
         bg = ACCENT if is_sel else ((44, 44, 58) if is_hov else (30, 30, 40))
         txt_c = (20, 20, 24) if is_sel else ((255, 255, 255) if is_hov else TEXT)
         pygame.draw.rect(surface, bg, rect, border_radius=4)
@@ -145,7 +146,8 @@ def draw_tab4_extraction(surface, world, box_x, start_y, box_w, box_h, font, cel
             from worldview_tooltips import get_button_tooltip_data
             tip = get_button_tooltip_data(f'compare_ext_mode_{m_key}', world)
             if tip:
-                world['_hovered_left_tooltip'] = (rect, tip)
+                tip['btn_rect'] = rect
+                world['_hovered_left_tooltip'] = tip
         bg = (235, 195, 75) if is_sel else ((44, 44, 58) if is_hov else (30, 30, 40))
         txt_c = (20, 20, 24) if is_sel else ((255, 255, 255) if is_hov else TEXT)
         pygame.draw.rect(surface, bg, rect, border_radius=4)
@@ -321,7 +323,8 @@ def draw_tab4_extraction(surface, world, box_x, start_y, box_w, box_h, font, cel
                 from worldview_tooltips import get_button_tooltip_data
                 tip = get_button_tooltip_data(tip_id, world)
                 if tip:
-                    world['_hovered_left_tooltip'] = (col_rect, tip)
+                    tip['btn_rect'] = col_rect
+                    world['_hovered_left_tooltip'] = tip
         surface.blit(cell_font.render(title, True, ACCENT), (tx, y + 4))
         tx += width
     y += 26

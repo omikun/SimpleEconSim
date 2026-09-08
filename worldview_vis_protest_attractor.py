@@ -97,7 +97,8 @@ def draw_rebellion_attractor_phasespace(surface, rect, world, font, cell_font, s
         from worldview_tooltips import get_button_tooltip_data
         tip = get_button_tooltip_data('attractor_hazard_zone', world)
         if tip:
-            world['_hovered_left_tooltip'] = (lbl_rect, tip)
+            tip['btn_rect'] = lbl_rect
+            world['_hovered_left_tooltip'] = tip
     surface.blit(hz_label, (hz_x + 12, hz_y + 10))
 
     # 4. Collect territory data points

@@ -822,7 +822,6 @@ def _infer_icon_for_btn(btn_id: str, tooltip: dict) -> str:
             return icon_name
     return 'policies'
 
-
 def get_button_tooltip_data(btn_id: str, world: dict, region=None, nation=None, province=None) -> dict | None:
     """Generate detailed mechanism description, achievement context, and live stat breakdown."""
     data = _build_button_tooltip_raw(btn_id, world, region=region, nation=nation, province=province)
@@ -831,11 +830,21 @@ def get_button_tooltip_data(btn_id: str, world: dict, region=None, nation=None, 
         data['icon'] = _infer_icon_for_btn(btn_id, data)
     return data
 
-
 def draw_left_panel_tooltip(surface, world: dict, font_small, mouse_pos=None):
     """Render sleek, dynamically-sized floating tooltip card for the currently hovered left-panel button."""
-    tooltip = world.get('_hovered_left_tooltip')
-    if not tooltip or not mouse_pos:
+    raw_tip = world.get('_hovered_left_tooltip')
+    if not raw_tip or not mouse_pos:
+        return
+
+    rect_override, tooltip = None, raw_tip
+    if isinstance(raw_tip, (tuple, list)):
+        if len(raw_tip) >= 2 and isinstance(raw_tip[1], dict):
+            rect_override, tooltip = raw_tip[0], raw_tip[1]
+        elif len(raw_tip) >= 1 and isinstance(raw_tip[0], dict):
+            tooltip = raw_tip[0]
+        else:
+            return
+    elif not isinstance(raw_tip, dict):
         return
 
     mx, my = mouse_pos
@@ -846,7 +855,7 @@ def draw_left_panel_tooltip(surface, world: dict, font_small, mouse_pos=None):
     cost_str = tooltip.get('cost', '')
     desc_lines = tooltip.get('desc', [])
     stats = tooltip.get('stats', [])
-    rect = tooltip.get('btn_rect', (mx, my, 20, 20))
+    rect = rect_override if rect_override else tooltip.get('btn_rect', (mx, my, 20, 20))
     btn_id = tooltip.get('btn_id', '')
     icon_kind = tooltip.get('icon') or _infer_icon_for_btn(btn_id, tooltip)
 

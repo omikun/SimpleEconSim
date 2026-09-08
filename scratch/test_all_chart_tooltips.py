@@ -207,8 +207,8 @@ def test_tooltips():
     draw_layer_sidebar(surface, world, font_small, mouse_pos=(50, 790))
     hovered = world.get('_hovered_left_tooltip')
     assert hovered is not None, "draw_layer_sidebar failed to set _hovered_left_tooltip when mouse hovered a layer button!"
-    assert 'Layer' in hovered[1]['title'] or 'Exploitation' in hovered[1]['title']
-    print(f"  [OK] draw_layer_sidebar hover successfully triggered: {hovered[1]['title']}")
+    assert 'Layer' in hovered['title'] or 'Exploitation' in hovered['title']
+    print(f"  [OK] draw_layer_sidebar hover successfully triggered: {hovered['title']}")
 
     print("\nALL 60+ BUTTON, MODE, SCOPE, HEADER, RADAR, ATTRACTOR, CIRCUIT & LAYER TOOLTIPS VERIFIED SUCCESSFULLY!")
 

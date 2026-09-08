@@ -76,7 +76,8 @@ def draw_layer_sidebar(surface, world, font_small, mouse_pos=None):
         if is_hover and not world.get('_hovered_left_tooltip'):
             tdata = get_button_tooltip_data(f"layer_{active_layer}", world)
             if tdata:
-                world['_hovered_left_tooltip'] = (pill_rect, tdata)
+                tdata['btn_rect'] = pill_rect
+                world['_hovered_left_tooltip'] = tdata
         return
 
     # 1. Expanded Drop-Up Container Background (Semi-Transparent Glassmorphism)
@@ -131,7 +132,8 @@ def draw_layer_sidebar(surface, world, font_small, mouse_pos=None):
         if is_hover and not world.get('_hovered_left_tooltip'):
             tdata = get_button_tooltip_data(f"layer_{key}", world)
             if tdata:
-                world['_hovered_left_tooltip'] = (b_rect, tdata)
+                tdata['btn_rect'] = b_rect
+                world['_hovered_left_tooltip'] = tdata
 
         by += BTN_H + BTN_SPACING
 
