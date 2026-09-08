@@ -187,6 +187,29 @@ def accumulate_grievances(region, t):
             f.add_grievance('enclosure', eviction_score * 1.5)
             f.add_grievance('labor', labor_grievance * 1.5)
         adds[f.name] = n_add
+
+    # Record isolated grievance breakdown for analytical comparison
+    sources = {
+        'overworked': float(shift_score),
+        'rent_enclosure': float(eviction_score * 1.5),
+        'hunger': float(hunger_score),
+        'labor_resistance': float(accident_score + strike_score),
+        'unemployment': float(unemp),
+        'tax': float(tax),
+        'repression': float(trauma_score),
+        'inequality': float(gini),
+    }
+    total_g = sum(sources.values())
+    pcts = {k: (v / total_g * 100.0) if total_g > 0 else 0.0 for k, v in sources.items()}
+    if not hasattr(region, 'grievance_sources_log'):
+        region.grievance_sources_log = []
+    region.grievance_sources_log.append({
+        'raw': sources,
+        'pct': pcts,
+        'total': total_g,
+        'protest': 0.0,
+    })
+
     return adds
 
 
@@ -210,4 +233,7 @@ def step_factions(region, t):
     region.faction_support_log.append(snap)
     gv = {name: f.total_grievance() for name, f in region.factions.factions.items()}
     region.faction_grievance_log.append(gv)
-    region.protest_energy_log.append(protest_energy(adds))
+    pe = protest_energy(adds)
+    region.protest_energy_log.append(pe)
+    if region.grievance_sources_log:
+        region.grievance_sources_log[-1]['protest'] = pe

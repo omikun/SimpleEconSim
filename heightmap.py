@@ -757,15 +757,9 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
 
             h_now = base_ground_H[py_i, px_i]
 
-            if h_now <= 0.005:
+            # TERMINATE PRECISELY AT OCEAN LEVEL (No pushing into ocean)
+            if h_now <= 0.005 or H_land_prob[py_i, px_i] < 0.32:
                 reached_ocean = True
-                if vel_x != 0.0 or vel_y != 0.0:
-                    for _ in range(2):
-                        cur_x += vel_x * step_dist
-                        cur_y += vel_y * step_dist
-                        p_x = int(round((cur_x - min_wx) / (max_wx - min_wx) * (width - 1)))
-                        p_y = int(round((cur_y - min_wy) / (max_wy - min_wy) * (height - 1)))
-                        pts.append((cur_x, cur_y, p_x, p_y, 0.0))
                 break
 
             best_dir = None
@@ -803,25 +797,30 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
                         best_score = score
                         best_dir = (dx, dy, cand_h)
 
+            # Bridge small flats by looking ahead towards ocean
             if best_dir is None:
                 for a_idx in range(num_angles):
                     ang = a_idx * (2.0 * math.pi / num_angles)
                     dx = math.cos(ang)
                     dy = math.sin(ang)
-                    cand_x = cur_x + dx * (step_dist * 2.5)
-                    cand_y = cur_y + dy * (step_dist * 2.5)
+                    cand_x = cur_x + dx * (step_dist * 3.0)
+                    cand_y = cur_y + dy * (step_dist * 3.0)
                     c_px = int(round((cand_x - min_wx) / (max_wx - min_wx) * (width - 1)))
                     c_py = int(round((cand_y - min_wy) / (max_wy - min_wy) * (height - 1)))
                     if 2 <= c_px < width - 2 and 2 <= c_py < height - 2:
                         cand_h = base_ground_H[c_py, c_px]
-                        if cand_h < h_now - 0.0005:
+                        if cand_h < h_now - 0.0002:
                             best_dir = (dx, dy, cand_h)
                             break
 
+            # If still no downhill path: only form a lake if trapped in an actual high mountain valley
             if best_dir is None:
-                if len(pts) >= 8 and h_now < 0.45:
+                if len(pts) >= 8 and h_now >= 0.16:
                     reached_lake = True
                     pit_point = (px_i, py_i, h_now)
+                elif len(pts) >= 8:
+                    # In lowlands: push towards ocean to terminate at sea
+                    reached_ocean = True
                 break
 
             target_vx, target_vy, _ = best_dir
@@ -845,11 +844,13 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
             cur_y += vel_y * step_dist
             p_pix_x = int(round((cur_x - min_wx) / (max_wx - min_wx) * (width - 1)))
             p_pix_y = int(round((cur_y - min_wy) / (max_wy - min_wy) * (height - 1)))
-            grid_pt = (p_pix_x // 6, p_pix_y // 6)
+            grid_pt = (p_pix_x // 5, p_pix_y // 5)
             if grid_pt in visited_pts:
-                if len(pts) >= 8 and h_now < 0.45:
+                if len(pts) >= 8 and h_now >= 0.16:
                     reached_lake = True
                     pit_point = (p_pix_x, p_pix_y, h_now)
+                elif len(pts) >= 8:
+                    reached_ocean = True
                 break
             visited_pts.add(grid_pt)
             pts.append((cur_x, cur_y, p_pix_x, p_pix_y, base_ground_H[p_pix_y, p_pix_x]))
@@ -859,8 +860,13 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
             valid_rivers_count += 1
             n_pts = len(pts)
             water_levels = np.array([pts[k][4] for k in range(n_pts)], dtype=np.float32)
+            # Enforce strict monotonicity and coast blend down to 0.0 at ocean mouth
             for k in range(1, n_pts):
                 water_levels[k] = min(water_levels[k], water_levels[k-1] - 0.0005)
+            if reached_ocean:
+                for k in range(n_pts):
+                    t_coast = max(0.0, (k - (n_pts - 8)) / 8.0)
+                    water_levels[k] = water_levels[k] * (1.0 - t_coast) + 0.002 * t_coast
 
             for idx in range(n_pts - 1):
                 t_prog = idx / float(n_pts)
@@ -868,8 +874,8 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
                 p2 = (pts[idx + 1][2], pts[idx + 1][3])
                 seg_hw = water_levels[idx]
 
-                rw = 2.0 + t_prog * 3.5          # River water width radius (2 to 5.5px)
-                vw = rw + 10.0 + t_prog * 8.0     # Carved valley width radius (12 to 23px)
+                rw = 1.8 + t_prog * 2.8          # River water width radius (1.8 to 4.6px)
+                vw = rw + 8.0 + t_prog * 6.0     # Carved valley width radius (10 to 18px)
 
                 min_x_seg = max(0, int(min(p1[0], p2[0]) - vw - 2))
                 max_x_seg = min(width - 1, int(max(p1[0], p2[0]) + vw + 2))
@@ -887,12 +893,15 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
                     near_y = p1[1] + proj * vy
                     dist = np.sqrt((grid_x - near_x)**2 + (grid_y - near_y)**2)
 
-                    # River Channel
-                    in_river = dist <= rw
+                    # River Channel (ONLY on land, terminates cleanly at sea level)
+                    sub_land = H_land_prob[min_y_seg:max_y_seg+1, min_x_seg:max_x_seg+1] >= 0.30
+                    in_river = (dist <= rw) & sub_land
                     is_river_water[min_y_seg:max_y_seg+1, min_x_seg:max_x_seg+1] |= in_river
+                    
                     sub_w_H = water_surface_H[min_y_seg:max_y_seg+1, min_x_seg:max_x_seg+1]
+                    # Water level sits at seg_hw - 0.003, seamlessly recessed below ground
                     water_surface_H[min_y_seg:max_y_seg+1, min_x_seg:max_x_seg+1] = np.where(
-                        in_river, np.maximum(sub_w_H, seg_hw), sub_w_H
+                        in_river, np.maximum(sub_w_H, seg_hw - 0.003), sub_w_H
                     )
 
                     # Valley Carving (cuts terrain smoothly down to river level)
@@ -910,31 +919,34 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
                         in_valley, np.maximum(sub_bank, (1.0 - t_val)), sub_bank
                     )
 
-            # Depression Flooding for Inland Lakes
+            # Natural Mountain Basin Depression Flooding (Tightly Contoured, No Big Ovals)
             if reached_lake and pit_point is not None:
                 px_pit, py_pit, h_pit = pit_point
-                H_lake = h_pit + 0.032  # Floods local pit up to rim
+                H_lake = h_pit + 0.018  # Shallow natural alpine tarn level
                 
                 from collections import deque
                 q_bfs = deque([(py_pit, px_pit)])
                 lake_submask = np.zeros((height, width), dtype=bool)
                 lake_submask[py_pit, px_pit] = True
-                max_rad2 = (HEX_SIZE * 0.85)**2
+                max_rad = HEX_SIZE * 0.45  # Small-to-medium natural basin size
 
                 while q_bfs:
                     cy_l, cx_l = q_bfs.popleft()
                     for dy_l, dx_l in ((-1,0), (1,0), (0,-1), (0,1)):
                         ny_l, nx_l = cy_l + dy_l, cx_l + dx_l
                         if 0 <= ny_l < height and 0 <= nx_l < width and not lake_submask[ny_l, nx_l]:
-                            dist2 = (nx_l - px_pit)**2 + (ny_l - py_pit)**2
-                            if dist2 <= max_rad2 and carved_ground_H[ny_l, nx_l] <= H_lake + 0.004:
+                            dist = math.sqrt((nx_l - px_pit)**2 + (ny_l - py_pit)**2)
+                            # Organic fractal boundary shaping (fjords, coves, jagged inlets)
+                            n_f, _, _ = iq_noised(nx_l / 14.0, ny_l / 14.0)
+                            dist_warped = dist * (0.80 + 0.40 * n_f)
+                            if dist_warped <= max_rad and carved_ground_H[ny_l, nx_l] <= H_lake + 0.002:
                                 lake_submask[ny_l, nx_l] = True
                                 q_bfs.append((ny_l, nx_l))
 
                 # Apply flat lake surface
                 is_lake_water |= lake_submask
                 water_surface_H = np.where(lake_submask, H_lake, water_surface_H)
-                carved_ground_H = np.where(lake_submask, np.minimum(carved_ground_H, H_lake - 0.012), carved_ground_H)
+                carved_ground_H = np.where(lake_submask, np.minimum(carved_ground_H, H_lake - 0.008), carved_ground_H)
 
             if valid_rivers_count >= 6:
                 break
@@ -1090,7 +1102,8 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
     diffuse_sun = np.power(NdotL, 1.05)
     sky_light = Nz * 0.60 + 0.40
 
-    # Soft shadows
+    # Soft shadows (water is recessed so rivers and lakes do not cast shadows)
+    H_shadow = np.where(is_inland_water, carved_ground_H, H)
     step_dx = 2.5
     step_dy = 2.5
     step_dz = 0.055
@@ -1102,8 +1115,8 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
         dz = s * step_dz
         if oy >= height or ox >= width:
             break
-        occluder = np.full_like(H, -1.0)
-        occluder[oy:, ox:] = H[:-oy, :-ox]
+        occluder = np.full_like(H_shadow, -1.0)
+        occluder[oy:, ox:] = H_shadow[:-oy, :-ox]
         diff = occluder - (H + dz)
         in_shadow = diff > 0.010
         penumbra = np.clip(1.0 - diff * 4.0, 0.45, 1.0)

@@ -48,14 +48,16 @@ def fmt_delta(cur, prev, is_curr=False, decimals=2, invert_good=False):
 
 
 def draw_tab_headers(surface, world, box_x, box_y, box_w, font, font_small, mouse_pos=None):
-    """Draw top tabs: 1. Leaderboard, 2. Goods, 3. Forex & Banking."""
+    """Draw top tabs: 1. Leaderboard, 2. Goods, 3. Forex & Banking, 4. Extraction & Attrition, 5. Protest & Grievances."""
     active_tab = world.get('compare_tab', 1)
     tabs = [
-        (1, "1. Macro Accounts & Leaderboard"),
+        (1, "1. Macro & Leaderboard"),
         (2, "2. Goods & Provincial Economy"),
-        (3, "3. External Sector, FX & Banking"),
+        (3, "3. External, FX & Banking"),
+        (4, "4. Class Wealth Extraction"),
+        (5, "5. Protest Energy & Grievances"),
     ]
-    tab_w = 260
+    tab_w = 250
     tab_h = 32
     start_x = box_x + 20
     y = box_y + 48
@@ -72,31 +74,54 @@ def draw_tab_headers(surface, world, box_x, box_y, box_w, font, font_small, mous
         txt_c = (255, 255, 255) if is_active else (TEXT if is_hover else DIM)
         tsurf = font_small.render(label, True, txt_c)
         surface.blit(tsurf, tsurf.get_rect(center=(start_x + tab_w // 2, y + tab_h // 2)))
-        start_x += tab_w + 14
+        start_x += tab_w + 10
 
     return y + tab_h + 16
 
 
 def compare_tab_hit(pos, box_x, box_y, world=None):
-    """Return clicked tab ID (1, 2, 3), Good enum, or None."""
+    """Return clicked tab ID (1..5), Good enum, scope action, or None."""
     mx, my = pos
-    tab_w = 260
+    tab_w = 250
     tab_h = 32
     start_x = box_x + 20
     y = box_y + 48
-    for tab_id in (1, 2, 3):
+    for tab_id in (1, 2, 3, 4, 5):
         if start_x <= mx <= start_x + tab_w and y <= my <= y + tab_h:
             return ('tab', tab_id)
-        start_x += tab_w + 14
+        start_x += tab_w + 10
 
     # Good sub-selectors on Tab 2: y = box_y + 92
-    sub_y = box_y + 92
-    if sub_y <= my <= sub_y + 28:
-        gx = box_x + 20
-        for g in (Goods.food, Goods.wood, Goods.furniture):
-            if gx <= mx <= gx + 100:
-                return ('good', g)
-            gx += 110
+    if not world or world.get('compare_tab') == 2:
+        sub_y = box_y + 92
+        if sub_y <= my <= sub_y + 28:
+            gx = box_x + 20
+            for g in (Goods.food, Goods.wood, Goods.furniture):
+                if gx <= mx <= gx + 100:
+                    return ('good', g)
+                gx += 110
+
+    # Scope sub-selectors on Tab 4: y = box_y + 88
+    if world and world.get('compare_tab') == 4:
+        sub_y = box_y + 88
+        if sub_y <= my <= sub_y + 28:
+            gx = box_x + 20
+            for s_key in ('country', 'province', 'city'):
+                if gx <= mx <= gx + 120:
+                    world['compare_ext_scope'] = s_key
+                    return ('scope_ext', s_key)
+                gx += 130
+
+    # Scope sub-selectors on Tab 5: y = box_y + 88
+    if world and world.get('compare_tab') == 5:
+        sub_y = box_y + 88
+        if sub_y <= my <= sub_y + 28:
+            gx = box_x + 20
+            for s_key in ('country', 'province', 'city'):
+                if gx <= mx <= gx + 120:
+                    world['compare_protest_scope'] = s_key
+                    return ('scope_protest', s_key)
+                gx += 130
 
     return None
 
@@ -644,7 +669,7 @@ def _get_overlay():
 
 
 def draw_nations_comparison(surface, world, font, font_small, mouse_pos=None):
-    """Render full-screen 3-tab comparison overlay."""
+    """Render full-screen 5-tab comparison overlay."""
     if not world.get('compare_open', False):
         return
 
@@ -660,9 +685,9 @@ def draw_nations_comparison(surface, world, font, font_small, mouse_pos=None):
     pygame.draw.rect(surface, BORDER_MODAL, (box_x, box_y, box_w, box_h), 2, border_radius=8)
 
     # Top Header
-    title = title_font.render("REGNUM v3 — Economic & Geopolitical Accounts Suite", True, ACCENT)
+    title = title_font.render("REGNUM v3 - Economic & Geopolitical Accounts Suite", True, ACCENT)
     surface.blit(title, (box_x + 20, box_y + 14))
-    close_hint = font_small.render("[Press C, Esc, or Click to Close | Tab or 1-3 to switch]", True, DIM)
+    close_hint = font_small.render("[Press C, Esc, or Click to Close | Tab or 1-5 to switch]", True, DIM)
     surface.blit(close_hint, (box_x + box_w - close_hint.get_width() - 20, box_y + 18))
 
     # Draw Tab Bar
@@ -676,3 +701,9 @@ def draw_nations_comparison(surface, world, font, font_small, mouse_pos=None):
         draw_tab2_goods(surface, world, box_x, content_y, box_w, box_h, font, cell_font, section_font, mouse_pos=mouse_pos)
     elif tab == 3:
         draw_tab3_fx_banking(surface, world, box_x, content_y, box_w, box_h, font, cell_font, section_font, mouse_pos=mouse_pos)
+    elif tab == 4:
+        from worldview_compare_extraction import draw_tab4_extraction
+        draw_tab4_extraction(surface, world, box_x, content_y, box_w, box_h, font, cell_font, section_font, mouse_pos=mouse_pos)
+    elif tab == 5:
+        from worldview_compare_protest import draw_tab5_protest
+        draw_tab5_protest(surface, world, box_x, content_y, box_w, box_h, font, cell_font, section_font, mouse_pos=mouse_pos)

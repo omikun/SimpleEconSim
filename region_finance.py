@@ -147,6 +147,9 @@ def collect_tax(region, t):
 
     # ---- 3. Tax top 10% just enough to cover the deficit ----
     tax_collected = 0.0
+    turn_nat_tax = 0.0
+    turn_prov_tax = 0.0
+    turn_tile_tax = 0.0
     top_count = 0
     if deficit > 0:
         living = [a for a in region.agents if a.alive]
@@ -202,6 +205,10 @@ def collect_tax(region, t):
 
                             tile_gov.agent.cash += tile_share
                             tile_gov.record_income(t, 'tax', tile_share)
+
+                            turn_nat_tax += nat_share
+                            turn_prov_tax += prov_share
+                            turn_tile_tax += tile_share
                         else:
                             # 2-Tier: 50% National, 50% Local/Provincial
                             nat_share = round(actual * 0.50, 6)
@@ -212,12 +219,25 @@ def collect_tax(region, t):
 
                             tile_gov.agent.cash += tile_share
                             tile_gov.record_income(t, 'tax', tile_share)
+
+                            turn_nat_tax += nat_share
+                            turn_tile_tax += tile_share
                     else:
                         # Single-Tier / Independent
                         tile_gov.agent.cash += actual
                         tile_gov.record_income(t, 'tax', actual)
+                        turn_tile_tax += actual
 
                     tax_collected += actual
+
+    if not hasattr(region, 'tax_distribution_log'):
+        region.tax_distribution_log = []
+    region.tax_distribution_log.append({
+        'total': tax_collected,
+        'municipal': turn_tile_tax,
+        'provincial': turn_prov_tax,
+        'national': turn_nat_tax,
+    })
 
     # ---- 4. If still short, borrow from the bank ----
     gap = max(0.0, deficit - tax_collected)

@@ -266,8 +266,8 @@ def main():
                         elif tab_hit[0] == 'good':
                             world['compare_good'] = tab_hit[1]
                         continue
-                    # Click outside header tabs or outside modal closes it
-                    if event.pos[0] < 30 or event.pos[0] > WIDTH - 30 or event.pos[1] < 20 or event.pos[1] > HEIGHT - 20 or event.pos[1] < 48:
+                    # Click outside modal closes it
+                    if event.pos[0] < 30 or event.pos[0] > WIDTH - 30 or event.pos[1] < 20 or event.pos[1] > HEIGHT - 20:
                         world['compare_open'] = False
                         continue
 
@@ -482,10 +482,14 @@ def main():
                         world['compare_tab'] = 2
                     elif event.key in (pygame.K_3, pygame.K_KP3):
                         world['compare_tab'] = 3
+                    elif event.key in (pygame.K_4, pygame.K_KP4):
+                        world['compare_tab'] = 4
+                    elif event.key in (pygame.K_5, pygame.K_KP5):
+                        world['compare_tab'] = 5
                     elif event.key in (pygame.K_TAB, pygame.K_RIGHT):
-                        world['compare_tab'] = (world.get('compare_tab', 1) % 3) + 1
+                        world['compare_tab'] = (world.get('compare_tab', 1) % 5) + 1
                     elif event.key == pygame.K_LEFT:
-                        world['compare_tab'] = 3 if world.get('compare_tab', 1) == 1 else world.get('compare_tab', 1) - 1
+                        world['compare_tab'] = 5 if world.get('compare_tab', 1) == 1 else world.get('compare_tab', 1) - 1
                     elif event.key == pygame.K_f:
                         world['compare_good'] = Goods.food
                     elif event.key == pygame.K_w:

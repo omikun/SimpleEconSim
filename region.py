@@ -188,6 +188,9 @@ class Region:
         self.strikers_log: list = []  # time-series of active striking workers
         self.broken_machinery_log: list = []  # time-series of broken factory machines
         self.sabotage_log: list = []  # time-series of machines sabotaged this turn
+        self.tribute_collected_log: list = []  # time-series of in-kind tribute extracted ($ value)
+        self.tax_distribution_log: list = []  # time-series of multi-tier tax splits {total, municipal, provincial, national}
+        self.grievance_sources_log: list = []  # time-series of grievance source breakdowns
 
         self.recipes = copy.deepcopy(recipes)
         self.goods = list(goods)
@@ -525,7 +528,14 @@ class Region:
         self._audit_cash(t, "produce_done")
 
         # Feudal tribute: lords collect in-kind share of harvest from serfs
-        _tribute.collect_tribute(self, t)
+        tribute_data = _tribute.collect_tribute(self, t)
+        tribute_val = 0.0
+        if tribute_data:
+            for lord_id, goods_dict in tribute_data.items():
+                for g, qty in goods_dict.items():
+                    price = self.food_price if g == Goods.food else self.recipes.get(g, {}).get('price', 2.0)
+                    tribute_val += qty * price
+        self.tribute_collected_log.append(tribute_val)
 
         # Trade & Route export posting
         _market.trade(self, t)
@@ -548,6 +558,8 @@ class Region:
         # Tax
         self._record_delta()
         _fin.collect_tax(self, t)
+        if len(self.tax_distribution_log) < len(self.rent_collected_log):
+            self.tax_distribution_log.append({'total': 0.0, 'municipal': 0.0, 'provincial': 0.0, 'national': 0.0})
         self._audit_cash(t, "tax_done")
 
         self._log_gdp()
