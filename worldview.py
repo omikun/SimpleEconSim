@@ -266,9 +266,6 @@ def main():
                 _mark_dirty(world)
             elif event.type == pygame.WINDOWEVENT if hasattr(pygame, 'WINDOWEVENT') else False:
                 _mark_dirty(world)
-            elif event.type == pygame.MOUSEMOTION:
-                if modal_open:
-                    _mark_dirty(world)
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 _mark_dirty(world)
 
@@ -478,6 +475,8 @@ def main():
                     world['cam']['ox'] += dx
                     world['cam']['oy'] += dy
                     clamp_cam(world)
+                    _mark_dirty(world)
+                elif modal_open:
                     _mark_dirty(world)
                 # Hover detection handled below (batched after all events)
             elif event.type == pygame.MOUSEWHEEL:
