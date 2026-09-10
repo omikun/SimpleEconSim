@@ -103,6 +103,8 @@ class Agent:
         '_latest_labor_stats',
         'alienation', 'health_attrition', 'despair', 'class_consciousness',
         'is_striking', 'is_on_strike',
+        # ---- P3: Epidemics & Medical Economics ----
+        'diseases', 'medical_expenses_paid', 'medical_treatments_count',
     )
 
     def __init__(self, t):
@@ -222,6 +224,9 @@ class Agent:
         self.class_consciousness = 0.0       # worker political consciousness (0.0 to 1.0)
         self.is_striking = False             # true if withholding labor on strike
         self.is_on_strike = False            # true if firm operations shut down by strike
+        self.diseases = []                   # active disease names: malnutrition, cholera, respiratory, chemical
+        self.medical_expenses_paid = 0.0     # cumulative private out-of-pocket medical bills ($)
+        self.medical_treatments_count = 0    # cumulative medical treatments received
 
     def name(self):
         prof_label = profession.get(self.output, '-')

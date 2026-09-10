@@ -1,12 +1,4 @@
-"""
-worldview_tooltips.py — Comprehensive Mouse-Over Tooltip System for Left Panel Mechanisms.
-
-Renders detailed floating explanation cards for every button and mechanism on the left-hand panel:
-- What each mechanism does (rules, formulas, transfers).
-- What it achieves (short & long-term economic, demographic, and political effects).
-- Monetary and resource costs / prerequisites.
-- Breakdown of relevant live stats (tax rates, treasury, protest, hunger, casualties, etc.).
-"""
+"""worldview_tooltips.py — Comprehensive Tooltip System for Left Panel Mechanisms & Systems."""
 
 from __future__ import annotations
 import pygame
@@ -739,9 +731,11 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
         if mil_tip:
             return mil_tip
 
-    # -------------------------------------------------------------------------
-    # CHARTS, CITIZEN STATUS, LABOR & COMPARISON TOOLTIPS
-    # -------------------------------------------------------------------------
+    from worldview_tooltips_ecology import build_ecology_tooltip
+    eco_tip = build_ecology_tooltip(btn_id, world, region=pinned, nation=owner, province=prov)
+    if eco_tip:
+        return eco_tip
+
     from worldview_tooltips_visualizations import build_visualization_tooltip
     vis_tip = build_visualization_tooltip(btn_id, world, region=pinned, nation=owner, province=prov)
     if vis_tip:

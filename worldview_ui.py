@@ -8,7 +8,7 @@ import pygame
 from goods import Goods
 from worldview_camera import WIDTH, HEIGHT, MAP_RIGHT, TOP_BAR_H, TICKER_H
 from worldview_charts import (PANEL_LEFT, draw_chart_grid, draw_chart_large,
-                              tile_charts, EXP_C, IMP_C)
+                              tile_charts, tile_ecological_charts, EXP_C, IMP_C)
 from worldview_map import (HEX_EDGE, ACCENT, TEXT, DIM, RED, GREEN, UNREST_COLORS,
                            PROVINCE_COLORS, NATION_COLORS, BADGE_ORANGE, BADGE_RED,
                            BADGE_TRA, BADGE_GINI)
@@ -923,15 +923,53 @@ def draw_panel(surface, world, font, font_small, mouse_pos=None):
         col_line = font_small.render(
             f"CoL {region.cost_of_living:.2f}  {region.climate}  (V=nation)", True, DIM)
         surface.blit(col_line, (PANEL_LEFT, y_cursor))
+        y_cursor += 16
+
+        # Chart Category Switcher [ 📈 Macro ] [ 🌿 Ecology & Health ]
+        chart_mode = world.get('tile_chart_mode', 'econ')
+        btn_w = (WIDTH - PANEL_LEFT - 14) // 2
+        btn_ec_rect = pygame.Rect(PANEL_LEFT, y_cursor, btn_w, 20)
+        btn_eco_rect = pygame.Rect(PANEL_LEFT + btn_w + 4, y_cursor, btn_w, 20)
+
+        mx, my = mouse_pos if mouse_pos else (-1, -1)
+        ec_hover = btn_ec_rect.collidepoint(mx, my)
+        eco_hover = btn_eco_rect.collidepoint(mx, my)
+
+        if ec_hover and world is not None and not world.get('_hovered_left_tooltip'):
+            from worldview_tooltips import get_button_tooltip_data
+            tdata = get_button_tooltip_data('btn_chart_mode_econ', world)
+            if tdata:
+                tdata['btn_rect'] = btn_ec_rect
+                world['_hovered_left_tooltip'] = tdata
+        elif eco_hover and world is not None and not world.get('_hovered_left_tooltip'):
+            from worldview_tooltips import get_button_tooltip_data
+            tdata = get_button_tooltip_data('btn_chart_mode_eco', world)
+            if tdata:
+                tdata['btn_rect'] = btn_eco_rect
+                world['_hovered_left_tooltip'] = tdata
+
+        bg_ec = (55, 65, 95) if chart_mode == 'econ' else ((42, 48, 68) if ec_hover else (30, 34, 48))
+        bg_eco = (40, 80, 60) if chart_mode == 'eco' else ((32, 60, 48) if eco_hover else (24, 38, 32))
+        pygame.draw.rect(surface, bg_ec, btn_ec_rect, border_radius=4)
+        pygame.draw.rect(surface, ACCENT if chart_mode == 'econ' else (60, 70, 95), btn_ec_rect, 1, border_radius=4)
+        pygame.draw.rect(surface, bg_eco, btn_eco_rect, border_radius=4)
+        pygame.draw.rect(surface, (120, 220, 140) if chart_mode == 'eco' else (45, 80, 60), btn_eco_rect, 1, border_radius=4)
+
+        lbl_ec = font_small.render("📈 Economy", True, ACCENT if chart_mode == 'econ' else TEXT)
+        lbl_eco = font_small.render("🌿 Ecology", True, (140, 230, 160) if chart_mode == 'eco' else TEXT)
+        surface.blit(lbl_ec, lbl_ec.get_rect(center=btn_ec_rect.center))
+        surface.blit(lbl_eco, lbl_eco.get_rect(center=btn_eco_rect.center))
+
+        y_cursor += 22
         chart_y_offset = (y_cursor - (chart_top - 6)) + 14
 
-        charts = tile_charts(region)
+        charts = tile_ecological_charts(region) if chart_mode == 'eco' else tile_charts(region)
         view = world.get('view', 0)
         if view == 0:
             draw_chart_grid(surface, charts, font, font_small, world['window'],
                             chart_top + chart_y_offset, chart_bottom, mouse_pos=mouse_pos, world=world, region=region)
             hint = font_small.render(
-                f"Click/1-9,0: Zoom chart  Tab: Grid", True, DIM)
+                f"Click/1-{len(charts)}: Zoom chart  Tab: Grid", True, DIM)
             surface.blit(hint, (PANEL_LEFT, chart_bottom + 6))
         else:
             idx = max(0, min(len(charts) - 1, view - 1))

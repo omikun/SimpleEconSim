@@ -112,6 +112,16 @@ BUILDING_RECIPES: dict[str, BuildingRecipe] = {
         production_bonuses={},
         description='Protected agroecological reserve boosting local soil fertility regeneration by +25%.'
     ),
+    'municipal_clinic': BuildingRecipe(
+        name='municipal_clinic',
+        display_name='Municipal Apothecary & Clinic',
+        cost=250.0,
+        base_turns=2,
+        tier='tile',
+        required_goods={Goods.wood: 3, Goods.furniture: 1},
+        production_bonuses={},
+        description='Municipal apothecary and medical clinic providing subsidized diagnoses, increasing cure rates to 95%.'
+    ),
 
     # ── PROVINCIAL LEVEL PUBLIC WORKS ───────────────────────────────
     'paved_road': BuildingRecipe(

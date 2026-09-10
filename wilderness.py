@@ -196,3 +196,15 @@ def step_wilderness(region, t):
             'total': 0.0,
             'protest': 0.0,
         })
+    if hasattr(region, 'soil_fertility_log'):
+        region.soil_fertility_log.append(getattr(region, 'soil_fertility', 1.0))
+        region.nutrition_density_log.append(getattr(region, 'nutrition_density', 1.0))
+        region.pollution_air_log.append(getattr(region, 'pollution_air', 0.0))
+        region.pollution_water_log.append(getattr(region, 'pollution_water', 0.0))
+        region.pollution_soil_log.append(getattr(region, 'pollution_soil', 0.0))
+    if hasattr(region, 'disease_cases_log'):
+        region.disease_cases_log.append({'malnutrition': 0, 'waterborne': 0, 'respiratory': 0, 'chemical': 0, 'total': 0})
+        region.medical_spending_private_log.append(0.0)
+        region.medical_spending_public_log.append(0.0)
+        region.untreated_cases_log.append(0)
+        region.disease_fatalities_log.append(0)

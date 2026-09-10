@@ -113,7 +113,7 @@ def draw_build_panel(surface, world, font, font_small, mouse_pos=None):
             tier_title="Sanitation & Restoration",
             treasury_label=f"Tile: ${tile_cash:,.0f}",
             treasury_amt=tile_cash,
-            recipes_keys=['trunk_sewer', 'smoke_scrubber', 'soil_conservation_reserve'],
+            recipes_keys=['trunk_sewer', 'smoke_scrubber', 'soil_conservation_reserve', 'municipal_clinic'],
             x=x + 8, y=cur_y, w=w - 16,
             font=font, font_small=font_small, mouse_pos=mouse_pos
         )
@@ -358,7 +358,7 @@ def build_panel_hit(pos, world) -> bool:
     nat_cash = (nation.treasury()['total']) if nation else 0.0
 
     if active_bcat == 'ecology':
-        cur_y, tier1_buttons = _get_tier_layout(cur_y, ['trunk_sewer', 'smoke_scrubber', 'soil_conservation_reserve'], x + 8, w - 16)
+        cur_y, tier1_buttons = _get_tier_layout(cur_y, ['trunk_sewer', 'smoke_scrubber', 'soil_conservation_reserve', 'municipal_clinic'], x + 8, w - 16)
         for r_key, btn_rect in tier1_buttons:
             if btn_rect[0] <= mx <= btn_rect[0] + btn_rect[2] and btn_rect[1] <= my <= btn_rect[1] + btn_rect[3]:
                 _handle_build_click(world, pinned, nation, r_key, tile_cash, t)

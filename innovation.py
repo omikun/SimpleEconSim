@@ -227,6 +227,16 @@ TECH_CATALOG: dict[str, Technology] = {
         unlocked_buildings=['trunk_sewer'],
         bottleneck_evaluator=_eval_food_bottleneck
     ),
+    'germ_theory_antisepsis': Technology(
+        tech_id='germ_theory_antisepsis',
+        name='Germ Theory & Antiseptic Sanitation',
+        domain=TechDomain.CIVIL_ENGINEERING,
+        description='Microbial disease identification and carbolic antisepsis; cuts waterborne cholera transmission by 65% and reduces medical treatment costs.',
+        base_xp_required=720.0,
+        era=2,
+        unlocked_buildings=['municipal_clinic'],
+        bottleneck_evaluator=_eval_food_bottleneck
+    ),
 
     # =========================================================================
     # ERA III: STEAM & INDUSTRIAL REVOLUTION (Era 3)
@@ -323,6 +333,17 @@ TECH_CATALOG: dict[str, Technology] = {
         unlocked_buildings=['soil_conservation_reserve'],
         bottleneck_evaluator=_eval_food_bottleneck
     ),
+    'pharmaceutical_chemistry': Technology(
+        tech_id='pharmaceutical_chemistry',
+        name='Synthetic Pharmacology & Chemotherapy',
+        domain=TechDomain.MANUFACTURING,
+        description='Chemical synthesis of antidotes and antibiotics; raises medical cure success rate to 95% and neutralizes chemical pesticide toxicity.',
+        base_xp_required=1250.0,
+        era=3,
+        required_resources=[TileResource.COAL_SEAM],
+        required_techs=['germ_theory_antisepsis'],
+        bottleneck_evaluator=_eval_food_bottleneck
+    ),
 
     # =========================================================================
     # ERA IV: PETROLEUM, ELECTRIC & MODERN AGE (Era 4)
@@ -370,6 +391,16 @@ TECH_CATALOG: dict[str, Technology] = {
         era=4,
         required_resources=[TileResource.ARABLE_SILT],
         required_techs=['chemical_pesticides'],
+        bottleneck_evaluator=_eval_food_bottleneck
+    ),
+    'universal_healthcare_system': Technology(
+        tech_id='universal_healthcare_system',
+        name='Universal Public Healthcare Coverage',
+        domain=TechDomain.FINANCE,
+        description='State-administered health system guaranteeing public treatment of all epidemics, reducing treatment cost by 30% and eliminating out-of-pocket bankruptcies.',
+        base_xp_required=1700.0,
+        era=4,
+        required_techs=['pharmaceutical_chemistry'],
         bottleneck_evaluator=_eval_food_bottleneck
     ),
     'microelectronics': Technology(

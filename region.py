@@ -205,6 +205,13 @@ class Region:
         self.pollution_air_log: list = []  # time-series of air pollution
         self.pollution_water_log: list = []  # time-series of water pollution
         self.pollution_soil_log: list = []  # time-series of soil toxicity
+        self.disease_cases_log: list = []  # time-series of active disease cases by type
+        self.medical_spending_private_log: list = []  # private out-of-pocket medical bills ($)
+        self.medical_spending_public_log: list = []  # public healthcare subsidies ($)
+        self.untreated_cases_log: list = []  # impoverished sick cases unable to pay
+        self.disease_fatalities_log: list = []  # deaths from disease complications
+        self.disease_fatalities_this_turn: int = 0
+        self.public_healthcare_decree: bool = False  # municipal healthcare mandate
 
         self.recipes = copy.deepcopy(recipes)
         self.goods = list(goods)
@@ -604,6 +611,10 @@ class Region:
         # Metabolic Rift & Externalities Engine (P3)
         from externalities import step_tile_externalities
         step_tile_externalities(self, t)
+
+        # Epidemics & Medical Economics (P3)
+        from disease import step_tile_diseases
+        step_tile_diseases(self, t)
 
         # Charity food distribution
         if legacy:

@@ -413,11 +413,18 @@ def handle_death(ctx, t, agent, agents):
         if attrition > 0.0:
             adjusted_prob *= (1.0 + min(3.0, attrition * 1.5))
 
+        # P3: Active epidemic diseases compound mortality risk
+        active_dis = getattr(agent, 'diseases', [])
+        if active_dis:
+            adjusted_prob *= (1.0 + min(4.0, 0.45 * len(active_dis)))
+
         if is_last_of_profession(agent, agents, ctx):
             return False
         if rand.random() > adjusted_prob:
             return False
         agent.alive = False
+        if active_dis and hasattr(ctx, 'disease_fatalities_this_turn'):
+            ctx.disease_fatalities_this_turn += 1
         loginfo(t, agent.name(), 'has died due to age')
     else:
         logdebug(t, agent.name(), 'has starved to death')

@@ -48,16 +48,18 @@ def fmt_delta(cur, prev, is_curr=False, decimals=2, invert_good=False):
 
 
 def draw_tab_headers(surface, world, box_x, box_y, box_w, font, font_small, mouse_pos=None):
-    """Draw top tabs: 1. Leaderboard, 2. Goods, 3. Forex & Banking, 4. Extraction & Attrition, 5. Protest & Grievances."""
+    """Draw top tabs: 1. Leaderboard, 2. Goods, 3. Forex & Banking, 4. Extraction & Attrition, 5. Protest, 6. Ecology."""
     active_tab = world.get('compare_tab', 1)
     tabs = [
-        (1, "1. Macro & Leaderboard"),
-        (2, "2. Goods & Provincial Economy"),
-        (3, "3. External, FX & Banking"),
-        (4, "4. Class Wealth Extraction"),
-        (5, "5. Protest Energy & Grievances"),
+        (1, "1. Macro Accounts"),
+        (2, "2. Goods & Provinces"),
+        (3, "3. Forex & Banking"),
+        (4, "4. Class Extraction"),
+        (5, "5. Protest & Grievances"),
+        (6, "6. Ecology & Health"),
     ]
-    tab_w = 250
+    tab_spacing = 8
+    tab_w = (box_w - 40 - (len(tabs) - 1) * tab_spacing) // len(tabs)
     tab_h = 32
     start_x = box_x + 20
     y = box_y + 48
@@ -80,22 +82,25 @@ def draw_tab_headers(surface, world, box_x, box_y, box_w, font, font_small, mous
         txt_c = (255, 255, 255) if is_active else (TEXT if is_hover else DIM)
         tsurf = font_small.render(label, True, txt_c)
         surface.blit(tsurf, tsurf.get_rect(center=(start_x + tab_w // 2, y + tab_h // 2)))
-        start_x += tab_w + 10
+        start_x += tab_w + tab_spacing
 
     return y + tab_h + 16
 
 
 def compare_tab_hit(pos, box_x, box_y, world=None):
-    """Return clicked tab ID (1..5), Good enum, scope action, or None."""
+    """Return clicked tab ID (1..6), Good enum, scope action, or None."""
     mx, my = pos
-    tab_w = 250
+    box_w = WIDTH - 60
+    tab_count = 6
+    tab_spacing = 8
+    tab_w = (box_w - 40 - (tab_count - 1) * tab_spacing) // tab_count
     tab_h = 32
     start_x = box_x + 20
     y = box_y + 48
-    for tab_id in (1, 2, 3, 4, 5):
+    for tab_id in (1, 2, 3, 4, 5, 6):
         if start_x <= mx <= start_x + tab_w and y <= my <= y + tab_h:
             return ('tab', tab_id)
-        start_x += tab_w + 10
+        start_x += tab_w + tab_spacing
 
     # Good sub-selectors on Tab 2: y = box_y + 92
     if not world or world.get('compare_tab') == 2:
@@ -147,6 +152,12 @@ def compare_tab_hit(pos, box_x, box_y, world=None):
                     world['compare_protest_mode'] = m_key
                     return ('mode_protest', m_key)
                 mx_x += m_w + 10
+
+    # Scope sub-selectors on Tab 6: Ecology & Public Health
+    if world and world.get('compare_tab') == 6:
+        from worldview_compare_ecology import handle_tab6_click
+        if handle_tab6_click(world, mx, my, box_x, box_y, box_w):
+            return ('scope_eco', world.get('compare_eco_scope', 'country'))
 
     return None
 
@@ -718,7 +729,7 @@ def draw_nations_comparison(surface, world, font, font_small, mouse_pos=None):
     # Top Header
     title = title_font.render("REGNUM v3 - Economic & Geopolitical Accounts Suite", True, ACCENT)
     surface.blit(title, (box_x + 20, box_y + 14))
-    close_hint = font_small.render("[Press C, Esc, or Click to Close | Tab or 1-5 to switch]", True, DIM)
+    close_hint = font_small.render("[Press C, Esc, or Click to Close | Tab or 1-6 to switch]", True, DIM)
     surface.blit(close_hint, (box_x + box_w - close_hint.get_width() - 20, box_y + 18))
 
     # Draw Tab Bar
@@ -738,6 +749,9 @@ def draw_nations_comparison(surface, world, font, font_small, mouse_pos=None):
     elif tab == 5:
         from worldview_compare_protest import draw_tab5_protest
         draw_tab5_protest(surface, world, box_x, content_y, box_w, box_h, font, cell_font, section_font, mouse_pos=mouse_pos)
+    elif tab == 6:
+        from worldview_compare_ecology import draw_tab6_ecology
+        draw_tab6_ecology(surface, world, box_x, content_y, box_w, box_h, font, cell_font, mouse_pos=mouse_pos)
 
     # Render floating tooltip card if hovering over tab or good pill
     if world.get('_hovered_left_tooltip') and mouse_pos:

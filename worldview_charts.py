@@ -114,6 +114,48 @@ def tile_charts(region):
     ]
 
 
+def tile_ecological_charts(region):
+    """6 (title, kind, series, colors, labels) ecological & epidemic charts for a tile."""
+    fert = [f * 100.0 for f in getattr(region, 'soil_fertility_log', []) or []]
+    nutr = [n * 100.0 for n in getattr(region, 'nutrition_density_log', []) or []]
+    smog = getattr(region, 'pollution_air_log', []) or []
+    water = getattr(region, 'pollution_water_log', []) or []
+    soil = getattr(region, 'pollution_soil_log', []) or []
+
+    d_cases = getattr(region, 'disease_cases_log', []) or []
+    malnutr = [c.get('malnutrition', 0) if isinstance(c, dict) else 0 for c in d_cases]
+    cholera = [c.get('waterborne', 0) if isinstance(c, dict) else 0 for c in d_cases]
+    respir = [c.get('respiratory', 0) if isinstance(c, dict) else 0 for c in d_cases]
+    chem = [c.get('chemical', 0) if isinstance(c, dict) else 0 for c in d_cases]
+
+    priv_spend = getattr(region, 'medical_spending_private_log', []) or []
+    pub_spend = getattr(region, 'medical_spending_public_log', []) or []
+    untreated = getattr(region, 'untreated_cases_log', []) or []
+    fatalities = getattr(region, 'disease_fatalities_log', []) or []
+    health_attr = [h * 100.0 for h in getattr(region, 'avg_health_attrition_log', []) or []]
+
+    return [
+        ("1. Soil & Nutrition", "line",
+         [fert, nutr],
+         [(130, 215, 120), (225, 195, 70)], ["soil %", "nutr %"]),
+        ("2. Pollution Rift", "line",
+         [smog, water, soil],
+         [(170, 170, 185), (80, 180, 230), (210, 100, 240)], ["smog", "water", "toxin"]),
+        ("3. Epidemics", "line",
+         [malnutr, cholera, respir, chem],
+         [(240, 170, 60), (70, 190, 220), (220, 90, 90), (195, 70, 225)], ["malnutr", "cholera", "smog-br", "toxic"]),
+        ("4. Healthcare Outlay", "bars",
+         [priv_spend, pub_spend],
+         [(240, 120, 80), (90, 210, 140)], ["private$", "public$"]),
+        ("5. Untreated / Deaths", "line",
+         [untreated, fatalities],
+         [(235, 75, 75), (180, 60, 60)], ["untreated", "deaths"]),
+        ("6. Bodily Wear", "line",
+         [health_attr],
+         [(240, 90, 100)], ["wear %"]),
+    ]
+
+
 AXIS_C = (150, 150, 165)
 
 

@@ -388,11 +388,25 @@ def main():
                                     world['selected_nation'] = clicked.owner_nation
                                     world['player_nation_name'] = clicked.owner_nation.name
                     else:
+                        # Check sidebar chart mode toggle [Economy vs Ecology]
+                        btn_w = (WIDTH - PANEL_LEFT - 14) // 2
+                        y_mode_top = 178 + TOP_BAR_H + 4
+                        y_mode_bottom = y_mode_top + 28
+                        if PANEL_LEFT <= event.pos[0] <= WIDTH and y_mode_top <= event.pos[1] <= y_mode_bottom:
+                            if event.pos[0] < PANEL_LEFT + btn_w + 2:
+                                world['tile_chart_mode'] = 'econ'
+                                world['view'] = 0
+                            else:
+                                world['tile_chart_mode'] = 'eco'
+                                world['view'] = 0
+                            continue
+
                         # 3c. Check sidebar chart clicks
                         chart_top = 178 + TOP_BAR_H + 30
                         chart_bottom = HEIGHT - TICKER_H - 96
+                        num_c = 6 if world.get('tile_chart_mode') == 'eco' else 10
                         if world.get('view', 0) == 0:
-                            clicked_chart = chart_at_pixel(event.pos, chart_top, chart_bottom, num_charts=10)
+                            clicked_chart = chart_at_pixel(event.pos, chart_top, chart_bottom, num_charts=num_c)
                             if clicked_chart is not None:
                                 world['view'] = clicked_chart
                             else:
@@ -494,10 +508,12 @@ def main():
                             world['compare_tab'] = 4
                         elif event.key in (pygame.K_5, pygame.K_KP5):
                             world['compare_tab'] = 5
+                        elif event.key in (pygame.K_6, pygame.K_KP6):
+                            world['compare_tab'] = 6
                         elif event.key in (pygame.K_TAB, pygame.K_RIGHT):
-                            world['compare_tab'] = (world.get('compare_tab', 1) % 5) + 1
+                            world['compare_tab'] = (world.get('compare_tab', 1) % 6) + 1
                         elif event.key == pygame.K_LEFT:
-                            world['compare_tab'] = 5 if world.get('compare_tab', 1) == 1 else world.get('compare_tab', 1) - 1
+                            world['compare_tab'] = 6 if world.get('compare_tab', 1) == 1 else world.get('compare_tab', 1) - 1
                         elif event.key == pygame.K_f:
                             world['compare_good'] = Goods.food
                         elif event.key == pygame.K_w:

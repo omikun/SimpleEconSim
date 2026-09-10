@@ -309,27 +309,32 @@ def _draw_city_policies(surface, world, region, start_y, font, font_small, mx, m
             surface.blit(font_small.render("All customary commons enclosed.", True, (130, 200, 140)), (PANEL_LEFT + 12, start_y + 48))
         start_y += card5_h + 8
 
-    # CARD 6: Ecological Regulations & Chemical Agronomy (Phase 3)
-    card6_h = 76
+    # CARD 6: Ecological Regulations & Public Health (Phase 3)
+    card6_h = 104
     c6_rect = (PANEL_LEFT + 4, start_y, PANEL_W - 24, card6_h)
     pygame.draw.rect(surface, CARD_BG, c6_rect, border_radius=5)
     pygame.draw.rect(surface, CARD_BORDER, c6_rect, 1, border_radius=5)
 
     fert_on = getattr(region, 'use_fertilizer', False)
     pest_on = getattr(region, 'use_pesticides', False)
+    health_on = getattr(region, 'public_healthcare_decree', False)
     fert_lbl = f"Fertilizer: {'ON' if fert_on else 'OFF'}"
     pest_lbl = f"Pesticides: {'ON' if pest_on else 'OFF'}"
+    health_lbl = f"Healthcare: {'PUBLIC SUBSIDY' if health_on else 'PRIVATE OUT-OF-POCKET'}"
 
-    surface.blit(font_small.render("Ecological Decrees & Chemical Inputs", True, (130, 215, 160)), (PANEL_LEFT + 12, start_y + 8))
+    surface.blit(font_small.render("Ecological Decrees & Public Health", True, (130, 215, 160)), (PANEL_LEFT + 12, start_y + 8))
     desc_eco = f"Soil: {getattr(region, 'soil_fertility', 1.0)*100:.0f}% | Nut: {getattr(region, 'nutrition_density', 1.0)*100:.0f}% | Smog: {getattr(region, 'pollution_air', 0.0):.0f}"
     surface.blit(font_small.render(desc_eco, True, DIM), (PANEL_LEFT + 12, start_y + 24))
 
     f_btn = (PANEL_LEFT + 12, start_y + 44, 115, 22)
     p_btn = (PANEL_LEFT + 135, start_y + 44, 115, 22)
+    h_btn = (PANEL_LEFT + 12, start_y + 72, PANEL_W - 40, 22)
     _draw_btn(surface, f_btn, fert_lbl, font_small, mx, my, color=GREEN if fert_on else DIM)
     _draw_btn(surface, p_btn, pest_lbl, font_small, mx, my, color=GREEN if pest_on else DIM)
+    _draw_btn(surface, h_btn, health_lbl, font_small, mx, my, color=GREEN if health_on else (240, 180, 80))
     _ACTION_BUTTONS.append((f_btn, 'city_mandate_fertilizer', region))
     _ACTION_BUTTONS.append((p_btn, 'city_mandate_pesticides', region))
+    _ACTION_BUTTONS.append((h_btn, 'city_toggle_public_healthcare', region))
     start_y += card6_h + 8
 
 
@@ -699,6 +704,14 @@ def _execute_policy_action(world, act_id, target):
         world['policy_feedback'] = (f"Chemical Pesticides {state} in {target.name}.", GREEN if not cur else (240, 180, 80))
         from worldview_engine import ticker_push
         ticker_push(world, world['turn'], 'POLICY', f"Chemical Pesticides {state} in {target.name}.", (120, 220, 140))
+
+    elif act_id == 'city_toggle_public_healthcare':
+        cur = getattr(target, 'public_healthcare_decree', False)
+        target.public_healthcare_decree = not cur
+        state = "Enacted (Subsidized)" if not cur else "Repealed (Private Out-of-Pocket)"
+        world['policy_feedback'] = (f"Public Healthcare Decree {state} in {target.name}.", GREEN if not cur else (240, 180, 80))
+        from worldview_engine import ticker_push
+        ticker_push(world, world['turn'], 'HEALTH', f"Healthcare {state} in {target.name}.", (100, 210, 255))
 
     # Province Actions
     elif act_id == 'prov_equalization_grant':
