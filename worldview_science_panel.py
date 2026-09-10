@@ -52,6 +52,9 @@ def _get_active_nation(world: dict):
 def _draw_btn(surface, rect, label, font_small, mx, my, enabled=True, color=TEXT, custom_bg=None, icon_kind=None,
               btn_id: str = None, world: dict = None, nation=None):
     bx, by, bw, bh = rect
+    if enabled:
+        from ui_targets import register_target
+        register_target(world, rect, ('science_btn', btn_id), tooltip_id=btn_id, scope='science')
     is_hov = (bx <= mx <= bx + bw and by <= my <= by + bh) and enabled
     if is_hov and btn_id and world is not None:
         from worldview_tooltips import get_button_tooltip_data
@@ -114,6 +117,8 @@ def draw_science_panel(surface: pygame.Surface, world: dict, font: pygame.font.F
 
     # Close button [X]
     close_rect = (x + w - 26, y + 8, 18, 18)
+    from ui_targets import register_target
+    register_target(world, close_rect, 'close_left', scope='science')
     hc = close_rect[0] <= mx <= close_rect[0] + 18 and close_rect[1] <= my <= close_rect[1] + 18
     pygame.draw.rect(surface, (60, 60, 80) if hc else (35, 35, 48), close_rect, border_radius=3)
     x_txt = font_small.render("×", True, (255, 255, 255) if hc else DIM)
@@ -162,6 +167,8 @@ def draw_science_panel(surface: pygame.Surface, world: dict, font: pygame.font.F
     for i, (e_num, e_lbl) in enumerate(eras):
         ex = x + 12 + i * (era_w + 4)
         e_rect = (ex, cur_y, era_w, 24)
+        from ui_targets import register_target
+        register_target(world, e_rect, ('science_era', e_num), tooltip_id=f"sci_era_{e_num}", scope='science')
         is_sel = (cur_era == e_num)
         is_hov = e_rect[0] <= mx <= e_rect[0] + era_w and e_rect[1] <= my <= e_rect[1] + 24
         if is_hov and world is not None:
@@ -267,6 +274,32 @@ def science_panel_hit(pos: tuple[int, int], world: dict) -> bool:
     if not world.get('science_panel_open', False):
         return False
 
+    if world is not None:
+        from ui_targets import find_target
+        t = find_target(world, pos, scope='science')
+        if t is not None:
+            if t.action == 'close_left':
+                from worldview_left_dock import close_left_panels
+                close_left_panels(world)
+                return True
+            elif isinstance(t.action, tuple) and t.action[0] == 'science_era':
+                world['innovation_era'] = t.action[1]
+                return True
+            elif isinstance(t.action, tuple) and t.action[0] == 'science_btn':
+                btn_id = t.action[1]
+                if btn_id and btn_id.startswith('sci_pledge_'):
+                    tech_id = btn_id.replace('sci_pledge_', '')
+                    active_n = _get_active_nation(world)
+                    if active_n:
+                        inno = get_innovation_system()
+                        turn = world.get('turn', 0)
+                        tech = TECH_CATALOG.get(tech_id)
+                        ok = inno.post_royal_bounty(active_n, tech_id, 300.0, turn)
+                        if ok and tech:
+                            ticker_push(world, turn, 'INNOVATION', f"{active_n.name} established a $300 Royal Innovation Prize for {tech.name}!", (80, 200, 255))
+                    return True
+
+    # Legacy fallback calculation
     mx, my = pos
     x, y, w, h = PANEL_X, PANEL_Y, PANEL_W, PANEL_H
 
@@ -276,10 +309,12 @@ def science_panel_hit(pos: tuple[int, int], world: dict) -> bool:
     # Close button [X]
     close_rect = (x + w - 26, y + 8, 18, 18)
     if close_rect[0] <= mx <= close_rect[0] + 18 and close_rect[1] <= my <= close_rect[1] + 18:
+        from worldview_left_dock import close_left_panels
         close_left_panels(world)
         return True
 
     # Drawer Top Switcher
+    from worldview_left_dock import drawer_top_tabs_hit
     if drawer_top_tabs_hit(pos, world, x, y + 48, w):
         return True
 

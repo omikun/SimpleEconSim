@@ -68,6 +68,8 @@ def draw_tab_headers(surface, world, box_x, box_y, box_w, font, font_small, mous
     for tab_id, label in tabs:
         is_active = (active_tab == tab_id)
         rect = (start_x, y, tab_w, tab_h)
+        from ui_targets import register_target
+        register_target(world, rect, ('tab', tab_id), tooltip_id=f"compare_tab_{tab_id}", scope='compare')
         is_hover = rect[0] <= mx <= rect[0] + rect[2] and rect[1] <= my <= rect[1] + rect[3]
         if is_hover and world is not None and not world.get('_hovered_left_tooltip'):
             from worldview_tooltips import get_button_tooltip_data
@@ -87,8 +89,32 @@ def draw_tab_headers(surface, world, box_x, box_y, box_w, font, font_small, mous
     return y + tab_h + 16
 
 
-def compare_tab_hit(pos, box_x, box_y, world=None):
+def compare_tab_hit(pos, box_x=0, box_y=0, world=None):
     """Return clicked tab ID (1..6), Good enum, scope action, or None."""
+    if world is not None:
+        from ui_targets import find_target
+        target = find_target(world, pos, scope='compare')
+        if target is not None:
+            # If target was a sub-scope or mode, update world state directly too
+            act = target.action
+            if isinstance(act, tuple):
+                if act[0] == 'tab':
+                    world['compare_tab'] = act[1]
+                elif act[0] == 'good':
+                    world['compare_good'] = act[1]
+                elif act[0] == 'scope_eco':
+                    world['compare_eco_scope'] = act[1]
+                elif act[0] == 'scope_ext':
+                    world['compare_ext_scope'] = act[1]
+                elif act[0] == 'mode_ext':
+                    world['compare_ext_mode'] = act[1]
+                elif act[0] == 'scope_protest':
+                    world['compare_protest_scope'] = act[1]
+                elif act[0] == 'mode_protest':
+                    world['compare_protest_mode'] = act[1]
+            return act
+
+    # Legacy fallback calculation for isolated tests without draw pass
     mx, my = pos
     box_w = WIDTH - 60
     tab_count = 6
@@ -329,6 +355,8 @@ def draw_tab2_goods(surface, world, box_x, start_y, box_w, box_h, font, cell_fon
     for g in (Goods.food, Goods.wood, Goods.furniture):
         is_sel = (g == active_good)
         rect = (gx, gy, 100, 24)
+        from ui_targets import register_target
+        register_target(world, rect, ('good', g), tooltip_id=f"compare_filter_{g.name.lower()}", scope='compare')
         is_hov = rect[0] <= mx <= rect[0] + rect[2] and rect[1] <= my <= rect[1] + rect[3]
         if is_hov and world is not None and not world.get('_hovered_left_tooltip'):
             from worldview_tooltips import get_button_tooltip_data

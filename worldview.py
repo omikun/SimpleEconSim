@@ -147,6 +147,8 @@ def is_any_modal_open(world) -> bool:
 
 def render_frame(surface, world, mouse_pos=None):
     """Draw one full frame (map + top bar + panel + ticker + zoom hud + comparison table + sovereign actions + help)."""
+    from ui_targets import clear_targets
+    clear_targets(world)
     world['_hovered_left_tooltip'] = None
     font = get_font(28)
     font_small = get_font(22)
@@ -157,7 +159,7 @@ def render_frame(surface, world, mouse_pos=None):
 
     draw_top_bar(surface, world, font_small, mouse_pos=effective_mouse)
     draw_hex_map(surface, world, font, font_small)
-    draw_zoom_hud(surface, font_small, mouse_pos=effective_mouse)
+    draw_zoom_hud(surface, font_small, mouse_pos=effective_mouse, world=world)
     draw_layer_sidebar(surface, world, font_small, mouse_pos=effective_mouse)
     draw_left_dock_buttons(surface, world, font_small, mouse_pos=effective_mouse)
     draw_build_panel(surface, world, font, font_small, mouse_pos=effective_mouse)
@@ -323,7 +325,7 @@ def main():
                     continue
 
                 # 1a. Check Top-Right Action buttons (Help / Compare / Diplomacy / Military)
-                act_btn = top_bar_action_hit(event.pos)
+                act_btn = top_bar_action_hit(event.pos, world=world)
                 if act_btn == 'help':
                     world['help_open'] = not world.get('help_open', False)
                     continue
@@ -365,7 +367,7 @@ def main():
                     continue
 
                 # 2. Check Zoom HUD buttons
-                hud_action = zoom_hud_hit(event.pos)
+                hud_action = zoom_hud_hit(event.pos, world=world)
                 if hud_action == 'in':
                     zoom_cam_at(world, 1.25, MAP_RIGHT // 2, HEIGHT // 2)
                 elif hud_action == 'out':
@@ -374,7 +376,7 @@ def main():
                     reset_cam(world)
                 else:
                     # 3a. Check Right Panel Tab switcher (Charts vs Policies)
-                    tab_hit = panel_tab_hit(event.pos)
+                    tab_hit = panel_tab_hit(event.pos, world=world)
                     if tab_hit is not None:
                         world['panel_tab'] = tab_hit
                         continue
@@ -405,6 +407,19 @@ def main():
                                     world['player_nation_name'] = clicked.owner_nation.name
                     else:
                         # 3b. Check sidebar chart mode toggle [Economy vs Ecology]
+                        from ui_targets import find_target
+                        mode_tgt = find_target(world, event.pos, scope='right_panel')
+                        if mode_tgt and mode_tgt.target_id == 'chart_mode_econ':
+                            world['tile_chart_mode'] = 'econ'
+                            world['view'] = 0
+                            _mark_dirty(world)
+                            continue
+                        elif mode_tgt and mode_tgt.target_id == 'chart_mode_eco':
+                            world['tile_chart_mode'] = 'eco'
+                            world['view'] = 0
+                            _mark_dirty(world)
+                            continue
+
                         ec_rect = world.get('_chart_mode_econ_rect')
                         eco_rect = world.get('_chart_mode_eco_rect')
                         if ec_rect and ec_rect.collidepoint(event.pos):

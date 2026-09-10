@@ -57,6 +57,8 @@ def draw_layer_sidebar(surface, world, font_small, mouse_pos=None):
     if is_collapsed:
         # Compact Floating Pill / Badge in Bottom-Left Corner
         pill_rect = (SIDEBAR_X, PILL_Y, SIDEBAR_W, PILL_H)
+        from ui_targets import register_target
+        register_target(world, pill_rect, 'expand_layers', tooltip_id=f"layer_{active_layer}", scope='layers')
         is_hover = pill_rect[0] <= mx <= pill_rect[0] + SIDEBAR_W and pill_rect[1] <= my <= pill_rect[1] + PILL_H
 
         pill_surf = pygame.Surface((SIDEBAR_W, PILL_H), pygame.SRCALPHA)
@@ -88,13 +90,17 @@ def draw_layer_sidebar(surface, world, font_small, mouse_pos=None):
     surface.blit(dock_surf, (SIDEBAR_X, DOCK_Y))
     pygame.draw.rect(surface, (65, 70, 90), dock_rect, 1, border_radius=8)
 
-    # 2. Header with Downward Collapse Button
-    hdr = font_small.render("MAP INFO LAYERS", True, ACCENT)
-    surface.blit(hdr, (SIDEBAR_X + 12, DOCK_Y + 9))
+    # 2. Header: Title + Collapse Button
+    from ui_targets import register_target
+    hdr_rect = (SIDEBAR_X, DOCK_Y, SIDEBAR_W, 32)
+    register_target(world, hdr_rect, 'collapse_layers', scope='layers')
 
-    col_btn = (SIDEBAR_X + SIDEBAR_W - 28, DOCK_Y + 7, 20, 20)
-    col_hov = col_btn[0] <= mx <= col_btn[0] + col_btn[2] and col_btn[1] <= my <= col_btn[1] + col_btn[3]
-    pygame.draw.rect(surface, (45, 48, 65) if col_hov else (28, 30, 42), col_btn, border_radius=3)
+    txt_hdr = font_small.render("Map Overlays & Views", True, (240, 240, 255))
+    surface.blit(txt_hdr, (SIDEBAR_X + 10, DOCK_Y + 7))
+
+    col_btn = (SIDEBAR_X + SIDEBAR_W - 24, DOCK_Y + 7, 18, 18)
+    col_hov = col_btn[0] <= mx <= col_btn[0] + 18 and col_btn[1] <= my <= col_btn[1] + 18
+    pygame.draw.rect(surface, (40, 44, 60) if col_hov else (24, 26, 36), col_btn, border_radius=3)
     pygame.draw.rect(surface, ACCENT if col_hov else (65, 70, 90), col_btn, 1, border_radius=3)
     arrow_down = font_small.render("▼", True, (255, 255, 255) if col_hov else DIM)
     surface.blit(arrow_down, arrow_down.get_rect(center=(col_btn[0] + col_btn[2] // 2, col_btn[1] + col_btn[3] // 2)))
@@ -107,7 +113,8 @@ def draw_layer_sidebar(surface, world, font_small, mouse_pos=None):
     for key, label, key_num, color, desc in MAP_LAYERS:
         is_active = (active_layer == key)
         b_rect = (bx, by, btn_w, BTN_H)
-        is_hover = b_rect[0] <= mx <= b_rect[0] + b_rect[2] and b_rect[1] <= my <= b_rect[1] + b_rect[3]
+        register_target(world, b_rect, ('map_layer', key), tooltip_id=f"layer_{key}", scope='layers')
+        is_hover = b_rect[0] <= mx <= b_rect[0] + btn_w and b_rect[1] <= my <= b_rect[1] + BTN_H
 
         if is_active:
             bg_col = (45, 52, 70)
@@ -141,6 +148,21 @@ def draw_layer_sidebar(surface, world, font_small, mouse_pos=None):
 
 def layer_sidebar_hit(pos, world):
     """Detect click interaction on the bottom-left layer dock and update world['map_layer'] or collapse state."""
+    if world is not None:
+        from ui_targets import find_target
+        t = find_target(world, pos, scope='layers')
+        if t is not None:
+            if t.action == 'expand_layers':
+                world['layers_collapsed'] = False
+                return True
+            elif t.action == 'collapse_layers':
+                world['layers_collapsed'] = True
+                return True
+            elif isinstance(t.action, tuple) and t.action[0] == 'map_layer':
+                world['map_layer'] = t.action[1]
+                return True
+
+    # Legacy fallback calculation
     mx, my = pos
     is_collapsed = world.get('layers_collapsed', False)
 

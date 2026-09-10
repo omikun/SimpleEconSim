@@ -44,6 +44,11 @@ MILITARY_BTN = (1228, 27, 160, 20)
 def draw_top_bar_action_buttons(surface, world, font_small, mouse_pos=None):
     """Draw top-right shortcuts above sidebar: Help (?), Compare (C), Diplomacy (D), and Military (M)."""
     mx, my = mouse_pos if mouse_pos else (-1, -1)
+    from ui_targets import register_target
+    register_target(world, HELP_BTN, 'help', scope='top_bar')
+    register_target(world, COMPARE_BTN, 'compare', scope='top_bar')
+    register_target(world, DIPLOMACY_BTN, 'diplomacy', scope='top_bar')
+    register_target(world, MILITARY_BTN, 'military', scope='top_bar')
     
     # 0. Help Button (?)
     is_help_open = world.get('help_open', False)
@@ -82,8 +87,15 @@ def draw_top_bar_action_buttons(surface, world, font_small, mouse_pos=None):
     surface.blit(mil_txt, mil_txt.get_rect(center=(MILITARY_BTN[0] + MILITARY_BTN[2] // 2, MILITARY_BTN[1] + MILITARY_BTN[3] // 2)))
 
 
-def top_bar_action_hit(pos):
+def top_bar_action_hit(pos, world=None):
     """Return 'help', 'compare', 'diplomacy', 'military', or None if an action button was clicked."""
+    if world is not None:
+        from ui_targets import find_target
+        t = find_target(world, pos, scope='top_bar')
+        if t is not None:
+            return t.action
+
+    # Legacy fallback calculation
     mx, my = pos
     if HELP_BTN[0] <= mx <= HELP_BTN[0] + HELP_BTN[2] and HELP_BTN[1] <= my <= HELP_BTN[1] + HELP_BTN[3]:
         return 'help'
@@ -173,6 +185,8 @@ def draw_nation_switcher(surface, world, box_x, y, font_small, mouse_pos=None):
         is_active = (active_n is not None and active_n.name == n.name)
         col = NATION_COLORS.get(n.name, (100, 100, 100))
         btn_rect = (sx, y, 130, 26)
+        from ui_targets import register_target
+        register_target(world, btn_rect, ('switch_nation', n), scope='actions')
         is_hover = btn_rect[0] <= mx <= btn_rect[0] + btn_rect[2] and btn_rect[1] <= my <= btn_rect[1] + btn_rect[3]
         
         bg = (50, 50, 70) if is_active else ((40, 40, 55) if is_hover else (28, 28, 38))
@@ -185,7 +199,7 @@ def draw_nation_switcher(surface, world, box_x, y, font_small, mouse_pos=None):
 
 
 def draw_action_tabs(surface, world, box_x, y, font_small, mouse_pos=None):
-    """Draw action tabs: 1. Diplomacy, 2. Military, 3. Construction, 4. Innovation, 5. Sovereign Bonds."""
+    """Draw action tabs: 1. Diplomacy, 2. Military, 3. Physical Construction, 4. Innovation, 5. Sovereign Bonds."""
     active_tab = world.get('actions_tab', 1)
     tabs = [
         (1, "1. Diplomacy & Treaties (D)"),
@@ -202,6 +216,8 @@ def draw_action_tabs(surface, world, box_x, y, font_small, mouse_pos=None):
     for tab_id, label in tabs:
         is_active = (active_tab == tab_id)
         rect = (start_x, y, tab_w, tab_h)
+        from ui_targets import register_target
+        register_target(world, rect, ('actions_tab', tab_id), scope='actions')
         is_hover = rect[0] <= mx <= rect[0] + rect[2] and rect[1] <= my <= rect[1] + rect[3]
         bg = TAB_ACTIVE_BG if is_active else ((40, 40, 55) if is_hover else TAB_INACTIVE_BG)
         border_c = ACCENT if is_active else ((110, 110, 130) if is_hover else (60, 60, 75))
@@ -922,6 +938,22 @@ def draw_action_button(surface, rect, label, font_small, mx, my, disabled=False,
 
 def actions_tab_hit(pos, box_x, box_y, world):
     """Handle click interactions inside Sovereign Actions Suite."""
+    if world is not None:
+        from ui_targets import find_target
+        t = find_target(world, pos, scope='actions')
+        if t is not None:
+            if isinstance(t.action, tuple):
+                if t.action[0] == 'switch_nation':
+                    n = t.action[1]
+                    world['player_nation_name'] = n.name
+                    world['selected_nation'] = n
+                    world['selected_region'] = n.tiles[0] if n.tiles else None
+                    return True
+                elif t.action[0] == 'actions_tab':
+                    world['actions_tab'] = t.action[1]
+                    return True
+
+    # Legacy fallback calculation
     mx, my = pos
     nations = world.get('nations', [])
     active_n = get_active_nation(world)

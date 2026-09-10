@@ -70,6 +70,8 @@ def draw_build_panel(surface, world, font, font_small, mouse_pos=None):
 
     # Close button [X]
     close_rect = (x + w - 26, y + 8, 18, 18)
+    from ui_targets import register_target
+    register_target(world, close_rect, 'close_left', scope='build')
     hc = close_rect[0] <= mx <= close_rect[0] + 18 and close_rect[1] <= my <= close_rect[1] + 18
     pygame.draw.rect(surface, (60, 60, 80) if hc else (35, 35, 48), close_rect, border_radius=3)
     x_txt = font_small.render("×", True, (255, 255, 255) if hc else DIM)
@@ -84,6 +86,8 @@ def draw_build_panel(surface, world, font, font_small, mouse_pos=None):
     cat_y = cur_y + 4
     c1_rect = (x + 8, cat_y, cat_w, 22)
     c2_rect = (x + 12 + cat_w, cat_y, cat_w, 22)
+    register_target(world, c1_rect, ('build_subcat', 'industry'), scope='build')
+    register_target(world, c2_rect, ('build_subcat', 'ecology'), scope='build')
     c1_hov = c1_rect[0] <= mx <= c1_rect[0] + cat_w and c1_rect[1] <= my <= c1_rect[1] + 22
     c2_hov = c2_rect[0] <= mx <= c2_rect[0] + cat_w and c2_rect[1] <= my <= c2_rect[1] + 22
 
@@ -194,6 +198,8 @@ def _draw_equalization_section(surface, world, pinned, nation, x, y, w, font_sma
 
     btn_y = y + 24
     btn_rect = (x, btn_y, w, 26)
+    from ui_targets import register_target
+    register_target(world, (x, y, w, 52), 'equalization_grant', tooltip_id='nat_sovereign_grant', scope='build')
 
     nat_cash = (nation.government.agent.cash) if nation else 0.0
     can_grant = nat_cash >= 250.0
@@ -261,6 +267,9 @@ def _draw_tier_section(surface, world, pinned, nation, icon_kind, tier_title, tr
         if not recipe:
             continue
 
+        from ui_targets import register_target
+        register_target(world, btn_rect, ('build_recipe', r_key), tooltip_id=f"build_{r_key}", scope='build', data={'recipe_key': r_key, 'treasury_amt': treasury_amt})
+
         cost = recipe.cost
         is_built = any(b.name == r_key for b in getattr(pinned, 'buildings', []))
         active_proj = next((p for p in getattr(pinned, 'construction_projects', []) if p.recipe.name == r_key and p.status == 'in_progress'), None)
@@ -297,6 +306,39 @@ def _draw_tier_section(surface, world, pinned, nation, icon_kind, tier_title, tr
 
 def build_panel_hit(pos, world) -> bool:
     """Handle mouse clicks inside the Left Build Panel or collapsed button."""
+    if world is not None and world.get('build_panel_open', True):
+        from ui_targets import find_target
+        t = find_target(world, pos, scope='build')
+        if t is not None:
+            if t.action == 'close_left':
+                from worldview_left_dock import close_left_panels
+                close_left_panels(world)
+                return True
+            elif isinstance(t.action, tuple) and t.action[0] == 'build_subcat':
+                world['build_subcat'] = t.action[1]
+                return True
+            elif isinstance(t.action, tuple) and t.action[0] == 'build_recipe':
+                r_key = t.action[1]
+                pinned = world.get('selected_region')
+                nation = getattr(pinned, 'owner_nation', None) if pinned else None
+                t_amt = t.data.get('treasury_amt', 0.0) if isinstance(t.data, dict) else 0.0
+                turn = world.get('turn', 1)
+                _handle_build_click(world, pinned, nation, r_key, t_amt, turn)
+                return True
+            elif t.action == 'equalization_grant':
+                pinned = world.get('selected_region')
+                nation = getattr(pinned, 'owner_nation', None) if pinned else None
+                t = world.get('turn', 1)
+                if nation and pinned:
+                    from intents import execute_equalization_grant
+                    ok, msg = execute_equalization_grant(world, nation.name, pinned.name, 'national_sovereign', 250.0, t)
+                    if ok:
+                        world['action_feedback'] = (msg, GREEN, t)
+                    else:
+                        world['action_feedback'] = (msg, RED, t)
+                return True
+
+    # Legacy fallback calculation
     mx, my = pos
     x, y, w, h = BUILD_PANEL_X, BUILD_PANEL_Y, BUILD_PANEL_W, BUILD_PANEL_H
     pinned = world.get('selected_region')

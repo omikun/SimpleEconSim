@@ -127,6 +127,8 @@ def draw_tab6_ecology(surface, world, box_x, box_y, box_w, box_h, font, font_sma
     for i, (sc_id, sc_lbl, btn_key) in enumerate(scopes):
         bx = box_x + 20 + i * 130
         b_rect = pygame.Rect(bx, tab_y, btn_w, tab_h)
+        from ui_targets import register_target
+        register_target(world, b_rect, ('scope_eco', sc_id), tooltip_id=btn_key, scope='compare')
         is_active = (subtab == sc_id)
         is_hover = b_rect.collidepoint(mx, my)
 
@@ -472,6 +474,14 @@ def _draw_table_row(surface, x, y, cols, font_small):
 
 def handle_tab6_click(world, mx, my, box_x, box_y, box_w):
     """Handle click events on Tab 6 scope switcher buttons."""
+    if world is not None:
+        from ui_targets import find_target
+        target = find_target(world, (mx, my), scope='compare')
+        if target and isinstance(target.action, tuple) and target.action[0] == 'scope_eco':
+            world['compare_eco_scope'] = target.action[1]
+            return True
+
+    # Legacy fallback calculation
     tab_y = box_y + 88
     tab_h = 24
     btn_w = 120

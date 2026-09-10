@@ -110,6 +110,8 @@ def draw_left_dock_buttons(surface: pygame.Surface, world: dict, font_small: pyg
     for i, (p_id, p_label, p_icon, _) in enumerate(PANELS_DEF):
         by = DOCK_Y + i * (btn_h + DOCK_SPACING)
         rect = (x, by, btn_w, btn_h)
+        from ui_targets import register_target
+        register_target(world, rect, ('open_left_panel', p_id), tooltip_id=f"dock_{p_id}", scope='dock')
         is_hov = rect[0] <= mx <= rect[0] + btn_w and rect[1] <= my <= rect[1] + btn_h
         if is_hov:
             from worldview_tooltips import get_button_tooltip_data
@@ -143,6 +145,8 @@ def draw_drawer_top_tabs(surface: pygame.Surface, world: dict, x: int, y: int, w
     for i, (p_id, _, p_icon, _) in enumerate(PANELS_DEF):
         tx = x + 8 + i * (tab_w + tab_gap)
         t_rect = (tx, y, tab_w, tab_h)
+        from ui_targets import register_target
+        register_target(world, t_rect, ('open_left_panel', p_id), tooltip_id=f"dock_{p_id}", scope='drawer_tabs')
         is_sel = (active_panel == p_id)
         is_hov = t_rect[0] <= mx <= t_rect[0] + tab_w and t_rect[1] <= my <= t_rect[1] + tab_h
         if is_hov:
@@ -169,6 +173,14 @@ def left_dock_buttons_hit(pos: tuple[int, int], world: dict) -> bool:
     if is_any_left_panel_open(world):
         return False
 
+    if world is not None:
+        from ui_targets import find_target
+        t = find_target(world, pos, scope='dock')
+        if t and isinstance(t.action, tuple) and t.action[0] == 'open_left_panel':
+            open_left_panel(world, t.action[1])
+            return True
+
+    # Legacy fallback calculation
     mx, my = pos
     x = DOCK_X
     btn_w = DOCK_BTN_W
@@ -185,6 +197,14 @@ def left_dock_buttons_hit(pos: tuple[int, int], world: dict) -> bool:
 
 def drawer_top_tabs_hit(pos: tuple[int, int], world: dict, x: int, y: int, w: int) -> bool:
     """Hit-test for 6-tab drawer top switcher. Returns True if a tab was clicked."""
+    if world is not None:
+        from ui_targets import find_target
+        t = find_target(world, pos, scope='drawer_tabs')
+        if t and isinstance(t.action, tuple) and t.action[0] == 'open_left_panel':
+            open_left_panel(world, t.action[1])
+            return True
+
+    # Legacy fallback calculation
     mx, my = pos
     tab_gap = 4
     total_tabs = len(PANELS_DEF)

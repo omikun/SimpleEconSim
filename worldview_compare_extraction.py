@@ -116,6 +116,8 @@ def draw_tab4_extraction(surface, world, box_x, start_y, box_w, box_h, font, cel
     for s_key, s_label in scopes:
         is_sel = (s_key == active_scope)
         rect = (gx, gy, 120, 24)
+        from ui_targets import register_target
+        register_target(world, rect, ('scope_ext', s_key), tooltip_id=f'compare_ext_scope_{s_key}', scope='compare')
         is_hov = rect[0] <= mx <= rect[0] + rect[2] and rect[1] <= my <= rect[1] + rect[3]
         if is_hov:
             from worldview_tooltips import get_button_tooltip_data
@@ -141,6 +143,8 @@ def draw_tab4_extraction(surface, world, box_x, start_y, box_w, box_h, font, cel
     for m_key, m_label, m_w in mode_btns:
         is_sel = (m_key == active_mode)
         rect = (mx_x, gy, m_w, 24)
+        from ui_targets import register_target
+        register_target(world, rect, ('mode_ext', m_key), tooltip_id=f'compare_ext_mode_{m_key}', scope='compare')
         is_hov = rect[0] <= mx <= rect[0] + rect[2] and rect[1] <= my <= rect[1] + rect[3]
         if is_hov:
             from worldview_tooltips import get_button_tooltip_data

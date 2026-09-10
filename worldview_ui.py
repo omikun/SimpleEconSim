@@ -93,8 +93,14 @@ HELP_TAB1_RECT = (32, 56, 310, 28)
 HELP_TAB2_RECT = (352, 56, 350, 28)
 
 
-def draw_zoom_hud(surface, font_small, mouse_pos=None):
+def draw_zoom_hud(surface, font_small, mouse_pos=None, world=None):
     """Draw on-screen zoom control buttons in the top-right corner of the map area."""
+    if world is not None:
+        from ui_targets import register_target
+        register_target(world, ZOOM_BTN_IN, 'zoom_in', scope='hud')
+        register_target(world, ZOOM_BTN_OUT, 'zoom_out', scope='hud')
+        register_target(world, ZOOM_BTN_RESET, 'zoom_reset', scope='hud')
+
     mx, my = mouse_pos if mouse_pos else (-1, -1)
     buttons = [
         (ZOOM_BTN_IN, "+", "Zoom In"),
@@ -119,8 +125,13 @@ CITIZENS_TAB_RECT = (PANEL_LEFT + _TAB_W + 4, 152 + TOP_BAR_H, _TOTAL_TAB_W - _T
 POLICIES_TAB_RECT = (-200, -200, 10, 10)  # Deprecated — merged into left Governance panel
 
 
-def panel_tab_hit(pos):
+def panel_tab_hit(pos, world=None):
     """Return 'charts' or 'citizens' if the right panel tab header was clicked."""
+    if world is not None:
+        from ui_targets import find_target
+        tgt = find_target(world, pos, scope='right_panel')
+        if tgt and tgt.target_id in ('charts', 'citizens'):
+            return tgt.target_id
     mx, my = pos
     cx, cy, cw, ch = CHARTS_TAB_RECT
     if cx <= mx <= cx + cw and cy <= my <= cy + ch:
@@ -131,8 +142,18 @@ def panel_tab_hit(pos):
     return None
 
 
-def zoom_hud_hit(pos):
+def zoom_hud_hit(pos, world=None):
     """Return 'in', 'out', 'reset', or None if a zoom button was clicked."""
+    if world is not None:
+        from ui_targets import find_target
+        tgt = find_target(world, pos, scope='hud')
+        if tgt:
+            if tgt.target_id == 'zoom_in':
+                return 'in'
+            if tgt.target_id == 'zoom_out':
+                return 'out'
+            if tgt.target_id == 'zoom_reset':
+                return 'reset'
     mx, my = pos
     if ZOOM_BTN_IN[0] <= mx <= ZOOM_BTN_IN[0] + ZOOM_BTN_IN[2] and ZOOM_BTN_IN[1] <= my <= ZOOM_BTN_IN[1] + ZOOM_BTN_IN[3]:
         return 'in'
@@ -720,9 +741,13 @@ def draw_panel(surface, world, font, font_small, mouse_pos=None):
     mx, my = mouse_pos if mouse_pos else (-1, -1)
     active_tab = world.get('panel_tab', 'charts')
 
-    c_hit = panel_tab_hit((mx, my))
+    c_hit = panel_tab_hit((mx, my), world=world)
     c_sel = (active_tab == 'charts')
     c_hov = (c_hit == 'charts')
+    if world is not None:
+        from ui_targets import register_target
+        register_target(world, CHARTS_TAB_RECT, 'charts', scope='right_panel')
+        register_target(world, CITIZENS_TAB_RECT, 'citizens', scope='right_panel')
     pygame.draw.rect(surface, (55, 75, 110) if c_sel else ((40, 48, 65) if c_hov else (28, 30, 40)), CHARTS_TAB_RECT, border_radius=4)
     pygame.draw.rect(surface, ACCENT if c_sel else (HEX_EDGE if c_hov else (45, 52, 70)), CHARTS_TAB_RECT, 1, border_radius=4)
     c_txt = font_small.render("Charts", True, (255, 255, 255) if c_sel else (TEXT if c_hov else DIM))
@@ -976,6 +1001,10 @@ def draw_panel(surface, world, font, font_small, mouse_pos=None):
         # Cache button hit-boxes and grid top for pixel-perfect event routing
         world['_chart_mode_econ_rect'] = btn_ec_rect
         world['_chart_mode_eco_rect'] = btn_eco_rect
+        if world is not None:
+            from ui_targets import register_target
+            register_target(world, btn_ec_rect, 'chart_mode_econ', scope='right_panel')
+            register_target(world, btn_eco_rect, 'chart_mode_eco', scope='right_panel')
         world['_chart_grid_top'] = chart_top + chart_y_offset
         world['_chart_grid_bottom'] = chart_bottom
 

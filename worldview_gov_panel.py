@@ -45,6 +45,8 @@ def _draw_gov_btn(surface, rect, label, font_small, mx, my, act_id, target,
     is_hov = (bx <= mx <= bx + bw and by <= my <= by + bh)
 
     if enabled:
+        from ui_targets import register_target
+        register_target(world, rect, ('gov_policy', act_id), tooltip_id=act_id, scope='gov', data=target)
         _GOV_BUTTONS.append((rect, act_id, target))
 
     # Tooltip detection
@@ -129,6 +131,8 @@ def draw_gov_panel(surface, world, font, font_small, mouse_pos=None):
 
     # Close button [X]
     close_rect = (x + w - 26, y + 8, 18, 18)
+    from ui_targets import register_target
+    register_target(world, close_rect, 'close_left', scope='gov')
     hc = close_rect[0] <= mx <= close_rect[0] + 18 and close_rect[1] <= my <= close_rect[1] + 18
     pygame.draw.rect(surface, (60, 60, 80) if hc else (35, 35, 48), close_rect, border_radius=3)
     x_txt = font_small.render("×", True, (255, 255, 255) if hc else DIM)
@@ -152,6 +156,7 @@ def draw_gov_panel(surface, world, font, font_small, mouse_pos=None):
     for i, (sc_id, sc_label, sc_ico) in enumerate(scopes):
         tx = x + 8 + i * (tab_w + 4)
         t_rect = (tx, scope_y, tab_w, 24)
+        register_target(world, t_rect, ('gov_scope', sc_id), scope='gov')
         is_sel = (active_scope == sc_id)
         is_hov = t_rect[0] <= mx <= t_rect[0] + tab_w and t_rect[1] <= my <= t_rect[1] + 24
 
@@ -555,13 +560,30 @@ def _draw_left_nation_scope(surface, world, region, nation, start_y, x, w, font,
 def gov_panel_hit(pos, world) -> bool:
     """Handle click interactions on the Left Governance Panel and registered buttons."""
     global _GOV_BUTTONS
-    mx, my = pos
-    x, y, w, h = GOV_PANEL_X, GOV_PANEL_Y, GOV_PANEL_W, GOV_PANEL_H
 
     # Left Dock Buttons when closed
     from worldview_left_dock import left_dock_buttons_hit
     if not world.get('gov_panel_open', False):
         return left_dock_buttons_hit(pos, world)
+
+    if world is not None:
+        from ui_targets import find_target
+        t = find_target(world, pos, scope='gov')
+        if t is not None:
+            if t.action == 'close_left':
+                from worldview_left_dock import close_left_panels
+                close_left_panels(world)
+                return True
+            elif isinstance(t.action, tuple) and t.action[0] == 'gov_scope':
+                world['policy_scope'] = t.action[1]
+                return True
+            elif isinstance(t.action, tuple) and t.action[0] == 'gov_policy':
+                _execute_gov_policy(world, t.action[1], t.data)
+                return True
+
+    # Legacy fallback calculation
+    mx, my = pos
+    x, y, w, h = GOV_PANEL_X, GOV_PANEL_Y, GOV_PANEL_W, GOV_PANEL_H
 
     # Close button [X]
     close_rect = (x + w - 26, y + 8, 18, 18)
