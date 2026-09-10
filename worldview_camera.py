@@ -12,38 +12,69 @@ TICKER_H = 64
 _MARGIN = 24
 
 
-def clamp_cam(world):
-    """Keep the hex map within bounds while allowing generous panning."""
-    cam = world['cam']
-    zoom = cam['zoom']
-    x0, y0, x1, y1 = world['bbox']
-    sx0, sy0, sx1, sy1 = x0 * zoom, y0 * zoom, x1 * zoom, y1 * zoom
+MAP_PAD_RATIO = 0.18
 
-    # Map viewport bounds: X in [0, MAP_RIGHT], Y in [TOP_BAR_H, HEIGHT - TICKER_H]
-    min_ox = 100 - sx1
-    max_ox = (MAP_RIGHT - 100) - sx0
+
+def get_map_bounds(world):
+    """Return world pixel coordinates (min_wx, min_wy, max_wx, max_wy) of the map surface."""
+    x0, y0, x1, y1 = world['bbox']
+    pad_x = (x1 - x0) * MAP_PAD_RATIO
+    pad_y = (y1 - y0) * MAP_PAD_RATIO
+    return (x0 - pad_x, y0 - pad_y, x1 + pad_x, y1 + pad_y)
+
+
+def get_min_zoom(world):
+    """Return minimum zoom factor required so that the map strictly fills the viewport (no out of bounds)."""
+    min_wx, min_wy, max_wx, max_wy = get_map_bounds(world)
+    world_w = max(1.0, max_wx - min_wx)
+    world_h = max(1.0, max_wy - min_wy)
+    vw = MAP_RIGHT
+    vh = HEIGHT - TOP_BAR_H - TICKER_H
+    return max(vw / world_w, vh / world_h)
+
+
+def clamp_cam(world):
+    """Keep camera strictly within bounds so only the map is visible with zero out-of-bounds view."""
+    cam = world['cam']
+    min_zoom = get_min_zoom(world)
+    if cam['zoom'] < min_zoom:
+        cam['zoom'] = min_zoom
+
+    zoom = cam['zoom']
+    min_wx, min_wy, max_wx, max_wy = get_map_bounds(world)
+
+    # Viewport bounds: X in [0, MAP_RIGHT], Y in [TOP_BAR_H, HEIGHT - TICKER_H]
+    v_x0, v_x1 = 0, MAP_RIGHT
+    v_y0, v_y1 = TOP_BAR_H, HEIGHT - TICKER_H
+
+    # screen_x0 = min_wx * zoom + ox <= v_x0  =>  ox <= v_x0 - min_wx * zoom
+    max_ox = v_x0 - min_wx * zoom
+    # screen_x1 = max_wx * zoom + ox >= v_x1  =>  ox >= v_x1 - max_wx * zoom
+    min_ox = v_x1 - max_wx * zoom
+
     if min_ox > max_ox:
-        target_cx = MAP_RIGHT / 2.0
-        cam['ox'] = target_cx - ((x0 + x1) / 2.0) * zoom
+        cam['ox'] = (v_x0 + v_x1) / 2.0 - ((min_wx + max_wx) / 2.0) * zoom
     else:
         cam['ox'] = max(min_ox, min(max_ox, cam['ox']))
 
-    top = TOP_BAR_H
-    bottom = HEIGHT - TICKER_H
-    min_oy = top + 80 - sy1
-    max_oy = bottom - 80 - sy0
+    # screen_y0 = min_wy * zoom + oy <= v_y0  =>  oy <= v_y0 - min_wy * zoom
+    max_oy = v_y0 - min_wy * zoom
+    # screen_y1 = max_wy * zoom + oy >= v_y1  =>  oy >= v_y1 - max_wy * zoom
+    min_oy = v_y1 - max_wy * zoom
+
     if min_oy > max_oy:
-        target_cy = top + (bottom - top) / 2.0
-        cam['oy'] = target_cy - ((y0 + y1) / 2.0) * zoom
+        cam['oy'] = (v_y0 + v_y1) / 2.0 - ((min_wy + max_wy) / 2.0) * zoom
     else:
         cam['oy'] = max(min_oy, min(max_oy, cam['oy']))
 
 
 def zoom_cam_at(world, factor, mx, my):
-    """Zoom camera anchored at screen pixel (mx, my)."""
+    """Zoom camera anchored at screen pixel (mx, my), preventing out-of-bounds view."""
     cam = world['cam']
     old_zoom = cam['zoom']
-    new_zoom = max(0.35, min(3.0, old_zoom * factor))
+    min_zoom = get_min_zoom(world)
+    max_zoom = 3.0
+    new_zoom = max(min_zoom, min(max_zoom, old_zoom * factor))
     if abs(new_zoom - old_zoom) < 1e-6:
         return
     # Anchor: keep the world coordinate under (mx, my) fixed on screen
@@ -55,20 +86,15 @@ def zoom_cam_at(world, factor, mx, my):
 
 
 def reset_cam(world):
-    """Fit and center the entire hex map cleanly in the viewport."""
-    x0, y0, x1, y1 = world['bbox']
-    bw = max(1.0, x1 - x0)
-    bh = max(1.0, y1 - y0)
-    vw = MAP_RIGHT - 2 * _MARGIN
-    vh = (HEIGHT - TOP_BAR_H - TICKER_H) - 2 * _MARGIN
-
-    fit_zoom = min(vw / bw, vh / bh) * 0.95
-    world['cam']['zoom'] = round(fit_zoom, 2)
+    """Fit and center the entire hex map cleanly in the viewport with zero out-of-bounds visible."""
+    min_wx, min_wy, max_wx, max_wy = get_map_bounds(world)
+    fit_zoom = get_min_zoom(world)
+    world['cam']['zoom'] = fit_zoom
 
     target_cx = MAP_RIGHT / 2.0
     target_cy = TOP_BAR_H + (HEIGHT - TOP_BAR_H - TICKER_H) / 2.0
-    world['cam']['ox'] = target_cx - ((x0 + x1) / 2.0) * world['cam']['zoom']
-    world['cam']['oy'] = target_cy - ((y0 + y1) / 2.0) * world['cam']['zoom']
+    world['cam']['ox'] = target_cx - ((min_wx + max_wx) / 2.0) * fit_zoom
+    world['cam']['oy'] = target_cy - ((min_wy + max_wy) / 2.0) * fit_zoom
     clamp_cam(world)
 
 

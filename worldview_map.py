@@ -695,8 +695,10 @@ def draw_hex_map(surface, world, font, font_small):
 
     screen_x = int(min_wx * zoom + ox)
     screen_y = int(min_wy * zoom + oy)
-    screen_w = int(world_w * zoom)
-    screen_h = int(world_h * zoom)
+    screen_x1 = int((min_wx + world_w) * zoom + ox)
+    screen_y1 = int((min_wy + world_h) * zoom + oy)
+    screen_w = max(1, screen_x1 - screen_x)
+    screen_h = max(1, screen_y1 - screen_y)
 
     # Clip map rendering strictly to viewport
     map_clip_rect = pygame.Rect(0, TOP_BAR_H, MAP_RIGHT, HEIGHT - TOP_BAR_H - TICKER_H)
