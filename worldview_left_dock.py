@@ -47,21 +47,27 @@ def get_active_left_panel(world: dict) -> str | None:
     """Return the identifier of the currently open left drawer, or None."""
     if world.get('build_panel_open'):
         world['left_panel'] = 'build'
+        world['last_left_panel'] = 'build'
         return 'build'
     if world.get('gov_panel_open'):
         world['left_panel'] = 'governance'
+        world['last_left_panel'] = 'governance'
         return 'governance'
     if world.get('diplomacy_panel_open'):
         world['left_panel'] = 'diplomacy'
+        world['last_left_panel'] = 'diplomacy'
         return 'diplomacy'
     if world.get('debt_panel_open'):
         world['left_panel'] = 'debt'
+        world['last_left_panel'] = 'debt'
         return 'debt'
     if world.get('science_panel_open'):
         world['left_panel'] = 'science'
+        world['last_left_panel'] = 'science'
         return 'science'
     if world.get('military_panel_open'):
         world['left_panel'] = 'military'
+        world['last_left_panel'] = 'military'
         return 'military'
     world['left_panel'] = None
     return None
@@ -78,6 +84,7 @@ def open_left_panel(world: dict, panel_name: str | None) -> None:
     world['military_panel_open'] = (panel_name == 'military')
 
     if panel_name is not None:
+        world['last_left_panel'] = panel_name
         world['layers_collapsed'] = True
 
 

@@ -90,8 +90,10 @@ def draw_layer_sidebar(surface, world, font_small, mouse_pos=None):
     surface.blit(dock_surf, (SIDEBAR_X, DOCK_Y))
     pygame.draw.rect(surface, (65, 70, 90), dock_rect, 1, border_radius=8)
 
-    # 2. Header: Title + Collapse Button
     from ui_targets import register_target
+    register_target(world, dock_rect, 'sidebar_body', scope='layers', priority=-1)
+
+    # 2. Header: Title + Collapse Button
     hdr_rect = (SIDEBAR_X, DOCK_Y, SIDEBAR_W, 32)
     register_target(world, hdr_rect, 'collapse_layers', scope='layers')
 
@@ -160,6 +162,8 @@ def layer_sidebar_hit(pos, world):
                 return True
             elif isinstance(t.action, tuple) and t.action[0] == 'map_layer':
                 world['map_layer'] = t.action[1]
+                return True
+            elif t.action == 'sidebar_body':
                 return True
 
     # Legacy fallback calculation

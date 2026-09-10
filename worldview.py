@@ -222,6 +222,17 @@ def reload_world(args=None):
     return world
 
 
+def select_tile(world, tile):
+    """Select a hex tile, update owner nation, and open the last-used left drawer panel."""
+    world['selected_region'] = tile
+    if getattr(tile, 'owner_nation', None) is not None:
+        world['selected_nation'] = tile.owner_nation
+        world['player_nation_name'] = tile.owner_nation.name
+
+    target_panel = world.get('last_left_panel', 'build')
+    open_left_panel(world, target_panel)
+
+
 def main():
     import argparse
     parser = argparse.ArgumentParser(description="REGNUM v3 — Hex World")
@@ -356,6 +367,15 @@ def main():
                     # 0e. Loading modal or any other modal consumes clicks entirely
                     continue
 
+                # 0f. When Map Layer dropdown menu is active, any click outside it just closes that menu
+                if not world.get('layers_collapsed', True):
+                    if layer_sidebar_hit(event.pos, world):
+                        continue
+                    else:
+                        world['layers_collapsed'] = True
+                        _mark_dirty(world)
+                        continue
+
                 # 1a. Check Top-Right Action buttons (Help / Compare / Diplomacy / Military)
                 act_btn = top_bar_action_hit(event.pos, world=world)
                 if act_btn == 'help':
@@ -420,11 +440,7 @@ def main():
                         if event.pos[0] < MAP_RIGHT:
                             clicked = tile_at(world, *event.pos)
                             if clicked is not None:
-                                world['selected_region'] = clicked
-                                world['build_panel_open'] = True
-                                if getattr(clicked, 'owner_nation', None) is not None:
-                                    world['selected_nation'] = clicked.owner_nation
-                                    world['player_nation_name'] = clicked.owner_nation.name
+                                select_tile(world, clicked)
                     elif world.get('panel_tab') == 'citizens':
                         from worldview_citizens import citizen_panel_hit
                         if citizen_panel_hit(event.pos, world):
@@ -432,11 +448,7 @@ def main():
                         if event.pos[0] < MAP_RIGHT:
                             clicked = tile_at(world, *event.pos)
                             if clicked is not None:
-                                world['selected_region'] = clicked
-                                world['build_panel_open'] = True
-                                if getattr(clicked, 'owner_nation', None) is not None:
-                                    world['selected_nation'] = clicked.owner_nation
-                                    world['player_nation_name'] = clicked.owner_nation.name
+                                select_tile(world, clicked)
                     else:
                         # 3b. Check sidebar chart mode toggle [Economy vs Ecology]
                         from ui_targets import find_target
@@ -477,11 +489,7 @@ def main():
                                 # 4. Check Hex tile picking
                                 clicked = tile_at(world, *event.pos)
                                 if clicked is not None:
-                                    world['selected_region'] = clicked
-                                    world['build_panel_open'] = True
-                                    if getattr(clicked, 'owner_nation', None) is not None:
-                                        world['selected_nation'] = clicked.owner_nation
-                                        world['player_nation_name'] = clicked.owner_nation.name
+                                    select_tile(world, clicked)
                         else:
                             # Click in zoom view returns to grid view (or pins a tile)
                             if event.pos[0] >= PANEL_LEFT:
@@ -489,11 +497,7 @@ def main():
                             else:
                                 clicked = tile_at(world, *event.pos)
                                 if clicked is not None:
-                                    world['selected_region'] = clicked
-                                    world['build_panel_open'] = True
-                                    if getattr(clicked, 'owner_nation', None) is not None:
-                                        world['selected_nation'] = clicked.owner_nation
-                                        world['player_nation_name'] = clicked.owner_nation.name
+                                    select_tile(world, clicked)
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button in (2, 3):
                 # Middle or Right mouse drag to pan (disabled if modal open)
                 if not is_any_modal_open(world):
@@ -614,11 +618,13 @@ def main():
                         world['citizen_chart_view'] = 0
                     elif world.get('view', 0) != 0:
                         world['view'] = 0
+                    elif not world.get('layers_collapsed', True):
+                        world['layers_collapsed'] = True
                     elif is_any_left_panel_open(world):
                         close_left_panels(world)
                     elif world.get('selected_region') is not None:
                         world['selected_region'] = None
-                        world['build_panel_open'] = False
+                        close_left_panels(world)
                     else:
                         running = False
                 elif event.key == pygame.K_q:

@@ -63,6 +63,8 @@ def build_world_view(seed=None, terrain_seed=None, nation_seed=None):
         'map_layer': 'overview',
         'layers_collapsed': True,
         'panel_tab': 'charts',
+        'left_panel': None,
+        'last_left_panel': 'build',
         'policy_scope': 'tile',
         'policy_feedback': None,
         'seed': seed,
