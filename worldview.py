@@ -264,6 +264,9 @@ def main():
                 _mark_dirty(world)
             elif event.type == pygame.WINDOWEVENT if hasattr(pygame, 'WINDOWEVENT') else False:
                 _mark_dirty(world)
+            elif event.type == pygame.MOUSEMOTION:
+                if modal_open:
+                    _mark_dirty(world)
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 _mark_dirty(world)
 
@@ -283,6 +286,7 @@ def main():
                     if world.get('compare_open') or world.get('comparison_open'):
                         tab_hit = compare_tab_hit(event.pos, 30, 20, world=world)
                         if tab_hit is not None:
+                            world['_hovered_left_tooltip'] = None
                             if tab_hit[0] == 'tab':
                                 world['compare_tab'] = tab_hit[1]
                             elif tab_hit[0] == 'good':
@@ -388,25 +392,26 @@ def main():
                                     world['selected_nation'] = clicked.owner_nation
                                     world['player_nation_name'] = clicked.owner_nation.name
                     else:
-                        # Check sidebar chart mode toggle [Economy vs Ecology]
-                        btn_w = (WIDTH - PANEL_LEFT - 14) // 2
-                        y_mode_top = 178 + TOP_BAR_H + 4
-                        y_mode_bottom = y_mode_top + 28
-                        if PANEL_LEFT <= event.pos[0] <= WIDTH and y_mode_top <= event.pos[1] <= y_mode_bottom:
-                            if event.pos[0] < PANEL_LEFT + btn_w + 2:
-                                world['tile_chart_mode'] = 'econ'
-                                world['view'] = 0
-                            else:
-                                world['tile_chart_mode'] = 'eco'
-                                world['view'] = 0
+                        # 3b. Check sidebar chart mode toggle [Economy vs Ecology]
+                        ec_rect = world.get('_chart_mode_econ_rect')
+                        eco_rect = world.get('_chart_mode_eco_rect')
+                        if ec_rect and ec_rect.collidepoint(event.pos):
+                            world['tile_chart_mode'] = 'econ'
+                            world['view'] = 0
+                            _mark_dirty(world)
+                            continue
+                        elif eco_rect and eco_rect.collidepoint(event.pos):
+                            world['tile_chart_mode'] = 'eco'
+                            world['view'] = 0
+                            _mark_dirty(world)
                             continue
 
                         # 3c. Check sidebar chart clicks
-                        chart_top = 178 + TOP_BAR_H + 30
-                        chart_bottom = HEIGHT - TICKER_H - 96
+                        grid_top = world.get('_chart_grid_top', 178 + TOP_BAR_H + 30)
+                        grid_bottom = world.get('_chart_grid_bottom', HEIGHT - TICKER_H - 96)
                         num_c = 6 if world.get('tile_chart_mode') == 'eco' else 10
                         if world.get('view', 0) == 0:
-                            clicked_chart = chart_at_pixel(event.pos, chart_top, chart_bottom, num_charts=num_c)
+                            clicked_chart = chart_at_pixel(event.pos, grid_top, grid_bottom, num_charts=num_c)
                             if clicked_chart is not None:
                                 world['view'] = clicked_chart
                             else:

@@ -955,13 +955,29 @@ def draw_panel(surface, world, font, font_small, mouse_pos=None):
         pygame.draw.rect(surface, bg_eco, btn_eco_rect, border_radius=4)
         pygame.draw.rect(surface, (120, 220, 140) if chart_mode == 'eco' else (45, 80, 60), btn_eco_rect, 1, border_radius=4)
 
-        lbl_ec = font_small.render("📈 Economy", True, ACCENT if chart_mode == 'econ' else TEXT)
-        lbl_eco = font_small.render("🌿 Ecology", True, (140, 230, 160) if chart_mode == 'eco' else TEXT)
-        surface.blit(lbl_ec, lbl_ec.get_rect(center=btn_ec_rect.center))
-        surface.blit(lbl_eco, lbl_eco.get_rect(center=btn_eco_rect.center))
+        # Procedural icon + text (eliminates emoji tofu boxes across OSes)
+        icon_ec = get_icon('gdp', size=14)
+        lbl_ec = font_small.render("Economy", True, ACCENT if chart_mode == 'econ' else TEXT)
+        tot_ec = icon_ec.get_width() + 5 + lbl_ec.get_width()
+        st_ec = btn_ec_rect.centerx - tot_ec // 2
+        surface.blit(icon_ec, (st_ec, btn_ec_rect.centery - icon_ec.get_height() // 2))
+        surface.blit(lbl_ec, (st_ec + icon_ec.get_width() + 5, btn_ec_rect.centery - lbl_ec.get_height() // 2))
+
+        icon_eco = get_icon('ecology', size=14)
+        lbl_eco = font_small.render("Ecology", True, (140, 230, 160) if chart_mode == 'eco' else TEXT)
+        tot_eco = icon_eco.get_width() + 5 + lbl_eco.get_width()
+        st_eco = btn_eco_rect.centerx - tot_eco // 2
+        surface.blit(icon_eco, (st_eco, btn_eco_rect.centery - icon_eco.get_height() // 2))
+        surface.blit(lbl_eco, (st_eco + icon_eco.get_width() + 5, btn_eco_rect.centery - lbl_eco.get_height() // 2))
 
         y_cursor += 22
         chart_y_offset = (y_cursor - (chart_top - 6)) + 14
+
+        # Cache button hit-boxes and grid top for pixel-perfect event routing
+        world['_chart_mode_econ_rect'] = btn_ec_rect
+        world['_chart_mode_eco_rect'] = btn_eco_rect
+        world['_chart_grid_top'] = chart_top + chart_y_offset
+        world['_chart_grid_bottom'] = chart_bottom
 
         charts = tile_ecological_charts(region) if chart_mode == 'eco' else tile_charts(region)
         view = world.get('view', 0)
@@ -974,7 +990,7 @@ def draw_panel(surface, world, font, font_small, mouse_pos=None):
         else:
             idx = max(0, min(len(charts) - 1, view - 1))
             draw_chart_large(surface, charts[idx], font, font_small,
-                             world['window'], chart_top + 16, chart_bottom, mouse_pos=mouse_pos, world=world, region=region, chart_idx=view)
+                             world['window'], chart_top + chart_y_offset, chart_bottom, mouse_pos=mouse_pos, world=world, region=region, chart_idx=view)
             hint = font_small.render(
                 f"{charts[idx][0]}  (Click or Tab/Esc = Grid)", True, DIM)
             surface.blit(hint, (PANEL_LEFT, chart_bottom + 6))

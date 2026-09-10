@@ -47,6 +47,13 @@ def get_icon(kind: str, size: int = 16) -> pygame.Surface:
         pygame.draw.polygon(surf, (45, 150, 65), pts2)
         pygame.draw.rect(surf, (140, 90, 50), (s * 0.42, s * 0.76, s * 0.16, s * 0.2))
 
+    elif kind in ('ecology', 'leaf', 'nature', 'herb'):
+        # Green sprouting leaf / seedling
+        pts = [(s * 0.2, s * 0.85), (s * 0.15, s * 0.45), (s * 0.5, s * 0.15), (s * 0.85, s * 0.45), (s * 0.8, s * 0.85)]
+        pygame.draw.polygon(surf, (70, 205, 110), pts)
+        pygame.draw.polygon(surf, (120, 235, 150), [(s * 0.5, s * 0.15), (s * 0.85, s * 0.45), (s * 0.5, s * 0.85)])
+        pygame.draw.line(surf, (200, 255, 215), (s * 0.5, s * 0.85), (s * 0.5, s * 0.18), 1)
+
     elif kind in ('iron_ore', 'iron', 'mining'):
         # Mountain iron ore rock & ingot
         pts = [(s * 0.2, s * 0.55), (s * 0.5, s * 0.15), (s * 0.85, s * 0.4), (s * 0.75, s * 0.85), (s * 0.25, s * 0.8)]
