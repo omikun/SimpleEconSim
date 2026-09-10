@@ -196,6 +196,32 @@ def _mark_dirty(world):
     world['needs_redraw'] = True
 
 
+def reload_world(args=None):
+    """Regenerate a brand new world from scratch, invalidating the disk and memory cache."""
+    from heightmap import _TOPOGRAPHIC_SURFACE_CACHE
+    _TOPOGRAPHIC_SURFACE_CACHE.clear()
+    from world_cache import invalidate_map_cache
+    invalidate_map_cache()
+
+    seed = getattr(args, 'seed', None)
+    terrain_seed = getattr(args, 'terrain_seed', None)
+    nation_seed = getattr(args, 'nation_seed', None)
+
+    world = build_world_view(seed=seed, terrain_seed=terrain_seed, nation_seed=nation_seed)
+    world['_map_generation_done'] = False
+    world['_cached_from_disk'] = False
+    world['loading_modal'] = None
+    world['needs_redraw'] = True
+
+    pops_history.clear()
+    for r in world['tiles']:
+        if getattr(r, 'owner_nation', None) is not None:
+            pops_history[r.name] = region_pop(r)
+
+    print("[worldview] Reloaded world from scratch — generating new map.")
+    return world
+
+
 def main():
     import argparse
     parser = argparse.ArgumentParser(description="REGNUM v3 — Hex World")
@@ -212,7 +238,18 @@ def main():
     from system_menu import setup_system_menu, RESTART_EVENT_TYPE
     setup_system_menu()
 
-    world = build_world_view(seed=args.seed, terrain_seed=args.terrain_seed, nation_seed=args.nation_seed)
+    from world_cache import has_valid_cache, load_map_cache
+    if has_valid_cache(seed=args.seed, terrain_seed=args.terrain_seed, nation_seed=args.nation_seed):
+        world = load_map_cache()
+        if world is None:
+            world = build_world_view(seed=args.seed, terrain_seed=args.terrain_seed, nation_seed=args.nation_seed)
+            world['_map_generation_done'] = False
+            world['_cached_from_disk'] = False
+    else:
+        world = build_world_view(seed=args.seed, terrain_seed=args.terrain_seed, nation_seed=args.nation_seed)
+        world['_map_generation_done'] = False
+        world['_cached_from_disk'] = False
+
     world['needs_redraw'] = True
     pops_history.clear()
     for r in world['tiles']:
@@ -222,6 +259,7 @@ def main():
     last_tick = pygame.time.get_ticks()
     running = True
     drag = False
+
 
     # Custom timer event for auto-play ticks (fires every TURN_MS when playing)
     AUTOPLAY_TIMER = pygame.USEREVENT + 1
@@ -254,12 +292,7 @@ def main():
             if event.type == pygame.QUIT:
                 running = False
             elif event.type == RESTART_EVENT_TYPE:
-                world = build_world_view(seed=args.seed, terrain_seed=args.terrain_seed, nation_seed=args.nation_seed)
-                world['needs_redraw'] = True
-                pops_history.clear()
-                for r in world['tiles']:
-                    if getattr(r, 'owner_nation', None) is not None:
-                        pops_history[r.name] = region_pop(r)
+                world = reload_world(args)
                 _mark_dirty(world)
                 continue
             elif event.type == pygame.ACTIVEEVENT:
@@ -591,12 +624,7 @@ def main():
                 elif event.key == pygame.K_q:
                     running = False
                 elif event.key == pygame.K_r and (event.mod & (pygame.KMOD_META | pygame.KMOD_CTRL)):
-                    world = build_world_view(seed=args.seed, terrain_seed=args.terrain_seed, nation_seed=args.nation_seed)
-                    world['needs_redraw'] = True
-                    pops_history.clear()
-                    for r in world['tiles']:
-                        if getattr(r, 'owner_nation', None) is not None:
-                            pops_history[r.name] = region_pop(r)
+                    world = reload_world(args)
                     _mark_dirty(world)
                     continue
                 elif event.key == pygame.K_SPACE:

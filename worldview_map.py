@@ -655,24 +655,35 @@ def draw_hex_map(surface, world, font, font_small):
     # 0. Draw Continuous Topographic Elevation Background Surface with Contour Lines & Hillshading
     seed = world.get('terrain_seed', world.get('seed', 42))
 
-    progress_cb = None
-    if not world.get('_map_generation_done', False):
-        def _on_map_progress(fraction, status_text):
-            world['loading_modal'] = {'active': True, 'fraction': fraction, 'status': status_text}
-            from worldview_ui import draw_loading_modal
-            draw_loading_modal(surface, fraction, status_text, seed=seed)
-            disp_surf = pygame.display.get_surface()
-            if disp_surf is not None and disp_surf == surface:
-                pygame.display.flip()
-                pygame.event.pump()
-        progress_cb = _on_map_progress
+    if world.get('_cached_topo_surface') is not None:
+        topo_surf = world['_cached_topo_surface']
+        world['_map_generation_done'] = True
+        world['loading_modal'] = None
+    else:
+        progress_cb = None
+        if not world.get('_map_generation_done', False):
+            def _on_map_progress(fraction, status_text):
+                world['loading_modal'] = {'active': True, 'fraction': fraction, 'status': status_text}
+                from worldview_ui import draw_loading_modal
+                draw_loading_modal(surface, fraction, status_text, seed=seed)
+                disp_surf = pygame.display.get_surface()
+                if disp_surf is not None and disp_surf == surface:
+                    pygame.display.flip()
+                    pygame.event.pump()
+            progress_cb = _on_map_progress
 
-    topo_surf = get_cached_topographic_surface(
-        seed, bbox, tiles=tiles, layout=layout, canvas_w=2400, canvas_h=1800,
-        progress_callback=progress_cb
-    )
-    world['_map_generation_done'] = True
-    world['loading_modal'] = None
+        topo_surf = get_cached_topographic_surface(
+            seed, bbox, tiles=tiles, layout=layout, canvas_w=2400, canvas_h=1800,
+            progress_callback=progress_cb
+        )
+        world['_cached_topo_surface'] = topo_surf
+        world['_map_generation_done'] = True
+        world['loading_modal'] = None
+        if not world.get('_cached_from_disk', False):
+            from world_cache import save_map_cache
+            save_map_cache(world, topo_surf)
+            world['_cached_from_disk'] = True
+
 
     x0, y0, x1, y1 = bbox
     pad_x = (x1 - x0) * 0.18
