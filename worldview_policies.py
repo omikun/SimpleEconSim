@@ -309,6 +309,29 @@ def _draw_city_policies(surface, world, region, start_y, font, font_small, mx, m
             surface.blit(font_small.render("All customary commons enclosed.", True, (130, 200, 140)), (PANEL_LEFT + 12, start_y + 48))
         start_y += card5_h + 8
 
+    # CARD 6: Ecological Regulations & Chemical Agronomy (Phase 3)
+    card6_h = 76
+    c6_rect = (PANEL_LEFT + 4, start_y, PANEL_W - 24, card6_h)
+    pygame.draw.rect(surface, CARD_BG, c6_rect, border_radius=5)
+    pygame.draw.rect(surface, CARD_BORDER, c6_rect, 1, border_radius=5)
+
+    fert_on = getattr(region, 'use_fertilizer', False)
+    pest_on = getattr(region, 'use_pesticides', False)
+    fert_lbl = f"Fertilizer: {'ON' if fert_on else 'OFF'}"
+    pest_lbl = f"Pesticides: {'ON' if pest_on else 'OFF'}"
+
+    surface.blit(font_small.render("Ecological Decrees & Chemical Inputs", True, (130, 215, 160)), (PANEL_LEFT + 12, start_y + 8))
+    desc_eco = f"Soil: {getattr(region, 'soil_fertility', 1.0)*100:.0f}% | Nut: {getattr(region, 'nutrition_density', 1.0)*100:.0f}% | Smog: {getattr(region, 'pollution_air', 0.0):.0f}"
+    surface.blit(font_small.render(desc_eco, True, DIM), (PANEL_LEFT + 12, start_y + 24))
+
+    f_btn = (PANEL_LEFT + 12, start_y + 44, 115, 22)
+    p_btn = (PANEL_LEFT + 135, start_y + 44, 115, 22)
+    _draw_btn(surface, f_btn, fert_lbl, font_small, mx, my, color=GREEN if fert_on else DIM)
+    _draw_btn(surface, p_btn, pest_lbl, font_small, mx, my, color=GREEN if pest_on else DIM)
+    _ACTION_BUTTONS.append((f_btn, 'city_mandate_fertilizer', region))
+    _ACTION_BUTTONS.append((p_btn, 'city_mandate_pesticides', region))
+    start_y += card6_h + 8
+
 
 # =============================================================================
 # PROVINCE LEVEL POLICIES
@@ -378,6 +401,21 @@ def _draw_province_policies(surface, world, region, start_y, font, font_small, m
     tax_btn = (PANEL_LEFT + 12, start_y + 44, 160, 22)
     _draw_btn(surface, tax_btn, "Harmonize Taxes", font_small, mx, my, color=(240, 200, 120))
     _ACTION_BUTTONS.append((tax_btn, 'prov_harmonize_taxes', prov))
+
+    start_y += c3_h + 10
+
+    # CARD 4: Watershed & Soil Conservation Subsidy (Phase 3)
+    c4_h = 76
+    c4_rect = (PANEL_LEFT + 4, start_y, PANEL_W - 24, c4_h)
+    pygame.draw.rect(surface, CARD_BG, c4_rect, border_radius=5)
+    pygame.draw.rect(surface, CARD_BORDER, c4_rect, 1, border_radius=5)
+
+    surface.blit(font_small.render("Soil Conservation & Fallow Subsidies ($150)", True, (130, 220, 160)), (PANEL_LEFT + 12, start_y + 8))
+    surface.blit(font_small.render("Subsidizes legume crop cover & fallow rest (+Soil Regen)", True, DIM), (PANEL_LEFT + 12, start_y + 24))
+
+    soil_btn = (PANEL_LEFT + 12, start_y + 44, 180, 22)
+    _draw_btn(surface, soil_btn, "Fund Conservation ($150)", font_small, mx, my, color=(140, 230, 170))
+    _ACTION_BUTTONS.append((soil_btn, 'prov_soil_conservation', prov))
 
 
 # =============================================================================
@@ -645,6 +683,23 @@ def _execute_policy_action(world, act_id, target):
                 pass
         world['policy_feedback'] = (msg, (230, 140, 70) if ok else RED)
 
+    # City Phase 3: Chemical & Ecological Mandates
+    elif act_id == 'city_mandate_fertilizer':
+        cur = getattr(target, 'use_fertilizer', False)
+        target.use_fertilizer = not cur
+        state = "Mandated" if not cur else "Banned"
+        world['policy_feedback'] = (f"Synthetic Fertilizers {state} in {target.name}.", GREEN if not cur else (240, 180, 80))
+        from worldview_engine import ticker_push
+        ticker_push(world, world['turn'], 'POLICY', f"Synthetic Fertilizers {state} in {target.name}.", (120, 220, 140))
+
+    elif act_id == 'city_mandate_pesticides':
+        cur = getattr(target, 'use_pesticides', False)
+        target.use_pesticides = not cur
+        state = "Mandated" if not cur else "Banned"
+        world['policy_feedback'] = (f"Chemical Pesticides {state} in {target.name}.", GREEN if not cur else (240, 180, 80))
+        from worldview_engine import ticker_push
+        ticker_push(world, world['turn'], 'POLICY', f"Chemical Pesticides {state} in {target.name}.", (120, 220, 140))
+
     # Province Actions
     elif act_id == 'prov_equalization_grant':
         tiles = getattr(target, 'tiles', [])
@@ -662,6 +717,19 @@ def _execute_policy_action(world, act_id, target):
             world['policy_feedback'] = (f"Harmonized province taxes at {avg_tax*100:.1f}%.", GREEN)
     elif act_id == 'prov_standardize_routes':
         world['policy_feedback'] = (f"Standardized transport routes for {target.name}!", (200, 230, 150))
+    elif act_id == 'prov_soil_conservation':
+        prov_gov = getattr(target, 'gov', None)
+        cost = 150.0
+        on_hand = prov_gov.agent.cash if prov_gov and hasattr(prov_gov, 'agent') else 0.0
+        if on_hand >= cost:
+            prov_gov.agent.cash -= cost
+            for r in getattr(target, 'tiles', []):
+                r.soil_fertility = min(1.50, getattr(r, 'soil_fertility', 1.0) + 0.10)
+            world['policy_feedback'] = (f"Soil conservation grant deployed across {target.name}!", (130, 220, 160))
+            from worldview_engine import ticker_push
+            ticker_push(world, world['turn'], 'POLICY', f"Soil conservation subsidies funded in {target.name} (+10% Fertility).", (130, 220, 160))
+        else:
+            world['policy_feedback'] = ("Insufficient provincial treasury funds.", RED)
 
     # Nation Actions
     elif act_id.startswith('nat_tax_'):

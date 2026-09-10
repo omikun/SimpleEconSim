@@ -217,6 +217,16 @@ TECH_CATALOG: dict[str, Technology] = {
         base_xp_required=600.0,
         era=2,
     ),
+    'municipal_trunk_sewers': Technology(
+        tech_id='municipal_trunk_sewers',
+        name='Brick Underground Trunk Sewers',
+        domain=TechDomain.CIVIL_ENGINEERING,
+        description='Underground brick drainage that flushes urban sewage away from drinking wells, reducing epidemics.',
+        base_xp_required=680.0,
+        era=2,
+        unlocked_buildings=['trunk_sewer'],
+        bottleneck_evaluator=_eval_food_bottleneck
+    ),
 
     # =========================================================================
     # ERA III: STEAM & INDUSTRIAL REVOLUTION (Era 3)
@@ -268,6 +278,51 @@ TECH_CATALOG: dict[str, Technology] = {
         production_modifiers={Goods.furniture.value: 1.40},
         bottleneck_evaluator=_eval_wage_labor_bottleneck
     ),
+    'chemical_pesticides': Technology(
+        tech_id='chemical_pesticides',
+        name='Synthetic Chemical Pesticides',
+        domain=TechDomain.AGRONOMY,
+        description='Synthetic arsenical and organophosphate sprays protecting monoculture crops (+40% harvest), but poisoning soil and workers.',
+        base_xp_required=1000.0,
+        era=3,
+        required_resources=[TileResource.ARABLE_SILT],
+        production_modifiers={Goods.food.value: 1.40},
+        bottleneck_evaluator=_eval_food_bottleneck
+    ),
+    'coal_scrubbers': Technology(
+        tech_id='coal_scrubbers',
+        name='Wet Coal Smoke Scrubbers',
+        domain=TechDomain.MANUFACTURING,
+        description='Water-spray condensation towers scrubbing 70% of sulfur dioxide and soot from smokestacks into concentrated chemical sludge.',
+        base_xp_required=1150.0,
+        era=3,
+        required_resources=[TileResource.COAL_SEAM, TileResource.IRON_ORE],
+        required_techs=['steam_engines'],
+        unlocked_buildings=['smoke_scrubber'],
+        bottleneck_evaluator=_eval_wage_labor_bottleneck
+    ),
+    'water_filtration': Technology(
+        tech_id='water_filtration',
+        name='Slow Sand Municipal Water Filtration',
+        domain=TechDomain.CIVIL_ENGINEERING,
+        description='Sand and gravel biological filtration beds purifying provincial municipal water supplies from typhoid and industrial waste.',
+        base_xp_required=1100.0,
+        era=3,
+        unlocked_buildings=['water_filtration_plant'],
+        bottleneck_evaluator=_eval_mountain_bottleneck
+    ),
+    'agroecology_rotation': Technology(
+        tech_id='agroecology_rotation',
+        name='Agroecological Fallow & Composting',
+        domain=TechDomain.AGRONOMY,
+        description='Complex multi-field legume composting that fully regenerates depleted soil fertility without synthetic nitrate runoff.',
+        base_xp_required=1200.0,
+        era=3,
+        required_resources=[TileResource.ARABLE_SILT],
+        required_techs=['crop_rotation'],
+        unlocked_buildings=['soil_conservation_reserve'],
+        bottleneck_evaluator=_eval_food_bottleneck
+    ),
 
     # =========================================================================
     # ERA IV: PETROLEUM, ELECTRIC & MODERN AGE (Era 4)
@@ -298,12 +353,23 @@ TECH_CATALOG: dict[str, Technology] = {
         tech_id='synthetic_fertilizers',
         name='Haber-Bosch Synthetic Fertilizers',
         domain=TechDomain.AGRONOMY,
-        description='Fixes atmospheric nitrogen using hydrocarbons; doubles global agricultural yields.',
+        description='Fixes atmospheric nitrogen using hydrocarbons; doubles food harvests (+100%), but dilutes food nutritional density and triggers river nitrate runoff.',
         base_xp_required=1400.0,
         era=4,
         required_resources=[TileResource.CRUDE_PETROLEUM, TileResource.ARABLE_SILT],
         required_techs=['petroleum_refining'],
         production_modifiers={Goods.food.value: 2.00},
+        bottleneck_evaluator=_eval_food_bottleneck
+    ),
+    'biological_pest_control': Technology(
+        tech_id='biological_pest_control',
+        name='Integrated Biological Pest Management',
+        domain=TechDomain.AGRONOMY,
+        description='Beneficial insect ecology and pheromone disruption replacing toxic chemical insecticides, eliminating farmworker toxicity.',
+        base_xp_required=1550.0,
+        era=4,
+        required_resources=[TileResource.ARABLE_SILT],
+        required_techs=['chemical_pesticides'],
         bottleneck_evaluator=_eval_food_bottleneck
     ),
     'microelectronics': Technology(

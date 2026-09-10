@@ -202,6 +202,30 @@ def tile_stats(region, layer_mode='overview', world=None):
         t_col = RED if (strikers > 0 or broken > 0) else GREEN
         return top_badge, stat_line, tr_line, b_col, TEXT, t_col
 
+    # 9. EXTERNALITIES & METABOLIC RIFT LAYER (Phase 3)
+    if layer_mode == 'externalities':
+        if is_ocean:
+            return "Ocean Waters", "Pristine Aquatic Sink", "", (100, 200, 230), DIM, DIM
+        fert = getattr(region, 'soil_fertility', 1.0)
+        nut = getattr(region, 'nutrition_density', 1.0)
+        air_p = getattr(region, 'pollution_air', 0.0)
+        wat_p = getattr(region, 'pollution_water', 0.0)
+        use_f = getattr(region, 'use_fertilizer', False)
+        use_p = getattr(region, 'use_pesticides', False)
+
+        top_badge = f"Soil: {fert*100:.0f}% • Nut: {nut*100:.0f}%"
+        stat_line = f"Smog: {air_p:.0f} | Water: {wat_p:.0f}"
+        chem_tags = []
+        if use_f:
+            chem_tags.append("FERT")
+        if use_p:
+            chem_tags.append("PEST")
+        tr_line = f"Chem: {', '.join(chem_tags)}" if chem_tags else "Natural Organic"
+
+        b_col = (100, 220, 140) if fert >= 0.90 and nut >= 0.90 else ((240, 180, 80) if fert >= 0.60 else (225, 100, 80))
+        t_col = (235, 90, 90) if (air_p > 20.0 or wat_p > 20.0) else ((140, 210, 255) if chem_tags else GREEN)
+        return top_badge, stat_line, tr_line, b_col, TEXT, t_col
+
     # 6. OVERVIEW LAYER (Default)
     if is_ocean or owner is None:
         return "", "", "", DIM, DIM, DIM
@@ -318,6 +342,31 @@ def draw_thematic_choropleth(surface, region, pts, layer_mode, frame=0):
         if strikers > 0 or broken > 0:
             pulse = int(140 + 115 * math.sin(frame * 0.2))
             pygame.draw.polygon(surface, (255, 60, 60, pulse), pts, 3)
+
+    elif layer_mode == 'externalities':
+        fert = getattr(region, 'soil_fertility', 1.0)
+        air_p = getattr(region, 'pollution_air', 0.0)
+        wat_p = getattr(region, 'pollution_water', 0.0)
+        tot_poll = air_p + wat_p
+
+        # Soil fertility component: rich emerald loam (fert=1.0) to bleached ochre dust (fert=0.2)
+        r_f = int(45 * fert + 210 * (1.0 - fert))
+        g_f = int(175 * fert + 140 * (1.0 - fert))
+        b_f = int(90 * fert + 80 * (1.0 - fert))
+
+        # Pollution smog/sludge overlay factor
+        p_factor = min(1.0, tot_poll / 60.0)
+        cr = int(r_f * (1.0 - p_factor) + 160 * p_factor)
+        cg = int(g_f * (1.0 - p_factor) + 90 * p_factor)
+        cb = int(b_f * (1.0 - p_factor) + 175 * p_factor)
+
+        pygame.draw.polygon(tint_surf, (cr, cg, cb, 105), local_pts)
+        surface.blit(tint_surf, (min_x, min_y))
+
+        # Flashing haze/warning for severe pollution
+        if air_p > 25.0 or wat_p > 25.0:
+            pulse = int(120 + 90 * math.sin(frame * 0.15))
+            pygame.draw.polygon(surface, (190, 80, 220, pulse), pts, 2)
 
 
 def draw_pop_heat(surface, region, pts, cx, cy, zoom=1.0, frame=0):
@@ -605,7 +654,22 @@ def draw_hex_map(surface, world, font, font_small):
 
     # 0. Draw Continuous Topographic Elevation Background Surface with Contour Lines & Hillshading
     seed = world.get('terrain_seed', world.get('seed', 42))
-    topo_surf = get_cached_topographic_surface(seed, bbox, tiles=tiles, layout=layout, canvas_w=2400, canvas_h=1800)
+
+    def _on_map_progress(fraction, status_text):
+        world['loading_modal'] = {'active': True, 'fraction': fraction, 'status': status_text}
+        from worldview_ui import draw_loading_modal
+        draw_loading_modal(surface, fraction, status_text, seed=seed)
+        disp_surf = pygame.display.get_surface()
+        if disp_surf is not None and disp_surf == surface:
+            pygame.display.flip()
+            pygame.event.pump()
+
+    topo_surf = get_cached_topographic_surface(
+        seed, bbox, tiles=tiles, layout=layout, canvas_w=2400, canvas_h=1800,
+        progress_callback=_on_map_progress
+    )
+    if world.get('loading_modal', {}).get('active'):
+        world['loading_modal'] = {'active': False, 'fraction': 1.0, 'status': ''}
 
     x0, y0, x1, y1 = bbox
     pad_x = (x1 - x0) * 0.18
@@ -657,7 +721,7 @@ def draw_hex_map(surface, world, font, font_small):
         # 1b. Semi-Transparent Nation Territory Overlay & Thematic Choropleth
         draw_nation_overlay(surface, region, pts)
         active_layer = world.get('map_layer', 'overview')
-        if active_layer in ('enclosure', 'exploitation'):
+        if active_layer in ('enclosure', 'exploitation', 'externalities'):
             draw_thematic_choropleth(surface, region, pts, active_layer, frame=frame)
 
         # 1c. 50% Transparent White Hex Outline (RGBA: 255, 255, 255, 128)

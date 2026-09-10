@@ -82,6 +82,36 @@ BUILDING_RECIPES: dict[str, BuildingRecipe] = {
         production_bonuses={Goods.furniture: 1.30},
         description='Centralized manufacturing facility (+30% Furniture output).'
     ),
+    'trunk_sewer': BuildingRecipe(
+        name='trunk_sewer',
+        display_name='Municipal Brick Trunk Sewer',
+        cost=350.0,
+        base_turns=2,
+        tier='tile',
+        required_goods={Goods.wood: 4},
+        production_bonuses={},
+        description='Underground brick drainage system that reduces urban waterborne epidemics by 70%.'
+    ),
+    'smoke_scrubber': BuildingRecipe(
+        name='smoke_scrubber',
+        display_name='Smokestack Wet Scrubber',
+        cost=300.0,
+        base_turns=2,
+        tier='tile',
+        required_goods={Goods.wood: 3, Goods.furniture: 2},
+        production_bonuses={},
+        description='Water-spray condensation tower filtering 70% of atmospheric smokestack soot into chemical sludge.'
+    ),
+    'soil_conservation_reserve': BuildingRecipe(
+        name='soil_conservation_reserve',
+        display_name='Agroecological Conservation Reserve',
+        cost=200.0,
+        base_turns=2,
+        tier='tile',
+        required_goods={Goods.wood: 2},
+        production_bonuses={},
+        description='Protected agroecological reserve boosting local soil fertility regeneration by +25%.'
+    ),
 
     # ── PROVINCIAL LEVEL PUBLIC WORKS ───────────────────────────────
     'paved_road': BuildingRecipe(
@@ -113,6 +143,16 @@ BUILDING_RECIPES: dict[str, BuildingRecipe] = {
         required_goods={Goods.wood: 5, Goods.furniture: 2},
         production_bonuses={},
         description='Public healthcare institution that reduces citizen mortality across the province.'
+    ),
+    'water_filtration_plant': BuildingRecipe(
+        name='water_filtration_plant',
+        display_name='Provincial Water Filtration Plant',
+        cost=450.0,
+        base_turns=3,
+        tier='province',
+        required_goods={Goods.wood: 5, Goods.furniture: 3},
+        production_bonuses={},
+        description='Slow sand-bed water purification facility eliminating chemical and bacterial toxins.'
     ),
 
     # ── NATIONAL / SOVEREIGN STRATEGIC PROJECTS ─────────────────────

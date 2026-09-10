@@ -705,7 +705,16 @@ def draw_panel(surface, world, font, font_small, mouse_pos=None):
         surface.blit(r2_val, (PANEL_LEFT + 8 + r2_lbl.get_width(), 107 + d))
 
         r3 = font_small.render(f"Project: {proj_str}", True, proj_col)
-        surface.blit(r3, (PANEL_LEFT + 8, 125 + d))
+        surface.blit(r3, (PANEL_LEFT + 8, 123 + d))
+
+        # Ecological & Metabolic Rift Status (Phase 3)
+        s_fert = getattr(sel_reg, 'soil_fertility', 1.0) * 100.0
+        s_nut = getattr(sel_reg, 'nutrition_density', 1.0) * 100.0
+        s_air = getattr(sel_reg, 'pollution_air', 0.0)
+        s_wat = getattr(sel_reg, 'pollution_water', 0.0)
+        eco_col = (130, 220, 160) if s_fert >= 90 and (s_air + s_wat) < 15 else ((240, 180, 80) if s_fert >= 60 else (240, 100, 100))
+        r4 = font_small.render(f"Ecology: Soil {s_fert:.0f}% • Nut {s_nut:.0f}% • Smog {s_air:.0f}", True, eco_col)
+        surface.blit(r4, (PANEL_LEFT + 8, 137 + d))
 
     # Right Panel Header Tabs: [ 📊 Charts ] vs [ 👥 Citizens ] vs [ ⚖️ Policies ]
     mx, my = mouse_pos if mouse_pos else (-1, -1)
@@ -1245,3 +1254,84 @@ def draw_help(surface, world, font_small, mouse_pos=None):
                 surface.blit(item_font.render(line, True, DIM), (col3_x, y))
                 y += 13
             y += 7
+
+
+def draw_loading_modal(surface, fraction: float, status_text: str, seed: int = None):
+    """Draw a modern, stylized loading modal dialog with dynamic progress bar during map generation."""
+    sw, sh = surface.get_size()
+
+    # Semi-transparent dark backdrop overlay covering the whole screen
+    overlay = pygame.Surface((sw, sh), pygame.SRCALPHA)
+    overlay.fill((10, 12, 18, 235))
+    surface.blit(overlay, (0, 0))
+
+    # Modal Box Dimensions
+    modal_w = 640
+    modal_h = 240
+    modal_x = (sw - modal_w) // 2
+    modal_y = (sh - modal_h) // 2
+
+    # Outer Modal Card & Glow Border
+    pygame.draw.rect(surface, (22, 26, 36), (modal_x, modal_y, modal_w, modal_h), border_radius=10)
+    pygame.draw.rect(surface, (80, 185, 235), (modal_x, modal_y, modal_w, modal_h), 2, border_radius=10)
+
+    # Top Header Banner
+    header_rect = (modal_x, modal_y, modal_w, 46)
+    pygame.draw.rect(surface, (30, 36, 52), header_rect, border_top_left_radius=10, border_top_right_radius=10)
+    pygame.draw.line(surface, (60, 80, 110), (modal_x, modal_y + 46), (modal_x + modal_w, modal_y + 46), 1)
+
+    title_font = get_font(22)
+    body_font = get_font(18)
+    small_font = get_font(15)
+
+    title_surf = title_font.render("REGNUM v3 — WORLD GENERATION", True, (212, 175, 55))
+    surface.blit(title_surf, (modal_x + 24, modal_y + 12))
+
+    seed_str = f" • Seed: {seed}" if seed is not None else ""
+    sub_surf = small_font.render(f"Synthesizing 4x Ultra-HD Procedural Topography{seed_str}", True, (130, 150, 180))
+    surface.blit(sub_surf, (modal_x + 24, modal_y + 58))
+
+    # Live Status Text
+    status_surf = body_font.render(status_text, True, (225, 235, 245))
+    surface.blit(status_surf, (modal_x + 24, modal_y + 92))
+
+    # Progress Bar Geometry
+    bar_x = modal_x + 24
+    bar_y = modal_y + 128
+    bar_w = modal_w - 48
+    bar_h = 26
+
+    # Track Background
+    pygame.draw.rect(surface, (14, 16, 24), (bar_x, bar_y, bar_w, bar_h), border_radius=13)
+    pygame.draw.rect(surface, (60, 75, 95), (bar_x, bar_y, bar_w, bar_h), 1, border_radius=13)
+
+    # Fill
+    clamped_frac = max(0.0, min(1.0, float(fraction)))
+    fill_w = max(0, min(bar_w, int(bar_w * clamped_frac)))
+    if fill_w > 0:
+        fill_rect = pygame.Rect(bar_x, bar_y, fill_w, bar_h)
+        fill_col = (
+            int(45 * (1.0 - clamped_frac) + 60 * clamped_frac),
+            int(180 * (1.0 - clamped_frac) + 210 * clamped_frac),
+            int(140 * (1.0 - clamped_frac) + 240 * clamped_frac),
+        )
+        pygame.draw.rect(surface, fill_col, fill_rect, border_radius=13)
+        sheen_h = bar_h // 2
+        if fill_w > 4 and sheen_h > 0:
+            sheen_rect = pygame.Rect(bar_x + 2, bar_y + 2, fill_w - 4, sheen_h)
+            sheen_surf = pygame.Surface((sheen_rect.width, sheen_rect.height), pygame.SRCALPHA)
+            sheen_surf.fill((255, 255, 255, 45))
+            surface.blit(sheen_surf, (sheen_rect.x, sheen_rect.y))
+
+    # Percentage Text (Centered over the bar)
+    pct_txt = f"{int(round(clamped_frac * 100))}%"
+    pct_surf = title_font.render(pct_txt, True, (255, 255, 255))
+    pct_rect = pct_surf.get_rect(center=(bar_x + bar_w // 2, bar_y + bar_h // 2))
+    shadow_surf = title_font.render(pct_txt, True, (10, 15, 25))
+    surface.blit(shadow_surf, (pct_rect.x + 1, pct_rect.y + 1))
+    surface.blit(pct_surf, pct_rect)
+
+    # Modal Lockout Note
+    lock_txt = "[ LOCKED ] All menus, navigation and simulation controls are disabled during synthesis"
+    lock_surf = small_font.render(lock_txt, True, (110, 125, 150))
+    surface.blit(lock_surf, lock_surf.get_rect(center=(modal_x + modal_w // 2, modal_y + modal_h - 24)))

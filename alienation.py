@@ -96,8 +96,28 @@ def step_health_attrition(agent, region, t: int) -> float:
     if getattr(agent, 'hungry_steps', 0) > 0:
         delta += 0.04 * agent.hungry_steps
 
-    # Rest and biological recovery on customary hours with food
-    if shift_hours <= 8.0 and getattr(agent, 'hungry_steps', 0) == 0:
+    # P3: Depleted food nutritional density penalty (micronutrient deficiency)
+    nutr = getattr(region, 'nutrition_density', 1.0)
+    if nutr < 0.85:
+        delta += 0.025 * (1.0 - nutr)
+
+    # P3: Toxic environmental exposure (atmospheric smog, contaminated water, pesticide spray)
+    p_air = getattr(region, 'pollution_air', 0.0)
+    if p_air > 15.0:
+        delta += 0.0015 * (p_air - 15.0)
+
+    p_water = getattr(region, 'pollution_water', 0.0)
+    if p_water > 20.0:
+        delta += 0.0020 * (p_water - 20.0)
+
+    use_pest = getattr(region, 'use_pesticides', False) or getattr(region, 'mandate_pesticides', False)
+    nation = getattr(region, 'owner_nation', None)
+    has_clean_pest = 'biological_pest_control' in getattr(nation, 'unlocked_techs', set()) if nation else False
+    if use_pest and not has_clean_pest and getattr(agent, 'output', None) == Goods.food:
+        delta += 0.035  # Chemical pesticide handling wear on farmworkers
+
+    # Rest and biological recovery on customary hours with food and clean environment
+    if shift_hours <= 8.0 and getattr(agent, 'hungry_steps', 0) == 0 and nutr >= 0.85 and p_air <= 15.0 and p_water <= 20.0:
         delta -= 0.01
 
     new_attrition = max(0.0, min(2.5, current_attrition + delta))

@@ -34,7 +34,7 @@ from worldview_map import (
 from worldview_ui import (
     PANEL_BG, selected_nation, draw_top_bar, draw_top_bar_dropdown, draw_regime_readout,
     draw_panel, draw_ticker, draw_help, draw_zoom_hud, zoom_hud_hit,
-    compare_btn_hit, help_page_hit, panel_tab_hit, get_font
+    compare_btn_hit, help_page_hit, panel_tab_hit, get_font, draw_loading_modal
 )
 from worldview_policies import (
     draw_policies_panel, policy_panel_hit
@@ -128,6 +128,23 @@ FPS_IDLE = 30
 FPS = FPS_ACTIVE
 
 
+def is_any_modal_open(world) -> bool:
+    """Return True if any modal dialog currently covers the viewport and takes input priority."""
+    if not world or not isinstance(world, dict):
+        return False
+    loading = world.get('loading_modal')
+    is_loading = bool(loading is True or (isinstance(loading, dict) and loading.get('active', False)))
+    return bool(
+        is_loading or
+        world.get('actions_open') or
+        world.get('actions_modal_open') or
+        world.get('compare_open') or
+        world.get('comparison_open') or
+        world.get('help_open') or
+        world.get('transfer_dialog', {}).get('open')
+    )
+
+
 def render_frame(surface, world, mouse_pos=None):
     """Draw one full frame (map + top bar + panel + ticker + zoom hud + comparison table + sovereign actions + help)."""
     world['_hovered_left_tooltip'] = None
@@ -135,12 +152,7 @@ def render_frame(surface, world, mouse_pos=None):
     font_small = get_font(22)
     surface.fill(BG)
     # Check if a modal dialog covers the screen
-    modal_active = bool(
-        world.get('transfer_dialog', {}).get('open') or
-        world.get('actions_modal_open') or
-        world.get('help_open') or
-        world.get('comparison_open')
-    )
+    modal_active = is_any_modal_open(world)
     effective_mouse = None if modal_active else mouse_pos
 
     draw_top_bar(surface, world, font_small, mouse_pos=effective_mouse)
@@ -169,6 +181,12 @@ def render_frame(surface, world, mouse_pos=None):
     # Floating left-panel detailed button tooltips (disabled when modal dialog covers screen)
     if not modal_active:
         draw_left_panel_tooltip(surface, world, font_small, mouse_pos=mouse_pos)
+
+    # Dynamic map generation loading modal
+    if world.get('loading_modal', {}).get('active'):
+        load_info = world['loading_modal']
+        t_seed = world.get('terrain_seed', world.get('seed', 42))
+        draw_loading_modal(surface, load_info.get('fraction', 0.0), load_info.get('status', 'Synthesizing map...'), seed=t_seed)
 
 
 def _mark_dirty(world):
@@ -212,13 +230,14 @@ def main():
         #  1. Modal open (compare/help) — static overlay, block thread → 0% CPU
         #  2. Active (playing or dragging) — poll at 60 FPS
         #  3. Idle, no modal — trade animation runs, poll at 30 FPS
-        modal_open = world.get('compare_open') or world.get('help_open') or world.get('actions_open')
+        modal_open = is_any_modal_open(world)
+        is_loading = bool(world.get('loading_modal', {}).get('active') if isinstance(world.get('loading_modal'), dict) else world.get('loading_modal'))
         is_active = world.get('playing') or drag
-        if modal_open:
+        if modal_open and not is_loading:
             # Static overlay — nothing animates, block until user does something.
             first = pygame.event.wait()
             events = [first] + list(pygame.event.get())
-        elif is_active:
+        elif is_active or is_loading:
             events = pygame.event.get()
             clock.tick(FPS_ACTIVE)
         else:
@@ -247,38 +266,45 @@ def main():
                 _mark_dirty(world)
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 _mark_dirty(world)
-                # 0a. Check if Fiscal Transfer Dialog is open
-                if world.get('transfer_dialog', {}).get('open'):
-                    if transfer_dialog_hit(event.pos, world):
+
+                # 0. STRICT MODAL PRIORITY: If any modal is active, route ONLY to it and NEVER fall through!
+                if is_any_modal_open(world):
+                    # 0a. Check if Fiscal Transfer Dialog is open
+                    if world.get('transfer_dialog', {}).get('open'):
+                        transfer_dialog_hit(event.pos, world)
                         continue
 
-                # 0b. Check if Help Guide is open
-                if world.get('help_open'):
-                    if help_modal_hit(event.pos, world):
+                    # 0b. Check if Help Guide is open
+                    if world.get('help_open'):
+                        help_modal_hit(event.pos, world)
                         continue
 
-                # 0c. Check if Comparison Table is open
-                if world.get('compare_open'):
-                    tab_hit = compare_tab_hit(event.pos, 30, 20, world=world)
-                    if tab_hit is not None:
-                        if tab_hit[0] == 'tab':
-                            world['compare_tab'] = tab_hit[1]
-                        elif tab_hit[0] == 'good':
-                            world['compare_good'] = tab_hit[1]
-                        continue
-                    # Click outside modal closes it
-                    if event.pos[0] < 30 or event.pos[0] > WIDTH - 30 or event.pos[1] < 20 or event.pos[1] > HEIGHT - 20:
-                        world['compare_open'] = False
+                    # 0c. Check if Comparison Table is open
+                    if world.get('compare_open') or world.get('comparison_open'):
+                        tab_hit = compare_tab_hit(event.pos, 30, 20, world=world)
+                        if tab_hit is not None:
+                            if tab_hit[0] == 'tab':
+                                world['compare_tab'] = tab_hit[1]
+                            elif tab_hit[0] == 'good':
+                                world['compare_good'] = tab_hit[1]
+                        # Click outside modal closes it
+                        elif event.pos[0] < 30 or event.pos[0] > WIDTH - 30 or event.pos[1] < 20 or event.pos[1] > HEIGHT - 20:
+                            world['compare_open'] = False
+                            world['comparison_open'] = False
                         continue
 
-                # 0d. Check if Sovereign Actions Modal is open
-                if world.get('actions_open'):
-                    if actions_tab_hit(event.pos, 24, 16, world):
+                    # 0d. Check if Sovereign Actions Modal is open
+                    if world.get('actions_open') or world.get('actions_modal_open'):
+                        hit = actions_tab_hit(event.pos, 24, 16, world)
+                        if not hit:
+                            # Click outside modal closes it
+                            if event.pos[0] < 24 or event.pos[0] > WIDTH - 24 or event.pos[1] < 16 or event.pos[1] > HEIGHT - 16:
+                                world['actions_open'] = False
+                                world['actions_modal_open'] = False
                         continue
-                    # Click outside modal closes it
-                    if event.pos[0] < 24 or event.pos[0] > WIDTH - 24 or event.pos[1] < 16 or event.pos[1] > HEIGHT - 16:
-                        world['actions_open'] = False
-                        continue
+
+                    # 0e. Loading modal or any other modal consumes clicks entirely
+                    continue
 
                 # 1a. Check Top-Right Action buttons (Help / Compare / Diplomacy / Military)
                 act_btn = top_bar_action_hit(event.pos)
@@ -391,14 +417,15 @@ def main():
                                         world['selected_nation'] = clicked.owner_nation
                                         world['player_nation_name'] = clicked.owner_nation.name
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button in (2, 3):
-                # Middle or Right mouse drag to pan
-                drag = True
-                _mark_dirty(world)
+                # Middle or Right mouse drag to pan (disabled if modal open)
+                if not is_any_modal_open(world):
+                    drag = True
+                    _mark_dirty(world)
             elif event.type == pygame.MOUSEBUTTONUP and event.button in (2, 3):
                 drag = False
                 _mark_dirty(world)
             elif event.type == pygame.MOUSEMOTION:
-                if drag:
+                if drag and not is_any_modal_open(world):
                     dx, dy = event.rel
                     world['cam']['ox'] += dx
                     world['cam']['oy'] += dy
@@ -406,121 +433,114 @@ def main():
                     _mark_dirty(world)
                 # Hover detection handled below (batched after all events)
             elif event.type == pygame.MOUSEWHEEL:
-                mx, my = pygame.mouse.get_pos()
-                if mx < MAP_RIGHT:
-                    factor = 1.15 ** event.y
-                    zoom_cam_at(world, factor, mx, my)
-                    _mark_dirty(world)
+                if not is_any_modal_open(world):
+                    mx, my = pygame.mouse.get_pos()
+                    if mx < MAP_RIGHT:
+                        factor = 1.15 ** event.y
+                        zoom_cam_at(world, factor, mx, my)
+                        _mark_dirty(world)
             elif event.type == pygame.KEYDOWN:
                 _mark_dirty(world)
-                # If help guide is open, intercept page keys
-                if world.get('help_open'):
-                    if event.key in (pygame.K_1, pygame.K_KP1, pygame.K_PAGEUP, pygame.K_LEFT):
-                        world['help_page'] = 1
-                    elif event.key in (pygame.K_2, pygame.K_KP2, pygame.K_PAGEDOWN, pygame.K_RIGHT):
-                        world['help_page'] = 2
-                    elif event.key == pygame.K_TAB:
-                        world['help_page'] = 2 if world.get('help_page', 1) == 1 else 1
-                    elif event.key in (pygame.K_ESCAPE, pygame.K_q, pygame.K_h, pygame.K_QUESTION):
-                        world['help_open'] = False
-                    continue
 
-                # If Sovereign Actions modal is open, intercept navigation keys
-                if world.get('actions_open'):
-                    if event.key in (pygame.K_1, pygame.K_KP1):
-                        world['actions_tab'] = 1
-                    elif event.key in (pygame.K_2, pygame.K_KP2):
-                        world['actions_tab'] = 2
-                    elif event.key in (pygame.K_3, pygame.K_KP3):
-                        world['actions_tab'] = 3
-                    elif event.key in (pygame.K_4, pygame.K_KP4):
-                        world['actions_tab'] = 4
-                    elif event.key == pygame.K_d:
-                        world['actions_tab'] = 1
-                    elif event.key == pygame.K_m:
-                        world['actions_tab'] = 2
-                    elif event.key == pygame.K_c:
-                        world['actions_tab'] = 3
-                    elif event.key == pygame.K_a:
-                        world['actions_tab'] = 4
-                    elif event.key in (pygame.K_TAB, pygame.K_RIGHT):
-                        world['actions_tab'] = (world.get('actions_tab', 1) % 4) + 1
-                    elif event.key == pygame.K_LEFT:
-                        world['actions_tab'] = 4 if world.get('actions_tab', 1) == 1 else world.get('actions_tab', 1) - 1
-                    elif event.key == pygame.K_SPACE:
-                        world['playing'] = not world['playing']
-                        last_tick = now
-                    elif event.key in (pygame.K_n, pygame.K_PERIOD):
-                        world['playing'] = False
-                        step_world(world)
-                    elif event.key in (pygame.K_ESCAPE, pygame.K_q):
-                        world['actions_open'] = False
-                    continue
+                # STRICT MODAL LOCKOUT: If any modal is open, intercept only modal navigation/close keys
+                if is_any_modal_open(world):
+                    loading_state = world.get('loading_modal')
+                    if loading_state is True or (isinstance(loading_state, dict) and loading_state.get('active')):
+                        # Loading screen in progress - suppress all key actions
+                        continue
 
-                # If help modal is open, intercept navigation keys
-                if world.get('help_open'):
-                    if event.key in (pygame.K_1, pygame.K_KP1):
-                        world['help_page'] = 1
-                    elif event.key in (pygame.K_2, pygame.K_KP2):
-                        world['help_page'] = 2
-                    elif event.key in (pygame.K_3, pygame.K_KP3):
-                        world['help_page'] = 3
-                    elif event.key in (pygame.K_TAB, pygame.K_RIGHT):
-                        world['help_page'] = (world.get('help_page', 1) % 3) + 1
-                    elif event.key == pygame.K_LEFT:
-                        world['help_page'] = 3 if world.get('help_page', 1) == 1 else world.get('help_page', 1) - 1
-                    elif event.key in (pygame.K_ESCAPE, pygame.K_h, pygame.K_QUESTION):
-                        world['help_open'] = False
-                    _mark_dirty(world)
-                    continue
+                    # If help guide is open
+                    if world.get('help_open'):
+                        if event.key in (pygame.K_1, pygame.K_KP1, pygame.K_PAGEUP, pygame.K_LEFT):
+                            world['help_page'] = 1
+                        elif event.key in (pygame.K_2, pygame.K_KP2, pygame.K_PAGEDOWN, pygame.K_RIGHT):
+                            world['help_page'] = 2
+                        elif event.key in (pygame.K_3, pygame.K_KP3):
+                            world['help_page'] = 3
+                        elif event.key == pygame.K_TAB:
+                            world['help_page'] = (world.get('help_page', 1) % 3) + 1
+                        elif event.key in (pygame.K_ESCAPE, pygame.K_q, pygame.K_h, pygame.K_QUESTION):
+                            world['help_open'] = False
+                        continue
 
-                # If comparison modal is open, intercept navigation keys
-                if world.get('compare_open'):
-                    if event.key in (pygame.K_1, pygame.K_KP1):
-                        world['compare_tab'] = 1
-                    elif event.key in (pygame.K_2, pygame.K_KP2):
-                        world['compare_tab'] = 2
-                    elif event.key in (pygame.K_3, pygame.K_KP3):
-                        world['compare_tab'] = 3
-                    elif event.key in (pygame.K_4, pygame.K_KP4):
-                        world['compare_tab'] = 4
-                    elif event.key in (pygame.K_5, pygame.K_KP5):
-                        world['compare_tab'] = 5
-                    elif event.key in (pygame.K_TAB, pygame.K_RIGHT):
-                        world['compare_tab'] = (world.get('compare_tab', 1) % 5) + 1
-                    elif event.key == pygame.K_LEFT:
-                        world['compare_tab'] = 5 if world.get('compare_tab', 1) == 1 else world.get('compare_tab', 1) - 1
-                    elif event.key == pygame.K_f:
-                        world['compare_good'] = Goods.food
-                    elif event.key == pygame.K_w:
-                        world['compare_good'] = Goods.wood
-                    elif event.key == pygame.K_u:
-                        world['compare_good'] = Goods.furniture
-                    elif event.key == pygame.K_SPACE:
-                        world['playing'] = not world['playing']
-                        last_tick = now
-                    elif event.key in (pygame.K_n, pygame.K_PERIOD):
-                        world['playing'] = False
-                        step_world(world)
-                    elif event.key in (pygame.K_ESCAPE, pygame.K_c):
+                    # If Sovereign Actions modal is open
+                    if world.get('actions_open') or world.get('actions_modal_open'):
+                        if event.key in (pygame.K_1, pygame.K_KP1):
+                            world['actions_tab'] = 1
+                        elif event.key in (pygame.K_2, pygame.K_KP2):
+                            world['actions_tab'] = 2
+                        elif event.key in (pygame.K_3, pygame.K_KP3):
+                            world['actions_tab'] = 3
+                        elif event.key in (pygame.K_4, pygame.K_KP4):
+                            world['actions_tab'] = 4
+                        elif event.key in (pygame.K_TAB, pygame.K_RIGHT):
+                            world['actions_tab'] = (world.get('actions_tab', 1) % 4) + 1
+                        elif event.key == pygame.K_LEFT:
+                            world['actions_tab'] = 4 if world.get('actions_tab', 1) == 1 else world.get('actions_tab', 1) - 1
+                        elif event.key in (pygame.K_ESCAPE, pygame.K_q):
+                            world['actions_open'] = False
+                            world['actions_modal_open'] = False
+                        continue
+
+                    # If comparison modal is open
+                    if world.get('compare_open') or world.get('comparison_open'):
+                        if event.key in (pygame.K_1, pygame.K_KP1):
+                            world['compare_tab'] = 1
+                        elif event.key in (pygame.K_2, pygame.K_KP2):
+                            world['compare_tab'] = 2
+                        elif event.key in (pygame.K_3, pygame.K_KP3):
+                            world['compare_tab'] = 3
+                        elif event.key in (pygame.K_4, pygame.K_KP4):
+                            world['compare_tab'] = 4
+                        elif event.key in (pygame.K_5, pygame.K_KP5):
+                            world['compare_tab'] = 5
+                        elif event.key in (pygame.K_TAB, pygame.K_RIGHT):
+                            world['compare_tab'] = (world.get('compare_tab', 1) % 5) + 1
+                        elif event.key == pygame.K_LEFT:
+                            world['compare_tab'] = 5 if world.get('compare_tab', 1) == 1 else world.get('compare_tab', 1) - 1
+                        elif event.key == pygame.K_f:
+                            world['compare_good'] = Goods.food
+                        elif event.key == pygame.K_w:
+                            world['compare_good'] = Goods.wood
+                        elif event.key == pygame.K_u:
+                            world['compare_good'] = Goods.furniture
+                        elif event.key in (pygame.K_ESCAPE, pygame.K_c, pygame.K_q):
+                            world['compare_open'] = False
+                            world['comparison_open'] = False
+                        continue
+
+                    # If Fiscal Transfer Dialog is open
+                    if world.get('transfer_dialog', {}).get('open'):
+                        if event.key in (pygame.K_ESCAPE, pygame.K_q):
+                            world['transfer_dialog']['open'] = False
+                        continue
+
+                    # Fallback for any other modal: Escape or Q closes all modals
+                    if event.key in (pygame.K_ESCAPE, pygame.K_q):
                         world['compare_open'] = False
+                        world['comparison_open'] = False
+                        world['actions_open'] = False
+                        world['actions_modal_open'] = False
+                        world['help_open'] = False
+                        if 'transfer_dialog' in world:
+                            world['transfer_dialog']['open'] = False
                     continue
 
+                # ── Regular key bindings (when no modal is open) ──
                 if event.key == pygame.K_ESCAPE:
-                    if world.get('view', 0) != 0:
+                    if world.get('citizen_chart_view', 0) != 0:
+                        world['citizen_chart_view'] = 0
+                    elif world.get('view', 0) != 0:
                         world['view'] = 0
+                    elif is_any_left_panel_open(world):
+                        close_left_panels(world)
+                    elif world.get('selected_region') is not None:
+                        world['selected_region'] = None
+                        world['build_panel_open'] = False
                     else:
                         running = False
                 elif event.key == pygame.K_q:
                     running = False
-                elif event.key == pygame.K_d:
-                    world['actions_open'] = not world.get('actions_open', False)
-                    world['actions_tab'] = 1
-                elif event.key == pygame.K_m:
-                    world['actions_open'] = not world.get('actions_open', False)
-                    world['actions_tab'] = 2
-                elif event.key == pygame.K_c:
-                    world['compare_open'] = not world.get('compare_open', False)
                 elif event.key == pygame.K_r and (event.mod & (pygame.KMOD_META | pygame.KMOD_CTRL)):
                     world = build_world_view(seed=args.seed, terrain_seed=args.terrain_seed, nation_seed=args.nation_seed)
                     world['needs_redraw'] = True
@@ -530,8 +550,6 @@ def main():
                             pops_history[r.name] = region_pop(r)
                     _mark_dirty(world)
                     continue
-                elif event.key == pygame.K_h or event.key == pygame.K_QUESTION:
-                    world['help_open'] = not world.get('help_open', False)
                 elif event.key == pygame.K_SPACE:
                     world['playing'] = not world['playing']
                     last_tick = now
@@ -540,6 +558,9 @@ def main():
                     step_world(world)
                 elif event.key in (pygame.K_h, pygame.K_SLASH, pygame.K_QUESTION):
                     world['help_open'] = not world.get('help_open', False)
+                    _mark_dirty(world)
+                elif event.key == pygame.K_c:
+                    world['compare_open'] = not world.get('compare_open', False)
                     _mark_dirty(world)
                 elif event.key == pygame.K_b:
                     is_open = world.get('build_panel_open', False)
@@ -565,22 +586,6 @@ def main():
                     is_open = world.get('military_panel_open', False)
                     open_left_panel(world, None if is_open else 'military')
                     _mark_dirty(world)
-                elif event.key == pygame.K_ESCAPE:
-                    if world.get('citizen_chart_view', 0) != 0:
-                        world['citizen_chart_view'] = 0
-                    elif world.get('transfer_dialog', {}).get('open'):
-                        world['transfer_dialog']['open'] = False
-                    elif world.get('help_open'):
-                        world['help_open'] = False
-                    elif world.get('actions_open'):
-                        world['actions_open'] = False
-                    elif world.get('compare_open'):
-                        world['compare_open'] = False
-                    elif is_any_left_panel_open(world):
-                        close_left_panels(world)
-                    else:
-                        world['selected_region'] = None
-                    _mark_dirty(world)
                 elif event.key == pygame.K_p:
                     world['panel_tab'] = 'policies' if world.get('panel_tab', 'charts') == 'charts' else 'charts'
                     _mark_dirty(world)
@@ -593,14 +598,13 @@ def main():
                         world['view'] = 0
                 elif event.key == pygame.K_v:
                     world['scope'] = 'nation' if world.get('scope', 'tile') == 'tile' else 'tile'
-                    # Also cycle policy scope
                     curr_sc = world.get('policy_scope', 'tile')
                     world['policy_scope'] = 'province' if curr_sc == 'tile' else ('nation' if curr_sc == 'province' else 'tile')
                     _mark_dirty(world)
                 elif event.key == pygame.K_l:
                     world['layers_collapsed'] = not world.get('layers_collapsed', False)
                     _mark_dirty(world)
-                # Map info layer hotkeys (1..6)
+                # Map info layer hotkeys (1..8)
                 elif event.key in (pygame.K_F1, pygame.K_1, pygame.K_KP1):
                     world['map_layer'] = 'overview'
                     _mark_dirty(world)
@@ -618,16 +622,19 @@ def main():
                     _mark_dirty(world)
                 elif event.key in (pygame.K_F6, pygame.K_6, pygame.K_KP6):
                     world['map_layer'] = 'military'
+                    _mark_dirty(world)
                 elif event.key in (pygame.K_F7, pygame.K_7, pygame.K_KP7):
                     world['map_layer'] = 'enclosure'
                     _mark_dirty(world)
                 elif event.key in (pygame.K_F8, pygame.K_8, pygame.K_KP8):
                     world['map_layer'] = 'exploitation'
                     _mark_dirty(world)
-                elif event.key in (pygame.K_9, pygame.K_KP9):
-                    world['view'] = 9
+                elif event.key in (pygame.K_F9, pygame.K_9, pygame.K_KP9):
+                    world['map_layer'] = 'externalities'
+                    _mark_dirty(world)
                 elif event.key == pygame.K_0:
                     world['view'] = 10 if world.get('view') != 10 else 0
+                    _mark_dirty(world)
                 elif event.key in (pygame.K_r, pygame.K_HOME):
                     reset_cam(world)
                 # WASD and Arrow keys for smooth panning
@@ -659,12 +666,13 @@ def main():
         if not modal_open:
             world['frame'] = (world.get('frame', 0) + 1) % 600
 
-        # ── Hover detection: only redraw if hovered region changed ─────
+        # ── Hover detection: only detect and redraw when NO modal is open ─
         prev_hover = world.get('hover_region')
         world['hover_region'] = None
-        mx, my = mouse_pos
-        if mx < MAP_RIGHT and TOP_BAR_H <= my <= HEIGHT - TICKER_H:
-            world['hover_region'] = tile_at(world, mx, my)
+        if not modal_open:
+            mx, my = mouse_pos
+            if mx < MAP_RIGHT and TOP_BAR_H <= my <= HEIGHT - TICKER_H:
+                world['hover_region'] = tile_at(world, mx, my)
         if world['hover_region'] is not prev_hover:
             _mark_dirty(world)
 

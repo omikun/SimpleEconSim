@@ -78,64 +78,95 @@ def draw_build_panel(surface, world, font, font_small, mouse_pos=None):
     from worldview_left_dock import draw_drawer_top_tabs
     cur_y = draw_drawer_top_tabs(surface, world, x, y + 48, w, 'build', font_small, mouse_pos)
 
-    # ─────────────────────────────────────────────────────────────
-    # Tier 1: Municipal / Tile Level
-    # ─────────────────────────────────────────────────────────────
+    # Sub-Category Bar: [ Industry / Roads ] vs [ Ecology & Sanitation ]
+    active_bcat = world.get('build_subcat', 'industry')
+    cat_w = (w - 20) // 2
+    cat_y = cur_y + 4
+    c1_rect = (x + 8, cat_y, cat_w, 22)
+    c2_rect = (x + 12 + cat_w, cat_y, cat_w, 22)
+    c1_hov = c1_rect[0] <= mx <= c1_rect[0] + cat_w and c1_rect[1] <= my <= c1_rect[1] + 22
+    c2_hov = c2_rect[0] <= mx <= c2_rect[0] + cat_w and c2_rect[1] <= my <= c2_rect[1] + 22
+
+    pygame.draw.rect(surface, (55, 75, 110) if active_bcat == 'industry' else ((40, 48, 65) if c1_hov else (26, 30, 42)), c1_rect, border_radius=4)
+    pygame.draw.rect(surface, ACCENT if active_bcat == 'industry' else (45, 52, 70), c1_rect, 1, border_radius=4)
+    t1 = font_small.render("Industry & State", True, (255, 255, 255) if active_bcat == 'industry' else DIM)
+    surface.blit(t1, t1.get_rect(center=(c1_rect[0] + cat_w // 2, cat_y + 11)))
+
+    pygame.draw.rect(surface, (55, 75, 110) if active_bcat == 'ecology' else ((40, 48, 65) if c2_hov else (26, 30, 42)), c2_rect, border_radius=4)
+    pygame.draw.rect(surface, (130, 220, 160) if active_bcat == 'ecology' else (45, 52, 70), c2_rect, 1, border_radius=4)
+    t2 = font_small.render("Ecology & Health", True, (255, 255, 255) if active_bcat == 'ecology' else (140, 180, 150))
+    surface.blit(t2, t2.get_rect(center=(c2_rect[0] + cat_w // 2, cat_y + 11)))
+
+    cur_y = cat_y + 28
+
     rgov = getattr(pinned, 'gov', None)
     tile_cash = (rgov.agent.cash if rgov else 0.0) + (pinned.bank.deposits.get(rgov.agent, 0.0) if hasattr(pinned, 'bank') and rgov else 0.0)
-    
-    cur_y = _draw_tier_section(
-        surface, world, pinned, nation,
-        icon_kind='municipal',
-        tier_title="Municipal Infrastructure",
-        treasury_label=f"Tile: ${tile_cash:,.0f}",
-        treasury_amt=tile_cash,
-        recipes_keys=['farm', 'granary', 'sawmill', 'workshop'],
-        x=x + 8, y=cur_y, w=w - 16,
-        font=font, font_small=font_small, mouse_pos=mouse_pos
-    )
-
-    # ─────────────────────────────────────────────────────────────
-    # Tier 2: Provincial Public Works
-    # ─────────────────────────────────────────────────────────────
     prov_cash = sum(getattr(t.gov.agent, 'cash', 0.0) + (t.bank.deposits.get(t.gov.agent, 0.0) if hasattr(t, 'bank') else 0.0)
                     for t in (province.tiles if province else (nation.tiles if nation else [pinned])) if getattr(t, 'gov', None))
-    
-    cur_y = _draw_tier_section(
-        surface, world, pinned, nation,
-        icon_kind='province',
-        tier_title="Provincial Public Works",
-        treasury_label=f"Province: ${prov_cash:,.0f}",
-        treasury_amt=prov_cash,
-        recipes_keys=['paved_road', 'river_bridge', 'sanatorium'],
-        x=x + 8, y=cur_y, w=w - 16,
-        font=font, font_small=font_small, mouse_pos=mouse_pos
-    )
-
-    # ─────────────────────────────────────────────────────────────
-    # Tier 3: National Strategic Projects
-    # ─────────────────────────────────────────────────────────────
     nat_cash = (nation.treasury()['total']) if nation else 0.0
 
-    cur_y = _draw_tier_section(
-        surface, world, pinned, nation,
-        icon_kind='crown',
-        tier_title="National Strategic Projects",
-        treasury_label=f"State: ${nat_cash:,.0f}",
-        treasury_amt=nat_cash,
-        recipes_keys=['mountain_pass', 'central_mint', 'military_citadel'],
-        x=x + 8, y=cur_y, w=w - 16,
-        font=font, font_small=font_small, mouse_pos=mouse_pos
-    )
+    if active_bcat == 'ecology':
+        # Ecology & Public Health Subcategory
+        cur_y = _draw_tier_section(
+            surface, world, pinned, nation,
+            icon_kind='municipal',
+            tier_title="Sanitation & Restoration",
+            treasury_label=f"Tile: ${tile_cash:,.0f}",
+            treasury_amt=tile_cash,
+            recipes_keys=['trunk_sewer', 'smoke_scrubber', 'soil_conservation_reserve'],
+            x=x + 8, y=cur_y, w=w - 16,
+            font=font, font_small=font_small, mouse_pos=mouse_pos
+        )
+        cur_y = _draw_tier_section(
+            surface, world, pinned, nation,
+            icon_kind='province',
+            tier_title="Water Purification & Health",
+            treasury_label=f"Province: ${prov_cash:,.0f}",
+            treasury_amt=prov_cash,
+            recipes_keys=['water_filtration_plant', 'sanatorium'],
+            x=x + 8, y=cur_y, w=w - 16,
+            font=font, font_small=font_small, mouse_pos=mouse_pos
+        )
+    else:
+        # Standard Industry & Governance Infrastructure Subcategory
+        cur_y = _draw_tier_section(
+            surface, world, pinned, nation,
+            icon_kind='municipal',
+            tier_title="Municipal Infrastructure",
+            treasury_label=f"Tile: ${tile_cash:,.0f}",
+            treasury_amt=tile_cash,
+            recipes_keys=['farm', 'granary', 'sawmill', 'workshop'],
+            x=x + 8, y=cur_y, w=w - 16,
+            font=font, font_small=font_small, mouse_pos=mouse_pos
+        )
 
-    # ─────────────────────────────────────────────────────────────
-    # Tier 4: Manual Fiscal Equalization
-    # ─────────────────────────────────────────────────────────────
-    _draw_equalization_section(
-        surface, world, pinned, nation,
-        x=x + 8, y=cur_y, w=w - 16,
-        font_small=font_small, mouse_pos=mouse_pos
-    )
+        cur_y = _draw_tier_section(
+            surface, world, pinned, nation,
+            icon_kind='province',
+            tier_title="Provincial Public Works",
+            treasury_label=f"Province: ${prov_cash:,.0f}",
+            treasury_amt=prov_cash,
+            recipes_keys=['paved_road', 'river_bridge'],
+            x=x + 8, y=cur_y, w=w - 16,
+            font=font, font_small=font_small, mouse_pos=mouse_pos
+        )
+
+        cur_y = _draw_tier_section(
+            surface, world, pinned, nation,
+            icon_kind='crown',
+            tier_title="National Strategic Projects",
+            treasury_label=f"State: ${nat_cash:,.0f}",
+            treasury_amt=nat_cash,
+            recipes_keys=['mountain_pass', 'central_mint', 'military_citadel'],
+            x=x + 8, y=cur_y, w=w - 16,
+            font=font, font_small=font_small, mouse_pos=mouse_pos
+        )
+
+        _draw_equalization_section(
+            surface, world, pinned, nation,
+            x=x + 8, y=cur_y, w=w - 16,
+            font_small=font_small, mouse_pos=mouse_pos
+        )
 
 
 def _draw_equalization_section(surface, world, pinned, nation, x, y, w, font_small, mouse_pos=None):
@@ -299,52 +330,74 @@ def build_panel_hit(pos, world) -> bool:
     if drawer_top_tabs_hit(pos, world, x, y + 48, w):
         return True
 
+    # Sub-Category Bar Hit
+    cat_w = (w - 20) // 2
+    cat_y = y + 48 + 24 + 4
+    c1_rect = (x + 8, cat_y, cat_w, 22)
+    c2_rect = (x + 12 + cat_w, cat_y, cat_w, 22)
+    if c1_rect[0] <= mx <= c1_rect[0] + cat_w and c1_rect[1] <= my <= c1_rect[1] + 22:
+        world['build_subcat'] = 'industry'
+        return True
+    if c2_rect[0] <= mx <= c2_rect[0] + cat_w and c2_rect[1] <= my <= c2_rect[1] + 22:
+        world['build_subcat'] = 'ecology'
+        return True
+
     nation = getattr(pinned, 'owner_nation', None)
     if nation is None:
         return True
 
     province = getattr(pinned, 'province', None)
     t = world.get('turn', 1)
+    active_bcat = world.get('build_subcat', 'industry')
 
-    # Check button clicks in each tier (new layout with tabs at y+80, fallback to y+50)
-    for base_y in (y + 48 + 24 + 8, y + 50):
-        cur_y = base_y
-        # 1. Tile Tier
-        rgov = getattr(pinned, 'gov', None)
-        tile_cash = (rgov.agent.cash if rgov else 0.0) + (pinned.bank.deposits.get(rgov.agent, 0.0) if hasattr(pinned, 'bank') and rgov else 0.0)
+    cur_y = cat_y + 28
+    rgov = getattr(pinned, 'gov', None)
+    tile_cash = (rgov.agent.cash if rgov else 0.0) + (pinned.bank.deposits.get(rgov.agent, 0.0) if hasattr(pinned, 'bank') and rgov else 0.0)
+    prov_cash = sum(getattr(tg.gov.agent, 'cash', 0.0) + (tg.bank.deposits.get(tg.gov.agent, 0.0) if hasattr(tg, 'bank') else 0.0)
+                    for tg in (province.tiles if province else (nation.tiles if nation else [pinned])) if getattr(tg, 'gov', None))
+    nat_cash = (nation.treasury()['total']) if nation else 0.0
+
+    if active_bcat == 'ecology':
+        cur_y, tier1_buttons = _get_tier_layout(cur_y, ['trunk_sewer', 'smoke_scrubber', 'soil_conservation_reserve'], x + 8, w - 16)
+        for r_key, btn_rect in tier1_buttons:
+            if btn_rect[0] <= mx <= btn_rect[0] + btn_rect[2] and btn_rect[1] <= my <= btn_rect[1] + btn_rect[3]:
+                _handle_build_click(world, pinned, nation, r_key, tile_cash, t)
+                return True
+
+        cur_y, tier2_buttons = _get_tier_layout(cur_y, ['water_filtration_plant', 'sanatorium'], x + 8, w - 16)
+        for r_key, btn_rect in tier2_buttons:
+            if btn_rect[0] <= mx <= btn_rect[0] + btn_rect[2] and btn_rect[1] <= my <= btn_rect[1] + btn_rect[3]:
+                _handle_build_click(world, pinned, nation, r_key, prov_cash, t)
+                return True
+    else:
         cur_y, tier1_buttons = _get_tier_layout(cur_y, ['farm', 'granary', 'sawmill', 'workshop'], x + 8, w - 16)
         for r_key, btn_rect in tier1_buttons:
             if btn_rect[0] <= mx <= btn_rect[0] + btn_rect[2] and btn_rect[1] <= my <= btn_rect[1] + btn_rect[3]:
                 _handle_build_click(world, pinned, nation, r_key, tile_cash, t)
                 return True
 
-        # 2. Province Tier
-        prov_cash = sum(getattr(tg.gov.agent, 'cash', 0.0) + (tg.bank.deposits.get(tg.gov.agent, 0.0) if hasattr(tg, 'bank') else 0.0)
-                        for tg in (province.tiles if province else nation.tiles) if getattr(tg, 'gov', None))
-        cur_y, tier2_buttons = _get_tier_layout(cur_y, ['paved_road', 'river_bridge', 'sanatorium'], x + 8, w - 16)
+        cur_y, tier2_buttons = _get_tier_layout(cur_y, ['paved_road', 'river_bridge'], x + 8, w - 16)
         for r_key, btn_rect in tier2_buttons:
             if btn_rect[0] <= mx <= btn_rect[0] + btn_rect[2] and btn_rect[1] <= my <= btn_rect[1] + btn_rect[3]:
                 _handle_build_click(world, pinned, nation, r_key, prov_cash, t)
                 return True
 
-        # 3. National Sovereign Tier
-        nat_cash = (nation.treasury()['total']) if nation else 0.0
         cur_y, tier3_buttons = _get_tier_layout(cur_y, ['mountain_pass', 'central_mint', 'military_citadel'], x + 8, w - 16)
         for r_key, btn_rect in tier3_buttons:
             if btn_rect[0] <= mx <= btn_rect[0] + btn_rect[2] and btn_rect[1] <= my <= btn_rect[1] + btn_rect[3]:
                 _handle_build_click(world, pinned, nation, r_key, nat_cash, t)
                 return True
 
-    # 4. Manual Fiscal Equalization Click
-    eq_btn_rect = (x + 8, cur_y + 24, w - 16, 26)
-    if eq_btn_rect[0] <= mx <= eq_btn_rect[0] + eq_btn_rect[2] and eq_btn_rect[1] <= my <= eq_btn_rect[1] + eq_btn_rect[3]:
-        from intents import execute_equalization_grant
-        ok, msg = execute_equalization_grant(world, nation.name, pinned.name, 'national_sovereign', 250.0, t)
-        if ok:
-            world['action_feedback'] = (msg, GREEN, t)
-        else:
-            world['action_feedback'] = (msg, RED, t)
-        return True
+        # 4. Manual Fiscal Equalization Click
+        eq_btn_rect = (x + 8, cur_y + 24, w - 16, 26)
+        if eq_btn_rect[0] <= mx <= eq_btn_rect[0] + eq_btn_rect[2] and eq_btn_rect[1] <= my <= eq_btn_rect[1] + eq_btn_rect[3]:
+            from intents import execute_equalization_grant
+            ok, msg = execute_equalization_grant(world, nation.name, pinned.name, 'national_sovereign', 250.0, t)
+            if ok:
+                world['action_feedback'] = (msg, GREEN, t)
+            else:
+                world['action_feedback'] = (msg, RED, t)
+            return True
 
     return True
 

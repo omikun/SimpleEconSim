@@ -73,9 +73,6 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
     # -------------------------------------------------------------------------
     # CITY / TILE SCOPE POLICIES
     # -------------------------------------------------------------------------
-    # -------------------------------------------------------------------------
-    # CITY / TILE SCOPE POLICIES
-    # -------------------------------------------------------------------------
     if btn_id == 'city_tax_cut':
         return {
             'title': "Municipal Tax Cut [-2%]",
@@ -797,6 +794,10 @@ def _infer_icon_for_btn(btn_id: str, tooltip: dict) -> str:
             'mountain_pass': 'mountain',
             'central_mint': 'finance',
             'military_citadel': 'military',
+            'trunk_sewer': 'civil_engineering',
+            'smoke_scrubber': 'manufacturing',
+            'soil_conservation_reserve': 'grain',
+            'water_filtration_plant': 'municipal',
         }.get(rkey, 'hammer')
     if b.startswith('res_'):
         return b[4:]

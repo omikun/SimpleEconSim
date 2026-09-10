@@ -337,6 +337,29 @@ def _draw_left_city_scope(surface, world, region, nation, start_y, x, w, font, f
                           world=world, region=region, nation=nation)
         else:
             surface.blit(font_small.render("Customary commons fully enclosed.", True, (130, 200, 140)), (x + 16, cur_y + 46))
+        cur_y += card4_h + 8
+
+    # 5. Ecological Regulations & Inputs Card (Phase 3)
+    card5_h = 74
+    c5_rect = (x + 8, cur_y, w - 16, card5_h)
+    pygame.draw.rect(surface, CARD_BG, c5_rect, border_radius=5)
+    pygame.draw.rect(surface, CARD_BORDER, c5_rect, 1, border_radius=5)
+
+    fert_on = getattr(region, 'use_fertilizer', False)
+    pest_on = getattr(region, 'use_pesticides', False)
+    surface.blit(font_small.render("Ecological Inputs & Chemical Agronomy:", True, (130, 215, 160)), (x + 16, cur_y + 8))
+    desc_eco = f"Soil: {getattr(region, 'soil_fertility', 1.0)*100:.0f}% • Nut: {getattr(region, 'nutrition_density', 1.0)*100:.0f}% • Smog: {getattr(region, 'pollution_air', 0.0):.0f}"
+    surface.blit(font_small.render(desc_eco, True, DIM), (x + 16, cur_y + 24))
+
+    bw_half = (w - 38) // 2
+    f_rect = (x + 16, cur_y + 44, bw_half, 22)
+    p_rect = (x + 22 + bw_half, cur_y + 44, bw_half, 22)
+    _draw_gov_btn(surface, f_rect, f"Fert: {'ON' if fert_on else 'OFF'}", font_small, mx, my,
+                  'city_mandate_fertilizer', region, enabled=True, color=GREEN if fert_on else DIM,
+                  world=world, region=region, nation=nation)
+    _draw_gov_btn(surface, p_rect, f"Pest: {'ON' if pest_on else 'OFF'}", font_small, mx, my,
+                  'city_mandate_pesticides', region, enabled=True, color=GREEN if pest_on else DIM,
+                  world=world, region=region, nation=nation)
 
 
 def _draw_left_province_scope(surface, world, region, province, nation, start_y, x, w, font, font_small, mx, my):
@@ -385,7 +408,7 @@ def _draw_left_province_scope(surface, world, region, province, nation, start_y,
     cur_y += card2_h + 8
 
     # 3. Logistics & Tax Harmonization Card
-    card3_h = 78
+    card3_h = 104
     c3_rect = (x + 8, cur_y, w - 16, card3_h)
     pygame.draw.rect(surface, CARD_BG, c3_rect, border_radius=5)
     pygame.draw.rect(surface, CARD_BORDER, c3_rect, 1, border_radius=5)
@@ -400,6 +423,11 @@ def _draw_left_province_scope(surface, world, region, province, nation, start_y,
     r2_rect = (x + 16, cur_y + 50, w - 32, 22)
     _draw_gov_btn(surface, r2_rect, "Harmonize Taxes (Uniform)", font_small, mx, my,
                   'prov_harmonize_taxes', province, enabled=True, color=(240, 200, 120),
+                  world=world, region=region, nation=nation, province=province)
+
+    r3_rect = (x + 16, cur_y + 74, w - 32, 22)
+    _draw_gov_btn(surface, r3_rect, "Fund Soil Conservation ($150)", font_small, mx, my,
+                  'prov_soil_conservation', province, enabled=(prov_cash >= 150.0), color=(140, 230, 170),
                   world=world, region=region, nation=nation, province=province)
 
 

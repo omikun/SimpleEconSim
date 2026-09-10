@@ -1,15 +1,6 @@
 """
-worldview_tooltips_visualizations.py — Tooltips for Phase 1 & 2 Specialized Visualizations.
-
-Provides rich floating tooltips explaining what each mechanism/chart does, what it achieves,
-its strategic utility for the player, and live statistical breakdowns for:
-1. Circuit of Capital Sankey & TRPF Curve (Comparison Modal Tab 4)
-2. 4D Alienation Spider Chart (Citizens / Labor Panel)
-3. The Rebellion Attractor 2D Phase-Space Dynamic Plot (Comparison Modal Tab 5)
-4. The Electoral Struggle & Capitalist Backlash Barometer (Left Governance Panel)
-5. Class Wealth Stratification Pyramid & Lorenz Inequality Curve (Citizens Panel)
-6. Thematic Hex-Map Choropleth Modes 7 & 8 (Land Tenure and Exploitation/Strikes)
-7. All interactive view toggles, scope buttons, and ledger column headers.
+worldview_tooltips_visualizations.py — Tooltips for Phase 1, 2, & 3 Specialized Visualizations.
+Provides rich floating tooltips explaining mechanics, strategic utility, and stats.
 """
 
 from __future__ import annotations
@@ -38,6 +29,9 @@ def build_visualization_tooltip(btn_id: str, world: dict, region=None, nation=No
     tenure = getattr(pinned, 'tenure', None)
     commons_pct = (tenure.commons_access * 100.0) if tenure else 100.0
     rent_collected = getattr(pinned, 'rent_collected_log', [0.0])[-1] if pinned and getattr(pinned, 'rent_collected_log', None) else 0.0
+    prov = province or (getattr(pinned, 'province', None) if pinned else None)
+    prov_gov = getattr(prov, 'gov', None) if prov else None
+    prov_cash = (prov_gov.agent.cash if prov_gov and hasattr(prov_gov, 'agent') else 0.0)
 
     # -------------------------------------------------------------------------
     # 1. COMPARISON MODAL TAB 4: EXTRACTION & CIRCUIT OF CAPITAL
@@ -836,5 +830,164 @@ def build_visualization_tooltip(btn_id: str, world: dict, region=None, nation=No
             'btn_id': btn_id
         }
 
-    return None
+    # -------------------------------------------------------------------------
+    # 8. PHASE 3: EXTERNALITIES, BUILDINGS & ECOLOGICAL POLICIES
+    # -------------------------------------------------------------------------
+    if btn_id == 'layer_externalities':
+        return {
+            'title': "Map Layer 9: Ecological Rift & Pollution",
+            'badge': "METABOLIC RIFT",
+            'badge_col': (100, 215, 140),
+            'category': "Map Overlay",
+            'cost': "Hotkey [9]: Toggles environmental metabolic rift choropleth",
+            'desc': [
+                "Visualizes physical metabolic rift across every territory: soil fertility exhaustion from continuous cropping vs natural regeneration, atmospheric coal smog, and river/aquifer chemical runoff.",
+                "Why Useful to Player: Identify degrading farmlands before famine strikes, locate industrial smog clusters, and plan trunk sewers, scrubbers, and fallow reserves."
+            ],
+            'stats': [
+                ("Soil Fertility", f"{getattr(pinned, 'soil_fertility', 1.0)*100:.0f}%", (120, 220, 140)),
+                ("Nutrition Density", f"{getattr(pinned, 'nutrition_density', 1.0)*100:.0f}%", (240, 200, 80)),
+                ("Smog / Water P.", f"{getattr(pinned, 'pollution_air', 0.0):.0f} / {getattr(pinned, 'pollution_water', 0.0):.0f}", (240, 120, 120)),
+            ],
+            'icon': 'externalities',
+            'btn_id': btn_id
+        }
 
+    if btn_id == 'city_mandate_fertilizer':
+        fert_on = getattr(pinned, 'use_fertilizer', False)
+        return {
+            'title': f"Synthetic Fertilizers: {'Mandated' if fert_on else 'Natural/Banned'}",
+            'badge': "AGRONOMIC SHIFT",
+            'badge_col': (240, 190, 80) if fert_on else GREEN,
+            'category': "Municipal Agronomy Decree",
+            'cost': "Boosts crop yields (+75%), but dilutes food nutrition (1.0 -> 0.70)",
+            'desc': [
+                "Mandates heavy application of synthetic nitrogen fertilizers on arable fields. Massively inflates gross food tonnage (+75%), but causes nutrition density dilution and nitrate river runoff.",
+                "Why Useful to Player: Quells immediate urban grain deficits at the cost of long-term biological health wear and downstream water pollution."
+            ],
+            'stats': [
+                ("Yield Bonus", "+75% Food Output", GREEN),
+                ("Nutrition Density", "1.0 -> 0.70", (240, 140, 50)),
+                ("Downstream Runoff", "+1.2 Water Pollution/t", RED),
+            ],
+            'icon': 'grain',
+            'btn_id': btn_id
+        }
+
+    if btn_id == 'city_mandate_pesticides':
+        pest_on = getattr(pinned, 'use_pesticides', False)
+        return {
+            'title': f"Chemical Pesticides: {'Mandated' if pest_on else 'Organic/Banned'}",
+            'badge': "TOXIC CONTROL",
+            'badge_col': RED if pest_on else GREEN,
+            'category': "Municipal Agronomy Decree",
+            'cost': "Protects crop yield (+40%), but causes acute farmworker toxicity",
+            'desc': [
+                "Mandates chemical spraying to eradicate crop pests. Raises baseline agricultural yields (+40%), but exposes farmworkers to toxic biological wear (+0.04/t) and leaves soil chemical residue.",
+                "Why Useful to Player: Maximizes farm production during critical shortages while trading off farmworker health and longevity."
+            ],
+            'stats': [
+                ("Yield Protection", "+40% Food Output", GREEN),
+                ("Worker Toxicity", "+0.040 Health Attrition/t", RED),
+                ("Soil Residue", "+0.5 Soil Pollution/t", (240, 140, 50)),
+            ],
+            'icon': 'grain',
+            'btn_id': btn_id
+        }
+
+    if btn_id == 'prov_soil_conservation':
+        return {
+            'title': "Provincial Soil Conservation & Fallow Subsidies ($150)",
+            'badge': "REGENERATION",
+            'badge_col': (130, 220, 160),
+            'category': "Provincial Environmental Accord",
+            'cost': "$150 from provincial treasury",
+            'desc': [
+                "Funds legume cover cropping and mandatory fallow rest across all member territories, permanently restoring +10% soil fertility.",
+                "Why Useful to Player: Halts metabolic rift soil depletion without requiring expensive chemical inputs."
+            ],
+            'stats': [
+                ("Fertility Boost", "+10% Across Province", GREEN),
+                ("Provincial Cash", f"${prov_cash:,.0f}", (120, 240, 150) if prov_cash >= 150 else RED),
+            ],
+            'icon': 'province',
+            'btn_id': btn_id
+        }
+
+    if btn_id == 'build_trunk_sewer':
+        return {
+            'title': "Construct Municipal Trunk Sewer ($350)",
+            'badge': "SANITATION",
+            'badge_col': (100, 200, 240),
+            'category': "Municipal Infrastructure",
+            'cost': "Cost: $350 (Takes 2 turns)",
+            'desc': [
+                "Builds an underground brick sewer network, eliminating 70% of urban cholera and waterborne epidemics.",
+                "Why Useful to Player: Drastically cuts urban biological health attrition and stabilizes labor productivity in dense cities."
+            ],
+            'stats': [
+                ("Epidemic Defense", "-70% Water Contamination", GREEN),
+                ("Construction Time", "2 Turns", TEXT),
+            ],
+            'icon': 'civil_engineering',
+            'btn_id': btn_id
+        }
+
+    if btn_id == 'build_smoke_scrubber':
+        return {
+            'title': "Construct Smokestack Wet Scrubber ($300)",
+            'badge': "AIR CLEANING",
+            'badge_col': (160, 210, 255),
+            'category': "Municipal Infrastructure",
+            'cost': "Cost: $300 (Takes 2 turns)",
+            'desc': [
+                "Installs water-condensation filtration towers on industrial smokestacks, filtering out 70% of atmospheric soot and sulfur dioxide into toxic chemical sludge.",
+                "Why Useful to Player: Protects urban populations from respiratory smog wear, though sludge must be managed."
+            ],
+            'stats': [
+                ("Smog Reduction", "-70% Air Pollution", GREEN),
+                ("Side-Effect", "+0.4 Soil Sludge/t", (240, 140, 50)),
+            ],
+            'icon': 'manufacturing',
+            'btn_id': btn_id
+        }
+
+    if btn_id == 'build_soil_conservation_reserve':
+        return {
+            'title': "Construct Agroecological Conservation Reserve ($200)",
+            'badge': "ECOLOGICAL RESTORATION",
+            'badge_col': (130, 220, 160),
+            'category': "Municipal Infrastructure",
+            'cost': "Cost: $200 (Takes 2 turns)",
+            'desc': [
+                "Sets aside protected acreage for agroecological rotation, bio-diverse windbreaks, and nitrogen fixation, boosting annual soil regeneration by +25%.",
+                "Why Useful to Player: Permanently counteracts industrial soil exhaustion and guarantees sustainable food yields."
+            ],
+            'stats': [
+                ("Soil Regen Rate", "+25% Natural Regeneration", GREEN),
+                ("Construction Time", "2 Turns", TEXT),
+            ],
+            'icon': 'grain',
+            'btn_id': btn_id
+        }
+
+    if btn_id == 'build_water_filtration_plant':
+        return {
+            'title': "Construct Provincial Water Filtration Plant ($450)",
+            'badge': "WATER SECURITY",
+            'badge_col': (80, 200, 255),
+            'category': "Provincial Public Works",
+            'cost': "Cost: $450 (Takes 3 turns)",
+            'desc': [
+                "Constructs slow sand-bed gravity filters and aeration cascades, eliminating chemical runoff and municipal effluent across the regional watershed.",
+                "Why Useful to Player: Restores water purity across all downstream settlements and prevents waterborne disease mortality."
+            ],
+            'stats': [
+                ("Water Purity", "-80% Watershed Pollution", GREEN),
+                ("Construction Time", "3 Turns", TEXT),
+            ],
+            'icon': 'municipal',
+            'btn_id': btn_id
+        }
+
+    return None

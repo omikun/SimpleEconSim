@@ -21,6 +21,15 @@ def terrain_bonus(region, good):
         bonuses = getattr(b, 'production_bonuses', {})
         if good in bonuses:
             mult *= bonuses[good]
+    # P3: Metabolic Rift & Soil Fertility for agricultural food crops
+    if good == Goods.food:
+        mult *= getattr(region, 'soil_fertility', 1.0)
+        use_fert = getattr(region, 'use_fertilizer', False) or getattr(region, 'mandate_fertilizer', False)
+        use_pest = getattr(region, 'use_pesticides', False) or getattr(region, 'mandate_pesticides', False)
+        if use_fert:
+            mult *= 1.75
+        if use_pest:
+            mult *= 1.40
     return base * mult
 
 

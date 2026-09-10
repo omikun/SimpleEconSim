@@ -192,6 +192,20 @@ class Region:
         self.tax_distribution_log: list = []  # time-series of multi-tier tax splits {total, municipal, provincial, national}
         self.grievance_sources_log: list = []  # time-series of grievance source breakdowns
 
+        # P3: Metabolic Rift & Externalities Engine
+        self.soil_fertility: float = 1.0  # [0.20, 1.50], baseline 1.0 (degrades with monoculture)
+        self.nutrition_density: float = 1.0  # [0.50, 1.0], baseline 1.0 (degrades with synthetic fertilizers)
+        self.pollution_air: float = 0.0  # [0.0, 100.0], atmospheric smog/particulates
+        self.pollution_water: float = 0.0  # [0.0, 100.0], industrial & nitrate river effluent
+        self.pollution_soil: float = 0.0  # [0.0, 100.0], pesticide toxicity & chemical sludge
+        self.use_fertilizer: bool = False  # municipal/landlord mandate for chemical fertilizers
+        self.use_pesticides: bool = False  # municipal/landlord mandate for chemical pesticides
+        self.soil_fertility_log: list = []  # time-series of soil fertility
+        self.nutrition_density_log: list = []  # time-series of food nutrition density
+        self.pollution_air_log: list = []  # time-series of air pollution
+        self.pollution_water_log: list = []  # time-series of water pollution
+        self.pollution_soil_log: list = []  # time-series of soil toxicity
+
         self.recipes = copy.deepcopy(recipes)
         self.goods = list(goods)
 
@@ -586,6 +600,10 @@ class Region:
         # Alienation, Health Attrition & Despair (P2.2)
         from alienation import step_tile_alienation
         step_tile_alienation(self, t)
+
+        # Metabolic Rift & Externalities Engine (P3)
+        from externalities import step_tile_externalities
+        step_tile_externalities(self, t)
 
         # Charity food distribution
         if legacy:

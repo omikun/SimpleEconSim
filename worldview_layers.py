@@ -31,6 +31,7 @@ MAP_LAYERS = [
     ('military', '6. Military & Defense', '6', (235, 80, 80), 'Troops, garrison strength & border threat'),
     ('enclosure', '7. Land Tenure', '7', (215, 175, 75), 'Customary commons vs enclosed plots'),
     ('exploitation', '8. Exploitation & Strikes', '8', (235, 75, 75), 'Surplus rate s/v & active wildcat strikes'),
+    ('externalities', '9. Ecology & Rift', '9', (100, 215, 140), 'Soil fertility, smog & toxic runoff'),
 ]
 
 DOCK_H = 36 + len(MAP_LAYERS) * (BTN_H + BTN_SPACING) + 4  # 262px
