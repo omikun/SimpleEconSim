@@ -86,9 +86,18 @@ def draw_circuit_of_capital_sankey(surface, world, box_x, box_y, box_w, box_h, f
     surface.blit(section_font.render(f"Marxian Circuit of Capital: {active_nation.name} ({active_nation.currency})", True, ACCENT), (box_x + 20, box_y + 8))
 
     # Switcher buttons across nations
-    nx = box_x + box_w - 360
+    btn_w = 110
+    btn_gap = 6
+    tot_w = len(nations) * (btn_w + btn_gap) - btn_gap
+    # Right-align cleanly with the TRPF card and modal margin (box_x + box_w - 30)
+    right_margin = box_x + box_w - 30
+    nx = right_margin - tot_w
+
     for i, n in enumerate(nations):
-        btn_r = (nx + i * 115, box_y + 8, 110, 24)
+        btn_r = (nx + i * (btn_w + btn_gap), box_y + 8, btn_w, 24)
+        if world is not None:
+            from ui_targets import register_target
+            register_target(world, btn_r, ('circuit_nation', i), tooltip_id='circuit_nation_btn', scope='compare')
         is_sel = (i == n_idx)
         is_hov = btn_r[0] <= mx <= btn_r[0] + btn_r[2] and btn_r[1] <= my <= btn_r[1] + btn_r[3]
         if is_hov:
@@ -101,7 +110,7 @@ def draw_circuit_of_capital_sankey(surface, world, box_x, box_y, box_w, box_h, f
         pygame.draw.rect(surface, bg, btn_r, border_radius=4)
         pygame.draw.rect(surface, (80, 80, 100), btn_r, 1, border_radius=4)
         ts = cell_font.render(n.name[:11], True, (20, 20, 24) if is_sel else (255, 255, 255) if is_hov else TEXT)
-        surface.blit(ts, ts.get_rect(center=(btn_r[0] + 55, btn_r[1] + 12)))
+        surface.blit(ts, ts.get_rect(center=(btn_r[0] + btn_w // 2, btn_r[1] + 12)))
 
     # Compute Capital Circuit Aggregates for Active Nation
     tiles = active_nation.tiles
@@ -294,16 +303,29 @@ def draw_circuit_of_capital_sankey(surface, world, box_x, box_y, box_w, box_h, f
 
 def circuit_sankey_hit(pos, world, box_x, box_y, box_w, box_h):
     """Detect clicks on nation switcher buttons inside Circuit Sankey view."""
+    if world is not None:
+        from ui_targets import find_target
+        tgt = find_target(world, pos, scope='compare')
+        if tgt and isinstance(tgt.action, tuple) and tgt.action[0] == 'circuit_nation':
+            world['compare_circuit_nation'] = tgt.action[1]
+            return True
+
     mx, my = pos
-    nations = world.get('nations', [])
+    nations = world.get('nations', []) if world else []
     if not nations:
         return False
 
-    nx = box_x + box_w - 360
+    btn_w = 110
+    btn_gap = 6
+    tot_w = len(nations) * (btn_w + btn_gap) - btn_gap
+    right_margin = box_x + box_w - 30
+    nx = right_margin - tot_w
+
     for i in range(len(nations)):
-        btn_r = (nx + i * 115, box_y + 8, 110, 24)
+        btn_r = (nx + i * (btn_w + btn_gap), box_y + 8, btn_w, 24)
         if btn_r[0] <= mx <= btn_r[0] + btn_r[2] and btn_r[1] <= my <= btn_r[1] + btn_r[3]:
-            world['compare_circuit_nation'] = i
+            if world is not None:
+                world['compare_circuit_nation'] = i
             return True
     return False
 

@@ -112,6 +112,8 @@ def compare_tab_hit(pos, box_x=0, box_y=0, world=None):
                     world['compare_protest_scope'] = act[1]
                 elif act[0] == 'mode_protest':
                     world['compare_protest_mode'] = act[1]
+                elif act[0] == 'circuit_nation':
+                    world['compare_circuit_nation'] = act[1]
             return act
 
     # Legacy fallback calculation for isolated tests without draw pass
@@ -158,7 +160,7 @@ def compare_tab_hit(pos, box_x=0, box_y=0, world=None):
 
         if world.get('compare_ext_mode') == 'circuit':
             from worldview_vis_circuits import circuit_sankey_hit
-            if circuit_sankey_hit(pos, world, box_x, box_y + 88 + 16, box_w - 60 if 'box_w' in locals() else 1140, 600):
+            if circuit_sankey_hit(pos, world, box_x, box_y + 88 + 16, box_w, 600):
                 return ('circuit_nation', world.get('compare_circuit_nation', 0))
 
     # Scope and Mode sub-selectors on Tab 5: y = box_y + 88
