@@ -373,8 +373,6 @@ def get_cached_topographic_surface(seed, bbox, tiles=None, layout=None, canvas_w
     tile_sig = tuple((t.name, round(getattr(t, 'elevation', 0.0), 3), bool(getattr(t, 'is_ocean', False))) for t in tiles) if tiles else None
     cache_key = (seed, bbox, canvas_w, canvas_h, tile_sig)
     if cache_key in _TOPOGRAPHIC_SURFACE_CACHE:
-        if progress_callback:
-            progress_callback(1.0, "Loaded cached topographic map...")
         return _TOPOGRAPHIC_SURFACE_CACHE[cache_key]
 
     generator = HeightMapGenerator(seed=seed if seed is not None else 42)

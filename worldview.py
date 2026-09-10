@@ -183,10 +183,10 @@ def render_frame(surface, world, mouse_pos=None):
         draw_left_panel_tooltip(surface, world, font_small, mouse_pos=mouse_pos)
 
     # Dynamic map generation loading modal
-    if world.get('loading_modal', {}).get('active'):
-        load_info = world['loading_modal']
+    loading = world.get('loading_modal')
+    if isinstance(loading, dict) and loading.get('active'):
         t_seed = world.get('terrain_seed', world.get('seed', 42))
-        draw_loading_modal(surface, load_info.get('fraction', 0.0), load_info.get('status', 'Synthesizing map...'), seed=t_seed)
+        draw_loading_modal(surface, loading.get('fraction', 0.0), loading.get('status', 'Synthesizing map...'), seed=t_seed)
 
 
 def _mark_dirty(world):
