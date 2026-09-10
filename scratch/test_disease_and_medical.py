@@ -168,9 +168,14 @@ def test_comparison_tab6_and_visualizations():
     print("  -> Tab 6 draw_tab6_ecology rendered cleanly!")
 
     # 2. Scope switching
-    hit = handle_tab6_click(world, 30 + 16 + 160, 20 + 44 + 10, 30, 20, 1340)
+    prov_x = 30 + 20 + 130 + 10
+    prov_y = 20 + 88 + 10
+    hit = handle_tab6_click(world, prov_x, prov_y, 30, 20, 1340)
     assert hit is True, "Should register click on Tab 6 province scope button"
     assert world['compare_eco_scope'] == 'province'
+    # Also verify compare_tab_hit
+    eco_hit = compare_tab_hit((prov_x, prov_y), 30, 20, world)
+    assert eco_hit == ('scope_eco', 'province'), f"compare_tab_hit returned {eco_hit}"
 
     # 3. Tab hit
     res = compare_tab_hit((30 + 20 + 100, 20 + 48 + 10), 30, 20, world)

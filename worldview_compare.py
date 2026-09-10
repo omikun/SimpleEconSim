@@ -155,9 +155,14 @@ def compare_tab_hit(pos, box_x, box_y, world=None):
 
     # Scope sub-selectors on Tab 6: Ecology & Public Health
     if world and world.get('compare_tab') == 6:
-        from worldview_compare_ecology import handle_tab6_click
-        if handle_tab6_click(world, mx, my, box_x, box_y, box_w):
-            return ('scope_eco', world.get('compare_eco_scope', 'country'))
+        sub_y = box_y + 88
+        if sub_y <= my <= sub_y + 28:
+            gx = box_x + 20
+            for s_key in ('country', 'province', 'city'):
+                if gx <= mx <= gx + 120:
+                    world['compare_eco_scope'] = s_key
+                    return ('scope_eco', s_key)
+                gx += 130
 
     return None
 

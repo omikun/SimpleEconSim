@@ -137,7 +137,42 @@ def test_comparison_modal_hover_and_click():
     tab6_pos = (box_x + 20 + 5 * (tab_w + tab_spacing) + tab_w // 2, box_y + 48 + 16)
     hit = compare_tab_hit(tab6_pos, box_x, box_y, world=world)
     assert hit == ('tab', 6), f"Clicking Tab 6 should return ('tab', 6), got {hit}"
+    world['compare_tab'] = 6
     print("  -> Tab 6 click registers accurately!")
+
+    # 4. Tab 6 Scope Switcher Clicks ("By Country", "By Province", "By City / Tile")
+    from worldview_compare_ecology import draw_tab6_ecology
+    content_y = box_y + 96  # 116
+
+    # Button coordinates: box_x + 20 + i * 130, y = box_y + 88 = 108, w = 120, h = 24
+    prov_pos = (box_x + 20 + 1 * 130 + 30, box_y + 88 + 12)
+    city_pos = (box_x + 20 + 2 * 130 + 30, box_y + 88 + 12)
+    country_pos = (box_x + 20 + 0 * 130 + 30, box_y + 88 + 12)
+
+    # Hover over Province button sets tooltip
+    world['_hovered_left_tooltip'] = None
+    draw_tab6_ecology(surface, world, box_x, content_y, box_w, HEIGHT - 40, font, font_small, mouse_pos=prov_pos)
+    assert world.get('_hovered_left_tooltip') is not None, "Hovering over Tab 6 Province button should set tooltip"
+    assert "Province" in world['_hovered_left_tooltip']['title'], "Tooltip title should mention Province"
+    print("  -> Tab 6 scope button hover tooltip works cleanly!")
+
+    # Click Province button
+    hit_prov = compare_tab_hit(prov_pos, box_x, box_y, world=world)
+    assert hit_prov == ('scope_eco', 'province'), f"Expected ('scope_eco', 'province'), got {hit_prov}"
+    assert world['compare_eco_scope'] == 'province', f"world['compare_eco_scope'] should be 'province', got {world['compare_eco_scope']}"
+    print("  -> Tab 6 'By Province' button click switches scope to province successfully!")
+
+    # Click City button
+    hit_city = compare_tab_hit(city_pos, box_x, box_y, world=world)
+    assert hit_city == ('scope_eco', 'city'), f"Expected ('scope_eco', 'city'), got {hit_city}"
+    assert world['compare_eco_scope'] == 'city', f"world['compare_eco_scope'] should be 'city', got {world['compare_eco_scope']}"
+    print("  -> Tab 6 'By City / Tile' button click switches scope to city successfully!")
+
+    # Click Country button
+    hit_country = compare_tab_hit(country_pos, box_x, box_y, world=world)
+    assert hit_country == ('scope_eco', 'country'), f"Expected ('scope_eco', 'country'), got {hit_country}"
+    assert world['compare_eco_scope'] == 'country', f"world['compare_eco_scope'] should be 'country', got {world['compare_eco_scope']}"
+    print("  -> Tab 6 'By Country' button click switches scope back to country successfully!")
 
 
 if __name__ == '__main__':

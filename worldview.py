@@ -291,10 +291,22 @@ def main():
                                 world['compare_tab'] = tab_hit[1]
                             elif tab_hit[0] == 'good':
                                 world['compare_good'] = tab_hit[1]
+                            elif tab_hit[0] == 'scope_eco':
+                                world['compare_eco_scope'] = tab_hit[1]
+                            elif tab_hit[0] == 'scope_ext':
+                                world['compare_ext_scope'] = tab_hit[1]
+                            elif tab_hit[0] == 'mode_ext':
+                                world['compare_ext_mode'] = tab_hit[1]
+                            elif tab_hit[0] == 'scope_protest':
+                                world['compare_protest_scope'] = tab_hit[1]
+                            elif tab_hit[0] == 'mode_protest':
+                                world['compare_protest_mode'] = tab_hit[1]
+                            _mark_dirty(world)
                         # Click outside modal closes it
                         elif event.pos[0] < 30 or event.pos[0] > WIDTH - 30 or event.pos[1] < 20 or event.pos[1] > HEIGHT - 20:
                             world['compare_open'] = False
                             world['comparison_open'] = False
+                            _mark_dirty(world)
                         continue
 
                     # 0d. Check if Sovereign Actions Modal is open

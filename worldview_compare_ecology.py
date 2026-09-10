@@ -114,21 +114,28 @@ def draw_tab6_ecology(surface, world, box_x, box_y, box_w, box_h, font, font_sma
     subtab = world.get('compare_eco_scope', 'country')
 
     # Sub-header: Scope Switcher [ By Country ] [ By Province ] [ By City / Tile ]
-    tab_y = box_y + 44
+    tab_y = box_y - 8
     tab_h = 24
-    btn_w = 150
+    btn_w = 120
 
     scopes = [
-        ('country', "By Sovereign Nation", 'compare_eco_scope_country'),
+        ('country', "By Country", 'compare_eco_scope_country'),
         ('province', "By Province", 'compare_eco_scope_province'),
         ('city', "By City / Tile", 'compare_eco_scope_city'),
     ]
 
     for i, (sc_id, sc_lbl, btn_key) in enumerate(scopes):
-        bx = box_x + 16 + i * (btn_w + 10)
+        bx = box_x + 20 + i * 130
         b_rect = pygame.Rect(bx, tab_y, btn_w, tab_h)
         is_active = (subtab == sc_id)
         is_hover = b_rect.collidepoint(mx, my)
+
+        if is_hover:
+            from worldview_tooltips import get_button_tooltip_data
+            tip = get_button_tooltip_data(btn_key, world)
+            if tip:
+                tip['btn_rect'] = b_rect
+                world['_hovered_left_tooltip'] = tip
 
         bg = (55, 65, 95) if is_active else ((40, 48, 70) if is_hover else (28, 32, 46))
         border = ACCENT if is_active else ((80, 100, 140) if is_hover else CARD_BORDER)
@@ -140,7 +147,7 @@ def draw_tab6_ecology(surface, world, box_x, box_y, box_w, box_h, font, font_sma
         surface.blit(txt, txt.get_rect(center=b_rect.center))
 
     # Analytical Summary Strip
-    content_y = tab_y + tab_h + 10
+    content_y = box_y + 24
     _draw_ecology_summary_cards(surface, world, box_x + 16, content_y, box_w - 32, font, font_small)
 
     table_y = content_y + 68
@@ -465,13 +472,13 @@ def _draw_table_row(surface, x, y, cols, font_small):
 
 def handle_tab6_click(world, mx, my, box_x, box_y, box_w):
     """Handle click events on Tab 6 scope switcher buttons."""
-    tab_y = box_y + 44
+    tab_y = box_y + 88
     tab_h = 24
-    btn_w = 150
+    btn_w = 120
 
     scopes = ['country', 'province', 'city']
     for i, sc_id in enumerate(scopes):
-        bx = box_x + 16 + i * (btn_w + 10)
+        bx = box_x + 20 + i * 130
         b_rect = pygame.Rect(bx, tab_y, btn_w, tab_h)
         if b_rect.collidepoint(mx, my):
             world['compare_eco_scope'] = sc_id
