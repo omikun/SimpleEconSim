@@ -252,7 +252,7 @@ def build_diplomacy_tooltip(btn_id: str, world: dict, nation=None) -> dict | Non
     has_alliance = diplomacy.has_treaty(active_name, target_name, TreatyType.DEFENSIVE_ALLIANCE.value) if (active_name and target_name) else False
 
     if btn_id == 'dip_trade_pact':
-        return {
+        res = {
             'title': "Cancel Trade Pact" if has_trade else "Propose Bilateral Trade Pact",
             'badge': "COMMERCIAL TREATY",
             'badge_col': GREEN if not has_trade else (240, 140, 60),
@@ -271,9 +271,12 @@ def build_diplomacy_tooltip(btn_id: str, world: dict, nation=None) -> dict | Non
             'icon': 'ex',
             'btn_id': btn_id
         }
+        if is_war:
+            res['disabled_reason'] = "Hostile Wartime State: Cannot negotiate bilateral trade pacts while engaged in active war. Conclude a peace treaty first."
+        return res
 
     if btn_id == 'dip_nap':
-        return {
+        res = {
             'title': "Cancel Non-Aggression Pact" if has_nap else "Conclude Non-Aggression Pact",
             'badge': "SECURITY ACCORD",
             'badge_col': ACCENT if not has_nap else (240, 140, 60),
@@ -292,9 +295,12 @@ def build_diplomacy_tooltip(btn_id: str, world: dict, nation=None) -> dict | Non
             'icon': 'shield',
             'btn_id': btn_id
         }
+        if is_war:
+            res['disabled_reason'] = "Hostile Wartime State: Cannot conclude non-aggression pacts while engaged in active war. Conclude a peace treaty first."
+        return res
 
     if btn_id == 'dip_alliance':
-        return {
+        res = {
             'title': "Dissolve Defensive Alliance" if has_alliance else "Form Defensive Alliance",
             'badge': "MILITARY COALITION",
             'badge_col': (80, 200, 255) if not has_alliance else (240, 140, 60),
@@ -313,6 +319,11 @@ def build_diplomacy_tooltip(btn_id: str, world: dict, nation=None) -> dict | Non
             'icon': 'crown',
             'btn_id': btn_id
         }
+        if is_war:
+            res['disabled_reason'] = "Hostile Wartime State: Cannot form a mutual defense coalition while engaged in active war."
+        elif not has_alliance and rel < 0.25:
+            res['disabled_reason'] = f"Relations Too Cold: Forming an alliance requires friendly diplomatic relations > +0.25 (Current: {rel:+.2f})."
+        return res
 
     if btn_id == 'dip_war_peace':
         if is_war:
@@ -356,7 +367,7 @@ def build_diplomacy_tooltip(btn_id: str, world: dict, nation=None) -> dict | Non
 
     if btn_id == 'dip_foreign_aid':
         gov_cash = nation.government.agent.cash if (nation and nation.government) else 0.0
-        return {
+        res = {
             'title': "Send Foreign Aid Grant ($100)",
             'badge': "DIPLOMATIC GIFT",
             'badge_col': (120, 240, 150),
@@ -375,6 +386,59 @@ def build_diplomacy_tooltip(btn_id: str, world: dict, nation=None) -> dict | Non
             'icon': 'treasury',
             'btn_id': btn_id
         }
+        if is_war:
+            res['disabled_reason'] = "Hostile Wartime State: Cannot dispatch sovereign aid grants to an enemy nation during active war."
+        elif gov_cash < 100.0:
+            res['disabled_reason'] = f"Insufficient Sovereign Treasury: Requires $100.00 (Current: ${gov_cash:,.0f})."
+        return res
+
+    if btn_id == 'dip_imperial_coercion':
+        from imperialism import get_imperialism_manager
+        imp_mgr = get_imperialism_manager()
+        rec = imp_mgr.get_active_receivership_on(target_name) if target_name else None
+        has_rec = bool(rec and rec.creditor_nation == active_name and rec.status == 'active')
+        target_defaults = imp_mgr.get_unresolved_defaults_against(target_name, active_name) if target_name else []
+        def_total = sum(d['amount'] for d in target_defaults)
+
+        target_n = next((n for n in world.get('nations', []) if n.name == target_name), None)
+        target_has_coast = any(getattr(t_obj, 'is_coast', False) for t_obj in target_n.tiles) if (target_n and hasattr(target_n, 'tiles')) else False
+        active_mil = any(getattr(u, 'soldiers', 0) > 0 for u in getattr(nation, 'military_units', [])) if nation else False
+        active_cash = nation.government.agent.cash if (nation and nation.government) else 0.0
+
+        res = {
+            'title': "Imperial Coercion & Debt Enforcement",
+            'badge': "FINANCIAL IMPERIALISM",
+            'badge_col': (245, 180, 50),
+            'category': "Geopolitical Debt Enforcement",
+            'cost': "Leverages defaulted sovereign debt or military supremacy",
+            'desc': [
+                "Enforces imperial will on delinquent or weaker states: establishes a Customs Receivership to divert 40% of their tariff/tax receipts, blockades ports to freeze maritime logistics, or demands 0% unequal tariff exemptions.",
+                "100% money conserved: all diverted customs cash flows directly into your sovereign treasury to service defaulted bonds.",
+                "Warning: Stirs severe anti-imperialist popular hatred and grievance across the subject nation's population."
+            ],
+            'stats': [
+                ("Coercion Instrument", "Receivership / Blockade / Unequal Treaty", (245, 180, 50)),
+                ("Subject Nation", target_name or "Target State", TEXT),
+            ],
+            'icon': 'military',
+            'btn_id': btn_id
+        }
+
+        if def_total > 0 and not has_rec:
+            if not (active_mil or active_cash >= 50.0):
+                res['disabled_reason'] = "Enforcement Unavailable: Creditor possesses no active military units and cannot afford $50 fee to hire international enforcement agents."
+        elif is_war and target_has_coast:
+            coast_tile = next((t_obj for t_obj in target_n.tiles if getattr(t_obj, 'is_coast', False)), None)
+            is_blk = imp_mgr.is_tile_blockaded(coast_tile.name) if coast_tile else False
+            if not is_blk and not active_mil:
+                res['disabled_reason'] = "Military Fleet Required: Cannot impose naval blockade without active standing military units or fleet."
+        elif not is_war and not has_rec and def_total <= 0:
+            target_legit = getattr(target_n, 'legitimacy', 0.5) if target_n else 0.5
+            active_legit = getattr(nation, 'legitimacy', 0.5) if nation else 0.5
+            if active_legit <= target_legit + 0.25:
+                res['disabled_reason'] = f"Diplomatic Leverage Too Low: Coercing an unequal treaty requires legitimacy advantage over {target_name} (+0.25 margin) or an unresolved sovereign default."
+
+        return res
 
     return None
 
@@ -428,7 +492,7 @@ def build_debt_tooltip(btn_id: str, world: dict, nation=None) -> dict | None:
         }
 
     if btn_id == 'debt_lobby_isrb':
-        return {
+        res = {
             'title': "Lobby ISRB Credit Rating Agency ($200)",
             'badge': "RATING UPGRADE",
             'badge_col': (120, 240, 150),
@@ -446,9 +510,12 @@ def build_debt_tooltip(btn_id: str, world: dict, nation=None) -> dict | None:
             'icon': 'scale',
             'btn_id': btn_id
         }
+        if gov_cash < 200.0:
+            res['disabled_reason'] = f"Insufficient Sovereign Treasury: Requires $200.00 (Current: ${gov_cash:,.0f})."
+        return res
 
     if btn_id == 'debt_audit_rival':
-        return {
+        res = {
             'title': "Audit Rival Sovereign Finances ($350)",
             'badge': "FINANCIAL WARFARE",
             'badge_col': (245, 180, 50),
@@ -466,9 +533,12 @@ def build_debt_tooltip(btn_id: str, world: dict, nation=None) -> dict | None:
             'icon': 'scale',
             'btn_id': btn_id
         }
+        if gov_cash < 350.0:
+            res['disabled_reason'] = f"Insufficient Sovereign Treasury: Requires $350.00 (Current: ${gov_cash:,.0f})."
+        return res
 
     if btn_id == 'debt_board_seat':
-        return {
+        res = {
             'title': "Acquire Permanent ISRB Board Seat ($600)",
             'badge': "INSTITUTIONAL GOVERNANCE",
             'badge_col': (80, 200, 255),
@@ -487,6 +557,11 @@ def build_debt_tooltip(btn_id: str, world: dict, nation=None) -> dict | None:
             'icon': 'crown',
             'btn_id': btn_id
         }
+        if has_board_seat:
+            res['disabled_reason'] = "Already Owned: Nation already possesses permanent voting governor status on the ISRB Board."
+        elif gov_cash < 600.0:
+            res['disabled_reason'] = f"Insufficient Sovereign Treasury: Requires $600.00 (Current: ${gov_cash:,.0f})."
+        return res
 
     if btn_id.startswith('debt_dur_'):
         d_val = int(btn_id.split('_')[-1])
@@ -538,7 +613,9 @@ def build_debt_tooltip(btn_id: str, world: dict, nation=None) -> dict | None:
         }
 
     if btn_id == 'debt_buy_bond':
-        return {
+        foreign_offerings = [o for o in market.get_live_offerings() if o.issuer_nation != (nation.name if nation else "")]
+        min_p = min((o.principal for o in foreign_offerings), default=500.0)
+        res = {
             'title': "Purchase Foreign Sovereign Bond",
             'badge': "ASSET ACQUISITION",
             'badge_col': (120, 240, 150),
@@ -551,11 +628,100 @@ def build_debt_tooltip(btn_id: str, world: dict, nation=None) -> dict | None:
             ],
             'stats': [
                 ("Reserve Purpose", "Generates passive coupon income and foreign exchange reserves", TEXT),
-                ("Sovereign Treasury", f"${gov_cash:,.0f}", (120, 240, 150)),
+                ("Sovereign Treasury", f"${gov_cash:,.0f}", (120, 240, 150) if gov_cash >= min_p else RED),
             ],
             'icon': 'bank',
             'btn_id': btn_id
         }
+        if not foreign_offerings:
+            res['disabled_reason'] = "No Live Offerings: No foreign sovereign debt is currently offered on the primary market."
+        elif gov_cash < min_p:
+            res['disabled_reason'] = f"Insufficient Sovereign Treasury: Cannot afford bond principal of ${min_p:,.0f} (Available: ${gov_cash:,.0f})."
+        return res
+
+    if btn_id == 'debt_scope_imperial':
+        return {
+            'title': "Financial Imperialism & Dependency",
+            'badge': "CORE-PERIPHERY",
+            'badge_col': (245, 180, 50),
+            'category': "Geopolitical Financial Standing",
+            'cost': "Click to inspect structural dependency, receiverships, and debt decrees",
+            'desc': [
+                "Evaluates your structural standing in the global division of labor (Imperial Core vs Indebted Periphery).",
+                "High external sovereign debt and primary commodity exports expose nations to customs receiverships and gunboat diplomacy.",
+                "Imperial creditor powers can enforce delinquent sovereign bonds via naval blockades or revenue interception."
+            ],
+            'stats': [
+                ("Dependency Metric", "External Debt vs Central Bank Reserves", TEXT),
+            ],
+            'icon': 'scale',
+            'btn_id': btn_id
+        }
+
+    if btn_id == 'debt_repudiate':
+        return {
+            'title': "Repudiate Imperial Debt & Expel Receivers",
+            'badge': "SOVEREIGN REPUDIATION",
+            'badge_col': (255, 60, 60),
+            'category': "Revolutionary Decree",
+            'cost': "Severe Geopolitical Rupture: Immediate war casus belli for imperial creditors",
+            'desc': [
+                "Unilaterally abolishes and repudiates all sovereign bonds held by foreign imperial creditors and expels foreign customs receivers.",
+                "Instantly terminates all revenue interceptions and removes debt service payments from state coffers.",
+                "Warning: Relations with foreign creditors crash to -1.0 and creditors immediately declare a Debt-Enforcement War!"
+            ],
+            'stats': [
+                ("Repudiation Effect", "Abolishes all foreign imperial debt obligations", (255, 80, 80)),
+                ("Diplomatic Fallout", "Bilateral relations collapse to -1.0 (WAR)", RED),
+            ],
+            'icon': 'alert',
+            'btn_id': btn_id
+        }
+
+    if btn_id == 'debt_moratorium':
+        return {
+            'title': "Sovereign Debt Moratorium",
+            'badge': "DEBT FREEZE",
+            'badge_col': (245, 180, 50),
+            'category': "Emergency Fiscal Decree",
+            'cost': "Rating Penalty: Freezes coupon payments; lowers ISRB credit rating",
+            'desc': [
+                "Temporarily halts coupon and principal servicing to foreign bondholders during acute fiscal distress.",
+                "Protects domestic treasury reserves to maintain essential public spending.",
+                "Warning: Strains relations with creditors and increases the risk of gunboat debt-enforcement ultimatums."
+            ],
+            'stats': [
+                ("Moratorium Status", "PAUSE COUPONS", (245, 180, 50)),
+            ],
+            'icon': 'scale',
+            'btn_id': btn_id
+        }
+
+    if btn_id == 'debt_accept_receivership':
+        from imperialism import get_imperialism_manager
+        imp_mgr = get_imperialism_manager()
+        unresolved = imp_mgr.get_unresolved_defaults_against(nation.name) if nation else []
+        res = {
+            'title': "Accept Creditor Customs Receivership",
+            'badge': "DEBT RESTRUCTURING",
+            'badge_col': (240, 180, 50),
+            'category': "Sovereign Debt Settlement",
+            'cost': "Loss of Sovereignty: 40% of trade tariffs and taxes diverted to creditor",
+            'desc': [
+                "Peacefully submits to an imperial customs receivership to restructure defaulted sovereign bonds.",
+                "Diverts 40% of customs revenue directly to bondholders until delinquent debt is amortized.",
+                "Avoids catastrophic gunboat debt-enforcement wars and foreign naval blockades."
+            ],
+            'stats': [
+                ("Revenue Intercept", "40% of Tariffs & Sales Taxes", (240, 180, 50)),
+                ("Conflict Avoidance", "Prevents gunboat war and naval blockades", GREEN),
+            ],
+            'icon': 'check',
+            'btn_id': btn_id
+        }
+        if not unresolved:
+            res['disabled_reason'] = "No Delinquent Defaults: Sovereign debt obligations are in good standing; no receivership is pending."
+        return res
 
     return None
 
@@ -570,7 +736,8 @@ def build_military_tooltip(btn_id: str, world: dict, region=None, nation=None) -
         pinned = region or world.get('selected_region')
         tile_name = getattr(pinned, 'display_name', getattr(pinned, 'city_name', pinned.name)) if pinned else "Selected Territory"
         gov_cash = nation.government.agent.cash if (nation and nation.government) else 0.0
-        return {
+        is_owned = (pinned in getattr(nation, 'tiles', [])) if (pinned and nation) else False
+        res = {
             'title': f"Recruit Garrison Division in {tile_name}",
             'badge': "MILITARY LEVY",
             'badge_col': (235, 90, 90),
@@ -590,5 +757,10 @@ def build_military_tooltip(btn_id: str, world: dict, region=None, nation=None) -
             'icon': 'military',
             'btn_id': btn_id
         }
+        if not is_owned:
+            res['disabled_reason'] = "Uncontrolled Territory: Must select a territory owned by your nation to mobilize standing army divisions."
+        elif gov_cash < 15.0:
+            res['disabled_reason'] = f"Insufficient Sovereign Treasury: Requires $15.00 recruitment levy (Current: ${gov_cash:,.0f})."
+        return res
 
     return None

@@ -76,6 +76,10 @@ def build_world_view(seed=None, terrain_seed=None, nation_seed=None):
 
 
 def ticker_push(world, t, kind, text, color, n=140):
+    if not isinstance(world, dict):
+        return
+    if 'ticker_events' not in world:
+        world['ticker_events'] = []
     world['ticker_events'].append({'t': t, 'kind': kind, 'text': text,
                                    'color': color})
     if len(world['ticker_events']) > n:

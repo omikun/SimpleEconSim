@@ -776,6 +776,46 @@ def _execute_policy_action(world, act_id, target):
         from labor_politics import subsidize_mass_entertainment
         ok, msg = subsidize_mass_entertainment(target, cost=50.0)
         world['policy_feedback'] = (msg, (70, 195, 235) if ok else RED)
+    elif act_id == 'nat_restore_commons':
+        restored = False
+        for r in target.tiles:
+            tenure = getattr(r, 'tenure', None)
+            if tenure and tenure.enclosed_plots():
+                p = tenure.enclosed_plots()[0]
+                tenure.revert_plot_to_commons(p.plot_id, world['turn'])
+                restored = True
+                r.unrest_level = max(0.0, getattr(r, 'unrest_level', 0.0) - 0.3)
+                target.legitimacy = min(1.0, getattr(target, 'legitimacy', 0.5) + 0.08)
+                msg = f"Decreed Restoration of Ancestral Commons on {r.name}! (Commons: {tenure.commons_access*100:.0f}%)"
+                world['policy_feedback'] = (msg, GREEN)
+                from worldview_engine import ticker_push
+                ticker_push(world, world['turn'], 'POLICY', msg, (120, 240, 140))
+                break
+        if not restored:
+            world['policy_feedback'] = ("No enclosed plots remain to restore to commons.", (245, 180, 50))
+    elif act_id == 'nat_martial_law':
+        active_units = [u for u in getattr(target, 'military_units', []) if getattr(u, 'soldiers', 0) > 0]
+        if not active_units:
+            world['policy_feedback'] = ("Cannot declare Martial Law: Nation has no active standing military units!", (240, 60, 60))
+            return
+        from popular_resistance import get_popular_resistance_manager
+        res_mgr = get_popular_resistance_manager()
+        cleared_strikes = 0
+        cleared_barricades = 0
+        for r in target.tiles:
+            st = res_mgr.get_state(r.name)
+            if st.has_barricades:
+                st.has_barricades = False
+                cleared_barricades += 1
+            if st.is_general_strike:
+                st.is_general_strike = False
+                cleared_strikes += 1
+            r.unrest_level = max(0.0, getattr(r, 'unrest_level', 0.0) - 0.5)
+            apply_repression(r, world['turn'], cost_legitimacy=0.10)
+        msg = f"Martial Law declared! Army dismantled {cleared_barricades} barricades and suppressed {cleared_strikes} strikes."
+        world['policy_feedback'] = (msg, (240, 80, 80))
+        from worldview_engine import ticker_push
+        ticker_push(world, world['turn'], 'MILITARY', msg, (240, 80, 80))
 
     # Frontier Actions
     elif act_id == 'frontier_expedition':

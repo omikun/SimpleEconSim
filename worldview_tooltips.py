@@ -66,7 +66,7 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
     # CITY / TILE SCOPE POLICIES
     # -------------------------------------------------------------------------
     if btn_id == 'city_tax_cut':
-        return {
+        res = {
             'title': "Municipal Tax Cut [-2%]",
             'badge': "DISPOSABLE CASH",
             'badge_col': (120, 240, 150),
@@ -83,9 +83,12 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
                 ("City Population", f"{pop_count} Citizens", TEXT),
             ]
         }
+        if tax_rate <= 0.02:
+            res['disabled_reason'] = "Statutory Tax Floor Reached: Municipal income tax cannot be lowered below 2.0%."
+        return res
 
     if btn_id == 'city_tax_raise':
-        return {
+        res = {
             'title': "Municipal Tax Hike [+2%]",
             'badge': "TREASURY YIELD",
             'badge_col': (245, 180, 50),
@@ -102,6 +105,9 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
                 ("Hungry Citizens", f"{hungry}", RED if hungry > 0 else GREEN),
             ]
         }
+        if tax_rate >= 0.60:
+            res['disabled_reason'] = "Statutory Tax Ceiling Reached: Municipal income tax cannot be raised above 60.0%."
+        return res
 
     if btn_id in ('city_toggle_ubi', 'city_ubi'):
         ubi_on = getattr(gov, 'ubi_enabled', getattr(gov, 'ubi_active', False)) if gov else False
@@ -128,7 +134,7 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
         }
 
     if btn_id in ('city_emergency_food', 'city_food_relief'):
-        return {
+        res = {
             'title': "Emergency Grain Relief ($50)",
             'badge': "FAMINE RESCUE",
             'badge_col': GREEN,
@@ -144,10 +150,13 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
                 ("Treasury Cash", f"${tile_cash:,.0f}", (120, 240, 150) if tile_cash >= 50 else RED),
             ]
         }
+        if tile_cash < 50.0:
+            res['disabled_reason'] = f"Insufficient Municipal Treasury: Requires $50.00 (Current: ${tile_cash:,.0f})."
+        return res
 
     if btn_id == 'city_farm_subsidy':
         fert = pinned.terrain.get('food', 1.0) if (pinned and hasattr(pinned, 'terrain')) else 1.0
-        return {
+        res = {
             'title': "Agricultural Development Subsidy ($100)",
             'badge': "FOOD PRODUCTION",
             'badge_col': (130, 210, 140),
@@ -163,10 +172,13 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
                 ("Treasury Cash", f"${tile_cash:,.0f}", (120, 240, 150) if tile_cash >= 100 else RED),
             ]
         }
+        if tile_cash < 100.0:
+            res['disabled_reason'] = f"Insufficient Municipal Treasury: Requires $100.00 (Current: ${tile_cash:,.0f})."
+        return res
 
     if btn_id in ('city_safety_patrol', 'city_police_curfew'):
-        return {
-            'title': "Constabulary Patrol & Curfew ($60)",
+        res = {
+            'title': "Constabulary Patrol ($60)" if btn_id == 'city_safety_patrol' else "Police Curfew Decree",
             'badge': "PUBLIC ORDER",
             'badge_col': (240, 100, 100),
             'category': "Civil Security & Law Enforcement",
@@ -181,10 +193,17 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
                 ("Treasury Cash", f"${tile_cash:,.0f}", (120, 240, 150) if tile_cash >= 60 else RED),
             ]
         }
+        if btn_id == 'city_police_curfew':
+            u_level = getattr(pinned, 'unrest_level', 0.0) if pinned else 0.0
+            if u_level < 1.50 and protest_e < 0.40:
+                res['disabled_reason'] = f"Civil Order Stable (Unrest {u_level:.2f} < 1.50): Curfew is restricted to active civil unrest or riots."
+        elif tile_cash < 60.0:
+            res['disabled_reason'] = f"Insufficient Municipal Treasury: Requires $60.00 (Current: ${tile_cash:,.0f})."
+        return res
 
     if btn_id == 'city_recruit_garrison':
         garrison = sum(u.soldiers for u in getattr(pinned, 'military_units', [])) if pinned else 0
-        return {
+        res = {
             'title': "Recruit 5 Garrison Soldiers ($50)",
             'badge': "MILITARY DEFENSE",
             'badge_col': (100, 180, 240),
@@ -199,6 +218,9 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
                 ("Treasury Cash", f"${tile_cash:,.0f}", (120, 240, 150) if tile_cash >= 50 else RED),
             ]
         }
+        if tile_cash < 50.0:
+            res['disabled_reason'] = f"Insufficient Municipal Treasury: Requires $50.00 (Current: ${tile_cash:,.0f})."
+        return res
 
     if btn_id == 'city_enclose_plot':
         tenure = getattr(pinned, 'tenure', None) if pinned else None
@@ -209,7 +231,7 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
             f_plot = next((p for p in tenure.plots if getattr(getattr(p, 'tenure', None), 'name', '') == 'FEUDAL'), None)
             if f_plot:
                 fee = calculate_charter_fee(f_plot)
-        return {
+        res = {
             'title': "Enclose Common Land (Crown Charter)",
             'badge': "FEUDAL PRIVATIZATION",
             'badge_col': (230, 140, 70),
@@ -225,12 +247,15 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
                 ("Statutory Fee Inflow", f"+${fee:.0f} to Gov", GREEN),
             ]
         }
+        if feudal_pct <= 0:
+            res['disabled_reason'] = "No Feudal Commons Remaining: All agricultural plots are already enclosed into commercial estates."
+        return res
 
     # -------------------------------------------------------------------------
     # PROVINCE SCOPE POLICIES
     # -------------------------------------------------------------------------
     if btn_id == 'prov_pave_highway':
-        return {
+        res = {
             'title': "Pave Regional Highway Corridor ($120)",
             'badge': "LOGISTICS ACCEL",
             'badge_col': (100, 200, 240),
@@ -246,9 +271,12 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
                 ("Territory Count", f"{len(getattr(prov, 'tiles', []))} Cities", TEXT),
             ]
         }
+        if prov_cash < 120.0:
+            res['disabled_reason'] = f"Insufficient Provincial Treasury: Requires $120.00 (Current: ${prov_cash:,.0f})."
+        return res
 
     if btn_id == 'prov_healthcare':
-        return {
+        res = {
             'title': "Regional Health & Sanitation ($150)",
             'badge': "EPIDEMIC SHIELD",
             'badge_col': (240, 120, 140),
@@ -263,9 +291,12 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
                 ("Provincial Treasury", f"${prov_cash:,.0f}", (120, 240, 150) if prov_cash >= 150 else RED),
             ]
         }
+        if prov_cash < 150.0:
+            res['disabled_reason'] = f"Insufficient Provincial Treasury: Requires $150.00 (Current: ${prov_cash:,.0f})."
+        return res
 
     if btn_id == 'prov_equalization':
-        return {
+        res = {
             'title': "Provincial Fiscal Equalization ($200)",
             'badge': "BANK RECAPITALIZE",
             'badge_col': (245, 215, 110),
@@ -280,6 +311,9 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
                 ("Provincial Treasury", f"${prov_cash:,.0f}", (120, 240, 150) if prov_cash >= 200 else RED),
             ]
         }
+        if prov_cash < 200.0:
+            res['disabled_reason'] = f"Insufficient Provincial Treasury: Requires $200.00 (Current: ${prov_cash:,.0f})."
+        return res
 
     if btn_id == 'prov_harmonize_taxes':
         return {
@@ -299,11 +333,11 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
 
     if btn_id == 'prov_standardize_routes':
         return {
-            'title': "Standardize Transport Routes",
+            'title': "Standardize Transport Routes ($100)",
             'badge': "TRADE INTEGRATION",
             'badge_col': (130, 210, 140),
             'category': "Provincial Logistics",
-            'cost': "Cost: Free (Administrative Accord)",
+            'cost': "Cost: $100 administrative accord from provincial treasury",
             'desc': [
                 "Harmonizes regional toll charges, wagon axle standards, and river navigation rules to streamline inter-city freight traffic."
             ],
@@ -311,6 +345,26 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
                 ("Provincial Treasury", f"${prov_cash:,.0f}", (120, 240, 150)),
             ]
         }
+
+    if btn_id == 'prov_soil_conservation':
+        res = {
+            'title': "Fund Soil Conservation Program ($150)",
+            'badge': "ECOLOGY GRANT",
+            'badge_col': (140, 230, 170),
+            'category': "Provincial Agriculture & Ecology",
+            'cost': "Cost: $150 from provincial treasury",
+            'desc': [
+                "Enacts contour plowing, windbreak planting, and cover-cropping incentives across provincial agricultural land.",
+                "Halts topsoil erosion, restores degraded silt reserves, and boosts long-term soil moisture and fertility.",
+                "Money Destination: Disbursed to regional farming syndicates and soil conservators for tree seedlings, terracing stone, and restorative legumes."
+            ],
+            'stats': [
+                ("Provincial Treasury", f"${prov_cash:,.0f}", (120, 240, 150) if prov_cash >= 150 else RED),
+            ]
+        }
+        if prov_cash < 150.0:
+            res['disabled_reason'] = f"Insufficient Provincial Treasury: Requires $150.00 (Current: ${prov_cash:,.0f})."
+        return res
 
     # -------------------------------------------------------------------------
     # NATION SCOPE POLICIES
@@ -385,7 +439,7 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
         }
 
     if btn_id == 'nat_science_prize':
-        return {
+        res = {
             'title': "Royal Innovation Prize Bounty ($300)",
             'badge': "TECH BREAKTHROUGH",
             'badge_col': (180, 140, 240),
@@ -399,25 +453,31 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
                 ("Sovereign Treasury", f"${nat_cash:,.0f}", (120, 240, 150) if nat_cash >= 300 else RED),
             ]
         }
+        if nat_cash < 300.0:
+            res['disabled_reason'] = f"Insufficient Sovereign Treasury: Requires $300.00 (Current: ${nat_cash:,.0f})."
+        return res
 
     if btn_id == 'nat_mobilize_army':
-        return {
-            'title': "Mobilize Standing Army ($250)",
+        res = {
+            'title': "Mobilize Standing Army ($150)",
             'badge': "EXPEDITIONARY FORCE",
             'badge_col': (235, 90, 90),
             'category': "Sovereign Defense Command",
-            'cost': "Cost: $250 mobilization & armaments levy",
+            'cost': "Cost: $150 mobilization & armaments levy",
             'desc': [
                 "Levies and equips an elite national army division under direct sovereign command, capable of maneuvering across the hex world.",
                 "Money Destination: Paid to military foundries, ordnance contractors, and standing soldier enlistment bounties."
             ],
             'stats': [
-                ("Sovereign Treasury", f"${nat_cash:,.0f}", (120, 240, 150) if nat_cash >= 250 else RED),
+                ("Sovereign Treasury", f"${nat_cash:,.0f}", (120, 240, 150) if nat_cash >= 150 else RED),
             ]
         }
+        if nat_cash < 150.0:
+            res['disabled_reason'] = f"Insufficient Sovereign Treasury: Requires $150.00 (Current: ${nat_cash:,.0f})."
+        return res
 
     if btn_id == 'nat_sovereign_grant':
-        return {
+        res = {
             'title': "Sovereign Development Grant ($250)",
             'badge': "NATIONAL COHESION",
             'badge_col': (245, 215, 110),
@@ -431,10 +491,13 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
                 ("Sovereign Treasury", f"${nat_cash:,.0f}", (120, 240, 150) if nat_cash >= 250 else RED),
             ]
         }
+        if nat_cash < 250.0:
+            res['disabled_reason'] = f"Insufficient Sovereign Treasury: Requires $250.00 (Current: ${nat_cash:,.0f})."
+        return res
 
     if btn_id == 'nat_ten_hour_act':
         has_ten = getattr(owner, 'ten_hour_act', False) if owner else False
-        return {
+        res = {
             'title': "The Ten-Hour Act (Statutory Workday Cap)",
             'badge': "PRO-LABOR MANDATE" if not has_ten else "LAW ENFORCED",
             'badge_col': GREEN if not has_ten else ACCENT,
@@ -450,10 +513,13 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
                 ("Current Status", "ENACTED" if has_ten else "PENDING DECREE", ACCENT if not has_ten else GREEN),
             ]
         }
+        if has_ten:
+            res['disabled_reason'] = "Statute Already Enacted: The Ten-Hour Workday Act has already been codified into sovereign law."
+        return res
 
     if btn_id == 'nat_safety_mandate':
         has_safe = getattr(owner, 'factory_safety_act', False) if owner else False
-        return {
+        res = {
             'title': "Factory Safety Standards Mandate",
             'badge': "WORKPLACE GUARDS" if not has_safe else "LAW ENFORCED",
             'badge_col': GREEN if not has_safe else ACCENT,
@@ -467,9 +533,12 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
                 ("Safety Regulation", "MANDATED" if has_safe else "UNREGULATED", GREEN if has_safe else RED),
             ]
         }
+        if has_safe:
+            res['disabled_reason'] = "Statute Already Enacted: The Factory Safety Mandate has already been codified into sovereign law."
+        return res
 
     if btn_id == 'nat_subsidize_entertainment':
-        return {
+        res = {
             'title': "Subsidize Mass Spectacle & Amusements ($50)",
             'badge': "POPULAR PACIFIER",
             'badge_col': (70, 195, 235),
@@ -484,17 +553,72 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
                 ("Sovereign Treasury", f"${nat_cash:,.0f}", (120, 240, 150) if nat_cash >= 50 else RED),
             ]
         }
+        if nat_cash < 50.0:
+            res['disabled_reason'] = f"Insufficient Sovereign Treasury: Requires $50.00 (Current: ${nat_cash:,.0f})."
+        return res
+
+    if btn_id == 'nat_restore_commons':
+        res = {
+            'title': "Restore Ancestral Commons",
+            'badge': "AGRARIAN REFORM",
+            'badge_col': (120, 220, 140),
+            'category': "Land Tenure & Common Usufruct",
+            'cost': "Gentry Opposition: Alienates landlords while calming peasant unrest",
+            'desc': [
+                "De-encloses 1 privatized plot, restoring customary foraging and gleaning access to customary commons (TenureStatus.COMMONS).",
+                "Reverses peasant dispossession, allows hungry landless serfs to forage wild food, and lowers dangerous rural insurrection fever.",
+                "Trade-off: Gentry landlords lose cash rent rights on the de-enclosed parcel."
+            ],
+            'stats': [
+                ("Peasant Unrest", f"-0.30 Unrest Drop", GREEN),
+                ("Legitimacy Bonus", f"+0.08 Consent Drift", (120, 220, 140)),
+            ]
+        }
+        from land_tenure import TenureStatus
+        any_enclosed = False
+        if owner and hasattr(owner, 'tiles'):
+            for t in owner.tiles:
+                tenure = getattr(t, 'tenure', None)
+                if tenure and hasattr(tenure, 'plots'):
+                    if any(getattr(p, 'tenure', None) == TenureStatus.ENCLOSED for p in tenure.plots):
+                        any_enclosed = True
+                        break
+        if not any_enclosed:
+            res['disabled_reason'] = "All Agricultural Plots Already Commons: No enclosed parcels remain within sovereign territory to restore."
+        return res
+
+    if btn_id == 'nat_martial_law':
+        res = {
+            'title': "Declare Martial Law & Bust Unions",
+            'badge': "STATE COERCION",
+            'badge_col': (240, 80, 80),
+            'category': "Counter-Insurgency & Repression",
+            'cost': "Repression Memory: -0.10 Legitimacy and accrues long-term public trauma",
+            'desc': [
+                "Mobilizes state bayonets and gendarmes to dismantle worker barricades and forcibly break regional general strikes.",
+                "Restores factory production and clears transport routes immediately.",
+                "Warning: Writes severe broken promises and casualty memories, causing future grievances to explode in the next political cycle."
+            ],
+            'stats': [
+                ("Direct Effect", "Clears all barricades & general strikes", (240, 100, 100)),
+                ("Legitimacy Hit", "-0.10 Consent Drop", RED),
+            ]
+        }
+        active_units = [u for u in getattr(owner, 'military_units', []) if getattr(u, 'soldiers', 0) > 0] if owner else []
+        if not active_units:
+            res['disabled_reason'] = "Military Force Required: Nation has no active standing military units to enforce martial law and clear barricades."
+        return res
 
     # -------------------------------------------------------------------------
     # FRONTIER WILDERNESS POLICIES
     # -------------------------------------------------------------------------
     if btn_id == 'frontier_expedition':
-        return {
+        res = {
             'title': "Sponsor Frontier Pioneer Expedition",
             'badge': "TERRITORIAL EXPANSION",
             'badge_col': GREEN,
             'category': "Wilderness Colonization",
-            'cost': "Cost: Outfits 5 homesteaders with tools and grain rations",
+            'cost': "Cost: Outfits 5 homesteaders with tools and grain rations ($100)",
             'desc': [
                 "Dispatches 5 brave pioneer families to homestead the uncolonized tile.",
                 "Settlers clear brush, build log cabins, and gather wilderness food.",
@@ -505,6 +629,9 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
                 ("Tile Name", getattr(pinned, 'display_name', getattr(pinned, 'city_name', pinned.name)) if pinned else "Frontier", TEXT),
             ]
         }
+        if tile_cash < 100.0 and nat_cash < 100.0:
+            res['disabled_reason'] = f"Insufficient Treasury: Requires $100.00 (Available: ${max(tile_cash, nat_cash):,.0f})."
+        return res
 
     if btn_id == 'frontier_pioneer_grant':
         return {
@@ -547,6 +674,8 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
         else:
             status_txt = f"Ready to Construct ({recipe.base_turns} Turns)"
 
+        tier_cash = tile_cash if recipe.tier == 'tile' else (prov_cash if recipe.tier == 'province' else nat_cash)
+
         recipe_icons = {
             'farm': 'grain',
             'granary': 'granary',
@@ -554,13 +683,18 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
             'workshop': 'manufacturing',
             'paved_road': 'civil_engineering',
             'river_bridge': 'civil_engineering',
-            'sanatorium': 'municipal',
+            'sanatorium': 'health',
             'mountain_pass': 'mountain',
             'central_mint': 'finance',
             'military_citadel': 'military',
+            'trunk_sewer': 'civil_engineering',
+            'smoke_scrubber': 'factory',
+            'soil_conservation_reserve': 'farm',
+            'municipal_clinic': 'health',
+            'water_filtration_plant': 'civil_engineering',
         }
 
-        return {
+        res = {
             'title': f"Construct {recipe.display_name}",
             'badge': f"{recipe.tier.upper()} TIER",
             'badge_col': (120, 200, 240) if recipe.tier == 'tile' else ((245, 205, 90) if recipe.tier == 'province' else (240, 120, 120)),
@@ -580,11 +714,62 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
             'icon': recipe_icons.get(clean_bkey, 'hammer'),
             'btn_id': btn_id
         }
+        if is_built:
+            res['disabled_reason'] = "Structure Already Installed: Capital asset is already operating on this territory."
+        elif active_proj is not None:
+            pct = active_proj.turns_elapsed / max(1, active_proj.total_turns)
+            res['disabled_reason'] = f"Under Active Construction: Project is {int(pct*100)}% complete ({active_proj.turns_elapsed}/{active_proj.total_turns} turns)."
+        elif tier_cash < recipe.cost:
+            res['disabled_reason'] = f"Insufficient {tier_str} Treasury: Requires ${recipe.cost:,.0f} (Available: ${tier_cash:,.0f})."
+        return res
+
+    # -------------------------------------------------------------------------
+    # BUILD SUBCATEGORY SWITCHERS
+    # -------------------------------------------------------------------------
+    if btn_id == 'build_subcat_industry':
+        return {
+            'title': "Build Category: Industry & State Works",
+            'badge': "CIVIC & MILITARY",
+            'badge_col': ACCENT,
+            'category': "Infrastructure Catalog",
+            'cost': "Click to inspect industrial, logistical, and state infrastructure",
+            'desc': [
+                "Blueprints for commodity processing, transport corridors, and sovereign defenses:",
+                "farms, granaries, sawmills, artisan workshops, regional highways, river bridges,",
+                "alpine mountain passes, central mints, and military citadels."
+            ],
+            'stats': [
+                ("Catalog Focus", "Production, Transport & Defense", ACCENT),
+                ("Municipal Treasury", f"${tile_cash:,.0f}", (120, 240, 150)),
+            ],
+            'icon': 'hammer',
+            'btn_id': btn_id
+        }
+
+    if btn_id == 'build_subcat_ecology':
+        return {
+            'title': "Build Category: Ecology & Sanitation",
+            'badge': "METABOLIC RIFT & HEALTH",
+            'badge_col': (120, 220, 140),
+            'category': "Infrastructure Catalog",
+            'cost': "Click to inspect environmental remediation and public health works",
+            'desc': [
+                "Blueprints for metabolic rift repair, pollution abatement, and epidemic healthcare:",
+                "brick trunk sewers, industrial wet smoke scrubbers, soil conservation reserves,",
+                "municipal clinics, water filtration plants, and regional sanatoriums."
+            ],
+            'stats': [
+                ("Catalog Focus", "Sanitation, Soil Restoration & Clinics", (120, 220, 140)),
+                ("Municipal Treasury", f"${tile_cash:,.0f}", (120, 240, 150)),
+            ],
+            'icon': 'health',
+            'btn_id': btn_id
+        }
 
     # -------------------------------------------------------------------------
     # TIER HEADER OVERVIEWS
     # -------------------------------------------------------------------------
-    if btn_id == 'tier_municipal':
+    if btn_id in ('tier_municipal', 'tier_tile', 'tier_city'):
         return {
             'title': "Municipal Infrastructure Tier",
             'badge': "LOCAL TILE",
@@ -604,7 +789,7 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
             'btn_id': btn_id
         }
 
-    if btn_id == 'tier_province':
+    if btn_id in ('tier_province', 'tier_prov'):
         return {
             'title': "Provincial Public Works Tier",
             'badge': "PROVINCIAL",
@@ -624,7 +809,7 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
             'btn_id': btn_id
         }
 
-    if btn_id in ('tier_nation', 'tier_crown'):
+    if btn_id in ('tier_nation', 'tier_crown', 'tier_national', 'tier_state'):
         return {
             'title': "National Strategic Projects Tier",
             'badge': "SOVEREIGN",
@@ -641,6 +826,27 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
                 ("National Total Wealth", f"${tot_cash:,.0f}", ACCENT),
             ],
             'icon': 'crown',
+            'btn_id': btn_id
+        }
+
+    if btn_id in ('tier_frontier', 'tier_camp', 'tier_wilderness'):
+        hs_count = sum(1 for a in (pinned.agents if pinned else []) if getattr(a, 'is_homesteader', False))
+        return {
+            'title': "Frontier Wilderness Territory",
+            'badge': "COLONIAL HOMESTEADING",
+            'badge_col': (245, 180, 50),
+            'category': "Territorial Expansion",
+            'cost': "Frontier settlement scope for unannexed wilderness tiles",
+            'desc': [
+                "Frontier wilderness tiles are rich in pristine natural resources but lack established municipal institutions.",
+                "Sponsor pioneer expeditions and homesteading families to build majority settlement presence (50%+ population).",
+                "Once majority is attained, the tile can be formally incorporated into your sovereign national territory."
+            ],
+            'stats': [
+                ("Homesteader Population", f"{hs_count} Settlers", GREEN if hs_count > 0 else DIM),
+                ("Incorporation Goal", "50%+ Settler Majority", ACCENT),
+            ],
+            'icon': 'camp',
             'btn_id': btn_id
         }
 
@@ -827,6 +1033,12 @@ def get_button_tooltip_data(btn_id: str, world: dict, region=None, nation=None, 
 
 def draw_left_panel_tooltip(surface, world: dict, font_small, mouse_pos=None):
     """Render sleek, dynamically-sized floating tooltip card for the currently hovered left-panel button."""
+    if not world.get('_hovered_left_tooltip') and mouse_pos:
+        try:
+            from ui_targets import resolve_hover_tooltip
+            resolve_hover_tooltip(world, mouse_pos)
+        except Exception:
+            pass
     raw_tip = world.get('_hovered_left_tooltip')
     if not raw_tip or not mouse_pos:
         return
@@ -874,7 +1086,11 @@ def draw_left_panel_tooltip(surface, world: dict, font_small, mouse_pos=None):
 
     header_h = max(icon_box_size, len(title_lines) * line_h + font_small.get_height() + 4)
 
-    # 2. Cost Measurements
+    # 2. Cost & Disabled Reason Measurements
+    disabled_reason = tooltip.get('disabled_reason')
+    disabled_lines = wrap_text(f"⚠️ CANNOT ENACT: {disabled_reason}", font_small, usable_w - 24) if disabled_reason else []
+    disabled_box_h = (len(disabled_lines) * line_h + 10) if disabled_lines else 0
+
     cost_lines = wrap_text(cost_str, font_small, usable_w - 24) if cost_str else []
     cost_box_h = (len(cost_lines) * line_h + 10) if cost_lines else 0
 
@@ -893,6 +1109,8 @@ def draw_left_panel_tooltip(surface, world: dict, font_small, mouse_pos=None):
     card_h = PADDING_Y + header_h + 8  # header + gap
     card_h += 1  # divider
     card_h += 8  # gap after divider
+    if disabled_lines:
+        card_h += disabled_box_h + 8  # disabled alert box + gap
     if cost_lines:
         card_h += cost_box_h + 8  # cost box + gap
     card_h += total_desc_lines_count * line_h + max(0, len(wrapped_paras) - 1) * para_gap + 4
@@ -946,6 +1164,20 @@ def draw_left_panel_tooltip(surface, world: dict, font_small, mouse_pos=None):
     pygame.draw.line(card_surf, (48, 56, 80), (PADDING_X, div_y), (card_w - PADDING_X, div_y), 1)
 
     cur_y = div_y + 8
+
+    # 7.5. Render Disabled Reason Alert Box
+    if disabled_lines:
+        d_box_rect = (PADDING_X, cur_y, usable_w, disabled_box_h)
+        pygame.draw.rect(card_surf, (54, 18, 24), d_box_rect, border_radius=5)
+        pygame.draw.rect(card_surf, (225, 75, 75), d_box_rect, 1, border_radius=5)
+
+        dy = cur_y + 5
+        for dl in disabled_lines:
+            d_surf = font_small.render(dl, True, (255, 185, 185))
+            card_surf.blit(d_surf, (PADDING_X + 10, dy))
+            dy += line_h
+
+        cur_y += disabled_box_h + 8
 
     # 8. Render Cost Box
     if cost_lines:

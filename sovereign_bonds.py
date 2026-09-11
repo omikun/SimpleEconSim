@@ -484,6 +484,11 @@ class SovereignBondMarket:
                     bond.status = "defaulted"
                     self.isrb.rating_modifiers[issuer.name] = -3
                     self.isrb.modifier_expiry[issuer.name] = t + 25
+                    try:
+                        from imperialism import get_imperialism_manager
+                        get_imperialism_manager().register_default(bond, world, t)
+                    except Exception:
+                        pass
                     from worldview_engine import ticker_push
                     ticker_push(
                         world, t, 'ALERT',
@@ -504,6 +509,11 @@ class SovereignBondMarket:
                     bond.status = "defaulted"
                     self.isrb.rating_modifiers[issuer.name] = -3
                     self.isrb.modifier_expiry[issuer.name] = t + 25
+                    try:
+                        from imperialism import get_imperialism_manager
+                        get_imperialism_manager().register_default(bond, world, t)
+                    except Exception:
+                        pass
                     from worldview_engine import ticker_push
                     ticker_push(
                         world, t, 'ALERT',

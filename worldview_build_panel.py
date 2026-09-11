@@ -86,10 +86,23 @@ def draw_build_panel(surface, world, font, font_small, mouse_pos=None):
     cat_y = cur_y + 4
     c1_rect = (x + 8, cat_y, cat_w, 22)
     c2_rect = (x + 12 + cat_w, cat_y, cat_w, 22)
-    register_target(world, c1_rect, ('build_subcat', 'industry'), scope='build')
-    register_target(world, c2_rect, ('build_subcat', 'ecology'), scope='build')
+    register_target(world, c1_rect, ('build_subcat', 'industry'), tooltip_id='build_subcat_industry', scope='build')
+    register_target(world, c2_rect, ('build_subcat', 'ecology'), tooltip_id='build_subcat_ecology', scope='build')
     c1_hov = c1_rect[0] <= mx <= c1_rect[0] + cat_w and c1_rect[1] <= my <= c1_rect[1] + 22
     c2_hov = c2_rect[0] <= mx <= c2_rect[0] + cat_w and c2_rect[1] <= my <= c2_rect[1] + 22
+
+    if c1_hov and world is not None:
+        from worldview_tooltips import get_button_tooltip_data
+        tdata = get_button_tooltip_data('build_subcat_industry', world, region=pinned, nation=nation)
+        if tdata:
+            tdata['btn_rect'] = c1_rect
+            world['_hovered_left_tooltip'] = tdata
+    elif c2_hov and world is not None:
+        from worldview_tooltips import get_button_tooltip_data
+        tdata = get_button_tooltip_data('build_subcat_ecology', world, region=pinned, nation=nation)
+        if tdata:
+            tdata['btn_rect'] = c2_rect
+            world['_hovered_left_tooltip'] = tdata
 
     pygame.draw.rect(surface, (55, 75, 110) if active_bcat == 'industry' else ((40, 48, 65) if c1_hov else (26, 30, 42)), c1_rect, border_radius=4)
     pygame.draw.rect(surface, ACCENT if active_bcat == 'industry' else (45, 52, 70), c1_rect, 1, border_radius=4)

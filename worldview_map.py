@@ -499,6 +499,41 @@ def draw_activity_badges(surface, region, cx, cy, font_small):
         tag = font_small.render(stage[0].upper(), True, (255, 255, 255))
         surface.blit(tag, tag.get_rect(center=(cx, cy - 46)))
 
+    # Phase 4 Badges: Popular Resistance & Imperialism
+    try:
+        from popular_resistance import get_popular_resistance_manager
+        r_state = get_popular_resistance_manager().get_state(region.name)
+        if r_state.has_barricades:
+            pygame.draw.rect(surface, (230, 80, 40), (cx - 36, cy + 24, 16, 14), border_radius=3)
+            btxt = font_small.render("B", True, (255, 255, 255))
+            surface.blit(btxt, (cx - 33, cy + 23))
+
+        if r_state.is_general_strike:
+            pygame.draw.rect(surface, (240, 40, 40), (cx - 16, cy + 34, 20, 14), border_radius=3)
+            stxt = font_small.render("GS", True, (255, 255, 255))
+            surface.blit(stxt, (cx - 14, cy + 33))
+
+        from imperialism import get_imperialism_manager
+        imp_mgr = get_imperialism_manager()
+        if imp_mgr.is_tile_blockaded(region.name):
+            pygame.draw.rect(surface, (180, 30, 30), (cx + 8, cy + 34, 24, 14), border_radius=3)
+            blktxt = font_small.render("BLK", True, (255, 255, 255))
+            surface.blit(blktxt, (cx + 9, cy + 33))
+
+        owner = getattr(region, 'owner_nation', None)
+        if owner:
+            if getattr(owner, 'regime_type', '') == 'commune':
+                pygame.draw.circle(surface, (220, 20, 20), (cx + 34, cy - 42), 7)
+                pygame.draw.circle(surface, (20, 20, 20), (cx + 34, cy - 42), 7, 1)
+                ctxt = font_small.render("*", True, (255, 255, 255))
+                surface.blit(ctxt, ctxt.get_rect(center=(cx + 34, cy - 40)))
+            elif imp_mgr.get_active_receivership_on(owner.name):
+                pygame.draw.rect(surface, (220, 150, 40), (cx - 12, cy - 58, 24, 13), border_radius=3)
+                rtxt = font_small.render("REC", True, (15, 15, 20))
+                surface.blit(rtxt, (cx - 10, cy - 59))
+    except Exception:
+        pass
+
 
 def draw_pop_delta(surface, region, cx, cy, font_small):
     """+B / -D per-turn population delta badge under the hex name."""

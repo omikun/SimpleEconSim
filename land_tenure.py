@@ -26,6 +26,7 @@ class TenureStatus(Enum):
     FEUDAL = 'feudal'          # Lord holds title, serfs have usufruct
     LEASEHOLD = 'leasehold'    # Transitional: cash rents, partial rights
     ENCLOSED = 'enclosed'      # Fully privatized, no customary rights
+    COMMONS = 'commons'        # Reverted or revolutionary commons: full usufruct, zero rent
 
 
 @dataclass
@@ -34,6 +35,7 @@ class LandPlot:
 
     Under feudalism, the lord collects in-kind tribute.
     Under enclosure, the lord collects cash rent.
+    Under commons, community holds usufruct with zero tribute or rent.
     """
     plot_id: str                        # unique identifier
     tile_name: str                      # which Region this plot sits on
@@ -41,7 +43,7 @@ class LandPlot:
     fraction: float                     # fraction of the tile (0.0-1.0)
     tenure: TenureStatus                # current tenure status
     enclosed_turn: int = -1             # turn when customary rights stripped (-1 = never)
-    rent_rate: float = 0.0              # cash rent per tenant per turn (0 under feudal)
+    rent_rate: float = 0.0              # cash rent per tenant per turn (0 under feudal/commons)
     tribute_rate: float = 0.5           # in-kind tribute fraction (feudal only)
     production_type: str = 'mixed'      # 'mixed', 'cash_crop', 'pasture', 'forest'
 
@@ -77,19 +79,27 @@ class TileTenure:
                    if p.tenure == TenureStatus.LEASEHOLD)
 
     @property
+    def commons_fraction(self) -> float:
+        """Land restored to customary or revolutionary commons."""
+        return sum(p.fraction for p in self.plots
+                   if p.tenure == TenureStatus.COMMONS)
+
+    @property
     def commons_access(self) -> float:
         """Effective fraction of tile where serfs can still forage.
 
         FEUDAL plots grant full access (serfs have usufruct rights).
         LEASEHOLD plots grant half access (partial rights remain).
+        COMMONS plots grant full access (restored usufruct rights).
         ENCLOSED plots grant zero access (trespassing criminalized).
 
         Wilderness tiles (no plots) return 1.0 — fully wild.
         """
         if not self.plots:
             return 1.0  # wilderness: fully accessible
-        return (self.feudal_fraction * 1.0
-                + self.leasehold_fraction * 0.5)
+        return min(1.0, (self.feudal_fraction * 1.0
+                + self.leasehold_fraction * 0.5
+                + self.commons_fraction * 1.0))
 
     @property
     def total_plotted(self) -> float:
@@ -154,3 +164,32 @@ class TileTenure:
         plot.tribute_rate = 0.0
         plot.rent_rate = rent_rate
         return plot
+
+    def revert_plot_to_commons(self, plot_id: str, turn: int = -1) -> Optional[LandPlot]:
+        """Convert an ENCLOSED or LEASEHOLD plot back to COMMONS.
+
+        Used in anti-enclosure revolts or popular commune decrees.
+        Zeroes rent_rate and tribute_rate, restoring full customary foraging access.
+        """
+        plot = self.find_plot(plot_id)
+        if plot is None:
+            return None
+        plot.tenure = TenureStatus.COMMONS
+        plot.rent_rate = 0.0
+        plot.tribute_rate = 0.0
+        return plot
+
+    def revert_all_to_commons(self, turn: int = -1) -> int:
+        """Convert all plots on the tile to COMMONS (revolutionary commune decree).
+
+        Returns count of converted plots.
+        """
+        count = 0
+        for plot in self.plots:
+            if plot.tenure != TenureStatus.COMMONS:
+                plot.tenure = TenureStatus.COMMONS
+                plot.rent_rate = 0.0
+                plot.tribute_rate = 0.0
+                count += 1
+        return count
+

@@ -453,6 +453,15 @@ class Government:
         if amount <= 0:
             return
         owner_nation = getattr(region, 'owner_nation', None) if region else None
+        if owner_nation:
+            try:
+                from imperialism import get_imperialism_manager
+                imp_mgr = get_imperialism_manager()
+                amount, intercepted, creditor_name = imp_mgr.intercept_revenue(owner_nation.name, amount, t)
+            except Exception:
+                pass
+        if amount <= 0:
+            return
         nat_gov = getattr(owner_nation, 'government', None) if owner_nation else None
         if nat_gov is not None and nat_gov is not self:
             nat_share = round(amount * 0.80, 6)

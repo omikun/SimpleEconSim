@@ -38,11 +38,18 @@ class Route:
     # Posting
     # ------------------------------------------------------------------
 
+    @property
+    def is_frozen(self) -> bool:
+        """True if route is paralyzed by a General Strike or Naval Blockade."""
+        return bool(getattr(self, 'is_blocked_by_strike', False) or getattr(self, 'is_blockaded', False))
+
     def post(self, trader, good, qty):
         """Move ``qty`` from ``trader.inventory_export`` into this route.
 
         Returns the quantity actually moved (never more than available).
         """
+        if self.is_frozen:
+            return 0
         qty = int(min(qty, trader.inventory_export[good.value]))
         if qty <= 0:
             return 0
@@ -59,6 +66,8 @@ class Route:
         is now worth re-shipping them toward this route's dst.  Goods move:
         trader.parked_foreign[src.name] -> this route's pending queue.
         """
+        if self.is_frozen:
+            return 0
         src_name = self.src.name
         qty = int(min(qty, trader.parked_get(src_name, good, 0)))
         if qty <= 0:
@@ -77,9 +86,11 @@ class Route:
         Shipments whose ``turns_left`` reaches 0 land in the owning
         trader's ``inventory_foreign`` (the destination import pool).
         """
-        remaining = []
         self.delivered_this_turn = []
         self.parked_this_turn = []
+        if self.is_frozen:
+            return
+        remaining = []
         for entry in self.in_transit:
             entry[3] -= 1
             if entry[3] <= 0:

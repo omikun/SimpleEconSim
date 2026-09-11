@@ -327,10 +327,18 @@ def apply_heightmap_to_world(tiles: list, seed: int = 42, grid_rows: int = 9, gr
     if land_tiles:
         max_mountains = max(1, int(len(land_tiles) * 0.20))
         sorted_land = sorted(land_tiles, key=lambda t: t.elevation, reverse=True)
+        n_snow = max(1, max_mountains // 3)
         for i, t in enumerate(sorted_land):
-            if i >= max_mountains and t.elevation >= 0.72:
-                # Smoothly map excess elevation into high rolling hills [0.55, 0.70]
-                t.elevation = min(0.70, max(0.55, 0.70 - (t.elevation - 0.72) * 0.25))
+            if i < max_mountains:
+                if t.elevation >= 0.72:
+                    if i < n_snow:
+                        t.elevation = max(0.88, t.elevation)
+                    else:
+                        t.elevation = min(0.87, max(0.72, t.elevation))
+            else:
+                if t.elevation >= 0.72:
+                    # Smoothly map excess elevation into high rolling hills [0.55, 0.70]
+                    t.elevation = min(0.70, max(0.55, 0.70 - (t.elevation - 0.72) * 0.25))
 
     for tile in tiles:
         tile.elevation_meters = generator.get_elevation_meters(tile.elevation)
@@ -365,6 +373,122 @@ def apply_heightmap_to_world(tiles: list, seed: int = 42, grid_rows: int = 9, gr
         tile.terrain_color = shaded_c
 
     return generator
+def sample_terrain_to_tiles(tiles, layout, bbox, H, snow_weight, m_weight, hill_ridge, hillw, canopy_a, mount_range_mask, is_ocean_water, width, height, generator=None):
+    """Sample synthesized terrain fields across hex footprints to align tile elevations and biomes precisely with the visual terrain map."""
+    if not tiles or not layout:
+        return
+
+    HEX_SIZE = 50
+    x0, y0, x1, y1 = bbox
+    pad_x = (x1 - x0) * 0.18
+    pad_y = (y1 - y0) * 0.18
+    min_wx = x0 - pad_x
+    max_wx = x1 + pad_x
+    min_wy = y0 - pad_y
+    max_wy = y1 + pad_y
+
+    sample_angles = [i * math.pi / 3.0 for i in range(6)]
+    tile_samples = {}
+
+    m_w_2d = m_weight.squeeze() if m_weight.ndim == 3 else m_weight
+    c_a_2d = canopy_a.squeeze() if canopy_a.ndim == 3 else canopy_a
+
+    for t in tiles:
+        coords = layout.get(t.name)
+        if coords is None:
+            continue
+        q, r = coords
+        cx, cy = axial_to_pixel(q, r, HEX_SIZE)
+        pts = [(cx, cy)]
+        for a in sample_angles:
+            pts.append((cx + 0.45 * HEX_SIZE * math.cos(a), cy + 0.45 * HEX_SIZE * math.sin(a)))
+        for a in sample_angles:
+            pts.append((cx + 0.75 * HEX_SIZE * math.cos(a + math.pi / 6.0), cy + 0.75 * HEX_SIZE * math.sin(a + math.pi / 6.0)))
+
+        px_coords = []
+        for wx, wy in pts:
+            px = int(np.clip(round((wx - min_wx) / (max_wx - min_wx) * (width - 1)), 0, width - 1))
+            py = int(np.clip(round((wy - min_wy) / (max_wy - min_wy) * (height - 1)), 0, height - 1))
+            px_coords.append((py, px))
+
+        py_arr = [p[0] for p in px_coords]
+        px_arr = [p[1] for p in px_coords]
+
+        h_vals = H[py_arr, px_arr]
+        snow_vals = snow_weight[py_arr, px_arr]
+        rock_vals = m_w_2d[py_arr, px_arr]
+        hill_vals = hill_ridge[py_arr, px_arr]
+        hillw_vals = hillw[py_arr, px_arr]
+        forest_vals = c_a_2d[py_arr, px_arr]
+        ocean_vals = is_ocean_water[py_arr, px_arr]
+        mount_vals = mount_range_mask[py_arr, px_arr]
+
+        # Mountain coverage across the tile footprint
+        is_mt = (mount_vals >= 0.12) | ((rock_vals >= 0.28) & (h_vals >= 0.35)) | (snow_vals >= 0.08) | (h_vals >= 0.48)
+        mt_cov = float(np.mean(is_mt))
+
+        tile_samples[t.name] = {
+            'mean_h': float(np.mean(h_vals)),
+            'max_h': float(np.max(h_vals)),
+            'mean_snow': float(np.mean(snow_vals)),
+            'max_snow': float(np.max(snow_vals)),
+            'mean_rock': float(np.mean(rock_vals)),
+            'mean_hill': float(np.mean(hill_vals)),
+            'mean_hillw': float(np.mean(hillw_vals)),
+            'mean_forest': float(np.mean(forest_vals)),
+            'ocean_frac': float(np.mean(ocean_vals)),
+            'mean_mount': float(np.mean(mount_vals)),
+            'mountain_coverage': mt_cov,
+        }
+
+    # Respect single continuous connected landmass from original connectivity
+    land_tiles = [t for t in tiles if not getattr(t, 'is_ocean', False) and t.name in tile_samples]
+    if not land_tiles:
+        return
+
+    for t in tiles:
+        if t.name not in tile_samples:
+            continue
+        s = tile_samples[t.name]
+        if getattr(t, 'is_ocean', False):
+            if s['mean_h'] < -0.30:
+                t.biome = 'deep_ocean'
+            else:
+                t.biome = 'shallow_ocean'
+            t.elevation = min(-0.15, s['mean_h'])
+        elif s['mountain_coverage'] >= 0.30:
+            # If mountains cover more than 30% of the tile -> mountain tile
+            if s['mean_snow'] >= 0.18 or (s['mean_snow'] >= 0.08 and s['max_h'] >= 1.00):
+                t.biome = 'snow_peaks'
+                t.elevation = max(0.88, min(1.00, 0.88 + s['mean_snow'] * 0.12))
+            else:
+                t.biome = 'mountains'
+                t.elevation = max(0.72, min(0.87, 0.72 + s['mean_rock'] * 0.15))
+        else:
+            if s['mean_forest'] >= 0.35 and s['mean_hill'] < 0.12:
+                t.biome = 'forest'
+                t.elevation = max(0.22, min(0.47, 0.22 + s['mean_h'] * 0.25))
+            elif s['mean_hill'] >= 0.10 or (s['mean_hillw'] >= 0.25 and s['mean_h'] >= 0.30):
+                t.biome = 'hills'
+                t.elevation = max(0.48, min(0.70, 0.48 + s['mean_h'] * 0.22))
+            elif s['mean_forest'] >= 0.25:
+                t.biome = 'forest'
+                t.elevation = max(0.22, min(0.47, 0.22 + s['mean_h'] * 0.25))
+            else:
+                t.biome = 'plains'
+                t.elevation = max(0.02, min(0.21, s['mean_h']))
+
+        if generator is not None:
+            t.elevation_meters = generator.get_elevation_meters(t.elevation)
+            base_c = generator.get_base_color(t.elevation)
+            hillshade = getattr(t, 'hillshade', 1.0)
+            t.terrain_color = (
+                min(255, max(0, int(base_c[0] * hillshade))),
+                min(255, max(0, int(base_c[1] * hillshade))),
+                min(255, max(0, int(base_c[2] * hillshade))),
+            )
+
+
 _TOPOGRAPHIC_SURFACE_CACHE = {}
 
 
@@ -372,12 +496,19 @@ def get_cached_topographic_surface(seed, bbox, tiles=None, layout=None, canvas_w
     """Return pre-rendered, 4x Ultra-HD topographic elevation surface conforming closely to the hex tile map."""
     tile_sig = tuple((t.name, round(getattr(t, 'elevation', 0.0), 3), bool(getattr(t, 'is_ocean', False))) for t in tiles) if tiles else None
     cache_key = (seed, bbox, canvas_w, canvas_h, tile_sig)
+    simple_key = (seed, bbox, canvas_w, canvas_h)
     if cache_key in _TOPOGRAPHIC_SURFACE_CACHE:
         return _TOPOGRAPHIC_SURFACE_CACHE[cache_key]
+    if simple_key in _TOPOGRAPHIC_SURFACE_CACHE:
+        return _TOPOGRAPHIC_SURFACE_CACHE[simple_key]
 
     generator = HeightMapGenerator(seed=seed if seed is not None else 42)
     surf = generator.generate_topographic_surface(bbox, tiles=tiles, layout=layout, width=canvas_w, height=canvas_h, progress_callback=progress_callback)
     _TOPOGRAPHIC_SURFACE_CACHE[cache_key] = surf
+    _TOPOGRAPHIC_SURFACE_CACHE[simple_key] = surf
+    if tiles:
+        new_sig = tuple((t.name, round(getattr(t, 'elevation', 0.0), 3), bool(getattr(t, 'is_ocean', False))) for t in tiles)
+        _TOPOGRAPHIC_SURFACE_CACHE[(seed, bbox, canvas_w, canvas_h, new_sig)] = surf
     return surf
 def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None, width: int = 2400, height: int = 1800, progress_callback=None) -> "pygame.Surface":
     """Render an Ultra-HD photorealistic 3D raymarched terrain surface with full-strength derivative erosion fractals conforming to the hex tile map."""
@@ -682,8 +813,20 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
     # out shallow and wide.  The sea floor carries the ridged multifractal
     # + plains fBm so it has structure, faded in offshore so the water
     # line itself stays smooth.  No np.where band step -> no dark contour.
-    from scipy.ndimage import gaussian_filter as _gf
+    from scipy.ndimage import gaussian_filter as _gf, distance_transform_edt as _edt
     shore_ref = 0.30
+
+    _ocean_edt_mask = H_land_prob < shore_ref
+    if _ocean_edt_mask.any() and (~_ocean_edt_mask).any():
+        sea_dist_px = _edt(~_ocean_edt_mask).astype(np.float32)
+        ocean_dist_to_land = _edt(_ocean_edt_mask).astype(np.float32)
+    else:
+        sea_dist_px = np.full((height, width), 1e9, dtype=np.float32)
+        ocean_dist_to_land = np.full((height, width), 1e9, dtype=np.float32)
+
+    dx_world = float(max_wx - min_wx) / width
+    sea_dist_tiles = ocean_dist_to_land * dx_world / HEX_SIZE
+    inland_dist_tiles = sea_dist_px * dx_world / HEX_SIZE
 
     _rp = hill_ridge + mountain_ridge
     _gpx = np.gradient(_rp, axis=1)
@@ -691,22 +834,71 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
     coast_steep = _gf(np.sqrt(_gpx * _gpx + _gpy * _gpy), sigma=HEX_SIZE * 0.7)
     coast_steep = np.clip(coast_steep / 0.010, 0.0, 1.0) ** 0.75
 
-    # near-shore window: 1 at the water line, 0 by the time we are well inland
-    # (keeps the steepening from inflating interior hills / mountains).
-    _near = np.clip(1.0 - (H_land_prob - shore_ref) / 0.20, 0.0, 1.0)
-    _t_up = np.clip((H_land_prob - shore_ref) / 0.17, 0.0, 1.0)
-    _above_rate = 0.075 + 0.85 * coast_steep * _near
-    land_shelf_above = _above_rate * (_t_up ** 1.3) + np.clip(H_land_prob - 0.46, 0.0, 1.0) * 0.04
+    # Multi-scale coastal geomorphology
+    c_morph1, _, _ = iq_noised(WX / (HEX_SIZE * 3.6) + 41.2, WY / (HEX_SIZE * 3.6) - 17.8)
+    c_morph2, _, _ = iq_noised(WX / (HEX_SIZE * 1.5) - 73.1, WY / (HEX_SIZE * 1.5) + 62.4)
+    c_morph3, _, _ = iq_noised(WX / (HEX_SIZE * 0.5) + 19.4, WY / (HEX_SIZE * 0.5) - 88.5)
+    coast_morph = c_morph1 * 0.50 + c_morph2 * 0.35 + c_morph3 * 0.15
 
-    _off = np.clip(shore_ref - H_land_prob, 0.0, shore_ref)   # 0 at water line, grows seaward
-    _plunge = 0.85 + 6.5 * coast_steep
-    seabed_dc = -(_off * _plunge + _off * _off * 3.5 * (0.2 + coast_steep))
-    seabed_struct = ((mount_relief * 0.10 + (plains_fbm - 0.5) * 0.11)
-                     * np.clip(_off * 6.0, 0.0, 1.0)
-                     * (0.35 + 0.65 * coast_steep))
-    seabed_H = seabed_dc + seabed_struct
+    # Coastal sectors: Sheer Cliffs vs Smooth Ramps vs Terraced Bluffs
+    w_cliff = np.clip(coast_steep * 1.35 + (coast_morph - 0.52) * 1.9, 0.0, 1.0) ** 1.3
+    w_ramp = np.clip((1.0 - coast_steep * 1.6) * np.clip((0.52 - coast_morph) * 2.6, 0.0, 1.0), 0.0, 1.0) ** 1.2
+    _w_sum = w_cliff + w_ramp + 1e-4
+    w_cliff = np.where(_w_sum > 1.0, w_cliff / _w_sum, w_cliff)
+    w_ramp = np.where(_w_sum > 1.0, w_ramp / _w_sum, w_ramp)
+    w_terrace = np.clip(1.0 - w_cliff - w_ramp, 0.0, 1.0)
 
-    _wsea = np.clip((shore_ref + 0.012 - H_land_prob) / 0.042, 0.0, 1.0)
+    # 1. Sheer Sea Cliffs: Elevated rock mass terminating in a sharp vertical face at the coast
+    cliff_top_H = 0.09 + 0.16 * coast_steep + 0.05 * (coast_morph - 0.5)
+    t_cliff_drop = np.clip(inland_dist_tiles / 0.16, 0.0, 1.0)
+    s_cliff_drop = t_cliff_drop * t_cliff_drop * (3.0 - 2.0 * t_cliff_drop)
+    cliff_coast_H = cliff_top_H * s_cliff_drop
+
+    # 2. Smooth Sloping Ramps: Continuous gradual incline extending straight from inland to sea
+    t_ramp = np.clip(inland_dist_tiles / 1.8, 0.0, 1.0)
+    ramp_coast_H = 0.085 * (t_ramp ** 1.1)
+
+    # 3. Terraced Bluffs: Stepped coastal terrace
+    t_terrace = np.clip(inland_dist_tiles / 1.1, 0.0, 1.0)
+    terrace_coast_H = 0.035 * (t_terrace ** 0.4) + 0.05 * (t_terrace ** 1.5)
+
+    # Combine above-water coastal profiles
+    land_shelf_above = (cliff_coast_H * w_cliff + ramp_coast_H * w_ramp + terrace_coast_H * w_terrace)
+    land_shelf_above += np.clip(H_land_prob - 0.46, 0.0, 1.0) * 0.04
+
+    # -------------------------------------------------------------
+    # Continental Shelf Geomorphology & Bathymetric Features
+    # -------------------------------------------------------------
+    # 1. Dramatic Shelf Slope Variation:
+    # Abrupt sheer cliffs plunge almost vertically (0.12 - 0.35 tiles wide)
+    # Gentle sloping plains expand into massive shallow lagoons (3.8 - 5.5 tiles wide)
+    # Stepped terraces form medium-width shelves (1.4 - 2.4 tiles wide)
+    sub_promontory, _, _ = iq_noised(WX / (HEX_SIZE * 2.2) + 18.2, WY / (HEX_SIZE * 2.2) - 34.5)
+    sub_canyon, _, _ = iq_noised(WX / (HEX_SIZE * 0.8) - 49.3, WY / (HEX_SIZE * 0.8) + 11.7)
+    sub_macro, _, _ = iq_noised(WX / (HEX_SIZE * 5.0) + 61.4, WY / (HEX_SIZE * 5.0) - 83.2)
+    shelf_fissure = (sub_promontory - 0.5) * 0.75 + (sub_canyon - 0.5) * 0.45 + (sub_macro - 0.5) * 1.10
+
+    base_shelf_tiles = w_cliff * 0.15 + w_terrace * 1.60 + w_ramp * 4.60
+    shelf_target_tiles = np.clip(base_shelf_tiles + shelf_fissure * (1.0 - w_cliff * 0.75), 0.12, 5.50)
+
+    # Shelf depth: ultra shallow across wide ramps, plunges steep and fast at cliffs
+    t_shelf = np.clip(sea_dist_tiles / np.maximum(shelf_target_tiles, 0.05), 0.0, 1.0)
+    ramp_shelf_depth = 0.001 + 0.016 * (t_shelf ** 1.05)
+    cliff_shelf_depth = 0.035 + 0.160 * (t_shelf ** 2.40)
+    terrace_shelf_depth = 0.005 + 0.060 * (t_shelf ** 1.30)
+    shelf_depth = ramp_shelf_depth * w_ramp + cliff_shelf_depth * w_cliff + terrace_shelf_depth * w_terrace
+
+    # Plunge into deep ocean past shelf
+    plunge_rate = w_cliff * 0.14 + w_terrace * 0.95 + w_ramp * 3.60
+    t_plunge = np.clip((sea_dist_tiles - shelf_target_tiles) / np.maximum(plunge_rate, 0.06), 0.0, 1.0)
+    s_plunge = t_plunge * t_plunge * (3.0 - 2.0 * t_plunge)
+    ocean_depth = shelf_depth + s_plunge * 0.35 + (s_plunge ** 2) * 0.28
+    seabed_H = -ocean_depth
+
+    # Waterline transition:
+    # Tight blend on sheer cliffs (3-5 px), soft blend on ramps (15 px)
+    wsea_width = w_cliff * 0.012 + w_terrace * 0.024 + w_ramp * 0.035
+    _wsea = np.clip((shore_ref + 0.006 - H_land_prob) / np.maximum(wsea_width, 0.008), 0.0, 1.0)
     _wsea = _wsea * _wsea * (3.0 - 2.0 * _wsea)
     land_shelf = land_shelf_above * (1.0 - _wsea) + seabed_H * _wsea
 
@@ -781,12 +973,6 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
     # from any coast (the seed-12345 bulbous head).  A true ocean mouth is now
     # one whose terminus sits within a few px of open water (deadends.md).  One
     # EDT on the same ocean mask `_sea` uses below -- constant cost.
-    _ocean_edt_mask = H_land_prob < shore_ref
-    if _ocean_edt_mask.any() and (~_ocean_edt_mask).any():
-        from scipy.ndimage import distance_transform_edt as _edt_sea
-        sea_dist_px = _edt_sea(~_ocean_edt_mask).astype(np.float32)
-    else:
-        sea_dist_px = np.full((height, width), 1e9, dtype=np.float32)
     MOUTH_SEA_DIST = 16.0   # px; a genuine mouth terminates at H_land_prob ~ 0.32
                             # (a few px inside this mask); inland stubs stop 30+ px off.
 
@@ -1157,8 +1343,7 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
     # drops to the abyss offshore.  `_ab` is a smooth function of the smooth
     # `H_land_prob`, so no ring.
     _sea = H_land_prob < shore_ref
-    _ab = np.clip((shore_ref - H_land_prob) / shore_ref, 0.0, 1.0) ** 3.0   # stays ~0 across the shelf
-    raw_H = np.where(_sea, np.minimum(raw_H, 0.02 - 2.6 * _ab), raw_H)
+    raw_H = np.where(_sea, seabed_H, raw_H)
 
     H = raw_H
 
@@ -1372,97 +1557,56 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
     # the beach so the shore line stays legible without a step.
     is_ocean_water = H < 0.0
     depth = np.clip(-H, 0.0, 5.0)
-    _d3 = depth[:, :, None]
 
-    seabed_sand = np.array([0.40, 0.42, 0.33], dtype=np.float32)
-    seabed_rock = np.array([0.18, 0.23, 0.22], dtype=np.float32)
-    _sbn, _, _ = iq_noised(WX_warped / (HEX_SIZE * 0.55) + 4.0,
-                           WY_warped / (HEX_SIZE * 0.55) - 9.0)
-    _sbn2, _, _ = iq_noised(WX_warped / (HEX_SIZE * 1.6) - 21.0,
-                            WY_warped / (HEX_SIZE * 1.6) + 6.0)
-    sb_mix = np.clip((depth - 0.010) / 0.10 + 0.75 * (_sbn - 0.5) + 0.45 * (_sbn2 - 0.5),
-                     0.0, 1.0)[:, :, None]
-    seabed_alb = seabed_sand * (1.0 - sb_mix) + seabed_rock * sb_mix
+    # Restored pre-transfer vibrant color palette with abyssal trench
+    abyss_trench = np.array([0.006, 0.012, 0.035], dtype=np.float32) # Inky midnight trench chasm
+    deep_ocean = np.array([0.05, 0.14, 0.32], dtype=np.float32)     # Deep sapphire / royal navy
+    mid_ocean = np.array([0.10, 0.26, 0.44], dtype=np.float32)      # Vibrant deep maritime blue
+    shallow_shelf = np.array([0.15, 0.44, 0.55], dtype=np.float32)  # Luminous azure shelf
+    coastal_turquoise = np.array([0.25, 0.62, 0.65], dtype=np.float32) # Sunlit tropical turquoise
 
-    # v08: DEPTH-DEPENDENT volume in-scatter.  v05 blended two near-identical
-    # mid-teals (seabed_rock ~ inscatter_col) so every depth returned the same
-    # colour and the shelf went invisible; now the in-scatter colour itself
-    # interpolates shallow -> deep, red then green going extinct as the water
-    # deepens (hue rotates bluewards, value drops).  Extinction is back near
-    # v04 contrast so open water is ~all in-scatter (the seabed rock albedo
-    # stops greying it) and the shelf falloff actually shows.  v05's turbidity
-    # floor + the Fresnel sky ADD (the black-sea fix) are KEPT; Fresnel is now
-    # depth-INDEPENDENT -- its variation moves onto the wave normals below.
-    k_ext = np.array([4.6, 1.8, 1.0], dtype=np.float32)
-    trans = np.exp(-k_ext * _d3)
-    turb = 0.06
-    inv_t = 1.0 - trans * (1.0 - turb)                        # in-scatter fraction, floored at turb
+    # Depth color progression:
+    # Across 1-3 tile shelf (depth 0.0 to 0.07): coastal_turquoise -> shallow_shelf
+    # Over the shelf dropoff (depth 0.07 to 0.22): shallow_shelf -> mid_ocean
+    # Deep ocean (depth >= 0.22): mid_ocean -> deep_ocean
+    _t_shallow = np.clip(depth / 0.055, 0.0, 1.0)[:, :, None]
+    _t_mid = np.clip((depth - 0.055) / 0.15, 0.0, 1.0)[:, :, None]
+    _t_deep = np.clip((depth - 0.18) / 0.16, 0.0, 1.0)[:, :, None]
 
-    isc_shallow = np.array([0.120, 0.300, 0.245], dtype=np.float32)   # shelf: green-teal, G >> B
-    isc_deep    = np.array([0.100, 0.205, 0.223], dtype=np.float32)   # v10: slate-blue, value lifted
-    # v09: the v08 `G >= B` deep-water rule is RETIRED -- it forced open sea into
-    # an olive-teal that shared the plains-grass hue and killed land/sea
-    # figure-ground (deadends.md).  Green now lives on the shelf only; deep
-    # water rotates past teal to a slate-blue (B >= G).
-    # v10: open-sea luminance had drifted to ~0.16 (v07 .269 -> v08 .199 -> v09
-    # .161) against the `sea` ref's .215 -- the frame was reading too dark and
-    # flat over water.  `isc_deep` raised ~46% in luminance (constant lum .113
-    # -> .165) with G nudged up proportionally MORE than B, so it stays
-    # slate-blue (B >= G) but less severely: constant B-G .050 -> .024, landing
-    # rendered open-sea B-G ~= 0.03 not 0.06.  This is the mandated 1-constant
-    # precondition for v10; nothing else in the water model is touched.
-    # depth -> shallow/deep mix.  Most of the swing is spent across the shelf
-    # (0 .. ~0.6) so a wide plains shelf reads as a broad turquoise band that
-    # darkens gradually, while a cliff plunge crosses it in a handful of px.
-    isc_t = (1.0 - np.exp(-depth / 0.42))[:, :, None]
-    inscatter_field = isc_shallow[None, None, :] * (1.0 - isc_t) + isc_deep[None, None, :] * isc_t
-    w_col = seabed_alb * (1.0 - inv_t) + inscatter_field * inv_t
+    c_shelf = coastal_turquoise * (1.0 - _t_shallow) + shallow_shelf * _t_shallow
+    c_water = c_shelf * (1.0 - _t_mid) + mid_ocean * _t_mid
+    w_col = c_water * (1.0 - _t_deep) + deep_ocean * _t_deep
 
-    # --- Surface wave NORMALS (v09): a real two-component perturbed normal.
-    #     v08 added a SCALAR slope proxy monotonically to `fres`, so brightness
-    #     traced iso-contours of the noise field and the big (+-30 px) flow warp
-    #     smeared them into long parallel light ribbons (deadends.md).  v09:
-    #       * swell weight cut to ~1/3, warp displacement shrunk +-30/10 ->
-    #         +-10/6 px so it DECORRELATES the ripple field, not stretches it;
-    #       * the swell + ripple analytic derivatives are assembled into an
-    #         actual normal vector (nx, ny, nz), normalized;
-    #       * shading comes from the normal's FACING, not its slope magnitude:
-    #         a tight specular lobe (high N.H power) so crests glint and die
-    #         between crests, and a sky ADD split by the normal's tilt
-    #         DIRECTION so one flank of each crest catches sky and the other
-    #         does not.
-    #     Still: low-freq swell (~2.5 hex, along surf vector (0.72,-0.69)) +
-    #     fine anisotropic ripple (~7 px), phase-warped by a slow flow field so
-    #     nothing tiles or shows a 0/90 axis; faded out in the surf band.
+    # Sea floor is kept very subtle: faint, soft warmth only at the immediate beach edge (depth < 0.015)
+    clarity = np.clip(1.0 - depth / 0.015, 0.0, 1.0)[:, :, None]
+    beach_underwater = np.array([0.52, 0.58, 0.52], dtype=np.float32)
+    w_col = w_col * (1.0 - 0.08 * clarity) + beach_underwater * (0.08 * clarity)
+
+    # High-frequency multi-octave wave & ripple normal derivatives
     _wv = np.array([0.72, -0.69], dtype=np.float32)
     _wv /= np.linalg.norm(_wv)
-    _wp = np.array([-_wv[1], _wv[0]], dtype=np.float32)       # across-swell axis
-    # flow field on the DOMAIN-WARPED coords (not raw WX/WY) so the phase warp
-    # carries no residual screen-axis alignment (deadends.md).
-    _flw, _fldx, _fldy = iq_noised(WX_warped * 0.012 + 5.0, WY_warped * 0.012 - 9.0)
-    _flw2, _fl2dx, _fl2dy = iq_noised(WX_warped * 0.028 - 14.0, WY_warped * 0.028 + 22.0)
-    _pwx = WX + _fldx * 10.0 + _fl2dx * 6.0                   # v08 was 30 / 10 -- shrunk
-    _pwy = WY + _fldy * 10.0 + _fl2dy * 6.0
-    _along = _pwx * _wv[0] + _pwy * _wv[1]
-    _acr   = _pwx * _wp[0] + _pwy * _wp[1]
-    _swf = 1.0 / (HEX_SIZE * 2.5)                             # swell: ~2.5 hex along travel
-    _sv, _sdx, _sdy = iq_noised(_along * _swf + 0.6 * _flw, _acr * _swf * 0.45 + 11.0)
-    _rpf = 1.0 / 7.0                                          # ripple: ~7 px along, ~3x stretched across
-    _rv, _rdx, _rdy = iq_noised(_along * _rpf + 1.7 * _flw, _acr * _rpf * 0.33 - 4.0)
-    # frame-space height gradient (along-travel, across-travel).  Swell weight
-    # 0.06-equivalent (~1/3 of v08's 0.18); the fine ripple carries the crests.
-    _g_al = _sdx * 0.35 + _rdx * 1.05
-    _g_ac = _sdy * 0.35 + _rdy * 0.55
-    # rotate the frame-space gradient back into screen x / y
-    _g_x = _g_al * _wv[0] + _g_ac * _wp[0]
-    _g_y = _g_al * _wv[1] + _g_ac * _wp[1]
-    _surf_fade = np.clip((depth - 0.06) / 0.10, 0.0, 1.0) * is_ocean_water
-    _g_x = _g_x * _surf_fade
-    _g_y = _g_y * _surf_fade
-    # perturbed unit normal  N = normalize(-A*grad_x, -A*grad_y, 1)
-    _wamp = 1.0
-    _nx = -_wamp * _g_x
-    _ny = -_wamp * _g_y
+    _wp = np.array([-_wv[1], _wv[0]], dtype=np.float32)
+    _along = WX * _wv[0] + WY * _wv[1]
+    _acr   = WX * _wp[0] + WY * _wp[1]
+
+    # Octave 1: swell
+    _swf = 1.0 / (HEX_SIZE * 1.5)
+    _sv, _sdx, _sdy = iq_noised(_along * _swf, _acr * _swf * 0.5 + 11.0)
+    # Octave 2: medium wave chop
+    _cwf = 1.0 / (HEX_SIZE * 0.45)
+    _cv, _cdx, _cdy = iq_noised(WX * _cwf + 14.2, WY * _cwf - 38.7)
+    # Octave 3: fine ripple
+    _rwf = 1.0 / 8.0
+    _rv, _rdx, _rdy = iq_noised(WX * _rwf + 53.1 + _sdx * 0.5, WY * _rwf + 91.7 + _sdy * 0.5)
+    # Octave 4: micro capillary ripple
+    _mwf = 1.0 / 3.0
+    _mv, _mdx, _mdy = iq_noised(WX * _mwf - 27.4, WY * _mwf - 18.2)
+
+    _g_x = (_sdx * 0.25 + _cdx * 0.35 + _rdx * 0.32 + _mdx * 0.18) * 0.24
+    _g_y = (_sdy * 0.25 + _cdy * 0.35 + _rdy * 0.32 + _mdy * 0.18) * 0.24
+
+    _nx = -_g_x
+    _ny = -_g_y
     _ninv = 1.0 / np.sqrt(_nx * _nx + _ny * _ny + 1.0)
     _nx = _nx * _ninv
     _ny = _ny * _ninv
@@ -1470,38 +1614,18 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
 
     half_vec = np.array([sun_x, sun_y, sun_z + 1.0], dtype=np.float32)
     half_vec /= np.linalg.norm(half_vec)
-    # The sea body is still lit near-flat (N=(0,0,1)); the wave normal drives
-    # only the specular + sky ADD, not the body lighting, so the shore never
-    # hillshades into a dark rim.
-    _wsun = float(sun_z) ** 1.05
-    _wshadow = 0.78 + 0.22 * shadow_mask
-    # TIGHT specular lobe off the perturbed normal: a facet pointing near the
-    # sun half-vector glints hard; the high power kills it between crests.  A
-    # tiny flat-water sheen underneath keeps the open sea off matte-black.
-    # The lobe is further GATED to actual ripple + swell crest tops (`_rv`,
-    # `_sv` are the noise values, not slopes) so glints stay DISCRETE and
-    # clustered on the up-faces of swells, not a whole-sea speckle field.
-    _NdotH = np.clip(_nx * half_vec[0] + _ny * half_vec[1] + _nz * half_vec[2], 0.0, 1.0)
-    _crest = (np.clip((_rv - 0.60) / 0.40, 0.0, 1.0) ** 1.4
-              * (0.35 + 0.65 * np.clip((_sv - 0.42) / 0.45, 0.0, 1.0)))
-    _spec_glint = (_NdotH ** 100) * 0.55 * _crest * _surf_fade
-    _wspec = ((float(np.clip(half_vec[2], 0.0, 1.0)) ** 24) * 0.055
-              + _spec_glint)
-    # Fresnel sky ADD, now split by the normal's TILT DIRECTION not its
-    # magnitude: facets tilted toward the sun azimuth catch bright sky, the
-    # opposite flank catches almost none -- an asymmetric per-crest split, not
-    # a brighten-wherever-there-is-slope wash.
-    _saz = np.array([sun_x, sun_y], dtype=np.float32)
-    _saz /= np.linalg.norm(_saz)
-    _tilt = _nx * _saz[0] + _ny * _saz[1]                     # signed, ~ +-0.3
-    sky_col = np.array([0.50, 0.575, 0.66], dtype=np.float32)  # v09: B >= G
-    fres = np.clip(0.045 + 0.11 * _tilt, 0.012, 0.11)
-    ocean_lit = (w_col * (0.30 + 0.70 * _wsun * _wshadow[:, :, None])
-                 + _wspec[:, :, None] + sky_col[None, None, :] * fres[:, :, None])
 
-    # Surf -- foam only in shallow water, gated by exposure of the shore normal
-    # to a fixed swell direction, broken into arcs by noise, concentrated on
-    # headlands and thinned in bays.  Not a continuous ribbon / outline.
+    # Diffuse lighting on faceted ripples
+    _w_NdotL = np.clip(_nx * sun_x + _ny * sun_y + _nz * sun_z, 0.0, 1.0)
+    _w_diffuse = 0.65 + 0.35 * (np.power(_w_NdotL, 1.2) * (0.75 + 0.25 * shadow_mask))
+
+    # Crisp specular sun glints on wave facets
+    _w_NdotH = np.clip(_nx * half_vec[0] + _ny * half_vec[1] + _nz * half_vec[2], 0.0, 1.0)
+    _spec_crisp = ((_w_NdotH ** 36) * 0.18 + (_w_NdotH ** 90) * 0.30) * direct_sun
+
+    ocean_lit = w_col * _w_diffuse[:, :, None] + _spec_crisp[:, :, None]
+
+    # Surf -- delicate foam only at the immediate beach waterline (<= 0.14 tiles)
     _shl = np.sqrt(dHx * dHx + dHy * dHy) + 1e-6
     _outx, _outy = dHx / _shl, dHy / _shl                     # unit vector, points seaward (downhill)
     _swell = np.array([0.72, -0.69], dtype=np.float32)
@@ -1514,9 +1638,9 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
     _fn1, _, _ = iq_noised(WX * 0.40 - 11.0, WY * 0.40 + 5.0)
     _fn2, _, _ = iq_noised(WX * 1.10 + 2.0, WY * 1.10 + 1.0)
     _fbreak = _ss(0.30, 0.66, _fn0 * 0.55 + _fn1 * 0.30 + _fn2 * 0.15)
-    _szone = np.clip((0.075 - depth) / 0.075, 0.0, 1.0) * is_ocean_water
-    _szone = _szone * np.clip(depth / 0.004, 0.0, 1.0)        # drop the last sliver at the very edge
-    foam = np.clip((_szone ** 0.5) * (0.42 + 1.9 * _expose) * _fbreak * _head_gate, 0.0, 1.0)
+    _szone = np.clip((0.14 - sea_dist_tiles) / 0.14, 0.0, 1.0) * is_ocean_water
+    _szone = _szone * np.clip(depth / 0.002, 0.0, 1.0)        # drop the last sliver at the very edge
+    foam = np.clip((_szone ** 1.3) * (0.35 + 0.85 * _expose) * _fbreak * _head_gate, 0.0, 0.85)
     foam_col = np.array([0.94, 0.965, 0.975], dtype=np.float32)
     ocean_lit = ocean_lit * (1.0 - foam[:, :, None]) + foam_col * foam[:, :, None]
 
@@ -1816,22 +1940,20 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
     m_rock = np.where(slope[:, :, None] < 0.12, rock_scree, m_rock)
     ground_c = ground_c * (1.0 - m_weight) + m_rock * m_weight
 
-    # Cliff rock exposure on steep slopes in mountain/hill areas
-    rock_presence = np.clip(H_mount_prob * 1.5 + H_hills_prob * 0.5, 0.0, 1.0)[:, :, None]
-    cliff_factor = np.clip((slope - 0.16) / 0.20, 0.0, 1.0)[:, :, None] * rock_presence
+    # Cliff rock exposure on steep slopes in mountain/hill areas AND coastal sea cliffs
+    is_coastal_cliff = np.clip((slope - 0.12) / 0.18, 0.0, 1.0) * np.clip(1.0 - inland_dist_tiles / 0.45, 0.0, 1.0) * w_cliff
+    rock_presence = np.clip(H_mount_prob * 1.5 + H_hills_prob * 0.5 + is_coastal_cliff * 2.2, 0.0, 1.0)[:, :, None]
+    cliff_factor = np.clip((slope - 0.14) / 0.18, 0.0, 1.0)[:, :, None] * rock_presence
     cliff_col = np.where(H[:, :, None] >= 0.85, rock_granite, cliff_dark)
-    ground_c = ground_c * (1.0 - cliff_factor * 0.40) + cliff_col * (cliff_factor * 0.40)
+    ground_c = ground_c * (1.0 - cliff_factor * 0.70) + cliff_col * (cliff_factor * 0.70)
 
-    # BEACH: strand up to a wiggly upper elevation.  Width falls out of the
-    # offshore gradient -- H climbs slowly out of a shelving plains coast so the
-    # [0 .. beach_hi] band is many pixels wide; it climbs fast off a cliff coast
-    # so the band is a sliver.  A low-freq noise wiggle + a slope taper keep the
-    # sand/grass boundary from reading as a clean iso-elevation contour.
+    # BEACH: suppressed at sheer cliffs, wide at gentle ramps
     _bwig, _, _ = iq_noised(WX * 0.06 + 21.0, WY * 0.06 - 8.0)
     _bwig2, _, _ = iq_noised(WX * 0.19 - 5.0, WY * 0.19 + 12.0)
     beach_hi = 0.056 + 0.028 * (_bwig - 0.5) * 2.0 + 0.012 * (_bwig2 - 0.5) * 2.0
-    beach_hi = beach_hi * np.clip(1.0 - (slope - 0.05) / 0.30, 0.35, 1.0)
-    beach_mask = np.clip((beach_hi - H) / np.maximum(beach_hi, 1e-3), 0.0, 1.0)[:, :, None]
+    beach_scale = np.clip(1.0 - w_cliff * 0.88 + w_ramp * 0.45, 0.10, 1.5)
+    beach_hi = beach_hi * beach_scale * np.clip(1.0 - (slope - 0.05) / 0.22, 0.05, 1.0)
+    beach_mask = np.clip((beach_hi - H) / np.maximum(beach_hi, 1e-3), 0.0, 1.0)[:, :, None] * (1.0 - np.clip(cliff_factor * 1.6, 0.0, 1.0))
     ground_c = ground_c * (1.0 - beach_mask) + beach_col * beach_mask
 
     # Snow Peaks (STRICTLY snow mountain tiles and high summits >= 0.76)
@@ -1915,7 +2037,7 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
     _f_lo = np.where(is_ocean_water, 0.065, 0.09)          # v07: de-haze open water so the sea keeps its depth
     haze_f = 0.02 + (_f_lo - 0.02) * (1.0 - h_norm) ** 1.5
     haze_f = haze_f + 0.02 * np.clip((_rad - 1.10) / 0.60, 0.0, 1.0)
-    haze_f = np.where(is_ocean_water, haze_f, np.minimum(haze_f, 0.05))
+    haze_f = np.where(is_ocean_water, haze_f * 0.35, np.minimum(haze_f, 0.05))
     _nw = np.clip(0.5 - 0.5 * (NX + NY) / 1.35, 0.0, 1.0)          # 1 at NW (top-left), 0 at SE
     haze_base = np.array([0.70, 0.76, 0.85], dtype=np.float32)
     haze_nwc = np.array([0.770, 0.782, 0.773], dtype=np.float32)   # ~10% warmer
@@ -1954,8 +2076,9 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
     cl_thr, cl_soft = 0.615, 0.11
     cloud_sh = _ss(cl_thr - cl_soft, cl_thr + cl_soft, cloud_field)           # 1 = full shadow
     _csh = cloud_sh[:, :, None]
-    final_rgb = final_rgb * (1.0 - 0.15 * _csh)
-    final_rgb = final_rgb * (1.0 + (cool_norm[None, None, :] - 1.0) * 0.14 * _csh)
+    _csh_eff = np.where(is_ocean_water[:, :, None], _csh * 0.35, _csh)
+    final_rgb = final_rgb * (1.0 - 0.15 * _csh_eff)
+    final_rgb = final_rgb * (1.0 + (cool_norm[None, None, :] - 1.0) * 0.14 * _csh_eff)
 
     # -- 4. grade: filmic S-curve (pivot 0.45, strength 1.12) with a soft
     #    highlight knee so the snow peaks keep headroom, then a <=4% cool
@@ -1969,7 +2092,14 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
     final_rgb = final_rgb * (1.0 - 0.04 * _vig)[:, :, None]
     final_rgb = final_rgb * (1.0 + (cool_norm[None, None, :] - 1.0) * 0.05 * _vig[:, :, None])
 
-    final_rgb = np.clip(final_rgb, 0.0, 1.0)
+    if tiles is not None:
+        sample_terrain_to_tiles(
+            tiles=tiles, layout=layout, bbox=bbox, H=H,
+            snow_weight=snow_weight, m_weight=m_weight, hill_ridge=hill_ridge,
+            hillw=hillw, canopy_a=canopy_a, mount_range_mask=mount_range_mask,
+            is_ocean_water=is_ocean_water, width=width, height=height,
+            generator=generator
+        )
 
     img_uint8 = (final_rgb * 255).astype(np.uint8)
     surf = pygame.surfarray.make_surface(np.transpose(img_uint8, (1, 0, 2)))

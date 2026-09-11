@@ -24,6 +24,8 @@ class TreatyType(str, Enum):
     TRADE_PACT = "trade_pact"
     NON_AGGRESSION = "non_aggression"
     DEFENSIVE_ALLIANCE = "defensive_alliance"
+    CUSTOMS_RECEIVERSHIP = "customs_receivership"
+    UNEQUAL_TREATY = "unequal_treaty"
 
 
 @dataclass

@@ -52,7 +52,11 @@ def _get_active_nation(world: dict):
 def _draw_btn(surface, rect, label, font_small, mx, my, enabled=True, color=TEXT, custom_bg=None, icon_kind=None,
               btn_id: str = None, world: dict = None, nation=None):
     bx, by, bw, bh = rect
-    is_hov = (bx <= mx <= bx + bw and by <= my <= by + bh) and enabled
+    is_hov = (bx <= mx <= bx + bw and by <= my <= by + bh)
+    if world is not None and btn_id:
+        from ui_targets import register_target
+        register_target(world, rect, ('dip_action', btn_id), tooltip_id=btn_id, scope='diplomacy', data={'btn_id': btn_id, 'nation': nation})
+
     if is_hov and btn_id and world is not None:
         from worldview_tooltips import get_button_tooltip_data
         tdata = get_button_tooltip_data(btn_id, world, nation=nation)
@@ -147,6 +151,9 @@ def draw_diplomacy_panel(surface: pygame.Surface, world: dict, font: pygame.font
     for i, o_nat in enumerate(other_nations):
         tx = x + 12 + i * (tab_w + t_gap)
         t_rect = (tx, cur_y, tab_w, tab_h)
+        if world is not None:
+            from ui_targets import register_target
+            register_target(world, t_rect, ('dip_target', o_nat.name), tooltip_id=f"dip_target_{o_nat.name}", scope='diplomacy')
         is_sel = (o_nat.name == target_n.name)
         is_hov = tx <= mx <= tx + tab_w and cur_y <= my <= cur_y + tab_h
         if is_hov and world is not None:
@@ -263,6 +270,46 @@ def draw_diplomacy_panel(surface: pygame.Surface, world: dict, font: pygame.font
     _draw_btn(surface, (btn_x, btn_y, btn_w, btn_h), "Send Foreign Aid ($100)", font_small, mx, my,
               enabled=can_aid, color=(120, 240, 150), icon_kind='treasury',
               btn_id='dip_foreign_aid', world=world, nation=active_n)
+    btn_y += btn_h + 6
+
+    # 6. Imperial Coercion / Customs Receivership
+    from imperialism import get_imperialism_manager
+    imp_mgr = get_imperialism_manager()
+    rec = imp_mgr.get_active_receivership_on(target_n.name)
+    has_rec = bool(rec and rec.creditor_nation == active_n.name and rec.status == 'active')
+    target_defaults = imp_mgr.get_unresolved_defaults_against(target_n.name, active_n.name)
+    def_total = sum(d['amount'] for d in target_defaults)
+
+    active_mil = any(getattr(u, 'soldiers', 0) > 0 for u in getattr(active_n, 'military_units', []))
+    active_gov = getattr(active_n, 'government', None)
+    active_cash = active_gov.agent.cash if (active_gov and hasattr(active_gov, 'agent')) else 0.0
+
+    if has_rec:
+        rec_lbl = f"Receivership Active (${rec.remaining_debt:.0f})"
+        rec_en = True
+        rec_bg = (45, 38, 25)
+        rec_col = (245, 180, 50)
+    elif def_total > 0:
+        rec_lbl = f"Impose Receivership (${def_total:.0f})"
+        rec_en = active_mil or (active_cash >= 50.0)
+        rec_bg = (55, 35, 20)
+        rec_col = (255, 160, 40)
+    elif is_war and any(getattr(t_obj, 'is_coast', False) for t_obj in target_n.tiles):
+        coast_tile = next((t_obj for t_obj in target_n.tiles if getattr(t_obj, 'is_coast', False)), None)
+        is_blk = imp_mgr.is_tile_blockaded(coast_tile.name) if coast_tile else False
+        rec_lbl = "Lift Naval Blockade" if is_blk else "Impose Naval Blockade"
+        rec_en = True if is_blk else active_mil
+        rec_bg = (50, 20, 20)
+        rec_col = (240, 80, 80)
+    else:
+        rec_lbl = "Demand Unequal Treaty"
+        rec_en = not is_war and (active_n.legitimacy > target_n.legitimacy + 0.25)
+        rec_bg = None
+        rec_col = (200, 180, 120)
+
+    _draw_btn(surface, (btn_x, btn_y, btn_w, btn_h), rec_lbl, font_small, mx, my,
+              enabled=rec_en, color=rec_col, custom_bg=rec_bg, icon_kind='military' if (has_rec or def_total > 0) else 'crown',
+              btn_id='dip_imperial_coercion', world=world, nation=active_n)
 
     cur_y += dec_card_h + 10
 
@@ -404,6 +451,33 @@ def diplomacy_panel_hit(pos: tuple[int, int], world: dict) -> bool:
             cur_rel = diplomacy.get_relation(active_n.name, target_n.name)
             diplomacy.set_relation(active_n.name, target_n.name, min(1.0, cur_rel + 0.15))
             ticker_push(world, t, 'DIPLOMACY', f"{active_n.name} dispatched $100 Foreign Aid Grant to {target_n.name} (+0.15 Relation).", (120, 240, 150))
+        return True
+    btn_y += btn_h + 6
+
+    # 6. Imperial Coercion Button
+    if btn_x <= mx <= btn_x + btn_w and btn_y <= my <= btn_y + btn_h:
+        from imperialism import get_imperialism_manager
+        imp_mgr = get_imperialism_manager()
+        rec = imp_mgr.get_active_receivership_on(target_n.name)
+        target_defaults = imp_mgr.get_unresolved_defaults_against(target_n.name, active_n.name)
+        def_total = sum(d['amount'] for d in target_defaults)
+
+        active_mil = any(getattr(u, 'soldiers', 0) > 0 for u in getattr(active_n, 'military_units', []))
+        active_gov = getattr(active_n, 'government', None)
+        active_cash = active_gov.agent.cash if (active_gov and hasattr(active_gov, 'agent')) else 0.0
+
+        if def_total > 0 and not rec:
+            if active_mil or (active_cash >= 50.0):
+                imp_mgr.establish_receivership(active_n, target_n, def_total, t, world)
+        elif is_war and any(getattr(t_obj, 'is_coast', False) for t_obj in target_n.tiles):
+            coast_tile = next((t_obj for t_obj in target_n.tiles if getattr(t_obj, 'is_coast', False)), None)
+            if coast_tile:
+                if imp_mgr.is_tile_blockaded(coast_tile.name):
+                    imp_mgr.lift_blockade(coast_tile.name, world, t)
+                elif active_mil:
+                    imp_mgr.impose_naval_blockade(active_n, target_n, coast_tile, t, world)
+        elif not is_war and (active_n.legitimacy > target_n.legitimacy + 0.25):
+            imp_mgr.impose_unequal_treaty(active_n, target_n, 'tariff_exemption', None, t, world)
         return True
 
     return True  # Consume all clicks inside panel

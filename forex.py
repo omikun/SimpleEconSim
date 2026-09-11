@@ -557,7 +557,41 @@ def audit_currency_total(regions, currency):
         if bank is not None and id(bank) not in seen_reserves:
             seen_reserves.add(id(bank))
             total += bank.foreign_reserves.get(currency, 0.0)
+
+    # Multi-tier Fiscal Federalism: National Sovereign and Provincial treasuries
+    seen_gov_agents = set()
+    for r in regions:
+        for a in r.agents:
+            seen_gov_agents.add(id(a))
+
+    seen_sovereign_govs = set()
+    for r in regions:
+        owner = getattr(r, 'owner_nation', None)
+        nat_gov = getattr(owner, 'government', None) if owner else None
+        if nat_gov is not None and id(nat_gov) not in seen_sovereign_govs:
+            seen_sovereign_govs.add(id(nat_gov))
+            nat_agent = getattr(nat_gov, 'agent', None)
+            if nat_agent is not None and id(nat_agent) not in seen_gov_agents:
+                seen_gov_agents.add(id(nat_agent))
+                gov_cur = getattr(nat_gov, 'currency', getattr(owner, 'currency', None))
+                if gov_cur == currency:
+                    total += nat_agent.cash
+                total += sum(fx_balance(nat_agent, currency) for _ in [0])
+
+        prov = getattr(r, 'province', None)
+        prov_gov = getattr(prov, 'gov', None) if prov else None
+        if prov_gov is not None and id(prov_gov) not in seen_sovereign_govs:
+            seen_sovereign_govs.add(id(prov_gov))
+            prov_agent = getattr(prov_gov, 'agent', None)
+            if prov_agent is not None and id(prov_agent) not in seen_gov_agents:
+                seen_gov_agents.add(id(prov_agent))
+                gov_cur = getattr(prov_gov, 'currency', getattr(prov, 'currency', None))
+                if gov_cur == currency:
+                    total += prov_agent.cash
+                total += sum(fx_balance(prov_agent, currency) for _ in [0])
+
     return total
+
 
 # =============================================================================
 # Phase 3: interbank market cycle (bids + clear + desk last resort)

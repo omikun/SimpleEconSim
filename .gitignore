@@ -34,6 +34,7 @@ steamreviewscraper.py
 
 # Downloads / external files
 *.pdf
+*.epub
 
 # Output artifacts (plots, logs, diagnostics, profiles)
 outputs/

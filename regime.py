@@ -62,7 +62,20 @@ def _avg_faction_support(nation):
 
 def track_legitimacy(nation):
     """M3.4: drift legitimacy toward the population's faction support."""
-    target = _avg_faction_support(nation)
+    if getattr(nation, 'regime_type', '') == 'commune':
+        # Commune legitimacy is based on worker-peasant well-being & commons access
+        tiles = getattr(nation, 'tiles', [])
+        workers = [
+            a for tile in tiles for a in getattr(tile, 'agents', [])
+            if not getattr(a, 'is_corporation', False) and not getattr(a, 'is_government', False) and getattr(a, 'alive', True)
+        ]
+        if workers:
+            fed_ratio = sum(1 for a in workers if getattr(a, 'hungry_steps', 0) == 0) / len(workers)
+            target = 0.50 + 0.45 * fed_ratio
+        else:
+            target = 0.80
+    else:
+        target = _avg_faction_support(nation)
     cur = getattr(nation, 'legitimacy', 0.6)
     nation.legitimacy = _clamp(cur + (target - cur) * LEGITIMACY_DRIFT, 0.0, 1.0)
 
@@ -183,6 +196,11 @@ def step_regime(nation, t, rng=None):
         nation._last_election = 0
 
     # 3. Election cadence
+    if getattr(nation, 'regime_type', '') == 'commune':
+        nation.ruling_faction = 'Worker-Peasant Council'
+        nation.regime_log.extend(events)
+        return events
+
     due_interval = (getattr(nation, 'regime_type', 'autocracy') == 'democracy'
                     and t - nation._last_election >= ELECTION_INTERVAL)
     due_collapse = getattr(nation, 'legitimacy', 0.6) < SNAP_ELECTION_LEGITIMACY \

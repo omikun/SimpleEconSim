@@ -156,6 +156,24 @@ def step_turn(t: int, tiles: list, nations: list = None,
             for ev in inno_events:
                 on_event(t, ev.get('event', 'INNOVATION'), ev.get('message', ''))
 
+    # 10e. Popular Resistance Escalation & Commune Formation
+    world_ctx = {'tiles': tiles, 'nations': nations, 'pair_orders': pair_orders}
+    try:
+        from popular_resistance import get_popular_resistance_manager
+        res_events = get_popular_resistance_manager().step_popular_resistance(world_ctx, t)
+        if on_event and res_events:
+            for ev in res_events:
+                on_event(t, ev.get('kind', 'RESISTANCE'), ev.get('msg', ''))
+    except Exception:
+        pass
+
+    # 10f. Financial Imperialism & Core-Periphery Tracking
+    try:
+        from imperialism import get_imperialism_manager
+        get_imperialism_manager().step_imperialism(world_ctx, t)
+    except Exception:
+        pass
+
     # 11. Forex desks update & PPP tracking
     for r, other in pair_orders:
         desk = r.forex_desks.get(other.name)

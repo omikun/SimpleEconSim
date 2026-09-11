@@ -55,7 +55,11 @@ def _get_active_nation(world: dict):
 def _draw_btn(surface, rect, label, font_small, mx, my, enabled=True, color=TEXT, custom_bg=None, icon_kind=None,
               btn_id: str = None, world: dict = None, nation=None):
     bx, by, bw, bh = rect
-    is_hov = (bx <= mx <= bx + bw and by <= my <= by + bh) and enabled
+    is_hov = (bx <= mx <= bx + bw and by <= my <= by + bh)
+    if world is not None and btn_id:
+        from ui_targets import register_target
+        register_target(world, rect, ('debt_action', btn_id), tooltip_id=btn_id, scope='debt', data={'btn_id': btn_id, 'nation': nation})
+
     if is_hov and btn_id and world is not None:
         from worldview_tooltips import get_button_tooltip_data
         tdata = get_button_tooltip_data(btn_id, world, nation=nation)
@@ -136,13 +140,16 @@ def draw_debt_panel(surface: pygame.Surface, world: dict, font: pygame.font.Font
     # Drawer Top Switcher Tabs
     cur_y = draw_drawer_top_tabs(surface, world, x, y + 48, w, 'debt', font_small, mouse_pos)
 
-    # Sub-scope Switcher: Domestic & ISRB vs Foreign Reserves
+    # Sub-scope Switcher: Domestic & ISRB vs Foreign Reserves vs Imperialism
     scope = world.get('debt_scope', 'domestic')
-    scopes = [('domestic', 'Domestic & ISRB'), ('foreign', 'Foreign Reserves')]
-    sc_w = (w - 28) // 2
+    scopes = [('domestic', 'ISRB Debt'), ('foreign', 'Reserves'), ('imperial', 'Imperialism')]
+    sc_w = (w - 32) // 3
     for i, (s_id, s_lbl) in enumerate(scopes):
-        sx = x + 10 + i * (sc_w + 8)
+        sx = x + 10 + i * (sc_w + 6)
         s_rect = (sx, cur_y, sc_w, 24)
+        if world is not None:
+            from ui_targets import register_target
+            register_target(world, s_rect, ('debt_scope', s_id), tooltip_id=f"debt_scope_{s_id}", scope='debt')
         is_sel = (scope == s_id)
         is_hov = s_rect[0] <= mx <= s_rect[0] + sc_w and s_rect[1] <= my <= s_rect[1] + 24
         if is_hov and world is not None:
@@ -246,7 +253,7 @@ def draw_debt_panel(surface: pygame.Surface, world: dict, font: pygame.font.Font
         surface.blit(font_small.render(f"Servicing Cost: ${servicing_cost:,.2f} / turn", True, (245, 180, 50) if servicing_cost > 0 else DIM), (x + 16, oy + 16))
         surface.blit(font_small.render("1-Turn notice before underwriters purchase.", True, DIM), (x + 16, oy + 34))
 
-    else:
+    elif scope == 'foreign':
         # Scope == 'foreign' (Foreign Reserves & Bond Market)
         card1_h = 90
         c1_rect = (x + 8, cur_y, w - 16, card1_h)
@@ -297,6 +304,79 @@ def draw_debt_panel(surface: pygame.Surface, world: dict, font: pygame.font.Font
                 surface.blit(font_small.render(f"• {b.issuer_nation} ${b.principal:,.0f} @ {b.coupon_rate*100:.2f}% ({rem_t}t left)", True, (120, 240, 150)), (x + 16, hy))
                 hy += 18
 
+    elif scope == 'imperial':
+        from imperialism import get_imperialism_manager
+        imp_mgr = get_imperialism_manager()
+        score = imp_mgr.compute_core_periphery_index(active_n, world)
+
+        # 1. Structural Position Card
+        card1_h = 110
+        c1_rect = (x + 8, cur_y, w - 16, card1_h)
+        pygame.draw.rect(surface, CARD_BG, c1_rect, border_radius=5)
+        pygame.draw.rect(surface, CARD_BORDER, c1_rect, 1, border_radius=5)
+
+        surface.blit(font.render("Core-Periphery Dependency", True, (245, 180, 50)), (x + 16, cur_y + 8))
+
+        tier_col = (120, 240, 150) if score.tier == "Imperial Core" else ((240, 180, 50) if score.tier == "Semi-Periphery" else (240, 90, 90))
+        surface.blit(font.render(f"Tier: {score.tier}", True, tier_col), (x + 16, cur_y + 30))
+
+        idx_sign = "+" if score.composite_index >= 0 else ""
+        surface.blit(font_small.render(f"Composite Score: {idx_sign}{score.composite_index:.2f}  |  Debt Ratio: {score.external_debt_ratio*100:.1f}%", True, TEXT), (x + 16, cur_y + 54))
+        surface.blit(font_small.render(f"Net Creditor Balance: ${score.net_creditor_balance:+,.0f}", True, (120, 220, 140) if score.net_creditor_balance >= 0 else (240, 100, 100)), (x + 16, cur_y + 72))
+        surface.blit(font_small.render(f"Terms of Trade (Mfg/Prim): {score.terms_of_trade_ratio:.2f}x", True, DIM), (x + 16, cur_y + 90))
+
+        cur_y += card1_h + 10
+
+        # 2. Customs Receiverships & Imperial Actions Card
+        card2_h = 165
+        c2_rect = (x + 8, cur_y, w - 16, card2_h)
+        pygame.draw.rect(surface, CARD_BG, c2_rect, border_radius=5)
+        pygame.draw.rect(surface, CARD_BORDER, c2_rect, 1, border_radius=5)
+
+        surface.blit(font.render("Customs Receivership Status", True, (220, 150, 40)), (x + 16, cur_y + 8))
+
+        active_rec = imp_mgr.get_active_receivership_on(active_n.name)
+        if active_rec:
+            surface.blit(font_small.render(f"⚠️ UNDER RECEIVERSHIP: {active_rec.creditor_nation}", True, RED), (x + 16, cur_y + 32))
+            surface.blit(font_small.render(f"Diverting 40% of trade tariffs and sales taxes.", True, (255, 200, 100)), (x + 16, cur_y + 50))
+            surface.blit(font_small.render(f"Remaining Debt: ${active_rec.remaining_debt:,.0f} (Paid: ${active_rec.total_collected:,.0f})", True, TEXT), (x + 16, cur_y + 68))
+
+            # Repudiate Button
+            _draw_btn(surface, (x + 16, cur_y + 92, w - 32, 26), "Repudiate Sovereign Debt & Expel Receiver", font_small, mx, my,
+                      enabled=True, color=(255, 70, 70), custom_bg=(60, 20, 20), icon_kind='alert',
+                      btn_id='debt_repudiate', world=world, nation=active_n)
+
+            # Debt Moratorium Button
+            _draw_btn(surface, (x + 16, cur_y + 124, w - 32, 26), "Declare Temporary Debt Moratorium", font_small, mx, my,
+                      enabled=True, color=(245, 180, 50), custom_bg=(50, 40, 20), icon_kind='scale',
+                      btn_id='debt_moratorium', world=world, nation=active_n)
+        else:
+            # Check if this nation holds receiverships on other states
+            held_recs = [r for r in imp_mgr.receiverships if r.creditor_nation == active_n.name and r.status == 'active']
+            if held_recs:
+                surface.blit(font_small.render(f"Imperial Receiverships Held ({len(held_recs)}):", True, (120, 240, 150)), (x + 16, cur_y + 32))
+                ry = cur_y + 52
+                for r in held_recs[:2]:
+                    surface.blit(font_small.render(f"• {r.debtor_nation}: 40% tariff intercept (${r.remaining_debt:,.0f} owed)", True, TEXT), (x + 16, ry))
+                    ry += 18
+            else:
+                surface.blit(font_small.render("No foreign receiverships active on your sovereign territory.", True, (120, 220, 140)), (x + 16, cur_y + 32))
+
+            # Open defaults check
+            unresolved = imp_mgr.get_unresolved_defaults_against(active_n.name)
+            if unresolved:
+                surface.blit(font_small.render(f"Delinquent Defaults: ${sum(d['amount'] for d in unresolved):,.0f} owed to foreign powers!", True, RED), (x + 16, cur_y + 80))
+                _draw_btn(surface, (x + 16, cur_y + 104, w - 32, 26), "Accept Creditor Customs Receivership", font_small, mx, my,
+                          enabled=True, color=(240, 180, 50), custom_bg=(50, 40, 20), icon_kind='check',
+                          btn_id='debt_accept_receivership', world=world, nation=active_n)
+            else:
+                surface.blit(font_small.render("Sovereign credit obligations in good standing.", True, DIM), (x + 16, cur_y + 80))
+                # Optional preemptive debt moratorium
+                _draw_btn(surface, (x + 16, cur_y + 110, w - 32, 26), "Declare Sovereign Debt Moratorium", font_small, mx, my,
+                          enabled=True, color=(245, 180, 50), custom_bg=(40, 35, 25), icon_kind='scale',
+                          btn_id='debt_moratorium', world=world, nation=active_n)
+
+
 
 def debt_panel_hit(pos: tuple[int, int], world: dict) -> bool:
     """Hit-test and interactive execution for Left Sovereign Debt Drawer."""
@@ -332,10 +412,10 @@ def debt_panel_hit(pos: tuple[int, int], world: dict) -> bool:
     cur_y = y + 48 + 24 + 8
 
     # Sub-scope Switcher
-    scopes = [('domestic', 'Domestic & ISRB'), ('foreign', 'Foreign Reserves')]
-    sc_w = (w - 28) // 2
+    scopes = [('domestic', 'ISRB Debt'), ('foreign', 'Reserves'), ('imperial', 'Imperialism')]
+    sc_w = (w - 32) // 3
     for i, (s_id, _) in enumerate(scopes):
-        sx = x + 10 + i * (sc_w + 8)
+        sx = x + 10 + i * (sc_w + 6)
         if sx <= mx <= sx + sc_w and cur_y <= my <= cur_y + 24:
             world['debt_scope'] = s_id
             return True
@@ -411,8 +491,7 @@ def debt_panel_hit(pos: tuple[int, int], world: dict) -> bool:
             ticker_push(world, t, 'BONDS', f"{active_n.name} announced $1,000 {selected_duration}t Sovereign Bond offering (1-turn notice).", ACCENT)
             return True
 
-    else:
-        # Scope == 'foreign'
+    elif scope == 'foreign':
         cur_y += 90 + 10 + 32
         foreign_offerings = [o for o in market.get_live_offerings() if o.issuer_nation != active_n.name]
         for off in foreign_offerings[:3]:
@@ -427,5 +506,41 @@ def debt_panel_hit(pos: tuple[int, int], world: dict) -> bool:
                         ticker_push(world, t, 'BONDS', f"{active_n.name} purchased ${off.principal:.0f} {off.issuer_nation} sovereign bonds into foreign reserves.", (120, 240, 150))
                 return True
             cur_y += 34
+
+    elif scope == 'imperial':
+        from imperialism import get_imperialism_manager
+        imp_mgr = get_imperialism_manager()
+        cur_y += 110 + 10  # skip card 1
+
+        active_rec = imp_mgr.get_active_receivership_on(active_n.name)
+        if active_rec:
+            # Repudiate click
+            if x + 16 <= mx <= x + 16 + w - 32 and cur_y + 92 <= my <= cur_y + 92 + 26:
+                imp_mgr.repudiate_all_imperial_obligations(active_n, t, world)
+                return True
+            # Moratorium click
+            if x + 16 <= mx <= x + 16 + w - 32 and cur_y + 124 <= my <= cur_y + 124 + 26:
+                active_n.debt_moratorium = not getattr(active_n, 'debt_moratorium', False)
+                status_str = "declared" if active_n.debt_moratorium else "lifted"
+                ticker_push(world, t, 'FINANCE', f"📜 {active_n.name} {status_str} sovereign debt moratorium.", (245, 180, 50))
+                return True
+        else:
+            unresolved = imp_mgr.get_unresolved_defaults_against(active_n.name)
+            if unresolved:
+                # Accept Receivership click
+                if x + 16 <= mx <= x + 16 + w - 32 and cur_y + 104 <= my <= cur_y + 104 + 26:
+                    creditor_name = unresolved[0]['creditor']
+                    creditor = next((n for n in world.get('nations', []) if n.name == creditor_name), None)
+                    if creditor:
+                        tot_amt = sum(d['amount'] for d in unresolved)
+                        imp_mgr.establish_receivership(creditor, active_n, tot_amt, t, world)
+                    return True
+            else:
+                # Moratorium click
+                if x + 16 <= mx <= x + 16 + w - 32 and cur_y + 110 <= my <= cur_y + 110 + 26:
+                    active_n.debt_moratorium = not getattr(active_n, 'debt_moratorium', False)
+                    status_str = "declared" if active_n.debt_moratorium else "lifted"
+                    ticker_push(world, t, 'FINANCE', f"📜 {active_n.name} {status_str} sovereign debt moratorium.", (245, 180, 50))
+                    return True
 
     return True
