@@ -435,12 +435,11 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
     x_vals = np.linspace(min_wx, max_wx, width, dtype=np.float32)
     WX, WY = np.meshgrid(x_vals, y_vals)
 
-    if progress_callback:
-        progress_callback(0.05, "Synthesizing hexagonal plate tectonics & grid...")
-
     NX = (WX - cx_center) / span_x
     NY = (WY - cy_center) / span_y
 
+    if progress_callback:
+        progress_callback(0.05, "Synthesizing hexagonal plate tectonics & grid...")
     # 1. 7-Octave Inigo Quilez Derivative Erosion fBm (eliminates noisy 1-pixel grain)
     scale = 3.0
     PX = NX * scale
@@ -496,52 +495,10 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
 
     H_noise = (a - 0.85) * 0.70
 
-    # 2. Hex Conformation & Multi-Scale Inigo Quilez Fractal Projection
-    # 2D Inigo Quilez value noise with analytical derivatives
-    def iq_noised(px_arr, py_arr):
-        ix = np.floor(px_arr).astype(np.int32)
-        iy = np.floor(py_arr).astype(np.int32)
-        fx = px_arr - ix
-        fy = py_arr - iy
-        ux = fx * fx * (3.0 - 2.0 * fx)
-        uy = fy * fy * (3.0 - 2.0 * fy)
-        dux = 6.0 * fx * (1.0 - fx)
-        duy = 6.0 * fy * (1.0 - fy)
-        ix0 = ix & 255
-        iy0 = iy & 255
-        ix1 = (ix + 1) & 255
-        iy1 = (iy + 1) & 255
-        c_a = noise_tbl[iy0, ix0]
-        c_b = noise_tbl[iy0, ix1]
-        c_c = noise_tbl[iy1, ix0]
-        c_d = noise_tbl[iy1, ix1]
-        k0 = c_a
-        k1 = c_b - c_a
-        k2 = c_c - c_a
-        k3 = c_a - c_b - c_c + c_d
-        val = k0 + k1 * ux + k2 * uy + k3 * ux * uy
-        dx = dux * (k1 + k3 * uy)
-        dy = duy * (k2 + k3 * ux)
-        return val, dx, dy
-
-    # Multi-Scale Domain Warping for Hex Projection Space
-    w_macro_scale = 1.0 / (HEX_SIZE * 3.6)
-    vm_val, vm_dx, vm_dy = iq_noised(WX * w_macro_scale, WY * w_macro_scale)
-
-    w_meso_scale = 1.0 / (HEX_SIZE * 1.3)
-    vme_val, vme_dx, vme_dy = iq_noised((WX + 77.0) * w_meso_scale + vm_dx * 0.40, (WY - 53.0) * w_meso_scale + vm_dy * 0.40)
-
-    w_micro_scale = 1.0 / (HEX_SIZE * 0.45)
-    vmi_val, vmi_dx, vmi_dy = iq_noised(WX * w_micro_scale, WY * w_micro_scale)
-
-    w_detail_scale = 1.0 / (HEX_SIZE * 0.16)
-    vdet_val, vdet_dx, vdet_dy = iq_noised((WX + 19.3) * w_detail_scale, (WY + 81.1) * w_detail_scale)
-
-    warp_tot_x = vm_dx * (HEX_SIZE * 0.35) + vme_dx * (HEX_SIZE * 0.18) + vmi_dx * (HEX_SIZE * 0.08) + vdet_dx * (HEX_SIZE * 0.02)
-    warp_tot_y = vm_dy * (HEX_SIZE * 0.35) + vme_dy * (HEX_SIZE * 0.18) + vmi_dy * (HEX_SIZE * 0.08) + vdet_dy * (HEX_SIZE * 0.02)
-
-    XW = WX + warp_tot_x
-    YW = WY + warp_tot_y
+    # 2. Hex Conformation & True Biome Fields
+    warp_amp = HEX_SIZE * 0.12
+    XW = WX + dx_accum * 0.20 * warp_amp
+    YW = WY + dy_accum * 0.20 * warp_amp
 
     q_frac = (_SQRT3 / 3.0 * XW - 1.0 / 3.0 * YW) / HEX_SIZE
     r_frac = (2.0 / 3.0 * YW) / HEX_SIZE
@@ -585,28 +542,15 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
             elif biome == 'hills':
                 grid_hills[r - min_r, q - min_q] = 1.0
 
-    d_land_min = np.full_like(WX, 999.0)
-    d_ocean_min = np.full_like(WX, 999.0)
-    d_forest_min = np.full_like(WX, 999.0)
-    d_nonforest_min = np.full_like(WX, 999.0)
-    d_mount_min = np.full_like(WX, 999.0)
-    d_nonmount_min = np.full_like(WX, 999.0)
-    d_snow_min = np.full_like(WX, 999.0)
-    d_hills_min = np.full_like(WX, 999.0)
+    H_land_sum = np.zeros_like(WX, dtype=np.float32)
+    H_forest_sum = np.zeros_like(WX, dtype=np.float32)
+    H_mount_sum = np.zeros_like(WX, dtype=np.float32)
+    H_snow_sum = np.zeros_like(WX, dtype=np.float32)
+    H_hills_sum = np.zeros_like(WX, dtype=np.float32)
+    W_total = np.zeros_like(WX, dtype=np.float32)
 
-    f_noise1, _, _ = iq_noised(WX / 55.0, WY / 55.0)
-    f_noise2, _, _ = iq_noised(WX / 20.0 + 17.1, WY / 20.0 + 31.5)
-    f_noise3, _, _ = iq_noised(WX / 7.0 + 41.3, WY / 7.0 + 63.7)
-    f_noise4, _, _ = iq_noised(WX / 2.5 + 83.1, WY / 2.5 + 19.4)
-    fractal_dist_noise = (f_noise1 * 0.45 + f_noise2 * 0.32 + f_noise3 * 0.16 + f_noise4 * 0.07 - 0.50) * (HEX_SIZE * 0.36)
-
-    # 2D Vector Fractal Warping for Hex Metric Space (Bends straight hex facets into natural organic shorelines)
-    vw_scale = 1.0 / (HEX_SIZE * 1.0)
-    vw1, vwx1, vwy1 = iq_noised(WX * vw_scale + 14.2, WY * vw_scale + 83.7)
-    vw2, vwx2, vwy2 = iq_noised(WX * vw_scale * 2.7 + 49.1, WY * vw_scale * 2.7 + 19.3)
-    vw3, vwx3, vwy3 = iq_noised(WX * vw_scale * 6.4 + 71.5, WY * vw_scale * 6.4 + 57.2)
-    warp_hex_x = (vwx1 * 0.50 + vwx2 * 0.32 + vwx3 * 0.18) * (HEX_SIZE * 0.32)
-    warp_hex_y = (vwy1 * 0.50 + vwy2 * 0.32 + vwy3 * 0.18) * (HEX_SIZE * 0.32)
+    R_blend = HEX_SIZE * 2.2
+    R2 = R_blend * R_blend
 
     for dq, dr in all_dirs:
         qc = q_near + dq
@@ -623,60 +567,52 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
 
         cx_cand = HEX_SIZE * _SQRT3 * (qc + rc / 2.0)
         cy_cand = HEX_SIZE * 1.5 * rc
-        del_x = XW - cx_cand
-        del_y = YW - cy_cand
+        d2 = (XW - cx_cand)**2 + (YW - cy_cand)**2
 
-        del_x_warped = del_x + warp_hex_x
-        del_y_warped = del_y + warp_hex_y
+        w = np.maximum(0.0, 1.0 - (d2 / R2))**2.5
+        H_land_sum += w * l_cand
+        H_forest_sum += w * f_cand
+        H_mount_sum += w * m_cand
+        H_snow_sum += w * s_cand
+        H_hills_sum += w * h_cand
+        W_total += w
 
-        dx_abs = np.abs(del_x_warped)
-        dy_abs = np.abs(del_y_warped)
-        d_hex = np.maximum((_SQRT3 * 0.5) * dx_abs + 0.5 * dy_abs, dy_abs) * (2.0 / _SQRT3)
-        d_euclid = np.sqrt(del_x_warped**2 + del_y_warped**2)
-        d_cand = (d_hex * 0.35 + d_euclid * 0.65) + fractal_dist_noise
+    H_land_prob = H_land_sum / (W_total + 1e-6)
+    H_forest_prob = H_forest_sum / (W_total + 1e-6)
+    H_mount_prob = H_mount_sum / (W_total + 1e-6)
+    H_snow_prob = H_snow_sum / (W_total + 1e-6)
+    H_hills_prob = H_hills_sum / (W_total + 1e-6)
 
-        d_land_min = np.where(l_cand > 0.5, np.minimum(d_land_min, d_cand), d_land_min)
-        d_ocean_min = np.where(l_cand <= 0.5, np.minimum(d_ocean_min, d_cand), d_ocean_min)
+    if progress_callback:
+        progress_callback(0.20, "Synthesizing multi-fractal mountain massifs & relief...")
+    # 3. Inigo Quilez Multi-Fractal & Domain Warping Machinery
+    def iq_noised(px_arr, py_arr):
+        ix = np.floor(px_arr).astype(np.int32)
+        iy = np.floor(py_arr).astype(np.int32)
+        fx = px_arr - ix
+        fy = py_arr - iy
+        ux = fx * fx * (3.0 - 2.0 * fx)
+        uy = fy * fy * (3.0 - 2.0 * fy)
+        dux = 6.0 * fx * (1.0 - fx)
+        duy = 6.0 * fy * (1.0 - fy)
+        ix0 = ix & 255
+        iy0 = iy & 255
+        ix1 = (ix + 1) & 255
+        iy1 = (iy + 1) & 255
+        c_a = noise_tbl[iy0, ix0]
+        c_b = noise_tbl[iy0, ix1]
+        c_c = noise_tbl[iy1, ix0]
+        c_d = noise_tbl[iy1, ix1]
+        k0 = c_a
+        k1 = c_b - c_a
+        k2 = c_c - c_a
+        k3 = c_a - c_b - c_c + c_d
+        val = k0 + k1 * ux + k2 * uy + k3 * ux * uy
+        dx = dux * (k1 + k3 * uy)
+        dy = duy * (k2 + k3 * ux)
+        return val, dx, dy
 
-        d_forest_min = np.where(f_cand > 0.5, np.minimum(d_forest_min, d_cand), d_forest_min)
-        d_nonforest_min = np.where(f_cand <= 0.5, np.minimum(d_nonforest_min, d_cand), d_nonforest_min)
-
-        d_mount_min = np.where(m_cand > 0.5, np.minimum(d_mount_min, d_cand), d_mount_min)
-        d_nonmount_min = np.where(m_cand <= 0.5, np.minimum(d_nonmount_min, d_cand), d_nonmount_min)
-
-        d_snow_min = np.where(s_cand > 0.5, np.minimum(d_snow_min, d_cand), d_snow_min)
-        d_hills_min = np.where(h_cand > 0.5, np.minimum(d_hills_min, d_cand), d_hills_min)
-
-    # Voronoi Signed Distance Fields: conforms to true hex layout without round bubble lobes
-    sdf_land = d_ocean_min - d_land_min
-    sdf_forest = d_nonforest_min - d_forest_min
-    sdf_mount = d_nonmount_min - d_mount_min
-
-    trans_w = HEX_SIZE * 0.55
-    H_land_prob = np.clip(0.5 + sdf_land / (2.0 * trans_w), 0.0, 1.0)
-    H_forest_prob = np.clip(0.5 + sdf_forest / (2.0 * trans_w), 0.0, 1.0)
-    H_mount_prob = np.clip(0.5 + sdf_mount / (2.0 * trans_w), 0.0, 1.0)
-    H_snow_prob = np.maximum(0.0, 1.0 - (d_snow_min / (HEX_SIZE * 1.35))**2)**2
-    H_hills_prob = np.maximum(0.0, 1.0 - (d_hills_min / (HEX_SIZE * 1.35))**2)**2
-
-    # Multi-Octave Fractal Coastal Modulation (Rocky headlands, jagged fjords, sandy spits)
-    coast_scale = 1.0 / (HEX_SIZE * 0.65)
-    c_val1, _, _ = iq_noised(WX * coast_scale, WY * coast_scale)
-    c_val2, _, _ = iq_noised(WX * coast_scale * 2.4 + 19.1, WY * coast_scale * 2.4 + 47.3)
-    c_val3, _, _ = iq_noised(WX * coast_scale * 5.2 + 83.7, WY * coast_scale * 5.2 + 29.5)
-    coast_fractal = c_val1 * 0.50 + c_val2 * 0.32 + c_val3 * 0.18
-
-    coast_zone = np.clip(1.0 - np.abs(H_land_prob - 0.32) / 0.20, 0.0, 1.0)
-    H_land_prob = np.clip(H_land_prob + (coast_fractal - 0.50) * 0.22 * coast_zone, 0.0, 1.0)
-
-    # Fractal Biome Perimeter Shaping (Forest & Plains organic transitions)
-    forest_zone = np.clip(1.0 - np.abs(H_forest_prob - 0.50) / 0.35, 0.0, 1.0)
-    f_p_val1, _, _ = iq_noised(WX / (HEX_SIZE * 1.1) + 12.1, WY / (HEX_SIZE * 1.1) + 34.5)
-    f_p_val2, _, _ = iq_noised(WX / (HEX_SIZE * 0.40) + 33.1, WY / (HEX_SIZE * 0.40) + 67.2)
-    forest_fractal = f_p_val1 * 0.65 + f_p_val2 * 0.35
-    H_forest_prob = np.clip(H_forest_prob + (forest_fractal - 0.50) * 0.22 * forest_zone, 0.0, 1.0)
-
-    # IQ Multi-Scale Geological Warping
+    # Domain warp for organic geological patterns
     warp_scale = 1.0 / (HEX_SIZE * 3.5)
     qw_val, qw_dx, qw_dy = iq_noised(WX * warp_scale, WY * warp_scale)
     rw_val, rw_dx, rw_dy = iq_noised((WX + 120.0) * warp_scale + qw_dx * 0.5, (WY - 80.0) * warp_scale + qw_dy * 0.5)
@@ -684,10 +620,7 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
     WX_warped = WX + (qw_dx * 0.4 + rw_dx * 0.6) * (HEX_SIZE * 0.4)
     WY_warped = WY + (qw_dy * 0.4 + rw_dy * 0.6) * (HEX_SIZE * 0.4)
 
-    if progress_callback:
-        progress_callback(0.20, "Synthesizing multi-fractal mountain massifs & relief...")
-
-    # IQ Ridged Mountain Multi-Fractal (Solid, continuous mountain massifs without chunks cut out)
+    # IQ Ridged Mountain Multi-Fractal (Natural rugged jagged spines and eroded valleys)
     mount_px = WX_warped / (HEX_SIZE * 2.2)
     mount_py = WY_warped / (HEX_SIZE * 2.2)
     
@@ -708,11 +641,8 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
         mount_amp *= 0.52
         mount_freq *= 2.05
 
-    mount_relief = np.maximum(0.0, (mount_relief - 0.45) * 1.35)
-
-    # Mountains: Continuous alpine ranges with natural IQ ridged fractal relief (NO chunks cut out)
-    mount_range_mask = np.clip(H_mount_prob * 1.5 + H_snow_prob * 0.6, 0.0, 1.0) ** 0.85
-    mountain_ridge = mount_range_mask * (0.16 + 0.88 * mount_relief)
+    mount_relief = (mount_relief - 0.45) * 1.35
+    mount_relief = np.maximum(0.0, mount_relief)
 
     # Plains Multi-Scale Micro-Details (IQ multi-octave turf, meadow swells, micro-creeks)
     plains_px = WX_warped / (HEX_SIZE * 0.5)
@@ -726,58 +656,68 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
         p_amp *= 0.5
         p_freq *= 2.15
 
+    # Subtle micro-relief for plains (organic rolling turf and fine grass texture)
     plains_details = (plains_fbm - 0.50) * 0.035
 
-    # Varied Coastal Shelf Morphology: Smooth Sea-to-Plain Transitions vs Beach Shelves/Bluffs
-    c_macro, _, _ = iq_noised(WX / (HEX_SIZE * 3.8) + 55.2, WY / (HEX_SIZE * 3.8) + 88.1)
-    c_macro2, _, _ = iq_noised(WX / (HEX_SIZE * 1.6) + 12.3, WY / (HEX_SIZE * 1.6) + 91.4)
-    coastal_morphology = c_macro * 0.70 + c_macro2 * 0.30
-
-    # Smooth Ramp Coastlines: Continuous gradual slope from sea level (0.00) straight into plains (0.08)
-    t_smooth_coast = np.clip((H_land_prob - 0.22) / 0.32, 0.0, 1.0)
-    smooth_coast_H = -0.005 + 0.088 * (t_smooth_coast ** 1.1)
-
-    # Shelf / Terrace Coastlines: Distinct sandy beach terrace and coastal bluffs
-    t_shelf_coast = np.clip((H_land_prob - 0.28) / 0.18, 0.0, 1.0)
-    shelf_coast_H = -0.02 + 0.10 * (t_shelf_coast ** 1.35)
-
-    # Regional blend: some perimeter sectors have smooth ramps, other sectors have shelf terraces
-    smooth_ramp_weight = np.clip((coastal_morphology - 0.38) / 0.26, 0.0, 1.0)
-    coastal_land_H = shelf_coast_H * (1.0 - smooth_ramp_weight) + smooth_coast_H * smooth_ramp_weight
-
-    underwater_shelf = (H_land_prob - 0.26) * 0.85
-    land_shelf = np.where(
-        H_land_prob < 0.24,
-        underwater_shelf,
-        coastal_land_H + (H_land_prob - 0.46) * 0.03
-    )
-
-    # Detailed Fractal Coastline Contours (Fjords, rocky headlands, sea cliffs, and inlets)
-    coast_contour_zone = np.clip(1.0 - np.abs(H_land_prob - 0.30) / 0.12, 0.0, 1.0)
-    crag_fbm, _, _ = iq_noised(WX / 30.0 + 11.2, WY / 30.0 + 73.4)
-    crag_fbm2, _, _ = iq_noised(WX / 10.0 + 82.1, WY / 10.0 + 19.8)
-    crag_fbm3, _, _ = iq_noised(WX / 3.5 + 44.7, WY / 3.5 + 51.3)
-    coast_crags = (crag_fbm * 0.55 + crag_fbm2 * 0.30 + crag_fbm3 * 0.15 - 0.50) * 0.042
-    land_shelf = land_shelf + coast_crags * coast_contour_zone * (1.0 - smooth_ramp_weight * 0.65)
+    # Coastal shelf + bathymetry are built below, after the hill/mountain
+    # relief -- they need the coastal gradient of that relief.  See "COAST".
 
     # Hills: Gentle rolling multi-octave mounds
-    hill_fbm, _, _ = iq_noised(WX_warped / (HEX_SIZE * 1.6), WY_warped / (HEX_SIZE * 1.6))
-    hill_fbm2, _, _ = iq_noised(WX_warped / (HEX_SIZE * 0.5) + 33.7, WY_warped / (HEX_SIZE * 0.5) + 81.2)
-    hill_ridge = H_hills_prob * (0.16 + 0.14 * (hill_fbm * 0.65 + hill_fbm2 * 0.35))
+    hill_fbm, _, _ = iq_noised(WX_warped / (HEX_SIZE * 1.8), WY_warped / (HEX_SIZE * 1.8))
+    hill_ridge = H_hills_prob * (0.26 + 0.14 * hill_fbm)
 
-    # Plains Sloped from Mountain to Sea
-    t_mountain_to_sea = np.clip(d_ocean_min / np.maximum(1e-4, d_ocean_min + d_mount_min), 0.0, 1.0)
-    p_slope_noise, _, _ = iq_noised(WX / (HEX_SIZE * 3.5) + 71.9, WY / (HEX_SIZE * 3.5) + 24.5)
-    p_slope_weight = np.clip((p_slope_noise - 0.36) / 0.28, 0.0, 1.0)
-    plains_slope_H = p_slope_weight * (t_mountain_to_sea ** 1.2) * 0.11 * np.clip((H_land_prob - 0.24) / 0.15, 0.0, 1.0)
+    # Mountains: Continuous alpine ranges with natural IQ ridged fractal relief
+    mount_range_mask = np.clip(H_mount_prob * 1.5 + H_snow_prob * 0.6, 0.0, 1.0) ** 0.85
+    mountain_ridge = mount_range_mask * (0.16 + 0.88 * mount_relief)
+
+    # -------------------------------------------------------------------
+    # COAST -- shelf + bathymetry.  The near-shore heightfield is ONE
+    # C1-continuous function of the blurred land-occupancy field
+    # `H_land_prob`: a shelving ramp above the water line, spliced by
+    # smoothstep into a real sea floor below it.  Both the above-water
+    # climb-rate and the sub-sea plunge-rate scale with `coast_steep` (a
+    # blurred gradient magnitude of the hill+mountain relief, windowed to
+    # the near-shore band), so a cliff coast rises then plunges fast --
+    # thin beach, narrow turquoise shelf -- while a plains coast shelves
+    # out shallow and wide.  The sea floor carries the ridged multifractal
+    # + plains fBm so it has structure, faded in offshore so the water
+    # line itself stays smooth.  No np.where band step -> no dark contour.
+    from scipy.ndimage import gaussian_filter as _gf
+    shore_ref = 0.30
+
+    _rp = hill_ridge + mountain_ridge
+    _gpx = np.gradient(_rp, axis=1)
+    _gpy = np.gradient(_rp, axis=0)
+    coast_steep = _gf(np.sqrt(_gpx * _gpx + _gpy * _gpy), sigma=HEX_SIZE * 0.7)
+    coast_steep = np.clip(coast_steep / 0.010, 0.0, 1.0) ** 0.75
+
+    # near-shore window: 1 at the water line, 0 by the time we are well inland
+    # (keeps the steepening from inflating interior hills / mountains).
+    _near = np.clip(1.0 - (H_land_prob - shore_ref) / 0.20, 0.0, 1.0)
+    _t_up = np.clip((H_land_prob - shore_ref) / 0.17, 0.0, 1.0)
+    _above_rate = 0.075 + 0.85 * coast_steep * _near
+    land_shelf_above = _above_rate * (_t_up ** 1.3) + np.clip(H_land_prob - 0.46, 0.0, 1.0) * 0.04
+
+    _off = np.clip(shore_ref - H_land_prob, 0.0, shore_ref)   # 0 at water line, grows seaward
+    _plunge = 0.85 + 6.5 * coast_steep
+    seabed_dc = -(_off * _plunge + _off * _off * 3.5 * (0.2 + coast_steep))
+    seabed_struct = ((mount_relief * 0.10 + (plains_fbm - 0.5) * 0.11)
+                     * np.clip(_off * 6.0, 0.0, 1.0)
+                     * (0.35 + 0.65 * coast_steep))
+    seabed_H = seabed_dc + seabed_struct
+
+    _wsea = np.clip((shore_ref + 0.012 - H_land_prob) / 0.042, 0.0, 1.0)
+    _wsea = _wsea * _wsea * (3.0 - 2.0 * _wsea)
+    land_shelf = land_shelf_above * (1.0 - _wsea) + seabed_H * _wsea
 
     # Base Ground Elevation
-    mount_mask_total = mount_range_mask
-    base_ground_H = land_shelf + hill_ridge + mountain_ridge + plains_slope_H + plains_details * (1.0 - mount_mask_total)
+    base_ground_H = land_shelf + hill_ridge + mountain_ridge + plains_details * (1.0 - mount_range_mask)
 
     # Alpine Treeline: Trees do not climb high into the mountain peaks
+    # Below elevation 0.20 and mountain mask 0.15: 100% full tree density
+    # Above elevation 0.36 or mountain mask 0.35: 0% trees (rocky alpine peaks & cliffs)
     elev_treeline = np.clip(1.0 - (base_ground_H - 0.20) / 0.16, 0.0, 1.0)
-    mount_treeline = np.clip(1.0 - mount_mask_total * 2.2, 0.0, 1.0)
+    mount_treeline = np.clip(1.0 - mount_range_mask * 2.2, 0.0, 1.0)
     treeline_factor = elev_treeline * mount_treeline
 
     # -------------------------------------------------------------
@@ -785,32 +725,28 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
     # -------------------------------------------------------------
     if progress_callback:
         progress_callback(0.38, "Tracing hydraulic river descents & mountain springs...")
-
-    # 1. Collect Mountain Springs STRICTLY from Mountains
-    mountain_springs = []
+    spring_candidates = []
     if mountain_centers:
         for cx, cy in mountain_centers:
             px = int(round((cx - min_wx) / (max_wx - min_wx) * (width - 1)))
             py = int(round((cy - min_wy) / (max_wy - min_wy) * (height - 1)))
             if 4 <= px < width - 4 and 4 <= py < height - 4:
-                mountain_springs.append((cx, cy, base_ground_H[py, px]))
+                spring_candidates.append((cx, cy, base_ground_H[py, px]))
 
-    # Also sample high mountain peaks where mount_mask_total >= 0.38 and base_ground_H >= 0.45
-    sample_ny = np.linspace(-0.85, 0.85, 36)
-    sample_nx = np.linspace(-0.85, 0.85, 36)
-    for s_ny in sample_ny:
-        for s_nx in sample_nx:
-            px_c = float(s_nx * span_x + cx_center)
-            py_c = float(s_ny * span_y + cy_center)
-            px = int(round((px_c - min_wx) / (max_wx - min_wx) * (width - 1)))
-            py = int(round((py_c - min_wy) / (max_wy - min_wy) * (height - 1)))
-            if 4 <= px < width - 4 and 4 <= py < height - 4:
-                if mount_mask_total[py, px] >= 0.38 and base_ground_H[py, px] >= 0.45:
-                    if all((px_c - prev[0])**2 + (py_c - prev[1])**2 > (HEX_SIZE * 0.70)**2 for prev in mountain_springs):
-                        mountain_springs.append((px_c, py_c, base_ground_H[py, px]))
-
-    # Fallback if sparse mountain peaks: pick highest elevated land points
-    if len(mountain_springs) < 4:
+    if tiles is not None:
+        for t in tiles:
+            if getattr(t, 'elevation', 0.0) >= 0.50 and not getattr(t, 'is_ocean', False):
+                coords = layout.get(t.name)
+                if coords is not None:
+                    q, r = coords
+                    cx, cy = axial_to_pixel(q, r, HEX_SIZE)
+                    px = int(round((cx - min_wx) / (max_wx - min_wx) * (width - 1)))
+                    py = int(round((cy - min_wy) / (max_wy - min_wy) * (height - 1)))
+                    if 4 <= px < width - 4 and 4 <= py < height - 4:
+                        spring_candidates.append((cx, cy, base_ground_H[py, px]))
+    else:
+        sample_ny = np.linspace(-0.80, 0.80, 30)
+        sample_nx = np.linspace(-0.80, 0.80, 30)
         for s_ny in sample_ny:
             for s_nx in sample_nx:
                 px_c = float(s_nx * span_x + cx_center)
@@ -818,211 +754,91 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
                 px = int(round((px_c - min_wx) / (max_wx - min_wx) * (width - 1)))
                 py = int(round((py_c - min_wy) / (max_wy - min_wy) * (height - 1)))
                 if 4 <= px < width - 4 and 4 <= py < height - 4:
-                    if base_ground_H[py, px] >= 0.30 and H_land_prob[py, px] >= 0.50:
-                        if all((px_c - prev[0])**2 + (py_c - prev[1])**2 > (HEX_SIZE * 0.60)**2 for prev in mountain_springs):
-                            mountain_springs.append((px_c, py_c, base_ground_H[py, px]))
+                    h_val = base_ground_H[py, px]
+                    if 0.45 <= h_val <= 0.85:
+                        spring_candidates.append((px_c, py_c, h_val))
 
     rng_riv = random.Random(generator.seed + 999)
-    rng_riv.shuffle(mountain_springs)
-    mountain_springs.sort(key=lambda s: s[2], reverse=True)
+    rng_riv.shuffle(spring_candidates)
 
     selected_springs = []
-    for sc in mountain_springs:
-        if all((sc[0] - prev[0])**2 + (sc[1] - prev[1])**2 > (HEX_SIZE * 0.75)**2 for prev in selected_springs):
+    for sc in spring_candidates:
+        if all((sc[0] - prev[0])**2 + (sc[1] - prev[1])**2 > (HEX_SIZE * 1.6)**2 for prev in selected_springs):
             selected_springs.append(sc)
-            if len(selected_springs) >= 4:
+            if len(selected_springs) >= 8:
                 break
-    for sc in mountain_springs:
-        if len(selected_springs) >= 4:
-            break
-        if sc not in selected_springs:
-            selected_springs.append(sc)
-
-    island_diam = max(max_wx - min_wx, max_wy - min_wy) * 0.70
-    half_island_dist = island_diam * 0.48
-    min_3tile_dist = 3.0 * (_SQRT3 * HEX_SIZE) * 0.95
-
-    # Sample coastline locations for ocean-bound rivers
-    coast_samples = []
-    coast_ny = np.linspace(-0.92, 0.92, 60)
-    coast_nx = np.linspace(-0.92, 0.92, 60)
-    for c_ny in coast_ny:
-        for c_nx in coast_nx:
-            c_x = float(c_nx * span_x + cx_center)
-            c_y = float(c_ny * span_y + cy_center)
-            c_px = int(round((c_x - min_wx) / (max_wx - min_wx) * (width - 1)))
-            c_py = int(round((c_y - min_wy) / (max_wy - min_wy) * (height - 1)))
-            if 2 <= c_px < width - 2 and 2 <= c_py < height - 2:
-                prob = H_land_prob[c_py, c_px]
-                if 0.22 <= prob <= 0.32:
-                    coast_samples.append((c_x, c_y))
-
-    # Coast target 1 for Great Island River (spanning >= half island)
-    s1 = selected_springs[0] if selected_springs else (cx_center, cy_center, 0.6)
-    far_targets = [c for c in coast_samples if math.sqrt((c[0] - s1[0])**2 + (c[1] - s1[1])**2) >= half_island_dist]
-    if far_targets:
-        tx1, ty1 = max(far_targets, key=lambda c: (c[0] - s1[0])**2 + (c[1] - s1[1])**2)
-    elif coast_samples:
-        tx1, ty1 = max(coast_samples, key=lambda c: (c[0] - s1[0])**2 + (c[1] - s1[1])**2)
-    else:
-        tx1, ty1 = cx_center + span_x * 0.8, cy_center
-
-    # Coast target 2 for Second Sea River (different coast angle, >= 3 tiles away)
-    s2 = selected_springs[1 % len(selected_springs)]
-    ang1 = math.atan2(ty1 - cy_center, tx1 - cx_center)
-    alt_targets = []
-    for c in coast_samples:
-        c_ang = math.atan2(c[1] - cy_center, c[0] - cx_center)
-        ang_diff = abs(c_ang - ang1)
-        if ang_diff > math.pi:
-            ang_diff = 2.0 * math.pi - ang_diff
-        d2 = math.sqrt((c[0] - s2[0])**2 + (c[1] - s2[1])**2)
-        if ang_diff >= math.radians(65) and d2 >= min_3tile_dist:
-            alt_targets.append(c)
-    if alt_targets:
-        tx2, ty2 = max(alt_targets, key=lambda c: (c[0] - s2[0])**2 + (c[1] - s2[1])**2)
-    elif coast_samples:
-        tx2, ty2 = min(coast_samples, key=lambda c: (c[0] - tx1)**2 + (c[1] - ty1)**2)
-    else:
-        tx2, ty2 = cx_center - span_x * 0.8, cy_center
-
-    # Sample candidate inland basins for lake-feeding rivers
-    inland_basin_candidates = []
-    inland_ny = np.linspace(-0.75, 0.75, 50)
-    inland_nx = np.linspace(-0.75, 0.75, 50)
-    for b_ny in inland_ny:
-        for b_nx in inland_nx:
-            b_x = float(b_nx * span_x + cx_center)
-            b_y = float(b_ny * span_y + cy_center)
-            b_px = int(round((b_x - min_wx) / (max_wx - min_wx) * (width - 1)))
-            b_py = int(round((b_y - min_wy) / (max_wy - min_wy) * (height - 1)))
-            if 4 <= b_px < width - 4 and 4 <= b_py < height - 4:
-                prob = H_land_prob[b_py, b_px]
-                elev = base_ground_H[b_py, b_px]
-                if prob >= 0.65 and 0.06 <= elev <= 0.30:
-                    inland_basin_candidates.append((b_x, b_y, elev))
-
-    s3 = selected_springs[2 % len(selected_springs)]
-    b3_pool = [b for b in inland_basin_candidates if math.hypot(b[0] - s3[0], b[1] - s3[1]) >= min_3tile_dist]
-    tgt_lake1 = min(b3_pool, key=lambda b: b[2])[:2] if b3_pool else None
-
-    s4 = selected_springs[3 % len(selected_springs)]
-    b4_pool = [
-        b for b in inland_basin_candidates
-        if math.hypot(b[0] - s4[0], b[1] - s4[1]) >= min_3tile_dist
-        and (tgt_lake1 is None or math.hypot(b[0] - tgt_lake1[0], b[1] - tgt_lake1[1]) >= HEX_SIZE * 2.2)
-    ]
-    tgt_lake2 = min(b4_pool, key=lambda b: b[2])[:2] if b4_pool else None
-
-    # 4 River Specifications: Exactly 2 flow to sea, 2 feed distinct inland lakes
-    river_specs = [
-        {"spring": s1, "is_sea": True, "target": (tx1, ty1), "min_dist": half_island_dist},
-        {"spring": s2, "is_sea": True, "target": (tx2, ty2), "min_dist": min_3tile_dist},
-        {"spring": s3, "is_sea": False, "target": tgt_lake1, "min_dist": min_3tile_dist},
-        {"spring": s4, "is_sea": False, "target": tgt_lake2, "min_dist": min_3tile_dist},
-    ]
 
     carved_ground_H = base_ground_H.copy()
     water_surface_H = np.full((height, width), -999.0, dtype=np.float32)
-    is_river_water = np.zeros((height, width), dtype=bool)
     is_lake_water = np.zeros((height, width), dtype=bool)
-    river_valley_bank = np.zeros((height, width), dtype=np.float32)
 
+    # v11: horizontal distance (px) from every pixel to the nearest open-sea
+    # pixel, for river-mouth classification.  The two lowland "push toward the
+    # sea" fallbacks in the tracer set `reached_ocean=True` even for a trace
+    # merely stuck in a pit or a loop, and the v10 test then keyed only on
+    # terminus ELEVATION (`end_ground <= 0.12`) -- a low inland hollow passed,
+    # so an inland terminus got the ocean coast-blend AND the estuary fan ~45 px
+    # from any coast (the seed-12345 bulbous head).  A true ocean mouth is now
+    # one whose terminus sits within a few px of open water (deadends.md).  One
+    # EDT on the same ocean mask `_sea` uses below -- constant cost.
+    _ocean_edt_mask = H_land_prob < shore_ref
+    if _ocean_edt_mask.any() and (~_ocean_edt_mask).any():
+        from scipy.ndimage import distance_transform_edt as _edt_sea
+        sea_dist_px = _edt_sea(~_ocean_edt_mask).astype(np.float32)
+    else:
+        sea_dist_px = np.full((height, width), 1e9, dtype=np.float32)
+    MOUTH_SEA_DIST = 16.0   # px; a genuine mouth terminates at H_land_prob ~ 0.32
+                            # (a few px inside this mask); inland stubs stop 30+ px off.
+
+    # v10: rivers are carved into the heightfield BEFORE normals via a global
+    # distance-to-channel field (built after this loop).  Here we only TRACE
+    # each spring downhill to a polyline and stash a 1-D water-level /
+    # accumulated-flow / distance-to-mouth profile along it.
+    step_dist = 6.0
+    river_polylines = []
     valid_rivers_count = 0
-    lake_pit_points = []
-    res_scale = width / 800.0
-    hex_px_r = HEX_SIZE * (width / (max_wx - min_wx))
 
-    for r_idx, r_spec in enumerate(river_specs):
-        sx, sy, _ = r_spec["spring"]
+    for sx, sy, _ in selected_springs:
         cur_x, cur_y = sx, sy
         px_0 = int(round((cur_x - min_wx) / (max_wx - min_wx) * (width - 1)))
         py_0 = int(round((cur_y - min_wy) / (max_wy - min_wy) * (height - 1)))
         pts = [(cur_x, cur_y, px_0, py_0, base_ground_H[py_0, px_0])]
         vel_x, vel_y = 0.0, 0.0
-        visited_pts = {(px_0 // 5, py_0 // 5)}
+        visited_pts = {(px_0 // 6, py_0 // 6)}
 
         step_dist = 6.0
         reached_ocean = False
         reached_lake = False
         pit_point = None
 
-        tgt_xy = r_spec["target"]
-        min_path_len = r_spec["min_dist"]
-
-        for step_i in range(320):
+        for _ in range(250):
             px_i = int(round((cur_x - min_wx) / (max_wx - min_wx) * (width - 1)))
             py_i = int(round((cur_y - min_wy) / (max_wy - min_wy) * (height - 1)))
 
             if not (4 <= px_i < width - 4 and 4 <= py_i < height - 4):
-                if r_spec["is_sea"]:
-                    reached_ocean = True
                 break
 
             h_now = base_ground_H[py_i, px_i]
-            cur_path_len = len(pts) * step_dist
 
-            # SEA RIVERS: terminate ONLY when actually reaching the ocean waterline
-            if r_spec["is_sea"]:
-                if (h_now <= 0.005 or H_land_prob[py_i, px_i] <= 0.28):
-                    reached_ocean = True
-                    break
-            else:
-                # LAKE RIVERS: terminate in an inland lake basin (never enter the ocean)
-                near_target = tgt_xy is not None and math.hypot(cur_x - tgt_xy[0], cur_y - tgt_xy[1]) <= HEX_SIZE * 0.85
-                near_coast = H_land_prob[py_i, px_i] <= 0.52 or h_now <= 0.08
-                if cur_path_len >= min_path_len:
-                    lakes_separated = all((cur_x - prev_lk[0])**2 + (cur_y - prev_lk[1])**2 >= (HEX_SIZE * 2.0)**2 for prev_lk in lake_pit_points)
-                    if (near_target or near_coast or step_i >= 48 or h_now <= 0.20) and lakes_separated:
-                        reached_lake = True
-                        pit_point = (px_i, py_i, max(0.05, h_now))
-                        lake_pit_points.append((cur_x, cur_y))
-                        break
-                elif near_coast and step_i >= 38:
-                    # Nearing coast: stop immediately to keep lake inland
-                    reached_lake = True
-                    pit_point = (px_i, py_i, max(0.05, h_now))
-                    lake_pit_points.append((cur_x, cur_y))
-                    break
-
-            # Target direction vector
-            if tgt_xy is not None:
-                out_dx = tgt_xy[0] - cur_x
-                out_dy = tgt_xy[1] - cur_y
-                out_len = math.sqrt(out_dx**2 + out_dy**2) + 1e-5
-                out_x = out_dx / out_len
-                out_y = out_dy / out_len
-            else:
-                # For lake rivers without explicit candidate, step downhill away from central peaks
-                pk_dx = cur_x - peak_cx
-                pk_dy = cur_y - peak_cy
-                pk_len = math.sqrt(pk_dx**2 + pk_dy**2) + 1e-5
-                out_x = pk_dx / pk_len
-                out_y = pk_dy / pk_len
-                if lake_pit_points:
-                    prev_lx, prev_ly = lake_pit_points[0]
-                    diff_lx = cur_x - prev_lx
-                    diff_ly = cur_y - prev_ly
-                    diff_len = math.sqrt(diff_lx**2 + diff_ly**2) + 1e-5
-                    out_x = out_x * 0.40 + (diff_lx / diff_len) * 0.60
-                    out_y = out_y * 0.40 + (diff_ly / diff_len) * 0.60
-                    o_l = math.sqrt(out_x**2 + out_y**2) + 1e-5
-                    out_x /= o_l
-                    out_y /= o_l
+            # TERMINATE PRECISELY AT OCEAN LEVEL (No pushing into ocean)
+            if h_now <= 0.005 or H_land_prob[py_i, px_i] < 0.32:
+                reached_ocean = True
+                break
 
             best_dir = None
             best_score = -1e9
+
+            out_x = (cur_x - cx_center) / span_x
+            out_y = (cur_y - cy_center) / span_y
+            out_len = math.sqrt(out_x**2 + out_y**2) + 1e-5
+            out_x /= out_len
+            out_y /= out_len
 
             num_angles = 16
             for a_idx in range(num_angles):
                 ang = a_idx * (2.0 * math.pi / num_angles)
                 dx = math.cos(ang)
                 dy = math.sin(ang)
-
-                # Avoid sharp U-turns against current momentum
-                dot_mom = dx * vel_x + dy * vel_y
-                if (vel_x != 0.0 or vel_y != 0.0) and dot_mom < -0.25:
-                    continue
 
                 cand_x = cur_x + dx * step_dist
                 cand_y = cur_y + dy * step_dist
@@ -1033,22 +849,46 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
                     continue
 
                 cand_h = base_ground_H[c_py, c_px]
-                cand_prob = H_land_prob[c_py, c_px]
                 dh = h_now - cand_h
 
-                dot_tgt = dx * out_x + dy * out_y
-                # Score combines downhill descent, forward progress, and momentum
-                score = dh * 8.0 + dot_tgt * 0.35 + max(0.0, dot_mom) * 0.15
-                if not r_spec["is_sea"] and cand_prob < 0.52:
-                    score -= 50.0  # Strongly avoid coastline for inland lake rivers
+                if dh > 0.0001:
+                    score = dh * 10.0
+                    if vel_x != 0.0 or vel_y != 0.0:
+                        score += (dx * vel_x + dy * vel_y) * 0.005
+                    score += (dx * out_x + dy * out_y) * 0.003
+                    if score > best_score:
+                        best_score = score
+                        best_dir = (dx, dy, cand_h)
 
-                if score > best_score:
-                    best_score = score
-                    best_dir = (dx, dy, cand_h)
+            # Bridge small flats by looking ahead towards ocean
+            if best_dir is None:
+                for a_idx in range(num_angles):
+                    ang = a_idx * (2.0 * math.pi / num_angles)
+                    dx = math.cos(ang)
+                    dy = math.sin(ang)
+                    cand_x = cur_x + dx * (step_dist * 3.0)
+                    cand_y = cur_y + dy * (step_dist * 3.0)
+                    c_px = int(round((cand_x - min_wx) / (max_wx - min_wx) * (width - 1)))
+                    c_py = int(round((cand_y - min_wy) / (max_wy - min_wy) * (height - 1)))
+                    if 2 <= c_px < width - 2 and 2 <= c_py < height - 2:
+                        cand_h = base_ground_H[c_py, c_px]
+                        if cand_h < h_now - 0.0002:
+                            best_dir = (dx, dy, cand_h)
+                            break
 
-            # Fallback if all angles blocked: push forward along target direction
-            if best_dir is None or best_score < -1e5:
-                best_dir = (out_x, out_y, h_now)
+            # If still no downhill path: only form a lake if trapped in an actual
+            # high mountain valley.  v10 fix: the old 0.16 gate let a short
+            # lowland stub pool a round tarn at ~0.15-0.17 -- the "lollipop" head
+            # on seed 12345.  Real alpine tarns sit far higher; a low pit just
+            # terminates the river and it fades out (see the flow taper below).
+            if best_dir is None:
+                if len(pts) >= 8 and h_now >= 0.30:
+                    reached_lake = True
+                    pit_point = (px_i, py_i, h_now)
+                elif len(pts) >= 8:
+                    # In lowlands: push towards ocean to terminate at sea
+                    reached_ocean = True
+                break
 
             target_vx, target_vy, _ = best_dir
             if vel_x == 0.0 and vel_y == 0.0:
@@ -1057,122 +897,238 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
                 v_blend_x = vel_x * 0.35 + target_vx * 0.65
                 v_blend_y = vel_y * 0.35 + target_vy * 0.65
                 v_len = math.sqrt(v_blend_x**2 + v_blend_y**2) + 1e-6
-                vel_x = v_blend_x / v_len
-                vel_y = v_blend_y / v_len
+                v_blend_x /= v_len
+                v_blend_y /= v_len
+
+                test_px = int(round((cur_x + v_blend_x * step_dist - min_wx) / (max_wx - min_wx) * (width - 1)))
+                test_py = int(round((cur_y + v_blend_y * step_dist - min_wy) / (max_wy - min_wy) * (height - 1)))
+                if 2 <= test_px < width - 2 and 2 <= test_py < height - 2 and base_ground_H[test_py, test_px] < h_now:
+                    vel_x, vel_y = v_blend_x, v_blend_y
+                else:
+                    vel_x, vel_y = target_vx, target_vy
 
             cur_x += vel_x * step_dist
             cur_y += vel_y * step_dist
             p_pix_x = int(round((cur_x - min_wx) / (max_wx - min_wx) * (width - 1)))
             p_pix_y = int(round((cur_y - min_wy) / (max_wy - min_wy) * (height - 1)))
-            grid_pt = (int(cur_x // 12.0), int(cur_y // 12.0))
+            grid_pt = (p_pix_x // 5, p_pix_y // 5)
             if grid_pt in visited_pts:
-                # If looping on lake river with enough length, terminate lake
-                if not r_spec["is_sea"] and (cur_path_len >= min_path_len or step_i >= 38):
+                if len(pts) >= 8 and h_now >= 0.30:
                     reached_lake = True
-                    pit_point = (p_pix_x, p_pix_y, max(0.05, h_now))
-                    lake_pit_points.append((cur_x, cur_y))
-                    break
-                # For sea rivers: strongly redirect towards target to break loops
-                vel_x = out_x
-                vel_y = out_y
+                    pit_point = (p_pix_x, p_pix_y, h_now)
+                elif len(pts) >= 8:
+                    reached_ocean = True
+                break
             visited_pts.add(grid_pt)
             pts.append((cur_x, cur_y, p_pix_x, p_pix_y, base_ground_H[p_pix_y, p_pix_x]))
 
-        # Hydraulic River Valley Carving & Water Assignment
-        if (reached_ocean or reached_lake) and len(pts) >= 38:
+        # v10: accept the trace + derive its 1-D channel profile.  The carve and
+        # the water surface are applied globally, after the loop.  A slightly
+        # longer minimum length culls the shortest mid-slope stubs the tracer
+        # sometimes leaves.
+        if (reached_ocean or reached_lake) and len(pts) >= 12:
             valid_rivers_count += 1
             n_pts = len(pts)
             water_levels = np.array([pts[k][4] for k in range(n_pts)], dtype=np.float32)
-            # Strict downhill monotonicity
+            # v10 fix: `reached_ocean` is also set by the two lowland "push
+            # toward the sea" fallbacks, for rivers whose trace actually stops
+            # well above sea level.  Only a trace that ENDS at the water line is
+            # a true ocean mouth; the rest must taper out inland, or they bloom
+            # into a blunt radial disc off the global distance field (the
+            # seed-12345 "lollipop").
+            end_px_i = int(np.clip(pts[-1][2], 0, width - 1))
+            end_py_i = int(np.clip(pts[-1][3], 0, height - 1))
+            end_sea_dist = float(sea_dist_px[end_py_i, end_px_i])
+            # v11: classify a mouth by HORIZONTAL proximity of the terminus to
+            # open sea, not by height (deadends.md -- the elevation test was a
+            # hair-trigger that a low inland hollow passed).  A trace failing
+            # this keeps the flow taper below AND, via OCN=False, has the
+            # estuary fan / mouth_zone / coast-blend suppressed, so it necks to
+            # a thread and dies with no bulb.
+            truly_ocean = bool(reached_ocean) and end_sea_dist <= MOUTH_SEA_DIST
+            # strict downhill monotonicity, then blend the level toward ~0 over
+            # the last few points so an ocean-bound channel meets the sea flush
             for k in range(1, n_pts):
-                water_levels[k] = min(water_levels[k], water_levels[k-1] - 0.0004)
-            if reached_ocean:
+                water_levels[k] = min(water_levels[k], water_levels[k - 1] - 0.0005)
+            if truly_ocean:
                 for k in range(n_pts):
-                    t_coast = max(0.0, (k - (n_pts - 10)) / 10.0)
+                    t_coast = max(0.0, (k - (n_pts - 8)) / 8.0)
                     water_levels[k] = water_levels[k] * (1.0 - t_coast) + 0.002 * t_coast
+            # accumulated downstream flow: 0 at the source, 1 at the mouth,
+            # biased so the upper half stays a thin crease; a longer descent
+            # carries proportionally more water at its mouth
+            prog = np.arange(n_pts, dtype=np.float32) / max(1, n_pts - 1)
+            length_scale = float(np.clip(n_pts / 45.0, 0.35, 1.0))
+            flow = (prog ** 0.7) * length_scale
+            # neck the flow (hence w_chan / v_reach / w_water) back toward ~0
+            # over the last third of an inland-terminating trace so its end
+            # fades to a thread instead of a blob.  True ocean mouths keep full
+            # flow -- their width is handed off to the sea by shore_fade below.
+            if not truly_ocean:
+                taper_n = max(4, n_pts // 3)
+                kk = np.arange(n_pts, dtype=np.float32)
+                _tt = np.clip((kk - (n_pts - 1 - taper_n)) / float(taper_n), 0.0, 1.0)
+                flow = flow * (1.0 - _tt * _tt * (3.0 - 2.0 * _tt))
+            mouthdist = (n_pts - 1 - np.arange(n_pts, dtype=np.float32)) * step_dist
+            river_polylines.append((pts, water_levels, flow, mouthdist, truly_ocean))
 
-            for idx in range(n_pts - 1):
-                t_prog = idx / float(n_pts)
-                p1 = (pts[idx][2], pts[idx][3])
-                p2 = (pts[idx + 1][2], pts[idx + 1][3])
-                seg_hw = water_levels[idx]
-
-                rw = 2.0 + t_prog * 3.2          # River water width radius (original width: 2.0 to 5.2px)
-                vw = rw + 9.0 + t_prog * 7.0     # Carved valley width radius (11 to 21px)
-
-                min_x_seg = max(0, int(min(p1[0], p2[0]) - vw - 2))
-                max_x_seg = min(width - 1, int(max(p1[0], p2[0]) + vw + 2))
-                min_y_seg = max(0, int(min(p1[1], p2[1]) - vw - 2))
-                max_y_seg = min(height - 1, int(max(p1[1], p2[1]) + vw + 2))
-
-                if max_x_seg > min_x_seg and max_y_seg > min_y_seg:
-                    grid_y, grid_x = np.ogrid[min_y_seg:max_y_seg+1, min_x_seg:max_x_seg+1]
-                    vx = p2[0] - p1[0]
-                    vy = p2[1] - p1[1]
-                    seg_len2 = max(1e-4, vx**2 + vy**2)
-                    proj = ((grid_x - p1[0]) * vx + (grid_y - p1[1]) * vy) / seg_len2
-                    proj = np.clip(proj, 0.0, 1.0)
-                    near_x = p1[0] + proj * vx
-                    near_y = p1[1] + proj * vy
-                    dist = np.sqrt((grid_x - near_x)**2 + (grid_y - near_y)**2)
-
-                    # River Channel: strictly on land, terminates at ocean level
-                    sub_land = H_land_prob[min_y_seg:max_y_seg+1, min_x_seg:max_x_seg+1] >= 0.20
-                    in_river = (dist <= rw) & sub_land
-                    is_river_water[min_y_seg:max_y_seg+1, min_x_seg:max_x_seg+1] |= in_river
-
-                    sub_w_H = water_surface_H[min_y_seg:max_y_seg+1, min_x_seg:max_x_seg+1]
-                    water_surface_H[min_y_seg:max_y_seg+1, min_x_seg:max_x_seg+1] = np.where(
-                        in_river, np.maximum(sub_w_H, seg_hw - 0.003), sub_w_H
-                    )
-
-                    # Valley Carving (cuts terrain smoothly down to river level)
-                    in_valley = dist <= vw
-                    t_val = np.clip((dist - rw) / np.maximum(1e-4, vw - rw), 0.0, 1.0)
-                    s_val = t_val * t_val * (3.0 - 2.0 * t_val)
-
-                    sub_H = carved_ground_H[min_y_seg:max_y_seg+1, min_x_seg:max_x_seg+1]
-                    target_carved_H = (seg_hw - 0.008) * (1.0 - s_val) + sub_H * s_val
-                    carved_ground_H[min_y_seg:max_y_seg+1, min_x_seg:max_x_seg+1] = np.where(
-                        in_valley, np.minimum(sub_H, target_carved_H), sub_H
-                    )
-                    sub_bank = river_valley_bank[min_y_seg:max_y_seg+1, min_x_seg:max_x_seg+1]
-                    river_valley_bank[min_y_seg:max_y_seg+1, min_x_seg:max_x_seg+1] = np.where(
-                        in_valley, np.maximum(sub_bank, (1.0 - t_val)), sub_bank
-                    )
-
-            # Natural Mountain Basin Depression Flooding (Tightly Contoured, Organic Fractals)
+            # alpine tarn in a trapped mountain basin -- unchanged tight BFS flood
             if reached_lake and pit_point is not None:
                 px_pit, py_pit, h_pit = pit_point
-                H_lake = max(0.05, h_pit + 0.014)  # Shallow natural lake level
-
+                H_lake = h_pit + 0.018
                 from collections import deque
                 q_bfs = deque([(py_pit, px_pit)])
                 lake_submask = np.zeros((height, width), dtype=bool)
                 lake_submask[py_pit, px_pit] = True
-                max_rad = hex_px_r * 0.44  # Natural lake basin size
-
+                # v10 fix: scale the tarn to the river feeding it -- a short
+                # stub trace should pool a small pond, not a fixed 22 px disc
+                # that dwarfs its own channel (the seed-12345 lollipop head).
+                max_rad = HEX_SIZE * (0.18 + 0.30 * length_scale)
                 while q_bfs:
                     cy_l, cx_l = q_bfs.popleft()
-                    for dy_l, dx_l in ((-1,0), (1,0), (0,-1), (0,1)):
+                    for dy_l, dx_l in ((-1, 0), (1, 0), (0, -1), (0, 1)):
                         ny_l, nx_l = cy_l + dy_l, cx_l + dx_l
                         if 0 <= ny_l < height and 0 <= nx_l < width and not lake_submask[ny_l, nx_l]:
-                            dist = math.sqrt((nx_l - px_pit)**2 + (ny_l - py_pit)**2)
-                            n_f, _, _ = iq_noised(nx_l / (14.0 * res_scale), ny_l / (14.0 * res_scale))
+                            dist = math.sqrt((nx_l - px_pit) ** 2 + (ny_l - py_pit) ** 2)
+                            n_f, _, _ = iq_noised(nx_l / 14.0, ny_l / 14.0)
                             dist_warped = dist * (0.80 + 0.40 * n_f)
-                            if dist_warped <= max_rad and carved_ground_H[ny_l, nx_l] <= H_lake + 0.003 and H_land_prob[ny_l, nx_l] >= 0.45:
+                            if dist_warped <= max_rad and carved_ground_H[ny_l, nx_l] <= H_lake + 0.002:
                                 lake_submask[ny_l, nx_l] = True
                                 q_bfs.append((ny_l, nx_l))
-
-                # Apply flat lake surface
                 is_lake_water |= lake_submask
                 water_surface_H = np.where(lake_submask, H_lake, water_surface_H)
                 carved_ground_H = np.where(lake_submask, np.minimum(carved_ground_H, H_lake - 0.008), carved_ground_H)
 
+            if valid_rivers_count >= 6:
+                break
+
+    # --------------------------------------------------------------------
+    # v10: rasterise every centreline into ONE label image (each centre
+    # pixel carries its 1-D water-level / accumulated-flow / distance-to-
+    # mouth), then a single Euclidean distance transform gives the global
+    # distance-to-channel field `Dr` plus those quantities looked up at the
+    # nearest centreline pixel.  No per-segment capsule stamps -> no beaded
+    # sausage caps, one continuous field.
+    # --------------------------------------------------------------------
+    cl_mask = np.zeros((height, width), dtype=bool)
+    cl_wl = np.zeros((height, width), dtype=np.float32)
+    cl_flow = np.zeros((height, width), dtype=np.float32)
+    cl_md = np.full((height, width), 1e9, dtype=np.float32)
+    cl_ocn = np.zeros((height, width), dtype=bool)
+
+    for pts, water_levels, flow, mouthdist, reached_ocean in river_polylines:
+        n_pts = len(pts)
+        # skip the first 1-3 "settling" points near the spring (the tracer often
+        # wanders in place before it finds the exit -> a clustered, fat head)
+        k_start = min(3, n_pts // 5)
+        for k in range(k_start, n_pts - 1):
+            x0f, y0f = pts[k][2], pts[k][3]
+            x1f, y1f = pts[k + 1][2], pts[k + 1][3]
+            seg_n = max(1, int(round(math.hypot(x1f - x0f, y1f - y0f))))
+            for s in range(seg_n + 1):
+                tt = s / seg_n
+                xi = int(round(x0f + tt * (x1f - x0f)))
+                yi = int(round(y0f + tt * (y1f - y0f)))
+                if 0 <= xi < width and 0 <= yi < height:
+                    f = flow[k] + tt * (flow[k + 1] - flow[k])
+                    if (not cl_mask[yi, xi]) or f > cl_flow[yi, xi]:
+                        cl_mask[yi, xi] = True
+                        cl_wl[yi, xi] = water_levels[k] + tt * (water_levels[k + 1] - water_levels[k])
+                        cl_flow[yi, xi] = f
+                        cl_md[yi, xi] = mouthdist[k] + tt * (mouthdist[k + 1] - mouthdist[k])
+                        cl_ocn[yi, xi] = reached_ocean
+
+    have_rivers = bool(cl_mask.any())
+    if have_rivers:
+        from scipy.ndimage import distance_transform_edt
+        Dr, (nn_y, nn_x) = distance_transform_edt(~cl_mask, return_indices=True)
+        Dr = Dr.astype(np.float32)
+        # the nearest-centreline lookups are piecewise-constant across the
+        # Voronoi cells of the centreline pixels; a light blur removes the
+        # cell seams (they only matter within a few px of the channel anyway)
+        WL    = _gf(cl_wl[nn_y, nn_x], sigma=2.0)
+        FLOWn = np.clip(_gf(cl_flow[nn_y, nn_x], sigma=2.0), 0.0, 1.0)
+        MD    = _gf(cl_md[nn_y, nn_x], sigma=2.0)
+        OCN   = cl_ocn[nn_y, nn_x]
+    else:
+        Dr = np.full((height, width), 1e9, dtype=np.float32)
+        WL = np.zeros((height, width), dtype=np.float32)
+        FLOWn = np.zeros((height, width), dtype=np.float32)
+        MD = np.full((height, width), 1e9, dtype=np.float32)
+        OCN = np.zeros((height, width), dtype=bool)
+
+    # -- carve the valley.  A flat thalweg of half-width `w_chan` (flow-scaled:
+    #    a ~3 px crease near the source, opening to a ~30 px floor near the
+    #    mouth) is cut to an explicit level `chan_depth` below the local water
+    #    line; from `w_chan` outward the floor eases back up to the natural
+    #    terrain over `v_reach` px with a smoothstep, so the shoulders are
+    #    smooth, not trench walls.  Using an explicit floor (not base - noise)
+    #    keeps the channel bottom clean of the plains micro-relief so the
+    #    waterline is a controlled offset into the V, not a puddle field.
+    #    Faded to zero over the last ~90 px before an ocean mouth so the carve
+    #    never perturbs coast_steep / beach width / surf gating.
+    _vmarg, _, _ = iq_noised(WX_warped * 0.045 + 402.0, WY_warped * 0.045 - 251.0)
+    _vjit = (0.85 + 0.30 * _vmarg)
+    w_chan     = (1.5 + 9.0 * FLOWn) * _vjit                 # flat thalweg half-width
+    v_reach    = (12.0 + 26.0 * FLOWn) * _vjit               # shoulder blend-out
+    chan_depth = 0.010 + 0.026 * FLOWn                       # thalweg below water line
+    v_free     = 0.0030 + 0.0025 * FLOWn                     # water sits this far below bank
+    water_level = np.maximum(WL - v_free, 0.0006)            # never below sea level
+
+    _tsh = np.clip((Dr - w_chan) / np.maximum(v_reach, 1e-3), 0.0, 1.0)
+    _ssh = _tsh * _tsh * (3.0 - 2.0 * _tsh)                  # 0 in the channel, 1 at the shoulder
+    carved_floor = (water_level - chan_depth) * (1.0 - _ssh) + base_ground_H * _ssh
+    carved_floor = np.minimum(base_ground_H, carved_floor)
+    shore_fade = np.where(OCN, np.clip(MD / 90.0, 0.0, 1.0), 1.0).astype(np.float32)
+    carve_amt = _gf((base_ground_H - carved_floor).astype(np.float32), sigma=1.6) * shore_fade
+    carved_ground_H = carved_ground_H - carve_amt
+
+    # -- river water surface.  Width is set by a flow-scaled water half-width
+    #    `w_water` (a ~3 px thread near the source, opening to a ~20 px channel
+    #    low down), so it falls out of the same flow field that opens the
+    #    valley; the wider carved trench around it gives the hillshaded banks.
+    #    The waterline is feathered (a soft px band + a noisy Dr break) so it is
+    #    never a clean contour.  `mouth_zone` fans the last stretch into a
+    #    shallow delta that hands off to the sea; the water level clamp keeps it
+    #    from ever cutting below sea level at the mouth.
+    # mouth fan: only within ~70 px of a genuine ocean mouth AND only where the
+    # ground is actually near sea level (so a tracer stub stuck mid-slope does
+    # not sprout a fan), ramped gently.
+    _lowland = 1.0 - np.clip((base_ground_H - 0.010) / 0.045, 0.0, 1.0)
+    mouth_zone = (np.where(OCN, np.clip(1.0 - MD / 70.0, 0.0, 1.0), 0.0) * _lowland).astype(np.float32)
+    _wedge, _, _ = iq_noised(WX * 0.16 + 34.0, WY * 0.16 - 78.0)
+    _wedge2, _, _ = iq_noised(WX * 0.055 - 12.0, WY * 0.055 + 40.0)
+    # source taper: kill the fat head where flow is still ~0
+    _srctap = np.clip(FLOWn / 0.05, 0.4, 1.0)
+    w_water = (1.2 + 7.0 * FLOWn) * _vjit * _srctap * (1.0 + 0.55 * mouth_zone)
+    edge_soft = 1.6 + 2.4 * FLOWn
+    dr_break = Dr + (0.55 * (_wedge - 0.5) + 0.30 * (_wedge2 - 0.5)) * (2.0 * edge_soft)
+    river_alpha = np.clip((w_water - dr_break) / np.maximum(edge_soft, 1e-3), 0.0, 1.0)
+    river_gate = (H_land_prob >= 0.28) & bool(have_rivers)
+    river_alpha = np.where(river_gate, river_alpha, 0.0).astype(np.float32)
+    is_river_water = river_alpha > 0.4
+    water_surface_H = np.where(river_alpha > 0.05, water_level, water_surface_H)
+
     is_inland_water = is_river_water | is_lake_water
 
+    # -- riparian band: a damp vegetated margin keyed on the same distance
+    #    field, a few channel-widths wide with a noisy (not hard) outer edge.
+    #    Drives a damper/darker/greener ground tint below and lifts the 2D
+    #    canopy probability along the bank (gated to near existing forest so it
+    #    thickens a gallery rather than spawning new woods in bare plains).
+    _rip_w = w_water + v_reach * 0.9 + 12.0
+    _ripn, _, _ = iq_noised(WX_warped * 0.06 + 88.0, WY_warped * 0.06 + 131.0)
+    _ripn2, _, _ = iq_noised(WX * 0.22 - 40.0, WY * 0.22 + 15.0)
+    riparian = np.where(
+        have_rivers,
+        np.clip(1.0 - (Dr + (_ripn - 0.5) * 26.0 + (_ripn2 - 0.5) * 7.0) / np.maximum(_rip_w, 1e-3),
+                0.0, 1.0),
+        0.0,
+    ).astype(np.float32)
+    riparian = riparian * (1.0 - river_alpha)
+
     # -------------------------------------------------------------------------
-    # Tall, Pointy, 10x Smaller Whole Trees (Strictly in Forest Biomes)
+    # Hashed value helpers (canopy stamp scatter + parcel field below)
     # -------------------------------------------------------------------------
     def hash2_vec(cx_arr, cy_arr):
         p1 = cx_arr * 127.1 + cy_arr * 311.7
@@ -1186,138 +1142,25 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
         h = np.sin(p) * 43758.5453
         return h - np.floor(h)
 
-    # Dense, billowy volumetric forest canopy (overlapping rounded crowns matching prototype)
-    tree_cell_size = 3.0
-    u_grid = WX / tree_cell_size
-    v_grid = WY / tree_cell_size
-
-    n_u = np.floor(u_grid)
-    n_v = np.floor(v_grid)
-    f_u = u_grid - n_u
-    f_v = v_grid - n_v
-
-    step_u = np.where(f_u < 0.5, 1.0, 0.0)
-    step_v = np.where(f_v < 0.5, 1.0, 0.0)
-
-    # Macro forest species / density variation (bb in IQ code)
-    bb_scale = 1.0 / (HEX_SIZE * 1.5)
-    bb_val, _, _ = iq_noised(WX * bb_scale, WY * bb_scale)
-    bb = bb_val - 0.50
-
-    kMaxTreeHeight = 0.024
-    base_tree_width = 2.8  # Volumetric canopy crown radius (~2.8px radius, tight overlap)
-
-    tree_height_accum = np.zeros_like(WX, dtype=np.float32)
-    tree_mat_accum = np.zeros_like(WX, dtype=np.float32)
-    tree_hei_accum = np.zeros_like(WX, dtype=np.float32)
-
     if progress_callback:
-        progress_callback(0.60, "Planting volumetric canopy forests & treeline...")
+        progress_callback(0.55, "Calculating 3D surface derivatives & solar lighting...")
+    # Combine Base Elevation with Carved Valleys and Flat Inland Water.
+    # The forest is a pure 2D layer now (built further below, after lighting) --
+    # it no longer perturbs the heightfield, so normals / slope / hillshade
+    # stay clean under the wood.
+    raw_H = np.where(is_inland_water, water_surface_H, carved_ground_H)
 
-    for j in range(2):
-        for i in range(2):
-            if progress_callback:
-                progress_callback(0.60 + (j * 2 + i) * 0.05, f"Synthesizing forest canopy layer {j * 2 + i + 1}/4...")
-
-            g_u = float(i) - step_u
-            g_v = float(j) - step_v
-
-            cell_u = n_u + g_u
-            cell_v = n_v + g_v
-
-            o_u, o_v = hash2_vec(cell_u, cell_v)
-            v_u, v_v = hash2_vec(cell_u + 13.1, cell_v + 71.7)
-
-            # Exact world center position of this tree instance
-            tree_cx = (cell_u + o_u) * tree_cell_size
-            tree_cy = (cell_v + o_v) * tree_cell_size
-
-            # Multi-octave fractal boundary warp for forest perimeter (80% hex aligned, naturally meandering)
-            w1_x = np.sin(tree_cy * 0.040 + 1.7) * 0.70 + np.cos(tree_cx * 0.030 - tree_cy * 0.020) * 0.30
-            w1_y = np.cos(tree_cx * 0.040 + 2.3) * 0.70 + np.sin(tree_cx * 0.020 + tree_cy * 0.030) * 0.30
-            w2_x = np.sin(tree_cy * 0.11 + 4.1) * 0.50 + np.cos(tree_cx * 0.09) * 0.50
-            w2_y = np.cos(tree_cx * 0.11 + 0.9) * 0.50 + np.sin(tree_cy * 0.09) * 0.50
-            warp_fx = w1_x * 0.72 + w2_x * 0.28
-            warp_fy = w1_y * 0.72 + w2_y * 0.28
-            tree_cx_w = tree_cx + warp_fx * (HEX_SIZE * 0.20)
-            tree_cy_w = tree_cy + warp_fy * (HEX_SIZE * 0.20)
-
-            # Check if this WHOLE tree center is located in a Forest hex
-            q_tc = (_SQRT3 / 3.0 * tree_cx_w - 1.0 / 3.0 * tree_cy_w) / HEX_SIZE
-            r_tc = (2.0 / 3.0 * tree_cy_w) / HEX_SIZE
-            rx_tc = np.round(q_tc).astype(np.int32)
-            ry_tc = np.round(r_tc).astype(np.int32)
-            rz_tc = np.round(-q_tc - r_tc).astype(np.int32)
-            dx_tc = np.abs(rx_tc - q_tc)
-            dy_tc = np.abs(ry_tc - r_tc)
-            dz_tc = np.abs(rz_tc - (-q_tc - r_tc))
-            mx_tc = (dx_tc > dy_tc) & (dx_tc > dz_tc)
-            my_tc = (~mx_tc) & (dy_tc > dz_tc)
-            q_tree = np.where(mx_tc, -ry_tc - rz_tc, rx_tc)
-            r_tree = np.where(my_tc, -rx_tc - rz_tc, ry_tc)
-
-            q_tr_clamped = np.clip(q_tree - min_q, 0, q_size - 1)
-            r_tr_clamped = np.clip(r_tree - min_r, 0, r_size - 1)
-            in_tr_bounds = (q_tree >= min_q) & (q_tree <= max_q) & (r_tree >= min_r) & (r_tree <= max_r)
-            
-            # Binary whole-tree forest presence: 1.0 if tree center is in forest, 0.0 otherwise
-            is_forest_tree = np.where(in_tr_bounds, grid_forest[r_tr_clamped, q_tr_clamped], 0.0)
-
-            # Variable Forest Perimeter Dynamics:
-            # Hexagonal distance metric to softly thin at edges while remaining dense inside
-            cx_h = HEX_SIZE * _SQRT3 * (q_tree + r_tree / 2.0)
-            cy_h = HEX_SIZE * 1.5 * r_tree
-            dt_x = np.abs(tree_cx_w - cx_h)
-            dt_y = np.abs(tree_cy_w - cy_h)
-            d_tree_hex = np.maximum((_SQRT3 * 0.5) * dt_x + 0.5 * dt_y, dt_y) * (2.0 / _SQRT3)
-            edge_factor = np.clip((d_tree_hex - (HEX_SIZE * 0.56)) / (HEX_SIZE * 0.36), 0.0, 1.0)
-
-            # Inside forest: 96% dense canopy. Near border: feathers down gracefully to 18%
-            density_thresh = 0.96 - edge_factor * 0.78
-
-            # Whole-tree presence decision (NO trees in water, NO trees above treeline)
-            tree_present = (is_forest_tree > 0.5) & (v_v < density_thresh) & (treeline_factor > 0.05) & (~is_inland_water)
-
-            r_u = (g_u - f_u + o_u) * tree_cell_size
-            r_v = (g_v - f_v + o_v) * tree_cell_size
-
-            t_height = kMaxTreeHeight * (0.65 + 0.55 * v_u) * (0.3 + 0.7 * treeline_factor)
-            t_width = base_tree_width * (0.75 + 0.25 * v_u + 0.20 * v_v)
-
-            # Conifer vs deciduous canopy crown
-            t_width = np.where(bb < 0.0, t_width * 0.85, t_width)
-            t_height = np.where(bb >= 0.0, t_height * 0.90, t_height)
-
-            r_dist = np.sqrt(r_u**2 + r_v**2)
-            q_norm = r_dist / np.maximum(1e-4, t_width)
-
-            # Rounded billowy canopy crown profile with subtle foliage clumping
-            in_crown = (q_norm < 1.0) & tree_present
-            crown_profile = np.sqrt(np.maximum(0.0, 1.0 - q_norm**2))
-            foliage_clump = 1.0 + 0.10 * np.sin(r_u * 1.4 + 1.1) * np.cos(r_v * 1.4 + 0.7)
-            dome_h = np.where(in_crown, t_height * crown_profile * foliage_clump, 0.0)
-
-            cand_mat = 0.5 * hash1_vec(cell_u, cell_v + 111.0) + np.where(bb > 0.0, 0.5, 0.0)
-            cand_hei = np.where(in_crown, crown_profile, 0.0)
-
-            is_higher = dome_h > tree_height_accum
-            tree_height_accum = np.where(is_higher, dome_h, tree_height_accum)
-            tree_mat_accum = np.where(is_higher, cand_mat, tree_mat_accum)
-            tree_hei_accum = np.where(is_higher, cand_hei, tree_hei_accum)
-
-    # Complete whole-tree canopy relief (no partial tree slicing)
-    tree_canopy_relief = tree_height_accum
-
-    # Combine Base Elevation with Carved Valleys, Flat Inland Water, and Trees
-    raw_H = np.where(is_inland_water, water_surface_H, carved_ground_H + tree_canopy_relief)
-
-    deep_ocean_mask = H_land_prob < 0.10
-    raw_H = np.where(deep_ocean_mask, np.minimum(-0.20, raw_H), raw_H)
+    # Open water deepens smoothly toward an abyss as land occupancy falls to 0
+    # (this, not the shelf ramp, carries the depth of the open sea -- the shelf
+    # `_off` term saturates at the water line).  Confined to the sub-sea region;
+    # the cap is ~0 at the water line (matching the seabed there, so no step) and
+    # drops to the abyss offshore.  `_ab` is a smooth function of the smooth
+    # `H_land_prob`, so no ring.
+    _sea = H_land_prob < shore_ref
+    _ab = np.clip((shore_ref - H_land_prob) / shore_ref, 0.0, 1.0) ** 3.0   # stays ~0 across the shelf
+    raw_H = np.where(_sea, np.minimum(raw_H, 0.02 - 2.6 * _ab), raw_H)
 
     H = raw_H
-
-    if progress_callback:
-        progress_callback(0.82, "Calculating 3D surface derivatives & solar lighting...")
 
     # Surface normals (incorporates pointy tree spire details and flat water)
     height_exaggeration = 0.13
@@ -1329,10 +1172,15 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
     Ny = -dHy / norm
     Nz = Nz / norm
 
-    # Flatten normals on inland water (rivers and lakes are perfectly flat and smooth)
-    Nx = np.where(is_inland_water, 0.0, Nx)
-    Ny = np.where(is_inland_water, 0.0, Ny)
-    Nz = np.where(is_inland_water, 1.0, Nz)
+    # Flatten normals on inland water -- lakes hard-flat, river water feathered
+    # by its coverage alpha so the carved bank hillshade does not step at the
+    # exact waterline (v10).
+    _flatw = np.maximum(is_lake_water.astype(np.float32), river_alpha)
+    Nx = Nx * (1.0 - _flatw)
+    Ny = Ny * (1.0 - _flatw)
+    Nz = Nz * (1.0 - _flatw) + _flatw
+    _nlen = np.sqrt(Nx * Nx + Ny * Ny + Nz * Nz) + 1e-6
+    Nx, Ny, Nz = Nx / _nlen, Ny / _nlen, Nz / _nlen
     slope = 1.0 - Nz
 
     # Lighting
@@ -1368,29 +1216,321 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
 
     direct_sun = diffuse_sun * shadow_mask
 
-    # Ocean Water & Coastal Waters
-    is_ocean_water = H < 0.0
-    water_depth = np.clip(-H / 0.25, 0.0, 1.0)
-    deep_ocean = np.array([0.05, 0.10, 0.22], dtype=np.float32)
-    mid_ocean = np.array([0.08, 0.20, 0.38], dtype=np.float32)
-    shallow_shelf = np.array([0.14, 0.40, 0.52], dtype=np.float32)
-    coastal_turquoise = np.array([0.25, 0.58, 0.62], dtype=np.float32)
+    # =====================================================================
+    if progress_callback:
+        progress_callback(0.70, "Synthesizing 2D volumetric forest canopy layers...")
+    # FOREST CANOPY -- 2D layer over the lit relief (v03).
+    # Mass first, stipple second: a continuous density field (blurred hex
+    # forest-prob with its 0.5 contour pushed around by multi-octave noise)
+    # lays a dark connected underlay + AO on the ground; crown stamps only
+    # TEXTURE that mass, they never define the forest shape. Density carries
+    # interior clearings and thins on slope / toward the rock.
+    # =====================================================================
+    from scipy.ndimage import gaussian_filter
 
-    w_col = np.where(
-        water_depth[:, :, None] > 0.30,
-        mid_ocean * (1.0 - (water_depth[:, :, None]-0.30)/0.70) + deep_ocean * ((water_depth[:, :, None]-0.30)/0.70),
-        coastal_turquoise * (1.0 - water_depth[:, :, None]/0.30) + shallow_shelf * (water_depth[:, :, None]/0.30)
-    )
+    _cseed = float(generator.seed % 4096) * 0.017113
+
+    def _ss(lo, hi, x):
+        t = np.clip((x - lo) / (hi - lo), 0.0, 1.0)
+        return t * t * (3.0 - 2.0 * t)
+
+    # -- crown stamps FIRST: an overlapping Voronoi-ish scatter (~5 px cells).
+    #    Accumulated as CONTINUOUS weighted fields (no hard per-cell gate, so
+    #    no lattice): a smooth blend of nearby crown tones (3 families), a
+    #    bumpy dome-relief field, a sun-rim highlight and a far-rim self
+    #    shadow.  They only texture the mass and crown-scallop its margin --
+    #    they never decide *whether* there is forest.
+    _iseed = int(generator.seed) & 0x7FFFFFFF
+    _ntab = noise_tbl
+
+    def _cellhash(ai, bi, salt):
+        # integer hash of a cell index -> a decorrelated value from the noise
+        # table (the sin-hash correlates badly on a regular grid -> lattice).
+        h = (ai * np.int64(374761393)) ^ (bi * np.int64(668265263)) ^ np.int64(salt * 2246822519 + _iseed)
+        h = (h ^ (h >> np.int64(13))) * np.int64(1274126177)
+        h = (h ^ (h >> np.int64(16))) & np.int64(0xFFFF)
+        return _ntab[(h >> np.int64(8)).astype(np.int64), (h & np.int64(255)).astype(np.int64)]
+
+    _cc = 5.0
+    _u = WX / _cc
+    _vv = WY / _cc
+    _nu = np.floor(_u)
+    _nv = np.floor(_vv)
+    _fu = (_u - _nu).astype(np.float32)
+    _fv = (_vv - _nv).astype(np.float32)
+
+    _wsum = np.full_like(WX, 1e-4, dtype=np.float32)
+    _tone_ws = np.zeros_like(WX, dtype=np.float32)
+    _relief_ws = np.zeros_like(WX, dtype=np.float32)
+    canopy_hi = np.zeros_like(WX, dtype=np.float32)
+    canopy_sh = np.zeros_like(WX, dtype=np.float32)
+    canopy_cov = np.zeros_like(WX, dtype=np.float32)
+
+    # full 3x3 neighbourhood (a 2x2 quadrant trick pops crowns at the cell
+    # seams -> a faint lattice; 3x3 is seamless)
+    for _gv in (-1, 0, 1):
+        for _gu in (-1, 0, 1):
+            _cellu = (_nu + _gu).astype(np.int64)
+            _cellv = (_nv + _gv).astype(np.int64)
+            _ox = _cellhash(_cellu, _cellv, 1)
+            _oy = _cellhash(_cellu, _cellv, 2)
+            _hr = _cellhash(_cellu, _cellv, 3)
+            _hv = _cellhash(_cellu, _cellv, 4)
+            _ru = (_gu - _fu + _ox) * _cc                 # full-jitter centre offset
+            _rv = (_gv - _fv + _oy) * _cc
+            _rad = _cc * (0.70 + 0.55 * _hr)              # ~3.5 .. 6.3 px, always overlaps
+            _d = np.sqrt(_ru * _ru + _rv * _rv)
+            _qn = _d / np.maximum(_rad, 1e-4)
+            _prof = np.where(_qn < 1.35, np.maximum(0.0, 1.0 - _qn * _qn), 0.0)
+            _tone = np.where(_hv < 0.42, -0.55, np.where(_hv < 0.80, 0.05, 0.55))
+            _sunlit = -(_ru * sun_x + _rv * sun_y) / np.maximum(_d, 1e-4)  # +1 on sun rim
+            _wsum += _prof
+            _tone_ws += _prof * _tone
+            _relief_ws += _prof * _sunlit
+            canopy_cov = np.maximum(canopy_cov, _prof)
+            canopy_hi = np.maximum(canopy_hi, np.clip(_sunlit, 0.0, 1.0) * _prof)
+            _ring = _ss(1.0, 1.35, _qn) * _ss(1.85, 1.35, _qn)   # just off the crown rim
+            canopy_sh = np.where(_sunlit < -0.10,
+                                 np.maximum(canopy_sh, _ring * (-_sunlit)), canopy_sh)
+
+    tone_blend = _tone_ws / _wsum                          # smooth -0.55..0.55
+    relief_blend = _relief_ws / _wsum                      # smooth -1..1 (sun vs shade side)
+    # value texture on the mass: tone family + bumpy dome relief + sun rim
+    canopy_tex = np.clip(0.55 * tone_blend
+                         + 0.50 * (canopy_cov - 0.62)
+                         + 0.22 * relief_blend, -0.80, 0.60)
+
+    # -- multi-octave boundary noise: edge interpenetrates at several scales
+    #    (coarse -> bays & peninsulas; fine ~5 px -> crenellated pixel edge)
+    cbn = np.zeros_like(WX, dtype=np.float32)
+    _a, _f = 1.0, 1.0 / (HEX_SIZE * 4.2)
+    for _o in range(6):
+        _v, _, _ = iq_noised(WX_warped * _f + _cseed, WY_warped * _f - _cseed)
+        cbn += _a * (_v - 0.5)
+        _a *= 0.58
+        _f *= 2.05
+    cbn = np.clip(cbn / 0.52, -1.0, 1.0)
+
+    # -- fine dither noise (~2-4 px) to keep every canopy edge from ever
+    #    reading as a clean airbrushed contour.
+    _fd0, _, _ = iq_noised(WX * 0.30 + 9.0 + _cseed, WY * 0.30 - 4.0)
+    _fd1, _, _ = iq_noised(WX * 0.62 - 3.0, WY * 0.62 + 7.0 + _cseed)
+    cfn = np.clip(((_fd0 - 0.5) * 0.7 + (_fd1 - 0.5) * 0.3) / 0.35, -1.0, 1.0)
+
+    # -- continuous density.  Light blur only (the forest-prob field is already
+    #    smooth); its 0.5-ish contour is then pushed around by cbn + the crown
+    #    bulge + fine dither and re-thresholded fairly sharply so the mass is
+    #    solid with a ragged, multi-scale, crown-scalloped margin -- no hex
+    #    facet, no soft gradient.
+    fprob = gaussian_filter(H_forest_prob.astype(np.float32), sigma=HEX_SIZE * 0.14)
+    # v10: riparian gallery -- lift canopy probability along the river banks so
+    # the margin reads as vegetation, not an outline.  A thin unconditional
+    # fringe plus a stronger boost where forest tiles are already nearby (so it
+    # thickens an existing wood toward the water rather than seeding a new one).
+    _fp_near = gaussian_filter(H_forest_prob.astype(np.float32), sigma=HEX_SIZE * 0.6)
+    edge = (fprob + 0.36 * cbn + 0.15 * cfn + 0.07 * (canopy_cov - 0.55)
+            + 0.06 * riparian + 0.30 * riparian * np.clip(_fp_near * 4.0, 0.0, 1.0))
+    canopy_density = _ss(0.28, 0.50, edge)
+
+    # -- interior clearings: low-freq patches thin / punch ragged holes even in
+    #    the core of the wood (rims dithered so they aren't clean ovals).
+    _cl, _, _ = iq_noised(WX_warped / (HEX_SIZE * 1.7) + 71.0 + _cseed,
+                          WY_warped / (HEX_SIZE * 1.7) - 33.0)
+    clearing = _ss(0.52, 0.80, _cl + 0.18 * cfn)
+    canopy_density = canopy_density * (1.0 - 0.85 * clearing)
+
+    # -- thin toward the rock: elevation/treeline + slope
+    canopy_density = canopy_density * treeline_factor
+    canopy_density = canopy_density * np.clip(1.0 - (slope - 0.14) / 0.34, 0.0, 1.0)
+    canopy_density = np.where(is_inland_water, 0.0, canopy_density)
+    canopy_density = np.clip(canopy_density, 0.0, 1.0)
+
+    # -- AO halo (soft, a touch wider than the mass) for floor shading
+    canopy_ao = np.clip(gaussian_filter(canopy_density, sigma=4.0) * 1.15, 0.0, 1.0)
+
+    # -- drop shadow: the mass shifted toward anti-sun (SE), softened a little
+    _shp = 4
+    _src = np.zeros_like(canopy_density)
+    _src[_shp:, _shp:] = canopy_density[:-_shp, :-_shp]
+    canopy_drop = np.clip(gaussian_filter(_src, sigma=1.5) - canopy_density, 0.0, 1.0)
+
+    # -- underlay tone: deep shadow-green <-> mid canopy, low-freq patchy
+    canopy_deep = np.array([0.060, 0.140, 0.075], dtype=np.float32)
+    canopy_core = np.array([0.130, 0.270, 0.120], dtype=np.float32)
+    canopy_olive = np.array([0.300, 0.380, 0.170], dtype=np.float32)
+    _tp, _, _ = iq_noised(WX_warped / (HEX_SIZE * 0.85) + 12.0 + _cseed,
+                          WY_warped / (HEX_SIZE * 0.85) - 5.0)
+    _um = np.clip(0.5 + 0.75 * (_tp - 0.5) * 2.0, 0.0, 1.0)[:, :, None]
+    canopy_under_col = canopy_deep * (1.0 - _um) + canopy_core * _um
+
+    # Ocean water -- depth-extinction (per-channel Beer-Lambert) of the seabed
+    # albedo, composited against a volume IN-SCATTER colour (v05).  transmittance
+    # = exp(-k*depth), k largest for red, then green, smallest for blue;
+    # composited over a sand->rock seabed that itself fades out with depth.  No
+    # thresholds -> a smooth turquoise -> deep blue-grey gradient with no bands;
+    # the near-constant Fresnel sky add below keeps shallow water cooler than
+    # the beach so the shore line stays legible without a step.
+    is_ocean_water = H < 0.0
+    depth = np.clip(-H, 0.0, 5.0)
+    _d3 = depth[:, :, None]
+
+    seabed_sand = np.array([0.40, 0.42, 0.33], dtype=np.float32)
+    seabed_rock = np.array([0.18, 0.23, 0.22], dtype=np.float32)
+    _sbn, _, _ = iq_noised(WX_warped / (HEX_SIZE * 0.55) + 4.0,
+                           WY_warped / (HEX_SIZE * 0.55) - 9.0)
+    _sbn2, _, _ = iq_noised(WX_warped / (HEX_SIZE * 1.6) - 21.0,
+                            WY_warped / (HEX_SIZE * 1.6) + 6.0)
+    sb_mix = np.clip((depth - 0.010) / 0.10 + 0.75 * (_sbn - 0.5) + 0.45 * (_sbn2 - 0.5),
+                     0.0, 1.0)[:, :, None]
+    seabed_alb = seabed_sand * (1.0 - sb_mix) + seabed_rock * sb_mix
+
+    # v08: DEPTH-DEPENDENT volume in-scatter.  v05 blended two near-identical
+    # mid-teals (seabed_rock ~ inscatter_col) so every depth returned the same
+    # colour and the shelf went invisible; now the in-scatter colour itself
+    # interpolates shallow -> deep, red then green going extinct as the water
+    # deepens (hue rotates bluewards, value drops).  Extinction is back near
+    # v04 contrast so open water is ~all in-scatter (the seabed rock albedo
+    # stops greying it) and the shelf falloff actually shows.  v05's turbidity
+    # floor + the Fresnel sky ADD (the black-sea fix) are KEPT; Fresnel is now
+    # depth-INDEPENDENT -- its variation moves onto the wave normals below.
+    k_ext = np.array([4.6, 1.8, 1.0], dtype=np.float32)
+    trans = np.exp(-k_ext * _d3)
+    turb = 0.06
+    inv_t = 1.0 - trans * (1.0 - turb)                        # in-scatter fraction, floored at turb
+
+    isc_shallow = np.array([0.120, 0.300, 0.245], dtype=np.float32)   # shelf: green-teal, G >> B
+    isc_deep    = np.array([0.100, 0.205, 0.223], dtype=np.float32)   # v10: slate-blue, value lifted
+    # v09: the v08 `G >= B` deep-water rule is RETIRED -- it forced open sea into
+    # an olive-teal that shared the plains-grass hue and killed land/sea
+    # figure-ground (deadends.md).  Green now lives on the shelf only; deep
+    # water rotates past teal to a slate-blue (B >= G).
+    # v10: open-sea luminance had drifted to ~0.16 (v07 .269 -> v08 .199 -> v09
+    # .161) against the `sea` ref's .215 -- the frame was reading too dark and
+    # flat over water.  `isc_deep` raised ~46% in luminance (constant lum .113
+    # -> .165) with G nudged up proportionally MORE than B, so it stays
+    # slate-blue (B >= G) but less severely: constant B-G .050 -> .024, landing
+    # rendered open-sea B-G ~= 0.03 not 0.06.  This is the mandated 1-constant
+    # precondition for v10; nothing else in the water model is touched.
+    # depth -> shallow/deep mix.  Most of the swing is spent across the shelf
+    # (0 .. ~0.6) so a wide plains shelf reads as a broad turquoise band that
+    # darkens gradually, while a cliff plunge crosses it in a handful of px.
+    isc_t = (1.0 - np.exp(-depth / 0.42))[:, :, None]
+    inscatter_field = isc_shallow[None, None, :] * (1.0 - isc_t) + isc_deep[None, None, :] * isc_t
+    w_col = seabed_alb * (1.0 - inv_t) + inscatter_field * inv_t
+
+    # --- Surface wave NORMALS (v09): a real two-component perturbed normal.
+    #     v08 added a SCALAR slope proxy monotonically to `fres`, so brightness
+    #     traced iso-contours of the noise field and the big (+-30 px) flow warp
+    #     smeared them into long parallel light ribbons (deadends.md).  v09:
+    #       * swell weight cut to ~1/3, warp displacement shrunk +-30/10 ->
+    #         +-10/6 px so it DECORRELATES the ripple field, not stretches it;
+    #       * the swell + ripple analytic derivatives are assembled into an
+    #         actual normal vector (nx, ny, nz), normalized;
+    #       * shading comes from the normal's FACING, not its slope magnitude:
+    #         a tight specular lobe (high N.H power) so crests glint and die
+    #         between crests, and a sky ADD split by the normal's tilt
+    #         DIRECTION so one flank of each crest catches sky and the other
+    #         does not.
+    #     Still: low-freq swell (~2.5 hex, along surf vector (0.72,-0.69)) +
+    #     fine anisotropic ripple (~7 px), phase-warped by a slow flow field so
+    #     nothing tiles or shows a 0/90 axis; faded out in the surf band.
+    _wv = np.array([0.72, -0.69], dtype=np.float32)
+    _wv /= np.linalg.norm(_wv)
+    _wp = np.array([-_wv[1], _wv[0]], dtype=np.float32)       # across-swell axis
+    # flow field on the DOMAIN-WARPED coords (not raw WX/WY) so the phase warp
+    # carries no residual screen-axis alignment (deadends.md).
+    _flw, _fldx, _fldy = iq_noised(WX_warped * 0.012 + 5.0, WY_warped * 0.012 - 9.0)
+    _flw2, _fl2dx, _fl2dy = iq_noised(WX_warped * 0.028 - 14.0, WY_warped * 0.028 + 22.0)
+    _pwx = WX + _fldx * 10.0 + _fl2dx * 6.0                   # v08 was 30 / 10 -- shrunk
+    _pwy = WY + _fldy * 10.0 + _fl2dy * 6.0
+    _along = _pwx * _wv[0] + _pwy * _wv[1]
+    _acr   = _pwx * _wp[0] + _pwy * _wp[1]
+    _swf = 1.0 / (HEX_SIZE * 2.5)                             # swell: ~2.5 hex along travel
+    _sv, _sdx, _sdy = iq_noised(_along * _swf + 0.6 * _flw, _acr * _swf * 0.45 + 11.0)
+    _rpf = 1.0 / 7.0                                          # ripple: ~7 px along, ~3x stretched across
+    _rv, _rdx, _rdy = iq_noised(_along * _rpf + 1.7 * _flw, _acr * _rpf * 0.33 - 4.0)
+    # frame-space height gradient (along-travel, across-travel).  Swell weight
+    # 0.06-equivalent (~1/3 of v08's 0.18); the fine ripple carries the crests.
+    _g_al = _sdx * 0.35 + _rdx * 1.05
+    _g_ac = _sdy * 0.35 + _rdy * 0.55
+    # rotate the frame-space gradient back into screen x / y
+    _g_x = _g_al * _wv[0] + _g_ac * _wp[0]
+    _g_y = _g_al * _wv[1] + _g_ac * _wp[1]
+    _surf_fade = np.clip((depth - 0.06) / 0.10, 0.0, 1.0) * is_ocean_water
+    _g_x = _g_x * _surf_fade
+    _g_y = _g_y * _surf_fade
+    # perturbed unit normal  N = normalize(-A*grad_x, -A*grad_y, 1)
+    _wamp = 1.0
+    _nx = -_wamp * _g_x
+    _ny = -_wamp * _g_y
+    _ninv = 1.0 / np.sqrt(_nx * _nx + _ny * _ny + 1.0)
+    _nx = _nx * _ninv
+    _ny = _ny * _ninv
+    _nz = _ninv
+
     half_vec = np.array([sun_x, sun_y, sun_z + 1.0], dtype=np.float32)
     half_vec /= np.linalg.norm(half_vec)
-    specular = np.clip(Nx * half_vec[0] + Ny * half_vec[1] + Nz * half_vec[2], 0.0, 1.0)**28 * 0.25
-    ocean_lit = w_col * (0.60 + 0.40 * direct_sun[:, :, None]) + specular[:, :, None]
+    # The sea body is still lit near-flat (N=(0,0,1)); the wave normal drives
+    # only the specular + sky ADD, not the body lighting, so the shore never
+    # hillshades into a dark rim.
+    _wsun = float(sun_z) ** 1.05
+    _wshadow = 0.78 + 0.22 * shadow_mask
+    # TIGHT specular lobe off the perturbed normal: a facet pointing near the
+    # sun half-vector glints hard; the high power kills it between crests.  A
+    # tiny flat-water sheen underneath keeps the open sea off matte-black.
+    # The lobe is further GATED to actual ripple + swell crest tops (`_rv`,
+    # `_sv` are the noise values, not slopes) so glints stay DISCRETE and
+    # clustered on the up-faces of swells, not a whole-sea speckle field.
+    _NdotH = np.clip(_nx * half_vec[0] + _ny * half_vec[1] + _nz * half_vec[2], 0.0, 1.0)
+    _crest = (np.clip((_rv - 0.60) / 0.40, 0.0, 1.0) ** 1.4
+              * (0.35 + 0.65 * np.clip((_sv - 0.42) / 0.45, 0.0, 1.0)))
+    _spec_glint = (_NdotH ** 100) * 0.55 * _crest * _surf_fade
+    _wspec = ((float(np.clip(half_vec[2], 0.0, 1.0)) ** 24) * 0.055
+              + _spec_glint)
+    # Fresnel sky ADD, now split by the normal's TILT DIRECTION not its
+    # magnitude: facets tilted toward the sun azimuth catch bright sky, the
+    # opposite flank catches almost none -- an asymmetric per-crest split, not
+    # a brighten-wherever-there-is-slope wash.
+    _saz = np.array([sun_x, sun_y], dtype=np.float32)
+    _saz /= np.linalg.norm(_saz)
+    _tilt = _nx * _saz[0] + _ny * _saz[1]                     # signed, ~ +-0.3
+    sky_col = np.array([0.50, 0.575, 0.66], dtype=np.float32)  # v09: B >= G
+    fres = np.clip(0.045 + 0.11 * _tilt, 0.012, 0.11)
+    ocean_lit = (w_col * (0.30 + 0.70 * _wsun * _wshadow[:, :, None])
+                 + _wspec[:, :, None] + sky_col[None, None, :] * fres[:, :, None])
+
+    # Surf -- foam only in shallow water, gated by exposure of the shore normal
+    # to a fixed swell direction, broken into arcs by noise, concentrated on
+    # headlands and thinned in bays.  Not a continuous ribbon / outline.
+    _shl = np.sqrt(dHx * dHx + dHy * dHy) + 1e-6
+    _outx, _outy = dHx / _shl, dHy / _shl                     # unit vector, points seaward (downhill)
+    _swell = np.array([0.72, -0.69], dtype=np.float32)
+    _swell /= np.linalg.norm(_swell)
+    _expose = np.clip(-(_outx * _swell[0] + _outy * _swell[1]), 0.0, 1.0) ** 0.8
+    _lm = (H > 0.0).astype(np.float32)
+    _head = _gf(_lm, sigma=7.0) - _gf(_lm, sigma=22.0)        # >0 on headlands, <0 in bays
+    _head_gate = np.clip(0.62 + _head * 4.5, 0.40, 1.35)
+    _fn0, _, _ = iq_noised(WX * 0.13 + 3.0, WY * 0.13 - 7.0)
+    _fn1, _, _ = iq_noised(WX * 0.40 - 11.0, WY * 0.40 + 5.0)
+    _fn2, _, _ = iq_noised(WX * 1.10 + 2.0, WY * 1.10 + 1.0)
+    _fbreak = _ss(0.30, 0.66, _fn0 * 0.55 + _fn1 * 0.30 + _fn2 * 0.15)
+    _szone = np.clip((0.075 - depth) / 0.075, 0.0, 1.0) * is_ocean_water
+    _szone = _szone * np.clip(depth / 0.004, 0.0, 1.0)        # drop the last sliver at the very edge
+    foam = np.clip((_szone ** 0.5) * (0.42 + 1.9 * _expose) * _fbreak * _head_gate, 0.0, 1.0)
+    foam_col = np.array([0.94, 0.965, 0.975], dtype=np.float32)
+    ocean_lit = ocean_lit * (1.0 - foam[:, :, None]) + foam_col * foam[:, :, None]
 
     # --- Inland Rivers & Lakes Flat Smooth Water Shader ---
     inland_water_depth = np.clip((water_surface_H - carved_ground_H) / 0.025, 0.0, 1.0)[:, :, None]
     lake_deep = np.array([0.10, 0.28, 0.54], dtype=np.float32)
     lake_shallow = np.array([0.22, 0.52, 0.68], dtype=np.float32)
     inland_water_col = lake_shallow * (1.0 - inland_water_depth) + lake_deep * inland_water_depth
+    # v10: pull the river-mouth water toward a shallow estuarine green-blue over
+    # the delta fan so the channel hands off to the sea instead of ending on a
+    # hard colour seam.
+    _estu = np.clip(mouth_zone, 0.0, 1.0)[:, :, None]
+    estuary_col = np.array([0.15, 0.33, 0.40], dtype=np.float32)
+    inland_water_col = inland_water_col * (1.0 - 0.55 * _estu) + estuary_col * (0.55 * _estu)
     inland_specular = (np.clip(half_vec[2], 0.0, 1.0)**32 * 0.35) * direct_sun[:, :, None]
     inland_water_lit = inland_water_col * (0.65 + 0.35 * direct_sun[:, :, None]) + inland_specular
 
@@ -1406,107 +1546,437 @@ def _generate_topographic_surface_impl(generator, bbox, tiles=None, layout=None,
     beach_col = beach_col * (0.94 + 0.06 * sand_ripple[:, :, None])
     beach_col = beach_col * (1.0 - np.clip((H - 0.040)/0.035, 0.0, 1.0)[:, :, None]) + dune_sand * np.clip((H - 0.040)/0.035, 0.0, 1.0)[:, :, None]
 
-    # 2. VIBRANT, RICH & DETAILED PLAINS (Multi-octave lush grassland, clover meadow, rich soil)
-    grass_lush = np.array([0.28, 0.54, 0.24], dtype=np.float32)     # Deep emerald meadow
-    grass_meadow = np.array([0.38, 0.62, 0.28], dtype=np.float32)   # Bright sunlit pasture
-    grass_savannah = np.array([0.48, 0.58, 0.30], dtype=np.float32) # Warm savannah/steppe
-    grass_loam = np.array([0.34, 0.45, 0.22], dtype=np.float32)     # Rich humus loam
-    
-    t_grass1 = np.clip((plains_fbm - 0.35) / 0.30, 0.0, 1.0)[:, :, None]
-    t_grass2 = np.clip((rw_val - 0.45) / 0.30, 0.0, 1.0)[:, :, None]
-    t_grass3 = np.clip((qw_val - 0.40) / 0.35, 0.0, 1.0)[:, :, None]
-    
-    plains_col = grass_lush * (1.0 - t_grass1) + grass_meadow * t_grass1
-    plains_col = plains_col * (1.0 - t_grass2 * 0.35) + grass_savannah * (t_grass2 * 0.35)
-    plains_col = plains_col * (1.0 - t_grass3 * 0.25) + grass_loam * (t_grass3 * 0.25)
+    if progress_callback:
+        progress_callback(0.82, "Generating multi-scale ground cover, grain & soil parcels...")
+    # 2. GROUND-COVER ALBEDO LAYER (2D field)  -- v02: spectrum redistributed
+    # HUE is held near-constant (a desaturated sage/olive); the low (>= hex)
+    # octaves drive VALUE and SATURATION only. The reclaimed amplitude is spent
+    # at 1-4 px as value-dominant grain plus sparse ridged filaments (tracks /
+    # hedge lines). A hard chroma cap + a structural "green leads blue" guard
+    # keep the cool areas from ever approaching the shelf-water turquoise
+    # (coastal_turquoise / shallow_shelf). The Worley parcel lookup is now
+    # FULLY domain-warped (no unwarped residual) so its borders carry no grid
+    # axis. Albedo only -- heightfield / relief / hillshade / rivers / trees are
+    # untouched here; there is no coast-distance vignette term to retire.
+    _seed_off = float(generator.seed % 1000) * 0.1731
 
-    # 3. IQ TREES & FOREST CANOPY MATERIAL (Individual tree species colors & canopy volume AO)
-    forest_spruce = np.array([0.04, 0.16, 0.07], dtype=np.float32)  # Deep evergreen conifer needle
-    forest_emerald = np.array([0.10, 0.28, 0.12], dtype=np.float32) # Lush emerald crown
-    forest_olive = np.array([0.16, 0.32, 0.12], dtype=np.float32)   # Olive canopy
-    forest_golden = np.array([0.22, 0.35, 0.14], dtype=np.float32)  # Sunlit foliage
+    def _sstep(a, b, x):
+        t = np.clip((x - a) / (b - a), 0.0, 1.0)
+        return t * t * (3.0 - 2.0 * t)
 
-    woodland_floor = np.array([0.08, 0.22, 0.08], dtype=np.float32) # Rich deep forest floor
+    # --- directional domain warp: mild stringiness (features a little longer
+    #     along X); Y warp is no longer near-zero, to avoid horizontal banding.
+    gw_s = 1.0 / (HEX_SIZE * 2.6)
+    gw1_v, gw1_dx, gw1_dy = iq_noised(WX * gw_s + _seed_off, WY * gw_s * 0.7 - _seed_off)
+    gw2_v, gw2_dx, gw2_dy = iq_noised((WX + 61.0) * gw_s * 1.9 + gw1_v * 1.6,
+                                      (WY - 43.0) * gw_s * 1.1 + gw1_v * 1.6)
+    warpX = (gw1_dx * 0.7 + gw2_dx * 0.5) * (HEX_SIZE * 1.5)
+    warpY = (gw1_dy * 0.7 + gw2_dy * 0.5) * (HEX_SIZE * 0.9)
+    GX = WX + warpX
+    GY = WY + warpY
 
-    t_mat = tree_mat_accum[:, :, None]
-    tree_base_col = np.where(
-        t_mat < 0.35,
-        forest_spruce * (1.0 - t_mat/0.35) + forest_emerald * (t_mat/0.35),
-        np.where(
-            t_mat < 0.70,
-            forest_emerald * (1.0 - (t_mat-0.35)/0.35) + forest_olive * ((t_mat-0.35)/0.35),
-            forest_olive * (1.0 - (t_mat-0.70)/0.30) + forest_golden * ((t_mat-0.70)/0.30)
-        )
+    # --- LOW-FREQUENCY field (>= hex scale). Drives VALUE + SATURATION, NOT hue.
+    gc_coarse = np.zeros_like(WX, dtype=np.float32)
+    c_amp, c_freq = 1.0, 1.0 / (HEX_SIZE * 3.4)
+    for _ in range(3):
+        cv, _, _ = iq_noised(GX * c_freq + _seed_off, GY * c_freq * 0.8)
+        gc_coarse += c_amp * (cv - 0.5)
+        c_amp *= 0.55
+        c_freq *= 2.07
+    gc_coarse = np.clip(gc_coarse / 0.62, -1.0, 1.0)             # ~zero-mean [-1,1]
+
+    gs_v, _, _ = iq_noised((GX * 0.8 + 210.0) / (HEX_SIZE * 3.6) - _seed_off,
+                           (GY * 1.1 - 90.0) / (HEX_SIZE * 3.6))
+    gs_low = np.clip((gs_v - 0.5) * 2.3, -1.0, 1.0)             # saturation swings
+
+    # --- SUB-HEX clump mottle (~9-20 px): tussock / graze patchiness, the scale
+    #     that was entirely missing in v01. Value-dominant.
+    clump = np.zeros_like(WX, dtype=np.float32)
+    k_amp, k_freq = 1.0, 1.0 / 20.0
+    for _ in range(2):
+        kv, _, _ = iq_noised(GX * k_freq + 40.0 + _seed_off, GY * k_freq * 1.15 - 12.0)
+        clump += k_amp * (kv - 0.5)
+        k_amp *= 0.6
+        k_freq *= 2.1
+    clump = np.clip(clump / 0.72, -1.0, 1.0)
+
+    # --- HIGH-FREQUENCY value grain at ~3-13 px. Own loop, high gain (0.8) so
+    #     the top octaves actually reach a pixel; value-dominant, no hue term.
+    #     A mild contrast curve pushes it off the mushy midtone so it reads as
+    #     grazed texture rather than faint dither.
+    grain = np.zeros_like(WX, dtype=np.float32)
+    n_amp, n_freq = 1.0, 1.0 / 6.0
+    for _ in range(3):
+        nv, _, _ = iq_noised(WX * n_freq + _seed_off * 1.7, WY * n_freq * 1.25 - _seed_off)
+        grain += n_amp * (nv - 0.5)
+        n_amp *= 0.8
+        n_freq *= 2.0
+    grain = np.clip(grain / 0.9, -1.0, 1.0)
+    grain = np.sign(grain) * np.abs(grain) ** 0.72
+
+    # --- shared two-octave ISOTROPIC domain warp used for BOTH the filament
+    #     ridge input and the Worley parcel lookup (deadends.md entry 2: the
+    #     parcel lookup must carry no unwarped grid axis).
+    pw_s = 1.0 / (HEX_SIZE * 3.0)
+    pw1_v, pw1_dx, pw1_dy = iq_noised(WX * pw_s + 17.0 + _seed_off, WY * pw_s - 5.0)
+    pw2_v, pw2_dx, pw2_dy = iq_noised((WX - 9.0) * pw_s * 2.1, (WY + 22.0) * pw_s * 2.1 + _seed_off)
+
+    # --- sparse thin linear filaments (tracks / hedge lines) from ridged noise
+    #     thresholded to hairlines. The ridge input is itself domain-warped and
+    #     two-octave so crests meander (no long straight lines at island scale);
+    #     two orientations, gated so they only touch a fraction of the area.
+    #     Dark filaments = furrows / hedge shadow, light = worn tracks.
+    FLX = WX + (pw1_dx * 0.6 + pw2_dx * 0.5) * (HEX_SIZE * 0.9)
+    FLY = WY + (pw1_dy * 0.6 + pw2_dy * 0.5) * (HEX_SIZE * 0.9)
+    fr_s = 1.0 / (HEX_SIZE * 1.25)
+    fa0, _, _ = iq_noised(FLX * fr_s * 0.40 + 5.0 + _seed_off, FLY * fr_s * 1.55 - 2.0)
+    fa1, _, _ = iq_noised(FLX * fr_s * 0.90 + 51.0, FLY * fr_s * 3.10 - 7.0)
+    fb0, _, _ = iq_noised(FLX * fr_s * 1.60 - 8.0, FLY * fr_s * 0.44 + 11.0 + _seed_off)
+    fb1, _, _ = iq_noised(FLX * fr_s * 3.20 + 17.0, FLY * fr_s * 0.95 - 4.0)
+    ft0, _, _ = iq_noised(FLX * fr_s * 1.05 + 22.0, FLY * fr_s * 1.05 - 30.0 + _seed_off)
+    fa_v = fa0 * 0.7 + fa1 * 0.3
+    fb_v = fb0 * 0.7 + fb1 * 0.3
+    ridgeA = 1.0 - np.abs(2.0 * fa_v - 1.0)
+    ridgeB = 1.0 - np.abs(2.0 * fb_v - 1.0)
+    ridgeT = 1.0 - np.abs(2.0 * ft0 - 1.0)
+    fil_dark = np.maximum(_sstep(0.88, 0.972, ridgeA), _sstep(0.90, 0.978, ridgeB))
+    fil_lite = _sstep(0.90, 0.980, ridgeT)
+    sp_v, _, _ = iq_noised(WX / (HEX_SIZE * 5.0) + 30.0, WY / (HEX_SIZE * 5.0) - 14.0 + _seed_off)
+    fil_dark = fil_dark * np.clip((sp_v - 0.42) / 0.28, 0.0, 1.0)
+    fil_lite = fil_lite * np.clip((0.58 - sp_v) / 0.28, 0.0, 1.0)
+
+    # --- SMALL edge-bounded soil parcels, on the fully-warped domain above
+    #     (v11).  v10 used one huge ~210 px Worley cell driving a smooth
+    #     per-parcel tone -- that read as more of the airbrushed lobing.  Now
+    #     the cell is ~36 px (well under the 40-90 px lobe scale the Critic
+    #     flagged), the warp is scaled down to match so parcels stay bounded
+    #     rather than dissolving into noise, and only a minority of parcels
+    #     (gated on `parcel_id`) take a modest dry/soil chroma shift.
+    PWX = WX + (pw1_dx * 0.85 + pw2_dx * 0.42) * (HEX_SIZE * 0.36)
+    PWY = WY + (pw1_dy * 0.85 + pw2_dy * 0.42) * (HEX_SIZE * 0.36)
+    parcel_cell = HEX_SIZE * 0.72
+    pcx = PWX / parcel_cell
+    pcy = PWY / parcel_cell
+    p_nu = np.floor(pcx)
+    p_nv = np.floor(pcy)
+    f1 = np.full_like(WX, 1e9, dtype=np.float32)
+    f2 = np.full_like(WX, 1e9, dtype=np.float32)
+    parcel_id = np.zeros_like(WX, dtype=np.float32)
+    for _jj in (-1.0, 0.0, 1.0):
+        for _ii in (-1.0, 0.0, 1.0):
+            cu = p_nu + _ii
+            cv = p_nv + _jj
+            ox, oy = hash2_vec(cu + 3.7 + _seed_off, cv + 8.1 - _seed_off)
+            featx = cu + 0.15 + 0.70 * ox
+            featy = cv + 0.15 + 0.70 * oy
+            pd2 = (pcx - featx) ** 2 + (pcy - featy) ** 2
+            closer = pd2 < f1
+            f2 = np.where(closer, f1, np.minimum(f2, pd2))
+            f1 = np.where(closer, pd2, f1)
+            cid = hash1_vec(cu + 19.3 + _seed_off, cv + 4.2)
+            parcel_id = np.where(closer, cid, parcel_id)
+    # sharp interior mask: seam transition ~5 px at the new cell size, so the
+    # parcels read as bounded patches, not a gradient.
+    parcel_edge = np.clip((np.sqrt(f2) - np.sqrt(f1)) / 0.14, 0.0, 1.0)  # 0 at seam -> 1 interior
+    # gate: only parcels with id > ~0.58 turn dry/soil (a minority), the rest
+    # stay uniform mid-green like the plains3 ref.
+    parcel_dry = np.clip((parcel_id - 0.58) / 0.22, 0.0, 1.0) * parcel_edge
+
+    # --- v12: HILL-BAND ground-cover retarget.  v11 and earlier blended
+    #     `ground_c` up to 75% toward the flat constant `hills_col` on a smooth
+    #     `clip(H_hills_prob*1.3)` ramp, *downstream* of all plains texture -- an
+    #     airbrushed gradient AND a zero-grain uniform fill that multiplied the
+    #     grain / clump / parcel texture down ~4x wherever it bit (the "khaki
+    #     donut").  Now the hill band is pushed DRIER, LESS SATURATED and a touch
+    #     DARKER through the SAME dryness / sat / value fields the plains texture
+    #     already rides -- so the 3-13 px grain, the 9-20 px clump mottle and the
+    #     soil parcels keep FULL strength inside the band.  The grass<->scrub
+    #     boundary is perturbed by fine (~5-15 px) noise BEFORE it is used as a
+    #     weight, so grass fingers run uphill and scrub tongues run downhill
+    #     instead of following a clean probability contour.  Hue is never driven
+    #     directly here (dryness/sat/value only); the downstream chroma cap +
+    #     "green leads blue" guard still apply.
+    _hpn0, _, _ = iq_noised(WX / 12.0 + 6.0 + _seed_off, WY / 12.0 - 21.0)
+    _hpn1, _, _ = iq_noised(WX / 4.6 - 27.0, WY / 4.6 + 9.0 + _seed_off * 1.3)
+    hill_edge_noise = (_hpn0 - 0.5) * 0.32 + (_hpn1 - 0.5) * 0.14      # ~+-0.23
+    h_prob_n = np.clip(H_hills_prob + hill_edge_noise, 0.0, 1.0)
+    hillw = np.clip(h_prob_n * 1.25, 0.0, 1.0)
+    hillw = hillw * hillw * (3.0 - 2.0 * hillw)                        # broken S, not mush
+
+    # --- assemble (v11).  The large-scale octaves (`gc_coarse` ~40-170 px,
+    #     `gs_low` ~180 px) no longer drive luminance -- they were the smooth
+    #     airbrushed 40-90 px tone lobes the Critic flagged.  `gc_coarse` is cut
+    #     ~85% out of value and trimmed in dryness/sat (the lobes read chromatic
+    #     too); `gs_low` trimmed in sat.  The reclaimed budget goes to
+    #     `parcel_dry`: small (~36 px) edge-bounded soil patches with a modest
+    #     warm + desaturated shift, not a smooth gradient.  The 3-13 px `grain`
+    #     loop and its 0.26 value weight / 0.05 dryness / 0.14 sat terms are
+    #     UNTOUCHED (hi-freq std measured right at .078 vs ref .068).  `clump`
+    #     (9-20 px, sub-hex) value weight is trimmed only slightly (0.13 -> 0.11).
+    # HUE: near-constant; a small dryness swing, now mostly per-parcel.
+    # v12: `+ 0.22*hillw` pushes the hill band toward `grass_dry` (scrub straw)
+    # through the same blend the grain/clump/parcel ride -- no flat fill.
+    dryness = np.clip(0.50 + 0.06 * gs_low + 0.018 * gc_coarse + 0.16 * parcel_dry
+                      + 0.05 * clump + 0.05 * grain
+                      + 0.22 * hillw, 0.18, 0.86)
+    # SATURATION: large-scale swings pulled way down; grain/clump breaks kept.
+    # v12: `- 0.24*hillw` desaturates the hill band (dusty scrub) texturally.
+    sat_mod = np.clip(0.50 + 0.16 * gs_low + 0.05 * gc_coarse - 0.12 * parcel_dry
+                      + 0.14 * clump + 0.14 * grain
+                      - 0.24 * hillw, 0.0, 1.0)
+    # VALUE: large-scale contribution gutted; texture now carried by the
+    # untouched fine grain + clump; soil parcels sit a touch darker.
+    # v12: `- 0.09*hillw` drops the hill band a little (grain still swings +-0.37).
+    value_mott = np.clip(1.0 + 0.008 * gc_coarse - 0.045 * parcel_dry
+                         + 0.11 * clump + 0.26 * grain
+                         - 0.20 * fil_dark + 0.12 * fil_lite
+                         - 0.09 * hillw, 0.66, 1.32)
+    seam_shade = 0.975 + 0.025 * parcel_edge
+
+    grass_sage = np.array([0.40, 0.46, 0.34], dtype=np.float32)     # desaturated cool sage
+    grass_mid  = np.array([0.37, 0.45, 0.27], dtype=np.float32)     # neutral meadow olive
+    grass_dry  = np.array([0.55, 0.52, 0.30], dtype=np.float32)     # warm straw
+
+    d = dryness[:, :, None]
+    plains_col = np.where(
+        d < 0.5,
+        grass_sage * (1.0 - d / 0.5) + grass_mid * (d / 0.5),
+        grass_mid * (1.0 - (d - 0.5) / 0.5) + grass_dry * ((d - 0.5) / 0.5),
     )
-    crown_ao = (0.32 + 0.68 * tree_hei_accum[:, :, None])
-    forest_canopy_color = tree_base_col * crown_ao
+    luma = plains_col[:, :, 0:1] * 0.299 + plains_col[:, :, 1:2] * 0.587 + plains_col[:, :, 2:3] * 0.114
+    sfac = (0.82 + 0.40 * sat_mod)[:, :, None]                      # ~0.82 .. 1.22
+    plains_col = luma + (plains_col - luma) * sfac
+    plains_col = plains_col * (seam_shade[:, :, None] * value_mott[:, :, None])
+
+    # --- hard chroma cap + structural hue guard away from the shelf-water hue.
+    mx = plains_col.max(axis=2, keepdims=True)
+    mn = plains_col.min(axis=2, keepdims=True)
+    chroma = mx - mn
+    cap = 0.24
+    over = np.clip((chroma - cap) / (chroma + 1e-6), 0.0, 1.0)
+    lg = plains_col[:, :, 0:1] * 0.299 + plains_col[:, :, 1:2] * 0.587 + plains_col[:, :, 2:3] * 0.114
+    plains_col = plains_col + (lg - plains_col) * over
+    # green must lead blue (turquoise has B > G) and red must not collapse
+    # -> grass can never read as shallow water whatever the fields do.
+    plains_col[:, :, 2] = np.minimum(plains_col[:, :, 2], plains_col[:, :, 1] * 0.86)
+    plains_col[:, :, 0] = np.maximum(plains_col[:, :, 0], plains_col[:, :, 2] * 0.95)
+    plains_col = np.clip(plains_col, 0.02, 1.0)
+
+    # 3. FOREST CANOPY MATERIAL -- see the 2D canopy layer built above; the
+    #    underlay colour / stamp texture / AO / drop shadow all live there.
 
     # 4. HILLS & HIGHLANDS
     hills_col = np.array([0.46, 0.43, 0.30], dtype=np.float32)
 
-    # 5. MOUNTAINS (Natural Alpine Rock Massifs - Slate & Granite Strata, NO Glaciers, NO Cliffs)
+    # 5. MOUNTAINS (Natural Alpine Rock - Slate & Granite Strata)
     rock_slate = np.array([0.38, 0.37, 0.41], dtype=np.float32)   # Dark mountain slate
     rock_granite = np.array([0.52, 0.51, 0.55], dtype=np.float32) # Sunlit granite face
     rock_scree = np.array([0.44, 0.42, 0.40], dtype=np.float32)   # Alpine talus / scree
+    cliff_dark = np.array([0.26, 0.25, 0.28], dtype=np.float32)   # Deep rock crevice
+    
+    # 6. GLACIAL SNOW (Strictly Snow Peaks)
+    snow_base = np.array([0.92, 0.95, 0.98], dtype=np.float32)
+    snow_summit = np.array([1.00, 1.00, 1.00], dtype=np.float32)
 
     # --- Continuous Biome Ground Composition ---
+    if progress_callback:
+        progress_callback(0.92, "Compositing biome materials, optical water & surf...")
     ground_c = plains_col.copy()
 
-    # Blend Riparian lush green valley slopes along carved river valleys
-    riparian_turf = np.array([0.22, 0.50, 0.20], dtype=np.float32)
-    ground_c = ground_c * (1.0 - river_valley_bank[:, :, None] * 0.70) + riparian_turf * (river_valley_bank[:, :, None] * 0.70)
+    # Blend the riparian band: damp, darker, greener ground cover along the
+    # carved valley (v10 -- keyed on the noisy distance-field band `riparian`,
+    # no hard edge).
+    riparian_turf = np.array([0.17, 0.40, 0.15], dtype=np.float32)   # lush damp meadow
+    _rip_b = np.clip(riparian * 0.85, 0.0, 1.0)[:, :, None]
+    ground_c = ground_c * (1.0 - _rip_b) + riparian_turf * _rip_b
+    # extra damp darkening right at the waterline (strongest in the inner band)
+    ground_c = ground_c * (1.0 - 0.16 * np.clip(riparian * 1.4, 0.0, 1.0)[:, :, None])
 
-    # Blend Woodland Floor on forest hexes (modulated by treeline so high mountains stay stone)
-    f_floor_weight = np.clip(H_forest_prob * 1.5, 0.0, 1.0) * treeline_factor
-    ground_c = ground_c * (1.0 - f_floor_weight[:, :, None] * 0.85) + woodland_floor * (f_floor_weight[:, :, None] * 0.85)
+    # Forest floor: darken the ground under & around the canopy (AO from the
+    # blurred density field) and tint it toward leaf-litter where the wood is
+    # genuinely dense -- this shading is what gives the canopy mass its weight.
+    woodland_floor = np.array([0.13, 0.22, 0.11], dtype=np.float32)
+    ground_c = ground_c * (1.0 - 0.30 * canopy_ao[:, :, None])
+    _wf = (_ss(0.5, 0.95, canopy_density) * treeline_factor)[:, :, None]
+    ground_c = ground_c * (1.0 - 0.55 * _wf) + woodland_floor * (0.55 * _wf)
 
-    # Blend Hills
-    h_weight = np.clip(H_hills_prob * 1.3, 0.0, 1.0)[:, :, None]
-    ground_c = ground_c * (1.0 - h_weight * 0.75) + hills_col * (h_weight * 0.75)
+    # Blend Hills -- v12: HEAVILY NEUTERED.  Was
+    #   `ground_c*(1 - w*0.75) + hills_col*(w*0.75)` on a smooth
+    #   `w = clip(H_hills_prob*1.3)` -- the airbrushed khaki ramp + flat fill.
+    # The dry/sat/value retarget above now carries the hill look through the
+    # textured pipeline; this is only a low-cap (0.16 max) hue anchor toward
+    # `hills_col`, and it rides the *perturbed* `hillw` so even the residual is
+    # not a clean contour.  Grain is now crushed ~16%, not ~75%.
+    h_weight = (hillw * 0.16)[:, :, None]
+    ground_c = ground_c * (1.0 - h_weight) + hills_col * h_weight
 
-    # Geology-Driven Rock Exposure: steep slopes + alpine altitude (Solid continuous mountain massifs)
-    slope_rock = np.clip((slope[:, :, None] - 0.10) / 0.16, 0.0, 1.0)
-    altitude_rock = np.clip((H[:, :, None] - 0.26) / 0.26, 0.0, 1.0)
-    m_spur_weight = mount_mask_total[:, :, None]
-    
-    m_weight = np.clip((slope_rock * 0.65 + altitude_rock * 0.65) * (m_spur_weight * 1.2), 0.0, 1.0)
+    # Blend Mountain rock
+    m_weight = np.clip(H_mount_prob * 1.5 + np.clip((H - 0.22)/0.25, 0.0, 1.0), 0.0, 1.0)[:, :, None]
     m_rock = rock_slate * (1.0 - np.clip((H - 0.35)/0.35, 0.0, 1.0)[:, :, None]) + rock_granite * np.clip((H - 0.35)/0.35, 0.0, 1.0)[:, :, None]
     m_rock = np.where(slope[:, :, None] < 0.12, rock_scree, m_rock)
     ground_c = ground_c * (1.0 - m_weight) + m_rock * m_weight
 
-    # EXPANSIVE BEACHES: Wide sandy beaches extending along coast up to H=0.075
-    # Modulated by smooth_ramp_weight so smooth coasts blend directly into meadows while shelf coasts show wide sand
-    beach_mask = np.clip((0.075 - H) / 0.075, 0.0, 1.0)[:, :, None] * (1.0 - smooth_ramp_weight[:, :, None] * 0.40)
+    # Cliff rock exposure on steep slopes in mountain/hill areas
+    rock_presence = np.clip(H_mount_prob * 1.5 + H_hills_prob * 0.5, 0.0, 1.0)[:, :, None]
+    cliff_factor = np.clip((slope - 0.16) / 0.20, 0.0, 1.0)[:, :, None] * rock_presence
+    cliff_col = np.where(H[:, :, None] >= 0.85, rock_granite, cliff_dark)
+    ground_c = ground_c * (1.0 - cliff_factor * 0.40) + cliff_col * (cliff_factor * 0.40)
+
+    # BEACH: strand up to a wiggly upper elevation.  Width falls out of the
+    # offshore gradient -- H climbs slowly out of a shelving plains coast so the
+    # [0 .. beach_hi] band is many pixels wide; it climbs fast off a cliff coast
+    # so the band is a sliver.  A low-freq noise wiggle + a slope taper keep the
+    # sand/grass boundary from reading as a clean iso-elevation contour.
+    _bwig, _, _ = iq_noised(WX * 0.06 + 21.0, WY * 0.06 - 8.0)
+    _bwig2, _, _ = iq_noised(WX * 0.19 - 5.0, WY * 0.19 + 12.0)
+    beach_hi = 0.056 + 0.028 * (_bwig - 0.5) * 2.0 + 0.012 * (_bwig2 - 0.5) * 2.0
+    beach_hi = beach_hi * np.clip(1.0 - (slope - 0.05) / 0.30, 0.35, 1.0)
+    beach_mask = np.clip((beach_hi - H) / np.maximum(beach_hi, 1e-3), 0.0, 1.0)[:, :, None]
     ground_c = ground_c * (1.0 - beach_mask) + beach_col * beach_mask
 
-    # --- Place Green 3D Tree Canopies on top of ground (TREES ARE ALWAYS GREEN) ---
-    tree_mask = np.clip(tree_height_accum / 0.003, 0.0, 1.0)[:, :, None]
-    land_c = ground_c * (1.0 - tree_mask) + forest_canopy_color * tree_mask
+    # Snow Peaks (STRICTLY snow mountain tiles and high summits >= 0.76)
+    snow_weight = np.clip(H_snow_prob * 1.6, 0.0, 1.0) * np.clip((H - 0.74) / 0.12, 0.0, 1.0)
+    snow_col = snow_base * (1.0 - np.clip((H - 0.82)/0.12, 0.0, 1.0)[:, :, None]) + snow_summit * np.clip((H - 0.82)/0.12, 0.0, 1.0)[:, :, None]
+    ground_c = ground_c * (1.0 - snow_weight[:, :, None]) + snow_col * snow_weight[:, :, None]
+
+    # --- 2D forest canopy: dark connected underlay, crown stamps only texture it ---
+    canopy_rgb = canopy_under_col * (1.0 + np.clip(canopy_tex, -0.75, 0.60)[:, :, None] * 1.35)
+    canopy_rgb = canopy_rgb + (canopy_olive - canopy_rgb) * (0.60 * canopy_hi[:, :, None])
+    canopy_rgb = canopy_rgb * (1.0 - 0.34 * canopy_sh[:, :, None])
+    canopy_rgb = np.clip(canopy_rgb, 0.0, 1.0)
+
+    # granular drop shadow cast onto the ground just off the SE margin of the wood
+    ground_c = ground_c * (1.0 - 0.34 * canopy_drop[:, :, None])
+
+    # underlay alpha: mostly opaque over the mass (raggedness is already baked
+    # into canopy_density via cbn + crown bulge + dither), with crowns scalloping
+    # a little past the contour so the margin is crown-shaped, not a smooth curve.
+    canopy_a = np.clip(_ss(0.14, 0.42, canopy_density)
+                       + 0.40 * canopy_cov * _ss(0.04, 0.22, canopy_density),
+                       0.0, 1.0)[:, :, None]
+    land_c = ground_c * (1.0 - canopy_a) + canopy_rgb * canopy_a
 
     # Lighting
     sun_color = np.array([1.18, 1.10, 0.96], dtype=np.float32)
     sky_color = np.array([0.22, 0.28, 0.40], dtype=np.float32)
     total_light = (direct_sun[:, :, None] * sun_color + sky_light[:, :, None] * sky_color + 0.12)
 
-    land_lit = land_c * total_light
+    snow_specular = (np.clip(Nx * half_vec[0] + Ny * half_vec[1] + Nz * half_vec[2], 0.0, 1.0)**20 * 0.25)[:, :, None] * direct_sun[:, :, None]
+    land_lit = land_c * total_light + snow_weight[:, :, None] * snow_specular
 
-    # Composite: Ocean -> Land -> Inland Rivers & Lakes (Smooth untextured flat water)
-    if progress_callback:
-        progress_callback(0.94, "Compositing biome materials, water & relief...")
-
+    # Composite: Ocean -> Land -> Inland Rivers & Lakes.  River water is
+    # composited with its coverage alpha (v10) so the waterline feathers into
+    # the bank instead of a hard 1-px edge; lakes stay fully opaque.
     final_rgb = np.where(is_ocean_water[:, :, None], ocean_lit, land_lit)
-    final_rgb = np.where(is_inland_water[:, :, None], inland_water_lit, final_rgb)
+    _iw_a = np.maximum(is_lake_water.astype(np.float32), river_alpha)[:, :, None]
+    final_rgb = final_rgb * (1.0 - _iw_a) + inland_water_lit * _iw_a
 
     final_rgb = np.clip(final_rgb, 0.0, 1.0)
     final_rgb = np.power(final_rgb, 1.0 / 1.15)
 
+    # =====================================================================
+    if progress_callback:
+        progress_callback(0.98, "Applying atmospheric grade, cloud shadows & aerial haze...")
+    # ATMOSPHERE -- final pass over the composited RGB (v06).
+    # Grades the finished image only: split-tone sun/sky, elevation-scaled
+    # aerial haze, domain-warped cloud shadows, filmic S-curve + vignette.
+    # Reads H / H_land_prob / NX,NY as aux buffers; runs no material or
+    # lighting logic.  Sun is NW, elev ~42 deg -- matches the hillshade sun
+    # (sun_x,sun_y = -0.55,-0.55) and the v03 canopy drop shadow (+x,+y = SE).
+    # =====================================================================
+    from scipy.ndimage import zoom as _zoom
+
+    _lc = np.array([0.299, 0.587, 0.114], dtype=np.float32)
+    warm_col = np.array([1.00, 0.955, 0.86], dtype=np.float32)
+    warm_norm = warm_col / float(warm_col @ _lc)          # unit-luminance white balance
+    cool_col = np.array([0.66, 0.74, 0.90], dtype=np.float32)
+    cool_norm = cool_col / float(cool_col @ _lc)
+    frame_w_world = float(max_wx - min_wx)
+    _rad = np.sqrt(NX * NX + NY * NY)                     # 0 centre .. ~1.35 frame corner
+
+    # -- 1. split-tone: warm the pixels above their wide local-mean luminance,
+    #    cool the ones below it.  Local mean = a 4x-downsampled wide Gaussian
+    #    (sigma ~110 px full-res) so the term stays cheap.  Chroma shift capped
+    #    at +-8% -- a grade, not a repaint.
+    lum = final_rgb @ _lc
+    _sm = gaussian_filter(lum[::4, ::4].astype(np.float32), sigma=110.0 / 4.0)
+    lum_mean = _zoom(_sm, (height / _sm.shape[0], width / _sm.shape[1]), order=1)[:height, :width]
+    st_t = np.clip(0.5 + (lum - lum_mean) * 3.6, 0.0, 1.0)          # 1 = lit, 0 = shade
+    st_tint = cool_norm[None, None, :] * (1.0 - st_t)[:, :, None] + warm_norm[None, None, :] * st_t[:, :, None]
+    st_tint = np.clip(1.0 + (st_tint - 1.0) * 0.48, 0.93, 1.07)
+    final_rgb = final_rgb * st_tint
+
+    # -- 2. aerial haze scaled by ELEVATION (near-top-down -> air column ~ how
+    #    low the ground is), not screen depth.  f_lo ~0.09 at sea/lowland ->
+    #    ~0.02 at peaks; +2% screen-radial at the corners only; haze colour
+    #    pulled ~10% warm on the NW (sun) side.  Capped at 6% over land so the
+    #    v02 plains grain and v03 canopy texture are not washed out.
+    h_norm = np.clip(H / 0.80, 0.0, 1.0)
+    _f_lo = np.where(is_ocean_water, 0.065, 0.09)          # v07: de-haze open water so the sea keeps its depth
+    haze_f = 0.02 + (_f_lo - 0.02) * (1.0 - h_norm) ** 1.5
+    haze_f = haze_f + 0.02 * np.clip((_rad - 1.10) / 0.60, 0.0, 1.0)
+    haze_f = np.where(is_ocean_water, haze_f, np.minimum(haze_f, 0.05))
+    _nw = np.clip(0.5 - 0.5 * (NX + NY) / 1.35, 0.0, 1.0)          # 1 at NW (top-left), 0 at SE
+    haze_base = np.array([0.70, 0.76, 0.85], dtype=np.float32)
+    haze_nwc = np.array([0.770, 0.782, 0.773], dtype=np.float32)   # ~10% warmer
+    haze_col = haze_base[None, None, :] * (1.0 - _nw)[:, :, None] + haze_nwc[None, None, :] * _nw[:, :, None]
+    final_rgb = final_rgb * (1.0 - haze_f[:, :, None]) + haze_col * haze_f[:, :, None]
+
+    # -- 3. cloud shadows on land AND sea (the biggest win).  2-octave fBm on a
+    #    FULLY domain-warped domain (never axis-aligned -- deadends.md), soft-
+    #    thresholded to ~27% coverage.  Primary blob ~1/3 the island diameter,
+    #    a secondary layer 1/4 of that; a high-freq displacement frays the
+    #    contour (soft penumbra).  In shadow: x0.85 AND a shift toward the cool
+    #    sky tint -- so the open sea gains variation + temperature, not just
+    #    darkness, without touching the water model.
+    _land_m = (H_land_prob >= shore_ref)
+    if _land_m.any():
+        _cols = np.where(np.any(_land_m, axis=0))[0]
+        _rows = np.where(np.any(_land_m, axis=1))[0]
+        _diam_px = 0.5 * ((_cols[-1] - _cols[0]) + (_rows[-1] - _rows[0]))
+    else:
+        _diam_px = 0.6 * width
+    prim_cell = float(_diam_px) * frame_w_world / width / 3.3
+    inv_c = 1.0 / max(prim_cell, 1.0)
+    _cs = float(generator.seed % 977) * 0.1313 + 11.0
+
+    _cw1v, _cw1dx, _cw1dy = iq_noised(WX * inv_c * 0.5 + _cs, WY * inv_c * 0.5 - _cs)
+    _cw2v, _cw2dx, _cw2dy = iq_noised((WX + 130.0) * inv_c * 0.5 + _cw1dx * 1.3,
+                                      (WY - 90.0) * inv_c * 0.5 + _cw1dy * 1.3)
+    CWX = WX + (_cw1dx * 0.60 + _cw2dx * 0.50) * prim_cell * 0.55
+    CWY = WY + (_cw1dy * 0.60 + _cw2dy * 0.50) * prim_cell * 0.55
+    _cl0, _, _ = iq_noised(CWX * inv_c + _cs, CWY * inv_c - _cs)
+    _cl1, _, _ = iq_noised(CWX * inv_c * 4.0 - _cs, CWY * inv_c * 4.0 + _cs)   # secondary = 1/4 cell
+    # multi-scale contour fray so the shadow rim is ragged, not a smooth curve
+    _clhf, _, _ = iq_noised(CWX * inv_c * 16.0 + 5.0, CWY * inv_c * 16.0 - 8.0)
+    _clhf2, _, _ = iq_noised(CWX * inv_c * 33.0 - 12.0, CWY * inv_c * 33.0 + 3.0)
+    cloud_field = (_cl0 * 0.55 + _cl1 * 0.45) + (_clhf - 0.5) * 0.05 + (_clhf2 - 0.5) * 0.02
+    cl_thr, cl_soft = 0.615, 0.11
+    cloud_sh = _ss(cl_thr - cl_soft, cl_thr + cl_soft, cloud_field)           # 1 = full shadow
+    _csh = cloud_sh[:, :, None]
+    final_rgb = final_rgb * (1.0 - 0.15 * _csh)
+    final_rgb = final_rgb * (1.0 + (cool_norm[None, None, :] - 1.0) * 0.14 * _csh)
+
+    # -- 4. grade: filmic S-curve (pivot 0.45, strength 1.12) with a soft
+    #    highlight knee so the snow peaks keep headroom, then a <=4% cool
+    #    corner vignette.  Nothing else.
+    _p, _s, _knee = 0.45, 1.12, 0.86
+    y = _p + (final_rgb - _p) * _s
+    _over = np.maximum(0.0, y - _knee)
+    y = np.where(y > _knee, _knee + _over / (1.0 + _over / (1.0 - _knee) * 1.20), y)
+    final_rgb = np.maximum(y, 0.0)
+    _vig = np.clip((_rad - 0.90) / 0.90, 0.0, 1.0) ** 2
+    final_rgb = final_rgb * (1.0 - 0.04 * _vig)[:, :, None]
+    final_rgb = final_rgb * (1.0 + (cool_norm[None, None, :] - 1.0) * 0.05 * _vig[:, :, None])
+
+    final_rgb = np.clip(final_rgb, 0.0, 1.0)
+
     img_uint8 = (final_rgb * 255).astype(np.uint8)
     surf = pygame.surfarray.make_surface(np.transpose(img_uint8, (1, 0, 2)))
-
     if progress_callback:
         progress_callback(1.00, "Topographic elevation map synthesis complete!")
-
     return surf
 
 
 HeightMapGenerator.generate_topographic_surface = _generate_topographic_surface_impl
+render_terrain = _generate_topographic_surface_impl
