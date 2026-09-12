@@ -554,6 +554,12 @@ def draw_activity_badges(surface, region, cx, cy, font_small):
             pygame.draw.rect(surface, (180, 40, 200), (cx + 18, cy - 58, 24, 13), border_radius=3)
             frztxt = font_small.render("FRZ", True, (255, 255, 255))
             surface.blit(frztxt, (cx + 20, cy - 59))
+
+        # Turnip Winter Nitrate Depletion Harvest Shock Badge
+        if getattr(region, 'is_nitrate_depleted', False):
+            pygame.draw.rect(surface, (230, 110, 30), (cx - 40, cy - 58, 26, 13), border_radius=3)
+            ntrtxt = font_small.render("NTR", True, (15, 15, 20))
+            surface.blit(ntrtxt, (cx - 38, cy - 59))
     except Exception:
         pass
 

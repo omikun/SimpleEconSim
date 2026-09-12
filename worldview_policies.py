@@ -845,6 +845,42 @@ def _execute_policy_action(world, act_id, target):
         world['policy_feedback'] = (msg, (245, 180, 50) if ok else RED)
         from worldview_engine import ticker_push
         ticker_push(world, world['turn'], 'BANKING', msg, (245, 180, 50) if ok else (240, 80, 80))
+    elif act_id == 'nat_fertilizer_rationing':
+        cur_val = any(getattr(r, 'fertilizer_rationing', False) for r in getattr(target, 'tiles', []))
+        new_val = not cur_val
+        for r in getattr(target, 'tiles', []):
+            r.fertilizer_rationing = new_val
+        status_s = "ENACTED (50% Consumption Cut)" if new_val else "REPEALED (Normal Intensive Consumption)"
+        msg = f"Fertilizer Rationing Decree: {status_s} across {target.name}."
+        world['policy_feedback'] = (msg, (245, 180, 50) if new_val else (120, 240, 150))
+        from worldview_engine import ticker_push
+        ticker_push(world, world['turn'], 'POLICY', msg, (245, 180, 50) if new_val else (120, 240, 150))
+    elif act_id == 'nat_subsidize_guano_import':
+        cost = 100.0
+        gov_agent = target.government.agent
+        if gov_agent.cash < cost:
+            world['policy_feedback'] = (f"Insufficient Treasury: Requires ${cost:.0f} (Current: ${gov_agent.cash:.0f}).", (240, 80, 80))
+            return
+        coastal_tiles = [r for r in getattr(target, 'tiles', []) if getattr(r, 'is_coast', False) or any(getattr(n, 'is_water', False) for n in getattr(r, 'neighbors', {}).values())]
+        if not coastal_tiles:
+            world['policy_feedback'] = ("No coastal port tiles exist to receive guano blockade runners!", (240, 80, 80))
+            return
+        gov_agent.cash -= cost
+        share_cost = cost / len(coastal_tiles)
+        for r in coastal_tiles:
+            r.fertilizer_stock = min(80.0, getattr(r, 'fertilizer_stock', 12.0) + 20.0)
+            r.is_nitrate_depleted = False
+            traders = [a for a in getattr(r, 'agents', []) if getattr(a, 'is_trader', False)]
+            if traders:
+                traders[0].cash += share_cost
+            elif r.agents:
+                r.agents[0].cash += share_cost
+            else:
+                gov_agent.cash += share_cost
+        msg = f"Blockade Runner Chartered! Disbursed ${cost:.0f} to deliver +20t emergency guano to coastal ports."
+        world['policy_feedback'] = (msg, (120, 240, 150))
+        from worldview_engine import ticker_push
+        ticker_push(world, world['turn'], 'POLICY', msg, (120, 240, 150))
 
     # Frontier Actions
     elif act_id == 'frontier_expedition':

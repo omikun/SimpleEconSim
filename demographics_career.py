@@ -25,6 +25,12 @@ def learned_switch_choice(ctx, agent, choices_list, bottleneck_weights):
         for i, g in enumerate(choices_list):
             if g == Goods.food:
                 weights[i] *= (1.0 + min(2.0, hunger_avg))
+    # Systemic harvest shock from nitrate exhaustion (Turnip Winter famine pressure)
+    s_reg = getattr(ctx, 'source_region', None)
+    if s_reg and getattr(s_reg, 'is_nitrate_depleted', False):
+        for i, g in enumerate(choices_list):
+            if g == Goods.food:
+                weights[i] *= 1.5
     ambition = getattr(agent, 'ambition', 0.5)
     if ctx.most_demand != Goods.gov:
         for i, g in enumerate(choices_list):

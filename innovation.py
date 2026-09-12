@@ -344,6 +344,16 @@ TECH_CATALOG: dict[str, Technology] = {
         required_techs=['germ_theory_antisepsis'],
         bottleneck_evaluator=_eval_food_bottleneck
     ),
+    'mineral_nitrates': Technology(
+        tech_id='mineral_nitrates',
+        name='Guano & Mineral Nitrate Logistics',
+        domain=TechDomain.AGRONOMY,
+        description='Extraction and bulk maritime transshipment of Peruvian guano and Atacama sodium nitrate, unlocking +75% crop yields but creating vulnerability to naval blockades.',
+        base_xp_required=1150.0,
+        era=3,
+        required_techs=['crop_rotation'],
+        bottleneck_evaluator=_eval_food_bottleneck
+    ),
 
     # =========================================================================
     # ERA IV: PETROLEUM, ELECTRIC & MODERN AGE (Era 4)

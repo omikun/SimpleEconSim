@@ -41,6 +41,14 @@ def step_tile_externalities(region, t: int) -> dict:
         region.use_fertilizer = False
     if not hasattr(region, 'use_pesticides'):
         region.use_pesticides = False
+    if not hasattr(region, 'fertilizer_stock'):
+        region.fertilizer_stock = 12.0
+    if not hasattr(region, 'fertilizer_consumed_last_turn'):
+        region.fertilizer_consumed_last_turn = 0.0
+    if not hasattr(region, 'fertilizer_inflow_last_turn'):
+        region.fertilizer_inflow_last_turn = 0.0
+    if not hasattr(region, 'is_nitrate_depleted'):
+        region.is_nitrate_depleted = False
 
     # Check installed buildings and nation techs for ecological modifiers
     b_names = [getattr(b, 'name', '') for b in getattr(region, 'buildings', [])]
@@ -58,6 +66,34 @@ def step_tile_externalities(region, t: int) -> dict:
     # Auto-enable fertilizer/pesticides if mandated or if unlocked & active
     use_fert = region.use_fertilizer or getattr(region, 'mandate_fertilizer', False)
     use_pest = region.use_pesticides or getattr(region, 'mandate_pesticides', False)
+
+    # -------------------------------------------------------------------------
+    # 0. Global Fertilizer Inflow & Maritime Blockade Mechanics
+    # -------------------------------------------------------------------------
+    is_coastal = getattr(region, 'is_coast', False) or any(getattr(n, 'is_water', False) for n in getattr(region, 'neighbors', {}).values())
+    is_blockaded = False
+    try:
+        from imperialism import get_imperialism_manager
+        is_blockaded = get_imperialism_manager().is_tile_blockaded(region.name)
+    except Exception:
+        pass
+
+    fert_inflow = 0.0
+    # Maritime Guano & Nitrate Shipments
+    if is_coastal and not is_blockaded:
+        if 'mineral_nitrates' in unlocked_techs or not unlocked_techs:
+            fert_inflow += 3.0
+
+    # Domestic Haber-Bosch Synthetic Nitrogen Fixation
+    if 'synthetic_fertilizers' in unlocked_techs:
+        industrial_count = sum(1 for a in getattr(region, 'agents', [])
+                               if getattr(a, 'output', None) in (Goods.wood, Goods.furniture)
+                               and getattr(a, 'is_corporation', False))
+        if industrial_count > 0:
+            fert_inflow += 4.0  # Domestic synthesis immune to naval blockade
+
+    region.fertilizer_stock = max(0.0, min(60.0, getattr(region, 'fertilizer_stock', 12.0) + fert_inflow))
+    region.fertilizer_inflow_last_turn = fert_inflow
 
     # -------------------------------------------------------------------------
     # 1. Agricultural Intensity & Metabolic Soil Depletion
@@ -231,6 +267,10 @@ def get_tile_metabolic_state(region) -> dict:
         'pollution_soil': getattr(region, 'pollution_soil', 0.0),
         'use_fertilizer': getattr(region, 'use_fertilizer', False),
         'use_pesticides': getattr(region, 'use_pesticides', False),
+        'fertilizer_stock': getattr(region, 'fertilizer_stock', 12.0),
+        'fertilizer_consumed': getattr(region, 'fertilizer_consumed_last_turn', 0.0),
+        'fertilizer_inflow': getattr(region, 'fertilizer_inflow_last_turn', 0.0),
+        'is_nitrate_depleted': getattr(region, 'is_nitrate_depleted', False),
         'total_toxicity': (
             getattr(region, 'pollution_air', 0.0) * 0.35 +
             getattr(region, 'pollution_water', 0.0) * 0.40 +
@@ -249,7 +289,9 @@ def aggregate_nation_externalities(nation) -> dict:
             'avg_pollution_air': 0.0,
             'avg_pollution_water': 0.0,
             'avg_pollution_soil': 0.0,
+            'total_fertilizer_stock': 0.0,
             'composite_toxicity': 0.0,
+            'any_nitrate_depleted': False,
         }
     n = len(tiles)
     avg_fert = sum(getattr(t, 'soil_fertility', 1.0) for t in tiles) / n
@@ -257,11 +299,15 @@ def aggregate_nation_externalities(nation) -> dict:
     avg_air = sum(getattr(t, 'pollution_air', 0.0) for t in tiles) / n
     avg_water = sum(getattr(t, 'pollution_water', 0.0) for t in tiles) / n
     avg_soil = sum(getattr(t, 'pollution_soil', 0.0) for t in tiles) / n
+    tot_fert = sum(getattr(t, 'fertilizer_stock', 0.0) for t in tiles)
+    any_depleted = any(getattr(t, 'is_nitrate_depleted', False) for t in tiles)
     return {
         'avg_soil_fertility': avg_fert,
         'avg_nutrition_density': avg_nutr,
         'avg_pollution_air': avg_air,
         'avg_pollution_water': avg_water,
         'avg_pollution_soil': avg_soil,
+        'total_fertilizer_stock': tot_fert,
+        'any_nitrate_depleted': any_depleted,
         'composite_toxicity': avg_air * 0.35 + avg_water * 0.40 + avg_soil * 0.25,
     }

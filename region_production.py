@@ -23,11 +23,35 @@ def terrain_bonus(region, good):
             mult *= bonuses[good]
     # P3: Metabolic Rift & Soil Fertility for agricultural food crops
     if good == Goods.food:
-        mult *= getattr(region, 'soil_fertility', 1.0)
+        soil_fert = getattr(region, 'soil_fertility', 1.0)
+        mult *= soil_fert
         use_fert = getattr(region, 'use_fertilizer', False) or getattr(region, 'mandate_fertilizer', False)
         use_pest = getattr(region, 'use_pesticides', False) or getattr(region, 'mandate_pesticides', False)
+
         if use_fert:
-            mult *= 1.75
+            # Physical fertilizer stock consumption
+            stock = getattr(region, 'fertilizer_stock', 0.0)
+            farm_corps = sum(1 for a in getattr(region, 'agents', []) if getattr(a, 'is_corporation', False) and getattr(a, 'output', None) == Goods.food)
+            needed = 1.0 + 0.5 * farm_corps
+            if getattr(region, 'fertilizer_rationing', False):
+                needed *= 0.5
+            if stock >= needed:
+                region.fertilizer_stock -= needed
+                region.fertilizer_consumed_last_turn = needed
+                region.is_nitrate_depleted = False
+                mult *= 1.75
+            else:
+                region.fertilizer_consumed_last_turn = 0.0
+                # Fertilizer shortage!
+                if soil_fert < 0.65:
+                    # Turnip Winter Harvest Shock on depleted soil
+                    region.is_nitrate_depleted = True
+                    mult *= 0.50
+                else:
+                    region.is_nitrate_depleted = False
+        else:
+            region.is_nitrate_depleted = False
+
         if use_pest:
             mult *= 1.40
     return base * mult

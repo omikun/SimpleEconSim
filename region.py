@@ -200,6 +200,11 @@ class Region:
         self.pollution_soil: float = 0.0  # [0.0, 100.0], pesticide toxicity & chemical sludge
         self.use_fertilizer: bool = False  # municipal/landlord mandate for chemical fertilizers
         self.use_pesticides: bool = False  # municipal/landlord mandate for chemical pesticides
+        self.fertilizer_stock: float = 12.0  # physical tons of chemical/mineral nitrate reserves
+        self.fertilizer_consumed_last_turn: float = 0.0
+        self.fertilizer_inflow_last_turn: float = 0.0
+        self.is_nitrate_depleted: bool = False  # True during Turnip Winter harvest collapse
+        self.fertilizer_rationing: bool = False  # wartime emergency rationing decree
         self.soil_fertility_log: list = []  # time-series of soil fertility
         self.nutrition_density_log: list = []  # time-series of food nutrition density
         self.pollution_air_log: list = []  # time-series of air pollution

@@ -695,6 +695,58 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
             res['disabled_reason'] = "Banks Already Solvent: No domestic commercial banks are currently insolvent or frozen; bail-in resolution not permitted."
         return res
 
+    if btn_id == 'nat_fertilizer_rationing':
+        tiles = getattr(owner, 'tiles', []) if owner else []
+        is_rationed = any(getattr(r, 'fertilizer_rationing', False) for r in tiles)
+        tot_fert = sum(getattr(r, 'fertilizer_stock', 0.0) for r in tiles)
+        res = {
+            'title': "Fertilizer Rationing Decree (War Economy)",
+            'badge': "RATIONING ACTIVE" if is_rationed else "FREE MARKET",
+            'badge_col': (245, 180, 50) if is_rationed else (120, 240, 150),
+            'category': "Agrarian War Economy",
+            'cost': "Yield Impact: Reduces crop fertilizer boost from +75% to +35%",
+            'desc': [
+                "Mandates a statutory 50% reduction in agricultural fertilizer application across all fields.",
+                "Stretches finite national nitrate reserves across double the turns, guarding against abrupt Turnip Winter harvest shocks during maritime naval blockades.",
+                "Historical Precedent: Imperial German War Food Office (Kriegsernährungsamt) rationing during the 1914–1918 British naval blockade.",
+                "Can be toggled freely to adapt to active maritime blockade pressures."
+            ],
+            'stats': [
+                ("Rationing Policy", "ENACTED (-50% Burn)" if is_rationed else "REPEALED (Intensive)", (245, 180, 50) if is_rationed else GREEN),
+                ("National Fertilizer Reserves", f"{tot_fert:.1f} tons", (120, 240, 150) if tot_fert > 10 else RED),
+                ("Harvest Multiplier", "+35% Yield" if is_rationed else "+75% Yield", TEXT),
+            ]
+        }
+        return res
+
+    if btn_id == 'nat_subsidize_guano_import':
+        tiles = getattr(owner, 'tiles', []) if owner else []
+        coastal_tiles = [r for r in tiles if getattr(r, 'is_coast', False) or any(getattr(n, 'is_water', False) for n in getattr(r, 'neighbors', {}).values())]
+        cost = 100.0
+        res = {
+            'title': "Charter Blockade-Runner Guano Ships ($100)",
+            'badge': "EMERGENCY NITRATES",
+            'badge_col': (120, 240, 150),
+            'category': "Strategic Maritime Procurement",
+            'cost': f"Treasury Expenditure: ${cost:.0f} paid to neutral merchant captains",
+            'desc': [
+                "Contracts neutral-flag merchant vessels and daring blockade runners to deliver +20.0 tons of high-grade Peruvian guano and Atacama nitrate to coastal ports.",
+                "Instantly relieves fertilizer deficits, halts active Turnip Winter harvest shocks, and restocks coastal grain basins.",
+                "Strictly Conserved: Sovereign funds transfer 1-for-1 from the treasury into local merchant sailors and traders.",
+                "Historical Precedent: Confederate and Central Powers blockade runners slipping past naval cordons carrying saltpeter and grain."
+            ],
+            'stats': [
+                ("Fertilizer Inflow", "+20.0 tons to coastal ports", GREEN),
+                ("Sovereign Treasury", f"${nat_cash:,.0f}", (120, 240, 150) if nat_cash >= cost else RED),
+                ("Eligible Port Cities", f"{len(coastal_tiles)} Ports", TEXT),
+            ]
+        }
+        if not coastal_tiles:
+            res['disabled_reason'] = "No Coastal Ports: Nation possesses no maritime coastline or port cities to receive overseas blockade runners."
+        elif nat_cash < cost:
+            res['disabled_reason'] = f"Insufficient Sovereign Treasury: Requires ${cost:,.0f} to charter blockade runners (Current: ${nat_cash:,.0f})."
+        return res
+
     # -------------------------------------------------------------------------
     # FRONTIER WILDERNESS POLICIES
     # -------------------------------------------------------------------------

@@ -516,12 +516,12 @@ def _draw_left_nation_scope(surface, world, region, nation, start_y, x, w, font,
     cur_y += card3_h + 8
 
     # 4. Labor Regulation & Social Directives Card
-    card4_h = 146
+    card4_h = 170
     c4_rect = (x + 8, cur_y, w - 16, card4_h)
     pygame.draw.rect(surface, CARD_BG, c4_rect, border_radius=5)
     pygame.draw.rect(surface, CARD_BORDER, c4_rect, 1, border_radius=5)
 
-    surface.blit(font_small.render("Labor & Welfare Legislation:", True, (240, 140, 80)), (x + 16, cur_y + 6))
+    surface.blit(font_small.render("Labor & Agrarian Legislation:", True, (240, 140, 80)), (x + 16, cur_y + 6))
 
     bw_half = (w - 38) // 2
     has_ten = getattr(nation, 'ten_hour_act', False) if nation else False
@@ -562,6 +562,15 @@ def _draw_left_nation_scope(surface, world, region, nation, start_y, x, w, font,
     _draw_gov_btn(surface, (x + 22 + bw_half, cur_y + 120, bw_half, 20), "Martial Law",
                   font_small, mx, my, 'nat_martial_law', nation, enabled=can_martial,
                   color=(240, 80, 80), world=world, region=region, nation=nation)
+
+    # Row 6: Fertilizer Supply & War Economy
+    is_rationed = any(getattr(r, 'fertilizer_rationing', False) for r in getattr(nation, 'tiles', [])) if nation else False
+    _draw_gov_btn(surface, (x + 16, cur_y + 144, bw_half, 20), "Ration Fert" if not is_rationed else "Ration: ACTIVE",
+                  font_small, mx, my, 'nat_fertilizer_rationing', nation, enabled=True,
+                  color=(245, 180, 50) if is_rationed else TEXT, world=world, region=region, nation=nation)
+    _draw_gov_btn(surface, (x + 22 + bw_half, cur_y + 144, bw_half, 20), "Import Guano ($100)",
+                  font_small, mx, my, 'nat_subsidize_guano_import', nation, enabled=True,
+                  color=(120, 240, 150), world=world, region=region, nation=nation)
 
     cur_y += card4_h + 8
 
