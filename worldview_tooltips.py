@@ -637,6 +637,64 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
             res['disabled_reason'] = "Military Force Required: Nation has no active standing military units to enforce martial law and clear barricades."
         return res
 
+    if btn_id == 'nat_recapitalize_banks':
+        from banking_policy import get_banking_system_health
+        b_health = get_banking_system_health(owner)
+        is_frz = b_health['is_system_frozen']
+        recap_cost = b_health['recapitalization_cost']
+        res = {
+            'title': "Recapitalize Domestic Commercial Banks",
+            'badge': "TIER-1 BAILOUT" if is_frz else "BANKS SOLVENT",
+            'badge_col': (120, 240, 150) if is_frz else (70, 195, 235),
+            'category': "National Banking Resolution",
+            'cost': f"Fiscal Transfer: ${recap_cost:,.0f} injected from sovereign treasury into bank capital",
+            'desc': [
+                "Injects liquid sovereign treasury funds into domestic commercial banks to restore Tier-1 capital reserves.",
+                "Immediately terminates the emergency Corralito deposit freeze, restoring citizen withdrawal rights and reopening the commercial lending window for businesses.",
+                "Strictly Conserved: Funds move 1-for-1 from sovereign treasury into bank capital reserves.",
+                "Historical Precedent: Panic of London (1825), British Bank Charter Act suspensions (1847/1857), and the 2008 Emergency Economic Stabilization Act (TARP)."
+            ],
+            'stats': [
+                ("System Status", "EMERGENCY FREEZE" if is_frz else "SOLVENT (Tier-1 OK)", RED if is_frz else GREEN),
+                ("Total Bank Capital", f"${b_health['total_capital']:,.0f}", (120, 240, 150) if b_health['total_capital'] > 0 else RED),
+                ("Recapitalization Cost", f"${recap_cost:,.0f}", (245, 180, 50)),
+                ("Sovereign Treasury", f"${nat_cash:,.0f}", GREEN if nat_cash >= recap_cost else RED),
+            ]
+        }
+        if not is_frz:
+            res['disabled_reason'] = "Banks Already Solvent: All domestic commercial banks maintain healthy Tier-1 capital; bailout unneeded."
+        elif nat_cash < recap_cost:
+            res['disabled_reason'] = f"Insufficient Sovereign Treasury: Requires ${recap_cost:,.0f} to recapitalize banks (Current: ${nat_cash:,.0f})."
+        return res
+
+    if btn_id == 'nat_deposit_haircut':
+        from banking_policy import get_banking_system_health
+        b_health = get_banking_system_health(owner)
+        is_frz = b_health['is_system_frozen']
+        res = {
+            'title': "Enact Depositor Bail-In Haircut (25%)",
+            'badge': "CYPRUS RESOLUTION" if is_frz else "BANKS SOLVENT",
+            'badge_col': (245, 180, 50) if is_frz else (70, 195, 235),
+            'category': "Emergency Banking Resolution",
+            'cost': "Elite Outrage: -25 Bourgeoisie & Lords Loyalty | -0.15 Legitimacy",
+            'desc': [
+                "Mandates a statutory 25% haircut on private deposit balances exceeding $50.0 across all insolvent banks.",
+                "Expropriates private deposit liabilities and converts them directly into Tier-1 bank shareholder equity, restoring solvency without spending public treasury cash.",
+                "Immediately ends the Corralito deposit freeze, allowing regular transactions and business borrowing to resume.",
+                "Historical Precedent: Cyprus Banking Resolution of March 2013 (Laiki Bank resolution and Bank of Cyprus bail-in).",
+                "Severe Backlash: Alienates wealthy depositors, triggering deep elite and capitalist fury (-25 loyalty)."
+            ],
+            'stats': [
+                ("Resolution Mechanism", "Statutory Depositor Bail-In", (245, 180, 50)),
+                ("Haircut Rate", "25% on balances > $50.0", RED),
+                ("Treasury Fiscal Cost", "$0.00 (Self-Funded)", GREEN),
+                ("System Status", "EMERGENCY FREEZE" if is_frz else "SOLVENT", RED if is_frz else GREEN),
+            ]
+        }
+        if not is_frz:
+            res['disabled_reason'] = "Banks Already Solvent: No domestic commercial banks are currently insolvent or frozen; bail-in resolution not permitted."
+        return res
+
     # -------------------------------------------------------------------------
     # FRONTIER WILDERNESS POLICIES
     # -------------------------------------------------------------------------

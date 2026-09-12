@@ -253,6 +253,44 @@ def draw_debt_panel(surface: pygame.Surface, world: dict, font: pygame.font.Font
         surface.blit(font_small.render(f"Servicing Cost: ${servicing_cost:,.2f} / turn", True, (245, 180, 50) if servicing_cost > 0 else DIM), (x + 16, oy + 16))
         surface.blit(font_small.render("1-Turn notice before underwriters purchase.", True, DIM), (x + 16, oy + 34))
 
+        cur_y += card2_h + 10
+
+        # 3. Domestic Commercial Banking Health & Corralito Card
+        from banking_policy import get_banking_system_health
+        b_health = get_banking_system_health(active_n)
+        card3_h = 120
+        c3_rect = (x + 8, cur_y, w - 16, card3_h)
+        pygame.draw.rect(surface, CARD_BG, c3_rect, border_radius=5)
+        pygame.draw.rect(surface, CARD_BORDER, c3_rect, 1, border_radius=5)
+
+        surface.blit(font.render("Domestic Commercial Banks", True, (245, 215, 110)), (x + 16, cur_y + 8))
+
+        is_frz = b_health['is_system_frozen']
+        status_txt = f"🚨 CORRALITO: {b_health['frozen_banks_count']} BANK(S) FROZEN" if is_frz else "ALL BANKS SOLVENT (Tier-1 OK)"
+        status_col = RED if is_frz else (120, 240, 150)
+        surface.blit(font_small.render(status_txt, True, status_col), (x + 16, cur_y + 30))
+
+        cap_col = (120, 240, 150) if b_health['total_capital'] > 0 else RED
+        surface.blit(font_small.render(f"Capital: ${b_health['total_capital']:,.0f} | Exposure: ${b_health['total_sovereign_exposure']:,.0f}", True, cap_col), (x + 16, cur_y + 48))
+        surface.blit(font_small.render(f"Deposits: ${b_health['total_deposits']:,.0f} ({b_health['total_banks_count']} banks)", True, DIM), (x + 16, cur_y + 64))
+
+        # Resolution decree buttons
+        bw_half = (w - 38) // 2
+        by3 = cur_y + 84
+        recap_cost = b_health['recapitalization_cost']
+        can_recap = is_frz and gov_cash >= recap_cost and recap_cost > 0
+        recap_lbl = f"Recapitalize (${recap_cost:,.0f})" if is_frz else "Banks Solvent"
+        _draw_btn(surface, (x + 16, by3, bw_half, 24), recap_lbl, font_small, mx, my,
+                  enabled=can_recap, color=(120, 240, 150),
+                  btn_id='nat_recapitalize_banks', world=world, nation=active_n)
+
+        can_haircut = is_frz
+        _draw_btn(surface, (x + 22 + bw_half, by3, bw_half, 24), "Bail-In Haircut", font_small, mx, my,
+                  enabled=can_haircut, color=(245, 180, 50),
+                  btn_id='nat_deposit_haircut', world=world, nation=active_n)
+
+        cur_y += card3_h + 10
+
     elif scope == 'foreign':
         # Scope == 'foreign' (Foreign Reserves & Bond Market)
         card1_h = 90
@@ -489,6 +527,30 @@ def debt_panel_hit(pos: tuple[int, int], world: dict) -> bool:
             intent = IssueSovereignBondIntent(active_n.name, 1000.0, selected_duration, t)
             active_n.submit_intent(intent, t)
             ticker_push(world, t, 'BONDS', f"{active_n.name} announced $1,000 {selected_duration}t Sovereign Bond offering (1-turn notice).", ACCENT)
+            return True
+
+        cur_y += 220 + 10
+        # 6. Banking Resolution Decrees Clicks
+        from banking_policy import get_banking_system_health
+        b_health = get_banking_system_health(active_n)
+        is_frz = b_health['is_system_frozen']
+        bw_half = (w - 38) // 2
+        by3 = cur_y + 84
+
+        # Recapitalize
+        if x + 16 <= mx <= x + 16 + bw_half and by3 <= my <= by3 + 24:
+            if is_frz:
+                from banking_policy import recapitalize_domestic_banks
+                ok, msg = recapitalize_domestic_banks(active_n)
+                ticker_push(world, t, 'BANKING', msg, (120, 240, 150) if ok else (240, 80, 80))
+            return True
+
+        # Bail-In Haircut
+        if x + 22 + bw_half <= mx <= x + 22 + 2 * bw_half and by3 <= my <= by3 + 24:
+            if is_frz:
+                from banking_policy import enact_deposit_bailin_haircut
+                ok, msg = enact_deposit_bailin_haircut(active_n)
+                ticker_push(world, t, 'BANKING', msg, (245, 180, 50) if ok else (240, 80, 80))
             return True
 
     elif scope == 'foreign':

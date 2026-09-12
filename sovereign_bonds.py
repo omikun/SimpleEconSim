@@ -449,6 +449,20 @@ class SovereignBondMarket:
                     )
                     self.bonds.append(bond)
                     offering.status = "filled"
+                    # Register bond holding across issuer's domestic commercial banks
+                    issuer_banks = [r.bank for r in getattr(issuer, 'tiles', []) if getattr(r, 'bank', None)]
+                    if issuer_banks:
+                        share_p = round(offering.principal / len(issuer_banks), 2)
+                        share_c = round(offering.per_turn_coupon / len(issuer_banks), 2)
+                        for b_inst in issuer_banks:
+                            if not hasattr(b_inst, 'sovereign_bonds_held'):
+                                b_inst.sovereign_bonds_held = []
+                            b_inst.sovereign_bonds_held.append({
+                                'bond_id': bond_id,
+                                'principal': share_p,
+                                'coupon': share_c,
+                                'duration_turns': offering.duration_turns
+                            })
                     from worldview_engine import ticker_push
                     ticker_push(
                         world, t, 'FINANCE',
@@ -472,6 +486,13 @@ class SovereignBondMarket:
                     issuer.government.agent.cash -= bond.principal
                     if holder:
                         holder.government.agent.cash += bond.principal
+                    elif bond.holder_nation == "Domestic Commercial Banks":
+                        issuer_banks = [r.bank for r in getattr(issuer, 'tiles', []) if getattr(r, 'bank', None)]
+                        if issuer_banks:
+                            share_p = bond.principal / len(issuer_banks)
+                            for b_inst in issuer_banks:
+                                b_inst.capital += share_p
+                                b_inst.sovereign_bonds_held = [x for x in getattr(b_inst, 'sovereign_bonds_held', []) if x.get('bond_id') != bond.bond_id]
                     bond.status = "matured"
                     from worldview_engine import ticker_push
                     ticker_push(
@@ -484,6 +505,21 @@ class SovereignBondMarket:
                     bond.status = "defaulted"
                     self.isrb.rating_modifiers[issuer.name] = -3
                     self.isrb.modifier_expiry[issuer.name] = t + 25
+                    if bond.holder_nation == "Domestic Commercial Banks":
+                        issuer_banks = [r.bank for r in getattr(issuer, 'tiles', []) if getattr(r, 'bank', None)]
+                        if issuer_banks:
+                            loss_share = bond.principal / len(issuer_banks)
+                            for b_inst in issuer_banks:
+                                was_frozen = getattr(b_inst, 'is_frozen', False)
+                                b_inst.write_down_bonds(loss_share)
+                                b_inst.sovereign_bonds_held = [x for x in getattr(b_inst, 'sovereign_bonds_held', []) if x.get('bond_id') != bond.bond_id]
+                                if getattr(b_inst, 'is_frozen', False) and not was_frozen:
+                                    from worldview_engine import ticker_push
+                                    ticker_push(
+                                        world, t, 'ALERT',
+                                        f"🚨 BANKING CONTAGION: Sovereign default wiped out bank equity in {issuer.name}! Emergency Corralito deposit freeze enacted!",
+                                        (255, 60, 60)
+                                    )
                     try:
                         from imperialism import get_imperialism_manager
                         get_imperialism_manager().register_default(bond, world, t)
@@ -504,11 +540,32 @@ class SovereignBondMarket:
                     issuer.government.agent.cash -= coupon
                     if holder:
                         holder.government.agent.cash += coupon
+                    elif bond.holder_nation == "Domestic Commercial Banks":
+                        issuer_banks = [r.bank for r in getattr(issuer, 'tiles', []) if getattr(r, 'bank', None)]
+                        if issuer_banks:
+                            share_c = coupon / len(issuer_banks)
+                            for b_inst in issuer_banks:
+                                b_inst.pay_interest(share_c)
                 else:
                     # Default on Coupon
                     bond.status = "defaulted"
                     self.isrb.rating_modifiers[issuer.name] = -3
                     self.isrb.modifier_expiry[issuer.name] = t + 25
+                    if bond.holder_nation == "Domestic Commercial Banks":
+                        issuer_banks = [r.bank for r in getattr(issuer, 'tiles', []) if getattr(r, 'bank', None)]
+                        if issuer_banks:
+                            loss_share = bond.principal / len(issuer_banks)
+                            for b_inst in issuer_banks:
+                                was_frozen = getattr(b_inst, 'is_frozen', False)
+                                b_inst.write_down_bonds(loss_share)
+                                b_inst.sovereign_bonds_held = [x for x in getattr(b_inst, 'sovereign_bonds_held', []) if x.get('bond_id') != bond.bond_id]
+                                if getattr(b_inst, 'is_frozen', False) and not was_frozen:
+                                    from worldview_engine import ticker_push
+                                    ticker_push(
+                                        world, t, 'ALERT',
+                                        f"🚨 BANKING CONTAGION: Sovereign coupon default wiped out bank equity in {issuer.name}! Emergency Corralito deposit freeze enacted!",
+                                        (255, 60, 60)
+                                    )
                     try:
                         from imperialism import get_imperialism_manager
                         get_imperialism_manager().register_default(bond, world, t)

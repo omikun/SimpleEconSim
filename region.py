@@ -639,6 +639,11 @@ class Region:
         self.food_foraged_log.append(sum(getattr(a, 'food_foraged', 0) for a in self.agents))
         self.food_purchased_log.append(sum(getattr(a, 'food_purchased', 0) for a in self.agents))
         self.bank_cash_log.append(self.bank.equity)
+        if getattr(self.bank, 'is_frozen', False):
+            self.bank.frozen_turns += 1
+            for a, dep in list(getattr(self.bank, 'deposits', {}).items()):
+                if dep > 0 and hasattr(a, 'despair'):
+                    a.despair = min(1.0, getattr(a, 'despair', 0.0) + 0.02)
         self.total_cash_log.append(self._total_cash())
         self._log_population_rate()
 

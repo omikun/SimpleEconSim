@@ -833,6 +833,18 @@ def _execute_policy_action(world, act_id, target):
         world['policy_feedback'] = (msg, (240, 80, 80))
         from worldview_engine import ticker_push
         ticker_push(world, world['turn'], 'MILITARY', msg, (240, 80, 80))
+    elif act_id == 'nat_recapitalize_banks':
+        from banking_policy import recapitalize_domestic_banks
+        ok, msg = recapitalize_domestic_banks(target)
+        world['policy_feedback'] = (msg, GREEN if ok else RED)
+        from worldview_engine import ticker_push
+        ticker_push(world, world['turn'], 'BANKING', msg, (120, 240, 150) if ok else (240, 80, 80))
+    elif act_id == 'nat_deposit_haircut':
+        from banking_policy import enact_deposit_bailin_haircut
+        ok, msg = enact_deposit_bailin_haircut(target)
+        world['policy_feedback'] = (msg, (245, 180, 50) if ok else RED)
+        from worldview_engine import ticker_push
+        ticker_push(world, world['turn'], 'BANKING', msg, (245, 180, 50) if ok else (240, 80, 80))
 
     # Frontier Actions
     elif act_id == 'frontier_expedition':

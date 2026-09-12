@@ -97,12 +97,22 @@ class Bank():
         self.foreign_reserves = defaultdict(float)   # currency -> holdings
         self.fx_pool = 0.0                           # domestic money for FX desk
 
+        # ---- Sovereign Debt Nexus & Domestic Contagion (Priority B) ----
+        self.sovereign_bonds_held = []               # list of held sovereign debt tranches
+        self.is_frozen = False                       # Corralito / Emergency deposit freeze flag
+        self.frozen_turns = 0                        # turns under freeze
+        self.subsistence_withdrawal_cap = 5.0        # max emergency withdrawal allowed per turn
+        self.cumulative_writedowns = 0.0             # cumulative bond write-downs absorbed
+
     @property
     def equity(self):
         """Real countable net worth: capital + deposits - loans outstanding."""
         return self.capital + self.total_deposits - self.total_liabilities
 
     def Borrow(self, t, agent, amount):
+        if getattr(self, 'is_frozen', False):
+            loginfo(t, "Borrowing blocked: Bank is under Corralito deposit freeze.")
+            return 0
         borrowable_amount = ((self.capital + self.total_deposits)
                              * (1 - self.reserve_fraction)
                              - self.total_liabilities)
@@ -137,10 +147,60 @@ class Bank():
         self.deposits[agent] += amount
 
     def Withdraw(self, agent, amount):
-        amount = clamp(amount, 0, self.deposits[agent])
+        limit = self.deposits[agent]
+        if getattr(self, 'is_frozen', False):
+            limit = min(limit, getattr(self, 'subsistence_withdrawal_cap', 5.0))
+        amount = clamp(amount, 0, limit)
         agent.cash += amount
         self.total_deposits -= amount
         self.deposits[agent] -= amount
+
+    def write_down_bonds(self, loss_amount: float) -> bool:
+        """Absorb sovereign debt default losses against bank Tier-1 capital.
+
+        If capital is depleted (<= 0), triggers emergency Corralito deposit freeze.
+        """
+        self.capital -= loss_amount
+        self.cumulative_writedowns += loss_amount
+        if self.capital <= 0.0:
+            self.is_frozen = True
+        return self.is_frozen
+
+    def recapitalize(self, amount: float) -> bool:
+        """Inject recapitalization funds into bank capital.
+
+        If capital is restored (> 0), lifts emergency deposit freeze.
+        """
+        self.capital += amount
+        if self.capital > 0.0:
+            self.is_frozen = False
+            self.frozen_turns = 0
+        return not self.is_frozen
+
+    def apply_bail_in_haircut(self, haircut_pct: float = 0.25, exemption_floor: float = 50.0) -> float:
+        """Execute a Cyprus-style statutory bail-in haircut on large deposits.
+
+        Converts uninsured deposit liabilities into Tier-1 shareholder equity.
+        """
+        total_haircut = 0.0
+        for agent, dep in list(self.deposits.items()):
+            if dep > exemption_floor:
+                excess = dep - exemption_floor
+                cut = round(excess * haircut_pct, 2)
+                if cut > 0:
+                    self.deposits[agent] -= cut
+                    self.total_deposits -= cut
+                    self.capital += cut
+                    total_haircut += cut
+                    # Psychological and grievance impact on depositor
+                    if hasattr(agent, 'despair'):
+                        agent.despair = min(1.0, getattr(agent, 'despair', 0.0) + 0.20)
+                    if hasattr(agent, 'alienation'):
+                        agent.alienation = min(1.0, getattr(agent, 'alienation', 0.0) + 0.15)
+        if self.capital > 0.0:
+            self.is_frozen = False
+            self.frozen_turns = 0
+        return total_haircut
 
     def PayDepositInterest(self, agents):
         """Pay interest to all depositors based on their deposit balance.
