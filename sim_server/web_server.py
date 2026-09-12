@@ -113,7 +113,58 @@ class RegnumHTTPRequestHandler(BaseHTTPRequestHandler):
                 self._send_error_json(500, f"Error generating QR SVG: {e}")
             return
 
-        # 4. Static Web Assets
+        # 4. API: Photorealistic Topographic Terrain Image
+        elif path in ('/api/terrain.png', '/api/terrain', '/api/terrain.jpg'):
+            format_type = query.get('format', ['jpg' if path.endswith('.jpg') else 'png'])[0].lower()
+            try:
+                if hasattr(self.server, 'get_terrain_image'):
+                    body, mime_type = self.server.get_terrain_image(format_type)
+                elif hasattr(self.server, 'web_server') and hasattr(self.server.web_server, 'get_terrain_image'):
+                    body, mime_type = self.server.web_server.get_terrain_image(format_type)
+                else:
+                    from render_engine.terrain import TerrainRenderer
+                    import io
+                    import pygame
+                    from PIL import Image
+
+                    renderer = getattr(self.server, 'terrain_renderer', None)
+                    if renderer is None:
+                        renderer = TerrainRenderer()
+                        self.server.terrain_renderer = renderer
+
+                    sim = self.server.sim_server
+                    surf = renderer.get_or_generate_surface(
+                        seed=sim.terrain_seed,
+                        bbox=sim.bbox,
+                        tiles=sim.tiles,
+                        layout=sim.layout
+                    )
+                    raw = pygame.image.tostring(surf, 'RGBA')
+                    img = Image.frombytes('RGBA', surf.get_size(), raw)
+                    bio = io.BytesIO()
+                    if format_type in ('jpg', 'jpeg'):
+                        img.convert('RGB').save(bio, format='JPEG', quality=85)
+                        mime_type = 'image/jpeg'
+                    elif format_type == 'webp':
+                        img.save(bio, format='WEBP', quality=85)
+                        mime_type = 'image/webp'
+                    else:
+                        img.save(bio, format='PNG', compress_level=3)
+                        mime_type = 'image/png'
+                    body = bio.getvalue()
+
+                self.send_response(200)
+                self.send_header('Content-Type', mime_type)
+                self.send_header('Content-Length', str(len(body)))
+                self.send_header('Cache-Control', 'public, max-age=3600')
+                self._set_cors_headers()
+                self.end_headers()
+                self.wfile.write(body)
+            except Exception as e:
+                self._send_error_json(500, f"Error generating terrain image: {e}")
+            return
+
+        # 5. Static Web Assets
         asset_map = {
             '/': ('index.html', 'text/html; charset=utf-8'),
             '/index.html': ('index.html', 'text/html; charset=utf-8'),
@@ -207,6 +258,61 @@ class RegnumWebServer:
         self._sim_thread: Optional[threading.Thread] = None
         self._stop_event = threading.Event()
 
+        self.terrain_renderer = None
+        self._cached_terrain_bytes: Optional[bytes] = None
+        self._cached_terrain_mime: str = "image/png"
+        self._cached_terrain_key = None
+        self._terrain_lock = threading.Lock()
+
+    def get_terrain_image(self, format_type: str = 'png') -> tuple[bytes, str]:
+        """Fetch or render photorealistic topographic terrain PNG/JPEG/WEBP image."""
+        with self._terrain_lock:
+            if self.terrain_renderer is None:
+                from render_engine.terrain import TerrainRenderer
+                self.terrain_renderer = TerrainRenderer()
+
+            sim = self.sim_server
+            from render_engine.gpu import load_gpu_settings
+            try:
+                gpu_settings = tuple(sorted(load_gpu_settings().items()))
+            except Exception:
+                gpu_settings = ()
+
+            cache_key = (sim.terrain_seed, tuple(sim.bbox), gpu_settings, format_type)
+            if self._cached_terrain_key == cache_key and self._cached_terrain_bytes is not None:
+                return self._cached_terrain_bytes, self._cached_terrain_mime
+
+            surf = self.terrain_renderer.get_or_generate_surface(
+                seed=sim.terrain_seed,
+                bbox=sim.bbox,
+                tiles=sim.tiles,
+                layout=sim.layout
+            )
+            import io
+            import pygame
+            from PIL import Image
+
+            raw = pygame.image.tostring(surf, 'RGBA')
+            img = Image.frombytes('RGBA', surf.get_size(), raw)
+            bio = io.BytesIO()
+
+            if format_type in ('jpg', 'jpeg'):
+                rgb_img = img.convert('RGB')
+                rgb_img.save(bio, format='JPEG', quality=85)
+                mime = 'image/jpeg'
+            elif format_type == 'webp':
+                img.save(bio, format='WEBP', quality=85)
+                mime = 'image/webp'
+            else:
+                img.save(bio, format='PNG', compress_level=3)
+                mime = 'image/png'
+
+            data = bio.getvalue()
+            self._cached_terrain_bytes = data
+            self._cached_terrain_mime = mime
+            self._cached_terrain_key = cache_key
+            return data, mime
+
     def start(self, wait_forever: bool = False):
         """Start the HTTP server and simulation background loop."""
         self._stop_event.clear()
@@ -216,6 +322,8 @@ class RegnumWebServer:
         # Attach references for handler access
         self.httpd.sim_server = self.sim_server
         self.httpd.base_url = self.base_url
+        self.httpd.web_server = self
+        self.httpd.get_terrain_image = self.get_terrain_image
 
         # 2. Print scannable QR Code to terminal
         self.print_banner()

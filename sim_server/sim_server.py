@@ -49,6 +49,7 @@ class SimServer:
             self.tiles = tiles
             self.nations = nations
             self.currencies = [n.currency for n in nations if getattr(n, 'currency', None)]
+            self.hex_size = HEX_SIZE
             self.layout = rectangular_hex_layout(GRID_ROWS, GRID_COLS)
             self.reverse_layout = {v: k for k, v in self.layout.items()}
             self.bbox = hex_bbox(self.layout, HEX_SIZE)
@@ -337,12 +338,28 @@ class SimServer:
                 }
                 for n in self.nations
             ]
+
+            x0, y0, x1, y1 = self.bbox
+            from render_engine.camera import MAP_PAD_RATIO
+            pad_x = (x1 - x0) * MAP_PAD_RATIO
+            pad_y = (y1 - y0) * MAP_PAD_RATIO
+            terrain_bounds = {
+                'min_x': float(x0 - pad_x),
+                'min_y': float(y0 - pad_y),
+                'width': float((x1 - x0) + 2.0 * pad_x),
+                'height': float((y1 - y0) + 2.0 * pad_y),
+                'hex_size': float(getattr(self, 'hex_size', 50.0)),
+            }
+
             return {
                 'turn': self.turn,
                 'playing': self.playing,
                 'seed': self.seed,
                 'terrain_seed': self.terrain_seed,
                 'nation_seed': self.nation_seed,
+                'hex_size': float(getattr(self, 'hex_size', 50.0)),
+                'bbox': [float(v) for v in self.bbox],
+                'terrain_bounds': terrain_bounds,
                 'nations': nations_data,
                 'tiles': tiles_data,
                 'ticker_events': list(self._ticker_events[-30:]),

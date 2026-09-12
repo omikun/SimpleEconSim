@@ -222,6 +222,12 @@ html, body {
   transform: scale(0.92);
 }
 
+.ctrl-btn.active {
+  border-color: var(--gold);
+  background: rgba(242, 204, 96, 0.15);
+  box-shadow: 0 0 10px rgba(242, 204, 96, 0.35);
+}
+
 /* Quick Pill */
 .quick-pill {
   position: absolute;

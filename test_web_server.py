@@ -168,6 +168,36 @@ class TestWebServerEndpoints(unittest.TestCase):
         self.assertEqual(len(coords), len(set(coords)), "Every tile must have unique (q, r) coordinates!")
         self.assertGreater(len(set(coords)), 1)
 
+        # Verify terrain bounds & coordinate layout for Approach A rendering
+        self.assertIn('hex_size', data)
+        self.assertEqual(data['hex_size'], 50.0)
+        self.assertIn('bbox', data)
+        self.assertEqual(len(data['bbox']), 4)
+        self.assertIn('terrain_bounds', data)
+        bounds = data['terrain_bounds']
+        self.assertIn('min_x', bounds)
+        self.assertIn('min_y', bounds)
+        self.assertIn('width', bounds)
+        self.assertIn('height', bounds)
+        self.assertGreater(bounds['width'], 0)
+        self.assertGreater(bounds['height'], 0)
+
+    def test_api_terrain_png(self):
+        handler = MockHttpRequestHandler(self.mock_server, 'GET', '/api/terrain.png')
+        self.assertEqual(handler.response_status, 200)
+        self.assertEqual(handler.response_headers.get('content-type'), 'image/png')
+        body = handler.get_body()
+        self.assertTrue(body.startswith(b'\x89PNG\r\n\x1a\n'))
+        self.assertGreater(len(body), 1000)
+
+    def test_api_terrain_jpg(self):
+        handler = MockHttpRequestHandler(self.mock_server, 'GET', '/api/terrain.jpg')
+        self.assertEqual(handler.response_status, 200)
+        self.assertEqual(handler.response_headers.get('content-type'), 'image/jpeg')
+        body = handler.get_body()
+        self.assertTrue(body.startswith(b'\xff\xd8'))
+        self.assertGreater(len(body), 1000)
+
     def test_qr_pygame_surface(self):
         from sim_server.qr_code import generate_pygame_qr
         surf = generate_pygame_qr("http://10.0.0.1:8080", module_px=4)

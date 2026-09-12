@@ -9,7 +9,7 @@
   'use strict';
 
   const SQRT3 = Math.sqrt(3.0);
-  const BASE_HEX_SIZE = 48; // Base radius in pixels
+  const DEFAULT_HEX_SIZE = 50.0; // Standard hex radius
 
   // State
   let worldState = null;
@@ -18,6 +18,13 @@
   let isPlaying = false;
   let pollTimer = null;
   let isRequestPending = false;
+
+  // Photorealistic Topographic Terrain State (Approach A)
+  let useTerrainImage = true;
+  let terrainImage = new Image();
+  let terrainLoaded = false;
+  let terrainLoading = false;
+  let currentTerrainSeed = null;
 
   // Camera State
   let camX = 0;
@@ -42,9 +49,44 @@
   const btnPlay = document.getElementById('btn-play');
   const btnStep = document.getElementById('btn-step');
   const btnNew = document.getElementById('btn-new');
+  const btnToggleTerrain = document.getElementById('btn-toggle-terrain');
   const statusDot = document.getElementById('status-dot');
   const quickPill = document.getElementById('quick-pill');
   const pillText = document.getElementById('pill-text');
+
+  function getHexRadius() {
+    return (worldState && typeof worldState.hex_size === 'number') ? worldState.hex_size : DEFAULT_HEX_SIZE;
+  }
+
+  function syncTerrainImage() {
+    if (!worldState) return;
+    const seed = worldState.terrain_seed !== undefined ? worldState.terrain_seed : (worldState.seed || 4242);
+    if (seed === currentTerrainSeed && (terrainLoaded || terrainLoading)) {
+      return;
+    }
+    currentTerrainSeed = seed;
+    terrainLoaded = false;
+    terrainLoading = true;
+
+    const img = new Image();
+    img.onload = () => {
+      if (seed === currentTerrainSeed) {
+        terrainImage = img;
+        terrainLoaded = true;
+        terrainLoading = false;
+        render();
+      }
+    };
+    img.onerror = () => {
+      console.warn('[WebClient] Terrain image failed to load, falling back to vector biomes.');
+      if (seed === currentTerrainSeed) {
+        terrainLoading = false;
+        terrainLoaded = false;
+        render();
+      }
+    };
+    img.src = `/api/terrain.png?seed=${seed}`;
+  }
 
   // Drawer Elements
   const drawer = document.getElementById('drawer');
@@ -173,10 +215,11 @@
   // Center Camera on World
   function centerCameraOnWorld() {
     if (!worldState || !worldState.tiles || worldState.tiles.length === 0) return;
+    const hexRadius = getHexRadius();
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
 
     worldState.tiles.forEach(t => {
-      const pt = axialToPixel(t.q, t.r, BASE_HEX_SIZE);
+      const pt = axialToPixel(t.q, t.r, hexRadius);
       minX = Math.min(minX, pt.x);
       maxX = Math.max(maxX, pt.x);
       minY = Math.min(minY, pt.y);
@@ -188,8 +231,13 @@
     const rect = canvas.getBoundingClientRect();
 
     // Auto-fit zoom so the entire island map fits in the mobile/desktop viewport
-    const worldW = (maxX - minX) + BASE_HEX_SIZE * 3;
-    const worldH = (maxY - minY) + BASE_HEX_SIZE * 3;
+    let worldW = (maxX - minX) + hexRadius * 3;
+    let worldH = (maxY - minY) + hexRadius * 3;
+    if (worldState.terrain_bounds) {
+      worldW = Math.max(worldW, worldState.terrain_bounds.width);
+      worldH = Math.max(worldH, worldState.terrain_bounds.height);
+    }
+
     const fitZoom = Math.min(
       (rect.width * 0.95) / Math.max(1, worldW),
       ((rect.height - 80) * 0.88) / Math.max(1, worldH)
@@ -214,18 +262,31 @@
 
     if (!worldState || !worldState.tiles) {
       ctx.fillStyle = '#8b949e';
-      ctx.font = '14px system-ui';
+      ctx.font = '14px system-ui, -apple-system, sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText('Connecting to REGNUM Simulation Server...', width / 2, height / 2);
       ctx.restore();
       return;
     }
 
-    const currentHexSize = BASE_HEX_SIZE * camZoom;
+    const hexRadius = getHexRadius();
+    const currentHexSize = hexRadius * camZoom;
 
-    // Draw Hex Tiles
+    // 1. Draw photorealistic topographic terrain background (Approach A)
+    const canDrawTerrain = useTerrainImage && terrainLoaded && terrainImage && terrainImage.naturalWidth > 0 && worldState.terrain_bounds;
+
+    if (canDrawTerrain) {
+      const b = worldState.terrain_bounds;
+      const imgX = camX + b.min_x * camZoom;
+      const imgY = camY + b.min_y * camZoom;
+      const imgW = b.width * camZoom;
+      const imgH = b.height * camZoom;
+      ctx.drawImage(terrainImage, imgX, imgY, imgW, imgH);
+    }
+
+    // 2. Draw Hex Tiles & Vector Overlays
     worldState.tiles.forEach(tile => {
-      const worldPos = axialToPixel(tile.q, tile.r, BASE_HEX_SIZE);
+      const worldPos = axialToPixel(tile.q, tile.r, hexRadius);
       const screenX = camX + worldPos.x * camZoom;
       const screenY = camY + worldPos.y * camZoom;
 
@@ -241,7 +302,35 @@
 
       const corners = getHexCorners(screenX, screenY, currentHexSize);
 
-      // 1. Fill Hex Interior
+      // A. Fill Hex Interior
+      if (!canDrawTerrain) {
+        // Fallback: draw flat biome colors when terrain is disabled or loading
+        ctx.beginPath();
+        ctx.moveTo(corners[0].x, corners[0].y);
+        for (let i = 1; i < 6; i++) {
+          ctx.lineTo(corners[i].x, corners[i].y);
+        }
+        ctx.closePath();
+
+        let fillColor = BIOME_COLORS[tile.biome] || BIOME_COLORS.plains;
+        if (tile.is_ocean) {
+          fillColor = tile.elevation < -0.4 ? BIOME_COLORS.ocean : BIOME_COLORS.shelf;
+        }
+        ctx.fillStyle = fillColor;
+        ctx.fill();
+      } else if (tile.name === selectedTileName) {
+        // Subtle gold highlight tint inside selected hex
+        ctx.beginPath();
+        ctx.moveTo(corners[0].x, corners[0].y);
+        for (let i = 1; i < 6; i++) {
+          ctx.lineTo(corners[i].x, corners[i].y);
+        }
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(242, 204, 96, 0.20)';
+        ctx.fill();
+      }
+
+      // B. Hex Borders & Nation Territory Outlines
       ctx.beginPath();
       ctx.moveTo(corners[0].x, corners[0].y);
       for (let i = 1; i < 6; i++) {
@@ -249,38 +338,35 @@
       }
       ctx.closePath();
 
-      // Determine Base Color
-      let fillColor = BIOME_COLORS[tile.biome] || BIOME_COLORS.plains;
-      if (tile.is_ocean) {
-        fillColor = tile.elevation < -0.4 ? BIOME_COLORS.ocean : BIOME_COLORS.shelf;
-      }
-      ctx.fillStyle = fillColor;
-      ctx.fill();
-
-      // 2. Nation Territory Border / Subtle Glow
       if (tile.nation && !tile.is_ocean) {
         ctx.strokeStyle = getNationColor(tile.nation);
         ctx.lineWidth = Math.max(1.5, 2.5 * camZoom);
         ctx.stroke();
       } else {
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+        ctx.strokeStyle = canDrawTerrain ? 'rgba(255, 255, 255, 0.12)' : 'rgba(255, 255, 255, 0.08)';
         ctx.lineWidth = 1;
         ctx.stroke();
       }
 
-      // 3. Selection Highlight
+      // C. Selection Highlight Ring
       if (tile.name === selectedTileName) {
         ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(corners[0].x, corners[0].y);
+        for (let i = 1; i < 6; i++) {
+          ctx.lineTo(corners[i].x, corners[i].y);
+        }
+        ctx.closePath();
         ctx.strokeStyle = '#f2cc60';
         ctx.lineWidth = Math.max(3, 4.5 * camZoom);
-        ctx.shadowColor = 'rgba(242, 204, 96, 0.8)';
+        ctx.shadowColor = 'rgba(242, 204, 96, 0.85)';
         ctx.shadowBlur = 12;
         ctx.stroke();
         ctx.restore();
       }
 
-      // 4. Settlements / Cities & Names
-      if (!tile.wilderness && !tile.is_ocean && currentHexSize >= 22) {
+      // D. Settlements / Cities & Names
+      if (!tile.wilderness && !tile.is_ocean && currentHexSize >= 20) {
         // Town Icon / Center Marker
         ctx.beginPath();
         const iconRadius = Math.max(4, 6 * camZoom);
@@ -292,12 +378,12 @@
         ctx.stroke();
 
         // City Name Text
-        if (currentHexSize >= 28) {
+        if (currentHexSize >= 26) {
           const fontSize = Math.max(10, Math.min(13, 11 * camZoom));
-          ctx.font = `bold ${fontSize}px system-ui`;
+          ctx.font = `bold ${fontSize}px system-ui, -apple-system, sans-serif`;
           ctx.textAlign = 'center';
           ctx.fillStyle = '#ffffff';
-          ctx.shadowColor = 'rgba(0,0,0,0.9)';
+          ctx.shadowColor = 'rgba(0, 0, 0, 0.95)';
           ctx.shadowBlur = 4;
           ctx.fillText(tile.display_name || tile.name, screenX, screenY + (currentHexSize * 0.45));
           ctx.shadowBlur = 0;
@@ -318,6 +404,7 @@
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       worldState = data;
+      syncTerrainImage();
       statusDot.className = 'status-dot connected';
       updateUI();
 
@@ -326,6 +413,17 @@
       } else {
         render();
       }
+
+      // If selected tile is open, refresh its detail
+      if (selectedTileName) {
+        fetchTileDetail(selectedTileName, false);
+      }
+    } catch (err) {
+      statusDot.className = 'status-dot error';
+    } finally {
+      isRequestPending = false;
+    }
+  }
 
       // If selected tile is open, refresh its detail
       if (selectedTileName) {
@@ -496,7 +594,7 @@
     const worldX = (screenX - camX) / camZoom;
     const worldY = (screenY - camY) / camZoom;
 
-    const axial = pixelToAxial(worldX, worldY, BASE_HEX_SIZE);
+    const axial = pixelToAxial(worldX, worldY, getHexRadius());
     const match = worldState.tiles.find(t => t.q === axial.q && t.r === axial.r);
 
     if (match) {
@@ -712,6 +810,16 @@
       }).catch(() => {
         btnCopyUrl.textContent = 'Copied!';
       });
+    });
+  }
+
+  // Terrain Toggle Button
+  if (btnToggleTerrain) {
+    btnToggleTerrain.addEventListener('click', () => {
+      useTerrainImage = !useTerrainImage;
+      btnToggleTerrain.classList.toggle('active', useTerrainImage);
+      btnToggleTerrain.title = useTerrainImage ? 'Switch to Vector Biomes' : 'Switch to Photorealistic Terrain (GPU/CPU)';
+      render();
     });
   }
 
