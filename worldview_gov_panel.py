@@ -516,7 +516,7 @@ def _draw_left_nation_scope(surface, world, region, nation, start_y, x, w, font,
     cur_y += card3_h + 8
 
     # 4. Labor Regulation & Social Directives Card
-    card4_h = 122
+    card4_h = 146
     c4_rect = (x + 8, cur_y, w - 16, card4_h)
     pygame.draw.rect(surface, CARD_BG, c4_rect, border_radius=5)
     pygame.draw.rect(surface, CARD_BORDER, c4_rect, 1, border_radius=5)
@@ -526,6 +526,7 @@ def _draw_left_nation_scope(surface, world, region, nation, start_y, x, w, font,
     bw_half = (w - 38) // 2
     has_ten = getattr(nation, 'ten_hour_act', False) if nation else False
     has_safe = getattr(nation, 'factory_safety_act', False) if nation else False
+    has_truck = getattr(nation, 'truck_act_enacted', False) if nation else False
 
     # Row 1: UBI and Open Borders
     _draw_gov_btn(surface, (x + 16, cur_y + 24, bw_half, 20), "Empire UBI", font_small, mx, my,
@@ -543,17 +544,22 @@ def _draw_left_nation_scope(surface, world, region, nation, start_y, x, w, font,
                   font_small, mx, my, 'nat_safety_mandate', nation, enabled=not has_safe,
                   color=GREEN if has_safe else TEXT, world=world, region=region, nation=nation)
 
-    # Row 3: Mass Spectacle / Entertainment
-    _draw_gov_btn(surface, (x + 16, cur_y + 72, w - 32, 20), "Subsidize Spectacle ($50)", font_small, mx, my,
+    # Row 3: Anti-Truck Act (Abolish Scrip & Tommy Shops)
+    _draw_gov_btn(surface, (x + 16, cur_y + 72, w - 32, 20), "Anti-Truck Act" if not has_truck else "Truck Act: PASS (Cash Only)",
+                  font_small, mx, my, 'nat_truck_act', nation, enabled=not has_truck,
+                  color=GREEN if has_truck else (255, 180, 100), world=world, region=region, nation=nation)
+
+    # Row 4: Mass Spectacle / Entertainment
+    _draw_gov_btn(surface, (x + 16, cur_y + 96, w - 32, 20), "Subsidize Spectacle ($50)", font_small, mx, my,
                   'nat_subsidize_entertainment', nation, enabled=True, color=(70, 195, 235),
                   world=world, region=region, nation=nation)
 
-    # Row 4: Agrarian Commons & Insurgency Suppression
-    _draw_gov_btn(surface, (x + 16, cur_y + 96, bw_half, 20), "Restore Commons",
+    # Row 5: Agrarian Commons & Insurgency Suppression
+    _draw_gov_btn(surface, (x + 16, cur_y + 120, bw_half, 20), "Restore Commons",
                   font_small, mx, my, 'nat_restore_commons', nation, enabled=True,
                   color=(120, 220, 140), world=world, region=region, nation=nation)
     can_martial = any(getattr(u, 'soldiers', 0) > 0 for u in getattr(nation, 'military_units', [])) if nation else False
-    _draw_gov_btn(surface, (x + 22 + bw_half, cur_y + 96, bw_half, 20), "Martial Law",
+    _draw_gov_btn(surface, (x + 22 + bw_half, cur_y + 120, bw_half, 20), "Martial Law",
                   font_small, mx, my, 'nat_martial_law', nation, enabled=can_martial,
                   color=(240, 80, 80), world=world, region=region, nation=nation)
 

@@ -85,6 +85,7 @@ class Nation:
         self.ten_hour_act = False
         self.max_workday_hours = 16.0
         self.factory_safety_act = False
+        self.truck_act_enacted = False
 
         # One sovereign Government per Nation.  The Government class already
         # owns `regions` + `citizen_ids`; add_tile wires them.

@@ -783,6 +783,12 @@ def _execute_policy_action(world, act_id, target):
         from labor_politics import enact_factory_safety_act
         ok, msg = enact_factory_safety_act(target)
         world['policy_feedback'] = (msg, GREEN if ok else RED)
+    elif act_id == 'nat_truck_act':
+        from labor_politics import enact_anti_truck_act
+        ok, msg = enact_anti_truck_act(target)
+        world['policy_feedback'] = (msg, GREEN if ok else RED)
+        from worldview_engine import ticker_push
+        ticker_push(world, world['turn'], 'POLICY', msg, (120, 240, 140))
     elif act_id == 'nat_subsidize_entertainment':
         from labor_politics import subsidize_mass_entertainment
         ok, msg = subsidize_mass_entertainment(target, cost=50.0)

@@ -103,6 +103,8 @@ class Agent:
         '_latest_labor_stats',
         'alienation', 'health_attrition', 'despair', 'class_consciousness',
         'is_striking', 'is_on_strike', 'in_revolt',
+        # ---- Priority A: Company Scrip & Truck System ----
+        'scrip_wallet', 'company_debt', 'pay_mode', 'scrip_issued', 'scrip_redeemed',
         # ---- P3: Epidemics & Medical Economics ----
         'diseases', 'medical_expenses_paid', 'medical_treatments_count',
     )
@@ -225,6 +227,12 @@ class Agent:
         self.is_striking = False             # true if withholding labor on strike
         self.is_on_strike = False            # true if firm operations shut down by strike
         self.in_revolt = False               # true if mobilizing in anti-enclosure march/revolt
+        # ---- Priority A: Company Scrip & Truck System ----
+        self.scrip_wallet = 0.0              # company vouchers held by worker
+        self.company_debt = 0.0              # peonage debt owed to company store
+        self.pay_mode = "cash"               # 'cash' | 'scrip' (corporate employers)
+        self.scrip_issued = 0.0              # cumulative scrip issued
+        self.scrip_redeemed = 0.0            # cumulative scrip redeemed
         self.diseases = []                   # active disease names: malnutrition, cholera, respiratory, chemical
         self.medical_expenses_paid = 0.0     # cumulative private out-of-pocket medical bills ($)
         self.medical_treatments_count = 0    # cumulative medical treatments received

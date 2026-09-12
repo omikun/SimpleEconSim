@@ -540,6 +540,31 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
             res['disabled_reason'] = "Statute Already Enacted: The Factory Safety Mandate has already been codified into sovereign law."
         return res
 
+    if btn_id == 'nat_truck_act':
+        has_truck = getattr(owner, 'truck_act_enacted', False) if owner else False
+        res = {
+            'title': "Anti-Truck Act (Abolish Company Scrip)",
+            'badge': "ABOLISH PEONAGE" if not has_truck else "LAW ENFORCED",
+            'badge_col': GREEN if not has_truck else ACCENT,
+            'category': "National Labor Legislation",
+            'cost': "Bourgeois Backlash: -10 Faction Support | Capital Squeeze",
+            'desc': [
+                "Prohibits corporations and industrial masters from paying wages in private company scrip or forcing patronage of monopolistic company stores ('Tommy Shops').",
+                "Statute legally forces all employee compensation to be disbursed strictly in sovereign legal tender coin/cash.",
+                "Instantly discharges and cancels all accumulated company debt peonage balances accrued by workers at company stores.",
+                "Historical Precedent: British Truck Acts of 1831 & 1887 and US coal town Anti-Company Store legislation.",
+                "Political Effect: Substantially increases Labor and Peasant faction loyalty (+15), while alienating the Bourgeoisie (-10)."
+            ],
+            'stats': [
+                ("Mandatory Currency", "Legal Tender (Cash)" if has_truck else "Scrip Permitted", GREEN if has_truck else (240, 140, 80)),
+                ("Tommy Shop Monopoly", "OUTLAWED" if has_truck else "+35% Markup Active", GREEN if has_truck else RED),
+                ("Current Status", "ENACTED" if has_truck else "PENDING STATUTE", ACCENT if not has_truck else GREEN),
+            ]
+        }
+        if has_truck:
+            res['disabled_reason'] = "Statute Already Enacted: The Anti-Truck Act is already codified into sovereign law; all wages must be paid in legal tender."
+        return res
+
     if btn_id == 'nat_subsidize_entertainment':
         res = {
             'title': "Subsidize Mass Spectacle & Amusements ($50)",

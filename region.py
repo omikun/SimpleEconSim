@@ -565,6 +565,7 @@ class Region:
 
         # Wages & Profits
         _fin.pay_wages(self, t)
+        _fin.redeem_company_scrip(self, t)
         self._audit_cash(t, "wages_done")
 
         _fin.distribute_profits(self, t)

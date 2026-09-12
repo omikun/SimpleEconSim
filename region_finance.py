@@ -4,21 +4,108 @@ Corporate wages, profit distributions, owner bailouts, taxation, and consumption
 
 import math
 import forex as _fx
+from goods import Goods
 from logger import loginfo, logwarning
 
 
 def pay_wages(region, t):
-    """Firms pay wages to their employees."""
+    """Firms pay wages to their employees (sovereign cash or company scrip under Truck System)."""
+    owner = getattr(region, 'owner_nation', None)
+    truck_act_enacted = getattr(owner, 'truck_act_enacted', False) if owner else False
+
     for a in region.agents:
         if a.is_corporation and len(a.employees) > 0:
+            # If Truck Act enacted, pay_mode is legally mandated as 'cash'
+            pay_mode = "cash" if truck_act_enacted else getattr(a, 'pay_mode', 'cash')
+
+            # Cash-strapped firms adopt company scrip if Truck Act is not enacted
+            if not truck_act_enacted and a.cash < len(a.employees) * getattr(a, 'wage', 1.0) and pay_mode == "cash":
+                pay_mode = "scrip"
+                a.pay_mode = "scrip"
+
             for e in a.employees:
                 if getattr(e, 'is_striking', False) or getattr(e, 'in_revolt', False):
                     continue
-                wage_to_pay = min(a.cash, a.wage)
-                a.cash -= wage_to_pay
-                e.cash += wage_to_pay
-                e.wages_received = wage_to_pay
-                e.mem_push('mem_wages', wage_to_pay)
+                wage_nominal = getattr(a, 'wage', 1.0)
+                if pay_mode == "scrip":
+                    # Truck System: paid in corporate company scrip vouchers
+                    e.scrip_wallet += wage_nominal
+                    e.wages_received = wage_nominal
+                    e.mem_push('mem_wages', wage_nominal)
+                    a.scrip_issued += wage_nominal
+                else:
+                    # Legal tender cash payment
+                    wage_to_pay = min(a.cash, wage_nominal)
+                    a.cash -= wage_to_pay
+                    e.cash += wage_to_pay
+                    e.wages_received = wage_to_pay
+                    e.mem_push('mem_wages', wage_to_pay)
+
+
+def redeem_company_scrip(region, t):
+    """Workers redeem company scrip at the employer's company store ('Tommy Shop') for marked-up food.
+
+    Strictly 100% money and goods conserved:
+      - Food moves 1-for-1 from firm inventory to employee.
+      - Scrip is retired (store credit settled). Zero sovereign currency leaked.
+      - If worker is broke and unfed, company store issues emergency food on credit ('slate'),
+        bonding the worker into debt peonage (company_debt).
+    """
+    food_price = getattr(region, 'food_price', 1.0)
+    tommy_markup = 1.35  # Historical 35% Tommy Shop markup over open market
+
+    for a in region.agents:
+        if not a.is_corporation or not a.employees:
+            continue
+
+        for e in a.employees:
+            if not getattr(e, 'alive', True):
+                continue
+            food_needed = max(0, 4 - e.inv_get(Goods.food, 0))
+            if food_needed <= 0:
+                continue
+
+            tommy_price = round(food_price * tommy_markup, 2)
+
+            # 1. Scrip Redemption at Tommy Shop
+            if getattr(e, 'scrip_wallet', 0.0) >= tommy_price:
+                can_buy = min(food_needed, int(e.scrip_wallet // tommy_price))
+                if can_buy > 0:
+                    firm_food = a.inv_get(Goods.food, 0)
+                    if firm_food < can_buy and a.cash >= (can_buy - firm_food) * food_price:
+                        needed_to_buy = can_buy - firm_food
+                        for seller in region.agents:
+                            if seller.id != a.id and seller.inv_get(Goods.food, 0) > 0 and not seller.is_corporation:
+                                qty = min(needed_to_buy, seller.inv_get(Goods.food, 0))
+                                cost = qty * food_price
+                                if a.cash >= cost:
+                                    a.cash -= cost
+                                    seller.cash += cost
+                                    seller.inv_add(Goods.food, -qty)
+                                    a.inv_add(Goods.food, qty)
+                                    needed_to_buy -= qty
+                                    if needed_to_buy <= 0:
+                                        break
+
+                    available = min(can_buy, a.inv_get(Goods.food, 0))
+                    if available > 0:
+                        total_cost = available * tommy_price
+                        e.scrip_wallet -= total_cost
+                        a.scrip_redeemed += total_cost
+                        a.inv_add(Goods.food, -available)
+                        e.inv_add(Goods.food, available)
+                        e.food_purchased = getattr(e, 'food_purchased', 0) + available
+                        food_needed -= available
+
+            # 2. Debt Peonage Credit Advance (The Slate)
+            if food_needed > 0 and e.inv_get(Goods.food, 0) < 2 and e.cash < food_price and e.scrip_wallet < tommy_price:
+                if a.inv_get(Goods.food, 0) > 0:
+                    a.inv_add(Goods.food, -1)
+                    e.inv_add(Goods.food, 1)
+                    e.food_purchased = getattr(e, 'food_purchased', 0) + 1
+                    e.company_debt += tommy_price
+                    e.despair = min(1.0, getattr(e, 'despair', 0.0) + 0.15)
+                    e.alienation = min(1.0, getattr(e, 'alienation', 0.0) + 0.10)
 
 
 def credit_owner_pay(region, owner, amount):

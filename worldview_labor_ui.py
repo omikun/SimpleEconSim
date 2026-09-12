@@ -160,7 +160,7 @@ def draw_labor_dashboard(surface, world, region, font, font_small, mouse_pos=Non
 
     # Status summary card
     card_y = panel_top + 52
-    card_h = 60
+    card_h = 76
     pygame.draw.rect(surface, (22, 24, 34), (PANEL_LEFT + 6, card_y, PANEL_W - 12, card_h), border_radius=6)
     pygame.draw.rect(surface, (45, 52, 70), (PANEL_LEFT + 6, card_y, PANEL_W - 12, card_h), 1, border_radius=6)
 
@@ -177,6 +177,9 @@ def draw_labor_dashboard(surface, world, region, font, font_small, mouse_pos=Non
         broken_cnt = sum(getattr(r, 'sabotage_log', [0])[-1] for r in nation.tiles if getattr(r, 'sabotage_log', None))
         ent_vals = [getattr(r, 'entertainment_level', 0.0) for r in nation.tiles]
         avg_ent = (sum(ent_vals) / len(ent_vals)) * 100.0 if ent_vals else 0.0
+        scrip_circ = sum(sum(getattr(a, 'scrip_wallet', 0.0) for a in getattr(r, 'agents', [])) for r in nation.tiles)
+        tommy_shops = sum(sum(1 for a in getattr(r, 'agents', []) if getattr(a, 'is_corporation', False) and getattr(a, 'pay_mode', 'cash') == 'scrip') for r in nation.tiles)
+        debt_peons = sum(sum(1 for a in getattr(r, 'agents', []) if getattr(a, 'company_debt', 0.0) > 0.0) for r in nation.tiles)
     elif region is not None:
         city_name = getattr(region, 'display_name', getattr(region, 'city_name', region.name))
         title_txt = f"{city_name} Labor & Alienation"
@@ -185,9 +188,13 @@ def draw_labor_dashboard(surface, world, region, font, font_small, mouse_pos=Non
         has_ten = getattr(region, 'ten_hour_act', False) or cap_val <= 10.0
         has_safe = getattr(region, 'factory_safety_act', False)
         avg_shift = region.labor_shift_log[-1] if getattr(region, 'labor_shift_log', None) else 12.0
-        strikers_cnt = sum(1 for a in getattr(region, 'agents', []) if getattr(a, 'is_striking', False))
+        reg_agents = getattr(region, 'agents', [])
+        strikers_cnt = sum(1 for a in reg_agents if getattr(a, 'is_striking', False))
         broken_cnt = getattr(region, 'sabotage_log', [0])[-1] if getattr(region, 'sabotage_log', None) else 0
         avg_ent = getattr(region, 'entertainment_level', 0.0) * 100.0
+        scrip_circ = sum(getattr(a, 'scrip_wallet', 0.0) for a in reg_agents)
+        tommy_shops = sum(1 for a in reg_agents if getattr(a, 'is_corporation', False) and getattr(a, 'pay_mode', 'cash') == 'scrip')
+        debt_peons = sum(1 for a in reg_agents if getattr(a, 'company_debt', 0.0) > 0.0)
     else:
         title_txt = "No Region Selected"
         charts = []
@@ -195,22 +202,35 @@ def draw_labor_dashboard(surface, world, region, font, font_small, mouse_pos=Non
         avg_shift = 12.0
         strikers_cnt = broken_cnt = 0
         avg_ent = 0.0
+        scrip_circ = 0.0
+        tommy_shops = 0
+        debt_peons = 0
 
     # Title header
     surface.blit(font_small.render(title_txt, True, (240, 140, 80)), (PANEL_LEFT + 12, card_y + 5))
 
     # Law status badges
-    ten_txt = "10h Act: PASS" if has_ten else "10h Act: NO (16h)"
+    has_truck = getattr(nation, 'truck_act_enacted', False) if nation else False
+    ten_txt = "10h: PASS" if has_ten else "10h: NO (16h)"
     ten_col = (110, 210, 130) if has_ten else (220, 100, 100)
     surface.blit(font_small.render(ten_txt, True, ten_col), (PANEL_LEFT + 12, card_y + 22))
 
-    safe_txt = "Safety: MANDATED" if has_safe else "Safety: NONE"
+    safe_txt = "Safety: OK" if has_safe else "Safety: NO"
     safe_col = (110, 210, 130) if has_safe else (200, 150, 90)
-    surface.blit(font_small.render(safe_txt, True, safe_col), (PANEL_LEFT + 130, card_y + 22))
+    surface.blit(font_small.render(safe_txt, True, safe_col), (PANEL_LEFT + 105, card_y + 22))
+
+    truck_txt = "Truck: CASH" if has_truck else "Truck: SCRIP"
+    truck_col = (110, 210, 130) if has_truck else (240, 140, 80)
+    surface.blit(font_small.render(truck_txt, True, truck_col), (PANEL_LEFT + 195, card_y + 22))
 
     # Metric summary row
     metric_s = f"Shift: {avg_shift:.1f}h | Strikers: {strikers_cnt} | Broken: {broken_cnt} | Spectacle: {avg_ent:.0f}%"
-    surface.blit(font_small.render(metric_s, True, (190, 205, 220)), (PANEL_LEFT + 12, card_y + 40))
+    surface.blit(font_small.render(metric_s, True, (190, 205, 220)), (PANEL_LEFT + 12, card_y + 39))
+
+    # Scrip & Truck System metrics row
+    truck_s = f"Scrip Circ: ${scrip_circ:,.0f} | Tommy Shops: {tommy_shops} | Debt Peons: {debt_peons}"
+    scrip_col = (240, 180, 100) if (scrip_circ > 0 or debt_peons > 0) else (140, 160, 180)
+    surface.blit(font_small.render(truck_s, True, scrip_col), (PANEL_LEFT + 12, card_y + 55))
 
     # View Mode Switcher: [ Historical Charts ]  [ 4D Alienation Radar ]
     l_mode = world.get('labor_sub_mode', 'charts')

@@ -204,6 +204,41 @@ def enact_factory_safety_act(target) -> Tuple[bool, str]:
     return True, "Factory Safety Mandate enacted: Machinery guards required!"
 
 
+def enact_anti_truck_act(target) -> Tuple[bool, str]:
+    """Enact the Statutory Anti-Truck Act: outlaw company scrip & Tommy shops, force payment in coin.
+
+    - Sets nation/tile truck_act_enacted = True.
+    - All corporate employers switch pay_mode = 'cash'.
+    - All active peonage debt (company_debt) is discharged.
+    - Factions: Labor/Peasant gain +15 approval, Bourgeoisie loses -10.
+    """
+    tiles = getattr(target, 'tiles', [target]) if hasattr(target, 'tiles') else [target]
+    debt_discharged_total = 0.0
+    peons_freed = 0
+
+    for tile in tiles:
+        tile.truck_act_enacted = True
+        for a in getattr(tile, 'agents', []):
+            if getattr(a, 'is_corporation', False):
+                a.pay_mode = "cash"
+            if getattr(a, 'company_debt', 0.0) > 0:
+                debt_discharged_total += a.company_debt
+                a.company_debt = 0.0
+                peons_freed += 1
+                a.despair = max(0.0, getattr(a, 'despair', 0.0) - 0.20)
+                a.mem_push('mem_promises', 1.0)
+        factions = getattr(getattr(tile, 'factions', None), 'factions', {})
+        for fname in ('Labor', 'Peasant', 'Commoners'):
+            if fname in factions:
+                factions[fname].support = min(1.0, factions[fname].support + 0.15)
+                factions[fname].add_grievance('truck_system', -2.0)
+        if 'Bourgeoisie' in factions:
+            factions['Bourgeoisie'].support = max(0.0, factions['Bourgeoisie'].support - 0.10)
+
+    setattr(target, 'truck_act_enacted', True)
+    return True, f"Anti-Truck Act enacted: Company scrip abolished! ({peons_freed} debt peons freed, ${debt_discharged_total:.0f} company debt cancelled)."
+
+
 def subsidize_mass_entertainment(target, cost: float = 50.0) -> Tuple[bool, str]:
     """Subsidize public entertainment to pacify unrest and dampen class organizing.
 
