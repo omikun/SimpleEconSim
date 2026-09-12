@@ -425,17 +425,6 @@
     }
   }
 
-      // If selected tile is open, refresh its detail
-      if (selectedTileName) {
-        fetchTileDetail(selectedTileName, false);
-      }
-    } catch (err) {
-      statusDot.className = 'status-dot error';
-    } finally {
-      isRequestPending = false;
-    }
-  }
-
   async function fetchTileDetail(tileName, expandDrawer = true) {
     try {
       const res = await fetch(`/api/tile?name=${encodeURIComponent(tileName)}`);
