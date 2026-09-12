@@ -21,6 +21,17 @@ project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
+# Auto-detect and switch to workspace virtualenv if running in an external Python lacking pygame/moderngl
+venv_python = os.path.join(project_root, 'venv', 'bin', 'python3')
+if os.path.exists(venv_python) and os.path.realpath(sys.executable) != os.path.realpath(venv_python):
+    try:
+        import pygame
+        import moderngl
+    except ImportError:
+        os.environ['MPLCONFIGDIR'] = os.environ.get('MPLCONFIGDIR', '/tmp/mpl')
+        new_args = [venv_python] + (sys.orig_argv[1:] if hasattr(sys, 'orig_argv') else sys.argv)
+        os.execv(venv_python, new_args)
+
 from sim_server.sim_server import SimServer
 from sim_server.protocol import CommandType, CommandMessage
 from sim_server.qr_code import generate_terminal_qr, generate_svg_qr
@@ -122,36 +133,11 @@ class RegnumHTTPRequestHandler(BaseHTTPRequestHandler):
                 elif hasattr(self.server, 'web_server') and hasattr(self.server.web_server, 'get_terrain_image'):
                     body, mime_type = self.server.web_server.get_terrain_image(format_type)
                 else:
-                    from render_engine.terrain import TerrainRenderer
-                    import io
-                    import pygame
-                    from PIL import Image
-
-                    renderer = getattr(self.server, 'terrain_renderer', None)
-                    if renderer is None:
-                        renderer = TerrainRenderer()
-                        self.server.terrain_renderer = renderer
-
-                    sim = self.server.sim_server
-                    surf = renderer.get_or_generate_surface(
-                        seed=sim.terrain_seed,
-                        bbox=sim.bbox,
-                        tiles=sim.tiles,
-                        layout=sim.layout
+                    body, mime_type = render_terrain_image(
+                        sim=self.server.sim_server,
+                        terrain_renderer=getattr(self.server, 'terrain_renderer', None),
+                        format_type=format_type
                     )
-                    raw = pygame.image.tostring(surf, 'RGBA')
-                    img = Image.frombytes('RGBA', surf.get_size(), raw)
-                    bio = io.BytesIO()
-                    if format_type in ('jpg', 'jpeg'):
-                        img.convert('RGB').save(bio, format='JPEG', quality=85)
-                        mime_type = 'image/jpeg'
-                    elif format_type == 'webp':
-                        img.save(bio, format='WEBP', quality=85)
-                        mime_type = 'image/webp'
-                    else:
-                        img.save(bio, format='PNG', compress_level=3)
-                        mime_type = 'image/png'
-                    body = bio.getvalue()
 
                 self.send_response(200)
                 self.send_header('Content-Type', mime_type)
@@ -244,6 +230,114 @@ class RegnumHTTPRequestHandler(BaseHTTPRequestHandler):
         pass
 
 
+def render_terrain_pil(sim: SimServer) -> Any:
+    """Pure-Python / NumPy / PIL terrain fallback when Pygame/ModernGL is unavailable."""
+    from PIL import Image, ImageDraw
+    import numpy as np
+    import math
+    from hexmap import axial_to_pixel
+
+    w, h = 1200, 900
+    x0, y0, x1, y1 = sim.bbox
+    pad_x = (x1 - x0) * 0.2
+    pad_y = (y1 - y0) * 0.2
+    min_wx = x0 - pad_x
+    min_wy = y0 - pad_y
+    world_w = (x1 - x0) + 2.0 * pad_x
+    world_h = (y1 - y0) + 2.0 * pad_y
+
+    scale_x = w / max(1.0, world_w)
+    scale_y = h / max(1.0, world_h)
+
+    # Base ocean with procedural water noise
+    try:
+        rng = np.random.default_rng(sim.terrain_seed or 4242)
+        noise = rng.integers(-8, 8, (h, w, 3), dtype=np.int16)
+        base_ocean = np.full((h, w, 3), [13, 30, 51], dtype=np.int16)
+        ocean_arr = np.clip(base_ocean + noise, 0, 255).astype(np.uint8)
+        img = Image.fromarray(ocean_arr, 'RGB')
+    except Exception:
+        img = Image.new('RGB', (w, h), (13, 30, 51))
+
+    draw = ImageDraw.Draw(img)
+
+    biome_colors = {
+        'ocean': (13, 30, 51),
+        'shelf': (22, 49, 79),
+        'plains': (61, 92, 49),
+        'forest': (33, 66, 30),
+        'mountain': (97, 95, 90),
+        'hill': (78, 89, 59),
+        'desert': (125, 111, 67),
+        'snow': (220, 230, 238),
+        'tundra': (90, 104, 107),
+    }
+
+    hex_size = getattr(sim, 'hex_size', 50.0)
+    for t in sim.tiles:
+        coords = sim.layout.get(t.name)
+        if not coords:
+            continue
+        cx, cy = axial_to_pixel(coords[0], coords[1], hex_size)
+        px = (cx - min_wx) * scale_x
+        py = (cy - min_wy) * scale_y
+        size_px = hex_size * scale_x
+
+        pts = []
+        for i in range(6):
+            ang = math.pi / 180.0 * (60.0 * i - 30.0)
+            pts.append((px + size_px * 1.05 * math.cos(ang), py + size_px * 1.05 * math.sin(ang)))
+
+        col = biome_colors.get(t.biome, (61, 92, 49))
+        if getattr(t, 'is_ocean', False):
+            col = (13, 30, 51) if getattr(t, 'elevation', 0) < -0.4 else (22, 49, 79)
+        draw.polygon(pts, fill=col)
+
+    return img
+
+
+def render_terrain_image(sim: SimServer, terrain_renderer=None, format_type: str = 'png') -> tuple[bytes, str]:
+    """Render photorealistic terrain image with GPU/Pygame when available, with pure PIL fallback."""
+    import io
+    from PIL import Image
+
+    img = None
+    try:
+        import pygame
+        if terrain_renderer is None:
+            from render_engine.terrain import TerrainRenderer
+            terrain_renderer = TerrainRenderer()
+
+        surf = terrain_renderer.get_or_generate_surface(
+            seed=sim.terrain_seed,
+            bbox=sim.bbox,
+            tiles=sim.tiles,
+            layout=sim.layout
+        )
+        raw = pygame.image.tostring(surf, 'RGBA')
+        img = Image.frombytes('RGBA', surf.get_size(), raw)
+    except Exception as e:
+        print(f"[WebServer] Pygame/ModernGL terrain pipeline note: {e}. Using pure PIL fallback.")
+        img = None
+
+    if img is None:
+        img = render_terrain_pil(sim)
+
+    bio = io.BytesIO()
+    if format_type in ('jpg', 'jpeg'):
+        rgb_img = img.convert('RGB')
+        rgb_img.save(bio, format='JPEG', quality=85)
+        mime = 'image/jpeg'
+    elif format_type == 'webp':
+        img.save(bio, format='WEBP', quality=85)
+        mime = 'image/webp'
+    else:
+        img.save(bio, format='PNG', compress_level=3)
+        mime = 'image/png'
+
+    return bio.getvalue(), mime
+
+
 class RegnumWebServer:
     """Threaded web server container managing simulation loop and HTTP server."""
 
@@ -268,13 +362,9 @@ class RegnumWebServer:
     def get_terrain_image(self, format_type: str = 'png') -> tuple[bytes, str]:
         """Fetch or render photorealistic topographic terrain PNG/JPEG/WEBP image."""
         with self._terrain_lock:
-            if self.terrain_renderer is None:
-                from render_engine.terrain import TerrainRenderer
-                self.terrain_renderer = TerrainRenderer()
-
             sim = self.sim_server
-            from render_engine.gpu import load_gpu_settings
             try:
+                from render_engine.gpu import load_gpu_settings
                 gpu_settings = tuple(sorted(load_gpu_settings().items()))
             except Exception:
                 gpu_settings = ()
@@ -283,32 +373,11 @@ class RegnumWebServer:
             if self._cached_terrain_key == cache_key and self._cached_terrain_bytes is not None:
                 return self._cached_terrain_bytes, self._cached_terrain_mime
 
-            surf = self.terrain_renderer.get_or_generate_surface(
-                seed=sim.terrain_seed,
-                bbox=sim.bbox,
-                tiles=sim.tiles,
-                layout=sim.layout
+            data, mime = render_terrain_image(
+                sim=sim,
+                terrain_renderer=self.terrain_renderer,
+                format_type=format_type
             )
-            import io
-            import pygame
-            from PIL import Image
-
-            raw = pygame.image.tostring(surf, 'RGBA')
-            img = Image.frombytes('RGBA', surf.get_size(), raw)
-            bio = io.BytesIO()
-
-            if format_type in ('jpg', 'jpeg'):
-                rgb_img = img.convert('RGB')
-                rgb_img.save(bio, format='JPEG', quality=85)
-                mime = 'image/jpeg'
-            elif format_type == 'webp':
-                img.save(bio, format='WEBP', quality=85)
-                mime = 'image/webp'
-            else:
-                img.save(bio, format='PNG', compress_level=3)
-                mime = 'image/png'
-
-            data = bio.getvalue()
             self._cached_terrain_bytes = data
             self._cached_terrain_mime = mime
             self._cached_terrain_key = cache_key
