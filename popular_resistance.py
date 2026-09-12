@@ -45,6 +45,17 @@ class ResistanceState:
     armory_raided: bool = False        # state armory weapons seized
     militia_strength: int = 0          # armed citizen insurgents
 
+    # ---- Multi-turn Stepped Anti-Enclosure Escalation ----
+    enclosure_stage: str = "dormant"   # 'dormant' | 'organizing' | 'announced' | 'marching' | 'protest' | 'leveling'
+    target_plot_id: Optional[str] = None
+    target_plot_fraction: float = 0.0
+    revolt_participants: List[int] = field(default_factory=list)  # Agent IDs actively mobilizing
+    stage_turn: int = 0                # turn index of current stage
+    martyrdom_multiplier: float = 1.0  # multiplier to future turnout from police killings
+    terror_cooldown: int = 0           # chilling effect: turns where terror prevents organizing
+    sympathizer_food_donated: int = 0  # food provided to marchers
+    police_employed: int = 0           # employed police officers on payroll
+
 
 class PopularResistanceManager:
     """Orchestrates anti-enclosure revolts, general strikes, barricades, and commune transitions."""
@@ -59,73 +70,435 @@ class PopularResistanceManager:
         return self.tile_states[tile_name]
 
     # ------------------------------------------------------------------
-    # Level 1-2: Anti-Enclosure Revolts
+    # Level 1-2: Multi-Turn Anti-Enclosure Revolts
     # ------------------------------------------------------------------
 
+    def _feed_revolt_participants(self, tile: Region, participants: List[Any], t: int, world: dict | None = None) -> int:
+        """Feed marching peasants from local charity or sympathetic citizens; return total food distributed.
+        
+        Strictly 100% money and goods conserved.
+        """
+        food_distributed = 0
+        charity = getattr(tile, 'charity', None)
+
+        for a in participants:
+            if not getattr(a, 'alive', True):
+                continue
+            # If agent already has food in inventory, consume it
+            if a.inv_get(Goods.food, 0) > 0:
+                a.inv_add(Goods.food, -1)
+                a.hungry_steps = 0
+                continue
+
+            fed = False
+            # 1. Check local parish charity
+            if charity and getattr(charity, 'food_inventory', 0) > 0:
+                charity.food_inventory -= 1
+                a.inv_add(Goods.food, 1)
+                a.inv_add(Goods.food, -1)
+                a.hungry_steps = 0
+                food_distributed += 1
+                fed = True
+
+            # 2. Check sympathetic citizens (non-gentry, non-gov, non-corp with surplus food)
+            if not fed:
+                for s in getattr(tile, 'agents', []):
+                    if s.id == a.id or getattr(s, 'is_corporation', False) or getattr(s, 'is_government', False):
+                        continue
+                    if getattr(s, 'social_class', '') in ('proletarian', 'artisan', 'cottar', 'serf') and s.inv_get(Goods.food, 0) > 1:
+                        s.inv_add(Goods.food, -1)
+                        a.hungry_steps = 0
+                        food_distributed += 1
+                        fed = True
+                        break
+
+            # 3. Unfed marcher accumulates hunger
+            if not fed:
+                a.hungry_steps += 1
+
+        # Desperation Looting: if participants are starving (hungry_steps >= 2), they raid municipal or landlord stores
+        starving = [a for a in participants if getattr(a, 'alive', True) and getattr(a, 'hungry_steps', 0) >= 2]
+        if len(starving) >= 2:
+            rgov = getattr(tile, 'gov', None)
+            food_available = getattr(rgov, 'food_inventory', 0) if rgov else 0
+            if food_available > 2:
+                looted = min(food_available, len(starving), 10)
+                rgov.food_inventory -= looted
+                for i in range(looted):
+                    starving[i].hungry_steps = 0
+                    food_distributed += 1
+                if world:
+                    from worldview_engine import ticker_push
+                    ticker_push(world, t, 'ALERT', f"🥖 BREAD RIOT: Starving peasant marchers raided municipal granaries in {tile.name} ({looted} food seized)!", (240, 140, 50))
+
+        return food_distributed
+
     def evaluate_anti_enclosure_revolt(self, tile: Region, t: int, world: dict | None = None) -> List[Dict[str, Any]]:
-        """Check if dispossessed / hungry peasants tear down enclosure fences on *tile*."""
+        """Multi-turn stepped anti-enclosure escalation: Organizing -> Announced -> Marching -> Protest -> Leveling."""
         events = []
+        state = self.get_state(tile.name)
         tenure = getattr(tile, 'tenure', None)
         if not tenure or not tenure.plots:
             return events
 
-        enclosed = tenure.enclosed_plots()
-        if not enclosed:
+        # Handle Terror Cooldown (Chilling Effect from overwhelming state violence)
+        if state.terror_cooldown > 0:
+            state.terror_cooldown -= 1
+            if state.enclosure_stage != "dormant":
+                # Clear active marchers if terror was just imposed
+                for a in getattr(tile, 'agents', []):
+                    if a.id in state.revolt_participants:
+                        setattr(a, 'in_revolt', False)
+                        setattr(a, 'is_striking', False)
+                state.enclosure_stage = "dormant"
+                state.revolt_participants.clear()
             return events
 
-        # Count hungry non-corp, non-gov citizens (especially dispossessed and tenants)
-        hungry_peasants = [
-            a for a in getattr(tile, 'agents', [])
-            if not getattr(a, 'is_corporation', False)
-            and not getattr(a, 'is_government', False)
-            and not getattr(a, 'is_trader', False)
-            and getattr(a, 'alive', True)
-            and (getattr(a, 'hungry_steps', 0) > 0 or getattr(a, 'social_class', '') in ('dispossessed', 'tenant', 'serf'))
-        ]
+        enclosed = tenure.enclosed_plots()
 
-        unrest = getattr(tile, 'unrest_level', 0.0)
-        state = self.get_state(tile.name)
+        # If revolt is active but targeted plot was already restored to commons (e.g. by gov decree), dissolve peacefully!
+        if state.enclosure_stage != "dormant":
+            target_plot = tenure.find_plot(state.target_plot_id) if state.target_plot_id else None
+            if not target_plot or target_plot.tenure != TenureStatus.ENCLOSED:
+                for a in getattr(tile, 'agents', []):
+                    if a.id in state.revolt_participants:
+                        setattr(a, 'in_revolt', False)
+                        setattr(a, 'is_striking', False)
+                state.enclosure_stage = "dormant"
+                state.revolt_participants.clear()
+                state.target_plot_id = None
+                ev = {
+                    'turn': t,
+                    'kind': 'ENCLOSURE_REVOLT_DISSOLVED_PEACEFUL',
+                    'tile': tile.name,
+                    'msg': f"🕊️ Peasant march in {tile.name} dissolved peacefully after enclosure grievances were resolved."
+                }
+                events.append(ev)
+                self.resistance_log.append(ev)
+                if world:
+                    from worldview_engine import ticker_push
+                    ticker_push(world, t, 'POLICY', f"🕊️ {ev['msg']}", (120, 240, 150))
+                return events
 
-        # Trigger revolt if multiple hungry peasants and positive unrest
-        if len(hungry_peasants) >= 2 and (unrest >= 0.8 or any(getattr(a, 'hungry_steps', 0) >= 2 for a in hungry_peasants)):
-            # Revolt fires: peasants tear down the fence of the largest enclosed plot
-            target_plot = max(enclosed, key=lambda p: p.fraction)
-            tenure.revert_plot_to_commons(target_plot.plot_id, turn=t)
-            state.fences_torn += 1
-            state.revolt_intensity = min(1.0, state.revolt_intensity + 0.3)
+        # --------------------------------------------------------------
+        # STAGE 0 -> 1: DORMANT to ORGANIZING
+        # --------------------------------------------------------------
+        if state.enclosure_stage == "dormant":
+            if not enclosed:
+                return events
 
-            # Enrage landlord / lord
-            lord = next((a for a in getattr(tile, 'agents', []) if a.id == target_plot.lord_id), None)
-            if lord:
-                lord.mem_push('mem_broken_fences', 1.0)
-            factions = getattr(getattr(tile, 'factions', None), 'factions', {})
-            if 'Gentry' in factions:
-                factions['Gentry'].add_grievance('agrarian_revolt', 3.0)
-            if 'Bourgeoisie' in factions:
-                factions['Bourgeoisie'].add_grievance('agrarian_revolt', 2.0)
+            hungry_peasants = [
+                a for a in getattr(tile, 'agents', [])
+                if not getattr(a, 'is_corporation', False)
+                and not getattr(a, 'is_government', False)
+                and not getattr(a, 'is_trader', False)
+                and getattr(a, 'alive', True)
+                and (getattr(a, 'hungry_steps', 0) > 0 or getattr(a, 'social_class', '') in ('dispossessed', 'tenant', 'serf', 'cottar'))
+            ]
+            unrest = getattr(tile, 'unrest_level', 0.0)
 
-            # Peasant hunger and unrest cools slightly now that commons foraging is restored
-            tile.unrest_level = max(0.0, tile.unrest_level - 0.2)
+            # Trigger condition: 2+ hungry/dispossessed peasants and high unrest or 2+ turns starvation
+            if len(hungry_peasants) >= 2 and (unrest >= 0.8 or any(getattr(a, 'hungry_steps', 0) >= 2 for a in hungry_peasants)):
+                target_plot = max(enclosed, key=lambda p: p.fraction)
+                
+                # Base participants scaled by martyrdom multiplier from past massacres
+                base_count = max(2, int(len(hungry_peasants) * 0.6 * state.martyrdom_multiplier))
+                selected = hungry_peasants[:base_count]
+                for a in selected:
+                    setattr(a, 'in_revolt', True)
+                    setattr(a, 'is_striking', True)
 
-            owner_name = tile.owner_nation.name if getattr(tile, 'owner_nation', None) else "Neutral"
+                state.revolt_participants = [a.id for a in selected]
+                state.target_plot_id = target_plot.plot_id
+                state.target_plot_fraction = target_plot.fraction
+                state.enclosure_stage = "organizing"
+                state.stage_turn = t
+
+                ev = {
+                    'turn': t,
+                    'kind': 'ENCLOSURE_REVOLT_ORGANIZING',
+                    'tile': tile.name,
+                    'plot_id': target_plot.plot_id,
+                    'participants': len(selected),
+                    'msg': f"ORGANIZING: Clandestine peasant assemblies reported in {tile.name}. Secret oaths sworn to resist enclosures on {target_plot.plot_id}!"
+                }
+                events.append(ev)
+                self.resistance_log.append(ev)
+                if world:
+                    from worldview_engine import ticker_push
+                    ticker_push(world, t, 'ALERT', f"🌾 {ev['msg']}", (230, 180, 50))
+                return events
+
+        # --------------------------------------------------------------
+        # ACTIVE STAGES: Sustain marchers, check logistics & advance
+        # --------------------------------------------------------------
+        participants = [a for a in getattr(tile, 'agents', []) if a.id in state.revolt_participants and getattr(a, 'alive', True)]
+        if not participants:
+            state.enclosure_stage = "dormant"
+            state.revolt_participants.clear()
+            return events
+
+        # Maintain labor withholding
+        for a in participants:
+            setattr(a, 'in_revolt', True)
+            setattr(a, 'is_striking', True)
+
+        # Feed marchers via charity or sympathizers
+        state.sympathizer_food_donated = self._feed_revolt_participants(tile, participants, t, world)
+
+        # Advance stage ladder
+        if state.enclosure_stage == "organizing":
+            state.enclosure_stage = "announced"
+            state.stage_turn = t
             ev = {
                 'turn': t,
-                'kind': 'ANTI_ENCLOSURE_REVOLT',
+                'kind': 'ENCLOSURE_REVOLT_ANNOUNCED',
                 'tile': tile.name,
-                'nation': owner_name,
-                'plot_id': target_plot.plot_id,
-                'fraction': target_plot.fraction,
-                'new_commons_access': tenure.commons_access,
-                'msg': f"FENCE TEARING! Dispossessed peasants tore down fences on plot {target_plot.plot_id} in {tile.name}, restoring commons foraging access to {tenure.commons_access*100:.0f}%!"
+                'plot_id': state.target_plot_id,
+                'participants': len(participants),
+                'msg': f"PROCLAMATION: Peasant manifestos nailed to church doors in {tile.name}, demanding fences on {state.target_plot_id} be opened!"
             }
             events.append(ev)
             self.resistance_log.append(ev)
-
             if world:
                 from worldview_engine import ticker_push
-                ticker_push(world, t, 'ALERT', f"🌾 {ev['msg']}", (220, 190, 70))
+                ticker_push(world, t, 'ALERT', f"📜 {ev['msg']}", (240, 150, 40))
+
+        elif state.enclosure_stage == "announced":
+            state.enclosure_stage = "marching"
+            state.stage_turn = t
+            # Additional sympathizers join the march column
+            more_peasants = [
+                a for a in getattr(tile, 'agents', [])
+                if a.id not in state.revolt_participants
+                and not getattr(a, 'is_corporation', False)
+                and not getattr(a, 'is_government', False)
+                and getattr(a, 'alive', True)
+                and getattr(a, 'social_class', '') in ('dispossessed', 'tenant', 'serf', 'cottar')
+            ]
+            if more_peasants:
+                joined = more_peasants[:max(1, int(len(more_peasants) * 0.3))]
+                for a in joined:
+                    setattr(a, 'in_revolt', True)
+                    setattr(a, 'is_striking', True)
+                    state.revolt_participants.append(a.id)
+                    participants.append(a)
+
+            ev = {
+                'turn': t,
+                'kind': 'ENCLOSURE_REVOLT_MARCHING',
+                'tile': tile.name,
+                'plot_id': state.target_plot_id,
+                'participants': len(participants),
+                'msg': f"PEASANT MARCH: Column of {len(participants)} peasants armed with scythes and spades is marching toward {state.target_plot_id} in {tile.name}!"
+            }
+            events.append(ev)
+            self.resistance_log.append(ev)
+            if world:
+                from worldview_engine import ticker_push
+                ticker_push(world, t, 'ALERT', f"🚶 {ev['msg']}", (240, 90, 40))
+
+        elif state.enclosure_stage == "marching":
+            state.enclosure_stage = "protest"
+            state.stage_turn = t
+            ev = {
+                'turn': t,
+                'kind': 'ENCLOSURE_REVOLT_PROTEST',
+                'tile': tile.name,
+                'plot_id': state.target_plot_id,
+                'participants': len(participants),
+                'msg': f"PERIMETER STANDOFF: Peasant demonstrators massed at the boundary ditches of {state.target_plot_id} in {tile.name}!"
+            }
+            events.append(ev)
+            self.resistance_log.append(ev)
+            if world:
+                from worldview_engine import ticker_push
+                ticker_push(world, t, 'ALERT', f"⚠️ {ev['msg']}", (240, 40, 40))
+
+        elif state.enclosure_stage == "protest":
+            # ----------------------------------------------------------
+            # STAGE 5: LEVELING (Fence Tearing & Restoring Commons)
+            # ----------------------------------------------------------
+            state.enclosure_stage = "leveling"
+            target_plot = tenure.find_plot(state.target_plot_id)
+            if target_plot and target_plot.tenure == TenureStatus.ENCLOSED:
+                tenure.revert_plot_to_commons(target_plot.plot_id, turn=t)
+                state.fences_torn += 1
+                state.revolt_intensity = min(1.0, state.revolt_intensity + 0.3)
+
+                # Lord memory push
+                lord = next((a for a in getattr(tile, 'agents', []) if a.id == target_plot.lord_id), None)
+                if lord:
+                    lord.mem_push('mem_broken_fences', 1.0)
+                factions = getattr(getattr(tile, 'factions', None), 'factions', {})
+                if 'Gentry' in factions:
+                    factions['Gentry'].add_grievance('agrarian_revolt', 3.0)
+                if 'Bourgeoisie' in factions:
+                    factions['Bourgeoisie'].add_grievance('agrarian_revolt', 2.0)
+
+                # Cool unrest
+                tile.unrest_level = max(0.0, tile.unrest_level - 0.2)
+
+                owner_name = tile.owner_nation.name if getattr(tile, 'owner_nation', None) else "Neutral"
+                ev = {
+                    'turn': t,
+                    'kind': 'ANTI_ENCLOSURE_REVOLT',
+                    'tile': tile.name,
+                    'nation': owner_name,
+                    'plot_id': target_plot.plot_id,
+                    'fraction': target_plot.fraction,
+                    'new_commons_access': tenure.commons_access,
+                    'msg': f"FENCE TEARING! Peasants leveled fences on {target_plot.plot_id} in {tile.name}, restoring commons foraging to {tenure.commons_access*100:.0f}%!"
+                }
+                events.append(ev)
+                self.resistance_log.append(ev)
+                if world:
+                    from worldview_engine import ticker_push
+                    ticker_push(world, t, 'ALERT', f"🌾 {ev['msg']}", (220, 190, 70))
+
+            # Disperse marchers back to normal life
+            for a in participants:
+                setattr(a, 'in_revolt', False)
+                setattr(a, 'is_striking', False)
+            state.enclosure_stage = "dormant"
+            state.revolt_participants.clear()
+            state.target_plot_id = None
 
         return events
+
+    # ------------------------------------------------------------------
+    # Police / Military Interdiction of Anti-Enclosure Revolts
+    # ------------------------------------------------------------------
+
+    def interdict_enclosure_revolt(self, tile: Region, t: int, world: dict,
+                                  force_level: str = "auto") -> Tuple[bool, str, Dict[str, Any]]:
+        """Deploy employed police or military garrison to stop an active enclosure march/protest."""
+        state = self.get_state(tile.name)
+        if state.enclosure_stage in ("dormant", "leveling"):
+            return False, f"No active peasant march in {tile.name} to interdict.", {}
+
+        # 1. Verify police or military capacity (cannot conjure police from thin air)
+        rgov = getattr(tile, 'gov', None)
+        gov_cash = rgov.agent.cash if (rgov and hasattr(rgov, 'agent')) else 0.0
+        police_count = getattr(tile, 'police_officers', getattr(rgov, 'police_officers', 0))
+        garrison_soldiers = sum(getattr(u, 'soldiers', 0) for u in getattr(tile, 'military_units', []))
+
+        if police_count <= 0 and garrison_soldiers <= 0:
+            # Check if municipality can fund emergency constables ($60 required)
+            if gov_cash >= 60.0:
+                rgov.agent.cash -= 60.0
+                police_count = 5
+                setattr(tile, 'police_officers', 5)
+                from imperialism import _disburse_agent_funds
+                _disburse_agent_funds(world, getattr(tile, 'owner_nation', None), 60.0)
+            else:
+                return False, f"Cannot mobilize police: {tile.name} has no constables on payroll and municipal treasury has insufficient funds ($60 required)!", {}
+
+        participants = [a for a in getattr(tile, 'agents', []) if a.id in state.revolt_participants and getattr(a, 'alive', True)]
+        if not participants:
+            state.enclosure_stage = "dormant"
+            state.revolt_participants.clear()
+            return True, f"Peasant march in {tile.name} had already disbanded.", {}
+
+        # 2. Analyze crowd violence propensity
+        veteran_rioters = sum(1 for a in participants if getattr(a, 'military_xp', 0.0) > 0.1)
+        desperate_rioters = sum(1 for a in participants if getattr(a, 'hungry_steps', 0) >= 2 or getattr(a, 'despair', 0.0) > 0.6)
+        outlaw_rioters = sum(1 for a in participants if getattr(a, 'risk_tolerance', 0.5) > 0.75)
+        trauma_rioters = sum(1 for a in participants if sum(getattr(a, 'memory', {}).get('mem_casualties', [])) > 0)
+        rioter_violence = (veteran_rioters * 2.0 + desperate_rioters * 1.5 + outlaw_rioters * 1.0 + trauma_rioters * 2.0) / max(1, len(participants))
+
+        total_enforcers = police_count + garrison_soldiers * 2
+
+        # 3. Determine clash outcome
+        # Case A: Peaceful Dispersal (Enforcers heavily outnumber crowd, low rioter violence, no army)
+        if total_enforcers >= len(participants) * 2 and rioter_violence < 0.4 and garrison_soldiers == 0:
+            for a in participants:
+                setattr(a, 'in_revolt', False)
+                setattr(a, 'is_striking', False)
+            state.enclosure_stage = "dormant"
+            state.revolt_participants.clear()
+            factions = getattr(getattr(tile, 'factions', None), 'factions', {})
+            for f in factions.values():
+                f.add_grievance('police_intervention', 0.5)
+            msg = f"🛡️ Constables cordoned off the march in {tile.name}. Peasants dispersed peacefully without casualties."
+            if world:
+                from worldview_engine import ticker_push
+                ticker_push(world, t, 'POLICY', msg, (120, 240, 150))
+            return True, msg, {'casualties': 0, 'outcome': 'peaceful'}
+
+        # Case B: Overwhelming Slaughter / State Terror (The Chilling Effect)
+        # Triggered by standing army intervention or overwhelming police force
+        if garrison_soldiers >= 5 or total_enforcers >= len(participants) * 3 or force_level == "brutal":
+            kill_count = max(2, min(len(participants), int(len(participants) * 0.5)))
+            victims = participants[:kill_count]
+            survivors = participants[kill_count:]
+
+            # Conserve any wealth of victims into heirs or charity
+            charity = getattr(tile, 'charity', None)
+            for v in victims:
+                v.alive = False
+                if v.cash > 0 and charity and hasattr(charity, 'agent'):
+                    charity.agent.cash += v.cash
+                    v.cash = 0.0
+                setattr(v, 'in_revolt', False)
+                setattr(v, 'is_striking', False)
+
+            # Chilling effect state terror
+            state.terror_cooldown = 10
+            state.enclosure_stage = "dormant"
+            state.revolt_participants.clear()
+            state.martyrdom_multiplier = 1.0  # Momentum shattered
+
+            for s in survivors:
+                setattr(s, 'in_revolt', False)
+                setattr(s, 'is_striking', False)
+                s.mem_push('mem_casualties', 2.0)
+
+            owner = getattr(tile, 'owner_nation', None)
+            if owner:
+                owner.legitimacy = max(0.05, getattr(owner, 'legitimacy', 0.6) - 0.20)
+
+            msg = f"🩸 STATE TERROR: Armed state forces ruthlessly crushed the peasant march in {tile.name} ({kill_count} killed). A 10-turn terrorized peace smothers revolt organizing."
+            if world:
+                from worldview_engine import ticker_push
+                ticker_push(world, t, 'MILITARY', msg, (240, 60, 60))
+            return True, msg, {'casualties': kill_count, 'outcome': 'terror'}
+
+        # Case C: Violent Clash & Martyrdom (Backfire Effect)
+        # Moderate casualties create martyrs and escalate future participation
+        kill_count = max(1, min(len(participants), int(len(participants) * 0.2) or 1))
+        victims = participants[:kill_count]
+        survivors = participants[kill_count:]
+
+        charity = getattr(tile, 'charity', None)
+        for v in victims:
+            v.alive = False
+            if v.cash > 0 and charity and hasattr(charity, 'agent'):
+                charity.agent.cash += v.cash
+                v.cash = 0.0
+            setattr(v, 'in_revolt', False)
+            setattr(v, 'is_striking', False)
+
+        for s in survivors:
+            setattr(s, 'in_revolt', False)
+            setattr(s, 'is_striking', False)
+            s.mem_push('mem_casualties', 1.0)
+            s.mem_push('mem_promises', 1.0)
+
+        factions = getattr(getattr(tile, 'factions', None), 'factions', {})
+        for fname in ('Labor', 'Peasant', 'Commoners'):
+            if fname in factions:
+                factions[fname].add_grievance('police_brutality', 3.0 * kill_count)
+
+        state.martyrdom_multiplier = min(3.5, state.martyrdom_multiplier + 0.6)
+        state.enclosure_stage = "dormant"
+        state.revolt_participants.clear()
+
+        msg = f"⚔️ BLOODY POLICE CLASH: Constables broke up the peasant march in {tile.name} ({kill_count} killed). Public outrage erupts over fallen martyrs (+60% future turnout)!"
+        if world:
+            from worldview_engine import ticker_push
+            ticker_push(world, t, 'ALERT', msg, (240, 80, 80))
+        return True, msg, {'casualties': kill_count, 'outcome': 'martyrdom'}
 
     # ------------------------------------------------------------------
     # Level 3: General Strike

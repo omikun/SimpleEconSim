@@ -728,9 +728,12 @@ def _execute_gov_policy(world: dict, act_id: str, target: any):
         on_hand = rgov.agent.cash
         if on_hand >= 60.0:
             rgov.agent.cash -= 60.0
+            from imperialism import _disburse_agent_funds
+            _disburse_agent_funds(world, getattr(target, 'owner_nation', None), 60.0)
+            target.police_officers = max(getattr(target, 'police_officers', 0), 5)
             if target.protest_energy_log:
                 target.protest_energy_log[-1] = max(0.0, target.protest_energy_log[-1] - 0.40)
-            ticker_push(world, t, 'POLICY', f"Deployed Public Safety Patrols in {target.name} (-0.40 Protest).", (120, 220, 140))
+            ticker_push(world, t, 'POLICY', f"Deployed Public Safety Patrols in {target.name} (5 constables on duty, -0.40 Protest).", (120, 220, 140))
         else:
             nation = getattr(target, 'owner_nation', None)
             world['transfer_dialog'] = {

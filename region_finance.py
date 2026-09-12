@@ -12,7 +12,7 @@ def pay_wages(region, t):
     for a in region.agents:
         if a.is_corporation and len(a.employees) > 0:
             for e in a.employees:
-                if getattr(e, 'is_striking', False):
+                if getattr(e, 'is_striking', False) or getattr(e, 'in_revolt', False):
                     continue
                 wage_to_pay = min(a.cash, a.wage)
                 a.cash -= wage_to_pay

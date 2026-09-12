@@ -95,8 +95,9 @@ class TestPhase4(unittest.TestCase):
         tile.agents = [a1, a2]
         tile.unrest_level = 1.2
 
-        # Evaluate revolt
-        events = self.res_mgr.evaluate_anti_enclosure_revolt(tile, t=5)
+        # Step through the 5-stage revolt ladder to leveling
+        for turn in range(5, 10):
+            events = self.res_mgr.evaluate_anti_enclosure_revolt(tile, t=turn)
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0]['kind'], 'ANTI_ENCLOSURE_REVOLT')
 

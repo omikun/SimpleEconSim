@@ -654,10 +654,21 @@ def _execute_policy_action(world, act_id, target):
             else:
                 world['policy_feedback'] = ("Insufficient unemployed labor to recruit.", RED)
 
-    # City Police Curfew
+    # City Police Curfew / Interdiction
     elif act_id == 'city_police_curfew':
-        apply_repression(target, world['turn'])
-        world['policy_feedback'] = (f"Police curfew enforced in {target.name}. Riots quelled.", (240, 100, 100))
+        from popular_resistance import get_popular_resistance_manager
+        res_mgr = get_popular_resistance_manager()
+        st = res_mgr.get_state(target.name)
+        if st.enclosure_stage not in ('dormant', 'leveling'):
+            ok, msg, data = res_mgr.interdict_enclosure_revolt(target, world['turn'], world)
+            if ok:
+                apply_repression(target, world['turn'], cost_legitimacy=0.05)
+                world['policy_feedback'] = (msg, (240, 100, 100))
+            else:
+                world['policy_feedback'] = (msg, (240, 60, 60))
+        else:
+            apply_repression(target, world['turn'])
+            world['policy_feedback'] = (f"Police curfew enforced in {target.name}. Riots quelled.", (240, 100, 100))
 
     # City Public Works Commission
     elif act_id in ('build_farm', 'build_granary', 'build_sawmill', 'build_workshop'):

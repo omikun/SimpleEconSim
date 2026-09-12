@@ -513,6 +513,22 @@ def draw_activity_badges(surface, region, cx, cy, font_small):
             stxt = font_small.render("GS", True, (255, 255, 255))
             surface.blit(stxt, (cx - 14, cy + 33))
 
+        if r_state.enclosure_stage in ('organizing', 'announced', 'marching', 'protest'):
+            stg_map = {
+                'organizing': ("ORG", (220, 180, 50)),
+                'announced': ("ANN", (230, 150, 40)),
+                'marching': ("MCH", (240, 90, 40)),
+                'protest': ("PRT", (240, 30, 30))
+            }
+            lbl, bg = stg_map[r_state.enclosure_stage]
+            pygame.draw.rect(surface, bg, (cx - 38, cy - 30, 24, 13), border_radius=3)
+            etxt = font_small.render(lbl, True, (15, 15, 20))
+            surface.blit(etxt, (cx - 36, cy - 31))
+        elif r_state.terror_cooldown > 0:
+            pygame.draw.rect(surface, (40, 40, 50), (cx - 38, cy - 30, 24, 13), border_radius=3)
+            ttxt = font_small.render("TR", True, (200, 70, 70))
+            surface.blit(ttxt, (cx - 34, cy - 31))
+
         from imperialism import get_imperialism_manager
         imp_mgr = get_imperialism_manager()
         if imp_mgr.is_tile_blockaded(region.name):

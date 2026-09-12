@@ -35,8 +35,8 @@ def terrain_bonus(region, good):
 
 def produce_corporation(region, agent, recipe, output, num_agents_per_good, local_total_production):
     """Run production logic for a corporate employer."""
-    # P2.3: Striking workers withhold living labor power
-    working_employees = [e for e in agent.employees if not getattr(e, 'is_striking', False)]
+    # P2.3: Striking or revolting workers withhold living labor power
+    working_employees = [e for e in agent.employees if not getattr(e, 'is_striking', False) and not getattr(e, 'in_revolt', False)]
     num_employees = len(working_employees)
     if num_employees == 0:
         return
@@ -133,6 +133,8 @@ def produce(region, t):
     local_total_production = defaultdict(int)
     for a in region.agents:
         if a.employer or a.output == Goods.gov or a.is_trader or a.output == Goods.none or a.output not in region.recipes:
+            continue
+        if getattr(a, 'is_striking', False) or getattr(a, 'in_revolt', False):
             continue
         r = region.recipes[a.output]
         if a.is_corporation and len(a.employees) > 0:

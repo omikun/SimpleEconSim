@@ -195,8 +195,11 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
         }
         if btn_id == 'city_police_curfew':
             u_level = getattr(pinned, 'unrest_level', 0.0) if pinned else 0.0
-            if u_level < 1.50 and protest_e < 0.40:
-                res['disabled_reason'] = f"Civil Order Stable (Unrest {u_level:.2f} < 1.50): Curfew is restricted to active civil unrest or riots."
+            from popular_resistance import get_popular_resistance_manager
+            r_st = get_popular_resistance_manager().get_state(pinned.name) if pinned else None
+            is_active_revolt = r_st and r_st.enclosure_stage not in ('dormant', 'leveling')
+            if u_level < 1.50 and protest_e < 0.40 and not is_active_revolt:
+                res['disabled_reason'] = f"Civil Order Stable (Unrest {u_level:.2f} < 1.50): Curfew is restricted to active civil unrest, riots, or marching revolts."
         elif tile_cash < 60.0:
             res['disabled_reason'] = f"Insufficient Municipal Treasury: Requires $60.00 (Current: ${tile_cash:,.0f})."
         return res
