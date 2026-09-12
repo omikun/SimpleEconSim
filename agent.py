@@ -92,9 +92,9 @@ class Agent:
         # ---- Military & Combat Experience (M4.5 / M5.8) ----
         'military_xp',
         # ---- P1: Feudal land tenure & enclosure ----
-        'is_lord', 'land_plots',
+        'is_lord', 'land_plots', 'assigned_plot_id',
         'food_foraged', 'food_purchased',
-        'social_class',
+        'social_class', 'in_workhouse',
         # ---- P2: Labor commodification, alienation & psychology ----
         'shift_hours', 'safety_investment',
         'machinery_level', 'broken_machinery',
@@ -207,9 +207,11 @@ class Agent:
         # ---- P1: Feudal land tenure & enclosure ----
         self.is_lord = False                 # holds feudal land title
         self.land_plots = []                 # list of plot_id strings
+        self.assigned_plot_id = None         # plot_id string of the plot this serf/tenant is bound to
         self.food_foraged = 0                # food gathered from commons this turn
         self.food_purchased = 0              # food bought on market this turn
         self.social_class = None             # computed each turn (SocialClass enum value)
+        self.in_workhouse = False            # true if arrested for vagrancy and confined to Parish Workhouse
         # ---- P2 fields ----
         self.shift_hours = 8.0               # customary baseline
         self.safety_investment = 0.0         # cash spent on safety per worker

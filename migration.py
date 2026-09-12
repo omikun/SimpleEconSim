@@ -107,6 +107,13 @@ def _pick_destination(source, agent):
         me = getattr(agent, 'origin_nation', None)
         if owner is None:
             continue
+
+        # Phase 1: Settlement Laws (Poor Relief Act)
+        # Dispossessed paupers without capital are barred from settling in foreign parishes
+        is_pauper = (getattr(agent, 'social_class', None) == 'dispossessed' or agent.wealth() <= 10.0)
+        if is_pauper and owner.name != me:
+            continue  # Blocked by Settlement Laws
+
         if owner.name != me:
             if best_foreign is None:
                 best_foreign = other
@@ -211,6 +218,7 @@ def run_migrations(t, regions, rng=None):
             and not getattr(a, 'is_corporation', False)
             and not getattr(a, 'is_government', False)
             and not getattr(a, 'is_trader', False)
+            and not getattr(a, 'in_workhouse', False)
             and getattr(a, 'employer', None) is None
             and a.age(t) > 20
             and t - getattr(a, 'last_migration_turn', 0) >= MIGRATION_COOLDOWN

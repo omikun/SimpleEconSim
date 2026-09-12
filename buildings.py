@@ -122,6 +122,16 @@ BUILDING_RECIPES: dict[str, BuildingRecipe] = {
         production_bonuses={},
         description='Municipal apothecary and medical clinic providing subsidized diagnoses, increasing cure rates to 95%.'
     ),
+    'workhouse': BuildingRecipe(
+        name='workhouse',
+        display_name='Parish Workhouse',
+        cost=200.0,
+        base_turns=2,
+        tier='tile',
+        required_goods={Goods.wood: 4},
+        production_bonuses={},
+        description='Confines dispossessed vagrants to compulsory labor for municipal revenue in exchange for bare-subsistence gruel.'
+    ),
 
     # ── PROVINCIAL LEVEL PUBLIC WORKS ───────────────────────────────
     'paved_road': BuildingRecipe(

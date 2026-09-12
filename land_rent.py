@@ -60,10 +60,26 @@ def collect_rents(region, t: int) -> tuple[float, float, list[dict]]:
             continue
 
         rent_rate = max(1.0, plot.rent_rate)
-        # Proportion of tenants assigned to this plot
-        slice_size = max(1, int(tenants_count * plot.fraction))
-        assigned_tenants = tenants[current_idx:current_idx + slice_size]
-        current_idx = (current_idx + slice_size) % tenants_count
+        # Proportion of tenants assigned to this plot or bound tenants
+        if getattr(plot, 'tenant_ids', None):
+            assigned_tenants = [a for a in region.agents if a.id in plot.tenant_ids and a.alive]
+        else:
+            slice_size = max(1, int(tenants_count * plot.fraction))
+            assigned_tenants = tenants[current_idx:current_idx + slice_size]
+            current_idx = (current_idx + slice_size) % tenants_count
+
+        # Pastoral conversion ("sheep eat men"): labor drops by 75%
+        if getattr(plot, 'production_type', 'arable') == 'pasture' and len(assigned_tenants) > 1:
+            keep_count = max(1, int(len(assigned_tenants) * 0.25))
+            shepherds = assigned_tenants[:keep_count]
+            evicted = assigned_tenants[keep_count:]
+            for ex in evicted:
+                if hasattr(plot, 'tenant_ids') and ex.id in plot.tenant_ids:
+                    plot.tenant_ids.remove(ex.id)
+                ex.assigned_plot_id = None
+                ex.social_class = 'dispossessed'
+                ex.mem_push('mem_eviction', 1.0)
+            assigned_tenants = shepherds
 
         plot_collected = 0.0
         plot_arrears = 0.0

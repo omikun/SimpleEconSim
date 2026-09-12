@@ -249,6 +249,306 @@ OCEAN_BASIN_NAMES = [
 ]
 
 
+# -----------------------------------------------------------------------------
+# 50 Authentic Real-World Land Plot / Estate / Manorial Names for Each Country
+# -----------------------------------------------------------------------------
+COUNTRY_PLOT_NAMES = {
+    "United States": [
+        "Shenandoah Valley Bottomland", "Black Belt Cotton Bottom", "Chesapeake Bay Meadow", "Bluegrass Pasture",
+        "Piney Woods Tract", "Piedmont Arable Parcel", "Delta Alluvial Acreage", "Red River Bottoms",
+        "Appalachian Ridge Parcel", "Flint Hills Grazing Range", "Susquehanna Flats", "Hudson Valley Orchard Lot",
+        "Great Plains Homestead Tract", "Willamette Prairie Strip", "Snake River Lowlands", "Cumberland Gap Pasture",
+        "San Joaquin Orchard Parcel", "Ozark Plateau Clearance", "Wabash River Bottomland", "Suwannee River Hammock",
+        "Connecticut River Meadow", "Platte River Grazing Range", "Sonoma Valley Vine Row", "Brazos River Farmstead",
+        "Green Mountain Pasture", "Adirondack Timber Lot", "Genesee Valley Wheatfield", "Napa Valley Benchland",
+        "Sacramento Delta Polder", "Everglades Muck Farm", "Smoky Mountain Hollow", "Tidewater Tobacco Strip",
+        "Bitterroot Valley Run", "Blue Ridge Apple Orchard", "Santee River Swamp Field", "Black Hills Meadow",
+        "Rio Grande Bosque Lot", "Columbia River Terrace", "Mohawk Valley Furrow", "Ouachita Forest Clearing",
+        "Yazoo Basin Cotton Field", "Baraboo Hills Ridge Lot", "Palouse Wheat Hills", "St. Johns River Pasture",
+        "Big Horn Basin Range", "Chattahoochee Bottoms", "Pecan Bayou Pasture", "Licking River Flats",
+        "Monongahela Coal & Cornfield", "Cache Valley Grain Run"
+    ],
+    "Britain": [
+        "Foxcover Wood & Pasture", "St. Jude's Common Strip", "Highfield Arable Run", "Blackwood Copse",
+        "Moorland Sheep Run", "Bramble Bank Meadow", "Gallows Hill Pasture", "Abbey Grange Acreage",
+        "Windmill Hill Allotment", "Kingswood Waste", "Willowbrook Hayfield", "Low Dike Enclosure",
+        "Priory Glebe", "Thistledown Common", "Barley Hill Strip", "Foxglove Meadow",
+        "Briar Ridge Pasture", "St. Mary's Tithe Ground", "Harrowgate Open Field", "Westcot Common Fen",
+        "Cotswold Sheep Walk", "Dover Chalk Downland", "Avon River Mead", "Severn Vale Orchard",
+        "Chiltern Beech Copse", "Peak District Grazing Common", "New Forest Heather Waste", "Dartmoor Granite Run",
+        "Somerset Levels Fenland", "Weald Clay Furrow", "Yorkshire Dales Intack", "Northumberland Border Peat",
+        "Wensleydale Meadow Pasture", "Exmoor Heather Run", "Cumbria Fellside Intake", "Lothian Wheat Rig",
+        "Fife Coastal Allotment", "Tweed River Bottomland", "Grampian Strath Field", "Highland Glen Croft",
+        "Ceredigion Hill Pasture", "Gower Peninsula Field", "Snowdonia Slate Run", "Brecon Beacons Grazing",
+        "Anglesey Common Ground", "Rannoch Moor Heather Lot", "Cotswold Stone Quarry Field", "Wessex Downland Fold",
+        "East Anglian Ditch Parcel", "Thames Valley Watermeadow"
+    ],
+    "France": [
+        "Le Grand Domaine de Beauce", "Clos de l'Abbaye", "Pâturage des Bruyères", "Terre Sainte-Marie",
+        "Le Moulin d'Eau", "Champ des Alouettes", "Bocage Normand", "Vignoble du Coteau",
+        "Métairie Basse", "Pré Saint-Jean", "Clairière des Loups", "Domaine de la Garenne",
+        "Fief de Montmirail", "Grange de Cîteaux", "Terres Communes du Val", "Parcelle du Chêne Liège",
+        "Vigne des Papes", "Prairie de la Loire", "Coteaux de Gascogne", "Plaine de Brie",
+        "Pâtis de Sologne", "Clos des Bénédictins", "Grande Cour de Normandie", "Lande Bretonne",
+        "Basse-Cour du Manoir", "Champ Saint-Martin", "Verger d'Anjou", "Terre Noire d'Alsace",
+        "Mas de la Garrigue", "Causse du Larzac", "Alpage du Beaufortain", "Jardin du Bailli",
+        "Bocage Vendéen", "Châtaigneraie Cévenole", "Pâturage du Jura", "Marais Poitevin",
+        "Combe aux Fées", "Enclos du Meunier", "Ferme des Tournesols", "Coteau du Roussillon",
+        "Terre Fief de Bourgogne", "Olivette de Provence", "Vignoble de Saint-Émilion", "Plaine du Camargue",
+        "Ferme de Bellevue", "Clairière d'Argonne", "Pâturage des Vosges", "Garenne du Baron",
+        "Vallée de la Dordogne", "Grande Métairie d'Armagnac"
+    ],
+    "Germany": [
+        "Rittergut Hohenlohe", "Klostergut Maulbronn", "Schwarzwald Weide", "Odenwald Acker",
+        "Allmende Grünfeld", "Lindenhof Flur", "Birkenau Parzelle", "Königsforst Rodung",
+        "Mühlental Wiese", "Klostermark Flurgang", "Falkenstein Gutshof", "Rebenhang Flur",
+        "Heidewiese Allmende", "Sonnenberg Ackerbau", "Alpenvorland Weidegrund", "Lüneburger Heidekoppel",
+        "Rheingau Weinparzelle", "Thüringer Becken Scholle", "Harzvorland Flurstück", "Spessart Eichenwaldung",
+        "Moseltal Steillage", "Uckermark Weizenfeld", "Spreewald Fließanger", "Oberpfälzer Waldweide",
+        "Teutoburger Waldparzelle", "Holsteiner Marschkoppel", "Schwäbische Alb Weide", "Fränkischer Weinberg",
+        "Erzgebirge Bergwiese", "Bayerischer Wald Schlag", "Weserbergland Acker", "Taunus Hangwiese",
+        "Münsterland Wallhecke", "Niederbayern Hopfengarten", "Brandenburger Sandacker", "Saarbrücker Rodungsland",
+        "Pfalz Mandelhain", "Dithmarschen Kohlfeld", "Wetterau Schwarzerde", "Hunsrück Höhenweide",
+        "Vogelsberg Basaltwiese", "Altmark Rinderweide", "Mecklenburger Seenacker", "Bodensee Obstgarten",
+        "Ruhrwiese Allmende", "Würzburger Stein Parzelle", "Lausitzer Kiefernheide", "Bergisches Land Wiesental",
+        "Siegerland Hauberg", "Allgäuer Käsereialm"
+    ],
+    "Spain": [
+        "Dehesa de San Jerónimo", "Cortijo del Roble", "Hacienda La Purísima", "Vega del Guadalquivir",
+        "Pasto de los Encinos", "Tierras del Marqués", "Comunal de la Sierra", "Huerta de San Pedro",
+        "Finca Las Encinas", "Pasadizo de la Mesta", "Heredad Santa Ana", "Coto de San Juan",
+        "Majada de las Ovejas", "Olivar de Santa Cruz", "Vega de Granada", "Campiña de Córdoba",
+        "Dehesa Extremeña", "Secano de Castilla", "Viñedo de La Rioja", "Pinar de Soria",
+        "Huerta Murciana", "Albufera Arroceira", "Dehesa de Salamanca", "Robledal de Cantabria",
+        "Llanura de La Mancha", "Finca El Almendral", "Cortijo de la Serranía", "Monte Común de Galicia",
+        "Pastizal de los Picos", "Pinar del Guadarrama", "Pago de Jerez", "Vega de Antequera",
+        "Viña del Penedès", "Arrozal del Delta del Ebro", "Coto de Doñana", "Campiña Sevillana",
+        "Rasa Costera Asturiana", "Valle del Jerte", "Vega de Aranjuez", "Dehesa de Monfragüe",
+        "Territorio de la Mesta", "Majada de Gredos", "Soto del Henares", "Paraje de Cazorla",
+        "Camino Real de Toledo", "Finca La Dehesilla", "Cortijo de San Fernando", "Tierras de Al-Ándalus",
+        "Viñedo de Valdepeñas", "Bocage Gallego"
+    ],
+    "Italy": [
+        "Cascina San Martino", "Podere Bellaria", "Tenuta dei Cipressi", "Masseria San Domenico",
+        "Feudo di Santa Chiara", "Terre dei Monaci", "Pascolo della Majella", "Vigna Nuova del Vescovo",
+        "Casale di Montefalco", "Fattoria della Pieve", "Campagna di Val d'Orcia", "Borgo San Lorenzo",
+        "Prato dei Mulini", "Risaia del Vercellese", "Maremma Bonificata", "Uliveto del Chianti",
+        "Limonaia di Sorrento", "Casale della Spiga", "Tenuta di San Guido", "Masseria delle Murge",
+        "Campi Flegrei", "Piana di Catania", "Agro Pontino", "Corte Benedettina",
+        "Vigneto delle Langhe", "Malga delle Dolomiti", "Colline del Prosecco", "Bosco di San Francesco",
+        "Tenuta Farnese", "Podere La Querce", "Fattoria di Volpaia", "Pianura Padana Allodola",
+        "Vigna del Barolo", "Ortale di Palermo", "Feudo dei Principi", "Pascolo del Gran Sasso",
+        "Tenuta Castel del Monte", "Uliveto di Bitonto", "Corte Lombarda", "Risaia di Lomellina",
+        "Prato delle Fonti", "Tenuta Ca' Vendramin", "Borgo dei Vigneti", "Casale San Gimignano",
+        "Masseria Salentina", "Poggio alle Mura", "Tenuta di Pomino", "Valle dei Templi Terreno",
+        "Coltivo delle Cinque Terre", "Alpeggio di Valtellina"
+    ],
+    "China": [
+        "西溪水稻田", "青龙山梯田", "枫树下桑基鱼塘", "龙井茶园地",
+        "云雾山牧场", "白鹭洲官田", "黄土坡旱作田", "杨柳岸草场",
+        "灵芝山桑田", "松风岭桑梓地", "碧玉泉农庄", "翠竹冈公田",
+        "赤壁棉花坡", "黑龙湾麦垄", "太湖芦苇滩", "九龙岗贡米田",
+        "落霞坡菜圃", "紫金山果林", "武夷岩茶垄", "洞庭湖淤泥田",
+        "雁荡山石斛谷", "凤凰台棉田", "泰山下老农庄", "天山苜蓿牧场",
+        "大巴山油菜垄", "武当药草谷", "都江堰灌区田", "鄱阳湖早稻埒",
+        "长白山人参垄", "河套平原玉米地", "吐鲁番葡萄园", "祁连山山麓草场",
+        "武陵桃花源垄", "巴山夜雨茶园", "峨眉竹笋林", "淮河水乡菱角塘",
+        "雷州半岛甘蔗坡", "崇明东滩荡地", "安阳殷墟黍麦地", "平遥老槐树田",
+        "曲阜孔府圣田", "绍兴鉴湖水稻地", "徽州梯田油菜坂", "乌镇桑蚕圃",
+        "景德镇瓷土林山", "香格里拉青稞垄", "桂林阳朔禾田", "黄山松烟茶垄",
+        "衡山祝融贡稻坂", "泰和乌鸡竹林坡"
+    ],
+    "Japan": [
+        "大野庄水田", "松風牧場", "白川荘園", "桜ヶ丘草地",
+        "美山御料地", "吉野川菜園", "青柳草刈場", "稲荷山開拓地",
+        "鹿野苑牧野", "千代田田園", "高天原農園", "日向牧草地",
+        "秋津洲麦畑", "八雲開墾地", "富士裾野牧場", "筑波山麓水田",
+        "近江八幡水郷畑", "阿苏カルデラ牧野", "信濃追分菜園", "丹波黒豆圃場",
+        "越後平野米どころ", "出雲神苑御神田", "伊勢神宮神饌田", "庄内平野稲穂坂",
+        "会津盆地酒米田", "十勝平野大豆畑", "石狩川泥炭干拓地", "那須野が原放牧地",
+        "安曇野わさび沢", "木曽谷ヒノキ山林", "飛騨高山蕎麦畑", "播磨平野山田錦圃",
+        "土佐湾段々畑", "讃岐平野溜池田", "宇治茶園茶畑", "狭山茶丘陵地",
+        "八ヶ岳山麓開拓畑", "津軽平野林檎園", "南部曲家放牧野", "宮崎都城牛放牧地",
+        "知多半島みかん園", "甲州葡萄棚園", "三方原茶畑台地", "日高サラブレッド牧場",
+        "天竜川扇状地水田", "能登棚田白米千枚田", "熊野古道杉木立畑", "佐渡金山御料林",
+        "吉野桜山下草刈場", "屋久杉山林保護地"
+    ],
+    "India": [
+        "Ganga Terai Alluvium", "Vindhya Pasture Lands", "Malwa Black Soil Holding", "Doab Arable Tract",
+        "Rohilkhand Sugar Acres", "Deccan Grazing Run", "Kaveri Delta Paddy Plot", "Brahmaputra Char Holding",
+        "Chhotanagpur Upland Plot", "Konkan Coconut Grove", "Punjab Canal Colony Lot", "Sundarbans Bheri Plot",
+        "Kashmir Saffron Field", "Awadh Sugarcane Allotment", "Coromandel Coastal Meadow", "Thar Desert Oasis Pasture",
+        "Bundelkhand Stony Furrow", "Kerala Spice Garden", "Assam Tea Plantation Strip", "Gujarat Cotton Blacksoil",
+        "Odisha Mahanadi Basin", "Mysore Silk Mulberry Plot", "Dharwad Cotton Acreage", "Telangana Redsoil Farm",
+        "Marathwada Bajra Field", "Coorg Coffee Estate", "Nilgiri Tea Terrace", "Haryana Basmati Strip",
+        "Chambal Ravine Grazing", "Bastar Forest Clearing", "Vidarbha Orange Grove", "Rann Cattle Grazing Banni",
+        "Garhwal Terrace Farm", "Kumaon Apple Orchard", "Ladakh Barley Patch", "Darbhanga Mango Orchard",
+        "Malabar Pepper Garden", "Raichur Doab Paddy Field", "Jharkhand Sal Forest Edge", "Kutch Grazing Commons",
+        "Goan Khazan Land", "Narmada Alluvial Strip", "Godavari Delta Richfield", "Tirunelveli Palmyra Grove",
+        "Shimla Apple Ridge", "Anamalai Cardamom Tract", "Bhojpur Wheat Basin", "Saurashtra Groundnut Farm",
+        "Warangal Chilli Acres", "Guntur Mirchi Holding"
+    ],
+    "Indonesia": [
+        "Sawah Subak Betutu", "Ladang Jagung Merapi", "Kebun Karet Bukit Barisan", "Padang Rumput Sumba",
+        "Tanah Ulayat Minangkabau", "Sawah Terasering Jatiluwih", "Kebun Kelapa Sawit Riau", "Tegalan Gunung Slamet",
+        "Tanah Kas Desa Cirebon", "Hutan Lindung Tengger", "Kebun Kopi Gayo", "Sawah Surjan Kulon Progo",
+        "Kebun Teh Puncak", "Kebun Cengkeh Maluku", "Ladang Berpindah Dayak", "Sawah Lebak Palembang",
+        "Tambak Bandeng Gresik", "Padang Gembala Toraja", "Kebun Tembakau Deli", "Kebun Pala Banda",
+        "Tanah Bengkok Banyumas", "Ladang Ubi Jayawijaya", "Hutan Damar Krui", "Sawah Pasang Surut Barito",
+        "Kebun Vanili Flores", "Ladang Sagu Asmat", "Perkebunan Lada Lampung", "Sawah Bawah Gunung Bromo",
+        "Kebun Kakao Luwu", "Tanah Adat Baduy", "Kebun Kopi Toraja", "Hutan Jati Cepu",
+        "Sawah Terasering Ubud", "Kebun Kelapa Tomohon", "Ladang Garam Madura", "Kebun Sawit Asahan",
+        "Tambak Garam Rembang", "Padang Savana Baluran", "Kebun Jagung Madura", "Kebun Jeruk Berastagi",
+        "Sawah Tadah Hujan Gunungkidul", "Perkebunan Kina Pengalengan", "Kebun Kopi Ijen", "Tanah Margasari Bali",
+        "Sawah Rawa Banjarmasin", "Ladang Bawang Brebes", "Hutan Bakau Teluk Bintuni", "Kebun Sawit Minahasa",
+        "Padang Rumput Timor", "Perkebunan Tebu Kediri"
+    ],
+    "Brazil": [
+        "Fazenda Santa Gertrudes", "Engenho Real das Alagoas", "Pasto do Pantanal", "Sítio Primavera",
+        "Roça de Mandioca Paraopeba", "Estância do Pampa", "Gleba Esperança", "Sertão da Canastra",
+        "Chácara Boa Vista", "Pasto das Sete Lagoas", "Cafezal do Vale do Paraíba", "Seringal do Acre",
+        "Cacaueiro de Ilhéus", "Fazenda Chapadão do Céu", "Invernada dos Pampas", "Engenho Massangana",
+        "Roça Quilombola do Frechal", "Plantação de Soja do Cerrado", "Pasto de Nelore Uberaba", "Terra Roxa de Ribeirão Preto",
+        "Canavial de Piracicaba", "Fazenda Pau D'Alho", "Sítio do Pica-Pau Amarelo", "Castanhal do Pará",
+        "Estância da Fronteira", "Pasto do Araguaia", "Gleba Mutum", "Lavoura de Trigo de Passo Fundo",
+        "Roça Caipira do Tietê", "Paragem dos Bandeirantes", "Engenho da Rainha", "Sítio Santo Antônio",
+        "Fazenda Morro Agudo", "Terras de Babaçu Maranhão", "Laranjal de Bebedouro", "Pomar de Maçã de São Joaquim",
+        "Cafezal da Mogiana", "Pasto da Nhecolândia", "Mandiocal do Xingu", "Terras Tradicionais Caiçaras",
+        "Estância Minuano", "Fazenda Vista Alegre", "Plantação de Algodão do Oeste Baiano", "Canavial da Zona da Mata",
+        "Roça das Vertentes", "Pasto de Capim Colonião", "Sítio Bela Manhã", "Engenho São João",
+        "Colônia Witmarsum", "Pasto do Vale do Guaporé"
+    ],
+    "Mexico": [
+        "Hacienda San Gabriel", "Ejido Emiliano Zapata", "Rancho El Olivo", "Potrero de San Miguel",
+        "Tierras Comunales de Oaxaca", "Milpa de San Cristóbal", "Agave Real de Tequila", "Huerta de Uruapan",
+        "Valle de Tehuacán Parcela", "Rancho La Purísima", "Hacienda de Chiconcuac", "Ejido El Fuerte",
+        "Chinampa de Xochimilco", "Potrero de la Huasteca", "Hacienda de Santa Mónica", "Milpa Alta Solar",
+        "Cafetal de Coatepec", "Rancho La Herradura", "Hacienda Henequenera Yaxcopoil", "Ejido Nueva Rosita",
+        "Potrero del Bajío", "Huerta de Nogal Parras", "Tierra Ejidal de Tlaxcala", "Rancho Tres Potrillos",
+        "Hacienda de Guadalupe", "Valles Centrales Parcela", "Milpa de la Sierra Tarahumara", "Platanar de Tabasco",
+        "Potrero del Yaqui", "Hacienda San Francisco", "Viñedo de Valle de Guadalupe", "Tierras del Mayo",
+        "Rancho El Encino", "Cafetal de Soconusco", "Algodonal de La Laguna", "Hacienda de San Mateo",
+        "Ejido San Juan de las Huertas", "Potrero de la Mixteca", "Huerta de Mango Costa Chica", "Rancho El Mezquite",
+        "Hacienda Soltepec", "Milpa Mazahua", "Tierras Purépechas", "Potrero de Apatzingán",
+        "Hacienda de Cocoyoc", "Ejido Valle de Mexicali", "Rancho San Cayetano", "Hacienda de Cortés",
+        "Milpa de Tepoztlán", "Potrero de Cuatro Ciénegas"
+    ],
+    "Nigeria": [
+        "Ogun River Farmland", "Zaria Grain Plain", "Kano Groundnut Pyramid Plot", "Niger Delta Mangrove Farm",
+        "Jos Plateau Grazing Range", "Oyo Yam Basin", "Benue River Floodplain", "Enugu Palm Plantation",
+        "Sokoto Rima Pasture", "Calabar Cocoa Holding", "Ibadan Cassava Plantation", "Bida Rice Paddies",
+        "Kaduna Ginger Field", "Oshogbo Sacred Forest Border", "Hadejia River Valley Farm", "Anambra River Basin Plot",
+        "Benin Rubber Estate", "Cross River Oil Palm Estate", "Katsina Cotton Farm", "Adamawa Cattle Ranch",
+        "Taraba Tea Estate", "Ekiti Cocoa Grove", "Kwara Sugar Estate", "Abeokuta Kola Nut Farm",
+        "Yobe Millet Strip", "Borno Sorghum Plain", "Ondo Timber Reserve", "Kebbi Rice Polder",
+        "Bauchi Cattle Run", "Ilorin Yam Farm", "Abakaliki Rice Bowl", "Gombe Cotton Basin",
+        "Kogi Cashew Plantation", "Delta Cassava Acreage", "Zamfara Sorghum Field", "Plateau Potato Acres",
+        "Owerri Palm Grove", "Nasarawa Sesame Field", "Warri Plantain Holding", "Sapele Rubber Plantation",
+        "Lokoja Confluence Farm", "Argungu Fishing Grounds Farm", "Ijebu Cassava Farm", "Badagry Coconut Strip",
+        "Epe Fishery & Farmstead", "Obudu Cattle Ranch Acreage", "Uyo Palm Belt Plot", "Afikpo Rice Terrace",
+        "Zuru Onion Farm", "Biu Plateau Grain Terrace"
+    ],
+    "Pakistan": [
+        "Indus Basin Canal Colony", "Chenab Wheat Plain", "Jhelum River Terrace", "Potohar Barani Land",
+        "Thal Desert Pasture", "Bannu Agricultural Basin", "Peshawar Valley Orchard", "Cholistan Grazing Tract",
+        "Kirthar Range Pasture", "Sindh Cotton Field", "Faisalabad Agricultural Block", "Sargodha Citrus Grove",
+        "Multan Mango Orchard", "Okara Dairy Pasture", "Swat Valley Fruit Orchard", "Hunza Terraced Apricot Farm",
+        "Sialkot Rice Paddock", "Bahawalpur Cotton Tract", "Gujranwala Guava Grove", "Mirpur Khas Mango Garden",
+        "Sukkur Date Palm Grove", "Larkana Guava Orchard", "Chaman Apple Orchard", "Quetta Vineyard Strip",
+        "Dera Ismail Khan Date Farm", "Mardan Sugarcane Holding", "Chiniot Shisham Timber Plot", "Kasur Fodder Field",
+        "Sahiwal Cattle Grazing Land", "Attock Groundnut Acres", "Mianwali Gram Farm", "Hyderabad Cotton Estate",
+        "Zhob Valley Almond Orchard", "Makran Date Oasis", "Gilgit Valley Walnut Grove", "Skardu Buckwheat Plot",
+        "Nawabshah Banana Field", "Badin Sunflower Plot", "Thatta Sugarcane Basin", "Dadu Wheat Field",
+        "Harnai Cumin Acreage", "Dir Timber Terrace", "Chitral Mulberry Terrace", "Sheikhupura Basmati Field",
+        "Muzaffargarh Wheat Strip", "Khanewal Cotton Holding", "Toba Tek Singh Citrus Acre", "Vehari Grain Basin",
+        "Rahim Yar Khan Sugar Acres", "Nowshera Tobacco Field"
+    ],
+    "Bangladesh": [
+        "Padma Chhor Alluvial Land", "Sylhet Tea Garden Terrace", "Haor Basin Boro Plot", "Meghna Deltaic Farmland",
+        "Barendra Tract Arable Field", "Chittagong Hill Tracts Jhum", "Madrasa Waqf Waqf Land", "Kushtia Tobacco Field",
+        "Dinajpur Paddy Acreage", "Sundarbans Border Fishery", "Jamuna River Sandbar Farm", "Bogra Vegetable Allotment",
+        "Mymensingh Fish Pond & Field", "Jessore Date Palm Sugar Grove", "Rangpur Tobacco Farm", "Comilla Co-op Vegetable Field",
+        "Barisal Guava Floating Orchard", "Noakhali Saline Paddy Plot", "Cox's Bazar Betel Leaf Farm", "Tangail Mulberry Farm",
+        "Faridpur Jute Basin", "Rajshahi Mango Orchard", "Pabna Milk Shed Pasture", "Sirajganj Cattle Sandbar",
+        "Brahmanbaria Paddy Field", "Sunamganj Deep Haor Land", "Moulvibazar Rubber Estate", "Sreemangal Pineapple Hill",
+        "Khulna Coconut Belt", "Satkhira Shrimp Gher & Field", "Patuakhali Coastal Polder", "Bhola Island Silt Flat",
+        "Sherpur Rice Terrace", "Netrokona Boro Depression", "Natore Sugarcane Plantation", "Joypurhat Potato Field",
+        "Chuadanga Corn Basin", "Manikganj Mustard Field", "Munshiganj Potato Polder", "Gazipur Jackfruit Orchard",
+        "Chandpur Hilsa Basin Farm", "Kishoreganj Haor Alluvial Strip", "Meherpur Mango Garden", "Gopalganj Marshy Paddy",
+        "Pirojpur Betel Nut Grove", "Thakurgaon Sugarcane Zone", "Kurigram Brahmaputra Char", "Bandarban Jhum Rice Slope",
+        "Khagrachhari Pineapple Hill", "Rangamati Orange Orchard"
+    ],
+    "Russia": [
+        "Chernozem Grain Tract", "Volga Steppe Grazing", "Kuban Black Earth Field", "Oka River Bottoms",
+        "Siberian Taiga Clearing", "Don River Meadow", "Valdai Hills Pasture", "Altai Foothill Pasture",
+        "Smolensk Flax Allotment", "Ryazan Arable Strip", "Stavropol Wheat Plain", "Krasnodar Sunflower Field",
+        "Voronezh Black Soil Furrow", "Tambov Grain Estate", "Rostov Steppe Holding", "Kursk Magnetic Soil Tract",
+        "Belgorod Chalk Pasture", "Tula Gingerbread Rye Farm", "Pskov Flax Field", "Novgorod Haymeadow",
+        "Vologda Dairy Pasture", "Kostroma Timber Clearance", "Yaroslavl Volga Terrace", "Tver Birch Forest Plot",
+        "Vladimir Meadowland", "Orenburg Steppe Ranch", "Bashkir Honey Forest Plot", "Tatarstan Black Soil Farm",
+        "Saratov Grain Steppe", "Samara Bend Wheatfield", "Ural Mountain Valley Acreage", "West Siberian Rye Plain",
+        "Tomsk River Alluvium", "Krasnoyarsk Yenisei Terrace", "Irkutsk Baikal Pasture", "Amur River Soybean Flat",
+        "Primorsky Rice Polder", "Kamchatka Volcanic Valley", "Karelia Rocky Meadow", "Arkhangelsk Northern Pasture",
+        "Chuvash Hop Garden", "Mordovia Forest Edge Farm", "Kaluga Rye Field", "Lipetsk Orchard Tract",
+        "Bryansk Forest Clearing", "Kemerovo Foothill Meadow", "Khhakassia Steppe Run", "Buryatia Grazing Valley",
+        "Dagestan Mountain Terrace", "Crimean Vine Slope"
+    ],
+    "Korea": [
+        "Honam Plain Rice Field", "Yeongnam Basin Orchard", "Gangwon Alpine Pasture", "Han River Delta Farm",
+        "Naju Pear Orchard", "Gimje Alluvial Flat", "Andong Hemp Field", "Paju Arable Terrace",
+        "Jejudo Basalt Pasture", "Chungju Apple Orchard", "Sangju Persimmon Hill", "Boseong Green Tea Terrace",
+        "Iksan Granary Basin", "Gyeongju Ancient Royal Field", "Seosan Reclaimed Rice Land", "Haenam Sweet Potato Acre",
+        "Yeongam Radish Basin", "Mungyeong Schisandra Farm", "Cheongyang Chilli Pepper Terrace", "Pyeongchang Highland Cabbage Field",
+        "Daegwallyeong Sheep Ranch", "Chuncheon Buckwheat Flat", "Wonju Corn Valley", "Gangneung Pine Forest Edge",
+        "Cheonan Walnut Grove", "Gongju Chestnut Forest", "Yesan Apple Orchard", "Geumsan Ginseng Field",
+        "Damyang Bamboo Grove Farm", "Gochang Watermelon Plot", "Buan Salt Marsh Paddy", "Sunchang Pepper Paste Basin",
+        "Jangheung Shiitake Forest", "Wando Seaweed Border Farm", "Goryeong Strawberry Greenhouse Field", "Seongju Melon Ground",
+        "Cheongdo Bupyeong Peach Orchard", "Uiseong Garlic Field", "Yeongyang Red Pepper Terrace", "Cheongsong Apple Valley",
+        "Miryang Perilla Leaf Farm", "Changnyeong Onion Plain", "Haman Watermelon Polder", "Namhae Terraced Rice Paddies",
+        "Hadong Wild Tea Hills", "Sacheon Grain Terrace", "Tongyeong Coastal Farm", "Geoje Aloe Farm",
+        "Ulleungdo Medicinal Herb Slope", "Yangpyeong Eco Farmstead"
+    ],
+    "Vietnam": [
+        "Dong Bang Song Hong Ricefield", "Mekong Delta Fruit Garden", "Tay Nguyen Coffee Estate", "Annamite Hill Terrace",
+        "Ca Mau Mangrove Meadow", "Lam Dong Tea Terrace", "Ba Vi Grazing Pasture", "Bac Ninh Craft Village Field",
+        "Hue Imperial Paddy", "Quang Nam Mulberry Plot", "Mu Cang Chai Rice Terraces", "Sa Pa Hmong Hillside Farm",
+        "Hoang Su Phi Terraced Field", "Thai Binh Wet Rice Allotment", "Nam Dinh Coastal Alluvium", "Hung Yen Longan Orchard",
+        "Hai Duong Green Bean Field", "Bac Giang Lychee Hill", "Lang Son Anise Forest", "Son La Plum Valley",
+        "Moc Chau Dairy Plateau", "Dien Bien Valley Paddy", "Hoa Binh Orange Grove", "Thanh Hoa Sugarcane Basin",
+        "Nghe An Peanut Field", "Ha Tinh Grapefruit Orchard", "Quang Binh Pepper Farm", "Quang Tri Rubber Strip",
+        "Quang Ngai Garlic Island Field", "Binh Dinh Coconut Grove", "Phu Yen Tunny Border Farm", "Khanh Hoa Mango Hill",
+        "Ninh Thuan Grape Vineyard", "Binh Thuan Dragon Fruit Farm", "Dak Lak Rubber Plantation", "Gia Lai Pepper Terrace",
+        "Kon Tum Cassava Slope", "Dak Nong Cocoa Farm", "Bao Loc Silk Mulberry Hill", "Dong Nai Cashew Plantation",
+        "Binh Duong Rubber Estate", "Binh Phuoc Pepper Grove", "Tay Ninh Sugar Plantation", "Long An Watermelon Polder",
+        "Tien Giang Durian Orchard", "Ben Tre Coconut Basin", "Vinh Long Orange Garden", "Can Tho Floating Ricefield",
+        "An Giang Floating Rice Delta", "Kien Giang Giant Prawn & Rice Polder"
+    ]
+}
+
+# Country aliases
+COUNTRY_PLOT_NAMES["US"] = COUNTRY_PLOT_NAMES["United States"]
+COUNTRY_PLOT_NAMES["UK"] = COUNTRY_PLOT_NAMES["Britain"]
+COUNTRY_PLOT_NAMES["South Korea"] = COUNTRY_PLOT_NAMES["Korea"]
+
+
+def get_plot_names_for_country(country_name: str) -> list[str]:
+    """Return the list of authentic plot names for *country_name* (fallback to Britain)."""
+    return list(COUNTRY_PLOT_NAMES.get(country_name, COUNTRY_PLOT_NAMES["Britain"]))
+
+
+def get_plot_name(country_name: str, used_names: set = None, rng = None) -> str:
+    """Return a unique authentic plot name for *country_name* avoiding *used_names*."""
+    names = get_plot_names_for_country(country_name)
+    used = used_names if used_names is not None else set()
+    available = [n for n in names if n not in used]
+    if available:
+        return available[0] if rng is None else rng.choice(available)
+    # If all 50 used, append an increment
+    cycle = (len(used) // len(names)) + 1
+    base = names[len(used) % len(names)]
+    return f"{base} Section {cycle}"
+
+
 COUNTRY_CURRENCIES = {
     "United States": "USD",
     "China": "CNY",
@@ -375,8 +675,9 @@ def assign_world_identities(tiles, nations, seed=None):
         prov_names = [cap_prov_name] + [p for p in country_data.keys() if p != cap_prov_name]
 
         # Find which province contains the national capital tile
-        prov_with_cap = next((p for p in getattr(n, 'provinces', []) if national_cap_tile in p.tiles),
-                             getattr(n, 'provinces', [None])[0])
+        provs_list = getattr(n, 'provinces', [])
+        prov_with_cap = next((p for p in provs_list if national_cap_tile in p.tiles),
+                             provs_list[0] if provs_list else None)
 
         used_cities = set()
         used_provs = set()
@@ -422,6 +723,31 @@ def assign_world_identities(tiles, nations, seed=None):
 
                 tile.is_national_capital = (tile is national_cap_tile)
                 tile.is_provincial_capital = (tile is prov.capital)
+
+                # Name land plots with authentic country names
+                if hasattr(tile, 'tenure') and tile.tenure and tile.tenure.plots:
+                    for plot in tile.tenure.plots:
+                        p_name = get_plot_name(country_name, used_names=used_cities, rng=rng)
+                        plot.name = p_name
+                        used_cities.add(p_name)
+
+        # Fallback if nation has no provinces list
+        if not getattr(n, 'provinces', []):
+            p_name = cap_prov_name
+            cities_pool = list(country_data[p_name])
+            for t_idx, tile in enumerate(n.tiles):
+                city = national_cap_name if t_idx == 0 else cities_pool[t_idx % len(cities_pool)]
+                tile.city_name = city
+                tile.display_name = city
+                tile.province_display = p_name
+                tile.nation_display = country_name
+                tile.is_national_capital = (t_idx == 0)
+                tile.is_provincial_capital = (t_idx == 0)
+                if hasattr(tile, 'tenure') and tile.tenure and tile.tenure.plots:
+                    for plot in tile.tenure.plots:
+                        p_plot_name = get_plot_name(country_name, used_names=used_cities, rng=rng)
+                        plot.name = p_plot_name
+                        used_cities.add(p_plot_name)
 
     # Name remaining wilderness and ocean tiles
     wild_pool = list(WILD_TERRAIN_NAMES)
@@ -490,3 +816,9 @@ def claim_wilderness_tile(tile, nation, prov=None):
     tile.nation_display = country_name
     tile.is_national_capital = False
     tile.is_provincial_capital = (prov is not None and len(prov.tiles) == 1)
+
+    if hasattr(tile, 'tenure') and tile.tenure and tile.tenure.plots:
+        for plot in tile.tenure.plots:
+            if not getattr(plot, 'name', None):
+                plot.name = get_plot_name(country_name, used_names=used_cities)
+                used_cities.add(plot.name)

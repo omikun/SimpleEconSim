@@ -172,6 +172,9 @@ class Region:
         self.food_purchased_log: list = []  # time-series of total food bought
         self.rent_collected_log: list = []  # time-series of cash rent collected
         self.rent_arrears_log: list = []  # time-series of rent unpaid
+        self.enclosure_survey_debts: list = []  # active statutory survey debts
+        self.workhouse_inmates_log: list = []  # time-series of workhouse inmate count
+        self.pasture_fraction_log: list = []  # time-series of pasture fraction
 
         # P2: Labor commodification & surplus value
         self.workday_cap: float = 16.0  # legal maximum shift hours (defaults to unrestricted)
@@ -403,9 +406,12 @@ class Region:
             lord.region = self.name
             lord._bank_ref = self.bank
             lord.home_currency = self.home_currency
-            # Create feudal land plot for this lord
+            from world_names import get_plot_name
+            c_name = getattr(self, 'nation_display', 'Britain') or 'Britain'
+            p_name = get_plot_name(c_name)
             plot = LandPlot(
                 plot_id=f"{self.name}-lord-{i}",
+                name=p_name,
                 tile_name=self.name,
                 lord_id=lord.id,
                 fraction=lord_fraction,
@@ -427,6 +433,9 @@ class Region:
         # Remaining serfs assigned to food production
         serf_prof_counts[Goods.food] = serf_prof_counts.get(Goods.food, 0) + max(0, n_serfs - serf_total)
 
+        plot_list = self.tenure.plots
+        plot_count = len(plot_list)
+        serf_idx = 0
         for prof, count in serf_prof_counts.items():
             for _ in range(count):
                 serf = Agent(t)
@@ -436,6 +445,11 @@ class Region:
                 serf.region = self.name
                 serf._bank_ref = self.bank
                 serf.home_currency = self.home_currency
+                if plot_count > 0:
+                    assigned_plot = plot_list[serf_idx % plot_count]
+                    serf.assigned_plot_id = assigned_plot.plot_id
+                    assigned_plot.tenant_ids.append(serf.id)
+                    serf_idx += 1
                 agents.append(serf)
 
         # ---- Artisans: ~5%, moderate wealth, skilled crafts ----
@@ -580,7 +594,14 @@ class Region:
         rent_coll, rent_arr, _ = _rent.collect_rents(self, t)
         self.rent_collected_log.append(rent_coll)
         self.rent_arrears_log.append(rent_arr)
+        pasture_f = self.tenure.pasture_fraction if hasattr(self, 'tenure') and self.tenure else 0.0
+        self.pasture_fraction_log.append(pasture_f)
         self._audit_cash(t, "rent_done")
+
+        # Survey debt trap processing on enclosed plots (Phase 1)
+        from enclosure import step_enclosure_survey_debts
+        survey_evs = step_enclosure_survey_debts(self, t)
+        self._audit_cash(t, "survey_debts_done")
 
         # Tax
         self._record_delta()
@@ -609,6 +630,13 @@ class Region:
         # Dynamic social class evaluation (P1.4)
         class_dist = _sclass.update_tile_social_classes(self)
         self.social_class_log.append(class_dist)
+
+        # Parish Workhouse & Vagrancy Enforcement (Phase 1)
+        from workhouse import step_workhouse, get_workhouse_inmates
+        workhouse_evs = step_workhouse(self, t)
+        inmates_count = len(get_workhouse_inmates(self))
+        self.workhouse_inmates_log.append(inmates_count)
+        self._audit_cash(t, "workhouse_done")
 
         # Alienation, Health Attrition & Despair (P2.2)
         from alienation import step_tile_alienation

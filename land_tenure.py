@@ -45,7 +45,14 @@ class LandPlot:
     enclosed_turn: int = -1             # turn when customary rights stripped (-1 = never)
     rent_rate: float = 0.0              # cash rent per tenant per turn (0 under feudal/commons)
     tribute_rate: float = 0.5           # in-kind tribute fraction (feudal only)
-    production_type: str = 'mixed'      # 'mixed', 'cash_crop', 'pasture', 'forest'
+    production_type: str = 'arable'     # 'arable', 'pasture', 'cash_crop', 'forest'
+    name: str = ""                      # authentic historical name of the plot
+    tenant_ids: list[int] = field(default_factory=list) # specific agents residing/farming this lot
+    pasture_since: int = -1             # turn converted to pasture (-1 = not pasture)
+
+    @property
+    def display_name(self) -> str:
+        return self.name if self.name else self.plot_id
 
 
 @dataclass
@@ -83,6 +90,18 @@ class TileTenure:
         """Land restored to customary or revolutionary commons."""
         return sum(p.fraction for p in self.plots
                    if p.tenure == TenureStatus.COMMONS)
+
+    @property
+    def pasture_fraction(self) -> float:
+        """Land dedicated to sheep pasture / fiber cash-crops."""
+        return sum(p.fraction for p in self.plots
+                   if getattr(p, 'production_type', 'arable') == 'pasture')
+
+    @property
+    def arable_fraction(self) -> float:
+        """Land dedicated to arable food farming."""
+        return sum(p.fraction for p in self.plots
+                   if getattr(p, 'production_type', 'arable') in ('arable', 'mixed'))
 
     @property
     def commons_access(self) -> float:
@@ -192,4 +211,14 @@ class TileTenure:
                 plot.tribute_rate = 0.0
                 count += 1
         return count
+
+    def convert_production_type(self, plot_id: str, new_type: str, turn: int = -1) -> Optional[LandPlot]:
+        """Convert production type of plot (e.g. 'arable' <-> 'pasture')."""
+        plot = self.find_plot(plot_id)
+        if plot is None:
+            return None
+        plot.production_type = new_type
+        if new_type == 'pasture':
+            plot.pasture_since = turn
+        return plot
 

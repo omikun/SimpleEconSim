@@ -301,12 +301,22 @@ def _draw_city_policies(surface, world, region, start_y, font, font_small, mx, m
             fee = calculate_charter_fee(first_feudal)
             lord = next((a for a in region.agents if a.id == first_feudal.lord_id), None)
             can_enclose = (lord is not None and lord.cash >= fee)
-            enc_btn = (PANEL_LEFT + 12, start_y + 46, 170, 22)
-            _draw_btn(surface, enc_btn, f"Enclose Plot (${fee:.0f})", font_small, mx, my,
+            enc_btn = (PANEL_LEFT + 12, start_y + 46, 140, 22)
+            _draw_btn(surface, enc_btn, f"Enclose (${fee:.0f})", font_small, mx, my,
                        enabled=can_enclose, color=(240, 140, 70) if can_enclose else DIM)
             _ACTION_BUTTONS.append((enc_btn, 'city_enclose_plot', (region, first_feudal.plot_id)))
         else:
             surface.blit(font_small.render("All customary commons enclosed.", True, (130, 200, 140)), (PANEL_LEFT + 12, start_y + 48))
+
+        enclosed_plots = tenure.enclosed_plots()
+        if enclosed_plots:
+            first_enc = enclosed_plots[0]
+            is_pasture = (getattr(first_enc, 'production_type', 'arable') == 'pasture')
+            p_lbl = "Pasture (Wool)" if is_pasture else "Arable (Grain)"
+            pas_btn = (PANEL_LEFT + 158, start_y + 46, 120, 22)
+            _draw_btn(surface, pas_btn, p_lbl, font_small, mx, my, enabled=True, color=(160, 210, 150) if is_pasture else (230, 200, 100))
+            _ACTION_BUTTONS.append((pas_btn, 'city_convert_pasture', (region, first_enc.plot_id)))
+
         start_y += card5_h + 8
 
     # CARD 6: Ecological Regulations & Public Health (Phase 3)
@@ -671,8 +681,8 @@ def _execute_policy_action(world, act_id, target):
             world['policy_feedback'] = (f"Police curfew enforced in {target.name}. Riots quelled.", (240, 100, 100))
 
     # City Public Works Commission
-    elif act_id in ('build_farm', 'build_granary', 'build_sawmill', 'build_workshop'):
-        b_map = {'build_farm': 'farm', 'build_granary': 'granary', 'build_sawmill': 'sawmill', 'build_workshop': 'workshop'}
+    elif act_id in ('build_farm', 'build_granary', 'build_sawmill', 'build_workshop', 'build_workhouse'):
+        b_map = {'build_farm': 'farm', 'build_granary': 'granary', 'build_sawmill': 'sawmill', 'build_workshop': 'workshop', 'build_workhouse': 'workhouse'}
         b_type = b_map[act_id]
         owner = getattr(target, 'owner_nation', None)
         if owner is not None:
@@ -682,8 +692,11 @@ def _execute_policy_action(world, act_id, target):
             nations_by_name = {n.name: n for n in world.get('nations', [])}
             ok, msg = intent.execute(tiles_by_name, nations_by_name, world['turn'])
             if ok:
-                from worldview_engine import ticker_push
-                ticker_push(world, world['turn'], 'CONSTRUCT', msg, (245, 180, 50))
+                try:
+                    from worldview_engine import ticker_push
+                    ticker_push(world, world['turn'], 'CONSTRUCT', msg, (245, 180, 50))
+                except ImportError:
+                    pass
             world['policy_feedback'] = (msg, GREEN if ok else RED)
 
     # City Feudal Enclosure Decree
@@ -698,6 +711,25 @@ def _execute_policy_action(world, act_id, target):
             except ImportError:
                 pass
         world['policy_feedback'] = (msg, (230, 140, 70) if ok else RED)
+
+    # City Pastoral Conversion Decree ("sheep eat men")
+    elif act_id == 'city_convert_pasture':
+        reg, plot_id = target
+        plot = reg.tenure.find_plot(plot_id) if hasattr(reg, 'tenure') else None
+        if plot:
+            new_type = 'pasture' if getattr(plot, 'production_type', 'arable') != 'pasture' else 'arable'
+            reg.tenure.convert_production_type(plot_id, new_type, world['turn'])
+            state_msg = f"Plot {plot.display_name} converted to {new_type.upper()} on {reg.name}."
+            if new_type == 'pasture':
+                state_msg += " Labor demand slashed by 75% ('sheep eat men')."
+            world['policy_feedback'] = (state_msg, (210, 180, 100))
+            try:
+                from worldview_engine import ticker_push
+                ticker_push(world, world['turn'], 'LAND_USE', state_msg, (210, 180, 100))
+            except ImportError:
+                pass
+        else:
+            world['policy_feedback'] = (f"Plot {plot_id} not found.", RED)
 
     # City Phase 3: Chemical & Ecological Mandates
     elif act_id == 'city_mandate_fertilizer':

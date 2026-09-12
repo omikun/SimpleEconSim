@@ -254,6 +254,49 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
             res['disabled_reason'] = "No Feudal Commons Remaining: All agricultural plots are already enclosed into commercial estates."
         return res
 
+    if btn_id == 'city_convert_pasture':
+        tenure = getattr(pinned, 'tenure', None) if pinned else None
+        p_frac = getattr(tenure, 'pasture_fraction', 0.0) * 100 if tenure else 0
+        res = {
+            'title': "Pasture Conversion (Sheep Eat Men)",
+            'badge': "AGRARIAN CONVERSION",
+            'badge_col': (210, 180, 100),
+            'category': "Enclosure & Land Use",
+            'cost': "Zero monetary cost: Landlord reorganizes production",
+            'desc': [
+                "Converts enclosed arable cropland into sheep pasture for wool/fiber exports.",
+                "Reduces labor requirement by 75%, evicting surplus peasants into vagrancy and collapsing municipal food harvest.",
+                "Landlords reap lucrative export profits from raw wool, while local bread prices spike due to grain scarcity."
+            ],
+            'stats': [
+                ("Tile Pasture Share", f"{p_frac:.0f}%", (210, 180, 100)),
+                ("Labor Reduction", "-75% Tenants", (240, 100, 100)),
+                ("Wool Export Profit", "+High Margin", GREEN),
+            ]
+        }
+        return res
+
+    if btn_id == 'build_workhouse':
+        res = {
+            'title': "Construct Parish Workhouse ($200)",
+            'badge': "POOR LAW INSTITUTION",
+            'badge_col': (180, 140, 200),
+            'category': "Municipal Infrastructure",
+            'cost': "Cost: $200 from municipal treasury, 4 Wood",
+            'desc': [
+                "Constructs a Parish Workhouse to enforce the Poor Relief Acts and vagrancy decrees.",
+                "Dispossessed, landless commoners are arrested and confined to compulsory labor (oakum picking, stone breaking).",
+                "Municipality provides bare-subsistence gruel (1 food/turn) while inmates generate municipal revenue.",
+                "Warning: If the municipality runs out of food or money, starving inmates stage Bread Riots!"
+            ],
+            'stats': [
+                ("Construction Turns", "2 turns", TEXT),
+                ("Building Tier", "Municipal (Tile)", ACCENT),
+                ("Pauper Labor Revenue", "+$1.50/inmate", GREEN),
+            ]
+        }
+        return res
+
     # -------------------------------------------------------------------------
     # PROVINCE SCOPE POLICIES
     # -------------------------------------------------------------------------

@@ -152,7 +152,7 @@ def draw_build_panel(surface, world, font, font_small, mouse_pos=None):
             tier_title="Municipal Infrastructure",
             treasury_label=f"Tile: ${tile_cash:,.0f}",
             treasury_amt=tile_cash,
-            recipes_keys=['farm', 'granary', 'sawmill', 'workshop'],
+            recipes_keys=['farm', 'granary', 'sawmill', 'workshop', 'workhouse'],
             x=x + 8, y=cur_y, w=w - 16,
             font=font, font_small=font_small, mouse_pos=mouse_pos
         )

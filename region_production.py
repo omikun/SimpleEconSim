@@ -25,6 +25,14 @@ def terrain_bonus(region, good):
     if good == Goods.food:
         soil_fert = getattr(region, 'soil_fertility', 1.0)
         mult *= soil_fert
+
+        # Phase 1 Enclosure Vector: Pastoral conversion replaces food crops
+        tenure = getattr(region, 'tenure', None)
+        if tenure is not None:
+            p_frac = getattr(tenure, 'pasture_fraction', 0.0)
+            if p_frac > 0:
+                mult *= max(0.20, 1.0 - (0.75 * p_frac))
+
         use_fert = getattr(region, 'use_fertilizer', False) or getattr(region, 'mandate_fertilizer', False)
         use_pest = getattr(region, 'use_pesticides', False) or getattr(region, 'mandate_pesticides', False)
 
@@ -165,6 +173,22 @@ def produce(region, t):
             produce_corporation(region, a, r, a.output, num_agents_per_good, local_total_production)
         else:
             produce_independent(region, a, r, a.output, num_agents_per_good, local_total_production)
+
+    # Phase 1: Pastoral wool / fiber yield for landlords on pasture plots
+    tenure = getattr(region, 'tenure', None)
+    if tenure is not None:
+        for plot in getattr(tenure, 'plots', []):
+            if getattr(plot, 'production_type', 'arable') == 'pasture':
+                lord = None
+                for a in region.agents:
+                    if a.id == plot.lord_id:
+                        lord = a
+                        break
+                if lord and lord.alive:
+                    wool_yield = max(1, int(4 * plot.fraction * terrain_bonus(region, Goods.wood)))
+                    lord.inv_add(Goods.wood, wool_yield)
+                    local_total_production[Goods.wood] += wool_yield
+
     for g in region.goods:
         if g != Goods.gov:
             region.production_log[g].append(local_total_production[g])
