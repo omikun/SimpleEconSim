@@ -425,7 +425,7 @@ def build_panel_hit(pos, world) -> bool:
                 _handle_build_click(world, pinned, nation, r_key, prov_cash, t)
                 return True
     else:
-        cur_y, tier1_buttons = _get_tier_layout(cur_y, ['farm', 'granary', 'sawmill', 'workshop'], x + 8, w - 16)
+        cur_y, tier1_buttons = _get_tier_layout(cur_y, ['farm', 'granary', 'sawmill', 'workshop', 'workhouse'], x + 8, w - 16)
         for r_key, btn_rect in tier1_buttons:
             if btn_rect[0] <= mx <= btn_rect[0] + btn_rect[2] and btn_rect[1] <= my <= btn_rect[1] + btn_rect[3]:
                 _handle_build_click(world, pinned, nation, r_key, tile_cash, t)

@@ -1,4 +1,5 @@
 # Virtual environment
+venv/
 bin/
 lib/
 include/
@@ -49,3 +50,5 @@ sim_output.png
 epub_build/
 map_cache/
 proto/
+
+

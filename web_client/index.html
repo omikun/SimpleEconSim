@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#0d1017">
+  <title>REGNUM Mobile</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Top HUD Navigation Bar -->
+    <header id="top-bar">
+      <div class="brand">
+        <span class="crown">👑</span>
+        <span class="title">REGNUM</span>
+        <span class="status-dot connected" id="status-dot" title="Server Status"></span>
+      </div>
+
+      <div class="hud-center">
+        <span class="turn-badge">Turn <strong id="turn-display">0</strong></span>
+      </div>
+
+      <div class="hud-controls">
+        <button id="btn-play" class="btn btn-primary" aria-label="Play / Pause">▶ Play</button>
+        <button id="btn-step" class="btn btn-secondary" aria-label="Step turn">+1 Step</button>
+        <button id="btn-new" class="btn btn-icon" title="New Random World" aria-label="Randomize Seed">🎲</button>
+        <button id="btn-qr" class="btn btn-icon" title="Mobile QR Code" aria-label="Show Mobile QR">📱</button>
+      </div>
+    </header>
+
+    <!-- Interactive Hex Map Viewport -->
+    <main id="viewport">
+      <canvas id="map-canvas"></canvas>
+
+      <!-- Floating Zoom & Center Controls -->
+      <div class="floating-controls">
+        <button id="btn-zoom-in" class="ctrl-btn" title="Zoom In">+</button>
+        <button id="btn-zoom-out" class="ctrl-btn" title="Zoom Out">−</button>
+        <button id="btn-reset-cam" class="ctrl-btn" title="Reset View">⌖</button>
+      </div>
+
+      <!-- Quick Inspection Tooltip / Pill -->
+      <div id="quick-pill" class="quick-pill hidden">
+        <span id="pill-text">Selected Tile</span>
+      </div>
+    </main>
+
+    <!-- Mobile Slide-up Inspection Drawer -->
+    <section id="drawer" class="drawer collapsed">
+      <div class="drawer-handle" id="drawer-handle">
+        <div class="handle-bar"></div>
+      </div>
+
+      <div class="drawer-header">
+        <div class="tile-title-group">
+          <h2 id="tile-name">Tap a territory to inspect</h2>
+          <span id="tile-sub" class="tile-subtitle">—</span>
+        </div>
+        <button id="drawer-toggle-btn" class="drawer-toggle-btn" aria-label="Toggle Details">▲</button>
+      </div>
+
+      <!-- Drawer Tabs -->
+      <nav class="drawer-tabs">
+        <button class="tab-btn active" data-tab="tab-overview">Overview</button>
+        <button class="tab-btn" data-tab="tab-cadastre">Cadastre</button>
+        <button class="tab-btn" data-tab="tab-labor">Labor</button>
+        <button class="tab-btn" data-tab="tab-workhouse">Workhouse</button>
+        <button class="tab-btn" data-tab="tab-news">News (<span id="news-badge">0</span>)</button>
+      </nav>
+
+      <!-- Drawer Content Panes -->
+      <div class="drawer-body">
+        <!-- Tab 1: Overview -->
+        <div id="tab-overview" class="tab-pane active">
+          <div class="stat-grid">
+            <div class="stat-card">
+              <span class="stat-label">Sovereign Nation</span>
+              <span class="stat-value" id="stat-nation">—</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-label">Population</span>
+              <span class="stat-value" id="stat-pop">—</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-label">Biome / Terrain</span>
+              <span class="stat-value" id="stat-biome">—</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-label">Elevation</span>
+              <span class="stat-value" id="stat-elevation">—</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-label">Cost of Living</span>
+              <span class="stat-value" id="stat-col">—</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-label">Axial Hex Coord</span>
+              <span class="stat-value" id="stat-coords">—</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 2: Land & Cadastre -->
+        <div id="tab-cadastre" class="tab-pane">
+          <div class="cadastre-section">
+            <h3 class="section-title">Enclosure Ratio</h3>
+            <div class="enclosure-bar-container">
+              <div class="enclosure-bar">
+                <div id="bar-commons" class="bar-segment commons" style="width: 50%" title="Commons"></div>
+                <div id="bar-feudal" class="bar-segment feudal" style="width: 25%" title="Feudal"></div>
+                <div id="bar-enclosed" class="bar-segment enclosed" style="width: 25%" title="Enclosed"></div>
+              </div>
+              <div class="bar-legend">
+                <span><i class="dot commons"></i> Commons <strong id="lbl-commons">50%</strong></span>
+                <span><i class="dot feudal"></i> Feudal <strong id="lbl-feudal">25%</strong></span>
+                <span><i class="dot enclosed"></i> Enclosed <strong id="lbl-enclosed">25%</strong></span>
+              </div>
+            </div>
+          </div>
+
+          <div class="cadastre-section">
+            <h3 class="section-title">Cadastral Plots (<span id="plot-count">0</span>)</h3>
+            <div id="plots-list" class="item-list">
+              <div class="empty-state">Select an inhabited territory to view cadastral survey.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 3: Labor & Factory -->
+        <div id="tab-labor" class="tab-pane">
+          <div class="policy-card">
+            <div class="policy-header">
+              <span class="policy-title">Max Workday Regulation</span>
+              <span id="badge-ten-hour" class="badge">12.0h Normal</span>
+            </div>
+            <div class="slider-row">
+              <input type="range" id="input-workday" min="8" max="16" step="0.5" value="12">
+              <span id="val-workday" class="slider-val">12.0h</span>
+            </div>
+            <button id="btn-apply-labor" class="btn btn-secondary btn-block">Enact Factory Bill</button>
+          </div>
+
+          <div class="stat-grid mt-2">
+            <div class="stat-card">
+              <span class="stat-label">Shift Duration</span>
+              <span class="stat-value" id="stat-shift">—</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-label">Surplus Value (s)</span>
+              <span class="stat-value" id="stat-surplus">—</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-label">Rate of Exploitation (s/v)</span>
+              <span class="stat-value" id="stat-exploitation">—</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 4: Workhouse -->
+        <div id="tab-workhouse" class="tab-pane">
+          <div class="workhouse-banner" id="wh-banner">
+            <span class="wh-icon">🏛️</span>
+            <div>
+              <div class="wh-status" id="wh-status">No Municipal Workhouse</div>
+              <div class="wh-desc" id="wh-desc">Inmates: 0 paupers sheltered</div>
+            </div>
+          </div>
+          <div class="census-section">
+            <h3 class="section-title">Workhouse Census & Displaced Paupers</h3>
+            <div id="census-list" class="item-list">
+              <div class="empty-state">No inmates currently recorded.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 5: News & Ticker -->
+        <div id="tab-news" class="tab-pane">
+          <div id="ticker-feed" class="news-feed">
+            <div class="empty-state">Simulation initialized. Events will stream as turns advance.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Mobile QR Modal Dialog -->
+    <div id="qr-modal" class="modal hidden">
+      <div class="modal-backdrop" id="qr-backdrop"></div>
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3>📱 Play on iPhone</h3>
+          <button id="btn-close-qr" class="btn-close">✕</button>
+        </div>
+        <div class="qr-container">
+          <img id="qr-img" src="/api/qr.svg" alt="Scan QR Code" width="220" height="220">
+        </div>
+        <p class="qr-sub">Scan with your iPhone Camera (same Wi-Fi)</p>
+        <div class="url-box">
+          <input type="text" id="qr-url-text" readonly value="Loading...">
+          <button id="btn-copy-url" class="btn btn-secondary">Copy</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="client.js"></script>
+</body>
+</html>

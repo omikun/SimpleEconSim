@@ -7,5 +7,7 @@ AI sovereign decisions, economic models, and client command processing.
 
 from sim_server.sim_server import SimServer
 from sim_server.protocol import CommandType, ServerEvent
+from sim_server.web_server import RegnumWebServer, run_web_server
 
-__all__ = ['SimServer', 'CommandType', 'ServerEvent']
+__all__ = ['SimServer', 'CommandType', 'ServerEvent', 'RegnumWebServer', 'run_web_server']
+

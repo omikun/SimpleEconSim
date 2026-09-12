@@ -143,8 +143,8 @@ class TestFiscalFederalism(unittest.TestCase):
         draw_build_panel(self.surface, world, self.font, self.font_small)
 
         # Click the Equalization button:
-        # y: 64 + 50 + (24+4*32+4) + (24+3*32+4) + (24+3*32+4) + 24 = 528
-        click_y = 64 + 50 + 156 + 124 + 124 + 24 + 10
+        # Target rect is (22, 578, 294, 52)
+        click_y = 590
         hit = build_panel_hit((14 + 50, click_y), world)
         self.assertTrue(hit)
         self.assertAlmostEqual(n1.government.agent.cash, 550.0, places=2)

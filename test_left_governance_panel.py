@@ -31,7 +31,7 @@ class TestLeftGovernancePanel(unittest.TestCase):
         self.font_small = get_font(13)
 
     def tearDown(self):
-        pygame.quit()
+        pass
 
     def test_left_dock_buttons_rendering_and_toggling(self):
         """Verify both dock buttons render and clicking them toggles respective panels."""
@@ -64,7 +64,7 @@ class TestLeftGovernancePanel(unittest.TestCase):
 
         draw_gov_panel(self.surface, world, self.font, self.font_small)
 
-        scope_y = GOV_PANEL_Y + 50
+        scope_y = GOV_PANEL_Y + 80
         tab_w = (GOV_PANEL_W - 24) // 3
 
         # Click Province tab (index 1)

@@ -180,7 +180,7 @@ class SimServer:
                 if target_tile:
                     tile_obj = self.by_name.get(target_tile)
                     if tile_obj:
-                        return {'success': True, 'tile': self.serialize_tile(tile_obj)}
+                        return {'success': True, 'tile': self.serialize_tile(tile_obj, layout=self.layout)}
                     return {'success': False, 'error': f"Tile '{target_tile}' not found"}
                 return {'success': True, 'world': self.serialize_world()}
 
@@ -245,7 +245,7 @@ class SimServer:
         }
 
     @classmethod
-    def serialize_tile(cls, tile) -> Dict[str, Any]:
+    def serialize_tile(cls, tile, layout: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Serialize a Region / Tile into a JSON-compatible dictionary."""
         tenure = getattr(tile, 'tenure', None)
         plots_data = [cls.serialize_plot(p) for p in getattr(tenure, 'plots', [])] if tenure else []
@@ -270,13 +270,25 @@ class SimServer:
         sv = float(tile.surplus_value_log[-1]) if getattr(tile, 'surplus_value_log', None) else 0.0
         roe = float(tile.rate_of_exploitation_log[-1]) if getattr(tile, 'rate_of_exploitation_log', None) else 0.0
 
+        grid_r = getattr(tile, 'grid_r', getattr(tile, 'row', 0))
+        grid_c = getattr(tile, 'grid_c', getattr(tile, 'col', 0))
+
+        if layout and tile.name in layout:
+            q, r = layout[tile.name]
+        elif grid_r is not None and grid_c is not None:
+            from hexmap import offset_to_axial
+            q, r = offset_to_axial(grid_c, grid_r)
+        else:
+            q = getattr(tile, 'q', 0)
+            r = getattr(tile, 'r', 0)
+
         return {
             'name': tile.name,
             'display_name': getattr(tile, 'display_name', getattr(tile, 'city_name', tile.name)),
-            'row': getattr(tile, 'row', 0),
-            'col': getattr(tile, 'col', 0),
-            'q': getattr(tile, 'q', 0),
-            'r': getattr(tile, 'r', 0),
+            'row': grid_r if grid_r is not None else 0,
+            'col': grid_c if grid_c is not None else 0,
+            'q': q,
+            'r': r,
             'nation': tile.owner_nation.name if getattr(tile, 'owner_nation', None) else None,
             'elevation': float(getattr(tile, 'elevation', 0.0)),
             'elevation_meters': float(getattr(tile, 'elevation_meters', 0.0)),
@@ -312,7 +324,7 @@ class SimServer:
     def serialize_world(self) -> Dict[str, Any]:
         """Produce a complete JSON-serializable snapshot of the simulation world."""
         with self._lock:
-            tiles_data = [self.serialize_tile(t) for t in self.tiles]
+            tiles_data = [self.serialize_tile(t, layout=self.layout) for t in self.tiles]
             nations_data = [
                 {
                     'name': n.name,

@@ -53,6 +53,9 @@ def _find_best_font_path():
 
 def get_font(size):
     """Return cached Pygame font instance with full Unicode/Emoji glyph support and calibrated point scale."""
+    if not pygame.font.get_init():
+        pygame.font.init()
+        _FONT_CACHE.clear()
     f = _FONT_CACHE.get(size)
     if f is None:
         p = _find_best_font_path()

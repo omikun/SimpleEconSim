@@ -39,16 +39,18 @@ HELP_BTN = (1066, 5, 156, 20)
 COMPARE_BTN = (1228, 5, 160, 20)
 DIPLOMACY_BTN = (1066, 27, 156, 20)
 MILITARY_BTN = (1228, 27, 160, 20)
+PIPELINE_BTN = (1394, 12, 196, 28)
 
 
 def draw_top_bar_action_buttons(surface, world, font_small, mouse_pos=None):
-    """Draw top-right shortcuts above sidebar: Help (?), Compare (C), Diplomacy (D), and Military (M)."""
+    """Draw top-right shortcuts above sidebar: Help (?), Compare (C), Diplomacy (D), Military (M), and Pipeline (U)."""
     mx, my = mouse_pos if mouse_pos else (-1, -1)
     from ui_targets import register_target
     register_target(world, HELP_BTN, 'help', scope='top_bar')
     register_target(world, COMPARE_BTN, 'compare', scope='top_bar')
     register_target(world, DIPLOMACY_BTN, 'diplomacy', scope='top_bar')
     register_target(world, MILITARY_BTN, 'military', scope='top_bar')
+    register_target(world, PIPELINE_BTN, 'pipeline', scope='top_bar')
     
     # 0. Help Button (?)
     is_help_open = world.get('help_open', False)
@@ -86,9 +88,21 @@ def draw_top_bar_action_buttons(surface, world, font_small, mouse_pos=None):
     mil_txt = font_small.render("Military (M)", True, (255, 255, 255) if (mil_hover or is_mil_open) else TEXT)
     surface.blit(mil_txt, mil_txt.get_rect(center=(MILITARY_BTN[0] + MILITARY_BTN[2] // 2, MILITARY_BTN[1] + MILITARY_BTN[3] // 2)))
 
+    # 4. Pipeline Toggle Button (U)
+    use_gpu = world.get('use_gpu_pipeline', True)
+    pipe_hover = PIPELINE_BTN[0] <= mx <= PIPELINE_BTN[0] + PIPELINE_BTN[2] and PIPELINE_BTN[1] <= my <= PIPELINE_BTN[1] + PIPELINE_BTN[3]
+    pipe_bg = (40, 60, 48) if (use_gpu and pipe_hover) else ((28, 42, 34) if use_gpu else ((55, 42, 25) if pipe_hover else (38, 30, 20)))
+    pipe_border = (90, 210, 130) if use_gpu else (230, 150, 60)
+    pipe_text_col = (130, 250, 160) if use_gpu else (255, 185, 90)
+    pygame.draw.rect(surface, pipe_bg, PIPELINE_BTN, border_radius=4)
+    pygame.draw.rect(surface, pipe_border if pipe_hover else (60, 70, 85), PIPELINE_BTN, 1, border_radius=4)
+    pipe_label = "GPU (Metal) [U]" if use_gpu else "CPU Mode [U]"
+    pipe_txt = font_small.render(f"Pipeline: {pipe_label}", True, pipe_text_col)
+    surface.blit(pipe_txt, pipe_txt.get_rect(center=(PIPELINE_BTN[0] + PIPELINE_BTN[2] // 2, PIPELINE_BTN[1] + PIPELINE_BTN[3] // 2)))
+
 
 def top_bar_action_hit(pos, world=None):
-    """Return 'help', 'compare', 'diplomacy', 'military', or None if an action button was clicked."""
+    """Return 'help', 'compare', 'diplomacy', 'military', 'pipeline', or None if an action button was clicked."""
     if world is not None:
         from ui_targets import find_target
         t = find_target(world, pos, scope='top_bar')
@@ -105,6 +119,8 @@ def top_bar_action_hit(pos, world=None):
         return 'diplomacy'
     if MILITARY_BTN[0] <= mx <= MILITARY_BTN[0] + MILITARY_BTN[2] and MILITARY_BTN[1] <= my <= MILITARY_BTN[1] + MILITARY_BTN[3]:
         return 'military'
+    if PIPELINE_BTN[0] <= mx <= PIPELINE_BTN[0] + PIPELINE_BTN[2] and PIPELINE_BTN[1] <= my <= PIPELINE_BTN[1] + PIPELINE_BTN[3]:
+        return 'pipeline'
     return None
 
 

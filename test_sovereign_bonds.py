@@ -32,7 +32,7 @@ class TestSovereignBonds(unittest.TestCase):
         self.font_small = get_font(13)
 
     def tearDown(self):
-        pygame.quit()
+        pass
 
     def test_isrb_credit_ratings_and_yields(self):
         """Verify credit ratings and low in-game yields across 20t, 50t, and 100t terms."""

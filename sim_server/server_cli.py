@@ -26,6 +26,9 @@ def main():
     parser.add_argument('--nation-seed', type=int, default=None, help="Nation seed")
     parser.add_argument('--turns', type=int, default=20, help="Number of turns to advance")
     parser.add_argument('--bench', action='store_true', help="Run in maximum speed benchmark mode")
+    parser.add_argument('--web', action='store_true', help="Start embedded mobile web server with QR code")
+    parser.add_argument('--port', type=int, default=8080, help="Port for web server (default: 8080)")
+    parser.add_argument('--host', type=str, default='0.0.0.0', help="Host for web server (default: 0.0.0.0)")
     args = parser.parse_args()
 
     print("==================================================")
@@ -40,7 +43,11 @@ def main():
         if ev_type == "TICKER_MESSAGE":
             print(f"  [{data.get('t')}] ({data.get('kind')}) {data.get('text')}")
 
-    server.subscribe(on_server_event)
+    if args.web:
+        from sim_server.web_server import run_web_server
+        print(f"[Server] Launching mobile web server on {args.host}:{args.port}...")
+        web = run_web_server(sim_server=server, host=args.host, port=args.port, wait_forever=True)
+        return
 
     t0 = time.perf_counter()
     for i in range(args.turns):

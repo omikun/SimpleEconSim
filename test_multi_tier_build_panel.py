@@ -147,14 +147,15 @@ class TestMultiTierBuildPanel(unittest.TestCase):
         world['build_panel_open'] = True
         world['layers_collapsed'] = False
 
+        # Give sufficient cash before drawing so target metadata reflects solvency
+        tile.gov.agent.cash = 1000.0
+
         # Drawing build panel must collapse layer dock
         draw_build_panel(self.surface, world, self.font, self.font_small)
         self.assertTrue(world['layers_collapsed'])
 
-        # Test clicking the 2nd button in Municipal tier (Granary)
-        # y: 64 + 50 + 24 + 32 = 170
-        tile.gov.agent.cash = 1000.0
-        hit = build_panel_hit((14 + 50, 64 + 50 + 24 + 32 + 10), world)
+        # Test clicking the 2nd button in Municipal tier (Granary, rect y: 230..258)
+        hit = build_panel_hit((14 + 50, 240), world)
         self.assertTrue(hit)
         self.assertTrue(any(p.recipe.name == 'granary' for p in tile.construction_projects))
 

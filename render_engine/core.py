@@ -49,7 +49,7 @@ class RenderEngine:
     def render_map_view(self, surface, seed, bbox, tiles, layout,
                         selected_name=None, hover_name=None,
                         show_grid=True, show_borders=True, show_labels=True,
-                        progress_callback=None):
+                        progress_callback=None, uniforms=None):
         """Render the complete hex map viewport into surface."""
         t_start = time.perf_counter()
 
@@ -58,7 +58,8 @@ class RenderEngine:
 
         # 1. Fetch / synthesize continuous topographic background
         topo_surf = self.terrain_renderer.get_or_generate_surface(
-            seed, bbox, tiles=tiles, layout=layout, progress_callback=progress_callback
+            seed, bbox, tiles=tiles, layout=layout, progress_callback=progress_callback,
+            uniforms=uniforms
         )
 
         # 2. Set viewport clipping
@@ -102,7 +103,7 @@ class RenderEngine:
             self._frame_count = 0
             self._last_fps_calc = now
 
-    def render_world(self, surface, world, show_grid=True, show_borders=True, show_labels=True, progress_callback=None):
+    def render_world(self, surface, world, show_grid=True, show_borders=True, show_labels=True, progress_callback=None, uniforms=None):
         """Convenience method to render directly from a world dictionary or client state."""
         seed = world.get('terrain_seed', world.get('seed', 4242))
         bbox = world.get('bbox')
@@ -116,5 +117,6 @@ class RenderEngine:
             surface=surface, seed=seed, bbox=bbox, tiles=tiles, layout=layout,
             selected_name=selected, hover_name=hover,
             show_grid=show_grid, show_borders=show_borders, show_labels=show_labels,
-            progress_callback=progress_callback
+            progress_callback=progress_callback,
+            uniforms=uniforms
         )

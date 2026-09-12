@@ -67,9 +67,31 @@ class GameClient:
             'needs_redraw': True,
             'loading_modal': None,
             '_cached_topo_surface': None,
+            '_terrain_renderer': self.render_engine.terrain_renderer,
+            'use_gpu_pipeline': not self.render_engine.terrain_renderer.force_cpu,
             '_map_generation_done': False,
             '_cached_from_disk': False,
         })
+
+    @property
+    def use_gpu(self) -> bool:
+        """Return True if GPU terrain pipeline is active in client."""
+        return not self.render_engine.terrain_renderer.force_cpu
+
+    def toggle_gpu_pipeline(self) -> bool:
+        """Toggle between GPU and CPU terrain rendering in the client."""
+        new_force_cpu = self.render_engine.terrain_renderer.switch_pipeline()
+        self.world['use_gpu_pipeline'] = not new_force_cpu
+        self.world['_cached_topo_surface'] = None
+        self.world['needs_redraw'] = True
+        return not new_force_cpu
+
+    def set_gpu_pipeline(self, enabled: bool):
+        """Set whether the GPU terrain pipeline should be used in the client."""
+        self.render_engine.terrain_renderer.switch_pipeline(force_cpu=not enabled)
+        self.world['use_gpu_pipeline'] = bool(enabled)
+        self.world['_cached_topo_surface'] = None
+        self.world['needs_redraw'] = True
 
     def _on_server_event(self, event_type: ServerEvent, data: Dict[str, Any]):
         """Handle real-time updates from SimServer."""

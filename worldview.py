@@ -157,8 +157,8 @@ def render_frame(surface, world, mouse_pos=None):
     modal_active = is_any_modal_open(world)
     effective_mouse = None if modal_active else mouse_pos
 
-    draw_top_bar(surface, world, font_small, mouse_pos=effective_mouse)
     draw_hex_map(surface, world, font, font_small)
+    draw_top_bar(surface, world, font_small, mouse_pos=effective_mouse)
     draw_zoom_hud(surface, font_small, mouse_pos=effective_mouse, world=world)
     draw_layer_sidebar(surface, world, font_small, mouse_pos=effective_mouse)
     draw_left_dock_buttons(surface, world, font_small, mouse_pos=effective_mouse)
@@ -391,6 +391,20 @@ def main():
                 elif act_btn == 'military':
                     world['actions_open'] = True if (not world.get('actions_open') or world.get('actions_tab') != 2) else False
                     world['actions_tab'] = 2
+                    continue
+                elif act_btn == 'pipeline':
+                    curr_gpu = world.get('use_gpu_pipeline', True)
+                    new_gpu = not curr_gpu
+                    world['use_gpu_pipeline'] = new_gpu
+                    tr = world.get('_terrain_renderer')
+                    if tr is not None:
+                        tr.switch_pipeline(force_cpu=not new_gpu)
+                    world['_cached_topo_surface'] = None
+                    pipe_label = "GPU (ModernGL Metal 4.1)" if new_gpu else "CPU (NumPy/SciPy)"
+                    if 'ticker_events' in world:
+                        world['ticker_events'].append(f"Graphics: Switched terrain pipeline to {pipe_label} [U]")
+                    _mark_dirty(world)
+                    print(f"[Client] Switched terrain pipeline to: {pipe_label}")
                     continue
 
                 # 1b. Check Compare Nations top bar button fallback
@@ -695,6 +709,19 @@ def main():
                 elif event.key == pygame.K_l:
                     world['layers_collapsed'] = not world.get('layers_collapsed', False)
                     _mark_dirty(world)
+                elif event.key == pygame.K_u:
+                    curr_gpu = world.get('use_gpu_pipeline', True)
+                    new_gpu = not curr_gpu
+                    world['use_gpu_pipeline'] = new_gpu
+                    tr = world.get('_terrain_renderer')
+                    if tr is not None:
+                        tr.switch_pipeline(force_cpu=not new_gpu)
+                    world['_cached_topo_surface'] = None
+                    pipe_label = "GPU (ModernGL Metal 4.1)" if new_gpu else "CPU (NumPy/SciPy)"
+                    if 'ticker_events' in world:
+                        world['ticker_events'].append(f"Graphics: Switched terrain pipeline to {pipe_label} [U]")
+                    _mark_dirty(world)
+                    print(f"[Client] Switched terrain pipeline to: {pipe_label}")
                 # Map info layer hotkeys (1..8)
                 elif event.key in (pygame.K_F1, pygame.K_1, pygame.K_KP1):
                     world['map_layer'] = 'overview'

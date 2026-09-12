@@ -719,6 +719,17 @@ def draw_hex_map(surface, world, font, font_small):
     # 0. Draw Continuous Topographic Elevation Background Surface with Contour Lines & Hillshading
     seed = world.get('terrain_seed', world.get('seed', 42))
 
+    # Retrieve or lazily create TerrainRenderer
+    terrain_renderer = world.get('_terrain_renderer')
+    if terrain_renderer is None:
+        from render_engine.terrain import TerrainRenderer
+        terrain_renderer = TerrainRenderer(force_cpu=not world.get('use_gpu_pipeline', True))
+        world['_terrain_renderer'] = terrain_renderer
+
+    # Synchronize force_cpu with world['use_gpu_pipeline']
+    use_gpu = world.get('use_gpu_pipeline', not terrain_renderer.force_cpu)
+    terrain_renderer.force_cpu = not use_gpu
+
     if world.get('_cached_topo_surface') is not None:
         topo_surf = world['_cached_topo_surface']
         world['_map_generation_done'] = True
@@ -736,14 +747,14 @@ def draw_hex_map(surface, world, font, font_small):
                     pygame.event.pump()
             progress_cb = _on_map_progress
 
-        topo_surf = get_cached_topographic_surface(
-            seed, bbox, tiles=tiles, layout=layout, canvas_w=2400, canvas_h=1800,
+        topo_surf = terrain_renderer.get_or_generate_surface(
+            seed, bbox, tiles=tiles, layout=layout,
             progress_callback=progress_cb
         )
         world['_cached_topo_surface'] = topo_surf
         world['_map_generation_done'] = True
         world['loading_modal'] = None
-        if not world.get('_cached_from_disk', False):
+        if not world.get('_cached_from_disk', False) and not terrain_renderer.used_gpu:
             from world_cache import save_map_cache
             save_map_cache(world, topo_surf)
             world['_cached_from_disk'] = True

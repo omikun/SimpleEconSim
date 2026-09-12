@@ -184,6 +184,32 @@ class TestGameClient(unittest.TestCase):
         self.assertEqual(self.client.world['selected_region'], tile)
         self.assertTrue(self.client.world.get('build_panel_open'))
 
+    def test_client_gpu_pipeline_toggle(self):
+        # Verify initial GPU pipeline setup
+        self.assertTrue(self.client.use_gpu)
+        self.assertTrue(self.client.world.get('use_gpu_pipeline'))
+        self.assertIsNotNone(self.client.world.get('_terrain_renderer'))
+
+        # Toggle to CPU
+        new_mode = self.client.toggle_gpu_pipeline()
+        self.assertFalse(new_mode)
+        self.assertFalse(self.client.use_gpu)
+        self.assertFalse(self.client.world.get('use_gpu_pipeline'))
+        self.assertTrue(self.client.render_engine.terrain_renderer.force_cpu)
+
+        # Toggle back to GPU
+        new_mode2 = self.client.toggle_gpu_pipeline()
+        self.assertTrue(new_mode2)
+        self.assertTrue(self.client.use_gpu)
+        self.assertTrue(self.client.world.get('use_gpu_pipeline'))
+        self.assertFalse(self.client.render_engine.terrain_renderer.force_cpu)
+
+        # Explicit set_gpu_pipeline
+        self.client.set_gpu_pipeline(False)
+        self.assertFalse(self.client.use_gpu)
+        self.client.set_gpu_pipeline(True)
+        self.assertTrue(self.client.use_gpu)
+
 
 if __name__ == '__main__':
     unittest.main()
