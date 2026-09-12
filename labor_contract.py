@@ -56,7 +56,7 @@ def enforce_legal_workday_caps(firm, region):
 
     Corps only reduce shift hours if binding legislation forces them.
     """
-    cap = getattr(region, 'workday_cap', MAX_LEGAL_SHIFT_HOURS)
+    cap = getattr(region, 'workday_cap', getattr(region, 'max_workday_hours', MAX_LEGAL_SHIFT_HOURS))
     current_shift = getattr(firm, 'shift_hours', CUSTOMARY_SHIFT_HOURS)
     if current_shift > cap:
         firm.shift_hours = cap
@@ -84,7 +84,7 @@ def evaluate_firm_contracts(firm, region, t):
     # First enforce any statutory legal maximums
     enforce_legal_workday_caps(firm, region)
 
-    cap = getattr(region, 'workday_cap', MAX_LEGAL_SHIFT_HOURS)
+    cap = getattr(region, 'workday_cap', getattr(region, 'max_workday_hours', MAX_LEGAL_SHIFT_HOURS))
     cur_shift = getattr(firm, 'shift_hours', CUSTOMARY_SHIFT_HOURS)
 
     # If below the legal cap, market competition drives shift expansion

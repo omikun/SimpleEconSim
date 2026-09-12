@@ -20,6 +20,7 @@ class CommandType(str, Enum):
     SELECT_NATION = "SELECT_NATION"
     SELECT_REGION = "SELECT_REGION"
     RELOAD_WORLD = "RELOAD_WORLD"
+    GET_STATE = "GET_STATE"
 
 
 class ServerEvent(str, Enum):
@@ -29,6 +30,7 @@ class ServerEvent(str, Enum):
     ACTION_RESOLVED = "ACTION_RESOLVED"
     VIOLATION_DETECTED = "VIOLATION_DETECTED"
     WORLD_RESET = "WORLD_RESET"
+    STATE_SNAPSHOT = "STATE_SNAPSHOT"
 
 
 class CommandMessage:

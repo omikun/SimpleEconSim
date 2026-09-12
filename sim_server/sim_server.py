@@ -175,7 +175,14 @@ class SimServer:
                     else:
                         setattr(target_nation, policy_key, policy_val)
                     return {'success': True, 'nation': target_nation.name, 'key': policy_key, 'val': policy_val}
-                return {'success': False, 'error': 'Nation not found'}
+            elif c_type == CommandType.GET_STATE:
+                target_tile = p.get('tile')
+                if target_tile:
+                    tile_obj = self.by_name.get(target_tile)
+                    if tile_obj:
+                        return {'success': True, 'tile': self.serialize_tile(tile_obj)}
+                    return {'success': False, 'error': f"Tile '{target_tile}' not found"}
+                return {'success': True, 'world': self.serialize_world()}
 
             return {'success': False, 'error': f"Unknown command {c_type}"}
 
@@ -217,4 +224,114 @@ class SimServer:
                 'seed': self.seed,
                 'terrain_seed': self.terrain_seed,
                 'nation_seed': self.nation_seed,
+            }
+
+    @staticmethod
+    def serialize_plot(plot) -> Dict[str, Any]:
+        """Serialize a LandPlot into a JSON-compatible dictionary."""
+        return {
+            'plot_id': plot.plot_id,
+            'name': getattr(plot, 'name', '') or plot.plot_id,
+            'display_name': getattr(plot, 'display_name', plot.plot_id),
+            'tile_name': plot.tile_name,
+            'lord_id': plot.lord_id,
+            'fraction': float(plot.fraction),
+            'tenure': plot.tenure.value if hasattr(plot.tenure, 'value') else str(plot.tenure),
+            'rent_rate': float(plot.rent_rate),
+            'production_type': getattr(plot, 'production_type', 'arable'),
+            'pasture_since': getattr(plot, 'pasture_since', -1),
+            'tenant_ids': list(getattr(plot, 'tenant_ids', [])),
+            'tenant_count': len(getattr(plot, 'tenant_ids', [])),
+        }
+
+    @classmethod
+    def serialize_tile(cls, tile) -> Dict[str, Any]:
+        """Serialize a Region / Tile into a JSON-compatible dictionary."""
+        tenure = getattr(tile, 'tenure', None)
+        plots_data = [cls.serialize_plot(p) for p in getattr(tenure, 'plots', [])] if tenure else []
+
+        from workhouse import has_workhouse, get_workhouse_census, get_workhouse_inmates
+        wh_active = has_workhouse(tile)
+        wh_inmates = [a.id for a in get_workhouse_inmates(tile)]
+        wh_census = get_workhouse_census(tile) if wh_active else []
+
+        survey_debts = [
+            {
+                'agent_id': d.get('agent_id'),
+                'plot_id': d.get('plot_id'),
+                'fee': float(d.get('fee', 15.0)),
+                'deadline': int(d.get('deadline', 0)),
+            }
+            for d in getattr(tile, 'enclosure_survey_debts', [])
+        ]
+
+        shift_h = float(tile.avg_shift_hours_log[-1]) if getattr(tile, 'avg_shift_hours_log', None) else 8.0
+        max_workday = float(getattr(tile, 'max_workday_hours', 12.0))
+        sv = float(tile.surplus_value_log[-1]) if getattr(tile, 'surplus_value_log', None) else 0.0
+        roe = float(tile.rate_of_exploitation_log[-1]) if getattr(tile, 'rate_of_exploitation_log', None) else 0.0
+
+        return {
+            'name': tile.name,
+            'display_name': getattr(tile, 'display_name', getattr(tile, 'city_name', tile.name)),
+            'row': getattr(tile, 'row', 0),
+            'col': getattr(tile, 'col', 0),
+            'q': getattr(tile, 'q', 0),
+            'r': getattr(tile, 'r', 0),
+            'nation': tile.owner_nation.name if getattr(tile, 'owner_nation', None) else None,
+            'elevation': float(getattr(tile, 'elevation', 0.0)),
+            'elevation_meters': float(getattr(tile, 'elevation_meters', 0.0)),
+            'biome': getattr(tile, 'biome', 'plains'),
+            'is_ocean': getattr(tile, 'is_ocean', False),
+            'wilderness': getattr(tile, 'wilderness', False),
+            'cost_of_living': float(getattr(tile, 'cost_of_living', 1.0)),
+            'tenure': {
+                'commons_access': float(getattr(tenure, 'commons_access', 1.0)) if tenure else 1.0,
+                'feudal_fraction': float(getattr(tenure, 'feudal_fraction', 0.0)) if tenure else 0.0,
+                'enclosed_fraction': float(getattr(tenure, 'enclosed_fraction', 0.0)) if tenure else 0.0,
+                'pasture_fraction': float(getattr(tenure, 'pasture_fraction', 0.0)) if tenure else 0.0,
+                'arable_fraction': float(getattr(tenure, 'arable_fraction', 0.0)) if tenure else 0.0,
+                'plots': plots_data,
+                'survey_debts': survey_debts,
+            },
+            'workhouse': {
+                'active': wh_active,
+                'inmate_count': len(wh_inmates),
+                'inmate_ids': wh_inmates,
+                'census': wh_census,
+            },
+            'labor': {
+                'shift_hours': shift_h,
+                'max_workday_hours': max_workday,
+                'ten_hour_act': bool(getattr(tile, 'ten_hour_act', max_workday <= 10.0)),
+                'surplus_value': sv,
+                'rate_of_exploitation': roe,
+            },
+            'population': len(getattr(tile, 'agents', [])),
+        }
+
+    def serialize_world(self) -> Dict[str, Any]:
+        """Produce a complete JSON-serializable snapshot of the simulation world."""
+        with self._lock:
+            tiles_data = [self.serialize_tile(t) for t in self.tiles]
+            nations_data = [
+                {
+                    'name': n.name,
+                    'currency': getattr(n, 'currency', ''),
+                    'regime_type': getattr(n, 'regime_type', 'Monarchy'),
+                    'max_workday_hours': float(getattr(n, 'max_workday_hours', 12.0)),
+                    'ten_hour_act': bool(getattr(n, 'ten_hour_act', False)),
+                    'tiles': [t.name for t in getattr(n, 'tiles', [])],
+                    'treasury': float(n.government.agent.cash) if getattr(n, 'government', None) and hasattr(n.government, 'agent') else 0.0,
+                }
+                for n in self.nations
+            ]
+            return {
+                'turn': self.turn,
+                'playing': self.playing,
+                'seed': self.seed,
+                'terrain_seed': self.terrain_seed,
+                'nation_seed': self.nation_seed,
+                'nations': nations_data,
+                'tiles': tiles_data,
+                'ticker_events': list(self._ticker_events[-30:]),
             }

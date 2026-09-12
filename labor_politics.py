@@ -184,15 +184,63 @@ def repeal_labor_laws(nation) -> Dict[str, Any]:
     }
 
 
-def enact_ten_hour_act(target) -> Tuple[bool, str]:
-    """Enact the Ten-Hour Act on a region or nation, capping daily factory shifts to 10h."""
+def adjust_workday_hours(target, delta_hours: float) -> Tuple[bool, str]:
+    """Adjust statutory daily shift hours cap by delta_hours (e.g. +2.0h or -2.0h).
+
+    Clamped within [8.0, 16.0] hours.
+    - Reducing hours: Cuts worker health attrition & fatigue, boosts Labor/Peasant approval,
+      reduces Bourgeoisie profits & approval. If <= 10h, activates ten_hour_act.
+    - Increasing hours: Expands surplus value extraction (s/v), boosts Bourgeoisie approval,
+      provokes Labor anger, raises protest energy. If > 10h, deactivates ten_hour_act.
+    """
+    cur_cap = getattr(target, 'max_workday_hours', 12.0)
+    new_cap = max(8.0, min(16.0, round(cur_cap + delta_hours, 1)))
+
+    if abs(new_cap - cur_cap) < 0.01:
+        limit_txt = "minimum (8.0h)" if delta_hours < 0 else "maximum (16.0h)"
+        return False, f"Workday already at statutory {limit_txt}."
+
     tiles = getattr(target, 'tiles', [target]) if hasattr(target, 'tiles') else [target]
     for tile in tiles:
-        tile.max_workday_hours = REFORMED_WORKDAY_CAP
-        tile.ten_hour_act = True
-    setattr(target, 'ten_hour_act', True)
-    setattr(target, 'max_workday_hours', REFORMED_WORKDAY_CAP)
-    return True, "Ten-Hour Act enacted: Workday capped at 10.0 hours!"
+        tile.max_workday_hours = new_cap
+        tile.workday_cap = new_cap
+        tile.ten_hour_act = (new_cap <= 10.0)
+        # Apply to corporations immediately
+        for a in getattr(tile, 'agents', []):
+            if getattr(a, 'is_corporation', False) and getattr(a, 'shift_hours', 8.0) > new_cap:
+                a.shift_hours = new_cap
+
+        # Class faction reactions
+        factions = getattr(getattr(tile, 'factions', None), 'factions', {})
+        if delta_hours < 0:
+            # Pro-labor reform
+            for fname in ('Labor', 'Peasant'):
+                if fname in factions:
+                    factions[fname].support = min(1.0, factions[fname].support + 0.10)
+            if 'Bourgeoisie' in factions:
+                factions['Bourgeoisie'].support = max(0.0, factions['Bourgeoisie'].support - 0.08)
+        else:
+            # Pro-capital reform
+            for fname in ('Labor', 'Peasant'):
+                if fname in factions:
+                    factions[fname].support = max(0.0, factions[fname].support - 0.12)
+            if 'Bourgeoisie' in factions:
+                factions['Bourgeoisie'].support = min(1.0, factions['Bourgeoisie'].support + 0.08)
+            # Bump protest energy
+            if hasattr(tile, 'protest_energy_log') and tile.protest_energy_log:
+                tile.protest_energy_log[-1] = min(10.0, tile.protest_energy_log[-1] + 1.5)
+
+    setattr(target, 'max_workday_hours', new_cap)
+    setattr(target, 'ten_hour_act', (new_cap <= 10.0))
+
+    action_word = "reduced" if delta_hours < 0 else "expanded"
+    ten_note = " (Ten-Hour Act achieved!)" if new_cap <= 10.0 and cur_cap > 10.0 else ""
+    return True, f"Statutory workday {action_word} to {new_cap:.1f}h/day{ten_note}."
+
+
+def enact_ten_hour_act(target) -> Tuple[bool, str]:
+    """Enact the Ten-Hour Act on a region or nation, capping daily factory shifts to 10h."""
+    return adjust_workday_hours(target, 10.0 - getattr(target, 'max_workday_hours', 16.0))
 
 
 def enact_factory_safety_act(target) -> Tuple[bool, str]:

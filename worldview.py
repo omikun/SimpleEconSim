@@ -441,6 +441,14 @@ def main():
                             clicked = tile_at(world, *event.pos)
                             if clicked is not None:
                                 select_tile(world, clicked)
+                    elif world.get('panel_tab') == 'cadastre':
+                        from worldview_cadastre import cadastre_panel_hit
+                        if cadastre_panel_hit(event.pos, world):
+                            continue
+                        if event.pos[0] < MAP_RIGHT:
+                            clicked = tile_at(world, *event.pos)
+                            if clicked is not None:
+                                select_tile(world, clicked)
                     elif world.get('panel_tab') == 'citizens':
                         from worldview_citizens import citizen_panel_hit
                         if citizen_panel_hit(event.pos, world):

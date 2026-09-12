@@ -536,11 +536,18 @@ def _draw_left_nation_scope(surface, world, region, nation, start_y, x, w, font,
                   'nat_toggle_imm', nation, enabled=True, color=(160, 210, 255),
                   world=world, region=region, nation=nation)
 
-    # Row 2: Ten-Hour Act and Safety Mandate
-    _draw_gov_btn(surface, (x + 16, cur_y + 48, bw_half, 20), "Ten-Hour Act" if not has_ten else "Ten-Hour: PASS",
-                  font_small, mx, my, 'nat_ten_hour_act', nation, enabled=not has_ten,
-                  color=GREEN if has_ten else TEXT, world=world, region=region, nation=nation)
-    _draw_gov_btn(surface, (x + 22 + bw_half, cur_y + 48, bw_half, 20), "Safety Mandate" if not has_safe else "Safety: PASS",
+    # Row 2: Shift Length Controls (-2h / +2h) and Safety Mandate
+    cur_shift = getattr(nation, 'max_workday_hours', 12.0) if nation else 12.0
+    bw_third = (w - 44) // 3
+    can_down = (cur_shift > 8.0)
+    can_up = (cur_shift < 16.0)
+    _draw_gov_btn(surface, (x + 16, cur_y + 48, bw_third, 20), f"-2h ({cur_shift:.0f}h)",
+                  font_small, mx, my, 'nat_adjust_shift_-2', nation, enabled=can_down,
+                  color=(130, 210, 140) if can_down else DIM, world=world, region=region, nation=nation)
+    _draw_gov_btn(surface, (x + 22 + bw_third, cur_y + 48, bw_third, 20), f"+2h ({cur_shift:.0f}h)",
+                  font_small, mx, my, 'nat_adjust_shift_+2', nation, enabled=can_up,
+                  color=(240, 120, 100) if can_up else DIM, world=world, region=region, nation=nation)
+    _draw_gov_btn(surface, (x + 28 + bw_third * 2, cur_y + 48, w - 44 - bw_third * 2, 20), "Safety" if not has_safe else "Safety: PASS",
                   font_small, mx, my, 'nat_safety_mandate', nation, enabled=not has_safe,
                   color=GREEN if has_safe else TEXT, world=world, region=region, nation=nation)
 

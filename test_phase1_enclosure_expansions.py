@@ -217,6 +217,7 @@ class TestPhase1EnclosureExpansions(unittest.TestCase):
         # Turn 4: deadline reached! Foreclosure & auction
         gov_cash_before_auction = tile.gov.agent.cash
         merchant_cash_before = merchant.cash
+        lord_cash_before_auction = lord.cash
         evs_debts4 = step_enclosure_survey_debts(tile, t=4)
 
         # Insolvent tenant foreclosed & evicted
@@ -225,13 +226,13 @@ class TestPhase1EnclosureExpansions(unittest.TestCase):
         self.assertIn('mem_debt_trap', t_insolvent.memory)
         self.assertIn('mem_eviction', t_insolvent.memory)
 
-        # Wealthiest agent (Lord with $100 vs Merchant with $50) won auction
+        # Wealthiest agent (Lord with >$500 vs Merchant with $50) won auction
         auction_ev = next((e for e in evs_debts4 if e['event'] == 'SURVEY_DEBT_FORECLOSURE'), None)
         self.assertIsNotNone(auction_ev)
         self.assertEqual(auction_ev['winner_id'], lord.id)
         bid = auction_ev['clearing_bid']
         self.assertGreater(bid, 0.0)
-        self.assertAlmostEqual(lord.cash, 100.0 - bid)
+        self.assertAlmostEqual(lord.cash, lord_cash_before_auction - bid)
         self.assertAlmostEqual(tile.gov.agent.cash, gov_cash_before_auction + bid)
 
     def test_07_parish_workhouse_confinement_and_revenue(self):

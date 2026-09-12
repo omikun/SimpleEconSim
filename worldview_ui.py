@@ -117,25 +117,29 @@ def draw_zoom_hud(surface, font_small, mouse_pos=None, world=None):
         surface.blit(tsurf, tsurf.get_rect(center=(rect[0] + rect[2] // 2, rect[1] + rect[3] // 2)))
 
 
-# Right-hand panel top tabs (Charts vs Citizens)
+# Right-hand panel top tabs (Charts vs Cadastre vs Citizens)
 _TOTAL_TAB_W = WIDTH - PANEL_LEFT - 14
-_TAB_W = (_TOTAL_TAB_W - 4) // 2
+_TAB_W = (_TOTAL_TAB_W - 8) // 3
 CHARTS_TAB_RECT = (PANEL_LEFT, 152 + TOP_BAR_H, _TAB_W, 22)
-CITIZENS_TAB_RECT = (PANEL_LEFT + _TAB_W + 4, 152 + TOP_BAR_H, _TOTAL_TAB_W - _TAB_W - 4, 22)
+CADASTRE_TAB_RECT = (PANEL_LEFT + _TAB_W + 4, 152 + TOP_BAR_H, _TAB_W, 22)
+CITIZENS_TAB_RECT = (PANEL_LEFT + (_TAB_W + 4) * 2, 152 + TOP_BAR_H, _TOTAL_TAB_W - (_TAB_W + 4) * 2, 22)
 POLICIES_TAB_RECT = (-200, -200, 10, 10)  # Deprecated — merged into left Governance panel
 
 
 def panel_tab_hit(pos, world=None):
-    """Return 'charts' or 'citizens' if the right panel tab header was clicked."""
+    """Return 'charts', 'cadastre', or 'citizens' if the right panel tab header was clicked."""
     if world is not None:
         from ui_targets import find_target
         tgt = find_target(world, pos, scope='right_panel')
-        if tgt and tgt.target_id in ('charts', 'citizens'):
+        if tgt and tgt.target_id in ('charts', 'cadastre', 'citizens'):
             return tgt.target_id
     mx, my = pos
     cx, cy, cw, ch = CHARTS_TAB_RECT
     if cx <= mx <= cx + cw and cy <= my <= cy + ch:
         return 'charts'
+    kx, ky, kw, kh = CADASTRE_TAB_RECT
+    if kx <= mx <= kx + kw and ky <= my <= ky + kh:
+        return 'cadastre'
     zx, zy, zw, zh = CITIZENS_TAB_RECT
     if zx <= mx <= zx + zw and zy <= my <= zy + zh:
         return 'citizens'
@@ -744,17 +748,32 @@ def draw_panel(surface, world, font, font_small, mouse_pos=None):
     c_hit = panel_tab_hit((mx, my), world=world)
     c_sel = (active_tab == 'charts')
     c_hov = (c_hit == 'charts')
+
+    k_sel = (active_tab == 'cadastre')
+    k_hov = (c_hit == 'cadastre')
+
+    z_sel = (active_tab == 'citizens')
+    z_hov = (c_hit == 'citizens')
+
     if world is not None:
         from ui_targets import register_target
         register_target(world, CHARTS_TAB_RECT, 'charts', scope='right_panel')
+        register_target(world, CADASTRE_TAB_RECT, 'cadastre', scope='right_panel')
         register_target(world, CITIZENS_TAB_RECT, 'citizens', scope='right_panel')
+
+    # Tab 1: Charts
     pygame.draw.rect(surface, (55, 75, 110) if c_sel else ((40, 48, 65) if c_hov else (28, 30, 40)), CHARTS_TAB_RECT, border_radius=4)
     pygame.draw.rect(surface, ACCENT if c_sel else (HEX_EDGE if c_hov else (45, 52, 70)), CHARTS_TAB_RECT, 1, border_radius=4)
     c_txt = font_small.render("Charts", True, (255, 255, 255) if c_sel else (TEXT if c_hov else DIM))
     surface.blit(c_txt, c_txt.get_rect(center=(CHARTS_TAB_RECT[0] + CHARTS_TAB_RECT[2] // 2, CHARTS_TAB_RECT[1] + CHARTS_TAB_RECT[3] // 2)))
 
-    z_sel = (active_tab == 'citizens')
-    z_hov = (c_hit == 'citizens')
+    # Tab 2: Cadastre
+    pygame.draw.rect(surface, (55, 75, 110) if k_sel else ((40, 48, 65) if k_hov else (28, 30, 40)), CADASTRE_TAB_RECT, border_radius=4)
+    pygame.draw.rect(surface, (235, 185, 80) if k_sel else (HEX_EDGE if k_hov else (45, 52, 70)), CADASTRE_TAB_RECT, 1, border_radius=4)
+    k_txt = font_small.render("Cadastre", True, (255, 255, 255) if k_sel else (TEXT if k_hov else DIM))
+    surface.blit(k_txt, k_txt.get_rect(center=(CADASTRE_TAB_RECT[0] + CADASTRE_TAB_RECT[2] // 2, CADASTRE_TAB_RECT[1] + CADASTRE_TAB_RECT[3] // 2)))
+
+    # Tab 3: Citizens
     pygame.draw.rect(surface, (55, 75, 110) if z_sel else ((40, 48, 65) if z_hov else (28, 30, 40)), CITIZENS_TAB_RECT, border_radius=4)
     pygame.draw.rect(surface, ACCENT if z_sel else (HEX_EDGE if z_hov else (45, 52, 70)), CITIZENS_TAB_RECT, 1, border_radius=4)
     z_txt = font_small.render("Citizens", True, (255, 255, 255) if z_sel else (TEXT if z_hov else DIM))
@@ -791,6 +810,12 @@ def draw_panel(surface, world, font, font_small, mouse_pos=None):
         else:
             ok = font.render("Conserved: 0 LEAK / 0 SHIFT", True, GREEN)
             surface.blit(ok, (PANEL_LEFT, audit_y))
+
+    if active_tab == 'cadastre':
+        from worldview_cadastre import draw_cadastre_panel
+        draw_cadastre_panel(surface, world, region, font, font_small, mouse_pos=mouse_pos)
+        _render_audit_footer()
+        return
 
     if active_tab == 'citizens':
         from worldview_citizens import draw_citizens_panel
@@ -940,9 +965,14 @@ def draw_panel(surface, world, font, font_small, mouse_pos=None):
         # Land tenure status strip (P1.4)
         tenure = getattr(region, 'tenure', None)
         if tenure and tenure.plots:
-            t_txt = f"Tenure: Feudal {tenure.feudal_fraction*100:.0f}% | Encl {tenure.enclosed_fraction*100:.0f}% | Commons: {tenure.commons_access*100:.0f}%"
+            t_txt = f"Tenure: Feudal {tenure.feudal_fraction*100:.0f}% | Encl {tenure.enclosed_fraction*100:.0f}% | Commons: {tenure.commons_access*100:.0f}%  [Cadastre]"
             t_color = (130, 210, 140) if tenure.commons_access > 0.5 else (230, 140, 70)
-            surface.blit(font_small.render(t_txt, True, t_color), (PANEL_LEFT, y_cursor))
+            t_surf = font_small.render(t_txt, True, t_color)
+            surface.blit(t_surf, (PANEL_LEFT, y_cursor))
+            if world is not None:
+                from ui_targets import register_target
+                t_rect = (PANEL_LEFT, y_cursor, t_surf.get_width() + 10, 16)
+                register_target(world, t_rect, 'cadastre', scope='right_panel')
             y_cursor += 16
 
         col_line = font_small.render(

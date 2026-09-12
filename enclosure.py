@@ -17,8 +17,8 @@ Consequences of enclosure:
 from goods import Goods
 from land_tenure import TenureStatus, LandPlot
 
-# Charter fee per 10% (0.10) fraction of tile enclosed
-CHARTER_FEE_PER_TENTH = 100.0
+# Charter fee per 10% (0.10) fraction of tile enclosed (nominal administrative filing fee)
+CHARTER_FEE_PER_TENTH = 5.0
 DEFAULT_CASH_RENT = 3.0
 STATUTORY_SURVEY_FEE = 15.0
 

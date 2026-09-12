@@ -524,27 +524,35 @@ def _draw_nation_policies(surface, world, region, start_y, font, font_small, mx,
     start_y += c3_h + 8
 
     # CARD 4: Labor Regulation & Mass Pacifier Decrees
-    c4_h = 76
+    c4_h = 78
     c4_rect = (PANEL_LEFT + 4, start_y, PANEL_W - 24, c4_h)
     pygame.draw.rect(surface, CARD_BG, c4_rect, border_radius=5)
     pygame.draw.rect(surface, CARD_BORDER, c4_rect, 1, border_radius=5)
 
-    surface.blit(font_small.render("Labor Regulation & Mass Pacifier", True, (240, 140, 80)), (PANEL_LEFT + 12, start_y + 8))
-    has_ten = getattr(owner, 'ten_hour_act', False) or getattr(owner, 'max_workday_hours', 16.0) <= 10.0
+    cur_shift = getattr(owner, 'max_workday_hours', 12.0)
+    has_ten = getattr(owner, 'ten_hour_act', False) or cur_shift <= 10.0
     has_safe = getattr(owner, 'factory_safety_act', False)
 
-    ten_btn = (PANEL_LEFT + 12, start_y + 26, 115, 20)
-    safe_btn = (PANEL_LEFT + 135, start_y + 26, 115, 20)
+    ten_tag = " (Ten-Hour Act)" if has_ten else ""
+    surface.blit(font_small.render(f"Workday: {cur_shift:.1f}h/day{ten_tag}", True, (240, 140, 80)), (PANEL_LEFT + 12, start_y + 8))
+
+    btn_down = (PANEL_LEFT + 12, start_y + 26, 68, 20)
+    btn_up = (PANEL_LEFT + 84, start_y + 26, 68, 20)
+    safe_btn = (PANEL_LEFT + 156, start_y + 26, 94, 20)
     spec_btn = (PANEL_LEFT + 12, start_y + 50, 238, 20)
 
-    _draw_btn(surface, ten_btn, "Ten-Hour Act" if not has_ten else "Ten-Hour: PASS", font_small, mx, my,
-              enabled=not has_ten, color=GREEN if has_ten else TEXT)
+    can_down = (cur_shift > 8.0)
+    can_up = (cur_shift < 16.0)
+
+    _draw_btn(surface, btn_down, "-2h Shift", font_small, mx, my, enabled=can_down, color=(130, 210, 140) if can_down else DIM)
+    _draw_btn(surface, btn_up, "+2h Shift", font_small, mx, my, enabled=can_up, color=(240, 120, 100) if can_up else DIM)
     _draw_btn(surface, safe_btn, "Safety Mandate" if not has_safe else "Safety: PASS", font_small, mx, my,
               enabled=not has_safe, color=GREEN if has_safe else TEXT)
     _draw_btn(surface, spec_btn, "Subsidize Spectacle ($50)", font_small, mx, my,
               color=(70, 195, 235))
 
-    _ACTION_BUTTONS.append((ten_btn, 'nat_ten_hour_act', owner))
+    _ACTION_BUTTONS.append((btn_down, 'nat_adjust_shift_-2', owner))
+    _ACTION_BUTTONS.append((btn_up, 'nat_adjust_shift_+2', owner))
     _ACTION_BUTTONS.append((safe_btn, 'nat_safety_mandate', owner))
     _ACTION_BUTTONS.append((spec_btn, 'nat_subsidize_entertainment', owner))
 
@@ -759,11 +767,19 @@ def _execute_policy_action(world, act_id, target):
     # Province Actions
     elif act_id == 'prov_equalization_grant':
         tiles = getattr(target, 'tiles', [])
-        if tiles:
-            poorest = min(tiles, key=lambda r: (r.bank.capital if getattr(r, 'bank', None) else 0.0) + (r.gov.agent.cash if getattr(r, 'gov', None) and hasattr(r.gov, 'agent') else 0.0))
-            if getattr(poorest, 'bank', None):
-                poorest.bank.capital += 200.0
-            world['policy_feedback'] = (f"Disbursed $200 grant to {poorest.name}!", GREEN)
+        prov_gov = getattr(target, 'gov', None)
+        cost = 200.0
+        on_hand = prov_gov.agent.cash if prov_gov and hasattr(prov_gov, 'agent') else 0.0
+        if on_hand >= cost:
+            if tiles:
+                poorest = min(tiles, key=lambda r: (r.bank.capital if getattr(r, 'bank', None) else 0.0) + (r.gov.agent.cash if getattr(r, 'gov', None) and hasattr(r.gov, 'agent') else 0.0))
+                prov_gov.agent.cash -= cost
+                poorest.gov.agent.cash += cost
+                world['policy_feedback'] = (f"Disbursed $200 grant from province treasury to {poorest.name}!", GREEN)
+                from worldview_engine import ticker_push
+                ticker_push(world, world['turn'], 'POLICY', f"Equalization grant: $200 transferred from {target.name} to {poorest.name}.", (130, 220, 160))
+        else:
+            world['policy_feedback'] = (f"Insufficient provincial treasury funds (${on_hand:.1f} < $200.0).", RED)
     elif act_id == 'prov_harmonize_taxes':
         tiles = getattr(target, 'tiles', [])
         if tiles:
@@ -807,6 +823,16 @@ def _execute_policy_action(world, act_id, target):
         for r in target.tiles:
             r.gov.immigration_enabled = not cur
         world['policy_feedback'] = (f"Immigration policy: {'Open Borders' if not cur else 'Closed'}.", (160, 210, 255))
+    elif act_id.startswith('nat_adjust_shift_'):
+        delta = float(act_id.split('_')[-1])
+        from labor_politics import adjust_workday_hours
+        ok, msg = adjust_workday_hours(target, delta)
+        world['policy_feedback'] = (msg, GREEN if ok else RED)
+        try:
+            from worldview_engine import ticker_push
+            ticker_push(world, world['turn'], 'LABOR', msg, (240, 140, 80) if delta > 0 else (120, 220, 140))
+        except ImportError:
+            pass
     elif act_id == 'nat_ten_hour_act':
         from labor_politics import enact_ten_hour_act
         ok, msg = enact_ten_hour_act(target)
