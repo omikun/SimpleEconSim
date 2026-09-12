@@ -344,6 +344,7 @@ def main():
                             from sim_server.qr_code import generate_pygame_qr
                             sim = SimServer(seed=seed)
                             web_server = run_web_server(sim_server=sim, port=8080, wait_forever=False)
+                            web_server.terrain_renderer = engine.terrain_renderer
                             qr_surf = generate_pygame_qr(web_server.base_url, module_px=6)
                             show_qr_modal = True
                             status_feedback = (f"Web Server online: {web_server.base_url}", (120, 245, 150), time.time() + 6.0)
@@ -460,6 +461,7 @@ def main():
                                     from sim_server.qr_code import generate_pygame_qr
                                     sim = SimServer(seed=seed)
                                     web_server = run_web_server(sim_server=sim, port=8080, wait_forever=False)
+                                    web_server.terrain_renderer = engine.terrain_renderer
                                     qr_surf = generate_pygame_qr(web_server.base_url, module_px=6)
                                     show_qr_modal = True
                                     status_feedback = (f"Web Server online: {web_server.base_url}", (120, 245, 150), time.time() + 6.0)

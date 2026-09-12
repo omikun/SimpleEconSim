@@ -187,6 +187,7 @@ class RegnumHTTPRequestHandler(BaseHTTPRequestHandler):
                 self.send_response(200)
                 self.send_header('Content-Type', content_type)
                 self.send_header('Content-Length', str(len(content)))
+                self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
                 self._set_cors_headers()
                 self.end_headers()
                 self.wfile.write(content)
@@ -328,11 +329,14 @@ class RegnumWebServer:
         # 2. Print scannable QR Code to terminal
         self.print_banner()
 
-        # 3. Start Sim loop thread (advances turns automatically when playing is True)
+        # 3. Pre-warm terrain caches in background so client requests respond in 0ms
+        threading.Thread(target=self._prewarm_terrain, name="TerrainPrewarm", daemon=True).start()
+
+        # 4. Start Sim loop thread (advances turns automatically when playing is True)
         self._sim_thread = threading.Thread(target=self._sim_loop, name="WebSimLoop", daemon=True)
         self._sim_thread.start()
 
-        # 4. Start HTTP Server thread
+        # 5. Start HTTP Server thread
         if wait_forever:
             try:
                 self.httpd.serve_forever()
@@ -341,6 +345,14 @@ class RegnumWebServer:
         else:
             self._http_thread = threading.Thread(target=self.httpd.serve_forever, name="WebHttpServer", daemon=True)
             self._http_thread.start()
+
+    def _prewarm_terrain(self):
+        """Asynchronously pre-generate terrain surfaces into RAM cache."""
+        try:
+            self.get_terrain_image('jpg')
+            self.get_terrain_image('png')
+        except Exception as e:
+            print(f"[WebServer] Prewarm note: {e}")
 
     def _sim_loop(self):
         """Background thread advancing simulation when server.playing is True."""

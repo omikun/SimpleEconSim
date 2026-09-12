@@ -58,6 +58,31 @@
     return (worldState && typeof worldState.hex_size === 'number') ? worldState.hex_size : DEFAULT_HEX_SIZE;
   }
 
+  function getTerrainBounds() {
+    if (worldState && worldState.terrain_bounds) {
+      return worldState.terrain_bounds;
+    }
+    if (!worldState || !worldState.tiles || worldState.tiles.length === 0) return null;
+    const hexRadius = getHexRadius();
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    worldState.tiles.forEach(t => {
+      const pt = axialToPixel(t.q, t.r, hexRadius);
+      minX = Math.min(minX, pt.x);
+      maxX = Math.max(maxX, pt.x);
+      minY = Math.min(minY, pt.y);
+      maxY = Math.max(maxY, pt.y);
+    });
+    const padX = (maxX - minX + hexRadius * 2) * 0.2;
+    const padY = (maxY - minY + hexRadius * 2) * 0.2;
+    return {
+      min_x: minX - hexRadius - padX,
+      min_y: minY - hexRadius - padY,
+      width: (maxX - minX + hexRadius * 2) + 2 * padX,
+      height: (maxY - minY + hexRadius * 2) + 2 * padY,
+      hex_size: hexRadius
+    };
+  }
+
   function syncTerrainImage() {
     if (!worldState) return;
     const seed = worldState.terrain_seed !== undefined ? worldState.terrain_seed : (worldState.seed || 4242);
@@ -68,8 +93,10 @@
     terrainLoaded = false;
     terrainLoading = true;
 
+    // First try fast JPEG (480 KB) for instantaneous loading on mobile
     const img = new Image();
     img.onload = () => {
+      console.log(`[WebClient] Photorealistic terrain loaded (${img.naturalWidth}x${img.naturalHeight})`);
       if (seed === currentTerrainSeed) {
         terrainImage = img;
         terrainLoaded = true;
@@ -78,14 +105,28 @@
       }
     };
     img.onerror = () => {
-      console.warn('[WebClient] Terrain image failed to load, falling back to vector biomes.');
-      if (seed === currentTerrainSeed) {
-        terrainLoading = false;
-        terrainLoaded = false;
-        render();
-      }
+      console.warn('[WebClient] /api/terrain.jpg failed, trying /api/terrain.png fallback...');
+      const fallbackImg = new Image();
+      fallbackImg.onload = () => {
+        console.log(`[WebClient] Photorealistic terrain PNG loaded (${fallbackImg.naturalWidth}x${fallbackImg.naturalHeight})`);
+        if (seed === currentTerrainSeed) {
+          terrainImage = fallbackImg;
+          terrainLoaded = true;
+          terrainLoading = false;
+          render();
+        }
+      };
+      fallbackImg.onerror = (e) => {
+        console.warn('[WebClient] Terrain image unavailable, using vector biomes.', e);
+        if (seed === currentTerrainSeed) {
+          terrainLoading = false;
+          terrainLoaded = false;
+          render();
+        }
+      };
+      fallbackImg.src = `/api/terrain.png?seed=${seed}&t=${Date.now()}`;
     };
-    img.src = `/api/terrain.png?seed=${seed}`;
+    img.src = `/api/terrain.jpg?seed=${seed}&t=${Date.now()}`;
   }
 
   // Drawer Elements
@@ -273,14 +314,14 @@
     const currentHexSize = hexRadius * camZoom;
 
     // 1. Draw photorealistic topographic terrain background (Approach A)
-    const canDrawTerrain = useTerrainImage && terrainLoaded && terrainImage && terrainImage.naturalWidth > 0 && worldState.terrain_bounds;
+    const tb = getTerrainBounds();
+    const canDrawTerrain = useTerrainImage && terrainLoaded && terrainImage && terrainImage.naturalWidth > 0 && tb;
 
     if (canDrawTerrain) {
-      const b = worldState.terrain_bounds;
-      const imgX = camX + b.min_x * camZoom;
-      const imgY = camY + b.min_y * camZoom;
-      const imgW = b.width * camZoom;
-      const imgH = b.height * camZoom;
+      const imgX = camX + tb.min_x * camZoom;
+      const imgY = camY + tb.min_y * camZoom;
+      const imgW = tb.width * camZoom;
+      const imgH = tb.height * camZoom;
       ctx.drawImage(terrainImage, imgX, imgY, imgW, imgH);
     }
 

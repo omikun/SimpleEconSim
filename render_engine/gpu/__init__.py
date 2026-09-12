@@ -7,7 +7,9 @@ from render_engine.gpu.base import BaseGPUTerrainPipeline
 from render_engine.gpu.moderngl_pipeline import ModernGLTerrainPipeline, MODERNGL_AVAILABLE
 from render_engine.gpu.fallback_pipeline import CPUFallbackPipeline
 
-_GLOBAL_PIPELINE: Optional[BaseGPUTerrainPipeline] = None
+import threading
+
+_LOCAL = threading.local()
 
 
 def is_gpu_available() -> bool:
@@ -19,26 +21,29 @@ def is_gpu_available() -> bool:
 
 
 def get_gpu_pipeline(force_cpu: bool = False) -> BaseGPUTerrainPipeline:
-    """Return the active terrain pipeline (ModernGL if available, else CPU fallback)."""
-    global _GLOBAL_PIPELINE
-
+    """Return the active terrain pipeline (ModernGL if available, else CPU fallback).
+    Uses thread-local pipelines to ensure ModernGL OpenGL contexts are never accessed
+    across multiple OS threads (which causes CGL deadlocks on macOS).
+    """
     if force_cpu:
         return CPUFallbackPipeline()
 
-    if _GLOBAL_PIPELINE is not None:
-        return _GLOBAL_PIPELINE
+    pipeline = getattr(_LOCAL, 'pipeline', None)
+    if pipeline is not None and pipeline.is_available():
+        return pipeline
 
     if MODERNGL_AVAILABLE:
         try:
             pipeline = ModernGLTerrainPipeline()
             if pipeline.is_available():
-                _GLOBAL_PIPELINE = pipeline
-                return _GLOBAL_PIPELINE
+                _LOCAL.pipeline = pipeline
+                return pipeline
         except Exception as e:
             print(f"[render_engine.gpu] ModernGL initialization failed: {e}. Using CPU fallback.")
 
-    _GLOBAL_PIPELINE = CPUFallbackPipeline()
-    return _GLOBAL_PIPELINE
+    fallback = CPUFallbackPipeline()
+    _LOCAL.pipeline = fallback
+    return fallback
 
 
 from render_engine.gpu.settings import (
