@@ -69,6 +69,9 @@ from worldview_science_panel import (
 from worldview_military_panel import (
     draw_military_panel, military_panel_hit
 )
+from worldview_progress_panel import (
+    draw_progress_panel, progress_panel_hit
+)
 from worldview_left_dock import (
     open_left_panel, close_left_panels, is_any_left_panel_open, left_dock_buttons_hit
 )
@@ -163,6 +166,7 @@ def render_frame(surface, world, mouse_pos=None):
     draw_layer_sidebar(surface, world, font_small, mouse_pos=effective_mouse)
     draw_left_dock_buttons(surface, world, font_small, mouse_pos=effective_mouse)
     draw_build_panel(surface, world, font, font_small, mouse_pos=effective_mouse)
+    draw_progress_panel(surface, world, font, font_small, mouse_pos=effective_mouse)
     draw_gov_panel(surface, world, font, font_small, mouse_pos=effective_mouse)
     draw_diplomacy_panel(surface, world, font, font_small, mouse_pos=effective_mouse)
     draw_debt_panel(surface, world, font, font_small, mouse_pos=effective_mouse)
@@ -419,6 +423,8 @@ def main():
                 # 1d. Check Left Drawer hits (Build, Governance, Diplomacy, Debt, Science, Military)
                 if left_dock_buttons_hit(event.pos, world):
                     continue
+                if progress_panel_hit(event.pos, world):
+                    continue
                 if gov_panel_hit(event.pos, world):
                     continue
                 if build_panel_hit(event.pos, world):
@@ -541,7 +547,11 @@ def main():
             elif event.type == pygame.MOUSEWHEEL:
                 if not is_any_modal_open(world):
                     mx, my = pygame.mouse.get_pos()
-                    if mx < MAP_RIGHT:
+                    from worldview_left_dock import PANEL_X, PANEL_W
+                    if world.get('progress_panel_open') and PANEL_X <= mx <= PANEL_X + PANEL_W:
+                        world['progress_scroll'] = max(0, world.get('progress_scroll', 0) - event.y)
+                        _mark_dirty(world)
+                    elif mx < MAP_RIGHT:
                         factor = 1.15 ** event.y
                         zoom_cam_at(world, factor, mx, my)
                         _mark_dirty(world)
@@ -692,7 +702,8 @@ def main():
                     open_left_panel(world, None if is_open else 'military')
                     _mark_dirty(world)
                 elif event.key == pygame.K_p:
-                    world['panel_tab'] = 'policies' if world.get('panel_tab', 'charts') == 'charts' else 'charts'
+                    is_open = world.get('progress_panel_open', False)
+                    open_left_panel(world, None if is_open else 'progress')
                     _mark_dirty(world)
                 elif event.key == pygame.K_TAB:
                     if world.get('panel_tab') == 'citizens':

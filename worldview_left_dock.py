@@ -40,6 +40,7 @@ PANELS_DEF = [
     ('debt', 'Debt & Bonds (S)', 'scale', 's'),
     ('science', 'Science (T)', 'rare_minerals', 't'),
     ('military', 'Military (M)', 'military', 'm'),
+    ('progress', 'Progress (P)', 'clock', 'p'),
 ]
 
 
@@ -49,6 +50,10 @@ def get_active_left_panel(world: dict) -> str | None:
         world['left_panel'] = 'build'
         world['last_left_panel'] = 'build'
         return 'build'
+    if world.get('progress_panel_open'):
+        world['left_panel'] = 'progress'
+        world['last_left_panel'] = 'progress'
+        return 'progress'
     if world.get('gov_panel_open'):
         world['left_panel'] = 'governance'
         world['last_left_panel'] = 'governance'
@@ -77,6 +82,7 @@ def open_left_panel(world: dict, panel_name: str | None) -> None:
     """Set active left drawer, synchronizing all backward-compatible flags."""
     world['left_panel'] = panel_name
     world['build_panel_open'] = (panel_name == 'build')
+    world['progress_panel_open'] = (panel_name == 'progress')
     world['gov_panel_open'] = (panel_name == 'governance')
     world['diplomacy_panel_open'] = (panel_name == 'diplomacy')
     world['debt_panel_open'] = (panel_name == 'debt')
@@ -92,6 +98,7 @@ def close_left_panels(world: dict) -> None:
     """Close all left-hand drawer panels."""
     world['left_panel'] = None
     world['build_panel_open'] = False
+    world['progress_panel_open'] = False
     world['gov_panel_open'] = False
     world['diplomacy_panel_open'] = False
     world['debt_panel_open'] = False
