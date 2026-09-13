@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="theme-color" content="#0d1017">
   <title>REGNUM Mobile — Sovereign Macroeconomic Simulation</title>
-  <link rel="stylesheet" href="style.css?v=5">
+  <link rel="stylesheet" href="style.css?v=9">
 </head>
 <body>
   <div id="app">
@@ -31,39 +31,39 @@
 
       <!-- Real-Time Macroeconomic Indicators Ribbon -->
       <div class="macro-ribbon" id="macro-ribbon">
-        <div class="macro-stat" id="macro-treasury" title="National Treasury: Liquid Cash Reserves">
+        <div class="macro-stat" id="macro-treasury" data-stat="treasury" title="National Treasury: Liquid Cash Reserves">
           <span class="macro-label">Vault</span>
           <span class="macro-val text-gold" id="val-treasury">$0</span>
         </div>
-        <div class="macro-stat" id="macro-granary" title="Emergency Food Granary Reserve">
+        <div class="macro-stat" id="macro-granary" data-stat="granary" title="Emergency Food Granary Reserve">
           <span class="macro-label">Food</span>
           <span class="macro-val text-green" id="val-food">0</span>
         </div>
-        <div class="macro-stat" id="macro-pop" title="Total Living Population">
+        <div class="macro-stat" id="macro-pop" data-stat="pop" title="Total Living Population">
           <span class="macro-label">Pop</span>
           <span class="macro-val" id="val-pop">0</span>
         </div>
-        <div class="macro-stat" id="macro-gdp" title="National Gross Domestic Product (GDP)">
+        <div class="macro-stat" id="macro-gdp" data-stat="gdp" title="National Gross Domestic Product (GDP)">
           <span class="macro-label">GDP</span>
           <span class="macro-val text-cyan" id="val-gdp">$0</span>
         </div>
-        <div class="macro-stat" id="macro-unrest" title="Civil Unrest & Protest Stage">
+        <div class="macro-stat" id="macro-unrest" data-stat="unrest" title="Civil Unrest & Protest Stage">
           <span class="macro-label">Unrest</span>
           <span class="macro-val badge-unrest" id="val-unrest">0.0 Calm</span>
         </div>
-        <div class="macro-stat" id="macro-gini" title="Wealth Inequality (Gini Coefficient)">
+        <div class="macro-stat" id="macro-gini" data-stat="gini" title="Wealth Inequality (Gini Coefficient)">
           <span class="macro-label">Gini</span>
           <span class="macro-val" id="val-gini">0.00</span>
         </div>
-        <div class="macro-stat" id="macro-trade" title="Foreign Trade Net Balance (Exports - Imports)">
+        <div class="macro-stat" id="macro-trade" data-stat="trade" title="Foreign Trade Net Balance (Exports - Imports)">
           <span class="macro-label">Trade</span>
           <span class="macro-val" id="val-trade">$0</span>
         </div>
-        <div class="macro-stat" id="macro-col" title="Average Cost of Living Market Basket">
+        <div class="macro-stat" id="macro-col" data-stat="col" title="Average Cost of Living Market Basket">
           <span class="macro-label">CoL</span>
           <span class="macro-val" id="val-col">1.00</span>
         </div>
-        <div class="macro-stat" id="macro-isrb" title="ISRB Sovereign Rating & Benchmark Yield">
+        <div class="macro-stat" id="macro-isrb" data-stat="isrb" title="ISRB Sovereign Rating & Benchmark Yield">
           <span class="macro-label">ISRB</span>
           <span class="macro-val text-gold" id="val-isrb">BBB 0.18%</span>
         </div>
@@ -71,7 +71,7 @@
 
       <!-- Controls & Shortcut Actions -->
       <div class="hud-controls">
-        <div class="turn-box">
+        <div class="turn-box" id="turn-box" data-stat="turn" title="Simulation Chronicle & Tick Counter">
           <span class="turn-label">Turn</span>
           <strong id="turn-display" class="turn-number">0</strong>
         </div>
@@ -86,6 +86,9 @@
         <button id="btn-new" class="btn btn-icon" title="Randomize World Seed">🎲</button>
       </div>
     </header>
+
+    <!-- Floating Macro Stat Dropdown Card / Tooltip -->
+    <div id="macro-tooltip-popover" class="macro-tooltip-popover hidden" role="tooltip"></div>
 
     <!-- Main Game Area -->
     <div id="main-layout">
@@ -931,6 +934,6 @@
     <div id="toast-container" class="toast-container"></div>
   </div>
 
-  <script src="client.js?v=8"></script>
+  <script src="client.js?v=9"></script>
 </body>
 </html>

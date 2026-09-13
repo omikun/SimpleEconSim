@@ -398,6 +398,12 @@
 
   // ---------------- Top Macroeconomic Bar Synchronizer ----------------
 
+  // ---------------- Top Bar Macro Indicators & Tooltips System ----------------
+
+  let activeTooltipStat = null;
+  let isTooltipLocked = false;
+  let tooltipHoverTimeout = null;
+
   function updateTopMacroBar() {
     if (!worldState) return;
 
@@ -409,14 +415,18 @@
       if (el) el.textContent = val;
     };
 
-    setVal('val-treasury', `$${Math.round(macro.treasury_cash || 0).toLocaleString()}`);
-    setVal('val-food', Math.round(macro.granary_food || 0).toLocaleString());
+    const trCash = Math.round(macro.treasury_cash || 0);
+    const trFood = Math.round(macro.treasury_food !== undefined ? macro.treasury_food : (macro.granary_food || 0));
+    const isrbYield = (macro.bond_yield !== undefined ? macro.bond_yield.toFixed(2) : '0.18') + '%';
+
+    setVal('val-treasury', `$${trCash.toLocaleString()}`);
+    setVal('val-food', trFood.toLocaleString());
     setVal('val-pop', (macro.population || 0).toLocaleString());
     setVal('val-gdp', `$${Math.round(macro.gdp || 0).toLocaleString()}`);
     setVal('val-gini', (macro.gini || 0).toFixed(2));
     setVal('val-trade', `$${Math.round(macro.trade_balance || 0).toLocaleString()}`);
     setVal('val-col', (macro.cost_of_living || 1.0).toFixed(2));
-    setVal('val-isrb', `${macro.credit_rating || 'BBB'} 0.18%`);
+    setVal('val-isrb', `${macro.credit_rating || 'BBB'} ${isrbYield}`);
 
     const elUnrest = document.getElementById('val-unrest');
     if (elUnrest) {
@@ -453,6 +463,359 @@
     if (btnTogglePipeline) {
       btnTogglePipeline.querySelector('.btn-text').textContent = useTerrainImage ? 'Pipeline: Photoreal' : 'Pipeline: Flat';
     }
+
+    // Live-update open tooltip popover if one is active
+    if (activeTooltipStat) {
+      const anchorEl = document.querySelector(`[data-stat="${activeTooltipStat}"]`);
+      if (anchorEl) {
+        renderMacroTooltip(activeTooltipStat, anchorEl);
+      }
+    }
+  }
+
+  function getMacroTooltipContent(statKey) {
+    if (!worldState) return null;
+    const macro = worldState.macro || {};
+    const trFood = Math.round(macro.treasury_food !== undefined ? macro.treasury_food : (macro.granary_food || 0));
+    const trCash = Math.round(macro.treasury_cash || 0);
+    const trDelta = Math.round(macro.treasury_delta || 0);
+    const cur = macro.currency || 'USD';
+
+    switch (statKey) {
+      case 'treasury': {
+        const deltaHtml = trDelta >= 0
+          ? `<span class="delta-pos">+${trDelta.toLocaleString()}</span>`
+          : `<span class="delta-neg">${trDelta.toLocaleString()}</span>`;
+        return {
+          title: '💰 Sovereign Treasury Vault',
+          badge: `${cur} $${trCash.toLocaleString()}`,
+          badgeClass: 'text-gold',
+          rows: [
+            { label: 'Liquid Cash Vault', val: `$${trCash.toLocaleString()}`, valClass: 'text-gold' },
+            { label: 'Turn Balance Delta', val: `${deltaHtml} / turn` },
+            { label: 'Emergency Granary', val: `${trFood.toLocaleString()} food units`, valClass: 'text-green' },
+            { label: 'Statutory Income Tax', val: `${((macro.tax_rate || 0.15) * 100).toFixed(1)}%` },
+            { label: 'Customs Tariff Rate', val: `${((macro.tariff_rate || 0.10) * 100).toFixed(1)}%` },
+            { label: 'Outstanding Public Debt', val: `$${Math.round(macro.public_debt || 0).toLocaleString()}`, valClass: macro.public_debt > 0 ? 'text-ruby' : 'text-green' },
+            { label: 'Armed Forces Payroll', val: `${macro.garrison || 0} stationed troops` }
+          ],
+          footer: 'Adjust statutory taxes in Governance [G] or float public bonds in Debt [S].'
+        };
+      }
+
+      case 'granary': {
+        const foodPrice = Number(macro.cost_of_living || 1.0).toFixed(2);
+        const secLevel = trFood > 50 ? 'Secure Surplus' : (trFood > 15 ? 'Marginal Buffer' : 'Critical Depletion');
+        const secClass = trFood > 50 ? 'text-green' : (trFood > 15 ? 'text-gold' : 'text-ruby');
+        const unrestVal = Number(macro.unrest_energy || 0);
+        return {
+          title: '🌾 Crown Granary & Food Security',
+          badge: `${trFood.toLocaleString()} Units`,
+          badgeClass: 'text-green',
+          rows: [
+            { label: 'Emergency Granary Reserve', val: `${trFood.toLocaleString()} units`, valClass: 'text-green' },
+            { label: 'Market Staple Grain Price', val: `$${foodPrice} / unit`, valClass: 'text-gold' },
+            { label: 'Food Security Status', val: secLevel, valClass: secClass },
+            { label: 'Famine & Starvation Risk', val: unrestVal > 3 ? 'Elevated' : 'Low', valClass: unrestVal > 3 ? 'text-ruby' : 'text-green' },
+            { label: 'Emergency Bread Relief', val: 'Directly quells popular discontent' }
+          ],
+          footer: 'Click Governance [G] -> Social Relief to disburse bread from the granary.'
+        };
+      }
+
+      case 'pop': {
+        const popVal = (macro.population || 0).toLocaleString();
+        const pDelta = macro.population_delta || 0;
+        const deltaHtml = pDelta >= 0
+          ? `<span class="delta-pos">+${pDelta}</span>`
+          : `<span class="delta-neg">${pDelta}</span>`;
+        return {
+          title: '👥 Demographics & Living Citizens',
+          badge: `${popVal} Pops`,
+          badgeClass: 'text-cyan',
+          rows: [
+            { label: 'Total Living Population', val: `${popVal} citizens` },
+            { label: 'Turn Demographic Delta', val: `${deltaHtml} net / turn` },
+            { label: 'Productive Settlement Tiles', val: `${macro.tiles_count || (worldState.tiles || []).length} regions` },
+            { label: 'Standing Town Garrisons', val: `${macro.garrison || 0} soldiers` },
+            { label: 'Field Military Formations', val: `${macro.standing_armies || 0} active regiments` },
+            { label: 'Primary Class Hierarchy', val: 'Serfs, Tenants, Artisans, Gentry' }
+          ],
+          footer: 'Select any map hex to inspect individual citizen careers, wages, and needs.'
+        };
+      }
+
+      case 'gdp': {
+        const gdpVal = Math.round(macro.gdp || 0).toLocaleString();
+        const gDelta = Math.round(macro.gdp_delta || 0);
+        const deltaHtml = gDelta >= 0
+          ? `<span class="delta-pos">+${gDelta.toLocaleString()}</span>`
+          : `<span class="delta-neg">${gDelta.toLocaleString()}</span>`;
+        const gdpPc = Number(macro.gdp_per_capita || 0).toFixed(1);
+        return {
+          title: '📈 Gross Domestic Product (GDP)',
+          badge: `$${gdpVal}`,
+          badgeClass: 'text-cyan',
+          rows: [
+            { label: 'Aggregate Real GDP Output', val: `$${gdpVal}`, valClass: 'text-cyan' },
+            { label: 'Turn Economic Delta', val: `${deltaHtml} / turn` },
+            { label: 'GDP per Capita', val: `$${gdpPc} / citizen`, valClass: 'text-gold' },
+            { label: 'Territorial Market Centers', val: `${macro.tiles_count || 0} claimed biomes` },
+            { label: 'Production Sectors', val: 'Agriculture, Lumber, Furniture, Mining' }
+          ],
+          footer: 'Commission new mills, mines, and artisan workshops via Build Menu [B].'
+        };
+      }
+
+      case 'unrest': {
+        const unrestVal = Number(macro.unrest_energy || 0).toFixed(2);
+        const stage = macro.unrest_stage || 'Calm';
+        const uDelta = Number(macro.unrest_delta || 0).toFixed(2);
+        const deltaHtml = uDelta <= 0
+          ? `<span class="delta-pos">${uDelta}</span>`
+          : `<span class="delta-neg">+${uDelta}</span>`;
+        return {
+          title: '🔥 Civil Unrest & Popular Protest',
+          badge: `Stage: ${stage}`,
+          badgeClass: `badge-unrest ${stage.toLowerCase()}`,
+          rows: [
+            { label: 'National Protest Energy', val: `${unrestVal} / 10.00`, valClass: unrestVal > 3 ? 'text-ruby' : 'text-green' },
+            { label: 'Turn Protest Delta', val: `${deltaHtml} / turn` },
+            { label: 'Civil Threat Classification', val: stage, valClass: `badge-unrest ${stage.toLowerCase()}` },
+            { label: 'Root Grievance Vectors', val: 'Overwork, Enclosure, Hunger, Taxes' },
+            { label: 'Stationed Garrisons', val: `${macro.garrison || 0} soldiers active` },
+            { label: 'Revolution Threshold', val: 'Riot (6.5) → Insurrection (8.0)' }
+          ],
+          footer: 'Press [C] for 6-cause breakdown or [G] to deploy garrisons & lower taxes.'
+        };
+      }
+
+      case 'gini': {
+        const giniVal = Number(macro.gini || 0).toFixed(2);
+        const rating = macro.gini < 0.30 ? 'Equitable (<0.30)' : (macro.gini < 0.45 ? 'Moderate (0.30–0.45)' : 'High Disparity (>0.45)');
+        const ratingClass = macro.gini < 0.30 ? 'text-green' : (macro.gini < 0.45 ? 'text-gold' : 'text-ruby');
+        return {
+          title: '⚖️ Wealth Disparity (Gini Index)',
+          badge: `Gini: ${giniVal}`,
+          badgeClass: ratingClass,
+          rows: [
+            { label: 'Gini Inequality Coefficient', val: giniVal, valClass: ratingClass },
+            { label: 'Distribution Assessment', val: rating, valClass: ratingClass },
+            { label: 'Accumulation Mechanism', val: 'Enclosed estates vs landless wage-labor' },
+            { label: 'Social Friction Risk', val: macro.gini > 0.40 ? 'Severe class tension' : 'Stable social cohesion' },
+            { label: 'Redistribution Tools', val: 'Revert customary commons, fair wages' }
+          ],
+          footer: 'View Cadastre tab in tile inspection to re-open common land for tenants.'
+        };
+      }
+
+      case 'trade': {
+        const tb = Math.round(macro.trade_balance || 0);
+        const tbHtml = tb >= 0 ? `<span class="delta-pos">+$${tb.toLocaleString()}</span>` : `<span class="delta-neg">-$${Math.abs(tb).toLocaleString()}</span>`;
+        const tDelta = Math.round(macro.trade_delta || 0);
+        const tDeltaHtml = tDelta >= 0 ? `<span class="delta-pos">+$${tDelta.toLocaleString()}</span>` : `<span class="delta-neg">-$${Math.abs(tDelta).toLocaleString()}</span>`;
+        return {
+          title: '🚢 Foreign Trade & Customs Ledger',
+          badge: tb >= 0 ? 'Trade Surplus' : 'Trade Deficit',
+          badgeClass: tb >= 0 ? 'text-green' : 'text-ruby',
+          rows: [
+            { label: 'Net Commercial Balance', val: `${tbHtml}` },
+            { label: 'Turn Balance Delta', val: `${tDeltaHtml} / turn` },
+            { label: 'Total Foreign Exports', val: `$${Math.round(macro.exports || 0).toLocaleString()}`, valClass: 'text-cyan' },
+            { label: 'Total Foreign Imports', val: `$${Math.round(macro.imports || 0).toLocaleString()}`, valClass: 'text-gold' },
+            { label: 'Statutory Customs Tariff', val: `${((macro.tariff_rate || 0.10) * 100).toFixed(1)}% import duty` }
+          ],
+          footer: 'Dispatch envoys to sign bilateral trade pacts via Diplomacy [D].'
+        };
+      }
+
+      case 'col': {
+        const colVal = Number(macro.cost_of_living || 1.0).toFixed(2);
+        return {
+          title: '🧺 Cost of Living & Commodity Basket',
+          badge: `CoL: ${colVal}`,
+          badgeClass: 'text-gold',
+          rows: [
+            { label: 'Consumer Market Basket', val: `${colVal}x index` },
+            { label: 'Normalized Food Price', val: `$${colVal} / bushel`, valClass: 'text-green' },
+            { label: 'Purchasing Affordability', val: macro.cost_of_living <= 1.25 ? 'Stable / Accessible' : 'Price Pressures', valClass: macro.cost_of_living <= 1.25 ? 'text-green' : 'text-gold' },
+            { label: 'Logistics Infrastructure', val: 'Transport costs inflate remote markets' },
+            { label: 'Remediation Decrees', val: 'Pave regional highways & standardize routes' }
+          ],
+          footer: 'Issue provincial highway decrees in Governance [G] to lower freight costs.'
+        };
+      }
+
+      case 'isrb': {
+        const rating = macro.credit_rating || 'BBB';
+        const yld = (macro.bond_yield !== undefined ? macro.bond_yield.toFixed(2) : '0.18') + '%';
+        return {
+          title: '🏛️ ISRB Sovereign Rating Desk',
+          badge: `${rating} | ${yld}`,
+          badgeClass: 'text-gold',
+          rows: [
+            { label: 'ISRB Sovereign Credit Grade', val: rating, valClass: 'text-gold' },
+            { label: 'Benchmark 10Y Bond Yield', val: yld, valClass: 'text-cyan' },
+            { label: 'Total Outstanding Debt', val: `$${Math.round(macro.public_debt || 0).toLocaleString()}`, valClass: macro.public_debt > 0 ? 'text-ruby' : 'text-green' },
+            { label: 'International Market Access', val: ['AAA','AA','A'].includes(rating) ? 'Prime Tier (Low Cost)' : (['BBB','BB'].includes(rating) ? 'Investment Grade' : 'High Risk Speculative') },
+            { label: 'Credit Rating Factors', val: 'Debt ratio, real GDP growth, unrest score' }
+          ],
+          footer: 'Press [S] to open Sovereign Debt suite, issue bonds, or lobby the ISRB.'
+        };
+      }
+
+      case 'turn': {
+        return {
+          title: '⏱️ Simulation Engine & Chronicle',
+          badge: `Turn ${worldState.turn || 0}`,
+          badgeClass: 'text-cyan',
+          rows: [
+            { label: 'Current World Turn', val: `${worldState.turn || 0}` },
+            { label: 'Simulation State', val: isPlaying ? 'Running (Auto-advancing)' : 'Paused', valClass: isPlaying ? 'text-green' : 'text-gold' },
+            { label: 'Tick Speed', val: '1 turn every ~400ms' },
+            { label: 'Hotkey Controls', val: 'Space = Play/Pause, Enter = +1 Step' }
+          ],
+          footer: 'Press Space to play or pause the sovereign historical simulation.'
+        };
+      }
+
+      default:
+        return null;
+    }
+  }
+
+  function renderMacroTooltip(statKey, anchorEl) {
+    const popover = document.getElementById('macro-tooltip-popover');
+    if (!popover || !anchorEl) return;
+
+    const data = getMacroTooltipContent(statKey);
+    if (!data) return;
+
+    popover.innerHTML = `
+      <div class="popover-header">
+        <div class="popover-title-row">
+          <span>${data.title}</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:6px;">
+          <span class="popover-badge ${data.badgeClass || ''}">${data.badge}</span>
+          <button class="popover-close-btn" id="popover-close-btn" aria-label="Close tooltip">&times;</button>
+        </div>
+      </div>
+      <div class="popover-body">
+        ${data.rows.map(r => `
+          <div class="popover-row">
+            <span class="row-label">${r.label}</span>
+            <span class="row-val ${r.valClass || ''}">${r.val}</span>
+          </div>
+        `).join('')}
+      </div>
+      <div class="popover-footer">
+        ${data.footer}
+      </div>
+    `;
+
+    popover.classList.remove('hidden');
+
+    const closeBtn = popover.querySelector('#popover-close-btn');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        hideMacroTooltip();
+      });
+    }
+
+    // Positioning
+    const rect = anchorEl.getBoundingClientRect();
+    const popoverW = Math.min(330, window.innerWidth - 20);
+    popover.style.width = `${popoverW}px`;
+
+    let left = rect.left + rect.width / 2 - popoverW / 2;
+    left = Math.max(10, Math.min(window.innerWidth - popoverW - 10, left));
+    const top = rect.bottom + 6;
+
+    popover.style.left = `${left}px`;
+    popover.style.top = `${top}px`;
+
+    // Arrow offset
+    const arrowX = Math.max(16, Math.min(popoverW - 20, (rect.left + rect.width / 2) - left));
+    popover.style.setProperty('--arrow-offset', `${arrowX}px`);
+  }
+
+  function showMacroTooltip(statKey, anchorEl, lock = false) {
+    activeTooltipStat = statKey;
+    if (lock) isTooltipLocked = true;
+
+    document.querySelectorAll('.macro-stat, .turn-box').forEach(el => el.classList.remove('active'));
+    anchorEl.classList.add('active');
+
+    renderMacroTooltip(statKey, anchorEl);
+  }
+
+  function hideMacroTooltip() {
+    activeTooltipStat = null;
+    isTooltipLocked = false;
+    const popover = document.getElementById('macro-tooltip-popover');
+    if (popover) popover.classList.add('hidden');
+    document.querySelectorAll('.macro-stat, .turn-box').forEach(el => el.classList.remove('active'));
+  }
+
+  function setupTopBarTooltips() {
+    const statElements = document.querySelectorAll('.macro-stat, .turn-box');
+    statElements.forEach(el => {
+      const statKey = el.dataset.stat;
+      if (!statKey) return;
+
+      // Click to open & lock popover
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (activeTooltipStat === statKey && isTooltipLocked) {
+          hideMacroTooltip();
+        } else {
+          showMacroTooltip(statKey, el, true);
+        }
+      });
+
+      // Hover on desktop
+      el.addEventListener('mouseenter', () => {
+        if (!isTooltipLocked) {
+          clearTimeout(tooltipHoverTimeout);
+          tooltipHoverTimeout = setTimeout(() => {
+            if (!isTooltipLocked) showMacroTooltip(statKey, el, false);
+          }, 80);
+        }
+      });
+
+      el.addEventListener('mouseleave', () => {
+        clearTimeout(tooltipHoverTimeout);
+        if (!isTooltipLocked) {
+          hideMacroTooltip();
+        }
+      });
+    });
+
+    // Dismiss when clicking anywhere outside
+    document.addEventListener('click', (e) => {
+      const popover = document.getElementById('macro-tooltip-popover');
+      if (popover && !popover.classList.contains('hidden')) {
+        if (!popover.contains(e.target) && !e.target.closest('.macro-stat') && !e.target.closest('.turn-box')) {
+          hideMacroTooltip();
+        }
+      }
+    });
+
+    // Dismiss on Escape
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && activeTooltipStat) {
+        hideMacroTooltip();
+      }
+    });
+
+    window.addEventListener('resize', () => {
+      if (activeTooltipStat) {
+        const anchorEl = document.querySelector(`[data-stat="${activeTooltipStat}"]`);
+        if (anchorEl) renderMacroTooltip(activeTooltipStat, anchorEl);
+      }
+    });
   }
 
   // ---------------- Left Sovereign Suites Navigation & Drawers ----------------
@@ -561,6 +924,7 @@
   }
 
   function openLeftDrawer(suiteName) {
+    hideMacroTooltip();
     activeLeftDrawer = suiteName;
     if (leftDrawer) leftDrawer.classList.remove('closed');
 
@@ -1705,6 +2069,7 @@
   }
 
   function openCompareModal() {
+    hideMacroTooltip();
     if (!compareModal || !worldState) return;
     compareModal.classList.remove('hidden');
     renderCompareTabContent();
@@ -2018,6 +2383,7 @@
   }
 
   function openCommandSuiteModal() {
+    hideMacroTooltip();
     if (!commandSuiteModal || !worldState) return;
     commandSuiteModal.classList.remove('hidden');
 
@@ -2077,6 +2443,7 @@
   }
 
   function openFiscalTransferDialog(tileName, recipeName, cost, onHand) {
+    hideMacroTooltip();
     pendingFiscalTransfer = { tileName, recipeName, cost, onHand };
     const shortfall = Math.max(0, cost - onHand);
 
@@ -2129,6 +2496,7 @@
   }
 
   function openHelpModal() {
+    hideMacroTooltip();
     if (!helpModal) return;
     helpModal.classList.remove('hidden');
     renderHelpContent();
@@ -2195,6 +2563,7 @@
   function setupQrModal() {
     if (btnQr) {
       btnQr.addEventListener('click', () => {
+        hideMacroTooltip();
         if (qrUrlText) qrUrlText.value = window.location.origin;
         qrModal.classList.remove('hidden');
       });
@@ -2503,6 +2872,7 @@
     setupHelpModal();
     setupQrModal();
     setupLayerSelector();
+    setupTopBarTooltips();
     setupKeyboardShortcuts();
 
     // Top Controls
