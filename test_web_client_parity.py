@@ -107,5 +107,67 @@ class TestWebClientParity(unittest.TestCase):
         self.assertEqual(self.sim.player_nation_name, target)
 
 
+    def test_charts_and_comparison_serialization(self):
+        w = self.sim.serialize_world()
+        self.assertIn('comparison_suite', w)
+        cs = w['comparison_suite']
+        self.assertIn('tab1_macro', cs)
+        self.assertIn('tab2_goods', cs)
+        self.assertIn('tab3_forex', cs)
+        self.assertIn('tab4_extraction', cs)
+        self.assertIn('tab5_protest', cs)
+        self.assertIn('tab6_ecology', cs)
+
+        # Verify tile chart series
+        inhabited = [t for t in self.sim.tiles if getattr(t, 'owner_nation', None) is not None][0]
+        data = self.sim.serialize_tile(inhabited, turn=self.sim.turn)
+        self.assertIn('charts', data)
+        charts = data['charts']
+        self.assertIn('economic', charts)
+        self.assertIn('ecological', charts)
+        self.assertIn('labor', charts)
+        self.assertIn('citizens', charts)
+
+    def test_cadastre_actions(self):
+        tile = [t for t in self.sim.tiles if getattr(t, 'tenure', None) and t.tenure.plots][0]
+        plot = tile.tenure.plots[0]
+
+        # Toggle land use
+        res = self.sim.execute_command(CommandMessage(CommandType.CADASTRE_TOGGLE_LAND_USE, {
+            'tile': tile.name, 'plot_id': plot.plot_id, 'production_type': 'pasture'
+        }))
+        self.assertTrue(res['success'], res)
+
+        # Restore commons
+        res = self.sim.execute_command(CommandMessage(CommandType.RESTORE_COMMONS, {
+            'tile': tile.name, 'plot_id': plot.plot_id
+        }))
+        self.assertTrue(res['success'], res)
+
+    def test_province_decree_command(self):
+        prov = self.sim.nations[0].provinces[0]
+        prov.gov.agent.cash = 500.0
+        res = self.sim.execute_command(CommandMessage(CommandType.PROVINCE_DECREE, {
+            'province': prov.name, 'decree': 'standardize_routes'
+        }))
+        self.assertTrue(res['success'], res)
+
+    def test_labor_and_border_policies(self):
+        res1 = self.sim.execute_command(CommandMessage(CommandType.SET_BORDER_POLICY, {
+            'open_borders': False
+        }))
+        self.assertTrue(res1['success'], res1)
+
+        res2 = self.sim.execute_command(CommandMessage(CommandType.SET_FACTORY_SAFETY, {
+            'enabled': True
+        }))
+        self.assertTrue(res2['success'], res2)
+
+        res3 = self.sim.execute_command(CommandMessage(CommandType.SET_TRUCK_ACT, {
+            'enabled': True
+        }))
+        self.assertTrue(res3['success'], res3)
+
+
 if __name__ == '__main__':
     unittest.main()

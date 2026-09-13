@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="theme-color" content="#0d1017">
   <title>REGNUM Mobile — Sovereign Macroeconomic Simulation</title>
-  <link rel="stylesheet" href="style.css?v=3">
+  <link rel="stylesheet" href="style.css?v=4">
 </head>
 <body>
   <div id="app">
@@ -63,6 +63,10 @@
           <span class="macro-label">CoL</span>
           <span class="macro-val" id="val-col">1.00</span>
         </div>
+        <div class="macro-stat" id="macro-isrb" title="ISRB Sovereign Rating & Benchmark Yield">
+          <span class="macro-label">ISRB</span>
+          <span class="macro-val text-gold" id="val-isrb">BBB 0.18%</span>
+        </div>
       </div>
 
       <!-- Controls & Shortcut Actions -->
@@ -73,6 +77,9 @@
         </div>
         <button id="btn-play" class="btn btn-primary" aria-label="Play or Pause Simulation">▶ Play</button>
         <button id="btn-step" class="btn btn-secondary" aria-label="Step 1 Turn">+1 Step</button>
+        <button id="btn-toggle-pipeline" class="btn btn-ghost" title="Toggle CPU/GPU Pipeline [U]">⚙️ <span class="btn-text">Pipeline</span></button>
+        <button id="btn-top-diplo" class="btn btn-ghost" title="Global Diplomacy [D]">🤝 <span class="btn-text">Diplo</span></button>
+        <button id="btn-top-military" class="btn btn-ghost" title="Military Operations [M]">⚔️ <span class="btn-text">Army</span></button>
         <button id="btn-compare" class="btn btn-ghost" title="Compare All Nations [C]">⚖️ <span class="btn-text">Compare</span></button>
         <button id="btn-help" class="btn btn-ghost" title="Game Manual & Help [?]">❓ <span class="btn-text">Help</span></button>
         <button id="btn-qr" class="btn btn-icon" title="Scan to Play on iPhone">📱</button>
@@ -115,6 +122,14 @@
         <!-- Slide-out Drawer Panel -->
         <div id="left-drawer" class="left-drawer closed">
           <div class="drawer-top-bar">
+            <div class="drawer-suite-tabs">
+              <button class="suite-tab-icon-btn active" data-drawer="build" title="Build [B]">🔨</button>
+              <button class="suite-tab-icon-btn" data-drawer="gov" title="Governance [G]">🏛️</button>
+              <button class="suite-tab-icon-btn" data-drawer="diplomacy" title="Diplomacy [D]">🤝</button>
+              <button class="suite-tab-icon-btn" data-drawer="debt" title="Debt [S]">📜</button>
+              <button class="suite-tab-icon-btn" data-drawer="science" title="Science [T]">🔬</button>
+              <button class="suite-tab-icon-btn" data-drawer="military" title="Military [M]">⚔️</button>
+            </div>
             <h3 id="drawer-title">Sovereign Suite</h3>
             <button id="btn-close-left" class="btn-icon-close" title="Close Drawer [Esc]">✕</button>
           </div>
@@ -122,6 +137,10 @@
           <div class="drawer-pane-container">
             <!-- 1. BUILD SUITE (B) -->
             <div id="pane-build" class="drawer-pane">
+              <div class="category-switch-bar">
+                <button class="cat-btn active" data-cat="industry">🏭 Industry & Roads</button>
+                <button class="cat-btn" data-cat="ecology">🌿 Ecology & Sanitation</button>
+              </div>
               <div class="pane-header-info">
                 <span id="build-target-tile" class="target-badge">Selected Tile: None</span>
                 <div class="tier-filter-chips">
@@ -132,7 +151,7 @@
                 </div>
               </div>
 
-              <!-- Active Construction Projects -->
+              <!-- Active Construction Projects with Live Progress Gauges -->
               <div id="active-projects-section" class="projects-section hidden">
                 <h4 class="sub-heading">Active Construction Projects</h4>
                 <div id="active-projects-list" class="projects-list"></div>
@@ -145,58 +164,198 @@
             <!-- 2. GOVERNANCE SUITE (G) -->
             <div id="pane-gov" class="drawer-pane">
               <div class="scope-switch-bar">
-                <button class="scope-btn active" data-scope="tile">🏛️ City</button>
-                <button class="scope-btn" data-scope="province">🗺️ Province</button>
-                <button class="scope-btn" data-scope="nation">👑 Sovereign</button>
+                <button class="scope-btn active" data-gov-scope="tile">🏛️ City</button>
+                <button class="scope-btn" data-gov-scope="province">🗺️ Province</button>
+                <button class="scope-btn" data-gov-scope="nation">👑 Sovereign</button>
+                <button class="scope-btn" data-gov-scope="frontier">🌲 Frontier</button>
               </div>
 
-              <!-- Tax & Labor Statutory Policies -->
-              <div class="gov-card">
-                <h4 class="card-title">Fiscal & Statutory Tax Rates</h4>
-                <div class="slider-control">
-                  <div class="slider-header">
-                    <span>Income Tax Rate</span>
-                    <strong id="lbl-income-tax">15.0%</strong>
+              <!-- SCOPE 1: CITY / TILE -->
+              <div id="gov-scope-tile" class="gov-scope-section">
+                <div class="gov-card">
+                  <h4 class="card-title">Municipal Fiscal Rates</h4>
+                  <div class="slider-control">
+                    <div class="slider-header">
+                      <span>Municipal Income Tax Rate</span>
+                      <strong id="lbl-income-tax">15.0%</strong>
+                    </div>
+                    <input type="range" id="slider-income-tax" min="0" max="0.50" step="0.01" value="0.15">
                   </div>
-                  <input type="range" id="slider-income-tax" min="0" max="0.50" step="0.01" value="0.15">
+                  <div class="btn-group-row mt-2">
+                    <button class="btn btn-secondary btn-sm" id="btn-tax-minus2">-2% Tax</button>
+                    <button class="btn btn-secondary btn-sm" id="btn-tax-plus2">+2% Tax</button>
+                  </div>
                 </div>
 
-                <div class="slider-control mt-2">
-                  <div class="slider-header">
-                    <span>Customs Import Tariff</span>
-                    <strong id="lbl-tariff-rate">10.0%</strong>
+                <div class="gov-card mt-3">
+                  <h4 class="card-title">Municipal Decrees & Agronomy</h4>
+                  <div class="decree-buttons-grid">
+                    <button id="btn-decree-granary" class="btn btn-secondary btn-block">
+                      🌾 Disburse Food Relief (50 Food Relief • $50)
+                    </button>
+                    <button id="btn-decree-order" class="btn btn-secondary btn-block mt-2">
+                      🛡️ Enforce Police Curfew ($50, -1.5 Unrest)
+                    </button>
+                    <button id="btn-decree-patrol" class="btn btn-secondary btn-block mt-2">
+                      👮 Deploy Safety Patrol ($60, -0.8 Unrest)
+                    </button>
+                    <button id="btn-decree-farming" class="btn btn-secondary btn-block mt-2">
+                      🚜 Subsidize Farming ($100, +15% Agrarian Yield)
+                    </button>
+                    <button id="btn-decree-ubi-tile" class="btn btn-secondary btn-block mt-2">
+                      💰 Enact Municipal UBI ($80 / 10 turns)
+                    </button>
+                    <button id="btn-decree-enclose-tile" class="btn btn-secondary btn-block mt-2">
+                      📜 Enclose Feudal Plot ($50 Enclosure Charter)
+                    </button>
                   </div>
-                  <input type="range" id="slider-tariff-rate" min="0" max="0.50" step="0.01" value="0.10">
+
+                  <div class="toggle-control mt-3">
+                    <label class="switch-label">
+                      <input type="checkbox" id="chk-agronomy-fertilizer" checked>
+                      <span>Chemical Fertilizer (Yield Boost / Nitrates)</span>
+                    </label>
+                  </div>
+                  <div class="toggle-control mt-2">
+                    <label class="switch-label">
+                      <input type="checkbox" id="chk-agronomy-pesticides">
+                      <span>Agronomic Pesticides (Blight Shield / Runoff)</span>
+                    </label>
+                  </div>
                 </div>
               </div>
 
-              <div class="gov-card mt-3">
-                <h4 class="card-title">Labor Regulation & Factory Acts</h4>
-                <div class="slider-control">
-                  <div class="slider-header">
-                    <span>Maximum Workday Hours</span>
-                    <strong id="lbl-gov-workday">12.0h</strong>
+              <!-- SCOPE 2: PROVINCE -->
+              <div id="gov-scope-province" class="gov-scope-section hidden">
+                <div class="gov-card">
+                  <h4 class="card-title">Provincial Governance & Logistics</h4>
+                  <p class="card-desc">Administer regional public infrastructure and inter-city equalization.</p>
+                  <div class="decree-buttons-grid">
+                    <button id="btn-prov-highway" class="btn btn-secondary btn-block">
+                      🛣️ Pave Regional Highway ($120, +25% Logistics)
+                    </button>
+                    <button id="btn-prov-health" class="btn btn-secondary btn-block mt-2">
+                      🏥 Regional Health Initiative ($150, -40% Epidemics)
+                    </button>
+                    <button id="btn-prov-equalize" class="btn btn-secondary btn-block mt-2">
+                      ⚖️ Provincial Equalization ($200, Fiscal Rebalance)
+                    </button>
+                    <button id="btn-prov-routes" class="btn btn-secondary btn-block mt-2">
+                      🔄 Standardize Trade Routes ($100, Free Flow)
+                    </button>
+                    <button id="btn-prov-harmonize" class="btn btn-secondary btn-block mt-2">
+                      📊 Harmonize Taxes across Constituent Cities
+                    </button>
+                    <button id="btn-prov-soil" class="btn btn-secondary btn-block mt-2">
+                      🌱 Fund Soil Conservation ($150, +10% Fertility)
+                    </button>
                   </div>
-                  <input type="range" id="slider-gov-workday" min="8" max="16" step="0.5" value="12">
-                </div>
-                <div class="toggle-control mt-2">
-                  <label class="switch-label">
-                    <input type="checkbox" id="chk-ten-hour">
-                    <span>Enact Ten-Hour Factory Act (&le;10.0h)</span>
-                  </label>
                 </div>
               </div>
 
-              <!-- Sovereign Decrees -->
-              <div class="gov-card mt-3">
-                <h4 class="card-title">Executive Decrees</h4>
-                <div class="decree-buttons-grid">
-                  <button id="btn-decree-granary" class="btn btn-secondary btn-block">
-                    🌾 Open State Granaries (50 Food Relief)
-                  </button>
-                  <button id="btn-decree-order" class="btn btn-secondary btn-block mt-2">
-                    🛡️ Emergency Public Order Decree ($50, -1.5 Unrest)
-                  </button>
+              <!-- SCOPE 3: NATION / SOVEREIGN -->
+              <div id="gov-scope-nation" class="gov-scope-section hidden">
+                <div class="gov-card">
+                  <h4 class="card-title">National Fiscal & Customs Policy</h4>
+                  <div class="slider-control">
+                    <div class="slider-header">
+                      <span>Statutory Customs Import Tariff</span>
+                      <strong id="lbl-tariff-rate">10.0%</strong>
+                    </div>
+                    <input type="range" id="slider-tariff-rate" min="0" max="0.50" step="0.01" value="0.10">
+                  </div>
+                  <div class="btn-group-row mt-2">
+                    <span class="text-xs text-dim">Tax Presets:</span>
+                    <button class="chip btn-tax-preset" data-val="0.10">10%</button>
+                    <button class="chip btn-tax-preset" data-val="0.15">15%</button>
+                    <button class="chip btn-tax-preset" data-val="0.25">25%</button>
+                    <button class="chip btn-tax-preset" data-val="0.35">35%</button>
+                  </div>
+                  <div class="btn-group-row mt-2">
+                    <span class="text-xs text-dim">Tariff Presets:</span>
+                    <button class="chip btn-tariff-preset" data-val="0.00">0%</button>
+                    <button class="chip btn-tariff-preset" data-val="0.05">5%</button>
+                    <button class="chip btn-tariff-preset" data-val="0.10">10%</button>
+                    <button class="chip btn-tariff-preset" data-val="0.15">15%</button>
+                  </div>
+                </div>
+
+                <div class="gov-card mt-3">
+                  <h4 class="card-title">Sovereign Social & Labor Mandates</h4>
+                  <div class="slider-control">
+                    <div class="slider-header">
+                      <span>Maximum Workday Hours</span>
+                      <strong id="lbl-gov-workday">12.0h</strong>
+                    </div>
+                    <input type="range" id="slider-gov-workday" min="8" max="16" step="0.5" value="12">
+                  </div>
+                  <div class="btn-group-row mt-2">
+                    <button class="btn btn-secondary btn-sm" id="btn-workday-minus2">-2h Shift</button>
+                    <button class="btn btn-secondary btn-sm" id="btn-workday-plus2">+2h Shift</button>
+                  </div>
+
+                  <div class="toggle-control mt-2">
+                    <label class="switch-label">
+                      <input type="checkbox" id="chk-ten-hour">
+                      <span>Ten-Hour Factory Act (&le;10.0h Ceiling)</span>
+                    </label>
+                  </div>
+                  <div class="toggle-control mt-2">
+                    <label class="switch-label">
+                      <input type="checkbox" id="chk-factory-safety">
+                      <span>Factory Safety Act (Machine Guards / Health)</span>
+                    </label>
+                  </div>
+                  <div class="toggle-control mt-2">
+                    <label class="switch-label">
+                      <input type="checkbox" id="chk-truck-act">
+                      <span>Truck Act (Prohibit Company Scrip Wages)</span>
+                    </label>
+                  </div>
+                  <div class="toggle-control mt-2">
+                    <label class="switch-label">
+                      <input type="checkbox" id="chk-open-borders" checked>
+                      <span>Open Borders & Free Migration</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div class="gov-card mt-3">
+                  <h4 class="card-title">Sovereign Executive Decrees</h4>
+                  <div class="decree-buttons-grid">
+                    <button id="btn-decree-science-prize" class="btn btn-secondary btn-block">
+                      🔬 Fund National Science Prize ($300)
+                    </button>
+                    <button id="btn-decree-mobilize" class="btn btn-secondary btn-block mt-2">
+                      ⚔️ Mobilize Standing Army ($250)
+                    </button>
+                    <button id="btn-decree-sovereign-equalize" class="btn btn-secondary btn-block mt-2">
+                      👑 Sovereign Equalization Grant ($250)
+                    </button>
+                    <button id="btn-decree-ubi-empire" class="btn btn-secondary btn-block mt-2">
+                      🌐 Empire UBI Decree ($300 / 10 turns)
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- SCOPE 4: FRONTIER -->
+              <div id="gov-scope-frontier" class="gov-scope-section hidden">
+                <div class="gov-card">
+                  <h4 class="card-title">Wilderness & Frontier Expansion</h4>
+                  <p class="card-desc">Sponsor homesteader expeditions and deliver aid to pioneer outposts on wilderness territories.</p>
+                  <div class="stat-row">
+                    <span>Target Territory:</span>
+                    <strong id="frontier-target-tile">Selected Tile</strong>
+                  </div>
+                  <div class="decree-buttons-grid mt-3">
+                    <button id="btn-frontier-sponsor" class="btn btn-primary btn-block">
+                      🏕️ Sponsor Settler Expedition (3 Homesteaders • $100)
+                    </button>
+                    <button id="btn-frontier-aid" class="btn btn-secondary btn-block mt-2">
+                      🍞 Send Pioneer Relief Aid (Food Subsidies • $40)
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -206,59 +365,101 @@
               <div class="pane-header-info">
                 <span>Foreign Bilateral Relations & Alliances</span>
               </div>
-              <div id="diplomacy-nations-list" class="cards-list"></div>
+              <div class="diplo-tabs-bar" id="diplo-nation-tabs"></div>
+              <div id="diplomacy-active-nation-card" class="mt-2"></div>
+              <div id="diplomacy-nations-list" class="cards-list mt-3"></div>
+              <div class="gov-card mt-3">
+                <h4 class="card-title">Diplomatic Incidents & Grievance History</h4>
+                <div id="diplo-history-list" class="item-list">
+                  <div class="empty-state">No recorded diplomatic grievances or broken treaties.</div>
+                </div>
+              </div>
             </div>
 
             <!-- 4. SOVEREIGN DEBT & ISRB SUITE (S) -->
             <div id="pane-debt" class="drawer-pane">
-              <!-- Rating & Yield Overview -->
-              <div class="debt-rating-card">
-                <div class="rating-badge-container">
-                  <span class="rating-label">Credit Rating</span>
-                  <div class="rating-box" id="debt-isrb-rating">BBB</div>
-                </div>
-                <div class="rating-details">
-                  <div>Market Benchmark Yield: <strong id="debt-market-yield" class="text-gold">0.18% / t</strong></div>
-                  <div>Outstanding Public Debt: <strong id="debt-total-amount" class="text-ruby">$0</strong></div>
-                </div>
+              <div class="scope-switch-bar">
+                <button class="scope-btn active" data-debt-scope="domestic">Domestic & ISRB</button>
+                <button class="scope-btn" data-debt-scope="foreign">Foreign Reserves & Bonds</button>
               </div>
 
-              <!-- Bond Offering Actions -->
-              <div class="gov-card mt-3">
-                <h4 class="card-title">Issue Sovereign Bond Tranche</h4>
-                <div class="duration-selector">
-                  <span>Maturity:</span>
-                  <div class="chip-group" id="bond-duration-chips">
-                    <button class="chip active" data-duration="20">20t Short</button>
-                    <button class="chip" data-duration="50">50t Medium</button>
-                    <button class="chip" data-duration="100">100t Century</button>
+              <div id="debt-scope-domestic" class="debt-scope-section">
+                <!-- Rating & Yield Overview -->
+                <div class="debt-rating-card">
+                  <div class="rating-badge-container">
+                    <span class="rating-label">Credit Rating</span>
+                    <div class="rating-box" id="debt-isrb-rating">BBB</div>
+                  </div>
+                  <div class="rating-details">
+                    <div>Benchmark Yield: <strong id="debt-market-yield" class="text-gold">0.18% / t</strong></div>
+                    <div>Outstanding Public Debt: <strong id="debt-total-amount" class="text-ruby">$0</strong></div>
+                    <div>ISRB Board Status: <strong id="debt-isrb-seat" class="text-cyan">Observer</strong></div>
                   </div>
                 </div>
-                <div class="dual-btn-row mt-2">
-                  <button id="btn-issue-bond-500" class="btn btn-primary">Issue $500 Offering</button>
-                  <button id="btn-issue-bond-1000" class="btn btn-secondary">Issue $1,000 Offering</button>
+
+                <!-- Bond Offering Actions -->
+                <div class="gov-card mt-3">
+                  <h4 class="card-title">Issue Sovereign Bond Tranche</h4>
+                  <div class="duration-selector">
+                    <span>Maturity:</span>
+                    <div class="chip-group" id="bond-duration-chips">
+                      <button class="chip active" data-duration="20">20t Short</button>
+                      <button class="chip" data-duration="50">50t Medium</button>
+                      <button class="chip" data-duration="100">100t Century</button>
+                    </div>
+                  </div>
+                  <div class="dual-btn-row mt-2">
+                    <button id="btn-issue-bond-500" class="btn btn-primary">Issue $500 Tranche</button>
+                    <button id="btn-issue-bond-1000" class="btn btn-secondary">Issue $1,000 Tranche</button>
+                  </div>
+                </div>
+
+                <!-- ISRB Bureau Operations -->
+                <div class="gov-card mt-3">
+                  <h4 class="card-title">ISRB Rating Bureau Operations</h4>
+                  <p class="card-desc">Lobby credit auditors, initiate forensic audits of rivals, or purchase a permanent board seat.</p>
+                  <button id="btn-lobby-isrb" class="btn btn-secondary btn-block">
+                    ⚖️ Lobby Rating Upgrade ($200)
+                  </button>
+                  <button id="btn-audit-rival" class="btn btn-secondary btn-block mt-2">
+                    🔍 Order Rating Audit on Geopolitical Rival ($350)
+                  </button>
+                  <button id="btn-acquire-seat" class="btn btn-primary btn-block mt-2">
+                    🏛️ Acquire Permanent ISRB Board Seat ($600)
+                  </button>
+                </div>
+
+                <!-- Active Offerings List -->
+                <div id="active-offerings-section" class="mt-3">
+                  <h4 class="sub-heading">Live Sovereign Debt Tranches</h4>
+                  <div id="active-offerings-list" class="cards-list"></div>
                 </div>
               </div>
 
-              <!-- ISRB Influence -->
-              <div class="gov-card mt-3">
-                <h4 class="card-title">ISRB Bureau Influence</h4>
-                <p class="card-desc">Lobby credit rating auditors to improve sovereign bond yields.</p>
-                <button id="btn-lobby-isrb" class="btn btn-secondary btn-block">
-                  ⚖️ Lobby Rating Upgrade ($200)
-                </button>
-              </div>
+              <div id="debt-scope-foreign" class="debt-scope-section hidden">
+                <div class="gov-card">
+                  <h4 class="card-title">Foreign Sovereign Bond Reserves</h4>
+                  <p class="card-desc">Invest sovereign reserves in high-grade foreign public paper to collect perpetual coupons.</p>
+                  <div id="foreign-portfolio-list" class="cards-list mt-2">
+                    <div class="empty-state">No foreign sovereign bonds currently in portfolio.</div>
+                  </div>
+                </div>
 
-              <!-- Active Offerings List -->
-              <div id="active-offerings-section" class="mt-3">
-                <h4 class="sub-heading">Live Bond Offerings</h4>
-                <div id="active-offerings-list" class="cards-list"></div>
+                <div class="gov-card mt-3">
+                  <h4 class="card-title">Available Foreign Bond Offerings</h4>
+                  <div id="foreign-available-list" class="cards-list mt-2"></div>
+                </div>
               </div>
             </div>
 
             <!-- 5. SCIENCE & TECH TREE (T) -->
             <div id="pane-science" class="drawer-pane">
-              <div class="era-selector-bar">
+              <div class="gov-card">
+                <h4 class="card-title">Strategic Mineral & Natural Endowments</h4>
+                <div id="science-resources-ribbon" class="resources-ribbon"></div>
+              </div>
+
+              <div class="era-selector-bar mt-3">
                 <button class="era-chip active" data-era="1">Era I: Feudal</button>
                 <button class="era-chip" data-era="2">Era II: Renaissance</button>
                 <button class="era-chip" data-era="3">Era III: Steam</button>
@@ -271,19 +472,34 @@
             <!-- 6. MILITARY & GARRISON SUITE (M) -->
             <div id="pane-military" class="drawer-pane">
               <div class="gov-card">
+                <h4 class="card-title">National Defense Readiness & Upkeep</h4>
+                <div class="stat-row">
+                  <span>Total Armed Forces:</span>
+                  <strong id="lbl-national-soldiers" class="text-ruby">0 soldiers</strong>
+                </div>
+                <div class="stat-row">
+                  <span>Military Upkeep:</span>
+                  <strong id="lbl-military-upkeep" class="text-gold">$0 / turn</strong>
+                </div>
+                <button id="btn-mobilize-expedition" class="btn btn-primary btn-block mt-3">
+                  ⚔️ Mobilize Expeditionary Corps (50 Soldiers • $250)
+                </button>
+              </div>
+
+              <div class="gov-card mt-3">
                 <h4 class="card-title">Territorial Garrison</h4>
                 <p id="military-tile-lbl">Selected Territory: None</p>
                 <div class="stat-row">
                   <span>Stationed Soldiers:</span>
                   <strong id="lbl-garrison-count">0 troops</strong>
                 </div>
-                <button id="btn-recruit-garrison" class="btn btn-primary btn-block mt-2">
-                  ⚔️ Recruit Garrison Division (10 Soldiers • $15)
+                <button id="btn-recruit-garrison" class="btn btn-secondary btn-block mt-2">
+                  🛡️ Recruit Garrison Division (15 Soldiers • $15)
                 </button>
               </div>
 
               <div class="gov-card mt-3">
-                <h4 class="card-title">Standing Armed Forces</h4>
+                <h4 class="card-title">Standing Armed Forces Roster</h4>
                 <div id="military-armies-list" class="cards-list"></div>
               </div>
             </div>
@@ -349,7 +565,7 @@
           <button id="btn-toggle-terrain" class="ctrl-btn active" title="Toggle Photorealistic Terrain" aria-label="Toggle Photorealistic Terrain">🗺️</button>
           <button id="btn-zoom-in" class="ctrl-btn" title="Zoom In (+)">+</button>
           <button id="btn-zoom-out" class="ctrl-btn" title="Zoom Out (−)">−</button>
-          <button id="btn-reset-cam" class="ctrl-btn" title="Reset View (⌖)">⌖</button>
+          <button id="btn-reset-cam" class="ctrl-btn" title="Reset View (R)">⌖</button>
         </div>
 
         <!-- Quick Inspection Tooltip / Pill -->
@@ -378,6 +594,7 @@
           <button class="tab-btn" data-tab="tab-charts">Charts</button>
           <button class="tab-btn" data-tab="tab-cadastre">Cadastre</button>
           <button class="tab-btn" data-tab="tab-citizens">Citizens</button>
+          <button class="tab-btn" data-tab="tab-policies">Policies</button>
           <button class="tab-btn" data-tab="tab-workhouse">Workhouse</button>
           <button class="tab-btn" data-tab="tab-news">News (<span id="news-badge">0</span>)</button>
         </nav>
@@ -419,7 +636,7 @@
               <div id="market-prices-grid" class="market-prices-grid"></div>
             </div>
 
-            <!-- Completed Buildings -->
+            <!-- Installed Buildings -->
             <div class="mt-3">
               <h4 class="sub-heading">Installed Infrastructure & Buildings</h4>
               <div id="installed-buildings-list" class="tags-list">
@@ -441,19 +658,20 @@
           <!-- 2. CHARTS TAB -->
           <div id="tab-charts" class="tab-pane">
             <div class="chart-controls">
-              <div class="chart-selector-chips">
-                <button class="chip active" data-chart="gdp">GDP</button>
-                <button class="chip" data-chart="treasury">Treasury</button>
-                <button class="chip" data-chart="food_price">Food Price</button>
-                <button class="chip" data-chart="pop">Population</button>
-                <button class="chip" data-chart="unrest">Unrest</button>
+              <div class="scope-switch-bar mb-2">
+                <button class="scope-btn active" data-chart-mode="economic">📈 Economic (10)</button>
+                <button class="scope-btn" data-chart-mode="ecological">🌿 Ecological (6)</button>
+                <button class="scope-btn" data-chart-mode="labor">⚒️ Labor & Resistance (4)</button>
+              </div>
+              <div class="chart-selector-chips" id="chart-chips-container">
+                <!-- Dynamically injected chips -->
               </div>
             </div>
             <div class="chart-container">
-              <canvas id="historical-chart-canvas" width="380" height="220"></canvas>
+              <canvas id="historical-chart-canvas" width="400" height="230"></canvas>
             </div>
             <div id="chart-legend" class="chart-legend">
-              <span class="legend-indicator">Historical Trend over Turns</span>
+              <span class="legend-indicator" id="chart-legend-text">Historical Trend over Turns</span>
             </div>
           </div>
 
@@ -476,7 +694,13 @@
             </div>
 
             <div class="cadastre-section">
-              <h3 class="section-title">Cadastral Plots (<span id="plot-count">0</span>)</h3>
+              <div class="flex-between">
+                <h3 class="section-title">Cadastral Parcels (<span id="plot-count">0</span>)</h3>
+                <div class="plot-scroll-controls">
+                  <button id="btn-plots-scroll-up" class="btn btn-secondary btn-xs" title="Scroll Up">▲ Up</button>
+                  <button id="btn-plots-scroll-down" class="btn btn-secondary btn-xs" title="Scroll Down">▼ Down</button>
+                </div>
+              </div>
               <div id="plots-list" class="item-list">
                 <div class="empty-state">Select an inhabited territory to view cadastral survey.</div>
               </div>
@@ -485,13 +709,77 @@
 
           <!-- 4. CITIZENS CENSUS TAB -->
           <div id="tab-citizens" class="tab-pane">
-            <h3 class="section-title">Living Citizen Demographic Census</h3>
-            <div id="citizens-list" class="citizens-list">
-              <div class="empty-state">Select an inhabited territory to inspect living citizens.</div>
+            <div class="scope-switch-bar mb-2">
+              <button class="scope-btn active" data-cit-sub="class">👥 Class & Tenure</button>
+              <button class="scope-btn" data-cit-sub="labor">⚒️ Labor & Alienation</button>
+            </div>
+            <div id="citizens-sub-class">
+              <h3 class="section-title">Living Citizen Demographic Census</h3>
+              <div id="citizens-list" class="citizens-list">
+                <div class="empty-state">Select an inhabited territory to inspect living citizens.</div>
+              </div>
+            </div>
+            <div id="citizens-sub-labor" class="hidden">
+              <h3 class="section-title">Labor Alienation & Physiological Attrition</h3>
+              <div id="labor-alienation-summary" class="gov-card">
+                <div class="stat-row"><span>Average Workday Shift:</span> <strong id="cit-avg-shift">12.0h</strong></div>
+                <div class="stat-row"><span>Exploitation Rate (s/v):</span> <strong id="cit-sov-rate" class="text-ruby">120%</strong></div>
+                <div class="stat-row"><span>Class Consciousness:</span> <strong id="cit-consciousness" class="text-cyan">0.35</strong></div>
+                <div class="stat-row"><span>Bodily Attrition Rate:</span> <strong id="cit-attrition" class="text-gold">0.12 / t</strong></div>
+              </div>
+              <h4 class="sub-heading mt-3">Individual Worker Health & Grievance Breakdown</h4>
+              <div id="workers-labor-list" class="citizens-list mt-2"></div>
             </div>
           </div>
 
-          <!-- 5. WORKHOUSE TAB -->
+          <!-- 5. POLICIES TAB -->
+          <div id="tab-policies" class="tab-pane">
+            <div class="gov-card">
+              <h4 class="card-title">Right-Dock Statutory Policies</h4>
+              <div class="slider-control">
+                <div class="slider-header">
+                  <span>Income Tax Rate</span>
+                  <strong id="dock-lbl-tax">15.0%</strong>
+                </div>
+                <input type="range" id="dock-slider-tax" min="0" max="0.50" step="0.01" value="0.15">
+              </div>
+              <div class="slider-control mt-2">
+                <div class="slider-header">
+                  <span>Customs Import Tariff</span>
+                  <strong id="dock-lbl-tariff">10.0%</strong>
+                </div>
+                <input type="range" id="dock-slider-tariff" min="0" max="0.50" step="0.01" value="0.10">
+              </div>
+              <div class="slider-control mt-2">
+                <div class="slider-header">
+                  <span>Maximum Workday Shift</span>
+                  <strong id="dock-lbl-workday">12.0h</strong>
+                </div>
+                <input type="range" id="dock-slider-workday" min="8" max="16" step="0.5" value="12">
+              </div>
+
+              <div class="toggle-control mt-3">
+                <label class="switch-label">
+                  <input type="checkbox" id="dock-chk-safety">
+                  <span>Factory Safety Act Mandate</span>
+                </label>
+              </div>
+              <div class="toggle-control mt-2">
+                <label class="switch-label">
+                  <input type="checkbox" id="dock-chk-truck">
+                  <span>Truck Act (Scrip Prohibition)</span>
+                </label>
+              </div>
+              <div class="toggle-control mt-2">
+                <label class="switch-label">
+                  <input type="checkbox" id="dock-chk-borders" checked>
+                  <span>Open Borders Policy</span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <!-- 6. WORKHOUSE TAB -->
           <div id="tab-workhouse" class="tab-pane">
             <div class="workhouse-banner" id="wh-banner">
               <span class="wh-icon">🏛️</span>
@@ -508,80 +796,119 @@
             </div>
           </div>
 
-          <!-- 6. NEWS TICKER TAB -->
+          <!-- 7. NEWS TICKER TAB -->
           <div id="tab-news" class="tab-pane">
             <div id="ticker-feed" class="news-feed">
               <div class="empty-state">Simulation initialized. Events will stream as turns advance.</div>
             </div>
           </div>
         </div>
+
+        <!-- Conserved Audit Footer -->
+        <footer class="conserved-audit-footer" id="conserved-audit-footer">
+          ⚖️ Physical & Monetary System: Conserved (0 Leak / 0 Shift)
+        </footer>
       </section>
     </div>
 
-    <!-- MODAL 1: COMPARE NATIONS [C] -->
+    <!-- MODAL 1: COMPARE NATIONS [C] (6 Full Tabs) -->
     <div id="compare-modal" class="modal hidden">
       <div class="modal-backdrop" id="compare-backdrop"></div>
-      <div class="modal-card modal-wide">
+      <div class="modal-card modal-wide modal-xl">
         <div class="modal-header">
-          <h3>⚖️ Sovereign Nations Geopolitical Comparison</h3>
+          <h3>⚖️ Cross-Nation & Provincial Economic Comparison Suite</h3>
           <button id="btn-close-compare" class="btn-close">✕</button>
         </div>
         <div class="modal-body">
-          <div class="table-responsive">
-            <table class="table" id="compare-table">
-              <thead>
-                <tr>
-                  <th>Nation</th>
-                  <th>Regime</th>
-                  <th>Treasury</th>
-                  <th>Population</th>
-                  <th>GDP</th>
-                  <th>GDP / Pop</th>
-                  <th>Unrest</th>
-                  <th>Rating</th>
-                  <th>Hexes</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody id="compare-tbody"></tbody>
-            </table>
+          <div class="compare-tabs-nav">
+            <button class="comp-tab-btn active" data-comp-tab="1">1. Macro Leaderboard</button>
+            <button class="comp-tab-btn" data-comp-tab="2">2. Goods Market</button>
+            <button class="comp-tab-btn" data-comp-tab="3">3. Forex & Banking</button>
+            <button class="comp-tab-btn" data-comp-tab="4">4. Wealth Extraction</button>
+            <button class="comp-tab-btn" data-comp-tab="5">5. Protest Energy</button>
+            <button class="comp-tab-btn" data-comp-tab="6">6. Ecology & Health</button>
+          </div>
+
+          <div class="drilldown-bar mt-2" id="compare-drilldown-bar">
+            <span>Drilldown Scope:</span>
+            <button class="chip active" data-drilldown="country">By Country</button>
+            <button class="chip" data-drilldown="province">By Province</button>
+            <button class="chip" data-drilldown="tile">By City / Tile</button>
+          </div>
+
+          <div id="compare-tab-pane-container" class="mt-3"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL 2: FULL SOVEREIGN COMMAND SUITE MODAL [A] -->
+    <div id="command-suite-modal" class="modal hidden">
+      <div class="modal-backdrop" id="command-suite-backdrop"></div>
+      <div class="modal-card modal-wide">
+        <div class="modal-header">
+          <h3>👑 Sovereign Command Center & Strategic Advisory</h3>
+          <button id="btn-close-command-suite" class="btn-close">✕</button>
+        </div>
+        <div class="modal-body" id="command-suite-body"></div>
+      </div>
+    </div>
+
+    <!-- MODAL 3: FISCAL TRANSFER & SHORTFALL BAILOUT DIALOG -->
+    <div id="fiscal-transfer-modal" class="modal hidden">
+      <div class="modal-backdrop" id="fiscal-transfer-backdrop"></div>
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3>💸 Inter-Governmental Fiscal Shortfall Transfer</h3>
+          <button id="btn-close-fiscal-transfer" class="btn-close">✕</button>
+        </div>
+        <div class="modal-body">
+          <p id="fiscal-shortfall-desc">Local treasury has insufficient liquid funds for this capital undertaking.</p>
+          <div class="stat-row mt-2">
+            <span>Project Cost:</span>
+            <strong id="lbl-transfer-cost" class="text-gold">$250</strong>
+          </div>
+          <div class="stat-row">
+            <span>Local Funds on Hand:</span>
+            <strong id="lbl-transfer-onhand" class="text-ruby">$0</strong>
+          </div>
+          <div class="stat-row">
+            <span>Required Transfer Shortfall:</span>
+            <strong id="lbl-transfer-shortfall" class="text-cyan">$250</strong>
+          </div>
+
+          <div class="fiscal-options-grid mt-3">
+            <button class="btn btn-secondary btn-block" id="btn-fiscal-prov-grant">
+              🏛️ Provincial Equalization Grant
+            </button>
+            <button class="btn btn-primary btn-block mt-2" id="btn-fiscal-nat-bailout">
+              👑 Sovereign National Infrastructure Bailout
+            </button>
+            <button class="btn btn-ghost btn-block mt-2" id="btn-fiscal-bank-loan">
+              🏦 Municipal Branch Bank Deficit Loan
+            </button>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- MODAL 2: GAME MANUAL & HELP [?] -->
+    <!-- MODAL 4: GAME MANUAL & HELP [?] (3-Page Paginated) -->
     <div id="help-modal" class="modal hidden">
       <div class="modal-backdrop" id="help-backdrop"></div>
       <div class="modal-card modal-wide">
         <div class="modal-header">
-          <h3>👑 REGNUM Player Guide & Mechanics</h3>
+          <h3>📖 REGNUM System Manual & Encyclopedia</h3>
           <button id="btn-close-help" class="btn-close">✕</button>
         </div>
-        <div class="modal-body help-body">
-          <h4>Macroeconomic Systems</h4>
-          <p>• <strong>Conserved Money:</strong> Pure closed-loop economy. Money moves strictly through wages, trade, tax, bonds, and contracts.</p>
-          <p>• <strong>Surplus Value & Exploitation (s/v):</strong> Produced value minus subsistence wages. High exploitation spurs wildcat strikes and revolutionary unrest.</p>
-          <p>• <strong>Civil Unrest Stages:</strong> Calm &rarr; Unrest &rarr; Protest &rarr; Mob/Riot &rarr; Compromise &rarr; Takeover.</p>
-
-          <h4 class="mt-3">Keyboard Shortcuts</h4>
-          <div class="shortcuts-grid">
-            <div><kbd>B</kbd> Build Menu</div>
-            <div><kbd>G</kbd> Governance</div>
-            <div><kbd>D</kbd> Diplomacy</div>
-            <div><kbd>S</kbd> Sovereign Debt</div>
-            <div><kbd>T</kbd> Science Tech</div>
-            <div><kbd>M</kbd> Military</div>
-            <div><kbd>C</kbd> Compare Nations</div>
-            <div><kbd>Space</kbd> Play / Pause</div>
-            <div><kbd>1-9</kbd> Thematic Layers</div>
-            <div><kbd>Esc</kbd> Close Panels</div>
-          </div>
+        <div class="help-tabs-nav">
+          <button class="help-tab-btn active" data-help-page="1">1. Controls & Viewport</button>
+          <button class="help-tab-btn" data-help-page="2">2. Macro Accounts & Theory</button>
+          <button class="help-tab-btn" data-help-page="3">3. World Registry & Seeds</button>
         </div>
+        <div class="modal-body help-body" id="help-content-container"></div>
       </div>
     </div>
 
-    <!-- MODAL 3: MOBILE QR CODE -->
+    <!-- MODAL 5: MOBILE QR CODE -->
     <div id="qr-modal" class="modal hidden">
       <div class="modal-backdrop" id="qr-backdrop"></div>
       <div class="modal-card">
@@ -604,6 +931,6 @@
     <div id="toast-container" class="toast-container"></div>
   </div>
 
-  <script src="client.js?v=3"></script>
+  <script src="client.js?v=4"></script>
 </body>
 </html>
