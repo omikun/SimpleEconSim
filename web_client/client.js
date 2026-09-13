@@ -280,18 +280,25 @@
         renderThematicLayerOverlay(ctx, tile, x, y, hexRadius);
 
         // Hex territorial boundary border
+        // 1. High contrast outer shadow stroke so grid lines are clearly visible on any terrain texture
+        drawHexPolygon(ctx, x, y, hexRadius);
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.85)';
+        ctx.lineWidth = (isSelected ? 5.5 : 3.2) / camZoom;
+        ctx.stroke();
+
+        // 2. Crisp bright foreground border with distinct nation colors
         drawHexPolygon(ctx, x, y, hexRadius);
         if (isSelected) {
           ctx.strokeStyle = '#38bdf8';
-          ctx.lineWidth = 3.5 / camZoom;
+          ctx.lineWidth = 3.6 / camZoom;
           ctx.stroke();
         } else if (tile.nation_color) {
           ctx.strokeStyle = tile.nation_color;
-          ctx.lineWidth = 1.6 / camZoom;
+          ctx.lineWidth = 2.4 / camZoom;
           ctx.stroke();
         } else {
-          ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
-          ctx.lineWidth = 0.8 / camZoom;
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.65)';
+          ctx.lineWidth = 1.8 / camZoom;
           ctx.stroke();
         }
 
@@ -1714,16 +1721,28 @@
 
     const cs = worldState.comparison_suite || {};
 
+    function getDrilldownData(tabObj) {
+      if (!tabObj) return [];
+      if (Array.isArray(tabObj)) return tabObj;
+      const key = activeCompareDrilldown === 'country' ? 'by_country' : (activeCompareDrilldown === 'province' ? 'by_province' : 'by_tile');
+      return tabObj[key] || tabObj.by_country || [];
+    }
+
+    const isCountry = (activeCompareDrilldown === 'country');
+    const isProv = (activeCompareDrilldown === 'province');
+    const isTile = (activeCompareDrilldown === 'tile');
+
     if (activeCompareTab === '1') {
       // Tab 1: Macro Leaderboard with Green/Red Turn Deltas
-      const data = cs.tab1_macro || worldState.nations || [];
+      const data = getDrilldownData(cs.tab1_macro);
       const table = document.createElement('table');
       table.className = 'table';
       table.innerHTML = `
         <thead>
           <tr>
-            <th>Nation</th>
-            <th>Regime</th>
+            <th>${isCountry ? 'Nation' : (isProv ? 'Province' : 'City / Tile')}</th>
+            ${!isCountry ? `<th>Nation</th>` : `<th>Regime</th>`}
+            ${isTile ? `<th>Province</th>` : ''}
             <th>Treasury ($)</th>
             <th>Population</th>
             <th>GDP ($)</th>
@@ -1734,20 +1753,25 @@
         </thead>
         <tbody>
           ${data.map(n => {
-            const isPlayer = (n.name === worldState.player_nation);
+            const isPlayer = (n.name === worldState.player_nation || n.nation === worldState.player_nation);
             const tDelta = (n.treasury_delta >= 0) ? `<span class="delta-pos">+${Math.round(n.treasury_delta || 0)}</span>` : `<span class="delta-neg">${Math.round(n.treasury_delta || 0)}</span>`;
+            let actionBtn = '—';
+            if (isCountry && !isPlayer) {
+              actionBtn = `<button class="btn btn-secondary btn-xs btn-switch-nat" data-nat="${n.name}">Assume Control</button>`;
+            } else if (isTile) {
+              actionBtn = `<button class="btn btn-secondary btn-xs btn-goto-tile" data-tile="${n.name}">Focus</button>`;
+            }
             return `
               <tr>
-                <td><strong style="color:${n.flag_color || '#38bdf8'}">👑 ${n.name}</strong> ${isPlayer ? '<span class="card-badge mastered">YOU</span>' : ''}</td>
-                <td>${n.regime_type || 'Monarchy'}</td>
+                <td><strong style="color:${n.flag_color || '#38bdf8'}">${isCountry ? '👑 ' : (isProv ? '🏛️ ' : '🏙️ ')}${n.name}</strong> ${isPlayer ? '<span class="card-badge mastered">YOU</span>' : ''}</td>
+                ${!isCountry ? `<td>${n.nation || '—'}</td>` : `<td>${n.regime_type || 'Monarchy'}</td>`}
+                ${isTile ? `<td>${n.province || '—'}</td>` : ''}
                 <td class="text-gold">$${Math.round(n.treasury_cash || 0).toLocaleString()} ${tDelta}</td>
                 <td>${(n.population || 0).toLocaleString()}</td>
                 <td class="text-cyan">$${Math.round(n.gdp || 0).toLocaleString()}</td>
                 <td><span class="badge-unrest ${(n.unrest_stage || 'calm').toLowerCase()}">${n.unrest_stage || 'Calm'}</span></td>
                 <td><strong class="text-gold">${n.credit_rating || 'BBB'}</strong></td>
-                <td>
-                  ${!isPlayer ? `<button class="btn btn-secondary btn-xs btn-switch-nat" data-nat="${n.name}">Assume Control</button>` : '—'}
-                </td>
+                <td>${actionBtn}</td>
               </tr>
             `;
           }).join('')}
@@ -1759,32 +1783,46 @@
           closeCompareModal();
         });
       });
+      table.querySelectorAll('.btn-goto-tile').forEach(b => {
+        b.addEventListener('click', () => {
+          const t = (worldState.tiles || []).find(tile => tile.name === b.dataset.tile || tile.display_name === b.dataset.tile);
+          if (t) {
+            selectTile(t);
+            camX = t.center_x !== undefined ? t.center_x : (t.col * 60);
+            camY = t.center_y !== undefined ? t.center_y : (t.row * 52);
+            renderMap();
+          }
+          closeCompareModal();
+        });
+      });
       container.appendChild(table);
 
     } else if (activeCompareTab === '2') {
       // Tab 2: Goods Market & Provincial Output Table
-      const data = cs.tab2_goods || [];
+      const data = getDrilldownData(cs.tab2_goods);
       const table = document.createElement('table');
       table.className = 'table';
       table.innerHTML = `
         <thead>
           <tr>
-            <th>Province / Nation</th>
+            <th>${isCountry ? 'Nation' : (isProv ? 'Province' : 'City / Tile')}</th>
+            ${!isCountry ? `<th>Nation</th>` : ''}
             <th>Grain Output</th>
             <th>Timber Output</th>
             <th>Furniture Output</th>
             <th>Food Price</th>
-            <th>Local Stockpiles</th>
+            <th>Stockpiles</th>
           </tr>
         </thead>
         <tbody>
           ${data.map(p => `
             <tr>
-              <td><strong>${p.province}</strong> (${p.nation})</td>
+              <td><strong>${p.province}</strong></td>
+              ${!isCountry ? `<td>${p.nation || '—'}</td>` : ''}
               <td class="text-green">${p.food_output} t</td>
               <td>${p.wood_output} t</td>
               <td class="text-gold">${p.furniture_output} t</td>
-              <td>$${p.food_price.toFixed(2)}</td>
+              <td>$${Number(p.food_price || 0).toFixed(2)}</td>
               <td>${p.stockpiles} units</td>
             </tr>
           `).join('')}
@@ -1795,54 +1833,92 @@
     } else if (activeCompareTab === '3') {
       // Tab 3: Forex & Banking Matrix
       const fx = cs.tab3_forex || {};
-      const provs = fx.provinces || [];
+      const banking = fx.banking || [];
+      const fxMatrix = fx.fx_matrix || {};
+      const currs = Object.keys(fxMatrix);
+
       const div = document.createElement('div');
       div.innerHTML = `
         <h4 class="sub-heading">Provincial Branch Banking Deposits & Currency Reserves</h4>
         <table class="table">
           <thead>
-            <tr><th>Province</th><th>Nation</th><th>Bank Deposits</th><th>Credit Liquidity</th><th>NEER Index</th></tr>
+            <tr>
+              <th>Entity / Region</th>
+              <th>Nation</th>
+              <th>Currency</th>
+              <th>Bank Deposits</th>
+              <th>Credit Liquidity</th>
+              <th>Central Reserves</th>
+              <th>NEER Index</th>
+            </tr>
           </thead>
           <tbody>
-            ${provs.map(p => `
+            ${banking.map(b => `
               <tr>
-                <td>${p.name}</td><td>${p.nation}</td><td class="text-gold">$${p.deposits.toLocaleString()}</td>
-                <td class="text-cyan">$${p.liquidity.toLocaleString()}</td><td>${p.neer}</td>
+                <td><strong>${b.name || b.province}</strong></td>
+                <td>${b.nation}</td>
+                <td><span class="badge-currency">${b.currency || 'USD'}</span></td>
+                <td class="text-gold">$${Math.round(b.deposits || 0).toLocaleString()}</td>
+                <td class="text-cyan">$${Math.round(b.liquidity || 0).toLocaleString()}</td>
+                <td class="text-green">$${Math.round(b.reserves || 0).toLocaleString()}</td>
+                <td><strong>${b.neer !== undefined ? Number(b.neer).toFixed(2) : '1.00'}</strong></td>
               </tr>
             `).join('')}
           </tbody>
         </table>
-        <h4 class="sub-heading mt-3">Bilateral Sovereign FX Currency Matrix</h4>
-        <div class="empty-state">All foreign exchange clearings currently settled at par (1.000).</div>
+
+        <h4 class="sub-heading mt-3">Bilateral Sovereign Foreign Exchange (FX) Matrix</h4>
+        ${currs.length > 0 ? `
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Base \\ Quote</th>
+                ${currs.map(c => `<th>${c}</th>`).join('')}
+              </tr>
+            </thead>
+            <tbody>
+              ${currs.map(base => `
+                <tr>
+                  <td><strong>${base}</strong></td>
+                  ${currs.map(quote => {
+                    const rate = fxMatrix[base] && fxMatrix[base][quote] !== undefined ? fxMatrix[base][quote] : 1.0;
+                    return `<td>${base === quote ? '<span style="opacity:0.5;">1.000</span>' : `<span class="text-gold font-mono">${Number(rate).toFixed(3)}</span>`}</td>`;
+                  }).join('')}
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        ` : `<div class="empty-state">All foreign exchange clearings currently settled at par (1.000).</div>`}
       `;
       container.appendChild(div);
 
     } else if (activeCompareTab === '4') {
       // Tab 4: Class Wealth Extraction Table
-      const data = cs.tab4_extraction || [];
-      const filtered = data.filter(d => activeCompareDrilldown === 'country' ? d.level === 'country' : true);
+      const data = getDrilldownData(cs.tab4_extraction);
       const table = document.createElement('table');
       table.className = 'table';
       table.innerHTML = `
         <thead>
           <tr>
-            <th>Region</th>
+            <th>${isCountry ? 'Nation' : (isProv ? 'Province' : 'City / Tile')}</th>
             <th>Feudal Tribute</th>
             <th>Ground Rent</th>
-            <th>Surplus Value (s/v)</th>
-            <th>Tax Burden</th>
-            <th>Attrition</th>
+            <th>Surplus Value</th>
+            <th>s/v Exploitation Rate</th>
+            <th>Tax Collected</th>
+            <th>Health Attrition</th>
           </tr>
         </thead>
         <tbody>
-          ${filtered.map(r => `
+          ${data.map(r => `
             <tr>
               <td><strong>${r.name}</strong></td>
-              <td class="text-ruby">$${r.tribute}</td>
-              <td>$${r.rent}</td>
-              <td class="text-gold">${(r.s_v * 100).toFixed(0)}%</td>
-              <td>$${r.taxes}</td>
-              <td>${r.attrition}</td>
+              <td class="text-ruby">$${Math.round(r.tribute || 0).toLocaleString()}</td>
+              <td>$${Math.round(r.rent || 0).toLocaleString()}</td>
+              <td class="text-cyan">$${Math.round(r.surplus_value || 0).toLocaleString()}</td>
+              <td class="text-gold">${(r.sv_rate !== undefined ? r.sv_rate : (r.s_v ? r.s_v * 100 : 0)).toFixed(1)}%</td>
+              <td>$${Math.round(r.tax || r.taxes || 0).toLocaleString()}</td>
+              <td class="text-ruby">${Number(r.attrition || 0).toFixed(1)} / 1k</td>
             </tr>
           `).join('')}
         </tbody>
@@ -1851,31 +1927,53 @@
 
     } else if (activeCompareTab === '5') {
       // Tab 5: Protest Energy & 100% Stacked Horizontal Grievance Bars
-      const data = cs.tab5_protest || [];
+      const data = getDrilldownData(cs.tab5_protest);
       const div = document.createElement('div');
       div.innerHTML = `
-        <h4 class="sub-heading">Protest Energy Grievance Breakdown</h4>
+        <h4 class="sub-heading">Protest Energy Grievance Breakdown (100% Stacked)</h4>
         <table class="table">
           <thead>
             <tr>
-              <th>Territory</th><th>Unrest</th><th>Causes Breakdown (Overwork / Enclosure / Hunger / Repression)</th>
+              <th style="width: 20%;">${isCountry ? 'Nation' : (isProv ? 'Province' : 'City / Tile')}</th>
+              <th style="width: 15%;">Unrest Score</th>
+              <th style="width: 65%;">Cause Breakdown (Overwork / Enclosure / Hunger / Strikes / Repression / Inequality)</th>
             </tr>
           </thead>
           <tbody>
-            ${data.map(p => `
-              <tr>
-                <td><strong>${p.name}</strong></td>
-                <td><span class="badge-unrest riot">${p.unrest.toFixed(1)}</span></td>
-                <td>
-                  <div class="stacked-bar-container">
-                    <div class="stacked-segment" style="width: 35%; background: #ef4444;" title="Overwork 35%"></div>
-                    <div class="stacked-segment" style="width: 25%; background: #f59e0b;" title="Enclosure 25%"></div>
-                    <div class="stacked-segment" style="width: 25%; background: #10b981;" title="Hunger 25%"></div>
-                    <div class="stacked-segment" style="width: 15%; background: #a855f7;" title="State Repression 15%"></div>
-                  </div>
-                </td>
-              </tr>
-            `).join('')}
+            ${data.map(p => {
+              const ow = p.overwork || 35;
+              const enc = p.enclosure || 25;
+              const hg = p.hunger || 20;
+              const stk = p.strikes || 10;
+              const rep = p.state || 5;
+              const ineq = p.inequality || 5;
+              const unrestVal = Number(p.unrest || 0).toFixed(1);
+              const badgeCls = unrestVal > 3 ? 'riot' : (unrestVal > 1 ? 'unrest' : 'calm');
+              return `
+                <tr>
+                  <td><strong>${p.name}</strong></td>
+                  <td><span class="badge-unrest ${badgeCls}">${unrestVal}</span></td>
+                  <td>
+                    <div class="stacked-bar-container">
+                      <div class="stacked-segment" style="width: ${ow}%; background: #ef4444;" title="Overwork ${ow}%"></div>
+                      <div class="stacked-segment" style="width: ${enc}%; background: #f59e0b;" title="Enclosure ${enc}%"></div>
+                      <div class="stacked-segment" style="width: ${hg}%; background: #10b981;" title="Hunger ${hg}%"></div>
+                      <div class="stacked-segment" style="width: ${stk}%; background: #06b6d4;" title="Strikes ${stk}%"></div>
+                      <div class="stacked-segment" style="width: ${rep}%; background: #a855f7;" title="Repression ${rep}%"></div>
+                      <div class="stacked-segment" style="width: ${ineq}%; background: #ec4899;" title="Inequality ${ineq}%"></div>
+                    </div>
+                    <div style="display:flex; flex-wrap:wrap; gap:10px; font-size:0.68rem; margin-top:4px; opacity:0.85;">
+                      <span><span style="color:#ef4444">■</span> Overwork ${ow}%</span>
+                      <span><span style="color:#f59e0b">■</span> Enclosure ${enc}%</span>
+                      <span><span style="color:#10b981">■</span> Hunger ${hg}%</span>
+                      <span><span style="color:#06b6d4">■</span> Strikes ${stk}%</span>
+                      <span><span style="color:#a855f7">■</span> Repression ${rep}%</span>
+                      <span><span style="color:#ec4899">■</span> Inequality ${ineq}%</span>
+                    </div>
+                  </td>
+                </tr>
+              `;
+            }).join('')}
           </tbody>
         </table>
       `;
@@ -1883,23 +1981,27 @@
 
     } else if (activeCompareTab === '6') {
       // Tab 6: Environmental Health Table
-      const data = cs.tab6_ecology || [];
+      const data = getDrilldownData(cs.tab6_ecology);
       const table = document.createElement('table');
       table.className = 'table';
       table.innerHTML = `
         <thead>
           <tr>
-            <th>Region</th><th>Soil Depletion</th><th>Nutrition Density</th><th>Smog Runoff</th><th>Active Cases</th>
+            <th>${isCountry ? 'Nation' : (isProv ? 'Province' : 'City / Tile')}</th>
+            <th>Soil Fertility</th>
+            <th>Nutrition Density</th>
+            <th>Air Pollution (Smog)</th>
+            <th>Disease Infections</th>
           </tr>
         </thead>
         <tbody>
           ${data.map(e => `
             <tr>
               <td><strong>${e.name}</strong></td>
-              <td>${e.soil_fertility}%</td>
-              <td class="text-green">${e.nutrition}%</td>
-              <td class="text-ruby">${e.smog}</td>
-              <td>${e.infections} cases</td>
+              <td class="${e.soil_fertility < 50 ? 'text-ruby' : 'text-green'}">${Number(e.soil_fertility || 0).toFixed(1)}%</td>
+              <td class="text-cyan">${Number(e.nutrition || 0).toFixed(1)}%</td>
+              <td class="${e.smog > 20 ? 'text-ruby' : ''}">${Number(e.smog || 0).toFixed(1)} ppm</td>
+              <td class="${e.infections > 0 ? 'text-ruby' : ''}">${e.infections || 0} active cases</td>
             </tr>
           `).join('')}
         </tbody>

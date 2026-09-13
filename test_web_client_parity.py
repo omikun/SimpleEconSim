@@ -169,5 +169,32 @@ class TestWebClientParity(unittest.TestCase):
         self.assertTrue(res3['success'], res3)
 
 
+    def test_comparison_suite_drilldowns(self):
+        w = self.sim.serialize_world()
+        self.assertIn('comparison_suite', w)
+        cs = w['comparison_suite']
+        self.assertIn('tab1_macro', cs)
+        self.assertIn('tab2_goods', cs)
+        self.assertIn('tab3_forex', cs)
+        self.assertIn('tab4_extraction', cs)
+        self.assertIn('tab5_protest', cs)
+        self.assertIn('tab6_ecology', cs)
+
+        for tab_key in ['tab1_macro', 'tab2_goods', 'tab4_extraction', 'tab5_protest', 'tab6_ecology']:
+            self.assertIn('by_country', cs[tab_key])
+            self.assertIn('by_province', cs[tab_key])
+            self.assertIn('by_tile', cs[tab_key])
+            self.assertGreater(len(cs[tab_key]['by_country']), 0)
+            self.assertGreater(len(cs[tab_key]['by_province']), 0)
+            self.assertGreater(len(cs[tab_key]['by_tile']), 0)
+
+        # Tab 3 FX Matrix & Banking
+        self.assertIn('banking', cs['tab3_forex'])
+        self.assertIn('fx_matrix', cs['tab3_forex'])
+        self.assertGreater(len(cs['tab3_forex']['banking']), 0)
+        self.assertGreater(len(cs['tab3_forex']['fx_matrix']), 0)
+
+
 if __name__ == '__main__':
     unittest.main()
+

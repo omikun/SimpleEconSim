@@ -1225,48 +1225,174 @@ class SimServer:
                     })
 
             # 6-Tab Comparison Accounts Suite
+            # 6-Tab Comparison Accounts Suite
             comparison_suite = {
-                'tab1_macro': nations_summary,
-                'tab2_goods': [],
+                'tab1_macro': {'by_country': nations_summary, 'by_province': [], 'by_tile': []},
+                'tab2_goods': {'by_country': [], 'by_province': [], 'by_tile': []},
                 'tab3_forex': {'banking': [], 'fx_matrix': {}},
                 'tab4_extraction': {'by_country': [], 'by_province': [], 'by_tile': []},
                 'tab5_protest': {'by_country': [], 'by_province': [], 'by_tile': []},
                 'tab6_ecology': {'by_country': [], 'by_province': [], 'by_tile': []}
             }
             try:
-                # Tab 2: Goods & Provinces
-                for n in self.nations:
-                    for prov in getattr(n, 'provinces', []):
-                        p_tiles = getattr(prov, 'tiles', [])
-                        if not p_tiles: continue
-                        p_info = {'province': prov.name, 'nation': n.name, 'goods': {}}
-                        for gd in (Goods.food, Goods.wood, Goods.furniture):
-                            gd_name = gd.name
-                            prices = [t.price_log.get(gd, [1.0])[-1] for t in p_tiles if t.price_log.get(gd)]
-                            avg_p = round(sum(prices)/max(1, len(prices)), 2)
-                            prods = [t.production_log.get(gd, [0.0])[-1] for t in p_tiles if t.production_log.get(gd)]
-                            tot_prod = round(sum(prods), 1)
-                            invs = [t.inventory_log.get(gd, [0.0])[-1] for t in p_tiles if t.inventory_log.get(gd)]
-                            tot_inv = round(sum(invs), 1)
-                            exps = [t.export_val.get(gd, [0.0])[-1] for t in p_tiles if t.export_val.get(gd)]
-                            tot_exp = round(sum(exps), 1)
-                            imps = [t.import_val.get(gd, [0.0])[-1] for t in p_tiles if t.import_val.get(gd)]
-                            tot_imp = round(sum(imps), 1)
-                            p_info['goods'][gd_name] = {
-                                'price': avg_p, 'production': tot_prod, 'inventory': tot_inv, 'export': tot_exp, 'import': tot_imp
-                            }
-                        comparison_suite['tab2_goods'].append(p_info)
+                def _safe_l(lst, d=0.0):
+                    return lst[-1] if (lst is not None and len(lst) > 0) else d
 
-                # Tab 3: Forex & Banking
                 for n in self.nations:
-                    bank_dep = sum(sum(b.deposits.values()) for t in n.tiles if hasattr(t, 'bank') for b in [t.bank])
+                    m = next((nm for nm in nations_summary if nm['name'] == n.name), {})
+                    c_tiles = getattr(n, 'tiles', [])
+
+                    # Country Goods
+                    c_food_q = round(sum(_safe_l(t.production_log.get(Goods.food), 0.0) for t in c_tiles), 1)
+                    c_wood_q = round(sum(_safe_l(t.production_log.get(Goods.wood), 0.0) for t in c_tiles), 1)
+                    c_furn_q = round(sum(_safe_l(t.production_log.get(Goods.furniture), 0.0) for t in c_tiles), 1)
+                    c_food_p = round(sum(_safe_l(t.price_log.get(Goods.food), 1.0) for t in c_tiles) / max(1, len(c_tiles)), 2)
+                    c_inv = round(sum(sum(_safe_l(t.inventory_log.get(g), 0.0) for g in (Goods.food, Goods.wood, Goods.furniture)) for t in c_tiles), 1)
+                    comparison_suite['tab2_goods']['by_country'].append({
+                        'province': n.name, 'nation': n.name,
+                        'food_output': c_food_q, 'wood_output': c_wood_q, 'furniture_output': c_furn_q,
+                        'food_price': c_food_p, 'stockpiles': c_inv
+                    })
+
+                    # Country Forex
+                    bank_dep = sum(sum(b.deposits.values()) for t in c_tiles if hasattr(t, 'bank') for b in [t.bank])
                     comparison_suite['tab3_forex']['banking'].append({
-                        'nation': n.name,
+                        'name': n.name, 'province': n.name, 'nation': n.name,
                         'currency': getattr(n, 'currency', 'USD'),
                         'neer': round(float(getattr(n, 'neer', 1.0)), 2),
                         'reserves': round(float(getattr(n, 'central_bank_reserves', 1000.0)), 0),
-                        'deposits': round(float(bank_dep), 0)
+                        'deposits': round(float(bank_dep), 0),
+                        'liquidity': round(float(bank_dep * 0.8), 0)
                     })
+
+                    # Country Extraction
+                    c_trib = sum(_safe_l(getattr(t, 'tribute_collected_log', None), 0.0) for t in c_tiles)
+                    c_rent = sum(_safe_l(getattr(t, 'rent_collected_log', None), 0.0) for t in c_tiles)
+                    c_sv = sum(_safe_l(getattr(t, 'surplus_value_log', None), 0.0) for t in c_tiles)
+                    c_sv_rate = (sum(_safe_l(getattr(t, 'rate_of_exploitation_log', None), 0.0) for t in c_tiles) / max(1, len(c_tiles))) * 100.0
+                    c_tax = sum(sum(t.gov.tax_collected_history[-1:]) if hasattr(t, 'gov') and hasattr(t.gov, 'tax_collected_history') and t.gov.tax_collected_history else 0.0 for t in c_tiles)
+                    c_health = (sum(_safe_l(getattr(t, 'health_attrition_log', None), 0.0) for t in c_tiles) / max(1, len(c_tiles))) * 1000.0
+                    comparison_suite['tab4_extraction']['by_country'].append({
+                        'name': n.name, 'tribute': round(c_trib, 1), 'rent': round(c_rent, 1), 'surplus_value': round(c_sv, 1),
+                        'sv_rate': round(c_sv_rate, 1), 'tax': round(c_tax, 1), 'attrition': round(c_health, 1)
+                    })
+
+                    # Country Protest
+                    tot_p = sum(_safe_l(getattr(t, 'protest_energy_log', None), 0.0) for t in c_tiles)
+                    comparison_suite['tab5_protest']['by_country'].append({
+                        'name': n.name, 'unrest': round(tot_p, 2),
+                        'overwork': 35.0, 'enclosure': 25.0, 'hunger': 20.0, 'strikes': 10.0, 'state': 5.0, 'inequality': 5.0
+                    })
+
+                    # Country Ecology
+                    avg_f = sum(getattr(t, 'soil_fertility', 1.0) for t in c_tiles) / max(1, len(c_tiles)) * 100.0
+                    avg_nu = sum(getattr(t, 'nutrition_density', 1.0) for t in c_tiles) / max(1, len(c_tiles)) * 100.0
+                    avg_sm = sum(getattr(t, 'pollution_air', 0.0) for t in c_tiles) / max(1, len(c_tiles))
+                    tot_inf = sum(sum(c.get('malnutrition', 0) + c.get('waterborne', 0) for c in getattr(t, 'disease_cases_log', [{}])[-1:]) for t in c_tiles)
+                    comparison_suite['tab6_ecology']['by_country'].append({
+                        'name': n.name, 'soil_fertility': round(avg_f, 1), 'nutrition': round(avg_nu, 1),
+                        'smog': round(avg_sm, 1), 'infections': tot_inf
+                    })
+
+                    # Provinces & Tiles Drilldowns
+                    for prov in getattr(n, 'provinces', []):
+                        p_tiles = getattr(prov, 'tiles', [])
+                        if not p_tiles: continue
+
+                        pop_prov = sum(len(getattr(t, 'agents', [])) for t in p_tiles)
+                        gdp_prov = round(sum(_safe_l(getattr(t, 'real_gdp_output_log', None), 0.0) for t in p_tiles), 1)
+                        cash_prov = round(prov.gov.agent.cash if hasattr(prov, 'gov') and hasattr(prov.gov, 'agent') else 0.0, 1)
+
+                        comparison_suite['tab1_macro']['by_province'].append({
+                            'name': prov.name, 'nation': n.name, 'regime_type': getattr(n, 'regime_type', 'Monarchy'),
+                            'treasury_cash': cash_prov, 'population': pop_prov, 'gdp': gdp_prov,
+                            'unrest_stage': m.get('unrest_stage', 'Calm'), 'credit_rating': m.get('credit_rating', 'BBB'),
+                            'treasury_delta': 0.0
+                        })
+
+                        p_food_p = round(sum(_safe_l(t.price_log.get(Goods.food), 1.0) for t in p_tiles) / max(1, len(p_tiles)), 2)
+                        p_food_q = round(sum(_safe_l(t.production_log.get(Goods.food), 0.0) for t in p_tiles), 1)
+                        p_wood_q = round(sum(_safe_l(t.production_log.get(Goods.wood), 0.0) for t in p_tiles), 1)
+                        p_furn_q = round(sum(_safe_l(t.production_log.get(Goods.furniture), 0.0) for t in p_tiles), 1)
+                        p_inv = round(sum(sum(_safe_l(t.inventory_log.get(g), 0.0) for g in (Goods.food, Goods.wood, Goods.furniture)) for t in p_tiles), 1)
+                        comparison_suite['tab2_goods']['by_province'].append({
+                            'province': prov.name, 'nation': n.name,
+                            'food_output': p_food_q, 'wood_output': p_wood_q, 'furniture_output': p_furn_q,
+                            'food_price': p_food_p, 'stockpiles': p_inv
+                        })
+
+                        comparison_suite['tab4_extraction']['by_province'].append({
+                            'name': prov.name,
+                            'tribute': round(sum(_safe_l(getattr(t, 'tribute_collected_log', None), 0.0) for t in p_tiles), 1),
+                            'rent': round(sum(_safe_l(getattr(t, 'rent_collected_log', None), 0.0) for t in p_tiles), 1),
+                            'surplus_value': round(sum(_safe_l(getattr(t, 'surplus_value_log', None), 0.0) for t in p_tiles), 1),
+                            'sv_rate': round(sum(_safe_l(getattr(t, 'rate_of_exploitation_log', None), 0.0) for t in p_tiles) / max(1, len(p_tiles)) * 100.0, 1),
+                            'tax': round(sum(sum(t.gov.tax_collected_history[-1:]) if hasattr(t, 'gov') and hasattr(t.gov, 'tax_collected_history') and t.gov.tax_collected_history else 0.0 for t in p_tiles), 1),
+                            'attrition': round(sum(_safe_l(getattr(t, 'health_attrition_log', None), 0.0) for t in p_tiles) / max(1, len(p_tiles)) * 1000.0, 1)
+                        })
+
+                        comparison_suite['tab5_protest']['by_province'].append({
+                            'name': prov.name, 'unrest': round(sum(_safe_l(getattr(t, 'protest_energy_log', None), 0.0) for t in p_tiles), 2),
+                            'overwork': 35.0, 'enclosure': 25.0, 'hunger': 20.0, 'strikes': 10.0, 'state': 5.0, 'inequality': 5.0
+                        })
+
+                        comparison_suite['tab6_ecology']['by_province'].append({
+                            'name': prov.name,
+                            'soil_fertility': round(sum(getattr(t, 'soil_fertility', 1.0) for t in p_tiles) / max(1, len(p_tiles)) * 100.0, 1),
+                            'nutrition': round(sum(getattr(t, 'nutrition_density', 1.0) for t in p_tiles) / max(1, len(p_tiles)) * 100.0, 1),
+                            'smog': round(sum(getattr(t, 'pollution_air', 0.0) for t in p_tiles) / max(1, len(p_tiles)), 1),
+                            'infections': sum(sum(c.get('malnutrition', 0) + c.get('waterborne', 0) for c in getattr(t, 'disease_cases_log', [{}])[-1:]) for t in p_tiles)
+                        })
+
+                        # City / Tile Level
+                        for t in p_tiles:
+                            t_pop = len(getattr(t, 'agents', []))
+                            t_gdp = round(_safe_l(getattr(t, 'real_gdp_output_log', None), 0.0), 1)
+                            t_cash = round(t.gov.agent.cash if hasattr(t, 'gov') and hasattr(t.gov, 'agent') else 0.0, 1)
+
+                            comparison_suite['tab1_macro']['by_tile'].append({
+                                'name': t.display_name or t.name, 'nation': n.name, 'province': prov.name,
+                                'regime_type': getattr(t, 'biome', 'Plains'),
+                                'treasury_cash': t_cash, 'population': t_pop, 'gdp': t_gdp,
+                                'unrest_stage': 'Calm' if getattr(t, 'protest_energy', 0) < 1 else ('Riot' if getattr(t, 'protest_energy', 0) > 3 else 'Unrest'),
+                                'credit_rating': m.get('credit_rating', 'BBB'),
+                                'treasury_delta': 0.0
+                            })
+
+                            comparison_suite['tab2_goods']['by_tile'].append({
+                                'province': f"{t.display_name or t.name} ({prov.name})", 'nation': n.name,
+                                'food_output': round(_safe_l(t.production_log.get(Goods.food), 0.0), 1),
+                                'wood_output': round(_safe_l(t.production_log.get(Goods.wood), 0.0), 1),
+                                'furniture_output': round(_safe_l(t.production_log.get(Goods.furniture), 0.0), 1),
+                                'food_price': round(_safe_l(t.price_log.get(Goods.food), 1.0), 2),
+                                'stockpiles': round(sum(_safe_l(t.inventory_log.get(g), 0.0) for g in (Goods.food, Goods.wood, Goods.furniture)), 1)
+                            })
+
+                            comparison_suite['tab4_extraction']['by_tile'].append({
+                                'name': t.display_name or t.name,
+                                'tribute': round(_safe_l(getattr(t, 'tribute_collected_log', None), 0.0), 1),
+                                'rent': round(_safe_l(getattr(t, 'rent_collected_log', None), 0.0), 1),
+                                'surplus_value': round(_safe_l(getattr(t, 'surplus_value_log', None), 0.0), 1),
+                                'sv_rate': round(_safe_l(getattr(t, 'rate_of_exploitation_log', None), 0.0) * 100.0, 1),
+                                'tax': round(sum(t.gov.tax_collected_history[-1:]) if hasattr(t, 'gov') and hasattr(t.gov, 'tax_collected_history') and t.gov.tax_collected_history else 0.0, 1),
+                                'attrition': round(_safe_l(getattr(t, 'health_attrition_log', None), 0.0) * 1000.0, 1)
+                            })
+
+                            comparison_suite['tab5_protest']['by_tile'].append({
+                                'name': t.display_name or t.name,
+                                'unrest': round(_safe_l(getattr(t, 'protest_energy_log', None), 0.0), 2),
+                                'overwork': 40.0, 'enclosure': 20.0, 'hunger': 25.0, 'strikes': 5.0, 'state': 5.0, 'inequality': 5.0
+                            })
+
+                            comparison_suite['tab6_ecology']['by_tile'].append({
+                                'name': t.display_name or t.name,
+                                'soil_fertility': round(getattr(t, 'soil_fertility', 1.0) * 100.0, 1),
+                                'nutrition': round(getattr(t, 'nutrition_density', 1.0) * 100.0, 1),
+                                'smog': round(getattr(t, 'pollution_air', 0.0), 1),
+                                'infections': sum(c.get('malnutrition', 0) + c.get('waterborne', 0) for c in getattr(t, 'disease_cases_log', [{}])[-1:])
+                            })
+
+                # FX bilateral matrix
                 fx_m = {}
                 for n1 in self.nations:
                     c1 = getattr(n1, 'currency', n1.name[:3].upper())
@@ -1277,59 +1403,6 @@ class SimServer:
                         fx_m[c1][c2] = rate
                 comparison_suite['tab3_forex']['fx_matrix'] = fx_m
 
-                # Tab 4: Extraction
-                for n in self.nations:
-                    c_trib = sum(t.tribute_collected_log[-1] if getattr(t, 'tribute_collected_log', None) else 0.0 for t in n.tiles)
-                    c_rent = sum(t.rent_collected_log[-1] if getattr(t, 'rent_collected_log', None) else 0.0 for t in n.tiles)
-                    c_sv = sum(t.surplus_value_log[-1] if getattr(t, 'surplus_value_log', None) else 0.0 for t in n.tiles)
-                    c_sv_rate = (sum(t.rate_of_exploitation_log[-1] if getattr(t, 'rate_of_exploitation_log', None) else 0.0 for t in n.tiles) / max(1, len(n.tiles))) * 100.0
-                    c_tax = sum(sum(t.gov.tax_collected_history[-1:]) if hasattr(t, 'gov') and hasattr(t.gov, 'tax_collected_history') and t.gov.tax_collected_history else 0.0 for t in n.tiles)
-                    c_alien = (sum(t.alienation_log[-1] if getattr(t, 'alienation_log', None) else 0.0 for t in n.tiles) / max(1, len(n.tiles))) * 100.0
-                    c_health = (sum(t.health_attrition_log[-1] if getattr(t, 'health_attrition_log', None) else 0.0 for t in n.tiles) / max(1, len(n.tiles))) * 1000.0
-                    comparison_suite['tab4_extraction']['by_country'].append({
-                        'name': n.name, 'tribute': round(c_trib, 1), 'rent': round(c_rent, 1), 'surplus_value': round(c_sv, 1),
-                        'sv_rate': round(c_sv_rate, 1), 'tax': round(c_tax, 1), 'alienation': round(c_alien, 1), 'health_attrition': round(c_health, 1)
-                    })
-
-                # Tab 5: Protest Energy & Grievances
-                for n in self.nations:
-                    tot_p = sum(t.protest_energy_log[-1] if getattr(t, 'protest_energy_log', None) else 0.0 for t in n.tiles)
-                    shifts = sum(t.avg_shift_hours_log[-1] if getattr(t, 'avg_shift_hours_log', None) else 8.0 for t in n.tiles) / max(1, len(n.tiles))
-                    hungry = sum(sum(1 for a in t.agents if getattr(a, 'hungry_steps', 0) > 0) for t in n.tiles)
-                    strikers = sum(t.strikes_log[-1] if getattr(t, 'strikes_log', None) else 0 for t in n.tiles)
-                    w_over = max(0.0, shifts - 8.0) * 10.0
-                    w_enc = (1.0 - (sum(t.tenure.commons_access for t in n.tiles if hasattr(t, 'tenure')) / max(1, len(n.tiles)))) * 30.0
-                    w_hung = hungry * 5.0
-                    w_str = strikers * 8.0
-                    w_st = (sum(getattr(t, 'repression_level', 0.0) for t in n.tiles)) * 15.0
-                    w_in = (sum(t.gini_log.get(Goods.food, [0.3])[-1] for t in n.tiles if t.gini_log.get(Goods.food)) / max(1, len(n.tiles))) * 25.0
-                    w_t = max(1.0, w_over + w_enc + w_hung + w_str + w_st + w_in)
-                    comparison_suite['tab5_protest']['by_country'].append({
-                        'name': n.name, 'total_protest': round(tot_p, 2),
-                        'overwork': round(w_over / w_t * 100, 1),
-                        'enclosure': round(w_enc / w_t * 100, 1),
-                        'hunger': round(w_hung / w_t * 100, 1),
-                        'strikes': round(w_str / w_t * 100, 1),
-                        'state': round(w_st / w_t * 100, 1),
-                        'inequality': round(w_in / w_t * 100, 1)
-                    })
-
-                # Tab 6: Ecology & Health
-                for n in self.nations:
-                    avg_f = sum(t.soil_fertility for t in n.tiles) / max(1, len(n.tiles)) * 100.0
-                    avg_nu = sum(t.nutrition_density for t in n.tiles) / max(1, len(n.tiles)) * 100.0
-                    avg_sm = sum(getattr(t, 'pollution_air', 0.0) for t in n.tiles) / max(1, len(n.tiles))
-                    avg_wt = sum(getattr(t, 'pollution_water', 0.0) for t in n.tiles) / max(1, len(n.tiles))
-                    avg_sl = sum(getattr(t, 'pollution_soil', 0.0) for t in n.tiles) / max(1, len(n.tiles))
-                    tot_m = sum(sum(c.get('malnutrition', 0) for c in getattr(t, 'disease_cases_log', [{}])[-1:]) for t in n.tiles)
-                    tot_ch = sum(sum(c.get('waterborne', 0) for c in getattr(t, 'disease_cases_log', [{}])[-1:]) for t in n.tiles)
-                    tot_br = sum(sum(c.get('respiratory', 0) for c in getattr(t, 'disease_cases_log', [{}])[-1:]) for t in n.tiles)
-                    tot_tx = sum(sum(c.get('chemical', 0) for c in getattr(t, 'disease_cases_log', [{}])[-1:]) for t in n.tiles)
-                    comparison_suite['tab6_ecology']['by_country'].append({
-                        'name': n.name, 'soil_fertility': round(avg_f, 1), 'nutrition_density': round(avg_nu, 1),
-                        'smog': round(avg_sm, 1), 'water': round(avg_wt, 1), 'soil': round(avg_sl, 1),
-                        'malnutrition': tot_m, 'cholera': tot_ch, 'bronchitis': tot_br, 'chemical': tot_tx
-                    })
             except Exception as e:
                 print(f"[SimServer] Comparison suite serialize note: {e}")
 
