@@ -152,11 +152,11 @@ class TestPhase1EnclosureExpansions(unittest.TestCase):
         food_mult = _prod.terrain_bonus(tile, Goods.food)
         self.assertLess(food_mult, 1.0)
 
-        # Produce phase: landlord receives wool (Goods.wood)
-        wood_before = lord.inv_get(Goods.wood, 0)
+        # Produce phase: landlord receives first-class Goods.wool
+        wool_before = lord.inv_get(Goods.wool, 0)
         _prod.produce(tile, t=1)
-        wood_after = lord.inv_get(Goods.wood, 0)
-        self.assertGreater(wood_after, wood_before, "Lord should receive wool/raw material yield from pasture")
+        wool_after = lord.inv_get(Goods.wool, 0)
+        self.assertGreater(wool_after, wool_before, "Lord should receive wool yield from pasture")
 
     def test_06_survey_debt_trap_solvent_and_foreclosure(self):
         """Verify survey fee statutory assessment, solvent payment, and foreclosure auction on default."""

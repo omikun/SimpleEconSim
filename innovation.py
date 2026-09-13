@@ -198,6 +198,40 @@ TECH_CATALOG: dict[str, Technology] = {
         unlocked_buildings=['paved_road'],
         bottleneck_evaluator=_eval_mountain_bottleneck
     ),
+    'turnpike_trusts': Technology(
+        tech_id='turnpike_trusts',
+        name='Turnpike Trusts & Macadamized Roads',
+        domain=TechDomain.CIVIL_ENGINEERING,
+        description='Toll-funded crushed stone highways reducing overland transport friction by 50% and boosting farm rent collection.',
+        base_xp_required=620.0,
+        era=2,
+        required_resources=[TileResource.TIMBER],
+        unlocked_buildings=['turnpike_road'],
+        bottleneck_evaluator=_eval_mountain_bottleneck
+    ),
+    'barge_canals': Technology(
+        tech_id='barge_canals',
+        name='Contour Barge Canals & Pound Locks',
+        domain=TechDomain.CIVIL_ENGINEERING,
+        description='Inland water navigation networks linking coal, wool, and grain basins to urban ports with 75% freight cost reduction.',
+        base_xp_required=720.0,
+        era=2,
+        required_resources=[TileResource.TIMBER],
+        unlocked_buildings=['barge_canal'],
+        bottleneck_evaluator=_eval_mountain_bottleneck
+    ),
+    'mechanized_textiles': Technology(
+        tech_id='mechanized_textiles',
+        name='Fly Shuttle & Mechanized Wool Carding',
+        domain=TechDomain.MANUFACTURING,
+        description='Centralizes spinning and weaving into textile manufactories, sparking soaring commercial demand for wool.',
+        base_xp_required=680.0,
+        era=2,
+        required_resources=[TileResource.TIMBER, TileResource.PASTURE_FLAX],
+        unlocked_buildings=['textile_mill'],
+        production_modifiers={Goods.cloth.value: 1.40},
+        bottleneck_evaluator=_eval_wage_labor_bottleneck
+    ),
     'siege_artillery': Technology(
         tech_id='siege_artillery',
         name='Blackpowder Siege Batteries',

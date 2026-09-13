@@ -56,6 +56,14 @@ _recipes_init = {
         'commodity': Goods.transport, 'production': 1, 'price': 1, 'numInput': 0,
         'maxtotalprod': 1000, 'maxinv': 1, 'capacity': 10,
     },
+    Goods.wool: {
+        'commodity': Goods.wool, 'production': 3, 'price': 3.5, 'numInput': 0,
+        'maxtotalprod': 1500, 'maxinv': 15,
+    },
+    Goods.cloth: {
+        'commodity': Goods.cloth, 'production': 1, 'input': Goods.wool,
+        'numInput': 2, 'price': 18.0, 'maxtotalprod': 400, 'maxinv': 10,
+    },
     Goods.gov: {
         'commodity': Goods.gov, 'production': 0, 'numInput': 0, 'price': 1,
         'maxtotalprod': 0, 'maxinv': 0,
@@ -67,7 +75,9 @@ for _g, _r in _recipes_init.items():
 
 # Default profession distribution (fractions summing to <= 1.0, remainder -> gov)
 DEFAULT_PROFESSION_DISTRIBUTION = {
-    Goods.food: 0.72,
+    Goods.food: 0.65,
+    Goods.wool: 0.05,
+    Goods.cloth: 0.02,
     Goods.wood: 0.05,
     Goods.furniture: 0.01,
     Goods.transport: 0.08,
@@ -246,11 +256,11 @@ class Region:
         self.gini_log: dict = {}
         self.total_cash_log: list = []
         self.bank_cash_log: list = []
-        self.price_log: dict = {Goods.food: [], Goods.wood: [], Goods.furniture: [], Goods.transport: []}
-        self.sold_log: dict = {Goods.food: [], Goods.wood: [], Goods.furniture: [], Goods.transport: []}
+        self.price_log: dict = {Goods.food: [], Goods.wood: [], Goods.furniture: [], Goods.transport: [], Goods.wool: [], Goods.cloth: []}
+        self.sold_log: dict = {Goods.food: [], Goods.wood: [], Goods.furniture: [], Goods.transport: [], Goods.wool: [], Goods.cloth: []}
         self.bought_log: dict = {}
         self.gdp_log: list = []
-        self.gdp_by_profession_log: dict = {Goods.food: [], Goods.wood: [], Goods.furniture: [], Goods.transport: []}
+        self.gdp_by_profession_log: dict = {Goods.food: [], Goods.wood: [], Goods.furniture: [], Goods.transport: [], Goods.wool: [], Goods.cloth: []}
         self.total_population: list = []
         self.population_change_rate_log: list = []
         self.dead_pop: list = [0]

@@ -203,23 +203,9 @@ class BuildIntent(Intent):
                 self.status = 'rejected'
                 return False, f"BuildIntent failed: Insufficient treasury cash (${treasury['total']:.2f} < ${cost:.2f})."
 
-        # 2. Hire or incorporate contractor corporation
-        existing_corps = [a for a in region.agents if getattr(a, 'is_corporation', False) and getattr(a, 'alive', True)]
-        if existing_corps:
-            contractor = existing_corps[0]
-        else:
-            contractor = Agent(t)
-            contractor.is_corporation = True
-            contractor.output = Goods.wood
-            contractor._bank_ref = getattr(region, 'bank', None)
-            contractor.home_currency = region.home_currency
-            contractor.region = region.name
-            seed_traits(contractor)
-            initialize_agent(contractor, Goods.wood, 0, 0, 0.0)
-            region.agents.append(contractor)
-            gov = nation.government
-            if hasattr(gov, '_add_citizen'):
-                gov._add_citizen(contractor)
+        # 2. Hire or emerge contractor corporation
+        from construction_politics import find_or_emerge_contractor
+        contractor = find_or_emerge_contractor(region, cost, t)
 
         # 3. Conserved transfer: Gov pays contractor
         contractor.cash += cost
@@ -248,6 +234,52 @@ class BuildIntent(Intent):
                f"Estimated duration: {project.total_turns} turns ({project.base_turns} base + {project.overrun_turns} weather/accidents).")
         self.logs.append(msg)
         return True, msg
+
+
+class SubsidizeContractorIntent(Intent):
+    """Intent to inject an emergency overrun grant into a contractor to avert layoffs."""
+
+    def __init__(self, nation_name: str, project_id: str, amount: float = 100.0,
+                 submitted_turn: int = 0, regime_type: str = 'autocracy'):
+        super().__init__(nation_name, 'subsidize_contractor', submitted_turn, regime_type)
+        self.project_id = project_id
+        self.amount = float(amount)
+
+    def execute(self, tiles_by_name: dict[str, Region],
+                nations_by_name: dict[str, Nation], t: int) -> tuple[bool, str]:
+        nation = nations_by_name.get(self.nation_name)
+        if not nation:
+            self.status = 'rejected'
+            return False, f"SubsidizeContractorIntent failed: Nation '{self.nation_name}' not found."
+
+        target_project = None
+        for p in getattr(nation, 'construction_projects', []):
+            if p.project_id == self.project_id:
+                target_project = p
+                break
+        if not target_project:
+            for tile in getattr(nation, 'tiles', []):
+                for p in getattr(tile, 'construction_projects', []):
+                    if p.project_id == self.project_id:
+                        target_project = p
+                        break
+                if target_project:
+                    break
+
+        if not target_project:
+            self.status = 'rejected'
+            return False, f"SubsidizeContractorIntent failed: Project '{self.project_id}' not found."
+
+        from construction_politics import subsidize_contractor
+        ok, msg = subsidize_contractor(target_project, self.amount, nation, world=None)
+        if ok:
+            self.status = 'executed'
+            self.logs.append(msg)
+            return True, msg
+        else:
+            self.status = 'rejected'
+            self.logs.append(msg)
+            return False, msg
 
 
 # =====================================================================
@@ -483,15 +515,15 @@ class DeclareWarIntent(Intent):
 # Main Intent & Project Stepping Orchestrator
 # =====================================================================
 
-def step_intents_and_construction(t: int, tiles: list, nations: list, on_event=None) -> list[dict]:
-    """Canonical turn step for all pending/active intents and construction projects across nations."""
+def step_intents_and_construction(t: int, tiles: list, nations: list, on_event=None, world: dict = None) -> list[dict]:
+    """Execute pending intents and advance active construction projects across all tiles (M5)."""
+    events = []
     tiles_by_name = {r.name: r for r in tiles}
     nations_by_name = {n.name: n for n in nations}
-    events = []
 
-    # 1. Step pending/active intents for each nation
-    for n in nations:
-        intents = getattr(n, 'intents', [])
+    # 1. Step pending intents per nation
+    for nation in nations:
+        intents = getattr(nation, 'intents', [])
         for intent in list(intents):
             sub_events = intent.step(tiles_by_name, nations_by_name, t)
             events.extend(sub_events)
@@ -502,11 +534,17 @@ def step_intents_and_construction(t: int, tiles: list, nations: list, on_event=N
             if intent.status in ('completed', 'rejected', 'failed'):
                 intents.remove(intent)
 
-    # 2. Step active construction projects across all tiles
+    # 2. Step active construction projects and building staffing across all tiles
+    from construction_politics import step_construction_politics
     for r in tiles:
+        # Operational building staffing
+        for b in getattr(r, 'buildings', []):
+            if hasattr(b, 'step_operational_staffing'):
+                b.step_operational_staffing(r, t)
+
         projects = getattr(r, 'construction_projects', [])
         for p in list(projects):
-            completed_building = p.step(t)
+            completed_building = p.step(t, world=world)
             # Emit project events
             for ev in p.events:
                 if ev['t'] == t:
@@ -516,6 +554,9 @@ def step_intents_and_construction(t: int, tiles: list, nations: list, on_event=N
             # Clean up completed projects from active list
             if p.status == 'completed':
                 projects.remove(p)
+
+        # Construction contractor lobbying, drought layoffs, and riots
+        step_construction_politics(r, t, world=world)
 
     return events
 

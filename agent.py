@@ -74,8 +74,8 @@ class Agent:
         'last_forage_turn', 'last_migration_turn',
         # ---- SoA slot index + cache ----
         # ---- Per-good bid/ask (set via setattr in region._trade) ----
-        'bid_food', 'bid_wood', 'bid_furniture', 'bid_transport',
-        'ask_food', 'ask_wood', 'ask_furniture', 'ask_transport',
+        'bid_food', 'bid_wood', 'bid_furniture', 'bid_transport', 'bid_wool', 'bid_cloth',
+        'ask_food', 'ask_wood', 'ask_furniture', 'ask_transport', 'ask_wool', 'ask_cloth',
         # ---- Inherited wealth protection (child of rich parent) ----
         '_birth_parent_wealth', '_birth_protection_until',
         # ---- SoA slot index + cache ----
@@ -107,6 +107,8 @@ class Agent:
         'scrip_wallet', 'company_debt', 'pay_mode', 'scrip_issued', 'scrip_redeemed',
         # ---- P3: Epidemics & Medical Economics ----
         'diseases', 'medical_expenses_paid', 'medical_treatments_count',
+        # ---- Emergent Construction Companies & Navvy Labor ----
+        'is_construction_company', 'company_name', 'projects_completed', 'idle_turns',
     )
 
     def __init__(self, t):
@@ -130,6 +132,10 @@ class Agent:
         self.employer = None
         self.employees = []
         self.is_corporation = False
+        self.is_construction_company = False
+        self.company_name = ""
+        self.projects_completed = 0
+        self.idle_turns = 0
         self.wage = 0
         self.hired_at = 0
         self.owner = None

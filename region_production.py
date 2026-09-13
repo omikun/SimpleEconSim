@@ -185,9 +185,9 @@ def produce(region, t):
                         lord = a
                         break
                 if lord and lord.alive:
-                    wool_yield = max(1, int(4 * plot.fraction * terrain_bonus(region, Goods.wood)))
-                    lord.inv_add(Goods.wood, wool_yield)
-                    local_total_production[Goods.wood] += wool_yield
+                    wool_yield = max(1, int(4 * plot.fraction * terrain_bonus(region, Goods.wool)))
+                    lord.inv_add(Goods.wool, wool_yield)
+                    local_total_production[Goods.wool] += wool_yield
 
     for g in region.goods:
         if g != Goods.gov:

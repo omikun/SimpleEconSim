@@ -285,9 +285,9 @@ def _draw_tier_section(surface, world, pinned, nation, icon_kind, tier_title, tr
 
         cost = recipe.cost
         is_built = any(b.name == r_key for b in getattr(pinned, 'buildings', []))
-        active_proj = next((p for p in getattr(pinned, 'construction_projects', []) if p.recipe.name == r_key and p.status == 'in_progress'), None)
+        active_proj = next((p for p in getattr(pinned, 'construction_projects', []) if p.recipe.name == r_key and p.status in ('in_progress', 'stalled')), None)
         if active_proj is None and nation:
-            active_proj = next((p for p in getattr(nation, 'construction_projects', []) if p.recipe.name == r_key and p.status == 'in_progress' and p.region == pinned), None)
+            active_proj = next((p for p in getattr(nation, 'construction_projects', []) if p.recipe.name == r_key and p.status in ('in_progress', 'stalled') and p.region == pinned), None)
 
         hb = btn_rect[0] <= mx <= btn_rect[0] + btn_rect[2] and btn_rect[1] <= my <= btn_rect[1] + btn_rect[3]
         if hb:
@@ -300,8 +300,11 @@ def _draw_tier_section(surface, world, pinned, nation, icon_kind, tier_title, tr
         if is_built:
             draw_progress_bar_button(surface, btn_rect, f"{recipe.display_name} Active", 1.0, font_small, theme='complete', icon_kind='check')
         elif active_proj is not None:
-            pct = min(1.0, max(0.0, active_proj.turns_elapsed / max(1, active_proj.total_turns)))
-            draw_progress_bar_button(surface, btn_rect, f"{recipe.display_name}: {active_proj.turns_elapsed}/{active_proj.total_turns}t ({int(pct*100)}%)", pct, font_small, theme='construction', icon_kind=r_key)
+            pct = min(1.0, max(0.0, getattr(active_proj, 'progress_pct', 0.0) / 100.0 if hasattr(active_proj, 'progress_pct') else (active_proj.turns_elapsed / max(1, active_proj.total_turns))))
+            if active_proj.status == 'stalled':
+                draw_progress_bar_button(surface, btn_rect, f"{recipe.display_name}: [STALLED {int(pct*100)}%] +$100 Grant", pct, font_small, theme='construction', icon_kind=r_key)
+            else:
+                draw_progress_bar_button(surface, btn_rect, f"{recipe.display_name}: {int(pct*100)}% (t={active_proj.turns_elapsed})", pct, font_small, theme='construction', icon_kind=r_key)
         else:
             can_afford = treasury_amt >= cost
             bg = (55, 58, 78) if (hb and can_afford) else ((42, 38, 42) if hb else ((40, 42, 56) if can_afford else (30, 30, 38)))
@@ -464,8 +467,18 @@ def _handle_build_click(world, region, nation, building_type, available_funds, t
         return
 
     is_built = any(b.name == building_type for b in getattr(region, 'buildings', []))
-    active_proj = next((p for p in getattr(region, 'construction_projects', []) if p.recipe.name == building_type and p.status == 'in_progress'), None)
-    if is_built or active_proj is not None:
+    active_proj = next((p for p in getattr(region, 'construction_projects', []) if p.recipe.name == building_type and p.status in ('in_progress', 'stalled')), None)
+    if is_built:
+        return
+    if active_proj is not None:
+        # Option to pay contractor more to finish project and avert layoffs
+        from construction_politics import subsidize_contractor
+        subsidy_grant = 100.0
+        ok, msg = subsidize_contractor(active_proj, subsidy_grant, nation, world=world)
+        if ok:
+            world['action_feedback'] = (f"Disbursed ${subsidy_grant:.0f} Overrun Grant! Navvy layoffs averted.", GREEN, t)
+        else:
+            world['action_feedback'] = (msg, RED, t)
         return
 
     cost = recipe.cost

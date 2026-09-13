@@ -18,7 +18,8 @@ from goods import Goods
 from diplomacy import DiplomacySystem, TreatyType, get_diplomacy
 from army import MilitaryUnit, recruit_unit
 from intents import (RecruitArmyIntent, MoveArmyIntent, ProposeTreatyIntent,
-                     BreakTreatyIntent, DeclareWarIntent, BuildIntent)
+                     BreakTreatyIntent, DeclareWarIntent, BuildIntent,
+                     SubsidizeContractorIntent)
 
 
 class NationPolicyAI:
@@ -343,15 +344,49 @@ class NationPolicyAI:
             self.nation.submit_intent(intent, t)
             submitted.append(intent)
 
-        # 3. Expansion Plan (M5.3)
-        if treasury['total'] >= 50.0 and len(submitted) == 0:
-            exp_plan = self.evaluate_expansion(all_tiles, all_nations, diplomacy)
-            if exp_plan and exp_plan['mode'] == 'settle':
-                # Build infrastructure or commission frontier company
-                pass
+        # 3. Emergency Contractor Subsidies (Avert Navvy Layoffs & Riots)
+        if treasury['total'] >= 120.0:
+            for tile in self.nation.tiles:
+                for proj in getattr(tile, 'construction_projects', []):
+                    if proj.status == 'stalled' or (proj.contractor and proj.contractor.cash < 5.0):
+                        sub_intent = SubsidizeContractorIntent(
+                            nation_name=self.nation.name,
+                            project_id=proj.project_id,
+                            amount=100.0,
+                            submitted_turn=t,
+                            regime_type=self.nation.regime_type
+                        )
+                        self.nation.submit_intent(sub_intent, t)
+                        submitted.append(sub_intent)
+                        break
 
-        # 4. Feudal Enclosure Evaluation (P1.4)
-        if t >= 5 and t % 5 == 0:
+        # 4. Public Works Infrastructure Procurement (Respond to Contractor Lobbying & Bottlenecks)
+        if treasury['total'] >= 320.0 and len(submitted) == 0:
+            for tile in self.nation.tiles:
+                has_turnpike = any(b.name == 'turnpike_road' for b in getattr(tile, 'buildings', []))
+                has_canal = any(b.name == 'barge_canal' for b in getattr(tile, 'buildings', []))
+                has_proj = any(p.status in ('in_progress', 'stalled') for p in getattr(tile, 'construction_projects', []))
+                if not has_proj:
+                    target_recipe = None
+                    if not has_turnpike:
+                        target_recipe = 'turnpike_road'
+                    elif not has_canal:
+                        target_recipe = 'barge_canal'
+
+                    if target_recipe:
+                        build_intent = BuildIntent(
+                            nation_name=self.nation.name,
+                            region_name=tile.name,
+                            building_type=target_recipe,
+                            submitted_turn=t,
+                            regime_type=self.nation.regime_type
+                        )
+                        self.nation.submit_intent(build_intent, t)
+                        submitted.append(build_intent)
+                        break
+
+        # 5. Market-Driven Feudal Enclosure & Pasture Allocation
+        if t >= 3:
             for tile in self.nation.tiles:
                 tenure = getattr(tile, 'tenure', None)
                 if not tenure:
@@ -361,21 +396,31 @@ class NationPolicyAI:
                     continue
                 pe = tile.protest_energy_log[-1] if getattr(tile, 'protest_energy_log', None) else 0.0
                 if pe < 4.5:
-                    plot = feudal[0]
-                    from enclosure import calculate_charter_fee
-                    fee = calculate_charter_fee(plot)
-                    lord = next((a for a in tile.agents if a.id == plot.lord_id), None)
-                    if lord and lord.cash >= fee:
-                        from intents import EncloseCommonsIntent
-                        intent = EncloseCommonsIntent(
-                            nation_name=self.nation.name,
-                            tile_name=tile.name,
-                            plot_id=plot.plot_id,
-                            submitted_turn=t,
-                            regime_type=self.nation.regime_type
-                        )
-                        self.nation.submit_intent(intent, t)
-                        submitted.append(intent)
-                        break
+                    p_grain = tile.recipes.get(Goods.food, {}).get('price', 1.0)
+                    p_wool = tile.recipes.get(Goods.wool, {}).get('price', 3.5)
+                    # Enclosure triggered when grain >= 1.6 or wool >= 3.5
+                    if p_grain >= 1.6 or p_wool >= 3.5 or (t % 5 == 0):
+                        plot = feudal[0]
+                        from enclosure import calculate_charter_fee
+                        fee = calculate_charter_fee(plot)
+                        lord = next((a for a in tile.agents if a.id == plot.lord_id), None)
+                        if lord and lord.cash >= fee:
+                            # Dynamic Land Use: Pasture if wool price is strong vs grain
+                            if (p_wool / max(0.5, p_grain)) >= 1.8:
+                                plot.production_type = 'pasture'
+                            else:
+                                plot.production_type = 'arable'
+
+                            from intents import EncloseCommonsIntent
+                            intent = EncloseCommonsIntent(
+                                nation_name=self.nation.name,
+                                tile_name=tile.name,
+                                plot_id=plot.plot_id,
+                                submitted_turn=t,
+                                regime_type=self.nation.regime_type
+                            )
+                            self.nation.submit_intent(intent, t)
+                            submitted.append(intent)
+                            break
 
         return submitted

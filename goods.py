@@ -6,6 +6,8 @@ class Goods(IntEnum):
     furniture = auto()
     transport = auto()
     gov = auto()
+    wool = auto()
+    cloth = auto()
     none = auto()
 
 
@@ -16,5 +18,8 @@ profession = {
     Goods.furniture: 'C',
     Goods.transport: 'P',
     Goods.gov: 'G',
+    Goods.wool: 'S',     # Shepherd / Grazier
+    Goods.cloth: 'T',    # Weaver / Textilist
     Goods.none: '-',
 }
+
