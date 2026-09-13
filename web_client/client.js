@@ -52,7 +52,7 @@
   let isInitialCentered = false;
   let isDragging = false;
   let dragStartX = 0;
-  dragStartY = 0;
+  let dragStartY = 0;
   let camStartX = 0;
   let camStartY = 0;
   let touchStartTime = 0;
