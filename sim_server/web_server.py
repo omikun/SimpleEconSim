@@ -204,8 +204,7 @@ class RegnumHTTPRequestHandler(BaseHTTPRequestHandler):
                 length = int(self.headers.get('Content-Length', 0))
                 raw_body = self.rfile.read(length)
                 data = json.loads(raw_body.decode('utf-8'))
-
-                cmd_type_str = data.get('cmd_type', '').upper()
+                cmd_type_str = (data.get('cmd_type') or data.get('type') or data.get('cmd') or '').upper()
                 payload = data.get('payload', {})
 
                 # Validate command type

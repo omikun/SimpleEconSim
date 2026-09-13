@@ -254,9 +254,11 @@
     // Photorealistic continuous terrain image layer
     if (useTerrainImage && terrainLoaded && terrainImage.width > 0 && worldState && worldState.terrain_bounds) {
       const b = worldState.terrain_bounds;
-      const imgW = b.max_x - b.min_x;
-      const imgH = b.max_y - b.min_y;
-      ctx.drawImage(terrainImage, b.min_x, b.min_y, imgW, imgH);
+      const imgW = (typeof b.width === 'number' && b.width > 0) ? b.width : ((b.max_x || 0) - (b.min_x || 0));
+      const imgH = (typeof b.height === 'number' && b.height > 0) ? b.height : ((b.max_y || 0) - (b.min_y || 0));
+      if (imgW > 0 && imgH > 0) {
+        ctx.drawImage(terrainImage, b.min_x, b.min_y, imgW, imgH);
+      }
     }
 
     // Render hex tiles
@@ -2361,7 +2363,7 @@
       const res = await fetch('/api/command', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: commandType, payload })
+        body: JSON.stringify({ cmd_type: commandType, type: commandType, cmd: commandType, payload })
       });
 
       const result = await res.json();

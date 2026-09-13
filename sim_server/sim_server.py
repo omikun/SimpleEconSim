@@ -1340,6 +1340,8 @@ class SimServer:
             terrain_bounds = {
                 'min_x': float(x0 - pad_x),
                 'min_y': float(y0 - pad_y),
+                'max_x': float(x1 + pad_x),
+                'max_y': float(y1 + pad_y),
                 'width': float((x1 - x0) + 2.0 * pad_x),
                 'height': float((y1 - y0) + 2.0 * pad_y),
                 'hex_size': float(getattr(self, 'hex_size', 50.0)),
