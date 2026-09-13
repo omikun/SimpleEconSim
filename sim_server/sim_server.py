@@ -1350,6 +1350,7 @@ class SimServer:
             return {
                 'turn': self.turn,
                 'playing': self.playing,
+                'is_playing': self.playing,
                 'seed': self.seed,
                 'terrain_seed': self.terrain_seed,
                 'nation_seed': self.nation_seed,

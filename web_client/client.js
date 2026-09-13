@@ -419,7 +419,7 @@
     }
 
     if (btnPlay) {
-      isPlaying = Boolean(worldState.is_playing);
+      isPlaying = Boolean(worldState.playing !== undefined ? worldState.playing : worldState.is_playing);
       btnPlay.textContent = isPlaying ? '⏸ Pause' : '▶ Play';
       btnPlay.className = isPlaying ? 'btn btn-secondary' : 'btn btn-primary';
     }
@@ -2406,7 +2406,11 @@
     // Top Controls
     if (btnPlay) {
       btnPlay.addEventListener('click', () => {
-        sendCommand(isPlaying ? 'PAUSE' : 'PLAY');
+        const nextState = !isPlaying;
+        isPlaying = nextState;
+        btnPlay.textContent = isPlaying ? '⏸ Pause' : '▶ Play';
+        btnPlay.className = isPlaying ? 'btn btn-secondary' : 'btn btn-primary';
+        sendCommand(nextState ? 'PLAY' : 'PAUSE');
       });
     }
 
