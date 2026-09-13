@@ -124,6 +124,19 @@ class RegnumHTTPRequestHandler(BaseHTTPRequestHandler):
                 self._send_error_json(500, f"Error generating QR SVG: {e}")
             return
 
+        # 3. Shutdown endpoint (via browser or GET request)
+        elif path == '/api/shutdown':
+            resp_body = json.dumps({"success": True, "message": "REGNUM server is shutting down..."}).encode('utf-8')
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.send_header('Content-Length', str(len(resp_body)))
+            self._set_cors_headers()
+            self.end_headers()
+            self.wfile.write(resp_body)
+            if hasattr(self.server, 'web_server') and self.server.web_server:
+                threading.Thread(target=self.server.web_server.stop, daemon=True).start()
+            return
+
         # 4. API: Photorealistic Topographic Terrain Image
         elif path in ('/api/terrain.png', '/api/terrain', '/api/terrain.jpg'):
             format_type = query.get('format', ['jpg' if path.endswith('.jpg') else 'png'])[0].lower()
@@ -212,6 +225,18 @@ class RegnumHTTPRequestHandler(BaseHTTPRequestHandler):
                 self.wfile.write(resp_body)
             except Exception as e:
                 self._send_error_json(500, f"Error processing command: {e}")
+            return
+
+        elif parsed.path == '/api/shutdown':
+            resp_body = json.dumps({"success": True, "message": "REGNUM server is shutting down..."}).encode('utf-8')
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.send_header('Content-Length', str(len(resp_body)))
+            self._set_cors_headers()
+            self.end_headers()
+            self.wfile.write(resp_body)
+            if hasattr(self.server, 'web_server') and self.server.web_server:
+                threading.Thread(target=self.server.web_server.stop, daemon=True).start()
             return
 
         self._send_error_json(404, "Endpoint not found")

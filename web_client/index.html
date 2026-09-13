@@ -6,187 +6,582 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="theme-color" content="#0d1017">
-  <title>REGNUM Mobile</title>
-  <link rel="stylesheet" href="style.css?v=2">
+  <title>REGNUM Mobile — Sovereign Macroeconomic Simulation</title>
+  <link rel="stylesheet" href="style.css?v=3">
 </head>
 <body>
   <div id="app">
-    <!-- Top HUD Navigation Bar -->
+    <!-- Top Macroeconomic Navigation Bar -->
     <header id="top-bar">
-      <div class="brand">
-        <span class="crown">👑</span>
-        <span class="title">REGNUM</span>
-        <span class="status-dot connected" id="status-dot" title="Server Status"></span>
+      <div class="top-left-section">
+        <div class="brand">
+          <span class="crown">👑</span>
+          <span class="title">REGNUM</span>
+          <span class="status-dot connected" id="status-dot" title="Server Connected"></span>
+        </div>
+
+        <!-- Sovereign Nation Switcher -->
+        <div class="nation-picker-group">
+          <span class="nation-flag-dot" id="active-flag-dot"></span>
+          <select id="select-nation" class="nation-select" aria-label="Select Player Sovereign Nation">
+            <option value="">Loading nations...</option>
+          </select>
+        </div>
       </div>
 
-      <div class="hud-center">
-        <span class="turn-badge">Turn <strong id="turn-display">0</strong></span>
+      <!-- Real-Time Macroeconomic Indicators Ribbon -->
+      <div class="macro-ribbon" id="macro-ribbon">
+        <div class="macro-stat" id="macro-treasury" title="National Treasury: Liquid Cash Reserves">
+          <span class="macro-label">Vault</span>
+          <span class="macro-val text-gold" id="val-treasury">$0</span>
+        </div>
+        <div class="macro-stat" id="macro-granary" title="Emergency Food Granary Reserve">
+          <span class="macro-label">Food</span>
+          <span class="macro-val text-green" id="val-food">0</span>
+        </div>
+        <div class="macro-stat" id="macro-pop" title="Total Living Population">
+          <span class="macro-label">Pop</span>
+          <span class="macro-val" id="val-pop">0</span>
+        </div>
+        <div class="macro-stat" id="macro-gdp" title="National Gross Domestic Product (GDP)">
+          <span class="macro-label">GDP</span>
+          <span class="macro-val text-cyan" id="val-gdp">$0</span>
+        </div>
+        <div class="macro-stat" id="macro-unrest" title="Civil Unrest & Protest Stage">
+          <span class="macro-label">Unrest</span>
+          <span class="macro-val badge-unrest" id="val-unrest">0.0 Calm</span>
+        </div>
+        <div class="macro-stat" id="macro-gini" title="Wealth Inequality (Gini Coefficient)">
+          <span class="macro-label">Gini</span>
+          <span class="macro-val" id="val-gini">0.00</span>
+        </div>
+        <div class="macro-stat" id="macro-trade" title="Foreign Trade Net Balance (Exports - Imports)">
+          <span class="macro-label">Trade</span>
+          <span class="macro-val" id="val-trade">$0</span>
+        </div>
+        <div class="macro-stat" id="macro-col" title="Average Cost of Living Market Basket">
+          <span class="macro-label">CoL</span>
+          <span class="macro-val" id="val-col">1.00</span>
+        </div>
       </div>
 
+      <!-- Controls & Shortcut Actions -->
       <div class="hud-controls">
-        <button id="btn-play" class="btn btn-primary" aria-label="Play / Pause">▶ Play</button>
-        <button id="btn-step" class="btn btn-secondary" aria-label="Step turn">+1 Step</button>
-        <button id="btn-new" class="btn btn-icon" title="New Random World" aria-label="Randomize Seed">🎲</button>
-        <button id="btn-qr" class="btn btn-icon" title="Mobile QR Code" aria-label="Show Mobile QR">📱</button>
+        <div class="turn-box">
+          <span class="turn-label">Turn</span>
+          <strong id="turn-display" class="turn-number">0</strong>
+        </div>
+        <button id="btn-play" class="btn btn-primary" aria-label="Play or Pause Simulation">▶ Play</button>
+        <button id="btn-step" class="btn btn-secondary" aria-label="Step 1 Turn">+1 Step</button>
+        <button id="btn-compare" class="btn btn-ghost" title="Compare All Nations [C]">⚖️ <span class="btn-text">Compare</span></button>
+        <button id="btn-help" class="btn btn-ghost" title="Game Manual & Help [?]">❓ <span class="btn-text">Help</span></button>
+        <button id="btn-qr" class="btn btn-icon" title="Scan to Play on iPhone">📱</button>
+        <button id="btn-new" class="btn btn-icon" title="Randomize World Seed">🎲</button>
       </div>
     </header>
 
-    <!-- Interactive Hex Map Viewport -->
-    <main id="viewport">
-      <canvas id="map-canvas"></canvas>
+    <!-- Main Game Area -->
+    <div id="main-layout">
+      <!-- Left Sovereign Suites Dock -->
+      <aside id="left-dock" class="left-dock">
+        <!-- Vertical Tab Switcher -->
+        <nav class="dock-tabs">
+          <button class="dock-tab-btn" data-drawer="build" title="Build & Infrastructure [B]">
+            <span class="dock-icon">🔨</span>
+            <span class="dock-title">Build</span>
+          </button>
+          <button class="dock-tab-btn" data-drawer="gov" title="Governance & Decrees [G]">
+            <span class="dock-icon">🏛️</span>
+            <span class="dock-title">Gov</span>
+          </button>
+          <button class="dock-tab-btn" data-drawer="diplomacy" title="Global Diplomacy & Treaties [D]">
+            <span class="dock-icon">🤝</span>
+            <span class="dock-title">Diplo</span>
+          </button>
+          <button class="dock-tab-btn" data-drawer="debt" title="Sovereign Debt & ISRB [S]">
+            <span class="dock-icon">📜</span>
+            <span class="dock-title">Debt</span>
+          </button>
+          <button class="dock-tab-btn" data-drawer="science" title="Science & Tech Tree [T]">
+            <span class="dock-icon">🔬</span>
+            <span class="dock-title">Tech</span>
+          </button>
+          <button class="dock-tab-btn" data-drawer="military" title="Military Operations [M]">
+            <span class="dock-icon">⚔️</span>
+            <span class="dock-title">Army</span>
+          </button>
+        </nav>
 
-      <!-- Floating Zoom & Center Controls -->
-      <div class="floating-controls">
-        <button id="btn-toggle-terrain" class="ctrl-btn active" title="Toggle Photorealistic Terrain (GPU/CPU)" aria-label="Toggle Photorealistic Terrain">🗺️</button>
-        <button id="btn-zoom-in" class="ctrl-btn" title="Zoom In">+</button>
-        <button id="btn-zoom-out" class="ctrl-btn" title="Zoom Out">−</button>
-        <button id="btn-reset-cam" class="ctrl-btn" title="Reset View">⌖</button>
-      </div>
-
-      <!-- Quick Inspection Tooltip / Pill -->
-      <div id="quick-pill" class="quick-pill hidden">
-        <span id="pill-text">Selected Tile</span>
-      </div>
-    </main>
-
-    <!-- Mobile Slide-up Inspection Drawer -->
-    <section id="drawer" class="drawer collapsed">
-      <div class="drawer-handle" id="drawer-handle">
-        <div class="handle-bar"></div>
-      </div>
-
-      <div class="drawer-header">
-        <div class="tile-title-group">
-          <h2 id="tile-name">Tap a territory to inspect</h2>
-          <span id="tile-sub" class="tile-subtitle">—</span>
-        </div>
-        <button id="drawer-toggle-btn" class="drawer-toggle-btn" aria-label="Toggle Details">▲</button>
-      </div>
-
-      <!-- Drawer Tabs -->
-      <nav class="drawer-tabs">
-        <button class="tab-btn active" data-tab="tab-overview">Overview</button>
-        <button class="tab-btn" data-tab="tab-cadastre">Cadastre</button>
-        <button class="tab-btn" data-tab="tab-labor">Labor</button>
-        <button class="tab-btn" data-tab="tab-workhouse">Workhouse</button>
-        <button class="tab-btn" data-tab="tab-news">News (<span id="news-badge">0</span>)</button>
-      </nav>
-
-      <!-- Drawer Content Panes -->
-      <div class="drawer-body">
-        <!-- Tab 1: Overview -->
-        <div id="tab-overview" class="tab-pane active">
-          <div class="stat-grid">
-            <div class="stat-card">
-              <span class="stat-label">Sovereign Nation</span>
-              <span class="stat-value" id="stat-nation">—</span>
-            </div>
-            <div class="stat-card">
-              <span class="stat-label">Population</span>
-              <span class="stat-value" id="stat-pop">—</span>
-            </div>
-            <div class="stat-card">
-              <span class="stat-label">Biome / Terrain</span>
-              <span class="stat-value" id="stat-biome">—</span>
-            </div>
-            <div class="stat-card">
-              <span class="stat-label">Elevation</span>
-              <span class="stat-value" id="stat-elevation">—</span>
-            </div>
-            <div class="stat-card">
-              <span class="stat-label">Cost of Living</span>
-              <span class="stat-value" id="stat-col">—</span>
-            </div>
-            <div class="stat-card">
-              <span class="stat-label">Axial Hex Coord</span>
-              <span class="stat-value" id="stat-coords">—</span>
-            </div>
+        <!-- Slide-out Drawer Panel -->
+        <div id="left-drawer" class="left-drawer closed">
+          <div class="drawer-top-bar">
+            <h3 id="drawer-title">Sovereign Suite</h3>
+            <button id="btn-close-left" class="btn-icon-close" title="Close Drawer [Esc]">✕</button>
           </div>
-        </div>
 
-        <!-- Tab 2: Land & Cadastre -->
-        <div id="tab-cadastre" class="tab-pane">
-          <div class="cadastre-section">
-            <h3 class="section-title">Enclosure Ratio</h3>
-            <div class="enclosure-bar-container">
-              <div class="enclosure-bar">
-                <div id="bar-commons" class="bar-segment commons" style="width: 50%" title="Commons"></div>
-                <div id="bar-feudal" class="bar-segment feudal" style="width: 25%" title="Feudal"></div>
-                <div id="bar-enclosed" class="bar-segment enclosed" style="width: 25%" title="Enclosed"></div>
+          <div class="drawer-pane-container">
+            <!-- 1. BUILD SUITE (B) -->
+            <div id="pane-build" class="drawer-pane">
+              <div class="pane-header-info">
+                <span id="build-target-tile" class="target-badge">Selected Tile: None</span>
+                <div class="tier-filter-chips">
+                  <button class="chip active" data-tier="all">All</button>
+                  <button class="chip" data-tier="tile">City</button>
+                  <button class="chip" data-tier="province">Province</button>
+                  <button class="chip" data-tier="nation">Sovereign</button>
+                </div>
               </div>
-              <div class="bar-legend">
-                <span><i class="dot commons"></i> Commons <strong id="lbl-commons">50%</strong></span>
-                <span><i class="dot feudal"></i> Feudal <strong id="lbl-feudal">25%</strong></span>
-                <span><i class="dot enclosed"></i> Enclosed <strong id="lbl-enclosed">25%</strong></span>
+
+              <!-- Active Construction Projects -->
+              <div id="active-projects-section" class="projects-section hidden">
+                <h4 class="sub-heading">Active Construction Projects</h4>
+                <div id="active-projects-list" class="projects-list"></div>
+              </div>
+
+              <h4 class="sub-heading">Available Infrastructure Blueprints</h4>
+              <div id="build-recipes-list" class="cards-list"></div>
+            </div>
+
+            <!-- 2. GOVERNANCE SUITE (G) -->
+            <div id="pane-gov" class="drawer-pane">
+              <div class="scope-switch-bar">
+                <button class="scope-btn active" data-scope="tile">🏛️ City</button>
+                <button class="scope-btn" data-scope="province">🗺️ Province</button>
+                <button class="scope-btn" data-scope="nation">👑 Sovereign</button>
+              </div>
+
+              <!-- Tax & Labor Statutory Policies -->
+              <div class="gov-card">
+                <h4 class="card-title">Fiscal & Statutory Tax Rates</h4>
+                <div class="slider-control">
+                  <div class="slider-header">
+                    <span>Income Tax Rate</span>
+                    <strong id="lbl-income-tax">15.0%</strong>
+                  </div>
+                  <input type="range" id="slider-income-tax" min="0" max="0.50" step="0.01" value="0.15">
+                </div>
+
+                <div class="slider-control mt-2">
+                  <div class="slider-header">
+                    <span>Customs Import Tariff</span>
+                    <strong id="lbl-tariff-rate">10.0%</strong>
+                  </div>
+                  <input type="range" id="slider-tariff-rate" min="0" max="0.50" step="0.01" value="0.10">
+                </div>
+              </div>
+
+              <div class="gov-card mt-3">
+                <h4 class="card-title">Labor Regulation & Factory Acts</h4>
+                <div class="slider-control">
+                  <div class="slider-header">
+                    <span>Maximum Workday Hours</span>
+                    <strong id="lbl-gov-workday">12.0h</strong>
+                  </div>
+                  <input type="range" id="slider-gov-workday" min="8" max="16" step="0.5" value="12">
+                </div>
+                <div class="toggle-control mt-2">
+                  <label class="switch-label">
+                    <input type="checkbox" id="chk-ten-hour">
+                    <span>Enact Ten-Hour Factory Act (&le;10.0h)</span>
+                  </label>
+                </div>
+              </div>
+
+              <!-- Sovereign Decrees -->
+              <div class="gov-card mt-3">
+                <h4 class="card-title">Executive Decrees</h4>
+                <div class="decree-buttons-grid">
+                  <button id="btn-decree-granary" class="btn btn-secondary btn-block">
+                    🌾 Open State Granaries (50 Food Relief)
+                  </button>
+                  <button id="btn-decree-order" class="btn btn-secondary btn-block mt-2">
+                    🛡️ Emergency Public Order Decree ($50, -1.5 Unrest)
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- 3. DIPLOMACY SUITE (D) -->
+            <div id="pane-diplomacy" class="drawer-pane">
+              <div class="pane-header-info">
+                <span>Foreign Bilateral Relations & Alliances</span>
+              </div>
+              <div id="diplomacy-nations-list" class="cards-list"></div>
+            </div>
+
+            <!-- 4. SOVEREIGN DEBT & ISRB SUITE (S) -->
+            <div id="pane-debt" class="drawer-pane">
+              <!-- Rating & Yield Overview -->
+              <div class="debt-rating-card">
+                <div class="rating-badge-container">
+                  <span class="rating-label">Credit Rating</span>
+                  <div class="rating-box" id="debt-isrb-rating">BBB</div>
+                </div>
+                <div class="rating-details">
+                  <div>Market Benchmark Yield: <strong id="debt-market-yield" class="text-gold">0.18% / t</strong></div>
+                  <div>Outstanding Public Debt: <strong id="debt-total-amount" class="text-ruby">$0</strong></div>
+                </div>
+              </div>
+
+              <!-- Bond Offering Actions -->
+              <div class="gov-card mt-3">
+                <h4 class="card-title">Issue Sovereign Bond Tranche</h4>
+                <div class="duration-selector">
+                  <span>Maturity:</span>
+                  <div class="chip-group" id="bond-duration-chips">
+                    <button class="chip active" data-duration="20">20t Short</button>
+                    <button class="chip" data-duration="50">50t Medium</button>
+                    <button class="chip" data-duration="100">100t Century</button>
+                  </div>
+                </div>
+                <div class="dual-btn-row mt-2">
+                  <button id="btn-issue-bond-500" class="btn btn-primary">Issue $500 Offering</button>
+                  <button id="btn-issue-bond-1000" class="btn btn-secondary">Issue $1,000 Offering</button>
+                </div>
+              </div>
+
+              <!-- ISRB Influence -->
+              <div class="gov-card mt-3">
+                <h4 class="card-title">ISRB Bureau Influence</h4>
+                <p class="card-desc">Lobby credit rating auditors to improve sovereign bond yields.</p>
+                <button id="btn-lobby-isrb" class="btn btn-secondary btn-block">
+                  ⚖️ Lobby Rating Upgrade ($200)
+                </button>
+              </div>
+
+              <!-- Active Offerings List -->
+              <div id="active-offerings-section" class="mt-3">
+                <h4 class="sub-heading">Live Bond Offerings</h4>
+                <div id="active-offerings-list" class="cards-list"></div>
+              </div>
+            </div>
+
+            <!-- 5. SCIENCE & TECH TREE (T) -->
+            <div id="pane-science" class="drawer-pane">
+              <div class="era-selector-bar">
+                <button class="era-chip active" data-era="1">Era I: Feudal</button>
+                <button class="era-chip" data-era="2">Era II: Renaissance</button>
+                <button class="era-chip" data-era="3">Era III: Steam</button>
+                <button class="era-chip" data-era="4">Era IV: Modern</button>
+              </div>
+
+              <div id="science-tech-list" class="cards-list mt-2"></div>
+            </div>
+
+            <!-- 6. MILITARY & GARRISON SUITE (M) -->
+            <div id="pane-military" class="drawer-pane">
+              <div class="gov-card">
+                <h4 class="card-title">Territorial Garrison</h4>
+                <p id="military-tile-lbl">Selected Territory: None</p>
+                <div class="stat-row">
+                  <span>Stationed Soldiers:</span>
+                  <strong id="lbl-garrison-count">0 troops</strong>
+                </div>
+                <button id="btn-recruit-garrison" class="btn btn-primary btn-block mt-2">
+                  ⚔️ Recruit Garrison Division (10 Soldiers • $15)
+                </button>
+              </div>
+
+              <div class="gov-card mt-3">
+                <h4 class="card-title">Standing Armed Forces</h4>
+                <div id="military-armies-list" class="cards-list"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Center Viewport -->
+      <main id="viewport">
+        <canvas id="map-canvas"></canvas>
+
+        <!-- Thematic Information Layer Drop-up Selector -->
+        <div class="layer-dock-container">
+          <div id="layer-menu" class="layer-menu hidden">
+            <div class="layer-menu-header">Map Information Layers</div>
+            <button class="layer-item active" data-layer="overview">
+              <span class="layer-dot" style="background:#38bdf8"></span>
+              <span class="layer-name">1. Overview</span>
+            </button>
+            <button class="layer-item" data-layer="physical">
+              <span class="layer-dot" style="background:#8ce1ff"></span>
+              <span class="layer-name">2. Physical & Height</span>
+            </button>
+            <button class="layer-item" data-layer="population">
+              <span class="layer-dot" style="background:#f58c3c"></span>
+              <span class="layer-name">3. Population & Unrest</span>
+            </button>
+            <button class="layer-item" data-layer="economy">
+              <span class="layer-dot" style="background:#78e182"></span>
+              <span class="layer-name">4. Economy & Wealth</span>
+            </button>
+            <button class="layer-item" data-layer="production">
+              <span class="layer-dot" style="background:#f5d25a"></span>
+              <span class="layer-name">5. Production & Output</span>
+            </button>
+            <button class="layer-item" data-layer="military">
+              <span class="layer-dot" style="background:#eb5050"></span>
+              <span class="layer-name">6. Military & Defense</span>
+            </button>
+            <button class="layer-item" data-layer="enclosure">
+              <span class="layer-dot" style="background:#d7af4b"></span>
+              <span class="layer-name">7. Land Tenure</span>
+            </button>
+            <button class="layer-item" data-layer="exploitation">
+              <span class="layer-dot" style="background:#eb4b4b"></span>
+              <span class="layer-name">8. Exploitation & Strikes</span>
+            </button>
+            <button class="layer-item" data-layer="externalities">
+              <span class="layer-dot" style="background:#64d78c"></span>
+              <span class="layer-name">9. Ecology & Rift</span>
+            </button>
+          </div>
+
+          <button id="btn-layer-toggle" class="btn-layer-pill" title="Switch Thematic Map Layer [1-9]">
+            <span class="pill-dot" id="active-layer-dot" style="background:#38bdf8"></span>
+            <span id="active-layer-name">1. Overview</span>
+            <span class="pill-caret">▲</span>
+          </button>
+        </div>
+
+        <!-- Floating Zoom & Reset Controls -->
+        <div class="floating-controls">
+          <button id="btn-toggle-terrain" class="ctrl-btn active" title="Toggle Photorealistic Terrain" aria-label="Toggle Photorealistic Terrain">🗺️</button>
+          <button id="btn-zoom-in" class="ctrl-btn" title="Zoom In (+)">+</button>
+          <button id="btn-zoom-out" class="ctrl-btn" title="Zoom Out (−)">−</button>
+          <button id="btn-reset-cam" class="ctrl-btn" title="Reset View (⌖)">⌖</button>
+        </div>
+
+        <!-- Quick Inspection Tooltip / Pill -->
+        <div id="quick-pill" class="quick-pill hidden">
+          <span id="pill-text">Selected Territory</span>
+        </div>
+      </main>
+
+      <!-- Right Inspection & Charts Panel -->
+      <section id="right-panel" class="right-panel collapsed">
+        <div class="drawer-handle" id="right-drawer-handle">
+          <div class="handle-bar"></div>
+        </div>
+
+        <div class="panel-header">
+          <div class="tile-title-group">
+            <h2 id="tile-name">Tap a territory to inspect</h2>
+            <span id="tile-sub" class="tile-subtitle">—</span>
+          </div>
+          <button id="drawer-toggle-btn" class="drawer-toggle-btn" aria-label="Toggle Details">▲</button>
+        </div>
+
+        <!-- Right Panel Tabs -->
+        <nav class="panel-tabs">
+          <button class="tab-btn active" data-tab="tab-overview">Overview</button>
+          <button class="tab-btn" data-tab="tab-charts">Charts</button>
+          <button class="tab-btn" data-tab="tab-cadastre">Cadastre</button>
+          <button class="tab-btn" data-tab="tab-citizens">Citizens</button>
+          <button class="tab-btn" data-tab="tab-workhouse">Workhouse</button>
+          <button class="tab-btn" data-tab="tab-news">News (<span id="news-badge">0</span>)</button>
+        </nav>
+
+        <!-- Right Panel Body Panes -->
+        <div class="panel-body">
+          <!-- 1. OVERVIEW TAB -->
+          <div id="tab-overview" class="tab-pane active">
+            <div class="stat-grid">
+              <div class="stat-card">
+                <span class="stat-label">Sovereign Nation</span>
+                <span class="stat-value" id="stat-nation">—</span>
+              </div>
+              <div class="stat-card">
+                <span class="stat-label">Population</span>
+                <span class="stat-value" id="stat-pop">—</span>
+              </div>
+              <div class="stat-card">
+                <span class="stat-label">Biome / Terrain</span>
+                <span class="stat-value" id="stat-biome">—</span>
+              </div>
+              <div class="stat-card">
+                <span class="stat-label">Elevation</span>
+                <span class="stat-value" id="stat-elevation">—</span>
+              </div>
+              <div class="stat-card">
+                <span class="stat-label">Regional GDP</span>
+                <span class="stat-value" id="stat-gdp">—</span>
+              </div>
+              <div class="stat-card">
+                <span class="stat-label">Unrest Score</span>
+                <span class="stat-value" id="stat-unrest">—</span>
+              </div>
+            </div>
+
+            <!-- Market Prices Basket -->
+            <div class="mt-3">
+              <h4 class="sub-heading">Local Commodity Market Prices</h4>
+              <div id="market-prices-grid" class="market-prices-grid"></div>
+            </div>
+
+            <!-- Completed Buildings -->
+            <div class="mt-3">
+              <h4 class="sub-heading">Installed Infrastructure & Buildings</h4>
+              <div id="installed-buildings-list" class="tags-list">
+                <span class="empty-tag">No structures installed</span>
+              </div>
+            </div>
+
+            <!-- Ecological Indicators -->
+            <div class="mt-3">
+              <h4 class="sub-heading">Ecology & Environmental Vitality</h4>
+              <div class="ecology-grid">
+                <div class="eco-badge">Soil: <strong id="eco-soil">100%</strong></div>
+                <div class="eco-badge">Smog: <strong id="eco-smog">0</strong></div>
+                <div class="eco-badge">Nutrition: <strong id="eco-nut">100%</strong></div>
               </div>
             </div>
           </div>
 
-          <div class="cadastre-section">
-            <h3 class="section-title">Cadastral Plots (<span id="plot-count">0</span>)</h3>
-            <div id="plots-list" class="item-list">
-              <div class="empty-state">Select an inhabited territory to view cadastral survey.</div>
+          <!-- 2. CHARTS TAB -->
+          <div id="tab-charts" class="tab-pane">
+            <div class="chart-controls">
+              <div class="chart-selector-chips">
+                <button class="chip active" data-chart="gdp">GDP</button>
+                <button class="chip" data-chart="treasury">Treasury</button>
+                <button class="chip" data-chart="food_price">Food Price</button>
+                <button class="chip" data-chart="pop">Population</button>
+                <button class="chip" data-chart="unrest">Unrest</button>
+              </div>
+            </div>
+            <div class="chart-container">
+              <canvas id="historical-chart-canvas" width="380" height="220"></canvas>
+            </div>
+            <div id="chart-legend" class="chart-legend">
+              <span class="legend-indicator">Historical Trend over Turns</span>
+            </div>
+          </div>
+
+          <!-- 3. CADASTRE TAB -->
+          <div id="tab-cadastre" class="tab-pane">
+            <div class="cadastre-section">
+              <h3 class="section-title">Enclosure Ratio</h3>
+              <div class="enclosure-bar-container">
+                <div class="enclosure-bar">
+                  <div id="bar-commons" class="bar-segment commons" style="width: 50%" title="Commons"></div>
+                  <div id="bar-feudal" class="bar-segment feudal" style="width: 25%" title="Feudal"></div>
+                  <div id="bar-enclosed" class="bar-segment enclosed" style="width: 25%" title="Enclosed"></div>
+                </div>
+                <div class="bar-legend">
+                  <span><i class="dot commons"></i> Commons <strong id="lbl-commons">50%</strong></span>
+                  <span><i class="dot feudal"></i> Feudal <strong id="lbl-feudal">25%</strong></span>
+                  <span><i class="dot enclosed"></i> Enclosed <strong id="lbl-enclosed">25%</strong></span>
+                </div>
+              </div>
+            </div>
+
+            <div class="cadastre-section">
+              <h3 class="section-title">Cadastral Plots (<span id="plot-count">0</span>)</h3>
+              <div id="plots-list" class="item-list">
+                <div class="empty-state">Select an inhabited territory to view cadastral survey.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 4. CITIZENS CENSUS TAB -->
+          <div id="tab-citizens" class="tab-pane">
+            <h3 class="section-title">Living Citizen Demographic Census</h3>
+            <div id="citizens-list" class="citizens-list">
+              <div class="empty-state">Select an inhabited territory to inspect living citizens.</div>
+            </div>
+          </div>
+
+          <!-- 5. WORKHOUSE TAB -->
+          <div id="tab-workhouse" class="tab-pane">
+            <div class="workhouse-banner" id="wh-banner">
+              <span class="wh-icon">🏛️</span>
+              <div>
+                <div class="wh-status" id="wh-status">No Municipal Workhouse</div>
+                <div class="wh-desc" id="wh-desc">Inmates: 0 paupers sheltered</div>
+              </div>
+            </div>
+            <div class="census-section">
+              <h3 class="section-title">Workhouse Census & Displaced Paupers</h3>
+              <div id="census-list" class="item-list">
+                <div class="empty-state">No inmates currently recorded.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 6. NEWS TICKER TAB -->
+          <div id="tab-news" class="tab-pane">
+            <div id="ticker-feed" class="news-feed">
+              <div class="empty-state">Simulation initialized. Events will stream as turns advance.</div>
             </div>
           </div>
         </div>
+      </section>
+    </div>
 
-        <!-- Tab 3: Labor & Factory -->
-        <div id="tab-labor" class="tab-pane">
-          <div class="policy-card">
-            <div class="policy-header">
-              <span class="policy-title">Max Workday Regulation</span>
-              <span id="badge-ten-hour" class="badge">12.0h Normal</span>
-            </div>
-            <div class="slider-row">
-              <input type="range" id="input-workday" min="8" max="16" step="0.5" value="12">
-              <span id="val-workday" class="slider-val">12.0h</span>
-            </div>
-            <button id="btn-apply-labor" class="btn btn-secondary btn-block">Enact Factory Bill</button>
-          </div>
-
-          <div class="stat-grid mt-2">
-            <div class="stat-card">
-              <span class="stat-label">Shift Duration</span>
-              <span class="stat-value" id="stat-shift">—</span>
-            </div>
-            <div class="stat-card">
-              <span class="stat-label">Surplus Value (s)</span>
-              <span class="stat-value" id="stat-surplus">—</span>
-            </div>
-            <div class="stat-card">
-              <span class="stat-label">Rate of Exploitation (s/v)</span>
-              <span class="stat-value" id="stat-exploitation">—</span>
-            </div>
-          </div>
+    <!-- MODAL 1: COMPARE NATIONS [C] -->
+    <div id="compare-modal" class="modal hidden">
+      <div class="modal-backdrop" id="compare-backdrop"></div>
+      <div class="modal-card modal-wide">
+        <div class="modal-header">
+          <h3>⚖️ Sovereign Nations Geopolitical Comparison</h3>
+          <button id="btn-close-compare" class="btn-close">✕</button>
         </div>
-
-        <!-- Tab 4: Workhouse -->
-        <div id="tab-workhouse" class="tab-pane">
-          <div class="workhouse-banner" id="wh-banner">
-            <span class="wh-icon">🏛️</span>
-            <div>
-              <div class="wh-status" id="wh-status">No Municipal Workhouse</div>
-              <div class="wh-desc" id="wh-desc">Inmates: 0 paupers sheltered</div>
-            </div>
-          </div>
-          <div class="census-section">
-            <h3 class="section-title">Workhouse Census & Displaced Paupers</h3>
-            <div id="census-list" class="item-list">
-              <div class="empty-state">No inmates currently recorded.</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Tab 5: News & Ticker -->
-        <div id="tab-news" class="tab-pane">
-          <div id="ticker-feed" class="news-feed">
-            <div class="empty-state">Simulation initialized. Events will stream as turns advance.</div>
+        <div class="modal-body">
+          <div class="table-responsive">
+            <table class="table" id="compare-table">
+              <thead>
+                <tr>
+                  <th>Nation</th>
+                  <th>Regime</th>
+                  <th>Treasury</th>
+                  <th>Population</th>
+                  <th>GDP</th>
+                  <th>GDP / Pop</th>
+                  <th>Unrest</th>
+                  <th>Rating</th>
+                  <th>Hexes</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="compare-tbody"></tbody>
+            </table>
           </div>
         </div>
       </div>
-    </section>
+    </div>
 
-    <!-- Mobile QR Modal Dialog -->
+    <!-- MODAL 2: GAME MANUAL & HELP [?] -->
+    <div id="help-modal" class="modal hidden">
+      <div class="modal-backdrop" id="help-backdrop"></div>
+      <div class="modal-card modal-wide">
+        <div class="modal-header">
+          <h3>👑 REGNUM Player Guide & Mechanics</h3>
+          <button id="btn-close-help" class="btn-close">✕</button>
+        </div>
+        <div class="modal-body help-body">
+          <h4>Macroeconomic Systems</h4>
+          <p>• <strong>Conserved Money:</strong> Pure closed-loop economy. Money moves strictly through wages, trade, tax, bonds, and contracts.</p>
+          <p>• <strong>Surplus Value & Exploitation (s/v):</strong> Produced value minus subsistence wages. High exploitation spurs wildcat strikes and revolutionary unrest.</p>
+          <p>• <strong>Civil Unrest Stages:</strong> Calm &rarr; Unrest &rarr; Protest &rarr; Mob/Riot &rarr; Compromise &rarr; Takeover.</p>
+
+          <h4 class="mt-3">Keyboard Shortcuts</h4>
+          <div class="shortcuts-grid">
+            <div><kbd>B</kbd> Build Menu</div>
+            <div><kbd>G</kbd> Governance</div>
+            <div><kbd>D</kbd> Diplomacy</div>
+            <div><kbd>S</kbd> Sovereign Debt</div>
+            <div><kbd>T</kbd> Science Tech</div>
+            <div><kbd>M</kbd> Military</div>
+            <div><kbd>C</kbd> Compare Nations</div>
+            <div><kbd>Space</kbd> Play / Pause</div>
+            <div><kbd>1-9</kbd> Thematic Layers</div>
+            <div><kbd>Esc</kbd> Close Panels</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL 3: MOBILE QR CODE -->
     <div id="qr-modal" class="modal hidden">
       <div class="modal-backdrop" id="qr-backdrop"></div>
       <div class="modal-card">
@@ -204,8 +599,11 @@
         </div>
       </div>
     </div>
+
+    <!-- Toast Notifications Feedback Container -->
+    <div id="toast-container" class="toast-container"></div>
   </div>
 
-  <script src="client.js?v=2"></script>
+  <script src="client.js?v=3"></script>
 </body>
 </html>
