@@ -110,15 +110,15 @@ BUILDING_RECIPES: dict[str, BuildingRecipe] = {
     ),
     'trunk_sewer': BuildingRecipe(
         name='trunk_sewer',
-        display_name='Municipal Brick Trunk Sewer',
-        cost=350.0,
-        base_turns=2,
+        display_name='Bazalgette Intercepting Sewer Network',
+        cost=1000.0,
+        base_turns=4,
         tier='tile',
-        required_goods={Goods.wood: 4},
-        construction_workers=3,
-        staff_required={Goods.gov: 1},
+        required_goods={Goods.wood: 6, Goods.transport: 4},
+        construction_workers=6,
+        staff_required={Goods.gov: 2},
         production_bonuses={},
-        description='Underground brick drainage system that reduces urban waterborne epidemics by 70%.'
+        description='Massive civil engineering megaproject channeling urban wastewater away from rivers; eradicates cholera and restores infant survival.'
     ),
     'smoke_scrubber': BuildingRecipe(
         name='smoke_scrubber',

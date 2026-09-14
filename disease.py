@@ -116,13 +116,15 @@ def step_agent_disease_onset(agent, region, rand_gen=None) -> list[str]:
 
     # 2. Waterborne Cholera / Dysentery
     if DIS_WATERBORNE not in current_diseases:
-        p_water = getattr(region, 'pollution_water', 0.0)
-        if p_water > 20.0:
-            base_risk = (p_water - 20.0) * 0.0040
-            if has_germ_theory:
-                base_risk *= 0.35  # 65% reduction from sanitation & antisepsis
-            if r.random() < min(0.50, base_risk):
-                current_diseases.append(DIS_WATERBORNE)
+        has_sewer = any(getattr(b, 'name', '') == 'trunk_sewer' for b in getattr(region, 'buildings', []))
+        if not has_sewer:
+            p_water = getattr(region, 'pollution_water', 0.0)
+            if p_water > 20.0:
+                base_risk = (p_water - 20.0) * 0.0040
+                if has_germ_theory:
+                    base_risk *= 0.35  # 65% reduction from sanitation & antisepsis
+                if r.random() < min(0.50, base_risk):
+                    current_diseases.append(DIS_WATERBORNE)
 
     # 3. Respiratory Smog Bronchitis
     if DIS_RESPIRATORY not in current_diseases:

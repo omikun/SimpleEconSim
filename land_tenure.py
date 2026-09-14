@@ -104,6 +104,12 @@ class TileTenure:
                    if getattr(p, 'production_type', 'arable') in ('arable', 'mixed'))
 
     @property
+    def cash_crop_fraction(self) -> float:
+        """Land dedicated to intensive chemical cash-crop monoculture."""
+        return sum(p.fraction for p in self.plots
+                   if getattr(p, 'production_type', 'arable') == 'cash_crop')
+
+    @property
     def commons_access(self) -> float:
         """Effective fraction of tile where serfs can still forage.
 

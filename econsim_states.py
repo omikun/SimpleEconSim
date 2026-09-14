@@ -24,7 +24,7 @@ over_production_derate = 0.5
 
 # Shared config objects
 recipes = {}
-goods = [Goods.food, Goods.wood, Goods.furniture, Goods.transport, Goods.wool, Goods.cloth, Goods.gov]
+goods = [Goods.food, Goods.wood, Goods.furniture, Goods.transport, Goods.wool, Goods.cloth, Goods.nitrates, Goods.gov]
 total_production = defaultdict(int)
 agent_id_counter = 0
 governments = []
@@ -43,12 +43,12 @@ cash_log = {}
 gini_log = {}
 total_cash_log = []
 bank_cash_log = []
-price_log = {Goods.food: [], Goods.wood: [], Goods.furniture: [], Goods.transport: [], Goods.wool: [], Goods.cloth: []}
-sold_log = {Goods.food: [], Goods.wood: [], Goods.furniture: [], Goods.transport: [], Goods.wool: [], Goods.cloth: []}
+price_log = {Goods.food: [], Goods.wood: [], Goods.furniture: [], Goods.transport: [], Goods.wool: [], Goods.cloth: [], Goods.nitrates: []}
+sold_log = {Goods.food: [], Goods.wood: [], Goods.furniture: [], Goods.transport: [], Goods.wool: [], Goods.cloth: [], Goods.nitrates: []}
 bought_log = dict()
 dead_pop = [0]
 dead_starved_population = [0]
 total_population = []
 population_change_rate_log = []
 gdp_log = []
-gdp_by_profession_log = {Goods.food: [], Goods.wood: [], Goods.furniture: [], Goods.transport: [], Goods.wool: [], Goods.cloth: []}
+gdp_by_profession_log = {Goods.food: [], Goods.wood: [], Goods.furniture: [], Goods.transport: [], Goods.wool: [], Goods.cloth: [], Goods.nitrates: []}

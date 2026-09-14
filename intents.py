@@ -868,3 +868,37 @@ class EncloseCommonsIntent(Intent):
                 pass
         return ok, msg
 
+
+class IssueMunicipalSewerBondIntent(Intent):
+    """Float a 50-turn Municipal Revenue Sewer Bond to finance the Bazalgette Intercepting Sewer Network."""
+    def __init__(self, nation_name: str, tile_name: str, submitted_turn: int = 0):
+        super().__init__(nation_name, 'issue_sewer_bond', submitted_turn)
+        self.tile_name = tile_name
+
+    def validate(self, tiles_by_name: dict, nations_by_name: dict, t: int) -> tuple[bool, str]:
+        ok, msg = super().validate(tiles_by_name, nations_by_name, t)
+        if not ok:
+            return False, msg
+        tile = tiles_by_name.get(self.tile_name)
+        if not tile:
+            return False, f"Tile '{self.tile_name}' not found."
+        nation = nations_by_name.get(self.nation_name)
+        if getattr(tile, 'owner_nation', None) != nation:
+            return False, f"Tile '{self.tile_name}' does not belong to {self.nation_name}."
+        return True, "Valid"
+
+    def execute(self, tiles_by_name: dict, nations_by_name: dict, t: int, world: dict | None = None) -> tuple[bool, str]:
+        val_ok, val_msg = self.validate(tiles_by_name, nations_by_name, t)
+        if not val_ok:
+            self.status = 'rejected'
+            return False, val_msg
+        nation = nations_by_name[self.nation_name]
+        tile = tiles_by_name[self.tile_name]
+        from sovereign_bonds import get_bond_market
+        market = get_bond_market()
+        ok, msg, bond = market.issue_municipal_sewer_bond(nation, tile, t, world)
+        self.status = 'completed' if ok else 'failed'
+        self.logs.append(msg)
+        return ok, msg
+
+

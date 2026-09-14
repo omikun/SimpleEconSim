@@ -64,6 +64,10 @@ _recipes_init = {
         'commodity': Goods.cloth, 'production': 1, 'input': Goods.wool,
         'numInput': 2, 'price': 18.0, 'maxtotalprod': 400, 'maxinv': 10,
     },
+    Goods.nitrates: {
+        'commodity': Goods.nitrates, 'production': 2, 'price': 6.0, 'numInput': 0,
+        'maxtotalprod': 600, 'maxinv': 20,
+    },
     Goods.gov: {
         'commodity': Goods.gov, 'production': 0, 'numInput': 0, 'price': 1,
         'maxtotalprod': 0, 'maxinv': 0,
@@ -229,6 +233,10 @@ class Region:
         self.untreated_cases_log: list = []  # impoverished sick cases unable to pay
         self.disease_fatalities_log: list = []  # deaths from disease complications
         self.disease_fatalities_this_turn: int = 0
+        self.infant_fatalities_this_turn: int = 0
+        self.infant_fatalities_log: list = []
+        self.granary_stock: float = 25.0  # physical buffer stock smoothing seasonal harvests
+        self.farming_regime: str = 'rotation'  # 'rotation' (Four-Field) | 'intensive' (Monoculture) | 'feudal'
         self.public_healthcare_decree: bool = False  # municipal healthcare mandate
 
         self.recipes = copy.deepcopy(recipes)
@@ -256,11 +264,11 @@ class Region:
         self.gini_log: dict = {}
         self.total_cash_log: list = []
         self.bank_cash_log: list = []
-        self.price_log: dict = {Goods.food: [], Goods.wood: [], Goods.furniture: [], Goods.transport: [], Goods.wool: [], Goods.cloth: []}
-        self.sold_log: dict = {Goods.food: [], Goods.wood: [], Goods.furniture: [], Goods.transport: [], Goods.wool: [], Goods.cloth: []}
+        self.price_log: dict = {g: [] for g in self.goods}
+        self.sold_log: dict = {g: [] for g in self.goods}
         self.bought_log: dict = {}
         self.gdp_log: list = []
-        self.gdp_by_profession_log: dict = {Goods.food: [], Goods.wood: [], Goods.furniture: [], Goods.transport: [], Goods.wool: [], Goods.cloth: []}
+        self.gdp_by_profession_log: dict = {g: [] for g in self.goods}
         self.total_population: list = []
         self.population_change_rate_log: list = []
         self.dead_pop: list = [0]
@@ -295,7 +303,7 @@ class Region:
         self.unrest_log = []
         self.unrest_flag = False
 
-        for g in [Goods.food, Goods.wood, Goods.furniture, Goods.transport]:
+        for g in self.goods:
             self.export_vol[g] = []
             self.price_spread_log[g] = []
             self.export_val[g] = []

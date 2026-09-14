@@ -131,6 +131,20 @@ def step_world(world):
     except Exception:
         pass
 
+    # Check for The Great Stink Catalyst Event
+    for n in nations:
+        cap_tile = getattr(n, 'tiles', [None])[0] if getattr(n, 'tiles', []) else None
+        if cap_tile and getattr(cap_tile, 'pollution_water', 0.0) >= 60.0 and not getattr(n, '_great_stink_triggered', False):
+            has_sewer = any(getattr(b, 'name', '') == 'trunk_sewer' for b in getattr(cap_tile, 'buildings', []))
+            if not has_sewer:
+                n._great_stink_triggered = True
+                n.legitimacy = max(0.05, getattr(n, 'legitimacy', 0.6) - 0.20)
+                ticker_push(
+                    world, t, 'ALERT',
+                    f"🚨 THE GREAT STINK: Putrid river effluent engulfs Parliament in {cap_tile.name}! Chamber evacuated; {n.name} legitimacy plunges!",
+                    (255, 75, 75)
+                )
+
     world['turn'] = t
     world['currency_totals'] = {c: fx.audit_currency_total(tiles, c)
                                 for c in currencies}

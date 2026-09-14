@@ -8,6 +8,7 @@ class Goods(IntEnum):
     gov = auto()
     wool = auto()
     cloth = auto()
+    nitrates = auto()
     none = auto()
 
 
@@ -20,6 +21,7 @@ profession = {
     Goods.gov: 'G',
     Goods.wool: 'S',     # Shepherd / Grazier
     Goods.cloth: 'T',    # Weaver / Textilist
+    Goods.nitrates: 'N', # Nitrate Miner / Guano Digger
     Goods.none: '-',
 }
 

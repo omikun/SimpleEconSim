@@ -13,7 +13,18 @@ except ImportError:
     _c = None
 
 
-def terrain_bonus(region, good):
+import math
+
+def season_mult(t: int | None) -> float:
+    """10-turn yearly biological productivity curve (t % 10)."""
+    if t is None:
+        return 1.0
+    year_turn = t % 10
+    # Peak at autumn harvest (t%10 == 4-6), trough at winter (t%10 == 9, 0)
+    return max(0.45, 1.0 + 0.45 * math.sin(2.0 * math.pi * (year_turn - 2) / 10.0))
+
+
+def terrain_bonus(region, good, t: int | None = None):
     """Production multiplier from terrain and installed buildings for *good* (default 1.0)."""
     base = region.terrain.get(good, 1.0)
     mult = 1.0
@@ -21,10 +32,24 @@ def terrain_bonus(region, good):
         bonuses = getattr(b, 'production_bonuses', {})
         if good in bonuses:
             mult *= bonuses[good]
+
     # P3: Metabolic Rift & Soil Fertility for agricultural food crops
     if good == Goods.food:
         soil_fert = getattr(region, 'soil_fertility', 1.0)
         mult *= soil_fert
+
+        # 10-Turn Yearly Biological Seasonality
+        cur_t = t if t is not None else getattr(region, '_last_turn', None)
+        if cur_t is not None:
+            mult *= season_mult(cur_t)
+
+        # Hydrological Fishery Degradation (toxic river effluent destroys coastal/river fisheries)
+        p_water = getattr(region, 'pollution_water', 0.0)
+        is_aquatic = (getattr(region, 'is_coast', False) or getattr(region, 'is_water', False) or
+                      'arable_silt' in getattr(region, 'terrain', {}))
+        if is_aquatic and p_water > 10.0:
+            fish_penalty = max(0.40, 1.0 - (p_water - 10.0) * 0.015)
+            mult *= fish_penalty
 
         # Phase 1 Enclosure Vector: Pastoral conversion replaces food crops
         tenure = getattr(region, 'tenure', None)
@@ -33,11 +58,14 @@ def terrain_bonus(region, good):
             if p_frac > 0:
                 mult *= max(0.20, 1.0 - (0.75 * p_frac))
 
-        use_fert = getattr(region, 'use_fertilizer', False) or getattr(region, 'mandate_fertilizer', False)
+        # Agro-Ecological Regimes: Four-Field Rotation vs Intensive Monoculture
+        regime = getattr(region, 'farming_regime', 'rotation')
+        use_fert = (regime == 'intensive' or getattr(region, 'use_fertilizer', False) or
+                    getattr(region, 'mandate_fertilizer', False))
         use_pest = getattr(region, 'use_pesticides', False) or getattr(region, 'mandate_pesticides', False)
 
         if use_fert:
-            # Physical fertilizer stock consumption
+            # Intensive Monoculture: Physical fertilizer / nitrate stock consumption
             stock = getattr(region, 'fertilizer_stock', 0.0)
             farm_corps = sum(1 for a in getattr(region, 'agents', []) if getattr(a, 'is_corporation', False) and getattr(a, 'output', None) == Goods.food)
             needed = 1.0 + 0.5 * farm_corps
@@ -50,7 +78,7 @@ def terrain_bonus(region, good):
                 mult *= 1.75
             else:
                 region.fertilizer_consumed_last_turn = 0.0
-                # Fertilizer shortage!
+                # Nitrate shortage!
                 if soil_fert < 0.65:
                     # Turnip Winter Harvest Shock on depleted soil
                     region.is_nitrate_depleted = True
@@ -58,10 +86,18 @@ def terrain_bonus(region, good):
                 else:
                     region.is_nitrate_depleted = False
         else:
+            # Norfolk Four-Field Rotation: Zero chemical inputs, biological nitrogen fixation
             region.is_nitrate_depleted = False
 
         if use_pest:
             mult *= 1.40
+
+    # P3: Clover / Turnip Pasture Synergy for Wool
+    elif good == Goods.wool:
+        regime = getattr(region, 'farming_regime', 'rotation')
+        if regime == 'rotation':
+            mult *= 1.35  # Clover forage boosts livestock health and fleece weight by +35%
+
     return base * mult
 
 
@@ -155,6 +191,7 @@ def produce_independent(region, agent, recipe, output, num_agents_per_good, loca
 
 def produce(region, t):
     """Run production phase for all active producers in region."""
+    region._last_turn = t
     num_agents_per_good = {}
     for a in region.agents:
         if not a.is_trader and a.output != Goods.gov and a.output != Goods.none and a.output in region.recipes:
@@ -188,6 +225,22 @@ def produce(region, t):
                     wool_yield = max(1, int(4 * plot.fraction * terrain_bonus(region, Goods.wool)))
                     lord.inv_add(Goods.wool, wool_yield)
                     local_total_production[Goods.wool] += wool_yield
+
+    # Phase 3: Granary buffer stock management across 10-turn agricultural year
+    year_turn = t % 10
+    food_made = local_total_production.get(Goods.food, 0)
+    if not hasattr(region, 'granary_stock'):
+        region.granary_stock = 25.0
+
+    if year_turn in (4, 5, 6, 7) and food_made > 2:
+        # Peak harvest accumulation into granary
+        buffer_in = max(1.0, food_made * 0.15)
+        region.granary_stock = min(120.0, region.granary_stock + buffer_in)
+    elif year_turn in (9, 0, 1) and region.granary_stock > 2.0:
+        # Winter / early spring lean season: granary releases buffer food into local production
+        buffer_out = min(4.0, region.granary_stock * 0.20)
+        region.granary_stock = max(0.0, region.granary_stock - buffer_out)
+        local_total_production[Goods.food] += int(buffer_out)
 
     for g in region.goods:
         if g != Goods.gov:

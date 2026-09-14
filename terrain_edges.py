@@ -175,14 +175,20 @@ class TerrainEdgeManager:
         """Analyze and populate all adjacent hex edges across the layout."""
         self.edges.clear()
         for name, tile in self.tiles_by_name.items():
-            if name not in self.layout:
-                continue
-            q, axr = self.layout[name]
-            for nq, nar in axial_neighbors(q, axr):
-                nc, nr = axial_to_offset(nq, nar)
-                other_name = f"r{nr}c{nc}"
+            if name in self.layout:
+                q, axr = self.layout[name]
+                for nq, nar in axial_neighbors(q, axr):
+                    nc, nr = axial_to_offset(nq, nar)
+                    other_name = f"r{nr}c{nc}"
+                    if other_name in self.tiles_by_name:
+                        other_tile = self.tiles_by_name[other_name]
+                        key = self._pair_key(name, other_name)
+                        if key not in self.edges:
+                            edge = self.compute_edge(tile, other_tile)
+                            self.edges[key] = edge
+            # Also populate edges from explicit tile.neighbors
+            for other_name, other_tile in getattr(tile, 'neighbors', {}).items():
                 if other_name in self.tiles_by_name:
-                    other_tile = self.tiles_by_name[other_name]
                     key = self._pair_key(name, other_name)
                     if key not in self.edges:
                         edge = self.compute_edge(tile, other_tile)
@@ -219,6 +225,24 @@ class TerrainEdgeManager:
             self.edges[key] = self.compute_edge(self.tiles_by_name[name_a], self.tiles_by_name[name_b])
             return True
         return False
+
+    def get_downstream_neighbors(self, tile_name: str) -> list:
+        """Return all adjacent tiles that lie downstream along a river corridor (lower elevation)."""
+        tile_a = self.tiles_by_name.get(tile_name)
+        if not tile_a:
+            return []
+        h_a = getattr(tile_a, 'elevation', 0.0)
+        downstream = []
+        for neighbor in getattr(tile_a, 'neighbors', {}).values():
+            neighbor_tile = neighbor if hasattr(neighbor, 'name') else self.tiles_by_name.get(neighbor)
+            if not neighbor_tile:
+                continue
+            edge = self.get_edge(tile_name, neighbor_tile.name)
+            if edge and edge.is_river:
+                h_b = getattr(neighbor_tile, 'elevation', 0.0)
+                if h_a > h_b:
+                    downstream.append(neighbor_tile)
+        return downstream
 
 
 _EDGE_MANAGER: TerrainEdgeManager | None = None

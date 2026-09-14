@@ -69,6 +69,8 @@ class SovereignBond:
     issued_turn: int
     maturity_turn: int
     status: str = "active"    # 'active' | 'matured' | 'defaulted' | 'redeemed'
+    bond_purpose: str = "sovereign" # 'sovereign' | 'municipal_sewer'
+    target_tile_name: str = ""
 
     @property
     def per_turn_coupon(self) -> float:
@@ -383,6 +385,60 @@ class SovereignBondMarket:
         """Return list of active domestic bonds owed by this nation (Liabilities)."""
         return [b for b in self.bonds if b.issuer_nation == nation_name and b.status == "active"]
 
+    def issue_municipal_sewer_bond(self, issuer: Nation, tile, t: int, world: dict | None = None) -> tuple[bool, str, SovereignBond | None]:
+        """Float a 50-turn Municipal Revenue Sewer Bond to finance the Bazalgette Intercepting Sewer Network."""
+        principal = 1000.0
+        duration_turns = 50
+        tier, base_yield = self.isrb.get_market_yield(issuer, duration_turns, world)
+
+        # 1. Start Bazalgette Sewer megaproject on the tile
+        from buildings import BUILDING_RECIPES, ConstructionProject
+        from construction_politics import find_or_emerge_contractor
+        contractor = find_or_emerge_contractor(tile, principal, t)
+
+        proj = ConstructionProject(
+            project_id=f"proj_sewer_{uuid.uuid4().hex[:6]}",
+            nation_name=issuer.name,
+            region=tile,
+            recipe=BUILDING_RECIPES['trunk_sewer'],
+            contractor=contractor,
+            started_turn=t
+        )
+        if not hasattr(tile, 'construction_projects'):
+            tile.construction_projects = []
+        tile.construction_projects.append(proj)
+        if hasattr(issuer, 'construction_projects') and proj not in issuer.construction_projects:
+            issuer.construction_projects.append(proj)
+
+        # 2. Fund contractor from underwritten bond capital (strictly conserved money)
+        contractor.cash += principal
+        proj.emergency_subsidies_received = getattr(proj, 'emergency_subsidies_received', 0.0) + principal
+
+        # 3. Create Bond instance held by Domestic Commercial Banks
+        bond_id = f"bnd_sewer_{uuid.uuid4().hex[:6]}"
+        bond = SovereignBond(
+            bond_id=bond_id,
+            issuer_nation=issuer.name,
+            holder_nation="Domestic Commercial Banks",
+            principal=principal,
+            coupon_rate=base_yield,
+            duration_turns=duration_turns,
+            issued_turn=t,
+            maturity_turn=t + duration_turns,
+            status="active",
+            bond_purpose="municipal_sewer",
+            target_tile_name=tile.name
+        )
+        self.bonds.append(bond)
+
+        msg = (f"🏛️ MUNICIPAL SEWER BOND: {issuer.name} issued ${principal:.0f} Municipal Revenue Bond #{bond_id} "
+               f"to construct the Bazalgette Intercepting Sewer Network in {tile.name}!")
+        if world:
+            from worldview_engine import ticker_push
+            ticker_push(world, t, 'FINANCE', msg, (100, 220, 140))
+
+        return True, msg, bond
+
     def step(self, world: dict, t: int):
         """Step bond offerings, autonomous AI buying, domestic underwrites, coupons, and maturities."""
         nations_by_name = {n.name: n for n in world.get('nations', [])}
@@ -536,8 +592,21 @@ class SovereignBondMarket:
             # Per-Turn Coupon Servicing
             coupon = bond.per_turn_coupon
             if coupon > 0:
-                if issuer.government.agent.cash >= coupon:
-                    issuer.government.agent.cash -= coupon
+                funds_collected = 0.0
+                if getattr(bond, 'bond_purpose', '') == 'municipal_sewer' and bond.target_tile_name:
+                    target_tile = next((tl for tl in getattr(issuer, 'tiles', []) if tl.name == bond.target_tile_name), None)
+                    if target_tile:
+                        for a in getattr(target_tile, 'agents', []):
+                            if getattr(a, 'alive', True) and not getattr(a, 'is_corporation', False) and not getattr(a, 'is_government', False):
+                                fee = min(0.10, a.cash)
+                                a.cash -= fee
+                                funds_collected += fee
+                                if funds_collected >= coupon:
+                                    break
+
+                remaining_coupon = max(0.0, coupon - funds_collected)
+                if issuer.government.agent.cash >= remaining_coupon:
+                    issuer.government.agent.cash -= remaining_coupon
                     if holder:
                         holder.government.agent.cash += coupon
                     elif bond.holder_nation == "Domestic Commercial Banks":

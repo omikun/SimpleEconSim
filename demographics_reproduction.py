@@ -40,6 +40,22 @@ def handle_reproduction(ctx, t, agent, agents, new_agents):
        and agent.inv_get(Goods.food, 0) >= 2:
         if ctx.max_agents > 0 and len(agents) + len(new_agents) >= ctx.max_agents:
             return 0
+
+        # P3: Environmental Infant Mortality from Contaminated Drinking Water & Cholera
+        reg = getattr(ctx, 'source_region', None)
+        if reg is not None:
+            has_sewer = any(getattr(b, 'name', '') == 'trunk_sewer' for b in getattr(reg, 'buildings', []))
+            if not has_sewer:
+                p_water = getattr(reg, 'pollution_water', 0.0)
+                if p_water > 20.0:
+                    survival_prob = max(0.35, 1.0 - (p_water - 20.0) * 0.008)
+                    if rand.random() > survival_prob:
+                        reg.infant_fatalities_this_turn = getattr(reg, 'infant_fatalities_this_turn', 0) + 1
+                        agent.last_reproduction = t
+                        food_to_give = min(1, agent.inv_get(Goods.food))
+                        agent.inv_add(Goods.food, -food_to_give)
+                        return 0
+
         agent.last_reproduction = t
         new_agent = Agent(t)
         new_agent.parent = agent

@@ -33,6 +33,7 @@ class TileResource(str, Enum):
     PASTURE_FLAX = "pasture_flax"
     CRUDE_PETROLEUM = "crude_petroleum"
     RARE_MINERALS = "rare_minerals"
+    NATURAL_NITRATES = "natural_nitrates"
 
 
 @dataclass
@@ -94,6 +95,13 @@ RESOURCE_META: dict[TileResource, ResourceInfo] = {
         description="Highland quartz, copper, and silica; essential for electrification and microchips.",
         color=(80, 200, 255),
     ),
+    TileResource.NATURAL_NITRATES: ResourceInfo(
+        resource_id=TileResource.NATURAL_NITRATES,
+        name="Natural Guano & Nitrates",
+        icon="🧂",
+        description="Peruvian guano and desert caliche saltpeter; essential for industrial agriculture and explosive powder.",
+        color=(240, 230, 180),
+    ),
 }
 
 
@@ -148,6 +156,19 @@ def assign_tile_resources(tiles: list[Region], heightmap_gen=None, seed: int = 4
             res_set.add(TileResource.ARABLE_SILT if elev < 0.35 else (TileResource.IRON_ORE if elev >= 0.65 else TileResource.TIMBER))
 
         r.natural_resources = res_set
+
+    # Phase 3: Ultra-rare Guano & Natural Nitrate Concession
+    # Strictly 1 or 2 tiles across the entire world map receive NATURAL_NITRATES
+    candidate_tiles = [
+        r for r in tiles
+        if getattr(r, 'is_coast', False) or getattr(r, 'is_wilderness', False) or getattr(r, 'is_island', False)
+    ]
+    if not candidate_tiles:
+        candidate_tiles = list(tiles)
+    rng.shuffle(candidate_tiles)
+    guano_count = min(2, max(1, len(tiles) // 10))
+    for gt in candidate_tiles[:guano_count]:
+        gt.natural_resources.add(TileResource.NATURAL_NITRATES)
 
 
 def get_nation_resources(nation: Nation, tiles: list[Region] | None = None, world: dict | None = None) -> set[TileResource]:

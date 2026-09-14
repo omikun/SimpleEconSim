@@ -63,9 +63,10 @@ def step_tile_externalities(region, t: int) -> dict:
     has_agroecology = 'agroecology_rotation' in unlocked_techs
     has_clean_pest = 'biological_pest_control' in unlocked_techs
 
-    # Auto-enable fertilizer/pesticides if mandated or if unlocked & active
-    use_fert = region.use_fertilizer or getattr(region, 'mandate_fertilizer', False)
-    use_pest = region.use_pesticides or getattr(region, 'mandate_pesticides', False)
+    regime = getattr(region, 'farming_regime', 'rotation')
+    use_fert = (regime == 'intensive' or getattr(region, 'use_fertilizer', False) or
+                getattr(region, 'mandate_fertilizer', False))
+    use_pest = getattr(region, 'use_pesticides', False) or getattr(region, 'mandate_pesticides', False)
 
     # -------------------------------------------------------------------------
     # 0. Global Fertilizer Inflow & Maritime Blockade Mechanics
@@ -106,16 +107,17 @@ def step_tile_externalities(region, t: int) -> dict:
                      if getattr(a, 'is_corporation', False)
                      and getattr(a, 'output', None) == Goods.food)
 
-    # Soil extraction from monoculture harvest
-    # Extensive corporate farms extract nutrients faster than small customary yeomen
+    # Soil extraction: intensive monoculture extracts nutrients faster
     extraction_rate = 0.003 * min(10, food_producers) + 0.012 * farm_corps
     enclosed = getattr(getattr(region, 'tenure', None), 'enclosed_fraction', 0.0)
     extraction_rate *= (1.0 + enclosed * 0.5)
+    if use_fert or regime == 'intensive':
+        extraction_rate *= 1.5
 
     # Natural and agroecological regeneration
     regen_rate = 0.015  # Baseline natural microbial recovery
-    if has_rotation:
-        regen_rate += 0.015  # Four-field rotation with legumes
+    if regime == 'rotation' or has_rotation:
+        regen_rate += 0.035  # Four-field rotation with legumes & animal manure
     if has_agroecology:
         regen_rate += 0.030  # Advanced agroecology & compost digestion
     if has_conservation:
@@ -127,8 +129,8 @@ def step_tile_externalities(region, t: int) -> dict:
     if use_fert:
         regen_rate *= 0.30
 
-    max_fertility = 1.25 if 'arable_silt' in getattr(region, 'terrain', {}) else 1.10
-    region.soil_fertility = max(0.25, min(max_fertility, region.soil_fertility - extraction_rate + regen_rate))
+    max_fertility = 1.35 if (regime == 'rotation' and 'arable_silt' in getattr(region, 'terrain', {})) else (1.25 if regime == 'rotation' else 1.10)
+    region.soil_fertility = max(0.20, min(max_fertility, region.soil_fertility - extraction_rate + regen_rate))
 
     # -------------------------------------------------------------------------
     # 2. Food Nutritional Density Dynamics
@@ -136,7 +138,7 @@ def step_tile_externalities(region, t: int) -> dict:
     if use_fert:
         # Synthetic nitrogen forces rapid water uptake, diluting protein and micronutrients
         target_nutrition = 0.70
-    elif has_agroecology or has_rotation:
+    elif regime == 'rotation' or has_agroecology or has_rotation:
         # Diverse soil biology maximizes micronutrient density
         target_nutrition = 1.00
     else:
@@ -168,7 +170,7 @@ def step_tile_externalities(region, t: int) -> dict:
     region.pollution_air = max(0.0, min(100.0, region.pollution_air * 0.85 + raw_air_emission))
 
     # -------------------------------------------------------------------------
-    # 4. Water Effluent & Aquifer Pollution
+    # 4. Water Effluent & Hydrological Downstream River Advection
     # -------------------------------------------------------------------------
     pop_count = len([a for a in getattr(region, 'agents', []) if getattr(a, 'alive', True)])
     urban_waste = (pop_count / 80.0) * 1.5
@@ -179,12 +181,48 @@ def step_tile_externalities(region, t: int) -> dict:
 
     # Trunk sewer channels wastewater away from city center
     if has_sewer:
-        raw_water_emission *= 0.40  # Local water protected, flushes downstream
+        raw_water_emission *= 0.30  # Local water protected, flushes downstream
     if has_filtration or getattr(region, 'clean_water_act', False):
         raw_water_emission *= 0.30  # Filtration plants purify supply
 
-    # River flow dispersion (12% per turn)
-    region.pollution_water = max(0.0, min(100.0, region.pollution_water * 0.88 + raw_water_emission))
+    # Downstream Hydrological Advection along River Corridors
+    advected_downstream = 0.0
+    try:
+        from terrain_edges import get_edge_manager
+        em = get_edge_manager()
+        if em is not None:
+            downstream_tiles = em.get_downstream_neighbors(region.name)
+            if downstream_tiles:
+                # 35% of waterborne pollution flows downstream into neighboring tiles
+                advection_frac = 0.35
+                if has_sewer:
+                    # Bazalgette intercepting sewer cuts downstream effluent discharge by 80%
+                    advection_frac *= 0.20
+                advected_downstream = (region.pollution_water + raw_water_emission) * advection_frac
+                per_tile_advection = advected_downstream / len(downstream_tiles)
+                for dt in downstream_tiles:
+                    dt.pollution_water = min(100.0, getattr(dt, 'pollution_water', 0.0) + per_tile_advection)
+
+                    # Riparian Diplomatic Grievance & Casus Belli
+                    owner_dt = getattr(dt, 'owner_nation', None)
+                    owner_self = getattr(region, 'owner_nation', None)
+                    if owner_dt and owner_self and owner_dt.name != owner_self.name and per_tile_advection > 1.2:
+                        from diplomacy import get_diplomacy
+                        dip = get_diplomacy()
+                        if dip:
+                            dip.adjust_relation(owner_dt.name, owner_self.name, -0.06)
+                            factions = getattr(getattr(dt, 'factions', None), 'factions', {})
+                            for f in factions.values():
+                                f.add_grievance('river_poisoning', 1.5)
+                            if dip.get_relation(owner_dt.name, owner_self.name) <= -0.50:
+                                cb_set = getattr(owner_dt, 'active_casus_belli', set())
+                                cb_set.add((owner_self.name, 'riparian_poisoning'))
+                                owner_dt.active_casus_belli = cb_set
+    except Exception:
+        pass
+
+    # Residual water pollution after downstream flow and dispersion
+    region.pollution_water = max(0.0, min(100.0, (region.pollution_water * 0.88 + raw_water_emission) - advected_downstream))
 
     # -------------------------------------------------------------------------
     # 5. Soil Toxicity & Chemical Sludge
