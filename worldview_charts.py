@@ -132,6 +132,7 @@ def tile_ecological_charts(region):
     pub_spend = getattr(region, 'medical_spending_public_log', []) or []
     untreated = getattr(region, 'untreated_cases_log', []) or []
     fatalities = getattr(region, 'disease_fatalities_log', []) or []
+    infant_deaths = getattr(region, 'infant_fatalities_log', []) or []
     health_attr = [h * 100.0 for h in getattr(region, 'avg_health_attrition_log', []) or []]
 
     return [
@@ -148,8 +149,8 @@ def tile_ecological_charts(region):
          [priv_spend, pub_spend],
          [(240, 120, 80), (90, 210, 140)], ["private$", "public$"]),
         ("5. Untreated / Deaths", "line",
-         [untreated, fatalities],
-         [(235, 75, 75), (180, 60, 60)], ["untreated", "deaths"]),
+         [untreated, fatalities, infant_deaths],
+         [(235, 75, 75), (180, 60, 60), (245, 140, 200)], ["untreated", "deaths", "infant✝"]),
         ("6. Bodily Wear", "line",
          [health_attr],
          [(240, 90, 100)], ["wear %"]),

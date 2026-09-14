@@ -88,6 +88,43 @@ def get_icon(kind: str, size: int = 16) -> pygame.Surface:
         pygame.draw.polygon(surf, (190, 245, 255), [(s * 0.5, s * 0.08), (s * 0.85, s * 0.5), (s * 0.5, s * 0.5)])
         pygame.draw.line(surf, (255, 255, 255), (s * 0.5, s * 0.08), (s * 0.5, s * 0.92), 1)
 
+    elif kind in ('guano', 'nitrates', 'natural_nitrates'):
+        # White-gold guano mineral crystal / Pacific island phosphate rock
+        pts = [(s * 0.2, s * 0.8), (s * 0.35, s * 0.25), (s * 0.65, s * 0.15), (s * 0.85, s * 0.6), (s * 0.6, s * 0.85)]
+        pygame.draw.polygon(surf, (240, 240, 220), pts)
+        pygame.draw.polygon(surf, (255, 255, 245), [(s * 0.35, s * 0.25), (s * 0.65, s * 0.15), (s * 0.5, s * 0.55)])
+        pygame.draw.line(surf, (220, 200, 120), (s * 0.35, s * 0.25), (s * 0.5, s * 0.55), 1)
+        pygame.draw.circle(surf, (255, 215, 60), (int(s * 0.7), int(s * 0.35)), max(1, int(s // 7)))
+
+    elif kind in ('trunk_sewer', 'sewer', 'bazalgette'):
+        # Arching brick intercepting sewer tunnel
+        pygame.draw.arc(surf, (160, 110, 80), (s * 0.15, s * 0.15, s * 0.7, s * 0.7), 0, 3.14159, max(2, int(s // 6)))
+        pygame.draw.rect(surf, (80, 140, 180), (s * 0.25, s * 0.55, s * 0.5, s * 0.3))
+        pygame.draw.line(surf, (120, 200, 240), (s * 0.25, s * 0.6), (s * 0.75, s * 0.6), 1)
+
+    elif kind == 'spring':
+        # Sprouting leaf
+        pygame.draw.polygon(surf, (80, 220, 110), [(s * 0.5, s * 0.15), (s * 0.8, s * 0.5), (s * 0.5, s * 0.85), (s * 0.2, s * 0.5)])
+        pygame.draw.line(surf, (140, 255, 170), (s * 0.5, s * 0.15), (s * 0.5, s * 0.85), 1)
+
+    elif kind == 'summer':
+        # Golden sun
+        pygame.draw.circle(surf, (255, 210, 40), (int(s * 0.5), int(s * 0.5)), int(s * 0.35))
+        pygame.draw.circle(surf, (255, 240, 130), (int(s * 0.5), int(s * 0.5)), int(s * 0.22))
+
+    elif kind == 'autumn':
+        # Amber harvest leaf
+        pygame.draw.polygon(surf, (245, 140, 40), [(s * 0.5, s * 0.12), (s * 0.85, s * 0.45), (s * 0.65, s * 0.85), (s * 0.35, s * 0.85), (s * 0.15, s * 0.45)])
+        pygame.draw.line(surf, (255, 205, 80), (s * 0.5, s * 0.15), (s * 0.5, s * 0.85), 1)
+
+    elif kind == 'winter':
+        # Ice snowflake
+        cx, cy = int(s * 0.5), int(s * 0.5)
+        pygame.draw.line(surf, (140, 225, 255), (cx, s * 0.12), (cx, s * 0.88), max(1, int(s // 8)))
+        pygame.draw.line(surf, (140, 225, 255), (s * 0.12, cy), (s * 0.88, cy), max(1, int(s // 8)))
+        pygame.draw.line(surf, (180, 240, 255), (s * 0.22, s * 0.22), (s * 0.78, s * 0.78), 1)
+        pygame.draw.line(surf, (180, 240, 255), (s * 0.22, s * 0.78), (s * 0.78, s * 0.22), 1)
+
     # -------------------------------------------------------------------------
     # DOMAINS & SYSTEM
     # -------------------------------------------------------------------------

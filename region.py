@@ -896,6 +896,8 @@ class Region:
                 for g in [Goods.food, Goods.wood, Goods.furniture]
             )
         self.pipeline_depth_log.append(pipeline_qty)
+        self.infant_fatalities_log.append(getattr(self, 'infant_fatalities_this_turn', 0))
+        self.infant_fatalities_this_turn = 0
 
     def _log_population_rate(self):
         if len(self.total_population) >= 10:

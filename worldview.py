@@ -81,6 +81,9 @@ from worldview_transfer_dialog import (
 from worldview_tooltips import (
     draw_left_panel_tooltip
 )
+from worldview_seasonal_clock import (
+    draw_seasonal_clock, draw_seasonal_clock_tooltip
+)
 from worldview_engine import (
     get_layout, get_reverse_layout, build_world_view, ticker_push, step_world
 )
@@ -163,6 +166,7 @@ def render_frame(surface, world, mouse_pos=None):
     draw_hex_map(surface, world, font, font_small)
     draw_top_bar(surface, world, font_small, mouse_pos=effective_mouse)
     draw_zoom_hud(surface, font_small, mouse_pos=effective_mouse, world=world)
+    draw_seasonal_clock(surface, world, font_small, mouse_pos=effective_mouse)
     draw_layer_sidebar(surface, world, font_small, mouse_pos=effective_mouse)
     draw_left_dock_buttons(surface, world, font_small, mouse_pos=effective_mouse)
     draw_build_panel(surface, world, font, font_small, mouse_pos=effective_mouse)
@@ -178,6 +182,7 @@ def render_frame(surface, world, mouse_pos=None):
     # Floating top-bar breakdown dropdown (renders on top of map, panel, sidebar, and ticker)
     if not modal_active:
         draw_top_bar_dropdown(surface, world, font_small, mouse_pos=mouse_pos)
+        draw_seasonal_clock_tooltip(surface, world, font_small, mouse_pos=mouse_pos)
 
     draw_nations_comparison(surface, world, font, font_small, mouse_pos=mouse_pos)
     draw_actions_modal(surface, world, font, font_small, mouse_pos=mouse_pos)

@@ -213,17 +213,32 @@ def tile_stats(region, layer_mode='overview', world=None):
         use_f = getattr(region, 'use_fertilizer', False)
         use_p = getattr(region, 'use_pesticides', False)
 
+        regime = getattr(region, 'farming_regime', 'rotation')
+        g_stock = getattr(region, 'granary_stock', 0.0)
+
+        # Top line: Soil Fertility & Nutrition Density
         top_badge = f"Soil: {fert*100:.0f}% • Nut: {nut*100:.0f}%"
-        stat_line = f"Smog: {air_p:.0f} | Water: {wat_p:.0f}"
-        chem_tags = []
-        if use_f:
-            chem_tags.append("FERT")
-        if use_p:
-            chem_tags.append("PEST")
-        tr_line = f"Chem: {', '.join(chem_tags)}" if chem_tags else "Natural Organic"
+
+        # Middle line: Farming Regime & Granary Buffer
+        reg_name = "4-Field" if regime == 'rotation' else ("Monocult" if regime == 'intensive' else "Pasture")
+        stat_line = f"Regime: {reg_name} | Gran: {g_stock:.0f}t"
+
+        # Bottom line: Environmental Pollution & Crisis
+        owner = getattr(region, 'owner_nation', None)
+        is_cap = (owner and owner.tiles and region == owner.tiles[0])
+        has_sewer = any(getattr(b, 'name', '') == 'trunk_sewer' for b in getattr(region, 'buildings', []))
+
+        if is_cap and wat_p >= 60.0 and not has_sewer:
+            tr_line = "🚨 THE GREAT STINK!"
+            t_col = (255, 75, 75)
+        elif getattr(region, 'is_nitrate_depleted', False):
+            tr_line = "⚠️ NO NITRATES!"
+            t_col = (245, 120, 40)
+        else:
+            tr_line = f"Smog: {air_p:.0f} | Water: {wat_p:.0f}"
+            t_col = (235, 90, 90) if (air_p > 20.0 or wat_p > 20.0) else GREEN
 
         b_col = (100, 220, 140) if fert >= 0.90 and nut >= 0.90 else ((240, 180, 80) if fert >= 0.60 else (225, 100, 80))
-        t_col = (235, 90, 90) if (air_p > 20.0 or wat_p > 20.0) else ((140, 210, 255) if chem_tags else GREEN)
         return top_badge, stat_line, tr_line, b_col, TEXT, t_col
 
     # 6. OVERVIEW LAYER (Default)
@@ -368,6 +383,17 @@ def draw_thematic_choropleth(surface, region, pts, layer_mode, frame=0):
             pulse = int(120 + 90 * math.sin(frame * 0.15))
             pygame.draw.polygon(surface, (190, 80, 220, pulse), pts, 2)
 
+        # The Great Stink Atmospheric FX: Rising toxic vapor particles over capital
+        owner = getattr(region, 'owner_nation', None)
+        is_cap = (owner and owner.tiles and region == owner.tiles[0])
+        has_sewer = any(getattr(b, 'name', '') == 'trunk_sewer' for b in getattr(region, 'buildings', []))
+        if is_cap and wat_p >= 60.0 and not has_sewer:
+            for i in range(4):
+                v_phase = (frame * 0.8 + i * 8) % 24
+                vx = min_x + w * 0.3 + (i * 14) % int(w * 0.4)
+                vy = min_y + h * 0.6 - v_phase * 1.5
+                pygame.draw.circle(surface, (140, 160, 90, 80), (int(vx), int(vy)), int(4 + v_phase * 0.25))
+
 
 def draw_pop_heat(surface, region, pts, cx, cy, zoom=1.0, frame=0):
     """Draw elevation terrain and nation overlay for a hex."""
@@ -386,6 +412,14 @@ def draw_terrain_glyph(surface, region, cx, cy):
         pygame.draw.polygon(surface, (110, 205, 110), pts)
     if getattr(region, 'climate', '') == 'cold':
         pygame.draw.circle(surface, (230, 242, 255), (cx, y), 3)
+
+    # Ultra-Rare Natural Guano & Nitrate Global Deposit Beacon
+    from tile_resources import TileResource
+    if TileResource.NATURAL_NITRATES in getattr(region, 'natural_resources', []):
+        from ui_icons import get_icon
+        icon = get_icon('guano', size=16)
+        surface.blit(icon, (cx - 8, cy - 32))
+        pygame.draw.circle(surface, (255, 235, 120), (cx, cy - 24), 12, 1)
 
 
 def trade_anim(world):
@@ -424,9 +458,55 @@ def draw_edges(surface, world):
         
         edge = em.get_edge(r.name, other.name) if em else None
         if edge and edge.is_river:
-            # Fluvial River Corridor (Glowing Cyan-Blue)
-            pygame.draw.line(surface, (50, 130, 210), c1, c2, 3)
-            pygame.draw.line(surface, (120, 215, 255), c1, c2, 1)
+            p_a = getattr(r, 'pollution_water', 0.0)
+            p_b = getattr(other, 'pollution_water', 0.0)
+            p_eff = max(p_a, p_b)
+
+            # River Color Morphing based on water effluent toxicity
+            if p_eff <= 10.0:
+                col_outer = (50, 130, 210)    # Crystal Cyan-Blue
+                col_inner = (120, 215, 255)
+                part_col = (180, 240, 255)
+            elif p_eff <= 30.0:
+                col_outer = (65, 145, 80)     # Murky Algae Green (Fishery Threat)
+                col_inner = (130, 210, 130)
+                part_col = (190, 245, 120)
+            else:
+                col_outer = (135, 70, 80)     # Industrial Chemical Sludge Brown/Purple
+                col_inner = (210, 105, 115)
+                part_col = (255, 130, 140)
+
+            pygame.draw.line(surface, col_outer, c1, c2, 3)
+            pygame.draw.line(surface, col_inner, c1, c2, 1)
+
+            # Animated Downstream Flow Droplet (from higher elevation to lower elevation)
+            h_a = getattr(r, 'elevation', 0.0)
+            h_b = getattr(other, 'elevation', 0.0)
+            flow_start, flow_end = (c1, c2) if h_a >= h_b else (c2, c1)
+            fdx = flow_end[0] - flow_start[0]
+            fdy = flow_end[1] - flow_start[1]
+            flen = max(1.0, math.hypot(fdx, fdy))
+            frame = world.get('frame', 0)
+            f_phase = ((frame * 1.5) % 40) / 40.0
+            px = int(flow_start[0] + (fdx / flen) * flen * f_phase)
+            py = int(flow_start[1] + (fdy / flen) * flen * f_phase)
+            pygame.draw.circle(surface, part_col, (px, py), 2)
+
+            # Riparian Dispute Marker between Sovereign Nations
+            owner_a = getattr(r, 'owner_nation', None)
+            owner_b = getattr(other, 'owner_nation', None)
+            if owner_a and owner_b and owner_a.name != owner_b.name:
+                cb_a = getattr(owner_a, 'active_casus_belli', set())
+                cb_b = getattr(owner_b, 'active_casus_belli', set())
+                has_dispute = (any(t == owner_b.name and cb == 'riparian_poisoning' for t, cb in cb_a) or
+                               any(t == owner_a.name and cb == 'riparian_poisoning' for t, cb in cb_b))
+                if has_dispute:
+                    mid_x = (c1[0] + c2[0]) // 2
+                    mid_y = (c1[1] + c2[1]) // 2
+                    pulse = int(180 + 75 * math.sin(frame * 0.2))
+                    pygame.draw.circle(surface, (235, 60, 60, pulse), (mid_x, mid_y), 5)
+                    pygame.draw.circle(surface, (255, 255, 255), (mid_x, mid_y), 2)
+
         elif edge and edge.edge_type == EdgeType.MOUNTAIN_PASS:
             # Engineered / Natural Mountain Pass (Golden Mountain Road)
             pygame.draw.line(surface, (230, 185, 65), c1, c2, 2)
@@ -560,6 +640,30 @@ def draw_activity_badges(surface, region, cx, cy, font_small):
             pygame.draw.rect(surface, (230, 110, 30), (cx - 40, cy - 58, 26, 13), border_radius=3)
             ntrtxt = font_small.render("NTR", True, (15, 15, 20))
             surface.blit(ntrtxt, (cx - 38, cy - 59))
+
+        # Phase 3 Farming Regime Badges
+        regime = getattr(region, 'farming_regime', 'rotation')
+        has_farms = any(getattr(b, 'building_type', '') == 'farm' for b in getattr(region, 'buildings', []))
+        if has_farms or region.terrain.get(Goods.food, 1.0) > 1.1:
+            if regime == 'rotation':
+                pygame.draw.rect(surface, (40, 140, 70), (cx - 40, cy + 34, 26, 13), border_radius=3)
+                surface.blit(font_small.render("ROT", True, (255, 255, 255)), (cx - 38, cy + 33))
+            elif regime == 'intensive':
+                if getattr(region, 'is_nitrate_depleted', False) or getattr(region, 'fertilizer_stock', 0.0) <= 0.0:
+                    pygame.draw.rect(surface, (230, 45, 45), (cx - 42, cy + 34, 30, 13), border_radius=3)
+                    surface.blit(font_small.render("!NTR", True, (255, 255, 255)), (cx - 40, cy + 33))
+                else:
+                    pygame.draw.rect(surface, (215, 140, 40), (cx - 40, cy + 34, 26, 13), border_radius=3)
+                    surface.blit(font_small.render("INT", True, (15, 15, 20)), (cx - 38, cy + 33))
+
+        # Capital Great Stink Badge
+        is_cap = (owner is not None and owner.tiles and region == owner.tiles[0])
+        p_wat = getattr(region, 'pollution_water', 0.0)
+        has_sewer = any(getattr(b, 'name', '') == 'trunk_sewer' for b in getattr(region, 'buildings', []))
+        if is_cap and p_wat >= 60.0 and not has_sewer:
+            pygame.draw.rect(surface, (220, 40, 60), (cx - 26, cy - 70, 52, 14), border_radius=3)
+            pygame.draw.rect(surface, (255, 220, 80), (cx - 26, cy - 70, 52, 14), 1, border_radius=3)
+            surface.blit(font_small.render("STINK!", True, (255, 255, 255)), (cx - 22, cy - 71))
     except Exception:
         pass
 
@@ -695,6 +799,45 @@ def draw_tile_progress_bars(surface, region, cx, cy, font_small, world):
                 short_tech = tech.name.split()[0][:6]
                 txt = font_small.render(f"Diff {short_tech} {int(diff_prog*100)}%", True, (255, 255, 255))
                 surface.blit(txt, (bx + 15, by + 1))
+                bar_y += 14
+
+    # 3. Granary Buffer Stock Gauge (shown on agricultural & urban tiles)
+    g_stock = getattr(region, 'granary_stock', 0.0)
+    has_farms = any(getattr(b, 'building_type', '') == 'farm' for b in getattr(region, 'buildings', []))
+    is_agrarian = has_farms or region.terrain.get(Goods.food, 1.0) > 1.1 or g_stock > 1.0
+    if is_agrarian and owner is not None:
+        t = world.get('turn', 0)
+        t_mod = t % 10
+        bx = int(cx - bar_w // 2)
+        by = int(bar_y)
+        bg_rect = pygame.Rect(bx, by, bar_w, 10)
+        pygame.draw.rect(surface, (16, 20, 26, 220), bg_rect, border_radius=2)
+        fill_pct = min(1.0, max(0.0, g_stock / 50.0))
+        fill_w = max(2, int((bar_w - 2) * fill_pct))
+
+        # Color-coded by seasonal status
+        if t_mod in (4, 5, 6, 7):
+            fill_c = (80, 200, 110)    # Green (+15% storing)
+            status_tag = f"Gran +15%"
+        elif t_mod in (9, 0, 1):
+            if g_stock <= 2.0:
+                fill_c = (235, 60, 60)  # Red (Exhausted!)
+                status_tag = f"Gran EMPTY"
+            else:
+                fill_c = (110, 210, 245) # Cyan (Buffering -4t)
+                status_tag = f"Gran -4t"
+        else:
+            fill_c = (230, 195, 75)
+            status_tag = f"Gran {g_stock:.0f}t"
+
+        fill_rect = pygame.Rect(bx + 1, by + 1, fill_w, 8)
+        pygame.draw.rect(surface, fill_c, fill_rect, border_radius=2)
+        pygame.draw.rect(surface, (70, 85, 95), bg_rect, 1, border_radius=2)
+
+        icon = get_icon('granary', size=8)
+        surface.blit(icon, (bx + 2, by + 1))
+        txt = font_small.render(status_tag, True, (255, 255, 255))
+        surface.blit(txt, (bx + 12, by))
 
 
 def province_members(world, region):
