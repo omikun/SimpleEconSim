@@ -465,6 +465,45 @@ class TestWorldviewActionsUI(unittest.TestCase):
 
         print("Verified top bar protest metric (+delta) and interactive hover breakdown dropdowns for all stats.")
 
+    def test_top_bar_treasury_upkeep_stat(self):
+        """Verify upkeep is present in treasury stat at top nation bar and in dropdown breakdown."""
+        from worldview_ui import draw_top_bar, _get_stat_breakdown
+        from army import recruit_unit
+        from sim_server.sim_server import SimServer
+        world = build_world_view(seed=42)
+        n = selected_nation(world)
+        self.assertIsNotNone(n)
+
+        # Baseline: before military recruitment, verify upkeep breakdown
+        title, badge, col, lines = _get_stat_breakdown(world, n, n.tiles, 'treasury')
+        upkeep_line = next((line for line in lines if line[0] == "Recurring Upkeep Drain"), None)
+        self.assertIsNotNone(upkeep_line, "Treasury breakdown must include 'Recurring Upkeep Drain'.")
+
+        # Recruit a 15-soldier garrison on tile 0
+        tile = n.tiles[0]
+        recruit_unit(n, tile, soldier_count=15, wage=1.0, t=world['turn'])
+
+        # Verify breakdown reflects 15 soldiers @ $1.0/turn upkeep
+        title, badge, col, lines = _get_stat_breakdown(world, n, n.tiles, 'treasury')
+        upkeep_line = next((line for line in lines if line[0] == "Recurring Upkeep Drain"), None)
+        self.assertEqual(upkeep_line[1], "-$15.00 / turn")
+        payroll_line = next((line for line in lines if "Garrison Troop Payroll" in line[0]), None)
+        self.assertIn("-$15.00", payroll_line[1])
+
+        # Verify top bar rendering executes cleanly with upkeep included
+        font_small = pygame.font.Font(None, 16)
+        draw_top_bar(self.surface, world, font_small)
+
+        # Verify SimServer macro serialization parity
+        server = SimServer(seed=42)
+        target_n = server.nations[0]
+        recruit_unit(target_n, target_n.tiles[0], soldier_count=15, wage=1.0, t=server.turn)
+        macro = server._calc_nation_macro(target_n)
+        self.assertIn('treasury_upkeep', macro)
+        self.assertIn('military_upkeep', macro)
+        self.assertGreaterEqual(macro['treasury_upkeep'], 15.0)
+        print("Verified top bar treasury upkeep stat, dropdown breakdown, and server macro serialization.")
+
     def test_geographic_trade_constraints_and_passes(self):
         """Verify elevation relief trade barriers, river corridors, and mountain pass unblocking."""
         from terrain_edges import get_edge_manager, EdgeType, TerrainEdgeManager

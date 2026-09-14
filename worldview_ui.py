@@ -364,13 +364,27 @@ def _get_stat_breakdown(world, n, tiles, key):
         d_tr = tr_cur - tr_prev
         tot_debt = sum(getattr(r.gov, 'debt', 0.0) for r in tiles)
         
+        # Upkeep calculations (military soldier wages + debt coupons)
+        units = getattr(n, 'military_units', getattr(n, 'units', []))
+        mil_cash_upkeep = sum(getattr(u, 'soldiers', 0) * getattr(u, 'wage_per_soldier', 1.0) for u in units)
+        mil_food_upkeep = sum(int(getattr(u, 'soldiers', 0) * getattr(u, 'food_per_soldier', 0.1)) for u in units)
+        try:
+            from sovereign_bonds import get_bond_market
+            coupons_owed = sum(b.per_turn_coupon for b in get_bond_market().get_bonds_owed_by(n.name))
+        except Exception:
+            coupons_owed = 0.0
+        total_upkeep = mil_cash_upkeep + coupons_owed
+        
         lines = [
             ("Liquid Treasury Vault", f"${tr_cur:,.0f} {n.currency}", GREEN if tr_cur > 0 else RED),
-            ("Emergency Food Granary", f"{tr['food']} food units", TEXT),
             ("Turn Balance Delta", f"{'+' if d_tr > 0 else ''}${d_tr:,.0f} / turn", GREEN if d_tr > 0 else (RED if d_tr < 0 else TEXT)),
+            ("Recurring Upkeep Drain", f"-${total_upkeep:,.2f} / turn", (245, 180, 50) if total_upkeep > 0 else TEXT),
+            ("• Garrison Troop Payroll", f"-${mil_cash_upkeep:,.2f} / t ({len(units)} divs, {total_garrison} troops)", TEXT),
+            ("• Debt Coupon Servicing", f"-${coupons_owed:,.2f} / turn", RED if coupons_owed > 0 else TEXT),
+            ("• Military Food Upkeep", f"{mil_food_upkeep} food / turn", TEXT),
+            ("Emergency Food Granary", f"{tr['food']} food units", TEXT),
             ("Average Tax Revenue", f"{tax_rate:.1%} income tax rate", TEXT),
             ("Import Tariff Inflow", f"{tariff_rate:.1%} customs rate", TEXT),
-            ("Active Soldier Payroll", f"{total_garrison} standing troops", TEXT),
             ("Outstanding Public Debt", f"${tot_debt:,.0f}", RED if tot_debt > 0 else GREEN),
         ]
         return "National Treasury & Fiscal Reserves", f"${tr_cur:,.0f}", GREEN if tr_cur > 0 else RED, lines
@@ -559,7 +573,18 @@ def draw_top_bar(surface, world, font_small, mouse_pos=None):
         pop_str = f"Pop {pop_cur:,}" + (f" ({'+' if d_pop > 0 else ''}{d_pop})" if d_pop != 0 else "")
         pop_color = GREEN if d_pop > 0 else (RED if d_pop < 0 else TEXT)
 
-        tr_str = f"Treasury ${tr_cur:,.0f}" + (f" ({'+' if d_tr > 0 else ''}${d_tr:,.0f})" if abs(d_tr) >= 1.0 else "") + f" ({tr['food']} food)"
+        # Sovereign upkeep calculation (military payroll + debt coupons)
+        units = getattr(n, 'military_units', getattr(n, 'units', []))
+        mil_cash_upkeep = sum(getattr(u, 'soldiers', 0) * getattr(u, 'wage_per_soldier', 1.0) for u in units)
+        try:
+            from sovereign_bonds import get_bond_market
+            coupons_owed = sum(b.per_turn_coupon for b in get_bond_market().get_bonds_owed_by(n.name))
+        except Exception:
+            coupons_owed = 0.0
+        total_upkeep = mil_cash_upkeep + coupons_owed
+
+        upkeep_str = f" [Upk -${total_upkeep:,.0f}/t]" if total_upkeep > 0 else " [Upk $0/t]"
+        tr_str = f"Treasury ${tr_cur:,.0f}" + (f" ({'+' if d_tr > 0 else ''}${d_tr:,.0f})" if abs(d_tr) >= 1.0 else "") + upkeep_str + f" ({tr['food']} food)"
         tr_color = GREEN if d_tr > 0.5 else (RED if d_tr < -0.5 else TEXT)
 
         gdp_str = f"GDP ${gdp_cur:,.0f}" + (f" ({'+' if d_gdp > 0 else ''}${d_gdp:,.0f})" if abs(d_gdp) >= 1.0 else "")

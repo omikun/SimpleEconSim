@@ -210,14 +210,22 @@ class SimServer:
         tot_garrison = sum(int(getattr(r, 'garrison', 0)) for r in tiles)
         standing_armies = len(getattr(n, 'armies', []))
 
+        # Sovereign upkeep calculation (military soldier wages + debt coupons)
+        units = getattr(n, 'military_units', getattr(n, 'units', []))
+        mil_upkeep = sum(getattr(u, 'soldiers', 0) * getattr(u, 'wage_per_soldier', 1.0) for u in units)
+        mil_food_upkeep = sum(int(getattr(u, 'soldiers', 0) * getattr(u, 'food_per_soldier', 0.1)) for u in units)
+
         credit_rating = "BBB"
         market_yield = 0.0018
+        coupons_owed = 0.0
         try:
             from sovereign_bonds import get_bond_market
             market = get_bond_market()
             credit_rating, market_yield = market.isrb.get_market_yield(n, 20, self.get_world_dict())
+            coupons_owed = sum(b.per_turn_coupon for b in market.get_bonds_owed_by(n.name))
         except Exception:
             pass
+        tot_upkeep = mil_upkeep + coupons_owed
 
         rgb = NATION_COLORS.get(n.name, (80, 160, 240))
         flag_hex = f"#{rgb[0]:02x}{rgb[1]:02x}{rgb[2]:02x}"
@@ -230,6 +238,10 @@ class SimServer:
             'treasury_cash': round(float(tr_cur), 1),
             'treasury_delta': round(float(d_tr), 1),
             'treasury_food': int(tr_food),
+            'treasury_upkeep': round(float(tot_upkeep), 1),
+            'military_upkeep': round(float(mil_upkeep), 1),
+            'debt_upkeep': round(float(coupons_owed), 1),
+            'food_upkeep': int(mil_food_upkeep),
             'population': int(pop_cur),
             'population_delta': int(d_pop),
             'gdp': round(float(gdp_cur), 1),

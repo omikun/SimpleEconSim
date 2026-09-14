@@ -666,7 +666,7 @@ def _execute_policy_action(world, act_id, target):
     elif act_id == 'city_recruit_garrison':
         owner = getattr(target, 'owner_nation', None)
         if owner is not None:
-            unit = recruit_unit(target, owner, soldier_count=5, t=world['turn'])
+            unit = recruit_unit(owner, target, soldier_count=5, t=world['turn'])
             if unit is not None:
                 world['policy_feedback'] = (f"Recruited 5 garrison soldiers in {target.name}!", GREEN)
             else:

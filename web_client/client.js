@@ -419,7 +419,9 @@
     const trFood = Math.round(macro.treasury_food !== undefined ? macro.treasury_food : (macro.granary_food || 0));
     const isrbYield = (macro.bond_yield !== undefined ? macro.bond_yield.toFixed(2) : '0.18') + '%';
 
-    setVal('val-treasury', `$${trCash.toLocaleString()}`);
+    const trUpkeep = Math.round(macro.treasury_upkeep || 0);
+    const upkeepStr = trUpkeep > 0 ? ` [Upk -$${trUpkeep.toLocaleString()}/t]` : ' [Upk $0/t]';
+    setVal('val-treasury', `$${trCash.toLocaleString()}${upkeepStr}`);
     setVal('val-food', trFood.toLocaleString());
     setVal('val-pop', (macro.population || 0).toLocaleString());
     setVal('val-gdp', `$${Math.round(macro.gdp || 0).toLocaleString()}`);
@@ -493,6 +495,9 @@
           rows: [
             { label: 'Liquid Cash Vault', val: `$${trCash.toLocaleString()}`, valClass: 'text-gold' },
             { label: 'Turn Balance Delta', val: `${deltaHtml} / turn` },
+            { label: 'Per-Turn Upkeep Drain', val: `-$${(macro.treasury_upkeep || 0).toLocaleString()} / turn`, valClass: (macro.treasury_upkeep || 0) > 0 ? 'text-ruby' : 'text-green' },
+            { label: '• Armed Forces Wages', val: `-$${(macro.military_upkeep || 0).toLocaleString()} / turn` },
+            { label: '• Bond Coupon Servicing', val: `-$${(macro.debt_upkeep || 0).toLocaleString()} / turn` },
             { label: 'Emergency Granary', val: `${trFood.toLocaleString()} food units`, valClass: 'text-green' },
             { label: 'Statutory Income Tax', val: `${((macro.tax_rate || 0.15) * 100).toFixed(1)}%` },
             { label: 'Customs Tariff Rate', val: `${((macro.tariff_rate || 0.10) * 100).toFixed(1)}%` },
