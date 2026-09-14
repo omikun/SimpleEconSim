@@ -99,15 +99,34 @@ def _forced_compromise(region, t):
 
 
 def _takeover(region, t, mob):
-    """Stage 5: popular-front takeover — moves the regime's legitimacy to 0
-    and opens the coup seam (same regime-change machinery as M3 stub hook).
+    """Stage 5: popular-front takeover — requires overcoming local armed garrisons.
 
+    If a military garrison is stationed on the tile, the crowd must overpower
+    the armed soldiers. If the garrison repels the mob, casualties are inflicted
+    and takeover fails.
     Returns True if a takeover fired.
     """
     owner = getattr(region, 'owner_nation', None)
     if owner is None:
         return False
+
     if owner.legitimacy <= 0.25 and mob > len(region.agents) * 0.10:
+        # Garrison combat check: armed soldiers defend the state seat
+        garrison_force = sum(u.strength for u in getattr(region, 'military_units', [])
+                             if getattr(u, 'soldiers', 0) > 0 and getattr(u, 'morale', 1.0) >= 0.3)
+        mob_force = mob * 1.5
+
+        if garrison_force > mob_force:
+            # Garrison repels the insurrection!
+            for a in region.agents:
+                if not a.is_corporation and not a.is_government and a.hungry_steps > 0:
+                    a.mem_push('mem_casualties', 1.0)
+                    a.mem_push('mem_promises', 0.5)
+            if hasattr(region, 'protest_energy_log') and region.protest_energy_log:
+                region.protest_energy_log[-1] = max(2.0, region.protest_energy_log[-1] - 2.5)
+            return False
+
+        # Garrison overwhelmed or disbanded
         owner.legitimacy = 0.0
         # regime_type flips toward the largest grievance faction kind
         biggest = max(region.factions.factions.values(),
@@ -135,7 +154,7 @@ def step_unrest(region, t):
             events['stage'] = 'takeover'
             events['takeover'] = True
         else:
-            events['stage'] = 'mob'        # mob without legitimacy collapse
+            events['stage'] = 'mob'        # mob without legitimacy collapse or repelled by garrison
             events['looted'] = _loot_and_burn(region, t, mob)
     elif energy >= COMPROMISE_THRESHOLD:
         flipped = _forced_compromise(region, t)
@@ -154,31 +173,36 @@ def step_unrest(region, t):
     return events
 
 
-def apply_repression(region, t, cost_legitimacy=0.15):
-    """M2.6: quell protest now, but write future grievance memory.
+def apply_repression(region, t, cost_legitimacy=0.15, force_override=False):
+    """Quell protest via coercive force backed by standing garrisons or police.
 
-    - Legitimacy drops by *cost_legitimacy*.
-    - Every faction loses fresh grievance (quelling effect).
-    - Each member's mem_promises / mem_casualties gets seeds that raise
-      FUTURE grievance (2-turn delayed — the accrual reads mem_* each turn).
-
-    Returns the amount of stored grievance queued.
+    - Requires standing military units or employed police on the tile.
+    - Physical clash inflicts casualties (mem_casualties) and breaks protest lines.
+    - If no armed force is present, returns 0.
     """
+    garrison_units = [u for u in getattr(region, 'military_units', []) if getattr(u, 'soldiers', 0) > 0]
+    police_count = getattr(region, 'police_employed', 0)
+
+    if not garrison_units and police_count == 0 and not force_override:
+        return 0
+
     owner = getattr(region, 'owner_nation', None)
     if owner is not None:
         owner.legitimacy = max(0.0, owner.legitimacy - cost_legitimacy)
 
-    # Quell: cut each faction's most recent grievance.adds by 40%.
+    # Quell: cut each faction's most recent grievance adds
     for f in region.factions.factions.values():
         for k in list(f.grievances):
-            f.grievances[k] *= 0.6
+            f.grievances[k] *= 0.5
 
-    # Seed memory for future grievance: each faction member remembers the
-    # repression (mem_casualties/broken promises).
+    # Reduce protest energy on tile
+    if hasattr(region, 'protest_energy_log') and region.protest_energy_log:
+        region.protest_energy_log[-1] = max(0.0, region.protest_energy_log[-1] - 2.0)
+
+    # Seed memory for casualties from armed dispersal
     seeded = 0
     for f in region.factions.factions.values():
         for aid in list(f.membership):
-            # find the agent object by id from region.agents
             for a in region.agents:
                 if a.id == aid:
                     a.mem_push('mem_casualties', 1.0)

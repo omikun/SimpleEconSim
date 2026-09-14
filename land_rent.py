@@ -70,16 +70,31 @@ def collect_rents(region, t: int) -> tuple[float, float, list[dict]]:
 
         # Pastoral conversion ("sheep eat men"): labor drops by 75%
         if getattr(plot, 'production_type', 'arable') == 'pasture' and len(assigned_tenants) > 1:
-            keep_count = max(1, int(len(assigned_tenants) * 0.25))
-            shepherds = assigned_tenants[:keep_count]
-            evicted = assigned_tenants[keep_count:]
-            for ex in evicted:
-                if hasattr(plot, 'tenant_ids') and ex.id in plot.tenant_ids:
-                    plot.tenant_ids.remove(ex.id)
-                ex.assigned_plot_id = None
-                ex.social_class = 'dispossessed'
-                ex.mem_push('mem_eviction', 1.0)
-            assigned_tenants = shepherds
+            pe = region.protest_energy_log[-1] if (hasattr(region, 'protest_energy_log') and region.protest_energy_log) else 0.0
+            has_force = any(getattr(u, 'strength', 0) > 5.0 for u in getattr(region, 'military_units', [])) or getattr(region, 'police_employed', 0) > 0
+            if pe >= 3.5 and not has_force:
+                # Tenants actively resist pastoral eviction without armed force
+                for ex in assigned_tenants:
+                    ex.mem_push('mem_eviction', 0.5)
+                    ex.mem_push('mem_promises', 0.5)
+                events.append({
+                    't': t,
+                    'event': 'PASTURE_EVICTION_RESISTED',
+                    'tile': region.name,
+                    'plot_id': plot.plot_id,
+                    'message': f"PASTURE EVICTION RESISTED on {region.name}: Tenants refused eviction; landlord lacks armed bailiffs/garrison."
+                })
+            else:
+                keep_count = max(1, int(len(assigned_tenants) * 0.25))
+                shepherds = assigned_tenants[:keep_count]
+                evicted = assigned_tenants[keep_count:]
+                for ex in evicted:
+                    if hasattr(plot, 'tenant_ids') and ex.id in plot.tenant_ids:
+                        plot.tenant_ids.remove(ex.id)
+                    ex.assigned_plot_id = None
+                    ex.social_class = 'dispossessed'
+                    ex.mem_push('mem_eviction', 1.0)
+                assigned_tenants = shepherds
 
         plot_collected = 0.0
         plot_arrears = 0.0

@@ -109,9 +109,12 @@ def step_turn(t: int, tiles: list, nations: list = None,
     claim_events = check_and_apply_claims(t, tiles, nations) if nations else []
     if on_event:
         for ev in claim_events:
-            on_event(t, 'CLAIM',
-                     f"CLAIM {ev['nation']} claimed {ev['tile']} "
-                     f"({ev['origin_count']}/{ev['pop']} {ev['share']*100:.1f}%)")
+            if ev.get('event') == 'FRONTIER_CLAIM_REPELLED':
+                on_event(t, 'FRONTIER_DEFENSE', ev.get('message', 'Claim repelled by customary inhabitants.'))
+            else:
+                on_event(t, 'CLAIM',
+                         f"CLAIM {ev.get('nation', '')} claimed {ev.get('tile', '')} "
+                         f"({ev.get('origin_count', 0)}/{ev.get('pop', 0)} {ev.get('share', 0.0)*100:.1f}%)")
 
     # 9. Trader wilderness settlement
     for r in tiles:

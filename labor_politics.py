@@ -58,44 +58,73 @@ def evaluate_uprising_pressure(nation, t: int) -> List[Dict[str, Any]]:
     strike_rate = (total_strikers / total_workers) if total_workers > 0 else 0.0
     avg_consciousness = total_consciousness / len(tiles)
 
-    # Sustained uprising pressure triggers concessions from fearful incumbents
+    # Crisis evaluated against Coercive Strikebreaking Capacity:
     is_crisis = (strike_rate >= UPRISING_STRIKE_THRESHOLD or avg_unrest >= UPRISING_UNREST_THRESHOLD)
 
     if is_crisis:
-        # Step 1: Enact Ten-Hour Act if not already enacted
-        if not getattr(nation, 'ten_hour_act', False):
-            ok, msg = enact_ten_hour_act(nation)
-            if ok:
-                # Concession cools down worker unrest
-                for tile in tiles:
-                    tile.unrest_level = max(0.0, getattr(tile, 'unrest_level', 0.0) - 0.25)
-                nation.legitimacy = min(1.0, getattr(nation, 'legitimacy', 0.5) + 0.15)
-                ev = {
-                    'kind': 'ten_hour_act_concession',
-                    'turn': t,
-                    'nation': nation.name,
-                    'strike_rate': strike_rate,
-                    'unrest': avg_unrest,
-                    'msg': "Mass strikes and uprising forced the government to pass the Ten-Hour Act!",
-                }
-                events.append(ev)
-                nation.regime_log.append(ev)
-        # Step 2: If Ten-Hour Act already passed, enact Factory Safety Act
-        elif not getattr(nation, 'factory_safety_act', False):
-            ok, msg = enact_factory_safety_act(nation)
-            if ok:
-                for tile in tiles:
-                    tile.unrest_level = max(0.0, getattr(tile, 'unrest_level', 0.0) - 0.20)
-                nation.legitimacy = min(1.0, getattr(nation, 'legitimacy', 0.5) + 0.10)
-                ev = {
-                    'kind': 'factory_safety_concession',
-                    'turn': t,
-                    'nation': nation.name,
-                    'strike_rate': strike_rate,
-                    'msg': "Labor unrest forced the government to mandate Factory Safety Standards!",
-                }
-                events.append(ev)
-                nation.regime_log.append(ev)
+        ruling = getattr(nation, 'ruling_faction', '')
+        # Capitalist/landlord regimes attempt armed strikebreaking if forces are available
+        total_military_strength = sum(u.strength for u in getattr(nation, 'military_units', [])
+                                      if getattr(u, 'soldiers', 0) > 0 and getattr(u, 'morale', 1.0) >= 0.40)
+        police_strength = sum(getattr(tile, 'police_employed', 0) * 3.0 for tile in tiles)
+        strikebreaker_force = total_military_strength + police_strength
+        strike_force = total_strikers * 1.5
+
+        # If capitalist regime has superior force, crush strike with armed strikebreaking
+        if ruling in ('Bourgeoisie', 'Gentry') and strikebreaker_force >= strike_force and strikebreaker_force > 15.0:
+            for tile in tiles:
+                for a in getattr(tile, 'agents', []):
+                    if getattr(a, 'is_striking', False):
+                        a.is_striking = False
+                        a.mem_push('mem_casualties', 1.0)
+                        a.mem_push('mem_promises', 1.0)
+                tile.unrest_level = max(0.0, getattr(tile, 'unrest_level', 0.0) - 0.15)
+            ev = {
+                'kind': 'armed_strikebreaking',
+                'turn': t,
+                'nation': nation.name,
+                'strikebreaker_force': strikebreaker_force,
+                'strike_force': strike_force,
+                'msg': f"ARMED REPRESSION: {nation.name} deployed troops and police to crush mass strikes! (Force: {strikebreaker_force:.1f} vs Strikers: {strike_force:.1f})",
+            }
+            events.append(ev)
+            nation.regime_log.append(ev)
+        else:
+            # State lacks coercive capacity to break the strike, or has pro-worker ruling faction -> Concession!
+            # Step 1: Enact Ten-Hour Act if not already enacted
+            if not getattr(nation, 'ten_hour_act', False):
+                ok, msg = enact_ten_hour_act(nation)
+                if ok:
+                    # Concession cools down worker unrest
+                    for tile in tiles:
+                        tile.unrest_level = max(0.0, getattr(tile, 'unrest_level', 0.0) - 0.25)
+                    nation.legitimacy = min(1.0, getattr(nation, 'legitimacy', 0.5) + 0.15)
+                    ev = {
+                        'kind': 'ten_hour_act_concession',
+                        'turn': t,
+                        'nation': nation.name,
+                        'strike_rate': strike_rate,
+                        'unrest': avg_unrest,
+                        'msg': "Mass strikes and economic paralysis forced the government to pass the Ten-Hour Act!",
+                    }
+                    events.append(ev)
+                    nation.regime_log.append(ev)
+            # Step 2: If Ten-Hour Act already passed, enact Factory Safety Act
+            elif not getattr(nation, 'factory_safety_act', False):
+                ok, msg = enact_factory_safety_act(nation)
+                if ok:
+                    for tile in tiles:
+                        tile.unrest_level = max(0.0, getattr(tile, 'unrest_level', 0.0) - 0.20)
+                    nation.legitimacy = min(1.0, getattr(nation, 'legitimacy', 0.5) + 0.10)
+                    ev = {
+                        'kind': 'factory_safety_concession',
+                        'turn': t,
+                        'nation': nation.name,
+                        'strike_rate': strike_rate,
+                        'msg': "Labor unrest forced the government to mandate Factory Safety Standards!",
+                    }
+                    events.append(ev)
+                    nation.regime_log.append(ev)
 
     return events
 

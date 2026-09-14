@@ -123,7 +123,8 @@ class DiplomacySystem:
                 return tr.tariff_discount
         return 0.0
 
-    def propose_treaty(self, proposer: str, target: str, treaty_type: str, t: int = 0) -> tuple[bool, str]:
+    def propose_treaty(self, proposer: str, target: str, treaty_type: str, t: int = 0,
+                       world: dict | None = None) -> tuple[bool, str]:
         """Propose and sign a treaty between proposer and target if terms are accepted."""
         if proposer == target:
             return False, "Cannot sign treaty with self."
@@ -146,6 +147,13 @@ class DiplomacySystem:
             threshold = 0.0 + betrayal_penalty
         elif treaty_type == TreatyType.DEFENSIVE_ALLIANCE.value:
             threshold = 0.3 + betrayal_penalty
+            # Defensive alliance requires credible security contribution
+            if world and world.get('nations'):
+                p_obj = next((n for n in world['nations'] if n.name == proposer), None)
+                if p_obj:
+                    p_str = sum(u.strength for u in getattr(p_obj, 'military_units', []))
+                    if p_str < 5.0:
+                        threshold = max(threshold, 0.60 + betrayal_penalty)
         else:
             threshold = 0.0
 
@@ -314,17 +322,42 @@ class DiplomacySystem:
 
         return events
 
-    def sign_peace(self, n1: str, n2: str, t: int = 0) -> dict:
-        """End war between n1 and n2."""
+    def sign_peace(self, n1: str, n2: str, t: int = 0, world: dict | None = None) -> dict:
+        """End war between n1 and n2, evaluated under relative military leverage."""
         war_key = self._pair_key(n1, n2)
         if war_key in self.active_wars:
             self.active_wars.remove(war_key)
             self.set_relation(n1, n2, -0.2)
+            indemnity_note = ""
+            if world and world.get('nations'):
+                n_map = {n.name: n for n in world['nations']}
+                n1_obj = n_map.get(n1)
+                n2_obj = n_map.get(n2)
+                if n1_obj and n2_obj:
+                    s1 = sum(u.strength for u in getattr(n1_obj, 'military_units', []))
+                    s2 = sum(u.strength for u in getattr(n2_obj, 'military_units', []))
+                    if s1 > s2 * 2.5 and s1 >= 20.0:
+                        victor, vanquished = n1_obj, n2_obj
+                    elif s2 > s1 * 2.5 and s2 >= 20.0:
+                        victor, vanquished = n2_obj, n1_obj
+                    else:
+                        victor, vanquished = None, None
+
+                    if victor and vanquished:
+                        v_gov = getattr(vanquished, 'government', None)
+                        vic_gov = getattr(victor, 'government', None)
+                        if v_gov and hasattr(v_gov, 'agent') and vic_gov and hasattr(vic_gov, 'agent'):
+                            indemnity = round(min(v_gov.agent.cash * 0.4, 50.0), 2)
+                            if indemnity > 0:
+                                v_gov.agent.cash -= indemnity
+                                vic_gov.agent.cash += indemnity
+                                indemnity_note = f" {vanquished.name} paid ${indemnity:.0f} war reparations to {victor.name}."
+
             event = {
                 't': t,
                 'event': 'PEACE_SIGNED',
                 'parties': [n1, n2],
-                'message': f"Peace treaty signed between {n1} and {n2} at T={t}."
+                'message': f"Peace treaty signed between {n1} and {n2} at T={t}.{indemnity_note}"
             }
             self.diplomacy_log.append(event)
             return {'success': True, 'message': event['message']}

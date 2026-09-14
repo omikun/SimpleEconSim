@@ -201,10 +201,11 @@ def step_regime(nation, t, rng=None):
         nation.regime_log.extend(events)
         return events
 
-    due_interval = (getattr(nation, 'regime_type', 'autocracy') == 'democracy'
-                    and t - nation._last_election >= ELECTION_INTERVAL)
-    due_collapse = getattr(nation, 'legitimacy', 0.6) < SNAP_ELECTION_LEGITIMACY \
-        and t - nation._last_election >= 10
+    is_democracy = (getattr(nation, 'regime_type', 'autocracy') == 'democracy')
+    due_interval = is_democracy and (t - nation._last_election >= ELECTION_INTERVAL)
+    # Snap parliamentary elections only occur in democracies; autocrats do not hold elections when unpopular
+    due_collapse = is_democracy and (getattr(nation, 'legitimacy', 0.6) < SNAP_ELECTION_LEGITIMACY) \
+        and (t - nation._last_election >= 10)
 
     if due_interval or due_collapse:
         prev_ruling = getattr(nation, 'ruling_faction', None)

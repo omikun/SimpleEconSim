@@ -106,6 +106,30 @@ def execute_enclosure(tile, plot_id: str, t: int, rent_rate: float = DEFAULT_CAS
     if gov is None or gov.agent is None:
         return False, f"No government authority seated to issue enclosure charter on '{tile.name}'.", []
 
+    # Coercive force check for enclosure:
+    # Commoners will not let their customary commons be fenced off passively
+    # if protest energy is elevated, unless backed by armed bailiffs, constables, or garrison troops.
+    pe = tile.protest_energy_log[-1] if (hasattr(tile, 'protest_energy_log') and tile.protest_energy_log) else 0.0
+    has_garrison = any(getattr(u, 'strength', 0) > 5.0 for u in getattr(tile, 'military_units', []))
+    police_count = getattr(tile, 'police_employed', 0)
+
+    # Check if lord hires armed bailiffs ($10.0 conserved transfer) when commoners are militant
+    bailiff_hired = False
+    if pe >= 3.0 and not has_garrison and police_count == 0:
+        if lord.cash >= fee + 10.0:
+            lord.cash -= 10.0
+            bailiff_hired = True
+            recipients = [a for a in tile.agents if getattr(a, 'alive', True) and not getattr(a, 'is_government', False) and a.id != lord.id]
+            if recipients:
+                recipients[0].cash += 10.0
+            else:
+                gov.agent.cash += 10.0
+
+    if pe >= 3.0 and not has_garrison and police_count == 0 and not bailiff_hired:
+        # Enclosure defied by commoners!
+        return False, (f"Enclosure of plot {plot_id} on {tile.name} DEFIED by commoners! "
+                       f"Protest energy is {pe:.1f} and landlord lacks armed bailiffs or garrison to enforce fencing."), []
+
     # Conserved financial transfer: lord pays the crown
     lord.cash -= fee
     gov.agent.cash += fee
@@ -200,7 +224,28 @@ def step_enclosure_survey_debts(tile, t: int) -> list[dict]:
             tenant.mem_push('mem_promises', 0.5)
             remaining_debts.append(debt)
         else:
-            # Insolvent at deadline -> Foreclosure & Auction
+            # Check coercive enforcement for physical eviction:
+            pe = tile.protest_energy_log[-1] if (hasattr(tile, 'protest_energy_log') and tile.protest_energy_log) else 0.0
+            has_force = any(getattr(u, 'strength', 0) > 5.0 for u in getattr(tile, 'military_units', [])) or getattr(tile, 'police_employed', 0) > 0
+            if pe >= 3.5 and not has_force:
+                # Tenants and community actively resist eviction without police/military
+                tenant.mem_push('mem_promises', 1.0)
+                tenant.mem_push('mem_debt_trap', 0.5)
+                if hasattr(tile, 'protest_energy_log') and tile.protest_energy_log:
+                    tile.protest_energy_log[-1] = min(10.0, tile.protest_energy_log[-1] + 0.5)
+                remaining_debts.append(debt)
+                events.append({
+                    't': t,
+                    'event': 'EVICTION_RESISTED',
+                    'tile': tile.name,
+                    'tenant_id': tenant_id,
+                    'plot_id': plot_id,
+                    'message': (f"EVICTION RESISTED: Tenant {tenant_id} and community resisted eviction on {tile.name}; "
+                                f"authority lacks bailiffs/police to enforce foreclosure (protest: {pe:.1f}).")
+                })
+                continue
+
+            # Insolvent at deadline -> Foreclosure & Auction enforced by state/bailiffs
             plot = tile.tenure.find_plot(plot_id) if hasattr(tile, 'tenure') else None
 
             # Find wealthy bidders on tile

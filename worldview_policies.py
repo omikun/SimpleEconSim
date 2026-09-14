@@ -685,8 +685,11 @@ def _execute_policy_action(world, act_id, target):
             else:
                 world['policy_feedback'] = (msg, (240, 60, 60))
         else:
-            apply_repression(target, world['turn'])
-            world['policy_feedback'] = (f"Police curfew enforced in {target.name}. Riots quelled.", (240, 100, 100))
+            seeded = apply_repression(target, world['turn'])
+            if seeded > 0:
+                world['policy_feedback'] = (f"Police curfew enforced in {target.name}. Armed patrols quelled riots.", (240, 100, 100))
+            else:
+                world['policy_feedback'] = (f"Cannot enforce curfew in {target.name}: no armed military garrison or police on payroll!", (240, 60, 60))
 
     # City Public Works Commission
     elif act_id in ('build_farm', 'build_granary', 'build_sawmill', 'build_workshop', 'build_workhouse'):

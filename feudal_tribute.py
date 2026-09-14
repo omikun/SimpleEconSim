@@ -63,8 +63,24 @@ def collect_tribute(region, t: int) -> dict:
         assigned = serfs[current_idx:current_idx + slice_size]
         current_idx = (current_idx + slice_size) % serfs_count
 
+        # Coercive force check for in-kind tribute extraction:
+        # If serfs are militant and landlord/crown lacks armed retainers or garrison, serfs withhold tribute
+        pe = region.protest_energy_log[-1] if (hasattr(region, 'protest_energy_log') and region.protest_energy_log) else 0.0
+        has_force = any(getattr(u, 'strength', 0) > 5.0 for u in getattr(region, 'military_units', [])) or \
+                    getattr(region, 'police_employed', 0) > 0 or getattr(lord, 'cash', 0.0) >= 10.0
+
+        if pe >= 4.5 and not has_force:
+            # Serfs in open resistance withhold tribute!
+            for serf in assigned:
+                serf.mem_push('mem_promises', 0.5)
+            continue
+
         collected = {}
         for serf in assigned:
+            # Hungry serfs withhold food unless forced
+            if serf.hungry_steps > 0 and not has_force:
+                continue
+
             # For food: protect 4 subsistence food from tribute
             food_held = serf.inv_get(Goods.food, 0)
             if food_held > 4:

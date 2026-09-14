@@ -67,15 +67,18 @@ def find_generals(nation, t):
 
 
 def coup_chance(nation, t, rng=None):
-    """Determine whether a coup should trigger this turn.
+    """Determine whether a coup strikes and succeeds this turn.
 
-    A coup is possible only when regime legitimacy has collapsed below
-    ``COUP_LEGITIMACY_TRIGGER`` AND at least one viable general exists.  The
-    probability scales with the best general's score and the legitimacy
-    shortfall.  Deterministic when *rng* is supplied as a float in [0,1).
+    Grounded in the Monopoly of Violence and Coercion Calculus:
+    - Requires regime legitimacy collapse below COUP_LEGITIMACY_TRIGGER (< 0.40)
+      AND at least one ambitious general.
+    - Evaluates Conspirator Force (general traits, personal cash/bribes, mutinous units)
+      vs Loyalist State Force (paid garrisons, palace guards, treasury reserves).
+    - If Conspirator Force > Loyalist Force, the coup strikes and overthrows the state.
+    - If Conspirator Force <= Loyalist Force, loyalist forces crush the conspiracy.
+    - Zero random dice rolls.
 
-    Returns ``(general, fires)`` where *general* is the leading candidate (or
-    None).
+    Returns ``(general, fires)`` where *general* is the leading candidate (or None).
     """
     legitimacy = getattr(nation, 'legitimacy', 0.6)
     if legitimacy >= COUP_LEGITIMACY_TRIGGER:
@@ -84,13 +87,39 @@ def coup_chance(nation, t, rng=None):
     if not generals:
         return None, False
     general, score = generals[0]
-    shortfall = COUP_LEGITIMACY_TRIGGER - legitimacy
-    p = score * (0.25 + 1.5 * shortfall)
-    p = _clamp(p, 0.0, 0.95)
-    if rng is None:
-        import random
-        rng = random.random()
-    return general, rng < p
+
+    # Calculate Conspirator Armed Force
+    general_cash = getattr(general, 'cash', 0.0)
+    conspirator_force = score * 25.0 + min(50.0, general_cash * 0.5)
+
+    # Calculate Loyalist Defense Force
+    loyalist_units = []
+    defector_units = []
+    for u in getattr(nation, 'military_units', []):
+        if getattr(u, 'soldiers', 0) <= 0:
+            continue
+        # Unpaid, low-morale, or co-located units join conspirators
+        if getattr(u, 'morale', 1.0) < 0.40 or getattr(u, 'region_name', '') == getattr(general, 'region', None):
+            defector_units.append(u)
+        else:
+            loyalist_units.append(u)
+
+    conspirator_force += sum(u.strength for u in defector_units)
+    loyalist_force = sum(u.strength for u in loyalist_units)
+
+    # Government treasury can mobilize palace guards
+    gov = getattr(nation, 'government', None)
+    gov_cash = gov.agent.cash if (gov and hasattr(gov, 'agent')) else 0.0
+    loyalist_force += min(40.0, gov_cash * 0.2) + (legitimacy * 30.0)
+
+    # Coercive force ratio test
+    # If rng is explicitly passed (e.g. legacy unit test harness), allow it as a margin factor
+    if rng is not None:
+        margin = (rng - 0.5) * 10.0
+        conspirator_force += margin
+
+    fires = (conspirator_force > loyalist_force)
+    return general, fires
 
 
 def seize_treasury(nation, general, t):

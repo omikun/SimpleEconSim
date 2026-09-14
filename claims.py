@@ -43,6 +43,8 @@ import government as govmod  # kept imported for backwards compat (probes)
 import econsim_trade_money as _tm  # kept imported for backwards compat (probes)
 from charity import Charity  # kept imported for backwards compat (probes)
 from province import Province
+from agent import Agent, seed_traits, initialize_agent
+from goods import Goods
 
 MAX_PROVINCE_TILES = 5
 
@@ -105,9 +107,92 @@ def check_and_apply_claims(t, tiles, nations):
             if target_nation is None:
                 continue
 
-            # Execute claim
+            # Coercive Force & Native Resistance Check:
+            # Customary inhabitants do not vanish passively; claims require force or consent
+            garrison_strength = sum(u.strength for u in getattr(tile, 'military_units', [])
+                                    if getattr(u, 'nation_name', '') == target_nation.name)
+            # Check adjacent friendly garrison support
+            for neighbor in tile.neighbors.values():
+                if getattr(neighbor, 'owner_nation', None) == target_nation:
+                    garrison_strength += 0.3 * sum(u.strength for u in getattr(neighbor, 'military_units', [])
+                                                  if getattr(u, 'nation_name', '') == target_nation.name)
+
+            homesteader_force = sum(getattr(a, 'military_xp', 0.2) * 2.5 for a in homesteaders
+                                    if getattr(a, 'origin_nation', '') == target_nation.name)
+            settler_force = garrison_strength + homesteader_force
+            native_defense = wilderness_pop * 0.75
+
+            if wilderness_pop > 0 and settler_force < native_defense:
+                # Customary inhabitants mount frontier resistance and repel un-coerced claim
+                for a in homesteaders:
+                    if getattr(a, 'origin_nation', '') == target_nation.name:
+                        a.mem_push('mem_casualties', 0.5)
+                        a.mem_push('mem_promises', 0.5)
+                event = {
+                    't': t,
+                    'tile': tile.name,
+                    'nation': target_nation.name,
+                    'event': 'FRONTIER_CLAIM_REPELLED',
+                    'message': (f"FRONTIER DEFENSE: Customary inhabitants on {tile.name} repelled "
+                                f"{target_nation.name} claim attempt! (Native Defense: {native_defense:.1f} vs "
+                                f"Settler Force: {settler_force:.1f})"),
+                    'settler_force': settler_force,
+                    'native_defense': native_defense,
+                    'wilderness_pop': wilderness_pop,
+                    'origin_count': best_count,
+                    'pop': total_pop,
+                    'share': best_count / float(total_pop)
+                }
+                if not hasattr(target_nation, 'claim_log'):
+                    target_nation.claim_log = []
+                target_nation.claim_log.append(event)
+                claim_events.append(event)
+                continue
+
+            # Execute claim under superior force:
             tile.wilderness = False
-            tile.wilderness_pop = 0
+
+            # Conserved native displacement (no vanishing population):
+            if wilderness_pop > 0:
+                dispossessed_count = max(1, wilderness_pop // 2)
+                refugee_count = wilderness_pop - dispossessed_count
+
+                # Half become living dispossessed proletarians on the tile
+                for _ in range(dispossessed_count):
+                    disp_agent = Agent(t)
+                    seed_traits(disp_agent)
+                    initialize_agent(disp_agent, Goods.none, 0, 0, 0.0)
+                    disp_agent.region = tile.name
+                    disp_agent.social_class = 'dispossessed'
+                    disp_agent.mem_push('mem_eviction', 1.0)
+                    disp_agent.home_currency = target_nation.currency
+                    tile.agents.append(disp_agent)
+
+                # Remaining half flee as refugees to adjacent wilderness tiles if available
+                wild_adj = [adj for adj in tile.neighbors.values()
+                            if getattr(adj, 'wilderness', False) and not getattr(adj, 'is_ocean', False)
+                            and getattr(adj, 'elevation', 0.0) >= 0.0]
+                if wild_adj and refugee_count > 0:
+                    per_tile_refugees = refugee_count // len(wild_adj)
+                    rem_refugees = refugee_count % len(wild_adj)
+                    for idx, w_tile in enumerate(wild_adj):
+                        added = per_tile_refugees + (1 if idx < rem_refugees else 0)
+                        w_tile.wilderness_pop = getattr(w_tile, 'wilderness_pop', 0) + added
+                elif refugee_count > 0:
+                    # If no adjacent wilderness, all become dispossessed on the tile
+                    for _ in range(refugee_count):
+                        disp_agent = Agent(t)
+                        seed_traits(disp_agent)
+                        initialize_agent(disp_agent, Goods.none, 0, 0, 0.0)
+                        disp_agent.region = tile.name
+                        disp_agent.social_class = 'dispossessed'
+                        disp_agent.mem_push('mem_eviction', 1.0)
+                        disp_agent.home_currency = target_nation.currency
+                        tile.agents.append(disp_agent)
+
+                tile.wilderness_pop = 0
+            else:
+                tile.wilderness_pop = 0
 
             # ---- Option A: join an adjacent province with room, else found
             #      a fresh 0-capital province.  Both paths reuse ONE shared
