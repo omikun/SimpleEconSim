@@ -40,6 +40,7 @@ def get_banking_system_health(nation: Nation | None) -> Dict[str, Any]:
 
     target_cap = 500.0
     recap_cost = sum(max(0.0, target_cap - b.capital) for b in banks if getattr(b, 'is_frozen', False) or b.capital < target_cap)
+    panic_risk = "CRITICAL (Spreading Runs)" if frozen_count > 0 else "STABLE (No Contagion)"
 
     return {
         'total_capital': total_capital,
@@ -50,7 +51,59 @@ def get_banking_system_health(nation: Nation | None) -> Dict[str, Any]:
         'total_banks_count': len(banks),
         'recapitalization_cost': recap_cost,
         'is_system_frozen': frozen_count > 0,
+        'panic_risk': panic_risk,
     }
+
+
+def evaluate_banking_contagion(nation: Nation, world: dict | None = None, t: int = 0) -> List[Dict[str, Any]]:
+    """Simulate panic bank run contagion when domestic bank(s) are frozen under Corralito."""
+    events = []
+    if not nation or not getattr(nation, 'tiles', None):
+        return events
+
+    banks = [r.bank for r in nation.tiles if getattr(r, 'bank', None)]
+    frozen_banks = [b for b in banks if getattr(b, 'is_frozen', False)]
+    if not frozen_banks:
+        return events
+
+    # Panic spreads to solvent banks in the same nation
+    solvent_tiles = [r for r in nation.tiles if getattr(r, 'bank', None) and not getattr(r.bank, 'is_frozen', False)]
+    for tile in solvent_tiles:
+        b = tile.bank
+        total_run = 0.0
+        # Depositors panic and attempt to withdraw 20% of their deposits
+        for agent, dep in list(getattr(b, 'deposits', {}).items()):
+            if dep > 5.0 and getattr(agent, 'alive', True) and not getattr(agent, 'is_government', False):
+                run_amount = min(dep * 0.20, dep - 5.0)
+                if run_amount > 0:
+                    b.Withdraw(agent, run_amount)
+                    total_run += run_amount
+
+        if total_run > 0:
+            events.append({
+                'turn': t,
+                'tile': tile.name,
+                'nation': nation.name,
+                'kind': 'BANK_RUN',
+                'amount': total_run,
+                'msg': f"⚠️ PANIC BANK RUN: Depositors in {tile.name} withdrew ${total_run:,.0f} fearing Corralito freeze!"
+            })
+            if world:
+                from worldview_engine import ticker_push
+                ticker_push(world, t, 'ALERT', f"⚠️ BANK RUN: Panic deposit run in {tile.name} (${total_run:,.0f} withdrawn)!", (245, 180, 50))
+
+            # If bank capital is depleted during run, it freezes too
+            if b.capital <= 0.0:
+                b.is_frozen = True
+                events.append({
+                    'turn': t,
+                    'tile': tile.name,
+                    'nation': nation.name,
+                    'kind': 'CONTAGION_FREEZE',
+                    'msg': f"🚨 CONTAGION COLLAPSE: {tile.name} bank depleted reserves and entered emergency Corralito freeze!"
+                })
+
+    return events
 
 
 def recapitalize_domestic_banks(nation: Nation, target_capital: float = 500.0) -> Tuple[bool, str]:

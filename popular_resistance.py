@@ -69,6 +69,24 @@ class PopularResistanceManager:
             self.tile_states[tile_name] = ResistanceState(tile_name=tile_name)
         return self.tile_states[tile_name]
 
+    def inject_anti_imperial_unrest(self, tile: Region, amount: float = 2.5, t: int = 0):
+        """Urabi nationalist resistance: foreign fiscal intervention sparks unrest, strikes, and barricades."""
+        st = self.get_state(tile.name)
+        st.revolt_intensity = min(1.0, st.revolt_intensity + 0.05 * (amount / 2.5))
+        tile.unrest_level = getattr(tile, 'unrest_level', 0.0) + (amount * 0.1)
+
+        # If intensity high, escalate to barricades or citizen mobilization
+        if st.revolt_intensity >= 0.65 and not st.has_barricades:
+            st.has_barricades = True
+            st.barricade_hp = 100.0
+            st.militia_strength = max(st.militia_strength, 15)
+            self.resistance_log.append({
+                'turn': t,
+                'tile': tile.name,
+                'kind': 'URABI_BARRICADES',
+                'msg': f"URABI REVOLT: Citizens of {tile.name} erected street barricades against foreign debt collectors!"
+            })
+
     # ------------------------------------------------------------------
     # Level 1-2: Multi-Turn Anti-Enclosure Revolts
     # ------------------------------------------------------------------

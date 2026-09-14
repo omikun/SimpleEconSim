@@ -258,7 +258,7 @@ def draw_debt_panel(surface: pygame.Surface, world: dict, font: pygame.font.Font
         # 3. Domestic Commercial Banking Health & Corralito Card
         from banking_policy import get_banking_system_health
         b_health = get_banking_system_health(active_n)
-        card3_h = 120
+        card3_h = 135
         c3_rect = (x + 8, cur_y, w - 16, card3_h)
         pygame.draw.rect(surface, CARD_BG, c3_rect, border_radius=5)
         pygame.draw.rect(surface, CARD_BORDER, c3_rect, 1, border_radius=5)
@@ -268,15 +268,20 @@ def draw_debt_panel(surface: pygame.Surface, world: dict, font: pygame.font.Font
         is_frz = b_health['is_system_frozen']
         status_txt = f"🚨 CORRALITO: {b_health['frozen_banks_count']} BANK(S) FROZEN" if is_frz else "ALL BANKS SOLVENT (Tier-1 OK)"
         status_col = RED if is_frz else (120, 240, 150)
-        surface.blit(font_small.render(status_txt, True, status_col), (x + 16, cur_y + 30))
+        surface.blit(font_small.render(status_txt, True, status_col), (x + 16, cur_y + 28))
 
         cap_col = (120, 240, 150) if b_health['total_capital'] > 0 else RED
-        surface.blit(font_small.render(f"Capital: ${b_health['total_capital']:,.0f} | Exposure: ${b_health['total_sovereign_exposure']:,.0f}", True, cap_col), (x + 16, cur_y + 48))
-        surface.blit(font_small.render(f"Deposits: ${b_health['total_deposits']:,.0f} ({b_health['total_banks_count']} banks)", True, DIM), (x + 16, cur_y + 64))
+        surface.blit(font_small.render(f"Capital: ${b_health['total_capital']:,.0f} | Exposure: ${b_health['total_sovereign_exposure']:,.0f}", True, cap_col), (x + 16, cur_y + 46))
+        
+        p_risk = b_health.get('panic_risk', 'STABLE')
+        p_col = RED if "CRITICAL" in p_risk else (120, 220, 140)
+        surface.blit(font_small.render(f"Contagion Risk: {p_risk}", True, p_col), (x + 16, cur_y + 64))
+        if is_frz:
+            surface.blit(font_small.render("Commercial borrowing frozen! Deflation active.", True, (255, 180, 50)), (x + 16, cur_y + 80))
 
         # Resolution decree buttons
         bw_half = (w - 38) // 2
-        by3 = cur_y + 84
+        by3 = cur_y + 102
         recap_cost = b_health['recapitalization_cost']
         can_recap = is_frz and gov_cash >= recap_cost and recap_cost > 0
         recap_lbl = f"Recapitalize (${recap_cost:,.0f})" if is_frz else "Banks Solvent"
@@ -366,51 +371,94 @@ def draw_debt_panel(surface: pygame.Surface, world: dict, font: pygame.font.Font
         cur_y += card1_h + 10
 
         # 2. Customs Receiverships & Imperial Actions Card
-        card2_h = 165
+        card2_h = 240
         c2_rect = (x + 8, cur_y, w - 16, card2_h)
         pygame.draw.rect(surface, CARD_BG, c2_rect, border_radius=5)
         pygame.draw.rect(surface, CARD_BORDER, c2_rect, 1, border_radius=5)
 
-        surface.blit(font.render("Customs Receivership Status", True, (220, 150, 40)), (x + 16, cur_y + 8))
+        surface.blit(font.render("Imperial Debt & Coercion Status", True, (220, 150, 40)), (x + 16, cur_y + 8))
 
         active_rec = imp_mgr.get_active_receivership_on(active_n.name)
         if active_rec:
-            surface.blit(font_small.render(f"⚠️ UNDER RECEIVERSHIP: {active_rec.creditor_nation}", True, RED), (x + 16, cur_y + 32))
-            surface.blit(font_small.render(f"Diverting 40% of trade tariffs and sales taxes.", True, (255, 200, 100)), (x + 16, cur_y + 50))
-            surface.blit(font_small.render(f"Remaining Debt: ${active_rec.remaining_debt:,.0f} (Paid: ${active_rec.total_collected:,.0f})", True, TEXT), (x + 16, cur_y + 68))
+            is_caisse = (active_rec.level == "caisse_de_la_dette")
+            title_prefix = "🏛️ UNDER CAISSE DE LA DETTE" if is_caisse else "⚠️ UNDER RECEIVERSHIP"
+            surface.blit(font_small.render(f"{title_prefix}: {active_rec.creditor_nation}", True, RED), (x + 16, cur_y + 32))
+
+            rate_lbl = "Diverting 65% revenues + transit tolls + granaries" if is_caisse else "Diverting 40% of trade tariffs and sales taxes."
+            surface.blit(font_small.render(rate_lbl, True, (255, 200, 100)), (x + 16, cur_y + 50))
+
+            debt_lbl = f"Owed: ${active_rec.remaining_debt:,.0f} (Paid: ${active_rec.total_collected:,.0f})"
+            if is_caisse and active_rec.seized_tolls > 0:
+                debt_lbl += f" | Tolls: ${active_rec.seized_tolls:,.0f}"
+            surface.blit(font_small.render(debt_lbl, True, TEXT), (x + 16, cur_y + 68))
+
+            from imperialism import evaluate_credible_takeover_threat
+            threat = evaluate_credible_takeover_threat(active_rec.creditor_nation, active_n.name, world)
+            t_col = (255, 90, 90) if threat.credibility_score >= 1.2 else ((240, 180, 50) if threat.credibility_score >= 0.7 else (120, 220, 140))
+            surface.blit(font_small.render(f"Creditor Takeover Threat: {threat.tier} ({threat.credibility_score:.2f}x)", True, t_col), (x + 16, cur_y + 86))
+
+            btn_y = cur_y + 106
+            # Restructure Debt (Brady Bond workout) Button
+            _draw_btn(surface, (x + 16, btn_y, w - 32, 24), "Propose Brady Bond Restructuring Accord", font_small, mx, my,
+                      enabled=True, color=(120, 240, 150), custom_bg=(25, 45, 35), icon_kind='scale',
+                      btn_id='debt_restructure_brady', world=world, nation=active_n)
+            btn_y += 30
 
             # Repudiate Button
-            _draw_btn(surface, (x + 16, cur_y + 92, w - 32, 26), "Repudiate Sovereign Debt & Expel Receiver", font_small, mx, my,
+            repud_lbl = "Repudiate Debt (Call Bluff & Expel Receiver)" if threat.credibility_score < 0.8 else "Repudiate Sovereign Debt & Expel Receiver"
+            _draw_btn(surface, (x + 16, btn_y, w - 32, 24), repud_lbl, font_small, mx, my,
                       enabled=True, color=(255, 70, 70), custom_bg=(60, 20, 20), icon_kind='alert',
                       btn_id='debt_repudiate', world=world, nation=active_n)
+            btn_y += 30
 
             # Debt Moratorium Button
-            _draw_btn(surface, (x + 16, cur_y + 124, w - 32, 26), "Declare Temporary Debt Moratorium", font_small, mx, my,
+            _draw_btn(surface, (x + 16, btn_y, w - 32, 24), "Declare Temporary Debt Moratorium", font_small, mx, my,
                       enabled=True, color=(245, 180, 50), custom_bg=(50, 40, 20), icon_kind='scale',
                       btn_id='debt_moratorium', world=world, nation=active_n)
         else:
             # Check if this nation holds receiverships on other states
             held_recs = [r for r in imp_mgr.receiverships if r.creditor_nation == active_n.name and r.status == 'active']
             if held_recs:
-                surface.blit(font_small.render(f"Imperial Receiverships Held ({len(held_recs)}):", True, (120, 240, 150)), (x + 16, cur_y + 32))
+                surface.blit(font_small.render(f"Imperial Receiverships Enforced ({len(held_recs)}):", True, (120, 240, 150)), (x + 16, cur_y + 32))
                 ry = cur_y + 52
-                for r in held_recs[:2]:
-                    surface.blit(font_small.render(f"• {r.debtor_nation}: 40% tariff intercept (${r.remaining_debt:,.0f} owed)", True, TEXT), (x + 16, ry))
+                for r in held_recs[:1]:
+                    lvl_str = "Caisse de la Dette" if r.level == "caisse_de_la_dette" else "Customs (40%)"
+                    surface.blit(font_small.render(f"• {r.debtor_nation}: {lvl_str} (${r.remaining_debt:,.0f} owed)", True, TEXT), (x + 16, ry))
                     ry += 18
+                    from imperialism import evaluate_credible_takeover_threat
+                    threat = evaluate_credible_takeover_threat(active_n.name, r.debtor_nation, world)
+                    surface.blit(font_small.render(f"Takeover Credibility: {threat.tier} ({threat.credibility_score:.2f}x)", True, (240, 180, 50)), (x + 16, ry))
+                    ry += 24
+                    if r.level == "customs":
+                        can_caisse, _, _ = imp_mgr.can_escalate_to_caisse(active_n, r.debtor_nation, world)
+                        _draw_btn(surface, (x + 16, ry, w - 32, 24), "Escalate to Caisse de la Dette Publique", font_small, mx, my,
+                                  enabled=can_caisse, color=(255, 90, 90), custom_bg=(60, 20, 20), icon_kind='alert',
+                                  btn_id='debt_escalate_caisse', world=world, nation=active_n)
+                        ry += 30
             else:
                 surface.blit(font_small.render("No foreign receiverships active on your sovereign territory.", True, (120, 220, 140)), (x + 16, cur_y + 32))
 
             # Open defaults check
             unresolved = imp_mgr.get_unresolved_defaults_against(active_n.name)
             if unresolved:
-                surface.blit(font_small.render(f"Delinquent Defaults: ${sum(d['amount'] for d in unresolved):,.0f} owed to foreign powers!", True, RED), (x + 16, cur_y + 80))
-                _draw_btn(surface, (x + 16, cur_y + 104, w - 32, 26), "Accept Creditor Customs Receivership", font_small, mx, my,
+                cred_name = unresolved[0]['creditor']
+                tot_amt = sum(d['amount'] for d in unresolved)
+                surface.blit(font_small.render(f"Delinquent Defaults: ${tot_amt:,.0f} owed to {cred_name}!", True, RED), (x + 16, cur_y + 60))
+
+                from imperialism import evaluate_credible_takeover_threat
+                threat = evaluate_credible_takeover_threat(cred_name, active_n.name, world)
+                surface.blit(font_small.render(f"Foreign Threat: {threat.tier} ({threat.credibility_score:.2f}x)", True, (240, 180, 50)), (x + 16, cur_y + 78))
+
+                _draw_btn(surface, (x + 16, cur_y + 102, w - 32, 24), "Propose Brady Bond Restructuring Accord", font_small, mx, my,
+                          enabled=True, color=(120, 240, 150), custom_bg=(25, 45, 35), icon_kind='scale',
+                          btn_id='debt_restructure_brady', world=world, nation=active_n)
+                _draw_btn(surface, (x + 16, cur_y + 132, w - 32, 24), "Accept Creditor Customs Receivership", font_small, mx, my,
                           enabled=True, color=(240, 180, 50), custom_bg=(50, 40, 20), icon_kind='check',
                           btn_id='debt_accept_receivership', world=world, nation=active_n)
-            else:
-                surface.blit(font_small.render("Sovereign credit obligations in good standing.", True, DIM), (x + 16, cur_y + 80))
+            elif not held_recs:
+                surface.blit(font_small.render("Sovereign credit obligations in good standing.", True, DIM), (x + 16, cur_y + 70))
                 # Optional preemptive debt moratorium
-                _draw_btn(surface, (x + 16, cur_y + 110, w - 32, 26), "Declare Sovereign Debt Moratorium", font_small, mx, my,
+                _draw_btn(surface, (x + 16, cur_y + 100, w - 32, 24), "Declare Sovereign Debt Moratorium", font_small, mx, my,
                           enabled=True, color=(245, 180, 50), custom_bg=(40, 35, 25), icon_kind='scale',
                           btn_id='debt_moratorium', world=world, nation=active_n)
 
@@ -576,33 +624,64 @@ def debt_panel_hit(pos: tuple[int, int], world: dict) -> bool:
 
         active_rec = imp_mgr.get_active_receivership_on(active_n.name)
         if active_rec:
-            # Repudiate click
-            if x + 16 <= mx <= x + 16 + w - 32 and cur_y + 92 <= my <= cur_y + 92 + 26:
+            # 1. Restructure click (cur_y + 106)
+            if x + 16 <= mx <= x + 16 + w - 32 and cur_y + 106 <= my <= cur_y + 106 + 24:
+                creditor = next((n for n in world.get('nations', []) if n.name == active_rec.creditor_nation), None)
+                if creditor:
+                    from intents import RestructureDebtIntent
+                    intent = RestructureDebtIntent(active_n.name, creditor.name, submitted_turn=t)
+                    active_n.submit_intent(intent, t)
+                    intent.execute(world.get('tiles_by_name', {}), {n.name: n for n in world.get('nations', [])}, t, world)
+                return True
+            # 2. Repudiate click (cur_y + 136)
+            if x + 16 <= mx <= x + 16 + w - 32 and cur_y + 136 <= my <= cur_y + 136 + 24:
                 imp_mgr.repudiate_all_imperial_obligations(active_n, t, world)
                 return True
-            # Moratorium click
-            if x + 16 <= mx <= x + 16 + w - 32 and cur_y + 124 <= my <= cur_y + 124 + 26:
+            # 3. Moratorium click (cur_y + 166)
+            if x + 16 <= mx <= x + 16 + w - 32 and cur_y + 166 <= my <= cur_y + 166 + 24:
                 active_n.debt_moratorium = not getattr(active_n, 'debt_moratorium', False)
                 status_str = "declared" if active_n.debt_moratorium else "lifted"
                 ticker_push(world, t, 'FINANCE', f"📜 {active_n.name} {status_str} sovereign debt moratorium.", (245, 180, 50))
                 return True
         else:
-            unresolved = imp_mgr.get_unresolved_defaults_against(active_n.name)
-            if unresolved:
-                # Accept Receivership click
-                if x + 16 <= mx <= x + 16 + w - 32 and cur_y + 104 <= my <= cur_y + 104 + 26:
+            held_recs = [r for r in imp_mgr.receiverships if r.creditor_nation == active_n.name and r.status == 'active']
+            if held_recs:
+                r = held_recs[0]
+                if r.level == "customs":
+                    # Escalate to Caisse click (cur_y + 94)
+                    if x + 16 <= mx <= x + 16 + w - 32 and cur_y + 94 <= my <= cur_y + 94 + 24:
+                        debtor = next((n for n in world.get('nations', []) if n.name == r.debtor_nation), None)
+                        if debtor:
+                            from intents import EscalateCaisseIntent
+                            intent = EscalateCaisseIntent(active_n.name, debtor.name, submitted_turn=t)
+                            active_n.submit_intent(intent, t)
+                            intent.execute(world.get('tiles_by_name', {}), {n.name: n for n in world.get('nations', [])}, t, world)
+                        return True
+            else:
+                unresolved = imp_mgr.get_unresolved_defaults_against(active_n.name)
+                if unresolved:
                     creditor_name = unresolved[0]['creditor']
                     creditor = next((n for n in world.get('nations', []) if n.name == creditor_name), None)
-                    if creditor:
-                        tot_amt = sum(d['amount'] for d in unresolved)
-                        imp_mgr.establish_receivership(creditor, active_n, tot_amt, t, world)
-                    return True
-            else:
-                # Moratorium click
-                if x + 16 <= mx <= x + 16 + w - 32 and cur_y + 110 <= my <= cur_y + 110 + 26:
-                    active_n.debt_moratorium = not getattr(active_n, 'debt_moratorium', False)
-                    status_str = "declared" if active_n.debt_moratorium else "lifted"
-                    ticker_push(world, t, 'FINANCE', f"📜 {active_n.name} {status_str} sovereign debt moratorium.", (245, 180, 50))
-                    return True
+                    # Propose Restructuring click (cur_y + 102)
+                    if x + 16 <= mx <= x + 16 + w - 32 and cur_y + 102 <= my <= cur_y + 102 + 24:
+                        if creditor:
+                            from intents import RestructureDebtIntent
+                            intent = RestructureDebtIntent(active_n.name, creditor.name, submitted_turn=t)
+                            active_n.submit_intent(intent, t)
+                            intent.execute(world.get('tiles_by_name', {}), {n.name: n for n in world.get('nations', [])}, t, world)
+                        return True
+                    # Accept Receivership click (cur_y + 132)
+                    if x + 16 <= mx <= x + 16 + w - 32 and cur_y + 132 <= my <= cur_y + 132 + 24:
+                        if creditor:
+                            tot_amt = sum(d['amount'] for d in unresolved)
+                            imp_mgr.establish_receivership(creditor, active_n, tot_amt, t, world, force_override=True)
+                        return True
+                else:
+                    # Moratorium click (cur_y + 100)
+                    if x + 16 <= mx <= x + 16 + w - 32 and cur_y + 100 <= my <= cur_y + 100 + 24:
+                        active_n.debt_moratorium = not getattr(active_n, 'debt_moratorium', False)
+                        status_str = "declared" if active_n.debt_moratorium else "lifted"
+                        ticker_push(world, t, 'FINANCE', f"📜 {active_n.name} {status_str} sovereign debt moratorium.", (245, 180, 50))
+                        return True
 
     return True

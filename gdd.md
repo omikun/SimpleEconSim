@@ -34,6 +34,11 @@ It is a grand strategy simulation of political economy, finance, and ecological 
 ### 1.2 The Signature Promise
 **Every macroscopic strategy outcome—a financial panic, a sovereign default, a general strike, a peasant jacquerie, a colonial war, an ecological collapse—is traceable all the way down to the exact tile, the exact agent, the ledger balance, the calories withheld, and the uncompensated labor extracted.**
 
+### 1.3 The Twin Core Imperatives: Absolute Accounting & Organic Emergence
+Along with accounting for every penny in the economy down to the cent, the supreme technical and design goal of this game is the simulation of underlying mechanisms such that events occur organically and emergently rather than via scripted event trees or arbitrary countdown timers.
+1. **No Scripted Crises or Arbitrary Timers:** Famines (e.g. Turnip Winter), urban epidemics (The Great Stink), debt crises, and insurrections are never arbitrary timers or pre-scripted narrative flags. They emerge organically from the thermodynamic realities of the world: nutrient depletion in the soil, microbial concentration in the river, insolvent balance sheets, and withheld calories.
+2. **Violence as the Foundation of Political and Economic Action:** Political and economic actions are never self-enforcing moral abstractions. They are always and everywhere enforced by violence or the credible threat of violence. Property rights exist only because bailiffs and constables shoot trespassers; debt collection across borders occurs only because imperial gunboats can pulverize coastal forts or occupy the debtor's capital. When the balance of coercive power collapses, contracts dissolve into revolution or debt repudiation.
+
 ---
 
 ## 2. Design Pillars
@@ -56,6 +61,12 @@ Firms and state projects show record returns on paper because they externalize t
 
 ### Pillar 5: Deep Generational Memory & Class Struggle
 Agents remember. A family whose ancestral grazing pasture was seized carries a generational grudge against the enclosing landlord family. Workers remember broken wage promises, strike massacres, and foreclosures. Class struggle is not a random disaster event card; it is the fundamental thermodynamic pressure of the economic engine.
+
+### Pillar 6: The Monopoly of Violence (The Iron Fist Behind Property & Contracts)
+Law, debt contracts, border tariffs, and property titles do not enforce themselves. Every economic decree is backed by the state's organized violence or the credible threat of armed force. Contracts hold only so long as the enforcer possesses the military or police capacity to inflict catastrophic costs upon the defiant. When coercive power falters—or when enforcement costs exceed the prize—contracts collapse, debts are repudiated, and enclosure fences are torn down.
+
+### Pillar 7: Emergent Mechanics Over Scripted Story Trees
+The simulation models deep causal roots, not narrative triggers. If an indebted nation defaults, an imperial power cannot simply press a button or wait for a countdown timer to take over the debtor's state. The escalation occurs only because the creditor calculates the balance of armed forces, naval projection logistics, and occupation costs against the debtor's military defense and popular resistance. Every macroscopic phenomenon is an emergent equilibrium of underlying mechanical pressures.
 
 ---
 
@@ -247,6 +258,28 @@ The global map (`sim_world.py`) connects nations through trade routes (`transpor
 3. **The Gunboat Enforcement Phase:** When the peripheral government defaults, the imperial fleet blockades ports, seizes customs houses, and assumes direct administrative control over tax collection.
 4. **Colonial Annexation & Primitive Accumulation:** Ancestral indigenous lands are declared "crown land" or "waste land" and auctioned off to imperial concession corporations.
 
+### 8.3 The Coercion Calculus: Sovereign Debt Enforcement, Relative Might, and Credible Takeover
+
+A core trap of inferior strategy games is reducing imperialism and debt enforcement to arbitrary countdown timers (e.g. "if the debtor is unable to pay for 3 turns, or clearance is under 15%, an imperial receivership is automatically declared"). In this simulation, such mechanics are strictly emergent and conditional on the **monopoly and balance of violence**.
+
+#### 1. The Coercive Prerequisite for Fiscal Escalation
+An imperial creditor cannot simply decree a *Caisse de la Dette Publique* or seize domestic railway tolls, canal revenues, granary buffers, or mining royalties by administrative fiat. Escalation to direct fiscal and asset takeover is **only possible if the creditor possesses the military force or a credible threat of military force capable of invading and taking over the debtor country by force**.
+- Without credible military power backing the creditor, the debtor sovereign will simply ignore the demand, tear up the bond contracts, or repudiate the debt with zero consequences.
+- If the creditor attempts an administrative receivership without garrison force, local officials and armed populations will physically expel foreign bailiffs.
+
+#### 2. What "Credible Threat of Armed Takeover" Means in Concrete Simulation Terms
+Whether a threat of takeover is credible is evaluated through a continuous thermodynamic calculus between creditor and debtor:
+- **Relative Military Might & Mobilization Ratio:** The ratio of the creditor's deployed and deployable forces (standing army divisions, naval gunboats, mobilized constabulary, hired mercenary bailiffs) compared to the debtor's territorial defense forces (standing army, fortified bastions, regional garrisons, armed citizen militias).
+- **Power Projection & Logistics Costs:** Violence is not free. Moving an expeditionary naval fleet or army corps across sea corridors or borders drains substantial sovereign cash every turn (fuel, ammunition, rations, transport upkeep). If the expeditionary cost to conquer the debtor exceeds the present value of the defaulted debt, the creditor's threat is an empty bluff.
+- **Asymmetric Deterrence & Urabi Insurgency Risk:** An armed takeover is not a clean spreadsheet operation; it unleashes intense popular resistance. When foreign powers attempt to seize domestic revenues or food supplies, the debtor population mobilizes along the resistance ladder (Urabi-style nationalist revolts, peasant barricades, general strikes, anti-imperial mutinies). If the debtor has high population density, armed militancy, or defensible terrain, the anticipated pacification cost turns an invasion into an imperial quagmire.
+- **Creditor Domestic Constraints:** A creditor government facing internal unrest, high domestic debt, or war with peer imperial rivals cannot credibly commit forces abroad without risking revolution or financial panic at home.
+
+#### 3. Dynamically Negotiated Terms (The Bargaining Frontier)
+All numbers governing debt enforcement—the turn horizons before escalation, clearance thresholds, haircut percentages (30% to 60%), Brady bond maturities, and concession scopes—are **not hardcoded constants**. They are emergent bargaining positions determined dynamically by relative military might and the credibility of takeover:
+- **Overwhelming Imperial Superiority (Credible Total Takeover):** When the creditor commands overwhelming naval and ground superiority within striking distance, the creditor dictates draconian terms: maximum revenue diversion (65%+), direct seizure of transit tolls and granaries (*Caisse de la Dette*), or perpetual unequal treaties.
+- **Strategic Parity or High Asymmetric Deterrence (The Credible Resistance):** When the debtor possesses significant defense forces, difficult terrain, or a highly militant population capable of bloody insurgency, the creditor cannot credibly invade. The creditor is forced to the negotiating table, accepting deep principal haircuts (e.g. 50–60% Brady Bond restructuring) and forgiving penalties to salvage whatever pennies can be recovered peacefully.
+- **Creditor Impotence (The Hollow Bluff):** When the creditor lacks power projection or faces internal crisis, the debtor repudiates foreign bonds completely, expels foreign bankers, and abolishes imperial concessions without firing a shot.
+
 ---
 
 ## 9. Existing Codebase → Structural Mechanics Mapping
@@ -310,9 +343,13 @@ The game does not mandate a singular teleology; it challenges the player to navi
 - **Phase 3: The Externalities Engine & Metabolic Rift**
   - Add soil depletion from intensive monoculture farming and pollution from factories/smelters.
   - Model health consequences and fishery/forest depletion.
-- **Phase 4: Financial Imperialism & Resistance**
-  - Integrate multi-turn sovereign bonds into foreign policy and debt-enforcement wars.
-  - Implement anti-enclosure revolts, Luddite sabotage, general strikes, and revolutionary communes.
+- **Phase 4: Sovereign Debt, Financial Imperialism & Popular Resistance**
+  - Integrate multi-turn sovereign bonds (20/50/100 turns) into foreign policy, domestic bank capitalization, and debt-enforcement crises.
+  - Implement *Caisse de la Dette Publique* and receivership escalation governed strictly by **relative military might and the credible threat of armed takeover** rather than arbitrary timers.
+  - Model asset seizures: tile transit tolls (rail/canals), granary buffer food reserves, and mining royalties under foreign receivership.
+  - Model domestic banking contagion (*Corralito* freezes, commercial credit halt, deflationary price collapse, panic bank runs).
+  - Implement emergent, dynamically negotiated debt restructuring (Brady Bonds, principal haircuts, unequal trade treaties).
+  - Implement the popular resistance ladder: anti-enclosure fence-leveling, Luddite machine sabotage, general strikes, armed Urabi-style anti-imperial insurgencies, and revolutionary communes.
 - **Phase 5: The "Money Trail" Audit UI**
   - Build interactive state archive visualization tracing accumulated wealth directly back to the labor and environmental costs extracted to produce it.
 

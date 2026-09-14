@@ -902,3 +902,55 @@ class IssueMunicipalSewerBondIntent(Intent):
         return ok, msg
 
 
+class RestructureDebtIntent(Intent):
+    """Propose or ratify a diplomatic debt restructuring accord (Brady bond swap & haircut)."""
+    def __init__(self, nation_name: str, creditor_name: str, haircut_pct: float | None = None,
+                 use_brady_bonds: bool = True, grant_unequal_treaty: bool = False, submitted_turn: int = 0):
+        super().__init__(nation_name, 'restructure_debt', submitted_turn)
+        self.creditor_name = creditor_name
+        self.haircut_pct = haircut_pct
+        self.use_brady_bonds = use_brady_bonds
+        self.grant_unequal_treaty = grant_unequal_treaty
+
+    def execute(self, tiles_by_name: dict, nations_by_name: dict, t: int, world: dict | None = None) -> tuple[bool, str]:
+        debtor = nations_by_name.get(self.nation_name)
+        creditor = nations_by_name.get(self.creditor_name)
+        if not debtor or not creditor:
+            return False, "Invalid nations for debt restructuring."
+        from imperialism import get_imperialism_manager
+        imp_mgr = get_imperialism_manager()
+        ok, msg, res = imp_mgr.negotiate_debt_restructuring(
+            debtor, creditor, self.haircut_pct, self.use_brady_bonds, self.grant_unequal_treaty, world, t
+        )
+        self.status = 'completed' if ok else 'failed'
+        self.logs.append(msg)
+        return ok, msg
+
+
+class EscalateCaisseIntent(Intent):
+    """Creditor imperial decree: escalate receivership to Caisse de la Dette Publique."""
+    def __init__(self, nation_name: str, debtor_name: str, submitted_turn: int = 0):
+        super().__init__(nation_name, 'escalate_caisse', submitted_turn)
+        self.debtor_name = debtor_name
+
+    def execute(self, tiles_by_name: dict, nations_by_name: dict, t: int, world: dict | None = None) -> tuple[bool, str]:
+        creditor = nations_by_name.get(self.nation_name)
+        debtor = nations_by_name.get(self.debtor_name)
+        if not creditor or not debtor:
+            return False, "Invalid nations."
+        from imperialism import get_imperialism_manager
+        imp_mgr = get_imperialism_manager()
+        can_esc, reason, threat = imp_mgr.can_escalate_to_caisse(creditor, debtor, world)
+        if not can_esc:
+            self.status = 'rejected'
+            return False, reason
+        rec = imp_mgr.get_active_receivership_on(debtor.name)
+        if not rec:
+            return False, "No active receivership."
+        ok, msg = imp_mgr.escalate_to_caisse(rec.receivership_id, world, t)
+        self.status = 'completed' if ok else 'failed'
+        self.logs.append(msg)
+        return ok, msg
+
+
+
