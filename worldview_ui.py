@@ -486,9 +486,22 @@ def _get_stat_breakdown(world, n, tiles, key):
         legit_col = GREEN if legit > 0.6 else (BADGE_ORANGE if legit > 0.25 else RED)
         treaties_cnt = len(get_diplomacy().get_active_treaties(n.name))
         
+        # Upkeep calculation for header breakdown
+        units = getattr(n, 'military_units', getattr(n, 'units', []))
+        mil_cash_upkeep = sum(getattr(u, 'soldiers', 0) * getattr(u, 'wage_per_soldier', 1.0) for u in units)
+        try:
+            from sovereign_bonds import get_bond_market
+            coupons_owed = sum(b.per_turn_coupon for b in get_bond_market().get_bonds_owed_by(n.name))
+        except Exception:
+            coupons_owed = 0.0
+        total_upkeep = mil_cash_upkeep + coupons_owed
+        tr = n.treasury()
+        tr_cur = tr['total']
+
         lines = [
             ("Sovereign Nation", f"{n.name} (Currency: {n.currency})", ACCENT),
             ("Government Regime", f"{n.regime_type.title()}", TEXT),
+            ("Treasury & Upkeep", f"${tr_cur:,.0f} (-${total_upkeep:,.2f}/t upkeep)", (245, 180, 50) if total_upkeep > 0 else GREEN),
             ("Legitimacy Score", f"{legit:.2f} / 1.00 ({legit_desc})", legit_col),
             ("Ruling Faction", f"{ruling or 'Popular Front'}", ACCENT),
             ("Organized Provinces", f"{len(n.provinces)} provinces", TEXT),
@@ -583,8 +596,7 @@ def draw_top_bar(surface, world, font_small, mouse_pos=None):
             coupons_owed = 0.0
         total_upkeep = mil_cash_upkeep + coupons_owed
 
-        upkeep_str = f" [Upk -${total_upkeep:,.0f}/t]" if total_upkeep > 0 else " [Upk $0/t]"
-        tr_str = f"Treasury ${tr_cur:,.0f}" + (f" ({'+' if d_tr > 0 else ''}${d_tr:,.0f})" if abs(d_tr) >= 1.0 else "") + upkeep_str + f" ({tr['food']} food)"
+        tr_str = f"Treasury ${tr_cur:,.0f}" + (f" ({'+' if d_tr > 0 else ''}${d_tr:,.0f})" if abs(d_tr) >= 1.0 else "") + f" ({tr['food']} food)"
         tr_color = GREEN if d_tr > 0.5 else (RED if d_tr < -0.5 else TEXT)
 
         gdp_str = f"GDP ${gdp_cur:,.0f}" + (f" ({'+' if d_gdp > 0 else ''}${d_gdp:,.0f})" if abs(d_gdp) >= 1.0 else "")

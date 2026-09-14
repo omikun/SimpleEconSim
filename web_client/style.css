@@ -1397,6 +1397,13 @@ input[type="range"] {
     display: none;
   }
 
+  /* Disable comparison, diplomacy, military buttons up top on mobile */
+  #btn-compare,
+  #btn-top-diplo,
+  #btn-top-military {
+    display: none !important;
+  }
+
   .left-drawer {
     position: absolute;
     top: 0;
@@ -1446,6 +1453,126 @@ input[type="range"] {
   }
   .layer-dock-container {
     bottom: 84px;
+  }
+}
+
+/* ---------------- Vertical Phone Top Bar Optimization ---------------- */
+@media (max-width: 768px) {
+  #top-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    padding: calc(var(--safe-top) + 4px) 8px 6px 8px;
+    min-height: auto;
+    gap: 4px 6px;
+  }
+
+  .top-left-section {
+    order: 1;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 0 0 auto;
+  }
+
+  .top-left-section .title {
+    font-size: 0.92rem;
+    letter-spacing: 0.05em;
+  }
+
+  .nation-picker-group {
+    padding: 2px 6px;
+    gap: 4px;
+    max-width: 85px;
+  }
+
+  .nation-select {
+    font-size: 0.80rem;
+    max-width: 65px;
+    font-weight: 700;
+  }
+
+  .hud-controls {
+    order: 2;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex: 0 0 auto;
+  }
+
+  #btn-compare,
+  #btn-top-diplo,
+  #btn-top-military,
+  #btn-qr,
+  #btn-toggle-pipeline {
+    display: none !important;
+  }
+
+  .turn-box {
+    padding: 1px 6px;
+  }
+  .turn-label {
+    font-size: 0.52rem;
+  }
+  .turn-number {
+    font-size: 0.78rem;
+  }
+
+  .hud-controls .btn {
+    padding: 3px 8px;
+    font-size: 0.75rem;
+    height: 28px;
+  }
+
+  /* Full-width responsive macro ribbon displaying ALL 9 stats clearly without clipping */
+  .macro-ribbon {
+    order: 3;
+    width: 100%;
+    max-width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 3px;
+    padding: 2px 0 0 0;
+    margin: 0;
+    overflow: visible;
+  }
+
+  .macro-stat {
+    flex: 1 1 calc(20% - 4px);
+    min-width: 52px;
+    max-width: calc(25% - 3px);
+    padding: 2px 3px;
+    border-radius: 4px;
+  }
+
+  .macro-label {
+    font-size: 0.54rem;
+    line-height: 1.1;
+    letter-spacing: 0.02em;
+  }
+
+  .macro-val {
+    font-size: 0.70rem;
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+  }
+}
+
+@media (max-width: 380px) {
+  .top-left-section .title {
+    display: none;
+  }
+  .macro-stat {
+    min-width: 46px;
+    padding: 1px 2px;
+  }
+  .macro-label {
+    font-size: 0.50rem;
+  }
+  .macro-val {
+    font-size: 0.66rem;
   }
 }
 

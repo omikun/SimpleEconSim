@@ -62,6 +62,38 @@
   // Pending Fiscal Transfer Data
   let pendingFiscalTransfer = null;
 
+  // Nation Abbreviations Mapping for Compact Top Bar Display
+  const NATION_ABBREVIATIONS = {
+    'United States': 'USA',
+    'United States of America': 'USA',
+    'Great Britain': 'GBR',
+    'United Kingdom': 'UK',
+    'China': 'CHN',
+    'Japan': 'JPN',
+    'France': 'FRA',
+    'Germany': 'GER',
+    'Prussia': 'PRU',
+    'Russia': 'RUS',
+    'Russian Empire': 'RUS',
+    'Ottoman Empire': 'OTT',
+    'Austria': 'AUT',
+    'Austria-Hungary': 'AH',
+    'Spain': 'ESP',
+    'Portugal': 'POR',
+    'Netherlands': 'NED',
+    'Italy': 'ITA'
+  };
+
+  function abbreviateNationName(name) {
+    if (!name) return '';
+    if (NATION_ABBREVIATIONS[name]) return NATION_ABBREVIATIONS[name];
+    const parts = name.split(/\s+/);
+    if (parts.length > 1) {
+      return parts.map(p => p[0].toUpperCase()).join('');
+    }
+    return name.length > 4 ? name.substring(0, 3).toUpperCase() : name.toUpperCase();
+  }
+
   // DOM Elements
   const canvas = document.getElementById('map-canvas');
   const ctx = canvas.getContext('2d');
@@ -417,11 +449,7 @@
 
     const trCash = Math.round(macro.treasury_cash || 0);
     const trFood = Math.round(macro.treasury_food !== undefined ? macro.treasury_food : (macro.granary_food || 0));
-    const isrbYield = (macro.bond_yield !== undefined ? macro.bond_yield.toFixed(2) : '0.18') + '%';
-
-    const trUpkeep = Math.round(macro.treasury_upkeep || 0);
-    const upkeepStr = trUpkeep > 0 ? ` [Upk -$${trUpkeep.toLocaleString()}/t]` : ' [Upk $0/t]';
-    setVal('val-treasury', `$${trCash.toLocaleString()}${upkeepStr}`);
+    setVal('val-treasury', `$${trCash.toLocaleString()}`);
     setVal('val-food', trFood.toLocaleString());
     setVal('val-pop', (macro.population || 0).toLocaleString());
     setVal('val-gdp', `$${Math.round(macro.gdp || 0).toLocaleString()}`);
@@ -443,14 +471,21 @@
       btnPlay.className = isPlaying ? 'btn btn-secondary' : 'btn btn-primary';
     }
 
-    // Sovereign Nations Switcher Dropdown
+    // Sovereign Nations Switcher Dropdown with Mobile Abbreviation
     if (selectNation && worldState.nations) {
-      if (selectNation.children.length <= 1 || selectNation.children[0].value === '') {
+      const isMobile = window.innerWidth <= 768;
+      const expectedCount = worldState.nations.length;
+      const currentMode = selectNation.dataset.mode;
+      const targetMode = isMobile ? 'mobile' : 'desktop';
+
+      if (selectNation.children.length !== expectedCount || currentMode !== targetMode) {
         selectNation.innerHTML = '';
+        selectNation.dataset.mode = targetMode;
         worldState.nations.forEach(nat => {
           const opt = document.createElement('option');
           opt.value = nat.name;
-          opt.textContent = `${nat.name} (${nat.regime_type || 'Sovereign'})`;
+          const abbrev = abbreviateNationName(nat.name);
+          opt.textContent = isMobile ? abbrev : `${abbrev} - ${nat.name}`;
           selectNation.appendChild(opt);
         });
       }
