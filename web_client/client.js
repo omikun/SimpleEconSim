@@ -523,22 +523,42 @@
         const deltaHtml = trDelta >= 0
           ? `<span class="delta-pos">+${trDelta.toLocaleString()}</span>`
           : `<span class="delta-neg">${trDelta.toLocaleString()}</span>`;
+        const rows = [
+          { label: 'Liquid Cash Vault', val: `$${trCash.toLocaleString()}`, valClass: 'text-gold' }
+        ];
+        if (trDelta !== 0) {
+          rows.push({ label: 'Turn Balance Delta', val: `${deltaHtml} / turn` });
+        }
+        const totalUpkeep = macro.treasury_upkeep || 0;
+        if (totalUpkeep > 0) {
+          rows.push({ label: 'Per-Turn Upkeep Drain', val: `-$${totalUpkeep.toLocaleString()} / turn`, valClass: 'text-ruby' });
+          if ((macro.military_upkeep || 0) > 0) {
+            rows.push({ label: '• Armed Forces Wages', val: `-$${(macro.military_upkeep || 0).toLocaleString()} / turn` });
+          }
+          if ((macro.debt_upkeep || 0) > 0) {
+            rows.push({ label: '• Bond Coupon Servicing', val: `-$${(macro.debt_upkeep || 0).toLocaleString()} / turn` });
+          }
+        }
+        if (trFood > 0) {
+          rows.push({ label: 'Emergency Granary', val: `${trFood.toLocaleString()} food units`, valClass: 'text-green' });
+        }
+        if (macro.tax_rate !== undefined && macro.tax_rate > 0.005) {
+          rows.push({ label: 'Statutory Income Tax', val: `${((macro.tax_rate || 0.15) * 100).toFixed(1)}%` });
+        }
+        if (macro.tariff_rate !== undefined && macro.tariff_rate > 0.005) {
+          rows.push({ label: 'Customs Tariff Rate', val: `${((macro.tariff_rate || 0.10) * 100).toFixed(1)}%` });
+        }
+        if ((macro.public_debt || 0) > 0) {
+          rows.push({ label: 'Outstanding Public Debt', val: `$${Math.round(macro.public_debt || 0).toLocaleString()}`, valClass: 'text-ruby' });
+        }
+        if ((macro.garrison || 0) > 0) {
+          rows.push({ label: 'Armed Forces Payroll', val: `${macro.garrison || 0} stationed troops` });
+        }
         return {
           title: '💰 Sovereign Treasury Vault',
           badge: `${cur} $${trCash.toLocaleString()}`,
           badgeClass: 'text-gold',
-          rows: [
-            { label: 'Liquid Cash Vault', val: `$${trCash.toLocaleString()}`, valClass: 'text-gold' },
-            { label: 'Turn Balance Delta', val: `${deltaHtml} / turn` },
-            { label: 'Per-Turn Upkeep Drain', val: `-$${(macro.treasury_upkeep || 0).toLocaleString()} / turn`, valClass: (macro.treasury_upkeep || 0) > 0 ? 'text-ruby' : 'text-green' },
-            { label: '• Armed Forces Wages', val: `-$${(macro.military_upkeep || 0).toLocaleString()} / turn` },
-            { label: '• Bond Coupon Servicing', val: `-$${(macro.debt_upkeep || 0).toLocaleString()} / turn` },
-            { label: 'Emergency Granary', val: `${trFood.toLocaleString()} food units`, valClass: 'text-green' },
-            { label: 'Statutory Income Tax', val: `${((macro.tax_rate || 0.15) * 100).toFixed(1)}%` },
-            { label: 'Customs Tariff Rate', val: `${((macro.tariff_rate || 0.10) * 100).toFixed(1)}%` },
-            { label: 'Outstanding Public Debt', val: `$${Math.round(macro.public_debt || 0).toLocaleString()}`, valClass: macro.public_debt > 0 ? 'text-ruby' : 'text-green' },
-            { label: 'Armed Forces Payroll', val: `${macro.garrison || 0} stationed troops` }
-          ],
+          rows,
           footer: 'Adjust statutory taxes in Governance [G] or float public bonds in Debt [S].'
         };
       }
@@ -548,17 +568,22 @@
         const secLevel = trFood > 50 ? 'Secure Surplus' : (trFood > 15 ? 'Marginal Buffer' : 'Critical Depletion');
         const secClass = trFood > 50 ? 'text-green' : (trFood > 15 ? 'text-gold' : 'text-ruby');
         const unrestVal = Number(macro.unrest_energy || 0);
+        const rows = [
+          { label: 'Emergency Granary Reserve', val: `${trFood.toLocaleString()} units`, valClass: 'text-green' }
+        ];
+        if (Number(macro.cost_of_living || 0) > 0) {
+          rows.push({ label: 'Market Staple Grain Price', val: `$${foodPrice} / unit`, valClass: 'text-gold' });
+        }
+        rows.push({ label: 'Food Security Status', val: secLevel, valClass: secClass });
+        if (unrestVal > 0) {
+          rows.push({ label: 'Famine & Starvation Risk', val: unrestVal > 3 ? 'Elevated' : 'Low', valClass: unrestVal > 3 ? 'text-ruby' : 'text-green' });
+        }
+        rows.push({ label: 'Emergency Bread Relief', val: 'Directly quells popular discontent' });
         return {
           title: '🌾 Crown Granary & Food Security',
           badge: `${trFood.toLocaleString()} Units`,
           badgeClass: 'text-green',
-          rows: [
-            { label: 'Emergency Granary Reserve', val: `${trFood.toLocaleString()} units`, valClass: 'text-green' },
-            { label: 'Market Staple Grain Price', val: `$${foodPrice} / unit`, valClass: 'text-gold' },
-            { label: 'Food Security Status', val: secLevel, valClass: secClass },
-            { label: 'Famine & Starvation Risk', val: unrestVal > 3 ? 'Elevated' : 'Low', valClass: unrestVal > 3 ? 'text-ruby' : 'text-green' },
-            { label: 'Emergency Bread Relief', val: 'Directly quells popular discontent' }
-          ],
+          rows,
           footer: 'Click Governance [G] -> Social Relief to disburse bread from the granary.'
         };
       }
@@ -569,18 +594,28 @@
         const deltaHtml = pDelta >= 0
           ? `<span class="delta-pos">+${pDelta}</span>`
           : `<span class="delta-neg">${pDelta}</span>`;
+        const rows = [
+          { label: 'Total Living Population', val: `${popVal} citizens` }
+        ];
+        if (pDelta !== 0) {
+          rows.push({ label: 'Turn Demographic Delta', val: `${deltaHtml} net / turn` });
+        }
+        const tilesCnt = macro.tiles_count || (worldState.tiles || []).length;
+        if (tilesCnt > 0) {
+          rows.push({ label: 'Productive Settlement Tiles', val: `${tilesCnt} regions` });
+        }
+        if ((macro.garrison || 0) > 0) {
+          rows.push({ label: 'Standing Town Garrisons', val: `${macro.garrison || 0} soldiers` });
+        }
+        if ((macro.standing_armies || 0) > 0) {
+          rows.push({ label: 'Field Military Formations', val: `${macro.standing_armies || 0} active regiments` });
+        }
+        rows.push({ label: 'Primary Class Hierarchy', val: 'Serfs, Tenants, Artisans, Gentry' });
         return {
           title: '👥 Demographics & Living Citizens',
           badge: `${popVal} Pops`,
           badgeClass: 'text-cyan',
-          rows: [
-            { label: 'Total Living Population', val: `${popVal} citizens` },
-            { label: 'Turn Demographic Delta', val: `${deltaHtml} net / turn` },
-            { label: 'Productive Settlement Tiles', val: `${macro.tiles_count || (worldState.tiles || []).length} regions` },
-            { label: 'Standing Town Garrisons', val: `${macro.garrison || 0} soldiers` },
-            { label: 'Field Military Formations', val: `${macro.standing_armies || 0} active regiments` },
-            { label: 'Primary Class Hierarchy', val: 'Serfs, Tenants, Artisans, Gentry' }
-          ],
+          rows,
           footer: 'Select any map hex to inspect individual citizen careers, wages, and needs.'
         };
       }
@@ -592,17 +627,24 @@
           ? `<span class="delta-pos">+${gDelta.toLocaleString()}</span>`
           : `<span class="delta-neg">${gDelta.toLocaleString()}</span>`;
         const gdpPc = Number(macro.gdp_per_capita || 0).toFixed(1);
+        const rows = [
+          { label: 'Aggregate Real GDP Output', val: `$${gdpVal}`, valClass: 'text-cyan' }
+        ];
+        if (gDelta !== 0) {
+          rows.push({ label: 'Turn Economic Delta', val: `${deltaHtml} / turn` });
+        }
+        if (Number(macro.gdp_per_capita || 0) > 0) {
+          rows.push({ label: 'GDP per Capita', val: `$${gdpPc} / citizen`, valClass: 'text-gold' });
+        }
+        if ((macro.tiles_count || 0) > 0) {
+          rows.push({ label: 'Territorial Market Centers', val: `${macro.tiles_count} claimed biomes` });
+        }
+        rows.push({ label: 'Production Sectors', val: 'Agriculture, Lumber, Furniture, Mining' });
         return {
           title: '📈 Gross Domestic Product (GDP)',
           badge: `$${gdpVal}`,
           badgeClass: 'text-cyan',
-          rows: [
-            { label: 'Aggregate Real GDP Output', val: `$${gdpVal}`, valClass: 'text-cyan' },
-            { label: 'Turn Economic Delta', val: `${deltaHtml} / turn` },
-            { label: 'GDP per Capita', val: `$${gdpPc} / citizen`, valClass: 'text-gold' },
-            { label: 'Territorial Market Centers', val: `${macro.tiles_count || 0} claimed biomes` },
-            { label: 'Production Sectors', val: 'Agriculture, Lumber, Furniture, Mining' }
-          ],
+          rows,
           footer: 'Commission new mills, mines, and artisan workshops via Build Menu [B].'
         };
       }
@@ -611,21 +653,26 @@
         const unrestVal = Number(macro.unrest_energy || 0).toFixed(2);
         const stage = macro.unrest_stage || 'Calm';
         const uDelta = Number(macro.unrest_delta || 0).toFixed(2);
-        const deltaHtml = uDelta <= 0
+        const deltaHtml = Number(uDelta) <= 0
           ? `<span class="delta-pos">${uDelta}</span>`
           : `<span class="delta-neg">+${uDelta}</span>`;
+        const rows = [
+          { label: 'National Protest Energy', val: `${unrestVal} / 10.00`, valClass: Number(unrestVal) > 3 ? 'text-ruby' : 'text-green' }
+        ];
+        if (Math.abs(Number(uDelta)) >= 0.01) {
+          rows.push({ label: 'Turn Protest Delta', val: `${deltaHtml} / turn` });
+        }
+        rows.push({ label: 'Civil Threat Classification', val: stage, valClass: `badge-unrest ${stage.toLowerCase()}` });
+        rows.push({ label: 'Root Grievance Vectors', val: 'Overwork, Enclosure, Hunger, Taxes' });
+        if ((macro.garrison || 0) > 0) {
+          rows.push({ label: 'Stationed Garrisons', val: `${macro.garrison} soldiers active` });
+        }
+        rows.push({ label: 'Revolution Threshold', val: 'Riot (6.5) → Insurrection (8.0)' });
         return {
           title: '🔥 Civil Unrest & Popular Protest',
           badge: `Stage: ${stage}`,
           badgeClass: `badge-unrest ${stage.toLowerCase()}`,
-          rows: [
-            { label: 'National Protest Energy', val: `${unrestVal} / 10.00`, valClass: unrestVal > 3 ? 'text-ruby' : 'text-green' },
-            { label: 'Turn Protest Delta', val: `${deltaHtml} / turn` },
-            { label: 'Civil Threat Classification', val: stage, valClass: `badge-unrest ${stage.toLowerCase()}` },
-            { label: 'Root Grievance Vectors', val: 'Overwork, Enclosure, Hunger, Taxes' },
-            { label: 'Stationed Garrisons', val: `${macro.garrison || 0} soldiers active` },
-            { label: 'Revolution Threshold', val: 'Riot (6.5) → Insurrection (8.0)' }
-          ],
+          rows,
           footer: 'Press [C] for 6-cause breakdown or [G] to deploy garrisons & lower taxes.'
         };
       }
@@ -654,17 +701,26 @@
         const tbHtml = tb >= 0 ? `<span class="delta-pos">+$${tb.toLocaleString()}</span>` : `<span class="delta-neg">-$${Math.abs(tb).toLocaleString()}</span>`;
         const tDelta = Math.round(macro.trade_delta || 0);
         const tDeltaHtml = tDelta >= 0 ? `<span class="delta-pos">+$${tDelta.toLocaleString()}</span>` : `<span class="delta-neg">-$${Math.abs(tDelta).toLocaleString()}</span>`;
+        const rows = [
+          { label: 'Net Commercial Balance', val: `${tbHtml}` }
+        ];
+        if (tDelta !== 0) {
+          rows.push({ label: 'Turn Balance Delta', val: `${tDeltaHtml} / turn` });
+        }
+        if (Math.round(macro.exports || 0) > 0) {
+          rows.push({ label: 'Total Foreign Exports', val: `$${Math.round(macro.exports || 0).toLocaleString()}`, valClass: 'text-cyan' });
+        }
+        if (Math.round(macro.imports || 0) > 0) {
+          rows.push({ label: 'Total Foreign Imports', val: `$${Math.round(macro.imports || 0).toLocaleString()}`, valClass: 'text-gold' });
+        }
+        if (macro.tariff_rate !== undefined && macro.tariff_rate > 0.005) {
+          rows.push({ label: 'Statutory Customs Tariff', val: `${((macro.tariff_rate || 0.10) * 100).toFixed(1)}% import duty` });
+        }
         return {
           title: '🚢 Foreign Trade & Customs Ledger',
           badge: tb >= 0 ? 'Trade Surplus' : 'Trade Deficit',
           badgeClass: tb >= 0 ? 'text-green' : 'text-ruby',
-          rows: [
-            { label: 'Net Commercial Balance', val: `${tbHtml}` },
-            { label: 'Turn Balance Delta', val: `${tDeltaHtml} / turn` },
-            { label: 'Total Foreign Exports', val: `$${Math.round(macro.exports || 0).toLocaleString()}`, valClass: 'text-cyan' },
-            { label: 'Total Foreign Imports', val: `$${Math.round(macro.imports || 0).toLocaleString()}`, valClass: 'text-gold' },
-            { label: 'Statutory Customs Tariff', val: `${((macro.tariff_rate || 0.10) * 100).toFixed(1)}% import duty` }
-          ],
+          rows,
           footer: 'Dispatch envoys to sign bilateral trade pacts via Diplomacy [D].'
         };
       }
@@ -689,17 +745,22 @@
       case 'isrb': {
         const rating = macro.credit_rating || 'BBB';
         const yld = (macro.bond_yield !== undefined ? macro.bond_yield.toFixed(2) : '0.18') + '%';
+        const rows = [
+          { label: 'ISRB Sovereign Credit Grade', val: rating, valClass: 'text-gold' },
+          { label: 'Benchmark 10Y Bond Yield', val: yld, valClass: 'text-cyan' }
+        ];
+        if ((macro.public_debt || 0) > 0) {
+          rows.push({ label: 'Total Outstanding Debt', val: `$${Math.round(macro.public_debt || 0).toLocaleString()}`, valClass: 'text-ruby' });
+        }
+        rows.push(
+          { label: 'International Market Access', val: ['AAA','AA','A'].includes(rating) ? 'Prime Tier (Low Cost)' : (['BBB','BB'].includes(rating) ? 'Investment Grade' : 'High Risk Speculative') },
+          { label: 'Credit Rating Factors', val: 'Debt ratio, real GDP growth, unrest score' }
+        );
         return {
           title: '🏛️ ISRB Sovereign Rating Desk',
           badge: `${rating} | ${yld}`,
           badgeClass: 'text-gold',
-          rows: [
-            { label: 'ISRB Sovereign Credit Grade', val: rating, valClass: 'text-gold' },
-            { label: 'Benchmark 10Y Bond Yield', val: yld, valClass: 'text-cyan' },
-            { label: 'Total Outstanding Debt', val: `$${Math.round(macro.public_debt || 0).toLocaleString()}`, valClass: macro.public_debt > 0 ? 'text-ruby' : 'text-green' },
-            { label: 'International Market Access', val: ['AAA','AA','A'].includes(rating) ? 'Prime Tier (Low Cost)' : (['BBB','BB'].includes(rating) ? 'Investment Grade' : 'High Risk Speculative') },
-            { label: 'Credit Rating Factors', val: 'Debt ratio, real GDP growth, unrest score' }
-          ],
+          rows,
           footer: 'Press [S] to open Sovereign Debt suite, issue bonds, or lobby the ISRB.'
         };
       }

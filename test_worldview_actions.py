@@ -474,10 +474,10 @@ class TestWorldviewActionsUI(unittest.TestCase):
         n = selected_nation(world)
         self.assertIsNotNone(n)
 
-        # Baseline: before military recruitment, verify upkeep breakdown
+        # Baseline: before military recruitment, 0 upkeep drain should be omitted
         title, badge, col, lines = _get_stat_breakdown(world, n, n.tiles, 'treasury')
         upkeep_line = next((line for line in lines if line[0] == "Recurring Upkeep Drain"), None)
-        self.assertIsNotNone(upkeep_line, "Treasury breakdown must include 'Recurring Upkeep Drain'.")
+        self.assertIsNone(upkeep_line, "Treasury breakdown should omit 'Recurring Upkeep Drain' when upkeep is 0.")
 
         # Recruit a 15-soldier garrison on tile 0
         tile = n.tiles[0]

@@ -323,17 +323,36 @@ def _get_stat_breakdown(world, n, tiles, key):
             
         lines = [
             ("Average Protest Energy", f"{protest_cur:.2f} / 10.00", st_color),
-            ("Turn Delta", f"{'+' if d_p > 0 else ''}{d_p:.2f} per turn", RED if d_p > 0 else (GREEN if d_p < 0 else TEXT)),
-            ("--- Grievance Drivers ---", "", DIM),
-            ("• Unemployment Rate", f"{unemp_rate:.1%} ({unemp_adults}/{len(adults)} adults)", RED if unemp_rate > 0.3 else TEXT),
-            ("• Wealth Disparity (Gini)", f"{avg_gini:.2f} index", BADGE_ORANGE if avg_gini > 0.4 else TEXT),
-            ("• Hunger & Malnutrition", f"{hungry_now} hungry ({mem_hunger / 120.0:.2f} mem)", RED if hungry_now > 0 else GREEN),
-            ("• Income Tax Burden", f"{tax_rate:.1%} effective rate", TEXT),
-            ("• Repression & Casualties", f"{trauma / 60.0:.2f} trauma score", RED if trauma > 0 else TEXT),
-            ("--- Suppression & Politics ---", "", DIM),
-            ("• Stationed Garrison", f"{total_garrison} soldiers (-{total_garrison * 0.05:.2f} / turn)", GREEN if total_garrison > 0 else TEXT),
-            ("• Top Discontent Faction", f"{top_f[0]} ({top_f[1]['demand']})", ACCENT),
         ]
+        if abs(d_p) >= 0.005:
+            lines.append(("Turn Delta", f"{'+' if d_p > 0 else ''}{d_p:.2f} per turn", RED if d_p > 0 else (GREEN if d_p < 0 else TEXT)))
+
+        drivers = []
+        if unemp_adults > 0:
+            drivers.append(("• Unemployment Rate", f"{unemp_rate:.1%} ({unemp_adults}/{len(adults)} adults)", RED if unemp_rate > 0.3 else TEXT))
+        if avg_gini > 0.05:
+            drivers.append(("• Wealth Disparity (Gini)", f"{avg_gini:.2f} index", BADGE_ORANGE if avg_gini > 0.4 else TEXT))
+        if hungry_now > 0 or mem_hunger > 0.5:
+            drivers.append(("• Hunger & Malnutrition", f"{hungry_now} hungry ({mem_hunger / 120.0:.2f} mem)", RED if hungry_now > 0 else GREEN))
+        if tax_rate > 0.01:
+            drivers.append(("• Income Tax Burden", f"{tax_rate:.1%} effective rate", TEXT))
+        if trauma > 0.5:
+            drivers.append(("• Repression & Casualties", f"{trauma / 60.0:.2f} trauma score", RED))
+
+        if drivers:
+            lines.append(("--- Grievance Drivers ---", "", DIM))
+            lines.extend(drivers)
+
+        suppression = []
+        if total_garrison > 0:
+            suppression.append(("• Stationed Garrison", f"{total_garrison} soldiers (-{total_garrison * 0.05:.2f} / turn)", GREEN))
+        if top_f[0] != "None" and top_f[1].get('gv', 0.0) > 0.01:
+            suppression.append(("• Top Discontent Faction", f"{top_f[0]} ({top_f[1]['demand']})", ACCENT))
+
+        if suppression:
+            lines.append(("--- Suppression & Politics ---", "", DIM))
+            lines.extend(suppression)
+
         return "Civil Unrest & Protest Breakdown", f"Stage: {stage}", st_color, lines
 
     elif key == 'pop':
@@ -343,18 +362,28 @@ def _get_stat_breakdown(world, n, tiles, key):
         tot_traders = sum(1 for a in agents if getattr(a, 'is_trader', False))
         tot_homesteaders = sum(1 for a in agents if getattr(a, 'is_homesteader', False))
         employed_workers = len(adults) - unemp_adults
+        youth_cnt = max(0, pop_cur - len(adults))
         
         lines = [
             ("Total Population", f"{pop_cur:,} living citizens", TEXT),
-            ("Turn Growth Delta", f"{'+' if d_pop > 0 else ''}{d_pop} net", GREEN if d_pop > 0 else (RED if d_pop < 0 else TEXT)),
-            ("Working Adults (>20 yrs)", f"{len(adults):,} ({len(adults) / max(1, pop_cur):.1%})", TEXT),
-            ("Youth & Children (<=20 yrs)", f"{max(0, pop_cur - len(adults)):,}", TEXT),
-            ("Employed Corporate Workers", f"{employed_workers:,} laborers", GREEN),
-            ("Unemployed Adults", f"{unemp_adults:,} looking for work", RED if unemp_adults > 0 else TEXT),
-            ("Independent Traders", f"{tot_traders:,} active traders", BADGE_TRA),
-            ("Homesteaders & Settlers", f"{tot_homesteaders:,} pioneers", BADGE_ORANGE),
-            ("Undernourished Citizens", f"{hungry_now:,} hungry", RED if hungry_now > 0 else GREEN),
         ]
+        if d_pop != 0:
+            lines.append(("Turn Growth Delta", f"{'+' if d_pop > 0 else ''}{d_pop} net", GREEN if d_pop > 0 else (RED if d_pop < 0 else TEXT)))
+        if len(adults) > 0:
+            lines.append(("Working Adults (>20 yrs)", f"{len(adults):,} ({len(adults) / max(1, pop_cur):.1%})", TEXT))
+        if youth_cnt > 0:
+            lines.append(("Youth & Children (<=20 yrs)", f"{youth_cnt:,}", TEXT))
+        if employed_workers > 0:
+            lines.append(("Employed Corporate Workers", f"{employed_workers:,} laborers", GREEN))
+        if unemp_adults > 0:
+            lines.append(("Unemployed Adults", f"{unemp_adults:,} looking for work", RED))
+        if tot_traders > 0:
+            lines.append(("Independent Traders", f"{tot_traders:,} active traders", BADGE_TRA))
+        if tot_homesteaders > 0:
+            lines.append(("Homesteaders & Settlers", f"{tot_homesteaders:,} pioneers", BADGE_ORANGE))
+        if hungry_now > 0:
+            lines.append(("Undernourished Citizens", f"{hungry_now:,} hungry", RED))
+
         return "Demographics & Population Breakdown", f"{pop_cur:,} Pops", ACCENT, lines
 
     elif key == 'treasury':
@@ -377,16 +406,26 @@ def _get_stat_breakdown(world, n, tiles, key):
         
         lines = [
             ("Liquid Treasury Vault", f"${tr_cur:,.0f} {n.currency}", GREEN if tr_cur > 0 else RED),
-            ("Turn Balance Delta", f"{'+' if d_tr > 0 else ''}${d_tr:,.0f} / turn", GREEN if d_tr > 0 else (RED if d_tr < 0 else TEXT)),
-            ("Recurring Upkeep Drain", f"-${total_upkeep:,.2f} / turn", (245, 180, 50) if total_upkeep > 0 else TEXT),
-            ("• Garrison Troop Payroll", f"-${mil_cash_upkeep:,.2f} / t ({len(units)} divs, {total_garrison} troops)", TEXT),
-            ("• Debt Coupon Servicing", f"-${coupons_owed:,.2f} / turn", RED if coupons_owed > 0 else TEXT),
-            ("• Military Food Upkeep", f"{mil_food_upkeep} food / turn", TEXT),
-            ("Emergency Food Granary", f"{tr['food']} food units", TEXT),
-            ("Average Tax Revenue", f"{tax_rate:.1%} income tax rate", TEXT),
-            ("Import Tariff Inflow", f"{tariff_rate:.1%} customs rate", TEXT),
-            ("Outstanding Public Debt", f"${tot_debt:,.0f}", RED if tot_debt > 0 else GREEN),
         ]
+        if abs(d_tr) >= 1.0:
+            lines.append(("Turn Balance Delta", f"{'+' if d_tr > 0 else ''}${d_tr:,.0f} / turn", GREEN if d_tr > 0 else (RED if d_tr < 0 else TEXT)))
+        if total_upkeep > 0:
+            lines.append(("Recurring Upkeep Drain", f"-${total_upkeep:,.2f} / turn", (245, 180, 50)))
+            if mil_cash_upkeep > 0:
+                lines.append(("• Garrison Troop Payroll", f"-${mil_cash_upkeep:,.2f} / t ({len(units)} divs, {total_garrison} troops)", TEXT))
+            if coupons_owed > 0:
+                lines.append(("• Debt Coupon Servicing", f"-${coupons_owed:,.2f} / turn", RED))
+            if mil_food_upkeep > 0:
+                lines.append(("• Military Food Upkeep", f"{mil_food_upkeep} food / turn", TEXT))
+        if tr['food'] > 0:
+            lines.append(("Emergency Food Granary", f"{tr['food']} food units", TEXT))
+        if tax_rate > 0.005:
+            lines.append(("Average Tax Revenue", f"{tax_rate:.1%} income tax rate", TEXT))
+        if tariff_rate > 0.005:
+            lines.append(("Import Tariff Inflow", f"{tariff_rate:.1%} customs rate", TEXT))
+        if tot_debt > 0:
+            lines.append(("Outstanding Public Debt", f"${tot_debt:,.0f}", RED))
+
         return "National Treasury & Fiscal Reserves", f"${tr_cur:,.0f}", GREEN if tr_cur > 0 else RED, lines
 
     elif key == 'col':
@@ -400,12 +439,17 @@ def _get_stat_breakdown(world, n, tiles, key):
         
         lines = [
             ("Average Cost of Living", f"Index {col_cur:.2f}", TEXT),
-            ("Food Market Basket Price", f"${avg_food:.2f} / food unit", BADGE_ORANGE if avg_food > 2.0 else TEXT),
-            ("Timber / Wood Price", f"${avg_wood:.2f} / timber unit", TEXT),
-            ("Manufactured Furniture", f"${avg_furn:.2f} / furniture unit", TEXT),
-            ("Average Employee Wage", f"${avg_wage:.2f} / turn", GREEN),
-            ("Wage-to-Food Ratio", f"{avg_wage / max(0.01, avg_food):.1f}x food purchasing power", GREEN if avg_wage >= avg_food else RED),
         ]
+        if avg_food > 0:
+            lines.append(("Food Market Basket Price", f"${avg_food:.2f} / food unit", BADGE_ORANGE if avg_food > 2.0 else TEXT))
+        if avg_wood > 0:
+            lines.append(("Timber / Wood Price", f"${avg_wood:.2f} / timber unit", TEXT))
+        if avg_furn > 0:
+            lines.append(("Manufactured Furniture", f"${avg_furn:.2f} / furniture unit", TEXT))
+        if len(wages) > 0 and avg_wage > 0:
+            lines.append(("Average Employee Wage", f"${avg_wage:.2f} / turn", GREEN))
+            lines.append(("Wage-to-Food Ratio", f"{avg_wage / max(0.01, avg_food):.1f}x food purchasing power", GREEN if avg_wage >= avg_food else RED))
+
         return "Cost of Living & Market Basket", f"CoL {col_cur:.2f}", ACCENT, lines
 
     elif key == 'gdp':
@@ -416,11 +460,16 @@ def _get_stat_breakdown(world, n, tiles, key):
         
         lines = [
             ("Gross Domestic Product", f"${gdp_cur:,.0f} total value", ACCENT),
-            ("Turn Growth Delta", f"{'+' if d_gdp > 0 else ''}${d_gdp:,.0f} / turn", GREEN if d_gdp > 0 else (RED if d_gdp < 0 else TEXT)),
-            ("GDP per Capita", f"${gdp_cur / max(1, pop_cur):,.1f} / citizen", TEXT),
-            ("Territorial Hexes", f"{len(tiles)} productive regions", TEXT),
-            ("National Provinces", f"{len(n.provinces)} administrative provinces", TEXT),
         ]
+        if abs(d_gdp) >= 1.0:
+            lines.append(("Turn Growth Delta", f"{'+' if d_gdp > 0 else ''}${d_gdp:,.0f} / turn", GREEN if d_gdp > 0 else (RED if d_gdp < 0 else TEXT)))
+        if gdp_cur > 0 and pop_cur > 0:
+            lines.append(("GDP per Capita", f"${gdp_cur / max(1, pop_cur):,.1f} / citizen", TEXT))
+        if len(tiles) > 0:
+            lines.append(("Territorial Hexes", f"{len(tiles)} productive regions", TEXT))
+        if len(n.provinces) > 0:
+            lines.append(("National Provinces", f"{len(n.provinces)} administrative provinces", TEXT))
+
         return "Gross Domestic Product & Production", f"${gdp_cur:,.0f}", ACCENT, lines
 
     elif key == 'ex':
@@ -433,11 +482,16 @@ def _get_stat_breakdown(world, n, tiles, key):
         
         lines = [
             ("Total Export Value", f"${exports_cur:,.0f} shipped abroad", EXP_C),
-            ("Turn Export Delta", f"{'+' if d_ex > 0 else ''}${d_ex:,.0f} / turn", GREEN if d_ex > 0 else (RED if d_ex < 0 else TEXT)),
-            ("• Agricultural Food Exports", f"${food_ex:,.0f}", TEXT),
-            ("• Timber & Forestry Exports", f"${wood_ex:,.0f}", TEXT),
-            ("• Manufactured Goods Exports", f"${furn_ex:,.0f}", TEXT),
         ]
+        if abs(d_ex) >= 1.0:
+            lines.append(("Turn Export Delta", f"{'+' if d_ex > 0 else ''}${d_ex:,.0f} / turn", GREEN if d_ex > 0 else (RED if d_ex < 0 else TEXT)))
+        if food_ex > 0:
+            lines.append(("• Agricultural Food Exports", f"${food_ex:,.0f}", TEXT))
+        if wood_ex > 0:
+            lines.append(("• Timber & Forestry Exports", f"${wood_ex:,.0f}", TEXT))
+        if furn_ex > 0:
+            lines.append(("• Manufactured Goods Exports", f"${furn_ex:,.0f}", TEXT))
+
         return "Foreign Exports Breakdown", f"${exports_cur:,.0f}", EXP_C, lines
 
     elif key == 'im':
@@ -450,12 +504,18 @@ def _get_stat_breakdown(world, n, tiles, key):
         
         lines = [
             ("Total Import Value", f"${imports_cur:,.0f} imported", IMP_C),
-            ("Turn Import Delta", f"{'+' if d_im > 0 else ''}${d_im:,.0f} / turn", TEXT),
-            ("• Food Goods Imported", f"${food_im:,.0f}", TEXT),
-            ("• Timber Goods Imported", f"${wood_im:,.0f}", TEXT),
-            ("• Manufactured Imports", f"${furn_im:,.0f}", TEXT),
-            ("• Tariff Rate Applied", f"{tariff_rate:.1%}", TEXT),
         ]
+        if abs(d_im) >= 1.0:
+            lines.append(("Turn Import Delta", f"{'+' if d_im > 0 else ''}${d_im:,.0f} / turn", TEXT))
+        if food_im > 0:
+            lines.append(("• Food Goods Imported", f"${food_im:,.0f}", TEXT))
+        if wood_im > 0:
+            lines.append(("• Timber Goods Imported", f"${wood_im:,.0f}", TEXT))
+        if furn_im > 0:
+            lines.append(("• Manufactured Imports", f"${furn_im:,.0f}", TEXT))
+        if tariff_rate > 0.005 and imports_cur > 0:
+            lines.append(("• Tariff Rate Applied", f"{tariff_rate:.1%}", TEXT))
+
         return "Foreign Imports Breakdown", f"${imports_cur:,.0f}", IMP_C, lines
 
     elif key == 'net':
@@ -472,11 +532,16 @@ def _get_stat_breakdown(world, n, tiles, key):
         lines = [
             ("Trade Balance Position", "Trade Surplus" if net_cur >= 0 else "Trade Deficit", GREEN if net_cur >= 0 else RED),
             ("Net Trade Balance", f"{'+' if net_cur >= 0 else ''}${net_cur:,.0f}", GREEN if net_cur >= 0 else RED),
-            ("Turn Balance Delta", f"{'+' if d_net > 0 else ''}${d_net:,.0f} / turn", GREEN if d_net > 0 else (RED if d_net < 0 else TEXT)),
-            ("Total Exports", f"${exports_cur:,.0f}", EXP_C),
-            ("Total Imports", f"${imports_cur:,.0f}", IMP_C),
-            ("Bilateral Trade Pacts", f"{trade_pacts} signed treaties", ACCENT),
         ]
+        if abs(d_net) >= 1.0:
+            lines.append(("Turn Balance Delta", f"{'+' if d_net > 0 else ''}${d_net:,.0f} / turn", GREEN if d_net > 0 else (RED if d_net < 0 else TEXT)))
+        if exports_cur > 0:
+            lines.append(("Total Exports", f"${exports_cur:,.0f}", EXP_C))
+        if imports_cur > 0:
+            lines.append(("Total Imports", f"${imports_cur:,.0f}", IMP_C))
+        if trade_pacts > 0:
+            lines.append(("Bilateral Trade Pacts", f"{trade_pacts} signed treaties", ACCENT))
+
         return "Net Trade Balance & Commerce", f"{'+' if net_cur >= 0 else ''}${net_cur:,.0f}", GREEN if net_cur >= 0 else RED, lines
 
     elif key == 'header':
@@ -501,13 +566,22 @@ def _get_stat_breakdown(world, n, tiles, key):
         lines = [
             ("Sovereign Nation", f"{n.name} (Currency: {n.currency})", ACCENT),
             ("Government Regime", f"{n.regime_type.title()}", TEXT),
-            ("Treasury & Upkeep", f"${tr_cur:,.0f} (-${total_upkeep:,.2f}/t upkeep)", (245, 180, 50) if total_upkeep > 0 else GREEN),
+        ]
+        if total_upkeep > 0:
+            lines.append(("Treasury & Upkeep", f"${tr_cur:,.0f} (-${total_upkeep:,.2f}/t upkeep)", (245, 180, 50)))
+        else:
+            lines.append(("Treasury Vault", f"${tr_cur:,.0f}", GREEN))
+        lines.extend([
             ("Legitimacy Score", f"{legit:.2f} / 1.00 ({legit_desc})", legit_col),
             ("Ruling Faction", f"{ruling or 'Popular Front'}", ACCENT),
-            ("Organized Provinces", f"{len(n.provinces)} provinces", TEXT),
-            ("Member City Hexes", f"{len(tiles)} claimed tiles", TEXT),
-            ("Active Foreign Treaties", f"{treaties_cnt} diplomatic pacts", ACCENT),
-        ]
+        ])
+        if len(n.provinces) > 0:
+            lines.append(("Organized Provinces", f"{len(n.provinces)} provinces", TEXT))
+        if len(tiles) > 0:
+            lines.append(("Member City Hexes", f"{len(tiles)} claimed tiles", TEXT))
+        if treaties_cnt > 0:
+            lines.append(("Active Foreign Treaties", f"{treaties_cnt} diplomatic pacts", ACCENT))
+
         return "Sovereignty & Governance Breakdown", f"{n.regime_type.title()}", ACCENT, lines
 
     return "", "", TEXT, []
