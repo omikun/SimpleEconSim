@@ -23,7 +23,7 @@ from goods import Goods
 from region import Region
 from nation import Nation
 from tile_resources import TileResource
-from worldview_seasonal_clock import get_season_info, draw_seasonal_clock, SEASON_CLOCK_RECT
+from worldview_seasonal_clock import get_season_info, draw_seasonal_clock, draw_seasonal_clock_tooltip, SEASON_CLOCK_RECT
 from ui_icons import get_icon
 from worldview_map import tile_stats, draw_edges, draw_terrain_glyph, draw_activity_badges, draw_tile_progress_bars
 from terrain_edges import reset_edge_manager
@@ -112,11 +112,32 @@ class TestPhase3Visualizations(unittest.TestCase):
             self.assertEqual(surf.get_height(), 24)
 
     def test_03_seasonal_clock_hud_rendering(self):
-        """Verify draw_seasonal_clock executes cleanly on Pygame surface."""
-        # Render on surface
-        draw_seasonal_clock(self.surface, self.world, self.font)
+        """Verify draw_seasonal_clock executes cleanly and popup only triggers when hovering over widget."""
+        # 1. Non-hover state: mouse elsewhere
+        draw_seasonal_clock(self.surface, self.world, self.font, mouse_pos=(100, 100))
         targets = self.world.get('_ui_targets', [])
         self.assertTrue(any(t.action == 'seasonal_clock' for t in targets))
+        self.assertFalse(self.world.get('_hovered_seasonal_clock', False))
+
+        # Tooltip should not render when not hovering
+        draw_seasonal_clock_tooltip(self.surface, self.world, self.font, mouse_pos=(100, 100))
+        self.assertFalse(self.world.get('_hovered_seasonal_clock', False))
+
+        # 2. Hover state: mouse over year widget in top right
+        clock_x, clock_y, clock_w, clock_h = SEASON_CLOCK_RECT
+        hover_pos = (clock_x + 10, clock_y + 10)
+        draw_seasonal_clock(self.surface, self.world, self.font, mouse_pos=hover_pos)
+        self.assertTrue(self.world.get('_hovered_seasonal_clock', False))
+
+        # Tooltip renders cleanly when hovering
+        draw_seasonal_clock_tooltip(self.surface, self.world, self.font, mouse_pos=hover_pos)
+        self.assertTrue(self.world.get('_hovered_seasonal_clock', False))
+
+        # 3. Mouse moves away: hover state resets cleanly to False
+        draw_seasonal_clock(self.surface, self.world, self.font, mouse_pos=(0, 0))
+        self.assertFalse(self.world.get('_hovered_seasonal_clock', False))
+        draw_seasonal_clock_tooltip(self.surface, self.world, self.font, mouse_pos=(0, 0))
+        self.assertFalse(self.world.get('_hovered_seasonal_clock', False))
 
     def test_04_fluvial_river_effluent_and_downstream_flow(self):
         """Verify river color changes under pollution and downstream droplet calculations."""

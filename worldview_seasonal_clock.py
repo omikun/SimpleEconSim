@@ -150,24 +150,28 @@ def draw_seasonal_clock(surface: pygame.Surface, world: dict, font_small: pygame
             dimmed = (int(seg_color[0] * 0.45), int(seg_color[1] * 0.45), int(seg_color[2] * 0.45))
             pygame.draw.rect(surface, dimmed, seg_rect, border_radius=1)
 
-    # 6. Tooltip Registration
-    if is_hover and not world.get('_hovered_left_tooltip'):
-        world['_hovered_seasonal_clock'] = True
+    # 6. Tooltip Registration (only active while mouse is hovering directly over the year widget)
+    world['_hovered_seasonal_clock'] = bool(is_hover and not world.get('_hovered_left_tooltip'))
 
 
 def draw_seasonal_clock_tooltip(surface: pygame.Surface, world: dict, font_small: pygame.font.Font,
                                 mouse_pos: tuple[int, int] | None = None) -> None:
-    """Render floating detailed breakdown card when the player hovers over the seasonal clock."""
-    if not world.get('_hovered_seasonal_clock'):
+    """Render floating detailed breakdown card when the player hovers directly over the seasonal clock."""
+    bx, by, bw, bh = SEASON_CLOCK_RECT
+    mx, my = mouse_pos if mouse_pos else (-1, -1)
+    is_hover = (bx <= mx <= bx + bw and by <= my <= by + bh)
+
+    if not is_hover or not world.get('_hovered_seasonal_clock', False):
+        world['_hovered_seasonal_clock'] = False
         return
 
     t = world.get('turn', 0)
     info = get_season_info(t)
-    mx, my = mouse_pos if mouse_pos else (-1, -1)
 
     card_w = 260
     card_h = 176
-    card_x = max(10, min(MAP_RIGHT - card_w - 10, mx - card_w // 2))
+    # Anchored right beneath the seasonal clock widget on the top right
+    card_x = max(10, MAP_RIGHT - card_w - 10)
     card_y = min(SEASON_CLOCK_RECT[1] + SEASON_CLOCK_RECT[3] + 8, 800 - card_h - 20)
 
     card_surf = pygame.Surface((card_w, card_h), pygame.SRCALPHA)
