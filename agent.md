@@ -214,6 +214,34 @@ on meaningful horizons; dashboard PNGs render. M0 scripts additionally require
   must stay clamped — an unclamped fade on >50-turn bridges inverts protection.
 - `set_ylim(bottom=...)` must come AFTER plot calls (autoscale freeze bug).
 
+## UI & Mobile Web Client Conventions (V3 / SimServer)
+- **Top Nation Bar Breakdown Popups**:
+  - Any metric line that contributes 0 to the final stat must be omitted (no 0-upkeep, 0-garrison payroll, 0-coupon debt, 0-debt balances, 0-hungry pops, 0-deltas, $0 trade commodities, or empty section headers).
+  - Popups automatically adjust height based on active row count (`card_h = padding_y * 2 + 22 + len(lines) * line_h + 6` in desktop `worldview_ui.py`).
+  - Desktop (`worldview_ui.py` `_get_stat_breakdown`) and Web (`web_client/client.js` `getMacroTooltipContent`) must maintain strict behavioral parity.
+  - Tests in `test_worldview_actions.py` must assert `is None` for 0-contributing lines at baseline (e.g. `Recurring Upkeep Drain` before unit recruitment).
+- **Web Server & Client Architecture (`sim_server/web_server.py`, `web_client/client.js`)**:
+  - Server binds to `0.0.0.0:8080` by default (all interfaces) and serves both static files and REST API (`/api/state`, `/api/command`).
+  - Web client uses relative paths (`fetch('/api/state')`) and dynamic `window.location.origin`, allowing seamless operation across LAN, reverse proxies, and tunnels without code edits.
+  - Cross-Origin Resource Sharing (CORS) wildcard headers (`Access-Control-Allow-Origin: *`) are active by default.
+  - Terminal startup renders an ANSI QR code pointing to the detected LAN IP for fast 1-tap mobile testing.
+
+## Remote Access & Security Guidelines
+- **Unauthenticated Server Risk**:
+  - `sim_server/web_server.py` has no built-in authentication, rate limiting, or CSRF protection. Any client reaching `/api/command` can execute commands or restart the world.
+- **Obscure / Random URLs are NOT Secure**:
+  - Bots do not brute-force random strings; they intercept them via Certificate Transparency (CT) logs, shared tunnel pool scrapers (`trycloudflare.com`, `ngrok-free.app`), browser/antivirus telemetry, and HTTP referrers.
+  - Never expose the bare simulation server directly to the public internet using an unprotected tunnel or router port forwarding.
+- **Recommended Remote Access Solutions**:
+  1. **Tailscale (Private WireGuard Mesh VPN — Recommended)**:
+     - Zero public internet exposure; server is completely invisible to scanners and bots.
+     - End-to-end encrypted (E2EE) with WireGuard; access is restricted to devices authenticated with your personal Apple/Google/GitHub ID and 2FA.
+  2. **Cloudflare Zero Trust Access (Browser-Only Alternative)**:
+     - Encrypted Cloudflare Tunnel (`cloudflared`) gated by a Zero Trust Access policy (Email One-Time PIN or SSO) at Cloudflare's edge before any traffic reaches the local host.
+- **macOS System & Agent Sandbox Constraints**:
+  - VPN/network extensions require macOS admin permissions (`sudo`), and Apple ID ("Sign in with Apple") strictly requires interactive user biometric/2FA confirmation in the browser or system prompt. Agents cannot enter credentials or bypass Apple security prompts.
+  - Terminal operations that modify `.git/` locks require `BypassSandbox: true` when committing inside the sandbox environment.
+
 ## Diagnostics in tmp/
 - `tmp/gov_deposit_heirless.py` — gov Withdraw/Deposit tally + heirless fraction.
 - `tmp/heirless_bucket.py` — death bucketing by wealth/profession, direct vs recursive
