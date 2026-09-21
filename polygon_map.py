@@ -102,6 +102,7 @@ def whittaker_biome(elevation: float, moisture: float) -> str:
 
 
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
 # Dual Graph Data Structures: Center, Corner, Edge
 # ---------------------------------------------------------------------------
 
@@ -127,6 +128,12 @@ class Center:
     normal: np.ndarray = field(default_factory=lambda: np.array([0.0, 0.0, 1.0], dtype=np.float64))
     total_light: float = 1.0
     brdf_color: Tuple[int, int, int] = (44, 78, 122)
+
+    # Mapgen2 features: contour zone & watershed drainage basin
+    contour: int = 1
+    watershed: Optional[Corner] = None
+    watershed_size: int = 0
+    lowest_corner: Optional[Corner] = None
 
     @property
     def x(self) -> float:
@@ -156,11 +163,12 @@ class Corner:
     elevation: float = 0.0
     moisture: float = 0.0
 
-    # Hydrology
+    # Hydrology & Watersheds
     river: int = 0  # River flow volume / flux
     downslope: Optional[Corner] = None  # Pointer to steepest downhill neighbor
     watershed: Optional[Corner] = None
     watershed_size: int = 0
+    contour: int = 1
 
     @property
     def x(self) -> float:
@@ -181,10 +189,162 @@ class Edge:
     v1: Optional[Corner] = None  # Voronoi edge end corner
     midpoint: np.ndarray = field(default_factory=lambda: np.zeros(2, dtype=np.float64))
     river: int = 0  # River volume flowing along edge
+    road: int = 0   # Contour road level (0 = none, 1, 2, 3...)
+    lava: bool = False  # Volcanic lava fissure along this edge
 
 
 # ---------------------------------------------------------------------------
-# Amit Patel Polygonal Map Generator
+# Noisy Edges (Amit Patel mapgen2 Quadrilateral Recursive Subdivision)
+# ---------------------------------------------------------------------------
+
+class NoisyEdges:
+    """Generates organic, fractal edge paths using recursive quadrilateral subdivision.
+
+    Reference:
+        Amit Patel, "Polygonal Map Generation for Games"
+        https://github.com/amitp/mapgen2/blob/master/NoisyEdges.as
+        https://www.redblobgames.com/maps/mapgen2/
+
+    Guarantees:
+        Noisy paths are strictly enclosed within the quadrilateral formed by
+        (v0, d0, v1, d1), ensuring that coastlines, rivers, and borders
+        never self-intersect or cross neighboring polygon boundaries.
+    """
+
+    def __init__(self, tradeoff: float = 0.5):
+        self.tradeoff = float(tradeoff)
+        # path0: edge.index -> list of points from v0 to midpoint
+        self.path0: Dict[int, List[np.ndarray]] = {}
+        # path1: edge.index -> list of points from v1 to midpoint
+        self.path1: Dict[int, List[np.ndarray]] = {}
+
+    def build_noisy_line_segments(
+        self,
+        rng: random.Random,
+        A: np.ndarray,
+        B: np.ndarray,
+        C: np.ndarray,
+        D: np.ndarray,
+        min_length: float,
+        max_depth: int = 8,
+    ) -> List[np.ndarray]:
+        """Subdivide quadrilateral A-B-C-D recursively to generate an organic path from A to C."""
+        points = [A.copy()]
+
+        def subdivide(A_pt: np.ndarray, B_pt: np.ndarray, C_pt: np.ndarray, D_pt: np.ndarray, depth: int) -> None:
+            if depth >= max_depth:
+                return
+            dist_AC = float(np.linalg.norm(A_pt - C_pt))
+            dist_BD = float(np.linalg.norm(B_pt - D_pt))
+            if dist_AC < min_length or dist_BD < min_length:
+                return
+
+            p = rng.uniform(0.2, 0.8)
+            q = rng.uniform(0.2, 0.8)
+
+            # Midpoints along quadrilateral edges
+            E = A_pt + p * (D_pt - A_pt)
+            F = B_pt + p * (C_pt - B_pt)
+            G = A_pt + q * (B_pt - A_pt)
+            I = D_pt + q * (C_pt - D_pt)
+
+            # Central interior intersection point
+            H = E + q * (F - E)
+
+            # Subdivide subquadrilaterals meeting at H
+            s = 1.0 - rng.uniform(-0.4, 0.4)
+            t = 1.0 - rng.uniform(-0.4, 0.4)
+
+            subdivide(A_pt, G + s * (B_pt - G), H, E + t * (D_pt - E), depth + 1)
+            points.append(H.copy())
+            subdivide(H, F + s * (C_pt - F), C_pt, I + t * (D_pt - I), depth + 1)
+
+        subdivide(A, B, C, D, 0)
+        points.append(C.copy())
+        return points
+
+    def build_noisy_edges(self, pmap: 'PolygonMapGenerator', seed: Optional[int] = None) -> None:
+        """Compute noisy paths for all valid edges in the map."""
+        edge_rng = random.Random(seed if seed is not None else pmap.seed + 9999)
+        f = self.tradeoff
+
+        for edge in pmap.edges:
+            if edge.v0 is None or edge.v1 is None:
+                continue
+
+            v0_pt = edge.v0.point
+            v1_pt = edge.v1.point
+            mid_pt = edge.midpoint
+
+            # Determine dual center points d0 and d1
+            if edge.d0 is not None and edge.d1 is not None:
+                d0_pt = edge.d0.point
+                d1_pt = edge.d1.point
+            elif edge.d0 is not None:
+                d0_pt = edge.d0.point
+                d1_pt = mid_pt + (mid_pt - d0_pt)  # Synthesize opposite point for border edges
+            elif edge.d1 is not None:
+                d1_pt = edge.d1.point
+                d0_pt = mid_pt + (mid_pt - d1_pt)
+            else:
+                perp = np.array([-(v1_pt[1] - v0_pt[1]), v1_pt[0] - v0_pt[0]]) * 0.5
+                d0_pt = mid_pt + perp
+                d1_pt = mid_pt - perp
+
+            # Quadrilateral interpolation points
+            t = v0_pt + f * (d0_pt - v0_pt)
+            q = v0_pt + f * (d1_pt - v0_pt)
+            r = v1_pt + f * (d0_pt - v1_pt)
+            s = v1_pt + f * (d1_pt - v1_pt)
+
+            # Feature-dependent minimum segment length:
+            # - Coastlines & rivers: fine detailed noise (1.5)
+            # - Biome transitions: medium noise (3.0)
+            # - Open ocean: smooth large segments (50.0)
+            # - Interior: standard noise (10.0)
+            min_length = 10.0
+            if edge.d0 and edge.d1:
+                if edge.d0.biome != edge.d1.biome:
+                    min_length = 3.0
+                if edge.d0.ocean and edge.d1.ocean:
+                    min_length = 50.0
+                if edge.d0.coast or edge.d1.coast:
+                    min_length = 1.5
+            elif edge.v0.coast or edge.v1.coast:
+                min_length = 1.5
+
+            if edge.river > 0 or edge.lava:
+                min_length = 1.5
+
+            self.path0[edge.index] = self.build_noisy_line_segments(
+                edge_rng, v0_pt, t, mid_pt, q, min_length=min_length
+            )
+            self.path1[edge.index] = self.build_noisy_line_segments(
+                edge_rng, v1_pt, s, mid_pt, r, min_length=min_length
+            )
+
+    def get_edge_path(self, edge: Edge, start_corner: Corner) -> List[np.ndarray]:
+        """Return the ordered noisy path along edge starting from start_corner to the other corner."""
+        if edge.index not in self.path0 or edge.index not in self.path1:
+            if edge.v0 and edge.v1:
+                return [edge.v0.point.copy(), edge.v1.point.copy()] if start_corner == edge.v0 else [edge.v1.point.copy(), edge.v0.point.copy()]
+            return []
+
+        p0 = self.path0[edge.index]
+        p1 = self.path1[edge.index]
+
+        if start_corner == edge.v0:
+            # v0 -> mid -> v1
+            rev_p1 = list(reversed(p1))
+            return p0 + rev_p1[1:]
+        else:
+            # v1 -> mid -> v0
+            rev_p0 = list(reversed(p0))
+            return p1 + rev_p0[1:]
+
+
+# ---------------------------------------------------------------------------
+# Amit Patel Polygonal Map Generator (Enhanced with mapgen2)
 # ---------------------------------------------------------------------------
 
 class PolygonMapGenerator:
@@ -199,6 +359,12 @@ class PolygonMapGenerator:
         lloyd_iterations: int = 2,
         island_shape: str = 'radial',  # 'radial', 'perlin', 'blob', 'square'
         river_count: int = 25,
+        enable_corner_improvement: bool = True,
+        enable_watersheds: bool = True,
+        enable_roads: bool = True,
+        enable_lava: bool = True,
+        enable_noisy_edges: bool = True,
+        noisy_tradeoff: float = 0.5,
     ):
         self.seed = seed
         self.width = float(width)
@@ -207,6 +373,12 @@ class PolygonMapGenerator:
         self.lloyd_iterations = int(lloyd_iterations)
         self.island_shape = island_shape
         self.river_count = int(river_count)
+        self.enable_corner_improvement = enable_corner_improvement
+        self.enable_watersheds = enable_watersheds
+        self.enable_roads = enable_roads
+        self.enable_lava = enable_lava
+        self.enable_noisy_edges = enable_noisy_edges
+        self.noisy_tradeoff = noisy_tradeoff
 
         self.rng = random.Random(seed)
         self.np_rng = np.random.default_rng(seed)
@@ -214,16 +386,29 @@ class PolygonMapGenerator:
         self.centers: List[Center] = []
         self.corners: List[Corner] = []
         self.edges: List[Edge] = []
+        self.noisy_edges: Optional[NoisyEdges] = None
         self._center_kdtree: Optional[KDTree] = None
 
         # Build map
         self._build_graph()
+        if self.enable_corner_improvement:
+            self.improve_corners()
         self._assign_ocean_land()
         self._assign_elevation()
         self._generate_rivers()
         self._assign_moisture()
         self._assign_biomes()
         self.compute_brdf_shading()
+
+        # Mapgen2 features: Watersheds, Roads, Lava, Noisy Edges
+        if self.enable_watersheds:
+            self.calculate_watersheds()
+        if self.enable_roads:
+            self.create_roads()
+        if self.enable_lava:
+            self.create_lava()
+        if self.enable_noisy_edges:
+            self.build_noisy_edges(self.noisy_tradeoff)
 
     # -----------------------------------------------------------------------
     # Step 1: Geometry, Lloyd Relaxation, and Dual Graph Construction
@@ -346,6 +531,31 @@ class PolygonMapGenerator:
         # Build KDTree for spatial point queries
         center_coords = np.array([[c.x, c.y] for c in self.centers], dtype=np.float64)
         self._center_kdtree = KDTree(center_coords)
+
+    def improve_corners(self) -> None:
+        """Relaxes Voronoi corners by moving each non-border corner to the average of its touching centers.
+
+        Reference: amitp/mapgen2 improveCorners()
+        Lengthens short edges, reduces aspect ratio skew, and evens out polygon sizes.
+        """
+        new_corners: Dict[int, np.ndarray] = {}
+        for q in self.corners:
+            if q.border or len(q.touches) == 0:
+                new_corners[q.index] = q.point.copy()
+            else:
+                avg_x = sum(r.x for r in q.touches) / len(q.touches)
+                avg_y = sum(r.y for r in q.touches) / len(q.touches)
+                avg_x = max(0.0, min(self.width, avg_x))
+                avg_y = max(0.0, min(self.height, avg_y))
+                new_corners[q.index] = np.array([avg_x, avg_y], dtype=np.float64)
+
+        for q in self.corners:
+            q.point = new_corners[q.index]
+
+        # Edge midpoints were computed for old corners and must be recomputed
+        for edge in self.edges:
+            if edge.v0 is not None and edge.v1 is not None:
+                edge.midpoint = (edge.v0.point + edge.v1.point) * 0.5
 
     # -----------------------------------------------------------------------
     # Step 2: Island Shaping & Ocean/Lake Water Classification
@@ -815,11 +1025,161 @@ class PolygonMapGenerator:
                 )
 
     # -----------------------------------------------------------------------
+    # Mapgen2 Hydrology, Infrastructure, and Geology Methods
+    # -----------------------------------------------------------------------
+
+    def calculate_watersheds(self) -> None:
+        """Calculates watershed drainage basins for corners and centers.
+
+        Reference: amitp/mapgen2 calculateWatersheds() & watersheds.js
+        Traces downslope pointers to find the coastal outflow corner for each corner.
+        Each polygon center is assigned the watershed of its lowest elevation corner.
+        Computes catchment area size (watershed_size).
+        """
+        for cn in self.corners:
+            cn.watershed = cn
+            cn.watershed_size = 0
+            if not cn.ocean and not cn.coast and cn.downslope is not None:
+                cn.watershed = cn.downslope
+
+        # Follow downslope pointers to the coast (up to 100 iterations)
+        for _ in range(100):
+            changed = False
+            for cn in self.corners:
+                if not cn.ocean and not cn.coast and cn.watershed is not None and not cn.watershed.coast:
+                    if cn.downslope is not None and cn.downslope.watershed is not None:
+                        r = cn.downslope.watershed
+                        if not r.ocean and r != cn.watershed:
+                            cn.watershed = r
+                            changed = True
+            if not changed:
+                break
+
+        # Calculate catchment area for each watershed
+        for cn in self.corners:
+            if cn.watershed is not None:
+                cn.watershed.watershed_size += 1
+
+        # Centers take watershed of their lowest corner
+        for c in self.centers:
+            if c.corners:
+                lowest_cn = min(c.corners, key=lambda q: q.elevation)
+                c.lowest_corner = lowest_cn
+                c.watershed = lowest_cn.watershed if lowest_cn else None
+                c.watershed_size = lowest_cn.watershed.watershed_size if (lowest_cn and lowest_cn.watershed) else 0
+
+    def create_roads(self, elevation_thresholds: Optional[List[float]] = None) -> None:
+        """Creates contour-following arterial island roads dividing elevation zones.
+
+        Reference: amitp/mapgen2 Roads.as / roads.js
+        """
+        if elevation_thresholds is None:
+            elevation_thresholds = [0.0, 0.40, 0.70, 0.90]
+
+        center_contour: Dict[int, int] = {}
+        queue: deque[Center] = deque()
+
+        for c in self.centers:
+            if c.coast or c.ocean:
+                center_contour[c.index] = 1
+                queue.append(c)
+
+        while queue:
+            p = queue.popleft()
+            p_lvl = center_contour.get(p.index, 1)
+            for r in p.neighbors:
+                new_level = p_lvl
+                while new_level < len(elevation_thresholds) and r.elevation > elevation_thresholds[new_level] and not r.water:
+                    new_level += 1
+                if new_level < center_contour.get(r.index, 999):
+                    center_contour[r.index] = new_level
+                    queue.append(r)
+
+        corner_contour: Dict[int, int] = {}
+        for c in self.centers:
+            c_lvl = center_contour.get(c.index, 1)
+            c.contour = c_lvl
+            for q in c.corners:
+                prev = corner_contour.get(q.index, 999)
+                corner_contour[q.index] = min(prev, c_lvl)
+
+        for q in self.corners:
+            q.contour = corner_contour.get(q.index, 1)
+
+        # Roads go along edges between different corner contour levels
+        for edge in self.edges:
+            if edge.v0 is not None and edge.v1 is not None:
+                c0 = corner_contour.get(edge.v0.index, 1)
+                c1 = corner_contour.get(edge.v1.index, 1)
+                if c0 != c1:
+                    edge.road = min(c0, c1)
+
+    def create_lava(self, fraction: float = 0.20, min_elevation: float = 0.75, max_moisture: float = 0.35) -> None:
+        """Generates high-elevation volcanic lava fissures and flows.
+
+        Reference: amitp/mapgen2 Lava.as / lava.js
+        """
+        for edge in self.edges:
+            if edge.river == 0 and edge.d0 and edge.d1:
+                if not edge.d0.water and not edge.d1.water:
+                    if edge.d0.elevation > min_elevation and edge.d1.elevation > min_elevation:
+                        if edge.d0.moisture < max_moisture and edge.d1.moisture < max_moisture:
+                            if self.rng.random() < fraction:
+                                edge.lava = True
+
+    def build_noisy_edges(self, tradeoff: float = 0.5) -> None:
+        """Constructs recursive fractal paths for all Voronoi edges using NoisyEdges."""
+        self.noisy_edges = NoisyEdges(tradeoff=tradeoff)
+        self.noisy_edges.build_noisy_edges(self)
+
+    def get_polygon_noisy_boundary(self, center: Center) -> np.ndarray:
+        """Constructs an organic, contiguous 2D closed polygon boundary using noisy edges."""
+        if not self.noisy_edges or len(center.corners) < 3:
+            return np.array([[cn.x, cn.y] for cn in center.corners], dtype=np.float64)
+
+        poly_pts: List[np.ndarray] = []
+        corners = center.corners
+        num_c = len(corners)
+
+        for i in range(num_c):
+            c_curr = corners[i]
+            c_next = corners[(i + 1) % num_c]
+
+            # Find border edge connecting c_curr and c_next
+            edge_found: Optional[Edge] = None
+            for e in center.borders:
+                if (e.v0 == c_curr and e.v1 == c_next) or (e.v1 == c_curr and e.v0 == c_next):
+                    edge_found = e
+                    break
+
+            if edge_found and edge_found.index in self.noisy_edges.path0:
+                seg_pts = self.noisy_edges.get_edge_path(edge_found, start_corner=c_curr)
+                if seg_pts:
+                    poly_pts.extend(seg_pts[:-1])
+            else:
+                poly_pts.append(c_curr.point.copy())
+
+        if poly_pts:
+            poly_pts.append(poly_pts[0].copy())  # Close polygon
+            return np.array(poly_pts, dtype=np.float64)
+
+        return np.array([[cn.x, cn.y] for cn in center.corners], dtype=np.float64)
+
+    # -----------------------------------------------------------------------
     # Rasterization & Shaded Relief Surface Rendering
     # -----------------------------------------------------------------------
 
-    def render_to_surface(self, width: int = 1000, height: int = 1000, use_brdf: bool = True) -> Any:
-        """Render the polygonal map with shaded relief and rivers onto a Pygame surface."""
+    def render_to_surface(
+        self,
+        width: int = 1000,
+        height: int = 1000,
+        use_brdf: bool = True,
+        use_noisy_edges: bool = True,
+        show_roads: bool = True,
+        show_lava: bool = True,
+        show_watersheds: bool = False,
+    ) -> Any:
+        """Render the polygonal map with shaded relief, noisy paths, rivers, lava, and roads onto a Pygame surface."""
         import pygame
         surface = pygame.Surface((width, height))
         surface.fill((13, 36, 82) if use_brdf else (44, 78, 122))
@@ -830,12 +1190,38 @@ class PolygonMapGenerator:
         # Light vector from northwest
         sun_dir = np.array([-0.707, -0.707], dtype=np.float64)
 
+        # Precompute watershed distinct color palette if needed
+        watershed_colors: Dict[int, Tuple[int, int, int]] = {}
+        if show_watersheds:
+            rng_ws = random.Random(42)
+            for c in self.centers:
+                ws_id = c.watershed.index if c.watershed else 0
+                if ws_id not in watershed_colors:
+                    if c.water:
+                        watershed_colors[ws_id] = (30, 60, 110)
+                    else:
+                        r = rng_ws.randint(60, 220)
+                        g = rng_ws.randint(60, 220)
+                        b = rng_ws.randint(60, 220)
+                        watershed_colors[ws_id] = (r, g, b)
+
         # 1. Draw polygons
         for c in self.centers:
             if len(c.corners) < 3:
                 continue
 
-            if use_brdf:
+            if show_watersheds:
+                ws_id = c.watershed.index if c.watershed else 0
+                base_c = watershed_colors.get(ws_id, (100, 100, 100))
+                if use_brdf and not c.water:
+                    shaded_color = (
+                        min(255, int(base_c[0] * (c.total_light * 0.68))),
+                        min(255, int(base_c[1] * (c.total_light * 0.68))),
+                        min(255, int(base_c[2] * (c.total_light * 0.68))),
+                    )
+                else:
+                    shaded_color = base_c
+            elif use_brdf:
                 shaded_color = c.brdf_color
             else:
                 base_color = BIOME_COLORS.get(c.biome, (120, 160, 100))
@@ -857,28 +1243,82 @@ class PolygonMapGenerator:
                     min(255, max(0, int(base_color[2] * hillshade))),
                 )
 
-            poly_pts = [(int(cn.x * scale_x), int(cn.y * scale_y)) for cn in c.corners]
-            pygame.draw.polygon(surface, shaded_color, poly_pts)
-            # Subtle cell border outline
-            pygame.draw.polygon(surface, (0, 0, 0, 30 if use_brdf else 40), poly_pts, width=1)
+            if use_noisy_edges and self.noisy_edges:
+                poly_np = self.get_polygon_noisy_boundary(c)
+                poly_pts = [(int(pt[0] * scale_x), int(pt[1] * scale_y)) for pt in poly_np]
+            else:
+                poly_pts = [(int(cn.x * scale_x), int(cn.y * scale_y)) for cn in c.corners]
 
-        # 2. Draw rivers along Voronoi edges with specular highlight
+            if len(poly_pts) >= 3:
+                pygame.draw.polygon(surface, shaded_color, poly_pts)
+                if not use_noisy_edges:
+                    pygame.draw.polygon(surface, (0, 0, 0, 30 if use_brdf else 40), poly_pts, width=1)
+
+        # 2. Draw rivers along noisy paths with specular highlight
         river_base = (56, 138, 220) if use_brdf else (68, 140, 210)
         for e in self.edges:
             if e.river > 0 and e.v0 and e.v1:
-                p0 = (int(e.v0.x * scale_x), int(e.v0.y * scale_y))
-                p1 = (int(e.v1.x * scale_x), int(e.v1.y * scale_y))
-                w_line = min(6, max(1, int(1 + math.log2(e.river + 1))))
-                pygame.draw.line(surface, river_base, p0, p1, width=w_line)
+                w_line = min(8, max(1, int(1 + math.log2(e.river + 1))))
+                if use_noisy_edges and self.noisy_edges:
+                    pts = self.noisy_edges.get_edge_path(e, start_corner=e.v0)
+                    line_pts = [(int(p[0] * scale_x), int(p[1] * scale_y)) for p in pts]
+                    if len(line_pts) >= 2:
+                        pygame.draw.lines(surface, river_base, False, line_pts, width=w_line)
+                else:
+                    p0 = (int(e.v0.x * scale_x), int(e.v0.y * scale_y))
+                    p1 = (int(e.v1.x * scale_x), int(e.v1.y * scale_y))
+                    pygame.draw.line(surface, river_base, p0, p1, width=w_line)
 
-        # 3. Draw coastline contours
+        # 3. Draw lava fissures
+        if show_lava:
+            lava_outer = (180, 32, 16)
+            lava_core = (255, 190, 32)
+            for e in self.edges:
+                if getattr(e, 'lava', False) and e.v0 and e.v1:
+                    if use_noisy_edges and self.noisy_edges:
+                        pts = self.noisy_edges.get_edge_path(e, start_corner=e.v0)
+                        line_pts = [(int(p[0] * scale_x), int(p[1] * scale_y)) for p in pts]
+                        if len(line_pts) >= 2:
+                            pygame.draw.lines(surface, lava_outer, False, line_pts, width=4)
+                            pygame.draw.lines(surface, lava_core, False, line_pts, width=2)
+                    else:
+                        p0 = (int(e.v0.x * scale_x), int(e.v0.y * scale_y))
+                        p1 = (int(e.v1.x * scale_x), int(e.v1.y * scale_y))
+                        pygame.draw.line(surface, lava_outer, p0, p1, width=4)
+                        pygame.draw.line(surface, lava_core, p0, p1, width=2)
+
+        # 4. Draw contour roads
+        if show_roads:
+            road_color = (195, 170, 125) if use_brdf else (170, 140, 100)
+            for e in self.edges:
+                if getattr(e, 'road', 0) > 0 and e.v0 and e.v1:
+                    # Do not draw roads through ocean
+                    if (e.d0 and e.d0.ocean) and (e.d1 and e.d1.ocean):
+                        continue
+                    if use_noisy_edges and self.noisy_edges:
+                        pts = self.noisy_edges.get_edge_path(e, start_corner=e.v0)
+                        line_pts = [(int(p[0] * scale_x), int(p[1] * scale_y)) for p in pts]
+                        if len(line_pts) >= 2:
+                            pygame.draw.lines(surface, road_color, False, line_pts, width=2)
+                    else:
+                        p0 = (int(e.v0.x * scale_x), int(e.v0.y * scale_y))
+                        p1 = (int(e.v1.x * scale_x), int(e.v1.y * scale_y))
+                        pygame.draw.line(surface, road_color, p0, p1, width=2)
+
+        # 5. Draw coastline contours
         coast_color = (18, 55, 95) if use_brdf else (25, 45, 75)
         for e in self.edges:
             if e.v0 and e.v1 and e.d0 and e.d1:
                 if (e.d0.ocean != e.d1.ocean) or (e.d0.water != e.d1.water):
-                    p0 = (int(e.v0.x * scale_x), int(e.v0.y * scale_y))
-                    p1 = (int(e.v1.x * scale_x), int(e.v1.y * scale_y))
-                    pygame.draw.line(surface, coast_color, p0, p1, width=2)
+                    if use_noisy_edges and self.noisy_edges:
+                        pts = self.noisy_edges.get_edge_path(e, start_corner=e.v0)
+                        line_pts = [(int(p[0] * scale_x), int(p[1] * scale_y)) for p in pts]
+                        if len(line_pts) >= 2:
+                            pygame.draw.lines(surface, coast_color, False, line_pts, width=2)
+                    else:
+                        p0 = (int(e.v0.x * scale_x), int(e.v0.y * scale_y))
+                        p1 = (int(e.v1.x * scale_x), int(e.v1.y * scale_y))
+                        pygame.draw.line(surface, coast_color, p0, p1, width=2)
 
         return surface
 
