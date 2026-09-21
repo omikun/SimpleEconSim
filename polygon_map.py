@@ -213,7 +213,7 @@ class NoisyEdges:
         never self-intersect or cross neighboring polygon boundaries.
     """
 
-    def __init__(self, tradeoff: float = 0.5):
+    def __init__(self, tradeoff: float = 0.30):
         self.tradeoff = float(tradeoff)
         # path0: edge.index -> list of points from v0 to midpoint
         self.path0: Dict[int, List[np.ndarray]] = {}
@@ -241,8 +241,8 @@ class NoisyEdges:
             if dist_AC < min_length or dist_BD < min_length:
                 return
 
-            p = rng.uniform(0.2, 0.8)
-            q = rng.uniform(0.2, 0.8)
+            p = rng.uniform(0.40, 0.60)
+            q = rng.uniform(0.40, 0.60)
 
             # Midpoints along quadrilateral edges
             E = A_pt + p * (D_pt - A_pt)
@@ -253,9 +253,9 @@ class NoisyEdges:
             # Central interior intersection point
             H = E + q * (F - E)
 
-            # Subdivide subquadrilaterals meeting at H
-            s = 1.0 - rng.uniform(-0.4, 0.4)
-            t = 1.0 - rng.uniform(-0.4, 0.4)
+            # Subdivide subquadrilaterals meeting at H with gentle organic displacement
+            s = 1.0 - rng.uniform(-0.16, 0.16)
+            t = 1.0 - rng.uniform(-0.16, 0.16)
 
             subdivide(A_pt, G + s * (B_pt - G), H, E + t * (D_pt - E), depth + 1)
             points.append(H.copy())
@@ -300,23 +300,23 @@ class NoisyEdges:
             s = v1_pt + f * (d1_pt - v1_pt)
 
             # Feature-dependent minimum segment length:
-            # - Coastlines & rivers: fine detailed noise (1.5)
-            # - Biome transitions: medium noise (3.0)
+            # - Coastlines & rivers: smooth organic fractal detail (5.0)
+            # - Biome transitions: medium organic contours (10.0)
             # - Open ocean: smooth large segments (50.0)
-            # - Interior: standard noise (10.0)
-            min_length = 10.0
+            # - Interior: standard noise (14.0)
+            min_length = 14.0
             if edge.d0 and edge.d1:
                 if edge.d0.biome != edge.d1.biome:
-                    min_length = 3.0
+                    min_length = 10.0
                 if edge.d0.ocean and edge.d1.ocean:
                     min_length = 50.0
                 if edge.d0.coast or edge.d1.coast:
-                    min_length = 1.5
+                    min_length = 5.0
             elif edge.v0.coast or edge.v1.coast:
-                min_length = 1.5
+                min_length = 5.0
 
             if edge.river > 0 or edge.lava:
-                min_length = 1.5
+                min_length = 5.0
 
             self.path0[edge.index] = self.build_noisy_line_segments(
                 edge_rng, v0_pt, t, mid_pt, q, min_length=min_length
@@ -366,7 +366,7 @@ class PolygonMapGenerator:
         enable_roads: bool = True,
         enable_lava: bool = True,
         enable_noisy_edges: bool = True,
-        noisy_tradeoff: float = 0.5,
+        noisy_tradeoff: float = 0.30,
     ):
         self.seed = seed
         self.width = float(width)
@@ -1130,7 +1130,7 @@ class PolygonMapGenerator:
                             if self.rng.random() < fraction:
                                 edge.lava = True
 
-    def build_noisy_edges(self, tradeoff: float = 0.5) -> None:
+    def build_noisy_edges(self, tradeoff: float = 0.30) -> None:
         """Constructs recursive fractal paths for all Voronoi edges using NoisyEdges."""
         self.noisy_edges = NoisyEdges(tradeoff=tradeoff)
         self.noisy_edges.build_noisy_edges(self)
@@ -1163,6 +1163,13 @@ class PolygonMapGenerator:
                 poly_pts.append(c_curr.point.copy())
 
         if poly_pts:
+            if len(poly_pts) >= 4:
+                arr = np.array(poly_pts, dtype=np.float64)
+                prev_pts = np.roll(arr, 1, axis=0)
+                next_pts = np.roll(arr, -1, axis=0)
+                # Weighted running average for organic curvature without sharp spikes
+                smoothed = 0.20 * prev_pts + 0.60 * arr + 0.20 * next_pts
+                return np.vstack([smoothed, smoothed[0]])
             poly_pts.append(poly_pts[0].copy())  # Close polygon
             return np.array(poly_pts, dtype=np.float64)
 
@@ -1226,7 +1233,16 @@ class PolygonMapGenerator:
                 else:
                     shaded_color = base_c
             elif use_brdf:
-                shaded_color = c.brdf_color
+                if continuous_relief and not c.water:
+                    base_c = np.array(BIOME_COLORS.get(c.biome, (120, 160, 100)), dtype=np.float32)
+                    if any(e.river > 0 for e in c.borders):
+                        base_c = base_c * 0.75 + np.array([43, 102, 38], dtype=np.float32) * 0.25
+                    if 1.0 - c.normal[2] > 0.12:
+                        cliff_w = min(0.60, (1.0 - c.normal[2] - 0.12) / 0.20)
+                        base_c = base_c * (1.0 - cliff_w) + np.array([66, 64, 71], dtype=np.float32) * cliff_w
+                    shaded_color = (int(base_c[0]), int(base_c[1]), int(base_c[2]))
+                else:
+                    shaded_color = c.brdf_color
             else:
                 base_color = BIOME_COLORS.get(c.biome, (120, 160, 100))
                 if not c.water and c.neighbors:
@@ -1271,11 +1287,11 @@ class PolygonMapGenerator:
                 gy, gx = np.mgrid[0:self.height:height*1j, 0:self.width:width*1j]
                 H = np.nan_to_num(interp(gx, gy), nan=0.0)
 
-                sigma = max(1.5, min(width, height) / 250.0)
+                sigma = max(2.0, min(width, height) / 200.0)
                 H_smooth = gaussian_filter(H, sigma=sigma)
 
                 dHy, dHx = np.gradient(H_smooth)
-                kh = 70.0 * (min(width, height) / 1000.0)
+                kh = 55.0 * (min(width, height) / 1000.0)
                 nx = -dHx * kh
                 ny = -dHy * kh
                 nz = np.ones_like(nx)
@@ -1287,23 +1303,40 @@ class PolygonMapGenerator:
                 L = np.array([-0.55, -0.55, 0.70], dtype=np.float64)
                 L /= np.linalg.norm(L)
                 NdotL = np.clip(nx * L[0] + ny * L[1] + nz * L[2], 0.0, 1.0)
-                hillshade = 0.85 + 0.45 * np.power(NdotL, 1.1) + 0.15 * (nz - 0.8)
+
+                sun_diffuse = 0.24 * np.power(NdotL, 1.2)
+                ambient = 0.74 + 0.12 * (nz - 0.7)
+                hillshade = ambient + sun_diffuse
 
                 rng = np.random.RandomState(self.seed)
-                micro_noise = (rng.rand(height, width) - 0.5) * 0.04
-                hillshade = np.clip(hillshade + micro_noise, 0.60, 1.40)
+                micro_noise = (rng.rand(height, width) - 0.5) * 0.025
+                hillshade = np.clip(hillshade + micro_noise, 0.58, 1.18)
 
                 is_land = H > 0.16
                 for ch in range(3):
+                    val = img[:, :, ch] * hillshade
+                    # Soft-knee compression: smoothly rolls off highlights above 220 to prevent blown-out saturation
+                    val = np.where(val > 220.0, 220.0 + (val - 220.0) * 0.35, val)
                     img[:, :, ch] = np.where(
                         is_land,
-                        np.clip(img[:, :, ch] * hillshade, 0, 255),
+                        np.clip(val, 0, 246),
                         img[:, :, ch]
                     )
 
                 surface = pygame.image.fromstring(img.astype(np.uint8).tobytes(), (width, height), "RGB")
             except Exception:
                 pass
+
+        def _smooth_edge_pts(path_pts: List[np.ndarray]) -> List[Tuple[int, int]]:
+            if len(path_pts) >= 4:
+                arr = np.array(path_pts, dtype=np.float64)
+                prev_p = np.roll(arr, 1, axis=0)
+                next_p = np.roll(arr, -1, axis=0)
+                sm = 0.20 * prev_p + 0.60 * arr + 0.20 * next_p
+                sm[0] = arr[0]
+                sm[-1] = arr[-1]
+                return [(int(p[0] * scale_x), int(p[1] * scale_y)) for p in sm]
+            return [(int(p[0] * scale_x), int(p[1] * scale_y)) for p in path_pts]
 
         # 2. Draw rivers along noisy paths with specular highlight
         river_base = (56, 138, 220) if use_brdf else (68, 140, 210)
@@ -1312,7 +1345,7 @@ class PolygonMapGenerator:
                 w_line = min(8, max(1, int(1 + math.log2(e.river + 1))))
                 if use_noisy_edges and self.noisy_edges:
                     pts = self.noisy_edges.get_edge_path(e, start_corner=e.v0)
-                    line_pts = [(int(p[0] * scale_x), int(p[1] * scale_y)) for p in pts]
+                    line_pts = _smooth_edge_pts(pts)
                     if len(line_pts) >= 2:
                         pygame.draw.lines(surface, river_base, False, line_pts, width=w_line)
                 else:
@@ -1328,7 +1361,7 @@ class PolygonMapGenerator:
                 if getattr(e, 'lava', False) and e.v0 and e.v1:
                     if use_noisy_edges and self.noisy_edges:
                         pts = self.noisy_edges.get_edge_path(e, start_corner=e.v0)
-                        line_pts = [(int(p[0] * scale_x), int(p[1] * scale_y)) for p in pts]
+                        line_pts = _smooth_edge_pts(pts)
                         if len(line_pts) >= 2:
                             pygame.draw.lines(surface, lava_outer, False, line_pts, width=4)
                             pygame.draw.lines(surface, lava_core, False, line_pts, width=2)
@@ -1348,7 +1381,7 @@ class PolygonMapGenerator:
                         continue
                     if use_noisy_edges and self.noisy_edges:
                         pts = self.noisy_edges.get_edge_path(e, start_corner=e.v0)
-                        line_pts = [(int(p[0] * scale_x), int(p[1] * scale_y)) for p in pts]
+                        line_pts = _smooth_edge_pts(pts)
                         if len(line_pts) >= 2:
                             pygame.draw.lines(surface, road_color, False, line_pts, width=2)
                     else:
@@ -1363,7 +1396,7 @@ class PolygonMapGenerator:
                 if (e.d0.ocean != e.d1.ocean) or (e.d0.water != e.d1.water):
                     if use_noisy_edges and self.noisy_edges:
                         pts = self.noisy_edges.get_edge_path(e, start_corner=e.v0)
-                        line_pts = [(int(p[0] * scale_x), int(p[1] * scale_y)) for p in pts]
+                        line_pts = _smooth_edge_pts(pts)
                         if len(line_pts) >= 2:
                             pygame.draw.lines(surface, coast_color, False, line_pts, width=2)
                     else:
