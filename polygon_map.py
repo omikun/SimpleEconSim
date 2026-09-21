@@ -1188,7 +1188,8 @@ class PolygonMapGenerator:
         show_roads: bool = True,
         show_lava: bool = True,
         show_watersheds: bool = False,
-        continuous_relief: bool = True,
+        continuous_relief: bool = False,
+        render_micropolys: bool = True,
     ) -> Any:
         """Render the polygonal map with shaded relief, noisy paths, rivers, lava, and roads onto a Pygame surface."""
         import pygame
@@ -1216,9 +1217,13 @@ class PolygonMapGenerator:
                         b = rng_ws.randint(60, 220)
                         watershed_colors[ws_id] = (r, g, b)
 
-        # 1. Draw polygons
+        # 1. Draw base polygons for water / watersheds / fallback
         for c in self.centers:
             if len(c.corners) < 3:
+                continue
+
+            # If micropolys are enabled for land, skip drawing flat land polygons here
+            if render_micropolys and use_noisy_edges and self.noisy_edges and not c.water and not show_watersheds:
                 continue
 
             if show_watersheds:
@@ -1233,35 +1238,10 @@ class PolygonMapGenerator:
                 else:
                     shaded_color = base_c
             elif use_brdf:
-                if continuous_relief and not c.water:
-                    base_c = np.array(BIOME_COLORS.get(c.biome, (120, 160, 100)), dtype=np.float32)
-                    if any(e.river > 0 for e in c.borders):
-                        base_c = base_c * 0.75 + np.array([43, 102, 38], dtype=np.float32) * 0.25
-                    if 1.0 - c.normal[2] > 0.12:
-                        cliff_w = min(0.60, (1.0 - c.normal[2] - 0.12) / 0.20)
-                        base_c = base_c * (1.0 - cliff_w) + np.array([66, 64, 71], dtype=np.float32) * cliff_w
-                    shaded_color = (int(base_c[0]), int(base_c[1]), int(base_c[2]))
-                else:
-                    shaded_color = c.brdf_color
+                shaded_color = c.brdf_color
             else:
                 base_color = BIOME_COLORS.get(c.biome, (120, 160, 100))
-                if not c.water and c.neighbors:
-                    dx = sum((n.elevation - c.elevation) * (n.x - c.x) for n in c.neighbors)
-                    dy = sum((n.elevation - c.elevation) * (n.y - c.y) for n in c.neighbors)
-                    slope = np.array([dx, dy], dtype=np.float64)
-                    norm = np.linalg.norm(slope)
-                    if norm > 1e-6:
-                        slope /= norm
-                    illum = -(slope[0] * sun_dir[0] + slope[1] * sun_dir[1])
-                    hillshade = max(0.65, min(1.35, 1.0 + illum * 0.35))
-                else:
-                    hillshade = 1.0
-
-                shaded_color = (
-                    min(255, max(0, int(base_color[0] * hillshade))),
-                    min(255, max(0, int(base_color[1] * hillshade))),
-                    min(255, max(0, int(base_color[2] * hillshade))),
-                )
+                shaded_color = base_color
 
             if use_noisy_edges and self.noisy_edges:
                 poly_np = self.get_polygon_noisy_boundary(c)
@@ -1274,7 +1254,91 @@ class PolygonMapGenerator:
                 if not use_noisy_edges:
                     pygame.draw.polygon(surface, (0, 0, 0, 30 if use_brdf else 40), poly_pts, width=1)
 
-        # 1b. Continuous cartographic shaded relief across land
+        # 1b. Render constituent micropolygons for each land cell (Amit Patel mapgen2 renderPolygons)
+        if render_micropolys and use_noisy_edges and self.noisy_edges and not show_watersheds:
+            L_norm = np.array([-0.55, -0.55, 0.70], dtype=np.float64)
+            L_norm /= np.linalg.norm(L_norm)
+
+            for p in self.centers:
+                if p.water or len(p.corners) < 3:
+                    continue
+
+                p_pt = (int(p.x * scale_x), int(p.y * scale_y))
+                base_color = np.array(BIOME_COLORS.get(p.biome, (120, 160, 100)), dtype=np.float64)
+
+                for r in p.neighbors:
+                    edge = next((e for e in p.borders if e.d0 == r or e.d1 == r), None)
+                    if not edge or not edge.v0 or not edge.v1:
+                        continue
+
+                    # 3D Normal of triangle wedge (p, edge.v0, edge.v1)
+                    Ax, Ay, Az = p.x, p.y, p.elevation * 300.0
+                    Bx, By, Bz = edge.v0.x, edge.v0.y, edge.v0.elevation * 300.0
+                    Cx, Cy, Cz = edge.v1.x, edge.v1.y, edge.v1.elevation * 300.0
+
+                    v1 = np.array([Bx - Ax, By - Ay, Bz - Az], dtype=np.float64)
+                    v2 = np.array([Cx - Ax, Cy - Ay, Cz - Az], dtype=np.float64)
+                    norm = np.cross(v1, v2)
+                    if norm[2] < 0:
+                        norm = -norm
+                    norm_len = np.linalg.norm(norm)
+                    if norm_len > 1e-6:
+                        norm /= norm_len
+                    else:
+                        norm = np.array([0.0, 0.0, 1.0], dtype=np.float64)
+
+                    # Biome blending across polygon edges towards neighbor r
+                    col = base_color.copy()
+                    if not r.water:
+                        r_col = np.array(BIOME_COLORS.get(r.biome, col), dtype=np.float64)
+                        col = col * 0.65 + r_col * 0.35
+
+                    # Steep cliff rock scree exposure
+                    slope_val = 1.0 - norm[2]
+                    if slope_val > 0.15:
+                        cliff_w = min(0.55, (slope_val - 0.15) / 0.25)
+                        col = col * (1.0 - cliff_w) + np.array([66, 64, 71], dtype=np.float64) * cliff_w
+
+                    # Riparian vegetation greening along river borders
+                    if edge.river > 0:
+                        col = col * 0.70 + np.array([43, 102, 38], dtype=np.float64) * 0.30
+
+                    # 3D Illumination
+                    NdotL = max(0.0, float(np.dot(norm, L_norm)))
+                    if use_brdf:
+                        diffuse = 0.38 * math.pow(NdotL, 1.15)
+                        ambient = 0.70 + 0.15 * (norm[2] - 0.7)
+                        total_shade = ambient + diffuse
+                    else:
+                        total_shade = 0.65 + 0.50 * NdotL
+
+                    shaded_rgb = col * total_shade
+                    # Soft-knee highlight compression to prevent blowout
+                    for i in range(3):
+                        if shaded_rgb[i] > 220.0:
+                            shaded_rgb[i] = 220.0 + (shaded_rgb[i] - 220.0) * 0.35
+
+                    final_col = (
+                        min(246, max(0, int(shaded_rgb[0]))),
+                        min(246, max(0, int(shaded_rgb[1]))),
+                        min(246, max(0, int(shaded_rgb[2]))),
+                    )
+
+                    # Draw micropoly 0: (p -> v0 -> ... -> midpoint -> p)
+                    path0 = self.noisy_edges.path0.get(edge.index)
+                    if path0 is not None and len(path0) >= 2:
+                        pts0 = [p_pt] + [(int(pt[0] * scale_x), int(pt[1] * scale_y)) for pt in path0]
+                        if len(pts0) >= 3:
+                            pygame.draw.polygon(surface, final_col, pts0)
+
+                    # Draw micropoly 1: (p -> v1 -> ... -> midpoint -> p)
+                    path1 = self.noisy_edges.path1.get(edge.index)
+                    if path1 is not None and len(path1) >= 2:
+                        pts1 = [p_pt] + [(int(pt[0] * scale_x), int(pt[1] * scale_y)) for pt in path1]
+                        if len(pts1) >= 3:
+                            pygame.draw.polygon(surface, final_col, pts1)
+
+        # 1c. Optional continuous cartographic relief overlay
         if continuous_relief and use_brdf and not show_watersheds and len(self.centers) > 0:
             try:
                 buf = pygame.image.tostring(surface, "RGB")
@@ -1291,7 +1355,7 @@ class PolygonMapGenerator:
                 H_smooth = gaussian_filter(H, sigma=sigma)
 
                 dHy, dHx = np.gradient(H_smooth)
-                kh = 55.0 * (min(width, height) / 1000.0)
+                kh = 40.0 * (min(width, height) / 1000.0)
                 nx = -dHx * kh
                 ny = -dHy * kh
                 nz = np.ones_like(nx)
@@ -1304,18 +1368,17 @@ class PolygonMapGenerator:
                 L /= np.linalg.norm(L)
                 NdotL = np.clip(nx * L[0] + ny * L[1] + nz * L[2], 0.0, 1.0)
 
-                sun_diffuse = 0.24 * np.power(NdotL, 1.2)
-                ambient = 0.74 + 0.12 * (nz - 0.7)
+                sun_diffuse = 0.15 * np.power(NdotL, 1.2)
+                ambient = 0.85 + 0.10 * (nz - 0.7)
                 hillshade = ambient + sun_diffuse
 
                 rng = np.random.RandomState(self.seed)
-                micro_noise = (rng.rand(height, width) - 0.5) * 0.025
-                hillshade = np.clip(hillshade + micro_noise, 0.58, 1.18)
+                micro_noise = (rng.rand(height, width) - 0.5) * 0.02
+                hillshade = np.clip(hillshade + micro_noise, 0.70, 1.15)
 
                 is_land = H > 0.16
                 for ch in range(3):
                     val = img[:, :, ch] * hillshade
-                    # Soft-knee compression: smoothly rolls off highlights above 220 to prevent blown-out saturation
                     val = np.where(val > 220.0, 220.0 + (val - 220.0) * 0.35, val)
                     img[:, :, ch] = np.where(
                         is_land,
