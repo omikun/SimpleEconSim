@@ -34,6 +34,8 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 import numpy as np
+from scipy.interpolate import LinearNDInterpolator
+from scipy.ndimage import gaussian_filter
 from scipy.spatial import Delaunay, KDTree, Voronoi
 
 
@@ -911,8 +913,9 @@ class PolygonMapGenerator:
                     dx /= w_sum
                     dy /= w_sum
 
-                nx = -dx * height_exaggeration * 40.0
-                ny = -dy * height_exaggeration * 40.0
+                # Scale gradient to pixel map dimensions to yield realistic 30-55 deg slopes
+                nx = -dx * height_exaggeration * 360.0
+                ny = -dy * height_exaggeration * 360.0
                 nz = 1.0
                 norm_len = math.sqrt(nx * nx + ny * ny + nz * nz)
                 c.normal = np.array([nx / norm_len, ny / norm_len, nz / norm_len], dtype=np.float64)
@@ -1178,6 +1181,7 @@ class PolygonMapGenerator:
         show_roads: bool = True,
         show_lava: bool = True,
         show_watersheds: bool = False,
+        continuous_relief: bool = True,
     ) -> Any:
         """Render the polygonal map with shaded relief, noisy paths, rivers, lava, and roads onto a Pygame surface."""
         import pygame
@@ -1253,6 +1257,53 @@ class PolygonMapGenerator:
                 pygame.draw.polygon(surface, shaded_color, poly_pts)
                 if not use_noisy_edges:
                     pygame.draw.polygon(surface, (0, 0, 0, 30 if use_brdf else 40), poly_pts, width=1)
+
+        # 1b. Continuous cartographic shaded relief across land
+        if continuous_relief and use_brdf and not show_watersheds and len(self.centers) > 0:
+            try:
+                buf = pygame.image.tostring(surface, "RGB")
+                img = np.frombuffer(buf, dtype=np.uint8).reshape((height, width, 3)).astype(np.float32)
+
+                pts = [[c.x, c.y] for c in self.centers] + [[cn.x, cn.y] for cn in self.corners]
+                elevs = [c.elevation for c in self.centers] + [cn.elevation for cn in self.corners]
+
+                interp = LinearNDInterpolator(np.array(pts, dtype=np.float32), np.array(elevs, dtype=np.float32))
+                gy, gx = np.mgrid[0:self.height:height*1j, 0:self.width:width*1j]
+                H = np.nan_to_num(interp(gx, gy), nan=0.0)
+
+                sigma = max(1.5, min(width, height) / 250.0)
+                H_smooth = gaussian_filter(H, sigma=sigma)
+
+                dHy, dHx = np.gradient(H_smooth)
+                kh = 70.0 * (min(width, height) / 1000.0)
+                nx = -dHx * kh
+                ny = -dHy * kh
+                nz = np.ones_like(nx)
+                norm = np.sqrt(nx * nx + ny * ny + nz * nz)
+                nx /= norm
+                ny /= norm
+                nz /= norm
+
+                L = np.array([-0.55, -0.55, 0.70], dtype=np.float64)
+                L /= np.linalg.norm(L)
+                NdotL = np.clip(nx * L[0] + ny * L[1] + nz * L[2], 0.0, 1.0)
+                hillshade = 0.85 + 0.45 * np.power(NdotL, 1.1) + 0.15 * (nz - 0.8)
+
+                rng = np.random.RandomState(self.seed)
+                micro_noise = (rng.rand(height, width) - 0.5) * 0.04
+                hillshade = np.clip(hillshade + micro_noise, 0.60, 1.40)
+
+                is_land = H > 0.16
+                for ch in range(3):
+                    img[:, :, ch] = np.where(
+                        is_land,
+                        np.clip(img[:, :, ch] * hillshade, 0, 255),
+                        img[:, :, ch]
+                    )
+
+                surface = pygame.image.fromstring(img.astype(np.uint8).tobytes(), (width, height), "RGB")
+            except Exception:
+                pass
 
         # 2. Draw rivers along noisy paths with specular highlight
         river_base = (56, 138, 220) if use_brdf else (68, 140, 210)
