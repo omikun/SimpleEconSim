@@ -219,7 +219,7 @@ def _collect_items_for_nation(nation: Nation, world: dict) -> list[dict]:
                 'nation': nation.name,
                 'province': prov_name,
                 'region': tile.name,
-                'title': f"Survey Debt (${title_fee})",
+                'title': f"Survey Debt Assessment (${title_fee})",
                 'subtitle': f"Foreclosure Debt • {tile.name}",
                 'progress_pct': max(0.0, (1.0 - rem_t / 3.0) * 100.0),
                 'turns_left': rem_t,

@@ -191,16 +191,17 @@ def step_enclosure_survey_debts(tile, t: int) -> list[dict]:
     remaining_debts = []
 
     for debt in tile.enclosure_survey_debts:
-        tenant_id = debt['tenant_id']
-        fee = debt['fee']
-        deadline = debt['deadline']
-        plot_id = debt['plot_id']
+        tenant_id = debt.get('tenant_id')
+        fee = debt.get('fee', 0.0)
+        deadline = debt.get('deadline', t)
+        plot_id = debt.get('plot_id')
 
         tenant = None
-        for a in tile.agents:
-            if a.id == tenant_id:
-                tenant = a
-                break
+        if tenant_id is not None:
+            for a in tile.agents:
+                if a.id == tenant_id:
+                    tenant = a
+                    break
 
         if tenant is None or not tenant.alive:
             continue
