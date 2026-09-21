@@ -689,6 +689,50 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
         }
         return res
 
+    if btn_id == 'nat_toggle_quarantine':
+        has_quarantine = (getattr(nation, 'quarantine_active', False) if nation else False) or (getattr(owner, 'quarantine_active', False) if owner else False)
+        res = {
+            'title': "Cordon Sanitaire (Trade Quarantine)" if not has_quarantine else "Repeal Trade Quarantine",
+            'badge': "EPIDEMIOLOGY",
+            'badge_col': (240, 140, 60) if not has_quarantine else (240, 90, 90),
+            'category': "Public Health & Trade Interdiction",
+            'cost': "Halts merchant transport routes; reduces Bourgeoisie support (-15)",
+            'desc': [
+                "Imposes an immediate overland and maritime Cordon Sanitaire across all commercial trade corridors.",
+                "Freezes traveling merchant routes in place, intercepting infected shipments and blocking Black Death contagion vectors.",
+                "Commoner Approval: Reassures vulnerable urban artisans and peasants against pestilence (+10 support).",
+                "Merchant Resistance: Merchant capitalists face frozen profits and express fierce outrage (-15 support)."
+            ],
+            'stats': [
+                ("Quarantine Status", "ENFORCED" if has_quarantine else "OPEN BORDERS", (240, 90, 90) if has_quarantine else GREEN),
+                ("Route Interdiction", "100% Overland/Sea Freeze" if has_quarantine else "Normal Transit", ACCENT),
+                ("Labor / Serf Morale", "+10 Approval", GREEN),
+                ("Merchant Reaction", "-15 Approval", RED),
+            ]
+        }
+        return res
+
+    if btn_id == 'nat_emergency_granary':
+        res = {
+            'title': "Emergency Granary Relief",
+            'badge': "FAMINE RELIEF",
+            'badge_col': (120, 220, 140),
+            'category': "Agrarian Survival & Famine Prevention",
+            'cost': "Granary Reserve Stocks (Consumes stored grain to feed hungry citizens)",
+            'desc': [
+                "Unlocks public granaries and sovereign grain reserves, disbursing emergency food rations directly to starving serfs and laborers.",
+                "Resets chronic starvation counters (hungry_steps = 0) and eliminates famine-driven immune vulnerability.",
+                "Halts the endogenous genesis of The Great Pestilence before lethal plague strains ignite among crowded populations.",
+                "Resets regional famine outbreak progression to zero."
+            ],
+            'stats': [
+                ("Ration Target", "All Malnourished Citizens", GREEN),
+                ("Immune Resilience", "Eliminates Famine Vulnerability", (120, 240, 150)),
+                ("Pestilence Risk", "Extinguishes Endogenous Genesis", ACCENT),
+            ]
+        }
+        return res
+
     if btn_id == 'nat_restore_commons':
         res = {
             'title': "Restore Ancestral Commons",

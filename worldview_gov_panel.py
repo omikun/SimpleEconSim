@@ -516,7 +516,7 @@ def _draw_left_nation_scope(surface, world, region, nation, start_y, x, w, font,
     cur_y += card3_h + 8
 
     # 4. Labor Regulation & Social Directives Card
-    card4_h = 194
+    card4_h = 218
     c4_rect = (x + 8, cur_y, w - 16, card4_h)
     pygame.draw.rect(surface, CARD_BG, c4_rect, border_radius=5)
     pygame.draw.rect(surface, CARD_BORDER, c4_rect, 1, border_radius=5)
@@ -586,6 +586,17 @@ def _draw_left_nation_scope(surface, world, region, nation, start_y, x, w, font,
                   font_small, mx, my, 'nat_toggle_statute_of_laborers', nation, enabled=True,
                   color=(240, 180, 70) if not has_statute else (240, 100, 100),
                   world=world, region=region, nation=nation)
+
+    # Row 8: Epidemiological Controls (Cordon Sanitaire & Emergency Granary Relief)
+    has_quar = getattr(nation, 'quarantine_active', False) if nation else False
+    _draw_gov_btn(surface, (x + 16, cur_y + 192, bw_half, 20),
+                  "Quarantine" if not has_quar else "Quarantine: ON",
+                  font_small, mx, my, 'nat_toggle_quarantine', nation, enabled=True,
+                  color=(240, 140, 60) if not has_quar else (240, 90, 90),
+                  world=world, region=region, nation=nation)
+    _draw_gov_btn(surface, (x + 22 + bw_half, cur_y + 192, bw_half, 20), "Granary Relief",
+                  font_small, mx, my, 'nat_emergency_granary', nation, enabled=True,
+                  color=(120, 220, 140), world=world, region=region, nation=nation)
 
     cur_y += card4_h + 8
 

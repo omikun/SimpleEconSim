@@ -85,6 +85,10 @@ def step_turn(t: int, tiles: list, nations: list = None,
             rt.advance()
             rt.deliver_pending()
 
+    # 3b. Inter-regional trade epidemic transmission (The Great Pestilence)
+    from disease import step_trade_epidemic_transmission
+    step_trade_epidemic_transmission(tiles, t)
+
     # 4. Re-route parked goods
     resolve_parked(tiles)
 

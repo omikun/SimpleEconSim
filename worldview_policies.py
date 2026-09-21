@@ -542,7 +542,7 @@ def _draw_nation_policies(surface, world, region, start_y, font, font_small, mx,
     start_y += c3_h + 8
 
     # CARD 4: Labor Regulation & Mass Pacifier Decrees
-    c4_h = 104
+    c4_h = 128
     c4_rect = (PANEL_LEFT + 4, start_y, PANEL_W - 24, c4_h)
     pygame.draw.rect(surface, CARD_BG, c4_rect, border_radius=5)
     pygame.draw.rect(surface, CARD_BORDER, c4_rect, 1, border_radius=5)
@@ -551,6 +551,7 @@ def _draw_nation_policies(surface, world, region, start_y, font, font_small, mx,
     has_ten = getattr(owner, 'ten_hour_act', False) or cur_shift <= 10.0
     has_safe = getattr(owner, 'factory_safety_act', False)
     has_statute = getattr(owner, 'statute_of_laborers', False)
+    has_quarantine = getattr(owner, 'quarantine_active', False)
 
     ten_tag = " (Ten-Hour Act)" if has_ten else ""
     surface.blit(font_small.render(f"Workday: {cur_shift:.1f}h/day{ten_tag}", True, (240, 140, 80)), (PANEL_LEFT + 12, start_y + 8))
@@ -560,6 +561,8 @@ def _draw_nation_policies(surface, world, region, start_y, font, font_small, mx,
     safe_btn = (PANEL_LEFT + 156, start_y + 26, 94, 20)
     spec_btn = (PANEL_LEFT + 12, start_y + 50, 238, 20)
     statute_btn = (PANEL_LEFT + 12, start_y + 74, 238, 20)
+    quar_btn = (PANEL_LEFT + 12, start_y + 98, 116, 20)
+    granary_btn = (PANEL_LEFT + 134, start_y + 98, 116, 20)
 
     can_down = (cur_shift > 8.0)
     can_up = (cur_shift < 16.0)
@@ -572,12 +575,18 @@ def _draw_nation_policies(surface, world, region, start_y, font, font_small, mx,
               color=(70, 195, 235))
     _draw_btn(surface, statute_btn, "Statute of Laborers (Cap $1.20)" if not has_statute else "Repeal Statute of Laborers", font_small, mx, my,
               color=(240, 180, 70) if not has_statute else (240, 100, 100))
+    _draw_btn(surface, quar_btn, "Cordon Sanitaire" if not has_quarantine else "Lift Quarantine", font_small, mx, my,
+              color=(240, 140, 60) if not has_quarantine else (240, 90, 90))
+    _draw_btn(surface, granary_btn, "Granary Relief", font_small, mx, my,
+              color=(120, 220, 140))
 
     _ACTION_BUTTONS.append((btn_down, 'nat_adjust_shift_-2', owner))
     _ACTION_BUTTONS.append((btn_up, 'nat_adjust_shift_+2', owner))
     _ACTION_BUTTONS.append((safe_btn, 'nat_safety_mandate', owner))
     _ACTION_BUTTONS.append((spec_btn, 'nat_subsidize_entertainment', owner))
     _ACTION_BUTTONS.append((statute_btn, 'nat_toggle_statute_of_laborers', owner))
+    _ACTION_BUTTONS.append((quar_btn, 'nat_toggle_quarantine', owner))
+    _ACTION_BUTTONS.append((granary_btn, 'nat_emergency_granary', owner))
 
 
 # =============================================================================
@@ -901,6 +910,21 @@ def _execute_policy_action(world, act_id, target):
         world['policy_feedback'] = (msg, GREEN if ok else RED)
         from worldview_engine import ticker_push
         ticker_push(world, world['turn'], 'POLICY', msg, (240, 200, 100) if ok else RED)
+    elif act_id == 'nat_toggle_quarantine':
+        from labor_politics import enact_trade_quarantine, repeal_trade_quarantine
+        if getattr(target, 'quarantine_active', False):
+            ok, msg = repeal_trade_quarantine(target)
+        else:
+            ok, msg = enact_trade_quarantine(target)
+        world['policy_feedback'] = (msg, GREEN if ok else RED)
+        from worldview_engine import ticker_push
+        ticker_push(world, world['turn'], 'POLICY', msg, (240, 160, 60) if ok else RED)
+    elif act_id == 'nat_emergency_granary':
+        from labor_politics import emergency_granary_relief
+        ok, msg = emergency_granary_relief(target)
+        world['policy_feedback'] = (msg, GREEN if ok else RED)
+        from worldview_engine import ticker_push
+        ticker_push(world, world['turn'], 'POLICY', msg, (120, 240, 140) if ok else RED)
     elif act_id == 'nat_restore_commons':
         restored = False
         for r in target.tiles:

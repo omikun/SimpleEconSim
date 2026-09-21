@@ -416,7 +416,12 @@ def handle_death(ctx, t, agent, agents):
         # P3: Active epidemic diseases compound mortality risk
         active_dis = getattr(agent, 'diseases', [])
         if active_dis:
-            adjusted_prob *= (1.0 + min(4.0, 0.45 * len(active_dis)))
+            if 'pestilence' in active_dis:
+                # Acute lethal plague: 35% base mortality per turn, scaled by hunger
+                plague_mortality = 0.35 * (1.0 + 0.35 * getattr(agent, 'hungry_steps', 0))
+                adjusted_prob = max(adjusted_prob, min(0.65, plague_mortality))
+            else:
+                adjusted_prob *= (1.0 + min(4.0, 0.45 * len(active_dis)))
 
         if is_last_of_profession(agent, agents, ctx):
             return False

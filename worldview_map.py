@@ -608,6 +608,18 @@ def draw_activity_badges(surface, region, cx, cy, font_small):
             pygame.draw.rect(surface, (40, 40, 50), (cx - 38, cy - 30, 24, 13), border_radius=3)
             ttxt = font_small.render("TR", True, (200, 70, 70))
             surface.blit(ttxt, (cx - 34, cy - 31))
+        elif r_state.leader_id is not None:
+            # Ambient Agitator Badge (fermenting resistance)
+            pygame.draw.rect(surface, (180, 70, 40), (cx - 38, cy - 30, 24, 13), border_radius=3)
+            atxt = font_small.render("AGT", True, (255, 240, 220))
+            surface.blit(atxt, (cx - 37, cy - 31))
+
+        # Ambient Martyr Honor Badge (if tile has venerated martyrs)
+        if getattr(r_state, 'martyrs', None) and len(r_state.martyrs) > 0:
+            pygame.draw.rect(surface, (140, 30, 40), (cx - 38, cy - 44, 24, 13), border_radius=3)
+            pygame.draw.rect(surface, (235, 195, 75), (cx - 38, cy - 44, 24, 13), 1, border_radius=3)
+            mtxt = font_small.render("MTR", True, (255, 235, 160))
+            surface.blit(mtxt, (cx - 37, cy - 45))
 
         from imperialism import get_imperialism_manager
         imp_mgr = get_imperialism_manager()
@@ -640,6 +652,20 @@ def draw_activity_badges(surface, region, cx, cy, font_small):
             pygame.draw.rect(surface, (230, 110, 30), (cx - 40, cy - 58, 26, 13), border_radius=3)
             ntrtxt = font_small.render("NTR", True, (15, 15, 20))
             surface.blit(ntrtxt, (cx - 38, cy - 59))
+
+        # The Great Pestilence (Black Death Vector Badge)
+        pest_count = getattr(region, 'active_pestilence_count', 0)
+        if pest_count == 0:
+            pest_count = sum(1 for a in getattr(region, 'agents', []) if getattr(a, 'alive', True) and getattr(a, 'disease', None) == 'pestilence')
+        if pest_count > 0:
+            pygame.draw.rect(surface, (120, 20, 140), (cx + 16, cy - 44, 26, 13), border_radius=3)
+            pygame.draw.rect(surface, (255, 100, 255), (cx + 16, cy - 44, 26, 13), 1, border_radius=3)
+            surface.blit(font_small.render("PLG", True, (255, 230, 255)), (cx + 18, cy - 45))
+
+        # Cordon Sanitaire / Quarantine Active Badge
+        if getattr(region, 'quarantine_active', False):
+            pygame.draw.rect(surface, (210, 120, 20), (cx + 16, cy - 30, 26, 13), border_radius=3)
+            surface.blit(font_small.render("QRN", True, (255, 255, 255)), (cx + 18, cy - 31))
 
         # Phase 3 Farming Regime Badges
         regime = getattr(region, 'farming_regime', 'rotation')

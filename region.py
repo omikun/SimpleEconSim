@@ -543,8 +543,11 @@ class Region:
         food_price = self.recipes[Goods.food]['price']
         wood_price = self.recipes[Goods.wood]['price']
         furn_price = self.recipes[Goods.furniture]['price']
+        from secular_climate import get_secular_climate
+        self.secular_climate = get_secular_climate(t)
+        col_clim = self.secular_climate.get('col_modifier', 1.0)
         self.cost_of_living = max(0.1, (4 * food_price + 1 * wood_price + 0.25 * furn_price)
-                                  * self.col_multiplier)
+                                  * self.col_multiplier * col_clim)
         self.food_price = food_price
         self.all_goods_price = food_price + wood_price + furn_price
         self._record_start()

@@ -54,6 +54,17 @@ def get_icon(kind: str, size: int = 16) -> pygame.Surface:
         pygame.draw.polygon(surf, (120, 235, 150), [(s * 0.5, s * 0.15), (s * 0.85, s * 0.45), (s * 0.5, s * 0.85)])
         pygame.draw.line(surf, (200, 255, 215), (s * 0.5, s * 0.85), (s * 0.5, s * 0.18), 1)
 
+    elif kind in ('climate', 'sun', 'weather'):
+        import math
+        pygame.draw.circle(surf, (245, 205, 70), (int(s * 0.5), int(s * 0.5)), max(2, int(s * 0.25)))
+        for angle in (0, 45, 90, 135, 180, 225, 270, 315):
+            rad = math.radians(angle)
+            x1 = s * 0.5 + math.cos(rad) * s * 0.32
+            y1 = s * 0.5 + math.sin(rad) * s * 0.32
+            x2 = s * 0.5 + math.cos(rad) * s * 0.46
+            y2 = s * 0.5 + math.sin(rad) * s * 0.46
+            pygame.draw.line(surf, (245, 205, 70), (x1, y1), (x2, y2), 1)
+
     elif kind in ('iron_ore', 'iron', 'mining'):
         # Mountain iron ore rock & ingot
         pts = [(s * 0.2, s * 0.55), (s * 0.5, s * 0.15), (s * 0.85, s * 0.4), (s * 0.75, s * 0.85), (s * 0.25, s * 0.8)]

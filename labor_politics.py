@@ -396,3 +396,73 @@ def repeal_statute_of_laborers(target) -> Tuple[bool, str]:
     setattr(target, 'statute_of_laborers', False)
     return True, "Statute of Laborers repealed: Statutory maximum wage ceiling abolished!"
 
+
+def enact_trade_quarantine(target) -> Tuple[bool, str]:
+    """Enact a Cordon Sanitaire / Trade Quarantine.
+
+    Freezes all incoming and outgoing merchant transport routes to block plague transmission.
+    - Sets quarantine_active = True on target and tiles.
+    - Sets is_quarantined = True on all routes.
+    - Protects population (+0.10 Commoner/Labor approval).
+    - Freezes commercial profits (-0.15 Bourgeoisie approval).
+    """
+    tiles = getattr(target, 'tiles', [target]) if hasattr(target, 'tiles') else [target]
+    routes_quarantined = 0
+
+    for tile in tiles:
+        tile.quarantine_active = True
+        routes = getattr(tile, 'routes', {})
+        for rt in routes.values():
+            rt.is_quarantined = True
+            routes_quarantined += 1
+
+        factions = getattr(getattr(tile, 'factions', None), 'factions', {})
+        if 'Bourgeoisie' in factions:
+            factions['Bourgeoisie'].support = max(0.0, factions['Bourgeoisie'].support - 0.15)
+        for fname in ('Labor', 'Peasant', 'Commoners', 'Proletariat', 'Peasantry'):
+            if fname in factions:
+                factions[fname].support = min(1.0, factions[fname].support + 0.10)
+
+    setattr(target, 'quarantine_active', True)
+    return True, f"CORDON SANITAIRE: Trade Quarantine enacted! {routes_quarantined} commercial routes quarantined across {len(tiles)} regions."
+
+
+def repeal_trade_quarantine(target) -> Tuple[bool, str]:
+    """Repeal the Trade Quarantine, reopening commercial shipping corridors."""
+    tiles = getattr(target, 'tiles', [target]) if hasattr(target, 'tiles') else [target]
+    for tile in tiles:
+        tile.quarantine_active = False
+        routes = getattr(tile, 'routes', {})
+        for rt in routes.values():
+            rt.is_quarantined = False
+
+        factions = getattr(getattr(tile, 'factions', None), 'factions', {})
+        if 'Bourgeoisie' in factions:
+            factions['Bourgeoisie'].support = min(1.0, factions['Bourgeoisie'].support + 0.10)
+
+    setattr(target, 'quarantine_active', False)
+    return True, "Trade Quarantine repealed: Commercial transport corridors reopened."
+
+
+def emergency_granary_relief(target, food_amount: float = 25.0) -> Tuple[bool, str]:
+    """Release municipal/sovereign granary reserves to feed starving citizens and halt pestilence."""
+    tiles = getattr(target, 'tiles', [target]) if hasattr(target, 'tiles') else [target]
+    total_fed = 0
+
+    for tile in tiles:
+        gov = getattr(tile, 'gov', None)
+        food_stock = getattr(gov, 'food_inventory', 0.0) if gov else 0.0
+        # Check regional granary buffer stock
+        granary_stock = getattr(tile, 'granary_stock', 0.0)
+
+        # Distribute available grain to hungry agents
+        hungry_agents = [a for a in getattr(tile, 'agents', []) if getattr(a, 'alive', True) and getattr(a, 'hungry_steps', 0) > 0]
+        for a in hungry_agents[:int(food_amount)]:
+            a.hungry_steps = 0
+            total_fed += 1
+
+        tile.granary_stock = max(0.0, granary_stock - total_fed * 0.5)
+        tile.famine_outbreak_turns = 0  # Resets famine outbreak progression!
+
+    return True, f"EMERGENCY RELIEF: Distributed grain to {total_fed} starving citizens; halted famine immune collapse."
+

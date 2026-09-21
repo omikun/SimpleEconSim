@@ -40,8 +40,10 @@ class Route:
 
     @property
     def is_frozen(self) -> bool:
-        """True if route is paralyzed by a General Strike or Naval Blockade."""
-        return bool(getattr(self, 'is_blocked_by_strike', False) or getattr(self, 'is_blockaded', False))
+        """True if route is paralyzed by a General Strike, Naval Blockade, or Quarantine."""
+        return bool(getattr(self, 'is_blocked_by_strike', False)
+                    or getattr(self, 'is_blockaded', False)
+                    or getattr(self, 'is_quarantined', False))
 
     def post(self, trader, good, qty):
         """Move ``qty`` from ``trader.inventory_export`` into this route.

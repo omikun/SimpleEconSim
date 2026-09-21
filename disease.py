@@ -27,14 +27,16 @@ DIS_MALNUTRITION = 'malnutrition'
 DIS_WATERBORNE = 'waterborne'
 DIS_RESPIRATORY = 'respiratory'
 DIS_CHEMICAL = 'chemical'
+DIS_PESTILENCE = 'pestilence'
 
-ALL_DISEASES = [DIS_MALNUTRITION, DIS_WATERBORNE, DIS_RESPIRATORY, DIS_CHEMICAL]
+ALL_DISEASES = [DIS_MALNUTRITION, DIS_WATERBORNE, DIS_RESPIRATORY, DIS_CHEMICAL, DIS_PESTILENCE]
 
 DISEASE_NAMES = {
     DIS_MALNUTRITION: "Malnutrition & Scurvy",
     DIS_WATERBORNE: "Waterborne Cholera",
     DIS_RESPIRATORY: "Smog Bronchitis & Black Lung",
     DIS_CHEMICAL: "Chemical Pesticide Toxicity",
+    DIS_PESTILENCE: "The Great Pestilence (Black Death)",
 }
 
 DISEASE_DESCRIPTIONS = {
@@ -42,6 +44,7 @@ DISEASE_DESCRIPTIONS = {
     DIS_WATERBORNE: "Contracted from drinking sewage-effluent and fertilizer-contaminated runoff.",
     DIS_RESPIRATORY: "Incurred through long-term inhalation of factory smoke and coal particulate smog.",
     DIS_CHEMICAL: "Neurological and organ damage caused by handling synthetic pesticides without bio-controls.",
+    DIS_PESTILENCE: "A lethal, highly contagious epidemic traveling along commercial trade corridors, thriving on starvation and crowded habitations.",
 }
 
 # Base treatment fees ($)
@@ -151,11 +154,35 @@ def step_agent_disease_onset(agent, region, rand_gen=None) -> list[str]:
             if r.random() < min(0.60, base_risk):
                 current_diseases.append(DIS_CHEMICAL)
 
+    # 5. The Great Pestilence (Black Death) Contagion
+    if DIS_PESTILENCE not in current_diseases:
+        plague_cases = getattr(region, 'active_pestilence_count', 0)
+        if plague_cases > 0:
+            pop = len([x for x in getattr(region, 'agents', []) if getattr(x, 'alive', True) and not getattr(x, 'is_corporation', False)])
+            cap = getattr(region, 'carrying_capacity', 100) or 100
+            crowding = min(2.5, max(0.5, pop / max(1, cap)))
+
+            nutr = getattr(region, 'nutrition_density', 1.0)
+            hungry = getattr(agent, 'hungry_steps', 0)
+            susceptibility = 1.0 + 0.40 * hungry + 0.80 * max(0.0, 0.85 - nutr)
+
+            base_risk = 0.10 * (plague_cases / max(1, pop * 0.20)) * crowding * susceptibility
+
+            has_sewer = any(getattr(b, 'name', '') == 'trunk_sewer' for b in getattr(region, 'buildings', []))
+            if has_sewer:
+                base_risk *= 0.45
+            if has_germ_theory:
+                base_risk *= 0.25
+
+            if r.random() < min(0.70, base_risk):
+                current_diseases.append(DIS_PESTILENCE)
+
     # Compound health wear from all active diseases
     if current_diseases:
-        wear = 0.025 * len(current_diseases)
+        extra_pest = 0.08 if DIS_PESTILENCE in current_diseases else 0.0
+        wear = 0.025 * len(current_diseases) + extra_pest
         agent.health_attrition = min(2.5, getattr(agent, 'health_attrition', 0.0) + wear)
-        agent.despair = min(1.0, getattr(agent, 'despair', 0.0) + 0.03 * len(current_diseases))
+        agent.despair = min(1.0, getattr(agent, 'despair', 0.0) + 0.03 * len(current_diseases) + (0.10 if extra_pest else 0.0))
 
     return current_diseases
 
@@ -203,7 +230,7 @@ def step_medical_care(region, t: int, rand_gen=None) -> dict:
     gov_agent = getattr(gov, 'agent', None) if gov else None
 
     # Track disease breakdown this step
-    counts = {DIS_MALNUTRITION: 0, DIS_WATERBORNE: 0, DIS_RESPIRATORY: 0, DIS_CHEMICAL: 0}
+    counts = {DIS_MALNUTRITION: 0, DIS_WATERBORNE: 0, DIS_RESPIRATORY: 0, DIS_CHEMICAL: 0, DIS_PESTILENCE: 0}
 
     for a in agents:
         dis_list = getattr(a, 'diseases', [])
@@ -218,6 +245,15 @@ def step_medical_care(region, t: int, rand_gen=None) -> dict:
         # Attempt to treat each active disease
         cured_this_turn = []
         for dis in list(dis_list):
+            effective_cure = cure_chance
+            if dis == DIS_PESTILENCE:
+                if has_pharma or has_clinic:
+                    effective_cure = 0.65
+                elif has_germ_theory:
+                    effective_cure = 0.40
+                else:
+                    effective_cure = 0.15
+
             if is_public_healthcare and gov_agent and gov_agent.cash >= cost_per_cure:
                 # Publicly funded care: treasury pays, zero out-of-pocket for citizen
                 gov_agent.cash -= cost_per_cure
@@ -230,7 +266,7 @@ def step_medical_care(region, t: int, rand_gen=None) -> dict:
                 treated_count += 1
                 a.medical_treatments_count = getattr(a, 'medical_treatments_count', 0) + 1
 
-                if r.random() < cure_chance:
+                if r.random() < effective_cure:
                     cured_this_turn.append(dis)
                     a.health_attrition = max(0.0, getattr(a, 'health_attrition', 0.0) - 0.15)
             elif a.cash >= cost_per_cure:
@@ -246,7 +282,7 @@ def step_medical_care(region, t: int, rand_gen=None) -> dict:
                 treated_count += 1
                 a.medical_treatments_count = getattr(a, 'medical_treatments_count', 0) + 1
 
-                if r.random() < cure_chance:
+                if r.random() < effective_cure:
                     cured_this_turn.append(dis)
                     a.health_attrition = max(0.0, getattr(a, 'health_attrition', 0.0) - 0.10)
             else:
@@ -293,12 +329,137 @@ def step_medical_care(region, t: int, rand_gen=None) -> dict:
     }
 
 
+def evaluate_pestilence_genesis(region, t: int, rand_gen=None) -> bool:
+    """Evaluate whether extreme famine and overcrowding trigger Patient Zero."""
+    agents = [a for a in getattr(region, 'agents', []) if getattr(a, 'alive', True) and not getattr(a, 'is_corporation', False)]
+    if len(agents) < 10:
+        return False
+
+    granary = getattr(region, 'granary_stock', 10.0)
+    nutr = getattr(region, 'nutrition_density', 1.0)
+    starving_count = sum(1 for a in agents if getattr(a, 'hungry_steps', 0) >= 2)
+    cap = getattr(region, 'carrying_capacity', None) or getattr(region, 'capacity', 100) or 100
+    crowding = len(agents) / max(1, cap)
+
+    # Severe famine condition: granaries empty, at least 15% chronic starvation, and nutrition < 0.75
+    is_famine = (granary <= 1.0 and starving_count >= len(agents) * 0.15 and nutr < 0.75)
+    is_crowded = (crowding >= 0.70)
+
+    if is_famine and is_crowded:
+        region.famine_outbreak_turns = getattr(region, 'famine_outbreak_turns', 0) + 1
+    else:
+        region.famine_outbreak_turns = max(0, getattr(region, 'famine_outbreak_turns', 0) - 1)
+        return False
+
+    # If severe famine persists for 2 or more consecutive turns:
+    if region.famine_outbreak_turns >= 2:
+        r = rand_gen or random
+        outbreak_prob = min(0.90, 0.40 * (region.famine_outbreak_turns - 1))
+
+        has_sewer = any(getattr(b, 'name', '') == 'trunk_sewer' for b in getattr(region, 'buildings', []))
+        if has_sewer:
+            outbreak_prob *= 0.40
+        nation = getattr(region, 'owner_nation', None)
+        unlocked = getattr(nation, 'unlocked_techs', set()) if nation else set()
+        if 'germ_theory_antisepsis' in unlocked:
+            outbreak_prob *= 0.20
+
+        if r.random() < outbreak_prob:
+            # Spawn Patient Zero
+            candidates = [a for a in agents if getattr(a, 'hungry_steps', 0) >= 2 and DIS_PESTILENCE not in getattr(a, 'diseases', [])]
+            if not candidates:
+                candidates = agents
+            patient_zero = r.choice(candidates)
+            if not hasattr(patient_zero, 'diseases') or patient_zero.diseases is None:
+                patient_zero.diseases = []
+            patient_zero.diseases.append(DIS_PESTILENCE)
+            region.active_pestilence_count = sum(1 for a in agents if DIS_PESTILENCE in getattr(a, 'diseases', []))
+            region.pestilence_origin_turn = t
+            return True
+
+    return False
+
+
+def step_trade_epidemic_transmission(tiles: list, t: int, world: dict | None = None, rand_gen=None) -> list[dict]:
+    """Propagate the Great Pestilence across active inter-regional trade routes and traveling merchants."""
+    events = []
+    rng = rand_gen or random
+    for r in tiles:
+        routes = getattr(r, 'routes', {})
+        active_pest = getattr(r, 'active_pestilence_count', 0)
+
+        # 1. Loading Contagion onto Outgoing Routes
+        if active_pest > 0:
+            for partner_name, rt in routes.items():
+                if rt.is_frozen or getattr(rt, 'is_quarantined', False):
+                    continue
+                inf_rate = active_pest / max(1, len(getattr(r, 'agents', [])))
+                if rng.random() < min(0.95, 0.30 + inf_rate * 1.5):
+                    rt.has_contagion = True
+
+        # 2. Arrival & Infection at Destination
+        for partner_name, rt in routes.items():
+            if not getattr(rt, 'has_contagion', False):
+                continue
+            dst = rt.dst
+            if dst is None:
+                continue
+
+            # Check if destination or route has active Quarantine / Cordon Sanitaire
+            if getattr(dst, 'quarantine_active', False) or getattr(rt, 'is_quarantined', False):
+                rt.has_contagion = False
+                ev = {
+                    't': t,
+                    'type': 'QUARANTINE_BLOCK',
+                    'src': r.name,
+                    'dst': dst.name,
+                    'message': f"QUARANTINE BLOCK: Sanitary patrol at {dst.name} turned back infected trade shipment from {r.name}!"
+                }
+                events.append(ev)
+                continue
+
+            # If arriving goods mature or route has in-transit cargo
+            if getattr(rt, 'delivered_this_turn', None) or getattr(rt, 'in_transit', None):
+                vulnerable = [a for a in getattr(dst, 'agents', [])
+                              if getattr(a, 'alive', True) and not getattr(a, 'is_corporation', False)
+                              and DIS_PESTILENCE not in getattr(a, 'diseases', [])]
+                if vulnerable:
+                    patient = random.choice(vulnerable)
+                    if not hasattr(patient, 'diseases') or patient.diseases is None:
+                        patient.diseases = []
+                    patient.diseases.append(DIS_PESTILENCE)
+                    dst.active_pestilence_count = sum(1 for a in getattr(dst, 'agents', []) if DIS_PESTILENCE in getattr(a, 'diseases', []))
+                    rt.has_contagion = False
+                    ev = {
+                        't': t,
+                        'type': 'PLAGUE_TRANSMISSION',
+                        'src': r.name,
+                        'dst': dst.name,
+                        'message': f"PLAGUE SHIP: The Great Pestilence has reached {dst.name} via merchant trade routes from {r.name}!"
+                    }
+                    events.append(ev)
+
+    return events
+
+
 def step_tile_diseases(region, t: int, rand_gen=None) -> dict:
     """Execute complete epidemiological cycle: disease onset + medical treatment."""
     agents = [a for a in getattr(region, 'agents', [])
               if getattr(a, 'alive', True) and not getattr(a, 'is_corporation', False)]
 
+    # Update active pestilence count before transmission
+    active_pest = sum(1 for a in agents if DIS_PESTILENCE in getattr(a, 'diseases', []))
+    region.active_pestilence_count = active_pest
+
+    # Check for endogenous genesis if no active plague
+    if active_pest == 0:
+        evaluate_pestilence_genesis(region, t, rand_gen)
+
     for a in agents:
         step_agent_disease_onset(a, region, rand_gen)
 
-    return step_medical_care(region, t, rand_gen)
+    res = step_medical_care(region, t, rand_gen)
+
+    # Re-count active pestilence after treatments
+    region.active_pestilence_count = sum(1 for a in agents if getattr(a, 'alive', True) and DIS_PESTILENCE in getattr(a, 'diseases', []))
+    return res

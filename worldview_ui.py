@@ -584,6 +584,22 @@ def _get_stat_breakdown(world, n, tiles, key):
 
         return "Sovereignty & Governance Breakdown", f"{n.regime_type.title()}", ACCENT, lines
 
+    elif key == 'climate':
+        from secular_climate import get_secular_climate
+        clim = get_secular_climate(world.get('turn', 0))
+        yield_pct = (clim['yield_multiplier'] - 1.0) * 100.0
+        col_pct = (clim['col_modifier'] - 1.0) * 100.0
+        badge_col = (255, 200, 80) if clim['epoch'] == 'warm_optimum' else ((140, 200, 255) if clim['epoch'] == 'ice_age' else (180, 220, 160))
+        lines = [
+            ("Current Secular Epoch", f"{clim['epoch_name']} ({clim['epoch_icon']})", badge_col),
+            ("Secular Anomaly", f"{clim['anomaly']:+.2f}°C relative to baseline", TEXT),
+            ("Food Crop Yield Impact", f"{yield_pct:+.1f}% agricultural productivity", GREEN if yield_pct >= 0 else RED),
+            ("Cost of Living Modifier", f"{col_pct:+.1f}% subsistence requirement", RED if col_pct > 0 else GREEN),
+            ("Cycle Progress", f"Turn {world.get('turn', 0) % 80 + 1}/80 in 80-Turn Secular Wave", (180, 195, 215)),
+            ("Historical Dynamics", "Ecological boom & bust: Warmth expands carrying capacity; cold collapses harvests into famine.", (240, 200, 100)),
+        ]
+        return f"Secular Climate Cycle ({clim['epoch_name']})", "SECULAR WAVE", badge_col, lines
+
     return "", "", TEXT, []
 
 
@@ -682,6 +698,10 @@ def draw_top_bar(surface, world, font_small, mouse_pos=None):
         protest_str = f"Protest {protest_cur:.2f}" + (f" ({'+' if d_protest > 0 else ''}{d_protest:.2f})" if abs(d_protest) >= 0.01 else "")
         protest_color = RED if protest_cur >= 4.0 else (BADGE_ORANGE if protest_cur >= 2.0 else (GREEN if d_protest < 0 else TEXT))
 
+        from secular_climate import get_secular_climate
+        cur_clim = get_secular_climate(world.get('turn', 0))
+        clim_col = (255, 200, 80) if cur_clim['epoch'] == 'warm_optimum' else ((140, 200, 255) if cur_clim['epoch'] == 'ice_age' else (180, 220, 160))
+
         stats = [
             (pop_str, pop_color, 'pop'),
             (tr_str, tr_color, 'treasury'),
@@ -691,6 +711,7 @@ def draw_top_bar(surface, world, font_small, mouse_pos=None):
             (f"Im ${imports_cur:,.0f}", IMP_C, 'im'),
             (net_str, net_color, 'net'),
             (protest_str, protest_color, 'protest'),
+            (f"{cur_clim['epoch_name']}", clim_col, 'climate'),
         ]
         
         x = 8
@@ -846,13 +867,26 @@ def draw_panel(surface, world, font, font_small, mouse_pos=None):
         r3 = font_small.render(f"Project: {proj_str}", True, proj_col)
         surface.blit(r3, (PANEL_LEFT + 8, 123 + d))
 
-        # Ecological & Metabolic Rift Status (Phase 3)
+        # Ecological & Metabolic Rift & Epidemiological Status
         s_fert = getattr(sel_reg, 'soil_fertility', 1.0) * 100.0
         s_nut = getattr(sel_reg, 'nutrition_density', 1.0) * 100.0
         s_air = getattr(sel_reg, 'pollution_air', 0.0)
         s_wat = getattr(sel_reg, 'pollution_water', 0.0)
-        eco_col = (130, 220, 160) if s_fert >= 90 and (s_air + s_wat) < 15 else ((240, 180, 80) if s_fert >= 60 else (240, 100, 100))
-        r4 = font_small.render(f"Ecology: Soil {s_fert:.0f}% • Nut {s_nut:.0f}% • Smog {s_air:.0f}", True, eco_col)
+        from secular_climate import get_secular_climate
+        clim = get_secular_climate(world.get('turn', 0))
+        pest_cnt = getattr(sel_reg, 'active_pestilence_count', 0)
+        if pest_cnt == 0:
+            pest_cnt = sum(1 for a in getattr(sel_reg, 'agents', []) if getattr(a, 'alive', True) and getattr(a, 'disease', None) == 'pestilence')
+        if pest_cnt > 0:
+            eco_tag = f"PLG! ({pest_cnt})"
+            eco_col = (255, 100, 220)
+        elif getattr(sel_reg, 'quarantine_active', False):
+            eco_tag = "QRN"
+            eco_col = (240, 160, 60)
+        else:
+            eco_tag = f"{clim['epoch_icon']}"
+            eco_col = (130, 220, 160) if s_fert >= 90 and (s_air + s_wat) < 15 else ((240, 180, 80) if s_fert >= 60 else (240, 100, 100))
+        r4 = font_small.render(f"Ecology: Soil {s_fert:.0f}% • Nut {s_nut:.0f}% • {eco_tag}", True, eco_col)
         surface.blit(r4, (PANEL_LEFT + 8, 137 + d))
 
     # Right Panel Header Tabs: [ 📊 Charts ] vs [ 👥 Citizens ] vs [ ⚖️ Policies ]

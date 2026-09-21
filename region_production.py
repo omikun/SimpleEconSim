@@ -42,6 +42,9 @@ def terrain_bonus(region, good, t: int | None = None):
         cur_t = t if t is not None else getattr(region, '_last_turn', None)
         if cur_t is not None:
             mult *= season_mult(cur_t)
+            from secular_climate import get_secular_climate
+            sec_clim = get_secular_climate(cur_t)
+            mult *= sec_clim['yield_multiplier']
 
         # Hydrological Fishery Degradation (toxic river effluent destroys coastal/river fisheries)
         p_water = getattr(region, 'pollution_water', 0.0)
