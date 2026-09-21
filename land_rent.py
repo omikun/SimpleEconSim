@@ -59,7 +59,24 @@ def collect_rents(region, t: int) -> tuple[float, float, list[dict]]:
         if lord is None or not lord.alive:
             continue
 
-        rent_rate = max(1.0, plot.rent_rate)
+        # Demographic rent elasticity: when tenants are scarce, land rents crash
+        scarcity_factor = min(1.0, tenants_count / max(1, len(enclosed_plots) * 8))
+        rent_rate = max(0.5, plot.rent_rate * scarcity_factor)
+
+        # Rational pastoral conversion trigger: high wages, tenant scarcity, or arrears prompt pivot to sheep pasture
+        if getattr(plot, 'production_type', 'arable') == 'arable':
+            corp_wages = [a.wage for a in region.agents if getattr(a, 'is_corporation', False) and a.wage > 0]
+            avg_w = (sum(corp_wages) / len(corp_wages)) if corp_wages else 1.0
+            if avg_w >= 1.70 or tenants_count < len(enclosed_plots) * 6 or getattr(plot, 'arrears', 0.0) > 20.0:
+                plot.production_type = 'pasture'
+                events.append({
+                    't': t,
+                    'event': 'PASTORAL_CONVERSION_PIVOT',
+                    'tile': region.name,
+                    'plot_id': plot.plot_id,
+                    'message': f"PASTORAL PIVOT on {region.name}: Landlord converted plot {plot.plot_id} to sheep pasture due to labor pressure (wage: ${avg_w:.2f})."
+                })
+
         # Proportion of tenants assigned to this plot or bound tenants
         if getattr(plot, 'tenant_ids', None):
             assigned_tenants = [a for a in region.agents if a.id in plot.tenant_ids and a.alive]

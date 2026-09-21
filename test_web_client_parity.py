@@ -9,6 +9,14 @@ from sim_server.protocol import CommandMessage, CommandType
 
 class TestWebClientParity(unittest.TestCase):
     def setUp(self):
+        import random
+        random.seed(4242)
+        import diplomacy
+        from diplomacy import DiplomacySystem
+        diplomacy.diplomacy_instance = DiplomacySystem()
+        import innovation
+        from innovation import InnovationSystem
+        innovation._INNOVATION_SYSTEM = InnovationSystem()
         self.sim = SimServer(seed=4242, terrain_seed=4242, nation_seed=4242)
 
     def test_macro_serialization(self):

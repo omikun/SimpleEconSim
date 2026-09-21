@@ -342,3 +342,57 @@ def subsidize_mass_entertainment(target, cost: float = 50.0) -> Tuple[bool, str]
         tile.unrest_level = max(0.0, getattr(tile, 'unrest_level', 0.0) - 0.15)
 
     return True, f"Mass entertainment subsidized (${cost:.0f}): Pacified public unrest!"
+
+
+def enact_statute_of_laborers(target, wage_cap: float = 1.20) -> Tuple[bool, str]:
+    """Enact the Statutory Maximum Wage Cap (Statute of Laborers / Wage Freeze).
+
+    Cartelizes employers and legally caps wages to protect landlord and capitalist profit margins.
+    - Sets statute_of_laborers = True and maximum_wage_cap = wage_cap.
+    - Clamps all corporate/firm wages to <= wage_cap immediately.
+    - Gentry & Bourgeoisie support rises (+0.15), and wage inflation panic is pacified.
+    - Labor & Peasant support falls (-0.20), and if living costs exceed wage_cap,
+      triggers popular resistance, strikes, and bread riots.
+    """
+    tiles = getattr(target, 'tiles', [target]) if hasattr(target, 'tiles') else [target]
+    firms_capped = 0
+
+    for tile in tiles:
+        tile.statute_of_laborers = True
+        tile.maximum_wage_cap = wage_cap
+        for a in getattr(tile, 'agents', []):
+            if getattr(a, 'is_corporation', False) and getattr(a, 'wage', 0.0) > wage_cap:
+                a.wage = wage_cap
+                firms_capped += 1
+
+        factions = getattr(getattr(tile, 'factions', None), 'factions', {})
+        if 'Gentry' in factions:
+            factions['Gentry'].support = min(1.0, factions['Gentry'].support + 0.15)
+        if 'Bourgeoisie' in factions:
+            factions['Bourgeoisie'].support = min(1.0, factions['Bourgeoisie'].support + 0.15)
+        for fname in ('Labor', 'Peasant', 'Commoners', 'Proletariat', 'Peasantry'):
+            if fname in factions:
+                factions[fname].support = max(0.0, factions[fname].support - 0.20)
+
+    setattr(target, 'statute_of_laborers', True)
+    setattr(target, 'maximum_wage_cap', wage_cap)
+    return True, f"ROYAL DECREE: Statute of Laborers enacted! Maximum wage capped at ${wage_cap:.2f} across {len(tiles)} regions ({firms_capped} firms capped)."
+
+
+def repeal_statute_of_laborers(target) -> Tuple[bool, str]:
+    """Repeal the Statutory Maximum Wage Cap, restoring free wage bargaining."""
+    tiles = getattr(target, 'tiles', [target]) if hasattr(target, 'tiles') else [target]
+    for tile in tiles:
+        tile.statute_of_laborers = False
+        factions = getattr(getattr(tile, 'factions', None), 'factions', {})
+        for fname in ('Labor', 'Peasant', 'Commoners', 'Proletariat', 'Peasantry'):
+            if fname in factions:
+                factions[fname].support = min(1.0, factions[fname].support + 0.15)
+        if 'Gentry' in factions:
+            factions['Gentry'].support = max(0.0, factions['Gentry'].support - 0.10)
+        if 'Bourgeoisie' in factions:
+            factions['Bourgeoisie'].support = max(0.0, factions['Bourgeoisie'].support - 0.10)
+
+    setattr(target, 'statute_of_laborers', False)
+    return True, "Statute of Laborers repealed: Statutory maximum wage ceiling abolished!"
+

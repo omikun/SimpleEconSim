@@ -27,10 +27,10 @@ def build_identity_factions(region):
 
     # Class factions (P1.4)
     class_factions = [
-        ('Gentry', [('tax_cut', 1.2), ('enclosure', 1.5)]),
+        ('Gentry', [('tax_cut', 1.2), ('enclosure', 1.5), ('wage_cap', 1.3)]),
         ('Peasantry', [('welfare', 1.0), ('commons_protection', 1.5)]),
-        ('Proletariat', [('welfare', 1.2), ('wage_subsidy', 1.0)]),
-        ('Bourgeoisie', [('tariff', 0.8), ('tax_cut', 1.0)]),
+        ('Proletariat', [('welfare', 1.2), ('wage_subsidy', 1.0), ('free_labor', 1.3)]),
+        ('Bourgeoisie', [('tariff', 0.8), ('tax_cut', 1.0), ('wage_cap', 0.8)]),
     ]
     for cname, demands in class_factions:
         cf = Faction(cname, 'class')
@@ -86,6 +86,11 @@ def apply_policy_satisfaction(region):
     enclosure_sat = 1.0 - commons
     commons_sat = commons
 
+    # Labor & wage policy satisfaction
+    statute_active = getattr(region, 'statute_of_laborers', False)
+    wage_cap_sat = 1.0 if statute_active else 0.2
+    free_labor_sat = 0.1 if statute_active else 1.0
+
     for f in region.factions.factions.values():
         for d in f.demands:
             if d.name == 'tax_cut':
@@ -104,6 +109,10 @@ def apply_policy_satisfaction(region):
                 d.satisfied = welfare_sat
             elif d.name == 'native_rights':
                 d.satisfied = native_sat
+            elif d.name == 'wage_cap':
+                d.satisfied = wage_cap_sat
+            elif d.name == 'free_labor':
+                d.satisfied = free_labor_sat
 
 
 def accumulate_grievances(region, t):
@@ -141,7 +150,7 @@ def accumulate_grievances(region, t):
     # unemployment
     adults = [a for a in agents
               if not a.is_corporation and not a.is_government
-              and a.age(t) > 20]
+              and (a.birth_round == 0 or a.age(t) > 20)]
     unemp = (sum(1 for a in adults if a.employer is None
                  and not a.is_trader) / max(1, len(adults)))
 
@@ -164,11 +173,40 @@ def accumulate_grievances(region, t):
     strike_score = min(2.5, strikers_count / 8.0)
     labor_grievance = shift_score + accident_score + strike_score
 
+    # Wage inflation panic vs statutory wage suppression grievance
+    corp_wages = [a.wage for a in agents if getattr(a, 'is_corporation', False)]
+    avg_wage = sum(corp_wages) / max(1, len(corp_wages)) if corp_wages else 1.0
+
+    statute_active = getattr(region, 'statute_of_laborers', False)
+    wage_cap = getattr(region, 'maximum_wage_cap', 1.20)
+
+    wage_panic_score = 0.0
+    wage_suppression_score = 0.0
+
+    if not statute_active:
+        if avg_wage > 1.60:
+            wage_panic_score = min(3.0, (avg_wage - 1.60) * 2.0)
+    else:
+        food_price = region.recipes.get(Goods.food, {}).get('price', 1.0)
+        if food_price > wage_cap:
+            wage_suppression_score = min(3.0, 1.0 + (food_price - wage_cap) * 2.0)
+        else:
+            wage_suppression_score = 0.8
+
     for f in region.factions.factions.values():
+        extra_add = 0.0
+        if f.name in ('Gentry', 'Bourgeoisie'):
+            f.add_grievance('wage_inflation', wage_panic_score * 1.5)
+            extra_add += wage_panic_score * 1.5
+        elif f.name in ('Proletariat', 'Peasantry'):
+            f.add_grievance('wage_suppression', wage_suppression_score * 1.5)
+            extra_add += wage_suppression_score * 1.5
+
         if f.kind == 'political':
             n_add = (hunger_score * 0.6 + gini * 1.2
                      + tax * 1.5 + unemp * 1.5 + trauma_score + eviction_score * 1.2
-                     + labor_grievance * 1.2)
+                     + labor_grievance * 1.2
+                     + wage_panic_score * 0.5 + wage_suppression_score * 0.8)
             f.add_grievance('hunger', hunger_score * 0.6)
             f.add_grievance('gini', gini * 1.2)
             f.add_grievance('tax', tax * 1.5)
@@ -176,9 +214,12 @@ def accumulate_grievances(region, t):
             f.add_grievance('repression', trauma_score)
             f.add_grievance('enclosure', eviction_score * 1.2)
             f.add_grievance('labor', labor_grievance * 1.2)
+            f.add_grievance('wage_inflation', wage_panic_score * 0.5)
+            f.add_grievance('wage_suppression', wage_suppression_score * 0.8)
         else:
             n_add = (hunger_score + gini + tax + unemp + trauma_score
-                     + eviction_score * 1.5 + labor_grievance * 1.5)
+                     + eviction_score * 1.5 + labor_grievance * 1.5
+                     + extra_add)
             f.add_grievance('hunger', hunger_score)
             f.add_grievance('gini', gini)
             f.add_grievance('tax', tax)
@@ -198,6 +239,8 @@ def accumulate_grievances(region, t):
         'tax': float(tax),
         'repression': float(trauma_score),
         'inequality': float(gini),
+        'wage_inflation': float(wage_panic_score),
+        'wage_suppression': float(wage_suppression_score),
     }
     total_g = sum(sources.values())
     pcts = {k: (v / total_g * 100.0) if total_g > 0 else 0.0 for k, v in sources.items()}

@@ -204,6 +204,44 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
             res['disabled_reason'] = f"Insufficient Municipal Treasury: Requires $60.00 (Current: ${tile_cash:,.0f})."
         return res
 
+    if btn_id == 'city_assassinate_leader':
+        from popular_resistance import get_popular_resistance_manager
+        r_mgr = get_popular_resistance_manager()
+        r_st = r_mgr.get_state(pinned.name) if pinned else None
+        intel = r_mgr.get_player_intelligence_report(pinned) if pinned else {}
+        alias = intel.get('leader_alias', 'Unknown Agitator')
+        risk = intel.get('martyrdom_risk_assessment', 'Low')
+        atmo = intel.get('public_atmosphere', 'Quiet')
+        has_plot = r_st and r_st.active_plot and r_st.active_plot.status == "in_progress"
+
+        res = {
+            'title': f"Commission Shadow Warrant against {alias} ($75)",
+            'badge': "COVERT ACTION",
+            'badge_col': (230, 80, 80),
+            'category': "Political Liquidation",
+            'cost': "Cost: $75 covert contract fee (Conserved to constables/charity)",
+            'desc': [
+                f"Dispatches clandestine operative agents to neutralize the charismatic resistance leader {alias}.",
+                f"Public Mood: {atmo}",
+                f"Special Branch Assessment: {risk}",
+                "Variable Duration: Operatives take 2–4+ turns to infiltrate and strike.",
+                "Bifurcated Consequence: If movement is small, assassination decapitates the uprising. If movement has deep roots, liquidation triggers a catastrophic Martyrdom Cascade!"
+            ],
+            'stats': [
+                ("Target Agitator", alias, (240, 200, 110)),
+                ("Martyrdom Risk", risk, (255, 90, 90) if "HIGH" in risk or "CATASTROPHIC" in risk else (120, 240, 150)),
+                ("Contract Status", "IN PROGRESS" if has_plot else "READY TO COMMISSION", (245, 180, 50) if has_plot else GREEN),
+                ("Treasury Cash", f"${tile_cash:,.0f}", (120, 240, 150) if tile_cash >= 75 else RED),
+            ]
+        }
+        if not r_st or r_st.leader_id is None:
+            res['disabled_reason'] = "No Active Agitator: No charismatic rebel leader has emerged in this parish."
+        elif has_plot:
+            res['disabled_reason'] = f"Operation Underway: Operatives already closing in (~{r_st.active_plot.turns_remaining} turns remaining)."
+        elif tile_cash < 75.0:
+            res['disabled_reason'] = f"Insufficient Municipal Treasury: Requires $75.00 (Current: ${tile_cash:,.0f})."
+        return res
+
     if btn_id == 'city_recruit_garrison':
         garrison = sum(u.soldiers for u in getattr(pinned, 'military_units', [])) if pinned else 0
         res = {
@@ -626,6 +664,29 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
         }
         if nat_cash < 50.0:
             res['disabled_reason'] = f"Insufficient Sovereign Treasury: Requires $50.00 (Current: ${nat_cash:,.0f})."
+        return res
+
+    if btn_id == 'nat_toggle_statute_of_laborers':
+        has_statute = (getattr(nation, 'statute_of_laborers', False) if nation else False) or (getattr(owner, 'statute_of_laborers', False) if owner else False)
+        res = {
+            'title': "Statute of Laborers (Wage Cap $1.20)" if not has_statute else "Repeal Statute of Laborers",
+            'badge': "CLASS DECREE",
+            'badge_col': (240, 180, 70) if not has_statute else (240, 100, 100),
+            'category': "Labor Market & Feudal Reaction",
+            'cost': "No Treasury Cost (Coercive State Decree)",
+            'desc': [
+                "Imposes a statutory maximum wage ceiling ($1.20) on all employers, halting competitive wage bidding.",
+                "Historical Precedent: King Edward III's Statute of Laborers (1351) following the Black Death labor shortage.",
+                "Landlord & Capitalist Reaction: Satisfies Gentry and Bourgeoisie (+15 support), protecting land rents and profit margins.",
+                "Worker Backlash: Severely reduces Proletariat and Peasant support (-20). If living costs exceed the cap, ignites peasant revolts, general strikes, and riots."
+            ],
+            'stats': [
+                ("Statute Status", "ENACTED" if has_statute else "DEREGULATED", (240, 100, 100) if has_statute else GREEN),
+                ("Statutory Wage Cap", "$1.20 / turn" if has_statute else "Uncapped", ACCENT),
+                ("Gentry Alignment", "+15 Approval" if not has_statute else "Enforced", (120, 240, 150)),
+                ("Worker Resistance", "+20 Grievance" if not has_statute else "Repressed / Resentful", RED),
+            ]
+        }
         return res
 
     if btn_id == 'nat_restore_commons':

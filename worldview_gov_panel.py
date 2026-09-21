@@ -516,7 +516,7 @@ def _draw_left_nation_scope(surface, world, region, nation, start_y, x, w, font,
     cur_y += card3_h + 8
 
     # 4. Labor Regulation & Social Directives Card
-    card4_h = 170
+    card4_h = 194
     c4_rect = (x + 8, cur_y, w - 16, card4_h)
     pygame.draw.rect(surface, CARD_BG, c4_rect, border_radius=5)
     pygame.draw.rect(surface, CARD_BORDER, c4_rect, 1, border_radius=5)
@@ -578,6 +578,14 @@ def _draw_left_nation_scope(surface, world, region, nation, start_y, x, w, font,
     _draw_gov_btn(surface, (x + 22 + bw_half, cur_y + 144, bw_half, 20), "Import Guano ($100)",
                   font_small, mx, my, 'nat_subsidize_guano_import', nation, enabled=True,
                   color=(120, 240, 150), world=world, region=region, nation=nation)
+
+    # Row 7: Statute of Laborers (Maximum Wage Ceiling)
+    has_statute = getattr(nation, 'statute_of_laborers', False) if nation else False
+    _draw_gov_btn(surface, (x + 16, cur_y + 168, w - 32, 20),
+                  "Statute of Laborers (Cap $1.20)" if not has_statute else "Statute: ENACTED (Wage Cap $1.20)",
+                  font_small, mx, my, 'nat_toggle_statute_of_laborers', nation, enabled=True,
+                  color=(240, 180, 70) if not has_statute else (240, 100, 100),
+                  world=world, region=region, nation=nation)
 
     cur_y += card4_h + 8
 

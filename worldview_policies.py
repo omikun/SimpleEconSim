@@ -222,7 +222,7 @@ def _draw_city_policies(surface, world, region, start_y, font, font_small, mx, m
     start_y += card2_h + 8
 
     # CARD 3: Security, Militia & Public Order
-    card3_h = 76
+    card3_h = 104
     c3_rect = (PANEL_LEFT + 4, start_y, PANEL_W - 24, card3_h)
     pygame.draw.rect(surface, CARD_BG, c3_rect, border_radius=5)
     pygame.draw.rect(surface, CARD_BORDER, c3_rect, 1, border_radius=5)
@@ -230,15 +230,33 @@ def _draw_city_policies(surface, world, region, start_y, font, font_small, mx, m
     surface.blit(font_small.render(f"Garrison & Security: {garrison} Active Units", True, ACCENT), (PANEL_LEFT + 12, start_y + 8))
     surface.blit(font_small.render("Recruits unemployed labor into militia (-Protest)", True, DIM), (PANEL_LEFT + 12, start_y + 24))
 
-    mil_btn = (PANEL_LEFT + 12, start_y + 46, 120, 22)
+    mil_btn = (PANEL_LEFT + 12, start_y + 44, 120, 22)
     can_mil = (treasury_cash >= 50.0 or (owner and owner.treasury()['cash'] >= 50.0))
     _draw_btn(surface, mil_btn, "Recruit ($50)", font_small, mx, my, enabled=can_mil, color=GREEN if can_mil else DIM)
     _ACTION_BUTTONS.append((mil_btn, 'city_recruit_garrison', region))
 
-    curfew_btn = (PANEL_LEFT + 140, start_y + 46, 120, 22)
+    curfew_btn = (PANEL_LEFT + 140, start_y + 44, 120, 22)
     can_curfew = (protest_e >= 2.0)
     _draw_btn(surface, curfew_btn, "Police Curfew", font_small, mx, my, enabled=can_curfew, color=RED if can_curfew else DIM)
     _ACTION_BUTTONS.append((curfew_btn, 'city_police_curfew', region))
+
+    # Covert Shadow Warrant (Assassination)
+    assass_btn = (PANEL_LEFT + 12, start_y + 72, 248, 22)
+    try:
+        from popular_resistance import get_popular_resistance_manager
+        r_state_p = get_popular_resistance_manager().get_state(region.name)
+        has_tgt = r_state_p.leader_id is not None
+        has_active_plot = r_state_p.active_plot is not None and r_state_p.active_plot.status == "in_progress"
+        can_assass = has_tgt and not has_active_plot and treasury_cash >= 75.0
+        assass_lbl = f"Shadow Warrant (~{r_state_p.active_plot.turns_remaining}t)" if has_active_plot else "Shadow Warrant ($75)"
+        assass_col = (245, 180, 50) if has_active_plot else ((230, 80, 80) if can_assass else DIM)
+    except Exception:
+        can_assass = False
+        assass_lbl = "Shadow Warrant ($75)"
+        assass_col = DIM
+
+    _draw_btn(surface, assass_btn, assass_lbl, font_small, mx, my, enabled=can_assass, color=assass_col)
+    _ACTION_BUTTONS.append((assass_btn, 'city_assassinate_leader', region))
 
     start_y += card3_h + 8
 
@@ -524,7 +542,7 @@ def _draw_nation_policies(surface, world, region, start_y, font, font_small, mx,
     start_y += c3_h + 8
 
     # CARD 4: Labor Regulation & Mass Pacifier Decrees
-    c4_h = 78
+    c4_h = 104
     c4_rect = (PANEL_LEFT + 4, start_y, PANEL_W - 24, c4_h)
     pygame.draw.rect(surface, CARD_BG, c4_rect, border_radius=5)
     pygame.draw.rect(surface, CARD_BORDER, c4_rect, 1, border_radius=5)
@@ -532,6 +550,7 @@ def _draw_nation_policies(surface, world, region, start_y, font, font_small, mx,
     cur_shift = getattr(owner, 'max_workday_hours', 12.0)
     has_ten = getattr(owner, 'ten_hour_act', False) or cur_shift <= 10.0
     has_safe = getattr(owner, 'factory_safety_act', False)
+    has_statute = getattr(owner, 'statute_of_laborers', False)
 
     ten_tag = " (Ten-Hour Act)" if has_ten else ""
     surface.blit(font_small.render(f"Workday: {cur_shift:.1f}h/day{ten_tag}", True, (240, 140, 80)), (PANEL_LEFT + 12, start_y + 8))
@@ -540,6 +559,7 @@ def _draw_nation_policies(surface, world, region, start_y, font, font_small, mx,
     btn_up = (PANEL_LEFT + 84, start_y + 26, 68, 20)
     safe_btn = (PANEL_LEFT + 156, start_y + 26, 94, 20)
     spec_btn = (PANEL_LEFT + 12, start_y + 50, 238, 20)
+    statute_btn = (PANEL_LEFT + 12, start_y + 74, 238, 20)
 
     can_down = (cur_shift > 8.0)
     can_up = (cur_shift < 16.0)
@@ -550,11 +570,14 @@ def _draw_nation_policies(surface, world, region, start_y, font, font_small, mx,
               enabled=not has_safe, color=GREEN if has_safe else TEXT)
     _draw_btn(surface, spec_btn, "Subsidize Spectacle ($50)", font_small, mx, my,
               color=(70, 195, 235))
+    _draw_btn(surface, statute_btn, "Statute of Laborers (Cap $1.20)" if not has_statute else "Repeal Statute of Laborers", font_small, mx, my,
+              color=(240, 180, 70) if not has_statute else (240, 100, 100))
 
     _ACTION_BUTTONS.append((btn_down, 'nat_adjust_shift_-2', owner))
     _ACTION_BUTTONS.append((btn_up, 'nat_adjust_shift_+2', owner))
     _ACTION_BUTTONS.append((safe_btn, 'nat_safety_mandate', owner))
     _ACTION_BUTTONS.append((spec_btn, 'nat_subsidize_entertainment', owner))
+    _ACTION_BUTTONS.append((statute_btn, 'nat_toggle_statute_of_laborers', owner))
 
 
 # =============================================================================
@@ -690,6 +713,21 @@ def _execute_policy_action(world, act_id, target):
                 world['policy_feedback'] = (f"Police curfew enforced in {target.name}. Armed patrols quelled riots.", (240, 100, 100))
             else:
                 world['policy_feedback'] = (f"Cannot enforce curfew in {target.name}: no armed military garrison or police on payroll!", (240, 60, 60))
+
+    # City Covert Shadow Warrant (Assassination Contract)
+    elif act_id == 'city_assassinate_leader':
+        from popular_resistance import get_popular_resistance_manager
+        res_mgr = get_popular_resistance_manager()
+        ok, msg, data = res_mgr.initiate_assassination_plot(target, world['turn'], world=world, operative_funds=75.0)
+        if ok:
+            world['policy_feedback'] = (msg, (245, 180, 50))
+            try:
+                from worldview_engine import ticker_push
+                ticker_push(world, world['turn'], 'POLICY', f"🗡️ {msg}", (200, 100, 100))
+            except ImportError:
+                pass
+        else:
+            world['policy_feedback'] = (msg, (240, 60, 60))
 
     # City Public Works Commission
     elif act_id in ('build_farm', 'build_granary', 'build_sawmill', 'build_workshop', 'build_workhouse'):
@@ -854,6 +892,15 @@ def _execute_policy_action(world, act_id, target):
         from labor_politics import subsidize_mass_entertainment
         ok, msg = subsidize_mass_entertainment(target, cost=50.0)
         world['policy_feedback'] = (msg, (70, 195, 235) if ok else RED)
+    elif act_id == 'nat_toggle_statute_of_laborers':
+        from labor_politics import enact_statute_of_laborers, repeal_statute_of_laborers
+        if getattr(target, 'statute_of_laborers', False):
+            ok, msg = repeal_statute_of_laborers(target)
+        else:
+            ok, msg = enact_statute_of_laborers(target, wage_cap=1.20)
+        world['policy_feedback'] = (msg, GREEN if ok else RED)
+        from worldview_engine import ticker_push
+        ticker_push(world, world['turn'], 'POLICY', msg, (240, 200, 100) if ok else RED)
     elif act_id == 'nat_restore_commons':
         restored = False
         for r in target.tiles:

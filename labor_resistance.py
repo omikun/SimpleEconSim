@@ -42,13 +42,20 @@ def evaluate_strikes(region, t: int):
 
         # Count strike votes among workers
         votes_for_strike = 0
+        statute_active = getattr(region, 'statute_of_laborers', False)
+        wage_cap = getattr(region, 'maximum_wage_cap', 1.20)
+        food_price = region.recipes.get(Goods.food, {}).get('price', 1.0) if hasattr(region, 'recipes') else 1.0
+        statute_strike_boost = 0.0
+        if statute_active:
+            statute_strike_boost = 0.40 if food_price > wage_cap else 0.25
+
         for emp in employees:
             c = getattr(emp, 'class_consciousness', 0.0)
             alien = getattr(emp, 'alienation', 0.0)
             shift = getattr(emp, 'shift_hours', 8.0)
 
             # Threshold for collective militancy
-            strike_pressure = c * 0.5 + alien * 0.4 + (0.3 if shift > 10.0 else 0.0)
+            strike_pressure = c * 0.5 + alien * 0.4 + (0.3 if shift > 10.0 else 0.0) + statute_strike_boost
             if strike_pressure > 0.55:
                 votes_for_strike += 1
 
