@@ -249,3 +249,19 @@ on meaningful horizons; dashboard PNGs render. M0 scripts additionally require
 - `tmp/verify_gov_wealth.py` — ledger invariant + gov wealth breakdown.
 - `tmp/fx_p2_audit_core.py`, `tmp/probe_ga*.py`, `tmp/probe_be*.py` — M0.5 audit
   instrumentation (phase-bisect / event-ledger / per-helper probes; untracked debug).
+
+## Historical Ecological & Epidemiological Dynamics (Raj Patel / Seven Cheap Things)
+- **Secular Climate Cycles (`secular_climate.py`)**:
+  - 80-turn cyclical multi-decade oscillation ($\Delta \tau = 0.50 \cdot \sin(2\pi t / 80)$) modeling the Medieval Warm Optimum (+15-25% crop yields, lower CoL) and Little Ice Age (-25-35% harvest collapse, higher heating CoL).
+  - Multi-level integration: modulates `region_production.terrain_bonus` for food crops and `region.cost_of_living`.
+- **The Great Pestilence & Trade Contagion (`disease.py`, `transporter.py`, `sim_engine.py`)**:
+  - Endogenous genesis occurs when demographic crowding ($\text{pop}/\text{cap} \ge 0.70$) meets chronic starvation ($\ge 15\%$ population with `hungry_steps >= 2`, nutrition $< 0.75$, granaries empty) for 2+ consecutive turns.
+  - Active pestilence loads onto outgoing merchant routes (`Route.has_contagion = True`) and travels with maturing shipments.
+  - **Cordon Sanitaire (`labor_politics.py`)**: Freezes transport corridors (`Route.is_quarantined = True` via `Route.is_frozen`), safely turning back infected shipments while preserving 100% material and currency conservation.
+  - **Emergency Granary Relief (`labor_politics.py`)**: Unlocks municipal/sovereign granaries, resetting citizen starvation and resetting regional famine outbreak progression to zero.
+- **Post-Plague Labor Economics & Feudal Reaction (`region_labor.py`, `labor_politics.py`, `land_rent.py`)**:
+  - Scarcity-aware wage bidding: when labor tightness $LTR > 1.0$, employers bid up wages proportional to tightness up to their Marginal Revenue Product of Labor ($\text{MRPL} = \text{Productivity} \times P_\text{output}$).
+  - *Statute of Laborers*: State decree capping wages ($1.20) to protect landlord rents (+15 Gentry support) at the cost of worker strikes, peasant grievances (-20 support), and revolt risks.
+  - *Rational Pastoral Conversion ("Sheep Eat Men")*: Landlords convert crop acreage to low-labor sheep pastures (`plot.production_type = 'pasture'`) when average corporate wages exceed $1.70.
+- **Test Singleton Isolation**:
+  - Subsystems maintaining global singletons (`diplomacy.diplomacy_instance`, `innovation._INNOVATION_SYSTEM`, `popular_resistance._GLOBAL_POPULAR_RESISTANCE`) must have their reset helpers invoked in test `setUp` to prevent cross-file test pollution.
