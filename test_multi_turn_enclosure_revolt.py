@@ -7,7 +7,7 @@ import unittest
 from region import Region
 from nation import Nation
 from land_tenure import TenureStatus, LandPlot
-from popular_resistance import PopularResistanceManager, get_popular_resistance_manager
+from popular_resistance import PopularResistanceManager, get_popular_resistance_manager, reset_popular_resistance_manager
 from goods import Goods
 from agent import Agent
 
@@ -15,11 +15,13 @@ from agent import Agent
 class TestMultiTurnEnclosureRevolt(unittest.TestCase):
 
     def setUp(self):
+        reset_popular_resistance_manager()
         self.mgr = PopularResistanceManager()
 
     def _setup_tile_with_enclosure(self, nation_name="Commonwealth", tile_name="Wessex"):
         nation = Nation(nation_name, initial_cash=200.0)
         tile = Region(tile_name, 0, 10)
+        tile.agents.clear()
         nation.add_tile(tile)
 
         # Create an enclosed plot held by a lord

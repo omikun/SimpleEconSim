@@ -213,19 +213,20 @@ def _collect_items_for_nation(nation: Nation, world: dict) -> list[dict]:
         # Active Survey Debts countdown
         for debt in getattr(tile, 'enclosure_survey_debts', []):
             rem_t = debt.get('countdown', 0)
+            title_fee = int(debt.get('fee', 0.0))
             items.append({
                 'category': 'legislation',
                 'nation': nation.name,
                 'province': prov_name,
                 'region': tile.name,
-                'title': f"Survey Debt Assessment (${debt.get('fee', 0.0):.1f})",
-                'subtitle': f"Statutory Foreclosure Debt • {tile.name}",
+                'title': f"Survey Debt (${title_fee})",
+                'subtitle': f"Foreclosure Debt • {tile.name}",
                 'progress_pct': max(0.0, (1.0 - rem_t / 3.0) * 100.0),
                 'turns_left': rem_t,
                 'status': 'pending_foreclosure',
                 'is_stalled': (rem_t <= 1),
-                'stall_reason': 'Auction Imminent' if rem_t <= 1 else '',
-                'icon': 'scale',
+                'stall_reason': 'Auction Soon' if rem_t <= 1 else '',
+                'icon': 'debt',
                 'bar_color': (235, 90, 90) if rem_t <= 1 else (245, 180, 50),
             })
 
@@ -369,21 +370,13 @@ def draw_progress_panel(surface: pygame.Surface, world: dict, font: pygame.font.
         ico = get_icon(item.get('icon', 'hammer'), size=16)
         surface.blit(ico, (card_rect[0] + 8, card_rect[1] + 8))
 
-        # Title
-        t_col = (255, 255, 255) if is_card_hov else TEXT
-        lbl_t = font_small.render(item['title'], True, t_col)
-        surface.blit(lbl_t, (card_rect[0] + 30, card_rect[1] + 6))
-
-        # Subtitle
-        lbl_sub = font_small.render(item.get('subtitle', ''), True, (130, 138, 160))
-        surface.blit(lbl_sub, (card_rect[0] + 30, card_rect[1] + 24))
-
         # Status / Stalled Badge
         pct = min(100.0, max(0.0, item.get('progress_pct', 0.0)))
         turns_left = item.get('turns_left', 0)
+        is_stalled = bool(item.get('is_stalled'))
 
-        if item.get('is_stalled'):
-            badge_txt = f"⚠️ STALLED: {item.get('stall_reason', 'Shortage')}"
+        if is_stalled:
+            badge_txt = f"STALLED: {item.get('stall_reason', 'Shortage')}"
             badge_col = (235, 75, 75)
         elif item.get('status') in ('completed', 'mastered', 'enacted'):
             badge_txt = "DONE" if item['status'] == 'completed' else item['status'].upper()
@@ -394,7 +387,25 @@ def draw_progress_panel(surface: pygame.Surface, world: dict, font: pygame.font.
 
         lbl_badge = font_small.render(badge_txt, True, badge_col)
         badge_x = card_rect[0] + card_w - lbl_badge.get_width() - 8
+        if is_stalled:
+            ico_alert = get_icon('alert', size=12)
+            surface.blit(ico_alert, (badge_x - 14, card_rect[1] + 7))
         surface.blit(lbl_badge, (badge_x, card_rect[1] + 6))
+
+        # Title (clamped dynamically to prevent collision with right badge)
+        t_col = (255, 255, 255) if is_card_hov else TEXT
+        avail_title_w = max(40, (badge_x - 18 if is_stalled else badge_x) - (card_rect[0] + 30) - 6)
+        t_str = item['title']
+        if font_small.size(t_str)[0] > avail_title_w:
+            while len(t_str) > 3 and font_small.size(t_str + "..")[0] > avail_title_w:
+                t_str = t_str[:-1]
+            t_str += ".."
+        lbl_t = font_small.render(t_str, True, t_col)
+        surface.blit(lbl_t, (card_rect[0] + 30, card_rect[1] + 6))
+
+        # Subtitle
+        lbl_sub = font_small.render(item.get('subtitle', ''), True, (130, 138, 160))
+        surface.blit(lbl_sub, (card_rect[0] + 30, card_rect[1] + 24))
 
         # Progress Bar
         bar_w = card_w - 60
@@ -424,6 +435,18 @@ def draw_progress_panel(surface: pygame.Surface, world: dict, font: pygame.font.
             _PROGRESS_BUTTONS.append((grant_rect, 'subsidize_proj', proj))
 
         cur_y += card_h + 6
+
+    # Tooltip detection on progress panel action buttons
+    if mouse_pos and not world.get('_hovered_left_tooltip'):
+        for rect, act_id, payload in _PROGRESS_BUTTONS:
+            rx, ry, rw, rh = rect
+            if rx <= mx <= rx + rw and ry <= my <= ry + rh:
+                from worldview_tooltips import get_button_tooltip_data
+                tdata = get_button_tooltip_data(act_id, world, project=payload)
+                if tdata:
+                    tdata['btn_rect'] = rect
+                    world['_hovered_left_tooltip'] = tdata
+                break
 
 
 def progress_panel_hit(pos: tuple[int, int], world: dict) -> bool:

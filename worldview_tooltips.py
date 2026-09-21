@@ -38,7 +38,7 @@ def wrap_text(text: str, font: pygame.font.Font, max_width: int) -> list[str]:
     return lines
 
 
-def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None, province=None) -> dict | None:
+def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None, province=None, plot_id=None, project=None, **kwargs) -> dict | None:
     """Generate detailed mechanism description, achievement context, and live stat breakdown."""
     pinned = region or world.get('selected_region')
     if pinned is None and world.get('nations') and world['nations'][0].tiles:
@@ -313,6 +313,201 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
             ]
         }
         return res
+
+    if btn_id == 'cadastre_enclose':
+        tenure = getattr(pinned, 'tenure', None) if pinned else None
+        target_plot = None
+        if tenure and getattr(tenure, 'plots', None):
+            if plot_id:
+                target_plot = next((p for p in tenure.plots if p.plot_id == plot_id), None)
+            if not target_plot:
+                target_plot = next((p for p in tenure.plots if getattr(getattr(p, 'tenure', None), 'name', '') == 'FEUDAL'), None)
+
+        from enclosure import calculate_charter_fee
+        fee = calculate_charter_fee(target_plot) if target_plot else 500.0
+        lord = None
+        if pinned and target_plot:
+            lord = next((a for a in pinned.agents if a.id == target_plot.lord_id), None)
+
+        can_enc = (lord is not None and lord.cash >= fee)
+        p_name = target_plot.name if target_plot else "Parcel"
+        t_count = len(target_plot.tenant_ids) if target_plot else 0
+        frac = (target_plot.fraction * 100) if target_plot else 20.0
+
+        res = {
+            'title': f"Enclose {p_name} (${fee:.0f})",
+            'badge': "ESTATE ENCLOSURE",
+            'badge_col': (230, 140, 70),
+            'category': "Cadastre Parcel Enclosure",
+            'cost': f"Charter Fee: ${fee:.0f} paid by Landlord to Municipal Treasury",
+            'desc': [
+                f"Encloses {p_name} ({frac:.0f}% of region) under the Parliamentary Enclosure Acts. Abolishes customary feudal open-field rights, transferring exclusive commercial title to the aristocratic landlord.",
+                f"Displaces customary tenants into day-laborers and provokes popular agrarian resistance. The acquiring landlord pays the ${fee:.0f} statutory charter fee directly into the city public treasury.",
+            ],
+            'stats': [
+                ("Parcel Share", f"{frac:.0f}% of Land", ACCENT),
+                ("Assigned Lord", f"{getattr(lord, 'name', 'None')} (${getattr(lord, 'cash', 0.0):.0f})", (120, 240, 150) if can_enc else RED),
+                ("Bound Tenants Affected", f"{t_count} Tenants", (240, 150, 70)),
+                ("Treasury Inflow", f"+${fee:.0f} to City", GREEN),
+            ]
+        }
+        if not lord:
+            res['disabled_reason'] = "No Lord Assigned: Cannot enclose without an aristocratic landlord."
+        elif lord.cash < fee:
+            res['disabled_reason'] = f"Landlord Cash Deficit: {lord.name} holds ${lord.cash:.0f} but needs ${fee:.0f}."
+        return res
+
+    if btn_id == 'cadastre_toggle_pasture':
+        tenure = getattr(pinned, 'tenure', None) if pinned else None
+        target_plot = None
+        if tenure and getattr(tenure, 'plots', None):
+            if plot_id:
+                target_plot = next((p for p in tenure.plots if p.plot_id == plot_id), None)
+            if not target_plot:
+                target_plot = next((p for p in tenure.plots if getattr(getattr(p, 'tenure', None), 'name', '') == 'ENCLOSED'), None)
+
+        p_type = getattr(target_plot, 'production_type', 'arable') if target_plot else 'arable'
+        p_name = target_plot.name if target_plot else "Parcel"
+        is_pas = (p_type == 'pasture')
+
+        if is_pas:
+            return {
+                'title': f"Convert {p_name} to Arable (Grain)",
+                'badge': "CROP FARMING",
+                'badge_col': (160, 210, 150),
+                'category': "Estate Production Mode",
+                'cost': "Zero monetary fee: Agricultural replowing",
+                'desc': [
+                    f"Reconverts {p_name} from sheep grazing back into arable grain cultivation.",
+                    "Restores local wheat/grain harvests, reducing food market prices and creating agricultural day-labor employment for dispossessed workers.",
+                ],
+                'stats': [
+                    ("Production Target", "Grain / Food Harvest", (245, 215, 120)),
+                    ("Farm Employment", "+High Labor Demand", GREEN),
+                    ("Market Effect", "Lowers Local Food Prices", GREEN),
+                ]
+            }
+        else:
+            return {
+                'title': f"Convert {p_name} to Pasture (Wool)",
+                'badge': "SHEEP GRAZING",
+                'badge_col': (230, 200, 100),
+                'category': "Estate Production Mode",
+                'cost': "Zero monetary fee: Hedging and flock stocking",
+                'desc': [
+                    f"Converts {p_name} into enclosed pasture for lucrative wool fiber production ('Sheep Eat Men').",
+                    "Reduces agricultural labor requirements by 75%, evicting farmhands into landless vagrancy. Landlord reaps high export profits from raw wool, but local food grain supply declines.",
+                ],
+                'stats': [
+                    ("Production Target", "Wool Fiber Export", (230, 200, 100)),
+                    ("Labor Displacement", "-75% Farmhand Needs", (245, 90, 90)),
+                    ("Landlord Margin", "+High Wool Revenue", GREEN),
+                ]
+            }
+
+    if btn_id == 'cadastre_restore_commons':
+        tenure = getattr(pinned, 'tenure', None) if pinned else None
+        target_plot = None
+        if tenure and getattr(tenure, 'plots', None):
+            if plot_id:
+                target_plot = next((p for p in tenure.plots if p.plot_id == plot_id), None)
+            if not target_plot:
+                target_plot = next((p for p in tenure.plots if getattr(getattr(p, 'tenure', None), 'name', '') == 'ENCLOSED'), None)
+
+        p_name = target_plot.name if target_plot else "Parcel"
+        return {
+            'title': f"Restore {p_name} to Commons",
+            'badge': "DE-ENCLOSURE",
+            'badge_col': (120, 220, 140),
+            'category': "Customary Commons Restoration",
+            'cost': "Zero monetary fee: Repeal of private enclosure title",
+            'desc': [
+                f"Abolishes private landlord enclosure over {p_name}, restoring customary open-field usufruct rights to commoners.",
+                "Dispossessed peasants regain foraging, communal grazing, and fuel gathering rights. Greatly pacifies peasant resistance, lowering regional protest energy and riot danger.",
+            ],
+            'stats': [
+                ("Tenure Status", "Enclosed -> Open Commons", GREEN),
+                ("Peasant Unrest", "Dramatically Reduced", GREEN),
+                ("Usufruct Rights", "Traditional Foraging Active", (130, 210, 140)),
+            ]
+        }
+
+    if btn_id in ('cadastre_scroll_up', 'cadastre_scroll_down'):
+        return {
+            'title': "Scroll Cadastre Deeds",
+            'badge': "CADASTRE NAV",
+            'badge_col': (140, 160, 200),
+            'category': "Estate Registry Navigation",
+            'cost': "Interface Navigation",
+            'desc': [
+                "Scrolls through the parcel registry of land titles, tenure status, tenant rolls, and mortgage debts in this region."
+            ]
+        }
+
+    if btn_id in ('scroll_up', 'scroll_down'):
+        return {
+            'title': "Scroll Realm Works",
+            'badge': "WORKS NAV",
+            'badge_col': (140, 160, 200),
+            'category': "Progress Drawer Navigation",
+            'cost': "Interface Navigation",
+            'desc': [
+                "Scrolls up or down through active capital construction projects, research programs, and statutory debt assessments."
+            ]
+        }
+
+    if btn_id == 'mode_active':
+        return {
+            'title': "Filter: Active Undertakings",
+            'badge': "FILTER VIEW",
+            'badge_col': (100, 200, 240),
+            'category': "Realm Works Filter",
+            'cost': "Interface Filter",
+            'desc': [
+                "Filters the progress drawer to display only currently active civic construction works, ongoing research decrees, and active statutory debts."
+            ]
+        }
+
+    if btn_id == 'mode_all':
+        return {
+            'title': "Filter: All Realm Works",
+            'badge': "GLOBAL LEDGER",
+            'badge_col': (245, 200, 100),
+            'category': "Realm Works Filter",
+            'cost': "Interface Filter",
+            'desc': [
+                "Displays the comprehensive national ledger including completed historic civic monuments, mastered innovations, and past legislative decrees."
+            ]
+        }
+
+    if btn_id == 'subsidize_proj':
+        return {
+            'title': "Subsidize Project Overrun (+$100)",
+            'badge': "PUBLIC BAILOUT",
+            'badge_col': (245, 120, 120),
+            'category': "Emergency Public Finance",
+            'cost': "Cost: $100 from Sovereign / Municipal Treasury",
+            'desc': [
+                "Injects an emergency $100 cash grant directly into the contractor's working capital balance.",
+                "Resolves stalled construction caused by material inflation or unpaid worker strikes, allowing civic works to resume immediate progress."
+            ],
+            'stats': [
+                ("Grant Amount", "+$100.00 to Builder", GREEN),
+                ("Resolution Effect", "Clears Stalled Workday Deficit", (120, 240, 150)),
+            ]
+        }
+
+    if btn_id == 'close':
+        return {
+            'title': "Dismiss Panel",
+            'badge': "DRAWER CONTROL",
+            'badge_col': (180, 185, 200),
+            'category': "Interface Control",
+            'cost': "Interface Action",
+            'desc': [
+                "Closes this drawer panel and restores full unobstructed view of the interactive map."
+            ]
+        }
 
     if btn_id == 'build_workhouse':
         res = {
@@ -1292,10 +1487,12 @@ def _infer_icon_for_btn(btn_id: str, tooltip: dict) -> str:
         (('tier_province', 'province'), 'province'),
         (('tier_crown', 'tier_nation', 'crown', 'dock_diplomacy', 'diplomacy'), 'crown'),
         (('tier_equalization', 'equalization', 'grant'), 'scale'),
-        (('tax', 'treasury'), 'treasury'),
+        (('tax', 'treasury', 'subsidize', 'bailout'), 'treasury'),
         (('tariff', 'ex'), 'ex'),
         (('ubi', 'entertainment', 'spectacle', 'theater', 'pop'), 'pop'),
-        (('food', 'famine', 'grain', 'farm', 'crop'), 'grain'),
+        (('food', 'famine', 'grain', 'farm', 'crop', 'arable', 'wheat', 'commons', 'restore_commons'), 'arable'),
+        (('pasture', 'sheep', 'wool'), 'pasture'),
+        (('enclose', 'cadastre_enclose', 'charter', 'tenure'), 'contract'),
         (('patrol', 'curfew', 'police', 'garrison', 'army', 'mobilize', 'war', 'military'), 'military'),
         (('road', 'route', 'bridge', 'highway', 'transport'), 'civil_engineering'),
         (('frontier', 'pioneer', 'settler'), 'pasture'),
@@ -1309,9 +1506,9 @@ def _infer_icon_for_btn(btn_id: str, tooltip: dict) -> str:
             return icon_name
     return 'policies'
 
-def get_button_tooltip_data(btn_id: str, world: dict, region=None, nation=None, province=None) -> dict | None:
+def get_button_tooltip_data(btn_id: str, world: dict, region=None, nation=None, province=None, plot_id=None, project=None, **kwargs) -> dict | None:
     """Generate detailed mechanism description, achievement context, and live stat breakdown."""
-    data = _build_button_tooltip_raw(btn_id, world, region=region, nation=nation, province=province)
+    data = _build_button_tooltip_raw(btn_id, world, region=region, nation=nation, province=province, plot_id=plot_id, project=project, **kwargs)
     if data:
         data.setdefault('btn_id', btn_id)
         data['icon'] = _infer_icon_for_btn(btn_id, data)
@@ -1374,7 +1571,7 @@ def draw_left_panel_tooltip(surface, world: dict, font_small, mouse_pos=None):
 
     # 2. Cost & Disabled Reason Measurements
     disabled_reason = tooltip.get('disabled_reason')
-    disabled_lines = wrap_text(f"⚠️ CANNOT ENACT: {disabled_reason}", font_small, usable_w - 24) if disabled_reason else []
+    disabled_lines = wrap_text(f"CANNOT ENACT: {disabled_reason}", font_small, usable_w - 36) if disabled_reason else []
     disabled_box_h = (len(disabled_lines) * line_h + 10) if disabled_lines else 0
 
     cost_lines = wrap_text(cost_str, font_small, usable_w - 24) if cost_str else []
@@ -1457,10 +1654,13 @@ def draw_left_panel_tooltip(surface, world: dict, font_small, mouse_pos=None):
         pygame.draw.rect(card_surf, (54, 18, 24), d_box_rect, border_radius=5)
         pygame.draw.rect(card_surf, (225, 75, 75), d_box_rect, 1, border_radius=5)
 
+        ico_alert = get_icon('alert', size=14)
+        card_surf.blit(ico_alert, (PADDING_X + 8, cur_y + 6))
+
         dy = cur_y + 5
         for dl in disabled_lines:
             d_surf = font_small.render(dl, True, (255, 185, 185))
-            card_surf.blit(d_surf, (PADDING_X + 10, dy))
+            card_surf.blit(d_surf, (PADDING_X + 26, dy))
             dy += line_h
 
         cur_y += disabled_box_h + 8

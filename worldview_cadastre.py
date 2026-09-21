@@ -98,6 +98,50 @@ def draw_cadastre_panel(surface, world: dict, region, font, font_small, mouse_po
 
     cur_y += h_card_h + 8
 
+    # 1b. Bailiff & Special Branch Intelligence Dossier Card (Fog of War)
+    try:
+        from popular_resistance import get_popular_resistance_manager
+        res_mgr = get_popular_resistance_manager()
+        r_state = res_mgr.get_state(region.name)
+        intel = res_mgr.get_player_intelligence_report(region)
+        has_agitator = intel.get('leader_known', False)
+        has_martyrs = len(getattr(r_state, 'martyrs', [])) > 0
+        is_revolting = r_state.enclosure_stage not in ('dormant', 'leveling')
+
+        if has_agitator or has_martyrs or is_revolting:
+            dos_h = 76
+            dos_rect = (PANEL_LEFT + 4, cur_y, PANEL_W - 8, dos_h)
+            pygame.draw.rect(surface, (28, 22, 28), dos_rect, border_radius=5)
+            # Amber border if fermenting, Crimson if revolt active
+            d_border = (230, 80, 80) if is_revolting else (210, 140, 60)
+            pygame.draw.rect(surface, d_border, dos_rect, 1, border_radius=5)
+
+            # Header: Alias & Status
+            alias = intel.get('leader_alias', 'Unknown Agitator')
+            notoriety = intel.get('leader_notoriety', 'Faint Rumors')
+            hdr_txt = f"Dossier: {alias} ({notoriety})"
+            surface.blit(font_small.render(hdr_txt, True, (240, 210, 140)), (PANEL_LEFT + 12, cur_y + 5))
+
+            # Line 1: Public atmosphere
+            atmo = intel.get('public_atmosphere', 'Quiet')
+            surface.blit(font_small.render(f"Mood: {atmo}", True, (200, 200, 210)), (PANEL_LEFT + 12, cur_y + 22))
+
+            # Line 2: Martyrdom Risk Warning
+            risk = intel.get('martyrdom_risk_assessment', 'Low')
+            r_col = (255, 90, 90) if "HIGH" in risk or "CATASTROPHIC" in risk else ((240, 180, 70) if "Moderate" in risk else (130, 220, 150))
+            surface.blit(font_small.render(f"Risk: {risk}", True, r_col), (PANEL_LEFT + 12, cur_y + 38))
+
+            # Line 3: Covert Contract Status
+            c_plot = intel.get('covert_plot_status', 'No covert contracts active.')
+            if has_martyrs:
+                m_names = ", ".join(r_state.martyrs[:2])
+                c_plot += f" | Martyrs: {m_names}"
+            surface.blit(font_small.render(c_plot, True, (160, 190, 220)), (PANEL_LEFT + 12, cur_y + 54))
+
+            cur_y += dos_h + 8
+    except Exception:
+        pass
+
     # 2. Scroll controls for Plot List
     scroll = world.get('cadastre_scroll', 0)
     plots = tenure.plots if tenure else []
@@ -143,14 +187,17 @@ def draw_cadastre_panel(surface, world: dict, region, font, font_small, mouse_po
         t_badge_lbl = font_small.render(f"[{t_badge}]", True, b_col)
         surface.blit(t_badge_lbl, (PANEL_LEFT + PANEL_W - t_badge_lbl.get_width() - 14, cur_y + 6))
 
-        # Line 2: Land Use & Lord
+        # Line 2: Land Use & Lord (Clean procedural icons, no broken emojis)
         p_type = getattr(plot, 'production_type', 'arable')
         type_col = C_PASTURE if p_type == 'pasture' else C_ARABLE
-        type_str = "🐑 Pasture (Wool)" if p_type == 'pasture' else "🌾 Arable (Grain)"
+        type_str = "Pasture (Wool)" if p_type == 'pasture' else "Arable (Grain)"
+        from ui_icons import get_icon
+        ico_type = get_icon('pasture' if p_type == 'pasture' else 'arable', 13)
+        surface.blit(ico_type, (PANEL_LEFT + 12, cur_y + 24))
+        surface.blit(font_small.render(f"{type_str}  •  {frac_txt}", True, type_col), (PANEL_LEFT + 28, cur_y + 24))
 
         lord = next((a for a in region.agents if a.id == plot.lord_id), None)
         lord_str = f"Lord: {getattr(lord, 'name', f'Agent #{plot.lord_id}')} (${lord.cash:.0f})" if lord else "Lord: Crown / Common"
-        surface.blit(font_small.render(f"{type_str}  •  {frac_txt}", True, type_col), (PANEL_LEFT + 12, cur_y + 24))
         surface.blit(font_small.render(lord_str, True, DIM), (PANEL_LEFT + 12, cur_y + 40))
 
         # Line 3: Tenants & Debts
@@ -161,7 +208,7 @@ def draw_cadastre_panel(surface, world: dict, region, font, font_small, mouse_po
         if debts:
             d_first = debts[0]
             t_rem = max(0, d_first['deadline'] - world.get('turn', 0))
-            t_info += f"  •  ⚠️ Foreclosure in {t_rem}t ($15 due)"
+            t_info += f"  •  Foreclosure in {t_rem}t ($15 due)"
             surface.blit(font_small.render(t_info, True, (245, 140, 80)), (PANEL_LEFT + 12, cur_y + 56))
         else:
             surface.blit(font_small.render(t_info, True, (160, 200, 220)), (PANEL_LEFT + 12, cur_y + 56))
@@ -192,6 +239,19 @@ def draw_cadastre_panel(surface, world: dict, region, font, font_small, mouse_po
             surface.blit(font_small.render("Traditional usufruct foraging active.", True, (130, 210, 140)), (PANEL_LEFT + 14, by + 4))
 
         cur_y += card_h + 8
+
+    # Tooltip detection on cadastre action buttons
+    if mouse_pos and not world.get('_hovered_left_tooltip'):
+        for rect, act_id, payload in _CADASTRE_BUTTONS:
+            rx, ry, rw, rh = rect
+            if rx <= mx <= rx + rw and ry <= my <= ry + rh:
+                from worldview_tooltips import get_button_tooltip_data
+                plot_id = payload[1] if isinstance(payload, tuple) and len(payload) > 1 else None
+                tdata = get_button_tooltip_data(act_id, world, region=region, plot_id=plot_id)
+                if tdata:
+                    tdata['btn_rect'] = rect
+                    world['_hovered_left_tooltip'] = tdata
+                break
 
 
 def cadastre_panel_hit(pos, world: dict) -> bool:

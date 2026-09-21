@@ -31,13 +31,24 @@ def get_icon(kind: str, size: int = 16) -> pygame.Surface:
     # -------------------------------------------------------------------------
     # NATURAL RESOURCES
     # -------------------------------------------------------------------------
-    if kind in ('arable_silt', 'agronomy', 'grain'):
+    if kind in ('arable_silt', 'agronomy', 'grain', 'arable', 'wheat'):
         # Golden wheat grain sheaf
         pygame.draw.line(surf, (245, 205, 70), (s * 0.3, s * 0.85), (s * 0.75, s * 0.15), max(1, int(s // 9)))
         pygame.draw.circle(surf, (255, 225, 90), (int(s * 0.72), int(s * 0.2)), int(s // 5))
         pygame.draw.circle(surf, (245, 205, 70), (int(s * 0.58), int(s * 0.38)), int(s // 5.5))
         pygame.draw.circle(surf, (235, 195, 60), (int(s * 0.44), int(s * 0.56)), int(s // 6))
         pygame.draw.circle(surf, (220, 180, 50), (int(s * 0.32), int(s * 0.72)), int(s // 7))
+
+    elif kind in ('pasture', 'sheep', 'wool'):
+        # Fluffy white wool / sheep icon
+        pygame.draw.circle(surf, (235, 235, 245), (int(s * 0.5), int(s * 0.48)), max(2, int(s * 0.28)))
+        pygame.draw.circle(surf, (235, 235, 245), (int(s * 0.32), int(s * 0.48)), max(2, int(s * 0.20)))
+        pygame.draw.circle(surf, (235, 235, 245), (int(s * 0.68), int(s * 0.48)), max(2, int(s * 0.20)))
+        pygame.draw.circle(surf, (215, 215, 225), (int(s * 0.5), int(s * 0.32)), max(2, int(s * 0.18)))
+        # Little sheep face & ears
+        pygame.draw.circle(surf, (60, 60, 75), (int(s * 0.5), int(s * 0.58)), max(1, int(s * 0.14)))
+        pygame.draw.ellipse(surf, (50, 50, 65), (s * 0.28, s * 0.52, s * 0.14, s * 0.08))
+        pygame.draw.ellipse(surf, (50, 50, 65), (s * 0.58, s * 0.52, s * 0.14, s * 0.08))
 
     elif kind in ('timber', 'wood', 'forestry'):
         # Emerald evergreen pine tree
@@ -265,13 +276,25 @@ def get_icon(kind: str, size: int = 16) -> pygame.Surface:
     elif kind in ('scale', 'equalize', 'justice', 'balance'):
         # Scales of justice / fiscal equalization
         pygame.draw.line(surf, (245, 215, 120), (s * 0.5, s * 0.15), (s * 0.5, s * 0.85), 2)
-        pygame.draw.line(surf, (245, 215, 120), (s * 0.18, s * 0.35), (s * 0.82, s * 0.35), 2)
+        pygame.draw.line(surf, (245, 215, 120), (s * 0.16, s * 0.32), (s * 0.84, s * 0.32), 2)
         # Left pan
-        pygame.draw.line(surf, (180, 190, 210), (s * 0.25, s * 0.35), (s * 0.25, s * 0.65), 1)
-        pygame.draw.arc(surf, (245, 215, 120), (s * 0.12, s * 0.55, s * 0.26, s * 0.2), 3.14, 0, 2)
+        pygame.draw.line(surf, (180, 190, 210), (s * 0.25, s * 0.32), (s * 0.25, s * 0.52), 1)
+        pygame.draw.polygon(surf, (245, 215, 120), [(s * 0.12, s * 0.52), (s * 0.38, s * 0.52), (s * 0.25, s * 0.68)])
         # Right pan
-        pygame.draw.line(surf, (180, 190, 210), (s * 0.75, s * 0.35), (s * 0.75, s * 0.65), 1)
-        pygame.draw.arc(surf, (245, 215, 120), (s * 0.62, s * 0.55, s * 0.26, s * 0.2), 3.14, 0, 2)
+        pygame.draw.line(surf, (180, 190, 210), (s * 0.75, s * 0.32), (s * 0.75, s * 0.52), 1)
+        pygame.draw.polygon(surf, (245, 215, 120), [(s * 0.62, s * 0.52), (s * 0.88, s * 0.52), (s * 0.75, s * 0.68)])
+        # Base
+        pygame.draw.line(surf, (245, 215, 120), (s * 0.30, s * 0.85), (s * 0.70, s * 0.85), 2)
+
+    elif kind in ('scroll', 'debt', 'decree', 'contract', 'assessment'):
+        # Parchment document with text lines and red wax seal
+        pygame.draw.rect(surf, (240, 225, 180), (s * 0.2, s * 0.15, s * 0.6, s * 0.7), border_radius=2)
+        pygame.draw.rect(surf, (190, 170, 130), (s * 0.2, s * 0.15, s * 0.6, s * 0.7), 1, border_radius=2)
+        pygame.draw.line(surf, (160, 140, 110), (s * 0.3, s * 0.32), (s * 0.7, s * 0.32), 1)
+        pygame.draw.line(surf, (160, 140, 110), (s * 0.3, s * 0.48), (s * 0.7, s * 0.48), 1)
+        pygame.draw.line(surf, (160, 140, 110), (s * 0.3, s * 0.64), (s * 0.55, s * 0.64), 1)
+        # Red wax seal
+        pygame.draw.circle(surf, (215, 60, 60), (int(s * 0.68), int(s * 0.68)), max(1, int(s * 0.14)))
 
     elif kind in ('chart', 'graph', 'timeseries'):
         # Line chart with axis and trendline

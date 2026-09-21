@@ -98,6 +98,32 @@ def draw_policies_panel(surface, world, region, font, font_small, mouse_pos=None
     else:
         _draw_nation_policies(surface, world, region, cur_y, font, font_small, mx, my)
 
+    # Tooltip detection on policy action buttons
+    if mouse_pos and not world.get('_hovered_left_tooltip'):
+        for rect, act_id, target in _ACTION_BUTTONS:
+            rx, ry, rw, rh = rect
+            if rx <= mx <= rx + rw and ry <= my <= ry + rh:
+                from worldview_tooltips import get_button_tooltip_data
+                plot_id = None
+                r_arg = region
+                n_arg = None
+                p_arg = None
+                if isinstance(target, tuple) and len(target) > 1:
+                    r_arg = target[0]
+                    plot_id = target[1]
+                elif hasattr(target, 'tiles') and hasattr(target, 'provinces'):
+                    n_arg = target
+                elif hasattr(target, 'regions') or hasattr(target, 'prov_id'):
+                    p_arg = target
+                elif hasattr(target, 'agents'):
+                    r_arg = target
+
+                tdata = get_button_tooltip_data(act_id, world, region=r_arg, nation=n_arg, province=p_arg, plot_id=plot_id)
+                if tdata:
+                    tdata['btn_rect'] = rect
+                    world['_hovered_left_tooltip'] = tdata
+                break
+
 
 def _draw_btn(surface, rect, label, font_small, mx, my, enabled=True, color=TEXT, custom_bg=None, icon_kind=None):
     """Helper to draw clickable action button with optional procedural icon and register hitbox."""
