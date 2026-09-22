@@ -1677,6 +1677,41 @@ class PolygonMapGenerator:
 
         return surface
 
+    def export_wireframe_usdz(
+        self,
+        usdz_path: str,
+        target_micropolys: int = 16000,
+        wire_width: float = 0.8,
+        roughness: float = 12.0,
+        lateral_jitter: float = 0.22,
+        normal_smooth_ratio: float = 0.70,
+    ) -> str:
+        """
+        Export a 3D wireframe USDZ package directly from PolygonMapGenerator.
+        Generates micropoly terrain and wraps edges into double-sided quad struts
+        colored by Whittaker biomes, oriented Y-up for Apple Quick Look and RealityKit.
+        """
+        try:
+            from render_island_micropolys import build_island_mesh, export_island_wireframe_usdz
+        except ImportError:
+            import sys
+            import os
+            sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+            from render_island_micropolys import build_island_mesh, export_island_wireframe_usdz
+
+        triangles, _ = build_island_mesh(
+            self,
+            width=int(self.width),
+            height=int(self.height),
+            mode="fractal",
+            target_polys=target_micropolys,
+            roughness=roughness,
+            lateral_jitter=lateral_jitter,
+            normal_smooth_ratio=normal_smooth_ratio,
+        )
+        return export_island_wireframe_usdz(self, triangles, usdz_path, wire_width=wire_width)
+
+
 
 # ---------------------------------------------------------------------------
 # Parallel Multi-Core Map Generation Engine

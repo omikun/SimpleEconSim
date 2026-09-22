@@ -569,6 +569,143 @@ def render_mesh(
     return surface
 
 
+def export_island_wireframe_usdz(
+    gen: PolygonMapGenerator,
+    triangles: List[Tuple],
+    usdz_path: str,
+    wire_width: float = 0.8,
+) -> str:
+    """
+    Exports the 3D micropoly wireframe mesh as an Apple Quick Look & AR compliant USDZ package.
+    Each triangle edge is extruded into a thin quad strut mesh with Whittaker biome colors,
+    oriented Y-up and centered so it spins cleanly in macOS Finder / Quick Look.
+    """
+    try:
+        from pxr import Usd, UsdGeom, Sdf, Gf, UsdUtils
+    except ImportError:
+        print("Error: 'usd-core' (pxr) is required to export USDZ files. Install via: pip install usd-core", file=sys.stderr)
+        return ""
+
+    t0 = time.time()
+    # 1. Extract unique edges with shared color
+    unique_edges = {}
+    for tri in triangles:
+        pa, pb, pc = tri[0], tri[1], tri[2]
+        pt_a = (round(float(pa[0]), 2), round(float(pa[1]), 2), round(float(pa[2]), 2))
+        pt_b = (round(float(pb[0]), 2), round(float(pb[1]), 2), round(float(pb[2]), 2))
+        pt_c = (round(float(pc[0]), 2), round(float(pc[1]), 2), round(float(pc[2]), 2))
+
+        col_arr = np.array(tri[3], dtype=np.float64)
+        for p1, p2 in [(pt_a, pt_b), (pt_b, pt_c), (pt_c, pt_a)]:
+            edge_key = (min(p1, p2), max(p1, p2))
+            if edge_key not in unique_edges:
+                unique_edges[edge_key] = col_arr
+
+    print(f"Extracted {len(unique_edges):,} unique wireframe edges from {len(triangles):,} triangles.")
+
+    # 2. Build USD stage using binary crate package (.usdc in .usdz)
+    os.makedirs(os.path.dirname(os.path.abspath(usdz_path)), exist_ok=True)
+    temp_usdc = usdz_path.replace(".usdz", ".usdc") if usdz_path.endswith(".usdz") else usdz_path + ".usdc"
+
+    if os.path.exists(temp_usdc):
+        os.remove(temp_usdc)
+
+    stage = Usd.Stage.CreateNew(temp_usdc)
+    UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.y)  # Apple Quick Look Y-up standard
+    UsdGeom.SetStageMetersPerUnit(stage, 0.01)       # Centimeters
+
+    root = UsdGeom.Xform.Define(stage, "/Island")
+    stage.SetDefaultPrim(root.GetPrim())
+
+    mesh_prim = UsdGeom.Mesh.Define(stage, "/Island/WireframeMesh")
+
+    points = []
+    face_vertex_counts = []
+    face_vertex_indices = []
+    colors = []
+
+    # Center model around origin (X: width/2, Z: height/2)
+    cx = gen.width * 0.5
+    cz = gen.height * 0.5
+    half_w = wire_width * 0.5
+
+    for (p1, p2), col in unique_edges.items():
+        # Coordinate mapping to Y-up:
+        # map X -> 3D X
+        # map Y (screen downwards) -> 3D Z
+        # map Z (elevation) -> 3D Y (up)
+        p1_3d = np.array([p1[0] - cx, p1[2], p1[1] - cz], dtype=np.float64)
+        p2_3d = np.array([p2[0] - cx, p2[2], p2[1] - cz], dtype=np.float64)
+
+        edge_vec = p2_3d - p1_3d
+        edge_len = np.linalg.norm(edge_vec)
+        if edge_len < 1e-4:
+            continue
+
+        # Perpendicular horizontal vector in XZ plane
+        horiz_dir = np.array([-edge_vec[2], 0.0, edge_vec[0]], dtype=np.float64)
+        h_len = np.linalg.norm(horiz_dir)
+        if h_len > 1e-6:
+            perp = (horiz_dir / h_len) * half_w
+        else:
+            perp = np.array([half_w, 0.0, 0.0], dtype=np.float64)
+
+        # 4 vertices for the thin quad strut
+        v0 = p1_3d - perp
+        v1 = p1_3d + perp
+        v2 = p2_3d + perp
+        v3 = p2_3d - perp
+
+        base_idx = len(points)
+        points.extend([
+            Gf.Vec3f(float(v0[0]), float(v0[1]), float(v0[2])),
+            Gf.Vec3f(float(v1[0]), float(v1[1]), float(v1[2])),
+            Gf.Vec3f(float(v2[0]), float(v2[1]), float(v2[2])),
+            Gf.Vec3f(float(v3[0]), float(v3[1]), float(v3[2])),
+        ])
+
+        # Double-sided quad (two triangles forward, two triangles reverse)
+        face_vertex_counts.extend([3, 3, 3, 3])
+        face_vertex_indices.extend([
+            base_idx, base_idx + 1, base_idx + 2,
+            base_idx, base_idx + 2, base_idx + 3,
+            base_idx + 2, base_idx + 1, base_idx,
+            base_idx + 3, base_idx + 2, base_idx,
+        ])
+
+        # Biome / elevation RGB in [0, 1]
+        c_gf = Gf.Vec3f(float(col[0] / 255.0), float(col[1] / 255.0), float(col[2] / 255.0))
+        colors.extend([c_gf, c_gf, c_gf, c_gf])
+
+    mesh_prim.CreatePointsAttr().Set(points)
+    mesh_prim.CreateFaceVertexCountsAttr().Set(face_vertex_counts)
+    mesh_prim.CreateFaceVertexIndicesAttr().Set(face_vertex_indices)
+
+    # Display colors per face
+    color_primvar = mesh_prim.CreateDisplayColorPrimvar(UsdGeom.Tokens.uniform)
+    color_primvar.Set(colors)
+
+    # Double-sided attribute ensures strut faces render from any camera angle
+    mesh_prim.CreateDoubleSidedAttr().Set(True)
+
+    # Save binary layer
+    stage.GetRootLayer().Save()
+
+    # Package into USDZ
+    success = UsdUtils.CreateNewUsdzPackage(Sdf.AssetPath(temp_usdc), usdz_path)
+    if os.path.exists(temp_usdc):
+        os.remove(temp_usdc)
+
+    elapsed_ms = (time.time() - t0) * 1000.0
+    if success:
+        size_mb = os.path.getsize(usdz_path) / (1024 * 1024)
+        print(f"USDZ Wireframe Export: {usdz_path} ({size_mb:.2f} MB, {elapsed_ms:.1f} ms)")
+        return usdz_path
+    else:
+        print(f"Failed to package USDZ at: {usdz_path}", file=sys.stderr)
+        return ""
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Generate and render high-resolution polygonal terrain with custom micropoly subdivision knobs.",
@@ -592,6 +729,8 @@ def main():
     parser.add_argument("--points", "-n", type=int, default=1000, help="Number of Voronoi seed points")
     parser.add_argument("--size", type=int, default=1000, help="Render resolution in pixels (width=height)")
     parser.add_argument("--output", "-o", type=str, default="island_output.png", help="Output PNG file path")
+    parser.add_argument("--usdz", type=str, default="", help="Optional output path to export 3D wireframe model (.usdz)")
+    parser.add_argument("--wire-width", type=float, default=0.8, help="3D strut wireframe line width in world units")
     parser.add_argument("--window", action="store_true", help="Display interactive live window (requires graphical desktop)")
 
     args = parser.parse_args()
@@ -608,6 +747,8 @@ def main():
     print(f"  • Normal Smooth   : {args.normal_smooth}")
     print(f"  • Ridge Alpha (α) : {args.alpha}")
     print(f"  • Resolution      : {args.size} x {args.size}")
+    if args.usdz:
+        print(f"  • USDZ Wireframe  : {args.usdz} (width: {args.wire_width})")
     print(f"--------------------------------------------------------")
 
     t_start = time.time()
@@ -647,12 +788,19 @@ def main():
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     pygame.image.save(surface, output_path)
 
+    # Optional 3D USDZ wireframe export
+    if args.usdz:
+        usdz_out = os.path.abspath(args.usdz)
+        export_island_wireframe_usdz(gen, triangles, usdz_out, wire_width=args.wire_width)
+
     print(f"\n[DONE] Successfully generated {actual_poly_count:,} micropolygons!")
     print(f"  - Map Generation : {(t_gen - t_start)*1000:.1f} ms")
     print(f"  - Subdivision    : {(t_subdiv - t_gen)*1000:.1f} ms")
     print(f"  - Shading/Render : {(t_render - t_subdiv)*1000:.1f} ms")
     print(f"  - Total Elapsed  : {(t_render - t_start)*1000:.1f} ms")
     print(f"  - Saved Image to : {output_path}")
+    if args.usdz:
+        print(f"  - Saved USDZ to  : {os.path.abspath(args.usdz)}")
 
     # Also copy to artifact directory if inside antigravity environment
     artifact_dir = "/Users/sli/.gemini/antigravity/brain/11eb900e-54d0-4082-b924-ee19cb7c9759"
