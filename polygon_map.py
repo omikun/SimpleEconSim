@@ -367,6 +367,7 @@ class PolygonMapGenerator:
         enable_lava: bool = True,
         enable_noisy_edges: bool = True,
         noisy_tradeoff: float = 0.30,
+        mountain_sharpness: float = 1.0,
     ):
         self.seed = seed
         self.width = float(width)
@@ -381,6 +382,7 @@ class PolygonMapGenerator:
         self.enable_lava = enable_lava
         self.enable_noisy_edges = enable_noisy_edges
         self.noisy_tradeoff = noisy_tradeoff
+        self.mountain_sharpness = float(mountain_sharpness)
 
         self.rng = random.Random(seed)
         self.np_rng = np.random.default_rng(seed)
@@ -693,10 +695,17 @@ class PolygonMapGenerator:
             # Sort stably by BFS distance
             land_corners.sort(key=lambda cn: cn.elevation)
             n_land = len(land_corners)
+            SCALE_FACTOR = 1.1
             for rank, cn in enumerate(land_corners):
-                x = (rank + 1) / n_land
-                # Hypsometric curve: abundant coastal lowlands, rare alpine peaks
-                cn.elevation = 1.0 - (1.0 - x) ** 2
+                y = (rank + 1) / n_land
+                # Amit Patel's inverted hypsometric curve from Map.as (redistributeElevations):
+                # Target CDF: y(x) = 1 - (1 - x)^2  ==>  Inverted: x(y) = sqrt(SCALE) - sqrt(SCALE * (1 - y))
+                # Produces abundant flat coastal lowlands and sharp, steep alpine mountain peaks
+                x = math.sqrt(SCALE_FACTOR) - math.sqrt(SCALE_FACTOR * (1.0 - y))
+                x = min(1.0, max(0.001, x))
+                if self.mountain_sharpness != 1.0 and x > 0.0:
+                    x = x ** self.mountain_sharpness
+                cn.elevation = min(1.0, max(0.001, x))
 
         # Assign center elevation as mean of its corners
         for c in self.centers:

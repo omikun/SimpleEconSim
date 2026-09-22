@@ -723,6 +723,7 @@ def main():
     )
     parser.add_argument("--depth", "-d", type=int, default=1, help="Subdivision depth for 'depth' mode (each level quadruples poly count)")
     parser.add_argument("--height-scale", "--elev-scale", dest="height_scale", type=float, default=70.0, help="Vertical elevation scale in 3D world units (default: 70.0, down from exaggerated 320.0)")
+    parser.add_argument("--mountain-sharpness", "--sharpness", dest="mountain_sharpness", type=float, default=1.0, help="Mountain sharpness power exponent (default: 1.0 for Amit's exact curve, >1.0 for sharper peaks / flatter plains)")
     parser.add_argument("--roughness", "-r", type=float, default=3.0, help="Fractal midpoint displacement height roughness")
     parser.add_argument("--lateral-jitter", "-j", type=float, default=0.22, help="2D lateral displacement ratio perpendicular to edges (dissolves straight polygon seams)")
     parser.add_argument("--normal-smooth", type=float, default=0.70, help="Ratio of smoothed vertex normals to micro-facet normals (eliminates stair-step shading)")
@@ -745,6 +746,7 @@ def main():
     print(f"  • World Seed      : {args.seed}")
     print(f"  • Voronoi Points  : {args.points}")
     print(f"  • Height Scale    : {args.height_scale}")
+    print(f"  • Sharpness Power : {args.mountain_sharpness}")
     print(f"  • Roughness       : {args.roughness}")
     print(f"  • Lateral Jitter  : {args.lateral_jitter}")
     print(f"  • Normal Smooth   : {args.normal_smooth}")
@@ -761,6 +763,7 @@ def main():
         width=args.size,
         height=args.size,
         num_points=args.points,
+        mountain_sharpness=args.mountain_sharpness,
         enable_corner_improvement=True,
         enable_roads=True,
         enable_lava=True,
