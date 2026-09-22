@@ -242,6 +242,13 @@ class TestMapgen2Rendering(unittest.TestCase):
         )
         self.assertEqual(surf3.get_width(), 300)
 
+        # Mode 4: Watertight fractal micropoly rendering (16k polygons)
+        surf4 = gen.render_to_surface(
+            width=300, height=300, render_micropolys=True, target_micropolys=4000, micropoly_roughness=8.0, micropoly_lateral_jitter=0.20
+        )
+        self.assertEqual(surf4.get_width(), 300)
+        self.assertEqual(surf4.get_height(), 300)
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -44,10 +44,11 @@ def build_island_mesh(
     gen: PolygonMapGenerator,
     width: int = 1000,
     height: int = 1000,
-    mode: str = "adaptive",
+    mode: str = "fractal",
     target_polys: int = 16000,
     subdivision_depth: int = 1,
-    roughness: float = 5.0,
+    roughness: float = 8.0,
+    lateral_jitter: float = 0.20,
     elevation_alpha: float = 0.25,
     elev_scale: float = 320.0,
 ) -> Tuple[List[Tuple], int]:
@@ -73,9 +74,150 @@ def build_island_mesh(
             else:
                 v_elev[cn.index] = cn.elevation
 
-    # 2. Build initial base triangles for all land edges
-    base_triangles = []
+    # 2. Mode: Fractal Watertight Edge-Cached 2D+3D Subdivision (Default)
+    if mode == "fractal":
+        vertices = []
+        vertex_map = {}
 
+        def get_or_add_vertex(pt3d):
+            key = (round(float(pt3d[0]), 1), round(float(pt3d[1]), 1))
+            if key in vertex_map:
+                return vertex_map[key]
+            idx = len(vertices)
+            vertices.append(np.array(pt3d, dtype=np.float64))
+            vertex_map[key] = idx
+            return idx
+
+        base_triangles = []
+
+        for edge in gen.edges:
+            d0, d1 = edge.d0, edge.d1
+            v0, v1 = edge.v0, edge.v1
+            if not d0 or not d1 or not v0 or not v1:
+                continue
+            if d0.water and d1.water:
+                continue
+
+            z_v0 = v_elev.get(v0.index, v0.elevation) * elev_scale
+            z_v1 = v_elev.get(v1.index, v1.elevation) * elev_scale
+
+            p_v0 = np.array([v0.x * scale_x, v0.y * scale_y, z_v0], dtype=np.float64)
+            p_v1 = np.array([v1.x * scale_x, v1.y * scale_y, z_v1], dtype=np.float64)
+            p_d0 = np.array([d0.x * scale_x, d0.y * scale_y, d0.elevation * elev_scale], dtype=np.float64)
+            p_d1 = np.array([d1.x * scale_x, d1.y * scale_y, d1.elevation * elev_scale], dtype=np.float64)
+
+            idx_v0 = get_or_add_vertex(p_v0)
+            idx_v1 = get_or_add_vertex(p_v1)
+            idx_d0 = get_or_add_vertex(p_d0)
+            idx_d1 = get_or_add_vertex(p_d1)
+
+            col0 = np.array(BIOME_COLORS.get(d0.biome, (120, 160, 100)), dtype=np.float64)
+            col1 = np.array(BIOME_COLORS.get(d1.biome, (120, 160, 100)), dtype=np.float64)
+            if not d1.water:
+                col0 = col0 * 0.70 + col1 * 0.30
+                col1 = col1 * 0.70 + col0 * 0.30
+
+            if edge.river > 0:
+                col0 = col0 * 0.75 + np.array([40, 105, 35], dtype=np.float64) * 0.25
+                col1 = col1 * 0.75 + np.array([40, 105, 35], dtype=np.float64) * 0.25
+
+            if edge.river > 0 or (d0.water != d1.water):
+                base_triangles.append((idx_v0, idx_d1, idx_d0, col0 if not d0.water else col1, (v0.elevation + d0.elevation) * 0.5, edge.river > 0))
+                base_triangles.append((idx_v1, idx_d0, idx_d1, col1 if not d1.water else col0, (v1.elevation + d1.elevation) * 0.5, edge.river > 0))
+            else:
+                if not d0.water:
+                    base_triangles.append((idx_v0, idx_v1, idx_d0, col0, (v0.elevation + v1.elevation + d0.elevation) / 3.0, False))
+                if not d1.water:
+                    base_triangles.append((idx_v1, idx_v0, idx_d1, col1, (v0.elevation + v1.elevation + d1.elevation) / 3.0, False))
+
+        vertex_colors = {}
+        for idx_a, idx_b, idx_c, col, el, riv in base_triangles:
+            for idx in (idx_a, idx_b, idx_c):
+                if idx not in vertex_colors:
+                    vertex_colors[idx] = col.copy()
+                else:
+                    vertex_colors[idx] = vertex_colors[idx] * 0.5 + col * 0.5
+
+        triangles_idx = list(base_triangles)
+        edge_midpoints = {}
+        rng = np.random.RandomState(42)
+
+        def get_midpoint(i_a, i_b, depth):
+            edge_key = (min(i_a, i_b), max(i_a, i_b))
+            if edge_key in edge_midpoints:
+                return edge_midpoints[edge_key]
+
+            pa = vertices[i_a]
+            pb = vertices[i_b]
+            e_xy = pb[:2] - pa[:2]
+            length = float(np.linalg.norm(e_xy))
+            mid = (pa + pb) * 0.5
+
+            if length > 1.5:
+                n_perp = np.array([-e_xy[1], e_xy[0]], dtype=np.float64) / length
+                decay = 0.65 ** depth
+                disp_lat = rng.uniform(-lateral_jitter, lateral_jitter) * length * decay
+                disp_long = rng.uniform(-0.08, 0.08) * length * decay
+
+                mid[0] += n_perp[0] * disp_lat + (e_xy[0] / length) * disp_long
+                mid[1] += n_perp[1] * disp_lat + (e_xy[1] / length) * disp_long
+
+                disp_z = rng.uniform(-0.5, 0.5) * roughness * (length / 40.0) * decay
+                mid[2] += disp_z
+
+            idx_mid = len(vertices)
+            vertices.append(mid)
+
+            c_a = vertex_colors.get(i_a, np.array([120, 160, 100], dtype=np.float64))
+            c_b = vertex_colors.get(i_b, np.array([120, 160, 100], dtype=np.float64))
+            vertex_colors[idx_mid] = (c_a + c_b) * 0.5
+
+            edge_midpoints[edge_key] = idx_mid
+            return idx_mid
+
+        depth = 0
+        while len(triangles_idx) < target_polys:
+            needed = target_polys - len(triangles_idx)
+            num_to_split = min(len(triangles_idx), max(1, needed // 3))
+
+            def tri_area_idx(t):
+                p1, p2, p3 = vertices[t[0]], vertices[t[1]], vertices[t[2]]
+                return 0.5 * abs((p2[0] - p1[0]) * (p3[1] - p1[1]) - (p3[0] - p1[0]) * (p2[1] - p1[1]))
+
+            triangles_idx.sort(key=tri_area_idx, reverse=True)
+            to_split = triangles_idx[:num_to_split]
+            untouched = triangles_idx[num_to_split:]
+
+            new_triangles = list(untouched)
+            for i_a, i_b, i_c, col, el, riv in to_split:
+                m_ab = get_midpoint(i_a, i_b, depth)
+                m_bc = get_midpoint(i_b, i_c, depth)
+                m_ca = get_midpoint(i_c, i_a, depth)
+
+                new_triangles.append((i_a, m_ab, m_ca, col, el, riv))
+                new_triangles.append((i_b, m_bc, m_ab, col, el, riv))
+                new_triangles.append((i_c, m_ca, m_bc, col, el, riv))
+                new_triangles.append((m_ab, m_bc, m_ca, col, el, riv))
+
+            triangles_idx = new_triangles
+            depth += 1
+            if len(triangles_idx) >= target_polys or num_to_split == 0:
+                break
+
+        # Unpack indices into (pa, pb, pc, col, avg_elev, is_riv, area)
+        final_triangles = []
+        for i_a, i_b, i_c, col_base, avg_elev, is_riv in triangles_idx:
+            pa = vertices[i_a]
+            pb = vertices[i_b]
+            pc = vertices[i_c]
+            col = (vertex_colors.get(i_a, col_base) + vertex_colors.get(i_b, col_base) + vertex_colors.get(i_c, col_base)) / 3.0
+            area = 0.5 * abs((pb[0] - pa[0]) * (pc[1] - pa[1]) - (pc[0] - pa[0]) * (pb[1] - pa[1]))
+            final_triangles.append((pa, pb, pc, col, avg_elev, is_riv, area))
+
+        return final_triangles, len(final_triangles)
+
+    # 3. Legacy base triangles for other modes
+    base_triangles = []
     for edge in gen.edges:
         d0, d1 = edge.d0, edge.d1
         v0, v1 = edge.v0, edge.v1
@@ -107,7 +249,6 @@ def build_island_mesh(
             base_triangles.append((pa, pb, pc, c, el, riv, area))
 
         if mode == "redblob":
-            # Red Blob 2-way fold (ridges along v0-v1, valleys along d0-d1)
             p_d0 = np.array([d0.x * scale_x, d0.y * scale_y, d0.elevation * elev_scale], dtype=np.float64)
             p_d1 = np.array([d1.x * scale_x, d1.y * scale_y, d1.elevation * elev_scale], dtype=np.float64)
             if edge.river > 0:
@@ -120,7 +261,6 @@ def build_island_mesh(
                 if not d1.water:
                     add_base_tri(p_v1, p_v0, p_d1, col1, (v0.elevation + v1.elevation + d1.elevation) / 3.0, False)
         else:
-            # 4-quadrant base decomposition
             if not d0.water:
                 p_d0 = np.array([d0.x * scale_x, d0.y * scale_y, d0.elevation * elev_scale], dtype=np.float64)
                 add_base_tri(p_d0, p_v0, p_mid, col0, (d0.elevation + v0.elevation) * 0.5, edge.river > 0)
@@ -343,12 +483,13 @@ def main():
         "--mode",
         "-m",
         type=str,
-        default="adaptive",
-        choices=["adaptive", "depth", "spokes", "redblob"],
-        help="Subdivision algorithm: 'adaptive' (1-to-4 area-priority), 'depth' (uniform 1-to-4), 'spokes' (radial fan), 'redblob' (2-way ridge/valley fold)",
+        default="fractal",
+        choices=["fractal", "adaptive", "depth", "spokes", "redblob"],
+        help="Subdivision algorithm: 'fractal' (watertight 2D+3D edge-cached), 'adaptive' (1-to-4 area-priority), 'depth' (uniform 1-to-4), 'spokes' (radial fan), 'redblob' (2-way ridge/valley fold)",
     )
     parser.add_argument("--depth", "-d", type=int, default=1, help="Subdivision depth for 'depth' mode (each level quadruples poly count)")
-    parser.add_argument("--roughness", "-r", type=float, default=5.0, help="Fractal midpoint displacement height roughness")
+    parser.add_argument("--roughness", "-r", type=float, default=8.0, help="Fractal midpoint displacement height roughness")
+    parser.add_argument("--lateral-jitter", "-j", type=float, default=0.20, help="2D lateral displacement ratio perpendicular to edges (dissolves straight polygon seams)")
     parser.add_argument("--alpha", "-a", type=float, default=0.25, help="Red Blob corner ridge elevation boost alpha")
     parser.add_argument("--seed", "-s", type=int, default=777, help="Random seed for map generator")
     parser.add_argument("--points", "-n", type=int, default=1000, help="Number of Voronoi seed points")
@@ -366,6 +507,7 @@ def main():
     print(f"  • World Seed      : {args.seed}")
     print(f"  • Voronoi Points  : {args.points}")
     print(f"  • Roughness       : {args.roughness}")
+    print(f"  • Lateral Jitter  : {args.lateral_jitter}")
     print(f"  • Ridge Alpha (α) : {args.alpha}")
     print(f"  • Resolution      : {args.size} x {args.size}")
     print(f"--------------------------------------------------------")
@@ -392,6 +534,7 @@ def main():
         target_polys=args.polys,
         subdivision_depth=args.depth,
         roughness=args.roughness,
+        lateral_jitter=args.lateral_jitter,
         elevation_alpha=args.alpha,
     )
     t_subdiv = time.time()

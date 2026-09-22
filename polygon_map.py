@@ -1191,7 +1191,8 @@ class PolygonMapGenerator:
         continuous_relief: bool = False,
         render_micropolys: bool = True,
         target_micropolys: int = 16000,
-        micropoly_roughness: float = 5.0,
+        micropoly_roughness: float = 8.0,
+        micropoly_lateral_jitter: float = 0.20,
     ) -> Any:
         """Render the polygonal map with shaded relief, noisy paths, rivers, lava, and roads onto a Pygame surface."""
         import pygame
@@ -1285,8 +1286,20 @@ class PolygonMapGenerator:
 
             snow_threshold = 0.82
 
-            # Build initial base triangles for all land borders
-            triangles = []  # list of (pa, pb, pc, col, avg_elev, is_river, area)
+            # Watertight Dual-Mesh Base Decomposition
+            vertices: List[np.ndarray] = []
+            vertex_map: Dict[Tuple[float, float], int] = {}
+
+            def get_or_add_vertex(pt3d: np.ndarray) -> int:
+                key = (round(float(pt3d[0]), 1), round(float(pt3d[1]), 1))
+                if key in vertex_map:
+                    return vertex_map[key]
+                idx = len(vertices)
+                vertices.append(np.array(pt3d, dtype=np.float64))
+                vertex_map[key] = idx
+                return idx
+
+            base_triangles: List[Tuple[int, int, int, np.ndarray, float, bool]] = []
 
             for edge in self.edges:
                 d0, d1 = edge.d0, edge.d1
@@ -1298,11 +1311,16 @@ class PolygonMapGenerator:
 
                 z_v0 = v_elev.get(v0.index, v0.elevation) * elev_scale
                 z_v1 = v_elev.get(v1.index, v1.elevation) * elev_scale
-                z_mid = (z_v0 + z_v1) * 0.5
 
                 p_v0 = np.array([v0.x * scale_x, v0.y * scale_y, z_v0], dtype=np.float64)
                 p_v1 = np.array([v1.x * scale_x, v1.y * scale_y, z_v1], dtype=np.float64)
-                p_mid = np.array([edge.midpoint[0] * scale_x, edge.midpoint[1] * scale_y, z_mid], dtype=np.float64)
+                p_d0 = np.array([d0.x * scale_x, d0.y * scale_y, d0.elevation * elev_scale], dtype=np.float64)
+                p_d1 = np.array([d1.x * scale_x, d1.y * scale_y, d1.elevation * elev_scale], dtype=np.float64)
+
+                idx_v0 = get_or_add_vertex(p_v0)
+                idx_v1 = get_or_add_vertex(p_v1)
+                idx_d0 = get_or_add_vertex(p_d0)
+                idx_d1 = get_or_add_vertex(p_d1)
 
                 col0 = np.array(BIOME_COLORS.get(d0.biome, (120, 160, 100)), dtype=np.float64)
                 col1 = np.array(BIOME_COLORS.get(d1.biome, (120, 160, 100)), dtype=np.float64)
@@ -1314,55 +1332,99 @@ class PolygonMapGenerator:
                     col0 = col0 * 0.75 + np.array([40, 105, 35], dtype=np.float64) * 0.25
                     col1 = col1 * 0.75 + np.array([40, 105, 35], dtype=np.float64) * 0.25
 
-                def add_base_tri(pa, pb, pc, c, el, riv):
-                    area = 0.5 * abs((pb[0] - pa[0]) * (pc[1] - pa[1]) - (pc[0] - pa[0]) * (pb[1] - pa[1]))
-                    triangles.append((pa, pb, pc, c, el, riv, area))
+                # 2-way fold: valley along d0-d1 for rivers/coasts, ridge along v0-v1 for interior
+                if edge.river > 0 or (d0.water != d1.water):
+                    base_triangles.append((idx_v0, idx_d1, idx_d0, col0 if not d0.water else col1, (v0.elevation + d0.elevation) * 0.5, edge.river > 0))
+                    base_triangles.append((idx_v1, idx_d0, idx_d1, col1 if not d1.water else col0, (v1.elevation + d1.elevation) * 0.5, edge.river > 0))
+                else:
+                    if not d0.water:
+                        base_triangles.append((idx_v0, idx_v1, idx_d0, col0, (v0.elevation + v1.elevation + d0.elevation) / 3.0, False))
+                    if not d1.water:
+                        base_triangles.append((idx_v1, idx_v0, idx_d1, col1, (v0.elevation + v1.elevation + d1.elevation) / 3.0, False))
 
-                if not d0.water:
-                    p_d0 = np.array([d0.x * scale_x, d0.y * scale_y, d0.elevation * elev_scale], dtype=np.float64)
-                    add_base_tri(p_d0, p_v0, p_mid, col0, (d0.elevation + v0.elevation) * 0.5, edge.river > 0)
-                    add_base_tri(p_d0, p_mid, p_v1, col0, (d0.elevation + v1.elevation) * 0.5, edge.river > 0)
+            # Initialize vertex color dictionary
+            vertex_colors: Dict[int, np.ndarray] = {}
+            for idx_a, idx_b, idx_c, col, el, riv in base_triangles:
+                for idx in (idx_a, idx_b, idx_c):
+                    if idx not in vertex_colors:
+                        vertex_colors[idx] = col.copy()
+                    else:
+                        vertex_colors[idx] = vertex_colors[idx] * 0.5 + col * 0.5
 
-                if not d1.water:
-                    p_d1 = np.array([d1.x * scale_x, d1.y * scale_y, d1.elevation * elev_scale], dtype=np.float64)
-                    add_base_tri(p_d1, p_v1, p_mid, col1, (d1.elevation + v1.elevation) * 0.5, edge.river > 0)
-                    add_base_tri(p_d1, p_mid, p_v0, col1, (d1.elevation + v0.elevation) * 0.5, edge.river > 0)
+            # Edge-cached subdivision with lateral 2D and elevation 3D perturbation
+            triangles = list(base_triangles)
+            edge_midpoints: Dict[Tuple[int, int], int] = {}
+            rng = np.random.RandomState(42)
 
-            # Subdivide to hit target_micropolys (default 16,000)
-            rng_seed = 42
+            def get_subdiv_midpoint(i_a: int, i_b: int, cur_depth: int) -> int:
+                edge_key = (min(i_a, i_b), max(i_a, i_b))
+                if edge_key in edge_midpoints:
+                    return edge_midpoints[edge_key]
+
+                pa = vertices[i_a]
+                pb = vertices[i_b]
+                e_xy = pb[:2] - pa[:2]
+                length = float(np.linalg.norm(e_xy))
+
+                mid = (pa + pb) * 0.5
+
+                if length > 1.5:
+                    n_perp = np.array([-e_xy[1], e_xy[0]], dtype=np.float64) / length
+                    decay = 0.65 ** cur_depth
+                    disp_lat = rng.uniform(-micropoly_lateral_jitter, micropoly_lateral_jitter) * length * decay
+                    disp_long = rng.uniform(-0.08, 0.08) * length * decay
+
+                    mid[0] += n_perp[0] * disp_lat + (e_xy[0] / length) * disp_long
+                    mid[1] += n_perp[1] * disp_lat + (e_xy[1] / length) * disp_long
+
+                    disp_z = rng.uniform(-0.5, 0.5) * micropoly_roughness * (length / 40.0) * decay
+                    mid[2] += disp_z
+
+                idx_mid = len(vertices)
+                vertices.append(mid)
+
+                c_a = vertex_colors.get(i_a, np.array([120, 160, 100], dtype=np.float64))
+                c_b = vertex_colors.get(i_b, np.array([120, 160, 100], dtype=np.float64))
+                vertex_colors[idx_mid] = (c_a + c_b) * 0.5
+
+                edge_midpoints[edge_key] = idx_mid
+                return idx_mid
+
+            depth = 0
             while len(triangles) < target_micropolys:
                 needed = target_micropolys - len(triangles)
-                num_to_subdiv = min(len(triangles), max(1, needed // 3))
+                num_to_split = min(len(triangles), max(1, needed // 3))
 
-                # Subdivide the largest triangles first to maintain uniform high-density tessellation
-                triangles.sort(key=lambda t: t[6], reverse=True)
-                to_split = triangles[:num_to_subdiv]
-                untouched = triangles[num_to_subdiv:]
+                def tri_2d_area(t: Tuple[int, int, int, np.ndarray, float, bool]) -> float:
+                    p1, p2, p3 = vertices[t[0]], vertices[t[1]], vertices[t[2]]
+                    return 0.5 * abs((p2[0] - p1[0]) * (p3[1] - p1[1]) - (p3[0] - p1[0]) * (p2[1] - p1[1]))
+
+                triangles.sort(key=tri_2d_area, reverse=True)
+                to_split = triangles[:num_to_split]
+                untouched = triangles[num_to_split:]
 
                 new_triangles = list(untouched)
-                for idx, (pa, pb, pc, c, el, riv, _) in enumerate(to_split):
-                    rng = np.random.RandomState(rng_seed + idx)
-                    m_ab = (pa + pb) * 0.5
-                    m_bc = (pb + pc) * 0.5
-                    m_ca = (pc + pa) * 0.5
+                for i_a, i_b, i_c, col, el, riv in to_split:
+                    m_ab = get_subdiv_midpoint(i_a, i_b, depth)
+                    m_bc = get_subdiv_midpoint(i_b, i_c, depth)
+                    m_ca = get_subdiv_midpoint(i_c, i_a, depth)
 
-                    edge_len = (np.linalg.norm(pb[:2] - pa[:2]) + np.linalg.norm(pc[:2] - pb[:2]) + np.linalg.norm(pa[:2] - pc[:2])) / 3.0
-                    scale = micropoly_roughness * (edge_len / 40.0)
-                    m_ab[2] += (rng.rand() - 0.5) * scale
-                    m_bc[2] += (rng.rand() - 0.5) * scale
-                    m_ca[2] += (rng.rand() - 0.5) * scale
-
-                    for sa, sb, sc in [(pa, m_ab, m_ca), (pb, m_bc, m_ab), (pc, m_ca, m_bc), (m_ab, m_bc, m_ca)]:
-                        area = 0.5 * abs((sb[0] - sa[0]) * (sc[1] - sa[1]) - (sc[0] - sa[0]) * (sb[1] - sa[1]))
-                        new_triangles.append((sa, sb, sc, c, el, riv, area))
+                    new_triangles.append((i_a, m_ab, m_ca, col, el, riv))
+                    new_triangles.append((i_b, m_bc, m_ab, col, el, riv))
+                    new_triangles.append((i_c, m_ca, m_bc, col, el, riv))
+                    new_triangles.append((m_ab, m_bc, m_ca, col, el, riv))
 
                 triangles = new_triangles
-                rng_seed += 1000
-                if len(triangles) >= target_micropolys or num_to_subdiv == len(to_split) == 0:
+                depth += 1
+                if len(triangles) >= target_micropolys or num_to_split == 0:
                     break
 
-            # Rasterize all resulting micropolygons (16,000+ polygons)
-            for (pa, pb, pc, col_base, avg_elev, is_riv, _) in triangles:
+            # Rasterize all resulting micropolygons (watertight & organic)
+            for idx_a, idx_b, idx_c, col_base, avg_elev, is_riv in triangles:
+                pa = vertices[idx_a]
+                pb = vertices[idx_b]
+                pc = vertices[idx_c]
+
                 va = pb - pa
                 vb = pc - pa
                 norm = np.cross(va, vb)
@@ -1381,7 +1443,7 @@ class PolygonMapGenerator:
                 ambient = 0.68 + 0.12 * (norm[2] - 0.7)
                 shade = ambient + diffuse_sun + diffuse_fill
 
-                col = col_base.copy()
+                col = (vertex_colors.get(idx_a, col_base) + vertex_colors.get(idx_b, col_base) + vertex_colors.get(idx_c, col_base)) / 3.0
                 slope_val = 1.0 - norm[2]
                 if slope_val > 0.14:
                     cliff_w = min(0.60, (slope_val - 0.14) / 0.22)
