@@ -579,7 +579,7 @@ class MapgenGUI:
         if self.canvas_rect.collidepoint(mx, my) and self.gen:
             cx = mx - self.canvas_rect.x
             cy = my - self.canvas_rect.y
-            nearest_center = self.gen.find_nearest_center(cx, cy)
+            nearest_center = self.gen.get_center_at(cx, cy)
             if nearest_center:
                 hover_str = f" | Cell #{nearest_center.index} ({nearest_center.biome.upper()}) elv:{nearest_center.elevation:.2f} mst:{nearest_center.moisture:.2f}"
 

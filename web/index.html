@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#12161c">
+  <title>Mapgen2 Terrain Explorer</title>
+  <style>
+    :root {
+      --bg: #10141a;
+      --card-bg: rgba(26, 32, 44, 0.85);
+      --card-border: rgba(60, 75, 100, 0.4);
+      --accent: #2d8cf0;
+      --accent-glow: rgba(45, 140, 240, 0.35);
+      --text: #f0f4fa;
+      --text-muted: #8a9bb2;
+      --success: #34d399;
+      --safe-bottom: env(safe-area-inset-bottom, 16px);
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding-bottom: calc(85px + var(--safe-bottom));
+      overflow-x: hidden;
+    }
+
+    /* Top App Header */
+    header {
+      width: 100%;
+      max-width: 680px;
+      padding: 14px 18px 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .header-title h1 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    .header-title p {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+    .header-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      background: rgba(45, 140, 240, 0.15);
+      border: 1px solid rgba(45, 140, 240, 0.3);
+      font-size: 0.75rem;
+      color: var(--accent);
+      font-weight: 600;
+    }
+    .pulse-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--success);
+      box-shadow: 0 0 8px var(--success);
+    }
+
+    /* Main Container */
+    main {
+      width: 100%;
+      max-width: 680px;
+      padding: 0 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    /* Map Canvas Card */
+    .map-container {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      border-radius: 18px;
+      background: #0d2452;
+      overflow: hidden;
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5), inset 0 0 0 1px var(--card-border);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    #map-image {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      transition: opacity 0.15s ease;
+    }
+    #map-image.loading {
+      opacity: 0.65;
+    }
+    .tap-marker {
+      position: absolute;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      border: 2px solid #fff;
+      background: rgba(45, 140, 240, 0.4);
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      display: none;
+      box-shadow: 0 0 12px var(--accent);
+      animation: pulse 1s infinite alternate;
+    }
+    @keyframes pulse {
+      from { transform: translate(-50%, -50%) scale(0.9); }
+      to { transform: translate(-50%, -50%) scale(1.2); }
+    }
+
+    /* Inspection Overlay */
+    .inspect-card {
+      position: absolute;
+      bottom: 12px;
+      left: 12px;
+      right: 12px;
+      background: rgba(18, 24, 34, 0.85);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 12px;
+      padding: 10px 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.78rem;
+      opacity: 0;
+      transform: translateY(10px);
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      pointer-events: none;
+    }
+    .inspect-card.active {
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events: auto;
+    }
+    .biome-badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      background: #2a3a52;
+      color: #fff;
+    }
+
+    /* Segmented Control Buttons */
+    .section-title {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+      padding-left: 4px;
+    }
+    .segment-bar {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+      background: rgba(20, 26, 36, 0.6);
+      padding: 5px;
+      border-radius: 12px;
+      border: 1px solid var(--card-border);
+    }
+    .segment-bar.cols-4 {
+      grid-template-columns: repeat(4, 1fr);
+    }
+    .btn-segment {
+      background: transparent;
+      color: var(--text-muted);
+      border: none;
+      border-radius: 8px;
+      padding: 9px 4px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      text-align: center;
+    }
+    .btn-segment.active {
+      background: var(--accent);
+      color: #fff;
+      box-shadow: 0 2px 8px var(--accent-glow);
+    }
+
+    /* Cards & Slider Sections */
+    .card {
+      background: var(--card-bg);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .slider-row {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .slider-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.82rem;
+      font-weight: 600;
+    }
+    .slider-val {
+      color: var(--accent);
+      font-variant-numeric: tabular-nums;
+    }
+    input[type="range"] {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 6px;
+      border-radius: 4px;
+      background: #222c3c;
+      outline: none;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.4), 0 0 0 2px var(--accent);
+      cursor: pointer;
+    }
+
+    /* Bottom Floating Action Bar */
+    .bottom-bar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: rgba(18, 22, 28, 0.88);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 12px 16px calc(12px + var(--safe-bottom));
+      display: flex;
+      justify-content: center;
+      z-index: 100;
+    }
+    .bottom-bar-inner {
+      width: 100%;
+      max-width: 680px;
+      display: grid;
+      grid-template-columns: 1fr 1.3fr 1fr;
+      gap: 10px;
+    }
+    .btn-action {
+      background: #243042;
+      border: 1px solid var(--card-border);
+      color: var(--text);
+      padding: 12px 8px;
+      border-radius: 12px;
+      font-size: 0.84rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .btn-action:active {
+      transform: scale(0.97);
+    }
+    .btn-action.btn-primary {
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+      border-color: #3b82f6;
+      color: #fff;
+      box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4);
+    }
+    .btn-action.btn-ar {
+      background: linear-gradient(135deg, #10b981, #059669);
+      border-color: #34d399;
+      color: #fff;
+      box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="header-title">
+      <h1>Mapgen2 Explorer</h1>
+      <p id="perf-status">⚡ Initializing...</p>
+    </div>
+    <div class="header-badge">
+      <span class="pulse-dot"></span>
+      <span id="poly-badge">16,000 Polys</span>
+    </div>
+  </header>
+
+  <main>
+    <!-- Map Viewport -->
+    <div class="map-container" id="map-box">
+      <img id="map-image" src="" alt="Terrain Map">
+      <div class="tap-marker" id="tap-marker"></div>
+      <div class="inspect-card" id="inspect-card">
+        <div>
+          <span class="biome-badge" id="insp-biome">PLAINS</span>
+          <span style="margin-left: 6px; color: var(--text-muted);" id="insp-id">Cell #0</span>
+        </div>
+        <div>
+          <span style="font-weight: 700;" id="insp-elev">0 m</span>
+          <span style="color: var(--text-muted); margin-left: 4px;" id="insp-moist">0%</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- View Modes -->
+    <div>
+      <div class="section-title">View Mode</div>
+      <div class="segment-bar" id="view-mode-bar">
+        <button class="btn-segment active" data-mode="micropolys">Micropolys</button>
+        <button class="btn-segment" data-mode="biomes">Biomes</button>
+        <button class="btn-segment" data-mode="elevation">Elevation</button>
+        <button class="btn-segment" data-mode="moisture">Moisture</button>
+        <button class="btn-segment" data-mode="watersheds">Basins</button>
+        <button class="btn-segment" data-mode="wireframe">Dual Mesh</button>
+      </div>
+    </div>
+
+    <!-- Island Shapes -->
+    <div>
+      <div class="section-title">Island Shape</div>
+      <div class="segment-bar cols-4" id="shape-bar">
+        <button class="btn-segment active" data-shape="radial">Radial</button>
+        <button class="btn-segment" data-shape="perlin">Perlin</button>
+        <button class="btn-segment" data-shape="blob">Blob</button>
+        <button class="btn-segment" data-shape="square">Square</button>
+      </div>
+    </div>
+
+    <!-- Elevation & Mountain Sharpness -->
+    <div class="card">
+      <div class="section-title" style="padding-left: 0; color: var(--accent);">Elevation & Mountain Sharpness</div>
+
+      <div class="slider-row">
+        <div class="slider-header">
+          <span>Height Scale (Relief)</span>
+          <span class="slider-val" id="val-height">70</span>
+        </div>
+        <input type="range" id="slider-height" min="20" max="180" step="2" value="70">
+      </div>
+
+      <div class="slider-row">
+        <div class="slider-header">
+          <span>Mountain Sharpness (Power)</span>
+          <span class="slider-val" id="val-sharpness">1.00</span>
+        </div>
+        <input type="range" id="slider-sharpness" min="0.70" max="2.40" step="0.05" value="1.00">
+      </div>
+
+      <div class="slider-row">
+        <div class="slider-header">
+          <span>Ridge Alpha (α)</span>
+          <span class="slider-val" id="val-alpha">0.25</span>
+        </div>
+        <input type="range" id="slider-alpha" min="0.00" max="0.50" step="0.02" value="0.25">
+      </div>
+    </div>
+
+    <!-- Micropoly Subdivision Knobs -->
+    <div class="card">
+      <div class="section-title" style="padding-left: 0; color: var(--accent);">Fractal Micropoly Mesh</div>
+
+      <div class="slider-row">
+        <div class="slider-header">
+          <span>Target Polygons</span>
+          <span class="slider-val" id="val-polys">16,000</span>
+        </div>
+        <input type="range" id="slider-polys" min="1000" max="32000" step="1000" value="16000">
+      </div>
+
+      <div class="slider-row">
+        <div class="slider-header">
+          <span>Fractal Roughness</span>
+          <span class="slider-val" id="val-roughness">3.0</span>
+        </div>
+        <input type="range" id="slider-roughness" min="0.0" max="8.0" step="0.2" value="3.0">
+      </div>
+
+      <div class="slider-row">
+        <div class="slider-header">
+          <span>Lateral Edge Jitter</span>
+          <span class="slider-val" id="val-jitter">0.22</span>
+        </div>
+        <input type="range" id="slider-jitter" min="0.00" max="0.40" step="0.02" value="0.22">
+      </div>
+
+      <div class="slider-row">
+        <div class="slider-header">
+          <span>Normal Smoothing Ratio</span>
+          <span class="slider-val" id="val-smooth">0.70</span>
+        </div>
+        <input type="range" id="slider-smooth" min="0.00" max="1.00" step="0.05" value="0.70">
+      </div>
+    </div>
+
+    <!-- World & Voronoi Knobs -->
+    <div class="card">
+      <div class="section-title" style="padding-left: 0; color: var(--accent);">Base Dual-Mesh Topology</div>
+
+      <div class="slider-row">
+        <div class="slider-header">
+          <span>Voronoi Seed Points</span>
+          <span class="slider-val" id="val-points">1000</span>
+        </div>
+        <input type="range" id="slider-points" min="200" max="2000" step="50" value="1000">
+      </div>
+
+      <div class="slider-row">
+        <div class="slider-header">
+          <span>River Sources</span>
+          <span class="slider-val" id="val-rivers">25</span>
+        </div>
+        <input type="range" id="slider-rivers" min="0" max="50" step="5" value="25">
+      </div>
+    </div>
+  </main>
+
+  <!-- Bottom Floating Action Bar for iPhone -->
+  <div class="bottom-bar">
+    <div class="bottom-bar-inner">
+      <button class="btn-action" id="btn-rand">🎲 Seed</button>
+      <!-- Native Apple AR Quick Look link for iOS Safari -->
+      <a class="btn-action btn-ar" id="btn-ar" rel="ar" href="#" download="island.usdz">
+        📦 3D / AR
+      </a>
+      <a class="btn-action btn-primary" id="btn-save" href="#" download="island_map.png">💾 Save</a>
+    </div>
+  </div>
+
+  <script>
+    // State
+    const state = {
+      seed: 777,
+      shape: 'radial',
+      mode: 'micropolys',
+      height_scale: 70.0,
+      sharpness: 1.00,
+      alpha: 0.25,
+      polys: 16000,
+      roughness: 3.0,
+      jitter: 0.22,
+      smooth: 0.70,
+      points: 1000,
+      rivers: 25,
+      size: 720
+    };
+
+    let debounceTimer = null;
+    let abortController = null;
+
+    const mapImg = document.getElementById('map-image');
+    const perfStatus = document.getElementById('perf-status');
+    const polyBadge = document.getElementById('poly-badge');
+    const tapMarker = document.getElementById('tap-marker');
+    const inspectCard = document.getElementById('inspect-card');
+    const btnAr = document.getElementById('btn-ar');
+    const btnSave = document.getElementById('btn-save');
+
+    function updateUrlParams() {
+      const p = new URLSearchParams(state);
+      return p.toString();
+    }
+
+    async function fetchRender() {
+      if (abortController) {
+        abortController.abort();
+      }
+      abortController = new AbortController();
+
+      const t0 = performance.now();
+      mapImg.classList.add('loading');
+
+      try {
+        const query = updateUrlParams();
+        const res = await fetch(`/api/render?${query}`, { signal: abortController.signal });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+        const blob = await res.blob();
+        const objUrl = URL.createObjectURL(blob);
+        mapImg.src = objUrl;
+        mapImg.classList.remove('loading');
+
+        const dur = (performance.now() - t0).toFixed(0);
+        perfStatus.textContent = `⚡ Rendered in ${dur}ms (Seed ${state.seed})`;
+        polyBadge.textContent = `${Number(state.polys).toLocaleString()} Polys`;
+
+        // Update USDZ and Save links
+        btnAr.href = `/api/export_usdz?${query}`;
+        btnSave.href = objUrl;
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          console.error('Render error:', err);
+          perfStatus.textContent = 'Render failed';
+          mapImg.classList.remove('loading');
+        }
+      }
+    }
+
+    function triggerUpdate(immediate = false) {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      if (immediate) {
+        fetchRender();
+      } else {
+        debounceTimer = setTimeout(fetchRender, 120);
+      }
+    }
+
+    // Segmented Buttons (View Mode)
+    document.querySelectorAll('#view-mode-bar .btn-segment').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('#view-mode-bar .btn-segment').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        state.mode = btn.dataset.mode;
+        triggerUpdate(true);
+      });
+    });
+
+    // Segmented Buttons (Shape)
+    document.querySelectorAll('#shape-bar .btn-segment').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('#shape-bar .btn-segment').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        state.shape = btn.dataset.shape;
+        triggerUpdate(true);
+      });
+    });
+
+    // Sliders Bindings
+    function bindSlider(id, key, valId, formatFn = v => v) {
+      const slider = document.getElementById(id);
+      const valDisp = document.getElementById(valId);
+      slider.addEventListener('input', () => {
+        state[key] = parseFloat(slider.value);
+        valDisp.textContent = formatFn(slider.value);
+        triggerUpdate(false);
+      });
+    }
+
+    bindSlider('slider-height', 'height_scale', 'val-height', v => Math.round(v));
+    bindSlider('slider-sharpness', 'sharpness', 'val-sharpness', v => parseFloat(v).toFixed(2));
+    bindSlider('slider-alpha', 'alpha', 'val-alpha', v => parseFloat(v).toFixed(2));
+    bindSlider('slider-polys', 'polys', 'val-polys', v => Number(v).toLocaleString());
+    bindSlider('slider-roughness', 'roughness', 'val-roughness', v => parseFloat(v).toFixed(1));
+    bindSlider('slider-jitter', 'jitter', 'val-jitter', v => parseFloat(v).toFixed(2));
+    bindSlider('slider-smooth', 'smooth', 'val-smooth', v => parseFloat(v).toFixed(2));
+    bindSlider('slider-points', 'points', 'val-points', v => Math.round(v));
+    bindSlider('slider-rivers', 'rivers', 'val-rivers', v => Math.round(v));
+
+    // Randomize Seed
+    document.getElementById('btn-rand').addEventListener('click', () => {
+      state.seed = Math.floor(Math.random() * 90000) + 10000;
+      triggerUpdate(true);
+    });
+
+    // Touch / Click Inspect Cell
+    const mapBox = document.getElementById('map-box');
+    mapBox.addEventListener('pointerdown', async (e) => {
+      const rect = mapBox.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+
+      tapMarker.style.left = `${x}px`;
+      tapMarker.style.top = `${y}px`;
+      tapMarker.style.display = 'block';
+
+      // Normalized coordinates (0 to 1)
+      const nx = x / rect.width;
+      const ny = y / rect.height;
+
+      try {
+        const res = await fetch(`/api/inspect?seed=${state.seed}&shape=${state.shape}&points=${state.points}&sharpness=${state.sharpness}&nx=${nx}&ny=${ny}`);
+        if (res.ok) {
+          const data = await res.json();
+          document.getElementById('insp-biome').textContent = data.biome.toUpperCase();
+          document.getElementById('insp-id').textContent = `Cell #${data.index}`;
+          document.getElementById('insp-elev').textContent = `${(data.elevation * 3200).toFixed(0)} m (${(data.elevation * 100).toFixed(0)}%)`;
+          document.getElementById('insp-moist').textContent = `💧 ${(data.moisture * 100).toFixed(0)}%`;
+          inspectCard.classList.add('active');
+        }
+      } catch (err) {
+        console.error('Inspect error:', err);
+      }
+    });
+
+    // Initial render on load
+    triggerUpdate(true);
+  </script>
+</body>
+</html>
