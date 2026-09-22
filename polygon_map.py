@@ -602,15 +602,15 @@ class PolygonMapGenerator:
             r = max(r1, r2)
             return dist < (0.50 + 0.25 * r)
 
-    def _continuous_elevation_noise(self, x: float, y: float) -> float:
+    def _continuous_elevation_noise(self, x: float, y: float, amplitude: float = 1.0) -> float:
         """Continuous multi-scale sinusoidal fBm elevation perturbation to smooth stair-step transitions."""
         fx = x * 0.006 + self.seed * 0.17
         fy = y * 0.006 + self.seed * 0.23
-        return (
-            (math.sin(fx * 1.0) * math.cos(fy * 1.0)) * 18.0 +
-            (math.sin(fx * 2.3 + 1.2) * math.cos(fy * 2.1 - 0.7)) * 10.0 +
-            (math.sin(fx * 4.7 - 2.1) * math.cos(fy * 4.9 + 1.4)) * 5.0 +
-            (math.sin(fx * 9.3 + 0.5) * math.cos(fy * 9.1 - 1.9)) * 2.5
+        return amplitude * (
+            (math.sin(fx * 1.0) * math.cos(fy * 1.0)) * 4.0 +
+            (math.sin(fx * 2.3 + 1.2) * math.cos(fy * 2.1 - 0.7)) * 2.2 +
+            (math.sin(fx * 4.7 - 2.1) * math.cos(fy * 4.9 + 1.4)) * 1.1 +
+            (math.sin(fx * 9.3 + 0.5) * math.cos(fy * 9.1 - 1.9)) * 0.55
         )
 
     def _assign_ocean_land(self) -> None:
@@ -1202,9 +1202,10 @@ class PolygonMapGenerator:
         continuous_relief: bool = False,
         render_micropolys: bool = True,
         target_micropolys: int = 16000,
-        micropoly_roughness: float = 8.0,
+        micropoly_roughness: float = 3.0,
         micropoly_lateral_jitter: float = 0.20,
         normal_smooth_ratio: float = 0.70,
+        elev_scale: float = 70.0,
     ) -> Any:
         """Render the polygonal map with shaded relief, noisy paths, rivers, lava, and roads onto a Pygame surface."""
         import pygame
@@ -1275,7 +1276,7 @@ class PolygonMapGenerator:
             # 1. Red Blob corner elevation enhancement:
             # v_elevation[v] = max + alpha * (max - min) of adjacent centers
             elevation_alpha = 0.25
-            elev_scale = 320.0
+            fbm_amp = elev_scale / 70.0
             v_elev = {}
             for cn in self.corners:
                 if cn.ocean or cn.coast:
@@ -1331,10 +1332,10 @@ class PolygonMapGenerator:
                 z_v1 = v_elev.get(v1.index, v1.elevation) * elev_scale
 
                 # Continuous multi-scale elevation variation
-                fbm_v0 = self._continuous_elevation_noise(v0.x * scale_x, v0.y * scale_y)
-                fbm_v1 = self._continuous_elevation_noise(v1.x * scale_x, v1.y * scale_y)
-                fbm_d0 = self._continuous_elevation_noise(d0.x * scale_x, d0.y * scale_y)
-                fbm_d1 = self._continuous_elevation_noise(d1.x * scale_x, d1.y * scale_y)
+                fbm_v0 = self._continuous_elevation_noise(v0.x * scale_x, v0.y * scale_y, amplitude=fbm_amp)
+                fbm_v1 = self._continuous_elevation_noise(v1.x * scale_x, v1.y * scale_y, amplitude=fbm_amp)
+                fbm_d0 = self._continuous_elevation_noise(d0.x * scale_x, d0.y * scale_y, amplitude=fbm_amp)
+                fbm_d1 = self._continuous_elevation_noise(d1.x * scale_x, d1.y * scale_y, amplitude=fbm_amp)
 
                 p_v0 = np.array([v0.x * scale_x, v0.y * scale_y, z_v0 + fbm_v0], dtype=np.float64)
                 p_v1 = np.array([v1.x * scale_x, v1.y * scale_y, z_v1 + fbm_v1], dtype=np.float64)
@@ -1682,7 +1683,8 @@ class PolygonMapGenerator:
         usdz_path: str,
         target_micropolys: int = 16000,
         wire_width: float = 0.8,
-        roughness: float = 12.0,
+        elev_scale: float = 70.0,
+        roughness: float = 3.0,
         lateral_jitter: float = 0.22,
         normal_smooth_ratio: float = 0.70,
     ) -> str:
@@ -1708,6 +1710,7 @@ class PolygonMapGenerator:
             roughness=roughness,
             lateral_jitter=lateral_jitter,
             normal_smooth_ratio=normal_smooth_ratio,
+            elev_scale=elev_scale,
         )
         return export_island_wireframe_usdz(self, triangles, usdz_path, wire_width=wire_width)
 

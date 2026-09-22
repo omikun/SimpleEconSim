@@ -40,15 +40,15 @@ sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 from polygon_map import PolygonMapGenerator, BIOME_COLORS
 
 
-def procedural_fbm_elevation(x, y, seed=42):
+def procedural_fbm_elevation(x, y, seed=42, amplitude=1.0):
     """Continuous multi-scale procedural elevation noise to break piecewise planar ramps."""
     fx = x * 0.006 + seed * 0.17
     fy = y * 0.006 + seed * 0.23
-    return (
-        (math.sin(fx * 1.0) * math.cos(fy * 1.0)) * 18.0 +
-        (math.sin(fx * 2.3 + 1.2) * math.cos(fy * 2.1 - 0.7)) * 10.0 +
-        (math.sin(fx * 4.7 - 2.1) * math.cos(fy * 4.9 + 1.4)) * 5.0 +
-        (math.sin(fx * 9.3 + 0.5) * math.cos(fy * 9.1 - 1.9)) * 2.5
+    return amplitude * (
+        (math.sin(fx * 1.0) * math.cos(fy * 1.0)) * 4.0 +
+        (math.sin(fx * 2.3 + 1.2) * math.cos(fy * 2.1 - 0.7)) * 2.2 +
+        (math.sin(fx * 4.7 - 2.1) * math.cos(fy * 4.9 + 1.4)) * 1.1 +
+        (math.sin(fx * 9.3 + 0.5) * math.cos(fy * 9.1 - 1.9)) * 0.55
     )
 
 
@@ -59,10 +59,10 @@ def build_island_mesh(
     mode: str = "fractal",
     target_polys: int = 16000,
     subdivision_depth: int = 1,
-    roughness: float = 12.0,
+    roughness: float = 3.0,
     lateral_jitter: float = 0.22,
     elevation_alpha: float = 0.25,
-    elev_scale: float = 320.0,
+    elev_scale: float = 70.0,
     normal_smooth_ratio: float = 0.70,
 ) -> Tuple[List[Tuple], int]:
     """
@@ -120,10 +120,11 @@ def build_island_mesh(
             z_v0 = v_elev.get(v0.index, v0.elevation) * elev_scale
             z_v1 = v_elev.get(v1.index, v1.elevation) * elev_scale
 
-            fbm_v0 = procedural_fbm_elevation(v0.x * scale_x, v0.y * scale_y, gen.seed)
-            fbm_v1 = procedural_fbm_elevation(v1.x * scale_x, v1.y * scale_y, gen.seed)
-            fbm_d0 = procedural_fbm_elevation(d0.x * scale_x, d0.y * scale_y, gen.seed)
-            fbm_d1 = procedural_fbm_elevation(d1.x * scale_x, d1.y * scale_y, gen.seed)
+            fbm_amp = elev_scale / 70.0
+            fbm_v0 = procedural_fbm_elevation(v0.x * scale_x, v0.y * scale_y, gen.seed, amplitude=fbm_amp)
+            fbm_v1 = procedural_fbm_elevation(v1.x * scale_x, v1.y * scale_y, gen.seed, amplitude=fbm_amp)
+            fbm_d0 = procedural_fbm_elevation(d0.x * scale_x, d0.y * scale_y, gen.seed, amplitude=fbm_amp)
+            fbm_d1 = procedural_fbm_elevation(d1.x * scale_x, d1.y * scale_y, gen.seed, amplitude=fbm_amp)
 
             p_v0 = np.array([v0.x * scale_x, v0.y * scale_y, z_v0 + fbm_v0], dtype=np.float64)
             p_v1 = np.array([v1.x * scale_x, v1.y * scale_y, z_v1 + fbm_v1], dtype=np.float64)
@@ -186,7 +187,7 @@ def build_island_mesh(
                 mid[0] += n_perp[0] * disp_lat + (e_xy[0] / length) * disp_long
                 mid[1] += n_perp[1] * disp_lat + (e_xy[1] / length) * disp_long
 
-                fbm_val = procedural_fbm_elevation(mid[0], mid[1], gen.seed) * (decay * 0.4)
+                fbm_val = procedural_fbm_elevation(mid[0], mid[1], gen.seed, amplitude=fbm_amp) * (decay * 0.4)
                 disp_z = rng.uniform(-0.5, 0.5) * roughness * (length / 35.0) * decay + fbm_val
                 mid[2] += disp_z
 
@@ -721,7 +722,8 @@ def main():
         help="Subdivision algorithm: 'fractal' (watertight 2D+3D edge-cached), 'adaptive' (1-to-4 area-priority), 'depth' (uniform 1-to-4), 'spokes' (radial fan), 'redblob' (2-way ridge/valley fold)",
     )
     parser.add_argument("--depth", "-d", type=int, default=1, help="Subdivision depth for 'depth' mode (each level quadruples poly count)")
-    parser.add_argument("--roughness", "-r", type=float, default=12.0, help="Fractal midpoint displacement height roughness")
+    parser.add_argument("--height-scale", "--elev-scale", dest="height_scale", type=float, default=70.0, help="Vertical elevation scale in 3D world units (default: 70.0, down from exaggerated 320.0)")
+    parser.add_argument("--roughness", "-r", type=float, default=3.0, help="Fractal midpoint displacement height roughness")
     parser.add_argument("--lateral-jitter", "-j", type=float, default=0.22, help="2D lateral displacement ratio perpendicular to edges (dissolves straight polygon seams)")
     parser.add_argument("--normal-smooth", type=float, default=0.70, help="Ratio of smoothed vertex normals to micro-facet normals (eliminates stair-step shading)")
     parser.add_argument("--alpha", "-a", type=float, default=0.25, help="Red Blob corner ridge elevation boost alpha")
@@ -742,6 +744,7 @@ def main():
     print(f"  • Subdivision Mode: {args.mode}")
     print(f"  • World Seed      : {args.seed}")
     print(f"  • Voronoi Points  : {args.points}")
+    print(f"  • Height Scale    : {args.height_scale}")
     print(f"  • Roughness       : {args.roughness}")
     print(f"  • Lateral Jitter  : {args.lateral_jitter}")
     print(f"  • Normal Smooth   : {args.normal_smooth}")
@@ -776,6 +779,7 @@ def main():
         lateral_jitter=args.lateral_jitter,
         normal_smooth_ratio=args.normal_smooth,
         elevation_alpha=args.alpha,
+        elev_scale=args.height_scale,
     )
     t_subdiv = time.time()
 
