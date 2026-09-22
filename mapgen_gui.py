@@ -250,7 +250,7 @@ class MapgenGUI:
             "sharpness": Slider("sharpness", "Mountain Sharpness (Power)", 0.70, 2.50, 1.00, step=0.05, fmt="{:.2f}"),
             "rivers": Slider("rivers", "River Sources", 0, 50, 25, step=5, fmt="{:.0f}"),
             # Micropoly Subdivision Knobs
-            "polys": Slider("polys", "Target Micropolygons", 1000, 32000, target_polys, step=1000, fmt="{:,.0f}"),
+            "polys": Slider("polys", "Target Micropolygons", 1000, 1000000, target_polys, step=5000, fmt="{:,.0f}"),
             "roughness": Slider("roughness", "Fractal Roughness", 0.0, 8.0, 3.0, step=0.2, fmt="{:.1f}"),
             "jitter": Slider("jitter", "Lateral Edge Jitter", 0.0, 0.40, 0.22, step=0.02, fmt="{:.2f}"),
             "smooth": Slider("smooth", "Normal Smoothing Ratio", 0.0, 1.0, 0.70, step=0.05, fmt="{:.2f}"),

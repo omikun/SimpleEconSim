@@ -796,7 +796,7 @@ def main():
         description="Generate and render high-resolution polygonal terrain with custom micropoly subdivision knobs.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    parser.add_argument("--polys", "-p", type=int, default=16000, help="Target polygon count (e.g. 2000, 8000, 16000, 32000, 64000)")
+    parser.add_argument("--polys", "-p", type=int, default=16000, help="Target polygon count (e.g. 2,000, 16,000, 64,000, 250,000, 1,000,000)")
     parser.add_argument(
         "--mode",
         "-m",

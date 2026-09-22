@@ -430,11 +430,17 @@
       <div class="section-title" style="padding-left: 0; color: var(--accent);">Fractal Micropoly Mesh</div>
 
       <div class="slider-row">
-        <div class="slider-header">
+        <div class="slider-header" style="margin-bottom: 4px;">
           <span>Target Polygons</span>
           <span class="slider-val" id="val-polys">16,000</span>
         </div>
-        <input type="range" id="slider-polys" min="1000" max="32000" step="1000" value="16000">
+        <div class="segment-bar cols-4" id="poly-preset-bar" style="margin-bottom: 8px;">
+          <button class="btn-segment active" data-polys="16000">16k</button>
+          <button class="btn-segment" data-polys="64000">64k</button>
+          <button class="btn-segment" data-polys="250000">250k</button>
+          <button class="btn-segment" data-polys="1000000">1M</button>
+        </div>
+        <input type="range" id="slider-polys" min="1000" max="1000000" step="5000" value="16000">
       </div>
 
       <div class="slider-row">
@@ -679,7 +685,26 @@
     bindSlider('slider-height', 'height_scale', 'val-height', v => Math.round(v));
     bindSlider('slider-sharpness', 'sharpness', 'val-sharpness', v => parseFloat(v).toFixed(2));
     bindSlider('slider-alpha', 'alpha', 'val-alpha', v => parseFloat(v).toFixed(2));
-    bindSlider('slider-polys', 'polys', 'val-polys', v => Number(v).toLocaleString());
+    bindSlider('slider-polys', 'polys', 'val-polys', v => {
+      const p = Math.round(v);
+      document.querySelectorAll('#poly-preset-bar .btn-segment').forEach(b => {
+        b.classList.toggle('active', parseInt(b.dataset.polys) === p);
+      });
+      return Number(p).toLocaleString();
+    });
+
+    // Segmented Buttons (Poly Presets)
+    document.querySelectorAll('#poly-preset-bar .btn-segment').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('#poly-preset-bar .btn-segment').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        state.polys = parseInt(btn.dataset.polys);
+        document.getElementById('slider-polys').value = state.polys;
+        document.getElementById('val-polys').textContent = Number(state.polys).toLocaleString();
+        triggerUpdate(true);
+      });
+    });
+
     bindSlider('slider-roughness', 'roughness', 'val-roughness', v => parseFloat(v).toFixed(1));
     bindSlider('slider-jitter', 'jitter', 'val-jitter', v => parseFloat(v).toFixed(2));
     bindSlider('slider-smooth', 'smooth', 'val-smooth', v => parseFloat(v).toFixed(2));
