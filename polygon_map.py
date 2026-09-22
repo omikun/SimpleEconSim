@@ -1190,6 +1190,8 @@ class PolygonMapGenerator:
         show_watersheds: bool = False,
         continuous_relief: bool = False,
         render_micropolys: bool = True,
+        target_micropolys: int = 16000,
+        micropoly_roughness: float = 5.0,
     ) -> Any:
         """Render the polygonal map with shaded relief, noisy paths, rivers, lava, and roads onto a Pygame surface."""
         import pygame
@@ -1283,152 +1285,126 @@ class PolygonMapGenerator:
 
             snow_threshold = 0.82
 
-            for p in self.centers:
-                if p.water or len(p.corners) < 3:
+            # Build initial base triangles for all land borders
+            triangles = []  # list of (pa, pb, pc, col, avg_elev, is_river, area)
+
+            for edge in self.edges:
+                d0, d1 = edge.d0, edge.d1
+                v0, v1 = edge.v0, edge.v1
+                if not d0 or not d1 or not v0 or not v1:
+                    continue
+                if d0.water and d1.water:
                     continue
 
-                p_pt3d = np.array([p.x * scale_x, p.y * scale_y, p.elevation * elev_scale], dtype=np.float64)
-                base_color = np.array(BIOME_COLORS.get(p.biome, (120, 160, 100)), dtype=np.float64)
+                z_v0 = v_elev.get(v0.index, v0.elevation) * elev_scale
+                z_v1 = v_elev.get(v1.index, v1.elevation) * elev_scale
+                z_mid = (z_v0 + z_v1) * 0.5
 
-                for r in p.neighbors:
-                    edge = next((e for e in p.borders if e.d0 == r or e.d1 == r), None)
-                    if not edge or not edge.v0 or not edge.v1:
-                        continue
+                p_v0 = np.array([v0.x * scale_x, v0.y * scale_y, z_v0], dtype=np.float64)
+                p_v1 = np.array([v1.x * scale_x, v1.y * scale_y, z_v1], dtype=np.float64)
+                p_mid = np.array([edge.midpoint[0] * scale_x, edge.midpoint[1] * scale_y, z_mid], dtype=np.float64)
 
-                    # Neighbor color blend
-                    col_edge = base_color.copy()
-                    if not r.water:
-                        r_col = np.array(BIOME_COLORS.get(r.biome, col_edge), dtype=np.float64)
-                        col_edge = col_edge * 0.70 + r_col * 0.30
+                col0 = np.array(BIOME_COLORS.get(d0.biome, (120, 160, 100)), dtype=np.float64)
+                col1 = np.array(BIOME_COLORS.get(d1.biome, (120, 160, 100)), dtype=np.float64)
+                if not d1.water:
+                    col0 = col0 * 0.70 + col1 * 0.30
+                    col1 = col1 * 0.70 + col0 * 0.30
 
-                    # Riparian greening along river borders
-                    if edge.river > 0:
-                        col_edge = col_edge * 0.75 + np.array([40, 105, 35], dtype=np.float64) * 0.25
+                if edge.river > 0:
+                    col0 = col0 * 0.75 + np.array([40, 105, 35], dtype=np.float64) * 0.25
+                    col1 = col1 * 0.75 + np.array([40, 105, 35], dtype=np.float64) * 0.25
 
-                    z_v0 = v_elev.get(edge.v0.index, edge.v0.elevation) * elev_scale
-                    z_v1 = v_elev.get(edge.v1.index, edge.v1.elevation) * elev_scale
-                    z_mid = (z_v0 + z_v1) * 0.5
+                def add_base_tri(pa, pb, pc, c, el, riv):
+                    area = 0.5 * abs((pb[0] - pa[0]) * (pc[1] - pa[1]) - (pc[0] - pa[0]) * (pb[1] - pa[1]))
+                    triangles.append((pa, pb, pc, c, el, riv, area))
 
-                    path0 = self.noisy_edges.path0.get(edge.index) if (use_noisy_edges and self.noisy_edges) else None
-                    path1 = self.noisy_edges.path1.get(edge.index) if (use_noisy_edges and self.noisy_edges) else None
+                if not d0.water:
+                    p_d0 = np.array([d0.x * scale_x, d0.y * scale_y, d0.elevation * elev_scale], dtype=np.float64)
+                    add_base_tri(p_d0, p_v0, p_mid, col0, (d0.elevation + v0.elevation) * 0.5, edge.river > 0)
+                    add_base_tri(p_d0, p_mid, p_v1, col0, (d0.elevation + v1.elevation) * 0.5, edge.river > 0)
 
-                    # Half-edge 0 (v0 to midpoint)
-                    if path0 is not None and len(path0) >= 2:
-                        n_pts = len(path0)
-                        pts3d_0 = []
-                        for i, pt in enumerate(path0):
-                            t = i / max(1, n_pts - 1)
-                            z_pt = (1.0 - t) * z_v0 + t * z_mid
-                            pts3d_0.append(np.array([pt[0] * scale_x, pt[1] * scale_y, z_pt], dtype=np.float64))
-                    else:
-                        pts3d_0 = [
-                            np.array([edge.v0.x * scale_x, edge.v0.y * scale_y, z_v0], dtype=np.float64),
-                            np.array([edge.midpoint[0] * scale_x, edge.midpoint[1] * scale_y, z_mid], dtype=np.float64),
-                        ]
+                if not d1.water:
+                    p_d1 = np.array([d1.x * scale_x, d1.y * scale_y, d1.elevation * elev_scale], dtype=np.float64)
+                    add_base_tri(p_d1, p_v1, p_mid, col1, (d1.elevation + v1.elevation) * 0.5, edge.river > 0)
+                    add_base_tri(p_d1, p_mid, p_v0, col1, (d1.elevation + v0.elevation) * 0.5, edge.river > 0)
 
-                    for i in range(len(pts3d_0) - 1):
-                        pa, pb, pc = p_pt3d, pts3d_0[i], pts3d_0[i + 1]
-                        va = pb - pa
-                        vb = pc - pa
-                        norm = np.cross(va, vb)
-                        if norm[2] < 0:
-                            norm = -norm
-                        n_len = np.linalg.norm(norm)
-                        if n_len > 1e-6:
-                            norm /= n_len
-                        else:
-                            norm = np.array([0.0, 0.0, 1.0], dtype=np.float64)
+            # Subdivide to hit target_micropolys (default 16,000)
+            rng_seed = 42
+            while len(triangles) < target_micropolys:
+                needed = target_micropolys - len(triangles)
+                num_to_subdiv = min(len(triangles), max(1, needed // 3))
 
-                        NdotL_sun = max(0.0, float(np.dot(norm, L_sun)))
-                        NdotL_fill = max(0.0, float(np.dot(norm, L_fill)))
-                        diffuse_sun = 0.44 * math.pow(NdotL_sun, 1.15)
-                        diffuse_fill = 0.14 * NdotL_fill
-                        ambient = 0.68 + 0.12 * (norm[2] - 0.7)
-                        shade = ambient + diffuse_sun + diffuse_fill
+                # Subdivide the largest triangles first to maintain uniform high-density tessellation
+                triangles.sort(key=lambda t: t[6], reverse=True)
+                to_split = triangles[:num_to_subdiv]
+                untouched = triangles[num_to_subdiv:]
 
-                        col = col_edge.copy()
-                        slope_val = 1.0 - norm[2]
-                        if slope_val > 0.14:
-                            cliff_w = min(0.60, (slope_val - 0.14) / 0.22)
-                            col = col * (1.0 - cliff_w) + np.array([66, 64, 71], dtype=np.float64) * cliff_w
+                new_triangles = list(untouched)
+                for idx, (pa, pb, pc, c, el, riv, _) in enumerate(to_split):
+                    rng = np.random.RandomState(rng_seed + idx)
+                    m_ab = (pa + pb) * 0.5
+                    m_bc = (pb + pc) * 0.5
+                    m_ca = (pc + pa) * 0.5
 
-                        avg_elev = (p.elevation + ((1.0 - (i / len(pts3d_0))) * edge.v0.elevation + (i / len(pts3d_0)) * 0.5 * (edge.v0.elevation + edge.v1.elevation))) * 0.5
-                        if avg_elev > snow_threshold:
-                            snow_w = min(0.95, math.pow((avg_elev - snow_threshold) / (1.0 - snow_threshold), 2.0))
-                            col = col * (1.0 - snow_w) + np.array([242, 244, 250], dtype=np.float64) * snow_w
+                    edge_len = (np.linalg.norm(pb[:2] - pa[:2]) + np.linalg.norm(pc[:2] - pb[:2]) + np.linalg.norm(pa[:2] - pc[:2])) / 3.0
+                    scale = micropoly_roughness * (edge_len / 40.0)
+                    m_ab[2] += (rng.rand() - 0.5) * scale
+                    m_bc[2] += (rng.rand() - 0.5) * scale
+                    m_ca[2] += (rng.rand() - 0.5) * scale
 
-                        shaded_rgb = col * shade
-                        for k in range(3):
-                            if shaded_rgb[k] > 220.0:
-                                shaded_rgb[k] = 220.0 + (shaded_rgb[k] - 220.0) * 0.35
+                    for sa, sb, sc in [(pa, m_ab, m_ca), (pb, m_bc, m_ab), (pc, m_ca, m_bc), (m_ab, m_bc, m_ca)]:
+                        area = 0.5 * abs((sb[0] - sa[0]) * (sc[1] - sa[1]) - (sc[0] - sa[0]) * (sb[1] - sa[1]))
+                        new_triangles.append((sa, sb, sc, c, el, riv, area))
 
-                        final_rgb = (
-                            min(248, max(0, int(shaded_rgb[0]))),
-                            min(248, max(0, int(shaded_rgb[1]))),
-                            min(248, max(0, int(shaded_rgb[2]))),
-                        )
-                        pts2d = [(int(pa[0]), int(pa[1])), (int(pb[0]), int(pb[1])), (int(pc[0]), int(pc[1]))]
-                        if len(pts2d) >= 3:
-                            pygame.draw.polygon(surface, final_rgb, pts2d)
+                triangles = new_triangles
+                rng_seed += 1000
+                if len(triangles) >= target_micropolys or num_to_subdiv == len(to_split) == 0:
+                    break
 
-                    # Half-edge 1 (v1 to midpoint)
-                    if path1 is not None and len(path1) >= 2:
-                        n_pts = len(path1)
-                        pts3d_1 = []
-                        for i, pt in enumerate(path1):
-                            t = i / max(1, n_pts - 1)
-                            z_pt = (1.0 - t) * z_v1 + t * z_mid
-                            pts3d_1.append(np.array([pt[0] * scale_x, pt[1] * scale_y, z_pt], dtype=np.float64))
-                    else:
-                        pts3d_1 = [
-                            np.array([edge.v1.x * scale_x, edge.v1.y * scale_y, z_v1], dtype=np.float64),
-                            np.array([edge.midpoint[0] * scale_x, edge.midpoint[1] * scale_y, z_mid], dtype=np.float64),
-                        ]
+            # Rasterize all resulting micropolygons (16,000+ polygons)
+            for (pa, pb, pc, col_base, avg_elev, is_riv, _) in triangles:
+                va = pb - pa
+                vb = pc - pa
+                norm = np.cross(va, vb)
+                if norm[2] < 0:
+                    norm = -norm
+                n_len = np.linalg.norm(norm)
+                if n_len > 1e-6:
+                    norm /= n_len
+                else:
+                    norm = np.array([0.0, 0.0, 1.0], dtype=np.float64)
 
-                    for i in range(len(pts3d_1) - 1):
-                        pa, pb, pc = p_pt3d, pts3d_1[i], pts3d_1[i + 1]
-                        va = pb - pa
-                        vb = pc - pa
-                        norm = np.cross(va, vb)
-                        if norm[2] < 0:
-                            norm = -norm
-                        n_len = np.linalg.norm(norm)
-                        if n_len > 1e-6:
-                            norm /= n_len
-                        else:
-                            norm = np.array([0.0, 0.0, 1.0], dtype=np.float64)
+                NdotL_sun = max(0.0, float(np.dot(norm, L_sun)))
+                NdotL_fill = max(0.0, float(np.dot(norm, L_fill)))
+                diffuse_sun = 0.44 * math.pow(NdotL_sun, 1.15)
+                diffuse_fill = 0.14 * NdotL_fill
+                ambient = 0.68 + 0.12 * (norm[2] - 0.7)
+                shade = ambient + diffuse_sun + diffuse_fill
 
-                        NdotL_sun = max(0.0, float(np.dot(norm, L_sun)))
-                        NdotL_fill = max(0.0, float(np.dot(norm, L_fill)))
-                        diffuse_sun = 0.44 * math.pow(NdotL_sun, 1.15)
-                        diffuse_fill = 0.14 * NdotL_fill
-                        ambient = 0.68 + 0.12 * (norm[2] - 0.7)
-                        shade = ambient + diffuse_sun + diffuse_fill
+                col = col_base.copy()
+                slope_val = 1.0 - norm[2]
+                if slope_val > 0.14:
+                    cliff_w = min(0.60, (slope_val - 0.14) / 0.22)
+                    col = col * (1.0 - cliff_w) + np.array([66, 64, 71], dtype=np.float64) * cliff_w
 
-                        col = col_edge.copy()
-                        slope_val = 1.0 - norm[2]
-                        if slope_val > 0.14:
-                            cliff_w = min(0.60, (slope_val - 0.14) / 0.22)
-                            col = col * (1.0 - cliff_w) + np.array([66, 64, 71], dtype=np.float64) * cliff_w
+                if avg_elev > snow_threshold:
+                    snow_w = min(0.95, math.pow((avg_elev - snow_threshold) / (1.0 - snow_threshold), 2.0))
+                    col = col * (1.0 - snow_w) + np.array([242, 244, 250], dtype=np.float64) * snow_w
 
-                        avg_elev = (p.elevation + ((1.0 - (i / len(pts3d_1))) * edge.v1.elevation + (i / len(pts3d_1)) * 0.5 * (edge.v0.elevation + edge.v1.elevation))) * 0.5
-                        if avg_elev > snow_threshold:
-                            snow_w = min(0.95, math.pow((avg_elev - snow_threshold) / (1.0 - snow_threshold), 2.0))
-                            col = col * (1.0 - snow_w) + np.array([242, 244, 250], dtype=np.float64) * snow_w
+                shaded_rgb = col * shade
+                for k in range(3):
+                    if shaded_rgb[k] > 220.0:
+                        shaded_rgb[k] = 220.0 + (shaded_rgb[k] - 220.0) * 0.35
 
-                        shaded_rgb = col * shade
-                        for k in range(3):
-                            if shaded_rgb[k] > 220.0:
-                                shaded_rgb[k] = 220.0 + (shaded_rgb[k] - 220.0) * 0.35
+                final_rgb = (
+                    min(248, max(0, int(shaded_rgb[0]))),
+                    min(248, max(0, int(shaded_rgb[1]))),
+                    min(248, max(0, int(shaded_rgb[2]))),
+                )
 
-                        final_rgb = (
-                            min(248, max(0, int(shaded_rgb[0]))),
-                            min(248, max(0, int(shaded_rgb[1]))),
-                            min(248, max(0, int(shaded_rgb[2]))),
-                        )
-                        pts2d = [(int(pa[0]), int(pa[1])), (int(pb[0]), int(pb[1])), (int(pc[0]), int(pc[1]))]
-                        if len(pts2d) >= 3:
-                            pygame.draw.polygon(surface, final_rgb, pts2d)
+                pts2d = [(int(pa[0]), int(pa[1])), (int(pb[0]), int(pb[1])), (int(pc[0]), int(pc[1]))]
+                if len(pts2d) >= 3:
+                    pygame.draw.polygon(surface, final_rgb, pts2d)
 
         # 1c. Optional continuous cartographic relief overlay (only when micropolys are disabled)
         if continuous_relief and not render_micropolys and use_brdf and not show_watersheds and len(self.centers) > 0:
