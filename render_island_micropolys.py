@@ -733,10 +733,15 @@ def main():
     parser.add_argument("--size", type=int, default=1000, help="Render resolution in pixels (width=height)")
     parser.add_argument("--output", "-o", type=str, default="island_output.png", help="Output PNG file path")
     parser.add_argument("--usdz", type=str, default="", help="Optional output path to export 3D wireframe model (.usdz)")
-    parser.add_argument("--wire-width", type=float, default=0.8, help="3D strut wireframe line width in world units")
-    parser.add_argument("--window", action="store_true", help="Display interactive live window (requires graphical desktop)")
+    parser.add_argument("--window", "--gui", action="store_true", help="Launch interactive graphical Mapgen2 GUI explorer")
 
     args = parser.parse_args()
+
+    if args.window:
+        from mapgen_gui import MapgenGUI
+        gui = MapgenGUI(seed=args.seed, num_points=args.points, target_polys=args.polys)
+        gui.run()
+        return
 
     print(f"\n========================================================")
     print(f"  Polygonal Terrain Micropoly Generator")
