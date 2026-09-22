@@ -201,13 +201,13 @@ class MapgenGUI:
         seed: int = 777,
         num_points: int = 1000,
         target_polys: int = 16000,
-        window_size: Tuple[int, int] = (1280, 830),
+        window_size: Tuple[int, int] = (1320, 920),
     ):
         pygame.init()
         pygame.font.init()
 
         self.win_w, self.win_h = window_size
-        self.canvas_size = 760
+        self.canvas_size = 780
         self.canvas_rect = pygame.Rect(20, 20, self.canvas_size, self.canvas_size)
 
         self.screen = pygame.display.set_mode((self.win_w, self.win_h), pygame.RESIZABLE)
@@ -239,15 +239,22 @@ class MapgenGUI:
 
         # Sliders
         self.sliders = {
+            # HTML Mapgen2 Climate & Shape Knobs
+            "moisture_bias": Slider("moisture_bias", "Dry [-1.0] / Wet [+1.0]", -1.0, 1.0, 0.0, step=0.05, fmt="{:+.2f}"),
+            "north_temp": Slider("north_temp", "N-Cold [-1.5] / N-Hot [+1.5]", -1.5, 1.5, 0.0, step=0.05, fmt="{:+.2f}"),
+            "south_temp": Slider("south_temp", "S-Cold [-1.5] / S-Hot [+1.5]", -1.5, 1.5, 0.0, step=0.05, fmt="{:+.2f}"),
+            "persistence": Slider("persistence", "Jagged [-1.0] / Smooth [+1.0]", -1.0, 1.0, 0.0, step=0.05, fmt="{:+.2f}"),
+            # Mesh & Elevation
+            "points": Slider("points", "Number of Regions", 200, 4000, num_points, step=50, fmt="{:.0f}"),
             "height_scale": Slider("height_scale", "Height Scale (Relief)", 20.0, 180.0, 70.0, step=2.0, fmt="{:.0f}"),
             "sharpness": Slider("sharpness", "Mountain Sharpness (Power)", 0.70, 2.50, 1.00, step=0.05, fmt="{:.2f}"),
+            "rivers": Slider("rivers", "River Sources", 0, 50, 25, step=5, fmt="{:.0f}"),
+            # Micropoly Subdivision Knobs
             "polys": Slider("polys", "Target Micropolygons", 1000, 32000, target_polys, step=1000, fmt="{:,.0f}"),
             "roughness": Slider("roughness", "Fractal Roughness", 0.0, 8.0, 3.0, step=0.2, fmt="{:.1f}"),
             "jitter": Slider("jitter", "Lateral Edge Jitter", 0.0, 0.40, 0.22, step=0.02, fmt="{:.2f}"),
             "smooth": Slider("smooth", "Normal Smoothing Ratio", 0.0, 1.0, 0.70, step=0.05, fmt="{:.2f}"),
             "alpha": Slider("alpha", "Ridge Alpha (α)", 0.0, 0.50, 0.25, step=0.02, fmt="{:.2f}"),
-            "points": Slider("points", "Voronoi Points", 200, 2000, num_points, step=50, fmt="{:.0f}"),
-            "rivers": Slider("rivers", "River Sources", 0, 50, 25, step=5, fmt="{:.0f}"),
         }
 
         # Buttons
@@ -265,6 +272,13 @@ class MapgenGUI:
             Button("perlin", "Perlin"),
             Button("blob", "Blob"),
             Button("square", "Square"),
+        ]
+
+        self.region_buttons = [
+            Button("tiny", "Tiny (500)"),
+            Button("small", "Small (1000)"),
+            Button("medium", "Med (2000)"),
+            Button("large", "Large (3500)"),
         ]
 
         self.feature_buttons = [
@@ -300,6 +314,10 @@ class MapgenGUI:
             island_shape=self.island_shape,
             river_count=int(self.sliders["rivers"].val),
             mountain_sharpness=self.sliders["sharpness"].val,
+            moisture_bias=self.sliders["moisture_bias"].val,
+            north_temperature=self.sliders["north_temp"].val,
+            south_temperature=self.sliders["south_temp"].val,
+            persistence=self.sliders["persistence"].val,
             enable_corner_improvement=True,
             enable_roads=self.show_roads,
             enable_lava=self.show_lava,
@@ -476,7 +494,16 @@ class MapgenGUI:
                         self.rebuild_map_graph()
                         return True
 
-                # 4. Feature Toggle Buttons
+                # 4. Region Preset Buttons
+                for btn in self.region_buttons:
+                    if btn.rect.collidepoint(mx, my):
+                        val_map = {"tiny": 500, "small": 1000, "medium": 2000, "large": 3500}
+                        if btn.key in val_map:
+                            self.sliders["points"].val = float(val_map[btn.key])
+                            self.rebuild_map_graph()
+                            return True
+
+                # 5. Feature Toggle Buttons
                 for btn in self.feature_buttons:
                     if btn.rect.collidepoint(mx, my):
                         if btn.key == "toggle_rivers":
@@ -494,7 +521,7 @@ class MapgenGUI:
                         self.redraw_canvas()
                         return True
 
-                # 5. Action Buttons
+                # 6. Action Buttons
                 for key, btn in self.action_buttons.items():
                     if btn.rect.collidepoint(mx, my):
                         self._on_action_clicked(key)
@@ -518,8 +545,18 @@ class MapgenGUI:
 
     def _on_slider_changed(self, key: str):
         """Intelligently branch update tiers based on changed knob."""
-        if key in ("points", "rivers", "sharpness"):
+        if key in ("points", "rivers", "sharpness", "persistence"):
             self.rebuild_map_graph()
+        elif key in ("moisture_bias", "north_temp", "south_temp"):
+            if self.gen:
+                self.gen.moisture_bias = self.sliders["moisture_bias"].val
+                self.gen.north_temperature = self.sliders["north_temp"].val
+                self.gen.south_temperature = self.sliders["south_temp"].val
+                self.gen._assign_moisture()
+                self.gen._assign_biomes()
+                self.redraw_canvas()
+            else:
+                self.rebuild_map_graph()
         elif key in ("height_scale", "polys", "roughness", "jitter", "smooth", "alpha"):
             self.rebuild_micropoly_mesh()
         else:
@@ -569,7 +606,7 @@ class MapgenGUI:
         pygame.draw.rect(self.screen, PANEL_BORDER, self.canvas_rect, width=2, border_radius=4)
 
         # 2. Bottom Status Bar
-        stat_rect = pygame.Rect(20, 788, self.canvas_size, 32)
+        stat_rect = pygame.Rect(20, self.canvas_size + 28, self.canvas_size, 32)
         pygame.draw.rect(self.screen, PANEL_BG, stat_rect, border_radius=4)
         pygame.draw.rect(self.screen, PANEL_BORDER, stat_rect, width=1, border_radius=4)
 
@@ -581,96 +618,114 @@ class MapgenGUI:
             cy = my - self.canvas_rect.y
             nearest_center = self.gen.get_center_at(cx, cy)
             if nearest_center:
-                hover_str = f" | Cell #{nearest_center.index} ({nearest_center.biome.upper()}) elv:{nearest_center.elevation:.2f} mst:{nearest_center.moisture:.2f}"
+                hover_str = (
+                    f" | Cell #{nearest_center.index} ({nearest_center.biome.upper()}) "
+                    f"elv:{nearest_center.elevation:.2f} mst:{nearest_center.moisture:.2f} tmp:{nearest_center.temperature:.2f}"
+                )
 
         stat_str = f"{self.status_msg}{hover_str}"
         stat_surf = self.font_small.render(stat_str, True, SUCCESS_GREEN if (time.time() - self.status_time < 3.0) else TEXT_WHITE)
         self.screen.blit(stat_surf, (stat_rect.x + 10, stat_rect.y + 8))
 
         # 3. Control Panel on Right
-        panel_x = 800
+        panel_x = self.canvas_size + 30
         panel_y = 20
-        panel_w = 460
-        panel_h = 800
+        panel_w = self.win_w - panel_x - 20
+        panel_h = self.win_h - 40
 
         p_rect = pygame.Rect(panel_x, panel_y, panel_w, panel_h)
         pygame.draw.rect(self.screen, PANEL_BG, p_rect, border_radius=6)
         pygame.draw.rect(self.screen, PANEL_BORDER, p_rect, width=1, border_radius=6)
 
-        cur_y = panel_y + 12
+        cur_y = panel_y + 10
 
         # Title Header
         t_surf = self.font_title.render("MAPGEN2 TERRAIN CONTROLS", True, TEXT_WHITE)
-        self.screen.blit(t_surf, (panel_x + 16, cur_y))
-        cur_y += 28
+        self.screen.blit(t_surf, (panel_x + 14, cur_y))
+        cur_y += 26
 
         def draw_section_header(title: str):
             nonlocal cur_y
-            h_rect = pygame.Rect(panel_x + 14, cur_y, panel_w - 28, 20)
+            h_rect = pygame.Rect(panel_x + 12, cur_y, panel_w - 24, 18)
             pygame.draw.rect(self.screen, HEADER_BG, h_rect, border_radius=3)
             lbl = self.font_ui.render(title, True, TEXT_ACCENT)
-            self.screen.blit(lbl, (h_rect.x + 8, h_rect.y + 2))
-            cur_y += 24
+            self.screen.blit(lbl, (h_rect.x + 6, h_rect.y + 1))
+            cur_y += 22
 
         # --- VIEW MODES ---
         draw_section_header("VIEW MODE")
-        b_w = (panel_w - 28 - 10) // 3
-        b_h = 24
+        b_w = (panel_w - 24 - 10) // 3
+        b_h = 22
         for i, btn in enumerate(self.view_buttons):
-            bx = panel_x + 14 + (i % 3) * (b_w + 5)
-            by = cur_y + (i // 3) * (b_h + 4)
+            bx = panel_x + 12 + (i % 3) * (b_w + 5)
+            by = cur_y + (i // 3) * (b_h + 3)
             btn.rect = pygame.Rect(bx, by, b_w, b_h)
             btn.is_active = (btn.key == self.view_mode)
             btn.draw(self.screen, self.font_small, mouse_pos)
-        cur_y += (b_h + 4) * 2 + 6
+        cur_y += (b_h + 3) * 2 + 4
 
         # --- ISLAND SHAPE & FEATURES ---
         draw_section_header("ISLAND SHAPE & FEATURES")
-        s_w = (panel_w - 28 - 15) // 4
+        s_w = (panel_w - 24 - 15) // 4
         for i, btn in enumerate(self.shape_buttons):
-            bx = panel_x + 14 + i * (s_w + 5)
+            bx = panel_x + 12 + i * (s_w + 5)
             btn.rect = pygame.Rect(bx, cur_y, s_w, b_h)
             btn.is_active = (btn.key == self.island_shape)
             btn.draw(self.screen, self.font_small, mouse_pos)
-        cur_y += b_h + 5
+        cur_y += b_h + 4
 
         # Feature toggles
         for i, btn in enumerate(self.feature_buttons):
-            bx = panel_x + 14 + i * (s_w + 5)
+            bx = panel_x + 12 + i * (s_w + 5)
             btn.rect = pygame.Rect(bx, cur_y, s_w, b_h - 2)
             btn.draw(self.screen, self.font_tiny, mouse_pos, bg_color=(38, 48, 62))
-        cur_y += b_h + 8
+        cur_y += b_h + 6
 
-        # --- SEED & BASE MESH ---
-        draw_section_header(f"WORLD SEED: {self.seed}")
+        # --- CLIMATE & ENVIRONMENT (HTML MAPGEN2) ---
+        draw_section_header("CLIMATE & ENVIRONMENT (MAPGEN2)")
+        for k in ("moisture_bias", "north_temp", "south_temp", "persistence"):
+            self.sliders[k].draw(self.screen, panel_x + 12, cur_y, panel_w - 24, self.font_ui, self.font_small, mouse_pos)
+            cur_y += 30
+
+        # --- NUMBER OF REGIONS & SEED ---
+        draw_section_header(f"REGIONS & WORLD SEED ({self.seed})")
+        # Random seed button
         btn_rand = self.action_buttons["random"]
-        btn_rand.rect = pygame.Rect(panel_x + 14, cur_y, panel_w - 28, 24)
-        btn_rand.draw(self.screen, self.font_ui, mouse_pos, bg_color=(45, 65, 90))
-        cur_y += 30
+        btn_rand.rect = pygame.Rect(panel_x + 12, cur_y, panel_w - 24, 22)
+        btn_rand.draw(self.screen, self.font_small, mouse_pos, bg_color=(45, 65, 90))
+        cur_y += 26
+
+        # Preset region buttons
+        r_w = (panel_w - 24 - 15) // 4
+        for i, btn in enumerate(self.region_buttons):
+            bx = panel_x + 12 + i * (r_w + 5)
+            btn.rect = pygame.Rect(bx, cur_y, r_w, 20)
+            btn.draw(self.screen, self.font_tiny, mouse_pos, bg_color=(32, 45, 60))
+        cur_y += 24
 
         for k in ("points", "rivers"):
-            self.sliders[k].draw(self.screen, panel_x + 14, cur_y, panel_w - 28, self.font_ui, self.font_small, mouse_pos)
-            cur_y += 34
+            self.sliders[k].draw(self.screen, panel_x + 12, cur_y, panel_w - 24, self.font_ui, self.font_small, mouse_pos)
+            cur_y += 30
 
         # --- ELEVATION & HYPSOMETRIC SHARPNESS ---
-        draw_section_header("ELEVATION & MOUNTAIN SHARPNESS")
+        draw_section_header("ELEVATION & MOUNTAINS")
         for k in ("height_scale", "sharpness", "alpha"):
-            self.sliders[k].draw(self.screen, panel_x + 14, cur_y, panel_w - 28, self.font_ui, self.font_small, mouse_pos)
-            cur_y += 34
+            self.sliders[k].draw(self.screen, panel_x + 12, cur_y, panel_w - 24, self.font_ui, self.font_small, mouse_pos)
+            cur_y += 30
 
         # --- MICROPOLY SUBDIVISION KNOBS ---
-        draw_section_header("MICROPOLY SUBDIVISION")
+        draw_section_header("MICROPOLY DETAIL")
         for k in ("polys", "roughness", "jitter", "smooth"):
-            self.sliders[k].draw(self.screen, panel_x + 14, cur_y, panel_w - 28, self.font_ui, self.font_small, mouse_pos)
-            cur_y += 34
+            self.sliders[k].draw(self.screen, panel_x + 12, cur_y, panel_w - 24, self.font_ui, self.font_small, mouse_pos)
+            cur_y += 30
 
         # --- ACTION BUTTONS ---
-        cur_y += 4
-        act_w = (panel_w - 28 - 10) // 3
-        act_h = 30
+        cur_y += 2
+        act_w = (panel_w - 24 - 10) // 3
+        act_h = 28
         for i, key in enumerate(("save_png", "export_usdz", "reset")):
             btn = self.action_buttons[key]
-            bx = panel_x + 14 + i * (act_w + 5)
+            bx = panel_x + 12 + i * (act_w + 5)
             btn.rect = pygame.Rect(bx, cur_y, act_w, act_h)
             btn.draw(self.screen, self.font_ui, mouse_pos, bg_color=(35, 80, 130) if key != "reset" else (70, 45, 55))
 

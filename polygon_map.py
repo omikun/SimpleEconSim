@@ -65,9 +65,12 @@ BIOME_COLORS: Dict[str, Tuple[int, int, int]] = {
 }
 
 
-def whittaker_biome(elevation: float, moisture: float) -> str:
-    """Whittaker diagram mapping (elevation, moisture) in [0.0, 1.0] to a terrestrial biome."""
-    if elevation > 0.82:
+def mapgen2_biome(temperature: float, moisture: float) -> str:
+    """Whittaker diagram mapping (temperature, moisture) in [0.0, 1.0] to a terrestrial biome.
+
+    Reference: Red Blob Games HTML Mapgen2 biomes.js
+    """
+    if temperature < 0.20:
         if moisture > 0.50:
             return 'SNOW'
         elif moisture > 0.33:
@@ -76,14 +79,14 @@ def whittaker_biome(elevation: float, moisture: float) -> str:
             return 'BARE'
         else:
             return 'SCORCHED'
-    elif elevation > 0.60:
+    elif temperature < 0.40:
         if moisture > 0.66:
             return 'TAIGA'
         elif moisture > 0.33:
             return 'SHRUBLAND'
         else:
             return 'TEMPERATE_DESERT'
-    elif elevation > 0.30:
+    elif temperature < 0.70:
         if moisture > 0.83:
             return 'TEMPERATE_RAIN_FOREST'
         elif moisture > 0.50:
@@ -103,7 +106,14 @@ def whittaker_biome(elevation: float, moisture: float) -> str:
             return 'SUBTROPICAL_DESERT'
 
 
-# ---------------------------------------------------------------------------
+def whittaker_biome(elevation: float, moisture: float) -> str:
+    """Whittaker diagram mapping (elevation, moisture) in [0.0, 1.0] to a terrestrial biome.
+
+    Equivalent to mapgen2_biome(1.0 - elevation, moisture).
+    """
+    return mapgen2_biome(1.0 - elevation, moisture)
+
+
 # ---------------------------------------------------------------------------
 # Dual Graph Data Structures: Center, Corner, Edge
 # ---------------------------------------------------------------------------
@@ -126,6 +136,7 @@ class Center:
     border: bool = False
     elevation: float = 0.0
     moisture: float = 0.0
+    temperature: float = 0.5
     biome: str = 'OCEAN'
     normal: np.ndarray = field(default_factory=lambda: np.array([0.0, 0.0, 1.0], dtype=np.float64))
     total_light: float = 1.0
@@ -368,6 +379,10 @@ class PolygonMapGenerator:
         enable_noisy_edges: bool = True,
         noisy_tradeoff: float = 0.30,
         mountain_sharpness: float = 1.0,
+        moisture_bias: float = 0.0,
+        north_temperature: float = 0.0,
+        south_temperature: float = 0.0,
+        persistence: float = 0.0,
     ):
         self.seed = seed
         self.width = float(width)
@@ -383,6 +398,10 @@ class PolygonMapGenerator:
         self.enable_noisy_edges = enable_noisy_edges
         self.noisy_tradeoff = noisy_tradeoff
         self.mountain_sharpness = float(mountain_sharpness)
+        self.moisture_bias = float(moisture_bias)
+        self.north_temperature = float(north_temperature)
+        self.south_temperature = float(south_temperature)
+        self.persistence = float(persistence)
 
         self.rng = random.Random(seed)
         self.np_rng = np.random.default_rng(seed)
@@ -412,7 +431,8 @@ class PolygonMapGenerator:
         if self.enable_lava:
             self.create_lava()
         if self.enable_noisy_edges:
-            self.build_noisy_edges(self.noisy_tradeoff)
+            effective_tradeoff = max(0.05, min(0.60, self.noisy_tradeoff * (1.0 - 0.35 * self.persistence)))
+            self.build_noisy_edges(effective_tradeoff)
 
     # -----------------------------------------------------------------------
     # Step 1: Geometry, Lloyd Relaxation, and Dual Graph Construction
@@ -585,14 +605,21 @@ class PolygonMapGenerator:
             return dist < r
 
         elif self.island_shape == 'perlin':
-            # Procedural multi-frequency fBm value noise
+            # Procedural multi-frequency fBm value noise modulated by persistence
+            pers = 0.5 ** (1.0 + self.persistence)
+            a1 = 0.50
+            a2 = 0.50 * pers
+            a3 = 0.50 * (pers ** 2)
+            a4 = 0.50 * (pers ** 3)
+            sum_a = a1 + a2 + a3 + a4
             fx = (nx + 1.0) * 2.5
             fy = (ny + 1.0) * 2.5
             n_val = (
-                math.sin(fx * 2.1 + self.seed) * math.cos(fy * 2.1) * 0.5 +
-                math.sin(fx * 4.3 - self.seed) * math.cos(fy * 4.3) * 0.25 +
-                math.sin(fx * 8.7 + 1.2) * math.cos(fy * 8.7) * 0.125
-            )
+                math.sin(fx * 2.1 + self.seed) * math.cos(fy * 2.1) * a1 +
+                math.sin(fx * 4.3 - self.seed) * math.cos(fy * 4.3) * a2 +
+                math.sin(fx * 8.7 + 1.2) * math.cos(fy * 8.7) * a3 +
+                math.sin(fx * 17.1 - 0.5) * math.cos(fy * 16.9) * a4
+            ) * (0.875 / sum_a)
             return (dist + n_val * 0.35) < 0.68
 
         else:  # 'radial' default
@@ -602,6 +629,13 @@ class PolygonMapGenerator:
             r1 = 0.2 + 0.40 * math.sin(angle * bumps + dip_angle)
             r2 = 0.2 + 0.35 * math.cos(angle * (bumps - 2) - dip_angle * 1.5)
             r = max(r1, r2)
+            if abs(self.persistence) > 1e-4:
+                pers = 0.5 ** (1.0 + self.persistence)
+                high_freq = (
+                    math.sin(angle * 14.0 + self.seed) * 0.45 * pers +
+                    math.cos(angle * 27.0 - self.seed) * 0.25 * (pers ** 2)
+                ) * (1.0 - (pers / 0.5)) * 0.25
+                r += high_freq
             return dist < (0.50 + 0.25 * r)
 
     def _continuous_elevation_noise(self, x: float, y: float, amplitude: float = 1.0) -> float:
@@ -811,13 +845,14 @@ class PolygonMapGenerator:
                     adj.moisture = max(adj.moisture, new_m)
                     queue.append((adj, new_m))
 
-        # Quantile redistribution for land corners
+        # Quantile redistribution for land corners with moisture_bias
         land_corners = [cn for cn in self.corners if not cn.water]
         if land_corners:
             land_corners.sort(key=lambda cn: cn.moisture)
             n_land = len(land_corners)
             for rank, cn in enumerate(land_corners):
-                cn.moisture = rank / max(1, n_land - 1)
+                norm_rank = rank / max(1, n_land - 1)
+                cn.moisture = float(np.clip(self.moisture_bias + norm_rank, 0.0, 1.0))
 
         # Ensure all water corners are 1.0 and land corners strictly in [0.0, 1.0]
         for cn in self.corners:
@@ -833,28 +868,35 @@ class PolygonMapGenerator:
             elif c.corners:
                 c.moisture = max(0.0, min(1.0, float(np.mean([cn.moisture for cn in c.corners]))))
             else:
-                c.moisture = 0.5
+                c.moisture = max(0.0, min(1.0, 0.5 + self.moisture_bias))
 
     # -----------------------------------------------------------------------
     # Step 6: Whittaker Biome Classification
     # -----------------------------------------------------------------------
 
     def _assign_biomes(self) -> None:
-        """Assign biomes to centers using Whittaker diagram and hydrological states."""
+        """Assign biomes to centers using Whittaker diagram, temperature latitude gradient, and hydrology.
+
+        Reference: Red Blob Games HTML Mapgen2 biomes.js (assign_temperature_r and assign_biome_r)
+        """
         for c in self.centers:
+            lat = c.y / max(1.0, self.height)
+            delta_t = (1.0 - lat) * self.north_temperature + lat * self.south_temperature
+            c.temperature = float(1.0 - c.elevation + delta_t)
+
             if c.ocean:
                 c.biome = 'OCEAN'
             elif c.water:
-                if c.elevation < 0.10:
+                if c.temperature > 0.90:
                     c.biome = 'MARSH'
-                elif c.elevation > 0.80:
+                elif c.temperature < 0.20:
                     c.biome = 'ICE'
                 else:
                     c.biome = 'LAKE'
             elif c.coast:
                 c.biome = 'BEACH'
             else:
-                c.biome = whittaker_biome(c.elevation, c.moisture)
+                c.biome = mapgen2_biome(c.temperature, c.moisture)
 
     # -----------------------------------------------------------------------
     # Query, Spatial Interpolation, and Hex World Integration
@@ -876,6 +918,11 @@ class PolygonMapGenerator:
         """Sample moisture at (x, y)."""
         c = self.get_center_at(x, y)
         return c.moisture
+
+    def get_temperature_at(self, x: float, y: float) -> float:
+        """Sample temperature at (x, y)."""
+        c = self.get_center_at(x, y)
+        return c.temperature
 
     def get_biome_at(self, x: float, y: float) -> str:
         """Sample biome at (x, y)."""

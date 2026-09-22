@@ -42,8 +42,30 @@ MESH_CACHE: Dict[Tuple, Tuple[List[Tuple], int]] = {}
 MAX_CACHE_ENTRIES = 12
 
 
-def get_cached_graph(seed: int, shape: str, points: int, rivers: int, sharpness: float, size: int) -> PolygonMapGenerator:
-    key = (seed, shape, points, rivers, round(sharpness, 2), size)
+def get_cached_graph(
+    seed: int,
+    shape: str,
+    points: int,
+    rivers: int,
+    sharpness: float,
+    moisture_bias: float = 0.0,
+    north_temp: float = 0.0,
+    south_temp: float = 0.0,
+    persistence: float = 0.0,
+    size: int = 720,
+) -> PolygonMapGenerator:
+    key = (
+        seed,
+        shape,
+        points,
+        rivers,
+        round(sharpness, 2),
+        round(moisture_bias, 2),
+        round(north_temp, 2),
+        round(south_temp, 2),
+        round(persistence, 2),
+        size,
+    )
     if key in GRAPH_CACHE:
         return GRAPH_CACHE[key]
 
@@ -55,6 +77,10 @@ def get_cached_graph(seed: int, shape: str, points: int, rivers: int, sharpness:
         island_shape=shape,
         river_count=rivers,
         mountain_sharpness=sharpness,
+        moisture_bias=moisture_bias,
+        north_temperature=north_temp,
+        south_temperature=south_temp,
+        persistence=persistence,
         enable_corner_improvement=True,
         enable_roads=True,
         enable_lava=True,
@@ -178,10 +204,36 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
         smooth = float(q.get("smooth", [0.70])[0])
         alpha = float(q.get("alpha", [0.25])[0])
         rivers = int(q.get("rivers", [25])[0])
+        moisture_bias = float(q.get("moisture_bias", [0.0])[0])
+        north_temp = float(q.get("north_temp", [0.0])[0])
+        south_temp = float(q.get("south_temp", [0.0])[0])
+        persistence = float(q.get("persistence", [0.0])[0])
         size = int(q.get("size", [720])[0])
 
-        graph_key = (seed, shape, points, rivers, round(sharpness, 2), size)
-        gen = get_cached_graph(seed, shape, points, rivers, sharpness, size)
+        graph_key = (
+            seed,
+            shape,
+            points,
+            rivers,
+            round(sharpness, 2),
+            round(moisture_bias, 2),
+            round(north_temp, 2),
+            round(south_temp, 2),
+            round(persistence, 2),
+            size,
+        )
+        gen = get_cached_graph(
+            seed,
+            shape,
+            points,
+            rivers,
+            sharpness,
+            moisture_bias=moisture_bias,
+            north_temp=north_temp,
+            south_temp=south_temp,
+            persistence=persistence,
+            size=size,
+        )
 
         # Render chosen view mode
         if mode == "micropolys":
@@ -291,11 +343,26 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
         shape = q.get("shape", ["radial"])[0]
         points = int(q.get("points", [1000])[0])
         sharpness = float(q.get("sharpness", [1.0])[0])
+        moisture_bias = float(q.get("moisture_bias", [0.0])[0])
+        north_temp = float(q.get("north_temp", [0.0])[0])
+        south_temp = float(q.get("south_temp", [0.0])[0])
+        persistence = float(q.get("persistence", [0.0])[0])
         nx = float(q.get("nx", [0.5])[0])
         ny = float(q.get("ny", [0.5])[0])
         size = 720
 
-        gen = get_cached_graph(seed, shape, points, 25, sharpness, size)
+        gen = get_cached_graph(
+            seed,
+            shape,
+            points,
+            25,
+            sharpness,
+            moisture_bias=moisture_bias,
+            north_temp=north_temp,
+            south_temp=south_temp,
+            persistence=persistence,
+            size=size,
+        )
         cx = nx * size
         cy = ny * size
 
@@ -309,6 +376,7 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
             "biome": center.biome,
             "elevation": round(center.elevation, 3),
             "moisture": round(center.moisture, 3),
+            "temperature": round(center.temperature, 3),
             "is_water": center.water,
             "is_ocean": center.ocean,
             "is_coast": center.coast,
@@ -327,10 +395,36 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
         jitter = float(q.get("jitter", [0.22])[0])
         smooth = float(q.get("smooth", [0.70])[0])
         alpha = float(q.get("alpha", [0.25])[0])
+        moisture_bias = float(q.get("moisture_bias", [0.0])[0])
+        north_temp = float(q.get("north_temp", [0.0])[0])
+        south_temp = float(q.get("south_temp", [0.0])[0])
+        persistence = float(q.get("persistence", [0.0])[0])
         size = 1000
 
-        graph_key = (seed, shape, points, 25, round(sharpness, 2), size)
-        gen = get_cached_graph(seed, shape, points, 25, sharpness, size)
+        graph_key = (
+            seed,
+            shape,
+            points,
+            25,
+            round(sharpness, 2),
+            round(moisture_bias, 2),
+            round(north_temp, 2),
+            round(south_temp, 2),
+            round(persistence, 2),
+            size,
+        )
+        gen = get_cached_graph(
+            seed,
+            shape,
+            points,
+            25,
+            sharpness,
+            moisture_bias=moisture_bias,
+            north_temp=north_temp,
+            south_temp=south_temp,
+            persistence=persistence,
+            size=size,
+        )
         triangles, _ = get_cached_micropolys(
             gen, graph_key, polys, roughness, jitter, alpha, height_scale, smooth, size
         )

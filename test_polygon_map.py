@@ -28,6 +28,7 @@ from polygon_map import (
     ParallelPolygonMapGenerator,
     apply_polygon_map_to_world,
     whittaker_biome,
+    mapgen2_biome,
     BIOME_COLORS,
 )
 from render_dev_viewer import create_mock_island_tiles
@@ -217,6 +218,41 @@ class TestPolygonMapBiomesAndQueries(unittest.TestCase):
         self.assertEqual(whittaker_biome(0.1, 0.8), 'TROPICAL_RAIN_FOREST')
         self.assertEqual(whittaker_biome(0.1, 0.4), 'TROPICAL_SEASONAL_FOREST')
         self.assertEqual(whittaker_biome(0.1, 0.05), 'SUBTROPICAL_DESERT')
+
+    def test_mapgen2_climate_and_persistence(self):
+        """Verify Mapgen2 temperature gradient, moisture bias, and persistence knobs."""
+        # 1. Mapgen2 biome matrix
+        self.assertEqual(mapgen2_biome(0.10, 0.70), 'SNOW')
+        self.assertEqual(mapgen2_biome(0.10, 0.05), 'SCORCHED')
+        self.assertEqual(mapgen2_biome(0.30, 0.80), 'TAIGA')
+        self.assertEqual(mapgen2_biome(0.60, 0.90), 'TEMPERATE_RAIN_FOREST')
+        self.assertEqual(mapgen2_biome(0.85, 0.80), 'TROPICAL_RAIN_FOREST')
+        self.assertEqual(mapgen2_biome(0.85, 0.05), 'SUBTROPICAL_DESERT')
+
+        # 2. Temperature gradient: N-Cold / S-Hot
+        gen_ncold_shot = PolygonMapGenerator(
+            seed=42, width=800, height=800, num_points=300,
+            north_temperature=-1.0, south_temperature=1.0,
+        )
+        north_land = [c for c in gen_ncold_shot.centers if not c.water and c.y < 300]
+        south_land = [c for c in gen_ncold_shot.centers if not c.water and c.y > 500]
+        if north_land and south_land:
+            avg_north_t = np.mean([c.temperature for c in north_land])
+            avg_south_t = np.mean([c.temperature for c in south_land])
+            self.assertLess(avg_north_t, avg_south_t)
+
+        # 3. Moisture bias: Dry vs Wet
+        gen_dry = PolygonMapGenerator(seed=42, width=800, height=800, num_points=300, moisture_bias=-0.5)
+        gen_wet = PolygonMapGenerator(seed=42, width=800, height=800, num_points=300, moisture_bias=0.5)
+        dry_land = [c.moisture for c in gen_dry.centers if not c.water]
+        wet_land = [c.moisture for c in gen_wet.centers if not c.water]
+        self.assertLess(np.mean(dry_land), np.mean(wet_land))
+
+        # 4. Persistence parameter creates valid dual mesh and edges
+        gen_jagged = PolygonMapGenerator(seed=42, width=800, height=800, num_points=300, persistence=-1.0)
+        gen_smooth = PolygonMapGenerator(seed=42, width=800, height=800, num_points=300, persistence=1.0)
+        self.assertGreater(len(gen_jagged.centers), 100)
+        self.assertGreater(len(gen_smooth.centers), 100)
 
     def test_spatial_kdtree_queries(self):
         """Spatial KDTree lookups should return nearest center and consistent properties."""
