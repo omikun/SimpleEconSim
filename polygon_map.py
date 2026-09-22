@@ -1254,16 +1254,40 @@ class PolygonMapGenerator:
                 if not use_noisy_edges:
                     pygame.draw.polygon(surface, (0, 0, 0, 30 if use_brdf else 40), poly_pts, width=1)
 
-        # 1b. Render constituent micropolygons for each land cell (Amit Patel mapgen2 renderPolygons)
-        if render_micropolys and use_noisy_edges and self.noisy_edges and not show_watersheds:
-            L_norm = np.array([-0.55, -0.55, 0.70], dtype=np.float64)
-            L_norm /= np.linalg.norm(L_norm)
+        # 1b. Render constituent micropolygons for each land cell across the ENTIRE island
+        # Reference: https://www.redblobgames.com/x/1725-procedural-elevation/#rendering
+        if render_micropolys and not show_watersheds:
+            # 1. Red Blob corner elevation enhancement:
+            # v_elevation[v] = max + alpha * (max - min) of adjacent centers
+            elevation_alpha = 0.25
+            elev_scale = 320.0
+            v_elev = {}
+            for cn in self.corners:
+                if cn.ocean or cn.coast:
+                    v_elev[cn.index] = 0.0
+                else:
+                    adj_elevs = [c.elevation for c in cn.touches if not c.water]
+                    if adj_elevs:
+                        c_max = max(adj_elevs)
+                        c_min = min(adj_elevs)
+                        v_elev[cn.index] = c_max + elevation_alpha * (c_max - c_min)
+                    else:
+                        v_elev[cn.index] = cn.elevation
+
+            # Multi-light setup (from draw-3d.js)
+            L_sun = np.array([-0.55, -0.55, 0.70], dtype=np.float64)
+            L_sun /= np.linalg.norm(L_sun)
+
+            L_fill = np.array([0.45, -0.65, 0.60], dtype=np.float64)
+            L_fill /= np.linalg.norm(L_fill)
+
+            snow_threshold = 0.82
 
             for p in self.centers:
                 if p.water or len(p.corners) < 3:
                     continue
 
-                p_pt = (int(p.x * scale_x), int(p.y * scale_y))
+                p_pt3d = np.array([p.x * scale_x, p.y * scale_y, p.elevation * elev_scale], dtype=np.float64)
                 base_color = np.array(BIOME_COLORS.get(p.biome, (120, 160, 100)), dtype=np.float64)
 
                 for r in p.neighbors:
@@ -1271,75 +1295,143 @@ class PolygonMapGenerator:
                     if not edge or not edge.v0 or not edge.v1:
                         continue
 
-                    # 3D Normal of triangle wedge (p, edge.v0, edge.v1)
-                    Ax, Ay, Az = p.x, p.y, p.elevation * 300.0
-                    Bx, By, Bz = edge.v0.x, edge.v0.y, edge.v0.elevation * 300.0
-                    Cx, Cy, Cz = edge.v1.x, edge.v1.y, edge.v1.elevation * 300.0
-
-                    v1 = np.array([Bx - Ax, By - Ay, Bz - Az], dtype=np.float64)
-                    v2 = np.array([Cx - Ax, Cy - Ay, Cz - Az], dtype=np.float64)
-                    norm = np.cross(v1, v2)
-                    if norm[2] < 0:
-                        norm = -norm
-                    norm_len = np.linalg.norm(norm)
-                    if norm_len > 1e-6:
-                        norm /= norm_len
-                    else:
-                        norm = np.array([0.0, 0.0, 1.0], dtype=np.float64)
-
-                    # Biome blending across polygon edges towards neighbor r
-                    col = base_color.copy()
+                    # Neighbor color blend
+                    col_edge = base_color.copy()
                     if not r.water:
-                        r_col = np.array(BIOME_COLORS.get(r.biome, col), dtype=np.float64)
-                        col = col * 0.65 + r_col * 0.35
+                        r_col = np.array(BIOME_COLORS.get(r.biome, col_edge), dtype=np.float64)
+                        col_edge = col_edge * 0.70 + r_col * 0.30
 
-                    # Steep cliff rock scree exposure
-                    slope_val = 1.0 - norm[2]
-                    if slope_val > 0.15:
-                        cliff_w = min(0.55, (slope_val - 0.15) / 0.25)
-                        col = col * (1.0 - cliff_w) + np.array([66, 64, 71], dtype=np.float64) * cliff_w
-
-                    # Riparian vegetation greening along river borders
+                    # Riparian greening along river borders
                     if edge.river > 0:
-                        col = col * 0.70 + np.array([43, 102, 38], dtype=np.float64) * 0.30
+                        col_edge = col_edge * 0.75 + np.array([40, 105, 35], dtype=np.float64) * 0.25
 
-                    # 3D Illumination
-                    NdotL = max(0.0, float(np.dot(norm, L_norm)))
-                    if use_brdf:
-                        diffuse = 0.38 * math.pow(NdotL, 1.15)
-                        ambient = 0.70 + 0.15 * (norm[2] - 0.7)
-                        total_shade = ambient + diffuse
-                    else:
-                        total_shade = 0.65 + 0.50 * NdotL
+                    z_v0 = v_elev.get(edge.v0.index, edge.v0.elevation) * elev_scale
+                    z_v1 = v_elev.get(edge.v1.index, edge.v1.elevation) * elev_scale
+                    z_mid = (z_v0 + z_v1) * 0.5
 
-                    shaded_rgb = col * total_shade
-                    # Soft-knee highlight compression to prevent blowout
-                    for i in range(3):
-                        if shaded_rgb[i] > 220.0:
-                            shaded_rgb[i] = 220.0 + (shaded_rgb[i] - 220.0) * 0.35
+                    path0 = self.noisy_edges.path0.get(edge.index) if (use_noisy_edges and self.noisy_edges) else None
+                    path1 = self.noisy_edges.path1.get(edge.index) if (use_noisy_edges and self.noisy_edges) else None
 
-                    final_col = (
-                        min(246, max(0, int(shaded_rgb[0]))),
-                        min(246, max(0, int(shaded_rgb[1]))),
-                        min(246, max(0, int(shaded_rgb[2]))),
-                    )
-
-                    # Draw micropoly 0: (p -> v0 -> ... -> midpoint -> p)
-                    path0 = self.noisy_edges.path0.get(edge.index)
+                    # Half-edge 0 (v0 to midpoint)
                     if path0 is not None and len(path0) >= 2:
-                        pts0 = [p_pt] + [(int(pt[0] * scale_x), int(pt[1] * scale_y)) for pt in path0]
-                        if len(pts0) >= 3:
-                            pygame.draw.polygon(surface, final_col, pts0)
+                        n_pts = len(path0)
+                        pts3d_0 = []
+                        for i, pt in enumerate(path0):
+                            t = i / max(1, n_pts - 1)
+                            z_pt = (1.0 - t) * z_v0 + t * z_mid
+                            pts3d_0.append(np.array([pt[0] * scale_x, pt[1] * scale_y, z_pt], dtype=np.float64))
+                    else:
+                        pts3d_0 = [
+                            np.array([edge.v0.x * scale_x, edge.v0.y * scale_y, z_v0], dtype=np.float64),
+                            np.array([edge.midpoint[0] * scale_x, edge.midpoint[1] * scale_y, z_mid], dtype=np.float64),
+                        ]
 
-                    # Draw micropoly 1: (p -> v1 -> ... -> midpoint -> p)
-                    path1 = self.noisy_edges.path1.get(edge.index)
+                    for i in range(len(pts3d_0) - 1):
+                        pa, pb, pc = p_pt3d, pts3d_0[i], pts3d_0[i + 1]
+                        va = pb - pa
+                        vb = pc - pa
+                        norm = np.cross(va, vb)
+                        if norm[2] < 0:
+                            norm = -norm
+                        n_len = np.linalg.norm(norm)
+                        if n_len > 1e-6:
+                            norm /= n_len
+                        else:
+                            norm = np.array([0.0, 0.0, 1.0], dtype=np.float64)
+
+                        NdotL_sun = max(0.0, float(np.dot(norm, L_sun)))
+                        NdotL_fill = max(0.0, float(np.dot(norm, L_fill)))
+                        diffuse_sun = 0.44 * math.pow(NdotL_sun, 1.15)
+                        diffuse_fill = 0.14 * NdotL_fill
+                        ambient = 0.68 + 0.12 * (norm[2] - 0.7)
+                        shade = ambient + diffuse_sun + diffuse_fill
+
+                        col = col_edge.copy()
+                        slope_val = 1.0 - norm[2]
+                        if slope_val > 0.14:
+                            cliff_w = min(0.60, (slope_val - 0.14) / 0.22)
+                            col = col * (1.0 - cliff_w) + np.array([66, 64, 71], dtype=np.float64) * cliff_w
+
+                        avg_elev = (p.elevation + ((1.0 - (i / len(pts3d_0))) * edge.v0.elevation + (i / len(pts3d_0)) * 0.5 * (edge.v0.elevation + edge.v1.elevation))) * 0.5
+                        if avg_elev > snow_threshold:
+                            snow_w = min(0.95, math.pow((avg_elev - snow_threshold) / (1.0 - snow_threshold), 2.0))
+                            col = col * (1.0 - snow_w) + np.array([242, 244, 250], dtype=np.float64) * snow_w
+
+                        shaded_rgb = col * shade
+                        for k in range(3):
+                            if shaded_rgb[k] > 220.0:
+                                shaded_rgb[k] = 220.0 + (shaded_rgb[k] - 220.0) * 0.35
+
+                        final_rgb = (
+                            min(248, max(0, int(shaded_rgb[0]))),
+                            min(248, max(0, int(shaded_rgb[1]))),
+                            min(248, max(0, int(shaded_rgb[2]))),
+                        )
+                        pts2d = [(int(pa[0]), int(pa[1])), (int(pb[0]), int(pb[1])), (int(pc[0]), int(pc[1]))]
+                        if len(pts2d) >= 3:
+                            pygame.draw.polygon(surface, final_rgb, pts2d)
+
+                    # Half-edge 1 (v1 to midpoint)
                     if path1 is not None and len(path1) >= 2:
-                        pts1 = [p_pt] + [(int(pt[0] * scale_x), int(pt[1] * scale_y)) for pt in path1]
-                        if len(pts1) >= 3:
-                            pygame.draw.polygon(surface, final_col, pts1)
+                        n_pts = len(path1)
+                        pts3d_1 = []
+                        for i, pt in enumerate(path1):
+                            t = i / max(1, n_pts - 1)
+                            z_pt = (1.0 - t) * z_v1 + t * z_mid
+                            pts3d_1.append(np.array([pt[0] * scale_x, pt[1] * scale_y, z_pt], dtype=np.float64))
+                    else:
+                        pts3d_1 = [
+                            np.array([edge.v1.x * scale_x, edge.v1.y * scale_y, z_v1], dtype=np.float64),
+                            np.array([edge.midpoint[0] * scale_x, edge.midpoint[1] * scale_y, z_mid], dtype=np.float64),
+                        ]
 
-        # 1c. Optional continuous cartographic relief overlay
-        if continuous_relief and use_brdf and not show_watersheds and len(self.centers) > 0:
+                    for i in range(len(pts3d_1) - 1):
+                        pa, pb, pc = p_pt3d, pts3d_1[i], pts3d_1[i + 1]
+                        va = pb - pa
+                        vb = pc - pa
+                        norm = np.cross(va, vb)
+                        if norm[2] < 0:
+                            norm = -norm
+                        n_len = np.linalg.norm(norm)
+                        if n_len > 1e-6:
+                            norm /= n_len
+                        else:
+                            norm = np.array([0.0, 0.0, 1.0], dtype=np.float64)
+
+                        NdotL_sun = max(0.0, float(np.dot(norm, L_sun)))
+                        NdotL_fill = max(0.0, float(np.dot(norm, L_fill)))
+                        diffuse_sun = 0.44 * math.pow(NdotL_sun, 1.15)
+                        diffuse_fill = 0.14 * NdotL_fill
+                        ambient = 0.68 + 0.12 * (norm[2] - 0.7)
+                        shade = ambient + diffuse_sun + diffuse_fill
+
+                        col = col_edge.copy()
+                        slope_val = 1.0 - norm[2]
+                        if slope_val > 0.14:
+                            cliff_w = min(0.60, (slope_val - 0.14) / 0.22)
+                            col = col * (1.0 - cliff_w) + np.array([66, 64, 71], dtype=np.float64) * cliff_w
+
+                        avg_elev = (p.elevation + ((1.0 - (i / len(pts3d_1))) * edge.v1.elevation + (i / len(pts3d_1)) * 0.5 * (edge.v0.elevation + edge.v1.elevation))) * 0.5
+                        if avg_elev > snow_threshold:
+                            snow_w = min(0.95, math.pow((avg_elev - snow_threshold) / (1.0 - snow_threshold), 2.0))
+                            col = col * (1.0 - snow_w) + np.array([242, 244, 250], dtype=np.float64) * snow_w
+
+                        shaded_rgb = col * shade
+                        for k in range(3):
+                            if shaded_rgb[k] > 220.0:
+                                shaded_rgb[k] = 220.0 + (shaded_rgb[k] - 220.0) * 0.35
+
+                        final_rgb = (
+                            min(248, max(0, int(shaded_rgb[0]))),
+                            min(248, max(0, int(shaded_rgb[1]))),
+                            min(248, max(0, int(shaded_rgb[2]))),
+                        )
+                        pts2d = [(int(pa[0]), int(pa[1])), (int(pb[0]), int(pb[1])), (int(pc[0]), int(pc[1]))]
+                        if len(pts2d) >= 3:
+                            pygame.draw.polygon(surface, final_rgb, pts2d)
+
+        # 1c. Optional continuous cartographic relief overlay (only when micropolys are disabled)
+        if continuous_relief and not render_micropolys and use_brdf and not show_watersheds and len(self.centers) > 0:
             try:
                 buf = pygame.image.tostring(surface, "RGB")
                 img = np.frombuffer(buf, dtype=np.uint8).reshape((height, width, 3)).astype(np.float32)
