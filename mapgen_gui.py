@@ -201,13 +201,13 @@ class MapgenGUI:
         seed: int = 777,
         num_points: int = 1000,
         target_polys: int = 16000,
-        window_size: Tuple[int, int] = (1320, 920),
+        window_size: Tuple[int, int] = (1320, 980),
     ):
         pygame.init()
         pygame.font.init()
 
         self.win_w, self.win_h = window_size
-        self.canvas_size = 780
+        self.canvas_size = 800
         self.canvas_rect = pygame.Rect(20, 20, self.canvas_size, self.canvas_size)
 
         self.screen = pygame.display.set_mode((self.win_w, self.win_h), pygame.RESIZABLE)
@@ -255,6 +255,10 @@ class MapgenGUI:
             "jitter": Slider("jitter", "Lateral Edge Jitter", 0.0, 0.40, 0.22, step=0.02, fmt="{:.2f}"),
             "smooth": Slider("smooth", "Normal Smoothing Ratio", 0.0, 1.0, 0.70, step=0.05, fmt="{:.2f}"),
             "alpha": Slider("alpha", "Ridge Alpha (α)", 0.0, 0.50, 0.25, step=0.02, fmt="{:.2f}"),
+            # Geology, Ridges & Erosion Knobs
+            "ridge_noise": Slider("ridge_noise", "Ridge Roughness (Musgrave)", 0.0, 1.0, 0.35, step=0.05, fmt="{:.2f}"),
+            "erosion_strength": Slider("erosion_strength", "Erosion Carving Scale", 0.0, 1.0, 0.30, step=0.05, fmt="{:.2f}"),
+            "erosion_droplets": Slider("erosion_droplets", "Erosion Droplet Count", 0, 30000, 12000, step=2000, fmt="{:,.0f}"),
         }
 
         # Buttons
@@ -281,11 +285,13 @@ class MapgenGUI:
             Button("large", "Large (3500)"),
         ]
 
+        self.quad_fold_enabled = True
         self.feature_buttons = [
             Button("toggle_rivers", "Rivers: ON"),
             Button("toggle_roads", "Roads: ON"),
             Button("toggle_lava", "Lava: ON"),
             Button("toggle_noisy", "Noisy: ON"),
+            Button("toggle_quad_fold", "Quad-Fold: ON"),
         ]
 
         self.action_buttons = {
@@ -302,7 +308,7 @@ class MapgenGUI:
     # Generation & Rendering Pipeline
     # -----------------------------------------------------------------------
     def rebuild_map_graph(self):
-        """Tier 1: Rebuild base Voronoi graph and hydrology."""
+        """Tier 1: Generate dual graph geometry, rivers, moisture, and biomes."""
         t0 = time.time()
         self.status_msg = f"Generating base mesh (seed {self.seed}, {int(self.sliders['points'].val)} points)..."
 
@@ -327,7 +333,7 @@ class MapgenGUI:
         self.rebuild_micropoly_mesh()
 
     def rebuild_micropoly_mesh(self):
-        """Tier 2: Subdivide mesh into micropolygons with 3D elevations."""
+        """Tier 2: Subdivide mesh into micropolygons with 3D elevations and erosion."""
         if not self.gen:
             return
         t0 = time.time()
@@ -342,6 +348,10 @@ class MapgenGUI:
             elevation_alpha=self.sliders["alpha"].val,
             elev_scale=self.sliders["height_scale"].val,
             normal_smooth_ratio=self.sliders["smooth"].val,
+            quad_fold=self.quad_fold_enabled,
+            ridge_noise=self.sliders["ridge_noise"].val,
+            erosion_strength=self.sliders["erosion_strength"].val,
+            erosion_droplets=int(self.sliders["erosion_droplets"].val),
         )
         self.render_time_ms = (time.time() - t0) * 1000.0
         self.redraw_canvas()
@@ -518,6 +528,11 @@ class MapgenGUI:
                         elif btn.key == "toggle_noisy":
                             self.show_noisy = not self.show_noisy
                             btn.label = f"Noisy: {'ON' if self.show_noisy else 'OFF'}"
+                        elif btn.key == "toggle_quad_fold":
+                            self.quad_fold_enabled = not self.quad_fold_enabled
+                            btn.label = f"Quad-Fold: {'ON' if self.quad_fold_enabled else 'OFF'}"
+                            self.rebuild_micropoly_mesh()
+                            return True
                         self.redraw_canvas()
                         return True
 
@@ -557,7 +572,7 @@ class MapgenGUI:
                 self.redraw_canvas()
             else:
                 self.rebuild_map_graph()
-        elif key in ("height_scale", "polys", "roughness", "jitter", "smooth", "alpha"):
+        elif key in ("height_scale", "polys", "roughness", "jitter", "smooth", "alpha", "ridge_noise", "erosion_strength", "erosion_droplets"):
             self.rebuild_micropoly_mesh()
         else:
             self.redraw_canvas()
@@ -674,10 +689,11 @@ class MapgenGUI:
             btn.draw(self.screen, self.font_small, mouse_pos)
         cur_y += b_h + 4
 
-        # Feature toggles
+        # Feature toggles (Rivers, Roads, Lava, Noisy, Quad-Fold)
+        f_w = (panel_w - 24 - 16) // 5
         for i, btn in enumerate(self.feature_buttons):
-            bx = panel_x + 12 + i * (s_w + 5)
-            btn.rect = pygame.Rect(bx, cur_y, s_w, b_h - 2)
+            bx = panel_x + 12 + i * (f_w + 4)
+            btn.rect = pygame.Rect(bx, cur_y, f_w, b_h - 2)
             btn.draw(self.screen, self.font_tiny, mouse_pos, bg_color=(38, 48, 62))
         cur_y += b_h + 6
 
@@ -685,7 +701,7 @@ class MapgenGUI:
         draw_section_header("CLIMATE & ENVIRONMENT (MAPGEN2)")
         for k in ("moisture_bias", "north_temp", "south_temp", "persistence"):
             self.sliders[k].draw(self.screen, panel_x + 12, cur_y, panel_w - 24, self.font_ui, self.font_small, mouse_pos)
-            cur_y += 30
+            cur_y += 28
 
         # --- NUMBER OF REGIONS & SEED ---
         draw_section_header(f"REGIONS & WORLD SEED ({self.seed})")
@@ -693,7 +709,7 @@ class MapgenGUI:
         btn_rand = self.action_buttons["random"]
         btn_rand.rect = pygame.Rect(panel_x + 12, cur_y, panel_w - 24, 22)
         btn_rand.draw(self.screen, self.font_small, mouse_pos, bg_color=(45, 65, 90))
-        cur_y += 26
+        cur_y += 25
 
         # Preset region buttons
         r_w = (panel_w - 24 - 15) // 4
@@ -701,23 +717,29 @@ class MapgenGUI:
             bx = panel_x + 12 + i * (r_w + 5)
             btn.rect = pygame.Rect(bx, cur_y, r_w, 20)
             btn.draw(self.screen, self.font_tiny, mouse_pos, bg_color=(32, 45, 60))
-        cur_y += 24
+        cur_y += 23
 
         for k in ("points", "rivers"):
             self.sliders[k].draw(self.screen, panel_x + 12, cur_y, panel_w - 24, self.font_ui, self.font_small, mouse_pos)
-            cur_y += 30
+            cur_y += 28
 
         # --- ELEVATION & HYPSOMETRIC SHARPNESS ---
         draw_section_header("ELEVATION & MOUNTAINS")
         for k in ("height_scale", "sharpness", "alpha"):
             self.sliders[k].draw(self.screen, panel_x + 12, cur_y, panel_w - 24, self.font_ui, self.font_small, mouse_pos)
-            cur_y += 30
+            cur_y += 28
+
+        # --- GEOLOGY & EROSION SIMULATION ---
+        draw_section_header("GEOLOGY, RIDGES & EROSION")
+        for k in ("ridge_noise", "erosion_strength", "erosion_droplets"):
+            self.sliders[k].draw(self.screen, panel_x + 12, cur_y, panel_w - 24, self.font_ui, self.font_small, mouse_pos)
+            cur_y += 28
 
         # --- MICROPOLY SUBDIVISION KNOBS ---
         draw_section_header("MICROPOLY DETAIL")
         for k in ("polys", "roughness", "jitter", "smooth"):
             self.sliders[k].draw(self.screen, panel_x + 12, cur_y, panel_w - 24, self.font_ui, self.font_small, mouse_pos)
-            cur_y += 30
+            cur_y += 28
 
         # --- ACTION BUTTONS ---
         cur_y += 2

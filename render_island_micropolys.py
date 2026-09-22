@@ -52,6 +52,38 @@ def procedural_fbm_elevation(x, y, seed=42, amplitude=1.0):
     )
 
 
+def procedural_ridged_elevation(x, y, base_elevation, seed=42, amplitude=1.0, ridge_roughness=0.35):
+    """
+    Musgrave ridged multifractal noise with domain warping and elevation weighting.
+    Computes inverted noise ridges: (1.0 - |noise|)^2, attenuated on lowlands so only
+    mountain peaks and high plateaus form razor-sharp arêtes.
+    """
+    if ridge_roughness <= 1e-4 or base_elevation <= 0.20:
+        return 0.0
+
+    # Domain warping to give organic geological strata folds
+    warp_x = math.sin(x * 0.004 + seed * 0.31) * 12.0
+    warp_y = math.cos(y * 0.004 + seed * 0.47) * 12.0
+    wx = x + warp_x
+    wy = y + warp_y
+
+    fx = wx * 0.008 + seed * 0.13
+    fy = wy * 0.008 + seed * 0.29
+
+    # Multi-octave ridged noise accumulation: (1 - |noise|)^2
+    n1 = 1.0 - abs(math.sin(fx * 1.0) * math.cos(fy * 1.0))
+    n2 = 1.0 - abs(math.sin(fx * 2.1 + 0.9) * math.cos(fy * 2.3 - 0.5))
+    n3 = 1.0 - abs(math.sin(fx * 4.4 - 1.7) * math.cos(fy * 4.2 + 1.1))
+    n4 = 1.0 - abs(math.sin(fx * 8.9 + 0.4) * math.cos(fy * 8.7 - 1.3))
+
+    ridged = (n1 * n1 * 4.0 + n2 * n2 * 2.2 + n3 * n3 * 1.2 + n4 * n4 * 0.6) - 3.2
+
+    # Attenuation factor: 0 on lowlands/coast, ramp up nonlinearly on mountain peaks
+    crag_weight = max(0.0, (base_elevation - 0.25) / 0.75) ** 1.35
+    return amplitude * ridge_roughness * ridged * crag_weight
+
+
+
 def build_island_mesh(
     gen: PolygonMapGenerator,
     width: int = 1000,
@@ -64,30 +96,56 @@ def build_island_mesh(
     elevation_alpha: float = 0.25,
     elev_scale: float = 70.0,
     normal_smooth_ratio: float = 0.70,
+    quad_fold: bool = True,
+    ridge_noise: float = 0.35,
+    erosion_strength: float = 0.30,
+    erosion_droplets: int = 15000,
 ) -> Tuple[List[Tuple], int]:
     """
     Builds and subdivides the island's 3D micropoly mesh according to the chosen mode.
+    Integrates:
+    1. Dynamic Quad-Fold Diagonal Picker (v0-v1 for convex ridges, d0-d1 for concave river ravines).
+    2. Fast Particle-based Hydraulic & Thermal Erosion Simulation.
+    3. Musgrave Ridged Multifractal Elevation Noise with Domain Warping.
     Returns: (triangles_list, total_poly_count)
     """
     scale_x = width / gen.width
     scale_y = height / gen.height
 
-    # 1. Red Blob corner elevation rule:
-    # v_elevation[v] = max + alpha * (max - min) of adjacent centers
+    # 1. Hydraulic & Thermal Erosion Simulation (if enabled)
+    center_deltas: Dict[int, float] = {}
+    corner_deltas: Dict[int, float] = {}
+    if erosion_strength > 0 and erosion_droplets > 0:
+        try:
+            from hydraulic_erosion import apply_erosion_to_polygon_mesh
+            center_deltas, corner_deltas = apply_erosion_to_polygon_mesh(
+                gen,
+                grid_size=192,
+                num_droplets=int(erosion_droplets),
+                carving_scale=erosion_strength,
+                thermal_iterations=2,
+            )
+        except Exception as e:
+            print(f"Warning: Erosion simulation skipped ({e})", file=sys.stderr)
+
+    # 2. Red Blob corner elevation rule:
+    # v_elevation[v] = max + alpha * (max - min) of adjacent centers + erosion delta
     v_elev = {}
     for cn in gen.corners:
         if cn.ocean or cn.coast:
             v_elev[cn.index] = 0.0
         else:
-            adj_elevs = [c.elevation for c in cn.touches if not c.water]
+            adj_elevs = [c.elevation + center_deltas.get(c.index, 0.0) for c in cn.touches if not c.water]
             if adj_elevs:
                 c_max = max(adj_elevs)
                 c_min = min(adj_elevs)
-                v_elev[cn.index] = c_max + elevation_alpha * (c_max - c_min)
+                base_el = c_max + elevation_alpha * (c_max - c_min)
             else:
-                v_elev[cn.index] = cn.elevation
+                base_el = cn.elevation
+            # Apply corner erosion delta
+            v_elev[cn.index] = max(0.0, base_el + corner_deltas.get(cn.index, 0.0))
 
-    # 2. Mode: Fractal Watertight Edge-Cached 2D+3D Subdivision (Default)
+    # Mode: Fractal Watertight Edge-Cached 2D+3D Subdivision (Default)
     if mode == "fractal":
         from collections import defaultdict
         vertices = []
@@ -120,16 +178,29 @@ def build_island_mesh(
             z_v0 = v_elev.get(v0.index, v0.elevation) * elev_scale
             z_v1 = v_elev.get(v1.index, v1.elevation) * elev_scale
 
+            el_d0 = max(0.0, d0.elevation + center_deltas.get(d0.index, 0.0))
+            el_d1 = max(0.0, d1.elevation + center_deltas.get(d1.index, 0.0))
+            z_d0 = el_d0 * elev_scale
+            z_d1 = el_d1 * elev_scale
+
             fbm_amp = elev_scale / 70.0
+            # FBM noise
             fbm_v0 = procedural_fbm_elevation(v0.x * scale_x, v0.y * scale_y, gen.seed, amplitude=fbm_amp)
             fbm_v1 = procedural_fbm_elevation(v1.x * scale_x, v1.y * scale_y, gen.seed, amplitude=fbm_amp)
             fbm_d0 = procedural_fbm_elevation(d0.x * scale_x, d0.y * scale_y, gen.seed, amplitude=fbm_amp)
             fbm_d1 = procedural_fbm_elevation(d1.x * scale_x, d1.y * scale_y, gen.seed, amplitude=fbm_amp)
 
-            p_v0 = np.array([v0.x * scale_x, v0.y * scale_y, z_v0 + fbm_v0], dtype=np.float64)
-            p_v1 = np.array([v1.x * scale_x, v1.y * scale_y, z_v1 + fbm_v1], dtype=np.float64)
-            p_d0 = np.array([d0.x * scale_x, d0.y * scale_y, d0.elevation * elev_scale + fbm_d0], dtype=np.float64)
-            p_d1 = np.array([d1.x * scale_x, d1.y * scale_y, d1.elevation * elev_scale + fbm_d1], dtype=np.float64)
+            # Musgrave ridged multifractal noise (elevation-weighted)
+            ridge_amp = elev_scale / 50.0
+            rdg_v0 = procedural_ridged_elevation(v0.x * scale_x, v0.y * scale_y, v0.elevation, gen.seed, amplitude=ridge_amp, ridge_roughness=ridge_noise)
+            rdg_v1 = procedural_ridged_elevation(v1.x * scale_x, v1.y * scale_y, v1.elevation, gen.seed, amplitude=ridge_amp, ridge_roughness=ridge_noise)
+            rdg_d0 = procedural_ridged_elevation(d0.x * scale_x, d0.y * scale_y, d0.elevation, gen.seed, amplitude=ridge_amp, ridge_roughness=ridge_noise)
+            rdg_d1 = procedural_ridged_elevation(d1.x * scale_x, d1.y * scale_y, d1.elevation, gen.seed, amplitude=ridge_amp, ridge_roughness=ridge_noise)
+
+            p_v0 = np.array([v0.x * scale_x, v0.y * scale_y, z_v0 + fbm_v0 + rdg_v0], dtype=np.float64)
+            p_v1 = np.array([v1.x * scale_x, v1.y * scale_y, z_v1 + fbm_v1 + rdg_v1], dtype=np.float64)
+            p_d0 = np.array([d0.x * scale_x, d0.y * scale_y, z_d0 + fbm_d0 + rdg_d0], dtype=np.float64)
+            p_d1 = np.array([d1.x * scale_x, d1.y * scale_y, z_d1 + fbm_d1 + rdg_d1], dtype=np.float64)
 
             idx_v0 = get_or_add_vertex(p_v0, is_fixed=(v0.ocean or v0.coast))
             idx_v1 = get_or_add_vertex(p_v1, is_fixed=(v1.ocean or v1.coast))
@@ -146,14 +217,25 @@ def build_island_mesh(
                 col0 = col0 * 0.75 + np.array([40, 105, 35], dtype=np.float64) * 0.25
                 col1 = col1 * 0.75 + np.array([40, 105, 35], dtype=np.float64) * 0.25
 
-            if edge.river > 0 or (d0.water != d1.water):
-                base_triangles.append((idx_v0, idx_d1, idx_d0, col0 if not d0.water else col1, (v0.elevation + d0.elevation) * 0.5, edge.river > 0))
-                base_triangles.append((idx_v1, idx_d0, idx_d1, col1 if not d1.water else col0, (v1.elevation + d1.elevation) * 0.5, edge.river > 0))
-            else:
+            # Dynamic Quad-Fold Diagonal Picker
+            # Ridge fold (across v0-v1) if corners are higher than centers or edge is watershed boundary.
+            # Valley fold (across d0-d1) if river edge or centers are higher than corners.
+            is_ridge = False
+            if quad_fold:
+                avg_v_elev = (v0.elevation + v1.elevation) * 0.5
+                avg_d_elev = (d0.elevation + d1.elevation) * 0.5
+                is_ridge = (avg_v_elev >= avg_d_elev) and (edge.river == 0) and not (d0.water != d1.water)
+
+            if is_ridge:
+                # Fold across v0-v1: forms knife-edge convex mountain ridge
                 if not d0.water:
                     base_triangles.append((idx_v0, idx_v1, idx_d0, col0, (v0.elevation + v1.elevation + d0.elevation) / 3.0, False))
                 if not d1.water:
                     base_triangles.append((idx_v1, idx_v0, idx_d1, col1, (v0.elevation + v1.elevation + d1.elevation) / 3.0, False))
+            else:
+                # Fold across d0-d1: forms concave V-shaped river ravine
+                base_triangles.append((idx_v0, idx_d1, idx_d0, col0 if not d0.water else col1, (v0.elevation + d0.elevation) * 0.5, edge.river > 0))
+                base_triangles.append((idx_v1, idx_d0, idx_d1, col1 if not d1.water else col0, (v1.elevation + d1.elevation) * 0.5, edge.river > 0))
 
         vertex_colors = {}
         for idx_a, idx_b, idx_c, col, el, riv in base_triangles:
@@ -188,7 +270,9 @@ def build_island_mesh(
                 mid[1] += n_perp[1] * disp_lat + (e_xy[1] / length) * disp_long
 
                 fbm_val = procedural_fbm_elevation(mid[0], mid[1], gen.seed, amplitude=fbm_amp) * (decay * 0.4)
-                disp_z = rng.uniform(-0.5, 0.5) * roughness * (length / 35.0) * decay + fbm_val
+                mid_elev_approx = (pa[2] + pb[2]) / (2.0 * max(1.0, elev_scale))
+                rdg_val = procedural_ridged_elevation(mid[0], mid[1], mid_elev_approx, gen.seed, amplitude=ridge_amp, ridge_roughness=ridge_noise) * (decay * 0.5)
+                disp_z = rng.uniform(-0.5, 0.5) * roughness * (length / 35.0) * decay + fbm_val + rdg_val
                 mid[2] += disp_z
 
             idx_mid = len(vertices)
@@ -728,11 +812,17 @@ def main():
     parser.add_argument("--lateral-jitter", "-j", type=float, default=0.22, help="2D lateral displacement ratio perpendicular to edges (dissolves straight polygon seams)")
     parser.add_argument("--normal-smooth", type=float, default=0.70, help="Ratio of smoothed vertex normals to micro-facet normals (eliminates stair-step shading)")
     parser.add_argument("--alpha", "-a", type=float, default=0.25, help="Red Blob corner ridge elevation boost alpha")
+    parser.add_argument("--quad-fold", dest="quad_fold", action="store_true", default=True, help="Enable dynamic quad folding (v0-v1 for ridges, d0-d1 for river ravines)")
+    parser.add_argument("--no-quad-fold", dest="quad_fold", action="store_false", help="Disable dynamic quad folding")
+    parser.add_argument("--ridge-noise", type=float, default=0.35, help="Musgrave ridged multifractal roughness factor (0.0 to 1.0)")
+    parser.add_argument("--erosion-strength", type=float, default=0.30, help="Hydraulic erosion bedrock carving scale (0.0 to 1.0)")
+    parser.add_argument("--erosion-droplets", type=int, default=15000, help="Number of hydraulic erosion simulation particles")
     parser.add_argument("--seed", "-s", type=int, default=777, help="Random seed for map generator")
     parser.add_argument("--points", "-n", type=int, default=1000, help="Number of Voronoi seed points")
     parser.add_argument("--size", type=int, default=1000, help="Render resolution in pixels (width=height)")
     parser.add_argument("--output", "-o", type=str, default="island_output.png", help="Output PNG file path")
     parser.add_argument("--usdz", type=str, default="", help="Optional output path to export 3D wireframe model (.usdz)")
+    parser.add_argument("--wire-width", type=float, default=0.8, help="Strut width for 3D wireframe export")
     parser.add_argument("--window", "--gui", action="store_true", help="Launch interactive graphical Mapgen2 GUI explorer")
 
     args = parser.parse_args()
@@ -756,9 +846,12 @@ def main():
     print(f"  • Lateral Jitter  : {args.lateral_jitter}")
     print(f"  • Normal Smooth   : {args.normal_smooth}")
     print(f"  • Ridge Alpha (α) : {args.alpha}")
+    print(f"  • Quad-Folding    : {'ON (Adaptive)' if args.quad_fold else 'OFF'}")
+    print(f"  • Ridge Noise     : {args.ridge_noise}")
+    print(f"  • Erosion Strength: {args.erosion_strength} ({args.erosion_droplets:,} drops)")
     print(f"  • Resolution      : {args.size} x {args.size}")
     if args.usdz:
-        print(f"  • USDZ Wireframe  : {args.usdz} (width: {args.wire_width})")
+        print(f"  • USDZ Wireframe  : {args.usdz}")
     print(f"--------------------------------------------------------")
 
     t_start = time.time()
@@ -788,6 +881,10 @@ def main():
         normal_smooth_ratio=args.normal_smooth,
         elevation_alpha=args.alpha,
         elev_scale=args.height_scale,
+        quad_fold=args.quad_fold,
+        ridge_noise=args.ridge_noise,
+        erosion_strength=args.erosion_strength,
+        erosion_droplets=args.erosion_droplets,
     )
     t_subdiv = time.time()
 

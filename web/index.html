@@ -462,6 +462,46 @@
       </div>
     </div>
 
+    <!-- Geology, Mountain Ridges & Erosion -->
+    <div class="card">
+      <div class="section-title" style="padding-left: 0; color: var(--accent);">Geology, Ridges & Erosion</div>
+
+      <div style="margin-bottom: 8px;">
+        <div class="slider-header" style="margin-bottom: 6px;">
+          <span>Quad Folding (Amit Patel)</span>
+          <span class="slider-val" id="val-quad-fold">Ridge/Valley</span>
+        </div>
+        <div class="segment-bar" id="quad-fold-bar" style="grid-template-columns: repeat(2, 1fr);">
+          <button class="btn-segment active" data-fold="true">Auto Fold (Ridge/Valley)</button>
+          <button class="btn-segment" data-fold="false">Uniform Fold</button>
+        </div>
+      </div>
+
+      <div class="slider-row">
+        <div class="slider-header">
+          <span>Ridge Roughness (Musgrave)</span>
+          <span class="slider-val" id="val-ridge-noise">0.35</span>
+        </div>
+        <input type="range" id="slider-ridge-noise" min="0.00" max="1.00" step="0.05" value="0.35">
+      </div>
+
+      <div class="slider-row">
+        <div class="slider-header">
+          <span>Erosion Carving Depth</span>
+          <span class="slider-val" id="val-erosion-strength">0.30</span>
+        </div>
+        <input type="range" id="slider-erosion-strength" min="0.00" max="1.00" step="0.05" value="0.30">
+      </div>
+
+      <div class="slider-row">
+        <div class="slider-header">
+          <span>Erosion Droplet Density</span>
+          <span class="slider-val" id="val-erosion-droplets">15,000</span>
+        </div>
+        <input type="range" id="slider-erosion-droplets" min="0" max="30000" step="2000" value="15000">
+      </div>
+    </div>
+
     <!-- World & Voronoi Knobs -->
     <div class="card">
       <div class="section-title" style="padding-left: 0; color: var(--accent);">Base Dual-Mesh Topology</div>
@@ -521,6 +561,10 @@
       north_temp: 0.00,
       south_temp: 0.00,
       persistence: 0.00,
+      quad_fold: true,
+      ridge_noise: 0.35,
+      erosion_strength: 0.30,
+      erosion_droplets: 15000,
       size: 720
     };
 
@@ -639,6 +683,21 @@
     bindSlider('slider-roughness', 'roughness', 'val-roughness', v => parseFloat(v).toFixed(1));
     bindSlider('slider-jitter', 'jitter', 'val-jitter', v => parseFloat(v).toFixed(2));
     bindSlider('slider-smooth', 'smooth', 'val-smooth', v => parseFloat(v).toFixed(2));
+    bindSlider('slider-ridge-noise', 'ridge_noise', 'val-ridge-noise', v => parseFloat(v).toFixed(2));
+    bindSlider('slider-erosion-strength', 'erosion_strength', 'val-erosion-strength', v => parseFloat(v).toFixed(2));
+    bindSlider('slider-erosion-droplets', 'erosion_droplets', 'val-erosion-droplets', v => Number(v).toLocaleString());
+
+    // Segmented Buttons (Quad-Fold)
+    document.querySelectorAll('#quad-fold-bar .btn-segment').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('#quad-fold-bar .btn-segment').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        state.quad_fold = (btn.dataset.fold === 'true');
+        document.getElementById('val-quad-fold').textContent = state.quad_fold ? 'Ridge/Valley' : 'Uniform';
+        triggerUpdate(true);
+      });
+    });
+
     bindSlider('slider-points', 'points', 'val-points', v => {
       document.querySelectorAll('#region-preset-bar .btn-segment').forEach(b => {
         b.classList.toggle('active', parseInt(b.dataset.points) === Math.round(v));

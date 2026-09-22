@@ -103,6 +103,10 @@ def get_cached_micropolys(
     height_scale: float,
     smooth: float,
     size: int,
+    quad_fold: bool = True,
+    ridge_noise: float = 0.35,
+    erosion_strength: float = 0.30,
+    erosion_droplets: int = 15000,
 ) -> Tuple[List[Tuple], int]:
     mesh_key = (
         graph_key,
@@ -112,6 +116,10 @@ def get_cached_micropolys(
         round(alpha, 2),
         round(height_scale, 1),
         round(smooth, 2),
+        quad_fold,
+        round(ridge_noise, 2),
+        round(erosion_strength, 2),
+        int(erosion_droplets),
     )
     if mesh_key in MESH_CACHE:
         return MESH_CACHE[mesh_key]
@@ -127,6 +135,10 @@ def get_cached_micropolys(
         elevation_alpha=alpha,
         elev_scale=height_scale,
         normal_smooth_ratio=smooth,
+        quad_fold=quad_fold,
+        ridge_noise=ridge_noise,
+        erosion_strength=erosion_strength,
+        erosion_droplets=erosion_droplets,
     )
 
     if len(MESH_CACHE) >= MAX_CACHE_ENTRIES:
@@ -208,6 +220,10 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
         north_temp = float(q.get("north_temp", [0.0])[0])
         south_temp = float(q.get("south_temp", [0.0])[0])
         persistence = float(q.get("persistence", [0.0])[0])
+        quad_fold = q.get("quad_fold", ["true"])[0].lower() in ("true", "1", "yes")
+        ridge_noise = float(q.get("ridge_noise", [0.35])[0])
+        erosion_strength = float(q.get("erosion_strength", [0.30])[0])
+        erosion_droplets = int(q.get("erosion_droplets", [15000])[0])
         size = int(q.get("size", [720])[0])
 
         graph_key = (
@@ -238,7 +254,19 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
         # Render chosen view mode
         if mode == "micropolys":
             triangles, _ = get_cached_micropolys(
-                gen, graph_key, polys, roughness, jitter, alpha, height_scale, smooth, size
+                gen,
+                graph_key,
+                polys,
+                roughness,
+                jitter,
+                alpha,
+                height_scale,
+                smooth,
+                size,
+                quad_fold=quad_fold,
+                ridge_noise=ridge_noise,
+                erosion_strength=erosion_strength,
+                erosion_droplets=erosion_droplets,
             )
             surf = render_mesh(gen, triangles, width=size, height=size)
 
@@ -399,6 +427,10 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
         north_temp = float(q.get("north_temp", [0.0])[0])
         south_temp = float(q.get("south_temp", [0.0])[0])
         persistence = float(q.get("persistence", [0.0])[0])
+        quad_fold = q.get("quad_fold", ["true"])[0].lower() in ("true", "1", "yes")
+        ridge_noise = float(q.get("ridge_noise", [0.35])[0])
+        erosion_strength = float(q.get("erosion_strength", [0.30])[0])
+        erosion_droplets = int(q.get("erosion_droplets", [15000])[0])
         size = 1000
 
         graph_key = (
@@ -426,7 +458,19 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
             size=size,
         )
         triangles, _ = get_cached_micropolys(
-            gen, graph_key, polys, roughness, jitter, alpha, height_scale, smooth, size
+            gen,
+            graph_key,
+            polys,
+            roughness,
+            jitter,
+            alpha,
+            height_scale,
+            smooth,
+            size,
+            quad_fold=quad_fold,
+            ridge_noise=ridge_noise,
+            erosion_strength=erosion_strength,
+            erosion_droplets=erosion_droplets,
         )
 
         tmp_out = f"/tmp/island_web_{seed}_{os.getpid()}.usdz"
