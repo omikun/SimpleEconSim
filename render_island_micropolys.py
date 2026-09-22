@@ -40,6 +40,18 @@ sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 from polygon_map import PolygonMapGenerator, BIOME_COLORS
 
 
+def procedural_fbm_elevation(x, y, seed=42):
+    """Continuous multi-scale procedural elevation noise to break piecewise planar ramps."""
+    fx = x * 0.006 + seed * 0.17
+    fy = y * 0.006 + seed * 0.23
+    return (
+        (math.sin(fx * 1.0) * math.cos(fy * 1.0)) * 18.0 +
+        (math.sin(fx * 2.3 + 1.2) * math.cos(fy * 2.1 - 0.7)) * 10.0 +
+        (math.sin(fx * 4.7 - 2.1) * math.cos(fy * 4.9 + 1.4)) * 5.0 +
+        (math.sin(fx * 9.3 + 0.5) * math.cos(fy * 9.1 - 1.9)) * 2.5
+    )
+
+
 def build_island_mesh(
     gen: PolygonMapGenerator,
     width: int = 1000,
@@ -47,10 +59,11 @@ def build_island_mesh(
     mode: str = "fractal",
     target_polys: int = 16000,
     subdivision_depth: int = 1,
-    roughness: float = 8.0,
-    lateral_jitter: float = 0.20,
+    roughness: float = 12.0,
+    lateral_jitter: float = 0.22,
     elevation_alpha: float = 0.25,
     elev_scale: float = 320.0,
+    normal_smooth_ratio: float = 0.70,
 ) -> Tuple[List[Tuple], int]:
     """
     Builds and subdivides the island's 3D micropoly mesh according to the chosen mode.
@@ -76,16 +89,22 @@ def build_island_mesh(
 
     # 2. Mode: Fractal Watertight Edge-Cached 2D+3D Subdivision (Default)
     if mode == "fractal":
+        from collections import defaultdict
         vertices = []
         vertex_map = {}
+        is_boundary_vertex = {}
 
-        def get_or_add_vertex(pt3d):
+        def get_or_add_vertex(pt3d, is_fixed=False):
             key = (round(float(pt3d[0]), 1), round(float(pt3d[1]), 1))
             if key in vertex_map:
-                return vertex_map[key]
+                idx = vertex_map[key]
+                if is_fixed:
+                    is_boundary_vertex[idx] = True
+                return idx
             idx = len(vertices)
             vertices.append(np.array(pt3d, dtype=np.float64))
             vertex_map[key] = idx
+            is_boundary_vertex[idx] = is_fixed
             return idx
 
         base_triangles = []
@@ -101,15 +120,20 @@ def build_island_mesh(
             z_v0 = v_elev.get(v0.index, v0.elevation) * elev_scale
             z_v1 = v_elev.get(v1.index, v1.elevation) * elev_scale
 
-            p_v0 = np.array([v0.x * scale_x, v0.y * scale_y, z_v0], dtype=np.float64)
-            p_v1 = np.array([v1.x * scale_x, v1.y * scale_y, z_v1], dtype=np.float64)
-            p_d0 = np.array([d0.x * scale_x, d0.y * scale_y, d0.elevation * elev_scale], dtype=np.float64)
-            p_d1 = np.array([d1.x * scale_x, d1.y * scale_y, d1.elevation * elev_scale], dtype=np.float64)
+            fbm_v0 = procedural_fbm_elevation(v0.x * scale_x, v0.y * scale_y, gen.seed)
+            fbm_v1 = procedural_fbm_elevation(v1.x * scale_x, v1.y * scale_y, gen.seed)
+            fbm_d0 = procedural_fbm_elevation(d0.x * scale_x, d0.y * scale_y, gen.seed)
+            fbm_d1 = procedural_fbm_elevation(d1.x * scale_x, d1.y * scale_y, gen.seed)
 
-            idx_v0 = get_or_add_vertex(p_v0)
-            idx_v1 = get_or_add_vertex(p_v1)
-            idx_d0 = get_or_add_vertex(p_d0)
-            idx_d1 = get_or_add_vertex(p_d1)
+            p_v0 = np.array([v0.x * scale_x, v0.y * scale_y, z_v0 + fbm_v0], dtype=np.float64)
+            p_v1 = np.array([v1.x * scale_x, v1.y * scale_y, z_v1 + fbm_v1], dtype=np.float64)
+            p_d0 = np.array([d0.x * scale_x, d0.y * scale_y, d0.elevation * elev_scale + fbm_d0], dtype=np.float64)
+            p_d1 = np.array([d1.x * scale_x, d1.y * scale_y, d1.elevation * elev_scale + fbm_d1], dtype=np.float64)
+
+            idx_v0 = get_or_add_vertex(p_v0, is_fixed=(v0.ocean or v0.coast))
+            idx_v1 = get_or_add_vertex(p_v1, is_fixed=(v1.ocean or v1.coast))
+            idx_d0 = get_or_add_vertex(p_d0, is_fixed=(d0.ocean or d0.coast))
+            idx_d1 = get_or_add_vertex(p_d1, is_fixed=(d1.ocean or d1.coast))
 
             col0 = np.array(BIOME_COLORS.get(d0.biome, (120, 160, 100)), dtype=np.float64)
             col1 = np.array(BIOME_COLORS.get(d1.biome, (120, 160, 100)), dtype=np.float64)
@@ -140,7 +164,7 @@ def build_island_mesh(
 
         triangles_idx = list(base_triangles)
         edge_midpoints = {}
-        rng = np.random.RandomState(42)
+        rng = np.random.RandomState(gen.seed)
 
         def get_midpoint(i_a, i_b, depth):
             edge_key = (min(i_a, i_b), max(i_a, i_b))
@@ -155,18 +179,20 @@ def build_island_mesh(
 
             if length > 1.5:
                 n_perp = np.array([-e_xy[1], e_xy[0]], dtype=np.float64) / length
-                decay = 0.65 ** depth
+                decay = 0.70 ** depth
                 disp_lat = rng.uniform(-lateral_jitter, lateral_jitter) * length * decay
-                disp_long = rng.uniform(-0.08, 0.08) * length * decay
+                disp_long = rng.uniform(-0.10, 0.10) * length * decay
 
                 mid[0] += n_perp[0] * disp_lat + (e_xy[0] / length) * disp_long
                 mid[1] += n_perp[1] * disp_lat + (e_xy[1] / length) * disp_long
 
-                disp_z = rng.uniform(-0.5, 0.5) * roughness * (length / 40.0) * decay
+                fbm_val = procedural_fbm_elevation(mid[0], mid[1], gen.seed) * (decay * 0.4)
+                disp_z = rng.uniform(-0.5, 0.5) * roughness * (length / 35.0) * decay + fbm_val
                 mid[2] += disp_z
 
             idx_mid = len(vertices)
             vertices.append(mid)
+            is_boundary_vertex[idx_mid] = is_boundary_vertex.get(i_a, False) and is_boundary_vertex.get(i_b, False)
 
             c_a = vertex_colors.get(i_a, np.array([120, 160, 100], dtype=np.float64))
             c_b = vertex_colors.get(i_b, np.array([120, 160, 100], dtype=np.float64))
@@ -200,19 +226,83 @@ def build_island_mesh(
                 new_triangles.append((m_ab, m_bc, m_ca, col, el, riv))
 
             triangles_idx = new_triangles
+
+            # Multi-level vertex relaxation on previous-level vertices
+            adj_map = defaultdict(set)
+            for i_a, i_b, i_c, _, _, _ in triangles_idx:
+                adj_map[i_a].add(i_b)
+                adj_map[i_a].add(i_c)
+                adj_map[i_b].add(i_a)
+                adj_map[i_b].add(i_c)
+                adj_map[i_c].add(i_a)
+                adj_map[i_c].add(i_b)
+
+            relax_weight = 0.20 * (0.75 ** depth)
+            for v_idx in list(adj_map.keys()):
+                if is_boundary_vertex.get(v_idx, False):
+                    continue
+                neighbors = list(adj_map[v_idx])
+                if len(neighbors) >= 3:
+                    neighbor_mean = np.mean([vertices[n] for n in neighbors], axis=0)
+                    vertices[v_idx][:2] = (1.0 - relax_weight) * vertices[v_idx][:2] + relax_weight * neighbor_mean[:2]
+                    vertices[v_idx][2] = (1.0 - relax_weight * 1.5) * vertices[v_idx][2] + (relax_weight * 1.5) * neighbor_mean[2]
+                    vertices[v_idx][2] += rng.uniform(-0.5, 0.5) * (roughness * 0.15 * (0.65 ** depth))
+
             depth += 1
             if len(triangles_idx) >= target_polys or num_to_split == 0:
                 break
 
-        # Unpack indices into (pa, pb, pc, col, avg_elev, is_riv, area)
-        final_triangles = []
-        for i_a, i_b, i_c, col_base, avg_elev, is_riv in triangles_idx:
+        # Area-weighted vertex normals computation
+        vertex_normals = [np.array([0.0, 0.0, 0.0], dtype=np.float64) for _ in range(len(vertices))]
+        triangle_face_normals = []
+
+        for i_a, i_b, i_c, _, _, _ in triangles_idx:
             pa = vertices[i_a]
             pb = vertices[i_b]
             pc = vertices[i_c]
+
+            va = pb - pa
+            vb = pc - pa
+            norm = np.cross(va, vb)
+            area = float(np.linalg.norm(norm) * 0.5)
+            if norm[2] < 0:
+                norm = -norm
+            norm_unit = norm / (area * 2.0) if area > 1e-6 else np.array([0.0, 0.0, 1.0])
+            triangle_face_normals.append(norm_unit)
+            vertex_normals[i_a] += norm_unit * area
+            vertex_normals[i_b] += norm_unit * area
+            vertex_normals[i_c] += norm_unit * area
+
+        for i in range(len(vertex_normals)):
+            vn_len = float(np.linalg.norm(vertex_normals[i]))
+            if vn_len > 1e-6:
+                vertex_normals[i] /= vn_len
+            else:
+                vertex_normals[i] = np.array([0.0, 0.0, 1.0])
+
+        # Unpack indices into (pa, pb, pc, col, avg_elev, is_riv, area, blended_norm)
+        final_triangles = []
+        for tri_idx, (i_a, i_b, i_c, col_base, avg_elev, is_riv) in enumerate(triangles_idx):
+            pa = vertices[i_a]
+            pb = vertices[i_b]
+            pc = vertices[i_c]
+
+            face_norm = triangle_face_normals[tri_idx]
+            avg_vert_norm = (vertex_normals[i_a] + vertex_normals[i_b] + vertex_normals[i_c]) / 3.0
+            vn_len = float(np.linalg.norm(avg_vert_norm))
+            if vn_len > 1e-6:
+                avg_vert_norm /= vn_len
+            else:
+                avg_vert_norm = face_norm
+
+            blended_norm = avg_vert_norm * normal_smooth_ratio + face_norm * (1.0 - normal_smooth_ratio)
+            bn_len = float(np.linalg.norm(blended_norm))
+            if bn_len > 1e-6:
+                blended_norm /= bn_len
+
             col = (vertex_colors.get(i_a, col_base) + vertex_colors.get(i_b, col_base) + vertex_colors.get(i_c, col_base)) / 3.0
             area = 0.5 * abs((pb[0] - pa[0]) * (pc[1] - pa[1]) - (pc[0] - pa[0]) * (pb[1] - pa[1]))
-            final_triangles.append((pa, pb, pc, col, avg_elev, is_riv, area))
+            final_triangles.append((pa, pb, pc, col, avg_elev, is_riv, area, blended_norm))
 
         return final_triangles, len(final_triangles)
 
@@ -405,17 +495,18 @@ def render_mesh(
     L_fill = np.array([0.45, -0.65, 0.60], dtype=np.float64)
     L_fill /= np.linalg.norm(L_fill)
 
-    for (pa, pb, pc, col_base, avg_elev, is_riv, _) in triangles:
-        va = pb - pa
-        vb = pc - pa
-        norm = np.cross(va, vb)
-        if norm[2] < 0:
-            norm = -norm
-        n_len = np.linalg.norm(norm)
-        if n_len > 1e-6:
-            norm /= n_len
+    for tri in triangles:
+        if len(tri) == 8:
+            pa, pb, pc, col_base, avg_elev, is_riv, _, norm = tri
         else:
-            norm = np.array([0.0, 0.0, 1.0], dtype=np.float64)
+            pa, pb, pc, col_base, avg_elev, is_riv, _ = tri
+            va = pb - pa
+            vb = pc - pa
+            norm = np.cross(va, vb)
+            if norm[2] < 0:
+                norm = -norm
+            n_len = np.linalg.norm(norm)
+            norm = norm / n_len if n_len > 1e-6 else np.array([0.0, 0.0, 1.0], dtype=np.float64)
 
         # Multi-light illumination
         NdotL_sun = max(0.0, float(np.dot(norm, L_sun)))
@@ -450,23 +541,28 @@ def render_mesh(
             min(248, max(0, int(shaded_rgb[2]))),
         )
 
-        pts2d = [(int(pa[0]), int(pa[1])), (int(pb[0]), int(pb[1])), (int(pc[0]), int(pc[1]))]
+        pts2d = [
+            (int(pa[0]), int(pa[1])),
+            (int(pb[0]), int(pb[1])),
+            (int(pc[0]), int(pc[1])),
+        ]
         if len(pts2d) >= 3:
             pygame.draw.polygon(surface, final_rgb, pts2d)
 
-    # Rivers on top
-    for edge in gen.edges:
-        if edge.river > 0 and edge.v0 and edge.v1:
-            r_w = max(1, min(6, int(math.sqrt(edge.river) * 1.5)))
-            p0 = (int(edge.v0.x * scale_x), int(edge.v0.y * scale_y))
-            p1 = (int(edge.v1.x * scale_x), int(edge.v1.y * scale_y))
-            pygame.draw.line(surface, (45, 95, 145), p0, p1, r_w)
+    # Rivers along noisy paths
+    for e in gen.edges:
+        if e.river > 0 and gen.noisy_edges:
+            pts = gen.noisy_edges.get_edge_path(e, start_corner=e.v0)
+            if len(pts) >= 2:
+                r_pts = [(int(pt[0] * scale_x), int(pt[1] * scale_y)) for pt in pts]
+                w = min(5, max(2, int(1 + math.sqrt(e.river))))
+                pygame.draw.lines(surface, (28, 75, 135), False, r_pts, width=w)
 
-    # Volcanic Lava fissures on top
-    for edge in gen.edges:
-        if getattr(edge, "lava", False) and edge.v0 and edge.v1:
-            p0 = (int(edge.v0.x * scale_x), int(edge.v0.y * scale_y))
-            p1 = (int(edge.v1.x * scale_x), int(edge.v1.y * scale_y))
+    # Volcanic lava fissures
+    for e in gen.edges:
+        if getattr(e, 'lava', False):
+            p0 = (int(e.v0.x * scale_x), int(e.v0.y * scale_y))
+            p1 = (int(e.v1.x * scale_x), int(e.v1.y * scale_y))
             pygame.draw.line(surface, (255, 60, 0), p0, p1, 4)
             pygame.draw.line(surface, (255, 210, 50), p0, p1, 2)
 
@@ -488,8 +584,9 @@ def main():
         help="Subdivision algorithm: 'fractal' (watertight 2D+3D edge-cached), 'adaptive' (1-to-4 area-priority), 'depth' (uniform 1-to-4), 'spokes' (radial fan), 'redblob' (2-way ridge/valley fold)",
     )
     parser.add_argument("--depth", "-d", type=int, default=1, help="Subdivision depth for 'depth' mode (each level quadruples poly count)")
-    parser.add_argument("--roughness", "-r", type=float, default=8.0, help="Fractal midpoint displacement height roughness")
-    parser.add_argument("--lateral-jitter", "-j", type=float, default=0.20, help="2D lateral displacement ratio perpendicular to edges (dissolves straight polygon seams)")
+    parser.add_argument("--roughness", "-r", type=float, default=12.0, help="Fractal midpoint displacement height roughness")
+    parser.add_argument("--lateral-jitter", "-j", type=float, default=0.22, help="2D lateral displacement ratio perpendicular to edges (dissolves straight polygon seams)")
+    parser.add_argument("--normal-smooth", type=float, default=0.70, help="Ratio of smoothed vertex normals to micro-facet normals (eliminates stair-step shading)")
     parser.add_argument("--alpha", "-a", type=float, default=0.25, help="Red Blob corner ridge elevation boost alpha")
     parser.add_argument("--seed", "-s", type=int, default=777, help="Random seed for map generator")
     parser.add_argument("--points", "-n", type=int, default=1000, help="Number of Voronoi seed points")
@@ -508,6 +605,7 @@ def main():
     print(f"  • Voronoi Points  : {args.points}")
     print(f"  • Roughness       : {args.roughness}")
     print(f"  • Lateral Jitter  : {args.lateral_jitter}")
+    print(f"  • Normal Smooth   : {args.normal_smooth}")
     print(f"  • Ridge Alpha (α) : {args.alpha}")
     print(f"  • Resolution      : {args.size} x {args.size}")
     print(f"--------------------------------------------------------")
@@ -535,6 +633,7 @@ def main():
         subdivision_depth=args.depth,
         roughness=args.roughness,
         lateral_jitter=args.lateral_jitter,
+        normal_smooth_ratio=args.normal_smooth,
         elevation_alpha=args.alpha,
     )
     t_subdiv = time.time()

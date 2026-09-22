@@ -602,6 +602,17 @@ class PolygonMapGenerator:
             r = max(r1, r2)
             return dist < (0.50 + 0.25 * r)
 
+    def _continuous_elevation_noise(self, x: float, y: float) -> float:
+        """Continuous multi-scale sinusoidal fBm elevation perturbation to smooth stair-step transitions."""
+        fx = x * 0.006 + self.seed * 0.17
+        fy = y * 0.006 + self.seed * 0.23
+        return (
+            (math.sin(fx * 1.0) * math.cos(fy * 1.0)) * 18.0 +
+            (math.sin(fx * 2.3 + 1.2) * math.cos(fy * 2.1 - 0.7)) * 10.0 +
+            (math.sin(fx * 4.7 - 2.1) * math.cos(fy * 4.9 + 1.4)) * 5.0 +
+            (math.sin(fx * 9.3 + 0.5) * math.cos(fy * 9.1 - 1.9)) * 2.5
+        )
+
     def _assign_ocean_land(self) -> None:
         """Assign land vs water to corners and flood-fill to determine ocean vs lakes."""
         # 1. Corner land/water
@@ -1193,6 +1204,7 @@ class PolygonMapGenerator:
         target_micropolys: int = 16000,
         micropoly_roughness: float = 8.0,
         micropoly_lateral_jitter: float = 0.20,
+        normal_smooth_ratio: float = 0.70,
     ) -> Any:
         """Render the polygonal map with shaded relief, noisy paths, rivers, lava, and roads onto a Pygame surface."""
         import pygame
@@ -1287,16 +1299,22 @@ class PolygonMapGenerator:
             snow_threshold = 0.82
 
             # Watertight Dual-Mesh Base Decomposition
+            from collections import defaultdict
             vertices: List[np.ndarray] = []
             vertex_map: Dict[Tuple[float, float], int] = {}
+            is_boundary_vertex: Dict[int, bool] = {}
 
-            def get_or_add_vertex(pt3d: np.ndarray) -> int:
+            def get_or_add_vertex(pt3d: np.ndarray, is_fixed: bool = False) -> int:
                 key = (round(float(pt3d[0]), 1), round(float(pt3d[1]), 1))
                 if key in vertex_map:
-                    return vertex_map[key]
+                    idx = vertex_map[key]
+                    if is_fixed:
+                        is_boundary_vertex[idx] = True
+                    return idx
                 idx = len(vertices)
                 vertices.append(np.array(pt3d, dtype=np.float64))
                 vertex_map[key] = idx
+                is_boundary_vertex[idx] = is_fixed
                 return idx
 
             base_triangles: List[Tuple[int, int, int, np.ndarray, float, bool]] = []
@@ -1312,15 +1330,21 @@ class PolygonMapGenerator:
                 z_v0 = v_elev.get(v0.index, v0.elevation) * elev_scale
                 z_v1 = v_elev.get(v1.index, v1.elevation) * elev_scale
 
-                p_v0 = np.array([v0.x * scale_x, v0.y * scale_y, z_v0], dtype=np.float64)
-                p_v1 = np.array([v1.x * scale_x, v1.y * scale_y, z_v1], dtype=np.float64)
-                p_d0 = np.array([d0.x * scale_x, d0.y * scale_y, d0.elevation * elev_scale], dtype=np.float64)
-                p_d1 = np.array([d1.x * scale_x, d1.y * scale_y, d1.elevation * elev_scale], dtype=np.float64)
+                # Continuous multi-scale elevation variation
+                fbm_v0 = self._continuous_elevation_noise(v0.x * scale_x, v0.y * scale_y)
+                fbm_v1 = self._continuous_elevation_noise(v1.x * scale_x, v1.y * scale_y)
+                fbm_d0 = self._continuous_elevation_noise(d0.x * scale_x, d0.y * scale_y)
+                fbm_d1 = self._continuous_elevation_noise(d1.x * scale_x, d1.y * scale_y)
 
-                idx_v0 = get_or_add_vertex(p_v0)
-                idx_v1 = get_or_add_vertex(p_v1)
-                idx_d0 = get_or_add_vertex(p_d0)
-                idx_d1 = get_or_add_vertex(p_d1)
+                p_v0 = np.array([v0.x * scale_x, v0.y * scale_y, z_v0 + fbm_v0], dtype=np.float64)
+                p_v1 = np.array([v1.x * scale_x, v1.y * scale_y, z_v1 + fbm_v1], dtype=np.float64)
+                p_d0 = np.array([d0.x * scale_x, d0.y * scale_y, d0.elevation * elev_scale + fbm_d0], dtype=np.float64)
+                p_d1 = np.array([d1.x * scale_x, d1.y * scale_y, d1.elevation * elev_scale + fbm_d1], dtype=np.float64)
+
+                idx_v0 = get_or_add_vertex(p_v0, is_fixed=(v0.ocean or v0.coast))
+                idx_v1 = get_or_add_vertex(p_v1, is_fixed=(v1.ocean or v1.coast))
+                idx_d0 = get_or_add_vertex(p_d0, is_fixed=(d0.ocean or d0.coast))
+                idx_d1 = get_or_add_vertex(p_d1, is_fixed=(d1.ocean or d1.coast))
 
                 col0 = np.array(BIOME_COLORS.get(d0.biome, (120, 160, 100)), dtype=np.float64)
                 col1 = np.array(BIOME_COLORS.get(d1.biome, (120, 160, 100)), dtype=np.float64)
@@ -1354,7 +1378,7 @@ class PolygonMapGenerator:
             # Edge-cached subdivision with lateral 2D and elevation 3D perturbation
             triangles = list(base_triangles)
             edge_midpoints: Dict[Tuple[int, int], int] = {}
-            rng = np.random.RandomState(42)
+            rng = np.random.RandomState(self.seed)
 
             def get_subdiv_midpoint(i_a: int, i_b: int, cur_depth: int) -> int:
                 edge_key = (min(i_a, i_b), max(i_a, i_b))
@@ -1370,18 +1394,20 @@ class PolygonMapGenerator:
 
                 if length > 1.5:
                     n_perp = np.array([-e_xy[1], e_xy[0]], dtype=np.float64) / length
-                    decay = 0.65 ** cur_depth
+                    decay = 0.70 ** cur_depth
                     disp_lat = rng.uniform(-micropoly_lateral_jitter, micropoly_lateral_jitter) * length * decay
-                    disp_long = rng.uniform(-0.08, 0.08) * length * decay
+                    disp_long = rng.uniform(-0.10, 0.10) * length * decay
 
                     mid[0] += n_perp[0] * disp_lat + (e_xy[0] / length) * disp_long
                     mid[1] += n_perp[1] * disp_lat + (e_xy[1] / length) * disp_long
 
-                    disp_z = rng.uniform(-0.5, 0.5) * micropoly_roughness * (length / 40.0) * decay
+                    fbm_val = self._continuous_elevation_noise(mid[0], mid[1]) * (decay * 0.4)
+                    disp_z = rng.uniform(-0.5, 0.5) * micropoly_roughness * (length / 35.0) * decay + fbm_val
                     mid[2] += disp_z
 
                 idx_mid = len(vertices)
                 vertices.append(mid)
+                is_boundary_vertex[idx_mid] = is_boundary_vertex.get(i_a, False) and is_boundary_vertex.get(i_b, False)
 
                 c_a = vertex_colors.get(i_a, np.array([120, 160, 100], dtype=np.float64))
                 c_b = vertex_colors.get(i_b, np.array([120, 160, 100], dtype=np.float64))
@@ -1415,36 +1441,88 @@ class PolygonMapGenerator:
                     new_triangles.append((m_ab, m_bc, m_ca, col, el, riv))
 
                 triangles = new_triangles
+
+                # Multi-level vertex relaxation: updates previous-level vertices so initial Voronoi shapes dissolve
+                adj_map: Dict[int, Set[int]] = defaultdict(set)
+                for i_a, i_b, i_c, _, _, _ in triangles:
+                    adj_map[i_a].add(i_b)
+                    adj_map[i_a].add(i_c)
+                    adj_map[i_b].add(i_a)
+                    adj_map[i_b].add(i_c)
+                    adj_map[i_c].add(i_a)
+                    adj_map[i_c].add(i_b)
+
+                relax_weight = 0.20 * (0.75 ** depth)
+                for v_idx in list(adj_map.keys()):
+                    if is_boundary_vertex.get(v_idx, False):
+                        continue
+                    neighbors = list(adj_map[v_idx])
+                    if len(neighbors) >= 3:
+                        neighbor_mean = np.mean([vertices[n] for n in neighbors], axis=0)
+                        vertices[v_idx][:2] = (1.0 - relax_weight) * vertices[v_idx][:2] + relax_weight * neighbor_mean[:2]
+                        vertices[v_idx][2] = (1.0 - relax_weight * 1.5) * vertices[v_idx][2] + (relax_weight * 1.5) * neighbor_mean[2]
+                        vertices[v_idx][2] += rng.uniform(-0.5, 0.5) * (micropoly_roughness * 0.15 * (0.65 ** depth))
+
                 depth += 1
                 if len(triangles) >= target_micropolys or num_to_split == 0:
                     break
 
-            # Rasterize all resulting micropolygons (watertight & organic)
-            for idx_a, idx_b, idx_c, col_base, avg_elev, is_riv in triangles:
-                pa = vertices[idx_a]
-                pb = vertices[idx_b]
-                pc = vertices[idx_c]
+            # Area-weighted vertex normals computation
+            vertex_normals = [np.array([0.0, 0.0, 0.0], dtype=np.float64) for _ in range(len(vertices))]
+            triangle_face_normals = []
+
+            for i_a, i_b, i_c, _, _, _ in triangles:
+                pa = vertices[i_a]
+                pb = vertices[i_b]
+                pc = vertices[i_c]
 
                 va = pb - pa
                 vb = pc - pa
                 norm = np.cross(va, vb)
+                area = float(np.linalg.norm(norm) * 0.5)
                 if norm[2] < 0:
                     norm = -norm
-                n_len = np.linalg.norm(norm)
-                if n_len > 1e-6:
-                    norm /= n_len
-                else:
-                    norm = np.array([0.0, 0.0, 1.0], dtype=np.float64)
+                norm_unit = norm / (area * 2.0) if area > 1e-6 else np.array([0.0, 0.0, 1.0])
+                triangle_face_normals.append(norm_unit)
+                vertex_normals[i_a] += norm_unit * area
+                vertex_normals[i_b] += norm_unit * area
+                vertex_normals[i_c] += norm_unit * area
 
-                NdotL_sun = max(0.0, float(np.dot(norm, L_sun)))
-                NdotL_fill = max(0.0, float(np.dot(norm, L_fill)))
+            for i in range(len(vertex_normals)):
+                vn_len = float(np.linalg.norm(vertex_normals[i]))
+                if vn_len > 1e-6:
+                    vertex_normals[i] /= vn_len
+                else:
+                    vertex_normals[i] = np.array([0.0, 0.0, 1.0])
+
+            # Rasterize all resulting micropolygons with blended normals (smooth hill shading + micro-facets)
+            for tri_idx, (idx_a, idx_b, idx_c, col_base, avg_elev, is_riv) in enumerate(triangles):
+                pa = vertices[idx_a]
+                pb = vertices[idx_b]
+                pc = vertices[idx_c]
+
+                face_norm = triangle_face_normals[tri_idx]
+                avg_vert_norm = (vertex_normals[idx_a] + vertex_normals[idx_b] + vertex_normals[idx_c]) / 3.0
+                vn_len = float(np.linalg.norm(avg_vert_norm))
+                if vn_len > 1e-6:
+                    avg_vert_norm /= vn_len
+                else:
+                    avg_vert_norm = face_norm
+
+                blended_norm = avg_vert_norm * normal_smooth_ratio + face_norm * (1.0 - normal_smooth_ratio)
+                bn_len = float(np.linalg.norm(blended_norm))
+                if bn_len > 1e-6:
+                    blended_norm /= bn_len
+
+                NdotL_sun = max(0.0, float(np.dot(blended_norm, L_sun)))
+                NdotL_fill = max(0.0, float(np.dot(blended_norm, L_fill)))
                 diffuse_sun = 0.44 * math.pow(NdotL_sun, 1.15)
                 diffuse_fill = 0.14 * NdotL_fill
-                ambient = 0.68 + 0.12 * (norm[2] - 0.7)
+                ambient = 0.68 + 0.12 * (blended_norm[2] - 0.7)
                 shade = ambient + diffuse_sun + diffuse_fill
 
                 col = (vertex_colors.get(idx_a, col_base) + vertex_colors.get(idx_b, col_base) + vertex_colors.get(idx_c, col_base)) / 3.0
-                slope_val = 1.0 - norm[2]
+                slope_val = 1.0 - blended_norm[2]
                 if slope_val > 0.14:
                     cliff_w = min(0.60, (slope_val - 0.14) / 0.22)
                     col = col * (1.0 - cliff_w) + np.array([66, 64, 71], dtype=np.float64) * cliff_w
