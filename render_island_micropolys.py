@@ -242,36 +242,10 @@ def build_island_mesh(
                 fbm_val = procedural_fbm_elevation(mid[0], mid[1], gen.seed, amplitude=elev_scale / 70.0) * (decay * 0.35)
                 mid_norm_elev = base_h / max(1.0, elev_scale)
                 rdg_val = procedural_ridged_elevation(mid[0], mid[1], mid_norm_elev, gen.seed, amplitude=elev_scale / 45.0, ridge_roughness=ridge_noise) * (decay * 0.5)
-                disp_z = rng.uniform(-0.25, 0.25) * roughness * (length / 30.0) * decay + fbm_val + rdg_val
-                mid[2] = 0.75 * base_h + 0.25 * mid[2] + disp_z
+                disp_z = rng.uniform(-0.35, 0.35) * roughness * (length / 24.0) + fbm_val + rdg_val
+                mid[2] = 0.70 * base_h + 0.30 * mid[2] + disp_z
                 if is_boundary_vertex.get(i_a, False) and is_boundary_vertex.get(i_b, False):
                     mid[2] = 0.0
-
-            idx_mid = len(vertices)
-            vertices.append(mid)
-            is_boundary_vertex[idx_mid] = is_boundary_vertex.get(i_a, False) and is_boundary_vertex.get(i_b, False)
-
-            c_a = vertex_colors.get(i_a, np.array([120, 160, 100], dtype=np.float64))
-            c_b = vertex_colors.get(i_b, np.array([120, 160, 100], dtype=np.float64))
-            vertex_colors[idx_mid] = (c_a + c_b) * 0.5
-
-            edge_midpoints[edge_key] = idx_mid
-            return idx_mid
-
-            if length > 1.5:
-                n_perp = np.array([-e_xy[1], e_xy[0]], dtype=np.float64) / length
-                decay = 0.70 ** depth
-                disp_lat = rng.uniform(-lateral_jitter, lateral_jitter) * length * decay
-                disp_long = rng.uniform(-0.10, 0.10) * length * decay
-
-                mid[0] += n_perp[0] * disp_lat + (e_xy[0] / length) * disp_long
-                mid[1] += n_perp[1] * disp_lat + (e_xy[1] / length) * disp_long
-
-                fbm_val = procedural_fbm_elevation(mid[0], mid[1], gen.seed, amplitude=fbm_amp) * (decay * 0.4)
-                mid_elev_approx = (pa[2] + pb[2]) / (2.0 * max(1.0, elev_scale))
-                rdg_val = procedural_ridged_elevation(mid[0], mid[1], mid_elev_approx, gen.seed, amplitude=ridge_amp, ridge_roughness=ridge_noise) * (decay * 0.5)
-                disp_z = rng.uniform(-0.5, 0.5) * roughness * (length / 35.0) * decay + fbm_val + rdg_val
-                mid[2] += disp_z
 
             idx_mid = len(vertices)
             vertices.append(mid)
@@ -557,6 +531,10 @@ def render_mesh(
     width: int = 1000,
     height: int = 1000,
     snow_threshold: float = 0.82,
+    sun_azimuth: float = -135.0,
+    sun_elevation: float = 42.0,
+    sun_intensity: float = 1.15,
+    ambient_intensity: float = 0.45,
 ) -> pygame.Surface:
     """Rasterizes the 3D micropoly mesh onto a Pygame surface with multi-light shading."""
     surface = pygame.Surface((width, height))
@@ -573,9 +551,16 @@ def render_mesh(
         if len(poly_pts) >= 3:
             pygame.draw.polygon(surface, (28, 48, 85), poly_pts)
 
-    # Multi-light setup (from Red Blob draw-3d.js)
-    L_sun = np.array([-0.55, -0.55, 0.70], dtype=np.float64)
-    L_sun /= np.linalg.norm(L_sun)
+    # Dynamic Sun vector from azimuth & elevation (matching ModernGL GPU pipeline)
+    az_rad = math.radians(sun_azimuth)
+    el_rad = math.radians(max(5.0, min(88.0, sun_elevation)))
+    sun_x = math.cos(el_rad) * math.cos(az_rad)
+    sun_y = math.cos(el_rad) * math.sin(az_rad)
+    sun_z = math.sin(el_rad)
+    L_sun = np.array([sun_x, sun_y, sun_z], dtype=np.float64)
+    L_sun /= (np.linalg.norm(L_sun) + 1e-6)
+
+    # Ambient sky fill light
     L_fill = np.array([0.45, -0.65, 0.60], dtype=np.float64)
     L_fill /= np.linalg.norm(L_fill)
 
@@ -592,12 +577,12 @@ def render_mesh(
             n_len = np.linalg.norm(norm)
             norm = norm / n_len if n_len > 1e-6 else np.array([0.0, 0.0, 1.0], dtype=np.float64)
 
-        # Multi-light illumination
+        # Multi-light illumination with configurable sun angle and intensities
         NdotL_sun = max(0.0, float(np.dot(norm, L_sun)))
         NdotL_fill = max(0.0, float(np.dot(norm, L_fill)))
-        diffuse_sun = 0.44 * math.pow(NdotL_sun, 1.15)
+        diffuse_sun = 0.44 * sun_intensity * math.pow(NdotL_sun, 1.05)
         diffuse_fill = 0.14 * NdotL_fill
-        ambient = 0.68 + 0.12 * (norm[2] - 0.7)
+        ambient = (0.65 + 0.15 * (norm[2] - 0.7)) * (ambient_intensity / 0.45)
         shade = ambient + diffuse_sun + diffuse_fill
 
         col = col_base.copy()

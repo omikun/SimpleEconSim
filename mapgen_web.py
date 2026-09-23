@@ -18,6 +18,8 @@ import json
 import urllib.parse
 from http.server import HTTPServer, ThreadingHTTPServer, BaseHTTPRequestHandler
 from typing import Dict, Tuple, Any, Optional, List
+import queue
+import threading
 
 os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
 os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
@@ -33,6 +35,112 @@ from render_island_micropolys import (
     render_mesh,
     export_island_wireframe_usdz,
 )
+
+# ---------------------------------------------------------------------------
+# Dedicated Thread-Affinity Worker for Headless ModernGL GPU Execution
+# ---------------------------------------------------------------------------
+GPU_TASK_QUEUE = queue.Queue()
+GPU_AVAILABLE = False
+_GPU_READY = threading.Event()
+
+
+def _gpu_worker_loop():
+    global GPU_AVAILABLE
+    pipe = None
+    try:
+        from render_engine.gpu.moderngl_pipeline import ModernGLTerrainPipeline
+        pipe = ModernGLTerrainPipeline()
+        if pipe.is_available():
+            GPU_AVAILABLE = True
+    except Exception as exc:
+        sys.stderr.write(f"GPU ModernGL worker initialization note: {exc}\n")
+    finally:
+        _GPU_READY.set()
+
+    while True:
+        task = GPU_TASK_QUEUE.get()
+        if task is None:
+            break
+        func, args, kwargs, reply_q = task
+        try:
+            if pipe is None or not GPU_AVAILABLE:
+                raise RuntimeError("ModernGL GPU pipeline is unavailable on this system")
+            res = func(pipe, *args, **kwargs)
+            reply_q.put((True, res))
+        except Exception as e:
+            reply_q.put((False, e))
+        finally:
+            GPU_TASK_QUEUE.task_done()
+
+
+_gpu_thread = threading.Thread(target=_gpu_worker_loop, daemon=True)
+_gpu_thread.start()
+
+
+def is_gpu_ready(timeout: float = 2.0) -> bool:
+    _GPU_READY.wait(timeout)
+    return GPU_AVAILABLE
+
+
+def run_on_gpu(func, *args, **kwargs):
+    is_gpu_ready()
+    reply_q = queue.Queue()
+    GPU_TASK_QUEUE.put((func, args, kwargs, reply_q))
+    ok, res = reply_q.get()
+    if ok:
+        return res
+    raise res
+
+
+def sample_polygon_map_to_tiles(gen: PolygonMapGenerator, rows: int = 15, cols: int = 15):
+    """Sample continuous polygon map geography onto a hex tile grid for the GPU shaders."""
+    from hexmap import rectangular_hex_layout, hex_bbox, axial_to_pixel
+    from worldview_camera import HEX_SIZE
+    from render_dev_viewer import MockTile
+
+    layout = rectangular_hex_layout(rows, cols)
+    hex_size = 48.0
+    coords = [axial_to_pixel(q, r, hex_size) for q, r in layout.values()]
+    min_x, max_x = min(p[0] for p in coords), max(p[0] for p in coords)
+    min_y, max_y = min(p[1] for p in coords), max(p[1] for p in coords)
+    span_x = max(1.0, max_x - min_x)
+    span_y = max(1.0, max_y - min_y)
+    margin = 70.0
+    target_span_x = gen.width - 2 * margin
+    target_span_y = gen.height - 2 * margin
+
+    tiles = []
+    for r in range(rows):
+        for c in range(cols):
+            name = f"r{r}c{c}"
+            q, ax_r = layout.get(name, (c, r))
+            px, py = axial_to_pixel(q, ax_r, hex_size)
+            mx = margin + ((px - min_x) / span_x) * target_span_x
+            my = margin + ((py - min_y) / span_y) * target_span_y
+            center = gen.get_center_at(mx, my)
+            tile = MockTile(name, r, c, q=q, r=ax_r)
+            tile.elevation = float(center.elevation if not center.water else -0.20)
+            tile.moisture = float(center.moisture)
+            tile.is_ocean = bool(center.ocean)
+            tile.biome = center.biome.lower()
+            tiles.append(tile)
+
+    bbox = hex_bbox(layout, HEX_SIZE)
+    return tiles, layout, bbox
+
+
+def _render_gpu_surface(pipe, gen: PolygonMapGenerator, width: int, height: int, uniforms: dict) -> pygame.Surface:
+    """Invoked inside dedicated GPU worker thread."""
+    tiles, layout, bbox = sample_polygon_map_to_tiles(gen)
+    return pipe.render_topographic_surface(
+        seed=gen.seed,
+        bbox=bbox,
+        tiles=tiles,
+        layout=layout,
+        width=width,
+        height=height,
+        uniforms=uniforms,
+    )
 
 # ---------------------------------------------------------------------------
 # Two-Tier In-Memory Cache for Instant Interactive Response
@@ -181,7 +289,7 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
 
         # 5. Health Check
         elif path == "/api/health":
-            self.send_json({"status": "ok", "cached_graphs": len(GRAPH_CACHE)})
+            self.send_json({"status": "ok", "cached_graphs": len(GRAPH_CACHE), "gpu_available": is_gpu_ready(0.2)})
 
         else:
             self.send_error(404, "Not Found")
@@ -206,6 +314,7 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
         t0 = time.time()
         seed = int(q.get("seed", [777])[0])
         shape = q.get("shape", ["radial"])[0]
+        engine = q.get("engine", ["gpu" if is_gpu_ready(0.2) else "cpu"])[0].lower()
         mode = q.get("mode", ["micropolys"])[0]
         points = int(q.get("points", [1000])[0])
         polys = int(q.get("polys", [16000])[0])
@@ -224,7 +333,15 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
         ridge_noise = float(q.get("ridge_noise", [0.35])[0])
         erosion_strength = float(q.get("erosion_strength", [0.30])[0])
         erosion_droplets = int(q.get("erosion_droplets", [15000])[0])
-        size = int(q.get("size", [720])[0])
+        size = int(q.get("size", [1024])[0])
+        size = max(256, min(4096, size))
+
+        # Dynamic lighting & sun angles
+        sun_azimuth = float(q.get("sun_azimuth", [-135.0])[0])
+        sun_elevation = float(q.get("sun_elevation", [42.0])[0])
+        sun_intensity = float(q.get("sun_intensity", [1.15])[0])
+        ambient_intensity = float(q.get("ambient_intensity", [0.45])[0])
+        mountain_roughness = float(q.get("mountain_roughness", [1.0])[0])
 
         graph_key = (
             seed,
@@ -251,24 +368,54 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
             size=size,
         )
 
-        # Render chosen view mode
-        if mode == "micropolys":
-            triangles, _ = get_cached_micropolys(
-                gen,
-                graph_key,
-                polys,
-                roughness,
-                jitter,
-                alpha,
-                height_scale,
-                smooth,
-                size,
-                quad_fold=quad_fold,
-                ridge_noise=ridge_noise,
-                erosion_strength=erosion_strength,
-                erosion_droplets=erosion_droplets,
-            )
-            surf = render_mesh(gen, triangles, width=size, height=size)
+        surf = None
+        used_engine = "cpu"
+
+        # 1. GPU Pipeline Execution (ModernGL photorealistic multi-pass shaders)
+        if (engine == "gpu" or mode == "gpu") and is_gpu_ready(0.2):
+            uniforms = {
+                "sun_azimuth": sun_azimuth,
+                "sun_elevation": sun_elevation,
+                "sun_intensity": sun_intensity,
+                "ambient_intensity": ambient_intensity,
+                "mountain_roughness": mountain_roughness,
+            }
+            try:
+                surf = run_on_gpu(_render_gpu_surface, gen, size, size, uniforms)
+                used_engine = "gpu"
+            except Exception as e:
+                sys.stderr.write(f"GPU render error, fallback to CPU: {e}\n")
+                surf = None
+
+        # 2. CPU Fallback / Alternative Modes
+        if surf is None:
+            used_engine = "cpu"
+            if mode == "micropolys" or engine == "cpu":
+                triangles, _ = get_cached_micropolys(
+                    gen,
+                    graph_key,
+                    polys,
+                    roughness,
+                    jitter,
+                    alpha,
+                    height_scale,
+                    smooth,
+                    size,
+                    quad_fold=quad_fold,
+                    ridge_noise=ridge_noise,
+                    erosion_strength=erosion_strength,
+                    erosion_droplets=erosion_droplets,
+                )
+                surf = render_mesh(
+                    gen,
+                    triangles,
+                    width=size,
+                    height=size,
+                    sun_azimuth=sun_azimuth,
+                    sun_elevation=sun_elevation,
+                    sun_intensity=sun_intensity,
+                    ambient_intensity=ambient_intensity,
+                )
 
         elif mode == "biomes":
             surf = gen.render_to_surface(
@@ -362,6 +509,8 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "image/webp")
         self.send_header("Content-Length", str(len(payload)))
         self.send_header("X-Render-Time-Ms", f"{dur_ms:.1f}")
+        self.send_header("X-Render-Engine", used_engine)
+        self.send_header("X-Render-Resolution", f"{size}x{size}")
         self.send_header("Cache-Control", "public, max-age=60")
         self.end_headers()
         self.wfile.write(payload)
@@ -377,7 +526,7 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
         persistence = float(q.get("persistence", [0.0])[0])
         nx = float(q.get("nx", [0.5])[0])
         ny = float(q.get("ny", [0.5])[0])
-        size = 720
+        size = int(q.get("size", [1024])[0])
 
         gen = get_cached_graph(
             seed,

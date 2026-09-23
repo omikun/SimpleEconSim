@@ -86,7 +86,7 @@
       gap: 14px;
     }
 
-    /* Map Canvas Card */
+    /* Map Canvas Card & Interactive Pan/Zoom */
     .map-container {
       position: relative;
       width: 100%;
@@ -95,19 +95,74 @@
       background: #0d2452;
       overflow: hidden;
       box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5), inset 0 0 0 1px var(--card-border);
-      display: flex;
-      justify-content: center;
-      align-items: center;
+      touch-action: none;
+      cursor: grab;
+      user-select: none;
+    }
+    .map-container.panning {
+      cursor: grabbing;
+    }
+    .zoom-layer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      transform-origin: 0 0;
+      will-change: transform;
     }
     #map-image {
       width: 100%;
       height: 100%;
       object-fit: cover;
       display: block;
+      pointer-events: none;
       transition: opacity 0.15s ease;
     }
     #map-image.loading {
       opacity: 0.65;
+    }
+    .zoom-hud {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(18, 24, 34, 0.82);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 10px;
+      padding: 4px 6px;
+      z-index: 20;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    }
+    .zoom-btn {
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 6px;
+      background: #243042;
+      border: 1px solid var(--card-border);
+      color: var(--text);
+      font-weight: 700;
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+    .zoom-btn:active {
+      background: var(--accent);
+      color: #fff;
+    }
+    .zoom-readout {
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      padding: 0 4px;
+      min-width: 38px;
+      text-align: center;
     }
     .tap-marker {
       position: absolute;
@@ -318,10 +373,18 @@
   </header>
 
   <main>
-    <!-- Map Viewport -->
+    <!-- Map Viewport with Hardware-Accelerated Pan & Zoom -->
     <div class="map-container" id="map-box">
-      <img id="map-image" src="" alt="Terrain Map">
-      <div class="tap-marker" id="tap-marker"></div>
+      <div class="zoom-layer" id="zoom-layer">
+        <img id="map-image" src="" alt="Terrain Map" draggable="false">
+        <div class="tap-marker" id="tap-marker"></div>
+      </div>
+      <div class="zoom-hud">
+        <button class="zoom-btn" id="btn-zoom-in" title="Zoom in">+</button>
+        <button class="zoom-btn" id="btn-zoom-out" title="Zoom out">−</button>
+        <button class="zoom-btn" id="btn-zoom-reset" style="font-size: 0.72rem; width: 34px;" title="Reset zoom">Fit</button>
+        <span class="zoom-readout" id="zoom-readout">100%</span>
+      </div>
       <div class="inspect-card" id="inspect-card">
         <div>
           <span class="biome-badge" id="insp-biome">PLAINS</span>
@@ -332,6 +395,78 @@
           <span style="color: var(--text-muted); margin-left: 4px;" id="insp-moist">0%</span>
           <span style="color: #f59e0b; margin-left: 4px; font-weight: 600;" id="insp-temp">20°C</span>
         </div>
+      </div>
+    </div>
+
+    <!-- Engine & Resolution Selector -->
+    <div class="card" style="padding: 12px 14px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <span style="font-size: 0.82rem; font-weight: 700; color: var(--accent);">Render Engine</span>
+        <span style="font-size: 0.75rem; color: var(--text-muted);" id="engine-status">⚡ ModernGL Multi-Pass</span>
+      </div>
+      <div class="segment-bar" id="engine-bar" style="margin-bottom: 12px; grid-template-columns: 1.3fr 1fr;">
+        <button class="btn-segment active" data-engine="gpu">⚡ GPU (ModernGL Shaders)</button>
+        <button class="btn-segment" data-engine="cpu">CPU (Micropoly Mesh)</button>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <span style="font-size: 0.82rem; font-weight: 700; color: var(--accent);">Canvas Resolution</span>
+        <span class="slider-val" id="val-res">1024 × 1024</span>
+      </div>
+      <div class="segment-bar cols-4" id="res-bar" style="grid-template-columns: repeat(3, 1fr);">
+        <button class="btn-segment active" data-size="1024">1K (1024)</button>
+        <button class="btn-segment" data-size="2048">2K (2048)</button>
+        <button class="btn-segment" data-size="4096">4K (4096 UHD)</button>
+      </div>
+    </div>
+
+    <!-- Sun Angle & Dynamic Lighting (In-Game Setup) -->
+    <div class="card">
+      <div class="section-title" style="padding-left: 0; color: var(--accent);">Sun Angle & Lighting (Game Pipeline Setup)</div>
+
+      <div class="slider-row">
+        <div class="slider-header" style="margin-bottom: 4px;">
+          <span>Sun Azimuth (Direction)</span>
+          <span class="slider-val" id="val-sun-azimuth">-135° (Midday NW)</span>
+        </div>
+        <div class="segment-bar cols-4" id="sun-preset-bar" style="margin-bottom: 8px; grid-template-columns: repeat(3, 1fr);">
+          <button class="btn-segment" data-azimuth="-45" data-elevation="25">🌅 Morning (-45°)</button>
+          <button class="btn-segment active" data-azimuth="-135" data-elevation="42">☀️ Midday (-135°)</button>
+          <button class="btn-segment" data-azimuth="110" data-elevation="18">🌇 Sunset (110°)</button>
+        </div>
+        <input type="range" id="slider-sun-azimuth" min="-180" max="180" step="5" value="-135">
+      </div>
+
+      <div class="slider-row">
+        <div class="slider-header">
+          <span>Sun Elevation (Pitch Angle)</span>
+          <span class="slider-val" id="val-sun-elevation">42°</span>
+        </div>
+        <input type="range" id="slider-sun-elevation" min="5" max="85" step="1" value="42">
+      </div>
+
+      <div class="slider-row">
+        <div class="slider-header">
+          <span>Sun Direct Intensity</span>
+          <span class="slider-val" id="val-sun-intensity">1.15</span>
+        </div>
+        <input type="range" id="slider-sun-intensity" min="0.20" max="2.50" step="0.05" value="1.15">
+      </div>
+
+      <div class="slider-row">
+        <div class="slider-header">
+          <span>Sky Ambient Intensity</span>
+          <span class="slider-val" id="val-ambient-intensity">0.45</span>
+        </div>
+        <input type="range" id="slider-ambient-intensity" min="0.10" max="1.20" step="0.05" value="0.45">
+      </div>
+
+      <div class="slider-row">
+        <div class="slider-header">
+          <span>Mountain Roughness (fBm)</span>
+          <span class="slider-val" id="val-mountain-roughness">1.00</span>
+        </div>
+        <input type="range" id="slider-mountain-roughness" min="0.20" max="2.50" step="0.05" value="1.00">
       </div>
     </div>
 
@@ -549,10 +684,11 @@
   </div>
 
   <script>
-    // State
+    // Global Application State
     const state = {
       seed: 777,
       shape: 'radial',
+      engine: 'gpu',
       mode: 'micropolys',
       height_scale: 70.0,
       sharpness: 1.00,
@@ -571,13 +707,21 @@
       ridge_noise: 0.35,
       erosion_strength: 0.30,
       erosion_droplets: 15000,
-      size: 720
+      size: 1024,
+      sun_azimuth: -135.0,
+      sun_elevation: 42.0,
+      sun_intensity: 1.15,
+      ambient_intensity: 0.45,
+      mountain_roughness: 1.00
     };
 
     let debounceTimer = null;
     let abortController = null;
 
+    const mapBox = document.getElementById('map-box');
+    const zoomLayer = document.getElementById('zoom-layer');
     const mapImg = document.getElementById('map-image');
+    const zoomReadout = document.getElementById('zoom-readout');
     const perfStatus = document.getElementById('perf-status');
     const polyBadge = document.getElementById('poly-badge');
     const tapMarker = document.getElementById('tap-marker');
@@ -585,6 +729,164 @@
     const btnAr = document.getElementById('btn-ar');
     const btnSave = document.getElementById('btn-save');
 
+    // ---------------------------------------------------------------------------
+    // Pan & Zoom Viewport Controller
+    // ---------------------------------------------------------------------------
+    let scale = 1.0;
+    let panX = 0;
+    let panY = 0;
+    let isPanning = false;
+    let startX = 0;
+    let startY = 0;
+    let hasMoved = false;
+    let initialPinchDist = 0;
+    let initialPinchScale = 1.0;
+
+    function clampPan() {
+      const rect = mapBox.getBoundingClientRect();
+      const maxPanX = Math.max(0, (scale - 1.0) * rect.width);
+      const maxPanY = Math.max(0, (scale - 1.0) * rect.height);
+      if (scale <= 1.001) {
+        panX = 0;
+        panY = 0;
+      } else {
+        panX = Math.min(0, Math.max(-maxPanX, panX));
+        panY = Math.min(0, Math.max(-maxPanY, panY));
+      }
+    }
+
+    function updateTransform() {
+      clampPan();
+      zoomLayer.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
+      zoomReadout.textContent = `${Math.round(scale * 100)}%`;
+    }
+
+    function setZoom(newScale, focalX, focalY) {
+      const rect = mapBox.getBoundingClientRect();
+      const fx = focalX !== undefined ? focalX : rect.width / 2;
+      const fy = focalY !== undefined ? focalY : rect.height / 2;
+      const clampedScale = Math.min(8.0, Math.max(1.0, newScale));
+      panX = fx - (fx - panX) * (clampedScale / scale);
+      panY = fy - (fy - panY) * (clampedScale / scale);
+      scale = clampedScale;
+      updateTransform();
+    }
+
+    // Wheel Zoom centered at cursor
+    mapBox.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const rect = mapBox.getBoundingClientRect();
+      const factor = e.deltaY < 0 ? 1.20 : 0.83;
+      setZoom(scale * factor, e.clientX - rect.left, e.clientY - rect.top);
+    }, { passive: false });
+
+    // HUD Zoom Buttons
+    document.getElementById('btn-zoom-in').addEventListener('click', (e) => {
+      e.stopPropagation();
+      setZoom(scale * 1.35);
+    });
+    document.getElementById('btn-zoom-out').addEventListener('click', (e) => {
+      e.stopPropagation();
+      setZoom(scale / 1.35);
+    });
+    document.getElementById('btn-zoom-reset').addEventListener('click', (e) => {
+      e.stopPropagation();
+      scale = 1.0;
+      panX = 0;
+      panY = 0;
+      updateTransform();
+    });
+
+    // Pointer Drag to Pan / Tap to Inspect
+    mapBox.addEventListener('pointerdown', (e) => {
+      if (e.target.closest('.zoom-hud') || e.target.closest('.inspect-card')) return;
+      isPanning = true;
+      mapBox.classList.add('panning');
+      startX = e.clientX - panX;
+      startY = e.clientY - panY;
+      hasMoved = false;
+      try { mapBox.setPointerCapture(e.pointerId); } catch(err){}
+    });
+
+    mapBox.addEventListener('pointermove', (e) => {
+      if (!isPanning) return;
+      const curX = e.clientX - startX;
+      const curY = e.clientY - startY;
+      if (Math.abs(curX - panX) > 4 || Math.abs(curY - panY) > 4) {
+        hasMoved = true;
+      }
+      panX = curX;
+      panY = curY;
+      updateTransform();
+    });
+
+    mapBox.addEventListener('pointerup', async (e) => {
+      if (!isPanning) return;
+      isPanning = false;
+      mapBox.classList.remove('panning');
+      try { mapBox.releasePointerCapture(e.pointerId); } catch(err){}
+
+      // If user tapped/clicked without panning, inspect the terrain center
+      if (!hasMoved) {
+        const rect = mapBox.getBoundingClientRect();
+        const clickX = e.clientX - rect.left;
+        const clickY = e.clientY - rect.top;
+
+        // Invert pan and zoom to calculate normalized (0..1) image coordinates
+        const imgX = (clickX - panX) / (rect.width * scale);
+        const imgY = (clickY - panY) / (rect.height * scale);
+
+        if (imgX >= 0 && imgX <= 1 && imgY >= 0 && imgY <= 1) {
+          tapMarker.style.left = `${imgX * 100}%`;
+          tapMarker.style.top = `${imgY * 100}%`;
+          tapMarker.style.display = 'block';
+
+          try {
+            const query = updateUrlParams();
+            const res = await fetch(`/api/inspect?${query}&nx=${imgX.toFixed(4)}&ny=${imgY.toFixed(4)}`);
+            if (res.ok) {
+              const data = await res.json();
+              document.getElementById('insp-biome').textContent = data.biome.toUpperCase();
+              document.getElementById('insp-id').textContent = `Cell #${data.index}`;
+              document.getElementById('insp-elev').textContent = `${(data.elevation * 3200).toFixed(0)} m (${(data.elevation * 100).toFixed(0)}%)`;
+              document.getElementById('insp-moist').textContent = `💧 ${(data.moisture * 100).toFixed(0)}%`;
+              document.getElementById('insp-temp').textContent = `🌡️ ${(data.temperature * 35).toFixed(0)}°C`;
+              inspectCard.classList.add('active');
+            }
+          } catch (err) {
+            console.error('Inspect error:', err);
+          }
+        }
+      }
+    });
+
+    // Touch Pinch-to-Zoom for iPhone Safari
+    mapBox.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 2) {
+        initialPinchDist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+        initialPinchScale = scale;
+      }
+    }, { passive: true });
+
+    mapBox.addEventListener('touchmove', (e) => {
+      if (e.touches.length === 2 && initialPinchDist > 0) {
+        const dist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+        const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        const rect = mapBox.getBoundingClientRect();
+        setZoom(initialPinchScale * (dist / initialPinchDist), midX - rect.left, midY - rect.top);
+      }
+    }, { passive: true });
+
+    // ---------------------------------------------------------------------------
+    // Render Execution & Pipeline Synchronization
+    // ---------------------------------------------------------------------------
     function updateUrlParams() {
       const p = new URLSearchParams(state);
       return p.toString();
@@ -604,14 +906,19 @@
         const res = await fetch(`/api/render?${query}`, { signal: abortController.signal });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
+        const durHdr = res.headers.get('X-Render-Time-Ms');
+        const engHdr = res.headers.get('X-Render-Engine');
+        const resHdr = res.headers.get('X-Render-Resolution') || `${state.size}x${state.size}`;
+
         const blob = await res.blob();
         const objUrl = URL.createObjectURL(blob);
         mapImg.src = objUrl;
         mapImg.classList.remove('loading');
 
         const dur = (performance.now() - t0).toFixed(0);
-        perfStatus.textContent = `⚡ Rendered in ${dur}ms (Seed ${state.seed})`;
-        polyBadge.textContent = `${Number(state.polys).toLocaleString()} Polys`;
+        const engineLabel = engHdr === 'gpu' ? '⚡ ModernGL GPU' : 'CPU Mesh';
+        perfStatus.textContent = `${engineLabel} in ${durHdr || dur}ms • Seed ${state.seed}`;
+        polyBadge.textContent = engHdr === 'gpu' ? `${resHdr} UHD` : `${Number(state.polys).toLocaleString()} Polys`;
 
         // Update USDZ and Save links
         btnAr.href = `/api/export_usdz?${query}`;
@@ -634,7 +941,44 @@
       }
     }
 
-    // Segmented Buttons (View Mode)
+    // Render Engine Buttons
+    document.querySelectorAll('#engine-bar .btn-segment').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('#engine-bar .btn-segment').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        state.engine = btn.dataset.engine;
+        document.getElementById('engine-status').textContent = state.engine === 'gpu' ? '⚡ ModernGL Multi-Pass' : 'CPU Discrete Mesh';
+        triggerUpdate(true);
+      });
+    });
+
+    // Resolution Buttons
+    document.querySelectorAll('#res-bar .btn-segment').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('#res-bar .btn-segment').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        state.size = parseInt(btn.dataset.size);
+        document.getElementById('val-res').textContent = `${state.size} × ${state.size}`;
+        triggerUpdate(true);
+      });
+    });
+
+    // Sun Angle Preset Buttons
+    document.querySelectorAll('#sun-preset-bar .btn-segment').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('#sun-preset-bar .btn-segment').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        state.sun_azimuth = parseFloat(btn.dataset.azimuth);
+        state.sun_elevation = parseFloat(btn.dataset.elevation);
+        document.getElementById('slider-sun-azimuth').value = state.sun_azimuth;
+        document.getElementById('val-sun-azimuth').textContent = `${state.sun_azimuth}°`;
+        document.getElementById('slider-sun-elevation').value = state.sun_elevation;
+        document.getElementById('val-sun-elevation').textContent = `${state.sun_elevation}°`;
+        triggerUpdate(true);
+      });
+    });
+
+    // View Mode Buttons
     document.querySelectorAll('#view-mode-bar .btn-segment').forEach(btn => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('#view-mode-bar .btn-segment').forEach(b => b.classList.remove('active'));
@@ -644,7 +988,7 @@
       });
     });
 
-    // Segmented Buttons (Shape)
+    // Shape Buttons
     document.querySelectorAll('#shape-bar .btn-segment').forEach(btn => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('#shape-bar .btn-segment').forEach(b => b.classList.remove('active'));
@@ -654,7 +998,7 @@
       });
     });
 
-    // Segmented Buttons (Region Presets)
+    // Region Presets
     document.querySelectorAll('#region-preset-bar .btn-segment').forEach(btn => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('#region-preset-bar .btn-segment').forEach(b => b.classList.remove('active'));
@@ -677,6 +1021,12 @@
       });
     }
 
+    bindSlider('slider-sun-azimuth', 'sun_azimuth', 'val-sun-azimuth', v => `${Math.round(v)}°`);
+    bindSlider('slider-sun-elevation', 'sun_elevation', 'val-sun-elevation', v => `${Math.round(v)}°`);
+    bindSlider('slider-sun-intensity', 'sun_intensity', 'val-sun-intensity', v => parseFloat(v).toFixed(2));
+    bindSlider('slider-ambient-intensity', 'ambient_intensity', 'val-ambient-intensity', v => parseFloat(v).toFixed(2));
+    bindSlider('slider-mountain-roughness', 'mountain_roughness', 'val-mountain-roughness', v => parseFloat(v).toFixed(2));
+
     bindSlider('slider-moisture-bias', 'moisture_bias', 'val-moisture-bias', v => (v > 0 ? '+' : '') + parseFloat(v).toFixed(2));
     bindSlider('slider-north-temp', 'north_temp', 'val-north-temp', v => (v > 0 ? '+' : '') + parseFloat(v).toFixed(2));
     bindSlider('slider-south-temp', 'south_temp', 'val-south-temp', v => (v > 0 ? '+' : '') + parseFloat(v).toFixed(2));
@@ -693,7 +1043,6 @@
       return Number(p).toLocaleString();
     });
 
-    // Segmented Buttons (Poly Presets)
     document.querySelectorAll('#poly-preset-bar .btn-segment').forEach(btn => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('#poly-preset-bar .btn-segment').forEach(b => b.classList.remove('active'));
@@ -712,7 +1061,6 @@
     bindSlider('slider-erosion-strength', 'erosion_strength', 'val-erosion-strength', v => parseFloat(v).toFixed(2));
     bindSlider('slider-erosion-droplets', 'erosion_droplets', 'val-erosion-droplets', v => Number(v).toLocaleString());
 
-    // Segmented Buttons (Quad-Fold)
     document.querySelectorAll('#quad-fold-bar .btn-segment').forEach(btn => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('#quad-fold-bar .btn-segment').forEach(b => b.classList.remove('active'));
@@ -737,39 +1085,7 @@
       triggerUpdate(true);
     });
 
-    // Touch / Click Inspect Cell
-    const mapBox = document.getElementById('map-box');
-    mapBox.addEventListener('pointerdown', async (e) => {
-      const rect = mapBox.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-
-      tapMarker.style.left = `${x}px`;
-      tapMarker.style.top = `${y}px`;
-      tapMarker.style.display = 'block';
-
-      // Normalized coordinates (0 to 1)
-      const nx = x / rect.width;
-      const ny = y / rect.height;
-
-      try {
-        const query = updateUrlParams();
-        const res = await fetch(`/api/inspect?${query}&nx=${nx}&ny=${ny}`);
-        if (res.ok) {
-          const data = await res.json();
-          document.getElementById('insp-biome').textContent = data.biome.toUpperCase();
-          document.getElementById('insp-id').textContent = `Cell #${data.index}`;
-          document.getElementById('insp-elev').textContent = `${(data.elevation * 3200).toFixed(0)} m (${(data.elevation * 100).toFixed(0)}%)`;
-          document.getElementById('insp-moist').textContent = `💧 ${(data.moisture * 100).toFixed(0)}%`;
-          document.getElementById('insp-temp').textContent = `🌡️ ${(data.temperature * 35).toFixed(0)}°C`;
-          inspectCard.classList.add('active');
-        }
-      } catch (err) {
-        console.error('Inspect error:', err);
-      }
-    });
-
-    // Initial render on load
+    // Initial render on page load
     triggerUpdate(true);
   </script>
 </body>

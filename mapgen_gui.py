@@ -201,7 +201,7 @@ class MapgenGUI:
         seed: int = 777,
         num_points: int = 1000,
         target_polys: int = 16000,
-        window_size: Tuple[int, int] = (1320, 980),
+        window_size: Tuple[int, int] = (1360, 1040),
     ):
         pygame.init()
         pygame.font.init()
@@ -259,10 +259,15 @@ class MapgenGUI:
             "ridge_noise": Slider("ridge_noise", "Ridge Roughness (Musgrave)", 0.0, 1.0, 0.35, step=0.05, fmt="{:.2f}"),
             "erosion_strength": Slider("erosion_strength", "Erosion Carving Scale", 0.0, 1.0, 0.30, step=0.05, fmt="{:.2f}"),
             "erosion_droplets": Slider("erosion_droplets", "Erosion Droplet Count", 0, 30000, 12000, step=2000, fmt="{:,.0f}"),
+            # Sun Angle & Dynamic Lighting
+            "sun_azimuth": Slider("sun_azimuth", "Sun Azimuth (°)", -180.0, 180.0, -135.0, step=5.0, fmt="{:.0f}°"),
+            "sun_elevation": Slider("sun_elevation", "Sun Elevation (°)", 5.0, 85.0, 42.0, step=1.0, fmt="{:.0f}°"),
+            "sun_intensity": Slider("sun_intensity", "Sun Intensity", 0.20, 2.50, 1.15, step=0.05, fmt="{:.2f}"),
         }
 
         # Buttons
         self.view_buttons = [
+            Button("gpu", "⚡ GPU"),
             Button("micropolys", "Micropolys"),
             Button("biomes", "Biomes"),
             Button("elevation", "Elevation"),
@@ -367,9 +372,32 @@ class MapgenGUI:
         mode = self.view_mode
         t0 = time.time()
 
+        if mode == "gpu":
+            try:
+                from mapgen_web import _render_gpu_surface, run_on_gpu, is_gpu_ready
+                if is_gpu_ready(0.2):
+                    uniforms = {
+                        "sun_azimuth": self.sliders["sun_azimuth"].val,
+                        "sun_elevation": self.sliders["sun_elevation"].val,
+                        "sun_intensity": self.sliders["sun_intensity"].val,
+                    }
+                    surf = run_on_gpu(_render_gpu_surface, self.gen, self.canvas_size, self.canvas_size, uniforms)
+                else:
+                    mode = "micropolys"
+            except Exception:
+                mode = "micropolys"
+
         if mode == "micropolys":
             # 3D Shaded micropoly mesh with multi-light illumination
-            surf = render_mesh(self.gen, self.triangles, width=self.canvas_size, height=self.canvas_size)
+            surf = render_mesh(
+                self.gen,
+                self.triangles,
+                width=self.canvas_size,
+                height=self.canvas_size,
+                sun_azimuth=self.sliders["sun_azimuth"].val,
+                sun_elevation=self.sliders["sun_elevation"].val,
+                sun_intensity=self.sliders["sun_intensity"].val,
+            )
 
         elif mode == "biomes":
             # Classical Whittaker Biome view with noisy contours
@@ -738,6 +766,12 @@ class MapgenGUI:
         # --- MICROPOLY SUBDIVISION KNOBS ---
         draw_section_header("MICROPOLY DETAIL")
         for k in ("polys", "roughness", "jitter", "smooth"):
+            self.sliders[k].draw(self.screen, panel_x + 12, cur_y, panel_w - 24, self.font_ui, self.font_small, mouse_pos)
+            cur_y += 28
+
+        # --- SUN ANGLE & DYNAMIC LIGHTING ---
+        draw_section_header("SUN ANGLE & DYNAMIC LIGHTING")
+        for k in ("sun_azimuth", "sun_elevation", "sun_intensity"):
             self.sliders[k].draw(self.screen, panel_x + 12, cur_y, panel_w - 24, self.font_ui, self.font_small, mouse_pos)
             cur_y += 28
 
