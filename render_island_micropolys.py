@@ -93,7 +93,7 @@ def build_island_mesh(
     subdivision_depth: int = 1,
     roughness: float = 3.0,
     lateral_jitter: float = 0.22,
-    elevation_alpha: float = 0.25,
+    elevation_alpha: float = 0.0,
     elev_scale: float = 70.0,
     normal_smooth_ratio: float = 0.70,
     quad_fold: bool = True,
@@ -104,46 +104,24 @@ def build_island_mesh(
     """
     Builds and subdivides the island's 3D micropoly mesh according to the chosen mode.
     Integrates:
-    1. Dynamic Quad-Fold Diagonal Picker (v0-v1 for convex ridges, d0-d1 for concave river ravines).
-    2. Fast Particle-based Hydraulic & Thermal Erosion Simulation.
+    1. Global Continuous Island Heightmap Interpolation (eliminating per-polygon domes/pyramids).
+    2. Continuous Particle-based Hydraulic & Thermal Erosion Field sampling.
     3. Musgrave Ridged Multifractal Elevation Noise with Domain Warping.
     Returns: (triangles_list, total_poly_count)
     """
     scale_x = width / gen.width
     scale_y = height / gen.height
 
-    # 1. Hydraulic & Thermal Erosion Simulation (if enabled)
-    center_deltas: Dict[int, float] = {}
-    corner_deltas: Dict[int, float] = {}
-    if erosion_strength > 0 and erosion_droplets > 0:
-        try:
-            from hydraulic_erosion import apply_erosion_to_polygon_mesh
-            center_deltas, corner_deltas = apply_erosion_to_polygon_mesh(
-                gen,
-                grid_size=192,
-                num_droplets=int(erosion_droplets),
-                carving_scale=erosion_strength,
-                thermal_iterations=2,
-            )
-        except Exception as e:
-            print(f"Warning: Erosion simulation skipped ({e})", file=sys.stderr)
-
-    # 2. Red Blob corner elevation rule:
-    # v_elevation[v] = max + alpha * (max - min) of adjacent centers + erosion delta
-    v_elev = {}
-    for cn in gen.corners:
-        if cn.ocean or cn.coast:
-            v_elev[cn.index] = 0.0
-        else:
-            adj_elevs = [c.elevation + center_deltas.get(c.index, 0.0) for c in cn.touches if not c.water]
-            if adj_elevs:
-                c_max = max(adj_elevs)
-                c_min = min(adj_elevs)
-                base_el = c_max + elevation_alpha * (c_max - c_min)
-            else:
-                base_el = cn.elevation
-            # Apply corner erosion delta
-            v_elev[cn.index] = max(0.0, base_el + corner_deltas.get(cn.index, 0.0))
+    # 1. Global Continuous Hydraulic & Thermal Erosion Simulation
+    from hydraulic_erosion import simulate_global_erosion
+    erosion_field = simulate_global_erosion(
+        gen,
+        grid_size=192,
+        num_droplets=int(erosion_droplets) if (erosion_strength > 0 and erosion_droplets > 0) else 0,
+        carving_scale=erosion_strength,
+        thermal_iterations=2,
+        seed=gen.seed,
+    )
 
     # Mode: Fractal Watertight Edge-Cached 2D+3D Subdivision (Default)
     if mode == "fractal":
@@ -175,32 +153,28 @@ def build_island_mesh(
             if d0.water and d1.water:
                 continue
 
-            z_v0 = v_elev.get(v0.index, v0.elevation) * elev_scale
-            z_v1 = v_elev.get(v1.index, v1.elevation) * elev_scale
+            z_v0 = erosion_field.sample_elevation(v0.x, v0.y) * elev_scale if not (v0.ocean or v0.coast) else 0.0
+            z_v1 = erosion_field.sample_elevation(v1.x, v1.y) * elev_scale if not (v1.ocean or v1.coast) else 0.0
+            z_d0 = erosion_field.sample_elevation(d0.x, d0.y) * elev_scale if not (d0.ocean or d0.coast) else 0.0
+            z_d1 = erosion_field.sample_elevation(d1.x, d1.y) * elev_scale if not (d1.ocean or d1.coast) else 0.0
 
-            el_d0 = max(0.0, d0.elevation + center_deltas.get(d0.index, 0.0))
-            el_d1 = max(0.0, d1.elevation + center_deltas.get(d1.index, 0.0))
-            z_d0 = el_d0 * elev_scale
-            z_d1 = el_d1 * elev_scale
+            if elevation_alpha > 0.0:
+                adj_v0 = [erosion_field.sample_elevation(c.x, c.y) * elev_scale for c in v0.touches if not c.water]
+                if adj_v0:
+                    z_v0 += elevation_alpha * (max(adj_v0) - min(adj_v0)) * 0.5
+                adj_v1 = [erosion_field.sample_elevation(c.x, c.y) * elev_scale for c in v1.touches if not c.water]
+                if adj_v1:
+                    z_v1 += elevation_alpha * (max(adj_v1) - min(adj_v1)) * 0.5
 
-            fbm_amp = elev_scale / 70.0
-            # FBM noise
-            fbm_v0 = procedural_fbm_elevation(v0.x * scale_x, v0.y * scale_y, gen.seed, amplitude=fbm_amp)
-            fbm_v1 = procedural_fbm_elevation(v1.x * scale_x, v1.y * scale_y, gen.seed, amplitude=fbm_amp)
-            fbm_d0 = procedural_fbm_elevation(d0.x * scale_x, d0.y * scale_y, gen.seed, amplitude=fbm_amp)
-            fbm_d1 = procedural_fbm_elevation(d1.x * scale_x, d1.y * scale_y, gen.seed, amplitude=fbm_amp)
+            # River channel bed carving for physical valleys
+            if edge.river > 0:
+                z_v0 -= min(3.5, edge.river * 0.75)
+                z_v1 -= min(3.5, edge.river * 0.75)
 
-            # Musgrave ridged multifractal noise (elevation-weighted)
-            ridge_amp = elev_scale / 50.0
-            rdg_v0 = procedural_ridged_elevation(v0.x * scale_x, v0.y * scale_y, v0.elevation, gen.seed, amplitude=ridge_amp, ridge_roughness=ridge_noise)
-            rdg_v1 = procedural_ridged_elevation(v1.x * scale_x, v1.y * scale_y, v1.elevation, gen.seed, amplitude=ridge_amp, ridge_roughness=ridge_noise)
-            rdg_d0 = procedural_ridged_elevation(d0.x * scale_x, d0.y * scale_y, d0.elevation, gen.seed, amplitude=ridge_amp, ridge_roughness=ridge_noise)
-            rdg_d1 = procedural_ridged_elevation(d1.x * scale_x, d1.y * scale_y, d1.elevation, gen.seed, amplitude=ridge_amp, ridge_roughness=ridge_noise)
-
-            p_v0 = np.array([v0.x * scale_x, v0.y * scale_y, z_v0 + fbm_v0 + rdg_v0], dtype=np.float64)
-            p_v1 = np.array([v1.x * scale_x, v1.y * scale_y, z_v1 + fbm_v1 + rdg_v1], dtype=np.float64)
-            p_d0 = np.array([d0.x * scale_x, d0.y * scale_y, z_d0 + fbm_d0 + rdg_d0], dtype=np.float64)
-            p_d1 = np.array([d1.x * scale_x, d1.y * scale_y, z_d1 + fbm_d1 + rdg_d1], dtype=np.float64)
+            p_v0 = np.array([v0.x * scale_x, v0.y * scale_y, z_v0], dtype=np.float64)
+            p_v1 = np.array([v1.x * scale_x, v1.y * scale_y, z_v1], dtype=np.float64)
+            p_d0 = np.array([d0.x * scale_x, d0.y * scale_y, z_d0], dtype=np.float64)
+            p_d1 = np.array([d1.x * scale_x, d1.y * scale_y, z_d1], dtype=np.float64)
 
             idx_v0 = get_or_add_vertex(p_v0, is_fixed=(v0.ocean or v0.coast))
             idx_v1 = get_or_add_vertex(p_v1, is_fixed=(v1.ocean or v1.coast))
@@ -216,26 +190,20 @@ def build_island_mesh(
             if edge.river > 0:
                 col0 = col0 * 0.75 + np.array([40, 105, 35], dtype=np.float64) * 0.25
                 col1 = col1 * 0.75 + np.array([40, 105, 35], dtype=np.float64) * 0.25
-
-            # Dynamic Quad-Fold Diagonal Picker
-            # Ridge fold (across v0-v1) if corners are higher than centers or edge is watershed boundary.
-            # Valley fold (across d0-d1) if river edge or centers are higher than corners.
-            is_ridge = False
-            if quad_fold:
-                avg_v_elev = (v0.elevation + v1.elevation) * 0.5
-                avg_d_elev = (d0.elevation + d1.elevation) * 0.5
-                is_ridge = (avg_v_elev >= avg_d_elev) and (edge.river == 0) and not (d0.water != d1.water)
-
-            if is_ridge:
-                # Fold across v0-v1: forms knife-edge convex mountain ridge
-                if not d0.water:
-                    base_triangles.append((idx_v0, idx_v1, idx_d0, col0, (v0.elevation + v1.elevation + d0.elevation) / 3.0, False))
-                if not d1.water:
-                    base_triangles.append((idx_v1, idx_v0, idx_d1, col1, (v0.elevation + v1.elevation + d1.elevation) / 3.0, False))
+                # River fold along v0-v1 preserves continuous valley channel
+                base_triangles.append((idx_v0, idx_v1, idx_d0, col0, (z_v0 + z_v1 + z_d0) / (3.0 * elev_scale), True))
+                base_triangles.append((idx_v1, idx_v0, idx_d1, col1, (z_v1 + z_v0 + z_d1) / (3.0 * elev_scale), True))
             else:
-                # Fold across d0-d1: forms concave V-shaped river ravine
-                base_triangles.append((idx_v0, idx_d1, idx_d0, col0 if not d0.water else col1, (v0.elevation + d0.elevation) * 0.5, edge.river > 0))
-                base_triangles.append((idx_v1, idx_d0, idx_d1, col1 if not d1.water else col0, (v1.elevation + d1.elevation) * 0.5, edge.river > 0))
+                diag_v = np.linalg.norm(p_v0 - p_v1)
+                diag_d = np.linalg.norm(p_d0 - p_d1)
+                if diag_v < diag_d:
+                    if not d0.water:
+                        base_triangles.append((idx_v0, idx_v1, idx_d0, col0, (z_v0 + z_v1 + z_d0) / (3.0 * elev_scale), False))
+                    if not d1.water:
+                        base_triangles.append((idx_v1, idx_v0, idx_d1, col1, (z_v1 + z_v0 + z_d1) / (3.0 * elev_scale), False))
+                else:
+                    base_triangles.append((idx_v0, idx_d1, idx_d0, col0 if not d0.water else col1, (z_v0 + z_d1 + z_d0) / (3.0 * elev_scale), False))
+                    base_triangles.append((idx_v1, idx_d0, idx_d1, col1 if not d1.water else col0, (z_v1 + z_d0 + z_d1) / (3.0 * elev_scale), False))
 
         vertex_colors = {}
         for idx_a, idx_b, idx_c, col, el, riv in base_triangles:
@@ -259,6 +227,36 @@ def build_island_mesh(
             e_xy = pb[:2] - pa[:2]
             length = float(np.linalg.norm(e_xy))
             mid = (pa + pb) * 0.5
+
+            if length > 1.2:
+                n_perp = np.array([-e_xy[1], e_xy[0]], dtype=np.float64) / length
+                decay = 0.70 ** depth
+                disp_lat = rng.uniform(-lateral_jitter, lateral_jitter) * length * decay
+                disp_long = rng.uniform(-0.10, 0.10) * length * decay
+
+                mid[0] += n_perp[0] * disp_lat + (e_xy[0] / length) * disp_long
+                mid[1] += n_perp[1] * disp_lat + (e_xy[1] / length) * disp_long
+
+                # Continuous global height sampling at subdivided midpoint
+                base_h = erosion_field.sample_elevation(mid[0] / scale_x, mid[1] / scale_y) * elev_scale
+                fbm_val = procedural_fbm_elevation(mid[0], mid[1], gen.seed, amplitude=elev_scale / 70.0) * (decay * 0.35)
+                mid_norm_elev = base_h / max(1.0, elev_scale)
+                rdg_val = procedural_ridged_elevation(mid[0], mid[1], mid_norm_elev, gen.seed, amplitude=elev_scale / 45.0, ridge_roughness=ridge_noise) * (decay * 0.5)
+                disp_z = rng.uniform(-0.25, 0.25) * roughness * (length / 30.0) * decay + fbm_val + rdg_val
+                mid[2] = 0.75 * base_h + 0.25 * mid[2] + disp_z
+                if is_boundary_vertex.get(i_a, False) and is_boundary_vertex.get(i_b, False):
+                    mid[2] = 0.0
+
+            idx_mid = len(vertices)
+            vertices.append(mid)
+            is_boundary_vertex[idx_mid] = is_boundary_vertex.get(i_a, False) and is_boundary_vertex.get(i_b, False)
+
+            c_a = vertex_colors.get(i_a, np.array([120, 160, 100], dtype=np.float64))
+            c_b = vertex_colors.get(i_b, np.array([120, 160, 100], dtype=np.float64))
+            vertex_colors[idx_mid] = (c_a + c_b) * 0.5
+
+            edge_midpoints[edge_key] = idx_mid
+            return idx_mid
 
             if length > 1.5:
                 n_perp = np.array([-e_xy[1], e_xy[0]], dtype=np.float64) / length
@@ -401,8 +399,8 @@ def build_island_mesh(
         if d0.water and d1.water:
             continue
 
-        z_v0 = v_elev.get(v0.index, v0.elevation) * elev_scale
-        z_v1 = v_elev.get(v1.index, v1.elevation) * elev_scale
+        z_v0 = erosion_field.sample_elevation(v0.x, v0.y) * elev_scale if not (v0.ocean or v0.coast) else 0.0
+        z_v1 = erosion_field.sample_elevation(v1.x, v1.y) * elev_scale if not (v1.ocean or v1.coast) else 0.0
         z_mid = (z_v0 + z_v1) * 0.5
 
         p_v0 = np.array([v0.x * scale_x, v0.y * scale_y, z_v0], dtype=np.float64)
@@ -423,9 +421,12 @@ def build_island_mesh(
             area = 0.5 * abs((pb[0] - pa[0]) * (pc[1] - pa[1]) - (pc[0] - pa[0]) * (pb[1] - pa[1]))
             base_triangles.append((pa, pb, pc, c, el, riv, area))
 
+        z_d0 = erosion_field.sample_elevation(d0.x, d0.y) * elev_scale if not (d0.ocean or d0.coast) else 0.0
+        z_d1 = erosion_field.sample_elevation(d1.x, d1.y) * elev_scale if not (d1.ocean or d1.coast) else 0.0
+        p_d0 = np.array([d0.x * scale_x, d0.y * scale_y, z_d0], dtype=np.float64)
+        p_d1 = np.array([d1.x * scale_x, d1.y * scale_y, z_d1], dtype=np.float64)
+
         if mode == "redblob":
-            p_d0 = np.array([d0.x * scale_x, d0.y * scale_y, d0.elevation * elev_scale], dtype=np.float64)
-            p_d1 = np.array([d1.x * scale_x, d1.y * scale_y, d1.elevation * elev_scale], dtype=np.float64)
             if edge.river > 0:
                 c_mix = (col0 + col1) * 0.5
                 add_base_tri(p_v0, p_d1, p_d0, c_mix, (v0.elevation + d0.elevation) * 0.5, True)
@@ -437,12 +438,10 @@ def build_island_mesh(
                     add_base_tri(p_v1, p_v0, p_d1, col1, (v0.elevation + v1.elevation + d1.elevation) / 3.0, False)
         else:
             if not d0.water:
-                p_d0 = np.array([d0.x * scale_x, d0.y * scale_y, d0.elevation * elev_scale], dtype=np.float64)
                 add_base_tri(p_d0, p_v0, p_mid, col0, (d0.elevation + v0.elevation) * 0.5, edge.river > 0)
                 add_base_tri(p_d0, p_mid, p_v1, col0, (d0.elevation + v1.elevation) * 0.5, edge.river > 0)
 
             if not d1.water:
-                p_d1 = np.array([d1.x * scale_x, d1.y * scale_y, d1.elevation * elev_scale], dtype=np.float64)
                 add_base_tri(p_d1, p_v1, p_mid, col1, (d1.elevation + v1.elevation) * 0.5, edge.river > 0)
                 add_base_tri(p_d1, p_mid, p_v0, col1, (d1.elevation + v0.elevation) * 0.5, edge.river > 0)
 

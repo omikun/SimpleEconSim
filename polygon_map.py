@@ -1331,20 +1331,14 @@ class PolygonMapGenerator:
         if render_micropolys and not show_watersheds:
             # 1. Red Blob corner elevation enhancement:
             # v_elevation[v] = max + alpha * (max - min) of adjacent centers
-            elevation_alpha = 0.25
+            elevation_alpha = 0.0
             fbm_amp = elev_scale / 70.0
             v_elev = {}
             for cn in self.corners:
                 if cn.ocean or cn.coast:
                     v_elev[cn.index] = 0.0
                 else:
-                    adj_elevs = [c.elevation for c in cn.touches if not c.water]
-                    if adj_elevs:
-                        c_max = max(adj_elevs)
-                        c_min = min(adj_elevs)
-                        v_elev[cn.index] = c_max + elevation_alpha * (c_max - c_min)
-                    else:
-                        v_elev[cn.index] = cn.elevation
+                    v_elev[cn.index] = cn.elevation
 
             # Multi-light setup (from draw-3d.js)
             L_sun = np.array([-0.55, -0.55, 0.70], dtype=np.float64)
@@ -1412,16 +1406,19 @@ class PolygonMapGenerator:
                 if edge.river > 0:
                     col0 = col0 * 0.75 + np.array([40, 105, 35], dtype=np.float64) * 0.25
                     col1 = col1 * 0.75 + np.array([40, 105, 35], dtype=np.float64) * 0.25
-
-                # 2-way fold: valley along d0-d1 for rivers/coasts, ridge along v0-v1 for interior
-                if edge.river > 0 or (d0.water != d1.water):
-                    base_triangles.append((idx_v0, idx_d1, idx_d0, col0 if not d0.water else col1, (v0.elevation + d0.elevation) * 0.5, edge.river > 0))
-                    base_triangles.append((idx_v1, idx_d0, idx_d1, col1 if not d1.water else col0, (v1.elevation + d1.elevation) * 0.5, edge.river > 0))
+                    base_triangles.append((idx_v0, idx_v1, idx_d0, col0, (z_v0 + z_v1 + d0.elevation * elev_scale) / (3.0 * elev_scale), True))
+                    base_triangles.append((idx_v1, idx_v0, idx_d1, col1, (z_v1 + z_v0 + d1.elevation * elev_scale) / (3.0 * elev_scale), True))
                 else:
-                    if not d0.water:
-                        base_triangles.append((idx_v0, idx_v1, idx_d0, col0, (v0.elevation + v1.elevation + d0.elevation) / 3.0, False))
-                    if not d1.water:
-                        base_triangles.append((idx_v1, idx_v0, idx_d1, col1, (v0.elevation + v1.elevation + d1.elevation) / 3.0, False))
+                    diag_v = np.linalg.norm(p_v0 - p_v1)
+                    diag_d = np.linalg.norm(p_d0 - p_d1)
+                    if diag_v < diag_d:
+                        if not d0.water:
+                            base_triangles.append((idx_v0, idx_v1, idx_d0, col0, (v0.elevation + v1.elevation + d0.elevation) / 3.0, False))
+                        if not d1.water:
+                            base_triangles.append((idx_v1, idx_v0, idx_d1, col1, (v0.elevation + v1.elevation + d1.elevation) / 3.0, False))
+                    else:
+                        base_triangles.append((idx_v0, idx_d1, idx_d0, col0 if not d0.water else col1, (v0.elevation + d0.elevation) * 0.5, False))
+                        base_triangles.append((idx_v1, idx_d0, idx_d1, col1 if not d1.water else col0, (v1.elevation + d1.elevation) * 0.5, False))
 
             # Initialize vertex color dictionary
             vertex_colors: Dict[int, np.ndarray] = {}

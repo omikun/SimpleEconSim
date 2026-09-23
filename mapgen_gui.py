@@ -254,7 +254,7 @@ class MapgenGUI:
             "roughness": Slider("roughness", "Fractal Roughness", 0.0, 8.0, 3.0, step=0.2, fmt="{:.1f}"),
             "jitter": Slider("jitter", "Lateral Edge Jitter", 0.0, 0.40, 0.22, step=0.02, fmt="{:.2f}"),
             "smooth": Slider("smooth", "Normal Smoothing Ratio", 0.0, 1.0, 0.70, step=0.05, fmt="{:.2f}"),
-            "alpha": Slider("alpha", "Ridge Alpha (α)", 0.0, 0.50, 0.25, step=0.02, fmt="{:.2f}"),
+            "alpha": Slider("alpha", "Ridge Alpha (α)", 0.0, 0.50, 0.0, step=0.02, fmt="{:.2f}"),
             # Geology, Ridges & Erosion Knobs
             "ridge_noise": Slider("ridge_noise", "Ridge Roughness (Musgrave)", 0.0, 1.0, 0.35, step=0.05, fmt="{:.2f}"),
             "erosion_strength": Slider("erosion_strength", "Erosion Carving Scale", 0.0, 1.0, 0.30, step=0.05, fmt="{:.2f}"),
