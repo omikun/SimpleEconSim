@@ -16,7 +16,7 @@ Operates directly on elevation grids or polygonal dual-mesh interpolations.
 from __future__ import annotations
 
 import math
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -268,67 +268,127 @@ class HydraulicErosionSim:
         return h
 
 
-def apply_erosion_to_polygon_mesh(
+class HydraulicErosionResult:
+    """Continuous 2D height and sediment field resulting from global hydraulic erosion."""
+
+    def __init__(
+        self,
+        base_grid: np.ndarray,
+        eroded_grid: np.ndarray,
+        sediment_map: np.ndarray,
+        width: float,
+        height: float,
+        grid_size: int,
+    ):
+        self.base_grid = base_grid.astype(np.float32)
+        self.eroded_grid = eroded_grid.astype(np.float32)
+        self.sediment_map = sediment_map.astype(np.float32)
+        self.delta_grid = (self.eroded_grid - self.base_grid).astype(np.float32)
+        self.width = max(1.0, float(width))
+        self.height = max(1.0, float(height))
+        self.grid_size = grid_size
+        self._scale_x = (grid_size - 1) / self.width
+        self._scale_y = (grid_size - 1) / self.height
+
+    def sample_elevation(self, x: float, y: float) -> float:
+        """Continuous bilinear sampling of eroded elevation at any (x, y) coordinates."""
+        gx = max(0.0, min(self.grid_size - 1.001, x * self._scale_x))
+        gy = max(0.0, min(self.grid_size - 1.001, y * self._scale_y))
+        ix = int(gx)
+        iy = int(gy)
+        fx = gx - ix
+        fy = gy - iy
+        g = self.eroded_grid
+        return float(
+            (g[iy, ix] * (1.0 - fx) + g[iy, ix + 1] * fx) * (1.0 - fy)
+            + (g[iy + 1, ix] * (1.0 - fx) + g[iy + 1, ix + 1] * fx) * fy
+        )
+
+    def sample_delta(self, x: float, y: float) -> float:
+        """Continuous bilinear sampling of erosion/deposition delta at any (x, y) coordinates."""
+        gx = max(0.0, min(self.grid_size - 1.001, x * self._scale_x))
+        gy = max(0.0, min(self.grid_size - 1.001, y * self._scale_y))
+        ix = int(gx)
+        iy = int(gy)
+        fx = gx - ix
+        fy = gy - iy
+        d = self.delta_grid
+        return float(
+            (d[iy, ix] * (1.0 - fx) + d[iy, ix + 1] * fx) * (1.0 - fy)
+            + (d[iy + 1, ix] * (1.0 - fx) + d[iy + 1, ix + 1] * fx) * fy
+        )
+
+
+def build_continuous_island_heightmap(
+    gen,
+    grid_size: int = 256,
+) -> Tuple[np.ndarray, np.ndarray, Any]:
+    """
+    Builds a continuous, smooth 2D elevation grid across the entire island
+    using Delaunay barycentric interpolation from polygon centers and corners.
+    Eliminates all discrete per-cell discontinuities and stair-stepping.
+    """
+    from scipy.interpolate import LinearNDInterpolator
+
+    pts = []
+    vals = []
+    for c in gen.centers:
+        pts.append([c.x, c.y])
+        vals.append(c.elevation if not c.water else 0.0)
+    for cn in gen.corners:
+        pts.append([cn.x, cn.y])
+        vals.append(cn.elevation if not cn.water else 0.0)
+
+    # Frame boundary points to prevent boundary extrapolation NaNs
+    w, h = gen.width, gen.height
+    for bx in [-w * 0.1, 0, w * 0.5, w, w * 1.1]:
+        for by in [-h * 0.1, 0, h * 0.5, h, h * 1.1]:
+            pts.append([bx, by])
+            vals.append(0.0)
+
+    pts_arr = np.array(pts, dtype=np.float64)
+    vals_arr = np.array(vals, dtype=np.float64)
+    interp = LinearNDInterpolator(pts_arr, vals_arr, fill_value=0.0)
+
+    gx, gy = np.meshgrid(
+        np.linspace(0, w, grid_size),
+        np.linspace(0, h, grid_size),
+    )
+    base_grid = interp(gx, gy)
+    base_grid = np.nan_to_num(base_grid, nan=0.0).astype(np.float32)
+    land_mask = base_grid > 0.02
+    return base_grid, land_mask, interp
+
+
+def simulate_global_erosion(
     gen,
     grid_size: int = 256,
     num_droplets: int = 15000,
-    carving_scale: float = 0.35,
+    carving_scale: float = 0.45,
     thermal_iterations: int = 2,
-) -> Tuple[Dict[int, float], Dict[int, float]]:
+    seed: Optional[int] = None,
+) -> HydraulicErosionResult:
     """
-    Simulates hydraulic and thermal erosion across an entire PolygonMapGenerator island.
-    Rasterizes dual-graph elevations to an N x N float grid, runs erosion particles,
-    and returns elevation deltas for Voronoi centers and corners.
-    
-    Returns:
-        center_deltas: {center.index: float delta}
-        corner_deltas: {corner.index: float delta}
+    Simulates global hydraulic and thermal erosion across the entire continuous island continuum.
+    Droplets carve natural dendritic river channels and deposit alluvial sediment seamlessly
+    across polygon boundaries.
     """
+    base_grid, land_mask, _ = build_continuous_island_heightmap(gen, grid_size=grid_size)
+    sim_seed = seed if seed is not None else getattr(gen, "seed", 42)
+
     if num_droplets <= 0 and thermal_iterations <= 0:
-        return {}, {}
+        return HydraulicErosionResult(
+            base_grid=base_grid,
+            eroded_grid=base_grid,
+            sediment_map=np.zeros_like(base_grid),
+            width=float(gen.width),
+            height=float(gen.height),
+            grid_size=grid_size,
+        )
 
-    scale_x = (grid_size - 1) / gen.width
-    scale_y = (grid_size - 1) / gen.height
-
-    # 1. Rasterize mesh elevations onto grid
-    grid = np.zeros((grid_size, grid_size), dtype=np.float32)
-    counts = np.zeros((grid_size, grid_size), dtype=np.float32)
-    land_mask = np.zeros((grid_size, grid_size), dtype=bool)
-
-    for c in gen.centers:
-        gx = int(np.clip(round(c.x * scale_x), 0, grid_size - 1))
-        gy = int(np.clip(round(c.y * scale_y), 0, grid_size - 1))
-        grid[gy, gx] += c.elevation
-        counts[gy, gx] += 1.0
-        if not c.water:
-            land_mask[gy, gx] = True
-
-    for cn in gen.corners:
-        gx = int(np.clip(round(cn.x * scale_x), 0, grid_size - 1))
-        gy = int(np.clip(round(cn.y * scale_y), 0, grid_size - 1))
-        grid[gy, gx] += cn.elevation
-        counts[gy, gx] += 1.0
-        if not cn.water:
-            land_mask[gy, gx] = True
-
-    # Fill unpopulated grid cells using nearest neighbor / distance fill
-    valid = counts > 0
-    if not np.any(valid):
-        return {}, {}
-
-    # Normalize populated cells
-    grid[valid] /= counts[valid]
-
-    # Simple 2D diffusion / blur to fill holes
-    from scipy.ndimage import gaussian_filter
-    filled_grid = grid.copy()
-    diffused = gaussian_filter(grid, sigma=1.5)
-    filled_grid[~valid] = diffused[~valid]
-
-    # 2. Run hydraulic and thermal erosion
-    sim = HydraulicErosionSim(grid_size=grid_size, seed=gen.seed)
-    eroded_grid, _ = sim.simulate_droplets(
-        filled_grid,
+    sim = HydraulicErosionSim(grid_size=grid_size, seed=sim_seed)
+    eroded_grid, sediment_map = sim.simulate_droplets(
+        base_grid,
         num_droplets=num_droplets,
         land_mask=land_mask,
         carving_scale=carving_scale,
@@ -336,25 +396,68 @@ def apply_erosion_to_polygon_mesh(
     if thermal_iterations > 0:
         eroded_grid = sim.apply_thermal_erosion(eroded_grid, iterations=thermal_iterations)
 
-    elevation_delta_grid = eroded_grid - filled_grid
+    return HydraulicErosionResult(
+        base_grid=base_grid,
+        eroded_grid=eroded_grid,
+        sediment_map=sediment_map,
+        width=float(gen.width),
+        height=float(gen.height),
+        grid_size=grid_size,
+    )
 
-    # 3. Sample delta map back to mesh centers and corners
+
+def apply_erosion_to_polygon_mesh(
+    gen,
+    grid_size: int = 256,
+    num_droplets: int = 15000,
+    carving_scale: float = 0.35,
+    thermal_iterations: int = 2,
+    return_field: bool = False,
+):
+    """
+    Simulates hydraulic and thermal erosion across an entire PolygonMapGenerator island.
+    Rasterizes dual-graph elevations to a continuous smooth grid, runs erosion droplets,
+    and returns elevation deltas for Voronoi centers and corners.
+    
+    Returns:
+        If return_field is False: (center_deltas, corner_deltas)
+        If return_field is True:  (center_deltas, corner_deltas, erosion_field)
+    """
+    if num_droplets <= 0 and thermal_iterations <= 0:
+        empty_field = HydraulicErosionResult(
+            base_grid=np.zeros((grid_size, grid_size), dtype=np.float32),
+            eroded_grid=np.zeros((grid_size, grid_size), dtype=np.float32),
+            sediment_map=np.zeros((grid_size, grid_size), dtype=np.float32),
+            width=float(gen.width),
+            height=float(gen.height),
+            grid_size=grid_size,
+        )
+        if return_field:
+            return {}, {}, empty_field
+        return {}, {}
+
+    result = simulate_global_erosion(
+        gen,
+        grid_size=grid_size,
+        num_droplets=num_droplets,
+        carving_scale=carving_scale,
+        thermal_iterations=thermal_iterations,
+    )
+
     center_deltas: Dict[int, float] = {}
     for c in gen.centers:
         if c.water:
             center_deltas[c.index] = 0.0
-            continue
-        gx = int(np.clip(round(c.x * scale_x), 0, grid_size - 1))
-        gy = int(np.clip(round(c.y * scale_y), 0, grid_size - 1))
-        center_deltas[c.index] = float(elevation_delta_grid[gy, gx])
+        else:
+            center_deltas[c.index] = result.sample_delta(c.x, c.y)
 
     corner_deltas: Dict[int, float] = {}
     for cn in gen.corners:
         if cn.water:
             corner_deltas[cn.index] = 0.0
-            continue
-        gx = int(np.clip(round(cn.x * scale_x), 0, grid_size - 1))
-        gy = int(np.clip(round(cn.y * scale_y), 0, grid_size - 1))
-        corner_deltas[cn.index] = float(elevation_delta_grid[gy, gx])
+        else:
+            corner_deltas[cn.index] = result.sample_delta(cn.x, cn.y)
 
+    if return_field:
+        return center_deltas, corner_deltas, result
     return center_deltas, corner_deltas
