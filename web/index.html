@@ -6,7 +6,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="theme-color" content="#12161c">
-  <title>Mapgen2 Explorer v2.2.5 (Build 14:48)</title>
+  <title>Mapgen2 Explorer v2.2.6 (Build 15:18)</title>
   <style>
     :root {
       --bg: #10141a;
@@ -414,7 +414,7 @@
 
   <header>
     <div class="header-title">
-      <h1>Mapgen2 Explorer <span style="font-size: 0.68rem; color: #38bdf8; font-weight: 600; background: rgba(56, 189, 248, 0.15); padding: 2px 6px; border-radius: 5px; border: 1px solid rgba(56, 189, 248, 0.35); vertical-align: middle;">v2.2.5 (Build 14:48)</span></h1>
+      <h1>Mapgen2 Explorer <span style="font-size: 0.68rem; color: #38bdf8; font-weight: 600; background: rgba(56, 189, 248, 0.15); padding: 2px 6px; border-radius: 5px; border: 1px solid rgba(56, 189, 248, 0.35); vertical-align: middle;">v2.2.6 (Build 15:18)</span></h1>
       <p id="perf-status">⚡ Initializing...</p>
     </div>
     <div style="display: flex; align-items: center; gap: 8px;">
@@ -1865,7 +1865,7 @@
     // ---------------------------------------------------------------------------
     function updateUrlParams() {
       const p = new URLSearchParams(state);
-      p.set('_v', '2.2.5');
+      p.set('_v', '2.2.6');
       return p.toString();
     }
 
@@ -2037,12 +2037,51 @@
     });
 
     // ---------------------------------------------------------------------------
-    // Settings Persistence & Save Slots System
+    // ---------------------------------------------------------------------------
+    // Settings Persistence & Save Slots System (Server File Storage & Local Mirror)
     // ---------------------------------------------------------------------------
     const STORAGE_KEY_LAST = 'mapgen_last_settings';
     const STORAGE_KEY_ACTIVE_SLOT = 'mapgen_active_slot';
+    const CURRENT_SLOT_SCHEMA_VERSION = 1;
     let activeSlot = 1;
     let saveDebounceTimer = null;
+    let cachedSlots = {};
+
+    function sanitizeSlotState(st) {
+      if (!st || typeof st !== 'object') return {};
+      // Provide backwards-compatibility defaults if older slot is missing newer properties
+      const defaults = {
+        seed: 777,
+        shape: 'radial',
+        points: 1000,
+        polys: 16000,
+        roughness: 3.0,
+        jitter: 0.22,
+        height_scale: 70.0,
+        sharpness: 1.0,
+        smooth: 0.70,
+        alpha: 0.0,
+        rivers: 25,
+        moisture_bias: 0.0,
+        north_temp: 0.0,
+        south_temp: 0.0,
+        persistence: 0.0,
+        quad_fold: true,
+        ridge_noise: 0.35,
+        erosion_strength: 0.30,
+        erosion_droplets: 15000,
+        engine: 'gpu',
+        mode: 'micropolys',
+        sun_azimuth: -135,
+        sun_elevation: 42,
+        sun_intensity: 1.15,
+        ambient_intensity: 0.45,
+        rot_pitch: 0,
+        rot_yaw: 0,
+        wireframe: false,
+      };
+      return Object.assign({}, defaults, st);
+    }
 
     function saveCurrentSettings() {
       if (saveDebounceTimer) clearTimeout(saveDebounceTimer);
@@ -2060,6 +2099,33 @@
       return `Seed ${st.seed} • ${st.shape} • ${Number(st.polys).toLocaleString()}p • ${eng}`;
     }
 
+    async function fetchServerSlots() {
+      try {
+        const res = await fetch('/api/slots');
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.slots) {
+            cachedSlots = data.slots;
+            if (data.active_slot) {
+              activeSlot = parseInt(data.active_slot) || 1;
+              localStorage.setItem(STORAGE_KEY_ACTIVE_SLOT, String(activeSlot));
+            }
+            // Mirror all slots to localStorage for instant offline access
+            for (let s = 1; s <= 4; s++) {
+              if (cachedSlots[String(s)]) {
+                localStorage.setItem(`mapgen_slot_${s}`, JSON.stringify(cachedSlots[String(s)]));
+              } else {
+                localStorage.removeItem(`mapgen_slot_${s}`);
+              }
+            }
+            updateSlotUi();
+          }
+        }
+      } catch (err) {
+        console.warn('Could not fetch server save slots, using local mirror:', err);
+      }
+    }
+
     function updateSlotUi() {
       const slotStatus = document.getElementById('slot-status');
       const slotMeta = document.getElementById('slot-meta');
@@ -2070,8 +2136,12 @@
         const btn = document.getElementById(`btn-slot-tab-${s}`);
         if (!btn) continue;
         btn.classList.toggle('active', s === activeSlot);
-        const savedRaw = localStorage.getItem(`mapgen_slot_${s}`);
-        if (savedRaw) {
+        const item = cachedSlots[String(s)] || (() => {
+          const raw = localStorage.getItem(`mapgen_slot_${s}`);
+          if (raw) { try { return JSON.parse(raw); } catch(e) {} }
+          return null;
+        })();
+        if (item) {
           btn.textContent = `Slot ${s} •`;
         } else {
           btn.textContent = `Slot ${s}`;
@@ -2079,34 +2149,47 @@
       }
 
       // Display metadata for currently selected slot
-      const currentSavedRaw = localStorage.getItem(`mapgen_slot_${activeSlot}`);
-      if (currentSavedRaw) {
-        try {
-          const item = JSON.parse(currentSavedRaw);
-          if (slotMeta) {
-            slotMeta.textContent = `${item.date || 'Saved'}: ${item.summary || 'Custom Preset'}`;
-          }
-        } catch(e) {
-          if (slotMeta) slotMeta.textContent = 'Saved Preset';
+      const currentItem = cachedSlots[String(activeSlot)] || (() => {
+        const raw = localStorage.getItem(`mapgen_slot_${activeSlot}`);
+        if (raw) { try { return JSON.parse(raw); } catch(e) {} }
+        return null;
+      })();
+
+      if (currentItem) {
+        const verStr = currentItem.schema_version ? ` (v${currentItem.schema_version})` : '';
+        if (slotMeta) {
+          slotMeta.textContent = `${currentItem.date || 'Saved'}${verStr}: ${currentItem.summary || 'Custom Preset'}`;
         }
       } else {
         if (slotMeta) slotMeta.textContent = 'Empty (Click Overwrite to Save)';
       }
     }
 
-    function saveActiveSlot() {
+    async function saveActiveSlot() {
       try {
         const now = new Date();
         const timeStr = now.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' ' +
                         now.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
         const slotData = {
+          schema_version: CURRENT_SLOT_SCHEMA_VERSION,
+          slot: activeSlot,
           date: timeStr,
           summary: formatSlotSummary(state),
           state: Object.assign({}, state)
         };
+
+        // 1. Mirror locally
         localStorage.setItem(`mapgen_slot_${activeSlot}`, JSON.stringify(slotData));
         localStorage.setItem(STORAGE_KEY_ACTIVE_SLOT, String(activeSlot));
+        cachedSlots[String(activeSlot)] = slotData;
         updateSlotUi();
+
+        // 2. Persist to server file storage
+        fetch('/api/slots/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(slotData)
+        }).catch(e => console.warn('Failed to persist slot to server file:', e));
 
         const btnSave = document.getElementById('btn-slot-save');
         if (btnSave) {
@@ -2122,25 +2205,38 @@
     function loadSlot(slotNum) {
       activeSlot = slotNum;
       localStorage.setItem(STORAGE_KEY_ACTIVE_SLOT, String(activeSlot));
-      const savedRaw = localStorage.getItem(`mapgen_slot_${slotNum}`);
-      if (savedRaw) {
-        try {
-          const item = JSON.parse(savedRaw);
-          if (item && item.state) {
-            Object.assign(state, item.state);
-            syncUiFromState();
-            triggerUpdate(true);
-            saveCurrentSettings();
-          }
-        } catch (e) {
-          console.error('Error loading slot:', e);
+      fetch('/api/slots/active', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ active_slot: slotNum })
+      }).catch(() => {});
+
+      let item = cachedSlots[String(slotNum)];
+      if (!item) {
+        const savedRaw = localStorage.getItem(`mapgen_slot_${slotNum}`);
+        if (savedRaw) {
+          try { item = JSON.parse(savedRaw); } catch (e) {}
         }
+      }
+
+      if (item && item.state) {
+        const migratedState = sanitizeSlotState(item.state);
+        Object.assign(state, migratedState);
+        syncUiFromState();
+        triggerUpdate(true);
+        saveCurrentSettings();
       }
       updateSlotUi();
     }
 
-    function clearActiveSlot() {
+    async function clearActiveSlot() {
       localStorage.removeItem(`mapgen_slot_${activeSlot}`);
+      cachedSlots[String(activeSlot)] = null;
+      fetch('/api/slots/clear', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slot: activeSlot })
+      }).catch(() => {});
       updateSlotUi();
     }
 
@@ -2155,7 +2251,7 @@
         if (lastRaw) {
           const loaded = JSON.parse(lastRaw);
           if (loaded && typeof loaded === 'object') {
-            Object.assign(state, loaded);
+            Object.assign(state, sanitizeSlotState(loaded));
           }
         }
       } catch (e) {
@@ -2164,6 +2260,7 @@
 
       syncUiFromState();
       updateSlotUi();
+      fetchServerSlots();
     }
 
     function syncUiFromState() {

@@ -224,6 +224,92 @@ def get_cached_micropolys(
 
 
 # ---------------------------------------------------------------------------
+# Persistent Save Slots Storage & Versioning
+# ---------------------------------------------------------------------------
+SLOTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "saved_slots")
+os.makedirs(SLOTS_DIR, exist_ok=True)
+CURRENT_SLOT_SCHEMA_VERSION = 1
+
+
+def migrate_slot_data(raw_data: dict) -> dict:
+    """Migrates slot data from older schemas to CURRENT_SLOT_SCHEMA_VERSION for backwards compatibility."""
+    if not isinstance(raw_data, dict):
+        return {}
+    ver = raw_data.get("schema_version", 1)
+    # Forward migrations can be appended here if schema_version increases in future releases
+    raw_data["schema_version"] = CURRENT_SLOT_SCHEMA_VERSION
+    return raw_data
+
+
+def get_all_saved_slots() -> dict:
+    slots = {}
+    for slot_num in range(1, 5):
+        slot_file = os.path.join(SLOTS_DIR, f"slot_{slot_num}.json")
+        if os.path.exists(slot_file):
+            try:
+                with open(slot_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    slots[str(slot_num)] = migrate_slot_data(data)
+            except Exception as e:
+                sys.stderr.write(f"Error reading slot {slot_num}: {e}\n")
+                slots[str(slot_num)] = None
+        else:
+            slots[str(slot_num)] = None
+
+    active_file = os.path.join(SLOTS_DIR, "active_slot.json")
+    active_slot = 1
+    if os.path.exists(active_file):
+        try:
+            with open(active_file, "r", encoding="utf-8") as f:
+                active_slot = json.load(f).get("active_slot", 1)
+        except Exception:
+            active_slot = 1
+
+    return {"status": "ok", "active_slot": active_slot, "slots": slots}
+
+
+def save_slot_to_file(slot_num: int, slot_data: dict) -> bool:
+    try:
+        os.makedirs(SLOTS_DIR, exist_ok=True)
+        slot_data["schema_version"] = CURRENT_SLOT_SCHEMA_VERSION
+        slot_file = os.path.join(SLOTS_DIR, f"slot_{slot_num}.json")
+        temp_file = slot_file + ".tmp"
+        with open(temp_file, "w", encoding="utf-8") as f:
+            json.dump(slot_data, f, indent=2)
+        os.replace(temp_file, slot_file)
+
+        active_file = os.path.join(SLOTS_DIR, "active_slot.json")
+        with open(active_file, "w", encoding="utf-8") as f:
+            json.dump({"active_slot": slot_num}, f, indent=2)
+        return True
+    except Exception as e:
+        sys.stderr.write(f"Error saving slot {slot_num}: {e}\n")
+        return False
+
+
+def clear_slot_file(slot_num: int) -> bool:
+    try:
+        slot_file = os.path.join(SLOTS_DIR, f"slot_{slot_num}.json")
+        if os.path.exists(slot_file):
+            os.remove(slot_file)
+        return True
+    except Exception as e:
+        sys.stderr.write(f"Error clearing slot {slot_num}: {e}\n")
+        return False
+
+
+def set_active_slot(slot_num: int) -> bool:
+    try:
+        os.makedirs(SLOTS_DIR, exist_ok=True)
+        active_file = os.path.join(SLOTS_DIR, "active_slot.json")
+        with open(active_file, "w", encoding="utf-8") as f:
+            json.dump({"active_slot": slot_num}, f, indent=2)
+        return True
+    except Exception:
+        return False
+
+
+# ---------------------------------------------------------------------------
 # HTTP Request Handler
 # ---------------------------------------------------------------------------
 class MapgenHTTPHandler(BaseHTTPRequestHandler):
@@ -270,8 +356,49 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
             sys.stderr.flush()
             self.send_json({"status": "logged"})
 
+        # 7. Persistent Save Slots API
+        elif path == "/api/slots":
+            self.send_json(get_all_saved_slots())
+
         else:
             self.send_error(404, "Not Found")
+
+    def do_POST(self):
+        parsed = urllib.parse.urlparse(self.path)
+        path = parsed.path
+
+        content_len = int(self.headers.get("Content-Length", 0))
+        body_bytes = self.rfile.read(content_len) if content_len > 0 else b"{}"
+        try:
+            body = json.loads(body_bytes.decode("utf-8")) if body_bytes else {}
+        except Exception:
+            body = {}
+
+        if path == "/api/slots/save":
+            slot_num = int(body.get("slot", 1))
+            slot_num = max(1, min(16, slot_num))
+            ok = save_slot_to_file(slot_num, body)
+            self.send_json({"status": "ok" if ok else "error", "slot": slot_num})
+
+        elif path == "/api/slots/clear":
+            slot_num = int(body.get("slot", 1))
+            ok = clear_slot_file(slot_num)
+            self.send_json({"status": "ok" if ok else "error", "slot": slot_num})
+
+        elif path == "/api/slots/active":
+            slot_num = int(body.get("active_slot", 1))
+            ok = set_active_slot(slot_num)
+            self.send_json({"status": "ok" if ok else "error", "active_slot": slot_num})
+
+        else:
+            self.send_error(404, "Not Found")
+
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.end_headers()
 
     def serve_index(self):
         html_path = os.path.join(os.path.dirname(__file__), "web", "index.html")

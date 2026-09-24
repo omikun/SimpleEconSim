@@ -132,12 +132,17 @@ def build_island_mesh(
         if not d0 or not d1 or not v0 or not v1:
             continue
         if (d0.water != d1.water) and (d0.ocean or d1.ocean):
-            p0 = np.array([v0.x * scale_x, v0.y * scale_y], dtype=np.float64)
-            p1 = np.array([v1.x * scale_x, v1.y * scale_y], dtype=np.float64)
-            edge_len = float(np.linalg.norm(p1 - p0))
-            n_samples = max(2, int(edge_len / 2.5))
-            for t in np.linspace(0.0, 1.0, n_samples):
-                coastline_pts.append(p0 * (1.0 - t) + p1 * t)
+            if getattr(gen, "noisy_edges", None):
+                pts = gen.noisy_edges.get_edge_path(edge, start_corner=v0)
+                for p in pts:
+                    coastline_pts.append(np.array([p[0] * scale_x, p[1] * scale_y], dtype=np.float64))
+            else:
+                p0 = np.array([v0.x * scale_x, v0.y * scale_y], dtype=np.float64)
+                p1 = np.array([v1.x * scale_x, v1.y * scale_y], dtype=np.float64)
+                edge_len = float(np.linalg.norm(p1 - p0))
+                n_samples = max(2, int(edge_len / 2.5))
+                for t in np.linspace(0.0, 1.0, n_samples):
+                    coastline_pts.append(p0 * (1.0 - t) + p1 * t)
 
     coast_tree = cKDTree(coastline_pts) if coastline_pts else None
 
@@ -152,6 +157,45 @@ def build_island_mesh(
         # Quintic Hermite envelope with C^2 continuity: first and second derivatives are 0 at t=0 and t=1
         return (6.0 * t**2 - 15.0 * t + 10.0) * (t**3)
 
+    # Dynamic micropoly beach colors (wet sand, dry golden sand, and dune grass)
+    COLOR_WET_SAND = np.array([168, 152, 122], dtype=np.float64)
+    COLOR_GOLDEN_SAND = np.array([214, 198, 152], dtype=np.float64)
+    COLOR_DUNE_SAND = np.array([192, 188, 142], dtype=np.float64)
+
+    def calc_vertex_color(x, y, z, dist, base_col, is_beach_cell=False):
+        # High-frequency procedural sand ripple & shoreline undulation noise
+        fx = x * 0.08 + gen.seed * 0.13
+        fy = y * 0.08 + gen.seed * 0.27
+        noise_var = (math.sin(fx) * math.cos(fy)) * 2.5 + (math.sin(fx * 2.3 + 1.1) * math.cos(fy * 2.1 - 0.7)) * 1.2
+
+        eff_dist = max(0.0, dist + noise_var)
+        eff_z = max(0.0, z + noise_var * 0.15)
+
+        if is_beach_cell:
+            max_beach_dist = 36.0
+            max_beach_z = 3.8
+        else:
+            max_beach_dist = 16.0
+            max_beach_z = 2.2
+
+        if eff_dist < max_beach_dist and eff_z < max_beach_z:
+            dist_factor = 1.0 - (eff_dist / max_beach_dist)
+            z_factor = 1.0 - (eff_z / max_beach_z)
+            beach_weight = min(1.0, max(0.0, dist_factor * z_factor * 1.3))
+            # Smoothstep curve for soft organic transition into vegetation
+            beach_weight = beach_weight * beach_weight * (3.0 - 2.0 * beach_weight)
+
+            if eff_z < 0.6:
+                sand_col = COLOR_WET_SAND * (1.0 - eff_z / 0.6) + COLOR_GOLDEN_SAND * (eff_z / 0.6)
+            elif eff_z < 1.8:
+                sand_col = COLOR_GOLDEN_SAND
+            else:
+                t_dune = min(1.0, (eff_z - 1.8) / 0.8)
+                sand_col = COLOR_GOLDEN_SAND * (1.0 - t_dune) + COLOR_DUNE_SAND * t_dune
+
+            return base_col * (1.0 - beach_weight) + sand_col * beach_weight
+        return base_col
+
     # Mode: Fractal Watertight Edge-Cached 2D+3D Subdivision (Default)
     if mode == "fractal":
         from collections import defaultdict
@@ -159,8 +203,10 @@ def build_island_mesh(
         vertex_map = {}
         is_boundary_vertex = {}
         vertex_coast_dist = {}
+        vertex_base_color = {}
+        vertex_is_beach = {}
 
-        def get_or_add_vertex(pt3d, is_fixed=False, dist=None):
+        def get_or_add_vertex(pt3d, is_fixed=False, dist=None, base_col=None, is_beach=False):
             key = (round(float(pt3d[0]), 1), round(float(pt3d[1]), 1))
             if key in vertex_map:
                 idx = vertex_map[key]
@@ -169,6 +215,8 @@ def build_island_mesh(
                     vertex_coast_dist[idx] = 0.0
                 elif dist is not None:
                     vertex_coast_dist[idx] = min(vertex_coast_dist.get(idx, 999.0), dist)
+                if is_beach:
+                    vertex_is_beach[idx] = True
                 return idx
             idx = len(vertices)
             vertices.append(np.array(pt3d, dtype=np.float64))
@@ -180,6 +228,8 @@ def build_island_mesh(
                 vertex_coast_dist[idx] = dist
             else:
                 vertex_coast_dist[idx] = float(coast_tree.query(pt3d[:2])[0]) if coast_tree else 999.0
+            vertex_base_color[idx] = base_col if base_col is not None else np.array([120, 160, 100], dtype=np.float64)
+            vertex_is_beach[idx] = is_beach
             return idx
 
         base_triangles = []
@@ -253,10 +303,8 @@ def build_island_mesh(
             p_d0 = np.array([d0.x * scale_x, d0.y * scale_y, z_d0], dtype=np.float64)
             p_d1 = np.array([d1.x * scale_x, d1.y * scale_y, z_d1], dtype=np.float64)
 
-            idx_v0 = get_or_add_vertex(p_v0, is_fixed=(v0.ocean or v0.coast or is_ocean_coast or dist_v0 <= 0.05), dist=dist_v0)
-            idx_v1 = get_or_add_vertex(p_v1, is_fixed=(v1.ocean or v1.coast or is_ocean_coast or dist_v1 <= 0.05), dist=dist_v1)
-            idx_d0 = get_or_add_vertex(p_d0, is_fixed=(d0.water or dist_d0 <= 0.05), dist=dist_d0)
-            idx_d1 = get_or_add_vertex(p_d1, is_fixed=(d1.water or dist_d1 <= 0.05), dist=dist_d1)
+            is_b0 = getattr(d0, "biome", "") == "BEACH"
+            is_b1 = getattr(d1, "biome", "") == "BEACH"
 
             col0 = np.array(BIOME_COLORS.get(d0.biome, (120, 160, 100)), dtype=np.float64)
             col1 = np.array(BIOME_COLORS.get(d1.biome, (120, 160, 100)), dtype=np.float64)
@@ -268,15 +316,35 @@ def build_island_mesh(
                 col0 = col0 * 0.75 + np.array([40, 105, 35], dtype=np.float64) * 0.25
                 col1 = col1 * 0.75 + np.array([40, 105, 35], dtype=np.float64) * 0.25
 
-            if d0.water != d1.water or edge.river > 0:
-                # Coastline boundary or river channel: MUST split along v0-v1
-                # Guarantees watertight perimeter without triangles projecting into ocean
+            idx_d0 = get_or_add_vertex(p_d0, is_fixed=(d0.water or dist_d0 <= 0.05), dist=dist_d0, base_col=col0, is_beach=is_b0)
+            idx_d1 = get_or_add_vertex(p_d1, is_fixed=(d1.water or dist_d1 <= 0.05), dist=dist_d1, base_col=col1, is_beach=is_b1)
+
+            if is_ocean_coast and getattr(gen, "noisy_edges", None):
+                # Fractal noisy edge path for organic, high-resolution beaches and coastlines
+                noisy_pts = gen.noisy_edges.get_edge_path(edge, start_corner=v0)
+                path_indices = []
+                for p in noisy_pts:
+                    p_3d = np.array([p[0] * scale_x, p[1] * scale_y, 0.0], dtype=np.float64)
+                    idx_p = get_or_add_vertex(p_3d, is_fixed=True, dist=0.0, base_col=COLOR_WET_SAND, is_beach=True)
+                    path_indices.append(idx_p)
+
+                # Fan triangles to the land cell center
+                if not d0.water:
+                    for k in range(len(path_indices) - 1):
+                        base_triangles.append((path_indices[k], path_indices[k+1], idx_d0, col0, z_d0 / (3.0 * elev_scale), edge.river > 0))
+                if not d1.water:
+                    for k in range(len(path_indices) - 1):
+                        base_triangles.append((path_indices[k+1], path_indices[k], idx_d1, col1, z_d1 / (3.0 * elev_scale), edge.river > 0))
+            elif d0.water != d1.water or edge.river > 0:
+                idx_v0 = get_or_add_vertex(p_v0, is_fixed=(v0.ocean or v0.coast or is_ocean_coast or dist_v0 <= 0.05), dist=dist_v0, base_col=col0, is_beach=(is_b0 or is_b1))
+                idx_v1 = get_or_add_vertex(p_v1, is_fixed=(v1.ocean or v1.coast or is_ocean_coast or dist_v1 <= 0.05), dist=dist_v1, base_col=col1, is_beach=(is_b0 or is_b1))
                 if not d0.water:
                     base_triangles.append((idx_v0, idx_v1, idx_d0, col0, (z_v0 + z_v1 + z_d0) / (3.0 * elev_scale), edge.river > 0))
                 if not d1.water:
                     base_triangles.append((idx_v1, idx_v0, idx_d1, col1, (z_v1 + z_v0 + z_d1) / (3.0 * elev_scale), edge.river > 0))
             else:
-                # Both cells are inland land polygons: select optimal diagonal
+                idx_v0 = get_or_add_vertex(p_v0, is_fixed=(v0.ocean or v0.coast or is_ocean_coast or dist_v0 <= 0.05), dist=dist_v0, base_col=col0, is_beach=(is_b0 or is_b1))
+                idx_v1 = get_or_add_vertex(p_v1, is_fixed=(v1.ocean or v1.coast or is_ocean_coast or dist_v1 <= 0.05), dist=dist_v1, base_col=col1, is_beach=(is_b0 or is_b1))
                 diag_v = np.linalg.norm(p_v0 - p_v1)
                 diag_d = np.linalg.norm(p_d0 - p_d1)
                 if diag_v < diag_d:
@@ -285,14 +353,6 @@ def build_island_mesh(
                 else:
                     base_triangles.append((idx_v0, idx_d1, idx_d0, col0, (z_v0 + z_d1 + z_d0) / (3.0 * elev_scale), False))
                     base_triangles.append((idx_v1, idx_d0, idx_d1, col1, (z_v1 + z_d0 + z_d1) / (3.0 * elev_scale), False))
-
-        vertex_colors = {}
-        for idx_a, idx_b, idx_c, col, el, riv in base_triangles:
-            for idx in (idx_a, idx_b, idx_c):
-                if idx not in vertex_colors:
-                    vertex_colors[idx] = col.copy()
-                else:
-                    vertex_colors[idx] = vertex_colors[idx] * 0.5 + col * 0.5
 
         triangles_idx = list(base_triangles)
         edge_midpoints = {}
@@ -314,6 +374,7 @@ def build_island_mesh(
             mid_dist = (dist_a + dist_b) * 0.5
             mid_env = calc_coastal_envelope(mid_dist)
             is_bnd = (is_boundary_vertex.get(i_a, False) and is_boundary_vertex.get(i_b, False)) or (mid_dist <= 0.05)
+            is_beach = vertex_is_beach.get(i_a, False) or vertex_is_beach.get(i_b, False)
 
             if length > 1.2:
                 n_perp = np.array([-e_xy[1], e_xy[0]], dtype=np.float64) / length
@@ -339,10 +400,11 @@ def build_island_mesh(
             vertices.append(mid)
             is_boundary_vertex[idx_mid] = is_bnd
             vertex_coast_dist[idx_mid] = mid_dist
+            vertex_is_beach[idx_mid] = is_beach
 
-            c_a = vertex_colors.get(i_a, np.array([120, 160, 100], dtype=np.float64))
-            c_b = vertex_colors.get(i_b, np.array([120, 160, 100], dtype=np.float64))
-            vertex_colors[idx_mid] = (c_a + c_b) * 0.5
+            c_a = vertex_base_color.get(i_a, np.array([120, 160, 100], dtype=np.float64))
+            c_b = vertex_base_color.get(i_b, np.array([120, 160, 100], dtype=np.float64))
+            vertex_base_color[idx_mid] = (c_a + c_b) * 0.5
 
             edge_midpoints[edge_key] = idx_mid
             return idx_mid
@@ -449,8 +511,16 @@ def build_island_mesh(
             area = float(areas[tri_idx, 0])
             blended_norm = blended_norms[tri_idx]
 
-            col = (vertex_colors.get(i_a, col_base) + vertex_colors.get(i_b, col_base) + vertex_colors.get(i_c, col_base)) / 3.0
-            final_triangles.append((pa, pb, pc, col, avg_elev, is_riv, area, blended_norm))
+            tri_mid_x = (pa[0] + pb[0] + pc[0]) / 3.0
+            tri_mid_y = (pa[1] + pb[1] + pc[1]) / 3.0
+            tri_mid_z = (pa[2] + pb[2] + pc[2]) / 3.0
+            tri_dist = (vertex_coast_dist.get(i_a, 999.0) + vertex_coast_dist.get(i_b, 999.0) + vertex_coast_dist.get(i_c, 999.0)) / 3.0
+            tri_is_beach = vertex_is_beach.get(i_a, False) or vertex_is_beach.get(i_b, False) or vertex_is_beach.get(i_c, False)
+
+            base_c = (vertex_base_color.get(i_a, col_base) + vertex_base_color.get(i_b, col_base) + vertex_base_color.get(i_c, col_base)) / 3.0
+            tri_col = calc_vertex_color(tri_mid_x, tri_mid_y, tri_mid_z, tri_dist, base_c, is_beach_cell=tri_is_beach)
+
+            final_triangles.append((pa, pb, pc, tri_col, avg_elev, is_riv, area, blended_norm))
 
         return final_triangles, len(final_triangles)
 
