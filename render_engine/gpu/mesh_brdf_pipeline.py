@@ -48,8 +48,10 @@ void main() {
     v_color = in_color;
     v_elev = in_elev;
 
-    vec2 center = u_resolution * 0.5;
-    float R = max(center.x, center.y);
+    // Canonical world coordinate space is 1024x1024
+    const float WORLD_COORD_SIZE = 1024.0;
+    vec2 center = vec2(WORLD_COORD_SIZE * 0.5, WORLD_COORD_SIZE * 0.5);
+    float R = WORLD_COORD_SIZE * 0.5;
 
     // Centered coordinates: +X East, +Y North, +Z Up
     vec3 p = vec3(in_pos.x - center.x, center.y - in_pos.y, in_pos.z);
@@ -406,15 +408,19 @@ class GPUMeshBRDFPipeline:
             self._cached_mesh_key = mesh_cache_key
 
         # 3. Setup Mesh Uniforms
-        self.prog_mesh["u_resolution"].value = (float(width), float(height))
-        self.prog_mesh["u_max_z"].value = float(self._cached_max_z)
-        self.prog_mesh["u_sun_dir"].value = sun_dir
-        self.prog_mesh["u_sun_intensity"].value = float(sun_intensity)
-        self.prog_mesh["u_ambient_intensity"].value = float(ambient_intensity)
-        self.prog_mesh["u_mountain_roughness"].value = float(mountain_roughness)
-        self.prog_mesh["u_snow_threshold"].value = float(snow_threshold)
-        self.prog_mesh["u_rot_pitch"].value = float(rot_pitch)
-        self.prog_mesh["u_rot_yaw"].value = float(rot_yaw)
+        def _set_uniform(prog, name, val):
+            if name in prog:
+                prog[name].value = val
+
+        _set_uniform(self.prog_mesh, "u_resolution", (float(width), float(height)))
+        _set_uniform(self.prog_mesh, "u_max_z", float(self._cached_max_z))
+        _set_uniform(self.prog_mesh, "u_sun_dir", sun_dir)
+        _set_uniform(self.prog_mesh, "u_sun_intensity", float(sun_intensity))
+        _set_uniform(self.prog_mesh, "u_ambient_intensity", float(ambient_intensity))
+        _set_uniform(self.prog_mesh, "u_mountain_roughness", float(mountain_roughness))
+        _set_uniform(self.prog_mesh, "u_snow_threshold", float(snow_threshold))
+        _set_uniform(self.prog_mesh, "u_rot_pitch", float(rot_pitch))
+        _set_uniform(self.prog_mesh, "u_rot_yaw", float(rot_yaw))
 
         # 4. GL State & Render
         self.ctx.enable(moderngl.DEPTH_TEST)

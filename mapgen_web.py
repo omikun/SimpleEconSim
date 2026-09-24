@@ -114,6 +114,7 @@ def _render_gpu_mesh_surface(
 # ---------------------------------------------------------------------------
 # Two-Tier In-Memory Cache for Instant Interactive Response
 # ---------------------------------------------------------------------------
+CANONICAL_WORLD_SIZE = 1024
 GRAPH_CACHE: Dict[Tuple, PolygonMapGenerator] = {}
 MESH_CACHE: Dict[Tuple, Tuple[List[Tuple], int]] = {}
 MAX_CACHE_ENTRIES = 12
@@ -129,7 +130,7 @@ def get_cached_graph(
     north_temp: float = 0.0,
     south_temp: float = 0.0,
     persistence: float = 0.0,
-    size: int = 720,
+    size: int = CANONICAL_WORLD_SIZE,
 ) -> PolygonMapGenerator:
     key = (
         seed,
@@ -141,15 +142,14 @@ def get_cached_graph(
         round(north_temp, 2),
         round(south_temp, 2),
         round(persistence, 2),
-        size,
     )
     if key in GRAPH_CACHE:
         return GRAPH_CACHE[key]
 
     gen = PolygonMapGenerator(
         seed=seed,
-        width=size,
-        height=size,
+        width=CANONICAL_WORLD_SIZE,
+        height=CANONICAL_WORLD_SIZE,
         num_points=points,
         island_shape=shape,
         river_count=rivers,
@@ -179,7 +179,6 @@ def get_cached_micropolys(
     alpha: float,
     height_scale: float,
     smooth: float,
-    size: int,
     quad_fold: bool = True,
     ridge_noise: float = 0.35,
     erosion_strength: float = 0.30,
@@ -203,8 +202,8 @@ def get_cached_micropolys(
 
     triangles, actual_count = build_island_mesh(
         gen,
-        width=size,
-        height=size,
+        width=CANONICAL_WORLD_SIZE,
+        height=CANONICAL_WORLD_SIZE,
         mode="fractal",
         target_polys=polys,
         roughness=roughness,
@@ -263,6 +262,13 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
         # 5. Health Check
         elif path == "/api/health":
             self.send_json({"status": "ok", "cached_graphs": len(GRAPH_CACHE), "gpu_available": is_gpu_ready(0.2)})
+
+        # 6. Client Diagnostics Log API
+        elif path == "/api/log_error":
+            msg = query.get("msg", [""])[0]
+            sys.stderr.write(f"[CLIENT LOG] {msg}\n")
+            sys.stderr.flush()
+            self.send_json({"status": "logged"})
 
         else:
             self.send_error(404, "Not Found")
@@ -330,7 +336,6 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
             round(north_temp, 2),
             round(south_temp, 2),
             round(persistence, 2),
-            size,
         )
         gen = get_cached_graph(
             seed,
@@ -342,7 +347,6 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
             north_temp=north_temp,
             south_temp=south_temp,
             persistence=persistence,
-            size=size,
         )
 
         surf = None
@@ -369,7 +373,6 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
                     alpha,
                     height_scale,
                     smooth,
-                    size,
                     quad_fold=quad_fold,
                     ridge_noise=ridge_noise,
                     erosion_strength=erosion_strength,
@@ -415,7 +418,6 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
                     alpha,
                     height_scale,
                     smooth,
-                    size,
                     quad_fold=quad_fold,
                     ridge_noise=ridge_noise,
                     erosion_strength=erosion_strength,
@@ -430,6 +432,8 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
                     sun_elevation=sun_elevation,
                     sun_intensity=sun_intensity,
                     ambient_intensity=ambient_intensity,
+                    rot_pitch=rot_pitch,
+                    rot_yaw=rot_yaw,
                 )
 
             elif mode == "biomes":
@@ -581,7 +585,6 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
             round(north_temp, 2),
             round(south_temp, 2),
             round(persistence, 2),
-            size,
         )
         gen = get_cached_graph(
             seed,
@@ -593,7 +596,6 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
             north_temp=north_temp,
             south_temp=south_temp,
             persistence=persistence,
-            size=size,
         )
 
         triangles, _ = get_cached_micropolys(
@@ -605,7 +607,6 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
             alpha,
             height_scale,
             smooth,
-            size,
             quad_fold=quad_fold,
             ridge_noise=ridge_noise,
             erosion_strength=erosion_strength,
@@ -615,11 +616,11 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
         from render_engine.gpu.mesh_brdf_pipeline import build_vbo_data
         vbo_data, max_z = build_vbo_data(triangles)
 
-        # Extract river vector lines
+        # Extract river vector lines in canonical world coordinates
         river_coords = []
         if hasattr(gen, "edges") and gen.noisy_edges:
-            scale_x = size / gen.width
-            scale_y = size / gen.height
+            scale_x = CANONICAL_WORLD_SIZE / gen.width
+            scale_y = CANONICAL_WORLD_SIZE / gen.height
             for e in gen.edges:
                 if e.river > 0 and e.v0 and e.v1:
                     pts = gen.noisy_edges.get_edge_path(e, start_corner=e.v0)
@@ -636,11 +637,11 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
                                                 pts[i+1][0] * scale_x, pts[i+1][1] * scale_y, zb])
         river_arr = np.array(river_coords, dtype=np.float32)
 
-        # Extract lava fissure lines
+        # Extract lava fissure lines in canonical world coordinates
         lava_coords = []
         if hasattr(gen, "edges"):
-            scale_x = size / gen.width
-            scale_y = size / gen.height
+            scale_x = CANONICAL_WORLD_SIZE / gen.width
+            scale_y = CANONICAL_WORLD_SIZE / gen.height
             for e in gen.edges:
                 if getattr(e, "lava", False) and e.v0 and e.v1:
                     z0 = float(getattr(e.v0, "elevation", 0.0) * height_scale) + 0.35
@@ -655,18 +656,30 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
 
         hdr = struct.pack('<4sIIfII', b'MMSH', 1, n_verts, float(max_z), n_river, n_lava)
         raw_payload = hdr + vbo_data.tobytes() + river_arr.tobytes() + lava_arr.tobytes()
-        compressed = gzip.compress(raw_payload, compresslevel=1)
 
+        accept_enc = self.headers.get("Accept-Encoding", "")
         dur_ms = (time.time() - t0) * 1000.0
-        self.send_response(200)
-        self.send_header("Content-Type", "application/octet-stream")
-        self.send_header("Content-Encoding", "gzip")
-        self.send_header("Content-Length", str(len(compressed)))
-        self.send_header("X-Mesh-Vertices", str(n_verts))
-        self.send_header("X-Mesh-Time-Ms", f"{dur_ms:.1f}")
-        self.send_header("Cache-Control", "public, max-age=60")
-        self.end_headers()
-        self.wfile.write(compressed)
+
+        if "gzip" in accept_enc:
+            compressed = gzip.compress(raw_payload, compresslevel=1)
+            self.send_response(200)
+            self.send_header("Content-Type", "application/octet-stream")
+            self.send_header("Content-Encoding", "gzip")
+            self.send_header("Content-Length", str(len(compressed)))
+            self.send_header("X-Mesh-Vertices", str(n_verts))
+            self.send_header("X-Mesh-Time-Ms", f"{dur_ms:.1f}")
+            self.send_header("Cache-Control", "public, max-age=60")
+            self.end_headers()
+            self.wfile.write(compressed)
+        else:
+            self.send_response(200)
+            self.send_header("Content-Type", "application/octet-stream")
+            self.send_header("Content-Length", str(len(raw_payload)))
+            self.send_header("X-Mesh-Vertices", str(n_verts))
+            self.send_header("X-Mesh-Time-Ms", f"{dur_ms:.1f}")
+            self.send_header("Cache-Control", "public, max-age=60")
+            self.end_headers()
+            self.wfile.write(raw_payload)
 
     def handle_inspect(self, q: Dict[str, list]):
         seed = int(q.get("seed", [777])[0])
@@ -691,10 +704,9 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
             north_temp=north_temp,
             south_temp=south_temp,
             persistence=persistence,
-            size=size,
         )
-        cx = nx * size
-        cy = ny * size
+        cx = nx * CANONICAL_WORLD_SIZE
+        cy = ny * CANONICAL_WORLD_SIZE
 
         center = gen.get_center_at(cx, cy)
         if not center:
@@ -733,7 +745,6 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
         ridge_noise = float(q.get("ridge_noise", [0.35])[0])
         erosion_strength = float(q.get("erosion_strength", [0.30])[0])
         erosion_droplets = int(q.get("erosion_droplets", [15000])[0])
-        size = 1000
 
         graph_key = (
             seed,
@@ -745,7 +756,6 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
             round(north_temp, 2),
             round(south_temp, 2),
             round(persistence, 2),
-            size,
         )
         gen = get_cached_graph(
             seed,
@@ -757,7 +767,6 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
             north_temp=north_temp,
             south_temp=south_temp,
             persistence=persistence,
-            size=size,
         )
         triangles, _ = get_cached_micropolys(
             gen,
@@ -768,7 +777,6 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
             alpha,
             height_scale,
             smooth,
-            size,
             quad_fold=quad_fold,
             ridge_noise=ridge_noise,
             erosion_strength=erosion_strength,

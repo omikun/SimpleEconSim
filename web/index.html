@@ -417,9 +417,12 @@
       <h1>Mapgen2 Explorer</h1>
       <p id="perf-status">⚡ Initializing...</p>
     </div>
-    <div class="header-badge">
-      <span class="pulse-dot"></span>
-      <span id="poly-badge">16,000 Polys</span>
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <button id="btn-header-reset-defaults" class="zoom-btn" style="width: auto; padding: 4px 10px; font-size: 0.72rem; border-radius: 8px; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); color: #fca5a5; display: flex; align-items: center; gap: 4px;" title="Reset all settings to original defaults">↺ Reset Defaults</button>
+      <div class="header-badge">
+        <span class="pulse-dot"></span>
+        <span id="poly-badge">16,000 Polys</span>
+      </div>
     </div>
   </header>
 
@@ -474,10 +477,13 @@
           📂 Load Slot
         </button>
       </div>
-      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.72rem; color: var(--text-muted);">
+      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.72rem; color: var(--text-muted); margin-bottom: 8px;">
         <span id="slot-meta" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 80%;">Default Settings</span>
-        <button id="btn-slot-clear" style="background: none; border: none; color: #ef4444; font-size: 0.72rem; cursor: pointer; padding: 2px 4px;">Reset</button>
+        <button id="btn-slot-clear" style="background: none; border: none; color: #f59e0b; font-size: 0.72rem; cursor: pointer; padding: 2px 4px;" title="Reset this slot to default">Clear Slot</button>
       </div>
+      <button class="btn-action" id="btn-reset-defaults" style="width: 100%; padding: 7px 10px; font-size: 0.76rem; background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.35); color: #fca5a5;">
+        ↺ Reset to Default Settings
+      </button>
     </div>
 
     <!-- Engine & Resolution Selector -->
@@ -868,7 +874,7 @@
 
     function updateRotHud() {
       if (!rotHud || !rotReadout) return;
-      const isRot = (state.engine === 'gpu') && (Math.abs(state.rot_pitch) > 0.5 || Math.abs(state.rot_yaw) > 0.5 || isRotating);
+      const isRot = (Math.abs(state.rot_pitch) > 0.5 || Math.abs(state.rot_yaw) > 0.5 || isRotating);
       if (isRot) {
         rotHud.style.display = 'flex';
         rotReadout.textContent = `3D: Pitch ${Math.round(state.rot_pitch)}° • Yaw ${Math.round(state.rot_yaw)}°`;
@@ -889,7 +895,8 @@
     uniform mat4 u_light_vp;
 
     void main() {
-        vec2 center = u_resolution * 0.5;
+        const float WORLD_COORD_SIZE = 1024.0;
+        vec2 center = vec2(WORLD_COORD_SIZE * 0.5, WORLD_COORD_SIZE * 0.5);
         vec3 p = vec3(in_pos.x - center.x, center.y - in_pos.y, in_pos.z);
         gl_Position = u_light_vp * vec4(p, 1.0);
     }
@@ -898,10 +905,8 @@
     const SHADOW_FS = `#version 300 es
     precision highp float;
 
-    out vec4 frag_dummy;
-
     void main() {
-        frag_dummy = vec4(0.0);
+        // Depth is written automatically by fixed-function rasterizer
     }
     `;
 
@@ -928,8 +933,9 @@
         v_color = in_color;
         v_elev = in_elev;
 
-        vec2 center = u_resolution * 0.5;
-        float R = max(center.x, center.y);
+        const float WORLD_COORD_SIZE = 1024.0;
+        vec2 center = vec2(WORLD_COORD_SIZE * 0.5, WORLD_COORD_SIZE * 0.5);
+        float R = WORLD_COORD_SIZE * 0.5;
 
         // Centered coordinates: +X East, +Y North, +Z Up
         vec3 p = vec3(in_pos.x - center.x, center.y - in_pos.y, in_pos.z);
@@ -986,6 +992,8 @@
 
     const MESH_FS = `#version 300 es
     precision highp float;
+    precision highp sampler2D;
+    precision highp sampler2DShadow;
 
     in vec3 v_norm;
     in vec3 v_color;
@@ -1147,8 +1155,9 @@
     uniform float u_max_z;
 
     void main() {
-        vec2 center = u_resolution * 0.5;
-        float R = max(center.x, center.y);
+        const float WORLD_COORD_SIZE = 1024.0;
+        vec2 center = vec2(WORLD_COORD_SIZE * 0.5, WORLD_COORD_SIZE * 0.5);
+        float R = WORLD_COORD_SIZE * 0.5;
 
         vec3 p = vec3(in_pos.x - center.x, center.y - in_pos.y, in_pos.z);
 
@@ -1201,6 +1210,7 @@
     let lineProg = null;
     let shadowProg = null;
     let shadowDepthTex = null;
+    let dummyShadowTex = null;
     let shadowFbo = null;
     let meshVbo = null;
     let riverVbo = null;
@@ -1301,7 +1311,9 @@
       glCtx.shaderSource(shader, source.trim());
       glCtx.compileShader(shader);
       if (!glCtx.getShaderParameter(shader, glCtx.COMPILE_STATUS)) {
-        console.error('Shader compile error:', glCtx.getShaderInfoLog(shader));
+        const info = glCtx.getShaderInfoLog(shader);
+        console.error('Shader compile error:', info);
+        try { fetch('/api/log_error?msg=' + encodeURIComponent('Shader compile error: ' + info)); } catch(e){}
         glCtx.deleteShader(shader);
         return null;
       }
@@ -1317,7 +1329,9 @@
       glCtx.attachShader(prog, fs);
       glCtx.linkProgram(prog);
       if (!glCtx.getProgramParameter(prog, glCtx.LINK_STATUS)) {
-        console.error('Program link error:', glCtx.getProgramInfoLog(prog));
+        const info = glCtx.getProgramInfoLog(prog);
+        console.error('Program link error:', info);
+        try { fetch('/api/log_error?msg=' + encodeURIComponent('Program link error: ' + info)); } catch(e){}
         return null;
       }
       return prog;
@@ -1434,6 +1448,32 @@
         gl.depthFunc(gl.LEQUAL);
         gl.disable(gl.CULL_FACE);
 
+        // Dummy 1x1 depth texture for safe fallback when shadows are disabled or unsupported
+        try {
+          dummyShadowTex = gl.createTexture();
+          gl.bindTexture(gl.TEXTURE_2D, dummyShadowTex);
+          gl.texImage2D(
+            gl.TEXTURE_2D,
+            0,
+            gl.DEPTH_COMPONENT24,
+            1,
+            1,
+            0,
+            gl.DEPTH_COMPONENT,
+            gl.UNSIGNED_INT,
+            null
+          );
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_COMPARE_MODE, gl.COMPARE_REF_TO_TEXTURE);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_COMPARE_FUNC, gl.LEQUAL);
+          gl.bindTexture(gl.TEXTURE_2D, null);
+        } catch (dErr) {
+          console.warn('Dummy depth texture error:', dErr);
+        }
+
         isWebGlReady = true;
         return true;
       } catch (err) {
@@ -1443,112 +1483,127 @@
     }
 
     function renderClientGPU() {
-      if (!isWebGlReady && !initWebGL()) return;
-      if (meshVertexCount === 0) return;
+      try {
+        if (!isWebGlReady && !initWebGL()) return;
+        if (meshVertexCount === 0) return;
 
-      if (gpuCanvas.width !== state.size || gpuCanvas.height !== state.size) {
-        gpuCanvas.width = state.size;
-        gpuCanvas.height = state.size;
-      }
+        if (gpuCanvas.width !== state.size || gpuCanvas.height !== state.size) {
+          gpuCanvas.width = state.size;
+          gpuCanvas.height = state.size;
+        }
 
-      // Compute normalized sun direction vector
-      const az_rad = (state.sun_azimuth * Math.PI) / 180.0;
-      const el_rad = (Math.max(5.0, Math.min(88.0, state.sun_elevation)) * Math.PI) / 180.0;
-      const sx = Math.cos(el_rad) * Math.cos(az_rad);
-      const sy = Math.cos(el_rad) * Math.sin(az_rad);
-      const sz = Math.sin(el_rad);
-      const slen = Math.hypot(sx, sy, sz);
-      const sunDir = [sx / slen, sy / slen, sz / slen];
+        // Compute normalized sun direction vector
+        const az_rad = (state.sun_azimuth * Math.PI) / 180.0;
+        const el_rad = (Math.max(5.0, Math.min(88.0, state.sun_elevation)) * Math.PI) / 180.0;
+        const sx = Math.cos(el_rad) * Math.cos(az_rad);
+        const sy = Math.cos(el_rad) * Math.sin(az_rad);
+        const sz = Math.sin(el_rad);
+        const slen = Math.hypot(sx, sy, sz);
+        const sunDir = [sx / slen, sy / slen, sz / slen];
 
-      const { lightVp, shadowMatrix } = computeShadowMatrices(sunDir);
+        const { lightVp, shadowMatrix } = computeShadowMatrices(sunDir);
 
-      // Unbind texture unit 0 before Pass 1 to prevent framebuffer feedback loops
-      gl.activeTexture(gl.TEXTURE0);
-      gl.bindTexture(gl.TEXTURE_2D, null);
+        // Unbind texture unit 0 before Pass 1 to prevent framebuffer feedback loops
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, null);
 
-      // Pass 1: Directional Shadow Map Pass
-      const canCastShadows = Boolean(state.shadows && shadowFbo && shadowProg);
-      if (canCastShadows) {
-        gl.bindFramebuffer(gl.FRAMEBUFFER, shadowFbo);
-        gl.viewport(0, 0, SHADOW_SIZE, SHADOW_SIZE);
-        gl.clearDepth(1.0);
-        gl.clear(gl.DEPTH_BUFFER_BIT);
+        // Pass 1: Directional Shadow Map Pass
+        const canCastShadows = Boolean(state.shadows && shadowFbo && shadowProg);
+        if (canCastShadows) {
+          gl.bindFramebuffer(gl.FRAMEBUFFER, shadowFbo);
+          gl.viewport(0, 0, SHADOW_SIZE, SHADOW_SIZE);
+          gl.clearDepth(1.0);
+          gl.clear(gl.DEPTH_BUFFER_BIT);
 
-        gl.enable(gl.POLYGON_OFFSET_FILL);
-        gl.polygonOffset(2.5, 4.0);
+          gl.enable(gl.POLYGON_OFFSET_FILL);
+          gl.polygonOffset(2.5, 4.0);
 
-        gl.useProgram(shadowProg);
-        gl.uniform2f(gl.getUniformLocation(shadowProg, 'u_resolution'), gpuCanvas.width, gpuCanvas.height);
-        gl.uniformMatrix4fv(gl.getUniformLocation(shadowProg, 'u_light_vp'), false, lightVp);
+          gl.useProgram(shadowProg);
+          gl.uniform2f(gl.getUniformLocation(shadowProg, 'u_resolution'), gpuCanvas.width, gpuCanvas.height);
+          gl.uniformMatrix4fv(gl.getUniformLocation(shadowProg, 'u_light_vp'), false, lightVp);
+
+          gl.bindVertexArray(meshVao);
+          gl.drawArrays(gl.TRIANGLES, 0, meshVertexCount);
+
+          gl.disable(gl.POLYGON_OFFSET_FILL);
+        }
+
+        // Pass 2: Main Camera BRDF Render Pass
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        gl.viewport(0, 0, gpuCanvas.width, gpuCanvas.height);
+        gl.clearColor(0.11, 0.19, 0.33, 1.0);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+        // Draw Terrain Mesh with Dynamic Shading & PCF Shadows
+        gl.useProgram(meshProg);
+        const activeShadowTex = (canCastShadows && shadowDepthTex) ? shadowDepthTex : dummyShadowTex;
+        if (activeShadowTex) {
+          gl.activeTexture(gl.TEXTURE0);
+          gl.bindTexture(gl.TEXTURE_2D, activeShadowTex);
+          gl.uniform1i(gl.getUniformLocation(meshProg, 'u_shadow_map'), 0);
+        }
+        gl.uniformMatrix4fv(gl.getUniformLocation(meshProg, 'u_shadow_matrix'), false, shadowMatrix);
+        gl.uniform1f(gl.getUniformLocation(meshProg, 'u_shadow_intensity'), canCastShadows ? state.shadow_darkness : 0.0);
+
+        gl.uniform2f(gl.getUniformLocation(meshProg, 'u_resolution'), gpuCanvas.width, gpuCanvas.height);
+        gl.uniform1f(gl.getUniformLocation(meshProg, 'u_max_z'), meshMaxZ);
+        gl.uniform3fv(gl.getUniformLocation(meshProg, 'u_sun_dir'), sunDir);
+        gl.uniform1f(gl.getUniformLocation(meshProg, 'u_sun_intensity'), state.sun_intensity);
+        gl.uniform1f(gl.getUniformLocation(meshProg, 'u_ambient_intensity'), state.ambient_intensity);
+        gl.uniform1f(gl.getUniformLocation(meshProg, 'u_mountain_roughness'), state.mountain_roughness);
+        gl.uniform1f(gl.getUniformLocation(meshProg, 'u_snow_threshold'), 0.82);
+        gl.uniform1f(gl.getUniformLocation(meshProg, 'u_rot_pitch'), state.rot_pitch);
+        gl.uniform1f(gl.getUniformLocation(meshProg, 'u_rot_yaw'), state.rot_yaw);
 
         gl.bindVertexArray(meshVao);
         gl.drawArrays(gl.TRIANGLES, 0, meshVertexCount);
 
-        gl.disable(gl.POLYGON_OFFSET_FILL);
-      }
+        // Draw Rivers & Lava if present
+        if (riverVertexCount > 0 || lavaVertexCount > 0) {
+          gl.useProgram(lineProg);
+          gl.uniform2f(gl.getUniformLocation(lineProg, 'u_resolution'), gpuCanvas.width, gpuCanvas.height);
+          gl.uniform1f(gl.getUniformLocation(lineProg, 'u_max_z'), meshMaxZ);
+          gl.uniform1f(gl.getUniformLocation(lineProg, 'u_rot_pitch'), state.rot_pitch);
+          gl.uniform1f(gl.getUniformLocation(lineProg, 'u_rot_yaw'), state.rot_yaw);
 
-      // Pass 2: Main Camera BRDF Render Pass
-      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-      gl.viewport(0, 0, gpuCanvas.width, gpuCanvas.height);
-      gl.clearColor(0.11, 0.19, 0.33, 1.0);
-      gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+          if (riverVertexCount > 0) {
+            gl.uniform4f(gl.getUniformLocation(lineProg, 'u_line_color'), 0.12, 0.35, 0.65, 1.0);
+            gl.bindVertexArray(riverVao);
+            gl.drawArrays(gl.LINES, 0, riverVertexCount);
+          }
 
-      // Draw Terrain Mesh with Dynamic Shading & PCF Shadows
-      gl.useProgram(meshProg);
-      if (canCastShadows && shadowDepthTex) {
+          if (lavaVertexCount > 0) {
+            gl.uniform4f(gl.getUniformLocation(lineProg, 'u_line_color'), 1.0, 0.40, 0.05, 1.0);
+            gl.bindVertexArray(lavaVao);
+            gl.drawArrays(gl.LINES, 0, lavaVertexCount);
+          }
+        }
+
+        gl.bindVertexArray(null);
         gl.activeTexture(gl.TEXTURE0);
-        gl.bindTexture(gl.TEXTURE_2D, shadowDepthTex);
-        gl.uniform1i(gl.getUniformLocation(meshProg, 'u_shadow_map'), 0);
-      }
-      gl.uniformMatrix4fv(gl.getUniformLocation(meshProg, 'u_shadow_matrix'), false, shadowMatrix);
-      gl.uniform1f(gl.getUniformLocation(meshProg, 'u_shadow_intensity'), canCastShadows ? state.shadow_darkness : 0.0);
+        gl.bindTexture(gl.TEXTURE_2D, null);
 
-      gl.uniform2f(gl.getUniformLocation(meshProg, 'u_resolution'), gpuCanvas.width, gpuCanvas.height);
-      gl.uniform1f(gl.getUniformLocation(meshProg, 'u_max_z'), meshMaxZ);
-      gl.uniform3fv(gl.getUniformLocation(meshProg, 'u_sun_dir'), sunDir);
-      gl.uniform1f(gl.getUniformLocation(meshProg, 'u_sun_intensity'), state.sun_intensity);
-      gl.uniform1f(gl.getUniformLocation(meshProg, 'u_ambient_intensity'), state.ambient_intensity);
-      gl.uniform1f(gl.getUniformLocation(meshProg, 'u_mountain_roughness'), state.mountain_roughness);
-      gl.uniform1f(gl.getUniformLocation(meshProg, 'u_snow_threshold'), 0.82);
-      gl.uniform1f(gl.getUniformLocation(meshProg, 'u_rot_pitch'), state.rot_pitch);
-      gl.uniform1f(gl.getUniformLocation(meshProg, 'u_rot_yaw'), state.rot_yaw);
-
-      gl.bindVertexArray(meshVao);
-      gl.drawArrays(gl.TRIANGLES, 0, meshVertexCount);
-
-      // Draw Rivers & Lava if present
-      if (riverVertexCount > 0 || lavaVertexCount > 0) {
-        gl.useProgram(lineProg);
-        gl.uniform2f(gl.getUniformLocation(lineProg, 'u_resolution'), gpuCanvas.width, gpuCanvas.height);
-        gl.uniform1f(gl.getUniformLocation(lineProg, 'u_max_z'), meshMaxZ);
-        gl.uniform1f(gl.getUniformLocation(lineProg, 'u_rot_pitch'), state.rot_pitch);
-        gl.uniform1f(gl.getUniformLocation(lineProg, 'u_rot_yaw'), state.rot_yaw);
-
-        if (riverVertexCount > 0) {
-          gl.uniform4f(gl.getUniformLocation(lineProg, 'u_line_color'), 0.12, 0.35, 0.65, 1.0);
-          gl.bindVertexArray(riverVao);
-          gl.drawArrays(gl.LINES, 0, riverVertexCount);
+        // Success: ensure gpuCanvas is displayed and mapImg hidden
+        gpuCanvas.style.display = 'block';
+        if (state.engine === 'gpu' && state.mode === 'micropolys') {
+          mapImg.style.display = 'none';
         }
 
-        if (lavaVertexCount > 0) {
-          gl.uniform4f(gl.getUniformLocation(lineProg, 'u_line_color'), 1.0, 0.40, 0.05, 1.0);
-          gl.bindVertexArray(lavaVao);
-          gl.drawArrays(gl.LINES, 0, lavaVertexCount);
-        }
+        // Update HUD status & download links
+        const is3D = (Math.abs(state.rot_pitch) > 0.5 || Math.abs(state.rot_yaw) > 0.5);
+        const shadowStatus = state.shadows ? 'PCF Shadows' : 'No Shadows';
+        perfStatus.textContent = `⚡ WebGL 2 Client (60-120 FPS) • ${shadowStatus} • ${is3D ? `Pitch ${Math.round(state.rot_pitch)}° Yaw ${Math.round(state.rot_yaw)}°` : 'Top-Down'}`;
+        polyBadge.textContent = `${(meshVertexCount / 3).toLocaleString()} Polys`;
+
+        const query = updateUrlParams();
+        btnAr.href = `/api/export_usdz?${query}`;
+      } catch (err) {
+        console.error('renderClientGPU failed:', err);
+        try { fetch('/api/log_error?msg=' + encodeURIComponent('renderClientGPU: ' + (err.message || err))); } catch(e){}
+        gpuCanvas.style.display = 'none';
+        mapImg.style.display = 'block';
+        fetchRender();
       }
-
-      gl.bindVertexArray(null);
-      gl.activeTexture(gl.TEXTURE0);
-      gl.bindTexture(gl.TEXTURE_2D, null);
-
-      // Update HUD status & download links
-      const is3D = (Math.abs(state.rot_pitch) > 0.5 || Math.abs(state.rot_yaw) > 0.5);
-      const shadowStatus = state.shadows ? 'PCF Shadows' : 'No Shadows';
-      perfStatus.textContent = `⚡ WebGL 2 Client (60-120 FPS) • ${shadowStatus} • ${is3D ? `Pitch ${Math.round(state.rot_pitch)}° Yaw ${Math.round(state.rot_yaw)}°` : 'Top-Down'}`;
-      polyBadge.textContent = `${(meshVertexCount / 3).toLocaleString()} Polys`;
-
-      const query = updateUrlParams();
-      btnAr.href = `/api/export_usdz?${query}`;
     }
 
     function getMeshParamsKey() {
@@ -1571,8 +1626,7 @@
         state.quad_fold,
         state.ridge_noise,
         state.erosion_strength,
-        state.erosion_droplets,
-        state.size
+        state.erosion_droplets
       ].join('_');
     }
 
@@ -1590,11 +1644,20 @@
         const res = await fetch(`/api/mesh_binary?${query}`, { signal: meshAbortController.signal });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-        const buf = await res.arrayBuffer();
+        let buf = await res.arrayBuffer();
         if (buf.byteLength < 24) throw new Error('Invalid mesh payload size');
 
-        const view = new DataView(buf);
-        const magic = String.fromCharCode(view.getUint8(0), view.getUint8(1), view.getUint8(2), view.getUint8(3));
+        let view = new DataView(buf);
+        let magic = String.fromCharCode(view.getUint8(0), view.getUint8(1), view.getUint8(2), view.getUint8(3));
+        if (magic !== 'MMSH') {
+          if (view.getUint8(0) === 0x1f && view.getUint8(1) === 0x8b && typeof DecompressionStream !== 'undefined') {
+            const ds = new DecompressionStream('gzip');
+            const decompressedStream = new Response(buf).body.pipeThrough(ds);
+            buf = await new Response(decompressedStream).arrayBuffer();
+            view = new DataView(buf);
+            magic = String.fromCharCode(view.getUint8(0), view.getUint8(1), view.getUint8(2), view.getUint8(3));
+          }
+        }
         if (magic !== 'MMSH') throw new Error(`Invalid magic: ${magic}`);
 
         const version = view.getUint32(4, true);
@@ -1640,14 +1703,18 @@
         completeProgress();
         isMeshFetching = false;
 
-        gpuCanvas.style.display = 'block';
-        mapImg.style.display = 'none';
-        renderClientGPU();
+        if (state.engine === 'gpu' && state.mode === 'micropolys') {
+          renderClientGPU();
+        } else {
+          gpuCanvas.style.display = 'none';
+          mapImg.style.display = 'block';
+        }
       } catch (err) {
+        completeProgress();
+        isMeshFetching = false;
         if (err.name !== 'AbortError') {
           console.error('fetchMeshBinary error:', err);
-          completeProgress();
-          isMeshFetching = false;
+          try { fetch('/api/log_error?msg=' + encodeURIComponent('fetchMeshBinary: ' + (err.message || err))); } catch(e){}
           gpuCanvas.style.display = 'none';
           mapImg.style.display = 'block';
           fetchRender();
@@ -1741,6 +1808,7 @@
       state.rot_pitch = 0.0;
       state.rot_yaw = 0.0;
       updateRotHud();
+      saveCurrentSettings();
       triggerUpdate(true);
     });
 
@@ -1758,8 +1826,8 @@
       if (e.target.closest('.zoom-hud') || e.target.closest('.inspect-card')) return;
       hasMoved = false;
 
-      if (state.engine === 'gpu' && e.button === 0 && !e.shiftKey) {
-        // Primary left-click rotates 3D mesh in GPU mode
+      if (e.button === 0 && !e.shiftKey) {
+        // Primary left-click rotates 3D mesh (works in both GPU and CPU modes)
         isRotating = true;
         mapBox.classList.add('rotating');
         rotStartX = e.clientX;
@@ -1767,14 +1835,20 @@
         initialYaw = state.rot_yaw;
         initialPitch = state.rot_pitch;
         updateRotHud();
+
+        // If mesh is not yet cached and WebGL is available, prefetch for instant 60-120 FPS rotation
+        if (meshVertexCount === 0 && !isMeshFetching) {
+          fetchMeshBinary();
+        }
       } else {
-        // Pan viewport (shift+click or right click or in CPU mode)
+        // Shift+click or middle/right click pans viewport
         isPanning = true;
         mapBox.classList.add('panning');
         startX = e.clientX - panX;
         startY = e.clientY - panY;
       }
       try { mapBox.setPointerCapture(e.pointerId); } catch(err){}
+      e.preventDefault();
     });
 
     mapBox.addEventListener('pointermove', (e) => {
@@ -1791,7 +1865,16 @@
         state.rot_yaw = Math.round(newYaw);
         state.rot_pitch = Math.round(newPitch);
         updateRotHud();
-        requestAnimationFrame(renderClientGPU);
+
+        // Instant hardware-accelerated preview at 60-120 FPS
+        if (isWebGlReady && meshVertexCount > 0) {
+          gpuCanvas.style.display = 'block';
+          mapImg.style.display = 'none';
+          requestAnimationFrame(renderClientGPU);
+        } else {
+          if (debounceTimer) clearTimeout(debounceTimer);
+          debounceTimer = setTimeout(() => { triggerUpdate(false); }, 100);
+        }
         return;
       }
       if (!isPanning) return;
@@ -1812,7 +1895,16 @@
         mapBox.classList.remove('rotating');
         try { mapBox.releasePointerCapture(e.pointerId); } catch(err){}
         updateRotHud();
-        if (!hasMoved) {
+        saveCurrentSettings();
+
+        if (hasMoved) {
+          // If in CPU mode, non-micropolys, or mesh not loaded, refresh server render with new angles
+          if (state.engine !== 'gpu' || state.mode !== 'micropolys' || meshVertexCount === 0 || !isWebGlReady) {
+            gpuCanvas.style.display = 'none';
+            mapImg.style.display = 'block';
+            triggerUpdate(false);
+          }
+        } else {
           inspectAtClientXY(e.clientX, e.clientY);
         }
         return;
@@ -1827,6 +1919,16 @@
       }
     });
 
+    mapBox.addEventListener('pointercancel', (e) => {
+      if (e.pointerType === 'touch') return;
+      isRotating = false;
+      isPanning = false;
+      mapBox.classList.remove('rotating');
+      mapBox.classList.remove('panning');
+      try { mapBox.releasePointerCapture(e.pointerId); } catch(err){}
+      updateRotHud();
+    });
+
     // ---------------------------------------------------------------------------
     // Mobile Touch Events (1-Finger Rotate/Pan, Tap Inspect, 2-Finger Pinch Zoom)
     // ---------------------------------------------------------------------------
@@ -1839,19 +1941,17 @@
       if (e.touches.length === 1) {
         hasMoved = false;
         isPinching = false;
-        if (state.engine === 'gpu') {
-          // 1-Finger drag rotates the 3D mesh in GPU mode
-          isRotating = true;
-          mapBox.classList.add('rotating');
-          rotStartX = e.touches[0].clientX;
-          rotStartY = e.touches[0].clientY;
-          initialYaw = state.rot_yaw;
-          initialPitch = state.rot_pitch;
-          updateRotHud();
-        } else {
-          isRotating = false;
-          touchStartX = e.touches[0].clientX - panX;
-          touchStartY = e.touches[0].clientY - panY;
+        // 1-Finger drag rotates the 3D mesh in both GPU and CPU modes
+        isRotating = true;
+        mapBox.classList.add('rotating');
+        rotStartX = e.touches[0].clientX;
+        rotStartY = e.touches[0].clientY;
+        initialYaw = state.rot_yaw;
+        initialPitch = state.rot_pitch;
+        updateRotHud();
+
+        if (meshVertexCount === 0 && !isMeshFetching) {
+          fetchMeshBinary();
         }
       } else if (e.touches.length === 2) {
         isRotating = false;
@@ -1871,7 +1971,7 @@
     }, { passive: false });
 
     mapBox.addEventListener('touchmove', (e) => {
-      if (e.touches.length === 1 && isRotating && state.engine === 'gpu') {
+      if (e.touches.length === 1 && isRotating) {
         e.preventDefault();
         const dx = e.touches[0].clientX - rotStartX;
         const dy = e.touches[0].clientY - rotStartY;
@@ -1884,7 +1984,15 @@
         state.rot_yaw = Math.round(newYaw);
         state.rot_pitch = Math.round(newPitch);
         updateRotHud();
-        requestAnimationFrame(renderClientGPU);
+
+        if (isWebGlReady && meshVertexCount > 0) {
+          gpuCanvas.style.display = 'block';
+          mapImg.style.display = 'none';
+          requestAnimationFrame(renderClientGPU);
+        } else {
+          if (debounceTimer) clearTimeout(debounceTimer);
+          debounceTimer = setTimeout(() => { triggerUpdate(false); }, 100);
+        }
       } else if (e.touches.length === 1 && !isPinching && !isRotating) {
         e.preventDefault();
         const curX = e.touches[0].clientX - touchStartX;
@@ -1919,7 +2027,15 @@
         isRotating = false;
         mapBox.classList.remove('rotating');
         updateRotHud();
-        if (e.touches.length === 0 && !hasMoved) {
+        saveCurrentSettings();
+
+        if (hasMoved) {
+          if (state.engine !== 'gpu' || state.mode !== 'micropolys' || meshVertexCount === 0 || !isWebGlReady) {
+            gpuCanvas.style.display = 'none';
+            mapImg.style.display = 'block';
+            triggerUpdate(false);
+          }
+        } else if (e.touches.length === 0) {
           if (e.changedTouches.length > 0) {
             inspectAtClientXY(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
           }
@@ -2028,9 +2144,6 @@
 
     function triggerUpdate(immediate = false) {
       if (state.engine === 'gpu' && state.mode === 'micropolys') {
-        gpuCanvas.style.display = 'block';
-        mapImg.style.display = 'none';
-
         const meshKey = getMeshParamsKey();
         if (meshKey !== loadedMeshParamsKey) {
           if (debounceTimer) clearTimeout(debounceTimer);
@@ -2040,7 +2153,16 @@
             debounceTimer = setTimeout(fetchMeshBinary, 100);
           }
         } else {
-          requestAnimationFrame(renderClientGPU);
+          if (isWebGlReady && meshVertexCount > 0) {
+            requestAnimationFrame(renderClientGPU);
+          } else {
+            if (debounceTimer) clearTimeout(debounceTimer);
+            if (immediate) {
+              fetchRender();
+            } else {
+              debounceTimer = setTimeout(fetchRender, 120);
+            }
+          }
         }
       } else {
         gpuCanvas.style.display = 'none';
@@ -2050,6 +2172,11 @@
           fetchRender();
         } else {
           debounceTimer = setTimeout(fetchRender, 120);
+        }
+        // In CPU mode, prefetch mesh binary in background so 3D rotation dragging is instant
+        const meshKey = getMeshParamsKey();
+        if (meshKey !== loadedMeshParamsKey && !isMeshFetching) {
+          setTimeout(fetchMeshBinary, 250);
         }
       }
     }
@@ -2062,6 +2189,7 @@
         state.engine = btn.dataset.engine;
         document.getElementById('engine-status').textContent = state.engine === 'gpu' ? '⚡ WebGL 2 Client (60-120 FPS)' : 'CPU Discrete Mesh';
         updateRotHud();
+        saveCurrentSettings();
         triggerUpdate(true);
       });
     });
@@ -2073,10 +2201,11 @@
         btn.classList.add('active');
         state.size = parseInt(btn.dataset.size);
         document.getElementById('val-res').textContent = `${state.size} × ${state.size}`;
-        if (state.engine === 'gpu' && state.mode === 'micropolys') {
+        saveCurrentSettings();
+        if (state.engine === 'gpu' && state.mode === 'micropolys' && isWebGlReady && meshVertexCount > 0) {
           gpuCanvas.width = state.size;
           gpuCanvas.height = state.size;
-          fetchMeshBinary();
+          requestAnimationFrame(renderClientGPU);
         } else {
           triggerUpdate(true);
         }
@@ -2484,6 +2613,86 @@
     });
     bindSlider('slider-rivers', 'rivers', 'val-rivers', v => Math.round(v));
 
+    // Reset to Default Settings
+    const DEFAULT_SETTINGS = {
+      seed: 84723,
+      shape: 'perlin',
+      points: 1000,
+      polys: 16000,
+      height_scale: 28.0,
+      sharpness: 2.30,
+      alpha: 0.0,
+      roughness: 3.0,
+      jitter: 0.22,
+      smooth: 0.70,
+      rivers: 25,
+      moisture_bias: 0.0,
+      north_temp: 0.0,
+      south_temp: 0.0,
+      persistence: 0.0,
+      quad_fold: true,
+      ridge_noise: 0.35,
+      erosion_strength: 0.30,
+      erosion_droplets: 15000,
+      engine: 'gpu',
+      mode: 'micropolys',
+      size: 1024,
+      sun_azimuth: -135.0,
+      sun_elevation: 42.0,
+      sun_intensity: 1.15,
+      ambient_intensity: 0.45,
+      mountain_roughness: 1.0,
+      rot_pitch: 0.0,
+      rot_yaw: 0.0,
+      shadows: true,
+      shadow_darkness: 1.0
+    };
+
+    function resetToDefaults() {
+      try {
+        localStorage.removeItem(STORAGE_KEY_LAST);
+      } catch (e) {}
+
+      Object.assign(state, DEFAULT_SETTINGS);
+
+      // Reset zoom & pan
+      scale = 1.0;
+      panX = 0;
+      panY = 0;
+      updateTransform();
+      updateRotHud();
+
+      // Sync all controls
+      syncUiFromState();
+
+      // Trigger fresh update
+      triggerUpdate(true);
+      saveCurrentSettings();
+
+      // UI button feedback
+      const btnH = document.getElementById('btn-header-reset-defaults');
+      const btnC = document.getElementById('btn-reset-defaults');
+      if (btnH) {
+        const orig = btnH.textContent;
+        btnH.textContent = '✓ Defaults Restored';
+        setTimeout(() => { btnH.textContent = orig; }, 1500);
+      }
+      if (btnC) {
+        const orig = btnC.textContent;
+        btnC.textContent = '✓ Default Settings Restored';
+        setTimeout(() => { btnC.textContent = orig; }, 1500);
+      }
+    }
+
+    const btnResetDefaults = document.getElementById('btn-reset-defaults');
+    if (btnResetDefaults) {
+      btnResetDefaults.addEventListener('click', resetToDefaults);
+    }
+    const btnHeaderReset = document.getElementById('btn-header-reset-defaults');
+    if (btnHeaderReset) {
+      btnHeaderReset.addEventListener('click', resetToDefaults);
+    }
+
     // Save Slots Buttons
     document.querySelectorAll('#slot-selector-bar .btn-segment').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -2520,12 +2729,21 @@
       triggerUpdate(true);
     });
 
+    // Global Error Reporting to Server Log
+    window.addEventListener('error', (e) => {
+      try {
+        fetch('/api/log_error?msg=' + encodeURIComponent(`JS ERROR: ${e.message} at ${e.filename}:${e.lineno}:${e.colno}`));
+      } catch(ex){}
+    });
+    window.addEventListener('unhandledrejection', (e) => {
+      try {
+        fetch('/api/log_error?msg=' + encodeURIComponent(`UNHANDLED REJECTION: ${e.reason}`));
+      } catch(ex){}
+    });
+
     // Restore persistent settings and slot state on page load
     restoreSettings();
     triggerUpdate(true);
-  </script>
-</body>
-</html>
   </script>
 </body>
 </html>

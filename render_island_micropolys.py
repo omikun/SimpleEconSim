@@ -529,21 +529,25 @@ def render_mesh(
     sun_elevation: float = 42.0,
     sun_intensity: float = 1.15,
     ambient_intensity: float = 0.45,
+    rot_pitch: float = 0.0,
+    rot_yaw: float = 0.0,
 ) -> pygame.Surface:
-    """Rasterizes the 3D micropoly mesh onto a Pygame surface with multi-light shading."""
+    """Rasterizes the 3D micropoly mesh onto a Pygame surface with multi-light shading and 3D rotation."""
     surface = pygame.Surface((width, height))
     surface.fill((28, 48, 85))  # Deep ocean background
 
     scale_x = width / gen.width
     scale_y = height / gen.height
+    is_rotated = (abs(rot_pitch) > 0.1 or abs(rot_yaw) > 0.1)
 
-    # Draw ocean cells
-    for c in gen.centers:
-        if not c.water or len(c.corners) < 3:
-            continue
-        poly_pts = [(int(cn.x * scale_x), int(cn.y * scale_y)) for cn in c.corners]
-        if len(poly_pts) >= 3:
-            pygame.draw.polygon(surface, (28, 48, 85), poly_pts)
+    # Draw ocean cells in top-down mode
+    if not is_rotated:
+        for c in gen.centers:
+            if not c.water or len(c.corners) < 3:
+                continue
+            poly_pts = [(int(cn.x * scale_x), int(cn.y * scale_y)) for cn in c.corners]
+            if len(poly_pts) >= 3:
+                pygame.draw.polygon(surface, (28, 48, 85), poly_pts)
 
     # Dynamic Sun vector from azimuth & elevation (matching ModernGL GPU pipeline)
     az_rad = math.radians(sun_azimuth)
@@ -558,6 +562,63 @@ def render_mesh(
     L_fill = np.array([0.45, -0.65, 0.60], dtype=np.float64)
     L_fill /= np.linalg.norm(L_fill)
 
+    # Setup 3D rotation projection helpers if rotated
+    if is_rotated:
+        yaw_rad = math.radians(rot_yaw)
+        cos_y = math.cos(yaw_rad)
+        sin_y = math.sin(yaw_rad)
+        pitch_rad = math.radians(rot_pitch)
+        cos_p = math.cos(pitch_rad)
+        sin_p = math.sin(pitch_rad)
+
+        scale_factor = 0.88
+        cx = gen.width * 0.5
+        cy = gen.height * 0.5
+        R = max(cx, cy)
+
+        def project_3d(pt):
+            # Centered coordinates: +X East, +Y North, +Z Up
+            px = pt[0] - cx
+            py = cy - pt[1]
+            pz = pt[2]
+
+            # 1. Yaw around vertical Z
+            x_yaw = px * cos_y - py * sin_y
+            y_yaw = px * sin_y + py * cos_y
+            z_yaw = pz
+
+            # 2. Pitch camera tilt looking North from South
+            x_rot = x_yaw
+            y_rot = y_yaw * cos_p + z_yaw * sin_p
+            z_rot = -y_yaw * sin_p + z_yaw * cos_p
+
+            x_ndc = (x_rot / R) * scale_factor
+            y_ndc = (y_rot / R) * scale_factor
+
+            sx = int((x_ndc + 1.0) * 0.5 * width)
+            sy = int((1.0 - y_ndc) * 0.5 * height)
+            return sx, sy, z_rot
+
+        def rotate_normal(norm_vec):
+            nx = norm_vec[0]
+            ny = -norm_vec[1]
+            nz = norm_vec[2]
+
+            nyaw_x = nx * cos_y - ny * sin_y
+            nyaw_y = nx * sin_y + ny * cos_y
+            nyaw_z = nz
+
+            nrot_x = nyaw_x
+            nrot_y = nyaw_y * cos_p + nyaw_z * sin_p
+            nrot_z = -nyaw_y * sin_p + nyaw_z * cos_p
+
+            nl = math.hypot(nrot_x, nrot_y, nrot_z)
+            if nl > 1e-6:
+                return np.array([nrot_x / nl, nrot_y / nl, nrot_z / nl], dtype=np.float64)
+            return np.array([0.0, 0.0, 1.0], dtype=np.float64)
+
+    draw_list = []
+
     for tri in triangles:
         if len(tri) == 8:
             pa, pb, pc, col_base, avg_elev, is_riv, _, norm = tri
@@ -571,18 +632,23 @@ def render_mesh(
             n_len = np.linalg.norm(norm)
             norm = norm / n_len if n_len > 1e-6 else np.array([0.0, 0.0, 1.0], dtype=np.float64)
 
+        if is_rotated:
+            norm_active = rotate_normal(norm)
+        else:
+            norm_active = norm
+
         # Multi-light illumination with configurable sun angle and intensities
-        NdotL_sun = max(0.0, float(np.dot(norm, L_sun)))
-        NdotL_fill = max(0.0, float(np.dot(norm, L_fill)))
+        NdotL_sun = max(0.0, float(np.dot(norm_active, L_sun)))
+        NdotL_fill = max(0.0, float(np.dot(norm_active, L_fill)))
         diffuse_sun = 0.44 * sun_intensity * math.pow(NdotL_sun, 1.05)
         diffuse_fill = 0.14 * NdotL_fill
-        ambient = (0.65 + 0.15 * (norm[2] - 0.7)) * (ambient_intensity / 0.45)
+        ambient = (0.65 + 0.15 * (norm_active[2] - 0.7)) * (ambient_intensity / 0.45)
         shade = ambient + diffuse_sun + diffuse_fill
 
         col = col_base.copy()
 
         # Dynamic steep cliff scree
-        slope_val = 1.0 - norm[2]
+        slope_val = 1.0 - norm_active[2]
         if slope_val > 0.14:
             cliff_w = min(0.60, (slope_val - 0.14) / 0.22)
             col = col * (1.0 - cliff_w) + np.array([66, 64, 71], dtype=np.float64) * cliff_w
@@ -604,30 +670,65 @@ def render_mesh(
             min(248, max(0, int(shaded_rgb[2]))),
         )
 
-        pts2d = [
-            (int(pa[0]), int(pa[1])),
-            (int(pb[0]), int(pb[1])),
-            (int(pc[0]), int(pc[1])),
-        ]
-        if len(pts2d) >= 3:
-            pygame.draw.polygon(surface, final_rgb, pts2d)
+        if is_rotated:
+            sxa, sya, za = project_3d(pa)
+            sxb, syb, zb = project_3d(pb)
+            sxc, syc, zc = project_3d(pc)
+            z_eye = (za + zb + zc) / 3.0
+            draw_list.append((z_eye, final_rgb, [(sxa, sya), (sxb, syb), (sxc, syc)]))
+        else:
+            pts2d = [
+                (int(pa[0] * scale_x), int(pa[1] * scale_y)),
+                (int(pb[0] * scale_x), int(pb[1] * scale_y)),
+                (int(pc[0] * scale_x), int(pc[1] * scale_y)),
+            ]
+            if len(pts2d) >= 3:
+                pygame.draw.polygon(surface, final_rgb, pts2d)
+
+    # If 3D rotated, sort back-to-front (Painter's algorithm)
+    if is_rotated:
+        draw_list.sort(key=lambda item: item[0])
+        for _, final_rgb, pts2d in draw_list:
+            if len(pts2d) >= 3:
+                pygame.draw.polygon(surface, final_rgb, pts2d)
 
     # Rivers along noisy paths
     for e in gen.edges:
         if e.river > 0 and gen.noisy_edges:
             pts = gen.noisy_edges.get_edge_path(e, start_corner=e.v0)
             if len(pts) >= 2:
-                r_pts = [(int(pt[0] * scale_x), int(pt[1] * scale_y)) for pt in pts]
                 w = min(5, max(2, int(1 + math.sqrt(e.river))))
-                pygame.draw.lines(surface, (28, 75, 135), False, r_pts, width=w)
+                if is_rotated:
+                    z0 = float(getattr(e.v0, "elevation", 0.0) * 28.0) + 0.3
+                    z1 = float(getattr(e.v1, "elevation", 0.0) * 28.0) + 0.3
+                    n_p = len(pts)
+                    for i in range(n_p - 1):
+                        t_a = i / (n_p - 1)
+                        t_b = (i + 1) / (n_p - 1)
+                        za = z0 * (1.0 - t_a) + z1 * t_a
+                        zb = z0 * (1.0 - t_b) + z1 * t_b
+                        sx0, sy0, _ = project_3d((pts[i][0] * (gen.width / gen.width), pts[i][1] * (gen.height / gen.height), za))
+                        sx1, sy1, _ = project_3d((pts[i+1][0] * (gen.width / gen.width), pts[i+1][1] * (gen.height / gen.height), zb))
+                        pygame.draw.line(surface, (28, 75, 135), (sx0, sy0), (sx1, sy1), width=w)
+                else:
+                    r_pts = [(int(pt[0] * scale_x), int(pt[1] * scale_y)) for pt in pts]
+                    pygame.draw.lines(surface, (28, 75, 135), False, r_pts, width=w)
 
     # Volcanic lava fissures
     for e in gen.edges:
         if getattr(e, 'lava', False):
-            p0 = (int(e.v0.x * scale_x), int(e.v0.y * scale_y))
-            p1 = (int(e.v1.x * scale_x), int(e.v1.y * scale_y))
-            pygame.draw.line(surface, (255, 60, 0), p0, p1, 4)
-            pygame.draw.line(surface, (255, 210, 50), p0, p1, 2)
+            if is_rotated:
+                z0 = float(getattr(e.v0, "elevation", 0.0) * 28.0) + 0.3
+                z1 = float(getattr(e.v1, "elevation", 0.0) * 28.0) + 0.3
+                sx0, sy0, _ = project_3d((e.v0.x * (gen.width / gen.width), e.v0.y * (gen.height / gen.height), z0))
+                sx1, sy1, _ = project_3d((e.v1.x * (gen.width / gen.width), e.v1.y * (gen.height / gen.height), z1))
+                pygame.draw.line(surface, (255, 60, 0), (sx0, sy0), (sx1, sy1), 4)
+                pygame.draw.line(surface, (255, 210, 50), (sx0, sy0), (sx1, sy1), 2)
+            else:
+                p0 = (int(e.v0.x * scale_x), int(e.v0.y * scale_y))
+                p1 = (int(e.v1.x * scale_x), int(e.v1.y * scale_y))
+                pygame.draw.line(surface, (255, 60, 0), p0, p1, 4)
+                pygame.draw.line(surface, (255, 210, 50), p0, p1, 2)
 
     return surface
 
