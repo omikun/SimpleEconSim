@@ -172,11 +172,11 @@ def build_island_mesh(
         eff_z = max(0.0, z + noise_var * 0.15)
 
         if is_beach_cell:
-            max_beach_dist = 36.0
-            max_beach_z = 3.8
+            max_beach_dist = 42.0
+            max_beach_z = 4.2
         else:
-            max_beach_dist = 16.0
-            max_beach_z = 2.2
+            max_beach_dist = 22.0
+            max_beach_z = 2.6
 
         if eff_dist < max_beach_dist and eff_z < max_beach_z:
             dist_factor = 1.0 - (eff_dist / max_beach_dist)
@@ -376,35 +376,49 @@ def build_island_mesh(
             is_bnd = (is_boundary_vertex.get(i_a, False) and is_boundary_vertex.get(i_b, False)) or (mid_dist <= 0.05)
             is_beach = vertex_is_beach.get(i_a, False) or vertex_is_beach.get(i_b, False)
 
-            if length > 1.2:
-                n_perp = np.array([-e_xy[1], e_xy[0]], dtype=np.float64) / length
-                decay = 0.70 ** depth
-                jitter_env = 0.30 + 0.70 * mid_env
-                disp_lat = rng.uniform(-lateral_jitter, lateral_jitter) * length * decay * jitter_env
-                disp_long = rng.uniform(-0.10, 0.10) * length * decay * jitter_env
+            if is_bnd:
+                # Island perimeter / coastline boundary: 2D fractal edge subdivision down to micro-lengths
+                if length > 0.15:
+                    n_perp = np.array([-e_xy[1], e_xy[0]], dtype=np.float64) / length
+                    bnd_decay = 0.85 ** depth
+                    bnd_disp = rng.uniform(-0.45, 0.45) * length * bnd_decay
+                    disp_long = rng.uniform(-0.06, 0.06) * length * bnd_decay
+                    mid[0] += n_perp[0] * bnd_disp + (e_xy[0] / length) * disp_long
+                    mid[1] += n_perp[1] * bnd_disp + (e_xy[1] / length) * disp_long
+                mid[2] = 0.0
+                mid_dist = 0.0
+            else:
+                # Interior edge: 2D lateral displacement + continuous 3D elevation sampling
+                if length > 0.35:
+                    n_perp = np.array([-e_xy[1], e_xy[0]], dtype=np.float64) / length
+                    decay = 0.70 ** depth
+                    jitter_env = 0.40 + 0.60 * mid_env
+                    disp_lat = rng.uniform(-lateral_jitter, lateral_jitter) * length * decay * jitter_env
+                    disp_long = rng.uniform(-0.08, 0.08) * length * decay * jitter_env
 
-                mid[0] += n_perp[0] * disp_lat + (e_xy[0] / length) * disp_long
-                mid[1] += n_perp[1] * disp_lat + (e_xy[1] / length) * disp_long
+                    mid[0] += n_perp[0] * disp_lat + (e_xy[0] / length) * disp_long
+                    mid[1] += n_perp[1] * disp_lat + (e_xy[1] / length) * disp_long
 
-                # Continuous global height sampling at subdivided midpoint modulated by coastal envelope
-                base_h = erosion_field.sample_elevation(mid[0] / scale_x, mid[1] / scale_y) * elev_scale * mid_env
-                fbm_val = procedural_fbm_elevation(mid[0], mid[1], gen.seed, amplitude=elev_scale / 70.0) * (decay * 0.35) * mid_env
-                mid_norm_elev = base_h / max(1.0, elev_scale)
-                rdg_val = procedural_ridged_elevation(mid[0], mid[1], mid_norm_elev, gen.seed, amplitude=elev_scale / 45.0, ridge_roughness=ridge_noise) * (decay * 0.5) * mid_env
-                disp_z = (rng.uniform(-0.35, 0.35) * roughness * (length / 24.0) + fbm_val + rdg_val) * mid_env
-                mid[2] = max(0.0, (0.70 * base_h + 0.30 * mid[2] + disp_z) * mid_env)
-                if is_bnd:
-                    mid[2] = 0.0
+                    # Continuous global height sampling at subdivided midpoint modulated by coastal envelope
+                    base_h = erosion_field.sample_elevation(mid[0] / scale_x, mid[1] / scale_y) * elev_scale * mid_env
+                    fbm_val = procedural_fbm_elevation(mid[0], mid[1], gen.seed, amplitude=elev_scale / 70.0) * (decay * 0.35) * mid_env
+                    mid_norm_elev = base_h / max(1.0, elev_scale)
+                    rdg_val = procedural_ridged_elevation(mid[0], mid[1], mid_norm_elev, gen.seed, amplitude=elev_scale / 45.0, ridge_roughness=ridge_noise) * (decay * 0.5) * mid_env
+                    disp_z = (rng.uniform(-0.35, 0.35) * roughness * (length / 24.0) + fbm_val + rdg_val) * mid_env
+                    mid[2] = max(0.0, (0.70 * base_h + 0.30 * mid[2] + disp_z) * mid_env)
 
             idx_mid = len(vertices)
             vertices.append(mid)
             is_boundary_vertex[idx_mid] = is_bnd
-            vertex_coast_dist[idx_mid] = mid_dist
-            vertex_is_beach[idx_mid] = is_beach
+            vertex_coast_dist[idx_mid] = 0.0 if is_bnd else mid_dist
+            vertex_is_beach[idx_mid] = is_beach or is_bnd
 
             c_a = vertex_base_color.get(i_a, np.array([120, 160, 100], dtype=np.float64))
             c_b = vertex_base_color.get(i_b, np.array([120, 160, 100], dtype=np.float64))
-            vertex_base_color[idx_mid] = (c_a + c_b) * 0.5
+            if is_bnd:
+                vertex_base_color[idx_mid] = COLOR_WET_SAND
+            else:
+                vertex_base_color[idx_mid] = (c_a + c_b) * 0.5
 
             edge_midpoints[edge_key] = idx_mid
             return idx_mid
