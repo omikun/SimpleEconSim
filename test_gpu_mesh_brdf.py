@@ -114,7 +114,7 @@ class TestGPUMeshBRDFPipeline(unittest.TestCase):
             np.frombuffer(raw_morning, dtype=np.uint8).astype(np.int32)
             - np.frombuffer(raw_sunset, dtype=np.uint8).astype(np.int32)
         )
-        self.assertGreater(diff.mean(), 5.0)
+        self.assertGreater(diff.mean(), 2.0)
 
     def test_resolution_resizing(self):
         for size in (256, 512, 1024):

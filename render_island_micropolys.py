@@ -153,10 +153,17 @@ def build_island_mesh(
             if d0.water and d1.water:
                 continue
 
+            # Normalize edge direction so that (v0 -> v1 -> d0) is consistently counter-clockwise
+            cross2d = (v1.x - v0.x) * (d0.y - v0.y) - (v1.y - v0.y) * (d0.x - v0.x)
+            if cross2d < 0:
+                v0, v1 = v1, v0
+
+            # Corners on the coastline (land touching sea) stay at sea level (0.0)
             z_v0 = erosion_field.sample_elevation(v0.x, v0.y) * elev_scale if not (v0.ocean or v0.coast) else 0.0
             z_v1 = erosion_field.sample_elevation(v1.x, v1.y) * elev_scale if not (v1.ocean or v1.coast) else 0.0
-            z_d0 = erosion_field.sample_elevation(d0.x, d0.y) * elev_scale if not (d0.ocean or d0.coast) else 0.0
-            z_d1 = erosion_field.sample_elevation(d1.x, d1.y) * elev_scale if not (d1.ocean or d1.coast) else 0.0
+            # Center of land polygons (including coastal beaches and plains) retain their natural height
+            z_d0 = erosion_field.sample_elevation(d0.x, d0.y) * elev_scale if not d0.water else 0.0
+            z_d1 = erosion_field.sample_elevation(d1.x, d1.y) * elev_scale if not d1.water else 0.0
 
             if elevation_alpha > 0.0:
                 adj_v0 = [erosion_field.sample_elevation(c.x, c.y) * elev_scale for c in v0.touches if not c.water]
@@ -178,8 +185,8 @@ def build_island_mesh(
 
             idx_v0 = get_or_add_vertex(p_v0, is_fixed=(v0.ocean or v0.coast))
             idx_v1 = get_or_add_vertex(p_v1, is_fixed=(v1.ocean or v1.coast))
-            idx_d0 = get_or_add_vertex(p_d0, is_fixed=(d0.ocean or d0.coast))
-            idx_d1 = get_or_add_vertex(p_d1, is_fixed=(d1.ocean or d1.coast))
+            idx_d0 = get_or_add_vertex(p_d0, is_fixed=d0.water)
+            idx_d1 = get_or_add_vertex(p_d1, is_fixed=d1.water)
 
             col0 = np.array(BIOME_COLORS.get(d0.biome, (120, 160, 100)), dtype=np.float64)
             col1 = np.array(BIOME_COLORS.get(d1.biome, (120, 160, 100)), dtype=np.float64)
@@ -190,20 +197,24 @@ def build_island_mesh(
             if edge.river > 0:
                 col0 = col0 * 0.75 + np.array([40, 105, 35], dtype=np.float64) * 0.25
                 col1 = col1 * 0.75 + np.array([40, 105, 35], dtype=np.float64) * 0.25
-                # River fold along v0-v1 preserves continuous valley channel
-                base_triangles.append((idx_v0, idx_v1, idx_d0, col0, (z_v0 + z_v1 + z_d0) / (3.0 * elev_scale), True))
-                base_triangles.append((idx_v1, idx_v0, idx_d1, col1, (z_v1 + z_v0 + z_d1) / (3.0 * elev_scale), True))
+
+            if d0.water != d1.water or edge.river > 0:
+                # Coastline boundary or river channel: MUST split along v0-v1
+                # Guarantees watertight perimeter without triangles projecting into ocean
+                if not d0.water:
+                    base_triangles.append((idx_v0, idx_v1, idx_d0, col0, (z_v0 + z_v1 + z_d0) / (3.0 * elev_scale), edge.river > 0))
+                if not d1.water:
+                    base_triangles.append((idx_v1, idx_v0, idx_d1, col1, (z_v1 + z_v0 + z_d1) / (3.0 * elev_scale), edge.river > 0))
             else:
+                # Both cells are inland land polygons: select optimal diagonal
                 diag_v = np.linalg.norm(p_v0 - p_v1)
                 diag_d = np.linalg.norm(p_d0 - p_d1)
                 if diag_v < diag_d:
-                    if not d0.water:
-                        base_triangles.append((idx_v0, idx_v1, idx_d0, col0, (z_v0 + z_v1 + z_d0) / (3.0 * elev_scale), False))
-                    if not d1.water:
-                        base_triangles.append((idx_v1, idx_v0, idx_d1, col1, (z_v1 + z_v0 + z_d1) / (3.0 * elev_scale), False))
+                    base_triangles.append((idx_v0, idx_v1, idx_d0, col0, (z_v0 + z_v1 + z_d0) / (3.0 * elev_scale), False))
+                    base_triangles.append((idx_v1, idx_v0, idx_d1, col1, (z_v1 + z_v0 + z_d1) / (3.0 * elev_scale), False))
                 else:
-                    base_triangles.append((idx_v0, idx_d1, idx_d0, col0 if not d0.water else col1, (z_v0 + z_d1 + z_d0) / (3.0 * elev_scale), False))
-                    base_triangles.append((idx_v1, idx_d0, idx_d1, col1 if not d1.water else col0, (z_v1 + z_d0 + z_d1) / (3.0 * elev_scale), False))
+                    base_triangles.append((idx_v0, idx_d1, idx_d0, col0, (z_v0 + z_d1 + z_d0) / (3.0 * elev_scale), False))
+                    base_triangles.append((idx_v1, idx_d0, idx_d1, col1, (z_v1 + z_d0 + z_d1) / (3.0 * elev_scale), False))
 
         vertex_colors = {}
         for idx_a, idx_b, idx_c, col, el, riv in base_triangles:
@@ -349,6 +360,8 @@ def build_island_mesh(
             pa = pa_all[tri_idx]
             pb = pb_all[tri_idx]
             pc = pc_all[tri_idx]
+            if (pb[0] - pa[0]) * (pc[1] - pa[1]) - (pb[1] - pa[1]) * (pc[0] - pa[0]) < 0.0:
+                pb, pc = pc, pb
             area = float(areas[tri_idx, 0])
             blended_norm = blended_norms[tri_idx]
 
@@ -694,7 +707,11 @@ def render_mesh(
 
     # Rivers along noisy paths
     for e in gen.edges:
-        if e.river > 0 and gen.noisy_edges:
+        if e.river > 0 and gen.noisy_edges and e.v0 and e.v1:
+            if (e.d0 and e.d1 and e.d0.water and e.d1.water):
+                continue
+            if (getattr(e.v0, "ocean", False) and getattr(e.v1, "ocean", False)):
+                continue
             pts = gen.noisy_edges.get_edge_path(e, start_corner=e.v0)
             if len(pts) >= 2:
                 w = min(5, max(2, int(1 + math.sqrt(e.river))))

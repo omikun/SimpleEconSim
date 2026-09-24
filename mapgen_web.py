@@ -627,6 +627,10 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
             scale_y = CANONICAL_WORLD_SIZE / gen.height
             for e in gen.edges:
                 if e.river > 0 and e.v0 and e.v1:
+                    if (e.d0 and e.d1 and e.d0.water and e.d1.water):
+                        continue
+                    if (getattr(e.v0, "ocean", False) and getattr(e.v1, "ocean", False)):
+                        continue
                     pts = gen.noisy_edges.get_edge_path(e, start_corner=e.v0)
                     n_p = len(pts)
                     if n_p >= 2:

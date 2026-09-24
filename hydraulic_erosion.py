@@ -339,10 +339,14 @@ def build_continuous_island_heightmap(
         pts.append([cn.x, cn.y])
         vals.append(cn.elevation if not cn.water else 0.0)
 
-    # Frame boundary points to prevent boundary extrapolation NaNs
+    # Frame boundary points strictly outside the island to prevent boundary extrapolation NaNs
     w, h = gen.width, gen.height
-    for bx in [-w * 0.1, 0, w * 0.5, w, w * 1.1]:
-        for by in [-h * 0.1, 0, h * 0.5, h, h * 1.1]:
+    for bx in [-w * 0.2, w * 1.2]:
+        for by in np.linspace(-h * 0.2, h * 1.2, 7):
+            pts.append([bx, by])
+            vals.append(0.0)
+    for by in [-h * 0.2, h * 1.2]:
+        for bx in np.linspace(-w * 0.2, w * 1.2, 7):
             pts.append([bx, by])
             vals.append(0.0)
 
