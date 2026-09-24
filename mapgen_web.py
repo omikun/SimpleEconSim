@@ -656,18 +656,45 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
                         continue
                     if (getattr(e.v0, "ocean", False) and getattr(e.v1, "ocean", False)):
                         continue
-                    pts = gen.noisy_edges.get_edge_path(e, start_corner=e.v0)
+
+                    # Consistent flow direction: upstream (higher elevation) -> downstream (lower elevation)
+                    if e.v0.elevation >= e.v1.elevation:
+                        upstream, downstream = e.v0, e.v1
+                    else:
+                        upstream, downstream = e.v1, e.v0
+
+                    pts = gen.noisy_edges.get_edge_path(e, start_corner=upstream)
                     n_p = len(pts)
                     if n_p >= 2:
                         pts_xy = [[pt[0] * scale_x, pt[1] * scale_y] for pt in pts]
                         z_sampled = sample_mesh_elevation(pts_xy)
                         if z_sampled is not None:
+                            z_vals = np.array(z_sampled, dtype=np.float32)
+                            z_start_corner = float(upstream.elevation * height_scale)
+                            z_end_corner = float(downstream.elevation * height_scale)
+
+                            z_start = max(z_vals[0], z_start_corner * 0.5)
+                            z_end = min(z_vals[-1], z_end_corner)
+                            if z_end > z_start:
+                                z_end = z_start * 0.95
+
+                            t = np.linspace(0.0, 1.0, n_p, dtype=np.float32)
+                            z_linear = z_start * (1.0 - t) + z_end * t
+                            z_vals = np.minimum(z_vals, z_linear + 0.05)
+                            z_vals[0] = z_start
+                            z_vals[-1] = z_end
+
+                            # Strictly non-increasing elevation along the downhill flow path
+                            for i in range(1, n_p):
+                                if z_vals[i] > z_vals[i - 1]:
+                                    z_vals[i] = z_vals[i - 1]
+
                             for i in range(n_p - 1):
-                                river_coords.extend([pts_xy[i][0], pts_xy[i][1], float(z_sampled[i]),
-                                                    pts_xy[i+1][0], pts_xy[i+1][1], float(z_sampled[i+1])])
+                                river_coords.extend([pts_xy[i][0], pts_xy[i][1], float(z_vals[i]),
+                                                    pts_xy[i+1][0], pts_xy[i+1][1], float(z_vals[i+1])])
                         else:
-                            z0 = float(getattr(e.v0, "elevation", 0.0) * height_scale)
-                            z1 = float(getattr(e.v1, "elevation", 0.0) * height_scale)
+                            z0 = float(upstream.elevation * height_scale)
+                            z1 = float(downstream.elevation * height_scale)
                             for i in range(n_p - 1):
                                 t_a = i / (n_p - 1)
                                 t_b = (i + 1) / (n_p - 1)

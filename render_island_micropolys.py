@@ -158,33 +158,52 @@ def build_island_mesh(
             if cross2d < 0:
                 v0, v1 = v1, v0
 
-            # Corners on the coastline (land touching sea) stay at sea level (0.0)
-            z_v0 = erosion_field.sample_elevation(v0.x, v0.y) * elev_scale if not (v0.ocean or v0.coast) else 0.0
-            z_v1 = erosion_field.sample_elevation(v1.x, v1.y) * elev_scale if not (v1.ocean or v1.coast) else 0.0
-            # Center of land polygons (including coastal beaches and plains) retain their natural height
-            z_d0 = erosion_field.sample_elevation(d0.x, d0.y) * elev_scale if not d0.water else 0.0
-            z_d1 = erosion_field.sample_elevation(d1.x, d1.y) * elev_scale if not d1.water else 0.0
+            # An edge is an ocean coastline if it separates land from ocean water
+            is_ocean_coast = (d0.water != d1.water) and (d0.ocean or d1.ocean)
 
-            if elevation_alpha > 0.0:
-                adj_v0 = [erosion_field.sample_elevation(c.x, c.y) * elev_scale for c in v0.touches if not c.water]
-                if adj_v0:
-                    z_v0 += elevation_alpha * (max(adj_v0) - min(adj_v0)) * 0.5
-                adj_v1 = [erosion_field.sample_elevation(c.x, c.y) * elev_scale for c in v1.touches if not c.water]
-                if adj_v1:
-                    z_v1 += elevation_alpha * (max(adj_v1) - min(adj_v1)) * 0.5
+            # Corners on the coastline (land touching sea) stay strictly at sea level (0.0)
+            z_v0 = 0.0 if (v0.ocean or v0.coast or is_ocean_coast) else max(0.0, erosion_field.sample_elevation(v0.x, v0.y) * elev_scale)
+            z_v1 = 0.0 if (v1.ocean or v1.coast or is_ocean_coast) else max(0.0, erosion_field.sample_elevation(v1.x, v1.y) * elev_scale)
 
-            # River channel bed carving for physical valleys
-            if edge.river > 0:
-                z_v0 -= min(3.5, edge.river * 0.75)
-                z_v1 -= min(3.5, edge.river * 0.75)
+            # Center of land polygons: beaches gently slope up to dunes (<= 1.8 units); other land retains natural height
+            if d0.water:
+                z_d0 = 0.0
+            elif getattr(d0, "biome", "") == "BEACH":
+                z_d0 = min(1.8, max(0.1, erosion_field.sample_elevation(d0.x, d0.y) * elev_scale))
+            else:
+                z_d0 = max(0.0, erosion_field.sample_elevation(d0.x, d0.y) * elev_scale)
+
+            if d1.water:
+                z_d1 = 0.0
+            elif getattr(d1, "biome", "") == "BEACH":
+                z_d1 = min(1.8, max(0.1, erosion_field.sample_elevation(d1.x, d1.y) * elev_scale))
+            else:
+                z_d1 = max(0.0, erosion_field.sample_elevation(d1.x, d1.y) * elev_scale)
+
+            if elevation_alpha > 0.0 and not is_ocean_coast:
+                if not (v0.ocean or v0.coast):
+                    adj_v0 = [erosion_field.sample_elevation(c.x, c.y) * elev_scale for c in v0.touches if not c.water]
+                    if adj_v0:
+                        z_v0 += elevation_alpha * (max(adj_v0) - min(adj_v0)) * 0.5
+                if not (v1.ocean or v1.coast):
+                    adj_v1 = [erosion_field.sample_elevation(c.x, c.y) * elev_scale for c in v1.touches if not c.water]
+                    if adj_v1:
+                        z_v1 += elevation_alpha * (max(adj_v1) - min(adj_v1)) * 0.5
+
+            # River channel bed carving for physical valleys (cannot carve below sea level 0.0)
+            if edge.river > 0 and not is_ocean_coast:
+                if not (v0.ocean or v0.coast):
+                    z_v0 = max(0.0, z_v0 - min(3.5, edge.river * 0.75))
+                if not (v1.ocean or v1.coast):
+                    z_v1 = max(0.0, z_v1 - min(3.5, edge.river * 0.75))
 
             p_v0 = np.array([v0.x * scale_x, v0.y * scale_y, z_v0], dtype=np.float64)
             p_v1 = np.array([v1.x * scale_x, v1.y * scale_y, z_v1], dtype=np.float64)
             p_d0 = np.array([d0.x * scale_x, d0.y * scale_y, z_d0], dtype=np.float64)
             p_d1 = np.array([d1.x * scale_x, d1.y * scale_y, z_d1], dtype=np.float64)
 
-            idx_v0 = get_or_add_vertex(p_v0, is_fixed=(v0.ocean or v0.coast))
-            idx_v1 = get_or_add_vertex(p_v1, is_fixed=(v1.ocean or v1.coast))
+            idx_v0 = get_or_add_vertex(p_v0, is_fixed=(v0.ocean or v0.coast or is_ocean_coast))
+            idx_v1 = get_or_add_vertex(p_v1, is_fixed=(v1.ocean or v1.coast or is_ocean_coast))
             idx_d0 = get_or_add_vertex(p_d0, is_fixed=d0.water)
             idx_d1 = get_or_add_vertex(p_d1, is_fixed=d1.water)
 
@@ -380,8 +399,9 @@ def build_island_mesh(
         if d0.water and d1.water:
             continue
 
-        z_v0 = erosion_field.sample_elevation(v0.x, v0.y) * elev_scale if not (v0.ocean or v0.coast) else 0.0
-        z_v1 = erosion_field.sample_elevation(v1.x, v1.y) * elev_scale if not (v1.ocean or v1.coast) else 0.0
+        is_ocean_coast = (d0.water != d1.water) and (d0.ocean or d1.ocean)
+        z_v0 = 0.0 if (v0.ocean or v0.coast or is_ocean_coast) else max(0.0, erosion_field.sample_elevation(v0.x, v0.y) * elev_scale)
+        z_v1 = 0.0 if (v1.ocean or v1.coast or is_ocean_coast) else max(0.0, erosion_field.sample_elevation(v1.x, v1.y) * elev_scale)
         z_mid = (z_v0 + z_v1) * 0.5
 
         p_v0 = np.array([v0.x * scale_x, v0.y * scale_y, z_v0], dtype=np.float64)
@@ -402,8 +422,20 @@ def build_island_mesh(
             area = 0.5 * abs((pb[0] - pa[0]) * (pc[1] - pa[1]) - (pc[0] - pa[0]) * (pb[1] - pa[1]))
             base_triangles.append((pa, pb, pc, c, el, riv, area))
 
-        z_d0 = erosion_field.sample_elevation(d0.x, d0.y) * elev_scale if not (d0.ocean or d0.coast) else 0.0
-        z_d1 = erosion_field.sample_elevation(d1.x, d1.y) * elev_scale if not (d1.ocean or d1.coast) else 0.0
+        if d0.water:
+            z_d0 = 0.0
+        elif getattr(d0, "biome", "") == "BEACH":
+            z_d0 = min(1.8, max(0.1, erosion_field.sample_elevation(d0.x, d0.y) * elev_scale))
+        else:
+            z_d0 = max(0.0, erosion_field.sample_elevation(d0.x, d0.y) * elev_scale)
+
+        if d1.water:
+            z_d1 = 0.0
+        elif getattr(d1, "biome", "") == "BEACH":
+            z_d1 = min(1.8, max(0.1, erosion_field.sample_elevation(d1.x, d1.y) * elev_scale))
+        else:
+            z_d1 = max(0.0, erosion_field.sample_elevation(d1.x, d1.y) * elev_scale)
+
         p_d0 = np.array([d0.x * scale_x, d0.y * scale_y, z_d0], dtype=np.float64)
         p_d1 = np.array([d1.x * scale_x, d1.y * scale_y, z_d1], dtype=np.float64)
 
@@ -728,28 +760,54 @@ def render_mesh(
             z_vals = np.sum(mesh_pts[idxs, 2] * weights, axis=1)
         return np.maximum(0.0, z_vals) + 0.12
 
-    # Rivers along noisy paths
+    # Rivers along noisy paths (oriented strictly upstream -> downstream, monotonic downhill)
     for e in gen.edges:
         if e.river > 0 and gen.noisy_edges and e.v0 and e.v1:
             if (e.d0 and e.d1 and e.d0.water and e.d1.water):
                 continue
             if (getattr(e.v0, "ocean", False) and getattr(e.v1, "ocean", False)):
                 continue
-            pts = gen.noisy_edges.get_edge_path(e, start_corner=e.v0)
-            if len(pts) >= 2:
+
+            # Consistent flow direction: upstream (higher elevation) -> downstream (lower elevation)
+            if e.v0.elevation >= e.v1.elevation:
+                upstream, downstream = e.v0, e.v1
+            else:
+                upstream, downstream = e.v1, e.v0
+
+            pts = gen.noisy_edges.get_edge_path(e, start_corner=upstream)
+            n_p = len(pts)
+            if n_p >= 2:
                 w = min(5, max(2, int(1 + math.sqrt(e.river))))
                 if is_rotated:
                     coords = np.array([[p[0] * scale_x, p[1] * scale_y] for p in pts], dtype=np.float32)
                     z_sampled = sample_cpu_elevation(coords)
                     if z_sampled is not None:
-                        for i in range(len(pts) - 1):
-                            sx0, sy0, _ = project_3d((coords[i, 0], coords[i, 1], float(z_sampled[i])))
-                            sx1, sy1, _ = project_3d((coords[i+1, 0], coords[i+1, 1], float(z_sampled[i+1])))
+                        z_vals = np.array(z_sampled, dtype=np.float32)
+                        z_start_corner = float(upstream.elevation * 28.0)
+                        z_end_corner = float(downstream.elevation * 28.0)
+                        z_start = max(z_vals[0], z_start_corner * 0.5)
+                        z_end = min(z_vals[-1], z_end_corner)
+                        if z_end > z_start:
+                            z_end = z_start * 0.95
+
+                        t = np.linspace(0.0, 1.0, n_p, dtype=np.float32)
+                        z_linear = z_start * (1.0 - t) + z_end * t
+                        z_vals = np.minimum(z_vals, z_linear + 0.05)
+                        z_vals[0] = z_start
+                        z_vals[-1] = z_end
+
+                        # Strictly non-increasing elevation along the downhill flow path
+                        for i in range(1, n_p):
+                            if z_vals[i] > z_vals[i - 1]:
+                                z_vals[i] = z_vals[i - 1]
+
+                        for i in range(n_p - 1):
+                            sx0, sy0, _ = project_3d((coords[i, 0], coords[i, 1], float(z_vals[i])))
+                            sx1, sy1, _ = project_3d((coords[i+1, 0], coords[i+1, 1], float(z_vals[i+1])))
                             pygame.draw.line(surface, (28, 75, 135), (sx0, sy0), (sx1, sy1), width=w)
                     else:
-                        z0 = float(getattr(e.v0, "elevation", 0.0) * 28.0) + 0.3
-                        z1 = float(getattr(e.v1, "elevation", 0.0) * 28.0) + 0.3
-                        n_p = len(pts)
+                        z0 = float(getattr(upstream, "elevation", 0.0) * 28.0) + 0.3
+                        z1 = float(getattr(downstream, "elevation", 0.0) * 28.0) + 0.3
                         for i in range(n_p - 1):
                             t_a = i / (n_p - 1)
                             t_b = (i + 1) / (n_p - 1)

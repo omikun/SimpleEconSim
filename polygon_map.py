@@ -693,10 +693,9 @@ class PolygonMapGenerator:
 
         for cn in self.corners:
             if not cn.water:
-                for adj in cn.adjacent:
-                    if adj.ocean:
-                        cn.coast = True
-                        break
+                has_ocean = any(c.ocean for c in cn.touches)
+                has_land = any(not c.water for c in cn.touches)
+                cn.coast = has_ocean and has_land
 
     # -----------------------------------------------------------------------
     # Step 3: Elevation & Downslopes (Distance from Coast with Redistribution)
@@ -894,7 +893,11 @@ class PolygonMapGenerator:
                 else:
                     c.biome = 'LAKE'
             elif c.coast:
-                c.biome = 'BEACH'
+                # Low-elevation coasts form sandy beaches; higher coastal terrain forms cliffs/bluffs with climatic biomes
+                if c.elevation <= 0.065:
+                    c.biome = 'BEACH'
+                else:
+                    c.biome = mapgen2_biome(c.temperature, c.moisture)
             else:
                 c.biome = mapgen2_biome(c.temperature, c.moisture)
 
