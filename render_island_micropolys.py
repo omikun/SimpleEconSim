@@ -585,8 +585,8 @@ def render_mesh(
         sin_p = math.sin(pitch_rad)
 
         scale_factor = 0.88
-        cx = gen.width * 0.5
-        cy = gen.height * 0.5
+        cx = width * 0.5
+        cy = height * 0.5
         R = max(cx, cy)
 
         def project_3d(pt):
@@ -705,6 +705,29 @@ def render_mesh(
             if len(pts2d) >= 3:
                 pygame.draw.polygon(surface, final_rgb, pts2d)
 
+    # Build spatial KD-tree on terrain triangle vertices for surface elevation sampling in 3D
+    mesh_tree = None
+    mesh_pts = None
+    if is_rotated and triangles:
+        try:
+            from scipy.spatial import cKDTree
+            mesh_pts = np.asarray([v for t in triangles for v in (t[0], t[1], t[2])], dtype=np.float32)
+            mesh_tree = cKDTree(mesh_pts[:, :2])
+        except Exception:
+            mesh_tree = None
+
+    def sample_cpu_elevation(coords_2d):
+        if mesh_tree is None or len(coords_2d) == 0:
+            return None
+        dists, idxs = mesh_tree.query(coords_2d, k=min(3, len(mesh_pts)))
+        if dists.ndim == 1 or (dists.ndim == 2 and dists.shape[1] == 1):
+            z_vals = mesh_pts[idxs.flatten(), 2]
+        else:
+            weights = 1.0 / np.maximum(dists, 1e-4)
+            weights /= np.sum(weights, axis=1, keepdims=True)
+            z_vals = np.sum(mesh_pts[idxs, 2] * weights, axis=1)
+        return np.maximum(0.0, z_vals) + 0.12
+
     # Rivers along noisy paths
     for e in gen.edges:
         if e.river > 0 and gen.noisy_edges and e.v0 and e.v1:
@@ -716,17 +739,25 @@ def render_mesh(
             if len(pts) >= 2:
                 w = min(5, max(2, int(1 + math.sqrt(e.river))))
                 if is_rotated:
-                    z0 = float(getattr(e.v0, "elevation", 0.0) * 28.0) + 0.3
-                    z1 = float(getattr(e.v1, "elevation", 0.0) * 28.0) + 0.3
-                    n_p = len(pts)
-                    for i in range(n_p - 1):
-                        t_a = i / (n_p - 1)
-                        t_b = (i + 1) / (n_p - 1)
-                        za = z0 * (1.0 - t_a) + z1 * t_a
-                        zb = z0 * (1.0 - t_b) + z1 * t_b
-                        sx0, sy0, _ = project_3d((pts[i][0] * (gen.width / gen.width), pts[i][1] * (gen.height / gen.height), za))
-                        sx1, sy1, _ = project_3d((pts[i+1][0] * (gen.width / gen.width), pts[i+1][1] * (gen.height / gen.height), zb))
-                        pygame.draw.line(surface, (28, 75, 135), (sx0, sy0), (sx1, sy1), width=w)
+                    coords = np.array([[p[0] * scale_x, p[1] * scale_y] for p in pts], dtype=np.float32)
+                    z_sampled = sample_cpu_elevation(coords)
+                    if z_sampled is not None:
+                        for i in range(len(pts) - 1):
+                            sx0, sy0, _ = project_3d((coords[i, 0], coords[i, 1], float(z_sampled[i])))
+                            sx1, sy1, _ = project_3d((coords[i+1, 0], coords[i+1, 1], float(z_sampled[i+1])))
+                            pygame.draw.line(surface, (28, 75, 135), (sx0, sy0), (sx1, sy1), width=w)
+                    else:
+                        z0 = float(getattr(e.v0, "elevation", 0.0) * 28.0) + 0.3
+                        z1 = float(getattr(e.v1, "elevation", 0.0) * 28.0) + 0.3
+                        n_p = len(pts)
+                        for i in range(n_p - 1):
+                            t_a = i / (n_p - 1)
+                            t_b = (i + 1) / (n_p - 1)
+                            za = z0 * (1.0 - t_a) + z1 * t_a
+                            zb = z0 * (1.0 - t_b) + z1 * t_b
+                            sx0, sy0, _ = project_3d((coords[i, 0], coords[i, 1], za))
+                            sx1, sy1, _ = project_3d((coords[i+1, 0], coords[i+1, 1], zb))
+                            pygame.draw.line(surface, (28, 75, 135), (sx0, sy0), (sx1, sy1), width=w)
                 else:
                     r_pts = [(int(pt[0] * scale_x), int(pt[1] * scale_y)) for pt in pts]
                     pygame.draw.lines(surface, (28, 75, 135), False, r_pts, width=w)
@@ -735,10 +766,17 @@ def render_mesh(
     for e in gen.edges:
         if getattr(e, 'lava', False):
             if is_rotated:
-                z0 = float(getattr(e.v0, "elevation", 0.0) * 28.0) + 0.3
-                z1 = float(getattr(e.v1, "elevation", 0.0) * 28.0) + 0.3
-                sx0, sy0, _ = project_3d((e.v0.x * (gen.width / gen.width), e.v0.y * (gen.height / gen.height), z0))
-                sx1, sy1, _ = project_3d((e.v1.x * (gen.width / gen.width), e.v1.y * (gen.height / gen.height), z1))
+                coords = np.array([[e.v0.x * scale_x, e.v0.y * scale_y],
+                                   [e.v1.x * scale_x, e.v1.y * scale_y]], dtype=np.float32)
+                z_sampled = sample_cpu_elevation(coords)
+                if z_sampled is not None:
+                    za = float(z_sampled[0])
+                    zb = float(z_sampled[1])
+                else:
+                    za = float(getattr(e.v0, "elevation", 0.0) * 28.0) + 0.3
+                    zb = float(getattr(e.v1, "elevation", 0.0) * 28.0) + 0.3
+                sx0, sy0, _ = project_3d((coords[0, 0], coords[0, 1], za))
+                sx1, sy1, _ = project_3d((coords[1, 0], coords[1, 1], zb))
                 pygame.draw.line(surface, (255, 60, 0), (sx0, sy0), (sx1, sy1), 4)
                 pygame.draw.line(surface, (255, 210, 50), (sx0, sy0), (sx1, sy1), 2)
             else:

@@ -620,6 +620,31 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
         from render_engine.gpu.mesh_brdf_pipeline import build_vbo_data
         vbo_data, max_z = build_vbo_data(triangles)
 
+        # Build spatial 2D KD-tree on final subdivided terrain mesh vertices for exact surface elevation sampling
+        mesh_tree = None
+        mesh_verts = vbo_data[:, :3] if len(vbo_data) > 0 else None
+        if mesh_verts is not None and len(mesh_verts) > 0:
+            try:
+                from scipy.spatial import cKDTree
+                mesh_tree = cKDTree(mesh_verts[:, :2])
+            except Exception:
+                mesh_tree = None
+
+        def sample_mesh_elevation(pts_xy):
+            """Sample elevations directly from the subdivided terrain surface with IDW interpolation."""
+            if mesh_tree is None or len(pts_xy) == 0:
+                return None
+            coords = np.asarray(pts_xy, dtype=np.float32)
+            dists, idxs = mesh_tree.query(coords, k=min(3, len(mesh_verts)))
+            if dists.ndim == 1 or (dists.ndim == 2 and dists.shape[1] == 1):
+                z_vals = mesh_verts[idxs.flatten(), 2]
+            else:
+                weights = 1.0 / np.maximum(dists, 1e-4)
+                weights /= np.sum(weights, axis=1, keepdims=True)
+                z_vals = np.sum(mesh_verts[idxs, 2] * weights, axis=1)
+            # Add small vertical bias (+0.08 units in 1024-world) to sit right on bed without z-fighting
+            return np.maximum(0.0, z_vals) + 0.08
+
         # Extract river vector lines in canonical world coordinates
         river_coords = []
         if hasattr(gen, "edges") and gen.noisy_edges:
@@ -634,15 +659,22 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
                     pts = gen.noisy_edges.get_edge_path(e, start_corner=e.v0)
                     n_p = len(pts)
                     if n_p >= 2:
-                        z0 = float(getattr(e.v0, "elevation", 0.0) * height_scale)
-                        z1 = float(getattr(e.v1, "elevation", 0.0) * height_scale)
-                        for i in range(n_p - 1):
-                            t_a = i / (n_p - 1)
-                            t_b = (i + 1) / (n_p - 1)
-                            za = z0 * (1.0 - t_a) + z1 * t_a + 0.35
-                            zb = z0 * (1.0 - t_b) + z1 * t_b + 0.35
-                            river_coords.extend([pts[i][0] * scale_x, pts[i][1] * scale_y, za,
-                                                pts[i+1][0] * scale_x, pts[i+1][1] * scale_y, zb])
+                        pts_xy = [[pt[0] * scale_x, pt[1] * scale_y] for pt in pts]
+                        z_sampled = sample_mesh_elevation(pts_xy)
+                        if z_sampled is not None:
+                            for i in range(n_p - 1):
+                                river_coords.extend([pts_xy[i][0], pts_xy[i][1], float(z_sampled[i]),
+                                                    pts_xy[i+1][0], pts_xy[i+1][1], float(z_sampled[i+1])])
+                        else:
+                            z0 = float(getattr(e.v0, "elevation", 0.0) * height_scale)
+                            z1 = float(getattr(e.v1, "elevation", 0.0) * height_scale)
+                            for i in range(n_p - 1):
+                                t_a = i / (n_p - 1)
+                                t_b = (i + 1) / (n_p - 1)
+                                za = z0 * (1.0 - t_a) + z1 * t_a + 0.35
+                                zb = z0 * (1.0 - t_b) + z1 * t_b + 0.35
+                                river_coords.extend([pts_xy[i][0], pts_xy[i][1], za,
+                                                    pts_xy[i+1][0], pts_xy[i+1][1], zb])
         river_arr = np.array(river_coords, dtype=np.float32)
 
         # Extract lava fissure lines in canonical world coordinates
@@ -652,10 +684,17 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
             scale_y = CANONICAL_WORLD_SIZE / gen.height
             for e in gen.edges:
                 if getattr(e, "lava", False) and e.v0 and e.v1:
-                    z0 = float(getattr(e.v0, "elevation", 0.0) * height_scale) + 0.35
-                    z1 = float(getattr(e.v1, "elevation", 0.0) * height_scale) + 0.35
-                    lava_coords.extend([e.v0.x * scale_x, e.v0.y * scale_y, z0,
-                                        e.v1.x * scale_x, e.v1.y * scale_y, z1])
+                    pts_xy = [[e.v0.x * scale_x, e.v0.y * scale_y],
+                              [e.v1.x * scale_x, e.v1.y * scale_y]]
+                    z_sampled = sample_mesh_elevation(pts_xy)
+                    if z_sampled is not None:
+                        lava_coords.extend([pts_xy[0][0], pts_xy[0][1], float(z_sampled[0]),
+                                            pts_xy[1][0], pts_xy[1][1], float(z_sampled[1])])
+                    else:
+                        z0 = float(getattr(e.v0, "elevation", 0.0) * height_scale) + 0.35
+                        z1 = float(getattr(e.v1, "elevation", 0.0) * height_scale) + 0.35
+                        lava_coords.extend([pts_xy[0][0], pts_xy[0][1], z0,
+                                            pts_xy[1][0], pts_xy[1][1], z1])
         lava_arr = np.array(lava_coords, dtype=np.float32)
 
         n_verts = len(vbo_data)
