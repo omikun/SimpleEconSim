@@ -337,7 +337,14 @@ def build_continuous_island_heightmap(
         vals.append(c.elevation if not c.water else 0.0)
     for cn in gen.corners:
         pts.append([cn.x, cn.y])
-        vals.append(cn.elevation if not cn.water else 0.0)
+        vals.append(0.0 if (cn.water or cn.ocean or getattr(cn, "coast", False)) else cn.elevation)
+
+    # Pin ocean coastline edge midpoints strictly to 0.0 to ensure continuous zero waterline
+    for edge in getattr(gen, "edges", []):
+        if edge.d0 and edge.d1 and edge.v0 and edge.v1:
+            if (edge.d0.water != edge.d1.water) and (edge.d0.ocean or edge.d1.ocean):
+                pts.append([edge.midpoint[0], edge.midpoint[1]])
+                vals.append(0.0)
 
     # Frame boundary points strictly outside the island to prevent boundary extrapolation NaNs
     w, h = gen.width, gen.height

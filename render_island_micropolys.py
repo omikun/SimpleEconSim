@@ -123,24 +123,63 @@ def build_island_mesh(
         seed=gen.seed,
     )
 
+    # Precompute discretized ocean shoreline points for continuous coastal distance envelope
+    from scipy.spatial import cKDTree
+    coastline_pts = []
+    for edge in gen.edges:
+        d0, d1 = edge.d0, edge.d1
+        v0, v1 = edge.v0, edge.v1
+        if not d0 or not d1 or not v0 or not v1:
+            continue
+        if (d0.water != d1.water) and (d0.ocean or d1.ocean):
+            p0 = np.array([v0.x * scale_x, v0.y * scale_y], dtype=np.float64)
+            p1 = np.array([v1.x * scale_x, v1.y * scale_y], dtype=np.float64)
+            edge_len = float(np.linalg.norm(p1 - p0))
+            n_samples = max(2, int(edge_len / 2.5))
+            for t in np.linspace(0.0, 1.0, n_samples):
+                coastline_pts.append(p0 * (1.0 - t) + p1 * t)
+
+    coast_tree = cKDTree(coastline_pts) if coastline_pts else None
+
+    COAST_TRANSITION_WIDTH = 32.0  # units (~1.0 - 1.2 Voronoi cell radius)
+
+    def calc_coastal_envelope(dist):
+        if dist <= 0.05:
+            return 0.0
+        if dist >= COAST_TRANSITION_WIDTH:
+            return 1.0
+        t = dist / COAST_TRANSITION_WIDTH
+        # Quintic Hermite envelope with C^2 continuity: first and second derivatives are 0 at t=0 and t=1
+        return (6.0 * t**2 - 15.0 * t + 10.0) * (t**3)
+
     # Mode: Fractal Watertight Edge-Cached 2D+3D Subdivision (Default)
     if mode == "fractal":
         from collections import defaultdict
         vertices = []
         vertex_map = {}
         is_boundary_vertex = {}
+        vertex_coast_dist = {}
 
-        def get_or_add_vertex(pt3d, is_fixed=False):
+        def get_or_add_vertex(pt3d, is_fixed=False, dist=None):
             key = (round(float(pt3d[0]), 1), round(float(pt3d[1]), 1))
             if key in vertex_map:
                 idx = vertex_map[key]
                 if is_fixed:
                     is_boundary_vertex[idx] = True
+                    vertex_coast_dist[idx] = 0.0
+                elif dist is not None:
+                    vertex_coast_dist[idx] = min(vertex_coast_dist.get(idx, 999.0), dist)
                 return idx
             idx = len(vertices)
             vertices.append(np.array(pt3d, dtype=np.float64))
             vertex_map[key] = idx
             is_boundary_vertex[idx] = is_fixed
+            if is_fixed:
+                vertex_coast_dist[idx] = 0.0
+            elif dist is not None:
+                vertex_coast_dist[idx] = dist
+            else:
+                vertex_coast_dist[idx] = float(coast_tree.query(pt3d[:2])[0]) if coast_tree else 999.0
             return idx
 
         base_triangles = []
@@ -161,51 +200,63 @@ def build_island_mesh(
             # An edge is an ocean coastline if it separates land from ocean water
             is_ocean_coast = (d0.water != d1.water) and (d0.ocean or d1.ocean)
 
+            dist_v0 = 0.0 if (v0.ocean or v0.coast or is_ocean_coast) else (float(coast_tree.query([v0.x * scale_x, v0.y * scale_y])[0]) if coast_tree else 999.0)
+            dist_v1 = 0.0 if (v1.ocean or v1.coast or is_ocean_coast) else (float(coast_tree.query([v1.x * scale_x, v1.y * scale_y])[0]) if coast_tree else 999.0)
+            dist_d0 = 0.0 if d0.water else (float(coast_tree.query([d0.x * scale_x, d0.y * scale_y])[0]) if coast_tree else 999.0)
+            dist_d1 = 0.0 if d1.water else (float(coast_tree.query([d1.x * scale_x, d1.y * scale_y])[0]) if coast_tree else 999.0)
+
+            env_v0 = calc_coastal_envelope(dist_v0)
+            env_v1 = calc_coastal_envelope(dist_v1)
+            env_d0 = calc_coastal_envelope(dist_d0)
+            env_d1 = calc_coastal_envelope(dist_d1)
+
             # Corners on the coastline (land touching sea) stay strictly at sea level (0.0)
-            z_v0 = 0.0 if (v0.ocean or v0.coast or is_ocean_coast) else max(0.0, erosion_field.sample_elevation(v0.x, v0.y) * elev_scale)
-            z_v1 = 0.0 if (v1.ocean or v1.coast or is_ocean_coast) else max(0.0, erosion_field.sample_elevation(v1.x, v1.y) * elev_scale)
+            raw_v0 = max(0.0, erosion_field.sample_elevation(v0.x, v0.y) * elev_scale)
+            raw_v1 = max(0.0, erosion_field.sample_elevation(v1.x, v1.y) * elev_scale)
+            z_v0 = 0.0 if (v0.ocean or v0.coast or is_ocean_coast or dist_v0 <= 0.05) else (raw_v0 * env_v0)
+            z_v1 = 0.0 if (v1.ocean or v1.coast or is_ocean_coast or dist_v1 <= 0.05) else (raw_v1 * env_v1)
 
             # Center of land polygons: beaches gently slope up to dunes (<= 1.8 units); other land retains natural height
-            if d0.water:
+            if d0.water or dist_d0 <= 0.05:
                 z_d0 = 0.0
             elif getattr(d0, "biome", "") == "BEACH":
-                z_d0 = min(1.8, max(0.1, erosion_field.sample_elevation(d0.x, d0.y) * elev_scale))
+                z_d0 = min(1.8, max(0.1, erosion_field.sample_elevation(d0.x, d0.y) * elev_scale)) * env_d0
             else:
-                z_d0 = max(0.0, erosion_field.sample_elevation(d0.x, d0.y) * elev_scale)
+                z_d0 = max(0.0, erosion_field.sample_elevation(d0.x, d0.y) * elev_scale) * env_d0
 
-            if d1.water:
+            if d1.water or dist_d1 <= 0.05:
                 z_d1 = 0.0
             elif getattr(d1, "biome", "") == "BEACH":
-                z_d1 = min(1.8, max(0.1, erosion_field.sample_elevation(d1.x, d1.y) * elev_scale))
+                z_d1 = min(1.8, max(0.1, erosion_field.sample_elevation(d1.x, d1.y) * elev_scale)) * env_d1
             else:
-                z_d1 = max(0.0, erosion_field.sample_elevation(d1.x, d1.y) * elev_scale)
+                z_d1 = max(0.0, erosion_field.sample_elevation(d1.x, d1.y) * elev_scale) * env_d1
 
             if elevation_alpha > 0.0 and not is_ocean_coast:
-                if not (v0.ocean or v0.coast):
+                if not (v0.ocean or v0.coast) and dist_v0 > 0.05:
                     adj_v0 = [erosion_field.sample_elevation(c.x, c.y) * elev_scale for c in v0.touches if not c.water]
                     if adj_v0:
-                        z_v0 += elevation_alpha * (max(adj_v0) - min(adj_v0)) * 0.5
-                if not (v1.ocean or v1.coast):
+                        z_v0 += elevation_alpha * (max(adj_v0) - min(adj_v0)) * 0.5 * env_v0
+                if not (v1.ocean or v1.coast) and dist_v1 > 0.05:
                     adj_v1 = [erosion_field.sample_elevation(c.x, c.y) * elev_scale for c in v1.touches if not c.water]
                     if adj_v1:
-                        z_v1 += elevation_alpha * (max(adj_v1) - min(adj_v1)) * 0.5
+                        z_v1 += elevation_alpha * (max(adj_v1) - min(adj_v1)) * 0.5 * env_v1
 
             # River channel bed carving for physical valleys (cannot carve below sea level 0.0)
             if edge.river > 0 and not is_ocean_coast:
-                if not (v0.ocean or v0.coast):
-                    z_v0 = max(0.0, z_v0 - min(3.5, edge.river * 0.75))
-                if not (v1.ocean or v1.coast):
-                    z_v1 = max(0.0, z_v1 - min(3.5, edge.river * 0.75))
+                if not (v0.ocean or v0.coast) and dist_v0 > 0.05:
+                    z_v0 = max(0.0, z_v0 - min(3.5, edge.river * 0.75) * env_v0)
+                if not (v1.ocean or v1.coast) and dist_v1 > 0.05:
+                    z_v1 = max(0.0, z_v1 - min(3.5, edge.river * 0.75) * env_v1)
 
             p_v0 = np.array([v0.x * scale_x, v0.y * scale_y, z_v0], dtype=np.float64)
             p_v1 = np.array([v1.x * scale_x, v1.y * scale_y, z_v1], dtype=np.float64)
             p_d0 = np.array([d0.x * scale_x, d0.y * scale_y, z_d0], dtype=np.float64)
             p_d1 = np.array([d1.x * scale_x, d1.y * scale_y, z_d1], dtype=np.float64)
 
-            idx_v0 = get_or_add_vertex(p_v0, is_fixed=(v0.ocean or v0.coast or is_ocean_coast))
-            idx_v1 = get_or_add_vertex(p_v1, is_fixed=(v1.ocean or v1.coast or is_ocean_coast))
-            idx_d0 = get_or_add_vertex(p_d0, is_fixed=d0.water)
-            idx_d1 = get_or_add_vertex(p_d1, is_fixed=d1.water)
+            idx_v0 = get_or_add_vertex(p_v0, is_fixed=(v0.ocean or v0.coast or is_ocean_coast or dist_v0 <= 0.05), dist=dist_v0)
+            idx_v1 = get_or_add_vertex(p_v1, is_fixed=(v1.ocean or v1.coast or is_ocean_coast or dist_v1 <= 0.05), dist=dist_v1)
+            idx_d0 = get_or_add_vertex(p_d0, is_fixed=(d0.water or dist_d0 <= 0.05), dist=dist_d0)
+            idx_d1 = get_or_add_vertex(p_d1, is_fixed=(d1.water or dist_d1 <= 0.05), dist=dist_d1)
 
             col0 = np.array(BIOME_COLORS.get(d0.biome, (120, 160, 100)), dtype=np.float64)
             col1 = np.array(BIOME_COLORS.get(d1.biome, (120, 160, 100)), dtype=np.float64)
@@ -258,28 +309,36 @@ def build_island_mesh(
             length = float(np.linalg.norm(e_xy))
             mid = (pa + pb) * 0.5
 
+            dist_a = vertex_coast_dist.get(i_a, 999.0)
+            dist_b = vertex_coast_dist.get(i_b, 999.0)
+            mid_dist = (dist_a + dist_b) * 0.5
+            mid_env = calc_coastal_envelope(mid_dist)
+            is_bnd = (is_boundary_vertex.get(i_a, False) and is_boundary_vertex.get(i_b, False)) or (mid_dist <= 0.05)
+
             if length > 1.2:
                 n_perp = np.array([-e_xy[1], e_xy[0]], dtype=np.float64) / length
                 decay = 0.70 ** depth
-                disp_lat = rng.uniform(-lateral_jitter, lateral_jitter) * length * decay
-                disp_long = rng.uniform(-0.10, 0.10) * length * decay
+                jitter_env = 0.30 + 0.70 * mid_env
+                disp_lat = rng.uniform(-lateral_jitter, lateral_jitter) * length * decay * jitter_env
+                disp_long = rng.uniform(-0.10, 0.10) * length * decay * jitter_env
 
                 mid[0] += n_perp[0] * disp_lat + (e_xy[0] / length) * disp_long
                 mid[1] += n_perp[1] * disp_lat + (e_xy[1] / length) * disp_long
 
-                # Continuous global height sampling at subdivided midpoint
-                base_h = erosion_field.sample_elevation(mid[0] / scale_x, mid[1] / scale_y) * elev_scale
-                fbm_val = procedural_fbm_elevation(mid[0], mid[1], gen.seed, amplitude=elev_scale / 70.0) * (decay * 0.35)
+                # Continuous global height sampling at subdivided midpoint modulated by coastal envelope
+                base_h = erosion_field.sample_elevation(mid[0] / scale_x, mid[1] / scale_y) * elev_scale * mid_env
+                fbm_val = procedural_fbm_elevation(mid[0], mid[1], gen.seed, amplitude=elev_scale / 70.0) * (decay * 0.35) * mid_env
                 mid_norm_elev = base_h / max(1.0, elev_scale)
-                rdg_val = procedural_ridged_elevation(mid[0], mid[1], mid_norm_elev, gen.seed, amplitude=elev_scale / 45.0, ridge_roughness=ridge_noise) * (decay * 0.5)
-                disp_z = rng.uniform(-0.35, 0.35) * roughness * (length / 24.0) + fbm_val + rdg_val
-                mid[2] = 0.70 * base_h + 0.30 * mid[2] + disp_z
-                if is_boundary_vertex.get(i_a, False) and is_boundary_vertex.get(i_b, False):
+                rdg_val = procedural_ridged_elevation(mid[0], mid[1], mid_norm_elev, gen.seed, amplitude=elev_scale / 45.0, ridge_roughness=ridge_noise) * (decay * 0.5) * mid_env
+                disp_z = (rng.uniform(-0.35, 0.35) * roughness * (length / 24.0) + fbm_val + rdg_val) * mid_env
+                mid[2] = max(0.0, (0.70 * base_h + 0.30 * mid[2] + disp_z) * mid_env)
+                if is_bnd:
                     mid[2] = 0.0
 
             idx_mid = len(vertices)
             vertices.append(mid)
-            is_boundary_vertex[idx_mid] = is_boundary_vertex.get(i_a, False) and is_boundary_vertex.get(i_b, False)
+            is_boundary_vertex[idx_mid] = is_bnd
+            vertex_coast_dist[idx_mid] = mid_dist
 
             c_a = vertex_colors.get(i_a, np.array([120, 160, 100], dtype=np.float64))
             c_b = vertex_colors.get(i_b, np.array([120, 160, 100], dtype=np.float64))
@@ -317,11 +376,17 @@ def build_island_mesh(
             for v_idx in list(adj_map.keys()):
                 if is_boundary_vertex.get(v_idx, False):
                     continue
+                v_dist = vertex_coast_dist.get(v_idx, 999.0)
+                if v_dist <= 0.05:
+                    vertices[v_idx][2] = 0.0
+                    continue
+                v_env = calc_coastal_envelope(v_dist)
                 neighbors = list(adj_map[v_idx])
                 if len(neighbors) >= 3:
                     neighbor_z_mean = float(np.mean([vertices[n][2] for n in neighbors]))
-                    vertices[v_idx][2] = (1.0 - relax_weight * 1.5) * vertices[v_idx][2] + (relax_weight * 1.5) * neighbor_z_mean
-                    vertices[v_idx][2] += rng.uniform(-0.5, 0.5) * (roughness * 0.15 * (0.65 ** depth))
+                    new_z = (1.0 - relax_weight * 1.5) * vertices[v_idx][2] + (relax_weight * 1.5) * neighbor_z_mean
+                    new_z += rng.uniform(-0.5, 0.5) * (roughness * 0.15 * (0.65 ** depth)) * v_env
+                    vertices[v_idx][2] = max(0.0, new_z)
 
             depth += 1
             if len(triangles_idx) >= target_polys:
@@ -400,8 +465,21 @@ def build_island_mesh(
             continue
 
         is_ocean_coast = (d0.water != d1.water) and (d0.ocean or d1.ocean)
-        z_v0 = 0.0 if (v0.ocean or v0.coast or is_ocean_coast) else max(0.0, erosion_field.sample_elevation(v0.x, v0.y) * elev_scale)
-        z_v1 = 0.0 if (v1.ocean or v1.coast or is_ocean_coast) else max(0.0, erosion_field.sample_elevation(v1.x, v1.y) * elev_scale)
+
+        dist_v0 = 0.0 if (v0.ocean or v0.coast or is_ocean_coast) else (float(coast_tree.query([v0.x * scale_x, v0.y * scale_y])[0]) if coast_tree else 999.0)
+        dist_v1 = 0.0 if (v1.ocean or v1.coast or is_ocean_coast) else (float(coast_tree.query([v1.x * scale_x, v1.y * scale_y])[0]) if coast_tree else 999.0)
+        dist_d0 = 0.0 if d0.water else (float(coast_tree.query([d0.x * scale_x, d0.y * scale_y])[0]) if coast_tree else 999.0)
+        dist_d1 = 0.0 if d1.water else (float(coast_tree.query([d1.x * scale_x, d1.y * scale_y])[0]) if coast_tree else 999.0)
+
+        env_v0 = calc_coastal_envelope(dist_v0)
+        env_v1 = calc_coastal_envelope(dist_v1)
+        env_d0 = calc_coastal_envelope(dist_d0)
+        env_d1 = calc_coastal_envelope(dist_d1)
+
+        raw_v0 = max(0.0, erosion_field.sample_elevation(v0.x, v0.y) * elev_scale)
+        raw_v1 = max(0.0, erosion_field.sample_elevation(v1.x, v1.y) * elev_scale)
+        z_v0 = 0.0 if (v0.ocean or v0.coast or is_ocean_coast or dist_v0 <= 0.05) else (raw_v0 * env_v0)
+        z_v1 = 0.0 if (v1.ocean or v1.coast or is_ocean_coast or dist_v1 <= 0.05) else (raw_v1 * env_v1)
         z_mid = (z_v0 + z_v1) * 0.5
 
         p_v0 = np.array([v0.x * scale_x, v0.y * scale_y, z_v0], dtype=np.float64)
@@ -422,19 +500,19 @@ def build_island_mesh(
             area = 0.5 * abs((pb[0] - pa[0]) * (pc[1] - pa[1]) - (pc[0] - pa[0]) * (pb[1] - pa[1]))
             base_triangles.append((pa, pb, pc, c, el, riv, area))
 
-        if d0.water:
+        if d0.water or dist_d0 <= 0.05:
             z_d0 = 0.0
         elif getattr(d0, "biome", "") == "BEACH":
-            z_d0 = min(1.8, max(0.1, erosion_field.sample_elevation(d0.x, d0.y) * elev_scale))
+            z_d0 = min(1.8, max(0.1, erosion_field.sample_elevation(d0.x, d0.y) * elev_scale)) * env_d0
         else:
-            z_d0 = max(0.0, erosion_field.sample_elevation(d0.x, d0.y) * elev_scale)
+            z_d0 = max(0.0, erosion_field.sample_elevation(d0.x, d0.y) * elev_scale) * env_d0
 
-        if d1.water:
+        if d1.water or dist_d1 <= 0.05:
             z_d1 = 0.0
         elif getattr(d1, "biome", "") == "BEACH":
-            z_d1 = min(1.8, max(0.1, erosion_field.sample_elevation(d1.x, d1.y) * elev_scale))
+            z_d1 = min(1.8, max(0.1, erosion_field.sample_elevation(d1.x, d1.y) * elev_scale)) * env_d1
         else:
-            z_d1 = max(0.0, erosion_field.sample_elevation(d1.x, d1.y) * elev_scale)
+            z_d1 = max(0.0, erosion_field.sample_elevation(d1.x, d1.y) * elev_scale) * env_d1
 
         p_d0 = np.array([d0.x * scale_x, d0.y * scale_y, z_d0], dtype=np.float64)
         p_d1 = np.array([d1.x * scale_x, d1.y * scale_y, z_d1], dtype=np.float64)
