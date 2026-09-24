@@ -650,18 +650,18 @@ def render_mesh(
         else:
             norm_active = norm
 
-        # Multi-light illumination with configurable sun angle and intensities
-        NdotL_sun = max(0.0, float(np.dot(norm_active, L_sun)))
-        NdotL_fill = max(0.0, float(np.dot(norm_active, L_fill)))
+        # Multi-light illumination relative to the plane of the map (sun fixed in sky over island)
+        NdotL_sun = max(0.0, float(np.dot(norm, L_sun)))
+        NdotL_fill = max(0.0, float(np.dot(norm, L_fill)))
         diffuse_sun = 0.44 * sun_intensity * math.pow(NdotL_sun, 1.05)
         diffuse_fill = 0.14 * NdotL_fill
-        ambient = (0.65 + 0.15 * (norm_active[2] - 0.7)) * (ambient_intensity / 0.45)
+        ambient = (0.65 + 0.15 * (norm[2] - 0.7)) * (ambient_intensity / 0.45)
         shade = ambient + diffuse_sun + diffuse_fill
 
         col = col_base.copy()
 
-        # Dynamic steep cliff scree
-        slope_val = 1.0 - norm_active[2]
+        # Dynamic steep cliff scree (relative to horizontal map plane)
+        slope_val = 1.0 - norm[2]
         if slope_val > 0.14:
             cliff_w = min(0.60, (slope_val - 0.14) / 0.22)
             col = col * (1.0 - cliff_w) + np.array([66, 64, 71], dtype=np.float64) * cliff_w

@@ -6,7 +6,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="theme-color" content="#12161c">
-  <title>Mapgen2 Explorer v2.2.1 (Build 13:00)</title>
+  <title>Mapgen2 Explorer v2.2.2 (Build 13:05)</title>
   <style>
     :root {
       --bg: #10141a;
@@ -414,7 +414,7 @@
 
   <header>
     <div class="header-title">
-      <h1>Mapgen2 Explorer <span style="font-size: 0.68rem; color: #38bdf8; font-weight: 600; background: rgba(56, 189, 248, 0.15); padding: 2px 6px; border-radius: 5px; border: 1px solid rgba(56, 189, 248, 0.35); vertical-align: middle;">v2.2.1 (Build 13:00)</span></h1>
+      <h1>Mapgen2 Explorer <span style="font-size: 0.68rem; color: #38bdf8; font-weight: 600; background: rgba(56, 189, 248, 0.15); padding: 2px 6px; border-radius: 5px; border: 1px solid rgba(56, 189, 248, 0.35); vertical-align: middle;">v2.2.2 (Build 13:05)</span></h1>
       <p id="perf-status">⚡ Initializing...</p>
     </div>
     <div style="display: flex; align-items: center; gap: 8px;">
@@ -898,8 +898,12 @@
     uniform float u_rot_pitch;
     uniform float u_rot_yaw;
     uniform float u_max_z;
+    uniform vec3 u_sun_dir;
 
     out vec3 v_norm;
+    out vec3 v_sun_dir;
+    out vec3 v_fill_dir;
+    out vec3 v_world_norm;
     out vec3 v_color;
     out float v_elev;
 
@@ -948,6 +952,34 @@
         );
 
         v_norm = normalize(n_rot);
+        v_world_norm = normalize(n);
+
+        // Transform sun vector (defined relative to the plane of the map) by exact same camera rotation
+        vec3 l_yaw = vec3(
+            u_sun_dir.x * cos_y - u_sun_dir.y * sin_y,
+            u_sun_dir.x * sin_y + u_sun_dir.y * cos_y,
+            u_sun_dir.z
+        );
+        vec3 l_rot = vec3(
+            l_yaw.x,
+            l_yaw.y * cos_p + l_yaw.z * sin_p,
+            -l_yaw.y * sin_p + l_yaw.z * cos_p
+        );
+        v_sun_dir = normalize(l_rot);
+
+        // Fill light vector transformed into eye space
+        vec3 fill_world = normalize(vec3(0.45, -0.65, 0.60));
+        vec3 f_yaw = vec3(
+            fill_world.x * cos_y - fill_world.y * sin_y,
+            fill_world.x * sin_y + fill_world.y * cos_y,
+            fill_world.z
+        );
+        vec3 f_rot = vec3(
+            f_yaw.x,
+            f_yaw.y * cos_p + f_yaw.z * sin_p,
+            -f_yaw.y * sin_p + f_yaw.z * cos_p
+        );
+        v_fill_dir = normalize(f_rot);
 
         float scale_factor = (abs(u_rot_pitch) > 0.1 || abs(u_rot_yaw) > 0.1) ? 0.88 : 1.0;
         float x_ndc = (p_rot.x / R) * scale_factor;
@@ -964,10 +996,12 @@
     precision highp float;
 
     in vec3 v_norm;
+    in vec3 v_sun_dir;
+    in vec3 v_fill_dir;
+    in vec3 v_world_norm;
     in vec3 v_color;
     in float v_elev;
 
-    uniform vec3 u_sun_dir;
     uniform float u_sun_intensity;
     uniform float u_ambient_intensity;
     uniform float u_mountain_roughness;
@@ -1031,14 +1065,14 @@
         vec3 N = normalize(v_norm);
         if (N.z < 0.0) N = -N;
 
-        vec3 L = normalize(u_sun_dir);
+        vec3 L = normalize(v_sun_dir);
         vec3 V = vec3(0.0, 0.0, 1.0);
         vec3 H = normalize(L + V);
 
         vec3 albedo = v_color;
 
-        // Dynamic steep cliff rock scree
-        float slope = 1.0 - N.z;
+        // Dynamic steep cliff rock scree (physical slope relative to horizontal plane of map)
+        float slope = 1.0 - clamp(v_world_norm.z, 0.0, 1.0);
         float rock_weight = smoothstep(0.28, 0.58, slope) * smoothstep(0.22, 0.55, v_elev);
         if (rock_weight > 0.01) {
             vec3 rock_scree = vec3(0.26, 0.25, 0.28);
@@ -1076,10 +1110,10 @@
 
         vec3 sky_color = vec3(0.20, 0.36, 0.56);
         vec3 ground_color = vec3(0.26, 0.22, 0.16);
-        float hemi = N.z * 0.5 + 0.5;
+        float hemi = clamp(v_world_norm.z, 0.0, 1.0) * 0.5 + 0.5;
         vec3 ambient = mix(ground_color, sky_color, hemi) * u_ambient_intensity;
 
-        vec3 L_fill = normalize(vec3(0.45, -0.65, 0.60));
+        vec3 L_fill = normalize(v_fill_dir);
         float fill_light = max(0.0, dot(N, L_fill)) * 0.12;
 
         vec3 shaded = albedo * (ambient + diffuse_light * shadow + fill_light) + specular * shadow;
@@ -1831,7 +1865,7 @@
     // ---------------------------------------------------------------------------
     function updateUrlParams() {
       const p = new URLSearchParams(state);
-      p.set('_v', '2.2.1');
+      p.set('_v', '2.2.2');
       return p.toString();
     }
 

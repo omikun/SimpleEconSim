@@ -37,9 +37,13 @@ uniform vec2 u_resolution; // (width, height)
 uniform float u_max_z;      // max z for depth scaling
 uniform float u_rot_pitch;  // in degrees (0 to 80)
 uniform float u_rot_yaw;    // in degrees (-180 to 180)
+uniform vec3 u_sun_dir;     // Sun vector relative to map plane (+X East, +Y North, +Z Up)
 
 out vec3 v_world_pos;
 out vec3 v_norm;
+out vec3 v_sun_dir;
+out vec3 v_fill_dir;
+out vec3 v_world_norm;
 out vec3 v_color;
 out float v_elev;
 
@@ -78,8 +82,6 @@ void main() {
     float sin_p = sin(pitch_rad);
 
     // 2. Camera Tilt looking North from South:
-    // Screen Y: ground foreshortening + elevation rising upward (+Z * sin_p)
-    // Eye Z: South is closer (-p_yaw.y * sin_p) + peaks closer (+p_yaw.z * cos_p)
     vec3 p_rot = vec3(
         p_yaw.x,
         p_yaw.y * cos_p + p_yaw.z * sin_p,
@@ -93,6 +95,34 @@ void main() {
 
     // Pass eye-space rotated normal to fragment shader
     v_norm = normalize(n_rot);
+    v_world_norm = normalize(n);
+
+    // Transform sun vector (defined relative to the plane of the map) by exact same camera rotation
+    vec3 l_yaw = vec3(
+        u_sun_dir.x * cos_y - u_sun_dir.y * sin_y,
+        u_sun_dir.x * sin_y + u_sun_dir.y * cos_y,
+        u_sun_dir.z
+    );
+    vec3 l_rot = vec3(
+        l_yaw.x,
+        l_yaw.y * cos_p + l_yaw.z * sin_p,
+        -l_yaw.y * sin_p + l_yaw.z * cos_p
+    );
+    v_sun_dir = normalize(l_rot);
+
+    // Fill light vector in eye space
+    vec3 fill_world = normalize(vec3(0.45, -0.65, 0.60));
+    vec3 f_yaw = vec3(
+        fill_world.x * cos_y - fill_world.y * sin_y,
+        fill_world.x * sin_y + fill_world.y * cos_y,
+        fill_world.z
+    );
+    vec3 f_rot = vec3(
+        f_yaw.x,
+        f_yaw.y * cos_p + f_yaw.z * sin_p,
+        -f_yaw.y * sin_p + f_yaw.z * cos_p
+    );
+    v_fill_dir = normalize(f_rot);
 
     // 3. Projected NDC coordinates [-1, 1]
     float scale_factor = (abs(u_rot_pitch) > 0.1 || abs(u_rot_yaw) > 0.1) ? 0.88 : 1.0;
@@ -110,10 +140,12 @@ void main() {
 MESH_BRDF_FRAG = """#version 330 core
 in vec3 v_world_pos;
 in vec3 v_norm;
+in vec3 v_sun_dir;
+in vec3 v_fill_dir;
+in vec3 v_world_norm;
 in vec3 v_color;
 in float v_elev;
 
-uniform vec3 u_sun_dir;
 uniform float u_sun_intensity;
 uniform float u_ambient_intensity;
 uniform float u_mountain_roughness;
@@ -177,15 +209,15 @@ void main() {
     vec3 N = normalize(v_norm);
     if (N.z < 0.0) N = -N; // Ensure outward pointing normal
 
-    vec3 L = normalize(u_sun_dir);
+    vec3 L = normalize(v_sun_dir);
     vec3 V = vec3(0.0, 0.0, 1.0); // Top-down orthographic camera
     vec3 H = normalize(L + V);
 
     // 1. Base Albedo with dynamic slope scree & alpine snow
     vec3 albedo = v_color;
 
-    // Dynamic steep cliff rock scree (granite/basalt) on mountain slopes
-    float slope = 1.0 - N.z;
+    // Dynamic steep cliff rock scree (granite/basalt) on mountain slopes relative to map plane
+    float slope = 1.0 - clamp(v_world_norm.z, 0.0, 1.0);
     float rock_weight = smoothstep(0.28, 0.58, slope) * smoothstep(0.22, 0.55, v_elev);
     if (rock_weight > 0.01) {
         vec3 rock_scree = vec3(0.26, 0.25, 0.28);
@@ -220,14 +252,14 @@ void main() {
     vec3 specular = (NDF * G * F) / max(4.0 * max(dot(N, V), 0.0) * NdotL, 1e-4);
     specular *= NdotL * u_sun_intensity * 0.28;
 
-    // 4. Hemispherical Sky Ambient Light
+    // 4. Hemispherical Sky Ambient Light (relative to map sky)
     vec3 sky_color = vec3(0.20, 0.36, 0.56);
     vec3 ground_color = vec3(0.26, 0.22, 0.16);
-    float hemi = N.z * 0.5 + 0.5;
+    float hemi = clamp(v_world_norm.z, 0.0, 1.0) * 0.5 + 0.5;
     vec3 ambient = mix(ground_color, sky_color, hemi) * u_ambient_intensity;
 
     // 5. Fill Light from opposite quadrant
-    vec3 L_fill = normalize(vec3(0.45, -0.65, 0.60));
+    vec3 L_fill = normalize(v_fill_dir);
     float fill_light = max(0.0, dot(N, L_fill)) * 0.12;
 
     // 6. Composite shaded RGB
