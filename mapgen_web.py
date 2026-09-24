@@ -48,8 +48,8 @@ def _gpu_worker_loop():
     global GPU_AVAILABLE
     pipe = None
     try:
-        from render_engine.gpu.moderngl_pipeline import ModernGLTerrainPipeline
-        pipe = ModernGLTerrainPipeline()
+        from render_engine.gpu.mesh_brdf_pipeline import GPUMeshBRDFPipeline
+        pipe = GPUMeshBRDFPipeline()
         if pipe.is_available():
             GPU_AVAILABLE = True
     except Exception as exc:
@@ -92,54 +92,23 @@ def run_on_gpu(func, *args, **kwargs):
     raise res
 
 
-def sample_polygon_map_to_tiles(gen: PolygonMapGenerator, rows: int = 15, cols: int = 15):
-    """Sample continuous polygon map geography onto a hex tile grid for the GPU shaders."""
-    from hexmap import rectangular_hex_layout, hex_bbox, axial_to_pixel
-    from worldview_camera import HEX_SIZE
-    from render_dev_viewer import MockTile
-
-    layout = rectangular_hex_layout(rows, cols)
-    hex_size = 48.0
-    coords = [axial_to_pixel(q, r, hex_size) for q, r in layout.values()]
-    min_x, max_x = min(p[0] for p in coords), max(p[0] for p in coords)
-    min_y, max_y = min(p[1] for p in coords), max(p[1] for p in coords)
-    span_x = max(1.0, max_x - min_x)
-    span_y = max(1.0, max_y - min_y)
-    margin = 70.0
-    target_span_x = gen.width - 2 * margin
-    target_span_y = gen.height - 2 * margin
-
-    tiles = []
-    for r in range(rows):
-        for c in range(cols):
-            name = f"r{r}c{c}"
-            q, ax_r = layout.get(name, (c, r))
-            px, py = axial_to_pixel(q, ax_r, hex_size)
-            mx = margin + ((px - min_x) / span_x) * target_span_x
-            my = margin + ((py - min_y) / span_y) * target_span_y
-            center = gen.get_center_at(mx, my)
-            tile = MockTile(name, r, c, q=q, r=ax_r)
-            tile.elevation = float(center.elevation if not center.water else -0.20)
-            tile.moisture = float(center.moisture)
-            tile.is_ocean = bool(center.ocean)
-            tile.biome = center.biome.lower()
-            tiles.append(tile)
-
-    bbox = hex_bbox(layout, HEX_SIZE)
-    return tiles, layout, bbox
-
-
-def _render_gpu_surface(pipe, gen: PolygonMapGenerator, width: int, height: int, uniforms: dict) -> pygame.Surface:
-    """Invoked inside dedicated GPU worker thread."""
-    tiles, layout, bbox = sample_polygon_map_to_tiles(gen)
-    return pipe.render_topographic_surface(
-        seed=gen.seed,
-        bbox=bbox,
-        tiles=tiles,
-        layout=layout,
+def _render_gpu_mesh_surface(
+    pipe,
+    gen: PolygonMapGenerator,
+    triangles: list,
+    width: int,
+    height: int,
+    uniforms: dict,
+    mesh_key: Any = None,
+) -> pygame.Surface:
+    """Invoked inside dedicated GPU worker thread to render CPU mapgen mesh with BRDF."""
+    return pipe.render_mesh(
+        gen=gen,
+        triangles=triangles,
         width=width,
         height=height,
         uniforms=uniforms,
+        mesh_cache_key=mesh_key,
     )
 
 # ---------------------------------------------------------------------------
@@ -279,6 +248,10 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
         elif path == "/api/render":
             self.handle_render(query)
 
+        # 2b. High-FPS Client-Side WebGL 3D Mesh API
+        elif path == "/api/mesh_binary":
+            self.handle_mesh_binary(query)
+
         # 3. Cell Inspection API
         elif path == "/api/inspect":
             self.handle_inspect(query)
@@ -313,7 +286,7 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
     def handle_render(self, q: Dict[str, list]):
         t0 = time.time()
         seed = int(q.get("seed", [777])[0])
-        shape = q.get("shape", ["radial"])[0]
+        shape = q.get("shape", ["perlin"])[0]
         engine = q.get("engine", ["gpu" if is_gpu_ready(0.2) else "cpu"])[0].lower()
         mode = q.get("mode", ["micropolys"])[0]
         points = int(q.get("points", [1000])[0])
@@ -343,6 +316,10 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
         ambient_intensity = float(q.get("ambient_intensity", [0.45])[0])
         mountain_roughness = float(q.get("mountain_roughness", [1.0])[0])
 
+        # 3D interactive mesh rotation
+        rot_pitch = float(q.get("rot_pitch", [0.0])[0])
+        rot_yaw = float(q.get("rot_yaw", [0.0])[0])
+
         graph_key = (
             seed,
             shape,
@@ -371,7 +348,7 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
         surf = None
         used_engine = "cpu"
 
-        # 1. GPU Pipeline Execution (ModernGL photorealistic multi-pass shaders)
+        # 1. GPU Pipeline Execution (ModernGL hardware rasterization of CPU mapgen mesh with BRDF)
         if (engine == "gpu" or mode == "gpu") and is_gpu_ready(0.2):
             uniforms = {
                 "sun_azimuth": sun_azimuth,
@@ -379,18 +356,56 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
                 "sun_intensity": sun_intensity,
                 "ambient_intensity": ambient_intensity,
                 "mountain_roughness": mountain_roughness,
+                "rot_pitch": rot_pitch,
+                "rot_yaw": rot_yaw,
             }
             try:
-                surf = run_on_gpu(_render_gpu_surface, gen, size, size, uniforms)
+                triangles, _ = get_cached_micropolys(
+                    gen,
+                    graph_key,
+                    polys,
+                    roughness,
+                    jitter,
+                    alpha,
+                    height_scale,
+                    smooth,
+                    size,
+                    quad_fold=quad_fold,
+                    ridge_noise=ridge_noise,
+                    erosion_strength=erosion_strength,
+                    erosion_droplets=erosion_droplets,
+                )
+                mesh_key = (
+                    graph_key,
+                    polys,
+                    round(roughness, 1),
+                    round(jitter, 2),
+                    round(alpha, 2),
+                    round(height_scale, 1),
+                    round(smooth, 2),
+                    quad_fold,
+                    ridge_noise,
+                    erosion_strength,
+                    int(erosion_droplets),
+                )
+                surf = run_on_gpu(
+                    _render_gpu_mesh_surface,
+                    gen,
+                    triangles,
+                    size,
+                    size,
+                    uniforms,
+                    mesh_key=mesh_key,
+                )
                 used_engine = "gpu"
             except Exception as e:
                 sys.stderr.write(f"GPU render error, fallback to CPU: {e}\n")
                 surf = None
 
-        # 2. CPU Fallback / Alternative Modes
+        # 2. CPU Fallback / Alternative Modes (Only execute if surf was not already rendered by GPU)
         if surf is None:
             used_engine = "cpu"
-            if mode == "micropolys" or engine == "cpu":
+            if mode in ("micropolys", "gpu") or engine == "cpu":
                 triangles, _ = get_cached_micropolys(
                     gen,
                     graph_key,
@@ -417,85 +432,100 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
                     ambient_intensity=ambient_intensity,
                 )
 
-        elif mode == "biomes":
-            surf = gen.render_to_surface(
-                width=size,
-                height=size,
-                use_brdf=True,
-                use_noisy_edges=True,
-                show_roads=True,
-                show_lava=True,
-                render_micropolys=False,
-            )
+            elif mode == "biomes":
+                surf = gen.render_to_surface(
+                    width=size,
+                    height=size,
+                    use_brdf=True,
+                    use_noisy_edges=True,
+                    show_roads=True,
+                    show_lava=True,
+                    render_micropolys=False,
+                )
 
-        elif mode == "elevation":
-            surf = pygame.Surface((size, size))
-            surf.fill((18, 48, 100))
-            for c in gen.centers:
-                if c.ocean:
-                    col = (18, 48, 100)
-                elif c.water:
-                    col = (40, 110, 175)
-                else:
-                    e = min(1.0, max(0.0, c.elevation))
-                    if e < 0.25:
-                        t = e / 0.25
-                        col = (int(50 + 60 * t), int(140 + 40 * t), int(50 + 30 * t))
-                    elif e < 0.60:
-                        t = (e - 0.25) / 0.35
-                        col = (int(110 + 70 * t), int(180 - 40 * t), int(80 - 20 * t))
-                    elif e < 0.82:
-                        t = (e - 0.60) / 0.22
-                        col = (int(180 - 40 * t), int(140 - 20 * t), int(60 + 40 * t))
+            elif mode == "elevation":
+                surf = pygame.Surface((size, size))
+                surf.fill((18, 48, 100))
+                for c in gen.centers:
+                    if c.ocean:
+                        col = (18, 48, 100)
+                    elif c.water:
+                        col = (40, 110, 175)
                     else:
-                        t = (e - 0.82) / 0.18
-                        col = (int(140 + 110 * t), int(120 + 130 * t), int(100 + 155 * t))
+                        e = min(1.0, max(0.0, c.elevation))
+                        if e < 0.25:
+                            t = e / 0.25
+                            col = (int(50 + 60 * t), int(140 + 40 * t), int(50 + 30 * t))
+                        elif e < 0.60:
+                            t = (e - 0.25) / 0.35
+                            col = (int(110 + 70 * t), int(180 - 40 * t), int(80 - 20 * t))
+                        elif e < 0.82:
+                            t = (e - 0.60) / 0.22
+                            col = (int(180 - 40 * t), int(140 - 20 * t), int(60 + 40 * t))
+                        else:
+                            t = (e - 0.82) / 0.18
+                            col = (int(140 + 110 * t), int(120 + 130 * t), int(100 + 155 * t))
 
-                poly = gen.get_polygon_noisy_boundary(c)
-                if len(poly) >= 3:
-                    pygame.draw.polygon(surf, col, poly)
+                    poly = gen.get_polygon_noisy_boundary(c)
+                    if len(poly) >= 3:
+                        pygame.draw.polygon(surf, col, poly)
 
-        elif mode == "moisture":
-            surf = pygame.Surface((size, size))
-            surf.fill((18, 48, 100))
-            for c in gen.centers:
-                if c.ocean:
-                    col = (18, 48, 100)
-                elif c.water:
-                    col = (40, 110, 175)
-                else:
-                    m = min(1.0, max(0.0, c.moisture))
-                    col = (
-                        int(210 * (1.0 - m) + 20 * m),
-                        int(190 * (1.0 - m) + 160 * m),
-                        int(90 * (1.0 - m) + 80 * m),
-                    )
-                poly = gen.get_polygon_noisy_boundary(c)
-                if len(poly) >= 3:
-                    pygame.draw.polygon(surf, col, poly)
+            elif mode == "moisture":
+                surf = pygame.Surface((size, size))
+                surf.fill((18, 48, 100))
+                for c in gen.centers:
+                    if c.ocean:
+                        col = (18, 48, 100)
+                    elif c.water:
+                        col = (40, 110, 175)
+                    else:
+                        m = min(1.0, max(0.0, c.moisture))
+                        col = (
+                            int(210 * (1.0 - m) + 20 * m),
+                            int(190 * (1.0 - m) + 160 * m),
+                            int(90 * (1.0 - m) + 80 * m),
+                        )
+                    poly = gen.get_polygon_noisy_boundary(c)
+                    if len(poly) >= 3:
+                        pygame.draw.polygon(surf, col, poly)
 
-        elif mode == "watersheds":
-            surf = gen.render_to_surface(
-                width=size,
-                height=size,
-                use_brdf=False,
-                show_watersheds=True,
-                render_micropolys=False,
-            )
+            elif mode == "watersheds":
+                surf = gen.render_to_surface(
+                    width=size,
+                    height=size,
+                    use_brdf=False,
+                    show_watersheds=True,
+                    render_micropolys=False,
+                )
 
-        elif mode == "wireframe":
-            surf = pygame.Surface((size, size))
-            surf.fill((22, 26, 34))
-            for e in gen.edges:
-                if e.v0 and e.v1:
-                    col = (60, 90, 130) if (e.d0 and e.d0.water and e.d1 and e.d1.water) else (140, 160, 190)
-                    pygame.draw.line(surf, col, (e.v0.x, e.v0.y), (e.v1.x, e.v1.y), 1)
-                if e.d0 and e.d1:
-                    pygame.draw.line(surf, (180, 80, 80), (e.d0.x, e.d0.y), (e.d1.x, e.d1.y), 1)
+            elif mode == "wireframe":
+                surf = pygame.Surface((size, size))
+                surf.fill((22, 26, 34))
+                for e in gen.edges:
+                    if e.v0 and e.v1:
+                        col = (60, 90, 130) if (e.d0 and e.d0.water and e.d1 and e.d1.water) else (140, 160, 190)
+                        pygame.draw.line(surf, col, (e.v0.x, e.v0.y), (e.v1.x, e.v1.y), 1)
+                    if e.d0 and e.d1:
+                        pygame.draw.line(surf, (180, 80, 80), (e.d0.x, e.d0.y), (e.d1.x, e.d1.y), 1)
 
+            else:
+                # Guaranteed non-black fallback for any unknown mode
+                surf = gen.render_to_surface(width=size, height=size, use_brdf=True)
+
+        # 3. Permanent Failsafe Guard: Verify the surface has non-zero pixels
+        if surf is None:
+            sys.stderr.write("WARNING: surf is None, invoking guaranteed CPU emergency fallback.\n")
+            used_engine = "cpu-emergency"
+            surf = gen.render_to_surface(width=size, height=size, use_brdf=True)
         else:
-            surf = pygame.Surface((size, size))
-            surf.fill((0, 0, 0))
+            # Check center and quarter pixels
+            test_pts = [(size // 2, size // 2), (size // 4, size // 4), (3 * size // 4, 3 * size // 4)]
+            if all(sum(surf.get_at(pt)[:3]) == 0 for pt in test_pts):
+                raw_test = pygame.image.tobytes(surf, "RGB")
+                if max(raw_test) == 0:
+                    sys.stderr.write("WARNING: Render produced an all-black surface! Triggering guaranteed CPU fallback.\n")
+                    used_engine = "cpu-failsafe"
+                    surf = gen.render_to_surface(width=size, height=size, use_brdf=True)
 
         # Encode directly to fast WebP buffer
         raw_rgb = pygame.image.tobytes(surf, "RGB")
@@ -514,6 +544,129 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "public, max-age=60")
         self.end_headers()
         self.wfile.write(payload)
+
+    def handle_mesh_binary(self, q: Dict[str, list]):
+        """Streams compact binary 3D mesh + river lines for 60-120 FPS client WebGL rendering."""
+        import struct
+        import gzip
+        t0 = time.time()
+        seed = int(q.get("seed", [777])[0])
+        shape = q.get("shape", ["perlin"])[0]
+        points = int(q.get("points", [1000])[0])
+        polys = int(q.get("polys", [16000])[0])
+        height_scale = float(q.get("height_scale", [70.0])[0])
+        sharpness = float(q.get("sharpness", [1.0])[0])
+        roughness = float(q.get("roughness", [3.0])[0])
+        jitter = float(q.get("jitter", [0.22])[0])
+        smooth = float(q.get("smooth", [0.70])[0])
+        alpha = float(q.get("alpha", [0.0])[0])
+        rivers = int(q.get("rivers", [25])[0])
+        moisture_bias = float(q.get("moisture_bias", [0.0])[0])
+        north_temp = float(q.get("north_temp", [0.0])[0])
+        south_temp = float(q.get("south_temp", [0.0])[0])
+        persistence = float(q.get("persistence", [0.0])[0])
+        quad_fold = q.get("quad_fold", ["true"])[0].lower() in ("true", "1", "yes")
+        ridge_noise = float(q.get("ridge_noise", [0.35])[0])
+        erosion_strength = float(q.get("erosion_strength", [0.30])[0])
+        erosion_droplets = int(q.get("erosion_droplets", [15000])[0])
+        size = int(q.get("size", [1024])[0])
+
+        graph_key = (
+            seed,
+            shape,
+            points,
+            rivers,
+            round(sharpness, 2),
+            round(moisture_bias, 2),
+            round(north_temp, 2),
+            round(south_temp, 2),
+            round(persistence, 2),
+            size,
+        )
+        gen = get_cached_graph(
+            seed,
+            shape,
+            points,
+            rivers,
+            sharpness,
+            moisture_bias=moisture_bias,
+            north_temp=north_temp,
+            south_temp=south_temp,
+            persistence=persistence,
+            size=size,
+        )
+
+        triangles, _ = get_cached_micropolys(
+            gen,
+            graph_key,
+            polys,
+            roughness,
+            jitter,
+            alpha,
+            height_scale,
+            smooth,
+            size,
+            quad_fold=quad_fold,
+            ridge_noise=ridge_noise,
+            erosion_strength=erosion_strength,
+            erosion_droplets=erosion_droplets,
+        )
+
+        from render_engine.gpu.mesh_brdf_pipeline import build_vbo_data
+        vbo_data, max_z = build_vbo_data(triangles)
+
+        # Extract river vector lines
+        river_coords = []
+        if hasattr(gen, "edges") and gen.noisy_edges:
+            scale_x = size / gen.width
+            scale_y = size / gen.height
+            for e in gen.edges:
+                if e.river > 0 and e.v0 and e.v1:
+                    pts = gen.noisy_edges.get_edge_path(e, start_corner=e.v0)
+                    n_p = len(pts)
+                    if n_p >= 2:
+                        z0 = float(getattr(e.v0, "elevation", 0.0) * height_scale)
+                        z1 = float(getattr(e.v1, "elevation", 0.0) * height_scale)
+                        for i in range(n_p - 1):
+                            t_a = i / (n_p - 1)
+                            t_b = (i + 1) / (n_p - 1)
+                            za = z0 * (1.0 - t_a) + z1 * t_a + 0.35
+                            zb = z0 * (1.0 - t_b) + z1 * t_b + 0.35
+                            river_coords.extend([pts[i][0] * scale_x, pts[i][1] * scale_y, za,
+                                                pts[i+1][0] * scale_x, pts[i+1][1] * scale_y, zb])
+        river_arr = np.array(river_coords, dtype=np.float32)
+
+        # Extract lava fissure lines
+        lava_coords = []
+        if hasattr(gen, "edges"):
+            scale_x = size / gen.width
+            scale_y = size / gen.height
+            for e in gen.edges:
+                if getattr(e, "lava", False) and e.v0 and e.v1:
+                    z0 = float(getattr(e.v0, "elevation", 0.0) * height_scale) + 0.35
+                    z1 = float(getattr(e.v1, "elevation", 0.0) * height_scale) + 0.35
+                    lava_coords.extend([e.v0.x * scale_x, e.v0.y * scale_y, z0,
+                                        e.v1.x * scale_x, e.v1.y * scale_y, z1])
+        lava_arr = np.array(lava_coords, dtype=np.float32)
+
+        n_verts = len(vbo_data)
+        n_river = len(river_arr) // 3
+        n_lava = len(lava_arr) // 3
+
+        hdr = struct.pack('<4sIIfII', b'MMSH', 1, n_verts, float(max_z), n_river, n_lava)
+        raw_payload = hdr + vbo_data.tobytes() + river_arr.tobytes() + lava_arr.tobytes()
+        compressed = gzip.compress(raw_payload, compresslevel=1)
+
+        dur_ms = (time.time() - t0) * 1000.0
+        self.send_response(200)
+        self.send_header("Content-Type", "application/octet-stream")
+        self.send_header("Content-Encoding", "gzip")
+        self.send_header("Content-Length", str(len(compressed)))
+        self.send_header("X-Mesh-Vertices", str(n_verts))
+        self.send_header("X-Mesh-Time-Ms", f"{dur_ms:.1f}")
+        self.send_header("Cache-Control", "public, max-age=60")
+        self.end_headers()
+        self.wfile.write(compressed)
 
     def handle_inspect(self, q: Dict[str, list]):
         seed = int(q.get("seed", [777])[0])

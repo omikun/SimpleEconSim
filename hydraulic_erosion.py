@@ -360,6 +360,19 @@ def build_continuous_island_heightmap(
     return base_grid, land_mask, interp
 
 
+def _droplet_worker_chunk(args):
+    """Worker process task for parallel droplet chunk execution."""
+    grid, num_drops, seed, land_mask, carving_scale = args
+    sim = HydraulicErosionSim(grid_size=grid.shape[0], seed=seed)
+    eroded, sed = sim.simulate_droplets(
+        grid,
+        num_droplets=num_drops,
+        land_mask=land_mask,
+        carving_scale=carving_scale,
+    )
+    return (eroded - grid), sed
+
+
 def simulate_global_erosion(
     gen,
     grid_size: int = 256,
@@ -386,13 +399,49 @@ def simulate_global_erosion(
             grid_size=grid_size,
         )
 
+    # Multi-core CPU parallel execution for high droplet counts
     sim = HydraulicErosionSim(grid_size=grid_size, seed=sim_seed)
-    eroded_grid, sediment_map = sim.simulate_droplets(
-        base_grid,
-        num_droplets=num_droplets,
-        land_mask=land_mask,
-        carving_scale=carving_scale,
-    )
+    if num_droplets >= 2000:
+        import os
+        from concurrent.futures import ProcessPoolExecutor
+        num_workers = min(8, max(2, os.cpu_count() or 4))
+        chunk = num_droplets // num_workers
+        remainder = num_droplets % num_workers
+        args_list = [
+            (
+                base_grid,
+                chunk + (remainder if i == 0 else 0),
+                sim_seed + i * 1337,
+                land_mask,
+                carving_scale,
+            )
+            for i in range(num_workers)
+        ]
+        try:
+            with ProcessPoolExecutor(max_workers=num_workers) as ex:
+                results = list(ex.map(_droplet_worker_chunk, args_list))
+            delta_total = np.zeros_like(base_grid)
+            sediment_map = np.zeros_like(base_grid)
+            for d, s in results:
+                delta_total += d
+                sediment_map += s
+            eroded_grid = base_grid + delta_total
+        except Exception as exc:
+            # Fallback to single thread if multiprocessing is restricted
+            eroded_grid, sediment_map = sim.simulate_droplets(
+                base_grid,
+                num_droplets=num_droplets,
+                land_mask=land_mask,
+                carving_scale=carving_scale,
+            )
+    else:
+        eroded_grid, sediment_map = sim.simulate_droplets(
+            base_grid,
+            num_droplets=num_droplets,
+            land_mask=land_mask,
+            carving_scale=carving_scale,
+        )
+
     if thermal_iterations > 0:
         eroded_grid = sim.apply_thermal_erosion(eroded_grid, iterations=thermal_iterations)
 

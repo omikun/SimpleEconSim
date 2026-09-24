@@ -182,6 +182,56 @@
       to { transform: translate(-50%, -50%) scale(1.2); }
     }
 
+    /* Render Progress Bar */
+    .progress-bar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 3px;
+      z-index: 99999;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+      background: rgba(0, 0, 0, 0.25);
+    }
+    .progress-bar.active {
+      opacity: 1;
+    }
+    .progress-bar-inner {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #2d8cf0, #00d2ff, #34d399);
+      box-shadow: 0 0 10px rgba(0, 210, 255, 0.9), 0 0 4px #2d8cf0;
+      transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* 3D Rotation HUD */
+    .rot-hud {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(18, 24, 34, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(45, 140, 240, 0.4);
+      border-radius: 10px;
+      padding: 5px 10px;
+      z-index: 20;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: #38bdf8;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+    }
+    .map-container.rotating {
+      cursor: crosshair;
+    }
+
     /* Inspection Overlay */
     .inspect-card {
       position: absolute;
@@ -360,6 +410,7 @@
   </style>
 </head>
 <body>
+  <div id="render-progress-bar" class="progress-bar"><div class="progress-bar-inner" id="progress-bar-inner"></div></div>
 
   <header>
     <div class="header-title">
@@ -375,14 +426,19 @@
   <main>
     <!-- Map Viewport with Hardware-Accelerated Pan & Zoom -->
     <div class="map-container" id="map-box">
+      <div class="rot-hud" id="rot-hud" style="display: none;">
+        <span id="rot-readout">3D: Pitch 0° • Yaw 0°</span>
+      </div>
       <div class="zoom-layer" id="zoom-layer">
-        <img id="map-image" src="" alt="Terrain Map" draggable="false">
+        <canvas id="gpu-canvas" width="1024" height="1024" style="width: 100%; height: 100%; display: block;"></canvas>
+        <img id="map-image" src="" alt="Terrain Map" draggable="false" style="display: none;">
         <div class="tap-marker" id="tap-marker"></div>
       </div>
       <div class="zoom-hud">
         <button class="zoom-btn" id="btn-zoom-in" title="Zoom in">+</button>
         <button class="zoom-btn" id="btn-zoom-out" title="Zoom out">−</button>
         <button class="zoom-btn" id="btn-zoom-reset" style="font-size: 0.72rem; width: 34px;" title="Reset zoom">Fit</button>
+        <button class="zoom-btn" id="btn-rot-reset" style="font-size: 0.70rem; width: 34px;" title="Reset 3D rotation">3D↺</button>
         <span class="zoom-readout" id="zoom-readout">100%</span>
       </div>
       <div class="inspect-card" id="inspect-card">
@@ -398,14 +454,40 @@
       </div>
     </div>
 
+    <!-- Settings Presets & Save Slots -->
+    <div class="card" id="save-slots-card" style="padding: 12px 14px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <span style="font-size: 0.82rem; font-weight: 700; color: var(--accent);">💾 Settings Save Slots</span>
+        <span style="font-size: 0.73rem; color: var(--text-muted);" id="slot-status">Slot 1 Active</span>
+      </div>
+      <div class="segment-bar cols-4" id="slot-selector-bar" style="margin-bottom: 8px;">
+        <button class="btn-segment active" data-slot="1" id="btn-slot-tab-1">Slot 1</button>
+        <button class="btn-segment" data-slot="2" id="btn-slot-tab-2">Slot 2</button>
+        <button class="btn-segment" data-slot="3" id="btn-slot-tab-3">Slot 3</button>
+        <button class="btn-segment" data-slot="4" id="btn-slot-tab-4">Slot 4</button>
+      </div>
+      <div style="display: flex; gap: 8px; margin-bottom: 6px;">
+        <button class="btn-action" id="btn-slot-save" style="flex: 1.2; padding: 7px 10px; font-size: 0.78rem; background: linear-gradient(135deg, #2563eb, #1d4ed8); border-color: #3b82f6; color: #fff;">
+          💾 Overwrite Slot
+        </button>
+        <button class="btn-action" id="btn-slot-load" style="flex: 1; padding: 7px 10px; font-size: 0.78rem; background: var(--bg-card); border: 1px solid var(--border);">
+          📂 Load Slot
+        </button>
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.72rem; color: var(--text-muted);">
+        <span id="slot-meta" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 80%;">Default Settings</span>
+        <button id="btn-slot-clear" style="background: none; border: none; color: #ef4444; font-size: 0.72rem; cursor: pointer; padding: 2px 4px;">Reset</button>
+      </div>
+    </div>
+
     <!-- Engine & Resolution Selector -->
     <div class="card" style="padding: 12px 14px;">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
         <span style="font-size: 0.82rem; font-weight: 700; color: var(--accent);">Render Engine</span>
-        <span style="font-size: 0.75rem; color: var(--text-muted);" id="engine-status">⚡ ModernGL Multi-Pass</span>
+        <span style="font-size: 0.75rem; color: var(--text-muted);" id="engine-status">⚡ WebGL 2 Client (60-120 FPS)</span>
       </div>
       <div class="segment-bar" id="engine-bar" style="margin-bottom: 12px; grid-template-columns: 1.3fr 1fr;">
-        <button class="btn-segment active" data-engine="gpu">⚡ GPU (ModernGL Shaders)</button>
+        <button class="btn-segment active" data-engine="gpu">⚡ GPU (WebGL 2 Client)</button>
         <button class="btn-segment" data-engine="cpu">CPU (Micropoly Mesh)</button>
       </div>
 
@@ -468,6 +550,18 @@
         </div>
         <input type="range" id="slider-mountain-roughness" min="0.20" max="2.50" step="0.05" value="1.00">
       </div>
+
+      <div class="slider-row">
+        <div class="slider-header" style="margin-bottom: 4px;">
+          <span>Directional Shadows (PCF Soft)</span>
+          <span class="slider-val" id="val-shadows">ON (1.00)</span>
+        </div>
+        <div class="segment-bar" id="shadow-bar" style="margin-bottom: 8px; grid-template-columns: 1fr 1fr;">
+          <button class="btn-segment active" data-shadow="true">☀️ Shadows ON</button>
+          <button class="btn-segment" data-shadow="false">Shadows OFF</button>
+        </div>
+        <input type="range" id="slider-shadow-darkness" min="0.0" max="1.0" step="0.05" value="1.00">
+      </div>
     </div>
 
     <!-- View Modes -->
@@ -487,8 +581,8 @@
     <div>
       <div class="section-title">Island Shape</div>
       <div class="segment-bar cols-4" id="shape-bar">
-        <button class="btn-segment active" data-shape="radial">Radial</button>
-        <button class="btn-segment" data-shape="perlin">Perlin</button>
+        <button class="btn-segment" data-shape="radial">Radial</button>
+        <button class="btn-segment active" data-shape="perlin">Perlin</button>
         <button class="btn-segment" data-shape="blob">Blob</button>
         <button class="btn-segment" data-shape="square">Square</button>
       </div>
@@ -687,7 +781,7 @@
     // Global Application State
     const state = {
       seed: 777,
-      shape: 'radial',
+      shape: 'perlin',
       engine: 'gpu',
       mode: 'micropolys',
       height_scale: 70.0,
@@ -712,14 +806,20 @@
       sun_elevation: 42.0,
       sun_intensity: 1.15,
       ambient_intensity: 0.45,
-      mountain_roughness: 1.00
+      mountain_roughness: 1.00,
+      rot_pitch: 0.0,
+      rot_yaw: 0.0,
+      shadows: true,
+      shadow_darkness: 1.00
     };
 
     let debounceTimer = null;
+    let fastUpdateTimer = null;
     let abortController = null;
 
     const mapBox = document.getElementById('map-box');
     const zoomLayer = document.getElementById('zoom-layer');
+    const gpuCanvas = document.getElementById('gpu-canvas');
     const mapImg = document.getElementById('map-image');
     const zoomReadout = document.getElementById('zoom-readout');
     const perfStatus = document.getElementById('perf-status');
@@ -728,6 +828,832 @@
     const inspectCard = document.getElementById('inspect-card');
     const btnAr = document.getElementById('btn-ar');
     const btnSave = document.getElementById('btn-save');
+    const progressBar = document.getElementById('render-progress-bar');
+    const progressInner = document.getElementById('progress-bar-inner');
+    const rotHud = document.getElementById('rot-hud');
+    const rotReadout = document.getElementById('rot-readout');
+    let progressAnimInterval = null;
+
+    function startProgress() {
+      if (progressAnimInterval) clearInterval(progressAnimInterval);
+      if (!progressBar || !progressInner) return;
+      progressBar.classList.add('active');
+      progressInner.style.transition = 'width 0.15s ease-out';
+      progressInner.style.width = '25%';
+      let current = 25;
+      progressAnimInterval = setInterval(() => {
+        if (current < 85) {
+          current += Math.random() * 8 + 3;
+          if (current > 85) current = 85;
+          progressInner.style.width = `${current}%`;
+        }
+      }, 90);
+    }
+
+    function completeProgress() {
+      if (progressAnimInterval) {
+        clearInterval(progressAnimInterval);
+        progressAnimInterval = null;
+      }
+      if (!progressBar || !progressInner) return;
+      progressInner.style.transition = 'width 0.10s ease-out';
+      progressInner.style.width = '100%';
+      setTimeout(() => {
+        progressBar.classList.remove('active');
+        setTimeout(() => {
+          progressInner.style.width = '0%';
+        }, 200);
+      }, 140);
+    }
+
+    function updateRotHud() {
+      if (!rotHud || !rotReadout) return;
+      const isRot = (state.engine === 'gpu') && (Math.abs(state.rot_pitch) > 0.5 || Math.abs(state.rot_yaw) > 0.5 || isRotating);
+      if (isRot) {
+        rotHud.style.display = 'flex';
+        rotReadout.textContent = `3D: Pitch ${Math.round(state.rot_pitch)}° • Yaw ${Math.round(state.rot_yaw)}°`;
+      } else {
+        rotHud.style.display = 'none';
+      }
+    }
+
+    // ---------------------------------------------------------------------------
+    // WebGL 2 Hardware-Accelerated 3D BRDF Terrain Renderer (60-120 FPS Client)
+    // ---------------------------------------------------------------------------
+    const SHADOW_VS = `#version 300 es
+    precision highp float;
+
+    layout(location = 0) in vec3 in_pos;
+
+    uniform vec2 u_resolution;
+    uniform mat4 u_light_vp;
+
+    void main() {
+        vec2 center = u_resolution * 0.5;
+        vec3 p = vec3(in_pos.x - center.x, center.y - in_pos.y, in_pos.z);
+        gl_Position = u_light_vp * vec4(p, 1.0);
+    }
+    `;
+
+    const SHADOW_FS = `#version 300 es
+    precision highp float;
+
+    out vec4 frag_dummy;
+
+    void main() {
+        frag_dummy = vec4(0.0);
+    }
+    `;
+
+    const MESH_VS = `#version 300 es
+    precision highp float;
+
+    layout(location = 0) in vec3 in_pos;
+    layout(location = 1) in vec3 in_norm;
+    layout(location = 2) in vec3 in_color;
+    layout(location = 3) in float in_elev;
+
+    uniform vec2 u_resolution;
+    uniform float u_rot_pitch;
+    uniform float u_rot_yaw;
+    uniform float u_max_z;
+    uniform mat4 u_shadow_matrix;
+
+    out vec3 v_norm;
+    out vec3 v_color;
+    out float v_elev;
+    out vec4 v_shadow_coord;
+
+    void main() {
+        v_color = in_color;
+        v_elev = in_elev;
+
+        vec2 center = u_resolution * 0.5;
+        float R = max(center.x, center.y);
+
+        // Centered coordinates: +X East, +Y North, +Z Up
+        vec3 p = vec3(in_pos.x - center.x, center.y - in_pos.y, in_pos.z);
+        vec3 n = vec3(in_norm.x, -in_norm.y, in_norm.z);
+
+        v_shadow_coord = u_shadow_matrix * vec4(p, 1.0);
+
+        float yaw_rad = radians(u_rot_yaw);
+        float cos_y = cos(yaw_rad);
+        float sin_y = sin(yaw_rad);
+
+        // 1. Yaw rotation around vertical Z axis
+        vec3 p_yaw = vec3(
+            p.x * cos_y - p.y * sin_y,
+            p.x * sin_y + p.y * cos_y,
+            p.z
+        );
+        vec3 n_yaw = vec3(
+            n.x * cos_y - n.y * sin_y,
+            n.x * sin_y + n.y * cos_y,
+            n.z
+        );
+
+        float pitch_rad = radians(u_rot_pitch);
+        float cos_p = cos(pitch_rad);
+        float sin_p = sin(pitch_rad);
+
+        // 2. Camera Tilt looking North from South:
+        // Screen Y: ground foreshortening + elevation rising upward (+Z * sin_p)
+        // Eye Z: South is closer (-p_yaw.y * sin_p) + peaks closer (+p_yaw.z * cos_p)
+        vec3 p_rot = vec3(
+            p_yaw.x,
+            p_yaw.y * cos_p + p_yaw.z * sin_p,
+            -p_yaw.y * sin_p + p_yaw.z * cos_p
+        );
+        vec3 n_rot = vec3(
+            n_yaw.x,
+            n_yaw.y * cos_p + n_yaw.z * sin_p,
+            -n_yaw.y * sin_p + n_yaw.z * cos_p
+        );
+
+        v_norm = normalize(n_rot);
+
+        float scale_factor = (abs(u_rot_pitch) > 0.1 || abs(u_rot_yaw) > 0.1) ? 0.88 : 1.0;
+        float x_ndc = (p_rot.x / R) * scale_factor;
+        float y_ndc = (p_rot.y / R) * scale_factor;
+
+        float depth_span = max(1.0, u_max_z * 2.0 + R * 2.5);
+        float z_ndc = clamp(-p_rot.z / depth_span, -0.99, 0.99);
+
+        gl_Position = vec4(x_ndc, y_ndc, z_ndc, 1.0);
+    }
+    `;
+
+    const MESH_FS = `#version 300 es
+    precision highp float;
+
+    in vec3 v_norm;
+    in vec3 v_color;
+    in float v_elev;
+    in vec4 v_shadow_coord;
+
+    uniform sampler2DShadow u_shadow_map;
+    uniform vec3 u_sun_dir;
+    uniform float u_sun_intensity;
+    uniform float u_ambient_intensity;
+    uniform float u_mountain_roughness;
+    uniform float u_snow_threshold;
+    uniform float u_shadow_intensity;
+
+    out vec4 frag_color;
+
+    const float PI = 3.141592653589793;
+
+    float oren_nayar_diffuse(vec3 N, vec3 L, vec3 V, float roughness) {
+        float NdotL = dot(N, L);
+        float NdotV = dot(N, V);
+        float s = max(0.0, NdotL);
+        if (s <= 0.0) return 0.0;
+
+        float sigma2 = roughness * roughness;
+        float A = 1.0 - 0.5 * (sigma2 / (sigma2 + 0.33));
+        float B = 0.45 * (sigma2 / (sigma2 + 0.09));
+
+        vec3 L_proj = normalize(L - N * NdotL + vec3(1e-5));
+        vec3 V_proj = normalize(V - N * NdotV + vec3(1e-5));
+        float cos_phi = max(0.0, dot(L_proj, V_proj));
+
+        float theta_i = acos(clamp(NdotL, -1.0, 1.0));
+        float theta_r = acos(clamp(NdotV, -1.0, 1.0));
+
+        float sin_alpha = (theta_i >= theta_r) ? sin(theta_i) : sin(theta_r);
+        float tan_beta  = (theta_i >= theta_r) ? tan(theta_r) : tan(theta_i);
+
+        return s * (A + B * cos_phi * sin_alpha * max(0.0, tan_beta));
+    }
+
+    float distribution_ggx(vec3 N, vec3 H, float roughness) {
+        float a = roughness * roughness;
+        float a2 = a * a;
+        float NdotH = max(dot(N, H), 0.0);
+        float NdotH2 = NdotH * NdotH;
+        float denom = (NdotH2 * (a2 - 1.0) + 1.0);
+        return a2 / max(PI * denom * denom, 1e-5);
+    }
+
+    float geometry_schlick_ggx(float NdotV, float roughness) {
+        float r = (roughness + 1.0);
+        float k = (r * r) / 8.0;
+        return NdotV / max(NdotV * (1.0 - k) + k, 1e-5);
+    }
+
+    float geometry_smith(vec3 N, vec3 V, vec3 L, float roughness) {
+        float NdotV = max(dot(N, V), 0.0);
+        float NdotL = max(dot(N, L), 0.0);
+        return geometry_schlick_ggx(NdotV, roughness) * geometry_schlick_ggx(NdotL, roughness);
+    }
+
+    vec3 fresnel_schlick(float cos_theta, vec3 F0) {
+        return F0 + (1.0 - F0) * pow(clamp(1.0 - cos_theta, 0.0, 1.0), 5.0);
+    }
+
+    float compute_shadow(vec4 shadow_coord, vec3 N, vec3 L) {
+        vec3 proj = shadow_coord.xyz / shadow_coord.w;
+        if (proj.x < 0.001 || proj.x > 0.999 || proj.y < 0.001 || proj.y > 0.999 || proj.z > 0.999 || proj.z < 0.001) {
+            return 1.0;
+        }
+        float NdotL = dot(N, L);
+        if (NdotL <= 0.0) return 0.0;
+        float bias = max(0.0035 * (1.0 - NdotL), 0.0008);
+
+        float shadow = 0.0;
+        float texel = 1.0 / 2048.0;
+        for (int dy = -1; dy <= 1; ++dy) {
+            for (int dx = -1; dx <= 1; ++dx) {
+                vec2 offset = vec2(float(dx), float(dy)) * (texel * 1.25);
+                shadow += texture(u_shadow_map, vec3(proj.xy + offset, proj.z - bias));
+            }
+        }
+        return shadow / 9.0;
+    }
+
+    void main() {
+        vec3 N = normalize(v_norm);
+        if (N.z < 0.0) N = -N;
+
+        vec3 L = normalize(u_sun_dir);
+        vec3 V = vec3(0.0, 0.0, 1.0);
+        vec3 H = normalize(L + V);
+
+        vec3 albedo = v_color;
+
+        // Dynamic steep cliff rock scree
+        float slope = 1.0 - N.z;
+        float rock_weight = smoothstep(0.28, 0.58, slope) * smoothstep(0.22, 0.55, v_elev);
+        if (rock_weight > 0.01) {
+            vec3 rock_scree = vec3(0.26, 0.25, 0.28);
+            albedo = mix(albedo, rock_scree, rock_weight * 0.70);
+        }
+
+        // Alpine Snow on high peaks
+        float is_snow = 0.0;
+        if (v_elev > u_snow_threshold) {
+            is_snow = clamp((v_elev - u_snow_threshold) / max(0.01, 1.0 - u_snow_threshold), 0.0, 1.0);
+            is_snow = pow(is_snow, 1.6);
+            vec3 snow_col = vec3(0.95, 0.96, 0.98);
+            albedo = mix(albedo, snow_col, is_snow * 0.95);
+        }
+
+        float rough = clamp(u_mountain_roughness * 0.70, 0.15, 1.0);
+        if (is_snow > 0.4) rough = 0.30;
+
+        float NdotL = max(0.0, dot(N, L));
+        float oren_diffuse = oren_nayar_diffuse(N, L, V, rough);
+        float wrap_diffuse = max(0.0, dot(N, L) * 0.4 + 0.6);
+        float diffuse_light = (oren_diffuse * 0.80 + wrap_diffuse * 0.20) * u_sun_intensity;
+
+        vec3 F0 = vec3(0.035);
+        if (is_snow > 0.3) F0 = vec3(0.14);
+        vec3 F = fresnel_schlick(max(dot(H, V), 0.0), F0);
+        float NDF = distribution_ggx(N, H, rough);
+        float G = geometry_smith(N, V, L, rough);
+        vec3 specular = (NDF * G * F) / max(4.0 * max(dot(N, V), 0.0) * NdotL, 1e-4);
+        specular *= NdotL * u_sun_intensity * 0.28;
+
+        float raw_shadow = 1.0;
+        if (u_shadow_intensity > 0.01) {
+            raw_shadow = compute_shadow(v_shadow_coord, N, L);
+        }
+        float shadow = mix(1.0, raw_shadow, u_shadow_intensity);
+
+        vec3 sky_color = vec3(0.20, 0.36, 0.56);
+        vec3 ground_color = vec3(0.26, 0.22, 0.16);
+        float hemi = N.z * 0.5 + 0.5;
+        vec3 ambient = mix(ground_color, sky_color, hemi) * u_ambient_intensity;
+
+        vec3 L_fill = normalize(vec3(0.45, -0.65, 0.60));
+        float fill_light = max(0.0, dot(N, L_fill)) * 0.12;
+
+        vec3 shaded = albedo * (ambient + diffuse_light * shadow + fill_light) + specular * shadow;
+        shaded = shaded / (shaded + vec3(0.28)) * 1.28;
+
+        frag_color = vec4(clamp(shaded, 0.0, 1.0), 1.0);
+    }
+    `;
+
+    const LINE_VS = `#version 300 es
+    precision highp float;
+
+    layout(location = 0) in vec3 in_pos;
+
+    uniform vec2 u_resolution;
+    uniform float u_rot_pitch;
+    uniform float u_rot_yaw;
+    uniform float u_max_z;
+
+    void main() {
+        vec2 center = u_resolution * 0.5;
+        float R = max(center.x, center.y);
+
+        vec3 p = vec3(in_pos.x - center.x, center.y - in_pos.y, in_pos.z);
+
+        float yaw_rad = radians(u_rot_yaw);
+        float cos_y = cos(yaw_rad);
+        float sin_y = sin(yaw_rad);
+
+        vec3 p_yaw = vec3(
+            p.x * cos_y - p.y * sin_y,
+            p.x * sin_y + p.y * cos_y,
+            p.z
+        );
+
+        float pitch_rad = radians(u_rot_pitch);
+        float cos_p = cos(pitch_rad);
+        float sin_p = sin(pitch_rad);
+
+        vec3 p_rot = vec3(
+            p_yaw.x,
+            p_yaw.y * cos_p + p_yaw.z * sin_p,
+            -p_yaw.y * sin_p + p_yaw.z * cos_p
+        );
+
+        float scale_factor = (abs(u_rot_pitch) > 0.1 || abs(u_rot_yaw) > 0.1) ? 0.88 : 1.0;
+        float x_ndc = (p_rot.x / R) * scale_factor;
+        float y_ndc = (p_rot.y / R) * scale_factor;
+
+        float depth_span = max(1.0, u_max_z * 2.0 + R * 2.5);
+        float z_ndc = clamp(-p_rot.z / depth_span, -0.99, 0.99) - 0.002;
+
+        gl_Position = vec4(x_ndc, y_ndc, z_ndc, 1.0);
+    }
+    `;
+
+    const LINE_FS = `#version 300 es
+    precision highp float;
+
+    uniform vec4 u_line_color;
+    out vec4 frag_color;
+
+    void main() {
+        frag_color = u_line_color;
+    }
+    `;
+
+    const SHADOW_SIZE = 2048;
+
+    let gl = null;
+    let meshProg = null;
+    let lineProg = null;
+    let shadowProg = null;
+    let shadowDepthTex = null;
+    let shadowFbo = null;
+    let meshVbo = null;
+    let riverVbo = null;
+    let lavaVbo = null;
+    let meshVao = null;
+    let riverVao = null;
+    let lavaVao = null;
+    let meshVertexCount = 0;
+    let riverVertexCount = 0;
+    let lavaVertexCount = 0;
+    let meshMaxZ = 100.0;
+    let isWebGlReady = false;
+    let loadedMeshParamsKey = '';
+    let isMeshFetching = false;
+    let meshAbortController = null;
+
+    // Matrix Mathematics Helpers (Column-Major Float32Array)
+    function mat4Multiply(out, a, b) {
+      for (let c = 0; c < 4; c++) {
+        const b0 = b[c * 4 + 0], b1 = b[c * 4 + 1], b2 = b[c * 4 + 2], b3 = b[c * 4 + 3];
+        out[c * 4 + 0] = a[0] * b0 + a[4] * b1 + a[8] * b2 + a[12] * b3;
+        out[c * 4 + 1] = a[1] * b0 + a[5] * b1 + a[9] * b2 + a[13] * b3;
+        out[c * 4 + 2] = a[2] * b0 + a[6] * b1 + a[10] * b2 + a[14] * b3;
+        out[c * 4 + 3] = a[3] * b0 + a[7] * b1 + a[11] * b2 + a[15] * b3;
+      }
+      return out;
+    }
+
+    function mat4LookAt(out, eye, target, up) {
+      let zx = eye[0] - target[0], zy = eye[1] - target[1], zz = eye[2] - target[2];
+      let len = Math.hypot(zx, zy, zz);
+      if (len > 0) { zx /= len; zy /= len; zz /= len; }
+
+      let xx = up[1] * zz - up[2] * zy;
+      let xy = up[2] * zx - up[0] * zz;
+      let xz = up[0] * zy - up[1] * zx;
+      len = Math.hypot(xx, xy, xz);
+      if (len > 0) { xx /= len; xy /= len; xz /= len; }
+
+      let yx = zy * xz - zz * xy;
+      let yy = zz * xx - zx * xz;
+      let yz = zx * xy - zy * xx;
+
+      out[0] = xx; out[1] = yx; out[2] = zx; out[3] = 0;
+      out[4] = xy; out[5] = yy; out[6] = zy; out[7] = 0;
+      out[8] = xz; out[9] = yz; out[10] = zz; out[11] = 0;
+      out[12] = -(xx * eye[0] + xy * eye[1] + xz * eye[2]);
+      out[13] = -(yx * eye[0] + yy * eye[1] + yz * eye[2]);
+      out[14] = -(zx * eye[0] + zy * eye[1] + zz * eye[2]);
+      out[15] = 1;
+      return out;
+    }
+
+    function mat4Ortho(out, left, right, bottom, top, near, far) {
+      const lr = 1.0 / (right - left);
+      const bt = 1.0 / (top - bottom);
+      const nf = 1.0 / (far - near);
+      out[0] = 2.0 * lr; out[1] = 0; out[2] = 0; out[3] = 0;
+      out[4] = 0; out[5] = 2.0 * bt; out[6] = 0; out[7] = 0;
+      out[8] = 0; out[9] = 0; out[10] = -2.0 * nf; out[11] = 0;
+      out[12] = -(right + left) * lr;
+      out[13] = -(top + bottom) * bt;
+      out[14] = -(far + near) * nf;
+      out[15] = 1;
+      return out;
+    }
+
+    const BIAS_MATRIX = new Float32Array([
+      0.5, 0.0, 0.0, 0.0,
+      0.0, 0.5, 0.0, 0.0,
+      0.0, 0.0, 0.5, 0.0,
+      0.5, 0.5, 0.5, 1.0
+    ]);
+
+    const shadowLightView = new Float32Array(16);
+    const shadowLightProj = new Float32Array(16);
+    const shadowLightVp = new Float32Array(16);
+    const shadowMatrixUniform = new Float32Array(16);
+
+    function computeShadowMatrices(sunDir) {
+      const dist = 900.0;
+      const eye = [sunDir[0] * dist, sunDir[1] * dist, sunDir[2] * dist + 40.0];
+      const target = [0.0, 0.0, 40.0];
+      let up = [0.0, 0.0, 1.0];
+      if (Math.abs(sunDir[2]) > 0.95) up = [0.0, 1.0, 0.0];
+
+      mat4LookAt(shadowLightView, eye, target, up);
+      const halfW = 750.0, halfH = 750.0, zNear = 50.0, zFar = 1850.0;
+      mat4Ortho(shadowLightProj, -halfW, halfW, -halfH, halfH, zNear, zFar);
+      mat4Multiply(shadowLightVp, shadowLightProj, shadowLightView);
+      mat4Multiply(shadowMatrixUniform, BIAS_MATRIX, shadowLightVp);
+
+      return { lightVp: shadowLightVp, shadowMatrix: shadowMatrixUniform };
+    }
+
+    function compileShader(glCtx, type, source) {
+      const shader = glCtx.createShader(type);
+      glCtx.shaderSource(shader, source.trim());
+      glCtx.compileShader(shader);
+      if (!glCtx.getShaderParameter(shader, glCtx.COMPILE_STATUS)) {
+        console.error('Shader compile error:', glCtx.getShaderInfoLog(shader));
+        glCtx.deleteShader(shader);
+        return null;
+      }
+      return shader;
+    }
+
+    function createProgram(glCtx, vsSrc, fsSrc) {
+      const vs = compileShader(glCtx, glCtx.VERTEX_SHADER, vsSrc);
+      const fs = compileShader(glCtx, glCtx.FRAGMENT_SHADER, fsSrc);
+      if (!vs || !fs) return null;
+      const prog = glCtx.createProgram();
+      glCtx.attachShader(prog, vs);
+      glCtx.attachShader(prog, fs);
+      glCtx.linkProgram(prog);
+      if (!glCtx.getProgramParameter(prog, glCtx.LINK_STATUS)) {
+        console.error('Program link error:', glCtx.getProgramInfoLog(prog));
+        return null;
+      }
+      return prog;
+    }
+
+    function initWebGL() {
+      if (gl) return true;
+      try {
+        gl = gpuCanvas.getContext('webgl2', {
+          antialias: true,
+          alpha: false,
+          preserveDrawingBuffer: true,
+          powerPreference: 'high-performance'
+        });
+        if (!gl) {
+          console.warn('WebGL 2 not supported, falling back to server render');
+          return false;
+        }
+
+        meshProg = createProgram(gl, MESH_VS, MESH_FS);
+        lineProg = createProgram(gl, LINE_VS, LINE_FS);
+        if (!meshProg || !lineProg) return false;
+
+        // Terrain Mesh VAO
+        meshVao = gl.createVertexArray();
+        gl.bindVertexArray(meshVao);
+        meshVbo = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, meshVbo);
+        gl.enableVertexAttribArray(0);
+        gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 40, 0);
+        gl.enableVertexAttribArray(1);
+        gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 40, 12);
+        gl.enableVertexAttribArray(2);
+        gl.vertexAttribPointer(2, 3, gl.FLOAT, false, 40, 24);
+        gl.enableVertexAttribArray(3);
+        gl.vertexAttribPointer(3, 1, gl.FLOAT, false, 40, 36);
+
+        // River Line VAO
+        riverVao = gl.createVertexArray();
+        gl.bindVertexArray(riverVao);
+        riverVbo = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, riverVbo);
+        gl.enableVertexAttribArray(0);
+        gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 12, 0);
+
+        // Lava Fissure VAO
+        lavaVao = gl.createVertexArray();
+        gl.bindVertexArray(lavaVao);
+        lavaVbo = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, lavaVbo);
+        gl.enableVertexAttribArray(0);
+        gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 12, 0);
+
+        gl.bindVertexArray(null);
+
+        // Hardware Shadow Depth Texture & FBO (Graceful Initialization)
+        try {
+          shadowProg = createProgram(gl, SHADOW_VS, SHADOW_FS);
+          if (shadowProg) {
+            shadowDepthTex = gl.createTexture();
+            gl.bindTexture(gl.TEXTURE_2D, shadowDepthTex);
+            gl.texImage2D(
+              gl.TEXTURE_2D,
+              0,
+              gl.DEPTH_COMPONENT24,
+              SHADOW_SIZE,
+              SHADOW_SIZE,
+              0,
+              gl.DEPTH_COMPONENT,
+              gl.UNSIGNED_INT,
+              null
+            );
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_COMPARE_MODE, gl.COMPARE_REF_TO_TEXTURE);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_COMPARE_FUNC, gl.LEQUAL);
+
+            shadowFbo = gl.createFramebuffer();
+            gl.bindFramebuffer(gl.FRAMEBUFFER, shadowFbo);
+            gl.framebufferTexture2D(
+              gl.FRAMEBUFFER,
+              gl.DEPTH_ATTACHMENT,
+              gl.TEXTURE_2D,
+              shadowDepthTex,
+              0
+            );
+            try { gl.drawBuffers([gl.NONE]); } catch(e) {}
+            try { gl.readBuffer(gl.NONE); } catch(e) {}
+
+            const fboStatus = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+            if (fboStatus !== gl.FRAMEBUFFER_COMPLETE) {
+              console.warn('Shadow FBO status incomplete:', fboStatus);
+              shadowFbo = null;
+              shadowDepthTex = null;
+            } else {
+              gl.viewport(0, 0, SHADOW_SIZE, SHADOW_SIZE);
+              gl.clearDepth(1.0);
+              gl.clear(gl.DEPTH_BUFFER_BIT);
+            }
+          }
+        } catch (sErr) {
+          console.warn('Directional shadows not supported on this device/browser:', sErr);
+          shadowFbo = null;
+          shadowDepthTex = null;
+          shadowProg = null;
+        } finally {
+          gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+          gl.bindTexture(gl.TEXTURE_2D, null);
+        }
+
+        gl.enable(gl.DEPTH_TEST);
+        gl.depthFunc(gl.LEQUAL);
+        gl.disable(gl.CULL_FACE);
+
+        isWebGlReady = true;
+        return true;
+      } catch (err) {
+        console.error('initWebGL error:', err);
+        return false;
+      }
+    }
+
+    function renderClientGPU() {
+      if (!isWebGlReady && !initWebGL()) return;
+      if (meshVertexCount === 0) return;
+
+      if (gpuCanvas.width !== state.size || gpuCanvas.height !== state.size) {
+        gpuCanvas.width = state.size;
+        gpuCanvas.height = state.size;
+      }
+
+      // Compute normalized sun direction vector
+      const az_rad = (state.sun_azimuth * Math.PI) / 180.0;
+      const el_rad = (Math.max(5.0, Math.min(88.0, state.sun_elevation)) * Math.PI) / 180.0;
+      const sx = Math.cos(el_rad) * Math.cos(az_rad);
+      const sy = Math.cos(el_rad) * Math.sin(az_rad);
+      const sz = Math.sin(el_rad);
+      const slen = Math.hypot(sx, sy, sz);
+      const sunDir = [sx / slen, sy / slen, sz / slen];
+
+      const { lightVp, shadowMatrix } = computeShadowMatrices(sunDir);
+
+      // Unbind texture unit 0 before Pass 1 to prevent framebuffer feedback loops
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, null);
+
+      // Pass 1: Directional Shadow Map Pass
+      const canCastShadows = Boolean(state.shadows && shadowFbo && shadowProg);
+      if (canCastShadows) {
+        gl.bindFramebuffer(gl.FRAMEBUFFER, shadowFbo);
+        gl.viewport(0, 0, SHADOW_SIZE, SHADOW_SIZE);
+        gl.clearDepth(1.0);
+        gl.clear(gl.DEPTH_BUFFER_BIT);
+
+        gl.enable(gl.POLYGON_OFFSET_FILL);
+        gl.polygonOffset(2.5, 4.0);
+
+        gl.useProgram(shadowProg);
+        gl.uniform2f(gl.getUniformLocation(shadowProg, 'u_resolution'), gpuCanvas.width, gpuCanvas.height);
+        gl.uniformMatrix4fv(gl.getUniformLocation(shadowProg, 'u_light_vp'), false, lightVp);
+
+        gl.bindVertexArray(meshVao);
+        gl.drawArrays(gl.TRIANGLES, 0, meshVertexCount);
+
+        gl.disable(gl.POLYGON_OFFSET_FILL);
+      }
+
+      // Pass 2: Main Camera BRDF Render Pass
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      gl.viewport(0, 0, gpuCanvas.width, gpuCanvas.height);
+      gl.clearColor(0.11, 0.19, 0.33, 1.0);
+      gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+      // Draw Terrain Mesh with Dynamic Shading & PCF Shadows
+      gl.useProgram(meshProg);
+      if (canCastShadows && shadowDepthTex) {
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, shadowDepthTex);
+        gl.uniform1i(gl.getUniformLocation(meshProg, 'u_shadow_map'), 0);
+      }
+      gl.uniformMatrix4fv(gl.getUniformLocation(meshProg, 'u_shadow_matrix'), false, shadowMatrix);
+      gl.uniform1f(gl.getUniformLocation(meshProg, 'u_shadow_intensity'), canCastShadows ? state.shadow_darkness : 0.0);
+
+      gl.uniform2f(gl.getUniformLocation(meshProg, 'u_resolution'), gpuCanvas.width, gpuCanvas.height);
+      gl.uniform1f(gl.getUniformLocation(meshProg, 'u_max_z'), meshMaxZ);
+      gl.uniform3fv(gl.getUniformLocation(meshProg, 'u_sun_dir'), sunDir);
+      gl.uniform1f(gl.getUniformLocation(meshProg, 'u_sun_intensity'), state.sun_intensity);
+      gl.uniform1f(gl.getUniformLocation(meshProg, 'u_ambient_intensity'), state.ambient_intensity);
+      gl.uniform1f(gl.getUniformLocation(meshProg, 'u_mountain_roughness'), state.mountain_roughness);
+      gl.uniform1f(gl.getUniformLocation(meshProg, 'u_snow_threshold'), 0.82);
+      gl.uniform1f(gl.getUniformLocation(meshProg, 'u_rot_pitch'), state.rot_pitch);
+      gl.uniform1f(gl.getUniformLocation(meshProg, 'u_rot_yaw'), state.rot_yaw);
+
+      gl.bindVertexArray(meshVao);
+      gl.drawArrays(gl.TRIANGLES, 0, meshVertexCount);
+
+      // Draw Rivers & Lava if present
+      if (riverVertexCount > 0 || lavaVertexCount > 0) {
+        gl.useProgram(lineProg);
+        gl.uniform2f(gl.getUniformLocation(lineProg, 'u_resolution'), gpuCanvas.width, gpuCanvas.height);
+        gl.uniform1f(gl.getUniformLocation(lineProg, 'u_max_z'), meshMaxZ);
+        gl.uniform1f(gl.getUniformLocation(lineProg, 'u_rot_pitch'), state.rot_pitch);
+        gl.uniform1f(gl.getUniformLocation(lineProg, 'u_rot_yaw'), state.rot_yaw);
+
+        if (riverVertexCount > 0) {
+          gl.uniform4f(gl.getUniformLocation(lineProg, 'u_line_color'), 0.12, 0.35, 0.65, 1.0);
+          gl.bindVertexArray(riverVao);
+          gl.drawArrays(gl.LINES, 0, riverVertexCount);
+        }
+
+        if (lavaVertexCount > 0) {
+          gl.uniform4f(gl.getUniformLocation(lineProg, 'u_line_color'), 1.0, 0.40, 0.05, 1.0);
+          gl.bindVertexArray(lavaVao);
+          gl.drawArrays(gl.LINES, 0, lavaVertexCount);
+        }
+      }
+
+      gl.bindVertexArray(null);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, null);
+
+      // Update HUD status & download links
+      const is3D = (Math.abs(state.rot_pitch) > 0.5 || Math.abs(state.rot_yaw) > 0.5);
+      const shadowStatus = state.shadows ? 'PCF Shadows' : 'No Shadows';
+      perfStatus.textContent = `⚡ WebGL 2 Client (60-120 FPS) • ${shadowStatus} • ${is3D ? `Pitch ${Math.round(state.rot_pitch)}° Yaw ${Math.round(state.rot_yaw)}°` : 'Top-Down'}`;
+      polyBadge.textContent = `${(meshVertexCount / 3).toLocaleString()} Polys`;
+
+      const query = updateUrlParams();
+      btnAr.href = `/api/export_usdz?${query}`;
+    }
+
+    function getMeshParamsKey() {
+      return [
+        state.seed,
+        state.shape,
+        state.points,
+        state.polys,
+        state.height_scale,
+        state.sharpness,
+        state.alpha,
+        state.roughness,
+        state.jitter,
+        state.smooth,
+        state.rivers,
+        state.moisture_bias,
+        state.north_temp,
+        state.south_temp,
+        state.persistence,
+        state.quad_fold,
+        state.ridge_noise,
+        state.erosion_strength,
+        state.erosion_droplets,
+        state.size
+      ].join('_');
+    }
+
+    async function fetchMeshBinary() {
+      if (meshAbortController) {
+        meshAbortController.abort();
+      }
+      meshAbortController = new AbortController();
+
+      startProgress();
+      isMeshFetching = true;
+
+      try {
+        const query = updateUrlParams();
+        const res = await fetch(`/api/mesh_binary?${query}`, { signal: meshAbortController.signal });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+        const buf = await res.arrayBuffer();
+        if (buf.byteLength < 24) throw new Error('Invalid mesh payload size');
+
+        const view = new DataView(buf);
+        const magic = String.fromCharCode(view.getUint8(0), view.getUint8(1), view.getUint8(2), view.getUint8(3));
+        if (magic !== 'MMSH') throw new Error(`Invalid magic: ${magic}`);
+
+        const version = view.getUint32(4, true);
+        const nVerts = view.getUint32(8, true);
+        const maxZ = view.getFloat32(12, true);
+        const nRiver = view.getUint32(16, true);
+        const nLava = view.getUint32(20, true);
+
+        if (!isWebGlReady && !initWebGL()) throw new Error('WebGL 2 failed to initialize');
+
+        const vboOffset = 24;
+        const vboBytes = nVerts * 10 * 4;
+        const vboFloats = new Float32Array(buf, vboOffset, nVerts * 10);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, meshVbo);
+        gl.bufferData(gl.ARRAY_BUFFER, vboFloats, gl.STATIC_DRAW);
+        meshVertexCount = nVerts;
+        meshMaxZ = maxZ;
+
+        let curOffset = vboOffset + vboBytes;
+        if (nRiver > 0) {
+          const riverFloats = new Float32Array(buf, curOffset, nRiver * 3);
+          gl.bindBuffer(gl.ARRAY_BUFFER, riverVbo);
+          gl.bufferData(gl.ARRAY_BUFFER, riverFloats, gl.STATIC_DRAW);
+          riverVertexCount = nRiver;
+          curOffset += nRiver * 3 * 4;
+        } else {
+          riverVertexCount = 0;
+        }
+
+        if (nLava > 0) {
+          const lavaFloats = new Float32Array(buf, curOffset, nLava * 3);
+          gl.bindBuffer(gl.ARRAY_BUFFER, lavaVbo);
+          gl.bufferData(gl.ARRAY_BUFFER, lavaFloats, gl.STATIC_DRAW);
+          lavaVertexCount = nLava;
+        } else {
+          lavaVertexCount = 0;
+        }
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, null);
+
+        loadedMeshParamsKey = getMeshParamsKey();
+        completeProgress();
+        isMeshFetching = false;
+
+        gpuCanvas.style.display = 'block';
+        mapImg.style.display = 'none';
+        renderClientGPU();
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          console.error('fetchMeshBinary error:', err);
+          completeProgress();
+          isMeshFetching = false;
+          gpuCanvas.style.display = 'none';
+          mapImg.style.display = 'block';
+          fetchRender();
+        }
+      }
+    }
 
     // ---------------------------------------------------------------------------
     // Pan & Zoom Viewport Controller
@@ -739,14 +1665,20 @@
     let startX = 0;
     let startY = 0;
     let hasMoved = false;
+
+    // Multi-touch pinch state
+    let isPinching = false;
     let initialPinchDist = 0;
     let initialPinchScale = 1.0;
+    let pinchWorldX = 0;
+    let pinchWorldY = 0;
 
     function clampPan() {
       const rect = mapBox.getBoundingClientRect();
       const maxPanX = Math.max(0, (scale - 1.0) * rect.width);
       const maxPanY = Math.max(0, (scale - 1.0) * rect.height);
       if (scale <= 1.001) {
+        scale = 1.0;
         panX = 0;
         panY = 0;
       } else {
@@ -761,14 +1693,21 @@
       zoomReadout.textContent = `${Math.round(scale * 100)}%`;
     }
 
+    // Zoom centered strictly on focal coordinate (fx, fy) relative to mapBox
     function setZoom(newScale, focalX, focalY) {
       const rect = mapBox.getBoundingClientRect();
-      const fx = focalX !== undefined ? focalX : rect.width / 2;
-      const fy = focalY !== undefined ? focalY : rect.height / 2;
+      const fx = (focalX !== undefined && !isNaN(focalX)) ? focalX : rect.width / 2;
+      const fy = (focalY !== undefined && !isNaN(focalY)) ? focalY : rect.height / 2;
       const clampedScale = Math.min(8.0, Math.max(1.0, newScale));
-      panX = fx - (fx - panX) * (clampedScale / scale);
-      panY = fy - (fy - panY) * (clampedScale / scale);
+      if (Math.abs(clampedScale - scale) < 0.0001) return;
+
+      // Invariant world coordinate under focal point
+      const wx = (fx - panX) / scale;
+      const wy = (fy - panY) / scale;
+
       scale = clampedScale;
+      panX = fx - wx * scale;
+      panY = fy - wy * scale;
       updateTransform();
     }
 
@@ -797,18 +1736,64 @@
       updateTransform();
     });
 
-    // Pointer Drag to Pan / Tap to Inspect
+    document.getElementById('btn-rot-reset').addEventListener('click', (e) => {
+      e.stopPropagation();
+      state.rot_pitch = 0.0;
+      state.rot_yaw = 0.0;
+      updateRotHud();
+      triggerUpdate(true);
+    });
+
+    // ---------------------------------------------------------------------------
+    // Desktop Pointer Events (Mouse / Pen)
+    // ---------------------------------------------------------------------------
+    let isRotating = false;
+    let rotStartX = 0;
+    let rotStartY = 0;
+    let initialYaw = 0;
+    let initialPitch = 0;
+
     mapBox.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'touch') return; // Handled exclusively by touch events
       if (e.target.closest('.zoom-hud') || e.target.closest('.inspect-card')) return;
-      isPanning = true;
-      mapBox.classList.add('panning');
-      startX = e.clientX - panX;
-      startY = e.clientY - panY;
       hasMoved = false;
+
+      if (state.engine === 'gpu' && e.button === 0 && !e.shiftKey) {
+        // Primary left-click rotates 3D mesh in GPU mode
+        isRotating = true;
+        mapBox.classList.add('rotating');
+        rotStartX = e.clientX;
+        rotStartY = e.clientY;
+        initialYaw = state.rot_yaw;
+        initialPitch = state.rot_pitch;
+        updateRotHud();
+      } else {
+        // Pan viewport (shift+click or right click or in CPU mode)
+        isPanning = true;
+        mapBox.classList.add('panning');
+        startX = e.clientX - panX;
+        startY = e.clientY - panY;
+      }
       try { mapBox.setPointerCapture(e.pointerId); } catch(err){}
     });
 
     mapBox.addEventListener('pointermove', (e) => {
+      if (e.pointerType === 'touch') return;
+      if (isRotating) {
+        const dx = e.clientX - rotStartX;
+        const dy = e.clientY - rotStartY;
+        if (Math.abs(dx) > 3 || Math.abs(dy) > 3) hasMoved = true;
+        let newYaw = (initialYaw + dx * 0.45) % 360;
+        if (newYaw > 180) newYaw -= 360;
+        if (newYaw < -180) newYaw += 360;
+        // Pitch: swiping UP tilts forward (increases pitch), swiping DOWN returns to top-down
+        let newPitch = Math.max(0, Math.min(80, initialPitch - dy * 0.35));
+        state.rot_yaw = Math.round(newYaw);
+        state.rot_pitch = Math.round(newPitch);
+        updateRotHud();
+        requestAnimationFrame(renderClientGPU);
+        return;
+      }
       if (!isPanning) return;
       const curX = e.clientX - startX;
       const curY = e.clientY - startY;
@@ -821,68 +1806,171 @@
     });
 
     mapBox.addEventListener('pointerup', async (e) => {
+      if (e.pointerType === 'touch') return;
+      if (isRotating) {
+        isRotating = false;
+        mapBox.classList.remove('rotating');
+        try { mapBox.releasePointerCapture(e.pointerId); } catch(err){}
+        updateRotHud();
+        if (!hasMoved) {
+          inspectAtClientXY(e.clientX, e.clientY);
+        }
+        return;
+      }
       if (!isPanning) return;
       isPanning = false;
       mapBox.classList.remove('panning');
       try { mapBox.releasePointerCapture(e.pointerId); } catch(err){}
 
-      // If user tapped/clicked without panning, inspect the terrain center
       if (!hasMoved) {
+        inspectAtClientXY(e.clientX, e.clientY);
+      }
+    });
+
+    // ---------------------------------------------------------------------------
+    // Mobile Touch Events (1-Finger Rotate/Pan, Tap Inspect, 2-Finger Pinch Zoom)
+    // ---------------------------------------------------------------------------
+    let touchStartX = 0;
+    let touchStartY = 0;
+
+    mapBox.addEventListener('touchstart', (e) => {
+      if (e.target.closest('.zoom-hud') || e.target.closest('.inspect-card')) return;
+
+      if (e.touches.length === 1) {
+        hasMoved = false;
+        isPinching = false;
+        if (state.engine === 'gpu') {
+          // 1-Finger drag rotates the 3D mesh in GPU mode
+          isRotating = true;
+          mapBox.classList.add('rotating');
+          rotStartX = e.touches[0].clientX;
+          rotStartY = e.touches[0].clientY;
+          initialYaw = state.rot_yaw;
+          initialPitch = state.rot_pitch;
+          updateRotHud();
+        } else {
+          isRotating = false;
+          touchStartX = e.touches[0].clientX - panX;
+          touchStartY = e.touches[0].clientY - panY;
+        }
+      } else if (e.touches.length === 2) {
+        isRotating = false;
+        mapBox.classList.remove('rotating');
+        isPinching = true;
+        hasMoved = true;
         const rect = mapBox.getBoundingClientRect();
-        const clickX = e.clientX - rect.left;
-        const clickY = e.clientY - rect.top;
+        const t0 = e.touches[0];
+        const t1 = e.touches[1];
+        initialPinchDist = Math.hypot(t0.clientX - t1.clientX, t0.clientY - t1.clientY);
+        initialPinchScale = scale;
+        const midX = (t0.clientX + t1.clientX) / 2 - rect.left;
+        const midY = (t0.clientY + t1.clientY) / 2 - rect.top;
+        pinchWorldX = (midX - panX) / scale;
+        pinchWorldY = (midY - panY) / scale;
+      }
+    }, { passive: false });
 
-        // Invert pan and zoom to calculate normalized (0..1) image coordinates
-        const imgX = (clickX - panX) / (rect.width * scale);
-        const imgY = (clickY - panY) / (rect.height * scale);
+    mapBox.addEventListener('touchmove', (e) => {
+      if (e.touches.length === 1 && isRotating && state.engine === 'gpu') {
+        e.preventDefault();
+        const dx = e.touches[0].clientX - rotStartX;
+        const dy = e.touches[0].clientY - rotStartY;
+        if (Math.abs(dx) > 3 || Math.abs(dy) > 3) hasMoved = true;
+        let newYaw = (initialYaw + dx * 0.45) % 360;
+        if (newYaw > 180) newYaw -= 360;
+        if (newYaw < -180) newYaw += 360;
+        // Pitch: swiping UP tilts forward (increases pitch), swiping DOWN returns to top-down
+        let newPitch = Math.max(0, Math.min(80, initialPitch - dy * 0.35));
+        state.rot_yaw = Math.round(newYaw);
+        state.rot_pitch = Math.round(newPitch);
+        updateRotHud();
+        requestAnimationFrame(renderClientGPU);
+      } else if (e.touches.length === 1 && !isPinching && !isRotating) {
+        e.preventDefault();
+        const curX = e.touches[0].clientX - touchStartX;
+        const curY = e.touches[0].clientY - touchStartY;
+        if (Math.abs(curX - panX) > 4 || Math.abs(curY - panY) > 4) {
+          hasMoved = true;
+        }
+        panX = curX;
+        panY = curY;
+        updateTransform();
+      } else if (e.touches.length === 2 && isPinching && initialPinchDist > 0) {
+        e.preventDefault();
+        const t0 = e.touches[0];
+        const t1 = e.touches[1];
+        const curDist = Math.hypot(t0.clientX - t1.clientX, t0.clientY - t1.clientY);
+        if (curDist <= 0) return;
 
-        if (imgX >= 0 && imgX <= 1 && imgY >= 0 && imgY <= 1) {
-          tapMarker.style.left = `${imgX * 100}%`;
-          tapMarker.style.top = `${imgY * 100}%`;
-          tapMarker.style.display = 'block';
+        const rect = mapBox.getBoundingClientRect();
+        const midX = (t0.clientX + t1.clientX) / 2 - rect.left;
+        const midY = (t0.clientY + t1.clientY) / 2 - rect.top;
+        const newScale = Math.min(8.0, Math.max(1.0, initialPinchScale * (curDist / initialPinchDist)));
 
-          try {
-            const query = updateUrlParams();
-            const res = await fetch(`/api/inspect?${query}&nx=${imgX.toFixed(4)}&ny=${imgY.toFixed(4)}`);
-            if (res.ok) {
-              const data = await res.json();
-              document.getElementById('insp-biome').textContent = data.biome.toUpperCase();
-              document.getElementById('insp-id').textContent = `Cell #${data.index}`;
-              document.getElementById('insp-elev').textContent = `${(data.elevation * 3200).toFixed(0)} m (${(data.elevation * 100).toFixed(0)}%)`;
-              document.getElementById('insp-moist').textContent = `💧 ${(data.moisture * 100).toFixed(0)}%`;
-              document.getElementById('insp-temp').textContent = `🌡️ ${(data.temperature * 35).toFixed(0)}°C`;
-              inspectCard.classList.add('active');
-            }
-          } catch (err) {
-            console.error('Inspect error:', err);
+        scale = newScale;
+        panX = midX - pinchWorldX * scale;
+        panY = midY - pinchWorldY * scale;
+        updateTransform();
+      }
+    }, { passive: false });
+
+    mapBox.addEventListener('touchend', (e) => {
+      if (isRotating) {
+        isRotating = false;
+        mapBox.classList.remove('rotating');
+        updateRotHud();
+        if (e.touches.length === 0 && !hasMoved) {
+          if (e.changedTouches.length > 0) {
+            inspectAtClientXY(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
           }
+        }
+        return;
+      } else if (isPinching) {
+        if (e.touches.length === 1) {
+          isPinching = false;
+          touchStartX = e.touches[0].clientX - panX;
+          touchStartY = e.touches[0].clientY - panY;
+        } else if (e.touches.length === 0) {
+          isPinching = false;
+        }
+      } else if (e.touches.length === 0 && !hasMoved) {
+        if (e.changedTouches.length > 0) {
+          inspectAtClientXY(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
         }
       }
     });
 
-    // Touch Pinch-to-Zoom for iPhone Safari
-    mapBox.addEventListener('touchstart', (e) => {
-      if (e.touches.length === 2) {
-        initialPinchDist = Math.hypot(
-          e.touches[0].clientX - e.touches[1].clientX,
-          e.touches[0].clientY - e.touches[1].clientY
-        );
-        initialPinchScale = scale;
-      }
-    }, { passive: true });
+    async function inspectAtClientXY(clientX, clientY) {
+      const rect = mapBox.getBoundingClientRect();
+      const clickX = clientX - rect.left;
+      const clickY = clientY - rect.top;
 
-    mapBox.addEventListener('touchmove', (e) => {
-      if (e.touches.length === 2 && initialPinchDist > 0) {
-        const dist = Math.hypot(
-          e.touches[0].clientX - e.touches[1].clientX,
-          e.touches[0].clientY - e.touches[1].clientY
-        );
-        const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-        const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-        const rect = mapBox.getBoundingClientRect();
-        setZoom(initialPinchScale * (dist / initialPinchDist), midX - rect.left, midY - rect.top);
+      // Invert pan and zoom to calculate normalized (0..1) image coordinates
+      const imgX = (clickX - panX) / (rect.width * scale);
+      const imgY = (clickY - panY) / (rect.height * scale);
+
+      if (imgX >= 0 && imgX <= 1 && imgY >= 0 && imgY <= 1) {
+        tapMarker.style.left = `${imgX * 100}%`;
+        tapMarker.style.top = `${imgY * 100}%`;
+        tapMarker.style.display = 'block';
+
+        try {
+          const query = updateUrlParams();
+          const res = await fetch(`/api/inspect?${query}&nx=${imgX.toFixed(4)}&ny=${imgY.toFixed(4)}`);
+          if (res.ok) {
+            const data = await res.json();
+            document.getElementById('insp-biome').textContent = data.biome.toUpperCase();
+            document.getElementById('insp-id').textContent = `Cell #${data.index}`;
+            document.getElementById('insp-elev').textContent = `${(data.elevation * 3200).toFixed(0)} m (${(data.elevation * 100).toFixed(0)}%)`;
+            document.getElementById('insp-moist').textContent = `💧 ${(data.moisture * 100).toFixed(0)}%`;
+            document.getElementById('insp-temp').textContent = `🌡️ ${(data.temperature * 35).toFixed(0)}°C`;
+            inspectCard.classList.add('active');
+          }
+        } catch (err) {
+          console.error('Inspect error:', err);
+        }
       }
-    }, { passive: true });
+    }
 
     // ---------------------------------------------------------------------------
     // Render Execution & Pipeline Synchronization
@@ -898,8 +1986,12 @@
       }
       abortController = new AbortController();
 
+      gpuCanvas.style.display = 'none';
+      mapImg.style.display = 'block';
+
       const t0 = performance.now();
       mapImg.classList.add('loading');
+      startProgress();
 
       try {
         const query = updateUrlParams();
@@ -914,6 +2006,7 @@
         const objUrl = URL.createObjectURL(blob);
         mapImg.src = objUrl;
         mapImg.classList.remove('loading');
+        completeProgress();
 
         const dur = (performance.now() - t0).toFixed(0);
         const engineLabel = engHdr === 'gpu' ? '⚡ ModernGL GPU' : 'CPU Mesh';
@@ -928,16 +2021,36 @@
           console.error('Render error:', err);
           perfStatus.textContent = 'Render failed';
           mapImg.classList.remove('loading');
+          completeProgress();
         }
       }
     }
 
     function triggerUpdate(immediate = false) {
-      if (debounceTimer) clearTimeout(debounceTimer);
-      if (immediate) {
-        fetchRender();
+      if (state.engine === 'gpu' && state.mode === 'micropolys') {
+        gpuCanvas.style.display = 'block';
+        mapImg.style.display = 'none';
+
+        const meshKey = getMeshParamsKey();
+        if (meshKey !== loadedMeshParamsKey) {
+          if (debounceTimer) clearTimeout(debounceTimer);
+          if (immediate) {
+            fetchMeshBinary();
+          } else {
+            debounceTimer = setTimeout(fetchMeshBinary, 100);
+          }
+        } else {
+          requestAnimationFrame(renderClientGPU);
+        }
       } else {
-        debounceTimer = setTimeout(fetchRender, 120);
+        gpuCanvas.style.display = 'none';
+        mapImg.style.display = 'block';
+        if (debounceTimer) clearTimeout(debounceTimer);
+        if (immediate) {
+          fetchRender();
+        } else {
+          debounceTimer = setTimeout(fetchRender, 120);
+        }
       }
     }
 
@@ -947,7 +2060,8 @@
         document.querySelectorAll('#engine-bar .btn-segment').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         state.engine = btn.dataset.engine;
-        document.getElementById('engine-status').textContent = state.engine === 'gpu' ? '⚡ ModernGL Multi-Pass' : 'CPU Discrete Mesh';
+        document.getElementById('engine-status').textContent = state.engine === 'gpu' ? '⚡ WebGL 2 Client (60-120 FPS)' : 'CPU Discrete Mesh';
+        updateRotHud();
         triggerUpdate(true);
       });
     });
@@ -959,7 +2073,13 @@
         btn.classList.add('active');
         state.size = parseInt(btn.dataset.size);
         document.getElementById('val-res').textContent = `${state.size} × ${state.size}`;
-        triggerUpdate(true);
+        if (state.engine === 'gpu' && state.mode === 'micropolys') {
+          gpuCanvas.width = state.size;
+          gpuCanvas.height = state.size;
+          fetchMeshBinary();
+        } else {
+          triggerUpdate(true);
+        }
       });
     });
 
@@ -974,7 +2094,11 @@
         document.getElementById('val-sun-azimuth').textContent = `${state.sun_azimuth}°`;
         document.getElementById('slider-sun-elevation').value = state.sun_elevation;
         document.getElementById('val-sun-elevation').textContent = `${state.sun_elevation}°`;
-        triggerUpdate(true);
+        if (state.engine === 'gpu' && state.mode === 'micropolys' && isWebGlReady) {
+          requestAnimationFrame(renderClientGPU);
+        } else {
+          triggerUpdate(true);
+        }
       });
     });
 
@@ -1010,6 +2134,226 @@
       });
     });
 
+    // ---------------------------------------------------------------------------
+    // Settings Persistence & Save Slots System
+    // ---------------------------------------------------------------------------
+    const STORAGE_KEY_LAST = 'mapgen_last_settings';
+    const STORAGE_KEY_ACTIVE_SLOT = 'mapgen_active_slot';
+    let activeSlot = 1;
+    let saveDebounceTimer = null;
+
+    function saveCurrentSettings() {
+      if (saveDebounceTimer) clearTimeout(saveDebounceTimer);
+      saveDebounceTimer = setTimeout(() => {
+        try {
+          localStorage.setItem(STORAGE_KEY_LAST, JSON.stringify(state));
+        } catch (e) {
+          console.warn('Failed to save settings to localStorage:', e);
+        }
+      }, 250);
+    }
+
+    function formatSlotSummary(st) {
+      const eng = st.engine === 'gpu' ? '⚡ GPU' : 'CPU';
+      return `Seed ${st.seed} • ${st.shape} • ${Number(st.polys).toLocaleString()}p • ${eng}`;
+    }
+
+    function updateSlotUi() {
+      const slotStatus = document.getElementById('slot-status');
+      const slotMeta = document.getElementById('slot-meta');
+      if (slotStatus) slotStatus.textContent = `Slot ${activeSlot} Active`;
+
+      // Update segment bar active button and labels
+      for (let s = 1; s <= 4; s++) {
+        const btn = document.getElementById(`btn-slot-tab-${s}`);
+        if (!btn) continue;
+        btn.classList.toggle('active', s === activeSlot);
+        const savedRaw = localStorage.getItem(`mapgen_slot_${s}`);
+        if (savedRaw) {
+          btn.textContent = `Slot ${s} •`;
+        } else {
+          btn.textContent = `Slot ${s}`;
+        }
+      }
+
+      // Display metadata for currently selected slot
+      const currentSavedRaw = localStorage.getItem(`mapgen_slot_${activeSlot}`);
+      if (currentSavedRaw) {
+        try {
+          const item = JSON.parse(currentSavedRaw);
+          if (slotMeta) {
+            slotMeta.textContent = `${item.date || 'Saved'}: ${item.summary || 'Custom Preset'}`;
+          }
+        } catch(e) {
+          if (slotMeta) slotMeta.textContent = 'Saved Preset';
+        }
+      } else {
+        if (slotMeta) slotMeta.textContent = 'Empty (Click Overwrite to Save)';
+      }
+    }
+
+    function saveActiveSlot() {
+      try {
+        const now = new Date();
+        const timeStr = now.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' ' +
+                        now.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+        const slotData = {
+          date: timeStr,
+          summary: formatSlotSummary(state),
+          state: Object.assign({}, state)
+        };
+        localStorage.setItem(`mapgen_slot_${activeSlot}`, JSON.stringify(slotData));
+        localStorage.setItem(STORAGE_KEY_ACTIVE_SLOT, String(activeSlot));
+        updateSlotUi();
+
+        const btnSave = document.getElementById('btn-slot-save');
+        if (btnSave) {
+          const orig = btnSave.textContent;
+          btnSave.textContent = `✓ Saved Slot ${activeSlot}!`;
+          setTimeout(() => { btnSave.textContent = orig; }, 1400);
+        }
+      } catch (e) {
+        console.error('Error saving slot:', e);
+      }
+    }
+
+    function loadSlot(slotNum) {
+      activeSlot = slotNum;
+      localStorage.setItem(STORAGE_KEY_ACTIVE_SLOT, String(activeSlot));
+      const savedRaw = localStorage.getItem(`mapgen_slot_${slotNum}`);
+      if (savedRaw) {
+        try {
+          const item = JSON.parse(savedRaw);
+          if (item && item.state) {
+            Object.assign(state, item.state);
+            syncUiFromState();
+            triggerUpdate(true);
+            saveCurrentSettings();
+          }
+        } catch (e) {
+          console.error('Error loading slot:', e);
+        }
+      }
+      updateSlotUi();
+    }
+
+    function clearActiveSlot() {
+      localStorage.removeItem(`mapgen_slot_${activeSlot}`);
+      updateSlotUi();
+    }
+
+    function restoreSettings() {
+      try {
+        const savedActiveSlot = localStorage.getItem(STORAGE_KEY_ACTIVE_SLOT);
+        if (savedActiveSlot) {
+          activeSlot = parseInt(savedActiveSlot) || 1;
+        }
+
+        const lastRaw = localStorage.getItem(STORAGE_KEY_LAST);
+        if (lastRaw) {
+          const loaded = JSON.parse(lastRaw);
+          if (loaded && typeof loaded === 'object') {
+            Object.assign(state, loaded);
+          }
+        }
+      } catch (e) {
+        console.warn('Error restoring settings from localStorage:', e);
+      }
+
+      syncUiFromState();
+      updateSlotUi();
+    }
+
+    function syncUiFromState() {
+      const setSegment = (selector, attr, val) => {
+        document.querySelectorAll(selector).forEach(b => {
+          b.classList.toggle('active', b.getAttribute(attr) == String(val));
+        });
+      };
+
+      setSegment('#engine-bar .btn-segment', 'data-engine', state.engine);
+      const engineStatus = document.getElementById('engine-status');
+      if (engineStatus) {
+        engineStatus.textContent = state.engine === 'gpu' ? '⚡ WebGL 2 Client (60-120 FPS)' : 'CPU Discrete Mesh';
+      }
+
+      setSegment('#res-bar .btn-segment', 'data-size', state.size);
+      const valRes = document.getElementById('val-res');
+      if (valRes) valRes.textContent = `${state.size} × ${state.size}`;
+
+      setSegment('#view-mode-bar .btn-segment', 'data-mode', state.mode);
+      setSegment('#shape-bar .btn-segment', 'data-shape', state.shape);
+      setSegment('#quad-fold-bar .btn-segment', 'data-fold', state.quad_fold);
+      const valQuadFold = document.getElementById('val-quad-fold');
+      if (valQuadFold) valQuadFold.textContent = state.quad_fold ? 'Ridge/Valley' : 'Uniform';
+
+      setSegment('#shadow-bar .btn-segment', 'data-shadow', state.shadows);
+      const valShadows = document.getElementById('val-shadows');
+      if (valShadows) {
+        valShadows.textContent = state.shadows ? `ON (${Number(state.shadow_darkness || 1.0).toFixed(2)})` : 'OFF';
+      }
+      const sliderShadow = document.getElementById('slider-shadow-darkness');
+      if (sliderShadow) sliderShadow.value = state.shadow_darkness || 1.0;
+
+      // Sun Sliders & Val Labels
+      const setVal = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
+      const setSlider = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+
+      setSlider('slider-sun-azimuth', state.sun_azimuth);
+      setVal('val-sun-azimuth', `${Math.round(state.sun_azimuth)}°`);
+      setSlider('slider-sun-elevation', state.sun_elevation);
+      setVal('val-sun-elevation', `${Math.round(state.sun_elevation)}°`);
+      setSlider('slider-sun-intensity', state.sun_intensity);
+      setVal('val-sun-intensity', Number(state.sun_intensity).toFixed(2));
+      setSlider('slider-ambient-intensity', state.ambient_intensity);
+      setVal('val-ambient-intensity', Number(state.ambient_intensity).toFixed(2));
+      setSlider('slider-mountain-roughness', state.mountain_roughness);
+      setVal('val-mountain-roughness', Number(state.mountain_roughness).toFixed(2));
+
+      // Dual Mesh & Erosion Sliders
+      setSlider('slider-points', state.points);
+      setVal('val-points', state.points);
+      setSegment('#region-preset-bar .btn-segment', 'data-points', state.points);
+
+      setSlider('slider-rivers', state.rivers);
+      setVal('val-rivers', state.rivers);
+
+      setSlider('slider-height', state.height_scale);
+      setVal('val-height', Math.round(state.height_scale));
+      setSlider('slider-sharpness', state.sharpness);
+      setVal('val-sharpness', Number(state.sharpness).toFixed(2));
+      setSlider('slider-alpha', state.alpha);
+      setVal('val-alpha', Number(state.alpha).toFixed(2));
+
+      setSlider('slider-polys', state.polys);
+      setVal('val-polys', Number(state.polys).toLocaleString());
+      setSegment('#poly-preset-bar .btn-segment', 'data-polys', state.polys);
+
+      setSlider('slider-roughness', state.roughness);
+      setVal('val-roughness', Number(state.roughness).toFixed(1));
+      setSlider('slider-jitter', state.jitter);
+      setVal('val-jitter', Number(state.jitter).toFixed(2));
+      setSlider('slider-smooth', state.smooth);
+      setVal('val-smooth', Number(state.smooth).toFixed(2));
+      setSlider('slider-ridge-noise', state.ridge_noise);
+      setVal('val-ridge-noise', Number(state.ridge_noise).toFixed(2));
+      setSlider('slider-erosion-strength', state.erosion_strength);
+      setVal('val-erosion-strength', Number(state.erosion_strength).toFixed(2));
+      setSlider('slider-erosion-droplets', state.erosion_droplets);
+      setVal('val-erosion-droplets', Number(state.erosion_droplets).toLocaleString());
+
+      setSlider('slider-moisture-bias', state.moisture_bias);
+      setVal('val-moisture-bias', (state.moisture_bias > 0 ? '+' : '') + Number(state.moisture_bias).toFixed(2));
+      setSlider('slider-north-temp', state.north_temp);
+      setVal('val-north-temp', (state.north_temp > 0 ? '+' : '') + Number(state.north_temp).toFixed(2));
+      setSlider('slider-south-temp', state.south_temp);
+      setVal('val-south-temp', (state.south_temp > 0 ? '+' : '') + Number(state.south_temp).toFixed(2));
+      setSlider('slider-persistence', state.persistence);
+      setVal('val-persistence', (state.persistence > 0 ? '+' : '') + Number(state.persistence).toFixed(2));
+
+      updateRotHud();
+    }
+
     // Sliders Bindings
     function bindSlider(id, key, valId, formatFn = v => v) {
       const slider = document.getElementById(id);
@@ -1017,15 +2361,74 @@
       slider.addEventListener('input', () => {
         state[key] = parseFloat(slider.value);
         valDisp.textContent = formatFn(slider.value);
+        saveCurrentSettings();
         triggerUpdate(false);
       });
     }
 
-    bindSlider('slider-sun-azimuth', 'sun_azimuth', 'val-sun-azimuth', v => `${Math.round(v)}°`);
-    bindSlider('slider-sun-elevation', 'sun_elevation', 'val-sun-elevation', v => `${Math.round(v)}°`);
-    bindSlider('slider-sun-intensity', 'sun_intensity', 'val-sun-intensity', v => parseFloat(v).toFixed(2));
-    bindSlider('slider-ambient-intensity', 'ambient_intensity', 'val-ambient-intensity', v => parseFloat(v).toFixed(2));
-    bindSlider('slider-mountain-roughness', 'mountain_roughness', 'val-mountain-roughness', v => parseFloat(v).toFixed(2));
+    function bindSunSlider(id, key, valId, formatFn = v => v) {
+      const slider = document.getElementById(id);
+      const valDisp = document.getElementById(valId);
+      slider.addEventListener('input', () => {
+        state[key] = parseFloat(slider.value);
+        valDisp.textContent = formatFn(slider.value);
+        saveCurrentSettings();
+        if (state.engine === 'gpu' && state.mode === 'micropolys' && isWebGlReady) {
+          requestAnimationFrame(renderClientGPU);
+        } else {
+          triggerUpdate(false);
+        }
+      });
+    }
+
+    bindSunSlider('slider-sun-azimuth', 'sun_azimuth', 'val-sun-azimuth', v => `${Math.round(v)}°`);
+    bindSunSlider('slider-sun-elevation', 'sun_elevation', 'val-sun-elevation', v => `${Math.round(v)}°`);
+    bindSunSlider('slider-sun-intensity', 'sun_intensity', 'val-sun-intensity', v => parseFloat(v).toFixed(2));
+    bindSunSlider('slider-ambient-intensity', 'ambient_intensity', 'val-ambient-intensity', v => parseFloat(v).toFixed(2));
+    bindSunSlider('slider-mountain-roughness', 'mountain_roughness', 'val-mountain-roughness', v => parseFloat(v).toFixed(2));
+
+    // Directional Shadows (PCF Soft)
+    document.querySelectorAll('#shadow-bar .btn-segment').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('#shadow-bar .btn-segment').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        state.shadows = (btn.dataset.shadow === 'true');
+        const valDisp = document.getElementById('val-shadows');
+        if (valDisp) {
+          valDisp.textContent = state.shadows ? `ON (${state.shadow_darkness.toFixed(2)})` : 'OFF';
+        }
+        saveCurrentSettings();
+        if (state.engine === 'gpu' && state.mode === 'micropolys' && isWebGlReady) {
+          requestAnimationFrame(renderClientGPU);
+        } else {
+          triggerUpdate(false);
+        }
+      });
+    });
+
+    const sliderShadow = document.getElementById('slider-shadow-darkness');
+    if (sliderShadow) {
+      sliderShadow.addEventListener('input', () => {
+        state.shadow_darkness = parseFloat(sliderShadow.value);
+        const valDisp = document.getElementById('val-shadows');
+        if (valDisp) {
+          valDisp.textContent = state.shadows ? `ON (${state.shadow_darkness.toFixed(2)})` : 'OFF';
+        }
+        saveCurrentSettings();
+        if (state.engine === 'gpu' && state.mode === 'micropolys' && isWebGlReady) {
+          requestAnimationFrame(renderClientGPU);
+        } else {
+          triggerUpdate(false);
+        }
+      });
+    }
+
+    btnSave.addEventListener('click', (e) => {
+      if (state.engine === 'gpu' && state.mode === 'micropolys' && isWebGlReady) {
+        btnSave.href = gpuCanvas.toDataURL('image/png');
+        btnSave.download = `island_${state.seed}_3d.png`;
+      }
+    });
 
     bindSlider('slider-moisture-bias', 'moisture_bias', 'val-moisture-bias', v => (v > 0 ? '+' : '') + parseFloat(v).toFixed(2));
     bindSlider('slider-north-temp', 'north_temp', 'val-north-temp', v => (v > 0 ? '+' : '') + parseFloat(v).toFixed(2));
@@ -1050,6 +2453,7 @@
         state.polys = parseInt(btn.dataset.polys);
         document.getElementById('slider-polys').value = state.polys;
         document.getElementById('val-polys').textContent = Number(state.polys).toLocaleString();
+        saveCurrentSettings();
         triggerUpdate(true);
       });
     });
@@ -1067,6 +2471,7 @@
         btn.classList.add('active');
         state.quad_fold = (btn.dataset.fold === 'true');
         document.getElementById('val-quad-fold').textContent = state.quad_fold ? 'Ridge/Valley' : 'Uniform';
+        saveCurrentSettings();
         triggerUpdate(true);
       });
     });
@@ -1079,14 +2484,48 @@
     });
     bindSlider('slider-rivers', 'rivers', 'val-rivers', v => Math.round(v));
 
+    // Save Slots Buttons
+    document.querySelectorAll('#slot-selector-bar .btn-segment').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const slotNum = parseInt(btn.dataset.slot);
+        loadSlot(slotNum);
+      });
+    });
+
+    const btnSlotSave = document.getElementById('btn-slot-save');
+    if (btnSlotSave) {
+      btnSlotSave.addEventListener('click', () => {
+        saveActiveSlot();
+      });
+    }
+
+    const btnSlotLoad = document.getElementById('btn-slot-load');
+    if (btnSlotLoad) {
+      btnSlotLoad.addEventListener('click', () => {
+        loadSlot(activeSlot);
+      });
+    }
+
+    const btnSlotClear = document.getElementById('btn-slot-clear');
+    if (btnSlotClear) {
+      btnSlotClear.addEventListener('click', () => {
+        clearActiveSlot();
+      });
+    }
+
     // Randomize Seed
     document.getElementById('btn-rand').addEventListener('click', () => {
       state.seed = Math.floor(Math.random() * 90000) + 10000;
+      saveCurrentSettings();
       triggerUpdate(true);
     });
 
-    // Initial render on page load
+    // Restore persistent settings and slot state on page load
+    restoreSettings();
     triggerUpdate(true);
+  </script>
+</body>
+</html>
   </script>
 </body>
 </html>

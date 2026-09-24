@@ -260,19 +260,8 @@ def build_island_mesh(
 
         depth = 0
         while len(triangles_idx) < target_polys:
-            needed = target_polys - len(triangles_idx)
-            num_to_split = min(len(triangles_idx), max(1, needed // 3))
-
-            def tri_area_idx(t):
-                p1, p2, p3 = vertices[t[0]], vertices[t[1]], vertices[t[2]]
-                return 0.5 * abs((p2[0] - p1[0]) * (p3[1] - p1[1]) - (p3[0] - p1[0]) * (p2[1] - p1[1]))
-
-            triangles_idx.sort(key=tri_area_idx, reverse=True)
-            to_split = triangles_idx[:num_to_split]
-            untouched = triangles_idx[num_to_split:]
-
-            new_triangles = list(untouched)
-            for i_a, i_b, i_c, col, el, riv in to_split:
+            new_triangles = []
+            for i_a, i_b, i_c, col, el, riv in triangles_idx:
                 m_ab = get_midpoint(i_a, i_b, depth)
                 m_bc = get_midpoint(i_b, i_c, depth)
                 m_ca = get_midpoint(i_c, i_a, depth)
@@ -284,7 +273,7 @@ def build_island_mesh(
 
             triangles_idx = new_triangles
 
-            # Multi-level vertex relaxation on previous-level vertices
+            # Multi-level vertex elevation relaxation for smooth natural transitions
             adj_map = defaultdict(set)
             for i_a, i_b, i_c, _, _, _ in triangles_idx:
                 adj_map[i_a].add(i_b)
@@ -300,65 +289,70 @@ def build_island_mesh(
                     continue
                 neighbors = list(adj_map[v_idx])
                 if len(neighbors) >= 3:
-                    neighbor_mean = np.mean([vertices[n] for n in neighbors], axis=0)
-                    vertices[v_idx][:2] = (1.0 - relax_weight) * vertices[v_idx][:2] + relax_weight * neighbor_mean[:2]
-                    vertices[v_idx][2] = (1.0 - relax_weight * 1.5) * vertices[v_idx][2] + (relax_weight * 1.5) * neighbor_mean[2]
+                    neighbor_z_mean = float(np.mean([vertices[n][2] for n in neighbors]))
+                    vertices[v_idx][2] = (1.0 - relax_weight * 1.5) * vertices[v_idx][2] + (relax_weight * 1.5) * neighbor_z_mean
                     vertices[v_idx][2] += rng.uniform(-0.5, 0.5) * (roughness * 0.15 * (0.65 ** depth))
 
             depth += 1
-            if len(triangles_idx) >= target_polys or num_to_split == 0:
+            if len(triangles_idx) >= target_polys:
                 break
 
-        # Area-weighted vertex normals computation
-        vertex_normals = [np.array([0.0, 0.0, 0.0], dtype=np.float64) for _ in range(len(vertices))]
-        triangle_face_normals = []
+        # Fast vectorized area-weighted vertex and face normals computation
+        num_verts = len(vertices)
+        num_tris = len(triangles_idx)
 
-        for i_a, i_b, i_c, _, _, _ in triangles_idx:
-            pa = vertices[i_a]
-            pb = vertices[i_b]
-            pc = vertices[i_c]
+        verts_arr = np.asarray(vertices, dtype=np.float64)
+        tri_indices = np.array([(t[0], t[1], t[2]) for t in triangles_idx], dtype=np.int32)
 
-            va = pb - pa
-            vb = pc - pa
-            norm = np.cross(va, vb)
-            area = float(np.linalg.norm(norm) * 0.5)
-            if norm[2] < 0:
-                norm = -norm
-            norm_unit = norm / (area * 2.0) if area > 1e-6 else np.array([0.0, 0.0, 1.0])
-            triangle_face_normals.append(norm_unit)
-            vertex_normals[i_a] += norm_unit * area
-            vertex_normals[i_b] += norm_unit * area
-            vertex_normals[i_c] += norm_unit * area
+        pa_all = verts_arr[tri_indices[:, 0]]
+        pb_all = verts_arr[tri_indices[:, 1]]
+        pc_all = verts_arr[tri_indices[:, 2]]
 
-        for i in range(len(vertex_normals)):
-            vn_len = float(np.linalg.norm(vertex_normals[i]))
-            if vn_len > 1e-6:
-                vertex_normals[i] /= vn_len
-            else:
-                vertex_normals[i] = np.array([0.0, 0.0, 1.0])
+        va_all = pb_all - pa_all
+        vb_all = pc_all - pa_all
+        cross_norms = np.cross(va_all, vb_all)
+
+        # Ensure outward pointing normal
+        neg_z = cross_norms[:, 2] < 0
+        cross_norms[neg_z] = -cross_norms[neg_z]
+
+        double_areas = np.linalg.norm(cross_norms, axis=1, keepdims=True)
+        areas = double_areas * 0.5
+        safe_double_areas = np.where(double_areas > 1e-6, double_areas, 1.0)
+        face_normals = np.where(double_areas > 1e-6, cross_norms / safe_double_areas, np.array([0.0, 0.0, 1.0]))
+
+        # Accumulate weighted normals at vertices
+        weighted_face_norms = face_normals * areas
+        vertex_normals = np.zeros((num_verts, 3), dtype=np.float64)
+        np.add.at(vertex_normals, tri_indices[:, 0], weighted_face_norms)
+        np.add.at(vertex_normals, tri_indices[:, 1], weighted_face_norms)
+        np.add.at(vertex_normals, tri_indices[:, 2], weighted_face_norms)
+
+        vn_lens = np.linalg.norm(vertex_normals, axis=1, keepdims=True)
+        safe_vn_lens = np.where(vn_lens > 1e-6, vn_lens, 1.0)
+        vertex_normals = np.where(vn_lens > 1e-6, vertex_normals / safe_vn_lens, np.array([0.0, 0.0, 1.0]))
+
+        # Vectorized blended normals
+        avg_vert_norms = (vertex_normals[tri_indices[:, 0]] + vertex_normals[tri_indices[:, 1]] + vertex_normals[tri_indices[:, 2]]) / 3.0
+        avg_vn_lens = np.linalg.norm(avg_vert_norms, axis=1, keepdims=True)
+        safe_avg_vn_lens = np.where(avg_vn_lens > 1e-6, avg_vn_lens, 1.0)
+        avg_vert_norms = np.where(avg_vn_lens > 1e-6, avg_vert_norms / safe_avg_vn_lens, face_normals)
+
+        blended_norms = avg_vert_norms * normal_smooth_ratio + face_normals * (1.0 - normal_smooth_ratio)
+        bn_lens = np.linalg.norm(blended_norms, axis=1, keepdims=True)
+        safe_bn_lens = np.where(bn_lens > 1e-6, bn_lens, 1.0)
+        blended_norms = np.where(bn_lens > 1e-6, blended_norms / safe_bn_lens, face_normals)
 
         # Unpack indices into (pa, pb, pc, col, avg_elev, is_riv, area, blended_norm)
         final_triangles = []
         for tri_idx, (i_a, i_b, i_c, col_base, avg_elev, is_riv) in enumerate(triangles_idx):
-            pa = vertices[i_a]
-            pb = vertices[i_b]
-            pc = vertices[i_c]
-
-            face_norm = triangle_face_normals[tri_idx]
-            avg_vert_norm = (vertex_normals[i_a] + vertex_normals[i_b] + vertex_normals[i_c]) / 3.0
-            vn_len = float(np.linalg.norm(avg_vert_norm))
-            if vn_len > 1e-6:
-                avg_vert_norm /= vn_len
-            else:
-                avg_vert_norm = face_norm
-
-            blended_norm = avg_vert_norm * normal_smooth_ratio + face_norm * (1.0 - normal_smooth_ratio)
-            bn_len = float(np.linalg.norm(blended_norm))
-            if bn_len > 1e-6:
-                blended_norm /= bn_len
+            pa = pa_all[tri_idx]
+            pb = pb_all[tri_idx]
+            pc = pc_all[tri_idx]
+            area = float(areas[tri_idx, 0])
+            blended_norm = blended_norms[tri_idx]
 
             col = (vertex_colors.get(i_a, col_base) + vertex_colors.get(i_b, col_base) + vertex_colors.get(i_c, col_base)) / 3.0
-            area = 0.5 * abs((pb[0] - pa[0]) * (pc[1] - pa[1]) - (pc[0] - pa[0]) * (pb[1] - pa[1]))
             final_triangles.append((pa, pb, pc, col, avg_elev, is_riv, area, blended_norm))
 
         return final_triangles, len(final_triangles)

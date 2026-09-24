@@ -50,5 +50,5 @@ sim_output.png
 epub_build/
 map_cache/
 proto/
-
-
+mapgen2_repo/
+*.usdz
