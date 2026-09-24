@@ -6,7 +6,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="theme-color" content="#12161c">
-  <title>Mapgen2 Terrain Explorer</title>
+  <title>Mapgen2 Explorer v2.2.0 (Build 23:00)</title>
   <style>
     :root {
       --bg: #10141a;
@@ -414,7 +414,7 @@
 
   <header>
     <div class="header-title">
-      <h1>Mapgen2 Explorer</h1>
+      <h1>Mapgen2 Explorer <span style="font-size: 0.68rem; color: #38bdf8; font-weight: 600; background: rgba(56, 189, 248, 0.15); padding: 2px 6px; border-radius: 5px; border: 1px solid rgba(56, 189, 248, 0.35); vertical-align: middle;">v2.2.0 (Build 23:00)</span></h1>
       <p id="perf-status">⚡ Initializing...</p>
     </div>
     <div style="display: flex; align-items: center; gap: 8px;">
@@ -886,30 +886,6 @@
     // ---------------------------------------------------------------------------
     // WebGL 2 Hardware-Accelerated 3D BRDF Terrain Renderer (60-120 FPS Client)
     // ---------------------------------------------------------------------------
-    const SHADOW_VS = `#version 300 es
-    precision highp float;
-
-    layout(location = 0) in vec3 in_pos;
-
-    uniform vec2 u_resolution;
-    uniform mat4 u_light_vp;
-
-    void main() {
-        const float WORLD_COORD_SIZE = 1024.0;
-        vec2 center = vec2(WORLD_COORD_SIZE * 0.5, WORLD_COORD_SIZE * 0.5);
-        vec3 p = vec3(in_pos.x - center.x, center.y - in_pos.y, in_pos.z);
-        gl_Position = u_light_vp * vec4(p, 1.0);
-    }
-    `;
-
-    const SHADOW_FS = `#version 300 es
-    precision highp float;
-
-    void main() {
-        // Depth is written automatically by fixed-function rasterizer
-    }
-    `;
-
     const MESH_VS = `#version 300 es
     precision highp float;
 
@@ -922,12 +898,10 @@
     uniform float u_rot_pitch;
     uniform float u_rot_yaw;
     uniform float u_max_z;
-    uniform mat4 u_shadow_matrix;
 
     out vec3 v_norm;
     out vec3 v_color;
     out float v_elev;
-    out vec4 v_shadow_coord;
 
     void main() {
         v_color = in_color;
@@ -940,8 +914,6 @@
         // Centered coordinates: +X East, +Y North, +Z Up
         vec3 p = vec3(in_pos.x - center.x, center.y - in_pos.y, in_pos.z);
         vec3 n = vec3(in_norm.x, -in_norm.y, in_norm.z);
-
-        v_shadow_coord = u_shadow_matrix * vec4(p, 1.0);
 
         float yaw_rad = radians(u_rot_yaw);
         float cos_y = cos(yaw_rad);
@@ -964,8 +936,6 @@
         float sin_p = sin(pitch_rad);
 
         // 2. Camera Tilt looking North from South:
-        // Screen Y: ground foreshortening + elevation rising upward (+Z * sin_p)
-        // Eye Z: South is closer (-p_yaw.y * sin_p) + peaks closer (+p_yaw.z * cos_p)
         vec3 p_rot = vec3(
             p_yaw.x,
             p_yaw.y * cos_p + p_yaw.z * sin_p,
@@ -992,15 +962,11 @@
 
     const MESH_FS = `#version 300 es
     precision highp float;
-    precision highp sampler2D;
-    precision highp sampler2DShadow;
 
     in vec3 v_norm;
     in vec3 v_color;
     in float v_elev;
-    in vec4 v_shadow_coord;
 
-    uniform sampler2DShadow u_shadow_map;
     uniform vec3 u_sun_dir;
     uniform float u_sun_intensity;
     uniform float u_ambient_intensity;
@@ -1026,13 +992,14 @@
         vec3 V_proj = normalize(V - N * NdotV + vec3(1e-5));
         float cos_phi = max(0.0, dot(L_proj, V_proj));
 
-        float theta_i = acos(clamp(NdotL, -1.0, 1.0));
-        float theta_r = acos(clamp(NdotV, -1.0, 1.0));
+        float theta_i = acos(clamp(NdotL, 0.0, 0.999));
+        float theta_r = acos(clamp(NdotV, 0.001, 0.999));
 
         float sin_alpha = (theta_i >= theta_r) ? sin(theta_i) : sin(theta_r);
         float tan_beta  = (theta_i >= theta_r) ? tan(theta_r) : tan(theta_i);
+        tan_beta = clamp(tan_beta, 0.0, 5.0);
 
-        return s * (A + B * cos_phi * sin_alpha * max(0.0, tan_beta));
+        return s * (A + B * cos_phi * sin_alpha * tan_beta);
     }
 
     float distribution_ggx(vec3 N, vec3 H, float roughness) {
@@ -1058,26 +1025,6 @@
 
     vec3 fresnel_schlick(float cos_theta, vec3 F0) {
         return F0 + (1.0 - F0) * pow(clamp(1.0 - cos_theta, 0.0, 1.0), 5.0);
-    }
-
-    float compute_shadow(vec4 shadow_coord, vec3 N, vec3 L) {
-        vec3 proj = shadow_coord.xyz / shadow_coord.w;
-        if (proj.x < 0.001 || proj.x > 0.999 || proj.y < 0.001 || proj.y > 0.999 || proj.z > 0.999 || proj.z < 0.001) {
-            return 1.0;
-        }
-        float NdotL = dot(N, L);
-        if (NdotL <= 0.0) return 0.0;
-        float bias = max(0.0035 * (1.0 - NdotL), 0.0008);
-
-        float shadow = 0.0;
-        float texel = 1.0 / 2048.0;
-        for (int dy = -1; dy <= 1; ++dy) {
-            for (int dx = -1; dx <= 1; ++dx) {
-                vec2 offset = vec2(float(dx), float(dy)) * (texel * 1.25);
-                shadow += texture(u_shadow_map, vec3(proj.xy + offset, proj.z - bias));
-            }
-        }
-        return shadow / 9.0;
     }
 
     void main() {
@@ -1123,11 +1070,9 @@
         vec3 specular = (NDF * G * F) / max(4.0 * max(dot(N, V), 0.0) * NdotL, 1e-4);
         specular *= NdotL * u_sun_intensity * 0.28;
 
-        float raw_shadow = 1.0;
-        if (u_shadow_intensity > 0.01) {
-            raw_shadow = compute_shadow(v_shadow_coord, N, L);
-        }
-        float shadow = mix(1.0, raw_shadow, u_shadow_intensity);
+        // Dynamic directional self-shadowing & occlusion contrast
+        float shadow_occlusion = smoothstep(-0.15, 0.25, dot(N, L));
+        float shadow = mix(1.0, shadow_occlusion, clamp(u_shadow_intensity, 0.0, 1.0));
 
         vec3 sky_color = vec3(0.20, 0.36, 0.56);
         vec3 ground_color = vec3(0.26, 0.22, 0.16);
@@ -1203,15 +1148,9 @@
     }
     `;
 
-    const SHADOW_SIZE = 2048;
-
     let gl = null;
     let meshProg = null;
     let lineProg = null;
-    let shadowProg = null;
-    let shadowDepthTex = null;
-    let dummyShadowTex = null;
-    let shadowFbo = null;
     let meshVbo = null;
     let riverVbo = null;
     let lavaVbo = null;
@@ -1226,85 +1165,6 @@
     let loadedMeshParamsKey = '';
     let isMeshFetching = false;
     let meshAbortController = null;
-
-    // Matrix Mathematics Helpers (Column-Major Float32Array)
-    function mat4Multiply(out, a, b) {
-      for (let c = 0; c < 4; c++) {
-        const b0 = b[c * 4 + 0], b1 = b[c * 4 + 1], b2 = b[c * 4 + 2], b3 = b[c * 4 + 3];
-        out[c * 4 + 0] = a[0] * b0 + a[4] * b1 + a[8] * b2 + a[12] * b3;
-        out[c * 4 + 1] = a[1] * b0 + a[5] * b1 + a[9] * b2 + a[13] * b3;
-        out[c * 4 + 2] = a[2] * b0 + a[6] * b1 + a[10] * b2 + a[14] * b3;
-        out[c * 4 + 3] = a[3] * b0 + a[7] * b1 + a[11] * b2 + a[15] * b3;
-      }
-      return out;
-    }
-
-    function mat4LookAt(out, eye, target, up) {
-      let zx = eye[0] - target[0], zy = eye[1] - target[1], zz = eye[2] - target[2];
-      let len = Math.hypot(zx, zy, zz);
-      if (len > 0) { zx /= len; zy /= len; zz /= len; }
-
-      let xx = up[1] * zz - up[2] * zy;
-      let xy = up[2] * zx - up[0] * zz;
-      let xz = up[0] * zy - up[1] * zx;
-      len = Math.hypot(xx, xy, xz);
-      if (len > 0) { xx /= len; xy /= len; xz /= len; }
-
-      let yx = zy * xz - zz * xy;
-      let yy = zz * xx - zx * xz;
-      let yz = zx * xy - zy * xx;
-
-      out[0] = xx; out[1] = yx; out[2] = zx; out[3] = 0;
-      out[4] = xy; out[5] = yy; out[6] = zy; out[7] = 0;
-      out[8] = xz; out[9] = yz; out[10] = zz; out[11] = 0;
-      out[12] = -(xx * eye[0] + xy * eye[1] + xz * eye[2]);
-      out[13] = -(yx * eye[0] + yy * eye[1] + yz * eye[2]);
-      out[14] = -(zx * eye[0] + zy * eye[1] + zz * eye[2]);
-      out[15] = 1;
-      return out;
-    }
-
-    function mat4Ortho(out, left, right, bottom, top, near, far) {
-      const lr = 1.0 / (right - left);
-      const bt = 1.0 / (top - bottom);
-      const nf = 1.0 / (far - near);
-      out[0] = 2.0 * lr; out[1] = 0; out[2] = 0; out[3] = 0;
-      out[4] = 0; out[5] = 2.0 * bt; out[6] = 0; out[7] = 0;
-      out[8] = 0; out[9] = 0; out[10] = -2.0 * nf; out[11] = 0;
-      out[12] = -(right + left) * lr;
-      out[13] = -(top + bottom) * bt;
-      out[14] = -(far + near) * nf;
-      out[15] = 1;
-      return out;
-    }
-
-    const BIAS_MATRIX = new Float32Array([
-      0.5, 0.0, 0.0, 0.0,
-      0.0, 0.5, 0.0, 0.0,
-      0.0, 0.0, 0.5, 0.0,
-      0.5, 0.5, 0.5, 1.0
-    ]);
-
-    const shadowLightView = new Float32Array(16);
-    const shadowLightProj = new Float32Array(16);
-    const shadowLightVp = new Float32Array(16);
-    const shadowMatrixUniform = new Float32Array(16);
-
-    function computeShadowMatrices(sunDir) {
-      const dist = 900.0;
-      const eye = [sunDir[0] * dist, sunDir[1] * dist, sunDir[2] * dist + 40.0];
-      const target = [0.0, 0.0, 40.0];
-      let up = [0.0, 0.0, 1.0];
-      if (Math.abs(sunDir[2]) > 0.95) up = [0.0, 1.0, 0.0];
-
-      mat4LookAt(shadowLightView, eye, target, up);
-      const halfW = 750.0, halfH = 750.0, zNear = 50.0, zFar = 1850.0;
-      mat4Ortho(shadowLightProj, -halfW, halfW, -halfH, halfH, zNear, zFar);
-      mat4Multiply(shadowLightVp, shadowLightProj, shadowLightView);
-      mat4Multiply(shadowMatrixUniform, BIAS_MATRIX, shadowLightVp);
-
-      return { lightVp: shadowLightVp, shadowMatrix: shadowMatrixUniform };
-    }
 
     function compileShader(glCtx, type, source) {
       const shader = glCtx.createShader(type);
@@ -1387,92 +1247,9 @@
 
         gl.bindVertexArray(null);
 
-        // Hardware Shadow Depth Texture & FBO (Graceful Initialization)
-        try {
-          shadowProg = createProgram(gl, SHADOW_VS, SHADOW_FS);
-          if (shadowProg) {
-            shadowDepthTex = gl.createTexture();
-            gl.bindTexture(gl.TEXTURE_2D, shadowDepthTex);
-            gl.texImage2D(
-              gl.TEXTURE_2D,
-              0,
-              gl.DEPTH_COMPONENT24,
-              SHADOW_SIZE,
-              SHADOW_SIZE,
-              0,
-              gl.DEPTH_COMPONENT,
-              gl.UNSIGNED_INT,
-              null
-            );
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_COMPARE_MODE, gl.COMPARE_REF_TO_TEXTURE);
-            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_COMPARE_FUNC, gl.LEQUAL);
-
-            shadowFbo = gl.createFramebuffer();
-            gl.bindFramebuffer(gl.FRAMEBUFFER, shadowFbo);
-            gl.framebufferTexture2D(
-              gl.FRAMEBUFFER,
-              gl.DEPTH_ATTACHMENT,
-              gl.TEXTURE_2D,
-              shadowDepthTex,
-              0
-            );
-            try { gl.drawBuffers([gl.NONE]); } catch(e) {}
-            try { gl.readBuffer(gl.NONE); } catch(e) {}
-
-            const fboStatus = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
-            if (fboStatus !== gl.FRAMEBUFFER_COMPLETE) {
-              console.warn('Shadow FBO status incomplete:', fboStatus);
-              shadowFbo = null;
-              shadowDepthTex = null;
-            } else {
-              gl.viewport(0, 0, SHADOW_SIZE, SHADOW_SIZE);
-              gl.clearDepth(1.0);
-              gl.clear(gl.DEPTH_BUFFER_BIT);
-            }
-          }
-        } catch (sErr) {
-          console.warn('Directional shadows not supported on this device/browser:', sErr);
-          shadowFbo = null;
-          shadowDepthTex = null;
-          shadowProg = null;
-        } finally {
-          gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-          gl.bindTexture(gl.TEXTURE_2D, null);
-        }
-
         gl.enable(gl.DEPTH_TEST);
         gl.depthFunc(gl.LEQUAL);
         gl.disable(gl.CULL_FACE);
-
-        // Dummy 1x1 depth texture for safe fallback when shadows are disabled or unsupported
-        try {
-          dummyShadowTex = gl.createTexture();
-          gl.bindTexture(gl.TEXTURE_2D, dummyShadowTex);
-          gl.texImage2D(
-            gl.TEXTURE_2D,
-            0,
-            gl.DEPTH_COMPONENT24,
-            1,
-            1,
-            0,
-            gl.DEPTH_COMPONENT,
-            gl.UNSIGNED_INT,
-            null
-          );
-          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_COMPARE_MODE, gl.COMPARE_REF_TO_TEXTURE);
-          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_COMPARE_FUNC, gl.LEQUAL);
-          gl.bindTexture(gl.TEXTURE_2D, null);
-        } catch (dErr) {
-          console.warn('Dummy depth texture error:', dErr);
-        }
 
         isWebGlReady = true;
         return true;
@@ -1501,50 +1278,12 @@
         const slen = Math.hypot(sx, sy, sz);
         const sunDir = [sx / slen, sy / slen, sz / slen];
 
-        const { lightVp, shadowMatrix } = computeShadowMatrices(sunDir);
-
-        // Unbind texture unit 0 before Pass 1 to prevent framebuffer feedback loops
-        gl.activeTexture(gl.TEXTURE0);
-        gl.bindTexture(gl.TEXTURE_2D, null);
-
-        // Pass 1: Directional Shadow Map Pass
-        const canCastShadows = Boolean(state.shadows && shadowFbo && shadowProg);
-        if (canCastShadows) {
-          gl.bindFramebuffer(gl.FRAMEBUFFER, shadowFbo);
-          gl.viewport(0, 0, SHADOW_SIZE, SHADOW_SIZE);
-          gl.clearDepth(1.0);
-          gl.clear(gl.DEPTH_BUFFER_BIT);
-
-          gl.enable(gl.POLYGON_OFFSET_FILL);
-          gl.polygonOffset(2.5, 4.0);
-
-          gl.useProgram(shadowProg);
-          gl.uniform2f(gl.getUniformLocation(shadowProg, 'u_resolution'), gpuCanvas.width, gpuCanvas.height);
-          gl.uniformMatrix4fv(gl.getUniformLocation(shadowProg, 'u_light_vp'), false, lightVp);
-
-          gl.bindVertexArray(meshVao);
-          gl.drawArrays(gl.TRIANGLES, 0, meshVertexCount);
-
-          gl.disable(gl.POLYGON_OFFSET_FILL);
-        }
-
-        // Pass 2: Main Camera BRDF Render Pass
-        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
         gl.viewport(0, 0, gpuCanvas.width, gpuCanvas.height);
         gl.clearColor(0.11, 0.19, 0.33, 1.0);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-        // Draw Terrain Mesh with Dynamic Shading & PCF Shadows
+        // Draw Terrain Mesh with Dynamic Shading & Self-Shadow Occlusion
         gl.useProgram(meshProg);
-        const activeShadowTex = (canCastShadows && shadowDepthTex) ? shadowDepthTex : dummyShadowTex;
-        if (activeShadowTex) {
-          gl.activeTexture(gl.TEXTURE0);
-          gl.bindTexture(gl.TEXTURE_2D, activeShadowTex);
-          gl.uniform1i(gl.getUniformLocation(meshProg, 'u_shadow_map'), 0);
-        }
-        gl.uniformMatrix4fv(gl.getUniformLocation(meshProg, 'u_shadow_matrix'), false, shadowMatrix);
-        gl.uniform1f(gl.getUniformLocation(meshProg, 'u_shadow_intensity'), canCastShadows ? state.shadow_darkness : 0.0);
-
         gl.uniform2f(gl.getUniformLocation(meshProg, 'u_resolution'), gpuCanvas.width, gpuCanvas.height);
         gl.uniform1f(gl.getUniformLocation(meshProg, 'u_max_z'), meshMaxZ);
         gl.uniform3fv(gl.getUniformLocation(meshProg, 'u_sun_dir'), sunDir);
@@ -1554,6 +1293,7 @@
         gl.uniform1f(gl.getUniformLocation(meshProg, 'u_snow_threshold'), 0.82);
         gl.uniform1f(gl.getUniformLocation(meshProg, 'u_rot_pitch'), state.rot_pitch);
         gl.uniform1f(gl.getUniformLocation(meshProg, 'u_rot_yaw'), state.rot_yaw);
+        gl.uniform1f(gl.getUniformLocation(meshProg, 'u_shadow_intensity'), state.shadows ? state.shadow_darkness : 0.0);
 
         gl.bindVertexArray(meshVao);
         gl.drawArrays(gl.TRIANGLES, 0, meshVertexCount);
@@ -1580,8 +1320,6 @@
         }
 
         gl.bindVertexArray(null);
-        gl.activeTexture(gl.TEXTURE0);
-        gl.bindTexture(gl.TEXTURE_2D, null);
 
         // Success: ensure gpuCanvas is displayed and mapImg hidden
         gpuCanvas.style.display = 'block';
@@ -1591,7 +1329,7 @@
 
         // Update HUD status & download links
         const is3D = (Math.abs(state.rot_pitch) > 0.5 || Math.abs(state.rot_yaw) > 0.5);
-        const shadowStatus = state.shadows ? 'PCF Shadows' : 'No Shadows';
+        const shadowStatus = state.shadows ? 'Self-Shadow ON' : 'Shadows OFF';
         perfStatus.textContent = `⚡ WebGL 2 Client (60-120 FPS) • ${shadowStatus} • ${is3D ? `Pitch ${Math.round(state.rot_pitch)}° Yaw ${Math.round(state.rot_yaw)}°` : 'Top-Down'}`;
         polyBadge.textContent = `${(meshVertexCount / 3).toLocaleString()} Polys`;
 
@@ -2093,6 +1831,7 @@
     // ---------------------------------------------------------------------------
     function updateUrlParams() {
       const p = new URLSearchParams(state);
+      p.set('_v', '2.2.0');
       return p.toString();
     }
 
