@@ -146,7 +146,8 @@ def calc_vertex_color(x: float, y: float, z: float, dist: float, base_col: np.nd
 
 def carve_continuous_valley_standalone(pt_x: float, pt_y: float, z_val: float, coast_dist: float,
                                       river_kdtree, dense_riv_z_arr, dense_riv_flux_arr,
-                                      w_bed_base: float, w_val_base: float, canyon_depth_param: float) -> float:
+                                      w_bed_base: float, w_val_base: float, canyon_depth_param: float,
+                                      elev_scale: float = 70.0) -> float:
     """Continuous smooth 3D riverbed and canyon carving along river stream lines."""
     if river_kdtree is None or coast_dist <= 0.05:
         return z_val
@@ -157,19 +158,25 @@ def carve_continuous_valley_standalone(pt_x: float, pt_y: float, z_val: float, c
     r_z = dense_riv_z_arr[r_idx]
     r_flux = dense_riv_flux_arr[r_idx]
     flux_w = math.sqrt(max(1.0, r_flux))
-    w_bed = w_bed_base * (0.8 + 0.35 * flux_w)
-    w_val = w_val_base * (0.8 + 0.35 * flux_w)
+    w_bed = w_bed_base * (0.8 + 0.30 * flux_w)
+    w_val = w_val_base * (0.8 + 0.30 * flux_w)
 
-    bed_drop = min(6.0, (0.65 + 0.45 * canyon_depth_param) * (0.8 + 0.4 * flux_w))
-    z_bed = max(0.0, r_z - bed_drop)
+    c_factor = (0.8 + 3.0 * canyon_depth_param) * (0.8 + 0.35 * flux_w) * (elev_scale / 60.0) if canyon_depth_param > 0 else 0.0
+    bed_drop = max(0.8, c_factor * 0.45) if canyon_depth_param > 0 else 0.2
+    canyon_cut = c_factor
+
+    coast_env = min(1.0, max(0.0, coast_dist / 6.0))
+    z_bed = max(0.04, r_z - bed_drop * coast_env)
 
     if d_riv <= w_bed:
         return min(z_val, z_bed)
     if d_riv <= w_val:
         t = (d_riv - w_bed) / (w_val - w_bed)
         s = t * t * (3.0 - 2.0 * t)
-        z_wall = z_bed + s * max(0.0, z_val - z_bed)
-        return min(z_val, z_wall)
+        wall_h = z_bed + s * max(0.0, z_val - z_bed)
+        bank_gouge = canyon_cut * (1.0 - s) * (1.0 - s) * coast_env
+        z_carved = min(z_val, max(z_bed, wall_h - bank_gouge * 0.35))
+        return min(z_val, z_carved)
     return z_val
 
 
@@ -295,7 +302,7 @@ def _subdivide_chunk_worker(task_data: Tuple) -> Tuple[np.ndarray, np.ndarray, n
                 rdg_val = procedural_ridged_elevation(mid[0], mid[1], mid_norm_elev, gen_seed, amplitude=elev_scale / 45.0, ridge_roughness=ridge_noise) * (decay * 0.5) * mid_env
                 disp_z = (edge_rng.uniform(-0.35, 0.35) * roughness * (length / 24.0) + fbm_val + rdg_val) * mid_env
                 mid[2] = max(0.0, (0.70 * base_h + 0.30 * mid[2] + disp_z) * mid_env)
-                mid[2] = carve_continuous_valley_standalone(mid[0], mid[1], mid[2], mid_dist, river_kdtree, dense_riv_z_arr, dense_riv_flux_arr, w_bed_base, w_val_base, canyon_depth_param)
+                mid[2] = carve_continuous_valley_standalone(mid[0], mid[1], mid[2], mid_dist, river_kdtree, dense_riv_z_arr, dense_riv_flux_arr, w_bed_base, w_val_base, canyon_depth_param, elev_scale)
 
         idx_mid = len(local_vertices)
         local_vertices.append(mid)
@@ -373,7 +380,7 @@ def _subdivide_chunk_worker(task_data: Tuple) -> Tuple[np.ndarray, np.ndarray, n
                 local_vertices[v_idx][2] = max(0.0, new_z)
                 local_vertices[v_idx][2] = carve_continuous_valley_standalone(
                     local_vertices[v_idx][0], local_vertices[v_idx][1], local_vertices[v_idx][2],
-                    v_dist, river_kdtree, dense_riv_z_arr, dense_riv_flux_arr, w_bed_base, w_val_base, canyon_depth_param
+                    v_dist, river_kdtree, dense_riv_z_arr, dense_riv_flux_arr, w_bed_base, w_val_base, canyon_depth_param, elev_scale
                 )
 
     num_out_tris = len(chunk_tris)
@@ -447,7 +454,12 @@ def build_detailed_river_streams(gen, scale_x: float, scale_y: float, elev_scale
                         if (abs(e.v0.x - cn1[0]) < 0.01 and abs(e.v0.y - cn1[1]) < 0.01) or (abs(e.v1.x - cn1[0]) < 0.01 and abs(e.v1.y - cn1[1]) < 0.01):
                             edge = e
                             break
-                    break
+            # If this edge lies along the ocean coastline (separating land and ocean), terminate immediately!
+            if edge and edge.d0 and edge.d1 and (edge.d0.ocean != edge.d1.ocean):
+                is_cn1_ocean = bool(cn1[4] > 0.5 if len(cn1) > 4 else cn1[2] <= 0.01)
+                if is_cn1_ocean:
+                    stream.append([float(cn1[0] * scale_x), float(cn1[1] * scale_y), 0.04, float(flux), True])
+                break
 
             if edge and getattr(gen, "noisy_edges", None):
                 start_corner = edge.v0 if (abs(edge.v0.x - cn0[0]) < 0.01 and abs(edge.v0.y - cn0[1]) < 0.01) else edge.v1
@@ -460,7 +472,10 @@ def build_detailed_river_streams(gen, scale_x: float, scale_y: float, elev_scale
             else:
                 stream.append([float(cn0[0] * scale_x), float(cn0[1] * scale_y), float(cn0[2] * elev_scale), float(flux), is_ocean])
 
-        if not (edge and getattr(gen, "noisy_edges", None)):
+        if not stream:
+            continue
+
+        if not (edge and getattr(gen, "noisy_edges", None)) and len(stream) < len(path):
             stream.append([float(path[-1][0] * scale_x), float(path[-1][1] * scale_y), float(path[-1][2] * elev_scale), float(path[-1][3]), is_ocean])
 
         if len(stream) >= 2:
@@ -570,8 +585,8 @@ def build_island_mesh(
     valley_width_param = float(getattr(gen, "valley_width", 1.0))
     river_width_param = float(getattr(gen, "river_width", 1.0))
 
-    w_bed_base = 6.4 * max(0.4, river_width_param)
-    w_val_base = max(w_bed_base + 6.0, 18.0 * valley_width_param)
+    w_bed_base = (4.0 + 3.0 * max(0.4, river_width_param))
+    w_val_base = max(w_bed_base + 16.0, (18.0 + 24.0 * max(0.5, valley_width_param)))
 
     def carve_continuous_valley(pt_x, pt_y, z_val, coast_dist=999.0):
         if river_kdtree is None or coast_dist <= 0.05:
@@ -583,20 +598,25 @@ def build_island_mesh(
         r_z = dense_riv_z_arr[r_idx]
         r_flux = dense_riv_flux_arr[r_idx]
         flux_w = math.sqrt(max(1.0, r_flux))
-        w_bed = w_bed_base * (0.8 + 0.35 * flux_w)
-        w_val = w_val_base * (0.8 + 0.35 * flux_w)
+        w_bed = w_bed_base * (0.8 + 0.30 * flux_w)
+        w_val = w_val_base * (0.8 + 0.30 * flux_w)
 
-        # River channel bed: depression beneath water level so water rests in channel
-        bed_drop = min(6.0, (0.65 + 0.45 * canyon_depth_param) * (0.8 + 0.4 * flux_w))
-        z_bed = max(0.0, r_z - bed_drop)
+        c_factor = (0.8 + 3.0 * canyon_depth_param) * (0.8 + 0.35 * flux_w) * (elev_scale / 60.0) if canyon_depth_param > 0 else 0.0
+        bed_drop = max(0.8, c_factor * 0.45) if canyon_depth_param > 0 else 0.2
+        canyon_cut = c_factor
+
+        coast_env = min(1.0, max(0.0, coast_dist / 6.0))
+        z_bed = max(0.04, r_z - bed_drop * coast_env)
 
         if d_riv <= w_bed:
             return min(z_val, z_bed)
         if d_riv <= w_val:
             t = (d_riv - w_bed) / (w_val - w_bed)
             s = t * t * (3.0 - 2.0 * t)
-            z_wall = z_bed + s * max(0.0, z_val - z_bed)
-            return min(z_val, z_wall)
+            wall_h = z_bed + s * max(0.0, z_val - z_bed)
+            bank_gouge = canyon_cut * (1.0 - s) * (1.0 - s) * coast_env
+            z_carved = min(z_val, max(z_bed, wall_h - bank_gouge * 0.35))
+            return min(z_val, z_carved)
         return z_val
 
     COAST_TRANSITION_WIDTH = 32.0  # units (~1.0 - 1.2 Voronoi cell radius)

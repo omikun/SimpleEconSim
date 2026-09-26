@@ -850,11 +850,36 @@ class PolygonMapGenerator:
                 nxt = curr.downslope
                 if nxt.index in visited:
                     break
-                visited.add(nxt.index)
-                for edge in curr.protrudes:
-                    if (edge.v0 == curr and edge.v1 == nxt) or (edge.v1 == curr and edge.v0 == nxt):
-                        edge.river += 1
+
+                edge = None
+                for e in curr.protrudes:
+                    if (e.v0 == curr and e.v1 == nxt) or (e.v1 == curr and e.v0 == nxt):
+                        edge = e
                         break
+
+                # Check if this edge lies on the ocean coastline (separating ocean water from land)
+                is_coast_edge = bool(edge and edge.d0 and edge.d1 and (edge.d0.ocean != edge.d1.ocean))
+                # Check if curr is already on the ocean/coastline boundary
+                is_curr_coast = curr.coast or any(c.ocean for c in curr.touches)
+
+                if (is_coast_edge and not nxt.ocean) or (is_curr_coast and not nxt.ocean):
+                    # River has reached ocean boundary! Terminate; do not walk along beach
+                    ocean_neighbors = [v for v in curr.adjacent if v.ocean]
+                    if ocean_neighbors:
+                        nxt_ocean = ocean_neighbors[0]
+                        for e in curr.protrudes:
+                            if (e.v0 == curr and e.v1 == nxt_ocean) or (e.v1 == curr and e.v0 == nxt_ocean):
+                                e.river += 1
+                                break
+                        nxt_ocean.river += 1
+                        curr.downslope = nxt_ocean
+                    else:
+                        curr.downslope = None
+                    break
+
+                visited.add(nxt.index)
+                if edge:
+                    edge.river += 1
                 nxt.river += 1
                 curr = nxt
 
@@ -918,19 +943,19 @@ class PolygonMapGenerator:
         max_river = max((e.river for e in self.edges), default=1)
         for edge in self.edges:
             if edge.river > 0:
-                carve = self.canyon_depth * 0.035 * math.sqrt(edge.river / max(1.0, max_river))
+                carve = self.canyon_depth * 0.065 * math.sqrt(edge.river / max(1.0, max_river))
                 if edge.v0 and not edge.v0.ocean:
                     edge.v0.elevation = max(0.001, edge.v0.elevation - carve)
                 if edge.v1 and not edge.v1.ocean:
                     edge.v1.elevation = max(0.001, edge.v1.elevation - carve)
                 if edge.d0 and not edge.d0.ocean:
-                    edge.d0.elevation = max(0.001, edge.d0.elevation - carve * 0.35 * self.valley_width)
+                    edge.d0.elevation = max(0.001, edge.d0.elevation - carve * 0.50 * self.valley_width)
                 if edge.d1 and not edge.d1.ocean:
-                    edge.d1.elevation = max(0.001, edge.d1.elevation - carve * 0.35 * self.valley_width)
+                    edge.d1.elevation = max(0.001, edge.d1.elevation - carve * 0.50 * self.valley_width)
 
         self.river_paths = []
         for b, is_main in branches:
-            is_ocean = is_main and (b[-1].ocean or b[-1].elevation <= 0.005)
+            is_ocean = is_main and (b[-1].ocean or b[-1].elevation <= 0.005 or any(c.ocean for c in b[-1].touches))
             path = [(cn.x, cn.y, cn.elevation, float(cn.river), 1.0 if is_ocean else 0.0) for cn in b]
             self.river_paths.append(path)
 
