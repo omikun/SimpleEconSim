@@ -599,6 +599,51 @@ def build_hydro_river_ribbons(gen, sample_mesh_elevation=None, height_scale: flo
         else:
             z_mono = np.maximum(0.04, z_mono)
 
+        # Compute physically accurate 3D surface normals for each segment based on flow direction and slope
+        seg_normals = []
+        for i in range(n_pts - 1):
+            p0 = stream[i]
+            p1 = stream[i + 1]
+            tx = p1[0] - p0[0]
+            ty = p1[1] - p0[1]
+            seg_len = math.hypot(tx, ty)
+            if seg_len < 0.001:
+                seg_len = 0.001
+            tx /= seg_len
+            ty /= seg_len
+            z0_surf = max(0.04, float(z_mono[i]) + 0.10)
+            z1_surf = max(0.04, float(z_mono[i + 1]) + 0.10)
+            dz = z1_surf - z0_surf
+
+            # Normal from cross product of transverse bank vector and downhill flow vector
+            nx = -tx * dz
+            ny = -ty * dz
+            nz = seg_len
+            nl = math.hypot(math.hypot(nx, ny), nz)
+            if nl > 1e-6:
+                seg_normals.append((nx / nl, ny / nl, nz / nl))
+            else:
+                seg_normals.append((0.0, 0.0, 1.0))
+
+        # Compute continuous per-vertex normals by averaging adjacent segment normals
+        node_normals = []
+        for k in range(n_pts):
+            if k == 0:
+                node_normals.append(seg_normals[0] if seg_normals else (0.0, 0.0, 1.0))
+            elif k == n_pts - 1:
+                node_normals.append(seg_normals[-1] if seg_normals else (0.0, 0.0, 1.0))
+            else:
+                s0 = seg_normals[k - 1]
+                s1 = seg_normals[k]
+                sx = s0[0] + s1[0]
+                sy = s0[1] + s1[1]
+                sz = s0[2] + s1[2]
+                sl = math.hypot(math.hypot(sx, sy), sz)
+                if sl > 1e-6:
+                    node_normals.append((sx / sl, sy / sl, sz / sl))
+                else:
+                    node_normals.append(s0)
+
         cum_dist = 0.0
         for i in range(n_pts - 1):
             p0 = stream[i]
@@ -641,19 +686,22 @@ def build_hydro_river_ribbons(gen, sample_mesh_elevation=None, height_scale: flo
             g_col = 0.54 * (1.0 - t_stream) + 0.42 * t_stream
             b_col = 0.92 * (1.0 - t_stream) + 0.84 * t_stream
 
-            norm_x, norm_y, norm_z = 0.0, 0.0, 1.0
+            # Unique smooth 3D normals for upstream and downstream segment vertices
+            n0_x, n0_y, n0_z = node_normals[i]
+            n1_x, n1_y, n1_z = node_normals[i + 1]
+
             flow0 = cum_dist * 0.05
             cum_dist += seg_len
             flow1 = cum_dist * 0.05
 
             # Quad strip -> 2 triangles
-            river_verts.extend([l0_x, l0_y, z0_surf, norm_x, norm_y, norm_z, r_col, g_col, b_col, flow0])
-            river_verts.extend([r0_x, r0_y, z0_surf, norm_x, norm_y, norm_z, r_col, g_col, b_col, flow0])
-            river_verts.extend([l1_x, l1_y, z1_surf, norm_x, norm_y, norm_z, r_col, g_col, b_col, flow1])
+            river_verts.extend([l0_x, l0_y, z0_surf, n0_x, n0_y, n0_z, r_col, g_col, b_col, flow0])
+            river_verts.extend([r0_x, r0_y, z0_surf, n0_x, n0_y, n0_z, r_col, g_col, b_col, flow0])
+            river_verts.extend([l1_x, l1_y, z1_surf, n1_x, n1_y, n1_z, r_col, g_col, b_col, flow1])
 
-            river_verts.extend([l1_x, l1_y, z1_surf, norm_x, norm_y, norm_z, r_col, g_col, b_col, flow1])
-            river_verts.extend([r0_x, r0_y, z0_surf, norm_x, norm_y, norm_z, r_col, g_col, b_col, flow0])
-            river_verts.extend([r1_x, r1_y, z1_surf, norm_x, norm_y, norm_z, r_col, g_col, b_col, flow1])
+            river_verts.extend([l1_x, l1_y, z1_surf, n1_x, n1_y, n1_z, r_col, g_col, b_col, flow1])
+            river_verts.extend([r0_x, r0_y, z0_surf, n0_x, n0_y, n0_z, r_col, g_col, b_col, flow0])
+            river_verts.extend([r1_x, r1_y, z1_surf, n1_x, n1_y, n1_z, r_col, g_col, b_col, flow1])
 
     return np.array(river_verts, dtype=np.float32)
 
