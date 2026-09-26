@@ -34,7 +34,12 @@ from render_island_micropolys import (
     build_island_mesh,
     render_mesh,
     export_island_wireframe_usdz,
+    compute_catmull_rom_river_streams,
 )
+from goods import Goods
+from sim_world_voronoi import build_world_voronoi
+from render_voronoi_geopolitics import render_voronoi_geopolitics
+from render_regnum_terrain import render_regnum_terrain
 
 # ---------------------------------------------------------------------------
 # Dedicated Thread-Affinity Worker for Headless ModernGL GPU Execution
@@ -131,6 +136,9 @@ def get_cached_graph(
     south_temp: float = 0.0,
     persistence: float = 0.0,
     size: int = CANONICAL_WORLD_SIZE,
+    canyon_depth: float = 1.5,
+    valley_width: float = 1.0,
+    **kwargs,
 ) -> PolygonMapGenerator:
     key = (
         seed,
@@ -142,6 +150,8 @@ def get_cached_graph(
         round(north_temp, 2),
         round(south_temp, 2),
         round(persistence, 2),
+        round(canyon_depth, 2),
+        round(valley_width, 2),
     )
     if key in GRAPH_CACHE:
         return GRAPH_CACHE[key]
@@ -160,8 +170,10 @@ def get_cached_graph(
         persistence=persistence,
         enable_corner_improvement=True,
         enable_roads=True,
-        enable_lava=True,
+        enable_lava=False,
         enable_noisy_edges=True,
+        canyon_depth=canyon_depth,
+        valley_width=valley_width,
     )
 
     if len(GRAPH_CACHE) >= MAX_CACHE_ENTRIES:
@@ -221,6 +233,35 @@ def get_cached_micropolys(
         MESH_CACHE.pop(next(iter(MESH_CACHE)))
     MESH_CACHE[mesh_key] = (triangles, actual_count)
     return triangles, actual_count
+
+
+GEOPOLITICS_CACHE: Dict[Tuple, Tuple[List[Any], List[Any]]] = {}
+
+
+def get_cached_geopolitics(
+    gen: PolygonMapGenerator,
+    seed: int,
+    num_nations: int = 3,
+    nation_seed: int = 777,
+) -> Tuple[List[Any], List[Any]]:
+    key = (id(gen), seed, num_nations, nation_seed)
+    if key in GEOPOLITICS_CACHE:
+        return GEOPOLITICS_CACHE[key]
+
+    tiles, nations, _ = build_world_voronoi(
+        seed=seed,
+        terrain_seed=seed,
+        nation_seed=nation_seed,
+        existing_gen=gen,
+        num_nations=num_nations,
+    )
+    if len(GEOPOLITICS_CACHE) >= MAX_CACHE_ENTRIES:
+        GEOPOLITICS_CACHE.pop(next(iter(GEOPOLITICS_CACHE)))
+    GEOPOLITICS_CACHE[key] = (tiles, nations)
+    return tiles, nations
+
+
+REGNUM_SURF_CACHE: Dict[Tuple, pygame.Surface] = {}
 
 
 # ---------------------------------------------------------------------------
@@ -307,6 +348,292 @@ def set_active_slot(slot_num: int) -> bool:
         return True
     except Exception:
         return False
+
+
+def build_micropoly_trees(gen, sample_mesh_elevation, height_scale: float = 70.0, tree_density: float = 1.0):
+    """Generates 3D low-poly faceted tree canopies with macro-cluster regions and organic faded edges.
+    Returns Float32Array with 40-byte vertex stride [x, y, z, nx, ny, nz, r, g, b, elev].
+    """
+    import math
+    import random
+
+    FOREST_BIOMES = {
+        "TAIGA": (0.13, 0.28, 0.18, 0.85),
+        "TEMPERATE_RAIN_FOREST": (0.10, 0.38, 0.22, 1.00),
+        "TEMPERATE_DECIDUOUS_FOREST": (0.16, 0.36, 0.18, 0.90),
+        "TROPICAL_RAIN_FOREST": (0.12, 0.42, 0.25, 1.00),
+        "TROPICAL_SEASONAL_FOREST": (0.22, 0.38, 0.16, 0.80),
+        "SHRUBLAND": (0.28, 0.38, 0.20, 0.45),
+        "GRASSLAND": (0.24, 0.36, 0.18, 0.20),
+    }
+
+    scale_x = CANONICAL_WORLD_SIZE / gen.width
+    scale_y = CANONICAL_WORLD_SIZE / gen.height
+    avg_cell_r = math.sqrt((gen.width * gen.height) / max(1, len(gen.centers))) * 0.50
+
+    # Fast 2D coherent noise for macro-scale forest regions
+    seed_offset = getattr(gen, 'seed', 42) * 1013 + 777
+    def hash2d(ix, iy):
+        n = ix * 374761393 + iy * 668265263 + seed_offset
+        n = (n ^ (n >> 13)) * 1274126177
+        return (n & 0x7fffffff) / float(0x7fffffff)
+
+    def smooth_noise2d(x, y):
+        ix = math.floor(x)
+        iy = math.floor(y)
+        fx = x - ix
+        fy = y - iy
+        ux = fx * fx * (3.0 - 2.0 * fx)
+        uy = fy * fy * (3.0 - 2.0 * fy)
+        n00 = hash2d(ix, iy)
+        n10 = hash2d(ix + 1, iy)
+        n01 = hash2d(ix, iy + 1)
+        n11 = hash2d(ix + 1, iy + 1)
+        return (n00 * (1.0 - ux) + n10 * ux) * (1.0 - uy) + (n01 * (1.0 - ux) + n11 * ux) * uy
+
+    def fbm2d(x, y):
+        return (smooth_noise2d(x, y) * 0.62 +
+                smooth_noise2d(x * 2.13 + 1.7, y * 2.13 + 9.2) * 0.26 +
+                smooth_noise2d(x * 4.41 + 5.1, y * 4.41 + 3.8) * 0.12)
+
+    tree_verts = []
+    rng = random.Random(getattr(gen, 'seed', 42) + 999)
+
+    # Candidate density scales with slider
+    candidate_count = int(max(3, min(96, round(3.5 * tree_density))))
+    rad_scale = max(0.50, 1.0 / math.sqrt(1.0 + max(0.0, tree_density - 1.0) * 0.15))
+
+    for c in gen.centers:
+        if c.water or c.ocean or c.biome not in FOREST_BIOMES:
+            continue
+        base_col_info = FOREST_BIOMES[c.biome]
+        base_col = base_col_info[:3]
+        biome_affinity = base_col_info[3]
+
+        elev_norm = min(1.0, max(0.0, c.elevation))
+        # Treeline: altitude falloff above 0.70 elevation
+        alt_factor = 1.0 - max(0.0, (elev_norm - 0.70) / 0.18)
+        if alt_factor <= 0.05:
+            continue
+
+        for _ in range(candidate_count):
+            # Uniform area distribution over the polygon (sqrt for radial Jacobian)
+            angle = rng.uniform(0, 2 * math.pi)
+            rad = math.sqrt(rng.uniform(0.01, 1.0)) * avg_cell_r * 1.30
+            tx = (c.x + math.cos(angle) * rad) * scale_x
+            ty = (c.y + math.sin(angle) * rad) * scale_y
+
+            # Evaluate continuous macro forest noise at world scale
+            noise_val = fbm2d(tx * 0.007, ty * 0.007)
+            # Combine macro noise with biome suitability and altitude
+            potential = (biome_affinity * 0.55 + noise_val * 0.45) * alt_factor
+
+            # Ragged edge fading threshold
+            edge_threshold = 0.42
+            if potential < edge_threshold:
+                continue
+
+            # Normalized edge factor: 0.0 at edge, 1.0 in dense core
+            f_edge = min(1.0, (potential - edge_threshold) / 0.28)
+
+            # Random density fading at perimeter
+            if rng.random() > (0.25 + 0.75 * (f_edge ** 0.8)):
+                continue
+
+            z_sample = sample_mesh_elevation([[tx, ty]])
+            if z_sample is None:
+                continue
+            tz = float(z_sample[0])
+
+            # Edge scale fading: trees at the fringe are smaller saplings/dwarf trees
+            scale_fade = 0.45 + 0.55 * (f_edge ** 0.7)
+            tree_h = rng.uniform(2.6, 5.0) * (1.0 + (height_scale / 100.0) * 0.35) * max(0.65, rad_scale) * scale_fade
+            tree_r = rng.uniform(1.2, 2.2) * rad_scale * scale_fade
+
+            col_var = rng.uniform(0.88, 1.12)
+            tr = min(1.0, base_col[0] * col_var)
+            tg = min(1.0, base_col[1] * col_var)
+            tb = min(1.0, base_col[2] * col_var)
+
+            base_z = tz + tree_h * 0.20
+            apex = (tx, ty, tz + tree_h)
+            corners = [
+                (tx - tree_r, ty - tree_r, base_z),
+                (tx + tree_r, ty - tree_r, base_z),
+                (tx + tree_r, ty + tree_r, base_z),
+                (tx - tree_r, ty + tree_r, base_z),
+            ]
+
+            for i in range(4):
+                c_a = corners[i]
+                c_b = corners[(i + 1) % 4]
+                v1 = (c_a[0] - apex[0], c_a[1] - apex[1], c_a[2] - apex[2])
+                v2 = (c_b[0] - apex[0], c_b[1] - apex[1], c_b[2] - apex[2])
+                nx = v1[1] * v2[2] - v1[2] * v2[1]
+                ny = v1[2] * v2[0] - v1[0] * v2[2]
+                nz = v1[0] * v2[1] - v1[1] * v2[0]
+                nlen = math.hypot(nx, ny, nz)
+                if nlen > 1e-4:
+                    nx /= nlen
+                    ny /= nlen
+                    nz /= nlen
+                else:
+                    nx, ny, nz = 0.0, 0.0, 1.0
+
+                tree_verts.extend([apex[0], apex[1], apex[2], nx, ny, nz, tr, tg, tb, elev_norm])
+                tree_verts.extend([c_a[0], c_a[1], c_a[2], nx, ny, nz, tr, tg, tb, elev_norm])
+                tree_verts.extend([c_b[0], c_b[1], c_b[2], nx, ny, nz, tr, tg, tb, elev_norm])
+
+    return np.array(tree_verts, dtype=np.float32)
+
+
+def build_coastal_surf_ribbon(gen, ribbon_width: float = 18.0):
+    """Generates 3D coastal wave ribbons along discrete island boundary edges.
+    Returns Float32Array with 40-byte vertex stride [x, y, z, nx, ny, nz, r, g, b, coast_dist].
+    """
+    import math
+    scale_x = CANONICAL_WORLD_SIZE / gen.width
+    scale_y = CANONICAL_WORLD_SIZE / gen.height
+    surf_verts = []
+
+    if not hasattr(gen, "edges"):
+        return np.empty((0,), dtype=np.float32)
+
+    for e in gen.edges:
+        if not (e.d0 and e.d1 and e.v0 and e.v1):
+            continue
+        is_coast = (e.d0.water != e.d1.water)
+        if not is_coast:
+            continue
+
+        land_cell = e.d0 if not e.d0.water else e.d1
+        water_cell = e.d1 if not e.d0.water else e.d0
+
+        x0, y0 = e.v0.x * scale_x, e.v0.y * scale_y
+        x1, y1 = e.v1.x * scale_x, e.v1.y * scale_y
+
+        dx = x1 - x0
+        dy = y1 - y0
+        seg_len = math.hypot(dx, dy)
+        if seg_len < 0.1:
+            continue
+
+        cand_nx = -dy / seg_len
+        cand_ny = dx / seg_len
+        to_water_x = (water_cell.x - land_cell.x) * scale_x
+        to_water_y = (water_cell.y - land_cell.y) * scale_y
+        if cand_nx * to_water_x + cand_ny * to_water_y < 0:
+            cand_nx = -cand_nx
+            cand_ny = -cand_ny
+
+        ox0 = x0 + cand_nx * ribbon_width
+        oy0 = y0 + cand_ny * ribbon_width
+        ox1 = x1 + cand_nx * ribbon_width
+        oy1 = y1 + cand_ny * ribbon_width
+
+        z_shore = 0.04
+        z_deep = -0.16
+
+        nx, ny, nz = 0.0, 0.0, 1.0
+
+        foam_r, foam_g, foam_b = 0.95, 0.98, 1.00
+        sea_r, sea_g, sea_b = 0.14, 0.52, 0.68
+
+        # Tri 1
+        surf_verts.extend([x0, y0, z_shore, nx, ny, nz, foam_r, foam_g, foam_b, 0.0])
+        surf_verts.extend([x1, y1, z_shore, nx, ny, nz, foam_r, foam_g, foam_b, 0.0])
+        surf_verts.extend([ox0, oy0, z_deep, nx, ny, nz, sea_r, sea_g, sea_b, 1.0])
+        # Tri 2
+        surf_verts.extend([ox0, oy0, z_deep, nx, ny, nz, sea_r, sea_g, sea_b, 1.0])
+        surf_verts.extend([x1, y1, z_shore, nx, ny, nz, foam_r, foam_g, foam_b, 0.0])
+        surf_verts.extend([ox1, oy1, z_deep, nx, ny, nz, sea_r, sea_g, sea_b, 1.0])
+
+    return np.array(surf_verts, dtype=np.float32)
+
+
+def build_hydro_river_ribbons(gen, sample_mesh_elevation=None, height_scale: float = 70.0, river_width_mult: float = 1.0, river_count: int = 25):
+    """Traces continuous downhill rivers directly along the carved riverbed network
+    and generates watertight 3D water ribbon triangle strips.
+    Returns Float32Array with 40-byte vertex stride [x, y, z, nx, ny, nz, r, g, b, flow_v].
+    """
+    import math
+
+    if not hasattr(gen, "river_paths") or len(gen.river_paths) == 0:
+        return np.empty((0,), dtype=np.float32)
+
+    scale_x = CANONICAL_WORLD_SIZE / gen.width
+    scale_y = CANONICAL_WORLD_SIZE / gen.height
+
+    all_streams = compute_catmull_rom_river_streams(gen, scale_x, scale_y, height_scale, substeps=6)
+    if not all_streams:
+        return np.empty((0,), dtype=np.float32)
+
+    # Extrude watertight 3D water ribbon mesh with strictly monotonic downhill flow
+    river_verts = []
+    base_w = 2.4 * max(0.2, river_width_mult)
+
+    for stream in all_streams:
+        n_pts = len(stream)
+        if n_pts < 2:
+            continue
+
+        cum_dist = 0.0
+        for i in range(n_pts - 1):
+            p0 = stream[i]
+            p1 = stream[i + 1]
+
+            tx = p1[0] - p0[0]
+            ty = p1[1] - p0[1]
+            seg_len = math.hypot(tx, ty)
+            if seg_len < 0.05:
+                continue
+            tx /= seg_len
+            ty /= seg_len
+
+            # Perpendicular bank normal
+            nx_p = -ty
+            ny_p = tx
+
+            # Width increases with flow flux and downstream progression
+            flux0 = p0[3]
+            flux1 = p1[3]
+            t_downstream0 = i / max(1, n_pts - 1)
+            t_downstream1 = (i + 1) / max(1, n_pts - 1)
+            w0 = base_w * (0.8 + 0.35 * math.sqrt(max(1.0, flux0)) + 0.5 * math.sqrt(t_downstream0))
+            w1 = base_w * (0.8 + 0.35 * math.sqrt(max(1.0, flux1)) + 0.5 * math.sqrt(t_downstream1))
+
+            # Left & Right bank points
+            l0_x, l0_y = p0[0] + nx_p * (w0 * 0.5), p0[1] + ny_p * (w0 * 0.5)
+            r0_x, r0_y = p0[0] - nx_p * (w0 * 0.5), p0[1] - ny_p * (w0 * 0.5)
+            l1_x, l1_y = p1[0] + nx_p * (w1 * 0.5), p1[1] + ny_p * (w1 * 0.5)
+            r1_x, r1_y = p1[0] - nx_p * (w1 * 0.5), p1[1] - ny_p * (w1 * 0.5)
+
+            # River water ribbon sits cleanly inside the carved bedrock channel (+0.08 above monotonic water level)
+            z0_surf = max(0.04, p0[2] + 0.08)
+            z1_surf = max(0.04, p1[2] + 0.08)
+
+            # River water is completely pure vibrant blue across its entire length
+            t_stream = i / max(1, n_pts - 1)
+            # Smooth subtle gradient from mountain crystal azure to deep lowland blue
+            r_col = 0.10 * (1.0 - t_stream) + 0.06 * t_stream
+            g_col = 0.54 * (1.0 - t_stream) + 0.42 * t_stream
+            b_col = 0.92 * (1.0 - t_stream) + 0.84 * t_stream
+
+            norm_x, norm_y, norm_z = 0.0, 0.0, 1.0
+            flow0 = cum_dist * 0.05
+            cum_dist += seg_len
+            flow1 = cum_dist * 0.05
+
+            # Quad strip -> 2 triangles
+            river_verts.extend([l0_x, l0_y, z0_surf, norm_x, norm_y, norm_z, r_col, g_col, b_col, flow0])
+            river_verts.extend([r0_x, r0_y, z0_surf, norm_x, norm_y, norm_z, r_col, g_col, b_col, flow0])
+            river_verts.extend([l1_x, l1_y, z1_surf, norm_x, norm_y, norm_z, r_col, g_col, b_col, flow1])
+
+            river_verts.extend([l1_x, l1_y, z1_surf, norm_x, norm_y, norm_z, r_col, g_col, b_col, flow1])
+            river_verts.extend([r0_x, r0_y, z0_surf, norm_x, norm_y, norm_z, r_col, g_col, b_col, flow0])
+            river_verts.extend([r1_x, r1_y, z1_surf, norm_x, norm_y, norm_z, r_col, g_col, b_col, flow1])
+
+    return np.array(river_verts, dtype=np.float32)
 
 
 # ---------------------------------------------------------------------------
@@ -455,6 +782,71 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
         rot_pitch = float(q.get("rot_pitch", [0.0])[0])
         rot_yaw = float(q.get("rot_yaw", [0.0])[0])
 
+        # REGNUM Photorealistic Graphics Knobs
+        show_canopy = q.get("show_canopy", ["true"])[0].lower() in ("true", "1", "yes")
+        canopy_density = float(q.get("canopy_density", [0.85])[0])
+        crown_size = float(q.get("crown_size", [5.0])[0])
+        forest_shadows = q.get("forest_shadows", ["true"])[0].lower() in ("true", "1", "yes")
+        forest_clearings = q.get("forest_clearings", ["true"])[0].lower() in ("true", "1", "yes")
+        riparian_trees = q.get("riparian_trees", ["true"])[0].lower() in ("true", "1", "yes")
+
+        show_ocean_fx = q.get("show_ocean_fx", ["true"])[0].lower() in ("true", "1", "yes")
+        show_wave_ripples = q.get("show_wave_ripples", ["true"])[0].lower() in ("true", "1", "yes")
+        wave_ripples = float(q.get("wave_ripples", [1.0])[0])
+        show_specular_glints = q.get("show_specular_glints", ["true"])[0].lower() in ("true", "1", "yes")
+        specular_glints = float(q.get("specular_glints", [1.0])[0])
+        show_coastal_surf = q.get("show_coastal_surf", ["true"])[0].lower() in ("true", "1", "yes")
+        coastal_surf = float(q.get("coastal_surf", [1.0])[0])
+        shelf_width = float(q.get("shelf_width", [1.0])[0])
+
+        show_beaches = q.get("show_beaches", ["true"])[0].lower() in ("true", "1", "yes")
+        beach_width = float(q.get("beach_width", [1.0])[0])
+        sand_dunes = q.get("sand_dunes", ["true"])[0].lower() in ("true", "1", "yes")
+        show_coastal_cliffs = q.get("show_coastal_cliffs", ["true"])[0].lower() in ("true", "1", "yes")
+        coastal_cliffs = float(q.get("coastal_cliffs", [1.0])[0])
+
+        show_rock_strata = q.get("show_rock_strata", ["true"])[0].lower() in ("true", "1", "yes")
+        rock_strata = float(q.get("rock_strata", [1.0])[0])
+        show_snow_peaks = q.get("show_snow_peaks", ["true"])[0].lower() in ("true", "1", "yes")
+        snow_peaks = float(q.get("snow_peaks", [1.0])[0])
+        snow_altitude = float(q.get("snow_altitude", [0.70])[0])
+
+        show_ground_grain = q.get("show_ground_grain", ["true"])[0].lower() in ("true", "1", "yes")
+        ground_grain = float(q.get("ground_grain", [1.0])[0])
+        show_soil_parcels = q.get("show_soil_parcels", ["true"])[0].lower() in ("true", "1", "yes")
+        soil_parcels = float(q.get("soil_parcels", [1.0])[0])
+        field_filaments = q.get("field_filaments", ["true"])[0].lower() in ("true", "1", "yes")
+
+        carve_rivers = q.get("carve_rivers", ["true"])[0].lower() in ("true", "1", "yes")
+        river_width = float(q.get("river_width", [1.0])[0])
+        estuary_fan = q.get("estuary_fan", ["true"])[0].lower() in ("true", "1", "yes")
+        riparian_turf = q.get("riparian_turf", ["true"])[0].lower() in ("true", "1", "yes")
+
+        show_atmosphere = q.get("show_atmosphere", ["true"])[0].lower() in ("true", "1", "yes")
+        show_cloud_shadows = q.get("show_cloud_shadows", ["true"])[0].lower() in ("true", "1", "yes")
+        cloud_shadows = float(q.get("cloud_shadows", [0.55])[0])
+        show_aerial_haze = q.get("show_aerial_haze", ["true"])[0].lower() in ("true", "1", "yes")
+        aerial_haze = float(q.get("aerial_haze", [0.50])[0])
+        show_split_tone = q.get("show_split_tone", ["true"])[0].lower() in ("true", "1", "yes")
+        split_tone = float(q.get("split_tone", [0.60])[0])
+        vignette = q.get("vignette", ["true"])[0].lower() in ("true", "1", "yes")
+        frame = int(q.get("frame", [0])[0])
+
+        # Geopolitics & Macroeconomics Knobs
+        geo_layer = q.get("geo_layer", ["overview"])[0].lower()
+        num_nations = int(q.get("nations", [3])[0])
+        nation_seed = int(q.get("nation_seed", [777])[0])
+        show_cities = q.get("show_cities", ["true"])[0].lower() in ("true", "1", "yes")
+        show_trade = q.get("show_trade", ["true"])[0].lower() in ("true", "1", "yes")
+        show_provinces = q.get("show_provinces", ["true"])[0].lower() in ("true", "1", "yes")
+        show_outlines = q.get("show_outlines", ["true"])[0].lower() in ("true", "1", "yes")
+        show_resources = q.get("show_resources", ["true"])[0].lower() in ("true", "1", "yes")
+        nation_alpha = float(q.get("nation_alpha", [0.55])[0])
+        selected_cell = int(q.get("selected_cell", [-1])[0])
+
+        canyon_depth = float(q.get("canyon_depth", [1.5])[0])
+        valley_width = float(q.get("valley_width", [1.0])[0])
+
         graph_key = (
             seed,
             shape,
@@ -465,6 +857,8 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
             round(north_temp, 2),
             round(south_temp, 2),
             round(persistence, 2),
+            round(canyon_depth, 2),
+            round(valley_width, 2),
         )
         gen = get_cached_graph(
             seed,
@@ -476,13 +870,15 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
             north_temp=north_temp,
             south_temp=south_temp,
             persistence=persistence,
+            canyon_depth=canyon_depth,
+            valley_width=valley_width,
         )
 
         surf = None
         used_engine = "cpu"
 
         # 1. GPU Pipeline Execution (ModernGL hardware rasterization of CPU mapgen mesh with BRDF)
-        if (engine == "gpu" or mode == "gpu") and is_gpu_ready(0.2):
+        if mode in ("micropolys", "gpu") and (engine == "gpu" or mode == "gpu") and is_gpu_ready(0.2):
             uniforms = {
                 "sun_azimuth": sun_azimuth,
                 "sun_elevation": sun_elevation,
@@ -537,7 +933,7 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
         # 2. CPU Fallback / Alternative Modes (Only execute if surf was not already rendered by GPU)
         if surf is None:
             used_engine = "cpu"
-            if mode in ("micropolys", "gpu") or engine == "cpu":
+            if mode in ("micropolys", "gpu"):
                 triangles, _ = get_cached_micropolys(
                     gen,
                     graph_key,
@@ -572,7 +968,7 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
                     use_brdf=True,
                     use_noisy_edges=True,
                     show_roads=True,
-                    show_lava=True,
+                    show_lava=False,
                     render_micropolys=False,
                 )
 
@@ -638,8 +1034,104 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
                     if e.v0 and e.v1:
                         col = (60, 90, 130) if (e.d0 and e.d0.water and e.d1 and e.d1.water) else (140, 160, 190)
                         pygame.draw.line(surf, col, (e.v0.x, e.v0.y), (e.v1.x, e.v1.y), 1)
-                    if e.d0 and e.d1:
-                        pygame.draw.line(surf, (180, 80, 80), (e.d0.x, e.d0.y), (e.d1.x, e.d1.y), 1)
+            elif mode in ("photorealistic", "regnum", "topographic", "realistic"):
+                used_engine = "regnum-topo"
+                regnum_key = (
+                    id(gen), size,
+                    show_canopy, round(canopy_density, 2), round(crown_size, 1),
+                    forest_shadows, forest_clearings, riparian_trees,
+                    show_ocean_fx, show_wave_ripples, round(wave_ripples, 2),
+                    show_specular_glints, round(specular_glints, 2),
+                    show_coastal_surf, round(coastal_surf, 2), round(shelf_width, 2),
+                    show_beaches, round(beach_width, 2), sand_dunes,
+                    show_coastal_cliffs, round(coastal_cliffs, 2),
+                    show_rock_strata, round(rock_strata, 2),
+                    show_snow_peaks, round(snow_peaks, 2), round(snow_altitude, 2),
+                    show_ground_grain, round(ground_grain, 2),
+                    show_soil_parcels, round(soil_parcels, 2), field_filaments,
+                    carve_rivers, round(river_width, 2), estuary_fan, riparian_turf,
+                    show_atmosphere, show_cloud_shadows, round(cloud_shadows, 2),
+                    show_aerial_haze, round(aerial_haze, 2),
+                    show_split_tone, round(split_tone, 2), vignette,
+                    round(sun_azimuth, 1), round(sun_elevation, 1),
+                    frame
+                )
+                if regnum_key in REGNUM_SURF_CACHE:
+                    surf = REGNUM_SURF_CACHE[regnum_key]
+                else:
+                    surf = render_regnum_terrain(
+                        gen=gen,
+                        width=size,
+                        height=size,
+                        show_canopy=show_canopy,
+                        canopy_density=canopy_density,
+                        crown_size=crown_size,
+                        forest_shadows=forest_shadows,
+                        forest_clearings=forest_clearings,
+                        riparian_trees=riparian_trees,
+                        show_ocean_fx=show_ocean_fx,
+                        show_wave_ripples=show_wave_ripples,
+                        wave_ripples=wave_ripples,
+                        show_specular_glints=show_specular_glints,
+                        specular_glints=specular_glints,
+                        show_coastal_surf=show_coastal_surf,
+                        coastal_surf=coastal_surf,
+                        shelf_width=shelf_width,
+                        show_beaches=show_beaches,
+                        beach_width=beach_width,
+                        sand_dunes=sand_dunes,
+                        show_coastal_cliffs=show_coastal_cliffs,
+                        coastal_cliffs=coastal_cliffs,
+                        show_rock_strata=show_rock_strata,
+                        rock_strata=rock_strata,
+                        show_snow_peaks=show_snow_peaks,
+                        snow_peaks=snow_peaks,
+                        snow_altitude=snow_altitude,
+                        show_ground_grain=show_ground_grain,
+                        ground_grain=ground_grain,
+                        show_soil_parcels=show_soil_parcels,
+                        soil_parcels=soil_parcels,
+                        field_filaments=field_filaments,
+                        carve_rivers=carve_rivers,
+                        river_width=river_width,
+                        estuary_fan=estuary_fan,
+                        riparian_turf=riparian_turf,
+                        show_atmosphere=show_atmosphere,
+                        show_cloud_shadows=show_cloud_shadows,
+                        cloud_shadows=cloud_shadows,
+                        show_aerial_haze=show_aerial_haze,
+                        aerial_haze=aerial_haze,
+                        show_split_tone=show_split_tone,
+                        split_tone=split_tone,
+                        vignette=vignette,
+                        sun_azimuth=sun_azimuth,
+                        sun_elevation=sun_elevation,
+                        frame=frame,
+                    )
+                    if len(REGNUM_SURF_CACHE) >= MAX_CACHE_ENTRIES:
+                        REGNUM_SURF_CACHE.pop(next(iter(REGNUM_SURF_CACHE)))
+                    REGNUM_SURF_CACHE[regnum_key] = surf
+
+            elif mode == "geopolitics":
+                tiles, nations = get_cached_geopolitics(
+                    gen, seed, num_nations=num_nations, nation_seed=nation_seed
+                )
+                surf = render_voronoi_geopolitics(
+                    gen=gen,
+                    tiles=tiles,
+                    nations=nations,
+                    width=size,
+                    height=size,
+                    layer_mode=geo_layer,
+                    show_cities=show_cities,
+                    show_trade_routes=show_trade,
+                    show_provinces=show_provinces,
+                    show_cell_outlines=show_outlines,
+                    show_resources=show_resources,
+                    nation_alpha=nation_alpha,
+                    selected_cell_index=selected_cell if selected_cell >= 0 else None,
+                    frame=int(time.time() * 10) % 100,
+                )
 
             else:
                 # Guaranteed non-black fallback for any unknown mode
@@ -704,6 +1196,11 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
         ridge_noise = float(q.get("ridge_noise", [0.35])[0])
         erosion_strength = float(q.get("erosion_strength", [0.30])[0])
         erosion_droplets = int(q.get("erosion_droplets", [15000])[0])
+        tree_density = float(q.get("tree_density", [1.0])[0])
+        wave_intensity = float(q.get("wave_intensity", [1.0])[0])
+        river_width = float(q.get("river_width", [1.0])[0])
+        canyon_depth = float(q.get("canyon_depth", [1.5])[0])
+        valley_width = float(q.get("valley_width", [1.0])[0])
         size = int(q.get("size", [1024])[0])
 
         graph_key = (
@@ -716,6 +1213,8 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
             round(north_temp, 2),
             round(south_temp, 2),
             round(persistence, 2),
+            round(canyon_depth, 2),
+            round(valley_width, 2),
         )
         gen = get_cached_graph(
             seed,
@@ -727,6 +1226,8 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
             north_temp=north_temp,
             south_temp=south_temp,
             persistence=persistence,
+            canyon_depth=canyon_depth,
+            valley_width=valley_width,
         )
 
         triangles, _ = get_cached_micropolys(
@@ -772,91 +1273,27 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
             # Add small vertical bias (+0.08 units in 1024-world) to sit right on bed without z-fighting
             return np.maximum(0.0, z_vals) + 0.08
 
-        # Extract river vector lines in canonical world coordinates
-        river_coords = []
-        if hasattr(gen, "edges") and gen.noisy_edges:
-            scale_x = CANONICAL_WORLD_SIZE / gen.width
-            scale_y = CANONICAL_WORLD_SIZE / gen.height
-            for e in gen.edges:
-                if e.river > 0 and e.v0 and e.v1:
-                    if (e.d0 and e.d1 and e.d0.water and e.d1.water):
-                        continue
-                    if (getattr(e.v0, "ocean", False) and getattr(e.v1, "ocean", False)):
-                        continue
+        # Continuous Steepest-Descent 3D Water Ribbon Meshes
+        river_arr = build_hydro_river_ribbons(
+            gen, sample_mesh_elevation, height_scale,
+            river_width_mult=river_width, river_count=rivers
+        )
+        lava_arr = np.empty((0,), dtype=np.float32)
 
-                    # Consistent flow direction: upstream (higher elevation) -> downstream (lower elevation)
-                    if e.v0.elevation >= e.v1.elevation:
-                        upstream, downstream = e.v0, e.v1
-                    else:
-                        upstream, downstream = e.v1, e.v0
+        # 3D Low-Poly Trees on Forest Cells
+        tree_arr = build_micropoly_trees(gen, sample_mesh_elevation, height_scale, tree_density)
 
-                    pts = gen.noisy_edges.get_edge_path(e, start_corner=upstream)
-                    n_p = len(pts)
-                    if n_p >= 2:
-                        pts_xy = [[pt[0] * scale_x, pt[1] * scale_y] for pt in pts]
-                        z_sampled = sample_mesh_elevation(pts_xy)
-                        if z_sampled is not None:
-                            z_vals = np.array(z_sampled, dtype=np.float32)
-                            z_start_corner = float(upstream.elevation * height_scale)
-                            z_end_corner = float(downstream.elevation * height_scale)
-
-                            z_start = max(z_vals[0], z_start_corner * 0.5)
-                            z_end = min(z_vals[-1], z_end_corner)
-                            if z_end > z_start:
-                                z_end = z_start * 0.95
-
-                            t = np.linspace(0.0, 1.0, n_p, dtype=np.float32)
-                            z_linear = z_start * (1.0 - t) + z_end * t
-                            z_vals = np.minimum(z_vals, z_linear + 0.05)
-                            z_vals[0] = z_start
-                            z_vals[-1] = z_end
-
-                            # Strictly non-increasing elevation along the downhill flow path
-                            for i in range(1, n_p):
-                                if z_vals[i] > z_vals[i - 1]:
-                                    z_vals[i] = z_vals[i - 1]
-
-                            for i in range(n_p - 1):
-                                river_coords.extend([pts_xy[i][0], pts_xy[i][1], float(z_vals[i]),
-                                                    pts_xy[i+1][0], pts_xy[i+1][1], float(z_vals[i+1])])
-                        else:
-                            z0 = float(upstream.elevation * height_scale)
-                            z1 = float(downstream.elevation * height_scale)
-                            for i in range(n_p - 1):
-                                t_a = i / (n_p - 1)
-                                t_b = (i + 1) / (n_p - 1)
-                                za = z0 * (1.0 - t_a) + z1 * t_a + 0.35
-                                zb = z0 * (1.0 - t_b) + z1 * t_b + 0.35
-                                river_coords.extend([pts_xy[i][0], pts_xy[i][1], za,
-                                                    pts_xy[i+1][0], pts_xy[i+1][1], zb])
-        river_arr = np.array(river_coords, dtype=np.float32)
-
-        # Extract lava fissure lines in canonical world coordinates
-        lava_coords = []
-        if hasattr(gen, "edges"):
-            scale_x = CANONICAL_WORLD_SIZE / gen.width
-            scale_y = CANONICAL_WORLD_SIZE / gen.height
-            for e in gen.edges:
-                if getattr(e, "lava", False) and e.v0 and e.v1:
-                    pts_xy = [[e.v0.x * scale_x, e.v0.y * scale_y],
-                              [e.v1.x * scale_x, e.v1.y * scale_y]]
-                    z_sampled = sample_mesh_elevation(pts_xy)
-                    if z_sampled is not None:
-                        lava_coords.extend([pts_xy[0][0], pts_xy[0][1], float(z_sampled[0]),
-                                            pts_xy[1][0], pts_xy[1][1], float(z_sampled[1])])
-                    else:
-                        z0 = float(getattr(e.v0, "elevation", 0.0) * height_scale) + 0.35
-                        z1 = float(getattr(e.v1, "elevation", 0.0) * height_scale) + 0.35
-                        lava_coords.extend([pts_xy[0][0], pts_xy[0][1], z0,
-                                            pts_xy[1][0], pts_xy[1][1], z1])
-        lava_arr = np.array(lava_coords, dtype=np.float32)
+        # 3D Coastal Wave Ribbons along Island Boundary Edges
+        surf_arr = build_coastal_surf_ribbon(gen, ribbon_width=18.0 * wave_intensity)
 
         n_verts = len(vbo_data)
-        n_river = len(river_arr) // 3
+        n_river = len(river_arr) // 10
         n_lava = len(lava_arr) // 3
+        n_tree = len(tree_arr) // 10
+        n_surf = len(surf_arr) // 10
 
-        hdr = struct.pack('<4sIIfII', b'MMSH', 1, n_verts, float(max_z), n_river, n_lava)
-        raw_payload = hdr + vbo_data.tobytes() + river_arr.tobytes() + lava_arr.tobytes()
+        hdr = struct.pack('<4sIIfIIII', b'MMSH', 2, n_verts, float(max_z), n_river, n_lava, n_tree, n_surf)
+        raw_payload = hdr + vbo_data.tobytes() + river_arr.tobytes() + lava_arr.tobytes() + tree_arr.tobytes() + surf_arr.tobytes()
 
         accept_enc = self.headers.get("Accept-Encoding", "")
         dur_ms = (time.time() - t0) * 1000.0
@@ -928,6 +1365,26 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
             "is_ocean": center.ocean,
             "is_coast": center.coast,
         }
+
+        # Geopolitics inspection metadata
+        num_nations = int(q.get("nations", [3])[0])
+        nation_seed = int(q.get("nation_seed", [777])[0])
+        try:
+            tiles, nations = get_cached_geopolitics(gen, seed, num_nations=num_nations, nation_seed=nation_seed)
+            if hasattr(center, "region") and center.region:
+                r = center.region
+                owner = getattr(r, "owner_nation", None)
+                res["nation"] = owner.name if owner else "Wilderness"
+                res["city"] = getattr(r, "display_name", getattr(r, "city_name", r.name))
+                res["is_capital"] = getattr(r, "is_national_capital", False)
+                res["is_prov_capital"] = getattr(r, "is_provincial_capital", False)
+                res["population"] = len(r.agents) if getattr(r, "agents", None) else getattr(r, "wilderness_pop", 0)
+                res["resources"] = [str(item.value if hasattr(item, "value") else item) for item in getattr(r, "natural_resources", set())]
+                if owner and hasattr(r, "recipes") and Goods.food in r.recipes:
+                    res["food_price"] = round(r.recipes[Goods.food]["price"], 2)
+        except Exception as e:
+            sys.stderr.write(f"Inspect geopolitics error: {e}\n")
+
         self.send_json(res)
 
     def handle_export_usdz(self, q: Dict[str, list]):

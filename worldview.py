@@ -249,6 +249,20 @@ def main():
     parser.add_argument('--terrain-seed', type=int, default=None, help='Procedural heightmap terrain seed')
     parser.add_argument('--nation-seed', type=int, default=None, help='Starting nations selection and placement seed')
     args = parser.parse_args()
+    if args.seed is None and args.terrain_seed is None:
+        slot_1_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "saved_slots", "slot_1.json")
+        if os.path.exists(slot_1_file):
+            try:
+                import json
+                with open(slot_1_file, "r", encoding="utf-8") as f:
+                    s_data = json.load(f).get("state", {})
+                    if "seed" in s_data:
+                        args.seed = int(s_data["seed"])
+                        args.terrain_seed = args.seed
+                    if "nation_seed" in s_data and args.nation_seed is None:
+                        args.nation_seed = int(s_data["nation_seed"])
+            except Exception:
+                pass
     logInit()
     pygame.init()
     surface = pygame.display.set_mode((WIDTH, HEIGHT))

@@ -227,3 +227,98 @@ def _offset_dist(a, b):
     qa, ra = offset_to_axial(a[1], a[0])
     qb, rb = offset_to_axial(b[1], b[0])
     return hex_distance((qa, ra), (qb, rb))
+
+
+def partition_contiguous_graph(nodes, neighbors_func, nparts: int, rng=None, pos_func=None):
+    """Split a contiguous set of arbitrary graph *nodes* into *nparts* contiguous subclusters
+    with balanced sizes using shortest-path BFS graph distances.
+
+    *nodes*: list of node objects (or IDs).
+    *neighbors_func*: callable(node) -> iterable of neighbor nodes.
+    *pos_func*: optional callable(node) -> (x, y) for Euclidean tie-breaking.
+    """
+    import random as _random
+    rng = rng if rng is not None else _random
+    node_list = list(nodes)
+    if nparts <= 1 or len(node_list) < nparts:
+        return [node_list]
+
+    node_set = set(node_list)
+    # Compute all-pairs shortest path BFS within node_set
+    from collections import deque
+    dist_map = {}
+    for src in node_list:
+        dist_map[src] = {src: 0}
+        q = deque([src])
+        while q:
+            curr = q.popleft()
+            d = dist_map[src][curr]
+            for nbr in neighbors_func(curr):
+                if nbr in node_set and nbr not in dist_map[src]:
+                    dist_map[src][nbr] = d + 1
+                    q.append(nbr)
+
+    def get_d(u, v):
+        d = dist_map.get(u, {}).get(v, 9999)
+        if d >= 9999 and pos_func is not None:
+            p1 = pos_func(u)
+            p2 = pos_func(v)
+            return 100.0 + ((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2)**0.5
+        return d
+
+    # 1. Farthest pair for the first two seeds
+    best_pair, best_d = None, -1.0
+    for i in range(len(node_list)):
+        for j in range(i + 1, len(node_list)):
+            d = get_d(node_list[i], node_list[j])
+            if d > best_d:
+                best_d = d
+                best_pair = (node_list[i], node_list[j])
+
+    if best_pair is None:
+        return [node_list]
+
+    seeds = [best_pair[0], best_pair[1]]
+    # 2. Additional seeds (nparts > 2): greedy max-min distance from seeds
+    while len(seeds) < nparts and len(seeds) < len(node_list):
+        best_cand = None
+        best_min_d = -1
+        for cand in node_list:
+            if cand in seeds:
+                continue
+            d = min(get_d(cand, s) for s in seeds)
+            if d > best_min_d:
+                best_min_d = d
+                best_cand = cand
+        if best_cand is not None:
+            seeds.append(best_cand)
+        else:
+            break
+
+    # 3. Balanced BFS growth: round-robin over parts, assigning adjacent unassigned nodes
+    parts = [[s] for s in seeds]
+    remaining = set(node_list) - set(seeds)
+    ri = 0
+    while remaining:
+        pi = ri % len(parts)
+        part = parts[pi]
+        part_set = set(part)
+        # Find remaining nodes adjacent to this part
+        adjacent_cands = []
+        for cand in remaining:
+            nbrs = neighbors_func(cand)
+            if any(nbr in part_set for nbr in nbrs):
+                adjacent_cands.append(cand)
+
+        if adjacent_cands:
+            best_cell = min(adjacent_cands, key=lambda c: min(get_d(c, m) for m in part))
+        else:
+            # Fallback to closest remaining node
+            best_cell = min(remaining, key=lambda c: min(get_d(c, m) for m in part))
+
+        parts[pi].append(best_cell)
+        remaining.remove(best_cell)
+        ri += 1
+
+    return parts
+

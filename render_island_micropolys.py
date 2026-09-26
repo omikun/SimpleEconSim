@@ -84,6 +84,70 @@ def procedural_ridged_elevation(x, y, base_elevation, seed=42, amplitude=1.0, ri
 
 
 
+def compute_catmull_rom_river_streams(gen, scale_x: float, scale_y: float, elev_scale: float, substeps: int = 6) -> List[List[List[float]]]:
+    """
+    Computes smooth, monotonic downhill Catmull-Rom spline curves for all river paths.
+    Returns: List of streams, where each stream is a list of [x, y, z_mono, flux].
+    Both micropoly valley carving and 3D water ribbon extrusion share this exact geometry.
+    """
+    if not hasattr(gen, "river_paths") or not gen.river_paths:
+        return []
+
+    streams = []
+    for path in gen.river_paths:
+        if len(path) < 2:
+            continue
+
+        raw_pts = []
+        for p in path:
+            raw_pts.append((p[0] * scale_x, p[1] * scale_y, p[2] * elev_scale, p[3]))
+
+        n_raw = len(raw_pts)
+        # Compute strictly monotonic downstream elevation baseline along raw control corners
+        z_raw_mono = [max(0.04 + (n_raw - 1) * 0.01, raw_pts[0][2])]
+        for k in range(1, n_raw):
+            n_rem = n_raw - 1 - k
+            min_allowable = 0.04 + n_rem * 0.005
+            z_raw_mono.append(max(min_allowable, min(z_raw_mono[k - 1] - 0.005, raw_pts[k][2])))
+
+        # Catmull-Rom spline interpolation
+        stream_pts = []
+        for i in range(n_raw - 1):
+            p0 = raw_pts[max(0, i - 1)]
+            p1 = raw_pts[i]
+            p2 = raw_pts[i + 1]
+            p3 = raw_pts[min(n_raw - 1, i + 2)]
+
+            z0 = z_raw_mono[max(0, i - 1)]
+            z1 = z_raw_mono[i]
+            z2 = z_raw_mono[i + 1]
+            z3 = z_raw_mono[min(n_raw - 1, i + 2)]
+
+            steps = substeps if i < n_raw - 2 else substeps + 1
+            for s in range(steps if i > 0 else steps + 1):
+                t = s / float(steps)
+                t2 = t * t
+                t3 = t2 * t
+
+                qx = 0.5 * ((2.0 * p1[0]) + (-p0[0] + p2[0]) * t + (2.0 * p0[0] - 5.0 * p1[0] + 4.0 * p2[0] - p3[0]) * t2 + (-p0[0] + 3.0 * p1[0] - 3.0 * p2[0] + p3[0]) * t3)
+                qy = 0.5 * ((2.0 * p1[1]) + (-p0[1] + p2[1]) * t + (2.0 * p0[1] - 5.0 * p1[1] + 4.0 * p2[1] - p3[1]) * t2 + (-p0[1] + 3.0 * p1[1] - 3.0 * p2[1] + p3[1]) * t3)
+                qz = 0.5 * ((2.0 * z1) + (-z0 + z2) * t + (2.0 * z0 - 5.0 * z1 + 4.0 * z2 - z3) * t2 + (-z0 + 3.0 * z1 - 3.0 * z2 + z3) * t3)
+                q_flux = (1.0 - t) * p1[3] + t * p2[3]
+
+                stream_pts.append([qx, qy, qz, q_flux])
+
+        if len(stream_pts) >= 2:
+            n_spl = len(stream_pts)
+            for k in range(1, n_spl):
+                n_rem_spl = n_spl - 1 - k
+                min_allow = 0.04 + n_rem_spl * 0.001
+                stream_pts[k][2] = max(min_allow, min(stream_pts[k - 1][2] - 0.001, stream_pts[k][2]))
+            stream_pts[-1][2] = 0.04
+            streams.append(stream_pts)
+
+    return streams
+
+
 def build_island_mesh(
     gen: PolygonMapGenerator,
     width: int = 1000,
@@ -146,6 +210,65 @@ def build_island_mesh(
 
     coast_tree = cKDTree(coastline_pts) if coastline_pts else None
 
+    # Continuous Catmull-Rom River Network KDTree for 3D physical valley & canyon carving
+    river_streams = compute_catmull_rom_river_streams(gen, scale_x, scale_y, elev_scale, substeps=6)
+
+    dense_riv_pts = []
+    dense_riv_z = []
+    dense_riv_flux = []
+    for stream in river_streams:
+        n_st = len(stream)
+        for k in range(n_st - 1):
+            p0 = stream[k]
+            p1 = stream[k + 1]
+            seg_len = math.hypot(p1[0] - p0[0], p1[1] - p0[1])
+            n_sub = max(1, int(math.ceil(seg_len / 1.2)))
+            for s in range(n_sub):
+                t_s = s / float(n_sub)
+                dense_riv_pts.append([p0[0] * (1.0 - t_s) + p1[0] * t_s, p0[1] * (1.0 - t_s) + p1[1] * t_s])
+                dense_riv_z.append(p0[2] * (1.0 - t_s) + p1[2] * t_s)
+                dense_riv_flux.append(p0[3] * (1.0 - t_s) + p1[3] * t_s)
+        dense_riv_pts.append([stream[-1][0], stream[-1][1]])
+        dense_riv_z.append(stream[-1][2])
+        dense_riv_flux.append(stream[-1][3])
+
+    river_kdtree = cKDTree(dense_riv_pts) if dense_riv_pts else None
+    dense_riv_z_arr = np.array(dense_riv_z, dtype=np.float64) if dense_riv_z else None
+    dense_riv_flux_arr = np.array(dense_riv_flux, dtype=np.float64) if dense_riv_flux else None
+
+    canyon_depth_param = float(getattr(gen, "canyon_depth", 1.5))
+    valley_width_param = float(getattr(gen, "valley_width", 1.0))
+    river_width_param = float(getattr(gen, "river_width", 1.0))
+
+    w_bed_base = 6.4 * max(0.4, river_width_param)
+    w_val_base = max(w_bed_base + 6.0, 18.0 * valley_width_param)
+
+    def carve_continuous_valley(pt_x, pt_y, z_val, coast_dist=999.0):
+        if river_kdtree is None or coast_dist <= 0.05:
+            return z_val
+        d_riv, r_idx = river_kdtree.query([pt_x, pt_y])
+        if d_riv > w_val_base * 1.6:
+            return z_val
+
+        r_z = dense_riv_z_arr[r_idx]
+        r_flux = dense_riv_flux_arr[r_idx]
+        flux_w = math.sqrt(max(1.0, r_flux))
+        w_bed = w_bed_base * (0.8 + 0.35 * flux_w)
+        w_val = w_val_base * (0.8 + 0.35 * flux_w)
+
+        # River channel bed: depression beneath water level so water rests in channel
+        bed_drop = min(6.0, (0.65 + 0.45 * canyon_depth_param) * (0.8 + 0.4 * flux_w))
+        z_bed = max(0.0, r_z - bed_drop)
+
+        if d_riv <= w_bed:
+            return min(z_val, z_bed)
+        if d_riv <= w_val:
+            t = (d_riv - w_bed) / (w_val - w_bed)
+            s = t * t * (3.0 - 2.0 * t)
+            z_wall = z_bed + s * max(0.0, z_val - z_bed)
+            return min(z_val, z_wall)
+        return z_val
+
     COAST_TRANSITION_WIDTH = 32.0  # units (~1.0 - 1.2 Voronoi cell radius)
 
     def calc_coastal_envelope(dist):
@@ -162,7 +285,11 @@ def build_island_mesh(
     COLOR_GOLDEN_SAND = np.array([214, 198, 152], dtype=np.float64)
     COLOR_DUNE_SAND = np.array([192, 188, 142], dtype=np.float64)
 
-    def calc_vertex_color(x, y, z, dist, base_col, is_beach_cell=False):
+    def calc_vertex_color(x, y, z, dist, base_col, is_beach_cell=False, is_river=False):
+        if is_river:
+            # Riverbed and carved valley stays river channel base color, not turned into beach sand
+            return base_col
+
         # High-frequency procedural sand ripple & shoreline undulation noise
         fx = x * 0.08 + gen.seed * 0.13
         fy = y * 0.08 + gen.seed * 0.27
@@ -233,6 +360,7 @@ def build_island_mesh(
             return idx
 
         base_triangles = []
+        max_river_flux = max((e.river for e in gen.edges), default=1)
 
         for edge in gen.edges:
             d0, d1 = edge.d0, edge.d1
@@ -291,12 +419,11 @@ def build_island_mesh(
                     if adj_v1:
                         z_v1 += elevation_alpha * (max(adj_v1) - min(adj_v1)) * 0.5 * env_v1
 
-            # River channel bed carving for physical valleys (cannot carve below sea level 0.0)
-            if edge.river > 0 and not is_ocean_coast:
-                if not (v0.ocean or v0.coast) and dist_v0 > 0.05:
-                    z_v0 = max(0.0, z_v0 - min(3.5, edge.river * 0.75) * env_v0)
-                if not (v1.ocean or v1.coast) and dist_v1 > 0.05:
-                    z_v1 = max(0.0, z_v1 - min(3.5, edge.river * 0.75) * env_v1)
+            # Continuous physical river valley & canyon bed carving
+            z_v0 = carve_continuous_valley(v0.x * scale_x, v0.y * scale_y, z_v0, dist_v0)
+            z_v1 = carve_continuous_valley(v1.x * scale_x, v1.y * scale_y, z_v1, dist_v1)
+            z_d0 = carve_continuous_valley(d0.x * scale_x, d0.y * scale_y, z_d0, dist_d0)
+            z_d1 = carve_continuous_valley(d1.x * scale_x, d1.y * scale_y, z_d1, dist_d1)
 
             p_v0 = np.array([v0.x * scale_x, v0.y * scale_y, z_v0], dtype=np.float64)
             p_v1 = np.array([v1.x * scale_x, v1.y * scale_y, z_v1], dtype=np.float64)
@@ -313,8 +440,8 @@ def build_island_mesh(
                 col1 = col1 * 0.70 + col0 * 0.30
 
             if edge.river > 0:
-                col0 = col0 * 0.75 + np.array([40, 105, 35], dtype=np.float64) * 0.25
-                col1 = col1 * 0.75 + np.array([40, 105, 35], dtype=np.float64) * 0.25
+                col0 = col0 * 0.75 + np.array([35, 115, 210], dtype=np.float64) * 0.25
+                col1 = col1 * 0.75 + np.array([35, 115, 210], dtype=np.float64) * 0.25
 
             idx_d0 = get_or_add_vertex(p_d0, is_fixed=(d0.water or dist_d0 <= 0.05), dist=dist_d0, base_col=col0, is_beach=is_b0)
             idx_d1 = get_or_add_vertex(p_d1, is_fixed=(d1.water or dist_d1 <= 0.05), dist=dist_d1, base_col=col1, is_beach=is_b1)
@@ -406,6 +533,7 @@ def build_island_mesh(
                     rdg_val = procedural_ridged_elevation(mid[0], mid[1], mid_norm_elev, gen.seed, amplitude=elev_scale / 45.0, ridge_roughness=ridge_noise) * (decay * 0.5) * mid_env
                     disp_z = (rng.uniform(-0.35, 0.35) * roughness * (length / 24.0) + fbm_val + rdg_val) * mid_env
                     mid[2] = max(0.0, (0.70 * base_h + 0.30 * mid[2] + disp_z) * mid_env)
+                    mid[2] = carve_continuous_valley(mid[0], mid[1], mid[2], mid_dist)
 
             idx_mid = len(vertices)
             vertices.append(mid)
@@ -463,6 +591,7 @@ def build_island_mesh(
                     new_z = (1.0 - relax_weight * 1.5) * vertices[v_idx][2] + (relax_weight * 1.5) * neighbor_z_mean
                     new_z += rng.uniform(-0.5, 0.5) * (roughness * 0.15 * (0.65 ** depth)) * v_env
                     vertices[v_idx][2] = max(0.0, new_z)
+                    vertices[v_idx][2] = carve_continuous_valley(vertices[v_idx][0], vertices[v_idx][1], vertices[v_idx][2], v_dist)
 
             depth += 1
             if len(triangles_idx) >= target_polys:
@@ -531,10 +660,16 @@ def build_island_mesh(
             tri_dist = (vertex_coast_dist.get(i_a, 999.0) + vertex_coast_dist.get(i_b, 999.0) + vertex_coast_dist.get(i_c, 999.0)) / 3.0
             tri_is_beach = vertex_is_beach.get(i_a, False) or vertex_is_beach.get(i_b, False) or vertex_is_beach.get(i_c, False)
 
-            base_c = (vertex_base_color.get(i_a, col_base) + vertex_base_color.get(i_b, col_base) + vertex_base_color.get(i_c, col_base)) / 3.0
-            tri_col = calc_vertex_color(tri_mid_x, tri_mid_y, tri_mid_z, tri_dist, base_c, is_beach_cell=tri_is_beach)
+            tri_is_riv = is_riv
+            if river_kdtree is not None:
+                d_riv_mid, _ = river_kdtree.query([tri_mid_x, tri_mid_y])
+                if d_riv_mid <= w_bed_base * 1.3:
+                    tri_is_riv = True
 
-            final_triangles.append((pa, pb, pc, tri_col, avg_elev, is_riv, area, blended_norm))
+            base_c = (vertex_base_color.get(i_a, col_base) + vertex_base_color.get(i_b, col_base) + vertex_base_color.get(i_c, col_base)) / 3.0
+            tri_col = calc_vertex_color(tri_mid_x, tri_mid_y, tri_mid_z, tri_dist, base_c, is_beach_cell=tri_is_beach, is_river=tri_is_riv)
+
+            final_triangles.append((pa, pb, pc, tri_col, avg_elev, tri_is_riv, area, blended_norm))
 
         return final_triangles, len(final_triangles)
 

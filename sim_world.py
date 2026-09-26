@@ -117,7 +117,7 @@ def make_wilderness(name):
     return Region(name, t=0, wilderness=True)
 
 
-def build_world(seed=None, terrain_seed=None, nation_seed=None):
+def build_world_hex(seed=None, terrain_seed=None, nation_seed=None):
     """Build the 9x9 hex world and return (tiles, nations, grid).
 
     grid: list of lists (rows x cols) of the same Region objects as *tiles*,
@@ -506,6 +506,15 @@ def build_world(seed=None, terrain_seed=None, nation_seed=None):
     assign_world_identities(tiles, nations, seed=nation_seed)
 
     return tiles, nations, grid
+
+
+def build_world(seed=None, terrain_seed=None, nation_seed=None):
+    """Polymorphic world builder respecting world_config.MAP_TOPOLOGY."""
+    from world_config import is_voronoi_topology
+    if is_voronoi_topology():
+        from sim_world_voronoi import build_world_voronoi
+        return build_world_voronoi(seed=seed, terrain_seed=terrain_seed, nation_seed=nation_seed)
+    return build_world_hex(seed=seed, terrain_seed=terrain_seed, nation_seed=nation_seed)
 
 
 

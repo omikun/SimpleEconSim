@@ -31,7 +31,18 @@ def build_world_view(seed=None, terrain_seed=None, nation_seed=None):
     from world_names import assign_world_identities
     assign_world_identities(tiles, nations, seed=nation_seed)
     currencies = [n.currency for n in nations]
-    layout = get_layout()
+    from world_config import is_voronoi_topology, VORONOI_WIDTH, VORONOI_HEIGHT
+    if is_voronoi_topology():
+        layout = {t.name: getattr(t, 'centroid', (0.0, 0.0)) for t in tiles}
+        reverse = {}
+        bbox = (0.0, 0.0, VORONOI_WIDTH, VORONOI_HEIGHT)
+        gen = _grid
+    else:
+        layout = get_layout()
+        reverse = get_reverse_layout()
+        bbox = hex_bbox(layout, HEX_SIZE)
+        gen = None
+
     pair_orders = [(r, o) for r in tiles for o in tiles if o is not r
                    and r.neighbors.get(o.name) is not None
                    and not getattr(o, 'wilderness', False)]
@@ -43,8 +54,9 @@ def build_world_view(seed=None, terrain_seed=None, nation_seed=None):
         'pair_orders': pair_orders,
         'by_name': by_name,
         'layout': layout,
-        'reverse': get_reverse_layout(),
-        'bbox': hex_bbox(layout, HEX_SIZE),
+        'reverse': reverse,
+        'bbox': bbox,
+        'gen': gen,
         'cam': {'ox': 0.0, 'oy': 0.0, 'zoom': 1.0},
         'selected_region': None,
         'turn': 0,

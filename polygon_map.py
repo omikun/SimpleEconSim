@@ -28,6 +28,7 @@ from __future__ import annotations
 import math
 import random
 import time
+import heapq
 from collections import deque
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from dataclasses import dataclass, field
@@ -375,7 +376,7 @@ class PolygonMapGenerator:
         enable_corner_improvement: bool = True,
         enable_watersheds: bool = True,
         enable_roads: bool = True,
-        enable_lava: bool = True,
+        enable_lava: bool = False,
         enable_noisy_edges: bool = True,
         noisy_tradeoff: float = 0.30,
         mountain_sharpness: float = 1.0,
@@ -383,6 +384,9 @@ class PolygonMapGenerator:
         north_temperature: float = 0.0,
         south_temperature: float = 0.0,
         persistence: float = 0.0,
+        canyon_depth: float = 1.5,
+        valley_width: float = 1.0,
+        **kwargs,
     ):
         self.seed = seed
         self.width = float(width)
@@ -402,6 +406,9 @@ class PolygonMapGenerator:
         self.north_temperature = float(north_temperature)
         self.south_temperature = float(south_temperature)
         self.persistence = float(persistence)
+        self.canyon_depth = float(canyon_depth)
+        self.valley_width = float(valley_width)
+        self.river_paths: List[List[Tuple[float, float, float, float]]] = []
 
         self.rng = random.Random(seed)
         self.np_rng = np.random.default_rng(seed)
@@ -738,7 +745,45 @@ class PolygonMapGenerator:
                 x = min(1.0, max(0.001, x))
                 if self.mountain_sharpness != 1.0 and x > 0.0:
                     x = x ** self.mountain_sharpness
+
+                # Procedural Mountain Ridges and Valleys:
+                # Modulate initial elevation with coherent ridge and valley harmonics so terrain
+                # has authentic peaks, passes, and valleys. Downhill priority-flood will then
+                # naturally route rivers down through valleys and passes around hills.
+                nx = (cn.x / self.width) * 2.0 - 1.0
+                ny = (cn.y / self.height) * 2.0 - 1.0
+                fx = (nx + 1.2) * 2.6
+                fy = (ny + 1.2) * 2.6
+                r_ridge = abs(math.sin(fx * 2.3 + self.seed * 0.17) * math.cos(fy * 2.3 - self.seed * 0.23))
+                r_hill = 0.5 * (math.sin(fx * 4.6 + 1.3) * math.cos(fy * 4.8 - 0.7) + 1.0)
+                valley_weight = 0.60 * r_ridge + 0.40 * r_hill
+                inland_factor = min(1.0, x * 2.5)
+                x = x * (0.65 + 0.70 * valley_weight * inland_factor)
                 cn.elevation = min(1.0, max(0.001, x))
+
+        # Planchon-Darboux Priority-Flood Breaching:
+        # Guarantees EVERY single land corner has a strictly downhill downslope to the ocean!
+        pqueue: List[Tuple[float, int, Corner]] = []
+        visited: Set[int] = set()
+
+        for cn in self.corners:
+            if cn.ocean:
+                cn.elevation = 0.0
+                cn.downslope = None
+                heapq.heappush(pqueue, (0.0, cn.index, cn))
+                visited.add(cn.index)
+
+        EPS = 0.001
+        while pqueue:
+            elev_u, _, u = heapq.heappop(pqueue)
+            for v in u.adjacent:
+                if v.index not in visited:
+                    visited.add(v.index)
+                    # Enforce strict downhill flow from v down into u
+                    if v.elevation <= u.elevation:
+                        v.elevation = u.elevation + EPS
+                    v.downslope = u  # u is strictly lower than v and drains to ocean
+                    heapq.heappush(pqueue, (v.elevation, v.index, v))
 
         # Assign center elevation as mean of its corners
         for c in self.centers:
@@ -749,64 +794,90 @@ class PolygonMapGenerator:
             else:
                 c.elevation = 0.1
 
-        # Calculate downslopes: for every corner, find adjacent corner with steepest downhill slope
-        for cn in self.corners:
-            if cn.ocean:
-                cn.downslope = None
-                continue
-            lowest = cn
-            for adj in cn.adjacent:
-                if adj.elevation < lowest.elevation:
-                    lowest = adj
-            if lowest == cn:
-                # Fallback tiebreaker: adjacent ocean or neighbor with valid downslope
-                for adj in cn.adjacent:
-                    if adj.ocean:
-                        lowest = adj
-                        break
-                    if adj.downslope and adj.downslope != cn and adj.elevation <= cn.elevation:
-                        lowest = adj
-                        break
-            cn.downslope = lowest if lowest != cn else None
-
     # -----------------------------------------------------------------------
-    # Step 4: Hydrology & River Generation
+    # Step 4: Hydrology & River Generation (Arch 1 vs Arch 3)
     # -----------------------------------------------------------------------
 
     def _generate_rivers(self) -> None:
-        """Trace downhill river streams from mountain springs along Voronoi edges to the ocean."""
-        # Find high-elevation land corners as candidate spring origins
+        """Generate guaranteed downhill river networks with physical terrain carving.
+        Architecture 1: Topological Breached Hydrology.
+        Traces strictly downhill flow along the Planchon-Darboux breached corner DAG.
+        Physically carves riverbeds and slopes valley banks.
+        All rivers strictly terminate in the ocean and flow downhill.
+        """
+        self.river_paths = []
+        for e in self.edges:
+            e.river = 0
+        for cn in self.corners:
+            cn.river = 0
+
+        if self.river_count <= 0:
+            return
+
         spring_candidates = [
             cn for cn in self.corners
-            if not cn.water and 0.35 <= cn.elevation <= 0.90 and cn.downslope is not None
+            if not cn.water and 0.35 <= cn.elevation <= 0.88 and cn.downslope is not None
         ]
-
         if not spring_candidates:
             return
 
-        # Pick river sources
-        n_rivers = min(self.river_count, len(spring_candidates))
-        sources = self.rng.sample(spring_candidates, n_rivers)
+        # Sort candidate springs by elevation and moisture
+        spring_candidates.sort(
+            key=lambda cn: cn.elevation * 0.70 + getattr(cn, 'moisture', 0.5) * 0.30,
+            reverse=True
+        )
+
+        min_dist = max(35.0, 300.0 / math.sqrt(max(1, self.river_count)))
+        sources: List[Corner] = []
+        for sc in spring_candidates:
+            if all(math.hypot(sc.x - s.x, sc.y - s.y) >= min_dist for s in sources):
+                sources.append(sc)
+                if len(sources) >= self.river_count:
+                    break
+        if len(sources) < self.river_count:
+            for sc in spring_candidates:
+                if sc not in sources:
+                    sources.append(sc)
+                    if len(sources) >= self.river_count:
+                        break
 
         for spring in sources:
             curr = spring
             curr.river += 1
             visited: Set[int] = {curr.index}
+            path: List[Tuple[float, float, float, float]] = [(curr.x, curr.y, curr.elevation, float(curr.river))]
 
             while curr and not curr.ocean and curr.downslope:
                 nxt = curr.downslope
                 if nxt.index in visited:
-                    break  # Avoid cycles
+                    break
                 visited.add(nxt.index)
 
-                # Find Voronoi edge connecting curr and nxt
                 for edge in curr.protrudes:
                     if (edge.v0 == curr and edge.v1 == nxt) or (edge.v1 == curr and edge.v0 == nxt):
                         edge.river += 1
                         break
 
                 nxt.river += 1
+                path.append((nxt.x, nxt.y, nxt.elevation, float(nxt.river)))
                 curr = nxt
+
+            if len(path) >= 2:
+                self.river_paths.append(path)
+
+        # Physical Terrain Carving (Bedrock trench + Valley banks)
+        max_river = max((e.river for e in self.edges), default=1)
+        for edge in self.edges:
+            if edge.river > 0:
+                carve = self.canyon_depth * 0.035 * math.sqrt(edge.river / max(1.0, max_river))
+                if edge.v0 and not edge.v0.ocean:
+                    edge.v0.elevation = max(0.001, edge.v0.elevation - carve)
+                if edge.v1 and not edge.v1.ocean:
+                    edge.v1.elevation = max(0.001, edge.v1.elevation - carve)
+                if edge.d0 and not edge.d0.ocean:
+                    edge.d0.elevation = max(0.001, edge.d0.elevation - carve * 0.35 * self.valley_width)
+                if edge.d1 and not edge.d1.ocean:
+                    edge.d1.elevation = max(0.001, edge.d1.elevation - carve * 0.35 * self.valley_width)
 
     # -----------------------------------------------------------------------
     # Step 5: Moisture Diffusion & Quantile Redistribution
@@ -1407,8 +1478,8 @@ class PolygonMapGenerator:
                     col1 = col1 * 0.70 + col0 * 0.30
 
                 if edge.river > 0:
-                    col0 = col0 * 0.75 + np.array([40, 105, 35], dtype=np.float64) * 0.25
-                    col1 = col1 * 0.75 + np.array([40, 105, 35], dtype=np.float64) * 0.25
+                    col0 = col0 * 0.75 + np.array([35, 115, 210], dtype=np.float64) * 0.25
+                    col1 = col1 * 0.75 + np.array([35, 115, 210], dtype=np.float64) * 0.25
                     base_triangles.append((idx_v0, idx_v1, idx_d0, col0, (z_v0 + z_v1 + d0.elevation * elev_scale) / (3.0 * elev_scale), True))
                     base_triangles.append((idx_v1, idx_v0, idx_d1, col1, (z_v1 + z_v0 + d1.elevation * elev_scale) / (3.0 * elev_scale), True))
                 else:

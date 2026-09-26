@@ -247,7 +247,7 @@ class MapgenGUI:
             # Mesh & Elevation
             "points": Slider("points", "Number of Regions", 200, 4000, num_points, step=50, fmt="{:.0f}"),
             "height_scale": Slider("height_scale", "Height Scale (Relief)", 20.0, 180.0, 70.0, step=2.0, fmt="{:.0f}"),
-            "sharpness": Slider("sharpness", "Mountain Sharpness (Power)", 0.70, 2.50, 1.00, step=0.05, fmt="{:.2f}"),
+            "sharpness": Slider("sharpness", "Mountain Sharpness (Power)", 0.70, 5.00, 1.00, step=0.05, fmt="{:.2f}"),
             "rivers": Slider("rivers", "River Sources", 0, 50, 25, step=5, fmt="{:.0f}"),
             # Micropoly Subdivision Knobs
             "polys": Slider("polys", "Target Micropolygons", 1000, 1000000, target_polys, step=5000, fmt="{:,.0f}"),

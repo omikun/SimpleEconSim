@@ -431,6 +431,7 @@
     <div class="map-container" id="map-box">
       <div class="rot-hud" id="rot-hud" style="display: none;">
         <span id="rot-readout">3D: Pitch 0° • Yaw 0°</span>
+        <button id="btn-rot-hud-reset" style="margin-left: 8px; background: rgba(56, 189, 248, 0.25); border: 1px solid rgba(56, 189, 248, 0.4); color: #38bdf8; border-radius: 4px; padding: 2px 7px; font-size: 0.70rem; cursor: pointer; font-weight: 600;">↺ Top-Down</button>
       </div>
       <div class="zoom-layer" id="zoom-layer">
         <canvas id="gpu-canvas" width="1024" height="1024" style="width: 100%; height: 100%; display: block;"></canvas>
@@ -438,6 +439,7 @@
         <div class="tap-marker" id="tap-marker"></div>
       </div>
       <div class="zoom-hud">
+        <button class="zoom-btn" id="btn-drag-mode" style="font-size: 0.76rem; width: 34px;" title="Drag Mode: Pan (Click for 3D Orbit)">✋</button>
         <button class="zoom-btn" id="btn-zoom-in" title="Zoom in">+</button>
         <button class="zoom-btn" id="btn-zoom-out" title="Zoom out">−</button>
         <button class="zoom-btn" id="btn-zoom-reset" style="font-size: 0.72rem; width: 34px;" title="Reset zoom">Fit</button>
@@ -453,6 +455,13 @@
           <span style="font-weight: 700;" id="insp-elev">0 m</span>
           <span style="color: var(--text-muted); margin-left: 4px;" id="insp-moist">0%</span>
           <span style="color: #f59e0b; margin-left: 4px; font-weight: 600;" id="insp-temp">20°C</span>
+        </div>
+        <div id="insp-geo-row" style="display: none; margin-top: 5px; padding-top: 4px; border-top: 1px solid rgba(255,255,255,0.12); font-size: 0.75rem; flex-wrap: wrap; gap: 6px; align-items: center;">
+          <span id="insp-nation" class="header-badge" style="padding: 2px 7px; font-size: 0.70rem; background: rgba(245, 158, 11, 0.2); border-color: rgba(245, 158, 11, 0.4); color: #fbbf24;">Wilderness</span>
+          <span id="insp-city" style="font-weight: 700;"></span>
+          <span id="insp-pop" style="color: var(--text-muted);"></span>
+          <span id="insp-price" style="color: #38bdf8;"></span>
+          <span id="insp-resources" style="color: #34d399; font-weight: 600;"></span>
         </div>
       </div>
     </div>
@@ -573,11 +582,13 @@
     <!-- View Modes -->
     <div>
       <div class="section-title">View Mode</div>
-      <div class="segment-bar" id="view-mode-bar">
+      <div class="segment-bar cols-4" id="view-mode-bar" style="margin-bottom: 6px;">
         <button class="btn-segment active" data-mode="micropolys">Micropolys</button>
         <button class="btn-segment" data-mode="biomes">Biomes</button>
         <button class="btn-segment" data-mode="elevation">Elevation</button>
         <button class="btn-segment" data-mode="moisture">Moisture</button>
+      </div>
+      <div class="segment-bar cols-2" id="view-mode-bar-sub">
         <button class="btn-segment" data-mode="watersheds">Basins</button>
         <button class="btn-segment" data-mode="wireframe">Dual Mesh</button>
       </div>
@@ -591,6 +602,65 @@
         <button class="btn-segment active" data-shape="perlin">Perlin</button>
         <button class="btn-segment" data-shape="blob">Blob</button>
         <button class="btn-segment" data-shape="square">Square</button>
+      </div>
+    </div>
+
+    <!-- Micropoly Non-Destructive Enhancements -->
+    <div class="card" id="micropoly-enhancements-card" style="border-color: rgba(168, 85, 247, 0.4);">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <span class="section-title" style="padding-left: 0; margin-bottom: 0; color: #c084fc;">💎 Micropoly Enhancements</span>
+        <span class="header-badge" style="background: rgba(168, 85, 247, 0.15); border-color: rgba(168, 85, 247, 0.35); color: #c084fc; font-size: 0.70rem;">Low-Poly Fidelity</span>
+      </div>
+
+      <!-- 3D Low-Poly Trees -->
+      <div style="margin-bottom: 10px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+          <span style="font-size: 0.80rem; font-weight: 600; color: var(--text);">🌲 3D Canopies on Cells</span>
+          <button id="toggle-mp-trees" class="btn-segment active" style="padding: 2px 10px; font-size: 0.75rem; border-radius: 4px;">ON</button>
+        </div>
+        <div class="slider-group">
+          <div class="slider-label"><span>Tree Density</span><span id="val-tree-density">1.0x</span></div>
+          <input type="range" id="slider-tree-density" min="0.1" max="128" step="0.1" value="1.0">
+        </div>
+      </div>
+
+      <!-- Coastal Wave Ribbons -->
+      <div style="margin-bottom: 10px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+          <span style="font-size: 0.80rem; font-weight: 600; color: var(--text);">🌊 Coastal Wave Ribbons</span>
+          <button id="toggle-mp-waves" class="btn-segment active" style="padding: 2px 10px; font-size: 0.75rem; border-radius: 4px;">ON</button>
+        </div>
+        <div class="slider-group">
+          <div class="slider-label"><span>Wave Intensity</span><span id="val-wave-intensity">1.00x</span></div>
+          <input type="range" id="slider-wave-intensity" min="0.2" max="2.0" step="0.1" value="1.0">
+        </div>
+      </div>
+
+      <!-- Procedural Shaders Row -->
+      <div style="margin-bottom: 10px;">
+        <div style="font-size: 0.78rem; font-weight: 600; color: #94a3b8; margin-bottom: 6px;">Real-time Shader Micro-Detail</div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px;">
+          <button id="toggle-mp-strata" class="btn-segment active" style="padding: 4px 6px; font-size: 0.72rem; text-align: center;">⛰️ Strata</button>
+          <button id="toggle-mp-parcels" class="btn-segment active" style="padding: 4px 6px; font-size: 0.72rem; text-align: center;">🌾 Parcels</button>
+          <button id="toggle-mp-grain" class="btn-segment active" style="padding: 4px 6px; font-size: 0.72rem; text-align: center;">🌫️ Grain</button>
+        </div>
+      </div>
+
+      <!-- Poly-Realistic Hybrid Blend -->
+      <div style="margin-bottom: 8px;">
+        <div class="slider-group">
+          <div class="slider-label">
+            <span>🎨 Poly-Realistic Blend</span>
+            <span id="val-mp-blend">0%</span>
+          </div>
+          <input type="range" id="slider-mp-blend" min="0.0" max="1.0" step="0.05" value="0.0">
+        </div>
+      </div>
+
+      <!-- Facet Crease Lines Accent -->
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <span style="font-size: 0.80rem; font-weight: 600; color: var(--text);">📐 Facet Edge Creases</span>
+        <button id="toggle-mp-creases" class="btn-segment" style="padding: 2px 10px; font-size: 0.75rem; border-radius: 4px;">OFF</button>
       </div>
     </div>
 
@@ -648,7 +718,7 @@
           <span>Mountain Sharpness (Power)</span>
           <span class="slider-val" id="val-sharpness">1.00</span>
         </div>
-        <input type="range" id="slider-sharpness" min="0.70" max="2.40" step="0.05" value="1.00">
+        <input type="range" id="slider-sharpness" min="0.70" max="5.00" step="0.05" value="1.00">
       </div>
 
       <div class="slider-row">
@@ -761,12 +831,44 @@
         <input type="range" id="slider-points" min="200" max="4000" step="50" value="1000">
       </div>
 
-      <div class="slider-row" style="margin-top: 10px;">
-        <div class="slider-header">
-          <span>River Sources</span>
-          <span class="slider-val" id="val-rivers">25</span>
+      <div class="slider-group" style="margin-top: 14px; border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 12px; padding: 12px; background: rgba(15, 23, 42, 0.45);">
+        <div style="font-weight: 600; font-size: 13px; color: #38bdf8; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between;">
+          <span>🌊 River Hydraulics Architecture</span>
+          <span style="font-size: 10px; opacity: 0.75; text-transform: uppercase; letter-spacing: 0.5px;">Physical Carving</span>
         </div>
-        <input type="range" id="slider-rivers" min="0" max="50" step="5" value="25">
+        
+        <div class="slider-row">
+          <div class="slider-header">
+            <span>River Sources</span>
+            <span class="slider-val" id="val-rivers">25</span>
+          </div>
+          <input type="range" id="slider-rivers" min="0" max="50" step="1" value="25">
+        </div>
+
+        <div class="slider-row" style="margin-top: 8px;">
+          <div class="slider-header">
+            <span>Canyon Carve Depth</span>
+            <span class="slider-val" id="val-canyon-depth">1.5</span>
+          </div>
+          <input type="range" id="slider-canyon-depth" min="0.0" max="5.0" step="0.1" value="1.5">
+        </div>
+
+        <div class="slider-row" style="margin-top: 8px;">
+          <div class="slider-header">
+            <span>Valley Width</span>
+            <span class="slider-val" id="val-valley-width">1.0x</span>
+          </div>
+          <input type="range" id="slider-valley-width" min="0.2" max="3.0" step="0.1" value="1.0">
+        </div>
+
+        <!-- Water Ribbon Width Knob -->
+        <div class="slider-row" style="margin-top: 8px;">
+          <div class="slider-header">
+            <span>River Water Ribbon Width</span>
+            <span class="slider-val" id="val-river-width">1.0x</span>
+          </div>
+          <input type="range" id="slider-river-width" min="0.2" max="3.0" step="0.1" value="1.0">
+        </div>
       </div>
     </div>
   </main>
@@ -799,6 +901,8 @@
       smooth: 0.70,
       points: 1000,
       rivers: 25,
+      canyon_depth: 1.5,
+      valley_width: 1.0,
       moisture_bias: 0.00,
       north_temp: 0.00,
       south_temp: 0.00,
@@ -816,7 +920,69 @@
       rot_pitch: 0.0,
       rot_yaw: 0.0,
       shadows: true,
-      shadow_darkness: 1.00
+      shadow_darkness: 1.00,
+      // Micropoly Non-Destructive Enhancements
+      micropoly_trees: true,
+      tree_density: 0.85,
+      micropoly_waves: true,
+      wave_intensity: 1.0,
+      micropoly_strata: true,
+      micropoly_parcels: true,
+      micropoly_grain: true,
+      micropoly_blend: 0.0,
+      micropoly_creases: false,
+      // REGNUM Photorealistic Topographic Knobs
+      show_canopy: true,
+      canopy_density: 0.85,
+      crown_size: 5.0,
+      forest_shadows: true,
+      forest_clearings: true,
+      riparian_trees: true,
+      show_ocean_fx: true,
+      show_wave_ripples: true,
+      wave_ripples: 1.0,
+      show_specular_glints: true,
+      specular_glints: 1.0,
+      show_coastal_surf: true,
+      coastal_surf: 1.0,
+      shelf_width: 1.0,
+      show_beaches: true,
+      beach_width: 1.0,
+      sand_dunes: true,
+      show_coastal_cliffs: true,
+      coastal_cliffs: 1.0,
+      show_rock_strata: true,
+      rock_strata: 1.0,
+      show_snow_peaks: true,
+      snow_peaks: 1.0,
+      snow_altitude: 0.70,
+      show_ground_grain: true,
+      ground_grain: 1.0,
+      show_soil_parcels: true,
+      soil_parcels: 1.0,
+      field_filaments: true,
+      carve_rivers: true,
+      river_width: 1.0,
+      estuary_fan: true,
+      riparian_turf: true,
+      show_atmosphere: true,
+      show_cloud_shadows: true,
+      cloud_shadows: 0.55,
+      show_aerial_haze: true,
+      aerial_haze: 0.50,
+      show_split_tone: true,
+      split_tone: 0.60,
+      vignette: true,
+      geo_layer: 'overview',
+      nations: 3,
+      nation_seed: 777,
+      nation_alpha: 0.55,
+      show_cities: true,
+      show_trade: true,
+      show_provinces: true,
+      show_outlines: true,
+      show_resources: true,
+      selected_cell: -1
     };
 
     let debounceTimer = null;
@@ -906,12 +1072,14 @@
     out vec3 v_world_norm;
     out vec3 v_color;
     out float v_elev;
+    out vec2 v_uv;
 
     void main() {
         v_color = in_color;
         v_elev = in_elev;
 
         const float WORLD_COORD_SIZE = 1024.0;
+        v_uv = vec2(in_pos.x / WORLD_COORD_SIZE, in_pos.y / WORLD_COORD_SIZE);
         vec2 center = vec2(WORLD_COORD_SIZE * 0.5, WORLD_COORD_SIZE * 0.5);
         float R = WORLD_COORD_SIZE * 0.5;
 
@@ -1001,12 +1169,20 @@
     in vec3 v_world_norm;
     in vec3 v_color;
     in float v_elev;
+    in vec2 v_uv;
 
     uniform float u_sun_intensity;
     uniform float u_ambient_intensity;
     uniform float u_mountain_roughness;
     uniform float u_snow_threshold;
     uniform float u_shadow_intensity;
+    uniform float u_use_texture;
+    uniform sampler2D u_terrain_texture;
+    uniform float u_micropoly_strata;
+    uniform float u_micropoly_parcels;
+    uniform float u_micropoly_grain;
+    uniform float u_micropoly_blend;
+    uniform float u_micropoly_creases;
 
     out vec4 frag_color;
 
@@ -1069,7 +1245,40 @@
         vec3 V = vec3(0.0, 0.0, 1.0);
         vec3 H = normalize(L + V);
 
+        if (u_use_texture > 0.5) {
+            vec3 tex_col = texture(u_terrain_texture, v_uv).rgb;
+            float NdotL = max(0.0, dot(N, L));
+            float hillshade = clamp(NdotL * 0.40 + 0.75, 0.35, 1.20);
+            frag_color = vec4(clamp(tex_col * hillshade, 0.0, 1.0), 1.0);
+            return;
+        }
+
         vec3 albedo = v_color;
+
+        // 1. Procedural Geological Rock Strata Bands
+        if (u_micropoly_strata > 0.5 && v_elev > 0.16) {
+            float strata_freq = 90.0;
+            float strata_noise = sin(v_elev * strata_freq + sin(v_uv.x * 30.0 + v_uv.y * 20.0) * 1.6);
+            float strata_val = smoothstep(-0.35, 0.35, strata_noise);
+            vec3 strata_dark = albedo * 0.76;
+            albedo = mix(albedo, strata_dark, strata_val * 0.35 * smoothstep(0.16, 0.40, v_elev));
+        }
+
+        // 2. Soil Parcels / Agricultural Cadastre Filaments
+        if (u_micropoly_parcels > 0.5 && v_elev > 0.03 && v_elev < 0.45) {
+            vec2 grid = floor(v_uv * 140.0);
+            float h = fract(sin(dot(grid, vec2(127.1, 311.7))) * 43758.5453);
+            if (h > 0.55) {
+                float tint = (h - 0.55) * 0.5;
+                albedo = mix(albedo, albedo * (1.0 + vec3(tint * 0.25, tint * 0.35, -tint * 0.1)), 0.40);
+            }
+        }
+
+        // 3. Ground Grain
+        if (u_micropoly_grain > 0.5) {
+            float g = fract(sin(dot(floor(v_uv * 700.0), vec2(43.12, 89.45))) * 28461.23) - 0.5;
+            albedo += vec3(g * 0.035);
+        }
 
         // Dynamic steep cliff rock scree (physical slope relative to horizontal plane of map)
         float slope = 1.0 - clamp(v_world_norm.z, 0.0, 1.0);
@@ -1086,6 +1295,21 @@
             is_snow = pow(is_snow, 1.6);
             vec3 snow_col = vec3(0.95, 0.96, 0.98);
             albedo = mix(albedo, snow_col, is_snow * 0.95);
+        }
+
+        // 4. Poly-Realistic Decal Hybrid Blend
+        if (u_micropoly_blend > 0.01) {
+            vec3 tex_col = texture(u_terrain_texture, v_uv).rgb;
+            albedo = mix(albedo, tex_col, u_micropoly_blend * 0.85);
+        }
+
+        // 5. Facet Crease Lines Accent
+        if (u_micropoly_creases > 0.05) {
+            vec3 dNdx = dFdx(v_norm);
+            vec3 dNdy = dFdy(v_norm);
+            float edge = length(dNdx) + length(dNdy);
+            float crease = smoothstep(0.08, 0.40, edge) * u_micropoly_creases;
+            albedo = mix(albedo, albedo * 0.45, clamp(crease, 0.0, 0.65));
         }
 
         float rough = clamp(u_mountain_roughness * 0.70, 0.15, 1.0);
@@ -1182,23 +1406,239 @@
     }
     `;
 
+    const SURF_VS = `#version 300 es
+    precision highp float;
+
+    layout(location = 0) in vec3 in_pos;
+    layout(location = 1) in vec3 in_normal;
+    layout(location = 2) in vec3 in_color;
+    layout(location = 3) in float in_dist;
+
+    uniform vec2 u_resolution;
+    uniform float u_rot_pitch;
+    uniform float u_rot_yaw;
+    uniform float u_max_z;
+    uniform float u_time;
+
+    out vec3 v_color;
+    out float v_dist;
+    out float v_wave;
+
+    void main() {
+        const float WORLD_COORD_SIZE = 1024.0;
+        vec2 center = vec2(WORLD_COORD_SIZE * 0.5, WORLD_COORD_SIZE * 0.5);
+        float R = WORLD_COORD_SIZE * 0.5;
+
+        float wave = sin(u_time * 3.2 - in_dist * 12.0);
+        float z_offset = in_dist < 0.95 ? (max(0.0, wave) * 0.14 * (1.0 - in_dist)) : 0.0;
+
+        vec3 p = vec3(in_pos.x - center.x, center.y - in_pos.y, in_pos.z + z_offset);
+
+        float yaw_rad = radians(u_rot_yaw);
+        float cos_y = cos(yaw_rad);
+        float sin_y = sin(yaw_rad);
+
+        vec3 p_yaw = vec3(
+            p.x * cos_y - p.y * sin_y,
+            p.x * sin_y + p.y * cos_y,
+            p.z
+        );
+
+        float pitch_rad = radians(u_rot_pitch);
+        float cos_p = cos(pitch_rad);
+        float sin_p = sin(pitch_rad);
+
+        vec3 p_rot = vec3(
+            p_yaw.x,
+            p_yaw.y * cos_p + p_yaw.z * sin_p,
+            -p_yaw.y * sin_p + p_yaw.z * cos_p
+        );
+
+        float scale_factor = (abs(u_rot_pitch) > 0.1 || abs(u_rot_yaw) > 0.1) ? 0.88 : 1.0;
+        float x_ndc = (p_rot.x / R) * scale_factor;
+        float y_ndc = (p_rot.y / R) * scale_factor;
+
+        float depth_span = max(1.0, u_max_z * 2.0 + R * 2.5);
+        float z_ndc = clamp(-p_rot.z / depth_span, -0.99, 0.99) - 0.003;
+
+        gl_Position = vec4(x_ndc, y_ndc, z_ndc, 1.0);
+        v_color = in_color;
+        v_dist = in_dist;
+        v_wave = wave;
+    }
+    `;
+
+    const SURF_FS = `#version 300 es
+    precision highp float;
+
+    in vec3 v_color;
+    in float v_dist;
+    in float v_wave;
+
+    uniform float u_wave_intensity;
+    out vec4 frag_color;
+
+    void main() {
+        float foam = smoothstep(0.32, 0.90, v_wave) * (1.0 - v_dist * 0.65) * u_wave_intensity;
+        float shore_foam = smoothstep(0.25, 0.0, v_dist) * 0.75;
+        float total_foam = clamp(foam + shore_foam, 0.0, 1.0);
+
+        vec3 col = mix(v_color, vec3(1.0, 1.0, 1.0), total_foam);
+        float alpha = clamp((1.0 - v_dist * 0.75) * 0.85 + total_foam * 0.35, 0.0, 0.95);
+
+        frag_color = vec4(col, alpha);
+    }
+    `;
+
+    const RIVER_VS = `#version 300 es
+    precision highp float;
+
+    layout(location = 0) in vec3 in_pos;
+    layout(location = 1) in vec3 in_normal;
+    layout(location = 2) in vec3 in_color;
+    layout(location = 3) in float in_flow;
+
+    uniform vec2 u_resolution;
+    uniform float u_rot_pitch;
+    uniform float u_rot_yaw;
+    uniform float u_max_z;
+    uniform float u_time;
+    uniform vec3 u_sun_dir;
+
+    out vec3 v_color;
+    out vec3 v_normal;
+    out float v_flow;
+    out float v_specular;
+
+    void main() {
+        const float WORLD_COORD_SIZE = 1024.0;
+        vec2 center = vec2(WORLD_COORD_SIZE * 0.5, WORLD_COORD_SIZE * 0.5);
+        float R = WORLD_COORD_SIZE * 0.5;
+
+        // Subtle downstream ripple perturbation
+        float ripple = sin(u_time * 4.2 - in_flow * 3.5) * 0.04;
+        vec3 p = vec3(in_pos.x - center.x, center.y - in_pos.y, in_pos.z + ripple);
+
+        float yaw_rad = radians(u_rot_yaw);
+        float cos_y = cos(yaw_rad);
+        float sin_y = sin(yaw_rad);
+
+        vec3 p_yaw = vec3(
+            p.x * cos_y - p.y * sin_y,
+            p.x * sin_y + p.y * cos_y,
+            p.z
+        );
+
+        float pitch_rad = radians(u_rot_pitch);
+        float cos_p = cos(pitch_rad);
+        float sin_p = sin(pitch_rad);
+
+        vec3 p_rot = vec3(
+            p_yaw.x,
+            p_yaw.y * cos_p + p_yaw.z * sin_p,
+            -p_yaw.y * sin_p + p_yaw.z * cos_p
+        );
+
+        // Rotate normal to camera space
+        vec3 n_yaw = vec3(
+            in_normal.x * cos_y - in_normal.y * sin_y,
+            in_normal.x * sin_y + in_normal.y * cos_y,
+            in_normal.z
+        );
+        vec3 n_rot = vec3(
+            n_yaw.x,
+            n_yaw.y * cos_p + n_yaw.z * sin_p,
+            -n_yaw.y * sin_p + n_yaw.z * cos_p
+        );
+
+        float scale_factor = (abs(u_rot_pitch) > 0.1 || abs(u_rot_yaw) > 0.1) ? 0.88 : 1.0;
+        float x_ndc = (p_rot.x / R) * scale_factor;
+        float y_ndc = (p_rot.y / R) * scale_factor;
+
+        float depth_span = max(1.0, u_max_z * 2.0 + R * 2.5);
+        // Offset z slightly closer to camera (-0.0035) so river sits cleanly on top of terrain without z-fighting
+        float z_ndc = clamp(-p_rot.z / depth_span, -0.99, 0.99) - 0.0035;
+
+        gl_Position = vec4(x_ndc, y_ndc, z_ndc, 1.0);
+        v_color = in_color;
+        v_normal = normalize(n_rot);
+        v_flow = in_flow;
+
+        // Sunlight specular reflection
+        vec3 V = vec3(0.0, 0.0, 1.0);
+        vec3 sun_yaw = vec3(
+            u_sun_dir.x * cos_y - u_sun_dir.y * sin_y,
+            u_sun_dir.x * sin_y + u_sun_dir.y * cos_y,
+            u_sun_dir.z
+        );
+        vec3 sun_rot = vec3(
+            sun_yaw.x,
+            sun_yaw.y * cos_p + sun_yaw.z * sin_p,
+            -sun_yaw.y * sin_p + sun_yaw.z * cos_p
+        );
+        vec3 L = normalize(sun_rot);
+        vec3 H = normalize(L + V);
+        v_specular = pow(max(0.0, dot(v_normal, H)), 32.0);
+    }
+    `;
+
+    const RIVER_FS = `#version 300 es
+    precision highp float;
+
+    in vec3 v_color;
+    in vec3 v_normal;
+    in float v_flow;
+    in float v_specular;
+
+    uniform float u_time;
+    out vec4 frag_color;
+
+    void main() {
+        // Flowing downstream water shimmer between deep vibrant blue and bright azure
+        float shimmer = 0.5 + 0.5 * sin(u_time * 5.0 - v_flow * 4.0);
+        vec3 deep_blue = v_color;
+        vec3 bright_blue = mix(v_color, vec3(0.18, 0.65, 0.98), 0.40);
+        vec3 col = mix(deep_blue, bright_blue, shimmer * 0.35);
+
+        // Sunlight specular highlight glint
+        col += vec3(0.85, 0.95, 1.0) * (v_specular * 0.55);
+
+        frag_color = vec4(clamp(col, 0.0, 1.0), 0.98);
+    }
+    `;
+
     let gl = null;
     let meshProg = null;
     let lineProg = null;
+    let surfProg = null;
+    let riverProg = null;
     let meshVbo = null;
     let riverVbo = null;
     let lavaVbo = null;
+    let treeVbo = null;
+    let surfVbo = null;
     let meshVao = null;
     let riverVao = null;
     let lavaVao = null;
+    let treeVao = null;
+    let surfVao = null;
+    let oceanVao = null;
+    let oceanVbo = null;
+    let oceanVertexCount = 0;
     let meshVertexCount = 0;
     let riverVertexCount = 0;
     let lavaVertexCount = 0;
+    let treeVertexCount = 0;
+    let surfVertexCount = 0;
     let meshMaxZ = 100.0;
     let isWebGlReady = false;
     let loadedMeshParamsKey = '';
     let isMeshFetching = false;
     let meshAbortController = null;
+    let terrainTexture = null;
+    let hasTerrainTexture = false;
+    let lastUploadedImgSrc = '';
+    let dragMode = 'auto'; // 'auto', 'pan', 'rotate'
 
     function compileShader(glCtx, type, source) {
       const shader = glCtx.createShader(type);
@@ -1231,6 +1671,75 @@
       return prog;
     }
 
+    function buildOceanMesh() {
+      if (!gl) return;
+      const minX = -512.0;
+      const maxX = 1536.0;
+      const minY = -512.0;
+      const maxY = 1536.0;
+      const STEPS = 32;
+      const dx = (maxX - minX) / STEPS;
+      const dy = (maxY - minY) / STEPS;
+      const z = -0.2; // Positioned slightly below sea level to eliminate Z-fighting with coastline
+
+      const totalVerts = STEPS * STEPS * 6;
+      const data = new Float32Array(totalVerts * 10);
+      let ptr = 0;
+
+      function pushVert(px, py) {
+        // in_pos (x, y, z)
+        data[ptr++] = px;
+        data[ptr++] = py;
+        data[ptr++] = z;
+        // in_norm (0, 0, 1) pointing upward
+        data[ptr++] = 0.0;
+        data[ptr++] = 0.0;
+        data[ptr++] = 1.0;
+        // in_color (deep ocean blue)
+        data[ptr++] = 0.10;
+        data[ptr++] = 0.26;
+        data[ptr++] = 0.44;
+        // in_elev (0.0 sea level)
+        data[ptr++] = 0.0;
+      }
+
+      for (let iy = 0; iy < STEPS; iy++) {
+        const y0 = minY + iy * dy;
+        const y1 = y0 + dy;
+        for (let ix = 0; ix < STEPS; ix++) {
+          const x0 = minX + ix * dx;
+          const x1 = x0 + dx;
+
+          pushVert(x0, y0);
+          pushVert(x1, y0);
+          pushVert(x1, y1);
+
+          pushVert(x0, y0);
+          pushVert(x1, y1);
+          pushVert(x0, y1);
+        }
+      }
+
+      if (!oceanVao) oceanVao = gl.createVertexArray();
+      gl.bindVertexArray(oceanVao);
+
+      if (!oceanVbo) oceanVbo = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, oceanVbo);
+      gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
+
+      gl.enableVertexAttribArray(0);
+      gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 40, 0);
+      gl.enableVertexAttribArray(1);
+      gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 40, 12);
+      gl.enableVertexAttribArray(2);
+      gl.vertexAttribPointer(2, 3, gl.FLOAT, false, 40, 24);
+      gl.enableVertexAttribArray(3);
+      gl.vertexAttribPointer(3, 1, gl.FLOAT, false, 40, 36);
+
+      gl.bindVertexArray(null);
+      oceanVertexCount = totalVerts;
+    }
+
     function initWebGL() {
       if (gl) return true;
       try {
@@ -1247,7 +1756,9 @@
 
         meshProg = createProgram(gl, MESH_VS, MESH_FS);
         lineProg = createProgram(gl, LINE_VS, LINE_FS);
-        if (!meshProg || !lineProg) return false;
+        surfProg = createProgram(gl, SURF_VS, SURF_FS);
+        riverProg = createProgram(gl, RIVER_VS, RIVER_FS);
+        if (!meshProg || !lineProg || !surfProg || !riverProg) return false;
 
         // Terrain Mesh VAO
         meshVao = gl.createVertexArray();
@@ -1263,23 +1774,61 @@
         gl.enableVertexAttribArray(3);
         gl.vertexAttribPointer(3, 1, gl.FLOAT, false, 40, 36);
 
-        // River Line VAO
+        // 3D Low-Poly Tree VAO
+        treeVao = gl.createVertexArray();
+        gl.bindVertexArray(treeVao);
+        treeVbo = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, treeVbo);
+        gl.enableVertexAttribArray(0);
+        gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 40, 0);
+        gl.enableVertexAttribArray(1);
+        gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 40, 12);
+        gl.enableVertexAttribArray(2);
+        gl.vertexAttribPointer(2, 3, gl.FLOAT, false, 40, 24);
+        gl.enableVertexAttribArray(3);
+        gl.vertexAttribPointer(3, 1, gl.FLOAT, false, 40, 36);
+
+        // Coastal Surf Ribbon VAO
+        surfVao = gl.createVertexArray();
+        gl.bindVertexArray(surfVao);
+        surfVbo = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, surfVbo);
+        gl.enableVertexAttribArray(0);
+        gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 40, 0);
+        gl.enableVertexAttribArray(1);
+        gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 40, 12);
+        gl.enableVertexAttribArray(2);
+        gl.vertexAttribPointer(2, 3, gl.FLOAT, false, 40, 24);
+        gl.enableVertexAttribArray(3);
+        gl.vertexAttribPointer(3, 1, gl.FLOAT, false, 40, 36);
+
+        // 3D Hydro River Ribbon VAO (40-byte stride: pos:3, normal:3, color:3, flow:1)
         riverVao = gl.createVertexArray();
         gl.bindVertexArray(riverVao);
         riverVbo = gl.createBuffer();
         gl.bindBuffer(gl.ARRAY_BUFFER, riverVbo);
         gl.enableVertexAttribArray(0);
-        gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 12, 0);
-
-        // Lava Fissure VAO
-        lavaVao = gl.createVertexArray();
-        gl.bindVertexArray(lavaVao);
-        lavaVbo = gl.createBuffer();
-        gl.bindBuffer(gl.ARRAY_BUFFER, lavaVbo);
-        gl.enableVertexAttribArray(0);
-        gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 12, 0);
+        gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 40, 0);
+        gl.enableVertexAttribArray(1);
+        gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 40, 12);
+        gl.enableVertexAttribArray(2);
+        gl.vertexAttribPointer(2, 3, gl.FLOAT, false, 40, 24);
+        gl.enableVertexAttribArray(3);
+        gl.vertexAttribPointer(3, 1, gl.FLOAT, false, 40, 36);
 
         gl.bindVertexArray(null);
+
+        // Build flat ocean water plane
+        buildOceanMesh();
+
+        // Texture Unit 0: Photorealistic Topographic Terrain Texture
+        terrainTexture = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, terrainTexture);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([255, 255, 255, 255]));
 
         gl.enable(gl.DEPTH_TEST);
         gl.depthFunc(gl.LEQUAL);
@@ -1289,6 +1838,23 @@
         return true;
       } catch (err) {
         console.error('initWebGL error:', err);
+        return false;
+      }
+    }
+
+    function syncTerrainTexture() {
+      if (!isWebGlReady && !initWebGL()) return false;
+      if (!gl || !terrainTexture || !mapImg || !mapImg.complete || !mapImg.naturalWidth) return false;
+      if (mapImg.src === lastUploadedImgSrc) return hasTerrainTexture;
+      try {
+        gl.bindTexture(gl.TEXTURE_2D, terrainTexture);
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, mapImg);
+        hasTerrainTexture = true;
+        lastUploadedImgSrc = mapImg.src;
+        return true;
+      } catch (err) {
+        console.warn('syncTerrainTexture note:', err);
         return false;
       }
     }
@@ -1316,8 +1882,16 @@
         gl.clearColor(0.11, 0.19, 0.33, 1.0);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
+        syncTerrainTexture();
+        const isPhotoreal = (state.mode === 'photorealistic' || state.mode === 'regnum');
+        const useTex = isPhotoreal && hasTerrainTexture;
+
         // Draw Terrain Mesh with Dynamic Shading & Self-Shadow Occlusion
         gl.useProgram(meshProg);
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, terrainTexture);
+        gl.uniform1i(gl.getUniformLocation(meshProg, 'u_terrain_texture'), 0);
+        gl.uniform1f(gl.getUniformLocation(meshProg, 'u_use_texture'), useTex ? 1.0 : 0.0);
         gl.uniform2f(gl.getUniformLocation(meshProg, 'u_resolution'), gpuCanvas.width, gpuCanvas.height);
         gl.uniform1f(gl.getUniformLocation(meshProg, 'u_max_z'), meshMaxZ);
         gl.uniform3fv(gl.getUniformLocation(meshProg, 'u_sun_dir'), sunDir);
@@ -1328,44 +1902,83 @@
         gl.uniform1f(gl.getUniformLocation(meshProg, 'u_rot_pitch'), state.rot_pitch);
         gl.uniform1f(gl.getUniformLocation(meshProg, 'u_rot_yaw'), state.rot_yaw);
         gl.uniform1f(gl.getUniformLocation(meshProg, 'u_shadow_intensity'), state.shadows ? state.shadow_darkness : 0.0);
+        gl.uniform1f(gl.getUniformLocation(meshProg, 'u_micropoly_strata'), state.micropoly_strata !== false ? 1.0 : 0.0);
+        gl.uniform1f(gl.getUniformLocation(meshProg, 'u_micropoly_parcels'), state.micropoly_parcels !== false ? 1.0 : 0.0);
+        gl.uniform1f(gl.getUniformLocation(meshProg, 'u_micropoly_grain'), state.micropoly_grain !== false ? 1.0 : 0.0);
+        gl.uniform1f(gl.getUniformLocation(meshProg, 'u_micropoly_blend'), typeof state.micropoly_blend === 'number' ? state.micropoly_blend : 0.0);
+        gl.uniform1f(gl.getUniformLocation(meshProg, 'u_micropoly_creases'), state.micropoly_creases ? 1.0 : 0.0);
 
+        // Draw Flat Ocean Water Plane (Carrying Waves, Shelf Lagoon & Coastal Surf)
+        if (oceanVao && oceanVertexCount > 0) {
+          gl.bindVertexArray(oceanVao);
+          gl.drawArrays(gl.TRIANGLES, 0, oceanVertexCount);
+        }
+
+        // Draw Coastal Waves along Island Coastline
+        if (state.micropoly_waves !== false && surfProg && surfVao && surfVertexCount > 0) {
+          gl.enable(gl.BLEND);
+          gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+          gl.useProgram(surfProg);
+          gl.uniform2f(gl.getUniformLocation(surfProg, 'u_resolution'), gpuCanvas.width, gpuCanvas.height);
+          gl.uniform1f(gl.getUniformLocation(surfProg, 'u_rot_pitch'), state.rot_pitch);
+          gl.uniform1f(gl.getUniformLocation(surfProg, 'u_rot_yaw'), state.rot_yaw);
+          gl.uniform1f(gl.getUniformLocation(surfProg, 'u_max_z'), meshMaxZ);
+          gl.uniform1f(gl.getUniformLocation(surfProg, 'u_time'), performance.now() * 0.001);
+          gl.uniform1f(gl.getUniformLocation(surfProg, 'u_wave_intensity'), typeof state.wave_intensity === 'number' ? state.wave_intensity : 1.0);
+          gl.bindVertexArray(surfVao);
+          gl.drawArrays(gl.TRIANGLES, 0, surfVertexCount);
+          gl.disable(gl.BLEND);
+          gl.useProgram(meshProg);
+        }
+
+        // Draw 3D Land Terrain Mesh
         gl.bindVertexArray(meshVao);
         gl.drawArrays(gl.TRIANGLES, 0, meshVertexCount);
 
-        // Draw Rivers & Lava if present
-        if (riverVertexCount > 0 || lavaVertexCount > 0) {
-          gl.useProgram(lineProg);
-          gl.uniform2f(gl.getUniformLocation(lineProg, 'u_resolution'), gpuCanvas.width, gpuCanvas.height);
-          gl.uniform1f(gl.getUniformLocation(lineProg, 'u_max_z'), meshMaxZ);
-          gl.uniform1f(gl.getUniformLocation(lineProg, 'u_rot_pitch'), state.rot_pitch);
-          gl.uniform1f(gl.getUniformLocation(lineProg, 'u_rot_yaw'), state.rot_yaw);
+        // Draw 3D Low-Poly Trees on Forest Cells
+        if (state.micropoly_trees !== false && treeVao && treeVertexCount > 0) {
+          gl.useProgram(meshProg);
+          gl.uniform1f(gl.getUniformLocation(meshProg, 'u_use_texture'), 0.0);
+          gl.uniform1f(gl.getUniformLocation(meshProg, 'u_micropoly_strata'), 0.0);
+          gl.uniform1f(gl.getUniformLocation(meshProg, 'u_micropoly_parcels'), 0.0);
+          gl.uniform1f(gl.getUniformLocation(meshProg, 'u_micropoly_blend'), 0.0);
+          gl.bindVertexArray(treeVao);
+          gl.drawArrays(gl.TRIANGLES, 0, treeVertexCount);
+        }
 
-          if (riverVertexCount > 0) {
-            gl.uniform4f(gl.getUniformLocation(lineProg, 'u_line_color'), 0.12, 0.35, 0.65, 1.0);
-            gl.bindVertexArray(riverVao);
-            gl.drawArrays(gl.LINES, 0, riverVertexCount);
-          }
-
-          if (lavaVertexCount > 0) {
-            gl.uniform4f(gl.getUniformLocation(lineProg, 'u_line_color'), 1.0, 0.40, 0.05, 1.0);
-            gl.bindVertexArray(lavaVao);
-            gl.drawArrays(gl.LINES, 0, lavaVertexCount);
-          }
+        // Draw 3D Hydro River Ribbons if present
+        if (state.rivers > 0 && riverProg && riverVao && riverVertexCount > 0) {
+          gl.enable(gl.BLEND);
+          gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+          gl.useProgram(riverProg);
+          gl.uniform2f(gl.getUniformLocation(riverProg, 'u_resolution'), gpuCanvas.width, gpuCanvas.height);
+          gl.uniform1f(gl.getUniformLocation(riverProg, 'u_rot_pitch'), state.rot_pitch);
+          gl.uniform1f(gl.getUniformLocation(riverProg, 'u_rot_yaw'), state.rot_yaw);
+          gl.uniform1f(gl.getUniformLocation(riverProg, 'u_max_z'), meshMaxZ);
+          gl.uniform1f(gl.getUniformLocation(riverProg, 'u_time'), performance.now() * 0.001);
+          gl.uniform3fv(gl.getUniformLocation(riverProg, 'u_sun_dir'), sunDir);
+          gl.bindVertexArray(riverVao);
+          gl.drawArrays(gl.TRIANGLES, 0, riverVertexCount);
+          gl.disable(gl.BLEND);
+          gl.useProgram(meshProg);
         }
 
         gl.bindVertexArray(null);
 
         // Success: ensure gpuCanvas is displayed and mapImg hidden
         gpuCanvas.style.display = 'block';
-        if (state.engine === 'gpu' && state.mode === 'micropolys') {
-          mapImg.style.display = 'none';
-        }
+        mapImg.style.display = 'none';
 
         // Update HUD status & download links
         const is3D = (Math.abs(state.rot_pitch) > 0.5 || Math.abs(state.rot_yaw) > 0.5);
         const shadowStatus = state.shadows ? 'Self-Shadow ON' : 'Shadows OFF';
-        perfStatus.textContent = `⚡ WebGL 2 Client (60-120 FPS) • ${shadowStatus} • ${is3D ? `Pitch ${Math.round(state.rot_pitch)}° Yaw ${Math.round(state.rot_yaw)}°` : 'Top-Down'}`;
-        polyBadge.textContent = `${(meshVertexCount / 3).toLocaleString()} Polys`;
+        const engineLabel = isPhotoreal ? '🎨 Photorealistic 3D' : '⚡ WebGL 2 Client';
+        perfStatus.textContent = `${engineLabel} (60-120 FPS) • ${shadowStatus} • ${is3D ? `Pitch ${Math.round(state.rot_pitch)}° Yaw ${Math.round(state.rot_yaw)}°` : 'Top-Down'}`;
+        if (isPhotoreal) {
+          polyBadge.textContent = 'Photorealistic 3D';
+        } else {
+          polyBadge.textContent = `${(meshVertexCount / 3).toLocaleString()} Polys`;
+        }
 
         const query = updateUrlParams();
         btnAr.href = `/api/export_usdz?${query}`;
@@ -1391,6 +2004,9 @@
         state.jitter,
         state.smooth,
         state.rivers,
+        state.river_width,
+        state.canyon_depth,
+        state.valley_width,
         state.moisture_bias,
         state.north_temp,
         state.south_temp,
@@ -1398,7 +2014,9 @@
         state.quad_fold,
         state.ridge_noise,
         state.erosion_strength,
-        state.erosion_droplets
+        state.erosion_droplets,
+        state.tree_density,
+        state.wave_intensity
       ].join('_');
     }
 
@@ -1437,10 +2055,17 @@
         const maxZ = view.getFloat32(12, true);
         const nRiver = view.getUint32(16, true);
         const nLava = view.getUint32(20, true);
+        let nTree = 0;
+        let nSurf = 0;
+        let vboOffset = 24;
+        if (version >= 2 && buf.byteLength >= 32) {
+          nTree = view.getUint32(24, true);
+          nSurf = view.getUint32(28, true);
+          vboOffset = 32;
+        }
 
         if (!isWebGlReady && !initWebGL()) throw new Error('WebGL 2 failed to initialize');
 
-        const vboOffset = 24;
         const vboBytes = nVerts * 10 * 4;
         const vboFloats = new Float32Array(buf, vboOffset, nVerts * 10);
 
@@ -1451,11 +2076,11 @@
 
         let curOffset = vboOffset + vboBytes;
         if (nRiver > 0) {
-          const riverFloats = new Float32Array(buf, curOffset, nRiver * 3);
+          const riverFloats = new Float32Array(buf, curOffset, nRiver * 10);
           gl.bindBuffer(gl.ARRAY_BUFFER, riverVbo);
           gl.bufferData(gl.ARRAY_BUFFER, riverFloats, gl.STATIC_DRAW);
           riverVertexCount = nRiver;
-          curOffset += nRiver * 3 * 4;
+          curOffset += nRiver * 10 * 4;
         } else {
           riverVertexCount = 0;
         }
@@ -1465,8 +2090,29 @@
           gl.bindBuffer(gl.ARRAY_BUFFER, lavaVbo);
           gl.bufferData(gl.ARRAY_BUFFER, lavaFloats, gl.STATIC_DRAW);
           lavaVertexCount = nLava;
+          curOffset += nLava * 3 * 4;
         } else {
           lavaVertexCount = 0;
+        }
+
+        if (nTree > 0) {
+          const treeFloats = new Float32Array(buf, curOffset, nTree * 10);
+          gl.bindBuffer(gl.ARRAY_BUFFER, treeVbo);
+          gl.bufferData(gl.ARRAY_BUFFER, treeFloats, gl.STATIC_DRAW);
+          treeVertexCount = nTree;
+          curOffset += nTree * 10 * 4;
+        } else {
+          treeVertexCount = 0;
+        }
+
+        if (nSurf > 0) {
+          const surfFloats = new Float32Array(buf, curOffset, nSurf * 10);
+          gl.bindBuffer(gl.ARRAY_BUFFER, surfVbo);
+          gl.bufferData(gl.ARRAY_BUFFER, surfFloats, gl.STATIC_DRAW);
+          surfVertexCount = nSurf;
+          curOffset += nSurf * 10 * 4;
+        } else {
+          surfVertexCount = 0;
         }
 
         gl.bindBuffer(gl.ARRAY_BUFFER, null);
@@ -1475,9 +2121,13 @@
         completeProgress();
         isMeshFetching = false;
 
-        if (state.engine === 'gpu' && state.mode === 'micropolys') {
+        const isPhotoreal = (state.mode === 'photorealistic' || state.mode === 'regnum');
+        const is3D = (Math.abs(state.rot_pitch) > 0.5 || Math.abs(state.rot_yaw) > 0.5 || isRotating);
+        if ((state.engine === 'gpu' && state.mode === 'micropolys') || (isPhotoreal && is3D) || isRotating) {
+          gpuCanvas.style.display = 'block';
+          mapImg.style.display = 'none';
           renderClientGPU();
-        } else {
+        } else if (!is3D) {
           gpuCanvas.style.display = 'none';
           mapImg.style.display = 'block';
         }
@@ -1575,14 +2225,51 @@
       updateTransform();
     });
 
-    document.getElementById('btn-rot-reset').addEventListener('click', (e) => {
-      e.stopPropagation();
+    function reset3DRotation() {
       state.rot_pitch = 0.0;
       state.rot_yaw = 0.0;
       updateRotHud();
       saveCurrentSettings();
-      triggerUpdate(true);
+      if (state.mode === 'photorealistic' || state.mode === 'regnum') {
+        gpuCanvas.style.display = 'none';
+        mapImg.style.display = 'block';
+      } else {
+        if (state.engine === 'gpu' && isWebGlReady && meshVertexCount > 0) {
+          requestAnimationFrame(renderClientGPU);
+        } else {
+          triggerUpdate(true);
+        }
+      }
+    }
+
+    document.getElementById('btn-rot-reset').addEventListener('click', (e) => {
+      e.stopPropagation();
+      reset3DRotation();
     });
+
+    const btnRotHudReset = document.getElementById('btn-rot-hud-reset');
+    if (btnRotHudReset) {
+      btnRotHudReset.addEventListener('click', (e) => {
+        e.stopPropagation();
+        reset3DRotation();
+      });
+    }
+
+    const btnDragMode = document.getElementById('btn-drag-mode');
+    if (btnDragMode) {
+      btnDragMode.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (dragMode === 'pan') {
+          dragMode = 'rotate';
+          btnDragMode.textContent = '🔄';
+          btnDragMode.title = 'Drag Mode: 3D Orbit (Click for Pan)';
+        } else {
+          dragMode = 'pan';
+          btnDragMode.textContent = '✋';
+          btnDragMode.title = 'Drag Mode: Pan (Click for 3D Orbit)';
+        }
+      });
+    }
 
     // ---------------------------------------------------------------------------
     // Desktop Pointer Events (Mouse / Pen)
@@ -1595,11 +2282,22 @@
 
     mapBox.addEventListener('pointerdown', (e) => {
       if (e.pointerType === 'touch') return; // Handled exclusively by touch events
-      if (e.target.closest('.zoom-hud') || e.target.closest('.inspect-card')) return;
+      if (e.target.closest('.zoom-hud') || e.target.closest('.inspect-card') || e.target.closest('.rot-hud')) return;
       hasMoved = false;
 
-      if (e.button === 0 && !e.shiftKey) {
-        // Primary left-click rotates 3D mesh (works in both GPU and CPU modes)
+      const isPhotoreal = (state.mode === 'photorealistic' || state.mode === 'regnum');
+      const isRotatableMode = (state.mode === 'micropolys' || isPhotoreal);
+      const is3D = (Math.abs(state.rot_pitch) > 0.5 || Math.abs(state.rot_yaw) > 0.5);
+      const isRightClick = (e.button === 2);
+      const isLeftClick = (e.button === 0);
+
+      const shouldRotate = isRightClick ||
+                           (dragMode === 'rotate') ||
+                           (dragMode === 'auto' && (isRotatableMode || is3D)) ||
+                           (isLeftClick && (e.altKey || (dragMode === 'pan' && e.shiftKey)));
+
+      if ((isLeftClick || isRightClick) && shouldRotate && !e.shiftKey) {
+        // Primary left-click (or right-click) rotates 3D mesh
         isRotating = true;
         mapBox.classList.add('rotating');
         rotStartX = e.clientX;
@@ -1613,7 +2311,7 @@
           fetchMeshBinary();
         }
       } else {
-        // Shift+click or middle/right click pans viewport
+        // In 2D top-down mode, primary drag pans viewport; or Shift+click pans in 3D
         isPanning = true;
         mapBox.classList.add('panning');
         startX = e.clientX - panX;
@@ -1631,7 +2329,7 @@
         if (Math.abs(dx) > 3 || Math.abs(dy) > 3) hasMoved = true;
         let newYaw = (initialYaw + dx * 0.45) % 360;
         if (newYaw > 180) newYaw -= 360;
-        if (newYaw < -180) newYaw += 360;
+        if (newYaw < -180) newYaw -= 360;
         // Pitch: swiping UP tilts forward (increases pitch), swiping DOWN returns to top-down
         let newPitch = Math.max(0, Math.min(80, initialPitch - dy * 0.35));
         state.rot_yaw = Math.round(newYaw);
@@ -1644,8 +2342,9 @@
           mapImg.style.display = 'none';
           requestAnimationFrame(renderClientGPU);
         } else {
-          if (debounceTimer) clearTimeout(debounceTimer);
-          debounceTimer = setTimeout(() => { triggerUpdate(false); }, 100);
+          if (meshVertexCount === 0 && !isMeshFetching) {
+            fetchMeshBinary();
+          }
         }
         return;
       }
@@ -1670,11 +2369,19 @@
         saveCurrentSettings();
 
         if (hasMoved) {
-          // If in CPU mode, non-micropolys, or mesh not loaded, refresh server render with new angles
-          if (state.engine !== 'gpu' || state.mode !== 'micropolys' || meshVertexCount === 0 || !isWebGlReady) {
+          const is3D = (Math.abs(state.rot_pitch) > 0.5 || Math.abs(state.rot_yaw) > 0.5);
+          if (is3D && isWebGlReady && meshVertexCount > 0) {
+            // STAY in 3D! Keep WebGL canvas visible with the textured terrain!
+            gpuCanvas.style.display = 'block';
+            mapImg.style.display = 'none';
+            requestAnimationFrame(renderClientGPU);
+          } else if (!is3D) {
+            // In top-down view, display 2D map
             gpuCanvas.style.display = 'none';
             mapImg.style.display = 'block';
-            triggerUpdate(false);
+            if (state.mode !== 'photorealistic' && state.mode !== 'regnum') {
+              triggerUpdate(false);
+            }
           }
         } else {
           inspectAtClientXY(e.clientX, e.clientY);
@@ -1689,6 +2396,10 @@
       if (!hasMoved) {
         inspectAtClientXY(e.clientX, e.clientY);
       }
+    });
+
+    mapBox.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
     });
 
     mapBox.addEventListener('pointercancel', (e) => {
@@ -1708,22 +2419,34 @@
     let touchStartY = 0;
 
     mapBox.addEventListener('touchstart', (e) => {
-      if (e.target.closest('.zoom-hud') || e.target.closest('.inspect-card')) return;
+      if (e.target.closest('.zoom-hud') || e.target.closest('.inspect-card') || e.target.closest('.rot-hud')) return;
 
       if (e.touches.length === 1) {
         hasMoved = false;
         isPinching = false;
-        // 1-Finger drag rotates the 3D mesh in both GPU and CPU modes
-        isRotating = true;
-        mapBox.classList.add('rotating');
-        rotStartX = e.touches[0].clientX;
-        rotStartY = e.touches[0].clientY;
-        initialYaw = state.rot_yaw;
-        initialPitch = state.rot_pitch;
-        updateRotHud();
+        const isPhotoreal = (state.mode === 'photorealistic' || state.mode === 'regnum');
+        const isRotatableMode = (state.mode === 'micropolys' || isPhotoreal);
+        const is3D = (Math.abs(state.rot_pitch) > 0.5 || Math.abs(state.rot_yaw) > 0.5);
+        const shouldRotate = (dragMode === 'rotate') || (dragMode === 'auto' && (isRotatableMode || is3D));
+        if (shouldRotate) {
+          isRotating = true;
+          mapBox.classList.add('rotating');
+          rotStartX = e.touches[0].clientX;
+          rotStartY = e.touches[0].clientY;
+          initialYaw = state.rot_yaw;
+          initialPitch = state.rot_pitch;
+          updateRotHud();
 
-        if (meshVertexCount === 0 && !isMeshFetching) {
-          fetchMeshBinary();
+          if (meshVertexCount === 0 && !isMeshFetching) {
+            fetchMeshBinary();
+          }
+        } else {
+          isPanning = true;
+          mapBox.classList.add('panning');
+          touchStartX = e.touches[0].clientX;
+          touchStartY = e.touches[0].clientY;
+          startX = e.touches[0].clientX - panX;
+          startY = e.touches[0].clientY - panY;
         }
       } else if (e.touches.length === 2) {
         isRotating = false;
@@ -1750,8 +2473,7 @@
         if (Math.abs(dx) > 3 || Math.abs(dy) > 3) hasMoved = true;
         let newYaw = (initialYaw + dx * 0.45) % 360;
         if (newYaw > 180) newYaw -= 360;
-        if (newYaw < -180) newYaw += 360;
-        // Pitch: swiping UP tilts forward (increases pitch), swiping DOWN returns to top-down
+        if (newYaw < -180) newYaw -= 360;
         let newPitch = Math.max(0, Math.min(80, initialPitch - dy * 0.35));
         state.rot_yaw = Math.round(newYaw);
         state.rot_pitch = Math.round(newPitch);
@@ -1762,13 +2484,14 @@
           mapImg.style.display = 'none';
           requestAnimationFrame(renderClientGPU);
         } else {
-          if (debounceTimer) clearTimeout(debounceTimer);
-          debounceTimer = setTimeout(() => { triggerUpdate(false); }, 100);
+          if (meshVertexCount === 0 && !isMeshFetching) {
+            fetchMeshBinary();
+          }
         }
-      } else if (e.touches.length === 1 && !isPinching && !isRotating) {
+      } else if (e.touches.length === 1 && !isPinching && isPanning) {
         e.preventDefault();
-        const curX = e.touches[0].clientX - touchStartX;
-        const curY = e.touches[0].clientY - touchStartY;
+        const curX = e.touches[0].clientX - startX;
+        const curY = e.touches[0].clientY - startY;
         if (Math.abs(curX - panX) > 4 || Math.abs(curY - panY) > 4) {
           hasMoved = true;
         }
@@ -1802,15 +2525,20 @@
         saveCurrentSettings();
 
         if (hasMoved) {
-          if (state.engine !== 'gpu' || state.mode !== 'micropolys' || meshVertexCount === 0 || !isWebGlReady) {
+          const is3D = (Math.abs(state.rot_pitch) > 0.5 || Math.abs(state.rot_yaw) > 0.5);
+          if (is3D && isWebGlReady && meshVertexCount > 0) {
+            gpuCanvas.style.display = 'block';
+            mapImg.style.display = 'none';
+            requestAnimationFrame(renderClientGPU);
+          } else if (!is3D) {
             gpuCanvas.style.display = 'none';
             mapImg.style.display = 'block';
-            triggerUpdate(false);
+            if (state.mode !== 'photorealistic' && state.mode !== 'regnum') {
+              triggerUpdate(false);
+            }
           }
-        } else if (e.touches.length === 0) {
-          if (e.changedTouches.length > 0) {
-            inspectAtClientXY(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
-          }
+        } else if (e.touches.length === 0 && e.changedTouches.length > 0) {
+          inspectAtClientXY(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
         }
         return;
       } else if (isPinching) {
@@ -1852,6 +2580,25 @@
             document.getElementById('insp-elev').textContent = `${(data.elevation * 3200).toFixed(0)} m (${(data.elevation * 100).toFixed(0)}%)`;
             document.getElementById('insp-moist').textContent = `💧 ${(data.moisture * 100).toFixed(0)}%`;
             document.getElementById('insp-temp').textContent = `🌡️ ${(data.temperature * 35).toFixed(0)}°C`;
+
+            const inspGeoRow = document.getElementById('insp-geo-row');
+            const inspNation = document.getElementById('insp-nation');
+            const inspCity = document.getElementById('insp-city');
+            const inspPop = document.getElementById('insp-pop');
+            const inspPrice = document.getElementById('insp-price');
+            const inspRes = document.getElementById('insp-resources');
+
+            if (data.nation && inspGeoRow) {
+              inspNation.textContent = data.nation;
+              inspCity.textContent = (data.is_capital ? '★ ' : (data.is_prov_capital ? '◆ ' : '')) + (data.city || '');
+              inspPop.textContent = data.population !== undefined ? `👥 ${data.population}p` : '';
+              inspPrice.textContent = data.food_price !== undefined ? `🌾 $${data.food_price}` : '';
+              inspRes.textContent = data.resources && data.resources.length > 0 ? `💎 ${data.resources.join(', ')}` : '';
+              inspGeoRow.style.display = 'flex';
+            } else if (inspGeoRow) {
+              inspGeoRow.style.display = 'none';
+            }
+
             inspectCard.classList.add('active');
           }
         } catch (err) {
@@ -1875,8 +2622,11 @@
       }
       abortController = new AbortController();
 
-      gpuCanvas.style.display = 'none';
-      mapImg.style.display = 'block';
+      const is3D = (Math.abs(state.rot_pitch) > 0.5 || Math.abs(state.rot_yaw) > 0.5 || isRotating);
+      if (!is3D) {
+        gpuCanvas.style.display = 'none';
+        mapImg.style.display = 'block';
+      }
 
       const t0 = performance.now();
       mapImg.classList.add('loading');
@@ -1893,14 +2643,32 @@
 
         const blob = await res.blob();
         const objUrl = URL.createObjectURL(blob);
+        mapImg.onload = () => {
+          syncTerrainTexture();
+          const is3DNow = (Math.abs(state.rot_pitch) > 0.5 || Math.abs(state.rot_yaw) > 0.5 || isRotating);
+          if (is3DNow && isWebGlReady && meshVertexCount > 0) {
+            gpuCanvas.style.display = 'block';
+            mapImg.style.display = 'none';
+            requestAnimationFrame(renderClientGPU);
+          }
+        };
         mapImg.src = objUrl;
         mapImg.classList.remove('loading');
         completeProgress();
 
         const dur = (performance.now() - t0).toFixed(0);
-        const engineLabel = engHdr === 'gpu' ? '⚡ ModernGL GPU' : 'CPU Mesh';
+        let engineLabel = 'CPU Mesh';
+        if (engHdr === 'gpu') engineLabel = '⚡ ModernGL GPU';
+        else if (engHdr === 'regnum-topo' || state.mode === 'photorealistic' || state.mode === 'regnum') engineLabel = '🎨 REGNUM Topo';
+        else if (engHdr) engineLabel = engHdr;
         perfStatus.textContent = `${engineLabel} in ${durHdr || dur}ms • Seed ${state.seed}`;
-        polyBadge.textContent = engHdr === 'gpu' ? `${resHdr} UHD` : `${Number(state.polys).toLocaleString()} Polys`;
+        if (state.mode === 'photorealistic' || state.mode === 'regnum') {
+          polyBadge.textContent = 'Photorealistic Topo';
+        } else if (engHdr === 'gpu') {
+          polyBadge.textContent = `${resHdr} UHD`;
+        } else {
+          polyBadge.textContent = `${Number(state.polys).toLocaleString()} Polys`;
+        }
 
         // Update USDZ and Save links
         btnAr.href = `/api/export_usdz?${query}`;
@@ -1938,8 +2706,11 @@
           }
         }
       } else {
-        gpuCanvas.style.display = 'none';
-        mapImg.style.display = 'block';
+        const is3D = (Math.abs(state.rot_pitch) > 0.5 || Math.abs(state.rot_yaw) > 0.5 || isRotating);
+        if (!is3D) {
+          gpuCanvas.style.display = 'none';
+          mapImg.style.display = 'block';
+        }
         if (debounceTimer) clearTimeout(debounceTimer);
         if (immediate) {
           fetchRender();
@@ -2004,15 +2775,57 @@
       });
     });
 
-    // View Mode Buttons
-    document.querySelectorAll('#view-mode-bar .btn-segment').forEach(btn => {
+    // View Mode Buttons (Top row & Sub row)
+    document.querySelectorAll('#view-mode-bar .btn-segment, #view-mode-bar-sub .btn-segment').forEach(btn => {
       btn.addEventListener('click', () => {
-        document.querySelectorAll('#view-mode-bar .btn-segment').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('#view-mode-bar .btn-segment, #view-mode-bar-sub .btn-segment').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         state.mode = btn.dataset.mode;
+        saveCurrentSettings();
         triggerUpdate(true);
       });
     });
+
+    // Toggle and Slider Wiring Utilities for Enhancements
+    function wireRegnumToggle(id, stateKey, onPrefix = '', offPrefix = '') {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.addEventListener('click', () => {
+        state[stateKey] = !state[stateKey];
+        el.classList.toggle('active', !!state[stateKey]);
+        if (el.textContent.includes('ON') || el.textContent.includes('OFF')) {
+          el.textContent = state[stateKey] ? (onPrefix ? onPrefix + 'ON' : 'ON') : (offPrefix ? offPrefix + 'OFF' : 'OFF');
+        }
+        saveCurrentSettings();
+        triggerUpdate(true);
+      });
+    }
+
+    function wireRegnumSlider(id, key, valId, fmtFn = v => `${v}`) {
+      const slider = document.getElementById(id);
+      const valDisp = document.getElementById(valId);
+      if (!slider) return;
+      slider.addEventListener('input', (e) => {
+        state[key] = parseFloat(e.target.value);
+        if (valDisp) valDisp.textContent = fmtFn(state[key]);
+        saveCurrentSettings();
+        triggerUpdate(false);
+      });
+    }
+
+    // Micropoly Enhancements Wiring
+    wireRegnumToggle('toggle-mp-trees', 'micropoly_trees');
+    wireRegnumSlider('slider-tree-density', 'tree_density', 'val-tree-density', v => `${Number(v) >= 10 ? Math.round(v) : Number(v).toFixed(1)}x`);
+
+    wireRegnumToggle('toggle-mp-waves', 'micropoly_waves');
+    wireRegnumSlider('slider-wave-intensity', 'wave_intensity', 'val-wave-intensity', v => `${v.toFixed(2)}x`);
+
+    wireRegnumToggle('toggle-mp-strata', 'micropoly_strata');
+    wireRegnumToggle('toggle-mp-parcels', 'micropoly_parcels');
+    wireRegnumToggle('toggle-mp-grain', 'micropoly_grain');
+
+    wireRegnumSlider('slider-mp-blend', 'micropoly_blend', 'val-mp-blend', v => `${Math.round(v * 100)}%`);
+    wireRegnumToggle('toggle-mp-creases', 'micropoly_creases');
 
     // Shape Buttons
     document.querySelectorAll('#shape-bar .btn-segment').forEach(btn => {
@@ -2079,6 +2892,70 @@
         rot_pitch: 0,
         rot_yaw: 0,
         wireframe: false,
+        geo_layer: 'overview',
+        nations: 3,
+        nation_seed: 777,
+        nation_alpha: 0.55,
+        show_cities: true,
+        show_trade: true,
+        show_provinces: true,
+        show_outlines: true,
+        show_resources: true,
+        selected_cell: -1,
+        // Micropoly Non-Destructive Enhancements
+        micropoly_trees: true,
+        tree_density: 0.85,
+        micropoly_waves: true,
+        wave_intensity: 1.0,
+        micropoly_strata: true,
+        micropoly_parcels: true,
+        micropoly_grain: true,
+        micropoly_blend: 0.0,
+        micropoly_creases: false,
+        // REGNUM Photorealistic Topographic Graphical Features
+        show_canopy: true,
+        canopy_density: 0.85,
+        crown_size: 5.0,
+        forest_shadows: true,
+        forest_clearings: true,
+        riparian_trees: true,
+        show_ocean_fx: true,
+        show_wave_ripples: true,
+        wave_ripples: 1.0,
+        show_specular_glints: true,
+        specular_glints: 1.0,
+        show_coastal_surf: true,
+        coastal_surf: 1.0,
+        shelf_width: 1.0,
+        show_beaches: true,
+        beach_width: 1.0,
+        sand_dunes: true,
+        show_coastal_cliffs: true,
+        coastal_cliffs: 1.0,
+        show_rock_strata: true,
+        rock_strata: 1.0,
+        show_snow_peaks: true,
+        snow_peaks: 1.0,
+        snow_altitude: 0.70,
+        show_ground_grain: true,
+        ground_grain: 1.0,
+        show_soil_parcels: true,
+        soil_parcels: 1.0,
+        field_filaments: true,
+        carve_rivers: true,
+        river_width: 1.0,
+        canyon_depth: 1.5,
+        valley_width: 1.0,
+        estuary_fan: true,
+        riparian_turf: true,
+        show_atmosphere: true,
+        show_cloud_shadows: true,
+        cloud_shadows: 0.55,
+        show_aerial_haze: true,
+        aerial_haze: 0.50,
+        show_split_tone: true,
+        split_tone: 0.60,
+        vignette: true,
       };
       return Object.assign({}, defaults, st);
     }
@@ -2243,15 +3120,24 @@
     function restoreSettings() {
       try {
         const savedActiveSlot = localStorage.getItem(STORAGE_KEY_ACTIVE_SLOT);
-        if (savedActiveSlot) {
-          activeSlot = parseInt(savedActiveSlot) || 1;
+        activeSlot = savedActiveSlot ? (parseInt(savedActiveSlot) || 1) : 1;
+
+        // Default to Slot 1 if available
+        let slot1Item = null;
+        const slot1Raw = localStorage.getItem('mapgen_slot_1');
+        if (slot1Raw) {
+          try { slot1Item = JSON.parse(slot1Raw); } catch(e){}
         }
 
-        const lastRaw = localStorage.getItem(STORAGE_KEY_LAST);
-        if (lastRaw) {
-          const loaded = JSON.parse(lastRaw);
-          if (loaded && typeof loaded === 'object') {
-            Object.assign(state, sanitizeSlotState(loaded));
+        if (slot1Item && slot1Item.state) {
+          Object.assign(state, sanitizeSlotState(slot1Item.state));
+        } else {
+          const lastRaw = localStorage.getItem(STORAGE_KEY_LAST);
+          if (lastRaw) {
+            const loaded = JSON.parse(lastRaw);
+            if (loaded && typeof loaded === 'object') {
+              Object.assign(state, sanitizeSlotState(loaded));
+            }
           }
         }
       } catch (e) {
@@ -2260,7 +3146,14 @@
 
       syncUiFromState();
       updateSlotUi();
-      fetchServerSlots();
+      fetchServerSlots().then(() => {
+        // If server has slot 1 saved, load it as default
+        if (cachedSlots && cachedSlots['1'] && cachedSlots['1'].state) {
+          Object.assign(state, sanitizeSlotState(cachedSlots['1'].state));
+          syncUiFromState();
+          triggerUpdate(false);
+        }
+      });
     }
 
     function syncUiFromState() {
@@ -2314,8 +3207,15 @@
       setVal('val-points', state.points);
       setSegment('#region-preset-bar .btn-segment', 'data-points', state.points);
 
+      // River Hydraulics Controls Sync
       setSlider('slider-rivers', state.rivers);
       setVal('val-rivers', state.rivers);
+      setSlider('slider-canyon-depth', state.canyon_depth !== undefined ? state.canyon_depth : 1.5);
+      setVal('val-canyon-depth', Number(state.canyon_depth !== undefined ? state.canyon_depth : 1.5).toFixed(1));
+      setSlider('slider-valley-width', state.valley_width !== undefined ? state.valley_width : 1.0);
+      setVal('val-valley-width', Number(state.valley_width !== undefined ? state.valley_width : 1.0).toFixed(1) + 'x');
+      setSlider('slider-river-width', state.river_width !== undefined ? state.river_width : 1.0);
+      setVal('val-river-width', Number(state.river_width !== undefined ? state.river_width : 1.0).toFixed(1) + 'x');
 
       setSlider('slider-height', state.height_scale);
       setVal('val-height', Math.round(state.height_scale));
@@ -2349,6 +3249,69 @@
       setVal('val-south-temp', (state.south_temp > 0 ? '+' : '') + Number(state.south_temp).toFixed(2));
       setSlider('slider-persistence', state.persistence);
       setVal('val-persistence', (state.persistence > 0 ? '+' : '') + Number(state.persistence).toFixed(2));
+
+      // Geopolitics Knobs Sync
+      setSegment('#geo-layer-bar .btn-segment, #geo-layer-bar-2 .btn-segment', 'data-geolayer', state.geo_layer || 'overview');
+      setVal('val-geo-layer', (state.geo_layer || 'overview').toUpperCase());
+      setSlider('slider-nations', state.nations || 3);
+      setVal('val-nations', `${state.nations || 3} Powers`);
+      setSegment('#nations-preset-bar .btn-segment', 'data-nations', state.nations || 3);
+      setSlider('slider-nation-seed', state.nation_seed || 777);
+      setVal('val-nation-seed', state.nation_seed || 777);
+      setSlider('slider-nation-alpha', state.nation_alpha !== undefined ? state.nation_alpha : 0.55);
+      setVal('val-nation-alpha', `${Math.round((state.nation_alpha !== undefined ? state.nation_alpha : 0.55) * 100)}%`);
+
+      const toggleCityBtn = document.getElementById('toggle-cities');
+      if (toggleCityBtn) toggleCityBtn.classList.toggle('active', state.show_cities !== false);
+      const toggleTradeBtn = document.getElementById('toggle-trade');
+      if (toggleTradeBtn) toggleTradeBtn.classList.toggle('active', state.show_trade !== false);
+      const toggleProvBtn = document.getElementById('toggle-provinces');
+      if (toggleProvBtn) toggleProvBtn.classList.toggle('active', state.show_provinces !== false);
+      const toggleResBtn = document.getElementById('toggle-resources');
+      if (toggleResBtn) toggleResBtn.classList.toggle('active', state.show_resources !== false);
+      const toggleOutlinesBtn = document.getElementById('toggle-outlines');
+      if (toggleOutlinesBtn) toggleOutlinesBtn.classList.toggle('active', state.show_outlines !== false);
+
+      const geoCard = document.getElementById('geopolitics-card');
+      if (geoCard) {
+        if (state.mode === 'geopolitics') {
+          geoCard.style.borderColor = 'rgba(245, 158, 11, 0.6)';
+          geoCard.style.boxShadow = '0 0 20px rgba(245, 158, 11, 0.2)';
+        } else {
+          geoCard.style.borderColor = 'var(--card-border)';
+          geoCard.style.boxShadow = 'none';
+        }
+      }
+
+      // REGNUM Graphical Features Sync
+      const setRegnumToggle = (id, active, onPrefix = '', offPrefix = '') => {
+        const el = document.getElementById(id);
+        if (el) {
+          el.classList.toggle('active', !!active);
+          if (el.textContent.includes('ON') || el.textContent.includes('OFF')) {
+            el.textContent = active ? (onPrefix ? onPrefix + 'ON' : 'ON') : (offPrefix ? offPrefix + 'OFF' : 'OFF');
+          }
+        }
+      };
+
+      // Micropoly Enhancements Sync
+      setRegnumToggle('toggle-mp-trees', state.micropoly_trees !== false);
+      const td = Number(state.tree_density !== undefined ? state.tree_density : 1.0);
+      setSlider('slider-tree-density', td);
+      setVal('val-tree-density', `${td >= 10 ? Math.round(td) : td.toFixed(1)}x`);
+
+      setRegnumToggle('toggle-mp-waves', state.micropoly_waves !== false);
+      setSlider('slider-wave-intensity', state.wave_intensity !== undefined ? state.wave_intensity : 1.0);
+      setVal('val-wave-intensity', `${Number(state.wave_intensity !== undefined ? state.wave_intensity : 1.0).toFixed(2)}x`);
+
+      setRegnumToggle('toggle-mp-strata', state.micropoly_strata !== false);
+      setRegnumToggle('toggle-mp-parcels', state.micropoly_parcels !== false);
+      setRegnumToggle('toggle-mp-grain', state.micropoly_grain !== false);
+
+      setSlider('slider-mp-blend', state.micropoly_blend !== undefined ? state.micropoly_blend : 0.0);
+      setVal('val-mp-blend', `${Math.round((state.micropoly_blend !== undefined ? state.micropoly_blend : 0.0) * 100)}%`);
+
+      setRegnumToggle('toggle-mp-creases', !!state.micropoly_creases);
 
       updateRotHud();
     }
@@ -2482,6 +3445,9 @@
       return Math.round(v);
     });
     bindSlider('slider-rivers', 'rivers', 'val-rivers', v => Math.round(v));
+    bindSlider('slider-canyon-depth', 'canyon_depth', 'val-canyon-depth', v => Number(v).toFixed(1));
+    bindSlider('slider-valley-width', 'valley_width', 'val-valley-width', v => Number(v).toFixed(1) + 'x');
+    bindSlider('slider-river-width', 'river_width', 'val-river-width', v => Number(v).toFixed(1) + 'x');
 
     // Reset to Default Settings
     const DEFAULT_SETTINGS = {
@@ -2496,6 +3462,9 @@
       jitter: 0.22,
       smooth: 0.70,
       rivers: 25,
+      canyon_depth: 1.5,
+      valley_width: 1.0,
+      river_width: 1.0,
       moisture_bias: 0.0,
       north_temp: 0.0,
       south_temp: 0.0,
@@ -2515,7 +3484,59 @@
       rot_pitch: 0.0,
       rot_yaw: 0.0,
       shadows: true,
-      shadow_darkness: 1.0
+      shadow_darkness: 1.0,
+      // Micropoly Non-Destructive Enhancements
+      micropoly_trees: true,
+      tree_density: 0.85,
+      micropoly_waves: true,
+      wave_intensity: 1.0,
+      micropoly_strata: true,
+      micropoly_parcels: true,
+      micropoly_grain: true,
+      micropoly_blend: 0.0,
+      micropoly_creases: false,
+      // REGNUM Graphical Features
+      show_canopy: true,
+      canopy_density: 0.85,
+      crown_size: 5.0,
+      forest_shadows: true,
+      forest_clearings: true,
+      riparian_trees: true,
+      show_ocean_fx: true,
+      show_wave_ripples: true,
+      wave_ripples: 1.0,
+      show_specular_glints: true,
+      specular_glints: 1.0,
+      show_coastal_surf: true,
+      coastal_surf: 1.0,
+      shelf_width: 1.0,
+      show_beaches: true,
+      beach_width: 1.0,
+      sand_dunes: true,
+      show_coastal_cliffs: true,
+      coastal_cliffs: 1.0,
+      show_rock_strata: true,
+      rock_strata: 1.0,
+      show_snow_peaks: true,
+      snow_peaks: 1.0,
+      snow_altitude: 0.70,
+      show_ground_grain: true,
+      ground_grain: 1.0,
+      show_soil_parcels: true,
+      soil_parcels: 1.0,
+      field_filaments: true,
+      carve_rivers: true,
+      river_width: 1.0,
+      estuary_fan: true,
+      riparian_turf: true,
+      show_atmosphere: true,
+      show_cloud_shadows: true,
+      cloud_shadows: 0.55,
+      show_aerial_haze: true,
+      aerial_haze: 0.50,
+      show_split_tone: true,
+      split_tone: 0.60,
+      vignette: true
     };
 
     function resetToDefaults() {

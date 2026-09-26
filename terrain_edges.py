@@ -136,7 +136,9 @@ class TerrainEdgeManager:
 
         # 4. River Drainage Corridors (Downhill gradient flow & river valleys)
         is_river = False
-        if dh >= 0.04 and (h_a > 0.06 or h_b > 0.06) and (h_a < 0.78 or h_b < 0.78):
+        if getattr(tile_a, 'is_river_corridor', False) and getattr(tile_b, 'is_river_corridor', False):
+            is_river = True
+        elif dh >= 0.04 and (h_a > 0.06 or h_b > 0.06) and (h_a < 0.78 or h_b < 0.78):
             is_river = True
 
         if is_river:
@@ -172,22 +174,27 @@ class TerrainEdgeManager:
         )
 
     def compute_all_edges(self):
-        """Analyze and populate all adjacent hex edges across the layout."""
+        """Analyze and populate all adjacent edges across the layout and graph."""
         self.edges.clear()
+        from world_config import is_hex_topology
+        if is_hex_topology():
+            for name, tile in self.tiles_by_name.items():
+                if name in self.layout:
+                    q, axr = self.layout[name]
+                    for nq, nar in axial_neighbors(q, axr):
+                        nc, nr = axial_to_offset(nq, nar)
+                        other_name = f"r{nr}c{nc}"
+                        if other_name in self.tiles_by_name:
+                            other_tile = self.tiles_by_name[other_name]
+                            key = self._pair_key(name, other_name)
+                            if key not in self.edges:
+                                edge = self.compute_edge(tile, other_tile)
+                                self.edges[key] = edge
+
+        # Also populate edges from explicit tile.adjacent_tiles or tile.neighbors
         for name, tile in self.tiles_by_name.items():
-            if name in self.layout:
-                q, axr = self.layout[name]
-                for nq, nar in axial_neighbors(q, axr):
-                    nc, nr = axial_to_offset(nq, nar)
-                    other_name = f"r{nr}c{nc}"
-                    if other_name in self.tiles_by_name:
-                        other_tile = self.tiles_by_name[other_name]
-                        key = self._pair_key(name, other_name)
-                        if key not in self.edges:
-                            edge = self.compute_edge(tile, other_tile)
-                            self.edges[key] = edge
-            # Also populate edges from explicit tile.neighbors
-            for other_name, other_tile in getattr(tile, 'neighbors', {}).items():
+            adj_dict = getattr(tile, 'adjacent_tiles', getattr(tile, 'neighbors', {}))
+            for other_name, other_tile in adj_dict.items():
                 if other_name in self.tiles_by_name:
                     key = self._pair_key(name, other_name)
                     if key not in self.edges:

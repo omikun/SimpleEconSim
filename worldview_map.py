@@ -560,8 +560,10 @@ def draw_activity_badges(surface, region, cx, cy, font_small):
         avg = sum(n.recipes[Goods.food]['price'] for n in neighbors if Goods.food in n.recipes) / max(1, len(neighbors))
         ring_color = HOT_RING if food > avg * 1.15 else \
                      COLD_RING if food < avg * 0.85 else None
+        from world_config import is_voronoi_topology
+        ring_radius = 22 if is_voronoi_topology() else (HEX_SIZE - 8)
         if ring_color is not None:
-            pygame.draw.circle(surface, ring_color, (cx, cy), HEX_SIZE - 8, 2)
+            pygame.draw.circle(surface, ring_color, (cx, cy), ring_radius, 2)
     dr = region.demand_ratio_log.get(Goods.food, [])
     if dr and dr[-1] > 1.5:
         pygame.draw.circle(surface, BADGE_ORANGE, (cx + 30, cy - 34), 6)
@@ -916,22 +918,36 @@ def draw_hex_map(surface, world, font, font_small):
                     pygame.event.pump()
             progress_cb = _on_map_progress
 
-        topo_surf = terrain_renderer.get_or_generate_surface(
-            seed, bbox, tiles=tiles, layout=layout,
-            progress_callback=progress_cb
-        )
+        from world_config import is_voronoi_topology
+        if is_voronoi_topology() and world.get('gen') is not None:
+            gen = world['gen']
+            topo_surf = gen.render_to_surface(
+                width=max(1000, int(bbox[2])),
+                height=max(1000, int(bbox[3])),
+                use_brdf=True,
+                use_noisy_edges=True,
+                show_roads=True,
+                show_lava=False,
+            )
+        else:
+            topo_surf = terrain_renderer.get_or_generate_surface(
+                seed, bbox, tiles=tiles, layout=layout,
+                progress_callback=progress_cb
+            )
         world['_cached_topo_surface'] = topo_surf
         world['_map_generation_done'] = True
         world['loading_modal'] = None
-        if not world.get('_cached_from_disk', False) and not terrain_renderer.used_gpu:
+        if not world.get('_cached_from_disk', False) and not getattr(terrain_renderer, 'used_gpu', False) and not is_voronoi_topology():
             from world_cache import save_map_cache
             save_map_cache(world, topo_surf)
             world['_cached_from_disk'] = True
 
 
+    from world_config import is_voronoi_topology
+    pad_ratio = 0.0 if is_voronoi_topology() else 0.18
     x0, y0, x1, y1 = bbox
-    pad_x = (x1 - x0) * 0.18
-    pad_y = (y1 - y0) * 0.18
+    pad_x = (x1 - x0) * pad_ratio
+    pad_y = (y1 - y0) * pad_ratio
     min_wx = x0 - pad_x
     min_wy = y0 - pad_y
     world_w = (x1 - x0) + 2 * pad_x
@@ -972,7 +988,12 @@ def draw_hex_map(surface, world, font, font_small):
         if coords is None:
             continue
         cx, cy = hex_px(world, *coords)
-        pts = hex_corners((cx, cy), HEX_SIZE * zoom - 1)
+        if is_voronoi_topology() and hasattr(region, 'polygon') and region.polygon:
+            ox_cam = world['cam']['ox']
+            oy_cam = world['cam']['oy']
+            pts = [(int(p[0] * zoom + ox_cam), int(p[1] * zoom + oy_cam)) for p in region.polygon]
+        else:
+            pts = hex_corners((cx, cy), HEX_SIZE * zoom - 1)
         hex_geom.append((region, cx, cy, pts))
 
         # 1a. Ocean wave shimmer (if water)

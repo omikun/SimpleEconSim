@@ -18,8 +18,10 @@ MAP_PAD_RATIO = 0.18
 def get_map_bounds(world):
     """Return world pixel coordinates (min_wx, min_wy, max_wx, max_wy) of the map surface."""
     x0, y0, x1, y1 = world['bbox']
-    pad_x = (x1 - x0) * MAP_PAD_RATIO
-    pad_y = (y1 - y0) * MAP_PAD_RATIO
+    from world_config import is_voronoi_topology
+    pad_ratio = 0.0 if is_voronoi_topology() else MAP_PAD_RATIO
+    pad_x = (x1 - x0) * pad_ratio
+    pad_y = (y1 - y0) * pad_ratio
     return (x0 - pad_x, y0 - pad_y, x1 + pad_x, y1 + pad_y)
 
 
@@ -99,7 +101,11 @@ def reset_cam(world):
 
 
 def hex_px(world, q, r):
-    """Convert axial hex (q, r) to screen pixel coordinates with pan and zoom."""
+    """Convert axial hex (q, r) or world (x, y) to screen pixel coordinates with pan and zoom."""
+    from world_config import is_voronoi_topology
+    if is_voronoi_topology():
+        zoom = world['cam']['zoom']
+        return (int(q * zoom + world['cam']['ox']), int(r * zoom + world['cam']['oy']))
     x, y = axial_to_pixel(q, r, HEX_SIZE * world['cam']['zoom'])
     return (int(x + world['cam']['ox']), int(y + world['cam']['oy']))
 
@@ -109,6 +115,29 @@ def tile_at(world, mx, my):
     if mx >= MAP_RIGHT or my < TOP_BAR_H or my > HEIGHT - TICKER_H:
         return None
     cam = world['cam']
+    from world_config import is_voronoi_topology
+    if is_voronoi_topology():
+        wx = (mx - cam['ox']) / cam['zoom']
+        wy = (my - cam['oy']) / cam['zoom']
+        gen = world.get('gen')
+        if gen is not None and hasattr(gen, 'get_center_at'):
+            center = gen.get_center_at(wx, wy)
+            if center is not None:
+                if hasattr(center, 'region'):
+                    return center.region
+                name = getattr(center, 'name', f"c{center.index}")
+                return world['by_name'].get(name)
+        # fallback: find nearest centroid
+        best_t = None
+        best_d2 = 1e12
+        for t in world.get('tiles', []):
+            cx, cy = getattr(t, 'centroid', (0.0, 0.0))
+            d2 = (wx - cx) ** 2 + (wy - cy) ** 2
+            if d2 < best_d2:
+                best_d2 = d2
+                best_t = t
+        return best_t
+
     q, r = pixel_to_axial((mx - cam['ox']) / cam['zoom'],
                           (my - cam['oy']) / cam['zoom'],
                           HEX_SIZE)
