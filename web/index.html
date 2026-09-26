@@ -188,12 +188,12 @@
       top: 0;
       left: 0;
       width: 100%;
-      height: 3px;
+      height: 4px;
       z-index: 99999;
       pointer-events: none;
       opacity: 0;
       transition: opacity 0.2s ease;
-      background: rgba(0, 0, 0, 0.25);
+      background: rgba(0, 0, 0, 0.45);
     }
     .progress-bar.active {
       opacity: 1;
@@ -201,9 +201,15 @@
     .progress-bar-inner {
       height: 100%;
       width: 0%;
-      background: linear-gradient(90deg, #2d8cf0, #00d2ff, #34d399);
-      box-shadow: 0 0 10px rgba(0, 210, 255, 0.9), 0 0 4px #2d8cf0;
-      transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      background: linear-gradient(90deg, #2563eb 0%, #00d2ff 40%, #34d399 75%, #38bdf8 100%);
+      background-size: 200% 100%;
+      animation: progressGlow 1.8s linear infinite;
+      box-shadow: 0 0 12px rgba(0, 210, 255, 0.95), 0 0 5px #2563eb;
+      transition: width 0.12s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    @keyframes progressGlow {
+      0% { background-position: 100% 0; }
+      100% { background-position: -100% 0; }
     }
 
     /* 3D Rotation HUD */
@@ -499,7 +505,7 @@
     <div class="card" style="padding: 12px 14px;">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
         <span style="font-size: 0.82rem; font-weight: 700; color: var(--accent);">Render Engine</span>
-        <span style="font-size: 0.75rem; color: var(--text-muted);" id="engine-status">⚡ WebGL 2 Client (60-120 FPS)</span>
+        <span style="font-size: 0.75rem; color: var(--text-muted);" id="engine-status">⚡ WebGL 2 Client</span>
       </div>
       <div class="segment-bar" id="engine-bar" style="margin-bottom: 12px; grid-template-columns: 1.3fr 1fr;">
         <button class="btn-segment active" data-engine="gpu">⚡ GPU (WebGL 2 Client)</button>
@@ -1005,21 +1011,111 @@
     const rotHud = document.getElementById('rot-hud');
     const rotReadout = document.getElementById('rot-readout');
     let progressAnimInterval = null;
+    let currentProgressVal = 0;
+    let progressStartTime = 0;
+    let lastTerrainComputeTimeStr = null;
 
-    function startProgress() {
-      if (progressAnimInterval) clearInterval(progressAnimInterval);
+    function updateEngineStatus() {
+      const engineStatus = document.getElementById('engine-status');
+      if (!engineStatus) return;
+      const timeTag = lastTerrainComputeTimeStr ? ` (${lastTerrainComputeTimeStr})` : '';
+      engineStatus.textContent = state.engine === 'gpu' ? `⚡ WebGL 2 Client${timeTag}` : `CPU Discrete Mesh${timeTag}`;
+    }
+
+    function setProgress(percent, statusText = null) {
+      if (!progressBar || !progressInner) return;
+      currentProgressVal = Math.min(100, Math.max(currentProgressVal, percent));
+      progressBar.classList.add('active');
+      progressInner.style.transition = 'width 0.12s ease-out';
+      progressInner.style.width = `${currentProgressVal.toFixed(1)}%`;
+      if (statusText && perfStatus) {
+        perfStatus.textContent = `⏳ ${statusText} (${Math.round(currentProgressVal)}%)`;
+      }
+    }
+
+    function startProgress(initialStatus = 'Computing terrain...') {
+      if (progressAnimInterval) {
+        clearInterval(progressAnimInterval);
+        progressAnimInterval = null;
+      }
       if (!progressBar || !progressInner) return;
       progressBar.classList.add('active');
+      currentProgressVal = 5;
+      progressStartTime = performance.now();
       progressInner.style.transition = 'width 0.15s ease-out';
-      progressInner.style.width = '25%';
-      let current = 25;
+      progressInner.style.width = '5%';
+      if (perfStatus) {
+        perfStatus.textContent = `⏳ ${initialStatus} (5%)`;
+      }
+
+      // Smooth multi-stage continuous progress while waiting for server computation:
+      // Dynamically calibrated to expected polygon workload so it never freezes
+      const polys = Number(state.polys) || 16000;
+      const estServerMs = Math.max(1200, Math.min(25000, 800 + Math.pow(polys / 16000, 0.72) * 1900));
+
       progressAnimInterval = setInterval(() => {
-        if (current < 85) {
-          current += Math.random() * 8 + 3;
-          if (current > 85) current = 85;
-          progressInner.style.width = `${current}%`;
+        const elapsed = performance.now() - progressStartTime;
+        // Asymptotically approach 58% during server generation (reserves 60%-100% for live network transfer & GPU setup)
+        const t = Math.min(0.95, elapsed / estServerMs);
+        const curve = 1.0 - Math.pow(1.0 - t, 2.2);
+        let target = 5 + curve * 50; // 5% to 55%
+        if (elapsed > estServerMs) {
+          const over = (elapsed - estServerMs) / 1000;
+          target = Math.min(59.5, 55 + Math.log10(1 + over) * 2.0);
         }
-      }, 90);
+
+        if (target > currentProgressVal) {
+          currentProgressVal = target;
+          progressInner.style.width = `${currentProgressVal.toFixed(1)}%`;
+        }
+
+        // Live contextual progress updates
+        let stage = 'Generating terrain graph & hydrology';
+        if (elapsed > 400 && elapsed <= 2000) {
+          stage = 'Simulating global hydraulic erosion';
+        } else if (elapsed > 2000 && elapsed <= 6000) {
+          stage = 'Subdividing micropolys across CPU cores';
+        } else if (elapsed > 6000) {
+          stage = 'Finalizing 3D terrain mesh & valleys';
+        }
+        if (perfStatus && currentProgressVal < 60) {
+          perfStatus.textContent = `⏳ ${stage}... (${Math.round(currentProgressVal)}%)`;
+        }
+      }, 100);
+    }
+
+    async function readStreamWithProgress(response, onProgress) {
+      const contentLength = response.headers.get('Content-Length');
+      const totalBytes = contentLength ? parseInt(contentLength, 10) : 0;
+
+      if (!response.body) {
+        const buf = await response.arrayBuffer();
+        if (onProgress) onProgress(1.0, buf.byteLength, buf.byteLength);
+        return buf;
+      }
+
+      const reader = response.body.getReader();
+      let receivedBytes = 0;
+      const chunks = [];
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        receivedBytes += value.length;
+        if (onProgress) {
+          const ratio = totalBytes > 0 ? (receivedBytes / totalBytes) : Math.min(0.99, receivedBytes / (10 * 1024 * 1024));
+          onProgress(ratio, receivedBytes, totalBytes);
+        }
+      }
+
+      const allBytes = new Uint8Array(receivedBytes);
+      let position = 0;
+      for (const chunk of chunks) {
+        allBytes.set(chunk, position);
+        position += chunk.length;
+      }
+      return allBytes.buffer;
     }
 
     function completeProgress() {
@@ -1028,14 +1124,16 @@
         progressAnimInterval = null;
       }
       if (!progressBar || !progressInner) return;
-      progressInner.style.transition = 'width 0.10s ease-out';
+      currentProgressVal = 100;
+      progressInner.style.transition = 'width 0.12s ease-out';
       progressInner.style.width = '100%';
       setTimeout(() => {
         progressBar.classList.remove('active');
         setTimeout(() => {
           progressInner.style.width = '0%';
-        }, 200);
-      }, 140);
+          currentProgressVal = 0;
+        }, 250);
+      }, 180);
     }
 
     function updateRotHud() {
@@ -1981,7 +2079,8 @@
         const is3D = (Math.abs(state.rot_pitch) > 0.5 || Math.abs(state.rot_yaw) > 0.5);
         const shadowStatus = state.shadows ? 'Self-Shadow ON' : 'Shadows OFF';
         const engineLabel = isPhotoreal ? '🎨 Photorealistic 3D' : '⚡ WebGL 2 Client';
-        perfStatus.textContent = `${engineLabel} (60-120 FPS) • ${shadowStatus} • ${is3D ? `Pitch ${Math.round(state.rot_pitch)}° Yaw ${Math.round(state.rot_yaw)}°` : 'Top-Down'}`;
+        const computeInfo = lastTerrainComputeTimeStr ? `Computed in ${lastTerrainComputeTimeStr}` : 'Ready';
+        perfStatus.textContent = `${engineLabel} (${computeInfo}) • ${shadowStatus} • ${is3D ? `Pitch ${Math.round(state.rot_pitch)}° Yaw ${Math.round(state.rot_yaw)}°` : 'Top-Down'}`;
         if (isPhotoreal) {
           polyBadge.textContent = 'Photorealistic 3D';
         } else {
@@ -2034,7 +2133,8 @@
       }
       meshAbortController = new AbortController();
 
-      startProgress();
+      const fetchStartTime = performance.now();
+      startProgress('Computing terrain mesh...');
       isMeshFetching = true;
 
       try {
@@ -2042,9 +2142,22 @@
         const res = await fetch(`/api/mesh_binary?${query}`, { signal: meshAbortController.signal });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-        let buf = await res.arrayBuffer();
+        // Read stream with live byte progress (60% -> 85%)
+        if (progressAnimInterval) {
+          clearInterval(progressAnimInterval);
+          progressAnimInterval = null;
+        }
+
+        let buf = await readStreamWithProgress(res, (ratio, received, total) => {
+          const pct = 60 + ratio * 24; // 60% -> 84%
+          const mbRcv = (received / 1048576).toFixed(1);
+          const mbTot = total > 0 ? (total / 1048576).toFixed(1) : '?';
+          setProgress(pct, `Streaming binary mesh (${mbRcv} MB / ${mbTot} MB)`);
+        });
+
         if (buf.byteLength < 24) throw new Error('Invalid mesh payload size');
 
+        setProgress(85, 'Decompressing geometry buffers...');
         let view = new DataView(buf);
         let magic = String.fromCharCode(view.getUint8(0), view.getUint8(1), view.getUint8(2), view.getUint8(3));
         if (magic !== 'MMSH') {
@@ -2058,6 +2171,7 @@
         }
         if (magic !== 'MMSH') throw new Error(`Invalid magic: ${magic}`);
 
+        setProgress(89, 'Parsing terrain geometry...');
         const version = view.getUint32(4, true);
         const nVerts = view.getUint32(8, true);
         const maxZ = view.getFloat32(12, true);
@@ -2074,6 +2188,7 @@
 
         if (!isWebGlReady && !initWebGL()) throw new Error('WebGL 2 failed to initialize');
 
+        setProgress(92, `Uploading ${(nVerts / 3).toLocaleString()} micropolys to GPU...`);
         const vboBytes = nVerts * 10 * 4;
         const vboFloats = new Float32Array(buf, vboOffset, nVerts * 10);
 
@@ -2084,6 +2199,7 @@
 
         let curOffset = vboOffset + vboBytes;
         if (nRiver > 0) {
+          setProgress(94, `Uploading ${nRiver} river ribbon vertices...`);
           const riverFloats = new Float32Array(buf, curOffset, nRiver * 10);
           gl.bindBuffer(gl.ARRAY_BUFFER, riverVbo);
           gl.bufferData(gl.ARRAY_BUFFER, riverFloats, gl.STATIC_DRAW);
@@ -2104,6 +2220,7 @@
         }
 
         if (nTree > 0) {
+          setProgress(96, `Uploading ${(nTree / 3).toLocaleString()} 3D trees...`);
           const treeFloats = new Float32Array(buf, curOffset, nTree * 10);
           gl.bindBuffer(gl.ARRAY_BUFFER, treeVbo);
           gl.bufferData(gl.ARRAY_BUFFER, treeFloats, gl.STATIC_DRAW);
@@ -2114,6 +2231,7 @@
         }
 
         if (nSurf > 0) {
+          setProgress(97, 'Uploading coastal surf ribbons...');
           const surfFloats = new Float32Array(buf, curOffset, nSurf * 10);
           gl.bindBuffer(gl.ARRAY_BUFFER, surfVbo);
           gl.bufferData(gl.ARRAY_BUFFER, surfFloats, gl.STATIC_DRAW);
@@ -2125,6 +2243,17 @@
 
         gl.bindBuffer(gl.ARRAY_BUFFER, null);
 
+        // Record compute duration
+        const totalFetchMs = performance.now() - fetchStartTime;
+        const serverTimeMs = res.headers.get('X-Mesh-Time-Ms');
+        if (serverTimeMs) {
+          lastTerrainComputeTimeStr = `${(parseFloat(serverTimeMs) / 1000).toFixed(2)}s`;
+        } else {
+          lastTerrainComputeTimeStr = `${(totalFetchMs / 1000).toFixed(2)}s`;
+        }
+        updateEngineStatus();
+
+        setProgress(99, 'Rendering 3D terrain...');
         loadedMeshParamsKey = getMeshParamsKey();
         completeProgress();
         isMeshFetching = false;
@@ -2638,7 +2767,7 @@
 
       const t0 = performance.now();
       mapImg.classList.add('loading');
-      startProgress();
+      startProgress('Generating server render...');
 
       try {
         const query = updateUrlParams();
@@ -2649,7 +2778,21 @@
         const engHdr = res.headers.get('X-Render-Engine');
         const resHdr = res.headers.get('X-Render-Resolution') || `${state.size}x${state.size}`;
 
-        const blob = await res.blob();
+        // Stream response with progress
+        if (progressAnimInterval) {
+          clearInterval(progressAnimInterval);
+          progressAnimInterval = null;
+        }
+
+        const buf = await readStreamWithProgress(res, (ratio, received, total) => {
+          const pct = 60 + ratio * 28; // 60% -> 88%
+          const kbRcv = Math.round(received / 1024);
+          const kbTot = total > 0 ? Math.round(total / 1024) : '?';
+          setProgress(pct, `Receiving render image (${kbRcv} KB / ${kbTot} KB)`);
+        });
+
+        setProgress(92, 'Decoding terrain texture...');
+        const blob = new Blob([buf], { type: 'image/webp' });
         const objUrl = URL.createObjectURL(blob);
         mapImg.onload = () => {
           syncTerrainTexture();
@@ -2665,11 +2808,14 @@
         completeProgress();
 
         const dur = (performance.now() - t0).toFixed(0);
+        lastTerrainComputeTimeStr = durHdr ? `${(parseFloat(durHdr) / 1000).toFixed(2)}s` : `${(dur / 1000).toFixed(2)}s`;
+        updateEngineStatus();
+
         let engineLabel = 'CPU Mesh';
         if (engHdr === 'gpu') engineLabel = '⚡ ModernGL GPU';
         else if (engHdr === 'regnum-topo' || state.mode === 'photorealistic' || state.mode === 'regnum') engineLabel = '🎨 REGNUM Topo';
         else if (engHdr) engineLabel = engHdr;
-        perfStatus.textContent = `${engineLabel} in ${durHdr || dur}ms • Seed ${state.seed}`;
+        perfStatus.textContent = `${engineLabel} • Computed in ${lastTerrainComputeTimeStr} • Seed ${state.seed}`;
         if (state.mode === 'photorealistic' || state.mode === 'regnum') {
           polyBadge.textContent = 'Photorealistic Topo';
         } else if (engHdr === 'gpu') {
@@ -2739,7 +2885,7 @@
         document.querySelectorAll('#engine-bar .btn-segment').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         state.engine = btn.dataset.engine;
-        document.getElementById('engine-status').textContent = state.engine === 'gpu' ? '⚡ WebGL 2 Client (60-120 FPS)' : 'CPU Discrete Mesh';
+        updateEngineStatus();
         updateRotHud();
         saveCurrentSettings();
         triggerUpdate(true);
@@ -3172,10 +3318,7 @@
       };
 
       setSegment('#engine-bar .btn-segment', 'data-engine', state.engine);
-      const engineStatus = document.getElementById('engine-status');
-      if (engineStatus) {
-        engineStatus.textContent = state.engine === 'gpu' ? '⚡ WebGL 2 Client (60-120 FPS)' : 'CPU Discrete Mesh';
-      }
+      updateEngineStatus();
 
       setSegment('#res-bar .btn-segment', 'data-size', state.size);
       const valRes = document.getElementById('val-res');
