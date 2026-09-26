@@ -577,6 +577,28 @@ def build_hydro_river_ribbons(gen, sample_mesh_elevation=None, height_scale: flo
         if n_pts < 2:
             continue
 
+        # Sample final 3D subdivided terrain mesh elevation directly under this river stream
+        pts_xy = [[p[0], p[1]] for p in stream]
+        z_mesh = sample_mesh_elevation(pts_xy) if sample_mesh_elevation is not None else None
+        if z_mesh is None:
+            z_mesh = [p[2] for p in stream]
+
+        # Enforce strict downstream monotonicity on the sampled terrain heights using backwards pool-and-spill
+        z_mono = np.array(z_mesh, dtype=np.float32)
+        is_ocean = stream[-1][4]
+        end_z = 0.04 if is_ocean else float(z_mesh[-1])
+        z_mono[-1] = end_z
+        for i in range(n_pts - 2, -1, -1):
+            z_mono[i] = max(z_mono[i], z_mono[i + 1] + 0.005)
+
+        if is_ocean:
+            # Taper smoothly down to 0.04 at ocean coastline
+            for i in range(max(0, n_pts - 4), n_pts):
+                b = (n_pts - 1 - i) / 4.0
+                z_mono[i] = max(0.04, min(z_mono[i], 0.04 + b * 1.5))
+        else:
+            z_mono = np.maximum(0.04, z_mono)
+
         cum_dist = 0.0
         for i in range(n_pts - 1):
             p0 = stream[i]
@@ -608,9 +630,9 @@ def build_hydro_river_ribbons(gen, sample_mesh_elevation=None, height_scale: flo
             l1_x, l1_y = p1[0] + nx_p * (w1 * 0.5), p1[1] + ny_p * (w1 * 0.5)
             r1_x, r1_y = p1[0] - nx_p * (w1 * 0.5), p1[1] - ny_p * (w1 * 0.5)
 
-            # River water ribbon sits cleanly inside the carved bedrock channel (+0.12 above monotonic water level)
-            z0_surf = max(0.04, p0[2] + 0.12)
-            z1_surf = max(0.04, p1[2] + 0.12)
+            # River water ribbon sits cleanly inside the carved bedrock channel (+0.10 above monotonic water level)
+            z0_surf = max(0.04, float(z_mono[i]) + 0.10)
+            z1_surf = max(0.04, float(z_mono[i + 1]) + 0.10)
 
             # River water is completely pure vibrant blue across its entire length
             t_stream = i / max(1, n_pts - 1)

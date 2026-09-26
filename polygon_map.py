@@ -914,6 +914,20 @@ class PolygonMapGenerator:
             if not found:
                 break
 
+        # Physical Terrain Carving (Bedrock trench + Valley banks)
+        max_river = max((e.river for e in self.edges), default=1)
+        for edge in self.edges:
+            if edge.river > 0:
+                carve = self.canyon_depth * 0.035 * math.sqrt(edge.river / max(1.0, max_river))
+                if edge.v0 and not edge.v0.ocean:
+                    edge.v0.elevation = max(0.001, edge.v0.elevation - carve)
+                if edge.v1 and not edge.v1.ocean:
+                    edge.v1.elevation = max(0.001, edge.v1.elevation - carve)
+                if edge.d0 and not edge.d0.ocean:
+                    edge.d0.elevation = max(0.001, edge.d0.elevation - carve * 0.35 * self.valley_width)
+                if edge.d1 and not edge.d1.ocean:
+                    edge.d1.elevation = max(0.001, edge.d1.elevation - carve * 0.35 * self.valley_width)
+
         self.river_paths = []
         for b, is_main in branches:
             is_ocean = is_main and (b[-1].ocean or b[-1].elevation <= 0.005)

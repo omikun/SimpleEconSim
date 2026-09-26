@@ -418,13 +418,14 @@ def simulate_global_erosion(
         num_workers = min(8, max(2, os.cpu_count() or 4))
         chunk = num_droplets // num_workers
         remainder = num_droplets % num_workers
+        worker_carving_scale = carving_scale / float(num_workers)
         args_list = [
             (
                 base_grid,
                 chunk + (remainder if i == 0 else 0),
                 sim_seed + i * 1337,
                 land_mask,
-                carving_scale,
+                worker_carving_scale,
             )
             for i in range(num_workers)
         ]

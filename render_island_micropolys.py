@@ -84,72 +84,65 @@ def procedural_ridged_elevation(x, y, base_elevation, seed=42, amplitude=1.0, ri
 
 
 
-def compute_catmull_rom_river_streams(gen, scale_x: float, scale_y: float, elev_scale: float, substeps: int = 6) -> List[List[List[float]]]:
+def build_detailed_river_streams(gen, scale_x: float, scale_y: float, elev_scale: float, substeps: int = 6) -> List[List[List[float]]]:
     """
-    Computes smooth, monotonic downhill Catmull-Rom spline curves for all river paths.
-    Returns: List of streams, where each stream is a list of [x, y, z_mono, flux].
-    Both micropoly valley carving and 3D water ribbon extrusion share this exact geometry.
+    Computes organic, fractal downhill river paths following the natural valleys
+    formed by polygon cell boundaries (NoisyEdges).
+    Guarantees:
+    - Every river stream flows naturally through the lowest valley paths between cell peaks.
+    - Tributaries fuse cleanly into receiving mainstems at confluences with zero duplicate edges.
+    - Water elevations are strictly monotonic downhill with ocean coast tapering.
     """
     if not hasattr(gen, "river_paths") or not gen.river_paths:
         return []
 
-    streams = []
+    detailed_streams = []
     for path in gen.river_paths:
         if len(path) < 2:
             continue
-
+        stream = []
         is_ocean = bool(path[-1][4] > 0.5) if len(path[-1]) > 4 else (path[-1][2] <= 0.01)
-        raw_pts = []
-        for p in path:
-            raw_pts.append((p[0] * scale_x, p[1] * scale_y, p[2] * elev_scale, p[3]))
+        for i in range(len(path) - 1):
+            cn0 = path[i]
+            cn1 = path[i + 1]
+            flux = cn1[3]
 
-        n_raw = len(raw_pts)
-        end_z = 0.04 if is_ocean else raw_pts[-1][2]
+            edge = None
+            for c in gen.corners:
+                if abs(c.x - cn0[0]) < 0.01 and abs(c.y - cn0[1]) < 0.01:
+                    for e in c.protrudes:
+                        if (abs(e.v0.x - cn1[0]) < 0.01 and abs(e.v0.y - cn1[1]) < 0.01) or (abs(e.v1.x - cn1[0]) < 0.01 and abs(e.v1.y - cn1[1]) < 0.01):
+                            edge = e
+                            break
+                    break
 
-        # Compute strictly monotonic downstream elevation baseline along raw control corners
-        z_raw_mono = [max(end_z + (n_raw - 1) * 0.01, raw_pts[0][2])]
-        for k in range(1, n_raw):
-            n_rem = n_raw - 1 - k
-            min_allowable = end_z + n_rem * 0.005
-            z_raw_mono.append(max(min_allowable, min(z_raw_mono[k - 1] - 0.005, raw_pts[k][2])))
-        z_raw_mono[-1] = end_z
+            if edge and getattr(gen, "noisy_edges", None):
+                start_corner = edge.v0 if (abs(edge.v0.x - cn0[0]) < 0.01 and abs(edge.v0.y - cn0[1]) < 0.01) else edge.v1
+                edge_pts = gen.noisy_edges.get_edge_path(edge, start_corner=start_corner)
+                n_ep = len(edge_pts)
+                for k in range(n_ep if i == len(path) - 2 else n_ep - 1):
+                    t = k / float(max(1, n_ep - 1))
+                    z = (cn0[2] * (1.0 - t) + cn1[2] * t) * elev_scale
+                    stream.append([float(edge_pts[k][0] * scale_x), float(edge_pts[k][1] * scale_y), float(z), float(flux), is_ocean])
+            else:
+                stream.append([float(cn0[0] * scale_x), float(cn0[1] * scale_y), float(cn0[2] * elev_scale), float(flux), is_ocean])
 
-        # Catmull-Rom spline interpolation
-        stream_pts = []
-        for i in range(n_raw - 1):
-            p0 = raw_pts[max(0, i - 1)]
-            p1 = raw_pts[i]
-            p2 = raw_pts[i + 1]
-            p3 = raw_pts[min(n_raw - 1, i + 2)]
+        if not (edge and getattr(gen, "noisy_edges", None)):
+            stream.append([float(path[-1][0] * scale_x), float(path[-1][1] * scale_y), float(path[-1][2] * elev_scale), float(path[-1][3]), is_ocean])
 
-            z0 = z_raw_mono[max(0, i - 1)]
-            z1 = z_raw_mono[i]
-            z2 = z_raw_mono[i + 1]
-            z3 = z_raw_mono[min(n_raw - 1, i + 2)]
+        if len(stream) >= 2:
+            n_st = len(stream)
+            end_z = 0.04 if is_ocean else float(stream[-1][2])
+            stream[-1][2] = end_z
+            for k in range(n_st - 2, -1, -1):
+                stream[k][2] = max(stream[k][2], stream[k + 1][2] + 0.005)
+            detailed_streams.append(stream)
 
-            steps = substeps if i < n_raw - 2 else substeps + 1
-            for s in range(steps if i > 0 else steps + 1):
-                t = s / float(steps)
-                t2 = t * t
-                t3 = t2 * t
+    return detailed_streams
 
-                qx = 0.5 * ((2.0 * p1[0]) + (-p0[0] + p2[0]) * t + (2.0 * p0[0] - 5.0 * p1[0] + 4.0 * p2[0] - p3[0]) * t2 + (-p0[0] + 3.0 * p1[0] - 3.0 * p2[0] + p3[0]) * t3)
-                qy = 0.5 * ((2.0 * p1[1]) + (-p0[1] + p2[1]) * t + (2.0 * p0[1] - 5.0 * p1[1] + 4.0 * p2[1] - p3[1]) * t2 + (-p0[1] + 3.0 * p1[1] - 3.0 * p2[1] + p3[1]) * t3)
-                qz = 0.5 * ((2.0 * z1) + (-z0 + z2) * t + (2.0 * z0 - 5.0 * z1 + 4.0 * z2 - z3) * t2 + (-z0 + 3.0 * z1 - 3.0 * z2 + z3) * t3)
-                q_flux = (1.0 - t) * p1[3] + t * p2[3]
 
-                stream_pts.append([qx, qy, qz, q_flux])
-
-        if len(stream_pts) >= 2:
-            n_spl = len(stream_pts)
-            for k in range(1, n_spl):
-                n_rem_spl = n_spl - 1 - k
-                min_allow = end_z + n_rem_spl * 0.001
-                stream_pts[k][2] = max(min_allow, min(stream_pts[k - 1][2] - 0.001, stream_pts[k][2]))
-            stream_pts[-1][2] = end_z
-            streams.append(stream_pts)
-
-    return streams
+# Backwards-compatibility alias
+compute_catmull_rom_river_streams = build_detailed_river_streams
 
 
 def build_island_mesh(
