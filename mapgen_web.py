@@ -608,9 +608,9 @@ def build_hydro_river_ribbons(gen, sample_mesh_elevation=None, height_scale: flo
             l1_x, l1_y = p1[0] + nx_p * (w1 * 0.5), p1[1] + ny_p * (w1 * 0.5)
             r1_x, r1_y = p1[0] - nx_p * (w1 * 0.5), p1[1] - ny_p * (w1 * 0.5)
 
-            # River water ribbon sits cleanly inside the carved bedrock channel (+0.08 above monotonic water level)
-            z0_surf = max(0.04, p0[2] + 0.08)
-            z1_surf = max(0.04, p1[2] + 0.08)
+            # River water ribbon sits cleanly inside the carved bedrock channel (+0.12 above monotonic water level)
+            z0_surf = max(0.04, p0[2] + 0.12)
+            z1_surf = max(0.04, p1[2] + 0.12)
 
             # River water is completely pure vibrant blue across its entire length
             t_stream = i / max(1, n_pts - 1)

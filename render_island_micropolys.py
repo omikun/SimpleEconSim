@@ -98,17 +98,21 @@ def compute_catmull_rom_river_streams(gen, scale_x: float, scale_y: float, elev_
         if len(path) < 2:
             continue
 
+        is_ocean = bool(path[-1][4] > 0.5) if len(path[-1]) > 4 else (path[-1][2] <= 0.01)
         raw_pts = []
         for p in path:
             raw_pts.append((p[0] * scale_x, p[1] * scale_y, p[2] * elev_scale, p[3]))
 
         n_raw = len(raw_pts)
+        end_z = 0.04 if is_ocean else raw_pts[-1][2]
+
         # Compute strictly monotonic downstream elevation baseline along raw control corners
-        z_raw_mono = [max(0.04 + (n_raw - 1) * 0.01, raw_pts[0][2])]
+        z_raw_mono = [max(end_z + (n_raw - 1) * 0.01, raw_pts[0][2])]
         for k in range(1, n_raw):
             n_rem = n_raw - 1 - k
-            min_allowable = 0.04 + n_rem * 0.005
+            min_allowable = end_z + n_rem * 0.005
             z_raw_mono.append(max(min_allowable, min(z_raw_mono[k - 1] - 0.005, raw_pts[k][2])))
+        z_raw_mono[-1] = end_z
 
         # Catmull-Rom spline interpolation
         stream_pts = []
@@ -140,9 +144,9 @@ def compute_catmull_rom_river_streams(gen, scale_x: float, scale_y: float, elev_
             n_spl = len(stream_pts)
             for k in range(1, n_spl):
                 n_rem_spl = n_spl - 1 - k
-                min_allow = 0.04 + n_rem_spl * 0.001
+                min_allow = end_z + n_rem_spl * 0.001
                 stream_pts[k][2] = max(min_allow, min(stream_pts[k - 1][2] - 0.001, stream_pts[k][2]))
-            stream_pts[-1][2] = 0.04
+            stream_pts[-1][2] = end_z
             streams.append(stream_pts)
 
     return streams

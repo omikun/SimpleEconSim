@@ -29,7 +29,7 @@ import math
 import random
 import time
 import heapq
-from collections import deque
+from collections import deque, defaultdict
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
@@ -841,43 +841,84 @@ class PolygonMapGenerator:
                     if len(sources) >= self.river_count:
                         break
 
+        # 1. Accumulate physical water flux along the Planchon-Darboux breached DAG
         for spring in sources:
             curr = spring
             curr.river += 1
             visited: Set[int] = {curr.index}
-            path: List[Tuple[float, float, float, float]] = [(curr.x, curr.y, curr.elevation, float(curr.river))]
-
             while curr and not curr.ocean and curr.downslope:
                 nxt = curr.downslope
                 if nxt.index in visited:
                     break
                 visited.add(nxt.index)
-
                 for edge in curr.protrudes:
                     if (edge.v0 == curr and edge.v1 == nxt) or (edge.v1 == curr and edge.v0 == nxt):
                         edge.river += 1
                         break
-
                 nxt.river += 1
-                path.append((nxt.x, nxt.y, nxt.elevation, float(nxt.river)))
                 curr = nxt
 
-            if len(path) >= 2:
-                self.river_paths.append(path)
+        # 2. Decompose into non-overlapping dendritic river branches (Mainstems & Tributaries)
+        active_edges: Set[Tuple[Corner, Corner]] = set()
+        for cn in self.corners:
+            if cn.river > 0 and cn.downslope and not cn.ocean:
+                for edge in cn.protrudes:
+                    if (edge.v0 == cn and edge.v1 == cn.downslope) or (edge.v1 == cn and edge.v0 == cn.downslope):
+                        if edge.river > 0:
+                            active_edges.add((cn, cn.downslope))
 
-        # Physical Terrain Carving (Bedrock trench + Valley banks)
-        max_river = max((e.river for e in self.edges), default=1)
-        for edge in self.edges:
-            if edge.river > 0:
-                carve = self.canyon_depth * 0.035 * math.sqrt(edge.river / max(1.0, max_river))
-                if edge.v0 and not edge.v0.ocean:
-                    edge.v0.elevation = max(0.001, edge.v0.elevation - carve)
-                if edge.v1 and not edge.v1.ocean:
-                    edge.v1.elevation = max(0.001, edge.v1.elevation - carve)
-                if edge.d0 and not edge.d0.ocean:
-                    edge.d0.elevation = max(0.001, edge.d0.elevation - carve * 0.35 * self.valley_width)
-                if edge.d1 and not edge.d1.ocean:
-                    edge.d1.elevation = max(0.001, edge.d1.elevation - carve * 0.35 * self.valley_width)
+        incoming: Dict[Corner, List[Corner]] = defaultdict(list)
+        for u, v in active_edges:
+            incoming[v].append(u)
+        for v in incoming:
+            incoming[v].sort(key=lambda u: u.river, reverse=True)
+
+        outgoing = {u: v for u, v in active_edges}
+        terminals = [v for u, v in active_edges if v not in outgoing]
+
+        visited_edges: Set[Tuple[Corner, Corner]] = set()
+        def trace_branch(end_node: Corner) -> List[Corner]:
+            curr = end_node
+            branch = [curr]
+            while True:
+                inc = [u for u in incoming[curr] if (u, curr) not in visited_edges]
+                if not inc:
+                    break
+                best_u = inc[0]
+                visited_edges.add((best_u, curr))
+                branch.append(best_u)
+                curr = best_u
+            branch.reverse()
+            return branch
+
+        branches: List[Tuple[List[Corner], bool]] = []
+        for term in sorted(terminals, key=lambda t: t.index):
+            b = trace_branch(term)
+            if len(b) >= 2:
+                branches.append((b, True))
+
+        while len(visited_edges) < len(active_edges):
+            candidates = []
+            for v in incoming:
+                unvisited = [u for u in incoming[v] if (u, v) not in visited_edges]
+                if unvisited:
+                    candidates.append((v, unvisited[0].river))
+            candidates.sort(key=lambda item: item[1], reverse=True)
+            found = False
+            for conf_node, _ in candidates:
+                b = trace_branch(conf_node)
+                if len(b) >= 2:
+                    branches.append((b, False))
+                    found = True
+                    break
+            if not found:
+                break
+
+        self.river_paths = []
+        for b, is_main in branches:
+            is_ocean = is_main and (b[-1].ocean or b[-1].elevation <= 0.005)
+            path = [(cn.x, cn.y, cn.elevation, float(cn.river), 1.0 if is_ocean else 0.0) for cn in b]
+            self.river_paths.append(path)
 
     # -----------------------------------------------------------------------
     # Step 5: Moisture Diffusion & Quantile Redistribution
