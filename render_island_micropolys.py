@@ -27,6 +27,11 @@ import os
 import sys
 import time
 from typing import List, Tuple
+from collections import defaultdict
+import concurrent.futures
+from scipy.spatial import cKDTree
+
+os.environ["PYGAME_HIDE_SUPPORT_PROMPT"] = "1"
 
 # Enable headless pygame rendering by default unless window is requested
 if "--window" not in sys.argv:
@@ -81,6 +86,334 @@ def procedural_ridged_elevation(x, y, base_elevation, seed=42, amplitude=1.0, ri
     # Attenuation factor: 0 on lowlands/coast, ramp up nonlinearly on mountain peaks
     crag_weight = max(0.0, (base_elevation - 0.25) / 0.75) ** 1.35
     return amplitude * ridge_roughness * ridged * crag_weight
+
+
+COAST_TRANSITION_WIDTH = 32.0  # units (~1.0 - 1.2 Voronoi cell radius)
+
+def calc_coastal_envelope(dist: float) -> float:
+    """Smooth C^2 quintic Hermite coastal envelope: 0 at shoreline, 1 in interior."""
+    if dist <= 0.05:
+        return 0.0
+    if dist >= COAST_TRANSITION_WIDTH:
+        return 1.0
+    t = dist / COAST_TRANSITION_WIDTH
+    return (6.0 * t**2 - 15.0 * t + 10.0) * (t**3)
+
+
+# Dynamic micropoly beach colors (wet sand, dry golden sand, and dune grass)
+COLOR_WET_SAND = np.array([168, 152, 122], dtype=np.float64)
+COLOR_GOLDEN_SAND = np.array([214, 198, 152], dtype=np.float64)
+COLOR_DUNE_SAND = np.array([192, 188, 142], dtype=np.float64)
+
+
+def calc_vertex_color(x: float, y: float, z: float, dist: float, base_col: np.ndarray,
+                      gen_seed: int = 42, is_beach_cell: bool = False, is_river: bool = False) -> np.ndarray:
+    """Calculates organic shoreline, dune, and inland biome vertex coloring."""
+    if is_river:
+        return base_col
+
+    fx = x * 0.08 + gen_seed * 0.13
+    fy = y * 0.08 + gen_seed * 0.27
+    noise_var = (math.sin(fx) * math.cos(fy)) * 2.5 + (math.sin(fx * 2.3 + 1.1) * math.cos(fy * 2.1 - 0.7)) * 1.2
+
+    eff_dist = max(0.0, dist + noise_var)
+    eff_z = max(0.0, z + noise_var * 0.15)
+
+    if is_beach_cell:
+        max_beach_dist = 42.0
+        max_beach_z = 4.2
+    else:
+        max_beach_dist = 22.0
+        max_beach_z = 2.6
+
+    if eff_dist < max_beach_dist and eff_z < max_beach_z:
+        dist_factor = 1.0 - (eff_dist / max_beach_dist)
+        z_factor = 1.0 - (eff_z / max_beach_z)
+        beach_weight = min(1.0, max(0.0, dist_factor * z_factor * 1.3))
+        beach_weight = beach_weight * beach_weight * (3.0 - 2.0 * beach_weight)
+
+        if eff_z < 0.6:
+            sand_col = COLOR_WET_SAND * (1.0 - eff_z / 0.6) + COLOR_GOLDEN_SAND * (eff_z / 0.6)
+        elif eff_z < 1.8:
+            sand_col = COLOR_GOLDEN_SAND
+        else:
+            t_dune = min(1.0, (eff_z - 1.8) / 0.8)
+            sand_col = COLOR_GOLDEN_SAND * (1.0 - t_dune) + COLOR_DUNE_SAND * t_dune
+
+        return base_col * (1.0 - beach_weight) + sand_col * beach_weight
+    return base_col
+
+
+def carve_continuous_valley_standalone(pt_x: float, pt_y: float, z_val: float, coast_dist: float,
+                                      river_kdtree, dense_riv_z_arr, dense_riv_flux_arr,
+                                      w_bed_base: float, w_val_base: float, canyon_depth_param: float) -> float:
+    """Continuous smooth 3D riverbed and canyon carving along river stream lines."""
+    if river_kdtree is None or coast_dist <= 0.05:
+        return z_val
+    d_riv, r_idx = river_kdtree.query([pt_x, pt_y])
+    if d_riv > w_val_base * 1.6:
+        return z_val
+
+    r_z = dense_riv_z_arr[r_idx]
+    r_flux = dense_riv_flux_arr[r_idx]
+    flux_w = math.sqrt(max(1.0, r_flux))
+    w_bed = w_bed_base * (0.8 + 0.35 * flux_w)
+    w_val = w_val_base * (0.8 + 0.35 * flux_w)
+
+    bed_drop = min(6.0, (0.65 + 0.45 * canyon_depth_param) * (0.8 + 0.4 * flux_w))
+    z_bed = max(0.0, r_z - bed_drop)
+
+    if d_riv <= w_bed:
+        return min(z_val, z_bed)
+    if d_riv <= w_val:
+        t = (d_riv - w_bed) / (w_val - w_bed)
+        s = t * t * (3.0 - 2.0 * t)
+        z_wall = z_bed + s * max(0.0, z_val - z_bed)
+        return min(z_val, z_wall)
+    return z_val
+
+
+def _subdivide_chunk_worker(task_data: Tuple) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Subdivides a chunk of base triangles independently across CPU worker processes.
+    Uses canonical deterministic edge hashing to guarantee 100% watertight boundaries
+    with zero cracks, seams, or T-junctions between worker chunk borders.
+    """
+    chunk_base_triangles, worker_params = task_data
+    (gen_seed, target_depth, scale_x, scale_y, elev_scale, lateral_jitter, roughness, ridge_noise,
+     river_kdtree, dense_riv_z_arr, dense_riv_flux_arr, w_bed_base, w_val_base, canyon_depth_param, erosion_field) = worker_params
+
+    local_vertices = []
+    local_vert_map = {}
+    local_is_bnd = {}
+    local_coast_dist = {}
+    local_is_beach = {}
+    local_base_color = {}
+    local_is_patch_boundary = {}
+
+    def get_or_add(p, is_bnd, dist, is_beach, col, is_patch_bnd=True):
+        key = (round(float(p[0]), 2), round(float(p[1]), 2))
+        if key in local_vert_map:
+            idx = local_vert_map[key]
+            if is_bnd:
+                local_is_bnd[idx] = True
+                local_coast_dist[idx] = 0.0
+            elif dist is not None:
+                local_coast_dist[idx] = min(local_coast_dist.get(idx, 999.0), dist)
+            if is_beach:
+                local_is_beach[idx] = True
+            return idx
+        idx = len(local_vertices)
+        local_vertices.append(np.array(p, dtype=np.float64))
+        local_vert_map[key] = idx
+        local_is_bnd[idx] = is_bnd
+        local_coast_dist[idx] = 0.0 if is_bnd else dist
+        local_is_beach[idx] = is_beach
+        local_base_color[idx] = np.array(col, dtype=np.float64)
+        local_is_patch_boundary[idx] = is_patch_bnd
+        return idx
+
+    chunk_tris = []
+    base_edges = set()
+    for tri in chunk_base_triangles:
+        (pa, pb, pc, col, avg_elev, is_riv,
+         is_bnd_a, is_bnd_b, is_bnd_c,
+         dist_a, dist_b, dist_c,
+         beach_a, beach_b, beach_c,
+         col_a, col_b, col_c) = tri
+
+        ia = get_or_add(pa, is_bnd_a, dist_a, beach_a, col_a, is_patch_bnd=True)
+        ib = get_or_add(pb, is_bnd_b, dist_b, beach_b, col_b, is_patch_bnd=True)
+        ic = get_or_add(pc, is_bnd_c, dist_c, beach_c, col_c, is_patch_bnd=True)
+
+        base_edges.add((min(ia, ib), max(ia, ib)))
+        base_edges.add((min(ib, ic), max(ib, ic)))
+        base_edges.add((min(ic, ia), max(ic, ia)))
+
+        chunk_tris.append((ia, ib, ic, col, avg_elev, is_riv))
+
+    edge_midpoints = {}
+
+    def get_midpoint(i_a, i_b, depth, is_base_edge):
+        edge_key = (min(i_a, i_b), max(i_a, i_b))
+        if edge_key in edge_midpoints:
+            return edge_midpoints[edge_key]
+
+        pa = local_vertices[i_a]
+        pb = local_vertices[i_b]
+
+        qa = (round(float(pa[0]), 3), round(float(pa[1]), 3))
+        qb = (round(float(pb[0]), 3), round(float(pb[1]), 3))
+        k0, k1 = min(qa, qb), max(qa, qb)
+        ix0, iy0 = int(round(k0[0] * 100.0)), int(round(k0[1] * 100.0))
+        ix1, iy1 = int(round(k1[0] * 100.0)), int(round(k1[1] * 100.0))
+        h0 = (ix0 * 73856093 ^ iy0 * 19349663) & 0xFFFFFFFF
+        h1 = (ix1 * 83492791 ^ iy1 * 39916801) & 0xFFFFFFFF
+        edge_seed = (h0 ^ (h1 * 31) ^ (depth * 1009) ^ gen_seed) & 0xFFFFFFFF
+        edge_rng = np.random.RandomState(edge_seed)
+
+        if qa > qb:
+            p_start, p_end = pb, pa
+            dist_start, dist_end = local_coast_dist.get(i_b, 999.0), local_coast_dist.get(i_a, 999.0)
+        else:
+            p_start, p_end = pa, pb
+            dist_start, dist_end = local_coast_dist.get(i_a, 999.0), local_coast_dist.get(i_b, 999.0)
+
+        c_xy = p_end[:2] - p_start[:2]
+        length = float(np.linalg.norm(c_xy))
+        mid = (pa + pb) * 0.5
+
+        mid_dist = (dist_start + dist_end) * 0.5
+        mid_env = calc_coastal_envelope(mid_dist)
+        is_bnd = (local_is_bnd.get(i_a, False) and local_is_bnd.get(i_b, False)) or (mid_dist <= 0.05)
+        is_beach = local_is_beach.get(i_a, False) or local_is_beach.get(i_b, False)
+
+        if is_bnd:
+            if length > 0.15:
+                n_perp = np.array([-c_xy[1], c_xy[0]], dtype=np.float64) / length
+                bnd_decay = 0.85 ** depth
+                bnd_disp = edge_rng.uniform(-0.45, 0.45) * length * bnd_decay
+                disp_long = edge_rng.uniform(-0.06, 0.06) * length * bnd_decay
+                mid[0] += n_perp[0] * bnd_disp + (c_xy[0] / length) * disp_long
+                mid[1] += n_perp[1] * bnd_disp + (c_xy[1] / length) * disp_long
+            mid[2] = 0.0
+            mid_dist = 0.0
+        else:
+            if length > 0.35:
+                n_perp = np.array([-c_xy[1], c_xy[0]], dtype=np.float64) / length
+                decay = 0.70 ** depth
+                jitter_env = 0.40 + 0.60 * mid_env
+                disp_lat = edge_rng.uniform(-lateral_jitter, lateral_jitter) * length * decay * jitter_env
+                disp_long = edge_rng.uniform(-0.08, 0.08) * length * decay * jitter_env
+
+                mid[0] += n_perp[0] * disp_lat + (c_xy[0] / length) * disp_long
+                mid[1] += n_perp[1] * disp_lat + (c_xy[1] / length) * disp_long
+
+                base_h = erosion_field.sample_elevation(mid[0] / scale_x, mid[1] / scale_y) * elev_scale * mid_env
+                fbm_val = procedural_fbm_elevation(mid[0], mid[1], gen_seed, amplitude=elev_scale / 70.0) * (decay * 0.35) * mid_env
+                mid_norm_elev = base_h / max(1.0, elev_scale)
+                rdg_val = procedural_ridged_elevation(mid[0], mid[1], mid_norm_elev, gen_seed, amplitude=elev_scale / 45.0, ridge_roughness=ridge_noise) * (decay * 0.5) * mid_env
+                disp_z = (edge_rng.uniform(-0.35, 0.35) * roughness * (length / 24.0) + fbm_val + rdg_val) * mid_env
+                mid[2] = max(0.0, (0.70 * base_h + 0.30 * mid[2] + disp_z) * mid_env)
+                mid[2] = carve_continuous_valley_standalone(mid[0], mid[1], mid[2], mid_dist, river_kdtree, dense_riv_z_arr, dense_riv_flux_arr, w_bed_base, w_val_base, canyon_depth_param)
+
+        idx_mid = len(local_vertices)
+        local_vertices.append(mid)
+        local_is_bnd[idx_mid] = is_bnd
+        local_coast_dist[idx_mid] = 0.0 if is_bnd else mid_dist
+        local_is_beach[idx_mid] = is_beach or is_bnd
+        local_is_patch_boundary[idx_mid] = is_base_edge
+
+        c_a = local_base_color.get(i_a, np.array([120, 160, 100], dtype=np.float64))
+        c_b = local_base_color.get(i_b, np.array([120, 160, 100], dtype=np.float64))
+        if is_bnd:
+            local_base_color[idx_mid] = COLOR_WET_SAND
+        else:
+            local_base_color[idx_mid] = (c_a + c_b) * 0.5
+
+        edge_midpoints[edge_key] = idx_mid
+        return idx_mid
+
+    current_base_edges = set(base_edges)
+    for depth in range(target_depth):
+        new_triangles = []
+        new_base_edges = set()
+        for i_a, i_b, i_c, col, el, riv in chunk_tris:
+            ab_is_base = (min(i_a, i_b), max(i_a, i_b)) in current_base_edges
+            bc_is_base = (min(i_b, i_c), max(i_b, i_c)) in current_base_edges
+            ca_is_base = (min(i_c, i_a), max(i_c, i_a)) in current_base_edges
+
+            m_ab = get_midpoint(i_a, i_b, depth, ab_is_base)
+            m_bc = get_midpoint(i_b, i_c, depth, bc_is_base)
+            m_ca = get_midpoint(i_c, i_a, depth, ca_is_base)
+
+            if ab_is_base:
+                new_base_edges.add((min(i_a, m_ab), max(i_a, m_ab)))
+                new_base_edges.add((min(m_ab, i_b), max(m_ab, i_b)))
+            if bc_is_base:
+                new_base_edges.add((min(i_b, m_bc), max(i_b, m_bc)))
+                new_base_edges.add((min(m_bc, i_c), max(m_bc, i_c)))
+            if ca_is_base:
+                new_base_edges.add((min(i_c, m_ca), max(i_c, m_ca)))
+                new_base_edges.add((min(m_ca, i_a), max(m_ca, i_a)))
+
+            new_triangles.append((i_a, m_ab, m_ca, col, el, riv))
+            new_triangles.append((i_b, m_bc, m_ab, col, el, riv))
+            new_triangles.append((i_c, m_ca, m_bc, col, el, riv))
+            new_triangles.append((m_ab, m_bc, m_ca, col, el, riv))
+
+        chunk_tris = new_triangles
+        current_base_edges = new_base_edges
+
+        # Multi-level vertex elevation relaxation on interior vertices
+        adj_map = defaultdict(set)
+        for i_a, i_b, i_c, _, _, _ in chunk_tris:
+            adj_map[i_a].add(i_b)
+            adj_map[i_a].add(i_c)
+            adj_map[i_b].add(i_a)
+            adj_map[i_b].add(i_c)
+            adj_map[i_c].add(i_a)
+            adj_map[i_c].add(i_b)
+
+        relax_weight = 0.20 * (0.75 ** depth)
+        for v_idx in list(adj_map.keys()):
+            if local_is_bnd.get(v_idx, False) or local_is_patch_boundary.get(v_idx, False):
+                continue
+            v_dist = local_coast_dist.get(v_idx, 999.0)
+            if v_dist <= 0.05:
+                local_vertices[v_idx][2] = 0.0
+                continue
+            v_env = calc_coastal_envelope(v_dist)
+            neighbors = list(adj_map[v_idx])
+            if len(neighbors) >= 3:
+                neighbor_z_mean = float(np.mean([local_vertices[n][2] for n in neighbors]))
+                v_rng = np.random.RandomState((v_idx * 1013 ^ depth * 31 ^ gen_seed) & 0xFFFFFFFF)
+                new_z = (1.0 - relax_weight * 1.5) * local_vertices[v_idx][2] + (relax_weight * 1.5) * neighbor_z_mean
+                new_z += v_rng.uniform(-0.5, 0.5) * (roughness * 0.15 * (0.65 ** depth)) * v_env
+                local_vertices[v_idx][2] = max(0.0, new_z)
+                local_vertices[v_idx][2] = carve_continuous_valley_standalone(
+                    local_vertices[v_idx][0], local_vertices[v_idx][1], local_vertices[v_idx][2],
+                    v_dist, river_kdtree, dense_riv_z_arr, dense_riv_flux_arr, w_bed_base, w_val_base, canyon_depth_param
+                )
+
+    num_out_tris = len(chunk_tris)
+    out_coords = np.zeros((num_out_tris, 3, 3), dtype=np.float64)
+    out_cols = np.zeros((num_out_tris, 3), dtype=np.float64)
+    out_elevs = np.zeros(num_out_tris, dtype=np.float64)
+    out_is_rivs = np.zeros(num_out_tris, dtype=bool)
+
+    for tri_idx, (i_a, i_b, i_c, col_base, avg_elev, is_riv) in enumerate(chunk_tris):
+        pa = local_vertices[i_a]
+        pb = local_vertices[i_b]
+        pc = local_vertices[i_c]
+
+        # Enforce consistent counter-clockwise orientation
+        if (pb[0] - pa[0]) * (pc[1] - pa[1]) - (pb[1] - pa[1]) * (pc[0] - pa[0]) < 0.0:
+            pb, pc = pc, pb
+
+        tri_mid_x = (pa[0] + pb[0] + pc[0]) / 3.0
+        tri_mid_y = (pa[1] + pb[1] + pc[1]) / 3.0
+        tri_mid_z = (pa[2] + pb[2] + pc[2]) / 3.0
+        tri_dist = (local_coast_dist.get(i_a, 999.0) + local_coast_dist.get(i_b, 999.0) + local_coast_dist.get(i_c, 999.0)) / 3.0
+        tri_is_beach = local_is_beach.get(i_a, False) or local_is_beach.get(i_b, False) or local_is_beach.get(i_c, False)
+
+        tri_is_riv = is_riv
+        if river_kdtree is not None:
+            d_riv_mid, _ = river_kdtree.query([tri_mid_x, tri_mid_y])
+            if d_riv_mid <= w_bed_base * 1.3:
+                tri_is_riv = True
+
+        base_c = (local_base_color.get(i_a, col_base) + local_base_color.get(i_b, col_base) + local_base_color.get(i_c, col_base)) / 3.0
+        tri_col = calc_vertex_color(tri_mid_x, tri_mid_y, tri_mid_z, tri_dist, base_c, gen_seed, is_beach_cell=tri_is_beach, is_river=tri_is_riv)
+
+        out_coords[tri_idx, 0] = pa
+        out_coords[tri_idx, 1] = pb
+        out_coords[tri_idx, 2] = pc
+        out_cols[tri_idx] = tri_col
+        out_elevs[tri_idx] = avg_elev
+        out_is_rivs[tri_idx] = tri_is_riv
+
+    return (out_coords, out_cols, out_elevs, out_is_rivs)
 
 
 
@@ -477,6 +810,105 @@ def build_island_mesh(
                 else:
                     base_triangles.append((idx_v0, idx_d1, idx_d0, col0, (z_v0 + z_d1 + z_d0) / (3.0 * elev_scale), False))
                     base_triangles.append((idx_v1, idx_d0, idx_d1, col1, (z_v1 + z_d0 + z_d1) / (3.0 * elev_scale), False))
+
+        # Multi-core parallel subdivision across all available CPU cores
+        target_depth = 0
+        cur_count = len(base_triangles)
+        while cur_count < target_polys:
+            cur_count *= 4
+            target_depth += 1
+
+        num_workers = min(12, os.cpu_count() or 4)
+
+        if target_depth >= 1 and num_workers > 1 and len(base_triangles) >= num_workers:
+            try:
+                packed_base_tris = []
+                for ia, ib, ic, col, avg_elev, is_riv in base_triangles:
+                    packed_base_tris.append((
+                        vertices[ia], vertices[ib], vertices[ic], col, avg_elev, is_riv,
+                        is_boundary_vertex.get(ia, False), is_boundary_vertex.get(ib, False), is_boundary_vertex.get(ic, False),
+                        vertex_coast_dist.get(ia, 999.0), vertex_coast_dist.get(ib, 999.0), vertex_coast_dist.get(ic, 999.0),
+                        vertex_is_beach.get(ia, False), vertex_is_beach.get(ib, False), vertex_is_beach.get(ic, False),
+                        vertex_base_color.get(ia, col), vertex_base_color.get(ib, col), vertex_base_color.get(ic, col)
+                    ))
+
+                worker_params = (
+                    gen.seed, target_depth, scale_x, scale_y, elev_scale, lateral_jitter, roughness, ridge_noise,
+                    river_kdtree, dense_riv_z_arr, dense_riv_flux_arr, w_bed_base, w_val_base, canyon_depth_param, erosion_field
+                )
+
+                chunk_size = int(math.ceil(len(packed_base_tris) / float(num_workers)))
+                chunks = [packed_base_tris[i : i + chunk_size] for i in range(0, len(packed_base_tris), chunk_size)]
+                tasks = [(chunk, worker_params) for chunk in chunks]
+
+                with concurrent.futures.ProcessPoolExecutor(max_workers=num_workers) as executor:
+                    results = list(executor.map(_subdivide_chunk_worker, tasks))
+
+                # Assemble results
+                all_coords = np.concatenate([r[0] for r in results], axis=0)
+                all_cols = np.concatenate([r[1] for r in results], axis=0)
+                all_elevs = np.concatenate([r[2] for r in results], axis=0)
+                all_is_rivs = np.concatenate([r[3] for r in results], axis=0)
+                num_tris = len(all_coords)
+
+                # Vectorized face normals & areas
+                pa_all = all_coords[:, 0, :]
+                pb_all = all_coords[:, 1, :]
+                pc_all = all_coords[:, 2, :]
+
+                va_all = pb_all - pa_all
+                vb_all = pc_all - pa_all
+                cross_norms = np.cross(va_all, vb_all)
+
+                neg_z = cross_norms[:, 2] < 0
+                cross_norms[neg_z] = -cross_norms[neg_z]
+
+                double_areas = np.linalg.norm(cross_norms, axis=1, keepdims=True)
+                areas = double_areas * 0.5
+                safe_double_areas = np.where(double_areas > 1e-6, double_areas, 1.0)
+                face_normals = np.where(double_areas > 1e-6, cross_norms / safe_double_areas, np.array([0.0, 0.0, 1.0]))
+
+                # Deduplicate vertices across chunk boundaries for seamless normal smoothing
+                flat_verts = all_coords.reshape(-1, 3)
+                rounded_verts = np.round(flat_verts, 2)
+                _, inverse_indices = np.unique(
+                    rounded_verts.view(np.dtype((np.void, rounded_verts.dtype.itemsize * 3))),
+                    return_inverse=True
+                )
+                num_unique_verts = int(np.max(inverse_indices)) + 1
+                tri_indices = inverse_indices.reshape(-1, 3)
+
+                weighted_face_norms = face_normals * areas
+                vertex_normals = np.zeros((num_unique_verts, 3), dtype=np.float64)
+                np.add.at(vertex_normals, tri_indices[:, 0], weighted_face_norms)
+                np.add.at(vertex_normals, tri_indices[:, 1], weighted_face_norms)
+                np.add.at(vertex_normals, tri_indices[:, 2], weighted_face_norms)
+
+                vn_lens = np.linalg.norm(vertex_normals, axis=1, keepdims=True)
+                safe_vn_lens = np.where(vn_lens > 1e-6, vn_lens, 1.0)
+                vertex_normals = np.where(vn_lens > 1e-6, vertex_normals / safe_vn_lens, np.array([0.0, 0.0, 1.0]))
+
+                avg_vert_norms = (vertex_normals[tri_indices[:, 0]] + vertex_normals[tri_indices[:, 1]] + vertex_normals[tri_indices[:, 2]]) / 3.0
+                avg_vn_lens = np.linalg.norm(avg_vert_norms, axis=1, keepdims=True)
+                safe_avg_vn_lens = np.where(avg_vn_lens > 1e-6, avg_vn_lens, 1.0)
+                avg_vert_norms = np.where(avg_vn_lens > 1e-6, avg_vert_norms / safe_avg_vn_lens, face_normals)
+
+                blended_norms = avg_vert_norms * normal_smooth_ratio + face_normals * (1.0 - normal_smooth_ratio)
+                bn_lens = np.linalg.norm(blended_norms, axis=1, keepdims=True)
+                safe_bn_lens = np.where(bn_lens > 1e-6, bn_lens, 1.0)
+                blended_norms = np.where(bn_lens > 1e-6, blended_norms / safe_bn_lens, face_normals)
+
+                final_triangles = []
+                for i in range(num_tris):
+                    final_triangles.append((
+                        pa_all[i], pb_all[i], pc_all[i],
+                        all_cols[i], float(all_elevs[i]), bool(all_is_rivs[i]),
+                        float(areas[i, 0]), blended_norms[i]
+                    ))
+                return final_triangles, len(final_triangles)
+            except Exception as e:
+                import traceback
+                print(f"[Warning] Multi-core subdivision failed ({e}), falling back to single-thread: {traceback.format_exc()}")
 
         triangles_idx = list(base_triangles)
         edge_midpoints = {}
