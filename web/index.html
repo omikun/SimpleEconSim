@@ -201,15 +201,9 @@
     .progress-bar-inner {
       height: 100%;
       width: 0%;
-      background: linear-gradient(90deg, #2563eb 0%, #00d2ff 40%, #34d399 75%, #38bdf8 100%);
-      background-size: 200% 100%;
-      animation: progressGlow 1.8s linear infinite;
-      box-shadow: 0 0 12px rgba(0, 210, 255, 0.95), 0 0 5px #2563eb;
+      background: linear-gradient(90deg, #2563eb 0%, #00d2ff 60%, #38bdf8 100%);
+      box-shadow: 0 0 10px rgba(0, 210, 255, 0.95);
       transition: width 0.12s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-    @keyframes progressGlow {
-      0% { background-position: 100% 0; }
-      100% { background-position: -100% 0; }
     }
 
     /* 3D Rotation HUD */
@@ -1178,7 +1172,10 @@
 
     const SHADOW_FS = `#version 300 es
     precision highp float;
-    void main() {}
+    out vec4 frag_color;
+    void main() {
+        frag_color = vec4(1.0);
+    }
     `;
 
     const HEIGHTMAP_VS = `#version 300 es
@@ -1195,7 +1192,10 @@
 
     const HEIGHTMAP_FS = `#version 300 es
     precision highp float;
-    void main() {}
+    out vec4 frag_color;
+    void main() {
+        frag_color = vec4(1.0);
+    }
     `;
 
     const MESH_VS = `#version 300 es
@@ -1314,6 +1314,8 @@
 
     const MESH_FS = `#version 300 es
     precision highp float;
+    precision highp sampler2DShadow;
+    precision highp sampler2D;
 
     in vec3 v_norm;
     in vec3 v_sun_dir;
@@ -1332,10 +1334,10 @@
     uniform int u_shadow_mode;
     uniform float u_shadow_darkness;
     uniform vec3 u_sun_world_dir;
-    uniform sampler2DShadow u_shadow_map;
-    uniform sampler2D u_heightmap;
+    uniform highp sampler2DShadow u_shadow_map;
+    uniform highp sampler2D u_heightmap;
     uniform float u_use_texture;
-    uniform sampler2D u_terrain_texture;
+    uniform highp sampler2D u_terrain_texture;
     uniform float u_micropoly_strata;
     uniform float u_micropoly_parcels;
     uniform float u_micropoly_grain;
@@ -1814,6 +1816,8 @@
 
     const RIVER_FS = `#version 300 es
     precision highp float;
+    precision highp sampler2DShadow;
+    precision highp sampler2D;
 
     in vec3 v_color;
     in vec3 v_normal;
@@ -1827,8 +1831,8 @@
     uniform int u_shadow_mode;
     uniform float u_shadow_darkness;
     uniform vec3 u_sun_world_dir;
-    uniform sampler2DShadow u_shadow_map;
-    uniform sampler2D u_heightmap;
+    uniform highp sampler2DShadow u_shadow_map;
+    uniform highp sampler2D u_heightmap;
 
     out vec4 frag_color;
 
@@ -2569,9 +2573,6 @@
       } catch (err) {
         console.error('renderClientGPU failed:', err);
         try { fetch('/api/log_error?msg=' + encodeURIComponent('renderClientGPU: ' + (err.message || err))); } catch(e){}
-        gpuCanvas.style.display = 'none';
-        mapImg.style.display = 'block';
-        fetchRender();
       }
     }
 
@@ -2607,6 +2608,9 @@
     async function fetchMeshBinary() {
       if (meshAbortController) {
         meshAbortController.abort();
+      }
+      if (abortController) {
+        abortController.abort();
       }
       meshAbortController = new AbortController();
 
@@ -3234,6 +3238,10 @@
     async function fetchRender() {
       if (abortController) {
         abortController.abort();
+      }
+      if (meshAbortController && isMeshFetching) {
+        meshAbortController.abort();
+        isMeshFetching = false;
       }
       abortController = new AbortController();
 
