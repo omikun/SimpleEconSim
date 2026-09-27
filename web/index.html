@@ -46,6 +46,7 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+      transition: max-height 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.2s ease, padding 0.25s ease, margin 0.25s ease;
     }
     .header-title h1 {
       font-size: 1.15rem;
@@ -76,11 +77,25 @@
       box-shadow: 0 0 8px var(--success);
     }
 
-    /* Main Container */
+    /* Main Container & Layout Structure */
     main {
       width: 100%;
       max-width: 680px;
       padding: 0 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      box-sizing: border-box;
+    }
+    .map-column {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      transition: padding 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), margin 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+    .settings-column {
+      width: 100%;
       display: flex;
       flex-direction: column;
       gap: 14px;
@@ -98,9 +113,18 @@
       touch-action: none;
       cursor: grab;
       user-select: none;
+      transition: height 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), border-radius 0.25s ease, box-shadow 0.25s ease;
     }
     .map-container.panning {
       cursor: grabbing;
+    }
+    .map-crop-wrapper {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      transition: top 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
     }
     .zoom-layer {
       position: absolute;
@@ -407,6 +431,202 @@
       color: #fff;
       box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
     }
+
+    /* =========================================================================
+       Responsive Layouts:
+       1. Desktop & iPad Screens (min-width: 768px):
+          Fixed Map on Left, Scrollable Settings/Knobs on Right.
+       2. Phone in Portrait Mode (max-width: 767px):
+          Full square map at top, collapsing to 50% vertical crop when scrolled down,
+          with header and on-map UI widgets hidden for maximum knob room.
+       ========================================================================= */
+
+    /* Desktop and iPad Screens */
+    @media (min-width: 768px) {
+      html, body {
+        height: 100vh;
+        overflow: hidden;
+      }
+      body {
+        padding-bottom: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+      }
+      header {
+        width: 100%;
+        max-width: 100%;
+        padding: 10px 24px;
+        flex-shrink: 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        background: rgba(18, 22, 28, 0.75);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        box-sizing: border-box;
+      }
+      main {
+        width: 100%;
+        max-width: 100%;
+        flex: 1;
+        display: grid;
+        grid-template-columns: minmax(360px, 1.15fr) 460px;
+        gap: 20px;
+        padding: 16px 24px;
+        overflow: hidden;
+        height: calc(100vh - 58px);
+        box-sizing: border-box;
+      }
+      @media (min-width: 768px) and (max-width: 1023px) {
+        main {
+          grid-template-columns: 1fr 340px;
+          gap: 14px;
+          padding: 12px 16px;
+        }
+      }
+      @media (min-width: 1200px) {
+        main {
+          grid-template-columns: minmax(460px, 1.25fr) 500px;
+          gap: 28px;
+          padding: 18px 32px;
+        }
+      }
+      @media (min-width: 1600px) {
+        main {
+          grid-template-columns: minmax(600px, 1.4fr) 540px;
+          gap: 36px;
+          padding: 24px 44px;
+        }
+      }
+      .map-column {
+        height: 100%;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        position: relative;
+      }
+      .map-container {
+        width: 100%;
+        height: auto;
+        max-width: min(100%, calc(100vh - 145px));
+        max-height: min(100%, calc(100vh - 145px));
+        aspect-ratio: 1 / 1;
+        flex-shrink: 0;
+        border-radius: 20px;
+        margin: 0 auto;
+      }
+      .map-crop-wrapper {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        transform: none !important;
+      }
+      .bottom-bar {
+        position: static;
+        background: transparent;
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+        border-top: none;
+        padding: 10px 0 0 0;
+        width: 100%;
+        max-width: min(100%, calc(100vh - 145px));
+        z-index: 10;
+        box-sizing: border-box;
+      }
+      .bottom-bar-inner {
+        max-width: 100%;
+        gap: 8px;
+        grid-template-columns: 1fr 1.3fr 1fr;
+      }
+      .btn-action {
+        padding: 9px 8px;
+        font-size: 0.80rem;
+        border-radius: 10px;
+      }
+      .settings-column {
+        height: 100%;
+        overflow-y: auto;
+        overflow-x: hidden;
+        padding-right: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        padding-bottom: 30px;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
+        box-sizing: border-box;
+      }
+      .settings-column::-webkit-scrollbar {
+        width: 6px;
+      }
+      .settings-column::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.22);
+        border-radius: 6px;
+      }
+      .settings-column::-webkit-scrollbar-track {
+        background: transparent;
+      }
+    }
+
+    /* Phone Portrait Mode */
+    @media (max-width: 767px) {
+      body {
+        padding-bottom: calc(85px + var(--safe-bottom));
+      }
+      .zoom-hud, .rot-hud, .inspect-card {
+        transition: opacity 0.2s ease, transform 0.2s ease;
+      }
+
+      /* When scrolled down on mobile portrait:
+         1. Disappear all stuff above map (header)
+         2. Map sticky at top, cropped by 50% vertically
+         3. Disappear all on-map UI widgets */
+      body.scrolled-down header {
+        max-height: 0;
+        opacity: 0;
+        padding-top: 0;
+        padding-bottom: 0;
+        margin-top: 0;
+        margin-bottom: 0;
+        overflow: hidden;
+        pointer-events: none;
+      }
+      body.scrolled-down .map-column {
+        position: sticky;
+        top: 0;
+        z-index: 50;
+        padding: max(6px, env(safe-area-inset-top, 6px)) 0 8px 0;
+        background: var(--bg);
+        margin-bottom: 4px;
+      }
+      body.scrolled-down .map-container {
+        /* Cropped by 50% vertically: height is half of width */
+        height: calc((100vw - 28px) * 0.5);
+        max-height: 210px;
+        aspect-ratio: unset;
+        border-radius: 14px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.1);
+      }
+      body.scrolled-down .map-crop-wrapper {
+        top: 50%;
+        transform: translateY(-50%);
+        height: calc(100vw - 28px);
+        width: 100%;
+      }
+      body.scrolled-down .zoom-hud,
+      body.scrolled-down .rot-hud,
+      body.scrolled-down .inspect-card,
+      body.scrolled-down .tap-marker {
+        opacity: 0 !important;
+        pointer-events: none !important;
+        transform: translateY(8px);
+      }
+    }
   </style>
 </head>
 <body>
@@ -427,47 +647,65 @@
   </header>
 
   <main>
-    <!-- Map Viewport with Hardware-Accelerated Pan & Zoom -->
-    <div class="map-container" id="map-box">
-      <div class="rot-hud" id="rot-hud" style="display: none;">
-        <span id="rot-readout">3D: Pitch 0° • Yaw 0°</span>
-        <button id="btn-rot-hud-reset" style="margin-left: 8px; background: rgba(56, 189, 248, 0.25); border: 1px solid rgba(56, 189, 248, 0.4); color: #38bdf8; border-radius: 4px; padding: 2px 7px; font-size: 0.70rem; cursor: pointer; font-weight: 600;">↺ Top-Down</button>
-      </div>
-      <div class="zoom-layer" id="zoom-layer">
-        <canvas id="gpu-canvas" width="1024" height="1024" style="width: 100%; height: 100%; display: block;"></canvas>
-        <img id="map-image" src="" alt="Terrain Map" draggable="false" style="display: none;">
-        <div class="tap-marker" id="tap-marker"></div>
-      </div>
-      <div class="zoom-hud">
-        <button class="zoom-btn" id="btn-drag-mode" style="font-size: 0.76rem; width: 34px;" title="Drag Mode: Pan (Click for 3D Orbit)">✋</button>
-        <button class="zoom-btn" id="btn-zoom-in" title="Zoom in">+</button>
-        <button class="zoom-btn" id="btn-zoom-out" title="Zoom out">−</button>
-        <button class="zoom-btn" id="btn-zoom-reset" style="font-size: 0.72rem; width: 34px;" title="Reset zoom">Fit</button>
-        <button class="zoom-btn" id="btn-rot-reset" style="font-size: 0.70rem; width: 34px;" title="Reset 3D rotation">3D↺</button>
-        <span class="zoom-readout" id="zoom-readout">100%</span>
-      </div>
-      <div class="inspect-card" id="inspect-card">
-        <div>
-          <span class="biome-badge" id="insp-biome">PLAINS</span>
-          <span style="margin-left: 6px; color: var(--text-muted);" id="insp-id">Cell #0</span>
+    <div class="map-column" id="map-column">
+      <!-- Map Viewport with Hardware-Accelerated Pan & Zoom -->
+      <div class="map-container" id="map-box">
+        <div class="map-crop-wrapper" id="map-crop-wrapper">
+          <div class="zoom-layer" id="zoom-layer">
+            <canvas id="gpu-canvas" width="1024" height="1024" style="width: 100%; height: 100%; display: block;"></canvas>
+            <img id="map-image" src="" alt="Terrain Map" draggable="false" style="display: none;">
+            <div class="tap-marker" id="tap-marker"></div>
+          </div>
         </div>
-        <div>
-          <span style="font-weight: 700;" id="insp-elev">0 m</span>
-          <span style="color: var(--text-muted); margin-left: 4px;" id="insp-moist">0%</span>
-          <span style="color: #f59e0b; margin-left: 4px; font-weight: 600;" id="insp-temp">20°C</span>
+        <div class="rot-hud" id="rot-hud" style="display: none;">
+          <span id="rot-readout">3D: Pitch 0° • Yaw 0°</span>
+          <button id="btn-rot-hud-reset" style="margin-left: 8px; background: rgba(56, 189, 248, 0.25); border: 1px solid rgba(56, 189, 248, 0.4); color: #38bdf8; border-radius: 4px; padding: 2px 7px; font-size: 0.70rem; cursor: pointer; font-weight: 600;">↺ Top-Down</button>
         </div>
-        <div id="insp-geo-row" style="display: none; margin-top: 5px; padding-top: 4px; border-top: 1px solid rgba(255,255,255,0.12); font-size: 0.75rem; flex-wrap: wrap; gap: 6px; align-items: center;">
-          <span id="insp-nation" class="header-badge" style="padding: 2px 7px; font-size: 0.70rem; background: rgba(245, 158, 11, 0.2); border-color: rgba(245, 158, 11, 0.4); color: #fbbf24;">Wilderness</span>
-          <span id="insp-city" style="font-weight: 700;"></span>
-          <span id="insp-pop" style="color: var(--text-muted);"></span>
-          <span id="insp-price" style="color: #38bdf8;"></span>
-          <span id="insp-resources" style="color: #34d399; font-weight: 600;"></span>
+        <div class="zoom-hud">
+          <button class="zoom-btn" id="btn-drag-mode" style="font-size: 0.76rem; width: 34px;" title="Drag Mode: Pan (Click for 3D Orbit)">✋</button>
+          <button class="zoom-btn" id="btn-zoom-in" title="Zoom in">+</button>
+          <button class="zoom-btn" id="btn-zoom-out" title="Zoom out">−</button>
+          <button class="zoom-btn" id="btn-zoom-reset" style="font-size: 0.72rem; width: 34px;" title="Reset zoom">Fit</button>
+          <button class="zoom-btn" id="btn-rot-reset" style="font-size: 0.70rem; width: 34px;" title="Reset 3D rotation">3D↺</button>
+          <span class="zoom-readout" id="zoom-readout">100%</span>
+        </div>
+        <div class="inspect-card" id="inspect-card">
+          <div>
+            <span class="biome-badge" id="insp-biome">PLAINS</span>
+            <span style="margin-left: 6px; color: var(--text-muted);" id="insp-id">Cell #0</span>
+          </div>
+          <div>
+            <span style="font-weight: 700;" id="insp-elev">0 m</span>
+            <span style="color: var(--text-muted); margin-left: 4px;" id="insp-moist">0%</span>
+            <span style="color: #f59e0b; margin-left: 4px; font-weight: 600;" id="insp-temp">20°C</span>
+          </div>
+          <div id="insp-geo-row" style="display: none; margin-top: 5px; padding-top: 4px; border-top: 1px solid rgba(255,255,255,0.12); font-size: 0.75rem; flex-wrap: wrap; gap: 6px; align-items: center;">
+            <span id="insp-nation" class="header-badge" style="padding: 2px 7px; font-size: 0.70rem; background: rgba(245, 158, 11, 0.2); border-color: rgba(245, 158, 11, 0.4); color: #fbbf24;">Wilderness</span>
+            <span id="insp-city" style="font-weight: 700;"></span>
+            <span id="insp-pop" style="color: var(--text-muted);"></span>
+            <span id="insp-price" style="color: #38bdf8;"></span>
+            <span id="insp-resources" style="color: #34d399; font-weight: 600;"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action Bar (Docked under map on desktop/iPad, floating at bottom on iPhone) -->
+      <div class="bottom-bar" id="bottom-bar">
+        <div class="bottom-bar-inner">
+          <button class="btn-action" id="btn-rand">🎲 Seed</button>
+          <!-- Native Apple AR Quick Look link for iOS Safari -->
+          <a class="btn-action btn-ar" id="btn-ar" rel="ar" href="#" download="island.usdz">
+            📦 3D / AR
+          </a>
+          <a class="btn-action btn-primary" id="btn-save" href="#" download="island_map.png">💾 Save</a>
         </div>
       </div>
     </div>
 
-    <!-- Settings Presets & Save Slots -->
-    <div class="card" id="save-slots-card" style="padding: 12px 14px;">
+    <!-- Scrollable Settings & Knobs Column -->
+    <div class="settings-column" id="settings-column">
+      <!-- Settings Presets & Save Slots -->
+      <div class="card" id="save-slots-card" style="padding: 12px 14px;">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
         <span style="font-size: 0.82rem; font-weight: 700; color: var(--accent);">💾 Settings Save Slots</span>
         <span style="font-size: 0.73rem; color: var(--text-muted);" id="slot-status">Slot 1 Active</span>
@@ -917,19 +1155,8 @@
         </div>
       </div>
     </div>
-  </main>
-
-  <!-- Bottom Floating Action Bar for iPhone -->
-  <div class="bottom-bar">
-    <div class="bottom-bar-inner">
-      <button class="btn-action" id="btn-rand">🎲 Seed</button>
-      <!-- Native Apple AR Quick Look link for iOS Safari -->
-      <a class="btn-action btn-ar" id="btn-ar" rel="ar" href="#" download="island.usdz">
-        📦 3D / AR
-      </a>
-      <a class="btn-action btn-primary" id="btn-save" href="#" download="island_map.png">💾 Save</a>
-    </div>
-  </div>
+  </div><!-- end .settings-column -->
+</main>
 
   <script>
     // Global Application State
@@ -1042,6 +1269,8 @@
     let abortController = null;
 
     const mapBox = document.getElementById('map-box');
+    const mapCropWrapper = document.getElementById('map-crop-wrapper');
+    function getMapRect() { return (mapCropWrapper || mapBox).getBoundingClientRect(); }
     const zoomLayer = document.getElementById('zoom-layer');
     const gpuCanvas = document.getElementById('gpu-canvas');
     const mapImg = document.getElementById('map-image');
@@ -3241,7 +3470,7 @@
     let pinchWorldY = 0;
 
     function clampPan() {
-      const rect = mapBox.getBoundingClientRect();
+      const rect = getMapRect();
       const maxPanX = Math.max(0, (scale - 1.0) * rect.width);
       const maxPanY = Math.max(0, (scale - 1.0) * rect.height);
       if (scale <= 1.001) {
@@ -3260,9 +3489,9 @@
       zoomReadout.textContent = `${Math.round(scale * 100)}%`;
     }
 
-    // Zoom centered strictly on focal coordinate (fx, fy) relative to mapBox
+    // Zoom centered strictly on focal coordinate (fx, fy) relative to map
     function setZoom(newScale, focalX, focalY) {
-      const rect = mapBox.getBoundingClientRect();
+      const rect = getMapRect();
       const fx = (focalX !== undefined && !isNaN(focalX)) ? focalX : rect.width / 2;
       const fy = (focalY !== undefined && !isNaN(focalY)) ? focalY : rect.height / 2;
       const clampedScale = Math.min(8.0, Math.max(1.0, newScale));
@@ -3281,7 +3510,7 @@
     // Wheel Zoom centered at cursor
     mapBox.addEventListener('wheel', (e) => {
       e.preventDefault();
-      const rect = mapBox.getBoundingClientRect();
+      const rect = getMapRect();
       const factor = e.deltaY < 0 ? 1.20 : 0.83;
       setZoom(scale * factor, e.clientX - rect.left, e.clientY - rect.top);
     }, { passive: false });
@@ -3531,7 +3760,7 @@
         mapBox.classList.remove('rotating');
         isPinching = true;
         hasMoved = true;
-        const rect = mapBox.getBoundingClientRect();
+        const rect = getMapRect();
         const t0 = e.touches[0];
         const t1 = e.touches[1];
         initialPinchDist = Math.hypot(t0.clientX - t1.clientX, t0.clientY - t1.clientY);
@@ -3583,7 +3812,7 @@
         const curDist = Math.hypot(t0.clientX - t1.clientX, t0.clientY - t1.clientY);
         if (curDist <= 0) return;
 
-        const rect = mapBox.getBoundingClientRect();
+        const rect = getMapRect();
         const midX = (t0.clientX + t1.clientX) / 2 - rect.left;
         const midY = (t0.clientY + t1.clientY) / 2 - rect.top;
         const newScale = Math.min(8.0, Math.max(1.0, initialPinchScale * (curDist / initialPinchDist)));
@@ -3635,7 +3864,7 @@
     });
 
     async function inspectAtClientXY(clientX, clientY) {
-      const rect = mapBox.getBoundingClientRect();
+      const rect = getMapRect();
       const clickX = clientX - rect.left;
       const clickY = clientY - rect.top;
 
@@ -4821,7 +5050,39 @@
       } catch(ex){}
     });
 
+    // Mobile Portrait Scroll Crop & Widget Visibility Control
+    function initMobileScrollCrop() {
+      let isScrolled = false;
+      const threshold = 30;
+
+      function onScroll() {
+        const isMobilePortrait = (window.innerWidth < 768) && (window.innerHeight >= window.innerWidth);
+        if (!isMobilePortrait) {
+          if (document.body.classList.contains('scrolled-down')) {
+            document.body.classList.remove('scrolled-down');
+            isScrolled = false;
+          }
+          return;
+        }
+
+        const scrollY = window.pageYOffset || document.documentElement.scrollTop || 0;
+        if (!isScrolled && scrollY > threshold) {
+          isScrolled = true;
+          document.body.classList.add('scrolled-down');
+        } else if (isScrolled && scrollY <= 12) {
+          isScrolled = false;
+          document.body.classList.remove('scrolled-down');
+        }
+      }
+
+      window.addEventListener('scroll', onScroll, { passive: true });
+      window.addEventListener('resize', onScroll, { passive: true });
+      window.addEventListener('orientationchange', onScroll, { passive: true });
+      onScroll();
+    }
+
     // Restore persistent settings and slot state on page load
+    initMobileScrollCrop();
     restoreSettings();
     triggerUpdate(true);
   </script>
