@@ -41,6 +41,7 @@
     "micropoly_trees": true,
     "tree_density": 0.85,
     "micropoly_waves": true,
+    "wave_mode": "gerstner",
     "wave_intensity": 1,
     "micropoly_strata": true,
     "micropoly_parcels": true,

@@ -487,66 +487,127 @@ def build_micropoly_trees(gen, sample_mesh_elevation, height_scale: float = 70.0
     return np.array(tree_verts, dtype=np.float32)
 
 
-def build_coastal_surf_ribbon(gen, ribbon_width: float = 18.0):
-    """Generates 3D coastal wave ribbons along discrete island boundary edges.
+def build_coastal_surf_ribbon(gen, ribbon_width: float = 24.0):
+    """Generates 3D continuous, watertight coastal wave ribbons along organic island coastline contours.
+    Features:
+    - Smooth continuous corner seaward normals: eliminates all quad overlap, wedge gaps, and z-fighting.
+    - Full fractal NoisyEdges path adherence: matches high-res beach contours perfectly.
+    - Multi-ring concentric mesh (shore swash zone, breaker peak, outer shelf).
     Returns Float32Array with 40-byte vertex stride [x, y, z, nx, ny, nz, r, g, b, coast_dist].
     """
     import math
-    scale_x = CANONICAL_WORLD_SIZE / gen.width
-    scale_y = CANONICAL_WORLD_SIZE / gen.height
-    surf_verts = []
+    from collections import defaultdict
 
-    if not hasattr(gen, "edges"):
+    if not hasattr(gen, "edges") or not gen.edges:
         return np.empty((0,), dtype=np.float32)
 
+    scale_x = CANONICAL_WORLD_SIZE / gen.width
+    scale_y = CANONICAL_WORLD_SIZE / gen.height
+
+    coast_edges = []
     for e in gen.edges:
-        if not (e.d0 and e.d1 and e.v0 and e.v1):
-            continue
-        is_coast = (e.d0.water != e.d1.water)
-        if not is_coast:
-            continue
+        if e.d0 and e.d1 and e.v0 and e.v1 and (e.d0.water != e.d1.water):
+            coast_edges.append(e)
 
-        land_cell = e.d0 if not e.d0.water else e.d1
-        water_cell = e.d1 if not e.d0.water else e.d0
+    if not coast_edges:
+        return np.empty((0,), dtype=np.float32)
 
-        x0, y0 = e.v0.x * scale_x, e.v0.y * scale_y
-        x1, y1 = e.v1.x * scale_x, e.v1.y * scale_y
+    # 1. Compute smooth continuous seaward normal at every coastal corner
+    corner_seaward = defaultdict(lambda: np.zeros(2, dtype=np.float64))
+    for e in coast_edges:
+        land_c = e.d0 if not e.d0.water else e.d1
+        water_c = e.d1 if not e.d0.water else e.d0
 
-        dx = x1 - x0
-        dy = y1 - y0
+        dx = (e.v1.x - e.v0.x) * scale_x
+        dy = (e.v1.y - e.v0.y) * scale_y
         seg_len = math.hypot(dx, dy)
-        if seg_len < 0.1:
+        if seg_len < 1e-4:
+            continue
+        nx = -dy / seg_len
+        ny = dx / seg_len
+        to_water_x = (water_c.x - land_c.x) * scale_x
+        to_water_y = (water_c.y - land_c.y) * scale_y
+        if nx * to_water_x + ny * to_water_y < 0:
+            nx = -nx
+            ny = -ny
+        corner_seaward[e.v0.index] += [nx, ny]
+        corner_seaward[e.v1.index] += [nx, ny]
+
+    corner_normals = {}
+    for idx, vec in corner_seaward.items():
+        vlen = math.hypot(vec[0], vec[1])
+        if vlen > 1e-6:
+            corner_normals[idx] = vec / vlen
+        else:
+            corner_normals[idx] = np.array([0.0, 1.0], dtype=np.float64)
+
+    # 2. Build multi-ring concentric triangle strip along fractal edge paths
+    surf_verts = []
+    effective_width = max(12.0, ribbon_width)
+
+    for e in coast_edges:
+        n0 = corner_normals.get(e.v0.index, np.array([0.0, 1.0]))
+        n1 = corner_normals.get(e.v1.index, np.array([0.0, 1.0]))
+
+        if getattr(gen, "noisy_edges", None):
+            edge_pts = gen.noisy_edges.get_edge_path(e, start_corner=e.v0)
+        else:
+            edge_pts = [[e.v0.x, e.v0.y], [e.v1.x, e.v1.y]]
+
+        n_pts = len(edge_pts)
+        if n_pts < 2:
             continue
 
-        cand_nx = -dy / seg_len
-        cand_ny = dx / seg_len
-        to_water_x = (water_cell.x - land_cell.x) * scale_x
-        to_water_y = (water_cell.y - land_cell.y) * scale_y
-        if cand_nx * to_water_x + cand_ny * to_water_y < 0:
-            cand_nx = -cand_nx
-            cand_ny = -cand_ny
+        foam_col = [0.98, 1.00, 1.00]
+        lagoon_col = [0.12, 0.65, 0.78]
+        deep_col = [0.08, 0.32, 0.55]
 
-        ox0 = x0 + cand_nx * ribbon_width
-        oy0 = y0 + cand_ny * ribbon_width
-        ox1 = x1 + cand_nx * ribbon_width
-        oy1 = y1 + cand_ny * ribbon_width
+        ring_bands = [(0.0, 0.35), (0.35, 0.70), (0.70, 1.0)]
 
-        z_shore = 0.04
-        z_deep = -0.16
+        for k in range(n_pts - 1):
+            t0 = k / float(max(1, n_pts - 1))
+            t1 = (k + 1) / float(max(1, n_pts - 1))
 
-        nx, ny, nz = 0.0, 0.0, 1.0
+            p0 = np.array([edge_pts[k][0] * scale_x, edge_pts[k][1] * scale_y], dtype=np.float64)
+            p1 = np.array([edge_pts[k+1][0] * scale_x, edge_pts[k+1][1] * scale_y], dtype=np.float64)
 
-        foam_r, foam_g, foam_b = 0.95, 0.98, 1.00
-        sea_r, sea_g, sea_b = 0.14, 0.52, 0.68
+            norm0 = n0 * (1.0 - t0) + n1 * t0
+            norm1 = n0 * (1.0 - t1) + n1 * t1
+            n0_len = math.hypot(norm0[0], norm0[1])
+            n1_len = math.hypot(norm1[0], norm1[1])
+            if n0_len > 1e-4: norm0 /= n0_len
+            if n1_len > 1e-4: norm1 /= n1_len
 
-        # Tri 1
-        surf_verts.extend([x0, y0, z_shore, nx, ny, nz, foam_r, foam_g, foam_b, 0.0])
-        surf_verts.extend([x1, y1, z_shore, nx, ny, nz, foam_r, foam_g, foam_b, 0.0])
-        surf_verts.extend([ox0, oy0, z_deep, nx, ny, nz, sea_r, sea_g, sea_b, 1.0])
-        # Tri 2
-        surf_verts.extend([ox0, oy0, z_deep, nx, ny, nz, sea_r, sea_g, sea_b, 1.0])
-        surf_verts.extend([x1, y1, z_shore, nx, ny, nz, foam_r, foam_g, foam_b, 0.0])
-        surf_verts.extend([ox1, oy1, z_deep, nx, ny, nz, sea_r, sea_g, sea_b, 1.0])
+            for r_in, r_out in ring_bands:
+                p0_in = p0 + norm0 * (effective_width * r_in)
+                p1_in = p1 + norm1 * (effective_width * r_in)
+                p0_out = p0 + norm0 * (effective_width * r_out)
+                p1_out = p1 + norm1 * (effective_width * r_out)
+
+                z_in = 0.04 - 0.12 * r_in
+                z_out = 0.04 - 0.12 * r_out
+
+                nx0, ny0 = float(norm0[0]), float(norm0[1])
+                nx1, ny1 = float(norm1[0]), float(norm1[1])
+
+                c_in = [
+                    foam_col[c] * (1.0 - r_in) + lagoon_col[c] * r_in if r_in < 0.5
+                    else lagoon_col[c] * (2.0 - 2.0 * r_in) + deep_col[c] * (2.0 * r_in - 1.0)
+                    for c in range(3)
+                ]
+                c_out = [
+                    foam_col[c] * (1.0 - r_out) + lagoon_col[c] * r_out if r_out < 0.5
+                    else lagoon_col[c] * (2.0 - 2.0 * r_out) + deep_col[c] * (2.0 * r_out - 1.0)
+                    for c in range(3)
+                ]
+
+                surf_verts.extend([p0_in[0], p0_in[1], z_in, nx0, ny0, 1.0, c_in[0], c_in[1], c_in[2], r_in])
+                surf_verts.extend([p1_in[0], p1_in[1], z_in, nx1, ny1, 1.0, c_in[0], c_in[1], c_in[2], r_in])
+                surf_verts.extend([p0_out[0], p0_out[1], z_out, nx0, ny0, 1.0, c_out[0], c_out[1], c_out[2], r_out])
+
+                surf_verts.extend([p0_out[0], p0_out[1], z_out, nx0, ny0, 1.0, c_out[0], c_out[1], c_out[2], r_out])
+                surf_verts.extend([p1_in[0], p1_in[1], z_in, nx1, ny1, 1.0, c_in[0], c_in[1], c_in[2], r_in])
+                surf_verts.extend([p1_out[0], p1_out[1], z_out, nx1, ny1, 1.0, c_out[0], c_out[1], c_out[2], r_out])
 
     return np.array(surf_verts, dtype=np.float32)
 
