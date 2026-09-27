@@ -69,7 +69,7 @@ def get_camera_mvp(world):
     return mvp
 
 
-def world_to_screen(world, wx, wy, elevation=0.0):
+def world_to_screen(world, wx, wy, elevation=0.0, wz=None):
     """Project world coordinate (wx, wy) with 3D elevation into screen pixels using 35mm perspective."""
     from world_config import is_voronoi_topology
     if not is_voronoi_topology():
@@ -79,9 +79,10 @@ def world_to_screen(world, wx, wy, elevation=0.0):
         return (int(wx * zoom + ox), int(wy * zoom + oy))
 
     mvp = get_camera_mvp(world)
-    slot_state = world.get('slot_state') or {}
-    h_scale = float(slot_state.get('height_scale', 48.0))
-    wz = float(elevation) * h_scale
+    if wz is None:
+        slot_state = world.get('slot_state') or {}
+        h_scale = float(slot_state.get('height_scale', 48.0))
+        wz = float(elevation) * h_scale
 
     v4 = np.array([float(wx), float(wy), wz, 1.0], dtype=np.float32)
     clip = mvp @ v4

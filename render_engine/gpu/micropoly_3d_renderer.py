@@ -966,10 +966,10 @@ class Micropoly3DRenderer:
 
         self.ctx.disable(moderngl.BLEND)
 
-        # Read back rendered pixels into Pygame Surface
+        # Read back rendered pixels into Pygame Surface (flipped vertically to convert OpenGL bottom-up FBO to Pygame top-down)
         raw = self.fbo.read(components=3)
         surf = pygame.image.frombuffer(raw, (viewport_w, viewport_h), 'RGB')
-        return surf
+        return pygame.transform.flip(surf, False, True)
 
 
 # Singleton instance

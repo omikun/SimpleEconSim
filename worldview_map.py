@@ -15,6 +15,7 @@ Renders realistic procedural terrain heightmaps with:
 import os
 import json
 import math
+import numpy as np
 import pygame
 from goods import Goods
 from hexmap import hex_corners
@@ -956,7 +957,6 @@ def draw_hex_map(surface, world, font, font_small):
                 from mapgen_web import get_cached_micropolys, build_micropoly_trees, build_coastal_surf_ribbon
                 from render_island_micropolys import render_mesh
                 from scipy.spatial import cKDTree
-                import numpy as np
 
                 graph_key = (
                     int(slot_state.get('seed', 777)),
@@ -1143,21 +1143,52 @@ def draw_hex_map(surface, world, font, font_small):
     border_overlay = pygame.Surface((MAP_RIGHT, HEIGHT), pygame.SRCALPHA)
     hex_geom = []
 
+    # Query 3D terrain elevation sampler from GPU renderer if available
+    gpu_renderer = world.get('_micropoly_gpu_renderer')
+    sample_elev = getattr(gpu_renderer, 'sample_elevation_func', None)
+    hover_offset = 0.6  # Hover slightly above 3D mesh surface to prevent clipping and occlusion
+
     for region in tiles:
+        # User constraint: "don't show tiles in the sea;"
+        is_sea = (
+            getattr(region, 'is_ocean', False)
+            or getattr(region, 'elevation', 0.0) <= 0.0
+            or getattr(getattr(region, 'center', None), 'water', False)
+            or getattr(getattr(region, 'center', None), 'ocean', False)
+        )
+        if is_sea:
+            continue
+
         coords = layout.get(region.name)
         if coords is None:
             continue
-        elev = getattr(region, 'elevation', 0.0) if not getattr(region, 'is_ocean', False) else 0.0
-        cx, cy = hex_px(world, *coords, elevation=elev)
+        elev = getattr(region, 'elevation', 0.0)
         if is_voronoi_topology() and hasattr(region, 'polygon') and region.polygon is not None and len(region.polygon) >= 3:
             from worldview_camera import world_to_screen
-            pts = [world_to_screen(world, p[0], p[1], elevation=elev) for p in region.polygon]
+            poly = region.polygon
+            if sample_elev is not None:
+                # Sample 3D terrain elevation along the contour and hover slightly above surface
+                z_vals = sample_elev(poly) + hover_offset
+                pts = [world_to_screen(world, p[0], p[1], wz=z) for p, z in zip(poly, z_vals)]
+                pts = [p for p in pts if p[0] != -9999 and p[1] != -9999]
+                cz = float(sample_elev(np.array([[coords[0], coords[1]]]))[0]) + hover_offset
+                cx, cy = world_to_screen(world, coords[0], coords[1], wz=cz)
+            else:
+                pts = [world_to_screen(world, p[0], p[1], elevation=elev) for p in poly]
+                pts = [p for p in pts if p[0] != -9999 and p[1] != -9999]
+                cx, cy = hex_px(world, *coords, elevation=elev)
         else:
+            cx, cy = hex_px(world, *coords, elevation=elev)
             pts = hex_corners((cx, cy), HEX_SIZE * zoom - 1)
+
+        if len(pts) < 3:
+            continue
+
         hex_geom.append((region, cx, cy, pts))
 
-        # 1a. Ocean wave shimmer (if water)
-        draw_elevation_terrain(surface, region, pts, cx, cy, zoom=zoom, frame=frame)
+        # 1a. Ocean wave shimmer (if inland water)
+        if getattr(region, 'is_water', False):
+            draw_elevation_terrain(surface, region, pts, cx, cy, zoom=zoom, frame=frame)
 
         # 1b. Semi-Transparent Nation Territory Overlay & Thematic Choropleth
         draw_nation_overlay(surface, region, pts)

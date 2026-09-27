@@ -1396,6 +1396,53 @@ class PolygonMapGenerator:
 
         return np.array([[cn.x, cn.y] for cn in center.corners], dtype=np.float64)
 
+    def get_cartographic_boundary(self, center: Center) -> np.ndarray:
+        """Constructs a smooth, regular cartographic closed 2D polygon boundary following terrain, rivers, and coasts."""
+        if len(center.corners) < 3:
+            return np.array([[cn.x, cn.y] for cn in center.corners], dtype=np.float64)
+
+        if not hasattr(self, '_carto_edge_paths'):
+            self._carto_edge_paths = {}
+
+        corners = center.corners
+        num_c = len(corners)
+        poly_pts: List[np.ndarray] = []
+
+        for i in range(num_c):
+            c_curr = corners[i]
+            c_next = corners[(i + 1) % num_c]
+
+            edge_found: Optional[Edge] = None
+            for e in center.borders:
+                if (e.v0 == c_curr and e.v1 == c_next) or (e.v1 == c_curr and e.v0 == c_next):
+                    edge_found = e
+                    break
+
+            if edge_found is not None:
+                e_idx = edge_found.index
+                if e_idx not in self._carto_edge_paths:
+                    p0 = np.array([edge_found.v0.x, edge_found.v0.y], dtype=np.float64)
+                    p1 = np.array([edge_found.v1.x, edge_found.v1.y], dtype=np.float64)
+                    edge_len = float(np.linalg.norm(p1 - p0))
+                    # Subdivide edges into increments <= 10.0 units so 3D elevation drapes smoothly over terrain
+                    n_sub = max(2, int(math.ceil(edge_len / 10.0)) + 1)
+                    t = np.linspace(0.0, 1.0, n_sub)[:, None]
+                    self._carto_edge_paths[e_idx] = (1.0 - t) * p0 + t * p1
+
+                seg = self._carto_edge_paths[e_idx]
+                if edge_found.v0 == c_curr:
+                    poly_pts.extend(seg[:-1])
+                else:
+                    poly_pts.extend(seg[::-1][:-1])
+            else:
+                poly_pts.append(np.array([c_curr.x, c_curr.y], dtype=np.float64))
+
+        if poly_pts:
+            arr = np.array(poly_pts, dtype=np.float64)
+            return np.vstack([arr, arr[0]])
+
+        return np.array([[cn.x, cn.y] for cn in center.corners], dtype=np.float64)
+
     # -----------------------------------------------------------------------
     # Rasterization & Shaded Relief Surface Rendering
     # -----------------------------------------------------------------------

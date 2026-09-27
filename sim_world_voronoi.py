@@ -90,17 +90,18 @@ def build_world_voronoi(
     # Check saved_slots/slot_1.json for default persistent world configuration
     slot_1_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "saved_slots", "slot_1.json")
     slot_state = {}
-    if (seed is None and terrain_seed is None) and os.path.exists(slot_1_file):
+    if os.path.exists(slot_1_file):
         try:
             with open(slot_1_file, "r", encoding="utf-8") as f:
                 slot_data = json.load(f)
                 slot_state = slot_data.get("state", {})
-                if "seed" in slot_state:
+                if seed is None and "seed" in slot_state:
                     seed = int(slot_state["seed"])
-                    terrain_seed = seed
-                if "shape" in slot_state and island_shape is None:
+                if terrain_seed is None:
+                    terrain_seed = seed if seed is not None else int(slot_state.get("seed", 777))
+                if island_shape is None and "shape" in slot_state:
                     island_shape = slot_state["shape"]
-                if "points" in slot_state and num_points is None:
+                if num_points is None and "points" in slot_state:
                     num_points = int(slot_state["points"])
         except Exception as exc:
             pass
@@ -156,7 +157,7 @@ def build_world_voronoi(
         tile.centroid = (float(c.x), float(c.y))
         tile.corners = c.corners
         tile.borders = c.borders
-        tile.polygon = gen.get_polygon_noisy_boundary(c)
+        tile.polygon = gen.get_cartographic_boundary(c)
 
         tile.is_ocean = bool(c.ocean)
         tile.is_coast = bool(c.coast)
