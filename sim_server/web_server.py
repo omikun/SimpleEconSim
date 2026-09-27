@@ -321,29 +321,157 @@ def render_terrain_pil(sim: SimServer) -> Any:
 
 
 def render_terrain_image(sim: SimServer, terrain_renderer=None, format_type: str = 'png') -> tuple[bytes, str]:
-    """Render photorealistic terrain image with GPU/Pygame when available, with pure PIL fallback."""
+    """Render photorealistic Mapgen2 terrain image matching the desktop client render."""
     import io
+    import json
+    import numpy as np
     from PIL import Image
 
     img = None
-    try:
-        import pygame
-        if terrain_renderer is None:
-            from render_engine.terrain import TerrainRenderer
-            terrain_renderer = TerrainRenderer()
+    project_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    slot_cache_path = os.path.join(project_dir, 'saved_slots', 'slot_1_terrain.png')
 
-        surf = terrain_renderer.get_or_generate_surface(
-            seed=sim.terrain_seed,
-            bbox=sim.bbox,
-            tiles=sim.tiles,
-            layout=sim.layout
-        )
-        raw = pygame.image.tostring(surf, 'RGBA')
-        img = Image.frombytes('RGBA', surf.get_size(), raw)
-    except Exception as e:
-        print(f"[WebServer] Pygame/ModernGL terrain pipeline note: {e}. Using pure PIL fallback.")
-        img = None
+    # 1. Primary: Load cached Mapgen2 3D micropoly terrain image (matching desktop client)
+    if os.path.exists(slot_cache_path):
+        try:
+            img = Image.open(slot_cache_path)
+            # Verify valid image dimensions
+            if img.width < 100 or img.height < 100:
+                img = None
+        except Exception as e:
+            print(f"[WebServer] Could not load Mapgen2 slot cache {slot_cache_path}: {e}")
+            img = None
 
+    # 2. Secondary: Dynamically synthesize Mapgen2 micropoly terrain if cache missing
+    if img is None:
+        try:
+            import pygame
+            from mapgen_web import get_cached_graph, get_cached_micropolys, build_micropoly_trees, build_coastal_surf_ribbon
+            from render_island_micropolys import render_mesh
+            from scipy.spatial import cKDTree
+
+            slot_json_path = os.path.join(project_dir, 'saved_slots', 'slot_1.json')
+            slot_state = {}
+            if os.path.exists(slot_json_path):
+                with open(slot_json_path, 'r', encoding='utf-8') as f:
+                    slot_state = json.load(f).get('state', {})
+
+            seed = int(slot_state.get('seed', sim.terrain_seed or 777))
+            shape = slot_state.get('shape', 'radial')
+            points = int(slot_state.get('points', 1000))
+            rivers = int(slot_state.get('rivers', 25))
+            sharpness = float(slot_state.get('sharpness', 1.9))
+
+            gen = get_cached_graph(seed=seed, shape=shape, points=points, rivers=rivers, sharpness=sharpness)
+
+            graph_key = (
+                seed, shape, points, rivers, round(sharpness, 2),
+                0.0, 0.0, 0.0, 0.0,
+                round(float(slot_state.get('canyon_depth', 2.7)), 2),
+                round(float(slot_state.get('valley_width', 1.4)), 2)
+            )
+
+            triangles, _ = get_cached_micropolys(
+                gen, graph_key,
+                int(slot_state.get('polys', 16000)),
+                float(slot_state.get('roughness', 3.0)),
+                float(slot_state.get('jitter', 0.22)),
+                float(slot_state.get('alpha', 0.0)),
+                float(slot_state.get('height_scale', 48.0)),
+                float(slot_state.get('smooth', 0.7)),
+                quad_fold=slot_state.get('quad_fold', True),
+                ridge_noise=float(slot_state.get('ridge_noise', 0.35)),
+                erosion_strength=float(slot_state.get('erosion_strength', 0.3)),
+                erosion_droplets=int(slot_state.get('erosion_droplets', 15000)),
+            )
+
+            mesh_pts = np.asarray([v for t in triangles for v in (t[0], t[1], t[2])], dtype=np.float32)
+            mesh_tree = cKDTree(mesh_pts[:, :2])
+
+            def sample_elevation(pts_xy):
+                dists, idxs = mesh_tree.query(pts_xy, k=min(3, len(mesh_pts)))
+                if dists.ndim == 1:
+                    z = mesh_pts[idxs.flatten(), 2]
+                else:
+                    w = 1.0 / np.maximum(dists, 1e-4)
+                    w /= np.sum(w, axis=1, keepdims=True)
+                    z = np.sum(mesh_pts[idxs, 2] * w, axis=1)
+                return np.maximum(0.0, z) + 0.08
+
+            all_triangles = list(triangles)
+            if slot_state.get('micropoly_trees', True):
+                tree_arr = build_micropoly_trees(
+                    gen, sample_elevation,
+                    height_scale=float(slot_state.get('height_scale', 48.0)),
+                    tree_density=float(slot_state.get('tree_density', 1.28))
+                )
+                for i in range(0, len(tree_arr), 30):
+                    p0 = np.array([tree_arr[i], tree_arr[i+1], tree_arr[i+2]], dtype=np.float64)
+                    p1 = np.array([tree_arr[i+10], tree_arr[i+11], tree_arr[i+12]], dtype=np.float64)
+                    p2 = np.array([tree_arr[i+20], tree_arr[i+21], tree_arr[i+22]], dtype=np.float64)
+                    norm = np.array([tree_arr[i+3], tree_arr[i+4], tree_arr[i+5]], dtype=np.float64)
+                    col = np.array([tree_arr[i+6]*255, tree_arr[i+7]*255, tree_arr[i+8]*255], dtype=np.float64)
+                    elev = float(tree_arr[i+9])
+                    all_triangles.append((p0, p1, p2, col, elev, False, 0, norm))
+
+            if slot_state.get('micropoly_waves', True):
+                surf_arr = build_coastal_surf_ribbon(
+                    gen, ribbon_width=32.0 * float(slot_state.get('wave_intensity', 1.4))
+                )
+                for i in range(0, len(surf_arr), 30):
+                    p0 = np.array([surf_arr[i], surf_arr[i+1], surf_arr[i+2]], dtype=np.float64)
+                    p1 = np.array([surf_arr[i+10], surf_arr[i+11], surf_arr[i+12]], dtype=np.float64)
+                    p2 = np.array([surf_arr[i+20], surf_arr[i+21], surf_arr[i+22]], dtype=np.float64)
+                    norm = np.array([0.0, 0.0, 1.0], dtype=np.float64)
+                    dist = float(surf_arr[i+9])
+                    if dist < 0.25:
+                        col = np.array([245.0, 252.0, 255.0])
+                    elif dist < 0.55:
+                        col = np.array([55.0, 185.0, 215.0])
+                    else:
+                        col = np.array([28.0, 120.0, 180.0])
+                    all_triangles.append((p0, p1, p2, col, 0.0, False, 0, norm))
+
+            topo_surf = render_mesh(
+                gen, all_triangles,
+                width=2048, height=2048,
+                sun_azimuth=float(slot_state.get('sun_azimuth', -45.0)),
+                sun_elevation=float(slot_state.get('sun_elevation', 24.0)),
+                sun_intensity=float(slot_state.get('sun_intensity', 1.15)),
+                ambient_intensity=float(slot_state.get('ambient_intensity', 0.45)),
+                rot_pitch=0.0, rot_yaw=0.0,
+            )
+            raw = pygame.image.tostring(topo_surf, 'RGBA')
+            img = Image.frombytes('RGBA', topo_surf.get_size(), raw)
+            try:
+                img.save(slot_cache_path)
+            except Exception:
+                pass
+        except Exception as e:
+            print(f"[WebServer] Mapgen2 render pipeline fallback note: {e}")
+            img = None
+
+    # 3. Tertiary: Fallback to procedural terrain renderer
+    if img is None:
+        try:
+            import pygame
+            if terrain_renderer is None:
+                from render_engine.terrain import TerrainRenderer
+                terrain_renderer = TerrainRenderer()
+
+            surf = terrain_renderer.get_or_generate_surface(
+                seed=sim.terrain_seed,
+                bbox=sim.bbox,
+                tiles=sim.tiles,
+                layout=sim.layout
+            )
+            raw = pygame.image.tostring(surf, 'RGBA')
+            img = Image.frombytes('RGBA', surf.get_size(), raw)
+        except Exception as e:
+            print(f"[WebServer] Pygame terrain pipeline note: {e}. Using PIL fallback.")
+            img = None
+
+    # 4. Emergency: pure PIL fallback
     if img is None:
         img = render_terrain_pil(sim)
 

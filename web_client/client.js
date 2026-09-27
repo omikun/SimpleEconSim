@@ -263,6 +263,18 @@
     terrainImage.src = `/api/terrain.png?seed=${seed}&t=${Date.now()}`;
   }
 
+  function hexToRgba(hex, alpha) {
+    if (!hex) return `rgba(255, 255, 255, ${alpha})`;
+    let c = hex.replace('#', '');
+    if (c.length === 3) c = c.split('').map(x => x + x).join('');
+    const num = parseInt(c, 16);
+    if (isNaN(num)) return `rgba(255, 255, 255, ${alpha})`;
+    const r = (num >> 16) & 255;
+    const g = (num >> 8) & 255;
+    const b = num & 255;
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+
   // ---------------- Map & Thematic Layers Renderer ----------------
 
   function renderMap() {
@@ -301,36 +313,43 @@
         const { x, y } = axialToPixel(tile.q, tile.r, hexRadius);
         const isSelected = (selectedTileName && tile.name === selectedTileName);
 
+        // Desktop Client parity: Don't show tiles in the sea in overview mode
+        const isSea = (tile.is_ocean || (typeof tile.elevation === 'number' && tile.elevation <= 0) || tile.biome === 'ocean');
+        if (isSea && activeLayer === 'overview' && !isSelected) {
+          return;
+        }
+
         // If not using terrain image or terrain not loaded, render procedural vector terrain
         if (!useTerrainImage || !terrainLoaded) {
           drawHexPolygon(ctx, x, y, hexRadius - 0.5);
           ctx.fillStyle = tile.color || '#1e293b';
+          ctx.fill();
+        } else if (tile.nation_color && !isSea) {
+          // Soft semi-transparent nation territory tint matching desktop client
+          drawHexPolygon(ctx, x, y, hexRadius - 0.5);
+          const baseColor = tile.nation_color.startsWith('#')
+            ? hexToRgba(tile.nation_color, 0.20)
+            : tile.nation_color.replace('rgb', 'rgba').replace(')', ', 0.20)');
+          ctx.fillStyle = baseColor;
           ctx.fill();
         }
 
         // Active Thematic Layer overlay
         renderThematicLayerOverlay(ctx, tile, x, y, hexRadius);
 
-        // Hex territorial boundary border
-        // 1. High contrast outer shadow stroke so grid lines are clearly visible on any terrain texture
-        drawHexPolygon(ctx, x, y, hexRadius);
-        ctx.strokeStyle = 'rgba(0, 0, 0, 0.85)';
-        ctx.lineWidth = (isSelected ? 5.5 : 3.2) / camZoom;
-        ctx.stroke();
-
-        // 2. Crisp bright foreground border with distinct nation colors
+        // Hex territorial boundary border matching desktop client
         drawHexPolygon(ctx, x, y, hexRadius);
         if (isSelected) {
           ctx.strokeStyle = '#38bdf8';
-          ctx.lineWidth = 3.6 / camZoom;
+          ctx.lineWidth = 3.0 / camZoom;
           ctx.stroke();
         } else if (tile.nation_color) {
           ctx.strokeStyle = tile.nation_color;
-          ctx.lineWidth = 2.4 / camZoom;
+          ctx.lineWidth = 1.8 / camZoom;
           ctx.stroke();
         } else {
-          ctx.strokeStyle = 'rgba(255, 255, 255, 0.65)';
-          ctx.lineWidth = 1.8 / camZoom;
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
+          ctx.lineWidth = 1.0 / camZoom;
           ctx.stroke();
         }
 
