@@ -12,6 +12,8 @@ Renders realistic procedural terrain heightmaps with:
 - Crisp Text Rendering with altitude badges (e.g. ▲ 1,840m, ≈ -450m)
 """
 
+import os
+import json
 import math
 import pygame
 from goods import Goods
@@ -429,8 +431,10 @@ def trade_anim(world):
         flow = r.trade_flow_log[-1] if r.trade_flow_log else 0.0
         if abs(flow) < 0.5:
             continue
-        c1 = hex_px(world, *world['layout'][r.name])
-        c2 = hex_px(world, *world['layout'][other.name])
+        e1 = getattr(r, 'elevation', 0.0) if not getattr(r, 'is_ocean', False) else 0.0
+        e2 = getattr(other, 'elevation', 0.0) if not getattr(other, 'is_ocean', False) else 0.0
+        c1 = hex_px(world, *world['layout'][r.name], elevation=e1)
+        c2 = hex_px(world, *world['layout'][other.name], elevation=e2)
         width = max(1, min(8, int(abs(flow) / 1500.0) + 1))
         out.append((c1, c2, width, flow > 0))
     return out
@@ -453,8 +457,10 @@ def draw_edges(surface, world):
         
         if r.name not in layout or other.name not in layout:
             continue
-        c1 = hex_px(world, *layout[r.name])
-        c2 = hex_px(world, *layout[other.name])
+        e1 = getattr(r, 'elevation', 0.0) if not getattr(r, 'is_ocean', False) else 0.0
+        e2 = getattr(other, 'elevation', 0.0) if not getattr(other, 'is_ocean', False) else 0.0
+        c1 = hex_px(world, *layout[r.name], elevation=e1)
+        c2 = hex_px(world, *layout[other.name], elevation=e2)
         
         edge = em.get_edge(r.name, other.name) if em else None
         if edge and edge.is_river:
@@ -921,14 +927,85 @@ def draw_hex_map(surface, world, font, font_small):
         from world_config import is_voronoi_topology
         if is_voronoi_topology() and world.get('gen') is not None:
             gen = world['gen']
-            topo_surf = gen.render_to_surface(
-                width=max(1000, int(bbox[2])),
-                height=max(1000, int(bbox[3])),
-                use_brdf=True,
-                use_noisy_edges=True,
-                show_roads=True,
-                show_lava=False,
-            )
+            slot_state = getattr(gen, 'slot_1_state', None) or world.get('slot_1_state')
+            if not slot_state:
+                slot_1_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "saved_slots", "slot_1.json")
+                if os.path.exists(slot_1_file):
+                    try:
+                        import json
+                        with open(slot_1_file, "r", encoding="utf-8") as f:
+                            slot_state = json.load(f).get("state", {})
+                    except Exception:
+                        slot_state = {}
+                else:
+                    slot_state = {}
+
+            cache_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "saved_slots", "slot_1_terrain.png")
+            if os.path.exists(cache_file):
+                try:
+                    topo_surf = pygame.image.load(cache_file)
+                    if pygame.display.get_surface() is not None:
+                        topo_surf = topo_surf.convert()
+                except Exception:
+                    topo_surf = None
+            else:
+                topo_surf = None
+
+            if topo_surf is None:
+                from render_regnum_terrain import render_regnum_terrain
+                topo_surf = render_regnum_terrain(
+                    gen=gen,
+                    width=2048,
+                    height=2048,
+                    show_canopy=slot_state.get('show_canopy', True),
+                    canopy_density=float(slot_state.get('canopy_density', 0.85)),
+                    crown_size=float(slot_state.get('crown_size', 5.0)),
+                    forest_shadows=slot_state.get('forest_shadows', True),
+                    forest_clearings=slot_state.get('forest_clearings', True),
+                    riparian_trees=slot_state.get('riparian_trees', True),
+                    show_ocean_fx=slot_state.get('show_ocean_fx', True),
+                    show_wave_ripples=slot_state.get('show_wave_ripples', True),
+                    wave_ripples=float(slot_state.get('wave_ripples', 1.0)),
+                    show_specular_glints=slot_state.get('show_specular_glints', True),
+                    specular_glints=float(slot_state.get('specular_glints', 1.0)),
+                    show_coastal_surf=slot_state.get('show_coastal_surf', True),
+                    coastal_surf=float(slot_state.get('coastal_surf', 1.0)),
+                    shelf_width=float(slot_state.get('shelf_width', 1.0)),
+                    show_beaches=slot_state.get('show_beaches', True),
+                    beach_width=float(slot_state.get('beach_width', 1.0)),
+                    sand_dunes=slot_state.get('sand_dunes', True),
+                    show_coastal_cliffs=slot_state.get('show_coastal_cliffs', True),
+                    coastal_cliffs=float(slot_state.get('coastal_cliffs', 1.0)),
+                    show_rock_strata=slot_state.get('show_rock_strata', True),
+                    rock_strata=float(slot_state.get('rock_strata', 1.0)),
+                    show_snow_peaks=slot_state.get('show_snow_peaks', True),
+                    snow_peaks=float(slot_state.get('snow_peaks', 1.0)),
+                    snow_altitude=float(slot_state.get('snow_altitude', 0.70)),
+                    show_ground_grain=slot_state.get('show_ground_grain', True),
+                    ground_grain=float(slot_state.get('ground_grain', 1.0)),
+                    show_soil_parcels=slot_state.get('show_soil_parcels', True),
+                    soil_parcels=float(slot_state.get('soil_parcels', 1.0)),
+                    field_filaments=slot_state.get('field_filaments', True),
+                    carve_rivers=slot_state.get('carve_rivers', True),
+                    river_width=float(slot_state.get('river_width', 0.2)),
+                    estuary_fan=slot_state.get('estuary_fan', True),
+                    riparian_turf=slot_state.get('riparian_turf', True),
+                    show_atmosphere=slot_state.get('show_atmosphere', True),
+                    show_cloud_shadows=slot_state.get('show_cloud_shadows', True),
+                    cloud_shadows=float(slot_state.get('cloud_shadows', 0.55)),
+                    show_aerial_haze=slot_state.get('show_aerial_haze', True),
+                    aerial_haze=float(slot_state.get('aerial_haze', 0.50)),
+                    show_split_tone=slot_state.get('show_split_tone', True),
+                    split_tone=float(slot_state.get('split_tone', 0.60)),
+                    vignette=slot_state.get('vignette', True),
+                    sun_azimuth=float(slot_state.get('sun_azimuth', -45.0)),
+                    sun_elevation=float(slot_state.get('sun_elevation', 24.0)),
+                    frame=0,
+                )
+                try:
+                    pygame.image.save(topo_surf, cache_file)
+                except Exception:
+                    pass
         else:
             topo_surf = terrain_renderer.get_or_generate_surface(
                 seed, bbox, tiles=tiles, layout=layout,
@@ -965,9 +1042,32 @@ def draw_hex_map(surface, world, font, font_small):
     prev_clip = surface.get_clip()
     surface.set_clip(map_clip_rect)
 
-    if screen_w > 0 and screen_h > 0:
-        scaled_topo = pygame.transform.smoothscale(topo_surf, (screen_w, screen_h))
-        surface.blit(scaled_topo, (screen_x, screen_y))
+    pitch = cam.get('pitch', 0.0)
+    if pitch < 0.5:
+        if screen_w > 0 and screen_h > 0:
+            scaled_topo = pygame.transform.smoothscale(topo_surf, (screen_w, screen_h))
+            surface.blit(scaled_topo, (screen_x, screen_y))
+    else:
+        # Civilization 3D tilt perspective projection via scanline strip slicing
+        from worldview_camera import world_to_screen
+        N = 48
+        surf_w, surf_h = topo_surf.get_size()
+        for i in range(N):
+            wy0 = min_wy + (i / N) * world_h
+            wy1 = min_wy + ((i + 1) / N) * world_h
+            sy_top = int((i / N) * surf_h)
+            sy_bot = int(((i + 1) / N) * surf_h)
+            sh = max(1, sy_bot - sy_top)
+            sub = topo_surf.subsurface((0, sy_top, surf_w, sh))
+
+            sx0, sy0 = world_to_screen(world, min_wx, wy0)
+            sx1, _ = world_to_screen(world, min_wx + world_w, wy0)
+            _, sy1 = world_to_screen(world, min_wx, wy1)
+
+            w = max(1, sx1 - sx0)
+            h = max(1, sy1 - sy0 + 1)
+            scaled = pygame.transform.scale(sub, (w, h))
+            surface.blit(scaled, (sx0, sy0))
 
     # Build province color highlight map for the selected nation
     highlight_map = {}
@@ -987,11 +1087,11 @@ def draw_hex_map(surface, world, font, font_small):
         coords = layout.get(region.name)
         if coords is None:
             continue
-        cx, cy = hex_px(world, *coords)
+        elev = getattr(region, 'elevation', 0.0) if not getattr(region, 'is_ocean', False) else 0.0
+        cx, cy = hex_px(world, *coords, elevation=elev)
         if is_voronoi_topology() and hasattr(region, 'polygon') and region.polygon is not None and len(region.polygon) >= 3:
-            ox_cam = world['cam']['ox']
-            oy_cam = world['cam']['oy']
-            pts = [(int(p[0] * zoom + ox_cam), int(p[1] * zoom + oy_cam)) for p in region.polygon]
+            from worldview_camera import world_to_screen
+            pts = [world_to_screen(world, p[0], p[1], elevation=elev) for p in region.polygon]
         else:
             pts = hex_corners((cx, cy), HEX_SIZE * zoom - 1)
         hex_geom.append((region, cx, cy, pts))

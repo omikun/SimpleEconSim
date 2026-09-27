@@ -128,13 +128,20 @@ def build_world_voronoi(
             height=int(VORONOI_HEIGHT),
             num_points=pts_count,
             island_shape=shape_val,
-            river_count=22,
-            mountain_sharpness=1.0,
+            river_count=int(slot_state.get("rivers", 25)),
+            mountain_sharpness=float(slot_state.get("sharpness", 1.9)),
+            canyon_depth=float(slot_state.get("canyon_depth", 2.7)),
+            valley_width=float(slot_state.get("valley_width", 1.4)),
+            moisture_bias=float(slot_state.get("moisture_bias", 0.0)),
+            north_temperature=float(slot_state.get("north_temp", 0.0)),
+            south_temperature=float(slot_state.get("south_temp", 0.0)),
+            persistence=float(slot_state.get("persistence", 0.0)),
             enable_corner_improvement=True,
             enable_roads=True,
             enable_lava=False,
             enable_noisy_edges=True,
         )
+    gen.slot_1_state = slot_state
 
     tiles: List[Region] = []
     by_name: Dict[str, Region] = {}
