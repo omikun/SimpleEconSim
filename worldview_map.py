@@ -988,7 +988,7 @@ def draw_hex_map(surface, world, font, font_small):
         if coords is None:
             continue
         cx, cy = hex_px(world, *coords)
-        if is_voronoi_topology() and hasattr(region, 'polygon') and region.polygon:
+        if is_voronoi_topology() and hasattr(region, 'polygon') and region.polygon is not None and len(region.polygon) >= 3:
             ox_cam = world['cam']['ox']
             oy_cam = world['cam']['oy']
             pts = [(int(p[0] * zoom + ox_cam), int(p[1] * zoom + oy_cam)) for p in region.polygon]
