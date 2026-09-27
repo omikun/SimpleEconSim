@@ -97,6 +97,8 @@ def build_world_voronoi(
                 slot_state = slot_data.get("state", {})
                 if seed is None and "seed" in slot_state:
                     seed = int(slot_state["seed"])
+                    if num_points is None and "points" in slot_state:
+                        num_points = int(slot_state["points"])
                 if terrain_seed is None:
                     terrain_seed = seed if seed is not None else int(slot_state.get("seed", 777))
                 if island_shape is None and "shape" in slot_state:
