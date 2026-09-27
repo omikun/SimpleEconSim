@@ -1684,8 +1684,8 @@
 
         // Inward rolling wave: wave propagation rolls inward toward shore (in_dist -> 0)
         // Shoaling: wave slows down, steepens, and crests near the beach
-        float speed = 2.6;
-        float freq = 12.0;
+        float speed = 2.4;
+        float freq = 32.0;
         float phase = u_time * speed + in_dist * freq;
         v_phase = phase;
 
@@ -1699,18 +1699,18 @@
             float c = cos(phase);
             float sharp_crest = pow(max(0.0, s), 2.2);
             float shoaling = (1.15 - in_dist * 0.55);
-            z_offset = sharp_crest * (0.32 * u_wave_intensity * shoaling);
-            horiz_offset = in_normal.xy * (c * 0.20 * u_wave_intensity * shoaling);
+            z_offset = sharp_crest * (0.010 * u_wave_intensity * shoaling);
+            horiz_offset = in_normal.xy * (c * 0.006 * u_wave_intensity * shoaling);
             crest_val = s;
         } else if (u_wave_mode == 1) {
             // Foam Lace & Caustics: gentle tidal surge
-            float surge = sin(u_time * 1.6 + in_dist * 8.0);
-            z_offset = max(0.0, surge) * 0.20 * (1.0 - in_dist * 0.4) * u_wave_intensity;
+            float surge = sin(u_time * 1.5 + in_dist * 24.0);
+            z_offset = max(0.0, surge) * 0.008 * (1.0 - in_dist * 0.4) * u_wave_intensity;
             crest_val = surge;
         } else {
             // Stylized Micropoly: crisp rhythmic contour swell
-            float step_wave = sin(u_time * 2.2 + in_dist * 14.0);
-            z_offset = max(0.0, step_wave) * 0.25 * (1.0 - in_dist) * u_wave_intensity;
+            float step_wave = sin(u_time * 2.0 + in_dist * 36.0);
+            z_offset = max(0.0, step_wave) * 0.008 * (1.0 - in_dist) * u_wave_intensity;
             crest_val = step_wave;
         }
 
@@ -1748,7 +1748,7 @@
         float y_ndc = (p_rot.y / R) * scale_factor;
 
         float depth_span = max(1.0, u_max_z * 2.0 + R * 2.5);
-        float z_ndc = clamp(-p_rot.z / depth_span, -0.99, 0.99) - 0.003;
+        float z_ndc = clamp(-p_rot.z / depth_span, -0.99, 0.99) - 0.0001;
 
         gl_Position = vec4(x_ndc, y_ndc, z_ndc, 1.0);
     }
@@ -1794,17 +1794,17 @@
     }
 
     float computeCaustics(vec2 uv, float t) {
-        vec2 p1 = uv * 0.14 + vec2(t * 0.05, t * 0.03);
-        vec2 p2 = uv * 0.18 - vec2(t * 0.03, -t * 0.04);
+        vec2 p1 = uv * 3.5 + vec2(t * 0.6, t * 0.4);
+        vec2 p2 = uv * 4.2 - vec2(t * 0.4, -t * 0.5);
         float v1 = voronoi(p1);
         float v2 = voronoi(p2);
         return pow(1.0 - abs(v1 - v2), 3.0);
     }
 
     float computeFoamLace(vec2 uv, float t) {
-        vec2 p = uv * 0.28 + vec2(t * 0.02, t * 0.015);
+        vec2 p = uv * 4.8 + vec2(t * 0.3, t * 0.2);
         float v1 = voronoi(p);
-        float v2 = voronoi(p * 2.2 + vec2(t * 0.06, 0.0));
+        float v2 = voronoi(p * 2.2 + vec2(t * 0.8, 0.0));
         float edge = 1.0 - smoothstep(0.04, 0.20, v1);
         return edge * smoothstep(0.12, 0.85, v2);
     }
@@ -1821,8 +1821,8 @@
 
         if (u_wave_mode == 0) {
             // Mode 1: Gerstner Swell & Shoaling Breakers
-            float breaker = smoothstep(0.35, 0.92, v_wave_crest) * (1.0 - v_dist * 0.45) * u_wave_intensity;
-            float shore_swash = smoothstep(0.20, 0.02, v_dist) * (0.65 + 0.35 * sin(u_time * 3.0));
+            float breaker = smoothstep(0.40, 0.95, v_wave_crest) * (1.0 - v_dist * 0.50) * u_wave_intensity;
+            float shore_swash = smoothstep(0.12, 0.01, v_dist) * (0.50 + 0.30 * sin(u_time * 3.0));
             float foam = clamp(breaker + shore_swash, 0.0, 1.0);
 
             vec3 deep_shelf = vec3(0.10, 0.46, 0.65);
@@ -1831,15 +1831,15 @@
 
             water_color = mix(sea, vec3(0.98, 1.0, 1.0), foam);
             water_color += vec3(1.0, 0.95, 0.85) * (sun_spec * (1.0 - foam * 0.5));
-            alpha = clamp((1.0 - v_dist * 0.75) * 0.82 + foam * 0.38, 0.0, 0.95);
+            alpha = clamp((1.0 - v_dist * 0.80) * 0.75 + foam * 0.35, 0.0, 0.92);
 
         } else if (u_wave_mode == 1) {
             // Mode 2: Foam Lace & Shallow Water Caustics
-            float caust = computeCaustics(v_world_pos.xy, u_time) * (1.0 - v_dist) * 0.45;
+            float caust = computeCaustics(v_world_pos.xy, u_time) * (1.0 - v_dist) * 0.35;
             float lace = computeFoamLace(v_world_pos.xy, u_time);
             float surge = smoothstep(0.15, 0.85, v_wave_crest);
             float lace_foam = lace * surge * (1.0 - v_dist * 0.50) * u_wave_intensity;
-            float shore_foam = smoothstep(0.16, 0.02, v_dist) * 0.75;
+            float shore_foam = smoothstep(0.10, 0.01, v_dist) * 0.65;
             float total_foam = clamp(lace_foam * 1.5 + shore_foam, 0.0, 1.0);
 
             vec3 shallow_turq = vec3(0.12, 0.68, 0.80) + vec3(0.25, 0.30, 0.20) * caust;
@@ -1848,15 +1848,15 @@
 
             water_color = mix(sea, vec3(0.98, 1.0, 1.0), total_foam);
             water_color += vec3(1.0, 0.96, 0.88) * (sun_spec * 0.6);
-            alpha = clamp((1.0 - v_dist * 0.70) * 0.78 + total_foam * 0.42, 0.0, 0.95);
+            alpha = clamp((1.0 - v_dist * 0.75) * 0.75 + total_foam * 0.38, 0.0, 0.92);
 
         } else if (u_wave_mode == 2) {
             // Mode 3: Hybrid Physical (Gerstner + Foam Lace + Caustics)
-            float caust = computeCaustics(v_world_pos.xy, u_time) * (1.0 - v_dist) * 0.35;
-            float breaker = smoothstep(0.40, 0.95, v_wave_crest);
+            float caust = computeCaustics(v_world_pos.xy, u_time) * (1.0 - v_dist) * 0.28;
+            float breaker = smoothstep(0.45, 0.95, v_wave_crest);
             float lace = computeFoamLace(v_world_pos.xy, u_time);
-            float hybrid_foam = (breaker * 0.7 + lace * breaker * 0.8) * (1.0 - v_dist * 0.45) * u_wave_intensity;
-            float shore_wash = smoothstep(0.22, 0.01, v_dist) * (0.60 + 0.40 * sin(u_time * 2.8));
+            float hybrid_foam = (breaker * 0.6 + lace * breaker * 0.7) * (1.0 - v_dist * 0.50) * u_wave_intensity;
+            float shore_wash = smoothstep(0.12, 0.01, v_dist) * (0.45 + 0.35 * sin(u_time * 2.8));
             float foam = clamp(hybrid_foam + shore_wash, 0.0, 1.0);
 
             vec3 shallow_turq = vec3(0.11, 0.65, 0.76) + vec3(0.20, 0.25, 0.18) * caust;
@@ -1865,13 +1865,13 @@
 
             water_color = mix(sea, vec3(0.99, 1.0, 1.0), foam);
             water_color += vec3(1.0, 0.95, 0.85) * (sun_spec * (1.0 - foam * 0.4));
-            alpha = clamp((1.0 - v_dist * 0.72) * 0.84 + foam * 0.36, 0.0, 0.96);
+            alpha = clamp((1.0 - v_dist * 0.78) * 0.78 + foam * 0.32, 0.0, 0.92);
 
         } else {
             // Mode 4: Stylized Micropoly Surf
-            float rings = sin(v_dist * 36.0 - u_time * 3.0);
-            float crisp_ring = step(0.68, rings) * (1.0 - v_dist * 0.75) * u_wave_intensity;
-            float shore_line = step(0.85, 1.0 - v_dist) * 0.80;
+            float rings = sin(v_dist * 120.0 - u_time * 4.0);
+            float crisp_ring = step(0.70, rings) * (1.0 - v_dist * 0.75) * u_wave_intensity;
+            float shore_line = step(0.92, 1.0 - v_dist) * 0.70;
             float foam = clamp(crisp_ring + shore_line, 0.0, 1.0);
 
             vec3 lagoon = vec3(0.12, 0.70, 0.78);
@@ -1879,7 +1879,7 @@
             vec3 sea = mix(lagoon, outer_sea, floor(v_dist * 5.0) / 5.0);
 
             water_color = mix(sea, vec3(1.0, 1.0, 1.0), foam);
-            alpha = clamp((1.0 - v_dist * 0.65) * 0.80 + foam * 0.35, 0.0, 0.95);
+            alpha = clamp((1.0 - v_dist * 0.70) * 0.75 + foam * 0.30, 0.0, 0.90);
         }
 
         frag_color = vec4(water_color, alpha);
@@ -1920,23 +1920,23 @@
 
         if (u_wave_mode == 0 || u_wave_mode == 2) {
             float t = u_time * 1.8;
-            float k1 = 0.039;
+            float k1 = 0.08;
             float ph1 = (in_pos.x * 0.82 + in_pos.y * 0.57) * k1 - t * 1.1;
             float s1 = sin(ph1);
             float c1 = cos(ph1);
 
-            float k2 = 0.066;
+            float k2 = 0.14;
             float ph2 = (in_pos.x * 0.90 - in_pos.y * 0.43) * k2 - t * 1.4;
             float s2 = sin(ph2);
             float c2 = cos(ph2);
 
-            float k3 = 0.14;
+            float k3 = 0.28;
             float ph3 = (in_pos.x * 0.60 + in_pos.y * 0.80) * k3 - t * 2.2;
             float s3 = sin(ph3);
 
-            float amp1 = 0.28 * u_wave_intensity;
-            float amp2 = 0.16 * u_wave_intensity;
-            float amp3 = 0.08 * u_wave_intensity;
+            float amp1 = 0.012 * u_wave_intensity;
+            float amp2 = 0.007 * u_wave_intensity;
+            float amp3 = 0.003 * u_wave_intensity;
 
             z_disp = (pow(max(0.0, s1), 2.0) - 0.5) * amp1 +
                      (pow(max(0.0, s2), 2.0) - 0.5) * amp2 +
@@ -1948,9 +1948,9 @@
             swell_crest = max(0.0, s1) * max(0.0, s2);
         } else if (u_wave_mode == 1) {
             float t = u_time * 1.4;
-            z_disp = sin(in_pos.x * 0.05 + t) * cos(in_pos.y * 0.05 + t * 0.8) * 0.12 * u_wave_intensity;
+            z_disp = sin(in_pos.x * 0.15 + t) * cos(in_pos.y * 0.15 + t * 0.8) * 0.008 * u_wave_intensity;
         } else {
-            z_disp = sin(u_time * 1.5) * 0.15 * u_wave_intensity;
+            z_disp = sin(u_time * 1.5) * 0.006 * u_wave_intensity;
         }
 
         vec3 p_world = vec3(in_pos.xy, in_pos.z + z_disp);
@@ -1986,7 +1986,7 @@
         float y_ndc = (p_rot.y / R) * scale_factor;
 
         float depth_span = max(1.0, u_max_z * 2.0 + R * 2.5);
-        float z_ndc = clamp(-p_rot.z / depth_span, -0.99, 0.99) - 0.005;
+        float z_ndc = clamp(-p_rot.z / depth_span, -0.99, 0.99);
 
         gl_Position = vec4(x_ndc, y_ndc, z_ndc, 1.0);
     }
@@ -2009,7 +2009,14 @@
     out vec4 frag_color;
 
     void main() {
-        vec3 N = normalize(v_world_norm);
+        // Fine capillary chop and micro-ripples across open ocean
+        vec2 uv_ocean = v_world_pos.xy;
+        vec2 dN_ripple = vec2(
+            cos(dot(uv_ocean, vec2(1.8, 1.3)) - u_time * 2.5) * 1.8 - cos(dot(uv_ocean, vec2(-1.4, 1.9)) + u_time * 2.8) * 1.4,
+            sin(dot(uv_ocean, vec2(-1.4, 1.9)) + u_time * 2.8) * 1.9 + sin(dot(uv_ocean, vec2(1.8, 1.3)) - u_time * 2.5) * 1.3
+        ) * (0.025 * u_wave_intensity);
+
+        vec3 N = normalize(v_world_norm + vec3(dN_ripple, 0.0));
         vec3 L = normalize(u_sun_world_dir);
         vec3 V = normalize(vec3(0.0, 0.45, 0.89));
         vec3 H = normalize(L + V);
@@ -2025,8 +2032,8 @@
         vec3 water_color = mix(deep_ocean, sky_refl, fresnel);
         water_color += vec3(1.0, 0.96, 0.85) * sun_spec;
 
-        if ((u_wave_mode == 0 || u_wave_mode == 2) && v_swell > 0.55) {
-            float cap = smoothstep(0.55, 0.85, v_swell) * 0.45 * u_wave_intensity;
+        if ((u_wave_mode == 0 || u_wave_mode == 2) && v_swell > 0.65) {
+            float cap = smoothstep(0.65, 0.92, v_swell) * 0.35 * u_wave_intensity;
             water_color = mix(water_color, vec3(0.96, 0.98, 1.0), cap);
         }
 
@@ -2810,7 +2817,24 @@
                             state.wave_mode === 'hybrid' ? 2 :
                             state.wave_mode === 'stylized' ? 3 : 0;
 
-        // Draw Dynamic Ocean Water Plane
+        // 1. Draw 3D Land Terrain Mesh (Opaque - depthMask true)
+        gl.depthMask(true);
+        gl.disable(gl.BLEND);
+        gl.bindVertexArray(meshVao);
+        gl.drawArrays(gl.TRIANGLES, 0, meshVertexCount);
+
+        // 2. Draw 3D Low-Poly Trees on Forest Cells (Opaque)
+        if (state.micropoly_trees !== false && treeVao && treeVertexCount > 0) {
+          gl.useProgram(meshProg);
+          gl.uniform1f(gl.getUniformLocation(meshProg, 'u_use_texture'), 0.0);
+          gl.uniform1f(gl.getUniformLocation(meshProg, 'u_micropoly_strata'), 0.0);
+          gl.uniform1f(gl.getUniformLocation(meshProg, 'u_micropoly_parcels'), 0.0);
+          gl.uniform1f(gl.getUniformLocation(meshProg, 'u_micropoly_blend'), 0.0);
+          gl.bindVertexArray(treeVao);
+          gl.drawArrays(gl.TRIANGLES, 0, treeVertexCount);
+        }
+
+        // 3. Draw Dynamic Ocean Water Plane
         if (state.show_ocean_fx !== false && oceanProg && oceanVao && oceanVertexCount > 0) {
           gl.useProgram(oceanProg);
           gl.uniform2f(gl.getUniformLocation(oceanProg, 'u_resolution'), gpuCanvas.width, gpuCanvas.height);
@@ -2825,44 +2849,11 @@
           gl.drawArrays(gl.TRIANGLES, 0, oceanVertexCount);
         }
 
-        // Draw Coastal Waves & Breakers along Island Coastline
-        if (state.micropoly_waves !== false && surfProg && surfVao && surfVertexCount > 0) {
-          gl.enable(gl.BLEND);
-          gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-          gl.useProgram(surfProg);
-          gl.uniform2f(gl.getUniformLocation(surfProg, 'u_resolution'), gpuCanvas.width, gpuCanvas.height);
-          gl.uniform1f(gl.getUniformLocation(surfProg, 'u_rot_pitch'), state.rot_pitch);
-          gl.uniform1f(gl.getUniformLocation(surfProg, 'u_rot_yaw'), state.rot_yaw);
-          gl.uniform1f(gl.getUniformLocation(surfProg, 'u_max_z'), meshMaxZ);
-          gl.uniform1f(gl.getUniformLocation(surfProg, 'u_time'), performance.now() * 0.001);
-          gl.uniform1f(gl.getUniformLocation(surfProg, 'u_wave_intensity'), typeof state.wave_intensity === 'number' ? state.wave_intensity : 1.0);
-          gl.uniform1i(gl.getUniformLocation(surfProg, 'u_wave_mode'), waveModeInt);
-          gl.uniform3fv(gl.getUniformLocation(surfProg, 'u_sun_world_dir'), sunDir);
-          gl.bindVertexArray(surfVao);
-          gl.drawArrays(gl.TRIANGLES, 0, surfVertexCount);
-          gl.disable(gl.BLEND);
-          gl.useProgram(meshProg);
-        }
-
-        // Draw 3D Land Terrain Mesh
-        gl.bindVertexArray(meshVao);
-        gl.drawArrays(gl.TRIANGLES, 0, meshVertexCount);
-
-        // Draw 3D Low-Poly Trees on Forest Cells
-        if (state.micropoly_trees !== false && treeVao && treeVertexCount > 0) {
-          gl.useProgram(meshProg);
-          gl.uniform1f(gl.getUniformLocation(meshProg, 'u_use_texture'), 0.0);
-          gl.uniform1f(gl.getUniformLocation(meshProg, 'u_micropoly_strata'), 0.0);
-          gl.uniform1f(gl.getUniformLocation(meshProg, 'u_micropoly_parcels'), 0.0);
-          gl.uniform1f(gl.getUniformLocation(meshProg, 'u_micropoly_blend'), 0.0);
-          gl.bindVertexArray(treeVao);
-          gl.drawArrays(gl.TRIANGLES, 0, treeVertexCount);
-        }
-
-        // Draw 3D Hydro River Ribbons if present
+        // 4. Draw 3D Hydro River Ribbons if present (Translucent - depthMask false)
         if (state.rivers > 0 && riverProg && riverVao && riverVertexCount > 0) {
           gl.enable(gl.BLEND);
           gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+          gl.depthMask(false);
           gl.useProgram(riverProg);
           gl.uniform2f(gl.getUniformLocation(riverProg, 'u_resolution'), gpuCanvas.width, gpuCanvas.height);
           gl.uniform1f(gl.getUniformLocation(riverProg, 'u_rot_pitch'), state.rot_pitch);
@@ -2878,8 +2869,28 @@
           gl.uniform1i(gl.getUniformLocation(riverProg, 'u_heightmap'), 2);
           gl.bindVertexArray(riverVao);
           gl.drawArrays(gl.TRIANGLES, 0, riverVertexCount);
+          gl.depthMask(true);
           gl.disable(gl.BLEND);
-          gl.useProgram(meshProg);
+        }
+
+        // 5. Draw Coastal Waves & Breakers along Island Coastline (Translucent - depthMask false)
+        if (state.micropoly_waves !== false && surfProg && surfVao && surfVertexCount > 0) {
+          gl.enable(gl.BLEND);
+          gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+          gl.depthMask(false);
+          gl.useProgram(surfProg);
+          gl.uniform2f(gl.getUniformLocation(surfProg, 'u_resolution'), gpuCanvas.width, gpuCanvas.height);
+          gl.uniform1f(gl.getUniformLocation(surfProg, 'u_rot_pitch'), state.rot_pitch);
+          gl.uniform1f(gl.getUniformLocation(surfProg, 'u_rot_yaw'), state.rot_yaw);
+          gl.uniform1f(gl.getUniformLocation(surfProg, 'u_max_z'), meshMaxZ);
+          gl.uniform1f(gl.getUniformLocation(surfProg, 'u_time'), performance.now() * 0.001);
+          gl.uniform1f(gl.getUniformLocation(surfProg, 'u_wave_intensity'), typeof state.wave_intensity === 'number' ? state.wave_intensity : 1.0);
+          gl.uniform1i(gl.getUniformLocation(surfProg, 'u_wave_mode'), waveModeInt);
+          gl.uniform3fv(gl.getUniformLocation(surfProg, 'u_sun_world_dir'), sunDir);
+          gl.bindVertexArray(surfVao);
+          gl.drawArrays(gl.TRIANGLES, 0, surfVertexCount);
+          gl.depthMask(true);
+          gl.disable(gl.BLEND);
         }
 
         gl.bindVertexArray(null);
@@ -2912,6 +2923,25 @@
       } catch (err) {
         console.error('renderClientGPU failed:', err);
         try { fetch('/api/log_error?msg=' + encodeURIComponent('renderClientGPU: ' + (err.message || err))); } catch(e){}
+      }
+    }
+
+    let animFrameId = null;
+
+    function renderLoop() {
+      animFrameId = null;
+      if (gpuCanvas.style.display !== 'none' && isWebGlReady && meshVertexCount > 0) {
+        renderClientGPU();
+        // Continue animation loop so water, waves, surf, and rivers continuously flow smoothly in real time!
+        if (state.show_ocean_fx !== false || state.micropoly_waves !== false || state.rivers > 0) {
+          animFrameId = requestAnimationFrame(renderLoop);
+        }
+      }
+    }
+
+    function requestGpuFrame() {
+      if (!animFrameId) {
+        animFrameId = requestAnimationFrame(renderLoop);
       }
     }
 
@@ -3084,7 +3114,7 @@
         if ((state.engine === 'gpu' && state.mode === 'micropolys') || (isPhotoreal && is3D) || isRotating) {
           gpuCanvas.style.display = 'block';
           mapImg.style.display = 'none';
-          renderClientGPU();
+          requestGpuFrame();
         } else if (!is3D) {
           gpuCanvas.style.display = 'none';
           mapImg.style.display = 'block';
@@ -3193,7 +3223,7 @@
         mapImg.style.display = 'block';
       } else {
         if (state.engine === 'gpu' && isWebGlReady && meshVertexCount > 0) {
-          requestAnimationFrame(renderClientGPU);
+          requestGpuFrame();
         } else {
           triggerUpdate(true);
         }
@@ -3298,7 +3328,7 @@
         if (isWebGlReady && meshVertexCount > 0) {
           gpuCanvas.style.display = 'block';
           mapImg.style.display = 'none';
-          requestAnimationFrame(renderClientGPU);
+          requestGpuFrame();
         } else {
           if (meshVertexCount === 0 && !isMeshFetching) {
             fetchMeshBinary();
@@ -3332,7 +3362,7 @@
             // STAY in 3D! Keep WebGL canvas visible with the textured terrain!
             gpuCanvas.style.display = 'block';
             mapImg.style.display = 'none';
-            requestAnimationFrame(renderClientGPU);
+            requestGpuFrame();
           } else if (!is3D) {
             // In top-down view, display 2D map
             gpuCanvas.style.display = 'none';
@@ -3440,7 +3470,7 @@
         if (isWebGlReady && meshVertexCount > 0) {
           gpuCanvas.style.display = 'block';
           mapImg.style.display = 'none';
-          requestAnimationFrame(renderClientGPU);
+          requestGpuFrame();
         } else {
           if (meshVertexCount === 0 && !isMeshFetching) {
             fetchMeshBinary();
@@ -3487,7 +3517,7 @@
           if (is3D && isWebGlReady && meshVertexCount > 0) {
             gpuCanvas.style.display = 'block';
             mapImg.style.display = 'none';
-            requestAnimationFrame(renderClientGPU);
+            requestGpuFrame();
           } else if (!is3D) {
             gpuCanvas.style.display = 'none';
             mapImg.style.display = 'block';
@@ -3625,7 +3655,7 @@
           if (is3DNow && isWebGlReady && meshVertexCount > 0) {
             gpuCanvas.style.display = 'block';
             mapImg.style.display = 'none';
-            requestAnimationFrame(renderClientGPU);
+            requestGpuFrame();
           }
         };
         mapImg.src = objUrl;
@@ -3674,7 +3704,7 @@
           }
         } else {
           if (isWebGlReady && meshVertexCount > 0) {
-            requestAnimationFrame(renderClientGPU);
+            requestGpuFrame();
           } else {
             if (debounceTimer) clearTimeout(debounceTimer);
             if (immediate) {
@@ -3728,7 +3758,7 @@
         if (state.engine === 'gpu' && state.mode === 'micropolys' && isWebGlReady && meshVertexCount > 0) {
           gpuCanvas.width = state.size;
           gpuCanvas.height = state.size;
-          requestAnimationFrame(renderClientGPU);
+          requestGpuFrame();
         } else {
           triggerUpdate(true);
         }
@@ -3747,7 +3777,7 @@
         document.getElementById('slider-sun-elevation').value = state.sun_elevation;
         document.getElementById('val-sun-elevation').textContent = `${state.sun_elevation}°`;
         if (state.engine === 'gpu' && state.mode === 'micropolys' && isWebGlReady) {
-          requestAnimationFrame(renderClientGPU);
+          requestGpuFrame();
         } else {
           triggerUpdate(true);
         }
@@ -3841,7 +3871,7 @@
         updateWaveModeDisplay();
         saveCurrentSettings();
         if (state.engine === 'gpu' && state.mode === 'micropolys' && isWebGlReady) {
-          requestAnimationFrame(renderClientGPU);
+          requestGpuFrame();
         }
       });
     });
@@ -4370,7 +4400,7 @@
         valDisp.textContent = formatFn(slider.value);
         saveCurrentSettings();
         if (state.engine === 'gpu' && state.mode === 'micropolys' && isWebGlReady) {
-          requestAnimationFrame(renderClientGPU);
+          requestGpuFrame();
         } else {
           triggerUpdate(false);
         }
@@ -4398,7 +4428,7 @@
         updateShadowPerfDisplay();
         saveCurrentSettings();
         if (state.engine === 'gpu' && state.mode === 'micropolys' && isWebGlReady) {
-          requestAnimationFrame(renderClientGPU);
+          requestGpuFrame();
         } else {
           triggerUpdate(false);
         }
@@ -4415,7 +4445,7 @@
         }
         saveCurrentSettings();
         if (state.engine === 'gpu' && state.mode === 'micropolys' && isWebGlReady) {
-          requestAnimationFrame(renderClientGPU);
+          requestGpuFrame();
         } else {
           triggerUpdate(false);
         }

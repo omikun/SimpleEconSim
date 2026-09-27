@@ -543,7 +543,7 @@ def build_coastal_surf_ribbon(gen, ribbon_width: float = 24.0):
 
     # 2. Build multi-ring concentric triangle strip along fractal edge paths
     surf_verts = []
-    effective_width = max(12.0, ribbon_width)
+    effective_width = max(0.8, min(4.5, ribbon_width))
 
     for e in coast_edges:
         n0 = corner_normals.get(e.v0.index, np.array([0.0, 1.0]))
@@ -584,8 +584,8 @@ def build_coastal_surf_ribbon(gen, ribbon_width: float = 24.0):
                 p0_out = p0 + norm0 * (effective_width * r_out)
                 p1_out = p1 + norm1 * (effective_width * r_out)
 
-                z_in = 0.04 - 0.12 * r_in
-                z_out = 0.04 - 0.12 * r_out
+                z_in = -0.015 - 0.04 * r_in
+                z_out = -0.015 - 0.04 * r_out
 
                 nx0, ny0 = float(norm0[0]), float(norm0[1])
                 nx1, ny1 = float(norm1[0]), float(norm1[1])
@@ -1416,7 +1416,7 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
         tree_arr = build_micropoly_trees(gen, sample_mesh_elevation, height_scale, tree_density)
 
         # 3D Coastal Wave Ribbons along Island Boundary Edges
-        surf_arr = build_coastal_surf_ribbon(gen, ribbon_width=18.0 * wave_intensity)
+        surf_arr = build_coastal_surf_ribbon(gen, ribbon_width=2.2 * wave_intensity)
 
         n_verts = len(vbo_data)
         n_river = len(river_arr) // 10
