@@ -54,7 +54,7 @@ def get_camera_mvp(world):
     v_dir = v_dir / (v_norm if v_norm > 1e-6 else 1.0)
 
     # Base distance for 35mm lens (~45° FOV) to view the 1024x1024 island at 52° tilt
-    dist = 1120.0 / zoom
+    dist = 760.0 / zoom
     eye = target + v_dir * dist
 
     vw = float(MAP_RIGHT)
@@ -175,7 +175,7 @@ def reset_cam(world):
     cam['pitch'] = 52.0
     cam['yaw'] = 9.0
     cam['target_x'] = 512.0
-    cam['target_y'] = 512.0
+    cam['target_y'] = 490.0
     cam['ox'] = 0
     cam['oy'] = 0
     clamp_cam(world)

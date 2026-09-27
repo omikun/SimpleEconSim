@@ -888,6 +888,7 @@ def draw_hex_map(surface, world, font, font_small):
     tiles = world['tiles']
     layout = world['layout']
     sel = world.get('selected_region')
+    hover_region = world.get('hover_region')
     cam = world['cam']
     zoom = cam['zoom']
     ox, oy = cam['ox'], cam['oy']
@@ -907,6 +908,20 @@ def draw_hex_map(surface, world, font, font_small):
     # Synchronize force_cpu with world['use_gpu_pipeline']
     use_gpu = world.get('use_gpu_pipeline', not terrain_renderer.force_cpu)
     terrain_renderer.force_cpu = not use_gpu
+
+    # Ensure slot_state is always reliably resolved
+    slot_state = getattr(world.get('gen'), 'slot_1_state', None) or world.get('slot_1_state')
+    if not slot_state:
+        slot_1_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "saved_slots", "slot_1.json")
+        if os.path.exists(slot_1_file):
+            try:
+                import json
+                with open(slot_1_file, "r", encoding="utf-8") as f:
+                    slot_state = json.load(f).get("state", {})
+            except Exception:
+                slot_state = {}
+        else:
+            slot_state = {}
 
     if world.get('_cached_topo_surface') is not None:
         topo_surf = world['_cached_topo_surface']
@@ -928,19 +943,6 @@ def draw_hex_map(surface, world, font, font_small):
         from world_config import is_voronoi_topology
         if is_voronoi_topology() and world.get('gen') is not None:
             gen = world['gen']
-            slot_state = getattr(gen, 'slot_1_state', None) or world.get('slot_1_state')
-            if not slot_state:
-                slot_1_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "saved_slots", "slot_1.json")
-                if os.path.exists(slot_1_file):
-                    try:
-                        import json
-                        with open(slot_1_file, "r", encoding="utf-8") as f:
-                            slot_state = json.load(f).get("state", {})
-                    except Exception:
-                        slot_state = {}
-                else:
-                    slot_state = {}
-
             cache_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "saved_slots", "slot_1_terrain.png")
             if os.path.exists(cache_file):
                 try:
@@ -1196,8 +1198,9 @@ def draw_hex_map(surface, world, font, font_small):
         if active_layer in ('enclosure', 'exploitation', 'externalities'):
             draw_thematic_choropleth(surface, region, pts, active_layer, frame=frame)
 
-        # 1c. 50% Transparent White Hex Outline (RGBA: 255, 255, 255, 128)
-        pygame.draw.polygon(border_overlay, (255, 255, 255, 128), pts, 1)
+        # 1c. Transparent Hex/Voronoi Outline (Subtle cartographic boundary: alpha 32 in voronoi, 128 in hex)
+        outline_alpha = 32 if is_voronoi_topology() else 128
+        pygame.draw.polygon(border_overlay, (255, 255, 255, outline_alpha), pts, 1)
 
     # Blit 50% transparent white hex grid overlay
     surface.blit(border_overlay, (0, 0))
@@ -1247,18 +1250,22 @@ def draw_hex_map(surface, world, font, font_small):
 
             if layer_mode == 'overview':
                 if owner is not None:
-                    if line1:
-                        # Nation or Province Capital
-                        draw_text_with_shadow(surface, font_small, line1, (cx, cy - 32), c1)
-                        draw_text_with_shadow(surface, name_font, city_title, (cx, cy - 18), (255, 255, 255))
-                    else:
-                        # Regular member city tile (moved comfortably high up)
-                        draw_text_with_shadow(surface, name_font, city_title, (cx, cy - 24), (255, 255, 255))
-                    
-                    if line2:
-                        draw_text_with_shadow(surface, font_small, line2, (cx, cy + 6), c2)
-                    if line3:
-                        draw_text_with_shadow(surface, font_small, line3, (cx, cy + 24), c3)
+                    show_label = is_nat_cap or (is_prov_cap and zoom >= 1.5) or (zoom >= 2.2) or (region is sel) or (region is hover_region)
+                    if show_label:
+                        if is_nat_cap:
+                            # National Capital (bold star badge)
+                            draw_text_with_shadow(surface, font_small, f"★ {owner.name.upper()}", (cx, cy - 24), (255, 230, 140))
+                            draw_text_with_shadow(surface, name_font, city_title, (cx, cy - 10), (255, 255, 255))
+                        elif is_prov_cap:
+                            draw_text_with_shadow(surface, font_small, city_title, (cx, cy - 12), (210, 240, 255))
+                        else:
+                            draw_text_with_shadow(surface, font_small, city_title, (cx, cy - 10), (230, 230, 230))
+                        
+                        if (zoom >= 2.2) or (region is sel) or (region is hover_region):
+                            if line2:
+                                draw_text_with_shadow(surface, font_small, line2, (cx, cy + 6), c2)
+                            if line3:
+                                draw_text_with_shadow(surface, font_small, line3, (cx, cy + 20), c3)
             else:
                 # Other Layer Modes (Physical, Population, Economy, Production, Military)
                 if owner is not None:
@@ -1277,9 +1284,10 @@ def draw_hex_map(surface, world, font, font_small):
                     draw_text_with_shadow(surface, font_small, line1, (cx, cy), c1)
 
         if not is_ocean:
-            draw_terrain_glyph(surface, region, cx, cy - 34)
-            draw_activity_badges(surface, region, cx, cy, font_small)
-            draw_pop_delta(surface, region, cx, cy, font_small)
-            draw_tile_progress_bars(surface, region, cx, cy, font_small, world)
+            if region is sel or region is hover_region or (zoom >= 2.2 and owner is not None):
+                draw_terrain_glyph(surface, region, cx, cy - 34)
+                draw_activity_badges(surface, region, cx, cy, font_small)
+                draw_pop_delta(surface, region, cx, cy, font_small)
+                draw_tile_progress_bars(surface, region, cx, cy, font_small, world)
 
     surface.set_clip(prev_clip)

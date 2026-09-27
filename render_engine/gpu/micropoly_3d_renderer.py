@@ -475,11 +475,11 @@ void main() {
     float shoaling = (1.0 + 1.2 * exp(-pow((in_dist - 0.22) * 4.5, 2.0))) * coast_exposure * (0.35 + 0.65 * wave_packet);
     float sharp_crest = pow(composite, 2.8) * shoaling;
 
-    z_offset = (sharp_crest * 0.24 - 0.03) * (0.012 * u_wave_intensity);
+    z_offset = 0.30 + (sharp_crest * 0.40) * (0.25 * u_wave_intensity);
     horiz_offset = -in_normal.xy * (cos(wave_phase) * 0.008 * u_wave_intensity * shoaling);
     crest_val = sharp_crest;
 
-    vec3 p_world = vec3(in_pos.xy + horiz_offset, in_pos.z + z_offset);
+    vec3 p_world = vec3(in_pos.xy + horiz_offset, max(0.20, in_pos.z + z_offset));
     v_world_pos = p_world;
     v_world_norm = in_normal;
     v_color = in_color;
@@ -547,30 +547,30 @@ void main() {
 
     float outer_fade = 1.0 - smoothstep(0.40, 0.92, v_dist);
 
-    float breaker = smoothstep(0.52, 0.94, v_wave_crest) * smoothstep(0.55, 0.12, v_dist) * u_wave_intensity * u_foam_coverage;
+    float breaker = smoothstep(0.40, 0.88, v_wave_crest) * smoothstep(0.65, 0.08, v_dist) * u_wave_intensity * u_foam_coverage;
 
     float swash_cycle = sin(t * 1.1 + local_desync * 0.4);
-    float swash_lead = smoothstep(0.14, 0.01, v_dist - swash_cycle * 0.035);
-    float swash_foam = swash_lead * (0.50 + 0.40 * max(0.0, swash_cycle)) * coast_exposure * u_foam_coverage;
+    float swash_lead = smoothstep(0.16, 0.01, v_dist - swash_cycle * 0.04);
+    float swash_foam = swash_lead * (0.60 + 0.40 * max(0.0, swash_cycle)) * coast_exposure * u_foam_coverage;
 
     vec2 lace_uv = v_world_pos.xy * 0.20 + vec2(t * 0.03, -t * 0.02);
     float v1 = voronoi(lace_uv);
     float v2 = voronoi(lace_uv * 1.7 + vec2(3.1, 7.4));
     float lace_pattern = (1.0 - smoothstep(0.03, 0.16, v1)) * smoothstep(0.14, 0.75, v2);
-    float lace_residue = lace_pattern * smoothstep(0.03, 0.20, v_dist) * smoothstep(0.48, 0.14, v_dist) * breaker * 0.65;
+    float lace_residue = lace_pattern * smoothstep(0.03, 0.20, v_dist) * smoothstep(0.48, 0.14, v_dist) * breaker * 0.70;
 
-    float total_foam = clamp(breaker * 0.85 + swash_foam * 0.70 + lace_residue * 0.50, 0.0, 1.0);
+    float total_foam = clamp(breaker * 0.95 + swash_foam * 0.85 + lace_residue * 0.60, 0.0, 1.0);
 
-    vec3 shallow_sand_water = vec3(0.20, 0.72, 0.82);
-    vec3 mid_aquamarine = vec3(0.11, 0.55, 0.75);
+    vec3 shallow_sand_water = vec3(0.20, 0.75, 0.86);
+    vec3 mid_aquamarine = vec3(0.11, 0.58, 0.78);
     vec3 ocean_match = vec3(0.06, 0.24, 0.45);
 
     vec3 sea = mix(shallow_sand_water, mid_aquamarine, smoothstep(0.02, 0.30, v_dist));
     sea = mix(sea, ocean_match, smoothstep(0.30, 0.85, v_dist));
 
-    vec3 water_color = mix(sea, vec3(0.98, 1.0, 1.0), total_foam);
-    water_color += vec3(1.0, 0.96, 0.88) * (sun_spec * (1.0 - total_foam * 0.50));
-    float alpha = clamp(0.70 + total_foam * 0.25 - v_dist * 0.18, 0.0, 0.95) * outer_fade;
+    vec3 water_color = mix(sea, vec3(1.0, 1.0, 1.0), total_foam);
+    water_color += vec3(1.0, 0.98, 0.92) * (sun_spec * (1.0 - total_foam * 0.50));
+    float alpha = clamp(0.75 + total_foam * 0.25 - v_dist * 0.15, 0.0, 0.98) * outer_fade;
 
     frag_color = vec4(water_color, alpha);
 }
@@ -637,14 +637,14 @@ class Micropoly3DRenderer:
         self.sun_world_dir = np.array([0.0, 0.0, 1.0], dtype=np.float32)
 
     def _init_ocean_plane(self):
-        # Full water quad covering world bounds [-1000, 2024]
+        # Full water quad covering world bounds [-1500, 2524] at z = -0.35
         ocean_pts = np.array([
-            -1000.0, -1000.0, 0.0,
-             2024.0, -1000.0, 0.0,
-            -1000.0,  2024.0, 0.0,
-            -1000.0,  2024.0, 0.0,
-             2024.0, -1000.0, 0.0,
-             2024.0,  2024.0, 0.0,
+            -1500.0, -1500.0, -0.35,
+             2524.0, -1500.0, -0.35,
+            -1500.0,  2524.0, -0.35,
+            -1500.0,  2524.0, -0.35,
+             2524.0, -1500.0, -0.35,
+             2524.0,  2524.0, -0.35,
         ], dtype=np.float32)
         self.ocean_vbo = self.ctx.buffer(ocean_pts.tobytes())
         self.ocean_vao = self.ctx.vertex_array(self.ocean_prog, [(self.ocean_vbo, '3f', 'in_pos')])
@@ -855,8 +855,8 @@ class Micropoly3DRenderer:
         ], dtype=np.float32)
         v_dir /= np.linalg.norm(v_dir)
 
-        # Base overview distance (~1120 world units) fits the whole 1024x1024 island comfortably
-        d_base = 1120.0
+        # Base overview distance (~760 world units) fits the whole 1024x1024 island comfortably
+        d_base = 760.0
         dist = d_base / zoom
         eye = target + v_dir * dist
 
