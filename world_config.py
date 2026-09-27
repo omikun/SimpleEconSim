@@ -14,7 +14,7 @@ from typing import Literal
 TopologyType = Literal["voronoi", "hex"]
 
 # Default topology setting
-_DEFAULT_TOPOLOGY: TopologyType = "hex"
+_DEFAULT_TOPOLOGY: TopologyType = "voronoi"
 
 # Runtime active topology
 _ACTIVE_TOPOLOGY: TopologyType = os.environ.get("REGNUM_TOPOLOGY", _DEFAULT_TOPOLOGY).lower()

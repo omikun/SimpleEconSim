@@ -32,15 +32,23 @@ def get_min_zoom(world):
     return 0.85
 
 
+_cam_mvp_cache = {}
+
+
 def get_camera_mvp(world):
     """Compute and cache the 35mm regular perspective MVP matrix for the current frame."""
+    global _cam_mvp_cache
     cam = world['cam']
     pitch = float(cam.get('pitch', 52.0))
     yaw = float(cam.get('yaw', 9.0))
     zoom = max(0.2, float(cam.get('zoom', 1.0)))
-
     tx = float(cam.get('target_x', 512.0))
     ty = float(cam.get('target_y', 512.0))
+
+    key = (pitch, yaw, zoom, tx, ty)
+    if key in _cam_mvp_cache:
+        return _cam_mvp_cache[key]
+
     target = np.array([tx, ty, 0.0], dtype=np.float32)
 
     p_rad = math.radians(pitch)
@@ -66,7 +74,35 @@ def get_camera_mvp(world):
     proj = mat4_perspective(fovy_rad, aspect, 10.0, 25000.0)
     view = mat4_lookat(eye, target, (0.0, 0.0, 1.0))
     mvp = proj @ view
+
+    if len(_cam_mvp_cache) > 8:
+        _cam_mvp_cache.clear()
+    _cam_mvp_cache[key] = mvp
     return mvp
+
+
+def project_pts_3d_to_screen(world, pts_homo, mvp=None):
+    """Vectorized projection of (N, 4) homogeneous points [x, y, z, 1.0] to (N, 2) screen pixels."""
+    if mvp is None:
+        mvp = get_camera_mvp(world)
+
+    clip = pts_homo @ mvp.T
+    w = clip[:, 3]
+    valid = w > 1e-4
+
+    vw = float(MAP_RIGHT)
+    vh = float(HEIGHT - TOP_BAR_H - TICKER_H)
+
+    w_safe = np.where(valid, w, 1.0)
+    ndc_x = clip[:, 0] / w_safe
+    ndc_y = clip[:, 1] / w_safe
+
+    sx = ((ndc_x * 0.5 + 0.5) * vw).astype(np.int32)
+    sy = (TOP_BAR_H + (1.0 - (ndc_y * 0.5 + 0.5)) * vh).astype(np.int32)
+
+    sx = np.where(valid, sx, -9999)
+    sy = np.where(valid, sy, -9999)
+    return np.column_stack([sx, sy])
 
 
 def world_to_screen(world, wx, wy, elevation=0.0, wz=None):
@@ -101,13 +137,15 @@ def world_to_screen(world, wx, wy, elevation=0.0, wz=None):
 
 
 def screen_to_world(world, sx, sy):
-    """Invert screen pixel back to world (wx, wy) on the ground plane (elevation=0)."""
+    """Invert screen pixel back to world (wx, wy) on 3D terrain surface, accounting for mountain elevation."""
     from world_config import is_voronoi_topology
     if not is_voronoi_topology():
         cam = world['cam']
-        zoom = cam['zoom']
-        ox, oy = cam['ox'], cam['oy']
-        return ((sx - ox) / zoom, (sy - oy) / zoom)
+        pitch = float(cam.get('pitch', 0.0))
+        if pitch < 0.5:
+            zoom = cam['zoom']
+            ox, oy = cam['ox'], cam['oy']
+            return ((sx - ox) / zoom, (sy - oy) / zoom)
 
     mvp = get_camera_mvp(world)
     try:
@@ -133,8 +171,33 @@ def screen_to_world(world, sx, sy):
         return (512.0, 512.0)
 
     d /= d_norm
-    t = -p_near[2] / d[2]
-    hit = p_near + d * t
+
+    # 3D Ray-Terrain Elevation Surface Intersection
+    gpu_renderer = world.get('_micropoly_gpu_renderer')
+    sample_elev = getattr(gpu_renderer, 'sample_elevation_func', None)
+
+    if sample_elev is not None and abs(d[2]) > 1e-4:
+        slot_state = world.get('slot_state') or getattr(world.get('gen'), 'slot_1_state', None) or {}
+        max_h = float(slot_state.get('height_scale', 48.0)) + 4.0
+        t_top = (max_h - p_near[2]) / d[2]
+        t_bot = (0.0 - p_near[2]) / d[2]
+        t_lo = min(t_top, t_bot)
+        t_hi = max(t_top, t_bot)
+
+        # 8-step binary search along ray to find exact 3D surface intersection
+        for _ in range(8):
+            t_mid = 0.5 * (t_lo + t_hi)
+            p_mid = p_near + d * t_mid
+            z_surf = float(sample_elev(np.array([[p_mid[0], p_mid[1]]], dtype=np.float32))[0])
+            if p_mid[2] > z_surf:
+                t_lo = t_mid
+            else:
+                t_hi = t_mid
+        hit = p_near + d * (0.5 * (t_lo + t_hi))
+    else:
+        t = -p_near[2] / d[2]
+        hit = p_near + d * t
+
     return float(hit[0]), float(hit[1])
 
 

@@ -1142,65 +1142,97 @@ def draw_hex_map(surface, world, font, font_small):
                 highlight_map[r.name] = (color, prov.name)
 
     # 1. Base Tile Overlays & 50% Transparent White Hex Outlines
-    border_overlay = pygame.Surface((MAP_RIGHT, HEIGHT), pygame.SRCALPHA)
-    hex_geom = []
+    cam_state = (
+        round(float(cam.get('zoom', 1.0)), 4),
+        round(float(cam.get('target_x', 512.0)), 2),
+        round(float(cam.get('target_y', 512.0)), 2),
+        round(float(cam.get('pitch', 52.0)), 2),
+        round(float(cam.get('yaw', 9.0)), 2),
+        MAP_RIGHT, HEIGHT
+    )
 
-    # Query 3D terrain elevation sampler from GPU renderer if available
-    gpu_renderer = world.get('_micropoly_gpu_renderer')
-    sample_elev = getattr(gpu_renderer, 'sample_elevation_func', None)
-    hover_offset = 0.6  # Hover slightly above 3D mesh surface to prevent clipping and occlusion
+    if (
+        world.get('_cached_hex_cam') == cam_state
+        and '_cached_hex_geom' in world
+        and '_cached_border_overlay' in world
+    ):
+        hex_geom = world['_cached_hex_geom']
+        border_overlay = world['_cached_border_overlay']
+    else:
+        border_overlay = pygame.Surface((MAP_RIGHT, HEIGHT), pygame.SRCALPHA)
+        hex_geom = []
 
-    for region in tiles:
-        # User constraint: "don't show tiles in the sea;"
-        is_sea = (
-            getattr(region, 'is_ocean', False)
-            or getattr(region, 'elevation', 0.0) <= 0.0
-            or getattr(getattr(region, 'center', None), 'water', False)
-            or getattr(getattr(region, 'center', None), 'ocean', False)
-        )
-        if is_sea:
-            continue
+        gpu_renderer = world.get('_micropoly_gpu_renderer')
+        sample_elev = getattr(gpu_renderer, 'sample_elevation_func', None)
+        hover_offset = 0.6  # Hover slightly above 3D mesh surface to prevent clipping and occlusion
+        outline_alpha = 32 if is_voronoi_topology() else 128
 
-        coords = layout.get(region.name)
-        if coords is None:
-            continue
-        elev = getattr(region, 'elevation', 0.0)
-        if is_voronoi_topology() and hasattr(region, 'polygon') and region.polygon is not None and len(region.polygon) >= 3:
-            from worldview_camera import world_to_screen
-            poly = region.polygon
-            if sample_elev is not None:
-                # Sample 3D terrain elevation along the contour and hover slightly above surface
-                z_vals = sample_elev(poly) + hover_offset
-                pts = [world_to_screen(world, p[0], p[1], wz=z) for p, z in zip(poly, z_vals)]
-                pts = [p for p in pts if p[0] != -9999 and p[1] != -9999]
-                cz = float(sample_elev(np.array([[coords[0], coords[1]]]))[0]) + hover_offset
-                cx, cy = world_to_screen(world, coords[0], coords[1], wz=cz)
+        from worldview_camera import project_pts_3d_to_screen, get_camera_mvp
+        mvp = get_camera_mvp(world) if is_voronoi_topology() else None
+
+        for region in tiles:
+            # User constraint: "don't show tiles in the sea;"
+            is_sea = (
+                getattr(region, 'is_ocean', False)
+                or getattr(region, 'elevation', 0.0) <= 0.0
+                or getattr(getattr(region, 'center', None), 'water', False)
+                or getattr(getattr(region, 'center', None), 'ocean', False)
+            )
+            if is_sea:
+                continue
+
+            coords = layout.get(region.name)
+            if coords is None:
+                continue
+            elev = getattr(region, 'elevation', 0.0)
+            if is_voronoi_topology() and hasattr(region, 'polygon') and region.polygon is not None and len(region.polygon) >= 3:
+                # Precompute homogeneous 3D coordinates once per region
+                if not hasattr(region, '_poly_homo') or getattr(region, '_poly_homo_sampler', None) != id(sample_elev):
+                    poly_np = np.asarray(region.polygon, dtype=np.float32)
+                    if sample_elev is not None:
+                        z_vals = sample_elev(poly_np) + hover_offset
+                        cz = float(sample_elev(np.array([[coords[0], coords[1]]], dtype=np.float32))[0]) + hover_offset
+                    else:
+                        slot_state = world.get('slot_state') or {}
+                        h_scale = float(slot_state.get('height_scale', 48.0))
+                        z_vals = np.full(len(poly_np), float(elev) * h_scale + hover_offset, dtype=np.float32)
+                        cz = float(elev) * h_scale + hover_offset
+
+                    region._poly_homo = np.column_stack([poly_np, z_vals, np.ones(len(poly_np), dtype=np.float32)])
+                    region._center_homo = np.array([[coords[0], coords[1], cz, 1.0]], dtype=np.float32)
+                    region._poly_homo_sampler = id(sample_elev)
+
+                # Vectorized project to screen
+                screen_pts = project_pts_3d_to_screen(world, region._poly_homo, mvp=mvp)
+                valid = (screen_pts[:, 0] != -9999) & (screen_pts[:, 1] != -9999)
+                if not np.all(valid):
+                    screen_pts = screen_pts[valid]
+                pts = [tuple(p) for p in screen_pts]
+
+                c_screen = project_pts_3d_to_screen(world, region._center_homo, mvp=mvp)[0]
+                cx, cy = int(c_screen[0]), int(c_screen[1])
             else:
-                pts = [world_to_screen(world, p[0], p[1], elevation=elev) for p in poly]
-                pts = [p for p in pts if p[0] != -9999 and p[1] != -9999]
                 cx, cy = hex_px(world, *coords, elevation=elev)
-        else:
-            cx, cy = hex_px(world, *coords, elevation=elev)
-            pts = hex_corners((cx, cy), HEX_SIZE * zoom - 1)
+                pts = hex_corners((cx, cy), HEX_SIZE * zoom - 1)
 
-        if len(pts) < 3:
-            continue
+            if len(pts) < 3:
+                continue
 
-        hex_geom.append((region, cx, cy, pts))
+            hex_geom.append((region, cx, cy, pts))
+            pygame.draw.polygon(border_overlay, (255, 255, 255, outline_alpha), pts, 1)
 
-        # 1a. Ocean wave shimmer (if inland water)
+        world['_cached_hex_cam'] = cam_state
+        world['_cached_hex_geom'] = hex_geom
+        world['_cached_border_overlay'] = border_overlay
+
+    # 1b. Render tile overlays and blit cartographic borders
+    active_layer = world.get('map_layer', 'overview')
+    for region, cx, cy, pts in hex_geom:
         if getattr(region, 'is_water', False):
             draw_elevation_terrain(surface, region, pts, cx, cy, zoom=zoom, frame=frame)
-
-        # 1b. Semi-Transparent Nation Territory Overlay & Thematic Choropleth
         draw_nation_overlay(surface, region, pts)
-        active_layer = world.get('map_layer', 'overview')
         if active_layer in ('enclosure', 'exploitation', 'externalities'):
             draw_thematic_choropleth(surface, region, pts, active_layer, frame=frame)
-
-        # 1c. Transparent Hex/Voronoi Outline (Subtle cartographic boundary: alpha 32 in voronoi, 128 in hex)
-        outline_alpha = 32 if is_voronoi_topology() else 128
-        pygame.draw.polygon(border_overlay, (255, 255, 255, outline_alpha), pts, 1)
 
     # Blit 50% transparent white hex grid overlay
     surface.blit(border_overlay, (0, 0))

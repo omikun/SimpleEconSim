@@ -101,8 +101,6 @@ def build_world_voronoi(
                     terrain_seed = seed if seed is not None else int(slot_state.get("seed", 777))
                 if island_shape is None and "shape" in slot_state:
                     island_shape = slot_state["shape"]
-                if num_points is None and "points" in slot_state:
-                    num_points = int(slot_state["points"])
         except Exception as exc:
             pass
 
