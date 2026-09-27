@@ -558,6 +558,11 @@ def main():
                     dx, dy = event.rel
                     world['cam']['ox'] += dx
                     world['cam']['oy'] += dy
+                    from world_config import is_voronoi_topology
+                    if is_voronoi_topology():
+                        zoom = max(0.2, float(world['cam'].get('zoom', 1.0)))
+                        world['cam']['target_x'] = float(world['cam'].get('target_x', 512.0)) - dx / zoom
+                        world['cam']['target_y'] = float(world['cam'].get('target_y', 512.0)) + dy / (zoom * 0.615)
                     clamp_cam(world)
                     _mark_dirty(world)
                 elif modal_open:
@@ -788,15 +793,27 @@ def main():
                 # WASD and Arrow keys for smooth panning
                 elif event.key in (pygame.K_LEFT, pygame.K_a):
                     world['cam']['ox'] += 40
+                    from world_config import is_voronoi_topology
+                    if is_voronoi_topology():
+                        world['cam']['target_x'] = float(world['cam'].get('target_x', 512.0)) - 30.0 / max(0.2, float(world['cam'].get('zoom', 1.0)))
                     clamp_cam(world)
                 elif event.key in (pygame.K_RIGHT, pygame.K_d):
                     world['cam']['ox'] -= 40
+                    from world_config import is_voronoi_topology
+                    if is_voronoi_topology():
+                        world['cam']['target_x'] = float(world['cam'].get('target_x', 512.0)) + 30.0 / max(0.2, float(world['cam'].get('zoom', 1.0)))
                     clamp_cam(world)
                 elif event.key in (pygame.K_UP, pygame.K_w):
                     world['cam']['oy'] += 40
+                    from world_config import is_voronoi_topology
+                    if is_voronoi_topology():
+                        world['cam']['target_y'] = float(world['cam'].get('target_y', 512.0)) + 30.0 / max(0.2, float(world['cam'].get('zoom', 1.0)))
                     clamp_cam(world)
                 elif event.key in (pygame.K_DOWN, pygame.K_s):
                     world['cam']['oy'] -= 40
+                    from world_config import is_voronoi_topology
+                    if is_voronoi_topology():
+                        world['cam']['target_y'] = float(world['cam'].get('target_y', 512.0)) - 30.0 / max(0.2, float(world['cam'].get('zoom', 1.0)))
                     clamp_cam(world)
                 elif event.key in (pygame.K_PLUS, pygame.K_EQUALS):
                     zoom_cam_at(world, 1.15, MAP_RIGHT // 2, HEIGHT // 2)

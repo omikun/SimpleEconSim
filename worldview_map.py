@@ -1086,32 +1086,48 @@ def draw_hex_map(surface, world, font, font_small):
     prev_clip = surface.get_clip()
     surface.set_clip(map_clip_rect)
 
-    pitch = cam.get('pitch', 0.0)
-    if pitch < 0.5:
-        if screen_w > 0 and screen_h > 0:
-            scaled_topo = pygame.transform.smoothscale(topo_surf, (screen_w, screen_h))
-            surface.blit(scaled_topo, (screen_x, screen_y))
+    from world_config import is_voronoi_topology
+    if is_voronoi_topology():
+        vw = MAP_RIGHT
+        vh = HEIGHT - TOP_BAR_H - TICKER_H
+        sim_time = world.get('frame', 0) * 0.04
+
+        gpu_renderer = world.get('_micropoly_gpu_renderer')
+        if gpu_renderer is None:
+            from render_engine.gpu.micropoly_3d_renderer import get_micropoly_3d_renderer
+            gpu_renderer = get_micropoly_3d_renderer()
+            gpu_renderer.setup_scene(world['gen'], slot_state)
+            world['_micropoly_gpu_renderer'] = gpu_renderer
+
+        # Render 3D scene from GPU directly to Pygame surface
+        gpu_surf = gpu_renderer.render(vw, vh, cam, sim_time=sim_time)
+        surface.blit(gpu_surf, (0, TOP_BAR_H))
     else:
-        # Civilization 3D tilt perspective projection via scanline strip slicing
-        from worldview_camera import world_to_screen
-        N = 48
-        surf_w, surf_h = topo_surf.get_size()
-        for i in range(N):
-            wy0 = min_wy + (i / N) * world_h
-            wy1 = min_wy + ((i + 1) / N) * world_h
-            sy_top = int((i / N) * surf_h)
-            sy_bot = int(((i + 1) / N) * surf_h)
-            sh = max(1, sy_bot - sy_top)
-            sub = topo_surf.subsurface((0, sy_top, surf_w, sh))
+        pitch = cam.get('pitch', 0.0)
+        if pitch < 0.5:
+            if screen_w > 0 and screen_h > 0:
+                scaled_topo = pygame.transform.smoothscale(topo_surf, (screen_w, screen_h))
+                surface.blit(scaled_topo, (screen_x, screen_y))
+        else:
+            from worldview_camera import world_to_screen
+            N = 48
+            surf_w, surf_h = topo_surf.get_size()
+            for i in range(N):
+                wy0 = min_wy + (i / N) * world_h
+                wy1 = min_wy + ((i + 1) / N) * world_h
+                sy_top = int((i / N) * surf_h)
+                sy_bot = int(((i + 1) / N) * surf_h)
+                sh = max(1, sy_bot - sy_top)
+                sub = topo_surf.subsurface((0, sy_top, surf_w, sh))
 
-            sx0, sy0 = world_to_screen(world, min_wx, wy0)
-            sx1, _ = world_to_screen(world, min_wx + world_w, wy0)
-            _, sy1 = world_to_screen(world, min_wx, wy1)
+                sx0, sy0 = world_to_screen(world, min_wx, wy0)
+                sx1, _ = world_to_screen(world, min_wx + world_w, wy0)
+                _, sy1 = world_to_screen(world, min_wx, wy1)
 
-            w = max(1, sx1 - sx0)
-            h = max(1, sy1 - sy0 + 1)
-            scaled = pygame.transform.scale(sub, (w, h))
-            surface.blit(scaled, (sx0, sy0))
+                w = max(1, sx1 - sx0)
+                h = max(1, sy1 - sy0 + 1)
+                scaled = pygame.transform.scale(sub, (w, h))
+                surface.blit(scaled, (sx0, sy0))
 
     # Build province color highlight map for the selected nation
     highlight_map = {}
