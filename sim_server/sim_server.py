@@ -852,6 +852,14 @@ class SimServer:
 
         if layout and tile.name in layout:
             q, r = layout[tile.name]
+        elif tile.name.startswith('r') and 'c' in tile.name:
+            try:
+                parts = tile.name[1:].split('c')
+                r_idx, c_idx = int(parts[0]), int(parts[1])
+                from hexmap import offset_to_axial
+                q, r = offset_to_axial(c_idx, r_idx)
+            except Exception:
+                q, r = getattr(tile, 'q', 0), getattr(tile, 'r', 0)
         elif grid_r is not None and grid_c is not None:
             from hexmap import offset_to_axial
             q, r = offset_to_axial(grid_c, grid_r)

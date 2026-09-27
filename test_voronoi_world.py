@@ -30,7 +30,7 @@ class TestVoronoiWorld(unittest.TestCase):
 
     def tearDown(self):
         # Reset to default
-        set_map_topology("voronoi")
+        set_map_topology("hex")
 
     def test_voronoi_generation_structure(self):
         """Test that build_world in Voronoi mode returns valid tiles, nations, and generator."""
