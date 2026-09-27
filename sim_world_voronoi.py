@@ -95,12 +95,13 @@ def build_world_voronoi(
             with open(slot_1_file, "r", encoding="utf-8") as f:
                 slot_data = json.load(f)
                 slot_state = slot_data.get("state", {})
-                if seed is None and "seed" in slot_state:
-                    seed = int(slot_state["seed"])
-                    if num_points is None and "points" in slot_state:
-                        num_points = int(slot_state["points"])
+                slot_seed = int(slot_state.get("seed", 777))
+                if seed is None:
+                    seed = slot_seed
+                if (seed == slot_seed) and num_points is None and "points" in slot_state:
+                    num_points = int(slot_state["points"])
                 if terrain_seed is None:
-                    terrain_seed = seed if seed is not None else int(slot_state.get("seed", 777))
+                    terrain_seed = seed
                 if island_shape is None and "shape" in slot_state:
                     island_shape = slot_state["shape"]
         except Exception as exc:
