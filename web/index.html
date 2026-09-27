@@ -5085,6 +5085,43 @@
     initMobileScrollCrop();
     restoreSettings();
     triggerUpdate(true);
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const exportSlot = urlParams.get('export_slot');
+    if (exportSlot) {
+      async function doExport() {
+        let tries = 0;
+        while ((!isWebGlReady || meshVertexCount === 0) && tries < 60) {
+          await new Promise(r => setTimeout(r, 100));
+          tries++;
+        }
+        await new Promise(r => setTimeout(r, 800));
+
+        // 1. Render 3D tilted view as saved in slot
+        renderClientGPU();
+        const dataUrl3D = gpuCanvas.toDataURL('image/png');
+        await fetch('/api/slots/save_image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: `slot_${exportSlot}_terrain_3d.png`, image: dataUrl3D })
+        });
+
+        // 2. Render top-down view (pitch 0, yaw 0) for REGNUM dynamic Civ zoom
+        state.rot_pitch = 0.0;
+        state.rot_yaw = 0.0;
+        renderClientGPU();
+        const dataUrlTop = gpuCanvas.toDataURL('image/png');
+        await fetch('/api/slots/save_image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: `slot_${exportSlot}_terrain.png`, image: dataUrlTop })
+        });
+
+        console.log('[EXPORT_SLOT] Completed export of slot ' + exportSlot);
+        document.title = 'EXPORT_DONE';
+      }
+      doExport();
+    }
   </script>
 </body>
 </html>

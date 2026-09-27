@@ -848,6 +848,22 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
             ok = set_active_slot(slot_num)
             self.send_json({"status": "ok" if ok else "error", "active_slot": slot_num})
 
+        elif path == "/api/slots/save_image":
+            import base64
+            img_data = body.get("image", "")
+            name = body.get("name", "slot_1_terrain.png")
+            if img_data.startswith("data:image/png;base64,"):
+                img_data = img_data[len("data:image/png;base64,"):]
+            if img_data:
+                raw = base64.b64decode(img_data)
+                out_path = os.path.join(SLOTS_DIR, name)
+                with open(out_path, "wb") as f:
+                    f.write(raw)
+                print(f"[SLOTS] Successfully saved WebGL render to {out_path} ({len(raw)} bytes)")
+                self.send_json({"status": "ok", "bytes": len(raw), "path": out_path})
+            else:
+                self.send_json({"status": "error", "message": "no image data"})
+
         else:
             self.send_error(404, "Not Found")
 

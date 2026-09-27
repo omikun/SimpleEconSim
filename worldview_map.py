@@ -952,55 +952,99 @@ def draw_hex_map(surface, world, font, font_small):
                 topo_surf = None
 
             if topo_surf is None:
-                from render_regnum_terrain import render_regnum_terrain
-                topo_surf = render_regnum_terrain(
-                    gen=gen,
+                # Generate slot 1 micropoly mesh with low-poly 3D trees and Option A coastal waves
+                from mapgen_web import get_cached_micropolys, build_micropoly_trees, build_coastal_surf_ribbon
+                from render_island_micropolys import render_mesh
+                from scipy.spatial import cKDTree
+                import numpy as np
+
+                graph_key = (
+                    int(slot_state.get('seed', 777)),
+                    slot_state.get('shape', 'radial'),
+                    int(slot_state.get('points', 1000)),
+                    int(slot_state.get('rivers', 25)),
+                    round(float(slot_state.get('sharpness', 1.9)), 2),
+                    0.0, 0.0, 0.0, 0.0,
+                    round(float(slot_state.get('canyon_depth', 2.7)), 2),
+                    round(float(slot_state.get('valley_width', 1.4)), 2)
+                )
+
+                triangles, _ = get_cached_micropolys(
+                    gen,
+                    graph_key,
+                    int(slot_state.get('polys', 16000)),
+                    float(slot_state.get('roughness', 3.0)),
+                    float(slot_state.get('jitter', 0.22)),
+                    float(slot_state.get('alpha', 0.0)),
+                    float(slot_state.get('height_scale', 48.0)),
+                    float(slot_state.get('smooth', 0.7)),
+                    quad_fold=slot_state.get('quad_fold', True),
+                    ridge_noise=float(slot_state.get('ridge_noise', 0.35)),
+                    erosion_strength=float(slot_state.get('erosion_strength', 0.3)),
+                    erosion_droplets=int(slot_state.get('erosion_droplets', 15000)),
+                )
+
+                mesh_pts = np.asarray([v for t in triangles for v in (t[0], t[1], t[2])], dtype=np.float32)
+                mesh_tree = cKDTree(mesh_pts[:, :2])
+
+                def sample_elevation(pts_xy):
+                    dists, idxs = mesh_tree.query(pts_xy, k=min(3, len(mesh_pts)))
+                    if dists.ndim == 1:
+                        z = mesh_pts[idxs.flatten(), 2]
+                    else:
+                        w = 1.0 / np.maximum(dists, 1e-4)
+                        w /= np.sum(w, axis=1, keepdims=True)
+                        z = np.sum(mesh_pts[idxs, 2] * w, axis=1)
+                    return np.maximum(0.0, z) + 0.08
+
+                all_triangles = list(triangles)
+
+                # Add 3D trees if enabled
+                if slot_state.get('micropoly_trees', True):
+                    tree_arr = build_micropoly_trees(
+                        gen, sample_elevation,
+                        height_scale=float(slot_state.get('height_scale', 48.0)),
+                        tree_density=float(slot_state.get('tree_density', 1.28))
+                    )
+                    for i in range(0, len(tree_arr), 30):
+                        p0 = np.array([tree_arr[i], tree_arr[i+1], tree_arr[i+2]], dtype=np.float64)
+                        p1 = np.array([tree_arr[i+10], tree_arr[i+11], tree_arr[i+12]], dtype=np.float64)
+                        p2 = np.array([tree_arr[i+20], tree_arr[i+21], tree_arr[i+22]], dtype=np.float64)
+                        norm = np.array([tree_arr[i+3], tree_arr[i+4], tree_arr[i+5]], dtype=np.float64)
+                        col = np.array([tree_arr[i+6]*255, tree_arr[i+7]*255, tree_arr[i+8]*255], dtype=np.float64)
+                        elev = float(tree_arr[i+9])
+                        all_triangles.append((p0, p1, p2, col, elev, False, 0, norm))
+
+                # Add coastal waves (Option A) if enabled
+                if slot_state.get('micropoly_waves', True):
+                    surf_arr = build_coastal_surf_ribbon(
+                        gen, ribbon_width=32.0 * float(slot_state.get('wave_intensity', 1.4))
+                    )
+                    for i in range(0, len(surf_arr), 30):
+                        p0 = np.array([surf_arr[i], surf_arr[i+1], surf_arr[i+2]], dtype=np.float64)
+                        p1 = np.array([surf_arr[i+10], surf_arr[i+11], surf_arr[i+12]], dtype=np.float64)
+                        p2 = np.array([surf_arr[i+20], surf_arr[i+21], surf_arr[i+22]], dtype=np.float64)
+                        norm = np.array([0.0, 0.0, 1.0], dtype=np.float64)
+                        dist = float(surf_arr[i+9])
+                        if dist < 0.25:
+                            col = np.array([245.0, 252.0, 255.0])
+                        elif dist < 0.55:
+                            col = np.array([55.0, 185.0, 215.0])
+                        else:
+                            col = np.array([28.0, 120.0, 180.0])
+                        all_triangles.append((p0, p1, p2, col, 0.0, False, 0, norm))
+
+                topo_surf = render_mesh(
+                    gen,
+                    all_triangles,
                     width=2048,
                     height=2048,
-                    show_canopy=slot_state.get('show_canopy', True),
-                    canopy_density=float(slot_state.get('canopy_density', 0.85)),
-                    crown_size=float(slot_state.get('crown_size', 5.0)),
-                    forest_shadows=slot_state.get('forest_shadows', True),
-                    forest_clearings=slot_state.get('forest_clearings', True),
-                    riparian_trees=slot_state.get('riparian_trees', True),
-                    show_ocean_fx=slot_state.get('show_ocean_fx', True),
-                    show_wave_ripples=slot_state.get('show_wave_ripples', True),
-                    wave_ripples=float(slot_state.get('wave_ripples', 1.0)),
-                    show_specular_glints=slot_state.get('show_specular_glints', True),
-                    specular_glints=float(slot_state.get('specular_glints', 1.0)),
-                    show_coastal_surf=slot_state.get('show_coastal_surf', True),
-                    coastal_surf=float(slot_state.get('coastal_surf', 1.0)),
-                    shelf_width=float(slot_state.get('shelf_width', 1.0)),
-                    show_beaches=slot_state.get('show_beaches', True),
-                    beach_width=float(slot_state.get('beach_width', 1.0)),
-                    sand_dunes=slot_state.get('sand_dunes', True),
-                    show_coastal_cliffs=slot_state.get('show_coastal_cliffs', True),
-                    coastal_cliffs=float(slot_state.get('coastal_cliffs', 1.0)),
-                    show_rock_strata=slot_state.get('show_rock_strata', True),
-                    rock_strata=float(slot_state.get('rock_strata', 1.0)),
-                    show_snow_peaks=slot_state.get('show_snow_peaks', True),
-                    snow_peaks=float(slot_state.get('snow_peaks', 1.0)),
-                    snow_altitude=float(slot_state.get('snow_altitude', 0.70)),
-                    show_ground_grain=slot_state.get('show_ground_grain', True),
-                    ground_grain=float(slot_state.get('ground_grain', 1.0)),
-                    show_soil_parcels=slot_state.get('show_soil_parcels', True),
-                    soil_parcels=float(slot_state.get('soil_parcels', 1.0)),
-                    field_filaments=slot_state.get('field_filaments', True),
-                    carve_rivers=slot_state.get('carve_rivers', True),
-                    river_width=float(slot_state.get('river_width', 0.2)),
-                    estuary_fan=slot_state.get('estuary_fan', True),
-                    riparian_turf=slot_state.get('riparian_turf', True),
-                    show_atmosphere=slot_state.get('show_atmosphere', True),
-                    show_cloud_shadows=slot_state.get('show_cloud_shadows', True),
-                    cloud_shadows=float(slot_state.get('cloud_shadows', 0.55)),
-                    show_aerial_haze=slot_state.get('show_aerial_haze', True),
-                    aerial_haze=float(slot_state.get('aerial_haze', 0.50)),
-                    show_split_tone=slot_state.get('show_split_tone', True),
-                    split_tone=float(slot_state.get('split_tone', 0.60)),
-                    vignette=slot_state.get('vignette', True),
                     sun_azimuth=float(slot_state.get('sun_azimuth', -45.0)),
                     sun_elevation=float(slot_state.get('sun_elevation', 24.0)),
-                    frame=0,
+                    sun_intensity=float(slot_state.get('sun_intensity', 1.15)),
+                    ambient_intensity=float(slot_state.get('ambient_intensity', 0.45)),
+                    rot_pitch=0.0,
+                    rot_yaw=0.0,
                 )
                 try:
                     pygame.image.save(topo_surf, cache_file)
