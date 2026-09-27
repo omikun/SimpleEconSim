@@ -1176,6 +1176,7 @@
     // ---------------------------------------------------------------------------
     const SHADOW_VS = `#version 300 es
     precision highp float;
+    precision highp int;
     layout(location = 0) in vec3 in_pos;
     uniform mat4 u_light_view_proj;
     void main() {
@@ -1186,6 +1187,7 @@
 
     const SHADOW_FS = `#version 300 es
     precision highp float;
+    precision highp int;
     out vec4 frag_color;
     void main() {
         frag_color = vec4(1.0);
@@ -1194,6 +1196,7 @@
 
     const HEIGHTMAP_VS = `#version 300 es
     precision highp float;
+    precision highp int;
     layout(location = 0) in vec3 in_pos;
     void main() {
         float x_ndc = (in_pos.x / 512.0) - 1.0;
@@ -1206,6 +1209,7 @@
 
     const HEIGHTMAP_FS = `#version 300 es
     precision highp float;
+    precision highp int;
     out vec4 frag_color;
     void main() {
         frag_color = vec4(1.0);
@@ -1214,6 +1218,7 @@
 
     const MESH_VS = `#version 300 es
     precision highp float;
+    precision highp int;
 
     layout(location = 0) in vec3 in_pos;
     layout(location = 1) in vec3 in_norm;
@@ -1328,6 +1333,7 @@
 
     const MESH_FS = `#version 300 es
     precision highp float;
+    precision highp int;
     precision highp sampler2DShadow;
     precision highp sampler2D;
 
@@ -1345,7 +1351,7 @@
     uniform float u_ambient_intensity;
     uniform float u_mountain_roughness;
     uniform float u_snow_threshold;
-    uniform int u_shadow_mode;
+    uniform highp int u_shadow_mode;
     uniform float u_shadow_darkness;
     uniform vec3 u_sun_world_dir;
     uniform highp sampler2DShadow u_shadow_map;
@@ -1587,6 +1593,7 @@
 
     const LINE_VS = `#version 300 es
     precision highp float;
+    precision highp int;
 
     layout(location = 0) in vec3 in_pos;
 
@@ -1635,6 +1642,7 @@
 
     const LINE_FS = `#version 300 es
     precision highp float;
+    precision highp int;
 
     uniform vec4 u_line_color;
     out vec4 frag_color;
@@ -1646,6 +1654,7 @@
 
     const SURF_VS = `#version 300 es
     precision highp float;
+    precision highp int;
 
     layout(location = 0) in vec3 in_pos;
     layout(location = 1) in vec3 in_normal;
@@ -1658,7 +1667,7 @@
     uniform float u_max_z;
     uniform float u_time;
     uniform float u_wave_intensity;
-    uniform int u_wave_mode; // 0: gerstner, 1: foam_lace, 2: hybrid, 3: stylized
+    uniform highp int u_wave_mode; // 0: gerstner, 1: foam_lace, 2: hybrid, 3: stylized
     uniform vec3 u_sun_world_dir;
 
     out vec3 v_color;
@@ -1747,6 +1756,7 @@
 
     const SURF_FS = `#version 300 es
     precision highp float;
+    precision highp int;
 
     in vec3 v_color;
     in float v_dist;
@@ -1757,7 +1767,7 @@
 
     uniform float u_time;
     uniform float u_wave_intensity;
-    uniform int u_wave_mode;
+    uniform highp int u_wave_mode;
     uniform vec3 u_sun_world_dir;
 
     out vec4 frag_color;
@@ -1878,6 +1888,7 @@
 
     const OCEAN_VS = `#version 300 es
     precision highp float;
+    precision highp int;
 
     layout(location = 0) in vec3 in_pos;
     layout(location = 1) in vec3 in_normal;
@@ -1890,7 +1901,7 @@
     uniform float u_max_z;
     uniform float u_time;
     uniform float u_wave_intensity;
-    uniform int u_wave_mode;
+    uniform highp int u_wave_mode;
     uniform vec3 u_sun_world_dir;
 
     out vec3 v_world_pos;
@@ -1983,6 +1994,7 @@
 
     const OCEAN_FS = `#version 300 es
     precision highp float;
+    precision highp int;
 
     in vec3 v_world_pos;
     in vec3 v_world_norm;
@@ -1991,7 +2003,7 @@
 
     uniform float u_time;
     uniform float u_wave_intensity;
-    uniform int u_wave_mode;
+    uniform highp int u_wave_mode;
     uniform vec3 u_sun_world_dir;
 
     out vec4 frag_color;
@@ -2024,6 +2036,7 @@
 
     const RIVER_VS = `#version 300 es
     precision highp float;
+    precision highp int;
 
     layout(location = 0) in vec3 in_pos;
     layout(location = 1) in vec3 in_normal;
@@ -2124,6 +2137,7 @@
 
     const RIVER_FS = `#version 300 es
     precision highp float;
+    precision highp int;
     precision highp sampler2DShadow;
     precision highp sampler2D;
 
@@ -2136,7 +2150,7 @@
     in vec3 v_world_pos;
 
     uniform float u_time;
-    uniform int u_shadow_mode;
+    uniform highp int u_shadow_mode;
     uniform float u_shadow_darkness;
     uniform vec3 u_sun_world_dir;
     uniform highp sampler2DShadow u_shadow_map;
