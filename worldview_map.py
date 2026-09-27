@@ -25,6 +25,8 @@ from heightmap import get_cached_topographic_surface
 NATION_COLORS = {
     'United States': (80, 160, 240),
     'China':         (235, 80, 80),
+    'Japan':         (205, 80, 190),  # Vibrant orchid / magenta (strictly avoids white)
+    'Russia':        (160, 140, 240),
     'India':         (245, 160, 60),
     'Indonesia':     (230, 90, 120),
     'Brazil':        (80, 220, 140),
@@ -32,11 +34,27 @@ NATION_COLORS = {
     'Nigeria':       (100, 220, 100),
     'Pakistan':      (70, 190, 130),
     'Bangladesh':    (80, 200, 120),
-    'Russia':        (160, 140, 240),
+    'Germany':       (225, 175, 55),
+    'United Kingdom':(150, 110, 220),
+    'France':        (75, 135, 230),
     'Alpha':         (141, 211, 199),
-    'Beta':          (255, 255, 179),
-    'Gamma':         (190, 186, 218),
+    'Beta':          (230, 200, 90),
+    'Gamma':         (190, 140, 220),
 }
+
+
+def get_nation_color(name: str):
+    """Return a vibrant, distinct RGB color for any nation, strictly avoiding white."""
+    if not name:
+        return (160, 165, 155)
+    if name in NATION_COLORS:
+        return NATION_COLORS[name]
+    # Deterministic procedural color clamped away from white (saturation > 0.5, value 0.7-0.9)
+    h = abs(hash(name))
+    r = 70 + (h % 150)
+    g = 70 + ((h // 150) % 150)
+    b = 70 + ((h // 22500) % 150)
+    return (r, g, b)
 
 # Palette of distinct, vibrant highlight colors for each province of a selected nation
 PROVINCE_COLORS = [
@@ -82,7 +100,7 @@ pops_history = {}
 def nation_color(region):
     owner = getattr(region, 'owner_nation', None)
     if owner is not None:
-        return NATION_COLORS.get(owner.name, (150, 150, 150))
+        return get_nation_color(owner.name)
     return WILD_COLOR
 
 
@@ -254,7 +272,7 @@ def tile_stats(region, layer_mode='overview', world=None):
     is_prov_capital = (prov and prov.tiles and region == prov.tiles[0])
 
     top_badge = ""
-    badge_col = NATION_COLORS.get(owner.name, ACCENT)
+    badge_col = get_nation_color(owner.name)
     if is_nation_capital:
         prov_str = getattr(prov, 'display_name', '') if prov else ''
         top_badge = f"* {owner.name}" + (f" — {prov_str}" if prov_str else "")
@@ -293,7 +311,7 @@ def draw_nation_overlay(surface, region, pts):
     if owner is None:
         return
 
-    col = NATION_COLORS.get(owner.name, (180, 180, 180))
+    col = get_nation_color(owner.name)
     # Population brightness factor
     pop = region_pop(region)
     f = min(0.35, 0.15 * (pop / 400.0))
@@ -1219,7 +1237,14 @@ def draw_hex_map(surface, world, font, font_small):
                 continue
 
             hex_geom.append((region, cx, cy, pts))
-            pygame.draw.polygon(border_overlay, (255, 255, 255, outline_alpha), pts, 1)
+            is_wild = (getattr(region, 'owner_nation', None) is None)
+            if is_voronoi_topology():
+                # Make wilderness boundaries clear and distinct with higher alpha
+                line_alpha = 75 if is_wild else 35
+                line_color = (205, 220, 210, line_alpha) if is_wild else (255, 255, 255, line_alpha)
+            else:
+                line_color = (255, 255, 255, 128)
+            pygame.draw.polygon(border_overlay, line_color, pts, 1)
 
         world['_cached_hex_cam'] = cam_state
         world['_cached_hex_geom'] = hex_geom
@@ -1230,26 +1255,46 @@ def draw_hex_map(surface, world, font, font_small):
     for region, cx, cy, pts in hex_geom:
         if getattr(region, 'is_water', False):
             draw_elevation_terrain(surface, region, pts, cx, cy, zoom=zoom, frame=frame)
-        draw_nation_overlay(surface, region, pts)
+        owner = getattr(region, 'owner_nation', None)
+        if owner is not None:
+            draw_nation_overlay(surface, region, pts)
+        else:
+            # Unselected wilderness regions: subtle frontier outline
+            pygame.draw.polygon(surface, (115, 130, 120), pts, 1)
+
         if active_layer in ('enclosure', 'exploitation', 'externalities'):
             draw_thematic_choropleth(surface, region, pts, active_layer, frame=frame)
 
-    # Blit 50% transparent white hex grid overlay
+    # Blit transparent hex/voronoi grid overlay
     surface.blit(border_overlay, (0, 0))
 
-    # 2. National Borders, Province Highlights, and Selection
+    # 2. National Borders, Province Highlights, and Hover Outline
     for region, cx, cy, pts in hex_geom:
         owner = getattr(region, 'owner_nation', None)
         if owner is not None:
-            n_col = NATION_COLORS.get(owner.name, (255, 255, 255))
+            n_col = get_nation_color(owner.name)
             pygame.draw.polygon(surface, n_col, pts, max(2, int(2 * zoom)))
 
         if region.name in highlight_map:
             color, _pname = highlight_map[region.name]
             pygame.draw.polygon(surface, color, pts, max(3, int(3 * zoom)))
 
-        if sel is region:
-            pygame.draw.polygon(surface, (255, 255, 255), pts, 4 if region.name not in highlight_map else 2)
+        if region is hover_region and region is not sel:
+            h_col = (235, 215, 140) if owner is None else (255, 255, 255)
+            pygame.draw.polygon(surface, h_col, pts, max(2, int(2 * zoom)))
+
+    # Dedicated Selection Pass: RENDERED PROMINENTLY ABOVE ALL NATION & PROVINCE COLORS
+    if sel is not None:
+        sel_item = next((item for item in hex_geom if item[0] is sel), None)
+        if sel_item is not None:
+            _, scx, scy, spts = sel_item
+            sel_w = max(5, int(5 * zoom))
+            # 1. Dark outer drop-shadow halo for contrast on bright/snow terrain
+            pygame.draw.polygon(surface, (15, 20, 25), spts, sel_w + 3)
+            # 2. Wide, brilliant white selection perimeter above all nation/province colors
+            pygame.draw.polygon(surface, (255, 255, 255), spts, sel_w)
+            # 3. Inner golden accent ring for sovereign cartographic focus
+            pygame.draw.polygon(surface, (255, 245, 180), spts, max(2, int(2 * zoom)))
 
     # 3. Connection Edges and Trade Arrows (RENDERED UNDER ALL TEXT)
     draw_edges(surface, world)
@@ -1298,6 +1343,14 @@ def draw_hex_map(surface, world, font, font_small):
                                 draw_text_with_shadow(surface, font_small, line2, (cx, cy + 6), c2)
                             if line3:
                                 draw_text_with_shadow(surface, font_small, line3, (cx, cy + 20), c3)
+                else:
+                    # Unselected wilderness regions: show natural territory title and altitude
+                    show_wild = (zoom >= 2.4) or (region is sel) or (region is hover_region)
+                    if show_wild:
+                        elev_m = getattr(region, 'elevation_meters', int(region.elevation * 3000))
+                        wild_title = getattr(region, 'display_name', getattr(region, 'city_name', region.name))
+                        draw_text_with_shadow(surface, font_small, f"◇ {wild_title}", (cx, cy - 8), (210, 230, 220))
+                        draw_text_with_shadow(surface, font_small, f"{elev_m}m", (cx, cy + 8), (155, 185, 170))
             else:
                 # Other Layer Modes (Physical, Population, Economy, Production, Military)
                 if owner is not None:

@@ -144,7 +144,8 @@ uniform float u_snow_threshold;
 uniform int u_shadow_mode;
 uniform float u_shadow_darkness;
 uniform vec3 u_sun_world_dir;
-uniform sampler2DShadow u_shadow_map;
+uniform sampler2D u_shadow_map;
+uniform float u_shadow_size;
 
 uniform float u_micropoly_strata;
 uniform float u_micropoly_parcels;
@@ -155,23 +156,50 @@ out vec4 frag_color;
 
 const float PI = 3.141592653589793;
 
+const vec2 POISSON_DISK[16] = vec2[](
+    vec2(-0.326212, -0.405810),
+    vec2(-0.840144, -0.073580),
+    vec2(-0.695914,  0.457137),
+    vec2(-0.203345,  0.620716),
+    vec2( 0.962340, -0.194983),
+    vec2( 0.473434, -0.480026),
+    vec2( 0.519456,  0.767022),
+    vec2( 0.185461, -0.893124),
+    vec2( 0.507431,  0.064425),
+    vec2( 0.896420,  0.412458),
+    vec2(-0.321940, -0.932615),
+    vec2(-0.791559, -0.597710),
+    vec2(-0.111818, -0.161108),
+    vec2( 0.282828,  0.312918),
+    vec2(-0.413812,  0.183719),
+    vec2( 0.211412, -0.251918)
+);
+
 float compute_shadow_map(vec4 light_space_pos, vec3 N, vec3 L) {
     vec3 proj = light_space_pos.xyz / light_space_pos.w;
     if (proj.z > 1.0 || proj.x < 0.0 || proj.x > 1.0 || proj.y < 0.0 || proj.y > 1.0) {
         return 1.0;
     }
     float NdotL = max(0.0, dot(N, L));
-    float bias = max(0.0035 * (1.0 - NdotL), 0.0010);
+    // Tight slope-scaled bias to avoid acne while allowing crisp contact
+    float bias = max(0.0016 * (1.0 - NdotL), 0.0004);
     float current_depth = proj.z - bias;
 
+    // Contact Hardening: measure distance from blocker to receiver
+    float blocker_depth = texture(u_shadow_map, proj.xy).r;
+    float blocker_dist = max(0.0, current_depth - blocker_depth);
+
+    // Near contact (tree base, cliff foot): penumbra is tiny (0.35 texels) -> sharp!
+    // Distant caster (canopy, mountain peak): penumbra expands naturally (up to 2.4 texels)
+    float penumbra = clamp(blocker_dist * 140.0, 0.35, 2.4);
+    vec2 texel_step = (penumbra / max(1024.0, u_shadow_size)) * vec2(1.0);
+
     float shadow = 0.0;
-    vec2 texel_size = vec2(1.0 / 2048.0);
-    for (int x = -1; x <= 1; ++x) {
-        for (int y = -1; y <= 1; ++y) {
-            shadow += texture(u_shadow_map, vec3(proj.xy + vec2(float(x), float(y)) * texel_size, current_depth));
-        }
+    for (int i = 0; i < 16; ++i) {
+        float sample_depth = texture(u_shadow_map, proj.xy + POISSON_DISK[i] * texel_step).r;
+        shadow += (sample_depth >= current_depth) ? 1.0 : 0.0;
     }
-    return shadow / 9.0;
+    return shadow / 16.0;
 }
 
 float oren_nayar_diffuse(vec3 N, vec3 L, vec3 V, float roughness) {
@@ -376,12 +404,32 @@ in vec3 v_sun_dir;
 in vec4 v_shadow_coord;
 in vec3 v_world_pos;
 
-uniform sampler2DShadow u_shadow_map;
+uniform sampler2D u_shadow_map;
+uniform float u_shadow_size;
 uniform int u_shadow_mode;
 uniform float u_shadow_darkness;
 uniform vec3 u_sun_world_dir;
 
 out vec4 frag_color;
+
+const vec2 POISSON_DISK[16] = vec2[](
+    vec2(-0.326212, -0.405810),
+    vec2(-0.840144, -0.073580),
+    vec2(-0.695914,  0.457137),
+    vec2(-0.203345,  0.620716),
+    vec2( 0.962340, -0.194983),
+    vec2( 0.473434, -0.480026),
+    vec2( 0.519456,  0.767022),
+    vec2( 0.185461, -0.893124),
+    vec2( 0.507431,  0.064425),
+    vec2( 0.896420,  0.412458),
+    vec2(-0.321940, -0.932615),
+    vec2(-0.791559, -0.597710),
+    vec2(-0.111818, -0.161108),
+    vec2( 0.282828,  0.312918),
+    vec2(-0.413812,  0.183719),
+    vec2( 0.211412, -0.251918)
+);
 
 float compute_shadow_map(vec4 light_space_pos, vec3 N, vec3 L) {
     vec3 proj = light_space_pos.xyz / light_space_pos.w;
@@ -389,17 +437,21 @@ float compute_shadow_map(vec4 light_space_pos, vec3 N, vec3 L) {
         return 1.0;
     }
     float NdotL = max(0.0, dot(N, L));
-    float bias = max(0.0035 * (1.0 - NdotL), 0.0010);
+    float bias = max(0.0016 * (1.0 - NdotL), 0.0004);
     float current_depth = proj.z - bias;
 
+    float blocker_depth = texture(u_shadow_map, proj.xy).r;
+    float blocker_dist = max(0.0, current_depth - blocker_depth);
+
+    float penumbra = clamp(blocker_dist * 140.0, 0.35, 2.4);
+    vec2 texel_step = (penumbra / max(1024.0, u_shadow_size)) * vec2(1.0);
+
     float shadow = 0.0;
-    vec2 texel_size = vec2(1.0 / 2048.0);
-    for (int x = -1; x <= 1; ++x) {
-        for (int y = -1; y <= 1; ++y) {
-            shadow += texture(u_shadow_map, vec3(proj.xy + vec2(float(x), float(y)) * texel_size, current_depth));
-        }
+    for (int i = 0; i < 16; ++i) {
+        float sample_depth = texture(u_shadow_map, proj.xy + POISSON_DISK[i] * texel_step).r;
+        shadow += (sample_depth >= current_depth) ? 1.0 : 0.0;
     }
-    return shadow / 9.0;
+    return shadow / 16.0;
 }
 
 void main() {
@@ -597,11 +649,11 @@ class Micropoly3DRenderer:
         self.river_prog = self.ctx.program(vertex_shader=RIVER_VS, fragment_shader=RIVER_FS)
         self.surf_prog = self.ctx.program(vertex_shader=SURF_VS, fragment_shader=SURF_FS)
 
-        # Shadow Mapping Resources
-        self.shadow_size = 2048
+        # Shadow Mapping Resources (4096 high resolution for crisp contact-hardening shadows)
+        self.shadow_size = 4096
         self.shadow_tex = self.ctx.depth_texture((self.shadow_size, self.shadow_size))
-        self.shadow_tex.compare_func = '<='
         self.shadow_fbo = self.ctx.framebuffer(depth_attachment=self.shadow_tex)
+        self._last_shadow_key = None
 
         # Offscreen Main Color Framebuffer
         self.fbo = None
@@ -783,8 +835,8 @@ class Micropoly3DRenderer:
         # 6. Render Directional Shadow Map Pass
         self._render_shadow_map()
 
-    def _render_shadow_map(self):
-        """Render the 3D shadow map from the sun light source."""
+    def _render_shadow_map(self, cam=None):
+        """Render the 3D shadow map from the sun light source with view-dependent bounds."""
         az_deg = float(self.slot_state.get('sun_azimuth', -45.0))
         el_deg = max(5.0, min(88.0, float(self.slot_state.get('sun_elevation', 24.0))))
 
@@ -796,13 +848,20 @@ class Micropoly3DRenderer:
         slen = math.hypot(math.hypot(sx, sy), sz)
         self.sun_world_dir = np.array([sx / slen, sy / slen, sz / slen], dtype=np.float32)
 
-        # Sun light camera centered over world center (512, 512, 0)
-        center = np.array([512.0, 512.0, 0.0], dtype=np.float32)
-        light_pos = center + self.sun_world_dir * 1800.0
+        # View-dependent focus: tight orthographic shadow box around visible area
+        if cam is not None:
+            tx = float(cam.get('target_x', 512.0))
+            ty = float(cam.get('target_y', 512.0))
+            zoom = max(0.5, float(cam.get('zoom', 1.0)))
+            center = np.array([tx, ty, 0.0], dtype=np.float32)
+            half_ext = max(180.0, min(820.0, 750.0 / zoom + 50.0))
+        else:
+            center = np.array([512.0, 512.0, 0.0], dtype=np.float32)
+            half_ext = 800.0
 
+        light_pos = center + self.sun_world_dir * 1800.0
         light_view = mat4_lookat(light_pos, center, (0.0, 0.0, 1.0))
-        # Orthographic box large enough to cover the entire island
-        light_proj = mat4_ortho(-800.0, 800.0, -800.0, 800.0, 10.0, 3600.0)
+        light_proj = mat4_ortho(-half_ext, half_ext, -half_ext, half_ext, 10.0, 3600.0)
 
         light_vp = light_proj @ light_view
 
@@ -873,6 +932,15 @@ class Micropoly3DRenderer:
             self.fbo = self.ctx.simple_framebuffer((viewport_w, viewport_h))
             self.fbo_size = (viewport_w, viewport_h)
 
+        # Dynamically update view-dependent shadow map when camera pans or zooms
+        tx_snap = round(float(cam.get('target_x', 512.0)), 0)
+        ty_snap = round(float(cam.get('target_y', 512.0)), 0)
+        zoom_snap = round(float(cam.get('zoom', 1.0)), 2)
+        view_shadow_key = (tx_snap, ty_snap, zoom_snap)
+        if getattr(self, '_last_shadow_key', None) != view_shadow_key:
+            self._render_shadow_map(cam=cam)
+            self._last_shadow_key = view_shadow_key
+
         proj, view, eye, target, v_dir = self.get_camera_matrices(viewport_w, viewport_h, cam)
 
         self.fbo.use()
@@ -921,6 +989,7 @@ class Micropoly3DRenderer:
         _set(self.mesh_prog, 'u_shadow_mode', 1 if self.slot_state.get('shadows', True) else 0)
         _set(self.mesh_prog, 'u_shadow_darkness', float(self.slot_state.get('shadow_darkness', 1.0)))
         _set(self.mesh_prog, 'u_shadow_map', 1)
+        _set(self.mesh_prog, 'u_shadow_size', float(self.shadow_size))
         _set(self.mesh_prog, 'u_micropoly_strata', 1.0 if self.slot_state.get('micropoly_strata', True) else 0.0)
         _set(self.mesh_prog, 'u_micropoly_parcels', 1.0 if self.slot_state.get('micropoly_parcels', True) else 0.0)
         _set(self.mesh_prog, 'u_micropoly_grain', 1.0 if self.slot_state.get('micropoly_grain', True) else 0.0)
@@ -949,6 +1018,7 @@ class Micropoly3DRenderer:
             _set(self.river_prog, 'u_shadow_mode', 1 if self.slot_state.get('shadows', True) else 0)
             _set(self.river_prog, 'u_shadow_darkness', float(self.slot_state.get('shadow_darkness', 1.0)))
             _set(self.river_prog, 'u_shadow_map', 1)
+            _set(self.river_prog, 'u_shadow_size', float(self.shadow_size))
             self.river_vao.render(moderngl.TRIANGLES, self.river_count)
 
         # 4b. Option A Coastal Waves & Breakers
