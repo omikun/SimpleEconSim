@@ -1680,39 +1680,54 @@
         vec2 center = vec2(WORLD_COORD_SIZE * 0.5, WORLD_COORD_SIZE * 0.5);
         float R = WORLD_COORD_SIZE * 0.5;
 
-        // Inward rolling wave: wave propagation rolls inward toward shore (in_dist -> 0)
-        // Shoaling: wave slows down, steepens, and crests near the beach
-        float speed = 2.4;
-        float freq = 32.0;
-        float phase = u_time * speed + in_dist * freq;
-        v_phase = phase;
+        // Expand the coastal shelf seaward so waves have room to form, roll, and crest
+        // in_dist: 0.0 at shore -> 1.0 at outer shelf
+        vec2 shelf_xy = in_pos.xy + in_normal.xy * (in_dist * 22.0);
 
         float z_offset = 0.0;
         vec2 horiz_offset = vec2(0.0);
         float crest_val = 0.0;
+        float wave_phase = 0.0;
+
+        // Along-shore coordinate for organic, broken wave crests instead of repetitive rings
+        float along_shore = dot(in_pos.xy, vec2(-in_normal.y, in_normal.x));
+        float shore_variation = sin(along_shore * 0.045) * 0.85 + cos(along_shore * 0.11) * 0.40;
 
         if (u_wave_mode == 0) {
-            // Option A: 2D SDF Refraction & Swash (Physical Gerstner shoaling)
-            float s = sin(phase);
-            float c = cos(phase);
-            float sharp_crest = pow(max(0.0, s), 2.2);
-            float shoaling = (1.15 - in_dist * 0.55);
-            z_offset = sharp_crest * (0.010 * u_wave_intensity * shoaling);
-            horiz_offset = in_normal.xy * (c * 0.006 * u_wave_intensity * shoaling);
-            crest_val = s;
+            // ============================================================
+            // OPTION A: 2D SDF Refraction & Swash (Physical Gerstner Shoaling)
+            // ============================================================
+            // Wave propagation rolls inward toward shore (in_dist -> 0)
+            wave_phase = u_time * 2.2 - in_dist * 7.5 + shore_variation * (1.0 - in_dist * 0.45);
+
+            // Shoaling steepness: wave peaks sharply near the breaker zone (in_dist ~ 0.25)
+            float shoaling = 1.0 + 1.25 * exp(-pow((in_dist - 0.25) * 4.2, 2.0));
+            float s = clamp(sin(wave_phase), 0.0, 1.0);
+            float sharp_crest = pow(s, 2.8) * shoaling;
+
+            z_offset = (sharp_crest * 0.28 - 0.04) * (0.012 * u_wave_intensity);
+            // Trochoidal horizontal push toward shore
+            horiz_offset = -in_normal.xy * (cos(wave_phase) * 0.010 * u_wave_intensity * shoaling);
+            crest_val = sharp_crest;
+
         } else {
-            // Option B: Depth Buffer Intersection (RiME / Roystan tidal surge)
-            float surge = sin(u_time * 1.5 + in_dist * 24.0);
-            z_offset = max(0.0, surge) * 0.008 * (1.0 - in_dist * 0.4) * u_wave_intensity;
-            crest_val = surge;
+            // ============================================================
+            // OPTION B: RiME / Roystan Cel-Shaded Shelf (Serene Glassy Water)
+            // ============================================================
+            // Gentle serene breathing swell, no sharp physical breaker peaks
+            float gentle_swell = sin(u_time * 1.5 - in_dist * 3.8 + sin(along_shore * 0.03) * 0.5);
+            z_offset = gentle_swell * 0.003 * u_wave_intensity;
+            wave_phase = u_time * 1.5;
+            crest_val = 0.0;
         }
 
-        vec3 p_world = vec3(in_pos.xy + horiz_offset, in_pos.z + z_offset);
+        vec3 p_world = vec3(shelf_xy + horiz_offset, in_pos.z + z_offset);
         v_world_pos = p_world;
         v_world_norm = in_normal;
         v_color = in_color;
         v_dist = in_dist;
         v_wave_crest = crest_val;
+        v_phase = wave_phase;
 
         vec3 p = vec3(p_world.x - center.x, center.y - p_world.y, p_world.z);
 
@@ -1788,87 +1803,103 @@
         return sqrt(m_dist);
     }
 
-    float computeCaustics(vec2 uv, float t) {
-        vec2 p1 = uv * 3.5 + vec2(t * 0.6, t * 0.4);
-        vec2 p2 = uv * 4.2 - vec2(t * 0.4, -t * 0.5);
-        float v1 = voronoi(p1);
-        float v2 = voronoi(p2);
-        return pow(1.0 - abs(v1 - v2), 3.0);
-    }
-
-    float computeFoamLace(vec2 uv, float t) {
-        vec2 p = uv * 4.8 + vec2(t * 0.3, t * 0.2);
-        float v1 = voronoi(p);
-        float v2 = voronoi(p * 2.2 + vec2(t * 0.8, 0.0));
-        float edge = 1.0 - smoothstep(0.04, 0.20, v1);
-        return edge * smoothstep(0.12, 0.85, v2);
-    }
-
     void main() {
         vec3 N = vec3(0.0, 0.0, 1.0);
         vec3 L = normalize(u_sun_world_dir);
         vec3 V = normalize(vec3(0.0, 0.45, 0.89));
         vec3 H = normalize(L + V);
-        float sun_spec = pow(max(0.0, dot(N, H)), 24.0) * 0.75;
+        float sun_spec = pow(max(0.0, dot(N, H)), 32.0) * 0.85;
 
         vec3 water_color = v_color;
         float alpha = 0.85;
 
+        // Along-shore coordinate for organic, broken wave variation
+        float along_shore = dot(v_world_pos.xy, vec2(-v_world_norm.y, v_world_norm.x));
+
         if (u_wave_mode == 0) {
             // ============================================================
-            // OPTION A: 2D SDF Shoreline Wave Refraction & Swash
-            // (Physical Gerstner shoaling, beach swash & decaying foam lace)
+            // OPTION A: 2D SDF Shoreline Wave Refraction & Breaker Swash
+            // (Physical Gerstner shoaling, crashing breakers & decaying foam lace)
             // ============================================================
-            float breaker = smoothstep(0.40, 0.95, v_wave_crest) * (1.0 - v_dist * 0.45) * u_wave_intensity;
 
-            // Swash & backwash rhythm (water pushes up onto sand, halts, and retreats)
-            float swash_cycle = sin(u_time * 2.6);
-            float swash_line = smoothstep(0.14, 0.01, v_dist) * (0.50 + 0.35 * swash_cycle);
+            // 1. Peaking Breaker Wave Crest & Whitecap foam
+            float breaker_peaking = smoothstep(0.50, 0.95, v_wave_crest) * smoothstep(0.60, 0.14, v_dist) * u_wave_intensity;
 
-            // Decaying Voronoi seafoam lace left in the wake of the receding wave
-            float lace = computeFoamLace(v_world_pos.xy, u_time);
-            float lace_residue = lace * smoothstep(0.02, 0.25, v_dist) * smoothstep(0.60, 0.12, v_dist);
-            float total_foam = clamp(breaker * 0.70 + lace_residue * breaker * 0.85 + swash_line, 0.0, 1.0);
+            // 2. Swash & Backwash cycle: water surges rhythmically onto the beach sand and recedes
+            float swash_cycle = sin(u_time * 2.2);
+            float swash_lead = smoothstep(0.18, 0.01, v_dist - swash_cycle * 0.06);
+            float swash_foam = swash_lead * (0.65 + 0.35 * max(0.0, swash_cycle));
 
-            vec3 shallow_lagoon = vec3(0.12, 0.68, 0.80);
-            vec3 deep_shelf = vec3(0.08, 0.36, 0.58);
-            vec3 sea = mix(shallow_lagoon, deep_shelf, smoothstep(0.08, 0.92, v_dist));
+            // 3. Trailing Voronoi Seafoam Lace (calibrated scale: ~4-5 pixels per cell)
+            vec2 lace_uv = v_world_pos.xy * 0.22 + vec2(u_time * 0.05, -u_time * 0.03);
+            float v1 = voronoi(lace_uv);
+            float v2 = voronoi(lace_uv * 1.8 + vec2(3.1, 7.4));
+            float lace_pattern = (1.0 - smoothstep(0.03, 0.18, v1)) * smoothstep(0.12, 0.75, v2);
+            float lace_residue = lace_pattern * smoothstep(0.02, 0.22, v_dist) * smoothstep(0.55, 0.15, v_dist);
+
+            // Along-shore whitecap breakup (broken waves, not a solid rubber ring)
+            float along_break = 0.75 + 0.25 * sin(along_shore * 0.08);
+
+            float total_foam = clamp(breaker_peaking * 0.90 * along_break + swash_foam * 0.75 + lace_residue * 0.55, 0.0, 1.0);
+
+            // Natural marine lagoon gradient
+            vec3 shallow_sand_water = vec3(0.20, 0.72, 0.82);
+            vec3 mid_aquamarine = vec3(0.11, 0.60, 0.78);
+            vec3 deep_shelf = vec3(0.07, 0.30, 0.55);
+
+            vec3 sea = mix(shallow_sand_water, mid_aquamarine, smoothstep(0.02, 0.25, v_dist));
+            sea = mix(sea, deep_shelf, smoothstep(0.25, 0.90, v_dist));
 
             water_color = mix(sea, vec3(0.98, 1.0, 1.0), total_foam);
-            water_color += vec3(1.0, 0.95, 0.85) * (sun_spec * (1.0 - total_foam * 0.45));
-            alpha = clamp((1.0 - v_dist * 0.75) * 0.80 + total_foam * 0.35, 0.0, 0.94);
+            water_color += vec3(1.0, 0.96, 0.88) * (sun_spec * (1.0 - total_foam * 0.50));
+            alpha = clamp(0.72 + total_foam * 0.24 - v_dist * 0.10, 0.0, 0.95);
 
         } else {
             // ============================================================
             // OPTION B: Depth Buffer Intersection (RiME / Roystan)
-            // (Real-time terrain depth contact, multi-band lapping noise)
+            // (Concentric lapping foam rings, cel-shaded noise cutoff, shallow caustics)
             // ============================================================
+
+            // Accurate physical water depth combining terrain depth intersection + coastal shelf bathymetry
             vec2 map_uv = clamp(v_world_pos.xy / 1024.0, 0.0, 1.0);
             float terrain_depth = texture(u_heightmap, map_uv).r;
             float terrain_z = (1.0 - terrain_depth) * 200.0;
-            float water_z = v_world_pos.z;
-            float water_depth = max(0.0, water_z - terrain_z);
+            float contact_depth = max(0.0, v_world_pos.z - terrain_z);
+            float shelf_depth = pow(v_dist, 0.82) * 5.5;
+            float water_depth = (terrain_depth < 0.999) ? min(contact_depth, shelf_depth) : shelf_depth;
 
-            // Proximity to contact: 1.0 at shore/rocks, decaying smoothly into deeper water
-            float depth_fade = 1.0 - clamp(water_depth / 0.80, 0.0, 1.0);
-            if (terrain_depth >= 0.999) depth_fade = 1.0 - v_dist;
+            // Normalized depth proximity: 0.0 at shore contact -> 1.0 in deeper water
+            float depth_norm = clamp(water_depth / 4.0, 0.0, 1.0);
 
-            float lace = computeFoamLace(v_world_pos.xy, u_time);
-            float caust = computeCaustics(v_world_pos.xy, u_time) * depth_fade * 0.35;
+            // 1. Soft Shoreline Contact Rim
+            float shore_rim = smoothstep(0.12, 0.01, depth_norm);
 
-            // Rhythmic lapping bands with organic noise thresholding
-            float lapping = sin(depth_fade * 26.0 - u_time * 3.6);
-            float band1 = step(0.60, lapping) * depth_fade * u_wave_intensity;
-            float shore_contact = smoothstep(0.70, 0.98, depth_fade);
-            float rime_foam = clamp(band1 * 0.75 + lace * depth_fade * 0.60 + shore_contact * 0.85, 0.0, 1.0);
+            // 2. RiME Rhythmic Concentric Lapping Rings
+            float ring_phase = depth_norm * 16.0 - u_time * 2.8;
+            float ring1 = sin(ring_phase);
 
-            vec3 shallow_turq = vec3(0.14, 0.72, 0.82) + vec3(0.25, 0.30, 0.20) * caust;
-            vec3 deep_blue = vec3(0.07, 0.30, 0.52);
-            vec3 sea = mix(shallow_turq, deep_blue, smoothstep(0.12, 0.95, v_dist));
+            // 3. Cel-Shaded Organic Noise Cutoff (calibrated scale: ~8 pixels per noise patch)
+            vec2 noise_uv = v_world_pos.xy * 0.12 + vec2(u_time * 0.05, u_time * 0.03);
+            float n_fbm = voronoi(noise_uv) * 0.65 + voronoi(noise_uv * 2.2 + vec2(4.3, 1.9)) * 0.35;
+            float band_cutoff = 0.45 - (1.0 - depth_norm) * 0.22;
+            float lapping_foam = step(band_cutoff, ring1 * 0.65 + (1.0 - n_fbm) * 0.45) * smoothstep(0.85, 0.10, depth_norm) * u_wave_intensity;
 
-            water_color = mix(sea, vec3(0.98, 1.0, 1.0), rime_foam);
-            water_color += vec3(1.0, 0.96, 0.88) * (sun_spec * 0.65);
-            alpha = clamp((1.0 - v_dist * 0.70) * 0.78 + rime_foam * 0.38, 0.0, 0.95);
+            // 4. Dancing Shallow Water Caustics (calibrated scale: ~12-16 pixels)
+            vec2 c_uv1 = v_world_pos.xy * 0.075 + vec2(u_time * 0.07, u_time * 0.04);
+            vec2 c_uv2 = v_world_pos.xy * 0.075 - vec2(u_time * 0.05, -u_time * 0.06);
+            float caust = pow(1.0 - abs(voronoi(c_uv1) - voronoi(c_uv2)), 3.0) * smoothstep(0.80, 0.15, depth_norm) * 0.42;
+
+            float rime_foam = clamp(shore_rim * 0.95 + lapping_foam * 0.85, 0.0, 1.0);
+
+            // Iconic RiME / Zelda Wind Waker Jewel-Tone Palette
+            vec3 rime_lagoon = vec3(0.08, 0.78, 0.88);
+            vec3 rime_deep = vec3(0.04, 0.30, 0.58);
+            vec3 sea = mix(rime_lagoon, rime_deep, smoothstep(0.05, 0.75, depth_norm));
+            sea += vec3(0.28, 0.35, 0.20) * caust;
+
+            water_color = mix(sea, vec3(0.99, 1.0, 1.0), rime_foam);
+            water_color += vec3(1.0, 0.98, 0.92) * (sun_spec * 0.55);
+            alpha = clamp(0.78 + rime_foam * 0.20 - depth_norm * 0.10, 0.0, 0.96);
         }
 
         frag_color = vec4(water_color, alpha);
@@ -1903,50 +1934,15 @@
         vec2 center = vec2(WORLD_COORD_SIZE * 0.5, WORLD_COORD_SIZE * 0.5);
         float R = WORLD_COORD_SIZE * 0.5;
 
-        float z_disp = 0.0;
-        vec3 norm = vec3(0.0, 0.0, 1.0);
-        float swell_crest = 0.0;
-
-        if (u_wave_mode == 0) {
-            // Option A: Physical Gerstner swell
-            float t = u_time * 1.8;
-            float k1 = 0.08;
-            float ph1 = (in_pos.x * 0.82 + in_pos.y * 0.57) * k1 - t * 1.1;
-            float s1 = sin(ph1);
-            float c1 = cos(ph1);
-
-            float k2 = 0.14;
-            float ph2 = (in_pos.x * 0.90 - in_pos.y * 0.43) * k2 - t * 1.4;
-            float s2 = sin(ph2);
-            float c2 = cos(ph2);
-
-            float k3 = 0.28;
-            float ph3 = (in_pos.x * 0.60 + in_pos.y * 0.80) * k3 - t * 2.2;
-            float s3 = sin(ph3);
-
-            float amp1 = 0.012 * u_wave_intensity;
-            float amp2 = 0.007 * u_wave_intensity;
-            float amp3 = 0.003 * u_wave_intensity;
-
-            z_disp = (pow(max(0.0, s1), 2.0) - 0.5) * amp1 +
-                     (pow(max(0.0, s2), 2.0) - 0.5) * amp2 +
-                     s3 * amp3;
-
-            float dx = -amp1 * k1 * 0.82 * c1 - amp2 * k2 * 0.90 * c2;
-            float dy = -amp1 * k1 * 0.57 * c1 + amp2 * k2 * 0.43 * c2;
-            norm = normalize(vec3(-dx, -dy, 1.0));
-            swell_crest = max(0.0, s1) * max(0.0, s2);
-        } else {
-            // Option B: RiME / Roystan gentle ocean swell
-            float t = u_time * 1.4;
-            z_disp = sin(in_pos.x * 0.15 + t) * cos(in_pos.y * 0.15 + t * 0.8) * 0.008 * u_wave_intensity;
-        }
+        float t = u_time * 1.5;
+        // Micro-scale physical swell displacement across open ocean plane (smooth, no polygon creasing)
+        float z_disp = (sin(in_pos.x * 0.045 + t) * cos(in_pos.y * 0.045 + t * 0.8) * 0.005) * u_wave_intensity;
 
         vec3 p_world = vec3(in_pos.xy, in_pos.z + z_disp);
         v_world_pos = p_world;
-        v_world_norm = norm;
+        v_world_norm = vec3(0.0, 0.0, 1.0);
         v_base_color = in_color;
-        v_swell = swell_crest;
+        v_swell = z_disp;
 
         vec3 p = vec3(p_world.x - center.x, center.y - p_world.y, p_world.z);
 
@@ -2000,14 +1996,30 @@
     out vec4 frag_color;
 
     void main() {
-        // Fine capillary chop and micro-ripples across open ocean
-        vec2 uv_ocean = v_world_pos.xy;
-        vec2 dN_ripple = vec2(
-            cos(dot(uv_ocean, vec2(1.8, 1.3)) - u_time * 2.5) * 1.8 - cos(dot(uv_ocean, vec2(-1.4, 1.9)) + u_time * 2.8) * 1.4,
-            sin(dot(uv_ocean, vec2(-1.4, 1.9)) + u_time * 2.8) * 1.9 + sin(dot(uv_ocean, vec2(1.8, 1.3)) - u_time * 2.5) * 1.3
-        ) * (0.025 * u_wave_intensity);
+        // Multi-octave wave ripples & capillary chop with natural physical wavelengths
+        // Octave 1: Macro swells (~120 world units)
+        vec2 uv1 = v_world_pos.xy * 0.052;
+        vec2 dN1 = vec2(
+            cos(uv1.x * 0.8 + uv1.y * 0.6 - u_time * 1.8) * 0.8,
+            sin(uv1.x * 0.6 - uv1.y * 0.8 + u_time * 1.5) * 0.8
+        ) * 0.025;
 
-        vec3 N = normalize(v_world_norm + vec3(dN_ripple, 0.0));
+        // Octave 2: Wind chop (~35 world units)
+        vec2 uv2 = v_world_pos.xy * 0.18;
+        vec2 dN2 = vec2(
+            cos(uv2.x * 1.2 - uv2.y * 0.7 - u_time * 2.6) * 1.2,
+            sin(uv2.x * 0.7 + uv2.y * 1.2 - u_time * 2.3) * 1.2
+        ) * 0.015;
+
+        // Octave 3: Capillary ripples (~12 world units)
+        vec2 uv3 = v_world_pos.xy * 0.52;
+        vec2 dN3 = vec2(
+            sin(uv3.x * 1.1 + uv3.y * 0.9 + u_time * 3.8),
+            cos(uv3.x * 0.9 - uv3.y * 1.1 - u_time * 3.4)
+        ) * 0.008;
+
+        vec2 dN = (dN1 + dN2 + dN3) * u_wave_intensity;
+        vec3 N = normalize(vec3(dN, 1.0));
         vec3 L = normalize(u_sun_world_dir);
         vec3 V = normalize(vec3(0.0, 0.45, 0.89));
         vec3 H = normalize(L + V);
@@ -2015,7 +2027,7 @@
         float NdotV = max(0.0, dot(N, V));
         float fresnel = 0.04 + 0.96 * pow(1.0 - NdotV, 5.0);
 
-        float sun_spec = pow(max(0.0, dot(N, H)), 64.0) * 1.35;
+        float sun_spec = pow(max(0.0, dot(N, H)), 48.0) * 1.20;
 
         vec3 deep_ocean = vec3(0.04, 0.18, 0.35);
         vec3 sky_refl = vec3(0.35, 0.60, 0.82);
@@ -2023,25 +2035,16 @@
         vec3 water_color = mix(deep_ocean, sky_refl, fresnel);
         water_color += vec3(1.0, 0.96, 0.85) * sun_spec;
 
-        if (u_wave_mode == 0) {
-            // Option A: Physical Gerstner swell whitecaps at peak steepness
-            if (v_swell > 0.65) {
-                float cap = smoothstep(0.65, 0.92, v_swell) * 0.35 * u_wave_intensity;
-                water_color = mix(water_color, vec3(0.96, 0.98, 1.0), cap);
-            }
-        } else {
-            // Option B: RiME / Roystan Shallow Reef & Sandbar Foam
-            vec2 map_uv = clamp(v_world_pos.xy / 1024.0, 0.0, 1.0);
-            float terrain_depth = texture(u_heightmap, map_uv).r;
-            if (terrain_depth < 0.999) {
-                float terrain_z = (1.0 - terrain_depth) * 200.0;
-                float water_depth = max(0.0, v_world_pos.z - terrain_z);
-                if (water_depth < 1.4) {
-                    float depth_fade = 1.0 - (water_depth / 1.4);
-                    float rime_pulse = sin(depth_fade * 18.0 - u_time * 3.4);
-                    float reef_foam = step(0.65, rime_pulse) * depth_fade * 0.85 * u_wave_intensity;
-                    water_color = mix(water_color, vec3(0.98, 1.0, 1.0), reef_foam);
-                }
+        // Island shelf shallow color transition
+        vec2 map_uv = clamp(v_world_pos.xy / 1024.0, 0.0, 1.0);
+        float terrain_depth = texture(u_heightmap, map_uv).r;
+        if (terrain_depth < 0.999) {
+            float terrain_z = (1.0 - terrain_depth) * 200.0;
+            float water_depth = max(0.0, v_world_pos.z - terrain_z);
+            if (water_depth < 6.0) {
+                float shallow_factor = 1.0 - (water_depth / 6.0);
+                vec3 shelf_color = (u_wave_mode == 1) ? vec3(0.08, 0.72, 0.84) : vec3(0.10, 0.58, 0.74);
+                water_color = mix(water_color, shelf_color, shallow_factor * 0.75);
             }
         }
 

@@ -487,7 +487,7 @@ def build_micropoly_trees(gen, sample_mesh_elevation, height_scale: float = 70.0
     return np.array(tree_verts, dtype=np.float32)
 
 
-def build_coastal_surf_ribbon(gen, ribbon_width: float = 24.0):
+def build_coastal_surf_ribbon(gen, ribbon_width: float = 32.0):
     """Generates 3D continuous, watertight coastal wave ribbons along organic island coastline contours.
     Features:
     - Smooth continuous corner seaward normals: eliminates all quad overlap, wedge gaps, and z-fighting.
@@ -543,7 +543,7 @@ def build_coastal_surf_ribbon(gen, ribbon_width: float = 24.0):
 
     # 2. Build multi-ring concentric triangle strip along fractal edge paths
     surf_verts = []
-    effective_width = max(0.8, min(4.5, ribbon_width))
+    effective_width = max(16.0, min(55.0, ribbon_width))
 
     for e in coast_edges:
         n0 = corner_normals.get(e.v0.index, np.array([0.0, 1.0]))
@@ -562,7 +562,7 @@ def build_coastal_surf_ribbon(gen, ribbon_width: float = 24.0):
         lagoon_col = [0.12, 0.65, 0.78]
         deep_col = [0.08, 0.32, 0.55]
 
-        ring_bands = [(0.0, 0.35), (0.35, 0.70), (0.70, 1.0)]
+        ring_bands = [(0.0, 0.15), (0.15, 0.35), (0.35, 0.58), (0.58, 0.80), (0.80, 1.0)]
 
         for k in range(n_pts - 1):
             t0 = k / float(max(1, n_pts - 1))
@@ -1416,7 +1416,7 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
         tree_arr = build_micropoly_trees(gen, sample_mesh_elevation, height_scale, tree_density)
 
         # 3D Coastal Wave Ribbons along Island Boundary Edges
-        surf_arr = build_coastal_surf_ribbon(gen, ribbon_width=2.2 * wave_intensity)
+        surf_arr = build_coastal_surf_ribbon(gen, ribbon_width=32.0 * wave_intensity)
 
         n_verts = len(vbo_data)
         n_river = len(river_arr) // 10
