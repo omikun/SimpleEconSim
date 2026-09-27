@@ -660,6 +660,26 @@
           <div class="slider-label"><span>Wave Intensity</span><span id="val-wave-intensity">1.00x</span></div>
           <input type="range" id="slider-wave-intensity" min="0.1" max="2.5" step="0.05" value="1.0">
         </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px;">
+          <div class="slider-group" style="margin-bottom: 0;">
+            <div class="slider-label"><span>Speed</span><span id="val-wave-speed">0.65x</span></div>
+            <input type="range" id="slider-wave-speed" min="0.1" max="2.0" step="0.05" value="0.65">
+          </div>
+          <div class="slider-group" style="margin-bottom: 0;">
+            <div class="slider-label"><span>Period / Sets</span><span id="val-wave-period">1.20x</span></div>
+            <input type="range" id="slider-wave-period" min="0.3" max="2.5" step="0.05" value="1.20">
+          </div>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px;">
+          <div class="slider-group" style="margin-bottom: 0;">
+            <div class="slider-label"><span>Foam Coverage</span><span id="val-foam-coverage">0.55x</span></div>
+            <input type="range" id="slider-foam-coverage" min="0.05" max="2.0" step="0.05" value="0.55">
+          </div>
+          <div class="slider-group" style="margin-bottom: 0;">
+            <div class="slider-label"><span>Coast Desync</span><span id="val-wave-desync">1.00x</span></div>
+            <input type="range" id="slider-wave-desync" min="0.0" max="2.0" step="0.05" value="1.00">
+          </div>
+        </div>
       </div>
 
       <!-- Procedural Shaders Row -->
@@ -954,6 +974,10 @@
       micropoly_waves: true,
       wave_mode: 'option_a',
       wave_intensity: 1.0,
+      wave_speed: 0.65,
+      wave_period: 1.20,
+      foam_coverage: 0.55,
+      wave_desync: 1.00,
       micropoly_strata: true,
       micropoly_parcels: true,
       micropoly_grain: true,
@@ -1665,7 +1689,11 @@
     uniform float u_max_z;
     uniform float u_time;
     uniform float u_wave_intensity;
-    uniform highp int u_wave_mode; // 0: gerstner, 1: foam_lace, 2: hybrid, 3: stylized
+    uniform float u_wave_speed;
+    uniform float u_wave_period;
+    uniform float u_foam_coverage;
+    uniform float u_wave_desync;
+    uniform highp int u_wave_mode;
     uniform vec3 u_sun_world_dir;
 
     out vec3 v_color;
@@ -1680,48 +1708,69 @@
         vec2 center = vec2(WORLD_COORD_SIZE * 0.5, WORLD_COORD_SIZE * 0.5);
         float R = WORLD_COORD_SIZE * 0.5;
 
-        // Expand the coastal shelf seaward so waves have room to form, roll, and crest
-        // in_dist: 0.0 at shore -> 1.0 at outer shelf
-        vec2 shelf_xy = in_pos.xy + in_normal.xy * (in_dist * 22.0);
+        // in_pos.xy already contains the outward shelf offset from build_coastal_surf_ribbon
+        vec2 p_base = in_pos.xy;
 
         float z_offset = 0.0;
         vec2 horiz_offset = vec2(0.0);
         float crest_val = 0.0;
         float wave_phase = 0.0;
 
-        // Along-shore coordinate for organic, broken wave crests instead of repetitive rings
+        // Prevailing open-ocean swell direction from North-West (-X, +Y)
+        vec2 swell_dir = normalize(vec2(-0.707, 0.707));
+        float exposure = dot(in_normal.xy, swell_dir);
+        // Coasts facing the swell get full energy; sheltered leeward bays get gentle water
+        float coast_exposure = mix(1.0, clamp(exposure * 0.85 + 0.40, 0.05, 1.0), u_wave_desync);
+
+        // Along-shore coordinate arc length for desynchronizing different coastal sectors
         float along_shore = dot(in_pos.xy, vec2(-in_normal.y, in_normal.x));
-        float shore_variation = sin(along_shore * 0.045) * 0.85 + cos(along_shore * 0.11) * 0.40;
+        float sector_id = floor(along_shore * 0.012);
+        float sector_phase = sin(sector_id * 14.123) * 6.2831;
+        float local_desync = (sin(along_shore * 0.018) * 2.2 + cos(along_shore * 0.042) * 1.1) * u_wave_desync;
+
+        // Slower, relaxed, natural wave pace
+        float t = u_time * (0.85 * u_wave_speed);
+
+        // Wave packet groups (intermittent wave sets followed by a calm lull)
+        float group_phase = t * 0.25 + sector_phase + along_shore * 0.008;
+        float wave_packet = pow(clamp(sin(group_phase), 0.0, 1.0), 1.5);
+
+        // Wave period & wavelength scale
+        float k_shelf = 5.2 / max(0.2, u_wave_period);
 
         if (u_wave_mode == 0) {
             // ============================================================
-            // OPTION A: 2D SDF Refraction & Swash (Physical Gerstner Shoaling)
+            // OPTION A: 2D SDF Refraction & Physical Breaker Swash
             // ============================================================
-            // Wave propagation rolls inward toward shore (in_dist -> 0)
-            wave_phase = u_time * 2.2 - in_dist * 7.5 + shore_variation * (1.0 - in_dist * 0.45);
+            // Waves roll inward toward shore with desynchronized phases
+            float wave_phase1 = t * 2.0 - in_dist * k_shelf + local_desync;
+            float wave_phase2 = t * 1.25 - in_dist * (k_shelf * 0.60) + sector_phase * 0.5;
+            wave_phase = mix(wave_phase1, wave_phase2, 0.30);
 
-            // Shoaling steepness: wave peaks sharply near the breaker zone (in_dist ~ 0.25)
-            float shoaling = 1.0 + 1.25 * exp(-pow((in_dist - 0.25) * 4.2, 2.0));
-            float s = clamp(sin(wave_phase), 0.0, 1.0);
-            float sharp_crest = pow(s, 2.8) * shoaling;
+            float s1 = sin(wave_phase1);
+            float s2 = sin(wave_phase2);
+            float composite = clamp(s1 * 0.70 + s2 * 0.30, 0.0, 1.0);
 
-            z_offset = (sharp_crest * 0.28 - 0.04) * (0.012 * u_wave_intensity);
-            // Trochoidal horizontal push toward shore
-            horiz_offset = -in_normal.xy * (cos(wave_phase) * 0.010 * u_wave_intensity * shoaling);
+            // Shoaling steepness: peaks in shallow breaker zone (in_dist ~ 0.22)
+            // Multiplied by coast exposure and wave packet group
+            float shoaling = (1.0 + 1.2 * exp(-pow((in_dist - 0.22) * 4.5, 2.0))) * coast_exposure * (0.35 + 0.65 * wave_packet);
+            float sharp_crest = pow(composite, 2.8) * shoaling;
+
+            z_offset = (sharp_crest * 0.24 - 0.03) * (0.012 * u_wave_intensity);
+            horiz_offset = -in_normal.xy * (cos(wave_phase) * 0.008 * u_wave_intensity * shoaling);
             crest_val = sharp_crest;
 
         } else {
             // ============================================================
-            // OPTION B: RiME / Roystan Cel-Shaded Shelf (Serene Glassy Water)
+            // OPTION B: RiME / Roystan Cel-Shaded Calm Shelf
             // ============================================================
-            // Gentle serene breathing swell, no sharp physical breaker peaks
-            float gentle_swell = sin(u_time * 1.5 - in_dist * 3.8 + sin(along_shore * 0.03) * 0.5);
+            float gentle_swell = sin(t * 1.4 - in_dist * (k_shelf * 0.5) + local_desync * 0.3);
             z_offset = gentle_swell * 0.003 * u_wave_intensity;
-            wave_phase = u_time * 1.5;
+            wave_phase = t;
             crest_val = 0.0;
         }
 
-        vec3 p_world = vec3(shelf_xy + horiz_offset, in_pos.z + z_offset);
+        vec3 p_world = vec3(p_base + horiz_offset, in_pos.z + z_offset);
         v_world_pos = p_world;
         v_world_norm = in_normal;
         v_color = in_color;
@@ -1776,6 +1825,10 @@
 
     uniform float u_time;
     uniform float u_wave_intensity;
+    uniform float u_wave_speed;
+    uniform float u_wave_period;
+    uniform float u_foam_coverage;
+    uniform float u_wave_desync;
     uniform highp int u_wave_mode;
     uniform vec3 u_sun_world_dir;
     uniform highp sampler2D u_heightmap;
@@ -1813,54 +1866,59 @@
         vec3 water_color = v_color;
         float alpha = 0.85;
 
-        // Along-shore coordinate for organic, broken wave variation
+        // Along-shore coordinate arc length for desynchronized local timing
         float along_shore = dot(v_world_pos.xy, vec2(-v_world_norm.y, v_world_norm.x));
+        float local_desync = (sin(along_shore * 0.018) * 2.2 + cos(along_shore * 0.042) * 1.1) * u_wave_desync;
+        float t = u_time * (0.85 * u_wave_speed);
+
+        // Coast exposure to open ocean swell (North-West)
+        vec2 swell_dir = normalize(vec2(-0.707, 0.707));
+        float exposure = dot(v_world_norm.xy, swell_dir);
+        float coast_exposure = mix(1.0, clamp(exposure * 0.85 + 0.40, 0.05, 1.0), u_wave_desync);
+
+        // Smooth outer fade so coastal ribbon melts seamlessly into ocean plane (ELIMINATES DARK BLUE OVERLAP)
+        float outer_fade = 1.0 - smoothstep(0.40, 0.92, v_dist);
 
         if (u_wave_mode == 0) {
             // ============================================================
             // OPTION A: 2D SDF Shoreline Wave Refraction & Breaker Swash
-            // (Physical Gerstner shoaling, crashing breakers & decaying foam lace)
             // ============================================================
 
-            // 1. Peaking Breaker Wave Crest & Whitecap foam
-            float breaker_peaking = smoothstep(0.50, 0.95, v_wave_crest) * smoothstep(0.60, 0.14, v_dist) * u_wave_intensity;
+            // 1. Peaking Breaker Wave Crest (only on exposed coasts, not everywhere!)
+            float breaker = smoothstep(0.52, 0.94, v_wave_crest) * smoothstep(0.55, 0.12, v_dist) * u_wave_intensity * u_foam_coverage;
 
-            // 2. Swash & Backwash cycle: water surges rhythmically onto the beach sand and recedes
-            float swash_cycle = sin(u_time * 2.2);
-            float swash_lead = smoothstep(0.18, 0.01, v_dist - swash_cycle * 0.06);
-            float swash_foam = swash_lead * (0.65 + 0.35 * max(0.0, swash_cycle));
+            // 2. Beach Swash & Backwash cycle: water surges onto sand rhythmically and recedes
+            float swash_cycle = sin(t * 1.1 + local_desync * 0.4);
+            float swash_lead = smoothstep(0.14, 0.01, v_dist - swash_cycle * 0.035);
+            float swash_foam = swash_lead * (0.50 + 0.40 * max(0.0, swash_cycle)) * coast_exposure * u_foam_coverage;
 
-            // 3. Trailing Voronoi Seafoam Lace (calibrated scale: ~4-5 pixels per cell)
-            vec2 lace_uv = v_world_pos.xy * 0.22 + vec2(u_time * 0.05, -u_time * 0.03);
+            // 3. Trailing Voronoi Seafoam Lace (~4-5 pixels per cell, only trailing active breakers)
+            vec2 lace_uv = v_world_pos.xy * 0.20 + vec2(t * 0.03, -t * 0.02);
             float v1 = voronoi(lace_uv);
-            float v2 = voronoi(lace_uv * 1.8 + vec2(3.1, 7.4));
-            float lace_pattern = (1.0 - smoothstep(0.03, 0.18, v1)) * smoothstep(0.12, 0.75, v2);
-            float lace_residue = lace_pattern * smoothstep(0.02, 0.22, v_dist) * smoothstep(0.55, 0.15, v_dist);
+            float v2 = voronoi(lace_uv * 1.7 + vec2(3.1, 7.4));
+            float lace_pattern = (1.0 - smoothstep(0.03, 0.16, v1)) * smoothstep(0.14, 0.75, v2);
+            float lace_residue = lace_pattern * smoothstep(0.03, 0.20, v_dist) * smoothstep(0.48, 0.14, v_dist) * breaker * 0.65;
 
-            // Along-shore whitecap breakup (broken waves, not a solid rubber ring)
-            float along_break = 0.75 + 0.25 * sin(along_shore * 0.08);
+            float total_foam = clamp(breaker * 0.85 + swash_foam * 0.70 + lace_residue * 0.50, 0.0, 1.0);
 
-            float total_foam = clamp(breaker_peaking * 0.90 * along_break + swash_foam * 0.75 + lace_residue * 0.55, 0.0, 1.0);
-
-            // Natural marine lagoon gradient
+            // Natural marine lagoon gradient matching ocean plane at outer edge
             vec3 shallow_sand_water = vec3(0.20, 0.72, 0.82);
-            vec3 mid_aquamarine = vec3(0.11, 0.60, 0.78);
-            vec3 deep_shelf = vec3(0.07, 0.30, 0.55);
+            vec3 mid_aquamarine = vec3(0.11, 0.55, 0.75);
+            vec3 ocean_match = vec3(0.06, 0.24, 0.45);
 
-            vec3 sea = mix(shallow_sand_water, mid_aquamarine, smoothstep(0.02, 0.25, v_dist));
-            sea = mix(sea, deep_shelf, smoothstep(0.25, 0.90, v_dist));
+            vec3 sea = mix(shallow_sand_water, mid_aquamarine, smoothstep(0.02, 0.30, v_dist));
+            sea = mix(sea, ocean_match, smoothstep(0.30, 0.85, v_dist));
 
             water_color = mix(sea, vec3(0.98, 1.0, 1.0), total_foam);
             water_color += vec3(1.0, 0.96, 0.88) * (sun_spec * (1.0 - total_foam * 0.50));
-            alpha = clamp(0.72 + total_foam * 0.24 - v_dist * 0.10, 0.0, 0.95);
+            // Completely fades to alpha 0 at outer shelf to avoid any dark halo
+            alpha = clamp(0.70 + total_foam * 0.25 - v_dist * 0.18, 0.0, 0.95) * outer_fade;
 
         } else {
             // ============================================================
-            // OPTION B: Depth Buffer Intersection (RiME / Roystan)
-            // (Concentric lapping foam rings, cel-shaded noise cutoff, shallow caustics)
+            // OPTION B: RiME / Roystan Cel-Shaded Depth Buffer Foam
             // ============================================================
 
-            // Accurate physical water depth combining terrain depth intersection + coastal shelf bathymetry
             vec2 map_uv = clamp(v_world_pos.xy / 1024.0, 0.0, 1.0);
             float terrain_depth = texture(u_heightmap, map_uv).r;
             float terrain_z = (1.0 - terrain_depth) * 200.0;
@@ -1871,35 +1929,38 @@
             // Normalized depth proximity: 0.0 at shore contact -> 1.0 in deeper water
             float depth_norm = clamp(water_depth / 4.0, 0.0, 1.0);
 
-            // 1. Soft Shoreline Contact Rim
-            float shore_rim = smoothstep(0.12, 0.01, depth_norm);
+            // 1. Delicate, thin Shoreline Contact Rim
+            float shore_rim = smoothstep(0.04, 0.005, depth_norm) * 0.60;
 
-            // 2. RiME Rhythmic Concentric Lapping Rings
-            float ring_phase = depth_norm * 16.0 - u_time * 2.8;
-            float ring1 = sin(ring_phase);
+            // 2. Crisp, Thin Concentric Lapping Rings (NOT solid white flooding!)
+            float ring_phase = depth_norm * (15.0 * u_wave_period) - t * 2.2 + local_desync * 0.35;
+            float ring = sin(ring_phase);
+            float band1 = smoothstep(0.12, 0.0, abs(ring - 0.70)) * smoothstep(0.85, 0.12, depth_norm);
+            float band2 = smoothstep(0.10, 0.0, abs(sin(ring_phase * 0.5 + 1.2) - 0.75)) * smoothstep(0.65, 0.18, depth_norm) * 0.65;
 
-            // 3. Cel-Shaded Organic Noise Cutoff (calibrated scale: ~8 pixels per noise patch)
-            vec2 noise_uv = v_world_pos.xy * 0.12 + vec2(u_time * 0.05, u_time * 0.03);
-            float n_fbm = voronoi(noise_uv) * 0.65 + voronoi(noise_uv * 2.2 + vec2(4.3, 1.9)) * 0.35;
-            float band_cutoff = 0.45 - (1.0 - depth_norm) * 0.22;
-            float lapping_foam = step(band_cutoff, ring1 * 0.65 + (1.0 - n_fbm) * 0.45) * smoothstep(0.85, 0.10, depth_norm) * u_wave_intensity;
+            // 3. Cel-Shaded Organic Noise Cutoff
+            vec2 noise_uv = v_world_pos.xy * 0.10 + vec2(t * 0.04, t * 0.025);
+            float n_fbm = voronoi(noise_uv) * 0.60 + voronoi(noise_uv * 2.0) * 0.40;
+            float rime_foam = clamp((shore_rim + (band1 + band2) * smoothstep(0.25, 0.65, n_fbm)) * u_foam_coverage * u_wave_intensity, 0.0, 1.0);
 
-            // 4. Dancing Shallow Water Caustics (calibrated scale: ~12-16 pixels)
-            vec2 c_uv1 = v_world_pos.xy * 0.075 + vec2(u_time * 0.07, u_time * 0.04);
-            vec2 c_uv2 = v_world_pos.xy * 0.075 - vec2(u_time * 0.05, -u_time * 0.06);
-            float caust = pow(1.0 - abs(voronoi(c_uv1) - voronoi(c_uv2)), 3.0) * smoothstep(0.80, 0.15, depth_norm) * 0.42;
+            // 4. Dancing Shallow Water Caustics in crystal turquoise shelf
+            vec2 c_uv1 = v_world_pos.xy * 0.070 + vec2(t * 0.06, t * 0.035);
+            vec2 c_uv2 = v_world_pos.xy * 0.070 - vec2(t * 0.04, -t * 0.045);
+            float caust = pow(1.0 - abs(voronoi(c_uv1) - voronoi(c_uv2)), 3.0) * smoothstep(0.80, 0.12, depth_norm) * 0.45;
 
-            float rime_foam = clamp(shore_rim * 0.95 + lapping_foam * 0.85, 0.0, 1.0);
+            // Vibrant RiME / Zelda Wind Waker Jewel-Tone Palette
+            vec3 rime_turquoise = vec3(0.08, 0.80, 0.90);
+            vec3 rime_lagoon = vec3(0.06, 0.55, 0.78);
+            vec3 ocean_match = vec3(0.04, 0.22, 0.44);
 
-            // Iconic RiME / Zelda Wind Waker Jewel-Tone Palette
-            vec3 rime_lagoon = vec3(0.08, 0.78, 0.88);
-            vec3 rime_deep = vec3(0.04, 0.30, 0.58);
-            vec3 sea = mix(rime_lagoon, rime_deep, smoothstep(0.05, 0.75, depth_norm));
-            sea += vec3(0.28, 0.35, 0.20) * caust;
+            vec3 sea = mix(rime_turquoise, rime_lagoon, smoothstep(0.04, 0.40, depth_norm));
+            sea = mix(sea, ocean_match, smoothstep(0.40, 0.85, depth_norm));
+            sea += vec3(0.25, 0.35, 0.22) * caust;
 
             water_color = mix(sea, vec3(0.99, 1.0, 1.0), rime_foam);
             water_color += vec3(1.0, 0.98, 0.92) * (sun_spec * 0.55);
-            alpha = clamp(0.78 + rime_foam * 0.20 - depth_norm * 0.10, 0.0, 0.96);
+            // Seamless outer shelf fade
+            alpha = clamp(0.72 + rime_foam * 0.20 - depth_norm * 0.15, 0.0, 0.95) * outer_fade;
         }
 
         frag_color = vec4(water_color, alpha);
@@ -1921,6 +1982,8 @@
     uniform float u_max_z;
     uniform float u_time;
     uniform float u_wave_intensity;
+    uniform float u_wave_speed;
+    uniform float u_wave_period;
     uniform highp int u_wave_mode;
     uniform vec3 u_sun_world_dir;
 
@@ -1934,9 +1997,12 @@
         vec2 center = vec2(WORLD_COORD_SIZE * 0.5, WORLD_COORD_SIZE * 0.5);
         float R = WORLD_COORD_SIZE * 0.5;
 
-        float t = u_time * 1.5;
+        float speed = max(0.05, u_wave_speed);
+        float period = max(0.2, u_wave_period);
+        float t = (u_time * 1.5 * speed) / period;
+        float k = 0.045 / period;
         // Micro-scale physical swell displacement across open ocean plane (smooth, no polygon creasing)
-        float z_disp = (sin(in_pos.x * 0.045 + t) * cos(in_pos.y * 0.045 + t * 0.8) * 0.005) * u_wave_intensity;
+        float z_disp = (sin(in_pos.x * k + t) * cos(in_pos.y * k + t * 0.8) * 0.005) * u_wave_intensity;
 
         vec3 p_world = vec3(in_pos.xy, in_pos.z + z_disp);
         v_world_pos = p_world;
@@ -1989,6 +2055,8 @@
 
     uniform float u_time;
     uniform float u_wave_intensity;
+    uniform float u_wave_speed;
+    uniform float u_wave_period;
     uniform highp int u_wave_mode;
     uniform vec3 u_sun_world_dir;
     uniform highp sampler2D u_heightmap;
@@ -1996,26 +2064,30 @@
     out vec4 frag_color;
 
     void main() {
+        float speed = max(0.05, u_wave_speed);
+        float period = max(0.2, u_wave_period);
+        float t = u_time * speed;
+
         // Multi-octave wave ripples & capillary chop with natural physical wavelengths
         // Octave 1: Macro swells (~120 world units)
-        vec2 uv1 = v_world_pos.xy * 0.052;
+        vec2 uv1 = v_world_pos.xy * (0.052 / period);
         vec2 dN1 = vec2(
-            cos(uv1.x * 0.8 + uv1.y * 0.6 - u_time * 1.8) * 0.8,
-            sin(uv1.x * 0.6 - uv1.y * 0.8 + u_time * 1.5) * 0.8
+            cos(uv1.x * 0.8 + uv1.y * 0.6 - t * 1.8) * 0.8,
+            sin(uv1.x * 0.6 - uv1.y * 0.8 + t * 1.5) * 0.8
         ) * 0.025;
 
         // Octave 2: Wind chop (~35 world units)
-        vec2 uv2 = v_world_pos.xy * 0.18;
+        vec2 uv2 = v_world_pos.xy * (0.18 / period);
         vec2 dN2 = vec2(
-            cos(uv2.x * 1.2 - uv2.y * 0.7 - u_time * 2.6) * 1.2,
-            sin(uv2.x * 0.7 + uv2.y * 1.2 - u_time * 2.3) * 1.2
+            cos(uv2.x * 1.2 - uv2.y * 0.7 - t * 2.6) * 1.2,
+            sin(uv2.x * 0.7 + uv2.y * 1.2 - t * 2.3) * 1.2
         ) * 0.015;
 
         // Octave 3: Capillary ripples (~12 world units)
         vec2 uv3 = v_world_pos.xy * 0.52;
         vec2 dN3 = vec2(
-            sin(uv3.x * 1.1 + uv3.y * 0.9 + u_time * 3.8),
-            cos(uv3.x * 0.9 - uv3.y * 1.1 - u_time * 3.4)
+            sin(uv3.x * 1.1 + uv3.y * 0.9 + t * 3.8),
+            cos(uv3.x * 0.9 - uv3.y * 1.1 - t * 3.4)
         ) * 0.008;
 
         vec2 dN = (dN1 + dN2 + dN3) * u_wave_intensity;
@@ -2853,6 +2925,8 @@
           gl.uniform1f(gl.getUniformLocation(oceanProg, 'u_max_z'), meshMaxZ);
           gl.uniform1f(gl.getUniformLocation(oceanProg, 'u_time'), performance.now() * 0.001);
           gl.uniform1f(gl.getUniformLocation(oceanProg, 'u_wave_intensity'), typeof state.wave_intensity === 'number' ? state.wave_intensity : 1.0);
+          gl.uniform1f(gl.getUniformLocation(oceanProg, 'u_wave_speed'), typeof state.wave_speed === 'number' ? state.wave_speed : 0.65);
+          gl.uniform1f(gl.getUniformLocation(oceanProg, 'u_wave_period'), typeof state.wave_period === 'number' ? state.wave_period : 1.20);
           gl.uniform1i(gl.getUniformLocation(oceanProg, 'u_wave_mode'), waveModeInt);
           gl.uniform1i(gl.getUniformLocation(oceanProg, 'u_heightmap'), 2);
           gl.uniform3fv(gl.getUniformLocation(oceanProg, 'u_sun_world_dir'), sunDir);
@@ -2896,6 +2970,10 @@
           gl.uniform1f(gl.getUniformLocation(surfProg, 'u_max_z'), meshMaxZ);
           gl.uniform1f(gl.getUniformLocation(surfProg, 'u_time'), performance.now() * 0.001);
           gl.uniform1f(gl.getUniformLocation(surfProg, 'u_wave_intensity'), typeof state.wave_intensity === 'number' ? state.wave_intensity : 1.0);
+          gl.uniform1f(gl.getUniformLocation(surfProg, 'u_wave_speed'), typeof state.wave_speed === 'number' ? state.wave_speed : 0.65);
+          gl.uniform1f(gl.getUniformLocation(surfProg, 'u_wave_period'), typeof state.wave_period === 'number' ? state.wave_period : 1.20);
+          gl.uniform1f(gl.getUniformLocation(surfProg, 'u_foam_coverage'), typeof state.foam_coverage === 'number' ? state.foam_coverage : 0.55);
+          gl.uniform1f(gl.getUniformLocation(surfProg, 'u_wave_desync'), typeof state.wave_desync === 'number' ? state.wave_desync : 1.00);
           gl.uniform1i(gl.getUniformLocation(surfProg, 'u_wave_mode'), waveModeInt);
           gl.uniform1i(gl.getUniformLocation(surfProg, 'u_heightmap'), 2);
           gl.uniform3fv(gl.getUniformLocation(surfProg, 'u_sun_world_dir'), sunDir);
@@ -3840,6 +3918,10 @@
 
     wireRegnumToggle('toggle-mp-waves', 'micropoly_waves');
     wireRegnumSlider('slider-wave-intensity', 'wave_intensity', 'val-wave-intensity', v => `${v.toFixed(2)}x`);
+    wireRegnumSlider('slider-wave-speed', 'wave_speed', 'val-wave-speed', v => `${v.toFixed(2)}x`);
+    wireRegnumSlider('slider-wave-period', 'wave_period', 'val-wave-period', v => `${v.toFixed(2)}x`);
+    wireRegnumSlider('slider-foam-coverage', 'foam_coverage', 'val-foam-coverage', v => `${v.toFixed(2)}x`);
+    wireRegnumSlider('slider-wave-desync', 'wave_desync', 'val-wave-desync', v => `${v.toFixed(2)}x`);
 
     const WAVE_MODE_DESCS = {
       option_a: {
@@ -3989,6 +4071,10 @@
         micropoly_waves: true,
         wave_mode: 'option_a',
         wave_intensity: 1.0,
+        wave_speed: 0.65,
+        wave_period: 1.20,
+        foam_coverage: 0.55,
+        wave_desync: 1.00,
         micropoly_strata: true,
         micropoly_parcels: true,
         micropoly_grain: true,
@@ -4387,6 +4473,14 @@
       setRegnumToggle('toggle-mp-waves', state.micropoly_waves !== false);
       setSlider('slider-wave-intensity', state.wave_intensity !== undefined ? state.wave_intensity : 1.0);
       setVal('val-wave-intensity', `${Number(state.wave_intensity !== undefined ? state.wave_intensity : 1.0).toFixed(2)}x`);
+      setSlider('slider-wave-speed', state.wave_speed !== undefined ? state.wave_speed : 0.65);
+      setVal('val-wave-speed', `${Number(state.wave_speed !== undefined ? state.wave_speed : 0.65).toFixed(2)}x`);
+      setSlider('slider-wave-period', state.wave_period !== undefined ? state.wave_period : 1.20);
+      setVal('val-wave-period', `${Number(state.wave_period !== undefined ? state.wave_period : 1.20).toFixed(2)}x`);
+      setSlider('slider-foam-coverage', state.foam_coverage !== undefined ? state.foam_coverage : 0.55);
+      setVal('val-foam-coverage', `${Number(state.foam_coverage !== undefined ? state.foam_coverage : 0.55).toFixed(2)}x`);
+      setSlider('slider-wave-desync', state.wave_desync !== undefined ? state.wave_desync : 1.00);
+      setVal('val-wave-desync', `${Number(state.wave_desync !== undefined ? state.wave_desync : 1.00).toFixed(2)}x`);
       const effectiveMode = (state.wave_mode === 'option_b' || state.wave_mode === 'foam_lace' || state.wave_mode === 'stylized') ? 'option_b' : 'option_a';
       setSegment('#wave-mode-bar .btn-segment', 'data-mode', effectiveMode);
       updateWaveModeDisplay();
@@ -4581,6 +4675,10 @@
       micropoly_waves: true,
       wave_mode: 'option_a',
       wave_intensity: 1.0,
+      wave_speed: 0.65,
+      wave_period: 1.20,
+      foam_coverage: 0.55,
+      wave_desync: 1.00,
       micropoly_strata: true,
       micropoly_parcels: true,
       micropoly_grain: true,
