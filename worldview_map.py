@@ -1024,7 +1024,8 @@ def draw_hex_map(surface, world, font, font_small):
                     tree_arr = build_micropoly_trees(
                         gen, sample_elevation,
                         height_scale=float(slot_state.get('height_scale', 48.0)),
-                        tree_density=float(slot_state.get('tree_density', 1.28))
+                        tree_density=float(slot_state.get('tree_density', 1.28)),
+                        subdivided_triangles=triangles
                     )
                     for i in range(0, len(tree_arr), 30):
                         p0 = np.array([tree_arr[i], tree_arr[i+1], tree_arr[i+2]], dtype=np.float64)

@@ -350,8 +350,8 @@ def set_active_slot(slot_num: int) -> bool:
         return False
 
 
-def build_micropoly_trees(gen, sample_mesh_elevation, height_scale: float = 70.0, tree_density: float = 1.0):
-    """Generates 3D low-poly faceted tree canopies with macro-cluster regions and organic faded edges.
+def build_micropoly_trees(gen, sample_mesh_elevation, height_scale: float = 70.0, tree_density: float = 1.0, subdivided_triangles=None):
+    """Generates 3D low-poly faceted trees with grounded trunks rooted on subdivided terrain surface.
     Returns Float32Array with 40-byte vertex stride [x, y, z, nx, ny, nz, r, g, b, elev].
     """
     import math
@@ -398,91 +398,179 @@ def build_micropoly_trees(gen, sample_mesh_elevation, height_scale: float = 70.0
 
     tree_verts = []
     rng = random.Random(getattr(gen, 'seed', 42) + 999)
-
-    # Candidate density scales with slider
-    candidate_count = int(max(3, min(96, round(3.5 * tree_density))))
     rad_scale = max(0.50, 1.0 / math.sqrt(1.0 + max(0.0, tree_density - 1.0) * 0.15))
 
-    for c in gen.centers:
-        if c.water or c.ocean or c.biome not in FOREST_BIOMES:
-            continue
-        base_col_info = FOREST_BIOMES[c.biome]
-        base_col = base_col_info[:3]
-        biome_affinity = base_col_info[3]
+    def emit_grounded_tree(tx, ty, tz, el_norm, tr, tg, tb, f_edge):
+        scale_fade = 0.45 + 0.55 * (f_edge ** 0.7)
+        tree_h = rng.uniform(2.6, 5.0) * (1.0 + (height_scale / 100.0) * 0.35) * max(0.65, rad_scale) * scale_fade
+        tree_r = rng.uniform(1.2, 2.2) * rad_scale * scale_fade
 
-        elev_norm = min(1.0, max(0.0, c.elevation))
-        # Treeline: altitude falloff above 0.70 elevation
-        alt_factor = 1.0 - max(0.0, (elev_norm - 0.70) / 0.18)
-        if alt_factor <= 0.05:
-            continue
+        col_var = rng.uniform(0.88, 1.12)
+        leaf_r = min(1.0, tr * col_var)
+        leaf_g = min(1.0, tg * col_var)
+        leaf_b = min(1.0, tb * col_var)
 
-        for _ in range(candidate_count):
-            # Uniform area distribution over the polygon (sqrt for radial Jacobian)
-            angle = rng.uniform(0, 2 * math.pi)
-            rad = math.sqrt(rng.uniform(0.01, 1.0)) * avg_cell_r * 1.30
-            tx = (c.x + math.cos(angle) * rad) * scale_x
-            ty = (c.y + math.sin(angle) * rad) * scale_y
+        # Trunk base firmly planted 0.25 units into terrain surface to eliminate any gap on slopes
+        z_root = tz - 0.25
+        base_z = tz + tree_h * 0.22
+        apex = (tx, ty, tz + tree_h)
 
-            # Evaluate continuous macro forest noise at world scale
-            noise_val = fbm2d(tx * 0.007, ty * 0.007)
-            # Combine macro noise with biome suitability and altitude
+        # 1. Grounded Trunk Geometry (4 quads = 8 triangles)
+        trunk_r = max(0.18, tree_r * 0.22)
+        b_col = (0.28 * col_var, 0.18 * col_var, 0.11 * col_var)
+        t_bot = [
+            (tx - trunk_r, ty - trunk_r, z_root),
+            (tx + trunk_r, ty - trunk_r, z_root),
+            (tx + trunk_r, ty + trunk_r, z_root),
+            (tx - trunk_r, ty + trunk_r, z_root),
+        ]
+        t_top = [
+            (tx - trunk_r, ty - trunk_r, base_z),
+            (tx + trunk_r, ty - trunk_r, base_z),
+            (tx + trunk_r, ty + trunk_r, base_z),
+            (tx - trunk_r, ty + trunk_r, base_z),
+        ]
+        trunk_norms = [
+            (0.0, -1.0, 0.0),
+            (1.0, 0.0, 0.0),
+            (0.0, 1.0, 0.0),
+            (-1.0, 0.0, 0.0),
+        ]
+        for i in range(4):
+            b0 = t_bot[i]
+            b1 = t_bot[(i + 1) % 4]
+            top0 = t_top[i]
+            top1 = t_top[(i + 1) % 4]
+            tnx, tny, tnz = trunk_norms[i]
+            tree_verts.extend([b0[0], b0[1], b0[2], tnx, tny, tnz, b_col[0], b_col[1], b_col[2], el_norm])
+            tree_verts.extend([b1[0], b1[1], b1[2], tnx, tny, tnz, b_col[0], b_col[1], b_col[2], el_norm])
+            tree_verts.extend([top1[0], top1[1], top1[2], tnx, tny, tnz, b_col[0], b_col[1], b_col[2], el_norm])
+
+            tree_verts.extend([b0[0], b0[1], b0[2], tnx, tny, tnz, b_col[0], b_col[1], b_col[2], el_norm])
+            tree_verts.extend([top1[0], top1[1], top1[2], tnx, tny, tnz, b_col[0], b_col[1], b_col[2], el_norm])
+            tree_verts.extend([top0[0], top0[1], top0[2], tnx, tny, tnz, b_col[0], b_col[1], b_col[2], el_norm])
+
+        # 2. Pyramid Canopy (4 side faces + bottom cap)
+        corners = [
+            (tx - tree_r, ty - tree_r, base_z),
+            (tx + tree_r, ty - tree_r, base_z),
+            (tx + tree_r, ty + tree_r, base_z),
+            (tx - tree_r, ty + tree_r, base_z),
+        ]
+        for i in range(4):
+            c_a = corners[i]
+            c_b = corners[(i + 1) % 4]
+            v1 = (c_a[0] - apex[0], c_a[1] - apex[1], c_a[2] - apex[2])
+            v2 = (c_b[0] - apex[0], c_b[1] - apex[1], c_b[2] - apex[2])
+            nx = v1[1] * v2[2] - v1[2] * v2[1]
+            ny = v1[2] * v2[0] - v1[0] * v2[2]
+            nz = v1[0] * v2[1] - v1[1] * v2[0]
+            nlen = math.hypot(nx, ny, nz)
+            if nlen > 1e-4:
+                nx /= nlen; ny /= nlen; nz /= nlen
+            else:
+                nx, ny, nz = 0.0, 0.0, 1.0
+
+            tree_verts.extend([apex[0], apex[1], apex[2], nx, ny, nz, leaf_r, leaf_g, leaf_b, el_norm])
+            tree_verts.extend([c_a[0], c_a[1], c_a[2], nx, ny, nz, leaf_r, leaf_g, leaf_b, el_norm])
+            tree_verts.extend([c_b[0], c_b[1], c_b[2], nx, ny, nz, leaf_r, leaf_g, leaf_b, el_norm])
+
+        # Bottom cap of canopy (facing down)
+        tree_verts.extend([corners[0][0], corners[0][1], corners[0][2], 0.0, 0.0, -1.0, leaf_r * 0.7, leaf_g * 0.7, leaf_b * 0.7, el_norm])
+        tree_verts.extend([corners[1][0], corners[1][1], corners[1][2], 0.0, 0.0, -1.0, leaf_r * 0.7, leaf_g * 0.7, leaf_b * 0.7, el_norm])
+        tree_verts.extend([corners[2][0], corners[2][1], corners[2][2], 0.0, 0.0, -1.0, leaf_r * 0.7, leaf_g * 0.7, leaf_b * 0.7, el_norm])
+
+        tree_verts.extend([corners[0][0], corners[0][1], corners[0][2], 0.0, 0.0, -1.0, leaf_r * 0.7, leaf_g * 0.7, leaf_b * 0.7, el_norm])
+        tree_verts.extend([corners[2][0], corners[2][1], corners[2][2], 0.0, 0.0, -1.0, leaf_r * 0.7, leaf_g * 0.7, leaf_b * 0.7, el_norm])
+        tree_verts.extend([corners[3][0], corners[3][1], corners[3][2], 0.0, 0.0, -1.0, leaf_r * 0.7, leaf_g * 0.7, leaf_b * 0.7, el_norm])
+
+    if subdivided_triangles is not None and len(subdivided_triangles) > 0:
+        # Place trees AFTER subdivision directly on the subdivided mesh surface
+        for t in subdivided_triangles:
+            p0, p1, p2, col, elev, is_riv, poly_idx, norm = t
+            p_idx = int(poly_idx)
+            if is_riv or p_idx < 0 or p_idx >= len(gen.centers):
+                continue
+            c = gen.centers[p_idx]
+            if c.water or c.ocean or c.biome not in FOREST_BIOMES:
+                continue
+            nz = float(norm[2])
+            if nz < 0.62:  # skip steep cliffs and canyon walls
+                continue
+            el = float(elev)
+            if el <= 0.02:  # skip sea/beach
+                continue
+            alt_factor = 1.0 - max(0.0, (el - 0.70) / 0.18)
+            if alt_factor <= 0.05:
+                continue
+
+            cx = (p0[0] + p1[0] + p2[0]) / 3.0
+            cy = (p0[1] + p1[1] + p2[1]) / 3.0
+            base_col_info = FOREST_BIOMES[c.biome]
+            base_col = base_col_info[:3]
+            biome_affinity = base_col_info[3]
+
+            noise_val = fbm2d(cx * 0.007, cy * 0.007)
             potential = (biome_affinity * 0.55 + noise_val * 0.45) * alt_factor
-
-            # Ragged edge fading threshold
-            edge_threshold = 0.42
+            edge_threshold = 0.38
             if potential < edge_threshold:
                 continue
 
-            # Normalized edge factor: 0.0 at edge, 1.0 in dense core
             f_edge = min(1.0, (potential - edge_threshold) / 0.28)
+            density_weight = max(0.05, tree_density)
+            prob = 0.45 * density_weight * (0.25 + 0.75 * (f_edge ** 0.8))
+            if prob <= 1.0:
+                n_trees_here = 1 if rng.random() < prob else 0
+            else:
+                n_trees_here = int(prob) + (1 if rng.random() < (prob - int(prob)) else 0)
+                n_trees_here = min(n_trees_here, 5)
 
-            # Random density fading at perimeter
-            if rng.random() > (0.25 + 0.75 * (f_edge ** 0.8)):
+            for _ in range(n_trees_here):
+                r1, r2 = rng.random(), rng.random()
+                if r1 + r2 > 1.0:
+                    r1, r2 = 1.0 - r1, 1.0 - r2
+                r3 = 1.0 - r1 - r2
+                tx = float(r1 * p0[0] + r2 * p1[0] + r3 * p2[0])
+                ty = float(r1 * p0[1] + r2 * p1[1] + r3 * p2[1])
+                tz = float(r1 * p0[2] + r2 * p1[2] + r3 * p2[2])
+                emit_grounded_tree(tx, ty, tz, el, base_col[0], base_col[1], base_col[2], f_edge)
+
+    else:
+        # Fallback: area sampling with ground elevation query
+        candidate_count = int(max(3, min(96, round(3.5 * tree_density))))
+        for c in gen.centers:
+            if c.water or c.ocean or c.biome not in FOREST_BIOMES:
+                continue
+            base_col_info = FOREST_BIOMES[c.biome]
+            base_col = base_col_info[:3]
+            biome_affinity = base_col_info[3]
+
+            elev_norm = min(1.0, max(0.0, c.elevation))
+            alt_factor = 1.0 - max(0.0, (elev_norm - 0.70) / 0.18)
+            if alt_factor <= 0.05:
                 continue
 
-            z_sample = sample_mesh_elevation([[tx, ty]])
-            if z_sample is None:
-                continue
-            tz = float(z_sample[0])
+            for _ in range(candidate_count):
+                angle = rng.uniform(0, 2 * math.pi)
+                rad = math.sqrt(rng.uniform(0.01, 1.0)) * avg_cell_r * 1.30
+                tx = (c.x + math.cos(angle) * rad) * scale_x
+                ty = (c.y + math.sin(angle) * rad) * scale_y
 
-            # Edge scale fading: trees at the fringe are smaller saplings/dwarf trees
-            scale_fade = 0.45 + 0.55 * (f_edge ** 0.7)
-            tree_h = rng.uniform(2.6, 5.0) * (1.0 + (height_scale / 100.0) * 0.35) * max(0.65, rad_scale) * scale_fade
-            tree_r = rng.uniform(1.2, 2.2) * rad_scale * scale_fade
+                noise_val = fbm2d(tx * 0.007, ty * 0.007)
+                potential = (biome_affinity * 0.55 + noise_val * 0.45) * alt_factor
+                edge_threshold = 0.42
+                if potential < edge_threshold:
+                    continue
 
-            col_var = rng.uniform(0.88, 1.12)
-            tr = min(1.0, base_col[0] * col_var)
-            tg = min(1.0, base_col[1] * col_var)
-            tb = min(1.0, base_col[2] * col_var)
+                f_edge = min(1.0, (potential - edge_threshold) / 0.28)
+                if rng.random() > (0.25 + 0.75 * (f_edge ** 0.8)):
+                    continue
 
-            base_z = tz + tree_h * 0.20
-            apex = (tx, ty, tz + tree_h)
-            corners = [
-                (tx - tree_r, ty - tree_r, base_z),
-                (tx + tree_r, ty - tree_r, base_z),
-                (tx + tree_r, ty + tree_r, base_z),
-                (tx - tree_r, ty + tree_r, base_z),
-            ]
-
-            for i in range(4):
-                c_a = corners[i]
-                c_b = corners[(i + 1) % 4]
-                v1 = (c_a[0] - apex[0], c_a[1] - apex[1], c_a[2] - apex[2])
-                v2 = (c_b[0] - apex[0], c_b[1] - apex[1], c_b[2] - apex[2])
-                nx = v1[1] * v2[2] - v1[2] * v2[1]
-                ny = v1[2] * v2[0] - v1[0] * v2[2]
-                nz = v1[0] * v2[1] - v1[1] * v2[0]
-                nlen = math.hypot(nx, ny, nz)
-                if nlen > 1e-4:
-                    nx /= nlen
-                    ny /= nlen
-                    nz /= nlen
-                else:
-                    nx, ny, nz = 0.0, 0.0, 1.0
-
-                tree_verts.extend([apex[0], apex[1], apex[2], nx, ny, nz, tr, tg, tb, elev_norm])
-                tree_verts.extend([c_a[0], c_a[1], c_a[2], nx, ny, nz, tr, tg, tb, elev_norm])
-                tree_verts.extend([c_b[0], c_b[1], c_b[2], nx, ny, nz, tr, tg, tb, elev_norm])
+                z_sample = sample_mesh_elevation([[tx, ty]]) if sample_mesh_elevation is not None else None
+                if z_sample is None:
+                    continue
+                tz = float(z_sample[0])
+                emit_grounded_tree(tx, ty, tz, elev_norm, base_col[0], base_col[1], base_col[2], f_edge)
 
     return np.array(tree_verts, dtype=np.float32)
 
@@ -1428,8 +1516,8 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
         )
         lava_arr = np.empty((0,), dtype=np.float32)
 
-        # 3D Low-Poly Trees on Forest Cells
-        tree_arr = build_micropoly_trees(gen, sample_mesh_elevation, height_scale, tree_density)
+        # 3D Low-Poly Trees on Forest Cells placed on subdivided mesh
+        tree_arr = build_micropoly_trees(gen, sample_mesh_elevation, height_scale, tree_density, subdivided_triangles=triangles)
 
         # 3D Coastal Wave Ribbons along Island Boundary Edges
         surf_arr = build_coastal_surf_ribbon(gen, ribbon_width=32.0 * wave_intensity)

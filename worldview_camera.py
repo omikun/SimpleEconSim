@@ -35,6 +35,19 @@ def get_min_zoom(world):
 _cam_mvp_cache = {}
 
 
+def compute_pitch_yaw(zoom):
+    """Compute camera pitch and yaw based on zoom level.
+    Zoomed out (zoom <= 0.9): straight down top-down perspective (pitch 89.0°, yaw 0.0°).
+    Zoomed in (zoom >= 2.2): regular 35mm 3D perspective (pitch 52.0°, yaw 9.0°).
+    Smooth S-curve interpolation between overview and close-up.
+    """
+    t = float(np.clip((zoom - 0.90) / (2.20 - 0.90), 0.0, 1.0))
+    ts = t * t * (3.0 - 2.0 * t)
+    pitch = 89.0 - ts * (89.0 - 52.0)
+    yaw = 0.0 + ts * 9.0
+    return pitch, yaw
+
+
 def get_camera_mvp(world):
     """Compute and cache the 35mm regular perspective MVP matrix for the current frame."""
     global _cam_mvp_cache
@@ -61,8 +74,10 @@ def get_camera_mvp(world):
     v_norm = np.linalg.norm(v_dir)
     v_dir = v_dir / (v_norm if v_norm > 1e-6 else 1.0)
 
-    # Base distance for 35mm lens (~45° FOV) to view the 1024x1024 island at 52° tilt
-    dist = 760.0 / zoom
+    # Base overview distance transitions smoothly from 1100 (top-down) to 760 (tilted 52°)
+    t_pitch = float(np.clip((89.0 - pitch) / (89.0 - 52.0), 0.0, 1.0))
+    base_dist = 1100.0 - t_pitch * (1100.0 - 760.0)
+    dist = base_dist / zoom
     eye = target + v_dir * dist
 
     vw = float(MAP_RIGHT)
@@ -202,17 +217,18 @@ def screen_to_world(world, sx, sy):
 
 
 def clamp_cam(world):
-    """Keep camera parameters strictly bounded; view angle remains constant."""
+    """Keep camera parameters strictly bounded; pitch and yaw tilt dynamically with zoom."""
     cam = world['cam']
-    cam['pitch'] = 52.0  # Constant view angle from zoomed out to in
-    cam['yaw'] = 9.0
     cam['zoom'] = max(0.5, min(6.0, float(cam.get('zoom', 1.0))))
+    pitch, yaw = compute_pitch_yaw(cam['zoom'])
+    cam['pitch'] = pitch
+    cam['yaw'] = yaw
     cam['target_x'] = max(100.0, min(924.0, float(cam.get('target_x', 512.0))))
     cam['target_y'] = max(100.0, min(924.0, float(cam.get('target_y', 512.0))))
 
 
 def zoom_cam_at(world, factor, mx, my):
-    """Zoom camera anchored toward cursor; camera moves closer while keeping view angle constant."""
+    """Zoom camera anchored toward cursor; camera moves closer while tilting down smoothly."""
     cam = world['cam']
     old_zoom = cam.get('zoom', 1.0)
     new_zoom = max(0.5, min(6.0, old_zoom * factor))
@@ -221,8 +237,9 @@ def zoom_cam_at(world, factor, mx, my):
 
     wx0, wy0 = screen_to_world(world, mx, my)
     cam['zoom'] = new_zoom
-    cam['pitch'] = 52.0
-    cam['yaw'] = 9.0
+    pitch, yaw = compute_pitch_yaw(new_zoom)
+    cam['pitch'] = pitch
+    cam['yaw'] = yaw
 
     # Smoothly shift target towards the cursor world point
     ratio = 1.0 - 1.0 / factor
@@ -232,13 +249,12 @@ def zoom_cam_at(world, factor, mx, my):
 
 
 def reset_cam(world):
-    """Center the camera on the island with overview zoom and constant 52° tilt."""
+    """Center the camera on the island with overview zoom and straight-down view."""
     cam = world['cam']
     cam['zoom'] = 1.0
-    cam['pitch'] = 52.0
-    cam['yaw'] = 9.0
+    cam['pitch'], cam['yaw'] = compute_pitch_yaw(1.0)
     cam['target_x'] = 512.0
-    cam['target_y'] = 490.0
+    cam['target_y'] = 512.0
     cam['ox'] = 0
     cam['oy'] = 0
     clamp_cam(world)

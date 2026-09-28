@@ -778,11 +778,12 @@ class Micropoly3DRenderer:
 
         self.sample_elevation_func = sample_elevation
 
-        # 3. Low-Poly 3D Trees Buffer
+        # 3. Low-Poly 3D Trees Buffer placed on subdivided mesh
         tree_arr = build_micropoly_trees(
             gen, sample_elevation,
             height_scale=float(slot_state.get('height_scale', 48.0)),
-            tree_density=float(slot_state.get('tree_density', 1.28))
+            tree_density=float(slot_state.get('tree_density', 1.28)),
+            subdivided_triangles=triangles
         )
         if len(tree_arr) > 0:
             self.tree_count = len(tree_arr) // 10
@@ -914,8 +915,9 @@ class Micropoly3DRenderer:
         ], dtype=np.float32)
         v_dir /= np.linalg.norm(v_dir)
 
-        # Base overview distance (~760 world units) fits the whole 1024x1024 island comfortably
-        d_base = 760.0
+        # Base overview distance transitions smoothly from 1100 (top-down) to 760 (tilted 52°)
+        t_pitch = float(np.clip((89.0 - pitch) / (89.0 - 52.0), 0.0, 1.0))
+        d_base = 1100.0 - t_pitch * (1100.0 - 760.0)
         dist = d_base / zoom
         eye = target + v_dir * dist
 
