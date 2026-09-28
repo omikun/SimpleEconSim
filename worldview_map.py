@@ -743,12 +743,12 @@ def get_tile_label_priority(region, world, is_nat_cap=False, is_prov_cap=False):
     """Compute importance score for dynamic label overlap culling.
     Hierarchy:
     1. Selected or hovered tile (1000/900)
-    2. National Capitals (800)
-    3. Selected nation's tiles (700)
-    4. Provincial Capitals (600)
-    5. Wild tiles surrounding selected nation (550)
-    6. Wild tiles surrounding any nation (500)
-    7. Other nation tiles (400 + pop weight)
+    2. National Capitals (850)
+    3. Selected nation's tiles (750)
+    4. Provincial Capitals (700)
+    5. Other nation tiles (600 + pop weight) — ALL nation tiles >= 600
+    6. Wild tiles surrounding selected nation (450)
+    7. Wild tiles surrounding any nation (400)
     8. General wilderness tiles (200)
     9. Ocean (100)
     """
@@ -773,17 +773,22 @@ def get_tile_label_priority(region, world, is_nat_cap=False, is_prov_cap=False):
 
     # 2. National Capitals
     if is_nat_cap:
-        return 800
+        return 850
 
     # 3. Selected nation's tiles
     if owner is not None and (owner == sel_nation or (sel_nation_name and owner_name == sel_nation_name)):
-        return 700
+        return 750
 
     # 4. Provincial Capitals
     if is_prov_cap:
-        return 600
+        return 700
 
-    # 5. Wild tiles surrounding nations
+    # 5. Other nations' regular tiles (ALL nation tiles have priority >= 600)
+    if owner is not None:
+        pop = getattr(region, 'population', 0)
+        return 600 + min(80, int(pop / 100))
+
+    # 6. Wild tiles surrounding nations (priority < 500, strictly lower than any nation tile)
     is_wild = (owner is None or getattr(region, 'wilderness', False))
     if is_wild:
         neighbors = getattr(region, 'neighbors', [])
@@ -798,14 +803,9 @@ def get_tile_label_priority(region, world, is_nat_cap=False, is_prov_cap=False):
                     surrounds_sel = True
                     break
         if surrounds_sel:
-            return 550
+            return 450
         elif surrounds_any:
-            return 500
-
-    # 6. Other nations' regular tiles (weighted slightly by population)
-    if owner is not None:
-        pop = getattr(region, 'population', 0)
-        return 400 + min(90, int(pop / 100))
+            return 400
 
     # 7. General wilderness tiles
     if is_wild:
@@ -843,7 +843,8 @@ def find_label_micro_shift(cand: dict, occupied_rects: list, blocker_rect: pygam
     if not pts or len(pts) < 3:
         return None
 
-    cx, cy = cand['cx'], cand['cy']
+    cx, cy = cand.get('orig_cx', cand['cx']), cand.get('orig_cy', cand['cy'])
+    test_rect = cand['test_rect']
 
     # Calculate escape vector away from the colliding blocker
     if blocker_rect is not None:
@@ -858,23 +859,15 @@ def find_label_micro_shift(cand: dict, occupied_rects: list, blocker_rect: pygam
     else:
         escape_angle = 0.0
 
-    # 16 radial directions around the unit circle
-    angles = [i * (2.0 * math.pi / 16) for i in range(16)]
+    # 24 radial directions around the unit circle (every 15 degrees)
+    angles = [i * (2.0 * math.pi / 24) for i in range(24)]
     # Prioritize directions pointing away from the blocker
     angles.sort(key=lambda a: abs(math.atan2(math.sin(a - escape_angle), math.cos(a - escape_angle))))
 
-    # Concentric distance rings
-    distances = (8, 14, 20, 26, 32, 40)
-
-    poly_min_x = min(p[0] for p in pts)
-    poly_max_x = max(p[0] for p in pts)
-    poly_min_y = min(p[1] for p in pts)
-    poly_max_y = max(p[1] for p in pts)
-    max_d = max(poly_max_x - poly_min_x, poly_max_y - poly_min_y) * 0.55
+    # Concentric distance rings: test fine micro-adjustments up to broad polygon extents
+    distances = (6, 12, 18, 24, 30, 36, 44, 52, 60)
 
     for d in distances:
-        if d > max_d:
-            break
         for a in angles:
             dx = int(round(d * math.cos(a)))
             dy = int(round(d * math.sin(a)))
@@ -886,7 +879,7 @@ def find_label_micro_shift(cand: dict, occupied_rects: list, blocker_rect: pygam
                 continue
 
             # 2. Collision test against all currently accepted labels
-            shifted_test_rect = cand['test_rect'].move(dx, dy)
+            shifted_test_rect = test_rect.move(dx, dy)
             if shifted_test_rect.collidelist(occupied_rects) == -1:
                 return nx, ny, shifted_test_rect, dx, dy
 
@@ -1487,13 +1480,15 @@ def draw_hex_map(surface, world, font, font_small):
         # Pre-filter low-priority wilderness or non-capital tiles when zoomed far out
         if layer_mode == 'overview':
             if owner is None:
-                if priority < 500 and zoom < 2.2:
+                if priority < 350 and zoom < 2.2:
+                    continue
+                if priority < 450 and zoom < 1.15:
                     continue
             else:
-                if priority < 400 and zoom < 1.35:
+                if priority < 500 and zoom < 0.8:
                     continue
         else:
-            if zoom < 1.35 and priority < 400:
+            if zoom < 1.0 and priority < 350:
                 continue
 
         # Compute label bounding box
@@ -1529,10 +1524,16 @@ def draw_hex_map(surface, world, font, font_small):
             h = 20
             box = pygame.Rect(cx - w // 2, cy - 10, w, h)
 
+        r_key = getattr(region, 'id', None) or getattr(region, 'name', str(id(region)))
         label_candidates.append({
             'region': region,
+            'r_key': r_key,
+            'orig_cx': cx,
+            'orig_cy': cy,
             'cx': cx,
             'cy': cy,
+            'target_dx': 0.0,
+            'target_dy': 0.0,
             'pts': pts,
             'priority': priority,
             'box': box,
@@ -1547,8 +1548,9 @@ def draw_hex_map(surface, world, font, font_small):
             'c1': c1, 'c2': c2, 'c3': c3,
         })
 
-    # Sort candidates by priority descending (selected tile > capitals > selected nation > surrounding wilderness > etc.)
-    label_candidates.sort(key=lambda c: c['priority'], reverse=True)
+    # Sort candidates by priority descending (selected tile > capitals > selected nation > regular nation > wilderness)
+    # Secondary key by r_key prevents tie-breaking flip-flops between frames
+    label_candidates.sort(key=lambda c: (c['priority'], str(c['r_key'])), reverse=True)
 
     occupied_rects = []
     accepted_tiles = set()
@@ -1556,6 +1558,8 @@ def draw_hex_map(surface, world, font, font_small):
     for cand in label_candidates:
         # Priority >= 900 (selected tile or hovered tile) is NEVER culled, never shifted
         if cand['priority'] >= 900:
+            cand['target_dx'] = 0.0
+            cand['target_dy'] = 0.0
             occupied_rects.append(cand['test_rect'])
             accepted_tiles.add(cand['region'])
             continue
@@ -1563,6 +1567,8 @@ def draw_hex_map(surface, world, font, font_small):
         # Check collision against all previously accepted higher-priority labels
         blocker_idx = cand['test_rect'].collidelist(occupied_rects)
         if blocker_idx == -1:
+            cand['target_dx'] = 0.0
+            cand['target_dy'] = 0.0
             occupied_rects.append(cand['test_rect'])
             accepted_tiles.add(cand['region'])
         else:
@@ -1570,12 +1576,59 @@ def draw_hex_map(surface, world, font, font_small):
             shift_result = find_label_micro_shift(cand, occupied_rects, occupied_rects[blocker_idx])
             if shift_result is not None:
                 nx, ny, shifted_test_rect, dx, dy = shift_result
-                cand['cx'] = nx
-                cand['cy'] = ny
+                cand['target_dx'] = float(dx)
+                cand['target_dy'] = float(dy)
                 cand['box'] = cand['box'].move(dx, dy)
                 cand['test_rect'] = shifted_test_rect
+                # Register shifted rect so lower-priority tiles (e.g. wilderness) avoid or yield to this space
                 occupied_rects.append(shifted_test_rect)
                 accepted_tiles.add(cand['region'])
+            else:
+                cand['target_dx'] = 0.0
+                cand['target_dy'] = 0.0
+
+    # Smooth label offset animation with inertia (1-3 px/frame) to prevent jumping and flickering
+    label_offsets = world.setdefault('_label_offsets', {})
+    MAX_SHIFT_PER_FRAME = 2.0  # 1-3 pixel shift per frame
+
+    for cand in label_candidates:
+        r_key = cand['r_key']
+        if cand['region'] not in accepted_tiles:
+            # Decay culled tile offsets towards (0, 0)
+            if r_key in label_offsets:
+                cur_dx, cur_dy = label_offsets[r_key]
+                if abs(cur_dx) > 0.2 or abs(cur_dy) > 0.2:
+                    label_offsets[r_key] = (cur_dx * 0.7, cur_dy * 0.7)
+                else:
+                    label_offsets[r_key] = (0.0, 0.0)
+            continue
+
+        target_dx = cand['target_dx']
+        target_dy = cand['target_dy']
+
+        cur_state = label_offsets.get(r_key)
+        if cur_state is None:
+            cur_dx, cur_dy = target_dx, target_dy
+        else:
+            cur_dx, cur_dy = cur_state
+
+        diff_x = target_dx - cur_dx
+        diff_y = target_dy - cur_dy
+        dist = math.hypot(diff_x, diff_y)
+
+        if dist <= MAX_SHIFT_PER_FRAME:
+            cur_dx = target_dx
+            cur_dy = target_dy
+        else:
+            step = min(MAX_SHIFT_PER_FRAME, max(0.8, dist * 0.25))
+            cur_dx += (diff_x / dist) * step
+            cur_dy += (diff_y / dist) * step
+
+        label_offsets[r_key] = (cur_dx, cur_dy)
+
+        # Apply smooth animated center for rendering
+        cand['cx'] = int(round(cand['orig_cx'] + cur_dx))
+        cand['cy'] = int(round(cand['orig_cy'] + cur_dy))
 
     # Render only accepted labels
     for cand in label_candidates:
