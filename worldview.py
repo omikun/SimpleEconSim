@@ -73,7 +73,7 @@ from worldview_progress_panel import (
     draw_progress_panel, progress_panel_hit
 )
 from worldview_left_dock import (
-    open_left_panel, close_left_panels, is_any_left_panel_open, left_dock_buttons_hit
+    open_left_panel, close_left_panels, is_any_left_panel_open, get_active_left_panel, left_dock_buttons_hit
 )
 from worldview_transfer_dialog import (
     draw_transfer_dialog, transfer_dialog_hit
@@ -232,14 +232,25 @@ def reload_world(args=None):
 
 
 def select_tile(world, tile):
-    """Select a hex tile, update owner nation, and open the last-used left drawer panel."""
+    """Select a hex tile and update owner nation.
+    Clicking a tile does not show a build menu unless the build menu is already shown.
+    Clicking a wilderness tile results in no left menu popup.
+    """
     world['selected_region'] = tile
-    if getattr(tile, 'owner_nation', None) is not None:
+    is_wilderness = (tile is None or getattr(tile, 'owner_nation', None) is None or getattr(tile, 'wilderness', False))
+
+    if is_wilderness:
+        # Clicking a wilderness tile results in no left menu popup
+        close_left_panels(world)
+    else:
         world['selected_nation'] = tile.owner_nation
         world['player_nation_name'] = tile.owner_nation.name
-
-    target_panel = world.get('last_left_panel', 'build')
-    open_left_panel(world, target_panel)
+        # Preserve currently active left panel (e.g. build menu) only if it was ALREADY open
+        active_panel = get_active_left_panel(world)
+        if active_panel is not None:
+            open_left_panel(world, active_panel)
+        else:
+            close_left_panels(world)
 
 
 def main():

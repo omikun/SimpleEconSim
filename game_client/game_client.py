@@ -15,7 +15,7 @@ from worldview_camera import (
     WIDTH, HEIGHT, MAP_RIGHT, TOP_BAR_H, TICKER_H, HEX_SIZE,
     reset_cam, clamp_cam, zoom_cam_at, tile_at
 )
-from worldview_left_dock import open_left_panel, close_left_panels, is_any_left_panel_open
+from worldview_left_dock import open_left_panel, close_left_panels, is_any_left_panel_open, get_active_left_panel
 
 
 class GameClient:
@@ -136,14 +136,24 @@ class GameClient:
         self.render_engine.camera.sync_from_dict(self.world['cam'])
 
     def select_tile(self, tile):
-        """Select a hex tile, update active nation, and open the build/governance drawer."""
+        """Select a hex tile and update owner nation.
+        Clicking a tile does not show a build menu unless already shown.
+        Clicking a wilderness tile results in no left menu popup.
+        """
         self.world['selected_region'] = tile
-        if getattr(tile, 'owner_nation', None) is not None:
+        is_wilderness = (tile is None or getattr(tile, 'owner_nation', None) is None or getattr(tile, 'wilderness', False))
+
+        if is_wilderness:
+            close_left_panels(self.world)
+        else:
             self.world['selected_nation'] = tile.owner_nation
             self.world['player_nation_name'] = tile.owner_nation.name
+            active_panel = get_active_left_panel(self.world)
+            if active_panel is not None:
+                open_left_panel(self.world, active_panel)
+            else:
+                close_left_panels(self.world)
 
-        target_panel = self.world.get('last_left_panel', 'build')
-        open_left_panel(self.world, target_panel)
         self.world['needs_redraw'] = True
 
     def render(self, surface: pygame.Surface, mouse_pos=None):

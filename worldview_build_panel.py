@@ -322,7 +322,7 @@ def _draw_tier_section(surface, world, pinned, nation, icon_kind, tier_title, tr
 
 def build_panel_hit(pos, world) -> bool:
     """Handle mouse clicks inside the Left Build Panel or collapsed button."""
-    if world is not None and world.get('build_panel_open', True):
+    if world is not None and world.get('build_panel_open', False):
         from ui_targets import find_target
         t = find_target(world, pos, scope='build')
         if t is not None:
@@ -360,7 +360,7 @@ def build_panel_hit(pos, world) -> bool:
     pinned = world.get('selected_region')
 
     # If collapsed or no tile selected, check collapsed toggle button
-    if not world.get('build_panel_open', True) or pinned is None:
+    if not world.get('build_panel_open', False) or pinned is None:
         btn_w = 146
         btn_h = 28
         if x <= mx <= x + btn_w and y <= my <= y + btn_h:

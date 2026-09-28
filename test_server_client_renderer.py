@@ -16,6 +16,7 @@ from sim_server import SimServer, CommandType, ServerEvent
 from sim_server.protocol import CommandMessage
 from game_client import GameClient
 from worldview_camera import HEX_SIZE
+from worldview_left_dock import open_left_panel, is_any_left_panel_open
 
 
 class TestRenderEngineAndCamera(unittest.TestCase):
@@ -179,10 +180,32 @@ class TestGameClient(unittest.TestCase):
         self.assertFalse(self.server.playing)
 
     def test_client_tile_selection(self):
+        # 1. Clicking a tile when build menu is closed does NOT open build menu
         tile = self.client.world['tiles'][0]
+        self.assertFalse(self.client.world.get('build_panel_open', False))
         self.client.select_tile(tile)
         self.assertEqual(self.client.world['selected_region'], tile)
-        self.assertTrue(self.client.world.get('build_panel_open'))
+        self.assertFalse(self.client.world.get('build_panel_open', False))
+
+        # 2. Clicking a tile when build menu IS already open keeps it open
+        open_left_panel(self.client.world, 'build')
+        self.assertTrue(self.client.world.get('build_panel_open', False))
+        if len(self.client.world['tiles']) > 1:
+            tile2 = self.client.world['tiles'][1]
+            self.client.select_tile(tile2)
+            self.assertEqual(self.client.world['selected_region'], tile2)
+            # If tile2 is a nation tile, build menu remains open
+            if getattr(tile2, 'owner_nation', None) is not None:
+                self.assertTrue(self.client.world.get('build_panel_open', False))
+
+        # 3. Clicking a wilderness tile results in NO left menu popup
+        from region import Region
+        wild_tile = Region('Wilderness_Test', t=0, wilderness=True)
+        wild_tile.owner_nation = None
+        self.client.select_tile(wild_tile)
+        self.assertEqual(self.client.world['selected_region'], wild_tile)
+        self.assertFalse(is_any_left_panel_open(self.client.world))
+        self.assertFalse(self.client.world.get('build_panel_open', False))
 
     def test_client_gpu_pipeline_toggle(self):
         # Verify initial GPU pipeline setup
