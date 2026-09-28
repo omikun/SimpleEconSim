@@ -739,6 +739,82 @@ def draw_pop_delta(surface, region, cx, cy, font_small):
     surface.blit(txt, txt.get_rect(center=(cx + 34, cy - 24)))
 
 
+def get_tile_label_priority(region, world, is_nat_cap=False, is_prov_cap=False):
+    """Compute importance score for dynamic label overlap culling.
+    Hierarchy:
+    1. Selected or hovered tile (1000/900)
+    2. National Capitals (800)
+    3. Selected nation's tiles (700)
+    4. Provincial Capitals (600)
+    5. Wild tiles surrounding selected nation (550)
+    6. Wild tiles surrounding any nation (500)
+    7. Other nation tiles (400 + pop weight)
+    8. General wilderness tiles (200)
+    9. Ocean (100)
+    """
+    sel = world.get('selected_region')
+    sel_name = getattr(sel, 'name', None) if sel is not None else world.get('selected')
+    hover = world.get('hover_region')
+    sel_nation = world.get('selected_nation')
+    if isinstance(sel_nation, str):
+        sel_nation_name = sel_nation
+    else:
+        sel_nation_name = getattr(sel_nation, 'name', None) or world.get('player_nation_name')
+
+    r_name = getattr(region, 'name', '')
+    owner = getattr(region, 'owner_nation', None)
+    owner_name = getattr(owner, 'name', None)
+
+    # 1. Selected or hovered tile (highest priority)
+    if (sel is not None and region == sel) or (sel_name is not None and r_name == sel_name):
+        return 1000
+    if hover is not None and region == hover:
+        return 900
+
+    # 2. National Capitals
+    if is_nat_cap:
+        return 800
+
+    # 3. Selected nation's tiles
+    if owner is not None and (owner == sel_nation or (sel_nation_name and owner_name == sel_nation_name)):
+        return 700
+
+    # 4. Provincial Capitals
+    if is_prov_cap:
+        return 600
+
+    # 5. Wild tiles surrounding nations
+    is_wild = (owner is None or getattr(region, 'wilderness', False))
+    if is_wild:
+        neighbors = getattr(region, 'neighbors', [])
+        surrounds_sel = False
+        surrounds_any = False
+        for nbr in neighbors:
+            nbr_owner = getattr(nbr, 'owner_nation', None)
+            if nbr_owner is not None:
+                surrounds_any = True
+                nbr_owner_name = getattr(nbr_owner, 'name', None)
+                if nbr_owner == sel_nation or (sel_nation_name and nbr_owner_name == sel_nation_name):
+                    surrounds_sel = True
+                    break
+        if surrounds_sel:
+            return 550
+        elif surrounds_any:
+            return 500
+
+    # 6. Other nations' regular tiles (weighted slightly by population)
+    if owner is not None:
+        pop = getattr(region, 'population', 0)
+        return 400 + min(90, int(pop / 100))
+
+    # 7. General wilderness tiles
+    if is_wild:
+        return 200
+
+    # 8. Ocean / other
+    return 100
+
+
 def draw_text_with_shadow(surface, font, text, center, color, shadow_color=(12, 12, 16)):
     """Render text with a soft drop shadow for ultra-crisp readability over elevation terrain."""
     cx, cy = center
@@ -1301,14 +1377,22 @@ def draw_hex_map(surface, world, font, font_small):
     draw_edges(surface, world)
     draw_trade_arrows(surface, world)
 
-    # 4. Text, City Titles, Stats Lines, and Badges (RENDERED ON TOP OF TRADE LINES)
+    # 4. Text, City Titles, Stats Lines, and Badges (DYNAMIC OVERLAP-AWARE CULLING)
     layer_mode = world.get('map_layer', 'overview')
+
+    label_candidates = []
+
     for region, cx, cy, pts in hex_geom:
+        if cx < -60 or cx > MAP_RIGHT + 60 or cy < TOP_BAR_H - 40 or cy > HEIGHT - TICKER_H + 40:
+            continue
+
         is_ocean = getattr(region, 'is_ocean', False) or getattr(region, 'elevation_meters', 0) < 0
         owner = getattr(region, 'owner_nation', None)
 
+        is_nat_cap = False
+        is_prov_cap = False
+        raw_city = getattr(region, 'display_name', getattr(region, 'city_name', region.name))
         if not is_ocean:
-            raw_city = getattr(region, 'display_name', getattr(region, 'city_name', region.name))
             is_nat_cap = getattr(region, 'is_national_capital', False) or (owner and owner.tiles and region == owner.tiles[0])
             is_prov_cap = getattr(region, 'is_provincial_capital', False)
             if not is_nat_cap and owner and getattr(owner, 'provinces', None):
@@ -1316,42 +1400,131 @@ def draw_hex_map(surface, world, font, font_small):
                 if prov and prov.tiles and region == prov.tiles[0]:
                     is_prov_cap = True
 
-            if is_nat_cap:
-                city_title = f"* {raw_city}"
-            elif is_prov_cap:
-                city_title = f"+ {raw_city}"
+        city_title = f"* {raw_city}" if is_nat_cap else (f"+ {raw_city}" if is_prov_cap else raw_city)
+        name_font = font_small if len(city_title) > 10 else font
+        line1, line2, line3, c1, c2, c3 = tile_stats(region, layer_mode=layer_mode, world=world)
+
+        priority = get_tile_label_priority(region, world, is_nat_cap=is_nat_cap, is_prov_cap=is_prov_cap)
+
+        # Pre-filter low-priority wilderness or non-capital tiles when zoomed far out
+        if layer_mode == 'overview':
+            if owner is None:
+                if priority < 500 and zoom < 2.2:
+                    continue
             else:
-                city_title = raw_city
+                if priority < 600 and zoom < 1.35:
+                    continue
+        else:
+            if zoom < 1.35 and priority < 500:
+                continue
 
-            name_font = font_small if len(city_title) > 10 else font
-            line1, line2, line3, c1, c2, c3 = tile_stats(region, layer_mode=layer_mode, world=world)
-
+        # Compute label bounding box
+        if not is_ocean:
             if layer_mode == 'overview':
                 if owner is not None:
-                    show_label = is_nat_cap or (is_prov_cap and zoom >= 1.5) or (zoom >= 2.2) or (region is sel) or (region is hover_region)
-                    if show_label:
-                        if is_nat_cap:
-                            # National Capital (bold star badge)
-                            draw_text_with_shadow(surface, font_small, f"★ {owner.name.upper()}", (cx, cy - 24), (255, 230, 140))
-                            draw_text_with_shadow(surface, name_font, city_title, (cx, cy - 10), (255, 255, 255))
-                        elif is_prov_cap:
-                            draw_text_with_shadow(surface, font_small, city_title, (cx, cy - 12), (210, 240, 255))
-                        else:
-                            draw_text_with_shadow(surface, font_small, city_title, (cx, cy - 10), (230, 230, 230))
-                        
-                        if (zoom >= 2.2) or (region is sel) or (region is hover_region):
-                            if line2:
-                                draw_text_with_shadow(surface, font_small, line2, (cx, cy + 6), c2)
-                            if line3:
-                                draw_text_with_shadow(surface, font_small, line3, (cx, cy + 20), c3)
+                    if is_nat_cap:
+                        w = max(70, len(owner.name) * 8 + 24, len(city_title) * 8 + 16)
+                        h = 44 if (zoom < 2.2 and region is not sel and region is not hover_region) else 68
+                        box = pygame.Rect(cx - w // 2, cy - 28, w, h)
+                    else:
+                        w = max(50, len(city_title) * 7.5 + 14)
+                        h = 24 if (zoom < 2.2 and region is not sel and region is not hover_region) else 54
+                        box = pygame.Rect(cx - w // 2, cy - 16, w, h)
+                else:
+                    wild_title = getattr(region, 'display_name', getattr(region, 'city_name', region.name))
+                    w = max(50, len(wild_title) * 7 + 16)
+                    h = 28
+                    box = pygame.Rect(cx - w // 2, cy - 14, w, h)
+            else:
+                text_candidates = [city_title if owner else '']
+                if line1: text_candidates.append(line1)
+                if line2: text_candidates.append(line2)
+                if line3: text_candidates.append(line3)
+                max_len = max((len(s) for s in text_candidates), default=6)
+                w = max(60, int(max_len * 7.5 + 14))
+                h = max(24, len([s for s in text_candidates if s]) * 16 + 8)
+                box = pygame.Rect(cx - w // 2, cy - 30 if owner else cy - 18, w, h)
+        else:
+            if layer_mode == 'overview' or not line1:
+                continue
+            w = 60
+            h = 20
+            box = pygame.Rect(cx - w // 2, cy - 10, w, h)
+
+        label_candidates.append({
+            'region': region,
+            'cx': cx,
+            'cy': cy,
+            'priority': priority,
+            'box': box,
+            'test_rect': box.inflate(8, 6),
+            'is_ocean': is_ocean,
+            'owner': owner,
+            'is_nat_cap': is_nat_cap,
+            'is_prov_cap': is_prov_cap,
+            'city_title': city_title,
+            'name_font': name_font,
+            'line1': line1, 'line2': line2, 'line3': line3,
+            'c1': c1, 'c2': c2, 'c3': c3,
+        })
+
+    # Sort candidates by priority descending (selected tile > capitals > selected nation > surrounding wilderness > etc.)
+    label_candidates.sort(key=lambda c: c['priority'], reverse=True)
+
+    occupied_rects = []
+    accepted_tiles = set()
+
+    for cand in label_candidates:
+        # Priority >= 900 (selected tile or hovered tile) is NEVER culled
+        if cand['priority'] >= 900:
+            occupied_rects.append(cand['test_rect'])
+            accepted_tiles.add(cand['region'])
+            continue
+
+        # Check collision against all previously accepted higher-priority labels
+        if cand['test_rect'].collidelist(occupied_rects) == -1:
+            occupied_rects.append(cand['test_rect'])
+            accepted_tiles.add(cand['region'])
+
+    # Render only accepted labels
+    for cand in label_candidates:
+        region = cand['region']
+        if region not in accepted_tiles:
+            continue
+
+        cx, cy = cand['cx'], cand['cy']
+        is_ocean = cand['is_ocean']
+        owner = cand['owner']
+        is_nat_cap = cand['is_nat_cap']
+        is_prov_cap = cand['is_prov_cap']
+        city_title = cand['city_title']
+        name_font = cand['name_font']
+        line1, line2, line3 = cand['line1'], cand['line2'], cand['line3']
+        c1, c2, c3 = cand['c1'], cand['c2'], cand['c3']
+
+        if not is_ocean:
+            if layer_mode == 'overview':
+                if owner is not None:
+                    if is_nat_cap:
+                        # National Capital (bold star badge)
+                        draw_text_with_shadow(surface, font_small, f"★ {owner.name.upper()}", (cx, cy - 24), (255, 230, 140))
+                        draw_text_with_shadow(surface, name_font, city_title, (cx, cy - 10), (255, 255, 255))
+                    elif is_prov_cap:
+                        draw_text_with_shadow(surface, font_small, city_title, (cx, cy - 12), (210, 240, 255))
+                    else:
+                        draw_text_with_shadow(surface, font_small, city_title, (cx, cy - 10), (230, 230, 230))
+
+                    if (zoom >= 2.2) or (region is sel) or (region is hover_region):
+                        if line2:
+                            draw_text_with_shadow(surface, font_small, line2, (cx, cy + 6), c2)
+                        if line3:
+                            draw_text_with_shadow(surface, font_small, line3, (cx, cy + 20), c3)
                 else:
                     # Unselected wilderness regions: show natural territory title and altitude
-                    show_wild = (zoom >= 2.4) or (region is sel) or (region is hover_region)
-                    if show_wild:
-                        elev_m = getattr(region, 'elevation_meters', int(region.elevation * 3000))
-                        wild_title = getattr(region, 'display_name', getattr(region, 'city_name', region.name))
-                        draw_text_with_shadow(surface, font_small, f"◇ {wild_title}", (cx, cy - 8), (210, 230, 220))
-                        draw_text_with_shadow(surface, font_small, f"{elev_m}m", (cx, cy + 8), (155, 185, 170))
+                    elev_m = getattr(region, 'elevation_meters', int(region.elevation * 3000))
+                    wild_title = getattr(region, 'display_name', getattr(region, 'city_name', region.name))
+                    draw_text_with_shadow(surface, font_small, f"◇ {wild_title}", (cx, cy - 8), (210, 230, 220))
+                    draw_text_with_shadow(surface, font_small, f"{elev_m}m", (cx, cy + 8), (155, 185, 170))
             else:
                 # Other Layer Modes (Physical, Population, Economy, Production, Military)
                 if owner is not None:
@@ -1364,10 +1537,8 @@ def draw_hex_map(surface, world, font, font_small):
                     draw_text_with_shadow(surface, font_small, line3, (cx, cy + 24), c3)
         else:
             # On ocean tiles: in non-overview layers, display minimal line if present
-            if layer_mode != 'overview':
-                line1, line2, line3, c1, c2, c3 = tile_stats(region, layer_mode=layer_mode, world=world)
-                if line1:
-                    draw_text_with_shadow(surface, font_small, line1, (cx, cy), c1)
+            if layer_mode != 'overview' and line1:
+                draw_text_with_shadow(surface, font_small, line1, (cx, cy), c1)
 
         if not is_ocean:
             if region is sel or region is hover_region or (zoom >= 2.2 and owner is not None):
