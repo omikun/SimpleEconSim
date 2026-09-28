@@ -1,0 +1,284 @@
+// ============================================================================
+// Call of Capital: Modern Economic Warfare / SimpleEconSim — Complete Module & Class Call Graph (reladraw v0.7.1)
+// Stated relative positions and hierarchical domain clusters.
+// ============================================================================
+
+// --- Styles ---
+style server         fill: #0f172a  border: #38bdf8  line: #38bdf8
+style ui             fill: #1e1b4b  border: #818cf8  line: #818cf8
+style render         fill: #311042  border: #c084fc  line: #c084fc
+style orchestration  fill: #064e3b  border: #34d399  line: #34d399
+style spatial        fill: #14532d  border: #4ade80  line: #4ade80
+style macro          fill: #701a75  border: #f472b6  line: #f472b6
+style meso           fill: #78350f  border: #fbbf24  line: #fbbf24
+style micro          fill: #451a03  border: #f97316  line: #f97316
+style agent          fill: #4c0519  border: #fb7185  line: #fb7185
+style utils          fill: #262626  border: #a3a3a3  line: #a3a3a3
+style dim            text: (color: muted)
+
+// --- Subsystem Containers ---
+node server_net "Authoritative Server & Network Protocol"  style: server
+node desktop_ui "Desktop Presentation UI (Pygame)"  right of server_net  gap: wide  style: ui
+node render_engine "3D & GPU Render Engine (ModernGL)"  right of desktop_ui  gap: wide  style: render
+
+node orchestration "Simulation Orchestration & Lifecycle"  below server_net  gap: wide  style: orchestration
+node spatial_mesh "Spatial Mesh & Procedural Geography"  left of orchestration  gap: wide  style: spatial
+node macro_sovereign "Macroeconomic & Sovereign Systems"  below orchestration  gap: wide  style: macro
+node meso_institutions "Mesoeconomic Institutions & Markets"  right of macro_sovereign  gap: wide  style: meso
+node micro_regional "Regional Tile Economy & Commodity Auctions"  below macro_sovereign  gap: wide  style: micro
+node agent_layer "Micro-Agents, Class & Metabolic Rift"  below micro_regional  gap: wide  style: agent
+node support_utils "Diagnostics, Analytics & Tooling"  right of meso_institutions  gap: wide  style: utils
+
+// --- Constituent Modules & Classes ---
+// Subsystem: Authoritative Server & Network Protocol
+node server_net.sim_server_sim_server "sim_server.py / [dim]class SimServer[/dim]"
+node server_net.sim_server_web_server "web_server.py / [dim]class RegnumHTTPRequestHandler, RegnumWebServer[/dim]"
+node server_net.sim_server_protocol "protocol.py / [dim]class CommandType, ServerEvent, CommandMessage[/dim]"
+node server_net.sim_server_server_cli "server_cli.py"
+node server_net.sim_server_qr_code "qr_code.py / [dim]class QRCode[/dim]"
+node server_net.game_client_game_client "game_client.py / [dim]class GameClient[/dim]"
+node server_net.game_client___init__ "__init__.py"
+node server_net.sim_server___init__ "__init__.py"
+
+// Subsystem: Desktop Presentation UI (Pygame)
+node desktop_ui.worldview "worldview.py"
+node desktop_ui.worldview_engine "worldview_engine.py"
+node desktop_ui.worldview_camera "worldview_camera.py"
+node desktop_ui.worldview_ui "worldview_ui.py"
+node desktop_ui.worldview_map "worldview_map.py"
+node desktop_ui.worldview_layers "worldview_layers.py"
+node desktop_ui.worldview_charts "worldview_charts.py"
+node desktop_ui.worldview_left_dock "worldview_left_dock.py"
+node desktop_ui.worldview_gov_panel "worldview_gov_panel.py"
+node desktop_ui.worldview_build_panel "worldview_build_panel.py"
+node desktop_ui.worldview_debt_panel "worldview_debt_panel.py"
+node desktop_ui.worldview_diplomacy_panel "worldview_diplomacy_panel.py"
+node desktop_ui.worldview_military_panel "worldview_military_panel.py"
+node desktop_ui.worldview_science_panel "worldview_science_panel.py"
+node desktop_ui.worldview_progress_panel "worldview_progress_panel.py"
+node desktop_ui.worldview_compare "worldview_compare.py"
+node desktop_ui.worldview_compare_ecology "worldview_compare_ecology.py"
+node desktop_ui.worldview_compare_extraction "worldview_compare_extraction.py"
+node desktop_ui.worldview_compare_protest "worldview_compare_protest.py"
+node desktop_ui.worldview_cadastre "worldview_cadastre.py"
+node desktop_ui.worldview_citizens "worldview_citizens.py"
+node desktop_ui.worldview_labor_ui "worldview_labor_ui.py"
+node desktop_ui.worldview_policies "worldview_policies.py"
+node desktop_ui.worldview_transfer_dialog "worldview_transfer_dialog.py"
+node desktop_ui.worldview_help "worldview_help.py"
+node desktop_ui.worldview_seasonal_clock "worldview_seasonal_clock.py"
+node desktop_ui.worldview_actions "worldview_actions.py"
+node desktop_ui.worldview_tooltips "worldview_tooltips.py"
+node desktop_ui.worldview_tooltips_charts "worldview_tooltips_charts.py"
+node desktop_ui.worldview_tooltips_ecology "worldview_tooltips_ecology.py"
+node desktop_ui.worldview_tooltips_extra "worldview_tooltips_extra.py"
+node desktop_ui.worldview_tooltips_visualizations "worldview_tooltips_visualizations.py"
+node desktop_ui.worldview_vis_circuits "worldview_vis_circuits.py"
+node desktop_ui.worldview_vis_protest_attractor "worldview_vis_protest_attractor.py"
+node desktop_ui.worldview_vis_pyramid "worldview_vis_pyramid.py"
+node desktop_ui.worldview_vis_radar "worldview_vis_radar.py"
+node desktop_ui.ui_icons "ui_icons.py"
+node desktop_ui.ui_targets "ui_targets.py / [dim]class UITarget[/dim]"
+
+// Subsystem: 3D & GPU Render Engine (ModernGL)
+node render_engine.render_engine_core "core.py / [dim]class RenderEngine[/dim]"
+node render_engine.render_engine_camera "camera.py / [dim]class Camera[/dim]"
+node render_engine.render_engine_terrain "terrain.py / [dim]class TerrainRenderer[/dim]"
+node render_engine.render_engine_hex_renderer "hex_renderer.py / [dim]class HexRenderer[/dim]"
+node render_engine.render_engine_layers "layers.py / [dim]class LayerType, LayerInfo[/dim]"
+node render_engine.render_engine_gpu_base "base.py / [dim]class BaseGPUTerrainPipeline[/dim]"
+node render_engine.render_engine_gpu_fallback_pipeline "fallback_pipeline.py / [dim]class CPUFallbackPipeline[/dim]"
+node render_engine.render_engine_gpu_mesh_brdf_pipeline "mesh_brdf_pipeline.py / [dim]class GPUMeshBRDFPipeline[/dim]"
+node render_engine.render_engine_gpu_micropoly_3d_renderer "micropoly_3d_renderer.py / [dim]class Micropoly3DRenderer[/dim]"
+node render_engine.render_engine_gpu_moderngl_pipeline "moderngl_pipeline.py / [dim]class ModernGLTerrainPipeline[/dim]"
+node render_engine.render_engine_gpu_settings "settings.py"
+node render_engine.render_engine_gpu_shaders "shaders.py"
+node render_engine.render_dev_viewer "render_dev_viewer.py / [dim]class MockTile, Slider[/dim]"
+node render_engine.render_island_micropolys "render_island_micropolys.py"
+node render_engine.render_regnum_terrain "render_regnum_terrain.py"
+node render_engine.render_voronoi_geopolitics "render_voronoi_geopolitics.py"
+node render_engine.render_engine___init__ "__init__.py"
+node render_engine.render_engine_gpu___init__ "__init__.py"
+
+// Subsystem: Simulation Orchestration & Lifecycle
+node orchestration.sim_world "sim_world.py"
+node orchestration.sim_world_voronoi "sim_world_voronoi.py"
+node orchestration.sim_engine "sim_engine.py"
+node orchestration.sim_nation "sim_nation.py"
+node orchestration.sim_ring "sim_ring.py"
+node orchestration.world_config "world_config.py"
+node orchestration.world_cache "world_cache.py"
+node orchestration.world_names "world_names.py"
+node orchestration.tile_resources "tile_resources.py / [dim]class TileResource, ResourceInfo[/dim]"
+node orchestration.system_menu "system_menu.py"
+
+// Subsystem: Spatial Mesh & Procedural Geography
+node spatial_mesh.polygon_map "polygon_map.py / [dim]class Center, Corner, Edge, +3 more[/dim]"
+node spatial_mesh.hexmap "hexmap.py"
+node spatial_mesh.hexview "hexview.py"
+node spatial_mesh.heightmap "heightmap.py / [dim]class HeightMapGenerator[/dim]"
+node spatial_mesh.hydraulic_erosion "hydraulic_erosion.py / [dim]class HydraulicErosionSim, HydraulicErosionResult[/dim]"
+node spatial_mesh.terrain_edges "terrain_edges.py / [dim]class EdgeType, TerrainEdge, TerrainEdgeManager[/dim]"
+node spatial_mesh.wilderness "wilderness.py"
+node spatial_mesh.compare_map_generators "compare_map_generators.py"
+node spatial_mesh.mapgen_gui "mapgen_gui.py / [dim]class Slider, Button, MapgenGUI[/dim]"
+node spatial_mesh.mapgen_web "mapgen_web.py / [dim]class MapgenHTTPHandler[/dim]"
+
+// Subsystem: Macroeconomic & Sovereign Systems
+node macro_sovereign.nation "nation.py / [dim]class Nation[/dim]"
+node macro_sovereign.nation_logic "nation_logic.py / [dim]class Relation, Nation[/dim]"
+node macro_sovereign.government "government.py / [dim]class Government[/dim]"
+node macro_sovereign.regime "regime.py"
+node macro_sovereign.election "election.py / [dim]class Candidate[/dim]"
+node macro_sovereign.coup "coup.py"
+node macro_sovereign.sovereign_bonds "sovereign_bonds.py / [dim]class BondOffering, SovereignBond, InternationalRatingBureau, +1 more[/dim]"
+node macro_sovereign.diplomacy "diplomacy.py / [dim]class TreatyType, Treaty, DiplomacySystem[/dim]"
+node macro_sovereign.army "army.py / [dim]class MilitaryUnit[/dim]"
+node macro_sovereign.imperialism "imperialism.py / [dim]class ThreatAssessment, CustomsReceivership, UnequalTreaty, +2 more[/dim]"
+node macro_sovereign.ai_nation "ai_nation.py / [dim]class NationPolicyAI[/dim]"
+node macro_sovereign.intents "intents.py / [dim]class Intent, BuildIntent, SubsidizeContractorIntent, +15 more[/dim]"
+node macro_sovereign.innovation "innovation.py / [dim]class TechDomain, Technology, RoyalBounty, +1 more[/dim]"
+node macro_sovereign.construction_politics "construction_politics.py"
+node macro_sovereign.buildings "buildings.py / [dim]class BuildingRecipe, Building, ConstructionProject[/dim]"
+
+// Subsystem: Mesoeconomic Institutions & Markets
+node meso_institutions.province "province.py / [dim]class InstitutionBundle, Province[/dim]"
+node meso_institutions.forex "forex.py / [dim]class ForexDesk[/dim]"
+node meso_institutions.world_trade "world_trade.py"
+node meso_institutions.trade_settle "trade_settle.py"
+node meso_institutions.transporter "transporter.py / [dim]class Route[/dim]"
+node meso_institutions.migration "migration.py"
+node meso_institutions.claims "claims.py"
+node meso_institutions.banking_policy "banking_policy.py"
+node meso_institutions.charity "charity.py / [dim]class Charity[/dim]"
+node meso_institutions.workhouse "workhouse.py"
+node meso_institutions.ledger "ledger.py"
+node meso_institutions.trade_dashboard "trade_dashboard.py"
+
+// Subsystem: Regional Tile Economy & Commodity Auctions
+node micro_regional.region "region.py / [dim]class Region[/dim]"
+node micro_regional.region_production "region_production.py"
+node micro_regional.region_labor "region_labor.py"
+node micro_regional.region_market "region_market.py"
+node micro_regional.region_finance "region_finance.py"
+node micro_regional.region_logistics "region_logistics.py"
+node micro_regional.region_factions "region_factions.py"
+node micro_regional.region_plotting "region_plotting.py"
+node micro_regional.econsim "econsim.py"
+node micro_regional.econsim_live "econsim_live.py / [dim]class LiveContext[/dim]"
+node micro_regional.econsim_states "econsim_states.py"
+node micro_regional.econsim_trade_money "econsim_trade_money.py / [dim]class Offer, Loan, Bank[/dim]"
+node micro_regional.econsim_two_region "econsim_two_region.py"
+
+// Subsystem: Micro-Agents, Class & Metabolic Rift
+node agent_layer.agent "agent.py / [dim]class Agent[/dim]"
+node agent_layer.social_class "social_class.py / [dim]class SocialClass[/dim]"
+node agent_layer.demographics_consumption "demographics_consumption.py"
+node agent_layer.demographics_reproduction "demographics_reproduction.py"
+node agent_layer.demographics_career "demographics_career.py"
+node agent_layer.demographics_estate "demographics_estate.py"
+node agent_layer.labor_contract "labor_contract.py / [dim]class FirmLaborStats[/dim]"
+node agent_layer.labor_resistance "labor_resistance.py / [dim]class StrikeRecord[/dim]"
+node agent_layer.labor_politics "labor_politics.py"
+node agent_layer.land_tenure "land_tenure.py / [dim]class TenureStatus, LandPlot, TileTenure[/dim]"
+node agent_layer.land_rent "land_rent.py"
+node agent_layer.enclosure "enclosure.py"
+node agent_layer.feudal_tribute "feudal_tribute.py"
+node agent_layer.foraging "foraging.py"
+node agent_layer.alienation "alienation.py"
+node agent_layer.unrest "unrest.py"
+node agent_layer.popular_resistance "popular_resistance.py / [dim]class AssassinationPlot, RebellionConfig, ResistanceState, +1 more[/dim]"
+node agent_layer.faction "faction.py / [dim]class Demand, Faction, FactionSystem[/dim]"
+node agent_layer.externalities "externalities.py"
+node agent_layer.disease "disease.py"
+node agent_layer.secular_climate "secular_climate.py"
+node agent_layer.goods "goods.py / [dim]class Goods[/dim]"
+
+// Subsystem: Diagnostics, Analytics & Tooling
+node support_utils.wealth_collector "wealth_collector.py / [dim]class WealthCollector[/dim]"
+node support_utils.wealth_diagnostic "wealth_diagnostic.py"
+node support_utils.wealth_lineage "wealth_lineage.py"
+node support_utils.logger "logger.py"
+node support_utils.random_cache "random_cache.py / [dim]class RandomCache[/dim]"
+node support_utils.setup_cython "setup_cython.py"
+node support_utils.bench_cython "bench_cython.py"
+node support_utils.wolfsheep "wolfsheep.py"
+node support_utils.hrl_agent "hrl-agent.py / [dim]class CivEnvironment, HRLAgent[/dim]"
+
+// --- Architecture & Turn Pipeline Callgraph Edges ---
+edge server_net.sim_server_sim_server -> orchestration.sim_engine "executes turn pipeline / step_turn(t)"  from: bottom  to: top
+edge server_net.sim_server_sim_server -> orchestration.sim_world "build_world(seed)"  from: bottom  to: top
+edge server_net.sim_server_web_server -> server_net.sim_server_sim_server "dispatches client commands"  from: left  to: right
+edge server_net.sim_server_protocol -> server_net.sim_server_sim_server "typed CommandMessage / ServerEvent"  from: left  to: right
+edge server_net.game_client_game_client -> server_net.sim_server_web_server "REST / WebSocket stream"  from: bottom  to: top
+edge desktop_ui.worldview -> desktop_ui.worldview_engine "drives game loop / step_world()"  from: bottom  to: top
+edge desktop_ui.worldview_engine -> orchestration.sim_engine "step_turn() tick"  from: left  to: right
+edge desktop_ui.worldview -> render_engine.render_engine_core "render_frame()"  from: right  to: left
+edge desktop_ui.worldview_gov_panel -> macro_sovereign.nation "enact decrees / adjust taxes"  from: bottom  to: top
+edge desktop_ui.worldview_debt_panel -> macro_sovereign.sovereign_bonds "float sovereign bonds"  from: bottom  to: top
+edge desktop_ui.worldview_diplomacy_panel -> macro_sovereign.diplomacy "propose treaties / embargoes"  from: bottom  to: top
+edge desktop_ui.worldview_military_panel -> macro_sovereign.army "mobilize standing army"  from: bottom  to: top
+edge desktop_ui.worldview_science_panel -> macro_sovereign.innovation "sponsor royal patent prizes"  from: bottom  to: top
+edge desktop_ui.worldview_build_panel -> macro_sovereign.intents "queue municipal / state infrastructure"  from: bottom  to: top
+edge desktop_ui.worldview_cadastre -> agent_layer.land_tenure "inspect tenure / enforce enclosure"  from: bottom  to: top
+edge desktop_ui.worldview_citizens -> agent_layer.social_class "inspect agent lineages & class breakdown"  from: bottom  to: top
+edge desktop_ui.worldview_charts -> micro_regional.region "query GDP / prices / surplus value"  from: bottom  to: top
+edge render_engine.render_engine_core -> render_engine.render_engine_terrain "draw_terrain()"  from: bottom  to: top
+edge render_engine.render_engine_core -> render_engine.render_engine_hex_renderer "draw_hexes()"  from: bottom  to: top
+edge render_engine.render_engine_terrain -> render_engine.render_engine_gpu_mesh_brdf_pipeline "render_mesh_brdf()"  from: bottom  to: top
+edge render_engine.render_engine_terrain -> spatial_mesh.polygon_map "sample dual-mesh corners / elevations"  from: left  to: right
+edge render_engine.render_engine_hex_renderer -> spatial_mesh.hexmap "sample axial coordinates"  from: left  to: right
+edge orchestration.sim_world -> spatial_mesh.polygon_map "build_world_voronoi() / dual mesh"  from: left  to: right
+edge orchestration.sim_world -> spatial_mesh.hexmap "build_world_hex() / honeycomb layout"  from: left  to: right
+edge orchestration.sim_world -> orchestration.tile_resources "assign_tile_resources()"  from: bottom  to: top
+edge orchestration.sim_world -> orchestration.world_names "assign_world_identities()"  from: bottom  to: top
+edge orchestration.sim_world -> meso_institutions.province "partition_contiguous() / build provinces"  from: bottom  to: top
+edge orchestration.sim_world -> macro_sovereign.nation "instantiate Sovereign Nations"  from: bottom  to: top
+edge orchestration.sim_engine -> macro_sovereign.ai_nation "0a. decide_turn() / sovereign AI"  from: bottom  to: top
+edge orchestration.sim_engine -> macro_sovereign.intents "0b. step_intents_and_construction()"  from: bottom  to: top
+edge macro_sovereign.intents -> macro_sovereign.buildings "advance navvy construction projects"  from: bottom  to: top
+edge orchestration.sim_engine -> meso_institutions.world_trade "1. pending_imports()"  from: right  to: left
+edge orchestration.sim_engine -> meso_institutions.province "2a. Province.step() shared institutions"  from: bottom  to: top
+edge orchestration.sim_engine -> micro_regional.region "2b. Region.step_economy() tile simulation"  from: bottom  to: top
+edge orchestration.sim_engine -> meso_institutions.transporter "3. advance() & deliver cargo"  from: right  to: left
+edge orchestration.sim_engine -> agent_layer.disease "3b. step_trade_epidemic_transmission()"  from: bottom  to: top
+edge orchestration.sim_engine -> meso_institutions.trade_settle "5. settle_trade() bilateral clearing"  from: right  to: left
+edge orchestration.sim_engine -> meso_institutions.forex "6. cycle_all_markets() / convert wallets"  from: right  to: left
+edge orchestration.sim_engine -> meso_institutions.migration "7. run_migrations() displaced flight"  from: right  to: left
+edge orchestration.sim_engine -> meso_institutions.claims "8. check_and_apply_claims()"  from: right  to: left
+edge orchestration.sim_engine -> macro_sovereign.regime "10. step_regime() / coups & elections"  from: bottom  to: top
+edge orchestration.sim_engine -> macro_sovereign.army "10b. step_armies() military upkeep"  from: bottom  to: top
+edge orchestration.sim_engine -> macro_sovereign.diplomacy "10c. update_relations() diplomatic drift"  from: bottom  to: top
+edge orchestration.sim_engine -> macro_sovereign.innovation "10d. step_innovation() tech diffusion"  from: bottom  to: top
+edge orchestration.sim_engine -> agent_layer.popular_resistance "10e. step_popular_resistance() revolts"  from: bottom  to: top
+edge orchestration.sim_engine -> macro_sovereign.imperialism "10f. step_imperialism() debt enforcement"  from: bottom  to: top
+edge orchestration.sim_engine -> meso_institutions.ledger "12. audit_currency_total() vs ledger.cleared()"  from: right  to: left
+edge micro_regional.region -> agent_layer.secular_climate "get_secular_climate(t)"  from: bottom  to: top
+edge micro_regional.region -> agent_layer.foraging "forage_tile() customary usufruct"  from: bottom  to: top
+edge micro_regional.region -> micro_regional.region_labor "run_labour() wage & shift contracts"  from: bottom  to: top
+edge micro_regional.region -> agent_layer.labor_resistance "step_workplace_resistance() strikes"  from: bottom  to: top
+edge micro_regional.region -> micro_regional.region_production "produce() commodity manufacturing"  from: bottom  to: top
+edge micro_regional.region -> agent_layer.feudal_tribute "collect_tribute() in-kind seigneurial dues"  from: bottom  to: top
+edge micro_regional.region -> micro_regional.region_market "trade() double-auction clearance"  from: bottom  to: top
+edge micro_regional.region -> micro_regional.region_finance "pay_wages() & redeem scrip"  from: bottom  to: top
+edge micro_regional.region -> agent_layer.land_rent "collect_rents() on enclosed plots"  from: bottom  to: top
+edge micro_regional.region -> agent_layer.enclosure "step_enclosure_survey_debts()"  from: bottom  to: top
+edge micro_regional.region -> agent_layer.labor_contract "aggregate_tile_surplus() exploitation rate"  from: bottom  to: top
+edge micro_regional.region -> agent_layer.demographics_consumption "consume() food calories & cost-of-living"  from: bottom  to: top
+edge micro_regional.region -> agent_layer.demographics_reproduction "reproduce() & mortality"  from: bottom  to: top
+edge micro_regional.region -> agent_layer.social_class "update_tile_social_classes()"  from: bottom  to: top
+edge micro_regional.region -> meso_institutions.workhouse "step_workhouse() penal labor"  from: right  to: left
+edge micro_regional.region -> agent_layer.alienation "step_tile_alienation() worker despair"  from: bottom  to: top
+edge micro_regional.region -> agent_layer.externalities "step_tile_externalities() metabolic rift"  from: bottom  to: top
+edge micro_regional.region -> agent_layer.disease "step_tile_diseases() epidemics & clinics"  from: bottom  to: top
+edge micro_regional.region -> agent_layer.unrest "step_unrest() threat escalation"  from: bottom  to: top
+edge micro_regional.region -> agent_layer.agent "manages instances of Agent class"  from: bottom  to: top
+edge macro_sovereign.nation -> macro_sovereign.sovereign_bonds "issues sovereign debt / floats bonds"  from: right  to: left
+edge macro_sovereign.sovereign_bonds -> meso_institutions.ledger "records bond defaults / debt cancellations"  from: bottom  to: top
+edge meso_institutions.forex -> meso_institutions.banking_policy "clears interbank forex balances"  from: bottom  to: top
+edge meso_institutions.claims -> spatial_mesh.wilderness "encloses frontier wilderness plots"  from: left  to: right
+edge spatial_mesh.polygon_map -> spatial_mesh.hydraulic_erosion "simulates fluvial erosion & river carving"  from: bottom  to: top
+edge spatial_mesh.polygon_map -> spatial_mesh.heightmap "generates tectonic elevation profiles"  from: bottom  to: top
+edge spatial_mesh.polygon_map -> spatial_mesh.terrain_edges "traces cliffs & coastlines"  from: bottom  to: top
+edge support_utils.wealth_collector -> agent_layer.agent "audits agent wealth distribution"  from: left  to: right
+edge support_utils.wealth_lineage -> agent_layer.agent "traces dynastic family fortunes"  from: left  to: right

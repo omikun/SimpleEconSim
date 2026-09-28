@@ -1,5 +1,5 @@
 """
-worldview_help.py — Full 3-Page Interactive System Manual & Seed Registry for REGNUM.
+worldview_help.py — Full 3-Page Interactive System Manual & Seed Registry for Call of Capital: Modern Economic Warfare.
 
 Pages:
 - Page 1: Simulation Controls, Camera, Map Info Layers, Badges & Terrain Glyphs
@@ -355,7 +355,7 @@ def draw_help_modal(surface, world, font, font_small):
             ny += 44
 
     # 4. Bottom Navigation Hint Strip
-    hint_text = f"Page {cur_page} / 3  |  Click Tabs above or press [1], [2], [3], [Tab], or [H]/[Esc] to close"
+    hint_text = f"Call of Capital: Modern Economic Warfare  |  Page {cur_page} / 3  |  Click Tabs above or press [1], [2], [3], [Tab], or [H]/[Esc] to close"
     hint_surf = font_small.render(hint_text, True, (150, 170, 195))
     surface.blit(hint_surf, hint_surf.get_rect(center=(bx + bw // 2, by + bh - 18)))
 

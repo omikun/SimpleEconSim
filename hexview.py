@@ -271,7 +271,7 @@ def main():
     random.seed(42)
     pygame.init()
     surface = pygame.display.set_mode((WIDTH, HEIGHT))
-    pygame.display.set_caption("REGNUM — Hex View (2x3)")
+    pygame.display.set_caption("Call of Capital — Hex View (2x3)")
     clock = pygame.time.Clock()
     world = build_world_view()
     _pops.clear()

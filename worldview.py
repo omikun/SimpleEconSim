@@ -1,5 +1,5 @@
 """
-REGNUM v3_wilderness — Pygame hex-world viewer for the 9x9 honeycomb.
+Call of Capital: Modern Economic Warfare — Pygame hex-world viewer for the 9x9 honeycomb.
 Features cursor-anchored smooth map zoom, middle-mouse drag panning, WASD/arrow pan,
 a 10-chart interactive sidebar, multi-province highlights, 3-tab comparative accounts suite,
 and a 2-page paginated help guide with economic metrics glossary.
@@ -255,7 +255,7 @@ def select_tile(world, tile):
 
 def main():
     import argparse
-    parser = argparse.ArgumentParser(description="REGNUM v3 — Hex World")
+    parser = argparse.ArgumentParser(description="Call of Capital: Modern Economic Warfare")
     parser.add_argument('--seed', type=int, default=None, help='Unified master seed')
     parser.add_argument('--terrain-seed', type=int, default=None, help='Procedural heightmap terrain seed')
     parser.add_argument('--nation-seed', type=int, default=None, help='Starting nations selection and placement seed')
@@ -277,7 +277,7 @@ def main():
     logInit()
     pygame.init()
     surface = pygame.display.set_mode((WIDTH, HEIGHT))
-    pygame.display.set_caption("REGNUM v3 — Hex World")
+    pygame.display.set_caption("Call of Capital — Hex World")
     clock = pygame.time.Clock()
 
     from system_menu import setup_system_menu, RESTART_EVENT_TYPE

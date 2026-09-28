@@ -1,4 +1,4 @@
-# SimpleEconSim — Agent Guide
+# Call of Capital: Modern Economic Warfare — Agent Guide
 
 Multi-region agent-based economy sim. Money & goods must be **conserved** — no sinks
 or free creation (except explicit design decisions, which must be documented).

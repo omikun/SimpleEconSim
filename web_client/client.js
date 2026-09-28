@@ -1,5 +1,5 @@
 /**
- * REGNUM Web Client — Comprehensive Sovereign Macroeconomic Simulation Client
+ * Call of Capital Web Client — Comprehensive Sovereign Macroeconomic Simulation Client
  * 100% Desktop Parity: 9 Thematic Layers, 6 Sovereign Suites, 20 Charts Engine,
  * Cadastre Plot Management, 6-Tab Comparison Suite, Fiscal Bailout Dialog,
  * 3-Page Paginated Encyclopedia, and Real-Time Authoritative WebSocket/REST Sync.

@@ -1,5 +1,5 @@
 """
-test_web_server.py — Comprehensive Unit & Integration Tests for REGNUM Web Client & REST API.
+test_web_server.py — Comprehensive Unit & Integration Tests for Call of Capital Web Client & REST API.
 """
 
 import sys
@@ -114,7 +114,7 @@ class TestWebServerEndpoints(unittest.TestCase):
         self.assertEqual(handler.response_status, 200)
         self.assertIn('text/html', handler.response_headers.get('content-type', ''))
         body = handler.get_body().decode('utf-8')
-        self.assertIn('REGNUM Mobile', body)
+        self.assertIn('Call of Capital', body)
         self.assertIn('map-canvas', body)
         self.assertIn('drawer', body)
 

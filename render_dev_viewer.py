@@ -151,7 +151,7 @@ def main():
     pygame.init()
     pygame.font.init()
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
-    pygame.display.set_caption(f"REGNUM Graphics Dev Viewer — Seed {args.seed}")
+    pygame.display.set_caption(f"Call of Capital Graphics Dev Viewer — Seed {args.seed}")
     clock = pygame.time.Clock()
 
     font = pygame.font.SysFont('Arial', 14, bold=True)
@@ -303,19 +303,19 @@ def main():
                     seed += 1
                     engine.invalidate_cache()
                     tiles = create_mock_island_tiles(seed=seed, rows=rows, cols=cols)
-                    pygame.display.set_caption(f"REGNUM Graphics Dev Viewer — Seed {seed}")
+                    pygame.display.set_caption(f"Call of Capital Graphics Dev Viewer — Seed {seed}")
                     needs_redraw = True
                 elif event.key == pygame.K_p:
                     seed = max(1, seed - 1)
                     engine.invalidate_cache()
                     tiles = create_mock_island_tiles(seed=seed, rows=rows, cols=cols)
-                    pygame.display.set_caption(f"REGNUM Graphics Dev Viewer — Seed {seed}")
+                    pygame.display.set_caption(f"Call of Capital Graphics Dev Viewer — Seed {seed}")
                     needs_redraw = True
                 elif event.key in (pygame.K_SPACE, pygame.K_x):
                     seed = random.randint(1, 99999)
                     engine.invalidate_cache()
                     tiles = create_mock_island_tiles(seed=seed, rows=rows, cols=cols)
-                    pygame.display.set_caption(f"REGNUM Graphics Dev Viewer — Seed {seed}")
+                    pygame.display.set_caption(f"Call of Capital Graphics Dev Viewer — Seed {seed}")
                     status_feedback = (f"Randomized seed to {seed}", (130, 215, 255), time.time() + 3.0)
                     needs_redraw = True
                     print(f"[Graphics Dev] Randomized terrain seed to: {seed}")
@@ -476,7 +476,7 @@ def main():
                             seed = random.randint(1, 99999)
                             engine.invalidate_cache()
                             tiles = create_mock_island_tiles(seed=seed, rows=rows, cols=cols)
-                            pygame.display.set_caption(f"REGNUM Graphics Dev Viewer — Seed {seed}")
+                            pygame.display.set_caption(f"Call of Capital Graphics Dev Viewer — Seed {seed}")
                             status_feedback = (f"Randomized seed to {seed}", (130, 215, 255), time.time() + 3.0)
                             needs_redraw = True
                             print(f"[Graphics Dev] Randomized terrain seed to: {seed}")

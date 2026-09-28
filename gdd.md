@@ -1,4 +1,4 @@
-# WAR BY OTHER MEANS: Economic Total War — Game Design Document
+# Call of Capital: Modern Economic Warfare — Game Design Document
 
 **Working Title Candidates (with Strategy & Economic Warfare Twists):**
 - **WAR BY OTHER MEANS: Economic Total War** *(Clausewitzian inversion: capital and financial markets as supreme instruments of conquest)*

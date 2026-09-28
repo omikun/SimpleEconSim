@@ -615,7 +615,7 @@ def draw_top_bar(surface, world, font_small, mouse_pos=None):
     hovered_dropdown = None
 
     if n is None:
-        head = font.render("REGNUM v3 — 9x9 Hex World", True, ACCENT)
+        head = font.render("Call of Capital — 9x9 Hex World", True, ACCENT)
         surface.blit(head, (8, 14))
     else:
         n_col = NATION_COLORS.get(n.name, ACCENT)
@@ -794,7 +794,7 @@ def draw_panel(surface, world, font, font_small, mouse_pos=None):
     pygame.draw.rect(surface, PANEL_BG,
                      (PANEL_LEFT - 10, 10 + d, panel_w + 4, panel_h))
 
-    title = font.render("REGNUM — Hex World", True, ACCENT)
+    title = font.render("Call of Capital — Hex World", True, ACCENT)
     surface.blit(title, (PANEL_LEFT, 20 + d))
 
     t_ = world['turn']
@@ -1251,7 +1251,7 @@ def draw_help(surface, world, font_small, mouse_pos=None):
     cur_page = world.get('help_page', 1)
 
     # Modal Header
-    surface.blit(title_font.render('REGNUM v3 — Comprehensive Reference & Economic Guide', True, ACCENT),
+    surface.blit(title_font.render('Call of Capital: Modern Economic Warfare — Comprehensive Reference & Economic Guide', True, ACCENT),
                  (32, 18))
     close_hint = font_small.render("[Press H, Esc, or Click to Close | Page 1 / 2 to switch]", True, DIM)
     surface.blit(close_hint, (WIDTH - close_hint.get_width() - 32, 22))
@@ -1545,7 +1545,7 @@ def draw_loading_modal(surface, fraction: float, status_text: str, seed: int = N
     body_font = get_font(18)
     small_font = get_font(15)
 
-    title_surf = title_font.render("REGNUM v3 — WORLD GENERATION", True, (212, 175, 55))
+    title_surf = title_font.render("Call of Capital — WORLD GENERATION", True, (212, 175, 55))
     surface.blit(title_surf, (modal_x + 24, modal_y + 12))
 
     seed_str = f" • Seed: {seed}" if seed is not None else ""

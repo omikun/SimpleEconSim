@@ -1,5 +1,5 @@
 """
-REGNUM v3_wilderness — Cross-Nation & Provincial Economic Comparison Suite.
+Call of Capital: Modern Economic Warfare — Cross-Nation & Provincial Economic Comparison Suite.
 Provides a comprehensive 3-tab analytical accounts dashboard with turn delta tracking:
   Tab 1: Macro Accounts & Leaderboard
   Tab 2: Goods Market & Provincial Industrial Economy (Food / Wood / Furniture)
@@ -762,7 +762,7 @@ def draw_nations_comparison(surface, world, font, font_small, mouse_pos=None):
     pygame.draw.rect(surface, BORDER_MODAL, (box_x, box_y, box_w, box_h), 2, border_radius=8)
 
     # Top Header
-    title = title_font.render("REGNUM v3 - Economic & Geopolitical Accounts Suite", True, ACCENT)
+    title = title_font.render("Call of Capital — Economic & Geopolitical Accounts Suite", True, ACCENT)
     surface.blit(title, (box_x + 20, box_y + 14))
     close_hint = font_small.render("[Press C, Esc, or Click to Close | Tab or 1-6 to switch]", True, DIM)
     surface.blit(close_hint, (box_x + box_w - close_hint.get_width() - 20, box_y + 18))

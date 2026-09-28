@@ -1,4 +1,4 @@
-# REGNUM Desktop Client Feature Inventory & Web Client Parity Matrix
+# Call of Capital Desktop Client Feature Inventory & Web Client Parity Matrix
 
 This document enumerates all buttons, graphs, tables, tabs, and interactive dialogs present in the native desktop client (`worldview.py`, `worldview_ui.py`, `worldview_compare.py`, `worldview_gov_panel.py`, `worldview_build_panel.py`, `worldview_debt_panel.py`, `worldview_diplomacy_panel.py`, `worldview_science_panel.py`, `worldview_military_panel.py`, `worldview_cadastre.py`, `worldview_citizens.py`, `worldview_labor_ui.py`, `worldview_transfer_dialog.py`, `worldview_help.py`, `worldview_layers.py`, and `worldview_charts.py`).
 
@@ -242,4 +242,4 @@ Each item is categorized as:
 
 ---
 
-*Verified 100% desktop client parity in REGNUM Web Client.*
+*Verified 100% desktop client parity in Call of Capital Web Client.*
