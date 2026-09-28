@@ -815,6 +815,84 @@ def get_tile_label_priority(region, world, is_nat_cap=False, is_prov_cap=False):
     return 100
 
 
+def point_in_polygon(x: float, y: float, poly: list) -> bool:
+    """Ray casting algorithm to test if point (x, y) is inside polygon poly."""
+    n = len(poly)
+    if n < 3:
+        return False
+    inside = False
+    p1x, p1y = poly[0]
+    for i in range(1, n + 1):
+        p2x, p2y = poly[i % n]
+        if min(p1y, p2y) < y <= max(p1y, p2y):
+            if x <= max(p1x, p2x):
+                if p1y != p2y:
+                    xinters = (y - p1y) * (p2x - p1x) / (p2y - p1y) + p1x
+                if p1x == p2x or x <= xinters:
+                    inside = not inside
+        p1x, p1y = p2x, p2y
+    return inside
+
+
+def find_label_micro_shift(cand: dict, occupied_rects: list, blocker_rect: pygame.Rect | None):
+    """Attempt to find a small spatial offset (dx, dy) within cand['pts'] that resolves collision.
+    Returns (shifted_cx, shifted_cy, shifted_test_rect, dx, dy) if found, else None.
+    Constraint: The text center must remain inside the tile polygon pts.
+    """
+    pts = cand.get('pts')
+    if not pts or len(pts) < 3:
+        return None
+
+    cx, cy = cand['cx'], cand['cy']
+
+    # Calculate escape vector away from the colliding blocker
+    if blocker_rect is not None:
+        vx = cx - blocker_rect.centerx
+        vy = cy - blocker_rect.centery
+    else:
+        vx, vy = 0, 0
+
+    mag = math.hypot(vx, vy)
+    if mag > 0.001:
+        escape_angle = math.atan2(vy, vx)
+    else:
+        escape_angle = 0.0
+
+    # 16 radial directions around the unit circle
+    angles = [i * (2.0 * math.pi / 16) for i in range(16)]
+    # Prioritize directions pointing away from the blocker
+    angles.sort(key=lambda a: abs(math.atan2(math.sin(a - escape_angle), math.cos(a - escape_angle))))
+
+    # Concentric distance rings
+    distances = (8, 14, 20, 26, 32, 40)
+
+    poly_min_x = min(p[0] for p in pts)
+    poly_max_x = max(p[0] for p in pts)
+    poly_min_y = min(p[1] for p in pts)
+    poly_max_y = max(p[1] for p in pts)
+    max_d = max(poly_max_x - poly_min_x, poly_max_y - poly_min_y) * 0.55
+
+    for d in distances:
+        if d > max_d:
+            break
+        for a in angles:
+            dx = int(round(d * math.cos(a)))
+            dy = int(round(d * math.sin(a)))
+            nx = cx + dx
+            ny = cy + dy
+
+            # 1. Point-in-polygon constraint: center must remain strictly inside the tile's polygon
+            if not point_in_polygon(nx, ny, pts):
+                continue
+
+            # 2. Collision test against all currently accepted labels
+            shifted_test_rect = cand['test_rect'].move(dx, dy)
+            if shifted_test_rect.collidelist(occupied_rects) == -1:
+                return nx, ny, shifted_test_rect, dx, dy
+
+    return None
+
+
 def draw_text_with_shadow(surface, font, text, center, color, shadow_color=(12, 12, 16)):
     """Render text with a soft drop shadow for ultra-crisp readability over elevation terrain."""
     cx, cy = center
@@ -1412,10 +1490,10 @@ def draw_hex_map(surface, world, font, font_small):
                 if priority < 500 and zoom < 2.2:
                     continue
             else:
-                if priority < 600 and zoom < 1.35:
+                if priority < 400 and zoom < 1.35:
                     continue
         else:
-            if zoom < 1.35 and priority < 500:
+            if zoom < 1.35 and priority < 400:
                 continue
 
         # Compute label bounding box
@@ -1455,6 +1533,7 @@ def draw_hex_map(surface, world, font, font_small):
             'region': region,
             'cx': cx,
             'cy': cy,
+            'pts': pts,
             'priority': priority,
             'box': box,
             'test_rect': box.inflate(8, 6),
@@ -1475,16 +1554,28 @@ def draw_hex_map(surface, world, font, font_small):
     accepted_tiles = set()
 
     for cand in label_candidates:
-        # Priority >= 900 (selected tile or hovered tile) is NEVER culled
+        # Priority >= 900 (selected tile or hovered tile) is NEVER culled, never shifted
         if cand['priority'] >= 900:
             occupied_rects.append(cand['test_rect'])
             accepted_tiles.add(cand['region'])
             continue
 
         # Check collision against all previously accepted higher-priority labels
-        if cand['test_rect'].collidelist(occupied_rects) == -1:
+        blocker_idx = cand['test_rect'].collidelist(occupied_rects)
+        if blocker_idx == -1:
             occupied_rects.append(cand['test_rect'])
             accepted_tiles.add(cand['region'])
+        else:
+            # Overlap detected! Test micro-shifting within the tile's polygon
+            shift_result = find_label_micro_shift(cand, occupied_rects, occupied_rects[blocker_idx])
+            if shift_result is not None:
+                nx, ny, shifted_test_rect, dx, dy = shift_result
+                cand['cx'] = nx
+                cand['cy'] = ny
+                cand['box'] = cand['box'].move(dx, dy)
+                cand['test_rect'] = shifted_test_rect
+                occupied_rects.append(shifted_test_rect)
+                accepted_tiles.add(cand['region'])
 
     # Render only accepted labels
     for cand in label_candidates:
