@@ -157,6 +157,12 @@ class TestWebServerEndpoints(unittest.TestCase):
         self.assertIn('javascript', handler.response_headers.get('content-type', ''))
         self.assertIn('RegnumHexGeometry', handler.get_body().decode('utf-8'))
 
+    def test_serve_chart_renderer_module(self):
+        handler = MockHttpRequestHandler(self.mock_server, 'GET', '/chart_renderer.js')
+        self.assertEqual(handler.response_status, 200)
+        self.assertIn('javascript', handler.response_headers.get('content-type', ''))
+        self.assertIn('RegnumCharts', handler.get_body().decode('utf-8'))
+
     def test_get_qr_svg_endpoint(self):
         handler = MockHttpRequestHandler(self.mock_server, 'GET', '/api/qr.svg')
         self.assertEqual(handler.response_status, 200)

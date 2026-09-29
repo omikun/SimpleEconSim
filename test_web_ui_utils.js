@@ -2,6 +2,7 @@ const assert = require('node:assert/strict');
 require('./web_client/ui_utils.js');
 require('./web_client/state_sync.js');
 require('./web_client/hex_geometry.js');
+require('./web_client/chart_renderer.js');
 
 const { escapeHtml, safeClassToken, safeCssColor } = globalThis.RegnumUIUtils;
 
@@ -19,6 +20,25 @@ for (const cell of [{ q: 0, r: 0 }, { q: 3, r: -2 }, { q: -4, r: 5 }]) {
   assert.deepEqual(geometry.pixelToAxial(point.x, point.y, 50), cell);
 }
 assert.deepEqual(geometry.pixelToAxial(0, 0, 50), { q: 0, r: 0 });
+
+const chartCalls = [];
+const chartContext = new Proxy({}, {
+  get(_target, key) {
+    if (key === 'scale') return (...args) => chartCalls.push(['scale', ...args]);
+    if (key === 'clearRect' || key === 'moveTo' || key === 'lineTo' || key === 'fillText' || key === 'arc') {
+      return (...args) => chartCalls.push([key, ...args]);
+    }
+    return () => chartCalls.push([key]);
+  },
+  set(_target, key, value) { chartCalls.push(['set', key, value]); return true; }
+});
+const chartCanvas = { clientWidth: 300, clientHeight: 160, getContext: () => chartContext };
+const chartLegend = globalThis.RegnumCharts.drawHistoricalChart(chartCanvas, [10, 20, 15], 'gdp', 2);
+assert.equal(chartCanvas.width, 600);
+assert.equal(chartCanvas.height, 320);
+assert.match(chartLegend, /GDP: Historical Trend/);
+assert.ok(chartCalls.some(call => call[0] === 'arc'));
+assert.equal(globalThis.RegnumCharts.getChartCatalog().economic[0].id, 'gdp');
 
 const calls = [];
 let commandResult;

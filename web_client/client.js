@@ -1826,34 +1826,7 @@
     if (!container) return;
     container.innerHTML = '';
 
-    const chartCatalog = {
-      economic: [
-        { id: 'gdp', name: 'Real GDP' },
-        { id: 'treasury', name: 'Treasury' },
-        { id: 'food_price', name: 'Food Price' },
-        { id: 'pop', name: 'Pop/Hunger' },
-        { id: 'production', name: 'Production' },
-        { id: 'trade', name: 'Trade Flow' },
-        { id: 'gov_income', name: 'Gov Revenue' },
-        { id: 'gini', name: 'Gini Inequality' },
-        { id: 'inventories', name: 'Commodity Stocks' },
-        { id: 'unrest', name: 'Protest Energy' }
-      ],
-      ecological: [
-        { id: 'soil', name: 'Soil & Nutrition' },
-        { id: 'smog', name: 'Smog Particulate' },
-        { id: 'effluent', name: 'Water Effluent' },
-        { id: 'epidemics', name: 'Epidemic Cases' },
-        { id: 'health_outlays', name: 'Healthcare Outlays' },
-        { id: 'illness_deaths', name: 'Illness Fatalities' }
-      ],
-      labor: [
-        { id: 'shift_hours', name: 'Shift Hours & (s/v)' },
-        { id: 'alienation', name: '4D Alienation' },
-        { id: 'consciousness', name: 'Class Consciousness' },
-        { id: 'strikes', name: 'Wildcat Strikes' }
-      ]
-    };
+    const chartCatalog = window.RegnumCharts.getChartCatalog();
 
     const chips = chartCatalog[activeChartMode] || chartCatalog.economic;
     if (!chips.find(c => c.id === activeChartMetric)) {
@@ -1880,107 +1853,20 @@
     const chartCanvas = document.getElementById('historical-chart-canvas');
     if (!chartCanvas || !worldState) return;
 
-    const cCtx = chartCanvas.getContext('2d');
-    const dpr = window.devicePixelRatio || 1;
-    const w = chartCanvas.clientWidth || 380;
-    const h = chartCanvas.clientHeight || 220;
-
-    chartCanvas.width = Math.round(w * dpr);
-    chartCanvas.height = Math.round(h * dpr);
-
-    cCtx.save();
-    cCtx.scale(dpr, dpr);
-    cCtx.clearRect(0, 0, w, h);
-
-    // Look for data series either in tile deep inspection or world history
     let values = [];
-    let turns = (worldState.history && worldState.history.turns) || [1, 2, 3];
-
     if (selectedTileDetail && selectedTileDetail.charts) {
-      const cMode = selectedTileDetail.charts[activeChartMode];
-      if (cMode && cMode[activeChartMetric]) values = cMode[activeChartMetric];
+      const mode = selectedTileDetail.charts[activeChartMode];
+      if (mode && mode[activeChartMetric]) values = mode[activeChartMetric];
     }
-
     if (values.length === 0 && worldState.history) {
       values = worldState.history[activeChartMetric] || [];
     }
 
-    // Default trend mock fallback if early turn
-    if (values.length < 2) {
-      const base = 50;
-      values = [base, base + 4, base + 2, base + 7, base + 6];
-    }
-
-    const padL = 44;
-    const padR = 14;
-    const padT = 18;
-    const padB = 24;
-    const plotW = w - padL - padR;
-    const plotH = h - padT - padB;
-
-    let minVal = Math.min(...values);
-    let maxVal = Math.max(...values);
-    if (minVal === maxVal) {
-      minVal -= 1;
-      maxVal += 1;
-    }
-    const valSpan = maxVal - minVal;
-
-    // Gridlines & Y-Axis
-    cCtx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
-    cCtx.lineWidth = 1;
-    cCtx.fillStyle = '#64748b';
-    cCtx.font = '10px sans-serif';
-    cCtx.textAlign = 'right';
-
-    for (let i = 0; i <= 4; i++) {
-      const y = padT + (plotH / 4) * i;
-      const val = maxVal - (valSpan / 4) * i;
-      cCtx.beginPath();
-      cCtx.moveTo(padL, y);
-      cCtx.lineTo(w - padR, y);
-      cCtx.stroke();
-      cCtx.fillText(val >= 1000 ? `${(val / 1000).toFixed(1)}k` : val.toFixed(val < 10 ? 1 : 0), padL - 6, y + 3);
-    }
-
-    // Line Curve
-    cCtx.beginPath();
-    const colors = {
-      gdp: '#38bdf8',
-      treasury: '#f59e0b',
-      food_price: '#10b981',
-      pop: '#a855f7',
-      unrest: '#ef4444',
-      soil: '#10b981',
-      smog: '#94a3b8',
-      alienation: '#f43f5e'
-    };
-    const strokeColor = colors[activeChartMetric] || '#38bdf8';
-    cCtx.strokeStyle = strokeColor;
-    cCtx.lineWidth = 2.5;
-
-    values.forEach((v, idx) => {
-      const x = padL + (plotW / Math.max(1, values.length - 1)) * idx;
-      const y = padT + plotH - ((v - minVal) / valSpan) * plotH;
-      if (idx === 0) cCtx.moveTo(x, y);
-      else cCtx.lineTo(x, y);
-    });
-    cCtx.stroke();
-
-    // Data Points
-    cCtx.fillStyle = strokeColor;
-    values.forEach((v, idx) => {
-      const x = padL + (plotW / Math.max(1, values.length - 1)) * idx;
-      const y = padT + plotH - ((v - minVal) / valSpan) * plotH;
-      cCtx.beginPath();
-      cCtx.arc(x, y, 2.5, 0, Math.PI * 2);
-      cCtx.fill();
-    });
-
-    const lText = document.getElementById('chart-legend-text');
-    if (lText) lText.textContent = `${activeChartMetric.toUpperCase()}: Historical Trend over Turns (Min ${minVal.toFixed(1)} | Max ${maxVal.toFixed(1)})`;
-
-    cCtx.restore();
+    const legend = window.RegnumCharts.drawHistoricalChart(
+      chartCanvas, values, activeChartMetric, window.devicePixelRatio || 1
+    );
+    const legendText = document.getElementById('chart-legend-text');
+    if (legendText) legendText.textContent = legend;
   }
 
   // ---------------- Tile Deep Inspection & Cadastre ----------------
