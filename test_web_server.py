@@ -309,6 +309,27 @@ class TestWebServerEndpoints(unittest.TestCase):
         self.assertEqual(handler.response_status, 403)
         self.assertEqual(self.sim.turn, 0)
 
+    def test_api_command_rejects_non_object_payload(self):
+        body = json.dumps({'cmd_type': 'STEP', 'payload': []}).encode('utf-8')
+        handler = MockHttpRequestHandler(
+            self.mock_server, 'POST', '/api/command',
+            headers={'Content-Length': len(body), 'X-REGNUM-Token': 'test-token'}, body=body,
+        )
+        self.assertEqual(handler.response_status, 400)
+        self.assertEqual(self.sim.turn, 0)
+
+    def test_api_command_rejects_oversized_body(self):
+        handler = MockHttpRequestHandler(
+            self.mock_server, 'POST', '/api/command',
+            headers={'Content-Length': str(1024 * 1024 + 1), 'X-REGNUM-Token': 'test-token'},
+        )
+        self.assertEqual(handler.response_status, 413)
+
+    def test_api_does_not_enable_cross_origin_access(self):
+        options = MockHttpRequestHandler(self.mock_server, 'OPTIONS', '/api/state')
+        self.assertEqual(options.response_status, 405)
+        self.assertNotIn('access-control-allow-origin', options.response_headers)
+
     def test_shutdown_get_is_disabled_and_post_requires_token(self):
         get_handler = MockHttpRequestHandler(self.mock_server, 'GET', '/api/shutdown')
         self.assertEqual(get_handler.response_status, 405)

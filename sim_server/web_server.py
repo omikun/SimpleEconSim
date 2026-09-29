@@ -214,10 +214,19 @@ class RegnumHTTPRequestHandler(BaseHTTPRequestHandler):
                 return
             try:
                 length = int(self.headers.get('Content-Length', 0))
+                if length < 0 or length > 1024 * 1024:
+                    self._send_error_json(413, 'Command body must be between 0 and 1 MiB')
+                    return
                 raw_body = self.rfile.read(length)
                 data = json.loads(raw_body.decode('utf-8'))
+                if not isinstance(data, dict):
+                    self._send_error_json(400, 'Command body must be a JSON object')
+                    return
                 cmd_type_str = (data.get('cmd_type') or data.get('type') or data.get('cmd') or '').upper()
                 payload = data.get('payload', {})
+                if not isinstance(payload, dict):
+                    self._send_error_json(400, 'Command payload must be a JSON object')
+                    return
 
                 # Validate command type
                 try:
