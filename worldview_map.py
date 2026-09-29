@@ -21,6 +21,7 @@ from goods import Goods
 from hexmap import hex_corners
 from worldview_camera import hex_px, HEX_SIZE, MAP_RIGHT, TOP_BAR_H, TICKER_H, HEIGHT
 from heightmap import get_cached_topographic_surface
+from ui_icons import get_icon
 
 NATION_COLORS = {
     'United States': (80, 160, 240),
