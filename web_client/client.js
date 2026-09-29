@@ -11,6 +11,22 @@
   const SQRT3 = Math.sqrt(3.0);
   const DEFAULT_HEX_SIZE = 50.0;
 
+  function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    })[char]);
+  }
+
+  function safeClassToken(value, fallback = '') {
+    const token = String(value ?? '');
+    return /^[a-zA-Z0-9_-]+$/.test(token) ? token : fallback;
+  }
+
+  function safeCssColor(value, fallback = '#38bdf8') {
+    const color = String(value ?? '');
+    return /^#[0-9a-fA-F]{3,8}$/.test(color) ? color : fallback;
+  }
+
   // Global World & Simulation State
   let worldState = null;
   let selectedTileName = null;
@@ -520,7 +536,7 @@
     if (elUnrest) {
       const stage = macro.unrest_stage || 'Calm';
       elUnrest.textContent = `${(macro.unrest_energy || 0).toFixed(1)} ${stage}`;
-      elUnrest.className = `macro-val badge-unrest ${stage.toLowerCase()}`;
+      elUnrest.className = `macro-val badge-unrest ${safeClassToken(stage.toLowerCase(), 'calm')}`;
     }
 
     if (btnPlay) {
@@ -551,7 +567,7 @@
 
       const pNat = worldState.nations.find(n => n.name === worldState.player_nation);
       if (pNat && activeFlagDot) {
-        activeFlagDot.style.background = pNat.flag_color || '#38bdf8';
+        activeFlagDot.style.background = safeCssColor(pNat.flag_color);
       }
     }
 
@@ -585,7 +601,7 @@
           { label: 'Liquid Cash Vault', val: `$${trCash.toLocaleString()}`, valClass: 'text-gold' }
         ];
         if (trDelta !== 0) {
-          rows.push({ label: 'Turn Balance Delta', val: `${deltaHtml} / turn` });
+          rows.push({ label: 'Turn Balance Delta', val: deltaHtml });
         }
         const totalUpkeep = macro.treasury_upkeep || 0;
         if (totalUpkeep > 0) {
@@ -718,9 +734,9 @@
           { label: 'National Protest Energy', val: `${unrestVal} / 10.00`, valClass: Number(unrestVal) > 3 ? 'text-ruby' : 'text-green' }
         ];
         if (Math.abs(Number(uDelta)) >= 0.01) {
-          rows.push({ label: 'Turn Protest Delta', val: `${deltaHtml} / turn` });
+          rows.push({ label: 'Turn Protest Delta', val: deltaHtml });
         }
-        rows.push({ label: 'Civil Threat Classification', val: stage, valClass: `badge-unrest ${stage.toLowerCase()}` });
+        rows.push({ label: 'Civil Threat Classification', val: stage, valClass: `badge-unrest ${safeClassToken(stage.toLowerCase(), 'calm')}` });
         rows.push({ label: 'Root Grievance Vectors', val: 'Overwork, Enclosure, Hunger, Taxes' });
         if ((macro.garrison || 0) > 0) {
           rows.push({ label: 'Stationed Garrisons', val: `${macro.garrison} soldiers active` });
@@ -729,7 +745,7 @@
         return {
           title: '🔥 Civil Unrest & Popular Protest',
           badge: `Stage: ${stage}`,
-          badgeClass: `badge-unrest ${stage.toLowerCase()}`,
+          badgeClass: `badge-unrest ${safeClassToken(stage.toLowerCase(), 'calm')}`,
           rows,
           footer: 'Press [C] for 6-cause breakdown or [G] to deploy garrisons & lower taxes.'
         };
@@ -763,7 +779,7 @@
           { label: 'Net Commercial Balance', val: `${tbHtml}` }
         ];
         if (tDelta !== 0) {
-          rows.push({ label: 'Turn Balance Delta', val: `${tDeltaHtml} / turn` });
+          rows.push({ label: 'Turn Balance Delta', val: tDeltaHtml });
         }
         if (Math.round(macro.exports || 0) > 0) {
           rows.push({ label: 'Total Foreign Exports', val: `$${Math.round(macro.exports || 0).toLocaleString()}`, valClass: 'text-cyan' });
@@ -853,23 +869,23 @@
     popover.innerHTML = `
       <div class="popover-header">
         <div class="popover-title-row">
-          <span>${data.title}</span>
+          <span>${escapeHtml(data.title)}</span>
         </div>
         <div style="display:flex; align-items:center; gap:6px;">
-          <span class="popover-badge ${data.badgeClass || ''}">${data.badge}</span>
+          <span class="popover-badge ${safeClassToken(data.badgeClass)}">${escapeHtml(data.badge)}</span>
           <button class="popover-close-btn" id="popover-close-btn" aria-label="Close tooltip">&times;</button>
         </div>
       </div>
       <div class="popover-body">
         ${data.rows.map(r => `
           <div class="popover-row">
-            <span class="row-label">${r.label}</span>
-            <span class="row-val ${r.valClass || ''}">${r.val}</span>
+            <span class="row-label">${escapeHtml(r.label)}</span>
+            <span class="row-val ${safeClassToken(r.valClass)}">${escapeHtml(r.val)}</span>
           </div>
         `).join('')}
       </div>
       <div class="popover-footer">
-        ${data.footer}
+        ${escapeHtml(data.footer)}
       </div>
     `;
 
@@ -1411,15 +1427,15 @@
 
       card.innerHTML = `
         <div class="card-top">
-          <span class="card-title">🏛️ ${recipe.name}</span>
-          <span class="card-badge ${recipe.status || 'unlocked'}">${recipe.tier || 'Tier 1'}</span>
+          <span class="card-title">🏛️ ${escapeHtml(recipe.name)}</span>
+          <span class="card-badge ${safeClassToken(recipe.status, 'unlocked')}">${escapeHtml(recipe.tier || 'Tier 1')}</span>
         </div>
-        <div class="card-desc">${recipe.description || 'Public works infrastructure blueprint.'}</div>
+        <div class="card-desc">${escapeHtml(recipe.description || 'Public works infrastructure blueprint.')}</div>
         <div class="card-meta-row">
-          <span>Cost: <strong class="text-gold">$${recipe.cost || 100}</strong></span>
-          <span>Time: ${recipe.turns || 3} turns</span>
+          <span>Cost: <strong class="text-gold">$${Number(recipe.cost) || 100}</strong></span>
+          <span>Time: ${Number(recipe.turns) || 3} turns</span>
         </div>
-        <button class="btn btn-primary btn-sm mt-2 btn-construct" data-recipe="${recipe.id || recipe.name}">
+        <button class="btn btn-primary btn-sm mt-2 btn-construct" data-recipe="${escapeHtml(recipe.id || recipe.name)}">
           🔨 Commission Project
         </button>
       `;
@@ -1464,8 +1480,8 @@
       card.className = 'item-card';
       card.innerHTML = `
         <div class="card-top">
-          <span class="card-title">⏳ ${p.recipe_name || 'Construction'}</span>
-          <span class="text-xs text-dim">${p.progress_turns || 1} / ${p.total_turns || 3} turns</span>
+          <span class="card-title">⏳ ${escapeHtml(p.recipe_name || 'Construction')}</span>
+          <span class="text-xs text-dim">${Number(p.progress_turns) || 1} / ${Number(p.total_turns) || 3} turns</span>
         </div>
         <div class="progress-gauge-container">
           <div class="progress-gauge-fill" style="width: ${pct}%"></div>
@@ -1511,16 +1527,16 @@
       activeCard.innerHTML = `
         <div class="gov-card">
           <div class="flex-between">
-            <h4 class="card-title" style="color:${activeNat.flag_color || '#38bdf8'}">👑 ${activeNat.name}</h4>
-            <span class="card-badge mastered">${activeNat.regime_type || 'Empire'}</span>
+          <h4 class="card-title" style="color:${safeCssColor(activeNat.flag_color)}">👑 ${escapeHtml(activeNat.name)}</h4>
+            <span class="card-badge mastered">${escapeHtml(activeNat.regime_type || 'Empire')}</span>
           </div>
           <div class="stat-row mt-2">
             <span>Bilateral Relations Score:</span>
-            <strong class="text-gold">${activeNat.relations || 0} / 100</strong>
+            <strong class="text-gold">${Number(activeNat.relations) || 0} / 100</strong>
           </div>
           <div class="stat-row">
             <span>Diplomatic Standing:</span>
-            <strong class="text-green">${activeNat.treaty_status || 'Peace'}</strong>
+            <strong class="text-green">${escapeHtml(activeNat.treaty_status || 'Peace')}</strong>
           </div>
           <div class="dual-btn-row mt-3">
             <button class="btn btn-secondary btn-sm btn-diplo-act" data-act="propose_trade">🤝 Propose Trade Pact</button>
@@ -1618,12 +1634,12 @@
           c.className = 'item-card';
           c.innerHTML = `
             <div class="card-top">
-              <span class="card-title">📜 Tranche #${b.tranche_id || '1'}</span>
-              <span class="text-gold">$${Math.round(b.principal).toLocaleString()}</span>
+              <span class="card-title">📜 Tranche #${escapeHtml(b.tranche_id || '1')}</span>
+              <span class="text-gold">$${Math.round(Number(b.principal) || 0).toLocaleString()}</span>
             </div>
             <div class="card-meta-row">
-              <span>Coupon: ${(b.coupon_rate * 100).toFixed(2)}%</span>
-              <span>Matures: T+${b.turns_remaining}</span>
+              <span>Coupon: ${(Number(b.coupon_rate) * 100).toFixed(2)}%</span>
+              <span>Matures: T+${Number(b.turns_remaining) || 0}</span>
             </div>
           `;
           oList.appendChild(c);
@@ -1644,14 +1660,14 @@
           c.className = 'item-card';
           c.innerHTML = `
             <div class="card-top">
-              <span class="card-title">👑 ${fb.seller_nation} Bond</span>
-              <span class="card-badge mastered">${fb.credit_rating || 'A'}</span>
+          <span class="card-title">👑 ${escapeHtml(fb.seller_nation)} Bond</span>
+              <span class="card-badge mastered">${escapeHtml(fb.credit_rating || 'A')}</span>
             </div>
             <div class="card-meta-row">
-              <span>Amount: <strong class="text-gold">$${fb.amount}</strong></span>
-              <span>Yield: ${(fb.yield * 100).toFixed(2)}%</span>
+              <span>Amount: <strong class="text-gold">$${Number(fb.amount) || 0}</strong></span>
+              <span>Yield: ${(Number(fb.yield) * 100).toFixed(2)}%</span>
             </div>
-            <button class="btn btn-primary btn-sm mt-2 btn-buy-foreign" data-seller="${fb.seller_nation}" data-amt="${fb.amount}">
+            <button class="btn btn-primary btn-sm mt-2 btn-buy-foreign" data-seller="${escapeHtml(fb.seller_nation)}" data-amt="${Number(fb.amount) || 0}">
               💵 Purchase Tranche
             </button>
           `;
@@ -1677,7 +1693,7 @@
       worldState.resources.forEach(res => {
         const chip = document.createElement('span');
         chip.className = 'res-chip';
-        chip.innerHTML = `⛏️ <strong>${res.name}</strong>: ${res.amount}`;
+        chip.innerHTML = `⛏️ <strong>${escapeHtml(res.name)}</strong>: ${Number(res.amount) || 0}`;
         rRibbon.appendChild(chip);
       });
     }
@@ -1698,16 +1714,16 @@
 
       card.innerHTML = `
         <div class="card-top">
-          <span class="card-title">🔬 ${tech.name}</span>
-          <span class="card-badge ${tech.status ? tech.status.toLowerCase() : 'locked'}">${tech.status || 'LOCKED'}</span>
+          <span class="card-title">🔬 ${escapeHtml(tech.name)}</span>
+          <span class="card-badge ${safeClassToken(tech.status ? tech.status.toLowerCase() : 'locked', 'locked')}">${escapeHtml(tech.status || 'LOCKED')}</span>
         </div>
-        <div class="card-desc">${tech.description || 'Scientific discovery expanding industrial production.'}</div>
+        <div class="card-desc">${escapeHtml(tech.description || 'Scientific discovery expanding industrial production.')}</div>
         <div class="card-meta-row">
-          <span>Prerequisites: ${tech.prereqs ? tech.prereqs.join(', ') : 'None'}</span>
+          <span>Prerequisites: ${escapeHtml(tech.prereqs ? tech.prereqs.join(', ') : 'None')}</span>
           <span>Diffusing: ${Math.round((tech.diffusion || 0) * 100)}%</span>
         </div>
         ${!isMastered ? `
-          <button class="btn btn-secondary btn-sm mt-2 btn-pledge-prize" data-tech="${tech.id}">
+          <button class="btn btn-secondary btn-sm mt-2 btn-pledge-prize" data-tech="${escapeHtml(tech.id)}">
             🏆 Pledge Royal Bounty ($300)
           </button>
         ` : ''}
@@ -1753,13 +1769,13 @@
           c.className = 'item-card';
           c.innerHTML = `
             <div class="card-top">
-              <span class="card-title">⚔️ ${arm.name || arm.regiment_id}</span>
-              <span class="card-badge mastered">XP ${arm.veteran_xp || 1}</span>
+          <span class="card-title">⚔️ ${escapeHtml(arm.name || arm.regiment_id)}</span>
+              <span class="card-badge mastered">XP ${Number(arm.veteran_xp) || 1}</span>
             </div>
             <div class="card-meta-row">
-              <span>Soldiers: <strong>${arm.soldiers}</strong></span>
-              <span>Morale: ${Math.round((arm.morale || 1) * 100)}%</span>
-              <span>Combat: ${arm.combat_power || 100}</span>
+              <span>Soldiers: <strong>${Number(arm.soldiers) || 0}</strong></span>
+              <span>Morale: ${Math.round((Number(arm.morale) || 1) * 100)}%</span>
+              <span>Combat: ${Number(arm.combat_power) || 100}</span>
             </div>
           `;
           aList.appendChild(c);
@@ -2035,7 +2051,7 @@
       Object.entries(tile.market_prices).forEach(([g, price]) => {
         const item = document.createElement('div');
         item.className = 'price-item';
-        item.innerHTML = `<div class="p-name">${g}</div><div class="p-val">$${price.toFixed(2)}</div>`;
+        item.innerHTML = `<div class="p-name">${escapeHtml(g)}</div><div class="p-val">$${Number(price).toFixed(2)}</div>`;
         pricesGrid.appendChild(item);
       });
     }
@@ -2096,24 +2112,24 @@
             row.className = 'item-card';
             row.innerHTML = `
               <div class="card-top">
-                <span class="card-title">📜 Parcel #${p.plot_id}</span>
-                <span class="card-badge ${p.tenure === 'enclosed' ? 'mastered' : 'locked'}">${p.tenure}</span>
+                <span class="card-title">📜 Parcel #${Number(p.plot_id) || 0}</span>
+                <span class="card-badge ${p.tenure === 'enclosed' ? 'mastered' : 'locked'}">${escapeHtml(p.tenure)}</span>
               </div>
               <div class="card-meta-row">
-                <span>Land Use: <strong>${p.production_type || 'arable'}</strong></span>
+                <span>Land Use: <strong>${escapeHtml(p.production_type || 'arable')}</strong></span>
                 <span>Area: ${Math.round(p.fraction * 100)}%</span>
-                <span>Tenants: ${p.bound_tenants || 0}</span>
+                <span>Tenants: ${Number(p.bound_tenants) || 0}</span>
               </div>
               ${p.foreclosure_debt ? `
-                <div class="card-badge locked mt-1">⚠️ Foreclosure Debt: $${p.foreclosure_debt} (Due: T+${p.foreclosure_deadline})</div>
+                <div class="card-badge locked mt-1">⚠️ Foreclosure Debt: $${Number(p.foreclosure_debt) || 0} (Due: T+${Number(p.foreclosure_deadline) || 0})</div>
               ` : ''}
               <div class="dual-btn-row mt-2">
                 ${p.tenure !== 'enclosed' ? `
-                  <button class="btn btn-primary btn-xs btn-act-enclose" data-plot="${p.plot_id}">Enclose ($50)</button>
+                  <button class="btn btn-primary btn-xs btn-act-enclose" data-plot="${Number(p.plot_id) || 0}">Enclose ($50)</button>
                 ` : `
-                  <button class="btn btn-secondary btn-xs btn-act-restore" data-plot="${p.plot_id}">Restore Commons</button>
+                  <button class="btn btn-secondary btn-xs btn-act-restore" data-plot="${Number(p.plot_id) || 0}">Restore Commons</button>
                 `}
-                <button class="btn btn-secondary btn-xs btn-act-toggle-use" data-plot="${p.plot_id}" data-type="${p.production_type === 'pasture' ? 'arable' : 'pasture'}">
+                <button class="btn btn-secondary btn-xs btn-act-toggle-use" data-plot="${Number(p.plot_id) || 0}" data-type="${p.production_type === 'pasture' ? 'arable' : 'pasture'}">
                   To ${p.production_type === 'pasture' ? 'Arable' : 'Pasture'}
                 </button>
               </div>
@@ -2155,11 +2171,11 @@
         row.className = 'citizen-row';
         row.innerHTML = `
           <div>
-            <span class="citizen-role">${c.career}</span>
-            <span class="text-dim"> (Age ${c.age})</span>
+            <span class="citizen-role">${escapeHtml(c.career)}</span>
+            <span class="text-dim"> (Age ${Number(c.age) || 0})</span>
           </div>
           <div class="citizen-info">
-            Cash: <strong class="text-gold">$${c.cash}</strong> • Wage: $${c.wage}
+            Cash: <strong class="text-gold">$${Number(c.cash) || 0}</strong> • Wage: $${Number(c.wage) || 0}
           </div>
         `;
         citList.appendChild(row);
@@ -2175,11 +2191,11 @@
         row.className = 'citizen-row';
         row.innerHTML = `
           <div>
-            <span class="citizen-role">${c.career}</span>
-            <span class="text-dim">Shift: ${c.workday || 12}h</span>
+            <span class="citizen-role">${escapeHtml(c.career)}</span>
+            <span class="text-dim">Shift: ${Number(c.workday) || 12}h</span>
           </div>
           <div class="citizen-info">
-            Alienation: <strong class="text-ruby">${c.alienation || '0.2'}</strong>
+            Alienation: <strong class="text-ruby">${Number(c.alienation) || 0.2}</strong>
           </div>
         `;
         wList.appendChild(row);
@@ -2201,8 +2217,8 @@
         if (badge) badge.textContent = worldState.ticker_events.length;
         worldState.ticker_events.slice(-30).reverse().forEach(ev => {
           const item = document.createElement('div');
-          item.className = `news-item ${ev.kind || ''}`;
-          item.innerHTML = `<strong>[T${ev.t}] ${ev.kind}:</strong> ${ev.text}`;
+          item.className = `news-item ${safeClassToken(ev.kind)}`;
+          item.innerHTML = `<strong>[T${Number(ev.t) || 0}] ${escapeHtml(ev.kind)}:</strong> ${escapeHtml(ev.text)}`;
           feed.appendChild(item);
         });
       }
@@ -2291,20 +2307,20 @@
             const tDelta = (n.treasury_delta >= 0) ? `<span class="delta-pos">+${Math.round(n.treasury_delta || 0)}</span>` : `<span class="delta-neg">${Math.round(n.treasury_delta || 0)}</span>`;
             let actionBtn = '—';
             if (isCountry && !isPlayer) {
-              actionBtn = `<button class="btn btn-secondary btn-xs btn-switch-nat" data-nat="${n.name}">Assume Control</button>`;
+              actionBtn = `<button class="btn btn-secondary btn-xs btn-switch-nat" data-nat="${escapeHtml(n.name)}">Assume Control</button>`;
             } else if (isTile) {
-              actionBtn = `<button class="btn btn-secondary btn-xs btn-goto-tile" data-tile="${n.name}">Focus</button>`;
+              actionBtn = `<button class="btn btn-secondary btn-xs btn-goto-tile" data-tile="${escapeHtml(n.name)}">Focus</button>`;
             }
             return `
               <tr>
-                <td><strong style="color:${n.flag_color || '#38bdf8'}">${isCountry ? '👑 ' : (isProv ? '🏛️ ' : '🏙️ ')}${n.name}</strong> ${isPlayer ? '<span class="card-badge mastered">YOU</span>' : ''}</td>
-                ${!isCountry ? `<td>${n.nation || '—'}</td>` : `<td>${n.regime_type || 'Monarchy'}</td>`}
-                ${isTile ? `<td>${n.province || '—'}</td>` : ''}
+                <td><strong style="color:${safeCssColor(n.flag_color)}">${isCountry ? '👑 ' : (isProv ? '🏛️ ' : '🏙️ ')}${escapeHtml(n.name)}</strong> ${isPlayer ? '<span class="card-badge mastered">YOU</span>' : ''}</td>
+                ${!isCountry ? `<td>${escapeHtml(n.nation || '—')}</td>` : `<td>${escapeHtml(n.regime_type || 'Monarchy')}</td>`}
+                ${isTile ? `<td>${escapeHtml(n.province || '—')}</td>` : ''}
                 <td class="text-gold">$${Math.round(n.treasury_cash || 0).toLocaleString()} ${tDelta}</td>
                 <td>${(n.population || 0).toLocaleString()}</td>
                 <td class="text-cyan">$${Math.round(n.gdp || 0).toLocaleString()}</td>
-                <td><span class="badge-unrest ${(n.unrest_stage || 'calm').toLowerCase()}">${n.unrest_stage || 'Calm'}</span></td>
-                <td><strong class="text-gold">${n.credit_rating || 'BBB'}</strong></td>
+                <td><span class="badge-unrest ${safeClassToken((n.unrest_stage || 'calm').toLowerCase(), 'calm')}">${escapeHtml(n.unrest_stage || 'Calm')}</span></td>
+                <td><strong class="text-gold">${escapeHtml(n.credit_rating || 'BBB')}</strong></td>
                 <td>${actionBtn}</td>
               </tr>
             `;
@@ -2351,13 +2367,13 @@
         <tbody>
           ${data.map(p => `
             <tr>
-              <td><strong>${p.province}</strong></td>
-              ${!isCountry ? `<td>${p.nation || '—'}</td>` : ''}
-              <td class="text-green">${p.food_output} t</td>
-              <td>${p.wood_output} t</td>
-              <td class="text-gold">${p.furniture_output} t</td>
+              <td><strong>${escapeHtml(p.province)}</strong></td>
+              ${!isCountry ? `<td>${escapeHtml(p.nation || '—')}</td>` : ''}
+              <td class="text-green">${Number(p.food_output) || 0} t</td>
+              <td>${Number(p.wood_output) || 0} t</td>
+              <td class="text-gold">${Number(p.furniture_output) || 0} t</td>
               <td>$${Number(p.food_price || 0).toFixed(2)}</td>
-              <td>${p.stockpiles} units</td>
+              <td>${Number(p.stockpiles) || 0} units</td>
             </tr>
           `).join('')}
         </tbody>
@@ -2389,9 +2405,9 @@
           <tbody>
             ${banking.map(b => `
               <tr>
-                <td><strong>${b.name || b.province}</strong></td>
-                <td>${b.nation}</td>
-                <td><span class="badge-currency">${b.currency || 'USD'}</span></td>
+                <td><strong>${escapeHtml(b.name || b.province)}</strong></td>
+                <td>${escapeHtml(b.nation)}</td>
+                <td><span class="badge-currency">${escapeHtml(b.currency || 'USD')}</span></td>
                 <td class="text-gold">$${Math.round(b.deposits || 0).toLocaleString()}</td>
                 <td class="text-cyan">$${Math.round(b.liquidity || 0).toLocaleString()}</td>
                 <td class="text-green">$${Math.round(b.reserves || 0).toLocaleString()}</td>
@@ -2407,13 +2423,13 @@
             <thead>
               <tr>
                 <th>Base \\ Quote</th>
-                ${currs.map(c => `<th>${c}</th>`).join('')}
+                ${currs.map(c => `<th>${escapeHtml(c)}</th>`).join('')}
               </tr>
             </thead>
             <tbody>
               ${currs.map(base => `
                 <tr>
-                  <td><strong>${base}</strong></td>
+                  <td><strong>${escapeHtml(base)}</strong></td>
                   ${currs.map(quote => {
                     const rate = fxMatrix[base] && fxMatrix[base][quote] !== undefined ? fxMatrix[base][quote] : 1.0;
                     return `<td>${base === quote ? '<span style="opacity:0.5;">1.000</span>' : `<span class="text-gold font-mono">${Number(rate).toFixed(3)}</span>`}</td>`;
@@ -2446,7 +2462,7 @@
         <tbody>
           ${data.map(r => `
             <tr>
-              <td><strong>${r.name}</strong></td>
+              <td><strong>${escapeHtml(r.name)}</strong></td>
               <td class="text-ruby">$${Math.round(r.tribute || 0).toLocaleString()}</td>
               <td>$${Math.round(r.rent || 0).toLocaleString()}</td>
               <td class="text-cyan">$${Math.round(r.surplus_value || 0).toLocaleString()}</td>
@@ -2485,8 +2501,8 @@
               const badgeCls = unrestVal > 3 ? 'riot' : (unrestVal > 1 ? 'unrest' : 'calm');
               return `
                 <tr>
-                  <td><strong>${p.name}</strong></td>
-                  <td><span class="badge-unrest ${badgeCls}">${unrestVal}</span></td>
+                  <td><strong>${escapeHtml(p.name)}</strong></td>
+                  <td><span class="badge-unrest ${safeClassToken(badgeCls, 'calm')}">${unrestVal}</span></td>
                   <td>
                     <div class="stacked-bar-container">
                       <div class="stacked-segment" style="width: ${ow}%; background: #ef4444;" title="Overwork ${ow}%"></div>
@@ -2531,11 +2547,11 @@
         <tbody>
           ${data.map(e => `
             <tr>
-              <td><strong>${e.name}</strong></td>
-              <td class="${e.soil_fertility < 50 ? 'text-ruby' : 'text-green'}">${Number(e.soil_fertility || 0).toFixed(1)}%</td>
+              <td><strong>${escapeHtml(e.name)}</strong></td>
+              <td class="${Number(e.soil_fertility) < 50 ? 'text-ruby' : 'text-green'}">${Number(e.soil_fertility || 0).toFixed(1)}%</td>
               <td class="text-cyan">${Number(e.nutrition || 0).toFixed(1)}%</td>
-              <td class="${e.smog > 20 ? 'text-ruby' : ''}">${Number(e.smog || 0).toFixed(1)} ppm</td>
-              <td class="${e.infections > 0 ? 'text-ruby' : ''}">${e.infections || 0} active cases</td>
+              <td class="${Number(e.smog) > 20 ? 'text-ruby' : ''}">${Number(e.smog || 0).toFixed(1)} ppm</td>
+              <td class="${Number(e.infections) > 0 ? 'text-ruby' : ''}">${Number(e.infections) || 0} active cases</td>
             </tr>
           `).join('')}
         </tbody>
@@ -2707,18 +2723,18 @@
     } else if (activeHelpPage === '3') {
       container.innerHTML = `
         <h4>3. Procedural World Seeds & Nations Registry</h4>
-        <p>• Current World Seed: <strong>${(worldState && worldState.seed) || 4242}</strong></p>
+        <p>• Current World Seed: <strong>${Number((worldState && worldState.seed) || 4242)}</strong></p>
         <div class="cards-list mt-2">
           ${(worldState && worldState.nations) ? worldState.nations.map(n => `
             <div class="item-card">
               <div class="card-top">
-                <span class="card-title" style="color:${n.flag_color || '#38bdf8'}">👑 ${n.name}</span>
-                <span class="card-badge mastered">${n.regime_type || 'Monarchy'}</span>
+                <span class="card-title" style="color:${safeCssColor(n.flag_color)}">👑 ${escapeHtml(n.name)}</span>
+                <span class="card-badge mastered">${escapeHtml(n.regime_type || 'Monarchy')}</span>
               </div>
               <div class="card-meta-row">
-                <span>Territories: ${n.tiles_count || 0}</span>
+                <span>Territories: ${Number(n.tiles_count) || 0}</span>
                 <span>GDP: $${Math.round(n.gdp || 0).toLocaleString()}</span>
-                <span>Rating: ${n.credit_rating || 'BBB'}</span>
+                <span>Rating: ${escapeHtml(n.credit_rating || 'BBB')}</span>
               </div>
             </div>
           `).join('') : ''}
@@ -3067,7 +3083,10 @@
     try {
       const res = await fetch('/api/command', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-REGNUM-Token': window.REGNUM_API_TOKEN || ''
+        },
         body: JSON.stringify({ cmd_type: commandType, type: commandType, cmd: commandType, payload })
       });
 

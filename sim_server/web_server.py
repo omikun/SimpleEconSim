@@ -11,6 +11,7 @@ import sys
 import json
 import time
 import socket
+import secrets
 import urllib.parse
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 import threading
@@ -53,15 +54,19 @@ def get_local_ip() -> str:
 class RegnumHTTPRequestHandler(BaseHTTPRequestHandler):
     """HTTP Request Handler for REGNUM Web Client and REST API."""
 
-    def _set_cors_headers(self):
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
-
     def do_OPTIONS(self):
-        self.send_response(204)
-        self._set_cors_headers()
+        # The client is served from this origin. Do not enable cross-origin API access.
+        self.send_response(405)
+        self.send_header('Allow', 'GET, POST')
         self.end_headers()
+
+    def _authorized_mutation(self) -> bool:
+        expected = getattr(self.server, 'api_token', '')
+        provided = self.headers.get('X-REGNUM-Token', '')
+        if expected and secrets.compare_digest(provided, expected):
+            return True
+        self._send_error_json(403, 'Missing or invalid API token')
+        return False
 
     def do_GET(self):
         parsed = urllib.parse.urlparse(self.path)
@@ -78,7 +83,6 @@ class RegnumHTTPRequestHandler(BaseHTTPRequestHandler):
                     if query.get('since', [None])[0] == version:
                         self.send_response(304)
                         self.send_header('Cache-Control', 'no-store')
-                        self._set_cors_headers()
                         self.end_headers()
                         return
                     state = sim.serialize_world(compact=compact)
@@ -88,7 +92,6 @@ class RegnumHTTPRequestHandler(BaseHTTPRequestHandler):
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/json; charset=utf-8')
                 self.send_header('Content-Length', str(len(body)))
-                self._set_cors_headers()
                 self.end_headers()
                 self.wfile.write(body)
             except Exception as e:
@@ -114,7 +117,6 @@ class RegnumHTTPRequestHandler(BaseHTTPRequestHandler):
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/json; charset=utf-8')
                 self.send_header('Content-Length', str(len(body)))
-                self._set_cors_headers()
                 self.end_headers()
                 self.wfile.write(body)
             except Exception as e:
@@ -129,24 +131,15 @@ class RegnumHTTPRequestHandler(BaseHTTPRequestHandler):
                 self.send_response(200)
                 self.send_header('Content-Type', 'image/svg+xml; charset=utf-8')
                 self.send_header('Content-Length', str(len(body)))
-                self._set_cors_headers()
                 self.end_headers()
                 self.wfile.write(body)
             except Exception as e:
                 self._send_error_json(500, f"Error generating QR SVG: {e}")
             return
 
-        # 3. Shutdown endpoint (via browser or GET request)
+        # State changes must not be triggerable through a cross-site GET.
         elif path == '/api/shutdown':
-            resp_body = json.dumps({"success": True, "message": "REGNUM server is shutting down..."}).encode('utf-8')
-            self.send_response(200)
-            self.send_header('Content-Type', 'application/json; charset=utf-8')
-            self.send_header('Content-Length', str(len(resp_body)))
-            self._set_cors_headers()
-            self.end_headers()
-            self.wfile.write(resp_body)
-            if hasattr(self.server, 'web_server') and self.server.web_server:
-                threading.Thread(target=self.server.web_server.stop, daemon=True).start()
+            self._send_error_json(405, 'Shutdown requires an authenticated POST request')
             return
 
         # 4. API: Photorealistic Topographic Terrain Image
@@ -168,7 +161,6 @@ class RegnumHTTPRequestHandler(BaseHTTPRequestHandler):
                 self.send_header('Content-Type', mime_type)
                 self.send_header('Content-Length', str(len(body)))
                 self.send_header('Cache-Control', 'public, max-age=3600')
-                self._set_cors_headers()
                 self.end_headers()
                 self.wfile.write(body)
             except Exception as e:
@@ -197,9 +189,15 @@ class RegnumHTTPRequestHandler(BaseHTTPRequestHandler):
                     content = f.read()
                 self.send_response(200)
                 self.send_header('Content-Type', content_type)
+                if file_name == 'index.html':
+                    token = getattr(self.server, 'api_token', '')
+                    content = content.replace(
+                        b'</head>',
+                        f'<script>window.REGNUM_API_TOKEN="{token}";</script></head>'.encode('ascii'),
+                        1,
+                    )
                 self.send_header('Content-Length', str(len(content)))
                 self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
-                self._set_cors_headers()
                 self.end_headers()
                 self.wfile.write(content)
                 return
@@ -212,6 +210,8 @@ class RegnumHTTPRequestHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         parsed = urllib.parse.urlparse(self.path)
         if parsed.path == '/api/command':
+            if not self._authorized_mutation():
+                return
             try:
                 length = int(self.headers.get('Content-Length', 0))
                 raw_body = self.rfile.read(length)
@@ -231,7 +231,6 @@ class RegnumHTTPRequestHandler(BaseHTTPRequestHandler):
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/json; charset=utf-8')
                 self.send_header('Content-Length', str(len(resp_body)))
-                self._set_cors_headers()
                 self.end_headers()
                 self.wfile.write(resp_body)
             except Exception as e:
@@ -239,11 +238,12 @@ class RegnumHTTPRequestHandler(BaseHTTPRequestHandler):
             return
 
         elif parsed.path == '/api/shutdown':
+            if not self._authorized_mutation():
+                return
             resp_body = json.dumps({"success": True, "message": "REGNUM server is shutting down..."}).encode('utf-8')
             self.send_response(200)
             self.send_header('Content-Type', 'application/json; charset=utf-8')
             self.send_header('Content-Length', str(len(resp_body)))
-            self._set_cors_headers()
             self.end_headers()
             self.wfile.write(resp_body)
             if hasattr(self.server, 'web_server') and self.server.web_server:
@@ -257,7 +257,6 @@ class RegnumHTTPRequestHandler(BaseHTTPRequestHandler):
         self.send_response(status_code)
         self.send_header('Content-Type', 'application/json; charset=utf-8')
         self.send_header('Content-Length', str(len(body)))
-        self._set_cors_headers()
         self.end_headers()
         self.wfile.write(body)
 
@@ -512,6 +511,7 @@ class RegnumWebServer:
         self.port = port
         self.local_ip = get_local_ip()
         self.base_url = f"http://{self.local_ip}:{self.port}"
+        self.api_token = secrets.token_urlsafe(32)
 
         self.httpd: Optional[ThreadingHTTPServer] = None
         self._http_thread: Optional[threading.Thread] = None
@@ -557,6 +557,7 @@ class RegnumWebServer:
         # Attach references for handler access
         self.httpd.sim_server = self.sim_server
         self.httpd.base_url = self.base_url
+        self.httpd.api_token = self.api_token
         self.httpd.web_server = self
         self.httpd.get_terrain_image = self.get_terrain_image
 

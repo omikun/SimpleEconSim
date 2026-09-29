@@ -24,6 +24,7 @@ class MockRegnumServer:
     def __init__(self, sim_server: SimServer, base_url: str = "http://192.168.1.100:8080"):
         self.sim_server = sim_server
         self.base_url = base_url
+        self.api_token = 'test-token'
 
 
 class MockHttpRequestHandler(RegnumHTTPRequestHandler):
@@ -117,6 +118,7 @@ class TestWebServerEndpoints(unittest.TestCase):
         self.assertIn('Call of Capital', body)
         self.assertIn('map-canvas', body)
         self.assertIn('drawer', body)
+        self.assertIn('window.REGNUM_API_TOKEN="test-token"', body)
 
     def test_serve_css(self):
         handler = MockHttpRequestHandler(self.mock_server, 'GET', '/style.css')
@@ -205,7 +207,7 @@ class TestWebServerEndpoints(unittest.TestCase):
         command_body = json.dumps({'cmd_type': 'PAUSE', 'payload': {}}).encode()
         command = MockHttpRequestHandler(
             self.mock_server, 'POST', '/api/command',
-            headers={'Content-Length': str(len(command_body))}, body=command_body
+            headers={'Content-Length': str(len(command_body)), 'X-REGNUM-Token': 'test-token'}, body=command_body
         )
         self.assertEqual(command.response_status, 200)
         after_command = MockHttpRequestHandler(
@@ -268,7 +270,7 @@ class TestWebServerEndpoints(unittest.TestCase):
         initial_turn = self.sim.turn
         body = json.dumps({'cmd_type': 'STEP'}).encode('utf-8')
         handler = MockHttpRequestHandler(self.mock_server, 'POST', '/api/command',
-                                         headers={'Content-Length': len(body)}, body=body)
+                                         headers={'Content-Length': len(body), 'X-REGNUM-Token': 'test-token'}, body=body)
         self.assertEqual(handler.response_status, 200)
         data = json.loads(handler.get_body().decode('utf-8'))
         self.assertTrue(data.get('success'))
@@ -278,7 +280,7 @@ class TestWebServerEndpoints(unittest.TestCase):
     def test_api_command_play_pause(self):
         body = json.dumps({'cmd_type': 'PLAY'}).encode('utf-8')
         handler = MockHttpRequestHandler(self.mock_server, 'POST', '/api/command',
-                                         headers={'Content-Length': len(body)}, body=body)
+                                         headers={'Content-Length': len(body), 'X-REGNUM-Token': 'test-token'}, body=body)
         self.assertEqual(handler.response_status, 200)
         data = json.loads(handler.get_body().decode('utf-8'))
         self.assertTrue(data.get('playing'))
@@ -286,7 +288,7 @@ class TestWebServerEndpoints(unittest.TestCase):
 
         body = json.dumps({'cmd_type': 'PAUSE'}).encode('utf-8')
         handler = MockHttpRequestHandler(self.mock_server, 'POST', '/api/command',
-                                         headers={'Content-Length': len(body)}, body=body)
+                                         headers={'Content-Length': len(body), 'X-REGNUM-Token': 'test-token'}, body=body)
         self.assertEqual(handler.response_status, 200)
         data = json.loads(handler.get_body().decode('utf-8'))
         self.assertFalse(data.get('playing'))
@@ -295,8 +297,24 @@ class TestWebServerEndpoints(unittest.TestCase):
     def test_api_command_invalid(self):
         body = json.dumps({'cmd_type': 'INVALID_CMD'}).encode('utf-8')
         handler = MockHttpRequestHandler(self.mock_server, 'POST', '/api/command',
-                                         headers={'Content-Length': len(body)}, body=body)
+                                         headers={'Content-Length': len(body), 'X-REGNUM-Token': 'test-token'}, body=body)
         self.assertEqual(handler.response_status, 400)
+
+    def test_api_command_requires_token(self):
+        body = json.dumps({'cmd_type': 'STEP'}).encode('utf-8')
+        handler = MockHttpRequestHandler(
+            self.mock_server, 'POST', '/api/command',
+            headers={'Content-Length': len(body)}, body=body,
+        )
+        self.assertEqual(handler.response_status, 403)
+        self.assertEqual(self.sim.turn, 0)
+
+    def test_shutdown_get_is_disabled_and_post_requires_token(self):
+        get_handler = MockHttpRequestHandler(self.mock_server, 'GET', '/api/shutdown')
+        self.assertEqual(get_handler.response_status, 405)
+
+        post_handler = MockHttpRequestHandler(self.mock_server, 'POST', '/api/shutdown')
+        self.assertEqual(post_handler.response_status, 403)
 
 
 if __name__ == '__main__':
