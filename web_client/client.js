@@ -8,9 +8,9 @@
 (function () {
   'use strict';
 
-  const SQRT3 = Math.sqrt(3.0);
   const DEFAULT_HEX_SIZE = 50.0;
   const { escapeHtml, safeClassToken, safeCssColor } = window.RegnumUIUtils;
+  const { axialToPixel, pixelToAxial, drawHexPolygon } = window.RegnumHexGeometry;
   const api = window.RegnumStateSync.createStateSync({
     async onCommandResult(result) {
       if (!result.success) {
@@ -209,43 +209,6 @@
       mapFramePending = false;
       renderMap();
     });
-  }
-
-  function axialToPixel(q, r, size) {
-    const x = size * (SQRT3 * q + (SQRT3 / 2.0) * r);
-    const y = size * (1.5 * r);
-    return { x, y };
-  }
-
-  function pixelToAxial(px, py, size) {
-    const q = ((SQRT3 / 3.0) * px - (1.0 / 3.0) * py) / size;
-    const r = ((2.0 / 3.0) * py) / size;
-    return axialRound(q, r);
-  }
-
-  function axialRound(q, r) {
-    let s = -q - r;
-    let rq = Math.round(q);
-    let rr = Math.round(r);
-    let rs = Math.round(s);
-    const dq = Math.abs(rq - q);
-    const dr = Math.abs(rr - r);
-    const ds = Math.abs(rs - s);
-    if (dq > dr && dq > ds) rq = -rr - rs;
-    else if (dr > ds) rr = -rq - rs;
-    return { q: rq, r: rr };
-  }
-
-  function drawHexPolygon(ctx, cx, cy, radius) {
-    ctx.beginPath();
-    for (let i = 0; i < 6; i++) {
-      const angle = (Math.PI / 180.0) * (60 * i - 30);
-      const x = cx + radius * Math.cos(angle);
-      const y = cy + radius * Math.sin(angle);
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    }
-    ctx.closePath();
   }
 
   // ---------------- Canvas Resizing & Camera ----------------
