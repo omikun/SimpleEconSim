@@ -151,6 +151,11 @@ def is_any_modal_open(world) -> bool:
     )
 
 
+def is_actions_open(world) -> bool:
+    """Return True if the Sovereign Actions modal is open."""
+    return bool(world.get('actions_open') or world.get('actions_modal_open'))
+
+
 def render_frame(surface, world, mouse_pos=None):
     """Draw one full frame (map + top bar + panel + ticker + zoom hud + comparison table + sovereign actions + help)."""
     from ui_targets import clear_targets
@@ -205,6 +210,22 @@ def _mark_dirty(world):
     world['needs_redraw'] = True
 
 
+def _toggle_pipeline(world):
+    """Toggle GPU/CPU terrain pipeline and update the ticker."""
+    curr_gpu = world.get('use_gpu_pipeline', True)
+    new_gpu = not curr_gpu
+    world['use_gpu_pipeline'] = new_gpu
+    tr = world.get('_terrain_renderer')
+    if tr is not None:
+        tr.switch_pipeline(force_cpu=not new_gpu)
+    world['_cached_topo_surface'] = None
+    pipe_label = "GPU (ModernGL Metal 4.1)" if new_gpu else "CPU (NumPy/SciPy)"
+    if 'ticker_events' in world:
+        world['ticker_events'].append(f"Graphics: Switched terrain pipeline to {pipe_label} [U]")
+    _mark_dirty(world)
+    print(f"[Client] Switched terrain pipeline to: {pipe_label}")
+
+
 def reload_world(args=None):
     """Regenerate a brand new world from scratch, invalidating the disk and memory cache."""
     from heightmap import _TOPOGRAPHIC_SURFACE_CACHE
@@ -226,6 +247,8 @@ def reload_world(args=None):
     for r in world['tiles']:
         if getattr(r, 'owner_nation', None) is not None:
             pops_history[r.name] = region_pop(r)
+    # Flush per-tile label offset cache so stale keys from the old world don't accumulate
+    world.pop('_label_offsets', None)
 
     print("[worldview] Reloaded world from scratch — generating new map.")
     return world
@@ -309,6 +332,7 @@ def main():
     # Custom timer event for auto-play ticks (fires every TURN_MS when playing)
     AUTOPLAY_TIMER = pygame.USEREVENT + 1
 
+    from world_config import is_voronoi_topology as _voronoi_check
     while running:
         # ── Event acquisition ──────────────────────────────────────────
         # Three modes:
@@ -316,7 +340,9 @@ def main():
         #  2. Active (playing or dragging) — poll at 60 FPS
         #  3. Idle, no modal — trade animation runs, poll at 30 FPS
         modal_open = is_any_modal_open(world)
-        is_loading = bool(world.get('loading_modal', {}).get('active') if isinstance(world.get('loading_modal'), dict) else world.get('loading_modal'))
+        loading_modal = world.get('loading_modal')
+        is_loading = bool(loading_modal.get('active') if isinstance(loading_modal, dict) else loading_modal)
+        _is_voronoi = _voronoi_check()
         is_active = world.get('playing') or drag
         if modal_open and not is_loading:
             # Static overlay — nothing animates, block until user does something.
@@ -389,7 +415,7 @@ def main():
                         continue
 
                     # 0d. Check if Sovereign Actions Modal is open
-                    if world.get('actions_open') or world.get('actions_modal_open'):
+                    if is_actions_open(world):
                         hit = actions_tab_hit(event.pos, 24, 16, world)
                         if not hit:
                             # Click outside modal closes it
@@ -427,18 +453,7 @@ def main():
                     world['actions_tab'] = 2
                     continue
                 elif act_btn == 'pipeline':
-                    curr_gpu = world.get('use_gpu_pipeline', True)
-                    new_gpu = not curr_gpu
-                    world['use_gpu_pipeline'] = new_gpu
-                    tr = world.get('_terrain_renderer')
-                    if tr is not None:
-                        tr.switch_pipeline(force_cpu=not new_gpu)
-                    world['_cached_topo_surface'] = None
-                    pipe_label = "GPU (ModernGL Metal 4.1)" if new_gpu else "CPU (NumPy/SciPy)"
-                    if 'ticker_events' in world:
-                        world['ticker_events'].append(f"Graphics: Switched terrain pipeline to {pipe_label} [U]")
-                    _mark_dirty(world)
-                    print(f"[Client] Switched terrain pipeline to: {pipe_label}")
+                    _toggle_pipeline(world)
                     continue
 
                 # 1b. Check Compare Nations top bar button fallback
@@ -569,8 +584,7 @@ def main():
                     dx, dy = event.rel
                     world['cam']['ox'] += dx
                     world['cam']['oy'] += dy
-                    from world_config import is_voronoi_topology
-                    if is_voronoi_topology():
+                    if _is_voronoi:
                         zoom = max(0.2, float(world['cam'].get('zoom', 1.0)))
                         world['cam']['target_x'] = float(world['cam'].get('target_x', 512.0)) - dx / zoom
                         world['cam']['target_y'] = float(world['cam'].get('target_y', 512.0)) + dy / (zoom * 0.615)
@@ -595,8 +609,7 @@ def main():
 
                 # STRICT MODAL LOCKOUT: If any modal is open, intercept only modal navigation/close keys
                 if is_any_modal_open(world):
-                    loading_state = world.get('loading_modal')
-                    if loading_state is True or (isinstance(loading_state, dict) and loading_state.get('active')):
+                    if is_loading:
                         # Loading screen in progress - suppress all key actions
                         continue
 
@@ -615,7 +628,7 @@ def main():
                         continue
 
                     # If Sovereign Actions modal is open
-                    if world.get('actions_open') or world.get('actions_modal_open'):
+                    if is_actions_open(world):
                         if event.key in (pygame.K_1, pygame.K_KP1):
                             world['actions_tab'] = 1
                         elif event.key in (pygame.K_2, pygame.K_KP2):
@@ -756,18 +769,7 @@ def main():
                     world['layers_collapsed'] = not world.get('layers_collapsed', False)
                     _mark_dirty(world)
                 elif event.key == pygame.K_u:
-                    curr_gpu = world.get('use_gpu_pipeline', True)
-                    new_gpu = not curr_gpu
-                    world['use_gpu_pipeline'] = new_gpu
-                    tr = world.get('_terrain_renderer')
-                    if tr is not None:
-                        tr.switch_pipeline(force_cpu=not new_gpu)
-                    world['_cached_topo_surface'] = None
-                    pipe_label = "GPU (ModernGL Metal 4.1)" if new_gpu else "CPU (NumPy/SciPy)"
-                    if 'ticker_events' in world:
-                        world['ticker_events'].append(f"Graphics: Switched terrain pipeline to {pipe_label} [U]")
-                    _mark_dirty(world)
-                    print(f"[Client] Switched terrain pipeline to: {pipe_label}")
+                    _toggle_pipeline(world)
                 # Map info layer hotkeys (1..8)
                 elif event.key in (pygame.K_F1, pygame.K_1, pygame.K_KP1):
                     world['map_layer'] = 'overview'
@@ -804,26 +806,22 @@ def main():
                 # WASD and Arrow keys for smooth panning
                 elif event.key in (pygame.K_LEFT, pygame.K_a):
                     world['cam']['ox'] += 40
-                    from world_config import is_voronoi_topology
-                    if is_voronoi_topology():
+                    if _is_voronoi:
                         world['cam']['target_x'] = float(world['cam'].get('target_x', 512.0)) - 30.0 / max(0.2, float(world['cam'].get('zoom', 1.0)))
                     clamp_cam(world)
                 elif event.key in (pygame.K_RIGHT, pygame.K_d):
                     world['cam']['ox'] -= 40
-                    from world_config import is_voronoi_topology
-                    if is_voronoi_topology():
+                    if _is_voronoi:
                         world['cam']['target_x'] = float(world['cam'].get('target_x', 512.0)) + 30.0 / max(0.2, float(world['cam'].get('zoom', 1.0)))
                     clamp_cam(world)
                 elif event.key in (pygame.K_UP, pygame.K_w):
                     world['cam']['oy'] += 40
-                    from world_config import is_voronoi_topology
-                    if is_voronoi_topology():
+                    if _is_voronoi:
                         world['cam']['target_y'] = float(world['cam'].get('target_y', 512.0)) + 30.0 / max(0.2, float(world['cam'].get('zoom', 1.0)))
                     clamp_cam(world)
                 elif event.key in (pygame.K_DOWN, pygame.K_s):
                     world['cam']['oy'] -= 40
-                    from world_config import is_voronoi_topology
-                    if is_voronoi_topology():
+                    if _is_voronoi:
                         world['cam']['target_y'] = float(world['cam'].get('target_y', 512.0)) - 30.0 / max(0.2, float(world['cam'].get('zoom', 1.0)))
                     clamp_cam(world)
                 elif event.key in (pygame.K_PLUS, pygame.K_EQUALS):
@@ -842,13 +840,18 @@ def main():
         if not modal_open:
             world['frame'] = (world.get('frame', 0) + 1) % 600
 
-        # ── Hover detection: only detect and redraw when NO modal is open ─
+        # ── Hover detection: only re-run tile_at when mouse actually moved ─
         prev_hover = world.get('hover_region')
         world['hover_region'] = None
         if not modal_open:
             mx, my = mouse_pos
             if mx < MAP_RIGHT and TOP_BAR_H <= my <= HEIGHT - TICKER_H:
-                world['hover_region'] = tile_at(world, mx, my)
+                prev_mouse = world.get('_prev_hover_pos')
+                if prev_mouse != (mx, my) or prev_hover is None:
+                    world['hover_region'] = tile_at(world, mx, my)
+                    world['_prev_hover_pos'] = (mx, my)
+                else:
+                    world['hover_region'] = prev_hover
         if world['hover_region'] is not prev_hover:
             _mark_dirty(world)
 

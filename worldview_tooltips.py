@@ -38,33 +38,9 @@ def wrap_text(text: str, font: pygame.font.Font, max_width: int) -> list[str]:
     return lines
 
 
-def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None, province=None, plot_id=None, project=None, **kwargs) -> dict | None:
-    """Generate detailed mechanism description, achievement context, and live stat breakdown."""
-    pinned = region or world.get('selected_region')
-    if pinned is None and world.get('nations') and world['nations'][0].tiles:
-        pinned = world['nations'][0].tiles[0]
+def _tip_city_scope(btn_id, tile_cash, tax_rate, protest_e, hungry, pop_count, pinned, gov):
+    """Handles city/tile scope policy tooltips. Returns None if btn_id not handled."""
 
-    owner = nation or (getattr(pinned, 'owner_nation', None) if pinned else None)
-    if owner is None and world.get('nations'):
-        owner = world['nations'][0]
-
-    prov = province or (getattr(pinned, 'province', None) if pinned else None)
-    gov = getattr(pinned, 'gov', None) if pinned else None
-
-    # Live stats helpers
-    tile_cash = (gov.agent.cash if gov and hasattr(gov, 'agent') else 0.0) if gov else 0.0
-    tax_rate = gov.tax_rate if gov else 0.15
-    protest_e = pinned.protest_energy_log[-1] if (pinned and pinned.protest_energy_log) else 0.0
-    hungry = sum(1 for a in pinned.agents if not a.is_corporation and not a.is_government and a.hungry_steps > 0) if pinned else 0
-    pop_count = len(pinned.agents) if pinned else 0
-    prov_cash = (prov.gov.agent.cash if prov and getattr(prov, 'gov', None) and hasattr(prov.gov, 'agent') else 0.0) if prov else 0.0
-    tr = owner.treasury() if owner else {'total': 0.0, 'sovereign_cash': 0.0}
-    nat_cash = tr.get('sovereign_cash', 0.0)
-    tot_cash = tr.get('total', 0.0)
-
-    # -------------------------------------------------------------------------
-    # CITY / TILE SCOPE POLICIES
-    # -------------------------------------------------------------------------
     if btn_id == 'city_tax_cut':
         res = {
             'title': "Municipal Tax Cut [-2%]",
@@ -313,6 +289,36 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
             ]
         }
         return res
+    if btn_id == 'build_workhouse':
+        res = {
+            'title': "Construct Parish Workhouse ($200)",
+            'badge': "POOR LAW INSTITUTION",
+            'badge_col': (180, 140, 200),
+            'category': "Municipal Infrastructure",
+            'cost': "Cost: $200 from municipal treasury, 4 Wood",
+            'desc': [
+                "Constructs a Parish Workhouse to enforce the Poor Relief Acts and vagrancy decrees.",
+                "Dispossessed, landless commoners are arrested and confined to compulsory labor (oakum picking, stone breaking).",
+                "Municipality provides bare-subsistence gruel (1 food/turn) while inmates generate municipal revenue.",
+                "Warning: If the municipality runs out of food or money, starving inmates stage Bread Riots!"
+            ],
+            'stats': [
+                ("Construction Turns", "2 turns", TEXT),
+                ("Building Tier", "Municipal (Tile)", ACCENT),
+                ("Pauper Labor Revenue", "+$1.50/inmate", GREEN),
+            ]
+        }
+        return res
+
+    return None
+
+
+# ---------------------------------------------------------------------------
+# CADASTRE SCOPE HANDLER
+# ---------------------------------------------------------------------------
+
+def _tip_cadastre_scope(btn_id, pinned, plot_id):
+    """Handles cadastre-level parcel management tooltips. Returns None if btn_id not handled."""
 
     if btn_id == 'cadastre_enclose':
         tenure = getattr(pinned, 'tenure', None) if pinned else None
@@ -444,6 +450,16 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
             ]
         }
 
+    return None
+
+
+# ---------------------------------------------------------------------------
+# PROGRESS UI HANDLER
+# ---------------------------------------------------------------------------
+
+def _tip_progress_ui(btn_id):
+    """Handles progress drawer navigation / filter tooltips. Returns None if btn_id not handled."""
+
     if btn_id in ('scroll_up', 'scroll_down'):
         return {
             'title': "Scroll Realm Works",
@@ -509,30 +525,16 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
             ]
         }
 
-    if btn_id == 'build_workhouse':
-        res = {
-            'title': "Construct Parish Workhouse ($200)",
-            'badge': "POOR LAW INSTITUTION",
-            'badge_col': (180, 140, 200),
-            'category': "Municipal Infrastructure",
-            'cost': "Cost: $200 from municipal treasury, 4 Wood",
-            'desc': [
-                "Constructs a Parish Workhouse to enforce the Poor Relief Acts and vagrancy decrees.",
-                "Dispossessed, landless commoners are arrested and confined to compulsory labor (oakum picking, stone breaking).",
-                "Municipality provides bare-subsistence gruel (1 food/turn) while inmates generate municipal revenue.",
-                "Warning: If the municipality runs out of food or money, starving inmates stage Bread Riots!"
-            ],
-            'stats': [
-                ("Construction Turns", "2 turns", TEXT),
-                ("Building Tier", "Municipal (Tile)", ACCENT),
-                ("Pauper Labor Revenue", "+$1.50/inmate", GREEN),
-            ]
-        }
-        return res
+    return None
 
-    # -------------------------------------------------------------------------
-    # PROVINCE SCOPE POLICIES
-    # -------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# PROVINCE SCOPE HANDLER
+# ---------------------------------------------------------------------------
+
+def _tip_province_scope(btn_id, prov, prov_cash):
+    """Handles province-level policy tooltips. Returns None if btn_id not handled."""
+
     if btn_id == 'prov_pave_highway':
         res = {
             'title': "Pave Regional Highway Corridor ($120)",
@@ -645,9 +647,16 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
             res['disabled_reason'] = f"Insufficient Provincial Treasury: Requires $150.00 (Current: ${prov_cash:,.0f})."
         return res
 
-    # -------------------------------------------------------------------------
-    # NATION SCOPE POLICIES
-    # -------------------------------------------------------------------------
+    return None
+
+
+# ---------------------------------------------------------------------------
+# NATION SCOPE HANDLER
+# ---------------------------------------------------------------------------
+
+def _tip_nation_scope(btn_id, owner, nat_cash, tot_cash, nation=None):
+    """Handles nation-level policy tooltips. Returns None if btn_id not handled."""
+
     if btn_id.startswith('nat_tax_'):
         rate = int(btn_id.split('_')[-1])
         return {
@@ -1090,9 +1099,16 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
             res['disabled_reason'] = f"Insufficient Sovereign Treasury: Requires ${cost:,.0f} to charter blockade runners (Current: ${nat_cash:,.0f})."
         return res
 
-    # -------------------------------------------------------------------------
-    # FRONTIER WILDERNESS POLICIES
-    # -------------------------------------------------------------------------
+    return None
+
+
+# ---------------------------------------------------------------------------
+# FRONTIER SCOPE HANDLER
+# ---------------------------------------------------------------------------
+
+def _tip_frontier_scope(btn_id, pinned, tile_cash, nat_cash):
+    """Handles frontier/wilderness territory tooltips. Returns None if btn_id not handled."""
+
     if btn_id == 'frontier_expedition':
         res = {
             'title': "Sponsor Frontier Pioneer Expedition",
@@ -1130,9 +1146,16 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
             ]
         }
 
-    # -------------------------------------------------------------------------
-    # INFRASTRUCTURE BUILDING RECIPES
-    # -------------------------------------------------------------------------
+    return None
+
+
+# ---------------------------------------------------------------------------
+# BUILDING RECIPE HANDLER
+# ---------------------------------------------------------------------------
+
+def _tip_building_recipe(btn_id, pinned, tile_cash, prov_cash, nat_cash, owner, prov):
+    """Handles build_* buttons that match BUILDING_RECIPES. Returns None if btn_id not handled."""
+
     clean_bkey = btn_id[6:] if btn_id.startswith('build_') else btn_id
     from buildings import BUILDING_RECIPES
     if clean_bkey in BUILDING_RECIPES:
@@ -1204,9 +1227,15 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
             res['disabled_reason'] = f"Insufficient {tier_str} Treasury: Requires ${recipe.cost:,.0f} (Available: ${tier_cash:,.0f})."
         return res
 
-    # -------------------------------------------------------------------------
-    # BUILD SUBCATEGORY SWITCHERS
-    # -------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# BUILD SUBCATEGORY HANDLER
+# ---------------------------------------------------------------------------
+
+def _tip_build_subcategory(btn_id, tile_cash):
+    """Handles build subcategory switcher buttons. Returns None if btn_id not handled."""
+
     if btn_id == 'build_subcat_industry':
         return {
             'title': "Build Category: Industry & State Works",
@@ -1247,9 +1276,16 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
             'btn_id': btn_id
         }
 
-    # -------------------------------------------------------------------------
-    # TIER HEADER OVERVIEWS
-    # -------------------------------------------------------------------------
+    return None
+
+
+# ---------------------------------------------------------------------------
+# TIER HEADER HANDLER
+# ---------------------------------------------------------------------------
+
+def _tip_tier_headers(btn_id, tile_cash, prov_cash, nat_cash, tot_cash, prov, pop_count, pinned):
+    """Handles tier overview header tooltips. Returns None if btn_id not handled."""
+
     if btn_id in ('tier_municipal', 'tier_tile', 'tier_city'):
         return {
             'title': "Municipal Infrastructure Tier",
@@ -1352,9 +1388,16 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
             'btn_id': btn_id
         }
 
-    # -------------------------------------------------------------------------
-    # LEFT DOCK SWITCHER TABS
-    # -------------------------------------------------------------------------
+    return None
+
+
+# ---------------------------------------------------------------------------
+# DOCK TAB HANDLER
+# ---------------------------------------------------------------------------
+
+def _tip_dock_tabs(btn_id, pinned):
+    """Handles left dock navigation tab tooltips. Returns None if btn_id not handled."""
+
     dock_key = btn_id[5:] if btn_id.startswith('dock_') else btn_id
     dock_catalog = {
         'build': ("Build & Public Infrastructure (B)", "CONSTRUCTION", ACCENT, "Multi-tier civic construction menu for irrigation, mills, roads, and monuments.", "hammer"),
@@ -1383,9 +1426,58 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
             'btn_id': btn_id
         }
 
-    # -------------------------------------------------------------------------
-    # SCIENCE, DIPLOMACY, DEBT & MILITARY EXTENDED TOOLTIPS
-    # -------------------------------------------------------------------------
+    return None
+
+
+# ---------------------------------------------------------------------------
+# MAIN DISPATCHER
+# ---------------------------------------------------------------------------
+
+def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None, province=None, plot_id=None, project=None, **kwargs) -> dict | None:
+    """Generate detailed mechanism description, achievement context, and live stat breakdown."""
+    # Setup shared context
+    pinned = region or world.get('selected_region')
+    if pinned is None and world.get('nations') and world['nations'][0].tiles:
+        pinned = world['nations'][0].tiles[0]
+    owner = nation or (getattr(pinned, 'owner_nation', None) if pinned else None)
+    if owner is None and world.get('nations'):
+        owner = world['nations'][0]
+    prov = province or (getattr(pinned, 'province', None) if pinned else None)
+    gov = getattr(pinned, 'gov', None) if pinned else None
+
+    tile_cash = (gov.agent.cash if gov and hasattr(gov, 'agent') else 0.0) if gov else 0.0
+    tax_rate = gov.tax_rate if gov else 0.15
+    protest_e = pinned.protest_energy_log[-1] if (pinned and pinned.protest_energy_log) else 0.0
+    hungry = sum(1 for a in pinned.agents if not a.is_corporation and not a.is_government and a.hungry_steps > 0) if pinned else 0
+    pop_count = len(pinned.agents) if pinned else 0
+    prov_cash = (prov.gov.agent.cash if prov and getattr(prov, 'gov', None) and hasattr(prov.gov, 'agent') else 0.0) if prov else 0.0
+    tr = owner.treasury() if owner else {'total': 0.0, 'sovereign_cash': 0.0}
+    nat_cash = tr.get('sovereign_cash', 0.0)
+    tot_cash = tr.get('total', 0.0)
+
+    # Try each category handler
+    result = _tip_city_scope(btn_id, tile_cash, tax_rate, protest_e, hungry, pop_count, pinned, gov)
+    if result is not None: return result
+    result = _tip_cadastre_scope(btn_id, pinned, plot_id)
+    if result is not None: return result
+    result = _tip_progress_ui(btn_id)
+    if result is not None: return result
+    result = _tip_province_scope(btn_id, prov, prov_cash)
+    if result is not None: return result
+    result = _tip_nation_scope(btn_id, owner, nat_cash, tot_cash, nation)
+    if result is not None: return result
+    result = _tip_frontier_scope(btn_id, pinned, tile_cash, nat_cash)
+    if result is not None: return result
+    result = _tip_building_recipe(btn_id, pinned, tile_cash, prov_cash, nat_cash, owner, prov)
+    if result is not None: return result
+    result = _tip_build_subcategory(btn_id, tile_cash)
+    if result is not None: return result
+    result = _tip_tier_headers(btn_id, tile_cash, prov_cash, nat_cash, tot_cash, prov, pop_count, pinned)
+    if result is not None: return result
+    result = _tip_dock_tabs(btn_id, pinned)
+    if result is not None: return result
+
+    # Delegate to sub-modules
     from worldview_tooltips_extra import (
         build_science_resource_tooltip,
         build_science_tech_tooltip,
@@ -1395,38 +1487,27 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
     )
     if btn_id.startswith('res_'):
         res_tip = build_science_resource_tooltip(btn_id, world, nation=owner)
-        if res_tip:
-            return res_tip
-
+        if res_tip: return res_tip
     if btn_id.startswith('sci_') or btn_id.startswith('tech_'):
         sci_tip = build_science_tech_tooltip(btn_id, world, nation=owner)
-        if sci_tip:
-            return sci_tip
-
+        if sci_tip: return sci_tip
     if btn_id.startswith('dip_'):
         dip_tip = build_diplomacy_tooltip(btn_id, world, nation=owner)
-        if dip_tip:
-            return dip_tip
-
+        if dip_tip: return dip_tip
     if btn_id.startswith('debt_'):
         debt_tip = build_debt_tooltip(btn_id, world, nation=owner)
-        if debt_tip:
-            return debt_tip
-
+        if debt_tip: return debt_tip
     if btn_id.startswith('mil_'):
         mil_tip = build_military_tooltip(btn_id, world, region=pinned, nation=owner)
-        if mil_tip:
-            return mil_tip
+        if mil_tip: return mil_tip
 
     from worldview_tooltips_ecology import build_ecology_tooltip
     eco_tip = build_ecology_tooltip(btn_id, world, region=pinned, nation=owner, province=prov)
-    if eco_tip:
-        return eco_tip
+    if eco_tip: return eco_tip
 
     from worldview_tooltips_visualizations import build_visualization_tooltip
     vis_tip = build_visualization_tooltip(btn_id, world, region=pinned, nation=owner, province=prov)
-    if vis_tip:
-        return vis_tip
+    if vis_tip: return vis_tip
 
     from worldview_tooltips_charts import (
         build_sidebar_chart_tooltip,
@@ -1436,23 +1517,16 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
     )
     if btn_id.startswith('chart_'):
         tip = build_sidebar_chart_tooltip(btn_id, world, region=pinned, nation=owner)
-        if tip:
-            return tip
-
+        if tip: return tip
     if btn_id.startswith('citizen_') or btn_id in ('tab_charts', 'tab_citizens'):
         tip = build_citizen_tooltip(btn_id, world, region=pinned, nation=owner)
-        if tip:
-            return tip
-
+        if tip: return tip
     if btn_id.startswith('labor_'):
         tip = build_labor_tooltip(btn_id, world, region=pinned, nation=owner)
-        if tip:
-            return tip
-
+        if tip: return tip
     if btn_id.startswith('compare_'):
         tip = build_compare_tooltip(btn_id, world)
-        if tip:
-            return tip
+        if tip: return tip
 
     return None
 

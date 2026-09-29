@@ -305,6 +305,33 @@ def draw_elevation_terrain(surface, region, pts, cx, cy, zoom=1.0, frame=0):
         return
 
 
+_HEX_TINT_SURF_CACHE: dict = {}  # (w, h) -> pygame.Surface reused across calls
+
+
+def _get_hex_tint_surf(w: int, h: int) -> pygame.Surface:
+    """Return a reusable SRCALPHA surface of the requested size, clearing it before use."""
+    key = (w, h)
+    surf = _HEX_TINT_SURF_CACHE.get(key)
+    if surf is None:
+        surf = pygame.Surface((w, h), pygame.SRCALPHA)
+        _HEX_TINT_SURF_CACHE[key] = surf
+    else:
+        surf.fill((0, 0, 0, 0))
+    return surf
+
+
+def _pts_bbox_and_local(pts):
+    """Compute (min_x, min_y, w, h, local_pts) for a polygon — shared by tint helpers."""
+    min_x = min(p[0] for p in pts)
+    max_x = max(p[0] for p in pts)
+    min_y = min(p[1] for p in pts)
+    max_y = max(p[1] for p in pts)
+    w = max(1, int(max_x - min_x) + 2)
+    h = max(1, int(max_y - min_y) + 2)
+    local_pts = [(p[0] - min_x, p[1] - min_y) for p in pts]
+    return min_x, min_y, w, h, local_pts
+
+
 def draw_nation_overlay(surface, region, pts):
     """Draw semi-transparent nation territory tint so realistic elevation peeks through."""
     owner = getattr(region, 'owner_nation', None)
@@ -317,19 +344,10 @@ def draw_nation_overlay(surface, region, pts):
     f = min(0.35, 0.15 * (pop / 400.0))
     extra = int(40 * f)
 
-    # Semi-transparent overlay surface
-    # Calculate bounding box of polygon points
-    min_x = min(p[0] for p in pts)
-    max_x = max(p[0] for p in pts)
-    min_y = min(p[1] for p in pts)
-    max_y = max(p[1] for p in pts)
-    w = max(1, int(max_x - min_x) + 2)
-    h = max(1, int(max_y - min_y) + 2)
+    min_x, min_y, w, h, local_pts = _pts_bbox_and_local(pts)
+    tint_surf = _get_hex_tint_surf(w, h)
 
-    tint_surf = pygame.Surface((w, h), pygame.SRCALPHA)
-    local_pts = [(p[0] - min_x, p[1] - min_y) for p in pts]
-    
-    # Soft nation alpha wash (alpha = 55)
+    # Soft nation alpha wash (alpha = 60)
     tint_color = (min(255, col[0] + extra), min(255, col[1] + extra), min(255, col[2] + extra), 60)
     pygame.draw.polygon(tint_surf, tint_color, local_pts)
     surface.blit(tint_surf, (min_x, min_y))
@@ -341,15 +359,8 @@ def draw_thematic_choropleth(surface, region, pts, layer_mode, frame=0):
     if is_ocean:
         return
 
-    min_x = min(p[0] for p in pts)
-    max_x = max(p[0] for p in pts)
-    min_y = min(p[1] for p in pts)
-    max_y = max(p[1] for p in pts)
-    w = max(1, int(max_x - min_x) + 2)
-    h = max(1, int(max_y - min_y) + 2)
-
-    tint_surf = pygame.Surface((w, h), pygame.SRCALPHA)
-    local_pts = [(p[0] - min_x, p[1] - min_y) for p in pts]
+    min_x, min_y, w, h, local_pts = _pts_bbox_and_local(pts)
+    tint_surf = _get_hex_tint_surf(w, h)
 
     if layer_mode == 'enclosure':
         tenure = getattr(region, 'tenure', None)
@@ -459,8 +470,12 @@ def trade_anim(world):
     return out
 
 
-def draw_edges(surface, world):
-    """Render geographic trade routes: rivers, mountain passes, standard paths, and alpine barriers."""
+def draw_edges(surface, world, center_map=None):
+    """Render geographic trade routes: rivers, mountain passes, standard paths, and alpine barriers.
+
+    center_map: optional dict of {region_name: (screen_cx, screen_cy)} to avoid recomputing
+                hex_px for every edge pair. Falls back to hex_px if not provided.
+    """
     from terrain_edges import get_edge_manager, EdgeType
     em = get_edge_manager(world.get('tiles'), world.get('layout'))
     layout = world.get('layout', {})
@@ -478,8 +493,12 @@ def draw_edges(surface, world):
             continue
         e1 = getattr(r, 'elevation', 0.0) if not getattr(r, 'is_ocean', False) else 0.0
         e2 = getattr(other, 'elevation', 0.0) if not getattr(other, 'is_ocean', False) else 0.0
-        c1 = hex_px(world, *layout[r.name], elevation=e1)
-        c2 = hex_px(world, *layout[other.name], elevation=e2)
+        if center_map is not None and r.name in center_map and other.name in center_map:
+            c1 = center_map[r.name]
+            c2 = center_map[other.name]
+        else:
+            c1 = hex_px(world, *layout[r.name], elevation=e1)
+            c2 = hex_px(world, *layout[other.name], elevation=e2)
         
         edge = em.get_edge(r.name, other.name) if em else None
         if edge and edge.is_river:
@@ -543,13 +562,17 @@ def draw_edges(surface, world):
         for (name_a, name_b), edge in em.edges.items():
             if not edge.passable and (name_a, name_b) not in seen_edges:
                 if name_a in layout and name_b in layout:
-                    c1 = hex_px(world, *layout[name_a])
-                    c2 = hex_px(world, *layout[name_b])
+                    if center_map is not None and name_a in center_map and name_b in center_map:
+                        c1 = center_map[name_a]
+                        c2 = center_map[name_b]
+                    else:
+                        c1 = hex_px(world, *layout[name_a])
+                        c2 = hex_px(world, *layout[name_b])
                     # Draw mid-point barrier hash
                     mx = (c1[0] + c2[0]) // 2
                     my = (c1[1] + c2[1]) // 2
                     dx, dy = c2[0] - c1[0], c2[1] - c1[1]
-                    dist = max(1.0, math.sqrt(dx*dx + dy*dy))
+                    dist = max(1.0, math.hypot(dx, dy))
                     nx, ny = -dy / dist * 6, dx / dist * 6
                     pygame.draw.line(surface, (190, 50, 50), (int(mx - nx), int(my - ny)), (int(mx + nx), int(my + ny)), 2)
 
@@ -889,12 +912,29 @@ def find_label_micro_shift(cand: dict, occupied_rects: list, blocker_rect: pygam
 def draw_text_with_shadow(surface, font, text, center, color, shadow_color=(12, 12, 16)):
     """Render text with a soft drop shadow for ultra-crisp readability over elevation terrain."""
     cx, cy = center
-    # 4-direction shadow
+    # Render shadow once, blit at 4 offsets
+    s_surf = font.render(text, True, shadow_color)
     for sx, sy in [(cx-1, cy), (cx+1, cy), (cx, cy-1), (cx, cy+1)]:
-        s_surf = font.render(text, True, shadow_color)
         surface.blit(s_surf, s_surf.get_rect(center=(sx, sy)))
     t_surf = font.render(text, True, color)
     surface.blit(t_surf, t_surf.get_rect(center=(cx, cy)))
+
+
+def _draw_progress_bar(surface, bx, by, bar_w, bar_h, pct,
+                       fill_color, border_color, bg_color,
+                       icon_name, label_text, font_small):
+    """Draw a single labelled progress bar. Shared by draw_tile_progress_bars."""
+    from ui_icons import get_icon
+    bg_rect = pygame.Rect(bx, by, bar_w, bar_h)
+    pygame.draw.rect(surface, bg_color, bg_rect, border_radius=3)
+    fill_w = max(2, int((bar_w - 2) * pct))
+    fill_rect = pygame.Rect(bx + 1, by + 1, fill_w, bar_h - 2)
+    pygame.draw.rect(surface, fill_color, fill_rect, border_radius=2)
+    pygame.draw.rect(surface, border_color, bg_rect, 1, border_radius=3)
+    icon = get_icon(icon_name, size=10)
+    surface.blit(icon, (bx + 3, by + 1))
+    txt = font_small.render(label_text, True, (255, 255, 255))
+    surface.blit(txt, (bx + 15, by + 1))
 
 
 def draw_tile_progress_bars(surface, region, cx, cy, font_small, world):
@@ -904,41 +944,25 @@ def draw_tile_progress_bars(surface, region, cx, cy, font_small, world):
 
     owner = getattr(region, 'owner_nation', None)
     is_cap = (owner is not None and owner.tiles and region == owner.tiles[0])
-    
-    from ui_icons import get_icon
+
     bar_w = 78
     bar_h = 12
     bar_y = cy + 34
-    
+
     # 1. Construction Progress Bar
     projects = getattr(region, 'construction_projects', [])
     active_proj = next((p for p in projects if getattr(p, 'status', '') == 'in_progress'), None)
-    
+
     if active_proj is not None:
         pct = min(1.0, max(0.0, active_proj.turns_elapsed / max(1, active_proj.total_turns)))
-        bx = int(cx - bar_w // 2)
-        by = int(bar_y)
-        
-        # Background track
-        bg_rect = pygame.Rect(bx, by, bar_w, bar_h)
-        pygame.draw.rect(surface, (18, 20, 28, 230), bg_rect, border_radius=3)
-        
-        # Progress fill (Golden Amber / Construction Yellow)
-        fill_w = max(2, int((bar_w - 2) * pct))
-        fill_rect = pygame.Rect(bx + 1, by + 1, fill_w, bar_h - 2)
-        pygame.draw.rect(surface, (235, 175, 45), fill_rect, border_radius=2)
-        
-        # Border
-        pygame.draw.rect(surface, (120, 110, 80), bg_rect, 1, border_radius=3)
-        
-        # Mini icon & text
-        icon = get_icon(active_proj.recipe.name, size=10)
-        surface.blit(icon, (bx + 3, by + 1))
-        
         short_name = active_proj.recipe.name.replace('_', ' ').capitalize()[:6]
-        txt = font_small.render(f"{short_name} {active_proj.turns_elapsed}/{active_proj.total_turns}t", True, (255, 255, 255))
-        surface.blit(txt, (bx + 15, by + 1))
-        
+        _draw_progress_bar(
+            surface, int(cx - bar_w // 2), int(bar_y), bar_w, bar_h, pct,
+            fill_color=(235, 175, 45), border_color=(120, 110, 80), bg_color=(18, 20, 28),
+            icon_name=active_proj.recipe.name,
+            label_text=f"{short_name} {active_proj.turns_elapsed}/{active_proj.total_turns}t",
+            font_small=font_small,
+        )
         bar_y += 14  # Shift down if another bar exists
         
     # 2. Science Research / Royal Bounty / Trade Diffusion Progress Bar
@@ -958,47 +982,27 @@ def draw_tile_progress_bars(surface, region, cx, cy, font_small, world):
             if tech:
                 xp = inno.get_domain_xp(owner.name, tech.domain)
                 pct = min(1.0, max(0.0, xp / max(1.0, tech.base_xp_required)))
-                bx = int(cx - bar_w // 2)
-                by = int(bar_y)
-                
-                bg_rect = pygame.Rect(bx, by, bar_w, bar_h)
-                pygame.draw.rect(surface, (18, 20, 32, 230), bg_rect, border_radius=3)
-                
-                fill_w = max(2, int((bar_w - 2) * pct))
-                fill_rect = pygame.Rect(bx + 1, by + 1, fill_w, bar_h - 2)
-                pygame.draw.rect(surface, (60, 190, 245), fill_rect, border_radius=2)
-                
-                pygame.draw.rect(surface, (70, 120, 160), bg_rect, 1, border_radius=3)
-                
-                icon = get_icon('rare_minerals', size=10)
-                surface.blit(icon, (bx + 3, by + 1))
-                
                 short_tech = tech.name.split()[0][:6]
-                txt = font_small.render(f"R&D {short_tech} {int(pct*100)}%", True, (255, 255, 255))
-                surface.blit(txt, (bx + 15, by + 1))
-                
+                _draw_progress_bar(
+                    surface, int(cx - bar_w // 2), int(bar_y), bar_w, bar_h, pct,
+                    fill_color=(60, 190, 245), border_color=(70, 120, 160), bg_color=(18, 20, 32),
+                    icon_name='rare_minerals',
+                    label_text=f"R&D {short_tech} {int(pct*100)}%",
+                    font_small=font_small,
+                )
+
         elif active_diff is not None and is_cap:
             t_id, diff_prog = active_diff
             tech = TECH_CATALOG.get(t_id)
             if tech:
-                bx = int(cx - bar_w // 2)
-                by = int(bar_y)
-                
-                bg_rect = pygame.Rect(bx, by, bar_w, bar_h)
-                pygame.draw.rect(surface, (24, 18, 32, 230), bg_rect, border_radius=3)
-                
-                fill_w = max(2, int((bar_w - 2) * diff_prog))
-                fill_rect = pygame.Rect(bx + 1, by + 1, fill_w, bar_h - 2)
-                pygame.draw.rect(surface, (170, 110, 240), fill_rect, border_radius=2)
-                
-                pygame.draw.rect(surface, (110, 80, 150), bg_rect, 1, border_radius=3)
-                
-                icon = get_icon('im', size=10)
-                surface.blit(icon, (bx + 3, by + 1))
-                
                 short_tech = tech.name.split()[0][:6]
-                txt = font_small.render(f"Diff {short_tech} {int(diff_prog*100)}%", True, (255, 255, 255))
-                surface.blit(txt, (bx + 15, by + 1))
+                _draw_progress_bar(
+                    surface, int(cx - bar_w // 2), int(bar_y), bar_w, bar_h, diff_prog,
+                    fill_color=(170, 110, 240), border_color=(110, 80, 150), bg_color=(24, 18, 32),
+                    icon_name='im',
+                    label_text=f"Diff {short_tech} {int(diff_prog*100)}%",
+                    font_small=font_small,
+                )
                 bar_y += 14
 
     # 3. Granary Buffer Stock Gauge (shown on agricultural & urban tiles)
@@ -1060,6 +1064,10 @@ def draw_hex_map(surface, world, font, font_small):
     frame = world.get('frame', 0)
     bbox = world['bbox']
 
+    from world_config import is_voronoi_topology
+    _is_voronoi = is_voronoi_topology()
+
+
     # 0. Draw Continuous Topographic Elevation Background Surface with Contour Lines & Hillshading
     seed = world.get('terrain_seed', world.get('seed', 42))
 
@@ -1074,19 +1082,24 @@ def draw_hex_map(surface, world, font, font_small):
     use_gpu = world.get('use_gpu_pipeline', not terrain_renderer.force_cpu)
     terrain_renderer.force_cpu = not use_gpu
 
-    # Ensure slot_state is always reliably resolved
+    # Ensure slot_state is always reliably resolved; cache result to avoid disk reads each frame
     slot_state = getattr(world.get('gen'), 'slot_1_state', None) or world.get('slot_1_state')
     if not slot_state:
-        slot_1_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "saved_slots", "slot_1.json")
-        if os.path.exists(slot_1_file):
-            try:
-                import json
-                with open(slot_1_file, "r", encoding="utf-8") as f:
-                    slot_state = json.load(f).get("state", {})
-            except Exception:
-                slot_state = {}
+        cached_ss = world.get('_slot_state_cache')
+        if cached_ss is not None:
+            slot_state = cached_ss
         else:
-            slot_state = {}
+            slot_1_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "saved_slots", "slot_1.json")
+            if os.path.exists(slot_1_file):
+                try:
+                    import json
+                    with open(slot_1_file, "r", encoding="utf-8") as f:
+                        slot_state = json.load(f).get("state", {})
+                except Exception:
+                    slot_state = {}
+            else:
+                slot_state = {}
+            world['_slot_state_cache'] = slot_state
 
     if world.get('_cached_topo_surface') is not None:
         topo_surf = world['_cached_topo_surface']
@@ -1105,8 +1118,7 @@ def draw_hex_map(surface, world, font, font_small):
                     pygame.event.pump()
             progress_cb = _on_map_progress
 
-        from world_config import is_voronoi_topology
-        if is_voronoi_topology() and world.get('gen') is not None:
+        if _is_voronoi and world.get('gen') is not None:
             gen = world['gen']
             cache_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "saved_slots", "slot_1_terrain.png")
             if os.path.exists(cache_file):
@@ -1226,14 +1238,13 @@ def draw_hex_map(surface, world, font, font_small):
         world['_cached_topo_surface'] = topo_surf
         world['_map_generation_done'] = True
         world['loading_modal'] = None
-        if not world.get('_cached_from_disk', False) and not getattr(terrain_renderer, 'used_gpu', False) and not is_voronoi_topology():
+        if not world.get('_cached_from_disk', False) and not getattr(terrain_renderer, 'used_gpu', False) and not _is_voronoi:
             from world_cache import save_map_cache
             save_map_cache(world, topo_surf)
             world['_cached_from_disk'] = True
 
 
-    from world_config import is_voronoi_topology
-    pad_ratio = 0.0 if is_voronoi_topology() else 0.18
+    pad_ratio = 0.0 if _is_voronoi else 0.18
     x0, y0, x1, y1 = bbox
     pad_x = (x1 - x0) * pad_ratio
     pad_y = (y1 - y0) * pad_ratio
@@ -1254,8 +1265,7 @@ def draw_hex_map(surface, world, font, font_small):
     prev_clip = surface.get_clip()
     surface.set_clip(map_clip_rect)
 
-    from world_config import is_voronoi_topology
-    if is_voronoi_topology():
+    if _is_voronoi:
         vw = MAP_RIGHT
         vh = HEIGHT - TOP_BAR_H - TICKER_H
         sim_time = world.get('frame', 0) * 0.04
@@ -1331,10 +1341,10 @@ def draw_hex_map(surface, world, font, font_small):
         gpu_renderer = world.get('_micropoly_gpu_renderer')
         sample_elev = getattr(gpu_renderer, 'sample_elevation_func', None)
         hover_offset = 0.6  # Hover slightly above 3D mesh surface to prevent clipping and occlusion
-        outline_alpha = 32 if is_voronoi_topology() else 128
+        outline_alpha = 32 if _is_voronoi else 128
 
         from worldview_camera import project_pts_3d_to_screen, get_camera_mvp
-        mvp = get_camera_mvp(world) if is_voronoi_topology() else None
+        mvp = get_camera_mvp(world) if _is_voronoi else None
 
         for region in tiles:
             # User constraint: "don't show tiles in the sea;"
@@ -1351,7 +1361,7 @@ def draw_hex_map(surface, world, font, font_small):
             if coords is None:
                 continue
             elev = getattr(region, 'elevation', 0.0)
-            if is_voronoi_topology() and hasattr(region, 'polygon') and region.polygon is not None and len(region.polygon) >= 3:
+            if _is_voronoi and hasattr(region, 'polygon') and region.polygon is not None and len(region.polygon) >= 3:
                 # Precompute homogeneous 3D coordinates once per region
                 if not hasattr(region, '_poly_homo') or getattr(region, '_poly_homo_sampler', None) != id(sample_elev):
                     poly_np = np.asarray(region.polygon, dtype=np.float32)
@@ -1386,7 +1396,7 @@ def draw_hex_map(surface, world, font, font_small):
 
             hex_geom.append((region, cx, cy, pts))
             is_wild = (getattr(region, 'owner_nation', None) is None)
-            if is_voronoi_topology():
+            if _is_voronoi:
                 # Make wilderness boundaries clear and distinct with higher alpha
                 line_alpha = 75 if is_wild else 35
                 line_color = (205, 220, 210, line_alpha) if is_wild else (255, 255, 255, line_alpha)
@@ -1445,7 +1455,9 @@ def draw_hex_map(surface, world, font, font_small):
             pygame.draw.polygon(surface, (255, 245, 180), spts, max(2, int(2 * zoom)))
 
     # 3. Connection Edges and Trade Arrows (RENDERED UNDER ALL TEXT)
-    draw_edges(surface, world)
+    # Build screen-center lookup from already-computed hex_geom to avoid recomputing hex_px per edge pair
+    _center_map = {region.name: (cx, cy) for region, cx, cy, pts in hex_geom}
+    draw_edges(surface, world, center_map=_center_map)
     draw_trade_arrows(surface, world)
 
     # 4. Text, City Titles, Stats Lines, and Badges (DYNAMIC OVERLAP-AWARE CULLING)

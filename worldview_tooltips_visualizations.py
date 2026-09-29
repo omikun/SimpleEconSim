@@ -7,35 +7,8 @@ from __future__ import annotations
 from worldview_map import ACCENT, TEXT, DIM, RED, GREEN
 
 
-def build_visualization_tooltip(btn_id: str, world: dict, region=None, nation=None, province=None) -> dict | None:
-    """Resolve tooltip descriptor for visualization controls, modes, and column headers."""
-    pinned = region or world.get('selected_region')
-    if pinned is None and world.get('nations') and world['nations'][0].tiles:
-        pinned = world['nations'][0].tiles[0]
-
-    owner = nation or (getattr(pinned, 'owner_nation', None) if pinned else None)
-    if owner is None and world.get('nations'):
-        owner = world['nations'][0]
-
-    # Live metric extraction helpers
-    pop_count = len(getattr(pinned, 'agents', [])) if pinned else 0
-    shifts = getattr(pinned, 'avg_shift_hours_log', []) if pinned else []
-    avg_shift = shifts[-1] if shifts else 8.0
-    sv_log = getattr(pinned, 'rate_of_exploitation_log', []) if pinned else []
-    sv_rate = sv_log[-1] if sv_log else 0.5
-    strikers = getattr(pinned, 'strikers_log', [0])[-1] if pinned and getattr(pinned, 'strikers_log', None) else 0
-    broken = getattr(pinned, 'broken_machinery_log', [0])[-1] if pinned and getattr(pinned, 'broken_machinery_log', None) else 0
-    protest_e = getattr(pinned, 'protest_energy_log', [0.0])[-1] if pinned and getattr(pinned, 'protest_energy_log', None) else 0.0
-    tenure = getattr(pinned, 'tenure', None)
-    commons_pct = (tenure.commons_access * 100.0) if tenure else 100.0
-    rent_collected = getattr(pinned, 'rent_collected_log', [0.0])[-1] if pinned and getattr(pinned, 'rent_collected_log', None) else 0.0
-    prov = province or (getattr(pinned, 'province', None) if pinned else None)
-    prov_gov = getattr(prov, 'gov', None) if prov else None
-    prov_cash = (prov_gov.agent.cash if prov_gov and hasattr(prov_gov, 'agent') else 0.0)
-
-    # -------------------------------------------------------------------------
-    # 1. COMPARISON MODAL TAB 4: EXTRACTION & CIRCUIT OF CAPITAL
-    # -------------------------------------------------------------------------
+def _tip_extraction_controls(btn_id, sv_rate, avg_shift):
+    """Tooltips for Compare tab 4: Extraction & Circuit of Capital."""
     if btn_id == 'compare_ext_scope_country':
         return {
             'title': "Extraction Scope: Sovereign Nations",
@@ -116,22 +89,6 @@ def build_visualization_tooltip(btn_id: str, world: dict, region=None, nation=No
                 ("TRPF Plot", "Organic Composition (c/v) vs Profit %", (100, 180, 240)),
             ],
             'icon': 'bank',
-            'btn_id': btn_id
-        }
-
-    if btn_id == 'circuit_nation_btn':
-        return {
-            'title': "Nation Circuit Switcher",
-            'badge': "SOVEREIGN SELECTION",
-            'badge_col': ACCENT,
-            'category': "Circuit Visualizer Control",
-            'cost': "Click to switch the active nation displayed in the Sankey diagram",
-            'desc': [
-                "Switches the Marxian Circuit of Capital Sankey diagram and TRPF curve to another sovereign nation in the world.",
-                "Why Useful to Player: Directly compare how rival empires allocate capital: discover whether foreign competitors are reinvesting in heavy machinery or squandering surplus on luxury and political lobbying."
-            ],
-            'stats': [("Selected Nation", owner.name if owner else "Imperial Realm", ACCENT)],
-            'icon': 'crown',
             'btn_id': btn_id
         }
 
@@ -285,9 +242,11 @@ def build_visualization_tooltip(btn_id: str, world: dict, region=None, nation=No
             'btn_id': btn_id
         }
 
-    # -------------------------------------------------------------------------
-    # 2. COMPARISON MODAL TAB 5: PROTEST & REBELLION ATTRACTOR
-    # -------------------------------------------------------------------------
+    return None
+
+
+def _tip_protest_controls(btn_id, sv_rate, avg_shift):
+    """Tooltips for Compare tab 5: Protest & Rebellion."""
     if btn_id == 'compare_protest_scope_country':
         return {
             'title': "Protest Scope: Sovereign Nations",
@@ -520,9 +479,11 @@ def build_visualization_tooltip(btn_id: str, world: dict, region=None, nation=No
             'btn_id': btn_id
         }
 
-    # -------------------------------------------------------------------------
-    # 3. RIGHT-HAND PANEL: CITIZENS & WEALTH STRATIFICATION
-    # -------------------------------------------------------------------------
+    return None
+
+
+def _tip_citizens_panel(btn_id):
+    """Tooltips for Citizens panel mode buttons."""
     if btn_id == 'citizen_mode_charts':
         return {
             'title': "View Mode: Historical Class Time-Series",
@@ -559,9 +520,11 @@ def build_visualization_tooltip(btn_id: str, world: dict, region=None, nation=No
             'btn_id': btn_id
         }
 
-    # -------------------------------------------------------------------------
-    # 4. RIGHT-HAND PANEL: LABOR & 4D ALIENATION RADAR
-    # -------------------------------------------------------------------------
+    return None
+
+
+def _tip_labor_panel(btn_id, avg_shift):
+    """Tooltips for Labor panel mode buttons."""
     if btn_id == 'labor_mode_charts':
         return {
             'title': "View Mode: Labor Historical Time-Series",
@@ -599,9 +562,11 @@ def build_visualization_tooltip(btn_id: str, world: dict, region=None, nation=No
             'btn_id': btn_id
         }
 
-    # -------------------------------------------------------------------------
-    # 5. LEFT GOVERNANCE PANEL: ELECTORAL STRUGGLE BAROMETER
-    # -------------------------------------------------------------------------
+    return None
+
+
+def _tip_electoral_barometer(btn_id, owner):
+    """Tooltip for the electoral struggle barometer."""
     if btn_id == 'gov_electoral_barometer':
         has_ten = getattr(owner, 'ten_hour_act', False) if owner else False
         has_safe = getattr(owner, 'factory_safety_act', False) if owner else False
@@ -624,9 +589,11 @@ def build_visualization_tooltip(btn_id: str, world: dict, region=None, nation=No
             'btn_id': btn_id
         }
 
-    # -------------------------------------------------------------------------
-    # 6. MAP DOCK LAYERS 1 TO 8
-    # -------------------------------------------------------------------------
+    return None
+
+
+def _tip_map_layers(btn_id, pinned, commons_pct):
+    """Tooltips for map layer switcher dock buttons."""
     if btn_id == 'layer_overview':
         return {
             'title': "Map Layer 1: Realm Overview",
@@ -763,9 +730,11 @@ def build_visualization_tooltip(btn_id: str, world: dict, region=None, nation=No
             'btn_id': btn_id
         }
 
-    # -------------------------------------------------------------------------
-    # 7. RADAR SPOKE AXES & VISUALIZATION INSETS
-    # -------------------------------------------------------------------------
+    return None
+
+
+def _tip_radar_axes(btn_id, avg_shift, commons_pct):
+    """Tooltips for the 4D alienation radar spoke axes."""
     if btn_id in ('radar_product_axis', 'radar_axis_0'):
         return {
             'title': "4D Radar Axis: Product Alienation (Surplus)",
@@ -830,9 +799,11 @@ def build_visualization_tooltip(btn_id: str, world: dict, region=None, nation=No
             'btn_id': btn_id
         }
 
-    # -------------------------------------------------------------------------
-    # 8. PHASE 3: EXTERNALITIES, BUILDINGS & ECOLOGICAL POLICIES
-    # -------------------------------------------------------------------------
+    return None
+
+
+def _tip_phase3_ecology(btn_id, pinned, prov_cash):
+    """Tooltips for Phase 3 ecological buildings and agronomy decrees."""
     if btn_id == 'layer_externalities':
         return {
             'title': "Map Layer 9: Ecological Rift & Pollution",
@@ -990,4 +961,48 @@ def build_visualization_tooltip(btn_id: str, world: dict, region=None, nation=No
             'btn_id': btn_id
         }
 
+    return None
+
+
+def build_visualization_tooltip(btn_id: str, world: dict, region=None, nation=None, province=None) -> dict | None:
+    """Resolve tooltip descriptor for visualization controls, modes, and column headers."""
+    # Setup shared context
+    pinned = region or world.get('selected_region')
+    if pinned is None and world.get('nations') and world['nations'][0].tiles:
+        pinned = world['nations'][0].tiles[0]
+    owner = nation or (getattr(pinned, 'owner_nation', None) if pinned else None)
+    if owner is None and world.get('nations'):
+        owner = world['nations'][0]
+
+    pop_count = len(getattr(pinned, 'agents', [])) if pinned else 0
+    shifts = getattr(pinned, 'avg_shift_hours_log', []) if pinned else []
+    avg_shift = shifts[-1] if shifts else 8.0
+    sv_log = getattr(pinned, 'rate_of_exploitation_log', []) if pinned else []
+    sv_rate = sv_log[-1] if sv_log else 0.5
+    strikers = getattr(pinned, 'strikers_log', [0])[-1] if pinned and getattr(pinned, 'strikers_log', None) else 0
+    broken = getattr(pinned, 'broken_machinery_log', [0])[-1] if pinned and getattr(pinned, 'broken_machinery_log', None) else 0
+    protest_e = getattr(pinned, 'protest_energy_log', [0.0])[-1] if pinned and getattr(pinned, 'protest_energy_log', None) else 0.0
+    tenure = getattr(pinned, 'tenure', None)
+    commons_pct = (tenure.commons_access * 100.0) if tenure else 100.0
+    rent_collected = getattr(pinned, 'rent_collected_log', [0.0])[-1] if pinned and getattr(pinned, 'rent_collected_log', None) else 0.0
+    prov = province or (getattr(pinned, 'province', None) if pinned else None)
+    prov_gov = getattr(prov, 'gov', None) if prov else None
+    prov_cash = (prov_gov.agent.cash if prov_gov and hasattr(prov_gov, 'agent') else 0.0)
+
+    result = _tip_extraction_controls(btn_id, sv_rate, avg_shift)
+    if result is not None: return result
+    result = _tip_protest_controls(btn_id, sv_rate, avg_shift)
+    if result is not None: return result
+    result = _tip_citizens_panel(btn_id)
+    if result is not None: return result
+    result = _tip_labor_panel(btn_id, avg_shift)
+    if result is not None: return result
+    result = _tip_electoral_barometer(btn_id, owner)
+    if result is not None: return result
+    result = _tip_map_layers(btn_id, pinned, commons_pct)
+    if result is not None: return result
+    result = _tip_radar_axes(btn_id, avg_shift, commons_pct)
+    if result is not None: return result
+    result = _tip_phase3_ecology(btn_id, pinned, prov_cash)
+    if result is not None: return result
     return None
