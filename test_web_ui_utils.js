@@ -3,6 +3,7 @@ require('./web_client/ui_utils.js');
 require('./web_client/state_sync.js');
 require('./web_client/hex_geometry.js');
 require('./web_client/chart_renderer.js');
+require('./web_client/help_content.js');
 
 const { escapeHtml, safeClassToken, safeCssColor } = globalThis.RegnumUIUtils;
 
@@ -39,6 +40,21 @@ assert.equal(chartCanvas.height, 320);
 assert.match(chartLegend, /GDP: Historical Trend/);
 assert.ok(chartCalls.some(call => call[0] === 'arc'));
 assert.equal(globalThis.RegnumCharts.getChartCatalog().economic[0].id, 'gdp');
+
+const helpHtml = globalThis.RegnumHelpContent.renderHelpPage('3', {
+  seed: 17,
+  nations: [{
+    name: '<img src=x onerror=alert(1)>',
+    regime_type: 'Kingdom <script>',
+    flag_color: 'red; background:url(javascript:alert(1))',
+    tiles_count: 4,
+    gdp: 1000,
+    credit_rating: 'A&'
+  }]
+});
+assert.match(helpHtml, /&lt;img src=x onerror=alert\(1\)&gt;/);
+assert.doesNotMatch(helpHtml, /<img src=x/);
+assert.match(helpHtml, /color:#38bdf8/);
 
 const calls = [];
 let commandResult;

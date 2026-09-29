@@ -177,6 +177,7 @@ class RegnumHTTPRequestHandler(BaseHTTPRequestHandler):
             '/hex_geometry.js': ('hex_geometry.js', 'application/javascript; charset=utf-8'),
             '/state_sync.js': ('state_sync.js', 'application/javascript; charset=utf-8'),
             '/chart_renderer.js': ('chart_renderer.js', 'application/javascript; charset=utf-8'),
+            '/help_content.js': ('help_content.js', 'application/javascript; charset=utf-8'),
             '/favicon.ico': (None, None),
         }
 
