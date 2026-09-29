@@ -11,6 +11,7 @@ Provides an interactive estate cadastre and land tenure inspection panel in the 
 """
 
 from __future__ import annotations
+import logging
 import pygame
 from goods import Goods
 from land_tenure import TenureStatus, LandPlot
@@ -21,6 +22,8 @@ from ui_icons import get_icon
 
 PANEL_LEFT = MAP_RIGHT + 12
 PANEL_W = WIDTH - PANEL_LEFT - 6
+_log = logging.getLogger(__name__)
+_resistance_dossier_warning_logged = False
 
 # Color palette for cadastre tenure
 C_COMMONS = (100, 215, 130)       # Lush customary green
@@ -139,8 +142,11 @@ def draw_cadastre_panel(surface, world: dict, region, font, font_small, mouse_po
             surface.blit(font_small.render(c_plot, True, (160, 190, 220)), (PANEL_LEFT + 12, cur_y + 54))
 
             cur_y += dos_h + 8
-    except Exception:
-        pass
+    except Exception as error:
+        global _resistance_dossier_warning_logged
+        if not _resistance_dossier_warning_logged:
+            _log.warning("Could not render resistance dossier for %s: %s", region.name, error)
+            _resistance_dossier_warning_logged = True
 
     # 2. Scroll controls for Plot List
     scroll = world.get('cadastre_scroll', 0)

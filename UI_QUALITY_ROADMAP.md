@@ -20,7 +20,7 @@ This roadmap captures the main quality issues found across the desktop and web c
 ## 3. Reduce UI module complexity
 
 - Split the web client into focused modules for map rendering, panels, commands, and API/state synchronization. (Safety helpers, hex geometry, charts, and API transport have been extracted; suite panel renderers remain in `client.js`.)
-- Split desktop panel composition from map drawing and share stable presentation helpers where appropriate.
+- Split desktop panel composition from map drawing and share stable presentation helpers where appropriate. (The desktop viewer already delegates panels, charts, camera, and map rendering to separate `worldview_*` modules.)
 - Keep public entry points small and document ownership of state between modules.
 
 ## 4. Improve validation and diagnostics
@@ -32,7 +32,7 @@ This roadmap captures the main quality issues found across the desktop and web c
 
 ## Progress
 
-Section 1 is implemented across two commits, including endpoint validation. The web client now has separate DOM-independent safety, hex geometry, chart rendering, and REST transport modules, with direct Node checks and server static-asset tests. Desktop smooth terrain scaling is cached across unchanged redraws and covered by invalidation tests. Headless full-frame testing succeeds with classic hex topology; the default Voronoi path still depends on a ModernGL context unavailable in this environment (`cannot choose pixel format`). UI fetch failures now log once per error condition, and optional resistance-badge errors report once. Remaining work is the larger animated/static renderer separation, suite panel renderers, and broader real-browser interaction coverage.
+Section 1 is implemented across two commits, including endpoint validation. The web client now has separate DOM-independent safety, hex geometry, chart rendering, and REST transport modules, with direct Node checks and server static-asset tests. Desktop smooth terrain scaling is cached across unchanged redraws and covered by invalidation tests, with map and scale-cache hit/miss/timing metrics. Headless full-frame testing succeeds with classic hex topology; the default Voronoi path still depends on a ModernGL context unavailable in this environment (`cannot choose pixel format`). UI fetch failures and optional resistance UI failures now report actionable diagnostics; font fallback and camera inversion catch only expected errors. Remaining work is the larger animated/static renderer separation, additional web suite panel modules, and browser-level interaction coverage beyond the available Node checks.
 
 ## Delivery order
 

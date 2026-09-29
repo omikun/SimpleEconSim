@@ -165,7 +165,7 @@ def screen_to_world(world, sx, sy):
     mvp = get_camera_mvp(world)
     try:
         inv_mvp = np.linalg.inv(mvp)
-    except Exception:
+    except np.linalg.LinAlgError:
         return (512.0, 512.0)
 
     vw = float(MAP_RIGHT)

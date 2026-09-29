@@ -45,7 +45,7 @@ def _find_best_font_path():
                 f.render("🌾 Test", True, (255, 255, 255))
                 _FONT_PATH = p
                 return _FONT_PATH
-            except Exception:
+            except pygame.error:
                 continue
     _FONT_PATH = ""
     return _FONT_PATH
