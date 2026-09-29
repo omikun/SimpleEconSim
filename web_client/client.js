@@ -44,6 +44,8 @@
   let loadedTileDetailVersion = null;
   let pendingTileDetailVersion = null;
   let lastRecipesKey = null;
+  let lastTileDetailErrorKey = null;
+  let lastStateFetchError = null;
 
   // Active UI Navigation State
   let activeLeftDrawer = null;       // 'build' | 'gov' | 'diplomacy' | 'debt' | 'science' | 'military' | null
@@ -2988,11 +2990,15 @@
       const tile = await res.json();
       if (request !== tileDetailRequest || selectedTileName !== name || stateVersion !== version) return;
       loadedTileDetailVersion = detailVersion;
+      lastTileDetailErrorKey = null;
       updateTileInspectionUI(tile);
       if (activeLeftDrawer === 'build') updateLeftDrawerPanes();
       if (activeRightTab === 'charts') renderHistoricalChart();
     } catch (err) {
-      // The next state refresh retries the detail request.
+      if (lastTileDetailErrorKey !== detailVersion) {
+        console.warn(`Could not load details for ${name}; the next state refresh will retry.`, err);
+        lastTileDetailErrorKey = detailVersion;
+      }
     } finally {
       if (pendingTileDetailVersion === detailVersion) pendingTileDetailVersion = null;
     }
@@ -3020,6 +3026,7 @@
       }
       worldState = data;
       stateVersion = data.version;
+      lastStateFetchError = null;
       indexTiles();
 
       if (statusDot) {
@@ -3061,7 +3068,12 @@
     } catch (err) {
       if (statusDot) {
         statusDot.className = 'status-dot';
-        statusDot.title = 'Server Disconnected';
+        statusDot.title = `Server Disconnected: ${err.message}`;
+      }
+      const errorKey = `${err.name}:${err.message}`;
+      if (lastStateFetchError !== errorKey) {
+        console.warn('Could not refresh simulation state; retrying automatically.', err);
+        lastStateFetchError = errorKey;
       }
     }
   }

@@ -215,12 +215,20 @@ class RegnumHTTPRequestHandler(BaseHTTPRequestHandler):
             if not self._authorized_mutation():
                 return
             try:
-                length = int(self.headers.get('Content-Length', 0))
+                try:
+                    length = int(self.headers.get('Content-Length', 0))
+                except (TypeError, ValueError):
+                    self._send_error_json(400, 'Content-Length must be an integer')
+                    return
                 if length < 0 or length > 1024 * 1024:
                     self._send_error_json(413, 'Command body must be between 0 and 1 MiB')
                     return
                 raw_body = self.rfile.read(length)
-                data = json.loads(raw_body.decode('utf-8'))
+                try:
+                    data = json.loads(raw_body.decode('utf-8'))
+                except (UnicodeDecodeError, json.JSONDecodeError):
+                    self._send_error_json(400, 'Command body must contain valid UTF-8 JSON')
+                    return
                 if not isinstance(data, dict):
                     self._send_error_json(400, 'Command body must be a JSON object')
                     return

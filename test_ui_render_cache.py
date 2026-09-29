@@ -10,6 +10,7 @@ os.environ.setdefault('SDL_AUDIODRIVER', 'dummy')
 import pygame
 
 from worldview import _draw_cached_map, _mark_dirty
+from worldview_map import _cached_scaled_terrain
 from worldview_camera import HEIGHT, TOP_BAR_H, WIDTH
 
 
@@ -46,6 +47,23 @@ class TestDesktopMapCache(unittest.TestCase):
         with patch('worldview.draw_hex_map') as draw_map:
             _draw_cached_map(self.surface, self.world, None, None)
             self.assertIs(draw_map.call_args.args[0], self.surface)
+
+    def test_scaled_terrain_cache_reuses_same_source_and_dimensions(self):
+        terrain = pygame.Surface((128, 128))
+        world = {}
+        with patch('worldview_map.pygame.transform.smoothscale', wraps=pygame.transform.smoothscale) as scale:
+            first = _cached_scaled_terrain(world, terrain, (64, 64))
+            second = _cached_scaled_terrain(world, terrain, (64, 64))
+            self.assertIs(first, second)
+            self.assertEqual(scale.call_count, 1)
+
+            resized = _cached_scaled_terrain(world, terrain, (32, 32))
+            self.assertIsNot(resized, first)
+            self.assertEqual(scale.call_count, 2)
+
+            replacement = pygame.Surface((128, 128))
+            _cached_scaled_terrain(world, replacement, (32, 32))
+            self.assertEqual(scale.call_count, 3)
 
 
 if __name__ == '__main__':

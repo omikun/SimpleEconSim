@@ -15,6 +15,7 @@ Renders realistic procedural terrain heightmaps with:
 import os
 import json
 import math
+import logging
 import numpy as np
 import pygame
 from goods import Goods
@@ -22,6 +23,9 @@ from hexmap import hex_corners
 from worldview_camera import hex_px, HEX_SIZE, MAP_RIGHT, TOP_BAR_H, TICKER_H, HEIGHT
 from heightmap import get_cached_topographic_surface
 from ui_icons import get_icon
+
+_log = logging.getLogger(__name__)
+_popular_resistance_warning_logged = False
 
 NATION_COLORS = {
     'United States': (80, 160, 240),
@@ -745,8 +749,11 @@ def draw_activity_badges(surface, region, cx, cy, font_small):
             pygame.draw.rect(surface, (220, 40, 60), (cx - 26, cy - 70, 52, 14), border_radius=3)
             pygame.draw.rect(surface, (255, 220, 80), (cx - 26, cy - 70, 52, 14), 1, border_radius=3)
             surface.blit(font_small.render("STINK!", True, (255, 255, 255)), (cx - 22, cy - 71))
-    except Exception:
-        pass
+    except Exception as error:
+        global _popular_resistance_warning_logged
+        if not _popular_resistance_warning_logged:
+            _log.warning("Popular resistance badge rendering failed for %s: %s", region.name, error)
+            _popular_resistance_warning_logged = True
 
 
 def draw_pop_delta(surface, region, cx, cy, font_small):
@@ -1057,6 +1064,15 @@ def province_members(world, region):
     return [region]
 
 
+def _cached_scaled_terrain(world, terrain_surface, size):
+    """Return a smooth-scaled terrain surface, reusing it until source or size changes."""
+    key = (id(terrain_surface), tuple(size))
+    if world.get('_scaled_terrain_key') != key:
+        world['_scaled_terrain_surface'] = pygame.transform.smoothscale(terrain_surface, size)
+        world['_scaled_terrain_key'] = key
+    return world['_scaled_terrain_surface']
+
+
 def draw_hex_map(surface, world, font, font_small):
     """Draw full hex grid map with realistic elevation heightmap, shaded relief, and territory highlights."""
     tiles = world['tiles']
@@ -1289,7 +1305,7 @@ def draw_hex_map(surface, world, font, font_small):
         pitch = cam.get('pitch', 0.0)
         if pitch < 0.5:
             if screen_w > 0 and screen_h > 0:
-                scaled_topo = pygame.transform.smoothscale(topo_surf, (screen_w, screen_h))
+                scaled_topo = _cached_scaled_terrain(world, topo_surf, (screen_w, screen_h))
                 surface.blit(scaled_topo, (screen_x, screen_y))
         else:
             from worldview_camera import world_to_screen

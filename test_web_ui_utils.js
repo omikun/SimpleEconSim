@@ -7,7 +7,8 @@ const { escapeHtml, safeClassToken, safeCssColor } = globalThis.RegnumUIUtils;
 assert.equal(escapeHtml(`<img src=x onerror='alert(1)'>&`), '&lt;img src=x onerror=&#39;alert(1)&#39;&gt;&amp;');
 assert.equal(escapeHtml(null), '');
 assert.equal(safeClassToken('state-active_2'), 'state-active_2');
-assert.equal(safeClassToken('bad token', 'fallback'), 'fallback');
+assert.equal(safeClassToken('badge-unrest riot'), 'badge-unrest riot');
+assert.equal(safeClassToken('bad token!', 'fallback'), 'fallback');
 assert.equal(safeCssColor('#A1b2C3'), '#A1b2C3');
 assert.equal(safeCssColor('red; background:url(javascript:alert(1))'), '#38bdf8');
 

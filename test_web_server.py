@@ -340,6 +340,19 @@ class TestWebServerEndpoints(unittest.TestCase):
         )
         self.assertEqual(handler.response_status, 413)
 
+    def test_api_command_reports_malformed_request_body(self):
+        malformed_json = MockHttpRequestHandler(
+            self.mock_server, 'POST', '/api/command',
+            headers={'Content-Length': '1', 'X-REGNUM-Token': 'test-token'}, body=b'{',
+        )
+        self.assertEqual(malformed_json.response_status, 400)
+
+        malformed_length = MockHttpRequestHandler(
+            self.mock_server, 'POST', '/api/command',
+            headers={'Content-Length': 'one', 'X-REGNUM-Token': 'test-token'}, body=b'',
+        )
+        self.assertEqual(malformed_length.response_status, 400)
+
     def test_api_does_not_enable_cross_origin_access(self):
         options = MockHttpRequestHandler(self.mock_server, 'OPTIONS', '/api/state')
         self.assertEqual(options.response_status, 405)
