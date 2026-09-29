@@ -8,6 +8,7 @@ and a 2-page paginated help guide with economic metrics glossary.
 import os
 import random
 import sys
+import time
 
 os.environ.setdefault('SDL_AUDIODRIVER', 'dummy')
 
@@ -166,7 +167,9 @@ def _draw_cached_map(surface, world, font, font_small):
         tuple((key, cam.get(key)) for key in ('ox', 'oy', 'zoom', 'target_x', 'target_y', 'pitch', 'yaw')),
     )
     map_surface = world.get('_ui_map_surface')
+    stats = world.setdefault('_map_cache_stats', {'hits': 0, 'misses': 0, 'render_ms': 0.0})
     if map_surface is None or world.get('_ui_map_key') != map_key:
+        started = time.perf_counter()
         if map_surface is None:
             map_surface = pygame.Surface((WIDTH, HEIGHT)).convert()
         if not world.get('_map_generation_done', False):
@@ -177,6 +180,10 @@ def _draw_cached_map(surface, world, font, font_small):
             draw_hex_map(map_surface, world, font, font_small)
         world['_ui_map_surface'] = map_surface
         world['_ui_map_key'] = map_key
+        stats['misses'] += 1
+        stats['render_ms'] += (time.perf_counter() - started) * 1000.0
+    else:
+        stats['hits'] += 1
     surface.blit(map_surface, (0, 0), pygame.Rect(0, TOP_BAR_H, MAP_RIGHT, HEIGHT - TOP_BAR_H - TICKER_H))
 
 

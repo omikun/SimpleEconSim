@@ -28,11 +28,15 @@ class TestDesktopMapCache(unittest.TestCase):
             _draw_cached_map(self.surface, self.world, None, None)
             _draw_cached_map(self.surface, self.world, None, None)
             self.assertEqual(draw_map.call_count, 1)
+            self.assertEqual(self.world['_map_cache_stats']['misses'], 1)
+            self.assertEqual(self.world['_map_cache_stats']['hits'], 1)
+            self.assertGreaterEqual(self.world['_map_cache_stats']['render_ms'], 0.0)
             self.assertEqual(self.surface.get_at((10, TOP_BAR_H + 1))[:3], (20, 40, 60))
 
             _mark_dirty(self.world, map_changed=False)
             _draw_cached_map(self.surface, self.world, None, None)
             self.assertEqual(draw_map.call_count, 1)
+            self.assertEqual(self.world['_map_cache_stats']['hits'], 2)
 
             self.world['cam']['ox'] = 25
             _draw_cached_map(self.surface, self.world, None, None)

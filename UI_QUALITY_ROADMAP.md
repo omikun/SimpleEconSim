@@ -14,7 +14,7 @@ This roadmap captures the main quality issues found across the desktop and web c
 
 - Separate static map, dynamic map overlays, and individual panels into independently invalidated render layers.
 - Track concrete cache dependencies such as world revision, selection, camera, and panel state instead of frame ticks.
-- Measure frame time and cache hit rates so redraw improvements can be checked on large worlds. (The terrain scaling cache now records hits, misses, and cumulative scale time.)
+- Measure frame time and cache hit rates so redraw improvements can be checked on large worlds. (Map and terrain caches record hits, misses, and cumulative render/scale time.)
 - Cache the smooth-scaled static terrain image across redraws at the same source and viewport dimensions. (Implemented; covered by cache invalidation tests.)
 
 ## 3. Reduce UI module complexity
