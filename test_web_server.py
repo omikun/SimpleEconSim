@@ -136,6 +136,21 @@ class TestWebServerEndpoints(unittest.TestCase):
         self.assertIn('axialToPixel', body)
         self.assertIn('pixelToAxial', body)
 
+    def test_serve_web_ui_utilities(self):
+        handler = MockHttpRequestHandler(self.mock_server, 'GET', '/ui_utils.js')
+        self.assertEqual(handler.response_status, 200)
+        self.assertIn('javascript', handler.response_headers.get('content-type', ''))
+        body = handler.get_body().decode('utf-8')
+        self.assertIn('RegnumUIUtils', body)
+        self.assertIn('escapeHtml', body)
+
+    def test_serve_state_sync_module(self):
+        handler = MockHttpRequestHandler(self.mock_server, 'GET', '/state_sync.js')
+        self.assertEqual(handler.response_status, 200)
+        self.assertIn('javascript', handler.response_headers.get('content-type', ''))
+        body = handler.get_body().decode('utf-8')
+        self.assertIn('RegnumStateSync', body)
+
     def test_get_qr_svg_endpoint(self):
         handler = MockHttpRequestHandler(self.mock_server, 'GET', '/api/qr.svg')
         self.assertEqual(handler.response_status, 200)

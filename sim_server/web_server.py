@@ -173,6 +173,8 @@ class RegnumHTTPRequestHandler(BaseHTTPRequestHandler):
             '/index.html': ('index.html', 'text/html; charset=utf-8'),
             '/style.css': ('style.css', 'text/css; charset=utf-8'),
             '/client.js': ('client.js', 'application/javascript; charset=utf-8'),
+            '/ui_utils.js': ('ui_utils.js', 'application/javascript; charset=utf-8'),
+            '/state_sync.js': ('state_sync.js', 'application/javascript; charset=utf-8'),
             '/favicon.ico': (None, None),
         }
 

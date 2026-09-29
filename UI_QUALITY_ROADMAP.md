@@ -31,8 +31,8 @@ This roadmap captures the main quality issues found across the desktop and web c
 
 ## Progress
 
-Section 1 is implemented across two commits, including endpoint validation. Section 2 requires extracting animation and overlay passes from the current monolithic desktop map renderer; cache invalidation depends on those boundaries to avoid freezing labels, river flow, and trade markers. Sections 3 and 4 remain queued.
+Section 1 is implemented across two commits, including endpoint validation. The web client now has separate DOM-independent safety utilities and REST transport modules, with direct Node checks and server static-asset tests. The desktop application already has separate map, panels, charts, camera, and tooltip modules; its map renderer still needs the deeper draw-pass extraction described in section 2. Remaining work includes that render split, more isolated web panel modules, and replacing broad UI exception swallowing with targeted reporting.
 
 ## Delivery order
 
-Continue with the desktop render-layer extraction, then web and desktop module boundaries, and finish by expanding automated UI coverage and diagnostics. Validate each phase independently before committing it.
+Continue with desktop render-layer extraction and isolated web panel modules, then narrow broad UI exception handlers and expand browser interaction coverage. Validate each phase independently before committing it.

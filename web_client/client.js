@@ -10,22 +10,20 @@
 
   const SQRT3 = Math.sqrt(3.0);
   const DEFAULT_HEX_SIZE = 50.0;
-
-  function escapeHtml(value) {
-    return String(value ?? '').replace(/[&<>"']/g, (char) => ({
-      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-    })[char]);
-  }
-
-  function safeClassToken(value, fallback = '') {
-    const token = String(value ?? '');
-    return /^[a-zA-Z0-9_-]+$/.test(token) ? token : fallback;
-  }
-
-  function safeCssColor(value, fallback = '#38bdf8') {
-    const color = String(value ?? '');
-    return /^#[0-9a-fA-F]{3,8}$/.test(color) ? color : fallback;
-  }
+  const { escapeHtml, safeClassToken, safeCssColor } = window.RegnumUIUtils;
+  const api = window.RegnumStateSync.createStateSync({
+    async onCommandResult(result) {
+      if (!result.success) {
+        showToast(result.error || 'Command failed.', true);
+      } else {
+        if (result.message) showToast(result.message);
+        await fetchState(true);
+      }
+    },
+    onNetworkError(error) {
+      showToast(`Network error: ${error.message}`, true);
+    }
+  });
 
   // Global World & Simulation State
   let worldState = null;
@@ -2985,7 +2983,7 @@
     pendingTileDetailVersion = detailVersion;
     const request = ++tileDetailRequest;
     try {
-      const res = await fetch(`/api/tile?name=${encodeURIComponent(name)}`);
+      const res = await api.fetchTile(name);
       if (!res.ok) return;
       const tile = await res.json();
       if (request !== tileDetailRequest || selectedTileName !== name || stateVersion !== version) return;
@@ -3002,8 +3000,7 @@
 
   async function performStateFetch(force) {
     try {
-      const since = !force && stateVersion ? `&since=${encodeURIComponent(stateVersion)}` : '';
-      const res = await fetch(`/api/state?compact=1${since}`);
+      const res = await api.fetchState(!force ? stateVersion : null);
       if (res.status === 304) {
         if (statusDot) {
           statusDot.className = 'status-dot connected';
@@ -3080,26 +3077,7 @@
   }
 
   async function sendCommand(commandType, payload = {}) {
-    try {
-      const res = await fetch('/api/command', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-REGNUM-Token': window.REGNUM_API_TOKEN || ''
-        },
-        body: JSON.stringify({ cmd_type: commandType, type: commandType, cmd: commandType, payload })
-      });
-
-      const result = await res.json();
-      if (!result.success) {
-        showToast(result.error || 'Command failed.', true);
-      } else {
-        if (result.message) showToast(result.message);
-        await fetchState(true);
-      }
-    } catch (err) {
-      showToast(`Network error: ${err.message}`, true);
-    }
+    await api.sendCommand(commandType, payload);
   }
 
   // ---------------- Initialization ----------------
