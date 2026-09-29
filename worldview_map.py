@@ -359,7 +359,7 @@ def draw_nation_overlay(surface, region, pts):
     surface.blit(tint_surf, (min_x, min_y))
 
 
-def draw_thematic_choropleth(surface, region, pts, layer_mode, frame=0):
+def draw_thematic_choropleth(surface, region, pts, layer_mode, frame=0, animated_only=False, include_animations=True):
     """Draw Layer 7 (Land Tenure / Enclosure) or Layer 8 (Exploitation / Strikes) choropleth tint."""
     is_ocean = getattr(region, 'is_ocean', False) or getattr(region, 'elevation', 0) < 0
     if is_ocean:
@@ -369,6 +369,8 @@ def draw_thematic_choropleth(surface, region, pts, layer_mode, frame=0):
     tint_surf = _get_hex_tint_surf(w, h)
 
     if layer_mode == 'enclosure':
+        if animated_only:
+            return
         tenure = getattr(region, 'tenure', None)
         c_acc = tenure.commons_access if tenure else 1.0
         # Blend from lush green (c_acc=1.0) to parched amber/brown (c_acc=0.0)
@@ -386,17 +388,36 @@ def draw_thematic_choropleth(surface, region, pts, layer_mode, frame=0):
         cr = int(50 * (1.0 - ratio) + 235 * ratio)
         cg = int(120 * (1.0 - ratio) + 45 * ratio)
         cb = int(220 * (1.0 - ratio) + 65 * ratio)
-        pygame.draw.polygon(tint_surf, (cr, cg, cb, 95), local_pts)
-        surface.blit(tint_surf, (min_x, min_y))
+        if not animated_only:
+            pygame.draw.polygon(tint_surf, (cr, cg, cb, 95), local_pts)
+            surface.blit(tint_surf, (min_x, min_y))
 
         # Flashing strike warning border on hex
         strikers = getattr(region, 'strikers_log', [0])[-1] if getattr(region, 'strikers_log', None) else 0
         broken = getattr(region, 'broken_machinery_log', [0])[-1] if getattr(region, 'broken_machinery_log', None) else 0
-        if strikers > 0 or broken > 0:
+        if include_animations and (strikers > 0 or broken > 0):
             pulse = int(140 + 115 * math.sin(frame * 0.2))
             pygame.draw.polygon(surface, (255, 60, 60, pulse), pts, 3)
 
     elif layer_mode == 'externalities':
+        if animated_only:
+            # Dynamic haze and toxic vapor are drawn below; the base tint is cached.
+            air_p = getattr(region, 'pollution_air', 0.0)
+            wat_p = getattr(region, 'pollution_water', 0.0)
+            if air_p > 25.0 or wat_p > 25.0:
+                pulse = int(120 + 90 * math.sin(frame * 0.15))
+                pygame.draw.polygon(surface, (190, 80, 220, pulse), pts, 2)
+            owner = getattr(region, 'owner_nation', None)
+            is_cap = (owner and owner.tiles and region == owner.tiles[0])
+            has_sewer = any(getattr(b, 'name', '') == 'trunk_sewer' for b in getattr(region, 'buildings', []))
+            if is_cap and wat_p >= 60.0 and not has_sewer:
+                min_x, min_y, w, h, _ = _pts_bbox_and_local(pts)
+                for i in range(4):
+                    v_phase = (frame * 0.8 + i * 8) % 24
+                    vx = min_x + w * 0.3 + (i * 14) % max(1, int(w * 0.4))
+                    vy = min_y + h * 0.6 - v_phase * 1.5
+                    pygame.draw.circle(surface, (140, 160, 90, 80), (int(vx), int(vy)), int(4 + v_phase * 0.25))
+            return
         fert = getattr(region, 'soil_fertility', 1.0)
         air_p = getattr(region, 'pollution_air', 0.0)
         wat_p = getattr(region, 'pollution_water', 0.0)
@@ -417,7 +438,7 @@ def draw_thematic_choropleth(surface, region, pts, layer_mode, frame=0):
         surface.blit(tint_surf, (min_x, min_y))
 
         # Flashing haze/warning for severe pollution
-        if air_p > 25.0 or wat_p > 25.0:
+        if include_animations and (air_p > 25.0 or wat_p > 25.0):
             pulse = int(120 + 90 * math.sin(frame * 0.15))
             pygame.draw.polygon(surface, (190, 80, 220, pulse), pts, 2)
 
@@ -425,7 +446,7 @@ def draw_thematic_choropleth(surface, region, pts, layer_mode, frame=0):
         owner = getattr(region, 'owner_nation', None)
         is_cap = (owner and owner.tiles and region == owner.tiles[0])
         has_sewer = any(getattr(b, 'name', '') == 'trunk_sewer' for b in getattr(region, 'buildings', []))
-        if is_cap and wat_p >= 60.0 and not has_sewer:
+        if include_animations and is_cap and wat_p >= 60.0 and not has_sewer:
             for i in range(4):
                 v_phase = (frame * 0.8 + i * 8) % 24
                 vx = min_x + w * 0.3 + (i * 14) % int(w * 0.4)
@@ -480,7 +501,7 @@ def trade_anim(world, center_map=None):
     return out
 
 
-def draw_edges(surface, world, center_map=None):
+def draw_edges(surface, world, center_map=None, animations=True, only_animations=False):
     """Render geographic trade routes: rivers, mountain passes, standard paths, and alpine barriers.
 
     center_map: optional dict of {region_name: (screen_cx, screen_cy)} to avoid recomputing
@@ -491,6 +512,7 @@ def draw_edges(surface, world, center_map=None):
     layout = world.get('layout', {})
     
     seen_edges = set()
+    frame = world.get('frame', 0)
 
     # 1. Passable Trade Edges & River Corridors
     for r, other in world.get('pair_orders', []):
@@ -530,21 +552,22 @@ def draw_edges(surface, world, center_map=None):
                 col_inner = (210, 105, 115)
                 part_col = (255, 130, 140)
 
-            pygame.draw.line(surface, col_outer, c1, c2, 3)
-            pygame.draw.line(surface, col_inner, c1, c2, 1)
+            if not only_animations:
+                pygame.draw.line(surface, col_outer, c1, c2, 3)
+                pygame.draw.line(surface, col_inner, c1, c2, 1)
 
             # Animated Downstream Flow Droplet (from higher elevation to lower elevation)
-            h_a = getattr(r, 'elevation', 0.0)
-            h_b = getattr(other, 'elevation', 0.0)
-            flow_start, flow_end = (c1, c2) if h_a >= h_b else (c2, c1)
-            fdx = flow_end[0] - flow_start[0]
-            fdy = flow_end[1] - flow_start[1]
-            flen = max(1.0, math.hypot(fdx, fdy))
-            frame = world.get('frame', 0)
-            f_phase = ((frame * 1.5) % 40) / 40.0
-            px = int(flow_start[0] + (fdx / flen) * flen * f_phase)
-            py = int(flow_start[1] + (fdy / flen) * flen * f_phase)
-            pygame.draw.circle(surface, part_col, (px, py), 2)
+            if animations:
+                h_a = getattr(r, 'elevation', 0.0)
+                h_b = getattr(other, 'elevation', 0.0)
+                flow_start, flow_end = (c1, c2) if h_a >= h_b else (c2, c1)
+                fdx = flow_end[0] - flow_start[0]
+                fdy = flow_end[1] - flow_start[1]
+                flen = max(1.0, math.hypot(fdx, fdy))
+                f_phase = ((frame * 1.5) % 40) / 40.0
+                px = int(flow_start[0] + (fdx / flen) * flen * f_phase)
+                py = int(flow_start[1] + (fdy / flen) * flen * f_phase)
+                pygame.draw.circle(surface, part_col, (px, py), 2)
 
             # Riparian Dispute Marker between Sovereign Nations
             owner_a = getattr(r, 'owner_nation', None)
@@ -554,21 +577,21 @@ def draw_edges(surface, world, center_map=None):
                 cb_b = getattr(owner_b, 'active_casus_belli', set())
                 has_dispute = (any(t == owner_b.name and cb == 'riparian_poisoning' for t, cb in cb_a) or
                                any(t == owner_a.name and cb == 'riparian_poisoning' for t, cb in cb_b))
-                if has_dispute:
+                if has_dispute and animations:
                     mid_x = (c1[0] + c2[0]) // 2
                     mid_y = (c1[1] + c2[1]) // 2
                     pulse = int(180 + 75 * math.sin(frame * 0.2))
                     pygame.draw.circle(surface, (235, 60, 60, pulse), (mid_x, mid_y), 5)
                     pygame.draw.circle(surface, (255, 255, 255), (mid_x, mid_y), 2)
 
-        elif edge and edge.edge_type == EdgeType.MOUNTAIN_PASS:
+        elif edge and edge.edge_type == EdgeType.MOUNTAIN_PASS and not only_animations:
             # Engineered / Natural Mountain Pass (Golden Mountain Road)
             pygame.draw.line(surface, (230, 185, 65), c1, c2, 2)
-        else:
+        elif not only_animations:
             pygame.draw.line(surface, EDGE_LINE, c1, c2, 1)
 
     # 2. Blocked Alpine & Cliff Barriers (Visual indicators)
-    if em is not None:
+    if em is not None and not only_animations:
         for (name_a, name_b), edge in em.edges.items():
             if not edge.passable and (name_a, name_b) not in seen_edges:
                 if name_a in layout and name_b in layout:
@@ -1096,6 +1119,7 @@ def draw_hex_map(surface, world, font, font_small):
 
     from world_config import is_voronoi_topology
     _is_voronoi = is_voronoi_topology()
+    world['_map_uses_continuous_animation'] = _is_voronoi
 
 
     # 0. Draw Continuous Topographic Elevation Background Surface with Contour Lines & Hillshading
@@ -1445,8 +1469,6 @@ def draw_hex_map(surface, world, font, font_small):
     # 1b. Render tile overlays and blit cartographic borders
     active_layer = world.get('map_layer', 'overview')
     for region, cx, cy, pts in hex_geom:
-        if getattr(region, 'is_water', False):
-            draw_elevation_terrain(surface, region, pts, cx, cy, zoom=zoom, frame=frame)
         owner = getattr(region, 'owner_nation', None)
         if owner is not None:
             draw_nation_overlay(surface, region, pts)
@@ -1455,7 +1477,7 @@ def draw_hex_map(surface, world, font, font_small):
             pygame.draw.polygon(surface, (115, 130, 120), pts, 1)
 
         if active_layer in ('enclosure', 'exploitation', 'externalities'):
-            draw_thematic_choropleth(surface, region, pts, active_layer, frame=frame)
+            draw_thematic_choropleth(surface, region, pts, active_layer, frame=frame, include_animations=False)
 
     # Blit transparent hex/voronoi grid overlay
     surface.blit(border_overlay, (0, 0))
@@ -1491,8 +1513,7 @@ def draw_hex_map(surface, world, font, font_small):
     # 3. Connection Edges and Trade Arrows (RENDERED UNDER ALL TEXT)
     # Build screen-center lookup from already-computed hex_geom to avoid recomputing hex_px per edge pair
     _center_map = {region.name: (cx, cy) for region, cx, cy, pts in hex_geom}
-    draw_edges(surface, world, center_map=_center_map)
-    draw_trade_arrows(surface, world, center_map=_center_map)
+    draw_edges(surface, world, center_map=_center_map, animations=False)
 
     # 4. Text, City Titles, Stats Lines, and Badges (DYNAMIC OVERLAP-AWARE CULLING)
     layer_mode = world.get('map_layer', 'overview')
@@ -1636,6 +1657,7 @@ def draw_hex_map(surface, world, font, font_small):
     # Smooth label offset animation with inertia (1-3 px/frame) to prevent jumping and flickering
     label_offsets = world.setdefault('_label_offsets', {})
     MAX_SHIFT_PER_FRAME = 2.0  # 1-3 pixel shift per frame
+    labels_animating = False
 
     for cand in label_candidates:
         r_key = cand['r_key']
@@ -1645,6 +1667,7 @@ def draw_hex_map(surface, world, font, font_small):
                 cur_dx, cur_dy = label_offsets[r_key]
                 if abs(cur_dx) > 0.2 or abs(cur_dy) > 0.2:
                     label_offsets[r_key] = (cur_dx * 0.7, cur_dy * 0.7)
+                    labels_animating = True
                 else:
                     label_offsets[r_key] = (0.0, 0.0)
             continue
@@ -1669,6 +1692,7 @@ def draw_hex_map(surface, world, font, font_small):
             step = min(MAX_SHIFT_PER_FRAME, max(0.8, dist * 0.25))
             cur_dx += (diff_x / dist) * step
             cur_dy += (diff_y / dist) * step
+            labels_animating = True
 
         label_offsets[r_key] = (cur_dx, cur_dy)
 
@@ -1676,7 +1700,11 @@ def draw_hex_map(surface, world, font, font_small):
         cand['cx'] = int(round(cand['orig_cx'] + cur_dx))
         cand['cy'] = int(round(cand['orig_cy'] + cur_dy))
 
-    # Render only accepted labels
+    # Render only accepted labels. The caller may route these into a separate
+    # cached layer so frame-driven map effects stay underneath text and icons.
+    label_surface = world.get('_map_label_target', surface)
+    label_prev_clip = label_surface.get_clip()
+    label_surface.set_clip(map_clip_rect)
     for cand in label_candidates:
         region = cand['region']
         if region not in accepted_tiles:
@@ -1697,44 +1725,70 @@ def draw_hex_map(surface, world, font, font_small):
                 if owner is not None:
                     if is_nat_cap:
                         # National Capital (bold star badge)
-                        draw_text_with_shadow(surface, font_small, f"★ {owner.name.upper()}", (cx, cy - 24), (255, 230, 140))
-                        draw_text_with_shadow(surface, name_font, city_title, (cx, cy - 10), (255, 255, 255))
+                        draw_text_with_shadow(label_surface, font_small, f"★ {owner.name.upper()}", (cx, cy - 24), (255, 230, 140))
+                        draw_text_with_shadow(label_surface, name_font, city_title, (cx, cy - 10), (255, 255, 255))
                     elif is_prov_cap:
-                        draw_text_with_shadow(surface, font_small, city_title, (cx, cy - 12), (210, 240, 255))
+                        draw_text_with_shadow(label_surface, font_small, city_title, (cx, cy - 12), (210, 240, 255))
                     else:
-                        draw_text_with_shadow(surface, font_small, city_title, (cx, cy - 10), (230, 230, 230))
+                        draw_text_with_shadow(label_surface, font_small, city_title, (cx, cy - 10), (230, 230, 230))
 
                     if (zoom >= 2.2) or (region is sel) or (region is hover_region):
                         if line2:
-                            draw_text_with_shadow(surface, font_small, line2, (cx, cy + 6), c2)
+                            draw_text_with_shadow(label_surface, font_small, line2, (cx, cy + 6), c2)
                         if line3:
-                            draw_text_with_shadow(surface, font_small, line3, (cx, cy + 20), c3)
+                            draw_text_with_shadow(label_surface, font_small, line3, (cx, cy + 20), c3)
                 else:
                     # Unselected wilderness regions: show natural territory title and altitude
                     elev_m = getattr(region, 'elevation_meters', int(region.elevation * 3000))
                     wild_title = getattr(region, 'display_name', getattr(region, 'city_name', region.name))
-                    draw_text_with_shadow(surface, font_small, f"◇ {wild_title}", (cx, cy - 8), (210, 230, 220))
-                    draw_text_with_shadow(surface, font_small, f"{elev_m}m", (cx, cy + 8), (155, 185, 170))
+                    draw_text_with_shadow(label_surface, font_small, f"◇ {wild_title}", (cx, cy - 8), (210, 230, 220))
+                    draw_text_with_shadow(label_surface, font_small, f"{elev_m}m", (cx, cy + 8), (155, 185, 170))
             else:
                 # Other Layer Modes (Physical, Population, Economy, Production, Military)
                 if owner is not None:
-                    draw_text_with_shadow(surface, name_font, city_title, (cx, cy - 28), (255, 255, 255))
+                    draw_text_with_shadow(label_surface, name_font, city_title, (cx, cy - 28), (255, 255, 255))
                 if line1:
-                    draw_text_with_shadow(surface, font_small, line1, (cx, cy - 10 if owner else cy - 14), c1)
+                    draw_text_with_shadow(label_surface, font_small, line1, (cx, cy - 10 if owner else cy - 14), c1)
                 if line2:
-                    draw_text_with_shadow(surface, font_small, line2, (cx, cy + 8), c2)
+                    draw_text_with_shadow(label_surface, font_small, line2, (cx, cy + 8), c2)
                 if line3:
-                    draw_text_with_shadow(surface, font_small, line3, (cx, cy + 24), c3)
+                    draw_text_with_shadow(label_surface, font_small, line3, (cx, cy + 24), c3)
         else:
             # On ocean tiles: in non-overview layers, display minimal line if present
             if layer_mode != 'overview' and line1:
-                draw_text_with_shadow(surface, font_small, line1, (cx, cy), c1)
+                draw_text_with_shadow(label_surface, font_small, line1, (cx, cy), c1)
 
         if not is_ocean:
             if region is sel or region is hover_region or (zoom >= 2.2 and owner is not None):
-                draw_terrain_glyph(surface, region, cx, cy - 34)
-                draw_activity_badges(surface, region, cx, cy, font_small)
-                draw_pop_delta(surface, region, cx, cy, font_small)
-                draw_tile_progress_bars(surface, region, cx, cy, font_small, world)
+                draw_terrain_glyph(label_surface, region, cx, cy - 34)
+                draw_activity_badges(label_surface, region, cx, cy, font_small)
+                draw_pop_delta(label_surface, region, cx, cy, font_small)
+                draw_tile_progress_bars(label_surface, region, cx, cy, font_small, world)
 
+    world['_label_offsets_animating'] = labels_animating
+
+    label_surface.set_clip(label_prev_clip)
     surface.set_clip(prev_clip)
+
+
+def draw_dynamic_map_overlays(surface, world):
+    """Draw frame-driven map effects over the cached base map layer."""
+    hex_geom = world.get('_cached_hex_geom', ())
+    if not hex_geom:
+        return
+    frame = world.get('frame', 0)
+    zoom = world.get('cam', {}).get('zoom', 1.0)
+    previous_clip = surface.get_clip()
+    surface.set_clip(pygame.Rect(0, TOP_BAR_H, MAP_RIGHT, HEIGHT - TOP_BAR_H - TICKER_H))
+
+    centers = {region.name: (cx, cy) for region, cx, cy, _pts in hex_geom}
+    for region, cx, cy, pts in hex_geom:
+        if getattr(region, 'is_water', False):
+            draw_elevation_terrain(surface, region, pts, cx, cy, zoom=zoom, frame=frame)
+        if world.get('map_layer') in ('exploitation', 'externalities'):
+            draw_thematic_choropleth(
+                surface, region, pts, world['map_layer'], frame=frame, animated_only=True
+            )
+    draw_edges(surface, world, center_map=centers, animations=True, only_animations=True)
+    draw_trade_arrows(surface, world, center_map=centers)
+    surface.set_clip(previous_clip)

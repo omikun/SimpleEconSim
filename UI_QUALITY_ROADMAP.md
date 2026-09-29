@@ -12,8 +12,8 @@ This roadmap captures the main quality issues found across the desktop and web c
 
 ## 2. Make desktop redraws follow visible state changes
 
-- Separate static map, dynamic map overlays, and individual panels into independently invalidated render layers.
-- Track concrete cache dependencies such as world revision, selection, camera, and panel state instead of frame ticks.
+- Separate static map, dynamic map overlays, and individual panels into independently invalidated render layers. (Classic hex maps now cache their base and redraw water, river, trade, and pulsing thematic effects separately; Voronoi keeps frame invalidation for its animated 3D scene.)
+- Track concrete cache dependencies such as world revision, selection, camera, and panel state instead of frame ticks. (Hex base cache ignores frame ticks except while labels settle.)
 - Measure frame time and cache hit rates so redraw improvements can be checked on large worlds. (Map and terrain caches record hits, misses, and cumulative render/scale time.)
 - Cache the smooth-scaled static terrain image across redraws at the same source and viewport dimensions. (Implemented; covered by cache invalidation tests.)
 
@@ -32,8 +32,8 @@ This roadmap captures the main quality issues found across the desktop and web c
 
 ## Progress
 
-Section 1 is implemented across two commits, including endpoint validation. The web client now has separate DOM-independent safety, hex geometry, chart, help-content, and REST transport modules, with direct Node checks and server static-asset tests. Desktop smooth terrain scaling is cached across unchanged redraws and covered by invalidation tests, with map and scale-cache hit/miss/timing metrics. Headless full-frame testing succeeds with classic hex topology; the default Voronoi path still depends on a ModernGL context unavailable in this environment (`cannot choose pixel format`). UI fetch failures and optional resistance UI failures now report actionable diagnostics; font fallback and camera inversion catch only expected errors. Remaining work is the larger animated/static renderer separation, additional web suite panel modules, and browser-level interaction coverage beyond the available Node checks.
+Section 1 is implemented across two commits, including endpoint validation. The web client now has separate DOM-independent safety, hex geometry, chart, help-content, and REST transport modules, with direct Node checks and server static-asset tests. Classic hex rendering now separates frame-driven overlays from its cached base, and smooth terrain scaling is cached across unchanged redraws. Cache invalidation tests cover static frame reuse, dynamic passes, continuous animation, and scale changes; map and terrain caches record hit/miss/timing metrics. Headless full-frame testing succeeds with classic hex topology; the default Voronoi path still depends on a ModernGL context unavailable in this environment (`cannot choose pixel format`). UI fetch failures and optional resistance UI failures now report actionable diagnostics; font fallback and camera inversion catch only expected errors. Remaining work is additional web suite panel modules and browser-level interaction coverage beyond the available Node checks.
 
 ## Delivery order
 
-Continue with desktop render-layer extraction and isolated web panel modules, then narrow broad UI exception handlers and expand browser interaction coverage. Validate each phase independently before committing it.
+Continue with isolated web suite panel modules and broader browser interaction coverage. Validate each phase independently before committing it.

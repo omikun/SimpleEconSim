@@ -30,7 +30,8 @@ from worldview_map import (
     NATION_COLORS, WILD_COLOR, WILD_EDGE, HEX_EDGE, TEXT, DIM, RED, GREEN, ACCENT, EDGE_LINE,
     nation_color, region_pop, homesteaders, tile_stats,
     draw_terrain_glyph, draw_pop_heat, trade_anim, draw_edges, draw_trade_arrows,
-    draw_activity_badges, draw_pop_delta, province_members, draw_hex_map, pops_history
+    draw_activity_badges, draw_pop_delta, province_members, draw_hex_map, pops_history,
+    draw_dynamic_map_overlays
 )
 from worldview_ui import (
     PANEL_BG, selected_nation, draw_top_bar, draw_top_bar_dropdown, draw_regime_readout,
@@ -161,7 +162,8 @@ def _draw_cached_map(surface, world, font, font_small):
     """Reuse the map pixels for redraws that only affect UI controls."""
     cam = world.get('cam', {})
     map_key = (
-        world.get('_map_content_version', 0), world.get('frame', 0),
+        world.get('_map_content_version', 0),
+        world.get('frame') if world.get('_label_offsets_animating') or world.get('_map_uses_continuous_animation') else None,
         id(world.get('selected_region')), id(world.get('hover_region')),
         world.get('map_layer'), world.get('turn'),
         tuple((key, cam.get(key)) for key in ('ox', 'oy', 'zoom', 'target_x', 'target_y', 'pitch', 'yaw')),
@@ -172,12 +174,24 @@ def _draw_cached_map(surface, world, font, font_small):
         started = time.perf_counter()
         if map_surface is None:
             map_surface = pygame.Surface((WIDTH, HEIGHT)).convert()
+        label_surface = world.get('_ui_map_label_surface')
+        if label_surface is None:
+            label_surface = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA).convert_alpha()
+            world['_ui_map_label_surface'] = label_surface
+        label_surface.fill((0, 0, 0, 0))
+        world['_map_label_target'] = label_surface
         if not world.get('_map_generation_done', False):
-            draw_hex_map(surface, world, font, font_small)
-            map_surface.blit(surface, (0, 0))
+            try:
+                draw_hex_map(surface, world, font, font_small)
+                map_surface.blit(surface, (0, 0))
+            finally:
+                world.pop('_map_label_target', None)
         else:
             map_surface.fill(BG)
-            draw_hex_map(map_surface, world, font, font_small)
+            try:
+                draw_hex_map(map_surface, world, font, font_small)
+            finally:
+                world.pop('_map_label_target', None)
         world['_ui_map_surface'] = map_surface
         world['_ui_map_key'] = map_key
         stats['misses'] += 1
@@ -199,6 +213,10 @@ def render_frame(surface, world, mouse_pos=None):
     effective_mouse = None if modal_active else mouse_pos
 
     _draw_cached_map(surface, world, font, font_small)
+    draw_dynamic_map_overlays(surface, world)
+    label_surface = world.get('_ui_map_label_surface')
+    if label_surface is not None:
+        surface.blit(label_surface, (0, 0), pygame.Rect(0, TOP_BAR_H, MAP_RIGHT, HEIGHT - TOP_BAR_H - TICKER_H))
     draw_top_bar(surface, world, font_small, mouse_pos=effective_mouse)
     draw_zoom_hud(surface, font_small, mouse_pos=effective_mouse, world=world)
     draw_seasonal_clock(surface, world, font_small, mouse_pos=effective_mouse)
