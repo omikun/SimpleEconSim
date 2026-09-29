@@ -71,7 +71,18 @@ class RegnumHTTPRequestHandler(BaseHTTPRequestHandler):
         # 1. API: World State Snapshot
         if path == '/api/state':
             try:
-                state = self.server.sim_server.serialize_world()
+                sim = self.server.sim_server
+                compact = query.get('compact', ['0'])[0] == '1'
+                with sim._lock:
+                    version = f"{sim.instance_id}:{sim.world_generation}:{sim.turn}:{sim.state_revision}:{int(sim.playing)}"
+                    if query.get('since', [None])[0] == version:
+                        self.send_response(304)
+                        self.send_header('Cache-Control', 'no-store')
+                        self._set_cors_headers()
+                        self.end_headers()
+                        return
+                    state = sim.serialize_world(compact=compact)
+                    state['version'] = version
                 state['lan_url'] = self.server.base_url
                 body = json.dumps(state).encode('utf-8')
                 self.send_response(200)
@@ -91,13 +102,14 @@ class RegnumHTTPRequestHandler(BaseHTTPRequestHandler):
                 self._send_error_json(400, "Missing 'name' query parameter")
                 return
 
-            tile_obj = self.server.sim_server.by_name.get(tile_name)
-            if not tile_obj:
-                self._send_error_json(404, f"Tile '{tile_name}' not found")
-                return
-
             try:
-                tile_data = self.server.sim_server.serialize_tile(tile_obj, layout=self.server.sim_server.layout)
+                sim = self.server.sim_server
+                with sim._lock:
+                    tile_obj = sim.by_name.get(tile_name)
+                    if not tile_obj:
+                        self._send_error_json(404, f"Tile '{tile_name}' not found")
+                        return
+                    tile_data = sim.serialize_tile(tile_obj, layout=sim.layout, turn=sim.turn)
                 body = json.dumps(tile_data).encode('utf-8')
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/json; charset=utf-8')

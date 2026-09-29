@@ -454,7 +454,7 @@ def draw_terrain_glyph(surface, region, cx, cy):
         pygame.draw.circle(surface, (255, 235, 120), (cx, cy - 24), 12, 1)
 
 
-def trade_anim(world):
+def trade_anim(world, center_map=None):
     """Animated arrows: last-turn net trade flow on claimed pairs."""
     out = []
     for r, other in world['pair_orders']:
@@ -463,8 +463,12 @@ def trade_anim(world):
             continue
         e1 = getattr(r, 'elevation', 0.0) if not getattr(r, 'is_ocean', False) else 0.0
         e2 = getattr(other, 'elevation', 0.0) if not getattr(other, 'is_ocean', False) else 0.0
-        c1 = hex_px(world, *world['layout'][r.name], elevation=e1)
-        c2 = hex_px(world, *world['layout'][other.name], elevation=e2)
+        c1 = center_map.get(r.name) if center_map else None
+        c2 = center_map.get(other.name) if center_map else None
+        if c1 is None:
+            c1 = hex_px(world, *world['layout'][r.name], elevation=e1)
+        if c2 is None:
+            c2 = hex_px(world, *world['layout'][other.name], elevation=e2)
         width = max(1, min(8, int(abs(flow) / 1500.0) + 1))
         out.append((c1, c2, width, flow > 0))
     return out
@@ -577,10 +581,10 @@ def draw_edges(surface, world, center_map=None):
                     pygame.draw.line(surface, (190, 50, 50), (int(mx - nx), int(my - ny)), (int(mx + nx), int(my + ny)), 2)
 
 
-def draw_trade_arrows(surface, world):
+def draw_trade_arrows(surface, world, center_map=None):
     """Animated dots on claimed-pair edges scaled by recent net flow."""
     frame = world.get('frame', 0)
-    for c1, c2, width, forward in trade_anim(world):
+    for c1, c2, width, forward in trade_anim(world, center_map=center_map):
         (x1, y1), (x2, y2) = c1, c2
         dx, dy = x2 - x1, y2 - y1
         length = max(1, int((dx * dx + dy * dy) ** 0.5))
@@ -1324,7 +1328,11 @@ def draw_hex_map(surface, world, font, font_small):
         round(float(cam.get('target_y', 512.0)), 2),
         round(float(cam.get('pitch', 52.0)), 2),
         round(float(cam.get('yaw', 9.0)), 2),
-        MAP_RIGHT, HEIGHT
+        MAP_RIGHT, HEIGHT,
+        id(getattr(world.get('_micropoly_gpu_renderer'), 'sample_elevation_func', None)),
+        tuple((id(region), id(getattr(region, 'owner_nation', None)),
+               bool(getattr(region, 'is_ocean', False)),
+               float(getattr(region, 'elevation', 0.0))) for region in tiles),
     )
 
     if (
@@ -1458,7 +1466,7 @@ def draw_hex_map(surface, world, font, font_small):
     # Build screen-center lookup from already-computed hex_geom to avoid recomputing hex_px per edge pair
     _center_map = {region.name: (cx, cy) for region, cx, cy, pts in hex_geom}
     draw_edges(surface, world, center_map=_center_map)
-    draw_trade_arrows(surface, world)
+    draw_trade_arrows(surface, world, center_map=_center_map)
 
     # 4. Text, City Titles, Stats Lines, and Badges (DYNAMIC OVERLAP-AWARE CULLING)
     layer_mode = world.get('map_layer', 'overview')
@@ -1485,8 +1493,6 @@ def draw_hex_map(surface, world, font, font_small):
 
         city_title = f"* {raw_city}" if is_nat_cap else (f"+ {raw_city}" if is_prov_cap else raw_city)
         name_font = font_small if len(city_title) > 10 else font
-        line1, line2, line3, c1, c2, c3 = tile_stats(region, layer_mode=layer_mode, world=world)
-
         priority = get_tile_label_priority(region, world, is_nat_cap=is_nat_cap, is_prov_cap=is_prov_cap)
 
         # Pre-filter low-priority wilderness or non-capital tiles when zoomed far out
@@ -1502,6 +1508,8 @@ def draw_hex_map(surface, world, font, font_small):
         else:
             if zoom < 1.0 and priority < 350:
                 continue
+
+        line1, line2, line3, c1, c2, c3 = tile_stats(region, layer_mode=layer_mode, world=world)
 
         # Compute label bounding box
         if not is_ocean:

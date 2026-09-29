@@ -5,6 +5,7 @@ sim_server/sim_server.py — Authoritative Simulation Server implementation.
 import time
 import random
 import threading
+import uuid
 from typing import Any, Dict, List, Optional
 
 import sim_engine
@@ -17,7 +18,7 @@ from buildings import BUILDING_RECIPES
 from diplomacy import get_diplomacy, TreatyType
 from sovereign_bonds import get_bond_market
 from innovation import get_innovation_system, TECH_CATALOG
-from worldview_map import NATION_COLORS
+from worldview_map import NATION_COLORS, get_nation_color
 from world_names import assign_world_identities
 from sim_server.protocol import CommandType, CommandMessage, ServerEvent
 
@@ -37,6 +38,7 @@ class SimServer:
         self.last_tick_time = time.time()
 
         self._lock = threading.RLock()
+        self.instance_id = uuid.uuid4().hex
         self._ticker_events: List[Dict[str, Any]] = []
         self._subscribers = []
         self.player_nation_name = None
@@ -58,7 +60,10 @@ class SimServer:
             self.nations = nations
             self.currencies = [n.currency for n in nations if getattr(n, 'currency', None)]
             self.hex_size = HEX_SIZE
-            self.layout = rectangular_hex_layout(GRID_ROWS, GRID_COLS)
+            grid_layout = rectangular_hex_layout(GRID_ROWS, GRID_COLS)
+            grid_positions = list(grid_layout.values())
+            # Generated regions are named c0..cN; the layout helper uses rNcN keys.
+            self.layout = {tile.name: grid_positions[i] for i, tile in enumerate(tiles)}
             self.reverse_layout = {v: k for k, v in self.layout.items()}
             self.bbox = hex_bbox(self.layout, HEX_SIZE)
 
@@ -71,6 +76,8 @@ class SimServer:
             self.currency_totals = {c: fx.audit_currency_total(tiles, c) for c in self.currencies}
             self.violations = []
             self.turn = 0
+            self.world_generation = getattr(self, 'world_generation', 0) + 1
+            self.state_revision = 0
             self.playing = False
             self._ticker_events.clear()
             self.player_nation_name = self.nations[0].name if self.nations else None
@@ -122,6 +129,7 @@ class SimServer:
                 pass
 
             self._record_history(t)
+            self.state_revision += 1
             self._broadcast(ServerEvent.TURN_ADVANCED, {'turn': t})
             return t
 
@@ -300,6 +308,8 @@ class SimServer:
     def execute_command(self, cmd: CommandMessage) -> Dict[str, Any]:
         """Dispatch and execute an authoritative player / AI command."""
         with self._lock:
+            # Commands can change state without advancing the turn.
+            self.state_revision += 1
             c_type = cmd.cmd_type
             p = cmd.payload
 
@@ -822,8 +832,37 @@ class SimServer:
         }
 
     @classmethod
-    def serialize_tile(cls, tile, layout: Optional[Dict[str, Any]] = None, turn: int = 0) -> Dict[str, Any]:
+    def serialize_tile(cls, tile, layout: Optional[Dict[str, Any]] = None, turn: int = 0,
+                       summary: bool = False) -> Dict[str, Any]:
         """Serialize a Region / Tile into a JSON-compatible dictionary with full macro & citizen inspection."""
+        if summary:
+            if layout and tile.name in layout:
+                q, r = layout[tile.name]
+            else:
+                q, r = getattr(tile, 'q', 0), getattr(tile, 'r', 0)
+            tenure = getattr(tile, 'tenure', None)
+            owner = getattr(tile, 'owner_nation', None)
+            nation_rgb = get_nation_color(owner.name) if owner else None
+            return {
+                'name': tile.name,
+                'display_name': getattr(tile, 'display_name', getattr(tile, 'city_name', tile.name)),
+                'q': q, 'r': r,
+                'nation': owner.name if owner else None,
+                'nation_color': '#%02x%02x%02x' % nation_rgb if nation_rgb else None,
+                'elevation': float(getattr(tile, 'elevation', 0.0)),
+                'elevation_meters': float(getattr(tile, 'elevation_meters', 0.0)),
+                'biome': getattr(tile, 'biome', 'plains'),
+                'is_ocean': bool(getattr(tile, 'is_ocean', False)),
+                'population': len(getattr(tile, 'agents', [])),
+                'gdp': round(float(tile.gdp_log[-1]), 1) if getattr(tile, 'gdp_log', None) else 0.0,
+                'protest_energy': round(float(tile.protest_energy_log[-1]), 2) if getattr(tile, 'protest_energy_log', None) else 0.0,
+                'buildings_count': len(getattr(tile, 'buildings', [])),
+                'garrison': int(getattr(tile, 'garrison', 0)),
+                'enclosed_fraction': float(getattr(tenure, 'enclosed_fraction', 0.0)) if tenure else 0.0,
+                'exploitation_rate': float(tile.rate_of_exploitation_log[-1]) if getattr(tile, 'rate_of_exploitation_log', None) else 0.0,
+                'pollution_air': float(getattr(tile, 'pollution_air', 0.0)),
+            }
+
         tenure = getattr(tile, 'tenure', None)
         plots_data = [cls.serialize_plot(p) for p in getattr(tenure, 'plots', [])] if tenure else []
 
@@ -1083,10 +1122,10 @@ class SimServer:
             'population': len(getattr(tile, 'agents', [])),
         }
 
-    def serialize_world(self) -> Dict[str, Any]:
+    def serialize_world(self, compact: bool = False) -> Dict[str, Any]:
         """Produce a complete JSON-serializable snapshot of the simulation world."""
         with self._lock:
-            tiles_data = [self.serialize_tile(t, layout=self.layout, turn=self.turn) for t in self.tiles]
+            tiles_data = [self.serialize_tile(t, layout=self.layout, turn=self.turn, summary=compact) for t in self.tiles]
             player_nation = next((n for n in self.nations if n.name == self.player_nation_name), self.nations[0] if self.nations else None)
             player_nat_name = player_nation.name if player_nation else None
 

@@ -182,6 +182,46 @@ class TestWebServerEndpoints(unittest.TestCase):
         self.assertGreater(bounds['width'], 0)
         self.assertGreater(bounds['height'], 0)
 
+    def test_compact_state_and_versioned_refresh(self):
+        first = MockHttpRequestHandler(self.mock_server, 'GET', '/api/state?compact=1')
+        self.assertEqual(first.response_status, 200)
+        state = json.loads(first.get_body())
+        self.assertIn('version', state)
+        self.assertIn('population', state['tiles'][0])
+        self.assertNotIn('citizens', state['tiles'][0])
+        self.assertNotIn('charts', state['tiles'][0])
+
+        unchanged = MockHttpRequestHandler(
+            self.mock_server, 'GET', f"/api/state?compact=1&since={state['version']}"
+        )
+        self.assertEqual(unchanged.response_status, 304)
+        self.assertEqual(unchanged.get_body(), b'')
+
+        tile_name = urllib.parse.quote(state['tiles'][0]['name'])
+        detail = MockHttpRequestHandler(self.mock_server, 'GET', f'/api/tile?name={tile_name}')
+        self.assertEqual(detail.response_status, 200)
+        self.assertIn('charts', json.loads(detail.get_body()))
+
+        command_body = json.dumps({'cmd_type': 'PAUSE', 'payload': {}}).encode()
+        command = MockHttpRequestHandler(
+            self.mock_server, 'POST', '/api/command',
+            headers={'Content-Length': str(len(command_body))}, body=command_body
+        )
+        self.assertEqual(command.response_status, 200)
+        after_command = MockHttpRequestHandler(
+            self.mock_server, 'GET', f"/api/state?compact=1&since={state['version']}"
+        )
+        self.assertEqual(after_command.response_status, 200)
+        command_version = json.loads(after_command.get_body())['version']
+        self.assertNotEqual(command_version, state['version'])
+
+        self.sim.step()
+        changed = MockHttpRequestHandler(
+            self.mock_server, 'GET', f'/api/state?compact=1&since={command_version}'
+        )
+        self.assertEqual(changed.response_status, 200)
+        self.assertNotEqual(json.loads(changed.get_body())['version'], command_version)
+
     def test_api_terrain_png(self):
         handler = MockHttpRequestHandler(self.mock_server, 'GET', '/api/terrain.png')
         self.assertEqual(handler.response_status, 200)

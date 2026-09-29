@@ -17,7 +17,19 @@
   let selectedTileDetail = null;
   let isPlaying = false;
   let pollTimer = null;
-  let isRequestPending = false;
+  let stateVersion = null;
+  let mapFramePending = false;
+  let tileByName = new Map();
+  let tileByAxial = new Map();
+  let positionedTiles = [];
+  let lastTileDetailKey = null;
+  let lastNewsKey = null;
+  let lastDrawerKey = null;
+  let stateFetchPromise = null;
+  let tileDetailRequest = 0;
+  let loadedTileDetailVersion = null;
+  let pendingTileDetailVersion = null;
+  let lastRecipesKey = null;
 
   // Active UI Navigation State
   let activeLeftDrawer = null;       // 'build' | 'gov' | 'diplomacy' | 'debt' | 'science' | 'military' | null
@@ -160,6 +172,29 @@
     return (worldState && typeof worldState.hex_size === 'number') ? worldState.hex_size : DEFAULT_HEX_SIZE;
   }
 
+  function indexTiles() {
+    tileByName = new Map();
+    tileByAxial = new Map();
+    positionedTiles = [];
+    if (!worldState || !worldState.tiles) return;
+    const radius = getHexRadius();
+    for (const tile of worldState.tiles) {
+      const point = axialToPixel(tile.q, tile.r, radius);
+      tileByName.set(tile.name, tile);
+      tileByAxial.set(`${tile.q},${tile.r}`, tile);
+      positionedTiles.push({ tile, x: point.x, y: point.y });
+    }
+  }
+
+  function scheduleMapRender() {
+    if (mapFramePending) return;
+    mapFramePending = true;
+    requestAnimationFrame(() => {
+      mapFramePending = false;
+      renderMap();
+    });
+  }
+
   function axialToPixel(q, r, size) {
     const x = size * (SQRT3 * q + (SQRT3 / 2.0) * r);
     const y = size * (1.5 * r);
@@ -207,7 +242,7 @@
     canvas.height = Math.round(h * dpr);
     canvas.style.width = `${w}px`;
     canvas.style.height = `${h}px`;
-    renderMap();
+    scheduleMapRender();
   }
 
   function centerCameraOnWorld() {
@@ -236,7 +271,7 @@
     camX = w / 2 - ((minX + maxX) / 2) * camZoom;
     camY = h / 2 - ((minY + maxY) / 2) * camZoom;
     isInitialCentered = true;
-    renderMap();
+    scheduleMapRender();
   }
 
   // ---------------- Terrain Image Synchronizer ----------------
@@ -253,12 +288,12 @@
     terrainImage.onload = () => {
       terrainLoaded = true;
       terrainLoading = false;
-      renderMap();
+      scheduleMapRender();
     };
     terrainImage.onerror = () => {
       terrainLoading = false;
       terrainLoaded = false;
-      renderMap();
+      scheduleMapRender();
     };
     terrainImage.src = `/api/terrain.png?seed=${seed}&t=${Date.now()}`;
   }
@@ -308,9 +343,13 @@
     // Render hex tiles
     if (worldState && worldState.tiles) {
       const hexRadius = getHexRadius();
+      const minX = -camX / camZoom - hexRadius;
+      const maxX = (w - camX) / camZoom + hexRadius;
+      const minY = -camY / camZoom - hexRadius;
+      const maxY = (h - camY) / camZoom + hexRadius;
 
-      worldState.tiles.forEach(tile => {
-        const { x, y } = axialToPixel(tile.q, tile.r, hexRadius);
+      positionedTiles.forEach(({ tile, x, y }) => {
+        if (x < minX || x > maxX || y < minY || y > maxY) return;
         const isSelected = (selectedTileName && tile.name === selectedTileName);
 
         // Desktop Client parity: Don't show tiles in the sea in overview mode
@@ -385,7 +424,7 @@
       ctx.fillStyle = `rgba(120, 225, 130, ${0.15 + norm * 0.55})`;
       ctx.fill();
     } else if (activeLayer === 'production') {
-      const bCount = (tile.buildings && tile.buildings.length) || 0;
+      const bCount = tile.buildings_count || (tile.buildings && tile.buildings.length) || 0;
       const norm = Math.min(bCount / 5.0, 1.0);
       ctx.fillStyle = `rgba(245, 210, 90, ${0.15 + norm * 0.55})`;
       ctx.fill();
@@ -395,16 +434,16 @@
       ctx.fillStyle = `rgba(235, 80, 80, ${0.15 + norm * 0.55})`;
       ctx.fill();
     } else if (activeLayer === 'enclosure') {
-      const enc = (tile.tenure && tile.tenure.enclosed_fraction) || 0;
+      const enc = tile.enclosed_fraction ?? ((tile.tenure && tile.tenure.enclosed_fraction) || 0);
       ctx.fillStyle = `rgba(215, 175, 75, ${0.15 + enc * 0.6})`;
       ctx.fill();
     } else if (activeLayer === 'exploitation') {
-      const s_v = (tile.tenure && tile.tenure.surplus_value_rate) || 0.5;
+      const s_v = tile.exploitation_rate ?? ((tile.tenure && tile.tenure.surplus_value_rate) || 0.5);
       const norm = Math.min(s_v / 2.0, 1.0);
       ctx.fillStyle = `rgba(235, 75, 75, ${0.2 + norm * 0.6})`;
       ctx.fill();
     } else if (activeLayer === 'externalities') {
-      const smog = (tile.ecology && tile.ecology.pollution_air) || 0;
+      const smog = tile.pollution_air ?? ((tile.ecology && tile.ecology.pollution_air) || 0);
       const norm = Math.min(smog / 100.0, 1.0);
       ctx.fillStyle = `rgba(100, 215, 140, ${0.15 + (1 - norm) * 0.4})`;
       ctx.fill();
@@ -1348,6 +1387,9 @@
   function renderBuildRecipes() {
     const list = document.getElementById('build-recipes-list');
     if (!list || !worldState || !worldState.build_recipes) return;
+    const recipesKey = `${activeBuildCat}:${activeBuildTier}:${JSON.stringify(worldState.build_recipes)}`;
+    if (recipesKey === lastRecipesKey) return;
+    lastRecipesKey = recipesKey;
     list.innerHTML = '';
 
     const all = worldState.build_recipes;
@@ -1787,13 +1829,13 @@
     if (bUp) {
       bUp.addEventListener('click', () => {
         cadastreScrollOffset = Math.max(0, cadastreScrollOffset - 5);
-        if (selectedTileDetail) updateTileInspectionUI(selectedTileDetail);
+        if (selectedTileDetail) updateTileInspectionUI(selectedTileDetail, true);
       });
     }
     if (bDown) {
       bDown.addEventListener('click', () => {
         cadastreScrollOffset += 5;
-        if (selectedTileDetail) updateTileInspectionUI(selectedTileDetail);
+        if (selectedTileDetail) updateTileInspectionUI(selectedTileDetail, true);
       });
     }
 
@@ -1964,9 +2006,12 @@
 
   // ---------------- Tile Deep Inspection & Cadastre ----------------
 
-  function updateTileInspectionUI(tile) {
+  function updateTileInspectionUI(tile, force = false) {
     if (!tile) return;
-    selectedTileDetail = tile;
+    const detailKey = JSON.stringify(tile);
+    if (!force && detailKey === lastTileDetailKey) return;
+    lastTileDetailKey = detailKey;
+    if (tile.charts) selectedTileDetail = tile;
 
     if (tileNameEl) tileNameEl.textContent = tile.display_name || tile.name;
     if (tileSubEl) tileSubEl.textContent = `${tile.nation || 'Wilderness'} • ${tile.biome} (▲${Math.round(tile.elevation_meters || 0)}m)`;
@@ -2149,14 +2194,18 @@
     const feed = document.getElementById('ticker-feed');
     const badge = document.getElementById('news-badge');
     if (feed && worldState.ticker_events) {
-      feed.innerHTML = '';
-      if (badge) badge.textContent = worldState.ticker_events.length;
-      worldState.ticker_events.slice(-30).reverse().forEach(ev => {
-        const item = document.createElement('div');
-        item.className = `news-item ${ev.kind || ''}`;
-        item.innerHTML = `<strong>[T${ev.t}] ${ev.kind}:</strong> ${ev.text}`;
-        feed.appendChild(item);
-      });
+      const newsKey = JSON.stringify(worldState.ticker_events);
+      if (newsKey !== lastNewsKey) {
+        lastNewsKey = newsKey;
+        feed.innerHTML = '';
+        if (badge) badge.textContent = worldState.ticker_events.length;
+        worldState.ticker_events.slice(-30).reverse().forEach(ev => {
+          const item = document.createElement('div');
+          item.className = `news-item ${ev.kind || ''}`;
+          item.innerHTML = `<strong>[T${ev.t}] ${ev.kind}:</strong> ${ev.text}`;
+          feed.appendChild(item);
+        });
+      }
     }
 
     if (activeRightTab === 'charts') renderHistoricalChart();
@@ -2275,7 +2324,7 @@
             selectTile(t);
             camX = t.center_x !== undefined ? t.center_x : (t.col * 60);
             camY = t.center_y !== undefined ? t.center_y : (t.row * 52);
-            renderMap();
+            scheduleMapRender();
           }
           closeCompareModal();
         });
@@ -2728,7 +2777,7 @@
         if (activeLayerName && name) activeLayerName.textContent = name.textContent;
 
         if (layerMenu) layerMenu.classList.add('hidden');
-        renderMap();
+        scheduleMapRender();
       });
     });
   }
@@ -2749,11 +2798,17 @@
   // ---------------- Pointer & Touch Gestures ----------------
 
   function selectTile(tileName) {
+    if (selectedTileName !== tileName) {
+      selectedTileDetail = null;
+      loadedTileDetailVersion = null;
+      lastTileDetailKey = null;
+    }
     selectedTileName = tileName;
     if (worldState && worldState.tiles) {
-      const tile = worldState.tiles.find(t => t.name === tileName);
+      const tile = tileByName.get(tileName);
       if (tile) {
         updateTileInspectionUI(tile);
+        fetchTileDetail();
         if (quickPill && pillText) {
           pillText.textContent = `${tile.display_name || tile.name} (${tile.nation || 'Wilderness'})`;
           quickPill.classList.remove('hidden');
@@ -2762,7 +2817,7 @@
       }
     }
     updateLeftDrawerPanes();
-    renderMap();
+    scheduleMapRender();
   }
 
   function handlePointerDown(e) {
@@ -2780,7 +2835,7 @@
     const dy = e.clientY - dragStartY;
     camX = camStartX + dx;
     camY = camStartY + dy;
-    renderMap();
+    scheduleMapRender();
   }
 
   function handlePointerUp(e) {
@@ -2800,7 +2855,7 @@
       const axial = pixelToAxial(clickX, clickY, hexRadius);
 
       if (worldState && worldState.tiles) {
-        const hit = worldState.tiles.find(t => t.q === axial.q && t.r === axial.r);
+        const hit = tileByAxial.get(`${axial.q},${axial.r}`);
         if (hit) selectTile(hit.name);
       }
     }
@@ -2818,7 +2873,7 @@
     camX = mouseX - (mouseX - camX) * (newZoom / camZoom);
     camY = mouseY - (mouseY - camY) * (newZoom / camZoom);
     camZoom = newZoom;
-    renderMap();
+    scheduleMapRender();
   }
 
   function setupTouchEvents() {
@@ -2844,7 +2899,7 @@
         );
         const scale = dist / initialPinchDist;
         camZoom = Math.max(0.35, Math.min(3.5, initialPinchZoom * scale));
-        renderMap();
+        scheduleMapRender();
       } else if (e.touches.length === 1) {
         handlePointerMove(e.touches[0]);
       }
@@ -2876,7 +2931,7 @@
       else if (key === 'U') {
         useTerrainImage = !useTerrainImage;
         if (btnTogglePipeline) btnTogglePipeline.querySelector('.btn-text').textContent = useTerrainImage ? 'Pipeline: Photoreal' : 'Pipeline: Flat';
-        renderMap();
+        scheduleMapRender();
       }
       else if (key === 'R') centerCameraOnWorld();
       else if (key === '?' || key === 'H') openHelpModal();
@@ -2905,13 +2960,54 @@
 
   // ---------------- Authoritative REST Server API Sync ----------------
 
-  async function fetchState() {
-    if (isRequestPending) return;
+  async function fetchTileDetail() {
+    if (!selectedTileName || !stateVersion) return;
+    const name = selectedTileName;
+    const version = stateVersion;
+    const detailVersion = `${version}:${name}`;
+    if (loadedTileDetailVersion === detailVersion || pendingTileDetailVersion === detailVersion) return;
+    pendingTileDetailVersion = detailVersion;
+    const request = ++tileDetailRequest;
     try {
-      const res = await fetch('/api/state');
+      const res = await fetch(`/api/tile?name=${encodeURIComponent(name)}`);
+      if (!res.ok) return;
+      const tile = await res.json();
+      if (request !== tileDetailRequest || selectedTileName !== name || stateVersion !== version) return;
+      loadedTileDetailVersion = detailVersion;
+      updateTileInspectionUI(tile);
+      if (activeLeftDrawer === 'build') updateLeftDrawerPanes();
+      if (activeRightTab === 'charts') renderHistoricalChart();
+    } catch (err) {
+      // The next state refresh retries the detail request.
+    } finally {
+      if (pendingTileDetailVersion === detailVersion) pendingTileDetailVersion = null;
+    }
+  }
+
+  async function performStateFetch(force) {
+    try {
+      const since = !force && stateVersion ? `&since=${encodeURIComponent(stateVersion)}` : '';
+      const res = await fetch(`/api/state?compact=1${since}`);
+      if (res.status === 304) {
+        if (statusDot) {
+          statusDot.className = 'status-dot connected';
+          statusDot.title = 'Server Connected (Live)';
+        }
+        fetchTileDetail();
+        return;
+      }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
+      if (stateVersion && stateVersion.split(':').slice(0, 2).join(':') !== data.version.split(':').slice(0, 2).join(':')) {
+        isInitialCentered = false;
+        selectedTileDetail = null;
+        loadedTileDetailVersion = null;
+        lastTileDetailKey = null;
+        lastRecipesKey = null;
+      }
       worldState = data;
+      stateVersion = data.version;
+      indexTiles();
 
       if (statusDot) {
         statusDot.className = 'status-dot connected';
@@ -2928,17 +3024,26 @@
 
       // Default territory selection
       if (!selectedTileName && data.tiles && data.tiles.length > 0) {
-        const inhabited = data.tiles.find(t => t.owner_nation || t.is_settlement) || data.tiles[0];
+        const inhabited = data.tiles.find(t => t.nation || t.population > 0) || data.tiles[0];
         selectTile(inhabited.name);
       } else if (selectedTileName && data.tiles) {
-        const t = data.tiles.find(tile => tile.name === selectedTileName);
-        if (t) updateTileInspectionUI(t);
+        const t = tileByName.get(selectedTileName);
+        if (t) {
+          if (!selectedTileDetail || selectedTileDetail.name !== t.name) updateTileInspectionUI(t);
+          fetchTileDetail();
+        } else if (data.tiles.length) {
+          selectTile(data.tiles[0].name);
+        }
       }
 
       updateTopMacroBar();
-      updateLeftDrawerPanes();
+      const drawerKey = `${activeLeftDrawer}:${selectedTileName}:${stateVersion}`;
+      if (drawerKey !== lastDrawerKey) {
+        updateLeftDrawerPanes();
+        lastDrawerKey = drawerKey;
+      }
       updateRightPanel();
-      renderMap();
+      scheduleMapRender();
 
     } catch (err) {
       if (statusDot) {
@@ -2948,8 +3053,17 @@
     }
   }
 
+  async function fetchState(force = false) {
+    if (stateFetchPromise) {
+      return force ? stateFetchPromise.then(() => fetchState(true)) : stateFetchPromise;
+    }
+    const request = performStateFetch(force);
+    stateFetchPromise = request;
+    try { return await request; }
+    finally { if (stateFetchPromise === request) stateFetchPromise = null; }
+  }
+
   async function sendCommand(commandType, payload = {}) {
-    isRequestPending = true;
     try {
       const res = await fetch('/api/command', {
         method: 'POST',
@@ -2962,12 +3076,10 @@
         showToast(result.error || 'Command failed.', true);
       } else {
         if (result.message) showToast(result.message);
-        await fetchState();
+        await fetchState(true);
       }
     } catch (err) {
       showToast(`Network error: ${err.message}`, true);
-    } finally {
-      isRequestPending = false;
     }
   }
 
@@ -3031,7 +3143,7 @@
       btnToggleTerrain.addEventListener('click', () => {
         useTerrainImage = !useTerrainImage;
         btnToggleTerrain.classList.toggle('active', useTerrainImage);
-        renderMap();
+        scheduleMapRender();
       });
     }
 
@@ -3039,7 +3151,7 @@
       btnTogglePipeline.addEventListener('click', () => {
         useTerrainImage = !useTerrainImage;
         btnTogglePipeline.querySelector('.btn-text').textContent = useTerrainImage ? 'Pipeline: Photoreal' : 'Pipeline: Flat';
-        renderMap();
+        scheduleMapRender();
       });
     }
 
@@ -3063,13 +3175,13 @@
     if (btnZoomIn) {
       btnZoomIn.addEventListener('click', () => {
         camZoom = Math.min(3.5, camZoom * 1.25);
-        renderMap();
+        scheduleMapRender();
       });
     }
     if (btnZoomOut) {
       btnZoomOut.addEventListener('click', () => {
         camZoom = Math.max(0.35, camZoom * 0.8);
-        renderMap();
+        scheduleMapRender();
       });
     }
     if (btnResetCam) {

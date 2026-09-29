@@ -156,6 +156,30 @@ def is_actions_open(world) -> bool:
     return bool(world.get('actions_open') or world.get('actions_modal_open'))
 
 
+def _draw_cached_map(surface, world, font, font_small):
+    """Reuse the map pixels for redraws that only affect UI controls."""
+    cam = world.get('cam', {})
+    map_key = (
+        world.get('_map_content_version', 0), world.get('frame', 0),
+        id(world.get('selected_region')), id(world.get('hover_region')),
+        world.get('map_layer'), world.get('turn'),
+        tuple((key, cam.get(key)) for key in ('ox', 'oy', 'zoom', 'target_x', 'target_y', 'pitch', 'yaw')),
+    )
+    map_surface = world.get('_ui_map_surface')
+    if map_surface is None or world.get('_ui_map_key') != map_key:
+        if map_surface is None:
+            map_surface = pygame.Surface((WIDTH, HEIGHT)).convert()
+        if not world.get('_map_generation_done', False):
+            draw_hex_map(surface, world, font, font_small)
+            map_surface.blit(surface, (0, 0))
+        else:
+            map_surface.fill(BG)
+            draw_hex_map(map_surface, world, font, font_small)
+        world['_ui_map_surface'] = map_surface
+        world['_ui_map_key'] = map_key
+    surface.blit(map_surface, (0, 0), pygame.Rect(0, TOP_BAR_H, MAP_RIGHT, HEIGHT - TOP_BAR_H - TICKER_H))
+
+
 def render_frame(surface, world, mouse_pos=None):
     """Draw one full frame (map + top bar + panel + ticker + zoom hud + comparison table + sovereign actions + help)."""
     from ui_targets import clear_targets
@@ -164,11 +188,10 @@ def render_frame(surface, world, mouse_pos=None):
     font = get_font(28)
     font_small = get_font(22)
     surface.fill(BG)
-    # Check if a modal dialog covers the screen
     modal_active = is_any_modal_open(world)
     effective_mouse = None if modal_active else mouse_pos
 
-    draw_hex_map(surface, world, font, font_small)
+    _draw_cached_map(surface, world, font, font_small)
     draw_top_bar(surface, world, font_small, mouse_pos=effective_mouse)
     draw_zoom_hud(surface, font_small, mouse_pos=effective_mouse, world=world)
     draw_seasonal_clock(surface, world, font_small, mouse_pos=effective_mouse)
@@ -205,9 +228,11 @@ def render_frame(surface, world, mouse_pos=None):
         draw_loading_modal(surface, loading.get('fraction', 0.0), loading.get('status', 'Synthesizing map...'), seed=t_seed)
 
 
-def _mark_dirty(world):
+def _mark_dirty(world, map_changed=True):
     """Centralized helper to flag that a redraw is needed."""
     world['needs_redraw'] = True
+    if map_changed:
+        world['_map_content_version'] = world.get('_map_content_version', 0) + 1
 
 
 def _toggle_pipeline(world):
@@ -327,6 +352,8 @@ def main():
     last_tick = pygame.time.get_ticks()
     running = True
     drag = False
+    next_animation_ms = pygame.time.get_ticks()
+    last_animation_ms = next_animation_ms
 
 
     # Custom timer event for auto-play ticks (fires every TURN_MS when playing)
@@ -338,7 +365,7 @@ def main():
         # Three modes:
         #  1. Modal open (compare/help) — static overlay, block thread → 0% CPU
         #  2. Active (playing or dragging) — poll at 60 FPS
-        #  3. Idle, no modal — trade animation runs, poll at 30 FPS
+        #  3. Idle, no modal — trade animation runs, poll at 15 FPS
         modal_open = is_any_modal_open(world)
         loading_modal = world.get('loading_modal')
         is_loading = bool(loading_modal.get('active') if isinstance(loading_modal, dict) else loading_modal)
@@ -352,12 +379,15 @@ def main():
             events = pygame.event.get()
             clock.tick(FPS_ACTIVE)
         else:
-            # Idle but trade animation still runs — tick at 30 FPS.
+            # Idle animations run at 15 FPS; UI input can redraw between ticks.
             events = pygame.event.get()
-            clock.tick(30)
+            clock.tick(15)
 
         now = pygame.time.get_ticks()
         mouse_pos = pygame.mouse.get_pos()
+        if modal_open:
+            last_animation_ms = now
+            next_animation_ms = now + 66
 
         for event in events:
             if event.type == pygame.QUIT:
@@ -371,7 +401,9 @@ def main():
             elif event.type == pygame.WINDOWEVENT if hasattr(pygame, 'WINDOWEVENT') else False:
                 _mark_dirty(world)
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                _mark_dirty(world)
+                _mark_dirty(world, map_changed=not (
+                    world.get('help_open') or world.get('compare_open') or world.get('comparison_open')
+                ))
 
                 # 0. STRICT MODAL PRIORITY: If any modal is active, route ONLY to it and NEVER fall through!
                 if is_any_modal_open(world):
@@ -406,12 +438,12 @@ def main():
                                 world['compare_protest_mode'] = tab_hit[1]
                             elif tab_hit[0] == 'circuit_nation':
                                 world['compare_circuit_nation'] = tab_hit[1]
-                            _mark_dirty(world)
+                            _mark_dirty(world, map_changed=False)
                         # Click outside modal closes it
                         elif event.pos[0] < 30 or event.pos[0] > WIDTH - 30 or event.pos[1] < 20 or event.pos[1] > HEIGHT - 20:
                             world['compare_open'] = False
                             world['comparison_open'] = False
-                            _mark_dirty(world)
+                            _mark_dirty(world, map_changed=False)
                         continue
 
                     # 0d. Check if Sovereign Actions Modal is open
@@ -578,7 +610,7 @@ def main():
                     _mark_dirty(world)
             elif event.type == pygame.MOUSEBUTTONUP and event.button in (2, 3):
                 drag = False
-                _mark_dirty(world)
+                _mark_dirty(world, map_changed=not modal_open)
             elif event.type == pygame.MOUSEMOTION:
                 if drag and not is_any_modal_open(world):
                     dx, dy = event.rel
@@ -605,7 +637,7 @@ def main():
                         zoom_cam_at(world, factor, mx, my)
                         _mark_dirty(world)
             elif event.type == pygame.KEYDOWN:
-                _mark_dirty(world)
+                _mark_dirty(world, map_changed=not modal_open)
 
                 # STRICT MODAL LOCKOUT: If any modal is open, intercept only modal navigation/close keys
                 if is_any_modal_open(world):
@@ -835,21 +867,18 @@ def main():
             last_tick = now
             _mark_dirty(world)
 
-        # ── Frame counter: always advance for trade animation ──────────
-        # When a modal is open we skip advancing (nothing animates behind it).
-        if not modal_open:
-            world['frame'] = (world.get('frame', 0) + 1) % 600
-
         # ── Hover detection: only re-run tile_at when mouse actually moved ─
         prev_hover = world.get('hover_region')
         world['hover_region'] = None
         if not modal_open:
             mx, my = mouse_pos
             if mx < MAP_RIGHT and TOP_BAR_H <= my <= HEIGHT - TICKER_H:
-                prev_mouse = world.get('_prev_hover_pos')
-                if prev_mouse != (mx, my) or prev_hover is None:
+                cam = world.get('cam', {})
+                hover_cam = tuple(cam.get(key) for key in ('ox', 'oy', 'zoom', 'target_x', 'target_y', 'pitch', 'yaw'))
+                hover_key = (mx, my, hover_cam, world.get('turn'))
+                if world.get('_prev_hover_key') != hover_key:
                     world['hover_region'] = tile_at(world, mx, my)
-                    world['_prev_hover_pos'] = (mx, my)
+                    world['_prev_hover_key'] = hover_key
                 else:
                     world['hover_region'] = prev_hover
         if world['hover_region'] is not prev_hover:
@@ -857,8 +886,12 @@ def main():
 
         # ── Animation tick: always redraw when no modal is blocking ─────
         # This keeps trade dots and any future animations alive at idle.
-        if not modal_open:
-            _mark_dirty(world)
+        if not modal_open and now >= next_animation_ms:
+            elapsed = max(1, round((now - last_animation_ms) / 33))
+            world['frame'] = (world.get('frame', 0) + elapsed) % 600
+            last_animation_ms = now
+            next_animation_ms = now + 66
+            _mark_dirty(world, map_changed=False)
 
         # ── Render only when dirty ─────────────────────────────────────
         if world.get('needs_redraw'):
