@@ -56,10 +56,14 @@ class TestDesktopMapCache(unittest.TestCase):
             second = _cached_scaled_terrain(world, terrain, (64, 64))
             self.assertIs(first, second)
             self.assertEqual(scale.call_count, 1)
+            self.assertEqual(world['_terrain_scale_cache_stats']['hits'], 1)
+            self.assertEqual(world['_terrain_scale_cache_stats']['misses'], 1)
+            self.assertGreaterEqual(world['_terrain_scale_cache_stats']['scale_ms'], 0.0)
 
             resized = _cached_scaled_terrain(world, terrain, (32, 32))
             self.assertIsNot(resized, first)
             self.assertEqual(scale.call_count, 2)
+            self.assertEqual(world['_terrain_scale_cache_stats']['misses'], 2)
 
             replacement = pygame.Surface((128, 128))
             _cached_scaled_terrain(world, replacement, (32, 32))

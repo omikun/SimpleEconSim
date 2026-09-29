@@ -16,6 +16,7 @@ import os
 import json
 import math
 import logging
+import time
 import numpy as np
 import pygame
 from goods import Goods
@@ -1067,9 +1068,17 @@ def province_members(world, region):
 def _cached_scaled_terrain(world, terrain_surface, size):
     """Return a smooth-scaled terrain surface, reusing it until source or size changes."""
     key = (id(terrain_surface), tuple(size))
-    if world.get('_scaled_terrain_key') != key:
-        world['_scaled_terrain_surface'] = pygame.transform.smoothscale(terrain_surface, size)
-        world['_scaled_terrain_key'] = key
+    stats = world.setdefault('_terrain_scale_cache_stats', {'hits': 0, 'misses': 0, 'scale_ms': 0.0})
+    if world.get('_scaled_terrain_key') == key:
+        stats['hits'] += 1
+        return world['_scaled_terrain_surface']
+
+    started = time.perf_counter()
+    scaled = pygame.transform.smoothscale(terrain_surface, size)
+    stats['misses'] += 1
+    stats['scale_ms'] += (time.perf_counter() - started) * 1000.0
+    world['_scaled_terrain_surface'] = scaled
+    world['_scaled_terrain_key'] = key
     return world['_scaled_terrain_surface']
 
 
