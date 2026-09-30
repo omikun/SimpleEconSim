@@ -320,7 +320,12 @@ def _get_hex_tint_surf(w: int, h: int) -> pygame.Surface:
     surf = _HEX_TINT_SURF_CACHE.get(key)
     if surf is None:
         surf = pygame.Surface((w, h), pygame.SRCALPHA)
-        _HEX_TINT_SURF_CACHE[key] = surf
+        # Zoom produces many distinct polygon sizes. Keep only modest reusable
+        # masks so repeated camera moves cannot retain large surfaces forever.
+        if w * h <= 262_144:
+            if len(_HEX_TINT_SURF_CACHE) >= 64:
+                _HEX_TINT_SURF_CACHE.clear()
+            _HEX_TINT_SURF_CACHE[key] = surf
     else:
         surf.fill((0, 0, 0, 0))
     return surf
@@ -531,6 +536,10 @@ def draw_edges(surface, world, center_map=None, animations=True, only_animations
         else:
             c1 = hex_px(world, *layout[r.name], elevation=e1)
             c2 = hex_px(world, *layout[other.name], elevation=e2)
+        visible_segment = surface.get_clip().inflate(12, 12).clipline(c1, c2)
+        if not visible_segment:
+            continue
+        c1, c2 = visible_segment
         
         edge = em.get_edge(r.name, other.name) if em else None
         if edge and edge.is_river:
@@ -601,6 +610,10 @@ def draw_edges(surface, world, center_map=None, animations=True, only_animations
                     else:
                         c1 = hex_px(world, *layout[name_a])
                         c2 = hex_px(world, *layout[name_b])
+                    visible_segment = surface.get_clip().inflate(12, 12).clipline(c1, c2)
+                    if not visible_segment:
+                        continue
+                    c1, c2 = visible_segment
                     # Draw mid-point barrier hash
                     mx = (c1[0] + c2[0]) // 2
                     my = (c1[1] + c2[1]) // 2
@@ -614,6 +627,10 @@ def draw_trade_arrows(surface, world, center_map=None):
     """Animated dots on claimed-pair edges scaled by recent net flow."""
     frame = world.get('frame', 0)
     for c1, c2, width, forward in trade_anim(world, center_map=center_map):
+        visible_segment = surface.get_clip().inflate(12, 12).clipline(c1, c2)
+        if not visible_segment:
+            continue
+        c1, c2 = visible_segment
         (x1, y1), (x2, y2) = c1, c2
         dx, dy = x2 - x1, y2 - y1
         length = max(1, int((dx * dx + dy * dy) ** 0.5))
@@ -1155,7 +1172,13 @@ def draw_hex_map(surface, world, font, font_small):
                 slot_state = {}
             world['_slot_state_cache'] = slot_state
 
-    if world.get('_cached_topo_surface') is not None:
+    if _is_voronoi and world.get('scenario_id') == 'egypt_1877':
+        # The campaign's terrain is built by the full 3D renderer below. Its
+        # schematic geography must not load the sandbox's 2D terrain snapshot.
+        topo_surf = None
+        world['_map_generation_done'] = True
+        world['loading_modal'] = None
+    elif world.get('_cached_topo_surface') is not None:
         topo_surf = world['_cached_topo_surface']
         world['_map_generation_done'] = True
         world['loading_modal'] = None
@@ -1402,7 +1425,7 @@ def draw_hex_map(surface, world, font, font_small):
         hover_offset = 0.6  # Hover slightly above 3D mesh surface to prevent clipping and occlusion
         outline_alpha = 32 if _is_voronoi else 128
 
-        from worldview_camera import project_pts_3d_to_screen, get_camera_mvp
+        from worldview_camera import project_pts_3d_to_screen, project_polygon_3d_to_screen, get_camera_mvp
         mvp = get_camera_mvp(world) if _is_voronoi else None
 
         for region in tiles:
@@ -1437,12 +1460,7 @@ def draw_hex_map(surface, world, font, font_small):
                     region._center_homo = np.array([[coords[0], coords[1], cz, 1.0]], dtype=np.float32)
                     region._poly_homo_sampler = id(sample_elev)
 
-                # Vectorized project to screen
-                screen_pts = project_pts_3d_to_screen(world, region._poly_homo, mvp=mvp)
-                valid = (screen_pts[:, 0] != -9999) & (screen_pts[:, 1] != -9999)
-                if not np.all(valid):
-                    screen_pts = screen_pts[valid]
-                pts = [tuple(p) for p in screen_pts]
+                pts = project_polygon_3d_to_screen(world, region._poly_homo, mvp=mvp)
 
                 c_screen = project_pts_3d_to_screen(world, region._center_homo, mvp=mvp)[0]
                 cx, cy = int(c_screen[0]), int(c_screen[1])
@@ -1528,15 +1546,11 @@ def draw_hex_map(surface, world, font, font_small):
 
         is_ocean = getattr(region, 'is_ocean', False) or getattr(region, 'elevation_meters', 0) < 0
         owner = getattr(region, 'owner_nation', None)
-        if guided_scenario_map:
-            if owner is None or owner.name != world.get('player_nation_name'):
-                continue
-            if not getattr(region, 'scenario_location', None):
-                continue
+        scenario_role = getattr(region, 'scenario_location', None) if guided_scenario_map else None
 
         is_nat_cap = False
         is_prov_cap = False
-        raw_city = (getattr(region, 'scenario_location') if guided_scenario_map
+        raw_city = (scenario_role if scenario_role
                     else getattr(region, 'display_name', getattr(region, 'city_name', region.name)))
         if not is_ocean:
             is_nat_cap = getattr(region, 'is_national_capital', False) or (owner and owner.tiles and region == owner.tiles[0])
@@ -1546,10 +1560,12 @@ def draw_hex_map(surface, world, font, font_small):
                 if prov and prov.tiles and region == prov.tiles[0]:
                     is_prov_cap = True
 
-        city_title = (raw_city if guided_scenario_map else
+        city_title = (raw_city if scenario_role else
                       (f"* {raw_city}" if is_nat_cap else (f"+ {raw_city}" if is_prov_cap else raw_city)))
         name_font = font_small if len(city_title) > 10 else font
         priority = get_tile_label_priority(region, world, is_nat_cap=is_nat_cap, is_prov_cap=is_prov_cap)
+        if scenario_role:
+            priority = max(priority, 950)
 
         # Pre-filter low-priority wilderness or non-capital tiles when zoomed far out
         if layer_mode == 'overview':
@@ -1570,7 +1586,7 @@ def draw_hex_map(surface, world, font, font_small):
             line1 = line2 = line3 = ''
 
         # Compute label bounding box
-        if guided_scenario_map:
+        if scenario_role:
             w = max(70, name_font.size(city_title)[0] + 16)
             box = pygame.Rect(cx - w // 2, cy - 18, w, 28)
         elif not is_ocean:
@@ -1734,7 +1750,7 @@ def draw_hex_map(surface, world, font, font_small):
         line1, line2, line3 = cand['line1'], cand['line2'], cand['line3']
         c1, c2, c3 = cand['c1'], cand['c2'], cand['c3']
 
-        if guided_scenario_map and not is_ocean:
+        if guided_scenario_map and getattr(region, 'scenario_location', None) and not is_ocean:
             label_color = (255, 238, 172) if getattr(region, 'scenario_location', '') == 'Cairo' else (220, 240, 250)
             draw_text_with_shadow(label_surface, name_font, city_title, (cx, cy - 10), label_color)
         elif not is_ocean:
@@ -1775,7 +1791,7 @@ def draw_hex_map(surface, world, font, font_small):
             if layer_mode != 'overview' and line1:
                 draw_text_with_shadow(label_surface, font_small, line1, (cx, cy), c1)
 
-        if not is_ocean:
+        if not is_ocean and not guided_scenario_map:
             if region is sel or region is hover_region or (zoom >= 2.2 and owner is not None):
                 draw_terrain_glyph(label_surface, region, cx, cy - 34)
                 draw_activity_badges(label_surface, region, cx, cy, font_small)

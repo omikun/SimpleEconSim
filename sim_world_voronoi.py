@@ -88,25 +88,36 @@ def build_world_voronoi(
     Returns:
         (tiles, nations, gen)
     """
-    # Check saved_slots/slot_1.json for default persistent world configuration
-    slot_1_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "saved_slots", "slot_1.json")
-    slot_state = {}
-    if os.path.exists(slot_1_file):
-        try:
-            with open(slot_1_file, "r", encoding="utf-8") as f:
-                slot_data = json.load(f)
-                slot_state = slot_data.get("state", {})
-                slot_seed = int(slot_state.get("seed", 777))
-                if seed is None:
-                    seed = slot_seed
-                if (seed == slot_seed) and num_points is None and "points" in slot_state:
-                    num_points = int(slot_state["points"])
-                if terrain_seed is None:
-                    terrain_seed = seed
-                if island_shape is None and "shape" in slot_state:
-                    island_shape = slot_state["shape"]
-        except Exception as exc:
-            pass
+    if scenario_id == "egypt_1877":
+        # Campaign terrain is generated from its own fixed settings. A player's
+        # sandbox slot must not change the scenario mesh or its geography.
+        from scenario_egypt_1877 import SCENARIO
+        slot_state = {
+            "seed": SCENARIO["seeds"]["terrain"],
+            "shape": VORONOI_ISLAND_SHAPE,
+            "points": VORONOI_POINTS,
+            "rivers": 25,
+        }
+    else:
+        # Check saved_slots/slot_1.json for default persistent world configuration
+        slot_1_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "saved_slots", "slot_1.json")
+        slot_state = {}
+        if os.path.exists(slot_1_file):
+            try:
+                with open(slot_1_file, "r", encoding="utf-8") as f:
+                    slot_data = json.load(f)
+                    slot_state = slot_data.get("state", {})
+                    slot_seed = int(slot_state.get("seed", 777))
+                    if seed is None:
+                        seed = slot_seed
+                    if (seed == slot_seed) and num_points is None and "points" in slot_state:
+                        num_points = int(slot_state["points"])
+                    if terrain_seed is None:
+                        terrain_seed = seed
+                    if island_shape is None and "shape" in slot_state:
+                        island_shape = slot_state["shape"]
+            except Exception:
+                pass
 
     if terrain_seed is None:
         terrain_seed = seed if seed is not None else random.randint(1, 999999)

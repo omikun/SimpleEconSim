@@ -337,7 +337,9 @@ def _assign_location_roles(nation) -> dict[str, str]:
 
     def north_south_key(tile):
         if hasattr(tile, "centroid"):
-            return (float(tile.centroid[1]), tile.name)
+            # The Voronoi camera projects increasing world y toward the top
+            # of the screen.
+            return (-float(tile.centroid[1]), tile.name)
         return (float(getattr(tile, "grid_r", 0)), tile.name)
 
     ordered = sorted(tiles, key=north_south_key)
@@ -346,10 +348,20 @@ def _assign_location_roles(nation) -> dict[str, str]:
     remaining = [tile for tile in ordered if tile is not capital]
 
     coastal = [tile for tile in remaining if getattr(tile, "is_coast", False)]
-    alexandria = coastal[0] if coastal else (remaining[0] if remaining else None)
+    named_alexandria = next((tile for tile in remaining
+                             if getattr(tile, "display_name", "") == "Alexandria"), None)
+    alexandria = coastal[0] if coastal else (named_alexandria or (remaining[0] if remaining else None))
     if alexandria is not None:
         aliases[alexandria.name] = "Alexandria"
         remaining.remove(alexandria)
+    if named_alexandria is not None and named_alexandria is not alexandria:
+        # Generic nation naming may have placed Alexandria inland. Keep one
+        # Alexandria label at the campaign's coastal export connection.
+        used_names = {getattr(tile, "display_name", "") for tile in tiles}
+        named_alexandria.display_name = next(
+            (name for name in ("Damanhur", "Rosetta", "Bulaq District") if name not in used_names),
+            f"Egyptian district {named_alexandria.name}",
+        )
 
     if remaining:
         northern = min(remaining, key=north_south_key)

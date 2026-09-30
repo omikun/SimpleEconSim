@@ -164,6 +164,7 @@ def _draw_cached_map(surface, world, font, font_small):
     cam = world.get('cam', {})
     map_key = (
         world.get('_map_content_version', 0),
+        world.get('ui_mode'),
         world.get('frame') if world.get('_label_offsets_animating') or world.get('_map_uses_continuous_animation') else None,
         id(world.get('selected_region')), id(world.get('hover_region')),
         world.get('map_layer'), world.get('turn'),
@@ -174,7 +175,10 @@ def _draw_cached_map(surface, world, font, font_small):
     if map_surface is None or world.get('_ui_map_key') != map_key:
         started = time.perf_counter()
         if map_surface is None:
-            map_surface = pygame.Surface((WIDTH, HEIGHT)).convert()
+            # Keep the cached terrain in RGB. On macOS a display surface can
+            # carry zero alpha after an RGB fill, which made a copied RGBA map
+            # disappear when blitted back over the game frame.
+            map_surface = pygame.Surface((WIDTH, HEIGHT), depth=24)
         label_surface = world.get('_ui_map_label_surface')
         if label_surface is None:
             label_surface = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA).convert_alpha()
@@ -199,7 +203,8 @@ def _draw_cached_map(surface, world, font, font_small):
         stats['render_ms'] += (time.perf_counter() - started) * 1000.0
     else:
         stats['hits'] += 1
-    surface.blit(map_surface, (0, 0), pygame.Rect(0, TOP_BAR_H, MAP_RIGHT, HEIGHT - TOP_BAR_H - TICKER_H))
+    surface.blit(map_surface, (0, TOP_BAR_H),
+                 pygame.Rect(0, TOP_BAR_H, MAP_RIGHT, HEIGHT - TOP_BAR_H - TICKER_H))
 
 
 def render_frame(surface, world, mouse_pos=None):
@@ -226,7 +231,8 @@ def render_frame(surface, world, mouse_pos=None):
     draw_dynamic_map_overlays(surface, world)
     label_surface = world.get('_ui_map_label_surface')
     if label_surface is not None:
-        surface.blit(label_surface, (0, 0), pygame.Rect(0, TOP_BAR_H, MAP_RIGHT, HEIGHT - TOP_BAR_H - TICKER_H))
+        surface.blit(label_surface, (0, TOP_BAR_H),
+                     pygame.Rect(0, TOP_BAR_H, MAP_RIGHT, HEIGHT - TOP_BAR_H - TICKER_H))
     draw_top_bar(surface, world, font_small, mouse_pos=effective_mouse)
     draw_zoom_hud(surface, font_small, mouse_pos=effective_mouse, world=world)
     draw_seasonal_clock(surface, world, font_small, mouse_pos=effective_mouse)

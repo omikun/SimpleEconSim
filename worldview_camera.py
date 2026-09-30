@@ -120,6 +120,47 @@ def project_pts_3d_to_screen(world, pts_homo, mvp=None):
     return np.column_stack([sx, sy])
 
 
+def project_polygon_3d_to_screen(world, pts_homo, mvp=None):
+    """Clip a 3D polygon to the camera frustum before using it for 2D drawing."""
+    if mvp is None:
+        mvp = get_camera_mvp(world)
+    polygon = [point for point in np.asarray(pts_homo, dtype=np.float64) @ mvp.T]
+    # OpenGL clip coordinates: -w <= x, y, z <= w. Clipping before the
+    # perspective divide prevents near-plane vertices from producing enormous
+    # Pygame polygons and temporary tint surfaces during close zooms.
+    for axis, sign in ((0, 1), (0, -1), (1, 1), (1, -1), (2, 1), (2, -1)):
+        if not polygon:
+            return []
+        clipped = []
+        previous = polygon[-1]
+        previous_distance = previous[3] + sign * previous[axis]
+        for current in polygon:
+            current_distance = current[3] + sign * current[axis]
+            if (previous_distance >= 0.0) != (current_distance >= 0.0):
+                fraction = previous_distance / (previous_distance - current_distance)
+                clipped.append(previous + fraction * (current - previous))
+            if current_distance >= 0.0:
+                clipped.append(current)
+            previous, previous_distance = current, current_distance
+        polygon = clipped
+    if len(polygon) < 3:
+        return []
+    vw = float(MAP_RIGHT)
+    vh = float(HEIGHT - TOP_BAR_H - TICKER_H)
+    points = []
+    for point in polygon:
+        ndc = point[:2] / point[3]
+        sx = round((ndc[0] * 0.5 + 0.5) * vw)
+        sy = round(TOP_BAR_H + (1.0 - (ndc[1] * 0.5 + 0.5)) * vh)
+        screen_point = (max(0, min(MAP_RIGHT, sx)),
+                        max(TOP_BAR_H, min(HEIGHT - TICKER_H, sy)))
+        if not points or points[-1] != screen_point:
+            points.append(screen_point)
+    if len(points) > 1 and points[0] == points[-1]:
+        points.pop()
+    return points if len(set(points)) >= 3 else []
+
+
 def world_to_screen(world, wx, wy, elevation=0.0, wz=None):
     """Project world coordinate (wx, wy) with 3D elevation into screen pixels using 35mm perspective."""
     from world_config import is_voronoi_topology

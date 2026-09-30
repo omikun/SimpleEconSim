@@ -364,7 +364,8 @@ def draw_guided_frame(surface, world: dict, font, font_small, mouse_pos=None) ->
     draw_dynamic_map_overlays(surface, world)
     labels = world.get('_ui_map_label_surface')
     if labels is not None:
-        surface.blit(labels, (0, 0), pygame.Rect(0, TOP_BAR_H, MAP_RIGHT, HEIGHT - TOP_BAR_H - TICKER_H))
+        surface.blit(labels, (0, TOP_BAR_H),
+                     pygame.Rect(0, TOP_BAR_H, MAP_RIGHT, HEIGHT - TOP_BAR_H - TICKER_H))
     pygame.draw.rect(surface, (12, 14, 20), (0, 0, WIDTH, TOP_BAR_H))
     pygame.draw.line(surface, (58, 66, 86), (0, TOP_BAR_H), (WIDTH, TOP_BAR_H), 1)
     world['_hovered_topbar_dropdown'] = None
