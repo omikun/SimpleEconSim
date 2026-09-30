@@ -1,0 +1,1642 @@
+"""
+terrain/generator/polygon.py — Amit Patel Polygonal Map Generator (enhanced with mapgen2).
+"""
+
+from __future__ import annotations
+
+import math
+import random
+import time
+import heapq
+from collections import deque, defaultdict
+from dataclasses import dataclass, field
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
+
+import numpy as np
+from scipy.interpolate import LinearNDInterpolator
+from scipy.ndimage import gaussian_filter
+from scipy.spatial import Delaunay, KDTree, Voronoi
+
+from terrain.mesh.graph import Center, Corner, Edge
+from terrain.mesh.noisy_edges import NoisyEdges
+from terrain.biomes.whittaker import BIOME_COLORS, whittaker_biome, mapgen2_biome
+
+class PolygonMapGenerator:
+    """Generates procedural maps using Amit Patel's polygonal dual-graph architecture."""
+
+    def __init__(
+        self,
+        seed: int = 42,
+        width: float = 1000.0,
+        height: float = 1000.0,
+        num_points: int = 1000,
+        lloyd_iterations: int = 2,
+        island_shape: str = 'radial',  # 'radial', 'perlin', 'blob', 'square'
+        river_count: int = 25,
+        enable_corner_improvement: bool = True,
+        enable_watersheds: bool = True,
+        enable_roads: bool = True,
+        enable_lava: bool = False,
+        enable_noisy_edges: bool = True,
+        noisy_tradeoff: float = 0.30,
+        mountain_sharpness: float = 1.0,
+        moisture_bias: float = 0.0,
+        north_temperature: float = 0.0,
+        south_temperature: float = 0.0,
+        persistence: float = 0.0,
+        canyon_depth: float = 1.5,
+        valley_width: float = 1.0,
+        **kwargs,
+    ):
+        self.seed = seed
+        self.width = float(width)
+        self.height = float(height)
+        self.num_points = int(num_points)
+        self.lloyd_iterations = int(lloyd_iterations)
+        self.island_shape = island_shape
+        self.river_count = int(river_count)
+        self.enable_corner_improvement = enable_corner_improvement
+        self.enable_watersheds = enable_watersheds
+        self.enable_roads = enable_roads
+        self.enable_lava = enable_lava
+        self.enable_noisy_edges = enable_noisy_edges
+        self.noisy_tradeoff = noisy_tradeoff
+        self.mountain_sharpness = float(mountain_sharpness)
+        self.moisture_bias = float(moisture_bias)
+        self.north_temperature = float(north_temperature)
+        self.south_temperature = float(south_temperature)
+        self.persistence = float(persistence)
+        self.canyon_depth = float(canyon_depth)
+        self.valley_width = float(valley_width)
+        self.river_paths: List[List[Tuple[float, float, float, float]]] = []
+
+        self.rng = random.Random(seed)
+        self.np_rng = np.random.default_rng(seed)
+
+        self.centers: List[Center] = []
+        self.corners: List[Corner] = []
+        self.edges: List[Edge] = []
+        self.noisy_edges: Optional[NoisyEdges] = None
+        self._center_kdtree: Optional[KDTree] = None
+
+        # Build map
+        self._build_graph()
+        if self.enable_corner_improvement:
+            self.improve_corners()
+        self._assign_ocean_land()
+        self._assign_elevation()
+        self._generate_rivers()
+        self._assign_moisture()
+        self._assign_biomes()
+        self.compute_brdf_shading()
+
+        # Mapgen2 features: Watersheds, Roads, Lava, Noisy Edges
+        if self.enable_watersheds:
+            self.calculate_watersheds()
+        if self.enable_roads:
+            self.create_roads()
+        if self.enable_lava:
+            self.create_lava()
+        if self.enable_noisy_edges:
+            effective_tradeoff = max(0.05, min(0.60, self.noisy_tradeoff * (1.0 - 0.35 * self.persistence)))
+            self.build_noisy_edges(effective_tradeoff)
+
+    # -----------------------------------------------------------------------
+    # Step 1: Geometry, Lloyd Relaxation, and Dual Graph Construction
+    # -----------------------------------------------------------------------
+
+    def _build_graph(self) -> None:
+        """Generate points, relax with Lloyd's algorithm, and construct dual-mesh graph."""
+        pad = 20.0
+        # Sample points with jittered uniform distribution
+        pts = self.np_rng.uniform([pad, pad], [self.width - pad, self.height - pad], (self.num_points, 2))
+
+        # Add boundary guard frame to guarantee all internal cells are completely bounded
+        w, h = self.width, self.height
+        frame = np.array([
+            [-w * 0.5, -h * 0.5], [w * 0.5, -h * 0.5], [w * 1.5, -h * 0.5],
+            [-w * 0.5, h * 0.5],                       [w * 1.5, h * 0.5],
+            [-w * 0.5, h * 1.5],  [w * 0.5, h * 1.5],  [w * 1.5, h * 1.5],
+            [-w * 0.2, 0.0], [w * 1.2, 0.0], [-w * 0.2, h], [w * 1.2, h],
+            [0.0, -h * 0.2], [w, -h * 0.2], [0.0, h * 1.2], [w, h * 1.2],
+        ], dtype=np.float64)
+
+        # Run Lloyd relaxation
+        for _ in range(self.lloyd_iterations):
+            all_pts = np.vstack([pts, frame])
+            vor = Voronoi(all_pts)
+            new_pts = []
+            for i in range(len(pts)):
+                reg_idx = vor.point_region[i]
+                reg = vor.regions[reg_idx]
+                if -1 not in reg and len(reg) >= 3:
+                    poly = vor.vertices[reg]
+                    # Clamp centroid into bounding box
+                    cx = float(np.clip(poly[:, 0].mean(), pad, self.width - pad))
+                    cy = float(np.clip(poly[:, 1].mean(), pad, self.height - pad))
+                    new_pts.append([cx, cy])
+                else:
+                    new_pts.append(pts[i])
+            pts = np.array(new_pts, dtype=np.float64)
+
+        # Final Voronoi construction on relaxed points
+        all_pts = np.vstack([pts, frame])
+        vor = Voronoi(all_pts)
+
+        # Create Center objects for the internal points
+        self.centers = []
+        for i in range(len(pts)):
+            c = Center(index=i, point=pts[i].copy())
+            if c.x <= pad * 1.5 or c.x >= self.width - pad * 1.5 or c.y <= pad * 1.5 or c.y >= self.height - pad * 1.5:
+                c.border = True
+            self.centers.append(c)
+
+        # Deduplicate and register Corners (Voronoi vertices)
+        self.corners = []
+        corner_map: Dict[int, Corner] = {}
+        for i, pt in enumerate(vor.vertices):
+            # Check if vertex is relevant to our bounding box
+            if -w * 0.1 <= pt[0] <= w * 1.1 and -h * 0.1 <= pt[1] <= h * 1.1:
+                cn = Corner(index=len(self.corners), point=pt.copy())
+                if pt[0] <= 1.0 or pt[0] >= self.width - 1.0 or pt[1] <= 1.0 or pt[1] >= self.height - 1.0:
+                    cn.border = True
+                self.corners.append(cn)
+                corner_map[i] = cn
+
+        # Link Centers to Corners
+        for i, center in enumerate(self.centers):
+            reg = vor.regions[vor.point_region[i]]
+            for v_idx in reg:
+                if v_idx in corner_map:
+                    cn = corner_map[v_idx]
+                    if cn not in center.corners:
+                        center.corners.append(cn)
+                    if center not in cn.touches:
+                        cn.touches.append(center)
+
+        # Build Edges and Adjacencies
+        edge_dict: Dict[Tuple[int, int], Edge] = {}
+        for (p1, p2), (v1, v2) in zip(vor.ridge_points, vor.ridge_vertices):
+            # Only consider ridges connecting our valid centers/corners
+            c0 = self.centers[p1] if p1 < len(self.centers) else None
+            c1 = self.centers[p2] if p2 < len(self.centers) else None
+            cn0 = corner_map.get(v1)
+            cn1 = corner_map.get(v2)
+
+            if not (c0 or c1) or not (cn0 or cn1):
+                continue
+
+            # Ensure primary slot d0/v0 is non-None
+            if c0 is None and c1 is not None:
+                c0, c1 = c1, None
+            if cn0 is None and cn1 is not None:
+                cn0, cn1 = cn1, None
+
+            edge_key = tuple(sorted([cn0.index if cn0 else -1, cn1.index if cn1 else -1]))
+            if edge_key not in edge_dict:
+                mid = (cn0.point + cn1.point) * 0.5 if (cn0 and cn1) else ((c0.point + c1.point) * 0.5 if (c0 and c1) else np.zeros(2))
+                edge = Edge(index=len(self.edges), d0=c0, d1=c1, v0=cn0, v1=cn1, midpoint=mid)
+                self.edges.append(edge)
+                edge_dict[edge_key] = edge
+
+                if c0: c0.borders.append(edge)
+                if c1: c1.borders.append(edge)
+                if cn0: cn0.protrudes.append(edge)
+                if cn1: cn1.protrudes.append(edge)
+
+            # Link adjacent centers
+            if c0 and c1:
+                if c1 not in c0.neighbors: c0.neighbors.append(c1)
+                if c0 not in c1.neighbors: c1.neighbors.append(c0)
+
+            # Link adjacent corners
+            if cn0 and cn1:
+                if cn1 not in cn0.adjacent: cn0.adjacent.append(cn1)
+                if cn0 not in cn1.adjacent: cn1.adjacent.append(cn0)
+
+        # Sort corners of each center in counter-clockwise order
+        for c in self.centers:
+            if c.corners:
+                c.corners.sort(key=lambda cn: math.atan2(cn.y - c.y, cn.x - c.x))
+
+        # Build KDTree for spatial point queries
+        center_coords = np.array([[c.x, c.y] for c in self.centers], dtype=np.float64)
+        self._center_kdtree = KDTree(center_coords)
+
+    def improve_corners(self) -> None:
+        """Relaxes Voronoi corners by moving each non-border corner to the average of its touching centers.
+
+        Reference: amitp/mapgen2 improveCorners()
+        Lengthens short edges, reduces aspect ratio skew, and evens out polygon sizes.
+        """
+        new_corners: Dict[int, np.ndarray] = {}
+        for q in self.corners:
+            if q.border or len(q.touches) == 0:
+                new_corners[q.index] = q.point.copy()
+            else:
+                avg_x = sum(r.x for r in q.touches) / len(q.touches)
+                avg_y = sum(r.y for r in q.touches) / len(q.touches)
+                avg_x = max(0.0, min(self.width, avg_x))
+                avg_y = max(0.0, min(self.height, avg_y))
+                new_corners[q.index] = np.array([avg_x, avg_y], dtype=np.float64)
+
+        for q in self.corners:
+            q.point = new_corners[q.index]
+
+        # Edge midpoints were computed for old corners and must be recomputed
+        for edge in self.edges:
+            if edge.v0 is not None and edge.v1 is not None:
+                edge.midpoint = (edge.v0.point + edge.v1.point) * 0.5
+
+    # -----------------------------------------------------------------------
+    # Step 2: Island Shaping & Ocean/Lake Water Classification
+    # -----------------------------------------------------------------------
+
+    def _is_inside_island(self, x: float, y: float) -> bool:
+        """Evaluate land vs water predicate based on configured island shape function."""
+        # Normalize to [-1.0, 1.0] centered at map middle
+        nx = (2.0 * x / self.width) - 1.0
+        ny = (2.0 * y / self.height) - 1.0
+        dist = math.sqrt(nx * nx + ny * ny)
+
+        if dist >= 0.95:
+            return False  # Force ocean border
+
+        if self.island_shape == 'square':
+            return abs(nx) < 0.70 and abs(ny) < 0.70
+
+        elif self.island_shape == 'blob':
+            # Multi-frequency radial harmonic blob
+            angle = math.atan2(ny, nx)
+            r = 0.55 + 0.18 * math.sin(self.seed + 3.0 * angle) + 0.12 * math.cos(self.seed * 2 + 5.0 * angle)
+            return dist < r
+
+        elif self.island_shape == 'perlin':
+            # Procedural multi-frequency fBm value noise modulated by persistence
+            pers = 0.5 ** (1.0 + self.persistence)
+            a1 = 0.50
+            a2 = 0.50 * pers
+            a3 = 0.50 * (pers ** 2)
+            a4 = 0.50 * (pers ** 3)
+            sum_a = a1 + a2 + a3 + a4
+            fx = (nx + 1.0) * 2.5
+            fy = (ny + 1.0) * 2.5
+            n_val = (
+                math.sin(fx * 2.1 + self.seed) * math.cos(fy * 2.1) * a1 +
+                math.sin(fx * 4.3 - self.seed) * math.cos(fy * 4.3) * a2 +
+                math.sin(fx * 8.7 + 1.2) * math.cos(fy * 8.7) * a3 +
+                math.sin(fx * 17.1 - 0.5) * math.cos(fy * 16.9) * a4
+            ) * (0.875 / sum_a)
+            return (dist + n_val * 0.35) < 0.68
+
+        else:  # 'radial' default
+            angle = math.atan2(ny, nx)
+            bumps = 5
+            dip_angle = self.seed * 0.35
+            r1 = 0.2 + 0.40 * math.sin(angle * bumps + dip_angle)
+            r2 = 0.2 + 0.35 * math.cos(angle * (bumps - 2) - dip_angle * 1.5)
+            r = max(r1, r2)
+            if abs(self.persistence) > 1e-4:
+                pers = 0.5 ** (1.0 + self.persistence)
+                high_freq = (
+                    math.sin(angle * 14.0 + self.seed) * 0.45 * pers +
+                    math.cos(angle * 27.0 - self.seed) * 0.25 * (pers ** 2)
+                ) * (1.0 - (pers / 0.5)) * 0.25
+                r += high_freq
+            return dist < (0.50 + 0.25 * r)
+
+    def _continuous_elevation_noise(self, x: float, y: float, amplitude: float = 1.0) -> float:
+        """Continuous multi-scale sinusoidal fBm elevation perturbation to smooth stair-step transitions."""
+        fx = x * 0.006 + self.seed * 0.17
+        fy = y * 0.006 + self.seed * 0.23
+        return amplitude * (
+            (math.sin(fx * 1.0) * math.cos(fy * 1.0)) * 4.0 +
+            (math.sin(fx * 2.3 + 1.2) * math.cos(fy * 2.1 - 0.7)) * 2.2 +
+            (math.sin(fx * 4.7 - 2.1) * math.cos(fy * 4.9 + 1.4)) * 1.1 +
+            (math.sin(fx * 9.3 + 0.5) * math.cos(fy * 9.1 - 1.9)) * 0.55
+        )
+
+    def _assign_ocean_land(self) -> None:
+        """Assign land vs water to corners and flood-fill to determine ocean vs lakes."""
+        # 1. Corner land/water
+        for cn in self.corners:
+            if cn.border:
+                cn.water = True
+                cn.ocean = True
+            else:
+                cn.water = not self._is_inside_island(cn.x, cn.y)
+
+        # 2. Flood-fill from borders to classify ocean (water connected to map edge)
+        ocean_queue: deque[Corner] = deque()
+        for cn in self.corners:
+            if cn.border and cn.water:
+                cn.ocean = True
+                ocean_queue.append(cn)
+
+        while ocean_queue:
+            curr = ocean_queue.popleft()
+            for adj in curr.adjacent:
+                if adj.water and not adj.ocean:
+                    adj.ocean = True
+                    ocean_queue.append(adj)
+
+        # 3. Centers: Assign water, ocean, and coast
+        for c in self.centers:
+            water_corners = sum(1 for cn in c.corners if cn.water)
+            ocean_corners = sum(1 for cn in c.corners if cn.ocean)
+            num_corners = max(1, len(c.corners))
+
+            # A center is water if majority of its corners are water
+            c.water = (water_corners / num_corners) >= 0.5 or c.border
+            c.ocean = (ocean_corners > 0 and c.water)
+
+        # 4. Coastlines: Land centers/corners that border ocean
+        for c in self.centers:
+            if not c.water:
+                for n in c.neighbors:
+                    if n.ocean:
+                        c.coast = True
+                        break
+
+        for cn in self.corners:
+            if not cn.water:
+                has_ocean = any(c.ocean for c in cn.touches)
+                has_land = any(not c.water for c in cn.touches)
+                cn.coast = has_ocean and has_land
+
+    # -----------------------------------------------------------------------
+    # Step 3: Elevation & Downslopes (Distance from Coast with Redistribution)
+    # -----------------------------------------------------------------------
+
+    def _assign_elevation(self) -> None:
+        """Compute elevation from coastline distance and redistribute to hypsometric curve."""
+        # BFS from ocean corners
+        elev_queue: deque[Corner] = deque()
+        for cn in self.corners:
+            if cn.ocean:
+                cn.elevation = 0.0
+                elev_queue.append(cn)
+            else:
+                cn.elevation = float('inf')
+
+        while elev_queue:
+            curr = elev_queue.popleft()
+            for adj in curr.adjacent:
+                # Lake corners stay flat to form natural river valleys (as per Amit Patel)
+                step = 0.0 if (adj.water and not adj.ocean) else 1.0
+                new_e = curr.elevation + step
+                if new_e < adj.elevation:
+                    adj.elevation = new_e
+                    elev_queue.append(adj)
+
+        # Collect land corners and redistribute elevations
+        land_corners = [cn for cn in self.corners if not cn.ocean]
+        if land_corners:
+            # Sort stably by BFS distance
+            land_corners.sort(key=lambda cn: cn.elevation)
+            n_land = len(land_corners)
+            SCALE_FACTOR = 1.1
+            for rank, cn in enumerate(land_corners):
+                y = (rank + 1) / n_land
+                # Amit Patel's inverted hypsometric curve from Map.as (redistributeElevations):
+                # Target CDF: y(x) = 1 - (1 - x)^2  ==>  Inverted: x(y) = sqrt(SCALE) - sqrt(SCALE * (1 - y))
+                # Produces abundant flat coastal lowlands and sharp, steep alpine mountain peaks
+                x = math.sqrt(SCALE_FACTOR) - math.sqrt(SCALE_FACTOR * (1.0 - y))
+                x = min(1.0, max(0.001, x))
+                if self.mountain_sharpness != 1.0 and x > 0.0:
+                    x = x ** self.mountain_sharpness
+
+                # Procedural Mountain Ridges and Valleys:
+                # Modulate initial elevation with coherent ridge and valley harmonics so terrain
+                # has authentic peaks, passes, and valleys. Downhill priority-flood will then
+                # naturally route rivers down through valleys and passes around hills.
+                nx = (cn.x / self.width) * 2.0 - 1.0
+                ny = (cn.y / self.height) * 2.0 - 1.0
+                fx = (nx + 1.2) * 2.6
+                fy = (ny + 1.2) * 2.6
+                r_ridge = abs(math.sin(fx * 2.3 + self.seed * 0.17) * math.cos(fy * 2.3 - self.seed * 0.23))
+                r_hill = 0.5 * (math.sin(fx * 4.6 + 1.3) * math.cos(fy * 4.8 - 0.7) + 1.0)
+                valley_weight = 0.60 * r_ridge + 0.40 * r_hill
+                inland_factor = min(1.0, x * 2.5)
+                x = x * (0.65 + 0.70 * valley_weight * inland_factor)
+                cn.elevation = min(1.0, max(0.001, x))
+
+        # Planchon-Darboux Priority-Flood Breaching:
+        # Guarantees EVERY single land corner has a strictly downhill downslope to the ocean!
+        pqueue: List[Tuple[float, int, Corner]] = []
+        visited: Set[int] = set()
+
+        for cn in self.corners:
+            if cn.ocean:
+                cn.elevation = 0.0
+                cn.downslope = None
+                heapq.heappush(pqueue, (0.0, cn.index, cn))
+                visited.add(cn.index)
+
+        EPS = 0.001
+        while pqueue:
+            elev_u, _, u = heapq.heappop(pqueue)
+            for v in u.adjacent:
+                if v.index not in visited:
+                    visited.add(v.index)
+                    # Enforce strict downhill flow from v down into u
+                    if v.elevation <= u.elevation:
+                        v.elevation = u.elevation + EPS
+                    v.downslope = u  # u is strictly lower than v and drains to ocean
+                    heapq.heappush(pqueue, (v.elevation, v.index, v))
+
+        # Assign center elevation as mean of its corners
+        for c in self.centers:
+            if c.ocean:
+                c.elevation = 0.0
+            elif c.corners:
+                c.elevation = float(np.mean([cn.elevation for cn in c.corners]))
+            else:
+                c.elevation = 0.1
+
+    # -----------------------------------------------------------------------
+    # Step 4: Hydrology & River Generation (Arch 1 vs Arch 3)
+    # -----------------------------------------------------------------------
+
+    def _generate_rivers(self) -> None:
+        """Generate guaranteed downhill river networks with physical terrain carving.
+        Architecture 1: Topological Breached Hydrology.
+        Traces strictly downhill flow along the Planchon-Darboux breached corner DAG.
+        Physically carves riverbeds and slopes valley banks.
+        All rivers strictly terminate in the ocean and flow downhill.
+        """
+                # Enforce downslope monotonicity after canyon carving
+        for cn in sorted(self.corners, key=lambda c: c.elevation):
+            if cn.downslope and not cn.water:
+                if cn.elevation <= cn.downslope.elevation:
+                    cn.elevation = cn.downslope.elevation + 0.001
+
+        self.river_paths = []
+        for e in self.edges:
+            e.river = 0
+        for cn in self.corners:
+            cn.river = 0
+
+        if self.river_count <= 0:
+            return
+
+        spring_candidates = [
+            cn for cn in self.corners
+            if not cn.water and 0.35 <= cn.elevation <= 0.88 and cn.downslope is not None
+        ]
+        if not spring_candidates:
+            return
+
+        # Sort candidate springs by elevation and moisture
+        spring_candidates.sort(
+            key=lambda cn: cn.elevation * 0.70 + getattr(cn, 'moisture', 0.5) * 0.30,
+            reverse=True
+        )
+
+        min_dist = max(35.0, 300.0 / math.sqrt(max(1, self.river_count)))
+        sources: List[Corner] = []
+        for sc in spring_candidates:
+            if all(math.hypot(sc.x - s.x, sc.y - s.y) >= min_dist for s in sources):
+                sources.append(sc)
+                if len(sources) >= self.river_count:
+                    break
+        if len(sources) < self.river_count:
+            for sc in spring_candidates:
+                if sc not in sources:
+                    sources.append(sc)
+                    if len(sources) >= self.river_count:
+                        break
+
+        # 1. Accumulate physical water flux along the Planchon-Darboux breached DAG
+        for spring in sources:
+            curr = spring
+            curr.river += 1
+            visited: Set[int] = {curr.index}
+            while curr and not curr.ocean and curr.downslope:
+                nxt = curr.downslope
+                if nxt.index in visited:
+                    break
+
+                edge = None
+                for e in curr.protrudes:
+                    if (e.v0 == curr and e.v1 == nxt) or (e.v1 == curr and e.v0 == nxt):
+                        edge = e
+                        break
+
+                # Check if this edge lies on the ocean coastline (separating ocean water from land)
+                is_coast_edge = bool(edge and edge.d0 and edge.d1 and (edge.d0.ocean != edge.d1.ocean))
+                # Check if curr is already on the ocean/coastline boundary
+                is_curr_coast = curr.coast or any(c.ocean for c in curr.touches)
+
+                if (is_coast_edge and not nxt.ocean) or (is_curr_coast and not nxt.ocean):
+                    # River has reached ocean boundary! Terminate; do not walk along beach
+                    ocean_neighbors = [v for v in curr.adjacent if v.ocean]
+                    if ocean_neighbors:
+                        nxt_ocean = ocean_neighbors[0]
+                        for e in curr.protrudes:
+                            if (e.v0 == curr and e.v1 == nxt_ocean) or (e.v1 == curr and e.v0 == nxt_ocean):
+                                e.river += 1
+                                break
+                        nxt_ocean.river += 1
+                        curr.downslope = nxt_ocean
+                    else:
+                        break
+
+                visited.add(nxt.index)
+                if edge:
+                    edge.river += 1
+                nxt.river += 1
+                curr = nxt
+
+        # 2. Decompose into non-overlapping dendritic river branches (Mainstems & Tributaries)
+        active_edges: Set[Tuple[Corner, Corner]] = set()
+        for cn in self.corners:
+            if cn.river > 0 and cn.downslope and not cn.ocean:
+                for edge in cn.protrudes:
+                    if (edge.v0 == cn and edge.v1 == cn.downslope) or (edge.v1 == cn and edge.v0 == cn.downslope):
+                        if edge.river > 0:
+                            active_edges.add((cn, cn.downslope))
+
+        incoming: Dict[Corner, List[Corner]] = defaultdict(list)
+        for u, v in active_edges:
+            incoming[v].append(u)
+        for v in incoming:
+            incoming[v].sort(key=lambda u: u.river, reverse=True)
+
+        outgoing = {u: v for u, v in active_edges}
+        terminals = [v for u, v in active_edges if v not in outgoing]
+
+        visited_edges: Set[Tuple[Corner, Corner]] = set()
+        def trace_branch(end_node: Corner) -> List[Corner]:
+            curr = end_node
+            branch = [curr]
+            while True:
+                inc = [u for u in incoming[curr] if (u, curr) not in visited_edges]
+                if not inc:
+                    break
+                best_u = inc[0]
+                visited_edges.add((best_u, curr))
+                branch.append(best_u)
+                curr = best_u
+            branch.reverse()
+            return branch
+
+        branches: List[Tuple[List[Corner], bool]] = []
+        for term in sorted(terminals, key=lambda t: t.index):
+            b = trace_branch(term)
+            if len(b) >= 2:
+                branches.append((b, True))
+
+        while len(visited_edges) < len(active_edges):
+            candidates = []
+            for v in incoming:
+                unvisited = [u for u in incoming[v] if (u, v) not in visited_edges]
+                if unvisited:
+                    candidates.append((v, unvisited[0].river))
+            candidates.sort(key=lambda item: item[1], reverse=True)
+            found = False
+            for conf_node, _ in candidates:
+                b = trace_branch(conf_node)
+                if len(b) >= 2:
+                    branches.append((b, False))
+                    found = True
+                    break
+            if not found:
+                break
+
+        # Physical Terrain Carving (Bedrock trench + Valley banks)
+        max_river = max((e.river for e in self.edges), default=1)
+        for edge in self.edges:
+            if edge.river > 0:
+                carve = self.canyon_depth * 0.065 * math.sqrt(edge.river / max(1.0, max_river))
+                if edge.v0 and not edge.v0.ocean:
+                    edge.v0.elevation = max(0.001, edge.v0.elevation - carve)
+                if edge.v1 and not edge.v1.ocean:
+                    edge.v1.elevation = max(0.001, edge.v1.elevation - carve)
+                if edge.d0 and not edge.d0.ocean:
+                    edge.d0.elevation = max(0.001, edge.d0.elevation - carve * 0.50 * self.valley_width)
+                if edge.d1 and not edge.d1.ocean:
+                    edge.d1.elevation = max(0.001, edge.d1.elevation - carve * 0.50 * self.valley_width)
+
+                # Enforce downslope monotonicity after canyon carving
+        for cn in sorted(self.corners, key=lambda c: c.elevation):
+            if cn.downslope and not cn.water:
+                if cn.elevation <= cn.downslope.elevation:
+                    cn.elevation = cn.downslope.elevation + 0.001
+
+        self.river_paths = []
+        for b, is_main in branches:
+            is_ocean = is_main and (b[-1].ocean or b[-1].elevation <= 0.005 or any(c.ocean for c in b[-1].touches))
+            path = [(cn.x, cn.y, cn.elevation, float(cn.river), 1.0 if is_ocean else 0.0) for cn in b]
+            self.river_paths.append(path)
+
+    # -----------------------------------------------------------------------
+    # Step 5: Moisture Diffusion & Quantile Redistribution
+    # -----------------------------------------------------------------------
+
+    def _assign_moisture(self) -> None:
+        """Diffuse moisture from freshwater bodies (rivers, lakes) and ocean inland."""
+        queue: deque[Tuple[Corner, float]] = deque()
+        visited: Dict[int, float] = {}
+
+        # Freshwater rivers and lakes are saturated with moisture
+        for cn in self.corners:
+            if (cn.water and not cn.ocean) or cn.river > 0:
+                m = min(3.0, 0.25 * cn.river + 1.0)
+                cn.moisture = m
+                queue.append((cn, m))
+                visited[cn.index] = m
+            elif cn.ocean:
+                cn.moisture = 1.0
+                queue.append((cn, 0.75))
+                visited[cn.index] = 0.75
+            else:
+                cn.moisture = 0.0
+
+        # Breadth-first exponential decay diffusion
+        decay = 0.85
+        while queue:
+            curr, m = queue.popleft()
+            if m < 0.05:
+                continue
+            for adj in curr.adjacent:
+                new_m = m * decay
+                if new_m > visited.get(adj.index, 0.0):
+                    visited[adj.index] = new_m
+                    adj.moisture = max(adj.moisture, new_m)
+                    queue.append((adj, new_m))
+
+        # Quantile redistribution for land corners with moisture_bias
+        land_corners = [cn for cn in self.corners if not cn.water]
+        if land_corners:
+            land_corners.sort(key=lambda cn: cn.moisture)
+            n_land = len(land_corners)
+            for rank, cn in enumerate(land_corners):
+                norm_rank = rank / max(1, n_land - 1)
+                cn.moisture = float(np.clip(self.moisture_bias + norm_rank, 0.0, 1.0))
+
+        # Ensure all water corners are 1.0 and land corners strictly in [0.0, 1.0]
+        for cn in self.corners:
+            if cn.water:
+                cn.moisture = 1.0
+            else:
+                cn.moisture = max(0.0, min(1.0, float(cn.moisture)))
+
+        # Assign center moisture as average of its corners, strictly clamped
+        for c in self.centers:
+            if c.water:
+                c.moisture = 1.0
+            elif c.corners:
+                c.moisture = max(0.0, min(1.0, float(np.mean([cn.moisture for cn in c.corners]))))
+            else:
+                c.moisture = max(0.0, min(1.0, 0.5 + self.moisture_bias))
+
+    # -----------------------------------------------------------------------
+    # Step 6: Whittaker Biome Classification
+    # -----------------------------------------------------------------------
+
+    def _assign_biomes(self) -> None:
+        """Assign biomes to centers using Whittaker diagram, temperature latitude gradient, and hydrology.
+
+        Reference: Red Blob Games HTML Mapgen2 biomes.js (assign_temperature_r and assign_biome_r)
+        """
+        for c in self.centers:
+            lat = c.y / max(1.0, self.height)
+            delta_t = (1.0 - lat) * self.north_temperature + lat * self.south_temperature
+            c.temperature = float(1.0 - c.elevation + delta_t)
+
+            if c.ocean:
+                c.biome = 'OCEAN'
+            elif c.water:
+                if c.temperature > 0.90:
+                    c.biome = 'MARSH'
+                elif c.temperature < 0.20:
+                    c.biome = 'ICE'
+                else:
+                    c.biome = 'LAKE'
+            elif c.coast:
+                # Low-elevation coasts form sandy beaches; higher coastal terrain forms cliffs/bluffs with climatic biomes
+                if c.elevation <= 0.065:
+                    c.biome = 'BEACH'
+                else:
+                    c.biome = mapgen2_biome(c.temperature, c.moisture)
+            else:
+                c.biome = mapgen2_biome(c.temperature, c.moisture)
+
+    # -----------------------------------------------------------------------
+    # Query, Spatial Interpolation, and Hex World Integration
+    # -----------------------------------------------------------------------
+
+    def get_center_at(self, x: float, y: float) -> Center:
+        """Find the nearest Voronoi polygon center to coordinate (x, y)."""
+        if self._center_kdtree is None:
+            raise RuntimeError("Graph not built.")
+        _, idx = self._center_kdtree.query([x, y])
+        return self.centers[idx]
+
+    def get_elevation_at(self, x: float, y: float) -> float:
+        """Sample smooth interpolated elevation at (x, y)."""
+        c = self.get_center_at(x, y)
+        return c.elevation
+
+    def get_moisture_at(self, x: float, y: float) -> float:
+        """Sample moisture at (x, y)."""
+        c = self.get_center_at(x, y)
+        return c.moisture
+
+    def get_temperature_at(self, x: float, y: float) -> float:
+        """Sample temperature at (x, y)."""
+        c = self.get_center_at(x, y)
+        return c.temperature
+
+    def get_biome_at(self, x: float, y: float) -> str:
+        """Sample biome at (x, y)."""
+        c = self.get_center_at(x, y)
+        return c.biome
+
+    # -----------------------------------------------------------------------
+    # Physically-Based BRDF Shading Model
+    # -----------------------------------------------------------------------
+
+    def compute_brdf_shading(
+        self,
+        sun_dir: Tuple[float, float, float] = (-0.55, -0.55, 0.70),
+        sun_intensity: float = 1.0,
+        ambient_intensity: float = 1.0,
+        height_exaggeration: float = 1.5,
+    ) -> None:
+        """Compute physically-based BRDF illumination matching REGNUM's GPU shader pipeline.
+
+        Applies:
+        - 3D Surface Normals N = normalize(-dHx * kh, -dHy * kh, 1.0)
+        - Direct solar diffuse: (N . L)^1.05 * sun_intensity
+        - Hemispherical sky ambient: (Nz * 0.60 + 0.40) * ambient_intensity
+        - Horizon ray-march penumbra soft shadows
+        - Water Blinn-Phong specular glints: (Nwave . H)^36 * 0.18 + (Nwave . H)^90 * 0.30
+        - Deep ocean bathymetric absorption (Beer-Lambert attenuation)
+        - River flat-water specular glints: (N . H)^32 * 0.35
+        - Riparian vegetation turf blend along river borders
+        - Steep cliff exposure rock scree
+        """
+        # Sun vector L (NW direction)
+        L = np.array(sun_dir, dtype=np.float64)
+        L /= np.linalg.norm(L)
+
+        # Half vector H for Blinn-Phong specular (View V = [0, 0, 1])
+        H_half = np.array([L[0], L[1], L[2] + 1.0], dtype=np.float64)
+        H_half /= np.linalg.norm(H_half)
+
+        # 1. Compute 3D normals for all centers
+        for c in self.centers:
+            if not c.water and c.neighbors:
+                dx = 0.0
+                dy = 0.0
+                w_sum = 0.0
+                for n in c.neighbors:
+                    diff_x = n.x - c.x
+                    diff_y = n.y - c.y
+                    d2 = diff_x * diff_x + diff_y * diff_y
+                    if d2 > 1e-4:
+                        w = 1.0 / math.sqrt(d2)
+                        dx += (n.elevation - c.elevation) * (diff_x / d2) * w
+                        dy += (n.elevation - c.elevation) * (diff_y / d2) * w
+                        w_sum += w
+                if w_sum > 0:
+                    dx /= w_sum
+                    dy /= w_sum
+
+                # Scale gradient to pixel map dimensions to yield realistic 30-55 deg slopes
+                nx = -dx * height_exaggeration * 360.0
+                ny = -dy * height_exaggeration * 360.0
+                nz = 1.0
+                norm_len = math.sqrt(nx * nx + ny * ny + nz * nz)
+                c.normal = np.array([nx / norm_len, ny / norm_len, nz / norm_len], dtype=np.float64)
+            else:
+                c.normal = np.array([0.0, 0.0, 1.0], dtype=np.float64)
+
+        # 2. Compute soft ray-march horizon shadows
+        sun_2d = np.array([-L[0], -L[1]], dtype=np.float64)
+        sun_2d /= np.linalg.norm(sun_2d)
+
+        shadow_masks = {}
+        for c in self.centers:
+            if c.water:
+                shadow_masks[c.index] = 1.0
+                continue
+
+            shadow = 1.0
+            for n in c.neighbors:
+                v_cn = np.array([n.x - c.x, n.y - c.y], dtype=np.float64)
+                dist = np.linalg.norm(v_cn)
+                if dist > 1e-3:
+                    cos_theta = np.dot(v_cn / dist, sun_2d)
+                    if cos_theta > 0.4:
+                        elev_diff = n.elevation - (c.elevation + 0.04 * (dist / 50.0))
+                        if elev_diff > 0.01:
+                            penumbra = max(0.45, 1.0 - elev_diff * 4.0)
+                            shadow = min(shadow, penumbra)
+            shadow_masks[c.index] = shadow
+
+        # 3. Evaluate BRDF reflectance and composite final color
+        deep_ocean = np.array([13, 36, 82], dtype=np.float64)
+        mid_ocean = np.array([26, 66, 112], dtype=np.float64)
+        shallow_shelf = np.array([38, 112, 140], dtype=np.float64)
+        coastal_turquoise = np.array([64, 158, 166], dtype=np.float64)
+        lake_deep = np.array([26, 71, 138], dtype=np.float64)
+        lake_shallow = np.array([56, 133, 173], dtype=np.float64)
+
+        for c in self.centers:
+            N = c.normal
+            NdotL = max(0.0, float(np.dot(N, L)))
+            diffuse_sun = math.pow(NdotL, 1.05) * sun_intensity
+            sky_light = (N[2] * 0.60 + 0.40) * ambient_intensity
+            shadow = shadow_masks.get(c.index, 1.0)
+            direct_sun = diffuse_sun * shadow
+            total_light = direct_sun + sky_light
+            c.total_light = total_light
+
+            if c.water:
+                if c.ocean:
+                    # Wave normal perturbation
+                    phase = c.x * 0.05 + c.y * 0.08 + self.seed * 0.1
+                    gw_x = 0.12 * math.sin(phase)
+                    gw_y = 0.12 * math.cos(phase * 1.3)
+                    w_norm = np.array([-gw_x, -gw_y, 1.0], dtype=np.float64)
+                    w_norm /= np.linalg.norm(w_norm)
+
+                    w_NdotL = max(0.0, float(np.dot(w_norm, L)))
+                    w_diffuse = 0.65 + 0.35 * (math.pow(w_NdotL, 1.2) * (0.75 + 0.25 * shadow))
+
+                    w_NdotH = max(0.0, float(np.dot(w_norm, H_half)))
+                    specular = (math.pow(w_NdotH, 36.0) * 0.18 + math.pow(w_NdotH, 90.0) * 0.30) * sun_intensity * direct_sun
+
+                    # Bathymetric depth color
+                    is_near_coast = any(not n.water for n in c.neighbors)
+                    if is_near_coast:
+                        w_base = coastal_turquoise * 0.6 + shallow_shelf * 0.4
+                    elif any(n.coast for n in c.neighbors):
+                        w_base = shallow_shelf * 0.5 + mid_ocean * 0.5
+                    else:
+                        w_base = mid_ocean * 0.3 + deep_ocean * 0.7
+
+                    lit_rgb = w_base * w_diffuse + specular * 255.0
+                    c.brdf_color = (
+                        min(255, max(0, int(lit_rgb[0]))),
+                        min(255, max(0, int(lit_rgb[1]))),
+                        min(255, max(0, int(lit_rgb[2]))),
+                    )
+                else:
+                    # Lake water with flat specular reflection
+                    NdotH_flat = max(0.0, float(np.dot(N, H_half)))
+                    spec_flat = math.pow(NdotH_flat, 32.0) * 0.35 * sun_intensity * direct_sun
+                    lake_col = lake_shallow if c.elevation < 0.35 else lake_deep
+                    lit_rgb = lake_col * (total_light * 0.65 + 0.35) + spec_flat * 255.0
+                    c.brdf_color = (
+                        min(255, max(0, int(lit_rgb[0]))),
+                        min(255, max(0, int(lit_rgb[1]))),
+                        min(255, max(0, int(lit_rgb[2]))),
+                    )
+            else:
+                base_color = np.array(BIOME_COLORS.get(c.biome, (120, 160, 100)), dtype=np.float64)
+
+                # Riparian moisture lush turf margin along rivers
+                has_river = any(e.river > 0 for e in c.borders)
+                if has_river:
+                    riparian_turf = np.array([43, 102, 38], dtype=np.float64)
+                    base_color = base_color * 0.70 + riparian_turf * 0.30
+
+                # Steep cliff rock exposure
+                slope_val = 1.0 - N[2]
+                if slope_val > 0.14:
+                    cliff_dark = np.array([66, 64, 71], dtype=np.float64)
+                    cliff_w = min(0.70, (slope_val - 0.14) / 0.20)
+                    base_color = base_color * (1.0 - cliff_w) + cliff_dark * cliff_w
+
+                lit_rgb = base_color * (total_light * 0.68)
+                c.brdf_color = (
+                    min(255, max(0, int(lit_rgb[0]))),
+                    min(255, max(0, int(lit_rgb[1]))),
+                    min(255, max(0, int(lit_rgb[2]))),
+                )
+
+    # -----------------------------------------------------------------------
+    # Mapgen2 Hydrology, Infrastructure, and Geology Methods
+    # -----------------------------------------------------------------------
+
+    def calculate_watersheds(self) -> None:
+        """Calculates watershed drainage basins for corners and centers.
+
+        Reference: amitp/mapgen2 calculateWatersheds() & watersheds.js
+        Traces downslope pointers to find the coastal outflow corner for each corner.
+        Each polygon center is assigned the watershed of its lowest elevation corner.
+        Computes catchment area size (watershed_size).
+        """
+        for cn in self.corners:
+            cn.watershed = cn
+            cn.watershed_size = 0
+            if not cn.ocean and not cn.coast and cn.downslope is not None:
+                cn.watershed = cn.downslope
+
+        # Follow downslope pointers to the coast (up to 100 iterations)
+        for _ in range(100):
+            changed = False
+            for cn in self.corners:
+                if not cn.ocean and not cn.coast and cn.watershed is not None and not cn.watershed.coast:
+                    if cn.downslope is not None and cn.downslope.watershed is not None:
+                        r = cn.downslope.watershed
+                        if not r.ocean and r != cn.watershed:
+                            cn.watershed = r
+                            changed = True
+            if not changed:
+                break
+
+        # Calculate catchment area for each watershed
+        for cn in self.corners:
+            if cn.watershed is not None:
+                cn.watershed.watershed_size += 1
+
+        # Centers take watershed of their lowest corner
+        for c in self.centers:
+            if c.corners:
+                lowest_cn = min(c.corners, key=lambda q: q.elevation)
+                c.lowest_corner = lowest_cn
+                c.watershed = lowest_cn.watershed if lowest_cn else None
+                c.watershed_size = lowest_cn.watershed.watershed_size if (lowest_cn and lowest_cn.watershed) else 0
+
+    def create_roads(self, elevation_thresholds: Optional[List[float]] = None) -> None:
+        """Creates contour-following arterial island roads dividing elevation zones.
+
+        Reference: amitp/mapgen2 Roads.as / roads.js
+        """
+        if elevation_thresholds is None:
+            elevation_thresholds = [0.0, 0.40, 0.70, 0.90]
+
+        center_contour: Dict[int, int] = {}
+        queue: deque[Center] = deque()
+
+        for c in self.centers:
+            if c.coast or c.ocean:
+                center_contour[c.index] = 1
+                queue.append(c)
+
+        while queue:
+            p = queue.popleft()
+            p_lvl = center_contour.get(p.index, 1)
+            for r in p.neighbors:
+                new_level = p_lvl
+                while new_level < len(elevation_thresholds) and r.elevation > elevation_thresholds[new_level] and not r.water:
+                    new_level += 1
+                if new_level < center_contour.get(r.index, 999):
+                    center_contour[r.index] = new_level
+                    queue.append(r)
+
+        corner_contour: Dict[int, int] = {}
+        for c in self.centers:
+            c_lvl = center_contour.get(c.index, 1)
+            c.contour = c_lvl
+            for q in c.corners:
+                prev = corner_contour.get(q.index, 999)
+                corner_contour[q.index] = min(prev, c_lvl)
+
+        for q in self.corners:
+            q.contour = corner_contour.get(q.index, 1)
+
+        # Roads go along edges between different corner contour levels
+        for edge in self.edges:
+            if edge.v0 is not None and edge.v1 is not None:
+                c0 = corner_contour.get(edge.v0.index, 1)
+                c1 = corner_contour.get(edge.v1.index, 1)
+                if c0 != c1:
+                    edge.road = min(c0, c1)
+
+    def create_lava(self, fraction: float = 0.20, min_elevation: float = 0.75, max_moisture: float = 0.35) -> None:
+        """Generates high-elevation volcanic lava fissures and flows.
+
+        Reference: amitp/mapgen2 Lava.as / lava.js
+        """
+        for edge in self.edges:
+            if edge.river == 0 and edge.d0 and edge.d1:
+                if not edge.d0.water and not edge.d1.water:
+                    if edge.d0.elevation > min_elevation and edge.d1.elevation > min_elevation:
+                        if edge.d0.moisture < max_moisture and edge.d1.moisture < max_moisture:
+                            if self.rng.random() < fraction:
+                                edge.lava = True
+
+    def build_noisy_edges(self, tradeoff: float = 0.30) -> None:
+        """Constructs recursive fractal paths for all Voronoi edges using NoisyEdges."""
+        self.noisy_edges = NoisyEdges(tradeoff=tradeoff)
+        self.noisy_edges.build_noisy_edges(self)
+
+    def get_polygon_noisy_boundary(self, center: Center) -> np.ndarray:
+        """Constructs an organic, contiguous 2D closed polygon boundary using noisy edges."""
+        if not self.noisy_edges or len(center.corners) < 3:
+            return np.array([[cn.x, cn.y] for cn in center.corners], dtype=np.float64)
+
+        poly_pts: List[np.ndarray] = []
+        corners = center.corners
+        num_c = len(corners)
+
+        for i in range(num_c):
+            c_curr = corners[i]
+            c_next = corners[(i + 1) % num_c]
+
+            # Find border edge connecting c_curr and c_next
+            edge_found: Optional[Edge] = None
+            for e in center.borders:
+                if (e.v0 == c_curr and e.v1 == c_next) or (e.v1 == c_curr and e.v0 == c_next):
+                    edge_found = e
+                    break
+
+            if edge_found and edge_found.index in self.noisy_edges.path0:
+                seg_pts = self.noisy_edges.get_edge_path(edge_found, start_corner=c_curr)
+                if seg_pts:
+                    poly_pts.extend(seg_pts[:-1])
+            else:
+                poly_pts.append(c_curr.point.copy())
+
+        if poly_pts:
+            if len(poly_pts) >= 4:
+                arr = np.array(poly_pts, dtype=np.float64)
+                prev_pts = np.roll(arr, 1, axis=0)
+                next_pts = np.roll(arr, -1, axis=0)
+                # Weighted running average for organic curvature without sharp spikes
+                smoothed = 0.20 * prev_pts + 0.60 * arr + 0.20 * next_pts
+                return np.vstack([smoothed, smoothed[0]])
+            poly_pts.append(poly_pts[0].copy())  # Close polygon
+            return np.array(poly_pts, dtype=np.float64)
+
+        return np.array([[cn.x, cn.y] for cn in center.corners], dtype=np.float64)
+
+    def get_cartographic_boundary(self, center: Center) -> np.ndarray:
+        """Constructs a smooth, regular cartographic closed 2D polygon boundary following terrain, rivers, and coasts."""
+        if len(center.corners) < 3:
+            return np.array([[cn.x, cn.y] for cn in center.corners], dtype=np.float64)
+
+        if not hasattr(self, '_carto_edge_paths'):
+            self._carto_edge_paths = {}
+
+        corners = center.corners
+        num_c = len(corners)
+        poly_pts: List[np.ndarray] = []
+
+        for i in range(num_c):
+            c_curr = corners[i]
+            c_next = corners[(i + 1) % num_c]
+
+            edge_found: Optional[Edge] = None
+            for e in center.borders:
+                if (e.v0 == c_curr and e.v1 == c_next) or (e.v1 == c_curr and e.v0 == c_next):
+                    edge_found = e
+                    break
+
+            if edge_found is not None:
+                e_idx = edge_found.index
+                if e_idx not in self._carto_edge_paths:
+                    p0 = np.array([edge_found.v0.x, edge_found.v0.y], dtype=np.float64)
+                    p1 = np.array([edge_found.v1.x, edge_found.v1.y], dtype=np.float64)
+                    edge_len = float(np.linalg.norm(p1 - p0))
+                    # Subdivide edges into increments <= 10.0 units so 3D elevation drapes smoothly over terrain
+                    n_sub = max(2, int(math.ceil(edge_len / 10.0)) + 1)
+                    t = np.linspace(0.0, 1.0, n_sub)[:, None]
+                    self._carto_edge_paths[e_idx] = (1.0 - t) * p0 + t * p1
+
+                seg = self._carto_edge_paths[e_idx]
+                if edge_found.v0 == c_curr:
+                    poly_pts.extend(seg[:-1])
+                else:
+                    poly_pts.extend(seg[::-1][:-1])
+            else:
+                poly_pts.append(np.array([c_curr.x, c_curr.y], dtype=np.float64))
+
+        if poly_pts:
+            arr = np.array(poly_pts, dtype=np.float64)
+            return np.vstack([arr, arr[0]])
+
+        return np.array([[cn.x, cn.y] for cn in center.corners], dtype=np.float64)
+
+    # -----------------------------------------------------------------------
+    # Rasterization & Shaded Relief Surface Rendering
+    # -----------------------------------------------------------------------
+
+    def render_to_surface(
+        self,
+        width: int = 1000,
+        height: int = 1000,
+        use_brdf: bool = True,
+        use_noisy_edges: bool = True,
+        show_roads: bool = True,
+        show_lava: bool = True,
+        show_watersheds: bool = False,
+        continuous_relief: bool = False,
+        render_micropolys: bool = True,
+        target_micropolys: int = 16000,
+        micropoly_roughness: float = 3.0,
+        micropoly_lateral_jitter: float = 0.20,
+        normal_smooth_ratio: float = 0.70,
+        elev_scale: float = 70.0,
+    ) -> Any:
+        """Render the polygonal map with shaded relief, noisy paths, rivers, lava, and roads onto a Pygame surface."""
+        import pygame
+        surface = pygame.Surface((width, height))
+        surface.fill((13, 36, 82) if use_brdf else (44, 78, 122))
+
+        scale_x = width / self.width
+        scale_y = height / self.height
+
+        # Light vector from northwest
+        sun_dir = np.array([-0.707, -0.707], dtype=np.float64)
+
+        # Precompute watershed distinct color palette if needed
+        watershed_colors: Dict[int, Tuple[int, int, int]] = {}
+        if show_watersheds:
+            rng_ws = random.Random(42)
+            for c in self.centers:
+                ws_id = c.watershed.index if c.watershed else 0
+                if ws_id not in watershed_colors:
+                    if c.water:
+                        watershed_colors[ws_id] = (30, 60, 110)
+                    else:
+                        r = rng_ws.randint(60, 220)
+                        g = rng_ws.randint(60, 220)
+                        b = rng_ws.randint(60, 220)
+                        watershed_colors[ws_id] = (r, g, b)
+
+        # 1. Draw base polygons for water / watersheds / fallback
+        for c in self.centers:
+            if len(c.corners) < 3:
+                continue
+
+            # If micropolys are enabled for land, skip drawing flat land polygons here
+            if render_micropolys and use_noisy_edges and self.noisy_edges and not c.water and not show_watersheds:
+                continue
+
+            if show_watersheds:
+                ws_id = c.watershed.index if c.watershed else 0
+                base_c = watershed_colors.get(ws_id, (100, 100, 100))
+                if use_brdf and not c.water:
+                    shaded_color = (
+                        min(255, int(base_c[0] * (c.total_light * 0.68))),
+                        min(255, int(base_c[1] * (c.total_light * 0.68))),
+                        min(255, int(base_c[2] * (c.total_light * 0.68))),
+                    )
+                else:
+                    shaded_color = base_c
+            elif use_brdf:
+                shaded_color = c.brdf_color
+            else:
+                base_color = BIOME_COLORS.get(c.biome, (120, 160, 100))
+                shaded_color = base_color
+
+            if use_noisy_edges and self.noisy_edges:
+                poly_np = self.get_polygon_noisy_boundary(c)
+                poly_pts = [(int(pt[0] * scale_x), int(pt[1] * scale_y)) for pt in poly_np]
+            else:
+                poly_pts = [(int(cn.x * scale_x), int(cn.y * scale_y)) for cn in c.corners]
+
+            if len(poly_pts) >= 3:
+                pygame.draw.polygon(surface, shaded_color, poly_pts)
+                if not use_noisy_edges:
+                    pygame.draw.polygon(surface, (0, 0, 0, 30 if use_brdf else 40), poly_pts, width=1)
+
+        # 1b. Render constituent micropolygons for each land cell across the ENTIRE island
+        # Reference: https://www.redblobgames.com/x/1725-procedural-elevation/#rendering
+        if render_micropolys and not show_watersheds:
+            # 1. Red Blob corner elevation enhancement:
+            # v_elevation[v] = max + alpha * (max - min) of adjacent centers
+            elevation_alpha = 0.0
+            fbm_amp = elev_scale / 70.0
+            v_elev = {}
+            for cn in self.corners:
+                if cn.ocean or cn.coast:
+                    v_elev[cn.index] = 0.0
+                else:
+                    v_elev[cn.index] = cn.elevation
+
+            # Multi-light setup (from draw-3d.js)
+            L_sun = np.array([-0.55, -0.55, 0.70], dtype=np.float64)
+            L_sun /= np.linalg.norm(L_sun)
+
+            L_fill = np.array([0.45, -0.65, 0.60], dtype=np.float64)
+            L_fill /= np.linalg.norm(L_fill)
+
+            snow_threshold = 0.82
+
+            # Watertight Dual-Mesh Base Decomposition
+            from collections import defaultdict
+            vertices: List[np.ndarray] = []
+            vertex_map: Dict[Tuple[float, float], int] = {}
+            is_boundary_vertex: Dict[int, bool] = {}
+
+            def get_or_add_vertex(pt3d: np.ndarray, is_fixed: bool = False) -> int:
+                key = (round(float(pt3d[0]), 1), round(float(pt3d[1]), 1))
+                if key in vertex_map:
+                    idx = vertex_map[key]
+                    if is_fixed:
+                        is_boundary_vertex[idx] = True
+                    return idx
+                idx = len(vertices)
+                vertices.append(np.array(pt3d, dtype=np.float64))
+                vertex_map[key] = idx
+                is_boundary_vertex[idx] = is_fixed
+                return idx
+
+            base_triangles: List[Tuple[int, int, int, np.ndarray, float, bool]] = []
+
+            for edge in self.edges:
+                d0, d1 = edge.d0, edge.d1
+                v0, v1 = edge.v0, edge.v1
+                if not d0 or not d1 or not v0 or not v1:
+                    continue
+                if d0.water and d1.water:
+                    continue
+
+                z_v0 = v_elev.get(v0.index, v0.elevation) * elev_scale
+                z_v1 = v_elev.get(v1.index, v1.elevation) * elev_scale
+
+                # Continuous multi-scale elevation variation
+                fbm_v0 = self._continuous_elevation_noise(v0.x * scale_x, v0.y * scale_y, amplitude=fbm_amp)
+                fbm_v1 = self._continuous_elevation_noise(v1.x * scale_x, v1.y * scale_y, amplitude=fbm_amp)
+                fbm_d0 = self._continuous_elevation_noise(d0.x * scale_x, d0.y * scale_y, amplitude=fbm_amp)
+                fbm_d1 = self._continuous_elevation_noise(d1.x * scale_x, d1.y * scale_y, amplitude=fbm_amp)
+
+                p_v0 = np.array([v0.x * scale_x, v0.y * scale_y, z_v0 + fbm_v0], dtype=np.float64)
+                p_v1 = np.array([v1.x * scale_x, v1.y * scale_y, z_v1 + fbm_v1], dtype=np.float64)
+                p_d0 = np.array([d0.x * scale_x, d0.y * scale_y, d0.elevation * elev_scale + fbm_d0], dtype=np.float64)
+                p_d1 = np.array([d1.x * scale_x, d1.y * scale_y, d1.elevation * elev_scale + fbm_d1], dtype=np.float64)
+
+                idx_v0 = get_or_add_vertex(p_v0, is_fixed=(v0.ocean or v0.coast))
+                idx_v1 = get_or_add_vertex(p_v1, is_fixed=(v1.ocean or v1.coast))
+                idx_d0 = get_or_add_vertex(p_d0, is_fixed=(d0.ocean or d0.coast))
+                idx_d1 = get_or_add_vertex(p_d1, is_fixed=(d1.ocean or d1.coast))
+
+                col0 = np.array(BIOME_COLORS.get(d0.biome, (120, 160, 100)), dtype=np.float64)
+                col1 = np.array(BIOME_COLORS.get(d1.biome, (120, 160, 100)), dtype=np.float64)
+                if not d1.water:
+                    col0 = col0 * 0.70 + col1 * 0.30
+                    col1 = col1 * 0.70 + col0 * 0.30
+
+                if edge.river > 0:
+                    col0 = col0 * 0.75 + np.array([35, 115, 210], dtype=np.float64) * 0.25
+                    col1 = col1 * 0.75 + np.array([35, 115, 210], dtype=np.float64) * 0.25
+                    base_triangles.append((idx_v0, idx_v1, idx_d0, col0, (z_v0 + z_v1 + d0.elevation * elev_scale) / (3.0 * elev_scale), True))
+                    base_triangles.append((idx_v1, idx_v0, idx_d1, col1, (z_v1 + z_v0 + d1.elevation * elev_scale) / (3.0 * elev_scale), True))
+                else:
+                    diag_v = np.linalg.norm(p_v0 - p_v1)
+                    diag_d = np.linalg.norm(p_d0 - p_d1)
+                    if diag_v < diag_d:
+                        if not d0.water:
+                            base_triangles.append((idx_v0, idx_v1, idx_d0, col0, (v0.elevation + v1.elevation + d0.elevation) / 3.0, False))
+                        if not d1.water:
+                            base_triangles.append((idx_v1, idx_v0, idx_d1, col1, (v0.elevation + v1.elevation + d1.elevation) / 3.0, False))
+                    else:
+                        base_triangles.append((idx_v0, idx_d1, idx_d0, col0 if not d0.water else col1, (v0.elevation + d0.elevation) * 0.5, False))
+                        base_triangles.append((idx_v1, idx_d0, idx_d1, col1 if not d1.water else col0, (v1.elevation + d1.elevation) * 0.5, False))
+
+            # Initialize vertex color dictionary
+            vertex_colors: Dict[int, np.ndarray] = {}
+            for idx_a, idx_b, idx_c, col, el, riv in base_triangles:
+                for idx in (idx_a, idx_b, idx_c):
+                    if idx not in vertex_colors:
+                        vertex_colors[idx] = col.copy()
+                    else:
+                        vertex_colors[idx] = vertex_colors[idx] * 0.5 + col * 0.5
+
+            # Edge-cached subdivision with lateral 2D and elevation 3D perturbation
+            triangles = list(base_triangles)
+            edge_midpoints: Dict[Tuple[int, int], int] = {}
+            rng = np.random.RandomState(self.seed)
+
+            def get_subdiv_midpoint(i_a: int, i_b: int, cur_depth: int) -> int:
+                edge_key = (min(i_a, i_b), max(i_a, i_b))
+                if edge_key in edge_midpoints:
+                    return edge_midpoints[edge_key]
+
+                pa = vertices[i_a]
+                pb = vertices[i_b]
+                e_xy = pb[:2] - pa[:2]
+                length = float(np.linalg.norm(e_xy))
+
+                mid = (pa + pb) * 0.5
+
+                if length > 1.5:
+                    n_perp = np.array([-e_xy[1], e_xy[0]], dtype=np.float64) / length
+                    decay = 0.70 ** cur_depth
+                    disp_lat = rng.uniform(-micropoly_lateral_jitter, micropoly_lateral_jitter) * length * decay
+                    disp_long = rng.uniform(-0.10, 0.10) * length * decay
+
+                    mid[0] += n_perp[0] * disp_lat + (e_xy[0] / length) * disp_long
+                    mid[1] += n_perp[1] * disp_lat + (e_xy[1] / length) * disp_long
+
+                    fbm_val = self._continuous_elevation_noise(mid[0], mid[1]) * (decay * 0.4)
+                    disp_z = rng.uniform(-0.5, 0.5) * micropoly_roughness * (length / 35.0) * decay + fbm_val
+                    mid[2] += disp_z
+
+                idx_mid = len(vertices)
+                vertices.append(mid)
+                is_boundary_vertex[idx_mid] = is_boundary_vertex.get(i_a, False) and is_boundary_vertex.get(i_b, False)
+
+                c_a = vertex_colors.get(i_a, np.array([120, 160, 100], dtype=np.float64))
+                c_b = vertex_colors.get(i_b, np.array([120, 160, 100], dtype=np.float64))
+                vertex_colors[idx_mid] = (c_a + c_b) * 0.5
+
+                edge_midpoints[edge_key] = idx_mid
+                return idx_mid
+
+            depth = 0
+            while len(triangles) < target_micropolys:
+                needed = target_micropolys - len(triangles)
+                num_to_split = min(len(triangles), max(1, needed // 3))
+
+                def tri_2d_area(t: Tuple[int, int, int, np.ndarray, float, bool]) -> float:
+                    p1, p2, p3 = vertices[t[0]], vertices[t[1]], vertices[t[2]]
+                    return 0.5 * abs((p2[0] - p1[0]) * (p3[1] - p1[1]) - (p3[0] - p1[0]) * (p2[1] - p1[1]))
+
+                triangles.sort(key=tri_2d_area, reverse=True)
+                to_split = triangles[:num_to_split]
+                untouched = triangles[num_to_split:]
+
+                new_triangles = list(untouched)
+                for i_a, i_b, i_c, col, el, riv in to_split:
+                    m_ab = get_subdiv_midpoint(i_a, i_b, depth)
+                    m_bc = get_subdiv_midpoint(i_b, i_c, depth)
+                    m_ca = get_subdiv_midpoint(i_c, i_a, depth)
+
+                    new_triangles.append((i_a, m_ab, m_ca, col, el, riv))
+                    new_triangles.append((i_b, m_bc, m_ab, col, el, riv))
+                    new_triangles.append((i_c, m_ca, m_bc, col, el, riv))
+                    new_triangles.append((m_ab, m_bc, m_ca, col, el, riv))
+
+                triangles = new_triangles
+
+                # Multi-level vertex relaxation: updates previous-level vertices so initial Voronoi shapes dissolve
+                adj_map: Dict[int, Set[int]] = defaultdict(set)
+                for i_a, i_b, i_c, _, _, _ in triangles:
+                    adj_map[i_a].add(i_b)
+                    adj_map[i_a].add(i_c)
+                    adj_map[i_b].add(i_a)
+                    adj_map[i_b].add(i_c)
+                    adj_map[i_c].add(i_a)
+                    adj_map[i_c].add(i_b)
+
+                relax_weight = 0.20 * (0.75 ** depth)
+                for v_idx in list(adj_map.keys()):
+                    if is_boundary_vertex.get(v_idx, False):
+                        continue
+                    neighbors = list(adj_map[v_idx])
+                    if len(neighbors) >= 3:
+                        neighbor_mean = np.mean([vertices[n] for n in neighbors], axis=0)
+                        vertices[v_idx][:2] = (1.0 - relax_weight) * vertices[v_idx][:2] + relax_weight * neighbor_mean[:2]
+                        vertices[v_idx][2] = (1.0 - relax_weight * 1.5) * vertices[v_idx][2] + (relax_weight * 1.5) * neighbor_mean[2]
+                        vertices[v_idx][2] += rng.uniform(-0.5, 0.5) * (micropoly_roughness * 0.15 * (0.65 ** depth))
+
+                depth += 1
+                if len(triangles) >= target_micropolys or num_to_split == 0:
+                    break
+
+            # Area-weighted vertex normals computation
+            vertex_normals = [np.array([0.0, 0.0, 0.0], dtype=np.float64) for _ in range(len(vertices))]
+            triangle_face_normals = []
+
+            for i_a, i_b, i_c, _, _, _ in triangles:
+                pa = vertices[i_a]
+                pb = vertices[i_b]
+                pc = vertices[i_c]
+
+                va = pb - pa
+                vb = pc - pa
+                norm = np.cross(va, vb)
+                area = float(np.linalg.norm(norm) * 0.5)
+                if norm[2] < 0:
+                    norm = -norm
+                norm_unit = norm / (area * 2.0) if area > 1e-6 else np.array([0.0, 0.0, 1.0])
+                triangle_face_normals.append(norm_unit)
+                vertex_normals[i_a] += norm_unit * area
+                vertex_normals[i_b] += norm_unit * area
+                vertex_normals[i_c] += norm_unit * area
+
+            for i in range(len(vertex_normals)):
+                vn_len = float(np.linalg.norm(vertex_normals[i]))
+                if vn_len > 1e-6:
+                    vertex_normals[i] /= vn_len
+                else:
+                    vertex_normals[i] = np.array([0.0, 0.0, 1.0])
+
+            # Rasterize all resulting micropolygons with blended normals (smooth hill shading + micro-facets)
+            for tri_idx, (idx_a, idx_b, idx_c, col_base, avg_elev, is_riv) in enumerate(triangles):
+                pa = vertices[idx_a]
+                pb = vertices[idx_b]
+                pc = vertices[idx_c]
+
+                face_norm = triangle_face_normals[tri_idx]
+                avg_vert_norm = (vertex_normals[idx_a] + vertex_normals[idx_b] + vertex_normals[idx_c]) / 3.0
+                vn_len = float(np.linalg.norm(avg_vert_norm))
+                if vn_len > 1e-6:
+                    avg_vert_norm /= vn_len
+                else:
+                    avg_vert_norm = face_norm
+
+                blended_norm = avg_vert_norm * normal_smooth_ratio + face_norm * (1.0 - normal_smooth_ratio)
+                bn_len = float(np.linalg.norm(blended_norm))
+                if bn_len > 1e-6:
+                    blended_norm /= bn_len
+
+                NdotL_sun = max(0.0, float(np.dot(blended_norm, L_sun)))
+                NdotL_fill = max(0.0, float(np.dot(blended_norm, L_fill)))
+                diffuse_sun = 0.44 * math.pow(NdotL_sun, 1.15)
+                diffuse_fill = 0.14 * NdotL_fill
+                ambient = 0.68 + 0.12 * (blended_norm[2] - 0.7)
+                shade = ambient + diffuse_sun + diffuse_fill
+
+                col = (vertex_colors.get(idx_a, col_base) + vertex_colors.get(idx_b, col_base) + vertex_colors.get(idx_c, col_base)) / 3.0
+                slope_val = 1.0 - blended_norm[2]
+                if slope_val > 0.14:
+                    cliff_w = min(0.60, (slope_val - 0.14) / 0.22)
+                    col = col * (1.0 - cliff_w) + np.array([66, 64, 71], dtype=np.float64) * cliff_w
+
+                if avg_elev > snow_threshold:
+                    snow_w = min(0.95, math.pow((avg_elev - snow_threshold) / (1.0 - snow_threshold), 2.0))
+                    col = col * (1.0 - snow_w) + np.array([242, 244, 250], dtype=np.float64) * snow_w
+
+                shaded_rgb = col * shade
+                for k in range(3):
+                    if shaded_rgb[k] > 220.0:
+                        shaded_rgb[k] = 220.0 + (shaded_rgb[k] - 220.0) * 0.35
+
+                final_rgb = (
+                    min(248, max(0, int(shaded_rgb[0]))),
+                    min(248, max(0, int(shaded_rgb[1]))),
+                    min(248, max(0, int(shaded_rgb[2]))),
+                )
+
+                pts2d = [(int(pa[0]), int(pa[1])), (int(pb[0]), int(pb[1])), (int(pc[0]), int(pc[1]))]
+                if len(pts2d) >= 3:
+                    pygame.draw.polygon(surface, final_rgb, pts2d)
+
+        # 1c. Optional continuous cartographic relief overlay (only when micropolys are disabled)
+        if continuous_relief and not render_micropolys and use_brdf and not show_watersheds and len(self.centers) > 0:
+            try:
+                buf = pygame.image.tostring(surface, "RGB")
+                img = np.frombuffer(buf, dtype=np.uint8).reshape((height, width, 3)).astype(np.float32)
+
+                pts = [[c.x, c.y] for c in self.centers] + [[cn.x, cn.y] for cn in self.corners]
+                elevs = [c.elevation for c in self.centers] + [cn.elevation for cn in self.corners]
+
+                interp = LinearNDInterpolator(np.array(pts, dtype=np.float32), np.array(elevs, dtype=np.float32))
+                gy, gx = np.mgrid[0:self.height:height*1j, 0:self.width:width*1j]
+                H = np.nan_to_num(interp(gx, gy), nan=0.0)
+
+                sigma = max(2.0, min(width, height) / 200.0)
+                H_smooth = gaussian_filter(H, sigma=sigma)
+
+                dHy, dHx = np.gradient(H_smooth)
+                kh = 40.0 * (min(width, height) / 1000.0)
+                nx = -dHx * kh
+                ny = -dHy * kh
+                nz = np.ones_like(nx)
+                norm = np.sqrt(nx * nx + ny * ny + nz * nz)
+                nx /= norm
+                ny /= norm
+                nz /= norm
+
+                L = np.array([-0.55, -0.55, 0.70], dtype=np.float64)
+                L /= np.linalg.norm(L)
+                NdotL = np.clip(nx * L[0] + ny * L[1] + nz * L[2], 0.0, 1.0)
+
+                sun_diffuse = 0.15 * np.power(NdotL, 1.2)
+                ambient = 0.85 + 0.10 * (nz - 0.7)
+                hillshade = ambient + sun_diffuse
+
+                rng = np.random.RandomState(self.seed)
+                micro_noise = (rng.rand(height, width) - 0.5) * 0.02
+                hillshade = np.clip(hillshade + micro_noise, 0.70, 1.15)
+
+                is_land = H > 0.16
+                for ch in range(3):
+                    val = img[:, :, ch] * hillshade
+                    val = np.where(val > 220.0, 220.0 + (val - 220.0) * 0.35, val)
+                    img[:, :, ch] = np.where(
+                        is_land,
+                        np.clip(val, 0, 246),
+                        img[:, :, ch]
+                    )
+
+                surface = pygame.image.fromstring(img.astype(np.uint8).tobytes(), (width, height), "RGB")
+            except Exception:
+                pass
+
+        def _smooth_edge_pts(path_pts: List[np.ndarray]) -> List[Tuple[int, int]]:
+            if len(path_pts) >= 4:
+                arr = np.array(path_pts, dtype=np.float64)
+                prev_p = np.roll(arr, 1, axis=0)
+                next_p = np.roll(arr, -1, axis=0)
+                sm = 0.20 * prev_p + 0.60 * arr + 0.20 * next_p
+                sm[0] = arr[0]
+                sm[-1] = arr[-1]
+                return [(int(p[0] * scale_x), int(p[1] * scale_y)) for p in sm]
+            return [(int(p[0] * scale_x), int(p[1] * scale_y)) for p in path_pts]
+
+        # 2. Draw rivers along noisy paths with specular highlight
+        river_base = (56, 138, 220) if use_brdf else (68, 140, 210)
+        for e in self.edges:
+            if e.river > 0 and e.v0 and e.v1:
+                w_line = min(8, max(1, int(1 + math.log2(e.river + 1))))
+                if use_noisy_edges and self.noisy_edges:
+                    pts = self.noisy_edges.get_edge_path(e, start_corner=e.v0)
+                    line_pts = _smooth_edge_pts(pts)
+                    if len(line_pts) >= 2:
+                        pygame.draw.lines(surface, river_base, False, line_pts, width=w_line)
+                else:
+                    p0 = (int(e.v0.x * scale_x), int(e.v0.y * scale_y))
+                    p1 = (int(e.v1.x * scale_x), int(e.v1.y * scale_y))
+                    pygame.draw.line(surface, river_base, p0, p1, width=w_line)
+
+        # 3. Draw lava fissures
+        if show_lava:
+            lava_outer = (180, 32, 16)
+            lava_core = (255, 190, 32)
+            for e in self.edges:
+                if getattr(e, 'lava', False) and e.v0 and e.v1:
+                    if use_noisy_edges and self.noisy_edges:
+                        pts = self.noisy_edges.get_edge_path(e, start_corner=e.v0)
+                        line_pts = _smooth_edge_pts(pts)
+                        if len(line_pts) >= 2:
+                            pygame.draw.lines(surface, lava_outer, False, line_pts, width=4)
+                            pygame.draw.lines(surface, lava_core, False, line_pts, width=2)
+                    else:
+                        p0 = (int(e.v0.x * scale_x), int(e.v0.y * scale_y))
+                        p1 = (int(e.v1.x * scale_x), int(e.v1.y * scale_y))
+                        pygame.draw.line(surface, lava_outer, p0, p1, width=4)
+                        pygame.draw.line(surface, lava_core, p0, p1, width=2)
+
+        # 4. Draw contour roads
+        if show_roads:
+            road_color = (195, 170, 125) if use_brdf else (170, 140, 100)
+            for e in self.edges:
+                if getattr(e, 'road', 0) > 0 and e.v0 and e.v1:
+                    # Do not draw roads through ocean
+                    if (e.d0 and e.d0.ocean) and (e.d1 and e.d1.ocean):
+                        continue
+                    if use_noisy_edges and self.noisy_edges:
+                        pts = self.noisy_edges.get_edge_path(e, start_corner=e.v0)
+                        line_pts = _smooth_edge_pts(pts)
+                        if len(line_pts) >= 2:
+                            pygame.draw.lines(surface, road_color, False, line_pts, width=2)
+                    else:
+                        p0 = (int(e.v0.x * scale_x), int(e.v0.y * scale_y))
+                        p1 = (int(e.v1.x * scale_x), int(e.v1.y * scale_y))
+                        pygame.draw.line(surface, road_color, p0, p1, width=2)
+
+        # 5. Draw coastline contours
+        coast_color = (18, 55, 95) if use_brdf else (25, 45, 75)
+        for e in self.edges:
+            if e.v0 and e.v1 and e.d0 and e.d1:
+                if (e.d0.ocean != e.d1.ocean) or (e.d0.water != e.d1.water):
+                    if use_noisy_edges and self.noisy_edges:
+                        pts = self.noisy_edges.get_edge_path(e, start_corner=e.v0)
+                        line_pts = _smooth_edge_pts(pts)
+                        if len(line_pts) >= 2:
+                            pygame.draw.lines(surface, coast_color, False, line_pts, width=2)
+                    else:
+                        p0 = (int(e.v0.x * scale_x), int(e.v0.y * scale_y))
+                        p1 = (int(e.v1.x * scale_x), int(e.v1.y * scale_y))
+                        pygame.draw.line(surface, coast_color, p0, p1, width=2)
+
+        return surface
+
+    def export_wireframe_usdz(
+        self,
+        usdz_path: str,
+        target_micropolys: int = 16000,
+        wire_width: float = 0.8,
+        elev_scale: float = 70.0,
+        roughness: float = 3.0,
+        lateral_jitter: float = 0.22,
+        normal_smooth_ratio: float = 0.70,
+    ) -> str:
+        """
+        Export a 3D wireframe USDZ package directly from PolygonMapGenerator.
+        Generates micropoly terrain and wraps edges into double-sided quad struts
+        colored by Whittaker biomes, oriented Y-up for Apple Quick Look and RealityKit.
+        """
+        try:
+            from render_island_micropolys import build_island_mesh, export_island_wireframe_usdz
+        except ImportError:
+            import sys
+            import os
+            sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+            from render_island_micropolys import build_island_mesh, export_island_wireframe_usdz
+
+        triangles, _ = build_island_mesh(
+            self,
+            width=int(self.width),
+            height=int(self.height),
+            mode="fractal",
+            target_polys=target_micropolys,
+            roughness=roughness,
+            lateral_jitter=lateral_jitter,
+            normal_smooth_ratio=normal_smooth_ratio,
+            elev_scale=elev_scale,
+        )
+        return export_island_wireframe_usdz(self, triangles, usdz_path, wire_width=wire_width)
+
+
