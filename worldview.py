@@ -181,7 +181,10 @@ def _draw_cached_map(surface, world, font, font_small):
             map_surface = pygame.Surface((WIDTH, HEIGHT), depth=24)
         label_surface = world.get('_ui_map_label_surface')
         if label_surface is None:
-            label_surface = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA).convert_alpha()
+            try:
+                label_surface = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA).convert_alpha()
+            except pygame.error:
+                label_surface = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
             world['_ui_map_label_surface'] = label_surface
         label_surface.fill((0, 0, 0, 0))
         world['_map_label_target'] = label_surface
