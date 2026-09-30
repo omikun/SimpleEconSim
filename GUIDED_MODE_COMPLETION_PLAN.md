@@ -58,15 +58,15 @@ The historical setting supplies people, institutions, and places. The campaign's
 
 ### Phase 3 — Guided briefing, pressure cards, and map focus
 
-**Status: In progress**
+**Status: Complete (scenario briefing and action panel)**
 
-- Replace generic nation diagnostics with the scenario's three authored pressures and plain-language causal summaries.
-- Add a short opening briefing, objective, turn/debt-service timeline, recommended first action, and focused map overlays.
-- Make decision controls perform scenario actions; keep detailed accounting and specialist panels in Analysis.
+- Replace generic nation diagnostics with three scenario pressures: household maize access, the debt-service window, and political support.
+- Add a short opening briefing, objective/turn tracker, payment countdown, recommended first action, and stable place labels. Mark the shared generated geography as schematic.
+- Connect decision buttons to scenario actions; keep detailed accounting and specialist panels in Analysis.
 - Handle narrow panel widths, long text, unavailable actions, hover/focus, and keyboard/mouse interaction without clipping or dead links.
 - Preserve the full Advanced composition and mode preference.
 
-**Acceptance:** A new player can identify the crisis, one recommended response, and the consequence of at least one alternative without opening Analysis.
+**Acceptance:** The Guided panel shows the crisis, three headline pressures, one suggested response, and legal action buttons without opening Analysis; the existing analysis panels remain available.
 
 ### Phase 4 — Campaign progression and debrief
 

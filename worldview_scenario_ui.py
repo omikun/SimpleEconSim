@@ -10,6 +10,8 @@ from worldview_ui import get_font
 
 def scenario_pressures(world: dict) -> list[dict]:
     """Build a compact set of readable national pressures from current sim state."""
+    if world.get('scenario_id') == 'egypt_1877':
+        return _egypt_scenario_pressures(world)
     nation = world.get('selected_nation')
     if nation is None:
         nation = next((n for n in world.get('nations', []) if n.name == world.get('player_nation_name')), None)
@@ -60,6 +62,42 @@ def scenario_pressures(world: dict) -> list[dict]:
     ]
 
 
+def _egypt_scenario_pressures(world: dict) -> list[dict]:
+    nation = next((n for n in world.get('nations', []) if n.name == world.get('player_nation_name')), None)
+    if nation is None:
+        return [{'title': 'Government unavailable', 'value': 'Select the Egyptian administration.',
+                 'cause': 'The scenario needs a player government.', 'tone': 'urgent'}]
+    state = world.get('scenario_state', {})
+    people = [a for tile in nation.tiles for a in getattr(tile, 'agents', [])
+              if getattr(a, 'alive', True) and not getattr(a, 'is_government', False)
+              and not getattr(a, 'is_corporation', False) and not getattr(a, 'is_trader', False)]
+    hungry = sum(1 for a in people if getattr(a, 'hungry_steps', 0) > 0)
+    hunger_rate = hungry / max(1, len(people))
+    stock = int(getattr(nation.government, 'food_inventory', 0))
+    stock_turns = stock / max(1, int(state.get('relief_units_per_turn', 30)))
+    food_tone = 'urgent' if hunger_rate >= 0.15 else ('warning' if stock_turns < 2 else 'good')
+    food_value = f'{hunger_rate:.0%} hungry • {stock_turns:.1f} turns of public maize'
+    food_cause = 'Reserve release can feed households; it uses finite state stores.'
+
+    payment_turn = int(state.get('payment_window_turn', 6))
+    remaining = max(0, payment_turn - int(world.get('turn', 0)))
+    payment_status = state.get('payment_status', 'upcoming')
+    debt_value = f'{payment_status.title()} • {remaining} turns to payment window'
+    confidence = float(state.get('creditor_confidence', 0.6))
+    debt_tone = 'urgent' if payment_status == 'deferred' or (remaining <= 1 and payment_status != 'paid') else 'warning'
+    debt_cause = f'Creditor confidence {confidence:.0%}; payment draws from the treasury.'
+
+    unrest = sum(float(getattr(r, 'unrest_level', 0.0)) for r in nation.tiles) / max(1, len(nation.tiles))
+    legitimacy = float(getattr(nation, 'legitimacy', 0.5))
+    political_tone = 'urgent' if legitimacy < 0.30 or unrest >= 0.6 else ('warning' if legitimacy < 0.5 or unrest >= 0.3 else 'good')
+    return [
+        {'title': 'Household maize access', 'value': food_value, 'cause': food_cause, 'tone': food_tone},
+        {'title': 'Debt service', 'value': debt_value, 'cause': debt_cause, 'tone': debt_tone},
+        {'title': 'Political support', 'value': f'Legitimacy {legitimacy:.0%} • unrest {unrest:.2f}',
+         'cause': 'Hunger and heavier taxes can erode support.', 'tone': political_tone},
+    ]
+
+
 def draw_guided_header(surface, world: dict, font_small, mouse_pos=None) -> None:
     """Draw turn objective and simple composition controls above the map."""
     pygame.draw.rect(surface, (21, 25, 34), (0, TOP_BAR_H, MAP_RIGHT, 48))
@@ -102,6 +140,9 @@ def draw_guided_header(surface, world: dict, font_small, mouse_pos=None) -> None
 
 def draw_pressure_panel(surface, world: dict, mouse_pos=None) -> None:
     """Show three priority pressures in a narrow readable right-side stack."""
+    if world.get('scenario_id') == 'egypt_1877':
+        _draw_egypt_scenario_panel(surface, world, mouse_pos=mouse_pos)
+        return
     x, y, w = MAP_RIGHT + 10, TOP_BAR_H + 14, WIDTH - MAP_RIGHT - 20
     h = HEIGHT - TOP_BAR_H - TICKER_H - 28
     pygame.draw.rect(surface, (25, 28, 38), (x, y, w, h), border_radius=7)
@@ -166,6 +207,106 @@ def draw_pressure_panel(surface, world: dict, mouse_pos=None) -> None:
         surface.blit(hint, (x + 14, y + h - 24))
 
 
+def _wrap_text(text: str, font, max_width: int) -> list[str]:
+    lines = []
+    line = ''
+    for word in str(text).split():
+        trial = f'{line} {word}'.strip()
+        if line and font.size(trial)[0] > max_width:
+            lines.append(line)
+            line = word
+        else:
+            line = trial
+    if line:
+        lines.append(line)
+    return lines
+
+
+def _draw_egypt_scenario_panel(surface, world: dict, mouse_pos=None) -> None:
+    """Scenario-first briefing, three pressures, and focused action choices."""
+    from ui_targets import register_target
+    x, y, w = MAP_RIGHT + 10, TOP_BAR_H + 14, WIDTH - MAP_RIGHT - 20
+    h = HEIGHT - TOP_BAR_H - TICKER_H - 28
+    pygame.draw.rect(surface, (25, 28, 38), (x, y, w, h), border_radius=7)
+    pygame.draw.rect(surface, (58, 66, 86), (x, y, w, h), 1, border_radius=7)
+    title_font, body_font, small_font = get_font(23), get_font(17), get_font(14)
+    nation = next((n for n in world.get('nations', []) if n.name == world.get('player_nation_name')), None)
+    name = getattr(nation, 'display_name', 'Khedivate of Egypt')
+    surface.blit(title_font.render('Situation', True, TEXT), (x + 14, y + 12))
+    surface.blit(small_font.render(name, True, ACCENT), (x + 14, y + 39))
+
+    cur_y = y + 61
+    briefing = world.get('scenario', {}).get('briefing', ('',))[0]
+    brief_rect = pygame.Rect(x + 9, cur_y, w - 18, 86)
+    pygame.draw.rect(surface, (32, 37, 50), brief_rect, border_radius=5)
+    pygame.draw.rect(surface, (75, 91, 119), brief_rect, 1, border_radius=5)
+    for idx, line in enumerate(_wrap_text(briefing, small_font, brief_rect.w - 18)[:4]):
+        surface.blit(small_font.render(line, True, TEXT if idx < 3 else DIM), (brief_rect.x + 9, brief_rect.y + 8 + idx * 17))
+    cur_y = brief_rect.bottom + 8
+
+    colors = {'urgent': (226, 102, 94), 'warning': (225, 178, 87), 'good': (112, 205, 145), 'neutral': (140, 160, 195)}
+    for pressure in scenario_pressures(world):
+        card_h = 68
+        rect = pygame.Rect(x + 9, cur_y, w - 18, card_h)
+        color = colors.get(pressure['tone'], ACCENT)
+        pygame.draw.rect(surface, (34, 38, 51), rect, border_radius=5)
+        pygame.draw.rect(surface, color, rect, 1, border_radius=5)
+        surface.blit(small_font.render(pressure['title'], True, color), (rect.x + 9, rect.y + 6))
+        surface.blit(small_font.render(pressure['value'], True, TEXT), (rect.x + 9, rect.y + 25))
+        cause = _wrap_text(pressure['cause'], get_font(12), rect.w - 18)
+        if cause:
+            surface.blit(get_font(12).render(cause[0], True, DIM), (rect.x + 9, rect.y + 46))
+        cur_y += card_h + 5
+
+    cur_y += 4
+    state = world.get('scenario_state', {})
+    turn = int(world.get('turn', 0))
+    spent = state.get('last_action_turn') == turn
+    stock = int(getattr(getattr(nation, 'government', None), 'food_inventory', 0)) if nation else 0
+    suggested = 'Release maize reserves' if stock > 0 else 'Keep more food in Egypt'
+    surface.blit(get_font(13).render(f'Suggested first move: {suggested}', True, ACCENT), (x + 13, cur_y))
+    cur_y += 19
+    surface.blit(body_font.render('Choose one decision this turn', True, TEXT), (x + 13, cur_y))
+    cur_y += 24
+    payment_ready = turn >= int(state.get('payment_window_turn', 6)) and state.get('payment_status') in ('upcoming', 'unpaid')
+    actions = [
+        ('release_maize', 'Release maize reserves', 'Use public stores to feed households', stock > 0),
+        ('prioritize_domestic_grain', 'Keep more food in Egypt', 'Retain half of food exports in granaries', not state.get('domestic_grain_priority', False)),
+        ('reduce_fellahin_tax', 'Reduce local taxes', 'Ease pressure; lower future tax receipts', not state.get('tax_relief_enacted', False)),
+    ]
+    if payment_ready:
+        actions.extend([
+            ('pay_remittance', 'Pay debt service', 'Transfer treasury funds to creditors', True),
+            ('defer_remittance', 'Defer debt service', 'Keep cash now; risk creditor confidence', True),
+        ])
+    mx, my = mouse_pos if mouse_pos else (-1, -1)
+    for action_id, label, detail, available in actions:
+        button_h = 44
+        rect = (x + 9, cur_y, w - 18, button_h)
+        enabled = available and not spent
+        if enabled:
+            register_target(world, rect, ('scenario_action', action_id), scope='guided')
+        hover = rect[0] <= mx <= rect[0] + rect[2] and rect[1] <= my <= rect[1] + rect[3]
+        bg = (52, 66, 88) if hover and enabled else ((37, 44, 59) if enabled else (30, 33, 42))
+        edge = ACCENT if hover and enabled else ((80, 96, 124) if enabled else (53, 58, 70))
+        pygame.draw.rect(surface, bg, rect, border_radius=4)
+        pygame.draw.rect(surface, edge, rect, 1, border_radius=4)
+        color = TEXT if enabled else DIM
+        surface.blit(small_font.render(label, True, color), (rect[0] + 9, rect[1] + 5))
+        surface.blit(get_font(12).render(detail, True, DIM), (rect[0] + 9, rect[1] + 24))
+        cur_y += button_h + 5
+
+    message = world.get('scenario_feedback', '')
+    if message:
+        lines = _wrap_text(message, get_font(12), w - 28)
+        for idx, line in enumerate(lines[:2]):
+            surface.blit(get_font(12).render(line, True, ACCENT), (x + 14, y + h - 31 + idx * 14))
+    elif spent:
+        surface.blit(get_font(12).render('Decision recorded. Advance a turn to see its effects.', True, DIM), (x + 14, y + h - 24))
+    else:
+        surface.blit(get_font(12).render('Select a district to inspect its details.', True, DIM), (x + 14, y + h - 24))
+
+
 def draw_guided_frame(surface, world: dict, font, font_small, mouse_pos=None) -> None:
     """Compose Guided mode from reusable overview components."""
     from worldview import _draw_cached_map  # lazy import avoids module-load cycle
@@ -184,7 +325,7 @@ def draw_guided_frame(surface, world: dict, font, font_small, mouse_pos=None) ->
     draw_pressure_panel(surface, world, mouse_pos=mouse_pos)
     draw_ticker(surface, world, font_small)
 
-    notice = get_font(16).render('Guided overview • Nile failure and debt-service crisis scenario', True, DIM)
+    notice = get_font(16).render('Egypt 1877 • Schematic map; place labels mark scenario roles', True, DIM)
     surface.blit(notice, (18, HEIGHT - TICKER_H - 24))
 
     if world.get('guided_analysis_open'):
@@ -267,6 +408,12 @@ def guided_ui_hit(pos, world: dict) -> bool:
     elif isinstance(action, tuple) and action[0] == 'analysis_tab':
         world['analysis_tab'] = action[1]
         world['guided_analysis_open'] = True
+    elif isinstance(action, tuple) and action[0] == 'scenario_action':
+        from scenario_egypt_1877 import apply_action
+        ok, message = apply_action(world, action[1])
+        world['scenario_feedback'] = message
+        if not ok:
+            world['scenario_feedback'] = f"Not enacted: {message}"
     elif action == 'open_debt_analysis':
         world['debt_panel_open'] = True
         world['left_panel'] = 'debt'

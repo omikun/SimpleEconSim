@@ -19,10 +19,9 @@ SCENARIO = {
     "locations": ("Cairo", "Nile Delta", "Upper Egypt", "Alexandria"),
     "institutions": ("Caisse de la Dette Publique",),
     "briefing": (
-        "A very low Nile has put the maize harvest at risk. Cairo's relief stores "
-        "are limited, while Egypt's assigned revenues and export receipts are "
-        "already tied to debt service overseen by the Caisse. Decide what food "
-        "to release, what revenue to protect, and whose burden will rise.",
+        "A weak Nile flood threatens the maize harvest. Cairo's relief stores are "
+        "limited, and assigned revenues support debt service overseen by the "
+        "Caisse. Choose what food to release and whose claims to protect.",
     ),
     "horizon_turns": 20,
     "relief_stock_turns": 4,
