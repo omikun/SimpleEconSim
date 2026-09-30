@@ -373,7 +373,7 @@ def draw_guided_frame(surface, world: dict, font, font_small, mouse_pos=None) ->
     draw_pressure_panel(surface, world, mouse_pos=mouse_pos)
     draw_ticker(surface, world, font_small)
 
-    notice = get_font(16).render('Egypt 1877 • Schematic map; place labels mark scenario roles', True, DIM)
+    notice = get_font(16).render('Egypt 1877 • Generated Nile and coast; outline is schematic', True, DIM)
     surface.blit(notice, (18, HEIGHT - TICKER_H - 24))
 
     if world.get('guided_analysis_open'):

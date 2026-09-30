@@ -159,6 +159,9 @@ def build_world_voronoi(
             enable_lava=False,
             enable_noisy_edges=True,
         )
+    if scenario_id == "egypt_1877":
+        from scenario_egypt_1877 import shape_nile_delta
+        shape_nile_delta(gen)
     gen.slot_1_state = slot_state
 
     tiles: List[Region] = []
@@ -205,6 +208,11 @@ def build_world_voronoi(
             nbr_tile = by_name[f"c{n.index}"]
             tile.adjacent_tiles[nbr_tile.name] = nbr_tile
 
+    egypt_geography = None
+    if scenario_id == "egypt_1877":
+        from scenario_egypt_1877 import choose_egypt_geography
+        egypt_geography = choose_egypt_geography(tiles, gen)
+
     # 3. Starting Global Powers claim contiguous Voronoi clusters strictly on land
     if num_nations == 3:
         claimed_by = get_starting_nations_claimed_by(seed=nation_seed, scenario_id=scenario_id)
@@ -236,47 +244,54 @@ def build_world_voronoi(
         if not open_tiles:
             break
 
-        # Pick seed: prefer fertile lowlands/coasts with central distance
-        open_tiles.sort(key=lambda t: (
-            t.elevation >= 0.70,  # avoid high mountains as capital
-            abs(t.centroid[0] - VORONOI_WIDTH / 2.0) + abs(t.centroid[1] - VORONOI_HEIGHT / 2.0)
-        ))
-        # Choose among top candidates with randomness
-        cand_pool = open_tiles[:max(1, len(open_tiles) // 3)]
-        seed_tile = rng_nation.choice(cand_pool)
+        if nname == "Egypt" and egypt_geography is not None:
+            # Keep the authored capital and river corridor on the actual terrain.
+            cluster_names = sorted(egypt_geography,
+                                   key=lambda name: (egypt_geography[name] != "Cairo", name))
+            if len(cluster_names) != n_tiles:
+                raise ValueError("Egypt's territory count must match its authored geography.")
+            for tile_name, role in egypt_geography.items():
+                by_name[tile_name].scenario_location = role
+        else:
+            # Pick seed: prefer fertile lowlands/coasts with central distance
+            open_tiles.sort(key=lambda t: (
+                t.elevation >= 0.70,  # avoid high mountains as capital
+                abs(t.centroid[0] - VORONOI_WIDTH / 2.0) + abs(t.centroid[1] - VORONOI_HEIGHT / 2.0)
+            ))
+            cand_pool = open_tiles[:max(1, len(open_tiles) // 3)]
+            seed_tile = rng_nation.choice(cand_pool)
 
-        # Graph BFS cluster growth over land neighbors
-        cluster_names: List[str] = [seed_tile.name]
-        frontier_names: List[str] = [seed_tile.name]
-        seen: Set[str] = {seed_tile.name}
+            # Graph BFS cluster growth over land neighbors
+            cluster_names: List[str] = [seed_tile.name]
+            frontier_names: List[str] = [seed_tile.name]
+            seen: Set[str] = {seed_tile.name}
 
-        while len(cluster_names) < n_tiles:
-            grown = False
-            rng_nation.shuffle(frontier_names)
-            for curr_name in list(frontier_names):
-                curr = by_name[curr_name]
-                nbrs = [by_name[n_name] for n_name in curr.adjacent_tiles.keys()]
-                valid_nbrs = [nbr for nbr in nbrs
-                              if not nbr.is_ocean and nbr.name not in seen and getattr(nbr, 'owner_nation', None) is None]
-                # Prioritize river corridors and lowland basins for natural territorial growth
-                valid_nbrs.sort(key=lambda x: (not x.is_river_corridor, x.elevation))
-                for nbr in valid_nbrs:
-                    seen.add(nbr.name)
-                    cluster_names.append(nbr.name)
-                    frontier_names.append(nbr.name)
-                    grown = True
+            while len(cluster_names) < n_tiles:
+                grown = False
+                rng_nation.shuffle(frontier_names)
+                for curr_name in list(frontier_names):
+                    curr = by_name[curr_name]
+                    nbrs = [by_name[n_name] for n_name in curr.adjacent_tiles.keys()]
+                    valid_nbrs = [nbr for nbr in nbrs
+                                  if not nbr.is_ocean and nbr.name not in seen and getattr(nbr, 'owner_nation', None) is None]
+                    valid_nbrs.sort(key=lambda x: (not x.is_river_corridor, x.elevation))
+                    for nbr in valid_nbrs:
+                        seen.add(nbr.name)
+                        cluster_names.append(nbr.name)
+                        frontier_names.append(nbr.name)
+                        grown = True
+                        if len(cluster_names) >= n_tiles:
+                            break
                     if len(cluster_names) >= n_tiles:
                         break
-                if len(cluster_names) >= n_tiles:
-                    break
-            if not grown:
-                remaining_open = [t for t in _unclaimed_land_tiles() if t.name not in seen]
-                if not remaining_open:
-                    break
-                extra = remaining_open[0]
-                seen.add(extra.name)
-                cluster_names.append(extra.name)
-                frontier_names.append(extra.name)
+                if not grown:
+                    remaining_open = [t for t in _unclaimed_land_tiles() if t.name not in seen]
+                    if not remaining_open:
+                        break
+                    extra = remaining_open[0]
+                    seen.add(extra.name)
+                    cluster_names.append(extra.name)
+                    frontier_names.append(extra.name)
 
         # 4. Balanced Provinces: split cluster into 1-2 balanced contiguous sub-provinces
         cluster_tiles = [by_name[cname] for cname in cluster_names]
@@ -321,6 +336,8 @@ def build_world_voronoi(
                 claimed.is_ocean = old_tile.is_ocean
                 claimed.is_coast = old_tile.is_coast
                 claimed.is_river_corridor = old_tile.is_river_corridor
+                if hasattr(old_tile, "scenario_location"):
+                    claimed.scenario_location = old_tile.scenario_location
 
                 tiles[idx] = claimed
                 by_name[claimed.name] = claimed
@@ -329,6 +346,10 @@ def build_world_voronoi(
                 prov.add_tile(claimed)
                 n.add_tile(claimed)
             n.provinces.append(prov)
+
+        if nname == "Egypt" and egypt_geography is not None:
+            n.tiles.sort(key=lambda tile: (getattr(tile, "scenario_location", "") != "Cairo",
+                                           tile.name))
 
         # Update adjacent_tiles references immediately after claiming nation
         for t in tiles:

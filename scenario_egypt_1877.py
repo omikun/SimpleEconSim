@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from copy import deepcopy
+from heapq import heappop, heappush
+from math import hypot
 import random
 from goods import Goods
 
@@ -79,6 +81,135 @@ def deterministic_generation(seed: int):
     finally:
         random.setstate(random_state)
         rand._seed, rand._idx, rand._buf = cache_state
+
+
+def _nile_mainstem(gen):
+    """Use a long river that reaches the northern coast of the generated island."""
+    mouths = [path for path in gen.river_paths
+              if len(path) >= 8 and path[-1][4] >= 1.0]
+    if not mouths:
+        raise ValueError("Egypt's map needs a river reaching the northern coast.")
+    # The renderer projects increasing world y toward the top of the screen.
+    return max(mouths, key=lambda path: (path[-1][1], len(path), -path[-1][0]))
+
+
+def shape_nile_delta(gen) -> None:
+    """Give the scenario's north-flowing river a second coastal outlet."""
+    if hasattr(gen, "scenario_nile_outlets"):
+        return
+    mainstem = _nile_mainstem(gen)
+    corners = {(corner.x, corner.y): corner for corner in gen.corners}
+    main_corners = [corners[(point[0], point[1])] for point in mainstem]
+    gen.scenario_nile_mainstem = mainstem
+    mouth = main_corners[-1]
+    fork = main_corners[-5]
+    main_set = set(main_corners)
+    queue = [(0.0, fork.index, fork)]
+    distances = {fork: 0.0}
+    previous = {}
+    outlet = None
+    while queue:
+        cost, _, corner = heappop(queue)
+        if cost != distances[corner]:
+            continue
+        if corner.ocean:
+            separation = hypot(corner.x - mouth.x, corner.y - mouth.y)
+            if (65.0 <= separation <= 145.0 and corner.x > mouth.x + 65.0
+                    and corner.y > mouth.y - 65.0):
+                outlet = corner
+                break
+            continue
+        for neighbor in corner.adjacent:
+            if neighbor in main_set and neighbor is not fork:
+                continue
+            if neighbor.x < fork.x - 15.0 or neighbor.y < fork.y - 25.0:
+                continue
+            edge = next((edge for edge in corner.protrudes
+                         if edge.v0 is neighbor or edge.v1 is neighbor), None)
+            if edge is None or edge.river or (neighbor.river and neighbor is not fork):
+                continue
+            step = hypot(neighbor.x - corner.x, neighbor.y - corner.y)
+            new_cost = cost + step + max(0.0, neighbor.elevation - corner.elevation) * 80.0
+            if new_cost < distances.get(neighbor, float("inf")) and new_cost < 300.0:
+                distances[neighbor] = new_cost
+                previous[neighbor] = (corner, edge)
+                heappush(queue, (new_cost, neighbor.index, neighbor))
+    if outlet is None:
+        raise ValueError("Egypt's river needs a second coastal outlet for its delta.")
+
+    branch = [outlet]
+    while branch[-1] is not fork:
+        parent, edge = previous[branch[-1]]
+        edge.river = max(edge.river, 1)
+        branch[-1].river = max(branch[-1].river, 1)
+        branch.append(parent)
+    branch.reverse()
+    gen.river_paths.append([(corner.x, corner.y, corner.elevation,
+                             float(corner.river), 1.0 if corner is outlet else 0.0)
+                            for corner in branch])
+    gen.scenario_nile_outlets = (mouth, outlet)
+
+
+def choose_egypt_geography(tiles, gen) -> dict[str, str]:
+    """Claim a connected Nile corridor with Cairo inland and the Delta at the mouth."""
+    mainstem = gen.scenario_nile_mainstem
+    path_coords = [(point[0], point[1]) for point in mainstem]
+    edge_positions = {}
+    for index, (start, end) in enumerate(zip(path_coords, path_coords[1:])):
+        edge_positions[frozenset((start, end))] = index
+    river_positions = {}
+    for tile in tiles:
+        if tile.is_ocean:
+            continue
+        positions = [edge_positions[frozenset(((edge.v0.x, edge.v0.y),
+                                               (edge.v1.x, edge.v1.y)))]
+                     for edge in tile.borders
+                     if edge.river and edge.v0 and edge.v1
+                     and frozenset(((edge.v0.x, edge.v0.y),
+                                    (edge.v1.x, edge.v1.y))) in edge_positions]
+        if positions:
+            river_positions[tile.name] = min(positions)
+
+    mouth, outlet = gen.scenario_nile_outlets
+    middle_x = (mouth.x + outlet.x) / 2.0
+    delta_candidates = [tile for tile in tiles if tile.is_coast
+                        and tile.name in river_positions]
+    delta_candidates.sort(key=lambda tile: (abs(tile.centroid[0] - middle_x),
+                                            abs(tile.centroid[1] - mouth.y), tile.name))
+    for delta in delta_candidates:
+        alex_candidates = [neighbor for neighbor in delta.adjacent_tiles.values()
+                           if neighbor.is_coast and not neighbor.is_ocean
+                           and neighbor.centroid[0] < delta.centroid[0]]
+        if not alex_candidates:
+            continue
+        alexandria = min(alex_candidates,
+                         key=lambda tile: (abs(tile.centroid[0] - mouth.x), tile.name))
+
+        def upstream_chains(current, depth):
+            if depth == 0:
+                yield ()
+                return
+            neighbors = [tile for tile in current.adjacent_tiles.values()
+                         if not tile.is_ocean and not tile.is_coast
+                         and tile.name in river_positions
+                         and river_positions[tile.name] < river_positions[current.name]
+                         and tile.centroid[1] < current.centroid[1]]
+            for neighbor in sorted(neighbors, key=lambda tile: tile.name):
+                for tail in upstream_chains(neighbor, depth - 1):
+                    yield (neighbor,) + tail
+
+        chains = list(upstream_chains(delta, 3))
+        if not chains:
+            continue
+        chain = max(chains, key=lambda part: (
+            -part[-1].centroid[1],
+            -sum(abs(tile.centroid[0] - delta.centroid[0]) for tile in part),
+            tuple(tile.name for tile in part)))
+        near, cairo, upper = chain
+        return {cairo.name: "Cairo", delta.name: "Nile Delta",
+                upper.name: "Upper Egypt", alexandria.name: "Alexandria",
+                near.name: "Nile Valley"}
+    raise ValueError("Egypt's generated coast has no connected Nile corridor.")
 
 
 def prepare_world(world: dict) -> dict:
@@ -336,6 +467,16 @@ def _assign_location_roles(nation) -> dict[str, str]:
     tiles = list(getattr(nation, "tiles", []))
     if not tiles:
         return {}
+
+    authored = {tile.name: tile.scenario_location for tile in tiles
+                if getattr(tile, "scenario_location", None)}
+    if authored:
+        if set(authored.values()) != {"Cairo", "Alexandria", "Nile Delta",
+                                      "Upper Egypt", "Nile Valley"}:
+            raise ValueError("Egypt's generated locations are incomplete.")
+        for tile in tiles:
+            tile.display_name = authored[tile.name]
+        return authored
 
     def north_south_key(tile):
         if hasattr(tile, "centroid"):
