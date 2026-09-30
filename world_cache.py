@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import os
 import pickle
+import tempfile
 import time
 from typing import Any
 import pygame
@@ -36,6 +37,11 @@ def has_valid_cache(
     try:
         with open(CONFIG_PATH, "r", encoding="utf-8") as f:
             cfg = json.load(f)
+
+        # Topology changes the world geometry and must be part of the cache key.
+        from world_config import get_map_topology
+        if cfg.get("topology", "voronoi") != get_map_topology():
+            return False
 
         # If user explicitly passed specific seeds on CLI, verify they match the cache
         if seed is not None and cfg.get("seed") != seed:
@@ -119,6 +125,7 @@ def save_map_cache(world: dict, topo_surf: pygame.Surface | None = None) -> bool
     if not world or not isinstance(world, dict):
         return False
 
+    temp_paths = []
     try:
         os.makedirs(CACHE_DIR, exist_ok=True)
 
@@ -126,17 +133,27 @@ def save_map_cache(world: dict, topo_surf: pygame.Surface | None = None) -> bool
         t_seed = world.get("terrain_seed", seed)
         n_seed = world.get("nation_seed")
 
-        # 1. Save config JSON
+        # Write each artifact beside its destination, then atomically publish it.
+        # Config is replaced last and acts as the cache commit marker.
+        def temp_path_for(destination: str, suffix: str) -> str:
+            fd, path = tempfile.mkstemp(prefix=".cache-", suffix=suffix, dir=CACHE_DIR)
+            os.close(fd)
+            temp_paths.append(path)
+            return path
+
+        # 1. Prepare config metadata (publish only after other artifacts succeed).
         cfg = {
             "seed": seed,
             "terrain_seed": t_seed,
             "nation_seed": n_seed,
+            "topology": __import__('world_config').get_map_topology(),
             "canvas_w": 2400,
             "canvas_h": 1800,
             "timestamp": time.time(),
             "version": 1,
         }
-        with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+        cfg_temp = temp_path_for(CONFIG_PATH, ".json.tmp")
+        with open(cfg_temp, "w", encoding="utf-8") as f:
             json.dump(cfg, f, indent=2)
 
         # 2. Save topographic surface PNG if available
@@ -154,7 +171,8 @@ def save_map_cache(world: dict, topo_surf: pygame.Surface | None = None) -> bool
             surf_to_save = _TOPOGRAPHIC_SURFACE_CACHE.get(cache_key)
 
         if surf_to_save is not None:
-            pygame.image.save(surf_to_save, TOPO_SURF_PATH)
+            surf_temp = temp_path_for(TOPO_SURF_PATH, ".png")
+            pygame.image.save(surf_to_save, surf_temp)
 
         # 3. Clean transient runtime properties before pickling
         world_to_pickle = dict(world)
@@ -166,14 +184,33 @@ def save_map_cache(world: dict, topo_surf: pygame.Surface | None = None) -> bool
         world_to_pickle["_cached_from_disk"] = True
         world_to_pickle["needs_redraw"] = True
 
-        with open(WORLD_STATE_PATH, "wb") as f:
+        state_temp = temp_path_for(WORLD_STATE_PATH, ".pkl")
+        with open(state_temp, "wb") as f:
             pickle.dump(world_to_pickle, f, protocol=pickle.HIGHEST_PROTOCOL)
+            f.flush()
+            os.fsync(f.fileno())
+
+        # Validate the serialized state before making it visible as a cache.
+        with open(state_temp, "rb") as f:
+            pickle.load(f)
+
+        if surf_to_save is not None:
+            os.replace(surf_temp, TOPO_SURF_PATH)
+        os.replace(state_temp, WORLD_STATE_PATH)
+        os.replace(cfg_temp, CONFIG_PATH)
 
         print(f"[world_cache] Cached map state & topographic surface to {CACHE_DIR} (Seed: {t_seed})")
         return True
     except Exception as e:
         print(f"[world_cache] Error saving map cache: {e}")
         return False
+    finally:
+        for path in temp_paths:
+            try:
+                if os.path.exists(path):
+                    os.remove(path)
+            except OSError:
+                pass
 
 
 def invalidate_map_cache() -> None:

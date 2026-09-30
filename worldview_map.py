@@ -1331,7 +1331,8 @@ def draw_hex_map(surface, world, font, font_small):
             gpu_renderer.setup_scene(world['gen'], slot_state)
             world['_micropoly_gpu_renderer'] = gpu_renderer
 
-        # Render 3D scene from GPU directly to Pygame surface
+        # The Voronoi topology requires the full 3D renderer. Context or shader
+        # failures are surfaced to the caller instead of silently drawing 2D.
         gpu_surf = gpu_renderer.render(vw, vh, cam, sim_time=sim_time)
         surface.blit(gpu_surf, (0, TOP_BAR_H))
     else:

@@ -40,6 +40,7 @@ COMPARE_BTN = (1228, 5, 160, 20)
 DIPLOMACY_BTN = (1066, 27, 156, 20)
 MILITARY_BTN = (1228, 27, 160, 20)
 PIPELINE_BTN = (1394, 12, 196, 28)
+SETTINGS_BTN = (1230, 29, 152, 20)
 
 
 def draw_top_bar_action_buttons(surface, world, font_small, mouse_pos=None):
@@ -99,6 +100,7 @@ def draw_top_bar_action_buttons(surface, world, font_small, mouse_pos=None):
     pipe_label = "GPU (Metal) [U]" if use_gpu else "CPU Mode [U]"
     pipe_txt = font_small.render(f"Pipeline: {pipe_label}", True, pipe_text_col)
     surface.blit(pipe_txt, pipe_txt.get_rect(center=(PIPELINE_BTN[0] + PIPELINE_BTN[2] // 2, PIPELINE_BTN[1] + PIPELINE_BTN[3] // 2)))
+
 
 
 def top_bar_action_hit(pos, world=None):

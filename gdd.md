@@ -18,6 +18,34 @@ Each region is a living simulation of individual human agents who possess cash, 
 
 ## 1. Executive Concept & Philosophical Thesis
 
+### 1.0 First Playable Scenario: The Grain Compact
+
+The first campaign teaches the political-economy thesis through one concrete crisis, while the simulation continues to model the wider world. The player governs the fictional small river-and-coast nation of **Sorelia**, whose capital depends on grain arriving from two neighboring districts. A poor harvest in the Upper Vale, rising grain prices, and an upcoming sovereign bond coupon converge over a short 20-turn scenario. The player has enough reserves and political authority to respond, but not enough to solve every problem at once. The scenario uses a deterministic seed and fixed starting conditions so outcomes are learnable and reproducible.
+
+**Opening situation (turn 1):** The state has a grain reserve that can cover the capital for four turns, a modest treasury, and a coupon due on a foreign-held bond in six turns. The Upper Vale has suffered two poor harvests and retains customary commons access; the Lower Delta has recently enclosed a portion of its land and exports grain through the capital's river port. Three blocs make the tradeoff legible: landlords want export rents protected, merchants want open trade and debt service, and rural workers want food security and continued access to customary land. The player begins with a map highlighting the grain route, a short briefing, and a clear explanation of the immediate cause of the crisis.
+
+**Core loop:**
+1. Read the crisis briefing and choose an immediate response: release public grain, restrict exports, arrange an import on credit, or protect debt service.
+2. Choose a structural response: restore commons access on an enclosed parcel, invest in Upper Vale production, preserve the Delta export estate, or borrow against future revenue.
+3. Watch grain prices, household food access, treasury capacity, and political support respond over the next few turns.
+4. React to consequences: negotiate with creditors, concede to a faction, order repression, or change land and trade policy. Major choices resolve through the existing intent/decree flow and carry a visible cost, delay, or political reaction.
+5. Reach turn 20 with food access stabilized and the regime functioning, or face default, revolt, or a forced policy settlement. The outcome is a debrief, not a binary score screen.
+
+**Outcome bands:** (a) Compact renewed: food access is restored and the coupon is paid without a legitimacy collapse; (b) creditor settlement: food access is protected through restructuring or a concession, at a visible loss of autonomy or future revenue; (c) coercive order: debt service and exports continue, but repression preserves a brittle regime with worsening household security; (d) breakdown: default, loss of control, or revolt ends the current government. These are scenario debrief categories, not mutually exclusive moral judgments.
+
+The opening should present **one recommended action and at most three live pressures** at a time: food access, the next bond payment, and political support. A short causal explanation connects each pressure to a choice (for example, “Delta grain exports keep the coupon affordable, but reduce local supply and raise market prices”). Deep agent, class, ecology, and ledger detail remains available by inspection. The scenario is a playable slice and tutorial; later sandbox play exposes the wider world and more systems.
+
+**Scenario success criteria:** Players can explain why grain is scarce, identify who benefits from the current policy, make at least two consequential decisions, and understand how those choices changed the ending. The scenario supports distinct approaches—protect household access, preserve creditor confidence, or buy time through coercion—without requiring the player to monitor every simulation variable. Scenario content must be authored as data/configuration (map setup, briefing, pressure definitions, action choices, and outcome predicates) rather than embedded in rendering code, so additional scenarios can reuse the same presentation components.
+
+### 1.0.1 Interface Configurations
+
+The UI has two swappable configurations backed by reusable components:
+
+- **Guided (default for the Grain Compact):** objective and turn horizon, crisis briefing, up to three priority pressures, recommended action, focused map overlays, and a small number of contextual decisions. Diagnostic charts, all system drawers, and detailed accounting are available from an explicit “Analysis” view.
+- **Advanced (existing interface):** retains the full current map controls, system drawers, charts, comparison tools, and diagnostic panels for players familiar with grand strategy and simulation games.
+
+`ui_mode` is an application/system preference (`guided` or `advanced`), independent of the active scenario and map topology. Both configurations use the same simulation state, actions, and domain components; presentation modules decide which components are prominent, collapsed, or available through analysis. Switching modes must not reset the world or discard user state. Persist the preference in application settings, with an environment/command-line override for development and automation.
+
 ### 1.1 The Core Proposition
 Most strategy games celebrate growth as an unalloyed good. You build a sawmill, line goes up; you discover the steam engine, green numbers pop; you conquer a territory, it becomes your passive resource fountain.
 
@@ -143,6 +171,18 @@ Every working agent possesses a psychological and physiological vector:
 ---
 
 ## 5. The Conserved Financial & Economic Machinery
+
+### 5.0 Commodity Scope: Few Goods, Distinct Decisions
+
+The game does not need a long commodity catalog for its own sake. More goods are useful only when they create a strategic bottleneck, a meaningful substitution, or a legible distributional conflict. The opening scenario should foreground three commodity groups:
+
+- **Staple food:** survival, household security, reserve policy, and export-versus-domestic allocation.
+- **Industrial inputs:** timber and transport capacity, abstracted together in the opening interface as the cost of expanding production and moving goods.
+- **Manufactures:** cloth and tools/furniture as visible outputs of industrialization, useful for trade and revenue but not substitutes for food.
+
+Existing goods include food, wood, furniture, transport, wool, cloth, and nitrates. Keep these in the simulation where their production chains already matter, but do not require players to manage each as an equally important market. Wool and cloth can support a simple pastoral-to-manufacturing chain; nitrates can remain a later ecological/industrial input. Treat government as an institution or service, not as a tradable commodity in player-facing terminology.
+
+Before adding a commodity, require a clear answer to: who produces it, who needs it, what player decision changes its flow, and what visible consequence follows if it is scarce or abundant? If those answers are weak, represent it as an input, capacity, or aggregate rather than a new player-facing good. Prefer commodity groups and contextual detail panels over adding more top-level meters.
 
 ### 5.1 Conserved Money as Absolute Audit
 The engine rejects the standard video game fiction of abstract "mana" or spawned money:
@@ -301,6 +341,18 @@ The existing architecture directly supports this vision:
 
 ## 10. The Player Experience & User Interface
 
+### 10.0 Decision-First Presentation
+
+The opening scenario should not ask the player to treat every measured quantity as a control variable. The default view leads with a concise crisis briefing, the player's current objective, up to three pressures that threaten it, and the consequential actions available now. Each pressure should show direction, cause, affected groups, and one or more response options. Detailed values (alienation, health attrition, separate pollution channels, faction grievances, individual balance sheets, and similar measures) are supporting evidence shown when the player inspects a place, group, firm, or policy.
+
+Use a small number of readable headline indicators—household security, state capacity, economic power, social stability, and ecological viability—only where each one helps the player choose. Avoid duplicating the same underlying condition across multiple always-visible meters. The UI should explain causal relationships in plain language and reveal specific metrics on demand. The player should usually be deciding what to do about a pressure, rather than deciding which of dozens of indicators to watch.
+
+### 10.0.1 Modular UI and System Preference
+
+Keep the existing full interface as the **Advanced** configuration. Add a separate **Guided** composition for the Grain Compact using reusable UI components rather than deleting, duplicating, or simplifying the underlying simulation panels. The configuration is selected in System/Settings and stored as `ui_mode`; it is not tied to map topology, save data, or difficulty. A developer may override it with `REGNUM_UI_MODE=guided|advanced` (or the equivalent CLI option).
+
+UI composition is a thin layer over shared components: scenario briefing, objective/turn tracker, priority-pressure cards, contextual action chooser, analysis drawer, map overlays, and existing detail panels. Guided mode presents its scenario components first and groups specialist panels under **Analysis**. Advanced mode keeps the current navigation and panel layout. Both modes must expose the same legal actions and simulation detail, preserve selection and turn state when switched, and remain compatible with mouse, keyboard, and save/load. Scenario-specific content belongs in scenario data; reusable rendering and interaction logic belongs in UI modules.
+
 ### 10.1 The Dual Face of the Dashboard
 The UI contrasts the cold triumphalism of capital with the grim ground-level reality:
 - **The "High Minister's View" (Top Bar & Ticker):**
@@ -329,9 +381,19 @@ The game does not mandate a singular teleology; it challenges the player to navi
 3. **The Social Democratic Truce (Reformism):** You manage the contradictions through aggressive progressive taxation, labor laws, public health, and environmental conservation—constantly fighting off capital strikes, elite tax flight, and conservative military coups.
 4. **The Reclamation of the Commons (Revolutionary Alternative):** Popular movements overthrow the dictatorship of property, re-institute customary and democratic stewardship over the land, abolish debt peonage, and redirect productive capacity toward human well-being and ecological equilibrium.
 
+The Grain Compact is a bounded introductory scenario with its own turn-20 outcome bands; it does not replace the long-form sandbox horizons above. Its result should summarize food access, debt outcome, regime stability, and land tenure, with a short causal account of the player's pivotal choices.
+
 ---
 
 ## 12. Phased Development Roadmap
+
+- **Phase 0: Focused Playable Slice — The Grain Compact (priority)**
+  - Create a deterministic Sorelia scenario with fixed turn-1 conditions, a turn-6 coupon, and a turn-20 horizon. Scenario setup, pressures, actions, and outcome predicates are data-driven.
+  - Define the opening briefing, up to three priority pressures, contextual decisions, and a debrief that traces pivotal actions to consequences.
+  - Build Guided UI components as a modular composition; retain current UI as Advanced. Add a System/Settings `ui_mode` preference and development override. Switching mode must preserve simulation state.
+  - Use existing economy, enclosure, unrest, and bond mechanics where they produce understandable choices; defer systems that do not support this loop.
+  - Tune commodity presentation around staple food, industrial inputs, and manufactures. Add no new commodity until it creates a distinct decision and consequence.
+  - Review readability with new players: can they explain the crisis, make a meaningful choice, and understand the result without interpreting the full dashboard?
 
 - **Phase 1: Enclosure & Subsistence Mechanics**
   - Implement `land_tenure` on regions (`COMMONS`, `LEASEHOLD`, `ENCLOSED`).

@@ -10,6 +10,7 @@ from worldview_camera import HEX_SIZE, clamp_cam, reset_cam
 from worldview_charts import MIG_C
 from worldview_map import ACCENT as CLAIM_C, RED as DESTROY_C
 import sim_engine
+from world_config import get_ui_mode
 
 
 def get_layout():
@@ -78,6 +79,9 @@ def build_world_view(seed=None, terrain_seed=None, nation_seed=None):
         'seed': seed,
         'terrain_seed': terrain_seed,
         'nation_seed': nation_seed,
+        'ui_mode': get_ui_mode(),
+        'guided_analysis_open': False,
+        'settings_open': False,
     }
     reset_cam(world)
     return world

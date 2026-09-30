@@ -149,6 +149,7 @@ def is_any_modal_open(world) -> bool:
         world.get('compare_open') or
         world.get('comparison_open') or
         world.get('help_open') or
+        world.get('settings_open') or
         world.get('transfer_dialog', {}).get('open')
     )
 
@@ -212,6 +213,15 @@ def render_frame(surface, world, mouse_pos=None):
     modal_active = is_any_modal_open(world)
     effective_mouse = None if modal_active else mouse_pos
 
+    if world.get('ui_mode', 'advanced') == 'guided':
+        from worldview_scenario_ui import draw_guided_frame
+        draw_guided_frame(surface, world, font, font_small, mouse_pos=effective_mouse)
+        draw_nations_comparison(surface, world, font, font_small, mouse_pos=mouse_pos)
+        draw_actions_modal(surface, world, font, font_small, mouse_pos=mouse_pos)
+        draw_help_modal(surface, world, font, font_small)
+        draw_transfer_dialog(surface, world, font, font_small, mouse_pos=mouse_pos)
+        return
+
     _draw_cached_map(surface, world, font, font_small)
     draw_dynamic_map_overlays(surface, world)
     label_surface = world.get('_ui_map_label_surface')
@@ -241,6 +251,9 @@ def render_frame(surface, world, mouse_pos=None):
     draw_actions_modal(surface, world, font, font_small, mouse_pos=mouse_pos)
     draw_help_modal(surface, world, font, font_small)
     draw_transfer_dialog(surface, world, font, font_small, mouse_pos=mouse_pos)
+    if world.get('settings_open'):
+        from worldview_scenario_ui import draw_settings_dialog
+        draw_settings_dialog(surface, world, font_small, mouse_pos)
 
     # Floating left-panel detailed button tooltips (disabled when modal dialog covers screen)
     if not modal_active:
@@ -332,7 +345,12 @@ def main():
     parser.add_argument('--seed', type=int, default=None, help='Unified master seed')
     parser.add_argument('--terrain-seed', type=int, default=None, help='Procedural heightmap terrain seed')
     parser.add_argument('--nation-seed', type=int, default=None, help='Starting nations selection and placement seed')
+    parser.add_argument('--ui-mode', choices=('guided', 'advanced'), default=None,
+                        help='UI composition override (guided or advanced)')
     args = parser.parse_args()
+    if args.ui_mode:
+        from world_config import set_ui_mode
+        set_ui_mode(args.ui_mode, persist=False)
     if args.seed is None and args.terrain_seed is None:
         slot_1_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "saved_slots", "slot_1.json")
         if os.path.exists(slot_1_file):
@@ -442,6 +460,12 @@ def main():
                         help_modal_hit(event.pos, world)
                         continue
 
+                    if world.get('settings_open'):
+                        from worldview_scenario_ui import guided_ui_hit
+                        guided_ui_hit(event.pos, world)
+                        _mark_dirty(world, map_changed=False)
+                        continue
+
                     # 0c. Check if Comparison Table is open
                     if world.get('compare_open') or world.get('comparison_open'):
                         tab_hit = compare_tab_hit(event.pos, 30, 20, world=world)
@@ -512,6 +536,11 @@ def main():
                 elif act_btn == 'pipeline':
                     _toggle_pipeline(world)
                     continue
+                if world.get('ui_mode') == 'guided':
+                    from worldview_scenario_ui import guided_ui_hit
+                    if guided_ui_hit(event.pos, world):
+                        _mark_dirty(world, map_changed=False)
+                        continue
 
                 # 1b. Check Compare Nations top bar button fallback
                 if compare_btn_hit(event.pos):
@@ -519,25 +548,25 @@ def main():
                     continue
 
                 # 1c. Check Left Layer Sidebar toggle dock
-                if layer_sidebar_hit(event.pos, world):
+                if world.get('ui_mode') != 'guided' and layer_sidebar_hit(event.pos, world):
                     continue
 
                 # 1d. Check Left Drawer hits (Build, Governance, Diplomacy, Debt, Science, Military)
-                if left_dock_buttons_hit(event.pos, world):
+                if world.get('ui_mode') != 'guided' and left_dock_buttons_hit(event.pos, world):
                     continue
-                if progress_panel_hit(event.pos, world):
+                if world.get('ui_mode') != 'guided' and progress_panel_hit(event.pos, world):
                     continue
-                if gov_panel_hit(event.pos, world):
+                if world.get('ui_mode') != 'guided' and gov_panel_hit(event.pos, world):
                     continue
-                if build_panel_hit(event.pos, world):
+                if world.get('ui_mode') != 'guided' and build_panel_hit(event.pos, world):
                     continue
-                if diplomacy_panel_hit(event.pos, world):
+                if world.get('ui_mode') != 'guided' and diplomacy_panel_hit(event.pos, world):
                     continue
-                if debt_panel_hit(event.pos, world):
+                if world.get('ui_mode') != 'guided' and debt_panel_hit(event.pos, world):
                     continue
-                if science_panel_hit(event.pos, world):
+                if world.get('ui_mode') != 'guided' and science_panel_hit(event.pos, world):
                     continue
-                if military_panel_hit(event.pos, world):
+                if world.get('ui_mode') != 'guided' and military_panel_hit(event.pos, world):
                     continue
 
                 # 2. Check Zoom HUD buttons
@@ -782,6 +811,9 @@ def main():
                 elif event.key == pygame.K_c:
                     world['compare_open'] = not world.get('compare_open', False)
                     _mark_dirty(world)
+                elif event.key == pygame.K_F10:
+                    world['settings_open'] = not world.get('settings_open', False)
+                    _mark_dirty(world, map_changed=False)
                 elif event.key == pygame.K_b:
                     is_open = world.get('build_panel_open', False)
                     open_left_panel(world, None if is_open else 'build')
