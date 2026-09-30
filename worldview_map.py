@@ -1518,6 +1518,7 @@ def draw_hex_map(surface, world, font, font_small):
 
     # 4. Text, City Titles, Stats Lines, and Badges (DYNAMIC OVERLAP-AWARE CULLING)
     layer_mode = world.get('map_layer', 'overview')
+    guided_scenario_map = world.get('scenario_id') == 'egypt_1877' and world.get('ui_mode') == 'guided'
 
     label_candidates = []
 
@@ -1527,10 +1528,16 @@ def draw_hex_map(surface, world, font, font_small):
 
         is_ocean = getattr(region, 'is_ocean', False) or getattr(region, 'elevation_meters', 0) < 0
         owner = getattr(region, 'owner_nation', None)
+        if guided_scenario_map:
+            if owner is None or owner.name != world.get('player_nation_name'):
+                continue
+            if not getattr(region, 'scenario_location', None):
+                continue
 
         is_nat_cap = False
         is_prov_cap = False
-        raw_city = getattr(region, 'display_name', getattr(region, 'city_name', region.name))
+        raw_city = (getattr(region, 'scenario_location') if guided_scenario_map
+                    else getattr(region, 'display_name', getattr(region, 'city_name', region.name)))
         if not is_ocean:
             is_nat_cap = getattr(region, 'is_national_capital', False) or (owner and owner.tiles and region == owner.tiles[0])
             is_prov_cap = getattr(region, 'is_provincial_capital', False)
@@ -1539,7 +1546,8 @@ def draw_hex_map(surface, world, font, font_small):
                 if prov and prov.tiles and region == prov.tiles[0]:
                     is_prov_cap = True
 
-        city_title = f"* {raw_city}" if is_nat_cap else (f"+ {raw_city}" if is_prov_cap else raw_city)
+        city_title = (raw_city if guided_scenario_map else
+                      (f"* {raw_city}" if is_nat_cap else (f"+ {raw_city}" if is_prov_cap else raw_city)))
         name_font = font_small if len(city_title) > 10 else font
         priority = get_tile_label_priority(region, world, is_nat_cap=is_nat_cap, is_prov_cap=is_prov_cap)
 
@@ -1558,9 +1566,14 @@ def draw_hex_map(surface, world, font, font_small):
                 continue
 
         line1, line2, line3, c1, c2, c3 = tile_stats(region, layer_mode=layer_mode, world=world)
+        if guided_scenario_map:
+            line1 = line2 = line3 = ''
 
         # Compute label bounding box
-        if not is_ocean:
+        if guided_scenario_map:
+            w = max(70, name_font.size(city_title)[0] + 16)
+            box = pygame.Rect(cx - w // 2, cy - 18, w, 28)
+        elif not is_ocean:
             if layer_mode == 'overview':
                 if owner is not None:
                     if is_nat_cap:
@@ -1721,7 +1734,10 @@ def draw_hex_map(surface, world, font, font_small):
         line1, line2, line3 = cand['line1'], cand['line2'], cand['line3']
         c1, c2, c3 = cand['c1'], cand['c2'], cand['c3']
 
-        if not is_ocean:
+        if guided_scenario_map and not is_ocean:
+            label_color = (255, 238, 172) if getattr(region, 'scenario_location', '') == 'Cairo' else (220, 240, 250)
+            draw_text_with_shadow(label_surface, name_font, city_title, (cx, cy - 10), label_color)
+        elif not is_ocean:
             if layer_mode == 'overview':
                 if owner is not None:
                     if is_nat_cap:

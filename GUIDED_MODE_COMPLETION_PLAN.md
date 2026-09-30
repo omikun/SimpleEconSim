@@ -33,7 +33,7 @@ The historical setting supplies people, institutions, and places. The campaign's
 
 ### Phase 1 — Deterministic scenario setup
 
-**Status: Complete (scenario identity and entry path)**
+**Status: Complete**
 
 - Add a scenario definition/data module for briefing, map/region roles, initial state, pressure definitions, available choices, and outcome predicates.
 - Add a deterministic `--scenario egypt-1877` start path without changing the default sandbox or the saved Guided/Advanced preference.
@@ -46,7 +46,7 @@ The historical setting supplies people, institutions, and places. The campaign's
 
 ### Phase 2 — Playable crisis choices
 
-**Status: Complete (scenario action and economy hooks)**
+**Status: Complete**
 
 - Reuse household food inventories, public food reserves, local tax policy, export routes, unrest, legitimacy, and treasury transfers for public grain release, domestic food priority, tax relief, and the scheduled debt-service choice.
 - Add the narrow missing hook for retaining part of food exports in regional granary stocks when domestic supply is prioritized.
@@ -58,7 +58,7 @@ The historical setting supplies people, institutions, and places. The campaign's
 
 ### Phase 3 — Guided briefing, pressure cards, and map focus
 
-**Status: Complete (scenario briefing and action panel)**
+**Status: Complete**
 
 - Replace generic nation diagnostics with three scenario pressures: household maize access, the debt-service window, and political support.
 - Add a short opening briefing, objective/turn tracker, payment countdown, recommended first action, and stable place labels. Mark the shared generated geography as schematic.
@@ -70,23 +70,26 @@ The historical setting supplies people, institutions, and places. The campaign's
 
 ### Phase 4 — Campaign progression and debrief
 
-**Status: Implemented (runtime playthrough in Phase 5)**
+**Status: Complete**
 
 - Keep the campaign paused by default, stop autoplay when it ends, and track the turn-six payment window and turn-20 horizon.
 - Apply the low-Nile yield shock in the Delta and Upper Egypt through turn eight; update household access, debt status, treasury transfers, and political support through the shared simulation.
-- Implement breakdown precedence at legitimacy <= 10% or average unrest >= 0.85. At turn 20, classify protected food access (<= 20% of households hungry) plus paid/restructured debt, tax extraction, or breakdown.
+- Implement breakdown precedence at legitimacy <= 10% or average unrest >= 0.85. Otherwise, tax extraction identifies the coercive band; protected food plus payment is relief/payment; protected food plus a concession is creditor settlement; remaining states end in breakdown.
 - On completion, stop further scenario turns and show measured food/political outcomes, debt/autonomy status, and the player's recorded decisions.
 
 **Acceptance:** The same opening can lead to at least two distinguishable endings, and the debrief attributes results to actual player choices and measured simulation state.
 
 ### Phase 5 — Integration and delivery polish
 
-**Status: In progress**
+**Status: Complete**
 
-- Review Guided/Advanced switching, save/load behavior, restart behavior, and ordinary sandbox startup for regressions.
+- Confirm Guided/Advanced switching stays independent of campaign selection, scenario restart is deterministic, and ordinary sandbox startup/restart keeps its existing path.
+- Confirm scenario entry bypasses sandbox save-slot/cache restoration so generated scenario state cannot overwrite a player's existing sandbox.
 - Check all scenario links, action feedback, layout at supported window sizes, and history-versus-abstraction wording.
 - Update the GDD and plan with delivered behavior, remaining limitations, and any changed decisions.
 - Run focused checks and a complete scenario smoke playthrough where the local environment supports it.
+
+**Delivery evidence:** Three deterministic 20-turn strategy paths reached relief/payment, creditor settlement, and coercive extraction respectively. The native Voronoi renderer drew the guided scenario on the Apple M3 Pro path (91,104 mesh vertices); it did not use the 2D renderer. The scenario restart and ordinary sandbox reload paths were checked; scenario restart rebuilds the same turn-one setup. All six UI render-cache unit tests passed, and touched Python modules compiled. The geographic-demographics test module still has two failures in generic-world occupation and biome assertions; those runs used the ordinary sandbox path, and the scenario changes do not alter that path. Pytest is unavailable in the local environment. Scenario startup skips prior saved-slot and generated-map cache loading so it cannot overwrite the sandbox's saved state. The scenario campaign itself does not yet serialize mid-run progress to a save slot; restarting begins the scenario again from turn one. Guided/Advanced remains a persistent UI setting, independent from campaign selection. The map is still shared procedural geography with scenario-role labels, not a literal Egypt map; food and financial quantities remain normalized abstractions.
 
 **Acceptance:** The campaign can be started, played to a debrief, restarted deterministically, and exited to Advanced/sandbox use without losing unrelated state.
 

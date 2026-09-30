@@ -299,8 +299,10 @@ def reload_world(args=None):
     seed = getattr(args, 'seed', None)
     terrain_seed = getattr(args, 'terrain_seed', None)
     nation_seed = getattr(args, 'nation_seed', None)
+    scenario_id = 'egypt_1877' if getattr(args, 'scenario', None) == 'egypt-1877' else None
 
-    world = build_world_view(seed=seed, terrain_seed=terrain_seed, nation_seed=nation_seed)
+    world = build_world_view(seed=seed, terrain_seed=terrain_seed, nation_seed=nation_seed,
+                             scenario_id=scenario_id)
     world['_map_generation_done'] = False
     world['_cached_from_disk'] = False
     world['loading_modal'] = None
@@ -313,7 +315,8 @@ def reload_world(args=None):
     # Flush per-tile label offset cache so stale keys from the old world don't accumulate
     world.pop('_label_offsets', None)
 
-    print("[worldview] Reloaded world from scratch — generating new map.")
+    label = "Egypt 1877 scenario" if scenario_id else "world"
+    print(f"[worldview] Restarted {label} from scratch — generating new map.")
     return world
 
 

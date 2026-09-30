@@ -87,6 +87,9 @@ def prepare_world(world: dict) -> dict:
 
     egypt.display_name = SCENARIO["polity"]
     egypt.regime_type = "autocracy"
+    # The scenario starts with enough political authority to make non-coercive
+    # outcomes possible across the otherwise volatile shared simulation.
+    egypt.legitimacy = 1.0
     egypt.government.regime_type = "autocracy"
     world["player_nation_name"] = egypt.name
     world["selected_nation"] = egypt
@@ -107,7 +110,7 @@ def prepare_world(world: dict) -> dict:
         "domestic_grain_priority": False,
         "ending": None,
         "actions_taken": [],
-        "events_fired": [],
+        "events_fired": ["low_nile"],
     }
     egypt.government.food_inventory = world["scenario_state"]["public_maize_stock_units"]
     world["scenario_feedback"] = "Opening crisis: low Nile, threatened maize harvest, and debt service."
@@ -120,7 +123,7 @@ def prepare_world(world: dict) -> dict:
     if capital is not None:
         world["selected_region"] = capital
         capital.display_name = "Cairo"
-    world["turn"] = 0
+    world["turn"] = 1
     world["playing"] = False
     world["guided_analysis_open"] = False
     return world
@@ -260,14 +263,14 @@ def advance_scenario(world: dict, turn: int, ticker_push) -> None:
     if ended:
         _finish_scenario(world, nation, "breakdown", turn, metrics)
     elif turn >= int(SCENARIO["horizon_turns"]):
-        if (metrics["hunger_rate"] <= thresholds["protected_hunger_rate"]
+        if state.get("extraction_level", 0) > 0:
+            outcome = "coercive_extraction"
+        elif (metrics["hunger_rate"] <= thresholds["protected_hunger_rate"]
                 and state.get("payment_status") == "paid"):
             outcome = "relief_and_payment"
         elif (metrics["hunger_rate"] <= thresholds["protected_hunger_rate"]
               and state.get("payment_status") == "restructured"):
             outcome = "creditor_settlement"
-        elif state.get("extraction_level", 0) > 0:
-            outcome = "coercive_extraction"
         else:
             outcome = "breakdown"
         _finish_scenario(world, nation, outcome, turn, metrics)
@@ -343,8 +346,8 @@ def _assign_location_roles(nation) -> dict[str, str]:
     remaining = [tile for tile in ordered if tile is not capital]
 
     coastal = [tile for tile in remaining if getattr(tile, "is_coast", False)]
-    if coastal:
-        alexandria = coastal[0]
+    alexandria = coastal[0] if coastal else (remaining[0] if remaining else None)
+    if alexandria is not None:
         aliases[alexandria.name] = "Alexandria"
         remaining.remove(alexandria)
 
