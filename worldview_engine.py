@@ -21,9 +21,22 @@ def get_reverse_layout():
     return {v: k for k, v in get_layout().items()}
 
 
-def build_world_view(seed=None, terrain_seed=None, nation_seed=None):
+def build_world_view(seed=None, terrain_seed=None, nation_seed=None, scenario_id=None):
     """Build the 9x9 hex world + prepare viewer state."""
-    tiles, nations, _grid = build_world(seed=seed, terrain_seed=terrain_seed, nation_seed=nation_seed)
+    from scenario_egypt_1877 import SCENARIO, is_scenario_id
+    if is_scenario_id(scenario_id):
+        seeds = SCENARIO['seeds']
+        seed = seeds['world'] if seed is None else seed
+        terrain_seed = seeds['terrain'] if terrain_seed is None else terrain_seed
+        nation_seed = seeds['nations'] if nation_seed is None else nation_seed
+    if is_scenario_id(scenario_id):
+        from scenario_egypt_1877 import deterministic_generation
+        with deterministic_generation(seed):
+            tiles, nations, _grid = build_world(seed=seed, terrain_seed=terrain_seed,
+                                                nation_seed=nation_seed, scenario_id=scenario_id)
+    else:
+        tiles, nations, _grid = build_world(seed=seed, terrain_seed=terrain_seed,
+                                            nation_seed=nation_seed, scenario_id=scenario_id)
     from world_names import assign_world_identities
     assign_world_identities(tiles, nations, seed=nation_seed)
     currencies = [n.currency for n in nations]
@@ -83,6 +96,9 @@ def build_world_view(seed=None, terrain_seed=None, nation_seed=None):
         'guided_analysis_open': False,
         'settings_open': False,
     }
+    if is_scenario_id(scenario_id):
+        from scenario_egypt_1877 import prepare_world
+        prepare_world(world)
     reset_cam(world)
     return world
 

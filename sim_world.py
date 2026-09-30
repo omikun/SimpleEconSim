@@ -117,7 +117,7 @@ def make_wilderness(name):
     return Region(name, t=0, wilderness=True)
 
 
-def build_world_hex(seed=None, terrain_seed=None, nation_seed=None):
+def build_world_hex(seed=None, terrain_seed=None, nation_seed=None, scenario_id=None):
     """Build the 9x9 hex world and return (tiles, nations, grid).
 
     grid: list of lists (rows x cols) of the same Region objects as *tiles*,
@@ -157,7 +157,7 @@ def build_world_hex(seed=None, terrain_seed=None, nation_seed=None):
     # ---- Nations claim contiguous hex clusters (disjoint, strictly on land) ----
     # 3 Starting Global Powers from the 10-country database (sizes 3, 4, 5)
     from world_names import get_starting_nations_claimed_by
-    claimed_by = get_starting_nations_claimed_by(seed=nation_seed)
+    claimed_by = get_starting_nations_claimed_by(seed=nation_seed, scenario_id=scenario_id)
     nations = []
 
     def _unclaimed_land_cells():
@@ -508,13 +508,15 @@ def build_world_hex(seed=None, terrain_seed=None, nation_seed=None):
     return tiles, nations, grid
 
 
-def build_world(seed=None, terrain_seed=None, nation_seed=None):
+def build_world(seed=None, terrain_seed=None, nation_seed=None, scenario_id=None):
     """Polymorphic world builder respecting world_config.MAP_TOPOLOGY."""
     from world_config import is_voronoi_topology
     if is_voronoi_topology():
         from sim_world_voronoi import build_world_voronoi
-        return build_world_voronoi(seed=seed, terrain_seed=terrain_seed, nation_seed=nation_seed)
-    return build_world_hex(seed=seed, terrain_seed=terrain_seed, nation_seed=nation_seed)
+        return build_world_voronoi(seed=seed, terrain_seed=terrain_seed, nation_seed=nation_seed,
+                                   scenario_id=scenario_id)
+    return build_world_hex(seed=seed, terrain_seed=terrain_seed, nation_seed=nation_seed,
+                           scenario_id=scenario_id)
 
 
 

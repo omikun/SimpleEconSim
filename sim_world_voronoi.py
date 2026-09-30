@@ -81,6 +81,7 @@ def build_world_voronoi(
     island_shape: Optional[str] = None,
     existing_gen: Optional[PolygonMapGenerator] = None,
     num_nations: int = 3,
+    scenario_id: str | None = None,
 ):
     """Generate a native Voronoi cell world for REGNUM using Mapgen2.
 
@@ -191,7 +192,7 @@ def build_world_voronoi(
 
     # 3. Starting Global Powers claim contiguous Voronoi clusters strictly on land
     if num_nations == 3:
-        claimed_by = get_starting_nations_claimed_by(seed=nation_seed)
+        claimed_by = get_starting_nations_claimed_by(seed=nation_seed, scenario_id=scenario_id)
     else:
         all_powers = [
             ("United States", "USD", 3),

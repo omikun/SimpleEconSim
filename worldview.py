@@ -347,11 +347,14 @@ def main():
     parser.add_argument('--nation-seed', type=int, default=None, help='Starting nations selection and placement seed')
     parser.add_argument('--ui-mode', choices=('guided', 'advanced'), default=None,
                         help='UI composition override (guided or advanced)')
+    parser.add_argument('--scenario', choices=('egypt-1877',), default=None,
+                        help='Start the authored Egypt 1877 crisis scenario')
     args = parser.parse_args()
+    scenario_id = 'egypt_1877' if args.scenario == 'egypt-1877' else None
     if args.ui_mode:
         from world_config import set_ui_mode
         set_ui_mode(args.ui_mode, persist=False)
-    if args.seed is None and args.terrain_seed is None:
+    if scenario_id is None and args.seed is None and args.terrain_seed is None:
         slot_1_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "saved_slots", "slot_1.json")
         if os.path.exists(slot_1_file):
             try:
@@ -375,14 +378,15 @@ def main():
     setup_system_menu()
 
     from world_cache import has_valid_cache, load_map_cache
-    if has_valid_cache(seed=args.seed, terrain_seed=args.terrain_seed, nation_seed=args.nation_seed):
+    if scenario_id is None and has_valid_cache(seed=args.seed, terrain_seed=args.terrain_seed, nation_seed=args.nation_seed):
         world = load_map_cache()
         if world is None:
             world = build_world_view(seed=args.seed, terrain_seed=args.terrain_seed, nation_seed=args.nation_seed)
             world['_map_generation_done'] = False
             world['_cached_from_disk'] = False
     else:
-        world = build_world_view(seed=args.seed, terrain_seed=args.terrain_seed, nation_seed=args.nation_seed)
+        world = build_world_view(seed=args.seed, terrain_seed=args.terrain_seed, nation_seed=args.nation_seed,
+                                 scenario_id=scenario_id)
         world['_map_generation_done'] = False
         world['_cached_from_disk'] = False
 

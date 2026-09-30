@@ -33,19 +33,20 @@ The historical setting supplies people, institutions, and places. The campaign's
 
 ### Phase 1 — Deterministic scenario setup
 
-**Status: Planned**
+**Status: Complete (scenario identity and entry path)**
 
 - Add a scenario definition/data module for briefing, map/region roles, initial state, pressure definitions, available choices, and outcome predicates.
-- Add a deterministic start path that can be selected without changing the default sandbox or resetting Advanced mode preferences.
-- Assign scenario identities to the playable map: Cairo, Nile Delta, Upper Egypt, and Alexandria, with Nile supply/export relationships and clear selected-country ownership.
+- Add a deterministic `--scenario egypt-1877` start path without changing the default sandbox or the saved Guided/Advanced preference.
+- Give this scenario Egypt, Britain, and France identities; label Egypt's capital and selected regions with Cairo, Nile Delta, Upper Egypt, and Alexandria scenario roles.
+- Use fixed scenario seeds while restoring the normal random-generator state after setup.
 - Seed only scenario-relevant state; do not silently overwrite player progress when switching UI mode.
 - Make scenario selection and scenario identity visible in the UI.
 
-**Acceptance:** Repeated starts with the same scenario seed produce the same named setup and opening pressures; ordinary sandbox startup remains unchanged.
+**Acceptance:** The scenario entry path builds the Egypt/Britain/France setup with stable place labels and initializes its briefing/state; ordinary sandbox startup and UI preference remain unchanged. Geography still uses the shared procedural map topology, so its generated outline should not be presented as a literal map of Egypt.
 
 ### Phase 2 — Playable crisis choices
 
-**Status: Planned**
+**Status: In progress**
 
 - Inventory and reuse existing mechanics for public grain release/relief, trade policy, tax relief, irrigation or crop investment, borrowing, debt service, restructuring, moratorium, and repression.
 - Implement or adapt only the missing action effects needed for the scenario's core choices. Each choice must have a clear cost, delay, affected group, and observable consequence.

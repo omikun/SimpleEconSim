@@ -191,6 +191,12 @@ GLOBAL_NATION_DATA = {
         "Brittany": ["Rennes", "Brest", "Quimper", "Lorient", "Vannes", "Saint-Malo", "Saint-Brieuc", "Lanester", "Fougères", "Concarneau"],
         "Normandy": ["Rouen", "Le Havre", "Caen", "Cherbourg", "Évreux", "Dieppe", "Sotteville-lès-Rouen", "Saint-Étienne-du-Rouvray", "Alençon", "Vernon"],
     },
+    "Egypt": {
+        "Cairo": ["Cairo", "Bulaq", "Old Cairo", "Shubra", "Giza", "Helwan", "Imbaba", "Tura", "Kerdasa", "Abu Sir"],
+        "Alexandria": ["Alexandria", "Rosetta", "Damietta", "Abu Qir", "Damanhur", "Kafr el-Dawwar", "Edku", "Idku", "Rashid", "Borg el Arab"],
+        "Gharbia": ["Tanta", "Mahalla el-Kubra", "Zefta", "Samannud", "Kafr el-Zayat", "Basyoun", "Qutur", "Sers el-Layan", "Shibin el-Kom", "Berket el-Sabaa"],
+        "Asyut": ["Asyut", "Manfalut", "Abnub", "Abu Tig", "Sodfa", "Dayrut", "Qusiya", "Badari", "Sahel Selim", "El-Ghanayem"],
+    },
     "Germany": {
         "Bavaria": ["Munich", "Nuremberg", "Augsburg", "Regensburg", "Ingolstadt", "Würzburg", "Fürth", "Erlangen", "Bamberg", "Bayreuth"],
         "North Rhine-Westphalia": ["Düsseldorf", "Cologne", "Dortmund", "Essen", "Duisburg", "Bochum", "Wuppertal", "Bielefeld", "Bonn", "Münster"],
@@ -565,6 +571,7 @@ COUNTRY_CURRENCIES = {
     "Vietnam": "VND",
     "Britain": "GBP",
     "France": "EUR",
+    "Egypt": "EGP",
     "Germany": "EUR",
     "Italy": "EUR",
     "Spain": "EUR",
@@ -583,6 +590,7 @@ NATIONAL_CAPITALS = {
     "Vietnam": "Hanoi",
     "Britain": "London",
     "France": "Paris",
+    "Egypt": "Cairo",
     "Germany": "Berlin",
     "Italy": "Rome",
     "Spain": "Madrid",
@@ -626,8 +634,15 @@ def get_country_names():
     return [k for k in GLOBAL_NATION_DATA.keys() if k not in ("US", "UK", "South Korea")]
 
 
-def get_starting_nations_claimed_by(seed=None):
-    """Return 3 starting nations: strictly starts each game with US, China, and Japan with authentic currencies and tile quotas."""
+def get_starting_nations_claimed_by(seed=None, scenario_id=None):
+    """Return the default sandbox powers or the authored scenario's powers."""
+    if scenario_id == "egypt_1877":
+        selected = ["Egypt", "Britain", "France"]
+        tile_counts = [5, 4, 3]
+        return {
+            country: (COUNTRY_CURRENCIES.get(country, "USD"), count)
+            for country, count in zip(selected, tile_counts)
+        }
     selected = ["United States", "China", "Japan"]
     tile_counts = [3, 4, 5]
     out = {}
