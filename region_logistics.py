@@ -118,6 +118,14 @@ def post_exports_to_route(region):
             continue
         for g in [Goods.food, Goods.wood, Goods.furniture]:
             qty = trader.inventory_export[g.value]
+            if g == Goods.food:
+                export_fraction = max(0.0, min(1.0, float(getattr(region, 'food_export_fraction', 1.0))))
+                if export_fraction < 1.0 and qty > 0:
+                    export_qty = int(qty * export_fraction)
+                    retained = qty - export_qty
+                    trader.inventory_export[g.value] -= retained
+                    region.granary_stock = float(getattr(region, 'granary_stock', 0.0)) + retained
+                    qty = export_qty
             if qty > 0:
                 route.post(trader, g, qty)
 

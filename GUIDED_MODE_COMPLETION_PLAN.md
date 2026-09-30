@@ -46,18 +46,19 @@ The historical setting supplies people, institutions, and places. The campaign's
 
 ### Phase 2 — Playable crisis choices
 
-**Status: In progress**
+**Status: Complete (scenario action and economy hooks)**
 
-- Inventory and reuse existing mechanics for public grain release/relief, trade policy, tax relief, irrigation or crop investment, borrowing, debt service, restructuring, moratorium, and repression.
-- Implement or adapt only the missing action effects needed for the scenario's core choices. Each choice must have a clear cost, delay, affected group, and observable consequence.
+- Reuse household food inventories, public food reserves, local tax policy, export routes, unrest, legitimacy, and treasury transfers for public grain release, domestic food priority, tax relief, and the scheduled debt-service choice.
+- Add the narrow missing hook for retaining part of food exports in regional granary stocks when domestic supply is prioritized.
+- Record choices and their consequences in scenario state; enforce one major scenario choice per turn.
 - Ensure scenario actions resolve through supported intents/decrees or an equally explicit domain action path; avoid UI-only state changes.
 - Show eligibility, cost, delay, and expected direction of effect before confirmation.
 
-**Acceptance:** At least two distinct strategies are actionable, consume or commit the stated resources, and change the economy or political state on subsequent turns.
+**Acceptance:** The scenario action layer includes a resource-limited food release, a delayed food export change, tax relief with lower future revenue, and a payment/defer choice that changes treasury or creditor confidence. UI affordances are completed in Phase 3.
 
 ### Phase 3 — Guided briefing, pressure cards, and map focus
 
-**Status: Planned**
+**Status: In progress**
 
 - Replace generic nation diagnostics with the scenario's three authored pressures and plain-language causal summaries.
 - Add a short opening briefing, objective, turn/debt-service timeline, recommended first action, and focused map overlays.
@@ -99,6 +100,7 @@ These are not blockers; use the defaults below unless implementation reveals a c
 4. **Relief stock mechanics:** Prefer real inventory and transfer flows. If public stock is not represented by the engine, add the smallest explicit scenario stock ledger with turn-by-turn accounting and avoid implying it is household inventory.
 5. **Crop and irrigation actions:** Prefer existing production, construction, and policy mechanisms. If direct crop allocation is absent, implement one narrow, delayed scenario action before adding broad agricultural simulation.
 6. **Outcome precedence:** Breakdown takes precedence if government control/revolt ends the campaign; otherwise classify by food access and debt outcome, with coercive extraction identifying high repression or burdens. Record thresholds in the scenario definition and expose them in the debrief explanation.
+7. **Currency presentation:** Treat scenario debt amounts and cross-border transfers as normalized simulation units. Do not display them as literal 1877 sterling values or imply a historical exchange rate.
 
 ## Commit policy
 

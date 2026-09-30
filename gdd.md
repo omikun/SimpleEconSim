@@ -28,9 +28,9 @@ This is a historically grounded scenario, not a claim that the exact game sequen
 
 **Core loop:**
 1. Read the crisis briefing and choose an immediate response: release public maize reserves, prioritize domestic grain over exports, import grain using scarce credit, or protect the scheduled Caisse remittance.
-2. Choose a structural response: shift some irrigated acreage from cotton to maize, repair or extend irrigation where the simulation supports it, protect cultivators from an added tax burden, preserve export acreage, or pledge future revenue to borrow.
+2. Choose a structural response: keep more food in domestic supply, reduce local tax rates to ease pressure on cultivators, preserve export receipts for debt service, or use existing construction and borrowing systems to invest or pledge future revenue.
 3. Watch staple prices, household food access, treasury capacity, creditor confidence, and political support respond over the next few turns.
-4. React to consequences: negotiate with the Caisse and bondholders, concede revenue oversight, shift the tax burden, or use coercion. Major choices resolve through the existing intent/decree flow and show their cost, delay, and political reaction.
+4. React to consequences: negotiate with the Caisse and bondholders, concede revenue oversight, shift the tax burden, or use coercion. Major choices resolve through existing intents/decrees or an explicit scenario action path and show their cost, delay, and political reaction.
 5. Reach turn 20 with food access and government capacity maintained, or face default, unrest, or deeper loss of fiscal control. The outcome is a debrief, not a binary score screen.
 
 **Outcome bands:** (a) Relief and payment: food access is restored and scheduled debt service is met without a legitimacy collapse; (b) creditor settlement: food access is protected through restructuring or a revenue concession, at a visible loss of fiscal autonomy; (c) coercive extraction: debt service and export receipts continue, while coercion or heavier burdens preserve brittle order and worsen household security; (d) breakdown: default, loss of government control, or revolt ends the current administration. These are scenario debrief categories, not mutually exclusive moral judgments.
