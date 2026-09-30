@@ -64,7 +64,7 @@ def draw_guided_header(surface, world: dict, font_small, mouse_pos=None) -> None
     """Draw turn objective and simple composition controls above the map."""
     pygame.draw.rect(surface, (21, 25, 34), (0, TOP_BAR_H, MAP_RIGHT, 48))
     pygame.draw.line(surface, (64, 73, 94), (0, TOP_BAR_H + 47), (MAP_RIGHT, TOP_BAR_H + 47), 1)
-    title = font_small.render('GRAIN COMPACT  •  Keep food moving, keep the government functioning', True, (235, 225, 190))
+    title = font_small.render('EGYPT 1877  •  Protect food access, preserve government capacity', True, (235, 225, 190))
     surface.blit(title, (18, TOP_BAR_H + 7))
     turn = world.get('turn', 0)
     turn_text = font_small.render(f'Turn {turn} / 20', True, ACCENT)
@@ -184,7 +184,7 @@ def draw_guided_frame(surface, world: dict, font, font_small, mouse_pos=None) ->
     draw_pressure_panel(surface, world, mouse_pos=mouse_pos)
     draw_ticker(surface, world, font_small)
 
-    notice = get_font(16).render('Guided overview • Grain Compact scenario setup is in progress', True, DIM)
+    notice = get_font(16).render('Guided overview • Nile failure and debt-service crisis scenario', True, DIM)
     surface.blit(notice, (18, HEIGHT - TICKER_H - 24))
 
     if world.get('guided_analysis_open'):
