@@ -70,18 +70,18 @@ The historical setting supplies people, institutions, and places. The campaign's
 
 ### Phase 4 — Campaign progression and debrief
 
-**Status: Planned**
+**Status: Implemented (runtime playthrough in Phase 5)**
 
-- Initialize paused, advance deliberately, and track the compressed payment window and turn-20 horizon.
-- Resolve scenario events and update household maize access, treasury/debt status, and political support after each turn.
-- Define and implement the four outcome bands using measurable state predicates, including precedence when multiple conditions apply.
-- At turn 20 (or an explicitly defined early-ending condition), stop campaign input and show a causal debrief of pivotal choices.
+- Keep the campaign paused by default, stop autoplay when it ends, and track the turn-six payment window and turn-20 horizon.
+- Apply the low-Nile yield shock in the Delta and Upper Egypt through turn eight; update household access, debt status, treasury transfers, and political support through the shared simulation.
+- Implement breakdown precedence at legitimacy <= 10% or average unrest >= 0.85. At turn 20, classify protected food access (<= 20% of households hungry) plus paid/restructured debt, tax extraction, or breakdown.
+- On completion, stop further scenario turns and show measured food/political outcomes, debt/autonomy status, and the player's recorded decisions.
 
 **Acceptance:** The same opening can lead to at least two distinguishable endings, and the debrief attributes results to actual player choices and measured simulation state.
 
 ### Phase 5 — Integration and delivery polish
 
-**Status: Planned**
+**Status: In progress**
 
 - Review Guided/Advanced switching, save/load behavior, restart behavior, and ordinary sandbox startup for regressions.
 - Check all scenario links, action feedback, layout at supported window sizes, and history-versus-abstraction wording.

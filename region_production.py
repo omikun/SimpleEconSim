@@ -95,6 +95,13 @@ def terrain_bonus(region, good, t: int | None = None):
         if use_pest:
             mult *= 1.40
 
+        # Scenario-only low-Nile crop shock; ordinary worlds default to 1.0.
+        scenario_yield = float(getattr(region, 'scenario_food_yield_modifier', 1.0))
+        shock_end = getattr(region, 'scenario_food_yield_modifier_until', None)
+        current_turn = t if t is not None else getattr(region, '_last_turn', None)
+        if shock_end is None or current_turn is None or current_turn <= shock_end:
+            mult *= scenario_yield
+
     # P3: Clover / Turnip Pasture Synergy for Wool
     elif good == Goods.wool:
         regime = getattr(region, 'farming_regime', 'rotation')

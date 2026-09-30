@@ -116,6 +116,9 @@ def ticker_push(world, t, kind, text, color, n=140):
 
 def step_world(world):
     """Advance one turn of the engine via sim_engine."""
+    if world.get('scenario_id') == 'egypt_1877' and world.get('scenario_state', {}).get('ending'):
+        world['playing'] = False
+        return world.get('violations', [])
     t = world['turn'] + 1
     tiles = world['tiles']
     currencies = world['currencies']
@@ -177,4 +180,7 @@ def step_world(world):
     world['currency_totals'] = {c: fx.audit_currency_total(tiles, c)
                                 for c in currencies}
     world['violations'] = violations
+    if world.get('scenario_id') == 'egypt_1877':
+        from scenario_egypt_1877 import advance_scenario
+        advance_scenario(world, t, ticker_push)
     return violations

@@ -119,13 +119,15 @@ def draw_guided_header(surface, world: dict, font_small, mouse_pos=None) -> None
         pygame.draw.rect(surface, ACCENT if hover else (76, 88, 112), rect, 1, border_radius=4)
         text = font_small.render(label, True, TEXT)
         surface.blit(text, text.get_rect(center=(rect[0] + rect[2] // 2, rect[1] + rect[3] // 2)))
+    scenario_ended = world.get('scenario_id') == 'egypt_1877' and bool(world.get('scenario_state', {}).get('ending'))
     controls = [((MAP_RIGHT - 326, TOP_BAR_H + 9, 46, 28), 'play_pause', 'Pause' if world.get('playing') else 'Play'),
                 ((MAP_RIGHT - 274, TOP_BAR_H + 9, 42, 28), 'step_next', 'Next')]
     for rect, action, label in controls:
-        register_target(world, rect, action, scope='guided')
+        if not scenario_ended:
+            register_target(world, rect, action, scope='guided')
         hover = rect[0] <= mx <= rect[0] + rect[2] and rect[1] <= my <= rect[1] + rect[3]
-        pygame.draw.rect(surface, (48, 55, 73) if hover else (31, 37, 51), rect, border_radius=3)
-        txt = font_small.render(label, True, TEXT)
+        pygame.draw.rect(surface, (48, 55, 73) if hover and not scenario_ended else (31, 37, 51), rect, border_radius=3)
+        txt = font_small.render(label, True, TEXT if not scenario_ended else DIM)
         surface.blit(txt, txt.get_rect(center=(rect[0] + rect[2] // 2, rect[1] + rect[3] // 2)))
     if world.get('guided_analysis_open'):
         analysis_tabs = [('overview', 'Overview'), ('land', 'Land'), ('people', 'People')]
@@ -224,6 +226,9 @@ def _wrap_text(text: str, font, max_width: int) -> list[str]:
 
 def _draw_egypt_scenario_panel(surface, world: dict, mouse_pos=None) -> None:
     """Scenario-first briefing, three pressures, and focused action choices."""
+    if world.get('scenario_state', {}).get('ending'):
+        _draw_egypt_scenario_debrief(surface, world)
+        return
     from ui_targets import register_target
     x, y, w = MAP_RIGHT + 10, TOP_BAR_H + 14, WIDTH - MAP_RIGHT - 20
     h = HEIGHT - TOP_BAR_H - TICKER_H - 28
@@ -269,31 +274,41 @@ def _draw_egypt_scenario_panel(surface, world: dict, mouse_pos=None) -> None:
     surface.blit(body_font.render('Choose one decision this turn', True, TEXT), (x + 13, cur_y))
     cur_y += 24
     payment_ready = turn >= int(state.get('payment_window_turn', 6)) and state.get('payment_status') in ('upcoming', 'unpaid')
-    actions = [
-        ('release_maize', 'Release maize reserves', 'Use public stores to feed households', stock > 0),
-        ('prioritize_domestic_grain', 'Keep more food in Egypt', 'Retain half of food exports in granaries', not state.get('domestic_grain_priority', False)),
-        ('reduce_fellahin_tax', 'Reduce local taxes', 'Ease pressure; lower future tax receipts', not state.get('tax_relief_enacted', False)),
+    treasury_cash = float(getattr(getattr(getattr(nation, 'government', None), 'agent', None), 'cash', 0.0)) if nation else 0.0
+    scheduled_payment = float(state.get('scheduled_remittance', 200.0))
+    tax_available = not state.get('tax_decision_taken', False)
+    action_rows = [
+        [('release_maize', 'Release maize reserves', 'Use public stores to feed households', stock > 0)],
+        [('prioritize_domestic_grain', 'Keep more food in Egypt', 'Retain half of food exports in granaries', not state.get('domestic_grain_priority', False))],
+        [('reduce_fellahin_tax', 'Reduce local taxes', 'Lower future receipts', tax_available),
+         ('raise_local_taxes', 'Raise local taxes', 'More receipts; more unrest', tax_available)],
     ]
     if payment_ready:
-        actions.extend([
-            ('pay_remittance', 'Pay debt service', 'Transfer treasury funds to creditors', True),
-            ('defer_remittance', 'Defer debt service', 'Keep cash now; risk creditor confidence', True),
+        action_rows.extend([
+            [('pay_remittance', 'Pay debt service', f'Pay {scheduled_payment:.0f} units to creditors', treasury_cash >= scheduled_payment)],
+            [('concede_revenue', 'Concede revenue', f'Pay {scheduled_payment * 0.5:.0f} units; lose autonomy', treasury_cash >= scheduled_payment * 0.5)],
+            [('defer_remittance', 'Defer debt service', 'Keep cash now; risk creditor confidence', True)],
         ])
     mx, my = mouse_pos if mouse_pos else (-1, -1)
-    for action_id, label, detail, available in actions:
+    for row in action_rows:
         button_h = 44
-        rect = (x + 9, cur_y, w - 18, button_h)
-        enabled = available and not spent
-        if enabled:
-            register_target(world, rect, ('scenario_action', action_id), scope='guided')
-        hover = rect[0] <= mx <= rect[0] + rect[2] and rect[1] <= my <= rect[1] + rect[3]
-        bg = (52, 66, 88) if hover and enabled else ((37, 44, 59) if enabled else (30, 33, 42))
-        edge = ACCENT if hover and enabled else ((80, 96, 124) if enabled else (53, 58, 70))
-        pygame.draw.rect(surface, bg, rect, border_radius=4)
-        pygame.draw.rect(surface, edge, rect, 1, border_radius=4)
-        color = TEXT if enabled else DIM
-        surface.blit(small_font.render(label, True, color), (rect[0] + 9, rect[1] + 5))
-        surface.blit(get_font(12).render(detail, True, DIM), (rect[0] + 9, rect[1] + 24))
+        gap = 5
+        button_w = (w - 18 - gap * (len(row) - 1)) // len(row)
+        for col, (action_id, label, detail, available) in enumerate(row):
+            rect = (x + 9 + col * (button_w + gap), cur_y, button_w, button_h)
+            enabled = available and not spent
+            if enabled:
+                register_target(world, rect, ('scenario_action', action_id), scope='guided')
+            hover = rect[0] <= mx <= rect[0] + rect[2] and rect[1] <= my <= rect[1] + rect[3]
+            bg = (52, 66, 88) if hover and enabled else ((37, 44, 59) if enabled else (30, 33, 42))
+            edge = ACCENT if hover and enabled else ((80, 96, 124) if enabled else (53, 58, 70))
+            pygame.draw.rect(surface, bg, rect, border_radius=4)
+            pygame.draw.rect(surface, edge, rect, 1, border_radius=4)
+            color = TEXT if enabled else DIM
+            button_font = get_font(13) if len(row) == 1 else get_font(12)
+            surface.blit(button_font.render(label, True, color), (rect[0] + 7, rect[1] + 5))
+            detail_font = get_font(12) if len(row) == 1 else get_font(11)
+            surface.blit(detail_font.render(detail, True, DIM), (rect[0] + 7, rect[1] + 24))
         cur_y += button_h + 5
 
     message = world.get('scenario_feedback', '')
@@ -305,6 +320,38 @@ def _draw_egypt_scenario_panel(surface, world: dict, mouse_pos=None) -> None:
         surface.blit(get_font(12).render('Decision recorded. Advance a turn to see its effects.', True, DIM), (x + 14, y + h - 24))
     else:
         surface.blit(get_font(12).render('Select a district to inspect its details.', True, DIM), (x + 14, y + h - 24))
+
+
+def _draw_egypt_scenario_debrief(surface, world: dict) -> None:
+    x, y, w = MAP_RIGHT + 10, TOP_BAR_H + 14, WIDTH - MAP_RIGHT - 20
+    h = HEIGHT - TOP_BAR_H - TICKER_H - 28
+    pygame.draw.rect(surface, (25, 28, 38), (x, y, w, h), border_radius=7)
+    pygame.draw.rect(surface, ACCENT, (x, y, w, h), 1, border_radius=7)
+    debrief = world.get('scenario_state', {}).get('debrief', {})
+    title_font, body_font, small_font = get_font(25), get_font(17), get_font(14)
+    cur_y = y + 18
+    surface.blit(title_font.render(debrief.get('title', 'Campaign complete'), True, ACCENT), (x + 14, cur_y))
+    cur_y += 39
+    for line in _wrap_text(debrief.get('summary', ''), body_font, w - 28)[:4]:
+        surface.blit(body_font.render(line, True, TEXT), (x + 14, cur_y))
+        cur_y += 22
+    cur_y += 8
+    for key in ('food', 'debt', 'politics'):
+        for line in _wrap_text(debrief.get(key, ''), small_font, w - 28)[:2]:
+            surface.blit(small_font.render(line, True, DIM), (x + 14, cur_y))
+            cur_y += 19
+        cur_y += 4
+    cur_y += 9
+    surface.blit(body_font.render('Decisions that shaped this result', True, TEXT), (x + 14, cur_y))
+    cur_y += 26
+    for action in debrief.get('actions', [])[:6]:
+        lines = _wrap_text(f'• {action}', small_font, w - 32)
+        for line in lines[:2]:
+            if cur_y > y + h - 30:
+                return
+            surface.blit(small_font.render(line, True, TEXT), (x + 17, cur_y))
+            cur_y += 18
+        cur_y += 4
 
 
 def draw_guided_frame(surface, world: dict, font, font_small, mouse_pos=None) -> None:
@@ -400,7 +447,9 @@ def guided_ui_hit(pos, world: dict) -> bool:
     elif action == 'toggle_guided_analysis':
         world['guided_analysis_open'] = not world.get('guided_analysis_open', False)
     elif action == 'play_pause':
-        world['playing'] = not world.get('playing', False)
+        ended = world.get('scenario_id') == 'egypt_1877' and bool(world.get('scenario_state', {}).get('ending'))
+        if not ended:
+            world['playing'] = not world.get('playing', False)
     elif action == 'step_next':
         from worldview_engine import step_world
         world['playing'] = False
@@ -414,6 +463,7 @@ def guided_ui_hit(pos, world: dict) -> bool:
         world['scenario_feedback'] = message
         if not ok:
             world['scenario_feedback'] = f"Not enacted: {message}"
+        world['needs_redraw'] = True
     elif action == 'open_debt_analysis':
         world['debt_panel_open'] = True
         world['left_panel'] = 'debt'
