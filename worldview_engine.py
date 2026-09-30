@@ -100,6 +100,14 @@ def build_world_view(seed=None, terrain_seed=None, nation_seed=None, scenario_id
         from scenario_egypt_1877 import prepare_world
         prepare_world(world)
     reset_cam(world)
+    if is_scenario_id(scenario_id):
+        egypt = world['selected_nation']
+        centers = [tile.centroid for tile in egypt.tiles if hasattr(tile, 'centroid')]
+        if centers:
+            world['cam']['target_x'] = sum(x for x, _ in centers) / len(centers)
+            world['cam']['target_y'] = sum(y for _, y in centers) / len(centers)
+            world['cam']['zoom'] = float(SCENARIO['camera']['zoom'])
+            clamp_cam(world)
     return world
 
 

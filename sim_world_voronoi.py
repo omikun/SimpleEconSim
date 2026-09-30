@@ -92,11 +92,15 @@ def build_world_voronoi(
         # Campaign terrain is generated from its own fixed settings. A player's
         # sandbox slot must not change the scenario mesh or its geography.
         from scenario_egypt_1877 import SCENARIO
+        terrain_config = SCENARIO["terrain"]
+        num_points = terrain_config["points"] if num_points is None else num_points
+        island_shape = terrain_config["shape"] if island_shape is None else island_shape
         slot_state = {
-            "seed": SCENARIO["seeds"]["terrain"],
-            "shape": VORONOI_ISLAND_SHAPE,
-            "points": VORONOI_POINTS,
-            "rivers": 25,
+            "seed": terrain_seed if terrain_seed is not None else SCENARIO["seeds"]["terrain"],
+            "shape": island_shape,
+            "points": num_points,
+            "rivers": terrain_config["rivers"],
+            "wave_intensity": terrain_config["wave_intensity"],
         }
     else:
         # Check saved_slots/slot_1.json for default persistent world configuration

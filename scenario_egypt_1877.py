@@ -45,6 +45,8 @@ SCENARIO = {
     # Fixed map seeds make this authored campaign reproducible without affecting
     # ordinary sandbox generation. CLI seed flags remain available for tuning.
     "seeds": {"world": 1877, "terrain": 1877, "nations": 1877},
+    "terrain": {"shape": "radial", "points": 1000, "rivers": 25, "wave_intensity": 1.0},
+    "camera": {"zoom": 2.0},
     "actions": (
         {"id": "release_maize", "title": "Release maize reserves", "turn_cost": 1},
         {"id": "prioritize_domestic_grain", "title": "Keep more grain in Egypt", "turn_cost": 1},
