@@ -163,6 +163,15 @@
         "responses": []
       }
     },
+    "intensify_requisitions": {
+      "delay_turns": 1,
+      "reaction": {
+        "headline": "Creditors warn that requisitions threaten collection",
+        "body": "The Caisse expects continued collection pressure, but unrest could make its claims harder to collect.",
+        "effects": {},
+        "responses": []
+      }
+    },
     "pay_remittance": {
       "delay_turns": 1,
       "reaction": {

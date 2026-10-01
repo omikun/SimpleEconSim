@@ -10,6 +10,7 @@ ACTION_LABELS = {
     'prioritize_domestic_grain': 'Retained grain for domestic supply',
     'reduce_fellahin_tax': 'Reduced local taxes',
     'raise_local_taxes': 'Raised local taxes',
+    'intensify_requisitions': 'Intensified emergency requisitions',
     'pay_remittance': 'Paid debt service',
     'concede_revenue': 'Conceded revenue oversight',
     'defer_remittance': 'Deferred debt service',

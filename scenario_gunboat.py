@@ -177,14 +177,14 @@ def advance_naval_crisis(world: dict) -> None:
     if stage == 'mediation':
         if turn < int(crisis['mediation_due_turn']):
             return
-        if (float(state.get('creditor_confidence', 0.0)) >= 0.55
-                and float(state.get('scheduled_remittance', 0)) > 0
+        if (float(state.get('scheduled_remittance', 0)) > 0
                 and egypt.government.agent.cash >= float(state['scheduled_remittance']) * 0.5):
             from scenario_debt import pay as pay_debt
             amount = float(state['scheduled_remittance']) * 0.5
             ok, _ = pay_debt(world, amount, kind='ottoman_mediation', forgive_remainder=True)
             if ok:
                 state['payment_status'] = 'restructured'
+                state['settlement_path'] = 'ottoman_mediation'
                 withdraw(world, f'Ottoman mediation secures a {amount:,.0f}-unit settlement; the fleet withdraws.')
                 return
         crisis['stage'] = 'ultimatum'
@@ -225,7 +225,7 @@ def naval_response_options(world: dict, kind: str) -> list[dict]:
                               and float(politics.get('army_loyalty', 1.0)) < 0.35)
         return common + [
             {'id': 'naval_seek_mediation', 'label': 'Seek Ottoman mediation',
-             'tooltip': 'Ask the Ottoman government to mediate. Britain waits one turn while paying fleet upkeep. If confidence is at least 55% and Egypt can pay half the claim, the mediated settlement ends the crisis; otherwise the ultimatum returns.',
+             'tooltip': 'Ask the Ottoman government to mediate. Britain waits one turn while paying fleet upkeep. If Egypt can pay half the claim, mediation settles the debt; otherwise the ultimatum returns.',
              'enabled': True},
             {'id': 'naval_disarm', 'label': 'Disarm coastal batteries',
              'tooltip': 'Avoid bombardment and the blockade, but lose 8 points of legitimacy and 5 points of autonomy. The debt claim remains unresolved.',
@@ -267,6 +267,7 @@ def resolve_naval_response(world: dict, response_id: str) -> tuple[bool, str]:
         if not ok:
             return False, reason
         state['payment_status'] = 'restructured'
+        state['settlement_path'] = 'naval_settlement'
         state['creditor_levy_per_turn'] = 0.0
         state['creditor_levy_remaining'] = 0.0
         state['fiscal_autonomy'] = max(0.0, state['fiscal_autonomy'] - 0.10)
@@ -276,6 +277,7 @@ def resolve_naval_response(world: dict, response_id: str) -> tuple[bool, str]:
         state['creditor_levy_per_turn'] = 5.0
         from scenario_debt import outstanding
         state['creditor_levy_remaining'] = outstanding(world)
+        state['financial_control_origin'] = 'naval_ultimatum'
         state['fiscal_autonomy'] = max(0.0, state['fiscal_autonomy'] - 0.15)
         state['creditor_confidence'] = min(1.0, state['creditor_confidence'] + 0.05)
         withdraw(world, 'Cairo accepts a customs levy under naval pressure; the squadron withdraws.')

@@ -42,7 +42,13 @@ SCENARIO = {
     "outcomes": (
         {"id": "relief_and_payment", "food_access": "protected", "debt": "paid"},
         {"id": "creditor_settlement", "food_access": "protected", "debt": "restructured"},
-        {"id": "coercive_extraction", "food_access": "poor", "political_cost": "high"},
+        {"id": "sovereign_compromise", "debt": "mediated", "government_control": "Egyptian"},
+        {"id": "imposed_financial_control", "revenue_control": "Caisse assignment"},
+        {"id": "successful_repudiation", "debt": "defaulted", "territory": "Egyptian"},
+        {"id": "stalled_intervention", "territory": "contested"},
+        {"id": "nationalist_victory", "territory": "Egyptian", "government_control": "nationalist"},
+        {"id": "occupation", "government_control": "British"},
+        {"id": "coercive_extraction", "tax_policy": "high extraction", "political_cost": "high"},
         {"id": "breakdown", "government_control": "lost"},
     ),
     # Fixed map seeds make this authored campaign reproducible without affecting
@@ -55,6 +61,7 @@ SCENARIO = {
         {"id": "prioritize_domestic_grain", "title": "Keep more grain in Egypt", "turn_cost": 1},
         {"id": "reduce_fellahin_tax", "title": "Reduce cultivator taxes", "turn_cost": 1},
         {"id": "raise_local_taxes", "title": "Raise local taxes", "turn_cost": 1},
+        {"id": "intensify_requisitions", "title": "Enforce emergency requisitions", "turn_cost": 1},
         {"id": "pay_remittance", "title": "Pay debt service", "turn_cost": 1},
         {"id": "defer_remittance", "title": "Defer debt service", "turn_cost": 1},
         {"id": "concede_revenue", "title": "Concede revenue oversight", "turn_cost": 1},
@@ -254,6 +261,7 @@ def prepare_world(world: dict) -> dict:
         "deferral_count": 0,
         "creditor_levy_per_turn": 0.0,
         "creditor_levy_remaining": 0.0,
+        "settlement_path": None,
         "naval_crisis": {"stage": "none"},
         "naval_news": [],
         "creditor_reactions": [],
@@ -369,6 +377,18 @@ def apply_action(world: dict, action_id: str) -> tuple[bool, str]:
         state["tax_decision_taken"] = True
         state["extraction_level"] += 1
         message = "Raised local taxes to protect revenue; cultivator unrest and political strain increased."
+    elif action_id == "intensify_requisitions":
+        if state.get('extraction_level', 0) <= 0:
+            return False, 'Raise local taxes before ordering repeated requisitions.'
+        below_ceiling = any(float(getattr(tile.gov, 'tax_rate', 0)) < .60 for tile in nation.tiles)
+        for tile in nation.tiles:
+            tile.gov.tax_rate = min(.60, float(getattr(tile.gov, 'tax_rate', 0)) + .04)
+            tile.unrest_level = min(1.0, float(getattr(tile, 'unrest_level', 0)) + .12)
+        nation.legitimacy = max(0.0, float(nation.legitimacy) - .08)
+        state['extraction_level'] += 1
+        message = ('Ordered another round of requisitions; future tax receipts can rise, but unrest and legitimacy deteriorate.'
+                   if below_ceiling else
+                   'Enforced the emergency tax ceiling through another round of requisitions; unrest and legitimacy deteriorate.')
     elif action_id == 'reinforce_alexandria':
         from scenario_gunboat import reinforce_batteries
         ok, message = reinforce_batteries(world)
@@ -421,6 +441,7 @@ def apply_action(world: dict, action_id: str) -> tuple[bool, str]:
             if not ok:
                 return False, reason
             state["payment_status"] = "paid" if action_id == "pay_remittance" else "restructured"
+            state["settlement_path"] = "scheduled_payment" if action_id == "pay_remittance" else "revenue_concession"
             state["creditor_levy_per_turn"] = 0.0
             state["creditor_levy_remaining"] = 0.0
             state["creditor_confidence"] = min(1.0, state.get("creditor_confidence", 0.6) + 0.15)
@@ -552,6 +573,42 @@ def advance_scenario(world: dict, turn: int, ticker_push, on_phase=None) -> None
     finish_due_campaign(world)
 
 
+def classify_outcome(world: dict, metrics: dict | None = None) -> str:
+    """Select one declared ending from measured control, debt, and welfare."""
+    state = world.get('scenario_state', {})
+    nation = next((n for n in world.get('nations', [])
+                   if n.name == world.get('player_nation_name')), None)
+    if nation is None:
+        return 'breakdown'
+    metrics = metrics or _outcome_metrics(nation)
+    thresholds = SCENARIO['thresholds']
+    campaign = state.get('campaign', {})
+    control = campaign.get('territorial_control', {})
+    nationalist = state.get('politics', {}).get('governing_coalition') == 'nationalist'
+    if control.get('Cairo') == 'Britain':
+        return 'occupation'
+    if any(owner == 'Britain' for owner in control.values()):
+        return 'stalled_intervention'
+    if nationalist and campaign.get('expedition', {}).get('stage') in ('repelled', 'withdrawn'):
+        return 'nationalist_victory'
+    if metrics['legitimacy'] <= thresholds['breakdown_legitimacy'] or metrics['unrest'] >= thresholds['breakdown_unrest']:
+        return 'breakdown'
+    if (float(state.get('creditor_levy_per_turn', 0)) > 0
+            and float(state.get('creditor_levy_remaining', 0)) > 0):
+        return 'imposed_financial_control'
+    if state.get('settlement_path') == 'ottoman_mediation' and state.get('payment_status') == 'restructured':
+        return 'sovereign_compromise'
+    if state.get('payment_status') == 'defaulted' and state.get('naval_crisis', {}).get('stage') == 'withdrawn':
+        return 'successful_repudiation'
+    if state.get('extraction_level', 0) > 0:
+        return 'coercive_extraction'
+    if metrics['hunger_rate'] <= thresholds['protected_hunger_rate'] and state.get('payment_status') == 'paid':
+        return 'relief_and_payment'
+    if metrics['hunger_rate'] <= thresholds['protected_hunger_rate'] and state.get('payment_status') == 'restructured':
+        return 'creditor_settlement'
+    return 'breakdown'
+
+
 def finish_due_campaign(world: dict) -> None:
     """Complete turn 20 after any debt or creditor modal has been answered."""
     state = world.get('scenario_state', {})
@@ -564,28 +621,7 @@ def finish_due_campaign(world: dict) -> None:
     if nation is None:
         return
     metrics = _outcome_metrics(nation)
-    thresholds = SCENARIO['thresholds']
-    campaign = state.get('campaign', {})
-    control = campaign.get('territorial_control', {})
-    nationalist = state.get('politics', {}).get('governing_coalition') == 'nationalist'
-    if control.get('Cairo') == 'Britain':
-        outcome = 'occupation'
-    elif any(owner == 'Britain' for owner in control.values()):
-        outcome = 'stalled_intervention'
-    elif (nationalist and campaign.get('expedition', {}).get('stage') in ('repelled', 'withdrawn')):
-        outcome = 'nationalist_victory'
-    elif metrics['legitimacy'] <= thresholds['breakdown_legitimacy'] or metrics['unrest'] >= thresholds['breakdown_unrest']:
-        outcome = 'breakdown'
-    elif state.get('payment_status') == 'defaulted' and state.get('naval_crisis', {}).get('stage') == 'withdrawn':
-        outcome = 'successful_repudiation'
-    elif state.get('extraction_level', 0) > 0:
-        outcome = 'coercive_extraction'
-    elif metrics['hunger_rate'] <= thresholds['protected_hunger_rate'] and state.get('payment_status') == 'paid':
-        outcome = 'relief_and_payment'
-    elif metrics['hunger_rate'] <= thresholds['protected_hunger_rate'] and state.get('payment_status') == 'restructured':
-        outcome = 'creditor_settlement'
-    else:
-        outcome = 'breakdown'
+    outcome = classify_outcome(world, metrics)
     _finish_scenario(world, nation, outcome, turn, metrics)
 
 
@@ -624,6 +660,8 @@ def build_debrief(world: dict, outcome: str, metrics: dict | None = None) -> dic
     labels = {
         "relief_and_payment": ("Relief and payment", "Food access held and the scheduled remittance was paid."),
         "creditor_settlement": ("Creditor settlement", "Food access held after a reduced payment and revenue concession."),
+        "sovereign_compromise": ("Sovereign compromise", "Ottoman mediation secured reduced debt terms without foreign control of Egyptian territory or revenue."),
+        "imposed_financial_control": ("Creditor financial control", "The Caisse still collects assigned Egyptian receipts under a creditor demand."),
         "coercive_extraction": ("Coercive extraction", "The government protected revenue by raising local taxes, increasing unrest and political strain."),
         "breakdown": ("Government breakdown", "The administration lost control of the crisis before it could protect both food access and fiscal capacity."),
         "occupation": ("British occupation", "British troops hold Cairo and control the tax administration despite Egypt's formal sovereignty."),

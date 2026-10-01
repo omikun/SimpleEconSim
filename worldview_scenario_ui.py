@@ -406,6 +406,15 @@ def _guided_action_preview(world: dict, nation, action_id: str) -> tuple[str, li
             f'Average unrest {unrest:.2f} → {next_unrest:.2f}; legitimacy {legitimacy:.0%} → {max(0, legitimacy - .08):.0%}.',
             'Next turns: tax receipts may rise; this also counts as coercive extraction.',
         ])
+    if action_id == 'intensify_requisitions':
+        next_unrest = sum(min(1, float(getattr(tile, 'unrest_level', 0.0)) + .12) for tile in tiles) / max(1, len(tiles))
+        tax_increase = any(float(getattr(tile.gov, 'tax_rate', 0)) < .60 for tile in tiles)
+        return (('Tax up to +4pp' if tax_increase else 'Tax ceiling held') + ' • legitimacy −8pp', [
+            ('Now: raise district tax rates by up to 4 points, capped at 60%.' if tax_increase
+             else 'Now: enforce the 60% emergency tax ceiling for another turn.'),
+            f'Average unrest {unrest:.2f} → {next_unrest:.2f}; legitimacy {legitimacy:.0%} → {max(0, legitimacy - .08):.0%}.',
+            'Repeated requisitions can cause government breakdown; higher taxes can raise future receipts.',
+        ])
     amount = float(state.get('scheduled_remittance', 200.0))
     if action_id == 'pay_remittance':
         if int(world.get('turn', 0)) < int(state.get('payment_window_turn', 6)):
@@ -734,6 +743,8 @@ def _draw_egypt_scenario_panel(surface, world: dict, mouse_pos=None) -> None:
     if tax_available:
         action_rows.append([('reduce_fellahin_tax', 'Reduce local taxes', True),
                             ('raise_local_taxes', 'Raise local taxes', True)])
+    elif state.get('extraction_level', 0) > 0:
+        action_rows.append([('intensify_requisitions', 'Enforce requisitions', True)])
     if (float(politics.get('army_loyalty', 1.0)) < 0.72
             or float(politics.get('nationalist_movement', 0.0)) >= 0.35):
         army_rows = []
