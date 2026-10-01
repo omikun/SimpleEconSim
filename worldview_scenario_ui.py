@@ -116,9 +116,22 @@ def _egypt_scenario_pressures(world: dict) -> list[dict]:
     unrest = sum(float(getattr(r, 'unrest_level', 0.0)) for r in nation.tiles) / max(1, len(nation.tiles))
     legitimacy = float(getattr(nation, 'legitimacy', 0.5))
     political_tone = 'urgent' if legitimacy < 0.30 or unrest >= 0.6 else ('warning' if legitimacy < 0.5 or unrest >= 0.3 else 'good')
+    ledger = state.get('debt_ledger', [])
+    recent = [entry for entry in ledger if entry.get('kind') in ('payment', 'concession_payment',
+                                                                'naval_settlement', 'assigned_revenue')]
+    debt_details = [
+        f'Outstanding Caisse bonds: {remittance:,.0f} units, held by Britain and France.',
+        'Assigned receipts: 25% of eligible tax and 50% of customs, capped by the agreed levy each turn.',
+        f'Collected from actual receipts this turn: {float(state.get("debt_collected_this_turn", 0.0)):,.1f} units.',
+    ]
+    if recent:
+        entry = recent[-1]
+        debt_details.append(f'Latest transfer: turn {entry["turn"]}, {entry["amount"]:,.2f} to {entry["creditor"]} '
+                            f'from {entry.get("source", entry["kind"])}.')
     return [
         {'title': 'Household maize access', 'value': food_value, 'cause': food_cause, 'tone': food_tone},
-        {'title': 'Debt service', 'value': debt_value, 'cause': debt_cause, 'tone': debt_tone},
+        {'title': 'Debt service', 'value': debt_value, 'cause': debt_cause, 'tone': debt_tone,
+         'details': debt_details},
         {'title': 'Political support', 'value': f'Legitimacy {legitimacy:.0%} • unrest {unrest:.2f}',
          'cause': 'Hunger and heavier taxes can erode support.', 'tone': political_tone},
     ]
@@ -190,6 +203,9 @@ def draw_pressure_panel(surface, world: dict, mouse_pos=None) -> None:
         rect = (x + 9, cur_y, w - 18, card_h)
         pygame.draw.rect(surface, (34, 38, 51), rect, border_radius=5)
         pygame.draw.rect(surface, color, rect, 1, border_radius=5)
+        if mouse_pos and rect.collidepoint(mouse_pos):
+            world['_guided_hover_tip'] = (pressure['title'], pressure.get('details', [pressure['cause']]),
+                                          rect, 'action')
         head = body_font.render(pressure['title'], True, color)
         surface.blit(head, (rect[0] + 10, rect[1] + 10))
         value = small_font.render(pressure['value'], True, TEXT)
@@ -535,6 +551,9 @@ def _draw_egypt_scenario_panel(surface, world: dict, mouse_pos=None) -> None:
         color = colors.get(pressure['tone'], ACCENT)
         pygame.draw.rect(surface, (34, 38, 51), rect, border_radius=5)
         pygame.draw.rect(surface, color, rect, 1, border_radius=5)
+        if mouse_pos and rect.collidepoint(mouse_pos):
+            world['_guided_hover_tip'] = (pressure['title'], pressure.get('details', [pressure['cause']]),
+                                          rect, 'action')
         surface.blit(small_font.render(pressure['title'], True, color), (rect.x + 9, rect.y + 6))
         value_font = _scenario_font(13)
         value_lines = _wrap_text(pressure['value'], value_font, rect.w - 18)

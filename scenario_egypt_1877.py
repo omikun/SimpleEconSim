@@ -256,6 +256,8 @@ def prepare_world(world: dict) -> dict:
         "actions_taken": [],
         "events_fired": ["low_nile"],
     }
+    from scenario_debt import initialize as initialize_debt
+    initialize_debt(world)
     egypt.government.food_inventory = world["scenario_state"]["public_maize_stock_units"]
     world["scenario_feedback"] = "Opening crisis: low Nile, threatened maize harvest, and debt service."
     world["scenario_location_by_tile"] = _assign_location_roles(egypt)
@@ -367,18 +369,18 @@ def apply_action(world: dict, action_id: str) -> tuple[bool, str]:
             state["payment_status"] = "defaulted"
             state["creditor_confidence"] = 0.0
             nation.legitimacy = max(0.0, float(getattr(nation, "legitimacy", 0.5)) - 0.15)
+            from scenario_debt import default as default_debt
+            default_debt(world)
             message = "Defaulted on the remittance: creditor confidence collapsed and government legitimacy fell."
         elif action_id in ("pay_remittance", "concede_revenue"):
             amount = amount if action_id == "pay_remittance" else amount * 0.5
             if nation.government.agent.cash < amount:
                 return False, f"The treasury needs {amount:,.0f} treasury units to make this payment."
-            creditors = [n for n in world.get("nations", []) if n.name in ("Britain", "France")]
-            if not creditors:
-                return False, "The creditor account is unavailable."
-            nation.government.agent.cash -= amount
-            share = amount / len(creditors)
-            for creditor in creditors:
-                creditor.government.agent.cash += share
+            from scenario_debt import pay as pay_debt
+            ok, reason = pay_debt(world, amount, kind='payment' if action_id == 'pay_remittance' else 'concession_payment',
+                                  forgive_remainder=action_id == 'concede_revenue')
+            if not ok:
+                return False, reason
             state["payment_status"] = "paid" if action_id == "pay_remittance" else "restructured"
             state["creditor_levy_per_turn"] = 0.0
             state["creditor_levy_remaining"] = 0.0
@@ -395,7 +397,9 @@ def apply_action(world: dict, action_id: str) -> tuple[bool, str]:
             state["payment_status"] = "deferred"
             state["deferral_count"] = int(state.get("deferral_count", 0)) + 1
             state["payment_window_turn"] = turn + deferral_delay
-            state["scheduled_remittance"] = round(amount * float(debt_rules['deferral_multiplier']), 2)
+            from scenario_debt import revise as revise_debt
+            revise_debt(world, round(amount * float(debt_rules['deferral_multiplier']), 2),
+                        due_turn=state['payment_window_turn'])
             state["creditor_confidence"] = max(0.0, state.get("creditor_confidence", 0.6) - 0.30)
             nation.legitimacy = min(1.0, float(getattr(nation, "legitimacy", 0.5)) + 0.02)
             message = (f"Deferred the remittance to turn {state['payment_window_turn']}; "
@@ -446,6 +450,8 @@ def advance_scenario(world: dict, turn: int, ticker_push, on_phase=None) -> None
         state["payment_status"] = "defaulted"
         state["creditor_confidence"] = 0.0
         nation.legitimacy = max(0.0, float(getattr(nation, "legitimacy", 0.5)) - 0.15)
+        from scenario_debt import default as default_debt
+        default_debt(world)
         ticker_push(world, turn, "ALERT", "The government missed the debt-service window; default deepens the crisis.", (240, 90, 82))
     if on_phase:
         on_phase('deadline')

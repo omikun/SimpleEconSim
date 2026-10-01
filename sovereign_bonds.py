@@ -530,6 +530,10 @@ class SovereignBondMarket:
         for bond in list(self.bonds):
             if bond.status != "active":
                 continue
+            if bond.bond_purpose == 'scenario_caisse':
+                # Guided campaign settlements are decided explicitly and recorded
+                # by scenario_debt; the market must not auto-pay the same claim.
+                continue
 
             issuer = nations_by_name.get(bond.issuer_nation)
             holder = nations_by_name.get(bond.holder_nation)

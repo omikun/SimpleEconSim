@@ -221,11 +221,12 @@ def resolve_naval_response(world: dict, response_id: str) -> tuple[bool, str]:
     from scenario_status import snapshot, record_change
     before = snapshot(world)
     if response_id == 'naval_settle':
-        from scenario_situation import _pay_creditors
+        from scenario_debt import pay as pay_debt
         rules = situation_template()['naval_crisis']
         amount = round(float(state['scheduled_remittance']) * float(rules['settlement_fraction']), 2)
-        egypt.government.agent.cash -= amount
-        _pay_creditors(world, amount)
+        ok, reason = pay_debt(world, amount, kind='naval_settlement', forgive_remainder=True)
+        if not ok:
+            return False, reason
         state['payment_status'] = 'restructured'
         state['creditor_levy_per_turn'] = 0.0
         state['creditor_levy_remaining'] = 0.0
@@ -234,7 +235,8 @@ def resolve_naval_response(world: dict, response_id: str) -> tuple[bool, str]:
         withdraw(world, f'Cairo pays {amount:,.0f} and negotiates a settlement; the British squadron withdraws.')
     elif response_id == 'naval_accept_control':
         state['creditor_levy_per_turn'] = 5.0
-        state['creditor_levy_remaining'] = float(state['scheduled_remittance'])
+        from scenario_debt import outstanding
+        state['creditor_levy_remaining'] = outstanding(world)
         state['fiscal_autonomy'] = max(0.0, state['fiscal_autonomy'] - 0.15)
         state['creditor_confidence'] = min(1.0, state['creditor_confidence'] + 0.05)
         withdraw(world, 'Cairo accepts a customs levy under naval pressure; the squadron withdraws.')

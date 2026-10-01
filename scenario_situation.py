@@ -94,11 +94,13 @@ def apply_effects(world: dict, effects: dict) -> tuple[bool, str]:
         state[field] = max(0.0, min(1.0, float(state.get(field, 0.0)) + float(delta)))
     if 'legitimacy_delta' in effects:
         nation.legitimacy = max(0.0, min(1.0, float(nation.legitimacy) + float(effects['legitimacy_delta'])))
-    if 'payment_amount_multiplier' in effects:
-        state['scheduled_remittance'] = round(float(state['scheduled_remittance'])
-                                              * float(effects['payment_amount_multiplier']), 2)
-    if 'payment_due_in' in effects:
-        state['payment_window_turn'] = int(world.get('turn', 0)) + int(effects['payment_due_in'])
+    if 'payment_amount_multiplier' in effects or 'payment_due_in' in effects:
+        from scenario_debt import revise
+        amount = (float(state['scheduled_remittance'])
+                  * float(effects.get('payment_amount_multiplier', 1.0)))
+        due_turn = (int(world.get('turn', 0)) + int(effects['payment_due_in'])
+                    if 'payment_due_in' in effects else None)
+        revise(world, round(amount, 2), due_turn=due_turn)
     if 'payment_status' in effects:
         state['payment_status'] = effects['payment_status']
         if state['payment_status'] == 'deferred':
@@ -110,7 +112,8 @@ def apply_effects(world: dict, effects: dict) -> tuple[bool, str]:
         state['domestic_grain_priority'] = fraction < 1.0
     if 'levy_per_turn' in effects:
         state['creditor_levy_per_turn'] = max(0.0, float(effects['levy_per_turn']))
-        state['creditor_levy_remaining'] = (float(state.get('scheduled_remittance', 0.0))
+        from scenario_debt import outstanding
+        state['creditor_levy_remaining'] = (outstanding(world)
                                              if state['creditor_levy_per_turn'] > 0 else 0.0)
     return True, ''
 
@@ -212,20 +215,8 @@ def resolve_creditor_response(world: dict, response_id: str) -> tuple[bool, str]
 
 
 def collect_creditor_levy(world: dict) -> float:
-    state = world.get('scenario_state', {})
-    remaining = float(state.get('creditor_levy_remaining', 0.0))
-    requested = min(float(state.get('creditor_levy_per_turn', 0.0)), remaining)
-    nation = _egypt(world)
-    if not requested or nation is None:
-        return 0.0
-    paid = min(requested, max(0.0, float(nation.government.agent.cash)))
-    nation.government.agent.cash -= paid
-    _pay_creditors(world, paid)
-    state['creditor_levy_remaining'] = round(max(0.0, remaining - paid), 2)
-    if state['creditor_levy_remaining'] <= 0.01:
-        state['creditor_levy_per_turn'] = 0.0
-        state['payment_status'] = 'paid'
-    return paid
+    from scenario_debt import collected_this_turn
+    return collected_this_turn(world)
 
 
 def _foreign_snapshot(world: dict) -> dict:

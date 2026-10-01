@@ -205,6 +205,7 @@ class ImperialismManager:
             'creditor': bond.holder_nation,
             'principal': bond.principal,
             'coupon': getattr(bond, 'per_turn_coupon', 0.0),
+            'bond_purpose': getattr(bond, 'bond_purpose', 'sovereign'),
             'turn': t,
             'status': 'unresolved'
         }
@@ -945,6 +946,10 @@ class ImperialismManager:
         player_nation_name = world.get('player_nation_name', '')
         for default in list(self.delinquent_defaults):
             if default['status'] != 'unresolved':
+                continue
+            if default.get('bond_purpose') == 'scenario_caisse':
+                # The Egypt situation resolves enforcement through its visible
+                # creditor and naval choices, rather than a second AI takeover.
                 continue
 
             creditor_name = default['creditor']

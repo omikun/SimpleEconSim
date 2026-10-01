@@ -19,7 +19,9 @@ The 20-turn campaign compresses years into decisions, so turns are not literal c
 
 ## Phase 1 — One debt and revenue ledger
 
-**Problem:** The Guided remittance and the sandbox sovereign bonds are separate accounts; the Guided levy is a flat transfer rather than interception of specific receipts.
+**Status:** Complete. Guided claims are recorded as pre-existing sovereign bonds held by Britain and France. Scenario payment decisions settle or revise those bonds. Consensual collection now intercepts a capped share of actual tax and customs receipts, with each transfer in the debt ledger.
+
+**Original problem:** The Guided remittance and the sandbox sovereign bonds were separate accounts; the Guided levy was a flat transfer rather than interception of specific receipts.
 
 **Mechanics:** Represent the Caisse's assigned revenues as named claims on customs, rail, port, and tax receipts. Link scenario maturities and default to sovereign bonds. Require each creditor's actual claim and record interest, principal, arrears, concessions, and settlements. Collect from the claimed revenue stream, limited by what it yields, with a ledger showing who paid and who received it. A consensual assignment works without ships; an imposed assignment requires a currently enforceable agreement or occupation.
 
