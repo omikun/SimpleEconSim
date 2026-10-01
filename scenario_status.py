@@ -20,6 +20,10 @@ ACTION_LABELS = {
     'dismiss_foreign_controllers': 'Dismissed foreign controllers',
     'reinforce_alexandria': 'Prepared Alexandria batteries',
     'close_canal': 'Closed foreign canal transit',
+    'defend_alexandria': 'Defended Alexandria against landing',
+    'defend_canal': 'Defended the Ismailia canal line',
+    'evacuate_port': 'Evacuated Alexandria',
+    'negotiate_landing': 'Negotiated before landing',
 }
 
 PHASE_LABELS = {
@@ -39,6 +43,7 @@ PHASE_LABELS = {
     'creditor_reaction': 'Caisse reaction to the last decision',
     'politics': 'Egyptian officers and civilian coalition',
     'naval_crisis': 'Naval pressure and expedition upkeep',
+    'campaign': 'Fleet movement and land campaign',
 }
 
 

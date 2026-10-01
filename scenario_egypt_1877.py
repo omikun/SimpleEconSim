@@ -63,6 +63,7 @@ SCENARIO = {
         {"id": "promote_egyptian_officers", "title": "Promote Egyptian officers", "turn_cost": 1},
         {"id": "invite_representative_cabinet", "title": "Invite representative cabinet", "turn_cost": 1},
         {"id": "dismiss_foreign_controllers", "title": "Dismiss foreign controllers", "turn_cost": 1},
+        {"id": "close_canal", "title": "Close canal to foreign transit", "turn_cost": 1},
     ),
 }
 
@@ -269,6 +270,8 @@ def prepare_world(world: dict) -> dict:
     initialize_geography(world)
     from scenario_politics import initialize as initialize_politics
     initialize_politics(world)
+    from scenario_campaign import initialize as initialize_campaign
+    initialize_campaign(world)
     for tile in egypt.tiles:
         if getattr(tile, "scenario_location", "") in ("Nile Delta", "Upper Egypt"):
             tile.scenario_food_yield_modifier = 0.55
@@ -511,6 +514,12 @@ def advance_scenario(world: dict, turn: int, ticker_push, on_phase=None) -> None
     advance_naval_crisis(world)
     if on_phase:
         on_phase('naval_crisis')
+    if world.get("scenario_warning_modal"):
+        return
+    from scenario_campaign import advance_expedition
+    advance_expedition(world)
+    if on_phase:
+        on_phase('campaign')
     if world.get("scenario_warning_modal"):
         return
     finish_due_campaign(world)

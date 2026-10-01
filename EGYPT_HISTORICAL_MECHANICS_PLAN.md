@@ -55,6 +55,8 @@ The 20-turn campaign compresses years into decisions, so turns are not literal c
 
 ## Phase 4 — Ultimatums, bombardment, landings, and campaign resolution
 
+**Status:** Complete for the Guided strategic layer. Fighting an ultimatum now spends battery ammunition, damages fort integrity and the British fleet, injures civilians, and records port infrastructure damage. A supplied fleet with transports warns the player before landing. The player can defend Alexandria, move the garrison to the Ismailia canal line, evacuate, or settle. Britain must travel the canal route over turns and pay upkeep and tolls. Land battles use the shared army resolver, record losses, and change territorial control only when troops win or Egypt evacuates.
+
 **Problem:** The first slice resolves bombardment as a scenario consequence. It has no destructible batteries, civilian harm, landing logistics, or land campaign.
 
 **Mechanics:** An ultimatum names observable demands and a deadline. Forts can disarm, fight, run short of ammunition, or be destroyed. Fire damages buildings, supplies, trade, and civilians; it can harden or fracture Egyptian political support. A naval victory permits a landing only where transport and troops can be supplied. Use shared battle resolution for an Alexandria route or the canal route, with terrain, morale, officer loyalty, and local support deciding outcomes. Avoid a single scripted battle or automatic Cairo capture.

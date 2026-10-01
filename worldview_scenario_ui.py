@@ -889,7 +889,7 @@ def draw_scenario_warning_modal(surface, world: dict, mouse_pos=None) -> None:
     veil.fill((5, 7, 12, 210))
     surface.blit(veil, (0, 0))
     kind = warning.get('kind')
-    card = pygame.Rect(310, 220, 780, 440 if kind in ('debt_due', 'creditor_reaction', 'naval_ultimatum', 'naval_blockade', 'dynastic_crisis', 'officer_movement') else 360)
+    card = pygame.Rect(310, 220, 780, 440 if kind in ('debt_due', 'creditor_reaction', 'naval_ultimatum', 'naval_blockade', 'landing_warning', 'dynastic_crisis', 'officer_movement') else 360)
     border = (225, 178, 87) if kind in ('debt_due', 'creditor_reaction') else (226, 102, 94)
     pygame.draw.rect(surface, (24, 29, 41), card, border_radius=10)
     pygame.draw.rect(surface, border, card, 2, border_radius=10)
@@ -943,6 +943,19 @@ def draw_scenario_warning_modal(surface, world: dict, mouse_pos=None) -> None:
         naval_options = naval_response_options(world, kind)
         options = [(f'naval_response:{response["id"]}', response['label'], response['enabled'])
                    for response in naval_options]
+    elif kind == 'landing_warning':
+        from scenario_campaign import landing_options
+        fleet = state['geography']['fleets'].get('Britain', {})
+        fort = state['campaign']['forts']['Alexandria']
+        title = 'British landing preparations'
+        lines = [
+            f'British transports carry {fleet.get("transports", 0)} troops; Alexandria fort integrity {fort["integrity"]:.0f}%, ammunition {fort["ammunition"]}.',
+            f'Civilian injuries so far: {state["campaign"]["civilian_casualties"]}. Choose where the Egyptian army makes its stand.',
+            'The shared battle model resolves casualties and territorial control after the order.',
+        ]
+        campaign_options = landing_options(world)
+        options = [(f'landing_response:{response["id"]}', response['label'], response['enabled'])
+                   for response in campaign_options]
     elif kind in ('dynastic_crisis', 'officer_movement'):
         from scenario_politics import response_options
         politics = state.get('politics', {})
@@ -1076,6 +1089,13 @@ def draw_scenario_warning_modal(surface, world: dict, mouse_pos=None) -> None:
             response = next((item for item in political_options if item['id'] == response_id), None)
             if response is not None:
                 detail = response['tooltip']
+        if hovered_option.startswith('landing_response:'):
+            response_id = hovered_option.split(':', 1)[1]
+            response = next((item for item in campaign_options if item['id'] == response_id), None)
+            if response is not None:
+                detail = response['tooltip']
+                if not response['enabled']:
+                    detail = 'Unavailable with current canal access or treasury cash. ' + detail
         if detail:
             tooltip_font = _scenario_font(13)
             tooltip_w = card.w - 52
@@ -1137,6 +1157,14 @@ def scenario_warning_modal_hit(pos, world: dict) -> bool:
             from scenario_situation import advance_creditor_reactions
             from client.desktop.engine import ticker_push
             advance_creditor_reactions(world, int(world.get('turn', 0)), ticker_push)
+            from scenario_egypt_1877 import finish_due_campaign
+            finish_due_campaign(world)
+    elif action.startswith('landing_response:'):
+        from scenario_campaign import resolve_landing
+        ok, message = resolve_landing(world, action.split(':', 1)[1])
+        world['scenario_feedback'] = message if ok else f'Not enacted: {message}'
+        if ok:
+            world['scenario_warning_modal'] = None
             from scenario_egypt_1877 import finish_due_campaign
             finish_due_campaign(world)
     elif action == 'scenario_rescue_tax':

@@ -189,6 +189,9 @@ def advance_naval_crisis(world: dict) -> None:
         world['playing'] = False
         return
     if stage == 'blockaded' and crisis.get('last_offer_turn') != turn:
+        from scenario_campaign import advance_expedition
+        if advance_expedition(world):
+            return
         _record(world, 'The blockade of Alexandria continues to interrupt its coastal routes. Cairo may settle or hold out.')
         world['scenario_warning_modal'] = {'kind': 'naval_blockade'}
         world['playing'] = False
@@ -294,11 +297,12 @@ def resolve_naval_response(world: dict, response_id: str) -> tuple[bool, str]:
                 withdraw(world, f'Britain cannot enforce the blockade: {message}')
             else:
                 crisis['stage'] = 'blockaded'
+                from scenario_campaign import bombard_alexandria
+                _, bombardment = bombard_alexandria(world)
                 crisis['battery_strength'] = max(0.0, float(crisis.get('battery_strength',
                     situation_template()['naval_crisis']['alexandria_battery_strength'])) * 0.25)
-                alexandria.unrest_level = min(1.0, float(alexandria.unrest_level) + 0.20)
                 egypt.legitimacy = max(0.0, egypt.legitimacy - 0.08)
-                _record(world, 'British guns strike Alexandria’s batteries. The port is blockaded; unrest rises there and government legitimacy falls.', 'WAR')
+                _record(world, bombardment + ' The port is blockaded; a landing may follow.', 'WAR')
                 world['scenario_warning_modal'] = {'kind': 'naval_blockade'}
                 world['playing'] = False
     elif response_id == 'naval_hold':
