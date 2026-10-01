@@ -360,7 +360,7 @@ def apply_action(world: dict, action_id: str) -> tuple[bool, str]:
     state["last_action_turn"] = turn
     state.setdefault("actions_taken", []).append({"turn": turn, "action": action_id, "message": message})
     world["scenario_feedback"] = message
-    from worldview_engine import ticker_push
+    from client.desktop.engine import ticker_push
     ticker_push(world, turn, "SCENARIO", message, (120, 220, 170))
     return True, message
 

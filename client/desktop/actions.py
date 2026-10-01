@@ -11,8 +11,8 @@ Provides an interactive Sovereign Control Suite for REGNUM:
 
 import pygame
 from goods import Goods
-from worldview_camera import WIDTH, HEIGHT, MAP_RIGHT, TOP_BAR_H
-from worldview_map import (
+from client.desktop.camera import WIDTH, HEIGHT, MAP_RIGHT, TOP_BAR_H
+from client.desktop.map.map_renderer import (
     NATION_COLORS, TEXT, DIM, RED, GREEN, ACCENT, PROVINCE_COLORS
 )
 from diplomacy import get_diplomacy, TreatyType
@@ -862,7 +862,7 @@ def draw_sovereign_bonds_tab(surface, world, box_x, y, box_w, box_h, font, font_
     surface.blit(sub_mkt, (right_x + 16, card3_y + 32))
 
     # Foreign listings & live offerings
-    from worldview_ui import NATION_COLORS
+    from client.desktop.hud.ui import NATION_COLORS
     other_nations = [n for n in world.get('nations', []) if n.name != active_n.name]
     row_y = card3_y + 52
     for other in other_nations[:3]:
@@ -980,7 +980,7 @@ def actions_tab_hit(pos, box_x, box_y, world):
 
     # 1. Check Nation Switcher Click: y in [box_y + 48, box_y + 74]
     if box_y + 46 <= my <= box_y + 76:
-        from worldview_ui import get_font
+        from client.desktop.hud.ui import get_font
         font_small = get_font(11)
         lbl_w = font_small.render("Switch Sovereign Nation:", True, (255, 255, 255)).get_width()
         sx = box_x + 20 + lbl_w + 14
@@ -1101,7 +1101,7 @@ def actions_tab_hit(pos, box_x, box_y, world):
                     rec = BUILDING_RECIPES.get(r_key)
                     name_str = rec.display_name if rec else r_key
                     if ok:
-                        from worldview_engine import ticker_push
+                        from client.desktop.engine import ticker_push
                         ticker_push(world, t, 'CONSTRUCT', f"Commissioned {name_str} in {tile_name} (${rec.cost if rec else 0:.0f}).", (245, 180, 50))
                         world['action_feedback'] = (f"Commissioned {name_str} on [{tile_name}]!", GREEN, t)
                     else:
@@ -1142,7 +1142,7 @@ def actions_tab_hit(pos, box_x, box_y, world):
                 if tech_id not in discovered and not missing_techs and not missing_res and not any(b.nation_name == active_n.name and b.tech_id == tech_id for b in inno.active_bounties):
                     ok = inno.post_royal_bounty(active_n, tech_id, 300.0, t)
                     if ok:
-                        from worldview_engine import ticker_push
+                        from client.desktop.engine import ticker_push
                         ticker_push(world, t, 'INNOVATION', f"{active_n.name} posted $300 Royal Bounty for '{tech.name}'.", (80, 200, 255))
                         world['action_feedback'] = (f"Posted $300 Royal Prize for '{tech.name}'!", GREEN, t)
                     else:

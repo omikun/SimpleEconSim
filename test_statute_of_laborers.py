@@ -7,7 +7,7 @@ import unittest
 from sim_server.sim_server import SimServer
 from labor_politics import enact_statute_of_laborers, repeal_statute_of_laborers
 from region_factions import accumulate_grievances, step_factions
-from worldview_tooltips import get_button_tooltip_data
+from client.desktop.tooltips.core import get_button_tooltip_data
 
 
 class TestStatuteOfLaborers(unittest.TestCase):

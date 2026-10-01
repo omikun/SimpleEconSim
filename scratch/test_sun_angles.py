@@ -1,6 +1,6 @@
 import time, pygame
 from hexmap import rectangular_hex_layout, hex_bbox
-from worldview_camera import HEX_SIZE
+from client.desktop.camera import HEX_SIZE
 from render_dev_viewer import create_mock_island_tiles
 from render_engine.gpu import get_gpu_pipeline
 from polygon_map import apply_polygon_map_to_world

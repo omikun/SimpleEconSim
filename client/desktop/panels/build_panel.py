@@ -11,8 +11,8 @@ If funds are insufficient, clicking opens the Fiscal Transfer & Borrowing Modal.
 """
 
 import pygame
-from worldview_camera import HEIGHT, TOP_BAR_H, TICKER_H
-from worldview_map import ACCENT, TEXT, DIM, RED, GREEN
+from client.desktop.camera import HEIGHT, TOP_BAR_H, TICKER_H
+from client.desktop.map.map_renderer import ACCENT, TEXT, DIM, RED, GREEN
 from buildings import BUILDING_RECIPES
 from intents import BuildIntent
 from ui_icons import draw_progress_bar_button, get_icon
@@ -77,7 +77,7 @@ def draw_build_panel(surface, world, font, font_small, mouse_pos=None):
     x_txt = font_small.render("×", True, (255, 255, 255) if hc else DIM)
     surface.blit(x_txt, (close_rect[0] + 4, close_rect[1] + 1))
     # Drawer Top Switcher Tabs
-    from worldview_left_dock import draw_drawer_top_tabs
+    from client.desktop.panels.left_dock import draw_drawer_top_tabs
     cur_y = draw_drawer_top_tabs(surface, world, x, y + 48, w, 'build', font_small, mouse_pos)
 
     # Sub-Category Bar: [ Industry / Roads ] vs [ Ecology & Sanitation ]
@@ -92,13 +92,13 @@ def draw_build_panel(surface, world, font, font_small, mouse_pos=None):
     c2_hov = c2_rect[0] <= mx <= c2_rect[0] + cat_w and c2_rect[1] <= my <= c2_rect[1] + 22
 
     if c1_hov and world is not None:
-        from worldview_tooltips import get_button_tooltip_data
+        from client.desktop.tooltips.core import get_button_tooltip_data
         tdata = get_button_tooltip_data('build_subcat_industry', world, region=pinned, nation=nation)
         if tdata:
             tdata['btn_rect'] = c1_rect
             world['_hovered_left_tooltip'] = tdata
     elif c2_hov and world is not None:
-        from worldview_tooltips import get_button_tooltip_data
+        from client.desktop.tooltips.core import get_button_tooltip_data
         tdata = get_button_tooltip_data('build_subcat_ecology', world, region=pinned, nation=nation)
         if tdata:
             tdata['btn_rect'] = c2_rect
@@ -194,7 +194,7 @@ def _draw_equalization_section(surface, world, pinned, nation, x, y, w, font_sma
     eq_hdr_rect = (x, y, w, 20)
     eq_hdr_hover = eq_hdr_rect[0] <= mx <= eq_hdr_rect[0] + w and eq_hdr_rect[1] <= my <= eq_hdr_rect[1] + 20
     if eq_hdr_hover:
-        from worldview_tooltips import get_button_tooltip_data
+        from client.desktop.tooltips.core import get_button_tooltip_data
         tdata = get_button_tooltip_data("tier_equalization", world, pinned, nation)
         if tdata:
             tdata['btn_rect'] = eq_hdr_rect
@@ -222,7 +222,7 @@ def _draw_equalization_section(surface, world, pinned, nation, x, y, w, font_sma
     if hb and can_grant:
         bg = (45, 62, 50)
     if hb:
-        from worldview_tooltips import get_button_tooltip_data
+        from client.desktop.tooltips.core import get_button_tooltip_data
         tdata = get_button_tooltip_data('nat_sovereign_grant', world, pinned, nation)
         if tdata:
             tdata['btn_rect'] = btn_rect
@@ -255,7 +255,7 @@ def _draw_tier_section(surface, world, pinned, nation, icon_kind, tier_title, tr
     hdr_rect = (x, y, w, 20)
     hdr_hover = hdr_rect[0] <= mx <= hdr_rect[0] + w and hdr_rect[1] <= my <= hdr_rect[1] + 20
     if hdr_hover:
-        from worldview_tooltips import get_button_tooltip_data
+        from client.desktop.tooltips.core import get_button_tooltip_data
         tdata = get_button_tooltip_data(f"tier_{icon_kind}", world, pinned, nation)
         if tdata:
             tdata['btn_rect'] = hdr_rect
@@ -291,7 +291,7 @@ def _draw_tier_section(surface, world, pinned, nation, icon_kind, tier_title, tr
 
         hb = btn_rect[0] <= mx <= btn_rect[0] + btn_rect[2] and btn_rect[1] <= my <= btn_rect[1] + btn_rect[3]
         if hb:
-            from worldview_tooltips import get_button_tooltip_data
+            from client.desktop.tooltips.core import get_button_tooltip_data
             tdata = get_button_tooltip_data(f"build_{r_key}", world, pinned, nation)
             if tdata:
                 tdata['btn_rect'] = btn_rect
@@ -327,7 +327,7 @@ def build_panel_hit(pos, world) -> bool:
         t = find_target(world, pos, scope='build')
         if t is not None:
             if t.action == 'close_left':
-                from worldview_left_dock import close_left_panels
+                from client.desktop.panels.left_dock import close_left_panels
                 close_left_panels(world)
                 return True
             elif isinstance(t.action, tuple) and t.action[0] == 'build_subcat':
@@ -379,12 +379,12 @@ def build_panel_hit(pos, world) -> bool:
 
     # Close button [X]
     if x + w - 26 <= mx <= x + w - 8 and y + 8 <= my <= y + 26:
-        from worldview_left_dock import close_left_panels
+        from client.desktop.panels.left_dock import close_left_panels
         close_left_panels(world)
         return True
 
     # Drawer Top Switcher
-    from worldview_left_dock import drawer_top_tabs_hit
+    from client.desktop.panels.left_dock import drawer_top_tabs_hit
     if drawer_top_tabs_hit(pos, world, x, y + 48, w):
         return True
 
@@ -490,7 +490,7 @@ def _handle_build_click(world, region, nation, building_type, available_funds, t
         nations_by_name = {n.name: n for n in world.get('nations', [])}
         ok, msg = intent.execute(tiles_by_name, nations_by_name, t)
         if ok:
-            from worldview_engine import ticker_push
+            from client.desktop.engine import ticker_push
             ticker_push(world, t, 'CONSTRUCT', f"Commissioned {recipe.display_name} in {region.name} (${cost:.0f}).", (245, 180, 50))
             world['action_feedback'] = (f"Commissioned {recipe.display_name}!", GREEN, t)
         else:

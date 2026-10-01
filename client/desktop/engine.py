@@ -6,9 +6,9 @@ import random
 import forex as fx
 from hexmap import rectangular_hex_layout, hex_bbox
 from sim_world import build_world, GRID_ROWS, GRID_COLS
-from worldview_camera import HEX_SIZE, clamp_cam, reset_cam
-from worldview_charts import MIG_C
-from worldview_map import ACCENT as CLAIM_C, RED as DESTROY_C
+from client.desktop.camera import HEX_SIZE, clamp_cam, reset_cam
+from client.desktop.charts.charts import MIG_C
+from client.desktop.map.map_renderer import ACCENT as CLAIM_C, RED as DESTROY_C
 import sim_engine
 from world_config import get_ui_mode
 

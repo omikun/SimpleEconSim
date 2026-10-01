@@ -284,7 +284,7 @@ class ImperialismManager:
                     factions = getattr(getattr(tile, 'factions', None), 'factions', {})
                     for f in factions.values():
                         f.add_grievance('foreign_oppression', 4.0)
-            from worldview_engine import ticker_push
+            from client.desktop.engine import ticker_push
             ticker_push(
                 world, t, 'ALERT',
                 f"🏛️ CAISSE DE LA DETTE: {rec.creditor_nation} established fiscal administration over {rec.debtor_nation}! Seizing 65% revenues, transit tolls, and granaries!",
@@ -373,7 +373,7 @@ class ImperialismManager:
         diplomacy.treaties.append(tr)
 
         if world:
-            from worldview_engine import ticker_push
+            from client.desktop.engine import ticker_push
             ticker_push(
                 world, t, 'DIPLOMACY',
                 f"⚓ IMPERIAL RECEIVERSHIP: {creditor.name} established Customs Receivership on {debtor.name} (intercepting 40% revenues for ${amount:.0f} debt)!",
@@ -459,7 +459,7 @@ class ImperialismManager:
                f"Replacement 50t Brady Bond (${restructured_principal:,.0f}) issued. Receivership lifted.")
 
         if world:
-            from worldview_engine import ticker_push
+            from client.desktop.engine import ticker_push
             ticker_push(world, t, 'DIPLOMACY', f"🤝 {msg}", (120, 240, 150))
 
         return True, msg, {
@@ -523,7 +523,7 @@ class ImperialismManager:
         if rec.remaining_debt <= 0.01:
             rec.status = "cleared"
             if world:
-                from worldview_engine import ticker_push
+                from client.desktop.engine import ticker_push
                 ticker_push(
                     world, t, 'FINANCE',
                     f"✅ RECEIVERSHIP CLEARED: {debtor_nation} completed sovereign debt repayments to {rec.creditor_nation}!",
@@ -551,7 +551,7 @@ class ImperialismManager:
             reason=f"Debt-Enforcement War (gunboat collection of defaulted sovereign debt)"
         )
 
-        from worldview_engine import ticker_push
+        from client.desktop.engine import ticker_push
         ticker_push(
             world, t, 'WAR',
             f"⚔️ GUNBOAT DIPLOMACY: {creditor.name} declared Debt-Enforcement War against {debtor.name}!",
@@ -575,7 +575,7 @@ class ImperialismManager:
         for r_name, r in getattr(tile, 'routes', {}).items():
             setattr(r, 'is_blockaded', True)
 
-        from worldview_engine import ticker_push
+        from client.desktop.engine import ticker_push
         ticker_push(
             world, t, 'WAR',
             f"⚓ NAVAL BLOCKADE: {enforcer.name} warships blockaded {debtor.name}'s port at {tile.name}! Trade frozen.",
@@ -594,7 +594,7 @@ class ImperialismManager:
                 if target:
                     for r in getattr(target, 'routes', {}).values():
                         setattr(r, 'is_blockaded', False)
-                from worldview_engine import ticker_push
+                from client.desktop.engine import ticker_push
                 ticker_push(
                     world, t, 'DIPLOMACY',
                     f"⚓ Naval blockade on {tile_name} lifted.",
@@ -653,7 +653,7 @@ class ImperialismManager:
             msg = f"COLONIAL CONCESSION: {subject.name} surrendered resource extraction concession in {tile_name} to {imperial.name}!"
 
         if world:
-            from worldview_engine import ticker_push
+            from client.desktop.engine import ticker_push
             ticker_push(world, t, 'DIPLOMACY', f"📜 {msg}", (240, 180, 50))
 
         return True, msg, treaty
@@ -719,7 +719,7 @@ class ImperialismManager:
                 reason="Revolutionary debt repudiation and expulsion of imperial assets"
             )
 
-        from worldview_engine import ticker_push
+        from client.desktop.engine import ticker_push
         ticker_push(
             world, t, 'ALERT',
             f"🚩 DEBT REPUDIATION! {nation.name} repudiated ${repudiated_debt_total:.0f} of imperial debt and expelled all customs receivers!",
@@ -889,7 +889,7 @@ class ImperialismManager:
                             _disburse_agent_funds(world, creditor, 50.0)
                             rec.enforcement_mode = "hired_agents"
                             if world:
-                                from worldview_engine import ticker_push
+                                from client.desktop.engine import ticker_push
                                 ticker_push(
                                     world, t, 'DIPLOMACY',
                                     f"📋 {creditor.name} contracted international agents ($50) to maintain receivership on {rec.debtor_nation}.",
@@ -898,7 +898,7 @@ class ImperialismManager:
                         else:
                             rec.status = "suspended"
                             if world:
-                                from worldview_engine import ticker_push
+                                from client.desktop.engine import ticker_push
                                 ticker_push(
                                     world, t, 'ALERT',
                                     f"⚠️ Customs Receivership on {rec.debtor_nation} suspended: {creditor.name} lacks military force and cannot afford hired agents!",
@@ -912,7 +912,7 @@ class ImperialismManager:
                     else:
                         rec.status = "suspended"
                         if world:
-                            from worldview_engine import ticker_push
+                            from client.desktop.engine import ticker_push
                             ticker_push(
                                 world, t, 'ALERT',
                                 f"⚠️ Customs Receivership on {rec.debtor_nation} suspended: {creditor.name} failed to pay agent retainer fee (${retainer:.2f})!",
@@ -934,7 +934,7 @@ class ImperialismManager:
             if not has_mil:
                 self.lift_blockade(tile_name, world, t)
                 if world:
-                    from worldview_engine import ticker_push
+                    from client.desktop.engine import ticker_push
                     ticker_push(
                         world, t, 'ALERT',
                         f"⚓ Naval blockade on {tile_name} collapsed: {enforcer_name or 'Enforcer'} has no active military units to sustain blockade!",
@@ -967,7 +967,7 @@ class ImperialismManager:
                     # Debtor calls bluff and repudiates
                     default['status'] = 'repudiated_bluff'
                     if world:
-                        from worldview_engine import ticker_push
+                        from client.desktop.engine import ticker_push
                         ticker_push(
                             world, t, 'DIPLOMACY',
                             f"📜 {debtor.name} refused debt payment to {creditor.name}! Creditor's threat dismissed as hollow bluff.",

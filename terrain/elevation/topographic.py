@@ -23,6 +23,7 @@ def get_cached_topographic_surface(seed, bbox, tiles=None, layout=None, canvas_w
     if simple_key in _TOPOGRAPHIC_SURFACE_CACHE:
         return _TOPOGRAPHIC_SURFACE_CACHE[simple_key]
 
+    from terrain.elevation.heightmap import HeightMapGenerator
     generator = HeightMapGenerator(seed=seed if seed is not None else 42)
     surf = generator.generate_topographic_surface(bbox, tiles=tiles, layout=layout, width=canvas_w, height=canvas_h, progress_callback=progress_callback)
     _TOPOGRAPHIC_SURFACE_CACHE[cache_key] = surf

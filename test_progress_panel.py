@@ -20,16 +20,16 @@ os.environ.setdefault('SDL_VIDEODRIVER', 'dummy')
 
 import unittest
 import pygame
-from worldview_engine import build_world_view
-from worldview import render_frame
-from worldview_left_dock import (
+from client.desktop.engine import build_world_view
+from client.desktop.app import render_frame
+from client.desktop.panels.left_dock import (
     DOCK_X, DOCK_Y, DOCK_BTN_W, DOCK_BTN_H, DOCK_SPACING,
     PANEL_X, PANEL_Y, PANEL_W, PANEL_H,
     draw_left_dock_buttons, left_dock_buttons_hit,
     open_left_panel, close_left_panels, get_active_left_panel,
     is_any_left_panel_open, PANELS_DEF
 )
-from worldview_progress_panel import (
+from client.desktop.panels.progress_panel import (
     draw_progress_panel, progress_panel_hit,
     _collect_items_for_nation, _get_active_nation
 )
@@ -199,7 +199,7 @@ class TestProgressPanel(unittest.TestCase):
         # Render panel so buttons are registered
         draw_progress_panel(self.surface, world, self.font, self.font_small, mouse_pos=(-1, -1))
 
-        from worldview_progress_panel import _PROGRESS_BUTTONS
+        from client.desktop.panels.progress_panel import _PROGRESS_BUTTONS
         grant_btn = None
         for rect, action, data in _PROGRESS_BUTTONS:
             if action == 'subsidize_proj' and data == proj:

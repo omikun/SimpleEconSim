@@ -18,7 +18,7 @@ from sim_nation import build_world
 from hexmap import (LAYOUT_2X3, axial_to_pixel, hex_corners, pixel_to_axial)
 import sim_engine
 
-from worldview_charts import (
+from client.desktop.charts.charts import (
     tile_charts, draw_chart_grid, draw_chart_large,
     FOOD_C as _FOOD_C, WOOD_C as _WOOD_C, FURN_C as _FURN_C,
     POP_C as _POP_C, HUNGER_C as _HUNGER_C, EXP_C as _EXP_C,
@@ -26,7 +26,7 @@ from worldview_charts import (
     INH_C as _INH_C, GINI_C as _GINI_C, MIG_C as _MIG_C,
     CHART_BOX as _CHART_BOX
 )
-from worldview_map import (
+from client.desktop.map.map_renderer import (
     NATION_COLORS, HEX_EDGE, TEXT, DIM, RED, GREEN, ACCENT, EDGE_LINE,
     BADGE_ORANGE, BADGE_RED, BADGE_TRA, BADGE_GINI, HOT_RING, COLD_RING,
     UNREST_COLORS, pops_history as _pops, nation_color as _nation_color,
@@ -34,7 +34,7 @@ from worldview_map import (
     tile_stats as _tile_stats, draw_terrain_glyph as _draw_terrain_glyph,
     draw_activity_badges as _draw_activity_badges, draw_pop_delta as _draw_pop_delta
 )
-from worldview_ui import (
+from client.desktop.hud.ui import (
     PANEL_BG, selected_nation as _selected_nation,
     draw_regime_readout as _draw_regime_readout, get_font
 )

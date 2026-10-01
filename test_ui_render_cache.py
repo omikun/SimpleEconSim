@@ -10,9 +10,9 @@ os.environ.setdefault('SDL_AUDIODRIVER', 'dummy')
 
 import pygame
 
-from worldview import _draw_cached_map, _mark_dirty
-from worldview_map import _cached_scaled_terrain, draw_dynamic_map_overlays
-from worldview_camera import HEIGHT, TOP_BAR_H, WIDTH
+from client.desktop.app import _draw_cached_map, _mark_dirty
+from client.desktop.map.map_renderer import _cached_scaled_terrain, draw_dynamic_map_overlays
+from client.desktop.camera import HEIGHT, TOP_BAR_H, WIDTH
 
 
 class TestDesktopMapCache(unittest.TestCase):
@@ -25,7 +25,7 @@ class TestDesktopMapCache(unittest.TestCase):
         def paint_map(surface, *_args):
             surface.fill((20, 40, 60))
 
-        with patch('worldview.draw_hex_map', side_effect=paint_map) as draw_map:
+        with patch('client.desktop.app.draw_hex_map', side_effect=paint_map) as draw_map:
             _draw_cached_map(self.surface, self.world, None, None)
             _draw_cached_map(self.surface, self.world, None, None)
             self.assertEqual(draw_map.call_count, 1)
@@ -49,14 +49,14 @@ class TestDesktopMapCache(unittest.TestCase):
 
     def test_initial_generation_draws_on_display_surface(self):
         self.world['_map_generation_done'] = False
-        with patch('worldview.draw_hex_map') as draw_map:
+        with patch('client.desktop.app.draw_hex_map') as draw_map:
             _draw_cached_map(self.surface, self.world, None, None)
             self.assertIs(draw_map.call_args.args[0], self.surface)
 
     def test_scaled_terrain_cache_reuses_same_source_and_dimensions(self):
         terrain = pygame.Surface((128, 128))
         world = {}
-        with patch('worldview_map.pygame.transform.smoothscale', wraps=pygame.transform.smoothscale) as scale:
+        with patch('client.desktop.map.map_renderer.pygame.transform.smoothscale', wraps=pygame.transform.smoothscale) as scale:
             first = _cached_scaled_terrain(world, terrain, (64, 64))
             second = _cached_scaled_terrain(world, terrain, (64, 64))
             self.assertIs(first, second)
@@ -76,7 +76,7 @@ class TestDesktopMapCache(unittest.TestCase):
 
     def test_static_map_cache_survives_animation_frame_changes(self):
         self.world['frame'] = 0
-        with patch('worldview.draw_hex_map') as draw_map:
+        with patch('client.desktop.app.draw_hex_map') as draw_map:
             _draw_cached_map(self.surface, self.world, None, None)
             self.world['frame'] = 1
             _draw_cached_map(self.surface, self.world, None, None)
@@ -86,7 +86,7 @@ class TestDesktopMapCache(unittest.TestCase):
     def test_continuously_animated_map_keeps_frame_in_cache_key(self):
         self.world['_map_uses_continuous_animation'] = True
         self.world['frame'] = 0
-        with patch('worldview.draw_hex_map') as draw_map:
+        with patch('client.desktop.app.draw_hex_map') as draw_map:
             _draw_cached_map(self.surface, self.world, None, None)
             self.world['frame'] = 1
             _draw_cached_map(self.surface, self.world, None, None)
@@ -96,9 +96,9 @@ class TestDesktopMapCache(unittest.TestCase):
         tile = SimpleNamespace(name='ocean', is_water=True)
         self.world['_cached_hex_geom'] = [(tile, 40, 50, [(30, 40), (50, 40), (50, 60)])]
         with (
-            patch('worldview_map.draw_elevation_terrain') as waves,
-            patch('worldview_map.draw_edges') as edge_effects,
-            patch('worldview_map.draw_trade_arrows') as trade_effects,
+            patch('client.desktop.map.map_renderer.draw_elevation_terrain') as waves,
+            patch('client.desktop.map.map_renderer.draw_edges') as edge_effects,
+            patch('client.desktop.map.map_renderer.draw_trade_arrows') as trade_effects,
         ):
             draw_dynamic_map_overlays(self.surface, self.world)
         waves.assert_called_once()

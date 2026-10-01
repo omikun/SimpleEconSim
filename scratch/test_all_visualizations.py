@@ -18,21 +18,21 @@ import pygame
 pygame.init()
 pygame.font.init()
 
-from worldview import build_world_view, step_world
-from worldview_camera import WIDTH, HEIGHT
-from worldview_ui import get_font
-from worldview_compare import draw_nations_comparison, compare_tab_hit
-from worldview_compare_extraction import draw_tab4_extraction
-from worldview_compare_protest import draw_tab5_protest
-from worldview_vis_circuits import draw_circuit_of_capital_sankey, draw_trpf_curve, circuit_sankey_hit
-from worldview_vis_radar import draw_alienation_radar, draw_electoral_barometer, compute_alienation_4d
-from worldview_vis_protest_attractor import draw_rebellion_attractor_phasespace
-from worldview_vis_pyramid import draw_class_wealth_pyramid, draw_lorenz_curve
-from worldview_citizens import draw_citizens_panel, citizen_panel_hit
-from worldview_labor_ui import draw_labor_dashboard, labor_panel_hit
-from worldview_gov_panel import draw_gov_panel
-from worldview_map import draw_hex_map, tile_stats
-from worldview_layers import draw_layer_sidebar, layer_sidebar_hit, MAP_LAYERS
+from client.desktop.app import build_world_view, step_world
+from client.desktop.camera import WIDTH, HEIGHT
+from client.desktop.hud.ui import get_font
+from client.desktop.inspect.compare import draw_nations_comparison, compare_tab_hit
+from client.desktop.inspect.compare_extraction import draw_tab4_extraction
+from client.desktop.inspect.compare_protest import draw_tab5_protest
+from client.desktop.inspect.vis_circuits import draw_circuit_of_capital_sankey, draw_trpf_curve, circuit_sankey_hit
+from client.desktop.inspect.vis_radar import draw_alienation_radar, draw_electoral_barometer, compute_alienation_4d
+from client.desktop.inspect.vis_protest_attractor import draw_rebellion_attractor_phasespace
+from client.desktop.inspect.vis_pyramid import draw_class_wealth_pyramid, draw_lorenz_curve
+from client.desktop.inspect.citizens import draw_citizens_panel, citizen_panel_hit
+from client.desktop.inspect.labor_ui import draw_labor_dashboard, labor_panel_hit
+from client.desktop.panels.gov_panel import draw_gov_panel
+from client.desktop.map.map_renderer import draw_hex_map, tile_stats
+from client.desktop.map.layers import draw_layer_sidebar, layer_sidebar_hit, MAP_LAYERS
 
 
 def run_all_tests():
@@ -156,7 +156,7 @@ def run_all_tests():
     draw_layer_sidebar(surface, world, font_small)
     # Check that clicking layer 7 and 8 works
     world['layers_collapsed'] = False
-    from worldview_layers import DOCK_Y
+    from client.desktop.map.layers import DOCK_Y
     by = DOCK_Y + 34
     # Layer 7 button is index 6
     hit7 = layer_sidebar_hit((50, by + 6 * 37 + 10), world)

@@ -232,7 +232,7 @@ class SovereignBondMarket:
         self.offerings.append(offering)
 
         if world:
-            from worldview_engine import ticker_push
+            from client.desktop.engine import ticker_push
             ticker_push(
                 world, t, 'FINANCE',
                 f"📢 {issuer.name} announced ${principal:.0f} ({duration_turns}t @ {yield_rate*100:.2f}%/t) Bond Offering. Auction goes live Turn {t+1}!",
@@ -309,7 +309,7 @@ class SovereignBondMarket:
         self.bonds.append(bond)
         offering.status = "filled"
 
-        from worldview_engine import ticker_push
+        from client.desktop.engine import ticker_push
         ticker_push(
             world, t, 'FINANCE',
             f"🌐 {buyer.name} purchased {issuer.name}'s ${offering.principal:.0f} ({offering.duration_turns}t) Sovereign Bond #{bond_id} into Foreign Reserves!",
@@ -434,7 +434,7 @@ class SovereignBondMarket:
         msg = (f"🏛️ MUNICIPAL SEWER BOND: {issuer.name} issued ${principal:.0f} Municipal Revenue Bond #{bond_id} "
                f"to construct the Bazalgette Intercepting Sewer Network in {tile.name}!")
         if world:
-            from worldview_engine import ticker_push
+            from client.desktop.engine import ticker_push
             ticker_push(world, t, 'FINANCE', msg, (100, 220, 140))
 
         return True, msg, bond
@@ -450,7 +450,7 @@ class SovereignBondMarket:
         for offering in self.offerings:
             if offering.status == "announced" and t >= offering.live_turn:
                 offering.status = "live"
-                from worldview_engine import ticker_push
+                from client.desktop.engine import ticker_push
                 ticker_push(
                     world, t, 'FINANCE',
                     f"🔔 AUCTION LIVE: {offering.issuer_nation}'s ${offering.principal:.0f} ({offering.duration_turns}t) Bond offering is now open for bidding!",
@@ -519,7 +519,7 @@ class SovereignBondMarket:
                                 'coupon': share_c,
                                 'duration_turns': offering.duration_turns
                             })
-                    from worldview_engine import ticker_push
+                    from client.desktop.engine import ticker_push
                     ticker_push(
                         world, t, 'FINANCE',
                         f"🏛️ Domestic Commercial Banks underwrote {issuer.name}'s unsold ${offering.principal:.0f} Sovereign Bond #{bond_id}.",
@@ -550,7 +550,7 @@ class SovereignBondMarket:
                                 b_inst.capital += share_p
                                 b_inst.sovereign_bonds_held = [x for x in getattr(b_inst, 'sovereign_bonds_held', []) if x.get('bond_id') != bond.bond_id]
                     bond.status = "matured"
-                    from worldview_engine import ticker_push
+                    from client.desktop.engine import ticker_push
                     ticker_push(
                         world, t, 'FINANCE',
                         f"Sovereign Bond #{bond.bond_id} matured! {issuer.name} repaid ${bond.principal:.0f} to {bond.holder_nation}.",
@@ -570,7 +570,7 @@ class SovereignBondMarket:
                                 b_inst.write_down_bonds(loss_share)
                                 b_inst.sovereign_bonds_held = [x for x in getattr(b_inst, 'sovereign_bonds_held', []) if x.get('bond_id') != bond.bond_id]
                                 if getattr(b_inst, 'is_frozen', False) and not was_frozen:
-                                    from worldview_engine import ticker_push
+                                    from client.desktop.engine import ticker_push
                                     ticker_push(
                                         world, t, 'ALERT',
                                         f"🚨 BANKING CONTAGION: Sovereign default wiped out bank equity in {issuer.name}! Emergency Corralito deposit freeze enacted!",
@@ -581,7 +581,7 @@ class SovereignBondMarket:
                         get_imperialism_manager().register_default(bond, world, t)
                     except Exception:
                         pass
-                    from worldview_engine import ticker_push
+                    from client.desktop.engine import ticker_push
                     ticker_push(
                         world, t, 'ALERT',
                         f"SOVEREIGN DEFAULT! {issuer.name} failed to repay ${bond.principal:.0f} on Bond #{bond.bond_id}!",
@@ -629,7 +629,7 @@ class SovereignBondMarket:
                                 b_inst.write_down_bonds(loss_share)
                                 b_inst.sovereign_bonds_held = [x for x in getattr(b_inst, 'sovereign_bonds_held', []) if x.get('bond_id') != bond.bond_id]
                                 if getattr(b_inst, 'is_frozen', False) and not was_frozen:
-                                    from worldview_engine import ticker_push
+                                    from client.desktop.engine import ticker_push
                                     ticker_push(
                                         world, t, 'ALERT',
                                         f"🚨 BANKING CONTAGION: Sovereign coupon default wiped out bank equity in {issuer.name}! Emergency Corralito deposit freeze enacted!",
@@ -640,7 +640,7 @@ class SovereignBondMarket:
                         get_imperialism_manager().register_default(bond, world, t)
                     except Exception:
                         pass
-                    from worldview_engine import ticker_push
+                    from client.desktop.engine import ticker_push
                     ticker_push(
                         world, t, 'ALERT',
                         f"SOVEREIGN COUPON DEFAULT! {issuer.name} defaulted on ${coupon:.2f} payment for Bond #{bond.bond_id}!",

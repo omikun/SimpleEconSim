@@ -12,9 +12,9 @@ from region import Region
 from army import MilitaryUnit
 from imperialism import get_imperialism_manager
 from popular_resistance import get_popular_resistance_manager
-from worldview_policies import _execute_policy_action
-from worldview_tooltips import get_button_tooltip_data, draw_left_panel_tooltip
-from worldview_tooltips_extra import build_debt_tooltip, build_diplomacy_tooltip, build_military_tooltip
+from client.desktop.panels.policies import _execute_policy_action
+from client.desktop.tooltips.core import get_button_tooltip_data, draw_left_panel_tooltip
+from client.desktop.tooltips.extra import build_debt_tooltip, build_diplomacy_tooltip, build_military_tooltip
 import pygame
 
 

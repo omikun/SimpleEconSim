@@ -6,7 +6,7 @@ for Tab 6, chart mode switchers, ecological time-series charts, medical decrees,
 """
 
 from __future__ import annotations
-from worldview_map import ACCENT, TEXT, DIM, RED, GREEN
+from client.desktop.map.map_renderer import ACCENT, TEXT, DIM, RED, GREEN
 
 
 def build_ecology_tooltip(btn_id: str, world: dict, region=None, nation=None, province=None) -> dict | None:

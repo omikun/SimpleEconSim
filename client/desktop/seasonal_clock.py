@@ -12,8 +12,8 @@ Renders:
 from __future__ import annotations
 import math
 import pygame
-from worldview_camera import MAP_RIGHT, TOP_BAR_H
-from worldview_map import ACCENT, TEXT, DIM, RED, GREEN
+from client.desktop.camera import MAP_RIGHT, TOP_BAR_H
+from client.desktop.map.map_renderer import ACCENT, TEXT, DIM, RED, GREEN
 from ui_icons import get_icon
 
 # Rect: positioned right beneath the Zoom HUD buttons in the upper-right map area

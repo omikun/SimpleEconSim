@@ -13,8 +13,8 @@ Displays:
 
 import pygame
 from goods import Goods
-from worldview_camera import WIDTH, HEIGHT
-from worldview_map import (
+from client.desktop.camera import WIDTH, HEIGHT
+from client.desktop.map.map_renderer import (
     NATION_COLORS, TEXT, DIM, RED, GREEN, ACCENT, PROVINCE_COLORS
 )
 
@@ -33,7 +33,7 @@ COL_ALIEN = (175, 105, 235)      # Purple
 
 
 def _get_font(size):
-    from worldview_ui import get_font
+    from client.desktop.hud.ui import get_font
     return get_font(size)
 
 
@@ -120,7 +120,7 @@ def draw_tab4_extraction(surface, world, box_x, start_y, box_w, box_h, font, cel
         register_target(world, rect, ('scope_ext', s_key), tooltip_id=f'compare_ext_scope_{s_key}', scope='compare')
         is_hov = rect[0] <= mx <= rect[0] + rect[2] and rect[1] <= my <= rect[1] + rect[3]
         if is_hov:
-            from worldview_tooltips import get_button_tooltip_data
+            from client.desktop.tooltips.core import get_button_tooltip_data
             tip = get_button_tooltip_data(f'compare_ext_scope_{s_key}', world)
             if tip:
                 tip['btn_rect'] = rect
@@ -147,7 +147,7 @@ def draw_tab4_extraction(surface, world, box_x, start_y, box_w, box_h, font, cel
         register_target(world, rect, ('mode_ext', m_key), tooltip_id=f'compare_ext_mode_{m_key}', scope='compare')
         is_hov = rect[0] <= mx <= rect[0] + rect[2] and rect[1] <= my <= rect[1] + rect[3]
         if is_hov:
-            from worldview_tooltips import get_button_tooltip_data
+            from client.desktop.tooltips.core import get_button_tooltip_data
             tip = get_button_tooltip_data(f'compare_ext_mode_{m_key}', world)
             if tip:
                 tip['btn_rect'] = rect
@@ -161,7 +161,7 @@ def draw_tab4_extraction(surface, world, box_x, start_y, box_w, box_h, font, cel
         mx_x += m_w + 10
 
     if active_mode == 'circuit':
-        from worldview_vis_circuits import draw_circuit_of_capital_sankey
+        from client.desktop.inspect.vis_circuits import draw_circuit_of_capital_sankey
         draw_circuit_of_capital_sankey(surface, world, box_x, start_y + 16, box_w, box_h - (start_y + 16 - 20) - 20, font, cell_font, section_font, mouse_pos=mouse_pos)
         return
 
@@ -324,7 +324,7 @@ def draw_tab4_extraction(surface, world, box_x, start_y, box_w, box_h, font, cel
         if col_rect[0] <= mx <= col_rect[0] + width and col_rect[1] <= my <= col_rect[1] + 24:
             tip_id = hdr_tips.get(title)
             if tip_id:
-                from worldview_tooltips import get_button_tooltip_data
+                from client.desktop.tooltips.core import get_button_tooltip_data
                 tip = get_button_tooltip_data(tip_id, world)
                 if tip:
                     tip['btn_rect'] = col_rect

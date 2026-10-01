@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 import pygame
-from worldview_camera import WIDTH, HEIGHT, TOP_BAR_H, TICKER_H
-from worldview_map import ACCENT, TEXT, DIM, RED, GREEN
+from client.desktop.camera import WIDTH, HEIGHT, TOP_BAR_H, TICKER_H
+from client.desktop.map.map_renderer import ACCENT, TEXT, DIM, RED, GREEN
 from ui_icons import get_icon
 
 # Dimensions
@@ -1478,7 +1478,7 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
     if result is not None: return result
 
     # Delegate to sub-modules
-    from worldview_tooltips_extra import (
+    from client.desktop.tooltips.extra import (
         build_science_resource_tooltip,
         build_science_tech_tooltip,
         build_diplomacy_tooltip,
@@ -1501,15 +1501,15 @@ def _build_button_tooltip_raw(btn_id: str, world: dict, region=None, nation=None
         mil_tip = build_military_tooltip(btn_id, world, region=pinned, nation=owner)
         if mil_tip: return mil_tip
 
-    from worldview_tooltips_ecology import build_ecology_tooltip
+    from client.desktop.tooltips.ecology import build_ecology_tooltip
     eco_tip = build_ecology_tooltip(btn_id, world, region=pinned, nation=owner, province=prov)
     if eco_tip: return eco_tip
 
-    from worldview_tooltips_visualizations import build_visualization_tooltip
+    from client.desktop.tooltips.visualizations import build_visualization_tooltip
     vis_tip = build_visualization_tooltip(btn_id, world, region=pinned, nation=owner, province=prov)
     if vis_tip: return vis_tip
 
-    from worldview_tooltips_charts import (
+    from client.desktop.tooltips.charts import (
         build_sidebar_chart_tooltip,
         build_citizen_tooltip,
         build_labor_tooltip,

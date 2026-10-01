@@ -9,15 +9,15 @@ os.environ['SDL_VIDEODRIVER'] = 'dummy'
 import pygame
 pygame.init()
 
-from worldview_engine import build_world_view
-from worldview_tooltips import get_button_tooltip_data, draw_left_panel_tooltip
-from worldview_diplomacy_panel import draw_diplomacy_panel
-from worldview_debt_panel import draw_debt_panel
-from worldview_military_panel import draw_military_panel
-from worldview_science_panel import draw_science_panel
-from worldview_gov_panel import draw_gov_panel
-from worldview_ui import draw_panel
-from worldview_camera import WIDTH, HEIGHT
+from client.desktop.engine import build_world_view
+from client.desktop.tooltips.core import get_button_tooltip_data, draw_left_panel_tooltip
+from client.desktop.panels.diplomacy_panel import draw_diplomacy_panel
+from client.desktop.panels.debt_panel import draw_debt_panel
+from client.desktop.panels.military_panel import draw_military_panel
+from client.desktop.panels.science_panel import draw_science_panel
+from client.desktop.panels.gov_panel import draw_gov_panel
+from client.desktop.hud.ui import draw_panel
+from client.desktop.camera import WIDTH, HEIGHT
 
 
 def test_tooltips():

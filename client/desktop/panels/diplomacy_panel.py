@@ -16,16 +16,16 @@ Duplicates cross-nation diplomacy functionality from the Sovereign Actions modal
 
 from __future__ import annotations
 import pygame
-from worldview_camera import HEIGHT, TOP_BAR_H, TICKER_H
-from worldview_map import ACCENT, TEXT, DIM, RED, GREEN, NATION_COLORS
+from client.desktop.camera import HEIGHT, TOP_BAR_H, TICKER_H
+from client.desktop.map.map_renderer import ACCENT, TEXT, DIM, RED, GREEN, NATION_COLORS
 from ui_icons import get_icon
 from diplomacy import get_diplomacy, TreatyType
-from worldview_left_dock import (
+from client.desktop.panels.left_dock import (
     PANEL_X, PANEL_Y, PANEL_W, PANEL_H,
     draw_drawer_top_tabs, drawer_top_tabs_hit,
     open_left_panel, close_left_panels
 )
-from worldview_engine import ticker_push
+from client.desktop.engine import ticker_push
 
 CARD_BG = (24, 26, 36)
 CARD_BORDER = (45, 50, 70)
@@ -58,7 +58,7 @@ def _draw_btn(surface, rect, label, font_small, mx, my, enabled=True, color=TEXT
         register_target(world, rect, ('dip_action', btn_id), tooltip_id=btn_id, scope='diplomacy', data={'btn_id': btn_id, 'nation': nation})
 
     if is_hov and btn_id and world is not None:
-        from worldview_tooltips import get_button_tooltip_data
+        from client.desktop.tooltips.core import get_button_tooltip_data
         tdata = get_button_tooltip_data(btn_id, world, nation=nation)
         if tdata:
             tdata['btn_rect'] = rect
@@ -157,7 +157,7 @@ def draw_diplomacy_panel(surface: pygame.Surface, world: dict, font: pygame.font
         is_sel = (o_nat.name == target_n.name)
         is_hov = tx <= mx <= tx + tab_w and cur_y <= my <= cur_y + tab_h
         if is_hov and world is not None:
-            from worldview_tooltips import get_button_tooltip_data
+            from client.desktop.tooltips.core import get_button_tooltip_data
             tdata = get_button_tooltip_data(f"dip_target_{o_nat.name}", world, nation=active_n)
             if tdata:
                 tdata['btn_rect'] = t_rect

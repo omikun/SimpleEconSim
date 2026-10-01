@@ -11,7 +11,7 @@ and explicit Money Destinations for:
 """
 
 from __future__ import annotations
-from worldview_map import ACCENT, TEXT, DIM, RED, GREEN
+from client.desktop.map.map_renderer import ACCENT, TEXT, DIM, RED, GREEN
 from tile_resources import TileResource, RESOURCE_META, get_nation_resources
 from innovation import get_innovation_system, TECH_CATALOG, TechDomain
 from diplomacy import get_diplomacy, TreatyType

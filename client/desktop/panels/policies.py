@@ -9,8 +9,8 @@ All actions maintain strict money and resource conservation.
 from __future__ import annotations
 import pygame
 from goods import Goods
-from worldview_camera import WIDTH, HEIGHT, MAP_RIGHT, TOP_BAR_H, TICKER_H
-from worldview_map import (
+from client.desktop.camera import WIDTH, HEIGHT, MAP_RIGHT, TOP_BAR_H, TICKER_H
+from client.desktop.map.map_renderer import (
     NATION_COLORS, PROVINCE_COLORS, TEXT, DIM, RED, GREEN, ACCENT, HEX_EDGE
 )
 from army import recruit_unit
@@ -103,7 +103,7 @@ def draw_policies_panel(surface, world, region, font, font_small, mouse_pos=None
         for rect, act_id, target in _ACTION_BUTTONS:
             rx, ry, rw, rh = rect
             if rx <= mx <= rx + rw and ry <= my <= ry + rh:
-                from worldview_tooltips import get_button_tooltip_data
+                from client.desktop.tooltips.core import get_button_tooltip_data
                 plot_id = None
                 r_arg = region
                 n_arg = None
@@ -757,7 +757,7 @@ def _execute_policy_action(world, act_id, target):
         if ok:
             world['policy_feedback'] = (msg, (245, 180, 50))
             try:
-                from worldview_engine import ticker_push
+                from client.desktop.engine import ticker_push
                 ticker_push(world, world['turn'], 'POLICY', f"🗡️ {msg}", (200, 100, 100))
             except ImportError:
                 pass
@@ -777,7 +777,7 @@ def _execute_policy_action(world, act_id, target):
             ok, msg = intent.execute(tiles_by_name, nations_by_name, world['turn'])
             if ok:
                 try:
-                    from worldview_engine import ticker_push
+                    from client.desktop.engine import ticker_push
                     ticker_push(world, world['turn'], 'CONSTRUCT', msg, (245, 180, 50))
                 except ImportError:
                     pass
@@ -790,7 +790,7 @@ def _execute_policy_action(world, act_id, target):
         ok, msg, events = execute_enclosure(reg, plot_id, world['turn'])
         if ok:
             try:
-                from worldview_engine import ticker_push
+                from client.desktop.engine import ticker_push
                 ticker_push(world, world['turn'], 'ENCLOSURE', msg, (230, 140, 70))
             except ImportError:
                 pass
@@ -808,7 +808,7 @@ def _execute_policy_action(world, act_id, target):
                 state_msg += " Labor demand slashed by 75% ('sheep eat men')."
             world['policy_feedback'] = (state_msg, (210, 180, 100))
             try:
-                from worldview_engine import ticker_push
+                from client.desktop.engine import ticker_push
                 ticker_push(world, world['turn'], 'LAND_USE', state_msg, (210, 180, 100))
             except ImportError:
                 pass
@@ -821,7 +821,7 @@ def _execute_policy_action(world, act_id, target):
         target.use_fertilizer = not cur
         state = "Mandated" if not cur else "Banned"
         world['policy_feedback'] = (f"Synthetic Fertilizers {state} in {target.name}.", GREEN if not cur else (240, 180, 80))
-        from worldview_engine import ticker_push
+        from client.desktop.engine import ticker_push
         ticker_push(world, world['turn'], 'POLICY', f"Synthetic Fertilizers {state} in {target.name}.", (120, 220, 140))
 
     elif act_id == 'city_mandate_pesticides':
@@ -829,7 +829,7 @@ def _execute_policy_action(world, act_id, target):
         target.use_pesticides = not cur
         state = "Mandated" if not cur else "Banned"
         world['policy_feedback'] = (f"Chemical Pesticides {state} in {target.name}.", GREEN if not cur else (240, 180, 80))
-        from worldview_engine import ticker_push
+        from client.desktop.engine import ticker_push
         ticker_push(world, world['turn'], 'POLICY', f"Chemical Pesticides {state} in {target.name}.", (120, 220, 140))
 
     elif act_id == 'city_toggle_public_healthcare':
@@ -837,7 +837,7 @@ def _execute_policy_action(world, act_id, target):
         target.public_healthcare_decree = not cur
         state = "Enacted (Subsidized)" if not cur else "Repealed (Private Out-of-Pocket)"
         world['policy_feedback'] = (f"Public Healthcare Decree {state} in {target.name}.", GREEN if not cur else (240, 180, 80))
-        from worldview_engine import ticker_push
+        from client.desktop.engine import ticker_push
         ticker_push(world, world['turn'], 'HEALTH', f"Healthcare {state} in {target.name}.", (100, 210, 255))
 
     # Province Actions
@@ -852,7 +852,7 @@ def _execute_policy_action(world, act_id, target):
                 prov_gov.agent.cash -= cost
                 poorest.gov.agent.cash += cost
                 world['policy_feedback'] = (f"Disbursed $200 grant from province treasury to {poorest.name}!", GREEN)
-                from worldview_engine import ticker_push
+                from client.desktop.engine import ticker_push
                 ticker_push(world, world['turn'], 'POLICY', f"Equalization grant: $200 transferred from {target.name} to {poorest.name}.", (130, 220, 160))
         else:
             world['policy_feedback'] = (f"Insufficient provincial treasury funds (${on_hand:.1f} < $200.0).", RED)
@@ -874,7 +874,7 @@ def _execute_policy_action(world, act_id, target):
             for r in getattr(target, 'tiles', []):
                 r.soil_fertility = min(1.50, getattr(r, 'soil_fertility', 1.0) + 0.10)
             world['policy_feedback'] = (f"Soil conservation grant deployed across {target.name}!", (130, 220, 160))
-            from worldview_engine import ticker_push
+            from client.desktop.engine import ticker_push
             ticker_push(world, world['turn'], 'POLICY', f"Soil conservation subsidies funded in {target.name} (+10% Fertility).", (130, 220, 160))
         else:
             world['policy_feedback'] = ("Insufficient provincial treasury funds.", RED)
@@ -905,7 +905,7 @@ def _execute_policy_action(world, act_id, target):
         ok, msg = adjust_workday_hours(target, delta)
         world['policy_feedback'] = (msg, GREEN if ok else RED)
         try:
-            from worldview_engine import ticker_push
+            from client.desktop.engine import ticker_push
             ticker_push(world, world['turn'], 'LABOR', msg, (240, 140, 80) if delta > 0 else (120, 220, 140))
         except ImportError:
             pass
@@ -921,7 +921,7 @@ def _execute_policy_action(world, act_id, target):
         from labor_politics import enact_anti_truck_act
         ok, msg = enact_anti_truck_act(target)
         world['policy_feedback'] = (msg, GREEN if ok else RED)
-        from worldview_engine import ticker_push
+        from client.desktop.engine import ticker_push
         ticker_push(world, world['turn'], 'POLICY', msg, (120, 240, 140))
     elif act_id == 'nat_subsidize_entertainment':
         from labor_politics import subsidize_mass_entertainment
@@ -934,7 +934,7 @@ def _execute_policy_action(world, act_id, target):
         else:
             ok, msg = enact_statute_of_laborers(target, wage_cap=1.20)
         world['policy_feedback'] = (msg, GREEN if ok else RED)
-        from worldview_engine import ticker_push
+        from client.desktop.engine import ticker_push
         ticker_push(world, world['turn'], 'POLICY', msg, (240, 200, 100) if ok else RED)
     elif act_id == 'nat_toggle_quarantine':
         from labor_politics import enact_trade_quarantine, repeal_trade_quarantine
@@ -943,13 +943,13 @@ def _execute_policy_action(world, act_id, target):
         else:
             ok, msg = enact_trade_quarantine(target)
         world['policy_feedback'] = (msg, GREEN if ok else RED)
-        from worldview_engine import ticker_push
+        from client.desktop.engine import ticker_push
         ticker_push(world, world['turn'], 'POLICY', msg, (240, 160, 60) if ok else RED)
     elif act_id == 'nat_emergency_granary':
         from labor_politics import emergency_granary_relief
         ok, msg = emergency_granary_relief(target)
         world['policy_feedback'] = (msg, GREEN if ok else RED)
-        from worldview_engine import ticker_push
+        from client.desktop.engine import ticker_push
         ticker_push(world, world['turn'], 'POLICY', msg, (120, 240, 140) if ok else RED)
     elif act_id == 'nat_restore_commons':
         restored = False
@@ -963,7 +963,7 @@ def _execute_policy_action(world, act_id, target):
                 target.legitimacy = min(1.0, getattr(target, 'legitimacy', 0.5) + 0.08)
                 msg = f"Decreed Restoration of Ancestral Commons on {r.name}! (Commons: {tenure.commons_access*100:.0f}%)"
                 world['policy_feedback'] = (msg, GREEN)
-                from worldview_engine import ticker_push
+                from client.desktop.engine import ticker_push
                 ticker_push(world, world['turn'], 'POLICY', msg, (120, 240, 140))
                 break
         if not restored:
@@ -989,19 +989,19 @@ def _execute_policy_action(world, act_id, target):
             apply_repression(r, world['turn'], cost_legitimacy=0.10)
         msg = f"Martial Law declared! Army dismantled {cleared_barricades} barricades and suppressed {cleared_strikes} strikes."
         world['policy_feedback'] = (msg, (240, 80, 80))
-        from worldview_engine import ticker_push
+        from client.desktop.engine import ticker_push
         ticker_push(world, world['turn'], 'MILITARY', msg, (240, 80, 80))
     elif act_id == 'nat_recapitalize_banks':
         from banking_policy import recapitalize_domestic_banks
         ok, msg = recapitalize_domestic_banks(target)
         world['policy_feedback'] = (msg, GREEN if ok else RED)
-        from worldview_engine import ticker_push
+        from client.desktop.engine import ticker_push
         ticker_push(world, world['turn'], 'BANKING', msg, (120, 240, 150) if ok else (240, 80, 80))
     elif act_id == 'nat_deposit_haircut':
         from banking_policy import enact_deposit_bailin_haircut
         ok, msg = enact_deposit_bailin_haircut(target)
         world['policy_feedback'] = (msg, (245, 180, 50) if ok else RED)
-        from worldview_engine import ticker_push
+        from client.desktop.engine import ticker_push
         ticker_push(world, world['turn'], 'BANKING', msg, (245, 180, 50) if ok else (240, 80, 80))
     elif act_id == 'nat_fertilizer_rationing':
         cur_val = any(getattr(r, 'fertilizer_rationing', False) for r in getattr(target, 'tiles', []))
@@ -1011,7 +1011,7 @@ def _execute_policy_action(world, act_id, target):
         status_s = "ENACTED (50% Consumption Cut)" if new_val else "REPEALED (Normal Intensive Consumption)"
         msg = f"Fertilizer Rationing Decree: {status_s} across {target.name}."
         world['policy_feedback'] = (msg, (245, 180, 50) if new_val else (120, 240, 150))
-        from worldview_engine import ticker_push
+        from client.desktop.engine import ticker_push
         ticker_push(world, world['turn'], 'POLICY', msg, (245, 180, 50) if new_val else (120, 240, 150))
     elif act_id == 'nat_subsidize_guano_import':
         cost = 100.0
@@ -1037,7 +1037,7 @@ def _execute_policy_action(world, act_id, target):
                 gov_agent.cash += share_cost
         msg = f"Blockade Runner Chartered! Disbursed ${cost:.0f} to deliver +20t emergency guano to coastal ports."
         world['policy_feedback'] = (msg, (120, 240, 150))
-        from worldview_engine import ticker_push
+        from client.desktop.engine import ticker_push
         ticker_push(world, world['turn'], 'POLICY', msg, (120, 240, 150))
 
     # Frontier Actions

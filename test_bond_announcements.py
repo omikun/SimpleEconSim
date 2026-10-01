@@ -11,7 +11,7 @@ Verifies:
 
 import unittest
 import pygame
-from worldview import build_world_view
+from client.desktop.app import build_world_view
 from sovereign_bonds import get_bond_market, BondOffering
 from intents import IssueSovereignBondIntent, BuyForeignBondIntent
 from diplomacy import get_diplomacy

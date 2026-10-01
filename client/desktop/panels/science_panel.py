@@ -15,17 +15,17 @@ Duplicates cross-nation innovation functionality from the Sovereign Actions moda
 
 from __future__ import annotations
 import pygame
-from worldview_camera import HEIGHT, TOP_BAR_H, TICKER_H
-from worldview_map import ACCENT, TEXT, DIM, RED, GREEN
+from client.desktop.camera import HEIGHT, TOP_BAR_H, TICKER_H
+from client.desktop.map.map_renderer import ACCENT, TEXT, DIM, RED, GREEN
 from ui_icons import get_icon, draw_progress_bar_button, draw_icon_badge
 from innovation import get_innovation_system, TECH_CATALOG, TechDomain
 from tile_resources import TileResource, RESOURCE_META, get_nation_resources
-from worldview_left_dock import (
+from client.desktop.panels.left_dock import (
     PANEL_X, PANEL_Y, PANEL_W, PANEL_H,
     draw_drawer_top_tabs, drawer_top_tabs_hit,
     open_left_panel, close_left_panels
 )
-from worldview_engine import ticker_push
+from client.desktop.engine import ticker_push
 
 CARD_BG = (24, 26, 36)
 CARD_BORDER = (45, 50, 70)
@@ -57,7 +57,7 @@ def _draw_btn(surface, rect, label, font_small, mx, my, enabled=True, color=TEXT
         register_target(world, rect, ('science_btn', btn_id), tooltip_id=btn_id, scope='science')
     is_hov = (bx <= mx <= bx + bw and by <= my <= by + bh) and enabled
     if is_hov and btn_id and world is not None:
-        from worldview_tooltips import get_button_tooltip_data
+        from client.desktop.tooltips.core import get_button_tooltip_data
         tdata = get_button_tooltip_data(btn_id, world, nation=nation)
         if tdata:
             tdata['btn_rect'] = rect
@@ -144,7 +144,7 @@ def draw_science_panel(surface: pygame.Surface, world: dict, font: pygame.font.F
         r_rect = (rx, cur_y + 12, 18, 18)
         is_r_hov = rx <= mx <= rx + 18 and cur_y + 12 <= my <= cur_y + 30
         if is_r_hov and world is not None:
-            from worldview_tooltips import get_button_tooltip_data
+            from client.desktop.tooltips.core import get_button_tooltip_data
             tdata = get_button_tooltip_data(f"res_{r_enum.value}", world, nation=active_n)
             if tdata:
                 tdata['btn_rect'] = r_rect
@@ -172,7 +172,7 @@ def draw_science_panel(surface: pygame.Surface, world: dict, font: pygame.font.F
         is_sel = (cur_era == e_num)
         is_hov = e_rect[0] <= mx <= e_rect[0] + era_w and e_rect[1] <= my <= e_rect[1] + 24
         if is_hov and world is not None:
-            from worldview_tooltips import get_button_tooltip_data
+            from client.desktop.tooltips.core import get_button_tooltip_data
             tdata = get_button_tooltip_data(f"sci_era_{e_num}", world, nation=active_n)
             if tdata:
                 tdata['btn_rect'] = e_rect
@@ -243,7 +243,7 @@ def draw_science_panel(surface: pygame.Surface, world: dict, font: pygame.font.F
         is_card_hov = card_rect[0] <= mx <= card_rect[0] + card_rect[2] and card_rect[1] <= my <= card_rect[1] + card_rect[3]
         is_btn_hov = btn_rect[0] <= mx <= btn_rect[0] + btn_rect[2] and btn_rect[1] <= my <= btn_rect[1] + btn_rect[3]
         if is_card_hov and world is not None and not is_btn_hov:
-            from worldview_tooltips import get_button_tooltip_data
+            from client.desktop.tooltips.core import get_button_tooltip_data
             tdata = get_button_tooltip_data(f"tech_{tech_id}", world, nation=active_n)
             if tdata:
                 tdata['btn_rect'] = card_rect
@@ -279,7 +279,7 @@ def science_panel_hit(pos: tuple[int, int], world: dict) -> bool:
         t = find_target(world, pos, scope='science')
         if t is not None:
             if t.action == 'close_left':
-                from worldview_left_dock import close_left_panels
+                from client.desktop.panels.left_dock import close_left_panels
                 close_left_panels(world)
                 return True
             elif isinstance(t.action, tuple) and t.action[0] == 'science_era':
@@ -309,12 +309,12 @@ def science_panel_hit(pos: tuple[int, int], world: dict) -> bool:
     # Close button [X]
     close_rect = (x + w - 26, y + 8, 18, 18)
     if close_rect[0] <= mx <= close_rect[0] + 18 and close_rect[1] <= my <= close_rect[1] + 18:
-        from worldview_left_dock import close_left_panels
+        from client.desktop.panels.left_dock import close_left_panels
         close_left_panels(world)
         return True
 
     # Drawer Top Switcher
-    from worldview_left_dock import drawer_top_tabs_hit
+    from client.desktop.panels.left_dock import drawer_top_tabs_hit
     if drawer_top_tabs_hit(pos, world, x, y + 48, w):
         return True
 

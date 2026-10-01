@@ -104,10 +104,10 @@ def load_map_cache() -> dict | None:
         world["selected_region"] = None
         world["hover_region"] = None
 
-        from worldview_camera import clamp_cam, get_min_zoom
+        from client.desktop.camera import clamp_cam, get_min_zoom
         if world.get("cam"):
             if world["cam"].get("zoom", 1.0) < get_min_zoom(world):
-                from worldview_camera import reset_cam
+                from client.desktop.camera import reset_cam
                 reset_cam(world)
             else:
                 clamp_cam(world)

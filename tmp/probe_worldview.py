@@ -93,7 +93,7 @@ def check_clusters():
 def check_dummy_render():
     import pygame
 
-    import worldview as wv
+    import client.desktop.app as wv
 
     pygame.init()
     surface = pygame.display.set_mode((wv.WIDTH, wv.HEIGHT))

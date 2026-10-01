@@ -28,7 +28,7 @@ from render_engine.gpu.shaders import (
     PASS3_COMPOSITE_FRAG,
 )
 from hexmap import rectangular_hex_layout, axial_to_pixel
-from worldview_camera import HEX_SIZE
+from client.desktop.camera import HEX_SIZE
 from heightmap import HeightMapGenerator
 from render_engine.gpu.settings import load_gpu_settings
 

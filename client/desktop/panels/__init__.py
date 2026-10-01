@@ -1,0 +1,1 @@
+"""client.desktop.panels package."""

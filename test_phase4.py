@@ -212,8 +212,8 @@ class TestPhase4(unittest.TestCase):
 
     def test_phase4_tooltips_and_decrees(self):
         """Verify tooltips and decrees for Phase 4."""
-        from worldview_tooltips import get_button_tooltip_data
-        from worldview_policies import _execute_policy_action
+        from client.desktop.tooltips.core import get_button_tooltip_data
+        from client.desktop.panels.policies import _execute_policy_action
         nation = Nation("Testland", initial_cash=1000.0)
         tile = Region("TileA", 0, 0)
         nation.add_tile(tile)

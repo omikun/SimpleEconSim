@@ -18,17 +18,17 @@ Duplicates cross-nation sovereign debt functionality from the Sovereign Actions 
 
 from __future__ import annotations
 import pygame
-from worldview_camera import HEIGHT, TOP_BAR_H, TICKER_H
-from worldview_map import ACCENT, TEXT, DIM, RED, GREEN
+from client.desktop.camera import HEIGHT, TOP_BAR_H, TICKER_H
+from client.desktop.map.map_renderer import ACCENT, TEXT, DIM, RED, GREEN
 from ui_icons import get_icon
 from sovereign_bonds import get_bond_market
 from intents import IssueSovereignBondIntent
-from worldview_left_dock import (
+from client.desktop.panels.left_dock import (
     PANEL_X, PANEL_Y, PANEL_W, PANEL_H,
     draw_drawer_top_tabs, drawer_top_tabs_hit,
     open_left_panel, close_left_panels
 )
-from worldview_engine import ticker_push
+from client.desktop.engine import ticker_push
 
 CARD_BG = (24, 26, 36)
 CARD_BORDER = (45, 50, 70)
@@ -61,7 +61,7 @@ def _draw_btn(surface, rect, label, font_small, mx, my, enabled=True, color=TEXT
         register_target(world, rect, ('debt_action', btn_id), tooltip_id=btn_id, scope='debt', data={'btn_id': btn_id, 'nation': nation})
 
     if is_hov and btn_id and world is not None:
-        from worldview_tooltips import get_button_tooltip_data
+        from client.desktop.tooltips.core import get_button_tooltip_data
         tdata = get_button_tooltip_data(btn_id, world, nation=nation)
         if tdata:
             tdata['btn_rect'] = rect
@@ -153,7 +153,7 @@ def draw_debt_panel(surface: pygame.Surface, world: dict, font: pygame.font.Font
         is_sel = (scope == s_id)
         is_hov = s_rect[0] <= mx <= s_rect[0] + sc_w and s_rect[1] <= my <= s_rect[1] + 24
         if is_hov and world is not None:
-            from worldview_tooltips import get_button_tooltip_data
+            from client.desktop.tooltips.core import get_button_tooltip_data
             tdata = get_button_tooltip_data(f"debt_scope_{s_id}", world, nation=active_n)
             if tdata:
                 tdata['btn_rect'] = s_rect
@@ -225,7 +225,7 @@ def draw_debt_panel(surface: pygame.Surface, world: dict, font: pygame.font.Font
             is_sel = (selected_duration == t_val)
             is_hov = t_rect[0] <= mx <= t_rect[0] + term_w and t_rect[1] <= my <= t_rect[1] + 22
             if is_hov and world is not None:
-                from worldview_tooltips import get_button_tooltip_data
+                from client.desktop.tooltips.core import get_button_tooltip_data
                 tdata = get_button_tooltip_data(f"debt_dur_{t_val}", world, nation=active_n)
                 if tdata:
                     tdata['btn_rect'] = t_rect

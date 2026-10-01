@@ -16,8 +16,8 @@ import pygame
 from goods import Goods
 from land_tenure import TenureStatus, LandPlot
 from enclosure import calculate_charter_fee, execute_enclosure
-from worldview_camera import WIDTH, HEIGHT, MAP_RIGHT, TOP_BAR_H, TICKER_H
-from worldview_map import TEXT, DIM, RED, GREEN, ACCENT, HEX_EDGE
+from client.desktop.camera import WIDTH, HEIGHT, MAP_RIGHT, TOP_BAR_H, TICKER_H
+from client.desktop.map.map_renderer import TEXT, DIM, RED, GREEN, ACCENT, HEX_EDGE
 from ui_icons import get_icon
 
 PANEL_LEFT = MAP_RIGHT + 12
@@ -251,7 +251,7 @@ def draw_cadastre_panel(surface, world: dict, region, font, font_small, mouse_po
         for rect, act_id, payload in _CADASTRE_BUTTONS:
             rx, ry, rw, rh = rect
             if rx <= mx <= rx + rw and ry <= my <= ry + rh:
-                from worldview_tooltips import get_button_tooltip_data
+                from client.desktop.tooltips.core import get_button_tooltip_data
                 plot_id = payload[1] if isinstance(payload, tuple) and len(payload) > 1 else None
                 tdata = get_button_tooltip_data(act_id, world, region=region, plot_id=plot_id)
                 if tdata:
@@ -279,7 +279,7 @@ def cadastre_panel_hit(pos, world: dict) -> bool:
                 ok, msg, _evs = execute_enclosure(reg, plot_id, world.get('turn', 0))
                 world['policy_feedback'] = (msg, (230, 140, 70) if ok else RED)
                 try:
-                    from worldview_engine import ticker_push
+                    from client.desktop.engine import ticker_push
                     ticker_push(world, world.get('turn', 0), 'ENCLOSURE', msg, (230, 140, 70))
                 except ImportError:
                     pass
@@ -295,7 +295,7 @@ def cadastre_panel_hit(pos, world: dict) -> bool:
                         msg += " 75% tenants dispossessed."
                     world['policy_feedback'] = (msg, (210, 180, 100))
                     try:
-                        from worldview_engine import ticker_push
+                        from client.desktop.engine import ticker_push
                         ticker_push(world, world.get('turn', 0), 'LAND_USE', msg, (210, 180, 100))
                     except ImportError:
                         pass
@@ -308,7 +308,7 @@ def cadastre_panel_hit(pos, world: dict) -> bool:
                     msg = f"Plot restored to Customary Commons on {reg.name}!"
                     world['policy_feedback'] = (msg, GREEN)
                     try:
-                        from worldview_engine import ticker_push
+                        from client.desktop.engine import ticker_push
                         ticker_push(world, world.get('turn', 0), 'COMMONS', msg, (120, 220, 140))
                     except ImportError:
                         pass

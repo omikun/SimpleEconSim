@@ -132,7 +132,7 @@ class TestFertilizerSupplyAndBlockade(unittest.TestCase):
         imp_mgr.blockaded_tiles.discard(self.tile.name)
 
     def test_blockade_runner_subsidy_and_conservation(self):
-        from worldview_policies import _execute_policy_action
+        from client.desktop.panels.policies import _execute_policy_action
 
         self.tile.is_coast = True
         self.tile.fertilizer_stock = 0.0

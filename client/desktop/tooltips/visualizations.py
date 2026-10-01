@@ -4,7 +4,7 @@ Provides rich floating tooltips explaining mechanics, strategic utility, and sta
 """
 
 from __future__ import annotations
-from worldview_map import ACCENT, TEXT, DIM, RED, GREEN
+from client.desktop.map.map_renderer import ACCENT, TEXT, DIM, RED, GREEN
 
 
 def _tip_extraction_controls(btn_id, sv_rate, avg_shift):

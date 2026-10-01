@@ -16,10 +16,10 @@ Supports:
 from __future__ import annotations
 import pygame
 from typing import TYPE_CHECKING
-from worldview_camera import HEIGHT, TOP_BAR_H, TICKER_H
-from worldview_map import ACCENT, TEXT, DIM, RED, GREEN
+from client.desktop.camera import HEIGHT, TOP_BAR_H, TICKER_H
+from client.desktop.map.map_renderer import ACCENT, TEXT, DIM, RED, GREEN
 from ui_icons import get_icon
-from worldview_left_dock import (
+from client.desktop.panels.left_dock import (
     PANEL_X, PANEL_Y, PANEL_W, PANEL_H,
     draw_drawer_top_tabs, drawer_top_tabs_hit,
     open_left_panel, close_left_panels
@@ -441,7 +441,7 @@ def draw_progress_panel(surface: pygame.Surface, world: dict, font: pygame.font.
         for rect, act_id, payload in _PROGRESS_BUTTONS:
             rx, ry, rw, rh = rect
             if rx <= mx <= rx + rw and ry <= my <= ry + rh:
-                from worldview_tooltips import get_button_tooltip_data
+                from client.desktop.tooltips.core import get_button_tooltip_data
                 tdata = get_button_tooltip_data(act_id, world, project=payload)
                 if tdata:
                     tdata['btn_rect'] = rect

@@ -15,8 +15,8 @@ from render_engine.layers import LayerType, get_layer_by_hotkey, get_all_layers
 from sim_server import SimServer, CommandType, ServerEvent
 from sim_server.protocol import CommandMessage
 from game_client import GameClient
-from worldview_camera import HEX_SIZE
-from worldview_left_dock import open_left_panel, is_any_left_panel_open
+from client.desktop.camera import HEX_SIZE
+from client.desktop.panels.left_dock import open_left_panel, is_any_left_panel_open
 
 
 class TestRenderEngineAndCamera(unittest.TestCase):

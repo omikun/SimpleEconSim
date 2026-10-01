@@ -20,11 +20,11 @@ os.environ.setdefault('MPLCONFIGDIR', '/tmp')
 
 import unittest
 import pygame
-from worldview_engine import build_world_view, step_world
-from worldview_compare import draw_nations_comparison, compare_tab_hit
-from worldview_compare_extraction import draw_tab4_extraction, _get_tile_stats
-from worldview_compare_protest import draw_tab5_protest, _extract_tile_grievances
-from worldview_ui import get_font
+from client.desktop.engine import build_world_view, step_world
+from client.desktop.inspect.compare import draw_nations_comparison, compare_tab_hit
+from client.desktop.inspect.compare_extraction import draw_tab4_extraction, _get_tile_stats
+from client.desktop.inspect.compare_protest import draw_tab5_protest, _extract_tile_grievances
+from client.desktop.hud.ui import get_font
 
 
 class TestCompareExtractionAndProtest(unittest.TestCase):

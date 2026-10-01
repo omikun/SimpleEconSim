@@ -337,7 +337,7 @@ def draw_chart_grid(surface, charts, font, font_small, window, y0, y1, mouse_pos
                 if rect[0] <= mx <= rect[0] + rect[2] and rect[1] <= my <= rect[1] + rect[3]:
                     is_hovered = True
                     if world is not None and not world.get('_hovered_left_tooltip'):
-                        from worldview_tooltips import get_button_tooltip_data
+                        from client.desktop.tooltips.core import get_button_tooltip_data
                         chart_num = idx + 1
                         tdata = get_button_tooltip_data(f"chart_{chart_num}", world, region=region)
                         if tdata:
@@ -378,7 +378,7 @@ def draw_chart_large(surface, chart, font, font_small, window, y0, y1, mouse_pos
     if mouse_pos and world is not None and not world.get('_hovered_left_tooltip'):
         mx, my = mouse_pos
         if rect[0] <= mx <= rect[0] + rect[2] and rect[1] <= my <= rect[1] + rect[3]:
-            from worldview_tooltips import get_button_tooltip_data
+            from client.desktop.tooltips.core import get_button_tooltip_data
             tip_id = f"chart_{chart_idx}" if chart_idx else "chart_1"
             tdata = get_button_tooltip_data(tip_id, world, region=region)
             if tdata:

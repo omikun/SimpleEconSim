@@ -13,13 +13,13 @@ Verifies:
 
 import unittest
 import pygame
-from worldview import build_world_view
+from client.desktop.app import build_world_view
 from sovereign_bonds import get_bond_market, SovereignBond
 from intents import (IssueSovereignBondIntent, BuyForeignBondIntent,
                      RedeemBondEarlyIntent, LobbyRatingUpgradeIntent,
                      LobbyAdversaryDowngradeIntent, AcquireBoardSeatIntent)
-from worldview_actions import draw_actions_modal, actions_tab_hit
-from worldview_ui import get_font
+from client.desktop.actions import draw_actions_modal, actions_tab_hit
+from client.desktop.hud.ui import get_font
 
 
 class TestSovereignBonds(unittest.TestCase):

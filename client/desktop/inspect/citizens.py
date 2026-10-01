@@ -12,9 +12,9 @@ across individual Cities/Tiles and Sovereign Nations:
 from __future__ import annotations
 import pygame
 from goods import Goods
-from worldview_camera import WIDTH, HEIGHT, MAP_RIGHT, TOP_BAR_H, TICKER_H
-from worldview_map import TEXT, DIM, RED, GREEN, ACCENT, HEX_EDGE
-from worldview_charts import (
+from client.desktop.camera import WIDTH, HEIGHT, MAP_RIGHT, TOP_BAR_H, TICKER_H
+from client.desktop.map.map_renderer import TEXT, DIM, RED, GREEN, ACCENT, HEX_EDGE
+from client.desktop.charts.charts import (
     draw_chart_grid, draw_chart_large, chart_at_pixel,
     CHART_BOX
 )
@@ -252,7 +252,7 @@ def draw_citizens_panel(surface, world, region, font, font_small, mouse_pos=None
 
     # Hover tooltips for scope, subtabs, and modes
     if not world.get('_hovered_left_tooltip'):
-        from worldview_tooltips import get_button_tooltip_data
+        from client.desktop.tooltips.core import get_button_tooltip_data
         if is_tile_hov:
             tdata = get_button_tooltip_data('citizen_scope_tile', world, region=region)
             if tdata:
@@ -275,7 +275,7 @@ def draw_citizens_panel(surface, world, region, font, font_small, mouse_pos=None
                 world['_hovered_left_tooltip'] = tdata
 
     if subtab == 'labor':
-        from worldview_labor_ui import draw_labor_dashboard
+        from client.desktop.inspect.labor_ui import draw_labor_dashboard
         draw_labor_dashboard(surface, world, region, font, font_small, mouse_pos=mouse_pos)
         return
 
@@ -357,7 +357,7 @@ def draw_citizens_panel(surface, world, region, font, font_small, mouse_pos=None
     is_py_hov = btn_pyr[0] <= mx <= btn_pyr[0] + mode_w and btn_pyr[1] <= my <= btn_pyr[1] + 20
 
     if not world.get('_hovered_left_tooltip'):
-        from worldview_tooltips import get_button_tooltip_data
+        from client.desktop.tooltips.core import get_button_tooltip_data
         if is_ch_hov:
             tdata = get_button_tooltip_data('citizen_mode_charts', world, region=region)
             if tdata:
@@ -382,7 +382,7 @@ def draw_citizens_panel(surface, world, region, font, font_small, mouse_pos=None
     chart_y1 = panel_bottom
 
     if c_mode == 'pyramid':
-        from worldview_vis_pyramid import draw_class_wealth_pyramid, draw_lorenz_curve
+        from client.desktop.inspect.vis_pyramid import draw_class_wealth_pyramid, draw_lorenz_curve
         target = region if scope == 'tile' else nation
         avail_h = chart_y1 - chart_y0 - 6
         h_each = avail_h // 2
@@ -390,7 +390,7 @@ def draw_citizens_panel(surface, world, region, font, font_small, mouse_pos=None
         lor_rect = (PANEL_LEFT + 6, chart_y0 + h_each + 6, PANEL_W - 12, h_each)
 
         if mouse_pos and not world.get('_hovered_left_tooltip'):
-            from worldview_tooltips import get_button_tooltip_data
+            from client.desktop.tooltips.core import get_button_tooltip_data
             if pyr_rect[0] <= mx <= pyr_rect[0] + pyr_rect[2] and pyr_rect[1] <= my <= pyr_rect[1] + pyr_rect[3]:
                 tdata = get_button_tooltip_data('citizen_viz_pyramid', world, region=region)
                 if tdata:
@@ -419,7 +419,7 @@ def draw_citizens_panel(surface, world, region, font, font_small, mouse_pos=None
                 ch_rect = (left + c_idx * cw, chart_y0 + r_idx * ch, cw - 4, ch - 4)
                 if mouse_pos and not world.get('_hovered_left_tooltip'):
                     if ch_rect[0] <= mx <= ch_rect[0] + ch_rect[2] and ch_rect[1] <= my <= ch_rect[1] + ch_rect[3]:
-                        from worldview_tooltips import get_button_tooltip_data
+                        from client.desktop.tooltips.core import get_button_tooltip_data
                         tdata = get_button_tooltip_data(f"citizen_chart_{idx+1}", world, region=region)
                         if tdata:
                             tdata['btn_rect'] = ch_rect
@@ -437,7 +437,7 @@ def draw_citizens_panel(surface, world, region, font, font_small, mouse_pos=None
         large_rect = (PANEL_LEFT + 6, chart_y0, WIDTH - 14 - PANEL_LEFT, chart_y1 - chart_y0)
         if mouse_pos and not world.get('_hovered_left_tooltip'):
             if large_rect[0] <= mx <= large_rect[0] + large_rect[2] and large_rect[1] <= my <= large_rect[1] + large_rect[3]:
-                from worldview_tooltips import get_button_tooltip_data
+                from client.desktop.tooltips.core import get_button_tooltip_data
                 tdata = get_button_tooltip_data(f"citizen_chart_{idx+1}", world, region=region)
                 if tdata:
                     tdata['btn_rect'] = large_rect
@@ -481,7 +481,7 @@ def citizen_panel_hit(pos, world):
 
     # If in labor subtab, pass to labor panel hit
     if world.get('citizen_subtab') == 'labor':
-        from worldview_labor_ui import labor_panel_hit
+        from client.desktop.inspect.labor_ui import labor_panel_hit
         return labor_panel_hit(pos, world)
 
     # Class View Mode Toggle (Charts vs Pyramid)

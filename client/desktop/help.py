@@ -8,8 +8,8 @@ Pages:
 """
 
 import pygame
-from worldview_camera import WIDTH, HEIGHT
-from worldview_map import ACCENT, TEXT, DIM, RED, GREEN, UNREST_COLORS, NATION_COLORS
+from client.desktop.camera import WIDTH, HEIGHT
+from client.desktop.map.map_renderer import ACCENT, TEXT, DIM, RED, GREEN, UNREST_COLORS, NATION_COLORS
 
 HELP_PANEL_RECT = (120, 45, 1160, 810)
 CLOSE_BTN_RECT = (1245, 55, 26, 26)

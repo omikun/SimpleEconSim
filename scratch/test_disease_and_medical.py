@@ -33,11 +33,11 @@ from disease import (
 from demographics_estate import handle_death
 from innovation import TECH_CATALOG
 from buildings import BUILDING_RECIPES, Building
-from worldview_charts import tile_ecological_charts
-from worldview_compare_ecology import draw_tab6_ecology, handle_tab6_click
-from worldview_compare import compare_tab_hit, draw_nations_comparison
-from worldview_tooltips_ecology import build_ecology_tooltip
-from worldview_tooltips import get_button_tooltip_data
+from client.desktop.charts.charts import tile_ecological_charts
+from client.desktop.inspect.compare_ecology import draw_tab6_ecology, handle_tab6_click
+from client.desktop.inspect.compare import compare_tab_hit, draw_nations_comparison
+from client.desktop.tooltips.ecology import build_ecology_tooltip
+from client.desktop.tooltips.core import get_button_tooltip_data
 
 
 def test_disease_onset_and_wear():

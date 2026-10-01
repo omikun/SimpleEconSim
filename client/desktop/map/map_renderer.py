@@ -21,7 +21,7 @@ import numpy as np
 import pygame
 from goods import Goods
 from hexmap import hex_corners
-from worldview_camera import hex_px, HEX_SIZE, MAP_RIGHT, TOP_BAR_H, TICKER_H, HEIGHT
+from client.desktop.camera import hex_px, HEX_SIZE, MAP_RIGHT, TOP_BAR_H, TICKER_H, HEIGHT
 from heightmap import get_cached_topographic_surface
 from ui_icons import get_icon
 
@@ -1187,7 +1187,7 @@ def draw_hex_map(surface, world, font, font_small):
         if not world.get('_map_generation_done', False):
             def _on_map_progress(fraction, status_text):
                 world['loading_modal'] = {'active': True, 'fraction': fraction, 'status': status_text}
-                from worldview_ui import draw_loading_modal
+                from client.desktop.hud.ui import draw_loading_modal
                 draw_loading_modal(surface, fraction, status_text, seed=seed)
                 disp_surf = pygame.display.get_surface()
                 if disp_surf is not None and disp_surf == surface:
@@ -1365,7 +1365,7 @@ def draw_hex_map(surface, world, font, font_small):
                 scaled_topo = _cached_scaled_terrain(world, topo_surf, (screen_w, screen_h))
                 surface.blit(scaled_topo, (screen_x, screen_y))
         else:
-            from worldview_camera import world_to_screen
+            from client.desktop.camera import world_to_screen
             N = 48
             surf_w, surf_h = topo_surf.get_size()
             for i in range(N):
@@ -1425,7 +1425,7 @@ def draw_hex_map(surface, world, font, font_small):
         hover_offset = 0.6  # Hover slightly above 3D mesh surface to prevent clipping and occlusion
         outline_alpha = 32 if _is_voronoi else 128
 
-        from worldview_camera import project_pts_3d_to_screen, project_polygon_3d_to_screen, get_camera_mvp
+        from client.desktop.camera import project_pts_3d_to_screen, project_polygon_3d_to_screen, get_camera_mvp
         mvp = get_camera_mvp(world) if _is_voronoi else None
 
         for region in tiles:

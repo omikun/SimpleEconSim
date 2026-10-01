@@ -16,7 +16,7 @@ from render_engine.gpu.fallback_pipeline import CPUFallbackPipeline
 from render_engine.gpu.moderngl_pipeline import ModernGLTerrainPipeline, MODERNGL_AVAILABLE
 from render_engine.terrain import TerrainRenderer
 from hexmap import rectangular_hex_layout, hex_bbox
-from worldview_camera import HEX_SIZE
+from client.desktop.camera import HEX_SIZE
 from render_dev_viewer import create_mock_island_tiles
 
 

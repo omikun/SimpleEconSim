@@ -23,9 +23,9 @@ from goods import Goods
 from region import Region
 from nation import Nation
 from tile_resources import TileResource
-from worldview_seasonal_clock import get_season_info, draw_seasonal_clock, draw_seasonal_clock_tooltip, SEASON_CLOCK_RECT
+from client.desktop.seasonal_clock import get_season_info, draw_seasonal_clock, draw_seasonal_clock_tooltip, SEASON_CLOCK_RECT
 from ui_icons import get_icon
-from worldview_map import tile_stats, draw_edges, draw_terrain_glyph, draw_activity_badges, draw_tile_progress_bars
+from client.desktop.map.map_renderer import tile_stats, draw_edges, draw_terrain_glyph, draw_activity_badges, draw_tile_progress_bars
 from terrain_edges import reset_edge_manager
 
 

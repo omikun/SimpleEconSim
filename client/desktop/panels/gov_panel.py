@@ -10,11 +10,11 @@ Provides a dedicated left drawer matching the Build Menu:
 
 from __future__ import annotations
 import pygame
-from worldview_camera import HEIGHT, TOP_BAR_H, TICKER_H
-from worldview_map import ACCENT, TEXT, DIM, RED, GREEN
+from client.desktop.camera import HEIGHT, TOP_BAR_H, TICKER_H
+from client.desktop.map.map_renderer import ACCENT, TEXT, DIM, RED, GREEN
 from ui_icons import get_icon
 from unrest import apply_repression
-from worldview_tooltips import get_button_tooltip_data
+from client.desktop.tooltips.core import get_button_tooltip_data
 
 GOV_PANEL_X = 14
 GOV_PANEL_Y = TOP_BAR_H + 10
@@ -32,7 +32,7 @@ _GOV_BUTTONS: list[tuple[tuple[int, int, int, int], str, any]] = []
 
 def draw_left_dock_buttons(surface, world, font_small, mouse_pos=None):
     """Draw the floating left dock toggle buttons for all left-hand panels."""
-    from worldview_left_dock import draw_left_dock_buttons as _draw_dock
+    from client.desktop.panels.left_dock import draw_left_dock_buttons as _draw_dock
     _draw_dock(surface, world, font_small, mouse_pos)
 
 
@@ -139,7 +139,7 @@ def draw_gov_panel(surface, world, font, font_small, mouse_pos=None):
     surface.blit(x_txt, (close_rect[0] + 4, close_rect[1] + 1))
 
     # Drawer Top Switcher Tabs
-    from worldview_left_dock import draw_drawer_top_tabs
+    from client.desktop.panels.left_dock import draw_drawer_top_tabs
     cur_y = draw_drawer_top_tabs(surface, world, x, y + 48, w, 'governance', font_small, mouse_pos)
 
     # Scope Switcher Tabs
@@ -161,7 +161,7 @@ def draw_gov_panel(surface, world, font, font_small, mouse_pos=None):
         is_sel = (active_scope == sc_id)
         is_hov = t_rect[0] <= mx <= t_rect[0] + tab_w and t_rect[1] <= my <= t_rect[1] + 24
         if is_hov and world is not None:
-            from worldview_tooltips import get_button_tooltip_data
+            from client.desktop.tooltips.core import get_button_tooltip_data
             tdata = get_button_tooltip_data(tip_id, world, region=pinned, nation=nation, province=province)
             if tdata:
                 tdata['btn_rect'] = t_rect
@@ -605,12 +605,12 @@ def _draw_left_nation_scope(surface, world, region, nation, start_y, x, w, font,
     baro_rect = (x + 8, cur_y, w - 16, baro_h)
     if mx >= 0 and my >= 0 and not world.get('_hovered_left_tooltip'):
         if baro_rect[0] <= mx <= baro_rect[0] + baro_rect[2] and baro_rect[1] <= my <= baro_rect[1] + baro_rect[3]:
-            from worldview_tooltips import get_button_tooltip_data
+            from client.desktop.tooltips.core import get_button_tooltip_data
             tdata = get_button_tooltip_data('gov_electoral_barometer', world, nation=nation)
             if tdata:
                 tdata['btn_rect'] = baro_rect
                 world['_hovered_left_tooltip'] = tdata
-    from worldview_vis_radar import draw_electoral_barometer
+    from client.desktop.inspect.vis_radar import draw_electoral_barometer
     draw_electoral_barometer(surface, baro_rect, nation, font_small)
 
 
@@ -619,7 +619,7 @@ def gov_panel_hit(pos, world) -> bool:
     global _GOV_BUTTONS
 
     # Left Dock Buttons when closed
-    from worldview_left_dock import left_dock_buttons_hit
+    from client.desktop.panels.left_dock import left_dock_buttons_hit
     if not world.get('gov_panel_open', False):
         return left_dock_buttons_hit(pos, world)
 
@@ -628,7 +628,7 @@ def gov_panel_hit(pos, world) -> bool:
         t = find_target(world, pos, scope='gov')
         if t is not None:
             if t.action == 'close_left':
-                from worldview_left_dock import close_left_panels
+                from client.desktop.panels.left_dock import close_left_panels
                 close_left_panels(world)
                 return True
             elif isinstance(t.action, tuple) and t.action[0] == 'gov_scope':
@@ -645,12 +645,12 @@ def gov_panel_hit(pos, world) -> bool:
     # Close button [X]
     close_rect = (x + w - 26, y + 8, 18, 18)
     if close_rect[0] <= mx <= close_rect[0] + 18 and close_rect[1] <= my <= close_rect[1] + 18:
-        from worldview_left_dock import close_left_panels
+        from client.desktop.panels.left_dock import close_left_panels
         close_left_panels(world)
         return True
 
     # Drawer Top Switcher
-    from worldview_left_dock import drawer_top_tabs_hit
+    from client.desktop.panels.left_dock import drawer_top_tabs_hit
     if drawer_top_tabs_hit(pos, world, x, y + 48, w):
         return True
 
@@ -683,7 +683,7 @@ def gov_panel_hit(pos, world) -> bool:
 def _execute_gov_policy(world: dict, act_id: str, target: any):
     """Execute triggered policy decree and notify world engine ticker."""
     t = world.get('turn', 1)
-    from worldview_engine import ticker_push
+    from client.desktop.engine import ticker_push
 
     # 1. Custom City actions
     if act_id == 'city_toggle_ubi':
@@ -724,7 +724,7 @@ def _execute_gov_policy(world: dict, act_id: str, target: any):
             return
         on_hand = rgov.agent.cash
         if on_hand >= 50.0:
-            from worldview_policies import _execute_policy_action
+            from client.desktop.panels.policies import _execute_policy_action
             _execute_policy_action(world, 'city_food_relief', target)
         else:
             nation = getattr(target, 'owner_nation', None)
@@ -866,5 +866,5 @@ def _execute_gov_policy(world: dict, act_id: str, target: any):
         return
 
     # 4. Delegate to worldview_policies for all standard policy actions
-    from worldview_policies import _execute_policy_action
+    from client.desktop.panels.policies import _execute_policy_action
     _execute_policy_action(world, act_id, target)

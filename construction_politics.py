@@ -133,7 +133,7 @@ def subsidize_contractor(project: ConstructionProject, amount: float, nation: Na
 
     if world is not None:
         try:
-            from worldview_engine import ticker_push
+            from client.desktop.engine import ticker_push
             t = world.get('turn', 0)
             ticker_push(world, t, 'CONSTRUCT', msg, (100, 220, 140))
         except Exception:
@@ -153,7 +153,7 @@ def step_construction_politics(region: Region, t: int, world: dict = None):
 
     projects = getattr(region, 'construction_projects', [])
     try:
-        from worldview_engine import ticker_push
+        from client.desktop.engine import ticker_push
     except ImportError:
         ticker_push = lambda w, turn, cat, txt, col: None
 

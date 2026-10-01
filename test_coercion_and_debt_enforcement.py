@@ -267,7 +267,7 @@ class TestCoercionAndDebtEnforcement(unittest.TestCase):
         font = pygame.font.Font(None, 20)
         font_small = pygame.font.Font(None, 16)
 
-        from worldview_debt_panel import draw_debt_panel, debt_panel_hit
+        from client.desktop.panels.debt_panel import draw_debt_panel, debt_panel_hit
 
         self.world['debt_panel_open'] = True
         self.world['player_nation_name'] = "Khedivate"

@@ -6,13 +6,13 @@ import os
 from collections import Counter
 import pygame
 from goods import Goods
-from worldview_camera import WIDTH, HEIGHT, MAP_RIGHT, TOP_BAR_H, TICKER_H
-from worldview_charts import (PANEL_LEFT, draw_chart_grid, draw_chart_large,
+from client.desktop.camera import WIDTH, HEIGHT, MAP_RIGHT, TOP_BAR_H, TICKER_H
+from client.desktop.charts.charts import (PANEL_LEFT, draw_chart_grid, draw_chart_large,
                               tile_charts, tile_ecological_charts, EXP_C, IMP_C)
-from worldview_map import (HEX_EDGE, ACCENT, TEXT, DIM, RED, GREEN, UNREST_COLORS,
+from client.desktop.map.map_renderer import (HEX_EDGE, ACCENT, TEXT, DIM, RED, GREEN, UNREST_COLORS,
                            PROVINCE_COLORS, NATION_COLORS, BADGE_ORANGE, BADGE_RED,
                            BADGE_TRA, BADGE_GINI)
-from worldview_compare import draw_nations_comparison, compare_tab_hit
+from client.desktop.inspect.compare import draw_nations_comparison, compare_tab_hit
 from diplomacy import get_diplomacy, TreatyType
 from ui_icons import get_icon, draw_icon_badge
 
@@ -733,7 +733,7 @@ def draw_top_bar(surface, world, font_small, mouse_pos=None):
     world['_hovered_topbar_dropdown'] = hovered_dropdown
 
     # Top-Right Command Buttons (Help, Compare, Diplomacy, Military)
-    from worldview_actions import draw_top_bar_action_buttons
+    from client.desktop.actions import draw_top_bar_action_buttons
     draw_top_bar_action_buttons(surface, world, font_small, mouse_pos=mouse_pos)
 
 
@@ -931,13 +931,13 @@ def draw_panel(surface, world, font, font_small, mouse_pos=None):
 
     # Hover tooltips for top sidebar tabs
     if c_hov and not world.get('_hovered_left_tooltip'):
-        from worldview_tooltips import get_button_tooltip_data
+        from client.desktop.tooltips.core import get_button_tooltip_data
         tdata = get_button_tooltip_data('tab_charts', world, region=region)
         if tdata:
             tdata['btn_rect'] = CHARTS_TAB_RECT
             world['_hovered_left_tooltip'] = tdata
     elif z_hov and not world.get('_hovered_left_tooltip'):
-        from worldview_tooltips import get_button_tooltip_data
+        from client.desktop.tooltips.core import get_button_tooltip_data
         tdata = get_button_tooltip_data('tab_citizens', world, region=region)
         if tdata:
             tdata['btn_rect'] = CITIZENS_TAB_RECT
@@ -960,13 +960,13 @@ def draw_panel(surface, world, font, font_small, mouse_pos=None):
             surface.blit(ok, (PANEL_LEFT, audit_y))
 
     if active_tab == 'cadastre':
-        from worldview_cadastre import draw_cadastre_panel
+        from client.desktop.inspect.cadastre import draw_cadastre_panel
         draw_cadastre_panel(surface, world, region, font, font_small, mouse_pos=mouse_pos)
         _render_audit_footer()
         return
 
     if active_tab == 'citizens':
-        from worldview_citizens import draw_citizens_panel
+        from client.desktop.inspect.citizens import draw_citizens_panel
         draw_citizens_panel(surface, world, region, font, font_small, mouse_pos=mouse_pos)
         _render_audit_footer()
         return
@@ -992,7 +992,7 @@ def draw_panel(surface, world, font, font_small, mouse_pos=None):
                 line = font_small.render(text, True, color)
                 surface.blit(line, (PANEL_LEFT, yy))
                 yy += 20
-            from worldview_citizens import nation_citizen_charts
+            from client.desktop.inspect.citizens import nation_citizen_charts
             nat_charts = nation_citizen_charts(n)
             view = world.get('view', 0)
             if view == 0:
@@ -1139,13 +1139,13 @@ def draw_panel(surface, world, font, font_small, mouse_pos=None):
         eco_hover = btn_eco_rect.collidepoint(mx, my)
 
         if ec_hover and world is not None and not world.get('_hovered_left_tooltip'):
-            from worldview_tooltips import get_button_tooltip_data
+            from client.desktop.tooltips.core import get_button_tooltip_data
             tdata = get_button_tooltip_data('btn_chart_mode_econ', world)
             if tdata:
                 tdata['btn_rect'] = btn_ec_rect
                 world['_hovered_left_tooltip'] = tdata
         elif eco_hover and world is not None and not world.get('_hovered_left_tooltip'):
-            from worldview_tooltips import get_button_tooltip_data
+            from client.desktop.tooltips.core import get_button_tooltip_data
             tdata = get_button_tooltip_data('btn_chart_mode_eco', world)
             if tdata:
                 tdata['btn_rect'] = btn_eco_rect

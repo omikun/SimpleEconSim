@@ -461,7 +461,7 @@ class ConstructionProject:
             self.events.append({'t': t, 'event': 'STALLED', 'message': msg})
             if world is not None:
                 try:
-                    from worldview_engine import ticker_push
+                    from client.desktop.engine import ticker_push
                     ticker_push(world, t, 'CONSTRUCT', msg, (245, 140, 50))
                 except Exception:
                     pass
@@ -524,7 +524,7 @@ class ConstructionProject:
             self.events.append({'t': t, 'event': 'COMPLETED', 'message': msg})
             if world is not None:
                 try:
-                    from worldview_engine import ticker_push
+                    from client.desktop.engine import ticker_push
                     ticker_push(world, t, 'CONSTRUCT', msg, (100, 230, 140))
                 except Exception:
                     pass

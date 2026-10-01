@@ -5,11 +5,11 @@ test_multi_tier_build_panel.py — Test Suite for Multi-Tier Build Panel & Fisca
 import unittest
 import pygame
 from buildings import BUILDING_RECIPES, BuildingRecipe
-from worldview_engine import build_world_view
-from worldview_build_panel import draw_build_panel, build_panel_hit
-from worldview_transfer_dialog import draw_transfer_dialog, transfer_dialog_hit
+from client.desktop.engine import build_world_view
+from client.desktop.panels.build_panel import draw_build_panel, build_panel_hit
+from client.desktop.panels.transfer_dialog import draw_transfer_dialog, transfer_dialog_hit
 from intents import execute_fiscal_transfer_and_build, BuildIntent
-from worldview import render_frame
+from client.desktop.app import render_frame
 
 
 class TestMultiTierBuildPanel(unittest.TestCase):

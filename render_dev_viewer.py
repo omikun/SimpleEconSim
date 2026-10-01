@@ -19,7 +19,7 @@ import pygame
 os.environ.setdefault('SDL_AUDIODRIVER', 'dummy')
 
 from hexmap import rectangular_hex_layout, hex_bbox, axial_to_pixel
-from worldview_camera import HEX_SIZE, WIDTH, HEIGHT, MAP_RIGHT, TOP_BAR_H, TICKER_H
+from client.desktop.camera import HEX_SIZE, WIDTH, HEIGHT, MAP_RIGHT, TOP_BAR_H, TICKER_H
 from render_engine import RenderEngine, Camera
 from render_engine.layers import MAP_LAYERS, LAYER_KEYS
 from render_engine.gpu import (

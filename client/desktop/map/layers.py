@@ -13,9 +13,9 @@ Docked in the bottom-left corner with a sleek upward drop-up menu.
 """
 
 import pygame
-from worldview_camera import HEIGHT, TICKER_H
-from worldview_map import ACCENT, TEXT, DIM, RED, GREEN
-from worldview_tooltips import get_button_tooltip_data
+from client.desktop.camera import HEIGHT, TICKER_H
+from client.desktop.map.map_renderer import ACCENT, TEXT, DIM, RED, GREEN
+from client.desktop.tooltips.core import get_button_tooltip_data
 
 SIDEBAR_X = 14
 SIDEBAR_W = 184

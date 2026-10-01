@@ -15,8 +15,8 @@ from nation import Nation
 from land_tenure import TenureStatus, LandPlot, TileTenure
 from enclosure import calculate_charter_fee, execute_enclosure, CHARTER_FEE_PER_TENTH
 from labor_politics import adjust_workday_hours
-from worldview_ui import panel_tab_hit, CADASTRE_TAB_RECT, CHARTS_TAB_RECT, CITIZENS_TAB_RECT
-from worldview_cadastre import cadastre_panel_hit
+from client.desktop.hud.ui import panel_tab_hit, CADASTRE_TAB_RECT, CHARTS_TAB_RECT, CITIZENS_TAB_RECT
+from client.desktop.inspect.cadastre import cadastre_panel_hit
 from sim_server import SimServer, CommandType
 from sim_server.protocol import CommandMessage
 
@@ -109,7 +109,7 @@ class TestCadastreShiftSerialization(unittest.TestCase):
 
     def test_03_provincial_equalization_grant_money_conservation(self):
         """Verify prov_equalization_grant strictly deducts from treasury and rejects without funds."""
-        from worldview_policies import _execute_policy_action
+        from client.desktop.panels.policies import _execute_policy_action
 
         class MockProvince:
             def __init__(self, name, cash):
@@ -166,7 +166,7 @@ class TestCadastreShiftSerialization(unittest.TestCase):
 
         world = {'turn': 1, 'policy_feedback': None, 'cadastre_scroll': 0}
         # Simulate button hit payload
-        from worldview_cadastre import _CADASTRE_BUTTONS
+        from client.desktop.inspect.cadastre import _CADASTRE_BUTTONS
         _CADASTRE_BUTTONS.append(((100, 100, 50, 20), 'cadastre_toggle_pasture', (tile, plot.plot_id)))
 
         hit = cadastre_panel_hit((110, 110), world)

@@ -32,9 +32,9 @@ os.environ.setdefault('SDL_VIDEODRIVER', 'dummy')
 
 import unittest
 import pygame
-from worldview_engine import build_world_view
-from worldview import render_frame
-from worldview_left_dock import (
+from client.desktop.engine import build_world_view
+from client.desktop.app import render_frame
+from client.desktop.panels.left_dock import (
     DOCK_X, DOCK_Y, DOCK_BTN_W, DOCK_BTN_H, DOCK_SPACING,
     PANEL_X, PANEL_Y, PANEL_W, PANEL_H,
     draw_left_dock_buttons, left_dock_buttons_hit,
@@ -42,12 +42,12 @@ from worldview_left_dock import (
     open_left_panel, close_left_panels, get_active_left_panel,
     is_any_left_panel_open, PANELS_DEF
 )
-from worldview_gov_panel import draw_gov_panel, gov_panel_hit
-from worldview_build_panel import draw_build_panel, build_panel_hit
-from worldview_diplomacy_panel import draw_diplomacy_panel, diplomacy_panel_hit
-from worldview_debt_panel import draw_debt_panel, debt_panel_hit
-from worldview_science_panel import draw_science_panel, science_panel_hit
-from worldview_military_panel import draw_military_panel, military_panel_hit
+from client.desktop.panels.gov_panel import draw_gov_panel, gov_panel_hit
+from client.desktop.panels.build_panel import draw_build_panel, build_panel_hit
+from client.desktop.panels.diplomacy_panel import draw_diplomacy_panel, diplomacy_panel_hit
+from client.desktop.panels.debt_panel import draw_debt_panel, debt_panel_hit
+from client.desktop.panels.science_panel import draw_science_panel, science_panel_hit
+from client.desktop.panels.military_panel import draw_military_panel, military_panel_hit
 from diplomacy import get_diplomacy, TreatyType
 from sovereign_bonds import get_bond_market, BondOffering
 from innovation import get_innovation_system, TECH_CATALOG

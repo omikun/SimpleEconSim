@@ -89,7 +89,7 @@ def evaluate_banking_contagion(nation: Nation, world: dict | None = None, t: int
                 'msg': f"⚠️ PANIC BANK RUN: Depositors in {tile.name} withdrew ${total_run:,.0f} fearing Corralito freeze!"
             })
             if world:
-                from worldview_engine import ticker_push
+                from client.desktop.engine import ticker_push
                 ticker_push(world, t, 'ALERT', f"⚠️ BANK RUN: Panic deposit run in {tile.name} (${total_run:,.0f} withdrawn)!", (245, 180, 50))
 
             # If bank capital is depleted during run, it freezes too

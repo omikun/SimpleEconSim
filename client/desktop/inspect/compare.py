@@ -8,8 +8,8 @@ Provides a comprehensive 3-tab analytical accounts dashboard with turn delta tra
 
 import pygame
 from goods import Goods
-from worldview_camera import WIDTH, HEIGHT
-from worldview_map import (
+from client.desktop.camera import WIDTH, HEIGHT
+from client.desktop.map.map_renderer import (
     NATION_COLORS, TEXT, DIM, RED, GREEN, ACCENT, PROVINCE_COLORS
 )
 
@@ -72,7 +72,7 @@ def draw_tab_headers(surface, world, box_x, box_y, box_w, font, font_small, mous
         register_target(world, rect, ('tab', tab_id), tooltip_id=f"compare_tab_{tab_id}", scope='compare')
         is_hover = rect[0] <= mx <= rect[0] + rect[2] and rect[1] <= my <= rect[1] + rect[3]
         if is_hover and world is not None and not world.get('_hovered_left_tooltip'):
-            from worldview_tooltips import get_button_tooltip_data
+            from client.desktop.tooltips.core import get_button_tooltip_data
             tdata = get_button_tooltip_data(f"compare_tab_{tab_id}", world)
             if tdata:
                 tdata['btn_rect'] = rect
@@ -159,7 +159,7 @@ def compare_tab_hit(pos, box_x=0, box_y=0, world=None):
                 mx_x += m_w + 10
 
         if world.get('compare_ext_mode') == 'circuit':
-            from worldview_vis_circuits import circuit_sankey_hit
+            from client.desktop.inspect.vis_circuits import circuit_sankey_hit
             if circuit_sankey_hit(pos, world, box_x, box_y + 88 + 16, box_w, 600):
                 return ('circuit_nation', world.get('compare_circuit_nation', 0))
 
@@ -361,7 +361,7 @@ def draw_tab2_goods(surface, world, box_x, start_y, box_w, box_h, font, cell_fon
         register_target(world, rect, ('good', g), tooltip_id=f"compare_filter_{g.name.lower()}", scope='compare')
         is_hov = rect[0] <= mx <= rect[0] + rect[2] and rect[1] <= my <= rect[1] + rect[3]
         if is_hov and world is not None and not world.get('_hovered_left_tooltip'):
-            from worldview_tooltips import get_button_tooltip_data
+            from client.desktop.tooltips.core import get_button_tooltip_data
             tdata = get_button_tooltip_data(f"compare_filter_{g.name.lower()}", world)
             if tdata:
                 tdata['btn_rect'] = rect
@@ -730,7 +730,7 @@ def draw_tab3_fx_banking(surface, world, box_x, start_y, box_w, box_h, font, cel
 # =============================================================================
 
 def _get_font(size):
-    from worldview_ui import get_font
+    from client.desktop.hud.ui import get_font
     return get_font(size)
 
 
@@ -779,16 +779,16 @@ def draw_nations_comparison(surface, world, font, font_small, mouse_pos=None):
     elif tab == 3:
         draw_tab3_fx_banking(surface, world, box_x, content_y, box_w, box_h, font, cell_font, section_font, mouse_pos=mouse_pos)
     elif tab == 4:
-        from worldview_compare_extraction import draw_tab4_extraction
+        from client.desktop.inspect.compare_extraction import draw_tab4_extraction
         draw_tab4_extraction(surface, world, box_x, content_y, box_w, box_h, font, cell_font, section_font, mouse_pos=mouse_pos)
     elif tab == 5:
-        from worldview_compare_protest import draw_tab5_protest
+        from client.desktop.inspect.compare_protest import draw_tab5_protest
         draw_tab5_protest(surface, world, box_x, content_y, box_w, box_h, font, cell_font, section_font, mouse_pos=mouse_pos)
     elif tab == 6:
-        from worldview_compare_ecology import draw_tab6_ecology
+        from client.desktop.inspect.compare_ecology import draw_tab6_ecology
         draw_tab6_ecology(surface, world, box_x, content_y, box_w, box_h, font, cell_font, mouse_pos=mouse_pos)
 
     # Render floating tooltip card if hovering over tab or good pill
     if world.get('_hovered_left_tooltip') and mouse_pos:
-        from worldview_tooltips import draw_left_panel_tooltip
+        from client.desktop.tooltips.core import draw_left_panel_tooltip
         draw_left_panel_tooltip(surface, world, font_small, mouse_pos=mouse_pos)

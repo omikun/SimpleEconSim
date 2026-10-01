@@ -10,11 +10,11 @@ os.environ['SDL_VIDEODRIVER'] = 'dummy'
 import pygame
 pygame.init()
 
-from worldview_engine import build_world_view
-from worldview_camera import WIDTH, HEIGHT
-from worldview_tooltips import get_button_tooltip_data, draw_left_panel_tooltip
-from worldview import get_font
-from worldview_layers import draw_layer_sidebar
+from client.desktop.engine import build_world_view
+from client.desktop.camera import WIDTH, HEIGHT
+from client.desktop.tooltips.core import get_button_tooltip_data, draw_left_panel_tooltip
+from client.desktop.app import get_font
+from client.desktop.map.layers import draw_layer_sidebar
 
 def test_tooltips():
     world = build_world_view(seed=42)

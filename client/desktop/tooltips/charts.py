@@ -10,7 +10,7 @@ Provides rich contextual explanations, formulas, strategic utility for the playe
 
 from __future__ import annotations
 from goods import Goods
-from worldview_map import ACCENT, TEXT, DIM, RED, GREEN
+from client.desktop.map.map_renderer import ACCENT, TEXT, DIM, RED, GREEN
 
 
 # =============================================================================

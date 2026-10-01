@@ -12,13 +12,13 @@ Verifies:
 
 import unittest
 import pygame
-from worldview import build_world_view
-from worldview_gov_panel import (
+from client.desktop.app import build_world_view
+from client.desktop.panels.gov_panel import (
     draw_gov_panel, gov_panel_hit, draw_left_dock_buttons,
     GOV_PANEL_X, GOV_PANEL_Y, GOV_PANEL_W, GOV_PANEL_H
 )
-from worldview_build_panel import draw_build_panel, build_panel_hit
-from worldview_ui import get_font
+from client.desktop.panels.build_panel import draw_build_panel, build_panel_hit
+from client.desktop.hud.ui import get_font
 
 
 class TestLeftGovernancePanel(unittest.TestCase):

@@ -10,16 +10,16 @@ Duplicates cross-nation military functionality from the Sovereign Actions modal:
 
 from __future__ import annotations
 import pygame
-from worldview_camera import HEIGHT, TOP_BAR_H, TICKER_H
-from worldview_map import ACCENT, TEXT, DIM, RED, GREEN
+from client.desktop.camera import HEIGHT, TOP_BAR_H, TICKER_H
+from client.desktop.map.map_renderer import ACCENT, TEXT, DIM, RED, GREEN
 from ui_icons import get_icon
 from intents import RecruitArmyIntent
-from worldview_left_dock import (
+from client.desktop.panels.left_dock import (
     PANEL_X, PANEL_Y, PANEL_W, PANEL_H,
     draw_drawer_top_tabs, drawer_top_tabs_hit,
     open_left_panel, close_left_panels
 )
-from worldview_engine import ticker_push
+from client.desktop.engine import ticker_push
 
 CARD_BG = (24, 26, 36)
 CARD_BORDER = (45, 50, 70)
@@ -48,7 +48,7 @@ def _draw_btn(surface, rect, label, font_small, mx, my, enabled=True, color=TEXT
     bx, by, bw, bh = rect
     is_hov = (bx <= mx <= bx + bw and by <= my <= by + bh) and enabled
     if is_hov and btn_id and world is not None:
-        from worldview_tooltips import get_button_tooltip_data
+        from client.desktop.tooltips.core import get_button_tooltip_data
         tdata = get_button_tooltip_data(btn_id, world, region=region, nation=nation)
         if tdata:
             tdata['btn_rect'] = rect

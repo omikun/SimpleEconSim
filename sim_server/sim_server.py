@@ -11,14 +11,14 @@ from typing import Any, Dict, List, Optional
 import sim_engine
 from sim_world import build_world, GRID_ROWS, GRID_COLS
 from hexmap import rectangular_hex_layout, hex_bbox
-from worldview_camera import HEX_SIZE
+from client.desktop.camera import HEX_SIZE
 import forex as fx
 from goods import Goods
 from buildings import BUILDING_RECIPES
 from diplomacy import get_diplomacy, TreatyType
 from sovereign_bonds import get_bond_market
 from innovation import get_innovation_system, TECH_CATALOG
-from worldview_map import NATION_COLORS, get_nation_color
+from client.desktop.map.map_renderer import NATION_COLORS, get_nation_color
 from world_names import assign_world_identities
 from sim_server.protocol import CommandType, CommandMessage, ServerEvent
 

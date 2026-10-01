@@ -17,76 +17,76 @@ from goods import Goods
 from logger import logInit
 
 # Import sub-modules
-from worldview_camera import (
+from client.desktop.camera import (
     WIDTH, HEIGHT, MAP_RIGHT, TOP_BAR_H, TICKER_H, HEX_SIZE,
     clamp_cam, zoom_cam_at, reset_cam, hex_px, tile_at
 )
-from worldview_charts import (
+from client.desktop.charts.charts import (
     PANEL_LEFT, sum_turns, tile_charts, chart_labels,
     plot_line_chart, plot_bar_pairs, plot_stacked_bars,
     draw_chart_cell, draw_chart_grid, draw_chart_large, chart_at_pixel
 )
-from worldview_map import (
+from client.desktop.map.map_renderer import (
     NATION_COLORS, WILD_COLOR, WILD_EDGE, HEX_EDGE, TEXT, DIM, RED, GREEN, ACCENT, EDGE_LINE,
     nation_color, region_pop, homesteaders, tile_stats,
     draw_terrain_glyph, draw_pop_heat, trade_anim, draw_edges, draw_trade_arrows,
     draw_activity_badges, draw_pop_delta, province_members, draw_hex_map, pops_history,
     draw_dynamic_map_overlays
 )
-from worldview_ui import (
+from client.desktop.hud.ui import (
     PANEL_BG, selected_nation, draw_top_bar, draw_top_bar_dropdown, draw_regime_readout,
     draw_panel, draw_ticker, draw_help, draw_zoom_hud, zoom_hud_hit,
     compare_btn_hit, help_page_hit, panel_tab_hit, get_font, draw_loading_modal
 )
-from worldview_policies import (
+from client.desktop.panels.policies import (
     draw_policies_panel, policy_panel_hit
 )
-from worldview_compare import (
+from client.desktop.inspect.compare import (
     draw_nations_comparison, compare_tab_hit
 )
-from worldview_actions import (
+from client.desktop.actions import (
     draw_actions_modal, actions_tab_hit, top_bar_action_hit
 )
-from worldview_help import (
+from client.desktop.help import (
     draw_help_modal, help_modal_hit
 )
-from worldview_layers import (
+from client.desktop.map.layers import (
     draw_layer_sidebar, layer_sidebar_hit, MAP_LAYERS
 )
-from worldview_build_panel import (
+from client.desktop.panels.build_panel import (
     draw_build_panel, build_panel_hit
 )
-from worldview_gov_panel import (
+from client.desktop.panels.gov_panel import (
     draw_gov_panel, gov_panel_hit, draw_left_dock_buttons
 )
-from worldview_diplomacy_panel import (
+from client.desktop.panels.diplomacy_panel import (
     draw_diplomacy_panel, diplomacy_panel_hit
 )
-from worldview_debt_panel import (
+from client.desktop.panels.debt_panel import (
     draw_debt_panel, debt_panel_hit
 )
-from worldview_science_panel import (
+from client.desktop.panels.science_panel import (
     draw_science_panel, science_panel_hit
 )
-from worldview_military_panel import (
+from client.desktop.panels.military_panel import (
     draw_military_panel, military_panel_hit
 )
-from worldview_progress_panel import (
+from client.desktop.panels.progress_panel import (
     draw_progress_panel, progress_panel_hit
 )
-from worldview_left_dock import (
+from client.desktop.panels.left_dock import (
     open_left_panel, close_left_panels, is_any_left_panel_open, get_active_left_panel, left_dock_buttons_hit
 )
-from worldview_transfer_dialog import (
+from client.desktop.panels.transfer_dialog import (
     draw_transfer_dialog, transfer_dialog_hit
 )
-from worldview_tooltips import (
+from client.desktop.tooltips.core import (
     draw_left_panel_tooltip
 )
-from worldview_seasonal_clock import (
+from client.desktop.seasonal_clock import (
     draw_seasonal_clock, draw_seasonal_clock_tooltip
 )
-from worldview_engine import (
+from client.desktop.engine import (
     get_layout, get_reverse_layout, build_world_view, ticker_push, step_world
 )
 
@@ -222,7 +222,7 @@ def render_frame(surface, world, mouse_pos=None):
     effective_mouse = None if modal_active else mouse_pos
 
     if world.get('ui_mode', 'advanced') == 'guided':
-        from worldview_scenario_ui import draw_guided_frame
+        from client.desktop.panels.scenario_ui import draw_guided_frame
         draw_guided_frame(surface, world, font, font_small, mouse_pos=effective_mouse)
         draw_nations_comparison(surface, world, font, font_small, mouse_pos=mouse_pos)
         draw_actions_modal(surface, world, font, font_small, mouse_pos=mouse_pos)
@@ -261,7 +261,7 @@ def render_frame(surface, world, mouse_pos=None):
     draw_help_modal(surface, world, font, font_small)
     draw_transfer_dialog(surface, world, font, font_small, mouse_pos=mouse_pos)
     if world.get('settings_open'):
-        from worldview_scenario_ui import draw_settings_dialog
+        from client.desktop.panels.scenario_ui import draw_settings_dialog
         draw_settings_dialog(surface, world, font_small, mouse_pos)
 
     # Floating left-panel detailed button tooltips (disabled when modal dialog covers screen)
@@ -477,7 +477,7 @@ def main():
                         continue
 
                     if world.get('settings_open'):
-                        from worldview_scenario_ui import guided_ui_hit
+                        from client.desktop.panels.scenario_ui import guided_ui_hit
                         guided_ui_hit(event.pos, world)
                         _mark_dirty(world, map_changed=False)
                         continue
@@ -553,7 +553,7 @@ def main():
                     _toggle_pipeline(world)
                     continue
                 if world.get('ui_mode') == 'guided':
-                    from worldview_scenario_ui import guided_ui_hit
+                    from client.desktop.panels.scenario_ui import guided_ui_hit
                     if guided_ui_hit(event.pos, world):
                         _mark_dirty(world, map_changed=False)
                         continue
@@ -609,7 +609,7 @@ def main():
                             if clicked is not None:
                                 select_tile(world, clicked)
                     elif world.get('panel_tab') == 'cadastre':
-                        from worldview_cadastre import cadastre_panel_hit
+                        from client.desktop.inspect.cadastre import cadastre_panel_hit
                         if cadastre_panel_hit(event.pos, world):
                             continue
                         if event.pos[0] < MAP_RIGHT:
@@ -617,7 +617,7 @@ def main():
                             if clicked is not None:
                                 select_tile(world, clicked)
                     elif world.get('panel_tab') == 'citizens':
-                        from worldview_citizens import citizen_panel_hit
+                        from client.desktop.inspect.citizens import citizen_panel_hit
                         if citizen_panel_hit(event.pos, world):
                             continue
                         if event.pos[0] < MAP_RIGHT:
@@ -698,7 +698,7 @@ def main():
             elif event.type == pygame.MOUSEWHEEL:
                 if not is_any_modal_open(world):
                     mx, my = pygame.mouse.get_pos()
-                    from worldview_left_dock import PANEL_X, PANEL_W
+                    from client.desktop.panels.left_dock import PANEL_X, PANEL_W
                     if world.get('progress_panel_open') and PANEL_X <= mx <= PANEL_X + PANEL_W:
                         world['progress_scroll'] = max(0, world.get('progress_scroll', 0) - event.y)
                         _mark_dirty(world)

@@ -15,10 +15,10 @@ import pygame
 pygame.init()
 pygame.font.init()
 
-from worldview import build_world_view, step_world
-from worldview_camera import WIDTH, HEIGHT
-from worldview_ui import get_font
-from worldview_map import draw_hex_map, point_in_polygon, find_label_micro_shift, get_tile_label_priority
+from client.desktop.app import build_world_view, step_world
+from client.desktop.camera import WIDTH, HEIGHT
+from client.desktop.hud.ui import get_font
+from client.desktop.map.map_renderer import draw_hex_map, point_in_polygon, find_label_micro_shift, get_tile_label_priority
 
 def test_point_in_polygon_unit():
     # Square from (0,0) to (10,10)

@@ -244,7 +244,7 @@ class TestMetabolicRiftAndRiparianEcology(unittest.TestCase):
 
     def test_08_the_great_stink_catalyst(self):
         """Verify capital pollution >= 60 triggers The Great Stink and legitimacy drop."""
-        from worldview_engine import step_world
+        from client.desktop.engine import step_world
         world = {
             'turn': 1,
             'tiles': self.tiles,

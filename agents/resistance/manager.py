@@ -36,7 +36,7 @@ def _safe_ticker_push(world: dict | None, t: int, category: str, msg: str, color
     if world is None:
         return
     try:
-        from worldview_engine import ticker_push
+        from client.desktop.engine import ticker_push
         ticker_push(world, t, category, msg, color)
     except (ImportError, Exception):
         pass

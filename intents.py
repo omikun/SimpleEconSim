@@ -639,7 +639,7 @@ def execute_fiscal_transfer_and_build(world, nation_name: str, region_name: str,
     nation.submit_intent(intent, t)
     ok, msg = intent.execute(tiles_by_name, nations_by_name, t)
     if ok:
-        from worldview_engine import ticker_push
+        from client.desktop.engine import ticker_push
         transfer_desc = {
             'province_grant': f"funded via Provincial Grant (${transfer_amount:.0f})",
             'national_bailout': f"funded via Sovereign National Bailout (${transfer_amount:.0f})",
@@ -696,7 +696,7 @@ def execute_equalization_grant(world, nation_name: str, region_name: str, grant_
     else:
         return False, f"Unknown grant source '{grant_source}'."
 
-    from worldview_engine import ticker_push
+    from client.desktop.engine import ticker_push
     city_name = getattr(region, 'display_name', getattr(region, 'city_name', region.name))
     ticker_push(world, t, 'POLICY', f"Disbursed Equalization Grant of ${grant_amount:.0f} to {city_name} from {source_name}.", (120, 220, 140))
     return True, f"Disbursed ${grant_amount:.0f} Equalization Grant to {city_name}."
@@ -743,7 +743,7 @@ class BuyForeignBondIntent(Intent):
                 return False, "Issuer nation not found."
             ok, msg, bond = market.issue_bond(issuer, buyer, self.principal, self.duration_turns, t, world)
             if ok and world:
-                from worldview_engine import ticker_push
+                from client.desktop.engine import ticker_push
                 ticker_push(world, t, 'FINANCE', f"🌐 {buyer.name} purchased ${self.principal:.0f} of {issuer.name}'s {self.duration_turns}t Sovereign Bonds.", (120, 220, 140))
             return ok, msg
 
@@ -773,7 +773,7 @@ class LobbyRatingUpgradeIntent(Intent):
         market = get_bond_market()
         ok, msg, is_scandal = market.isrb.lobby_upgrade(nation, t)
         if world:
-            from worldview_engine import ticker_push
+            from client.desktop.engine import ticker_push
             color = (240, 80, 80) if is_scandal else ((120, 220, 140) if ok else (220, 160, 60))
             ticker_push(world, t, 'ALERT' if is_scandal else 'POLICY', msg, color)
         return ok, msg
@@ -793,7 +793,7 @@ class LobbyAdversaryDowngradeIntent(Intent):
         market = get_bond_market()
         ok, msg, is_scandal = market.isrb.lobby_adversary_downgrade(nation, self.target_nation_name, t)
         if world:
-            from worldview_engine import ticker_push
+            from client.desktop.engine import ticker_push
             color = (240, 80, 80) if is_scandal else ((120, 220, 140) if ok else (220, 160, 60))
             ticker_push(world, t, 'ALERT' if is_scandal else 'POLICY', msg, color)
         return ok, msg
@@ -812,7 +812,7 @@ class AcquireBoardSeatIntent(Intent):
         market = get_bond_market()
         ok, msg = market.isrb.acquire_board_seat(nation)
         if world:
-            from worldview_engine import ticker_push
+            from client.desktop.engine import ticker_push
             ticker_push(world, t, 'POLICY', msg, (245, 215, 120) if ok else (220, 160, 60))
         return ok, msg
 
@@ -862,7 +862,7 @@ class EncloseCommonsIntent(Intent):
         self.logs.append(msg)
         if world and ok:
             try:
-                from worldview_engine import ticker_push
+                from client.desktop.engine import ticker_push
                 ticker_push(world, t, 'ENCLOSURE', msg, (230, 140, 70))
             except ImportError:
                 pass

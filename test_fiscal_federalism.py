@@ -12,11 +12,11 @@ Verifies:
 
 import unittest
 import pygame
-from worldview import build_world_view
+from client.desktop.app import build_world_view
 from region_finance import collect_tax
 from intents import execute_equalization_grant
-from worldview_build_panel import draw_build_panel, build_panel_hit
-from worldview_ui import get_font
+from client.desktop.panels.build_panel import draw_build_panel, build_panel_hit
+from client.desktop.hud.ui import get_font
 
 
 class TestFiscalFederalism(unittest.TestCase):

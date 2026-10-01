@@ -11,11 +11,11 @@ import pygame
 from sim_server import SimServer, CommandType
 from sim_server.protocol import CommandMessage, ServerEvent
 from render_engine import RenderEngine, Camera
-from worldview_camera import (
+from client.desktop.camera import (
     WIDTH, HEIGHT, MAP_RIGHT, TOP_BAR_H, TICKER_H, HEX_SIZE,
     reset_cam, clamp_cam, zoom_cam_at, tile_at
 )
-from worldview_left_dock import open_left_panel, close_left_panels, is_any_left_panel_open, get_active_left_panel
+from client.desktop.panels.left_dock import open_left_panel, close_left_panels, is_any_left_panel_open, get_active_left_panel
 
 
 class GameClient:
@@ -158,6 +158,6 @@ class GameClient:
 
     def render(self, surface: pygame.Surface, mouse_pos=None):
         """Render complete client frame: map viewport + UI panels."""
-        from worldview import render_frame
+        from client.desktop.app import render_frame
         render_frame(surface, self.world, mouse_pos=mouse_pos)
         self.world['needs_redraw'] = False

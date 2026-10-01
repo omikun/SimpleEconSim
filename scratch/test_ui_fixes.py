@@ -15,10 +15,10 @@ pygame.font.init()
 from region import Region
 from nation import Nation
 from ui_icons import get_icon
-from worldview_camera import WIDTH, HEIGHT, MAP_RIGHT, TOP_BAR_H, TICKER_H
-from worldview_charts import PANEL_LEFT, chart_at_pixel
-from worldview_ui import draw_panel, get_font
-from worldview_compare import draw_tab_headers, compare_tab_hit
+from client.desktop.camera import WIDTH, HEIGHT, MAP_RIGHT, TOP_BAR_H, TICKER_H
+from client.desktop.charts.charts import PANEL_LEFT, chart_at_pixel
+from client.desktop.hud.ui import draw_panel, get_font
+from client.desktop.inspect.compare import draw_tab_headers, compare_tab_hit
 
 
 def test_icons():
@@ -141,7 +141,7 @@ def test_comparison_modal_hover_and_click():
     print("  -> Tab 6 click registers accurately!")
 
     # 4. Tab 6 Scope Switcher Clicks ("By Country", "By Province", "By City / Tile")
-    from worldview_compare_ecology import draw_tab6_ecology
+    from client.desktop.inspect.compare_ecology import draw_tab6_ecology
     content_y = box_y + 96  # 116
 
     # Button coordinates: box_x + 20 + i * 130, y = box_y + 88 = 108, w = 120, h = 24

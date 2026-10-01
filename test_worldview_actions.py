@@ -9,9 +9,9 @@ os.environ.setdefault('SDL_VIDEODRIVER', 'dummy')
 
 import pygame
 import unittest
-from worldview_engine import build_world_view, step_world
-from worldview import render_frame, selected_nation
-from worldview_actions import actions_tab_hit, top_bar_action_hit, DIPLOMACY_BTN, MILITARY_BTN
+from client.desktop.engine import build_world_view, step_world
+from client.desktop.app import render_frame, selected_nation
+from client.desktop.actions import actions_tab_hit, top_bar_action_hit, DIPLOMACY_BTN, MILITARY_BTN
 
 
 class TestWorldviewActionsUI(unittest.TestCase):
@@ -56,7 +56,7 @@ class TestWorldviewActionsUI(unittest.TestCase):
         render_frame(self.surface, world)
 
         # Top bar action hits
-        from worldview_actions import HELP_BTN, COMPARE_BTN
+        from client.desktop.actions import HELP_BTN, COMPARE_BTN
         self.assertEqual(top_bar_action_hit((HELP_BTN[0] + 5, HELP_BTN[1] + 5)), 'help')
         self.assertEqual(top_bar_action_hit((COMPARE_BTN[0] + 5, COMPARE_BTN[1] + 5)), 'compare')
         self.assertEqual(top_bar_action_hit((DIPLOMACY_BTN[0] + 5, DIPLOMACY_BTN[1] + 5)), 'diplomacy')
@@ -73,7 +73,7 @@ class TestWorldviewActionsUI(unittest.TestCase):
 
     def test_diplomacy_instant_clicks_and_war(self):
         """Verify instant out-of-turn execution for diplomacy buttons: trade, alliance, war, peace."""
-        from worldview_actions import actions_tab_hit
+        from client.desktop.actions import actions_tab_hit
         from diplomacy import get_diplomacy
         world = self.world
         world['actions_open'] = True
@@ -110,7 +110,7 @@ class TestWorldviewActionsUI(unittest.TestCase):
 
     def test_recruit_before_first_turn_and_step(self):
         """User bug regression: recruit unit before first turn and step world across turns."""
-        from worldview_engine import step_world
+        from client.desktop.engine import step_world
         world = self.world
         target_nation = world['nations'][1]
         world['player_nation_name'] = target_nation.name
@@ -132,7 +132,7 @@ class TestWorldviewActionsUI(unittest.TestCase):
 
     def test_passive_worldview_run_50_turns(self):
         """Verify standard worldview execution w/o interaction runs seamlessly across 50 turns."""
-        from worldview_engine import step_world
+        from client.desktop.engine import step_world
         world = self.world
         for t in range(50):
             step_world(world)
@@ -144,7 +144,7 @@ class TestWorldviewActionsUI(unittest.TestCase):
         """Verify that landmass is a single continuous component and ocean tiles have 0 agents/claims."""
         from collections import deque
         from hexmap import rectangular_hex_layout, axial_neighbors, axial_to_offset
-        from worldview_engine import step_world
+        from client.desktop.engine import step_world
         
         world = self.world
         tiles = world['tiles']
@@ -193,8 +193,8 @@ class TestWorldviewActionsUI(unittest.TestCase):
 
     def test_map_info_layer_sidebar_and_rendering(self):
         """Verify left layer sidebar clicking, layer switching, and rendering across all 6 layers."""
-        from worldview_layers import layer_sidebar_hit, MAP_LAYERS, SIDEBAR_X, SIDEBAR_Y, BTN_H, BTN_SPACING
-        from worldview_engine import step_world
+        from client.desktop.map.layers import layer_sidebar_hit, MAP_LAYERS, SIDEBAR_X, SIDEBAR_Y, BTN_H, BTN_SPACING
+        from client.desktop.engine import step_world
 
         world = self.world
         self.assertEqual(world.get('map_layer'), 'overview')
@@ -238,7 +238,7 @@ class TestWorldviewActionsUI(unittest.TestCase):
     def test_realistic_geographic_hierarchy_and_overview_layer(self):
         """Verify 10 nations x 10 provinces x 10 cities hierarchy and overview layer overlay format."""
         from world_names import GLOBAL_NATION_DATA, get_country_names
-        from worldview_map import tile_stats
+        from client.desktop.map.map_renderer import tile_stats
 
         countries = get_country_names()
         self.assertEqual(len(countries), 18, "Must have 18 country datasets.")
@@ -283,7 +283,7 @@ class TestWorldviewActionsUI(unittest.TestCase):
 
     def test_starting_nations_and_runtime_seeds(self):
         """Verify starting nations strictly include US, China, and Japan, and runtime seeds."""
-        from worldview_engine import build_world_view
+        from client.desktop.engine import build_world_view
         w1 = build_world_view(seed=101)
         w2 = build_world_view(seed=999)
 
@@ -331,7 +331,7 @@ class TestWorldviewActionsUI(unittest.TestCase):
 
     def test_help_modal_and_seed_display(self):
         """Verify Help and Seed Registry modal toggle, 3-page tab switching, and headless rendering."""
-        from worldview_help import help_modal_hit, HELP_TAB1_RECT, HELP_TAB2_RECT, HELP_TAB3_RECT
+        from client.desktop.help import help_modal_hit, HELP_TAB1_RECT, HELP_TAB2_RECT, HELP_TAB3_RECT
         world = self.world
         world['help_open'] = True
 
@@ -350,7 +350,7 @@ class TestWorldviewActionsUI(unittest.TestCase):
 
     def test_policy_panel_tabs_and_rendering(self):
         """Verify Right Sidebar Charts vs Citizens tab switching and Left Governance scope rendering."""
-        from worldview_ui import panel_tab_hit, CHARTS_TAB_RECT, CITIZENS_TAB_RECT
+        from client.desktop.hud.ui import panel_tab_hit, CHARTS_TAB_RECT, CITIZENS_TAB_RECT
         world = self.world
 
         # Test tab hitting
@@ -385,7 +385,7 @@ class TestWorldviewActionsUI(unittest.TestCase):
 
     def test_policy_actions_execution(self):
         """Verify execution of City tax, Grain relief, Garrison recruitment, and Nation decrees."""
-        from worldview_policies import _execute_policy_action
+        from client.desktop.panels.policies import _execute_policy_action
         world = self.world
         nation = world['nations'][0]
         tile = nation.tiles[0]
@@ -436,7 +436,7 @@ class TestWorldviewActionsUI(unittest.TestCase):
 
     def test_top_bar_stat_hover_dropdowns(self):
         """Verify protest stat (+delta) on top bar and hover breakdown dropdown rendering across all stats."""
-        from worldview_ui import draw_top_bar, _get_stat_breakdown
+        from client.desktop.hud.ui import draw_top_bar, _get_stat_breakdown
         world = build_world_view(seed=42)
         step_world(world)
 
@@ -467,7 +467,7 @@ class TestWorldviewActionsUI(unittest.TestCase):
 
     def test_top_bar_treasury_upkeep_stat(self):
         """Verify upkeep is present in treasury stat at top nation bar and in dropdown breakdown."""
-        from worldview_ui import draw_top_bar, _get_stat_breakdown
+        from client.desktop.hud.ui import draw_top_bar, _get_stat_breakdown
         from army import recruit_unit
         from sim_server.sim_server import SimServer
         world = build_world_view(seed=42)
@@ -683,7 +683,7 @@ class TestWorldviewActionsUI(unittest.TestCase):
         render_frame(self.surface, world)
 
         # 5. Verify clicking nation switcher in Sovereign Actions modal
-        from worldview_actions import actions_tab_hit
+        from client.desktop.actions import actions_tab_hit
         world['actions_open'] = True
         for i, target_n in enumerate(nations):
             # Click switcher button

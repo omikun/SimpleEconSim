@@ -121,7 +121,7 @@ def resolve_hover_tooltip(
 
     target = find_target(world, pos, scope=scope)
     if target and target.tooltip_id:
-        from worldview_tooltips import get_button_tooltip_data
+        from client.desktop.tooltips.core import get_button_tooltip_data
         tdata = get_button_tooltip_data(target.tooltip_id, world)
         if tdata:
             tdata['btn_rect'] = target.rect

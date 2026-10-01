@@ -147,8 +147,8 @@ class TestVoronoiWorld(unittest.TestCase):
 
     def test_voronoi_worldview_integration(self):
         """Verify worldview state, camera centering, tile picking, and stepping in Voronoi mode."""
-        from worldview_engine import build_world_view, step_world
-        from worldview_camera import reset_cam, hex_px, tile_at, MAP_RIGHT, TOP_BAR_H, HEIGHT, TICKER_H
+        from client.desktop.engine import build_world_view, step_world
+        from client.desktop.camera import reset_cam, hex_px, tile_at, MAP_RIGHT, TOP_BAR_H, HEIGHT, TICKER_H
         from world_config import VORONOI_WIDTH, VORONOI_HEIGHT
 
         world = build_world_view(seed=42)

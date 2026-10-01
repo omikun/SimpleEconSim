@@ -24,8 +24,8 @@ Displays:
 
 from __future__ import annotations
 import pygame
-from worldview_camera import WIDTH, HEIGHT
-from worldview_map import (
+from client.desktop.camera import WIDTH, HEIGHT
+from client.desktop.map.map_renderer import (
     NATION_COLORS, TEXT, DIM, RED, GREEN, ACCENT, PROVINCE_COLORS
 )
 
@@ -51,7 +51,7 @@ COL_PRIVATE = (240, 120, 80)     # Coral
 
 
 def _get_font(size):
-    from worldview_ui import get_font
+    from client.desktop.hud.ui import get_font
     return get_font(size)
 
 
@@ -133,7 +133,7 @@ def draw_tab6_ecology(surface, world, box_x, box_y, box_w, box_h, font, font_sma
         is_hover = b_rect.collidepoint(mx, my)
 
         if is_hover:
-            from worldview_tooltips import get_button_tooltip_data
+            from client.desktop.tooltips.core import get_button_tooltip_data
             tip = get_button_tooltip_data(btn_key, world)
             if tip:
                 tip['btn_rect'] = b_rect
