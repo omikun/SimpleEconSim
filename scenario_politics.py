@@ -147,6 +147,8 @@ def advance(world):
                      0.12 if naval_stage == 'ultimatum' else 0.0)
     new_loyalty = (0.15 + 0.45 * morale + 0.25 * state['officer_access']
                    - 0.20 * foreign_control - 0.10 * unrest - naval_coercion)
+    if state['ruler'] == 'Tawfiq Pasha' and state['controllers_dismissed'] and not state['officers_promoted']:
+        new_loyalty -= .16  # Unreformed officers distrust a palace restored amid foreign pressure.
     state['army_loyalty'] = _clamp(0.65 * state['army_loyalty'] + 0.35 * new_loyalty)
     civilian_target = (0.12 + 0.35 * unrest + 0.28 * hunger + 0.15 * extraction
                        + (0.12 if state['representative_cabinet'] else 0.0))
@@ -167,7 +169,10 @@ def advance(world):
     rules = situation_template()['politics']
     if (not state['deposition_resolved'] and state['ruler'] == 'Ismail Pasha'
             and state['palace_authority'] <= rules['deposition_authority_threshold']
-            and scenario.get('fiscal_autonomy', 1.0) <= rules['deposition_autonomy_threshold']):
+            and (scenario.get('fiscal_autonomy', 1.0) <= rules['deposition_autonomy_threshold']
+                 or (state['controllers_dismissed']
+                     and any(item.get('action_id') == 'dismiss_foreign_controllers'
+                             for item in scenario.get('creditor_reactions', []))))):
         world['scenario_warning_modal'] = {'kind': 'dynastic_crisis'}
         world['playing'] = False
         _event(world, 'Ismail’s palace has lost authority under creditor pressure; the succession is contested.')
@@ -235,6 +240,7 @@ def resolve(world, response_id):
                 message = 'Tawfiq succeeds Ismail; nationalist opposition gains support.'
     else:
         state['crisis_resolved'] = True
+        scenario['chapter'] = 2
         if response_id == 'support_urabi':
             state['governing_coalition'] = 'nationalist'
             state['cabinet_authority'] = _clamp(state['cabinet_authority'] + 0.40)
@@ -256,6 +262,8 @@ def resolve(world, response_id):
                                            + 0.12 * (1 - state['army_loyalty']))
             message = 'The palace resists the movement; weak army loyalty makes repression costly.'
     _event(world, message)
+    from scenario_history import record as record_history
+    record_history(world, message, historical_parallel=response_id in ('accept_tawfiq', 'support_urabi'))
     record_change(world, response_id, before, snapshot(world))
     scenario.setdefault('actions_taken', []).append({'turn': int(world['turn']),
                                                       'action': response_id, 'message': message})

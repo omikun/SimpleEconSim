@@ -781,6 +781,12 @@ def main():
                     if world.get('progress_panel_open') and PANEL_X <= mx <= PANEL_X + PANEL_W:
                         world['progress_scroll'] = max(0, world.get('progress_scroll', 0) - event.y)
                         _mark_dirty(world)
+                    elif (world.get('ui_mode') == 'guided' and world.get('scenario_id') == 'egypt_1877'
+                          and mx >= MAP_RIGHT):
+                        maximum = int(world.get('guided_action_scroll_max', 0))
+                        world['guided_action_scroll'] = max(0, min(maximum,
+                            int(world.get('guided_action_scroll', 0)) - event.y))
+                        _mark_dirty(world)
                     elif mx < MAP_RIGHT:
                         factor = 1.15 ** event.y
                         zoom_cam_at(world, factor, mx, my)

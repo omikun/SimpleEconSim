@@ -18,7 +18,8 @@ SCENARIO = {
     "polity": "Khedivate of Egypt",
     "ruler": "Khedive Ismail Pasha",
     "capital": "Cairo",
-    "locations": ("Cairo", "Nile Delta", "Upper Egypt", "Alexandria"),
+    "locations": ("Cairo", "Nile Delta", "Upper Egypt", "Alexandria",
+                  "Port Said", "Ismailia", "Tel el Kebir"),
     "institutions": ("Caisse de la Dette Publique",),
     "briefing": (
         "A weak Nile flood threatens the maize harvest. Cairo's relief stores are "
@@ -244,6 +245,7 @@ def prepare_world(world: dict) -> dict:
     debt_rules = situation_template()['debt_rules']
     world["scenario_state"] = {
         "turns_remaining": SCENARIO["horizon_turns"],
+        "chapter": 1,
         "public_maize_stock_units": SCENARIO["relief_stock_turns"] * 30,
         "relief_units_per_turn": 30,
         "scheduled_remittance": float(debt_rules['initial_payment']),
@@ -279,6 +281,8 @@ def prepare_world(world: dict) -> dict:
     initialize_campaign(world)
     from scenario_occupation import initialize as initialize_occupation
     initialize_occupation(world)
+    from scenario_history import initialize as initialize_history
+    initialize_history(world)
     for tile in egypt.tiles:
         if getattr(tile, "scenario_location", "") in ("Nile Delta", "Upper Egypt"):
             tile.scenario_food_yield_modifier = 0.55
@@ -446,6 +450,8 @@ def apply_action(world: dict, action_id: str) -> tuple[bool, str]:
 
     state["last_action_turn"] = turn
     state.setdefault("actions_taken", []).append({"turn": turn, "action": action_id, "message": message})
+    from scenario_history import record as record_history
+    record_history(world, message)
     world["scenario_feedback"] = message
     from client.desktop.engine import ticker_push
     ticker_push(world, turn, "SCENARIO", message, (120, 220, 170))
@@ -503,6 +509,8 @@ def advance_scenario(world: dict, turn: int, ticker_push, on_phase=None) -> None
     update_foreign_reports(world)
     from scenario_politics import advance as advance_politics
     advance_politics(world)
+    if state['politics']['crisis_resolved'] or state.get('naval_crisis', {}).get('stage') not in ('none',):
+        state['chapter'] = 2
     if on_phase:
         on_phase('politics')
 
@@ -658,6 +666,7 @@ def build_debrief(world: dict, outcome: str, metrics: dict | None = None) -> dic
                       f"civilian injuries {state.get('campaign', {}).get('civilian_casualties', 0)}."),
         "actions": actions,
         "creditor_reactions": [entry['headline'] for entry in state.get('creditor_news', [])],
+        "historical_log": list(state.get('historical_log', [])),
         "naval_events": [entry['text'] for entry in state.get('naval_news', [])],
     }
 

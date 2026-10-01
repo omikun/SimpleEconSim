@@ -563,7 +563,14 @@ class ImperialismManager:
     def impose_naval_blockade(self, enforcer: Nation, debtor: Nation,
                               tile: Region, t: int, world: dict) -> Tuple[bool, str]:
         """Impose a gunboat naval blockade on a debtor port tile, freezing maritime trade."""
-        if not any(getattr(u, 'soldiers', 0) > 0 for u in getattr(enforcer, 'military_units', [])):
+        has_standing_units = any(getattr(u, 'soldiers', 0) > 0 for u in getattr(enforcer, 'military_units', []))
+        has_scenario_fleet = False
+        if world.get('scenario_id') == 'egypt_1877':
+            from scenario_geography import fleet_at
+            sites = world.get('scenario_state', {}).get('geography', {}).get('sites', {})
+            has_scenario_fleet = (sites.get('Alexandria', {}).get('tile') == tile.name
+                                  and fleet_at(world, enforcer.name, 'Alexandria'))
+        if not has_standing_units and not has_scenario_fleet:
             return False, "Cannot impose naval blockade without active military fleet or standing units."
 
         if not getattr(tile, 'is_coast', False) and not any(getattr(n, 'is_water', False) for n in tile.neighbors.values()):

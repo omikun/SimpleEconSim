@@ -199,6 +199,10 @@ def resolve_creditor_response(world: dict, response_id: str) -> tuple[bool, str]
     record_change(world, response_id, before, snapshot(world))
     if response_id == 'offer_arrears_plan':
         state['arrears_plan_used'] = True
+    if response_id == 'defend_controller_dismissal' and state.get('politics'):
+        politics = state['politics']
+        politics['nationalist_movement'] = min(1.0, politics['nationalist_movement'] + .08)
+        politics['army_loyalty'] = max(0.0, politics['army_loyalty'] - .08)
     pending['status'] = 'resolved'
     if response_id in ('contest_customs_claim', 'reject_revised_terms'):
         from scenario_gunboat import begin_escalation

@@ -38,6 +38,9 @@ class ScenarioOccupationTests(unittest.TestCase):
         self.assertAlmostEqual(before, gov.agent.cash + self.britain.government.agent.cash)
         self.assertEqual(self.state['occupation']['institutional_control']['customs'], 'Britain')
         self.assertEqual(self.state['occupation']['institutional_control']['cabinet'], 'Egypt')
+        self.state['campaign']['infrastructure_damage']['Alexandria'] = .5
+        damaged_amount = intercept_revenue(self.world, gov, 'tariff', 20, 4)
+        self.assertLess(damaged_amount, amount)
 
     def test_foothold_pays_supply_and_warns_before_cairo_assault(self):
         self._foothold()

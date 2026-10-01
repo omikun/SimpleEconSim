@@ -44,6 +44,9 @@ def _record(world: dict, text: str, kind: str = 'NAVAL') -> None:
     state = world['scenario_state']
     state.setdefault('naval_news', []).append({'turn': int(world['turn']), 'text': text})
     world['scenario_feedback'] = text
+    if kind == 'WAR':
+        from scenario_history import record as record_history
+        record_history(world, text, historical_parallel='Alexandria' in text)
     from client.desktop.engine import ticker_push
     ticker_push(world, int(world['turn']), kind, text, (230, 126, 95))
 
@@ -55,6 +58,7 @@ def begin_escalation(world: dict, reason: str) -> None:
         return
     crisis.update(stage='mobilizing', reason=reason, due_turn=int(world['turn']) + 1,
                   last_offer_turn=-1, french_support=False)
+    state['chapter'] = 2
     _record(world, 'Cairo refused collection. Britain is weighing a naval expedition to Alexandria.')
 
 

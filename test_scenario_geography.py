@@ -17,7 +17,8 @@ class ScenarioGeographyTests(unittest.TestCase):
         geography = self.state['geography']
         self.assertIn('Port Said', geography['routes']['Mediterranean'])
         self.assertIn('Ismailia', geography['routes']['Port Said'])
-        self.assertIn('Cairo', geography['routes']['Ismailia'])
+        self.assertIn('Tel el Kebir', geography['routes']['Ismailia'])
+        self.assertIn('Cairo', geography['routes']['Tel el Kebir'])
         fleet = create_fleet(self.world, 'Britain')
         self.assertTrue(move_fleet(self.world, 'Britain', 'Port Said'))
         egypt = next(n for n in self.world['nations'] if n.name == 'Egypt')

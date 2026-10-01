@@ -11,9 +11,10 @@ ROUTES = {
     'Mediterranean': ('Alexandria', 'Port Said'),
     'Alexandria': ('Mediterranean', 'Nile Delta'),
     'Port Said': ('Mediterranean', 'Ismailia'),
-    'Ismailia': ('Port Said', 'Cairo'),
+    'Ismailia': ('Port Said', 'Tel el Kebir'),
+    'Tel el Kebir': ('Ismailia', 'Cairo'),
     'Nile Delta': ('Alexandria', 'Cairo'),
-    'Cairo': ('Nile Delta', 'Ismailia', 'Upper Egypt'),
+    'Cairo': ('Nile Delta', 'Tel el Kebir', 'Upper Egypt'),
     'Upper Egypt': ('Cairo',),
 }
 
@@ -36,6 +37,10 @@ def initialize(world):
                          'position': (dx + 0.35 * abs(dx - cx), dy - 0.10 * abs(dy - cy))}
     sites['Ismailia'] = {'tile': delta.name,
                          'position': (dx + 0.25 * abs(dx - cx), (dy + cy) / 2)}
+    ismailia_x, ismailia_y = sites['Ismailia']['position']
+    sites['Tel el Kebir'] = {'tile': locations['Nile Valley'].name,
+                             'position': ((ismailia_x + cx) / 2 - .08 * abs(dx - cx),
+                                          (ismailia_y + cy) / 2)}
     sites['Mediterranean'] = {'tile': None, 'position': None}
     world['scenario_state']['geography'] = {
         'sites': sites, 'routes': {name: list(edges) for name, edges in ROUTES.items()},
@@ -75,6 +80,8 @@ def move_fleet(world, nation_name, destination):
     location = fleet['location']
     if destination not in geography['routes'].get(location, ()):
         return False
+    if destination in ('Tel el Kebir', 'Cairo', 'Nile Delta', 'Upper Egypt'):
+        return False  # These are army routes, not navigable fleet positions.
     if destination == 'Ismailia' and not canal_access(world, nation_name):
         return False
     if destination == 'Ismailia' and nation_name != 'Egypt':

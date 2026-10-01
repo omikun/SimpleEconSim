@@ -115,6 +115,16 @@ def _egypt_scenario_pressures(world: dict) -> list[dict]:
     debt_tone = 'urgent' if payment_status in ('deferred', 'defaulted') or (remaining <= 1 and payment_status in ('upcoming', 'unpaid')) else 'warning'
     if naval_stage in ('mobilizing', 'ultimatum', 'blockaded'):
         debt_tone = 'urgent'
+    occupation = state.get('occupation', {})
+    controlled = [site for site, holder in state.get('campaign', {}).get('territorial_control', {}).items()
+                  if holder == 'Britain']
+    if controlled:
+        debt_value = 'British foothold: ' + ', '.join(controlled)
+        institutions = occupation.get('institutional_control', {})
+        debt_cause = (f'Customs: {institutions.get("customs", "Egypt")}; '
+                      f'cabinet: {institutions.get("cabinet", "Egypt")}. '
+                      f'Resistance {float(occupation.get("resistance", 0)):.0%}.')
+        debt_tone = 'urgent'
 
     unrest = sum(float(getattr(r, 'unrest_level', 0.0)) for r in nation.tiles) / max(1, len(nation.tiles))
     legitimacy = float(getattr(nation, 'legitimacy', 0.5))
@@ -150,9 +160,18 @@ def _egypt_scenario_pressures(world: dict) -> list[dict]:
     if diplomacy:
         debt_details.append('Foreign positions: ' + ', '.join(f'{name} {policy.replace("_", " ")}'
                                                              for name, policy in diplomacy.items()) + '.')
+    if controlled:
+        debt_details.append(f'Occupied receipts collected this turn: {float(occupation.get("collected_this_turn", 0)):.1f}; '
+                            f'garrison supply paid so far: {float(occupation.get("garrison_supply_paid", 0)):.1f}.')
+        debt_details.append(f'Alexandria port damage: '
+                            f'{float(state.get("campaign", {}).get("infrastructure_damage", {}).get("Alexandria", 0)):.0%}; '
+                            'damaged customs infrastructure lowers collectible tariff receipts.')
+        debt_details.append(f'Formal sovereignty remains {occupation.get("formal_sovereign", "Egypt")}; '
+                            f'Egyptian resistance is {float(occupation.get("resistance", 0)):.0%}.')
     return [
         {'title': 'Household maize access', 'value': food_value, 'cause': food_cause, 'tone': food_tone},
-        {'title': 'Debt service', 'value': debt_value, 'cause': debt_cause, 'tone': debt_tone,
+        {'title': 'Occupation & revenue' if controlled else 'Debt service',
+         'value': debt_value, 'cause': debt_cause, 'tone': debt_tone,
          'details': debt_details},
         {'title': 'Political support', 'value': f'Legitimacy {legitimacy:.0%} • palace army {loyalty:.0%}',
          'cause': f'{politics.get("ruler", "Ismail Pasha")} • {politics.get("governing_coalition", "palace")} cabinet • movement {movement:.0%}.',
@@ -165,11 +184,52 @@ def _egypt_scenario_pressures(world: dict) -> list[dict]:
     ]
 
 
+def draw_scenario_route_overlay(surface, world: dict) -> None:
+    """Mark strategic canal sites above the rendered terrain in Guided play."""
+    state = world.get('scenario_state', {})
+    geography = state.get('geography', {})
+    sites = geography.get('sites', {})
+    if not sites:
+        return
+    from worldview_camera import world_to_screen
+    clipped = surface.get_clip()
+    surface.set_clip(pygame.Rect(0, TOP_BAR_H + 48, MAP_RIGHT, HEIGHT - TOP_BAR_H - TICKER_H - 48))
+    points = {name: world_to_screen(world, *site['position']) for name, site in sites.items()
+              if site.get('position') is not None}
+    canal_color = (210, 163, 90) if geography.get('canal_open') else (164, 77, 67)
+    for start, end in (('Port Said', 'Ismailia'), ('Ismailia', 'Tel el Kebir'),
+                       ('Tel el Kebir', 'Cairo')):
+        if start in points and end in points:
+            pygame.draw.line(surface, (20, 30, 39), points[start], points[end], 5)
+            pygame.draw.line(surface, canal_color if end == 'Ismailia' else (176, 168, 122),
+                             points[start], points[end], 2)
+    control = state.get('campaign', {}).get('territorial_control', {})
+    fleet = geography.get('fleets', {}).get('Britain')
+    for name in ('Port Said', 'Ismailia', 'Tel el Kebir'):
+        if name not in points:
+            continue
+        point = points[name]
+        color = (222, 107, 95) if control.get(name) == 'Britain' else canal_color
+        pygame.draw.circle(surface, (18, 24, 33), point, 6)
+        pygame.draw.circle(surface, color, point, 5, 2)
+        label = _scenario_font(13).render(name, True, (240, 222, 183))
+        surface.blit(label, (point[0] + 9, point[1] - 17))
+    if fleet and fleet.get('location') in points:
+        px, py = points[fleet['location']]
+        pygame.draw.circle(surface, (238, 113, 96), (px - 9, py + 10), 5)
+        label = _scenario_font(12).render('British fleet', True, (255, 200, 181))
+        surface.blit(label, (px + 1, py + 6))
+    surface.set_clip(clipped)
+
+
 def draw_guided_header(surface, world: dict, font_small, mouse_pos=None) -> None:
     """Draw turn objective and simple composition controls above the map."""
     pygame.draw.rect(surface, (21, 25, 34), (0, TOP_BAR_H, MAP_RIGHT, 48))
     pygame.draw.line(surface, (64, 73, 94), (0, TOP_BAR_H + 47), (MAP_RIGHT, TOP_BAR_H + 47), 1)
-    title = font_small.render('EGYPT 1877  •  Protect food access, preserve government capacity', True, (235, 225, 190))
+    chapter = int(world.get('scenario_state', {}).get('chapter', 1))
+    chapter_text = ('I: Nile flood and Caisse debt' if chapter == 1
+                    else 'II: Sovereignty, officers, and intervention')
+    title = font_small.render(f'EGYPT 1876–82  •  {chapter_text}', True, (235, 225, 190))
     surface.blit(title, (18, TOP_BAR_H + 7))
     turn = world.get('turn', 0)
     turn_text = font_small.render(f'Turn {turn} / 20', True, ACCENT)
@@ -723,10 +783,18 @@ def _draw_egypt_scenario_panel(surface, world: dict, mouse_pos=None) -> None:
             ('defer_remittance', 'Defer debt service', can_defer_again),
             ('default_remittance', 'Default', True),
         ])
+    button_h, gap = 39, 3
+    action_bottom = y + h - 89
+    visible_rows = max(1, (action_bottom - cur_y) // (button_h + gap))
+    max_scroll = max(0, len(action_rows) - visible_rows)
+    scroll = min(max_scroll, max(0, int(world.get('guided_action_scroll', 0))))
+    world['guided_action_scroll'] = scroll
+    world['guided_action_scroll_max'] = max_scroll
+    if max_scroll:
+        hint = f'Decisions {scroll + 1}–{min(len(action_rows), scroll + visible_rows)} / {len(action_rows)} • scroll panel'
+        surface.blit(_scenario_font(11).render(hint, True, ACCENT), (x + 13, cur_y - 13))
     mx, my = mouse_pos if mouse_pos else (-1, -1)
-    for row in action_rows:
-        button_h = 39
-        gap = 3
+    for row in action_rows[scroll:scroll + visible_rows]:
         button_w = (w - 18 - gap * (len(row) - 1)) // len(row)
         for col, (action_id, label, available) in enumerate(row):
             rect = (x + 9 + col * (button_w + gap), cur_y, button_w, button_h)
@@ -783,6 +851,8 @@ def _draw_egypt_scenario_panel(surface, world: dict, mouse_pos=None) -> None:
             surface.blit(detail_font.render(detail, True, DIM), (rect[0] + 7, rect[1] + 21))
         cur_y += button_h + gap
 
+    cur_y = max(cur_y, action_bottom + 4)
+
     reports = state.get('foreign_reports', [])
     report_font = _scenario_font(13)
     for index, report in enumerate(reports[:2]):
@@ -837,6 +907,18 @@ def _draw_egypt_scenario_debrief(surface, world: dict) -> None:
             surface.blit(small_font.render(line, True, DIM), (x + 14, cur_y))
             cur_y += 19
         cur_y += 4
+    historical_log = debrief.get('historical_log', [])
+    if historical_log and cur_y < y + h - 195:
+        surface.blit(body_font.render('History and game model', True, TEXT), (x + 14, cur_y))
+        cur_y += 23
+        shown_history = historical_log[:2] + (historical_log[-1:] if len(historical_log) > 2 else [])
+        for entry in shown_history:
+            label = entry['kind'].replace('_', ' ').title()
+            for line in _wrap_text(f'{label}: {entry["text"]}', small_font, w - 28)[:2]:
+                if cur_y >= y + h - 165:
+                    break
+                surface.blit(small_font.render(line, True, DIM), (x + 14, cur_y))
+                cur_y += 18
     reactions = debrief.get('creditor_reactions', [])
     if reactions:
         surface.blit(body_font.render('Caisse responses', True, TEXT), (x + 14, cur_y))
@@ -877,6 +959,8 @@ def draw_guided_frame(surface, world: dict, font, font_small, mouse_pos=None) ->
     if labels is not None:
         surface.blit(labels, (0, TOP_BAR_H),
                      pygame.Rect(0, TOP_BAR_H, MAP_RIGHT, HEIGHT - TOP_BAR_H - TICKER_H))
+    if world.get('scenario_id') == 'egypt_1877':
+        draw_scenario_route_overlay(surface, world)
     world['_guided_hover_tip'] = None
     if world.get('scenario_id') == 'egypt_1877':
         _draw_guided_status_bar(surface, world, mouse_pos=mouse_pos)

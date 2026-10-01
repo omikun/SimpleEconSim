@@ -22,6 +22,8 @@ def _event(world, message):
     state = world['scenario_state']['occupation']
     state['events'].append({'turn': int(world['turn']), 'text': message})
     world['scenario_feedback'] = message
+    from scenario_history import record as record_history
+    record_history(world, message, historical_parallel='British troops take Cairo' in message)
     from client.desktop.engine import ticker_push
     ticker_push(world, int(world['turn']), 'OCCUPATION', message, (218, 144, 105))
 
@@ -46,7 +48,10 @@ def intercept_revenue(world, government, source, gross, turn):
     boycott = .25 if turn <= occupation['boycott_until'] else 1.0
     strike = .5 if turn <= occupation['strike_until'] else 1.0
     resistance = float(occupation['resistance'])
-    rate = (.35 if source == 'tariff' else .20) * (1 - .6 * resistance) * boycott * strike
+    port_damage = float(state.get('campaign', {}).get('infrastructure_damage', {}).get('Alexandria', 0.0))
+    port_factor = (1 - port_damage) if source == 'tariff' else 1.0
+    rate = ((.35 if source == 'tariff' else .20) * (1 - .6 * resistance)
+            * boycott * strike * port_factor)
     amount = round(min(float(gross) * max(0, rate), room,
                        max(0, government.agent.cash)), 6)
     if amount <= 0:

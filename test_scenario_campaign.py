@@ -55,7 +55,9 @@ class ScenarioCampaignTests(unittest.TestCase):
             self.assertTrue(advance_expedition(self.world))
             if expected != 'Ismailia' or 'Britain' in self.state['geography']['fleets']:
                 self.assertEqual(self.state['geography']['fleets']['Britain']['location'], expected)
-        self.assertEqual(self.state['campaign']['battles'][-1]['location'], 'Ismailia')
+        self.world['turn'] += 1
+        self.assertTrue(advance_expedition(self.world))
+        self.assertEqual(self.state['campaign']['battles'][-1]['location'], 'Tel el Kebir')
 
     def test_closed_canal_prevents_canal_order(self):
         bombard_alexandria(self.world)

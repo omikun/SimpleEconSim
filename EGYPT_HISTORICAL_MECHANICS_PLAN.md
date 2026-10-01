@@ -6,6 +6,8 @@ Make the Guided Egypt campaign capable of producing the historical path **and pl
 
 The historical spine is: the 1876 Caisse and later Anglo-French financial control; Ismail's deposition in 1879; the broad ‘Urabi movement in 1881–82; the Alexandria crisis and British bombardment in July 1882; a British expedition through the Suez Canal and defeat of ‘Urabi at Tel el Kebir in September. Britain's canal and financial interests mattered together. France did not take part in the July bombardment. Sources: [National Army Museum](https://www.nam.ac.uk/explore/egypt-and-sudan), [Cambridge History of Egypt](https://www.cambridge.org/core/books/abs/cambridge-history-of-egypt/urabi-revolution-and-the-british-conquest-18791882/BD8A4DFB05CC2C5695074E1A9B44524F), [Cambridge account of the intervention](https://www.cambridge.org/core/books/imperial-incarceration/egypt-and-sudan-18821887/CC2378753E9E3317864D2A32E1E1DA1F).
 
+Calibration check: [the July 14, 1882 Hansard debate](https://hansard.parliament.uk/Commons/1882-07-14/debates/aef5d070-48f2-475b-9087-5fc392b7f2a8/Egypt) discusses the absence of a simultaneous landing during Alexandria's bombardment, supporting separate bombardment and landing decisions. The National Army Museum places Tel el Kebir southwest of Ismailia, so the canal expedition now sails to Ismailia and then marches to an inland Tel el Kebir defense point. Sources guide order and geography; combat strengths and costs remain tuned values.
+
 The 20-turn campaign compresses years into decisions, so turns are not literal calendar months. Named historical events should be *possible outcomes*, never mandatory timers. Keep each rule visible as a cause, cost, and likely consequence before the player chooses.
 
 ## Delivered first slice: customs claim to naval blockade
@@ -43,7 +45,7 @@ The 20-turn campaign compresses years into decisions, so turns are not literal c
 
 ## Phase 3 — Canal geography, real fleets, and separate foreign decisions
 
-**Status:** Complete for strategic Guided play. Alexandria, Port Said, Ismailia, Cairo, and Upper Egypt are connected by a route graph anchored to generated Nile tiles. Canal transit rights and conserved toll transfers affect passage. The British squadron has a position, ships, guns, transports, coal, damage, and supply; only a supplied squadron off Alexandria can enforce its blockade. Britain and France decide independently, and Ottoman mediation can delay or settle an ultimatum. Cairo can close foreign canal transit.
+**Status:** Complete for strategic Guided play. Alexandria, Port Said, Ismailia, Tel el Kebir, Cairo, and Upper Egypt are connected by a route graph anchored to generated Nile tiles. Canal transit rights and conserved toll transfers affect passage. The British squadron has a position, ships, guns, transports, coal, damage, and supply; only a supplied squadron off Alexandria can enforce its blockade. Britain and France decide independently, and Ottoman mediation can delay or settle an ultimatum. Cairo can close foreign canal transit.
 
 **Problem:** Alexandria is a generated coastal tile, but the map lacks a playable Suez Canal, Port Said, Ismailia, Egyptian coastal batteries, and ship movement. The current squadron's force and travel are scenario abstractions. French support is diplomatic information only.
 
@@ -55,7 +57,7 @@ The 20-turn campaign compresses years into decisions, so turns are not literal c
 
 ## Phase 4 — Ultimatums, bombardment, landings, and campaign resolution
 
-**Status:** Complete for the Guided strategic layer. Fighting an ultimatum now spends battery ammunition, damages fort integrity and the British fleet, injures civilians, and records port infrastructure damage. A supplied fleet with transports warns the player before landing. The player can defend Alexandria, move the garrison to the Ismailia canal line, evacuate, or settle. Britain must travel the canal route over turns and pay upkeep and tolls. Land battles use the shared army resolver, record losses, and change territorial control only when troops win or Egypt evacuates.
+**Status:** Complete for the Guided strategic layer. Fighting an ultimatum now spends battery ammunition, damages fort integrity and the British fleet, injures civilians, and records port infrastructure damage. A supplied fleet with transports warns the player before landing. The player can defend Alexandria, move the garrison to Tel el Kebir via Ismailia, evacuate, or settle. Britain must travel the canal route over turns and pay upkeep and tolls. Land battles use the shared army resolver, record losses, and change territorial control only when troops win or Egypt evacuates.
 
 **Problem:** The first slice resolves bombardment as a scenario consequence. It has no destructible batteries, civilian harm, landing logistics, or land campaign.
 
@@ -76,6 +78,8 @@ The 20-turn campaign compresses years into decisions, so turns are not literal c
 **Completion:** Each ending follows measured control of territory, institutions, resources, and support. The debrief explains why Britain and France did or did not intervene and who controls revenues and force at the end.
 
 ## Phase 6 — Guided presentation and historical calibration
+
+**Status:** Complete for the bounded 20-turn campaign. Guided mode retains three pressure cards, promotes occupation and canal status when decisive, draws Port Said, Ismailia, and Tel el Kebir on the generated terrain, and scrolls the full decision list without a More menu. Every landing and capital assault has an interrupting decision with consequence tooltips. The campaign log labels documented context, tuned values, and outcomes generated by play. Deterministic 20-turn checks reach a peaceful payment outcome, the historical order of succession → officer coalition → naval crisis → occupation, and an alternate canal defense that blocks Cairo. The desktop GPU pipeline rendered both Guided and Advanced before the final presentation edits; the final macOS GUI retry stalled inside `pygame.init`, so the final layout was verified with surface-based UI tests rather than a new desktop screenshot.
 
 Preserve three headline pressures. Reveal army allegiance, naval threat, or canal access as one of those pressures when it becomes decisive; keep deeper tables in Analysis. Every ultimatum and major military decision needs a consequence tooltip and a pause before resolution. The campaign log must distinguish documented history, plausible alternatives, and tuned game values. Calibrate the historical path against primary records and historians, then play alternate paths to ensure they are mechanically possible. The Advanced UI and sandbox systems should remain usable with the same domain rules.
 
