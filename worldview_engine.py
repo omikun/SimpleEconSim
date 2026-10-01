@@ -133,6 +133,19 @@ def step_world(world):
     nations = world['nations']
     pair_orders = world['pair_orders']
 
+    status_before = None
+    if world.get('scenario_id') == 'egypt_1877':
+        from scenario_status import initialize, record_change, snapshot, finish_turn
+        if 'scenario_status_history' not in world:
+            initialize(world)
+        status_before = snapshot(world)
+
+    def on_phase(source):
+        nonlocal status_before
+        after = snapshot(world)
+        record_change(world, source, status_before, after)
+        status_before = after
+
     def on_event(turn, kind, text):
         if kind in ('COMPLETED', 'CONSTRUCT', 'BUILD'):
             color = (120, 240, 150)
@@ -154,8 +167,11 @@ def step_world(world):
 
     violations, claim_events = sim_engine.step_turn(
         t, tiles, nations=nations, pair_orders=pair_orders,
-        currencies=currencies, on_event=on_event, ledger_exempt=True
+        currencies=currencies, on_event=on_event, ledger_exempt=True,
+        on_phase=on_phase if status_before is not None else None,
     )
+    if status_before is not None:
+        on_phase('markets')
 
     if claim_events:
         world['pair_orders'] = [(r, o) for r in tiles for o in tiles if o is not r
@@ -169,6 +185,8 @@ def step_world(world):
         get_bond_market().step(world, t)
     except Exception:
         pass
+    if status_before is not None:
+        on_phase('bonds')
 
     # Check for The Great Stink Catalyst Event
     for n in nations:
@@ -183,6 +201,8 @@ def step_world(world):
                     f"🚨 THE GREAT STINK: Putrid river effluent engulfs Parliament in {cap_tile.name}! Chamber evacuated; {n.name} legitimacy plunges!",
                     (255, 75, 75)
                 )
+    if status_before is not None:
+        on_phase('catalyst')
 
     world['turn'] = t
     world['currency_totals'] = {c: fx.audit_currency_total(tiles, c)
@@ -191,6 +211,8 @@ def step_world(world):
     if world.get('scenario_id') == 'egypt_1877':
         from scenario_egypt_1877 import advance_scenario
         advance_scenario(world, t, ticker_push)
+        on_phase('scenario')
+        finish_turn(world, t)
     return violations
 
 

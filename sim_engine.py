@@ -24,7 +24,7 @@ import ledger
 
 def step_turn(t: int, tiles: list, nations: list = None,
               pair_orders: list = None, currencies: list = None,
-              on_event=None, ledger_exempt: bool = True):
+              on_event=None, ledger_exempt: bool = True, on_phase=None):
     """Run one canonical simulation turn across all hierarchical layers.
 
     Returns (violations, claim_events) where violations is a list of
@@ -54,6 +54,8 @@ def step_turn(t: int, tiles: list, nations: list = None,
     # 0b. Strategic Intents & Construction Projects
     if nations:
         step_intents_and_construction(t, tiles, nations, on_event=on_event)
+    if on_phase:
+        on_phase('projects')
 
     curr_before = {c: fx.audit_currency_total(tiles, c) for c in currencies}
     violations = []
@@ -78,6 +80,8 @@ def step_turn(t: int, tiles: list, nations: list = None,
         if r.name in _prov_tiles:
             continue
         r.step(t)
+    if on_phase:
+        on_phase('local')
 
     # 3. Advance routes and deliver in-transit cargo
     for r in tiles:
@@ -131,10 +135,14 @@ def step_turn(t: int, tiles: list, nations: list = None,
                 continue
             for trader in r.trader_agents:
                 settle_wilderness(trader, other, t)
+    if on_phase:
+        on_phase('trade')
 
     # 10. National Regimes (elections, coups, legitimacy)
     for n in nations:
         step_regime(n, t)
+    if on_phase:
+        on_phase('regime')
 
     # 10b. Military Upkeep & Supplies
     if nations:
@@ -150,6 +158,8 @@ def step_turn(t: int, tiles: list, nations: list = None,
                     on_event(t, kind, f"Deserter a{ev.get('agent_id')} reabsorbed into {ev.get('region', '?')} labor pool (xp: {ev.get('military_xp', 0.0):.2f})")
                 else:
                     on_event(t, kind, f"Military event on {ev.get('unit_id', '')}")
+    if on_phase:
+        on_phase('military')
 
     # 10c. Global Diplomacy & Relations Drift
     if nations:
@@ -173,6 +183,8 @@ def step_turn(t: int, tiles: list, nations: list = None,
                 on_event(t, ev.get('kind', 'RESISTANCE'), ev.get('msg', ''))
     except Exception:
         pass
+    if on_phase:
+        on_phase('resistance')
 
     # 10f. Financial Imperialism & Core-Periphery Tracking
     try:

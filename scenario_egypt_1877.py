@@ -260,6 +260,8 @@ def prepare_world(world: dict) -> dict:
     world["turn"] = 1
     world["playing"] = False
     world["guided_analysis_open"] = False
+    from scenario_status import initialize
+    initialize(world)
     return world
 
 
@@ -276,6 +278,9 @@ def apply_action(world: dict, action_id: str) -> tuple[bool, str]:
         return False, "The campaign has ended."
     if state.get("last_action_turn") == turn:
         return False, "Choose one major decision per turn."
+
+    from scenario_status import snapshot, record_change
+    status_before = snapshot(world)
 
     if action_id == "release_maize":
         available = min(int(state.get("relief_units_per_turn", 30)),
@@ -370,6 +375,7 @@ def apply_action(world: dict, action_id: str) -> tuple[bool, str]:
     world["scenario_feedback"] = message
     from client.desktop.engine import ticker_push
     ticker_push(world, turn, "SCENARIO", message, (120, 220, 170))
+    record_change(world, action_id, status_before, snapshot(world))
     return True, message
 
 

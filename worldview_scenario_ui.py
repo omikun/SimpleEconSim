@@ -313,63 +313,125 @@ def _guided_action_preview(world: dict, nation, action_id: str) -> tuple[str, li
     return ('', [])
 
 
+def _status_delta(stat: str, delta: float | None) -> str:
+    if delta is None:
+        return '—'
+    if abs(delta) < 1e-9:
+        return '0'
+    if stat in ('hunger', 'legitimacy', 'creditors', 'autonomy'):
+        return f'{delta * 100:+.1f}pp'
+    if stat == 'unrest':
+        return f'{delta:+.2f}'
+    if abs(delta) < 1:
+        return f'{delta:+.2f}'
+    return f'{delta:+,.0f}'
+
+
+def _status_value(stat: str, value: float, precise: bool = False) -> str:
+    if stat in ('hunger', 'legitimacy', 'creditors', 'autonomy'):
+        return f'{value:.1%}'
+    if stat == 'unrest':
+        return f'{value:.2f}'
+    if stat == 'cash' and precise:
+        return f'{value:,.2f}'
+    return f'{value:,.0f}'
+
+
+def _status_factor_lines(world: dict, current: dict, stat: str) -> list[str]:
+    from scenario_status import ACTION_LABELS, PHASE_LABELS, display_change
+    delta, previous_turn, factors = display_change(world, stat, current)
+    if delta is None:
+        return ['A previous-turn snapshot is not available yet. Changes will appear after the next turn.']
+    previous = world['scenario_status_history']['comparison'][stat]
+    lines = [f'Since turn {previous_turn}: {_status_value(stat, previous, precise=True)} → '
+             f'{_status_value(stat, current[stat], precise=True)} ({_status_delta(stat, delta)}).']
+    if stat == 'hunger':
+        previous_snapshot = world['scenario_status_history']['comparison']
+        lines.append(f'Hungry households {previous_snapshot["hungry_count"]} → {current["hungry_count"]}; '
+                     f'total households {previous_snapshot["household_count"]} → {current["household_count"]}.')
+    if stat == 'creditors':
+        autonomy_delta, _, autonomy_factors = display_change(world, 'autonomy', current)
+        if autonomy_delta is not None:
+            lines.append(f'Fiscal autonomy {_status_value("autonomy", current["autonomy"])} '
+                         f'({_status_delta("autonomy", autonomy_delta)} since turn {previous_turn}).')
+            factors = factors + [factor for factor in autonomy_factors if factor not in factors]
+    if factors:
+        lines.append('Measured contributors:')
+        for factor in factors:
+            source = factor['source']
+            label = ACTION_LABELS.get(source, PHASE_LABELS.get(source, source))
+            contribution = factor['changes'].get(stat)
+            if contribution is None and stat == 'creditors':
+                contribution = factor['changes'].get('autonomy')
+                label += ' (autonomy)'
+                measure = 'autonomy'
+            else:
+                measure = stat
+            factor_line = f'• {label}: {_status_delta(measure, contribution)}'
+            if stat == 'creditors' and measure == 'creditors' and 'autonomy' in factor['changes']:
+                factor_line += f' confidence, {_status_delta("autonomy", factor["changes"]["autonomy"])} autonomy'
+            lines.append(factor_line)
+            detail = factor.get('details', {}).get(stat)
+            if detail:
+                lines.append(detail)
+    elif abs(delta) < 1e-9:
+        lines.append('No change recorded since the previous turn.')
+    else:
+        lines.append('The change predates factor tracking for this saved game.')
+    return lines
+
+
 def _draw_guided_status_bar(surface, world: dict, mouse_pos=None) -> None:
-    """A compact national readout with decision-focused explanations on hover."""
+    """Show turn deltas and the measured causes of each national stat."""
+    from scenario_status import display_change, snapshot
     pygame.draw.rect(surface, (12, 14, 20), (0, 0, WIDTH, TOP_BAR_H))
     pygame.draw.line(surface, (58, 66, 86), (0, TOP_BAR_H), (WIDTH, TOP_BAR_H), 1)
     nation = _egypt_nation(world)
-    if nation is None:
+    current = snapshot(world)
+    if nation is None or current is None:
         return
     state = world.get('scenario_state', {})
-    tiles = list(nation.tiles)
-    people = [a for tile in tiles for a in getattr(tile, 'agents', [])
-              if getattr(a, 'alive', True) and not getattr(a, 'is_government', False)
-              and not getattr(a, 'is_corporation', False) and not getattr(a, 'is_trader', False)]
-    hungry = sum(1 for person in people if getattr(person, 'hungry_steps', 0) > 0)
-    hunger = hungry / max(1, len(people))
-    cash = float(nation.government.agent.cash)
-    stock = int(getattr(nation.government, 'food_inventory', 0))
-    legitimacy = float(getattr(nation, 'legitimacy', 0.5))
-    unrest = sum(float(getattr(tile, 'unrest_level', 0.0)) for tile in tiles) / max(1, len(tiles))
-    confidence = float(state.get('creditor_confidence', 0.6))
-    autonomy = float(state.get('fiscal_autonomy', 1.0))
     payment = float(state.get('scheduled_remittance', 200.0))
     title = getattr(nation, 'display_name', nation.name)
     surface.blit(_scenario_font(13).render(f'{title}  •  National status', True, ACCENT), (12, 3))
     status = [
-        (f'Treasury {cash:,.0f}', 154, 'Treasury cash', [
-            f'{cash:,.0f} cash available now. Scheduled debt service costs {payment:,.0f}; a concession costs {payment / 2:,.0f}.',
-            'Reserve release spends maize, not cash. Tax changes affect later revenue.',
+        ('cash', f'Treasury {_status_value("cash", current["cash"])}', 'Treasury cash', [
+            f'Scheduled debt service costs {payment:,.0f}; a concession costs {payment / 2:,.0f}.',
         ]),
-        (f'Maize {stock}', 129, 'Public maize', [
-            f'{stock} public rations remain. Releasing stores can feed up to {min(stock, int(state.get("relief_units_per_turn", 30)))} households this turn.',
-            'This reserve is finite; the weak Nile harvest persists through turn 8.',
+        ('maize', f'Maize {_status_value("maize", current["maize"])}', 'Public maize', [
+            f'Releasing stores can feed up to {min(current["maize"], int(state.get("relief_units_per_turn", 30)))} households this turn.',
         ]),
-        (f'Hungry {hunger:.0%}', 137, 'Household hunger', [
-            f'{hungry} of {len(people)} Egyptian households have a current hunger streak.',
-            'Reserve release reaches hungry households first. The campaign tracks food access through turn 20.',
+        ('hunger', f'Hungry {current["hunger"]:.0%}', 'Household hunger', [
+            'Reserve release reaches hungry households first. The weak Nile harvest persists through turn 8.',
         ]),
-        (f'Legitimacy {legitimacy:.0%}', 163, 'Government legitimacy', [
-            'Tax relief raises legitimacy by up to 4 points; higher taxes lower it by up to 8.',
+        ('legitimacy', f'Legitimacy {current["legitimacy"]:.0%}', 'Government legitimacy', [
             'The government breaks down if legitimacy reaches 10% or less.',
         ]),
-        (f'Unrest {unrest:.2f}', 133, 'District unrest', [
-            'Average district unrest. Tax relief lowers each district by up to 0.08; higher taxes raise each by up to 0.12.',
+        ('unrest', f'Unrest {current["unrest"]:.2f}', 'District unrest', [
             'The government breaks down if average unrest reaches 0.85.',
         ]),
-        (f'Creditors {confidence:.0%}', 154, 'Creditor position', [
-            f'Confidence {confidence:.0%}; fiscal autonomy {autonomy:.0%}. Food retention costs 10 confidence points.',
-            'Payment or concession restores up to 15 points; deferral loses 30. Concession costs 25 autonomy points.',
+        ('creditors', f'Creditors {current["creditors"]:.0%}', 'Creditor position', [
+            'Payment or concession raises confidence; deferral and default damage it.',
         ]),
     ]
     x = 12
     mx, my = mouse_pos if mouse_pos else (-1, -1)
-    for label, width, tip_title, tip_lines in status:
+    label_font = _scenario_font(13)
+    delta_font = _scenario_font(12)
+    for stat, label, tip_title, guidance in status:
+        delta, _, _ = display_change(world, stat, current)
+        delta_label = f' ({_status_delta(stat, delta)})'
+        label_surface = label_font.render(label, True, TEXT)
+        desirable = stat not in ('hunger', 'unrest')
+        color = DIM if delta is None or abs(delta) < 1e-9 else (GREEN if (delta > 0) == desirable else RED)
+        delta_surface = delta_font.render(delta_label, True, color)
+        width = label_surface.get_width() + delta_surface.get_width() + 18
         rect = pygame.Rect(x - 2, 24, width - 5, 24)
         if rect.collidepoint(mx, my):
             pygame.draw.rect(surface, (45, 53, 71), rect, border_radius=3)
-            world['_guided_hover_tip'] = (tip_title, tip_lines, rect, 'status')
-        surface.blit(_scenario_font(13).render(label, True, TEXT), (x + 2, 27))
+            world['_guided_hover_tip'] = (tip_title, _status_factor_lines(world, current, stat) + guidance, rect, 'status')
+        surface.blit(label_surface, (x + 2, 27))
+        surface.blit(delta_surface, (x + 2 + label_surface.get_width(), 28))
         x += width
 
 
@@ -381,8 +443,9 @@ def _draw_guided_hover_tip(surface, tip) -> None:
     lines = []
     for paragraph in paragraphs:
         lines.extend(_wrap_text(paragraph, body_font, card_w - 28))
-        lines.append('')
-    if lines:
+        if kind != 'status':
+            lines.append('')
+    if lines and kind != 'status':
         lines.pop()
     card_h = 42 + len(lines) * 19
     x = min(MAP_RIGHT - card_w - 8, max(8, anchor.x - 5)) if kind == 'status' else MAP_RIGHT - card_w - 14
