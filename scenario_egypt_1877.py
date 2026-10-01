@@ -64,6 +64,11 @@ SCENARIO = {
         {"id": "invite_representative_cabinet", "title": "Invite representative cabinet", "turn_cost": 1},
         {"id": "dismiss_foreign_controllers", "title": "Dismiss foreign controllers", "turn_cost": 1},
         {"id": "close_canal", "title": "Close canal to foreign transit", "turn_cost": 1},
+        {"id": "organize_boycott", "title": "Organize customs boycott", "turn_cost": 1},
+        {"id": "call_general_strike", "title": "Call general strike", "turn_cost": 1},
+        {"id": "coordinate_insurgency", "title": "Coordinate resistance", "turn_cost": 1},
+        {"id": "collaborate_with_occupation", "title": "Collaborate with occupation", "turn_cost": 1},
+        {"id": "negotiate_withdrawal", "title": "Negotiate withdrawal", "turn_cost": 1},
     ),
 }
 
@@ -272,6 +277,8 @@ def prepare_world(world: dict) -> dict:
     initialize_politics(world)
     from scenario_campaign import initialize as initialize_campaign
     initialize_campaign(world)
+    from scenario_occupation import initialize as initialize_occupation
+    initialize_occupation(world)
     for tile in egypt.tiles:
         if getattr(tile, "scenario_location", "") in ("Nile Delta", "Upper Egypt"):
             tile.scenario_food_yield_modifier = 0.55
@@ -366,6 +373,12 @@ def apply_action(world: dict, action_id: str) -> tuple[bool, str]:
     elif action_id == 'close_canal':
         from scenario_geography import close_canal
         ok, message = close_canal(world)
+        if not ok:
+            return False, message
+    elif action_id in ('organize_boycott', 'call_general_strike', 'coordinate_insurgency',
+                       'collaborate_with_occupation', 'negotiate_withdrawal'):
+        from scenario_occupation import apply_action as apply_occupation_action
+        ok, message = apply_occupation_action(world, action_id)
         if not ok:
             return False, message
     elif action_id in ('pay_army_arrears', 'promote_egyptian_officers',
@@ -522,6 +535,12 @@ def advance_scenario(world: dict, turn: int, ticker_push, on_phase=None) -> None
         on_phase('campaign')
     if world.get("scenario_warning_modal"):
         return
+    from scenario_occupation import advance as advance_occupation
+    advance_occupation(world)
+    if on_phase:
+        on_phase('occupation')
+    if world.get("scenario_warning_modal"):
+        return
     finish_due_campaign(world)
 
 
@@ -538,8 +557,19 @@ def finish_due_campaign(world: dict) -> None:
         return
     metrics = _outcome_metrics(nation)
     thresholds = SCENARIO['thresholds']
-    if metrics['legitimacy'] <= thresholds['breakdown_legitimacy'] or metrics['unrest'] >= thresholds['breakdown_unrest']:
+    campaign = state.get('campaign', {})
+    control = campaign.get('territorial_control', {})
+    nationalist = state.get('politics', {}).get('governing_coalition') == 'nationalist'
+    if control.get('Cairo') == 'Britain':
+        outcome = 'occupation'
+    elif any(owner == 'Britain' for owner in control.values()):
+        outcome = 'stalled_intervention'
+    elif (nationalist and campaign.get('expedition', {}).get('stage') in ('repelled', 'withdrawn')):
+        outcome = 'nationalist_victory'
+    elif metrics['legitimacy'] <= thresholds['breakdown_legitimacy'] or metrics['unrest'] >= thresholds['breakdown_unrest']:
         outcome = 'breakdown'
+    elif state.get('payment_status') == 'defaulted' and state.get('naval_crisis', {}).get('stage') == 'withdrawn':
+        outcome = 'successful_repudiation'
     elif state.get('extraction_level', 0) > 0:
         outcome = 'coercive_extraction'
     elif metrics['hunger_rate'] <= thresholds['protected_hunger_rate'] and state.get('payment_status') == 'paid':
@@ -588,6 +618,10 @@ def build_debrief(world: dict, outcome: str, metrics: dict | None = None) -> dic
         "creditor_settlement": ("Creditor settlement", "Food access held after a reduced payment and revenue concession."),
         "coercive_extraction": ("Coercive extraction", "The government protected revenue by raising local taxes, increasing unrest and political strain."),
         "breakdown": ("Government breakdown", "The administration lost control of the crisis before it could protect both food access and fiscal capacity."),
+        "occupation": ("British occupation", "British troops hold Cairo and control the tax administration despite Egypt's formal sovereignty."),
+        "stalled_intervention": ("Stalled intervention", "Britain holds a foothold but has not taken Cairo or its government."),
+        "nationalist_victory": ("Nationalist victory", "The Egyptian governing coalition retained authority and the British expedition withdrew."),
+        "successful_repudiation": ("Successful repudiation", "Egypt withheld payment and the foreign expedition withdrew without gaining control."),
     }
     title, summary = labels.get(outcome, labels["breakdown"])
     actions = [entry.get("message", "") for entry in state.get("actions_taken", [])]
@@ -605,6 +639,11 @@ def build_debrief(world: dict, outcome: str, metrics: dict | None = None) -> dic
     naval_stage = state.get('naval_crisis', {}).get('stage', 'none')
     if naval_stage not in ('none',):
         debt_detail += f' Naval crisis: {naval_stage}.'
+    occupation = state.get('occupation', {})
+    institutions = occupation.get('institutional_control', {})
+    debt_detail += (f' Formal sovereignty: {occupation.get("formal_sovereign", "Egypt")}; '
+                    f'customs controller: {institutions.get("customs", "Egypt")}; '
+                    f'cabinet controller: {institutions.get("cabinet", "Egypt")}.')
     return {
         "outcome": outcome,
         "title": title,
@@ -614,7 +653,9 @@ def build_debrief(world: dict, outcome: str, metrics: dict | None = None) -> dic
         "politics": f"Government legitimacy {metrics.get('legitimacy', 0.0):.0%}; average unrest {metrics.get('unrest', 0.0):.2f}.",
         "authority": (f"{state.get('politics', {}).get('ruler', 'Unknown ruler')}; "
                       f"{state.get('politics', {}).get('governing_coalition', 'unknown')} coalition; "
-                      f"army loyalty {state.get('politics', {}).get('army_loyalty', 0.0):.0%}."),
+                      f"army loyalty {state.get('politics', {}).get('army_loyalty', 0.0):.0%}; "
+                      f"resistance {occupation.get('resistance', 0.0):.0%}; "
+                      f"civilian injuries {state.get('campaign', {}).get('civilian_casualties', 0)}."),
         "actions": actions,
         "creditor_reactions": [entry['headline'] for entry in state.get('creditor_news', [])],
         "naval_events": [entry['text'] for entry in state.get('naval_news', [])],

@@ -192,6 +192,8 @@ def advance_naval_crisis(world: dict) -> None:
         from scenario_campaign import advance_expedition
         if advance_expedition(world):
             return
+        if state.get('campaign', {}).get('expedition', {}).get('stage') == 'foothold':
+            return
         _record(world, 'The blockade of Alexandria continues to interrupt its coastal routes. Cairo may settle or hold out.')
         world['scenario_warning_modal'] = {'kind': 'naval_blockade'}
         world['playing'] = False

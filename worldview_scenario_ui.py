@@ -398,6 +398,27 @@ def _guided_action_preview(world: dict, nation, action_id: str) -> tuple[str, li
             'Britain cannot enter the Port Said–Ismailia route while transit is closed.',
             'A fleet already off Alexandria stays there; creditor confidence falls by 10 points.',
         ])
+    occupation = state.get('occupation', {})
+    if action_id == 'organize_boycott':
+        return ('Occupied customs receipts ↓ for 2 turns', [
+            'Merchants withhold customs cooperation for two turns; collection falls to one quarter.',
+            f'Resistance {float(occupation.get("resistance", 0)):.0%} → {min(1, float(occupation.get("resistance", 0)) + .12):.0%}.'])
+    if action_id == 'call_general_strike':
+        return ('Occupied revenue ↓ for 2 turns • resistance ↑', [
+            'Tax and customs receipts available to Britain are halved for two turns.',
+            'Resistance rises 15 points and Egyptian legitimacy rises 3 points.'])
+    if action_id == 'coordinate_insurgency':
+        return ('British garrison −3 • civilian injuries +1', [
+            'Resistance rises 18 points; Egyptian legitimacy falls 3 points.',
+            'If the garrison becomes too small Britain may have to withdraw.'])
+    if action_id == 'collaborate_with_occupation':
+        return ('Resistance −18 • legitimacy −5 points', [
+            'Local collaboration improves garrison stability and weakens resistance.',
+            'It increases collaboration by 25 points and costs Egyptian legitimacy.'])
+    if action_id == 'negotiate_withdrawal':
+        return ('Pay 30 • request withdrawal', [
+            'Britain accepts only if resistance reaches 35% or its treasury falls below 30 units.',
+            'A successful offer transfers 30 units to Britain and restores Egyptian control.'])
     politics = state.get('politics', {})
     if action_id == 'pay_army_arrears':
         from scenario_situation import situation_template
@@ -681,6 +702,17 @@ def _draw_egypt_scenario_panel(surface, world: dict, mouse_pos=None) -> None:
     if (state.get('naval_crisis', {}).get('stage') in ('mobilizing', 'ultimatum', 'blockaded')
             and state.get('geography', {}).get('canal_open')):
         action_rows.append([('close_canal', 'Close canal to foreign transit', True)])
+    occupation = state.get('occupation', {})
+    if any(owner == 'Britain' for owner in state.get('campaign', {}).get('territorial_control', {}).values()):
+        action_rows.append([('organize_boycott', 'Organize customs boycott', True),
+                            ('call_general_strike', 'Call general strike', True)])
+        action_rows.append([('coordinate_insurgency', 'Coordinate resistance', True),
+                            ('collaborate_with_occupation', 'Collaborate locally', True)])
+        withdrawal_ready = (treasury_cash >= 30 and
+                            (float(occupation.get('resistance', 0)) >= .35 or
+                             float(next((n.government.agent.cash for n in world.get('nations', [])
+                                         if n.name == 'Britain'), 100)) < 30))
+        action_rows.append([('negotiate_withdrawal', 'Negotiate withdrawal', withdrawal_ready)])
     if state.get('payment_status') in ('upcoming', 'unpaid', 'deferred'):
         action_rows.append([
             ('pay_remittance', 'Pay debt service', payment_ready and treasury_cash >= scheduled_payment)
@@ -889,7 +921,7 @@ def draw_scenario_warning_modal(surface, world: dict, mouse_pos=None) -> None:
     veil.fill((5, 7, 12, 210))
     surface.blit(veil, (0, 0))
     kind = warning.get('kind')
-    card = pygame.Rect(310, 220, 780, 440 if kind in ('debt_due', 'creditor_reaction', 'naval_ultimatum', 'naval_blockade', 'landing_warning', 'dynastic_crisis', 'officer_movement') else 360)
+    card = pygame.Rect(310, 220, 780, 440 if kind in ('debt_due', 'creditor_reaction', 'naval_ultimatum', 'naval_blockade', 'landing_warning', 'capital_warning', 'dynastic_crisis', 'officer_movement') else 360)
     border = (225, 178, 87) if kind in ('debt_due', 'creditor_reaction') else (226, 102, 94)
     pygame.draw.rect(surface, (24, 29, 41), card, border_radius=10)
     pygame.draw.rect(surface, border, card, 2, border_radius=10)
@@ -956,6 +988,18 @@ def draw_scenario_warning_modal(surface, world: dict, mouse_pos=None) -> None:
         campaign_options = landing_options(world)
         options = [(f'landing_response:{response["id"]}', response['label'], response['enabled'])
                    for response in campaign_options]
+    elif kind == 'capital_warning':
+        from scenario_occupation import response_options
+        title = 'The British expedition approaches Cairo'
+        control = state['campaign']['territorial_control']
+        lines = [
+            f'British foothold: {", ".join(site for site, holder in control.items() if holder == "Britain")}.',
+            f'Egyptian resistance {state["occupation"]["resistance"]:.0%}; British garrison must keep paying supply costs.',
+            'Defending Cairo uses the shared battle resolver. Losing the capital gives Britain control of the tax office.',
+        ]
+        capital_options = response_options(world)
+        options = [(f'capital_response:{response["id"]}', response['label'], response['enabled'])
+                   for response in capital_options]
     elif kind in ('dynastic_crisis', 'officer_movement'):
         from scenario_politics import response_options
         politics = state.get('politics', {})
@@ -1096,6 +1140,13 @@ def draw_scenario_warning_modal(surface, world: dict, mouse_pos=None) -> None:
                 detail = response['tooltip']
                 if not response['enabled']:
                     detail = 'Unavailable with current canal access or treasury cash. ' + detail
+        if hovered_option.startswith('capital_response:'):
+            response_id = hovered_option.split(':', 1)[1]
+            response = next((item for item in capital_options if item['id'] == response_id), None)
+            if response is not None:
+                detail = response['tooltip']
+                if not response['enabled']:
+                    detail = 'Unavailable: treasury cash is below 40 units. ' + detail
         if detail:
             tooltip_font = _scenario_font(13)
             tooltip_w = card.w - 52
@@ -1162,6 +1213,14 @@ def scenario_warning_modal_hit(pos, world: dict) -> bool:
     elif action.startswith('landing_response:'):
         from scenario_campaign import resolve_landing
         ok, message = resolve_landing(world, action.split(':', 1)[1])
+        world['scenario_feedback'] = message if ok else f'Not enacted: {message}'
+        if ok:
+            world['scenario_warning_modal'] = None
+            from scenario_egypt_1877 import finish_due_campaign
+            finish_due_campaign(world)
+    elif action.startswith('capital_response:'):
+        from scenario_occupation import resolve_capital
+        ok, message = resolve_capital(world, action.split(':', 1)[1])
         world['scenario_feedback'] = message if ok else f'Not enacted: {message}'
         if ok:
             world['scenario_warning_modal'] = None

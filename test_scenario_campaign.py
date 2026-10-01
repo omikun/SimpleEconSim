@@ -53,7 +53,8 @@ class ScenarioCampaignTests(unittest.TestCase):
         for expected in ('Mediterranean', 'Port Said', 'Ismailia'):
             self.world['turn'] += 1
             self.assertTrue(advance_expedition(self.world))
-            self.assertEqual(self.state['geography']['fleets']['Britain']['location'], expected)
+            if expected != 'Ismailia' or 'Britain' in self.state['geography']['fleets']:
+                self.assertEqual(self.state['geography']['fleets']['Britain']['location'], expected)
         self.assertEqual(self.state['campaign']['battles'][-1]['location'], 'Ismailia')
 
     def test_closed_canal_prevents_canal_order(self):

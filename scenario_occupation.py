@@ -1,0 +1,263 @@
+"""Measured occupation, contested receipts, resistance, and withdrawal."""
+
+from __future__ import annotations
+
+from army import resolve_battle
+
+
+def initialize(world):
+    world['scenario_state']['occupation'] = {
+        'formal_sovereign': 'Egypt', 'institutional_control': {'customs': 'Egypt', 'cabinet': 'Egypt'},
+        'resistance': 0.10, 'collaboration': 0.10, 'boycott_until': 0,
+        'strike_until': 0, 'garrison_supply_paid': 0.0, 'collected_this_turn': 0.0,
+        'collection_turn': 0, 'revenue_ledger': [], 'events': [], 'capital_warning_resolved': False,
+    }
+
+
+def _nation(world, name):
+    return next((nation for nation in world['nations'] if nation.name == name), None)
+
+
+def _event(world, message):
+    state = world['scenario_state']['occupation']
+    state['events'].append({'turn': int(world['turn']), 'text': message})
+    world['scenario_feedback'] = message
+    from client.desktop.engine import ticker_push
+    ticker_push(world, int(world['turn']), 'OCCUPATION', message, (218, 144, 105))
+
+
+def intercept_revenue(world, government, source, gross, turn):
+    """Seize a bounded share of receipts only where Britain holds an institution."""
+    state = world.get('scenario_state', {})
+    if state.get('ending') or 'occupation' not in state:
+        return 0.0
+    occupation = state['occupation']
+    control = occupation['institutional_control']
+    if source == 'tariff' and control['customs'] != 'Britain':
+        return 0.0
+    if source == 'tax' and control['cabinet'] != 'Britain':
+        return 0.0
+    if source not in ('tariff', 'tax'):
+        return 0.0
+    if occupation['collection_turn'] != turn:
+        occupation['collection_turn'] = turn
+        occupation['collected_this_turn'] = 0.0
+    room = max(0.0, 6.0 - occupation['collected_this_turn'])
+    boycott = .25 if turn <= occupation['boycott_until'] else 1.0
+    strike = .5 if turn <= occupation['strike_until'] else 1.0
+    resistance = float(occupation['resistance'])
+    rate = (.35 if source == 'tariff' else .20) * (1 - .6 * resistance) * boycott * strike
+    amount = round(min(float(gross) * max(0, rate), room,
+                       max(0, government.agent.cash)), 6)
+    if amount <= 0:
+        return 0.0
+    britain = _nation(world, 'Britain')
+    if britain is None:
+        return 0.0
+    government.agent.cash -= amount
+    britain.government.agent.cash += amount
+    occupation['collected_this_turn'] += amount
+    occupation['revenue_ledger'].append({'turn': turn, 'source': source, 'amount': amount,
+                                         'holder': 'Britain', 'resistance': resistance})
+    return amount
+
+
+def claim_institutions(world):
+    state = world['scenario_state']
+    control = state['campaign']['territorial_control']
+    institutions = state['occupation']['institutional_control']
+    institutions['customs'] = 'Britain' if control.get('Alexandria') == 'Britain' else 'Egypt'
+    institutions['cabinet'] = 'Britain' if control.get('Cairo') == 'Britain' else 'Egypt'
+    if institutions['cabinet'] == 'Britain':
+        state['fiscal_autonomy'] = min(float(state.get('fiscal_autonomy', 1)), .30)
+    elif institutions['customs'] == 'Britain':
+        state['fiscal_autonomy'] = min(float(state.get('fiscal_autonomy', 1)), .65)
+
+
+def _occupying_units(world):
+    return [unit for unit in _nation(world, 'Britain').military_units
+            if unit.unit_id.startswith('guided_british_landing_') and unit.soldiers > 0]
+
+
+def _move_occupation_force_to_cairo(world):
+    egypt = _nation(world, 'Egypt')
+    cairo = next(tile for tile in egypt.tiles if getattr(tile, 'scenario_location', '') == 'Cairo')
+    for unit in _occupying_units(world):
+        old = next((tile for tile in world['tiles'] if tile.name == unit.region_name), None)
+        if old is not None and unit in getattr(old, 'military_units', []):
+            old.military_units.remove(unit)
+        if not hasattr(cairo, 'military_units'):
+            cairo.military_units = []
+        cairo.military_units.append(unit)
+        unit.region_name = cairo.name
+
+
+def advance(world):
+    state = world['scenario_state']
+    campaign = state['campaign']
+    expedition = campaign['expedition']
+    occupation = state['occupation']
+    claim_institutions(world)
+    held = [site for site, owner in campaign['territorial_control'].items() if owner == 'Britain']
+    if not held:
+        return
+    britain = _nation(world, 'Britain')
+    egypt = _nation(world, 'Egypt')
+    units = _occupying_units(world)
+    if not units:
+        withdraw(world, 'Without a landing garrison Britain abandons its Egyptian foothold.')
+        return
+    # Wages are paid by shared step_armies; this expedition supply cost is a
+    # separate conserved transfer to households and can become unsustainable.
+    from scenario_gunboat import _transfer_to_households
+    supply = 2.0 + sum(unit.soldiers for unit in units) * .025
+    if not _transfer_to_households(britain, supply):
+        for unit in units:
+            unit.morale = max(.1, unit.morale - .25)
+            unit.soldiers = max(0, unit.soldiers - 3)
+        if sum(unit.soldiers for unit in units) < 8:
+            withdraw(world, 'The occupying garrison runs short of supply and withdraws.')
+            return
+    else:
+        occupation['garrison_supply_paid'] += supply
+    unrest = sum(float(getattr(tile, 'unrest_level', 0)) for tile in egypt.tiles) / max(1, len(egypt.tiles))
+    movement = float(state.get('politics', {}).get('nationalist_movement', 0))
+    injuries = int(campaign['civilian_casualties'])
+    change = .025 + .025 * unrest + .025 * movement + min(.03, injuries * .005) - .04 * occupation['collaboration']
+    occupation['resistance'] = min(1.0, max(0.0, occupation['resistance'] + change))
+    if occupation['resistance'] >= .70:
+        for unit in units:
+            unit.soldiers = max(0, unit.soldiers - 1)
+            unit.morale = max(.1, unit.morale - .03)
+        _event(world, 'Egyptian resistance disrupts garrison supply and costs Britain troops.')
+    if (expedition['stage'] == 'foothold' and not occupation['capital_warning_resolved']
+            and 'Cairo' not in held and int(world['turn']) >= int(expedition.get('foothold_turn', world['turn'])) + 2
+            and not world.get('scenario_warning_modal')):
+        world['scenario_warning_modal'] = {'kind': 'capital_warning'}
+        world['playing'] = False
+        _event(world, 'The British foothold threatens Cairo. Choose how Egypt will defend the capital.')
+
+
+def response_options(world):
+    state = world['scenario_state']
+    egypt = _nation(world, 'Egypt')
+    return [
+        {'id': 'defend_cairo', 'label': 'Defend Cairo', 'enabled': True,
+         'tooltip': 'Fight the British expedition at Cairo using any surviving Egyptian garrison; terrain and morale determine losses and control.'},
+        {'id': 'evacuate_cairo', 'label': 'Evacuate the capital', 'enabled': True,
+         'tooltip': 'Preserve the Egyptian army but give Britain control of Cairo and its tax administration.'},
+        {'id': 'negotiate_capital', 'label': 'Offer withdrawal terms',
+         'enabled': egypt.government.agent.cash >= 40,
+         'tooltip': 'Pay 40 treasury units as a negotiated settlement. Britain leaves its foothold and fiscal autonomy recovers.'},
+    ]
+
+
+def resolve_capital(world, response_id):
+    if world.get('scenario_warning_modal', {}).get('kind') != 'capital_warning':
+        return False, 'No capital defense decision is pending.'
+    option = next((item for item in response_options(world) if item['id'] == response_id), None)
+    if not option or not option['enabled']:
+        return False, 'That defense order is unavailable.'
+    state = world['scenario_state']
+    occupation = state['occupation']
+    from scenario_status import snapshot, record_change
+    before = snapshot(world)
+    occupation['capital_warning_resolved'] = True
+    if response_id == 'negotiate_capital':
+        egypt = _nation(world, 'Egypt')
+        britain = _nation(world, 'Britain')
+        egypt.government.agent.cash -= 40.0
+        britain.government.agent.cash += 40.0
+        occupation['revenue_ledger'].append({'turn': int(world['turn']), 'source': 'postwar_settlement',
+                                             'amount': 40.0, 'holder': 'Britain'})
+        state['payment_status'] = 'restructured'
+        withdraw(world, 'Cairo negotiates a postwar settlement; Britain withdraws from Egyptian territory.')
+    elif response_id == 'evacuate_cairo':
+        state['campaign']['territorial_control']['Cairo'] = 'Britain'
+        _move_occupation_force_to_cairo(world)
+        claim_institutions(world)
+        _event(world, 'The Egyptian cabinet evacuates Cairo; Britain controls the tax office and the port.')
+    else:
+        attackers = _occupying_units(world)
+        egypt = _nation(world, 'Egypt')
+        cairo = next(tile for tile in egypt.tiles if getattr(tile, 'scenario_location', '') == 'Cairo')
+        defenders = [unit for unit in getattr(cairo, 'military_units', [])
+                     if unit.nation_name == 'Egypt' and unit.soldiers > 0]
+        battle = resolve_battle(attackers, defenders, defense_bonus=1.35)
+        battle.update(location='Cairo', turn=int(world['turn']))
+        state['campaign']['battles'].append(battle)
+        if battle['winner'] == 'attacker':
+            state['campaign']['territorial_control']['Cairo'] = 'Britain'
+            _move_occupation_force_to_cairo(world)
+            claim_institutions(world)
+            _event(world, f'British troops take Cairo; British losses {battle["atk_losses"]}, Egyptian losses {battle["def_losses"]}.')
+        else:
+            _event(world, f'Cairo repels the British advance; British losses {battle["atk_losses"]}, Egyptian losses {battle["def_losses"]}.')
+            if sum(unit.soldiers for unit in attackers) < 8:
+                withdraw(world, 'British losses force withdrawal from Egypt.')
+    record_change(world, response_id, before, snapshot(world))
+    state.setdefault('actions_taken', []).append({'turn': int(world['turn']), 'action': response_id,
+                                                   'message': world['scenario_feedback']})
+    return True, world['scenario_feedback']
+
+
+def withdraw(world, reason):
+    state = world['scenario_state']
+    state['campaign']['territorial_control'].clear()
+    state['campaign']['expedition']['stage'] = 'withdrawn'
+    for unit in list(_occupying_units(world)):
+        _nation(world, 'Britain').military_units.remove(unit)
+        tile = next((t for t in world['tiles'] if t.name == unit.region_name), None)
+        if tile and unit in getattr(tile, 'military_units', []):
+            tile.military_units.remove(unit)
+    claim_institutions(world)
+    state['fiscal_autonomy'] = max(.55, float(state.get('fiscal_autonomy', 0)))
+    from scenario_gunboat import withdraw as naval_withdraw
+    naval_withdraw(world, reason)
+
+
+def apply_action(world, action_id):
+    state = world['scenario_state']
+    occupation = state['occupation']
+    held = any(owner == 'Britain' for owner in state['campaign']['territorial_control'].values())
+    if not held:
+        return False, 'There is no foreign garrison to confront.'
+    egypt = _nation(world, 'Egypt')
+    if action_id == 'organize_boycott':
+        occupation['boycott_until'] = int(world['turn']) + 2
+        occupation['resistance'] = min(1.0, occupation['resistance'] + .12)
+        message = 'Egyptian merchants boycott occupied customs; receipts available to Britain shrink for two turns.'
+    elif action_id == 'call_general_strike':
+        occupation['strike_until'] = int(world['turn']) + 2
+        occupation['resistance'] = min(1.0, occupation['resistance'] + .15)
+        egypt.legitimacy = min(1.0, egypt.legitimacy + .03)
+        message = 'A general strike disrupts occupied tax and customs offices for two turns.'
+    elif action_id == 'coordinate_insurgency':
+        units = _occupying_units(world)
+        if not units:
+            return False, 'There is no occupation force in reach.'
+        units[0].soldiers = max(0, units[0].soldiers - 3)
+        occupation['resistance'] = min(1.0, occupation['resistance'] + .18)
+        egypt.legitimacy = max(0.0, egypt.legitimacy - .03)
+        state['campaign']['civilian_casualties'] += 1
+        message = 'Insurgents cost the British garrison three troops; one civilian is injured and legitimacy falls.'
+    elif action_id == 'collaborate_with_occupation':
+        occupation['collaboration'] = min(1.0, occupation['collaboration'] + .25)
+        occupation['resistance'] = max(0.0, occupation['resistance'] - .18)
+        egypt.legitimacy = max(0.0, egypt.legitimacy - .05)
+        message = 'Local collaboration calms resistance but reduces Egyptian legitimacy and strengthens occupation.'
+    elif action_id == 'negotiate_withdrawal':
+        britain = _nation(world, 'Britain')
+        cost = 30.0
+        if egypt.government.agent.cash < cost:
+            return False, 'The treasury needs 30 units for withdrawal terms.'
+        if occupation['resistance'] < .35 and britain.government.agent.cash >= 30:
+            return False, 'Britain sees no reason to withdraw while resistance is weak and supply is affordable.'
+        egypt.government.agent.cash -= cost
+        britain.government.agent.cash += cost
+        withdraw(world, 'Britain accepts withdrawal terms under Egyptian resistance and supply pressure.')
+        message = world['scenario_feedback']
+    else:
+        return False, 'Unknown occupation decision.'
+    _event(world, message)
+    return True, message

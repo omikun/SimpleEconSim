@@ -486,6 +486,8 @@ class Government:
         if scenario_world is not None:
             from scenario_debt import intercept_assigned_revenue
             amount -= intercept_assigned_revenue(scenario_world, self, source, amount, t)
+            from scenario_occupation import intercept_revenue
+            amount -= intercept_revenue(scenario_world, self, source, amount, t)
         pending = self._income_pending
         pending[source] = pending.get(source, 0.0) + amount
 

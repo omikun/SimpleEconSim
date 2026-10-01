@@ -67,6 +67,8 @@ The 20-turn campaign compresses years into decisions, so turns are not literal c
 
 ## Phase 5 — Occupation, resistance, and alternate endings
 
+**Status:** Complete for the bounded campaign. British land units must remain supplied to hold territory. Port and capital control determine who controls customs and tax offices; occupied receipts are drawn from actual income and transferred to Britain with a per-turn cap. Resistance rises with unrest, nationalist strength, and civilian harm. Egypt can organize a boycott, strike, insurgency, collaboration, or conditional withdrawal terms. A separate warning precedes a Cairo assault. The turn-20 debrief distinguishes formal sovereignty from effective institutional control and includes occupation, stalled intervention, nationalist victory, and successful repudiation outcomes.
+
 **Problem:** The current campaign ends at turn 20 with debt and government outcome bands. It cannot portray prolonged occupation or renewed Egyptian bargaining power.
 
 **Mechanics:** If foreign forces hold administrative centers and routes, occupation must consume garrison supply and generate locally contested revenue. Permit collaboration, boycott, strikes, insurgency, negotiated withdrawal, and postwar debt terms. Distinguish formal Egyptian sovereignty from effective fiscal or military control. Continue to track civilian welfare and casualties. Include outcomes such as sovereign compromise, successful repudiation, stalled intervention, imposed financial control, occupation, and nationalist victory.

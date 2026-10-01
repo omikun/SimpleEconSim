@@ -24,6 +24,14 @@ ACTION_LABELS = {
     'defend_canal': 'Defended the Ismailia canal line',
     'evacuate_port': 'Evacuated Alexandria',
     'negotiate_landing': 'Negotiated before landing',
+    'organize_boycott': 'Organized customs boycott',
+    'call_general_strike': 'Called general strike',
+    'coordinate_insurgency': 'Coordinated resistance',
+    'collaborate_with_occupation': 'Collaborated with occupation',
+    'negotiate_withdrawal': 'Negotiated withdrawal',
+    'defend_cairo': 'Defended Cairo',
+    'evacuate_cairo': 'Evacuated Cairo',
+    'negotiate_capital': 'Negotiated at Cairo',
 }
 
 PHASE_LABELS = {
@@ -44,6 +52,7 @@ PHASE_LABELS = {
     'politics': 'Egyptian officers and civilian coalition',
     'naval_crisis': 'Naval pressure and expedition upkeep',
     'campaign': 'Fleet movement and land campaign',
+    'occupation': 'Occupied institutions and resistance',
 }
 
 

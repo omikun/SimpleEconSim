@@ -110,6 +110,7 @@ def _battle(world, location):
     if outcome['winner'] == 'attacker':
         state['territorial_control'][location] = 'Britain'
         state['expedition']['stage'] = 'foothold'
+        state['expedition']['foothold_turn'] = int(world['turn'])
         britain.military_units.append(attackers)
         if not hasattr(tile, 'military_units'):
             tile.military_units = []
@@ -159,6 +160,8 @@ def advance_expedition(world):
             message = _battle(world, 'Ismailia')
             from scenario_gunboat import _record
             _record(world, message, 'WAR')
+            if expedition['stage'] == 'repelled':
+                withdraw(world, 'Egyptian defenders repel the canal landing; the British squadron withdraws.')
         return True
     return False
 
@@ -194,6 +197,14 @@ def resolve_landing(world, response_id):
         _move_egypt_garrison(world, 'Cairo')
         state['campaign']['territorial_control']['Alexandria'] = 'Britain'
         expedition['stage'] = 'foothold'
+        expedition['foothold_turn'] = int(world['turn'])
+        alexandria = _tile(world, 'Alexandria')
+        fleet = state['geography']['fleets']['Britain']
+        landing = MilitaryUnit('guided_british_landing_Alexandria', 'Britain', alexandria.name,
+                               soldiers=int(fleet['transports']), wage_per_soldier=.05,
+                               food_per_soldier=0)
+        _nation(world, 'Britain').military_units.append(landing)
+        alexandria.military_units.append(landing)
         message = 'The Egyptian garrison withdraws to Cairo; Britain lands at an undefended Alexandria.'
     else:
         from scenario_debt import pay as pay_debt
