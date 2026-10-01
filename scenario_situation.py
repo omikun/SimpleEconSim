@@ -17,6 +17,13 @@ EFFECT_FIELDS = frozenset({
 def _validate_template(data: dict) -> None:
     if data.get('format') != 'regnum.situation.v1' or not isinstance(data.get('branches'), dict):
         raise ValueError('Unsupported situation scenario format.')
+    naval_rules = data.get('naval_crisis', {})
+    for key in ('british_squadron_strength', 'alexandria_battery_strength',
+                'battery_reinforcement_strength', 'battery_reinforcement_cost',
+                'mobilization_cost', 'upkeep_per_turn', 'max_british_protest_energy',
+                'max_french_protest_energy', 'minimum_force_ratio', 'settlement_fraction'):
+        if not isinstance(naval_rules.get(key), (int, float)) or naval_rules[key] <= 0:
+            raise ValueError(f'naval_crisis: {key} must be positive.')
     response_ids = set()
     for action_id, branch in data['branches'].items():
         reaction = branch.get('reaction')
@@ -103,6 +110,8 @@ def apply_effects(world: dict, effects: dict) -> tuple[bool, str]:
         state['domestic_grain_priority'] = fraction < 1.0
     if 'levy_per_turn' in effects:
         state['creditor_levy_per_turn'] = max(0.0, float(effects['levy_per_turn']))
+        state['creditor_levy_remaining'] = (float(state.get('scheduled_remittance', 0.0))
+                                             if state['creditor_levy_per_turn'] > 0 else 0.0)
     return True, ''
 
 
@@ -184,6 +193,13 @@ def resolve_creditor_response(world: dict, response_id: str) -> tuple[bool, str]
     if response_id == 'offer_arrears_plan':
         state['arrears_plan_used'] = True
     pending['status'] = 'resolved'
+    if response_id in ('contest_customs_claim', 'reject_revised_terms'):
+        from scenario_gunboat import begin_escalation
+        begin_escalation(world, response_id)
+    elif response_id in ('accept_customs_control', 'offer_arrears_plan'):
+        if state.get('naval_crisis', {}).get('stage') in ('mobilizing', 'ultimatum', 'blockaded'):
+            from scenario_gunboat import withdraw
+            withdraw(world, 'Cairo and the creditors reach terms; the naval claim is withdrawn.')
     text = f'Creditor reply: {response["label"]}.'
     state.setdefault('actions_taken', []).append({'turn': int(world.get('turn', 0)),
                                                    'action': response_id,
@@ -197,13 +213,18 @@ def resolve_creditor_response(world: dict, response_id: str) -> tuple[bool, str]
 
 def collect_creditor_levy(world: dict) -> float:
     state = world.get('scenario_state', {})
-    requested = float(state.get('creditor_levy_per_turn', 0.0))
+    remaining = float(state.get('creditor_levy_remaining', 0.0))
+    requested = min(float(state.get('creditor_levy_per_turn', 0.0)), remaining)
     nation = _egypt(world)
     if not requested or nation is None:
         return 0.0
     paid = min(requested, max(0.0, float(nation.government.agent.cash)))
     nation.government.agent.cash -= paid
     _pay_creditors(world, paid)
+    state['creditor_levy_remaining'] = round(max(0.0, remaining - paid), 2)
+    if state['creditor_levy_remaining'] <= 0.01:
+        state['creditor_levy_per_turn'] = 0.0
+        state['payment_status'] = 'paid'
     return paid
 
 

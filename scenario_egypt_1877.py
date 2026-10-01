@@ -58,6 +58,7 @@ SCENARIO = {
         {"id": "defer_remittance", "title": "Defer debt service", "turn_cost": 1},
         {"id": "concede_revenue", "title": "Concede revenue oversight", "turn_cost": 1},
         {"id": "default_remittance", "title": "Default on debt service", "turn_cost": 1},
+        {"id": "reinforce_alexandria", "title": "Prepare Alexandria's defenses", "turn_cost": 1},
     ),
 }
 
@@ -240,6 +241,9 @@ def prepare_world(world: dict) -> dict:
         "payment_status": "upcoming",
         "deferral_count": 0,
         "creditor_levy_per_turn": 0.0,
+        "creditor_levy_remaining": 0.0,
+        "naval_crisis": {"stage": "none"},
+        "naval_news": [],
         "creditor_reactions": [],
         "creditor_news": [],
         "creditor_confidence": 0.6,
@@ -341,6 +345,11 @@ def apply_action(world: dict, action_id: str) -> tuple[bool, str]:
         state["tax_decision_taken"] = True
         state["extraction_level"] += 1
         message = "Raised local taxes to protect revenue; cultivator unrest and political strain increased."
+    elif action_id == 'reinforce_alexandria':
+        from scenario_gunboat import reinforce_batteries
+        ok, message = reinforce_batteries(world)
+        if not ok:
+            return False, message
     elif action_id in ("pay_remittance", "defer_remittance", "concede_revenue", "default_remittance"):
         from scenario_situation import situation_template
         debt_rules = situation_template()['debt_rules']
@@ -372,12 +381,16 @@ def apply_action(world: dict, action_id: str) -> tuple[bool, str]:
                 creditor.government.agent.cash += share
             state["payment_status"] = "paid" if action_id == "pay_remittance" else "restructured"
             state["creditor_levy_per_turn"] = 0.0
+            state["creditor_levy_remaining"] = 0.0
             state["creditor_confidence"] = min(1.0, state.get("creditor_confidence", 0.6) + 0.15)
             if action_id == "concede_revenue":
                 state["fiscal_autonomy"] = max(0.0, state.get("fiscal_autonomy", 1.0) - 0.25)
                 message = f"Accepted a reduced {amount:,.0f}-unit remittance and creditor oversight of future revenues."
             else:
                 message = f"Paid the {amount:,.0f}-unit scheduled debt-service remittance."
+            if state.get('naval_crisis', {}).get('stage') in ('mobilizing', 'ultimatum', 'blockaded'):
+                from scenario_gunboat import withdraw
+                withdraw(world, 'Debt service is settled; the British squadron withdraws from Alexandria.')
         elif action_id == "defer_remittance":
             state["payment_status"] = "deferred"
             state["deferral_count"] = int(state.get("deferral_count", 0)) + 1
@@ -465,6 +478,12 @@ def advance_scenario(world: dict, turn: int, ticker_push, on_phase=None) -> None
         on_phase('creditor_reaction')
     if world.get("scenario_warning_modal"):
         return
+    from scenario_gunboat import advance_naval_crisis
+    advance_naval_crisis(world)
+    if on_phase:
+        on_phase('naval_crisis')
+    if world.get("scenario_warning_modal"):
+        return
     finish_due_campaign(world)
 
 
@@ -543,7 +562,11 @@ def build_debrief(world: dict, outcome: str, metrics: dict | None = None) -> dic
         debt_detail += (f" Next due: turn {state.get('payment_window_turn', '?')}, "
                         f"{state.get('scheduled_remittance', 0):,.0f} units.")
     if float(state.get('creditor_levy_per_turn', 0.0)) > 0:
-        debt_detail += f" Caisse levy: up to {state['creditor_levy_per_turn']:,.0f} units per turn."
+        debt_detail += (f" Caisse levy: up to {state['creditor_levy_per_turn']:,.0f} units per turn, "
+                        f"{state.get('creditor_levy_remaining', 0.0):,.0f} remaining.")
+    naval_stage = state.get('naval_crisis', {}).get('stage', 'none')
+    if naval_stage not in ('none',):
+        debt_detail += f' Naval crisis: {naval_stage}.'
     return {
         "outcome": outcome,
         "title": title,
@@ -553,6 +576,7 @@ def build_debrief(world: dict, outcome: str, metrics: dict | None = None) -> dic
         "politics": f"Government legitimacy {metrics.get('legitimacy', 0.0):.0%}; average unrest {metrics.get('unrest', 0.0):.2f}.",
         "actions": actions,
         "creditor_reactions": [entry['headline'] for entry in state.get('creditor_news', [])],
+        "naval_events": [entry['text'] for entry in state.get('naval_news', [])],
     }
 
 

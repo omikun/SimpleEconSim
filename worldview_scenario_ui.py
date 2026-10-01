@@ -96,9 +96,22 @@ def _egypt_scenario_pressures(world: dict) -> list[dict]:
     else:
         debt_value = f'{payment_status.title()} • creditor confidence {confidence:.0%}'
         levy = float(state.get('creditor_levy_per_turn', 0.0))
-        debt_cause = (f'The Caisse collects up to {levy:.0f} units each turn. '
+        debt_cause = (f'The Caisse collects up to {levy:.0f} units each turn until '
+                      f'{float(state.get("creditor_levy_remaining", 0.0)):.0f} units are repaid. '
                       if levy else '') + f'Fiscal autonomy {float(state.get("fiscal_autonomy", 1.0)):.0%}.'
+    naval_stage = state.get('naval_crisis', {}).get('stage', 'none')
+    if naval_stage == 'mobilizing':
+        debt_value = 'Britain weighs a naval expedition'
+        debt_cause = 'No customs levy applies. Britain must fund a credible force before its claim can be imposed.'
+    elif naval_stage == 'ultimatum':
+        debt_value = 'British squadron off Alexandria'
+        debt_cause = 'Respond to the naval ultimatum before advancing.'
+    elif naval_stage == 'blockaded':
+        debt_value = 'Alexandria under blockade'
+        debt_cause = 'Coastal routes are blocked. Britain pays fleet upkeep each turn; Cairo can settle or hold out.'
     debt_tone = 'urgent' if payment_status in ('deferred', 'defaulted') or (remaining <= 1 and payment_status in ('upcoming', 'unpaid')) else 'warning'
+    if naval_stage in ('mobilizing', 'ultimatum', 'blockaded'):
+        debt_tone = 'urgent'
 
     unrest = sum(float(getattr(r, 'unrest_level', 0.0)) for r in nation.tiles) / max(1, len(nation.tiles))
     legitimacy = float(getattr(nation, 'legitimacy', 0.5))
@@ -322,7 +335,19 @@ def _guided_action_preview(world: dict, nation, action_id: str) -> tuple[str, li
     if action_id == 'default_remittance':
         return ('Keep cash • creditors 0%', [
             'Default keeps cash now, sets creditor confidence to zero, and cuts legitimacy by 15 points.',
-            'Britain and France will respond next turn. They may claim customs receipts or demand an arrears plan.',
+            'The Caisse will claim customs receipts next turn. Cairo can contest, consent to collection, or propose arrears; force requires naval mobilization.',
+        ])
+    if action_id == 'reinforce_alexandria':
+        from scenario_situation import situation_template
+        rules = situation_template()['naval_crisis']
+        crisis = state.get('naval_crisis', {})
+        current = float(crisis.get('battery_strength', rules['alexandria_battery_strength']))
+        cost = float(rules['battery_reinforcement_cost'])
+        stronger = current + float(rules['battery_reinforcement_strength'])
+        return (f'−{cost:.0f} cash • defense {current:.0f}→{stronger:.0f}', [
+            f'Pay {cost:.0f} treasury units to Egyptian workers preparing Alexandria’s batteries.',
+            f'Coastal defense strength rises from {current:.0f} to {stronger:.0f}; a strong defense can deter a British fleet.',
+            'This uses this turn’s major domestic decision and can be done only once while Britain mobilizes.',
         ])
     return ('', [])
 
@@ -549,9 +574,15 @@ def _draw_egypt_scenario_panel(surface, world: dict, mouse_pos=None) -> None:
         [('reduce_fellahin_tax', 'Reduce local taxes', tax_available),
          ('raise_local_taxes', 'Raise local taxes', tax_available)],
     ]
-    action_rows.append([
-        ('pay_remittance', 'Pay debt service', payment_ready and treasury_cash >= scheduled_payment)
-    ])
+    if state.get('naval_crisis', {}).get('stage') == 'mobilizing':
+        from scenario_situation import situation_template
+        reinforce_cost = float(situation_template()['naval_crisis']['battery_reinforcement_cost'])
+        action_rows.append([('reinforce_alexandria', 'Prepare Alexandria defenses',
+                             not state['naval_crisis'].get('reinforced') and treasury_cash >= reinforce_cost)])
+    if state.get('payment_status') in ('upcoming', 'unpaid', 'deferred'):
+        action_rows.append([
+            ('pay_remittance', 'Pay debt service', payment_ready and treasury_cash >= scheduled_payment)
+        ])
     if payment_ready:
         action_rows[-1].append(('concede_revenue', 'Concede revenue', treasury_cash >= scheduled_payment * 0.5))
         action_rows.append([
@@ -596,6 +627,10 @@ def _draw_egypt_scenario_panel(surface, world: dict, mouse_pos=None) -> None:
                         reason = ('The Caisse grants only one deferral in this situation.'
                                   if int(state.get('deferral_count', 0)) >= int(debt_rules['maximum_deferrals'])
                                   else 'The revised due date would fall after the campaign ends.')
+                    elif action_id == 'reinforce_alexandria':
+                        reason = ('Alexandria’s batteries have already been prepared.'
+                                  if state['naval_crisis'].get('reinforced')
+                                  else f'Treasury cash is below the {reinforce_cost:.0f} units required.')
                     else:
                         needed = scheduled_payment if action_id == 'pay_remittance' else scheduled_payment * .5
                         reason = f'Treasury cash is below the {needed:.0f} units needed for this choice.'
@@ -674,6 +709,13 @@ def _draw_egypt_scenario_debrief(surface, world: dict) -> None:
             for line in _wrap_text(f'• {headline}', small_font, w - 28)[:2]:
                 surface.blit(small_font.render(line, True, DIM), (x + 14, cur_y))
                 cur_y += 18
+    naval_events = debrief.get('naval_events', [])
+    if naval_events:
+        surface.blit(body_font.render('Alexandria crisis', True, TEXT), (x + 14, cur_y))
+        cur_y += 23
+        for line in _wrap_text(naval_events[-1], small_font, w - 28)[:2]:
+            surface.blit(small_font.render(line, True, DIM), (x + 14, cur_y))
+            cur_y += 18
     cur_y += 9
     surface.blit(body_font.render('Decisions that shaped this result', True, TEXT), (x + 14, cur_y))
     cur_y += 26
@@ -743,7 +785,7 @@ def draw_scenario_warning_modal(surface, world: dict, mouse_pos=None) -> None:
     veil.fill((5, 7, 12, 210))
     surface.blit(veil, (0, 0))
     kind = warning.get('kind')
-    card = pygame.Rect(310, 220, 780, 440 if kind in ('debt_due', 'creditor_reaction') else 360)
+    card = pygame.Rect(310, 220, 780, 440 if kind in ('debt_due', 'creditor_reaction', 'naval_ultimatum', 'naval_blockade') else 360)
     border = (225, 178, 87) if kind in ('debt_due', 'creditor_reaction') else (226, 102, 94)
     pygame.draw.rect(surface, (24, 29, 41), card, border_radius=10)
     pygame.draw.rect(surface, border, card, 2, border_radius=10)
@@ -780,6 +822,23 @@ def draw_scenario_warning_modal(surface, world: dict, mouse_pos=None) -> None:
         response_options = creditor_response_options(world, action_id)
         options = [(f'creditor_response:{response["id"]}', response['label'], response['enabled'])
                    for response in response_options]
+    elif kind in ('naval_ultimatum', 'naval_blockade'):
+        from scenario_gunboat import naval_response_options, coastal_balance
+        crisis = state.get('naval_crisis', {})
+        balance = coastal_balance(world)
+        title = 'British ultimatum at Alexandria' if kind == 'naval_ultimatum' else 'Alexandria is under naval blockade'
+        lines = ([
+            'A British squadron is off the coast. France supports the demand.' if crisis.get('french_support')
+            else 'A British squadron is off the coast. France stays out.',
+            'London demands customs oversight or disarmament. Defending the batteries risks bombardment and a real trade blockade.',
+            f'Force at Alexandria: Britain {balance["british_force"]:.0f}, Egyptian defense {balance["egyptian_defense"]:.0f}; ratio {balance["ratio"]:.2f}.',
+        ] if kind == 'naval_ultimatum' else [
+            'British guns have struck the coastal batteries and the shared trade system is blocking Alexandria’s routes.',
+            'Britain pays for its fleet each turn. Its domestic unrest and treasury can force a withdrawal.',
+        ])
+        naval_options = naval_response_options(world, kind)
+        options = [(f'naval_response:{response["id"]}', response['label'], response['enabled'])
+                   for response in naval_options]
     elif kind == 'breakdown':
         title = 'Political breakdown is imminent'
         lines = [
@@ -864,7 +923,7 @@ def draw_scenario_warning_modal(surface, world: dict, mouse_pos=None) -> None:
                 if kind == 'debt_due' else 'Defers the payment.'
             ),
             'default_remittance': (
-                'Keeps the cash, but creditor confidence falls to zero and legitimacy drops by 15 points. Next turn, Britain and France claim customs receipts and begin a collection levy unless Cairo negotiates.'
+                'Keeps the cash, but creditor confidence falls to zero and legitimacy drops by 15 points. Next turn, creditors claim customs; they cannot collect without Cairo’s consent or credible force.'
                 if kind == 'debt_due' else 'Defaults on the payment.'
             ),
             'scenario_rescue_tax': 'Reduces local taxes, lowering treasury revenue. It can avert breakdown if unrest and legitimacy move back across their thresholds.',
@@ -886,6 +945,13 @@ def draw_scenario_warning_modal(surface, world: dict, mouse_pos=None) -> None:
                         detail = 'Unavailable: the new due date would fall after the campaign ends. ' + detail
                     else:
                         detail = f'Unavailable: requires {float(response.get("requires_cash", 0.0)):,.0f} treasury units. ' + detail
+        if hovered_option.startswith('naval_response:'):
+            response_id = hovered_option.split(':', 1)[1]
+            response = next((item for item in naval_options if item['id'] == response_id), None)
+            if response is not None:
+                detail = response['tooltip']
+                if not response['enabled']:
+                    detail = 'Unavailable: the treasury cannot cover this settlement. ' + detail
         if detail:
             tooltip_font = _scenario_font(13)
             tooltip_w = card.w - 52
@@ -926,6 +992,16 @@ def scenario_warning_modal_hit(pos, world: dict) -> bool:
         if ok:
             world['scenario_warning_modal'] = None
             advance_creditor_reactions(world, int(world.get('turn', 0)), ticker_push)
+            from scenario_egypt_1877 import finish_due_campaign
+            finish_due_campaign(world)
+    elif action.startswith('naval_response:'):
+        from scenario_gunboat import resolve_naval_response
+        previous_modal = world.get('scenario_warning_modal')
+        ok, message = resolve_naval_response(world, action.split(':', 1)[1])
+        world['scenario_feedback'] = message if ok else f'Not enacted: {message}'
+        if ok:
+            if world.get('scenario_warning_modal') is previous_modal:
+                world['scenario_warning_modal'] = None
             from scenario_egypt_1877 import finish_due_campaign
             finish_due_campaign(world)
     elif action == 'scenario_rescue_tax':

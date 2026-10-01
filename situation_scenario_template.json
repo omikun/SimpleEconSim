@@ -44,6 +44,18 @@
     "maximum_deferrals": 1,
     "default_arrears_multiplier": 1.25
   },
+  "naval_crisis": {
+    "british_squadron_strength": 80,
+    "alexandria_battery_strength": 28,
+    "battery_reinforcement_strength": 40,
+    "battery_reinforcement_cost": 30,
+    "mobilization_cost": 40,
+    "upkeep_per_turn": 8,
+    "max_british_protest_energy": 6.5,
+    "max_french_protest_energy": 4.0,
+    "minimum_force_ratio": 1.2,
+    "settlement_fraction": 0.5
+  },
   "branches": {
     "release_maize": {
       "delay_turns": 1,
@@ -168,8 +180,8 @@
           {
             "id": "reject_revised_terms",
             "label": "Reject guarantee",
-            "tooltip": "Keep the revised due date and cash, but lose another 10 points of creditor confidence. A 5-unit collection levy begins each turn until settlement.",
-            "effects": {"confidence_delta": -0.1, "levy_per_turn": 5}
+            "tooltip": "Keep the revised due date and cash, but lose another 10 points of creditor confidence. Britain may mobilize a squadron; no levy begins without consent or enforcement.",
+            "effects": {"confidence_delta": -0.1}
           }
         ]
       }
@@ -178,25 +190,25 @@
       "delay_turns": 1,
       "reaction": {
         "headline": "Creditors assert a claim on customs receipts",
-        "body": "Britain and France impose a 10-unit collection levy each turn and reduce Egypt's fiscal autonomy by 10 points. Cairo can contest the claim or offer an arrears plan.",
-        "effects": {"autonomy_delta": -0.1, "levy_per_turn": 10},
+        "body": "The Caisse asks Cairo to surrender customs receipts. Collection requires Cairo's consent or enforceable naval pressure. Britain considers sending ships if Cairo contests the claim.",
+        "effects": {},
         "responses": [
           {
             "id": "contest_customs_claim",
             "label": "Contest the claim",
-            "tooltip": "Keep the 10-unit levy and default status. Legitimacy rises 2 points for resisting, while creditor confidence remains at zero.",
+            "tooltip": "Reject customs collection and keep cash. Legitimacy rises 2 points. Britain may send a squadron if its treasury, domestic stability, and force advantage support intervention.",
             "effects": {"legitimacy_delta": 0.02}
           },
           {
             "id": "accept_customs_control",
             "label": "Accept customs control",
-            "tooltip": "Cut the levy to 5 units per turn and restore 5 points of creditor confidence, but lose another 10 points of fiscal autonomy.",
+            "tooltip": "Consent to a 5-unit collection levy each turn and restore 5 points of creditor confidence, but lose 10 points of fiscal autonomy.",
             "effects": {"levy_per_turn": 5, "confidence_delta": 0.05, "autonomy_delta": -0.1}
           },
           {
             "id": "offer_arrears_plan",
             "label": "Offer arrears plan",
-            "tooltip": "End the levy and schedule a payment of 125% of the missed remittance three turns from now. Lose 10 points of autonomy and restore 10 points of confidence.",
+            "tooltip": "Schedule a payment of 125% of the missed remittance three turns from now. Lose 10 points of autonomy and restore 10 points of confidence; no collection levy begins.",
             "effects": {"levy_per_turn": 0, "payment_status": "deferred", "payment_amount_multiplier": 1.25, "payment_due_in": 3, "autonomy_delta": -0.1, "confidence_delta": 0.1}
           }
         ]
