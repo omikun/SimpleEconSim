@@ -622,8 +622,7 @@ def draw_scenario_warning_modal(surface, world: dict, mouse_pos=None) -> None:
     veil.fill((5, 7, 12, 210))
     surface.blit(veil, (0, 0))
     kind = warning.get('kind')
-    debt_options_open = bool(warning.get('show_alternatives'))
-    card = pygame.Rect(310, 240, 780, 420 if kind == 'debt_due' and debt_options_open else 360)
+    card = pygame.Rect(310, 220, 780, 440 if kind == 'debt_due' else 360)
     border = (225, 178, 87) if kind == 'debt_due' else (226, 102, 94)
     pygame.draw.rect(surface, (24, 29, 41), card, border_radius=10)
     pygame.draw.rect(surface, border, card, 2, border_radius=10)
@@ -637,22 +636,14 @@ def draw_scenario_warning_modal(surface, world: dict, mouse_pos=None) -> None:
         lines = [
             f'Treasury cash: {cash:,.0f} units. Scheduled payment: {amount:,.0f}.',
             'Default collapses creditor confidence and reduces legitimacy by 15 percentage points.',
-            ('Choose a payment, concession, deferral, or default.' if debt_options_open
-             else 'Pay the scheduled remittance or default. Other settlement choices are available below.'),
+            'Choose how to settle the debt service:',
         ]
-        if debt_options_open:
-            options = [
-                ('pay_remittance', f'Pay {amount:,.0f}', cash >= amount),
-                ('concede_revenue', f'Concede • pay {amount / 2:,.0f}', cash >= amount / 2),
-                ('defer_remittance', 'Defer • keep cash', True),
-                ('default_remittance', 'Default • severe loss', True),
-            ]
-        else:
-            options = [
-                ('pay_remittance', f'Pay {amount:,.0f}', cash >= amount),
-                ('default_remittance', 'Default • severe loss', True),
-                ('show_debt_options', 'More options: concede or defer', True),
-            ]
+        options = [
+            ('pay_remittance', f'Pay {amount:,.0f}', cash >= amount),
+            ('concede_revenue', f'Concede • pay {amount / 2:,.0f}', cash >= amount / 2),
+            ('defer_remittance', 'Defer • keep cash', True),
+            ('default_remittance', 'Default • severe loss', True),
+        ]
     elif kind == 'breakdown':
         title = 'Political breakdown is imminent'
         lines = [
@@ -696,6 +687,7 @@ def draw_scenario_warning_modal(surface, world: dict, mouse_pos=None) -> None:
             y += 24
         y += 8
     mouse = mouse_pos if mouse_pos else (-1, -1)
+    hovered_option = None
     cols = 2 if len(options) > 2 else 1
     btn_w = (card.w - 52 - 12 * (cols - 1)) // cols
     btn_h = 48
@@ -705,12 +697,53 @@ def draw_scenario_warning_modal(surface, world: dict, mouse_pos=None) -> None:
         row, col = divmod(index, cols)
         rect = pygame.Rect(card.x + 26 + col * (btn_w + 12), button_y + row * (btn_h + 10), btn_w, btn_h)
         hover = rect.collidepoint(mouse)
+        if hover:
+            hovered_option = action
         pygame.draw.rect(surface, (55, 66, 86) if hover and enabled else (38, 46, 62), rect, border_radius=5)
         pygame.draw.rect(surface, ACCENT if hover else (83, 99, 126), rect, 1, border_radius=5)
         label_surface = _scenario_font(14).render(label, True, TEXT if enabled else DIM)
         surface.blit(label_surface, label_surface.get_rect(center=rect.center))
         if enabled:
             register_target(world, rect, ('scenario_warning', action), scope='scenario_warning')
+
+    if hovered_option:
+        consequences = {
+            'pay_remittance': (
+                (f'Unavailable: the treasury has {cash:,.0f} units and needs {amount:,.0f}. ' if cash < amount else '')
+                + f'Spends {amount:,.0f} treasury units. Marks the debt service paid and raises creditor confidence by up to 15 points.'
+                if kind == 'debt_due' else 'Enacts this debt payment.'
+            ),
+            'concede_revenue': (
+                (f'Unavailable: the treasury has {cash:,.0f} units and needs {amount / 2:,.0f}. ' if cash < amount / 2 else '')
+                + f'Spends {amount / 2:,.0f} units and restructures the payment. Creditor confidence rises by up to 15 points, while fiscal autonomy falls by 25 points because creditors gain future revenue oversight.'
+                if kind == 'debt_due' else 'Enacts this revenue concession.'
+            ),
+            'defer_remittance': (
+                'Keeps the cash available for domestic needs and marks the payment deferred. Creditor confidence falls by 30 points; legitimacy rises by 2 points.'
+                if kind == 'debt_due' else 'Defers the payment.'
+            ),
+            'default_remittance': (
+                'Keeps the cash, but creditor confidence falls to zero and legitimacy drops by 15 percentage points.'
+                if kind == 'debt_due' else 'Defaults on the payment.'
+            ),
+            'scenario_rescue_tax': 'Reduces local taxes, lowering treasury revenue. It can avert breakdown if unrest and legitimacy move back across their thresholds.',
+            'accept_breakdown': 'Ends the campaign immediately with government breakdown.',
+            'review_risk': 'Closes this warning and pauses the simulation so you can inspect the situation.',
+            'continue_risk': 'Advances one turn despite the warning. The reported crisis may worsen or trigger its consequences.',
+        }
+        detail = consequences.get(hovered_option)
+        if detail:
+            tooltip_font = _scenario_font(13)
+            tooltip_w = card.w - 52
+            tooltip_lines = _wrap_text(detail, tooltip_font, tooltip_w - 24)
+            tooltip_h = len(tooltip_lines) * 18 + 18
+            tx = card.x + 26
+            ty = max(card.y + 126, button_y - tooltip_h - 8)
+            tooltip_rect = pygame.Rect(tx, ty, tooltip_w, tooltip_h)
+            pygame.draw.rect(surface, (16, 20, 29), tooltip_rect, border_radius=5)
+            pygame.draw.rect(surface, ACCENT, tooltip_rect, 1, border_radius=5)
+            for line_index, line in enumerate(tooltip_lines):
+                surface.blit(tooltip_font.render(line, True, TEXT), (tx + 12, ty + 9 + line_index * 18))
 
 
 def scenario_warning_modal_hit(pos, world: dict) -> bool:
@@ -726,8 +759,6 @@ def scenario_warning_modal_hit(pos, world: dict) -> bool:
         world['scenario_feedback'] = message if ok else f'Not enacted: {message}'
         if ok:
             world['scenario_warning_modal'] = None
-    elif action == 'show_debt_options':
-        warning['show_alternatives'] = True
     elif action == 'scenario_rescue_tax':
         from scenario_egypt_1877 import SCENARIO, _outcome_metrics, apply_action
         ok, message = apply_action(world, 'reduce_fellahin_tax')
