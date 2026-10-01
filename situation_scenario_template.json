@@ -1,0 +1,202 @@
+{
+  "format": "regnum.situation.v1",
+  "template_guidance": {
+    "purpose": "Copy this file for a new authored situation. Keep player decisions, delayed actor reactions, response choices, and measurable effects in data.",
+    "branch_rule": "An action queues its reaction after delay_turns. A reaction without responses is reported automatically. A reaction with responses pauses the scenario until the player chooses one.",
+    "effect_fields": "confidence_delta, autonomy_delta, legitimacy_delta, treasury_cost, payment_amount_multiplier, payment_due_in, payment_status, export_fraction, levy_per_turn",
+    "turns": "Turn numbers and effects are gameplay abstractions, not historical dates or quantities."
+  },
+  "scenario_id": "egypt_1877",
+  "situation_id": "caisse_debt_and_food",
+  "title": "The Caisse, the Nile harvest, and Egyptian debt service",
+  "actors": ["Egypt", "Britain", "France"],
+  "implementation_plan": [
+    {
+      "phase": 1,
+      "goal": "Show measured changes since the previous turn and the simulation or action that caused them.",
+      "acceptance": "Every Guided status has a signed delta and a tooltip with measured contributors."
+    },
+    {
+      "phase": 2,
+      "goal": "Report Britain and France separately and connect Egyptian unrest to live district protest pressure.",
+      "acceptance": "Foreign unrest informs the player without interrupting Egypt's turn; Egypt's political pressure changes when protest energy changes."
+    },
+    {
+      "phase": 3,
+      "goal": "Make deferral a dated, more expensive obligation and resolve creditor reactions through the branch tree below.",
+      "acceptance": "Deferral produces another payment window; every player action produces a creditor report, and demanding reactions offer visible responses with consequences."
+    },
+    {
+      "phase": 4,
+      "goal": "Show reaction choices, costs, deadlines, and foreign updates in Guided mode and record them in the debrief.",
+      "acceptance": "The player can read the next obligation and the reason for each creditor move before choosing a response."
+    }
+  ],
+  "debt_rules": {
+    "first_due_turn": 6,
+    "initial_payment": 200,
+    "deferral_delay_turns": 3,
+    "deferral_multiplier": 1.1,
+    "maximum_deferrals": 1,
+    "default_arrears_multiplier": 1.25
+  },
+  "branches": {
+    "release_maize": {
+      "delay_turns": 1,
+      "reaction": {
+        "headline": "Creditors note Egypt's emergency maize relief",
+        "body": "Britain and France see the reserve release as domestic relief; the scheduled remittance is unchanged.",
+        "effects": {},
+        "responses": []
+      }
+    },
+    "prioritize_domestic_grain": {
+      "delay_turns": 1,
+      "reaction": {
+        "headline": "Creditors demand an export assurance",
+        "body": "The Caisse argues that retaining grain weakens receipts assigned to debt service. Britain and France ask Cairo to restore exports or pledge another source of revenue.",
+        "effects": {},
+        "responses": [
+          {
+            "id": "defend_food_priority",
+            "label": "Defend food priority",
+            "tooltip": "Keep grain in local supply. Legitimacy rises 2 points; creditor confidence falls another 5 points.",
+            "effects": {"legitimacy_delta": 0.02, "confidence_delta": -0.05}
+          },
+          {
+            "id": "restore_grain_exports",
+            "label": "Restore grain exports",
+            "tooltip": "Remove the special domestic grain retention rule. Creditor confidence rises 10 points, but less grain remains in local supply.",
+            "effects": {"export_fraction": 1.0, "confidence_delta": 0.1}
+          },
+          {
+            "id": "pledge_customs_revenue",
+            "label": "Pledge customs revenue",
+            "tooltip": "Keep domestic grain priority while conceding 10 points of fiscal autonomy. Creditor confidence rises 8 points.",
+            "effects": {"autonomy_delta": -0.1, "confidence_delta": 0.08}
+          }
+        ]
+      }
+    },
+    "reduce_fellahin_tax": {
+      "delay_turns": 1,
+      "reaction": {
+        "headline": "The Caisse questions lower tax receipts",
+        "body": "Creditor delegates request a fiscal account after Cairo lowers cultivator taxes.",
+        "effects": {},
+        "responses": [
+          {
+            "id": "submit_fiscal_account",
+            "label": "Submit fiscal account",
+            "tooltip": "Spend 20 treasury units on the accounting and guarantee process. Creditor confidence rises 5 points; tax relief stays in force.",
+            "requires_cash": 20,
+            "effects": {"treasury_cost": 20, "confidence_delta": 0.05}
+          },
+          {
+            "id": "refuse_fiscal_review",
+            "label": "Refuse fiscal review",
+            "tooltip": "Keep treasury cash and tax relief, but creditor confidence falls 8 points.",
+            "effects": {"confidence_delta": -0.08}
+          }
+        ]
+      }
+    },
+    "raise_local_taxes": {
+      "delay_turns": 1,
+      "reaction": {
+        "headline": "Creditors welcome stronger collection",
+        "body": "Britain and France expect more assigned revenue. Creditor confidence rises 5 points, while Egypt's domestic political costs remain.",
+        "effects": {"confidence_delta": 0.05},
+        "responses": []
+      }
+    },
+    "pay_remittance": {
+      "delay_turns": 1,
+      "reaction": {
+        "headline": "The Caisse acknowledges full payment",
+        "body": "Britain and France receive the scheduled remittance. No further payment is due during this situation.",
+        "effects": {},
+        "responses": []
+      }
+    },
+    "concede_revenue": {
+      "delay_turns": 1,
+      "reaction": {
+        "headline": "Creditors begin revenue oversight",
+        "body": "The Caisse accepts the reduced payment and asks to inspect assigned receipts.",
+        "effects": {},
+        "responses": [
+          {
+            "id": "comply_with_oversight",
+            "label": "Comply with oversight",
+            "tooltip": "Accept the existing loss of fiscal autonomy. Creditor confidence rises another 5 points.",
+            "effects": {"confidence_delta": 0.05}
+          },
+          {
+            "id": "seek_oversight_revision",
+            "label": "Seek narrower oversight",
+            "tooltip": "Spend 20 treasury units on negotiations. Recover 10 points of fiscal autonomy, but creditor confidence falls 10 points.",
+            "requires_cash": 20,
+            "effects": {"treasury_cost": 20, "autonomy_delta": 0.1, "confidence_delta": -0.1}
+          }
+        ]
+      }
+    },
+    "defer_remittance": {
+      "delay_turns": 1,
+      "reaction": {
+        "headline": "Creditors demand terms for the revised payment",
+        "body": "The missed remittance is now due three turns later at a 10% surcharge. The Caisse asks Cairo for a guarantee.",
+        "effects": {},
+        "responses": [
+          {
+            "id": "accept_revised_terms",
+            "label": "Accept revised terms",
+            "tooltip": "Keep the new due date and surcharge. Creditor confidence recovers 3 points.",
+            "effects": {"confidence_delta": 0.03}
+          },
+          {
+            "id": "pledge_revised_revenue",
+            "label": "Pledge future revenue",
+            "tooltip": "Reduce the revised payment by 5%, lose 10 points of fiscal autonomy, and restore 10 points of creditor confidence.",
+            "effects": {"payment_amount_multiplier": 0.95, "autonomy_delta": -0.1, "confidence_delta": 0.1}
+          },
+          {
+            "id": "reject_revised_terms",
+            "label": "Reject guarantee",
+            "tooltip": "Keep the revised due date and cash, but lose another 10 points of creditor confidence. A 5-unit collection levy begins each turn until settlement.",
+            "effects": {"confidence_delta": -0.1, "levy_per_turn": 5}
+          }
+        ]
+      }
+    },
+    "default_remittance": {
+      "delay_turns": 1,
+      "reaction": {
+        "headline": "Creditors assert a claim on customs receipts",
+        "body": "Britain and France impose a 10-unit collection levy each turn and reduce Egypt's fiscal autonomy. Cairo can contest the claim or offer an arrears plan.",
+        "effects": {"autonomy_delta": -0.1, "levy_per_turn": 10},
+        "responses": [
+          {
+            "id": "contest_customs_claim",
+            "label": "Contest the claim",
+            "tooltip": "Keep the 10-unit levy and default status. Legitimacy rises 2 points for resisting, while creditor confidence remains at zero.",
+            "effects": {"legitimacy_delta": 0.02}
+          },
+          {
+            "id": "accept_customs_control",
+            "label": "Accept customs control",
+            "tooltip": "Cut the levy to 5 units per turn and restore 5 points of creditor confidence, but lose another 10 points of fiscal autonomy.",
+            "effects": {"levy_per_turn": 5, "confidence_delta": 0.05, "autonomy_delta": -0.1}
+          },
+          {
+            "id": "offer_arrears_plan",
+            "label": "Offer arrears plan",
+            "tooltip": "End the levy and schedule a payment of 125% of the missed remittance three turns from now. Lose 10 points of autonomy and restore 10 points of confidence.",
+            "effects": {"levy_per_turn": 0, "payment_status": "deferred", "payment_amount_multiplier": 1.25, "payment_due_in": 3, "autonomy_delta": -0.1, "confidence_delta": 0.1}
+          }
+        ]
+      }
+    }
+  }
+}
