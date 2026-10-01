@@ -3,7 +3,7 @@
   "template_guidance": {
     "purpose": "Copy this file for a new authored situation. Keep player decisions, delayed actor reactions, response choices, and measurable effects in data.",
     "branch_rule": "An action queues its reaction after delay_turns. A reaction without responses is reported automatically. A reaction with responses pauses the scenario until the player chooses one.",
-    "effect_fields": "confidence_delta, autonomy_delta, legitimacy_delta, treasury_cost, payment_amount_multiplier, payment_due_in, payment_status, export_fraction, levy_per_turn",
+    "effect_fields": "confidence_delta, autonomy_delta, legitimacy_delta, treasury_cost, payment_amount_multiplier, payment_due_in, payment_status, export_fraction, levy_per_turn, palace_authority_delta",
     "turns": "Turn numbers and effects are gameplay abstractions, not historical dates or quantities."
   },
   "scenario_id": "egypt_1877",
@@ -55,6 +55,14 @@
     "max_french_protest_energy": 4.0,
     "minimum_force_ratio": 1.2,
     "settlement_fraction": 0.5
+  },
+  "politics": {
+    "alexandria_garrison_soldiers": 25,
+    "officer_pay_cost": 30,
+    "movement_threshold": 0.55,
+    "army_loyalty_threshold": 0.58,
+    "deposition_authority_threshold": 0.60,
+    "deposition_autonomy_threshold": 0.80
   },
   "branches": {
     "release_maize": {
@@ -113,6 +121,35 @@
             "label": "Refuse fiscal review",
             "tooltip": "Keep treasury cash and tax relief, but creditor confidence falls 8 points.",
             "effects": {"confidence_delta": -0.08}
+          }
+        ]
+      }
+    },
+    "dismiss_foreign_controllers": {
+      "delay_turns": 1,
+      "reaction": {
+        "headline": "Creditors challenge Cairo's dismissal of controllers",
+        "body": "Britain and France question the authority of Ismail's palace to dismiss financial supervisors and seek a change in government policy.",
+        "effects": {"palace_authority_delta": -0.10},
+        "responses": [
+          {
+            "id": "restore_financial_controllers",
+            "label": "Restore the controllers",
+            "tooltip": "Concede 15 points of fiscal autonomy; restore 15 points of creditor confidence and 10 points of palace authority.",
+            "effects": {"autonomy_delta": -0.15, "confidence_delta": 0.15, "palace_authority_delta": 0.10}
+          },
+          {
+            "id": "defend_controller_dismissal",
+            "label": "Defend the dismissal",
+            "tooltip": "Keep fiscal discretion and gain 2 points of legitimacy, but lose 10 more points of creditor confidence.",
+            "effects": {"legitimacy_delta": 0.02, "confidence_delta": -0.10}
+          },
+          {
+            "id": "submit_reform_accounts",
+            "label": "Submit reform accounts",
+            "tooltip": "Spend 20 treasury units documenting reforms; restore 5 points of creditor confidence without reinstating controllers.",
+            "requires_cash": 20,
+            "effects": {"treasury_cost": 20, "confidence_delta": 0.05}
           }
         ]
       }

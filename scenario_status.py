@@ -14,6 +14,11 @@ ACTION_LABELS = {
     'concede_revenue': 'Conceded revenue oversight',
     'defer_remittance': 'Deferred debt service',
     'default_remittance': 'Defaulted on debt service',
+    'pay_army_arrears': 'Paid officer arrears',
+    'promote_egyptian_officers': 'Promoted Egyptian officers',
+    'invite_representative_cabinet': 'Invited representative cabinet',
+    'dismiss_foreign_controllers': 'Dismissed foreign controllers',
+    'reinforce_alexandria': 'Prepared Alexandria batteries',
 }
 
 PHASE_LABELS = {
@@ -31,6 +36,8 @@ PHASE_LABELS = {
     'deadline': 'Debt-service deadline',
     'protest_pressure': 'Egyptian district protest pressure',
     'creditor_reaction': 'Caisse reaction to the last decision',
+    'politics': 'Egyptian officers and civilian coalition',
+    'naval_crisis': 'Naval pressure and expedition upkeep',
 }
 
 

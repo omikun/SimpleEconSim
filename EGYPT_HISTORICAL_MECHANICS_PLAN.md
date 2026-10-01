@@ -31,7 +31,9 @@ The 20-turn campaign compresses years into decisions, so turns are not literal c
 
 ## Phase 2 — Egyptian political authority and the army
 
-**Problem:** A single legitimacy and unrest number cannot reproduce the conflict among Ismail, Tawfiq, army officers, landed notables, cultivators, and foreign controllers.
+**Status:** Complete for the bounded campaign. Alexandria has a paid garrison whose morale contributes to loyalty to the palace. Officer access, army loyalty, palace and cabinet authority, civilian backing, and nationalist strength now move with welfare, austerity, foreign supervision, and naval coercion. The player can fund arrears, open promotions, invite a cabinet, or dismiss controllers. Conditional decisions can replace Ismail with Tawfiq or bring an officer-civilian coalition under ‘Urabi to power; the player continues governing Egypt. Controller dismissal draws an explicit creditor response.
+
+**Original problem:** A single legitimacy and unrest number could not reproduce the conflict among Ismail, Tawfiq, army officers, landed notables, cultivators, and foreign controllers.
 
 **Mechanics:** Track army pay, officer promotion access, loyalty to the ruler, and willingness to follow a civilian cabinet. Let austerity, foreign appointments, and repression produce grievances. Link existing factions and resistance to civilian support for an officers' movement. Allow a constitutional cabinet, a palace coalition, or a nationalist coalition to gain authority. A deposition or change of khedive requires a political actor with the power to carry it out; it is not a timed event.
 

@@ -10,7 +10,7 @@ from pathlib import Path
 EFFECT_FIELDS = frozenset({
     'confidence_delta', 'autonomy_delta', 'legitimacy_delta', 'treasury_cost',
     'payment_amount_multiplier', 'payment_due_in', 'payment_status',
-    'export_fraction', 'levy_per_turn',
+    'export_fraction', 'levy_per_turn', 'palace_authority_delta',
 })
 
 
@@ -94,6 +94,10 @@ def apply_effects(world: dict, effects: dict) -> tuple[bool, str]:
         state[field] = max(0.0, min(1.0, float(state.get(field, 0.0)) + float(delta)))
     if 'legitimacy_delta' in effects:
         nation.legitimacy = max(0.0, min(1.0, float(nation.legitimacy) + float(effects['legitimacy_delta'])))
+    if 'palace_authority_delta' in effects and state.get('politics'):
+        politics = state['politics']
+        politics['palace_authority'] = max(0.0, min(1.0, float(politics['palace_authority'])
+                                                  + float(effects['palace_authority_delta'])))
     if 'payment_amount_multiplier' in effects or 'payment_due_in' in effects:
         from scenario_debt import revise
         amount = (float(state['scheduled_remittance'])

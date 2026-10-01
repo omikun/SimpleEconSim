@@ -116,6 +116,13 @@ def _egypt_scenario_pressures(world: dict) -> list[dict]:
     unrest = sum(float(getattr(r, 'unrest_level', 0.0)) for r in nation.tiles) / max(1, len(nation.tiles))
     legitimacy = float(getattr(nation, 'legitimacy', 0.5))
     political_tone = 'urgent' if legitimacy < 0.30 or unrest >= 0.6 else ('warning' if legitimacy < 0.5 or unrest >= 0.3 else 'good')
+    politics = state.get('politics', {})
+    loyalty = float(politics.get('army_loyalty', 1.0))
+    movement = float(politics.get('nationalist_movement', 0.0))
+    if loyalty < 0.58 or movement >= 0.55:
+        political_tone = 'urgent'
+    elif loyalty < 0.70 or movement >= 0.40:
+        political_tone = 'warning'
     ledger = state.get('debt_ledger', [])
     recent = [entry for entry in ledger if entry.get('kind') in ('payment', 'concession_payment',
                                                                 'naval_settlement', 'assigned_revenue')]
@@ -132,8 +139,14 @@ def _egypt_scenario_pressures(world: dict) -> list[dict]:
         {'title': 'Household maize access', 'value': food_value, 'cause': food_cause, 'tone': food_tone},
         {'title': 'Debt service', 'value': debt_value, 'cause': debt_cause, 'tone': debt_tone,
          'details': debt_details},
-        {'title': 'Political support', 'value': f'Legitimacy {legitimacy:.0%} • unrest {unrest:.2f}',
-         'cause': 'Hunger and heavier taxes can erode support.', 'tone': political_tone},
+        {'title': 'Political support', 'value': f'Legitimacy {legitimacy:.0%} • palace army {loyalty:.0%}',
+         'cause': f'{politics.get("ruler", "Ismail Pasha")} • {politics.get("governing_coalition", "palace")} cabinet • movement {movement:.0%}.',
+         'tone': political_tone, 'details': [
+             f'Officer access: {float(politics.get("officer_access", 0.0)):.0%}; army loyalty to the palace: {loyalty:.0%}.',
+             f'Civilian backing for change: {float(politics.get("civilian_support", 0.0)):.0%}; movement strength: {movement:.0%}.',
+             f'Palace authority: {float(politics.get("palace_authority", 0.0)):.0%}; cabinet authority: {float(politics.get("cabinet_authority", 0.0)):.0%}.',
+             'Unpaid troops, blocked promotions, food stress, tax extraction, and foreign control can shift support.',
+         ]},
     ]
 
 
@@ -365,6 +378,31 @@ def _guided_action_preview(world: dict, nation, action_id: str) -> tuple[str, li
             f'Coastal defense strength rises from {current:.0f} to {stronger:.0f}; a strong defense can deter a British fleet.',
             'This uses this turn’s major domestic decision and can be done only once while Britain mobilizes.',
         ])
+    politics = state.get('politics', {})
+    if action_id == 'pay_army_arrears':
+        from scenario_situation import situation_template
+        cost = float(situation_template()['politics']['officer_pay_cost'])
+        loyalty = float(politics.get('army_loyalty', 0.0))
+        return (f'−{cost:.0f} cash • army loyalty ↑', [
+            f'Pay {cost:.0f} treasury units to Alexandria garrison households. Palace loyalty {loyalty:.0%} → {min(1, loyalty + .22):.0%}.',
+            'Alexandria garrison morale also improves. Continued wages still depend on the treasury.',
+        ])
+    if action_id == 'promote_egyptian_officers':
+        access = float(politics.get('officer_access', 0.0))
+        return (f'Officer access {access:.0%}→{min(1, access + .4):.0%}', [
+            'Open senior appointments to Egyptian officers: access rises 40 points and army loyalty rises 12 points.',
+            'Palace authority falls 8 points as appointments move beyond the court.',
+        ])
+    if action_id == 'invite_representative_cabinet':
+        return ('Cabinet authority ↑ • legitimacy +5pp', [
+            'Invite a representative cabinet: cabinet authority rises 35 points and civilian support 15 points.',
+            'Legitimacy rises 5 points; palace authority falls 18 points.',
+        ])
+    if action_id == 'dismiss_foreign_controllers':
+        return ('Autonomy +15pp • credit −20pp', [
+            'Dismiss foreign controllers: fiscal autonomy rises 15 points; creditor confidence falls 20 points.',
+            'Nationalist support rises 12 points; palace authority falls 12 points.',
+        ])
     return ('', [])
 
 
@@ -587,12 +625,34 @@ def _draw_egypt_scenario_panel(surface, world: dict, mouse_pos=None) -> None:
                        and turn + int(debt_rules['deferral_delay_turns'])
                        <= int(world.get('scenario', {}).get('horizon_turns', 20)))
     tax_available = not state.get('tax_decision_taken', False)
+    politics = state.get('politics', {})
     action_rows = [
         [('release_maize', 'Release maize reserves', stock > 0)],
         [('prioritize_domestic_grain', 'Keep more food in Egypt', not state.get('domestic_grain_priority', False))],
-        [('reduce_fellahin_tax', 'Reduce local taxes', tax_available),
-         ('raise_local_taxes', 'Raise local taxes', tax_available)],
     ]
+    if tax_available:
+        action_rows.append([('reduce_fellahin_tax', 'Reduce local taxes', True),
+                            ('raise_local_taxes', 'Raise local taxes', True)])
+    if (float(politics.get('army_loyalty', 1.0)) < 0.72
+            or float(politics.get('nationalist_movement', 0.0)) >= 0.35):
+        army_rows = []
+        if not politics.get('officers_paid'):
+            army_rows.append(('pay_army_arrears', 'Pay officer arrears',
+                              treasury_cash >= float(situation_template()['politics']['officer_pay_cost'])))
+        if not politics.get('officers_promoted'):
+            army_rows.append(('promote_egyptian_officers', 'Promote Egyptian officers', True))
+        if army_rows:
+            action_rows.append(army_rows)
+    if (float(politics.get('palace_authority', 1.0)) < 0.72
+            or float(politics.get('nationalist_movement', 0.0)) >= 0.4
+            or float(state.get('fiscal_autonomy', 1.0)) < 0.9):
+        cabinet_rows = []
+        if not politics.get('representative_cabinet'):
+            cabinet_rows.append(('invite_representative_cabinet', 'Invite representative cabinet', True))
+        if not politics.get('controllers_dismissed'):
+            cabinet_rows.append(('dismiss_foreign_controllers', 'Dismiss foreign controllers', True))
+        if cabinet_rows:
+            action_rows.append(cabinet_rows)
     if state.get('naval_crisis', {}).get('stage') == 'mobilizing':
         from scenario_situation import situation_template
         reinforce_cost = float(situation_template()['naval_crisis']['battery_reinforcement_cost'])
@@ -650,6 +710,8 @@ def _draw_egypt_scenario_panel(surface, world: dict, mouse_pos=None) -> None:
                         reason = ('Alexandria’s batteries have already been prepared.'
                                   if state['naval_crisis'].get('reinforced')
                                   else f'Treasury cash is below the {reinforce_cost:.0f} units required.')
+                    elif action_id == 'pay_army_arrears':
+                        reason = 'The treasury cannot cover the officer arrears package.'
                     else:
                         needed = scheduled_payment if action_id == 'pay_remittance' else scheduled_payment * .5
                         reason = f'Treasury cash is below the {needed:.0f} units needed for this choice.'
@@ -715,7 +777,7 @@ def _draw_egypt_scenario_debrief(surface, world: dict) -> None:
         surface.blit(body_font.render(line, True, TEXT), (x + 14, cur_y))
         cur_y += 22
     cur_y += 8
-    for key in ('food', 'debt', 'politics'):
+    for key in ('food', 'debt', 'politics', 'authority'):
         for line in _wrap_text(debrief.get(key, ''), small_font, w - 28)[:2]:
             surface.blit(small_font.render(line, True, DIM), (x + 14, cur_y))
             cur_y += 19
@@ -804,7 +866,7 @@ def draw_scenario_warning_modal(surface, world: dict, mouse_pos=None) -> None:
     veil.fill((5, 7, 12, 210))
     surface.blit(veil, (0, 0))
     kind = warning.get('kind')
-    card = pygame.Rect(310, 220, 780, 440 if kind in ('debt_due', 'creditor_reaction', 'naval_ultimatum', 'naval_blockade') else 360)
+    card = pygame.Rect(310, 220, 780, 440 if kind in ('debt_due', 'creditor_reaction', 'naval_ultimatum', 'naval_blockade', 'dynastic_crisis', 'officer_movement') else 360)
     border = (225, 178, 87) if kind in ('debt_due', 'creditor_reaction') else (226, 102, 94)
     pygame.draw.rect(surface, (24, 29, 41), card, border_radius=10)
     pygame.draw.rect(surface, border, card, 2, border_radius=10)
@@ -858,6 +920,20 @@ def draw_scenario_warning_modal(surface, world: dict, mouse_pos=None) -> None:
         naval_options = naval_response_options(world, kind)
         options = [(f'naval_response:{response["id"]}', response['label'], response['enabled'])
                    for response in naval_options]
+    elif kind in ('dynastic_crisis', 'officer_movement'):
+        from scenario_politics import response_options
+        politics = state.get('politics', {})
+        title = 'The khedive’s authority is contested' if kind == 'dynastic_crisis' else 'Egyptian officers demand a new government'
+        lines = ([
+            f'Ismail’s palace authority is {float(politics.get("palace_authority", 0)):.0%}; creditor supervision has weakened his position.',
+            'Choose who governs Egypt. The player continues as the governing coalition after any succession.',
+        ] if kind == 'dynastic_crisis' else [
+            f'Army loyalty is {float(politics.get("army_loyalty", 0)):.0%}; the officer-civilian movement is {float(politics.get("nationalist_movement", 0)):.0%}.',
+            'Choose whether the palace, a shared cabinet, or ‘Urabi’s coalition gives orders to the army.',
+        ])
+        political_options = response_options(world, kind)
+        options = [(f'politics_response:{response["id"]}', response['label'], True)
+                   for response in political_options]
     elif kind == 'breakdown':
         title = 'Political breakdown is imminent'
         lines = [
@@ -970,7 +1046,13 @@ def draw_scenario_warning_modal(surface, world: dict, mouse_pos=None) -> None:
             if response is not None:
                 detail = response['tooltip']
                 if not response['enabled']:
-                    detail = 'Unavailable: the treasury cannot cover this settlement. ' + detail
+                    detail = (('Unavailable: the treasury cannot cover this settlement. '
+                               if response_id == 'naval_settle' else '') + detail)
+        if hovered_option.startswith('politics_response:'):
+            response_id = hovered_option.split(':', 1)[1]
+            response = next((item for item in political_options if item['id'] == response_id), None)
+            if response is not None:
+                detail = response['tooltip']
         if detail:
             tooltip_font = _scenario_font(13)
             tooltip_w = card.w - 52
@@ -1021,6 +1103,17 @@ def scenario_warning_modal_hit(pos, world: dict) -> bool:
         if ok:
             if world.get('scenario_warning_modal') is previous_modal:
                 world['scenario_warning_modal'] = None
+            from scenario_egypt_1877 import finish_due_campaign
+            finish_due_campaign(world)
+    elif action.startswith('politics_response:'):
+        from scenario_politics import resolve
+        ok, message = resolve(world, action.split(':', 1)[1])
+        world['scenario_feedback'] = message if ok else f'Not enacted: {message}'
+        if ok:
+            world['scenario_warning_modal'] = None
+            from scenario_situation import advance_creditor_reactions
+            from client.desktop.engine import ticker_push
+            advance_creditor_reactions(world, int(world.get('turn', 0)), ticker_push)
             from scenario_egypt_1877 import finish_due_campaign
             finish_due_campaign(world)
     elif action == 'scenario_rescue_tax':

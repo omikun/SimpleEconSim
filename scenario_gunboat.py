@@ -189,15 +189,20 @@ def naval_response_options(world: dict, kind: str) -> list[dict]:
     ]
     if kind == 'naval_ultimatum':
         balance = coastal_balance(world)
+        politics = state.get('politics', {})
+        unreliable_command = (politics.get('governing_coalition') == 'palace'
+                              and float(politics.get('army_loyalty', 1.0)) < 0.35)
         return common + [
             {'id': 'naval_disarm', 'label': 'Disarm coastal batteries',
              'tooltip': 'Avoid bombardment and the blockade, but lose 8 points of legitimacy and 5 points of autonomy. The debt claim remains unresolved.',
              'enabled': True},
             {'id': 'naval_defend', 'label': 'Defend Alexandria',
-             'tooltip': (f'Keep the forts and gain 3 points of legitimacy. Current British force is {balance["british_force"]:.0f} '
+             'tooltip': (('Unavailable: the garrison will not follow an isolated palace order. '
+                          if unreliable_command else '')
+                         + f'Keep the forts and gain 3 points of legitimacy. Current British force is {balance["british_force"]:.0f} '
                          f'against {balance["egyptian_defense"]:.0f} coastal defense (ratio {balance["ratio"]:.2f}); '
                          'if the force advantage holds, the fleet bombards the batteries and blockades the port.'),
-             'enabled': True},
+             'enabled': not unreliable_command},
         ]
     return common + [
         {'id': 'naval_hold', 'label': 'Hold out another turn',

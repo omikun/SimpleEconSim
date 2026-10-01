@@ -59,6 +59,10 @@ SCENARIO = {
         {"id": "concede_revenue", "title": "Concede revenue oversight", "turn_cost": 1},
         {"id": "default_remittance", "title": "Default on debt service", "turn_cost": 1},
         {"id": "reinforce_alexandria", "title": "Prepare Alexandria's defenses", "turn_cost": 1},
+        {"id": "pay_army_arrears", "title": "Pay officer arrears", "turn_cost": 1},
+        {"id": "promote_egyptian_officers", "title": "Promote Egyptian officers", "turn_cost": 1},
+        {"id": "invite_representative_cabinet", "title": "Invite representative cabinet", "turn_cost": 1},
+        {"id": "dismiss_foreign_controllers", "title": "Dismiss foreign controllers", "turn_cost": 1},
     ),
 }
 
@@ -261,6 +265,8 @@ def prepare_world(world: dict) -> dict:
     egypt.government.food_inventory = world["scenario_state"]["public_maize_stock_units"]
     world["scenario_feedback"] = "Opening crisis: low Nile, threatened maize harvest, and debt service."
     world["scenario_location_by_tile"] = _assign_location_roles(egypt)
+    from scenario_politics import initialize as initialize_politics
+    initialize_politics(world)
     for tile in egypt.tiles:
         if getattr(tile, "scenario_location", "") in ("Nile Delta", "Upper Egypt"):
             tile.scenario_food_yield_modifier = 0.55
@@ -350,6 +356,12 @@ def apply_action(world: dict, action_id: str) -> tuple[bool, str]:
     elif action_id == 'reinforce_alexandria':
         from scenario_gunboat import reinforce_batteries
         ok, message = reinforce_batteries(world)
+        if not ok:
+            return False, message
+    elif action_id in ('pay_army_arrears', 'promote_egyptian_officers',
+                       'invite_representative_cabinet', 'dismiss_foreign_controllers'):
+        from scenario_politics import apply_action as apply_political_action
+        ok, message = apply_political_action(world, action_id)
         if not ok:
             return False, message
     elif action_id in ("pay_remittance", "defer_remittance", "concede_revenue", "default_remittance"):
@@ -466,6 +478,10 @@ def advance_scenario(world: dict, turn: int, ticker_push, on_phase=None) -> None
     if on_phase:
         on_phase('protest_pressure')
     update_foreign_reports(world)
+    from scenario_politics import advance as advance_politics
+    advance_politics(world)
+    if on_phase:
+        on_phase('politics')
 
     metrics = _outcome_metrics(nation)
     thresholds = SCENARIO["thresholds"]
@@ -580,6 +596,9 @@ def build_debrief(world: dict, outcome: str, metrics: dict | None = None) -> dic
         "food": f"{metrics.get('hungry', 0)} of {metrics.get('households', 0)} households hungry ({metrics.get('hunger_rate', 0.0):.0%}).",
         "debt": debt_detail,
         "politics": f"Government legitimacy {metrics.get('legitimacy', 0.0):.0%}; average unrest {metrics.get('unrest', 0.0):.2f}.",
+        "authority": (f"{state.get('politics', {}).get('ruler', 'Unknown ruler')}; "
+                      f"{state.get('politics', {}).get('governing_coalition', 'unknown')} coalition; "
+                      f"army loyalty {state.get('politics', {}).get('army_loyalty', 0.0):.0%}."),
         "actions": actions,
         "creditor_reactions": [entry['headline'] for entry in state.get('creditor_news', [])],
         "naval_events": [entry['text'] for entry in state.get('naval_news', [])],
