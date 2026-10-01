@@ -43,6 +43,8 @@ The 20-turn campaign compresses years into decisions, so turns are not literal c
 
 ## Phase 3 — Canal geography, real fleets, and separate foreign decisions
 
+**Status:** Complete for strategic Guided play. Alexandria, Port Said, Ismailia, Cairo, and Upper Egypt are connected by a route graph anchored to generated Nile tiles. Canal transit rights and conserved toll transfers affect passage. The British squadron has a position, ships, guns, transports, coal, damage, and supply; only a supplied squadron off Alexandria can enforce its blockade. Britain and France decide independently, and Ottoman mediation can delay or settle an ultimatum. Cairo can close foreign canal transit.
+
 **Problem:** Alexandria is a generated coastal tile, but the map lacks a playable Suez Canal, Port Said, Ismailia, Egyptian coastal batteries, and ship movement. The current squadron's force and travel are scenario abstractions. French support is diplomatic information only.
 
 **Mechanics:** Give the campaign a connected Mediterranean–Alexandria–Port Said–Ismailia–Cairo route, canal transit rights and tolls, and defensible landing sites. Model fleet units with ships, guns, coal, supply, range, movement, and attrition. Use the existing blockade effect only when ships are present and supplied. Britain and France independently weigh bond exposure, canal access, domestic politics, cost, and diplomatic risk. Include Ottoman suzerainty and possible mediation or authorization as political constraints.

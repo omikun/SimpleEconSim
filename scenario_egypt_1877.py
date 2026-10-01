@@ -265,6 +265,8 @@ def prepare_world(world: dict) -> dict:
     egypt.government.food_inventory = world["scenario_state"]["public_maize_stock_units"]
     world["scenario_feedback"] = "Opening crisis: low Nile, threatened maize harvest, and debt service."
     world["scenario_location_by_tile"] = _assign_location_roles(egypt)
+    from scenario_geography import initialize as initialize_geography
+    initialize_geography(world)
     from scenario_politics import initialize as initialize_politics
     initialize_politics(world)
     for tile in egypt.tiles:
@@ -356,6 +358,11 @@ def apply_action(world: dict, action_id: str) -> tuple[bool, str]:
     elif action_id == 'reinforce_alexandria':
         from scenario_gunboat import reinforce_batteries
         ok, message = reinforce_batteries(world)
+        if not ok:
+            return False, message
+    elif action_id == 'close_canal':
+        from scenario_geography import close_canal
+        ok, message = close_canal(world)
         if not ok:
             return False, message
     elif action_id in ('pay_army_arrears', 'promote_egyptian_officers',

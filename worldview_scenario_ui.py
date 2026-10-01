@@ -109,6 +109,9 @@ def _egypt_scenario_pressures(world: dict) -> list[dict]:
     elif naval_stage == 'blockaded':
         debt_value = 'Alexandria under blockade'
         debt_cause = 'Coastal routes are blocked. Britain pays fleet upkeep each turn; Cairo can settle or hold out.'
+    elif naval_stage == 'mediation':
+        debt_value = 'Ottoman mediation pending'
+        debt_cause = 'The fleet remains off Alexandria for one turn while Istanbul seeks terms.'
     debt_tone = 'urgent' if payment_status in ('deferred', 'defaulted') or (remaining <= 1 and payment_status in ('upcoming', 'unpaid')) else 'warning'
     if naval_stage in ('mobilizing', 'ultimatum', 'blockaded'):
         debt_tone = 'urgent'
@@ -135,6 +138,18 @@ def _egypt_scenario_pressures(world: dict) -> list[dict]:
         entry = recent[-1]
         debt_details.append(f'Latest transfer: turn {entry["turn"]}, {entry["amount"]:,.2f} to {entry["creditor"]} '
                             f'from {entry.get("source", entry["kind"])}.')
+    geography = state.get('geography', {})
+    fleet = geography.get('fleets', {}).get('Britain')
+    if fleet:
+        debt_details.append(f'British fleet: {fleet["ships"]} ships, {fleet["guns"]:.0f} guns at '
+                            f'{fleet["location"]}; coal {fleet["coal"]}, '
+                            f'{"supplied" if fleet["supplied"] else "unsupplied"}.')
+    debt_details.append(f'Canal: {"open" if geography.get("canal_open", True) else "closed"} to foreign transit; '
+                        f'controller {geography.get("canal_controller", "Egypt")}.' )
+    diplomacy = geography.get('diplomacy', {})
+    if diplomacy:
+        debt_details.append('Foreign positions: ' + ', '.join(f'{name} {policy.replace("_", " ")}'
+                                                             for name, policy in diplomacy.items()) + '.')
     return [
         {'title': 'Household maize access', 'value': food_value, 'cause': food_cause, 'tone': food_tone},
         {'title': 'Debt service', 'value': debt_value, 'cause': debt_cause, 'tone': debt_tone,
@@ -377,6 +392,11 @@ def _guided_action_preview(world: dict, nation, action_id: str) -> tuple[str, li
             f'Pay {cost:.0f} treasury units to Egyptian workers preparing Alexandria’s batteries.',
             f'Coastal defense strength rises from {current:.0f} to {stronger:.0f}; a strong defense can deter a British fleet.',
             'This uses this turn’s major domestic decision and can be done only once while Britain mobilizes.',
+        ])
+    if action_id == 'close_canal':
+        return ('Foreign canal transit closed • confidence −10 points', [
+            'Britain cannot enter the Port Said–Ismailia route while transit is closed.',
+            'A fleet already off Alexandria stays there; creditor confidence falls by 10 points.',
         ])
     politics = state.get('politics', {})
     if action_id == 'pay_army_arrears':
@@ -658,6 +678,9 @@ def _draw_egypt_scenario_panel(surface, world: dict, mouse_pos=None) -> None:
         reinforce_cost = float(situation_template()['naval_crisis']['battery_reinforcement_cost'])
         action_rows.append([('reinforce_alexandria', 'Prepare Alexandria defenses',
                              not state['naval_crisis'].get('reinforced') and treasury_cash >= reinforce_cost)])
+    if (state.get('naval_crisis', {}).get('stage') in ('mobilizing', 'ultimatum', 'blockaded')
+            and state.get('geography', {}).get('canal_open')):
+        action_rows.append([('close_canal', 'Close canal to foreign transit', True)])
     if state.get('payment_status') in ('upcoming', 'unpaid', 'deferred'):
         action_rows.append([
             ('pay_remittance', 'Pay debt service', payment_ready and treasury_cash >= scheduled_payment)

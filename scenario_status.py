@@ -19,6 +19,7 @@ ACTION_LABELS = {
     'invite_representative_cabinet': 'Invited representative cabinet',
     'dismiss_foreign_controllers': 'Dismissed foreign controllers',
     'reinforce_alexandria': 'Prepared Alexandria batteries',
+    'close_canal': 'Closed foreign canal transit',
 }
 
 PHASE_LABELS = {
