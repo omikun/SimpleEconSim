@@ -50,6 +50,9 @@ SCENARIO = {
         {"id": "occupation", "government_control": "British"},
         {"id": "coercive_extraction", "tax_policy": "high extraction", "political_cost": "high"},
         {"id": "breakdown", "government_control": "lost"},
+        {"id": "fiscal_hardship", "food_access": "poor", "debt": "resolved"},
+        {"id": "coerced_disarmament", "military_concession": "disarmed", "debt": "unresolved"},
+        {"id": "unresolved_crisis", "debt": "unresolved", "government_control": "Egyptian"},
     ),
     # Fixed map seeds make this authored campaign reproducible without affecting
     # ordinary sandbox generation. CLI seed flags remain available for tuning.
@@ -262,6 +265,8 @@ def prepare_world(world: dict) -> dict:
         "creditor_levy_per_turn": 0.0,
         "creditor_levy_remaining": 0.0,
         "settlement_path": None,
+        "disarmed_batteries": False,
+        "naval_withdrawal_cause": None,
         "naval_crisis": {"stage": "none"},
         "naval_news": [],
         "creditor_reactions": [],
@@ -452,7 +457,7 @@ def apply_action(world: dict, action_id: str) -> tuple[bool, str]:
                 message = f"Paid the {amount:,.0f}-unit scheduled debt-service remittance."
             if state.get('naval_crisis', {}).get('stage') in ('mobilizing', 'ultimatum', 'blockaded'):
                 from scenario_gunboat import withdraw
-                withdraw(world, 'Debt service is settled; the British squadron withdraws from Alexandria.')
+                withdraw(world, 'Debt service is settled; the British squadron withdraws from Alexandria.', cause='settlement')
         elif action_id == "defer_remittance":
             state["payment_status"] = "deferred"
             state["deferral_count"] = int(state.get("deferral_count", 0)) + 1
@@ -580,33 +585,58 @@ def classify_outcome(world: dict, metrics: dict | None = None) -> str:
                    if n.name == world.get('player_nation_name')), None)
     if nation is None:
         return 'breakdown'
-    metrics = metrics or _outcome_metrics(nation)
+    metrics = metrics if metrics is not None else _outcome_metrics(nation)
+    evidence = outcome_evidence(world, metrics)
     thresholds = SCENARIO['thresholds']
-    campaign = state.get('campaign', {})
-    control = campaign.get('territorial_control', {})
-    nationalist = state.get('politics', {}).get('governing_coalition') == 'nationalist'
+    control = evidence['territorial_control']
     if control.get('Cairo') == 'Britain':
         return 'occupation'
     if any(owner == 'Britain' for owner in control.values()):
         return 'stalled_intervention'
-    if nationalist and campaign.get('expedition', {}).get('stage') in ('repelled', 'withdrawn'):
-        return 'nationalist_victory'
     if metrics['legitimacy'] <= thresholds['breakdown_legitimacy'] or metrics['unrest'] >= thresholds['breakdown_unrest']:
         return 'breakdown'
-    if (float(state.get('creditor_levy_per_turn', 0)) > 0
-            and float(state.get('creditor_levy_remaining', 0)) > 0):
+    if evidence['active_assignment']:
         return 'imposed_financial_control'
     if state.get('settlement_path') == 'ottoman_mediation' and state.get('payment_status') == 'restructured':
         return 'sovereign_compromise'
-    if state.get('payment_status') == 'defaulted' and state.get('naval_crisis', {}).get('stage') == 'withdrawn':
+    if evidence['disarmed'] and evidence['outstanding_claim'] > 0:
+        return 'coerced_disarmament'
+    if (evidence['nationalist'] and evidence['foreign_defeated']
+            and not evidence['active_assignment'] and not evidence['disarmed']):
+        return 'nationalist_victory'
+    if (state.get('payment_status') == 'defaulted' and evidence['foreign_defeated']
+            and not evidence['active_assignment'] and not evidence['disarmed']):
         return 'successful_repudiation'
     if state.get('extraction_level', 0) > 0:
         return 'coercive_extraction'
+    if evidence['outstanding_claim'] <= .01 and metrics['hunger_rate'] > thresholds['protected_hunger_rate']:
+        return 'fiscal_hardship'
     if metrics['hunger_rate'] <= thresholds['protected_hunger_rate'] and state.get('payment_status') == 'paid':
         return 'relief_and_payment'
     if metrics['hunger_rate'] <= thresholds['protected_hunger_rate'] and state.get('payment_status') == 'restructured':
         return 'creditor_settlement'
-    return 'breakdown'
+    return 'unresolved_crisis'
+
+
+def outcome_evidence(world: dict, metrics: dict | None = None) -> dict:
+    """Facts used by the ending and shown in the debrief."""
+    from scenario_debt import outstanding
+    state = world.get('scenario_state', {})
+    campaign = state.get('campaign', {})
+    cause = state.get('naval_withdrawal_cause')
+    expedition = campaign.get('expedition', {})
+    claim = outstanding(world)
+    return {
+        'outstanding_claim': claim,
+        'territorial_control': dict(campaign.get('territorial_control', {})),
+        'active_assignment': (float(state.get('creditor_levy_per_turn', 0)) > 0
+                              and claim > .01),
+        'disarmed': bool(state.get('disarmed_batteries')),
+        'withdrawal_cause': cause,
+        'foreign_defeated': (cause in ('deterrence', 'unsustainable', 'military_defeat', 'no_access')
+                             or expedition.get('stage') == 'repelled'),
+        'nationalist': state.get('politics', {}).get('governing_coalition') == 'nationalist',
+    }
 
 
 def finish_due_campaign(world: dict) -> None:
@@ -646,6 +676,7 @@ def _finish_scenario(world: dict, nation, outcome: str, turn: int, metrics: dict
     state["ending"] = outcome
     state["ending_turn"] = turn
     state["ending_metrics"] = metrics
+    state["ending_evidence"] = outcome_evidence(world, metrics)
     state["turns_remaining"] = max(0, int(SCENARIO["horizon_turns"]) - turn)
     state["debrief"] = build_debrief(world, outcome, metrics)
     world["playing"] = False
@@ -668,6 +699,9 @@ def build_debrief(world: dict, outcome: str, metrics: dict | None = None) -> dic
         "stalled_intervention": ("Stalled intervention", "Britain holds a foothold but has not taken Cairo or its government."),
         "nationalist_victory": ("Nationalist victory", "The Egyptian governing coalition retained authority and the British expedition withdrew."),
         "successful_repudiation": ("Successful repudiation", "Egypt withheld payment and the foreign expedition withdrew without gaining control."),
+        "fiscal_hardship": ("Fiscal settlement amid hardship", "Debt was settled, but household food access remained poor."),
+        "coerced_disarmament": ("Disarmed under pressure", "Egypt disarmed its coastal batteries while the creditor claim remained unresolved."),
+        "unresolved_crisis": ("Unresolved crisis", "Egypt still governs, but the debt or foreign claim remains unsettled."),
     }
     title, summary = labels.get(outcome, labels["breakdown"])
     actions = [entry.get("message", "") for entry in state.get("actions_taken", [])]
@@ -690,6 +724,10 @@ def build_debrief(world: dict, outcome: str, metrics: dict | None = None) -> dic
     debt_detail += (f' Formal sovereignty: {occupation.get("formal_sovereign", "Egypt")}; '
                     f'customs controller: {institutions.get("customs", "Egypt")}; '
                     f'cabinet controller: {institutions.get("cabinet", "Egypt")}.')
+    evidence = outcome_evidence(world, metrics)
+    debt_detail += (f' Outstanding claim: {evidence["outstanding_claim"]:,.0f}; '
+                    f'withdrawal cause: {evidence["withdrawal_cause"] or "none"}; '
+                    f'coastal batteries disarmed: {"yes" if evidence["disarmed"] else "no"}.')
     return {
         "outcome": outcome,
         "title": title,

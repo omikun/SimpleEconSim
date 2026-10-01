@@ -210,7 +210,7 @@ def resolve_creditor_response(world: dict, response_id: str) -> tuple[bool, str]
     elif response_id in ('accept_customs_control', 'offer_arrears_plan'):
         if state.get('naval_crisis', {}).get('stage') in ('mobilizing', 'ultimatum', 'blockaded'):
             from scenario_gunboat import withdraw
-            withdraw(world, 'Cairo and the creditors reach terms; the naval claim is withdrawn.')
+            withdraw(world, 'Cairo and the creditors reach terms; the naval claim is withdrawn.', cause='settlement')
     text = f'Creditor reply: {response["label"]}.'
     state.setdefault('actions_taken', []).append({'turn': int(world.get('turn', 0)),
                                                    'action': response_id,

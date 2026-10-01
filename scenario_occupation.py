@@ -110,7 +110,7 @@ def advance(world):
     egypt = _nation(world, 'Egypt')
     units = _occupying_units(world)
     if not units:
-        withdraw(world, 'Without a landing garrison Britain abandons its Egyptian foothold.')
+        withdraw(world, 'Without a landing garrison Britain abandons its Egyptian foothold.', cause='unsustainable')
         return
     # Wages are paid by shared step_armies; this expedition supply cost is a
     # separate conserved transfer to households and can become unsustainable.
@@ -121,7 +121,7 @@ def advance(world):
             unit.morale = max(.1, unit.morale - .25)
             unit.soldiers = max(0, unit.soldiers - 3)
         if sum(unit.soldiers for unit in units) < 8:
-            withdraw(world, 'The occupying garrison runs short of supply and withdraws.')
+            withdraw(world, 'The occupying garrison runs short of supply and withdraws.', cause='unsustainable')
             return
     else:
         occupation['garrison_supply_paid'] += supply
@@ -176,7 +176,7 @@ def resolve_capital(world, response_id):
         occupation['revenue_ledger'].append({'turn': int(world['turn']), 'source': 'postwar_settlement',
                                              'amount': 40.0, 'holder': 'Britain'})
         state['payment_status'] = 'restructured'
-        withdraw(world, 'Cairo negotiates a postwar settlement; Britain withdraws from Egyptian territory.')
+        withdraw(world, 'Cairo negotiates a postwar settlement; Britain withdraws from Egyptian territory.', cause='settlement')
     elif response_id == 'evacuate_cairo':
         state['campaign']['territorial_control']['Cairo'] = 'Britain'
         _move_occupation_force_to_cairo(world)
@@ -199,14 +199,14 @@ def resolve_capital(world, response_id):
         else:
             _event(world, f'Cairo repels the British advance; British losses {battle["atk_losses"]}, Egyptian losses {battle["def_losses"]}.')
             if sum(unit.soldiers for unit in attackers) < 8:
-                withdraw(world, 'British losses force withdrawal from Egypt.')
+                withdraw(world, 'British losses force withdrawal from Egypt.', cause='military_defeat')
     record_change(world, response_id, before, snapshot(world))
     state.setdefault('actions_taken', []).append({'turn': int(world['turn']), 'action': response_id,
                                                    'message': world['scenario_feedback']})
     return True, world['scenario_feedback']
 
 
-def withdraw(world, reason):
+def withdraw(world, reason, *, cause='other'):
     state = world['scenario_state']
     state['campaign']['territorial_control'].clear()
     state['campaign']['expedition']['stage'] = 'withdrawn'
@@ -218,7 +218,7 @@ def withdraw(world, reason):
     claim_institutions(world)
     state['fiscal_autonomy'] = max(.55, float(state.get('fiscal_autonomy', 0)))
     from scenario_gunboat import withdraw as naval_withdraw
-    naval_withdraw(world, reason)
+    naval_withdraw(world, reason, cause=cause)
 
 
 def apply_action(world, action_id):
@@ -260,7 +260,7 @@ def apply_action(world, action_id):
             return False, 'Britain sees no reason to withdraw while resistance is weak and supply is affordable.'
         egypt.government.agent.cash -= cost
         britain.government.agent.cash += cost
-        withdraw(world, 'Britain accepts withdrawal terms under Egyptian resistance and supply pressure.')
+        withdraw(world, 'Britain accepts withdrawal terms under Egyptian resistance and supply pressure.', cause='negotiated_withdrawal')
         message = world['scenario_feedback']
     else:
         return False, 'Unknown occupation decision.'

@@ -53,7 +53,8 @@ def play_campaign(mode):
                                     if item['enabled']))
                 ok, message = resolve_creditor_response(world, answer)
             elif kind in ('naval_ultimatum', 'naval_blockade'):
-                answer = ('naval_seek_mediation' if mode == 'mediation' else
+                answer = ('naval_disarm' if mode == 'disarm' else
+                          'naval_seek_mediation' if mode == 'mediation' else
                           'naval_accept_control' if mode == 'imposed' else
                           'naval_defend') if kind == 'naval_ultimatum' else 'naval_hold'
                 ok, message = resolve_naval_response(world, answer)
@@ -127,6 +128,7 @@ class ScenarioPlaythroughTests(unittest.TestCase):
             'nationalist': 'nationalist_victory',
             'stalled': 'stalled_intervention',
             'breakdown': 'breakdown',
+            'disarm': 'coerced_disarmament',
         }
         reached = {'relief_and_payment', 'occupation', 'successful_repudiation'}
         for choices, expected in cases.items():
@@ -138,7 +140,24 @@ class ScenarioPlaythroughTests(unittest.TestCase):
                 reached.add(expected)
         declared = {entry['id'] for entry in SCENARIO['outcomes']}
         self.assertEqual(len(SCENARIO['outcomes']), len(declared))
-        self.assertEqual(declared, reached)
+        self.assertEqual(declared - {'fiscal_hardship', 'unresolved_crisis'}, reached)
+
+    def test_outcome_evidence_distinguishes_food_hardship_from_breakdown(self):
+        from scenario_egypt_1877 import classify_outcome
+        world, _ = play_campaign('peace')
+        state = world['scenario_state']
+        self.assertEqual(classify_outcome(world, {
+            **state['ending_metrics'], 'hunger_rate': 0.30,
+        }), 'fiscal_hardship')
+        self.assertEqual(classify_outcome(world, {
+            **state['ending_metrics'], 'hunger_rate': 0.30, 'legitimacy': 0.05,
+        }), 'breakdown')
+
+    def test_outstanding_claim_without_enforcement_is_unresolved(self):
+        from scenario_egypt_1877 import classify_outcome
+        world = build_world_view(scenario_id='egypt_1877')
+        world['scenario_state']['payment_status'] = 'defaulted'
+        self.assertEqual(classify_outcome(world), 'unresolved_crisis')
 
 
 if __name__ == '__main__':

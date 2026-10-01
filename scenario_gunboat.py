@@ -58,6 +58,7 @@ def begin_escalation(world: dict, reason: str) -> None:
         return
     crisis.update(stage='mobilizing', reason=reason, due_turn=int(world['turn']) + 1,
                   last_offer_turn=-1, french_support=False)
+    state['naval_withdrawal_cause'] = None
     state['chapter'] = 2
     _record(world, 'Cairo refused collection. Britain is weighing a naval expedition to Alexandria.')
 
@@ -74,10 +75,12 @@ def _remove_squadron(world: dict) -> None:
     crisis['unit_id'] = None
 
 
-def withdraw(world: dict, reason: str) -> None:
-    crisis = world['scenario_state']['naval_crisis']
+def withdraw(world: dict, reason: str, *, cause: str = 'other') -> None:
+    state = world['scenario_state']
+    crisis = state['naval_crisis']
     _remove_squadron(world)
     crisis['stage'] = 'withdrawn'
+    state['naval_withdrawal_cause'] = cause
     _record(world, reason)
 
 
@@ -129,31 +132,31 @@ def advance_naval_crisis(world: dict) -> None:
     egypt, britain, france = (_nation(world, name) for name in ('Egypt', 'Britain', 'France'))
     alexandria = _alexandria(egypt) if egypt else None
     if not egypt or not britain or not alexandria or not getattr(alexandria, 'is_coast', False):
-        withdraw(world, 'No enforceable coastal approach exists at Alexandria; the naval claim lapses.')
+        withdraw(world, 'No enforceable coastal approach exists at Alexandria; the naval claim lapses.', cause='no_access')
         return
     if state.get('payment_status') in ('paid', 'restructured'):
-        withdraw(world, 'The debt settlement ends the naval confrontation.')
+        withdraw(world, 'The debt settlement ends the naval confrontation.', cause='settlement')
         return
     british_unrest = _protest(world, 'Britain')
     decisions = foreign_decisions(world)
     if british_unrest >= float(rules['max_british_protest_energy']):
-        withdraw(world, 'Domestic unrest in Britain makes the Alexandria expedition untenable.')
+        withdraw(world, 'Domestic unrest in Britain makes the Alexandria expedition untenable.', cause='unsustainable')
         return
     if stage == 'mobilizing':
         if turn < int(crisis['due_turn']):
             return
         if decisions['Britain'] != 'intervene':
-            withdraw(world, 'London declines an expedition after reviewing its claim, treasury, and domestic unrest.')
+            withdraw(world, 'London declines an expedition after reviewing its claim, treasury, and domestic unrest.', cause='unsustainable')
             return
         if _force_ratio(world) < float(rules['minimum_force_ratio']):
-            withdraw(world, 'Egyptian coastal defenses make the British naval threat a bluff.')
+            withdraw(world, 'Egyptian coastal defenses make the British naval threat a bluff.', cause='deterrence')
             return
         if not _transfer_to_households(britain, float(rules['mobilization_cost'])):
-            withdraw(world, 'Britain cannot finance and supply a squadron for Alexandria.')
+            withdraw(world, 'Britain cannot finance and supply a squadron for Alexandria.', cause='unsustainable')
             return
         fleet = create_fleet(world, 'Britain', guns=rules['british_squadron_strength'])
         if not move_fleet(world, 'Britain', 'Alexandria'):
-            withdraw(world, 'The British squadron lacks coal for the Alexandria passage.')
+            withdraw(world, 'The British squadron lacks coal for the Alexandria passage.', cause='unsustainable')
             return
         crisis.update(stage='ultimatum', unit_id='guided_british_fleet', port_tile=alexandria.name,
                       french_support=decisions['France'] == 'support_demand')
@@ -164,11 +167,11 @@ def advance_naval_crisis(world: dict) -> None:
         world['playing'] = False
         return
     if not _transfer_to_households(britain, float(rules['upkeep_per_turn'])):
-        withdraw(world, 'Britain cannot pay the fleet’s continuing supply costs; the squadron withdraws.')
+        withdraw(world, 'Britain cannot pay the fleet’s continuing supply costs; the squadron withdraws.', cause='unsustainable')
         return
     resupply(world, 'Britain', 1)
     if not fleet_at(world, 'Britain', 'Alexandria'):
-        withdraw(world, 'The British squadron is absent or unsupplied; the Alexandria blockade ends.')
+        withdraw(world, 'The British squadron is absent or unsupplied; the Alexandria blockade ends.', cause='unsustainable')
         return
     if stage == 'ultimatum':
         world['scenario_warning_modal'] = {'kind': 'naval_ultimatum'}
@@ -185,7 +188,7 @@ def advance_naval_crisis(world: dict) -> None:
             if ok:
                 state['payment_status'] = 'restructured'
                 state['settlement_path'] = 'ottoman_mediation'
-                withdraw(world, f'Ottoman mediation secures a {amount:,.0f}-unit settlement; the fleet withdraws.')
+                withdraw(world, f'Ottoman mediation secures a {amount:,.0f}-unit settlement; the fleet withdraws.', cause='settlement')
                 return
         crisis['stage'] = 'ultimatum'
         _record(world, 'Ottoman mediation fails to secure terms. The British ultimatum resumes.')
@@ -272,7 +275,7 @@ def resolve_naval_response(world: dict, response_id: str) -> tuple[bool, str]:
         state['creditor_levy_remaining'] = 0.0
         state['fiscal_autonomy'] = max(0.0, state['fiscal_autonomy'] - 0.10)
         state['creditor_confidence'] = min(1.0, state['creditor_confidence'] + 0.15)
-        withdraw(world, f'Cairo pays {amount:,.0f} and negotiates a settlement; the British squadron withdraws.')
+        withdraw(world, f'Cairo pays {amount:,.0f} and negotiates a settlement; the British squadron withdraws.', cause='settlement')
     elif response_id == 'naval_accept_control':
         state['creditor_levy_per_turn'] = 5.0
         from scenario_debt import outstanding
@@ -280,12 +283,13 @@ def resolve_naval_response(world: dict, response_id: str) -> tuple[bool, str]:
         state['financial_control_origin'] = 'naval_ultimatum'
         state['fiscal_autonomy'] = max(0.0, state['fiscal_autonomy'] - 0.15)
         state['creditor_confidence'] = min(1.0, state['creditor_confidence'] + 0.05)
-        withdraw(world, 'Cairo accepts a customs levy under naval pressure; the squadron withdraws.')
+        withdraw(world, 'Cairo accepts a customs levy under naval pressure; the squadron withdraws.', cause='concession')
     elif response_id == 'naval_disarm':
         egypt.legitimacy = max(0.0, egypt.legitimacy - 0.08)
         state['fiscal_autonomy'] = max(0.0, state['fiscal_autonomy'] - 0.05)
         crisis['battery_strength'] = 0.0
-        withdraw(world, 'Cairo disarms Alexandria’s batteries. The fleet withdraws, but the debt claim survives.')
+        state['disarmed_batteries'] = True
+        withdraw(world, 'Cairo disarms Alexandria’s batteries. The fleet withdraws, but the debt claim survives.', cause='disarmament')
     elif response_id == 'naval_seek_mediation':
         crisis['stage'] = 'mediation'
         crisis['mediation_due_turn'] = int(world['turn']) + 1
@@ -293,16 +297,16 @@ def resolve_naval_response(world: dict, response_id: str) -> tuple[bool, str]:
     elif response_id == 'naval_defend':
         egypt.legitimacy = min(1.0, egypt.legitimacy + 0.03)
         if not fleet_at(world, 'Britain', 'Alexandria'):
-            withdraw(world, 'No supplied squadron remains off Alexandria to enforce the ultimatum.')
+            withdraw(world, 'No supplied squadron remains off Alexandria to enforce the ultimatum.', cause='unsustainable')
         elif _force_ratio(world) < float(situation_template()['naval_crisis']['minimum_force_ratio']):
-            withdraw(world, 'Alexandria’s defenses deter the squadron; Britain abandons its ultimatum.')
+            withdraw(world, 'Alexandria’s defenses deter the squadron; Britain abandons its ultimatum.', cause='deterrence')
         else:
             alexandria = _alexandria(egypt)
             manager = get_imperialism_manager()
             ok, message = manager.impose_naval_blockade(_nation(world, 'Britain'), egypt,
                                                        alexandria, int(world['turn']), world)
             if not ok:
-                withdraw(world, f'Britain cannot enforce the blockade: {message}')
+                withdraw(world, f'Britain cannot enforce the blockade: {message}', cause='unsustainable')
             else:
                 crisis['stage'] = 'blockaded'
                 from scenario_campaign import bombard_alexandria

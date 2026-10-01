@@ -149,21 +149,21 @@ def advance_expedition(world):
         cost = float(situation_template()['naval_crisis']['upkeep_per_turn'])
         if not _transfer_to_households(_nation(world, 'Britain'), cost):
             expedition['stage'] = 'repelled'
-            withdraw(world, 'Britain cannot supply its canal expedition; the squadron withdraws.')
+            withdraw(world, 'Britain cannot supply its canal expedition; the squadron withdraws.', cause='unsustainable')
             return True
         if stage == 'marching_tel':
             message = _battle(world, 'Tel el Kebir')
             from scenario_gunboat import _record
             _record(world, message, 'WAR')
             if expedition['stage'] == 'repelled':
-                withdraw(world, 'Egyptian defenders hold Tel el Kebir; the British expedition withdraws.')
+                withdraw(world, 'Egyptian defenders hold Tel el Kebir; the British expedition withdraws.', cause='military_defeat')
             return True
         route = {'Alexandria': 'Mediterranean', 'Mediterranean': 'Port Said',
                  'Port Said': 'Ismailia'}
         destination = route.get(fleet['location'])
         if destination is None or not move_fleet(world, 'Britain', destination):
             expedition['stage'] = 'repelled'
-            withdraw(world, 'Canal denial or lost supply stops the British landing campaign.')
+            withdraw(world, 'Canal denial or lost supply stops the British landing campaign.', cause='deterrence')
             return True
         if destination == 'Ismailia':
             expedition['stage'] = 'marching_tel'
@@ -187,7 +187,7 @@ def resolve_landing(world, response_id):
         message = _battle(world, 'Alexandria')
         if expedition['stage'] == 'repelled':
             from scenario_gunboat import withdraw
-            withdraw(world, message)
+            withdraw(world, message, cause='military_defeat')
     elif response_id == 'defend_canal':
         _move_egypt_garrison(world, 'Tel el Kebir')
         expedition.update(stage='sailing_canal', route='Port Said–Ismailia–Tel el Kebir')
@@ -223,7 +223,7 @@ def resolve_landing(world, response_id):
         state['fiscal_autonomy'] = max(0.0, state['fiscal_autonomy'] - .10)
         expedition['stage'] = 'settled'
         from scenario_gunboat import withdraw
-        withdraw(world, 'Cairo negotiates a settlement before the landing; the fleet withdraws.')
+        withdraw(world, 'Cairo negotiates a settlement before the landing; the fleet withdraws.', cause='settlement')
         message = world['scenario_feedback']
     from scenario_gunboat import _record
     _record(world, message, 'WAR')
