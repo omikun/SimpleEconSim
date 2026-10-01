@@ -64,7 +64,7 @@ def scenario_pressures(world: dict) -> list[dict]:
 
 
 def _egypt_scenario_pressures(world: dict) -> list[dict]:
-    nation = next((n for n in world.get('nations', []) if n.name == world.get('player_nation_name')), None)
+    nation = _egypt_nation(world)
     if nation is None:
         return [{'title': 'Government unavailable', 'value': 'Select the Egyptian administration.',
                  'cause': 'The scenario needs a player government.', 'tone': 'urgent'}]
@@ -83,10 +83,17 @@ def _egypt_scenario_pressures(world: dict) -> list[dict]:
     payment_turn = int(state.get('payment_window_turn', 6))
     remaining = max(0, payment_turn - int(world.get('turn', 0)))
     payment_status = state.get('payment_status', 'upcoming')
-    debt_value = f'{payment_status.title()} • {remaining} turns to payment window'
+    cash = float(getattr(nation.government.agent, 'cash', 0.0))
+    remittance = float(state.get('scheduled_remittance', 200.0))
     confidence = float(state.get('creditor_confidence', 0.6))
-    debt_tone = 'urgent' if payment_status == 'deferred' or (remaining <= 1 and payment_status != 'paid') else 'warning'
-    debt_cause = f'Creditor confidence {confidence:.0%}; payment draws from the treasury.'
+    if payment_status in ('upcoming', 'unpaid'):
+        debt_value = (f'Due now • {remittance:.0f} cash needed' if remaining == 0
+                      else f'{remaining} turns to payment • {cash:.0f} cash')
+        debt_cause = f'Pay {remittance:.0f}, concede {remittance / 2:.0f}, or defer; creditor confidence {confidence:.0%}.'
+    else:
+        debt_value = f'{payment_status.title()} • creditor confidence {confidence:.0%}'
+        debt_cause = f'Treasury cash {cash:.0f}; fiscal autonomy {float(state.get("fiscal_autonomy", 1.0)):.0%}.'
+    debt_tone = 'urgent' if payment_status in ('deferred', 'defaulted') or (remaining <= 1 and payment_status in ('upcoming', 'unpaid')) else 'warning'
 
     unrest = sum(float(getattr(r, 'unrest_level', 0.0)) for r in nation.tiles) / max(1, len(nation.tiles))
     legitimacy = float(getattr(nation, 'legitimacy', 0.5))
@@ -231,6 +238,158 @@ def _scenario_font(pixel_size: float):
     return get_font(max(9, math.ceil(pixel_size / 0.65)))
 
 
+def _egypt_nation(world: dict):
+    return next((n for n in world.get('nations', []) if n.name == world.get('player_nation_name')), None)
+
+
+def _guided_action_preview(world: dict, nation, action_id: str) -> tuple[str, list[str]]:
+    """Describe immediate rule changes separately from later simulation effects."""
+    if nation is None:
+        return ('Government unavailable', ['The Egyptian administration is unavailable.'])
+    state = world.get('scenario_state', {})
+    stock = int(getattr(nation.government, 'food_inventory', 0))
+    cash = float(nation.government.agent.cash)
+    confidence = float(state.get('creditor_confidence', 0.6))
+    autonomy = float(state.get('fiscal_autonomy', 1.0))
+    legitimacy = float(getattr(nation, 'legitimacy', 0.5))
+    tiles = list(nation.tiles)
+    unrest = sum(float(getattr(tile, 'unrest_level', 0.0)) for tile in tiles) / max(1, len(tiles))
+    if action_id == 'release_maize':
+        households = [a for tile in tiles for a in getattr(tile, 'agents', [])
+                      if getattr(a, 'alive', True) and not getattr(a, 'is_government', False)
+                      and not getattr(a, 'is_corporation', False) and not getattr(a, 'is_trader', False)]
+        rations = min(stock, int(state.get('relief_units_per_turn', 30)), len(households))
+        return (f'Feed {rations} • stores {stock}→{stock - rations}', [
+            f'Now: give {rations} households one maize ration; public stores {stock} → {stock - rations}.',
+            'Hungry households receive rations first. Their current hunger streak resets if reached.',
+            'Next turns: fewer public rations remain; future hunger still depends on harvests and prices.',
+        ])
+    if action_id == 'prioritize_domestic_grain':
+        return (f'Keep 50% • credit {confidence:.0%}→{max(0, confidence - .10):.0%}', [
+            'Now: set each Egyptian district to retain 50% of food for local supply.',
+            f'Creditor confidence {confidence:.0%} → {max(0, confidence - .10):.0%}.',
+            'Next turns: local food supply can improve, while export receipts may fall.',
+        ])
+    if action_id == 'reduce_fellahin_tax':
+        next_unrest = sum(max(0, float(getattr(tile, 'unrest_level', 0.0)) - .08) for tile in tiles) / max(1, len(tiles))
+        return ('Tax −3pp • unrest ↓', [
+            'Now: district tax rates fall by up to 3 percentage points (floor 0).',
+            f'Average unrest {unrest:.2f} → {next_unrest:.2f}; legitimacy {legitimacy:.0%} → {min(1, legitimacy + .04):.0%}.',
+            'Next turns: households keep more income; government tax receipts may fall.',
+        ])
+    if action_id == 'raise_local_taxes':
+        next_unrest = sum(min(1, float(getattr(tile, 'unrest_level', 0.0)) + .12) for tile in tiles) / max(1, len(tiles))
+        return ('Tax +5pp • unrest ↑', [
+            'Now: district tax rates rise by up to 5 percentage points (cap 60%).',
+            f'Average unrest {unrest:.2f} → {next_unrest:.2f}; legitimacy {legitimacy:.0%} → {max(0, legitimacy - .08):.0%}.',
+            'Next turns: tax receipts may rise; this also counts as coercive extraction.',
+        ])
+    amount = float(state.get('scheduled_remittance', 200.0))
+    if action_id == 'pay_remittance':
+        return (f'Cash {cash:.0f}→{cash - amount:.0f} • credit +15pp', [
+            f'Now: treasury cash {cash:.0f} → {cash - amount:.0f}; debt service marked paid.',
+            f'Creditor confidence {confidence:.0%} → {min(1, confidence + .15):.0%}.',
+            'Tradeoff: less cash remains for domestic needs; fiscal autonomy stays intact.',
+        ])
+    if action_id == 'concede_revenue':
+        amount *= .5
+        return (f'Cash {cash:.0f}→{cash - amount:.0f} • autonomy −25pp', [
+            f'Now: treasury cash {cash:.0f} → {cash - amount:.0f}; debt service restructured.',
+            f'Creditor confidence {confidence:.0%} → {min(1, confidence + .15):.0%}.',
+            f'Fiscal autonomy {autonomy:.0%} → {max(0, autonomy - .25):.0%} under creditor oversight.',
+        ])
+    if action_id == 'defer_remittance':
+        return (f'Keep cash • credit {confidence:.0%}→{max(0, confidence - .30):.0%}', [
+            f'Now: keep {cash:.0f} treasury cash; debt service marked deferred.',
+            f'Creditor confidence {confidence:.0%} → {max(0, confidence - .30):.0%}.',
+            f'Legitimacy {legitimacy:.0%} → {min(1, legitimacy + .02):.0%}; deferral weakens the final debt outcome.',
+        ])
+    return ('', [])
+
+
+def _draw_guided_status_bar(surface, world: dict, mouse_pos=None) -> None:
+    """A compact national readout with decision-focused explanations on hover."""
+    pygame.draw.rect(surface, (12, 14, 20), (0, 0, WIDTH, TOP_BAR_H))
+    pygame.draw.line(surface, (58, 66, 86), (0, TOP_BAR_H), (WIDTH, TOP_BAR_H), 1)
+    nation = _egypt_nation(world)
+    if nation is None:
+        return
+    state = world.get('scenario_state', {})
+    tiles = list(nation.tiles)
+    people = [a for tile in tiles for a in getattr(tile, 'agents', [])
+              if getattr(a, 'alive', True) and not getattr(a, 'is_government', False)
+              and not getattr(a, 'is_corporation', False) and not getattr(a, 'is_trader', False)]
+    hungry = sum(1 for person in people if getattr(person, 'hungry_steps', 0) > 0)
+    hunger = hungry / max(1, len(people))
+    cash = float(nation.government.agent.cash)
+    stock = int(getattr(nation.government, 'food_inventory', 0))
+    legitimacy = float(getattr(nation, 'legitimacy', 0.5))
+    unrest = sum(float(getattr(tile, 'unrest_level', 0.0)) for tile in tiles) / max(1, len(tiles))
+    confidence = float(state.get('creditor_confidence', 0.6))
+    autonomy = float(state.get('fiscal_autonomy', 1.0))
+    payment = float(state.get('scheduled_remittance', 200.0))
+    title = getattr(nation, 'display_name', nation.name)
+    surface.blit(_scenario_font(13).render(f'{title}  •  National status', True, ACCENT), (12, 3))
+    status = [
+        (f'Treasury {cash:,.0f}', 154, 'Treasury cash', [
+            f'{cash:,.0f} cash available now. Scheduled debt service costs {payment:,.0f}; a concession costs {payment / 2:,.0f}.',
+            'Reserve release spends maize, not cash. Tax changes affect later revenue.',
+        ]),
+        (f'Maize {stock}', 129, 'Public maize', [
+            f'{stock} public rations remain. Releasing stores can feed up to {min(stock, int(state.get("relief_units_per_turn", 30)))} households this turn.',
+            'This reserve is finite; the weak Nile harvest persists through turn 8.',
+        ]),
+        (f'Hungry {hunger:.0%}', 137, 'Household hunger', [
+            f'{hungry} of {len(people)} Egyptian households have a current hunger streak.',
+            'Reserve release reaches hungry households first. The campaign tracks food access through turn 20.',
+        ]),
+        (f'Legitimacy {legitimacy:.0%}', 163, 'Government legitimacy', [
+            'Tax relief raises legitimacy by up to 4 points; higher taxes lower it by up to 8.',
+            'The government breaks down if legitimacy reaches 10% or less.',
+        ]),
+        (f'Unrest {unrest:.2f}', 133, 'District unrest', [
+            'Average district unrest. Tax relief lowers each district by up to 0.08; higher taxes raise each by up to 0.12.',
+            'The government breaks down if average unrest reaches 0.85.',
+        ]),
+        (f'Creditors {confidence:.0%}', 154, 'Creditor position', [
+            f'Confidence {confidence:.0%}; fiscal autonomy {autonomy:.0%}. Food retention costs 10 confidence points.',
+            'Payment or concession restores up to 15 points; deferral loses 30. Concession costs 25 autonomy points.',
+        ]),
+    ]
+    x = 12
+    mx, my = mouse_pos if mouse_pos else (-1, -1)
+    for label, width, tip_title, tip_lines in status:
+        rect = pygame.Rect(x - 2, 24, width - 5, 24)
+        if rect.collidepoint(mx, my):
+            pygame.draw.rect(surface, (45, 53, 71), rect, border_radius=3)
+            world['_guided_hover_tip'] = (tip_title, tip_lines, rect, 'status')
+        surface.blit(_scenario_font(13).render(label, True, TEXT), (x + 2, 27))
+        x += width
+
+
+def _draw_guided_hover_tip(surface, tip) -> None:
+    title, paragraphs, anchor, kind = tip
+    body_font = _scenario_font(14)
+    title_font = _scenario_font(16)
+    card_w = 390
+    lines = []
+    for paragraph in paragraphs:
+        lines.extend(_wrap_text(paragraph, body_font, card_w - 28))
+        lines.append('')
+    if lines:
+        lines.pop()
+    card_h = 42 + len(lines) * 19
+    x = min(MAP_RIGHT - card_w - 8, max(8, anchor.x - 5)) if kind == 'status' else MAP_RIGHT - card_w - 14
+    y = TOP_BAR_H + 51 if kind == 'status' else max(TOP_BAR_H + 55, min(HEIGHT - TICKER_H - card_h - 8, anchor.y - 4))
+    rect = pygame.Rect(x, y, card_w, card_h)
+    pygame.draw.rect(surface, (20, 24, 34), rect, border_radius=6)
+    pygame.draw.rect(surface, ACCENT, rect, 1, border_radius=6)
+    surface.blit(title_font.render(title, True, ACCENT), (x + 14, y + 9))
+    for idx, line in enumerate(lines):
+        if line:
+            surface.blit(body_font.render(line, True, TEXT), (x + 14, y + 35 + idx * 19))
+
+
 def _draw_egypt_scenario_panel(surface, world: dict, mouse_pos=None) -> None:
     """Scenario-first briefing, three pressures, and focused action choices."""
     if world.get('scenario_state', {}).get('ending'):
@@ -296,36 +455,55 @@ def _draw_egypt_scenario_panel(surface, world: dict, mouse_pos=None) -> None:
     scheduled_payment = float(state.get('scheduled_remittance', 200.0))
     tax_available = not state.get('tax_decision_taken', False)
     action_rows = [
-        [('release_maize', 'Release maize reserves', 'Use public stores to feed households', stock > 0)],
-        [('prioritize_domestic_grain', 'Keep more food in Egypt', 'Retain half of food exports in granaries', not state.get('domestic_grain_priority', False))],
-        [('reduce_fellahin_tax', 'Reduce local taxes', 'Lower future receipts', tax_available),
-         ('raise_local_taxes', 'Raise local taxes', 'More receipts; more unrest', tax_available)],
+        [('release_maize', 'Release maize reserves', stock > 0)],
+        [('prioritize_domestic_grain', 'Keep more food in Egypt', not state.get('domestic_grain_priority', False))],
+        [('reduce_fellahin_tax', 'Reduce local taxes', tax_available),
+         ('raise_local_taxes', 'Raise local taxes', tax_available)],
     ]
     if payment_ready:
         action_rows.extend([
-            [('pay_remittance', 'Pay debt service', f'Pay {scheduled_payment:.0f} units to creditors', treasury_cash >= scheduled_payment)],
-            [('concede_revenue', 'Concede revenue', f'Pay {scheduled_payment * 0.5:.0f} units; lose autonomy', treasury_cash >= scheduled_payment * 0.5)],
-            [('defer_remittance', 'Defer debt service', 'Keep cash now; risk creditor confidence', True)],
+            [('pay_remittance', 'Pay debt service', treasury_cash >= scheduled_payment)],
+            [('concede_revenue', 'Concede revenue', treasury_cash >= scheduled_payment * 0.5)],
+            [('defer_remittance', 'Defer debt service', True)],
         ])
     mx, my = mouse_pos if mouse_pos else (-1, -1)
     for row in action_rows:
         button_h = 39
         gap = 3
         button_w = (w - 18 - gap * (len(row) - 1)) // len(row)
-        for col, (action_id, label, detail, available) in enumerate(row):
+        for col, (action_id, label, available) in enumerate(row):
             rect = (x + 9 + col * (button_w + gap), cur_y, button_w, button_h)
-            enabled = available and not spent
+            detail, explanation = _guided_action_preview(world, nation, action_id)
+            enabled = available and not spent and nation is not None
+            if not available and action_id in ('pay_remittance', 'concede_revenue'):
+                needed = scheduled_payment if action_id == 'pay_remittance' else scheduled_payment * .5
+                detail = f'Need {needed:.0f} • cash {treasury_cash:.0f}'
             if enabled:
                 register_target(world, rect, ('scenario_action', action_id), scope='guided')
             hover = rect[0] <= mx <= rect[0] + rect[2] and rect[1] <= my <= rect[1] + rect[3]
+            if hover:
+                if spent:
+                    explanation = ['A major decision has already been made this turn. Advance one turn to choose again.'] + explanation
+                elif not available:
+                    if action_id == 'release_maize':
+                        reason = 'The public maize reserve is empty.'
+                    elif action_id == 'prioritize_domestic_grain':
+                        reason = 'Grain is already being retained for local supply.'
+                    elif action_id in ('reduce_fellahin_tax', 'raise_local_taxes'):
+                        reason = 'A local tax decision is already in effect.'
+                    else:
+                        needed = scheduled_payment if action_id == 'pay_remittance' else scheduled_payment * .5
+                        reason = f'Treasury cash is below the {needed:.0f} units needed for this choice.'
+                    explanation = [reason] + explanation
+                world['_guided_hover_tip'] = (label, explanation, pygame.Rect(rect), 'action')
             bg = (52, 66, 88) if hover and enabled else ((37, 44, 59) if enabled else (30, 33, 42))
             edge = ACCENT if hover and enabled else ((80, 96, 124) if enabled else (53, 58, 70))
             pygame.draw.rect(surface, bg, rect, border_radius=4)
             pygame.draw.rect(surface, edge, rect, 1, border_radius=4)
             color = TEXT if enabled else DIM
-            button_font = _scenario_font(14) if len(row) == 1 else _scenario_font(12)
+            button_font = _scenario_font(14) if len(row) == 1 else _scenario_font(13)
             surface.blit(button_font.render(label, True, color), (rect[0] + 7, rect[1] + 2))
-            detail_font = _scenario_font(12) if len(row) == 1 else _scenario_font(10)
+            detail_font = _scenario_font(12)
             surface.blit(detail_font.render(detail, True, DIM), (rect[0] + 7, rect[1] + 21))
         cur_y += button_h + gap
 
@@ -387,9 +565,12 @@ def draw_guided_frame(surface, world: dict, font, font_small, mouse_pos=None) ->
     if labels is not None:
         surface.blit(labels, (0, TOP_BAR_H),
                      pygame.Rect(0, TOP_BAR_H, MAP_RIGHT, HEIGHT - TOP_BAR_H - TICKER_H))
-    pygame.draw.rect(surface, (12, 14, 20), (0, 0, WIDTH, TOP_BAR_H))
-    pygame.draw.line(surface, (58, 66, 86), (0, TOP_BAR_H), (WIDTH, TOP_BAR_H), 1)
-    world['_hovered_topbar_dropdown'] = None
+    world['_guided_hover_tip'] = None
+    if world.get('scenario_id') == 'egypt_1877':
+        _draw_guided_status_bar(surface, world, mouse_pos=mouse_pos)
+    else:
+        pygame.draw.rect(surface, (12, 14, 20), (0, 0, WIDTH, TOP_BAR_H))
+        pygame.draw.line(surface, (58, 66, 86), (0, TOP_BAR_H), (WIDTH, TOP_BAR_H), 1)
     draw_guided_header(surface, world, font_small, mouse_pos=mouse_pos)
     draw_pressure_panel(surface, world, mouse_pos=mouse_pos)
     draw_ticker(surface, world, font_small)
@@ -410,6 +591,9 @@ def draw_guided_frame(surface, world: dict, font, font_small, mouse_pos=None) ->
             draw_citizens_panel(surface, world, selected, font, font_small, mouse_pos=mouse_pos)
         else:
             draw_panel(surface, world, font, font_small, mouse_pos=mouse_pos)
+
+    if world.get('_guided_hover_tip') and not world.get('settings_open'):
+        _draw_guided_hover_tip(surface, world['_guided_hover_tip'])
 
     if world.get('settings_open'):
         draw_settings_dialog(surface, world, font_small, mouse_pos)
