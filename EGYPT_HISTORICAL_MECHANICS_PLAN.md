@@ -1,5 +1,7 @@
 # Egypt 1876–82: mechanics plan
 
+Follow-on design for ending accuracy, enforceable concessions, and independent French diplomacy: [Egypt diplomacy and outcomes plan](EGYPT_DIPLOMACY_AND_OUTCOMES_PLAN.md).
+
 ## Goal and historical boundary
 
 Make the Guided Egypt campaign capable of producing the historical path **and plausible alternatives** from the same causal rules. Financial control, army grievances, domestic support, naval pressure, and strategic access should interact. A missed payment alone must never guarantee bombardment or occupation.
