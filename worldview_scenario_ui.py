@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import pygame
 from worldview_camera import WIDTH, HEIGHT, MAP_RIGHT, TOP_BAR_H, TICKER_H
 from worldview_map import ACCENT, TEXT, DIM, RED, GREEN
@@ -224,6 +225,12 @@ def _wrap_text(text: str, font, max_width: int) -> list[str]:
     return lines
 
 
+def _scenario_font(pixel_size: float):
+    """Request a font that renders at the pixel size used by this panel."""
+    # get_font applies a 0.65 calibration for the rest of the interface.
+    return get_font(max(9, math.ceil(pixel_size / 0.65)))
+
+
 def _draw_egypt_scenario_panel(surface, world: dict, mouse_pos=None) -> None:
     """Scenario-first briefing, three pressures, and focused action choices."""
     if world.get('scenario_state', {}).get('ending'):
@@ -234,46 +241,57 @@ def _draw_egypt_scenario_panel(surface, world: dict, mouse_pos=None) -> None:
     h = HEIGHT - TOP_BAR_H - TICKER_H - 28
     pygame.draw.rect(surface, (25, 28, 38), (x, y, w, h), border_radius=7)
     pygame.draw.rect(surface, (58, 66, 86), (x, y, w, h), 1, border_radius=7)
-    title_font, body_font, small_font = get_font(23), get_font(17), get_font(14)
+    title_font = _scenario_font(20)
+    body_font = _scenario_font(16)
+    small_font = _scenario_font(14)
     nation = next((n for n in world.get('nations', []) if n.name == world.get('player_nation_name')), None)
     name = getattr(nation, 'display_name', 'Khedivate of Egypt')
     surface.blit(title_font.render('Situation', True, TEXT), (x + 14, y + 12))
-    surface.blit(small_font.render(name, True, ACCENT), (x + 14, y + 39))
+    surface.blit(_scenario_font(13).render(name, True, ACCENT), (x + 14, y + 42))
 
-    cur_y = y + 61
+    cur_y = y + 66
     briefing = world.get('scenario', {}).get('briefing', ('',))[0]
-    brief_rect = pygame.Rect(x + 9, cur_y, w - 18, 86)
+    brief_rect = pygame.Rect(x + 9, cur_y, w - 18, 112)
     pygame.draw.rect(surface, (32, 37, 50), brief_rect, border_radius=5)
     pygame.draw.rect(surface, (75, 91, 119), brief_rect, 1, border_radius=5)
-    for idx, line in enumerate(_wrap_text(briefing, small_font, brief_rect.w - 18)[:4]):
-        surface.blit(small_font.render(line, True, TEXT if idx < 3 else DIM), (brief_rect.x + 9, brief_rect.y + 8 + idx * 17))
+    briefing_font = _scenario_font(14)
+    for idx, line in enumerate(_wrap_text(briefing, briefing_font, brief_rect.w - 18)[:5]):
+        surface.blit(briefing_font.render(line, True, TEXT),
+                     (brief_rect.x + 9, brief_rect.y + 8 + idx * 19))
     cur_y = brief_rect.bottom + 8
 
     colors = {'urgent': (226, 102, 94), 'warning': (225, 178, 87), 'good': (112, 205, 145), 'neutral': (140, 160, 195)}
     for pressure in scenario_pressures(world):
-        card_h = 68
+        card_h = 76
         rect = pygame.Rect(x + 9, cur_y, w - 18, card_h)
         color = colors.get(pressure['tone'], ACCENT)
         pygame.draw.rect(surface, (34, 38, 51), rect, border_radius=5)
         pygame.draw.rect(surface, color, rect, 1, border_radius=5)
         surface.blit(small_font.render(pressure['title'], True, color), (rect.x + 9, rect.y + 6))
-        surface.blit(small_font.render(pressure['value'], True, TEXT), (rect.x + 9, rect.y + 25))
-        cause = _wrap_text(pressure['cause'], get_font(12), rect.w - 18)
-        if cause:
-            surface.blit(get_font(12).render(cause[0], True, DIM), (rect.x + 9, rect.y + 46))
-        cur_y += card_h + 5
+        value_font = _scenario_font(13)
+        value_lines = _wrap_text(pressure['value'], value_font, rect.w - 18)
+        for idx, line in enumerate(value_lines[:2]):
+            surface.blit(value_font.render(line, True, TEXT),
+                         (rect.x + 9, rect.y + 25 + idx * 16))
+        cause_font = _scenario_font(11)
+        cause = _wrap_text(pressure['cause'], cause_font, rect.w - 18)
+        for idx, line in enumerate(cause[:2]):
+            surface.blit(cause_font.render(line, True, DIM),
+                         (rect.x + 9, rect.y + 48 + idx * 13))
+        cur_y += card_h + 4
 
     cur_y += 4
     state = world.get('scenario_state', {})
     turn = int(world.get('turn', 0))
     spent = state.get('last_action_turn') == turn
+    payment_ready = turn >= int(state.get('payment_window_turn', 6)) and state.get('payment_status') in ('upcoming', 'unpaid')
     stock = int(getattr(getattr(nation, 'government', None), 'food_inventory', 0)) if nation else 0
     suggested = 'Release maize reserves' if stock > 0 else 'Keep more food in Egypt'
-    surface.blit(get_font(13).render(f'Suggested first move: {suggested}', True, ACCENT), (x + 13, cur_y))
-    cur_y += 19
+    if not payment_ready:
+        surface.blit(_scenario_font(13).render(f'Suggested first move: {suggested}', True, ACCENT), (x + 13, cur_y))
+        cur_y += 18
     surface.blit(body_font.render('Choose one decision this turn', True, TEXT), (x + 13, cur_y))
     cur_y += 24
-    payment_ready = turn >= int(state.get('payment_window_turn', 6)) and state.get('payment_status') in ('upcoming', 'unpaid')
     treasury_cash = float(getattr(getattr(getattr(nation, 'government', None), 'agent', None), 'cash', 0.0)) if nation else 0.0
     scheduled_payment = float(state.get('scheduled_remittance', 200.0))
     tax_available = not state.get('tax_decision_taken', False)
@@ -291,8 +309,8 @@ def _draw_egypt_scenario_panel(surface, world: dict, mouse_pos=None) -> None:
         ])
     mx, my = mouse_pos if mouse_pos else (-1, -1)
     for row in action_rows:
-        button_h = 44
-        gap = 5
+        button_h = 39
+        gap = 3
         button_w = (w - 18 - gap * (len(row) - 1)) // len(row)
         for col, (action_id, label, detail, available) in enumerate(row):
             rect = (x + 9 + col * (button_w + gap), cur_y, button_w, button_h)
@@ -305,21 +323,22 @@ def _draw_egypt_scenario_panel(surface, world: dict, mouse_pos=None) -> None:
             pygame.draw.rect(surface, bg, rect, border_radius=4)
             pygame.draw.rect(surface, edge, rect, 1, border_radius=4)
             color = TEXT if enabled else DIM
-            button_font = get_font(13) if len(row) == 1 else get_font(12)
-            surface.blit(button_font.render(label, True, color), (rect[0] + 7, rect[1] + 5))
-            detail_font = get_font(12) if len(row) == 1 else get_font(11)
-            surface.blit(detail_font.render(detail, True, DIM), (rect[0] + 7, rect[1] + 24))
-        cur_y += button_h + 5
+            button_font = _scenario_font(14) if len(row) == 1 else _scenario_font(12)
+            surface.blit(button_font.render(label, True, color), (rect[0] + 7, rect[1] + 2))
+            detail_font = _scenario_font(12) if len(row) == 1 else _scenario_font(10)
+            surface.blit(detail_font.render(detail, True, DIM), (rect[0] + 7, rect[1] + 21))
+        cur_y += button_h + gap
 
     message = world.get('scenario_feedback', '')
     if message:
-        lines = _wrap_text(message, get_font(12), w - 28)
+        message_font = _scenario_font(12)
+        lines = _wrap_text(message, message_font, w - 28)
         for idx, line in enumerate(lines[:2]):
-            surface.blit(get_font(12).render(line, True, ACCENT), (x + 14, y + h - 31 + idx * 14))
+            surface.blit(message_font.render(line, True, ACCENT), (x + 14, y + h - 35 + idx * 16))
     elif spent:
-        surface.blit(get_font(12).render('Decision recorded. Advance a turn to see its effects.', True, DIM), (x + 14, y + h - 24))
+        surface.blit(_scenario_font(12).render('Decision recorded. Advance a turn to see its effects.', True, DIM), (x + 14, y + h - 24))
     else:
-        surface.blit(get_font(12).render('Select a district to inspect its details.', True, DIM), (x + 14, y + h - 24))
+        surface.blit(_scenario_font(12).render('Select a district to inspect its details.', True, DIM), (x + 14, y + h - 24))
 
 
 def _draw_egypt_scenario_debrief(surface, world: dict) -> None:
@@ -328,7 +347,9 @@ def _draw_egypt_scenario_debrief(surface, world: dict) -> None:
     pygame.draw.rect(surface, (25, 28, 38), (x, y, w, h), border_radius=7)
     pygame.draw.rect(surface, ACCENT, (x, y, w, h), 1, border_radius=7)
     debrief = world.get('scenario_state', {}).get('debrief', {})
-    title_font, body_font, small_font = get_font(25), get_font(17), get_font(14)
+    title_font = _scenario_font(22)
+    body_font = _scenario_font(16)
+    small_font = _scenario_font(13)
     cur_y = y + 18
     surface.blit(title_font.render(debrief.get('title', 'Campaign complete'), True, ACCENT), (x + 14, cur_y))
     cur_y += 39
