@@ -210,8 +210,7 @@ def step_world(world):
     world['violations'] = violations
     if world.get('scenario_id') == 'egypt_1877':
         from scenario_egypt_1877 import advance_scenario
-        advance_scenario(world, t, ticker_push)
-        on_phase('scenario')
+        advance_scenario(world, t, ticker_push, on_phase=on_phase)
         finish_turn(world, t)
     return violations
 
@@ -238,7 +237,10 @@ def step_world_with_warning(world):
     if world.get('crisis_warning_ack_turn') != int(world.get('turn', 0)):
         from unrest import MOB_THRESHOLD, PROTEST_THRESHOLD
         candidates = []
-        for nation in world.get('nations', []):
+        player_only = world.get('scenario_id') == 'egypt_1877'
+        nations_at_risk = (n for n in world.get('nations', [])
+                           if not player_only or n.name == world.get('player_nation_name'))
+        for nation in nations_at_risk:
             for tile in getattr(nation, 'tiles', []):
                 history = getattr(tile, 'protest_energy_log', [])
                 energy = float(history[-1]) if history else 0.0
@@ -257,6 +259,13 @@ def step_world_with_warning(world):
     previous_event_count = len(world.get('ticker_events', []))
     step_world(world)
     recent_events = world.get('ticker_events', [])[previous_event_count:]
+    if world.get('scenario_id') == 'egypt_1877':
+        egypt = next((nation for nation in world.get('nations', [])
+                      if nation.name == world.get('player_nation_name')), None)
+        locations = ['egypt'] + [name.lower() for tile in getattr(egypt, 'tiles', [])
+                                 for name in (tile.name, getattr(tile, 'display_name', tile.name))]
+        recent_events = [event for event in recent_events
+                         if any(location in str(event.get('text', '')).lower() for location in locations)]
     crisis_event = next((event for event in reversed(recent_events)
                          if any(token in str(event.get('text', '') if isinstance(event, dict) else event).upper()
                                 for token in ('BREAD RIOT', 'RIOT', 'REVOLT', 'TAKEOVER'))), None)

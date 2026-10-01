@@ -86,13 +86,18 @@ def _egypt_scenario_pressures(world: dict) -> list[dict]:
     cash = float(getattr(nation.government.agent, 'cash', 0.0))
     remittance = float(state.get('scheduled_remittance', 200.0))
     confidence = float(state.get('creditor_confidence', 0.6))
-    if payment_status in ('upcoming', 'unpaid'):
+    if payment_status in ('upcoming', 'unpaid', 'deferred'):
         debt_value = (f'Due now • {remittance:.0f} cash needed' if remaining == 0
-                      else f'{remaining} turns to payment • {cash:.0f} cash')
-        debt_cause = f'Pay {remittance:.0f}, concede {remittance / 2:.0f}, or defer; creditor confidence {confidence:.0%}.'
+                      else f'{remaining} turns to {remittance:.0f} payment • {cash:.0f} cash')
+        if payment_status == 'deferred':
+            debt_cause = f'Deferral added a surcharge. Pay by turn {payment_turn}; no second deferral is available.'
+        else:
+            debt_cause = f'Pay {remittance:.0f}, concede {remittance / 2:.0f}, or defer once; creditor confidence {confidence:.0%}.'
     else:
         debt_value = f'{payment_status.title()} • creditor confidence {confidence:.0%}'
-        debt_cause = f'Treasury cash {cash:.0f}; fiscal autonomy {float(state.get("fiscal_autonomy", 1.0)):.0%}.'
+        levy = float(state.get('creditor_levy_per_turn', 0.0))
+        debt_cause = (f'The Caisse collects up to {levy:.0f} units each turn. '
+                      if levy else '') + f'Fiscal autonomy {float(state.get("fiscal_autonomy", 1.0)):.0%}.'
     debt_tone = 'urgent' if payment_status in ('deferred', 'defaulted') or (remaining <= 1 and payment_status in ('upcoming', 'unpaid')) else 'warning'
 
     unrest = sum(float(getattr(r, 'unrest_level', 0.0)) for r in nation.tiles) / max(1, len(nation.tiles))
@@ -305,10 +310,19 @@ def _guided_action_preview(world: dict, nation, action_id: str) -> tuple[str, li
             f'Fiscal autonomy {autonomy:.0%} → {max(0, autonomy - .25):.0%} under creditor oversight.',
         ])
     if action_id == 'defer_remittance':
-        return (f'Keep cash • credit {confidence:.0%}→{max(0, confidence - .30):.0%}', [
-            f'Now: keep {cash:.0f} treasury cash; debt service marked deferred.',
+        from scenario_situation import situation_template
+        rules = situation_template()['debt_rules']
+        due_turn = int(world.get('turn', 0)) + int(rules['deferral_delay_turns'])
+        revised = amount * float(rules['deferral_multiplier'])
+        return (f'Due turn {due_turn} • {revised:.0f} units', [
+            f'Now: keep {cash:.0f} treasury cash. The payment rises to {revised:.0f} and is due on turn {due_turn}.',
             f'Creditor confidence {confidence:.0%} → {max(0, confidence - .30):.0%}.',
-            f'Legitimacy {legitimacy:.0%} → {min(1, legitimacy + .02):.0%}; deferral weakens the final debt outcome.',
+            f'Legitimacy {legitimacy:.0%} → {min(1, legitimacy + .02):.0%}. A second deferral is unavailable.',
+        ])
+    if action_id == 'default_remittance':
+        return ('Keep cash • creditors 0%', [
+            'Default keeps cash now, sets creditor confidence to zero, and cuts legitimacy by 15 points.',
+            'Britain and France will respond next turn. They may claim customs receipts or demand an arrears plan.',
         ])
     return ('', [])
 
@@ -339,6 +353,7 @@ def _status_value(stat: str, value: float, precise: bool = False) -> str:
 
 def _status_factor_lines(world: dict, current: dict, stat: str) -> list[str]:
     from scenario_status import ACTION_LABELS, PHASE_LABELS, display_change
+    from scenario_situation import response_label
     delta, previous_turn, factors = display_change(world, stat, current)
     if delta is None:
         return ['A previous-turn snapshot is not available yet. Changes will appear after the next turn.']
@@ -359,7 +374,7 @@ def _status_factor_lines(world: dict, current: dict, stat: str) -> list[str]:
         lines.append('Measured contributors:')
         for factor in factors:
             source = factor['source']
-            label = ACTION_LABELS.get(source, PHASE_LABELS.get(source, source))
+            label = ACTION_LABELS.get(source, PHASE_LABELS.get(source, response_label(source) or source))
             contribution = factor['changes'].get(stat)
             if contribution is None and stat == 'creditors':
                 contribution = factor['changes'].get('autonomy')
@@ -522,6 +537,11 @@ def _draw_egypt_scenario_panel(surface, world: dict, mouse_pos=None) -> None:
     cur_y += 24
     treasury_cash = float(getattr(getattr(getattr(nation, 'government', None), 'agent', None), 'cash', 0.0)) if nation else 0.0
     scheduled_payment = float(state.get('scheduled_remittance', 200.0))
+    from scenario_situation import situation_template
+    debt_rules = situation_template()['debt_rules']
+    can_defer_again = (int(state.get('deferral_count', 0)) < int(debt_rules['maximum_deferrals'])
+                       and turn + int(debt_rules['deferral_delay_turns'])
+                       <= int(world.get('scenario', {}).get('horizon_turns', 20)))
     tax_available = not state.get('tax_decision_taken', False)
     action_rows = [
         [('release_maize', 'Release maize reserves', stock > 0)],
@@ -533,9 +553,10 @@ def _draw_egypt_scenario_panel(surface, world: dict, mouse_pos=None) -> None:
         ('pay_remittance', 'Pay debt service', payment_ready and treasury_cash >= scheduled_payment)
     ])
     if payment_ready:
-        action_rows.extend([
-            [('concede_revenue', 'Concede revenue', treasury_cash >= scheduled_payment * 0.5)],
-            [('defer_remittance', 'Defer debt service', True)],
+        action_rows[-1].append(('concede_revenue', 'Concede revenue', treasury_cash >= scheduled_payment * 0.5))
+        action_rows.append([
+            ('defer_remittance', 'Defer debt service', can_defer_again),
+            ('default_remittance', 'Default', True),
         ])
     mx, my = mouse_pos if mouse_pos else (-1, -1)
     for row in action_rows:
@@ -552,6 +573,10 @@ def _draw_egypt_scenario_panel(surface, world: dict, mouse_pos=None) -> None:
             elif not available and action_id in ('pay_remittance', 'concede_revenue'):
                 needed = scheduled_payment if action_id == 'pay_remittance' else scheduled_payment * .5
                 detail = f'Need {needed:.0f} • cash {treasury_cash:.0f}'
+            elif len(row) > 1 and action_id == 'pay_remittance':
+                detail = f'−{scheduled_payment:.0f} cash • credit ↑'
+            elif len(row) > 1 and action_id == 'concede_revenue':
+                detail = f'−{scheduled_payment * .5:.0f} cash • autonomy ↓'
             if enabled:
                 register_target(world, rect, ('scenario_action', action_id), scope='guided')
             hover = rect[0] <= mx <= rect[0] + rect[2] and rect[1] <= my <= rect[1] + rect[3]
@@ -567,6 +592,10 @@ def _draw_egypt_scenario_panel(surface, world: dict, mouse_pos=None) -> None:
                         reason = 'Grain is already being retained for local supply.'
                     elif action_id in ('reduce_fellahin_tax', 'raise_local_taxes'):
                         reason = 'A local tax decision is already in effect.'
+                    elif action_id == 'defer_remittance':
+                        reason = ('The Caisse grants only one deferral in this situation.'
+                                  if int(state.get('deferral_count', 0)) >= int(debt_rules['maximum_deferrals'])
+                                  else 'The revised due date would fall after the campaign ends.')
                     else:
                         needed = scheduled_payment if action_id == 'pay_remittance' else scheduled_payment * .5
                         reason = f'Treasury cash is below the {needed:.0f} units needed for this choice.'
@@ -582,6 +611,27 @@ def _draw_egypt_scenario_panel(surface, world: dict, mouse_pos=None) -> None:
             detail_font = _scenario_font(12)
             surface.blit(detail_font.render(detail, True, DIM), (rect[0] + 7, rect[1] + 21))
         cur_y += button_h + gap
+
+    reports = state.get('foreign_reports', [])
+    report_font = _scenario_font(13)
+    for index, report in enumerate(reports[:2]):
+        report_y = cur_y + 5 + index * 19
+        if report_y + 16 >= y + h - 37:
+            break
+        report_rect = pygame.Rect(x + 9, report_y, w - 18, 18)
+        hover = report_rect.collidepoint(mx, my)
+        if hover:
+            pygame.draw.rect(surface, (45, 53, 71), report_rect, border_radius=3)
+            world['_guided_hover_tip'] = (
+                f'{report["nation"]} situation',
+                [report['summary'], report['detail']], report_rect, 'action',
+            )
+        delta_text = report.get('delta_label')
+        if delta_text is None:
+            delta_text = f'{report.get("delta", 0.0):+.1f}'
+        report_line = f'{report["nation"]}: {report["stage"]} {report["energy"]:.1f} ({delta_text})'
+        surface.blit(report_font.render(report_line, True, ACCENT if hover else DIM),
+                     (report_rect.x + 4, report_rect.y + 2))
 
     message = world.get('scenario_feedback', '')
     if message:
@@ -616,6 +666,14 @@ def _draw_egypt_scenario_debrief(surface, world: dict) -> None:
             surface.blit(small_font.render(line, True, DIM), (x + 14, cur_y))
             cur_y += 19
         cur_y += 4
+    reactions = debrief.get('creditor_reactions', [])
+    if reactions:
+        surface.blit(body_font.render('Caisse responses', True, TEXT), (x + 14, cur_y))
+        cur_y += 23
+        for headline in reactions[-2:]:
+            for line in _wrap_text(f'• {headline}', small_font, w - 28)[:2]:
+                surface.blit(small_font.render(line, True, DIM), (x + 14, cur_y))
+                cur_y += 18
     cur_y += 9
     surface.blit(body_font.render('Decisions that shaped this result', True, TEXT), (x + 14, cur_y))
     cur_y += 26
@@ -685,17 +743,23 @@ def draw_scenario_warning_modal(surface, world: dict, mouse_pos=None) -> None:
     veil.fill((5, 7, 12, 210))
     surface.blit(veil, (0, 0))
     kind = warning.get('kind')
-    card = pygame.Rect(310, 220, 780, 440 if kind == 'debt_due' else 360)
-    border = (225, 178, 87) if kind == 'debt_due' else (226, 102, 94)
+    card = pygame.Rect(310, 220, 780, 440 if kind in ('debt_due', 'creditor_reaction') else 360)
+    border = (225, 178, 87) if kind in ('debt_due', 'creditor_reaction') else (226, 102, 94)
     pygame.draw.rect(surface, (24, 29, 41), card, border_radius=10)
     pygame.draw.rect(surface, border, card, 2, border_radius=10)
     title_font, body_font = _scenario_font(24), _scenario_font(16)
     state = world.get('scenario_state', {})
     nation = _egypt_nation(world)
     if kind == 'debt_due':
+        from scenario_situation import situation_template
+        debt_rules = situation_template()['debt_rules']
+        delay = int(debt_rules['deferral_delay_turns'])
+        multiplier = float(debt_rules['deferral_multiplier'])
         amount = float(state.get('scheduled_remittance', 200.0))
         cash = float(getattr(getattr(getattr(nation, 'government', None), 'agent', None), 'cash', 0.0)) if nation else 0.0
-        title = 'Debt service is due now'
+        can_defer = (int(state.get('deferral_count', 0)) < int(debt_rules['maximum_deferrals'])
+                     and int(world.get('turn', 0)) + delay <= int(world.get('scenario', {}).get('horizon_turns', 20)))
+        title = 'Revised debt service is due now' if state.get('deferral_count', 0) else 'Debt service is due now'
         lines = [
             f'Treasury cash: {cash:,.0f} units. Scheduled payment: {amount:,.0f}.',
             'Default collapses creditor confidence and reduces legitimacy by 15 percentage points.',
@@ -704,9 +768,18 @@ def draw_scenario_warning_modal(surface, world: dict, mouse_pos=None) -> None:
         options = [
             ('pay_remittance', f'Pay {amount:,.0f}', cash >= amount),
             ('concede_revenue', f'Concede • pay {amount / 2:,.0f}', cash >= amount / 2),
-            ('defer_remittance', 'Defer • keep cash', True),
+            ('defer_remittance', 'Defer • keep cash' if can_defer else 'Defer • unavailable', can_defer),
             ('default_remittance', 'Default • severe loss', True),
         ]
+    elif kind == 'creditor_reaction':
+        from scenario_situation import situation_template, creditor_response_options
+        action_id = warning.get('action_id', '')
+        reaction = situation_template()['branches'].get(action_id, {}).get('reaction', {})
+        title = reaction.get('headline', 'Creditors demand a response')
+        lines = [reaction.get('body', ''), 'Choose Cairo’s response. This diplomatic reply does not use your major domestic decision this turn.']
+        response_options = creditor_response_options(world, action_id)
+        options = [(f'creditor_response:{response["id"]}', response['label'], response['enabled'])
+                   for response in response_options]
     elif kind == 'breakdown':
         title = 'Political breakdown is imminent'
         lines = [
@@ -773,20 +846,25 @@ def draw_scenario_warning_modal(surface, world: dict, mouse_pos=None) -> None:
         consequences = {
             'pay_remittance': (
                 (f'Unavailable: the treasury has {cash:,.0f} units and needs {amount:,.0f}. ' if cash < amount else '')
-                + f'Spends {amount:,.0f} treasury units. Marks the debt service paid and raises creditor confidence by up to 15 points.'
+                + f'Spends {amount:,.0f} treasury units. Marks the debt service paid, ends any collection levy, and raises creditor confidence by up to 15 points. The Caisse acknowledges payment next turn.'
                 if kind == 'debt_due' else 'Enacts this debt payment.'
             ),
             'concede_revenue': (
                 (f'Unavailable: the treasury has {cash:,.0f} units and needs {amount / 2:,.0f}. ' if cash < amount / 2 else '')
-                + f'Spends {amount / 2:,.0f} units and restructures the payment. Creditor confidence rises by up to 15 points, while fiscal autonomy falls by 25 points because creditors gain future revenue oversight.'
+                + f'Spends {amount / 2:,.0f} units and restructures the payment. Creditor confidence rises by up to 15 points; fiscal autonomy falls by 25 points. The Caisse begins oversight next turn.'
                 if kind == 'debt_due' else 'Enacts this revenue concession.'
             ),
             'defer_remittance': (
-                'Keeps the cash available for domestic needs and marks the payment deferred. Creditor confidence falls by 30 points; legitimacy rises by 2 points.'
+                ('A second deferral is unavailable. '
+                 if int(state.get('deferral_count', 0)) >= int(debt_rules['maximum_deferrals'])
+                 else 'The revised due date would exceed the campaign. '
+                 if int(world.get('turn', 0)) + delay > int(world.get('scenario', {}).get('horizon_turns', 20))
+                 else '')
+                + f'Keeps cash, but makes {amount * multiplier:,.0f} units due on turn {int(world.get("turn", 0)) + delay}. Creditor confidence falls by 30 points; legitimacy rises by 2 points.'
                 if kind == 'debt_due' else 'Defers the payment.'
             ),
             'default_remittance': (
-                'Keeps the cash, but creditor confidence falls to zero and legitimacy drops by 15 percentage points.'
+                'Keeps the cash, but creditor confidence falls to zero and legitimacy drops by 15 points. Next turn, Britain and France claim customs receipts and begin a collection levy unless Cairo negotiates.'
                 if kind == 'debt_due' else 'Defaults on the payment.'
             ),
             'scenario_rescue_tax': 'Reduces local taxes, lowering treasury revenue. It can avert breakdown if unrest and legitimacy move back across their thresholds.',
@@ -795,6 +873,19 @@ def draw_scenario_warning_modal(surface, world: dict, mouse_pos=None) -> None:
             'continue_risk': 'Advances one turn despite the warning. The reported crisis may worsen or trigger its consequences.',
         }
         detail = consequences.get(hovered_option)
+        if hovered_option.startswith('creditor_response:'):
+            response_id = hovered_option.split(':', 1)[1]
+            response = next((item for item in response_options if item['id'] == response_id), None)
+            if response is not None:
+                detail = response['tooltip']
+                if not response['enabled']:
+                    if response_id == 'offer_arrears_plan' and state.get('arrears_plan_used'):
+                        detail = 'Unavailable: the Caisse has already accepted one arrears plan. ' + detail
+                    elif (response_id == 'offer_arrears_plan'
+                          and int(world.get('turn', 0)) + 3 > int(world.get('scenario', {}).get('horizon_turns', 20))):
+                        detail = 'Unavailable: the new due date would fall after the campaign ends. ' + detail
+                    else:
+                        detail = f'Unavailable: requires {float(response.get("requires_cash", 0.0)):,.0f} treasury units. ' + detail
         if detail:
             tooltip_font = _scenario_font(13)
             tooltip_w = card.w - 52
@@ -822,6 +913,21 @@ def scenario_warning_modal_hit(pos, world: dict) -> bool:
         world['scenario_feedback'] = message if ok else f'Not enacted: {message}'
         if ok:
             world['scenario_warning_modal'] = None
+            from scenario_situation import advance_creditor_reactions
+            from client.desktop.engine import ticker_push
+            advance_creditor_reactions(world, int(world.get('turn', 0)), ticker_push)
+            from scenario_egypt_1877 import finish_due_campaign
+            finish_due_campaign(world)
+    elif action.startswith('creditor_response:'):
+        from scenario_situation import resolve_creditor_response, advance_creditor_reactions
+        from client.desktop.engine import ticker_push
+        ok, message = resolve_creditor_response(world, action.split(':', 1)[1])
+        world['scenario_feedback'] = message if ok else f'Not enacted: {message}'
+        if ok:
+            world['scenario_warning_modal'] = None
+            advance_creditor_reactions(world, int(world.get('turn', 0)), ticker_push)
+            from scenario_egypt_1877 import finish_due_campaign
+            finish_due_campaign(world)
     elif action == 'scenario_rescue_tax':
         from scenario_egypt_1877 import SCENARIO, _outcome_metrics, apply_action
         ok, message = apply_action(world, 'reduce_fellahin_tax')

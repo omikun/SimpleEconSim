@@ -229,13 +229,19 @@ def prepare_world(world: dict) -> dict:
     world["selected_nation"] = egypt
     world["scenario_id"] = SCENARIO_ID
     world["scenario"] = deepcopy(SCENARIO)
+    from scenario_situation import situation_template
+    debt_rules = situation_template()['debt_rules']
     world["scenario_state"] = {
         "turns_remaining": SCENARIO["horizon_turns"],
         "public_maize_stock_units": SCENARIO["relief_stock_turns"] * 30,
         "relief_units_per_turn": 30,
-        "scheduled_remittance": 200.0,
-        "payment_window_turn": SCENARIO["payment_window_turn"],
+        "scheduled_remittance": float(debt_rules['initial_payment']),
+        "payment_window_turn": int(debt_rules['first_due_turn']),
         "payment_status": "upcoming",
+        "deferral_count": 0,
+        "creditor_levy_per_turn": 0.0,
+        "creditor_reactions": [],
+        "creditor_news": [],
         "creditor_confidence": 0.6,
         "fiscal_autonomy": 1.0,
         "extraction_level": 0,
@@ -262,6 +268,8 @@ def prepare_world(world: dict) -> dict:
     world["guided_analysis_open"] = False
     from scenario_status import initialize
     initialize(world)
+    from scenario_situation import update_foreign_reports
+    update_foreign_reports(world)
     return world
 
 
@@ -279,7 +287,9 @@ def apply_action(world: dict, action_id: str) -> tuple[bool, str]:
     if state.get("last_action_turn") == turn:
         return False, "Choose one major decision per turn."
 
-    from scenario_status import snapshot, record_change
+    from scenario_status import initialize, snapshot, record_change
+    if 'scenario_status_history' not in world:
+        initialize(world)
     status_before = snapshot(world)
 
     if action_id == "release_maize":
@@ -332,10 +342,17 @@ def apply_action(world: dict, action_id: str) -> tuple[bool, str]:
         state["extraction_level"] += 1
         message = "Raised local taxes to protect revenue; cultivator unrest and political strain increased."
     elif action_id in ("pay_remittance", "defer_remittance", "concede_revenue", "default_remittance"):
+        from scenario_situation import situation_template
+        debt_rules = situation_template()['debt_rules']
+        deferral_delay = int(debt_rules['deferral_delay_turns'])
         if turn < int(state.get("payment_window_turn", 6)):
             return False, "The debt-service window has not opened yet."
         if state.get("payment_status") not in ("upcoming", "unpaid"):
             return False, "The debt-service decision has already been resolved."
+        if action_id == "defer_remittance" and int(state.get("deferral_count", 0)) >= int(debt_rules['maximum_deferrals']):
+            return False, "The Caisse will not grant another deferral. Pay, concede, or default."
+        if action_id == "defer_remittance" and turn + deferral_delay > int(SCENARIO['horizon_turns']):
+            return False, "The revised due date would fall after the campaign ends. Pay, concede, or default."
         amount = float(state.get("scheduled_remittance", 200.0))
         if action_id == "default_remittance":
             state["payment_status"] = "defaulted"
@@ -354,6 +371,7 @@ def apply_action(world: dict, action_id: str) -> tuple[bool, str]:
             for creditor in creditors:
                 creditor.government.agent.cash += share
             state["payment_status"] = "paid" if action_id == "pay_remittance" else "restructured"
+            state["creditor_levy_per_turn"] = 0.0
             state["creditor_confidence"] = min(1.0, state.get("creditor_confidence", 0.6) + 0.15)
             if action_id == "concede_revenue":
                 state["fiscal_autonomy"] = max(0.0, state.get("fiscal_autonomy", 1.0) - 0.25)
@@ -362,9 +380,13 @@ def apply_action(world: dict, action_id: str) -> tuple[bool, str]:
                 message = f"Paid the {amount:,.0f}-unit scheduled debt-service remittance."
         elif action_id == "defer_remittance":
             state["payment_status"] = "deferred"
+            state["deferral_count"] = int(state.get("deferral_count", 0)) + 1
+            state["payment_window_turn"] = turn + deferral_delay
+            state["scheduled_remittance"] = round(amount * float(debt_rules['deferral_multiplier']), 2)
             state["creditor_confidence"] = max(0.0, state.get("creditor_confidence", 0.6) - 0.30)
             nation.legitimacy = min(1.0, float(getattr(nation, "legitimacy", 0.5)) + 0.02)
-            message = "Deferred the remittance to protect cash for domestic needs; creditor confidence fell."
+            message = (f"Deferred the remittance to turn {state['payment_window_turn']}; "
+                       f"{state['scheduled_remittance']:,.0f} units will be due after the surcharge.")
         else:
             return False, "Unknown debt-service decision."
     else:
@@ -375,11 +397,13 @@ def apply_action(world: dict, action_id: str) -> tuple[bool, str]:
     world["scenario_feedback"] = message
     from client.desktop.engine import ticker_push
     ticker_push(world, turn, "SCENARIO", message, (120, 220, 170))
+    from scenario_situation import queue_creditor_reaction
+    queue_creditor_reaction(world, action_id)
     record_change(world, action_id, status_before, snapshot(world))
     return True, message
 
 
-def advance_scenario(world: dict, turn: int, ticker_push) -> None:
+def advance_scenario(world: dict, turn: int, ticker_push, on_phase=None) -> None:
     """Resolve calendar events, thresholds, and the campaign's terminal outcome."""
     if not is_scenario_id(world.get("scenario_id")):
         return
@@ -392,17 +416,37 @@ def advance_scenario(world: dict, turn: int, ticker_push) -> None:
     if turn == 1 and "low_nile" not in state["events_fired"]:
         state["events_fired"].append("low_nile")
         ticker_push(world, turn, "SCENARIO", "The weak Nile flood cuts the expected food harvest in the Delta and Upper Egypt.", (230, 174, 88))
-    if turn == int(state.get("payment_window_turn", 6)) and state.get("payment_status") == "upcoming":
+    from scenario_situation import collect_creditor_levy, update_foreign_reports, advance_creditor_reactions
+    levy_paid = collect_creditor_levy(world)
+    if levy_paid:
+        ticker_push(world, turn, "CREDITOR", f"The Caisse collected {levy_paid:,.0f} units from Egyptian receipts.", (225, 178, 87))
+    if on_phase:
+        on_phase('levy')
+    if turn >= int(state.get("payment_window_turn", 6)) and state.get("payment_status") in ("upcoming", "deferred"):
         state["payment_status"] = "unpaid"
         world["playing"] = False
         world["scenario_warning_modal"] = {"kind": "debt_due"}
-        state["events_fired"].append("debt_service_window")
-        ticker_push(world, turn, "ALERT", "The debt-service window is open. Pay, concede revenue oversight, or defer.", (240, 180, 72))
+        state["events_fired"].append(f"debt_service_window_{turn}")
+        world["scenario_feedback"] = f"Debt service of {state['scheduled_remittance']:,.0f} units is due now."
+        ticker_push(world, turn, "ALERT", "Debt service is due. Choose payment, concession, deferral if available, or default.", (240, 180, 72))
     elif turn > int(state.get("payment_window_turn", 6)) and state.get("payment_status") == "unpaid":
         state["payment_status"] = "defaulted"
         state["creditor_confidence"] = 0.0
         nation.legitimacy = max(0.0, float(getattr(nation, "legitimacy", 0.5)) - 0.15)
         ticker_push(world, turn, "ALERT", "The government missed the debt-service window; default deepens the crisis.", (240, 90, 82))
+    if on_phase:
+        on_phase('deadline')
+
+    # The general simulation updates faction protest energy; this scenario
+    # translates that live pressure into its 0..1 political unrest measure.
+    for tile in nation.tiles:
+        history = getattr(tile, "protest_energy_log", [])
+        pressure = min(1.0, max(0.0, float(history[-1]) / 10.0)) if history else 0.0
+        current = float(getattr(tile, "unrest_level", 0.0))
+        tile.unrest_level = max(0.0, min(1.0, current * 0.75 + pressure * 0.25))
+    if on_phase:
+        on_phase('protest_pressure')
+    update_foreign_reports(world)
 
     metrics = _outcome_metrics(nation)
     thresholds = SCENARIO["thresholds"]
@@ -416,18 +460,38 @@ def advance_scenario(world: dict, turn: int, ticker_push) -> None:
             "unrest": metrics["unrest"],
         }
         return
-    elif turn >= int(SCENARIO["horizon_turns"]):
-        if state.get("extraction_level", 0) > 0:
-            outcome = "coercive_extraction"
-        elif (metrics["hunger_rate"] <= thresholds["protected_hunger_rate"]
-                and state.get("payment_status") == "paid"):
-            outcome = "relief_and_payment"
-        elif (metrics["hunger_rate"] <= thresholds["protected_hunger_rate"]
-              and state.get("payment_status") == "restructured"):
-            outcome = "creditor_settlement"
-        else:
-            outcome = "breakdown"
-        _finish_scenario(world, nation, outcome, turn, metrics)
+    advance_creditor_reactions(world, turn, ticker_push)
+    if on_phase:
+        on_phase('creditor_reaction')
+    if world.get("scenario_warning_modal"):
+        return
+    finish_due_campaign(world)
+
+
+def finish_due_campaign(world: dict) -> None:
+    """Complete turn 20 after any debt or creditor modal has been answered."""
+    state = world.get('scenario_state', {})
+    turn = int(world.get('turn', 0))
+    if (turn < int(SCENARIO['horizon_turns']) or state.get('ending')
+            or world.get('scenario_warning_modal')):
+        return
+    nation = next((n for n in world.get('nations', [])
+                   if n.name == world.get('player_nation_name')), None)
+    if nation is None:
+        return
+    metrics = _outcome_metrics(nation)
+    thresholds = SCENARIO['thresholds']
+    if metrics['legitimacy'] <= thresholds['breakdown_legitimacy'] or metrics['unrest'] >= thresholds['breakdown_unrest']:
+        outcome = 'breakdown'
+    elif state.get('extraction_level', 0) > 0:
+        outcome = 'coercive_extraction'
+    elif metrics['hunger_rate'] <= thresholds['protected_hunger_rate'] and state.get('payment_status') == 'paid':
+        outcome = 'relief_and_payment'
+    elif metrics['hunger_rate'] <= thresholds['protected_hunger_rate'] and state.get('payment_status') == 'restructured':
+        outcome = 'creditor_settlement'
+    else:
+        outcome = 'breakdown'
+    _finish_scenario(world, nation, outcome, turn, metrics)
 
 
 def _outcome_metrics(nation) -> dict:
@@ -472,14 +536,23 @@ def build_debrief(world: dict, outcome: str, metrics: dict | None = None) -> dic
     actions = [entry.get("message", "") for entry in state.get("actions_taken", [])]
     if not actions:
         actions = ["No major scenario decision was recorded before the ending."]
+    debt_detail = (f"Debt service {state.get('payment_status', 'unresolved')}; "
+                   f"creditor confidence {state.get('creditor_confidence', 0.0):.0%}; "
+                   f"fiscal autonomy {state.get('fiscal_autonomy', 1.0):.0%}.")
+    if state.get('payment_status') in ('deferred', 'unpaid'):
+        debt_detail += (f" Next due: turn {state.get('payment_window_turn', '?')}, "
+                        f"{state.get('scheduled_remittance', 0):,.0f} units.")
+    if float(state.get('creditor_levy_per_turn', 0.0)) > 0:
+        debt_detail += f" Caisse levy: up to {state['creditor_levy_per_turn']:,.0f} units per turn."
     return {
         "outcome": outcome,
         "title": title,
         "summary": summary,
         "food": f"{metrics.get('hungry', 0)} of {metrics.get('households', 0)} households hungry ({metrics.get('hunger_rate', 0.0):.0%}).",
-        "debt": f"Debt service {state.get('payment_status', 'unresolved')}; creditor confidence {state.get('creditor_confidence', 0.0):.0%}; fiscal autonomy {state.get('fiscal_autonomy', 1.0):.0%}.",
+        "debt": debt_detail,
         "politics": f"Government legitimacy {metrics.get('legitimacy', 0.0):.0%}; average unrest {metrics.get('unrest', 0.0):.2f}.",
         "actions": actions,
+        "creditor_reactions": [entry['headline'] for entry in state.get('creditor_news', [])],
     }
 
 

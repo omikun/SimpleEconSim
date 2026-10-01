@@ -13,21 +13,25 @@
   "implementation_plan": [
     {
       "phase": 1,
+      "status": "complete",
       "goal": "Show measured changes since the previous turn and the simulation or action that caused them.",
       "acceptance": "Every Guided status has a signed delta and a tooltip with measured contributors."
     },
     {
       "phase": 2,
+      "status": "complete",
       "goal": "Report Britain and France separately and connect Egyptian unrest to live district protest pressure.",
       "acceptance": "Foreign unrest informs the player without interrupting Egypt's turn; Egypt's political pressure changes when protest energy changes."
     },
     {
       "phase": 3,
+      "status": "complete",
       "goal": "Make deferral a dated, more expensive obligation and resolve creditor reactions through the branch tree below.",
       "acceptance": "Deferral produces another payment window; every player action produces a creditor report, and demanding reactions offer visible responses with consequences."
     },
     {
       "phase": 4,
+      "status": "complete",
       "goal": "Show reaction choices, costs, deadlines, and foreign updates in Guided mode and record them in the debrief.",
       "acceptance": "The player can read the next obligation and the reason for each creditor move before choosing a response."
     }
@@ -174,7 +178,7 @@
       "delay_turns": 1,
       "reaction": {
         "headline": "Creditors assert a claim on customs receipts",
-        "body": "Britain and France impose a 10-unit collection levy each turn and reduce Egypt's fiscal autonomy. Cairo can contest the claim or offer an arrears plan.",
+        "body": "Britain and France impose a 10-unit collection levy each turn and reduce Egypt's fiscal autonomy by 10 points. Cairo can contest the claim or offer an arrears plan.",
         "effects": {"autonomy_delta": -0.1, "levy_per_turn": 10},
         "responses": [
           {

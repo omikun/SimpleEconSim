@@ -27,6 +27,10 @@ PHASE_LABELS = {
     'bonds': 'Sovereign bond payments',
     'catalyst': 'National crisis event',
     'scenario': 'Scenario deadline and outcome rules',
+    'levy': 'Creditor collection levy',
+    'deadline': 'Debt-service deadline',
+    'protest_pressure': 'Egyptian district protest pressure',
+    'creditor_reaction': 'Caisse reaction to the last decision',
 }
 
 
@@ -112,6 +116,12 @@ def record_change(world: dict, source: str, before: dict | None, after: dict | N
                   if getattr(tile, 'tax_distribution_log', None))
         if tax:
             details['cash'] = f'National tax receipts +{tax:,.2f}; other local flows {changes["cash"] - tax:+,.2f}.'
+    if source == 'regime' and 'legitimacy' in changes:
+        nation = next((n for n in world.get('nations', [])
+                       if n.name == world.get('player_nation_name')), None)
+        if nation is not None:
+            from regime import _avg_faction_support
+            details['legitimacy'] = f'Current mean faction support: {_avg_faction_support(nation):.0%}.'
     history['pending'].append({'source': source, 'changes': changes, 'details': details})
 
 
