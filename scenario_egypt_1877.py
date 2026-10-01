@@ -57,6 +57,7 @@ SCENARIO = {
         {"id": "pay_remittance", "title": "Pay debt service", "turn_cost": 1},
         {"id": "defer_remittance", "title": "Defer debt service", "turn_cost": 1},
         {"id": "concede_revenue", "title": "Concede revenue oversight", "turn_cost": 1},
+        {"id": "default_remittance", "title": "Default on debt service", "turn_cost": 1},
     ),
 }
 
@@ -325,13 +326,18 @@ def apply_action(world: dict, action_id: str) -> tuple[bool, str]:
         state["tax_decision_taken"] = True
         state["extraction_level"] += 1
         message = "Raised local taxes to protect revenue; cultivator unrest and political strain increased."
-    elif action_id in ("pay_remittance", "defer_remittance", "concede_revenue"):
+    elif action_id in ("pay_remittance", "defer_remittance", "concede_revenue", "default_remittance"):
         if turn < int(state.get("payment_window_turn", 6)):
             return False, "The debt-service window has not opened yet."
         if state.get("payment_status") not in ("upcoming", "unpaid"):
             return False, "The debt-service decision has already been resolved."
         amount = float(state.get("scheduled_remittance", 200.0))
-        if action_id in ("pay_remittance", "concede_revenue"):
+        if action_id == "default_remittance":
+            state["payment_status"] = "defaulted"
+            state["creditor_confidence"] = 0.0
+            nation.legitimacy = max(0.0, float(getattr(nation, "legitimacy", 0.5)) - 0.15)
+            message = "Defaulted on the remittance: creditor confidence collapsed and government legitimacy fell."
+        elif action_id in ("pay_remittance", "concede_revenue"):
             amount = amount if action_id == "pay_remittance" else amount * 0.5
             if nation.government.agent.cash < amount:
                 return False, f"The treasury needs {amount:,.0f} treasury units to make this payment."
@@ -349,11 +355,13 @@ def apply_action(world: dict, action_id: str) -> tuple[bool, str]:
                 message = f"Accepted a reduced {amount:,.0f}-unit remittance and creditor oversight of future revenues."
             else:
                 message = f"Paid the {amount:,.0f}-unit scheduled debt-service remittance."
-        else:
+        elif action_id == "defer_remittance":
             state["payment_status"] = "deferred"
             state["creditor_confidence"] = max(0.0, state.get("creditor_confidence", 0.6) - 0.30)
             nation.legitimacy = min(1.0, float(getattr(nation, "legitimacy", 0.5)) + 0.02)
             message = "Deferred the remittance to protect cash for domestic needs; creditor confidence fell."
+        else:
+            return False, "Unknown debt-service decision."
     else:
         return False, "Unknown scenario decision."
 
@@ -381,6 +389,7 @@ def advance_scenario(world: dict, turn: int, ticker_push) -> None:
     if turn == int(state.get("payment_window_turn", 6)) and state.get("payment_status") == "upcoming":
         state["payment_status"] = "unpaid"
         world["playing"] = False
+        world["scenario_warning_modal"] = {"kind": "debt_due"}
         state["events_fired"].append("debt_service_window")
         ticker_push(world, turn, "ALERT", "The debt-service window is open. Pay, concede revenue oversight, or defer.", (240, 180, 72))
     elif turn > int(state.get("payment_window_turn", 6)) and state.get("payment_status") == "unpaid":
@@ -394,7 +403,13 @@ def advance_scenario(world: dict, turn: int, ticker_push) -> None:
     ended = (metrics["legitimacy"] <= thresholds["breakdown_legitimacy"]
              or metrics["unrest"] >= thresholds["breakdown_unrest"])
     if ended:
-        _finish_scenario(world, nation, "breakdown", turn, metrics)
+        world["playing"] = False
+        world["scenario_warning_modal"] = {
+            "kind": "breakdown",
+            "legitimacy": metrics["legitimacy"],
+            "unrest": metrics["unrest"],
+        }
+        return
     elif turn >= int(SCENARIO["horizon_turns"]):
         if state.get("extraction_level", 0) > 0:
             outcome = "coercive_extraction"

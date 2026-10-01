@@ -8,6 +8,7 @@ and a 2-page paginated help guide with economic metrics glossary.
 import os
 import random
 import sys
+import threading
 import time
 
 os.environ.setdefault('SDL_AUDIODRIVER', 'dummy')
@@ -150,6 +151,7 @@ def is_any_modal_open(world) -> bool:
         world.get('comparison_open') or
         world.get('help_open') or
         world.get('settings_open') or
+        world.get('scenario_warning_modal') or
         world.get('transfer_dialog', {}).get('open')
     )
 
@@ -228,6 +230,8 @@ def render_frame(surface, world, mouse_pos=None):
         draw_actions_modal(surface, world, font, font_small, mouse_pos=mouse_pos)
         draw_help_modal(surface, world, font, font_small)
         draw_transfer_dialog(surface, world, font, font_small, mouse_pos=mouse_pos)
+        from worldview_scenario_ui import draw_scenario_warning_modal
+        draw_scenario_warning_modal(surface, world, mouse_pos=mouse_pos)
         return
 
     _draw_cached_map(surface, world, font, font_small)
@@ -263,6 +267,8 @@ def render_frame(surface, world, mouse_pos=None):
     if world.get('settings_open'):
         from worldview_scenario_ui import draw_settings_dialog
         draw_settings_dialog(surface, world, font_small, mouse_pos)
+    from worldview_scenario_ui import draw_scenario_warning_modal
+    draw_scenario_warning_modal(surface, world, mouse_pos=mouse_pos)
 
     # Floating left-panel detailed button tooltips (disabled when modal dialog covers screen)
     if not modal_active:
@@ -298,7 +304,65 @@ def _toggle_pipeline(world):
     print(f"[Client] Switched terrain pipeline to: {pipe_label}")
 
 
-def reload_world(args=None):
+def _build_world_with_loading(surface, *, seed=None, terrain_seed=None, nation_seed=None, scenario_id=None):
+    """Build off the UI thread and show the loading bar only after 0.4 seconds."""
+    result = {}
+    error = {}
+
+    def build():
+        try:
+            result['world'] = build_world_view(seed=seed, terrain_seed=terrain_seed,
+                                               nation_seed=nation_seed, scenario_id=scenario_id)
+        except BaseException as exc:
+            error['exception'] = exc
+
+    worker = threading.Thread(target=build, name='world-startup', daemon=True)
+    started = time.perf_counter()
+    worker.start()
+    loading_shown = False
+    while worker.is_alive():
+        elapsed = time.perf_counter() - started
+        if elapsed >= 0.4:
+            loading_shown = True
+            seed_label = terrain_seed if terrain_seed is not None else seed
+            title = 'Preparing Egypt 1877 scenario…' if scenario_id == 'egypt_1877' else 'Preparing world…'
+            surface.fill(BG)
+            draw_loading_modal(surface, None, title, seed=seed_label)
+            pygame.display.flip()
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                worker.join()
+                raise SystemExit
+        pygame.time.wait(16)
+    worker.join()
+    if 'exception' in error:
+        raise error['exception']
+    world = result['world']
+    world['_startup_loading_shown'] = loading_shown
+    return world
+
+
+def _needs_first_terrain_frame(world):
+    from world_config import is_voronoi_topology
+    return is_voronoi_topology() and world.get('_micropoly_gpu_renderer') is None
+
+
+def _show_startup_terrain_loading(world, surface):
+    """Keep the splash visible and input locked until the first full terrain frame exists."""
+    if not _needs_first_terrain_frame(world):
+        return
+    if not world.get('_startup_loading_shown'):
+        surface.fill(BG)
+        draw_loading_modal(surface, None, 'Preparing native 3D terrain…',
+                           seed=world.get('terrain_seed', world.get('seed')))
+        pygame.display.flip()
+    world['loading_modal'] = {'active': True, 'fraction': None,
+                              'status': 'Building native 3D terrain…'}
+    world['_complete_startup_loading'] = True
+    world['_discard_startup_events'] = True
+
+
+def reload_world(args=None, surface=None):
     """Regenerate a brand new world from scratch, invalidating the disk and memory cache."""
     from heightmap import _TOPOGRAPHIC_SURFACE_CACHE
     _TOPOGRAPHIC_SURFACE_CACHE.clear()
@@ -310,8 +374,12 @@ def reload_world(args=None):
     nation_seed = getattr(args, 'nation_seed', None)
     scenario_id = 'egypt_1877' if getattr(args, 'scenario', None) == 'egypt-1877' else None
 
-    world = build_world_view(seed=seed, terrain_seed=terrain_seed, nation_seed=nation_seed,
-                             scenario_id=scenario_id)
+    if surface is not None:
+        world = _build_world_with_loading(surface, seed=seed, terrain_seed=terrain_seed,
+                                          nation_seed=nation_seed, scenario_id=scenario_id)
+    else:
+        world = build_world_view(seed=seed, terrain_seed=terrain_seed, nation_seed=nation_seed,
+                                 scenario_id=scenario_id)
     world['_map_generation_done'] = False
     world['_cached_from_disk'] = False
     world['loading_modal'] = None
@@ -321,6 +389,9 @@ def reload_world(args=None):
     for r in world['tiles']:
         if getattr(r, 'owner_nation', None) is not None:
             pops_history[r.name] = region_pop(r)
+
+    if surface is not None:
+        _show_startup_terrain_loading(world, surface)
     # Flush per-tile label offset cache so stale keys from the old world don't accumulate
     world.pop('_label_offsets', None)
 
@@ -393,12 +464,13 @@ def main():
     if scenario_id is None and has_valid_cache(seed=args.seed, terrain_seed=args.terrain_seed, nation_seed=args.nation_seed):
         world = load_map_cache()
         if world is None:
-            world = build_world_view(seed=args.seed, terrain_seed=args.terrain_seed, nation_seed=args.nation_seed)
+            world = _build_world_with_loading(surface, seed=args.seed, terrain_seed=args.terrain_seed,
+                                              nation_seed=args.nation_seed)
             world['_map_generation_done'] = False
             world['_cached_from_disk'] = False
     else:
-        world = build_world_view(seed=args.seed, terrain_seed=args.terrain_seed, nation_seed=args.nation_seed,
-                                 scenario_id=scenario_id)
+        world = _build_world_with_loading(surface, seed=args.seed, terrain_seed=args.terrain_seed,
+                                          nation_seed=args.nation_seed, scenario_id=scenario_id)
         world['_map_generation_done'] = False
         world['_cached_from_disk'] = False
 
@@ -407,6 +479,8 @@ def main():
     for r in world['tiles']:
         if getattr(r, 'owner_nation', None) is not None:
             pops_history[r.name] = region_pop(r)
+
+    _show_startup_terrain_loading(world, surface)
 
     last_tick = pygame.time.get_ticks()
     running = True
@@ -452,7 +526,7 @@ def main():
             if event.type == pygame.QUIT:
                 running = False
             elif event.type == RESTART_EVENT_TYPE:
-                world = reload_world(args)
+                world = reload_world(args, surface)
                 _mark_dirty(world)
                 continue
             elif event.type == pygame.ACTIVEEVENT:
@@ -466,6 +540,11 @@ def main():
 
                 # 0. STRICT MODAL PRIORITY: If any modal is active, route ONLY to it and NEVER fall through!
                 if is_any_modal_open(world):
+                    if world.get('scenario_warning_modal'):
+                        from worldview_scenario_ui import scenario_warning_modal_hit
+                        scenario_warning_modal_hit(event.pos, world)
+                        _mark_dirty(world, map_changed=False)
+                        continue
                     # 0a. Check if Fiscal Transfer Dialog is open
                     if world.get('transfer_dialog', {}).get('open'):
                         transfer_dialog_hit(event.pos, world)
@@ -714,6 +793,8 @@ def main():
                     if is_loading:
                         # Loading screen in progress - suppress all key actions
                         continue
+                    if world.get('scenario_warning_modal'):
+                        continue
 
                     # If help guide is open
                     if world.get('help_open'):
@@ -812,7 +893,7 @@ def main():
                 elif event.key == pygame.K_q:
                     running = False
                 elif event.key == pygame.K_r and (event.mod & (pygame.KMOD_META | pygame.KMOD_CTRL)):
-                    world = reload_world(args)
+                    world = reload_world(args, surface)
                     _mark_dirty(world)
                     continue
                 elif event.key == pygame.K_SPACE:
@@ -820,7 +901,8 @@ def main():
                     last_tick = now
                 elif event.key in (pygame.K_n, pygame.K_PERIOD):
                     world['playing'] = False
-                    step_world(world)
+                    from worldview_engine import step_world_with_warning
+                    step_world_with_warning(world)
                 elif event.key in (pygame.K_h, pygame.K_SLASH, pygame.K_QUESTION):
                     world['help_open'] = not world.get('help_open', False)
                     _mark_dirty(world)
@@ -936,7 +1018,8 @@ def main():
 
         # ── Auto-play simulation tick ──────────────────────────────────
         if world['playing'] and now - last_tick >= TURN_MS:
-            step_world(world)
+            from worldview_engine import step_world_with_warning
+            step_world_with_warning(world)
             last_tick = now
             _mark_dirty(world)
 
@@ -969,8 +1052,17 @@ def main():
         # ── Render only when dirty ─────────────────────────────────────
         if world.get('needs_redraw'):
             render_frame(surface, world, mouse_pos=mouse_pos)
+            if world.pop('_complete_startup_loading', False):
+                world['loading_modal'] = None
+                world['needs_redraw'] = True
+                if world.pop('_discard_startup_events', False):
+                    pygame.event.clear()
+                continue
             pygame.display.flip()
             world['needs_redraw'] = False
+            if world.pop('_discard_startup_events', False):
+                if any(event.type == pygame.QUIT for event in pygame.event.get()):
+                    running = False
 
     pygame.quit()
 

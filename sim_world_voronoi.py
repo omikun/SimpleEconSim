@@ -96,6 +96,7 @@ def build_world_voronoi(
         num_points = terrain_config["points"] if num_points is None else num_points
         island_shape = terrain_config["shape"] if island_shape is None else island_shape
         slot_state = {
+            "scenario_id": "egypt_1877",
             "seed": terrain_seed if terrain_seed is not None else SCENARIO["seeds"]["terrain"],
             "shape": island_shape,
             "points": num_points,

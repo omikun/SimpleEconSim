@@ -192,3 +192,55 @@ def step_world(world):
         from scenario_egypt_1877 import advance_scenario
         advance_scenario(world, t, ticker_push)
     return violations
+
+
+def step_world_with_warning(world):
+    """Pause before advancing into a known high-risk riot or breakdown state."""
+    if world.get('scenario_warning_modal'):
+        return False
+    if world.get('scenario_id') == 'egypt_1877':
+        nation = next((n for n in world.get('nations', [])
+                       if n.name == world.get('player_nation_name')), None)
+        state = world.get('scenario_state', {})
+        if nation is not None and not state.get('ending'):
+            unrest = sum(float(getattr(tile, 'unrest_level', 0.0)) for tile in nation.tiles) / max(1, len(nation.tiles))
+            legitimacy = float(getattr(nation, 'legitimacy', 0.5))
+            if (unrest >= 0.65 or legitimacy <= 0.20) and world.get('crisis_warning_ack_turn') != int(world.get('turn', 0)):
+                world['playing'] = False
+                world['scenario_warning_modal'] = {
+                    'kind': 'political_risk', 'unrest': unrest, 'legitimacy': legitimacy,
+                    'preemptive': True,
+                }
+                return False
+
+    if world.get('crisis_warning_ack_turn') != int(world.get('turn', 0)):
+        from unrest import MOB_THRESHOLD, PROTEST_THRESHOLD
+        candidates = []
+        for nation in world.get('nations', []):
+            for tile in getattr(nation, 'tiles', []):
+                history = getattr(tile, 'protest_energy_log', [])
+                energy = float(history[-1]) if history else 0.0
+                if energy >= PROTEST_THRESHOLD:
+                    candidates.append((energy, nation, tile))
+        if candidates:
+            energy, nation, tile = max(candidates, key=lambda candidate: candidate[0])
+            world['playing'] = False
+            world['scenario_warning_modal'] = {
+                'kind': 'riot_risk', 'nation': nation.name,
+                'region': getattr(tile, 'display_name', getattr(tile, 'name', 'district')),
+                'energy': energy, 'threshold': MOB_THRESHOLD,
+                'already_mob': energy >= MOB_THRESHOLD,
+            }
+            return False
+    previous_event_count = len(world.get('ticker_events', []))
+    step_world(world)
+    recent_events = world.get('ticker_events', [])[previous_event_count:]
+    crisis_event = next((event for event in reversed(recent_events)
+                         if any(token in str(event.get('text', '') if isinstance(event, dict) else event).upper()
+                                for token in ('BREAD RIOT', 'RIOT', 'REVOLT', 'TAKEOVER'))), None)
+    if crisis_event is not None and not world.get('scenario_warning_modal'):
+        message = crisis_event.get('text', 'Civil unrest has escalated.') if isinstance(crisis_event, dict) else str(crisis_event)
+        world['playing'] = False
+        world['scenario_warning_modal'] = {'kind': 'riot_event', 'message': message}
+        return False
+    return True

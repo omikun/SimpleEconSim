@@ -286,6 +286,12 @@ def _guided_action_preview(world: dict, nation, action_id: str) -> tuple[str, li
         ])
     amount = float(state.get('scheduled_remittance', 200.0))
     if action_id == 'pay_remittance':
+        if int(world.get('turn', 0)) < int(state.get('payment_window_turn', 6)):
+            payment_turn = int(state.get('payment_window_turn', 6))
+            return (f'Due on turn {payment_turn} • {amount:.0f} units', [
+                f'The payment window opens on turn {payment_turn}; this button is unavailable until then.',
+                f'If paid, treasury cash will change from {cash:.0f} to {cash - amount:.0f}; creditor confidence rises by 15 percentage points.',
+            ])
         return (f'Cash {cash:.0f}→{cash - amount:.0f} • credit +15pp', [
             f'Now: treasury cash {cash:.0f} → {cash - amount:.0f}; debt service marked paid.',
             f'Creditor confidence {confidence:.0%} → {min(1, confidence + .15):.0%}.',
@@ -460,9 +466,11 @@ def _draw_egypt_scenario_panel(surface, world: dict, mouse_pos=None) -> None:
         [('reduce_fellahin_tax', 'Reduce local taxes', tax_available),
          ('raise_local_taxes', 'Raise local taxes', tax_available)],
     ]
+    action_rows.append([
+        ('pay_remittance', 'Pay debt service', payment_ready and treasury_cash >= scheduled_payment)
+    ])
     if payment_ready:
         action_rows.extend([
-            [('pay_remittance', 'Pay debt service', treasury_cash >= scheduled_payment)],
             [('concede_revenue', 'Concede revenue', treasury_cash >= scheduled_payment * 0.5)],
             [('defer_remittance', 'Defer debt service', True)],
         ])
@@ -475,7 +483,10 @@ def _draw_egypt_scenario_panel(surface, world: dict, mouse_pos=None) -> None:
             rect = (x + 9 + col * (button_w + gap), cur_y, button_w, button_h)
             detail, explanation = _guided_action_preview(world, nation, action_id)
             enabled = available and not spent and nation is not None
-            if not available and action_id in ('pay_remittance', 'concede_revenue'):
+            if action_id == 'pay_remittance' and not payment_ready:
+                turns_left = max(0, int(state.get('payment_window_turn', 6)) - turn)
+                detail = f'Due in {turns_left} turns • {scheduled_payment:.0f} units'
+            elif not available and action_id in ('pay_remittance', 'concede_revenue'):
                 needed = scheduled_payment if action_id == 'pay_remittance' else scheduled_payment * .5
                 detail = f'Need {needed:.0f} • cash {treasury_cash:.0f}'
             if enabled:
@@ -484,6 +495,8 @@ def _draw_egypt_scenario_panel(surface, world: dict, mouse_pos=None) -> None:
             if hover:
                 if spent:
                     explanation = ['A major decision has already been made this turn. Advance one turn to choose again.'] + explanation
+                elif action_id == 'pay_remittance' and not payment_ready:
+                    pass  # The preview already explains the future availability and cost.
                 elif not available:
                     if action_id == 'release_maize':
                         reason = 'The public maize reserve is empty.'
@@ -599,6 +612,155 @@ def draw_guided_frame(surface, world: dict, font, font_small, mouse_pos=None) ->
         draw_settings_dialog(surface, world, font_small, mouse_pos)
 
 
+def draw_scenario_warning_modal(surface, world: dict, mouse_pos=None) -> None:
+    """Show high-consequence scenario choices above either UI composition."""
+    warning = world.get('scenario_warning_modal')
+    if not warning:
+        return
+    from ui_targets import register_target
+    veil = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+    veil.fill((5, 7, 12, 210))
+    surface.blit(veil, (0, 0))
+    kind = warning.get('kind')
+    debt_options_open = bool(warning.get('show_alternatives'))
+    card = pygame.Rect(310, 240, 780, 420 if kind == 'debt_due' and debt_options_open else 360)
+    border = (225, 178, 87) if kind == 'debt_due' else (226, 102, 94)
+    pygame.draw.rect(surface, (24, 29, 41), card, border_radius=10)
+    pygame.draw.rect(surface, border, card, 2, border_radius=10)
+    title_font, body_font = _scenario_font(24), _scenario_font(16)
+    state = world.get('scenario_state', {})
+    nation = _egypt_nation(world)
+    if kind == 'debt_due':
+        amount = float(state.get('scheduled_remittance', 200.0))
+        cash = float(getattr(getattr(getattr(nation, 'government', None), 'agent', None), 'cash', 0.0)) if nation else 0.0
+        title = 'Debt service is due now'
+        lines = [
+            f'Treasury cash: {cash:,.0f} units. Scheduled payment: {amount:,.0f}.',
+            'Default collapses creditor confidence and reduces legitimacy by 15 percentage points.',
+            ('Choose a payment, concession, deferral, or default.' if debt_options_open
+             else 'Pay the scheduled remittance or default. Other settlement choices are available below.'),
+        ]
+        if debt_options_open:
+            options = [
+                ('pay_remittance', f'Pay {amount:,.0f}', cash >= amount),
+                ('concede_revenue', f'Concede • pay {amount / 2:,.0f}', cash >= amount / 2),
+                ('defer_remittance', 'Defer • keep cash', True),
+                ('default_remittance', 'Default • severe loss', True),
+            ]
+        else:
+            options = [
+                ('pay_remittance', f'Pay {amount:,.0f}', cash >= amount),
+                ('default_remittance', 'Default • severe loss', True),
+                ('show_debt_options', 'More options: concede or defer', True),
+            ]
+    elif kind == 'breakdown':
+        title = 'Political breakdown is imminent'
+        lines = [
+            f"Average unrest {warning.get('unrest', 0):.2f} (threshold 0.85); legitimacy {warning.get('legitimacy', 0):.0%} (threshold 10%).",
+            'If still available, tax relief can lower unrest and raise legitimacy before the campaign ends.',
+        ]
+        can_relieve = (not state.get('tax_decision_taken', False)
+                       and state.get('last_action_turn') != int(world.get('turn', 0)))
+        options = ([('scenario_rescue_tax', 'Reduce local taxes now', True)] if can_relieve else [])
+        options.append(('accept_breakdown', 'Accept government breakdown', True))
+    elif kind == 'riot_risk':
+        title = ('Riot level has been reached' if warning.get('already_mob')
+                 else 'Civil unrest is approaching riot levels')
+        lines = [
+            f"{warning.get('nation', 'A nation')} • {warning.get('region', 'a district')}: protest energy {warning.get('energy', 0):.1f}/10.",
+            (f"Mob and riot activity begins at {warning.get('threshold', 6.5):.1f}. Review food access, taxes, and local security before continuing."
+             if not warning.get('already_mob') else 'Mob or riot activity may intensify next turn. Review food access, taxes, and local security before continuing.'),
+        ]
+        options = [('review_risk', 'Review situation', True), ('continue_risk', 'Advance one turn anyway', True)]
+    elif kind == 'political_risk':
+        title = 'Political stability is at risk'
+        lines = [
+            f"Average unrest is {warning.get('unrest', 0):.2f} (breakdown at 0.85); legitimacy is {warning.get('legitimacy', 0):.0%} (breakdown at 10%).",
+            'Review the political support card and available actions before advancing, or continue one turn at risk.',
+        ]
+        options = [('review_risk', 'Review decisions', True), ('continue_risk', 'Advance one turn anyway', True)]
+    elif kind == 'riot_event':
+        title = 'Riot or revolt reported'
+        lines = [str(warning.get('message', 'Civil unrest has escalated.')),
+                 'The simulation is paused so you can review the situation before continuing.']
+        options = [('review_risk', 'Review situation', True), ('continue_risk', 'Continue simulation', True)]
+    else:
+        title = 'Crisis warning'
+        lines = [str(warning.get('message', 'A serious event may occur next turn.'))]
+        options = [('review_risk', 'Review situation', True), ('continue_risk', 'Advance one turn anyway', True)]
+    surface.blit(title_font.render(title, True, TEXT), (card.x + 26, card.y + 24))
+    y = card.y + 76
+    for line in lines:
+        for wrapped in _wrap_text(line, body_font, card.w - 52):
+            surface.blit(body_font.render(wrapped, True, TEXT), (card.x + 26, y))
+            y += 24
+        y += 8
+    mouse = mouse_pos if mouse_pos else (-1, -1)
+    cols = 2 if len(options) > 2 else 1
+    btn_w = (card.w - 52 - 12 * (cols - 1)) // cols
+    btn_h = 48
+    rows = (len(options) + cols - 1) // cols
+    button_y = card.bottom - btn_h * rows - 24 - 10 * (rows - 1)
+    for index, (action, label, enabled) in enumerate(options):
+        row, col = divmod(index, cols)
+        rect = pygame.Rect(card.x + 26 + col * (btn_w + 12), button_y + row * (btn_h + 10), btn_w, btn_h)
+        hover = rect.collidepoint(mouse)
+        pygame.draw.rect(surface, (55, 66, 86) if hover and enabled else (38, 46, 62), rect, border_radius=5)
+        pygame.draw.rect(surface, ACCENT if hover else (83, 99, 126), rect, 1, border_radius=5)
+        label_surface = _scenario_font(14).render(label, True, TEXT if enabled else DIM)
+        surface.blit(label_surface, label_surface.get_rect(center=rect.center))
+        if enabled:
+            register_target(world, rect, ('scenario_warning', action), scope='scenario_warning')
+
+
+def scenario_warning_modal_hit(pos, world: dict) -> bool:
+    """Resolve a warning choice without allowing clicks to fall through."""
+    from ui_targets import find_target
+    target = find_target(world, pos, scope='scenario_warning')
+    if target is None:
+        return True
+    action = target.action[1]
+    if action in ('pay_remittance', 'concede_revenue', 'defer_remittance', 'default_remittance'):
+        from scenario_egypt_1877 import apply_action
+        ok, message = apply_action(world, action)
+        world['scenario_feedback'] = message if ok else f'Not enacted: {message}'
+        if ok:
+            world['scenario_warning_modal'] = None
+    elif action == 'show_debt_options':
+        warning['show_alternatives'] = True
+    elif action == 'scenario_rescue_tax':
+        from scenario_egypt_1877 import SCENARIO, _outcome_metrics, apply_action
+        ok, message = apply_action(world, 'reduce_fellahin_tax')
+        world['scenario_feedback'] = message if ok else f'Not enacted: {message}'
+        if ok:
+            metrics = _outcome_metrics(_egypt_nation(world))
+            thresholds = SCENARIO['thresholds']
+            if (metrics['legitimacy'] > thresholds['breakdown_legitimacy']
+                    and metrics['unrest'] < thresholds['breakdown_unrest']):
+                if world.get('scenario_state', {}).get('payment_status') == 'unpaid':
+                    world['scenario_warning_modal'] = {'kind': 'debt_due'}
+                else:
+                    world['scenario_warning_modal'] = None
+            else:
+                world['scenario_warning_modal'] = {'kind': 'breakdown', **metrics}
+    elif action == 'accept_breakdown':
+        from scenario_egypt_1877 import _finish_scenario, _outcome_metrics
+        nation = _egypt_nation(world)
+        _finish_scenario(world, nation, 'breakdown', int(world.get('turn', 0)), _outcome_metrics(nation))
+        world['scenario_warning_modal'] = None
+    elif action == 'review_risk':
+        world['scenario_warning_modal'] = None
+        world['crisis_warning_ack_turn'] = int(world.get('turn', 0))
+    elif action == 'continue_risk':
+        world['scenario_warning_modal'] = None
+        world['crisis_warning_ack_turn'] = int(world.get('turn', 0))
+        from worldview_engine import step_world_with_warning
+        step_world_with_warning(world)
+    world['playing'] = False
+    world['needs_redraw'] = True
+    return True
+
+
 def draw_settings_dialog(surface, world: dict, font_small, mouse_pos=None) -> None:
     """Small settings dialog for switching Guided and Advanced UI composition."""
     from ui_targets import register_target
@@ -657,9 +819,9 @@ def guided_ui_hit(pos, world: dict) -> bool:
         if not ended:
             world['playing'] = not world.get('playing', False)
     elif action == 'step_next':
-        from worldview_engine import step_world
+        from worldview_engine import step_world_with_warning
         world['playing'] = False
-        step_world(world)
+        step_world_with_warning(world)
     elif isinstance(action, tuple) and action[0] == 'analysis_tab':
         world['analysis_tab'] = action[1]
         world['guided_analysis_open'] = True

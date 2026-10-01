@@ -737,6 +737,7 @@ class Micropoly3DRenderer:
             ridge_noise=float(slot_state.get('ridge_noise', 0.35)),
             erosion_strength=float(slot_state.get('erosion_strength', 0.3)),
             erosion_droplets=int(slot_state.get('erosion_droplets', 15000)),
+            persistent_cache=slot_state.get('scenario_id', 'desktop'),
         )
 
         # 1. Terrain Mesh Buffer [x, y, z, nx, ny, nz, r, g, b, elev] (stride 10 floats = 40 bytes)

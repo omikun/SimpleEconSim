@@ -1517,7 +1517,7 @@ def draw_help(surface, world, font_small, mouse_pos=None):
             y += 7
 
 
-def draw_loading_modal(surface, fraction: float, status_text: str, seed: int = None):
+def draw_loading_modal(surface, fraction: float | None, status_text: str, seed: int = None):
     """Draw a modern, stylized loading modal dialog with dynamic progress bar during map generation."""
     sw, sh = surface.get_size()
 
@@ -1545,11 +1545,11 @@ def draw_loading_modal(surface, fraction: float, status_text: str, seed: int = N
     body_font = get_font(18)
     small_font = get_font(15)
 
-    title_surf = title_font.render("Call of Capital — WORLD GENERATION", True, (212, 175, 55))
+    title_surf = title_font.render("Call of Capital — LOADING", True, (212, 175, 55))
     surface.blit(title_surf, (modal_x + 24, modal_y + 12))
 
     seed_str = f" • Seed: {seed}" if seed is not None else ""
-    sub_surf = small_font.render(f"Synthesizing 4x Ultra-HD Procedural Topography{seed_str}", True, (130, 150, 180))
+    sub_surf = small_font.render(f"Preparing terrain and simulation{seed_str}", True, (130, 150, 180))
     surface.blit(sub_surf, (modal_x + 24, modal_y + 58))
 
     # Live Status Text
@@ -1567,10 +1567,16 @@ def draw_loading_modal(surface, fraction: float, status_text: str, seed: int = N
     pygame.draw.rect(surface, (60, 75, 95), (bar_x, bar_y, bar_w, bar_h), 1, border_radius=13)
 
     # Fill
-    clamped_frac = max(0.0, min(1.0, float(fraction)))
-    fill_w = max(0, min(bar_w, int(bar_w * clamped_frac)))
+    indeterminate = fraction is None
+    clamped_frac = 0.62 if indeterminate else max(0.0, min(1.0, float(fraction)))
+    fill_w = max(0, min(bar_w, int(bar_w * (0.24 if indeterminate else clamped_frac))))
     if fill_w > 0:
-        fill_rect = pygame.Rect(bar_x, bar_y, fill_w, bar_h)
+        if indeterminate:
+            travel = (pygame.time.get_ticks() % 1200) / 1200.0
+            fill_x = bar_x + int(travel * (bar_w + fill_w)) - fill_w
+            fill_rect = pygame.Rect(fill_x, bar_y, fill_w, bar_h).clip(pygame.Rect(bar_x, bar_y, bar_w, bar_h))
+        else:
+            fill_rect = pygame.Rect(bar_x, bar_y, fill_w, bar_h)
         fill_col = (
             int(45 * (1.0 - clamped_frac) + 60 * clamped_frac),
             int(180 * (1.0 - clamped_frac) + 210 * clamped_frac),
@@ -1585,7 +1591,7 @@ def draw_loading_modal(surface, fraction: float, status_text: str, seed: int = N
             surface.blit(sheen_surf, (sheen_rect.x, sheen_rect.y))
 
     # Percentage Text (Centered over the bar)
-    pct_txt = f"{int(round(clamped_frac * 100))}%"
+    pct_txt = "LOADING" if indeterminate else f"{int(round(clamped_frac * 100))}%"
     pct_surf = title_font.render(pct_txt, True, (255, 255, 255))
     pct_rect = pct_surf.get_rect(center=(bar_x + bar_w // 2, bar_y + bar_h // 2))
     shadow_surf = title_font.render(pct_txt, True, (10, 15, 25))
@@ -1593,6 +1599,6 @@ def draw_loading_modal(surface, fraction: float, status_text: str, seed: int = N
     surface.blit(pct_surf, pct_rect)
 
     # Modal Lockout Note
-    lock_txt = "[ LOCKED ] All menus, navigation and simulation controls are disabled during synthesis"
+    lock_txt = "[ LOCKED ] Menus, navigation and simulation controls pause during startup"
     lock_surf = small_font.render(lock_txt, True, (110, 125, 150))
     surface.blit(lock_surf, lock_surf.get_rect(center=(modal_x + modal_w // 2, modal_y + modal_h - 24)))

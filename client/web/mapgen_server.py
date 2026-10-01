@@ -15,6 +15,8 @@ import os
 import io
 import time
 import json
+import os
+import tempfile
 import urllib.parse
 from http.server import HTTPServer, ThreadingHTTPServer, BaseHTTPRequestHandler
 from typing import Dict, Tuple, Any, Optional, List
@@ -195,8 +197,10 @@ def get_cached_micropolys(
     ridge_noise: float = 0.35,
     erosion_strength: float = 0.30,
     erosion_droplets: int = 15000,
+    persistent_cache: str | None = None,
 ) -> Tuple[List[Tuple], int]:
     mesh_key = (
+        'micropoly-cache-v1',
         graph_key,
         polys,
         round(roughness, 1),
@@ -211,6 +215,32 @@ def get_cached_micropolys(
     )
     if mesh_key in MESH_CACHE:
         return MESH_CACHE[mesh_key]
+
+    persistent_path = None
+    signature = repr(mesh_key)
+    if persistent_cache:
+        cache_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "map_cache")
+        safe_name = "".join(ch for ch in str(persistent_cache) if ch.isalnum() or ch in "-_")
+        persistent_path = os.path.join(cache_dir, f"{safe_name}_micropolys_v1.npz")
+        try:
+            with np.load(persistent_path, allow_pickle=False) as saved:
+                if str(saved["signature"].item()) == signature:
+                    p0, p1, p2 = saved["p0"], saved["p1"], saved["p2"]
+                    colors, elevations = saved["colors"], saved["elevations"]
+                    rivers, poly_ids, normals = saved["rivers"], saved["poly_ids"], saved["normals"]
+                    triangles = [
+                        (p0[i], p1[i], p2[i], colors[i], float(elevations[i]),
+                         bool(rivers[i]), int(poly_ids[i]), normals[i])
+                        for i in range(len(elevations))
+                    ]
+                    actual_count = int(saved["actual_count"].item())
+                    if len(MESH_CACHE) >= MAX_CACHE_ENTRIES:
+                        MESH_CACHE.pop(next(iter(MESH_CACHE)))
+                    MESH_CACHE[mesh_key] = (triangles, actual_count)
+                    print(f"[terrain] Loaded cached {safe_name} micropolygon mesh ({len(triangles):,} faces).")
+                    return triangles, actual_count
+        except Exception:
+            pass
 
     triangles, actual_count = build_island_mesh(
         gen,
@@ -232,6 +262,34 @@ def get_cached_micropolys(
     if len(MESH_CACHE) >= MAX_CACHE_ENTRIES:
         MESH_CACHE.pop(next(iter(MESH_CACHE)))
     MESH_CACHE[mesh_key] = (triangles, actual_count)
+    if persistent_path:
+        try:
+            os.makedirs(os.path.dirname(persistent_path), exist_ok=True)
+            p0 = np.asarray([triangle[0] for triangle in triangles], dtype=np.float32)
+            p1 = np.asarray([triangle[1] for triangle in triangles], dtype=np.float32)
+            p2 = np.asarray([triangle[2] for triangle in triangles], dtype=np.float32)
+            colors = np.asarray([triangle[3] for triangle in triangles], dtype=np.uint8)
+            elevations = np.asarray([triangle[4] for triangle in triangles], dtype=np.float32)
+            rivers = np.asarray([triangle[5] for triangle in triangles], dtype=np.uint8)
+            poly_ids = np.asarray([triangle[6] for triangle in triangles], dtype=np.int32)
+            normals = np.asarray([triangle[7] for triangle in triangles], dtype=np.float32)
+            fd, temp_path = tempfile.mkstemp(prefix=".terrain-mesh-", suffix=".npz",
+                                             dir=os.path.dirname(persistent_path))
+            try:
+                with os.fdopen(fd, "wb") as cache_file:
+                    np.savez(cache_file, signature=np.asarray(signature), p0=p0, p1=p1, p2=p2,
+                             colors=colors, elevations=elevations, rivers=rivers,
+                             poly_ids=poly_ids, normals=normals,
+                             actual_count=np.asarray(actual_count, dtype=np.int64))
+                    cache_file.flush()
+                    os.fsync(cache_file.fileno())
+                os.replace(temp_path, persistent_path)
+                print(f"[terrain] Cached Egypt micropolygon mesh to {persistent_path}.")
+            finally:
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
+        except Exception as exc:
+            print(f"[terrain] Could not cache micropolygon mesh: {exc}")
     return triangles, actual_count
 
 
