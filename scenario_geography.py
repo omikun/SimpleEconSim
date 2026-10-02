@@ -107,38 +107,16 @@ def resupply(world, nation_name, amount=2):
 
 def foreign_decisions(world):
     """Britain and France evaluate the same crisis independently each turn."""
-    from scenario_debt import outstanding
-    from scenario_gunboat import _nation, _protest
-    from scenario_situation import situation_template
-
+    from scenario_diplomacy import evaluate
+    french, british = evaluate(world)
     state = world['scenario_state']
-    geography = state['geography']
-    rules = situation_template()['naval_crisis']
-    debt = outstanding(world)
-    britain = _nation(world, 'Britain')
-    france = _nation(world, 'France')
-    britain_can_pay = bool(britain and britain.government.agent.cash >= float(rules['mobilization_cost']))
-    british_support = (debt > 0 and britain_can_pay
-                       and _protest(world, 'Britain') < float(rules['max_british_protest_energy']))
-    # France may endorse collection without joining an armed expedition. High
-    # protest or a costly expedition can also make it oppose unilateral force.
-    french_protest = _protest(world, 'France')
-    if not france or debt <= 0:
-        french_policy = 'abstain'
-    elif french_protest >= float(rules['max_french_protest_energy']) * 1.5:
-        french_policy = 'oppose'
-    elif (french_protest < float(rules['max_french_protest_energy'])
-          and france.government.agent.cash >= 20):
-        french_policy = 'support_demand'
-    else:
-        french_policy = 'abstain'
-    geography['diplomacy'] = {
-        'Britain': 'intervene' if british_support else 'withdraw',
-        'France': french_policy,
+    state['geography']['diplomacy'] = {
+        'Britain': british,
+        'France': french,
         'Ottoman Empire': ('offer_mediation' if state.get('naval_crisis', {}).get('stage')
                            in ('mobilizing', 'ultimatum', 'blockaded') else 'observe'),
     }
-    return geography['diplomacy']
+    return state['geography']['diplomacy']
 
 
 def close_canal(world):

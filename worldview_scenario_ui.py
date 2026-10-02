@@ -431,6 +431,21 @@ def _guided_action_preview(world: dict, nation, action_id: str) -> tuple[str, li
             f'Revoke inspection; the conditional {float(agreement.get("conditional_write_down", 0)):,.0f}-unit write-down becomes due in two turns.',
             'Creditor confidence falls 25 points. The due-debt warning will pause play.',
         ])
+    if action_id == 'request_french_mediation':
+        return ('Paris replies next turn', [
+            'Ask France to broker a half-claim settlement with Britain.',
+            'France weighs its bond exposure, treasury, and domestic protests; Britain may reject the proposal.',
+        ])
+    if action_id == 'offer_joint_guarantee':
+        return ('Shared levy proposal', [
+            'Offer Britain and France a capped collection assignment instead of a naval expedition.',
+            'Both governments must agree; an accepted levy transfers only actual Egyptian receipts.',
+        ])
+    if action_id == 'seek_french_opposition':
+        return ('Raise British intervention cost', [
+            'Ask Paris to oppose unilateral British enforcement.',
+            'Opposition raises Britain’s mobilization cost and protest sensitivity, but Britain may still act alone.',
+        ])
     amount = float(state.get('scheduled_remittance', 200.0))
     if action_id == 'pay_remittance':
         if int(world.get('turn', 0)) < int(state.get('payment_window_turn', 6)):
@@ -786,6 +801,12 @@ def _draw_egypt_scenario_panel(surface, world: dict, mouse_pos=None) -> None:
         reinforce_cost = float(situation_template()['naval_crisis']['battery_reinforcement_cost'])
         action_rows.append([('reinforce_alexandria', 'Prepare Alexandria defenses',
                              not state['naval_crisis'].get('reinforced') and treasury_cash >= reinforce_cost)])
+    if (state.get('payment_status') in ('defaulted', 'deferred', 'unpaid')
+            and state.get('naval_crisis', {}).get('stage') in ('none', 'mobilizing')
+            and not state.get('diplomatic_crisis', {}).get('egyptian_proposal')):
+        action_rows.append([('request_french_mediation', 'French mediation', True),
+                            ('offer_joint_guarantee', 'Joint guarantee', True)])
+        action_rows.append([('seek_french_opposition', 'Seek French opposition', True)])
     if (state.get('naval_crisis', {}).get('stage') in ('mobilizing', 'ultimatum', 'blockaded')
             and state.get('geography', {}).get('canal_open')):
         action_rows.append([('close_canal', 'Close canal to foreign transit', True)])
@@ -1039,7 +1060,7 @@ def draw_scenario_warning_modal(surface, world: dict, mouse_pos=None) -> None:
     veil.fill((5, 7, 12, 210))
     surface.blit(veil, (0, 0))
     kind = warning.get('kind')
-    card = pygame.Rect(310, 220, 780, 440 if kind in ('debt_due', 'creditor_reaction', 'naval_ultimatum', 'naval_blockade', 'landing_warning', 'capital_warning', 'dynastic_crisis', 'officer_movement') else 360)
+    card = pygame.Rect(310, 220, 780, 440 if kind in ('debt_due', 'creditor_reaction', 'naval_ultimatum', 'naval_blockade', 'landing_warning', 'capital_warning', 'dynastic_crisis', 'officer_movement', 'french_terms', 'joint_guarantee_terms') else 360)
     border = (225, 178, 87) if kind in ('debt_due', 'creditor_reaction') else (226, 102, 94)
     pygame.draw.rect(surface, (24, 29, 41), card, border_radius=10)
     pygame.draw.rect(surface, border, card, 2, border_radius=10)
@@ -1076,6 +1097,27 @@ def draw_scenario_warning_modal(surface, world: dict, mouse_pos=None) -> None:
         response_options = creditor_response_options(world, action_id)
         options = [(f'creditor_response:{response["id"]}', response['label'], response['enabled'])
                    for response in response_options]
+    elif kind in ('french_terms', 'joint_guarantee_terms'):
+        cash = float(getattr(getattr(getattr(nation, 'government', None), 'agent', None), 'cash', 0.0)) if nation else 0.0
+        amount = float(state.get('scheduled_remittance', 0)) * .5
+        if kind == 'french_terms':
+            title = 'French settlement proposal'
+            lines = [
+                f'Paris and London propose settling the claim for {amount:,.0f} treasury units.',
+                'Egypt retains its revenue offices and territory; France brokers the agreement.',
+                'Accepting settles the bonds. Rejecting leaves the creditor dispute open.',
+            ]
+            enabled = cash >= amount
+        else:
+            title = 'Joint creditor guarantee'
+            lines = [
+                'Britain and France offer a capped 5-unit claim on actual Egyptian tax and tariff receipts each turn.',
+                'Both creditors receive their bond share. The assignment ends when the claim is paid.',
+                'Rejecting leaves the creditor dispute open.',
+            ]
+            enabled = True
+        options = [('diplomacy_response:accept', 'Accept terms', enabled),
+                   ('diplomacy_response:reject', 'Reject terms', True)]
     elif kind in ('naval_ultimatum', 'naval_blockade'):
         from scenario_gunboat import naval_response_options, coastal_balance
         crisis = state.get('naval_crisis', {})
@@ -1238,6 +1280,10 @@ def draw_scenario_warning_modal(surface, world: dict, mouse_pos=None) -> None:
                         detail = 'Unavailable: the new due date would fall after the campaign ends. ' + detail
                     else:
                         detail = f'Unavailable: requires {float(response.get("requires_cash", 0.0)):,.0f} treasury units. ' + detail
+        if hovered_option.startswith('diplomacy_response:'):
+            detail = ('Accept the stated treaty terms and record every payment or assigned receipt in the debt ledger.'
+                      if hovered_option.endswith('accept') else
+                      'Reject the proposed terms. Britain and France retain their current claims and may continue escalation.')
         if hovered_option.startswith('naval_response:'):
             response_id = hovered_option.split(':', 1)[1]
             response = next((item for item in naval_options if item['id'] == response_id), None)
@@ -1305,6 +1351,14 @@ def scenario_warning_modal_hit(pos, world: dict) -> bool:
         if ok:
             world['scenario_warning_modal'] = None
             advance_creditor_reactions(world, int(world.get('turn', 0)), ticker_push)
+            from scenario_egypt_1877 import finish_due_campaign
+            finish_due_campaign(world)
+    elif action.startswith('diplomacy_response:'):
+        from scenario_diplomacy import resolve_terms
+        ok, message = resolve_terms(world, action.split(':', 1)[1])
+        world['scenario_feedback'] = message if ok else f'Not enacted: {message}'
+        if ok:
+            world['scenario_warning_modal'] = None
             from scenario_egypt_1877 import finish_due_campaign
             finish_due_campaign(world)
     elif action.startswith('naval_response:'):

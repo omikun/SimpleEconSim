@@ -53,6 +53,8 @@ SCENARIO = {
         {"id": "fiscal_hardship", "food_access": "poor", "debt": "resolved"},
         {"id": "coerced_disarmament", "military_concession": "disarmed", "debt": "unresolved"},
         {"id": "unresolved_crisis", "debt": "unresolved", "government_control": "Egyptian"},
+        {"id": "joint_financial_control", "revenue_control": "joint Caisse assignment"},
+        {"id": "french_brokered_settlement", "debt": "French mediated", "government_control": "Egyptian"},
     ),
     # Fixed map seeds make this authored campaign reproducible without affecting
     # ordinary sandbox generation. CLI seed flags remain available for tuning.
@@ -78,6 +80,9 @@ SCENARIO = {
         {"id": "comply_oversight", "title": "Fund Caisse inspection", "turn_cost": 1},
         {"id": "seek_narrower_oversight", "title": "Seek narrower inspection", "turn_cost": 1},
         {"id": "revoke_oversight", "title": "Revoke Caisse oversight", "turn_cost": 1},
+        {"id": "request_french_mediation", "title": "Request French mediation", "turn_cost": 1},
+        {"id": "offer_joint_guarantee", "title": "Offer joint creditor guarantee", "turn_cost": 1},
+        {"id": "seek_french_opposition", "title": "Seek French opposition", "turn_cost": 1},
         {"id": "organize_boycott", "title": "Organize customs boycott", "turn_cost": 1},
         {"id": "call_general_strike", "title": "Call general strike", "turn_cost": 1},
         {"id": "coordinate_insurgency", "title": "Coordinate resistance", "turn_cost": 1},
@@ -298,6 +303,8 @@ def prepare_world(world: dict) -> dict:
     initialize_campaign(world)
     from scenario_occupation import initialize as initialize_occupation
     initialize_occupation(world)
+    from scenario_diplomacy import initialize as initialize_diplomacy
+    initialize_diplomacy(world)
     from scenario_history import initialize as initialize_history
     initialize_history(world)
     for tile in egypt.tiles:
@@ -411,6 +418,11 @@ def apply_action(world: dict, action_id: str) -> tuple[bool, str]:
     elif action_id in ('comply_oversight', 'seek_narrower_oversight', 'revoke_oversight'):
         from scenario_oversight import action as oversight_action
         ok, message = oversight_action(world, action_id)
+        if not ok:
+            return False, message
+    elif action_id in ('request_french_mediation', 'offer_joint_guarantee', 'seek_french_opposition'):
+        from scenario_diplomacy import make_offer
+        ok, message = make_offer(world, action_id)
         if not ok:
             return False, message
     elif action_id in ('organize_boycott', 'call_general_strike', 'coordinate_insurgency',
@@ -572,6 +584,10 @@ def advance_scenario(world: dict, turn: int, ticker_push, on_phase=None) -> None
         on_phase('creditor_reaction')
     if world.get("scenario_warning_modal"):
         return
+    from scenario_diplomacy import advance as advance_diplomacy
+    advance_diplomacy(world, turn, ticker_push)
+    if world.get("scenario_warning_modal"):
+        return
     from scenario_gunboat import advance_naval_crisis
     advance_naval_crisis(world)
     if on_phase:
@@ -610,8 +626,12 @@ def classify_outcome(world: dict, metrics: dict | None = None) -> str:
         return 'stalled_intervention'
     if metrics['legitimacy'] <= thresholds['breakdown_legitimacy'] or metrics['unrest'] >= thresholds['breakdown_unrest']:
         return 'breakdown'
+    if evidence['joint_collection']:
+        return 'joint_financial_control'
     if evidence['active_assignment']:
         return 'imposed_financial_control'
+    if evidence['french_treaty'] and evidence['outstanding_claim'] <= .01:
+        return 'french_brokered_settlement'
     if state.get('settlement_path') == 'ottoman_mediation' and state.get('payment_status') == 'restructured':
         return 'sovereign_compromise'
     if evidence['disarmed'] and evidence['outstanding_claim'] > 0:
@@ -641,6 +661,11 @@ def outcome_evidence(world: dict, metrics: dict | None = None) -> dict:
     cause = state.get('naval_withdrawal_cause')
     expedition = campaign.get('expedition', {})
     claim = outstanding(world)
+    diplomatic = state.get('diplomatic_crisis') or {}
+    treaty = diplomatic.get('treaty') or {}
+    assignment = state.get('collection_assignment') or {}
+    recipients = {entry.get('creditor') for entry in state.get('debt_ledger', [])
+                  if entry.get('kind') == 'assigned_revenue'}
     return {
         'outstanding_claim': claim,
         'territorial_control': dict(campaign.get('territorial_control', {})),
@@ -651,6 +676,15 @@ def outcome_evidence(world: dict, metrics: dict | None = None) -> dict:
         'foreign_defeated': (cause in ('deterrence', 'unsustainable', 'military_defeat', 'no_access')
                              or expedition.get('stage') == 'repelled'),
         'nationalist': state.get('politics', {}).get('governing_coalition') == 'nationalist',
+        'joint_collection': (assignment.get('status') == 'active'
+                             and assignment.get('origin') == 'joint_guarantee'
+                             and {'Egypt', 'Britain', 'France'} <= set(treaty.get('signatories', []))
+                             and {'Britain', 'France'} <= recipients and claim > .01),
+        'french_treaty': (treaty.get('kind') == 'french_mediation'
+                          and treaty.get('status') == 'active'
+                          and {'Egypt', 'Britain', 'France'} <= set(treaty.get('signatories', []))),
+        'french_policy': diplomatic.get('french_policy', 'abstain'),
+        'french_fleet_joined': bool(state.get('naval_crisis', {}).get('french_fleet_ever_joined')),
     }
 
 
@@ -660,6 +694,15 @@ def finish_due_campaign(world: dict) -> None:
     turn = int(world.get('turn', 0))
     if (turn < int(SCENARIO['horizon_turns']) or state.get('ending')
             or world.get('scenario_warning_modal')):
+        return
+    from client.desktop.engine import ticker_push
+    from scenario_situation import advance_creditor_reactions
+    advance_creditor_reactions(world, turn, ticker_push)
+    if world.get('scenario_warning_modal'):
+        return
+    from scenario_diplomacy import advance as advance_diplomacy
+    advance_diplomacy(world, turn, ticker_push)
+    if world.get('scenario_warning_modal'):
         return
     nation = next((n for n in world.get('nations', [])
                    if n.name == world.get('player_nation_name')), None)
@@ -717,6 +760,8 @@ def build_debrief(world: dict, outcome: str, metrics: dict | None = None) -> dic
         "fiscal_hardship": ("Fiscal settlement amid hardship", "Debt was settled, but household food access remained poor."),
         "coerced_disarmament": ("Disarmed under pressure", "Egypt disarmed its coastal batteries while the creditor claim remained unresolved."),
         "unresolved_crisis": ("Unresolved crisis", "Egypt still governs, but the debt or foreign claim remains unsettled."),
+        "joint_financial_control": ("Joint creditor control", "Britain and France jointly collect assigned Egyptian receipts under a signed guarantee."),
+        "french_brokered_settlement": ("French-brokered settlement", "France brokered a paid agreement accepted by Egypt and Britain without foreign revenue control."),
     }
     title, summary = labels.get(outcome, labels["breakdown"])
     actions = [entry.get("message", "") for entry in state.get("actions_taken", [])]
@@ -743,6 +788,8 @@ def build_debrief(world: dict, outcome: str, metrics: dict | None = None) -> dic
     debt_detail += (f' Outstanding claim: {evidence["outstanding_claim"]:,.0f}; '
                     f'withdrawal cause: {evidence["withdrawal_cause"] or "none"}; '
                     f'coastal batteries disarmed: {"yes" if evidence["disarmed"] else "no"}.')
+    debt_detail += (f' French policy: {evidence["french_policy"].replace("_", " ")}; '
+                    f'French squadron joined: {"yes" if evidence["french_fleet_joined"] else "no"}.')
     return {
         "outcome": outcome,
         "title": title,

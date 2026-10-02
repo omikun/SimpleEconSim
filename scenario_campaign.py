@@ -32,10 +32,14 @@ def bombard_alexandria(world):
     state = world['scenario_state']['campaign']
     fort = state['forts']['Alexandria']
     fleet = world['scenario_state']['geography']['fleets']['Britain']
+    france = world['scenario_state']['geography']['fleets'].get('France')
+    french_fire = bool(france and fleet_at(world, 'France', 'Alexandria')
+                       and world['scenario_state'].get('diplomatic_crisis', {}).get('french_authorization', {}).get('bombard'))
     if fort['ammunition'] > 0 and fort['integrity'] > 0:
         fleet['damage'] = min(0.95, fleet['damage'] + 0.05 * fort['integrity'] / 100)
         fort['ammunition'] = max(0, fort['ammunition'] - 3)
-    strike = max(8.0, fleet['guns'] * (1 - fleet['damage']) * 0.70)
+    french_guns = france['guns'] * (1 - france['damage']) if french_fire else 0.0
+    strike = max(8.0, (fleet['guns'] * (1 - fleet['damage']) + french_guns) * 0.70)
     fort['integrity'] = max(0.0, fort['integrity'] - strike)
     alexandria = _tile(world, 'Alexandria')
     damage = min(1.0, state['infrastructure_damage'].get('Alexandria', 0.0) + strike / 300)

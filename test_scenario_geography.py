@@ -57,7 +57,8 @@ class ScenarioGeographyTests(unittest.TestCase):
         begin_escalation(self.world, 'test')
         decision = foreign_decisions(self.world)
         self.assertEqual(decision['Britain'], 'intervene')
-        self.assertIn(decision['France'], ('support_demand', 'abstain', 'oppose'))
+        self.assertIn(decision['France'], ('endorse', 'abstain', 'oppose',
+                                            'mediate', 'joint_guarantor', 'join_enforcement'))
         self.world['turn'] = self.state['naval_crisis']['due_turn']
         advance_naval_crisis(self.world)
         self.assertEqual(self.state['naval_crisis']['stage'], 'ultimatum')
