@@ -7,7 +7,8 @@ import pygame
 from ui_targets import clear_targets
 from worldview_camera import HEIGHT, MAP_RIGHT
 from worldview_engine import build_world_view
-from worldview_scenario_ui import draw_pressure_panel, draw_scenario_warning_modal, scenario_pressures
+from worldview_scenario_ui import (draw_pressure_panel, draw_scenario_warning_modal,
+                                   scenario_pressures, scenario_warning_modal_hit)
 
 
 class ScenarioPresentationTests(unittest.TestCase):
@@ -29,6 +30,18 @@ class ScenarioPresentationTests(unittest.TestCase):
         self.assertEqual(cards[1]['title'], 'Occupation & revenue')
         self.assertIn('Britain', cards[1]['cause'])
         self.assertTrue(any('garrison supply' in detail for detail in cards[1]['details']))
+
+    def test_pending_french_offer_promotes_a_foreign_decision_card(self):
+        state = self.world['scenario_state']
+        state['diplomatic_crisis']['egyptian_proposal'] = 'joint_guarantee'
+        state['diplomatic_crisis']['proposal_due_turn'] = 8
+        state['campaign']['territorial_control']['Alexandria'] = 'Britain'
+        cards = scenario_pressures(self.world)
+        self.assertEqual(len(cards), 3)
+        self.assertEqual(cards[1]['title'], 'Foreign decision')
+        self.assertIn('Paris replies on turn 8', cards[1]['value'])
+        self.assertIn('5 units per turn', cards[1]['cause'])
+        self.assertIn('Britain then accepts terms', cards[1]['details'][0])
 
     def test_long_action_list_scrolls_and_keeps_targets_inside_panel(self):
         state = self.world['scenario_state']
@@ -72,6 +85,37 @@ class ScenarioPresentationTests(unittest.TestCase):
                        if target.scope == 'scenario_warning']
             self.assertGreaterEqual(len(choices), minimum)
             self.assertTrue(all(target.rect.bottom < HEIGHT for target in choices))
+
+    def test_french_terms_can_be_accepted_by_modal_click(self):
+        from scenario_debt import outstanding
+        self.world['turn'] = 8
+        self.world['scenario_state']['payment_status'] = 'defaulted'
+        self.world['scenario_warning_modal'] = {'kind': 'french_terms'}
+        clear_targets(self.world)
+        draw_scenario_warning_modal(self.surface, self.world)
+        accept = next(target for target in self.world['_ui_targets']
+                      if target.action == ('scenario_warning', 'diplomacy_response:accept'))
+        scenario_warning_modal_hit(accept.rect.center, self.world)
+        self.assertIsNone(self.world['scenario_warning_modal'])
+        self.assertEqual(outstanding(self.world), 0.0)
+
+    def test_long_debrief_scrolls_without_hiding_ending(self):
+        state = self.world['scenario_state']
+        state['ending'] = 'joint_financial_control'
+        state['debrief'] = {
+            'title': 'Joint creditor control', 'summary': 'Britain and France collect assigned receipts.',
+            'food': 'Household access remains under review.', 'debt': 'A claim remains.',
+            'control': 'Egypt governs Cairo.', 'diplomacy': 'France joined the agreement.',
+            'politics': 'Legitimacy held.', 'authority': 'Egyptian cabinet.',
+            'diplomacy_history': [{'actor': 'France', 'decision': 'joint_guarantor',
+                                   'reason': 'Creditors expect receipts.'}] * 6,
+            'actions': ['Egypt offered a joint guarantee with signed terms.'] * 8,
+        }
+        draw_pressure_panel(self.surface, self.world)
+        self.assertGreater(self.world['guided_debrief_scroll_max'], 0)
+        self.world['guided_debrief_scroll'] = self.world['guided_debrief_scroll_max']
+        draw_pressure_panel(self.surface, self.world)
+        self.assertEqual(self.world['guided_debrief_scroll'], self.world['guided_debrief_scroll_max'])
 
 
 if __name__ == '__main__':

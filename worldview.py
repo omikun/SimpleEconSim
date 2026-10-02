@@ -783,9 +783,12 @@ def main():
                         _mark_dirty(world)
                     elif (world.get('ui_mode') == 'guided' and world.get('scenario_id') == 'egypt_1877'
                           and mx >= MAP_RIGHT):
-                        maximum = int(world.get('guided_action_scroll_max', 0))
-                        world['guided_action_scroll'] = max(0, min(maximum,
-                            int(world.get('guided_action_scroll', 0)) - event.y))
+                        if world.get('scenario_state', {}).get('ending'):
+                            key, max_key = 'guided_debrief_scroll', 'guided_debrief_scroll_max'
+                        else:
+                            key, max_key = 'guided_action_scroll', 'guided_action_scroll_max'
+                        maximum = int(world.get(max_key, 0))
+                        world[key] = max(0, min(maximum, int(world.get(key, 0)) - event.y))
                         _mark_dirty(world)
                     elif mx < MAP_RIGHT:
                         factor = 1.15 ** event.y

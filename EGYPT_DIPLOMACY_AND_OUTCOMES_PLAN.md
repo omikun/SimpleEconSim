@@ -88,3 +88,14 @@ After **each phase**, verify its state invariants and run the relevant scenario 
 3. **Campaign horizon:** Recommended: keep 20 turns and report outstanding treaties and debt honestly in the debrief. A later chapter can continue those states.
 4. **Outcome count:** Recommended: add only the five primary outcomes named above, and use descriptors for smaller variations. Keep the existing ten IDs reachable and avoid multiplying endings for every France stance.
 
+## Implementation record
+
+| Phase | Commit | Result |
+| --- | --- | --- |
+| 1 | `c5742af` | Ending evidence, withdrawal causes, disarmament, and three missing endings. |
+| 2 | `521a3dd` | Bounded Caisse oversight and receipt collection with follow-up decisions and ledger transfers. |
+| 3 | `9104196` | Independent French policy, Egyptian offers, British replies, funded French fleet, and separate fire authorization. |
+| 4 | `25e02d2` | Campaign paths for the two treaty endings and all other endings; final-turn diplomatic replies resolve before debrief. |
+| 5 | Final phase commit | Guided pressure and modal presentation, scrollable evidence debrief, updated situation template and GDD. |
+
+The outcome classifier is checked against recorded scenario state after a pickle roundtrip. The application currently uses pickle only for generated map caching; it has no full campaign save/load command. A full `world` pickle fails with a recursion error in the simulation object graph, so a resumable campaign save is still a separate persistence task. The Phase 4 save/load continuation criterion is limited to the scenario record until that task is implemented.

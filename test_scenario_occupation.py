@@ -71,7 +71,8 @@ class ScenarioOccupationTests(unittest.TestCase):
         self.world['turn'] = 20
         finish_due_campaign(self.world)
         self.assertEqual(self.state['ending'], 'occupation')
-        self.assertIn('customs controller: Britain', self.state['debrief']['debt'])
+        self.assertIn('Cairo: Britain', self.state['debrief']['control'])
+        self.assertIn('customs: Britain', self.state['debrief']['control'])
 
 
 if __name__ == '__main__':

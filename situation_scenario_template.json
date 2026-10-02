@@ -199,6 +199,33 @@
         "responses": []
       }
     },
+    "request_french_mediation": {
+      "delay_turns": 1,
+      "reaction": {
+        "headline": "Paris considers Egyptian mediation request",
+        "body": "France weighs its bond claim, treasury, and domestic protest before proposing terms; Britain answers separately.",
+        "effects": {},
+        "responses": []
+      }
+    },
+    "offer_joint_guarantee": {
+      "delay_turns": 1,
+      "reaction": {
+        "headline": "Creditors consider a joint collection guarantee",
+        "body": "Britain and France decide independently whether capped assignment of actual receipts is preferable to enforcement.",
+        "effects": {},
+        "responses": []
+      }
+    },
+    "seek_french_opposition": {
+      "delay_turns": 1,
+      "reaction": {
+        "headline": "Paris weighs opposition to unilateral force",
+        "body": "French opposition raises Britain's political and expedition cost but does not forbid a British-only operation.",
+        "effects": {},
+        "responses": []
+      }
+    },
     "pay_remittance": {
       "delay_turns": 1,
       "reaction": {

@@ -767,8 +767,9 @@ def build_debrief(world: dict, outcome: str, metrics: dict | None = None) -> dic
     actions = [entry.get("message", "") for entry in state.get("actions_taken", [])]
     if not actions:
         actions = ["No major scenario decision was recorded before the ending."]
+    evidence = outcome_evidence(world, metrics)
     debt_detail = (f"Debt service {state.get('payment_status', 'unresolved')}; "
-                   f"creditor confidence {state.get('creditor_confidence', 0.0):.0%}; "
+                   f"outstanding Caisse claim {evidence['outstanding_claim']:,.0f}; "
                    f"fiscal autonomy {state.get('fiscal_autonomy', 1.0):.0%}.")
     if state.get('payment_status') in ('deferred', 'unpaid'):
         debt_detail += (f" Next due: turn {state.get('payment_window_turn', '?')}, "
@@ -776,26 +777,33 @@ def build_debrief(world: dict, outcome: str, metrics: dict | None = None) -> dic
     if float(state.get('creditor_levy_per_turn', 0.0)) > 0:
         debt_detail += (f" Caisse levy: up to {state['creditor_levy_per_turn']:,.0f} units per turn, "
                         f"{state.get('creditor_levy_remaining', 0.0):,.0f} remaining.")
-    naval_stage = state.get('naval_crisis', {}).get('stage', 'none')
-    if naval_stage not in ('none',):
-        debt_detail += f' Naval crisis: {naval_stage}.'
+    assignment = state.get('collection_assignment') or {}
+    if assignment.get('status') == 'active':
+        debt_detail += f" Active assignment: {assignment.get('origin', 'creditor demand').replace('_', ' ')}."
     occupation = state.get('occupation', {})
     institutions = occupation.get('institutional_control', {})
-    debt_detail += (f' Formal sovereignty: {occupation.get("formal_sovereign", "Egypt")}; '
-                    f'customs controller: {institutions.get("customs", "Egypt")}; '
-                    f'cabinet controller: {institutions.get("cabinet", "Egypt")}.')
-    evidence = outcome_evidence(world, metrics)
-    debt_detail += (f' Outstanding claim: {evidence["outstanding_claim"]:,.0f}; '
-                    f'withdrawal cause: {evidence["withdrawal_cause"] or "none"}; '
-                    f'coastal batteries disarmed: {"yes" if evidence["disarmed"] else "no"}.')
-    debt_detail += (f' French policy: {evidence["french_policy"].replace("_", " ")}; '
-                    f'French squadron joined: {"yes" if evidence["french_fleet_joined"] else "no"}.')
+    territorial = evidence['territorial_control']
+    control_detail = (f'Alexandria: {territorial.get("Alexandria", "Egypt")}; '
+                      f'Cairo: {territorial.get("Cairo", "Egypt")}; '
+                      f'formal sovereign: {occupation.get("formal_sovereign", "Egypt")}; '
+                      f'customs: {institutions.get("customs", "Egypt")}; '
+                      f'cabinet: {institutions.get("cabinet", "Egypt")}.')
+    diplomatic = state.get('diplomatic_crisis') or {}
+    treaty = diplomatic.get('treaty') or {}
+    diplomacy_detail = (f'France: {evidence["french_policy"].replace("_", " ")}; '
+                        f'French fleet joined: {"yes" if evidence["french_fleet_joined"] else "no"}; '
+                        f'treaty: {treaty.get("kind", "none").replace("_", " ")}; '
+                        f'British withdrawal: {evidence["withdrawal_cause"] or "none"}.')
+    if evidence['disarmed']:
+        diplomacy_detail += ' Egyptian coastal batteries were disarmed.'
     return {
         "outcome": outcome,
         "title": title,
         "summary": summary,
         "food": f"{metrics.get('hungry', 0)} of {metrics.get('households', 0)} households hungry ({metrics.get('hunger_rate', 0.0):.0%}).",
         "debt": debt_detail,
+        "control": control_detail,
+        "diplomacy": diplomacy_detail,
         "politics": f"Government legitimacy {metrics.get('legitimacy', 0.0):.0%}; average unrest {metrics.get('unrest', 0.0):.2f}.",
         "authority": (f"{state.get('politics', {}).get('ruler', 'Unknown ruler')}; "
                       f"{state.get('politics', {}).get('governing_coalition', 'unknown')} coalition; "
@@ -806,6 +814,7 @@ def build_debrief(world: dict, outcome: str, metrics: dict | None = None) -> dic
         "creditor_reactions": [entry['headline'] for entry in state.get('creditor_news', [])],
         "historical_log": list(state.get('historical_log', [])),
         "naval_events": [entry['text'] for entry in state.get('naval_news', [])],
+        "diplomacy_history": list(diplomatic.get('history', [])),
     }
 
 

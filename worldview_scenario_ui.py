@@ -76,7 +76,9 @@ def _egypt_scenario_pressures(world: dict) -> list[dict]:
     hunger_rate = hungry / max(1, len(people))
     stock = int(getattr(nation.government, 'food_inventory', 0))
     stock_turns = stock / max(1, int(state.get('relief_units_per_turn', 30)))
-    food_tone = 'urgent' if hunger_rate >= 0.15 else ('warning' if stock_turns < 2 else 'good')
+    protected_rate = float(world.get('scenario', {}).get('thresholds', {}).get('protected_hunger_rate', .20))
+    food_tone = ('urgent' if hunger_rate >= protected_rate else
+                 'warning' if stock_turns < 2 or hunger_rate >= protected_rate * .5 else 'good')
     food_value = f'{hunger_rate:.0%} hungry • {stock_turns:.1f} turns of public maize'
     food_cause = 'Reserve release can feed households; it uses finite state stores.'
 
@@ -112,13 +114,26 @@ def _egypt_scenario_pressures(world: dict) -> list[dict]:
     elif naval_stage == 'mediation':
         debt_value = 'Ottoman mediation pending'
         debt_cause = 'The fleet remains off Alexandria for one turn while Istanbul seeks terms.'
+    diplomatic = state.get('diplomatic_crisis') or {}
+    debt_title = 'Debt service'
+    pending_offer = diplomatic.get('egyptian_proposal')
+    if pending_offer:
+        debt_title = 'Foreign decision'
+        debt_value = f'Paris replies on turn {diplomatic.get("proposal_due_turn", "?")}'
+        offer_effects = {
+            'mediation': f'If both governments agree, Cairo may settle for {remittance * .5:.0f} cash.',
+            'joint_guarantee': 'If all sign, creditors may collect up to 5 units per turn from actual receipts.',
+            'oppose_unilateral': 'French opposition raises British mobilization cost by 20; Britain may still proceed.',
+        }
+        debt_cause = offer_effects.get(pending_offer, 'Paris and London will weigh Cairo’s offer.')
     debt_tone = 'urgent' if payment_status in ('deferred', 'defaulted') or (remaining <= 1 and payment_status in ('upcoming', 'unpaid')) else 'warning'
     if naval_stage in ('mobilizing', 'ultimatum', 'blockaded'):
         debt_tone = 'urgent'
     occupation = state.get('occupation', {})
     controlled = [site for site, holder in state.get('campaign', {}).get('territorial_control', {}).items()
                   if holder == 'Britain']
-    if controlled:
+    if controlled and not pending_offer:
+        debt_title = 'Occupation & revenue'
         debt_value = 'British foothold: ' + ', '.join(controlled)
         institutions = occupation.get('institutional_control', {})
         debt_cause = (f'Customs: {institutions.get("customs", "Egypt")}; '
@@ -139,11 +154,25 @@ def _egypt_scenario_pressures(world: dict) -> list[dict]:
     ledger = state.get('debt_ledger', [])
     recent = [entry for entry in ledger if entry.get('kind') in ('payment', 'concession_payment',
                                                                 'naval_settlement', 'assigned_revenue')]
-    debt_details = [
-        f'Outstanding Caisse bonds: {remittance:,.0f} units, held by Britain and France.',
-        'Assigned receipts: 25% of eligible tax and 50% of customs, capped by the agreed levy each turn.',
-        f'Collected from actual receipts this turn: {float(state.get("debt_collected_this_turn", 0.0)):,.1f} units.',
-    ]
+    debt_details = [f'Outstanding Caisse bonds: {remittance:,.0f} units, held by Britain and France.']
+    if pending_offer:
+        debt_details.insert(0, f'Cairo proposed {pending_offer.replace("_", " ")}. '
+                               f'France answers on turn {diplomatic["proposal_due_turn"]}; '
+                               'Britain then accepts terms, proceeds alone, or withdraws.')
+    assignment = state.get('collection_assignment') or {}
+    if assignment.get('status') == 'active':
+        sources = assignment.get('sources', {})
+        debt_details.append(f'Assigned receipts: {float(sources.get("tax", 0)):.0%} of eligible tax and '
+                            f'{float(sources.get("tariff", 0)):.0%} of customs, capped at '
+                            f'{float(assignment.get("per_turn_cap", 0)):,.0f} units each turn.')
+        debt_details.append(f'Collected from actual receipts this turn: '
+                            f'{float(state.get("debt_collected_this_turn", 0.0)):,.1f} units.')
+    else:
+        debt_details.append('No active Caisse collection assignment.')
+    oversight = state.get('oversight_agreement') or {}
+    if oversight.get('status') == 'active':
+        debt_details.append(f'Caisse inspection covers {" and ".join(oversight["scope"])} receipts; '
+                            f'next review turn {oversight["review_turn"]}. Inspection alone seizes no cash.')
     if recent:
         entry = recent[-1]
         debt_details.append(f'Latest transfer: turn {entry["turn"]}, {entry["amount"]:,.2f} to {entry["creditor"]} '
@@ -154,12 +183,20 @@ def _egypt_scenario_pressures(world: dict) -> list[dict]:
         debt_details.append(f'British fleet: {fleet["ships"]} ships, {fleet["guns"]:.0f} guns at '
                             f'{fleet["location"]}; coal {fleet["coal"]}, '
                             f'{"supplied" if fleet["supplied"] else "unsupplied"}.')
+    french_fleet = geography.get('fleets', {}).get('France')
+    if french_fleet:
+        authorized = diplomatic.get('french_authorization', {})
+        debt_details.append(f'French fleet: {french_fleet["ships"]} ships at {french_fleet["location"]}; '
+                            f'{"authorized" if authorized.get("bombard") else "not authorized"} to fire.')
     debt_details.append(f'Canal: {"open" if geography.get("canal_open", True) else "closed"} to foreign transit; '
                         f'controller {geography.get("canal_controller", "Egypt")}.' )
     diplomacy = geography.get('diplomacy', {})
     if diplomacy:
         debt_details.append('Foreign positions: ' + ', '.join(f'{name} {policy.replace("_", " ")}'
                                                              for name, policy in diplomacy.items()) + '.')
+    for actor in ('France', 'Britain'):
+        if diplomatic.get('reasons', {}).get(actor):
+            debt_details.append(f'{actor}: {diplomatic["reasons"][actor]}')
     if controlled:
         debt_details.append(f'Occupied receipts collected this turn: {float(occupation.get("collected_this_turn", 0)):.1f}; '
                             f'garrison supply paid so far: {float(occupation.get("garrison_supply_paid", 0)):.1f}.')
@@ -170,7 +207,7 @@ def _egypt_scenario_pressures(world: dict) -> list[dict]:
                             f'Egyptian resistance is {float(occupation.get("resistance", 0)):.0%}.')
     return [
         {'title': 'Household maize access', 'value': food_value, 'cause': food_cause, 'tone': food_tone},
-        {'title': 'Occupation & revenue' if controlled else 'Debt service',
+        {'title': debt_title,
          'value': debt_value, 'cause': debt_cause, 'tone': debt_tone,
          'details': debt_details},
         {'title': 'Political support', 'value': f'Legitimacy {legitimacy:.0%} • palace army {loyalty:.0%}',
@@ -219,6 +256,12 @@ def draw_scenario_route_overlay(surface, world: dict) -> None:
         pygame.draw.circle(surface, (238, 113, 96), (px - 9, py + 10), 5)
         label = _scenario_font(12).render('British fleet', True, (255, 200, 181))
         surface.blit(label, (px + 1, py + 6))
+    french_fleet = geography.get('fleets', {}).get('France')
+    if french_fleet and french_fleet.get('location') in points:
+        px, py = points[french_fleet['location']]
+        pygame.draw.circle(surface, (118, 164, 225), (px - 9, py + 23), 5)
+        label = _scenario_font(12).render('French fleet', True, (180, 211, 250))
+        surface.blit(label, (px + 1, py + 19))
     surface.set_clip(clipped)
 
 
@@ -949,57 +992,67 @@ def _draw_egypt_scenario_debrief(surface, world: dict) -> None:
     debrief = world.get('scenario_state', {}).get('debrief', {})
     title_font = _scenario_font(22)
     body_font = _scenario_font(16)
-    small_font = _scenario_font(13)
-    cur_y = y + 18
-    surface.blit(title_font.render(debrief.get('title', 'Campaign complete'), True, ACCENT), (x + 14, cur_y))
-    cur_y += 39
-    for line in _wrap_text(debrief.get('summary', ''), body_font, w - 28)[:4]:
-        surface.blit(body_font.render(line, True, TEXT), (x + 14, cur_y))
-        cur_y += 22
-    cur_y += 8
-    for key in ('food', 'debt', 'politics', 'authority'):
-        for line in _wrap_text(debrief.get(key, ''), small_font, w - 28)[:2]:
-            surface.blit(small_font.render(line, True, DIM), (x + 14, cur_y))
-            cur_y += 19
-        cur_y += 4
-    historical_log = debrief.get('historical_log', [])
-    if historical_log and cur_y < y + h - 195:
-        surface.blit(body_font.render('History and game model', True, TEXT), (x + 14, cur_y))
-        cur_y += 23
-        shown_history = historical_log[:2] + (historical_log[-1:] if len(historical_log) > 2 else [])
-        for entry in shown_history:
-            label = entry['kind'].replace('_', ' ').title()
-            for line in _wrap_text(f'{label}: {entry["text"]}', small_font, w - 28)[:2]:
-                if cur_y >= y + h - 165:
-                    break
-                surface.blit(small_font.render(line, True, DIM), (x + 14, cur_y))
-                cur_y += 18
+    small_font = _scenario_font(15)
+    surface.blit(title_font.render(debrief.get('title', 'Campaign complete'), True, ACCENT),
+                 (x + 14, y + 18))
+    entries = []
+
+    def add(value, font=small_font, color=DIM, gap=0):
+        for line in _wrap_text(str(value), font, w - 36):
+            entries.append((line, font, color, 23 if font is body_font else 21))
+        if gap:
+            entries.append(('', small_font, DIM, gap))
+
+    def heading(value):
+        add(value, body_font, TEXT, 4)
+
+    add(debrief.get('summary', ''), body_font, TEXT, 10)
+    heading('What the campaign ended with')
+    for key in ('food', 'debt', 'control', 'diplomacy', 'politics', 'authority'):
+        if debrief.get(key):
+            add(f'{key.title()}: {debrief[key]}', gap=4)
+    diplomatic_events = debrief.get('diplomacy_history', [])
+    if diplomatic_events:
+        heading('Foreign decisions')
+        for entry in diplomatic_events[-6:]:
+            add(f'{entry["actor"]}: {entry["decision"].replace("_", " ")} — {entry["reason"]}', gap=3)
     reactions = debrief.get('creditor_reactions', [])
     if reactions:
-        surface.blit(body_font.render('Caisse responses', True, TEXT), (x + 14, cur_y))
-        cur_y += 23
-        for headline in reactions[-2:]:
-            for line in _wrap_text(f'• {headline}', small_font, w - 28)[:2]:
-                surface.blit(small_font.render(line, True, DIM), (x + 14, cur_y))
-                cur_y += 18
+        heading('Caisse responses')
+        for headline in reactions[-3:]:
+            add(f'• {headline}', gap=3)
     naval_events = debrief.get('naval_events', [])
     if naval_events:
-        surface.blit(body_font.render('Alexandria crisis', True, TEXT), (x + 14, cur_y))
-        cur_y += 23
-        for line in _wrap_text(naval_events[-1], small_font, w - 28)[:2]:
-            surface.blit(small_font.render(line, True, DIM), (x + 14, cur_y))
-            cur_y += 18
-    cur_y += 9
-    surface.blit(body_font.render('Decisions that shaped this result', True, TEXT), (x + 14, cur_y))
-    cur_y += 26
-    for action in debrief.get('actions', [])[:6]:
-        lines = _wrap_text(f'• {action}', small_font, w - 32)
-        for line in lines[:2]:
-            if cur_y > y + h - 30:
-                return
-            surface.blit(small_font.render(line, True, TEXT), (x + 17, cur_y))
-            cur_y += 18
-        cur_y += 4
+        heading('Alexandria crisis')
+        for event in naval_events[-2:]:
+            add(event, gap=3)
+    historical_log = debrief.get('historical_log', [])
+    if historical_log:
+        heading('History and game model')
+        for entry in historical_log[:2] + historical_log[-2:]:
+            add(f'{entry["kind"].replace("_", " ").title()}: {entry["text"]}', gap=3)
+    heading('Decisions that shaped this result')
+    for action in debrief.get('actions', [])[-8:]:
+        add(f'• {action}', small_font, TEXT, 4)
+
+    viewport = pygame.Rect(x + 9, y + 61, w - 18, h - 82)
+    content_height = sum(height for _, _, _, height in entries)
+    maximum = max(0, content_height - viewport.h)
+    world['guided_debrief_scroll_max'] = (maximum + 27) // 28
+    scroll_lines = max(0, min(int(world.get('guided_debrief_scroll', 0)),
+                               world['guided_debrief_scroll_max']))
+    world['guided_debrief_scroll'] = scroll_lines
+    cursor = viewport.y - min(maximum, scroll_lines * 28)
+    previous_clip = surface.get_clip()
+    surface.set_clip(viewport)
+    for line, font, color, line_height in entries:
+        if line and cursor + line_height >= viewport.y and cursor < viewport.bottom:
+            surface.blit(font.render(line, True, color), (x + 14, cursor))
+        cursor += line_height
+    surface.set_clip(previous_clip)
+    if maximum:
+        hint = f'Scroll for full debrief • {scroll_lines + 1}/{world["guided_debrief_scroll_max"] + 1}'
+        surface.blit(_scenario_font(11).render(hint, True, ACCENT), (x + 14, y + h - 20))
 
 
 def draw_guided_frame(surface, world: dict, font, font_small, mouse_pos=None) -> None:
@@ -1122,10 +1175,15 @@ def draw_scenario_warning_modal(surface, world: dict, mouse_pos=None) -> None:
         from scenario_gunboat import naval_response_options, coastal_balance
         crisis = state.get('naval_crisis', {})
         balance = coastal_balance(world)
+        diplomatic = state.get('diplomatic_crisis') or {}
+        french_fleet = state.get('geography', {}).get('fleets', {}).get('France')
+        french_stance = diplomatic.get('french_policy', 'abstain').replace('_', ' ')
+        french_status = (f'France: {french_stance}; a funded French fleet is present and '
+                         f'{"may fire" if diplomatic.get("french_authorization", {}).get("bombard") else "may not fire"}.'
+                         if french_fleet else f'France: {french_stance}; no French fleet is present.')
         title = 'British ultimatum at Alexandria' if kind == 'naval_ultimatum' else 'Alexandria is under naval blockade'
         lines = ([
-            'A British squadron is off the coast. France supports the demand.' if crisis.get('french_support')
-            else 'A British squadron is off the coast. France stays out.',
+            french_status,
             'London demands customs oversight or disarmament. Defending the batteries risks bombardment and a real trade blockade.',
             f'Force at Alexandria: Britain {balance["british_force"]:.0f}, Egyptian defense {balance["egyptian_defense"]:.0f}; ratio {balance["ratio"]:.2f}.',
         ] if kind == 'naval_ultimatum' else [
