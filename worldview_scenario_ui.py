@@ -415,6 +415,22 @@ def _guided_action_preview(world: dict, nation, action_id: str) -> tuple[str, li
             f'Average unrest {unrest:.2f} → {next_unrest:.2f}; legitimacy {legitimacy:.0%} → {max(0, legitimacy - .08):.0%}.',
             'Repeated requisitions can cause government breakdown; higher taxes can raise future receipts.',
         ])
+    if action_id == 'comply_oversight':
+        return ('−2 treasury • creditor confidence +3pp', [
+            'Pay Egyptian inspectors to disclose receipts at the next Caisse review.',
+            'The conditional debt write-down remains in force.',
+        ])
+    if action_id == 'seek_narrower_oversight':
+        return ('−20 treasury • request tax-only review', [
+            'Pay 20 units to Britain and France and propose removing tariff inspection.',
+            'The Caisse accepts only if disclosed receipts and creditor confidence are strong.',
+        ])
+    if action_id == 'revoke_oversight':
+        agreement = state.get('oversight_agreement') or {}
+        return ('Autonomy +15pp • debt claim restored', [
+            f'Revoke inspection; the conditional {float(agreement.get("conditional_write_down", 0)):,.0f}-unit write-down becomes due in two turns.',
+            'Creditor confidence falls 25 points. The due-debt warning will pause play.',
+        ])
     amount = float(state.get('scheduled_remittance', 200.0))
     if action_id == 'pay_remittance':
         if int(world.get('turn', 0)) < int(state.get('payment_window_turn', 6)):
@@ -773,6 +789,13 @@ def _draw_egypt_scenario_panel(surface, world: dict, mouse_pos=None) -> None:
     if (state.get('naval_crisis', {}).get('stage') in ('mobilizing', 'ultimatum', 'blockaded')
             and state.get('geography', {}).get('canal_open')):
         action_rows.append([('close_canal', 'Close canal to foreign transit', True)])
+    oversight = state.get('oversight_agreement') or {}
+    if oversight.get('status') == 'active':
+        action_rows.append([('comply_oversight', 'Fund inspection', treasury_cash >= 2),
+                            ('seek_narrower_oversight', 'Narrow inspection',
+                             treasury_cash >= 20 and not oversight.get('proposal')
+                             and oversight.get('scope') != ['tax'])])
+        action_rows.append([('revoke_oversight', 'Revoke oversight', True)])
     occupation = state.get('occupation', {})
     if any(owner == 'Britain' for owner in state.get('campaign', {}).get('territorial_control', {}).values()):
         action_rows.append([('organize_boycott', 'Organize customs boycott', True),

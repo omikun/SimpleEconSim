@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 from government import Government
 from sovereign_bonds import SovereignBondMarket
-from scenario_debt import initialize, bonds, outstanding, pay, revise
+from scenario_debt import initialize, bonds, outstanding, pay, revise, set_collection_assignment
 
 
 class FakeGovernment:
@@ -72,6 +72,36 @@ class ScenarioDebtTests(unittest.TestCase):
         self.assertEqual(outstanding(self.world), 0.0)
         self.assertTrue(all(bond.status == 'redeemed' for bond in bonds(self.world)))
         self.assertEqual(sum(n.government.agent.cash for n in self.world['nations']), total_before + 40)
+
+    def test_collection_assignment_records_terms_and_discharge(self):
+        state = self.world['scenario_state']
+        set_collection_assignment(self.world, 5, origin='caisse_consent')
+        agreement = state['collection_assignment']
+        self.assertEqual(agreement['origin'], 'caisse_consent')
+        self.assertEqual(agreement['creditors'], {'Britain': 100.0, 'France': 100.0})
+        self.assertEqual(agreement['sources']['tax'], .25)
+        ok, reason = pay(self.world, 200)
+        self.assertTrue(ok, reason)
+        self.assertEqual(agreement['status'], 'discharged')
+        self.assertEqual(state['creditor_levy_per_turn'], 0)
+
+    def test_revoking_inspection_restores_conditional_bonds_without_cash_creation(self):
+        from scenario_oversight import action, sign
+        self.world['scenario'] = {'horizon_turns': 20}
+        self.world['turn'] = 6
+        state = self.world['scenario_state']
+        state['creditor_confidence'] = .75
+        state['fiscal_autonomy'] = .75
+        ok, reason = pay(self.world, 100, kind='concession_payment', forgive_remainder=True)
+        self.assertTrue(ok, reason)
+        sign(self.world, written_down=100)
+        cash_before = sum(n.government.agent.cash for n in self.world['nations'])
+        ok, reason = action(self.world, 'revoke_oversight')
+        self.assertTrue(ok, reason)
+        self.assertEqual(outstanding(self.world), 100)
+        self.assertEqual(state['payment_window_turn'], 8)
+        self.assertEqual(state['payment_status'], 'deferred')
+        self.assertEqual(sum(n.government.agent.cash for n in self.world['nations']), cash_before)
 
 
 if __name__ == '__main__':

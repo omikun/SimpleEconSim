@@ -75,6 +75,9 @@ SCENARIO = {
         {"id": "invite_representative_cabinet", "title": "Invite representative cabinet", "turn_cost": 1},
         {"id": "dismiss_foreign_controllers", "title": "Dismiss foreign controllers", "turn_cost": 1},
         {"id": "close_canal", "title": "Close canal to foreign transit", "turn_cost": 1},
+        {"id": "comply_oversight", "title": "Fund Caisse inspection", "turn_cost": 1},
+        {"id": "seek_narrower_oversight", "title": "Seek narrower inspection", "turn_cost": 1},
+        {"id": "revoke_oversight", "title": "Revoke Caisse oversight", "turn_cost": 1},
         {"id": "organize_boycott", "title": "Organize customs boycott", "turn_cost": 1},
         {"id": "call_general_strike", "title": "Call general strike", "turn_cost": 1},
         {"id": "coordinate_insurgency", "title": "Coordinate resistance", "turn_cost": 1},
@@ -265,6 +268,7 @@ def prepare_world(world: dict) -> dict:
         "creditor_levy_per_turn": 0.0,
         "creditor_levy_remaining": 0.0,
         "settlement_path": None,
+        "oversight_agreement": None,
         "disarmed_batteries": False,
         "naval_withdrawal_cause": None,
         "naval_crisis": {"stage": "none"},
@@ -404,6 +408,11 @@ def apply_action(world: dict, action_id: str) -> tuple[bool, str]:
         ok, message = close_canal(world)
         if not ok:
             return False, message
+    elif action_id in ('comply_oversight', 'seek_narrower_oversight', 'revoke_oversight'):
+        from scenario_oversight import action as oversight_action
+        ok, message = oversight_action(world, action_id)
+        if not ok:
+            return False, message
     elif action_id in ('organize_boycott', 'call_general_strike', 'coordinate_insurgency',
                        'collaborate_with_occupation', 'negotiate_withdrawal'):
         from scenario_occupation import apply_action as apply_occupation_action
@@ -449,9 +458,13 @@ def apply_action(world: dict, action_id: str) -> tuple[bool, str]:
             state["settlement_path"] = "scheduled_payment" if action_id == "pay_remittance" else "revenue_concession"
             state["creditor_levy_per_turn"] = 0.0
             state["creditor_levy_remaining"] = 0.0
+            if state.get('collection_assignment'):
+                state['collection_assignment']['status'] = 'discharged'
             state["creditor_confidence"] = min(1.0, state.get("creditor_confidence", 0.6) + 0.15)
             if action_id == "concede_revenue":
                 state["fiscal_autonomy"] = max(0.0, state.get("fiscal_autonomy", 1.0) - 0.25)
+                from scenario_oversight import sign as sign_oversight
+                sign_oversight(world, amount)
                 message = f"Accepted a reduced {amount:,.0f}-unit remittance and creditor oversight of future revenues."
             else:
                 message = f"Paid the {amount:,.0f}-unit scheduled debt-service remittance."
@@ -533,6 +546,8 @@ def advance_scenario(world: dict, turn: int, ticker_push, on_phase=None) -> None
     if on_phase:
         on_phase('protest_pressure')
     update_foreign_reports(world)
+    from scenario_oversight import advance as advance_oversight
+    advance_oversight(world, turn, ticker_push)
     from scenario_politics import advance as advance_politics
     advance_politics(world)
     if state['politics']['crisis_resolved'] or state.get('naval_crisis', {}).get('stage') not in ('none',):

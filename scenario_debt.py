@@ -41,6 +41,7 @@ def initialize(world):
     state['debt_bond_ids'] = ids
     state['debt_ledger'] = []
     state['assigned_revenues'] = {'tax': 0.25, 'tariff': 0.5, 'rail': 0.0, 'port': 0.0}
+    state['collection_assignment'] = None
     state['debt_collection_turn'] = 0
     state['debt_collected_this_turn'] = 0.0
     egypt = _nation(world, 'Egypt')
@@ -79,6 +80,39 @@ def revise(world, amount, due_turn=None):
     _entry(world, 'revision', amount, due_turn=state['payment_window_turn'])
 
 
+def reinstate_claim(world, amount, due_turn):
+    """Restore the conditional part of a signed write-down after breach."""
+    contracts = bonds(world)
+    if not contracts:
+        return
+    remaining = round(float(amount), 2)
+    for index, bond in enumerate(contracts):
+        share = round(float(amount) / len(contracts), 2) if index < len(contracts) - 1 else remaining
+        remaining -= share
+        bond.principal = round(bond.principal + share, 2)
+        bond.status = 'active'
+        bond.maturity_turn = int(due_turn)
+    state = world['scenario_state']
+    state['scheduled_remittance'] = outstanding(world)
+    state['payment_window_turn'] = int(due_turn)
+    _entry(world, 'conditional_write_down_revoked', amount, due_turn=due_turn)
+
+
+def set_collection_assignment(world, per_turn, origin):
+    """Record who may intercept which actual receipts under signed terms."""
+    state = world['scenario_state']
+    cap = max(0.0, float(per_turn))
+    remaining = outstanding(world)
+    state['creditor_levy_per_turn'] = cap if remaining > .01 else 0.0
+    state['creditor_levy_remaining'] = remaining if cap else 0.0
+    state['collection_assignment'] = ({
+        'status': 'active', 'origin': origin, 'signed_turn': int(world.get('turn', 0)),
+        'sources': dict(state.get('assigned_revenues', {})), 'per_turn_cap': cap,
+        'creditors': {bond.holder_nation: bond.principal for bond in bonds(world)
+                      if bond.principal > 0},
+    } if cap and remaining > .01 else None)
+
+
 def pay(world, amount, kind='payment', forgive_remainder=False):
     """Transfer payment to actual holders; optionally write down the rest."""
     egypt = _nation(world, 'Egypt')
@@ -109,7 +143,13 @@ def pay(world, amount, kind='payment', forgive_remainder=False):
                 bond.principal = 0.0
             bond.status = 'redeemed'
     _sync_registered_defaults(world)
-    world['scenario_state']['scheduled_remittance'] = outstanding(world)
+    state = world['scenario_state']
+    state['scheduled_remittance'] = outstanding(world)
+    if state['scheduled_remittance'] <= .01:
+        state['creditor_levy_per_turn'] = 0.0
+        state['creditor_levy_remaining'] = 0.0
+        if state.get('collection_assignment'):
+            state['collection_assignment']['status'] = 'discharged'
     return True, ''
 
 
@@ -141,14 +181,18 @@ def intercept_assigned_revenue(world, government, source, gross, turn):
     state = world.get('scenario_state', {})
     if state.get('ending') or float(state.get('creditor_levy_per_turn', 0.0)) <= 0:
         return 0.0
-    if source not in state.get('assigned_revenues', {}):
+    assignment = state.get('collection_assignment')
+    if assignment is not None and assignment.get('status') != 'active':
+        return 0.0
+    sources = assignment['sources'] if assignment else state.get('assigned_revenues', {})
+    if source not in sources:
         return 0.0
     if state.get('debt_collection_turn') != turn:
         state['debt_collection_turn'] = turn
         state['debt_collected_this_turn'] = 0.0
-    room = max(0.0, float(state['creditor_levy_per_turn'])
+    room = max(0.0, float(assignment['per_turn_cap'] if assignment else state['creditor_levy_per_turn'])
                - float(state.get('debt_collected_this_turn', 0.0)))
-    share = float(state['assigned_revenues'][source])
+    share = float(sources[source])
     amount = round(min(float(gross) * share, room, outstanding(world),
                        max(0.0, government.agent.cash)), 6)
     if amount <= 0:
@@ -173,9 +217,14 @@ def intercept_assigned_revenue(world, government, source, gross, turn):
     state['debt_collected_this_turn'] = round(state['debt_collected_this_turn'] + amount, 6)
     state['creditor_levy_remaining'] = outstanding(world)
     state['scheduled_remittance'] = outstanding(world)
+    if assignment:
+        assignment['creditors'] = {bond.holder_nation: bond.principal for bond in bonds(world)
+                                   if bond.principal > 0}
     if state['creditor_levy_remaining'] <= 0.01:
         state['creditor_levy_per_turn'] = 0.0
         state['payment_status'] = 'paid'
+        if state.get('collection_assignment'):
+            state['collection_assignment']['status'] = 'discharged'
     _sync_registered_defaults(world)
     return amount
 

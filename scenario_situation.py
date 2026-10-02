@@ -115,10 +115,8 @@ def apply_effects(world: dict, effects: dict) -> tuple[bool, str]:
             tile.food_export_fraction = fraction
         state['domestic_grain_priority'] = fraction < 1.0
     if 'levy_per_turn' in effects:
-        state['creditor_levy_per_turn'] = max(0.0, float(effects['levy_per_turn']))
-        from scenario_debt import outstanding
-        state['creditor_levy_remaining'] = (outstanding(world)
-                                             if state['creditor_levy_per_turn'] > 0 else 0.0)
+        from scenario_debt import set_collection_assignment
+        set_collection_assignment(world, effects['levy_per_turn'], origin='caisse_consent')
     return True, ''
 
 

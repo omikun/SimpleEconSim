@@ -172,6 +172,33 @@
         "responses": []
       }
     },
+    "comply_oversight": {
+      "delay_turns": 1,
+      "reaction": {
+        "headline": "Caisse acknowledges the funded inspection",
+        "body": "Egypt retains the conditional write-down while inspectors review recorded receipts.",
+        "effects": {},
+        "responses": []
+      }
+    },
+    "seek_narrower_oversight": {
+      "delay_turns": 1,
+      "reaction": {
+        "headline": "Caisse reviews narrower inspection terms",
+        "body": "Britain and France compare disclosed receipts with the proposed tax-only guarantee.",
+        "effects": {},
+        "responses": []
+      }
+    },
+    "revoke_oversight": {
+      "delay_turns": 1,
+      "reaction": {
+        "headline": "Caisse reinstates the conditional claim",
+        "body": "The written-down portion is due again under the signed guarantee; Egypt may pay, defer if allowed, or default at its deadline.",
+        "effects": {},
+        "responses": []
+      }
+    },
     "pay_remittance": {
       "delay_turns": 1,
       "reaction": {

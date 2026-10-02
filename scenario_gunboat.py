@@ -277,9 +277,8 @@ def resolve_naval_response(world: dict, response_id: str) -> tuple[bool, str]:
         state['creditor_confidence'] = min(1.0, state['creditor_confidence'] + 0.15)
         withdraw(world, f'Cairo pays {amount:,.0f} and negotiates a settlement; the British squadron withdraws.', cause='settlement')
     elif response_id == 'naval_accept_control':
-        state['creditor_levy_per_turn'] = 5.0
-        from scenario_debt import outstanding
-        state['creditor_levy_remaining'] = outstanding(world)
+        from scenario_debt import set_collection_assignment
+        set_collection_assignment(world, 5.0, origin='naval_ultimatum')
         state['financial_control_origin'] = 'naval_ultimatum'
         state['fiscal_autonomy'] = max(0.0, state['fiscal_autonomy'] - 0.15)
         state['creditor_confidence'] = min(1.0, state['creditor_confidence'] + 0.05)
