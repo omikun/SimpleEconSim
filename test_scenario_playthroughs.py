@@ -16,6 +16,15 @@ def play_campaign(mode):
     random.seed(1877)
     world = build_world_view(scenario_id='egypt_1877')
     state = world['scenario_state']
+    if mode == 'hardship':
+        # A stricter food-access objective under a prolonged, unusually low Nile.
+        world['scenario']['thresholds']['protected_hunger_rate'] = .005
+        egypt = next(n for n in world['nations'] if n.name == 'Egypt')
+        for tile in egypt.tiles:
+            tile.scenario_food_yield_modifier = .20
+            tile.scenario_food_yield_modifier_until = 20
+        egypt.government.food_inventory = 0
+        state['public_maize_stock_units'] = 0
     seen = []
     for _ in range(70):
         if state.get('ending'):
@@ -28,6 +37,12 @@ def play_campaign(mode):
             elif turn == 2:
                 ok, _ = apply_action(world, 'dismiss_foreign_controllers')
                 assert ok
+        if mode in ('peace', 'settlement') and turn == 1 and state.get('last_action_turn') != turn:
+            ok, message = apply_action(world, 'prioritize_domestic_grain')
+            assert ok, message
+        if mode == 'hardship' and turn == 1 and state.get('last_action_turn') != turn:
+            ok, message = apply_action(world, 'reduce_fellahin_tax')
+            assert ok, message
         if mode in ('extraction', 'breakdown') and state.get('last_action_turn') != turn:
             if turn == 1:
                 ok, _ = apply_action(world, 'raise_local_taxes')
@@ -55,7 +70,7 @@ def play_campaign(mode):
             seen.append((int(world['turn']), kind))
             if kind == 'debt_due':
                 answer = ('concede_revenue' if mode in ('settlement', 'unresolved') and int(world['turn']) == 6 else
-                          'pay_remittance' if mode in ('peace', 'extraction', 'breakdown')
+                          'pay_remittance' if mode in ('peace', 'extraction', 'breakdown', 'hardship')
                           else 'default_remittance')
                 ok, message = apply_action(world, answer)
             elif kind == 'creditor_reaction':
@@ -149,6 +164,7 @@ class ScenarioPlaythroughTests(unittest.TestCase):
             'joint': 'joint_financial_control',
             'french_brokered': 'french_brokered_settlement',
             'unresolved': 'unresolved_crisis',
+            'hardship': 'fiscal_hardship',
         }
         reached = {'relief_and_payment', 'occupation', 'successful_repudiation'}
         for choices, expected in cases.items():
@@ -160,7 +176,7 @@ class ScenarioPlaythroughTests(unittest.TestCase):
                 reached.add(expected)
         declared = {entry['id'] for entry in SCENARIO['outcomes']}
         self.assertEqual(len(SCENARIO['outcomes']), len(declared))
-        self.assertEqual(declared - {'fiscal_hardship'}, reached)
+        self.assertEqual(declared, reached)
 
     def test_outcome_evidence_distinguishes_food_hardship_from_breakdown(self):
         from scenario_egypt_1877 import classify_outcome

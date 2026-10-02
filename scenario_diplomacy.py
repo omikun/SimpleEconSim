@@ -31,8 +31,14 @@ def initialize(world):
     }
 
 
+def ensure(world):
+    if not world['scenario_state'].get('diplomatic_crisis'):
+        initialize(world)
+    return world['scenario_state']['diplomatic_crisis']
+
+
 def _record(world, actor, decision, reason):
-    state = world['scenario_state']['diplomatic_crisis']
+    state = ensure(world)
     entry = {'turn': int(world['turn']), 'actor': actor, 'decision': decision, 'reason': reason}
     state['history'].append(entry)
     state['reasons'][actor] = reason
@@ -45,7 +51,7 @@ def make_offer(world, action_id):
     if action_id not in OFFERS:
         return False, 'Unknown diplomatic offer.'
     state = world['scenario_state']
-    crisis = state['diplomatic_crisis']
+    crisis = ensure(world)
     if crisis.get('egyptian_proposal'):
         return False, 'A diplomatic offer is already awaiting a reply.'
     if state['payment_status'] not in ('defaulted', 'deferred', 'unpaid'):
@@ -63,7 +69,7 @@ def make_offer(world, action_id):
 def french_policy(world):
     from scenario_debt import bonds, outstanding
     state = world['scenario_state']
-    crisis = state['diplomatic_crisis']
+    crisis = ensure(world)
     france = _nation(world, 'France')
     if france is None or outstanding(world) <= .01:
         return 'abstain', 'France has no unsettled claim to enforce.'
@@ -130,7 +136,7 @@ def british_reply_to_offer(world, offer, french_stance, military_policy):
 
 
 def evaluate(world):
-    crisis = world['scenario_state']['diplomatic_crisis']
+    crisis = ensure(world)
     policy, french_reason = french_policy(world)
     british, british_reason = british_policy(world, policy)
     if (crisis['french_policy'], crisis['british_policy']) != (policy, british):
@@ -151,7 +157,7 @@ def evaluate(world):
 
 
 def advance(world, turn, ticker_push):
-    crisis = world['scenario_state']['diplomatic_crisis']
+    crisis = ensure(world)
     if not crisis.get('egyptian_proposal') or turn < int(crisis['proposal_due_turn']):
         return
     french, british = evaluate(world)
@@ -190,7 +196,7 @@ def resolve_terms(world, response_id):
     if response_id not in ('accept', 'reject'):
         return False, 'Unknown diplomatic response.'
     state = world['scenario_state']
-    crisis = state['diplomatic_crisis']
+    crisis = ensure(world)
     if response_id == 'reject':
         _record(world, 'Egypt', 'reject_terms', 'Cairo rejected the foreign proposal and retained its claim dispute.')
         return True, 'Egypt rejects the proposed terms; the creditor dispute continues.'

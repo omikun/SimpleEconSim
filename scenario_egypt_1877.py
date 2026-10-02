@@ -568,7 +568,7 @@ def advance_scenario(world: dict, turn: int, ticker_push, on_phase=None) -> None
         on_phase('politics')
 
     metrics = _outcome_metrics(nation)
-    thresholds = SCENARIO["thresholds"]
+    thresholds = world.get('scenario', SCENARIO)['thresholds']
     ended = (metrics["legitimacy"] <= thresholds["breakdown_legitimacy"]
              or metrics["unrest"] >= thresholds["breakdown_unrest"])
     if ended:
@@ -618,7 +618,7 @@ def classify_outcome(world: dict, metrics: dict | None = None) -> str:
         return 'breakdown'
     metrics = metrics if metrics is not None else _outcome_metrics(nation)
     evidence = outcome_evidence(world, metrics)
-    thresholds = SCENARIO['thresholds']
+    thresholds = world.get('scenario', SCENARIO)['thresholds']
     control = evidence['territorial_control']
     if control.get('Cairo') == 'Britain':
         return 'occupation'
