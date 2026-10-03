@@ -65,6 +65,9 @@ SCENARIO = {
         {"id": "release_maize", "title": "Release maize reserves", "turn_cost": 1},
         {"id": "repair_delta_channels", "title": "Repair Delta Nile channels", "turn_cost": 1},
         {"id": "repair_upper_channels", "title": "Repair Upper Egypt channels", "turn_cost": 1},
+        {"id": "build_revenue_office", "title": "Staff Alexandria revenue office", "turn_cost": 1},
+        {"id": "publish_revenue_accounts", "title": "Publish Alexandria accounts", "turn_cost": 1},
+        {"id": "refuse_revenue_inspection", "title": "Refuse Caisse inspection", "turn_cost": 1},
         {"id": "prioritize_domestic_grain", "title": "Keep more grain in Egypt", "turn_cost": 1},
         {"id": "reduce_fellahin_tax", "title": "Reduce cultivator taxes", "turn_cost": 1},
         {"id": "raise_local_taxes", "title": "Raise local taxes", "turn_cost": 1},
@@ -381,6 +384,16 @@ def apply_action(world: dict, action_id: str) -> tuple[bool, str]:
         from scenario_projects import start_project
         site = 'Nile Delta' if action_id == 'repair_delta_channels' else 'Upper Egypt'
         ok, message = start_project(world, 'nile_repair', site)
+        if not ok:
+            return False, message
+    elif action_id == 'build_revenue_office':
+        from scenario_projects import start_project
+        ok, message = start_project(world, 'revenue_office', 'Alexandria')
+        if not ok:
+            return False, message
+    elif action_id in ('publish_revenue_accounts', 'refuse_revenue_inspection'):
+        from scenario_projects import answer_fiscal_challenge
+        ok, message = answer_fiscal_challenge(world, action_id == 'publish_revenue_accounts')
         if not ok:
             return False, message
     elif action_id == "reduce_fellahin_tax":

@@ -12,8 +12,12 @@ from scenario_situation import creditor_response_options, resolve_creditor_respo
 from worldview_engine import build_world_view, step_world
 
 
-def play_campaign(mode):
+def play_campaign(mode, observer=None):
     random.seed(1877)
+    from agent import _agentid_counter
+    from random_cache import rand
+    _agentid_counter[0] = 0
+    rand._idx = rand._capacity
     world = build_world_view(scenario_id='egypt_1877')
     state = world['scenario_state']
     if mode == 'hardship':
@@ -26,6 +30,8 @@ def play_campaign(mode):
         egypt.government.food_inventory = 0
         state['public_maize_stock_units'] = 0
     seen = []
+    if observer is not None:
+        observer(world, seen)
     for _ in range(70):
         if state.get('ending'):
             break
@@ -37,9 +43,14 @@ def play_campaign(mode):
             elif turn == 2:
                 ok, _ = apply_action(world, 'dismiss_foreign_controllers')
                 assert ok
-        if mode in ('peace', 'settlement', 'food_project', 'food_project_access') and turn == 1 and state.get('last_action_turn') != turn:
-            ok, message = apply_action(world, 'repair_delta_channels' if mode.startswith('food_project')
-                                       else 'prioritize_domestic_grain')
+        if mode in ('peace', 'settlement', 'food_project', 'food_project_access', 'fiscal_project') and turn == 1 and state.get('last_action_turn') != turn:
+            ok, message = apply_action(world,
+                'repair_delta_channels' if mode.startswith('food_project') else
+                'build_revenue_office' if mode == 'fiscal_project' else 'prioritize_domestic_grain')
+            assert ok, message
+        if (mode == 'fiscal_project' and state.get('last_action_turn') != turn
+                and (state.get('strategic_projects', {}).get('fiscal_challenge') or {}).get('status') == 'pending'):
+            ok, message = apply_action(world, 'publish_revenue_accounts')
             assert ok, message
         if mode.startswith('food_project') and turn == 2 and state.get('last_action_turn') != turn:
             ok, message = apply_action(world, 'prioritize_domestic_grain')
@@ -74,12 +85,14 @@ def play_campaign(mode):
             assert ok, message
         if not world.get('scenario_warning_modal'):
             step_world(world)
+        if observer is not None:
+            observer(world, seen)
         warning = world.get('scenario_warning_modal')
         if warning:
             kind = warning['kind']
             seen.append((int(world['turn']), kind))
             if kind == 'debt_due':
-                if mode.startswith('food_project'):
+                if mode.startswith('food_project') or mode in ('fiscal_project', 'payment_first'):
                     egypt = next(nation for nation in world['nations'] if nation.name == 'Egypt')
                     cash = float(egypt.government.agent.cash)
                     due = float(state['scheduled_remittance'])
@@ -132,10 +145,26 @@ def play_campaign(mode):
             assert ok, message
             world['scenario_warning_modal'] = None
             finish_due_campaign(world)
+        if observer is not None:
+            observer(world, seen)
     return world, seen
 
 
 class ScenarioPlaythroughTests(unittest.TestCase):
+    def test_fiscal_project_earns_receipts_and_gets_creditor_reply(self):
+        world, seen = play_campaign('fiscal_project')
+        state = world['scenario_state']
+        reports = state['strategic_projects']['revenue_reports']
+        self.assertTrue(reports)
+        self.assertTrue(all(0 < report['central_transfer'] <= report['receipt_after_interception']
+                            for report in reports))
+        self.assertTrue(any(row['action'] == 'publish_revenue_accounts'
+                            for row in state['actions_taken']))
+        self.assertEqual(state['strategic_projects']['fiscal_challenge']['status'], 'published')
+        self.assertTrue(any(row['headline'] == 'Caisse reviews Alexandria office'
+                            for row in state['creditor_news']))
+        self.assertIn((6, 'debt_due'), seen)
+
     def test_food_repair_reaches_harvest_and_forces_a_debt_tradeoff(self):
         world, _ = play_campaign('food_project')
         state = world['scenario_state']

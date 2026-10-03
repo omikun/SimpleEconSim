@@ -93,6 +93,48 @@ class StrategicProjectTests(unittest.TestCase):
         self.assertIn('private_reserved', report)
         self.assertIn('underfed', report)
 
+    def test_revenue_office_moves_real_receipts_after_caisse_claim(self):
+        from scenario_debt import outstanding, set_collection_assignment
+
+        tile = next(tile for tile in self.egypt.tiles
+                    if getattr(tile, 'scenario_location', None) == 'Alexandria')
+        ok, message = apply_action(self.world, 'build_revenue_office')
+        self.assertTrue(ok, message)
+        for turn in (2, 3, 4):
+            self.world['turn'] = turn
+            advance(self.world)
+        office = get_project(self.world, 'revenue_office', 'Alexandria')
+        self.assertEqual(office['status'], 'operating')
+        self.world['turn'] = 5
+        central_before = self.egypt.government.agent.cash
+        local_before = tile.gov.agent.cash
+        tile.gov.collect_tax(5, 10)
+        self.assertAlmostEqual(tile.gov.agent.cash - local_before, 6)
+        self.assertAlmostEqual(self.egypt.government.agent.cash - central_before, 4)
+        report = self.world['scenario_state']['strategic_projects']['revenue_reports'][-1]
+        self.assertEqual(report['source'], 'tax')
+        self.assertEqual(report['payer'], 'Egyptian taxpayers')
+        self.assertIn(tile.name, report['districts'])
+        self.assertAlmostEqual(report['central_transfer'] + report['local_retained'], 10)
+        advance(self.world)
+        self.assertEqual(self.world['scenario_state']['strategic_projects']['fiscal_challenge']['status'],
+                         'pending')
+        ok, message = apply_action(self.world, 'publish_revenue_accounts')
+        self.assertTrue(ok, message)
+        self.assertEqual(self.world['scenario_state']['strategic_projects']['fiscal_challenge']['status'],
+                         'published')
+        self.assertGreater(outstanding(self.world), 0)
+
+        set_collection_assignment(self.world, 10, 'caisse_consent')
+        self.world['turn'] = 6
+        central_before = self.egypt.government.agent.cash
+        local_before = tile.gov.agent.cash
+        debt_before = outstanding(self.world)
+        tile.gov.collect_tax(6, 10)
+        self.assertAlmostEqual(debt_before - outstanding(self.world), 2.5)
+        self.assertAlmostEqual(tile.gov.agent.cash - local_before, 4.5)
+        self.assertAlmostEqual(self.egypt.government.agent.cash - central_before, 3)
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -452,6 +452,34 @@ def _guided_action_preview(world: dict, nation, action_id: str) -> tuple[str, li
             'Owners can buy and reserve some extra maize; household hunger falls only if people can access it.',
             'This spending competes with the next 200-unit Caisse instalment.',
         ])
+    if action_id == 'build_revenue_office':
+        from scenario_projects import PROJECT_DEFS, get_project
+        definition = PROJECT_DEFS['revenue_office']
+        project = get_project(world, 'revenue_office', 'Alexandria')
+        if project:
+            return (f'Alexandria office: {project["status"]}', [
+                f'Progress {project["progress"]}/{project["required_work"]} staffed turns; '
+                f'{definition["upkeep"]:.0f} in local wages each operating turn.',
+                'Receipts and transfers appear in the project ledger. A signed Caisse assignment is honored first.',
+            ])
+        return (f'−{definition["cash_cost"]:.0f} treasury • {definition["work_turns"]} turns', [
+            'Pay 60 treasury units to local workers now; staff the Alexandria office for three turns.',
+            'When operating, 40% of actual local Egyptian tax and tariff receipts moves to Cairo after lawful creditor claims.',
+            'Tax rates and total collection do not rise. Local governments keep the rest; Cairo pays 3 per turn in wages.',
+            'The Caisse reviews the accounts one turn after completion and may demand publication.',
+        ])
+    if action_id in ('publish_revenue_accounts', 'refuse_revenue_inspection'):
+        if action_id == 'publish_revenue_accounts':
+            return ('Show receipts • creditor confidence ↑', [
+                'Publish the office ledger: each payer, local collector, Cairo transfer and local remainder.',
+                'The Caisse can verify the existing claim; this does not pay it or extend its legal assignment.',
+                'Creditor confidence rises by 6 points. This uses this turn’s major decision.',
+            ])
+        return ('Keep accounts private • creditor confidence ↓', [
+            'Refuse the Caisse request. The office keeps collecting lawful unassigned receipts.',
+            'Creditor confidence falls by 12 points. Defaulted creditors may escalate their funded naval claim.',
+            'This does not erase the debt or any signed collection assignment.',
+        ])
     if action_id == 'prioritize_domestic_grain':
         return (f'Keep 50% • credit {confidence:.0%}→{max(0, confidence - .10):.0%}', [
             'Now: set each Egyptian district to retain 50% of food for local supply.',
@@ -845,6 +873,15 @@ def _draw_egypt_scenario_panel(surface, world: dict, mouse_pos=None) -> None:
         ('repair_upper_channels', 'Repair Upper channels',
          treasury_cash >= repair_cost and get_project(world, 'nile_repair', 'Upper Egypt') is None),
     ])
+    office = get_project(world, 'revenue_office', 'Alexandria')
+    office_cost = PROJECT_DEFS['revenue_office']['cash_cost']
+    action_rows.append([('build_revenue_office', 'Staff Alexandria revenue office',
+                         treasury_cash >= office_cost and office is None)])
+    if (state.get('strategic_projects', {}).get('fiscal_challenge') or {}).get('status') == 'pending':
+        action_rows.append([
+            ('publish_revenue_accounts', 'Publish revenue accounts', True),
+            ('refuse_revenue_inspection', 'Refuse Caisse inspection', True),
+        ])
     if tax_available:
         action_rows.append([('reduce_fellahin_tax', 'Reduce local taxes', True),
                             ('raise_local_taxes', 'Raise local taxes', True)])

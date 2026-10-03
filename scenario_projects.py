@@ -19,6 +19,7 @@ PROJECT_DEFS = {
         'front': 'fiscal', 'title': 'Staff Egyptian revenue office',
         'sites': ('Alexandria',), 'cash_cost': 60.0,
         'work_turns': 3, 'workers': 3, 'upkeep': 3.0,
+        'national_share': 0.4,
     },
     'canal_line': {
         'front': 'sovereignty', 'title': 'Prepare the canal defense line',
@@ -30,7 +31,8 @@ PROJECT_DEFS = {
 
 def initialize(world: dict) -> None:
     world['scenario_state']['strategic_projects'] = {
-        'projects': [], 'payments': [], 'events': [], 'food_reports': [], 'selected': None,
+        'projects': [], 'payments': [], 'events': [], 'food_reports': [],
+        'revenue_reports': [], 'fiscal_challenge': None, 'selected': None,
     }
 
 
@@ -158,6 +160,8 @@ def advance(world: dict) -> None:
             project['progress'] += 1
             if project['progress'] == project['required_work']:
                 _event(world, project, f'{definition["title"]} is complete at {project["site"]}.')
+                if project['kind'] == 'revenue_office':
+                    project['review_due_turn'] = turn + 1
             else:
                 continue
         if _pay_workers(world, project, definition['upkeep'], 'staff_wage'):
@@ -168,6 +172,85 @@ def advance(world: dict) -> None:
             project['status'] = 'unfunded'
             if project['last_upkeep_turn'] != turn - 1:
                 _event(world, project, f'{definition["title"]} cannot operate without paid staff.')
+        if (project['kind'] == 'revenue_office' and project.get('review_due_turn') is not None
+                and project['review_due_turn'] <= turn and project['status'] == 'operating'):
+            _review_revenue_office(world, project)
+
+
+def allocate_revenue(world: dict, government, source: str, net: float, turn: int) -> float:
+    """Move a share of an actual local receipt to Cairo after lawful interceptions."""
+    egypt = _nation(world, 'Egypt')
+    office = get_project(world, 'revenue_office', 'Alexandria')
+    if (egypt is None or office is None or source not in ('tax', 'tariff')
+            or government is egypt.government or net <= 0
+            or not any(tile.gov is government for tile in egypt.tiles)
+            or effectiveness(world, 'revenue_office', 'Alexandria') <= 0):
+        return net
+    amount = round(min(float(net) * PROJECT_DEFS['revenue_office']['national_share'],
+                       float(government.agent.cash)), 6)
+    if amount <= 0:
+        return net
+    government.agent.cash -= amount
+    egypt.government.agent.cash += amount
+    central = egypt.government._income_pending
+    central[source] = central.get(source, 0.0) + amount
+    districts = [tile.name for tile in egypt.tiles if tile.gov is government]
+    _state(world)['revenue_reports'].append({
+        'turn': int(turn), 'source': source,
+        'payer': 'Egyptian taxpayers' if source == 'tax' else 'tariff-paying merchants',
+        'districts': districts,
+        'collector': government.name, 'recipient': 'Egyptian treasury',
+        'receipt_after_interception': round(float(net), 6),
+        'central_transfer': amount, 'local_retained': round(float(net) - amount, 6),
+    })
+    return max(0.0, float(net) - amount)
+
+
+def _review_revenue_office(world: dict, project: dict) -> None:
+    from scenario_debt import outstanding
+
+    state = world['scenario_state']
+    claim = outstanding(world)
+    assignment = state.get('collection_assignment') or {}
+    if claim <= .01:
+        message = 'The Caisse records that its claim is settled; Egyptian revenue offices remain under Cairo.'
+    elif assignment.get('status') == 'active':
+        message = ('The Caisse accepts the new Egyptian accounts while its signed assignment '
+                   'continues to intercept its legal share of actual receipts.')
+        state['creditor_confidence'] = min(1.0, state.get('creditor_confidence', .6) + .03)
+    else:
+        message = ('The Caisse demands Alexandria revenue accounts before the next instalment. '
+                   'Cairo may publish them or refuse inspection; neither answer pays the claim.')
+        _state(world)['fiscal_challenge'] = {'status': 'pending', 'due_turn': int(world['turn'])}
+    state.setdefault('creditor_news', []).append({
+        'turn': int(world['turn']), 'headline': 'Caisse reviews Alexandria office', 'body': message,
+    })
+    _event(world, project, message)
+    project['review_due_turn'] = None
+
+
+def answer_fiscal_challenge(world: dict, publish: bool) -> tuple[bool, str]:
+    challenge = _state(world).get('fiscal_challenge') or {}
+    if challenge.get('status') != 'pending':
+        return False, 'The Caisse has no outstanding demand for these accounts.'
+    challenge['status'] = 'published' if publish else 'refused'
+    state = world['scenario_state']
+    if publish:
+        state['creditor_confidence'] = min(1.0, state.get('creditor_confidence', .6) + .06)
+        message = ('Cairo publishes the actual Alexandria receipts. The Caisse can verify '
+                   'its claim, but the Egyptian treasury retains control of unassigned cash.')
+    else:
+        state['creditor_confidence'] = max(0.0, state.get('creditor_confidence', .6) - .12)
+        message = ('Cairo refuses Caisse inspection. The office keeps collecting, while '
+                   'creditors distrust the figures and may escalate an unpaid claim.')
+        from scenario_debt import bonds
+        if any(bond.status == 'defaulted' for bond in bonds(world)):
+            from scenario_gunboat import begin_escalation
+            begin_escalation(world, 'refuse_revenue_inspection')
+    state.setdefault('creditor_news', []).append({
+        'turn': int(world['turn']), 'headline': 'Alexandria accounts', 'body': message,
+    })
+    return True, message
 
 
 def effectiveness(world: dict, kind: str, site: str) -> float:
