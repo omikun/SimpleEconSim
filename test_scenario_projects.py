@@ -6,8 +6,9 @@ import pygame
 
 from scenario_projects import (advance, cancel_project, damage_project,
                                draw_map_overlay, effectiveness, get_project,
-                               record_food_results, repair_project, start_project)
-from scenario_egypt_1877 import apply_action
+                               record_food_results, repair_project, start_project,
+                               strategic_strip, project_hover_tip)
+from scenario_egypt_1877 import apply_action, build_debrief
 from worldview_engine import build_world_view
 
 
@@ -220,6 +221,31 @@ class StrategicProjectTests(unittest.TestCase):
         self.assertEqual(expedition['route'], 'Alexandria after canal denial')
         self.assertEqual(self.world['scenario_state']['campaign']['battles'][-1]['location'],
                          'Alexandria')
+
+    def test_guided_plan_strip_analysis_and_debrief_report_project_costs(self):
+        from worldview_scenario_ui import _draw_guided_projects_analysis, MAP_RIGHT, TOP_BAR_H
+
+        opening = strategic_strip(self.world)
+        self.assertEqual([item['title'] for item in opening],
+                         ['Current plan', 'Next threat', 'Recent consequence'])
+        self.assertIn('No strategic project', opening[0]['text'])
+        self.assertTrue(apply_action(self.world, 'repair_delta_channels')[0])
+        funded = strategic_strip(self.world)
+        self.assertIn('Nile Delta', funded[0]['text'])
+        self.assertIn('45', ' '.join(funded[0]['details']))
+        self.world['_guided_hover_tip'] = None
+        surface = pygame.Surface((1400, 900))
+        _draw_guided_projects_analysis(surface, self.world,
+                                       mouse_pos=(MAP_RIGHT + 32, TOP_BAR_H + 96 + 109))
+        self.assertEqual(self.world['_guided_hover_tip'][0], 'Food project')
+        from worldview_camera import world_to_screen
+        position = self.world['scenario_state']['geography']['sites']['Nile Delta']['position']
+        marker = world_to_screen(self.world, *position)
+        self.assertEqual(project_hover_tip(self.world, marker)[0], 'Food project')
+        result = build_debrief(self.world, 'fiscal_hardship')
+        self.assertIn('nile repair', result['projects'])
+        self.assertTrue(any(row['label'] == 'Strategic works and labor' for row in
+                            result['social_stats']))
 
 
 if __name__ == '__main__':

@@ -329,6 +329,82 @@ def current_plan(world: dict) -> dict[str, Any] | None:
                      (project for project in reversed(projects) if project['status'] != 'cancelled'), None)
 
 
+def strategic_strip(world: dict) -> list[dict[str, Any]]:
+    """Three short Guided prompts backed by the same project and crisis state."""
+    from scenario_debt import outstanding
+
+    turn = int(world['turn'])
+    state = world['scenario_state']
+    projects = _state(world)
+    plan = current_plan(world)
+    if plan:
+        definition = PROJECT_DEFS[plan['kind']]
+        milestone = (f'{plan["required_work"] - plan["progress"]} staffed turns left'
+                     if plan['progress'] < plan['required_work'] else
+                     f'{definition["upkeep"]:.0f} wages/turn'
+                     + (f' + {definition["supply_food"]} maize' if definition.get('supply_food') else ''))
+        plan_text = f'{definition["front"].title()} • {plan["site"]}: {plan["status"]}'
+        plan_details = [f'{definition["title"]} at {plan["site"]}: {plan["status"]}.',
+                        f'Progress {plan["progress"]}/{plan["required_work"]}; {milestone}.',
+                        f'Egypt has paid {plan["paid_cash"]:.0f} to local workers and '
+                        f'{plan["upkeep_paid"]:.0f} in operating wages.',
+                        'The map marker shows the site and whether the project still operates.']
+    else:
+        plan_text = 'No strategic project funded'
+        plan_details = ['A food repair, revenue office, or defense line can anchor a plan.',
+                        'Each costs a major decision, local wages, and future upkeep.']
+    challenge = projects.get('fiscal_challenge') or {}
+    naval = state.get('naval_crisis', {})
+    due = int(state.get('payment_window_turn', 6))
+    claim = outstanding(world)
+    if challenge.get('status') == 'pending':
+        threat_text = 'Caisse wants Alexandria accounts'
+        threat_details = ['Publish or refuse the demand with a major decision.',
+                          f'The bond claim remains {claim:.0f}; this answer does not pay it.']
+    elif naval.get('stage') in ('mobilizing', 'ultimatum', 'blockaded', 'campaign'):
+        threat_text = f'British naval crisis: {naval["stage"]}'
+        threat_details = [f'Britain is {naval["stage"]}; check the map route and current foreign report.',
+                          f'Outstanding Caisse claim: {claim:.0f}.']
+    elif claim > .01:
+        turns = max(0, due - turn)
+        threat_text = (f'Caisse: {state.get("scheduled_remittance", 0):.0f} due '
+                       + ('now' if turns == 0 else f'in {turns} turns'))
+        threat_details = [f'Total claim: {claim:.0f}. Next instalment: '
+                          f'{state.get("scheduled_remittance", 0):.0f} on turn {due}.',
+                          'The current treasury, tax receipts, and project upkeep determine what Egypt can pay.']
+    else:
+        threat_text = 'Debt claim cleared; watch food access'
+        threat_details = ['The Caisse claim has been settled.',
+                          'Household calorie deficits, private stocks and district unrest can still worsen.']
+    events = [event for event in projects['events'] if event['turn'] >= turn - 1]
+    if events:
+        latest = events[-1]
+        consequence_text = latest['message']
+        consequence_details = [latest['message']]
+    else:
+        fiscal = [row for row in projects['revenue_reports'] if row['turn'] == turn - 1]
+        food = [row for row in projects['food_reports'] if row['turn'] == turn - 1]
+        if fiscal:
+            transferred = sum(row['central_transfer'] for row in fiscal)
+            consequence_text = f'{transferred:.0f} local receipts moved to Cairo'
+            consequence_details = [f'{transferred:.1f} of actual net local receipts reached Cairo last turn.',
+                                   'Caisse and occupation interceptions were applied first; local budgets kept the rest.']
+        elif food:
+            last = food[-1]
+            consequence_text = (f'{last["site"]}: {last["food_produced"]} food made, '
+                                f'{last["private_reserved"]} held')
+            consequence_details = [f'{last["underfed"]}/{last["households"]} local households underfed.',
+                                   'Production and access are different: extra food can remain privately held.']
+        else:
+            consequence_text = 'No new project result this turn'
+            consequence_details = ['Advance a turn to see work progress, real receipts and rival responses.']
+    return [
+        {'title': 'Current plan', 'text': plan_text, 'details': plan_details},
+        {'title': 'Next threat', 'text': threat_text, 'details': threat_details},
+        {'title': 'Recent consequence', 'text': consequence_text, 'details': consequence_details},
+    ]
+
+
 def record_food_results(world: dict) -> None:
     """Show harvest, ownership, and access after the production stage."""
     from goods import Goods
@@ -410,3 +486,89 @@ def draw_map_overlay(surface, world: dict) -> None:
         pygame.draw.circle(surface, color, (px, py), 10, 3)
         pygame.draw.circle(surface, color, (px, py), 3)
     surface.set_clip(old_clip)
+
+
+def project_hover_tip(world: dict, mouse_pos) -> tuple | None:
+    """Explain a map marker from shared state in Guided or Advanced mode."""
+    if mouse_pos is None or 'strategic_projects' not in world.get('scenario_state', {}):
+        return None
+    import pygame
+    from worldview_camera import world_to_screen
+
+    sites = world['scenario_state']['geography']['sites']
+    for project in reversed(_state(world)['projects']):
+        if project['status'] == 'cancelled':
+            continue
+        point = sites[project['site']].get('position')
+        if point is None:
+            continue
+        px, py = world_to_screen(world, *point)
+        if (mouse_pos[0] - px) ** 2 + (mouse_pos[1] - py) ** 2 > 14 ** 2:
+            continue
+        definition = PROJECT_DEFS[project['kind']]
+        lines = [f'{definition["title"]} is {project["status"]} at {project["site"]}.',
+                 f'Work {project["progress"]}/{project["required_work"]}; '
+                 f'{project["integrity"]:.0%} intact. Egypt paid {project["paid_cash"]:.0f} '
+                 f'to local workers plus {project["upkeep_paid"]:.0f} in operating wages.']
+        if project['kind'] == 'nile_repair':
+            reports = [row for row in _state(world)['food_reports']
+                       if row['project'] == project['id']]
+            if reports:
+                last = reports[-1]
+                lines.append(f'Last harvest: {last["food_produced"]} food made, '
+                             f'{last["private_reserved"]} privately held, '
+                             f'{last["underfed"]}/{last["households"]} households underfed.')
+            lines.append('More production only helps households when food reaches them.')
+        elif project['kind'] == 'revenue_office':
+            transferred = sum(row['central_transfer'] for row in _state(world)['revenue_reports'])
+            lines.append(f'{transferred:.0f} actual local receipt units reached Cairo after prior claims.')
+            lines.append('Local governments lose that share; the Caisse keeps its signed rights.')
+        else:
+            meals = sum(row.get('food_units', 0) for row in _state(world)['payments']
+                        if row.get('project') == project['id'] and row.get('kind') == 'crew_food')
+            lines.append(f'{meals} public maize units fed the crew; '
+                         'supplied works add up to 55 Tel el Kebir trench strength.')
+        return definition['front'].title() + ' project', lines, pygame.Rect(px - 12, py - 12, 24, 24), 'action'
+    return None
+
+
+def debrief_evidence(world: dict) -> dict:
+    """Keep investment, ownership and social costs beside the ending evidence."""
+    state = _state(world)
+    projects = list(state['projects'])
+    payments = list(state['payments'])
+    wages = sum(float(row.get('amount', 0)) for row in payments)
+    crew_food = sum(int(row.get('food_units', 0)) for row in payments
+                    if row.get('kind') == 'crew_food')
+    cairo_transfers = sum(float(row.get('central_transfer', 0)) for row in
+                          state['revenue_reports'])
+    completed = sum(project['progress'] >= project['required_work'] for project in projects)
+    selected_plan = state.get('selected') or 'none'
+    detail = (f'Intended plan: {selected_plan.replace("_", " ")}. '
+              + ('Built: ' + '; '.join(
+                  f'{project["kind"].replace("_", " ")} at {project["site"]} '
+                  f'({project["status"]}, {project["progress"]}/{project["required_work"]} turns, '
+                  f'{project["integrity"]:.0%} intact)'
+                  for project in projects) if projects else
+                 'No strategic project was funded.'))
+    if state['food_reports']:
+        last = state['food_reports'][-1]
+        detail += (f' Last measured {last["site"]} harvest: '
+                   f'{last["food_produced"]} food units produced, '
+                   f'{last["private_reserved"]} privately held, '
+                   f'{last["underfed"]}/{last["households"]} local households underfed.')
+    return {
+        'projects': detail,
+        'strategic_projects': projects,
+        'project_payments': payments,
+        'project_revenue_reports': list(state['revenue_reports']),
+        'social_stats': [
+            {'label': 'Strategic works and labor',
+             'value': f'{completed}/{len(projects)} completed',
+             'note': f'{wages:,.0f} treasury units paid to local crews; '
+                     f'{crew_food:,} public maize units fed defense crews.'},
+            {'label': 'Local receipts moved to Cairo',
+             'value': f'{cairo_transfers:,.1f} units',
+             'note': 'Actual net local tax and tariff receipts centralized after prior claims.'},
+        ],
+    }

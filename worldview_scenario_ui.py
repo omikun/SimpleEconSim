@@ -302,9 +302,10 @@ def draw_guided_header(surface, world: dict, font_small, mouse_pos=None) -> None
         txt = font_small.render(label, True, TEXT if not scenario_ended else DIM)
         surface.blit(txt, txt.get_rect(center=(rect[0] + rect[2] // 2, rect[1] + rect[3] // 2)))
     if world.get('guided_analysis_open'):
-        analysis_tabs = [('overview', 'Overview'), ('land', 'Land'), ('people', 'People')]
+        analysis_tabs = [('overview', 'Overview'), ('land', 'Land'),
+                         ('people', 'People'), ('projects', 'Projects')]
         for idx, (tab, label) in enumerate(analysis_tabs):
-            rect = (MAP_RIGHT + 10 + idx * 108, TOP_BAR_H + 60, 102, 24)
+            rect = (MAP_RIGHT + 10 + idx * 78, TOP_BAR_H + 60, 75, 24)
             register_target(world, rect, ('analysis_tab', tab), scope='guided')
             active = world.get('analysis_tab', 'overview') == tab
             pygame.draw.rect(surface, (53, 68, 92) if active else (30, 36, 48), rect, border_radius=4)
@@ -824,20 +825,11 @@ def _draw_egypt_scenario_panel(surface, world: dict, mouse_pos=None) -> None:
     surface.blit(title_font.render('Situation', True, TEXT), (x + 14, y + 12))
     surface.blit(_scenario_font(13).render(name, True, ACCENT), (x + 14, y + 42))
 
-    cur_y = y + 66
-    briefing = world.get('scenario', {}).get('briefing', ('',))[0]
-    brief_rect = pygame.Rect(x + 9, cur_y, w - 18, 112)
-    pygame.draw.rect(surface, (32, 37, 50), brief_rect, border_radius=5)
-    pygame.draw.rect(surface, (75, 91, 119), brief_rect, 1, border_radius=5)
-    briefing_font = _scenario_font(14)
-    for idx, line in enumerate(_wrap_text(briefing, briefing_font, brief_rect.w - 18)[:5]):
-        surface.blit(briefing_font.render(line, True, TEXT),
-                     (brief_rect.x + 9, brief_rect.y + 8 + idx * 19))
-    cur_y = brief_rect.bottom + 8
+    cur_y = y + 68
 
     colors = {'urgent': (226, 102, 94), 'warning': (225, 178, 87), 'good': (112, 205, 145), 'neutral': (140, 160, 195)}
     for pressure in scenario_pressures(world):
-        card_h = 76
+        card_h = 70
         rect = pygame.Rect(x + 9, cur_y, w - 18, card_h)
         color = colors.get(pressure['tone'], ACCENT)
         pygame.draw.rect(surface, (34, 38, 51), rect, border_radius=5)
@@ -853,12 +845,30 @@ def _draw_egypt_scenario_panel(surface, world: dict, mouse_pos=None) -> None:
                          (rect.x + 9, rect.y + 25 + idx * 16))
         cause_font = _scenario_font(11)
         cause = _wrap_text(pressure['cause'], cause_font, rect.w - 18)
-        for idx, line in enumerate(cause[:2]):
+        for idx, line in enumerate(cause[:1]):
             surface.blit(cause_font.render(line, True, DIM),
                          (rect.x + 9, rect.y + 48 + idx * 13))
         cur_y += card_h + 4
 
     cur_y += 4
+    from scenario_projects import strategic_strip
+    strip_font = _scenario_font(12)
+    strip_label_font = _scenario_font(11)
+    for index, item in enumerate(strategic_strip(world)):
+        strip_rect = pygame.Rect(x + 9, cur_y, w - 18, 26)
+        pygame.draw.rect(surface, (34, 40, 54), strip_rect, border_radius=4)
+        pygame.draw.rect(surface, (72, 85, 107), strip_rect, 1, border_radius=4)
+        tone = (ACCENT if index == 0 else
+                (225, 178, 87) if index == 1 else (139, 190, 166))
+        surface.blit(strip_label_font.render(item['title'], True, tone),
+                     (strip_rect.x + 6, strip_rect.y + 7))
+        text_x = strip_rect.x + 132
+        label = _fit_button_text(item['text'], strip_font, strip_rect.right - text_x - 7)
+        surface.blit(strip_font.render(label, True, TEXT), (text_x, strip_rect.y + 6))
+        if mouse_pos and strip_rect.collidepoint(mouse_pos):
+            world['_guided_hover_tip'] = (item['title'], item['details'], strip_rect, 'action')
+        cur_y += 28
+    cur_y += 2
     state = world.get('scenario_state', {})
     turn = int(world.get('turn', 0))
     spent = state.get('last_action_turn') == turn
@@ -975,7 +985,7 @@ def _draw_egypt_scenario_panel(surface, world: dict, mouse_pos=None) -> None:
             ('defer_remittance', 'Defer debt service', can_defer_again),
             ('default_remittance', 'Default', True),
         ])
-    button_h, gap = 39, 3
+    button_h, gap = 35, 3
     action_bottom = y + h - 89
     visible_rows = max(1, (action_bottom - cur_y) // (button_h + gap))
     max_scroll = max(0, len(action_rows) - visible_rows)
@@ -1015,6 +1025,19 @@ def _draw_egypt_scenario_panel(surface, world: dict, mouse_pos=None) -> None:
                         reason = 'The public maize reserve is empty.'
                     elif action_id == 'prioritize_domestic_grain':
                         reason = 'Grain is already being retained for local supply.'
+                    elif action_id in ('repair_delta_channels', 'repair_upper_channels',
+                                       'build_revenue_office', 'prepare_canal_line'):
+                        project_id, site = ({
+                            'repair_delta_channels': ('nile_repair', 'Nile Delta'),
+                            'repair_upper_channels': ('nile_repair', 'Upper Egypt'),
+                            'build_revenue_office': ('revenue_office', 'Alexandria'),
+                            'prepare_canal_line': ('canal_line', 'Tel el Kebir'),
+                        })[action_id]
+                        existing = get_project(world, project_id, site)
+                        reason = (f'{site} already has this project.' if existing else
+                                  f'The treasury needs {PROJECT_DEFS[project_id]["cash_cost"]:.0f} units to start it.')
+                    elif action_id == 'repair_canal_line':
+                        reason = f'The treasury needs {repair_cost:.0f} units and the original crew for repairs.'
                     elif action_id in ('reduce_fellahin_tax', 'raise_local_taxes'):
                         reason = 'A local tax decision is already in effect.'
                     elif action_id == 'defer_remittance':
@@ -1040,7 +1063,7 @@ def _draw_egypt_scenario_panel(surface, world: dict, mouse_pos=None) -> None:
             button_font = _scenario_font(14) if len(row) == 1 else _scenario_font(13)
             surface.blit(button_font.render(label, True, color), (rect[0] + 7, rect[1] + 2))
             detail_font = _scenario_font(12)
-            surface.blit(detail_font.render(detail, True, DIM), (rect[0] + 7, rect[1] + 21))
+            surface.blit(detail_font.render(detail, True, DIM), (rect[0] + 7, rect[1] + 19))
         cur_y += button_h + gap
 
     cur_y = max(cur_y, action_bottom + 4)
@@ -1102,9 +1125,11 @@ def _draw_egypt_scenario_debrief(surface, world: dict) -> None:
 
     add(debrief.get('summary', ''), body_font, TEXT, 10)
     heading('What the campaign ended with')
-    for key in ('food', 'debt', 'control', 'diplomacy', 'politics', 'authority'):
+    for key in ('projects', 'food', 'debt', 'control', 'diplomacy', 'politics', 'authority'):
         if debrief.get(key):
             add(f'{key.title()}: {debrief[key]}', gap=4)
+    for stat in debrief.get('project_social_stats', []):
+        add(f"{stat['label']}: {stat['value']} — {stat['note']}", gap=4)
     diplomatic_events = debrief.get('diplomacy_history', [])
     if diplomatic_events:
         heading('Foreign decisions')
@@ -1149,6 +1174,79 @@ def _draw_egypt_scenario_debrief(surface, world: dict) -> None:
         surface.blit(_scenario_font(11).render(hint, True, ACCENT), (x + 14, y + h - 20))
 
 
+def _draw_guided_projects_analysis(surface, world: dict, mouse_pos=None) -> None:
+    """Show project inputs, ownership, and measured effects on the Analysis page."""
+    from scenario_projects import PROJECT_DEFS
+
+    x, y, w = MAP_RIGHT + 10, TOP_BAR_H + 96, WIDTH - MAP_RIGHT - 20
+    h = HEIGHT - y - TICKER_H - 14
+    panel = pygame.Rect(x, y, w, h)
+    pygame.draw.rect(surface, (25, 28, 38), panel, border_radius=7)
+    pygame.draw.rect(surface, (58, 66, 86), panel, 1, border_radius=7)
+    title_font = _scenario_font(19)
+    body_font = _scenario_font(13)
+    tiny_font = _scenario_font(12)
+    surface.blit(title_font.render('Strategic projects', True, TEXT), (x + 12, y + 11))
+    surface.blit(tiny_font.render('Actual inputs and receipts • one major order per turn', True, DIM),
+                 (x + 12, y + 38))
+    project_state = world.get('scenario_state', {}).get('strategic_projects', {})
+    projects = project_state.get('projects', [])
+    payments = project_state.get('payments', [])
+    wages = sum(float(row.get('amount', 0)) for row in payments)
+    crew_food = sum(int(row.get('food_units', 0)) for row in payments
+                    if row.get('kind') == 'crew_food')
+    transfers = sum(float(row['central_transfer']) for row in
+                    project_state.get('revenue_reports', []))
+    surface.blit(body_font.render(f'Crews paid {wages:.0f} • crew maize {crew_food} • Cairo receipts +{transfers:.0f}',
+                                  True, ACCENT), (x + 12, y + 60))
+    if not projects:
+        for index, line in enumerate(('No project has been funded.',
+                                      'Choose an irrigation repair, revenue office, or defense line',
+                                      'in the Situation panel. Its site will appear on the map.')):
+            surface.blit(body_font.render(line, True, DIM), (x + 12, y + 97 + index * 20))
+        return
+    for index, project in enumerate(projects[:4]):
+        definition = PROJECT_DEFS[project['kind']]
+        card = pygame.Rect(x + 9, y + 91 + index * 113, w - 18, 106)
+        pygame.draw.rect(surface, (34, 40, 54), card, border_radius=5)
+        pygame.draw.rect(surface, ACCENT if project['status'] == 'operating'
+                         else (110, 125, 151), card, 1, border_radius=5)
+        title = f'{definition["title"]} • {project["site"]}'
+        surface.blit(body_font.render(_fit_button_text(title, body_font, card.w - 16), True, TEXT),
+                     (card.x + 8, card.y + 7))
+        rows = [
+            f'{project["status"].title()} • work {project["progress"]}/{project["required_work"]} '
+            f'• integrity {project["integrity"]:.0%}',
+            f'Local wages {project["paid_cash"]:.0f} + {project["upkeep_paid"]:.0f} upkeep '
+            f'• next upkeep {definition["upkeep"]:.0f}/turn',
+        ]
+        if project['kind'] == 'nile_repair':
+            reports = [row for row in project_state.get('food_reports', [])
+                       if row['project'] == project['id']]
+            if reports:
+                last = reports[-1]
+                rows.append(f'Harvest {last["food_produced"]} • private stock '
+                            f'{last["private_reserved"]} • underfed {last["underfed"]}/{last["households"]}')
+            else:
+                rows.append('Harvest and household access are measured after the next production turn.')
+        elif project['kind'] == 'revenue_office':
+            total = sum(row['central_transfer'] for row in project_state.get('revenue_reports', []))
+            rows.append(f'{total:.0f} actual local receipts transferred to Cairo after prior claims.')
+        else:
+            meals = sum(row.get('food_units', 0) for row in payments
+                        if row.get('project') == project['id'] and row.get('kind') == 'crew_food')
+            rows.append(f'{meals} public maize fed crew • up to 55 trench strength when supplied.')
+        for row_index, line in enumerate(rows):
+            surface.blit(tiny_font.render(_fit_button_text(line, tiny_font, card.w - 18), True, DIM),
+                         (card.x + 8, card.y + 29 + row_index * 21))
+        if mouse_pos and card.collidepoint(mouse_pos):
+            details = [title] + rows + [
+                'The map marker shows whether this site remains under Egyptian control.',
+                'Every payment and food transfer is recorded in strategic project state.',
+            ]
+            world['_guided_hover_tip'] = (definition['front'].title() + ' project', details, card, 'action')
+
+
 def draw_guided_frame(surface, world: dict, font, font_small, mouse_pos=None) -> None:
     """Compose Guided mode from reusable overview components."""
     from worldview import _draw_cached_map  # lazy import avoids module-load cycle
@@ -1171,6 +1269,11 @@ def draw_guided_frame(surface, world: dict, font, font_small, mouse_pos=None) ->
         pygame.draw.line(surface, (58, 66, 86), (0, TOP_BAR_H), (WIDTH, TOP_BAR_H), 1)
     draw_guided_header(surface, world, font_small, mouse_pos=mouse_pos)
     draw_pressure_panel(surface, world, mouse_pos=mouse_pos)
+    if world.get('scenario_id') == 'egypt_1877':
+        from scenario_projects import project_hover_tip
+        marker_tip = project_hover_tip(world, mouse_pos)
+        if marker_tip is not None:
+            world['_guided_hover_tip'] = marker_tip
     draw_ticker(surface, world, font_small)
 
     notice = get_font(16).render('Egypt 1877 • Generated Nile and coast; outline is schematic', True, DIM)
@@ -1187,6 +1290,8 @@ def draw_guided_frame(surface, world: dict, font, font_small, mouse_pos=None) ->
             draw_cadastre_panel(surface, world, selected, font, font_small, mouse_pos=mouse_pos)
         elif world.get('analysis_tab') == 'people':
             draw_citizens_panel(surface, world, selected, font, font_small, mouse_pos=mouse_pos)
+        elif world.get('analysis_tab') == 'projects' and world.get('scenario_id') == 'egypt_1877':
+            _draw_guided_projects_analysis(surface, world, mouse_pos=mouse_pos)
         else:
             draw_panel(surface, world, font, font_small, mouse_pos=mouse_pos)
 

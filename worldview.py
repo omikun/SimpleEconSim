@@ -276,6 +276,13 @@ def render_frame(surface, world, mouse_pos=None):
     # Floating left-panel detailed button tooltips (disabled when modal dialog covers screen)
     if not modal_active:
         draw_left_panel_tooltip(surface, world, font_small, mouse_pos=mouse_pos)
+        if world.get('scenario_id') == 'egypt_1877':
+            from scenario_projects import project_hover_tip
+            from worldview_scenario_ui import _draw_guided_hover_tip
+            tip = project_hover_tip(world, mouse_pos)
+            if tip is not None:
+                _draw_guided_hover_tip(surface, tip)
+
 
     # Dynamic map generation loading modal
     loading = world.get('loading_modal')

@@ -837,6 +837,8 @@ def build_debrief(world: dict, outcome: str, metrics: dict | None = None) -> dic
                         f'British withdrawal: {evidence["withdrawal_cause"] or "none"}.')
     if evidence['disarmed']:
         diplomacy_detail += ' Egyptian coastal batteries were disarmed.'
+    from scenario_projects import debrief_evidence
+    project_summary = debrief_evidence(world)
     return {
         "outcome": outcome,
         "title": title,
@@ -844,6 +846,8 @@ def build_debrief(world: dict, outcome: str, metrics: dict | None = None) -> dic
         "food": f"{metrics.get('hungry', 0)} of {metrics.get('households', 0)} households hungry ({metrics.get('hunger_rate', 0.0):.0%}).",
         "debt": debt_detail,
         "control": control_detail,
+        "projects": project_summary["projects"],
+        "project_social_stats": project_summary["social_stats"],
         "diplomacy": diplomacy_detail,
         "politics": f"Government legitimacy {metrics.get('legitimacy', 0.0):.0%}; average unrest {metrics.get('unrest', 0.0):.2f}.",
         "authority": (f"{state.get('politics', {}).get('ruler', 'Unknown ruler')}; "
@@ -856,6 +860,9 @@ def build_debrief(world: dict, outcome: str, metrics: dict | None = None) -> dic
         "historical_log": list(state.get('historical_log', [])),
         "naval_events": [entry['text'] for entry in state.get('naval_news', [])],
         "diplomacy_history": list(diplomatic.get('history', [])),
+        "strategic_projects": project_summary["strategic_projects"],
+        "project_payments": project_summary["project_payments"],
+        "project_revenue_reports": project_summary["project_revenue_reports"],
     }
 
 
