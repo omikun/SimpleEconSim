@@ -480,6 +480,24 @@ def _guided_action_preview(world: dict, nation, action_id: str) -> tuple[str, li
             'Creditor confidence falls by 12 points. Defaulted creditors may escalate their funded naval claim.',
             'This does not erase the debt or any signed collection assignment.',
         ])
+    if action_id in ('prepare_canal_line', 'repair_canal_line'):
+        from scenario_projects import PROJECT_DEFS, get_project
+        definition = PROJECT_DEFS['canal_line']
+        project = get_project(world, 'canal_line', 'Tel el Kebir')
+        if action_id == 'repair_canal_line' and project:
+            cost = definition['cash_cost'] * (1.0 - project['integrity']) * .5
+            return (f'Repair costs about {cost:.0f}', [
+                f'Restore Tel el Kebir works from {project["integrity"]:.0%} integrity.',
+                'Pay the original local crew. The line must still receive 5 in wages and 6 public food units each turn.',
+                'Repairs improve the next defensive battle only while the site is staffed, supplied and unoccupied.',
+            ])
+        return ('−70 treasury • two turns', [
+            'Pay 70 treasury units to three local workers now; two staffed turns complete the line.',
+            'Operating wages cost 5 and crew meals use 6 public maize units per turn.',
+            'A supplied line adds up to 55 trench strength at Tel el Kebir; battle damage and occupation can disable it.',
+            'Britain budgets for the longer route and can bargain, blockade, change approach or withdraw.',
+            'Food and cash spent here cannot feed households or service the 200-unit debt instalment.',
+        ])
     if action_id == 'prioritize_domestic_grain':
         return (f'Keep 50% • credit {confidence:.0%}→{max(0, confidence - .10):.0%}', [
             'Now: set each Egyptian district to retain 50% of food for local supply.',
@@ -877,6 +895,14 @@ def _draw_egypt_scenario_panel(surface, world: dict, mouse_pos=None) -> None:
     office_cost = PROJECT_DEFS['revenue_office']['cash_cost']
     action_rows.append([('build_revenue_office', 'Staff Alexandria revenue office',
                          treasury_cash >= office_cost and office is None)])
+    line = get_project(world, 'canal_line', 'Tel el Kebir')
+    line_def = PROJECT_DEFS['canal_line']
+    action_rows.append([('prepare_canal_line', 'Prepare Tel el Kebir defenses',
+                         treasury_cash >= line_def['cash_cost'] and line is None)])
+    if line and line['integrity'] < 1.0:
+        repair_cost = line_def['cash_cost'] * (1.0 - line['integrity']) * .5
+        action_rows.append([('repair_canal_line', 'Repair Tel el Kebir works',
+                             treasury_cash >= repair_cost)])
     if (state.get('strategic_projects', {}).get('fiscal_challenge') or {}).get('status') == 'pending':
         action_rows.append([
             ('publish_revenue_accounts', 'Publish revenue accounts', True),

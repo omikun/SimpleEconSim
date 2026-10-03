@@ -105,10 +105,15 @@ def british_policy(world, french_stance):
     unrest = _energy(world, 'Britain')
     from scenario_situation import situation_template
     extra_cost = mobilization_cost(french_stance) - float(situation_template()['naval_crisis']['mobilization_cost'])
+    from scenario_projects import effectiveness
+    line = effectiveness(world, 'canal_line', 'Tel el Kebir')
+    extra_cost += 12.0 * line
     protest_limit = 5.5 if french_stance == 'oppose' else 6.5
     if cash < float(situation_template()['naval_crisis']['mobilization_cost']) + extra_cost or unrest >= protest_limit:
-        return 'withdraw', f'Britain lacks a funded, politically viable expedition (cash {cash:.0f}; protest {unrest:.1f}).'
-    return 'intervene', f'Britain can fund its claim; French {french_stance.replace("_", " ")} changes the diplomatic cost.'
+        return 'withdraw', (f'Britain lacks a funded, politically viable expedition '
+                            f'(cash {cash:.0f}; protest {unrest:.1f}; prepared canal line {line:.0%}).')
+    return 'intervene', (f'Britain can fund its claim; French {french_stance.replace("_", " ")} '
+                         f'and the prepared canal line ({line:.0%}) change the expected cost.')
 
 
 def mobilization_cost(french_stance):
@@ -124,8 +129,11 @@ def british_reply_to_offer(world, offer, french_stance, military_policy):
     remaining = max(0, int(world['scenario']['horizon_turns']) - int(world['turn']))
     protest = _energy(world, 'Britain')
     canal_value = 25.0 if world['scenario_state']['geography']['canal_open'] else 80.0
+    from scenario_projects import effectiveness
+    line = effectiveness(world, 'canal_line', 'Tel el Kebir')
     military_value = (min(claim, 5.0 * remaining) + canal_value
-                      - mobilization_cost(french_stance) - 16.0 - protest * 5.0)
+                      - mobilization_cost(french_stance) - 16.0 - protest * 5.0
+                      - 25.0 * line)
     treaty_value = (claim * .5 if offer == 'mediation'
                     else min(claim, 5.0 * remaining) * .5)
     if military_policy == 'withdraw' or treaty_value >= military_value:

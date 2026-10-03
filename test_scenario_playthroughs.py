@@ -48,6 +48,9 @@ def play_campaign(mode, observer=None):
                 'repair_delta_channels' if mode.startswith('food_project') else
                 'build_revenue_office' if mode == 'fiscal_project' else 'prioritize_domestic_grain')
             assert ok, message
+        if mode == 'sovereignty_project' and turn == 1 and state.get('last_action_turn') != turn:
+            ok, message = apply_action(world, 'prepare_canal_line')
+            assert ok, message
         if (mode == 'fiscal_project' and state.get('last_action_turn') != turn
                 and (state.get('strategic_projects', {}).get('fiscal_challenge') or {}).get('status') == 'pending'):
             ok, message = apply_action(world, 'publish_revenue_accounts')
@@ -123,7 +126,7 @@ def play_campaign(mode, observer=None):
                 ok, message = resolve_terms(world, 'accept')
             elif kind == 'landing_warning':
                 ok, message = resolve_landing(world,
-                    'defend_canal' if mode in ('canal', 'nationalist') else 'evacuate_port')
+                    'defend_canal' if mode in ('canal', 'nationalist', 'sovereignty_project') else 'evacuate_port')
             elif kind == 'capital_warning':
                 ok, message = resolve_capital(world, 'defend_cairo' if mode == 'stalled' else 'evacuate_cairo')
             elif kind in ('dynastic_crisis', 'officer_movement'):
@@ -151,6 +154,29 @@ def play_campaign(mode, observer=None):
 
 
 class ScenarioPlaythroughTests(unittest.TestCase):
+    def test_funded_canal_line_changes_battle_or_deters_expedition(self):
+        funded = [False]
+
+        def fund_expedition(world, _seen):
+            if not funded[0]:
+                britain = next(nation for nation in world['nations'] if nation.name == 'Britain')
+                britain.government.agent.cash += 140
+                funded[0] = True
+
+        world, seen = play_campaign('sovereignty_project', observer=fund_expedition)
+        state = world['scenario_state']
+        self.assertTrue(any(row['kind'] == 'crew_food' for row in
+                            state['strategic_projects']['payments']))
+        if any(kind == 'landing_warning' for _, kind in seen):
+            self.assertEqual(state['campaign']['expedition']['route'],
+                             'Port Said–Ismailia–Tel el Kebir')
+            self.assertTrue(any(battle['location'] == 'Tel el Kebir'
+                                and battle['defense_project_bonus'] > 0
+                                for battle in state['campaign']['battles']))
+        else:
+            self.assertFalse(state['campaign']['battles'])
+            self.assertIn(state['campaign']['expedition']['stage'], ('none', 'repelled'))
+
     def test_fiscal_project_earns_receipts_and_gets_creditor_reply(self):
         world, seen = play_campaign('fiscal_project')
         state = world['scenario_state']

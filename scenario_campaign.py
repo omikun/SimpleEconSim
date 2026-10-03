@@ -60,14 +60,18 @@ def bombard_alexandria(world):
 
 def landing_options(world):
     state = world['scenario_state']
-    can_canal = state['geography']['canal_open']
+    from scenario_projects import effectiveness
+    line = effectiveness(world, 'canal_line', 'Tel el Kebir')
     egypt = _nation(world, 'Egypt')
     cost = float(state.get('scheduled_remittance', 0)) * .5
     return [
         {'id': 'defend_alexandria', 'label': 'Defend Alexandria', 'enabled': True,
          'tooltip': 'Fight a landing at Alexandria with the local garrison and damaged batteries. The shared battle model determines losses and control.'},
-        {'id': 'defend_canal', 'label': 'Hold the canal line', 'enabled': can_canal,
-         'tooltip': 'Move the Alexandria garrison to Tel el Kebir, west of Ismailia. Britain must sail via Port Said, pay tolls, then march to the defensive line.'},
+        {'id': 'defend_canal', 'label': 'Hold the canal line', 'enabled': True,
+         'tooltip': ('Move the Alexandria garrison to Tel el Kebir. '
+                     f'Paid works add {55 * line:.0f} trench strength now. '
+                     'If the canal is open Britain must sail via Port Said and Ismailia, paying supply and tolls. '
+                     'If access is closed it may change course to the less defended Alexandria port.')},
         {'id': 'evacuate_port', 'label': 'Evacuate Alexandria', 'enabled': True,
          'tooltip': 'Withdraw the garrison to Cairo without battle; Britain takes the port, while the army survives.'},
         {'id': 'negotiate_landing', 'label': f'Negotiate • pay {cost:.0f}',
@@ -107,12 +111,21 @@ def _battle(world, location):
                  if unit.nation_name == 'Egypt' and unit.soldiers > 0]
     integrity = (state['forts'][location]['integrity'] if location in state['forts']
                  else state['trench_strength'].get(location, 0))
+    project_bonus = 0.0
+    if location == 'Tel el Kebir':
+        from scenario_projects import effectiveness
+        project_bonus = 55.0 * effectiveness(world, 'canal_line', location)
+        integrity += project_bonus
     bonus = 1.0 + integrity / 100 * .5
     outcome = resolve_battle([attackers], defenders, defense_bonus=bonus)
     fleet['transports'] = attackers.soldiers
     outcome.update(location=location, turn=int(world['turn']),
-                   egyptian_defenders=sum(unit.soldiers for unit in defenders))
+                   egyptian_defenders=sum(unit.soldiers for unit in defenders),
+                   defense_project_bonus=round(project_bonus, 2))
     state['battles'].append(outcome)
+    if project_bonus:
+        from scenario_projects import damage_project
+        damage_project(world, 'canal_line', location, .35)
     if outcome['winner'] == 'attacker':
         state['territorial_control'][location] = 'Britain'
         state['expedition']['stage'] = 'foothold'
@@ -194,15 +207,41 @@ def resolve_landing(world, response_id):
             withdraw(world, message, cause='military_defeat')
     elif response_id == 'defend_canal':
         _move_egypt_garrison(world, 'Tel el Kebir')
-        expedition.update(stage='sailing_canal', route='Port Said–Ismailia–Tel el Kebir')
-        state['naval_crisis']['stage'] = 'campaign'
+        from scenario_geography import canal_access
+        from scenario_projects import effectiveness
+        from scenario_situation import situation_template
+        from scenario_gunboat import withdraw
+        britain = _nation(world, 'Britain')
+        line = effectiveness(world, 'canal_line', 'Tel el Kebir')
+        upkeep = float(situation_template()['naval_crisis']['upkeep_per_turn'])
+        forecast = 3 * upkeep + 2 + 12 * line
+        if not canal_access(world, 'Britain'):
+            message = _battle(world, 'Alexandria')
+            expedition['route'] = 'Alexandria after canal denial'
+            if expedition['stage'] == 'repelled':
+                withdraw(world, message, cause='military_defeat')
+        elif britain.government.agent.cash < forecast:
+            expedition['stage'] = 'repelled'
+            withdraw(world, 'Britain cannot fund a canal march against the prepared line.', cause='deterrence')
+            message = world['scenario_feedback']
+        elif line >= .5 and britain.government.agent.cash < forecast + 12:
+            expedition['landing_due_turn'] = int(world['turn']) + 2
+            state['naval_crisis']['last_offer_turn'] = int(world['turn'])
+            message = ('Britain delays the canal march and maintains the costly blockade '
+                       'while London weighs Egyptian terms.')
+        else:
+            expedition.update(stage='sailing_canal', route='Port Said–Ismailia–Tel el Kebir')
+            state['naval_crisis']['stage'] = 'campaign'
+            message = ('Egyptian troops hold Tel el Kebir; Britain must pay to sail via '
+                       'Port Said and Ismailia before marching inland.')
         port = state['naval_crisis'].get('port_tile')
         from macro.imperialism.manager import get_imperialism_manager
         manager = get_imperialism_manager()
         if port and manager.blockade_enforcers.get(port) == 'Britain':
-            manager.lift_blockade(port, world, int(world['turn']))
+            if expedition['stage'] == 'sailing_canal':
+                manager.lift_blockade(port, world, int(world['turn']))
         from scenario_gunboat import _record
-        _record(world, 'Egyptian troops hold Tel el Kebir; Britain must sail via Port Said and Ismailia before marching inland.')
+        _record(world, message)
         message = world['scenario_feedback']
     elif response_id == 'evacuate_port':
         _move_egypt_garrison(world, 'Cairo')

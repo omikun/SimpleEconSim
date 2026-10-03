@@ -135,6 +135,92 @@ class StrategicProjectTests(unittest.TestCase):
         self.assertAlmostEqual(tile.gov.agent.cash - local_before, 4.5)
         self.assertAlmostEqual(self.egypt.government.agent.cash - central_before, 3)
 
+    def test_canal_line_uses_public_food_and_changes_a_real_battle(self):
+        from scenario_campaign import _battle, _move_egypt_garrison
+        from scenario_diplomacy import british_policy, mobilization_cost
+        from scenario_geography import create_fleet
+
+        food_before = self.egypt.government.food_inventory
+        britain = next(nation for nation in self.world['nations'] if nation.name == 'Britain')
+        britain.government.agent.cash = mobilization_cost('abstain') + 5
+        self.assertEqual(british_policy(self.world, 'abstain')[0], 'intervene')
+        ok, message = apply_action(self.world, 'prepare_canal_line')
+        self.assertTrue(ok, message)
+        for turn in (2, 3):
+            self.world['turn'] = turn
+            advance(self.world)
+        project = get_project(self.world, 'canal_line', 'Tel el Kebir')
+        self.assertEqual(project['status'], 'operating')
+        self.assertEqual(self.egypt.government.food_inventory, food_before - 6)
+        self.assertEqual(self.world['scenario_state']['strategic_projects']['payments'][-1]['kind'],
+                         'crew_food')
+        self.assertEqual(effectiveness(self.world, 'canal_line', 'Tel el Kebir'), 1.0)
+        self.assertEqual(british_policy(self.world, 'abstain')[0], 'withdraw')
+        _move_egypt_garrison(self.world, 'Tel el Kebir')
+        create_fleet(self.world, 'Britain')
+        _battle(self.world, 'Tel el Kebir')
+        battle = self.world['scenario_state']['campaign']['battles'][-1]
+        self.assertEqual(battle['defense_project_bonus'], 55)
+        self.assertAlmostEqual(project['integrity'], .65)
+        self.world['scenario_state']['campaign']['territorial_control'].clear()
+        ok, message = apply_action(self.world, 'repair_canal_line')
+        self.assertTrue(ok, message)
+        self.assertEqual(project['integrity'], 1.0)
+
+        self.egypt.government.food_inventory = 0
+        self.world['turn'] = 4
+        advance(self.world)
+        self.assertEqual(project['status'], 'unsupplied')
+        self.assertEqual(effectiveness(self.world, 'canal_line', 'Tel el Kebir'), 0)
+
+    def test_paid_canal_line_forces_funded_british_route(self):
+        from scenario_campaign import advance_expedition, resolve_landing
+        from scenario_geography import create_fleet, move_fleet
+
+        self.assertTrue(apply_action(self.world, 'prepare_canal_line')[0])
+        for turn in (2, 3):
+            self.world['turn'] = turn
+            advance(self.world)
+        britain = next(nation for nation in self.world['nations'] if nation.name == 'Britain')
+        britain.government.agent.cash = 500
+        create_fleet(self.world, 'Britain')
+        self.assertTrue(move_fleet(self.world, 'Britain', 'Alexandria'))
+        self.world['scenario_state']['naval_crisis']['stage'] = 'blockaded'
+        self.world['scenario_warning_modal'] = {'kind': 'landing_warning'}
+        ok, message = resolve_landing(self.world, 'defend_canal')
+        self.assertTrue(ok, message)
+        expedition = self.world['scenario_state']['campaign']['expedition']
+        self.assertEqual(expedition['route'], 'Port Said–Ismailia–Tel el Kebir')
+        for turn in (4, 5, 6, 7):
+            self.world['turn'] = turn
+            advance(self.world)
+            advance_expedition(self.world)
+        battles = self.world['scenario_state']['campaign']['battles']
+        self.assertTrue(battles)
+        self.assertEqual(battles[-1]['location'], 'Tel el Kebir')
+        self.assertGreater(battles[-1]['defense_project_bonus'], 0)
+
+    def test_canal_denial_makes_britain_change_approach(self):
+        from scenario_campaign import resolve_landing
+        from scenario_geography import close_canal, create_fleet, move_fleet
+
+        self.assertTrue(apply_action(self.world, 'prepare_canal_line')[0])
+        for turn in (2, 3):
+            self.world['turn'] = turn
+            advance(self.world)
+        britain = next(nation for nation in self.world['nations'] if nation.name == 'Britain')
+        britain.government.agent.cash = 500
+        create_fleet(self.world, 'Britain')
+        self.assertTrue(move_fleet(self.world, 'Britain', 'Alexandria'))
+        self.assertTrue(close_canal(self.world)[0])
+        self.world['scenario_state']['naval_crisis']['stage'] = 'blockaded'
+        self.world['scenario_warning_modal'] = {'kind': 'landing_warning'}
+        self.assertTrue(resolve_landing(self.world, 'defend_canal')[0])
+        expedition = self.world['scenario_state']['campaign']['expedition']
+        self.assertEqual(expedition['route'], 'Alexandria after canal denial')
+        self.assertEqual(self.world['scenario_state']['campaign']['battles'][-1]['location'],
+                         'Alexandria')
+
 
 if __name__ == '__main__':
     unittest.main()

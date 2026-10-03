@@ -24,7 +24,7 @@ PROJECT_DEFS = {
     'canal_line': {
         'front': 'sovereignty', 'title': 'Prepare the canal defense line',
         'sites': ('Tel el Kebir',), 'cash_cost': 70.0,
-        'work_turns': 2, 'workers': 3, 'upkeep': 5.0,
+        'work_turns': 2, 'workers': 3, 'upkeep': 5.0, 'supply_food': 6,
     },
 }
 
@@ -164,10 +164,31 @@ def advance(world: dict) -> None:
                     project['review_due_turn'] = turn + 1
             else:
                 continue
+        supply_needed = int(definition.get('supply_food', 0))
+        egypt = _nation(world, 'Egypt')
+        if supply_needed and int(egypt.government.food_inventory) < supply_needed:
+            project['status'] = 'unsupplied'
+            if project.get('supply_warning_turn') != turn - 1:
+                _event(world, project, f'{project["site"]} defense staff lack public food supplies.')
+            project['supply_warning_turn'] = turn
+            continue
         if _pay_workers(world, project, definition['upkeep'], 'staff_wage'):
             project['status'] = 'operating'
             project['last_upkeep_turn'] = turn
             project['upkeep_paid'] = round(project['upkeep_paid'] + definition['upkeep'], 6)
+            if supply_needed:
+                from nutrition import queue_emergency_meal
+                crew = {agent.id: agent for agent in _workers(_tile(world, project['site']),
+                                                                len(_tile(world, project['site']).agents))}
+                for worker_id in project['worker_ids']:
+                    queue_emergency_meal(crew[worker_id], supply_needed // len(project['worker_ids']))
+                egypt.government.food_inventory -= supply_needed
+                world['scenario_state']['public_maize_stock_units'] = egypt.government.food_inventory
+                _state(world)['payments'].append({
+                    'turn': turn, 'kind': 'crew_food', 'project': project['id'],
+                    'payer': 'Egyptian public stores', 'recipient_ids': list(project['worker_ids']),
+                    'food_units': supply_needed,
+                })
         else:
             project['status'] = 'unfunded'
             if project['last_upkeep_turn'] != turn - 1:

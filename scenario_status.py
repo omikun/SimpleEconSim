@@ -10,6 +10,8 @@ ACTION_LABELS = {
     'repair_delta_channels': 'Repaired Delta Nile channels',
     'repair_upper_channels': 'Repaired Upper Egypt channels',
     'build_revenue_office': 'Staffed Alexandria revenue office',
+    'prepare_canal_line': 'Funded Tel el Kebir defenses',
+    'repair_canal_line': 'Repaired Tel el Kebir defenses',
     'publish_revenue_accounts': 'Published Egyptian revenue accounts',
     'refuse_revenue_inspection': 'Refused Caisse revenue inspection',
     'prioritize_domestic_grain': 'Retained grain for domestic supply',
