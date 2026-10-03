@@ -37,8 +37,18 @@ def play_campaign(mode):
             elif turn == 2:
                 ok, _ = apply_action(world, 'dismiss_foreign_controllers')
                 assert ok
-        if mode in ('peace', 'settlement') and turn == 1 and state.get('last_action_turn') != turn:
+        if mode in ('peace', 'settlement', 'food_project', 'food_project_access') and turn == 1 and state.get('last_action_turn') != turn:
+            ok, message = apply_action(world, 'repair_delta_channels' if mode.startswith('food_project')
+                                       else 'prioritize_domestic_grain')
+            assert ok, message
+        if mode.startswith('food_project') and turn == 2 and state.get('last_action_turn') != turn:
             ok, message = apply_action(world, 'prioritize_domestic_grain')
+            assert ok, message
+        if mode == 'food_project_access' and turn == 5 and state.get('last_action_turn') != turn:
+            ok, message = apply_action(world, 'requisition_private_grain')
+            assert ok, message
+        if mode == 'food_project_access' and turn == 7 and state.get('last_action_turn') != turn:
+            ok, message = apply_action(world, 'release_maize')
             assert ok, message
         if mode == 'hardship' and turn == 1 and state.get('last_action_turn') != turn:
             ok, message = apply_action(world, 'reduce_fellahin_tax')
@@ -69,9 +79,17 @@ def play_campaign(mode):
             kind = warning['kind']
             seen.append((int(world['turn']), kind))
             if kind == 'debt_due':
-                answer = ('concede_revenue' if mode in ('settlement', 'unresolved') and int(world['turn']) == 6 else
-                          'pay_remittance' if mode in ('peace', 'extraction', 'breakdown', 'hardship')
-                          else 'default_remittance')
+                if mode.startswith('food_project'):
+                    egypt = next(nation for nation in world['nations'] if nation.name == 'Egypt')
+                    cash = float(egypt.government.agent.cash)
+                    due = float(state['scheduled_remittance'])
+                    answer = ('pay_remittance' if cash >= due else
+                              'concede_revenue' if cash >= due * .5 else
+                              'defer_remittance')
+                else:
+                    answer = ('concede_revenue' if mode in ('settlement', 'unresolved') and int(world['turn']) == 6 else
+                              'pay_remittance' if mode in ('peace', 'extraction', 'breakdown', 'hardship')
+                              else 'default_remittance')
                 ok, message = apply_action(world, answer)
             elif kind == 'creditor_reaction':
                 branch = warning['action_id']
@@ -118,6 +136,19 @@ def play_campaign(mode):
 
 
 class ScenarioPlaythroughTests(unittest.TestCase):
+    def test_food_repair_reaches_harvest_and_forces_a_debt_tradeoff(self):
+        world, _ = play_campaign('food_project')
+        state = world['scenario_state']
+        project = state['strategic_projects']['projects'][0]
+        reports = state['strategic_projects']['food_reports']
+        self.assertEqual(project['id'], 'nile_repair:Nile Delta')
+        self.assertTrue(any(row['yield_applied'] and row['yield_factor'] > 1
+                            and row['food_produced'] > 0 for row in reports))
+        self.assertTrue(any(row['private_reserved'] > 0 for row in reports))
+        self.assertTrue(any(entry['action'] in ('concede_revenue', 'defer_remittance')
+                            for entry in state['actions_taken']))
+        self.assertTrue(state['ending'])
+
     def test_payment_path_completes_without_war(self):
         world, seen = play_campaign('peace')
         state = world['scenario_state']

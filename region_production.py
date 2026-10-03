@@ -101,6 +101,19 @@ def terrain_bonus(region, good, t: int | None = None):
         current_turn = t if t is not None else getattr(region, '_last_turn', None)
         if shock_end is None or current_turn is None or current_turn <= shock_end:
             mult *= scenario_yield
+        if getattr(region, 'scenario_location', None) in ('Nile Delta', 'Upper Egypt'):
+            world = getattr(getattr(region, 'gov', None), 'scenario_debt_world', None)
+            if world is not None and world.get('scenario_id') == 'egypt_1877':
+                from scenario_projects import effectiveness
+                repair = effectiveness(world, 'nile_repair', region.scenario_location)
+                if repair:
+                    # Restored channels mitigate the low flood, then retain a
+                    # smaller durable productivity benefit after the shock.
+                    project_bonus = (0.8 if current_turn is not None and current_turn <= 12
+                                     else 0.15) * repair
+                    mult *= 1.0 + project_bonus
+                    region.scenario_repair_applied_turn = current_turn
+                    region.scenario_repair_yield_factor = 1.0 + project_bonus
 
     # P3: Clover / Turnip Pasture Synergy for Wool
     elif good == Goods.wool:

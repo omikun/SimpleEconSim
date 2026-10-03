@@ -63,6 +63,8 @@ SCENARIO = {
     "camera": {"zoom": 2.0},
     "actions": (
         {"id": "release_maize", "title": "Release maize reserves", "turn_cost": 1},
+        {"id": "repair_delta_channels", "title": "Repair Delta Nile channels", "turn_cost": 1},
+        {"id": "repair_upper_channels", "title": "Repair Upper Egypt channels", "turn_cost": 1},
         {"id": "prioritize_domestic_grain", "title": "Keep more grain in Egypt", "turn_cost": 1},
         {"id": "reduce_fellahin_tax", "title": "Reduce cultivator taxes", "turn_cost": 1},
         {"id": "raise_local_taxes", "title": "Raise local taxes", "turn_cost": 1},
@@ -375,6 +377,12 @@ def apply_action(world: dict, action_id: str) -> tuple[bool, str]:
         state["domestic_grain_priority"] = True
         state["creditor_confidence"] = max(0.0, state.get("creditor_confidence", 0.6) - 0.10)
         message = "More food exports will be retained in local granaries; export receipts may fall."
+    elif action_id in ('repair_delta_channels', 'repair_upper_channels'):
+        from scenario_projects import start_project
+        site = 'Nile Delta' if action_id == 'repair_delta_channels' else 'Upper Egypt'
+        ok, message = start_project(world, 'nile_repair', site)
+        if not ok:
+            return False, message
     elif action_id == "reduce_fellahin_tax":
         if state.get("tax_decision_taken"):
             return False, "A local tax decision is already in effect."
@@ -535,6 +543,8 @@ def advance_scenario(world: dict, turn: int, ticker_push, on_phase=None) -> None
         on_phase('levy')
     from scenario_projects import advance as advance_projects
     advance_projects(world)
+    from scenario_projects import record_food_results
+    record_food_results(world)
     if on_phase:
         on_phase('strategic_projects')
     if turn >= int(state.get("payment_window_turn", 6)) and state.get("payment_status") in ("upcoming", "deferred"):

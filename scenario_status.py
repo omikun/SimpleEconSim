@@ -7,6 +7,8 @@ STAT_KEYS = ('cash', 'maize', 'hunger', 'legitimacy', 'unrest', 'creditors', 'au
 
 ACTION_LABELS = {
     'release_maize': 'Released public maize',
+    'repair_delta_channels': 'Repaired Delta Nile channels',
+    'repair_upper_channels': 'Repaired Upper Egypt channels',
     'prioritize_domestic_grain': 'Retained grain for domestic supply',
     'reduce_fellahin_tax': 'Reduced local taxes',
     'raise_local_taxes': 'Raised local taxes',

@@ -6,7 +6,8 @@ import pygame
 
 from scenario_projects import (advance, cancel_project, damage_project,
                                draw_map_overlay, effectiveness, get_project,
-                               repair_project, start_project)
+                               record_food_results, repair_project, start_project)
+from scenario_egypt_1877 import apply_action
 from worldview_engine import build_world_view
 
 
@@ -68,6 +69,29 @@ class StrategicProjectTests(unittest.TestCase):
         self.world['turn'] = 3
         advance(self.world)
         self.assertEqual(project['progress'], 1)
+
+    def test_nile_action_changes_real_food_yield_and_preserves_action_budget(self):
+        from goods import Goods
+        from region_production import terrain_bonus
+
+        tile = next(tile for tile in self.egypt.tiles
+                    if getattr(tile, 'scenario_location', None) == 'Nile Delta')
+        baseline = terrain_bonus(tile, Goods.food, 4)
+        cash_before = self.egypt.government.agent.cash
+        ok, _ = apply_action(self.world, 'repair_delta_channels')
+        self.assertTrue(ok)
+        self.assertEqual(cash_before - self.egypt.government.agent.cash, 45.0)
+        self.assertFalse(apply_action(self.world, 'release_maize')[0])
+        for turn in (2, 3):
+            self.world['turn'] = turn
+            advance(self.world)
+        improved = terrain_bonus(tile, Goods.food, 4)
+        self.assertAlmostEqual(improved / baseline, 1.8, places=3)
+        record_food_results(self.world)
+        report = self.world['scenario_state']['strategic_projects']['food_reports'][-1]
+        self.assertEqual(report['site'], 'Nile Delta')
+        self.assertIn('private_reserved', report)
+        self.assertIn('underfed', report)
 
 
 if __name__ == '__main__':

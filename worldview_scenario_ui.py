@@ -431,6 +431,27 @@ def _guided_action_preview(world: dict, nation, action_id: str) -> tuple[str, li
             'Hungry households receive rations first. Their current hunger streak resets if reached.',
             'Next turns: fewer public rations remain; future hunger still depends on harvests and prices.',
         ])
+    if action_id in ('repair_delta_channels', 'repair_upper_channels'):
+        from scenario_projects import PROJECT_DEFS, get_project
+        site = 'Nile Delta' if action_id == 'repair_delta_channels' else 'Upper Egypt'
+        definition = PROJECT_DEFS['nile_repair']
+        project = get_project(world, 'nile_repair', site)
+        if project:
+            return (f'{site}: {project["status"]}', [
+                f'Paid {project["paid_cash"]:.0f} to local workers; progress '
+                f'{project["progress"]}/{project["required_work"]} staffed turns.',
+                f'Current state: {project["status"]}. Operating work needs '
+                f'{definition["upkeep"]:.0f} treasury units of local wages per turn.',
+                'Map marker and district harvest show its effects. Private owners may still hold the extra grain.',
+            ])
+        return (f'−{definition["cash_cost"]:.0f} treasury • {definition["work_turns"]} turns', [
+            f'Pay {definition["cash_cost"]:.0f} to three local workers in {site} now; '
+            f'allow {definition["work_turns"]} staffed turns for the repair.',
+            f'After completion, pay {definition["upkeep"]:.0f} per turn. '
+            'Restored channels raise actual food yields during the low Nile and modestly afterward.',
+            'Owners can buy and reserve some extra maize; household hunger falls only if people can access it.',
+            'This spending competes with the next 200-unit Caisse instalment.',
+        ])
     if action_id == 'prioritize_domestic_grain':
         return (f'Keep 50% • credit {confidence:.0%}→{max(0, confidence - .10):.0%}', [
             'Now: set each Egyptian district to retain 50% of food for local supply.',
@@ -816,6 +837,14 @@ def _draw_egypt_scenario_panel(surface, world: dict, mouse_pos=None) -> None:
         [('release_maize', 'Release maize reserves', stock > 0)],
         [('prioritize_domestic_grain', 'Keep more food in Egypt', not state.get('domestic_grain_priority', False))],
     ]
+    from scenario_projects import PROJECT_DEFS, get_project
+    repair_cost = PROJECT_DEFS['nile_repair']['cash_cost']
+    action_rows.append([
+        ('repair_delta_channels', 'Repair Delta channels',
+         treasury_cash >= repair_cost and get_project(world, 'nile_repair', 'Nile Delta') is None),
+        ('repair_upper_channels', 'Repair Upper channels',
+         treasury_cash >= repair_cost and get_project(world, 'nile_repair', 'Upper Egypt') is None),
+    ])
     if tax_available:
         action_rows.append([('reduce_fellahin_tax', 'Reduce local taxes', True),
                             ('raise_local_taxes', 'Raise local taxes', True)])

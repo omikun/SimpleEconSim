@@ -30,7 +30,7 @@ PROJECT_DEFS = {
 
 def initialize(world: dict) -> None:
     world['scenario_state']['strategic_projects'] = {
-        'projects': [], 'payments': [], 'events': [], 'selected': None,
+        'projects': [], 'payments': [], 'events': [], 'food_reports': [], 'selected': None,
     }
 
 
@@ -223,6 +223,60 @@ def current_plan(world: dict) -> dict[str, Any] | None:
     return next((project for project in reversed(projects)
                  if project['id'] == selected and project['status'] != 'cancelled'), None) or next(
                      (project for project in reversed(projects) if project['status'] != 'cancelled'), None)
+
+
+def record_food_results(world: dict) -> None:
+    """Show harvest, ownership, and access after the production stage."""
+    from goods import Goods
+    from nutrition import deficit_fraction
+    from scenario_political_economy import district_snapshot
+
+    turn = int(world['turn'])
+    reports = _state(world)['food_reports']
+    for project in _state(world)['projects']:
+        if project['kind'] != 'nile_repair' or project['status'] == 'cancelled':
+            continue
+        tile = _tile(world, project['site'])
+        food_log = getattr(tile, 'production_log', {}).get(Goods.food, [])
+        people = [agent for agent in tile.agents if getattr(agent, 'alive', True)
+                  and not getattr(agent, 'is_government', False)
+                  and not getattr(agent, 'is_corporation', False)
+                  and not getattr(agent, 'is_trader', False)
+                  and not getattr(agent, 'is_lord', False)]
+        district = district_snapshot(world, tile)
+        report = {
+            'turn': turn, 'project': project['id'], 'site': project['site'],
+            'status': project['status'],
+            'yield_applied': getattr(tile, 'scenario_repair_applied_turn', None) == turn,
+            'yield_factor': (float(getattr(tile, 'scenario_repair_yield_factor', 1.0))
+                             if getattr(tile, 'scenario_repair_applied_turn', None) == turn else 1.0),
+            'soil_fertility': round(float(getattr(tile, 'soil_fertility', 1.0)), 3),
+            'food_produced': int(food_log[-1]) if food_log else 0,
+            'private_reserved': district['private_stock'],
+            'strikers': district['strikers'],
+            'underfed': sum(deficit_fraction(agent) > 0 for agent in people),
+            'households': len(people),
+        }
+        if not any(row['turn'] == turn and row['project'] == project['id'] for row in reports):
+            reports.append(report)
+        purchases = [row for row in world['scenario_state']['political_economy']['grain_transactions']
+                     if row['turn'] == turn and row['tile'] == tile.name
+                     and row['kind'] == 'private_purchase']
+        for purchase in purchases:
+            record_owner_response(world, project['site'], purchase['units'], purchase['owner_id'])
+
+
+def record_owner_response(world: dict, site: str, units: int, owner_id: int) -> None:
+    project = get_project(world, 'nile_repair', site)
+    if project is None or effectiveness(world, 'nile_repair', site) <= 0 or units <= 0:
+        return
+    event = {'turn': int(world['turn']), 'project': project['id'],
+             'message': (f'Warehouse owner {owner_id} bought {units} food units in {site}; '
+                         'the larger harvest may remain out of reach for poorer households.')}
+    if event in project['events']:
+        return
+    project['events'].append(event)
+    _state(world)['events'].append(event)
 
 
 def draw_map_overlay(surface, world: dict) -> None:
