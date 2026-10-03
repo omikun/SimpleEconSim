@@ -236,6 +236,9 @@ def render_frame(surface, world, mouse_pos=None):
 
     _draw_cached_map(surface, world, font, font_small)
     draw_dynamic_map_overlays(surface, world)
+    if world.get('scenario_id') == 'egypt_1877':
+        from scenario_projects import draw_map_overlay
+        draw_map_overlay(surface, world)
     label_surface = world.get('_ui_map_label_surface')
     if label_surface is not None:
         surface.blit(label_surface, (0, TOP_BAR_H),

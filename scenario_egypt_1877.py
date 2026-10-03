@@ -297,6 +297,8 @@ def prepare_world(world: dict) -> dict:
     world["scenario_location_by_tile"] = _assign_location_roles(egypt)
     from scenario_geography import initialize as initialize_geography
     initialize_geography(world)
+    from scenario_projects import initialize as initialize_projects
+    initialize_projects(world)
     from scenario_politics import initialize as initialize_politics
     initialize_politics(world)
     from scenario_campaign import initialize as initialize_campaign
@@ -531,6 +533,10 @@ def advance_scenario(world: dict, turn: int, ticker_push, on_phase=None) -> None
         ticker_push(world, turn, "CREDITOR", f"The Caisse collected {levy_paid:,.0f} units from Egyptian receipts.", (225, 178, 87))
     if on_phase:
         on_phase('levy')
+    from scenario_projects import advance as advance_projects
+    advance_projects(world)
+    if on_phase:
+        on_phase('strategic_projects')
     if turn >= int(state.get("payment_window_turn", 6)) and state.get("payment_status") in ("upcoming", "deferred"):
         state["payment_status"] = "unpaid"
         world["playing"] = False

@@ -263,6 +263,8 @@ def draw_scenario_route_overlay(surface, world: dict) -> None:
         label = _scenario_font(12).render('French fleet', True, (180, 211, 250))
         surface.blit(label, (px + 1, py + 19))
     surface.set_clip(clipped)
+    from scenario_projects import draw_map_overlay
+    draw_map_overlay(surface, world)
 
 
 def draw_guided_header(surface, world: dict, font_small, mouse_pos=None) -> None:
