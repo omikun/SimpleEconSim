@@ -7,7 +7,8 @@ import pygame
 from scenario_projects import (advance, cancel_project, damage_project,
                                draw_map_overlay, effectiveness, get_project,
                                record_food_results, repair_project, start_project,
-                               strategic_strip, project_hover_tip)
+                               strategic_strip, project_hover_tip,
+                               advance_grain_entitlement)
 from scenario_egypt_1877 import apply_action, build_debrief
 from worldview_engine import build_world_view
 
@@ -93,6 +94,69 @@ class StrategicProjectTests(unittest.TestCase):
         self.assertEqual(report['site'], 'Nile Delta')
         self.assertIn('private_reserved', report)
         self.assertIn('underfed', report)
+
+    def test_grain_entitlement_consumes_real_owner_food_and_pays_carriers(self):
+        from goods import Goods
+
+        for tile in self.egypt.tiles:
+            for agent in tile.agents:
+                agent.calorie_deficit_kcal = 0
+        delta = next(tile for tile in self.egypt.tiles
+                     if getattr(tile, 'scenario_location', '') == 'Nile Delta')
+        owner = next(agent for agent in delta.agents if getattr(agent, 'is_lord', False))
+        recipient = next(agent for agent in delta.agents
+                         if not agent.is_government and not agent.is_corporation
+                         and not agent.is_trader and not agent.is_lord)
+        owner.inv_set(Goods.food, 20)
+        recipient.calorie_deficit_kcal = 1000
+        food_before = sum(agent.inv_get(Goods.food, 0) for tile in self.egypt.tiles
+                          for agent in tile.agents)
+        cash_before = self._egypt_cash()
+        treasury_before = self.egypt.government.agent.cash
+        self.assertTrue(apply_action(self.world, 'enact_grain_entitlement')[0])
+        self.world['turn'] = 2
+        advance_grain_entitlement(self.world)
+        report = self.world['scenario_state']['strategic_projects']['grain_entitlement_reports'][-1]
+        self.assertEqual(report['units'], 2)
+        self.assertEqual(recipient.calorie_deficit_kcal, 0)
+        self.assertAlmostEqual(report['transport_wages'], .1)
+        self.assertAlmostEqual(self.egypt.government.agent.cash, treasury_before - .1)
+        self.assertAlmostEqual(self._egypt_cash(), cash_before, places=4)
+        self.assertEqual(food_before - sum(agent.inv_get(Goods.food, 0)
+                                           for tile in self.egypt.tiles for agent in tile.agents), 2)
+        self.assertTrue(apply_action(self.world, 'end_grain_entitlement')[0])
+
+    def test_reserve_recall_moves_local_cash_once_and_leaves_operating_floor(self):
+        from scenario_projects import reserve_recall_capacity
+
+        local = {id(tile.gov): tile.gov for tile in self.egypt.tiles
+                 if tile.gov is not self.egypt.government}
+        self.assertTrue(local)
+        for government in local.values():
+            government.agent.cash = 70
+        accounts = [self.egypt.government, *local.values()]
+        cash_before = sum(government.agent.cash for government in accounts)
+        capacity = reserve_recall_capacity(self.world)
+        self.assertGreater(capacity, 0)
+        ok, message = apply_action(self.world, 'recall_district_reserves')
+        self.assertTrue(ok, message)
+        report = self.world['scenario_state']['strategic_projects']['reserve_recall_reports'][-1]
+        self.assertAlmostEqual(report['total'], capacity)
+        self.assertAlmostEqual(sum(government.agent.cash for government in accounts), cash_before)
+        self.assertTrue(all(government.agent.cash >= 20 for government in local.values()))
+        self.assertEqual(reserve_recall_capacity(self.world), 0)
+        self.world['turn'] = 2
+        self.assertFalse(apply_action(self.world, 'recall_district_reserves')[0])
+
+    def test_generic_revolution_cannot_silently_erase_caisse_bonds(self):
+        from macro.imperialism.manager import get_imperialism_manager
+        from scenario_debt import bonds, outstanding
+
+        claim_before = outstanding(self.world)
+        get_imperialism_manager().repudiate_all_imperial_obligations(
+            self.egypt, 2, self.world)
+        self.assertEqual(outstanding(self.world), claim_before)
+        self.assertTrue(all(bond.status == 'active' for bond in bonds(self.world)))
 
     def test_revenue_office_moves_real_receipts_after_caisse_claim(self):
         from scenario_debt import outstanding, set_collection_assignment

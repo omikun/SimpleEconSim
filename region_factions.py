@@ -121,6 +121,9 @@ def accumulate_grievances(region, t):
     adds = {}
     if not agents:
         return adds
+    grievance_scale = float(getattr(region, 'scenario_grievance_scale', 1.0))
+    prior_grievances = ({f.name: dict(f.grievances) for f in region.factions.factions.values()}
+                        if grievance_scale != 1.0 else {})
     # hunger
     hungry_now = sum(1 for a in agents
                      if not a.is_corporation and not a.is_government
@@ -229,6 +232,13 @@ def accumulate_grievances(region, t):
             f.add_grievance('labor', labor_grievance * 1.5)
         adds[f.name] = n_add
 
+    if grievance_scale != 1.0:
+        for faction in region.factions.factions.values():
+            prior = prior_grievances[faction.name]
+            for key, value in faction.grievances.items():
+                faction.grievances[key] = prior.get(key, 0.0) + (value - prior.get(key, 0.0)) * grievance_scale
+        adds = {key: value * grievance_scale for key, value in adds.items()}
+
     # Record isolated grievance breakdown for analytical comparison
     sources = {
         'overworked': float(shift_score),
@@ -242,6 +252,8 @@ def accumulate_grievances(region, t):
         'wage_inflation': float(wage_panic_score),
         'wage_suppression': float(wage_suppression_score),
     }
+    if grievance_scale != 1.0:
+        sources = {key: value * grievance_scale for key, value in sources.items()}
     total_g = sum(sources.values())
     pcts = {k: (v / total_g * 100.0) if total_g > 0 else 0.0 for k, v in sources.items()}
     if not hasattr(region, 'grievance_sources_log'):

@@ -99,3 +99,10 @@ Conduct a short blind playtest if a player is available. Ask what plan they form
 ## Implementation discipline
 
 Implement and verify one phase at a time, then make a separate commit for that phase after reviewing the diff. Preserve unrelated working-tree changes. The Phase 2 food slice is the first playability checkpoint: if it is not engaging in a short playtest, revise the loop before implementing the other two projects. The plan defines targets, not proof that the finished game will be fun.
+
+## Completion record
+
+Phases 0–5 were completed in separate commits: `fe5c9b3`, `18ccea8`,
+`c21b7e5`, `2fec2f8`, `d99b736`, and `fab4596`. Phase 6's replay matrix,
+renderer check, conservation checks, reachability result, and remaining
+playtest limits are recorded in [EGYPT_STRATEGIC_INTEGRATION_AUDIT.md](EGYPT_STRATEGIC_INTEGRATION_AUDIT.md).

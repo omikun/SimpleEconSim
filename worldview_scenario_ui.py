@@ -505,6 +505,30 @@ def _guided_action_preview(world: dict, nation, action_id: str) -> tuple[str, li
             f'Creditor confidence {confidence:.0%} → {max(0, confidence - .10):.0%}.',
             'Next turns: local food supply can improve, while export receipts may fall.',
         ])
+    if action_id in ('enact_grain_entitlement', 'end_grain_entitlement'):
+        reports = state.get('strategic_projects', {}).get('grain_entitlement_reports', [])
+        if action_id == 'end_grain_entitlement':
+            return ('End the standing grain levy', [
+                'Stop future in-kind transfers from private surplus to underfed households.',
+                'Cairo stops paying carriers. Households lose this access unless wages or markets replace it.',
+            ])
+        recent = reports[-1] if reports else None
+        return ('Private maize → meals • carrier wages', [
+            'Each turn, take actual maize above the protected reserve from landowners and well-stocked households.',
+            'Cairo pays carriers 0.05 treasury units per food unit; the levy can stop when private stores or cash run out.',
+            'Private holders lose stock; legitimacy falls 1.2 points and local unrest rises slightly on turns with deliveries.',
+            'This policy continues until ended. It uses a major decision to enact and can conflict with debt service.',
+            *( [f'Latest delivery: {recent["units"]} units to {recent["households_reached"]} households.'] if recent else []),
+        ])
+    if action_id == 'recall_district_reserves':
+        from scenario_projects import reserve_recall_capacity
+        capacity = reserve_recall_capacity(world)
+        return (f'Up to {capacity:.1f} local cash → Cairo', [
+            f'Move up to {capacity:.1f} already-collected cash from district governments to Cairo once.',
+            'Each local government retains at least 20 for operations. No new tax or debt is created.',
+            'Affected districts gain unrest; national legitimacy falls 3.5 points. Local services have less cash.',
+            'The transfer can cover a debt instalment or carrier wages, but cannot be repeated.',
+        ])
     if action_id == 'reduce_fellahin_tax':
         next_unrest = sum(max(0, float(getattr(tile, 'unrest_level', 0.0)) - .08) for tile in tiles) / max(1, len(tiles))
         return ('Tax −3pp • unrest ↓', [
@@ -893,6 +917,12 @@ def _draw_egypt_scenario_panel(surface, world: dict, mouse_pos=None) -> None:
         [('release_maize', 'Release maize reserves', stock > 0)],
         [('prioritize_domestic_grain', 'Keep more food in Egypt', not state.get('domestic_grain_priority', False))],
     ]
+    grain_entitlement_active = state.get('strategic_projects', {}).get('grain_entitlement_active', False)
+    action_rows.append([('end_grain_entitlement', 'End grain entitlement', True)] if grain_entitlement_active
+                       else [('enact_grain_entitlement', 'Levy private surplus for relief', True)])
+    from scenario_projects import reserve_recall_capacity
+    action_rows.append([('recall_district_reserves', 'Call district reserves to Cairo',
+                         reserve_recall_capacity(world) >= 1.0)])
     from scenario_projects import PROJECT_DEFS, get_project
     repair_cost = PROJECT_DEFS['nile_repair']['cash_cost']
     action_rows.append([
@@ -1025,6 +1055,10 @@ def _draw_egypt_scenario_panel(surface, world: dict, mouse_pos=None) -> None:
                         reason = 'The public maize reserve is empty.'
                     elif action_id == 'prioritize_domestic_grain':
                         reason = 'Grain is already being retained for local supply.'
+                    elif action_id == 'recall_district_reserves':
+                        reason = ('District reserves were already called to Cairo.'
+                                  if state.get('strategic_projects', {}).get('reserve_recall_used') else
+                                  'District governments have no cash above their protected reserves.')
                     elif action_id in ('repair_delta_channels', 'repair_upper_channels',
                                        'build_revenue_office', 'prepare_canal_line'):
                         project_id, site = ({

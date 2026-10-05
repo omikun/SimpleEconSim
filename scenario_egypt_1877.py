@@ -60,6 +60,7 @@ SCENARIO = {
     # ordinary sandbox generation. CLI seed flags remain available for tuning.
     "seeds": {"world": 1877, "terrain": 1877, "nations": 1877},
     "terrain": {"shape": "radial", "points": 1000, "rivers": 25, "wave_intensity": 1.0},
+    "foreign_grievance_scale": 0.20,
     "camera": {"zoom": 2.0},
     "actions": (
         {"id": "release_maize", "title": "Release maize reserves", "turn_cost": 1},
@@ -71,6 +72,9 @@ SCENARIO = {
         {"id": "publish_revenue_accounts", "title": "Publish Alexandria accounts", "turn_cost": 1},
         {"id": "refuse_revenue_inspection", "title": "Refuse Caisse inspection", "turn_cost": 1},
         {"id": "prioritize_domestic_grain", "title": "Keep more grain in Egypt", "turn_cost": 1},
+        {"id": "enact_grain_entitlement", "title": "Levy private surplus for relief", "turn_cost": 1},
+        {"id": "end_grain_entitlement", "title": "End the private grain levy", "turn_cost": 1},
+        {"id": "recall_district_reserves", "title": "Call district reserves to Cairo", "turn_cost": 1},
         {"id": "reduce_fellahin_tax", "title": "Reduce cultivator taxes", "turn_cost": 1},
         {"id": "raise_local_taxes", "title": "Raise local taxes", "turn_cost": 1},
         {"id": "intensify_requisitions", "title": "Enforce emergency requisitions", "turn_cost": 1},
@@ -320,6 +324,13 @@ def prepare_world(world: dict) -> dict:
         if getattr(tile, "scenario_location", "") in ("Nile Delta", "Upper Egypt"):
             tile.scenario_food_yield_modifier = 0.55
             tile.scenario_food_yield_modifier_until = 8
+    # The authored foreign governments have broader administrative capacity
+    # than the five Egyptian crisis districts. Their simulated protests remain
+    # real and visible, but should not max out before the first creditor reply.
+    for nation in world['nations']:
+        if nation.name in ('Britain', 'France'):
+            for tile in nation.tiles:
+                tile.scenario_grievance_scale = SCENARIO['foreign_grievance_scale']
     capital = getattr(egypt, "capital", None)
     if capital is not None:
         world["selected_region"] = capital
@@ -353,7 +364,17 @@ def apply_action(world: dict, action_id: str) -> tuple[bool, str]:
         initialize(world)
     status_before = snapshot(world)
 
-    if action_id == "release_maize":
+    if action_id in ('enact_grain_entitlement', 'end_grain_entitlement'):
+        from scenario_projects import set_grain_entitlement
+        ok, message = set_grain_entitlement(world, action_id == 'enact_grain_entitlement')
+        if not ok:
+            return False, message
+    elif action_id == 'recall_district_reserves':
+        from scenario_projects import recall_district_reserves
+        ok, message = recall_district_reserves(world)
+        if not ok:
+            return False, message
+    elif action_id == "release_maize":
         available = min(int(state.get("relief_units_per_turn", 30)),
                         int(getattr(nation.government, "food_inventory", 0)))
         if available <= 0:
@@ -570,6 +591,8 @@ def advance_scenario(world: dict, turn: int, ticker_push, on_phase=None) -> None
     advance_projects(world)
     from scenario_projects import record_food_results
     record_food_results(world)
+    from scenario_projects import advance_grain_entitlement
+    advance_grain_entitlement(world)
     if on_phase:
         on_phase('strategic_projects')
     if turn >= int(state.get("payment_window_turn", 6)) and state.get("payment_status") in ("upcoming", "deferred"):

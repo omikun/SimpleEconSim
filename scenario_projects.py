@@ -6,7 +6,11 @@ They deliberately do not duplicate the sandbox's larger building recipes.
 
 from __future__ import annotations
 
+from math import ceil
 from typing import Any
+
+from goods import Goods
+from nutrition import CALORIES_PER_FOOD, deficit_fraction, feed_emergency_meal
 
 
 PROJECT_DEFS = {
@@ -33,6 +37,8 @@ def initialize(world: dict) -> None:
     world['scenario_state']['strategic_projects'] = {
         'projects': [], 'payments': [], 'events': [], 'food_reports': [],
         'revenue_reports': [], 'fiscal_challenge': None, 'selected': None,
+        'grain_entitlement_active': False, 'grain_entitlement_reports': [],
+        'reserve_recall_used': False, 'reserve_recall_reports': [],
     }
 
 
@@ -198,8 +204,146 @@ def advance(world: dict) -> None:
             _review_revenue_office(world, project)
 
 
+def set_grain_entitlement(world: dict, active: bool) -> tuple[bool, str]:
+    """A continuing food-access decision, paid for by owners and the treasury."""
+    state = _state(world)
+    if state['grain_entitlement_active'] == active:
+        return False, ('The grain entitlement is already active.' if active else
+                       'The grain entitlement has already ended.')
+    state['grain_entitlement_active'] = active
+    return True, ('Cairo orders a recurring in-kind levy on private maize above protected reserves. '
+                  'Carriers are paid from the treasury; holders resist each turn.' if active else
+                  'Cairo ends the recurring grain levy and public entitlement.')
+
+
+def reserve_recall_capacity(world: dict) -> float:
+    """Cash local Egyptian governments can send while retaining 20 each."""
+    egypt = _nation(world, 'Egypt')
+    if egypt is None or _state(world)['reserve_recall_used']:
+        return 0.0
+    governments = {id(tile.gov): tile.gov for tile in egypt.tiles
+                   if tile.gov is not egypt.government}
+    return round(min(80.0, sum(max(0.0, float(gov.agent.cash) - 20.0)
+                               for gov in governments.values())), 2)
+
+
+def recall_district_reserves(world: dict) -> tuple[bool, str]:
+    """Move already collected district cash to Cairo, once, with local costs."""
+    state = _state(world)
+    egypt = _nation(world, 'Egypt')
+    if state['reserve_recall_used']:
+        return False, 'Cairo has already recalled the district reserves.'
+    capacity = reserve_recall_capacity(world)
+    if capacity < 1.0:
+        return False, 'District governments have no cash above their protected operating reserves.'
+    by_government = {}
+    for tile in egypt.tiles:
+        if tile.gov is not egypt.government:
+            by_government.setdefault(id(tile.gov), (tile.gov, []))[1].append(tile)
+    remaining = capacity
+    receipts = []
+    for gov, tiles in sorted(by_government.values(),
+                             key=lambda row: (-float(row[0].agent.cash), row[0].name)):
+        amount = round(min(remaining, max(0.0, float(gov.agent.cash) - 20.0)), 6)
+        if amount <= 0:
+            continue
+        gov.agent.cash -= amount
+        egypt.government.agent.cash += amount
+        remaining -= amount
+        for tile in tiles:
+            tile.unrest_level = min(1.0, float(getattr(tile, 'unrest_level', 0.0)) + .02)
+        receipts.append({'districts': [getattr(tile, 'scenario_location', tile.name)
+                                        for tile in tiles],
+                         'amount': amount, 'collector': gov.name})
+        if remaining < .01:
+            break
+    transferred = round(capacity - remaining, 6)
+    state['reserve_recall_used'] = True
+    state['reserve_recall_reports'].append({'turn': int(world['turn']),
+                                           'total': transferred, 'districts': receipts})
+    egypt.legitimacy = max(0.0, float(egypt.legitimacy) - .035)
+    return True, (f'Called {transferred:.1f} already-collected treasury units from district governments '
+                  'to Cairo. Local budgets retain 20 each; district unrest and political resentment rise.')
+
+
+def advance_grain_entitlement(world: dict) -> None:
+    """Deliver conserved grain after consumption, using actual private surplus."""
+    state = _state(world)
+    if not state['grain_entitlement_active']:
+        return
+    egypt = _nation(world, 'Egypt')
+    if egypt is None:
+        return
+    turn = int(world['turn'])
+    treasury = egypt.government.agent
+    carriers = {tile.name: (_workers(tile, 1) or [None])[0] for tile in egypt.tiles}
+    donors = sorted(((tile, agent) for tile in egypt.tiles for agent in tile.agents
+                     if carriers[tile.name] is not None
+                     and getattr(agent, 'alive', True)
+                     and not getattr(agent, 'is_government', False)
+                     and not getattr(agent, 'is_corporation', False)
+                     and not getattr(agent, 'is_trader', False)
+                     and agent.inv_get(Goods.food, 0) > (4 if getattr(agent, 'is_lord', False) else 8)),
+                    key=lambda row: (-row[1].inv_get(Goods.food, 0), row[1].id))
+    recipients = sorted((agent for tile in egypt.tiles for agent in _workers(tile, len(tile.agents))
+                         if deficit_fraction(agent) > 0),
+                        key=lambda agent: (-deficit_fraction(agent), float(agent.cash), agent.id))
+    moved = helped = 0
+    transport_paid = 0.0
+    economy = world['scenario_state']['political_economy']
+    for person in recipients:
+        need = ceil(float(person.calorie_deficit_kcal) / CALORIES_PER_FOOD)
+        received = 0
+        while need > 0 and donors and treasury.cash >= .05:
+            tile, owner = donors[0]
+            protected = 4 if getattr(owner, 'is_lord', False) else 8
+            surplus = max(0, owner.inv_get(Goods.food, 0) - protected)
+            if surplus <= 0:
+                donors.pop(0)
+                continue
+            units = min(need, surplus, int(treasury.cash / .05))
+            if units <= 0:
+                break
+            owner.inv_add(Goods.food, -units)
+            if economy['warehouse_by_tile'].get(tile.name) == owner.id:
+                reserved = min(int(economy['private_reserve_by_tile'].get(tile.name, 0)),
+                               owner.inv_get(Goods.food, 0))
+                economy['private_reserve_by_tile'][tile.name] = reserved
+                tile.scenario_grain_reserved_units = reserved
+            carrier = carriers[tile.name]
+            fee = round(units * .05, 6)
+            treasury.cash -= fee
+            carrier.cash += fee
+            transport_paid += fee
+            feed_emergency_meal(person, units)
+            moved += units
+            received += units
+            need -= units
+            economy['grain_transactions'].append({
+                'turn': turn, 'tile': tile.name, 'kind': 'grain_entitlement',
+                'units': units, 'cash': 0.0, 'owner_id': owner.id,
+            })
+        if received:
+            helped += 1
+        if not donors or treasury.cash < .05:
+            break
+    if moved:
+        egypt.legitimacy = max(0.0, float(egypt.legitimacy) - .012)
+        for tile in egypt.tiles:
+            tile.unrest_level = min(1.0, float(getattr(tile, 'unrest_level', 0.0)) + .004)
+    state['grain_entitlement_reports'].append({
+        'turn': turn, 'units': moved, 'households_reached': helped,
+        'transport_wages': round(transport_paid, 2),
+        'remaining_underfed': sum(deficit_fraction(agent) > 0
+                                  for tile in egypt.tiles
+                                  for agent in _workers(tile, len(tile.agents))),
+    })
+
+
 def allocate_revenue(world: dict, government, source: str, net: float, turn: int) -> float:
     """Move a share of an actual local receipt to Cairo after lawful interceptions."""
+    if not world.get('scenario_state', {}).get('strategic_projects'):
+        return net
     egypt = _nation(world, 'Egypt')
     office = get_project(world, 'revenue_office', 'Alexandria')
     if (egypt is None or office is None or source not in ('tax', 'tariff')
@@ -353,6 +497,8 @@ def strategic_strip(world: dict) -> list[dict[str, Any]]:
         plan_text = 'No strategic project funded'
         plan_details = ['A food repair, revenue office, or defense line can anchor a plan.',
                         'Each costs a major decision, local wages, and future upkeep.']
+    if projects['grain_entitlement_active']:
+        plan_details.append('The standing grain entitlement moves private surplus to underfed households; Cairo pays carriers.')
     challenge = projects.get('fiscal_challenge') or {}
     naval = state.get('naval_crisis', {})
     due = int(state.get('payment_window_turn', 6))
@@ -384,11 +530,17 @@ def strategic_strip(world: dict) -> list[dict[str, Any]]:
     else:
         fiscal = [row for row in projects['revenue_reports'] if row['turn'] == turn - 1]
         food = [row for row in projects['food_reports'] if row['turn'] == turn - 1]
+        entitlement = [row for row in projects['grain_entitlement_reports'] if row['turn'] == turn - 1]
         if fiscal:
             transferred = sum(row['central_transfer'] for row in fiscal)
             consequence_text = f'{transferred:.0f} local receipts moved to Cairo'
             consequence_details = [f'{transferred:.1f} of actual net local receipts reached Cairo last turn.',
                                    'Caisse and occupation interceptions were applied first; local budgets kept the rest.']
+        elif entitlement and entitlement[-1]['units']:
+            last = entitlement[-1]
+            consequence_text = f'{last["units"]} private maize fed {last["households_reached"]} households'
+            consequence_details = [f'Carriers earned {last["transport_wages"]:.1f} treasury units.',
+                                   f'{last["remaining_underfed"]} households still had a calorie deficit.']
         elif food:
             last = food[-1]
             consequence_text = (f'{last["site"]}: {last["food_produced"]} food made, '
@@ -542,6 +694,10 @@ def debrief_evidence(world: dict) -> dict:
                     if row.get('kind') == 'crew_food')
     cairo_transfers = sum(float(row.get('central_transfer', 0)) for row in
                           state['revenue_reports'])
+    entitlement = list(state['grain_entitlement_reports'])
+    owner_grain = sum(int(row['units']) for row in entitlement)
+    carrier_wages = sum(float(row['transport_wages']) for row in entitlement)
+    recalled = sum(float(row['total']) for row in state['reserve_recall_reports'])
     completed = sum(project['progress'] >= project['required_work'] for project in projects)
     selected_plan = state.get('selected') or 'none'
     detail = (f'Intended plan: {selected_plan.replace("_", " ")}. '
@@ -562,6 +718,8 @@ def debrief_evidence(world: dict) -> dict:
         'strategic_projects': projects,
         'project_payments': payments,
         'project_revenue_reports': list(state['revenue_reports']),
+        'grain_entitlement_reports': entitlement,
+        'reserve_recall_reports': list(state['reserve_recall_reports']),
         'social_stats': [
             {'label': 'Strategic works and labor',
              'value': f'{completed}/{len(projects)} completed',
@@ -570,5 +728,11 @@ def debrief_evidence(world: dict) -> dict:
             {'label': 'Local receipts moved to Cairo',
              'value': f'{cairo_transfers:,.1f} units',
              'note': 'Actual net local tax and tariff receipts centralized after prior claims.'},
+            {'label': 'Private surplus delivered to households',
+             'value': f'{owner_grain:,} food units',
+             'note': f'Compulsory transfers from owners and well-stocked households; Cairo paid {carrier_wages:,.1f} to carriers.'},
+            {'label': 'District reserves called to Cairo',
+             'value': f'{recalled:,.1f} treasury units',
+             'note': 'Cash moved from local governments, leaving less for district services and raising unrest.'},
         ],
     }

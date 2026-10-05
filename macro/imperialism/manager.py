@@ -690,6 +690,11 @@ class ImperialismManager:
         from sovereign_bonds import get_bond_market
         market = get_bond_market()
         for b in list(market.bonds):
+            if b.bond_purpose == 'scenario_caisse':
+                # Egypt's authored claim has its own visible creditor, naval,
+                # and settlement decisions. A generic commune event cannot
+                # erase that principal behind the player's back.
+                continue
             if b.issuer_nation == nation.name and b.holder_nation != "Domestic Commercial Banks" and b.holder_nation != nation.name:
                 if b.status in ("active", "defaulted"):
                     b.status = "repudiated"
