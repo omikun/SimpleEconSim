@@ -596,14 +596,15 @@ class CoCWebServer:
             slot_state = dict(getattr(gen, 'slot_1_state', {}))
         if gen is None:
             raise RuntimeError('3D Mapgen terrain is unavailable for this world')
-        # Use the exact graph configuration, even when the world seed overrides
-        # the saved terrain slot's seed or point count.
+        # Desktop setup_scene consumes gen.slot_1_state as-is. Only fill missing
+        # generator values here so web uses the exact same terrain parameters.
         for key, attr in (
             ('seed', 'seed'), ('shape', 'island_shape'), ('points', 'num_points'),
             ('rivers', 'river_count'), ('sharpness', 'mountain_sharpness'),
             ('canyon_depth', 'canyon_depth'), ('valley_width', 'valley_width'),
         ):
-            slot_state[key] = getattr(gen, attr, slot_state.get(key))
+            if key not in slot_state:
+                slot_state[key] = getattr(gen, attr, None)
 
         with self._terrain_mesh_lock:
             if generation == self._terrain_mesh_generation and self._terrain_mesh_bytes is not None:
@@ -663,12 +664,31 @@ class CoCWebServer:
                 height_scale=float(slot_state.get('height_scale', 48.0)),
                 river_width_mult=float(slot_state.get('river_width', 1.0)),
                 river_count=int(slot_state.get('rivers', 25)),
-            ), dtype='<f4')
+            ), dtype='<f4') if int(slot_state.get('rivers', 25)) > 0 else np.empty(0, dtype='<f4')
             surf = np.asarray(build_coastal_surf_ribbon(
                 gen, ribbon_width=32.0 * float(slot_state.get('wave_intensity', 1.4)),
-            ), dtype='<f4')
+            ), dtype='<f4') if slot_state.get('micropoly_waves', True) else np.empty(0, dtype='<f4')
             buffers = (mesh, trees, rivers, surf)
-            header = struct.pack('<4I', *(len(values) for values in buffers))
+            flags = (
+                (1 if slot_state.get('micropoly_strata', True) else 0)
+                | (2 if slot_state.get('shadows', True) else 0)
+                | (4 if slot_state.get('micropoly_waves', True) else 0)
+            )
+            render_settings = (
+                float(slot_state.get('sun_azimuth', -45.0)),
+                float(slot_state.get('sun_elevation', 24.0)),
+                float(slot_state.get('sun_intensity', 1.15)),
+                float(slot_state.get('ambient_intensity', 0.45)),
+                float(slot_state.get('mountain_roughness', 1.0)),
+                float(slot_state.get('snow_altitude', 0.70)),
+                float(slot_state.get('shadow_darkness', 1.0)),
+                float(slot_state.get('wave_intensity', 1.4)),
+                float(slot_state.get('wave_speed', 0.65)),
+                float(slot_state.get('wave_period', 1.2)),
+                float(slot_state.get('foam_coverage', 0.85)),
+                float(slot_state.get('wave_desync', 0.60)),
+            )
+            header = struct.pack('<5I12f', *(len(values) for values in buffers), flags, *render_settings)
             body = header + b''.join(values.tobytes() for values in buffers)
             self._terrain_mesh_generation = generation
             self._terrain_mesh_bytes = body
