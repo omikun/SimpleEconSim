@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 import pygame
+from goods import Goods
 from worldview_camera import WIDTH, HEIGHT, MAP_RIGHT, TOP_BAR_H, TICKER_H
 from worldview_map import ACCENT, TEXT, DIM, RED, GREEN
 from worldview_ui import get_font
@@ -72,29 +73,36 @@ def _egypt_scenario_pressures(world: dict) -> list[dict]:
     people = [a for tile in nation.tiles for a in getattr(tile, 'agents', [])
               if getattr(a, 'alive', True) and not getattr(a, 'is_government', False)
               and not getattr(a, 'is_corporation', False) and not getattr(a, 'is_trader', False)]
-    hungry = sum(1 for a in people if getattr(a, 'hungry_steps', 0) > 0)
-    hunger_rate = hungry / max(1, len(people))
+    from nutrition import deficit_fraction, fat_kg
+    hungry = sum(1 for a in people if deficit_fraction(a) > 0)
+    calorie_gap = sum(deficit_fraction(a) for a in people) / max(1, len(people))
+    mean_fat = sum(fat_kg(a) for a in people) / max(1, len(people))
     stock = int(getattr(nation.government, 'food_inventory', 0))
-    stock_turns = stock / max(1, int(state.get('relief_units_per_turn', 30)))
+    stock_turns = stock / max(1, int(state.get('relief_units_per_turn', 30)) * 4)
     protected_rate = float(world.get('scenario', {}).get('thresholds', {}).get('protected_hunger_rate', .20))
-    food_tone = ('urgent' if hunger_rate >= protected_rate else
-                 'warning' if stock_turns < 2 or hunger_rate >= protected_rate * .5 else 'good')
-    food_value = f'{hunger_rate:.0%} hungry • {stock_turns:.1f} turns of public maize'
-    food_cause = 'Reserve release can feed households; it uses finite state stores.'
+    food_tone = ('urgent' if calorie_gap >= protected_rate else
+                 'warning' if stock_turns < 2 or calorie_gap >= protected_rate * .5 else 'good')
+    food_value = f'{calorie_gap:.0%} calorie gap • {stock_turns:.1f} turns of public maize'
+    from scenario_political_economy import stock as private_warehouse_stock
+    held_grain = private_warehouse_stock(world, nation)
+    food_cause = f'{held_grain} units in private warehouses; public release uses finite state stores.'
 
     payment_turn = int(state.get('payment_window_turn', 6))
     remaining = max(0, payment_turn - int(world.get('turn', 0)))
     payment_status = state.get('payment_status', 'upcoming')
     cash = float(getattr(nation.government.agent, 'cash', 0.0))
     remittance = float(state.get('scheduled_remittance', 200.0))
+    from scenario_debt import outstanding
+    claim = outstanding(world)
     confidence = float(state.get('creditor_confidence', 0.6))
     if payment_status in ('upcoming', 'unpaid', 'deferred'):
-        debt_value = (f'Due now • {remittance:.0f} cash needed' if remaining == 0
-                      else f'{remaining} turns to {remittance:.0f} payment • {cash:.0f} cash')
+        debt_value = (f'{claim:.0f} owed • {remittance:.0f} due now' if remaining == 0
+                      else f'{claim:.0f} owed • {remittance:.0f} due in {remaining} turns')
         if payment_status == 'deferred':
             debt_cause = f'Deferral added a surcharge. Pay by turn {payment_turn}; no second deferral is available.'
         else:
-            debt_cause = f'Pay {remittance:.0f}, concede {remittance / 2:.0f}, or defer once; creditor confidence {confidence:.0%}.'
+            debt_cause = (f'This instalment: pay {remittance:.0f}, concede {remittance / 2:.0f}, '
+                          f'or defer once; creditor confidence {confidence:.0%}.')
     else:
         debt_value = f'{payment_status.title()} • creditor confidence {confidence:.0%}'
         levy = float(state.get('creditor_levy_per_turn', 0.0))
@@ -121,7 +129,7 @@ def _egypt_scenario_pressures(world: dict) -> list[dict]:
         debt_title = 'Foreign decision'
         debt_value = f'Paris replies on turn {diplomatic.get("proposal_due_turn", "?")}'
         offer_effects = {
-            'mediation': f'If both governments agree, Cairo may settle for {remittance * .5:.0f} cash.',
+            'mediation': f'If both governments agree, Cairo may settle for {claim * .5:.0f} cash.',
             'joint_guarantee': 'If all sign, creditors may collect up to 5 units per turn from actual receipts.',
             'oppose_unilateral': 'French opposition raises British mobilization cost by 20; Britain may still proceed.',
         }
@@ -154,7 +162,13 @@ def _egypt_scenario_pressures(world: dict) -> list[dict]:
     ledger = state.get('debt_ledger', [])
     recent = [entry for entry in ledger if entry.get('kind') in ('payment', 'concession_payment',
                                                                 'naval_settlement', 'assigned_revenue')]
-    debt_details = [f'Outstanding Caisse bonds: {remittance:,.0f} units, held by Britain and France.']
+    debt_details = [f'Outstanding Caisse bonds: {claim:,.0f} units, held by Britain and France.']
+    if claim <= .01:
+        debt_details.append('The Caisse claim is settled; no further instalment is scheduled.')
+    elif payment_status in ('upcoming', 'unpaid', 'deferred'):
+        debt_details.append(f'Next service: {remittance:,.0f} units on turn {payment_turn}; spendable treasury {cash:,.0f}.')
+    else:
+        debt_details.append(f'The {claim:,.0f}-unit claim is in dispute or collection; normal instalments are suspended.')
     if pending_offer:
         debt_details.insert(0, f'Cairo proposed {pending_offer.replace("_", " ")}. '
                                f'France answers on turn {diplomatic["proposal_due_turn"]}; '
@@ -167,6 +181,9 @@ def _egypt_scenario_pressures(world: dict) -> list[dict]:
                             f'{float(assignment.get("per_turn_cap", 0)):,.0f} units each turn.')
         debt_details.append(f'Collected from actual receipts this turn: '
                             f'{float(state.get("debt_collected_this_turn", 0.0)):,.1f} units.')
+        if assignment.get('extended'):
+            debt_details.append(f'Lower collection cap traded for inspection through turn '
+                                f'{assignment.get("control_until_turn", "?")}.')
     else:
         debt_details.append('No active Caisse collection assignment.')
     oversight = state.get('oversight_agreement') or {}
@@ -177,6 +194,21 @@ def _egypt_scenario_pressures(world: dict) -> list[dict]:
         entry = recent[-1]
         debt_details.append(f'Latest transfer: turn {entry["turn"]}, {entry["amount"]:,.2f} to {entry["creditor"]} '
                             f'from {entry.get("source", entry["kind"])}.')
+    economy = state.get('political_economy', {})
+    reports = economy.get('fiscal_reports', [])
+    if reports:
+        report = reports[-1]
+        debt_details.append('Assigned receipts this turn: ' +
+                            (', '.join(f'{name} {amount:.1f}' for name, amount in report['creditors'].items())
+                             or 'none') + '.')
+        debt_details.append(f'Relief would need {report["relief_purchase_cost"]:.1f} for '
+                            f'{report["unfunded_meals"]} meals beyond this turn’s public release capacity; '
+                            f'cash shortfall {report["cash_shortfall"]:.1f}, '
+                            f'of which {report["attributable_to_assignment"]:.1f} is attributable to assigned receipts.')
+    transfers = economy.get('tenure_transfers', [])
+    dispossessed = len(transfers)
+    petitions = sum(row.get('petitioners', 0) for row in economy.get('collective_by_tile', {}).values())
+    strikers = sum(row.get('strikers', 0) for row in economy.get('collective_by_tile', {}).values())
     geography = state.get('geography', {})
     fleet = geography.get('fleets', {}).get('Britain')
     if fleet:
@@ -205,20 +237,83 @@ def _egypt_scenario_pressures(world: dict) -> list[dict]:
                             'damaged customs infrastructure lowers collectible tariff receipts.')
         debt_details.append(f'Formal sovereignty remains {occupation.get("formal_sovereign", "Egypt")}; '
                             f'Egyptian resistance is {float(occupation.get("resistance", 0)):.0%}.')
-    return [
-        {'title': 'Household maize access', 'value': food_value, 'cause': food_cause, 'tone': food_tone},
+    cards = [
+        {'title': 'Household maize access', 'value': food_value, 'cause': food_cause,
+         'tone': food_tone, 'details': [
+             f'{hungry} of {len(people)} households are underfed; the average calorie gap is {calorie_gap:.0%} of need.',
+             f'Mean fat reserve is {mean_fat:.1f} kg. Reserves delay death but do not erase hunger or grievance.',
+             f'{stock} public maize units remain; one release reaches up to '
+             f'{min(stock // 4, int(state.get("relief_units_per_turn", 30)), hungry)} hungry households.',
+             f'{held_grain} food units are held by named private warehouse owners. They offer more when the district price approaches their reservation or neighboring export price.',
+             'Buying moves held maize into public stores; requisitioning does so without paying the owner.',
+             'Low Nile yields persist through turn 12. Retaining grain exports can add to local stores.',
+         ]},
         {'title': debt_title,
          'value': debt_value, 'cause': debt_cause, 'tone': debt_tone,
          'details': debt_details},
-        {'title': 'Political support', 'value': f'Legitimacy {legitimacy:.0%} • palace army {loyalty:.0%}',
-         'cause': f'{politics.get("ruler", "Ismail Pasha")} • {politics.get("governing_coalition", "palace")} cabinet • movement {movement:.0%}.',
+        {'title': 'Political support', 'value': f'Legitimacy {legitimacy:.0%} • unrest {unrest:.0%}',
+         'cause': f'{dispossessed} lost plot access • {petitions} petitioners • {strikers} strikers.',
          'tone': political_tone, 'details': [
+             f'Mean district unrest is {unrest:.0%}; rising protest can force concessions or a breakdown.',
+             f'{dispossessed} cultivators lost plot access; {len(economy.get("migrations", []))} moved to another district.',
+             f'{petitions} households petition and {strikers} withhold work; their food and wage demands are local.',
              f'Officer access: {float(politics.get("officer_access", 0.0)):.0%}; army loyalty to the palace: {loyalty:.0%}.',
              f'Civilian backing for change: {float(politics.get("civilian_support", 0.0)):.0%}; movement strength: {movement:.0%}.',
              f'Palace authority: {float(politics.get("palace_authority", 0.0)):.0%}; cabinet authority: {float(politics.get("cabinet_authority", 0.0)):.0%}.',
              'Unpaid troops, blocked promotions, food stress, tax extraction, and foreign control can shift support.',
          ]},
     ]
+
+    if int(state.get('chapter', 1)) < 2:
+        return cards
+
+    ruler = politics.get('ruler', 'the khedive')
+    coalition = politics.get('governing_coalition', 'palace').replace('_', ' ')
+    cards[2].update(
+        title='Egyptian authority',
+        value=f'{ruler} • {coalition} cabinet',
+        cause=f'Army loyalty {loyalty:.0%} • movement {movement:.0%} • legitimacy {legitimacy:.0%}.',
+    )
+    campaign = state.get('campaign', {})
+    fort = campaign.get('forts', {}).get('Alexandria', {})
+    canal = 'open' if geography.get('canal_open', True) else 'closed'
+    resistance = float(occupation.get('resistance', 0.0))
+    casualties = int(campaign.get('civilian_casualties', 0))
+    if controlled:
+        military = {
+            'title': 'Occupation & resistance',
+            'value': f'{len(controlled)} sites held • resistance {resistance:.0%}',
+            'cause': f'{casualties} civilians injured • British garrison costs {float(occupation.get("garrison_supply_paid", 0)):.0f}.',
+            'tone': 'urgent',
+            'details': [
+                f'Britain holds {", ".join(controlled)}; customs and cabinet control follow the territory.',
+                f'Occupied receipts collected this turn: {float(occupation.get("collected_this_turn", 0)):.1f}.',
+                f'British garrison supply paid so far: {float(occupation.get("garrison_supply_paid", 0)):.1f}.',
+                f'Resistance {resistance:.0%}; collaboration {float(occupation.get("collaboration", 0)):.0%}. Boycotts and strikes reduce actual receipts.',
+                f'{casualties} civilians injured in the campaign. Insurgency can raise that cost.',
+                f'The campaign runs through at least turn {int(world.get("scenario", {}).get("horizon_turns", 20))}.',
+            ],
+        }
+    else:
+        balance = None
+        if naval_stage in ('mobilizing', 'ultimatum', 'blockaded', 'campaign'):
+            from scenario_gunboat import coastal_balance
+            balance = coastal_balance(world)
+        fleet_location = fleet.get('location', 'at sea') if fleet else 'no British fleet present'
+        military = {
+            'title': 'Coastal defense & canal',
+            'value': f'Alexandria fort {float(fort.get("integrity", 100)):.0f}% • canal {canal}',
+            'cause': (f'British fleet: {fleet_location}. '
+                      + (f'Coastal force ratio {balance["ratio"]:.2f}.' if balance else 'No landing threat is present.')),
+            'tone': 'urgent' if naval_stage in ('ultimatum', 'blockaded', 'campaign') else 'warning',
+            'details': [
+                f'Fort ammunition: {int(fort.get("ammunition", 0))}; port damage {float(campaign.get("infrastructure_damage", {}).get("Alexandria", 0)):.0%}.',
+                f'Foreign canal transit is {canal}; a canal approach must pass Port Said and Ismailia before Tel el Kebir.',
+                f'British fleet: {fleet_location}; coal {fleet.get("coal", 0) if fleet else 0}; supplied {bool(fleet and fleet.get("supplied"))}.',
+                f'{casualties} civilians injured in the campaign so far.',
+            ],
+        }
+    return [cards[2], cards[1], military]
 
 
 def draw_scenario_route_overlay(surface, world: dict) -> None:
@@ -277,7 +372,8 @@ def draw_guided_header(surface, world: dict, font_small, mouse_pos=None) -> None
     title = font_small.render(f'EGYPT 1876–82  •  {chapter_text}', True, (235, 225, 190))
     surface.blit(title, (18, TOP_BAR_H + 7))
     turn = world.get('turn', 0)
-    turn_text = font_small.render(f'Turn {turn} / 20', True, ACCENT)
+    turn_text = font_small.render(
+        f'Turn {turn} / {int(world.get("scenario", {}).get("horizon_turns", 20))}', True, ACCENT)
     surface.blit(turn_text, (18, TOP_BAR_H + 27))
     analysis_rect = (MAP_RIGHT - 220, TOP_BAR_H + 8, 98, 28)
     settings_rect = (MAP_RIGHT - 112, TOP_BAR_H + 8, 96, 28)
@@ -292,14 +388,16 @@ def draw_guided_header(surface, world: dict, font_small, mouse_pos=None) -> None
         text = font_small.render(label, True, TEXT)
         surface.blit(text, text.get_rect(center=(rect[0] + rect[2] // 2, rect[1] + rect[3] // 2)))
     scenario_ended = world.get('scenario_id') == 'egypt_1877' and bool(world.get('scenario_state', {}).get('ending'))
-    controls = [((MAP_RIGHT - 326, TOP_BAR_H + 9, 46, 28), 'play_pause', 'Pause' if world.get('playing') else 'Play'),
-                ((MAP_RIGHT - 274, TOP_BAR_H + 9, 42, 28), 'step_next', 'Next')]
+    controls = ([((MAP_RIGHT - 326, TOP_BAR_H + 9, 94, 28),
+                  'reopen_scenario_debrief', 'Summary')]
+                if scenario_ended else
+                [((MAP_RIGHT - 326, TOP_BAR_H + 9, 46, 28), 'play_pause', 'Pause' if world.get('playing') else 'Play'),
+                 ((MAP_RIGHT - 274, TOP_BAR_H + 9, 42, 28), 'step_next', 'Next')])
     for rect, action, label in controls:
-        if not scenario_ended:
-            register_target(world, rect, action, scope='guided')
+        register_target(world, rect, action, scope='guided')
         hover = rect[0] <= mx <= rect[0] + rect[2] and rect[1] <= my <= rect[1] + rect[3]
-        pygame.draw.rect(surface, (48, 55, 73) if hover and not scenario_ended else (31, 37, 51), rect, border_radius=3)
-        txt = font_small.render(label, True, TEXT if not scenario_ended else DIM)
+        pygame.draw.rect(surface, (48, 55, 73) if hover else (31, 37, 51), rect, border_radius=3)
+        txt = font_small.render(label, True, TEXT)
         surface.blit(txt, txt.get_rect(center=(rect[0] + rect[2] // 2, rect[1] + rect[3] // 2)))
     if world.get('guided_analysis_open'):
         analysis_tabs = [('overview', 'Overview'), ('land', 'Land'),
@@ -400,6 +498,16 @@ def _wrap_text(text: str, font, max_width: int) -> list[str]:
     return lines
 
 
+def _fit_button_text(value: str, font, max_width: int) -> str:
+    """Keep narrow decision labels inside their buttons; hover holds full detail."""
+    if font.size(value)[0] <= max_width:
+        return value
+    value = value.rstrip()
+    while value and font.size(value + '…')[0] > max_width:
+        value = value[:-1]
+    return value.rstrip() + '…'
+
+
 def _scenario_font(pixel_size: float):
     """Request a font that renders at the pixel size used by this panel."""
     # get_font applies a 0.65 calibration for the rest of the interface.
@@ -414,6 +522,7 @@ def _guided_action_preview(world: dict, nation, action_id: str) -> tuple[str, li
     """Describe immediate rule changes separately from later simulation effects."""
     if nation is None:
         return ('Government unavailable', ['The Egyptian administration is unavailable.'])
+    from nutrition import deficit_fraction
     state = world.get('scenario_state', {})
     stock = int(getattr(nation.government, 'food_inventory', 0))
     cash = float(nation.government.agent.cash)
@@ -422,15 +531,63 @@ def _guided_action_preview(world: dict, nation, action_id: str) -> tuple[str, li
     legitimacy = float(getattr(nation, 'legitimacy', 0.5))
     tiles = list(nation.tiles)
     unrest = sum(float(getattr(tile, 'unrest_level', 0.0)) for tile in tiles) / max(1, len(tiles))
+    if action_id.startswith('district_'):
+        from scenario_district import selected_district, district_metrics
+        tile = selected_district(world, nation)
+        if tile is None:
+            return ('Select a district', ['Click an Egyptian tile on the map.'])
+        local = district_metrics(tile)
+        from scenario_political_economy import district_snapshot
+        econ_local = district_snapshot(world, tile)
+        name = getattr(tile, 'scenario_location', None) or getattr(tile, 'display_name', tile.name)
+        if action_id == 'district_arrears_relief':
+            return (f'Forgive {econ_local["arrears"]:.1f} tax arrears', [
+                f'Cancel unpaid cadastral assessments in {name}; {econ_local["at_risk"]} holdings are near foreclosure.',
+                'Local tax falls three points. This prevents future plot loss but reduces later receipts.'])
+        if action_id == 'district_support_mutual_aid':
+            return ('Share private food • no treasury cost', [
+                f'Organizers in {name} move surplus household food to underfed neighbors.',
+                'The transfer is limited by real donor inventories and cannot feed everyone.'])
+        if action_id == 'district_bargain_workers':
+            return ('Owner wages +0.5 • strike ends', [
+                f'Owners in {name} offer a 0.5 wage increase and pay a grant from their own cash.',
+                'Petitioners receive cash; strikers return to production and local unrest eases.'])
+        if action_id == 'district_break_strike':
+            return ('Strike ends • injuries • support ↓', [
+                f'Police or a garrison in {name} breaks the strike.',
+                'Workers receive casualty memories; immediate work resumes while grievances may return.'])
+        if action_id == 'district_relief':
+            fed = min(10, stock // 4, local['underfed'])
+            return (f'Queue {fed} meals • maize −{fed * 4}', [
+                f'Reserve {fed * 4} public maize units for up to {fed} underfed households in {name}.',
+                'They eat the ration at the next consumption step; the next turn’s calorie gap includes this meal.',
+            ])
+        if action_id == 'district_tax_relief':
+            new_rate = max(0.0, local['tax_rate'] - .04)
+            return (f'Tax {local["tax_rate"]:.0%}→{new_rate:.0%}', [
+                f'Lower only {name}’s local tax rate by up to four points.',
+                'District protest and unrest ease; future local and national tax receipts may fall.',
+            ])
+        if action_id == 'district_negotiate':
+            return ('−15 treasury • protest ↓', [
+                f'Transfer 15 treasury units to poorer households in {name}.',
+                'Organizer grievances and protest pressure fall on a curve tied to the payment and current pressure.',
+            ])
+        if action_id == 'district_repress':
+            return ('Protest ↓ • legitimacy −15pp', [
+                f'Use police or a garrison in {name} to disperse protesters.',
+                'The action lowers protest now but seeds casualty and broken-promise memories that can fuel later grievance.',
+            ])
     if action_id == 'release_maize':
         households = [a for tile in tiles for a in getattr(tile, 'agents', [])
                       if getattr(a, 'alive', True) and not getattr(a, 'is_government', False)
                       and not getattr(a, 'is_corporation', False) and not getattr(a, 'is_trader', False)]
-        rations = min(stock, int(state.get('relief_units_per_turn', 30)), len(households))
-        return (f'Feed {rations} • stores {stock}→{stock - rations}', [
-            f'Now: give {rations} households one maize ration; public stores {stock} → {stock - rations}.',
-            'Hungry households receive rations first. Their current hunger streak resets if reached.',
-            'Next turns: fewer public rations remain; future hunger still depends on harvests and prices.',
+        rations = min(stock // 4, int(state.get('relief_units_per_turn', 30)),
+                      sum(deficit_fraction(agent) > 0 for agent in households))
+        return (f'Queue {rations} meals • stores {stock}→{stock - 4 * rations}', [
+            f'Now: reserve four units each for {rations} households; public stores {stock} → {stock - 4 * rations}.',
+            'The worst-fed households eat these rations next turn, before hunger and the ending are measured.',
+            'The meal is consumed once; later food access still depends on harvests and prices.',
         ])
     if action_id in ('repair_delta_channels', 'repair_upper_channels'):
         from scenario_projects import PROJECT_DEFS, get_project
@@ -499,6 +656,26 @@ def _guided_action_preview(world: dict, nation, action_id: str) -> tuple[str, li
             'Britain budgets for the longer route and can bargain, blockade, change approach or withdraw.',
             'Food and cash spent here cannot feed households or service the 200-unit debt instalment.',
         ])
+    if action_id in ('buy_private_grain', 'requisition_private_grain', 'open_private_grain_market'):
+        from scenario_political_economy import stock as warehouse_stock
+        held = warehouse_stock(world, nation)
+        if action_id == 'buy_private_grain':
+            return (f'Buy up to {min(held, 80)} maize', [
+                f'Buy up to {min(held, 80)} actual private food units at 120% of each district price, limited by {cash:.1f} treasury cash.',
+                'Food enters public stores for a later relief decision. Owners receive the cash and retain a production incentive.'])
+        if action_id == 'requisition_private_grain':
+            return (f'Take up to {min(held, 80)} maize • legitimacy −4pp', [
+                'Transfer private maize into public stores without compensation, up to 80 units.',
+                'Owners lose stock; local unrest rises and government legitimacy falls four points.'])
+        return (f'Offer {held} private units for sale', [
+            'Private holders sell to households that can pay the current district food price.',
+            'Future withholding falls sharply. Poor households can still go hungry if they lack cash.'])
+    if action_id == 'extend_collection_term':
+        assignment = state.get('collection_assignment') or {}
+        cap = float(assignment.get('per_turn_cap', 0))
+        return (f'Levy cap {cap:.1f}→{cap * .5:.1f}', [
+            'Propose halving the per-turn Caisse collection cap while leaving the principal unchanged.',
+            'Britain and France answer next turn. If accepted, inspection extends eight turns past the campaign horizon and fiscal autonomy falls ten points.'])
     if action_id == 'prioritize_domestic_grain':
         return (f'Keep 50% • credit {confidence:.0%}→{max(0, confidence - .10):.0%}', [
             'Now: set each Egyptian district to retain 50% of food for local supply.',
@@ -530,21 +707,28 @@ def _guided_action_preview(world: dict, nation, action_id: str) -> tuple[str, li
             'The transfer can cover a debt instalment or carrier wages, but cannot be repeated.',
         ])
     if action_id == 'reduce_fellahin_tax':
-        next_unrest = sum(max(0, float(getattr(tile, 'unrest_level', 0.0)) - .08) for tile in tiles) / max(1, len(tiles))
+        fractions = [min(.03, float(getattr(tile.gov, 'tax_rate', 0.0))) / .03 for tile in tiles]
+        next_unrest = sum(float(getattr(tile, 'unrest_level', 0.0)) * math.exp(-.11 * fraction)
+                          for tile, fraction in zip(tiles, fractions)) / max(1, len(tiles))
+        next_legitimacy = min(1.0, legitimacy + .04 * sum(fractions) / max(1, len(tiles)))
         return ('Tax −3pp • unrest ↓', [
             'Now: district tax rates fall by up to 3 percentage points (floor 0).',
-            f'Average unrest {unrest:.2f} → {next_unrest:.2f}; legitimacy {legitimacy:.0%} → {min(1, legitimacy + .04):.0%}.',
+            f'Average unrest {unrest:.2f} → {next_unrest:.2f}; legitimacy {legitimacy:.0%} → {next_legitimacy:.0%}.',
             'Next turns: households keep more income; government tax receipts may fall.',
         ])
     if action_id == 'raise_local_taxes':
-        next_unrest = sum(min(1, float(getattr(tile, 'unrest_level', 0.0)) + .12) for tile in tiles) / max(1, len(tiles))
+        fractions = [min(.05, max(0.0, .60 - float(getattr(tile.gov, 'tax_rate', 0.0)))) / .05 for tile in tiles]
+        next_unrest = sum(1.0 - (1.0 - float(getattr(tile, 'unrest_level', 0.0))) * math.exp(-.16 * fraction)
+                          for tile, fraction in zip(tiles, fractions)) / max(1, len(tiles))
+        next_legitimacy = max(0.0, legitimacy - .08 * sum(fractions) / max(1, len(tiles)))
         return ('Tax +5pp • unrest ↑', [
             'Now: district tax rates rise by up to 5 percentage points (cap 60%).',
-            f'Average unrest {unrest:.2f} → {next_unrest:.2f}; legitimacy {legitimacy:.0%} → {max(0, legitimacy - .08):.0%}.',
+            f'Average unrest {unrest:.2f} → {next_unrest:.2f}; legitimacy {legitimacy:.0%} → {next_legitimacy:.0%}.',
             'Next turns: tax receipts may rise; this also counts as coercive extraction.',
         ])
     if action_id == 'intensify_requisitions':
-        next_unrest = sum(min(1, float(getattr(tile, 'unrest_level', 0.0)) + .12) for tile in tiles) / max(1, len(tiles))
+        next_unrest = sum(1.0 - (1.0 - float(getattr(tile, 'unrest_level', 0.0))) * math.exp(-.16)
+                          for tile in tiles) / max(1, len(tiles))
         tax_increase = any(float(getattr(tile.gov, 'tax_rate', 0)) < .60 for tile in tiles)
         return (('Tax up to +4pp' if tax_increase else 'Tax ceiling held') + ' • legitimacy −8pp', [
             ('Now: raise district tax rates by up to 4 points, capped at 60%.' if tax_increase
@@ -570,7 +754,7 @@ def _guided_action_preview(world: dict, nation, action_id: str) -> tuple[str, li
         ])
     if action_id == 'request_french_mediation':
         return ('Paris replies next turn', [
-            'Ask France to broker a half-claim settlement with Britain.',
+            'Ask France to broker a settlement for half the entire outstanding bond claim.',
             'France weighs its bond exposure, treasury, and domestic protests; Britain may reject the proposal.',
         ])
     if action_id == 'offer_joint_guarantee':
@@ -584,22 +768,27 @@ def _guided_action_preview(world: dict, nation, action_id: str) -> tuple[str, li
             'Opposition raises Britain’s mobilization cost and protest sensitivity, but Britain may still act alone.',
         ])
     amount = float(state.get('scheduled_remittance', 200.0))
+    from scenario_debt import outstanding
+    claim = outstanding(world)
     if action_id == 'pay_remittance':
         if int(world.get('turn', 0)) < int(state.get('payment_window_turn', 6)):
             payment_turn = int(state.get('payment_window_turn', 6))
             return (f'Due on turn {payment_turn} • {amount:.0f} units', [
                 f'The payment window opens on turn {payment_turn}; this button is unavailable until then.',
+                f'Total Caisse claim {claim:.0f}; this is one instalment.',
                 f'If paid, treasury cash will change from {cash:.0f} to {cash - amount:.0f}; creditor confidence rises by 15 percentage points.',
             ])
-        return (f'Cash {cash:.0f}→{cash - amount:.0f} • credit +15pp', [
-            f'Now: treasury cash {cash:.0f} → {cash - amount:.0f}; debt service marked paid.',
+        return (f'Cash {cash:.0f}→{cash - amount:.0f} • debt {claim:.0f}→{max(0, claim - amount):.0f}', [
+            f'Now: treasury cash {cash:.0f} → {cash - amount:.0f}; one instalment is paid.',
+            f'Outstanding claim {claim:.0f} → {max(0, claim - amount):.0f}; another instalment falls due in five turns if a balance remains.',
             f'Creditor confidence {confidence:.0%} → {min(1, confidence + .15):.0%}.',
             'Tradeoff: less cash remains for domestic needs; fiscal autonomy stays intact.',
         ])
     if action_id == 'concede_revenue':
         amount *= .5
         return (f'Cash {cash:.0f}→{cash - amount:.0f} • autonomy −25pp', [
-            f'Now: treasury cash {cash:.0f} → {cash - amount:.0f}; debt service restructured.',
+            f'Now: pay {amount:.0f}, write down {amount:.0f} under conditional oversight; claim {claim:.0f} → {max(0, claim - amount * 2):.0f}.',
+            'Any remaining claim has another service window in five turns.',
             f'Creditor confidence {confidence:.0%} → {min(1, confidence + .15):.0%}.',
             f'Fiscal autonomy {autonomy:.0%} → {max(0, autonomy - .25):.0%} under creditor oversight.',
         ])
@@ -653,9 +842,12 @@ def _guided_action_preview(world: dict, nation, action_id: str) -> tuple[str, li
             'Local collaboration improves garrison stability and weakens resistance.',
             'It increases collaboration by 25 points and costs Egyptian legitimacy.'])
     if action_id == 'negotiate_withdrawal':
-        return ('Pay 30 • request withdrawal', [
-            'Britain accepts only if resistance reaches 35% or its treasury falls below 30 units.',
-            'A successful offer transfers 30 units to Britain and restores Egyptian control.'])
+        occupation = state.get('occupation', {})
+        return ('Offer 30 • reply next turn', [
+            f'Current resistance {float(occupation.get("resistance", 0)):.0%}. Britain weighs resistance, seized receipts, and garrison supply next turn.',
+            'Acceptance transfers 30 treasury units and restores Egyptian control. Rejection spends no cash but uses this turn’s decision.',
+            'The unpaid Caisse claim remains unless separate debt terms settle it.',
+        ])
     politics = state.get('politics', {})
     if action_id == 'pay_army_arrears':
         from scenario_situation import situation_template
@@ -712,15 +904,37 @@ def _status_factor_lines(world: dict, current: dict, stat: str) -> list[str]:
     from scenario_status import ACTION_LABELS, PHASE_LABELS, display_change
     from scenario_situation import response_label
     delta, previous_turn, factors = display_change(world, stat, current)
-    if delta is None:
-        return ['A previous-turn snapshot is not available yet. Changes will appear after the next turn.']
-    previous = world['scenario_status_history']['comparison'][stat]
-    lines = [f'Since turn {previous_turn}: {_status_value(stat, previous, precise=True)} → '
-             f'{_status_value(stat, current[stat], precise=True)} ({_status_delta(stat, delta)}).']
+    lines = [f'Current: {_status_value(stat, current[stat], precise=True)} '
+             f'({_status_delta(stat, delta)} since turn {previous_turn}).']
+    if stat == 'tax':
+        tiers = current['tax_tiers']
+        lines.append(f'Gross collected this turn: national {tiers["national"]:,.1f}, '
+                     f'provincial {tiers["provincial"]:,.1f}, local {tiers["municipal"]:,.1f}.')
+        state = world.get('scenario_state', {})
+        if state.get('debt_collection_turn') == world.get('turn'):
+            seized = float(state.get('debt_collected_this_turn', 0.0))
+            if seized > .001:
+                lines.append(f'Caisse collection from assigned receipts: {seized:,.1f}.')
+        for tile_name, row in sorted(current['tax_by_tile'].items(),
+                                     key=lambda item: item[1].get('total', 0), reverse=True):
+            amount = float(row.get('total', 0.0))
+            if amount > .01:
+                lines.append(f'{current["tile_names"].get(tile_name, tile_name)}: {amount:,.1f}.')
+        if not any(row.get('total', 0) > .01 for row in current['tax_by_tile'].values()):
+            lines.append('No district tax receipts have been recorded this turn.')
+    if stat == 'debt':
+        state = world.get('scenario_state', {})
+        if state.get('payment_status') in ('upcoming', 'unpaid', 'deferred'):
+            lines.append(f'Next instalment {float(state.get("scheduled_remittance", 0)):,.0f} '
+                         f'on turn {state.get("payment_window_turn", "?")}; '
+                         f'{int(state.get("service_periods_paid", 0))} instalments completed.')
+        else:
+            lines.append(f'Status: {state.get("payment_status", "unknown")}; '
+                         'normal instalments are suspended or complete.')
     if stat == 'hunger':
-        previous_snapshot = world['scenario_status_history']['comparison']
-        lines.append(f'Hungry households {previous_snapshot["hungry_count"]} → {current["hungry_count"]}; '
-                     f'total households {previous_snapshot["household_count"]} → {current["household_count"]}.')
+        lines.append(f'Hungry households {current["hungry_count"]} of {current["household_count"]}.')
+    if delta is None:
+        return lines
     if stat == 'creditors':
         autonomy_delta, _, autonomy_factors = display_change(world, 'autonomy', current)
         if autonomy_delta is not None:
@@ -768,13 +982,21 @@ def _draw_guided_status_bar(surface, world: dict, mouse_pos=None) -> None:
     surface.blit(_scenario_font(13).render(f'{title}  •  National status', True, ACCENT), (12, 3))
     status = [
         ('cash', f'Treasury {_status_value("cash", current["cash"])}', 'Treasury cash', [
-            f'Scheduled debt service costs {payment:,.0f}; a concession costs {payment / 2:,.0f}.',
+            f'Next instalment costs {payment:,.0f}; a concession costs {payment / 2:,.0f} cash plus oversight.',
+        ]),
+        ('tax', f'Tax {_status_value("tax", current["tax"])}', 'Tax collected', [
+            'Total taxes collected across Egyptian districts this turn. Hover breakdown shows where the money came from and which government tier received it.',
+        ]),
+        ('debt', f'Debt {_status_value("debt", current["debt"])}', 'Caisse bond claim', [
+            'This is the entire unpaid bond principal held by Britain and France, separate from the next instalment.',
         ]),
         ('maize', f'Maize {_status_value("maize", current["maize"])}', 'Public maize', [
-            f'Releasing stores can feed up to {min(current["maize"], int(state.get("relief_units_per_turn", 30)))} households this turn.',
+            f'Releasing stores can reserve the next meal for up to {min(current["maize"] // 4, int(state.get("relief_units_per_turn", 30)), current["hungry_count"])} hungry households.',
         ]),
-        ('hunger', f'Hungry {current["hunger"]:.0%}', 'Household hunger', [
-            'Reserve release reaches hungry households first. The weak Nile harvest persists through turn 8.',
+        ('hunger', f'Calorie gap {current["hunger"]:.0%}', 'Household nutrition', [
+            f'{current["hungry_count"]} of {current["household_count"]} households ate below need this turn.',
+            f'Average calorie gap {current["calorie_gap"]:.0%} of need; mean fat reserve {current["mean_fat_kg"]:.1f} kg.',
+            'A partial meal creates proportional hunger even while stored fat delays starvation. The weak Nile harvest persists through turn 12.',
         ]),
         ('legitimacy', f'Legitimacy {current["legitimacy"]:.0%}', 'Government legitimacy', [
             'The government breaks down if legitimacy reaches 10% or less.',
@@ -794,7 +1016,7 @@ def _draw_guided_status_bar(surface, world: dict, mouse_pos=None) -> None:
         delta, _, _ = display_change(world, stat, current)
         delta_label = f' ({_status_delta(stat, delta)})'
         label_surface = label_font.render(label, True, TEXT)
-        desirable = stat not in ('hunger', 'unrest')
+        desirable = stat not in ('hunger', 'unrest', 'debt')
         color = DIM if delta is None or abs(delta) < 1e-9 else (GREEN if (delta > 0) == desirable else RED)
         delta_surface = delta_font.render(delta_label, True, color)
         width = label_surface.get_width() + delta_surface.get_width() + 18
@@ -829,6 +1051,66 @@ def _draw_guided_hover_tip(surface, tip) -> None:
     for idx, line in enumerate(lines):
         if line:
             surface.blit(body_font.render(line, True, TEXT), (x + 14, y + 35 + idx * 19))
+
+
+def _announce_new_scenario_options(world: dict, action_rows: list) -> None:
+    """Explain newly unlocked decision groups once, after urgent warnings clear."""
+    visible = {action_id for row in action_rows for action_id, _, _ in row}
+    previously_visible = world.get('scenario_last_visible_action_ids')
+    if previously_visible is None:
+        world['scenario_last_visible_action_ids'] = sorted(visible)
+        return
+    newly_visible = visible - set(previously_visible)
+    world['scenario_last_visible_action_ids'] = sorted(visible)
+    state = world.get('scenario_state', {})
+    politics = state.get('politics', {})
+    crisis = state.get('naval_crisis', {})
+    groups = [
+        ('private_grain', {'buy_private_grain', 'requisition_private_grain', 'open_private_grain_market'},
+         'Private grain warehouses', 'Landowners are holding maize while households struggle to buy food. Cairo can purchase or seize stocks, or allow private sales.'),
+        ('collection_term', {'extend_collection_term'}, 'Collection terms',
+         'The Caisse has an active claim on actual tax or customs receipts. A longer inspection term can lower this turn’s collection cap.'),
+        ('alexandria_accounts', {'publish_revenue_accounts', 'refuse_revenue_inspection'},
+         'Alexandria revenue accounts',
+         'The new Egyptian office has recorded local receipts and transfers to Cairo. The Caisse still holds a claim and asks to inspect the accounts. Publishing can support a settlement; refusal can raise the cost of collection.'),
+        ('requisitions', {'intensify_requisitions'}, 'Emergency requisitions',
+         'Higher local taxes have opened a coercive collection option. It may increase later receipts, while unrest rises and legitimacy falls.'),
+        ('officers', {'pay_army_arrears', 'promote_egyptian_officers'}, 'The officer corps',
+         f'Army loyalty is {float(politics.get("army_loyalty", 1.0)):.0%} and the Egyptian movement is '
+         f'{float(politics.get("nationalist_movement", 0.0)):.0%}. Paying arrears or promoting officers can change who backs the government.'),
+        ('cabinet', {'invite_representative_cabinet', 'dismiss_foreign_controllers'}, 'Who governs Cairo',
+         f'Palace authority is {float(politics.get("palace_authority", 1.0)):.0%}; fiscal autonomy is '
+         f'{float(state.get("fiscal_autonomy", 1.0)):.0%}. A representative cabinet or dismissal of controllers changes political control and creditor relations.'),
+        ('alexandria', {'reinforce_alexandria'}, 'Prepare Alexandria',
+         'Britain is mobilizing a squadron. Coastal defense can change the balance at Alexandria, but preparing the batteries costs treasury cash.'),
+        ('france', {'request_french_mediation', 'offer_joint_guarantee', 'seek_french_opposition'}, 'Ask France to intervene',
+         'The debt dispute has drawn foreign attention. Paris may broker terms, share a guarantee with Britain, or oppose British force; its answer depends on its own interests.'),
+        ('canal', {'close_canal'}, 'Suez Canal transit',
+         f'Naval pressure is {crisis.get("stage", "rising")}. Closing the canal can obstruct foreign movement, while disrupting trade and diplomatic support.'),
+        ('oversight', {'comply_oversight', 'seek_narrower_oversight', 'revoke_oversight'}, 'Caisse revenue inspection',
+         'A debt agreement now gives creditors inspection rights. Funding, narrowing, or revoking that oversight changes Egypt’s autonomy and the enforceable claim.'),
+        ('occupation', {'organize_boycott', 'call_general_strike', 'coordinate_insurgency',
+                        'collaborate_with_occupation', 'negotiate_withdrawal'}, 'Life under occupation',
+         'Britain controls Egyptian territory. Boycotts, strikes, resistance, collaboration, and withdrawal talks now affect civilian costs and the occupation’s durability.'),
+    ]
+    announced = world.setdefault('scenario_announced_option_groups', [])
+    pending = world.setdefault('scenario_pending_option_groups', [])
+    queued = {group['key'] for group in pending}
+    for key, ids, title, detail in groups:
+        if newly_visible & ids and key not in announced and key not in queued:
+            first_row = next(index for index, row in enumerate(action_rows)
+                             if any(action_id in ids for action_id, _, _ in row))
+            pending.append({'key': key, 'ids': sorted(ids), 'title': title, 'detail': detail,
+                            'choices': [label for row in action_rows for action_id, label, _ in row
+                                        if action_id in newly_visible & ids],
+                            'first_row': first_row})
+    pending[:] = [group for group in pending if set(group['ids']) & visible]
+    if (pending and not world.get('scenario_warning_modal')
+            and not world.get('scenario_bookend_modal') and not state.get('ending')):
+        world['scenario_warning_modal'] = {'kind': 'new_options', 'groups': pending[:3]}
+        world['playing'] = False
+        announced.extend(group['key'] for group in pending[:3])
+        del pending[:3]
 
 
 def _draw_egypt_scenario_panel(surface, world: dict, mouse_pos=None) -> None:
@@ -894,12 +1176,59 @@ def _draw_egypt_scenario_panel(surface, world: dict, mouse_pos=None) -> None:
         cur_y += 28
     cur_y += 2
     state = world.get('scenario_state', {})
+    from scenario_district import selected_district, district_metrics
+    district = selected_district(world, nation) if nation else None
+    decision_scope = world.get('guided_decision_scope', 'nation')
+    tab_y = cur_y
+    for index, (scope_id, label) in enumerate((('nation', 'Nation decisions'), ('district', 'District decisions'))):
+        tab = pygame.Rect(x + 9 + index * ((w - 18) // 2), tab_y,
+                          (w - 18) // 2 - 3, 29)
+        active = decision_scope == scope_id
+        pygame.draw.rect(surface, (53, 65, 85) if active else (31, 36, 49), tab, border_radius=4)
+        pygame.draw.rect(surface, ACCENT if active else (70, 80, 100), tab, 1, border_radius=4)
+        register_target(world, tab, ('guided_scope', scope_id), scope='guided')
+        surface.blit(_scenario_font(13).render(label, True, TEXT if active else DIM), (tab.x + 9, tab.y + 6))
+    cur_y += 35
+    if decision_scope == 'district' and district is not None:
+        local = district_metrics(district)
+        from scenario_political_economy import district_snapshot
+        local_economy = district_snapshot(world, district)
+        district_name = getattr(district, 'scenario_location', None) or getattr(district, 'display_name', district.name)
+        surface.blit(_scenario_font(13).render(
+            f'{district_name} • {local["underfed"]}/{local["people"]} underfed • protest {local["protest"]:.1f}/10',
+            True, ACCENT), (x + 13, cur_y))
+        cur_y += 18
+        surface.blit(_scenario_font(12).render(
+            f'Calorie gap {local["mean_deficit"]:.0%} • mean fat reserve {local["mean_fat_kg"]:.1f} kg • tax {local["tax_rate"]:.0%}',
+            True, DIM), (x + 13, cur_y))
+        cur_y += 19
+        surface.blit(_scenario_font(12).render(
+            f'Private maize {local_economy["private_stock"]} • arrears {local_economy["arrears"]:.1f} • petitioners {local_economy["petitioners"]}',
+            True, DIM), (x + 13, cur_y))
+        cur_y += 19
     turn = int(world.get('turn', 0))
     spent = state.get('last_action_turn') == turn
     payment_ready = turn >= int(state.get('payment_window_turn', 6)) and state.get('payment_status') in ('upcoming', 'unpaid')
     stock = int(getattr(getattr(nation, 'government', None), 'food_inventory', 0)) if nation else 0
-    suggested = 'Release maize reserves' if stock > 0 else 'Keep more food in Egypt'
-    if not payment_ready:
+    from nutrition import deficit_fraction
+    hungry_households = sum(deficit_fraction(agent) > 0
+                            for tile in getattr(nation, 'tiles', [])
+                            for agent in getattr(tile, 'agents', [])
+                            if getattr(agent, 'alive', True) and not getattr(agent, 'is_government', False)
+                            and not getattr(agent, 'is_corporation', False) and not getattr(agent, 'is_trader', False))
+    suggested = ('Release maize reserves' if stock >= 4 and hungry_households > 0
+                 else 'Keep more food in Egypt')
+    if int(state.get('chapter', 1)) >= 2 and decision_scope == 'nation':
+        held_sites = any(owner == 'Britain' for owner in
+                         state.get('campaign', {}).get('territorial_control', {}).values())
+        focus = ('Occupied receipts and resistance' if held_sites else
+                 'Alexandria and foreign terms' if state.get('naval_crisis', {}).get('stage')
+                 in ('mobilizing', 'ultimatum', 'blockaded', 'campaign') else
+                 'Army and cabinet authority')
+        surface.blit(_scenario_font(13).render(f'Current focus: {focus}', True, ACCENT),
+                     (x + 13, cur_y))
+        cur_y += 18
+    elif not payment_ready and decision_scope == 'nation':
         surface.blit(_scenario_font(13).render(f'Suggested first move: {suggested}', True, ACCENT), (x + 13, cur_y))
         cur_y += 18
     surface.blit(body_font.render('Choose one decision this turn', True, TEXT), (x + 13, cur_y))
@@ -911,10 +1240,11 @@ def _draw_egypt_scenario_panel(surface, world: dict, mouse_pos=None) -> None:
     can_defer_again = (int(state.get('deferral_count', 0)) < int(debt_rules['maximum_deferrals'])
                        and turn + int(debt_rules['deferral_delay_turns'])
                        <= int(world.get('scenario', {}).get('horizon_turns', 20)))
-    tax_available = not state.get('tax_decision_taken', False)
+    can_lower_tax = any(float(getattr(tile.gov, 'tax_rate', 0.0)) > 0.0 for tile in nation.tiles) if nation else False
+    can_raise_tax = any(float(getattr(tile.gov, 'tax_rate', 0.0)) < .60 for tile in nation.tiles) if nation else False
     politics = state.get('politics', {})
     action_rows = [
-        [('release_maize', 'Release maize reserves', stock > 0)],
+        [('release_maize', 'Release maize reserves', stock >= 4 and hungry_households > 0)],
         [('prioritize_domestic_grain', 'Keep more food in Egypt', not state.get('domestic_grain_priority', False))],
     ]
     grain_entitlement_active = state.get('strategic_projects', {}).get('grain_entitlement_active', False)
@@ -948,10 +1278,22 @@ def _draw_egypt_scenario_panel(surface, world: dict, mouse_pos=None) -> None:
             ('publish_revenue_accounts', 'Publish revenue accounts', True),
             ('refuse_revenue_inspection', 'Refuse Caisse inspection', True),
         ])
-    if tax_available:
-        action_rows.append([('reduce_fellahin_tax', 'Reduce local taxes', True),
-                            ('raise_local_taxes', 'Raise local taxes', True)])
-    elif state.get('extraction_level', 0) > 0:
+    from scenario_political_economy import stock as warehouse_stock, district_snapshot
+    held = warehouse_stock(world, nation) if nation else 0
+    grain_policy = state.get('political_economy', {}).get('grain_policy', 'hold')
+    if held:
+        can_buy_held = any((owner := next((a for a in tile.agents
+                                            if a.id == state['political_economy']['warehouse_by_tile'].get(tile.name)
+                                            and a.alive), None)) is not None
+                           and owner.inv_get(Goods.food, 0) > 0
+                           and treasury_cash >= 1.2 * float(tile.recipes.get(Goods.food, {}).get('price', 1.0))
+                           for tile in nation.tiles)
+        action_rows.append([('buy_private_grain', 'Buy private maize', can_buy_held),
+                            ('requisition_private_grain', 'Requisition maize', True)])
+        action_rows.append([('open_private_grain_market', 'Leave to market', grain_policy != 'open')])
+    action_rows.append([('reduce_fellahin_tax', 'Reduce local taxes', can_lower_tax),
+                        ('raise_local_taxes', 'Raise local taxes', can_raise_tax)])
+    if state.get('extraction_level', 0) > 0:
         action_rows.append([('intensify_requisitions', 'Enforce requisitions', True)])
     if (float(politics.get('army_loyalty', 1.0)) < 0.72
             or float(politics.get('nationalist_movement', 0.0)) >= 0.35):
@@ -994,16 +1336,17 @@ def _draw_egypt_scenario_panel(surface, world: dict, mouse_pos=None) -> None:
                              treasury_cash >= 20 and not oversight.get('proposal')
                              and oversight.get('scope') != ['tax'])])
         action_rows.append([('revoke_oversight', 'Revoke oversight', True)])
+    assignment = state.get('collection_assignment') or {}
+    if assignment.get('status') == 'active':
+        action_rows.append([('extend_collection_term', 'Lower levy, longer control',
+                             not assignment.get('extended', False) and not assignment.get('extension_proposal'))])
     occupation = state.get('occupation', {})
     if any(owner == 'Britain' for owner in state.get('campaign', {}).get('territorial_control', {}).values()):
         action_rows.append([('organize_boycott', 'Organize customs boycott', True),
                             ('call_general_strike', 'Call general strike', True)])
         action_rows.append([('coordinate_insurgency', 'Coordinate resistance', True),
                             ('collaborate_with_occupation', 'Collaborate locally', True)])
-        withdrawal_ready = (treasury_cash >= 30 and
-                            (float(occupation.get('resistance', 0)) >= .35 or
-                             float(next((n.government.agent.cash for n in world.get('nations', [])
-                                         if n.name == 'Britain'), 100)) < 30))
+        withdrawal_ready = treasury_cash >= 30 and not occupation.get('withdrawal_proposal')
         action_rows.append([('negotiate_withdrawal', 'Negotiate withdrawal', withdrawal_ready)])
     if state.get('payment_status') in ('upcoming', 'unpaid', 'deferred'):
         action_rows.append([
@@ -1015,8 +1358,70 @@ def _draw_egypt_scenario_panel(surface, world: dict, mouse_pos=None) -> None:
             ('defer_remittance', 'Defer debt service', can_defer_again),
             ('default_remittance', 'Default', True),
         ])
+    if int(state.get('chapter', 1)) >= 2:
+        occupied = any(owner == 'Britain' for owner in
+                       state.get('campaign', {}).get('territorial_control', {}).values())
+        occupation_actions = {'organize_boycott', 'call_general_strike', 'coordinate_insurgency',
+                              'collaborate_with_occupation', 'negotiate_withdrawal'}
+        defense_actions = {'reinforce_alexandria', 'close_canal', 'request_french_mediation',
+                           'offer_joint_guarantee', 'seek_french_opposition'}
+        political_actions = {'pay_army_arrears', 'promote_egyptian_officers',
+                             'invite_representative_cabinet', 'dismiss_foreign_controllers'}
+        fiscal_actions = {'pay_remittance', 'concede_revenue', 'defer_remittance',
+                          'default_remittance', 'comply_oversight',
+                          'seek_narrower_oversight', 'revoke_oversight', 'extend_collection_term'}
+        order = ([occupation_actions, defense_actions, political_actions, fiscal_actions] if occupied else
+                 [defense_actions, political_actions, fiscal_actions] if
+                 state.get('naval_crisis', {}).get('stage') in ('mobilizing', 'ultimatum', 'blockaded', 'campaign') else
+                 [political_actions, fiscal_actions, defense_actions])
+        def row_priority(row):
+            ids = {action_id for action_id, _, _ in row}
+            return next((index for index, group in enumerate(order) if ids & group), len(order))
+        action_rows.sort(key=row_priority)
+    _announce_new_scenario_options(world, action_rows)
+    if decision_scope == 'district':
+        local = district_metrics(district) if district else None
+        econ_local = district_snapshot(world, district) if district else None
+        if (local and not world.get('scenario_district_options_briefed')
+                and not world.get('scenario_warning_modal')
+                and not world.get('scenario_bookend_modal')):
+            district_name = getattr(district, 'scenario_location', None) or getattr(district, 'display_name', district.name)
+            world['scenario_warning_modal'] = {'kind': 'new_options', 'groups': [{
+                'title': f'District responses in {district_name}',
+                'detail': (f'{local["underfed"]} households are underfed and protest energy is '
+                           f'{local["protest"]:.1f}/10. Local relief, tax relief, negotiation, '
+                'and dispersal affect this tile before the national average changes. '
+                'Cultivator arrears can cost plot access, while petitions and strikes can change output.'),
+                'choices': ['Feed this district', 'Cut district tax', 'Negotiate locally',
+                            'Disperse protesters', 'Forgive tax arrears', 'Support mutual aid',
+                            'Bargain with workers', 'Break strike'],
+                'first_row': 0,
+            }]}
+            world['scenario_district_options_briefed'] = True
+            world['playing'] = False
+        action_rows = [
+            [('district_relief', 'Feed this district', bool(local and local['underfed'] and stock >= 4))],
+            [('district_tax_relief', 'Cut district tax', bool(local and local['tax_rate'] > 0)),
+             ('district_negotiate', 'Negotiate locally', bool(local and treasury_cash >= 15))],
+            [('district_repress', 'Disperse protesters', bool(local and local['military_present']))],
+            [('district_arrears_relief', 'Forgive tax arrears', bool(econ_local and econ_local['arrears'] > 0))],
+            [('district_support_mutual_aid', 'Support mutual aid', bool(
+                local and local['underfed'] and district and any(
+                    a.inv_get(Goods.food, 0) >= 5 and deficit_fraction(a) == 0
+                    and getattr(a, 'alive', True)
+                    and not getattr(a, 'is_lord', False) and not getattr(a, 'is_government', False)
+                    and not getattr(a, 'is_corporation', False) and not getattr(a, 'is_trader', False)
+                    for a in district.agents)))],
+            [('district_bargain_workers', 'Bargain with workers', bool(
+                econ_local and (econ_local['petitioners'] or econ_local['strikers'])
+                and any((getattr(a, 'is_corporation', False) or getattr(a, 'is_lord', False))
+                        and getattr(a, 'alive', True) for a in district.agents)))],
+            [('district_break_strike', 'Break strike', bool(econ_local and econ_local['strikers'] and local['military_present']))],
+        ]
     button_h, gap = 35, 3
     action_bottom = y + h - 89
+    if len(action_rows) > max(1, (action_bottom - cur_y) // (button_h + gap)):
+        cur_y += 16  # Reserve a separate line for the scroll position.
     visible_rows = max(1, (action_bottom - cur_y) // (button_h + gap))
     max_scroll = max(0, len(action_rows) - visible_rows)
     scroll = min(max_scroll, max(0, int(world.get('guided_action_scroll', 0))))
@@ -1024,7 +1429,7 @@ def _draw_egypt_scenario_panel(surface, world: dict, mouse_pos=None) -> None:
     world['guided_action_scroll_max'] = max_scroll
     if max_scroll:
         hint = f'Decisions {scroll + 1}–{min(len(action_rows), scroll + visible_rows)} / {len(action_rows)} • scroll panel'
-        surface.blit(_scenario_font(11).render(hint, True, ACCENT), (x + 13, cur_y - 13))
+        surface.blit(_scenario_font(11).render(hint, True, ACCENT), (x + 13, cur_y - 15))
     mx, my = mouse_pos if mouse_pos else (-1, -1)
     for row in action_rows[scroll:scroll + visible_rows]:
         button_w = (w - 18 - gap * (len(row) - 1)) // len(row)
@@ -1042,6 +1447,14 @@ def _draw_egypt_scenario_panel(surface, world: dict, mouse_pos=None) -> None:
                 detail = f'−{scheduled_payment:.0f} cash • credit ↑'
             elif len(row) > 1 and action_id == 'concede_revenue':
                 detail = f'−{scheduled_payment * .5:.0f} cash • autonomy ↓'
+            elif len(row) > 1 and action_id == 'buy_private_grain':
+                detail = f'Up to {min(held, 80)} maize • cash ↓'
+            elif len(row) > 1 and action_id == 'requisition_private_grain':
+                detail = f'Up to {min(held, 80)} maize • trust ↓'
+            elif len(row) > 1 and action_id == 'reduce_fellahin_tax':
+                detail = 'Tax −3pp • unrest ↓'
+            elif len(row) > 1 and action_id == 'raise_local_taxes':
+                detail = 'Tax +5pp • unrest ↑'
             if enabled:
                 register_target(world, rect, ('scenario_action', action_id), scope='guided')
             hover = rect[0] <= mx <= rect[0] + rect[2] and rect[1] <= my <= rect[1] + rect[3]
@@ -1052,7 +1465,16 @@ def _draw_egypt_scenario_panel(surface, world: dict, mouse_pos=None) -> None:
                     pass  # The preview already explains the future availability and cost.
                 elif not available:
                     if action_id == 'release_maize':
-                        reason = 'The public maize reserve is empty.'
+                        reason = ('No households currently need a public maize meal.' if hungry_households == 0
+                                  else 'The public maize reserve has fewer than four units left.')
+                    elif action_id == 'district_relief':
+                        reason = 'No underfed households here, or fewer than four public maize units remain.'
+                    elif action_id == 'district_tax_relief':
+                        reason = 'This district already has no local tax.'
+                    elif action_id == 'district_negotiate':
+                        reason = 'The treasury needs 15 units for a local settlement.'
+                    elif action_id == 'district_repress':
+                        reason = 'This district has no police or garrison to disperse protesters.'
                     elif action_id == 'prioritize_domestic_grain':
                         reason = 'Grain is already being retained for local supply.'
                     elif action_id == 'recall_district_reserves':
@@ -1073,7 +1495,8 @@ def _draw_egypt_scenario_panel(surface, world: dict, mouse_pos=None) -> None:
                     elif action_id == 'repair_canal_line':
                         reason = f'The treasury needs {repair_cost:.0f} units and the original crew for repairs.'
                     elif action_id in ('reduce_fellahin_tax', 'raise_local_taxes'):
-                        reason = 'A local tax decision is already in effect.'
+                        reason = ('Local taxes are already at zero.' if action_id == 'reduce_fellahin_tax'
+                                  else 'Local taxes are already at the 60% ceiling.')
                     elif action_id == 'defer_remittance':
                         reason = ('The Caisse grants only one deferral in this situation.'
                                   if int(state.get('deferral_count', 0)) >= int(debt_rules['maximum_deferrals'])
@@ -1084,6 +1507,10 @@ def _draw_egypt_scenario_panel(surface, world: dict, mouse_pos=None) -> None:
                                   else f'Treasury cash is below the {reinforce_cost:.0f} units required.')
                     elif action_id == 'pay_army_arrears':
                         reason = 'The treasury cannot cover the officer arrears package.'
+                    elif action_id == 'negotiate_withdrawal':
+                        reason = ('Britain has not answered the current offer.'
+                                  if occupation.get('withdrawal_proposal') else
+                                  'The treasury needs 30 units to back a withdrawal offer.')
                     else:
                         needed = scheduled_payment if action_id == 'pay_remittance' else scheduled_payment * .5
                         reason = f'Treasury cash is below the {needed:.0f} units needed for this choice.'
@@ -1095,9 +1522,11 @@ def _draw_egypt_scenario_panel(surface, world: dict, mouse_pos=None) -> None:
             pygame.draw.rect(surface, edge, rect, 1, border_radius=4)
             color = TEXT if enabled else DIM
             button_font = _scenario_font(14) if len(row) == 1 else _scenario_font(13)
-            surface.blit(button_font.render(label, True, color), (rect[0] + 7, rect[1] + 2))
+            surface.blit(button_font.render(_fit_button_text(label, button_font, rect[2] - 14), True, color),
+                         (rect[0] + 7, rect[1] + 2))
             detail_font = _scenario_font(12)
-            surface.blit(detail_font.render(detail, True, DIM), (rect[0] + 7, rect[1] + 19))
+            surface.blit(detail_font.render(_fit_button_text(detail, detail_font, rect[2] - 14), True, DIM),
+                         (rect[0] + 7, rect[1] + 19))
         cur_y += button_h + gap
 
     cur_y = max(cur_y, action_bottom + 4)
@@ -1136,76 +1565,23 @@ def _draw_egypt_scenario_panel(surface, world: dict, mouse_pos=None) -> None:
 
 
 def _draw_egypt_scenario_debrief(surface, world: dict) -> None:
+    """Keep a compact result marker after the full debrief modal is closed."""
+    from ui_targets import register_target
     x, y, w = MAP_RIGHT + 10, TOP_BAR_H + 14, WIDTH - MAP_RIGHT - 20
-    h = HEIGHT - TOP_BAR_H - TICKER_H - 28
+    h = 180
     pygame.draw.rect(surface, (25, 28, 38), (x, y, w, h), border_radius=7)
     pygame.draw.rect(surface, ACCENT, (x, y, w, h), 1, border_radius=7)
     debrief = world.get('scenario_state', {}).get('debrief', {})
-    title_font = _scenario_font(22)
-    body_font = _scenario_font(16)
-    small_font = _scenario_font(15)
-    surface.blit(title_font.render(debrief.get('title', 'Campaign complete'), True, ACCENT),
+    surface.blit(_scenario_font(20).render(debrief.get('title', 'Campaign complete'), True, ACCENT),
                  (x + 14, y + 18))
-    entries = []
-
-    def add(value, font=small_font, color=DIM, gap=0):
-        for line in _wrap_text(str(value), font, w - 36):
-            entries.append((line, font, color, 23 if font is body_font else 21))
-        if gap:
-            entries.append(('', small_font, DIM, gap))
-
-    def heading(value):
-        add(value, body_font, TEXT, 4)
-
-    add(debrief.get('summary', ''), body_font, TEXT, 10)
-    heading('What the campaign ended with')
-    for key in ('projects', 'food', 'debt', 'control', 'diplomacy', 'politics', 'authority'):
-        if debrief.get(key):
-            add(f'{key.title()}: {debrief[key]}', gap=4)
-    for stat in debrief.get('project_social_stats', []):
-        add(f"{stat['label']}: {stat['value']} — {stat['note']}", gap=4)
-    diplomatic_events = debrief.get('diplomacy_history', [])
-    if diplomatic_events:
-        heading('Foreign decisions')
-        for entry in diplomatic_events[-6:]:
-            add(f'{entry["actor"]}: {entry["decision"].replace("_", " ")} — {entry["reason"]}', gap=3)
-    reactions = debrief.get('creditor_reactions', [])
-    if reactions:
-        heading('Caisse responses')
-        for headline in reactions[-3:]:
-            add(f'• {headline}', gap=3)
-    naval_events = debrief.get('naval_events', [])
-    if naval_events:
-        heading('Alexandria crisis')
-        for event in naval_events[-2:]:
-            add(event, gap=3)
-    historical_log = debrief.get('historical_log', [])
-    if historical_log:
-        heading('History and game model')
-        for entry in historical_log[:2] + historical_log[-2:]:
-            add(f'{entry["kind"].replace("_", " ").title()}: {entry["text"]}', gap=3)
-    heading('Decisions that shaped this result')
-    for action in debrief.get('actions', [])[-8:]:
-        add(f'• {action}', small_font, TEXT, 4)
-
-    viewport = pygame.Rect(x + 9, y + 61, w - 18, h - 82)
-    content_height = sum(height for _, _, _, height in entries)
-    maximum = max(0, content_height - viewport.h)
-    world['guided_debrief_scroll_max'] = (maximum + 27) // 28
-    scroll_lines = max(0, min(int(world.get('guided_debrief_scroll', 0)),
-                               world['guided_debrief_scroll_max']))
-    world['guided_debrief_scroll'] = scroll_lines
-    cursor = viewport.y - min(maximum, scroll_lines * 28)
-    previous_clip = surface.get_clip()
-    surface.set_clip(viewport)
-    for line, font, color, line_height in entries:
-        if line and cursor + line_height >= viewport.y and cursor < viewport.bottom:
-            surface.blit(font.render(line, True, color), (x + 14, cursor))
-        cursor += line_height
-    surface.set_clip(previous_clip)
-    if maximum:
-        hint = f'Scroll for full debrief • {scroll_lines + 1}/{world["guided_debrief_scroll_max"] + 1}'
-        surface.blit(_scenario_font(11).render(hint, True, ACCENT), (x + 14, y + h - 20))
+    for index, line in enumerate(_wrap_text(debrief.get('summary', ''), _scenario_font(15), w - 30)[:2]):
+        surface.blit(_scenario_font(15).render(line, True, TEXT), (x + 14, y + 53 + index * 22))
+    button = pygame.Rect(x + 14, y + 119, w - 28, 43)
+    register_target(world, button, 'reopen_scenario_debrief', scope='guided')
+    pygame.draw.rect(surface, (48, 62, 80), button, border_radius=5)
+    pygame.draw.rect(surface, ACCENT, button, 1, border_radius=5)
+    label = _scenario_font(16).render('View full campaign summary', True, TEXT)
+    surface.blit(label, label.get_rect(center=button.center))
 
 
 def _draw_guided_projects_analysis(surface, world: dict, mouse_pos=None) -> None:
@@ -1302,7 +1678,8 @@ def draw_guided_frame(surface, world: dict, font, font_small, mouse_pos=None) ->
         pygame.draw.rect(surface, (12, 14, 20), (0, 0, WIDTH, TOP_BAR_H))
         pygame.draw.line(surface, (58, 66, 86), (0, TOP_BAR_H), (WIDTH, TOP_BAR_H), 1)
     draw_guided_header(surface, world, font_small, mouse_pos=mouse_pos)
-    draw_pressure_panel(surface, world, mouse_pos=mouse_pos)
+    if not world.get('guided_analysis_open'):
+        draw_pressure_panel(surface, world, mouse_pos=mouse_pos)
     if world.get('scenario_id') == 'egypt_1877':
         from scenario_projects import project_hover_tip
         marker_tip = project_hover_tip(world, mouse_pos)
@@ -1329,11 +1706,234 @@ def draw_guided_frame(surface, world: dict, font, font_small, mouse_pos=None) ->
         else:
             draw_panel(surface, world, font, font_small, mouse_pos=mouse_pos)
 
+        if mouse_pos is not None and not world.get('settings_open'):
+            from worldview_tooltips import draw_left_panel_tooltip
+            draw_left_panel_tooltip(surface, world, font_small, mouse_pos=mouse_pos)
+
     if world.get('_guided_hover_tip') and not world.get('settings_open'):
         _draw_guided_hover_tip(surface, world['_guided_hover_tip'])
 
     if world.get('settings_open'):
         draw_settings_dialog(surface, world, font_small, mouse_pos)
+
+
+def draw_scenario_bookend_modal(surface, world: dict, mouse_pos=None) -> None:
+    """Present the opening, chapter transition, and measured result as modals."""
+    kind = world.get('scenario_bookend_modal')
+    if kind not in ('briefing', 'chapter2', 'debrief'):
+        return
+    from ui_targets import register_target
+    veil = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+    veil.fill((5, 7, 12, 220))
+    surface.blit(veil, (0, 0))
+    w = min(1100, WIDTH - 70)
+    h = min(790 if kind == 'debrief' else 600, HEIGHT - 70)
+    card = pygame.Rect((WIDTH - w) // 2, (HEIGHT - h) // 2, w, h)
+    pygame.draw.rect(surface, (24, 29, 41), card, border_radius=10)
+    pygame.draw.rect(surface, ACCENT, card, 2, border_radius=10)
+    title_font = _scenario_font(27)
+    body_font = _scenario_font(17)
+    small_font = _scenario_font(14)
+    left = card.x + 32
+    right = card.right - 32
+    if kind == 'briefing':
+        from scenario_status import snapshot
+        current = snapshot(world) or {}
+        surface.blit(title_font.render('Egypt, 1877: grain and debt', True, ACCENT), (left, card.y + 28))
+        paragraphs = [
+            world.get('scenario', {}).get('briefing', ('',))[0],
+            (f"At the start, {current.get('hungry_count', 0)} of {current.get('household_count', 0)} "
+             'households lack food access. Public stores hold '
+             f"{current.get('maize', 0):,.0f} maize units, enough for one release of up to "
+             f"{int(world.get('scenario_state', {}).get('relief_units_per_turn', 0))} full meals."),
+            (f"Cairo has {current.get('cash', 0):,.0f} spendable treasury units. Britain and France "
+             f"hold a {current.get('debt', 0):,.0f}-unit Caisse claim; the first 200-unit instalment "
+             'falls due on turn 6. Paying once leaves later instalments.'),
+            'You can release maize, retain grain, change taxes, or preserve cash. Each turn permits one major decision. Creditor demands and major risks pause the simulation for your reply.',
+            'The campaign records hunger, cash concentration, taxes, creditor transfers, and civilian injuries. Its ending will show both the political result and these costs.',
+        ]
+        y = card.y + 91
+        for paragraph in paragraphs:
+            for line in _wrap_text(paragraph, body_font, w - 70):
+                surface.blit(body_font.render(line, True, TEXT), (left, y))
+                y += 25
+            y += 15
+        label = 'Begin the campaign'
+    elif kind == 'chapter2':
+        from scenario_debt import outstanding
+        from scenario_egypt_1877 import campaign_horizon
+        state = world.get('scenario_state', {})
+        politics = state.get('politics', {})
+        crisis = state.get('naval_crisis', {})
+        diplomacy = state.get('diplomatic_crisis', {})
+        occupation = state.get('occupation', {})
+        campaign = state.get('campaign', {})
+        held = [site for site, owner in campaign.get('territorial_control', {}).items()
+                if owner == 'Britain']
+        fleet = state.get('geography', {}).get('fleets', {}).get('Britain')
+        ruler = politics.get('ruler', 'the khedive')
+        coalition = politics.get('governing_coalition', 'palace').replace('_', ' ')
+        title = 'Egypt: sovereignty at stake'
+        surface.blit(title_font.render(title, True, ACCENT), (left, card.y + 28))
+        paragraphs = [
+            (f"The {state.get('chapter_two_cause', 'political crisis')} has opened the second chapter. "
+             f"{ruler} rules with a {coalition} coalition. Army loyalty is "
+             f"{float(politics.get('army_loyalty', 0)):.0%}; the officer-civilian movement is "
+             f"{float(politics.get('nationalist_movement', 0)):.0%}."),
+            (f"The unpaid Caisse claim is {outstanding(world):,.0f}. "
+             f"Britain's squadron is {fleet.get('location', 'not at sea') if fleet else 'not at sea'}; "
+             f"France's current position is {diplomacy.get('french_policy', 'undecided').replace('_', ' ')}. "
+             f"Foreign canal transit is {'open' if state.get('geography', {}).get('canal_open', True) else 'closed'}."),
+            (f"Britain holds {', '.join(held) if held else 'no Egyptian strategic site'}. "
+             f"Civilian injuries from bombardment and fighting: {campaign.get('civilian_casualties', 0)}. "
+             f"Current resistance: {float(occupation.get('resistance', 0)):.0%}."),
+            ("Review the political, foreign, and military pressure cards before choosing an order. "
+             "Preparing defenses, requesting mediation, bargaining, or resisting occupation spends "
+             "a major decision; ultimatums and battles pause for a separate response."),
+            (f"The campaign now runs through at least turn {campaign_horizon(world)}. "
+             "A late occupation also receives time for Egyptian responses before the debrief. "
+             "Food access and the full debt claim remain in the national status bar."),
+        ]
+        y = card.y + 91
+        for paragraph in paragraphs:
+            for line in _wrap_text(paragraph, body_font, w - 70):
+                surface.blit(body_font.render(line, True, TEXT), (left, y))
+                y += 25
+            y += 15
+        label = 'Continue chapter II'
+    else:
+        debrief = world.get('scenario_state', {}).get('debrief', {})
+        surface.blit(title_font.render(debrief.get('title', 'Campaign complete'), True, ACCENT),
+                     (left, card.y + 23))
+        for index, line in enumerate(_wrap_text(debrief.get('summary', ''), body_font, w - 70)[:2]):
+            surface.blit(body_font.render(line, True, TEXT), (left, card.y + 62 + index * 24))
+        stats = debrief.get('social_stats', [])
+        stats_y = card.y + 114
+        gap = 12
+        stat_w = (w - 64 - gap) // 2
+        for index, stat in enumerate(stats[:8]):
+            col, row = index % 2, index // 2
+            rect = pygame.Rect(left + col * (stat_w + gap), stats_y + row * 91, stat_w, 83)
+            pygame.draw.rect(surface, (34, 40, 55), rect, border_radius=5)
+            pygame.draw.rect(surface, (74, 88, 111), rect, 1, border_radius=5)
+            surface.blit(small_font.render(stat['label'], True, ACCENT), (rect.x + 11, rect.y + 6))
+            surface.blit(_scenario_font(18).render(stat['value'], True, TEXT), (rect.x + 11, rect.y + 26))
+            for line_index, line in enumerate(_wrap_text(stat['note'], _scenario_font(12), rect.w - 22)[:2]):
+                surface.blit(_scenario_font(12).render(line, True, DIM),
+                             (rect.x + 11, rect.y + 51 + line_index * 14))
+        entries = []
+
+        def add(label, value):
+            entries.append((label, ACCENT))
+            entries.extend((line, TEXT) for line in _wrap_text(str(value), small_font, w - 86))
+            entries.append(('', DIM))
+
+        for stat in stats[8:]:
+            add(stat['label'], f"{stat['value']} — {stat['note']}")
+        for key in ('projects', 'food', 'debt', 'control', 'diplomacy', 'politics', 'authority'):
+            if debrief.get(key):
+                add(key.title(), debrief[key])
+        if debrief.get('actions'):
+            add('Decisions made', ' • '.join(debrief['actions']))
+        if debrief.get('diplomacy_history'):
+            add('Foreign decisions', ' • '.join(
+                f"{entry['actor']}: {entry['decision'].replace('_', ' ')} — {entry['reason']}"
+                for entry in debrief['diplomacy_history'][-6:]))
+        if debrief.get('creditor_reactions'):
+            add('Caisse responses', ' • '.join(debrief['creditor_reactions'][-4:]))
+        if debrief.get('naval_events'):
+            add('Alexandria crisis', ' • '.join(debrief['naval_events'][-4:]))
+        if debrief.get('historical_log'):
+            add('History and game model', ' • '.join(
+                entry['text'] for entry in debrief['historical_log'][:2]))
+
+        # Corporate Externalities & Decisions Victims Sections
+        corps = debrief.get('corporate_externalities')
+        if not corps:
+            try:
+                from economy.true_cost_ledger import get_true_cost_ledger
+                p_name = world.get('player_nation_name') or 'Kingdom'
+                corps = get_true_cost_ledger().get_national_corporate_externalities(p_name, world)
+            except Exception:
+                corps = None
+
+        decisions = debrief.get('decisions_externalities')
+        if not decisions:
+            try:
+                from economy.true_cost_ledger import get_decision_tracker
+                decisions = get_decision_tracker().get_all_entries_dict()
+            except Exception:
+                decisions = None
+
+        if corps and (corps.get('total_corporate_externalized_cost', 0) > 0 or corps.get('total_corporate_nominal_profit', 0) > 0):
+            entries.append(('Country Corporate Externalities & Ecological Balance Sheet', ACCENT))
+            nom_p = corps.get('total_corporate_nominal_profit', 0.0)
+            ext_c = corps.get('total_corporate_externalized_cost', 0.0)
+            net_s = corps.get('corporate_true_net_profit', 0.0)
+            status = corps.get('parasitic_status', 'SUBSIDIZED_BY_NATURE')
+            ratio = corps.get('corporate_externalization_ratio', 0.0)
+            entries.append((f"Country Corps Nominal Profit: ${nom_p:,.2f}  |  Externalized Damage: -${ext_c:,.2f}  |  True Net Social Profit: ${net_s:,.2f} [{status}] (Ratio: {ratio*100:.1f}%)", (255, 140, 140) if net_s < 0 else (140, 240, 160)))
+
+            dmg = corps.get('damage_breakdown', {})
+            dmg_str = f"Smog: -${dmg.get('air_smog_cost', 0):,.1f} • Water: -${dmg.get('water_effluent_cost', 0):,.1f} • Soil: -${dmg.get('soil_depletion_cost', 0):,.1f} • Health: -${dmg.get('labor_health_wear_cost', 0):,.1f} • Peonage: -${dmg.get('debt_peonage_cost', 0):,.1f}"
+            entries.append((f"Damage Breakdown: {dmg_str}", (200, 210, 225)))
+
+            vics = corps.get('victims_breakdown', {})
+            for vic_name, vic_data in vics.items():
+                if vic_data.get('cost', 0) > 0:
+                    entries.append((f"  • {vic_name}: -${vic_data['cost']:,.1f} ({vic_data['share']}%) — {vic_data['impact']}", (245, 205, 130)))
+            entries.append(('', DIM))
+
+        if decisions:
+            entries.append(('Decisions Made: Externalized Costs & Victims', ACCENT))
+            for dec in decisions:
+                c = dec.get('externalized_cost', 0.0)
+                turn_str = f"T{dec.get('turn', 0)}"
+                c_str = f"-${c:,.2f}" if c > 0 else "Restorative ($0.00)"
+                col = (255, 120, 120) if c > 0 else (120, 230, 150)
+                entries.append((f"[{turn_str}] {dec.get('title', 'Decision')} — Externalized: {c_str}", col))
+                for v in dec.get('victims', []):
+                    entries.append((f"      Bore by: {v.get('victim_group', 'Public')} (-${v.get('burden_cost', 0):,.1f}) — {v.get('description', '')}", (235, 195, 130)))
+            entries.append(('', DIM))
+
+        viewport = pygame.Rect(left, stats_y + 377, w - 64, card.bottom - stats_y - 454)
+        line_h = 20
+        maximum = max(0, len(entries) * line_h - viewport.h)
+        world['scenario_bookend_scroll_max'] = (maximum + 31) // 32
+        scroll = max(0, min(int(world.get('scenario_bookend_scroll', 0)),
+                            world['scenario_bookend_scroll_max']))
+        world['scenario_bookend_scroll'] = scroll
+        previous_clip = surface.get_clip()
+        surface.set_clip(viewport)
+        cursor = viewport.y - min(maximum, scroll * 32)
+        for line, color in entries:
+            if line and cursor + line_h >= viewport.y and cursor < viewport.bottom:
+                surface.blit(small_font.render(line, True, color), (left + 4, cursor))
+            cursor += line_h
+        surface.set_clip(previous_clip)
+        if maximum:
+            hint = f'Scroll for details • {scroll + 1}/{world["scenario_bookend_scroll_max"] + 1}'
+            surface.blit(small_font.render(hint, True, DIM), (left, card.bottom - 67))
+        label = 'Return to the map'
+    button = pygame.Rect(right - 254, card.bottom - 57, 254, 42)
+    register_target(world, button, ('bookend', 'close'), scope='scenario_bookend')
+    hover = button.collidepoint(mouse_pos or (-1, -1))
+    pygame.draw.rect(surface, (64, 80, 105) if hover else (48, 62, 80), button, border_radius=5)
+    pygame.draw.rect(surface, ACCENT, button, 1, border_radius=5)
+    text = _scenario_font(16).render(label, True, TEXT)
+    surface.blit(text, text.get_rect(center=button.center))
+
+
+def scenario_bookend_modal_hit(pos, world: dict) -> bool:
+    from ui_targets import find_target
+    target = find_target(world, pos, scope='scenario_bookend')
+    if target is None:
+        return False
+    if target.action == ('bookend', 'close'):
+        world['scenario_bookend_modal'] = None
+        world['needs_redraw'] = True
+        return True
+    return False
 
 
 def draw_scenario_warning_modal(surface, world: dict, mouse_pos=None) -> None:
@@ -1346,14 +1946,27 @@ def draw_scenario_warning_modal(surface, world: dict, mouse_pos=None) -> None:
     veil.fill((5, 7, 12, 210))
     surface.blit(veil, (0, 0))
     kind = warning.get('kind')
-    card = pygame.Rect(310, 220, 780, 440 if kind in ('debt_due', 'creditor_reaction', 'naval_ultimatum', 'naval_blockade', 'landing_warning', 'capital_warning', 'dynastic_crisis', 'officer_movement', 'french_terms', 'joint_guarantee_terms') else 360)
-    border = (225, 178, 87) if kind in ('debt_due', 'creditor_reaction') else (226, 102, 94)
+    card = pygame.Rect(310, 145 if kind == 'new_options' else 220, 780,
+                       600 if kind == 'new_options' else
+                       440 if kind in ('debt_due', 'creditor_reaction', 'naval_ultimatum', 'naval_blockade', 'landing_warning', 'capital_warning', 'dynastic_crisis', 'officer_movement', 'french_terms', 'joint_guarantee_terms') else 360)
+    border = (225, 178, 87) if kind in ('debt_due', 'creditor_reaction', 'new_options') else (226, 102, 94)
     pygame.draw.rect(surface, (24, 29, 41), card, border_radius=10)
     pygame.draw.rect(surface, border, card, 2, border_radius=10)
     title_font, body_font = _scenario_font(24), _scenario_font(16)
     state = world.get('scenario_state', {})
     nation = _egypt_nation(world)
-    if kind == 'debt_due':
+    if kind == 'new_options':
+        groups = warning.get('groups', [])
+        title = 'New decisions are available'
+        lines = ['The situation has changed. Each of these choices uses one major decision:']
+        if state.get('last_action_turn') == int(world.get('turn', 0)):
+            lines.append('You have already made a major decision this turn; these choices can be taken after advancing.')
+        for group in groups:
+            lines.append(group['title'] + ': ' + group['detail'])
+            lines.append('New choices: ' + ', '.join(group.get('choices', [])) + '.')
+        lines.append('Scroll the decision panel if needed, then hover over each option for its projected consequences.')
+        options = [('ack_new_options', 'Review new decisions', True)]
+    elif kind == 'debt_due':
         from scenario_situation import situation_template
         debt_rules = situation_template()['debt_rules']
         delay = int(debt_rules['deferral_delay_turns'])
@@ -1362,11 +1975,14 @@ def draw_scenario_warning_modal(surface, world: dict, mouse_pos=None) -> None:
         cash = float(getattr(getattr(getattr(nation, 'government', None), 'agent', None), 'cash', 0.0)) if nation else 0.0
         can_defer = (int(state.get('deferral_count', 0)) < int(debt_rules['maximum_deferrals'])
                      and int(world.get('turn', 0)) + delay <= int(world.get('scenario', {}).get('horizon_turns', 20)))
-        title = 'Revised debt service is due now' if state.get('deferral_count', 0) else 'Debt service is due now'
+        from scenario_debt import outstanding
+        claim = outstanding(world)
+        title = 'Debt instalment is due now'
         lines = [
-            f'Treasury cash: {cash:,.0f} units. Scheduled payment: {amount:,.0f}.',
+            f'Treasury cash: {cash:,.0f}. Total unpaid Caisse bonds: {claim:,.0f}. This instalment: {amount:,.0f}.',
+            'Paying this instalment leaves later service windows until the claim is cleared.',
             'Default collapses creditor confidence and reduces legitimacy by 15 percentage points.',
-            'Choose how to settle the debt service:',
+            'Choose how to handle this payment:',
         ]
         options = [
             ('pay_remittance', f'Pay {amount:,.0f}', cash >= amount),
@@ -1385,7 +2001,8 @@ def draw_scenario_warning_modal(surface, world: dict, mouse_pos=None) -> None:
                    for response in response_options]
     elif kind in ('french_terms', 'joint_guarantee_terms'):
         cash = float(getattr(getattr(getattr(nation, 'government', None), 'agent', None), 'cash', 0.0)) if nation else 0.0
-        amount = float(state.get('scheduled_remittance', 0)) * .5
+        from scenario_debt import outstanding
+        amount = outstanding(world) * .5
         if kind == 'french_terms':
             title = 'French settlement proposal'
             lines = [
@@ -1471,17 +2088,16 @@ def draw_scenario_warning_modal(surface, world: dict, mouse_pos=None) -> None:
             f"Average unrest {warning.get('unrest', 0):.2f} (threshold 0.85); legitimacy {warning.get('legitimacy', 0):.0%} (threshold 10%).",
             'If still available, tax relief can lower unrest and raise legitimacy before the campaign ends.',
         ]
-        can_relieve = (not state.get('tax_decision_taken', False)
-                       and state.get('last_action_turn') != int(world.get('turn', 0)))
+        can_relieve = (any(float(getattr(tile.gov, 'tax_rate', 0.0)) > 0.0 for tile in nation.tiles)
+                       and state.get('last_action_turn') != int(world.get('turn', 0))) if nation else False
         options = ([('scenario_rescue_tax', 'Reduce local taxes now', True)] if can_relieve else [])
         options.append(('accept_breakdown', 'Accept government breakdown', True))
     elif kind == 'riot_risk':
-        title = ('Riot level has been reached' if warning.get('already_mob')
-                 else 'Civil unrest is approaching riot levels')
+        title = 'District riot risk is rising'
         lines = [
             f"{warning.get('nation', 'A nation')} • {warning.get('region', 'a district')}: protest energy {warning.get('energy', 0):.1f}/10.",
-            (f"Mob and riot activity begins at {warning.get('threshold', 6.5):.1f}. Review food access, taxes, and local security before continuing."
-             if not warning.get('already_mob') else 'Mob or riot activity may intensify next turn. Review food access, taxes, and local security before continuing.'),
+            f"Chance of mob-scale escalation this turn: {warning.get('riot_chance', 0):.0%}. Risk and likely crowd size rise smoothly with protest energy.",
+            'Review district relief, negotiation, taxes, and local security before continuing.',
         ]
         options = [('review_risk', 'Review situation', True), ('continue_risk', 'Advance one turn anyway', True)]
     elif kind == 'political_risk':
@@ -1494,7 +2110,7 @@ def draw_scenario_warning_modal(surface, world: dict, mouse_pos=None) -> None:
     elif kind == 'riot_event':
         title = 'Riot or revolt reported'
         lines = [str(warning.get('message', 'Civil unrest has escalated.')),
-                 'The simulation is paused so you can review the situation before continuing.']
+                 'The simulation is paused. Review the affected district’s food access and local responses before continuing.']
         options = [('review_risk', 'Review situation', True), ('continue_risk', 'Continue simulation', True)]
     else:
         title = 'Crisis warning'
@@ -1531,12 +2147,12 @@ def draw_scenario_warning_modal(surface, world: dict, mouse_pos=None) -> None:
         consequences = {
             'pay_remittance': (
                 (f'Unavailable: the treasury has {cash:,.0f} units and needs {amount:,.0f}. ' if cash < amount else '')
-                + f'Spends {amount:,.0f} treasury units. Marks the debt service paid, ends any collection levy, and raises creditor confidence by up to 15 points. The Caisse acknowledges payment next turn.'
+                + f'Spends {amount:,.0f} treasury units and reduces the bond claim by {amount:,.0f}. Another instalment is due in five turns if principal remains. Creditor confidence rises by up to 15 points.'
                 if kind == 'debt_due' else 'Enacts this debt payment.'
             ),
             'concede_revenue': (
                 (f'Unavailable: the treasury has {cash:,.0f} units and needs {amount / 2:,.0f}. ' if cash < amount / 2 else '')
-                + f'Spends {amount / 2:,.0f} units and restructures the payment. Creditor confidence rises by up to 15 points; fiscal autonomy falls by 25 points. The Caisse begins oversight next turn.'
+                + f'Pays {amount / 2:,.0f} units and conditionally writes down another {amount / 2:,.0f}. The remaining principal stays due. Fiscal autonomy falls by 25 points and Caisse oversight begins.'
                 if kind == 'debt_due' else 'Enacts this revenue concession.'
             ),
             'defer_remittance': (
@@ -1623,7 +2239,12 @@ def scenario_warning_modal_hit(pos, world: dict) -> bool:
     if target is None:
         return True
     action = target.action[1]
-    if action in ('pay_remittance', 'concede_revenue', 'defer_remittance', 'default_remittance'):
+    if action == 'ack_new_options':
+        groups = world.get('scenario_warning_modal', {}).get('groups', [])
+        if groups:
+            world['guided_action_scroll'] = groups[0]['first_row']
+        world['scenario_warning_modal'] = None
+    elif action in ('pay_remittance', 'concede_revenue', 'defer_remittance', 'default_remittance'):
         from scenario_egypt_1877 import apply_action
         ok, message = apply_action(world, action)
         world['scenario_feedback'] = message if ok else f'Not enacted: {message}'
@@ -1710,6 +2331,16 @@ def scenario_warning_modal_hit(pos, world: dict) -> bool:
         _finish_scenario(world, nation, 'breakdown', int(world.get('turn', 0)), _outcome_metrics(nation))
         world['scenario_warning_modal'] = None
     elif action == 'review_risk':
+        region_key = world.get('scenario_warning_modal', {}).get('region_key')
+        if region_key and world.get('scenario_id') == 'egypt_1877':
+            tile = next((tile for tile in world.get('tiles', [])
+                         if tile.name == region_key
+                         and getattr(getattr(tile, 'owner_nation', None), 'name', None)
+                         == world.get('player_nation_name')), None)
+            if tile is not None:
+                world['selected_region'] = tile
+                world['guided_decision_scope'] = 'district'
+                world['guided_action_scroll'] = 0
         world['scenario_warning_modal'] = None
         world['crisis_warning_ack_turn'] = int(world.get('turn', 0))
     elif action == 'continue_risk':
@@ -1775,6 +2406,9 @@ def guided_ui_hit(pos, world: dict) -> bool:
         world['settings_open'] = False
     elif action == 'toggle_guided_analysis':
         world['guided_analysis_open'] = not world.get('guided_analysis_open', False)
+    elif action == 'reopen_scenario_debrief':
+        world['scenario_bookend_modal'] = 'debrief'
+        world['scenario_bookend_scroll'] = 0
     elif action == 'play_pause':
         ended = world.get('scenario_id') == 'egypt_1877' and bool(world.get('scenario_state', {}).get('ending'))
         if not ended:
@@ -1786,6 +2420,9 @@ def guided_ui_hit(pos, world: dict) -> bool:
     elif isinstance(action, tuple) and action[0] == 'analysis_tab':
         world['analysis_tab'] = action[1]
         world['guided_analysis_open'] = True
+    elif isinstance(action, tuple) and action[0] == 'guided_scope':
+        world['guided_decision_scope'] = action[1]
+        world['guided_action_scroll'] = 0
     elif isinstance(action, tuple) and action[0] == 'scenario_action':
         from scenario_egypt_1877 import apply_action
         ok, message = apply_action(world, action[1])

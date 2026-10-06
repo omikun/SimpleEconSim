@@ -176,11 +176,87 @@ def produce_corporation(region, agent, recipe, output, num_agents_per_good, loca
             inputs_cost = inputs_used * input_price
         num_output = int(successful_slots * production_per_slot) or 1
         agent.inv_add(output, num_output)
-        local_total_production[output] += num_output
+        local_total_production[output] = local_total_production.get(output, 0) + num_output
 
         # P2.1: Surplus value extraction accounting (s/v)
         wages_paid = len(agent.employees) * getattr(agent, 'wage', 1.0)
         record_surplus_value(agent, region, output, num_output, inputs_cost, wages_paid)
+        compute_and_record_firm_footprint(agent, region, output, num_output, inputs_cost, wages_paid)
+
+
+def compute_and_record_firm_footprint(agent, region, output, num_output, inputs_cost, wages_paid, cur_turn=None):
+    """Attribute ecological, health, and sociological footprint directly to producing firm."""
+    try:
+        from economy.true_cost_ledger import get_true_cost_ledger
+        ledger = get_true_cost_ledger()
+        if cur_turn is None:
+            cur_turn = getattr(region, '_last_turn', 0) or 0
+
+        phys = {}
+        b_names = [getattr(b, 'name', '') for b in getattr(region, 'buildings', [])]
+        has_scrubber = 'smoke_scrubber' in b_names
+        has_sewer = 'trunk_sewer' in b_names
+        has_filtration = 'water_filtration_plant' in b_names
+
+        regime = getattr(region, 'farming_regime', 'rotation')
+        use_fert = (regime == 'intensive' or getattr(region, 'use_fertilizer', False) or
+                    getattr(region, 'mandate_fertilizer', False))
+        use_pest = getattr(region, 'use_pesticides', False) or getattr(region, 'mandate_pesticides', False)
+
+        # 1. Agricultural emissions
+        if output in (Goods.food, Goods.cotton, Goods.sugar, Goods.tobacco):
+            if use_fert or regime == 'intensive':
+                phys['soil_fertility_loss'] = 0.025
+                phys['water_effluent_discharged'] = 3.5
+            elif regime == 'rotation':
+                phys['soil_fertility_loss'] = 0.005
+            else:
+                phys['soil_fertility_loss'] = 0.015
+
+            if use_pest:
+                phys['soil_toxins_generated'] = 4.0
+                if getattr(agent, 'employees', []):
+                    phys['labor_health_wear'] = len(agent.employees) * 0.040
+
+        # 2. Industrial emissions
+        else:
+            raw_air = 1.8
+            nation = getattr(region, 'owner_nation', None)
+            unlocked = getattr(nation, 'unlocked_techs', set()) if nation else set()
+            if 'coal_coking' in unlocked or 'steam_engines' in unlocked:
+                raw_air *= 1.6
+            if has_scrubber:
+                phys['air_smog_emitted'] = raw_air * 0.30
+                phys['soil_toxins_generated'] = raw_air * 0.35  # sludge
+            else:
+                phys['air_smog_emitted'] = raw_air
+
+            raw_water = 1.2
+            if has_sewer or has_filtration:
+                raw_water *= 0.30
+            phys['water_effluent_discharged'] = raw_water
+
+        # 3. Labor contract conditions
+        shift_h = getattr(agent, 'shift_hours', 8.0)
+        safety_inv = getattr(agent, 'safety_investment', 0.0)
+        num_w = len(getattr(agent, 'employees', []))
+
+        if shift_h > 8.0:
+            phys['labor_health_wear'] = phys.get('labor_health_wear', 0.0) + num_w * 0.005 * (shift_h - 8.0)
+            phys['alienation_despair'] = phys.get('alienation_despair', 0.0) + 0.02 * (shift_h - 8.0)
+        if safety_inv < 1.0 and num_w > 0:
+            phys['labor_health_wear'] = phys.get('labor_health_wear', 0.0) + num_w * 0.010 * max(0.0, 1.0 - safety_inv)
+        if shift_h >= 8.0:
+            phys['alienation_despair'] = phys.get('alienation_despair', 0.0) + 0.05 * (shift_h / 8.0)
+
+        c_cost = inputs_cost + (safety_inv * num_w)
+        v_cost = wages_paid
+
+        ledger.record_production(agent, region, cur_turn, c_cost, v_cost, phys)
+        price = region.recipes.get(output, {}).get('price', 1.0)
+        ledger.record_sales(agent, region, cur_turn, num_output * price)
+    except Exception:
+        pass
 
 
 def produce_independent(region, agent, recipe, output, num_agents_per_good, local_total_production):
@@ -198,6 +274,10 @@ def produce_independent(region, agent, recipe, output, num_agents_per_good, loca
             chance *= 1 / (1 + agent.hungry_steps * 0.2)
         if output in (Goods.food, Goods.wood):
             chance *= min(1.0, recipe['maxtotalprod'] / max(1, num_agents_per_good[output]) / recipe['production'])
+        if (output == Goods.food and getattr(agent, 'assigned_plot_id', None) is None
+                and getattr(agent, 'mem_avg', lambda *_: 0.0)('mem_eviction', 0.0) > 0):
+            # Evicted cultivators retain their skills but no longer have secure fields.
+            chance *= 0.25
         chance *= max(0, 1 - agent.inv_get(output, 0) / max_inventory)
         rand_val = rand.random()
         if _c is not None:
@@ -205,11 +285,15 @@ def produce_independent(region, agent, recipe, output, num_agents_per_good, loca
         else:
             made = 1 if rand_val < chance else 0
         if made:
+            inputs_cost = 0.0
             if recipe['numInput'] > 0:
                 agent.inv_add(recipe['input'], -recipe['numInput'])
+                input_price = region.recipes.get(recipe['input'], {}).get('price', 1.0)
+                inputs_cost = recipe['numInput'] * input_price
             num_output = int(recipe['production'] * terrain_bonus(region, output))
+            compute_and_record_firm_footprint(agent, region, output, num_output, inputs_cost, 0.0)
     agent.inv_add(output, num_output)
-    local_total_production[output] += num_output
+    local_total_production[output] = local_total_production.get(output, 0) + num_output
 
 
 def produce(region, t):
@@ -233,6 +317,10 @@ def produce(region, t):
             produce_corporation(region, a, r, a.output, num_agents_per_good, local_total_production)
         else:
             produce_independent(region, a, r, a.output, num_agents_per_good, local_total_production)
+
+    if getattr(region, 'scenario_grain_holder_id', None) is not None:
+        from scenario_political_economy import hold_after_harvest
+        hold_after_harvest(region, t)
 
     # Phase 1: Pastoral wool / fiber yield for landlords on pasture plots
     tenure = getattr(region, 'tenure', None)

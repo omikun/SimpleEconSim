@@ -63,7 +63,8 @@ def landing_options(world):
     from scenario_projects import effectiveness
     line = effectiveness(world, 'canal_line', 'Tel el Kebir')
     egypt = _nation(world, 'Egypt')
-    cost = float(state.get('scheduled_remittance', 0)) * .5
+    from scenario_debt import outstanding
+    cost = outstanding(world) * .5
     return [
         {'id': 'defend_alexandria', 'label': 'Defend Alexandria', 'enabled': True,
          'tooltip': 'Fight a landing at Alexandria with the local garrison and damaged batteries. The shared battle model determines losses and control.'},
@@ -257,8 +258,8 @@ def resolve_landing(world, response_id):
         alexandria.military_units.append(landing)
         message = 'The Egyptian garrison withdraws to Cairo; Britain lands at an undefended Alexandria.'
     else:
-        from scenario_debt import pay as pay_debt
-        amount = float(state['scheduled_remittance']) * .5
+        from scenario_debt import pay as pay_debt, outstanding
+        amount = outstanding(world) * .5
         ok, reason = pay_debt(world, amount, kind='landing_settlement', forgive_remainder=True)
         if not ok:
             return False, reason
@@ -270,6 +271,8 @@ def resolve_landing(world, response_id):
         message = world['scenario_feedback']
     from scenario_gunboat import _record
     _record(world, message, 'WAR')
+    from scenario_occupation import reserve_occupation_window
+    reserve_occupation_window(world)
     record_change(world, response_id, before, snapshot(world))
     state.setdefault('actions_taken', []).append({'turn': int(world['turn']), 'action': response_id,
                                                    'message': message})

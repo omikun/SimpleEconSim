@@ -1,0 +1,2670 @@
+[
+  {
+    "circuit_id": "triangle_cloth_cotton_foreign_luxuries",
+    "name": "Transatlantic Triangle: Cloth \u2192 Cotton \u2192 Foreign luxuries",
+    "export_good": "cloth",
+    "intermediate_good": "cotton",
+    "import_luxury": "foreign_luxuries",
+    "legs": [
+      {
+        "leg": 1,
+        "action": "EXPORT",
+        "source": "cloth",
+        "target": "cotton",
+        "desc": "Ship Cloth to colonial frontier"
+      },
+      {
+        "leg": 2,
+        "action": "EXTRACTION",
+        "source": "cotton",
+        "target": "foreign_luxuries",
+        "desc": "Exchange for Cotton and trade for Foreign luxuries"
+      },
+      {
+        "leg": 3,
+        "action": "IMPORT",
+        "source": "foreign_luxuries",
+        "target": "metropole",
+        "desc": "Deliver Foreign luxuries to metropolitan port"
+      }
+    ],
+    "required_resources": [
+      "has_coal_vein"
+    ],
+    "required_climates": [
+      "subtropical",
+      "tropical",
+      "temperate"
+    ],
+    "required_recipes": [
+      "cloth"
+    ],
+    "base_voyage_turns": 4,
+    "base_freight_cost": 14.0,
+    "tariff_rate": 0.12,
+    "status": "DORMANT_UNEXPLORED",
+    "pioneered_by": null,
+    "times_sailed": 0,
+    "total_volume_traded": 0.0
+  },
+  {
+    "circuit_id": "triangle_cloth_cotton_porcelain",
+    "name": "Transatlantic Triangle: Cloth \u2192 Cotton \u2192 Porcelain",
+    "export_good": "cloth",
+    "intermediate_good": "cotton",
+    "import_luxury": "porcelain",
+    "legs": [
+      {
+        "leg": 1,
+        "action": "EXPORT",
+        "source": "cloth",
+        "target": "cotton",
+        "desc": "Ship Cloth to colonial frontier"
+      },
+      {
+        "leg": 2,
+        "action": "EXTRACTION",
+        "source": "cotton",
+        "target": "porcelain",
+        "desc": "Exchange for Cotton and trade for Porcelain"
+      },
+      {
+        "leg": 3,
+        "action": "IMPORT",
+        "source": "porcelain",
+        "target": "metropole",
+        "desc": "Deliver Porcelain to metropolitan port"
+      }
+    ],
+    "required_resources": [
+      "has_coal_vein"
+    ],
+    "required_climates": [
+      "subtropical",
+      "tropical",
+      "temperate"
+    ],
+    "required_recipes": [
+      "cloth"
+    ],
+    "base_voyage_turns": 4,
+    "base_freight_cost": 14.0,
+    "tariff_rate": 0.12,
+    "status": "DORMANT_UNEXPLORED",
+    "pioneered_by": null,
+    "times_sailed": 0,
+    "total_volume_traded": 0.0
+  },
+  {
+    "circuit_id": "triangle_cloth_cotton_fine_textiles",
+    "name": "Transatlantic Triangle: Cloth \u2192 Cotton \u2192 Fine textiles",
+    "export_good": "cloth",
+    "intermediate_good": "cotton",
+    "import_luxury": "fine_textiles",
+    "legs": [
+      {
+        "leg": 1,
+        "action": "EXPORT",
+        "source": "cloth",
+        "target": "cotton",
+        "desc": "Ship Cloth to colonial frontier"
+      },
+      {
+        "leg": 2,
+        "action": "EXTRACTION",
+        "source": "cotton",
+        "target": "fine_textiles",
+        "desc": "Exchange for Cotton and trade for Fine textiles"
+      },
+      {
+        "leg": 3,
+        "action": "IMPORT",
+        "source": "fine_textiles",
+        "target": "metropole",
+        "desc": "Deliver Fine textiles to metropolitan port"
+      }
+    ],
+    "required_resources": [
+      "has_coal_vein"
+    ],
+    "required_climates": [
+      "subtropical",
+      "tropical",
+      "temperate"
+    ],
+    "required_recipes": [
+      "cloth"
+    ],
+    "base_voyage_turns": 4,
+    "base_freight_cost": 14.0,
+    "tariff_rate": 0.12,
+    "status": "DORMANT_UNEXPLORED",
+    "pioneered_by": null,
+    "times_sailed": 0,
+    "total_volume_traded": 0.0
+  },
+  {
+    "circuit_id": "triangle_cloth_cotton_tea",
+    "name": "Transatlantic Triangle: Cloth \u2192 Cotton \u2192 Tea",
+    "export_good": "cloth",
+    "intermediate_good": "cotton",
+    "import_luxury": "tea",
+    "legs": [
+      {
+        "leg": 1,
+        "action": "EXPORT",
+        "source": "cloth",
+        "target": "cotton",
+        "desc": "Ship Cloth to colonial frontier"
+      },
+      {
+        "leg": 2,
+        "action": "EXTRACTION",
+        "source": "cotton",
+        "target": "tea",
+        "desc": "Exchange for Cotton and trade for Tea"
+      },
+      {
+        "leg": 3,
+        "action": "IMPORT",
+        "source": "tea",
+        "target": "metropole",
+        "desc": "Deliver Tea to metropolitan port"
+      }
+    ],
+    "required_resources": [
+      "has_coal_vein"
+    ],
+    "required_climates": [
+      "subtropical",
+      "tropical",
+      "temperate"
+    ],
+    "required_recipes": [
+      "cloth"
+    ],
+    "base_voyage_turns": 4,
+    "base_freight_cost": 14.0,
+    "tariff_rate": 0.12,
+    "status": "DORMANT_UNEXPLORED",
+    "pioneered_by": null,
+    "times_sailed": 0,
+    "total_volume_traded": 0.0
+  },
+  {
+    "circuit_id": "triangle_cloth_sugar_foreign_luxuries",
+    "name": "Transatlantic Triangle: Cloth \u2192 Sugar \u2192 Foreign luxuries",
+    "export_good": "cloth",
+    "intermediate_good": "sugar",
+    "import_luxury": "foreign_luxuries",
+    "legs": [
+      {
+        "leg": 1,
+        "action": "EXPORT",
+        "source": "cloth",
+        "target": "sugar",
+        "desc": "Ship Cloth to colonial frontier"
+      },
+      {
+        "leg": 2,
+        "action": "EXTRACTION",
+        "source": "sugar",
+        "target": "foreign_luxuries",
+        "desc": "Exchange for Sugar and trade for Foreign luxuries"
+      },
+      {
+        "leg": 3,
+        "action": "IMPORT",
+        "source": "foreign_luxuries",
+        "target": "metropole",
+        "desc": "Deliver Foreign luxuries to metropolitan port"
+      }
+    ],
+    "required_resources": [
+      "has_coal_vein"
+    ],
+    "required_climates": [
+      "subtropical",
+      "tropical",
+      "temperate"
+    ],
+    "required_recipes": [
+      "cloth"
+    ],
+    "base_voyage_turns": 4,
+    "base_freight_cost": 14.0,
+    "tariff_rate": 0.12,
+    "status": "DORMANT_UNEXPLORED",
+    "pioneered_by": null,
+    "times_sailed": 0,
+    "total_volume_traded": 0.0
+  },
+  {
+    "circuit_id": "triangle_cloth_sugar_porcelain",
+    "name": "Transatlantic Triangle: Cloth \u2192 Sugar \u2192 Porcelain",
+    "export_good": "cloth",
+    "intermediate_good": "sugar",
+    "import_luxury": "porcelain",
+    "legs": [
+      {
+        "leg": 1,
+        "action": "EXPORT",
+        "source": "cloth",
+        "target": "sugar",
+        "desc": "Ship Cloth to colonial frontier"
+      },
+      {
+        "leg": 2,
+        "action": "EXTRACTION",
+        "source": "sugar",
+        "target": "porcelain",
+        "desc": "Exchange for Sugar and trade for Porcelain"
+      },
+      {
+        "leg": 3,
+        "action": "IMPORT",
+        "source": "porcelain",
+        "target": "metropole",
+        "desc": "Deliver Porcelain to metropolitan port"
+      }
+    ],
+    "required_resources": [
+      "has_coal_vein"
+    ],
+    "required_climates": [
+      "subtropical",
+      "tropical",
+      "temperate"
+    ],
+    "required_recipes": [
+      "cloth"
+    ],
+    "base_voyage_turns": 4,
+    "base_freight_cost": 14.0,
+    "tariff_rate": 0.12,
+    "status": "DORMANT_UNEXPLORED",
+    "pioneered_by": null,
+    "times_sailed": 0,
+    "total_volume_traded": 0.0
+  },
+  {
+    "circuit_id": "triangle_cloth_sugar_fine_textiles",
+    "name": "Transatlantic Triangle: Cloth \u2192 Sugar \u2192 Fine textiles",
+    "export_good": "cloth",
+    "intermediate_good": "sugar",
+    "import_luxury": "fine_textiles",
+    "legs": [
+      {
+        "leg": 1,
+        "action": "EXPORT",
+        "source": "cloth",
+        "target": "sugar",
+        "desc": "Ship Cloth to colonial frontier"
+      },
+      {
+        "leg": 2,
+        "action": "EXTRACTION",
+        "source": "sugar",
+        "target": "fine_textiles",
+        "desc": "Exchange for Sugar and trade for Fine textiles"
+      },
+      {
+        "leg": 3,
+        "action": "IMPORT",
+        "source": "fine_textiles",
+        "target": "metropole",
+        "desc": "Deliver Fine textiles to metropolitan port"
+      }
+    ],
+    "required_resources": [
+      "has_coal_vein"
+    ],
+    "required_climates": [
+      "subtropical",
+      "tropical",
+      "temperate"
+    ],
+    "required_recipes": [
+      "cloth"
+    ],
+    "base_voyage_turns": 4,
+    "base_freight_cost": 14.0,
+    "tariff_rate": 0.12,
+    "status": "DORMANT_UNEXPLORED",
+    "pioneered_by": null,
+    "times_sailed": 0,
+    "total_volume_traded": 0.0
+  },
+  {
+    "circuit_id": "triangle_cloth_sugar_tea",
+    "name": "Transatlantic Triangle: Cloth \u2192 Sugar \u2192 Tea",
+    "export_good": "cloth",
+    "intermediate_good": "sugar",
+    "import_luxury": "tea",
+    "legs": [
+      {
+        "leg": 1,
+        "action": "EXPORT",
+        "source": "cloth",
+        "target": "sugar",
+        "desc": "Ship Cloth to colonial frontier"
+      },
+      {
+        "leg": 2,
+        "action": "EXTRACTION",
+        "source": "sugar",
+        "target": "tea",
+        "desc": "Exchange for Sugar and trade for Tea"
+      },
+      {
+        "leg": 3,
+        "action": "IMPORT",
+        "source": "tea",
+        "target": "metropole",
+        "desc": "Deliver Tea to metropolitan port"
+      }
+    ],
+    "required_resources": [
+      "has_coal_vein"
+    ],
+    "required_climates": [
+      "subtropical",
+      "tropical",
+      "temperate"
+    ],
+    "required_recipes": [
+      "cloth"
+    ],
+    "base_voyage_turns": 4,
+    "base_freight_cost": 14.0,
+    "tariff_rate": 0.12,
+    "status": "DORMANT_UNEXPLORED",
+    "pioneered_by": null,
+    "times_sailed": 0,
+    "total_volume_traded": 0.0
+  },
+  {
+    "circuit_id": "triangle_cloth_tobacco_foreign_luxuries",
+    "name": "Transatlantic Triangle: Cloth \u2192 Tobacco \u2192 Foreign luxuries",
+    "export_good": "cloth",
+    "intermediate_good": "tobacco",
+    "import_luxury": "foreign_luxuries",
+    "legs": [
+      {
+        "leg": 1,
+        "action": "EXPORT",
+        "source": "cloth",
+        "target": "tobacco",
+        "desc": "Ship Cloth to colonial frontier"
+      },
+      {
+        "leg": 2,
+        "action": "EXTRACTION",
+        "source": "tobacco",
+        "target": "foreign_luxuries",
+        "desc": "Exchange for Tobacco and trade for Foreign luxuries"
+      },
+      {
+        "leg": 3,
+        "action": "IMPORT",
+        "source": "foreign_luxuries",
+        "target": "metropole",
+        "desc": "Deliver Foreign luxuries to metropolitan port"
+      }
+    ],
+    "required_resources": [
+      "has_coal_vein"
+    ],
+    "required_climates": [
+      "subtropical",
+      "tropical",
+      "temperate"
+    ],
+    "required_recipes": [
+      "cloth"
+    ],
+    "base_voyage_turns": 4,
+    "base_freight_cost": 14.0,
+    "tariff_rate": 0.12,
+    "status": "DORMANT_UNEXPLORED",
+    "pioneered_by": null,
+    "times_sailed": 0,
+    "total_volume_traded": 0.0
+  },
+  {
+    "circuit_id": "triangle_cloth_tobacco_porcelain",
+    "name": "Transatlantic Triangle: Cloth \u2192 Tobacco \u2192 Porcelain",
+    "export_good": "cloth",
+    "intermediate_good": "tobacco",
+    "import_luxury": "porcelain",
+    "legs": [
+      {
+        "leg": 1,
+        "action": "EXPORT",
+        "source": "cloth",
+        "target": "tobacco",
+        "desc": "Ship Cloth to colonial frontier"
+      },
+      {
+        "leg": 2,
+        "action": "EXTRACTION",
+        "source": "tobacco",
+        "target": "porcelain",
+        "desc": "Exchange for Tobacco and trade for Porcelain"
+      },
+      {
+        "leg": 3,
+        "action": "IMPORT",
+        "source": "porcelain",
+        "target": "metropole",
+        "desc": "Deliver Porcelain to metropolitan port"
+      }
+    ],
+    "required_resources": [
+      "has_coal_vein"
+    ],
+    "required_climates": [
+      "subtropical",
+      "tropical",
+      "temperate"
+    ],
+    "required_recipes": [
+      "cloth"
+    ],
+    "base_voyage_turns": 4,
+    "base_freight_cost": 14.0,
+    "tariff_rate": 0.12,
+    "status": "DORMANT_UNEXPLORED",
+    "pioneered_by": null,
+    "times_sailed": 0,
+    "total_volume_traded": 0.0
+  },
+  {
+    "circuit_id": "triangle_cloth_tobacco_fine_textiles",
+    "name": "Transatlantic Triangle: Cloth \u2192 Tobacco \u2192 Fine textiles",
+    "export_good": "cloth",
+    "intermediate_good": "tobacco",
+    "import_luxury": "fine_textiles",
+    "legs": [
+      {
+        "leg": 1,
+        "action": "EXPORT",
+        "source": "cloth",
+        "target": "tobacco",
+        "desc": "Ship Cloth to colonial frontier"
+      },
+      {
+        "leg": 2,
+        "action": "EXTRACTION",
+        "source": "tobacco",
+        "target": "fine_textiles",
+        "desc": "Exchange for Tobacco and trade for Fine textiles"
+      },
+      {
+        "leg": 3,
+        "action": "IMPORT",
+        "source": "fine_textiles",
+        "target": "metropole",
+        "desc": "Deliver Fine textiles to metropolitan port"
+      }
+    ],
+    "required_resources": [
+      "has_coal_vein"
+    ],
+    "required_climates": [
+      "subtropical",
+      "tropical",
+      "temperate"
+    ],
+    "required_recipes": [
+      "cloth"
+    ],
+    "base_voyage_turns": 4,
+    "base_freight_cost": 14.0,
+    "tariff_rate": 0.12,
+    "status": "DORMANT_UNEXPLORED",
+    "pioneered_by": null,
+    "times_sailed": 0,
+    "total_volume_traded": 0.0
+  },
+  {
+    "circuit_id": "triangle_cloth_tobacco_tea",
+    "name": "Transatlantic Triangle: Cloth \u2192 Tobacco \u2192 Tea",
+    "export_good": "cloth",
+    "intermediate_good": "tobacco",
+    "import_luxury": "tea",
+    "legs": [
+      {
+        "leg": 1,
+        "action": "EXPORT",
+        "source": "cloth",
+        "target": "tobacco",
+        "desc": "Ship Cloth to colonial frontier"
+      },
+      {
+        "leg": 2,
+        "action": "EXTRACTION",
+        "source": "tobacco",
+        "target": "tea",
+        "desc": "Exchange for Tobacco and trade for Tea"
+      },
+      {
+        "leg": 3,
+        "action": "IMPORT",
+        "source": "tea",
+        "target": "metropole",
+        "desc": "Deliver Tea to metropolitan port"
+      }
+    ],
+    "required_resources": [
+      "has_coal_vein"
+    ],
+    "required_climates": [
+      "subtropical",
+      "tropical",
+      "temperate"
+    ],
+    "required_recipes": [
+      "cloth"
+    ],
+    "base_voyage_turns": 4,
+    "base_freight_cost": 14.0,
+    "tariff_rate": 0.12,
+    "status": "DORMANT_UNEXPLORED",
+    "pioneered_by": null,
+    "times_sailed": 0,
+    "total_volume_traded": 0.0
+  },
+  {
+    "circuit_id": "triangle_cloth_captive_labor_foreign_luxuries",
+    "name": "Transatlantic Triangle: Cloth \u2192 Captive labor \u2192 Foreign luxuries",
+    "export_good": "cloth",
+    "intermediate_good": "captive_labor",
+    "import_luxury": "foreign_luxuries",
+    "legs": [
+      {
+        "leg": 1,
+        "action": "EXPORT",
+        "source": "cloth",
+        "target": "captive_labor",
+        "desc": "Ship Cloth to colonial frontier"
+      },
+      {
+        "leg": 2,
+        "action": "EXTRACTION",
+        "source": "captive_labor",
+        "target": "foreign_luxuries",
+        "desc": "Exchange for Captive labor and trade for Foreign luxuries"
+      },
+      {
+        "leg": 3,
+        "action": "IMPORT",
+        "source": "foreign_luxuries",
+        "target": "metropole",
+        "desc": "Deliver Foreign luxuries to metropolitan port"
+      }
+    ],
+    "required_resources": [
+      "has_coal_vein"
+    ],
+    "required_climates": [],
+    "required_recipes": [
+      "cloth"
+    ],
+    "base_voyage_turns": 5,
+    "base_freight_cost": 14.0,
+    "tariff_rate": 0.12,
+    "status": "DORMANT_UNEXPLORED",
+    "pioneered_by": null,
+    "times_sailed": 0,
+    "total_volume_traded": 0.0
+  },
+  {
+    "circuit_id": "triangle_cloth_captive_labor_porcelain",
+    "name": "Transatlantic Triangle: Cloth \u2192 Captive labor \u2192 Porcelain",
+    "export_good": "cloth",
+    "intermediate_good": "captive_labor",
+    "import_luxury": "porcelain",
+    "legs": [
+      {
+        "leg": 1,
+        "action": "EXPORT",
+        "source": "cloth",
+        "target": "captive_labor",
+        "desc": "Ship Cloth to colonial frontier"
+      },
+      {
+        "leg": 2,
+        "action": "EXTRACTION",
+        "source": "captive_labor",
+        "target": "porcelain",
+        "desc": "Exchange for Captive labor and trade for Porcelain"
+      },
+      {
+        "leg": 3,
+        "action": "IMPORT",
+        "source": "porcelain",
+        "target": "metropole",
+        "desc": "Deliver Porcelain to metropolitan port"
+      }
+    ],
+    "required_resources": [
+      "has_coal_vein"
+    ],
+    "required_climates": [],
+    "required_recipes": [
+      "cloth"
+    ],
+    "base_voyage_turns": 5,
+    "base_freight_cost": 14.0,
+    "tariff_rate": 0.12,
+    "status": "DORMANT_UNEXPLORED",
+    "pioneered_by": null,
+    "times_sailed": 0,
+    "total_volume_traded": 0.0
+  },
+  {
+    "circuit_id": "triangle_cloth_captive_labor_fine_textiles",
+    "name": "Transatlantic Triangle: Cloth \u2192 Captive labor \u2192 Fine textiles",
+    "export_good": "cloth",
+    "intermediate_good": "captive_labor",
+    "import_luxury": "fine_textiles",
+    "legs": [
+      {
+        "leg": 1,
+        "action": "EXPORT",
+        "source": "cloth",
+        "target": "captive_labor",
+        "desc": "Ship Cloth to colonial frontier"
+      },
+      {
+        "leg": 2,
+        "action": "EXTRACTION",
+        "source": "captive_labor",
+        "target": "fine_textiles",
+        "desc": "Exchange for Captive labor and trade for Fine textiles"
+      },
+      {
+        "leg": 3,
+        "action": "IMPORT",
+        "source": "fine_textiles",
+        "target": "metropole",
+        "desc": "Deliver Fine textiles to metropolitan port"
+      }
+    ],
+    "required_resources": [
+      "has_coal_vein"
+    ],
+    "required_climates": [],
+    "required_recipes": [
+      "cloth"
+    ],
+    "base_voyage_turns": 5,
+    "base_freight_cost": 14.0,
+    "tariff_rate": 0.12,
+    "status": "DORMANT_UNEXPLORED",
+    "pioneered_by": null,
+    "times_sailed": 0,
+    "total_volume_traded": 0.0
+  },
+  {
+    "circuit_id": "triangle_cloth_captive_labor_tea",
+    "name": "Transatlantic Triangle: Cloth \u2192 Captive labor \u2192 Tea",
+    "export_good": "cloth",
+    "intermediate_good": "captive_labor",
+    "import_luxury": "tea",
+    "legs": [
+      {
+        "leg": 1,
+        "action": "EXPORT",
+        "source": "cloth",
+        "target": "captive_labor",
+        "desc": "Ship Cloth to colonial frontier"
+      },
+      {
+        "leg": 2,
+        "action": "EXTRACTION",
+        "source": "captive_labor",
+        "target": "tea",
+        "desc": "Exchange for Captive labor and trade for Tea"
+      },
+      {
+        "leg": 3,
+        "action": "IMPORT",
+        "source": "tea",
+        "target": "metropole",
+        "desc": "Deliver Tea to metropolitan port"
+      }
+    ],
+    "required_resources": [
+      "has_coal_vein"
+    ],
+    "required_climates": [],
+    "required_recipes": [
+      "cloth"
+    ],
+    "base_voyage_turns": 5,
+    "base_freight_cost": 14.0,
+    "tariff_rate": 0.12,
+    "status": "DORMANT_UNEXPLORED",
+    "pioneered_by": null,
+    "times_sailed": 0,
+    "total_volume_traded": 0.0
+  },
+  {
+    "circuit_id": "triangle_iron_cotton_foreign_luxuries",
+    "name": "Transatlantic Triangle: Iron \u2192 Cotton \u2192 Foreign luxuries",
+    "export_good": "iron",
+    "intermediate_good": "cotton",
+    "import_luxury": "foreign_luxuries",
+    "legs": [
+      {
+        "leg": 1,
+        "action": "EXPORT",
+        "source": "iron",
+        "target": "cotton",
+        "desc": "Ship Iron to colonial frontier"
+      },
+      {
+        "leg": 2,
+        "action": "EXTRACTION",
+        "source": "cotton",
+        "target": "foreign_luxuries",
+        "desc": "Exchange for Cotton and trade for Foreign luxuries"
+      },
+      {
+        "leg": 3,
+        "action": "IMPORT",
+        "source": "foreign_luxuries",
+        "target": "metropole",
+        "desc": "Deliver Foreign luxuries to metropolitan port"
+      }
+    ],
+    "required_resources": [
+      "has_iron_deposit",
+      "has_coal_vein"
+    ],
+    "required_climates": [
+      "subtropical",
+      "tropical",
+      "temperate"
+    ],
+    "required_recipes": [
+      "iron"
+    ],
+    "base_voyage_turns": 4,
+    "base_freight_cost": 14.0,
+    "tariff_rate": 0.12,
+    "status": "DORMANT_UNEXPLORED",
+    "pioneered_by": null,
+    "times_sailed": 0,
+    "total_volume_traded": 0.0
+  },
+  {
+    "circuit_id": "triangle_iron_cotton_porcelain",
+    "name": "Transatlantic Triangle: Iron \u2192 Cotton \u2192 Porcelain",
+    "export_good": "iron",
+    "intermediate_good": "cotton",
+    "import_luxury": "porcelain",
+    "legs": [
+      {
+        "leg": 1,
+        "action": "EXPORT",
+        "source": "iron",
+        "target": "cotton",
+        "desc": "Ship Iron to colonial frontier"
+      },
+      {
+        "leg": 2,
+        "action": "EXTRACTION",
+        "source": "cotton",
+        "target": "porcelain",
+        "desc": "Exchange for Cotton and trade for Porcelain"
+      },
+      {
+        "leg": 3,
+        "action": "IMPORT",
+        "source": "porcelain",
+        "target": "metropole",
+        "desc": "Deliver Porcelain to metropolitan port"
+      }
+    ],
+    "required_resources": [
+      "has_iron_deposit",
+      "has_coal_vein"
+    ],
+    "required_climates": [
+      "subtropical",
+      "tropical",
+      "temperate"
+    ],
+    "required_recipes": [
+      "iron"
+    ],
+    "base_voyage_turns": 4,
+    "base_freight_cost": 14.0,
+    "tariff_rate": 0.12,
+    "status": "DORMANT_UNEXPLORED",
+    "pioneered_by": null,
+    "times_sailed": 0,
+    "total_volume_traded": 0.0
+  },
+  {
+    "circuit_id": "triangle_iron_cotton_fine_textiles",
+    "name": "Transatlantic Triangle: Iron \u2192 Cotton \u2192 Fine textiles",
+    "export_good": "iron",
+    "intermediate_good": "cotton",
+    "import_luxury": "fine_textiles",
+    "legs": [
+      {
+        "leg": 1,
+        "action": "EXPORT",
+        "source": "iron",
+        "target": "cotton",
+        "desc": "Ship Iron to colonial frontier"
+      },
+      {
+        "leg": 2,
+        "action": "EXTRACTION",
+        "source": "cotton",
+        "target": "fine_textiles",
+        "desc": "Exchange for Cotton and trade for Fine textiles"
+      },
+      {
+        "leg": 3,
+        "action": "IMPORT",
+        "source": "fine_textiles",
+        "target": "metropole",
+        "desc": "Deliver Fine textiles to metropolitan port"
+      }
+    ],
+    "required_resources": [
+      "has_iron_deposit",
+      "has_coal_vein"
+    ],
+    "required_climates": [
+      "subtropical",
+      "tropical",
+      "temperate"
+    ],
+    "required_recipes": [
+      "iron"
+    ],
+    "base_voyage_turns": 4,
+    "base_freight_cost": 14.0,
+    "tariff_rate": 0.12,
+    "status": "DORMANT_UNEXPLORED",
+    "pioneered_by": null,
+    "times_sailed": 0,
+    "total_volume_traded": 0.0
+  },
+  {
+    "circuit_id": "triangle_iron_cotton_tea",
+    "name": "Transatlantic Triangle: Iron \u2192 Cotton \u2192 Tea",
+    "export_good": "iron",
+    "intermediate_good": "cotton",
+    "import_luxury": "tea",
+    "legs": [
+      {
+        "leg": 1,
+        "action": "EXPORT",
+        "source": "iron",
+        "target": "cotton",
+        "desc": "Ship Iron to colonial frontier"
+      },
+      {
+        "leg": 2,
+        "action": "EXTRACTION",
+        "source": "cotton",
+        "target": "tea",
+        "desc": "Exchange for Cotton and trade for Tea"
+      },
+      {
+        "leg": 3,
+        "action": "IMPORT",
+        "source": "tea",
+        "target": "metropole",
+        "desc": "Deliver Tea to metropolitan port"
+      }
+    ],
+    "required_resources": [
+      "has_iron_deposit",
+      "has_coal_vein"
+    ],
+    "required_climates": [
+      "subtropical",
+      "tropical",
+      "temperate"
+    ],
+    "required_recipes": [
+      "iron"
+    ],
+    "base_voyage_turns": 4,
+    "base_freight_cost": 14.0,
+    "tariff_rate": 0.12,
+    "status": "DORMANT_UNEXPLORED",
+    "pioneered_by": null,
+    "times_sailed": 0,
+    "total_volume_traded": 0.0
+  },
+  {
+    "circuit_id": "triangle_iron_sugar_foreign_luxuries",
+    "name": "Transatlantic Triangle: Iron \u2192 Sugar \u2192 Foreign luxuries",
+    "export_good": "iron",
+    "intermediate_good": "sugar",
+    "import_luxury": "foreign_luxuries",
+    "legs": [
+      {
+        "leg": 1,
+        "action": "EXPORT",
+        "source": "iron",
+        "target": "sugar",
+        "desc": "Ship Iron to colonial frontier"
+      },
+      {
+        "leg": 2,
+        "action": "EXTRACTION",
+        "source": "sugar",
+        "target": "foreign_luxuries",
+        "desc": "Exchange for Sugar and trade for Foreign luxuries"
+      },
+      {
+        "leg": 3,
+        "action": "IMPORT",
+        "source": "foreign_luxuries",
+        "target": "metropole",
+        "desc": "Deliver Foreign luxuries to metropolitan port"
+      }
+    ],
+    "required_resources": [
+      "has_iron_deposit",
+      "has_coal_vein"
+    ],
+    "required_climates": [
+      "subtropical",
+      "tropical",
+      "temperate"
+    ],
+    "required_recipes": [
+      "iron"
+    ],
+    "base_voyage_turns": 4,
+    "base_freight_cost": 14.0,
+    "tariff_rate": 0.12,
+    "status": "DORMANT_UNEXPLORED",
+    "pioneered_by": null,
+    "times_sailed": 0,
+    "total_volume_traded": 0.0
+  },
+  {
+    "circuit_id": "triangle_iron_sugar_porcelain",
+    "name": "Transatlantic Triangle: Iron \u2192 Sugar \u2192 Porcelain",
+    "export_good": "iron",
+    "intermediate_good": "sugar",
+    "import_luxury": "porcelain",
+    "legs": [
+      {
+        "leg": 1,
+        "action": "EXPORT",
+        "source": "iron",
+        "target": "sugar",
+        "desc": "Ship Iron to colonial frontier"
+      },
+      {
+        "leg": 2,
+        "action": "EXTRACTION",
+        "source": "sugar",
+        "target": "porcelain",
+        "desc": "Exchange for Sugar and trade for Porcelain"
+      },
+      {
+        "leg": 3,
+        "action": "IMPORT",
+        "source": "porcelain",
+        "target": "metropole",
+        "desc": "Deliver Porcelain to metropolitan port"
+      }
+    ],
+    "required_resources": [
+      "has_iron_deposit",
+      "has_coal_vein"
+    ],
+    "required_climates": [
+      "subtropical",
+      "tropical",
+      "temperate"
+    ],
+    "required_recipes": [
+      "iron"
+    ],
+    "base_voyage_turns": 4,
+    "base_freight_cost": 14.0,
+    "tariff_rate": 0.12,
+    "status": "DORMANT_UNEXPLORED",
+    "pioneered_by": null,
+    "times_sailed": 0,
+    "total_volume_traded": 0.0
+  },
+  {
+    "circuit_id": "triangle_iron_sugar_fine_textiles",
+    "name": "Transatlantic Triangle: Iron \u2192 Sugar \u2192 Fine textiles",
+    "export_good": "iron",
+    "intermediate_good": "sugar",
+    "import_luxury": "fine_textiles",
+    "legs": [
+      {
+        "leg": 1,
+        "action": "EXPORT",
+        "source": "iron",
+        "target": "sugar",
+        "desc": "Ship Iron to colonial frontier"
+      },
+      {
+        "leg": 2,
+        "action": "EXTRACTION",
+        "source": "sugar",
+        "target": "fine_textiles",
+        "desc": "Exchange for Sugar and trade for Fine textiles"
+      },
+      {
+        "leg": 3,
+        "action": "IMPORT",
+        "source": "fine_textiles",
+        "target": "metropole",
+        "desc": "Deliver Fine textiles to metropolitan port"
+      }
+    ],
+    "required_resources": [
+      "has_iron_deposit",
+      "has_coal_vein"
+    ],
+    "required_climates": [
+      "subtropical",
+      "tropical",
+      "temperate"
+    ],
+    "required_recipes": [
+      "iron"
+    ],
+    "base_voyage_turns": 4,
+    "base_freight_cost": 14.0,
+    "tariff_rate": 0.12,
+    "status": "DORMANT_UNEXPLORED",
+    "pioneered_by": null,
+    "times_sailed": 0,
+    "total_volume_traded": 0.0
+  },
+  {
+    "circuit_id": "triangle_iron_sugar_tea",
+    "name": "Transatlantic Triangle: Iron \u2192 Sugar \u2192 Tea",
+    "export_good": "iron",
+    "intermediate_good": "sugar",
+    "import_luxury": "tea",
+    "legs": [
+      {
+        "leg": 1,
+        "action": "EXPORT",
+        "source": "iron",
+        "target": "sugar",
+        "desc": "Ship Iron to colonial frontier"
+      },
+      {
+        "leg": 2,
+        "action": "EXTRACTION",
+        "source": "sugar",
+        "target": "tea",
+        "desc": "Exchange for Sugar and trade for Tea"
+      },
+      {
+        "leg": 3,
+        "action": "IMPORT",
+        "source": "tea",
+        "target": "metropole",
+        "desc": "Deliver Tea to metropolitan port"
+      }
+    ],
+    "required_resources": [
+      "has_iron_deposit",
+      "has_coal_vein"
+    ],
+    "required_climates": [
+      "subtropical",
+      "tropical",
+      "temperate"
+    ],
+    "required_recipes": [
+      "iron"
+    ],
+    "base_voyage_turns": 4,
+    "base_freight_cost": 14.0,
+    "tariff_rate": 0.12,
+    "status": "DORMANT_UNEXPLORED",
+    "pioneered_by": null,
+    "times_sailed": 0,
+    "total_volume_traded": 0.0
+  },
+  {
+    "circuit_id": "triangle_iron_tobacco_foreign_luxuries",
+    "name": "Transatlantic Triangle: Iron \u2192 Tobacco \u2192 Foreign luxuries",
+    "export_good": "iron",
+    "intermediate_good": "tobacco",
+    "import_luxury": "foreign_luxuries",
+    "legs": [
+      {
+        "leg": 1,
+        "action": "EXPORT",
+        "source": "iron",
+        "target": "tobacco",
+        "desc": "Ship Iron to colonial frontier"
+      },
+      {
+        "leg": 2,
+        "action": "EXTRACTION",
+        "source": "tobacco",
+        "target": "foreign_luxuries",
+        "desc": "Exchange for Tobacco and trade for Foreign luxuries"
+      },
+      {
+        "leg": 3,
+        "action": "IMPORT",
+        "source": "foreign_luxuries",
+        "target": "metropole",
+        "desc": "Deliver Foreign luxuries to metropolitan port"
+      }
+    ],
+    "required_resources": [
+      "has_iron_deposit",
+      "has_coal_vein"
+    ],
+    "required_climates": [
+      "subtropical",
+      "tropical",
+      "temperate"
+    ],
+    "required_recipes": [
+      "iron"
+    ],
+    "base_voyage_turns": 4,
+    "base_freight_cost": 14.0,
+    "tariff_rate": 0.12,
+    "status": "DORMANT_UNEXPLORED",
+    "pioneered_by": null,
+    "times_sailed": 0,
+    "total_volume_traded": 0.0
+  },
+  {
+    "circuit_id": "triangle_iron_tobacco_porcelain",
+    "name": "Transatlantic Triangle: Iron \u2192 Tobacco \u2192 Porcelain",
+    "export_good": "iron",
+    "intermediate_good": "tobacco",
+    "import_luxury": "porcelain",
+    "legs": [
+      {
+        "leg": 1,
+        "action": "EXPORT",
+        "source": "iron",
+        "target": "tobacco",
+        "desc": "Ship Iron to colonial frontier"
+      },
+      {
+        "leg": 2,
+        "action": "EXTRACTION",
+        "source": "tobacco",
+        "target": "porcelain",
+        "desc": "Exchange for Tobacco and trade for Porcelain"
+      },
+      {
+        "leg": 3,
+        "action": "IMPORT",
+        "source": "porcelain",
+        "target": "metropole",
+        "desc": "Deliver Porcelain to metropolitan port"
+      }
+    ],
+    "required_resources": [
+      "has_iron_deposit",
+      "has_coal_vein"
+    ],
+    "required_climates": [
+      "subtropical",
+      "tropical",
+      "temperate"
+    ],
+    "required_recipes": [
+      "iron"
+    ],
+    "base_voyage_turns": 4,
+    "base_freight_cost": 14.0,
+    "tariff_rate": 0.12,
+    "status": "DORMANT_UNEXPLORED",
+    "pioneered_by": null,
+    "times_sailed": 0,
+    "total_volume_traded": 0.0
+  },
+  {
+    "circuit_id": "triangle_iron_tobacco_fine_textiles",
+    "name": "Transatlantic Triangle: Iron \u2192 Tobacco \u2192 Fine textiles",
+    "export_good": "iron",
+    "intermediate_good": "tobacco",
+    "import_luxury": "fine_textiles",
+    "legs": [
+      {
+        "leg": 1,
+        "action": "EXPORT",
+        "source": "iron",
+        "target": "tobacco",
+        "desc": "Ship Iron to colonial frontier"
+      },
+      {
+        "leg": 2,
+        "action": "EXTRACTION",
+        "source": "tobacco",
+        "target": "fine_textiles",
+        "desc": "Exchange for Tobacco and trade for Fine textiles"
+      },
+      {
+        "leg": 3,
+        "action": "IMPORT",
+        "source": "fine_textiles",
+        "target": "metropole",
+        "desc": "Deliver Fine textiles to metropolitan port"
+      }
+    ],
+    "required_resources": [
+      "has_iron_deposit",
+      "has_coal_vein"
+    ],
+    "required_climates": [
+      "subtropical",
+      "tropical",
+      "temperate"
+    ],
+    "required_recipes": [
+      "iron"
+    ],
+    "base_voyage_turns": 4,
+    "base_freight_cost": 14.0,
+    "tariff_rate": 0.12,
+    "status": "DORMANT_UNEXPLORED",
+    "pioneered_by": null,
+    "times_sailed": 0,
+    "total_volume_traded": 0.0
+  },
+  {
+    "circuit_id": "triangle_iron_tobacco_tea",
+    "name": "Transatlantic Triangle: Iron \u2192 Tobacco \u2192 Tea",
+    "export_good": "iron",
+    "intermediate_good": "tobacco",
+    "import_luxury": "tea",
+    "legs": [
+      {
+        "leg": 1,
+        "action": "EXPORT",
+        "source": "iron",
+        "target": "tobacco",
+        "desc": "Ship Iron to colonial frontier"
+      },
+      {
+        "leg": 2,
+        "action": "EXTRACTION",
+        "source": "tobacco",
+        "target": "tea",
+        "desc": "Exchange for Tobacco and trade for Tea"
+      },
+      {
+        "leg": 3,
+        "action": "IMPORT",
+        "source": "tea",
+        "target": "metropole",
+        "desc": "Deliver Tea to metropolitan port"
+      }
+    ],
+    "required_resources": [
+      "has_iron_deposit",
+      "has_coal_vein"
+    ],
+    "required_climates": [
+      "subtropical",
+      "tropical",
+      "temperate"
+    ],
+    "required_recipes": [
+      "iron"
+    ],
+    "base_voyage_turns": 4,
+    "base_freight_cost": 14.0,
+    "tariff_rate": 0.12,
+    "status": "DORMANT_UNEXPLORED",
+    "pioneered_by": null,
+    "times_sailed": 0,
+    "total_volume_traded": 0.0
+  },
+  {
+    "circuit_id": "triangle_iron_captive_labor_foreign_luxuries",
+    "name": "Transatlantic Triangle: Iron \u2192 Captive labor \u2192 Foreign luxuries",
+    "export_good": "iron",
+    "intermediate_good": "captive_labor",
+    "import_luxury": "foreign_luxuries",
+    "legs": [
+      {
+        "leg": 1,
+        "action": "EXPORT",
+        "source": "iron",
+        "target": "captive_labor",
+        "desc": "Ship Iron to colonial frontier"
+      },
+      {
+        "leg": 2,
+        "action": "EXTRACTION",
+        "source": "captive_labor",
+        "target": "foreign_luxuries",
+        "desc": "Exchange for Captive labor and trade for Foreign luxuries"
+      },
+      {
+        "leg": 3,
+        "action": "IMPORT",
+        "source": "foreign_luxuries",
+        "target": "metropole",
+        "desc": "Deliver Foreign luxuries to metropolitan port"
+      }
+    ],
+    "required_resources": [
+      "has_iron_deposit",
+      "has_coal_vein"
+    ],
+    "required_climates": [],
+    "required_recipes": [
+      "iron"
+    ],
+    "base_voyage_turns": 5,
+    "base_freight_cost": 14.0,
+    "tariff_rate": 0.12,
+    "status": "DORMANT_UNEXPLORED",
+    "pioneered_by": null,
+    "times_sailed": 0,
+    "total_volume_traded": 0.0
+  },
+  {
+    "circuit_id": "triangle_iron_captive_labor_porcelain",
+    "name": "Transatlantic Triangle: Iron \u2192 Captive labor \u2192 Porcelain",
+    "export_good": "iron",
+    "intermediate_good": "captive_labor",
+    "import_luxury": "porcelain",
+    "legs": [
+      {
+        "leg": 1,
+        "action": "EXPORT",
+        "source": "iron",
+        "target": "captive_labor",
+        "desc": "Ship Iron to colonial frontier"
+      },
+      {
+        "leg": 2,
+        "action": "EXTRACTION",
+        "source": "captive_labor",
+        "target": "porcelain",
+        "desc": "Exchange for Captive labor and trade for Porcelain"
+      },
+      {
+        "leg": 3,
+        "action": "IMPORT",
+        "source": "porcelain",
+        "target": "metropole",
+        "desc": "Deliver Porcelain to metropolitan port"
+      }
+    ],
+    "required_resources": [
+      "has_iron_deposit",
+      "has_coal_vein"
+    ],
+    "required_climates": [],
+    "required_recipes": [
+      "iron"
+    ],
+    "base_voyage_turns": 5,
+    "base_freight_cost": 14.0,
+    "tariff_rate": 0.12,
+    "status": "DORMANT_UNEXPLORED",
+    "pioneered_by": null,
+    "times_sailed": 0,
+    "total_volume_traded": 0.0
+  },
+  {
+    "circuit_id": "triangle_iron_captive_labor_fine_textiles",
+    "name": "Transatlantic Triangle: Iron \u2192 Captive labor \u2192 Fine textiles",
+    "export_good": "iron",
+    "intermediate_good": "captive_labor",
+    "import_luxury": "fine_textiles",
+    "legs": [
+      {
+        "leg": 1,
+        "action": "EXPORT",
+        "source": "iron",
+        "target": "captive_labor",
+        "desc": "Ship Iron to colonial frontier"
+      },
+      {
+        "leg": 2,
+        "action": "EXTRACTION",
+        "source": "captive_labor",
+        "target": "fine_textiles",
+        "desc": "Exchange for Captive labor and trade for Fine textiles"
+      },
+      {
+        "leg": 3,
+        "action": "IMPORT",
+        "source": "fine_textiles",
+        "target": "metropole",
+        "desc": "Deliver Fine textiles to metropolitan port"
+      }
+    ],
+    "required_resources": [
+      "has_iron_deposit",
+      "has_coal_vein"
+    ],
+    "required_climates": [],
+    "required_recipes": [
+      "iron"
+    ],
+    "base_voyage_turns": 5,
+    "base_freight_cost": 14.0,
+    "tariff_rate": 0.12,
+    "status": "DORMANT_UNEXPLORED",
+    "pioneered_by": null,
+    "times_sailed": 0,
+    "total_volume_traded": 0.0
+  },
+  {
+    "circuit_id": "triangle_iron_captive_labor_tea",
+    "name": "Transatlantic Triangle: Iron \u2192 Captive labor \u2192 Tea",
+    "export_good": "iron",
+    "intermediate_good": "captive_labor",
+    "import_luxury": "tea",
+    "legs": [
+      {
+        "leg": 1,
+        "action": "EXPORT",
+        "source": "iron",
+        "target": "captive_labor",
+        "desc": "Ship Iron to colonial frontier"
+      },
+      {
+        "leg": 2,
+        "action": "EXTRACTION",
+        "source": "captive_labor",
+        "target": "tea",
+        "desc": "Exchange for Captive labor and trade for Tea"
+      },
+      {
+        "leg": 3,
+        "action": "IMPORT",
+        "source": "tea",
+        "target": "metropole",
+        "desc": "Deliver Tea to metropolitan port"
+      }
+    ],
+    "required_resources": [
+      "has_iron_deposit",
+      "has_coal_vein"
+    ],
+    "required_climates": [],
+    "required_recipes": [
+      "iron"
+    ],
+    "base_voyage_turns": 5,
+    "base_freight_cost": 14.0,
+    "tariff_rate": 0.12,
+    "status": "DORMANT_UNEXPLORED",
+    "pioneered_by": null,
+    "times_sailed": 0,
+    "total_volume_traded": 0.0
+  },
+  {
+    "circuit_id": "triangle_rum_cotton_foreign_luxuries",
+    "name": "Transatlantic Triangle: Rum \u2192 Cotton \u2192 Foreign luxuries",
+    "export_good": "rum",
+    "intermediate_good": "cotton",
+    "import_luxury": "foreign_luxuries",
+    "legs": [
+      {
+        "leg": 1,
+        "action": "EXPORT",
+        "source": "rum",
+        "target": "cotton",
+        "desc": "Ship Rum to colonial frontier"
+      },
+      {
+        "leg": 2,
+        "action": "EXTRACTION",
+        "source": "cotton",
+        "target": "foreign_luxuries",
+        "desc": "Exchange for Cotton and trade for Foreign luxuries"
+      },
+      {
+        "leg": 3,
+        "action": "IMPORT",
+        "source": "foreign_luxuries",
+        "target": "metropole",
+        "desc": "Deliver Foreign luxuries to metropolitan port"
+      }
+    ],
+    "required_resources": [],
+    "required_climates": [
+      "subtropical",
+      "tropical",
+      "temperate"
+    ],
+    "required_recipes": [
+      "rum"
+    ],
+    "base_voyage_turns": 4,
+    "base_freight_cost": 14.0,
+    "tariff_rate": 0.12,
+    "status": "DORMANT_UNEXPLORED",
+    "pioneered_by": null,
+    "times_sailed": 0,
+    "total_volume_traded": 0.0
+  },
+  {
+    "circuit_id": "triangle_rum_cotton_porcelain",
+    "name": "Transatlantic Triangle: Rum \u2192 Cotton \u2192 Porcelain",
+    "export_good": "rum",
+    "intermediate_good": "cotton",
+    "import_luxury": "porcelain",
+    "legs": [
+      {
+        "leg": 1,
+        "action": "EXPORT",
+        "source": "rum",
+        "target": "cotton",
+        "desc": "Ship Rum to colonial frontier"
+      },
+      {
+        "leg": 2,
+        "action": "EXTRACTION",
+        "source": "cotton",
+        "target": "porcelain",
+        "desc": "Exchange for Cotton and trade for Porcelain"
+      },
+      {
+        "leg": 3,
+        "action": "IMPORT",
+        "source": "porcelain",
+        "target": "metropole",
+        "desc": "Deliver Porcelain to metropolitan port"
+      }
+    ],
+    "required_resources": [],
+    "required_climates": [
+      "subtropical",
+      "tropical",
+      "temperate"
+    ],
+    "required_recipes": [
+      "rum"
+    ],
+    "base_voyage_turns": 4,
+    "base_freight_cost": 14.0,
+    "tariff_rate": 0.12,
+    "status": "DORMANT_UNEXPLORED",
+    "pioneered_by": null,
+    "times_sailed": 0,
+    "total_volume_traded": 0.0
+  },
+  {
+    "circuit_id": "triangle_rum_cotton_fine_textiles",
+    "name": "Transatlantic Triangle: Rum \u2192 Cotton \u2192 Fine textiles",
+    "export_good": "rum",
+    "intermediate_good": "cotton",
+    "import_luxury": "fine_textiles",
+    "legs": [
+      {
+        "leg": 1,
+        "action": "EXPORT",
+        "source": "rum",
+        "target": "cotton",
+        "desc": "Ship Rum to colonial frontier"
+      },
+      {
+        "leg": 2,
+        "action": "EXTRACTION",
+        "source": "cotton",
+        "target": "fine_textiles",
+        "desc": "Exchange for Cotton and trade for Fine textiles"
+      },
+      {
+        "leg": 3,
+        "action": "IMPORT",
+        "source": "fine_textiles",
+        "target": "metropole",
+        "desc": "Deliver Fine textiles to metropolitan port"
+      }
+    ],
+    "required_resources": [],
+    "required_climates": [
+      "subtropical",
+      "tropical",
+      "temperate"
+    ],
+    "required_recipes": [
+      "rum"
+    ],
+    "base_voyage_turns": 4,
+    "base_freight_cost": 14.0,
+    "tariff_rate": 0.12,
+    "status": "DORMANT_UNEXPLORED",
+    "pioneered_by": null,
+    "times_sailed": 0,
+    "total_volume_traded": 0.0
+  },
+  {
+    "circuit_id": "triangle_rum_cotton_tea",
+    "name": "Transatlantic Triangle: Rum \u2192 Cotton \u2192 Tea",
+    "export_good": "rum",
+    "intermediate_good": "cotton",
+    "import_luxury": "tea",
+    "legs": [
+      {
+        "leg": 1,
+        "action": "EXPORT",
+        "source": "rum",
+        "target": "cotton",
+        "desc": "Ship Rum to colonial frontier"
+      },
+      {
+        "leg": 2,
+        "action": "EXTRACTION",
+        "source": "cotton",
+        "target": "tea",
+        "desc": "Exchange for Cotton and trade for Tea"
+      },
+      {
+        "leg": 3,
+        "action": "IMPORT",
+        "source": "tea",
+        "target": "metropole",
+        "desc": "Deliver Tea to metropolitan port"
+      }
+    ],
+    "required_resources": [],
+    "required_climates": [
+      "subtropical",
+      "tropical",
+      "temperate"
+    ],
+    "required_recipes": [
+      "rum"
+    ],
+    "base_voyage_turns": 4,
+    "base_freight_cost": 14.0,
+    "tariff_rate": 0.12,
+    "status": "DORMANT_UNEXPLORED",
+    "pioneered_by": null,
+    "times_sailed": 0,
+    "total_volume_traded": 0.0
+  },
+  {
+    "circuit_id": "triangle_rum_sugar_foreign_luxuries",
+    "name": "Transatlantic Triangle: Rum \u2192 Sugar \u2192 Foreign luxuries",
+    "export_good": "rum",
+    "intermediate_good": "sugar",
+    "import_luxury": "foreign_luxuries",
+    "legs": [
+      {
+        "leg": 1,
+        "action": "EXPORT",
+        "source": "rum",
+        "target": "sugar",
+        "desc": "Ship Rum to colonial frontier"
+      },
+      {
+        "leg": 2,
+        "action": "EXTRACTION",
+        "source": "sugar",
+        "target": "foreign_luxuries",
+        "desc": "Exchange for Sugar and trade for Foreign luxuries"
+      },
+      {
+        "leg": 3,
+        "action": "IMPORT",
+        "source": "foreign_luxuries",
+        "target": "metropole",
+        "desc": "Deliver Foreign luxuries to metropolitan port"
+      }
+    ],
+    "required_resources": [],
+    "required_climates": [
+      "subtropical",
+      "tropical",
+      "temperate"
+    ],
+    "required_recipes": [
+      "rum"
+    ],
+    "base_voyage_turns": 4,
+    "base_freight_cost": 14.0,
+    "tariff_rate": 0.12,
+    "status": "DORMANT_UNEXPLORED",
+    "pioneered_by": null,
+    "times_sailed": 0,
+    "total_volume_traded": 0.0
+  },
+  {
+    "circuit_id": "triangle_rum_sugar_porcelain",
+    "name": "Transatlantic Triangle: Rum \u2192 Sugar \u2192 Porcelain",
+    "export_good": "rum",
+    "intermediate_good": "sugar",
+    "import_luxury": "porcelain",
+    "legs": [
+      {
+        "leg": 1,
+        "action": "EXPORT",
+        "source": "rum",
+        "target": "sugar",
+        "desc": "Ship Rum to colonial frontier"
+      },
+      {
+        "leg": 2,
+        "action": "EXTRACTION",
+        "source": "sugar",
+        "target": "porcelain",
+        "desc": "Exchange for Sugar and trade for Porcelain"
+      },
+      {
+        "leg": 3,
+        "action": "IMPORT",
+        "source": "porcelain",
+        "target": "metropole",
+        "desc": "Deliver Porcelain to metropolitan port"
+      }
+    ],
+    "required_resources": [],
+    "required_climates": [
+      "subtropical",
+      "tropical",
+      "temperate"
+    ],
+    "required_recipes": [
+      "rum"
+    ],
+    "base_voyage_turns": 4,
+    "base_freight_cost": 14.0,
+    "tariff_rate": 0.12,
+    "status": "DORMANT_UNEXPLORED",
+    "pioneered_by": null,
+    "times_sailed": 0,
+    "total_volume_traded": 0.0
+  },
+  {
+    "circuit_id": "triangle_rum_sugar_fine_textiles",
+    "name": "Transatlantic Triangle: Rum \u2192 Sugar \u2192 Fine textiles",
+    "export_good": "rum",
+    "intermediate_good": "sugar",
+    "import_luxury": "fine_textiles",
+    "legs": [
+      {
+        "leg": 1,
+        "action": "EXPORT",
+        "source": "rum",
+        "target": "sugar",
+        "desc": "Ship Rum to colonial frontier"
+      },
+      {
+        "leg": 2,
+        "action": "EXTRACTION",
+        "source": "sugar",
+        "target": "fine_textiles",
+        "desc": "Exchange for Sugar and trade for Fine textiles"
+      },
+      {
+        "leg": 3,
+        "action": "IMPORT",
+        "source": "fine_textiles",
+        "target": "metropole",
+        "desc": "Deliver Fine textiles to metropolitan port"
+      }
+    ],
+    "required_resources": [],
+    "required_climates": [
+      "subtropical",
+      "tropical",
+      "temperate"
+    ],
+    "required_recipes": [
+      "rum"
+    ],
+    "base_voyage_turns": 4,
+    "base_freight_cost": 14.0,
+    "tariff_rate": 0.12,
+    "status": "DORMANT_UNEXPLORED",
+    "pioneered_by": null,
+    "times_sailed": 0,
+    "total_volume_traded": 0.0
+  },
+  {
+    "circuit_id": "triangle_rum_sugar_tea",
+    "name": "Transatlantic Triangle: Rum \u2192 Sugar \u2192 Tea",
+    "export_good": "rum",
+    "intermediate_good": "sugar",
+    "import_luxury": "tea",
+    "legs": [
+      {
+        "leg": 1,
+        "action": "EXPORT",
+        "source": "rum",
+        "target": "sugar",
+        "desc": "Ship Rum to colonial frontier"
+      },
+      {
+        "leg": 2,
+        "action": "EXTRACTION",
+        "source": "sugar",
+        "target": "tea",
+        "desc": "Exchange for Sugar and trade for Tea"
+      },
+      {
+        "leg": 3,
+        "action": "IMPORT",
+        "source": "tea",
+        "target": "metropole",
+        "desc": "Deliver Tea to metropolitan port"
+      }
+    ],
+    "required_resources": [],
+    "required_climates": [
+      "subtropical",
+      "tropical",
+      "temperate"
+    ],
+    "required_recipes": [
+      "rum"
+    ],
+    "base_voyage_turns": 4,
+    "base_freight_cost": 14.0,
+    "tariff_rate": 0.12,
+    "status": "DORMANT_UNEXPLORED",
+    "pioneered_by": null,
+    "times_sailed": 0,
+    "total_volume_traded": 0.0
+  },
+  {
+    "circuit_id": "triangle_rum_tobacco_foreign_luxuries",
+    "name": "Transatlantic Triangle: Rum \u2192 Tobacco \u2192 Foreign luxuries",
+    "export_good": "rum",
+    "intermediate_good": "tobacco",
+    "import_luxury": "foreign_luxuries",
+    "legs": [
+      {
+        "leg": 1,
+        "action": "EXPORT",
+        "source": "rum",
+        "target": "tobacco",
+        "desc": "Ship Rum to colonial frontier"
+      },
+      {
+        "leg": 2,
+        "action": "EXTRACTION",
+        "source": "tobacco",
+        "target": "foreign_luxuries",
+        "desc": "Exchange for Tobacco and trade for Foreign luxuries"
+      },
+      {
+        "leg": 3,
+        "action": "IMPORT",
+        "source": "foreign_luxuries",
+        "target": "metropole",
+        "desc": "Deliver Foreign luxuries to metropolitan port"
+      }
+    ],
+    "required_resources": [],
+    "required_climates": [
+      "subtropical",
+      "tropical",
+      "temperate"
+    ],
+    "required_recipes": [
+      "rum"
+    ],
+    "base_voyage_turns": 4,
+    "base_freight_cost": 14.0,
+    "tariff_rate": 0.12,
+    "status": "DORMANT_UNEXPLORED",
+    "pioneered_by": null,
+    "times_sailed": 0,
+    "total_volume_traded": 0.0
+  },
+  {
+    "circuit_id": "triangle_rum_tobacco_porcelain",
+    "name": "Transatlantic Triangle: Rum \u2192 Tobacco \u2192 Porcelain",
+    "export_good": "rum",
+    "intermediate_good": "tobacco",
+    "import_luxury": "porcelain",
+    "legs": [
+      {
+        "leg": 1,
+        "action": "EXPORT",
+        "source": "rum",
+        "target": "tobacco",
+        "desc": "Ship Rum to colonial frontier"
+      },
+      {
+        "leg": 2,
+        "action": "EXTRACTION",
+        "source": "tobacco",
+        "target": "porcelain",
+        "desc": "Exchange for Tobacco and trade for Porcelain"
+      },
+      {
+        "leg": 3,
+        "action": "IMPORT",
+        "source": "porcelain",
+        "target": "metropole",
+        "desc": "Deliver Porcelain to metropolitan port"
+      }
+    ],
+    "required_resources": [],
+    "required_climates": [
+      "subtropical",
+      "tropical",
+      "temperate"
+    ],
+    "required_recipes": [
+      "rum"
+    ],
+    "base_voyage_turns": 4,
+    "base_freight_cost": 14.0,
+    "tariff_rate": 0.12,
+    "status": "DORMANT_UNEXPLORED",
+    "pioneered_by": null,
+    "times_sailed": 0,
+    "total_volume_traded": 0.0
+  },
+  {
+    "circuit_id": "triangle_rum_tobacco_fine_textiles",
+    "name": "Transatlantic Triangle: Rum \u2192 Tobacco \u2192 Fine textiles",
+    "export_good": "rum",
+    "intermediate_good": "tobacco",
+    "import_luxury": "fine_textiles",
+    "legs": [
+      {
+        "leg": 1,
+        "action": "EXPORT",
+        "source": "rum",
+        "target": "tobacco",
+        "desc": "Ship Rum to colonial frontier"
+      },
+      {
+        "leg": 2,
+        "action": "EXTRACTION",
+        "source": "tobacco",
+        "target": "fine_textiles",
+        "desc": "Exchange for Tobacco and trade for Fine textiles"
+      },
+      {
+        "leg": 3,
+        "action": "IMPORT",
+        "source": "fine_textiles",
+        "target": "metropole",
+        "desc": "Deliver Fine textiles to metropolitan port"
+      }
+    ],
+    "required_resources": [],
+    "required_climates": [
+      "subtropical",
+      "tropical",
+      "temperate"
+    ],
+    "required_recipes": [
+      "rum"
+    ],
+    "base_voyage_turns": 4,
+    "base_freight_cost": 14.0,
+    "tariff_rate": 0.12,
+    "status": "DORMANT_UNEXPLORED",
+    "pioneered_by": null,
+    "times_sailed": 0,
+    "total_volume_traded": 0.0
+  },
+  {
+    "circuit_id": "triangle_rum_tobacco_tea",
+    "name": "Transatlantic Triangle: Rum \u2192 Tobacco \u2192 Tea",
+    "export_good": "rum",
+    "intermediate_good": "tobacco",
+    "import_luxury": "tea",
+    "legs": [
+      {
+        "leg": 1,
+        "action": "EXPORT",
+        "source": "rum",
+        "target": "tobacco",
+        "desc": "Ship Rum to colonial frontier"
+      },
+      {
+        "leg": 2,
+        "action": "EXTRACTION",
+        "source": "tobacco",
+        "target": "tea",
+        "desc": "Exchange for Tobacco and trade for Tea"
+      },
+      {
+        "leg": 3,
+        "action": "IMPORT",
+        "source": "tea",
+        "target": "metropole",
+        "desc": "Deliver Tea to metropolitan port"
+      }
+    ],
+    "required_resources": [],
+    "required_climates": [
+      "subtropical",
+      "tropical",
+      "temperate"
+    ],
+    "required_recipes": [
+      "rum"
+    ],
+    "base_voyage_turns": 4,
+    "base_freight_cost": 14.0,
+    "tariff_rate": 0.12,
+    "status": "DORMANT_UNEXPLORED",
+    "pioneered_by": null,
+    "times_sailed": 0,
+    "total_volume_traded": 0.0
+  },
+  {
+    "circuit_id": "triangle_rum_captive_labor_foreign_luxuries",
+    "name": "Transatlantic Triangle: Rum \u2192 Captive labor \u2192 Foreign luxuries",
+    "export_good": "rum",
+    "intermediate_good": "captive_labor",
+    "import_luxury": "foreign_luxuries",
+    "legs": [
+      {
+        "leg": 1,
+        "action": "EXPORT",
+        "source": "rum",
+        "target": "captive_labor",
+        "desc": "Ship Rum to colonial frontier"
+      },
+      {
+        "leg": 2,
+        "action": "EXTRACTION",
+        "source": "captive_labor",
+        "target": "foreign_luxuries",
+        "desc": "Exchange for Captive labor and trade for Foreign luxuries"
+      },
+      {
+        "leg": 3,
+        "action": "IMPORT",
+        "source": "foreign_luxuries",
+        "target": "metropole",
+        "desc": "Deliver Foreign luxuries to metropolitan port"
+      }
+    ],
+    "required_resources": [],
+    "required_climates": [],
+    "required_recipes": [
+      "rum"
+    ],
+    "base_voyage_turns": 5,
+    "base_freight_cost": 14.0,
+    "tariff_rate": 0.12,
+    "status": "DORMANT_UNEXPLORED",
+    "pioneered_by": null,
+    "times_sailed": 0,
+    "total_volume_traded": 0.0
+  },
+  {
+    "circuit_id": "triangle_rum_captive_labor_porcelain",
+    "name": "Transatlantic Triangle: Rum \u2192 Captive labor \u2192 Porcelain",
+    "export_good": "rum",
+    "intermediate_good": "captive_labor",
+    "import_luxury": "porcelain",
+    "legs": [
+      {
+        "leg": 1,
+        "action": "EXPORT",
+        "source": "rum",
+        "target": "captive_labor",
+        "desc": "Ship Rum to colonial frontier"
+      },
+      {
+        "leg": 2,
+        "action": "EXTRACTION",
+        "source": "captive_labor",
+        "target": "porcelain",
+        "desc": "Exchange for Captive labor and trade for Porcelain"
+      },
+      {
+        "leg": 3,
+        "action": "IMPORT",
+        "source": "porcelain",
+        "target": "metropole",
+        "desc": "Deliver Porcelain to metropolitan port"
+      }
+    ],
+    "required_resources": [],
+    "required_climates": [],
+    "required_recipes": [
+      "rum"
+    ],
+    "base_voyage_turns": 5,
+    "base_freight_cost": 14.0,
+    "tariff_rate": 0.12,
+    "status": "DORMANT_UNEXPLORED",
+    "pioneered_by": null,
+    "times_sailed": 0,
+    "total_volume_traded": 0.0
+  },
+  {
+    "circuit_id": "triangle_rum_captive_labor_fine_textiles",
+    "name": "Transatlantic Triangle: Rum \u2192 Captive labor \u2192 Fine textiles",
+    "export_good": "rum",
+    "intermediate_good": "captive_labor",
+    "import_luxury": "fine_textiles",
+    "legs": [
+      {
+        "leg": 1,
+        "action": "EXPORT",
+        "source": "rum",
+        "target": "captive_labor",
+        "desc": "Ship Rum to colonial frontier"
+      },
+      {
+        "leg": 2,
+        "action": "EXTRACTION",
+        "source": "captive_labor",
+        "target": "fine_textiles",
+        "desc": "Exchange for Captive labor and trade for Fine textiles"
+      },
+      {
+        "leg": 3,
+        "action": "IMPORT",
+        "source": "fine_textiles",
+        "target": "metropole",
+        "desc": "Deliver Fine textiles to metropolitan port"
+      }
+    ],
+    "required_resources": [],
+    "required_climates": [],
+    "required_recipes": [
+      "rum"
+    ],
+    "base_voyage_turns": 5,
+    "base_freight_cost": 14.0,
+    "tariff_rate": 0.12,
+    "status": "DORMANT_UNEXPLORED",
+    "pioneered_by": null,
+    "times_sailed": 0,
+    "total_volume_traded": 0.0
+  },
+  {
+    "circuit_id": "triangle_rum_captive_labor_tea",
+    "name": "Transatlantic Triangle: Rum \u2192 Captive labor \u2192 Tea",
+    "export_good": "rum",
+    "intermediate_good": "captive_labor",
+    "import_luxury": "tea",
+    "legs": [
+      {
+        "leg": 1,
+        "action": "EXPORT",
+        "source": "rum",
+        "target": "captive_labor",
+        "desc": "Ship Rum to colonial frontier"
+      },
+      {
+        "leg": 2,
+        "action": "EXTRACTION",
+        "source": "captive_labor",
+        "target": "tea",
+        "desc": "Exchange for Captive labor and trade for Tea"
+      },
+      {
+        "leg": 3,
+        "action": "IMPORT",
+        "source": "tea",
+        "target": "metropole",
+        "desc": "Deliver Tea to metropolitan port"
+      }
+    ],
+    "required_resources": [],
+    "required_climates": [],
+    "required_recipes": [
+      "rum"
+    ],
+    "base_voyage_turns": 5,
+    "base_freight_cost": 14.0,
+    "tariff_rate": 0.12,
+    "status": "DORMANT_UNEXPLORED",
+    "pioneered_by": null,
+    "times_sailed": 0,
+    "total_volume_traded": 0.0
+  },
+  {
+    "circuit_id": "bilateral_cloth_foreign_luxuries",
+    "name": "Direct Trade: Cloth \u2192 Foreign luxuries",
+    "export_good": "cloth",
+    "intermediate_good": null,
+    "import_luxury": "foreign_luxuries",
+    "legs": [
+      {
+        "leg": 1,
+        "action": "EXPORT",
+        "source": "cloth",
+        "target": "foreign_luxuries",
+        "desc": "Export Cloth to foreign emporium"
+      },
+      {
+        "leg": 2,
+        "action": "IMPORT",
+        "source": "foreign_luxuries",
+        "target": "metropole",
+        "desc": "Import Foreign luxuries to home port"
+      }
+    ],
+    "required_resources": [],
+    "required_climates": [],
+    "required_recipes": [
+      "cloth"
+    ],
+    "base_voyage_turns": 3,
+    "base_freight_cost": 10.0,
+    "tariff_rate": 0.1,
+    "status": "DORMANT_UNEXPLORED",
+    "pioneered_by": null,
+    "times_sailed": 0,
+    "total_volume_traded": 0.0
+  },
+  {
+    "circuit_id": "bilateral_cloth_porcelain",
+    "name": "Direct Trade: Cloth \u2192 Porcelain",
+    "export_good": "cloth",
+    "intermediate_good": null,
+    "import_luxury": "porcelain",
+    "legs": [
+      {
+        "leg": 1,
+        "action": "EXPORT",
+        "source": "cloth",
+        "target": "porcelain",
+        "desc": "Export Cloth to foreign emporium"
+      },
+      {
+        "leg": 2,
+        "action": "IMPORT",
+        "source": "porcelain",
+        "target": "metropole",
+        "desc": "Import Porcelain to home port"
+      }
+    ],
+    "required_resources": [],
+    "required_climates": [],
+    "required_recipes": [
+      "cloth"
+    ],
+    "base_voyage_turns": 3,
+    "base_freight_cost": 10.0,
+    "tariff_rate": 0.1,
+    "status": "DORMANT_UNEXPLORED",
+    "pioneered_by": null,
+    "times_sailed": 0,
+    "total_volume_traded": 0.0
+  },
+  {
+    "circuit_id": "bilateral_cloth_fine_textiles",
+    "name": "Direct Trade: Cloth \u2192 Fine textiles",
+    "export_good": "cloth",
+    "intermediate_good": null,
+    "import_luxury": "fine_textiles",
+    "legs": [
+      {
+        "leg": 1,
+        "action": "EXPORT",
+        "source": "cloth",
+        "target": "fine_textiles",
+        "desc": "Export Cloth to foreign emporium"
+      },
+      {
+        "leg": 2,
+        "action": "IMPORT",
+        "source": "fine_textiles",
+        "target": "metropole",
+        "desc": "Import Fine textiles to home port"
+      }
+    ],
+    "required_resources": [],
+    "required_climates": [],
+    "required_recipes": [
+      "cloth"
+    ],
+    "base_voyage_turns": 3,
+    "base_freight_cost": 10.0,
+    "tariff_rate": 0.1,
+    "status": "DORMANT_UNEXPLORED",
+    "pioneered_by": null,
+    "times_sailed": 0,
+    "total_volume_traded": 0.0
+  },
+  {
+    "circuit_id": "bilateral_cloth_tea",
+    "name": "Direct Trade: Cloth \u2192 Tea",
+    "export_good": "cloth",
+    "intermediate_good": null,
+    "import_luxury": "tea",
+    "legs": [
+      {
+        "leg": 1,
+        "action": "EXPORT",
+        "source": "cloth",
+        "target": "tea",
+        "desc": "Export Cloth to foreign emporium"
+      },
+      {
+        "leg": 2,
+        "action": "IMPORT",
+        "source": "tea",
+        "target": "metropole",
+        "desc": "Import Tea to home port"
+      }
+    ],
+    "required_resources": [],
+    "required_climates": [],
+    "required_recipes": [
+      "cloth"
+    ],
+    "base_voyage_turns": 3,
+    "base_freight_cost": 10.0,
+    "tariff_rate": 0.1,
+    "status": "DORMANT_UNEXPLORED",
+    "pioneered_by": null,
+    "times_sailed": 0,
+    "total_volume_traded": 0.0
+  },
+  {
+    "circuit_id": "bilateral_iron_foreign_luxuries",
+    "name": "Direct Trade: Iron \u2192 Foreign luxuries",
+    "export_good": "iron",
+    "intermediate_good": null,
+    "import_luxury": "foreign_luxuries",
+    "legs": [
+      {
+        "leg": 1,
+        "action": "EXPORT",
+        "source": "iron",
+        "target": "foreign_luxuries",
+        "desc": "Export Iron to foreign emporium"
+      },
+      {
+        "leg": 2,
+        "action": "IMPORT",
+        "source": "foreign_luxuries",
+        "target": "metropole",
+        "desc": "Import Foreign luxuries to home port"
+      }
+    ],
+    "required_resources": [
+      "has_iron_deposit"
+    ],
+    "required_climates": [],
+    "required_recipes": [
+      "iron"
+    ],
+    "base_voyage_turns": 3,
+    "base_freight_cost": 10.0,
+    "tariff_rate": 0.1,
+    "status": "DORMANT_UNEXPLORED",
+    "pioneered_by": null,
+    "times_sailed": 0,
+    "total_volume_traded": 0.0
+  },
+  {
+    "circuit_id": "bilateral_iron_porcelain",
+    "name": "Direct Trade: Iron \u2192 Porcelain",
+    "export_good": "iron",
+    "intermediate_good": null,
+    "import_luxury": "porcelain",
+    "legs": [
+      {
+        "leg": 1,
+        "action": "EXPORT",
+        "source": "iron",
+        "target": "porcelain",
+        "desc": "Export Iron to foreign emporium"
+      },
+      {
+        "leg": 2,
+        "action": "IMPORT",
+        "source": "porcelain",
+        "target": "metropole",
+        "desc": "Import Porcelain to home port"
+      }
+    ],
+    "required_resources": [
+      "has_iron_deposit"
+    ],
+    "required_climates": [],
+    "required_recipes": [
+      "iron"
+    ],
+    "base_voyage_turns": 3,
+    "base_freight_cost": 10.0,
+    "tariff_rate": 0.1,
+    "status": "DORMANT_UNEXPLORED",
+    "pioneered_by": null,
+    "times_sailed": 0,
+    "total_volume_traded": 0.0
+  },
+  {
+    "circuit_id": "bilateral_iron_fine_textiles",
+    "name": "Direct Trade: Iron \u2192 Fine textiles",
+    "export_good": "iron",
+    "intermediate_good": null,
+    "import_luxury": "fine_textiles",
+    "legs": [
+      {
+        "leg": 1,
+        "action": "EXPORT",
+        "source": "iron",
+        "target": "fine_textiles",
+        "desc": "Export Iron to foreign emporium"
+      },
+      {
+        "leg": 2,
+        "action": "IMPORT",
+        "source": "fine_textiles",
+        "target": "metropole",
+        "desc": "Import Fine textiles to home port"
+      }
+    ],
+    "required_resources": [
+      "has_iron_deposit"
+    ],
+    "required_climates": [],
+    "required_recipes": [
+      "iron"
+    ],
+    "base_voyage_turns": 3,
+    "base_freight_cost": 10.0,
+    "tariff_rate": 0.1,
+    "status": "DORMANT_UNEXPLORED",
+    "pioneered_by": null,
+    "times_sailed": 0,
+    "total_volume_traded": 0.0
+  },
+  {
+    "circuit_id": "bilateral_iron_tea",
+    "name": "Direct Trade: Iron \u2192 Tea",
+    "export_good": "iron",
+    "intermediate_good": null,
+    "import_luxury": "tea",
+    "legs": [
+      {
+        "leg": 1,
+        "action": "EXPORT",
+        "source": "iron",
+        "target": "tea",
+        "desc": "Export Iron to foreign emporium"
+      },
+      {
+        "leg": 2,
+        "action": "IMPORT",
+        "source": "tea",
+        "target": "metropole",
+        "desc": "Import Tea to home port"
+      }
+    ],
+    "required_resources": [
+      "has_iron_deposit"
+    ],
+    "required_climates": [],
+    "required_recipes": [
+      "iron"
+    ],
+    "base_voyage_turns": 3,
+    "base_freight_cost": 10.0,
+    "tariff_rate": 0.1,
+    "status": "DORMANT_UNEXPLORED",
+    "pioneered_by": null,
+    "times_sailed": 0,
+    "total_volume_traded": 0.0
+  },
+  {
+    "circuit_id": "bilateral_rum_foreign_luxuries",
+    "name": "Direct Trade: Rum \u2192 Foreign luxuries",
+    "export_good": "rum",
+    "intermediate_good": null,
+    "import_luxury": "foreign_luxuries",
+    "legs": [
+      {
+        "leg": 1,
+        "action": "EXPORT",
+        "source": "rum",
+        "target": "foreign_luxuries",
+        "desc": "Export Rum to foreign emporium"
+      },
+      {
+        "leg": 2,
+        "action": "IMPORT",
+        "source": "foreign_luxuries",
+        "target": "metropole",
+        "desc": "Import Foreign luxuries to home port"
+      }
+    ],
+    "required_resources": [],
+    "required_climates": [],
+    "required_recipes": [
+      "rum"
+    ],
+    "base_voyage_turns": 3,
+    "base_freight_cost": 10.0,
+    "tariff_rate": 0.1,
+    "status": "DORMANT_UNEXPLORED",
+    "pioneered_by": null,
+    "times_sailed": 0,
+    "total_volume_traded": 0.0
+  },
+  {
+    "circuit_id": "bilateral_rum_porcelain",
+    "name": "Direct Trade: Rum \u2192 Porcelain",
+    "export_good": "rum",
+    "intermediate_good": null,
+    "import_luxury": "porcelain",
+    "legs": [
+      {
+        "leg": 1,
+        "action": "EXPORT",
+        "source": "rum",
+        "target": "porcelain",
+        "desc": "Export Rum to foreign emporium"
+      },
+      {
+        "leg": 2,
+        "action": "IMPORT",
+        "source": "porcelain",
+        "target": "metropole",
+        "desc": "Import Porcelain to home port"
+      }
+    ],
+    "required_resources": [],
+    "required_climates": [],
+    "required_recipes": [
+      "rum"
+    ],
+    "base_voyage_turns": 3,
+    "base_freight_cost": 10.0,
+    "tariff_rate": 0.1,
+    "status": "DORMANT_UNEXPLORED",
+    "pioneered_by": null,
+    "times_sailed": 0,
+    "total_volume_traded": 0.0
+  },
+  {
+    "circuit_id": "bilateral_rum_fine_textiles",
+    "name": "Direct Trade: Rum \u2192 Fine textiles",
+    "export_good": "rum",
+    "intermediate_good": null,
+    "import_luxury": "fine_textiles",
+    "legs": [
+      {
+        "leg": 1,
+        "action": "EXPORT",
+        "source": "rum",
+        "target": "fine_textiles",
+        "desc": "Export Rum to foreign emporium"
+      },
+      {
+        "leg": 2,
+        "action": "IMPORT",
+        "source": "fine_textiles",
+        "target": "metropole",
+        "desc": "Import Fine textiles to home port"
+      }
+    ],
+    "required_resources": [],
+    "required_climates": [],
+    "required_recipes": [
+      "rum"
+    ],
+    "base_voyage_turns": 3,
+    "base_freight_cost": 10.0,
+    "tariff_rate": 0.1,
+    "status": "DORMANT_UNEXPLORED",
+    "pioneered_by": null,
+    "times_sailed": 0,
+    "total_volume_traded": 0.0
+  },
+  {
+    "circuit_id": "bilateral_rum_tea",
+    "name": "Direct Trade: Rum \u2192 Tea",
+    "export_good": "rum",
+    "intermediate_good": null,
+    "import_luxury": "tea",
+    "legs": [
+      {
+        "leg": 1,
+        "action": "EXPORT",
+        "source": "rum",
+        "target": "tea",
+        "desc": "Export Rum to foreign emporium"
+      },
+      {
+        "leg": 2,
+        "action": "IMPORT",
+        "source": "tea",
+        "target": "metropole",
+        "desc": "Import Tea to home port"
+      }
+    ],
+    "required_resources": [],
+    "required_climates": [],
+    "required_recipes": [
+      "rum"
+    ],
+    "base_voyage_turns": 3,
+    "base_freight_cost": 10.0,
+    "tariff_rate": 0.1,
+    "status": "DORMANT_UNEXPLORED",
+    "pioneered_by": null,
+    "times_sailed": 0,
+    "total_volume_traded": 0.0
+  }
+]

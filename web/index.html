@@ -3081,7 +3081,7 @@
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
         syncTerrainTexture();
-        const isPhotoreal = (state.mode === 'photorealistic' || state.mode === 'regnum');
+        const isPhotoreal = (state.mode === 'photorealistic' || state.mode === 'coc' || state.mode === 'regnum');
         const useTex = isPhotoreal && hasTerrainTexture;
 
         const shadowModeInt = (curShadowMode === 'shadow_map') ? 1 : (curShadowMode === 'ray_trace') ? 2 : 0;
@@ -3428,7 +3428,7 @@
         completeProgress();
         isMeshFetching = false;
 
-        const isPhotoreal = (state.mode === 'photorealistic' || state.mode === 'regnum');
+        const isPhotoreal = (state.mode === 'photorealistic' || state.mode === 'coc' || state.mode === 'regnum');
         const is3D = (Math.abs(state.rot_pitch) > 0.5 || Math.abs(state.rot_yaw) > 0.5 || isRotating);
         if ((state.engine === 'gpu' && state.mode === 'micropolys') || (isPhotoreal && is3D) || isRotating) {
           gpuCanvas.style.display = 'block';
@@ -3537,7 +3537,7 @@
       state.rot_yaw = 0.0;
       updateRotHud();
       saveCurrentSettings();
-      if (state.mode === 'photorealistic' || state.mode === 'regnum') {
+      if (state.mode === 'photorealistic' || state.mode === 'coc' || state.mode === 'regnum') {
         gpuCanvas.style.display = 'none';
         mapImg.style.display = 'block';
       } else {
@@ -3592,7 +3592,7 @@
       if (e.target.closest('.zoom-hud') || e.target.closest('.inspect-card') || e.target.closest('.rot-hud')) return;
       hasMoved = false;
 
-      const isPhotoreal = (state.mode === 'photorealistic' || state.mode === 'regnum');
+      const isPhotoreal = (state.mode === 'photorealistic' || state.mode === 'coc' || state.mode === 'regnum');
       const isRotatableMode = (state.mode === 'micropolys' || isPhotoreal);
       const is3D = (Math.abs(state.rot_pitch) > 0.5 || Math.abs(state.rot_yaw) > 0.5);
       const isRightClick = (e.button === 2);
@@ -3686,7 +3686,7 @@
             // In top-down view, display 2D map
             gpuCanvas.style.display = 'none';
             mapImg.style.display = 'block';
-            if (state.mode !== 'photorealistic' && state.mode !== 'regnum') {
+            if (state.mode !== 'photorealistic' && state.mode !== 'coc' && state.mode !== 'regnum') {
               triggerUpdate(false);
             }
           }
@@ -3731,7 +3731,7 @@
       if (e.touches.length === 1) {
         hasMoved = false;
         isPinching = false;
-        const isPhotoreal = (state.mode === 'photorealistic' || state.mode === 'regnum');
+        const isPhotoreal = (state.mode === 'photorealistic' || state.mode === 'coc' || state.mode === 'regnum');
         const isRotatableMode = (state.mode === 'micropolys' || isPhotoreal);
         const is3D = (Math.abs(state.rot_pitch) > 0.5 || Math.abs(state.rot_yaw) > 0.5);
         const shouldRotate = (dragMode === 'rotate') || (dragMode === 'auto' && (isRotatableMode || is3D));
@@ -3840,7 +3840,7 @@
           } else if (!is3D) {
             gpuCanvas.style.display = 'none';
             mapImg.style.display = 'block';
-            if (state.mode !== 'photorealistic' && state.mode !== 'regnum') {
+            if (state.mode !== 'photorealistic' && state.mode !== 'coc' && state.mode !== 'regnum') {
               triggerUpdate(false);
             }
           }
@@ -3987,10 +3987,10 @@
 
         let engineLabel = 'CPU Mesh';
         if (engHdr === 'gpu') engineLabel = '⚡ ModernGL GPU';
-        else if (engHdr === 'regnum-topo' || state.mode === 'photorealistic' || state.mode === 'regnum') engineLabel = '🎨 REGNUM Topo';
+        else if (engHdr === 'coc-topo' || engHdr === 'regnum-topo' || state.mode === 'photorealistic' || state.mode === 'coc' || state.mode === 'regnum') engineLabel = '🎨 Call of Capital (CoC) Topo';
         else if (engHdr) engineLabel = engHdr;
         perfStatus.textContent = `${engineLabel} • Computed in ${lastTerrainComputeTimeStr} • Seed ${state.seed}`;
-        if (state.mode === 'photorealistic' || state.mode === 'regnum') {
+        if (state.mode === 'photorealistic' || state.mode === 'coc' || state.mode === 'regnum') {
           polyBadge.textContent = 'Photorealistic Topo';
         } else if (engHdr === 'gpu') {
           polyBadge.textContent = `${resHdr} UHD`;

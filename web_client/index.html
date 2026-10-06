@@ -9,9 +9,19 @@
   <title>Call of Capital — Sovereign Macroeconomic Simulation</title>
   <link rel="stylesheet" href="style.css?v=9">
   <script src="ui_utils.js?v=1"></script>
+  <script src="dom_builder.js?v=1"></script>
   <script src="hex_geometry.js?v=1"></script>
+  <script src="voronoi_geometry.js?v=2"></script>
+  <script src="projection_3d.js?v=2"></script>
+  <script src="trade_animator.js?v=2"></script>
+  <script src="terrain_layer.js?v=1"></script>
+  <script src="terrain_webgl.js?v=1"></script>
   <script src="state_sync.js?v=1"></script>
+  <script src="state_store.js?v=1"></script>
   <script src="chart_renderer.js?v=1"></script>
+  <script src="vis_pyramid.js?v=1"></script>
+  <script src="vis_radar_attractor.js?v=1"></script>
+  <script src="vis_circuits.js?v=1"></script>
   <script src="help_content.js?v=1"></script>
 </head>
 <body>
@@ -88,6 +98,7 @@
         <button id="btn-compare" class="btn btn-ghost" title="Compare All Nations [C]">⚖️ <span class="btn-text">Compare</span></button>
         <button id="btn-help" class="btn btn-ghost" title="Game Manual & Help [?]">❓ <span class="btn-text">Help</span></button>
         <button id="btn-qr" class="btn btn-icon" title="Scan to Play on iPhone">📱</button>
+        <button id="btn-settings" class="btn btn-icon" title="Simulation Settings [F10]">⚙️</button>
         <button id="btn-new" class="btn btn-icon" title="Randomize World Seed">🎲</button>
       </div>
     </header>
@@ -125,6 +136,10 @@
             <span class="dock-icon">⚔️</span>
             <span class="dock-title">Army</span>
           </button>
+          <button class="dock-tab-btn" data-drawer="progress" title="Progress & Works [P]">
+            <span class="dock-icon">⏱️</span>
+            <span class="dock-title">Progress</span>
+          </button>
         </nav>
 
         <!-- Slide-out Drawer Panel -->
@@ -137,6 +152,7 @@
               <button class="suite-tab-icon-btn" data-drawer="debt" title="Debt [S]">📜</button>
               <button class="suite-tab-icon-btn" data-drawer="science" title="Science [T]">🔬</button>
               <button class="suite-tab-icon-btn" data-drawer="military" title="Military [M]">⚔️</button>
+              <button class="suite-tab-icon-btn" data-drawer="progress" title="Progress [P]">⏱️</button>
             </div>
             <h3 id="drawer-title">Sovereign Suite</h3>
             <button id="btn-close-left" class="btn-icon-close" title="Close Drawer [Esc]">✕</button>
@@ -511,6 +527,19 @@
                 <div id="military-armies-list" class="cards-list"></div>
               </div>
             </div>
+
+            <!-- 7. PROGRESS SUITE (P) -->
+            <div id="pane-progress" class="drawer-pane">
+              <div class="pane-header-info">
+                <div class="tier-filter-chips">
+                  <button class="chip active" data-progress-mode="active">Active Nation</button>
+                  <button class="chip" data-progress-mode="all">All Nations</button>
+                </div>
+                <span id="stalled-warning-badge" class="badge-unrest mob hidden">⚠️ Stalled</span>
+              </div>
+
+              <div id="progress-items-container" class="mt-2 cards-list"></div>
+            </div>
           </div>
         </div>
       </aside>
@@ -570,11 +599,41 @@
 
         <!-- Floating Zoom & Reset Controls -->
         <div class="floating-controls">
+          <button id="btn-toggle-3d" class="ctrl-btn active" title="Toggle 3D Perspective [3]" aria-label="Toggle 3D Perspective">3D</button>
           <button id="btn-toggle-terrain" class="ctrl-btn active" title="Toggle Photorealistic Terrain" aria-label="Toggle Photorealistic Terrain">🗺️</button>
           <button id="btn-zoom-in" class="ctrl-btn" title="Zoom In (+)">+</button>
           <button id="btn-zoom-out" class="ctrl-btn" title="Zoom Out (−)">−</button>
           <button id="btn-reset-cam" class="ctrl-btn" title="Reset View (R)">⌖</button>
         </div>
+
+        <!-- Seasonal Agricultural Clock HUD [Top-Right] -->
+        <div id="seasonal-clock" class="seasonal-clock-hud" title="10-Turn Seasonal Cycle & Bio Multiplier">
+          <div class="seasonal-header">
+            <span class="seasonal-icon" id="seasonal-icon">🌱</span>
+            <span class="seasonal-name text-green" id="seasonal-name">Early Spring</span>
+            <span class="seasonal-year text-dim" id="seasonal-year">Yr 1</span>
+            <span class="seasonal-mult text-gold" id="seasonal-mult">+0%</span>
+          </div>
+          <div class="seasonal-ribbon" id="seasonal-ribbon">
+            <div class="season-seg" data-turn="0"></div>
+            <div class="season-seg" data-turn="1"></div>
+            <div class="season-seg" data-turn="2"></div>
+            <div class="season-seg" data-turn="3"></div>
+            <div class="season-seg" data-turn="4"></div>
+            <div class="season-seg" data-turn="5"></div>
+            <div class="season-seg" data-turn="6"></div>
+            <div class="season-seg" data-turn="7"></div>
+            <div class="season-seg" data-turn="8"></div>
+            <div class="season-seg" data-turn="9"></div>
+          </div>
+        </div>
+        <div id="seasonal-popover" class="macro-tooltip-popover seasonal-popover hidden" role="tooltip"></div>
+
+        <!-- Guided Scenario Priority Pressures Ribbon -->
+        <div id="scenario-pressures-ribbon" class="scenario-pressures-ribbon hidden"></div>
+
+        <!-- Live Hex Hover Inspector Card -->
+        <div id="hex-hover-card" class="hex-hover-card hidden"></div>
 
         <!-- Quick Inspection Tooltip / Pill -->
         <div id="quick-pill" class="quick-pill hidden">
@@ -935,10 +994,74 @@
       </div>
     </div>
 
+    <!-- MODAL 6: SETTINGS MODAL [F10] -->
+    <div id="settings-modal" class="modal hidden">
+      <div class="modal-backdrop" id="settings-backdrop"></div>
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3>⚙️ Simulation & Display Settings [F10]</h3>
+          <button id="btn-close-settings" class="btn-close">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="gov-card">
+            <h4 class="card-title">Simulation Speed</h4>
+            <div class="slider-control mt-2">
+              <div class="slider-header">
+                <span>Auto-Step Interval</span>
+                <strong id="lbl-sim-speed">150 ms</strong>
+              </div>
+              <input type="range" id="slider-sim-speed" min="50" max="600" step="25" value="150">
+            </div>
+          </div>
+
+          <div class="gov-card mt-3">
+            <h4 class="card-title">Thematic Map & Visual Overlays</h4>
+            <div class="toggle-control mt-2">
+              <label class="switch-label">
+                <input type="checkbox" id="chk-trade-routes" checked>
+                <span>Overland Trade Route Lines</span>
+              </label>
+            </div>
+            <div class="toggle-control mt-2">
+              <label class="switch-label">
+                <input type="checkbox" id="chk-trade-arrows" checked>
+                <span>Animated Cyan Commodity Flow Arrows</span>
+              </label>
+            </div>
+            <div class="toggle-control mt-2">
+              <label class="switch-label">
+                <input type="checkbox" id="chk-arbitrage-rings" checked>
+                <span>Market Price Arbitrage Rings & Badges</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="gov-card mt-3">
+            <h4 class="card-title">World Generation Presets</h4>
+            <div class="btn-group-row mt-2">
+              <button id="btn-settings-reload" class="btn btn-secondary btn-block">🎲 Generate Random World Seed</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL 7: SCENARIO BOOKEND & DEBRIEF MODAL -->
+    <div id="scenario-bookend-modal" class="modal hidden">
+      <div class="modal-backdrop" id="scenario-bookend-backdrop"></div>
+      <div class="modal-card modal-wide modal-xl">
+        <div class="modal-header">
+          <h3 id="scenario-bookend-title">📜 Scenario Debrief & Campaign Chronicle</h3>
+          <button id="btn-close-bookend" class="btn-close">✕</button>
+        </div>
+        <div class="modal-body" id="scenario-bookend-body"></div>
+      </div>
+    </div>
+
     <!-- Toast Notifications Feedback Container -->
     <div id="toast-container" class="toast-container"></div>
   </div>
 
-  <script src="client.js?v=9"></script>
+  <script src="client.js?v=11"></script>
 </body>
 </html>

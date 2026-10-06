@@ -753,3 +753,7 @@ def render_regnum_terrain(
     # Pygame expects (width, height, 3) where array is indexed (x, y)
     surf = pygame.surfarray.make_surface(np.transpose(img_uint8, (1, 0, 2)))
     return surf
+
+
+# Backwards compatibility alias
+render_coc_terrain = render_regnum_terrain

@@ -2,6 +2,8 @@
 Factions, grievances, and unrest metrics for a Region.
 """
 
+import math
+
 from goods import Goods
 from faction import Faction
 
@@ -113,6 +115,8 @@ def apply_policy_satisfaction(region):
                 d.satisfied = wage_cap_sat
             elif d.name == 'free_labor':
                 d.satisfied = free_labor_sat
+            if d.name in getattr(region, 'compromise_concessions', ()):
+                d.satisfied = max(d.satisfied, 0.85)
 
 
 def accumulate_grievances(region, t):
@@ -125,13 +129,14 @@ def accumulate_grievances(region, t):
     prior_grievances = ({f.name: dict(f.grievances) for f in region.factions.factions.values()}
                         if grievance_scale != 1.0 else {})
     # hunger
-    hungry_now = sum(1 for a in agents
-                     if not a.is_corporation and not a.is_government
-                     and a.hungry_steps > 0)
+    from nutrition import deficit_fraction
+    hungry_now = sum(deficit_fraction(a) for a in agents
+                     if not a.is_corporation and not a.is_government)
     mem_hunger = sum(a.mem_avg('mem_hunger', 0.0)
                      for a in agents
                      if not a.is_corporation and not a.is_government)
-    hunger_score = min(3.0, hungry_now / 30.0 + mem_hunger / 120.0)
+    hunger_pressure = hungry_now / 30.0 + mem_hunger / 120.0
+    hunger_score = 3.0 * (1.0 - math.exp(-hunger_pressure / 3.0))
     # repression memory
     trauma = sum(a.mem_avg('mem_casualties', 0.0)
                  + a.mem_avg('mem_promises', 0.0)

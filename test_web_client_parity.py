@@ -202,6 +202,107 @@ class TestWebClientParity(unittest.TestCase):
         self.assertGreater(len(cs['tab3_forex']['banking']), 0)
         self.assertGreater(len(cs['tab3_forex']['fx_matrix']), 0)
 
+    def test_progress_suite_serialization(self):
+        w = self.sim.serialize_world()
+        self.assertIn('progress_suite', w)
+        ps = w['progress_suite']
+        self.assertIn('active_nation', ps)
+        self.assertIn('all_nations', ps)
+        self.assertIn('stalled_count', ps)
+
+    def test_emergency_subsidy_command(self):
+        p_nat = self.sim.player_nation_name
+        nation = next(n for n in self.sim.nations if n.name == p_nat)
+        tile = nation.tiles[0]
+
+        # Build a project
+        res_build = self.sim.execute_command(CommandMessage(CommandType.BUILD_PROJECT, {
+            'tile': tile.name, 'building': 'barge_canal'
+        }))
+        self.assertTrue(res_build['success'])
+
+        # Stall project and verify subsidy
+        projs = getattr(tile, 'construction_projects', []) + getattr(nation, 'construction_projects', [])
+        self.assertGreater(len(projs), 0)
+        proj = projs[0]
+        proj.status = 'stalled'
+        proj.stall_reason = 'missing_materials'
+
+        # Ensure nation government has cash
+        if getattr(nation, 'government', None) and getattr(nation.government, 'agent', None):
+            nation.government.agent.cash = 500.0
+
+        res_sub = self.sim.execute_command(CommandMessage(CommandType.EMERGENCY_OVERRUN_SUBSIDY, {
+            'project_id': proj.project_id, 'amount': 100.0
+        }))
+        self.assertTrue(res_sub['success'], res_sub)
+
+    def test_seasonal_clock_serialization(self):
+        w = self.sim.serialize_world()
+        self.assertIn('seasonal_info', w)
+        si = w['seasonal_info']
+        self.assertIn('year', si)
+        self.assertIn('turn_in_year', si)
+        self.assertIn('name', si)
+        self.assertIn('icon', si)
+        self.assertIn('color', si)
+        self.assertIn('phase_desc', si)
+        self.assertIn('mult', si)
+        self.assertIn('pct_delta', si)
+        self.assertIn('granary_food', si)
+        self.assertIn('buffer_turns', si)
+
+    def test_trade_network_serialization(self):
+        w = self.sim.serialize_world()
+        self.assertIn('trade_network', w)
+        tn = w['trade_network']
+        self.assertIn('edges', tn)
+        self.assertIn('flows', tn)
+        self.assertGreater(len(tn['edges']), 0)
+        e0 = tn['edges'][0]
+        self.assertIn('from', e0)
+        self.assertIn('to', e0)
+
+    def test_scenario_pressures_serialization(self):
+        w = self.sim.serialize_world()
+        self.assertIn('scenario_info', w)
+        si = w['scenario_info']
+        self.assertIn('pressures', si)
+        pressures = si['pressures']
+        self.assertGreater(len(pressures), 0)
+        p0 = pressures[0]
+        self.assertIn('title', p0)
+        self.assertIn('value', p0)
+        self.assertIn('tone', p0)
+
+    def test_tile_color_serialization(self):
+        w = self.sim.serialize_world()
+        self.assertIn('tiles', w)
+        self.assertGreater(len(w['tiles']), 0)
+        for tile_summary in w['tiles'][:20]:
+            self.assertIn('color', tile_summary)
+            color = tile_summary['color']
+            self.assertIsNotNone(color)
+            self.assertTrue(color.startswith('#'), f"Expected hex color, got {color}")
+            self.assertEqual(len(color), 7)
+            # Ensure not black or dark void
+            self.assertNotEqual(color.lower(), '#000000')
+
+        # Test deep tile serialization
+        t0 = self.sim.tiles[0]
+        deep = self.sim.serialize_tile(t0, turn=self.sim.turn)
+        self.assertIn('color', deep)
+        self.assertIsNotNone(deep['color'])
+        self.assertTrue(deep['color'].startswith('#'))
+
+    def test_web_static_directory_unification(self):
+        root = os.path.dirname(os.path.abspath(__file__))
+        web_client = os.path.join(root, 'web_client')
+        client_static = os.path.join(root, 'client', 'web', 'static')
+        self.assertTrue(os.path.isdir(web_client))
+        self.assertTrue(os.path.isdir(client_static))
+        self.assertEqual(os.path.realpath(web_client), os.path.realpath(client_static))
+
 
 if __name__ == '__main__':
     unittest.main()

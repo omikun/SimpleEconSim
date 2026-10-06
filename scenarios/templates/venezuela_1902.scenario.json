@@ -1,0 +1,152 @@
+{
+  "format": "regnum.scenario.v2",
+  "id": "venezuela_1902",
+  "meta": {
+    "title": "Venezuela's Naval Blockade and Sovereign Arbitration",
+    "year": 1902,
+    "horizon_turns": 15,
+    "briefing": "President Cipriano Castro refuses to pay foreign debt and compensation claims. Britain, Germany, and Italy impose a naval blockade on La Guaira and Puerto Cabello. Navigate US mediation under the Roosevelt Corollary or face port bombardment.",
+    "actors": ["Venezuela", "Britain", "Germany"]
+  },
+  "roles": {
+    "actors": {
+      "$player": { "type": "player", "filter": { "name": "Venezuela" } },
+      "$creditor_1": { "type": "foreign", "filter": { "name": "Britain" } },
+      "$creditor_2": { "type": "foreign", "filter": { "name": "Germany" } }
+    },
+    "geography": {
+      "$capital": { "role": "capital", "location": "Caracas" },
+      "$port": { "role": "port", "location": "La Guaira" }
+    }
+  },
+  "modules": {
+    "debt": {
+      "initial_payment": 150.0,
+      "first_due_turn": 3,
+      "deferral_delay_turns": 2,
+      "deferral_multiplier": 1.15,
+      "maximum_deferrals": 1,
+      "assigned_revenues": { "tariff": 0.30 }
+    },
+    "naval_coercion": {
+      "squadron_strength": 95.0,
+      "battery_defense_base": 20.0,
+      "battery_reinforcement_strength": 35.0,
+      "upkeep_per_turn": 12.0,
+      "max_protest_energy": 5.0
+    },
+    "politics": {
+      "ruler": "President Cipriano Castro",
+      "governing_coalition": "nationalist_caudillo",
+      "initial_factions": {
+        "palace_authority": 0.70,
+        "army_loyalty": 0.80,
+        "nationalist_movement": 0.50
+      }
+    }
+  },
+  "pressures": [
+    {
+      "id": "customs_revenue",
+      "title": "Customs receipts under blockade",
+      "metric": "fiscal_autonomy",
+      "target": "> 70%",
+      "status_format": "{value:.1%} retained"
+    },
+    {
+      "id": "debt_claims",
+      "title": "Demanded reparations and bond arrears",
+      "metric": "scheduled_remittance",
+      "target": "turn 3",
+      "status_format": "{value:,.0f} units"
+    },
+    {
+      "id": "regime_stability",
+      "title": "Regime stability & Caudillo loyalty",
+      "metric": "legitimacy",
+      "target": "> 15%",
+      "status_format": "{value:.1%} legitimacy"
+    }
+  ],
+  "actions": [
+    {
+      "id": "appeal_us_arbitration",
+      "title": "Appeal for US mediation",
+      "category": "diplomacy",
+      "precondition": "not state.get('us_arbitration_appealed')",
+      "effects": {
+        "confidence_delta": 0.10,
+        "set_state_flag": { "us_arbitration_appealed": true }
+      },
+      "feedback": "Appealed to Washington under the Monroe Doctrine for diplomatic arbitration."
+    },
+    {
+      "id": "fortify_la_guaira",
+      "title": "Fortify La Guaira coastal batteries",
+      "category": "military",
+      "requires_cash": 40.0,
+      "effects": {
+        "treasury_cost": 40.0,
+        "legitimacy_delta": 0.05
+      },
+      "feedback": "Garrisoned and reinforced coastal forts."
+    },
+    {
+      "id": "assign_customs_split",
+      "title": "Assign 30% of customs to foreign claims",
+      "category": "fiscal",
+      "precondition": "turn >= due_turn",
+      "effects": {
+        "debt_status": "restructured",
+        "levy_per_turn": 8.0,
+        "autonomy_delta": -0.30,
+        "confidence_delta": 0.25
+      },
+      "feedback": "Signed Washington Protocols pledging 30% of customs revenue to European creditors."
+    },
+    {
+      "id": "defy_powers",
+      "title": "Repudiate debt and resist blockaders",
+      "category": "debt",
+      "precondition": "turn >= due_turn",
+      "effects": {
+        "debt_status": "defaulted",
+        "confidence_delta": -1.0,
+        "legitimacy_delta": 0.10
+      },
+      "feedback": "Defied the European powers; nationalist pride rises but bombardment is imminent."
+    }
+  ],
+  "branches": {
+    "appeal_us_arbitration": {
+      "delay_turns": 1,
+      "reaction": {
+        "headline": "Washington proposes Hague Arbitration",
+        "body": "The United States urges European powers to lift the naval blockade and refer claims to The Hague.",
+        "effects": { "confidence_delta": 0.05 },
+        "responses": [
+          {
+            "id": "accept_hague_terms",
+            "label": "Accept Hague Tribunal arbitration",
+            "tooltip": "Accept international legal arbitration. Avoid war.",
+            "effects": { "confidence_delta": 0.15, "debt_status": "restructured" }
+          }
+        ]
+      }
+    }
+  },
+  "outcomes": [
+    {
+      "id": "hague_arbitration",
+      "title": "Hague Tribunal Settlement",
+      "summary": "International arbitration resolved European claims without military conquest.",
+      "when": "payment_status == 'restructured' and legitimacy >= 0.40"
+    },
+    {
+      "id": "regime_collapse",
+      "title": "Regime Collapse",
+      "summary": "Civil revolution and economic blockade overthrew the Castro presidency.",
+      "when": "legitimacy <= 0.15"
+    }
+  ]
+}

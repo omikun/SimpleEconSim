@@ -1,5 +1,5 @@
 """
-sim_server/web_server.py — Pure-Python HTTP & REST Server for REGNUM Mobile Web Client.
+sim_server/web_server.py — Pure-Python HTTP & REST Server for Call of Capital (CoC) Mobile Web Client.
 
 Serves static assets for iPhone/browser client and provides REST API endpoints
 for real-time world inspection, turn advancement, and policy commands.
@@ -34,7 +34,12 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 _client_web_static = os.path.join(project_root, 'client', 'web', 'static')
-WEB_ASSETS_DIR = _client_web_static if os.path.isdir(_client_web_static) else os.path.join(project_root, 'web_client')
+_web_client_assets = os.path.join(project_root, 'web_client')
+WEB_ASSETS_DIR = (
+    _client_web_static
+    if os.path.isfile(os.path.join(_client_web_static, 'index.html'))
+    else _web_client_assets
+)
 
 
 def get_local_ip() -> str:
@@ -48,8 +53,8 @@ def get_local_ip() -> str:
         return '127.0.0.1'
 
 
-class RegnumHTTPRequestHandler(BaseHTTPRequestHandler):
-    """HTTP Request Handler for REGNUM Web Client and REST API."""
+class CoCHTTPRequestHandler(BaseHTTPRequestHandler):
+    """HTTP Request Handler for Call of Capital (CoC) Web Client and REST API."""
 
     def do_OPTIONS(self):
         # The client is served from this origin. Do not enable cross-origin API access.
@@ -59,7 +64,7 @@ class RegnumHTTPRequestHandler(BaseHTTPRequestHandler):
 
     def _authorized_mutation(self) -> bool:
         expected = getattr(self.server, 'api_token', '')
-        provided = self.headers.get('X-REGNUM-Token', '')
+        provided = self.headers.get('X-COC-Token') or self.headers.get('X-REGNUM-Token', '')
         if expected and secrets.compare_digest(provided, expected):
             return True
         self._send_error_json(403, 'Missing or invalid API token')
@@ -164,48 +169,58 @@ class RegnumHTTPRequestHandler(BaseHTTPRequestHandler):
                 self._send_error_json(500, f"Error generating terrain image: {e}")
             return
 
+        elif path == '/api/terrain-mesh.bin':
+            try:
+                body = self.server.web_server.get_terrain_mesh()
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/octet-stream')
+                self.send_header('Content-Length', str(len(body)))
+                self.send_header('Cache-Control', 'no-cache')
+                self.end_headers()
+                self.wfile.write(body)
+            except Exception as e:
+                self._send_error_json(500, f"Error rendering 3D terrain: {e}")
+            return
+
         # 5. Static Web Assets
-        asset_map = {
-            '/': ('index.html', 'text/html; charset=utf-8'),
-            '/index.html': ('index.html', 'text/html; charset=utf-8'),
-            '/style.css': ('style.css', 'text/css; charset=utf-8'),
-            '/client.js': ('client.js', 'application/javascript; charset=utf-8'),
-            '/ui_utils.js': ('ui_utils.js', 'application/javascript; charset=utf-8'),
-            '/hex_geometry.js': ('hex_geometry.js', 'application/javascript; charset=utf-8'),
-            '/state_sync.js': ('state_sync.js', 'application/javascript; charset=utf-8'),
-            '/chart_renderer.js': ('chart_renderer.js', 'application/javascript; charset=utf-8'),
-            '/help_content.js': ('help_content.js', 'application/javascript; charset=utf-8'),
-            '/favicon.ico': (None, None),
+        content_type_map = {
+            '.html': 'text/html; charset=utf-8',
+            '.css': 'text/css; charset=utf-8',
+            '.js': 'application/javascript; charset=utf-8',
+            '.json': 'application/json; charset=utf-8',
+            '.svg': 'image/svg+xml; charset=utf-8',
+            '.png': 'image/png',
+            '.jpg': 'image/jpeg',
+            '.jpeg': 'image/jpeg',
+            '.ico': 'image/x-icon',
         }
 
-        if path in asset_map:
-            file_name, content_type = asset_map[path]
-            if file_name is None:
-                self.send_response(204)
-                self.end_headers()
-                return
+        if path == '/favicon.ico':
+            self.send_response(204)
+            self.end_headers()
+            return
 
-            file_path = os.path.join(WEB_ASSETS_DIR, file_name)
-            if os.path.exists(file_path):
-                with open(file_path, 'rb') as f:
-                    content = f.read()
-                self.send_response(200)
-                self.send_header('Content-Type', content_type)
-                if file_name == 'index.html':
-                    token = getattr(self.server, 'api_token', '')
-                    content = content.replace(
-                        b'</head>',
-                        f'<script>window.REGNUM_API_TOKEN="{token}";</script></head>'.encode('ascii'),
-                        1,
-                    )
-                self.send_header('Content-Length', str(len(content)))
-                self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
-                self.end_headers()
-                self.wfile.write(content)
-                return
-            else:
-                self._send_error_json(404, f"Asset file '{file_name}' not found on server")
-                return
+        rel_path = 'index.html' if path in ('/', '') else path.lstrip('/')
+        safe_path = os.path.normpath(os.path.join(WEB_ASSETS_DIR, rel_path))
+        if safe_path.startswith(os.path.abspath(WEB_ASSETS_DIR)) and os.path.isfile(safe_path):
+            _, ext = os.path.splitext(safe_path)
+            content_type = content_type_map.get(ext.lower(), 'application/octet-stream')
+            with open(safe_path, 'rb') as f:
+                content = f.read()
+            self.send_response(200)
+            self.send_header('Content-Type', content_type)
+            if os.path.basename(safe_path) == 'index.html':
+                token = getattr(self.server, 'api_token', '')
+                content = content.replace(
+                    b'</head>',
+                    f'<script>window.COC_API_TOKEN="{token}";window.REGNUM_API_TOKEN="{token}";</script></head>'.encode('ascii'),
+                    1,
+                )
+            self.send_header('Content-Length', str(len(content)))
+            self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
+            self.end_headers()
+            self.wfile.write(content)
+            return
 
         self._send_error_json(404, "Path not found")
 
@@ -259,7 +274,7 @@ class RegnumHTTPRequestHandler(BaseHTTPRequestHandler):
         elif parsed.path == '/api/shutdown':
             if not self._authorized_mutation():
                 return
-            resp_body = json.dumps({"success": True, "message": "REGNUM server is shutting down..."}).encode('utf-8')
+            resp_body = json.dumps({"success": True, "message": "Call of Capital (CoC) server is shutting down..."}).encode('utf-8')
             self.send_response(200)
             self.send_header('Content-Type', 'application/json; charset=utf-8')
             self.send_header('Content-Length', str(len(resp_body)))
@@ -521,7 +536,7 @@ def render_terrain_image(sim: SimServer, terrain_renderer=None, format_type: str
     return bio.getvalue(), mime
 
 
-class RegnumWebServer:
+class CoCWebServer:
     """Threaded web server container managing simulation loop and HTTP server."""
 
     def __init__(self, sim_server: SimServer, host: str = '0.0.0.0', port: int = 8080):
@@ -542,6 +557,9 @@ class RegnumWebServer:
         self._cached_terrain_mime: str = "image/png"
         self._cached_terrain_key = None
         self._terrain_lock = threading.Lock()
+        self._terrain_mesh_lock = threading.Lock()
+        self._terrain_mesh_generation = None
+        self._terrain_mesh_bytes = None
 
     def get_terrain_image(self, format_type: str = 'png') -> tuple[bytes, str]:
         """Fetch or render photorealistic topographic terrain PNG/JPEG/WEBP image."""
@@ -567,12 +585,102 @@ class RegnumWebServer:
             self._cached_terrain_key = cache_key
             return data, mime
 
+    def get_terrain_mesh(self) -> bytes:
+        """Return desktop terrain, tree, river, and coastal mesh buffers for WebGL."""
+        import struct
+        import numpy as np
+        sim = self.sim_server
+        with sim._lock:
+            generation = sim.world_generation
+            gen = sim.gen
+            slot_state = dict(getattr(gen, 'slot_1_state', {}))
+        if gen is None:
+            raise RuntimeError('3D Mapgen terrain is unavailable for this world')
+        # Use the exact graph configuration, even when the world seed overrides
+        # the saved terrain slot's seed or point count.
+        for key, attr in (
+            ('seed', 'seed'), ('shape', 'island_shape'), ('points', 'num_points'),
+            ('rivers', 'river_count'), ('sharpness', 'mountain_sharpness'),
+            ('canyon_depth', 'canyon_depth'), ('valley_width', 'valley_width'),
+        ):
+            slot_state[key] = getattr(gen, attr, slot_state.get(key))
+
+        with self._terrain_mesh_lock:
+            if generation == self._terrain_mesh_generation and self._terrain_mesh_bytes is not None:
+                return self._terrain_mesh_bytes
+
+            from mapgen_web import (
+                get_cached_micropolys, build_micropoly_trees,
+                build_hydro_river_ribbons, build_coastal_surf_ribbon,
+            )
+            graph_key = (
+                int(slot_state['seed']), slot_state.get('shape', 'radial'),
+                int(slot_state.get('points', 1000)), int(slot_state.get('rivers', 25)),
+                round(float(slot_state.get('sharpness', 1.9)), 2),
+                0.0, 0.0, 0.0, 0.0,
+                round(float(slot_state.get('canyon_depth', 2.7)), 2),
+                round(float(slot_state.get('valley_width', 1.4)), 2),
+            )
+            triangles, _ = get_cached_micropolys(
+                gen, graph_key, int(slot_state.get('polys', 16000)),
+                float(slot_state.get('roughness', 3.0)), float(slot_state.get('jitter', 0.22)),
+                float(slot_state.get('alpha', 0.0)), float(slot_state.get('height_scale', 48.0)),
+                float(slot_state.get('smooth', 0.7)), quad_fold=slot_state.get('quad_fold', True),
+                ridge_noise=float(slot_state.get('ridge_noise', 0.35)),
+                erosion_strength=float(slot_state.get('erosion_strength', 0.3)),
+                erosion_droplets=int(slot_state.get('erosion_droplets', 15000)),
+                persistent_cache=slot_state.get('scenario_id', 'desktop'),
+            )
+            from scipy.spatial import cKDTree
+            vertices = np.asarray([point for triangle in triangles for point in triangle[:3]], dtype=np.float32)
+            vertex_tree = cKDTree(vertices[:, :2])
+
+            def sample_elevation(points):
+                distances, indices = vertex_tree.query(points, k=min(3, len(vertices)))
+                if distances.ndim == 1:
+                    return np.maximum(0.0, vertices[indices.flatten(), 2]) + 0.08
+                weights = 1.0 / np.maximum(distances, 1e-4)
+                weights /= np.sum(weights, axis=1, keepdims=True)
+                return np.maximum(0.0, np.sum(vertices[indices, 2] * weights, axis=1)) + 0.08
+
+            mesh = []
+            for p0, p1, p2, color, elev, _is_river, _poly, normal in triangles:
+                values = [*normal, *(float(c) / 255.0 for c in color), float(elev)]
+                for point in (p0, p1, p2):
+                    mesh.extend([*point, *values])
+            mesh = np.asarray(mesh, dtype='<f4')
+
+            trees = np.empty(0, dtype='<f4')
+            if slot_state.get('micropoly_trees', True):
+                trees = np.asarray(build_micropoly_trees(
+                    gen, sample_elevation,
+                    height_scale=float(slot_state.get('height_scale', 48.0)),
+                    tree_density=float(slot_state.get('tree_density', 1.28)),
+                    subdivided_triangles=triangles,
+                ), dtype='<f4')
+            rivers = np.asarray(build_hydro_river_ribbons(
+                gen, sample_mesh_elevation=sample_elevation,
+                height_scale=float(slot_state.get('height_scale', 48.0)),
+                river_width_mult=float(slot_state.get('river_width', 1.0)),
+                river_count=int(slot_state.get('rivers', 25)),
+            ), dtype='<f4')
+            surf = np.asarray(build_coastal_surf_ribbon(
+                gen, ribbon_width=32.0 * float(slot_state.get('wave_intensity', 1.4)),
+            ), dtype='<f4')
+            buffers = (mesh, trees, rivers, surf)
+            header = struct.pack('<4I', *(len(values) for values in buffers))
+            body = header + b''.join(values.tobytes() for values in buffers)
+            self._terrain_mesh_generation = generation
+            self._terrain_mesh_bytes = body
+            return body
+
+
     def start(self, wait_forever: bool = False):
         """Start the HTTP server and simulation background loop."""
         self._stop_event.clear()
 
         # 1. Bind HTTP Server
-        self.httpd = ThreadingHTTPServer((self.host, self.port), RegnumHTTPRequestHandler)
+        self.httpd = ThreadingHTTPServer((self.host, self.port), CoCHTTPRequestHandler)
         # Attach references for handler access
         self.httpd.sim_server = self.sim_server
         self.httpd.base_url = self.base_url
@@ -633,7 +741,7 @@ class RegnumWebServer:
     def print_banner(self):
         """Render ANSI QR code and LAN access instructions."""
         print("\n" + "=" * 56)
-        print("  👑 REGNUM MOBILE WEB SERVER ONLINE")
+        print("  👑 CALL OF CAPITAL (CoC) WEB SERVER ONLINE")
         print("=" * 56)
         print(f"  Access on your iPhone (same Wi-Fi):")
         print(f"  👉  \033[1;36m{self.base_url}\033[0m")
@@ -648,13 +756,18 @@ class RegnumWebServer:
         print("=" * 56 + "\n")
 
 
+# Backwards compatibility aliases
+RegnumWebServer = CoCWebServer
+RegnumHTTPRequestHandler = CoCHTTPRequestHandler
+
+
 def run_web_server(sim_server: Optional['SimServer'] = None, host: str = '0.0.0.0', port: int = 8080,
-                   wait_forever: bool = True) -> RegnumWebServer:
+                   wait_forever: bool = True) -> CoCWebServer:
     """Convenience helper to create and start the web server."""
     if sim_server is None:
         from sim_server.sim_server import SimServer
         sim_server = SimServer()
-    server = RegnumWebServer(sim_server=sim_server, host=host, port=port)
+    server = CoCWebServer(sim_server=sim_server, host=host, port=port)
     server.start(wait_forever=wait_forever)
     return server
 
@@ -662,13 +775,16 @@ def run_web_server(sim_server: Optional['SimServer'] = None, host: str = '0.0.0.
 if __name__ == '__main__':
     from sim_server.sim_server import SimServer
     import argparse
-    parser = argparse.ArgumentParser(description="REGNUM Mobile Web Server")
+    parser = argparse.ArgumentParser(description="Call of Capital (CoC) Mobile Web Server")
     parser.add_argument('--host', type=str, default='0.0.0.0', help="Host address to bind (default 0.0.0.0)")
     parser.add_argument('--port', type=int, default=8080, help="Port to listen on (default 8080)")
     parser.add_argument('--seed', type=int, default=4242, help="Simulation seed")
     parser.add_argument('--terrain-seed', type=int, default=None, help="Terrain seed")
     parser.add_argument('--nation-seed', type=int, default=None, help="Nation seed")
+    parser.add_argument('--topology', type=str, default='voronoi', choices=['voronoi', 'hex'],
+                        help="World topology: 'voronoi' (irregular polygons) or 'hex' (honeycomb)")
     args = parser.parse_args()
 
-    sim = SimServer(seed=args.seed, terrain_seed=args.terrain_seed, nation_seed=args.nation_seed)
+    sim = SimServer(seed=args.seed, terrain_seed=args.terrain_seed, nation_seed=args.nation_seed,
+                    topology=args.topology)
     run_web_server(sim_server=sim, host=args.host, port=args.port, wait_forever=True)

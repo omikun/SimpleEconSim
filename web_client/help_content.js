@@ -26,7 +26,8 @@
     }
     if (page !== '3') return '';
 
-    const { escapeHtml, safeCssColor } = root.RegnumUIUtils;
+    const uiUtils = root.CoCUIUtils || root.RegnumUIUtils;
+    const { escapeHtml, safeCssColor } = uiUtils;
     const nations = Array.isArray(world.nations) ? world.nations : [];
     return `
       <h4>3. Procedural World Seeds & Nations Registry</h4>
@@ -47,5 +48,7 @@
       </div>`;
   }
 
-  root.RegnumHelpContent = Object.freeze({ renderHelpPage });
+  const CoCHelpContent = Object.freeze({ renderHelpPage });
+  root.CoCHelpContent = CoCHelpContent;
+  root.RegnumHelpContent = CoCHelpContent;
 })(typeof globalThis !== 'undefined' ? globalThis : window);

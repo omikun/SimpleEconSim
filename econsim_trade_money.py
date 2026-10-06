@@ -596,8 +596,11 @@ def decide_borrow_deposit(agents, all_goods_price, bank, food_price,
 
 def _maybe_borrow_food_money(t, agent, food_price, bank):
     """Borrow for food if starving and no cash."""
+    from nutrition import food_credit_pressure
+    from random_cache import rand
+    pressure = food_credit_pressure(agent)
     if agent.output != Goods.food and agent.cash < food_price \
-       and agent.hungry_steps > 10:
+       and pressure > 0 and rand.random() < pressure:
         bank_balance = bank.deposits.get(agent, 0)
         if bank_balance > 0:
             needed = food_price - agent.cash

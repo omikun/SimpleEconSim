@@ -20,5 +20,6 @@
     return /^#[0-9a-fA-F]{3,8}$/.test(color) ? color : fallback;
   }
 
-  root.RegnumUIUtils = Object.freeze({ escapeHtml, safeClassToken, safeCssColor });
+  root.CoCUIUtils = Object.freeze({ escapeHtml, safeClassToken, safeCssColor });
+  root.RegnumUIUtils = root.CoCUIUtils;
 })(typeof globalThis !== 'undefined' ? globalThis : window);

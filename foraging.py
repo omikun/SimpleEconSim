@@ -28,6 +28,9 @@ def can_forage(agent, region) -> bool:
         return False
     if getattr(agent, 'employer', None) is not None:
         return False
+    if (getattr(agent, 'assigned_plot_id', None) is None
+            and getattr(agent, 'mem_avg', lambda *_: 0.0)('mem_eviction', 0.0) > 0):
+        return False
     tenure = getattr(region, 'tenure', None)
     if tenure is None or tenure.commons_access <= 0.0:
         return False

@@ -13,6 +13,12 @@ def _creditors(world):
 
 def sign(world, written_down):
     state = world['scenario_state']
+    existing = state.get('oversight_agreement') or {}
+    if existing.get('status') == 'active':
+        existing['conditional_write_down'] = round(
+            float(existing['conditional_write_down']) + float(written_down), 2)
+        existing['review_turn'] = int(world['turn']) + 3
+        return
     state['oversight_agreement'] = {
         'status': 'active', 'scope': ['tax', 'tariff'],
         'signed_turn': int(world['turn']), 'expires_turn': int(world['scenario']['horizon_turns']),

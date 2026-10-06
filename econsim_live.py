@@ -125,7 +125,7 @@ def Live(t, agents, context: LiveContext):
         number_food_consumed, number_wood_consumed, number_furniture_consumed = consume_goods(
             ctx, agent, number_food_consumed, number_wood_consumed, number_furniture_consumed
         )
-        consume_daily_food(agent)
+        number_food_consumed += consume_daily_food(agent)
         number_food_consumed, number_of_switches = handle_career_switching(
             ctx, t, agent, agents, choices_list, bottleneck_weights, number_of_switches
         )
@@ -134,7 +134,7 @@ def Live(t, agents, context: LiveContext):
         died = handle_death(ctx, t, agent, agents)
         if died:
             number_dead += 1
-            number_dead_starved += 1 if agent.hungry_steps >= ctx.starve_limit else 0
+            number_dead_starved += 1 if getattr(agent, 'died_of_starvation', False) else 0
         else:
             new_agents.append(agent)
 

@@ -5,7 +5,7 @@ unrest.py — Escalation ladder + repression for REGNUM M2.5/M2.6.
 Pure gameplay logic consuming per-tile signals (factions, protest energy,
 gov policy knobs) and generating CONSUMED/TRANSFERRED effects:
 
-Escalation ladder (energy thresholds, per gdd.md §7):
+Escalation ladder (smooth pressure curves; realized events remain discrete):
   1. Unrest        : production efficiency drops (striker withholding).
   2. Protests      : agents withhold production (strike); exports slow.
   3. Mob / riots   : looted food moves to protestors; burned goods counted
@@ -23,14 +23,32 @@ Repression (M2.6): costs legitimacy + popularity, writes memory seeds
 from __future__ import annotations
 
 from goods import Goods
+from random_cache import rand
 
 
-#: Energy thresholds for each ladder stage.
+#: Reference energy levels used by alerts and older callers.
 UNREST_THRESHOLD = 2.0
 PROTEST_THRESHOLD = 4.0
 MOB_THRESHOLD = 6.5
 COMPROMISE_THRESHOLD = 8.0
 TAKEOVER_THRESHOLD = 9.5
+
+
+def smoothstep(low: float, high: float, value: float) -> float:
+    """Cubic response with zero slope at both ends of a pressure range."""
+    x = max(0.0, min(1.0, (value - low) / (high - low)))
+    return x * x * (3.0 - 2.0 * x)
+
+
+def unrest_intensities(energy: float) -> dict[str, float]:
+    """Continuous likelihood and scale for each kind of collective action."""
+    return {
+        'unrest': smoothstep(0.0, 4.0, energy),
+        'protest': smoothstep(2.0, 6.5, energy),
+        'mob': smoothstep(4.0, 9.0, energy),
+        'compromise': smoothstep(6.5, 10.0, energy),
+        'takeover': smoothstep(8.0, 10.0, energy),
+    }
 
 
 def _mob_size(region, t):
@@ -86,15 +104,24 @@ def _forced_compromise(region, t):
     factions = region.factions.factions
     if not factions:
         return None
-    biggest = max(factions.values(), key=lambda f: f.total_grievance())
-    if biggest.demands:
-        d = biggest.demands[0]
-        d.satisfied = 1.0
-        # Legitimacy drop: compromise costs the regime some standing.
+    concessions = getattr(region, 'compromise_concessions', None)
+    if concessions is None:
+        concessions = set()
+        region.compromise_concessions = concessions
+    for faction in sorted(factions.values(), key=lambda f: f.total_grievance(), reverse=True):
+        demand = next((d for d in faction.demands if d.name not in concessions), None)
+        if demand is None:
+            continue
+        concessions.add(demand.name)
+        demand.satisfied = 1.0
+        if demand.name == 'tax_cut' and getattr(region, 'gov', None) is not None:
+            region.gov.tax_rate = max(0.0, float(region.gov.tax_rate) - 0.03)
+        # One concession has one political cost. Repeating a previously
+        # granted demand cannot drain legitimacy every subsequent turn.
         owner = getattr(region, 'owner_nation', None)
         if owner is not None:
-            owner.legitimacy = max(0.0, owner.legitimacy - 0.1)
-        return d.name
+            owner.legitimacy = max(0.0, owner.legitimacy - 0.04)
+        return demand.name
     return None
 
 
@@ -110,13 +137,18 @@ def _takeover(region, t, mob):
     if owner is None:
         return False
 
-    if owner.legitimacy <= 0.25 and mob > len(region.agents) * 0.10:
+    legitimacy_pressure = 1.0 - smoothstep(0.10, 0.55, float(owner.legitimacy))
+    crowd_pressure = smoothstep(0.03, 0.20, mob / max(1, len(region.agents)))
+    attempt_chance = legitimacy_pressure * crowd_pressure
+    if attempt_chance > 0 and rand.random() < attempt_chance:
         # Garrison combat check: armed soldiers defend the state seat
-        garrison_force = sum(u.strength for u in getattr(region, 'military_units', [])
-                             if getattr(u, 'soldiers', 0) > 0 and getattr(u, 'morale', 1.0) >= 0.3)
+        garrison_force = sum(u.strength * smoothstep(0.0, 0.6, float(getattr(u, 'morale', 1.0)))
+                             for u in getattr(region, 'military_units', [])
+                             if getattr(u, 'soldiers', 0) > 0)
         mob_force = mob * 1.5
 
-        if garrison_force > mob_force:
+        repel_chance = garrison_force / max(1.0, garrison_force + mob_force)
+        if repel_chance > 0 and rand.random() < repel_chance:
             # Garrison repels the insurrection!
             for a in region.agents:
                 if not a.is_corporation and not a.is_government and a.hungry_steps > 0:
@@ -139,7 +171,7 @@ def _takeover(region, t, mob):
 
 
 def step_unrest(region, t):
-    """Run the escalation ladder for *region* at turn *t*.
+    """Draw a discrete event from smoothly increasing unrest intensities.
 
     Returns a dict describing what happened this turn, e.g.
     {'stage': 'mob', 'looted': N, 'legitimacy': 0.6, 'takeover': False}.
@@ -148,24 +180,28 @@ def step_unrest(region, t):
     events = {'stage': 'calm', 'looted': 0, 'takeover': False}
 
     mob = _mob_size(region, t)
+    intensity = unrest_intensities(energy)
+    events['intensities'] = intensity
+    roll = rand.random() if intensity['unrest'] > 0 else 1.0
+    effective_mob = max(1, round(mob * intensity['mob'])) if mob else 0
 
-    if energy >= TAKEOVER_THRESHOLD:
+    if roll < intensity['takeover']:
         if _takeover(region, t, mob):
             events['stage'] = 'takeover'
             events['takeover'] = True
         else:
             events['stage'] = 'mob'        # mob without legitimacy collapse or repelled by garrison
-            events['looted'] = _loot_and_burn(region, t, mob)
-    elif energy >= COMPROMISE_THRESHOLD:
+            events['looted'] = _loot_and_burn(region, t, effective_mob)
+    elif roll < intensity['compromise']:
         flipped = _forced_compromise(region, t)
         events['stage'] = 'compromise'
         events['flipped'] = flipped
-    elif energy >= MOB_THRESHOLD:
+    elif roll < intensity['mob']:
         events['stage'] = 'mob'
-        events['looted'] = _loot_and_burn(region, t, mob)
-    elif energy >= PROTEST_THRESHOLD:
+        events['looted'] = _loot_and_burn(region, t, effective_mob)
+    elif roll < intensity['protest']:
         events['stage'] = 'protest'
-    elif energy >= UNREST_THRESHOLD:
+    elif roll < intensity['unrest']:
         events['stage'] = 'unrest'
 
     # Record in a log for the viewer (pure state).
@@ -212,6 +248,6 @@ def apply_repression(region, t, cost_legitimacy=0.15, force_override=False):
     return seeded
 
 
-__all__ = ['step_unrest', 'apply_repression',
+__all__ = ['step_unrest', 'apply_repression', 'smoothstep', 'unrest_intensities',
            'UNREST_THRESHOLD', 'PROTEST_THRESHOLD', 'MOB_THRESHOLD',
            'COMPROMISE_THRESHOLD', 'TAKEOVER_THRESHOLD']

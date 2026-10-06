@@ -138,7 +138,8 @@ def advance(world):
               if getattr(person, 'alive', True) and not getattr(person, 'is_government', False)
               and not getattr(person, 'is_corporation', False)
               and not getattr(person, 'is_trader', False)]
-    hunger = sum(getattr(person, 'hungry_steps', 0) > 0 for person in people) / max(1, len(people))
+    from nutrition import deficit_fraction
+    hunger = sum(deficit_fraction(person) for person in people) / max(1, len(people))
     unrest = sum(float(getattr(tile, 'unrest_level', 0.0)) for tile in egypt.tiles) / max(1, len(egypt.tiles))
     foreign_control = 1.0 - float(scenario.get('fiscal_autonomy', 1.0))
     extraction = min(1.0, float(scenario.get('extraction_level', 0)))
@@ -240,7 +241,6 @@ def resolve(world, response_id):
                 message = 'Tawfiq succeeds Ismail; nationalist opposition gains support.'
     else:
         state['crisis_resolved'] = True
-        scenario['chapter'] = 2
         if response_id == 'support_urabi':
             state['governing_coalition'] = 'nationalist'
             state['cabinet_authority'] = _clamp(state['cabinet_authority'] + 0.40)
@@ -261,6 +261,8 @@ def resolve(world, response_id):
                 tile.unrest_level = _clamp(float(getattr(tile, 'unrest_level', 0.0))
                                            + 0.12 * (1 - state['army_loyalty']))
             message = 'The palace resists the movement; weak army loyalty makes repression costly.'
+    from scenario_egypt_1877 import enter_chapter_two
+    enter_chapter_two(world, 'succession' if kind == 'dynastic_crisis' else 'officer movement')
     _event(world, message)
     from scenario_history import record as record_history
     record_history(world, message, historical_parallel=response_id in ('accept_tawfiq', 'support_urabi'))

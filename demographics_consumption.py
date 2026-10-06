@@ -39,20 +39,9 @@ def compute_bottleneck_weights(ctx, agents, choices_list):
 
 
 def consume_goods(ctx, agent, number_food_consumed, number_wood_consumed, number_furniture_consumed):
-    """Wealthy consumption (luxury goods & extra food) based on consumption_multiplier."""
+    """Consume non-food luxuries; nutrition is accounted for in one place."""
     mult = getattr(agent, 'consumption_multiplier', 1.0)
     if mult > 1.0:
-        extra_food = 0
-        if mult >= 5.0:
-            extra_food = 2
-        elif mult >= 2.0:
-            extra_food = 1
-        if extra_food > 0 and agent.inv_get(Goods.food, 0) >= extra_food + 4:
-            agent.inv_add(Goods.food, -extra_food)
-            number_food_consumed += extra_food
-            loginfo('', agent.name(),
-                    'wealth consumption (mult=' + str(round(mult, 2))
-                    + '), consumed extra food +' + str(extra_food))
         for luxury_good in ctx.goods:
             if luxury_good in (Goods.food, Goods.gov):
                 continue
@@ -83,28 +72,24 @@ def consume_goods(ctx, agent, number_food_consumed, number_wood_consumed, number
 
 
 def consume_daily_food(agent):
-    """Consume 4 food from inventory (or go hungry)."""
-    food_count = agent.inv_get(Goods.food, 0)
-    if food_count >= 4:
-        agent.inv_add(Goods.food, -4)
-        agent.hungry_steps = 0
-    elif food_count > 0:
-        agent.inv_set(Goods.food, 0)
-        agent.hungry_steps = 0
-    else:
-        agent.inv_set(Goods.food, 0)
-        if agent.is_trader:
-            foreign_food = agent.inventory_foreign[Goods.food.value]
-            if foreign_food >= 4:
-                agent.inventory_foreign[Goods.food.value] -= 4
-                agent.hungry_steps = 0
-                agent.mem_push('mem_hunger', agent.hungry_steps)
-                return
-            export_food = agent.inventory_export[Goods.food.value]
-            if export_food >= 4:
-                agent.inventory_export[Goods.food.value] -= 4
-                agent.hungry_steps = 0
-                agent.mem_push('mem_hunger', agent.hungry_steps)
-                return
-        agent.hungry_steps += 1
-    agent.mem_push('mem_hunger', agent.hungry_steps)
+    """Eat up to the appetite curve and record exact calorie balance."""
+    from nutrition import appetite_units, record_intake
+    desired = appetite_units(agent)
+    reserved = max(0, int(getattr(agent, 'emergency_food_units', 0)))
+    agent.emergency_food_units = 0
+    eaten = min(desired, reserved)
+    from_inventory = min(max(0, desired - eaten), max(0, agent.inv_get(Goods.food, 0)))
+    if from_inventory:
+        agent.inv_add(Goods.food, -from_inventory)
+        eaten += from_inventory
+    if reserved > eaten:
+        agent.inv_add(Goods.food, reserved - eaten)
+    if agent.is_trader and eaten < desired:
+        for stock in (agent.inventory_foreign, agent.inventory_export):
+            take = min(desired - eaten, max(0, stock[Goods.food.value]))
+            stock[Goods.food.value] -= take
+            eaten += take
+            if eaten >= desired:
+                break
+    record_intake(agent, eaten)
+    return eaten

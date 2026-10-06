@@ -156,6 +156,19 @@ def assign_tile_resources(tiles: list[Region], heightmap_gen=None, seed: int = 4
             res_set.add(TileResource.ARABLE_SILT if elev < 0.35 else (TileResource.IRON_ORE if elev >= 0.65 else TileResource.TIMBER))
 
         r.natural_resources = res_set
+        if not hasattr(r, 'terrain') or r.terrain is None:
+            r.terrain = {}
+        r.has_iron_deposit = (TileResource.IRON_ORE in res_set)
+        r.has_coal_vein = (TileResource.COAL_SEAM in res_set)
+        r.has_nitrate_deposit = (TileResource.NATURAL_NITRATES in res_set)
+        r.mineral_richness = round(0.50 + 0.50 * rng.random(), 2) if (r.has_iron_deposit or r.has_coal_vein) else 0.0
+
+        if r.has_iron_deposit:
+            r.terrain['iron_deposit'] = True
+            r.terrain['has_iron_deposit'] = True
+        if r.has_coal_vein:
+            r.terrain['coal_vein'] = True
+            r.terrain['has_coal_vein'] = True
 
     # Phase 3: Ultra-rare Guano & Natural Nitrate Concession
     # Strictly 1 or 2 tiles across the entire world map receive NATURAL_NITRATES
@@ -169,6 +182,11 @@ def assign_tile_resources(tiles: list[Region], heightmap_gen=None, seed: int = 4
     guano_count = min(2, max(1, len(tiles) // 10))
     for gt in candidate_tiles[:guano_count]:
         gt.natural_resources.add(TileResource.NATURAL_NITRATES)
+        gt.has_nitrate_deposit = True
+        if not hasattr(gt, 'terrain') or gt.terrain is None:
+            gt.terrain = {}
+        gt.terrain['nitrate_deposit'] = True
+        gt.terrain['has_nitrate_deposit'] = True
 
 
 def get_nation_resources(nation: Nation, tiles: list[Region] | None = None, world: dict | None = None) -> set[TileResource]:

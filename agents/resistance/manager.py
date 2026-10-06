@@ -85,6 +85,7 @@ class PopularResistanceManager:
         Strictly 100% money and goods conserved.
         """
         food_distributed = 0
+        from nutrition import feed_emergency_meal
         charity = getattr(tile, 'charity', None)
 
         for a in participants:
@@ -93,16 +94,14 @@ class PopularResistanceManager:
             # If agent already has food in inventory, consume it
             if a.inv_get(Goods.food, 0) > 0:
                 a.inv_add(Goods.food, -1)
-                a.hungry_steps = 0
+                feed_emergency_meal(a, 1)
                 continue
 
             fed = False
             # 1. Check local parish charity
             if charity and getattr(charity, 'food_inventory', 0) > 0:
                 charity.food_inventory -= 1
-                a.inv_add(Goods.food, 1)
-                a.inv_add(Goods.food, -1)
-                a.hungry_steps = 0
+                feed_emergency_meal(a, 1)
                 food_distributed += 1
                 fed = True
 
@@ -113,7 +112,7 @@ class PopularResistanceManager:
                         continue
                     if getattr(s, 'social_class', '') in ('proletarian', 'artisan', 'cottar', 'serf') and s.inv_get(Goods.food, 0) > 1:
                         s.inv_add(Goods.food, -1)
-                        a.hungry_steps = 0
+                        feed_emergency_meal(a, 1)
                         food_distributed += 1
                         fed = True
                         break
@@ -131,7 +130,7 @@ class PopularResistanceManager:
                 looted = min(food_available, len(starving), 10)
                 rgov.food_inventory -= looted
                 for i in range(looted):
-                    starving[i].hungry_steps = 0
+                    feed_emergency_meal(starving[i], 1)
                     food_distributed += 1
                 if world:
                     _safe_ticker_push(world, t, 'ALERT', f"🥖 BREAD RIOT: Starving peasant marchers raided municipal granaries in {tile.name} ({looted} food seized)!", (240, 140, 50))

@@ -78,8 +78,6 @@ def _prof_name(agent):
 
 def _determine_death_cause(ctx, t, agent, agents):
     """Classify the cause of death before _handle_death mutates the agent."""
-    if agent.hungry_steps >= ctx.starve_limit:
-        return 'Starved'
     age = agent.age(t)
     wealth = agent.wealth()
     # 105 matches the halved wealth-mortality gate in econsim_live._handle_death
@@ -121,7 +119,8 @@ def _patch_lifecycle():
         result = orig_death(ctx, t, agent, agents)
         if result:
             death_turn[agent.id] = t
-            death_causes[agent.id] = (t, _prof_name(agent), cause)
+            death_causes[agent.id] = (t, _prof_name(agent),
+                                      'Starved' if getattr(agent, 'died_of_starvation', False) else cause)
         return result
     _lm._handle_death = patched_death
 

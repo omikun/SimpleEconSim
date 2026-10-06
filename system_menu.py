@@ -1,5 +1,5 @@
 """
-system_menu.py — Native OS System Menu Bar Integration for REGNUM.
+system_menu.py — Native OS System Menu Bar Integration for Call of Capital (CoC).
 
 Provides native macOS menu items in the top system menu bar (e.g. Game -> Restart Game, Pause, Reset Camera).
 """
@@ -77,7 +77,7 @@ def setup_system_menu():
         imp_restart = IMP_TYPE(on_restart_action)
         _CALLBACK_REFS.append(imp_restart)
 
-        # Register RegnumMenuHandler class if not registered yet
+        # Register CoCSystemMenuHandler class if not registered yet
         objc.objc_allocateClassPair.restype = ctypes.c_void_p
         objc.objc_allocateClassPair.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_size_t]
         objc.class_addMethod.restype = ctypes.c_bool
@@ -85,9 +85,9 @@ def setup_system_menu():
         objc.objc_registerClassPair.restype = None
         objc.objc_registerClassPair.argtypes = [ctypes.c_void_p]
 
-        cls = objc.objc_getClass(b'RegnumSystemMenuHandler')
+        cls = objc.objc_getClass(b'CoCSystemMenuHandler')
         if not cls:
-            cls = objc.objc_allocateClassPair(NSObjectClass, b'RegnumSystemMenuHandler', 0)
+            cls = objc.objc_allocateClassPair(NSObjectClass, b'CoCSystemMenuHandler', 0)
             sel_restart = objc.sel_registerName(b'restartGameAction:')
             objc.class_addMethod(cls, sel_restart, ctypes.cast(imp_restart, ctypes.c_void_p), b'v@:@')
             objc.objc_registerClassPair(cls)

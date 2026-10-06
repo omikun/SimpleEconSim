@@ -202,7 +202,6 @@ def exit_trader(region, agent):
     agent.is_trader = False
     agent.output = Goods.food
     agent.trade_good = None
-    agent.hungry_steps = 0
     agent.employer = None
 
 

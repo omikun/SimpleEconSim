@@ -140,7 +140,7 @@ class Slider:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="REGNUM Graphics Development Viewer")
+    parser = argparse.ArgumentParser(description="Call of Capital (CoC) Graphics Development Viewer")
     parser.add_argument('--seed', type=int, default=4242, help="Terrain procedural seed")
     parser.add_argument('--rows', type=int, default=7, help="Hex grid rows")
     parser.add_argument('--cols', type=int, default=9, help="Hex grid cols")
@@ -238,7 +238,7 @@ def main():
     needs_redraw = True
 
     print("==================================================")
-    print(" REGNUM Standalone Graphics Development Sandbox   ")
+    print(" Call of Capital (CoC) Graphics Development Sandbox")
     print("==================================================")
     print(" Controls:")
     print("   [WASD / Arrow Keys] : Pan camera")
@@ -732,7 +732,7 @@ def main():
                 pygame.draw.rect(screen, (80, 120, 170), modal_card_rect, 2, border_radius=12)
 
                 # Title
-                m_title = font.render("📱 REGNUM MOBILE CLIENT", True, (245, 210, 95))
+                m_title = font.render("📱 CALL OF CAPITAL (CoC) WEB CLIENT", True, (245, 210, 95))
                 screen.blit(m_title, (modal_x + (modal_w - m_title.get_width()) // 2, modal_y + 16))
 
                 # Close Button [✕]

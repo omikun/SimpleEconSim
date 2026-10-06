@@ -4,7 +4,7 @@
 
   function createStateSync({ fetchImpl, getToken, onCommandResult, onNetworkError }) {
     const request = fetchImpl || root.fetch.bind(root);
-    const token = getToken || (() => root.REGNUM_API_TOKEN || '');
+    const token = getToken || (() => root.COC_API_TOKEN || root.REGNUM_API_TOKEN || '');
 
     return Object.freeze({
       fetchState(version = null) {
@@ -18,11 +18,13 @@
 
       async sendCommand(commandType, payload = {}) {
         try {
+          const tok = token();
           const response = await request('/api/command', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'X-REGNUM-Token': token()
+              'X-COC-Token': tok,
+              'X-REGNUM-Token': tok
             },
             body: JSON.stringify({ cmd_type: commandType, type: commandType, cmd: commandType, payload })
           });
@@ -37,5 +39,6 @@
     });
   }
 
-  root.RegnumStateSync = Object.freeze({ createStateSync });
+  root.CoCStateSync = Object.freeze({ createStateSync });
+  root.RegnumStateSync = root.CoCStateSync;
 })(typeof globalThis !== 'undefined' ? globalThis : window);

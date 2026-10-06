@@ -142,5 +142,18 @@ def collect_rents(region, t: int) -> tuple[float, float, list[dict]]:
                 'arrears': round(plot_arrears, 2),
                 'tenants': len(assigned_tenants)
             })
+            try:
+                from economy.true_cost_ledger import get_true_cost_ledger
+                evicted_c = float(len(evicted)) if ('evicted' in locals() and evicted) else 0.0
+                degrade_c = 0.01 if getattr(plot, 'production_type', 'arable') == 'pasture' else 0.0
+                get_true_cost_ledger().record_landlord(
+                    lord, region, t,
+                    gross_rent=plot_collected,
+                    collection_cost=0.0,
+                    evicted_count=evicted_c,
+                    commons_degrade=degrade_c
+                )
+            except Exception:
+                pass
 
     return round(total_collected, 2), round(total_arrears, 2), events

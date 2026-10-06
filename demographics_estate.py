@@ -374,7 +374,11 @@ def zero_out_dead_agent(ctx, agent):
 
 def handle_death(ctx, t, agent, agents):
     """Determine if agent dies (starvation or old age). Clean up assets."""
-    if agent.hungry_steps < ctx.starve_limit:
+    from nutrition import starvation_hazard
+    agent.died_of_starvation = False
+    hazard = starvation_hazard(agent)
+    starved = hazard > 0 and rand.random() < hazard
+    if not starved:
         base_death_prob = [0.0002, 0.0003, 0.0007, 0.0013, 0.0025,
                             0.006, 0.013, 0.027, 0.06, 0.13]
         import government as govmod
@@ -434,6 +438,7 @@ def handle_death(ctx, t, agent, agents):
     else:
         logdebug(t, agent.name(), 'has starved to death')
         agent.alive = False
+        agent.died_of_starvation = True
 
     cleanup_dead_agent_links(agent)
     handle_company_inheritance(t, agent)

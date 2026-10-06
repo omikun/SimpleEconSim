@@ -11,7 +11,11 @@ from region_logistics import all_routes, transport_cost_per_unit
 
 
 def borrow_food(region, agent, food_price):
-    if agent.output != Goods.food and agent.cash < food_price and agent.hungry_steps > 10:
+    from nutrition import food_credit_pressure
+    from random_cache import rand
+    pressure = food_credit_pressure(agent)
+    if agent.output != Goods.food and agent.cash < food_price \
+       and pressure > 0 and rand.random() < pressure:
         bank_balance = region.bank.deposits.get(agent, 0)
         if bank_balance > 0:
             region.bank.Withdraw(agent, min(bank_balance, food_price - agent.cash))
@@ -149,6 +153,12 @@ def calculate_bid(region, agent, good, good_price, current_desired, agent_recipe
 
 
 def calculate_ask(region, agent, good, good_price, is_employee):
+    if (good == Goods.food and agent.id == getattr(region, 'scenario_grain_holder_id', None)
+            and getattr(region, 'scenario_grain_policy', 'open') == 'hold'):
+        stock = max(0, agent.inv_get(Goods.food, 0))
+        reserved = min(stock, max(0, int(getattr(region, 'scenario_grain_reserved_units', 0))))
+        return min(stock, stock - reserved +
+                   max(0, int(getattr(region, 'scenario_grain_offer_units', 0))))
     if agent.is_trader:
         dest = getattr(agent, 'destination_region', None) or region.destination_region
         if dest is not None:

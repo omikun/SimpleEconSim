@@ -59,6 +59,10 @@ def compute_class(agent, region) -> SocialClass:
     if getattr(agent, 'is_trader', False):
         return SocialClass.PETTY_BOURGEOIS
 
+    if (getattr(agent, 'assigned_plot_id', None) is None
+            and getattr(agent, 'mem_avg', lambda *_: 0.0)('mem_eviction', 0.0) > 0):
+        return SocialClass.DISPOSSESSED
+
     commons = tenure.commons_access if tenure is not None else 1.0
 
     # If commons access is open (> 0.5), agent is an agrarian serf/commoner

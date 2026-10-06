@@ -209,8 +209,8 @@ def resolve_terms(world, response_id):
         _record(world, 'Egypt', 'reject_terms', 'Cairo rejected the foreign proposal and retained its claim dispute.')
         return True, 'Egypt rejects the proposed terms; the creditor dispute continues.'
     if kind == 'french_terms':
-        from scenario_debt import pay
-        amount = round(float(state['scheduled_remittance']) * .5, 2)
+        from scenario_debt import pay, outstanding
+        amount = round(outstanding(world) * .5, 2)
         ok, reason = pay(world, amount, kind='french_mediation', forgive_remainder=True)
         if not ok:
             return False, reason

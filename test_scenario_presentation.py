@@ -8,7 +8,8 @@ from ui_targets import clear_targets
 from worldview_camera import HEIGHT, MAP_RIGHT
 from worldview_engine import build_world_view
 from worldview_scenario_ui import (draw_pressure_panel, draw_scenario_warning_modal,
-                                   scenario_pressures, scenario_warning_modal_hit)
+                                   draw_scenario_bookend_modal, scenario_pressures,
+                                   scenario_warning_modal_hit)
 
 
 class ScenarioPresentationTests(unittest.TestCase):
@@ -30,6 +31,43 @@ class ScenarioPresentationTests(unittest.TestCase):
         self.assertEqual(cards[1]['title'], 'Occupation & revenue')
         self.assertIn('Britain', cards[1]['cause'])
         self.assertTrue(any('garrison supply' in detail for detail in cards[1]['details']))
+        self.assertIn('unrest', cards[2]['value'])
+        self.assertIn('private warehouses', cards[0]['cause'])
+
+    def test_late_second_chapter_pauses_with_new_priorities_and_time(self):
+        from scenario_gunboat import begin_escalation
+        self.world['turn'] = 17
+        self.world['scenario_bookend_modal'] = None
+        begin_escalation(self.world, 'contested Caisse claim')
+        state = self.world['scenario_state']
+        self.assertEqual(state['chapter'], 2)
+        self.assertEqual(self.world['scenario']['horizon_turns'], 24)
+        self.assertEqual(self.world['scenario_bookend_modal'], 'chapter2')
+        self.assertFalse(self.world['playing'])
+        cards = scenario_pressures(self.world)
+        self.assertEqual([card['title'] for card in cards],
+                         ['Egyptian authority', 'Debt service', 'Coastal defense & canal'])
+        clear_targets(self.world)
+        draw_scenario_bookend_modal(self.surface, self.world)
+        self.assertTrue(any(target.action == ('bookend', 'close')
+                            for target in self.world['_ui_targets']))
+
+    def test_late_occupation_reserves_time_for_responses(self):
+        from scenario_occupation import reserve_occupation_window
+        self.world['turn'] = 20
+        self.world['scenario_state']['campaign']['territorial_control']['Alexandria'] = 'Britain'
+        reserve_occupation_window(self.world)
+        self.assertEqual(self.world['scenario']['horizon_turns'], 24)
+        self.assertEqual(self.world['scenario_state']['occupation_start_turn'], 20)
+
+    def test_second_chapter_debrief_leads_with_violence_and_collection(self):
+        from scenario_egypt_1877 import build_debrief
+        self.world['scenario_state']['chapter'] = 2
+        debrief = build_debrief(self.world, 'occupation')
+        labels = [stat['label'] for stat in debrief['social_stats'][:8]]
+        self.assertIn('Civilians injured', labels)
+        self.assertIn('Battle losses', labels)
+        self.assertIn('Occupation revenue and supply', labels)
 
     def test_pending_french_offer_promotes_a_foreign_decision_card(self):
         state = self.world['scenario_state']
@@ -90,6 +128,7 @@ class ScenarioPresentationTests(unittest.TestCase):
         from scenario_debt import outstanding
         self.world['turn'] = 8
         self.world['scenario_state']['payment_status'] = 'defaulted'
+        next(n for n in self.world['nations'] if n.name == 'Egypt').government.agent.cash = 300
         self.world['scenario_warning_modal'] = {'kind': 'french_terms'}
         clear_targets(self.world)
         draw_scenario_warning_modal(self.surface, self.world)
@@ -111,11 +150,12 @@ class ScenarioPresentationTests(unittest.TestCase):
                                    'reason': 'Creditors expect receipts.'}] * 6,
             'actions': ['Egypt offered a joint guarantee with signed terms.'] * 8,
         }
-        draw_pressure_panel(self.surface, self.world)
-        self.assertGreater(self.world['guided_debrief_scroll_max'], 0)
-        self.world['guided_debrief_scroll'] = self.world['guided_debrief_scroll_max']
-        draw_pressure_panel(self.surface, self.world)
-        self.assertEqual(self.world['guided_debrief_scroll'], self.world['guided_debrief_scroll_max'])
+        self.world['scenario_bookend_modal'] = 'debrief'
+        draw_scenario_bookend_modal(self.surface, self.world)
+        self.assertGreater(self.world['scenario_bookend_scroll_max'], 0)
+        self.world['scenario_bookend_scroll'] = self.world['scenario_bookend_scroll_max']
+        draw_scenario_bookend_modal(self.surface, self.world)
+        self.assertEqual(self.world['scenario_bookend_scroll'], self.world['scenario_bookend_scroll_max'])
 
 
 if __name__ == '__main__':

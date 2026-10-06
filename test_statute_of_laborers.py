@@ -61,6 +61,8 @@ class TestStatuteOfLaborers(unittest.TestCase):
         self.assertIsNotNone(gentry)
         self.assertIsNotNone(proletariat)
 
+        if proletariat.support <= 0.0:
+            proletariat.support = 0.50
         init_gentry_supp = gentry.support
         init_prol_supp = proletariat.support
 

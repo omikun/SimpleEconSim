@@ -53,7 +53,10 @@ class Agent:
         'id', 'birth_round', 'alive', 'parent', 'descendants',
         'bid', 'ask',
         'output',
-        'hungry_steps', 'cash', 'remainingCash',
+        'hungry_steps', 'calorie_need_kcal', 'last_calories_eaten',
+        'calorie_deficit_kcal', 'calorie_surplus_kcal', 'energy_reserve_kcal',
+        'emergency_food_units',
+        'died_of_starvation', 'cash', 'remainingCash',
         'inventory', 'cost_basis',
         'last_career_switch', 'last_reproduction',
         'loans',
@@ -74,8 +77,13 @@ class Agent:
         'last_forage_turn', 'last_migration_turn',
         # ---- SoA slot index + cache ----
         # ---- Per-good bid/ask (set via setattr in region._trade) ----
-        'bid_food', 'bid_wood', 'bid_furniture', 'bid_transport', 'bid_wool', 'bid_cloth',
-        'ask_food', 'ask_wood', 'ask_furniture', 'ask_transport', 'ask_wool', 'ask_cloth',
+        'bid_food', 'bid_wood', 'bid_furniture', 'bid_transport', 'bid_wool', 'bid_cloth', 'bid_nitrates',
+        'bid_cotton', 'bid_iron_ore', 'bid_iron', 'bid_coal', 'bid_tobacco', 'bid_sugar', 'bid_tea',
+        'bid_fine_textiles', 'bid_porcelain', 'bid_rum', 'bid_foreign_luxuries',
+        'ask_food', 'ask_wood', 'ask_furniture', 'ask_transport', 'ask_wool', 'ask_cloth', 'ask_nitrates',
+        'ask_cotton', 'ask_iron_ore', 'ask_iron', 'ask_coal', 'ask_tobacco', 'ask_sugar', 'ask_tea',
+        'ask_fine_textiles', 'ask_porcelain', 'ask_rum', 'ask_foreign_luxuries',
+        '_custom_bids',
         # ---- Inherited wealth protection (child of rich parent) ----
         '_birth_parent_wealth', '_birth_protection_until',
         # ---- SoA slot index + cache ----
@@ -109,6 +117,8 @@ class Agent:
         'diseases', 'medical_expenses_paid', 'medical_treatments_count',
         # ---- Emergent Construction Companies & Navvy Labor ----
         'is_construction_company', 'company_name', 'projects_completed', 'idle_turns',
+        # ---- War Capitalism & Capital Goods ----
+        'frontier_estates', '_extra_attrs',
     )
 
     def __init__(self, t):
@@ -121,6 +131,13 @@ class Agent:
         self.ask = 0
         self.output = Goods.none
         self.hungry_steps = 0
+        self.calorie_need_kcal = 2000.0
+        self.last_calories_eaten = 0.0
+        self.calorie_deficit_kcal = 0.0
+        self.calorie_surplus_kcal = 0.0
+        self.energy_reserve_kcal = 40000.0
+        self.emergency_food_units = 0
+        self.died_of_starvation = False
         self.cash = 0
         self.military_xp = 0.0
         # Inventory as list indexed by good.value — not a dict
@@ -244,6 +261,37 @@ class Agent:
         self.diseases = []                   # active disease names: malnutrition, cholera, respiratory, chemical
         self.medical_expenses_paid = 0.0     # cumulative private out-of-pocket medical bills ($)
         self.medical_treatments_count = 0    # cumulative medical treatments received
+        self.frontier_estates = []
+        self._custom_bids = None
+        self._extra_attrs = None
+
+    def __setattr__(self, name, value):
+        try:
+            super().__setattr__(name, value)
+        except AttributeError:
+            if name.startswith('bid_') or name.startswith('ask_'):
+                cb = getattr(self, '_custom_bids', None)
+                if cb is None:
+                    cb = {}
+                    super().__setattr__('_custom_bids', cb)
+                cb[name] = value
+            else:
+                extra = getattr(self, '_extra_attrs', None)
+                if extra is None:
+                    extra = {}
+                    super().__setattr__('_extra_attrs', extra)
+                extra[name] = value
+
+    def __getattr__(self, name):
+        if name.startswith('bid_') or name.startswith('ask_'):
+            cb = getattr(self, '_custom_bids', None)
+            if cb and name in cb:
+                return cb[name]
+            return 0.0
+        extra = getattr(self, '_extra_attrs', None)
+        if extra and name in extra:
+            return extra[name]
+        raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
 
     def name(self):
         prof_label = profession.get(self.output, '-')
@@ -279,19 +327,45 @@ class Agent:
     def owed_this_turn(self):
         return sum(loan.getPaymentAmount() for loan in self.loans)
 
-    # ---- Helper: get inventory value by good enum (replaces .get) ----
+    # ---- Helper: get inventory value by good enum or string (replaces .get) ----
     def inv_get(self, good, default=0):
-        """Return inventory[good.value] with a default fallback (like dict.get)."""
-        val = self.inventory[good.value]
-        return val if val else default
+        """Return inventory[good.value] or custom_inventory[good] with a default fallback."""
+        if isinstance(good, Goods):
+            val = self.inventory[good.value]
+            return val if val else default
+        elif hasattr(Goods, str(good)):
+            val = self.inventory[getattr(Goods, str(good)).value]
+            return val if val else default
+        cust = getattr(self, 'custom_inventory', None)
+        if cust and str(good) in cust:
+            return cust[str(good)]
+        return default
 
     def inv_set(self, good, value):
-        """Set inventory[good.value]."""
-        self.inventory[good.value] = value
+        """Set inventory[good.value] or custom_inventory[good]."""
+        if isinstance(good, Goods):
+            self.inventory[good.value] = value
+        elif hasattr(Goods, str(good)):
+            self.inventory[getattr(Goods, str(good)).value] = value
+        else:
+            cust = getattr(self, 'custom_inventory', None)
+            if cust is None:
+                cust = {}
+                self.custom_inventory = cust
+            cust[str(good)] = value
 
     def inv_add(self, good, delta):
-        """Add delta to inventory[good.value]."""
-        self.inventory[good.value] += delta
+        """Add delta to inventory[good.value] or custom_inventory[good]."""
+        if isinstance(good, Goods):
+            self.inventory[good.value] += delta
+        elif hasattr(Goods, str(good)):
+            self.inventory[getattr(Goods, str(good)).value] += delta
+        else:
+            cust = getattr(self, 'custom_inventory', None)
+            if cust is None:
+                cust = {}
+                self.custom_inventory = cust
+            cust[str(good)] = cust.get(str(good), 0) + delta
 
     # ---- Same for cost_basis ----
     def cost_get(self, good, default=0.0):

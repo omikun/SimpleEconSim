@@ -54,6 +54,9 @@ class ScenarioDiplomacyTests(unittest.TestCase):
         with patch('scenario_diplomacy._energy', return_value=1.0):
             advance(self.world, 8, lambda *_: None)
         self.assertEqual(self.world['scenario_warning_modal']['kind'], 'french_terms')
+        egypt = next(n for n in self.world['nations'] if n.name == 'Egypt')
+        egypt.government.agent.cash = max(egypt.government.agent.cash,
+                                          outstanding(self.world) * .5)
         cash_before = sum(n.government.agent.cash for n in self.world['nations'])
         ok, message = resolve_terms(self.world, 'accept')
         self.assertTrue(ok, message)

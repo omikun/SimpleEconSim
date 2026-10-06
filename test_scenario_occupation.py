@@ -5,7 +5,8 @@ import unittest
 from scenario_campaign import bombard_alexandria, resolve_landing
 from scenario_egypt_1877 import apply_action, finish_due_campaign
 from scenario_geography import create_fleet, move_fleet
-from scenario_occupation import advance, claim_institutions, intercept_revenue, resolve_capital
+from scenario_occupation import (OCCUPIED_RECEIPT_CAP, advance, claim_institutions,
+                                 intercept_revenue, resolve_capital)
 from worldview_engine import build_world_view
 
 
@@ -34,7 +35,7 @@ class ScenarioOccupationTests(unittest.TestCase):
         before = gov.agent.cash + self.britain.government.agent.cash
         amount = intercept_revenue(self.world, gov, 'tariff', 20, 3)
         self.assertGreater(amount, 0)
-        self.assertLessEqual(amount, 6)
+        self.assertLessEqual(amount, OCCUPIED_RECEIPT_CAP)
         self.assertAlmostEqual(before, gov.agent.cash + self.britain.government.agent.cash)
         self.assertEqual(self.state['occupation']['institutional_control']['customs'], 'Britain')
         self.assertEqual(self.state['occupation']['institutional_control']['cabinet'], 'Egypt')
@@ -55,14 +56,30 @@ class ScenarioOccupationTests(unittest.TestCase):
 
     def test_resistance_can_force_negotiated_withdrawal(self):
         self._foothold()
-        self.state['occupation']['resistance'] = .5
+        self.state['occupation']['resistance'] = .7
         egypt_before = self.egypt.government.agent.cash
         britain_before = self.britain.government.agent.cash
         ok, _ = apply_action(self.world, 'negotiate_withdrawal')
         self.assertTrue(ok)
+        self.assertEqual(self.state['campaign']['territorial_control']['Alexandria'], 'Britain')
+        self.assertAlmostEqual(self.egypt.government.agent.cash, egypt_before)
+        self.world['turn'] += 1
+        advance(self.world)
         self.assertEqual(self.state['campaign']['territorial_control'], {})
         self.assertAlmostEqual(self.egypt.government.agent.cash, egypt_before - 30)
-        self.assertAlmostEqual(self.britain.government.agent.cash, britain_before + 30)
+        self.assertAlmostEqual(self.britain.government.agent.cash,
+                               britain_before + 30 - self.state['occupation']['garrison_supply_paid'])
+
+    def test_weak_withdrawal_offer_is_rejected_without_payment(self):
+        self._foothold()
+        egypt_before = self.egypt.government.agent.cash
+        ok, _ = apply_action(self.world, 'negotiate_withdrawal')
+        self.assertTrue(ok)
+        self.world['turn'] += 1
+        advance(self.world)
+        self.assertFalse(self.state['occupation']['withdrawal_replies'][-1]['accepted'])
+        self.assertEqual(self.state['campaign']['territorial_control']['Alexandria'], 'Britain')
+        self.assertAlmostEqual(self.egypt.government.agent.cash, egypt_before)
 
     def test_ending_is_based_on_capital_control(self):
         self._foothold()

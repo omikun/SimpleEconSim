@@ -15,10 +15,16 @@ if project_root not in sys.path:
 
 from sim_server.qr_code import QRCode, generate_terminal_qr, generate_svg_qr
 from sim_server.sim_server import SimServer
-from sim_server.web_server import RegnumHTTPRequestHandler, RegnumWebServer, get_local_ip
+from sim_server.web_server import (
+    CoCHTTPRequestHandler,
+    CoCWebServer,
+    RegnumHTTPRequestHandler,
+    RegnumWebServer,
+    get_local_ip,
+)
 
 
-class MockRegnumServer:
+class MockCoCServer:
     """Mock HTTP server context for dispatching requests without opening external sockets."""
 
     def __init__(self, sim_server: SimServer, base_url: str = "http://192.168.1.100:8080"):
@@ -27,10 +33,13 @@ class MockRegnumServer:
         self.api_token = 'test-token'
 
 
-class MockHttpRequestHandler(RegnumHTTPRequestHandler):
-    """Executes RegnumHTTPRequestHandler methods in-memory using BytesIO streams."""
+MockRegnumServer = MockCoCServer
 
-    def __init__(self, mock_server: MockRegnumServer, method: str, path: str,
+
+class MockHttpRequestHandler(CoCHTTPRequestHandler):
+    """Executes CoCHTTPRequestHandler methods in-memory using BytesIO streams."""
+
+    def __init__(self, mock_server: MockCoCServer, method: str, path: str,
                  headers: dict = None, body: bytes = b''):
         self.server = mock_server
         self.command = method
@@ -118,6 +127,7 @@ class TestWebServerEndpoints(unittest.TestCase):
         self.assertIn('Call of Capital', body)
         self.assertIn('map-canvas', body)
         self.assertIn('drawer', body)
+        self.assertIn('window.COC_API_TOKEN="test-token"', body)
         self.assertIn('window.REGNUM_API_TOKEN="test-token"', body)
 
     def test_serve_css(self):
@@ -141,6 +151,7 @@ class TestWebServerEndpoints(unittest.TestCase):
         self.assertEqual(handler.response_status, 200)
         self.assertIn('javascript', handler.response_headers.get('content-type', ''))
         body = handler.get_body().decode('utf-8')
+        self.assertIn('CoCUIUtils', body)
         self.assertIn('RegnumUIUtils', body)
         self.assertIn('escapeHtml', body)
 
@@ -149,25 +160,32 @@ class TestWebServerEndpoints(unittest.TestCase):
         self.assertEqual(handler.response_status, 200)
         self.assertIn('javascript', handler.response_headers.get('content-type', ''))
         body = handler.get_body().decode('utf-8')
+        self.assertIn('CoCStateSync', body)
         self.assertIn('RegnumStateSync', body)
 
     def test_serve_hex_geometry_module(self):
         handler = MockHttpRequestHandler(self.mock_server, 'GET', '/hex_geometry.js')
         self.assertEqual(handler.response_status, 200)
         self.assertIn('javascript', handler.response_headers.get('content-type', ''))
-        self.assertIn('RegnumHexGeometry', handler.get_body().decode('utf-8'))
+        body = handler.get_body().decode('utf-8')
+        self.assertIn('CoCHexGeometry', body)
+        self.assertIn('RegnumHexGeometry', body)
 
     def test_serve_chart_renderer_module(self):
         handler = MockHttpRequestHandler(self.mock_server, 'GET', '/chart_renderer.js')
         self.assertEqual(handler.response_status, 200)
         self.assertIn('javascript', handler.response_headers.get('content-type', ''))
-        self.assertIn('RegnumCharts', handler.get_body().decode('utf-8'))
+        body = handler.get_body().decode('utf-8')
+        self.assertIn('CoCCharts', body)
+        self.assertIn('RegnumCharts', body)
 
     def test_serve_help_content_module(self):
         handler = MockHttpRequestHandler(self.mock_server, 'GET', '/help_content.js')
         self.assertEqual(handler.response_status, 200)
         self.assertIn('javascript', handler.response_headers.get('content-type', ''))
-        self.assertIn('RegnumHelpContent', handler.get_body().decode('utf-8'))
+        body = handler.get_body().decode('utf-8')
+        self.assertIn('CoCHelpContent', body)
+        self.assertIn('RegnumHelpContent', body)
 
     def test_get_qr_svg_endpoint(self):
         handler = MockHttpRequestHandler(self.mock_server, 'GET', '/api/qr.svg')
@@ -303,12 +321,18 @@ class TestWebServerEndpoints(unittest.TestCase):
         initial_turn = self.sim.turn
         body = json.dumps({'cmd_type': 'STEP'}).encode('utf-8')
         handler = MockHttpRequestHandler(self.mock_server, 'POST', '/api/command',
-                                         headers={'Content-Length': len(body), 'X-REGNUM-Token': 'test-token'}, body=body)
+                                         headers={'Content-Length': len(body), 'X-COC-Token': 'test-token'}, body=body)
         self.assertEqual(handler.response_status, 200)
         data = json.loads(handler.get_body().decode('utf-8'))
         self.assertTrue(data.get('success'))
         self.assertEqual(data.get('turn'), initial_turn + 1)
         self.assertEqual(self.sim.turn, initial_turn + 1)
+
+        # Also verify backwards compatibility with X-REGNUM-Token
+        handler2 = MockHttpRequestHandler(self.mock_server, 'POST', '/api/command',
+                                          headers={'Content-Length': len(body), 'X-REGNUM-Token': 'test-token'}, body=body)
+        self.assertEqual(handler2.response_status, 200)
+        self.assertEqual(self.sim.turn, initial_turn + 2)
 
     def test_api_command_play_pause(self):
         body = json.dumps({'cmd_type': 'PLAY'}).encode('utf-8')
@@ -382,6 +406,39 @@ class TestWebServerEndpoints(unittest.TestCase):
 
         post_handler = MockHttpRequestHandler(self.mock_server, 'POST', '/api/shutdown')
         self.assertEqual(post_handler.response_status, 403)
+
+
+    def test_voronoi_topology_serialization(self):
+        from sim_server.sim_server import SimServer
+        voronoi_sim = SimServer(topology='voronoi')
+        self.assertEqual(voronoi_sim.topology, 'voronoi')
+        self.assertGreaterEqual(len(voronoi_sim.tiles), 80)
+
+        world = voronoi_sim.serialize_world()
+        self.assertEqual(world.get('topology'), 'voronoi')
+        self.assertEqual(world.get('terrain_bounds', {}).get('pad_ratio'), 0.0)
+
+        tiles = world.get('tiles', [])
+        self.assertGreaterEqual(len(tiles), 80)
+        first_tile = tiles[0]
+        self.assertIsNotNone(first_tile.get('centroid'))
+        self.assertEqual(len(first_tile['centroid']), 2)
+        self.assertIsNotNone(first_tile.get('polygon'))
+        self.assertGreaterEqual(len(first_tile['polygon']), 3)
+
+        # Deep inspection of first tile
+        detail = voronoi_sim.serialize_tile(voronoi_sim.tiles[0], turn=0)
+        self.assertIsNotNone(detail.get('centroid'))
+        self.assertIsNotNone(detail.get('polygon'))
+        self.assertIsInstance(detail.get('neighbors'), list)
+
+        # HTTP request endpoint test with Voronoi mock server
+        mock_voronoi_server = MockRegnumServer(voronoi_sim)
+        handler = MockHttpRequestHandler(mock_voronoi_server, 'GET', '/api/state')
+        self.assertEqual(handler.response_status, 200)
+        data = json.loads(handler.get_body().decode('utf-8'))
+        self.assertEqual(data.get('topology'), 'voronoi')
+        self.assertGreaterEqual(len(data.get('tiles', [])), 80)
 
 
 if __name__ == '__main__':

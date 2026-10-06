@@ -1,0 +1,276 @@
+{
+  "format": "regnum.scenario.v2",
+  "id": "egypt_1877",
+  "meta": {
+    "title": "Egypt's Grain and Debt Crisis",
+    "year": 1877,
+    "horizon_turns": 20,
+    "briefing": "A weak Nile flood threatens the maize harvest. Cairo's relief stores are limited, and assigned revenues support debt service overseen by the Caisse. Choose what food to release and whose claims to protect.",
+    "actors": ["Egypt", "Britain", "France"]
+  },
+  "roles": {
+    "actors": {
+      "$player": { "type": "player", "filter": { "name": "Egypt" } },
+      "$creditor_1": { "type": "foreign", "filter": { "name": "Britain" } },
+      "$creditor_2": { "type": "foreign", "filter": { "name": "France" } }
+    },
+    "geography": {
+      "$capital": { "role": "capital", "location": "Cairo" },
+      "$port": { "role": "port", "location": "Alexandria" }
+    }
+  },
+  "modules": {
+    "debt": {
+      "initial_payment": 200.0,
+      "first_due_turn": 6,
+      "deferral_delay_turns": 3,
+      "deferral_multiplier": 1.10,
+      "maximum_deferrals": 1,
+      "assigned_revenues": { "tax": 0.25, "tariff": 0.50 }
+    },
+    "naval_coercion": {
+      "squadron_strength": 80.0,
+      "battery_defense_base": 28.0,
+      "battery_reinforcement_strength": 40.0,
+      "upkeep_per_turn": 8.0,
+      "max_protest_energy": 6.5
+    },
+    "politics": {
+      "ruler": "Khedive Ismail Pasha",
+      "governing_coalition": "palace",
+      "initial_factions": {
+        "palace_authority": 0.85,
+        "army_loyalty": 0.75,
+        "nationalist_movement": 0.20,
+        "cabinet_authority": 0.20
+      },
+      "transitions": [
+        {
+          "id": "dynastic_crisis",
+          "trigger": "palace_authority <= 0.60 and fiscal_autonomy <= 0.80",
+          "modal": {
+            "kind": "dynastic_crisis",
+            "title": "Dynastic Crisis: Ismail is deposed",
+            "action_id": "accept_tawfiq"
+          }
+        }
+      ]
+    },
+    "relief": {
+      "relief_stock_turns": 4,
+      "relief_units_per_turn": 30,
+      "harvest_shocks": [
+        {
+          "turn": 1,
+          "message": "The weak Nile flood cuts the expected food harvest in the Delta and Upper Egypt."
+        }
+      ]
+    }
+  },
+  "pressures": [
+    {
+      "id": "food_access",
+      "title": "Household maize access",
+      "metric": "hunger_rate",
+      "target": "< 20%",
+      "status_format": "{value:.1%} hungry"
+    },
+    {
+      "id": "debt_service",
+      "title": "Next debt-service window",
+      "metric": "scheduled_remittance",
+      "target": "turn 6",
+      "status_format": "{value:,.0f} units"
+    },
+    {
+      "id": "political_support",
+      "title": "Political support & legitimacy",
+      "metric": "legitimacy",
+      "target": "> 10%",
+      "status_format": "{value:.1%} legitimacy"
+    }
+  ],
+  "actions": [
+    {
+      "id": "release_maize",
+      "title": "Release maize reserves",
+      "category": "relief",
+      "precondition": "public_stock > 0",
+      "effects": {
+        "distribute_food": { "max_units": 30 }
+      },
+      "feedback": "Released maize rations from the public reserve."
+    },
+    {
+      "id": "prioritize_domestic_grain",
+      "title": "Keep more grain in Egypt",
+      "category": "relief",
+      "precondition": "not state.get('domestic_grain_priority')",
+      "effects": {
+        "set_export_fraction": 0.5,
+        "confidence_delta": -0.10
+      },
+      "feedback": "More grain retained in local granaries; export receipts fall."
+    },
+    {
+      "id": "reduce_fellahin_tax",
+      "title": "Reduce cultivator taxes",
+      "category": "fiscal",
+      "precondition": "not state.get('tax_decision_taken')",
+      "effects": {
+        "set_tax_rate_delta": -0.03,
+        "set_unrest_delta": -0.08,
+        "legitimacy_delta": 0.04,
+        "set_state_flag": { "tax_decision_taken": true }
+      },
+      "feedback": "Reduced cultivator taxes; political strain eased."
+    },
+    {
+      "id": "raise_local_taxes",
+      "title": "Raise local taxes",
+      "category": "fiscal",
+      "precondition": "not state.get('tax_decision_taken')",
+      "effects": {
+        "set_tax_rate_delta": 0.05,
+        "set_unrest_delta": 0.12,
+        "legitimacy_delta": -0.08,
+        "set_state_flag": { "tax_decision_taken": true }
+      },
+      "feedback": "Raised local taxes to preserve revenue at a political cost."
+    },
+    {
+      "id": "pay_remittance",
+      "title": "Pay debt service",
+      "category": "debt",
+      "precondition": "turn >= due_turn and payment_status == 'unpaid'",
+      "requires_cash": 200.0,
+      "effects": {
+        "treasury_cost": 200.0,
+        "debt_status": "paid",
+        "confidence_delta": 0.15
+      },
+      "feedback": "Paid the scheduled debt-service remittance."
+    },
+    {
+      "id": "defer_remittance",
+      "title": "Defer debt service",
+      "category": "debt",
+      "precondition": "turn >= due_turn and payment_status == 'unpaid' and state.get('deferral_count', 0) < 1",
+      "effects": {
+        "debt_status": "deferred",
+        "debt_payment_multiplier": 1.10,
+        "debt_due_in": 3,
+        "confidence_delta": -0.30,
+        "legitimacy_delta": 0.02
+      },
+      "feedback": "Deferred the remittance to a later date with surcharge."
+    },
+    {
+      "id": "concede_revenue",
+      "title": "Concede revenue oversight",
+      "category": "debt",
+      "precondition": "turn >= due_turn and payment_status == 'unpaid'",
+      "requires_cash": 100.0,
+      "effects": {
+        "treasury_cost": 100.0,
+        "debt_status": "restructured",
+        "autonomy_delta": -0.25,
+        "confidence_delta": 0.15
+      },
+      "feedback": "Conceded revenue oversight to foreign creditors in exchange for reduced payment."
+    },
+    {
+      "id": "default_remittance",
+      "title": "Default on debt service",
+      "category": "debt",
+      "precondition": "turn >= due_turn and payment_status == 'unpaid'",
+      "effects": {
+        "debt_status": "defaulted",
+        "confidence_delta": -1.0,
+        "legitimacy_delta": -0.15
+      },
+      "feedback": "Defaulted on the remittance; creditor confidence collapses."
+    }
+  ],
+  "branches": {
+    "release_maize": {
+      "delay_turns": 1,
+      "reaction": {
+        "headline": "Creditors note Egypt's emergency maize relief",
+        "body": "Britain and France see the reserve release as domestic relief; scheduled remittances remain unchanged.",
+        "effects": {},
+        "responses": []
+      }
+    },
+    "prioritize_domestic_grain": {
+      "delay_turns": 1,
+      "reaction": {
+        "headline": "Creditors demand an export assurance",
+        "body": "The Caisse argues that retaining grain weakens receipts assigned to debt service.",
+        "effects": {},
+        "responses": [
+          {
+            "id": "defend_food_priority",
+            "label": "Defend food priority",
+            "tooltip": "Maintain retention. Legitimacy +2%, Creditor confidence -5%.",
+            "effects": { "legitimacy_delta": 0.02, "confidence_delta": -0.05 }
+          },
+          {
+            "id": "restore_grain_exports",
+            "label": "Restore grain exports",
+            "tooltip": "Restore normal exports. Creditor confidence +10%.",
+            "effects": { "set_export_fraction": 1.0, "confidence_delta": 0.10 }
+          }
+        ]
+      }
+    },
+    "default_remittance": {
+      "delay_turns": 1,
+      "reaction": {
+        "headline": "Creditors assert a claim on customs receipts",
+        "body": "The Caisse demands surrender of customs receipts or threatens naval enforcement.",
+        "effects": {},
+        "responses": [
+          {
+            "id": "accept_customs_control",
+            "label": "Accept customs control",
+            "tooltip": "Consent to a 5-unit levy per turn. Autonomy -10%, Confidence +5%.",
+            "effects": { "levy_per_turn": 5.0, "confidence_delta": 0.05, "autonomy_delta": -0.10 }
+          },
+          {
+            "id": "contest_customs_claim",
+            "label": "Contest the claim",
+            "tooltip": "Reject collection. Legitimacy +2%. Britain mobilizes squadron.",
+            "effects": { "legitimacy_delta": 0.02 }
+          }
+        ]
+      }
+    }
+  },
+  "outcomes": [
+    {
+      "id": "breakdown",
+      "title": "Government Breakdown",
+      "summary": "Internal administrative collapse severed control over Egypt.",
+      "when": "legitimacy <= 0.10 or unrest >= 0.85"
+    },
+    {
+      "id": "relief_and_payment",
+      "title": "Relief and Sovereign Payment",
+      "summary": "Cairo honored international debt obligations while averting famine.",
+      "when": "payment_status == 'paid' and hunger_rate <= 0.20"
+    },
+    {
+      "id": "creditor_settlement",
+      "title": "Creditor Settlement",
+      "summary": "Cairo negotiated debt restructuring with creditors and preserved food access.",
+      "when": "payment_status == 'restructured' and hunger_rate <= 0.20"
+    },
+    {
+      "id": "coercive_extraction",
+      "title": "Coercive Extraction",
+      "summary": "The state balanced its books through heavy domestic taxation.",
+      "when": "state.get('tax_decision_taken') and payment_status == 'paid'"
+    }
+  ]
+}

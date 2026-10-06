@@ -67,7 +67,26 @@ def step_economy(region: Any, t: int):
     new_companies = _labor.run_labour(region, t)
     if new_companies:
         region.agents.extend(new_companies)
+
+    # Sven Beckert Capitalist Propagation: Elite Multi-Step Planning & Labor Mobility
+    if not hasattr(region, 'elite_planner'):
+        from economy import EliteCapitalistPlanner
+        region.elite_planner = EliteCapitalistPlanner()
+    if not hasattr(region, 'labor_scheduler'):
+        from economy import LaborMobilityScheduler
+        region.labor_scheduler = LaborMobilityScheduler()
+
+    has_new_items = region.elite_planner.check_new_market_items(region)
+    for a in list(region.agents):
+        if region.elite_planner.should_run_planning(a, region, t, has_new_items):
+            region.elite_planner.plan_and_execute_elite(a, region, t)
+
+    region.labor_scheduler.step_labor_cohort(region, t)
     audit_cash(region, t, "labour_done")
+
+    # Capital goods machinery depreciation (operational wear-and-tear)
+    from economy import apply_machinery_depreciation
+    apply_machinery_depreciation(region, t)
 
     # Workplace resistance: strikes, sabotage, and machinery repairs (P2.3)
     from labor_resistance import step_workplace_resistance
@@ -163,6 +182,14 @@ def step_economy(region: Any, t: int):
     # Epidemics & Medical Economics (P3)
     from disease import step_tile_diseases
     step_tile_diseases(region, t)
+
+    # True Cost & Externalities Ledger Finalization
+    try:
+        from economy.true_cost_ledger import get_true_cost_ledger
+        scen_id = getattr(getattr(region, 'gov', None), 'scenario_id', None)
+        get_true_cost_ledger().seal_turn(t, scenario_id=scen_id)
+    except Exception:
+        pass
 
     # Charity food distribution
     if legacy:

@@ -15,7 +15,7 @@ EFFECT_FIELDS = frozenset({
 
 
 def _validate_template(data: dict) -> None:
-    if data.get('format') != 'regnum.situation.v1' or not isinstance(data.get('branches'), dict):
+    if data.get('format') not in ('coc.situation.v1', 'regnum.situation.v1') or not isinstance(data.get('branches'), dict):
         raise ValueError('Unsupported situation scenario format.')
     naval_rules = data.get('naval_crisis', {})
     for key in ('british_squadron_strength', 'alexandria_battery_strength',
@@ -99,12 +99,12 @@ def apply_effects(world: dict, effects: dict) -> tuple[bool, str]:
         politics['palace_authority'] = max(0.0, min(1.0, float(politics['palace_authority'])
                                                   + float(effects['palace_authority_delta'])))
     if 'payment_amount_multiplier' in effects or 'payment_due_in' in effects:
-        from scenario_debt import revise
+        from scenario_debt import adjust_service
         amount = (float(state['scheduled_remittance'])
                   * float(effects.get('payment_amount_multiplier', 1.0)))
         due_turn = (int(world.get('turn', 0)) + int(effects['payment_due_in'])
                     if 'payment_due_in' in effects else None)
-        revise(world, round(amount, 2), due_turn=due_turn)
+        adjust_service(world, round(amount, 2), due_turn=due_turn)
     if 'payment_status' in effects:
         state['payment_status'] = effects['payment_status']
         if state['payment_status'] == 'deferred':

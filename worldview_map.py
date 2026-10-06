@@ -477,13 +477,21 @@ def draw_terrain_glyph(surface, region, cx, cy):
     if getattr(region, 'climate', '') == 'cold':
         pygame.draw.circle(surface, (230, 242, 255), (cx, y), 3)
 
-    # Ultra-Rare Natural Guano & Nitrate Global Deposit Beacon
+    # Geological Mineral Deposit Beacons (Balanced Gating & Rarity)
+    from ui_icons import get_icon
+    if getattr(region, 'has_iron_deposit', False):
+        icon_fe = get_icon('iron_ore', size=14)
+        surface.blit(icon_fe, (cx - 22, cy - 28))
+    if getattr(region, 'has_coal_vein', False):
+        icon_coal = get_icon('coal_seam', size=14)
+        surface.blit(icon_coal, (cx + 8, cy - 28))
+
+    # Natural Guano & Nitrate Global Deposit Beacon
     from tile_resources import TileResource
-    if TileResource.NATURAL_NITRATES in getattr(region, 'natural_resources', []):
-        from ui_icons import get_icon
-        icon = get_icon('guano', size=16)
-        surface.blit(icon, (cx - 8, cy - 32))
-        pygame.draw.circle(surface, (255, 235, 120), (cx, cy - 24), 12, 1)
+    if getattr(region, 'has_nitrate_deposit', False) or (TileResource.NATURAL_NITRATES in getattr(region, 'natural_resources', [])):
+        icon_ntr = get_icon('guano', size=15)
+        surface.blit(icon_ntr, (cx - 7, cy - 32))
+        pygame.draw.circle(surface, (255, 235, 120), (cx, cy - 24), 11, 1)
 
 
 def trade_anim(world, center_map=None):
@@ -790,6 +798,59 @@ def draw_activity_badges(surface, region, cx, cy, font_small):
             pygame.draw.rect(surface, (220, 40, 60), (cx - 26, cy - 70, 52, 14), border_radius=3)
             pygame.draw.rect(surface, (255, 220, 80), (cx - 26, cy - 70, 52, 14), 1, border_radius=3)
             surface.blit(font_small.render("STINK!", True, (255, 255, 255)), (cx - 22, cy - 71))
+
+        # Capitalist Propagation Badges: Mills, Pastures, Cotton, Luxuries, Captive Labor
+        agents = getattr(region, 'agents', [])
+
+        # 1. Active Mechanized Manufacturing Mill
+        corps = [a for a in agents if getattr(a, 'is_corporation', False) and getattr(a, 'alive', True)]
+        if corps:
+            c0 = corps[0]
+            is_brk = getattr(c0, 'machinery_broken', False) or getattr(c0, 'machinery_level', 0) == 0
+            m_col = (215, 60, 60) if is_brk else (70, 130, 180)
+            m_lbl = "!BRK" if is_brk else f"M{getattr(c0, 'machinery_level', 1)}"
+            pygame.draw.rect(surface, m_col, (cx - 42, cy + 8, 26, 13), border_radius=3)
+            surface.blit(font_small.render(m_lbl, True, (255, 255, 255)), (cx - 40, cy + 7))
+
+        # 2. Enclosed Sheep Pasture (Wool)
+        tenure = getattr(region, 'tenure', None)
+        if tenure and any(getattr(p, 'production_type', '') == 'pasture' for p in getattr(tenure, 'plots', [])):
+            pygame.draw.rect(surface, (150, 195, 140), (cx - 42, cy - 6, 26, 13), border_radius=3)
+            surface.blit(font_small.render("WOL", True, (25, 40, 25)), (cx - 40, cy - 7))
+
+        # 3. Raw Cotton Cultivation
+        tot_cotton = sum(a.inv_get(Goods.cotton, 0) for a in agents)
+        if tot_cotton >= 5 or (tenure and any(getattr(p, 'production_type', '') == 'cotton' for p in getattr(tenure, 'plots', []))):
+            pygame.draw.rect(surface, (245, 240, 230), (cx + 14, cy + 8, 26, 13), border_radius=3)
+            surface.blit(font_small.render("COT", True, (40, 45, 40)), (cx + 16, cy + 7))
+
+        # 4. Foreign Luxuries Trade Emporium
+        lux_held = sum(a.inv_get(Goods.foreign_luxuries, 0) + a.inv_get(Goods.fine_textiles, 0)
+                       + a.inv_get(Goods.rum, 0) + a.inv_get(Goods.porcelain, 0) for a in agents)
+        if lux_held >= 2:
+            pygame.draw.rect(surface, (245, 205, 65), (cx + 14, cy - 6, 26, 13), border_radius=3)
+            surface.blit(font_small.render("LUX", True, (35, 25, 15)), (cx + 16, cy - 7))
+
+        # 5. Unfree Captive Labor Gang Cohort (War Capitalism)
+        has_captive = any(any(e.get('captive_labor', 0) > 0 for e in getattr(a, 'frontier_estates', [])) for a in agents)
+        if has_captive:
+            pygame.draw.rect(surface, (140, 30, 45), (cx - 14, cy + 46, 28, 13), border_radius=3)
+            surface.blit(font_small.render("CAP", True, (255, 235, 235)), (cx - 12, cy + 45))
+
+        # 6. Active Oceanic Trade Triangle Voyage (Merchant Marine)
+        trade_mgr = getattr(region, 'trade_manager', None)
+        active_triangles = [v for v in getattr(trade_mgr, 'active_voyages', []) if getattr(v, 'home_region', '') == region.name]
+        if active_triangles:
+            pygame.draw.rect(surface, (30, 80, 160), (cx + 14, cy + 22, 26, 13), border_radius=3)
+            surface.blit(font_small.render("TRG", True, (240, 245, 255)), (cx + 16, cy + 21))
+
+        # 7. Luddite Machine-Breaking / Secret Combination Alert Badge
+        ludd_mgr = getattr(region, 'luddite_manager', None)
+        if ludd_mgr:
+            l_st = ludd_mgr.get_state(region.name)
+            if l_st.combination_strength >= 50.0:
+                pygame.draw.rect(surface, (210, 45, 45), (cx - 42, cy + 22, 26, 13), border_radius=3)
+                surface.blit(font_small.render("LUD", True, (255, 230, 230)), (cx - 40, cy + 21))
     except Exception as error:
         global _popular_resistance_warning_logged
         if not _popular_resistance_warning_logged:

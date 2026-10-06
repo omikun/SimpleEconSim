@@ -29,6 +29,16 @@ def build_world_view(seed=None, terrain_seed=None, nation_seed=None, scenario_id
         seed = seeds['world'] if seed is None else seed
         terrain_seed = seeds['terrain'] if terrain_seed is None else terrain_seed
         nation_seed = seeds['nations'] if nation_seed is None else nation_seed
+        # A new authored campaign must not inherit bonds, blockades, or ID-based
+        # foreclosure draws from a previously generated world in this process.
+        import agent
+        import sovereign_bonds
+        from agents.resistance.manager import reset_popular_resistance_manager
+        from macro.imperialism import manager as imperialism_manager
+        agent._agentid_counter[0] = 0
+        sovereign_bonds._GLOBAL_BOND_MARKET = None
+        imperialism_manager._GLOBAL_IMPERIALISM_MANAGER = None
+        reset_popular_resistance_manager()
     if is_scenario_id(scenario_id):
         from scenario_egypt_1877 import deterministic_generation
         with deterministic_generation(seed):
@@ -217,7 +227,7 @@ def step_world(world):
 
 def step_world_with_warning(world):
     """Pause before advancing into a known high-risk riot or breakdown state."""
-    if world.get('scenario_warning_modal'):
+    if world.get('scenario_warning_modal') or world.get('scenario_bookend_modal'):
         return False
     if world.get('scenario_id') == 'egypt_1877':
         nation = next((n for n in world.get('nations', [])
@@ -235,7 +245,7 @@ def step_world_with_warning(world):
                 return False
 
     if world.get('crisis_warning_ack_turn') != int(world.get('turn', 0)):
-        from unrest import MOB_THRESHOLD, PROTEST_THRESHOLD
+        from unrest import MOB_THRESHOLD, PROTEST_THRESHOLD, unrest_intensities
         candidates = []
         player_only = world.get('scenario_id') == 'egypt_1877'
         nations_at_risk = (n for n in world.get('nations', [])
@@ -252,7 +262,9 @@ def step_world_with_warning(world):
             world['scenario_warning_modal'] = {
                 'kind': 'riot_risk', 'nation': nation.name,
                 'region': getattr(tile, 'display_name', getattr(tile, 'name', 'district')),
+                'region_key': tile.name,
                 'energy': energy, 'threshold': MOB_THRESHOLD,
+                'riot_chance': unrest_intensities(energy)['mob'],
                 'already_mob': energy >= MOB_THRESHOLD,
             }
             return False
@@ -271,7 +283,12 @@ def step_world_with_warning(world):
                                 for token in ('BREAD RIOT', 'RIOT', 'REVOLT', 'TAKEOVER'))), None)
     if crisis_event is not None and not world.get('scenario_warning_modal'):
         message = crisis_event.get('text', 'Civil unrest has escalated.') if isinstance(crisis_event, dict) else str(crisis_event)
+        affected = next((tile for tile in world.get('tiles', [])
+                         if any(name and str(name).lower() in message.lower()
+                                for name in (getattr(tile, 'scenario_location', None),
+                                             getattr(tile, 'display_name', None), tile.name))), None)
         world['playing'] = False
-        world['scenario_warning_modal'] = {'kind': 'riot_event', 'message': message}
+        world['scenario_warning_modal'] = {'kind': 'riot_event', 'message': message,
+                                           'region_key': affected.name if affected else None}
         return False
     return True

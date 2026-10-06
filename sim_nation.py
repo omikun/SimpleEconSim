@@ -225,7 +225,7 @@ def draw_map(tiles, nations, filename="tile_map.png"):
     names = [f"{n.name} ({n.currency})" for n in nations]
     ax.legend(handles, names, loc='upper center', bbox_to_anchor=(0.5, 1.06),
               ncol=3, frameon=False, fontsize=9)
-    ax.set_title("REGNUM M0 tile map (nations / farm / forest / snow)",
+    ax.set_title("Call of Capital (CoC) M0 tile map (nations / farm / forest / snow)",
                  fontsize=11)
     plt.tight_layout()
     plt.savefig(filename, dpi=110)

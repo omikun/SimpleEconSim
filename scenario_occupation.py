@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from army import resolve_battle
 
+OCCUPIED_RECEIPT_CAP = 20.0
+
 
 def initialize(world):
     world['scenario_state']['occupation'] = {
@@ -11,6 +13,7 @@ def initialize(world):
         'resistance': 0.10, 'collaboration': 0.10, 'boycott_until': 0,
         'strike_until': 0, 'garrison_supply_paid': 0.0, 'collected_this_turn': 0.0,
         'collection_turn': 0, 'revenue_ledger': [], 'events': [], 'capital_warning_resolved': False,
+        'withdrawal_proposal': None, 'withdrawal_replies': [],
     }
 
 
@@ -44,7 +47,7 @@ def intercept_revenue(world, government, source, gross, turn):
     if occupation['collection_turn'] != turn:
         occupation['collection_turn'] = turn
         occupation['collected_this_turn'] = 0.0
-    room = max(0.0, 6.0 - occupation['collected_this_turn'])
+    room = max(0.0, OCCUPIED_RECEIPT_CAP - occupation['collected_this_turn'])
     boycott = .25 if turn <= occupation['boycott_until'] else 1.0
     strike = .5 if turn <= occupation['strike_until'] else 1.0
     resistance = float(occupation['resistance'])
@@ -97,6 +100,18 @@ def _move_occupation_force_to_cairo(world):
         unit.region_name = cairo.name
 
 
+def reserve_occupation_window(world):
+    """Keep several turns for occupied receipts and Egyptian responses."""
+    state = world['scenario_state']
+    if not any(owner == 'Britain' for owner in state['campaign']['territorial_control'].values()):
+        return
+    if state.get('occupation_start_turn') is None:
+        state['occupation_start_turn'] = int(world['turn'])
+    from scenario_egypt_1877 import ensure_campaign_horizon
+    minimum = int(world['scenario'].get('occupation_min_turns', 5))
+    ensure_campaign_horizon(world, state['occupation_start_turn'] + minimum - 1)
+
+
 def advance(world):
     state = world['scenario_state']
     campaign = state['campaign']
@@ -106,6 +121,7 @@ def advance(world):
     held = [site for site, owner in campaign['territorial_control'].items() if owner == 'Britain']
     if not held:
         return
+    reserve_occupation_window(world)
     britain = _nation(world, 'Britain')
     egypt = _nation(world, 'Egypt')
     units = _occupying_units(world)
@@ -135,6 +151,34 @@ def advance(world):
             unit.soldiers = max(0, unit.soldiers - 1)
             unit.morale = max(.1, unit.morale - .03)
         _event(world, 'Egyptian resistance disrupts garrison supply and costs Britain troops.')
+    proposal = occupation.get('withdrawal_proposal')
+    if proposal and int(world['turn']) >= int(proposal['reply_turn']):
+        egypt_cash = float(egypt.government.agent.cash)
+        recent_receipts = (float(occupation['collected_this_turn'])
+                           if occupation.get('collection_turn') == int(world['turn']) else 0.0)
+        strained = recent_receipts < supply * .75 and occupation['resistance'] >= .35
+        accepted = (occupation['resistance'] >= .60 or strained
+                    or float(britain.government.agent.cash) < supply * 4)
+        accepted = accepted and egypt_cash >= float(proposal['amount'])
+        occupation['withdrawal_replies'].append({
+            'turn': int(world['turn']), 'accepted': accepted,
+            'resistance': round(float(occupation['resistance']), 3),
+            'receipts': round(recent_receipts, 2), 'supply': round(supply, 2),
+        })
+        occupation['withdrawal_proposal'] = None
+        if accepted:
+            amount = float(proposal['amount'])
+            egypt.government.agent.cash -= amount
+            britain.government.agent.cash += amount
+            occupation['revenue_ledger'].append({
+                'turn': int(world['turn']), 'source': 'withdrawal_settlement',
+                'amount': amount, 'holder': 'Britain',
+            })
+            withdraw(world, 'Britain accepts withdrawal terms as resistance and supply costs erode its position.',
+                     cause='negotiated_withdrawal')
+            _event(world, f'Britain accepts Cairo’s {amount:.0f}-unit withdrawal offer; Egyptian institutions return to local control.')
+            return
+        _event(world, 'Britain rejects Cairo’s withdrawal offer while the garrison can still collect and hold territory. No offer cash was spent.')
     if (expedition['stage'] == 'foothold' and not occupation['capital_warning_resolved']
             and 'Cairo' not in held and int(world['turn']) >= int(expedition.get('foothold_turn', world['turn'])) + 2
             and not world.get('scenario_warning_modal')):
@@ -209,6 +253,7 @@ def resolve_capital(world, response_id):
 def withdraw(world, reason, *, cause='other'):
     state = world['scenario_state']
     state['campaign']['territorial_control'].clear()
+    state['occupation_start_turn'] = None
     state['campaign']['expedition']['stage'] = 'withdrawn'
     for unit in list(_occupying_units(world)):
         _nation(world, 'Britain').military_units.remove(unit)
@@ -252,16 +297,16 @@ def apply_action(world, action_id):
         egypt.legitimacy = max(0.0, egypt.legitimacy - .05)
         message = 'Local collaboration calms resistance but reduces Egyptian legitimacy and strengthens occupation.'
     elif action_id == 'negotiate_withdrawal':
-        britain = _nation(world, 'Britain')
         cost = 30.0
         if egypt.government.agent.cash < cost:
             return False, 'The treasury needs 30 units for withdrawal terms.'
-        if occupation['resistance'] < .35 and britain.government.agent.cash >= 30:
-            return False, 'Britain sees no reason to withdraw while resistance is weak and supply is affordable.'
-        egypt.government.agent.cash -= cost
-        britain.government.agent.cash += cost
-        withdraw(world, 'Britain accepts withdrawal terms under Egyptian resistance and supply pressure.', cause='negotiated_withdrawal')
-        message = world['scenario_feedback']
+        if occupation.get('withdrawal_proposal'):
+            return False, 'Britain has not answered the current withdrawal offer.'
+        occupation['withdrawal_proposal'] = {'turn': int(world['turn']),
+                                             'reply_turn': int(world['turn']) + 1,
+                                             'amount': cost}
+        message = ('Cairo offers 30 units for a British withdrawal. London answers next turn; '
+                   'cash transfers only if it accepts.')
     else:
         return False, 'Unknown occupation decision.'
     _event(world, message)

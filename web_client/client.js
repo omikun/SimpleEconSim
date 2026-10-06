@@ -9,9 +9,16 @@
   'use strict';
 
   const DEFAULT_HEX_SIZE = 50.0;
-  const { escapeHtml, safeClassToken, safeCssColor } = window.RegnumUIUtils;
-  const { axialToPixel, pixelToAxial, drawHexPolygon } = window.RegnumHexGeometry;
-  const api = window.RegnumStateSync.createStateSync({
+  const uiUtils = window.CoCUIUtils || window.RegnumUIUtils;
+  const { escapeHtml, safeClassToken, safeCssColor } = uiUtils;
+  const hexGeo = window.CoCHexGeometry || window.RegnumHexGeometry;
+  const { axialToPixel, pixelToAxial, drawHexPolygon } = hexGeo || {};
+  const voronoiGeo = window.CoCVoronoiGeometry || window.RegnumVoronoiGeometry;
+  const { pointInPolygon, polygonBBox, polygonCentroid, drawPolygonPath } = voronoiGeo || {};
+  const projection3D = window.CoCProjection3D || window.RegnumProjection3D;
+  const { getCameraMVP, projectPoint3D, projectPolygon3D, screenToWorldRay, intersectRayPlane, computePitchYaw } = projection3D || {};
+  const stateSync = window.CoCStateSync || window.RegnumStateSync;
+  const api = stateSync.createStateSync({
     async onCommandResult(result) {
       if (!result.success) {
         showToast(result.error || 'Command failed.', true);
@@ -64,25 +71,39 @@
   let activeCitizenSub = 'class';    // 'class' | 'labor'
   let activeHelpPage = '1';          // '1'..'3'
   let activeDiploNation = null;
+  let activeProgressMode = 'active'; // 'active' | 'all'
   let cadastreScrollOffset = 0;
+  let hoveredTileName = null;
+  let showTradeRoutes = true;
+  let showTradeArrows = true;
+  let showArbitrageRings = true;
+  let mapAnimFrame = 0;
 
   // Photorealistic Topographic Terrain State
   let useTerrainImage = true;
-  let terrainImage = new Image();
-  let terrainLoaded = false;
-  let terrainLoading = false;
-  let currentTerrainSeed = null;
+  const terrainLayer = window.CoCTerrainLayer.createTerrainLayer(scheduleMapRender);
+  const terrainMesh = window.CoCTerrainRenderer.createTerrainRenderer(scheduleMapRender);
 
   // Camera & Interaction State
   let camX = 0;
   let camY = 0;
   let camZoom = 1.0;
+  let camPitch = 52.0;
+  let camYaw = 9.0;
+  let camTargetX = 500.0;
+  let camTargetY = 500.0;
+  let is3DMode = true;
   let isInitialCentered = false;
   let isDragging = false;
+  let isOrbiting = false;
   let dragStartX = 0;
   let dragStartY = 0;
   let camStartX = 0;
   let camStartY = 0;
+  let camStartTargetX = 500.0;
+  let camStartTargetY = 500.0;
+  let startPitch = 52.0;
+  let startYaw = 9.0;
   let touchStartTime = 0;
   let initialPinchDist = null;
   let initialPinchZoom = 1.0;
@@ -132,6 +153,8 @@
   const btnCompare = document.getElementById('btn-compare');
   const btnHelp = document.getElementById('btn-help');
   const btnQr = document.getElementById('btn-qr');
+  const btnSettings = document.getElementById('btn-settings');
+  const btnToggle3D = document.getElementById('btn-toggle-3d');
   const btnToggleTerrain = document.getElementById('btn-toggle-terrain');
   const btnTogglePipeline = document.getElementById('btn-toggle-pipeline');
   const btnTopDiplo = document.getElementById('btn-top-diplo');
@@ -141,6 +164,10 @@
   const activeFlagDot = document.getElementById('active-flag-dot');
   const quickPill = document.getElementById('quick-pill');
   const pillText = document.getElementById('pill-text');
+  const seasonalClock = document.getElementById('seasonal-clock');
+  const seasonalPopover = document.getElementById('seasonal-popover');
+  const hexHoverCard = document.getElementById('hex-hover-card');
+  const scenarioPressuresRibbon = document.getElementById('scenario-pressures-ribbon');
 
   // Left Drawer Elements
   const leftDrawer = document.getElementById('left-drawer');
@@ -178,11 +205,26 @@
   const qrBackdrop = document.getElementById('qr-backdrop');
   const qrUrlText = document.getElementById('qr-url-text');
   const btnCopyUrl = document.getElementById('btn-copy-url');
+  const settingsModal = document.getElementById('settings-modal');
+  const btnCloseSettings = document.getElementById('btn-close-settings');
+  const settingsBackdrop = document.getElementById('settings-backdrop');
+  const scenarioBookendModal = document.getElementById('scenario-bookend-modal');
+  const btnCloseBookend = document.getElementById('btn-close-bookend');
+  const scenarioBookendBackdrop = document.getElementById('scenario-bookend-backdrop');
 
   // Toast Container
   const toastContainer = document.getElementById('toast-container');
 
-  // ---------------- Hex Math & Geometry ----------------
+  // ---------------- Hex & Voronoi Math & Geometry ----------------
+
+  function isVoronoi() {
+    return Boolean(
+      worldState && (
+        worldState.topology === 'voronoi' ||
+        (worldState.tiles && worldState.tiles.length > 0 && Array.isArray(worldState.tiles[0].polygon))
+      )
+    );
+  }
 
   function getHexRadius() {
     return (worldState && typeof worldState.hex_size === 'number') ? worldState.hex_size : DEFAULT_HEX_SIZE;
@@ -193,12 +235,35 @@
     tileByAxial = new Map();
     positionedTiles = [];
     if (!worldState || !worldState.tiles) return;
-    const radius = getHexRadius();
-    for (const tile of worldState.tiles) {
-      const point = axialToPixel(tile.q, tile.r, radius);
-      tileByName.set(tile.name, tile);
-      tileByAxial.set(`${tile.q},${tile.r}`, tile);
-      positionedTiles.push({ tile, x: point.x, y: point.y });
+
+    if (isVoronoi()) {
+      for (const tile of worldState.tiles) {
+        if (!tile.centroid || !Array.isArray(tile.centroid) || tile.centroid.length < 2) {
+          if (tile.polygon && typeof polygonCentroid === 'function') {
+            tile.centroid = polygonCentroid(tile.polygon);
+          } else {
+            tile.centroid = [500.0, 500.0];
+          }
+        }
+        if (tile.polygon && typeof polygonBBox === 'function') {
+          tile._bbox = polygonBBox(tile.polygon);
+        }
+        tileByName.set(tile.name, tile);
+        positionedTiles.push({
+          tile,
+          x: tile.centroid[0],
+          y: tile.centroid[1],
+          polygon: tile.polygon
+        });
+      }
+    } else {
+      const radius = getHexRadius();
+      for (const tile of worldState.tiles) {
+        const point = axialToPixel(tile.q, tile.r, radius);
+        tileByName.set(tile.name, tile);
+        tileByAxial.set(`${tile.q},${tile.r}`, tile);
+        positionedTiles.push({ tile, x: point.x, y: point.y });
+      }
     }
   }
 
@@ -209,6 +274,17 @@
       mapFramePending = false;
       renderMap();
     });
+  }
+
+  function toggle3DMode() {
+    is3DMode = !is3DMode;
+    if (btnToggle3D) {
+      btnToggle3D.textContent = is3DMode ? '3D' : '2D';
+      btnToggle3D.classList.toggle('active', is3DMode);
+      btnToggle3D.title = is3DMode ? 'Toggle 2D Flat Perspective [3]' : 'Toggle 35mm 3D Perspective [3]';
+    }
+    showToast(is3DMode ? 'Camera: 35mm 3D Perspective' : 'Camera: 2D Orthographic');
+    scheduleMapRender();
   }
 
   // ---------------- Canvas Resizing & Camera ----------------
@@ -226,6 +302,38 @@
 
   function centerCameraOnWorld() {
     if (!worldState || !worldState.tiles || worldState.tiles.length === 0) return;
+    const w = canvas.parentElement.clientWidth;
+    const h = canvas.parentElement.clientHeight;
+
+    if (isVoronoi()) {
+      let minX = 0, maxX = 1000, minY = 0, maxY = 1000;
+      if (worldState.terrain_bounds) {
+        const tb = worldState.terrain_bounds;
+        minX = tb.min_x !== undefined ? tb.min_x : 0;
+        maxX = tb.max_x !== undefined ? tb.max_x : 1000;
+        minY = tb.min_y !== undefined ? tb.min_y : 0;
+        maxY = tb.max_y !== undefined ? tb.max_y : 1000;
+      }
+      camTargetX = (minX + maxX) / 2;
+      camTargetY = (minY + maxY) / 2;
+      camZoom = 1.0;
+
+      if (typeof computePitchYaw === 'function') {
+        const py = computePitchYaw(camZoom);
+        camPitch = is3DMode ? py.pitch : 89.0;
+        camYaw = is3DMode ? py.yaw : 0.0;
+      } else {
+        camPitch = is3DMode ? 58.0 : 89.0;
+        camYaw = is3DMode ? 6.0 : 0.0;
+      }
+
+      camX = w / 2 - camTargetX * camZoom;
+      camY = h / 2 - camTargetY * camZoom;
+      isInitialCentered = true;
+      scheduleMapRender();
+      return;
+    }
+
     const hexRadius = getHexRadius();
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
 
@@ -237,18 +345,18 @@
       maxY = Math.max(maxY, y + hexRadius);
     });
 
-    const w = canvas.parentElement.clientWidth;
-    const h = canvas.parentElement.clientHeight;
     const worldW = maxX - minX;
     const worldH = maxY - minY;
+    camTargetX = (minX + maxX) / 2;
+    camTargetY = (minY + maxY) / 2;
 
     const pad = 60;
     const zX = (w - pad * 2) / Math.max(worldW, 100);
     const zY = (h - pad * 2) / Math.max(worldH, 100);
     camZoom = Math.min(Math.max(Math.min(zX, zY), 0.4), 2.2);
 
-    camX = w / 2 - ((minX + maxX) / 2) * camZoom;
-    camY = h / 2 - ((minY + maxY) / 2) * camZoom;
+    camX = w / 2 - camTargetX * camZoom;
+    camY = h / 2 - camTargetY * camZoom;
     isInitialCentered = true;
     scheduleMapRender();
   }
@@ -256,25 +364,7 @@
   // ---------------- Terrain Image Synchronizer ----------------
 
   function syncTerrainImage(seed) {
-    if (!seed) return;
-    if (currentTerrainSeed === seed && (terrainLoaded || terrainLoading)) return;
-    currentTerrainSeed = seed;
-    terrainLoading = true;
-    terrainLoaded = false;
-
-    terrainImage = new Image();
-    terrainImage.crossOrigin = 'anonymous';
-    terrainImage.onload = () => {
-      terrainLoaded = true;
-      terrainLoading = false;
-      scheduleMapRender();
-    };
-    terrainImage.onerror = () => {
-      terrainLoading = false;
-      terrainLoaded = false;
-      scheduleMapRender();
-    };
-    terrainImage.src = `/api/terrain.png?seed=${seed}&t=${Date.now()}`;
+    terrainLayer.sync(seed);
   }
 
   function hexToRgba(hex, alpha) {
@@ -291,6 +381,368 @@
 
   // ---------------- Map & Thematic Layers Renderer ----------------
 
+  function getThematicLayerFill(tile) {
+    if (!tile || activeLayer === 'overview') return null;
+
+    if (activeLayer === 'physical') {
+      const elev = tile.elevation_meters || 0;
+      const norm = Math.min(Math.max(elev / 3000.0, 0), 1.0);
+      return `rgba(140, 225, 255, ${norm * 0.55})`;
+    } else if (activeLayer === 'population') {
+      const pop = tile.population || 0;
+      const norm = Math.min(pop / 150.0, 1.0);
+      const unrest = Math.min((tile.protest_energy || 0) / 5.0, 1.0);
+      return `rgba(${Math.round(245 * unrest + 56 * (1 - unrest))}, ${Math.round(140 * (1 - unrest))}, 60, ${0.15 + norm * 0.55})`;
+    } else if (activeLayer === 'economy') {
+      const gdp = tile.gdp || 0;
+      const norm = Math.min(gdp / 1000.0, 1.0);
+      return `rgba(120, 225, 130, ${0.15 + norm * 0.55})`;
+    } else if (activeLayer === 'production') {
+      const bCount = tile.buildings_count || (tile.buildings && tile.buildings.length) || 0;
+      const norm = Math.min(bCount / 5.0, 1.0);
+      return `rgba(245, 210, 90, ${0.15 + norm * 0.55})`;
+    } else if (activeLayer === 'military') {
+      const g = tile.garrison || 0;
+      const norm = Math.min(g / 50.0, 1.0);
+      return `rgba(235, 80, 80, ${0.15 + norm * 0.55})`;
+    } else if (activeLayer === 'enclosure') {
+      const enc = tile.enclosed_fraction ?? ((tile.tenure && tile.tenure.enclosed_fraction) || 0);
+      return `rgba(215, 175, 75, ${0.15 + enc * 0.6})`;
+    } else if (activeLayer === 'exploitation') {
+      const s_v = tile.exploitation_rate ?? ((tile.tenure && tile.tenure.surplus_value_rate) || 0.5);
+      const norm = Math.min(s_v / 2.0, 1.0);
+      return `rgba(235, 75, 75, ${0.2 + norm * 0.6})`;
+    } else if (activeLayer === 'externalities') {
+      const smog = tile.pollution_air ?? ((tile.ecology && tile.ecology.pollution_air) || 0);
+      const norm = Math.min(smog / 100.0, 1.0);
+      return `rgba(100, 215, 140, ${0.15 + (1 - norm) * 0.4})`;
+    }
+    return null;
+  }
+
+  function renderThematicLayerOverlay(ctx, tile, cx, cy, size) {
+    if (activeLayer === 'overview') return;
+    const fill = getThematicLayerFill(tile);
+    if (!fill) return;
+
+    ctx.save();
+    drawHexPolygon(ctx, cx, cy, size - 1.0);
+    ctx.fillStyle = fill;
+    ctx.fill();
+    ctx.restore();
+  }
+
+  const BIOME_COLOR_MAP = {
+    ocean: '#1e3a8a',
+    deep_ocean: '#0f172a',
+    shallow_ocean: '#0284c7',
+    coast: '#0ea5e9',
+    beach: '#d97706',
+    scorched: '#78716c',
+    bare: '#a8a29e',
+    tundra: '#94a3b8',
+    snow: '#f8fafc',
+    taiga: '#334155',
+    shrubland: '#84cc16',
+    grassland: '#22c55e',
+    temperate_desert: '#f59e0b',
+    subtropical_desert: '#d97706',
+    temperate_rain_forest: '#047857',
+    temperate_deciduous_forest: '#15803d',
+    tropical_rain_forest: '#065f46',
+    tropical_seasonal_forest: '#16a34a',
+    plains: '#4ade80',
+    forest: '#15803d',
+    mountain: '#64748b',
+    mountains: '#64748b',
+    hills: '#65a30d',
+    swamp: '#14532d',
+    desert: '#eab308'
+  };
+
+  function getTileColor(tile) {
+    if (!tile) return '#22c55e';
+    if (tile.color && typeof tile.color === 'string') return tile.color;
+    const isSea = (tile.is_ocean || (typeof tile.elevation === 'number' && tile.elevation <= 0) || tile.biome === 'ocean');
+    if (isSea) {
+      if (typeof tile.elevation === 'number' && tile.elevation < -0.4) return '#0f172a';
+      return '#1e3a8a';
+    }
+    const b = (tile.biome || '').toLowerCase();
+    if (b && BIOME_COLOR_MAP[b]) return BIOME_COLOR_MAP[b];
+    const elev = Number(tile.elevation || 0);
+    if (elev > 0.7) return '#f8fafc';
+    if (elev > 0.5) return '#64748b';
+    if (elev > 0.3) return '#15803d';
+    return '#4ade80';
+  }
+
+  function renderVoronoiMap3D(w, h) {
+    const camObj = {
+      pitch: camPitch,
+      yaw: camYaw,
+      zoom: camZoom,
+      target_x: camTargetX,
+      target_y: camTargetY
+    };
+    const terrainReady = terrainMesh.draw(ctx, camObj, w, h, getCameraMVP);
+    const mvp = getCameraMVP(camObj, w, h);
+    if (!mvp) return;
+
+    const tradeAnim = window.CoCTradeAnimator || window.RegnumTradeAnimator;
+    const projectedGeom = [];
+
+    // Pass 1: Voronoi 3D Polygons Projection, Biome Fill, Nation Tint, Layer Overlay & Borders
+    for (let i = 0; i < positionedTiles.length; i++) {
+      const { tile } = positionedTiles[i];
+      if (!tile.polygon || tile.polygon.length < 3) continue;
+
+      const isSelected = (selectedTileName && tile.name === selectedTileName);
+      const isSea = (tile.is_ocean || (typeof tile.elevation === 'number' && tile.elevation <= 0) || tile.biome === 'ocean');
+      if (isSea) continue;
+
+      const elev = Number(tile.elevation || 0);
+      const z = elev * 48.0 + 0.1;
+      const pts3D = tile.polygon.map(([px, py]) => [px, py, z]);
+      const screenPts = projectPolygon3D(mvp, pts3D, w, h);
+      if (!screenPts || screenPts.length < 3) continue;
+
+      const cz = z + 0.2;
+      const cScreen = projectPoint3D(mvp, tile.centroid[0], tile.centroid[1], cz, w, h);
+      projectedGeom.push({ tile, screenPts, cScreen, isSelected, isSea });
+
+      ctx.beginPath();
+      ctx.moveTo(screenPts[0][0], screenPts[0][1]);
+      for (let j = 1; j < screenPts.length; j++) {
+        ctx.lineTo(screenPts[j][0], screenPts[j][1]);
+      }
+      ctx.closePath();
+
+      // Terrain comes from the shared desktop micropolygon renderer. Tiles add
+      // only the translucent ownership and thematic overlays above that mesh.
+      if (!terrainReady) {
+        ctx.fillStyle = getTileColor(tile);
+        ctx.fill();
+      }
+      if (tile.nation_color) {
+        const baseColor = tile.nation_color.startsWith('#')
+          ? hexToRgba(tile.nation_color, 0.25)
+          : tile.nation_color.replace('rgb', 'rgba').replace(')', ', 0.25)');
+        ctx.fillStyle = baseColor;
+        ctx.fill();
+      }
+
+      // Active Thematic Layer overlay
+      if (activeLayer !== 'overview') {
+        const layerFill = getThematicLayerFill(tile);
+        if (layerFill) {
+          ctx.fillStyle = layerFill;
+          ctx.fill();
+        }
+      }
+
+      // Territorial boundaries
+      if (isSelected) {
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 3.5;
+        ctx.stroke();
+      } else if (hoveredTileName && tile.name === hoveredTileName) {
+        ctx.strokeStyle = '#fbbf24';
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+      } else if (tile.nation_color) {
+        ctx.strokeStyle = tile.nation_color;
+        ctx.lineWidth = 1.8;
+        ctx.stroke();
+      } else if (!isSea) {
+        ctx.strokeStyle = 'rgba(205, 220, 210, 0.35)';
+        ctx.lineWidth = 1.0;
+        ctx.stroke();
+      } else {
+        ctx.strokeStyle = 'rgba(14, 116, 144, 0.25)';
+        ctx.lineWidth = 0.5;
+        ctx.stroke();
+      }
+    }
+
+    // Pass 2: Overland Trade Routes in 3D perspective
+    if (showTradeRoutes && tradeAnim && worldState.trade_network) {
+      tradeAnim.drawTradeRoutes(ctx, worldState.trade_network, tileByName, 0, camZoom, (t) => {
+        const tz = (Number(t.elevation || 0) * 48.0) + 0.5;
+        return projectPoint3D(mvp, t.centroid[0], t.centroid[1], tz, w, h);
+      });
+    }
+    if (showTradeArrows && tradeAnim && worldState.trade_network) {
+      tradeAnim.drawTradeFlowParticles(ctx, worldState.trade_network, tileByName, 0, camZoom, performance.now(), (t) => {
+        const tz = (Number(t.elevation || 0) * 48.0) + 0.5;
+        return projectPoint3D(mvp, t.centroid[0], t.centroid[1], tz, w, h);
+      });
+    }
+
+    // Pass 3: Information Badges & Glyphs at screen-projected 3D centroids
+    for (let i = 0; i < projectedGeom.length; i++) {
+      const { tile, cScreen } = projectedGeom[i];
+      if (cScreen && cScreen.valid) {
+        renderHexBadges(ctx, tile, cScreen.x, cScreen.y, 35.0 * Math.max(0.6, Math.min(camZoom, 1.8)));
+      }
+    }
+  }
+
+  function renderVoronoiMap2D(w, h) {
+    ctx.save();
+    ctx.translate(camX, camY);
+    ctx.scale(camZoom, camZoom);
+
+    // Continuous photorealistic terrain image layer backdrop if enabled
+    if (useTerrainImage && worldState) terrainLayer.draw(ctx, worldState.terrain_bounds);
+
+    const minX = -camX / camZoom - 100;
+    const maxX = (w - camX) / camZoom + 100;
+    const minY = -camY / camZoom - 100;
+    const maxY = (h - camY) / camZoom + 100;
+
+    for (let i = 0; i < positionedTiles.length; i++) {
+      const { tile, x, y, polygon } = positionedTiles[i];
+      if (!polygon || polygon.length < 3) continue;
+
+      const bb = tile._bbox;
+      if (bb && (bb.maxX < minX || bb.minX > maxX || bb.maxY < minY || bb.minY > maxY)) {
+        continue;
+      }
+
+      const isSelected = (selectedTileName && tile.name === selectedTileName);
+      const isSea = (tile.is_ocean || (typeof tile.elevation === 'number' && tile.elevation <= 0) || tile.biome === 'ocean');
+
+      // Let the raster show through land cells and open water in overview mode.
+      if (useTerrainImage && terrainLayer.loaded && activeLayer === 'overview' && isSea && !isSelected) {
+        continue;
+      }
+
+      ctx.beginPath();
+      ctx.moveTo(polygon[0][0], polygon[0][1]);
+      for (let j = 1; j < polygon.length; j++) {
+        ctx.lineTo(polygon[j][0], polygon[j][1]);
+      }
+      ctx.closePath();
+
+      // Use the raster as the base when available; keep vector terrain as fallback.
+      if (!useTerrainImage || !terrainLayer.loaded) {
+        ctx.fillStyle = getTileColor(tile);
+        ctx.fill();
+      }
+
+      if (tile.nation_color && !isSea) {
+        const baseColor = tile.nation_color.startsWith('#')
+          ? hexToRgba(tile.nation_color, 0.25)
+          : tile.nation_color.replace('rgb', 'rgba').replace(')', ', 0.25)');
+        ctx.fillStyle = baseColor;
+        ctx.fill();
+      }
+
+      if (activeLayer !== 'overview') {
+        const layerFill = getThematicLayerFill(tile);
+        if (layerFill) {
+          ctx.fillStyle = layerFill;
+          ctx.fill();
+        }
+      }
+
+      if (isSelected) {
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 3.5 / camZoom;
+        ctx.stroke();
+      } else if (hoveredTileName && tile.name === hoveredTileName) {
+        ctx.strokeStyle = '#fbbf24';
+        ctx.lineWidth = 2.5 / camZoom;
+        ctx.stroke();
+      } else if (tile.nation_color) {
+        ctx.strokeStyle = tile.nation_color;
+        ctx.lineWidth = 1.8 / camZoom;
+        ctx.stroke();
+      } else if (!isSea) {
+        ctx.strokeStyle = 'rgba(205, 220, 210, 0.4)';
+        ctx.lineWidth = 1.0 / camZoom;
+        ctx.stroke();
+      } else {
+        ctx.strokeStyle = 'rgba(14, 116, 144, 0.25)';
+        ctx.lineWidth = 0.5 / camZoom;
+        ctx.stroke();
+      }
+
+      renderHexBadges(ctx, tile, x, y, 35.0);
+    }
+
+    const tradeAnim = window.CoCTradeAnimator || window.RegnumTradeAnimator;
+    if (showTradeRoutes && tradeAnim && worldState.trade_network) {
+      tradeAnim.drawTradeRoutes(ctx, worldState.trade_network, tileByName, 0, camZoom);
+    }
+    if (showTradeArrows && tradeAnim && worldState.trade_network) {
+      tradeAnim.drawTradeFlowParticles(ctx, worldState.trade_network, tileByName, 0, camZoom, performance.now());
+    }
+
+    ctx.restore();
+  }
+
+  function findVoronoiTileAtPoint(wx, wy) {
+    if (!positionedTiles || positionedTiles.length === 0) return null;
+    for (let i = 0; i < positionedTiles.length; i++) {
+      const item = positionedTiles[i];
+      const tile = item.tile;
+      if (!tile.polygon) continue;
+      const bb = tile._bbox;
+      if (bb && (wx < bb.minX || wx > bb.maxX || wy < bb.minY || wy > bb.maxY)) {
+        continue;
+      }
+      if (typeof pointInPolygon === 'function' && pointInPolygon(wx, wy, tile.polygon)) {
+        return tile;
+      }
+    }
+    return null;
+  }
+
+  function getTileAtScreenPos(screenX, screenY, rect) {
+    if (!worldState || !worldState.tiles) return null;
+    const w = rect.width;
+    const h = rect.height;
+
+    if (isVoronoi()) {
+      if (is3DMode) {
+        const camObj = { pitch: camPitch, yaw: camYaw, zoom: camZoom, target_x: camTargetX, target_y: camTargetY };
+        const mvp = getCameraMVP(camObj, w, h);
+        if (mvp && typeof screenToWorldRay === 'function' && typeof intersectRayPlane === 'function') {
+          const ray = screenToWorldRay(screenX, screenY, mvp, w, h);
+          if (ray) {
+            // First check ground plane z=0
+            const pt0 = intersectRayPlane(ray.origin, ray.dir, 0.0);
+            if (pt0) {
+              const hit0 = findVoronoiTileAtPoint(pt0.x, pt0.y);
+              if (hit0) return hit0;
+            }
+            // Check elevated planes (e.g. z=12, z=24, z=36)
+            for (const planeZ of [12.0, 24.0, 36.0]) {
+              const ptElev = intersectRayPlane(ray.origin, ray.dir, planeZ);
+              if (ptElev) {
+                const hitElev = findVoronoiTileAtPoint(ptElev.x, ptElev.y);
+                if (hitElev) return hitElev;
+              }
+            }
+          }
+        }
+        return null;
+      } else {
+        const worldX = (screenX - camX) / camZoom;
+        const worldY = (screenY - camY) / camZoom;
+        return findVoronoiTileAtPoint(worldX, worldY);
+      }
+    } else {
+      const worldX = (screenX - camX) / camZoom;
+      const worldY = (screenY - camY) / camZoom;
+      const hexRadius = getHexRadius();
+      const axial = pixelToAxial(worldX, worldY, hexRadius);
+      return tileByAxial.get(`${axial.q},${axial.r}`) || null;
+    }
+  }
+
   function renderMap() {
     if (!ctx) return;
     const dpr = window.devicePixelRatio || 1;
@@ -301,23 +753,26 @@
     ctx.scale(dpr, dpr);
     ctx.clearRect(0, 0, w, h);
 
-    // Deep cosmic background
-    ctx.fillStyle = '#0a0d14';
+    // Deep oceanic background
+    ctx.fillStyle = '#0f172a';
     ctx.fillRect(0, 0, w, h);
+
+    if (isVoronoi()) {
+      if (is3DMode) {
+        renderVoronoiMap3D(w, h);
+      } else {
+        renderVoronoiMap2D(w, h);
+      }
+      ctx.restore();
+      return;
+    }
 
     ctx.save();
     ctx.translate(camX, camY);
     ctx.scale(camZoom, camZoom);
 
     // Photorealistic continuous terrain image layer
-    if (useTerrainImage && terrainLoaded && terrainImage.width > 0 && worldState && worldState.terrain_bounds) {
-      const b = worldState.terrain_bounds;
-      const imgW = (typeof b.width === 'number' && b.width > 0) ? b.width : ((b.max_x || 0) - (b.min_x || 0));
-      const imgH = (typeof b.height === 'number' && b.height > 0) ? b.height : ((b.max_y || 0) - (b.min_y || 0));
-      if (imgW > 0 && imgH > 0) {
-        ctx.drawImage(terrainImage, b.min_x, b.min_y, imgW, imgH);
-      }
-    }
+    if (useTerrainImage && worldState) terrainLayer.draw(ctx, worldState.terrain_bounds);
 
     // Render hex tiles
     if (worldState && worldState.tiles) {
@@ -331,16 +786,16 @@
         if (x < minX || x > maxX || y < minY || y > maxY) return;
         const isSelected = (selectedTileName && tile.name === selectedTileName);
 
-        // Desktop Client parity: Don't show tiles in the sea in overview mode
+        // Desktop Client parity: Don't show tiles in the sea in overview mode if terrain image is loaded
         const isSea = (tile.is_ocean || (typeof tile.elevation === 'number' && tile.elevation <= 0) || tile.biome === 'ocean');
-        if (isSea && activeLayer === 'overview' && !isSelected) {
+        if (isSea && useTerrainImage && terrainLayer.loaded && activeLayer === 'overview' && !isSelected) {
           return;
         }
 
         // If not using terrain image or terrain not loaded, render procedural vector terrain
-        if (!useTerrainImage || !terrainLoaded) {
+        if (!useTerrainImage || !terrainLayer.loaded) {
           drawHexPolygon(ctx, x, y, hexRadius - 0.5);
-          ctx.fillStyle = tile.color || '#1e293b';
+          ctx.fillStyle = getTileColor(tile);
           ctx.fill();
         } else if (tile.nation_color && !isSea) {
           // Soft semi-transparent nation territory tint matching desktop client
@@ -361,6 +816,10 @@
           ctx.strokeStyle = '#38bdf8';
           ctx.lineWidth = 3.0 / camZoom;
           ctx.stroke();
+        } else if (hoveredTileName && tile.name === hoveredTileName) {
+          ctx.strokeStyle = '#fbbf24';
+          ctx.lineWidth = 2.5 / camZoom;
+          ctx.stroke();
         } else if (tile.nation_color) {
           ctx.strokeStyle = tile.nation_color;
           ctx.lineWidth = 1.8 / camZoom;
@@ -374,60 +833,18 @@
         // Hex information badges & icons
         renderHexBadges(ctx, tile, x, y, hexRadius);
       });
+
+      // Overland Trade Route Network Lines & Smooth 60fps Flow Particles
+      const tradeAnim = window.CoCTradeAnimator || window.RegnumTradeAnimator;
+      if (showTradeRoutes && tradeAnim) {
+        tradeAnim.drawTradeRoutes(ctx, worldState.trade_network, tileByName, hexRadius, camZoom);
+      }
+      if (showTradeArrows && tradeAnim) {
+        tradeAnim.drawTradeFlowParticles(ctx, worldState.trade_network, tileByName, hexRadius, camZoom, performance.now());
+      }
     }
 
     ctx.restore();
-    ctx.restore();
-  }
-
-  function renderThematicLayerOverlay(ctx, tile, cx, cy, size) {
-    if (activeLayer === 'overview') return;
-
-    ctx.save();
-    drawHexPolygon(ctx, cx, cy, size - 1.0);
-
-    if (activeLayer === 'physical') {
-      const elev = tile.elevation_meters || 0;
-      const norm = Math.min(Math.max(elev / 3000.0, 0), 1.0);
-      ctx.fillStyle = `rgba(140, 225, 255, ${norm * 0.55})`;
-      ctx.fill();
-    } else if (activeLayer === 'population') {
-      const pop = tile.population || 0;
-      const norm = Math.min(pop / 150.0, 1.0);
-      const unrest = Math.min((tile.protest_energy || 0) / 5.0, 1.0);
-      ctx.fillStyle = `rgba(${Math.round(245 * unrest + 56 * (1 - unrest))}, ${Math.round(140 * (1 - unrest))}, 60, ${0.15 + norm * 0.55})`;
-      ctx.fill();
-    } else if (activeLayer === 'economy') {
-      const gdp = tile.gdp || 0;
-      const norm = Math.min(gdp / 1000.0, 1.0);
-      ctx.fillStyle = `rgba(120, 225, 130, ${0.15 + norm * 0.55})`;
-      ctx.fill();
-    } else if (activeLayer === 'production') {
-      const bCount = tile.buildings_count || (tile.buildings && tile.buildings.length) || 0;
-      const norm = Math.min(bCount / 5.0, 1.0);
-      ctx.fillStyle = `rgba(245, 210, 90, ${0.15 + norm * 0.55})`;
-      ctx.fill();
-    } else if (activeLayer === 'military') {
-      const g = tile.garrison || 0;
-      const norm = Math.min(g / 50.0, 1.0);
-      ctx.fillStyle = `rgba(235, 80, 80, ${0.15 + norm * 0.55})`;
-      ctx.fill();
-    } else if (activeLayer === 'enclosure') {
-      const enc = tile.enclosed_fraction ?? ((tile.tenure && tile.tenure.enclosed_fraction) || 0);
-      ctx.fillStyle = `rgba(215, 175, 75, ${0.15 + enc * 0.6})`;
-      ctx.fill();
-    } else if (activeLayer === 'exploitation') {
-      const s_v = tile.exploitation_rate ?? ((tile.tenure && tile.tenure.surplus_value_rate) || 0.5);
-      const norm = Math.min(s_v / 2.0, 1.0);
-      ctx.fillStyle = `rgba(235, 75, 75, ${0.2 + norm * 0.6})`;
-      ctx.fill();
-    } else if (activeLayer === 'externalities') {
-      const smog = tile.pollution_air ?? ((tile.ecology && tile.ecology.pollution_air) || 0);
-      const norm = Math.min(smog / 100.0, 1.0);
-      ctx.fillStyle = `rgba(100, 215, 140, ${0.15 + (1 - norm) * 0.4})`;
-      ctx.fill();
-    }
-
     ctx.restore();
   }
 
@@ -438,7 +855,60 @@
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
-    // Settlement / City Name Label
+    // 1. Terrain Glyphs (Farmland, Forest, Tundra)
+    if (camZoom >= 0.75) {
+      if (tile.biome === 'farmland' || (tile.ecology && tile.ecology.soil_fertility > 75)) {
+        // Gold triangle (fertile farmland)
+        ctx.beginPath();
+        const gx = cx - size * 0.45;
+        const gy = cy - size * 0.35;
+        ctx.moveTo(gx, gy - 4);
+        ctx.lineTo(gx + 4, gy + 3);
+        ctx.lineTo(gx - 4, gy + 3);
+        ctx.closePath();
+        ctx.fillStyle = '#f59e0b';
+        ctx.fill();
+      } else if (tile.biome === 'forest') {
+        // Green triangle (dense timber)
+        ctx.beginPath();
+        const gx = cx - size * 0.45;
+        const gy = cy - size * 0.35;
+        ctx.moveTo(gx, gy - 4);
+        ctx.lineTo(gx + 4, gy + 3);
+        ctx.lineTo(gx - 4, gy + 3);
+        ctx.closePath();
+        ctx.fillStyle = '#10b981';
+        ctx.fill();
+      } else if (tile.biome === 'tundra' || (tile.elevation_meters && tile.elevation_meters > 1800)) {
+        // White circle (cold alpine/tundra)
+        ctx.beginPath();
+        ctx.arc(cx - size * 0.45, cy - size * 0.35, 3.5, 0, Math.PI * 2);
+        ctx.fillStyle = '#e2e8f0';
+        ctx.fill();
+      }
+    }
+
+    // 2. Price Arbitrage Rings (Hot / Cold price signals)
+    if (showArbitrageRings && tile.market_prices && typeof tile.market_prices.food === 'number') {
+      const p = tile.market_prices.food;
+      if (p >= 1.25) {
+        // Hot price ring (high food scarcity)
+        ctx.beginPath();
+        ctx.arc(cx, cy, size * 0.75, 0, Math.PI * 2);
+        ctx.strokeStyle = '#f97316';
+        ctx.lineWidth = 2.0 / camZoom;
+        ctx.stroke();
+      } else if (p <= 0.85) {
+        // Cold price ring (food surplus / cheap exports)
+        ctx.beginPath();
+        ctx.arc(cx, cy, size * 0.75, 0, Math.PI * 2);
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 2.0 / camZoom;
+        ctx.stroke();
+      }
+    }
+
+    // 3. Settlement / City Name Label
     if (tile.is_settlement || tile.population > 0) {
       const fontSize = Math.max(10, Math.min(13, Math.round(11 / camZoom)));
       ctx.font = `bold ${fontSize}px -apple-system, sans-serif`;
@@ -449,16 +919,29 @@
       ctx.shadowBlur = 0;
     }
 
-    // Population & Protest Badges
-    if (tile.population > 0 && camZoom >= 0.8) {
+    // 4. Badges (Population, Unrest Stage, Wilderness)
+    if (tile.wilderness) {
+      ctx.font = 'bold 9px -apple-system, sans-serif';
+      ctx.fillStyle = '#10b981';
+      ctx.fillText('[ W ]', cx, cy);
+    } else if (tile.population > 0 && camZoom >= 0.8) {
       const subFont = Math.max(9, Math.min(11, Math.round(10 / camZoom)));
       ctx.font = `${subFont}px -apple-system, sans-serif`;
       ctx.fillStyle = '#94a3b8';
-      ctx.fillText(`👥 ${tile.population}`, cx, cy + size * 0.15);
+      ctx.fillText(`👥 ${tile.population}`, cx, cy + size * 0.12);
 
-      if (tile.protest_energy > 0.5) {
-        ctx.fillStyle = '#ef4444';
-        ctx.fillText(`🔥 ${(tile.protest_energy).toFixed(1)}`, cx, cy + size * 0.45);
+      const u = tile.protest_energy || 0;
+      if (u >= 0.3) {
+        let tag = '[ U ]';
+        let col = '#f59e0b';
+        if (u >= 8.5) { tag = '[ T ]'; col = '#a855f7'; }
+        else if (u >= 6.5) { tag = '[ C ]'; col = '#84cc16'; }
+        else if (u >= 3.5) { tag = '[ M ]'; col = '#ef4444'; }
+        else if (u >= 1.5) { tag = '[ P ]'; col = '#f97316'; }
+
+        ctx.font = `bold ${subFont}px -apple-system, sans-serif`;
+        ctx.fillStyle = col;
+        ctx.fillText(`${tag} ${u.toFixed(1)}`, cx, cy + size * 0.42);
       }
     }
 
@@ -492,6 +975,7 @@
     setVal('val-gdp', `$${Math.round(macro.gdp || 0).toLocaleString()}`);
     setVal('val-gini', (macro.gini || 0).toFixed(2));
     setVal('val-trade', `$${Math.round(macro.trade_balance || 0).toLocaleString()}`);
+    const isrbYield = macro.bond_yield !== undefined ? `${macro.bond_yield.toFixed(2)}%` : '0.18%';
     setVal('val-col', (macro.cost_of_living || 1.0).toFixed(2));
     setVal('val-isrb', `${macro.credit_rating || 'BBB'} ${isrbYield}`);
 
@@ -537,6 +1021,10 @@
     if (btnTogglePipeline) {
       btnTogglePipeline.querySelector('.btn-text').textContent = useTerrainImage ? 'Pipeline: Photoreal' : 'Pipeline: Flat';
     }
+
+    // Seasonal Agricultural Clock HUD & Scenario Ribbon
+    updateSeasonalClock();
+    updateScenarioPressures();
 
     // Live-update open tooltip popover if one is active
     if (activeTooltipStat) {
@@ -956,6 +1444,241 @@
     });
   }
 
+  // ---------------- Seasonal Agricultural Clock HUD & Popover ----------------
+
+  function updateSeasonalClock() {
+    if (!seasonalClock || !worldState) return;
+    const season = worldState.seasonal_info || {};
+    const iconEl = document.getElementById('seasonal-icon');
+    const nameEl = document.getElementById('seasonal-name');
+    const yearEl = document.getElementById('seasonal-year');
+    const multEl = document.getElementById('seasonal-mult');
+
+    const cycleTurn = season.cycle_turn !== undefined ? season.cycle_turn : ((worldState.turn || 0) % 10);
+    const yr = season.year !== undefined ? season.year : Math.floor((worldState.turn || 0) / 10) + 1;
+    const sName = season.season_name || 'Spring';
+    const sIcon = season.season_icon || '🌱';
+    const mult = season.grain_multiplier !== undefined ? season.grain_multiplier : 1.0;
+    const multPct = Math.round((mult - 1.0) * 100);
+    const multStr = multPct >= 0 ? `+${multPct}%` : `${multPct}%`;
+
+    if (iconEl) iconEl.textContent = sIcon;
+    if (nameEl) {
+      nameEl.textContent = `${sName} (${cycleTurn + 1}/10)`;
+      nameEl.style.color = season.color || '#10b981';
+    }
+    if (yearEl) yearEl.textContent = `Yr ${yr}`;
+    if (multEl) {
+      multEl.textContent = multStr;
+      multEl.className = multPct >= 0 ? 'seasonal-mult text-green' : 'seasonal-mult text-ruby';
+    }
+
+    const segments = document.querySelectorAll('.season-seg');
+    segments.forEach((seg, idx) => {
+      seg.classList.toggle('active', idx === cycleTurn);
+      seg.classList.toggle('past', idx < cycleTurn);
+    });
+  }
+
+  function setupSeasonalClockPopover() {
+    if (seasonalClock) {
+      seasonalClock.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleSeasonalPopover();
+      });
+    }
+
+    document.addEventListener('click', (e) => {
+      if (seasonalPopover && !seasonalPopover.classList.contains('hidden')) {
+        if (!seasonalPopover.contains(e.target) && !seasonalClock.contains(e.target)) {
+          hideSeasonalPopover();
+        }
+      }
+    });
+  }
+
+  function toggleSeasonalPopover() {
+    if (!seasonalPopover) return;
+    if (seasonalPopover.classList.contains('hidden')) {
+      renderSeasonalPopover();
+      seasonalPopover.classList.remove('hidden');
+    } else {
+      hideSeasonalPopover();
+    }
+  }
+
+  function hideSeasonalPopover() {
+    if (seasonalPopover) seasonalPopover.classList.add('hidden');
+  }
+
+  function renderSeasonalPopover() {
+    if (!seasonalPopover || !worldState) return;
+    const s = worldState.seasonal_info || {};
+    const yr = s.year !== undefined ? s.year : Math.floor((worldState.turn || 0) / 10) + 1;
+    const mult = s.grain_multiplier !== undefined ? s.grain_multiplier : 1.0;
+    const multPct = Math.round((mult - 1.0) * 100);
+    const multStr = multPct >= 0 ? `+${multPct}% Crop Yield` : `${multPct}% Crop Yield`;
+
+    seasonalPopover.innerHTML = `
+      <div class="popover-header">
+        <div class="popover-title-row">
+          <span>${s.season_icon || '🌱'} ${escapeHtml(s.season_name || 'Spring')} (Year ${yr})</span>
+        </div>
+        <button class="popover-close-btn" id="seasonal-popover-close">&times;</button>
+      </div>
+      <div class="popover-body">
+        <div class="popover-row">
+          <span class="row-label">Bio Agricultural Yield</span>
+          <span class="row-val ${multPct >= 0 ? 'text-green' : 'text-ruby'} font-bold">${multStr}</span>
+        </div>
+        <div class="popover-row">
+          <span class="row-label">Climate & Temperature</span>
+          <span class="row-val text-dim">${escapeHtml(s.temperature_desc || 'Temperate conditions')}</span>
+        </div>
+        <div class="popover-row">
+          <span class="row-label">Winter Heating Demand</span>
+          <span class="row-val text-dim">${escapeHtml(s.heating_demand || 'Baseline timber fuel consumption')}</span>
+        </div>
+        <div class="popover-row">
+          <span class="row-label">Agricultural Labor Mobility</span>
+          <span class="row-val text-dim">${escapeHtml(s.labor_impact || 'Standard rural planting workforce')}</span>
+        </div>
+      </div>
+      <div class="popover-footer">
+        ${escapeHtml(s.summary || 'Seasonal cycles dictate crop harvests and famine risks across the continent.')}
+      </div>
+    `;
+
+    const closeBtn = seasonalPopover.querySelector('#seasonal-popover-close');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        hideSeasonalPopover();
+      });
+    }
+
+    const rect = seasonalClock.getBoundingClientRect();
+    const popW = Math.min(320, window.innerWidth - 20);
+    seasonalPopover.style.width = `${popW}px`;
+    let left = rect.right - popW;
+    if (left < 10) left = 10;
+    seasonalPopover.style.left = `${left}px`;
+    seasonalPopover.style.top = `${rect.bottom + 8}px`;
+  }
+
+  // ---------------- Guided Scenario Priority Pressures Ribbon ----------------
+
+  function updateScenarioPressures() {
+    if (!scenarioPressuresRibbon || !worldState) return;
+    const sc = worldState.scenario_info;
+    if (!sc || (!sc.pressure_text && !sc.countdown_turns && !sc.pressures)) {
+      scenarioPressuresRibbon.classList.add('hidden');
+      return;
+    }
+
+    const name = sc.scenario_name || 'Grand Campaign';
+    const p0 = (sc.pressures && sc.pressures[0]);
+    const pressureDesc = sc.pressure_text || (p0 ? (typeof p0 === 'string' ? p0 : `${p0.title || 'Directive'}: ${p0.value || ''}`) : '') || sc.description || '';
+    const countdown = sc.countdown_turns !== undefined && sc.countdown_turns !== null
+      ? `<span class="countdown-pill">${sc.countdown_turns} turns left</span>`
+      : '';
+
+    scenarioPressuresRibbon.innerHTML = `
+      <span class="pressure-badge">🎯 ${escapeHtml(name)}</span>
+      <span class="pressure-text">${escapeHtml(pressureDesc)}</span>
+      ${countdown}
+    `;
+    scenarioPressuresRibbon.classList.remove('hidden');
+
+    if (sc.objective_met && scenarioBookendModal && scenarioBookendModal.classList.contains('hidden') && !scenarioBookendModal.dataset.dismissed) {
+      openScenarioBookend(sc);
+    }
+  }
+
+  function openScenarioBookend(sc) {
+    if (!scenarioBookendModal) return;
+    const titleEl = document.getElementById('scenario-bookend-title');
+    const bodyEl = document.getElementById('scenario-bookend-body');
+    if (titleEl) titleEl.textContent = `🏆 ${sc.scenario_name || 'Scenario'} Debrief & Victory Chronicle`;
+    if (bodyEl) {
+      bodyEl.innerHTML = `
+        <div class="gov-card">
+          <h4 class="card-title text-green">Campaign Objective Fulfilled!</h4>
+          <p class="card-desc mt-2">${escapeHtml(sc.debrief_text || 'Your sovereign policies have successfully stabilized the realm and met the strategic directives of the era.')}</p>
+          <div class="dual-btn-row mt-3">
+            <button class="btn btn-primary" id="btn-bookend-continue">Continue In Free Play</button>
+          </div>
+        </div>
+      `;
+      const btnCont = document.getElementById('btn-bookend-continue');
+      if (btnCont) {
+        btnCont.addEventListener('click', () => {
+          scenarioBookendModal.classList.add('hidden');
+          scenarioBookendModal.dataset.dismissed = 'true';
+        });
+      }
+    }
+    scenarioBookendModal.classList.remove('hidden');
+  }
+
+  // ---------------- Live Hex Hover Inspector Card ----------------
+
+  function updateHexHoverCard(tile, clientX, clientY) {
+    if (!hexHoverCard || !tile) return;
+
+    const nat = tile.nation || 'Unclaimed Frontier';
+    const elev = tile.elevation_meters !== undefined ? `${tile.elevation_meters}m` : '0m';
+    const biome = tile.biome || 'Grassland';
+    const pop = tile.population !== undefined ? tile.population.toLocaleString() : '0';
+    const gdp = tile.gdp !== undefined ? `$${Math.round(tile.gdp).toLocaleString()}` : '$0';
+    const unrest = tile.unrest_stage || 'Calm';
+    const unrestEnergy = tile.protest_energy !== undefined ? Number(tile.protest_energy).toFixed(1) : '0.0';
+    const foodPrice = tile.market_prices && typeof tile.market_prices.food === 'number'
+      ? `$${tile.market_prices.food.toFixed(2)}`
+      : '$1.00';
+    let foodStatus = '';
+    if (tile.market_prices && typeof tile.market_prices.food === 'number') {
+      if (tile.market_prices.food >= 1.25) foodStatus = ' <span class="text-ruby font-bold">[Hot Scarcity]</span>';
+      else if (tile.market_prices.food <= 0.85) foodStatus = ' <span class="text-cyan font-bold">[Cold Surplus]</span>';
+    }
+    const bCount = tile.buildings_count || (tile.buildings && tile.buildings.length) || 0;
+    const garrison = tile.garrison || 0;
+
+    hexHoverCard.innerHTML = `
+      <div class="hover-card-header">
+        <strong style="color: ${safeCssColor(tile.nation_color) || '#38bdf8'}">${escapeHtml(tile.display_name || tile.name)}</strong>
+        <span class="text-dim text-xs">${escapeHtml(nat)}</span>
+      </div>
+      <div class="hover-card-body">
+        <div class="hover-row"><span>Terrain / Elev:</span><strong>${escapeHtml(biome)} (${elev})</strong></div>
+        <div class="hover-row"><span>Population / GDP:</span><strong>${pop} • ${gdp}</strong></div>
+        <div class="hover-row"><span>Grain Market Price:</span><strong>${foodPrice}${foodStatus}</strong></div>
+        <div class="hover-row"><span>Civil Unrest:</span><strong class="${unrest.toLowerCase() === 'calm' ? 'text-green' : 'text-ruby'}">${unrestEnergy} (${escapeHtml(unrest)})</strong></div>
+        <div class="hover-row"><span>Buildings / Troops:</span><strong>${bCount} built • ${garrison} soldiers</strong></div>
+      </div>
+    `;
+
+    hexHoverCard.classList.remove('hidden');
+
+    const cardW = 240;
+    const cardH = 140;
+    let posX = clientX + 16;
+    let posY = clientY + 16;
+
+    if (posX + cardW > window.innerWidth - 10) {
+      posX = clientX - cardW - 16;
+    }
+    if (posY + cardH > window.innerHeight - 10) {
+      posY = clientY - cardH - 16;
+    }
+    hexHoverCard.style.left = `${Math.max(10, posX)}px`;
+    hexHoverCard.style.top = `${Math.max(10, posY)}px`;
+  }
+
+  function hideHexHoverCard() {
+    if (hexHoverCard) hexHoverCard.classList.add('hidden');
+  }
+
   // ---------------- Left Sovereign Suites Navigation & Drawers ----------------
 
   function setupLeftDrawer() {
@@ -1059,6 +1782,16 @@
         sendCommand('RECRUIT_UNIT', { tile: selectedTileName || (worldState && worldState.tiles[0].name), soldiers: 50 });
       });
     }
+
+    // Suite 7: Progress Suite Mode Filter Chips
+    document.querySelectorAll('#pane-progress .tier-filter-chips .chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        document.querySelectorAll('#pane-progress .tier-filter-chips .chip').forEach(c => c.classList.remove('active'));
+        chip.classList.add('active');
+        activeProgressMode = chip.dataset.progressMode || 'active';
+        renderProgressSuite();
+      });
+    });
   }
 
   function openLeftDrawer(suiteName) {
@@ -1086,7 +1819,8 @@
       diplomacy: '🤝 Diplomacy & Treaties',
       debt: '📜 Sovereign Debt & ISRB',
       science: '🔬 Science & Technology Tree',
-      military: '⚔️ Military Operations'
+      military: '⚔️ Military Operations',
+      progress: '⏱️ Progress & Infrastructure Lifecycle'
     };
     if (drawerTitle) drawerTitle.textContent = titles[suiteName] || 'Sovereign Suite';
 
@@ -1118,6 +1852,8 @@
       renderScienceTechs();
     } else if (activeLeftDrawer === 'military') {
       renderMilitarySuite();
+    } else if (activeLeftDrawer === 'progress') {
+      renderProgressSuite();
     }
   }
 
@@ -1747,6 +2483,151 @@
     }
   }
 
+  // ---------------- Suite 7: Progress & Development Suite ----------------
+
+  function renderProgressSuite() {
+    const container = document.getElementById('progress-items-container');
+    const warningBadge = document.getElementById('stalled-warning-badge');
+    if (!container || !worldState) return;
+
+    const suite = worldState.progress_suite || {};
+    const playerNat = worldState.player_nation;
+    const isAll = (activeProgressMode === 'all');
+
+    const constructions = isAll ? (suite.all_constructions || []) : (suite.active_constructions || []);
+    const stalledList = suite.stalled_constructions || [];
+
+    if (warningBadge) {
+      if (stalledList.length > 0) {
+        warningBadge.textContent = `⚠️ ${stalledList.length} Stalled`;
+        warningBadge.classList.remove('hidden');
+      } else {
+        warningBadge.classList.add('hidden');
+      }
+    }
+
+    container.innerHTML = '';
+
+    // 1. Capital Works & Infrastructure Constructions
+    const constrHeading = document.createElement('h4');
+    constrHeading.className = 'sub-heading';
+    constrHeading.textContent = `🏗️ Capital Works & Municipal Infrastructure (${constructions.length})`;
+    container.appendChild(constrHeading);
+
+    if (constructions.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'empty-state';
+      empty.textContent = isAll
+        ? 'No active infrastructure construction underway across the continent.'
+        : `No active construction projects in ${playerNat}. Queue new projects in Build & Infrastructure [B].`;
+      container.appendChild(empty);
+    } else {
+      constructions.forEach(p => {
+        const card = document.createElement('div');
+        card.className = `item-card ${p.is_stalled ? 'border-ruby' : ''}`;
+        const pct = p.progress_pct !== undefined ? p.progress_pct : Math.round(((p.turns_left ? p.total_turns - p.turns_left : 1) / (p.total_turns || 3)) * 100);
+
+        card.innerHTML = `
+          <div class="card-top">
+            <span class="card-title">${p.is_stalled ? '🚨' : '⏳'} ${escapeHtml(p.recipe_name || p.project_name || 'Project')}</span>
+            <span class="text-xs ${p.is_stalled ? 'text-ruby font-bold' : 'text-dim'}">
+              ${p.is_stalled ? 'CONTRACTOR STALLED' : `${p.turns_left || 1}t remaining`}
+            </span>
+          </div>
+          <div class="stat-row text-xs mt-1">
+            <span>Location: <strong>${escapeHtml(p.tile || '—')}</strong></span>
+            <span>Contractor: <strong>${escapeHtml(p.contractor_name || 'Private Guild')}</strong></span>
+          </div>
+          <div class="stat-row text-xs">
+            <span>Contractor Liquidity: <strong class="${(p.contractor_cash || 0) < 20 ? 'text-ruby' : 'text-gold'}">$${Math.round(p.contractor_cash || 0)}</strong></span>
+            <span>Est. Cost: <strong>$${Math.round(p.contractor_cost || 100)}</strong></span>
+          </div>
+          <div class="progress-gauge-container mt-2">
+            <div class="progress-gauge-fill ${p.is_stalled ? 'bg-ruby' : ''}" style="width: ${Math.min(100, Math.max(5, pct))}%"></div>
+          </div>
+          ${p.is_stalled ? `
+            <div class="mt-2">
+              <button class="btn btn-secondary btn-sm btn-block btn-subsidize-contractor" data-tile="${escapeHtml(p.tile)}" data-proj="${escapeHtml(p.project_name || p.recipe_name)}">
+                🚨 Grant Contractor Overrun Subsidy ($100)
+              </button>
+            </div>
+          ` : ''}
+        `;
+        container.appendChild(card);
+      });
+
+      // Hook emergency subsidy buttons
+      container.querySelectorAll('.btn-subsidize-contractor').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const tile = btn.dataset.tile;
+          const proj = btn.dataset.proj;
+          sendCommand('EMERGENCY_OVERRUN_SUBSIDY', { tile, project_name: proj });
+        });
+      });
+    }
+
+    // 2. Science & Academic Research In-Progress
+    const techHeading = document.createElement('h4');
+    techHeading.className = 'sub-heading mt-3';
+    techHeading.textContent = '🔬 Academic Research In-Progress';
+    container.appendChild(techHeading);
+
+    const res = suite.research;
+    if (res && res.active_tech) {
+      const resCard = document.createElement('div');
+      resCard.className = 'item-card';
+      const resPct = res.total > 0 ? Math.round((res.progress / res.total) * 100) : 0;
+      resCard.innerHTML = `
+        <div class="card-top">
+          <span class="card-title">💡 ${escapeHtml(res.active_tech)}</span>
+          <span class="text-xs text-dim">${res.eta_turns ? `${res.eta_turns}t remaining` : `${resPct}%`}</span>
+        </div>
+        <div class="stat-row text-xs mt-1">
+          <span>Era: <strong>Era ${res.era || 1}</strong></span>
+          <span>Points Invested: <strong>${res.progress} / ${res.total}</strong></span>
+        </div>
+        <div class="progress-gauge-container mt-2">
+          <div class="progress-gauge-fill bg-cyan" style="width: ${Math.min(100, Math.max(5, resPct))}%"></div>
+        </div>
+      `;
+      container.appendChild(resCard);
+    } else {
+      const emptyRes = document.createElement('div');
+      emptyRes.className = 'empty-state';
+      emptyRes.textContent = 'No academic research currently active. Select a discipline in Science & Tech [T].';
+      container.appendChild(emptyRes);
+    }
+
+    // 3. Active Legislative Statutes & Decrees
+    const legHeading = document.createElement('h4');
+    legHeading.className = 'sub-heading mt-3';
+    legHeading.textContent = '📜 Enacted Statutes & Historical Decrees';
+    container.appendChild(legHeading);
+
+    const legislation = suite.legislation || [];
+    if (legislation.length === 0) {
+      const emptyLeg = document.createElement('div');
+      emptyLeg.className = 'empty-state';
+      emptyLeg.textContent = 'No permanent imperial legislation on record.';
+      container.appendChild(emptyLeg);
+    } else {
+      legislation.forEach(leg => {
+        const legCard = document.createElement('div');
+        legCard.className = 'item-card';
+        legCard.innerHTML = `
+          <div class="card-top">
+            <span class="card-title">⚖️ ${escapeHtml(leg.title)}</span>
+            <span class="card-badge mastered">${escapeHtml(leg.status || 'Active')}</span>
+          </div>
+          <div class="text-xs text-dim mt-1">
+            In force for ${leg.turns_active || 1} turns across all provinces.
+          </div>
+        `;
+        container.appendChild(legCard);
+      });
+    }
+  }
+
   // ---------------- Right Inspection & Analytics Panel ----------------
 
   function setupRightPanel() {
@@ -1826,7 +2707,8 @@
     if (!container) return;
     container.innerHTML = '';
 
-    const chartCatalog = window.RegnumCharts.getChartCatalog();
+    const charts = window.CoCCharts || window.RegnumCharts;
+    const chartCatalog = charts.getChartCatalog();
 
     const chips = chartCatalog[activeChartMode] || chartCatalog.economic;
     if (!chips.find(c => c.id === activeChartMetric)) {
@@ -1862,7 +2744,8 @@
       values = worldState.history[activeChartMetric] || [];
     }
 
-    const legend = window.RegnumCharts.drawHistoricalChart(
+    const charts = window.CoCCharts || window.RegnumCharts;
+    const legend = charts.drawHistoricalChart(
       chartCanvas, values, activeChartMetric, window.devicePixelRatio || 1
     );
     const legendText = document.getElementById('chart-legend-text');
@@ -2292,8 +3175,39 @@
       container.appendChild(div);
 
     } else if (activeCompareTab === '4') {
-      // Tab 4: Class Wealth Extraction Table
+      // Tab 4: Class Wealth Extraction Table & Canvas Visualizers
       const data = getDrilldownData(cs.tab4_extraction);
+
+      const visGrid = document.createElement('div');
+      visGrid.className = 'vis-grid-2col mb-3';
+
+      const cardPyramid = document.createElement('div');
+      cardPyramid.className = 'vis-card';
+      const cPyramid = document.createElement('canvas');
+      cPyramid.style.width = '100%';
+      cPyramid.style.height = '240px';
+      cardPyramid.appendChild(cPyramid);
+
+      const cardLorenz = document.createElement('div');
+      cardLorenz.className = 'vis-card';
+      const cLorenz = document.createElement('canvas');
+      cLorenz.style.width = '100%';
+      cLorenz.style.height = '240px';
+      cardLorenz.appendChild(cLorenz);
+
+      visGrid.appendChild(cardPyramid);
+      visGrid.appendChild(cardLorenz);
+      container.appendChild(visGrid);
+
+      setTimeout(() => {
+        const visPyramid = window.CoCVisPyramid || window.RegnumVisPyramid;
+        if (visPyramid) {
+          visPyramid.drawWealthPyramid(cPyramid, { data, macro: worldState ? worldState.macro : null });
+          const gini = (worldState && worldState.macro && worldState.macro.gini) || 0.42;
+          visPyramid.drawLorenzCurve(cLorenz, { gini });
+        }
+      }, 0);
+
       const table = document.createElement('table');
       table.className = 'table';
       table.innerHTML = `
@@ -2325,8 +3239,41 @@
       container.appendChild(table);
 
     } else if (activeCompareTab === '5') {
-      // Tab 5: Protest Energy & 100% Stacked Horizontal Grievance Bars
+      // Tab 5: Protest Energy, 100% Stacked Grievance Bars & 4D Alienation / Attractor
       const data = getDrilldownData(cs.tab5_protest);
+
+      const visGrid = document.createElement('div');
+      visGrid.className = 'vis-grid-2col mb-3';
+
+      const cardRadar = document.createElement('div');
+      cardRadar.className = 'vis-card';
+      const cRadar = document.createElement('canvas');
+      cRadar.style.width = '100%';
+      cRadar.style.height = '240px';
+      cardRadar.appendChild(cRadar);
+
+      const cardAttractor = document.createElement('div');
+      cardAttractor.className = 'vis-card';
+      const cAttractor = document.createElement('canvas');
+      cAttractor.style.width = '100%';
+      cAttractor.style.height = '240px';
+      cardAttractor.appendChild(cAttractor);
+
+      visGrid.appendChild(cardRadar);
+      visGrid.appendChild(cardAttractor);
+      container.appendChild(visGrid);
+
+      setTimeout(() => {
+        const visRadarAttractor = window.CoCVisRadarAttractor || window.RegnumVisRadarAttractor;
+        if (visRadarAttractor) {
+          const shiftHours = (worldState && worldState.workday_hours) || 12.0;
+          const unrest = (worldState && worldState.macro && worldState.macro.unrest_energy) || 1.5;
+          const consciousness = Math.min(1.0, Math.max(0.1, unrest / 5.0));
+          visRadarAttractor.drawAlienationRadar(cRadar, { shiftHours });
+          visRadarAttractor.drawRebellionAttractor(cAttractor, { shiftHours, consciousness });
+        }
+      }, 0);
+
       const div = document.createElement('div');
       div.innerHTML = `
         <h4 class="sub-heading">Protest Energy Grievance Breakdown (100% Stacked)</h4>
@@ -2379,8 +3326,48 @@
       container.appendChild(div);
 
     } else if (activeCompareTab === '6') {
-      // Tab 6: Environmental Health Table
+      // Tab 6: Environmental Health Table & Marxian Capital Circuit / TRPF Decay
       const data = getDrilldownData(cs.tab6_ecology);
+
+      const visGrid = document.createElement('div');
+      visGrid.className = 'vis-grid-2col mb-3';
+
+      const cardSankey = document.createElement('div');
+      cardSankey.className = 'vis-card';
+      const cSankey = document.createElement('canvas');
+      cSankey.style.width = '100%';
+      cSankey.style.height = '240px';
+      cardSankey.appendChild(cSankey);
+
+      const cardTrpf = document.createElement('div');
+      cardTrpf.className = 'vis-card';
+      const cTrpf = document.createElement('canvas');
+      cTrpf.style.width = '100%';
+      cTrpf.style.height = '240px';
+      cardTrpf.appendChild(cTrpf);
+
+      visGrid.appendChild(cardSankey);
+      visGrid.appendChild(cardTrpf);
+      container.appendChild(visGrid);
+
+      setTimeout(() => {
+        const visCircuits = window.CoCVisCircuits || window.RegnumVisCircuits;
+        if (visCircuits) {
+          const macro = (worldState && worldState.macro) || {};
+          const gdp = macro.gdp || 1000;
+          visCircuits.drawCircuitSankey(cSankey, {
+            moneyCapital: Math.round(gdp * 0.8),
+            productiveCapital: Math.round(gdp * 0.6),
+            commodityCapital: Math.round(gdp * 0.75),
+            realizedMoney: Math.round(gdp * 1.1)
+          });
+          visCircuits.drawTRPFCurve(cTrpf, {
+            organicComp: 2.8,
+            profitRate: 14.5
+          });
+        }
+      }, 0);
+
       const table = document.createElement('table');
       table.className = 'table';
       table.innerHTML = `
@@ -2542,7 +3529,8 @@
 
   function renderHelpContent() {
     const container = document.getElementById('help-content-container');
-    if (container) container.innerHTML = window.RegnumHelpContent.renderHelpPage(activeHelpPage, worldState);
+    const helpContent = window.CoCHelpContent || window.RegnumHelpContent;
+    if (container && helpContent) container.innerHTML = helpContent.renderHelpPage(activeHelpPage, worldState);
   }
 
   // ---------------- Mobile QR Modal ----------------
@@ -2639,24 +3627,89 @@
   }
 
   function handlePointerDown(e) {
+    if (e.button === 2 || e.altKey) {
+      // Right click or Alt + click -> 3D Orbit
+      isOrbiting = true;
+      isDragging = false;
+      orbitStartX = e.clientX;
+      orbitStartY = e.clientY;
+      startPitch = camPitch;
+      startYaw = camYaw;
+      return;
+    }
     isDragging = true;
+    isOrbiting = false;
     dragStartX = e.clientX;
     dragStartY = e.clientY;
     camStartX = camX;
     camStartY = camY;
+    camStartTargetX = camTargetX;
+    camStartTargetY = camTargetY;
     touchStartTime = Date.now();
   }
 
   function handlePointerMove(e) {
-    if (!isDragging) return;
-    const dx = e.clientX - dragStartX;
-    const dy = e.clientY - dragStartY;
-    camX = camStartX + dx;
-    camY = camStartY + dy;
-    scheduleMapRender();
+    if (isOrbiting) {
+      const dx = e.clientX - orbitStartX;
+      const dy = e.clientY - orbitStartY;
+      camYaw = (startYaw + dx * 0.4) % 360;
+      camPitch = Math.max(15.0, Math.min(89.5, startPitch - dy * 0.3));
+      scheduleMapRender();
+      return;
+    }
+
+    if (isDragging) {
+      const dx = e.clientX - dragStartX;
+      const dy = e.clientY - dragStartY;
+      if (isVoronoi() && is3DMode) {
+        const yawRad = (camYaw * Math.PI) / 180.0;
+        const speed = 1.0 / Math.max(0.2, camZoom);
+        camTargetX = camStartTargetX - (dx * Math.cos(yawRad) - dy * Math.sin(yawRad)) * speed;
+        camTargetY = camStartTargetY - (dx * Math.sin(yawRad) + dy * Math.cos(yawRad)) * speed;
+      } else {
+        camX = camStartX + dx;
+        camY = camStartY + dy;
+      }
+      hideHexHoverCard();
+      scheduleMapRender();
+      return;
+    }
+
+    // Live hover hit-test & hover card
+    const rect = canvas.getBoundingClientRect();
+    if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) {
+      if (hoveredTileName) {
+        hoveredTileName = null;
+        hideHexHoverCard();
+        scheduleMapRender();
+      }
+      return;
+    }
+
+    const screenX = e.clientX - rect.left;
+    const screenY = e.clientY - rect.top;
+    const hit = getTileAtScreenPos(screenX, screenY, rect);
+
+    if (hit) {
+      if (hoveredTileName !== hit.name) {
+        hoveredTileName = hit.name;
+        scheduleMapRender();
+      }
+      updateHexHoverCard(hit, e.clientX, e.clientY);
+    } else {
+      if (hoveredTileName) {
+        hoveredTileName = null;
+        hideHexHoverCard();
+        scheduleMapRender();
+      }
+    }
   }
 
   function handlePointerUp(e) {
+    if (isOrbiting) {
+      isOrbiting = false;
+      return;
+    }
     if (!isDragging) return;
     isDragging = false;
     const dx = Math.abs(e.clientX - dragStartX);
@@ -2666,16 +3719,10 @@
     // Detect tap / click
     if (dx < 8 && dy < 8 && dt < 350) {
       const rect = canvas.getBoundingClientRect();
-      const clickX = (e.clientX - rect.left - camX) / camZoom;
-      const clickY = (e.clientY - rect.top - camY) / camZoom;
-
-      const hexRadius = getHexRadius();
-      const axial = pixelToAxial(clickX, clickY, hexRadius);
-
-      if (worldState && worldState.tiles) {
-        const hit = tileByAxial.get(`${axial.q},${axial.r}`);
-        if (hit) selectTile(hit.name);
-      }
+      const screenX = e.clientX - rect.left;
+      const screenY = e.clientY - rect.top;
+      const hit = getTileAtScreenPos(screenX, screenY, rect);
+      if (hit) selectTile(hit.name);
     }
   }
 
@@ -2688,9 +3735,19 @@
     const zoomFactor = e.deltaY < 0 ? 1.15 : 0.85;
     const newZoom = Math.max(0.35, Math.min(3.5, camZoom * zoomFactor));
 
-    camX = mouseX - (mouseX - camX) * (newZoom / camZoom);
-    camY = mouseY - (mouseY - camY) * (newZoom / camZoom);
-    camZoom = newZoom;
+    if (isVoronoi() && is3DMode) {
+      camZoom = newZoom;
+      // Dynamic Civ-style zoom tilt: S-curve transition between overview 89° and 3D tilt 52°
+      if (typeof computePitchYaw === 'function') {
+        const py = computePitchYaw(camZoom);
+        camPitch = py.pitch;
+        camYaw = py.yaw;
+      }
+    } else {
+      camX = mouseX - (mouseX - camX) * (newZoom / camZoom);
+      camY = mouseY - (mouseY - camY) * (newZoom / camZoom);
+      camZoom = newZoom;
+    }
     scheduleMapRender();
   }
 
@@ -2698,6 +3755,7 @@
     canvas.addEventListener('touchstart', (e) => {
       if (e.touches.length === 2) {
         isDragging = false;
+        isOrbiting = false;
         initialPinchDist = Math.hypot(
           e.touches[0].clientX - e.touches[1].clientX,
           e.touches[0].clientY - e.touches[1].clientY
@@ -2717,6 +3775,11 @@
         );
         const scale = dist / initialPinchDist;
         camZoom = Math.max(0.35, Math.min(3.5, initialPinchZoom * scale));
+        if (isVoronoi() && is3DMode && typeof computePitchYaw === 'function') {
+          const py = computePitchYaw(camZoom);
+          camPitch = py.pitch;
+          camYaw = py.yaw;
+        }
         scheduleMapRender();
       } else if (e.touches.length === 1) {
         handlePointerMove(e.touches[0]);
@@ -2729,6 +3792,105 @@
         handlePointerUp(e.changedTouches[0]);
       }
     });
+  }
+
+  // ---------------- Modal 5: System Settings & Preferences Modal ----------------
+
+  function setupSettingsModal() {
+    if (btnSettings) {
+      btnSettings.addEventListener('click', openSettingsModal);
+    }
+    if (btnCloseSettings) btnCloseSettings.addEventListener('click', closeSettingsModal);
+    if (settingsBackdrop) settingsBackdrop.addEventListener('click', closeSettingsModal);
+
+    const sliderSpeed = document.getElementById('slider-sim-speed');
+    const lblSpeed = document.getElementById('lbl-sim-speed');
+    if (sliderSpeed) {
+      sliderSpeed.addEventListener('input', () => {
+        const val = parseInt(sliderSpeed.value, 10);
+        if (lblSpeed) lblSpeed.textContent = `${val} ms`;
+        if (pollTimer) {
+          clearInterval(pollTimer);
+          pollTimer = setInterval(fetchState, val);
+        }
+      });
+    }
+
+    const chkRoutes = document.getElementById('chk-trade-routes');
+    if (chkRoutes) {
+      chkRoutes.checked = showTradeRoutes;
+      chkRoutes.addEventListener('change', () => {
+        showTradeRoutes = chkRoutes.checked;
+        scheduleMapRender();
+      });
+    }
+
+    const chkArrows = document.getElementById('chk-trade-arrows');
+    if (chkArrows) {
+      chkArrows.checked = showTradeArrows;
+      chkArrows.addEventListener('change', () => {
+        showTradeArrows = chkArrows.checked;
+        scheduleMapRender();
+      });
+    }
+
+    const chkArbRings = document.getElementById('chk-arbitrage-rings');
+    if (chkArbRings) {
+      chkArbRings.checked = showArbitrageRings;
+      chkArbRings.addEventListener('change', () => {
+        showArbitrageRings = chkArbRings.checked;
+        scheduleMapRender();
+      });
+    }
+
+    const btnReload = document.getElementById('btn-settings-reload');
+    if (btnReload) {
+      btnReload.addEventListener('click', () => {
+        const seed = Math.floor(Math.random() * 1000000);
+        sendCommand('RELOAD_WORLD', { seed, terrain_seed: seed, nation_seed: seed });
+        closeSettingsModal();
+      });
+    }
+  }
+
+  function openSettingsModal() {
+    hideMacroTooltip();
+    hideHexHoverCard();
+    if (settingsModal) settingsModal.classList.remove('hidden');
+  }
+
+  function closeSettingsModal() {
+    if (settingsModal) settingsModal.classList.add('hidden');
+  }
+
+  function cyclePolicyScope() {
+    const scopes = ['tile', 'province', 'nation', 'frontier'];
+    const curIdx = scopes.indexOf(activeGovScope);
+    const nextScope = scopes[(curIdx + 1) % scopes.length];
+    const btn = document.querySelector(`.scope-btn[data-gov-scope="${nextScope}"]`);
+    if (btn) btn.click();
+    else {
+      activeGovScope = nextScope;
+      ['tile', 'province', 'nation', 'frontier'].forEach(s => {
+        const el = document.getElementById(`gov-scope-${s}`);
+        if (el) el.classList.toggle('hidden', s !== activeGovScope);
+      });
+    }
+    if (activeLeftDrawer !== 'gov') openLeftDrawer('gov');
+  }
+
+  function cycleSovereignNation() {
+    if (!worldState || !worldState.nations || worldState.nations.length === 0) return;
+    const curNat = worldState.player_nation;
+    const curIdx = worldState.nations.findIndex(n => n.name === curNat);
+    const nextIdx = (curIdx + 1) % worldState.nations.length;
+    const nextNat = worldState.nations[nextIdx].name;
+    sendCommand('SELECT_NATION', { nation: nextNat });
+  }
+
+  function resetActiveLayer() {
+    const item = document.querySelector('.layer-item[data-layer="overview"]');
+    if (item) item.click();
   }
 
   // ---------------- Keyboard Shortcuts ----------------
@@ -2744,8 +3906,17 @@
       else if (key === 'S') openLeftDrawer('debt');
       else if (key === 'T') openLeftDrawer('science');
       else if (key === 'M') openLeftDrawer('military');
+      else if (key === 'P') openLeftDrawer('progress');
+      else if (key === 'V') cyclePolicyScope();
+      else if (key === 'N') cycleSovereignNation();
+      else if (key === '0') resetActiveLayer();
+      else if (key === 'F10') {
+        e.preventDefault();
+        openSettingsModal();
+      }
       else if (key === 'C') openCompareModal();
       else if (key === 'A') openCommandSuiteModal();
+      else if (key === '3') toggle3DMode();
       else if (key === 'U') {
         useTerrainImage = !useTerrainImage;
         if (btnTogglePipeline) btnTogglePipeline.querySelector('.btn-text').textContent = useTerrainImage ? 'Pipeline: Photoreal' : 'Pipeline: Flat';
@@ -2756,15 +3927,28 @@
       else if (key === ' ') {
         e.preventDefault();
         if (btnPlay) btnPlay.click();
-      } else if (key === '+' || key === '=') {
+      } else if (key === '+' || key === '=' || key === '.') {
         if (btnStep) btnStep.click();
+      } else if (key === 'ARROWUP') {
+        camY += 40; scheduleMapRender();
+      } else if (key === 'ARROWDOWN') {
+        camY -= 40; scheduleMapRender();
+      } else if (key === 'ARROWLEFT') {
+        camX += 40; scheduleMapRender();
+      } else if (key === 'ARROWRIGHT') {
+        camX -= 40; scheduleMapRender();
       } else if (key === 'ESCAPE') {
         closeLeftDrawer();
         closeCompareModal();
         closeCommandSuiteModal();
         closeFiscalTransferDialog();
         closeHelpModal();
+        closeSettingsModal();
+        if (scenarioBookendModal) scenarioBookendModal.classList.add('hidden');
         qrModal.classList.add('hidden');
+        hideMacroTooltip();
+        hideSeasonalPopover();
+        hideHexHoverCard();
       } else if (key >= '1' && key <= '9') {
         const layers = ['overview', 'physical', 'population', 'economy', 'production', 'military', 'enclosure', 'exploitation', 'externalities'];
         const idx = parseInt(key, 10) - 1;
@@ -2902,9 +4086,17 @@
 
     // Mouse & Pointer Handlers
     canvas.addEventListener('mousedown', handlePointerDown);
+    canvas.addEventListener('contextmenu', (e) => e.preventDefault());
     window.addEventListener('mousemove', handlePointerMove);
     window.addEventListener('mouseup', handlePointerUp);
     canvas.addEventListener('wheel', handleWheel, { passive: false });
+    canvas.addEventListener('mouseleave', () => {
+      if (hoveredTileName) {
+        hoveredTileName = null;
+        hideHexHoverCard();
+        scheduleMapRender();
+      }
+    });
 
     setupTouchEvents();
     setupLeftDrawer();
@@ -2916,6 +4108,8 @@
     setupQrModal();
     setupLayerSelector();
     setupTopBarTooltips();
+    setupSeasonalClockPopover();
+    setupSettingsModal();
     setupKeyboardShortcuts();
 
     // Top Controls
@@ -2948,6 +4142,10 @@
       selectNation.addEventListener('change', () => {
         sendCommand('SELECT_NATION', { nation: selectNation.value });
       });
+    }
+
+    if (btnToggle3D) {
+      btnToggle3D.addEventListener('click', toggle3DMode);
     }
 
     if (btnToggleTerrain) {
@@ -2986,12 +4184,22 @@
     if (btnZoomIn) {
       btnZoomIn.addEventListener('click', () => {
         camZoom = Math.min(3.5, camZoom * 1.25);
+        if (isVoronoi() && is3DMode && typeof computePitchYaw === 'function') {
+          const py = computePitchYaw(camZoom);
+          camPitch = py.pitch;
+          camYaw = py.yaw;
+        }
         scheduleMapRender();
       });
     }
     if (btnZoomOut) {
       btnZoomOut.addEventListener('click', () => {
         camZoom = Math.max(0.35, camZoom * 0.8);
+        if (isVoronoi() && is3DMode && typeof computePitchYaw === 'function') {
+          const py = computePitchYaw(camZoom);
+          camPitch = py.pitch;
+          camYaw = py.yaw;
+        }
         scheduleMapRender();
       });
     }
@@ -3002,6 +4210,17 @@
     // Initial Fetch & Poll Loop
     fetchState();
     pollTimer = setInterval(fetchState, 1000);
+
+    // Independent 60fps Animation Loop for Smooth Trade Commodity Flows
+    const tradeAnim = window.CoCTradeAnimator || window.RegnumTradeAnimator;
+    if (tradeAnim) {
+      const tradeTicker = tradeAnim.createAnimationTicker(() => {
+        if (showTradeArrows && worldState && worldState.trade_network && worldState.trade_network.flows && worldState.trade_network.flows.length > 0) {
+          scheduleMapRender();
+        }
+      });
+      tradeTicker.start();
+    }
   }
 
   if (document.readyState === 'loading') {

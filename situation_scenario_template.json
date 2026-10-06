@@ -1,5 +1,5 @@
 {
-  "format": "regnum.situation.v1",
+  "format": "coc.situation.v1",
   "template_guidance": {
     "purpose": "Copy this file for a new authored situation. Keep player decisions, delayed actor reactions, response choices, and measurable effects in data.",
     "branch_rule": "An action queues its reaction after delay_turns. A reaction without responses is reported automatically. A reaction with responses pauses the scenario until the player chooses one.",
@@ -38,7 +38,9 @@
   ],
   "debt_rules": {
     "first_due_turn": 6,
+    "initial_claim": 600,
     "initial_payment": 200,
+    "service_interval_turns": 5,
     "deferral_delay_turns": 3,
     "deferral_multiplier": 1.1,
     "maximum_deferrals": 1,
@@ -229,8 +231,8 @@
     "pay_remittance": {
       "delay_turns": 1,
       "reaction": {
-        "headline": "The Caisse acknowledges full payment",
-        "body": "Britain and France receive the scheduled remittance. No further payment is due during this situation.",
+        "headline": "The Caisse acknowledges this instalment",
+        "body": "Britain and France receive the scheduled remittance. Any remaining bond principal stays due at later service windows.",
         "effects": {},
         "responses": []
       }

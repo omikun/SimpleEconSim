@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Commonweal — the two ledgers</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>Commonweal <small>how a commons becomes an economy — and what it costs</small></h1>
+  <div id="clock"></div>
+  <div class="controls">
+    <button id="play">▶ Play</button>
+    <button data-step="1">+Season</button>
+    <button data-step="4">+Year</button>
+    <button data-step="40">+10 yrs</button>
+    <label>speed <input id="speed" type="range" min="1" max="12" value="4"></label>
+    <select id="preset"></select>
+    <input id="seed" type="number" value="1" title="seed">
+    <button id="reset">New valley</button>
+  </div>
+</header>
+<main>
+  <section class="ledger left">
+    <h2>The Minister's Ledger <span>what the state measures</span></h2>
+    <div class="charts" id="left-charts"></div>
+  </section>
+
+  <section class="center">
+    <h2>The Valley <span>dot = person · colour = health · ring = position</span></h2>
+    <canvas id="map" width="640" height="400"></canvas>
+    <div id="legend"></div>
+    <div id="chronicle"></div>
+  </section>
+
+  <section class="ledger right">
+    <h2>The Ground Truth <span>what people live</span></h2>
+    <div class="charts" id="right-charts"></div>
+  </section>
+
+  <aside id="side">
+    <h2>Policy dials <span>observer</span></h2>
+    <div id="dials">
+      <label><input type="checkbox" id="d-alien" checked> Land may be foreclosed / sold</label>
+      <label>Max working day for hired labour <b id="v-hours">14</b>h<input type="range" id="d-hours" min="6" max="16" step="0.5" value="14"></label>
+      <label>Poor-relief levy on the rich <b id="v-levy">0</b>%<input type="range" id="d-levy" min="0" max="50" step="5" value="0"></label>
+      <label>Usury cap per season <b id="v-usury">25</b>%<input type="range" id="d-usury" min="0" max="100" step="5" value="25"></label>
+    </div>
+    <h2>Follow a life</h2>
+    <div id="person"><p class="muted">Click a dot on the map.</p></div>
+  </aside>
+</main>
+<script src="app.js"></script>
+</body>
+</html>

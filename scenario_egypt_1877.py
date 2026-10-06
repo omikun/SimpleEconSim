@@ -5,9 +5,10 @@ from __future__ import annotations
 from contextlib import contextmanager
 from copy import deepcopy
 from heapq import heappop, heappush
-from math import hypot
+from math import exp, hypot
 import random
 from goods import Goods
+from nutrition import deficit_fraction
 
 
 SCENARIO_ID = "egypt_1877"
@@ -22,12 +23,16 @@ SCENARIO = {
                   "Port Said", "Ismailia", "Tel el Kebir"),
     "institutions": ("Caisse de la Dette Publique",),
     "briefing": (
-        "A weak Nile flood threatens the maize harvest. Cairo's relief stores are "
-        "limited, and assigned revenues support debt service overseen by the "
-        "Caisse. Choose what food to release and whose claims to protect.",
+        "A weak Nile flood has left poorer households short of maize. Cairo's "
+        "relief stores and treasury are limited, while landowners hold private "
+        "grain and three debt-service windows remain. Cultivators face tax "
+        "arrears, and workers can organize. Choose whose claims to protect.",
     ),
     "horizon_turns": 20,
-    "relief_stock_turns": 4,
+    "chapter_two_min_turns": 8,
+    "occupation_min_turns": 5,
+    "relief_stock_turns": 1,
+    "relief_households_per_release": 110,
     "payment_window_turn": 6,
     "thresholds": {"protected_hunger_rate": 0.20, "breakdown_legitimacy": 0.10, "breakdown_unrest": 0.85},
     "pressures": (
@@ -36,7 +41,7 @@ SCENARIO = {
         {"id": "political_support", "title": "Political support"},
     ),
     "opening_events": (
-        {"turn": 1, "id": "low_nile", "kind": "harvest_shock", "severity": 0.30},
+        {"turn": 1, "id": "low_nile", "kind": "harvest_shock", "severity": 0.65},
         {"turn": 6, "id": "debt_service_window", "kind": "payment_due"},
     ),
     "outcomes": (
@@ -78,6 +83,18 @@ SCENARIO = {
         {"id": "reduce_fellahin_tax", "title": "Reduce cultivator taxes", "turn_cost": 1},
         {"id": "raise_local_taxes", "title": "Raise local taxes", "turn_cost": 1},
         {"id": "intensify_requisitions", "title": "Enforce emergency requisitions", "turn_cost": 1},
+        {"id": "district_relief", "title": "Feed a selected district", "turn_cost": 1},
+        {"id": "district_tax_relief", "title": "Suspend selected district taxes", "turn_cost": 1},
+        {"id": "district_negotiate", "title": "Negotiate in a selected district", "turn_cost": 1},
+        {"id": "district_repress", "title": "Disperse a selected district protest", "turn_cost": 1},
+        {"id": "buy_private_grain", "title": "Buy privately held maize", "turn_cost": 1},
+        {"id": "requisition_private_grain", "title": "Requisition privately held maize", "turn_cost": 1},
+        {"id": "open_private_grain_market", "title": "Leave grain to private markets", "turn_cost": 1},
+        {"id": "district_arrears_relief", "title": "Forgive district tax arrears", "turn_cost": 1},
+        {"id": "district_support_mutual_aid", "title": "Support local mutual aid", "turn_cost": 1},
+        {"id": "district_bargain_workers", "title": "Bargain with local workers", "turn_cost": 1},
+        {"id": "district_break_strike", "title": "Break a local strike", "turn_cost": 1},
+        {"id": "extend_collection_term", "title": "Trade a lower levy for longer inspection", "turn_cost": 1},
         {"id": "pay_remittance", "title": "Pay debt service", "turn_cost": 1},
         {"id": "defer_remittance", "title": "Defer debt service", "turn_cost": 1},
         {"id": "concede_revenue", "title": "Concede revenue oversight", "turn_cost": 1},
@@ -105,6 +122,48 @@ SCENARIO = {
 
 def is_scenario_id(value: str | None) -> bool:
     return value == SCENARIO_ID
+
+
+def campaign_horizon(world: dict) -> int:
+    return int(world.get('scenario', SCENARIO).get('horizon_turns', SCENARIO['horizon_turns']))
+
+
+def ensure_campaign_horizon(world: dict, final_turn: int) -> int:
+    """Allow a late sovereignty crisis to play out before the debrief."""
+    old = campaign_horizon(world)
+    final_turn = max(old, int(final_turn))
+    if final_turn == old:
+        return old
+    world['scenario']['horizon_turns'] = final_turn
+    state = world['scenario_state']
+    state['campaign_horizon_turn'] = final_turn
+    state['turns_remaining'] = max(0, final_turn - int(world['turn']))
+    from scenario_debt import bonds
+    for bond in bonds(world):
+        if bond.status in ('active', 'defaulted'):
+            bond.maturity_turn = max(bond.maturity_turn, final_turn + 1)
+    agreement = state.get('oversight_agreement') or {}
+    if agreement.get('status') == 'active':
+        agreement['expires_turn'] = max(int(agreement.get('expires_turn', 0)), final_turn)
+    return final_turn
+
+
+def enter_chapter_two(world: dict, cause: str) -> bool:
+    """Pause once when the political or foreign crisis becomes the main task."""
+    state = world['scenario_state']
+    if int(state.get('chapter', 1)) >= 2:
+        return False
+    turn = int(world['turn'])
+    state['chapter'] = 2
+    state['chapter_two_start_turn'] = turn
+    state['chapter_two_cause'] = cause
+    minimum = int(world['scenario'].get('chapter_two_min_turns', 8))
+    ensure_campaign_horizon(world, turn + minimum - 1)
+    world['scenario_bookend_modal'] = 'chapter2'
+    world['scenario_bookend_scroll'] = 0
+    world['guided_action_scroll'] = 0
+    world['playing'] = False
+    return True
 
 
 @contextmanager
@@ -274,10 +333,14 @@ def prepare_world(world: dict) -> dict:
     debt_rules = situation_template()['debt_rules']
     world["scenario_state"] = {
         "turns_remaining": SCENARIO["horizon_turns"],
+        "campaign_horizon_turn": SCENARIO["horizon_turns"],
         "chapter": 1,
-        "public_maize_stock_units": SCENARIO["relief_stock_turns"] * 30,
-        "relief_units_per_turn": 30,
+        "public_maize_stock_units": (SCENARIO["relief_stock_turns"]
+                                     * SCENARIO["relief_households_per_release"] * 4),
+        "relief_units_per_turn": SCENARIO["relief_households_per_release"],
         "scheduled_remittance": float(debt_rules['initial_payment']),
+        "service_periods_paid": 0,
+        "service_concession_used": False,
         "payment_window_turn": int(debt_rules['first_due_turn']),
         "payment_status": "upcoming",
         "deferral_count": 0,
@@ -295,7 +358,6 @@ def prepare_world(world: dict) -> dict:
         "fiscal_autonomy": 1.0,
         "extraction_level": 0,
         "tax_relief_enacted": False,
-        "tax_decision_taken": False,
         "domestic_grain_priority": False,
         "ending": None,
         "actions_taken": [],
@@ -304,8 +366,36 @@ def prepare_world(world: dict) -> dict:
     from scenario_debt import initialize as initialize_debt
     initialize_debt(world)
     egypt.government.food_inventory = world["scenario_state"]["public_maize_stock_units"]
+    # The sovereign can spend only its own cash. Move the generated surplus to
+    # private Egyptian holders so the opening debt decision requires receipts
+    # or a concession without creating or destroying currency.
+    households = [agent for tile in egypt.tiles for agent in getattr(tile, 'agents', [])
+                  if getattr(agent, 'alive', True) and not getattr(agent, 'is_government', False)
+                  and not getattr(agent, 'is_corporation', False) and not getattr(agent, 'is_trader', False)]
+    households.sort(key=lambda agent: (float(agent.cash), agent.id))
+    treasury = egypt.government.agent
+    transfer = max(0.0, float(treasury.cash) - 235.0)
+    treasury.cash -= transfer
+    affluent = households[-max(1, len(households) // 5):]
+    for agent in affluent:
+        agent.cash += transfer / len(affluent)
+        agent.energy_reserve_kcal = 60000.0
+    # Food remains in private stores, but poorer households have little access.
+    vulnerable = households[:len(households) // 4]
+    for index, agent in enumerate(vulnerable):
+        food = agent.inv_get(Goods.food)
+        agent.inv_set(Goods.food, 0)
+        affluent[index % len(affluent)].inv_add(Goods.food, food)
+        agent.hungry_steps = 1
+        agent.calorie_deficit_kcal = agent.calorie_need_kcal
+        agent.energy_reserve_kcal = 20000.0
+        purchasing_power = agent.cash * .95
+        agent.cash -= purchasing_power
+        affluent[index % len(affluent)].cash += purchasing_power
     world["scenario_feedback"] = "Opening crisis: low Nile, threatened maize harvest, and debt service."
     world["scenario_location_by_tile"] = _assign_location_roles(egypt)
+    from scenario_political_economy import initialize as initialize_political_economy
+    initialize_political_economy(world, egypt)
     from scenario_geography import initialize as initialize_geography
     initialize_geography(world)
     from scenario_projects import initialize as initialize_projects
@@ -321,9 +411,10 @@ def prepare_world(world: dict) -> dict:
     from scenario_history import initialize as initialize_history
     initialize_history(world)
     for tile in egypt.tiles:
-        if getattr(tile, "scenario_location", "") in ("Nile Delta", "Upper Egypt"):
-            tile.scenario_food_yield_modifier = 0.55
-            tile.scenario_food_yield_modifier_until = 8
+        tile.scenario_food_yield_modifier = (0.35 if getattr(tile, "scenario_location", "")
+                                             in ("Nile Delta", "Upper Egypt") else 0.55)
+        tile.scenario_food_yield_modifier_until = 12
+        tile.scenario_grievance_scale = 0.4
     # The authored foreign governments have broader administrative capacity
     # than the five Egyptian crisis districts. Their simulated protests remain
     # real and visible, but should not max out before the first creditor reply.
@@ -338,6 +429,7 @@ def prepare_world(world: dict) -> dict:
     world["turn"] = 1
     world["playing"] = False
     world["guided_analysis_open"] = False
+    world["scenario_bookend_modal"] = "briefing"
     from scenario_status import initialize
     initialize(world)
     from scenario_situation import update_foreign_reports
@@ -364,6 +456,8 @@ def apply_action(world: dict, action_id: str) -> tuple[bool, str]:
         initialize(world)
     status_before = snapshot(world)
 
+    from scenario_district import DISTRICT_ACTIONS
+    from scenario_political_economy import NATIONAL_ACTIONS, DISTRICT_ACTIONS as ECONOMY_DISTRICT_ACTIONS
     if action_id in ('enact_grain_entitlement', 'end_grain_entitlement'):
         from scenario_projects import set_grain_entitlement
         ok, message = set_grain_entitlement(world, action_id == 'enact_grain_entitlement')
@@ -374,27 +468,42 @@ def apply_action(world: dict, action_id: str) -> tuple[bool, str]:
         ok, message = recall_district_reserves(world)
         if not ok:
             return False, message
+    elif action_id in NATIONAL_ACTIONS or action_id in ECONOMY_DISTRICT_ACTIONS:
+        from scenario_political_economy import apply_action as apply_economy_action
+        from scenario_district import selected_district
+        tile = selected_district(world, nation) if action_id in ECONOMY_DISTRICT_ACTIONS else None
+        ok, message = apply_economy_action(world, nation, action_id, tile)
+        if not ok:
+            return False, message
+    elif action_id in DISTRICT_ACTIONS:
+        from scenario_district import apply_action as apply_district_action
+        ok, message = apply_district_action(world, nation, action_id)
+        if not ok:
+            return False, message
     elif action_id == "release_maize":
+        ration_size = 4
         available = min(int(state.get("relief_units_per_turn", 30)),
-                        int(getattr(nation.government, "food_inventory", 0)))
+                        int(getattr(nation.government, "food_inventory", 0)) // ration_size)
         if available <= 0:
             return False, "The public maize reserve is empty."
         households = [a for tile in nation.tiles for a in getattr(tile, "agents", [])
                       if getattr(a, "alive", True) and not getattr(a, "is_government", False)
-                      and not getattr(a, "is_corporation", False) and not getattr(a, "is_trader", False)]
-        households.sort(key=lambda a: (0 if getattr(a, "hungry_steps", 0) > 0 else 1,
+                      and not getattr(a, "is_corporation", False) and not getattr(a, "is_trader", False)
+                      and deficit_fraction(a) > 0]
+        households.sort(key=lambda a: (a.inv_get(Goods.food),
                                        float(getattr(a, "cash", 0.0)),
-                                       getattr(a, "age_turns", 0)))
+                                       -deficit_fraction(a)))
         recipients = households[:available]
         if not recipients:
-            return False, "No households can receive the public maize reserve."
+            return False, "No households currently need a public maize meal."
+        # The public stock moves into reserved household rations. Consumption
+        # uses them next turn, before the ending measures household hunger.
+        from nutrition import queue_emergency_meal
         for person in recipients:
-            person.inv_add(Goods.food, 1)
-            if getattr(person, "hungry_steps", 0) > 0:
-                person.hungry_steps = 0
-        nation.government.food_inventory -= len(recipients)
+            queue_emergency_meal(person, ration_size)
+        nation.government.food_inventory -= len(recipients) * ration_size
         state["public_maize_stock_units"] = nation.government.food_inventory
-        message = f"Released {len(recipients)} maize rations from the public reserve."
+        message = f"Issued next-meal maize rations to {len(recipients)} households from the public reserve."
     elif action_id == "prioritize_domestic_grain":
         if state.get("domestic_grain_priority"):
             return False, "More grain is already being retained for domestic supply."
@@ -430,23 +539,33 @@ def apply_action(world: dict, action_id: str) -> tuple[bool, str]:
         if not ok:
             return False, message
     elif action_id == "reduce_fellahin_tax":
-        if state.get("tax_decision_taken"):
-            return False, "A local tax decision is already in effect."
+        if all(float(getattr(tile.gov, "tax_rate", 0.0)) <= 0.0 for tile in nation.tiles):
+            return False, "Local taxes are already at zero."
+        effective_cut = 0.0
         for tile in nation.tiles:
-            tile.gov.tax_rate = max(0.0, float(getattr(tile.gov, "tax_rate", 0.0)) - 0.03)
-            tile.unrest_level = max(0.0, float(getattr(tile, "unrest_level", 0.0)) - 0.08)
-        nation.legitimacy = min(1.0, float(getattr(nation, "legitimacy", 0.5)) + 0.04)
+            old_rate = float(getattr(tile.gov, "tax_rate", 0.0))
+            tile.gov.tax_rate = max(0.0, old_rate - 0.03)
+            fraction = (old_rate - tile.gov.tax_rate) / 0.03
+            effective_cut += fraction
+            tile.unrest_level = float(getattr(tile, "unrest_level", 0.0)) * exp(-0.11 * fraction)
+        nation.legitimacy = min(1.0, float(getattr(nation, "legitimacy", 0.5))
+                                + 0.04 * effective_cut / max(1, len(nation.tiles)))
         state["tax_relief_enacted"] = True
-        state["tax_decision_taken"] = True
+        state["extraction_level"] = max(0, int(state.get("extraction_level", 0)) - 1)
         message = "Reduced regional taxes for cultivators; the treasury will collect less revenue."
     elif action_id == "raise_local_taxes":
-        if state.get("tax_decision_taken"):
-            return False, "A local tax decision is already in effect."
+        if all(float(getattr(tile.gov, "tax_rate", 0.0)) >= 0.60 for tile in nation.tiles):
+            return False, "Local taxes are already at the 60% ceiling."
+        effective_hike = 0.0
         for tile in nation.tiles:
-            tile.gov.tax_rate = min(0.60, float(getattr(tile.gov, "tax_rate", 0.0)) + 0.05)
-            tile.unrest_level = min(1.0, float(getattr(tile, "unrest_level", 0.0)) + 0.12)
-        nation.legitimacy = max(0.0, float(getattr(nation, "legitimacy", 0.5)) - 0.08)
-        state["tax_decision_taken"] = True
+            old_rate = float(getattr(tile.gov, "tax_rate", 0.0))
+            tile.gov.tax_rate = min(0.60, old_rate + 0.05)
+            fraction = (tile.gov.tax_rate - old_rate) / 0.05
+            effective_hike += fraction
+            prior = float(getattr(tile, "unrest_level", 0.0))
+            tile.unrest_level = 1.0 - (1.0 - prior) * exp(-0.16 * fraction)
+        nation.legitimacy = max(0.0, float(getattr(nation, "legitimacy", 0.5))
+                                - 0.08 * effective_hike / max(1, len(nation.tiles)))
         state["extraction_level"] += 1
         message = "Raised local taxes to protect revenue; cultivator unrest and political strain increased."
     elif action_id == "intensify_requisitions":
@@ -455,7 +574,8 @@ def apply_action(world: dict, action_id: str) -> tuple[bool, str]:
         below_ceiling = any(float(getattr(tile.gov, 'tax_rate', 0)) < .60 for tile in nation.tiles)
         for tile in nation.tiles:
             tile.gov.tax_rate = min(.60, float(getattr(tile.gov, 'tax_rate', 0)) + .04)
-            tile.unrest_level = min(1.0, float(getattr(tile, 'unrest_level', 0)) + .12)
+            prior = float(getattr(tile, 'unrest_level', 0))
+            tile.unrest_level = 1.0 - (1.0 - prior) * exp(-.16)
         nation.legitimacy = max(0.0, float(nation.legitimacy) - .08)
         state['extraction_level'] += 1
         message = ('Ordered another round of requisitions; future tax receipts can rise, but unrest and legitimacy deteriorate.'
@@ -503,7 +623,7 @@ def apply_action(world: dict, action_id: str) -> tuple[bool, str]:
             return False, "The debt-service decision has already been resolved."
         if action_id == "defer_remittance" and int(state.get("deferral_count", 0)) >= int(debt_rules['maximum_deferrals']):
             return False, "The Caisse will not grant another deferral. Pay, concede, or default."
-        if action_id == "defer_remittance" and turn + deferral_delay > int(SCENARIO['horizon_turns']):
+        if action_id == "defer_remittance" and turn + deferral_delay > campaign_horizon(world):
             return False, "The revised due date would fall after the campaign ends. Pay, concede, or default."
         amount = float(state.get("scheduled_remittance", 200.0))
         if action_id == "default_remittance":
@@ -517,13 +637,23 @@ def apply_action(world: dict, action_id: str) -> tuple[bool, str]:
             amount = amount if action_id == "pay_remittance" else amount * 0.5
             if nation.government.agent.cash < amount:
                 return False, f"The treasury needs {amount:,.0f} treasury units to make this payment."
-            from scenario_debt import pay as pay_debt
-            ok, reason = pay_debt(world, amount, kind='payment' if action_id == 'pay_remittance' else 'concession_payment',
-                                  forgive_remainder=action_id == 'concede_revenue')
+            from scenario_debt import pay as pay_debt, outstanding, write_down
+            ok, reason = pay_debt(world, amount, kind='payment' if action_id == 'pay_remittance' else 'concession_payment')
             if not ok:
                 return False, reason
-            state["payment_status"] = "paid" if action_id == "pay_remittance" else "restructured"
-            state["settlement_path"] = "scheduled_payment" if action_id == "pay_remittance" else "revenue_concession"
+            if action_id == 'concede_revenue':
+                write_down(world, amount)
+                state['service_concession_used'] = True
+            state['service_periods_paid'] += 1
+            remaining_claim = outstanding(world)
+            state["payment_status"] = ("restructured" if state['service_concession_used'] else "paid") if remaining_claim <= .01 else "upcoming"
+            state["settlement_path"] = "revenue_concession" if state['service_concession_used'] else "scheduled_payment"
+            if remaining_claim > .01:
+                state['scheduled_remittance'] = min(float(debt_rules['initial_payment']), remaining_claim)
+                state['payment_window_turn'] = min(turn + int(debt_rules['service_interval_turns']),
+                                                   campaign_horizon(world))
+            else:
+                state['scheduled_remittance'] = 0.0
             state["creditor_levy_per_turn"] = 0.0
             state["creditor_levy_remaining"] = 0.0
             if state.get('collection_assignment'):
@@ -533,19 +663,19 @@ def apply_action(world: dict, action_id: str) -> tuple[bool, str]:
                 state["fiscal_autonomy"] = max(0.0, state.get("fiscal_autonomy", 1.0) - 0.25)
                 from scenario_oversight import sign as sign_oversight
                 sign_oversight(world, amount)
-                message = f"Accepted a reduced {amount:,.0f}-unit remittance and creditor oversight of future revenues."
+                message = f"Paid {amount:,.0f} and wrote down {amount:,.0f} under Caisse oversight; {remaining_claim:,.0f} remains due."
             else:
-                message = f"Paid the {amount:,.0f}-unit scheduled debt-service remittance."
-            if state.get('naval_crisis', {}).get('stage') in ('mobilizing', 'ultimatum', 'blockaded'):
+                message = f"Paid {amount:,.0f} in debt service; {remaining_claim:,.0f} remains due."
+            if remaining_claim <= .01 and state.get('naval_crisis', {}).get('stage') in ('mobilizing', 'ultimatum', 'blockaded'):
                 from scenario_gunboat import withdraw
                 withdraw(world, 'Debt service is settled; the British squadron withdraws from Alexandria.', cause='settlement')
         elif action_id == "defer_remittance":
             state["payment_status"] = "deferred"
             state["deferral_count"] = int(state.get("deferral_count", 0)) + 1
             state["payment_window_turn"] = turn + deferral_delay
-            from scenario_debt import revise as revise_debt
-            revise_debt(world, round(amount * float(debt_rules['deferral_multiplier']), 2),
-                        due_turn=state['payment_window_turn'])
+            from scenario_debt import adjust_service
+            adjust_service(world, round(amount * float(debt_rules['deferral_multiplier']), 2),
+                           due_turn=state['payment_window_turn'])
             state["creditor_confidence"] = max(0.0, state.get("creditor_confidence", 0.6) - 0.30)
             nation.legitimacy = min(1.0, float(getattr(nation, "legitimacy", 0.5)) + 0.02)
             message = (f"Deferred the remittance to turn {state['payment_window_turn']}; "
@@ -565,6 +695,11 @@ def apply_action(world: dict, action_id: str) -> tuple[bool, str]:
     from scenario_situation import queue_creditor_reaction
     queue_creditor_reaction(world, action_id)
     record_change(world, action_id, status_before, snapshot(world))
+    try:
+        from economy.true_cost_ledger import get_decision_tracker
+        get_decision_tracker().record_decision(action_id, turn=turn)
+    except Exception:
+        pass
     return True, message
 
 
@@ -576,11 +711,11 @@ def advance_scenario(world: dict, turn: int, ticker_push, on_phase=None) -> None
     nation = next((n for n in world.get("nations", []) if n.name == world.get("player_nation_name")), None)
     if nation is None:
         return
-    state["turns_remaining"] = max(0, int(SCENARIO["horizon_turns"]) - turn)
+    state["turns_remaining"] = max(0, campaign_horizon(world) - turn)
     state.setdefault("events_fired", [])
     if turn == 1 and "low_nile" not in state["events_fired"]:
         state["events_fired"].append("low_nile")
-        ticker_push(world, turn, "SCENARIO", "The weak Nile flood cuts the expected food harvest in the Delta and Upper Egypt.", (230, 174, 88))
+        ticker_push(world, turn, "SCENARIO", "The weak Nile flood cuts the expected food harvest along the Nile corridor.", (230, 174, 88))
     from scenario_situation import collect_creditor_levy, update_foreign_reports, advance_creditor_reactions
     levy_paid = collect_creditor_levy(world)
     if levy_paid:
@@ -591,16 +726,22 @@ def advance_scenario(world: dict, turn: int, ticker_push, on_phase=None) -> None
     advance_projects(world)
     from scenario_projects import record_food_results
     record_food_results(world)
+    if on_phase:
+        on_phase('strategic_projects')
+    from scenario_political_economy import advance as advance_political_economy
+    advance_political_economy(world, nation, turn)
     from scenario_projects import advance_grain_entitlement
     advance_grain_entitlement(world)
     if on_phase:
-        on_phase('strategic_projects')
+        on_phase('political_economy')
     if turn >= int(state.get("payment_window_turn", 6)) and state.get("payment_status") in ("upcoming", "deferred"):
         state["payment_status"] = "unpaid"
         world["playing"] = False
         world["scenario_warning_modal"] = {"kind": "debt_due"}
         state["events_fired"].append(f"debt_service_window_{turn}")
-        world["scenario_feedback"] = f"Debt service of {state['scheduled_remittance']:,.0f} units is due now."
+        from scenario_debt import outstanding
+        world["scenario_feedback"] = (f"Debt instalment of {state['scheduled_remittance']:,.0f} is due now; "
+                                       f"{outstanding(world):,.0f} remains on the Caisse bonds.")
         ticker_push(world, turn, "ALERT", "Debt service is due. Choose payment, concession, deferral if available, or default.", (240, 180, 72))
     elif turn > int(state.get("payment_window_turn", 6)) and state.get("payment_status") == "unpaid":
         state["payment_status"] = "defaulted"
@@ -616,7 +757,12 @@ def advance_scenario(world: dict, turn: int, ticker_push, on_phase=None) -> None
     # translates that live pressure into its 0..1 political unrest measure.
     for tile in nation.tiles:
         history = getattr(tile, "protest_energy_log", [])
-        pressure = min(1.0, max(0.0, float(history[-1]) / 10.0)) if history else 0.0
+        energy = max(0.0, float(history[-1])) if history else 0.0
+        # Local protest is already reflected in the shared simulation's
+        # unrest value. Translate it into scenario pressure with diminishing
+        # returns so persistent petitioning alone does not force every ending
+        # into political collapse; coercion can still push unrest over 0.85.
+        pressure = 0.72 * (1.0 - exp(-energy / 4.0))
         current = float(getattr(tile, "unrest_level", 0.0))
         tile.unrest_level = max(0.0, min(1.0, current * 0.75 + pressure * 0.25))
     if on_phase:
@@ -627,7 +773,7 @@ def advance_scenario(world: dict, turn: int, ticker_push, on_phase=None) -> None
     from scenario_politics import advance as advance_politics
     advance_politics(world)
     if state['politics']['crisis_resolved'] or state.get('naval_crisis', {}).get('stage') not in ('none',):
-        state['chapter'] = 2
+        enter_chapter_two(world, 'political crisis' if state['politics']['crisis_resolved'] else 'naval crisis')
     if on_phase:
         on_phase('politics')
 
@@ -710,9 +856,9 @@ def classify_outcome(world: dict, metrics: dict | None = None) -> str:
         return 'coercive_extraction'
     if evidence['outstanding_claim'] <= .01 and metrics['hunger_rate'] > thresholds['protected_hunger_rate']:
         return 'fiscal_hardship'
-    if metrics['hunger_rate'] <= thresholds['protected_hunger_rate'] and state.get('payment_status') == 'paid':
+    if evidence['outstanding_claim'] <= .01 and metrics['hunger_rate'] <= thresholds['protected_hunger_rate'] and state.get('payment_status') == 'paid':
         return 'relief_and_payment'
-    if metrics['hunger_rate'] <= thresholds['protected_hunger_rate'] and state.get('payment_status') == 'restructured':
+    if evidence['outstanding_claim'] <= .01 and metrics['hunger_rate'] <= thresholds['protected_hunger_rate'] and state.get('payment_status') == 'restructured':
         return 'creditor_settlement'
     return 'unresolved_crisis'
 
@@ -737,7 +883,8 @@ def outcome_evidence(world: dict, metrics: dict | None = None) -> dict:
                               and claim > .01),
         'disarmed': bool(state.get('disarmed_batteries')),
         'withdrawal_cause': cause,
-        'foreign_defeated': (cause in ('deterrence', 'unsustainable', 'military_defeat', 'no_access')
+        'foreign_defeated': (cause in ('deterrence', 'unsustainable', 'military_defeat',
+                                      'no_access', 'negotiated_withdrawal')
                              or expedition.get('stage') == 'repelled'),
         'nationalist': state.get('politics', {}).get('governing_coalition') == 'nationalist',
         'joint_collection': (assignment.get('status') == 'active'
@@ -753,10 +900,10 @@ def outcome_evidence(world: dict, metrics: dict | None = None) -> dict:
 
 
 def finish_due_campaign(world: dict) -> None:
-    """Complete turn 20 after any debt or creditor modal has been answered."""
+    """Complete the current campaign horizon after pending decisions are answered."""
     state = world.get('scenario_state', {})
     turn = int(world.get('turn', 0))
-    if (turn < int(SCENARIO['horizon_turns']) or state.get('ending')
+    if (turn < campaign_horizon(world) or state.get('ending')
             or world.get('scenario_warning_modal')):
         return
     from client.desktop.engine import ticker_push
@@ -781,7 +928,7 @@ def _outcome_metrics(nation) -> dict:
     households = [a for tile in nation.tiles for a in getattr(tile, "agents", [])
                   if getattr(a, "alive", True) and not getattr(a, "is_government", False)
                   and not getattr(a, "is_corporation", False) and not getattr(a, "is_trader", False)]
-    hungry = sum(1 for a in households if getattr(a, "hungry_steps", 0) > 0)
+    hungry = sum(1 for a in households if deficit_fraction(a) > 0)
     unrest = sum(float(getattr(tile, "unrest_level", 0.0)) for tile in nation.tiles) / max(1, len(nation.tiles))
     return {
         "households": len(households),
@@ -794,25 +941,111 @@ def _outcome_metrics(nation) -> dict:
 
 
 def _finish_scenario(world: dict, nation, outcome: str, turn: int, metrics: dict) -> None:
+    from scenario_status import record_social_costs
+    record_social_costs(world, turn)
     state = world["scenario_state"]
     state["ending"] = outcome
     state["ending_turn"] = turn
     state["ending_metrics"] = metrics
     state["ending_evidence"] = outcome_evidence(world, metrics)
-    state["turns_remaining"] = max(0, int(SCENARIO["horizon_turns"]) - turn)
+    state["turns_remaining"] = max(0, campaign_horizon(world) - turn)
     state["debrief"] = build_debrief(world, outcome, metrics)
     world["playing"] = False
     world["scenario_feedback"] = state["debrief"]["summary"]
+    world["scenario_bookend_modal"] = "debrief"
+    world["scenario_bookend_scroll"] = 0
 
 
 def build_debrief(world: dict, outcome: str, metrics: dict | None = None) -> dict:
     """Summarize the ending and cite the player's decisions and measured state."""
+    from scenario_political_economy import stock as warehouse_stock
     nation = next((n for n in world.get("nations", []) if n.name == world.get("player_nation_name")), None)
     metrics = metrics or (_outcome_metrics(nation) if nation else {})
     state = world.get("scenario_state", {})
+    from scenario_status import snapshot
+    current = snapshot(world) or {}
+    social = world.get('scenario_status_history', {}).get('social_costs', {})
+    debt_transfers = sum(float(entry.get('amount', 0.0)) for entry in state.get('debt_ledger', [])
+                         if entry.get('kind') in ('payment', 'concession_payment', 'assigned_revenue',
+                                                  'french_mediation', 'naval_settlement',
+                                                  'landing_settlement', 'ottoman_mediation'))
+    economy = state.get('political_economy', {})
+    grain_log = economy.get('grain_transactions', [])
+    transfers = economy.get('tenure_transfers', [])
+    fiscal_reports = economy.get('fiscal_reports', [])
+    diverted = sum(float(row.get('diverted', 0.0)) for row in fiscal_reports)
+    relief_gap = sum(float(row.get('attributable_to_assignment', 0.0)) for row in fiscal_reports)
+    mutual_aid = sum(int(row.get('mutual_aid_meals', 0))
+                     for row in economy.get('collective_by_tile', {}).values())
+    injuries = sum(int(row.get('injuries', 0))
+                   for row in economy.get('collective_by_tile', {}).values())
+    social_stats = [
+        {'label': 'Household hunger',
+         'value': f"{int(social.get('household_hunger_turns', metrics.get('hungry', 0))):,} household-turns",
+         'note': 'One household counted once for each turn it went hungry.'},
+        {'label': 'Worst food shortage',
+         'value': f"{int(social.get('peak_hungry', metrics.get('hungry', 0))):,} households on turn {social.get('peak_hunger_turn', world.get('turn', 0))}",
+         'note': f"Households and owners still held {float(social.get('private_food_at_peak', current.get('private_food', 0))):,.0f} private food units then; this includes ordinary pantry stocks."},
+        {'label': 'Cash concentration',
+         'value': f"Top fifth: {float(current.get('top_fifth_cash_share', 0)):.0%} of cash",
+         'note': f"Bottom quarter: {float(current.get('bottom_quarter_cash_share', 0)):.0%}. Opening shares: {float(social.get('opening_top_fifth_cash_share', 0)):.0%} and {float(social.get('opening_bottom_quarter_cash_share', 0)):.0%}. Positive balances only."},
+        {'label': 'Tax taken from districts',
+         'value': f"{float(social.get('tax_collected', 0)):,.0f} units",
+         'note': 'Gross tax collected across national, provincial, and local governments.'},
+        {'label': 'Caisse debt transferred',
+         'value': f'{debt_transfers:,.0f} units',
+         'note': 'Actual Caisse bond payments and assigned receipts transferred to Britain and France.'},
+        {'label': 'Private grain held and traded',
+         'value': f'{int(current.get("private_food", 0)):,} private food units',
+         'note': f'{warehouse_stock(world, nation) if nation else 0:,} deliberately reserved by warehouse owners at the end. '
+                 f'{sum(row["units"] for row in grain_log if row["kind"] == "public_buy")} bought by Cairo; '
+                 f'{sum(row["units"] for row in grain_log if row["kind"] == "requisition")} requisitioned.'},
+        {'label': 'Land access and migration',
+         'value': f'{len(transfers)} cultivators lost plot access',
+         'note': f'{len(economy.get("migrations", []))} moved district; title holders and use-right buyers are recorded by agent ID.'},
+        {'label': 'Collective food and violence',
+         'value': f'{mutual_aid} food units shared',
+         'note': f'{injuries} people received injury memories during strikebreaking.'},
+        {'label': 'Assigned receipts vs relief',
+         'value': f'{diverted:,.1f} transferred to creditors',
+         'note': f'Up to {relief_gap:,.1f} of measured relief purchasing shortfalls coincide with money diverted from actual receipts.'},
+        {'label': 'Civilians injured',
+         'value': f"{int(state.get('campaign', {}).get('civilian_casualties', 0)):,}",
+         'note': 'Recorded injuries from bombardment and occupation resistance.'},
+        {'label': 'Unmet calories',
+         'value': f"{float(social.get('total_deficit_kcal', 0)):,.0f} kcal",
+         'note': 'Sum of household calorie deficits across completed campaign turns.'},
+        {'label': 'Surplus and fat reserve',
+         'value': f"{float(social.get('total_surplus_kcal', 0)):,.0f} kcal surplus",
+         'note': f"Final mean body energy reserve: {float(current.get('mean_fat_kg', 0)):.1f} kg fat equivalent."},
+    ]
+    from scenario_projects import debrief_evidence
+    project_summary = debrief_evidence(world)
+    social_stats.extend(project_summary['social_stats'])
+    if int(state.get('chapter', 1)) >= 2:
+        campaign = state.get('campaign', {})
+        occupation = state.get('occupation', {})
+        battles = campaign.get('battles', [])
+        occupation_receipts = sum(float(row.get('amount', 0.0))
+                                  for row in occupation.get('revenue_ledger', [])
+                                  if row.get('source') in ('tax', 'tariff'))
+        war_stats = [
+            {'label': 'Battle losses',
+             'value': (f'{sum(int(row.get("def_losses", 0)) for row in battles)} Egyptian; '
+                       f'{sum(int(row.get("atk_losses", 0)) for row in battles)} British'),
+             'note': f'{len(battles)} land battles recorded; Alexandria port damage '
+                     f'{float(campaign.get("infrastructure_damage", {}).get("Alexandria", 0)):.0%}.'},
+            {'label': 'Occupation revenue and supply',
+             'value': f'{occupation_receipts:,.1f} units taken',
+             'note': f'British garrison supply cost {float(occupation.get("garrison_supply_paid", 0)):,.1f}; '
+                     f'resistance at the end {float(occupation.get("resistance", 0)):.0%}.'},
+        ]
+        civilian = next(stat for stat in social_stats if stat['label'] == 'Civilians injured')
+        social_stats = ([social_stats[0], social_stats[1], civilian] + war_stats
+                        + [stat for stat in social_stats[2:] if stat is not civilian])
     labels = {
-        "relief_and_payment": ("Relief and payment", "Food access held and the scheduled remittance was paid."),
-        "creditor_settlement": ("Creditor settlement", "Food access held after a reduced payment and revenue concession."),
+        "relief_and_payment": ("Relief and payment", "Food access held and the full Caisse claim was paid."),
+        "creditor_settlement": ("Creditor settlement", "Food access held and the Caisse claim was cleared through payments and conditional revenue concessions."),
         "sovereign_compromise": ("Sovereign compromise", "Ottoman mediation secured reduced debt terms without foreign control of Egyptian territory or revenue."),
         "imposed_financial_control": ("Creditor financial control", "The Caisse still collects assigned Egyptian receipts under a creditor demand."),
         "coercive_extraction": ("Coercive extraction", "The government protected revenue by raising local taxes, increasing unrest and political strain."),
@@ -860,17 +1093,16 @@ def build_debrief(world: dict, outcome: str, metrics: dict | None = None) -> dic
                         f'British withdrawal: {evidence["withdrawal_cause"] or "none"}.')
     if evidence['disarmed']:
         diplomacy_detail += ' Egyptian coastal batteries were disarmed.'
-    from scenario_projects import debrief_evidence
-    project_summary = debrief_evidence(world)
     return {
         "outcome": outcome,
         "title": title,
         "summary": summary,
+        "social_stats": social_stats,
         "food": f"{metrics.get('hungry', 0)} of {metrics.get('households', 0)} households hungry ({metrics.get('hunger_rate', 0.0):.0%}).",
         "debt": debt_detail,
         "control": control_detail,
-        "projects": project_summary["projects"],
-        "project_social_stats": project_summary["social_stats"],
+        "projects": project_summary['projects'],
+        "project_social_stats": project_summary['social_stats'],
         "diplomacy": diplomacy_detail,
         "politics": f"Government legitimacy {metrics.get('legitimacy', 0.0):.0%}; average unrest {metrics.get('unrest', 0.0):.2f}.",
         "authority": (f"{state.get('politics', {}).get('ruler', 'Unknown ruler')}; "
@@ -883,10 +1115,33 @@ def build_debrief(world: dict, outcome: str, metrics: dict | None = None) -> dic
         "historical_log": list(state.get('historical_log', [])),
         "naval_events": [entry['text'] for entry in state.get('naval_news', [])],
         "diplomacy_history": list(diplomatic.get('history', [])),
-        "strategic_projects": project_summary["strategic_projects"],
-        "project_payments": project_summary["project_payments"],
-        "project_revenue_reports": project_summary["project_revenue_reports"],
+        "grain_transactions": list(grain_log),
+        "tenure_transfers": list(transfers),
+        "tax_assessments": list(economy.get('tax_assessments', [])),
+        "fiscal_reports": list(fiscal_reports),
+        "strategic_projects": project_summary['strategic_projects'],
+        "project_payments": project_summary['project_payments'],
+        "project_revenue_reports": project_summary['project_revenue_reports'],
+        "corporate_externalities": _get_egypt_corps_externalities(world),
+        "decisions_externalities": _get_egypt_decisions_externalities(),
     }
+
+
+def _get_egypt_corps_externalities(world: dict) -> dict:
+    try:
+        from economy.true_cost_ledger import get_true_cost_ledger
+        p_name = world.get('player_nation_name', 'Egypt')
+        return get_true_cost_ledger().get_national_corporate_externalities(p_name, world)
+    except Exception:
+        return {}
+
+
+def _get_egypt_decisions_externalities() -> list:
+    try:
+        from economy.true_cost_ledger import get_decision_tracker
+        return get_decision_tracker().get_all_entries_dict()
+    except Exception:
+        return []
 
 
 def _assign_location_roles(nation) -> dict[str, str]:

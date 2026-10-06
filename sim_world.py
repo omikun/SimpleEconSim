@@ -501,6 +501,12 @@ def build_world_hex(seed=None, terrain_seed=None, nation_seed=None, scenario_id=
     from tile_resources import assign_tile_resources
     assign_tile_resources(tiles, seed=seed if seed is not None else 42)
 
+    # ---- Assign Geological Climate Zoning & Capitalist Institutions ----
+    from economy.map_generator import apply_geological_and_economic_distribution, setup_capitalism_institutions
+    apply_geological_and_economic_distribution(tiles, grid, seed=seed if seed is not None else 42)
+    for tile in tiles:
+        setup_capitalism_institutions(tile, t=0)
+
     # ---- Assign Realistic Country Identities, Capitals & City Names ----
     from world_names import assign_world_identities
     assign_world_identities(tiles, nations, seed=nation_seed)

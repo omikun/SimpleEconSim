@@ -2,6 +2,8 @@
 Demographics reproduction: agent births, fertility curves, heritable traits, and family trusts.
 """
 
+import math
+
 from goods import Goods
 from agent import Agent, initialize_agent, seed_traits
 from logger import logdebug
@@ -11,11 +13,13 @@ from random_cache import rand
 def handle_reproduction(ctx, t, agent, agents, new_agents):
     """Handle birth of new agents."""
     number_food_consumed = 0
-    if agent.hungry_steps > 0:
-        return 0
+    from nutrition import INITIAL_RESERVE_KCAL, deficit_fraction
     import government as govmod
     government = govmod.find_government_for_agent(agent)
     birth_prob = ctx.p_birth
+    reserve_ratio = max(0.0, min(1.0,
+        float(getattr(agent, 'energy_reserve_kcal', INITIAL_RESERVE_KCAL)) / INITIAL_RESERVE_KCAL))
+    birth_prob *= math.exp(-2.0 * deficit_fraction(agent)) * (0.4 + 0.6 * reserve_ratio)
     if government is not None:
         birth_prob *= government.get_fertility_multiplier()
 
@@ -26,15 +30,9 @@ def handle_reproduction(ctx, t, agent, agents, new_agents):
         wealth_factor = max(0.25, wealth_factor)
         birth_prob *= wealth_factor
         if agent.is_trader:
-            if wealth > cost_of_living * 6:
-                max_children = 2
-            elif wealth > cost_of_living * 3:
-                max_children = 4
-            else:
-                max_children = 8
+            desired_children = 2.0 + 6.0 * math.exp(-wealth / max(1.0, cost_of_living * 3.0))
             living_children = sum(1 for d in agent.descendants if d.alive)
-            if living_children >= max_children:
-                return 0
+            birth_prob *= math.exp(-max(0.0, living_children - desired_children) / 2.0)
 
     if agent.last_reproduction + ctx.birth_gap < t and rand.random() < birth_prob \
        and agent.inv_get(Goods.food, 0) >= 2:

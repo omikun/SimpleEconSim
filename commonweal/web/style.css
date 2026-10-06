@@ -1,0 +1,30 @@
+:root { --bg:#14120f; --panel:#1d1a15; --ink:#e9e2d0; --muted:#9a9280; --gold:#e3b341; --green:#6fbf73; --red:#d9604c; --blue:#6aa9d8; }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.4 system-ui, sans-serif; }
+header { display:flex; flex-wrap:wrap; gap:12px 24px; align-items:center; padding:10px 16px; border-bottom:1px solid #332e25; }
+h1 { margin:0; font-size:20px; letter-spacing:.5px; } h1 small { font-size:12px; color:var(--muted); font-weight:400; margin-left:8px; }
+h2 { font-size:13px; text-transform:uppercase; letter-spacing:1px; margin:0 0 8px; } h2 span { color:var(--muted); text-transform:none; letter-spacing:0; margin-left:6px; font-weight:400; }
+#clock { font-variant-numeric:tabular-nums; color:var(--gold); }
+.controls { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-left:auto; }
+button, select, input[type=number] { background:#2a251d; color:var(--ink); border:1px solid #4a4235; border-radius:4px; padding:5px 10px; cursor:pointer; }
+button:hover { background:#3a3326; } input[type=number] { width:64px; }
+main { display:grid; grid-template-columns: 1fr 660px 1fr 280px; gap:14px; padding:14px; align-items:start; }
+@media (max-width:1500px) { main { grid-template-columns: 1fr 660px 1fr; } #side { grid-column:1 / -1; } }
+section, aside { background:var(--panel); border:1px solid #2c271f; border-radius:6px; padding:12px; }
+.ledger.left h2 { color:var(--gold); } .ledger.right h2 { color:var(--green); }
+.chart { margin-bottom:10px; } .chart .row { display:flex; justify-content:space-between; font-size:12px; }
+.chart .name { color:var(--ink); } .chart .val { font-variant-numeric:tabular-nums; }
+.chart canvas { width:100%; height:62px; display:block; background:#171410; border-radius:3px; }
+.up { color:var(--green); } .down { color:var(--red); } .gold { color:var(--gold); }
+#map { width:100%; height:auto; background:#171410; border-radius:4px; cursor:pointer; }
+#legend { font-size:11px; color:var(--muted); margin:6px 0; display:flex; gap:12px; flex-wrap:wrap; }
+#legend i { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:4px; vertical-align:-1px; }
+#chronicle { font-size:12px; max-height:150px; overflow:auto; color:var(--muted); }
+#chronicle div b { color:var(--gold); font-weight:600; }
+#dials label { display:block; margin:8px 0; font-size:12px; } #dials input[type=range] { width:100%; }
+.muted { color:var(--muted); }
+.bar { height:10px; display:flex; border-radius:3px; overflow:hidden; margin:4px 0 8px; background:#111; }
+.bar i { display:block; height:100%; }
+table.kv { width:100%; font-size:12px; border-collapse:collapse; } table.kv td { padding:1px 0; } table.kv td:last-child { text-align:right; font-variant-numeric:tabular-nums; }
+#person h3 { margin:0 0 4px; font-size:15px; } #person ul { padding-left:16px; margin:4px 0; font-size:12px; }
+#person h4 { margin:10px 0 3px; font-size:11px; text-transform:uppercase; letter-spacing:1px; color:var(--muted); }

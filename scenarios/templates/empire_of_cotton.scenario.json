@@ -1,0 +1,265 @@
+{
+  "format": "regnum.scenario.v2",
+  "id": "empire_of_cotton",
+  "meta": {
+    "title": "Empire of Cotton: The Genesis of Global Capitalism (1780–1820)",
+    "year": 1780,
+    "horizon_turns": 20,
+    "briefing": "As the Industrial Metropole of Lancashire, you sit at the nexus of the first global capitalist transformation. To fuel mechanized textile mills, you must secure raw cotton flows, enclose customary peasant fields to mobilize wage labor, issue elastic merchant bills of exchange, and deploy armed War Capitalism expeditions into frontier colonial enclaves.",
+    "actors": ["Lancashire_Metropole", "Agrarian_Feudality", "Colonial_Frontier"]
+  },
+  "roles": {
+    "actors": {
+      "$player": { "type": "player", "filter": { "name": "Lancashire_Metropole" } },
+      "$feudal_rival": { "type": "foreign", "filter": { "name": "Agrarian_Feudality" } }
+    },
+    "geography": {
+      "$metropolis": { "role": "capital", "location": "Manchester" },
+      "$countryside": { "role": "interior", "location": "Yorkshire" },
+      "$frontier": { "role": "wilderness", "location": "Overseas_Colony" }
+    }
+  },
+  "modules": {
+    "capitalism": {
+      "elite_planning_interval": 5,
+      "enable_war_capitalism": true,
+      "enable_credit_market": true,
+      "enable_machinery_depreciation": true,
+      "machinery_depreciation_interval": 12,
+      "initial_cotton_reserves": 25,
+      "initial_cloth_reserves": 10,
+      "initial_labor_restiveness": 0.15
+    }
+  },
+  "pressures": [
+    {
+      "id": "cotton_inventory",
+      "title": "Factory Raw Cotton Reserves",
+      "metric": "cotton_reserves",
+      "target": ">= 20 units",
+      "status_format": "{value:,.0f} units in reserve"
+    },
+    {
+      "id": "labor_unrest",
+      "title": "Proletariat Restiveness & Unrest",
+      "metric": "proletariat_restiveness",
+      "target": "< 30%",
+      "status_format": "{value:.1%} unrest"
+    },
+    {
+      "id": "credit_leverage",
+      "title": "Merchant Credit Leverage",
+      "metric": "credit_leverage",
+      "target": "< 2.0x",
+      "status_format": "{value:.2f}x leverage"
+    }
+  ],
+  "actions": [
+    {
+      "id": "incorporate_steam_mill",
+      "title": "Incorporate Steam Textile Mill",
+      "category": "industry",
+      "turn_cost": 1,
+      "requires_cash": 60.0,
+      "effects": {
+        "treasury_cost": 60.0,
+        "incorporate_manufacturing_firm": { "sector": "cloth", "wage": 2.50 }
+      },
+      "feedback": "Constructed a mechanized textile mill with steam machinery, bidding high wages to draw rural commoners into factory employment.",
+      "tooltip": "Expands Department II manufacturing output and workforce demand."
+    },
+    {
+      "id": "charter_enclosure_decree",
+      "title": "Enact Parliamentary Enclosure Act",
+      "category": "agriculture",
+      "turn_cost": 1,
+      "requires_cash": 25.0,
+      "effects": {
+        "treasury_cost": 25.0,
+        "execute_transformation_op": "enclosure_pasture",
+        "set_unrest_delta": 0.08
+      },
+      "feedback": "Customary peasant fields enclosed for lucrative wool pasture; dispossessed serfs are driven toward urban wage labor.",
+      "tooltip": "Converts customary tenant strips into private commercial pasture."
+    },
+    {
+      "id": "launch_frontier_expedition",
+      "title": "Charter Armed Frontier Expropriation (War Capitalism)",
+      "category": "imperialism",
+      "turn_cost": 1,
+      "requires_cash": 50.0,
+      "effects": {
+        "treasury_cost": 50.0,
+        "grant_frontier_charter": {}
+      },
+      "feedback": "Dispatched an armed mercenary expedition backed by Crown charter to conquer uncolonized wilderness territory and establish an export cotton enclave.",
+      "tooltip": "Secures direct control of colonial primary commodity production."
+    },
+    {
+      "id": "procure_plantation_gangs",
+      "title": "Procure Unfree Captive Labor & Mandate Gangs",
+      "category": "imperialism",
+      "turn_cost": 1,
+      "requires_cash": 25.0,
+      "effects": {
+        "treasury_cost": 25.0,
+        "procure_captive_labor": {},
+        "mandate_plantation_labor": {}
+      },
+      "feedback": "Procured unfree captive laborers through transatlantic commerce and forced intensive plantation gang labor, extracting 15 units of raw cotton with zero wages.",
+      "tooltip": "Generates massive raw material yield under coercive armed supervision."
+    },
+    {
+      "id": "issue_merchant_bills",
+      "title": "Issue Negotiable Bills of Exchange",
+      "category": "finance",
+      "turn_cost": 1,
+      "requires_cash": 0.0,
+      "effects": {
+        "issue_trade_bill": { "face_value": 80.0, "tenor": 4 }
+      },
+      "feedback": "Liverpool merchant house accepted and discounted a commercial bill of exchange, creating elastic paper liquidity for industrial trade.",
+      "tooltip": "Expands commercial purchasing power without spending immediate specie."
+    },
+    {
+      "id": "enforce_wage_suppression_decree",
+      "title": "Enforce Statute of Laborers Wage Cap",
+      "category": "state_power",
+      "turn_cost": 1,
+      "requires_cash": 10.0,
+      "effects": {
+        "treasury_cost": 10.0,
+        "enforce_wage_cap": 1.50,
+        "set_unrest_delta": 0.10
+      },
+      "feedback": "Legally capped factory wages at $1.50 to suppress worker bargaining power and protect corporate manufacturing profit margins.",
+      "tooltip": "Caps wages across all firms but increases proletariat class restiveness."
+    }
+  ],
+  "branches": {
+    "launch_frontier_expedition": {
+      "delay_turns": 1,
+      "reaction": {
+        "headline": "Colonial Frontier Concession Consolidated",
+        "body": "The armed expeditionary force has annexed the wilderness territory. Frontier populations have been expropriated, and the Crown has granted legal title to overseas plantation plots.",
+        "effects": {
+          "set_state_flag": { "frontier_concession_secured": true }
+        },
+        "responses": [
+          {
+            "id": "expand_armed_garrison",
+            "label": "Reinforce Armed Overseas Garrison",
+            "tooltip": "Pay mercenary wages to secure plantation perimeter ($20.0).",
+            "requires_cash": 20.0,
+            "effects": {
+              "treasury_cost": 20.0,
+              "confidence_delta": 0.15
+            }
+          },
+          {
+            "id": "rely_on_local_merchants",
+            "label": "Rely on Local Merchant Factorage",
+            "tooltip": "Avoid additional military spending and let private traders manage trade.",
+            "requires_cash": 0.0,
+            "effects": {
+              "confidence_delta": -0.05
+            }
+          }
+        ]
+      }
+    },
+    "incorporate_steam_mill": {
+      "delay_turns": 2,
+      "condition": "cotton_reserves < 20",
+      "reaction": {
+        "headline": "Fiber Bottleneck: Spinning Outpaces Raw Cotton Supply",
+        "body": "Mechanized spinning mules have rapidly drawn down local fiber inventories. Merchant syndicates report an acute supply bottleneck: open-market raw cotton prices have surged, threatening to idle spindles and cause factory layoffs unless transatlantic working-capital supply lines are secured.",
+        "effects": {
+          "set_unrest_delta": 0.05
+        },
+        "responses": [
+          {
+            "id": "guarantee_transatlantic_credit",
+            "label": "Underwrite Transatlantic Cotton Import Credit",
+            "tooltip": "Back merchant commercial bills with state credit guarantees to import raw cotton ($15.0).",
+            "requires_cash": 15.0,
+            "effects": {
+              "treasury_cost": 15.0,
+              "cotton_reserves_delta": 15,
+              "confidence_delta": 0.10
+            }
+          },
+          {
+            "id": "charter_coercive_plantation_supply",
+            "label": "Mandate Overseas Frontier Plantation Extraction",
+            "tooltip": "Deploy state power to extract raw cotton from frontier plantation enclaves.",
+            "requires_cash": 0.0,
+            "effects": {
+              "cotton_reserves_delta": 25,
+              "set_unrest_delta": 0.05
+            }
+          },
+          {
+            "id": "rely_on_open_market_spot",
+            "label": "Rely on Open-Market Spot Purchases",
+            "tooltip": "Decline state intervention and leave fiber procurement to private market bidding.",
+            "requires_cash": 0.0,
+            "effects": {
+              "confidence_delta": -0.05
+            }
+          }
+        ]
+      },
+      "fallback_reaction": {
+        "headline": "Commercial Trade Boom: Textile Exports Flourish",
+        "body": "With abundant raw cotton feeding the mechanized spindles, merchant syndicates celebrate unprecedented volumes of high-margin finished cloth, expanding commercial trade facilities.",
+        "effects": {
+          "confidence_delta": 0.10
+        },
+        "responses": []
+      }
+    }
+  },
+  "outcomes": [
+    {
+      "id": "industrial_hegemony",
+      "title": "Industrial Hegemony & Global Empire of Cotton",
+      "summary": "Lancashire established uncontested global dominance. Mechanized steam mills turned endless colonial raw cotton into high-margin textiles, elastic bills of exchange lubricated international trade triangles, and the historic propagation of global industrial capitalism was triumphantly secured.",
+      "when": "turn >= 5 and active_mills_count >= 1 and cotton_reserves >= 15 and proletariat_restiveness <= 0.40",
+      "descriptors": {
+        "rank": "Victory: Industrial Hegemon",
+        "verdict": "Total transformation achieved with dominant industrial production and contained domestic unrest."
+      }
+    },
+    {
+      "id": "cotton_famine",
+      "title": "Raw Material Famine & Factory Shutdown",
+      "summary": "Textile mills ground to an abrupt halt as raw cotton reserves collapsed. Starving factory hands filled the streets in desperate protest, and the metropole was plunged into catastrophic de-industrialization.",
+      "when": "cotton_reserves <= 0 and active_mills_count >= 1",
+      "descriptors": {
+        "rank": "Defeat: Industrial Collapse",
+        "verdict": "Manufacturing mills failed due to raw fiber supply failure."
+      }
+    },
+    {
+      "id": "credit_meltdown",
+      "title": "Speculative Commercial Credit Crash",
+      "summary": "Over-leveraged merchant houses were caught in a systemic chain of dishonored bills of exchange. Credit contracted violently, banks closed their doors, and international commerce froze.",
+      "when": "is_credit_bubble and credit_leverage >= 2.2",
+      "descriptors": {
+        "rank": "Defeat: Financial Ruin",
+        "verdict": "Unbacked paper bills triggered a devastating systemic liquidity contraction."
+      }
+    },
+    {
+      "id": "historical_status_quo",
+      "title": "Contested Industrial Dawn",
+      "summary": "Capitalism advanced unevenly across the metropole, continuously navigating volatile tensions between rural customary traditions, factory labor, and colonial supply chains.",
+      "when": "turn >= horizon_turns",
+      "descriptors": {
+        "rank": "Draw: End of Era",
+        "verdict": "The scenario reached its historical horizon with emergent industrial elements active."
+      }
+    }
+  ]
+}

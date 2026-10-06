@@ -600,22 +600,14 @@ class Government:
             # Compute surplus: food + cash reserves above target
             cash_above_reserve = max(0, self.agent.cash
                                      - self.target_food_reserve * food_price)
-            food_surplus = self.food_inventory + (cash_above_reserve // food_price)
+            food_surplus = self.food_inventory + (cash_above_reserve / max(0.01, food_price))
             desired_feed = len(starving)
-
-            if food_surplus >= desired_feed:
-                # Ample funds: feed max_coverage
-                feed_count = max(1, int(desired_feed * self.food_aid_max_coverage))
-            elif food_surplus >= desired_feed * self.food_aid_min_coverage:
-                # Moderate: feed proportionally
-                coverage = self.food_aid_min_coverage + 0.4 * (
-                    food_surplus / (desired_feed * self.food_aid_max_coverage)
-                )
-                feed_count = max(1, min(desired_feed,
-                                        int(desired_feed * coverage)))
-            else:
-                # Low reserves: feed min_coverage
-                feed_count = max(1, int(desired_feed * self.food_aid_min_coverage))
+            import math
+            capacity = max(1.0, desired_feed * self.food_aid_max_coverage)
+            coverage = (self.food_aid_min_coverage
+                        + (self.food_aid_max_coverage - self.food_aid_min_coverage)
+                        * (1.0 - math.exp(-food_surplus / capacity)))
+            feed_count = max(1, int(desired_feed * coverage))
 
             feed_count = min(int(feed_count), self.food_inventory, len(starving))
 

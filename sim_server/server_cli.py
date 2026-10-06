@@ -20,7 +20,7 @@ from sim_server.protocol import CommandType, CommandMessage
 
 
 def main():
-    parser = argparse.ArgumentParser(description="REGNUM Simulation Server CLI")
+    parser = argparse.ArgumentParser(description="Call of Capital (CoC) Simulation Server CLI")
     parser.add_argument('--seed', type=int, default=4242, help="Master simulation seed")
     parser.add_argument('--terrain-seed', type=int, default=None, help="Terrain seed")
     parser.add_argument('--nation-seed', type=int, default=None, help="Nation seed")
@@ -29,14 +29,17 @@ def main():
     parser.add_argument('--web', action='store_true', help="Start embedded mobile web server with QR code")
     parser.add_argument('--port', type=int, default=8080, help="Port for web server (default: 8080)")
     parser.add_argument('--host', type=str, default='0.0.0.0', help="Host for web server (default: 0.0.0.0)")
+    parser.add_argument('--topology', type=str, default='voronoi', choices=['voronoi', 'hex'],
+                        help="World topology: 'voronoi' (irregular polygons) or 'hex' (honeycomb)")
     args = parser.parse_args()
 
     print("==================================================")
-    print(" REGNUM Authoritative Simulation Server CLI       ")
-    print(f" Master Seed: {args.seed}")
+    print(" Call of Capital (CoC) Simulation Server CLI      ")
+    print(f" Master Seed: {args.seed} | Topology: {args.topology or 'default'}")
     print("==================================================")
 
-    server = SimServer(seed=args.seed, terrain_seed=args.terrain_seed, nation_seed=args.nation_seed)
+    server = SimServer(seed=args.seed, terrain_seed=args.terrain_seed, nation_seed=args.nation_seed,
+                       topology=args.topology)
     print(f"[Server] Initialized world with {len(server.tiles)} tiles, {len(server.nations)} nations.")
 
     def on_server_event(ev_type, data):

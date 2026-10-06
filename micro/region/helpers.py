@@ -34,6 +34,54 @@ _recipes_init = {
         'commodity': Goods.nitrates, 'production': 2, 'price': 6.0, 'numInput': 0,
         'maxtotalprod': 600, 'maxinv': 20,
     },
+    Goods.cotton: {
+        'commodity': Goods.cotton, 'production': 3, 'price': 3.0, 'numInput': 0,
+        'maxtotalprod': 1200, 'maxinv': 15,
+    },
+    Goods.iron_ore: {
+        'commodity': Goods.iron_ore, 'production': 2, 'price': 4.0, 'numInput': 0,
+        'maxtotalprod': 800, 'maxinv': 20,
+    },
+    Goods.iron: {
+        'commodity': Goods.iron, 'production': 1, 'input': Goods.iron_ore,
+        'numInput': 2, 'price': 16.0, 'maxtotalprod': 400, 'maxinv': 10,
+    },
+    Goods.coal: {
+        'commodity': Goods.coal, 'production': 3, 'price': 3.5, 'numInput': 0,
+        'maxtotalprod': 1000, 'maxinv': 25,
+    },
+    Goods.tobacco: {
+        'commodity': Goods.tobacco, 'production': 2, 'price': 5.0, 'numInput': 0,
+        'maxtotalprod': 600, 'maxinv': 15,
+    },
+    Goods.sugar: {
+        'commodity': Goods.sugar, 'production': 2, 'price': 4.5, 'numInput': 0,
+        'maxtotalprod': 700, 'maxinv': 20,
+    },
+    Goods.tea: {
+        'commodity': Goods.tea, 'production': 2, 'price': 6.0, 'numInput': 0,
+        'maxtotalprod': 500, 'maxinv': 15,
+    },
+    Goods.fine_textiles: {
+        'commodity': Goods.fine_textiles, 'production': 1, 'input': Goods.cloth,
+        'numInput': 2, 'price': 50.0, 'maxtotalprod': 200, 'maxinv': 5,
+        'is_luxury': True, 'prestige_rating': 10.0,
+    },
+    Goods.porcelain: {
+        'commodity': Goods.porcelain, 'production': 1, 'input': Goods.iron_ore,
+        'numInput': 1, 'price': 55.0, 'maxtotalprod': 150, 'maxinv': 5,
+        'is_luxury': True, 'prestige_rating': 12.0,
+    },
+    Goods.rum: {
+        'commodity': Goods.rum, 'production': 1, 'input': Goods.sugar,
+        'numInput': 2, 'price': 30.0, 'maxtotalprod': 300, 'maxinv': 10,
+        'is_luxury': True, 'prestige_rating': 6.0,
+    },
+    Goods.foreign_luxuries: {
+        'commodity': Goods.foreign_luxuries, 'production': 1, 'price': 100.0, 'numInput': 0,
+        'maxtotalprod': 100, 'maxinv': 5,
+        'is_luxury': True, 'prestige_rating': 25.0,
+    },
     Goods.gov: {
         'commodity': Goods.gov, 'production': 0, 'numInput': 0, 'price': 1,
         'maxtotalprod': 0, 'maxinv': 0,

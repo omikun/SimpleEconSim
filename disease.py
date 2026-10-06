@@ -438,6 +438,19 @@ def step_trade_epidemic_transmission(tiles: list, t: int, world: dict | None = N
                         'message': f"PLAGUE SHIP: The Great Pestilence has reached {dst.name} via merchant trade routes from {r.name}!"
                     }
                     events.append(ev)
+                    try:
+                        from economy.true_cost_ledger import get_true_cost_ledger
+                        traders = [a for a in getattr(r, 'trader_agents', []) if getattr(a, 'destination_region', None) is dst]
+                        if traders:
+                            for tr in traders:
+                                get_true_cost_ledger().record_merchant(
+                                    tr, r, t,
+                                    gross_arbitrage=0.0,
+                                    tolls_and_transport=0.0,
+                                    infected_seeds=1.0 / len(traders)
+                                )
+                    except Exception:
+                        pass
 
     return events
 

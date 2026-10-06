@@ -24,7 +24,8 @@ def outstanding(world):
 
 def initialize(world):
     state = world['scenario_state']
-    amount = float(state['scheduled_remittance'])
+    from scenario_situation import situation_template
+    amount = float(situation_template()['debt_rules'].get('initial_claim', state['scheduled_remittance']))
     due = int(state['payment_window_turn'])
     market = get_bond_market()
     ids = []
@@ -34,7 +35,8 @@ def initialize(world):
         market.bonds.append(SovereignBond(
             bond_id=bond_id, issuer_nation='Egypt', holder_nation=creditor,
             principal=round(amount / 2, 2), coupon_rate=0.0,
-            duration_turns=due - 1, issued_turn=1, maturity_turn=due,
+            duration_turns=int(world['scenario']['horizon_turns']), issued_turn=1,
+            maturity_turn=int(world['scenario']['horizon_turns']) + 1,
             status='active', bond_purpose=PURPOSE,
         ))
         ids.append(bond_id)
@@ -70,14 +72,52 @@ def revise(world, amount, due_turn=None):
     for index, bond in enumerate(active):
         bond.principal = per_creditor if index < len(active) - 1 else remaining
         remaining -= bond.principal
-        if due_turn is not None:
-            bond.maturity_turn = int(due_turn)
     state = world['scenario_state']
     state['scheduled_remittance'] = round(float(amount), 2)
     if due_turn is not None:
         state['payment_window_turn'] = int(due_turn)
     _sync_registered_defaults(world)
     _entry(world, 'revision', amount, due_turn=state['payment_window_turn'])
+
+
+def adjust_service(world, amount, due_turn=None):
+    """Revise the next instalment and its matching share of bond principal."""
+    state = world['scenario_state']
+    old = float(state['scheduled_remittance'])
+    new = round(max(0.0, float(amount)), 2)
+    delta = new - old
+    active = [bond for bond in bonds(world) if bond.status in ('active', 'defaulted')]
+    if active and abs(delta) > .001:
+        remaining = delta
+        for index, bond in enumerate(active):
+            share = round(delta / len(active), 2) if index < len(active) - 1 else remaining
+            remaining -= share
+            bond.principal = round(max(0.0, bond.principal + share), 2)
+    state['scheduled_remittance'] = new
+    if due_turn is not None:
+        state['payment_window_turn'] = int(due_turn)
+    _sync_registered_defaults(world)
+    _entry(world, 'service_revision', new, due_turn=state['payment_window_turn'])
+
+
+def write_down(world, amount):
+    """Forgive a bounded portion of principal under an explicit concession."""
+    active = [bond for bond in bonds(world) if bond.status in ('active', 'defaulted')]
+    owed = sum(bond.principal for bond in active)
+    amount = round(min(max(0.0, float(amount)), owed), 2)
+    if amount <= 0.0:
+        return 0.0
+    remaining = amount
+    for index, bond in enumerate(active):
+        share = round(amount * bond.principal / owed, 2) if index < len(active) - 1 else remaining
+        remaining -= share
+        bond.principal = round(max(0.0, bond.principal - share), 2)
+        _entry(world, 'concession', share, creditor=bond.holder_nation, bond_id=bond.bond_id)
+        if bond.principal <= .01:
+            bond.principal = 0.0
+            bond.status = 'redeemed'
+    _sync_registered_defaults(world)
+    return amount
 
 
 def reinstate_claim(world, amount, due_turn):
@@ -91,10 +131,10 @@ def reinstate_claim(world, amount, due_turn):
         remaining -= share
         bond.principal = round(bond.principal + share, 2)
         bond.status = 'active'
-        bond.maturity_turn = int(due_turn)
     state = world['scenario_state']
     state['scheduled_remittance'] = outstanding(world)
     state['payment_window_turn'] = int(due_turn)
+    _sync_registered_defaults(world)
     _entry(world, 'conditional_write_down_revoked', amount, due_turn=due_turn)
 
 
@@ -144,8 +184,8 @@ def pay(world, amount, kind='payment', forgive_remainder=False):
             bond.status = 'redeemed'
     _sync_registered_defaults(world)
     state = world['scenario_state']
-    state['scheduled_remittance'] = outstanding(world)
-    if state['scheduled_remittance'] <= .01:
+    if outstanding(world) <= .01:
+        state['scheduled_remittance'] = 0.0
         state['creditor_levy_per_turn'] = 0.0
         state['creditor_levy_remaining'] = 0.0
         if state.get('collection_assignment'):

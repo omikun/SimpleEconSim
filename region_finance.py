@@ -106,6 +106,15 @@ def redeem_company_scrip(region, t):
                     e.company_debt += tommy_price
                     e.despair = min(1.0, getattr(e, 'despair', 0.0) + 0.15)
                     e.alienation = min(1.0, getattr(e, 'alienation', 0.0) + 0.10)
+                    try:
+                        from economy.true_cost_ledger import get_true_cost_ledger
+                        get_true_cost_ledger().record_bank(
+                            bank=a, region=region, turn=t,
+                            interest_and_discounts=0.0, funding_costs=0.0,
+                            scrip_debt_issued=tommy_price
+                        )
+                    except Exception:
+                        pass
 
 
 def credit_owner_pay(region, owner, amount):
@@ -153,6 +162,13 @@ def pay_profit_share(region, agent, owner, payroll):
         agent.cash -= profit_draw
         credit_owner_pay(region, owner, profit_draw)
         agent.retained_earnings -= profit_draw
+        try:
+            from economy.true_cost_ledger import get_true_cost_ledger
+            get_true_cost_ledger().record_finance_deductions(
+                agent, region, getattr(region, '_last_turn', 0), dividend_paid=profit_draw
+            )
+        except Exception:
+            pass
 
 
 def bailout_owner(region, agent, owner, payroll):
@@ -269,6 +285,13 @@ def collect_tax(region, t):
                         if deposit_taken > 0:
                             bank.Withdraw(a, deposit_taken)
                             a.cash -= deposit_taken
+                        try:
+                            from economy.true_cost_ledger import get_true_cost_ledger
+                            get_true_cost_ledger().record_finance_deductions(
+                                a, region, t, taxes_paid=actual
+                            )
+                        except Exception:
+                            pass
                     a.tax_loss_carryforward = 0.0
 
                     # Multi-Tier Statutory Split: 50% National Sovereign, 30% Provincial, 20% Municipal

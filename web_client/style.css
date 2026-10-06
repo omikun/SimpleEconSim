@@ -1782,3 +1782,196 @@ input[type="range"] {
   width: 95%;
 }
 
+/* ---------------- Seasonal Agricultural Clock HUD ---------------- */
+.seasonal-clock-hud {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  background: rgba(18, 22, 34, 0.92);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 8px 12px;
+  z-index: 25;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+  transition: border-color 0.2s ease, transform 0.2s ease;
+  user-select: none;
+}
+
+.seasonal-clock-hud:hover {
+  border-color: var(--cyan);
+  transform: translateY(-1px);
+}
+
+.seasonal-clock-hud.winter-alert {
+  border-color: var(--cyan);
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.5);
+  animation: seasonalPulse 2s infinite ease-in-out;
+}
+
+@keyframes seasonalPulse {
+  0%, 100% { border-color: rgba(56, 189, 248, 0.4); }
+  50% { border-color: rgba(56, 189, 248, 1); }
+}
+
+.seasonal-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.seasonal-icon {
+  font-size: 1rem;
+}
+
+.seasonal-ribbon {
+  display: flex;
+  gap: 3px;
+  margin-top: 6px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 3px;
+  padding: 1px;
+}
+
+.season-seg {
+  flex: 1;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.12);
+  transition: all 0.2s ease;
+}
+
+.season-seg.active {
+  background: var(--gold);
+  box-shadow: 0 0 6px var(--gold-glow);
+}
+
+.season-seg.winter {
+  background: rgba(56, 189, 248, 0.25);
+}
+
+.season-seg.winter.active {
+  background: var(--cyan);
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.8);
+}
+
+.seasonal-popover {
+  position: absolute;
+  top: 64px;
+  right: 14px;
+  z-index: 40;
+  min-width: 280px;
+}
+
+/* ---------------- Scenario Pressures Ribbon ---------------- */
+.scenario-pressures-ribbon {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  display: flex;
+  gap: 8px;
+  z-index: 25;
+}
+
+.pressure-pill {
+  background: rgba(18, 22, 34, 0.94);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 0.75rem;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+.pressure-pill.urgent {
+  border-color: var(--ruby);
+  color: #fca5a5;
+}
+
+.pressure-pill.warning {
+  border-color: var(--gold);
+  color: #fde047;
+}
+
+.pressure-pill.good {
+  border-color: var(--emerald);
+  color: #86efac;
+}
+
+/* ---------------- Live Hex Hover Card ---------------- */
+.hex-hover-card {
+  position: absolute;
+  bottom: 56px;
+  left: 14px;
+  background: rgba(15, 20, 30, 0.94);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 0.78rem;
+  z-index: 24;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+  min-width: 190px;
+  transition: opacity 0.15s ease;
+}
+
+.hex-hover-title {
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.hex-hover-meta {
+  color: var(--text-dim);
+  font-size: 0.72rem;
+  margin-top: 2px;
+}
+
+.hex-hover-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 8px;
+  margin-top: 6px;
+  font-size: 0.74rem;
+}
+
+/* ---------------- Comparison Visualizations Container ---------------- */
+.vis-grid-2col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+@media (max-width: 768px) {
+  .vis-grid-2col {
+    grid-template-columns: 1fr;
+  }
+}
+
+.vis-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.vis-card canvas {
+  display: block;
+  width: 100%;
+  height: 240px;
+}
+
+.vis-card.full-width {
+  grid-column: 1 / -1;
+}
+
+.vis-card.full-width canvas {
+  height: 260px;
+}
+
+

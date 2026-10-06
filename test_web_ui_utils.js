@@ -5,7 +5,9 @@ require('./web_client/hex_geometry.js');
 require('./web_client/chart_renderer.js');
 require('./web_client/help_content.js');
 
-const { escapeHtml, safeClassToken, safeCssColor } = globalThis.RegnumUIUtils;
+assert.ok(globalThis.CoCUIUtils);
+assert.equal(globalThis.RegnumUIUtils, globalThis.CoCUIUtils);
+const { escapeHtml, safeClassToken, safeCssColor } = globalThis.CoCUIUtils;
 
 assert.equal(escapeHtml(`<img src=x onerror='alert(1)'>&`), '&lt;img src=x onerror=&#39;alert(1)&#39;&gt;&amp;');
 assert.equal(escapeHtml(null), '');
@@ -15,7 +17,9 @@ assert.equal(safeClassToken('bad token!', 'fallback'), 'fallback');
 assert.equal(safeCssColor('#A1b2C3'), '#A1b2C3');
 assert.equal(safeCssColor('red; background:url(javascript:alert(1))'), '#38bdf8');
 
-const geometry = globalThis.RegnumHexGeometry;
+assert.ok(globalThis.CoCHexGeometry);
+assert.equal(globalThis.RegnumHexGeometry, globalThis.CoCHexGeometry);
+const geometry = globalThis.CoCHexGeometry;
 for (const cell of [{ q: 0, r: 0 }, { q: 3, r: -2 }, { q: -4, r: 5 }]) {
   const point = geometry.axialToPixel(cell.q, cell.r, 50);
   assert.deepEqual(geometry.pixelToAxial(point.x, point.y, 50), cell);
@@ -34,14 +38,18 @@ const chartContext = new Proxy({}, {
   set(_target, key, value) { chartCalls.push(['set', key, value]); return true; }
 });
 const chartCanvas = { clientWidth: 300, clientHeight: 160, getContext: () => chartContext };
-const chartLegend = globalThis.RegnumCharts.drawHistoricalChart(chartCanvas, [10, 20, 15], 'gdp', 2);
+assert.ok(globalThis.CoCCharts);
+assert.equal(globalThis.RegnumCharts, globalThis.CoCCharts);
+const chartLegend = globalThis.CoCCharts.drawHistoricalChart(chartCanvas, [10, 20, 15], 'gdp', 2);
 assert.equal(chartCanvas.width, 600);
 assert.equal(chartCanvas.height, 320);
 assert.match(chartLegend, /GDP: Historical Trend/);
 assert.ok(chartCalls.some(call => call[0] === 'arc'));
-assert.equal(globalThis.RegnumCharts.getChartCatalog().economic[0].id, 'gdp');
+assert.equal(globalThis.CoCCharts.getChartCatalog().economic[0].id, 'gdp');
 
-const helpHtml = globalThis.RegnumHelpContent.renderHelpPage('3', {
+assert.ok(globalThis.CoCHelpContent);
+assert.equal(globalThis.RegnumHelpContent, globalThis.CoCHelpContent);
+const helpHtml = globalThis.CoCHelpContent.renderHelpPage('3', {
   seed: 17,
   nations: [{
     name: '<img src=x onerror=alert(1)>',
@@ -59,7 +67,9 @@ assert.match(helpHtml, /color:#38bdf8/);
 const calls = [];
 let commandResult;
 let networkError;
-const sync = globalThis.RegnumStateSync.createStateSync({
+assert.ok(globalThis.CoCStateSync);
+assert.equal(globalThis.RegnumStateSync, globalThis.CoCStateSync);
+const sync = globalThis.CoCStateSync.createStateSync({
   fetchImpl: async (...args) => {
     calls.push(args);
     return { json: async () => ({ success: true }) };
@@ -76,6 +86,7 @@ const sync = globalThis.RegnumStateSync.createStateSync({
   assert.equal(calls[1][0], '/api/tile?name=A%2FB');
   await sync.sendCommand('STEP', { count: 1 });
   assert.equal(calls[2][0], '/api/command');
+  assert.equal(calls[2][1].headers['X-COC-Token'], 'local-token');
   assert.equal(calls[2][1].headers['X-REGNUM-Token'], 'local-token');
   assert.deepEqual(commandResult, { success: true });
   assert.equal(networkError, undefined);

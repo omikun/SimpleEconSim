@@ -1,10 +1,12 @@
 """
-sim_server/web_server.py — Pure-Python HTTP & REST Server for REGNUM Web Client.
+sim_server/web_server.py — Pure-Python HTTP & REST Server for Call of Capital (CoC) Web Client.
 
 Facade module re-exporting from client.web.
 """
 
 from client.web.server import (
+    CoCHTTPRequestHandler,
+    CoCWebServer,
     RegnumHTTPRequestHandler,
     RegnumWebServer,
     run_web_server,

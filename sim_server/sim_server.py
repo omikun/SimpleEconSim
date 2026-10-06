@@ -27,10 +27,17 @@ class SimServer:
     """Authoritative headless simulation server for REGNUM."""
 
     def __init__(self, seed: Optional[int] = None, terrain_seed: Optional[int] = None,
-                 nation_seed: Optional[int] = None):
+                 nation_seed: Optional[int] = None,
+                 topology: Optional[str] = None):
         self.seed = seed
         self.terrain_seed = terrain_seed if terrain_seed is not None else (seed if seed is not None else 4242)
         self.nation_seed = nation_seed if nation_seed is not None else random.randint(1, 999999)
+
+        if topology in ('voronoi', 'hex'):
+            from world_config import set_map_topology
+            set_map_topology(topology)
+        from world_config import is_voronoi_topology
+        self.topology = "voronoi" if is_voronoi_topology() else "hex"
 
         self.turn = 0
         self.playing = False
@@ -49,6 +56,8 @@ class SimServer:
     def init_world(self):
         """Build and initialize authoritative world state."""
         with self._lock:
+            from world_config import is_voronoi_topology, VORONOI_WIDTH, VORONOI_HEIGHT
+            self.topology = "voronoi" if is_voronoi_topology() else "hex"
             tiles, nations, _grid = build_world(
                 seed=self.seed,
                 terrain_seed=self.terrain_seed,
@@ -60,12 +69,20 @@ class SimServer:
             self.nations = nations
             self.currencies = [n.currency for n in nations if getattr(n, 'currency', None)]
             self.hex_size = HEX_SIZE
-            grid_layout = rectangular_hex_layout(GRID_ROWS, GRID_COLS)
-            grid_positions = list(grid_layout.values())
-            # Generated regions are named c0..cN; the layout helper uses rNcN keys.
-            self.layout = {tile.name: grid_positions[i] for i, tile in enumerate(tiles)}
-            self.reverse_layout = {v: k for k, v in self.layout.items()}
-            self.bbox = hex_bbox(self.layout, HEX_SIZE)
+
+            if self.topology == "voronoi":
+                self.layout = {t.name: getattr(t, 'centroid', (0.0, 0.0)) for t in tiles}
+                self.reverse_layout = {}
+                self.bbox = (0.0, 0.0, VORONOI_WIDTH, VORONOI_HEIGHT)
+                self.gen = _grid
+            else:
+                grid_layout = rectangular_hex_layout(GRID_ROWS, GRID_COLS)
+                grid_positions = list(grid_layout.values())
+                # Generated regions are named c0..cN; the layout helper uses rNcN keys.
+                self.layout = {tile.name: grid_positions[i] for i, tile in enumerate(tiles)}
+                self.reverse_layout = {v: k for k, v in self.layout.items()}
+                self.bbox = hex_bbox(self.layout, HEX_SIZE)
+                self.gen = None
 
             self.by_name = {r.name: r for r in tiles}
             self.pair_orders = [(r, o) for r in tiles for o in tiles if o is not r
@@ -760,7 +777,32 @@ class SimServer:
                     intent = BuildIntent(tile.name, recipe.name, submitted_turn=self.turn)
                     ok, msg = intent.execute(self.by_name, {n.name: n for n in self.nations}, self.turn)
                     return {'success': ok, 'message': f"Shortfall resolved via {funding_source}: {msg}"}
-                return {'success': True, 'message': f"Shortfall resolved via {funding_source}."}
+            elif c_type == CommandType.EMERGENCY_OVERRUN_SUBSIDY:
+                proj_id = p.get('project_id')
+                amount = float(p.get('amount', 100.0))
+                player_nation = next((n for n in self.nations if n.name == self.player_nation_name), self.nations[0] if self.nations else None)
+                target_proj = None
+                for t in self.tiles:
+                    for proj in getattr(t, 'construction_projects', []):
+                        if getattr(proj, 'project_id', None) == proj_id:
+                            target_proj = proj
+                            break
+                    if target_proj:
+                        break
+                if not target_proj and player_nation:
+                    for proj in getattr(player_nation, 'construction_projects', []):
+                        if getattr(proj, 'project_id', None) == proj_id:
+                            target_proj = proj
+                            break
+                if not target_proj:
+                    return {'success': False, 'error': f"Project '{proj_id}' not found."}
+
+                from construction_politics import subsidize_contractor
+                ok, msg = subsidize_contractor(target_proj, amount, player_nation, world=self.get_world_dict())
+                if ok:
+                    self.push_ticker(self.turn, 'SUBSIDY', f"Dispatched ${amount:.0f} overrun grant to {target_proj.recipe.display_name}.", (120, 240, 150))
+                    return {'success': True, 'message': msg}
+                return {'success': False, 'error': msg}
 
             elif c_type == CommandType.GET_STATE:
                 target_tile = p.get('tile')
@@ -811,7 +853,118 @@ class SimServer:
                 'seed': self.seed,
                 'terrain_seed': self.terrain_seed,
                 'nation_seed': self.nation_seed,
+                'player_nation_name': self.player_nation_name,
             }
+
+    def _collect_progress_suite(self) -> Dict[str, Any]:
+        """Collect active construction, research, and legislation items for progress drawer."""
+        try:
+            from worldview_progress_panel import _collect_items_for_nation
+            w_dict = self.get_world_dict()
+            player_nat = next((n for n in self.nations if n.name == self.player_nation_name), self.nations[0] if self.nations else None)
+
+            def _clean_item(it):
+                clean = dict(it)
+                proj = clean.pop('project', None)
+                if proj is not None and 'project_id' not in clean:
+                    clean['project_id'] = getattr(proj, 'project_id', None)
+                if 'bar_color' in clean and isinstance(clean['bar_color'], (tuple, list)):
+                    c = clean['bar_color']
+                    clean['bar_color'] = f"#{c[0]:02x}{c[1]:02x}{c[2]:02x}"
+                return clean
+
+            active_items = [_clean_item(it) for it in _collect_items_for_nation(player_nat, w_dict)] if player_nat else []
+            all_items = []
+            for n in self.nations:
+                for it in _collect_items_for_nation(n, w_dict):
+                    all_items.append(_clean_item(it))
+
+            stalled_count = sum(1 for it in active_items if it.get('is_stalled'))
+            return {
+                'active_nation': active_items,
+                'all_nations': all_items,
+                'stalled_count': stalled_count,
+            }
+        except Exception as e:
+            return {'active_nation': [], 'all_nations': [], 'stalled_count': 0, 'error': str(e)}
+
+    def _calc_seasonal_info(self) -> Dict[str, Any]:
+        """Calculate live seasonal timeline, biological crop multiplier, and buffer stats."""
+        import math
+        t_mod = self.turn % 10
+        mult = 1.0 + 0.45 * math.sin(2.0 * math.pi * (t_mod - 2) / 10.0)
+        pct_delta = int(round((mult - 1.0) * 100))
+
+        seasonal_meta = [
+            (0, "Early Spring", "spring", "#78e18c", "Thaw & Sowing"),
+            (1, "Mid Spring", "spring", "#8ceb96", "Germination"),
+            (2, "Late Spring", "spring", "#a0f0a0", "Baseline Growth"),
+            (3, "Early Summer", "summer", "#ffe65a", "Crop Maturation"),
+            (4, "Mid Summer", "summer", "#ffd73c", "Pre-Harvest Ripening"),
+            (5, "Harvest Peak", "autumn", "#ffaf2d", "Harvest Festival (+45%)"),
+            (6, "Autumn Harvest", "autumn", "#f58c28", "Granary Inflow (+15%)"),
+            (7, "Frost Fallow", "autumn", "#d27832", "Post-Harvest Tillage"),
+            (8, "Early Winter", "winter", "#a0d2f5", "Dormancy & Chill"),
+            (9, "Deep Winter", "winter", "#78dcff", "The Lean Season (-45%)"),
+        ]
+        meta = seasonal_meta[t_mod]
+
+        player_nat = next((n for n in self.nations if n.name == self.player_nation_name), self.nations[0] if self.nations else None)
+        granary_food = player_nat.treasury().get('food', 0) if player_nat else 0
+        pop = sum(len(r.agents) for r in getattr(player_nat, 'tiles', [])) if player_nat else 1
+        burn_rate = max(1, int(pop * 0.1))
+        buffer_turns = round(granary_food / burn_rate, 1)
+
+        return {
+            'turn': self.turn,
+            'year': (self.turn // 10) + 1,
+            'turn_in_year': t_mod,
+            'name': meta[1],
+            'icon': meta[2],
+            'color': meta[3],
+            'phase_desc': meta[4],
+            'mult': round(mult, 3),
+            'pct_delta': pct_delta,
+            'is_winter': (t_mod == 9),
+            'is_storing': (4 <= t_mod <= 7),
+            'is_buffering': (t_mod in (9, 0, 1)),
+            'granary_food': int(granary_food),
+            'burn_rate': burn_rate,
+            'buffer_turns': buffer_turns,
+        }
+
+    def _collect_trade_network(self) -> Dict[str, Any]:
+        """Collect overland trading network edges and active bilateral flow vectors."""
+        edges = []
+        seen = set()
+        for r, o in self.pair_orders:
+            k = tuple(sorted((r.name, o.name)))
+            if k not in seen:
+                seen.add(k)
+                edges.append({'from': r.name, 'to': o.name})
+
+        flows = []
+        for r, o in self.pair_orders:
+            flow = r.trade_flow_log[-1] if getattr(r, 'trade_flow_log', None) else 0.0
+            if abs(flow) >= 0.5:
+                flows.append({
+                    'from': r.name,
+                    'to': o.name,
+                    'volume': round(abs(flow), 1),
+                    'forward': flow > 0
+                })
+
+        return {'edges': edges, 'flows': flows}
+
+    def _collect_scenario_info(self) -> Dict[str, Any]:
+        """Collect scenario pressures and guided objectives."""
+        try:
+            from worldview_scenario_ui import scenario_pressures
+            w_dict = self.get_world_dict()
+            pressures = scenario_pressures(w_dict)
+            return {'pressures': pressures, 'active': bool(getattr(self, 'scenario_id', None))}
+        except Exception:
+            return {'pressures': [], 'active': False}
 
     @staticmethod
     def serialize_plot(plot) -> Dict[str, Any]:
@@ -834,9 +987,24 @@ class SimServer:
     @classmethod
     def serialize_tile(cls, tile, layout: Optional[Dict[str, Any]] = None, turn: int = 0,
                        summary: bool = False) -> Dict[str, Any]:
-        """Serialize a Region / Tile into a JSON-compatible dictionary with full macro & citizen inspection."""
+        has_centroid = getattr(tile, 'centroid', None) is not None
+        centroid = [round(float(v), 2) for v in tile.centroid] if has_centroid else None
+        has_polygon = getattr(tile, 'polygon', None) is not None and len(tile.polygon) > 0
+        polygon = [[round(float(p[0]), 2), round(float(p[1]), 2)] for p in tile.polygon] if has_polygon else None
+        neighbors = list(tile.neighbors.keys()) if hasattr(tile, 'neighbors') and isinstance(tile.neighbors, dict) else []
+
+        t_col = getattr(tile, 'terrain_color', getattr(tile, 'color', None))
+        if t_col and isinstance(t_col, (list, tuple)) and len(t_col) >= 3:
+            tile_color = '#%02x%02x%02x' % tuple(int(c) for c in t_col[:3])
+        elif isinstance(t_col, str):
+            tile_color = t_col
+        else:
+            tile_color = None
+
         if summary:
-            if layout and tile.name in layout:
+            if polygon is not None:
+                q, r = 0, 0
+            elif layout and tile.name in layout:
                 q, r = layout[tile.name]
             else:
                 q, r = getattr(tile, 'q', 0), getattr(tile, 'r', 0)
@@ -847,8 +1015,12 @@ class SimServer:
                 'name': tile.name,
                 'display_name': getattr(tile, 'display_name', getattr(tile, 'city_name', tile.name)),
                 'q': q, 'r': r,
+                'centroid': centroid,
+                'polygon': polygon,
+                'neighbors': neighbors,
                 'nation': owner.name if owner else None,
                 'nation_color': '#%02x%02x%02x' % nation_rgb if nation_rgb else None,
+                'color': tile_color,
                 'elevation': float(getattr(tile, 'elevation', 0.0)),
                 'elevation_meters': float(getattr(tile, 'elevation_meters', 0.0)),
                 'biome': getattr(tile, 'biome', 'plains'),
@@ -1047,7 +1219,11 @@ class SimServer:
             'col': grid_c if grid_c is not None else 0,
             'q': q,
             'r': r,
+            'centroid': centroid,
+            'polygon': polygon,
+            'neighbors': neighbors,
             'nation': tile.owner_nation.name if getattr(tile, 'owner_nation', None) else None,
+            'color': tile_color,
             'elevation': float(getattr(tile, 'elevation', 0.0)),
             'elevation_meters': float(getattr(tile, 'elevation_meters', 0.0)),
             'biome': getattr(tile, 'biome', 'plains'),
@@ -1466,9 +1642,12 @@ class SimServer:
                 print(f"[SimServer] Comparison suite serialize note: {e}")
 
             x0, y0, x1, y1 = self.bbox
+            from world_config import is_voronoi_topology
+            is_voronoi = getattr(self, 'topology', None) == 'voronoi' or is_voronoi_topology()
             from render_engine.camera import MAP_PAD_RATIO
-            pad_x = (x1 - x0) * MAP_PAD_RATIO
-            pad_y = (y1 - y0) * MAP_PAD_RATIO
+            pad_ratio = 0.0 if is_voronoi else MAP_PAD_RATIO
+            pad_x = (x1 - x0) * pad_ratio
+            pad_y = (y1 - y0) * pad_ratio
             terrain_bounds = {
                 'min_x': float(x0 - pad_x),
                 'min_y': float(y0 - pad_y),
@@ -1477,9 +1656,11 @@ class SimServer:
                 'width': float((x1 - x0) + 2.0 * pad_x),
                 'height': float((y1 - y0) + 2.0 * pad_y),
                 'hex_size': float(getattr(self, 'hex_size', 50.0)),
+                'pad_ratio': float(pad_ratio),
             }
 
             return {
+                'topology': 'voronoi' if is_voronoi else 'hex',
                 'turn': self.turn,
                 'playing': self.playing,
                 'is_playing': self.playing,
@@ -1501,5 +1682,9 @@ class SimServer:
                 'sovereign_debt': sovereign_debt_data,
                 'armies': armies_data,
                 'comparison_suite': comparison_suite,
+                'progress_suite': self._collect_progress_suite(),
+                'seasonal_info': self._calc_seasonal_info(),
+                'trade_network': self._collect_trade_network(),
+                'scenario_info': self._collect_scenario_info(),
                 'ticker_events': list(self._ticker_events[-35:]),
             }

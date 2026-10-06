@@ -60,7 +60,8 @@ def begin_escalation(world: dict, reason: str) -> None:
                   last_offer_turn=-1, french_support=False)
     state['naval_withdrawal_cause'] = None
     state.get('diplomatic_crisis', {})['policy_lock'] = None
-    state['chapter'] = 2
+    from scenario_egypt_1877 import enter_chapter_two
+    enter_chapter_two(world, 'naval mobilization')
     _record(world, 'Cairo refused collection. Britain is weighing a naval expedition to Alexandria.')
 
 
@@ -210,10 +211,12 @@ def advance_naval_crisis(world: dict) -> None:
         from scenario_diplomacy import _record as record_diplomacy
         french_policy = state.get('diplomatic_crisis', {}).get('french_policy')
         britain_accepts = french_policy != 'join_enforcement' or _protest(world, 'Britain') >= 3.0
-        if (britain_accepts and float(state.get('scheduled_remittance', 0)) > 0
-                and egypt.government.agent.cash >= float(state['scheduled_remittance']) * 0.5):
+        from scenario_debt import outstanding
+        claim = outstanding(world)
+        if (britain_accepts and claim > 0
+                and egypt.government.agent.cash >= claim * 0.5):
             from scenario_debt import pay as pay_debt
-            amount = float(state['scheduled_remittance']) * 0.5
+            amount = claim * 0.5
             ok, _ = pay_debt(world, amount, kind='ottoman_mediation', forgive_remainder=True)
             if ok:
                 state['payment_status'] = 'restructured'
@@ -245,7 +248,8 @@ def naval_response_options(world: dict, kind: str) -> list[dict]:
     rules = situation_template()['naval_crisis']
     egypt = _nation(world, 'Egypt')
     cash = float(egypt.government.agent.cash) if egypt else 0.0
-    settlement = round(float(state.get('scheduled_remittance', 0.0))
+    from scenario_debt import outstanding
+    settlement = round(outstanding(world)
                        * float(rules['settlement_fraction']), 2)
     common = [
         {'id': 'naval_settle', 'label': f'Settle for {settlement:,.0f}',
@@ -297,9 +301,9 @@ def resolve_naval_response(world: dict, response_id: str) -> tuple[bool, str]:
     from scenario_status import snapshot, record_change
     before = snapshot(world)
     if response_id == 'naval_settle':
-        from scenario_debt import pay as pay_debt
+        from scenario_debt import pay as pay_debt, outstanding
         rules = situation_template()['naval_crisis']
-        amount = round(float(state['scheduled_remittance']) * float(rules['settlement_fraction']), 2)
+        amount = round(outstanding(world) * float(rules['settlement_fraction']), 2)
         ok, reason = pay_debt(world, amount, kind='naval_settlement', forgive_remainder=True)
         if not ok:
             return False, reason

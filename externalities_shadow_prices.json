@@ -1,0 +1,70 @@
+{
+  "default_profile": "victorian_industrial",
+  "profiles": {
+    "feudal_manorial": {
+      "name": "Feudal & Manorial Era (Pre-Industrial / Agrarian)",
+      "description": "High social valuation on peasant stability, common land preservation, and customary fallow. Lower valuation on atmospheric emissions.",
+      "coefficients": {
+        "soil_depletion_cost": 25.0,
+        "air_pollution_cost": 2.0,
+        "water_effluent_cost": 5.0,
+        "soil_toxicity_cost": 10.0,
+        "labor_health_wear_cost": 15.0,
+        "alienation_despair_cost": 8.0,
+        "peasant_displacement_cost": 35.0,
+        "epidemic_vector_cost": 50.0,
+        "debt_peonage_cost": 2.0
+      }
+    },
+    "victorian_industrial": {
+      "name": "Industrial Revolution & Empire of Cotton (1780-1880)",
+      "description": "Intense urban coal smog, river pollution, factory shift wear-and-tear, and enclosure land clearance.",
+      "coefficients": {
+        "soil_depletion_cost": 15.0,
+        "air_pollution_cost": 8.0,
+        "water_effluent_cost": 10.0,
+        "soil_toxicity_cost": 12.0,
+        "labor_health_wear_cost": 20.0,
+        "alienation_despair_cost": 5.0,
+        "peasant_displacement_cost": 25.0,
+        "epidemic_vector_cost": 40.0,
+        "debt_peonage_cost": 1.5
+      }
+    },
+    "colonial_plantation_egypt_1877": {
+      "name": "Khedivate of Egypt & Export Cash-Crop Enclave (1877)",
+      "description": "High fragility of Nile alluvial silt, irrigation canal siltation, and sovereign debt enforcement strain.",
+      "coefficients": {
+        "soil_depletion_cost": 30.0,
+        "air_pollution_cost": 3.0,
+        "water_effluent_cost": 15.0,
+        "soil_toxicity_cost": 8.0,
+        "labor_health_wear_cost": 25.0,
+        "alienation_despair_cost": 10.0,
+        "peasant_displacement_cost": 30.0,
+        "epidemic_vector_cost": 45.0,
+        "debt_peonage_cost": 3.0
+      }
+    },
+    "petrochemical_modern": {
+      "name": "20th Century Petrochemical & Intensive Agrochemical Age",
+      "description": "Massive synthetic pesticide toxicity, petrochemical effluent, and heightened carbon smog valuation.",
+      "coefficients": {
+        "soil_depletion_cost": 20.0,
+        "air_pollution_cost": 25.0,
+        "water_effluent_cost": 22.0,
+        "soil_toxicity_cost": 35.0,
+        "labor_health_wear_cost": 30.0,
+        "alienation_despair_cost": 12.0,
+        "peasant_displacement_cost": 15.0,
+        "epidemic_vector_cost": 60.0,
+        "debt_peonage_cost": 2.5
+      }
+    }
+  },
+  "scenario_mappings": {
+    "empire_of_cotton": "victorian_industrial",
+    "egypt_1877": "colonial_plantation_egypt_1877",
+    "venezuela_1902": "petrochemical_modern"
+  }
+}

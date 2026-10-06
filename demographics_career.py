@@ -2,6 +2,8 @@
 Demographics career: M1 learned career switching, job seeking, apprenticeship subsidies, and employer matching.
 """
 
+import math
+
 from goods import Goods
 from agent import get_input_commodity
 from logger import logdebug, loginfo
@@ -74,7 +76,6 @@ def grant_apprenticeship_subsidy(agent, output, t, ctx):
     else:
         actual = 0.0
     agent.cash += actual
-    agent.hungry_steps = 0
     agent.inv_set(Goods.food, max(agent.inv_get(Goods.food, 0), 4))
     if actual > 0:
         loginfo(t, f"{agent.name()} apprenticeship to {ctx.profession[output]}, "
@@ -99,7 +100,10 @@ def handle_job_seeking(t, agent, employer_cache):
         return
     if agent.company_owned is not None:
         return
-    if agent.cash >= 5 and agent.hungry_steps <= 0:
+    from nutrition import deficit_fraction
+    cash_pressure = math.exp(-max(0.0, float(agent.cash)) / 5.0)
+    need_pressure = 1.0 - (1.0 - cash_pressure) * (1.0 - deficit_fraction(agent))
+    if rand.random() >= need_pressure:
         return
     employers = employer_cache.get(agent.output, [])
     if employers:
@@ -117,14 +121,17 @@ def handle_career_switching(ctx, t, agent, agents,
     is_employee = getattr(agent, 'employer', None) is not None
     if is_employee or number_of_switches >= ctx.max_career_switches:
         return 0, number_of_switches
-    if agent.hungry_steps > 2:
-        if agent.output != Goods.food:
+    hunger_pressure = 1.0 - math.exp(-max(0.0, float(agent.hungry_steps)) / 2.0)
+    if agent.output != Goods.food and hunger_pressure > 0:
+        if rand.random() < 0.55 * hunger_pressure:
             logdebug(t, agent.name(), 'EMERGENCY! switching to farmer')
             agent.output = Goods.food
             agent.last_career_switch = t
             number_of_switches += 1
             return 0, number_of_switches
-    if agent.hungry_steps > 1 and (t - getattr(agent, 'last_career_switch', 0) > 10):
+    if hunger_pressure > 0 and (t - getattr(agent, 'last_career_switch', 0) > 10):
+        if rand.random() >= 0.35 * hunger_pressure:
+            return 0, number_of_switches
         if ctx.most_demand != Goods.gov and agent.output != ctx.most_demand:
             logdebug(t, agent.name(), 'hungry, switching to in-demand career:',
                      ctx.profession[ctx.most_demand])

@@ -151,6 +151,7 @@ def is_any_modal_open(world) -> bool:
         world.get('comparison_open') or
         world.get('help_open') or
         world.get('settings_open') or
+        world.get('scenario_bookend_modal') or
         world.get('scenario_warning_modal') or
         world.get('transfer_dialog', {}).get('open')
     )
@@ -230,8 +231,9 @@ def render_frame(surface, world, mouse_pos=None):
         draw_actions_modal(surface, world, font, font_small, mouse_pos=mouse_pos)
         draw_help_modal(surface, world, font, font_small)
         draw_transfer_dialog(surface, world, font, font_small, mouse_pos=mouse_pos)
-        from worldview_scenario_ui import draw_scenario_warning_modal
+        from worldview_scenario_ui import draw_scenario_warning_modal, draw_scenario_bookend_modal
         draw_scenario_warning_modal(surface, world, mouse_pos=mouse_pos)
+        draw_scenario_bookend_modal(surface, world, mouse_pos=mouse_pos)
         return
 
     _draw_cached_map(surface, world, font, font_small)
@@ -270,8 +272,9 @@ def render_frame(surface, world, mouse_pos=None):
     if world.get('settings_open'):
         from worldview_scenario_ui import draw_settings_dialog
         draw_settings_dialog(surface, world, font_small, mouse_pos)
-    from worldview_scenario_ui import draw_scenario_warning_modal
+    from worldview_scenario_ui import draw_scenario_warning_modal, draw_scenario_bookend_modal
     draw_scenario_warning_modal(surface, world, mouse_pos=mouse_pos)
+    draw_scenario_bookend_modal(surface, world, mouse_pos=mouse_pos)
 
     # Floating left-panel detailed button tooltips (disabled when modal dialog covers screen)
     if not modal_active:
@@ -282,7 +285,6 @@ def render_frame(surface, world, mouse_pos=None):
             tip = project_hover_tip(world, mouse_pos)
             if tip is not None:
                 _draw_guided_hover_tip(surface, tip)
-
 
     # Dynamic map generation loading modal
     loading = world.get('loading_modal')
@@ -416,6 +418,15 @@ def select_tile(world, tile):
     Clicking a wilderness tile results in no left menu popup.
     """
     world['selected_region'] = tile
+    if world.get('scenario_id') == 'egypt_1877' and world.get('ui_mode') == 'guided':
+        if tile is not None and getattr(tile, 'owner_nation', None) is not None:
+            if tile.owner_nation.name == world.get('player_nation_name'):
+                world['selected_nation'] = tile.owner_nation
+                world['guided_decision_scope'] = 'district'
+                world['guided_action_scroll'] = 0
+            else:
+                world['guided_decision_scope'] = 'nation'
+        return
     is_wilderness = (tile is None or getattr(tile, 'owner_nation', None) is None or getattr(tile, 'wilderness', False))
 
     if is_wilderness:
@@ -550,6 +561,11 @@ def main():
 
                 # 0. STRICT MODAL PRIORITY: If any modal is active, route ONLY to it and NEVER fall through!
                 if is_any_modal_open(world):
+                    if world.get('scenario_bookend_modal'):
+                        from worldview_scenario_ui import scenario_bookend_modal_hit
+                        scenario_bookend_modal_hit(event.pos, world)
+                        _mark_dirty(world, map_changed=False)
+                        continue
                     if world.get('scenario_warning_modal'):
                         from worldview_scenario_ui import scenario_warning_modal_hit
                         scenario_warning_modal_hit(event.pos, world)
@@ -785,20 +801,22 @@ def main():
                     _mark_dirty(world)
                 # Hover detection handled below (batched after all events)
             elif event.type == pygame.MOUSEWHEEL:
-                if not is_any_modal_open(world):
+                if world.get('scenario_bookend_modal') == 'debrief':
+                    maximum = int(world.get('scenario_bookend_scroll_max', 0))
+                    world['scenario_bookend_scroll'] = max(0, min(
+                        maximum, int(world.get('scenario_bookend_scroll', 0)) - event.y))
+                    _mark_dirty(world, map_changed=False)
+                elif not is_any_modal_open(world):
                     mx, my = pygame.mouse.get_pos()
                     from worldview_left_dock import PANEL_X, PANEL_W
                     if world.get('progress_panel_open') and PANEL_X <= mx <= PANEL_X + PANEL_W:
                         world['progress_scroll'] = max(0, world.get('progress_scroll', 0) - event.y)
                         _mark_dirty(world)
                     elif (world.get('ui_mode') == 'guided' and world.get('scenario_id') == 'egypt_1877'
-                          and mx >= MAP_RIGHT):
-                        if world.get('scenario_state', {}).get('ending'):
-                            key, max_key = 'guided_debrief_scroll', 'guided_debrief_scroll_max'
-                        else:
-                            key, max_key = 'guided_action_scroll', 'guided_action_scroll_max'
-                        maximum = int(world.get(max_key, 0))
-                        world[key] = max(0, min(maximum, int(world.get(key, 0)) - event.y))
+                          and not world.get('scenario_state', {}).get('ending') and mx >= MAP_RIGHT):
+                        maximum = int(world.get('guided_action_scroll_max', 0))
+                        world['guided_action_scroll'] = max(0, min(
+                            maximum, int(world.get('guided_action_scroll', 0)) - event.y))
                         _mark_dirty(world)
                     elif mx < MAP_RIGHT:
                         factor = 1.15 ** event.y
@@ -811,6 +829,15 @@ def main():
                 if is_any_modal_open(world):
                     if is_loading:
                         # Loading screen in progress - suppress all key actions
+                        continue
+                    if world.get('scenario_bookend_modal'):
+                        if event.key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_SPACE, pygame.K_ESCAPE):
+                            world['scenario_bookend_modal'] = None
+                        elif world.get('scenario_bookend_modal') == 'debrief':
+                            direction = 1 if event.key in (pygame.K_DOWN, pygame.K_PAGEDOWN) else -1 if event.key in (pygame.K_UP, pygame.K_PAGEUP) else 0
+                            maximum = int(world.get('scenario_bookend_scroll_max', 0))
+                            world['scenario_bookend_scroll'] = max(0, min(
+                                maximum, int(world.get('scenario_bookend_scroll', 0)) + direction * 3))
                         continue
                     if world.get('scenario_warning_modal'):
                         continue

@@ -103,6 +103,36 @@ def get_icon(kind: str, size: int = 16) -> pygame.Surface:
         pygame.draw.line(surf, (95, 100, 118), (s * 0.22, s * 0.48), (s * 0.78, s * 0.48), 1)
         pygame.draw.line(surf, (95, 100, 118), (s * 0.22, s * 0.70), (s * 0.78, s * 0.70), 1)
 
+    elif kind in ('cotton', 'raw_cotton'):
+        # Fluffy white cotton boll with green plant base
+        pygame.draw.polygon(surf, (45, 135, 65), [(s * 0.28, s * 0.75), (s * 0.5, s * 0.9), (s * 0.72, s * 0.75)])
+        pygame.draw.circle(surf, (240, 240, 248), (int(s * 0.35), int(s * 0.52)), int(s // 3.8))
+        pygame.draw.circle(surf, (240, 240, 248), (int(s * 0.65), int(s * 0.52)), int(s // 3.8))
+        pygame.draw.circle(surf, (255, 255, 255), (int(s * 0.5), int(s * 0.38)), int(s // 3.5))
+
+    elif kind in ('cloth', 'textile', 'textiles', 'spool'):
+        # Woven textile bolt / spool with thread lines
+        pygame.draw.rect(surf, (65, 125, 175), (s * 0.2, s * 0.25, s * 0.6, s * 0.55), border_radius=max(1, int(s // 8)))
+        pygame.draw.line(surf, (215, 235, 255), (s * 0.25, s * 0.38), (s * 0.75, s * 0.38), 1)
+        pygame.draw.line(surf, (215, 235, 255), (s * 0.25, s * 0.52), (s * 0.75, s * 0.52), 1)
+        pygame.draw.line(surf, (215, 235, 255), (s * 0.25, s * 0.66), (s * 0.75, s * 0.66), 1)
+
+    elif kind in ('luxuries', 'luxury', 'diamond', 'foreign_luxuries', 'gem'):
+        # Brilliant-cut sparkling gemstone diamond
+        top_pts = [(s * 0.25, s * 0.35), (s * 0.4, s * 0.15), (s * 0.6, s * 0.15), (s * 0.75, s * 0.35)]
+        bot_pts = [(s * 0.25, s * 0.35), (s * 0.75, s * 0.35), (s * 0.5, s * 0.85)]
+        pygame.draw.polygon(surf, (255, 230, 110), top_pts)
+        pygame.draw.polygon(surf, (245, 195, 60), bot_pts)
+        pygame.draw.line(surf, (255, 255, 255), (s * 0.4, s * 0.15), (s * 0.5, s * 0.85), 1)
+        pygame.draw.line(surf, (255, 255, 255), (s * 0.6, s * 0.15), (s * 0.5, s * 0.85), 1)
+
+    elif kind in ('steam_mill', 'mill', 'factory'):
+        # Industrial brick mill building with smoking chimney
+        pygame.draw.rect(surf, (155, 75, 65), (s * 0.15, s * 0.45, s * 0.7, s * 0.45))
+        pygame.draw.rect(surf, (120, 55, 45), (s * 0.65, s * 0.2, s * 0.15, s * 0.3))
+        # Steam puff
+        pygame.draw.circle(surf, (230, 235, 245), (int(s * 0.72), int(s * 0.12)), max(1, int(s // 6)))
+
     elif kind in ('rare_minerals', 'quartz', 'electricity'):
         # Electric crystal lightning
         pts = [(s * 0.5, s * 0.08), (s * 0.85, s * 0.5), (s * 0.5, s * 0.92), (s * 0.15, s * 0.5)]
