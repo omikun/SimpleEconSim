@@ -184,6 +184,11 @@
     let counts = [];
     let flags = 0;
     let settings = [];
+    let terrainVertices = null;
+    let terrainBuckets = new Map();
+    let terrainTriangleBuckets = new Map();
+    const elevationCache = new Map();
+    const sampleCellSize = 24;
     let shadowTexture;
     let shadowFramebuffer;
     let shadowSize = 2048;
@@ -205,6 +210,29 @@
       settings = Array.from({ length: 12 }, (_, i) => view.getFloat32(20 + i * 4, true));
       let offset = 68;
       const lengths = counts.map(count => count * 10);
+      terrainVertices = new Float32Array(data, offset, lengths[0]);
+      for (let vertex = 0; vertex < lengths[0]; vertex += 10) {
+        const x = terrainVertices[vertex], y = terrainVertices[vertex + 1];
+        const key = `${Math.floor(x / sampleCellSize)},${Math.floor(y / sampleCellSize)}`;
+        if (!terrainBuckets.has(key)) terrainBuckets.set(key, []);
+        terrainBuckets.get(key).push(vertex);
+      }
+      for (let triangle = 0; triangle < lengths[0]; triangle += 30) {
+        const ax = terrainVertices[triangle], ay = terrainVertices[triangle + 1];
+        const bx = terrainVertices[triangle + 10], by = terrainVertices[triangle + 11];
+        const cx = terrainVertices[triangle + 20], cy = terrainVertices[triangle + 21];
+        const minX = Math.floor(Math.min(ax, bx, cx) / sampleCellSize);
+        const maxX = Math.floor(Math.max(ax, bx, cx) / sampleCellSize);
+        const minY = Math.floor(Math.min(ay, by, cy) / sampleCellSize);
+        const maxY = Math.floor(Math.max(ay, by, cy) / sampleCellSize);
+        for (let cellY = minY; cellY <= maxY; cellY++) {
+          for (let cellX = minX; cellX <= maxX; cellX++) {
+            const key = `${cellX},${cellY}`;
+            if (!terrainTriangleBuckets.has(key)) terrainTriangleBuckets.set(key, []);
+            terrainTriangleBuckets.get(key).push(triangle);
+          }
+        }
+      }
       program = createProgram(gl);
       shadowProgram = createShadowProgram(gl);
       shadowSize = Math.min(4096, gl.getParameter(gl.MAX_TEXTURE_SIZE));
@@ -321,7 +349,80 @@
       return true;
     }
 
-    return Object.freeze({ draw, get ready() { return ready; }, get failed() { return failed; } });
+    function sampleElevation(x, y) {
+      if (!terrainVertices) return 0.08;
+      const cacheKey = `${x.toFixed(2)},${y.toFixed(2)}`;
+      if (elevationCache.has(cacheKey)) return elevationCache.get(cacheKey);
+      const cellX = Math.floor(x / sampleCellSize), cellY = Math.floor(y / sampleCellSize);
+      const checkedTriangles = new Set();
+      for (let radius = 0; radius <= 2; radius++) {
+        for (let cy = cellY - radius; cy <= cellY + radius; cy++) {
+          for (let cx = cellX - radius; cx <= cellX + radius; cx++) {
+            if (radius && cx !== cellX - radius && cx !== cellX + radius && cy !== cellY - radius && cy !== cellY + radius) continue;
+            for (const triangle of terrainTriangleBuckets.get(`${cx},${cy}`) || []) {
+              if (checkedTriangles.has(triangle)) continue;
+              checkedTriangles.add(triangle);
+              const ax = terrainVertices[triangle], ay = terrainVertices[triangle + 1];
+              const bx = terrainVertices[triangle + 10], by = terrainVertices[triangle + 11];
+              const cxv = terrainVertices[triangle + 20], cyv = terrainVertices[triangle + 21];
+              const denom = (by - cyv) * (ax - cxv) + (cxv - bx) * (ay - cyv);
+              if (Math.abs(denom) < 1e-8) continue;
+              const wa = ((by - cyv) * (x - cxv) + (cxv - bx) * (y - cyv)) / denom;
+              const wb = ((cyv - ay) * (x - cxv) + (ax - cxv) * (y - cyv)) / denom;
+              const wc = 1 - wa - wb;
+              if (wa < -1e-5 || wb < -1e-5 || wc < -1e-5) continue;
+              const elevation = Math.max(0,
+                wa * terrainVertices[triangle + 2] +
+                wb * terrainVertices[triangle + 12] +
+                wc * terrainVertices[triangle + 22]
+              ) + 0.08;
+              elevationCache.set(cacheKey, elevation);
+              return elevation;
+            }
+          }
+        }
+      }
+      const nearest = [];
+      const visited = new Set();
+      for (let radius = 0; radius <= 5; radius++) {
+        for (let cy = cellY - radius; cy <= cellY + radius; cy++) {
+          for (let cx = cellX - radius; cx <= cellX + radius; cx++) {
+            if (radius && cx !== cellX - radius && cx !== cellX + radius && cy !== cellY - radius && cy !== cellY + radius) continue;
+            const key = `${cx},${cy}`;
+            if (visited.has(key)) continue;
+            visited.add(key);
+            const bucket = terrainBuckets.get(key);
+            if (!bucket) continue;
+            for (const vertex of bucket) {
+              const dx = terrainVertices[vertex] - x, dy = terrainVertices[vertex + 1] - y;
+              const distance = Math.hypot(dx, dy);
+              nearest.push({ vertex, distance });
+            }
+          }
+        }
+        nearest.sort((a, b) => a.distance - b.distance);
+        nearest.length = Math.min(3, nearest.length);
+        const lowerBound = Math.min(
+          x - (cellX - radius) * sampleCellSize,
+          (cellX + radius + 1) * sampleCellSize - x,
+          y - (cellY - radius) * sampleCellSize,
+          (cellY + radius + 1) * sampleCellSize - y
+        );
+        if (nearest.length === 3 && nearest[2].distance <= lowerBound) break;
+      }
+      if (!nearest.length) return 0.08;
+      let weightedHeight = 0, totalWeight = 0;
+      for (const point of nearest) {
+        const weight = 1 / Math.max(point.distance, 1e-4);
+        weightedHeight += terrainVertices[point.vertex + 2] * weight;
+        totalWeight += weight;
+      }
+      const elevation = Math.max(0, weightedHeight / totalWeight) + 0.08;
+      elevationCache.set(cacheKey, elevation);
+      return elevation;
+    }
+
+    return Object.freeze({ draw, sampleElevation, get ready() { return ready; }, get failed() { return failed; } });
   }
 
   root.CoCTerrainRenderer = Object.freeze({ createTerrainRenderer });

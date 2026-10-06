@@ -43,6 +43,8 @@
   let tileByName = new Map();
   let tileByAxial = new Map();
   let positionedTiles = [];
+  let terrainBoundaryCache = new Map();
+  let terrainBoundaryCacheVersion = null;
   let lastTileDetailKey = null;
   let lastNewsKey = null;
   let lastDrawerKey = null;
@@ -477,6 +479,33 @@
     return '#4ade80';
   }
 
+  function getTileBoundary3D(tile, terrainReady) {
+    const generation = worldState?.version?.split(':').slice(0, 2).join(':') || 'world';
+    const cacheVersion = `${generation}:${terrainReady ? 'mesh' : 'flat'}`;
+    if (cacheVersion !== terrainBoundaryCacheVersion) {
+      terrainBoundaryCache.clear();
+      terrainBoundaryCacheVersion = cacheVersion;
+    }
+    if (terrainBoundaryCache.has(tile.name)) return terrainBoundaryCache.get(tile.name);
+
+    const polygon = tile.polygon || [];
+    const points = [];
+    const fallbackZ = Number(tile.elevation || 0) * 48.0 + 0.1;
+    for (let edge = 0; edge < polygon.length; edge++) {
+      const start = polygon[edge], end = polygon[(edge + 1) % polygon.length];
+      const dx = end[0] - start[0], dy = end[1] - start[1];
+      const steps = Math.max(1, Math.ceil(Math.hypot(dx, dy) / 6));
+      for (let step = 0; step < steps; step++) {
+        const t = step / steps;
+        const x = start[0] + dx * t, y = start[1] + dy * t;
+        const z = terrainReady ? terrainMesh.sampleElevation(x, y) : fallbackZ;
+        points.push([x, y, z]);
+      }
+    }
+    terrainBoundaryCache.set(tile.name, points);
+    return points;
+  }
+
   function renderVoronoiMap3D(w, h) {
     const camObj = {
       pitch: camPitch,
@@ -503,11 +532,13 @@
 
       const elev = Number(tile.elevation || 0);
       const z = elev * 48.0 + 0.1;
-      const pts3D = tile.polygon.map(([px, py]) => [px, py, z]);
+      const pts3D = getTileBoundary3D(tile, terrainReady);
       const screenPts = projectPolygon3D(mvp, pts3D, w, h);
       if (!screenPts || screenPts.length < 3) continue;
 
-      const cz = z + 0.2;
+      const cz = terrainReady
+        ? terrainMesh.sampleElevation(tile.centroid[0], tile.centroid[1]) + 2.0
+        : z + 0.2;
       const cScreen = projectPoint3D(mvp, tile.centroid[0], tile.centroid[1], cz, w, h);
       projectedGeom.push({ tile, screenPts, cScreen, isSelected, isSea });
 
