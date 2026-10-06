@@ -518,26 +518,26 @@
       }
       ctx.closePath();
 
-      // Terrain comes from the shared desktop micropolygon renderer. Tiles add
-      // only the translucent ownership and thematic overlays above that mesh.
+      // Keep tile polygons transparent over the shared desktop terrain mesh.
+      // They still provide color fills as a fallback if WebGL cannot load.
       if (!terrainReady) {
         ctx.fillStyle = getTileColor(tile);
         ctx.fill();
-      }
-      if (tile.nation_color) {
-        const baseColor = tile.nation_color.startsWith('#')
-          ? hexToRgba(tile.nation_color, 0.25)
-          : tile.nation_color.replace('rgb', 'rgba').replace(')', ', 0.25)');
-        ctx.fillStyle = baseColor;
-        ctx.fill();
-      }
-
-      // Active Thematic Layer overlay
-      if (activeLayer !== 'overview') {
-        const layerFill = getThematicLayerFill(tile);
-        if (layerFill) {
-          ctx.fillStyle = layerFill;
+        if (tile.nation_color) {
+          const baseColor = tile.nation_color.startsWith('#')
+            ? hexToRgba(tile.nation_color, 0.25)
+            : tile.nation_color.replace('rgb', 'rgba').replace(')', ', 0.25)');
+          ctx.fillStyle = baseColor;
           ctx.fill();
+        }
+
+        // Thematic fills are also overlays, so keep the terrain visible.
+        if (activeLayer !== 'overview') {
+          const layerFill = getThematicLayerFill(tile);
+          if (layerFill) {
+            ctx.fillStyle = layerFill;
+            ctx.fill();
+          }
         }
       }
 
