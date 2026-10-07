@@ -196,13 +196,18 @@
     let ready = false;
     let failed = false;
     let started = false;
+    let retryDelay = 500;
     let lastFrame = '';
 
     function loadMesh() {
       if (started) return;
       started = true;
       fetch('/api/terrain-mesh.bin').then(response => {
-      if (!response.ok) throw new Error(`Terrain mesh request failed (${response.status})`);
+      if (!response.ok) {
+        const error = new Error(`Terrain mesh request failed (${response.status})`);
+        error.retryable = response.status >= 500;
+        throw error;
+      }
       return response.arrayBuffer();
     }).then(data => {
       const view = new DataView(data);
@@ -261,11 +266,23 @@
         offset += length * 4;
       }
       ready = true;
+      retryDelay = 500;
       onReady();
       }).catch(error => {
-        failed = true;
+        const retryable = error instanceof TypeError || error.retryable;
+        failed = !retryable;
         console.error('Desktop terrain mesh unavailable:', error);
         onReady();
+        if (retryable) {
+          const delay = retryDelay;
+          retryDelay = Math.min(retryDelay * 2, 10000);
+          setTimeout(() => {
+            started = false;
+            loadMesh();
+          }, delay);
+        } else {
+          started = false;
+        }
       });
     }
 
