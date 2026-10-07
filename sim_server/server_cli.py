@@ -21,7 +21,7 @@ from sim_server.protocol import CommandType, CommandMessage
 
 def main():
     parser = argparse.ArgumentParser(description="Call of Capital (CoC) Simulation Server CLI")
-    parser.add_argument('--seed', type=int, default=4242, help="Master simulation seed")
+    parser.add_argument('--seed', type=int, default=None, help="Master simulation seed (default: Mapgen2 slot one)")
     parser.add_argument('--terrain-seed', type=int, default=None, help="Terrain seed")
     parser.add_argument('--nation-seed', type=int, default=None, help="Nation seed")
     parser.add_argument('--turns', type=int, default=20, help="Number of turns to advance")

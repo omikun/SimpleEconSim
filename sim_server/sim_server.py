@@ -29,15 +29,20 @@ class SimServer:
     def __init__(self, seed: Optional[int] = None, terrain_seed: Optional[int] = None,
                  nation_seed: Optional[int] = None,
                  topology: Optional[str] = None):
-        self.seed = seed
-        self.terrain_seed = terrain_seed if terrain_seed is not None else (seed if seed is not None else 4242)
-        self.nation_seed = nation_seed if nation_seed is not None else random.randint(1, 999999)
-
         if topology in ('voronoi', 'hex'):
             from world_config import set_map_topology
             set_map_topology(topology)
-        from world_config import is_voronoi_topology
+        from world_config import is_voronoi_topology, load_mapgen_slot_one
         self.topology = "voronoi" if is_voronoi_topology() else "hex"
+        slot_default = self.topology == "voronoi" and seed is None and terrain_seed is None
+        slot_state = load_mapgen_slot_one() if slot_default else {}
+        self.seed = int(slot_state.get('seed', 777)) if slot_default else seed
+        self.terrain_seed = terrain_seed if terrain_seed is not None else (
+            self.seed if self.seed is not None else 4242
+        )
+        self.nation_seed = nation_seed if nation_seed is not None else (
+            int(slot_state.get('nation_seed', 777)) if slot_default else random.randint(1, 999999)
+        )
 
         self.turn = 0
         self.playing = False

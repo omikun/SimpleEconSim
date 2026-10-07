@@ -713,16 +713,8 @@ class Micropoly3DRenderer:
         )
         from scipy.spatial import cKDTree
 
-        graph_key = (
-            int(slot_state.get('seed', 777)),
-            slot_state.get('shape', 'radial'),
-            int(slot_state.get('points', 1000)),
-            int(slot_state.get('rivers', 25)),
-            round(float(slot_state.get('sharpness', 1.9)), 2),
-            0.0, 0.0, 0.0, 0.0,
-            round(float(slot_state.get('canyon_depth', 2.7)), 2),
-            round(float(slot_state.get('valley_width', 1.4)), 2)
-        )
+        from world_config import mapgen_mesh_graph_key
+        graph_key = mapgen_mesh_graph_key(gen)
 
         triangles, actual_count = get_cached_micropolys(
             gen,
@@ -737,7 +729,7 @@ class Micropoly3DRenderer:
             ridge_noise=float(slot_state.get('ridge_noise', 0.35)),
             erosion_strength=float(slot_state.get('erosion_strength', 0.3)),
             erosion_droplets=int(slot_state.get('erosion_droplets', 15000)),
-            persistent_cache=slot_state.get('scenario_id', 'desktop'),
+            persistent_cache=slot_state.get('scenario_id', 'slot_1_mesh_v3'),
         )
 
         # 1. Terrain Mesh Buffer [x, y, z, nx, ny, nz, r, g, b, elev] (stride 10 floats = 40 bytes)

@@ -615,15 +615,8 @@ class CoCWebServer:
         if gen is None:
             raise RuntimeError('3D Mapgen terrain is unavailable for this world')
         if not slot_state:
-            slot_path = os.path.join(
-                os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                'saved_slots', 'slot_1.json',
-            )
-            try:
-                with open(slot_path, 'r', encoding='utf-8') as slot_file:
-                    slot_state = json.load(slot_file).get('state', {})
-            except (OSError, ValueError, TypeError):
-                slot_state = {}
+            from world_config import load_mapgen_slot_one
+            slot_state = load_mapgen_slot_one()
         with self._terrain_mesh_lock:
             if generation == self._terrain_mesh_generation and self._terrain_mesh_bytes is not None:
                 return self._terrain_mesh_bytes
@@ -632,14 +625,8 @@ class CoCWebServer:
                 get_cached_micropolys, build_micropoly_trees,
                 build_hydro_river_ribbons, build_coastal_surf_ribbon,
             )
-            graph_key = (
-                int(slot_state.get('seed', 777)), slot_state.get('shape', 'radial'),
-                int(slot_state.get('points', 1000)), int(slot_state.get('rivers', 25)),
-                round(float(slot_state.get('sharpness', 1.9)), 2),
-                0.0, 0.0, 0.0, 0.0,
-                round(float(slot_state.get('canyon_depth', 2.7)), 2),
-                round(float(slot_state.get('valley_width', 1.4)), 2),
-            )
+            from world_config import mapgen_mesh_graph_key
+            graph_key = mapgen_mesh_graph_key(gen)
             triangles, _ = get_cached_micropolys(
                 gen, graph_key, int(slot_state.get('polys', 16000)),
                 float(slot_state.get('roughness', 3.0)), float(slot_state.get('jitter', 0.22)),
@@ -648,7 +635,7 @@ class CoCWebServer:
                 ridge_noise=float(slot_state.get('ridge_noise', 0.35)),
                 erosion_strength=float(slot_state.get('erosion_strength', 0.3)),
                 erosion_droplets=int(slot_state.get('erosion_droplets', 15000)),
-                persistent_cache=slot_state.get('scenario_id', 'desktop'),
+                persistent_cache=slot_state.get('scenario_id', 'slot_1_mesh_v3'),
             )
             from scipy.spatial import cKDTree
             vertices = np.asarray([point for triangle in triangles for point in triangle[:3]], dtype=np.float32)
@@ -853,7 +840,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Call of Capital (CoC) Mobile Web Server")
     parser.add_argument('--host', type=str, default='0.0.0.0', help="Host address to bind (default 0.0.0.0)")
     parser.add_argument('--port', type=int, default=8080, help="Port to listen on (default 8080)")
-    parser.add_argument('--seed', type=int, default=4242, help="Simulation seed")
+    parser.add_argument('--seed', type=int, default=None, help="Simulation seed (default: Mapgen2 slot one)")
     parser.add_argument('--terrain-seed', type=int, default=None, help="Terrain seed")
     parser.add_argument('--nation-seed', type=int, default=None, help="Nation seed")
     parser.add_argument('--topology', type=str, default='voronoi', choices=['voronoi', 'hex'],

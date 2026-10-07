@@ -12,8 +12,6 @@ economic, geopolitical, and demographic regions:
 
 from __future__ import annotations
 
-import os
-import json
 import math
 import random
 from collections import deque
@@ -36,6 +34,7 @@ from world_config import (
     VORONOI_ISLAND_SHAPE,
     VORONOI_WIDTH,
     VORONOI_HEIGHT,
+    load_mapgen_slot_one,
 )
 
 
@@ -104,25 +103,16 @@ def build_world_voronoi(
             "wave_intensity": terrain_config["wave_intensity"],
         }
     else:
-        # Check saved_slots/slot_1.json for default persistent world configuration
-        slot_1_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "saved_slots", "slot_1.json")
-        slot_state = {}
-        if os.path.exists(slot_1_file):
-            try:
-                with open(slot_1_file, "r", encoding="utf-8") as f:
-                    slot_data = json.load(f)
-                    slot_state = slot_data.get("state", {})
-                    slot_seed = int(slot_state.get("seed", 777))
-                    if seed is None:
-                        seed = slot_seed
-                    if (seed == slot_seed) and num_points is None and "points" in slot_state:
-                        num_points = int(slot_state["points"])
-                    if terrain_seed is None:
-                        terrain_seed = seed
-                    if island_shape is None and "shape" in slot_state:
-                        island_shape = slot_state["shape"]
-            except Exception:
-                pass
+        slot_state = load_mapgen_slot_one()
+        slot_seed = int(slot_state.get("seed", 777))
+        if seed is None:
+            seed = slot_seed
+        if seed == slot_seed and num_points is None and "points" in slot_state:
+            num_points = int(slot_state["points"])
+        if terrain_seed is None:
+            terrain_seed = seed
+        if island_shape is None and "shape" in slot_state:
+            island_shape = slot_state["shape"]
 
     if terrain_seed is None:
         terrain_seed = seed if seed is not None else random.randint(1, 999999)
@@ -140,6 +130,19 @@ def build_world_voronoi(
 
     if existing_gen is not None:
         gen = existing_gen
+    elif scenario_id != "egypt_1877":
+        from mapgen_web import get_cached_graph
+        gen = get_cached_graph(
+            terrain_seed, shape_val, pts_count,
+            int(slot_state.get("rivers", 25)),
+            float(slot_state.get("sharpness", 1.9)),
+            moisture_bias=float(slot_state.get("moisture_bias", 0.0)),
+            north_temp=float(slot_state.get("north_temp", 0.0)),
+            south_temp=float(slot_state.get("south_temp", 0.0)),
+            persistence=float(slot_state.get("persistence", 0.0)),
+            canyon_depth=float(slot_state.get("canyon_depth", 2.7)),
+            valley_width=float(slot_state.get("valley_width", 1.4)),
+        )
     else:
         gen = PolygonMapGenerator(
             seed=terrain_seed,

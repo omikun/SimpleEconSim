@@ -26,8 +26,35 @@ if _ACTIVE_TOPOLOGY not in ("voronoi", "hex"):
 # Voronoi World Configuration
 VORONOI_POINTS = 80          # Comparable to 81 cells in 9x9 hex grid
 VORONOI_ISLAND_SHAPE = "perlin"
-VORONOI_WIDTH = 1000.0
-VORONOI_HEIGHT = 1000.0
+VORONOI_WIDTH = 1024.0
+VORONOI_HEIGHT = 1024.0
+
+
+def load_mapgen_slot_one() -> dict:
+    """Load the saved Mapgen2 world used by the default Voronoi client."""
+    slot_path = os.path.join(os.path.dirname(__file__), "saved_slots", "slot_1.json")
+    try:
+        with open(slot_path, "r", encoding="utf-8") as slot_file:
+            state = json.load(slot_file).get("state", {})
+        return state if isinstance(state, dict) else {}
+    except (OSError, ValueError, TypeError):
+        return {}
+
+
+def mapgen_mesh_graph_key(gen) -> tuple:
+    """Identify the actual generator behind a cached micropolygon mesh."""
+    return (
+        int(gen.seed), gen.island_shape,
+        int(gen.num_points), int(gen.river_count),
+        round(float(gen.mountain_sharpness), 2),
+        round(float(gen.moisture_bias), 2),
+        round(float(gen.north_temperature), 2),
+        round(float(gen.south_temperature), 2),
+        round(float(gen.persistence), 2),
+        round(float(gen.canyon_depth), 2),
+        round(float(gen.valley_width), 2),
+        int(gen.width), int(gen.height),
+    )
 
 # Hex World Configuration
 HEX_GRID_ROWS = 9
