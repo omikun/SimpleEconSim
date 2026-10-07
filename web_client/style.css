@@ -809,6 +809,25 @@ input[type="range"] {
   touch-action: none;
 }
 
+.terrain-status {
+  position: absolute;
+  left: 14px;
+  bottom: 68px;
+  z-index: 21;
+  max-width: min(320px, calc(100% - 84px));
+  padding: 8px 10px;
+  border: 1px solid rgba(251, 191, 36, 0.55);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.94);
+  color: #fcd34d;
+  font-size: 0.76rem;
+  line-height: 1.3;
+  pointer-events: none;
+}
+.terrain-status.hidden {
+  display: none;
+}
+
 /* Thematic Layer Drop-up */
 .layer-dock-container {
   position: absolute;
@@ -1454,6 +1473,9 @@ input[type="range"] {
   .layer-dock-container {
     bottom: 84px;
   }
+  .terrain-status {
+    bottom: 138px;
+  }
 }
 
 /* ---------------- Vertical Phone Top Bar Optimization ---------------- */
@@ -1973,5 +1995,3 @@ input[type="range"] {
 .vis-card.full-width canvas {
   height: 260px;
 }
-
-

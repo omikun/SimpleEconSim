@@ -177,7 +177,12 @@
   function createTerrainRenderer(onReady = () => {}) {
     const canvas = document.createElement('canvas');
     const gl = canvas.getContext('webgl2', { alpha: false, antialias: true });
-    if (!gl) return { draw: () => false, get ready() { return false; } };
+    if (!gl) return Object.freeze({
+      draw: () => false,
+      get ready() { return false; },
+      get status() { return 'error'; },
+      get error() { return 'Safari could not create a WebGL 2 context'; }
+    });
     let program;
     let shadowProgram;
     let effects;
@@ -193,15 +198,46 @@
     let shadowTexture;
     let shadowFramebuffer;
     let shadowSize = 2048;
+    let shadowEnabled = false;
     let ready = false;
     let failed = false;
     let started = false;
+    let contextLost = false;
+    let loadGeneration = 0;
     let retryDelay = 500;
+    let retryTimer = null;
+    let status = 'loading';
+    let errorMessage = '';
     let lastFrame = '';
+    let lastShadowKey = '';
+
+    canvas.addEventListener('webglcontextlost', event => {
+      event.preventDefault();
+      contextLost = true;
+      loadGeneration++;
+      clearTimeout(retryTimer);
+      ready = false;
+      started = true;
+      status = 'context-lost';
+      errorMessage = 'Safari lost the graphics context';
+      onReady();
+    });
+    canvas.addEventListener('webglcontextrestored', () => {
+      contextLost = false;
+      started = false;
+      failed = false;
+      buffers = [];
+      lastFrame = '';
+      lastShadowKey = '';
+      status = 'loading';
+      loadMesh();
+    });
 
     function loadMesh() {
-      if (started) return;
+      if (started || failed || contextLost) return;
       started = true;
+      const attempt = ++loadGeneration;
+      let meshDownloaded = false;
       fetch('/api/terrain-mesh.bin').then(response => {
       if (!response.ok) {
         const error = new Error(`Terrain mesh request failed (${response.status})`);
@@ -210,13 +246,18 @@
       }
       return response.arrayBuffer();
     }).then(data => {
+      if (attempt !== loadGeneration || contextLost) return;
+      meshDownloaded = true;
       const view = new DataView(data);
       counts = Array.from({ length: 4 }, (_, i) => view.getUint32(i * 4, true) / 10);
       flags = view.getUint32(16, true);
       settings = Array.from({ length: 12 }, (_, i) => view.getFloat32(20 + i * 4, true));
       let offset = 68;
       const lengths = counts.map(count => count * 10);
-      terrainVertices = new Float32Array(data, offset, lengths[0]);
+      terrainVertices = new Float32Array(new Float32Array(data, offset, lengths[0]));
+      terrainBuckets.clear();
+      terrainTriangleBuckets.clear();
+      elevationCache.clear();
       for (let vertex = 0; vertex < lengths[0]; vertex += 10) {
         const x = terrainVertices[vertex], y = terrainVertices[vertex + 1];
         const key = `${Math.floor(x / sampleCellSize)},${Math.floor(y / sampleCellSize)}`;
@@ -242,7 +283,8 @@
       program = createProgram(gl);
       shadowProgram = createShadowProgram(gl);
       effects = root.CoCTerrainEffects.create(gl);
-      shadowSize = Math.min(4096, gl.getParameter(gl.MAX_TEXTURE_SIZE));
+      const touchDevice = window.matchMedia('(pointer: coarse)').matches;
+      shadowSize = Math.min(touchDevice ? 1024 : 4096, gl.getParameter(gl.MAX_TEXTURE_SIZE));
       shadowTexture = gl.createTexture();
       gl.bindTexture(gl.TEXTURE_2D, shadowTexture);
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.DEPTH_COMPONENT24, shadowSize, shadowSize, 0, gl.DEPTH_COMPONENT, gl.UNSIGNED_INT, null);
@@ -255,7 +297,7 @@
       gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, shadowTexture, 0);
       gl.drawBuffers([gl.NONE]);
       gl.readBuffer(gl.NONE);
-      if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) throw new Error('Terrain shadow framebuffer is incomplete');
+      shadowEnabled = Boolean(flags & 2) && gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
       gl.bindFramebuffer(gl.FRAMEBUFFER, null);
       for (const length of lengths) {
         const vertices = new Float32Array(data, offset, length);
@@ -265,18 +307,24 @@
         buffers.push(buffer);
         offset += length * 4;
       }
+      if (gl.isContextLost()) return;
       ready = true;
       retryDelay = 500;
+      status = 'ready';
+      errorMessage = '';
       onReady();
       }).catch(error => {
-        const retryable = error instanceof TypeError || error.retryable;
+        if (attempt !== loadGeneration || contextLost) return;
+        const retryable = !meshDownloaded && (error instanceof TypeError || error.retryable);
         failed = !retryable;
+        status = retryable ? 'retrying' : 'error';
+        errorMessage = error.message || String(error);
         console.error('Desktop terrain mesh unavailable:', error);
         onReady();
         if (retryable) {
           const delay = retryDelay;
           retryDelay = Math.min(retryDelay * 2, 10000);
-          setTimeout(() => {
+          retryTimer = setTimeout(() => {
             started = false;
             loadMesh();
           }, delay);
@@ -288,14 +336,17 @@
 
     function draw(ctx, camera, width, height, getMvp) {
       loadMesh();
-      if (!ready || failed) return false;
+      if (!ready || failed || contextLost) return false;
+      try {
       const animated = counts[2] > 0 || counts[3] > 0;
       const simTime = performance.now() / 1000;
       const animationFrame = animated ? Math.floor(simTime * 12) : 0;
       const key = `${width}:${height}:${camera.pitch}:${camera.yaw}:${camera.zoom}:${camera.target_x}:${camera.target_y}:${animationFrame}`;
       if (key !== lastFrame) {
-        canvas.width = width;
-        canvas.height = height;
+        if (canvas.width !== width || canvas.height !== height) {
+          canvas.width = width;
+          canvas.height = height;
+        }
         const projection = getMvp(camera, width, height);
         const viewMatrix = cameraView(camera);
         const sunAz = settings[0] * Math.PI / 180;
@@ -310,7 +361,8 @@
         const bias = new Float32Array([0.5,0,0,0.5, 0,0.5,0,0.5, 0,0,0.5,0.5, 0,0,0,1]);
         const shadowMatrix = root.CoCProjection3D.mat4Multiply(bias,lightVp);
 
-        if (flags & 2) {
+        const shadowKey = `${camera.target_x}:${camera.target_y}:${camera.zoom}`;
+        if (shadowEnabled && shadowKey !== lastShadowKey) {
           gl.bindFramebuffer(gl.FRAMEBUFFER,shadowFramebuffer);
           gl.viewport(0,0,shadowSize,shadowSize);
           gl.clear(gl.DEPTH_BUFFER_BIT);
@@ -326,6 +378,7 @@
             gl.vertexAttribPointer(shadowPos,3,gl.FLOAT,false,40,0);
             gl.drawArrays(gl.TRIANGLES,0,counts[index]);
           }
+          lastShadowKey = shadowKey;
         }
 
         gl.bindFramebuffer(gl.FRAMEBUFFER,null);
@@ -377,7 +430,7 @@
         gl.uniform1f(gl.getUniformLocation(program,'u_ambient_intensity'),settings[3]);
         gl.uniform1f(gl.getUniformLocation(program,'u_mountain_roughness'),settings[4]);
         gl.uniform1f(gl.getUniformLocation(program,'u_snow_threshold'),settings[5]);
-        gl.uniform1i(gl.getUniformLocation(program,'u_shadow_mode'),(flags&2)?1:0);
+        gl.uniform1i(gl.getUniformLocation(program,'u_shadow_mode'),shadowEnabled?1:0);
         gl.uniform1f(gl.getUniformLocation(program,'u_shadow_darkness'),settings[6]);
         gl.uniform1i(gl.getUniformLocation(program,'u_micropoly_strata'),(flags&1)?1:0);
         gl.uniform1f(gl.getUniformLocation(program,'u_shadow_size'),shadowSize);
@@ -426,11 +479,24 @@
           }
           gl.disable(gl.BLEND);
         }
+        if (gl.isContextLost()) return false;
+        const glError = gl.getError();
+        if (glError === gl.OUT_OF_MEMORY) throw new Error('Safari ran out of graphics memory');
+        if (glError !== gl.NO_ERROR) throw new Error(`WebGL error 0x${glError.toString(16)}`);
         lastFrame = key;
       }
       ctx.drawImage(canvas, 0, 0, width, height);
       if (animated) setTimeout(onReady, 80);
       return true;
+      } catch (error) {
+        ready = false;
+        failed = true;
+        status = 'error';
+        errorMessage = error.message || String(error);
+        console.error('Desktop terrain draw failed:', error);
+        onReady();
+        return false;
+      }
     }
 
     function sampleElevation(x, y) {
@@ -506,7 +572,13 @@
       return elevation;
     }
 
-    return Object.freeze({ draw, sampleElevation, get ready() { return ready; }, get failed() { return failed; } });
+    return Object.freeze({
+      draw, sampleElevation,
+      get ready() { return ready; },
+      get failed() { return failed; },
+      get status() { return status; },
+      get error() { return errorMessage; }
+    });
   }
 
   root.CoCTerrainRenderer = Object.freeze({ createTerrainRenderer });

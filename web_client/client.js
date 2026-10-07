@@ -148,6 +148,7 @@
   // DOM Elements
   const canvas = document.getElementById('map-canvas');
   const ctx = canvas.getContext('2d');
+  const terrainStatus = document.getElementById('terrain-status');
   const turnDisplay = document.getElementById('turn-display');
   const btnPlay = document.getElementById('btn-play');
   const btnStep = document.getElementById('btn-step');
@@ -515,6 +516,18 @@
       target_y: camTargetY
     };
     const terrainReady = terrainMesh.draw(ctx, camObj, w, h, getCameraMVP);
+    if (terrainStatus) {
+      const phase = terrainMesh.status;
+      terrainStatus.classList.toggle('hidden', phase === 'ready');
+      if (phase !== 'ready') {
+        const reason = terrainMesh.error;
+        terrainStatus.textContent = phase === 'loading'
+          ? 'Loading desktop terrain mesh…'
+          : phase === 'retrying'
+            ? `Retrying terrain mesh: ${reason}`
+            : `Terrain mesh unavailable: ${reason}`;
+      }
+    }
     const mvp = getCameraMVP(camObj, w, h);
     if (!mvp) return;
 
@@ -792,6 +805,7 @@
       if (is3DMode) {
         renderVoronoiMap3D(w, h);
       } else {
+        if (terrainStatus) terrainStatus.classList.add('hidden');
         renderVoronoiMap2D(w, h);
       }
       ctx.restore();
