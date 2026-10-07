@@ -180,6 +180,7 @@
     if (!gl) return { draw: () => false, get ready() { return false; } };
     let program;
     let shadowProgram;
+    let effects;
     let buffers = [];
     let counts = [];
     let flags = 0;
@@ -235,6 +236,7 @@
       }
       program = createProgram(gl);
       shadowProgram = createShadowProgram(gl);
+      effects = root.CoCTerrainEffects.create(gl);
       shadowSize = Math.min(4096, gl.getParameter(gl.MAX_TEXTURE_SIZE));
       shadowTexture = gl.createTexture();
       gl.bindTexture(gl.TEXTURE_2D, shadowTexture);
@@ -270,7 +272,10 @@
     function draw(ctx, camera, width, height, getMvp) {
       loadMesh();
       if (!ready || failed) return false;
-      const key = `${width}:${height}:${camera.pitch}:${camera.yaw}:${camera.zoom}:${camera.target_x}:${camera.target_y}`;
+      const animated = counts[2] > 0 || counts[3] > 0;
+      const simTime = performance.now() / 1000;
+      const animationFrame = animated ? Math.floor(simTime * 12) : 0;
+      const key = `${width}:${height}:${camera.pitch}:${camera.yaw}:${camera.zoom}:${camera.target_x}:${camera.target_y}:${animationFrame}`;
       if (key !== lastFrame) {
         canvas.width = width;
         canvas.height = height;
@@ -310,8 +315,41 @@
         gl.viewport(0, 0, width, height);
         gl.enable(gl.DEPTH_TEST);
         gl.depthFunc(gl.LEQUAL);
+        gl.disable(gl.BLEND);
         gl.clearColor(0.04, 0.12, 0.24, 1);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+        const setMatrix = (target, name, matrix) => {
+          gl.uniformMatrix4fv(gl.getUniformLocation(target, name), false, columnMajor(matrix));
+        };
+        const setRibbonAttributes = (target, buffer) => {
+          gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+          const stride = 40;
+          const attributes = ['in_pos', 'in_normal', 'in_color', 'in_measure'];
+          const offsets = [0, 12, 24, 36];
+          attributes.forEach((name, index) => {
+            const location = gl.getAttribLocation(target, name);
+            if (location < 0) return;
+            gl.enableVertexAttribArray(location);
+            gl.vertexAttribPointer(location, index === 3 ? 1 : 3, gl.FLOAT, false, stride, offsets[index]);
+          });
+        };
+
+        // Keep the ocean and shoreline effect passes in the same order as desktop.
+        const oceanProgram = effects.oceanProgram;
+        gl.useProgram(oceanProgram);
+        setMatrix(oceanProgram, 'u_mvp', projection);
+        gl.uniform1f(gl.getUniformLocation(oceanProgram, 'u_time'), simTime);
+        gl.uniform1f(gl.getUniformLocation(oceanProgram, 'u_wave_intensity'), settings[7]);
+        gl.uniform1f(gl.getUniformLocation(oceanProgram, 'u_wave_speed'), settings[8]);
+        gl.uniform1f(gl.getUniformLocation(oceanProgram, 'u_wave_period'), settings[9]);
+        gl.uniform3fv(gl.getUniformLocation(oceanProgram, 'u_sun_world_dir'), sun);
+        const oceanPosition = gl.getAttribLocation(oceanProgram, 'in_pos');
+        gl.bindBuffer(gl.ARRAY_BUFFER, effects.ocean);
+        gl.enableVertexAttribArray(oceanPosition);
+        gl.vertexAttribPointer(oceanPosition, 3, gl.FLOAT, false, 12, 0);
+        gl.drawArrays(gl.TRIANGLES, 0, 6);
+
         gl.useProgram(program);
         gl.uniformMatrix4fv(gl.getUniformLocation(program,'u_mvp'),false,columnMajor(projection));
         gl.uniformMatrix4fv(gl.getUniformLocation(program,'u_view'),false,columnMajor(viewMatrix));
@@ -343,9 +381,38 @@
 
         drawMesh(0);
         drawMesh(1);
+
+        if (counts[2] > 0 || counts[3] > 0) {
+          gl.enable(gl.BLEND);
+          gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+          if (counts[2] > 0) {
+            const riverProgram = effects.riverProgram;
+            gl.useProgram(riverProgram);
+            setMatrix(riverProgram, 'u_mvp', projection);
+            gl.uniform1f(gl.getUniformLocation(riverProgram, 'u_time'), simTime);
+            setRibbonAttributes(riverProgram, buffers[2]);
+            gl.drawArrays(gl.TRIANGLES, 0, counts[2]);
+          }
+          if (counts[3] > 0 && (flags & 4)) {
+            const ribbonProgram = effects.ribbonProgram;
+            gl.useProgram(ribbonProgram);
+            setMatrix(ribbonProgram, 'u_mvp', projection);
+            gl.uniform1f(gl.getUniformLocation(ribbonProgram, 'u_time'), simTime);
+            gl.uniform1f(gl.getUniformLocation(ribbonProgram, 'u_wave_intensity'), settings[7]);
+            gl.uniform1f(gl.getUniformLocation(ribbonProgram, 'u_wave_speed'), settings[8]);
+            gl.uniform1f(gl.getUniformLocation(ribbonProgram, 'u_wave_period'), settings[9]);
+            gl.uniform1f(gl.getUniformLocation(ribbonProgram, 'u_foam_coverage'), settings[10]);
+            gl.uniform1f(gl.getUniformLocation(ribbonProgram, 'u_wave_desync'), settings[11]);
+            gl.uniform3fv(gl.getUniformLocation(ribbonProgram, 'u_sun_world_dir'), sun);
+            setRibbonAttributes(ribbonProgram, buffers[3]);
+            gl.drawArrays(gl.TRIANGLES, 0, counts[3]);
+          }
+          gl.disable(gl.BLEND);
+        }
         lastFrame = key;
       }
       ctx.drawImage(canvas, 0, 0, width, height);
+      if (animated) setTimeout(onReady, 80);
       return true;
     }
 

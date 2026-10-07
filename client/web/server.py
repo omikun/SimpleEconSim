@@ -284,6 +284,22 @@ class CoCHTTPRequestHandler(BaseHTTPRequestHandler):
                 threading.Thread(target=self.server.web_server.stop, daemon=True).start()
             return
 
+        elif parsed.path == '/api/restart':
+            if not self._authorized_mutation():
+                return
+            web_server = getattr(self.server, 'web_server', None)
+            if web_server is None:
+                self._send_error_json(503, 'Web server restart is unavailable')
+                return
+            resp_body = json.dumps({'success': True, 'message': 'Web server is restarting.'}).encode('utf-8')
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.send_header('Content-Length', str(len(resp_body)))
+            self.end_headers()
+            self.wfile.write(resp_body)
+            threading.Timer(0.25, web_server.restart).start()
+            return
+
         self._send_error_json(404, "Endpoint not found")
 
     def _send_error_json(self, status_code: int, message: str):
@@ -551,6 +567,7 @@ class CoCWebServer:
         self._http_thread: Optional[threading.Thread] = None
         self._sim_thread: Optional[threading.Thread] = None
         self._stop_event = threading.Event()
+        self._restart_event = threading.Event()
 
         self.terrain_renderer = None
         self._cached_terrain_bytes: Optional[bytes] = None
@@ -560,6 +577,7 @@ class CoCWebServer:
         self._terrain_mesh_lock = threading.Lock()
         self._terrain_mesh_generation = None
         self._terrain_mesh_bytes = None
+        self._restart_lock = threading.Lock()
 
     def get_terrain_image(self, format_type: str = 'png') -> tuple[bytes, str]:
         """Fetch or render photorealistic topographic terrain PNG/JPEG/WEBP image."""
@@ -593,19 +611,19 @@ class CoCWebServer:
         with sim._lock:
             generation = sim.world_generation
             gen = sim.gen
-            slot_state = dict(getattr(gen, 'slot_1_state', {}))
+            slot_state = dict(getattr(gen, 'slot_1_state', None) or {})
         if gen is None:
             raise RuntimeError('3D Mapgen terrain is unavailable for this world')
-        # Desktop setup_scene consumes gen.slot_1_state as-is. Only fill missing
-        # generator values here so web uses the exact same terrain parameters.
-        for key, attr in (
-            ('seed', 'seed'), ('shape', 'island_shape'), ('points', 'num_points'),
-            ('rivers', 'river_count'), ('sharpness', 'mountain_sharpness'),
-            ('canyon_depth', 'canyon_depth'), ('valley_width', 'valley_width'),
-        ):
-            if key not in slot_state:
-                slot_state[key] = getattr(gen, attr, None)
-
+        if not slot_state:
+            slot_path = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                'saved_slots', 'slot_1.json',
+            )
+            try:
+                with open(slot_path, 'r', encoding='utf-8') as slot_file:
+                    slot_state = json.load(slot_file).get('state', {})
+            except (OSError, ValueError, TypeError):
+                slot_state = {}
         with self._terrain_mesh_lock:
             if generation == self._terrain_mesh_generation and self._terrain_mesh_bytes is not None:
                 return self._terrain_mesh_bytes
@@ -615,7 +633,7 @@ class CoCWebServer:
                 build_hydro_river_ribbons, build_coastal_surf_ribbon,
             )
             graph_key = (
-                int(slot_state['seed']), slot_state.get('shape', 'radial'),
+                int(slot_state.get('seed', 777)), slot_state.get('shape', 'radial'),
                 int(slot_state.get('points', 1000)), int(slot_state.get('rivers', 25)),
                 round(float(slot_state.get('sharpness', 1.9)), 2),
                 0.0, 0.0, 0.0, 0.0,
@@ -700,13 +718,7 @@ class CoCWebServer:
         self._stop_event.clear()
 
         # 1. Bind HTTP Server
-        self.httpd = ThreadingHTTPServer((self.host, self.port), CoCHTTPRequestHandler)
-        # Attach references for handler access
-        self.httpd.sim_server = self.sim_server
-        self.httpd.base_url = self.base_url
-        self.httpd.api_token = self.api_token
-        self.httpd.web_server = self
-        self.httpd.get_terrain_image = self.get_terrain_image
+        self.httpd = self._create_http_server()
 
         # 2. Print scannable QR Code to terminal
         self.print_banner()
@@ -718,15 +730,58 @@ class CoCWebServer:
         self._sim_thread = threading.Thread(target=self._sim_loop, name="WebSimLoop", daemon=True)
         self._sim_thread.start()
 
-        # 5. Start HTTP Server thread
+        # 5. Serve on a managed thread so a listener restart can preserve the process.
+        self._http_thread = threading.Thread(
+            target=self._serve_http,
+            name='WebHttpServer',
+            daemon=not wait_forever,
+        )
+        self._http_thread.start()
         if wait_forever:
             try:
-                self.httpd.serve_forever()
+                self._http_thread.join()
             except KeyboardInterrupt:
                 self.stop()
-        else:
-            self._http_thread = threading.Thread(target=self.httpd.serve_forever, name="WebHttpServer", daemon=True)
-            self._http_thread.start()
+
+    def _create_http_server(self):
+        httpd = ThreadingHTTPServer((self.host, self.port), CoCHTTPRequestHandler)
+        httpd.sim_server = self.sim_server
+        httpd.base_url = self.base_url
+        httpd.api_token = self.api_token
+        httpd.web_server = self
+        httpd.get_terrain_image = self.get_terrain_image
+        return httpd
+
+    def _serve_http(self):
+        while not self._stop_event.is_set():
+            httpd = self.httpd
+            if httpd is None:
+                return
+            httpd.serve_forever()
+            httpd.server_close()
+            if self._stop_event.is_set() or not self._restart_event.is_set():
+                return
+            self._restart_event.clear()
+            try:
+                self.httpd = self._create_http_server()
+                threading.Thread(target=self._prewarm_terrain, name='TerrainPrewarm', daemon=True).start()
+                print('[WebServer] HTTP listener restarted.')
+            except OSError as exc:
+                self.httpd = None
+                print(f'[WebServer] Could not restart HTTP listener: {exc}')
+                return
+
+    def restart(self):
+        """Restart the HTTP listener while preserving the simulation and terrain caches."""
+        current = self.httpd
+        if current is None or self._stop_event.is_set():
+            return False
+        with self._restart_lock:
+            if self._restart_event.is_set():
+                return True
+            self._restart_event.set()
+            threading.Thread(target=current.shutdown, name='WebHttpRestart', daemon=True).start()
+        return True
 
     def _prewarm_terrain(self):
         """Asynchronously pre-generate terrain surfaces into RAM cache."""

@@ -3695,8 +3695,8 @@
       if (isVoronoi() && is3DMode) {
         const yawRad = (camYaw * Math.PI) / 180.0;
         const speed = 1.0 / Math.max(0.2, camZoom);
-        camTargetX = camStartTargetX - (dx * Math.cos(yawRad) - dy * Math.sin(yawRad)) * speed;
-        camTargetY = camStartTargetY - (dx * Math.sin(yawRad) + dy * Math.cos(yawRad)) * speed;
+        camTargetX = camStartTargetX - (dx * Math.cos(yawRad) + dy * Math.sin(yawRad)) * speed;
+        camTargetY = camStartTargetY + (-dx * Math.sin(yawRad) + dy * Math.cos(yawRad)) * speed;
       } else {
         camX = camStartX + dx;
         camY = camStartY + dy;
@@ -3881,6 +3881,39 @@
         sendCommand('RELOAD_WORLD', { seed, terrain_seed: seed, nation_seed: seed });
         closeSettingsModal();
       });
+    }
+
+    const btnRestartServer = document.getElementById('btn-restart-server');
+    if (btnRestartServer) btnRestartServer.addEventListener('click', restartWebServer);
+  }
+
+  async function restartWebServer() {
+    const button = document.getElementById('btn-restart-server');
+    const token = window.COC_API_TOKEN || window.REGNUM_API_TOKEN || '';
+    if (button) { button.disabled = true; button.textContent = 'Restarting web server…'; }
+    try {
+      const response = await fetch('/api/restart', {
+        method: 'POST',
+        headers: { 'X-COC-Token': token, 'X-REGNUM-Token': token }
+      });
+      if (!response.ok) throw new Error(`Server returned ${response.status}`);
+      closeSettingsModal();
+      showToast('Web server restarting. Reconnecting…');
+      await new Promise(resolve => setTimeout(resolve, 1200));
+      let consecutiveHealthChecks = 0;
+      for (let attempt = 0; attempt < 60; attempt++) {
+        try {
+          const health = await fetch('/api/state?compact=1', { cache: 'no-store' });
+          if (health.ok) consecutiveHealthChecks++;
+          else consecutiveHealthChecks = 0;
+        } catch (_) {}
+        if (consecutiveHealthChecks >= 2) { window.location.reload(); return; }
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+      throw new Error('The server did not come back online.');
+    } catch (error) {
+      if (button) { button.disabled = false; button.textContent = '↻ Restart Web Server'; }
+      showToast(`Could not restart web server: ${error.message}`, true);
     }
   }
 

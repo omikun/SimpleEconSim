@@ -15,7 +15,8 @@
   <script src="projection_3d.js?v=2"></script>
   <script src="trade_animator.js?v=2"></script>
   <script src="terrain_layer.js?v=1"></script>
-  <script src="terrain_webgl.js?v=3"></script>
+  <script src="terrain_effects.js?v=2"></script>
+  <script src="terrain_webgl.js?v=4"></script>
   <script src="state_sync.js?v=1"></script>
   <script src="state_store.js?v=1"></script>
   <script src="chart_renderer.js?v=1"></script>
@@ -1042,6 +1043,13 @@
               <button id="btn-settings-reload" class="btn btn-secondary btn-block">🎲 Generate Random World Seed</button>
             </div>
           </div>
+
+          <div class="gov-card mt-3">
+            <h4 class="card-title">Web Server</h4>
+            <div class="btn-group-row mt-2">
+              <button id="btn-restart-server" class="btn btn-secondary btn-block">↻ Restart Web Server</button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -1062,6 +1070,6 @@
     <div id="toast-container" class="toast-container"></div>
   </div>
 
-  <script src="client.js?v=13"></script>
+  <script src="client.js?v=15"></script>
 </body>
 </html>
