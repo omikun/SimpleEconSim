@@ -20,6 +20,7 @@ from __future__ import annotations
 import time
 from typing import List, Dict, Any, Optional
 from goods import Goods
+from labor_choice import evaluate_offer, attach_worker
 
 
 class LaborMobilityScheduler:
@@ -54,10 +55,14 @@ class LaborMobilityScheduler:
     def step_labor_cohort(self, region: Any, t: int) -> Dict[str, Any]:
         """Execute labor mobility and profession decisions for the active cohort on turn t."""
         start_time = time.perf_counter()
+        if getattr(region, 'labor_scheduler_last_turn', None) == t:
+            return {'t': t, 'cohort_size': 0, 'n_groups': self._n_groups,
+                    'elapsed_sec': 0.0, 'reallocations': [], 'already_processed': True}
         non_elites = self.get_non_elites(region)
         total_non_elites = len(non_elites)
 
         if total_non_elites == 0:
+            region.labor_scheduler_last_turn = t
             return {'t': t, 'cohort_size': 0, 'n_groups': 1, 'elapsed_sec': 0.0, 'reallocations': []}
 
         self._n_groups = self.calculate_n_groups(total_non_elites)
@@ -104,28 +109,32 @@ class LaborMobilityScheduler:
             # If unemployed and vacancies exist, apply to highest paying firm
             if is_unemployed and firms_with_vacancies:
                 best_firm = firms_with_vacancies[0]
-                worker.employer = best_firm
-                best_firm.employees.append(worker)
-                worker.wage = best_firm.wage
                 old_output = worker.output
-                worker.output = best_firm.output # Adopt firm's profession
-                worker.last_career_switch = t
-
-                reallocations.append({
-                    'agent_id': worker.id,
-                    'type': 'HIRED_BY_FIRM',
-                    'firm_id': best_firm.id,
-                    'old_profession': old_output.name if hasattr(old_output, 'name') else str(old_output),
-                    'new_profession': worker.output.name if hasattr(worker.output, 'name') else str(worker.output),
-                    'wage': best_firm.wage,
-                    'was_dispossessed': is_dispossessed,
-                    'is_emergency_fast_path': is_emergency,
-                })
-
-                # If firm reaches capacity, remove from open vacancies list
-                if len(best_firm.employees) >= best_firm.max_employees:
-                    firms_with_vacancies.pop(0)
-                continue
+                decision = evaluate_offer(worker, best_firm, region, t)
+                log = getattr(region, 'labor_decision_log', None)
+                if log is None:
+                    region.labor_decision_log = []
+                    log = region.labor_decision_log
+                log.append({'turn': t, 'worker_id': worker.id, 'firm_id': best_firm.id,
+                            'accepted': decision.accepted, 'reason': decision.reason,
+                            'offer': round(decision.offered_wage, 4),
+                            'reservation': round(decision.reservation_wage, 4)})
+                if len(log) > 500:
+                    del log[:-500]
+                if decision.accepted and attach_worker(worker, best_firm, t, decision):
+                    reallocations.append({
+                        'agent_id': worker.id,
+                        'type': 'HIRED_BY_FIRM',
+                        'firm_id': best_firm.id,
+                        'old_profession': old_output.name if hasattr(old_output, 'name') else str(old_output),
+                        'new_profession': worker.output.name if hasattr(worker.output, 'name') else str(worker.output),
+                        'wage': decision.offered_wage,
+                        'was_dispossessed': is_dispossessed,
+                        'is_emergency_fast_path': is_emergency,
+                    })
+                    if len(best_firm.employees) >= best_firm.max_employees:
+                        firms_with_vacancies.pop(0)
+                    continue
 
             # 2. Independent Craftsman / Commoner Career Switch:
             # If independent and not bound to a lord, evaluate market returns across professions
@@ -166,6 +175,7 @@ class LaborMobilityScheduler:
                         'is_emergency_fast_path': is_emergency,
                     })
 
+        region.labor_scheduler_last_turn = t
         elapsed_sec = time.perf_counter() - start_time
         self._last_execution_times.append(elapsed_sec)
 

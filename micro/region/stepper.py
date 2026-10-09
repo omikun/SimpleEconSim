@@ -55,9 +55,6 @@ def step_economy(region: Any, t: int):
         a.food_purchased = 0
         a.clear_wealth_cache()
 
-    # Commons foraging: serfs gather subsistence food from feudal commons
-    _forage.forage_tile(region, t)
-
     # Charity donations
     if legacy:
         region.charity.collect_donations(t, region.agents, region.bank)
@@ -83,6 +80,9 @@ def step_economy(region: Any, t: int):
 
     region.labor_scheduler.step_labor_cohort(region, t)
     audit_cash(region, t, "labour_done")
+
+    # Workers allocate this turn to paid work or subsistence foraging, not both.
+    _forage.forage_tile(region, t)
 
     # Capital goods machinery depreciation (operational wear-and-tear)
     from economy import apply_machinery_depreciation

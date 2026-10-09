@@ -95,6 +95,12 @@ class Region:
         self.enclosure_survey_debts: list = []  # active statutory survey debts
         self.workhouse_inmates_log: list = []  # time-series of workhouse inmate count
         self.pasture_fraction_log: list = []  # time-series of pasture fraction
+        self.vagrancy_law_active: bool = False
+        self.police_employed: int = 0
+        self.workhouse_last_step_turn: int = -1
+        self.labor_scheduler_last_turn: int = -1
+        self.labor_decision_log: list = []
+        self.forced_labor_hours: float = 0.0
 
         # P2: Labor commodification & surplus value
         self.workday_cap: float = 16.0  # legal maximum shift hours (defaults to unrestricted)

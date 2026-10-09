@@ -235,8 +235,8 @@ class TestPhase1EnclosureExpansions(unittest.TestCase):
         self.assertAlmostEqual(lord.cash, lord_cash_before_auction - bid)
         self.assertAlmostEqual(tile.gov.agent.cash, gov_cash_before_auction + bid)
 
-    def test_07_parish_workhouse_confinement_and_revenue(self):
-        """Verify workhouse building recipe, vagrancy arrest, gruel feeding, and municipal labor revenue."""
+    def test_07_parish_workhouse_requires_law_and_conserves_rations(self):
+        """Arrests require law/officers; rations transfer and forced work does not mint revenue."""
         nation = Nation("ParishNation", initial_cash=500.0)
         tile = Region("ParishCity", 0, 0)
         nation.add_tile(tile)
@@ -248,6 +248,8 @@ class TestPhase1EnclosureExpansions(unittest.TestCase):
         b = Building(name='workhouse', recipe=recipe, built_turn=1, region_name=tile.name)
         tile.buildings.append(b)
         self.assertTrue(has_workhouse(tile))
+        tile.vagrancy_law_active = True
+        tile.police_employed = 3
 
         # Create 3 dispossessed paupers
         paupers = []
@@ -261,6 +263,7 @@ class TestPhase1EnclosureExpansions(unittest.TestCase):
         # Municipal treasury has food and cash
         tile.gov.agent.inv_add(Goods.food, 5)
         gov_cash_before = tile.gov.agent.cash
+        food_before = sum(a.inv_get(Goods.food, 0) for a in tile.agents)
 
         # Step workhouse
         evs = step_workhouse(tile, t=1)
@@ -273,8 +276,40 @@ class TestPhase1EnclosureExpansions(unittest.TestCase):
             self.assertIn('mem_workhouse', p.memory)
             self.assertEqual(p.hungry_steps, 0)
 
-        # Municipal revenue earned from forced labor: 3 * 1.50 = 4.50
-        self.assertAlmostEqual(tile.gov.agent.cash - gov_cash_before, 4.50)
+        self.assertAlmostEqual(tile.gov.agent.cash - gov_cash_before, 0.0)
+        self.assertEqual(tile.forced_labor_hours, 24.0)
+        self.assertEqual(sum(p.inv_get(Goods.food, 0) for p in paupers), 3)
+        self.assertEqual(sum(a.inv_get(Goods.food, 0) for a in tile.agents), food_before)
+
+    def test_07b_workhouse_ration_purchase_has_real_seller(self):
+        nation = Nation("RationNation", initial_cash=100.0)
+        tile = Region("RationParish", 0, 0)
+        nation.add_tile(tile)
+        from buildings import BUILDING_RECIPES, Building
+        tile.buildings.append(Building(name='workhouse', recipe=BUILDING_RECIPES['workhouse'],
+                                       built_turn=1, region_name=tile.name))
+        tile.vagrancy_law_active = True
+        tile.police_employed = 1
+        tile.gov.agent.inventory[Goods.food.value] = 0
+        tile.gov.agent.cash = 10.0
+        tile.food_price = 2.0
+        seller = Agent(81)
+        seller.inv_add(Goods.food, 1)
+        seller.cash = 5.0
+        pauper = Agent(82)
+        pauper.cash = 0.0
+        pauper.social_class = 'dispossessed'
+        tile.agents = [tile.gov.agent, seller, pauper]
+        food_before = sum(a.inv_get(Goods.food, 0) for a in tile.agents)
+        cash_before = sum(a.cash for a in tile.agents)
+
+        step_workhouse(tile, t=1)
+
+        self.assertEqual(pauper.inv_get(Goods.food, 0), 1)
+        self.assertEqual(seller.inv_get(Goods.food, 0), 0)
+        self.assertEqual(seller.cash, 5.0 + tile.food_price)
+        self.assertEqual(sum(a.inv_get(Goods.food, 0) for a in tile.agents), food_before)
+        self.assertAlmostEqual(sum(a.cash for a in tile.agents), cash_before)
 
     def test_08_workhouse_fiscal_drought_bread_riot(self):
         """Verify that if the municipality has no food and no cash, inmates starve and launch a Bread Riot."""
@@ -285,6 +320,8 @@ class TestPhase1EnclosureExpansions(unittest.TestCase):
         from buildings import BUILDING_RECIPES, Building
         b = Building(name='workhouse', recipe=BUILDING_RECIPES['workhouse'], built_turn=1, region_name=tile.name)
         tile.buildings.append(b)
+        tile.vagrancy_law_active = True
+        tile.police_employed = 1
 
         # Bankrupt municipal gov
         tile.gov.agent.cash = 0.0
@@ -305,6 +342,24 @@ class TestPhase1EnclosureExpansions(unittest.TestCase):
         evs2 = step_workhouse(tile, t=2)
         riot_ev = next((e for e in evs2 if e['event'] == 'WORKHOUSE_BREAD_RIOT'), None)
         self.assertIsNotNone(riot_ev, "Starving inmates must stage a Workhouse Bread Riot")
+
+    def test_08b_workhouse_does_not_arrest_without_law_or_officers(self):
+        nation = Nation("NoArrestNation", initial_cash=100.0)
+        tile = Region("NoArrestParish", 0, 0)
+        nation.add_tile(tile)
+        from buildings import BUILDING_RECIPES, Building
+        tile.buildings.append(Building(name='workhouse', recipe=BUILDING_RECIPES['workhouse'],
+                                       built_turn=1, region_name=tile.name))
+        pauper = Agent(71)
+        pauper.social_class = 'dispossessed'
+        pauper.cash = 0.0
+        tile.agents.append(pauper)
+        step_workhouse(tile, t=1)
+        self.assertFalse(pauper.in_workhouse)
+
+        tile.vagrancy_law_active = True
+        step_workhouse(tile, t=2)
+        self.assertFalse(pauper.in_workhouse)
 
     def test_09_settlement_laws_migration_barrier(self):
         """Verify Settlement Laws prevent dispossessed paupers from migrating to foreign claimed parishes."""

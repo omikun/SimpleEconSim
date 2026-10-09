@@ -524,18 +524,21 @@ def initialize_default_transformation_ontology():
     def _check_vagrancy_prereqs(agent, region):
         from workhouse import has_workhouse
         is_elite = getattr(agent, 'is_lord', False) or getattr(agent, 'cash', 0.0) >= 100.0
-        return is_elite and has_workhouse(region)
+        return (is_elite and has_workhouse(region)
+                and not getattr(region, 'vagrancy_law_active', False)
+                and getattr(agent, 'cash', 0.0) >= 10.0
+                and getattr(getattr(region, 'gov', None), 'agent', None) is not None)
 
     def _execute_vagrancy_decree(agent, region, t):
-        from workhouse import step_workhouse
         fee = 10.0
-        if agent.cash >= fee:
-            agent.cash -= fee
-            gov = getattr(region, 'gov', None)
-            if gov and gov.agent:
-                gov.agent.cash += fee
-        evs = step_workhouse(region, t)
-        return {'success': True, 'events': evs, 'fee_paid': fee}
+        gov = getattr(region, 'gov', None)
+        if agent.cash < fee or gov is None or gov.agent is None:
+            return {'success': False, 'message': 'Insufficient sponsor funds or no government authority.'}
+        agent.cash -= fee
+        gov.agent.cash += fee
+        region.vagrancy_law_active = True
+        return {'success': True, 'events': [], 'fee_paid': fee,
+                'message': 'Vagrancy law activated; arrests require funded local enforcement capacity.'}
 
     TransformationGraph.register_operator(TransformationOperator(
         id='enforce_vagrancy_decree',

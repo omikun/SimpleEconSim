@@ -6,6 +6,7 @@ from agent import Agent, seed_traits
 from goods import Goods
 from random_cache import rand
 from labor_contract import evaluate_firm_contracts, calculate_shift_multiplier
+from labor_choice import evaluate_offer, attach_worker
 
 
 def cleanup_labor(region):
@@ -143,6 +144,25 @@ def evaluate_worker_reservation_wage(worker, region, tightness: float) -> float:
         return base_subsistence * 0.85
 
 
+def _record_labor_decision(region, decision):
+    """Keep a bounded audit trail of offers accepted or refused."""
+    log = getattr(region, 'labor_decision_log', None)
+    if log is None:
+        region.labor_decision_log = []
+        log = region.labor_decision_log
+    log.append({
+        'turn': decision.turn,
+        'worker_id': decision.worker_id,
+        'firm_id': decision.firm_id,
+        'accepted': decision.accepted,
+        'reason': decision.reason,
+        'offer': round(decision.offered_wage, 4),
+        'reservation': round(decision.reservation_wage, 4),
+    })
+    if len(log) > 500:
+        del log[:-500]
+
+
 def hire_workers(region, t):
     """Firms hire unemployed workers or poach from competitors based on wage offers."""
     tightness = calculate_labor_market_tightness(region)
@@ -164,26 +184,22 @@ def hire_workers(region, t):
         mrpl = calculate_firm_wage_ceiling(a, region)
         effective_max = min(mrpl, wage_cap) if wage_cap is not None else mrpl
 
-        candidates = [x for x in region.agents if getattr(x, 'alive', True) and x.employer is None and not x.is_corporation and x != a and not getattr(x, 'is_lord', False)]
+        candidates = [x for x in region.agents if getattr(x, 'alive', True)
+                      and x.employer is None and not x.is_corporation and x != a
+                      and not getattr(x, 'is_lord', False)]
 
-        for c in candidates[:vacancies]:
-            res_wage = evaluate_worker_reservation_wage(c, region, tightness)
-            if a.wage >= res_wage:
-                c.employer = a
-                c.hired_at = t
-                c.shift_hours = getattr(a, 'shift_hours', 8.0)
-                a.employees.append(c)
-                c.output = a.output
-            elif tightness > 1.0 and a.wage < effective_max:
-                # Firm bids up wage to meet reservation wage if affordable
-                target_wage = min(effective_max, res_wage)
+        for c in candidates:
+            if len(a.employees) >= a.max_employees:
+                break
+            decision = evaluate_offer(c, a, region, t, tightness=tightness)
+            if not decision.accepted and decision.reason == 'insufficient_wage' and tightness > 1.0:
+                target_wage = min(effective_max, decision.reservation_wage)
                 if target_wage > a.wage and a.cash > (payroll + target_wage) * 1.2:
                     a.wage = target_wage
-                    c.employer = a
-                    c.hired_at = t
-                    c.shift_hours = getattr(a, 'shift_hours', 8.0)
-                    a.employees.append(c)
-                    c.output = a.output
+                    decision = evaluate_offer(c, a, region, t, tightness=tightness)
+            _record_labor_decision(region, decision)
+            if decision.accepted:
+                attach_worker(c, a, t, decision)
 
         # If still have vacancies and no unattached candidates, consider poaching
         if len(a.employees) < a.max_employees and (not candidates or tightness > 1.2):
@@ -194,13 +210,11 @@ def hire_workers(region, t):
                 old_employer = target.employer
                 offer_wage = max(old_employer.wage * 1.15, a.wage * 1.08)
                 if offer_wage <= effective_max and a.cash > (payroll + offer_wage) * 2:
-                    old_employer.employees.remove(target)
-                    target.employer = a
-                    target.hired_at = t
-                    target.shift_hours = getattr(a, 'shift_hours', 8.0)
-                    target.output = a.output
-                    a.employees.append(target)
-                    a.wage = max(a.wage, offer_wage)
+                    decision = evaluate_offer(target, a, region, t, wage=offer_wage,
+                                              tightness=tightness)
+                    _record_labor_decision(region, decision)
+                    if decision.accepted and attach_worker(target, a, t, decision):
+                        a.wage = max(a.wage, offer_wage)
 
 
 def adjust_wages(region, t):

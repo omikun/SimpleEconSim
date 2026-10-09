@@ -2,12 +2,11 @@
 workhouse.py — Parish Workhouse & Vagrancy Enforcement Engine for REGNUM.
 
 Implements the English Poor Laws & Workhouse System:
-1. Dispossessed, landless, and unemployed vagrants are arrested and confined to
-   the Parish Workhouse.
+1. New vagrancy arrests require an active law and funded enforcement capacity.
 2. Inmates receive bare-subsistence gruel (1 food/turn) provided by the
    municipality (conserved food transfer or market purchase).
-3. Inmates perform compulsory hard labor (oakum picking, stone breaking)
-   generating municipal revenue directly credited to the municipal treasury.
+3. Inmates perform compulsory hard labor. It is not cash revenue until a buyer
+   purchases a real good or service from the municipality.
 4. If the municipality suffers a fiscal drought (no food in stock and no cash to buy gruel),
    inmates starve, triggering a Workhouse Bread Riot that damages municipal order
    and escalates popular unrest.
@@ -41,6 +40,10 @@ def step_workhouse(region, t: int) -> list[dict]:
 
     Returns event records for logging and UI ticker.
     """
+    if getattr(region, 'workhouse_last_step_turn', None) == t:
+        return []
+    region.workhouse_last_step_turn = t
+
     if not has_workhouse(region):
         # If workhouse building is lost/destroyed, all inmates are released
         for a in getattr(region, 'agents', []):
@@ -53,7 +56,16 @@ def step_workhouse(region, t: int) -> list[dict]:
     gov_agent = gov.agent if gov else None
     food_price = getattr(region, 'food_price', 1.0)
 
-    # 1. Arrest & Confine unattached vagrants (dispossessed & destitute)
+    # A building is not an arrest order. Police or a local garrison provides
+    # finite arrest capacity for this turn.
+    police_capacity = max(0, int(getattr(region, 'police_employed', 0)))
+    if police_capacity == 0:
+        police_capacity = sum(
+            1 for unit in getattr(region, 'military_units', [])
+            if getattr(unit, 'strength', 0) > 5.0
+        )
+
+    # 1. Arrest only when the vagrancy law and enforcement capacity exist.
     candidates = [
         a for a in region.agents
         if a.alive
@@ -66,7 +78,8 @@ def step_workhouse(region, t: int) -> list[dict]:
     ]
 
     arrested_count = 0
-    for pauper in candidates:
+    arrest_candidates = candidates if getattr(region, 'vagrancy_law_active', False) else []
+    for pauper in arrest_candidates[:police_capacity]:
         pauper.in_workhouse = True
         pauper.social_class = 'dispossessed'
         pauper.mem_push('mem_workhouse', 1.0)
@@ -105,37 +118,44 @@ def step_workhouse(region, t: int) -> list[dict]:
     food_provided = 0
 
     if gov_agent:
-        gov_food = gov_agent.inv_get(Goods.food, 0)
-        if gov_food >= food_needed:
-            # Conserved transfer from municipal granary
-            gov_agent.inv_add(Goods.food, -food_needed)
-            food_provided = food_needed
-        else:
-            # Provide whatever gov has
-            if gov_food > 0:
-                gov_agent.inv_add(Goods.food, -gov_food)
-                food_provided += gov_food
-            remaining = food_needed - food_provided
-            # Buy remaining food from market if gov has cash
-            cost = remaining * food_price
-            if gov_agent.cash >= cost:
-                gov_agent.cash -= cost
-                food_provided += remaining
+        gov_stock = min(food_needed, max(0, int(gov_agent.inv_get(Goods.food, 0))))
+        if gov_stock:
+            food_provided += gov_stock
+
+        # Purchase only from a named agent with physical food inventory.
+        # Cash and food move directly between the government, seller, and inmate.
+        remaining = food_needed - food_provided
+        for inmate in active_inmates[food_provided:]:
+            if remaining <= 0 or gov_agent.cash < food_price:
+                break
+            seller = next((a for a in sorted(region.agents, key=lambda x: x.id)
+                           if a is not gov_agent and a is not inmate
+                           and not getattr(a, 'is_corporation', False)
+                           and getattr(a, 'alive', True)
+                           and a.inv_get(Goods.food, 0) >= 1), None)
+            if seller is None:
+                break
+            seller.inv_add(Goods.food, -1)
+            gov_agent.cash -= food_price
+            seller.cash += food_price
+            gov_agent.inv_add(Goods.food, 1)
+            food_provided += 1
+            remaining -= 1
 
     fed_inmates = active_inmates[:food_provided]
     starving_inmates = active_inmates[food_provided:]
 
     for inmate in fed_inmates:
+        if gov_agent and gov_agent.inv_get(Goods.food, 0) > 0:
+            gov_agent.inv_add(Goods.food, -1)
         inmate.inv_add(Goods.food, 1)
         inmate.hungry_steps = 0
         inmate.mem_push('mem_workhouse', 0.5)
 
-    # 4. Compulsory Municipal Labor
-    # Inmates generate municipal revenue from forced labor (stone breaking, oakum picking)
-    revenue_per_inmate = 1.50
-    total_revenue = round(len(fed_inmates) * revenue_per_inmate, 2)
-    if gov_agent and total_revenue > 0:
-        gov_agent.cash += total_revenue
+    # 4. Record labor without creating unsourced treasury revenue.
+    forced_hours = len(fed_inmates) * 8.0
+    region.forced_labor_hours = getattr(region, 'forced_labor_hours', 0.0) + forced_hours
+    total_revenue = 0.0
 
     # 5. Handle Fiscal Drought & Workhouse Bread Riots
     if starving_inmates:
@@ -171,8 +191,9 @@ def step_workhouse(region, t: int) -> list[dict]:
         'revenue': total_revenue,
         'fed': len(fed_inmates),
         'starving': len(starving_inmates),
-        'message': (f"Parish Workhouse on {region.name}: {total_inmates} inmates confined. "
-                    f"Generated ${total_revenue:.1f} municipal revenue.")
+        'forced_labor_hours': forced_hours,
+        'message': (f"Parish Workhouse on {region.name}: {total_inmates} inmates confined; "
+                    f"{forced_hours:.1f} compulsory labor hours recorded, with no sale revenue.")
     })
 
     return events
