@@ -294,11 +294,16 @@ def produce_independent(region, agent, recipe, output, num_agents_per_good, loca
             compute_and_record_firm_footprint(agent, region, output, num_output, inputs_cost, 0.0)
     agent.inv_add(output, num_output)
     local_total_production[output] = local_total_production.get(output, 0) + num_output
+    if num_output > 0:
+        region.production_receipts.append({'turn': getattr(region, '_last_turn', 0),
+                                          'person_id': agent.id, 'good': output,
+                                          'quantity': num_output})
 
 
 def produce(region, t):
     """Run production phase for all active producers in region."""
     region._last_turn = t
+    region.production_receipts = []
     num_agents_per_good = {}
     for a in region.agents:
         if not a.is_trader and a.output != Goods.gov and a.output != Goods.none and a.output in region.recipes:

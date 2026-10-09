@@ -11,6 +11,8 @@ from land_tenure import LandPlot, TenureStatus, TileTenure
 from foraging import forage_tile
 from livelihood_access import (assess_obligation, due_cash_for, settle_obligations,
                                grant_access, effective_access)
+from crop_credit import offer_advance, settle_crop_liens, create_tenancy_agreement, settle_crop_shares
+from labor_cases import process_default_cases
 
 
 class TestPlunderLaborPhase1(unittest.TestCase):
@@ -136,6 +138,64 @@ class TestPlunderLaborPhase1(unittest.TestCase):
         grant_access(self.region, worker.id, plot.plot_id, 'commons_food')
         self.assertAlmostEqual(effective_access(worker, self.region), 0.25)
         self.assertEqual(effective_access(other, self.region), 0.0)
+
+    def test_advance_transfers_cash_and_lien_uses_only_current_harvest(self):
+        lender = Agent(51)
+        lender.cash = 20
+        self.region.agents.append(lender)
+        farmer = self._worker(52)
+        farmer.output = Goods.food
+        plot = LandPlot('farm', self.region.name, 51, 0.5, TenureStatus.FEUDAL,
+                        tenant_ids=[farmer.id])
+        self.region.tenure.add_plot(plot)
+        cash_before = lender.cash + farmer.cash
+        claim = offer_advance(lender, farmer, self.region, 8, 1, 'farm', lien_share=0.5)
+        self.assertIsNotNone(claim)
+        self.assertEqual(lender.cash + farmer.cash, cash_before)
+        farmer.inv_add(Goods.food, 4)  # old stores are not a current harvest receipt
+        self.region.production_receipts = [{'person_id': farmer.id, 'good': Goods.food, 'quantity': 3}]
+        food_before = farmer.inv_get(Goods.food, 0) + lender.inv_get(Goods.food, 0)
+        events = settle_crop_liens(self.region, 1)
+        self.assertEqual(events[0]['quantity'], 1)
+        self.assertEqual(farmer.inv_get(Goods.food, 0) + lender.inv_get(Goods.food, 0), food_before)
+        self.assertEqual(claim.balance, 6)
+
+    def test_share_tenancy_keeps_worker_unemployed_and_transfers_real_crop(self):
+        tenant = self._worker(61)
+        landlord = Agent(62)
+        landlord.cash = 5
+        self.region.agents.append(landlord)
+        plot = LandPlot('share', self.region.name, landlord.id, 0.5, TenureStatus.FEUDAL)
+        self.region.tenure.add_plot(plot)
+        agreement = create_tenancy_agreement(self.region, tenant, landlord, 'share',
+                                             kind='crop_share', crop_share=0.5)
+        self.assertEqual(tenant.employer, None)
+        self.assertIn(tenant.id, plot.tenant_ids)
+        tenant.output = Goods.food
+        tenant.inv_add(Goods.food, 4)
+        self.region.production_receipts = [{'person_id': tenant.id, 'good': Goods.food, 'quantity': 4}]
+        before = tenant.inv_get(Goods.food, 0) + landlord.inv_get(Goods.food, 0)
+        result = settle_crop_shares(self.region, 1)
+        self.assertEqual(result[0]['quantity'], 2)
+        self.assertEqual(tenant.inv_get(Goods.food, 0) + landlord.inv_get(Goods.food, 0), before)
+        self.assertTrue(agreement.active)
+
+    def test_foreclosure_case_waits_one_turn_and_requires_enforcement(self):
+        debtor = self._worker(71)
+        creditor = Agent(72)
+        plot = LandPlot('claim', self.region.name, creditor.id, 0.5, TenureStatus.FEUDAL,
+                        tenant_ids=[debtor.id])
+        self.region.tenure.add_plot(plot)
+        grant_access(self.region, debtor.id, plot.plot_id, 'commons_food')
+        claim = assess_obligation(self.region, debtor.id, creditor.id, 'rent', 5, 0,
+                                  collateral_plot_id=plot.plot_id)
+        process_default_cases(self.region, 0)
+        self.assertIn(debtor.id, plot.tenant_ids)
+        self.assertEqual(self.region.enforcement_cases[0].earliest_turn, 1)
+        self.region.police_employed = 1
+        process_default_cases(self.region, 1)
+        self.assertNotIn(debtor.id, plot.tenant_ids)
+        self.assertEqual(self.region.enforcement_cases[0].claim_id, claim.id)
 
 
 if __name__ == '__main__':

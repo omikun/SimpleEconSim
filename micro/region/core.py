@@ -102,6 +102,12 @@ class Region:
         self.cash_obligations: list = []
         self._next_obligation_id: int = 1
         self.obligation_events: list = []
+        self.tenancy_agreements: list = []
+        self.enforcement_cases: list = []
+        self._next_case_id: int = 1
+        self.production_receipts: list = []
+        self.lien_events: list = []
+        self.crop_share_events: list = []
         self.cash_tax_per_person: float = 0.0
         self.police_employed: int = 0
         self.workhouse_last_step_turn: int = -1

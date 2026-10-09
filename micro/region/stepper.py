@@ -121,6 +121,11 @@ def step_economy(region: Any, t: int):
                 tribute_val += qty * price
     region.tribute_collected_log.append(tribute_val)
 
+    # Crop liens and share tenancy claim only this turn's independently produced harvest.
+    from crop_credit import settle_crop_liens, settle_crop_shares
+    settle_crop_liens(region, t)
+    settle_crop_shares(region, t)
+
     # Trade & Route export posting
     _market.trade(region, t)
     _logistics.post_exports_to_route(region)
@@ -144,6 +149,10 @@ def step_economy(region: Any, t: int):
     pasture_f = region.tenure.pasture_fraction if hasattr(region, 'tenure') and region.tenure else 0.0
     region.pasture_fraction_log.append(pasture_f)
     audit_cash(region, t, "rent_done")
+
+    # Unpaid claims become named cases and cannot resolve until a later turn.
+    from labor_cases import process_default_cases
+    process_default_cases(region, t)
 
     # Migrate legacy survey claims; new claims are handled by the obligation ledger.
     from enclosure import step_enclosure_survey_debts
@@ -170,7 +179,17 @@ def step_economy(region: Any, t: int):
         _fin.recalculate_multipliers(region)
 
     # Demographics & Lifecycle
-    region.agents = live(region, t)
+    prior_agents = list(region.agents)
+    next_agents = live(region, t)
+    surviving_ids = {a.id for a in next_agents}
+    from livelihood_access import remove_access
+    for departed in prior_agents:
+        if not getattr(departed, 'alive', True) and departed.id not in surviving_ids:
+            remove_access(region, departed.id)
+            for plot in getattr(getattr(region, 'tenure', None), 'plots', []):
+                if departed.id in plot.tenant_ids:
+                    plot.tenant_ids.remove(departed.id)
+    region.agents = next_agents
     region.trader_agents = [a for a in region.agents if a.is_trader]
     audit_cash(region, t, "live_done")
 
