@@ -232,6 +232,13 @@ class TestPhase1EnclosureExpansions(unittest.TestCase):
             p.social_class = 'dispossessed'
             tile.agents.append(p)
             paupers.append(p)
+        constables = []
+        for i in range(3):
+            officer = Agent(60 + i)
+            officer.is_police = True
+            officer.social_class = 'constable'
+            tile.agents.append(officer)
+            constables.append(officer)
 
         # Municipal treasury has food and cash
         tile.gov.agent.inv_add(Goods.food, 5)
@@ -249,7 +256,8 @@ class TestPhase1EnclosureExpansions(unittest.TestCase):
             self.assertIn('mem_workhouse', p.memory)
             self.assertEqual(p.hungry_steps, 0)
 
-        self.assertAlmostEqual(tile.gov.agent.cash - gov_cash_before, 0.0)
+        self.assertAlmostEqual(tile.gov.agent.cash - gov_cash_before, -3.0)
+        self.assertEqual(sum(a.cash for a in constables), 3.0)
         self.assertEqual(tile.forced_labor_hours, 24.0)
         self.assertEqual(sum(p.inv_get(Goods.food, 0) for p in paupers), 3)
         self.assertEqual(sum(a.inv_get(Goods.food, 0) for a in tile.agents), food_before)
@@ -269,10 +277,13 @@ class TestPhase1EnclosureExpansions(unittest.TestCase):
         seller = Agent(81)
         seller.inv_add(Goods.food, 1)
         seller.cash = 5.0
+        constable = Agent(83)
+        constable.is_police = True
+        constable.social_class = 'constable'
         pauper = Agent(82)
         pauper.cash = 0.0
         pauper.social_class = 'dispossessed'
-        tile.agents = [tile.gov.agent, seller, pauper]
+        tile.agents = [tile.gov.agent, seller, constable, pauper]
         food_before = sum(a.inv_get(Goods.food, 0) for a in tile.agents)
         cash_before = sum(a.cash for a in tile.agents)
 
@@ -303,9 +314,10 @@ class TestPhase1EnclosureExpansions(unittest.TestCase):
         pauper = Agent(70)
         pauper.cash = 0.0
         pauper.social_class = 'dispossessed'
+        pauper.in_workhouse = True  # custody began on a prior funded case
         tile.agents.append(pauper)
 
-        # Step 1: Inmate arrested but starved
+        # Step 1: Existing inmate starves when the parish cannot buy food.
         step_workhouse(tile, t=1)
         self.assertTrue(pauper.in_workhouse)
         self.assertEqual(pauper.hungry_steps, 1)

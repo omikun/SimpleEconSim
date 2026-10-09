@@ -46,6 +46,10 @@ def step_economy(region: Any, t: int):
     record_start(region)
     audit_cash(region, t, "step_start")
 
+    # A labor-law petition takes effect only after its later decision window.
+    from labor_laws import decide_labor_laws
+    decide_labor_laws(region, t)
+
     # Named rent and fixed cash tax claims are assessed before workers compare offers.
     from livelihood_access import assess_obligation, settle_obligations
     _rent.assess_rents(region, t)

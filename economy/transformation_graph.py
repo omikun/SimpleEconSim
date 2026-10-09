@@ -499,15 +499,13 @@ def initialize_default_transformation_ontology():
         return is_elite and (ltr >= 1.5 or has_severe_wage_squeeze) and not is_already_active
 
     def _execute_statute_of_laborers(agent, region, t):
-        from labor_politics import enact_statute_of_laborers
+        from labor_laws import submit_law_petition
         fee = 20.0
-        if agent.cash >= fee:
-            agent.cash -= fee
-            gov = getattr(region, 'gov', None)
-            if gov and gov.agent:
-                gov.agent.cash += fee
-        ok, msg = enact_statute_of_laborers(region, wage_cap=1.50)
-        return {'success': ok, 'message': msg, 'fee_paid': fee}
+        petition = submit_law_petition(agent, region, 'quit_penalty', fee, t)
+        return {'success': petition is not None,
+                'message': 'Labor-law petition filed for government review.' if petition else 'Petition could not be filed.',
+                'petition_id': petition['id'] if petition else None,
+                'fee_paid': fee if petition else 0.0}
 
     TransformationGraph.register_operator(TransformationOperator(
         id='petition_statute_of_laborers',
@@ -526,19 +524,19 @@ def initialize_default_transformation_ontology():
         is_elite = getattr(agent, 'is_lord', False) or getattr(agent, 'cash', 0.0) >= 100.0
         return (is_elite and has_workhouse(region)
                 and not getattr(region, 'vagrancy_law_active', False)
+                and not any(p.get('law') == 'vagrancy' and p.get('status') == 'proposed'
+                            for p in getattr(region, 'labor_law_petitions', []))
                 and getattr(agent, 'cash', 0.0) >= 10.0
                 and getattr(getattr(region, 'gov', None), 'agent', None) is not None)
 
     def _execute_vagrancy_decree(agent, region, t):
+        from labor_laws import submit_law_petition
         fee = 10.0
-        gov = getattr(region, 'gov', None)
-        if agent.cash < fee or gov is None or gov.agent is None:
-            return {'success': False, 'message': 'Insufficient sponsor funds or no government authority.'}
-        agent.cash -= fee
-        gov.agent.cash += fee
-        region.vagrancy_law_active = True
-        return {'success': True, 'events': [], 'fee_paid': fee,
-                'message': 'Vagrancy law activated; arrests require funded local enforcement capacity.'}
+        petition = submit_law_petition(agent, region, 'vagrancy', fee, t)
+        return {'success': petition is not None, 'events': [],
+                'petition_id': petition['id'] if petition else None,
+                'fee_paid': fee if petition else 0.0,
+                'message': 'Vagrancy petition filed; government decision is pending.' if petition else 'Petition could not be filed.'}
 
     TransformationGraph.register_operator(TransformationOperator(
         id='enforce_vagrancy_decree',

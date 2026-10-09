@@ -96,6 +96,11 @@ class Region:
         self.workhouse_inmates_log: list = []  # time-series of workhouse inmate count
         self.pasture_fraction_log: list = []  # time-series of pasture fraction
         self.vagrancy_law_active: bool = False
+        self.labor_laws: dict = {}
+        self.labor_law_petitions: list = []
+        self._next_law_petition_id: int = 1
+        self.labor_law_events: list = []
+        self.government_legitimacy: float = 0.5
         self.access_rights: dict = {}
         self._access_rights_seeded: bool = False
         self.access_events: list = []

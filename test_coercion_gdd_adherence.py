@@ -120,8 +120,8 @@ class TestCoercionGDDAdherence(unittest.TestCase):
         self.assertTrue(ok2)
         self.assertEqual(plot.tenure, TenureStatus.ENCLOSED)
 
-    def test_eviction_resisted_without_bailiffs(self):
-        """Statutory survey foreclosure eviction is resisted if authority lacks force."""
+    def test_legacy_survey_debt_migrates_without_same_turn_eviction(self):
+        """Legacy survey debt becomes a claim; enforcement waits for a named case."""
         tile = Region("Eviction_Tile", 0)
         tile.protest_energy_log = [5.0]
         tile.military_units = []
@@ -139,9 +139,10 @@ class TestCoercionGDDAdherence(unittest.TestCase):
         }]
 
         events = step_enclosure_survey_debts(tile, self.t)
-        self.assertEqual(len(events), 1)
-        self.assertEqual(events[0]['event'], 'EVICTION_RESISTED')
-        self.assertGreater(tenant.mem_last('mem_promises'), 0.0)
+        self.assertEqual(events, [])
+        self.assertEqual(tile.enclosure_survey_debts, [])
+        self.assertTrue(any(c.origin == 'survey' and c.debtor_id == tenant.id
+                            for c in tile.cash_obligations))
 
     # ------------------------------------------------------------------
     # 3. Coups Governed by Force Ratio

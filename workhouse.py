@@ -56,34 +56,12 @@ def step_workhouse(region, t: int) -> list[dict]:
     gov_agent = gov.agent if gov else None
     food_price = getattr(region, 'food_price', 1.0)
 
-    # A building is not an arrest order. Police or a local garrison provides
-    # finite arrest capacity for this turn.
-    police_capacity = max(0, int(getattr(region, 'police_employed', 0)))
-    if police_capacity == 0:
-        police_capacity = sum(
-            1 for unit in getattr(region, 'military_units', [])
-            if getattr(unit, 'strength', 0) > 5.0
-        )
-
-    # 1. Arrest only when the vagrancy law and enforcement capacity exist.
-    candidates = [
-        a for a in region.agents
-        if a.alive
-        and not a.is_trader
-        and not a.is_government
-        and not getattr(a, 'is_lord', False)
-        and getattr(a, 'employer', None) is None
-        and not getattr(a, 'in_workhouse', False)
-        and (a.social_class == 'dispossessed' or (getattr(a, 'assigned_plot_id', None) is None and a.cash < 5.0))
-    ]
-
-    arrested_count = 0
-    arrest_candidates = candidates if getattr(region, 'vagrancy_law_active', False) else []
-    for pauper in arrest_candidates[:police_capacity]:
-        pauper.in_workhouse = True
-        pauper.social_class = 'dispossessed'
-        pauper.mem_push('mem_workhouse', 1.0)
-        arrested_count += 1
+    # Arrests now require a named, resolved vagrancy case and paid officer.
+    from labor_cases import process_vagrancy_cases
+    prior_inmates = {a.id for a in get_workhouse_inmates(region)}
+    resolved_case_ids = process_vagrancy_cases(region, t)
+    arrested_count = sum(1 for a in region.agents if getattr(a, 'in_workhouse', False)
+                         and a.id not in prior_inmates)
 
     if arrested_count > 0:
         events.append({
@@ -91,6 +69,7 @@ def step_workhouse(region, t: int) -> list[dict]:
             'event': 'VAGRANCY_ARRESTS',
             'tile': region.name,
             'count': arrested_count,
+            'case_ids': resolved_case_ids,
             'message': f"Parish Constables on {region.name} rounded up {arrested_count} vagrants and confined them to the Workhouse."
         })
 

@@ -53,3 +53,56 @@ def process_default_cases(region, turn):
             police -= 1
     region.enforcement_cases = cases
     return resolved
+
+
+def process_vagrancy_cases(region, turn):
+    from workhouse import has_workhouse
+    cases = getattr(region, 'enforcement_cases', [])
+    if (not getattr(region, 'vagrancy_law_active', False) or not has_workhouse(region)):
+        return []
+    for person in sorted(region.agents, key=lambda a: a.id):
+        if (person.alive and not person.is_trader and not person.is_government
+                and not getattr(person, 'is_police', False) and person.social_class != 'constable'
+                and not getattr(person, 'is_lord', False) and person.employer is None
+                and not getattr(person, 'in_workhouse', False)
+                and (person.social_class == 'dispossessed'
+                     or (getattr(person, 'assigned_plot_id', None) is None and person.cash < 5.0))
+                and not any(c.kind == 'vagrancy' and c.target_person_id == person.id
+                            and c.state == 'pending' for c in cases)):
+            cid = int(getattr(region, '_next_case_id', 1))
+            region._next_case_id = cid + 1
+            cases.append(EnforcementCase(cid, 'vagrancy', person.id, None, None,
+                                         turn, turn))
+    capacity = max(0, int(getattr(region, 'police_employed', 0)))
+    has_garrison = any(getattr(u, 'strength', 0) > 5
+                       for u in getattr(region, 'military_units', []))
+    constables = sorted((a for a in region.agents if a.alive and
+                         (getattr(a, 'is_police', False) or a.social_class == 'constable')),
+                        key=lambda a: a.id)
+    resolved = []
+    for case in sorted(cases, key=lambda c: c.id):
+        if case.kind != 'vagrancy' or case.state != 'pending' or case.earliest_turn > turn:
+            continue
+        target = next((a for a in region.agents if a.id == case.target_person_id and a.alive), None)
+        if target is None or not getattr(region, 'vagrancy_law_active', False):
+            case.state, case.outcome = 'closed', 'target absent or law repealed'
+            continue
+        if capacity <= 0 and not has_garrison:
+            case.outcome = 'pending: no enforcement capacity'
+            continue
+        if capacity > 0:
+            if not constables or region.gov.agent.cash < 1.0:
+                case.outcome = 'pending: no funded constable payee'
+                continue
+            constable = constables[(len(resolved)) % len(constables)]
+            region.gov.agent.cash -= 1.0
+            constable.cash += 1.0
+            capacity -= 1
+            case.officer_cost = 1.0
+        target.in_workhouse = True
+        target.social_class = 'dispossessed'
+        target.mem_push('mem_workhouse', 1.0)
+        case.state, case.outcome = 'resolved', 'confined after funded vagrancy hearing'
+        resolved.append(case.id)
+    region.enforcement_cases = cases
+    return resolved

@@ -13,6 +13,7 @@ from livelihood_access import (assess_obligation, due_cash_for, settle_obligatio
                                grant_access, effective_access)
 from crop_credit import offer_advance, settle_crop_liens, create_tenancy_agreement, settle_crop_shares
 from labor_cases import process_default_cases
+from labor_laws import submit_law_petition, decide_labor_laws, repeal_law
 
 
 class TestPlunderLaborPhase1(unittest.TestCase):
@@ -196,6 +197,27 @@ class TestPlunderLaborPhase1(unittest.TestCase):
         process_default_cases(self.region, 1)
         self.assertNotIn(debtor.id, plot.tenant_ids)
         self.assertEqual(self.region.enforcement_cases[0].claim_id, claim.id)
+
+    def test_petition_does_not_enact_law_and_repeal_restores_claim(self):
+        sponsor = self._worker(91)
+        sponsor.cash = 20
+        government = Agent(92)
+        government.cash = 0
+        self.region.gov = SimpleNamespace(agent=government)
+        plot = LandPlot('legal', self.region.name, 92, 0.5, TenureStatus.FEUDAL,
+                        tenant_ids=[sponsor.id])
+        self.region.tenure.add_plot(plot)
+        grant_access(self.region, sponsor.id, plot.plot_id, 'commons_food')
+        proposal = submit_law_petition(sponsor, self.region, 'gathering_restriction', 5, 0)
+        self.assertIsNotNone(proposal)
+        self.assertEqual(effective_access(sponsor, self.region), 0.5)
+        self.assertFalse(decide_labor_laws(self.region, 0))
+        self.assertEqual(effective_access(sponsor, self.region, official=True), 0.5)
+        decide_labor_laws(self.region, 1)
+        self.assertEqual(effective_access(sponsor, self.region, official=True), 0.0)
+        self.assertEqual(effective_access(sponsor, self.region), 0.5)
+        self.assertTrue(repeal_law(self.region, 'gathering_restriction'))
+        self.assertEqual(effective_access(sponsor, self.region, official=True), 0.5)
 
 
 if __name__ == '__main__':
