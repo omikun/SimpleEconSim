@@ -495,13 +495,14 @@ def initialize_default_transformation_ontology():
         has_severe_wage_squeeze = any(getattr(a, 'wage', 0.0) >= 2.40 for a in getattr(region, 'agents', [])
                                       if getattr(a, 'is_corporation', False))
         is_elite = getattr(agent, 'is_lord', False) or getattr(agent, 'is_corporation', False) or (getattr(agent, 'company_owned', None) is not None) or getattr(agent, 'cash', 0.0) >= 150.0
-        is_already_active = getattr(region, 'statute_of_laborers', False)
+        is_already_active = (getattr(region, 'statute_of_laborers', False)
+                             or getattr(region, 'labor_laws', {}).get('wage_cap') == 'enacted')
         return is_elite and (ltr >= 1.5 or has_severe_wage_squeeze) and not is_already_active
 
     def _execute_statute_of_laborers(agent, region, t):
         from labor_laws import submit_law_petition
         fee = 20.0
-        petition = submit_law_petition(agent, region, 'quit_penalty', fee, t)
+        petition = submit_law_petition(agent, region, 'wage_cap', fee, t)
         return {'success': petition is not None,
                 'message': 'Labor-law petition filed for government review.' if petition else 'Petition could not be filed.',
                 'petition_id': petition['id'] if petition else None,

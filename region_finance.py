@@ -6,6 +6,7 @@ import math
 import forex as _fx
 from goods import Goods
 from logger import loginfo, logwarning
+from labor_contract import ensure_labor_agreement
 
 
 def pay_wages(region, t):
@@ -26,11 +27,16 @@ def pay_wages(region, t):
             for e in a.employees:
                 if getattr(e, 'is_striking', False) or getattr(e, 'in_revolt', False):
                     continue
-                wage_nominal = getattr(a, 'wage', 1.0)
+                agreement = ensure_labor_agreement(e, a, t)
+                wage_nominal = max(0.0, float(agreement.pay_rate))
+                e.nominal_wage = wage_nominal
+                e.authorized_deductions = 0.0
+                e.wage_withheld = 0.0
                 if pay_mode == "scrip":
                     # Truck System: paid in corporate company scrip vouchers
                     e.scrip_wallet += wage_nominal
                     e.wages_received = wage_nominal
+                    e.realized_wage = wage_nominal
                     e.mem_push('mem_wages', wage_nominal)
                     a.scrip_issued += wage_nominal
                 else:
@@ -39,6 +45,13 @@ def pay_wages(region, t):
                     a.cash -= wage_to_pay
                     e.cash += wage_to_pay
                     e.wages_received = wage_to_pay
+                    e.realized_wage = wage_to_pay
+                    e.wage_withheld = wage_nominal - wage_to_pay
+                    if e.wage_withheld > 1e-9:
+                        liabilities = getattr(a, 'wage_liabilities', [])
+                        liabilities.append({'worker_id': e.id, 'turn': t,
+                                            'amount': e.wage_withheld, 'status': 'unpaid'})
+                        a.wage_liabilities = liabilities[-500:]
                     e.mem_push('mem_wages', wage_to_pay)
 
 

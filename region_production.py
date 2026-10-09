@@ -5,7 +5,7 @@ Production engine (firm and independent production) with Cython acceleration.
 from collections import defaultdict
 from goods import Goods
 from random_cache import rand
-from labor_contract import calculate_shift_multiplier, record_surplus_value
+from labor_contract import calculate_shift_multiplier, calculate_work_effort, ensure_labor_agreement, record_surplus_value
 
 try:
     import region_core as _c
@@ -146,7 +146,17 @@ def produce_corporation(region, agent, recipe, output, num_agents_per_good, loca
     base_production = recipe['production']
 
     # P2.1: Shift length multiplier and machinery capacity
-    shift_mult = calculate_shift_multiplier(getattr(agent, 'shift_hours', 8.0))
+    effort_factors = []
+    for employee in working_employees:
+        agreement = ensure_labor_agreement(employee, agent, getattr(region, '_last_turn', 0))
+        fatigue = float(getattr(employee, 'work_fatigue', 0.0))
+        nutrition = 0.6 if getattr(employee, 'hungry_steps', 0) > 0 else 1.0
+        effort_factors.append(calculate_work_effort(agreement.hours, agreement.pace,
+                                                    nutrition, fatigue))
+        employee.work_fatigue = max(0.0, fatigue + max(0.0, agreement.hours - 8.0) * 0.025
+                                    + max(0.0, agreement.pace - 1.0) * 0.20 - 0.05)
+        employee.workplace_accident = agreement.hours >= 14.0 or agreement.pace >= 1.75
+    shift_mult = sum(effort_factors) / len(effort_factors) if effort_factors else calculate_shift_multiplier(getattr(agent, 'shift_hours', 8.0))
     production_per_slot = base_production * synergy * terrain_bonus(region, output) * shift_mult
 
     machinery = getattr(agent, 'machinery_level', 1)

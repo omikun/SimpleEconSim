@@ -14,6 +14,8 @@ from livelihood_access import (assess_obligation, due_cash_for, settle_obligatio
 from crop_credit import offer_advance, settle_crop_liens, create_tenancy_agreement, settle_crop_shares
 from labor_cases import process_default_cases
 from labor_laws import submit_law_petition, decide_labor_laws, repeal_law
+from labor_contract import calculate_work_effort, ensure_labor_agreement, quit_job
+from region_finance import pay_wages
 
 
 class TestPlunderLaborPhase1(unittest.TestCase):
@@ -77,6 +79,7 @@ class TestPlunderLaborPhase1(unittest.TestCase):
         self.assertIs(worker.employer, firm)
         self.assertIn(worker, firm.employees)
         self.assertEqual(worker.wage, decision.offered_wage)
+        self.assertEqual(worker.labor_agreement.pay_rate, decision.offered_wage)
         self.assertFalse(attach_worker(worker, firm, 3, decision))
 
     def test_scheduler_rejects_below_reservation_offer_and_is_idempotent(self):
@@ -218,6 +221,41 @@ class TestPlunderLaborPhase1(unittest.TestCase):
         self.assertEqual(effective_access(sponsor, self.region), 0.5)
         self.assertTrue(repeal_law(self.region, 'gathering_restriction'))
         self.assertEqual(effective_access(sponsor, self.region, official=True), 0.5)
+
+    def test_effort_has_diminishing_hours_and_extreme_pace_fatigue(self):
+        base = calculate_work_effort(8, 1.0, 1.0, 0.0)
+        twelve = calculate_work_effort(12, 1.0, 1.0, 0.0)
+        extreme = calculate_work_effort(12, 2.0, 1.0, 2.0)
+        self.assertGreater(twelve, base)
+        self.assertLess(twelve / base, 12 / 8)
+        self.assertLess(calculate_work_effort(12, 1.75, 1.0, 2.0), twelve)
+
+    def test_unpaid_cash_wage_is_recorded_as_liability(self):
+        worker = self._worker(101)
+        firm = self._firm(wage=2.0)
+        firm.cash = 0.0
+        worker.employer = firm
+        firm.employees.append(worker)
+        ensure_labor_agreement(worker, firm, 0)
+        self.region.owner_nation = SimpleNamespace(truck_act_enacted=True)
+        before = worker.cash
+        pay_wages(self.region, 1)
+        self.assertEqual(worker.cash, before)
+        self.assertEqual(firm.wage_liabilities[0]['amount'], 2.0)
+        self.assertEqual(worker.wage_withheld, 2.0)
+
+    def test_quit_penalty_creates_claim_but_does_not_reattach_worker(self):
+        worker = self._worker(111)
+        firm = self._firm(wage=2.0)
+        worker.employer = firm
+        firm.employees.append(worker)
+        ensure_labor_agreement(worker, firm, 0)
+        self.region.labor_laws = {'quit_penalty': 'enacted'}
+        result = quit_job(worker, self.region, 3, penalty=4)
+        self.assertTrue(result['success'])
+        self.assertIsNone(worker.employer)
+        self.assertNotIn(worker, firm.employees)
+        self.assertEqual(self.region.cash_obligations[0].origin, 'quit_penalty')
 
 
 if __name__ == '__main__':

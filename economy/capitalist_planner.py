@@ -181,7 +181,7 @@ class EliteCapitalistPlanner:
             if can_run:
                 exec_res = statute_op.on_execute(agent, region, t)
                 return {
-                    'action_taken': 'ENACT_STATUTE_OF_LABORERS',
+                    'action_taken': 'PETITION_STATUTE_OF_LABORERS',
                     'details': exec_res
                 }
 
@@ -191,7 +191,7 @@ class EliteCapitalistPlanner:
             if can_run:
                 exec_res = vagrancy_op.on_execute(agent, region, t)
                 return {
-                    'action_taken': 'ENFORCE_VAGRANCY_DECREE',
+                    'action_taken': 'PETITION_VAGRANCY_DECREE',
                     'details': exec_res
                 }
 

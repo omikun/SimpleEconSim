@@ -96,4 +96,10 @@ def attach_worker(worker: Any, firm: Any, turn: int, decision: LaborDecision) ->
     worker.shift_hours = getattr(firm, 'shift_hours', 8.0)
     worker.output = firm.output
     worker.last_career_switch = turn
+    from labor_contract import ensure_labor_agreement
+    agreement = ensure_labor_agreement(worker, firm, turn)
+    agreement.start_turn = int(turn)
+    agreement.hours = float(getattr(firm, 'shift_hours', 8.0))
+    agreement.pay_rate = float(decision.offered_wage)
+    agreement.pay_mode = 'scrip' if getattr(firm, 'pay_mode', 'cash') == 'scrip' else 'cash'
     return True

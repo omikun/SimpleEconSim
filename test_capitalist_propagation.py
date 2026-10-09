@@ -263,9 +263,13 @@ class TestCapitalistPropagation(unittest.TestCase):
         # Capitalist evaluates class legislation to protect profit margins
         res = planner.evaluate_class_legislation(capitalist, self.tile, t=5)
         self.assertIsNotNone(res)
-        self.assertEqual(res['action_taken'], 'ENACT_STATUTE_OF_LABORERS')
+        self.assertEqual(res['action_taken'], 'PETITION_STATUTE_OF_LABORERS')
 
-        # Verify Statute was enacted and firm wage was legally capped to <= $1.50
+        # A capitalist petition is pending; law only binds after the government decision window.
+        self.assertFalse(getattr(self.tile, 'statute_of_laborers', False))
+        self.assertEqual(firm.wage, 2.50)
+        from labor_laws import decide_labor_laws
+        decide_labor_laws(self.tile, 6)
         self.assertTrue(getattr(self.tile, 'statute_of_laborers', False))
         self.assertLessEqual(firm.wage, 1.50)
 
@@ -767,6 +771,5 @@ class TestCapitalistPropagation(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-
 
 

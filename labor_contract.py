@@ -9,6 +9,7 @@ Shift hours are only reduced if legally mandated by state legislation (e.g. Ten-
 from __future__ import annotations
 from dataclasses import dataclass
 from goods import Goods
+from labor_institutions import LaborAgreement
 
 CUSTOMARY_SHIFT_HOURS = 8.0
 MAX_LEGAL_SHIFT_HOURS = 16.0
@@ -51,6 +52,61 @@ def calculate_shift_multiplier(shift_hours: float) -> float:
     return max(0.25, shift_hours / CUSTOMARY_SHIFT_HOURS)
 
 
+def ensure_labor_agreement(worker, firm, turn=0):
+    agreement = getattr(worker, 'labor_agreement', None)
+    if agreement is None or not agreement.active or agreement.firm_id != firm.id:
+        agreement = LaborAgreement(worker.id, firm.id, 'wage', int(turn), 0,
+                                   float(getattr(firm, 'shift_hours', 8.0)),
+                                   'scrip' if getattr(firm, 'pay_mode', 'cash') == 'scrip' else 'cash',
+                                   float(getattr(firm, 'wage', 0.0)))
+        worker.labor_agreement = agreement
+    return agreement
+
+
+def calculate_work_effort(hours, pace=1.0, nutrition=1.0, fatigue=0.0):
+    """Bound actual output by hours, pace, nutrition, and accumulated fatigue."""
+    hours = max(0.0, min(float(hours), MAX_LEGAL_SHIFT_HOURS))
+    pace = max(0.25, min(2.0, float(pace)))
+    nutrition = max(0.25, min(1.0, float(nutrition)))
+    fatigue = max(0.0, min(4.0, float(fatigue)))
+    hours_factor = calculate_shift_multiplier(hours)
+    pace_factor = min(1.25, pace) + max(0.0, pace - 1.25) * 0.15
+    fatigue_factor = max(0.4, 1.0 - fatigue * 0.20)
+    return hours_factor * pace_factor * nutrition * fatigue_factor
+
+
+def quit_job(worker, region, turn, penalty=0.0):
+    """Detach voluntarily; an enacted quit-penalty law may create a named claim."""
+    firm = getattr(worker, 'employer', None)
+    if firm is None:
+        return {'success': False, 'outcome': 'not employed'}
+    law_active = getattr(region, 'labor_laws', {}).get('quit_penalty') == 'enacted'
+    claim = None
+    if law_active and penalty > 0:
+        from livelihood_access import assess_obligation
+        from labor_institutions import EnforcementCase
+        claim = assess_obligation(region, worker.id, firm.id, 'quit_penalty', penalty,
+                                  turn + 1)
+        if claim is not None:
+            cases = getattr(region, 'enforcement_cases', [])
+            case_id = int(getattr(region, '_next_case_id', 1))
+            region._next_case_id = case_id + 1
+            cases.append(EnforcementCase(case_id, 'quit_penalty', worker.id, None,
+                                         claim.id, turn, turn + 1))
+            region.enforcement_cases = cases
+    if worker in getattr(firm, 'employees', []):
+        firm.employees.remove(worker)
+    worker.employer = None
+    agreement = getattr(worker, 'labor_agreement', None)
+    if agreement is not None:
+        agreement.active = False
+    event = {'turn': turn, 'worker_id': worker.id, 'firm_id': firm.id,
+             'outcome': 'unpaid fine claim' if claim else 'lawful exit',
+             'claim_id': claim.id if claim else None}
+    region.labor_events = (getattr(region, 'labor_events', []) + [event])[-500:]
+    return {'success': True, **event}
+
+
 def enforce_legal_workday_caps(firm, region):
     """Clamps firm shift hours and safety investment to match legal mandates.
 
@@ -64,6 +120,8 @@ def enforce_legal_workday_caps(firm, region):
     # Propagate shift hours to all employees
     for emp in getattr(firm, 'employees', []):
         emp.shift_hours = firm.shift_hours
+        agreement = ensure_labor_agreement(emp, firm)
+        agreement.hours = float(firm.shift_hours)
 
     # Safety standards mandate
     mandate = getattr(region, 'safety_mandate', 0.0)
@@ -98,6 +156,8 @@ def evaluate_firm_contracts(firm, region, t):
     # Ensure all employees share the firm's shift length
     for emp in getattr(firm, 'employees', []):
         emp.shift_hours = firm.shift_hours
+        agreement = ensure_labor_agreement(emp, firm)
+        agreement.hours = float(firm.shift_hours)
 
 
 def record_surplus_value(firm, region, output_good, units_produced: int,

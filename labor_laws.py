@@ -1,7 +1,7 @@
 """Petitions and delayed regional decisions for labor laws."""
 
 
-LAW_NAMES = frozenset({'vagrancy', 'gathering_restriction', 'quit_penalty'})
+LAW_NAMES = frozenset({'vagrancy', 'gathering_restriction', 'quit_penalty', 'wage_cap'})
 
 
 def submit_law_petition(sponsor, region, law, fee, turn):
@@ -54,6 +54,12 @@ def decide_labor_laws(region, turn):
                             right.legal_share = 0.0
                             if int(getattr(region, 'police_employed', 0)) > 0:
                                 right.usable_share = 0.0
+            if petition['law'] == 'wage_cap':
+                region.statute_of_laborers = True
+                region.wage_cap = 1.50
+                for firm in region.agents:
+                    if getattr(firm, 'is_corporation', False):
+                        firm.wage = min(float(getattr(firm, 'wage', 0.0)), region.wage_cap)
         events.append({'turn': turn, 'law': petition['law'], 'petition_id': petition['id'],
                        'status': petition['status'], 'sponsor_id': petition['sponsor_id']})
     region.labor_law_events = (getattr(region, 'labor_law_events', []) + events)[-200:]
@@ -66,6 +72,8 @@ def repeal_law(region, law):
     region.labor_laws[law] = 'repealed'
     if law == 'vagrancy':
         region.vagrancy_law_active = False
+    if law == 'wage_cap':
+        region.statute_of_laborers = False
     if law == 'gathering_restriction':
         for rights in getattr(region, 'access_rights', {}).values():
             for right in rights:
