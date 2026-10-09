@@ -46,6 +46,17 @@ def step_economy(region: Any, t: int):
     record_start(region)
     audit_cash(region, t, "step_start")
 
+    # Named rent and fixed cash tax claims are assessed before workers compare offers.
+    from livelihood_access import assess_obligation, settle_obligations
+    _rent.assess_rents(region, t)
+    fixed_tax = max(0.0, float(getattr(region, 'cash_tax_per_person', 0.0)))
+    if fixed_tax and getattr(region, 'gov', None) is not None:
+        for person in sorted(region.agents, key=lambda a: a.id):
+            if (person.alive and not person.is_trader and not person.is_government
+                    and not person.is_corporation and not getattr(person, 'is_lord', False)):
+                assess_obligation(region, person.id, region.gov.agent.id, 'cash_tax',
+                                  fixed_tax, t)
+
     # Repoint traders to best-margin neighbor
     _logistics.repoint_traders(region)
 
@@ -123,15 +134,18 @@ def step_economy(region: Any, t: int):
     _fin.distribute_profits(region, t)
     audit_cash(region, t, "profits_done")
 
-    # Cash rent collection on enclosed plots (P1.4)
-    rent_coll, rent_arr, _ = _rent.collect_rents(region, t)
+    # Settle named claims after wages; receipts move debtor cash to the named creditor.
+    claim_events = settle_obligations(region, t)
+    rent_coll = sum(e['paid'] for e in claim_events if e['origin'] == 'rent')
+    rent_arr = sum(c.balance for c in getattr(region, 'cash_obligations', [])
+                   if c.origin == 'rent' and c.status == 'active')
     region.rent_collected_log.append(rent_coll)
     region.rent_arrears_log.append(rent_arr)
     pasture_f = region.tenure.pasture_fraction if hasattr(region, 'tenure') and region.tenure else 0.0
     region.pasture_fraction_log.append(pasture_f)
     audit_cash(region, t, "rent_done")
 
-    # Survey debt trap processing on enclosed plots (Phase 1)
+    # Migrate legacy survey claims; new claims are handled by the obligation ledger.
     from enclosure import step_enclosure_survey_debts
     survey_evs = step_enclosure_survey_debts(region, t)
     audit_cash(region, t, "survey_debts_done")

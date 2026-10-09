@@ -158,8 +158,8 @@ class TestPhase1EnclosureExpansions(unittest.TestCase):
         wool_after = lord.inv_get(Goods.wool, 0)
         self.assertGreater(wool_after, wool_before, "Lord should receive wool yield from pasture")
 
-    def test_06_survey_debt_trap_solvent_and_foreclosure(self):
-        """Verify survey fee statutory assessment, solvent payment, and foreclosure auction on default."""
+    def test_06_survey_fees_become_named_obligations_without_immediate_foreclosure(self):
+        """Survey fees create named claims; default is deferred to the case system."""
         nation = Nation("Kingdom", initial_cash=500.0)
         tile = Region("CourtTile", 0, 0)
         nation.add_tile(tile)
@@ -199,41 +199,14 @@ class TestPhase1EnclosureExpansions(unittest.TestCase):
         self.assertTrue(ok)
         self.assertEqual(plot.tenure, TenureStatus.ENCLOSED)
 
-        # Verify survey debts assessed
-        self.assertEqual(len(tile.enclosure_survey_debts), 2)
-
-        # Turn 1: solvent tenant pays immediately
-        gov_cash_before = tile.gov.agent.cash
-        evs_debts1 = step_enclosure_survey_debts(tile, t=1)
-        self.assertAlmostEqual(t_solvent.cash, 15.0) # 30 - 15
-        self.assertAlmostEqual(tile.gov.agent.cash - gov_cash_before, 15.0) # conserved transfer
-        self.assertEqual(len(tile.enclosure_survey_debts), 1) # only insolvent tenant left
-
-        # Turn 2: insolvent tenant under pressure (deadline is t=4)
-        evs_debts2 = step_enclosure_survey_debts(tile, t=2)
-        self.assertEqual(len(tile.enclosure_survey_debts), 1)
-        self.assertIn('mem_promises', t_insolvent.memory)
-
-        # Turn 4: deadline reached! Foreclosure & auction
-        gov_cash_before_auction = tile.gov.agent.cash
-        merchant_cash_before = merchant.cash
-        lord_cash_before_auction = lord.cash
-        evs_debts4 = step_enclosure_survey_debts(tile, t=4)
-
-        # Insolvent tenant foreclosed & evicted
-        self.assertNotIn(t_insolvent.id, plot.tenant_ids)
-        self.assertEqual(t_insolvent.social_class, 'dispossessed')
-        self.assertIn('mem_debt_trap', t_insolvent.memory)
-        self.assertIn('mem_eviction', t_insolvent.memory)
-
-        # Wealthiest agent (Lord with >$500 vs Merchant with $50) won auction
-        auction_ev = next((e for e in evs_debts4 if e['event'] == 'SURVEY_DEBT_FORECLOSURE'), None)
-        self.assertIsNotNone(auction_ev)
-        self.assertEqual(auction_ev['winner_id'], lord.id)
-        bid = auction_ev['clearing_bid']
-        self.assertGreater(bid, 0.0)
-        self.assertAlmostEqual(lord.cash, lord_cash_before_auction - bid)
-        self.assertAlmostEqual(tile.gov.agent.cash, gov_cash_before_auction + bid)
+        claims = [c for c in tile.cash_obligations if c.origin == 'survey']
+        self.assertEqual(len(claims), 2)
+        self.assertEqual({c.debtor_id for c in claims}, {t_solvent.id, t_insolvent.id})
+        self.assertTrue(all(c.creditor_id == tile.gov.agent.id and c.due_turn == 4 for c in claims))
+        cash_before = sum(a.cash for a in tile.agents)
+        step_enclosure_survey_debts(tile, t=4)
+        self.assertIn(t_insolvent.id, plot.tenant_ids)
+        self.assertEqual(sum(a.cash for a in tile.agents), cash_before)
 
     def test_07_parish_workhouse_requires_law_and_conserves_rations(self):
         """Arrests require law/officers; rations transfer and forced work does not mint revenue."""

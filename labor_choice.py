@@ -20,18 +20,9 @@ class LaborDecision:
 
 
 def _outside_access(worker: Any, region: Any) -> float:
-    """Estimate subsistence access from the worker's assigned plot."""
-    plot_id = getattr(worker, 'assigned_plot_id', None)
-    tenure = getattr(region, 'tenure', None)
-    plot = tenure.find_plot(plot_id) if tenure is not None and plot_id else None
-    if plot is None:
-        return 0.0
-    status = getattr(getattr(plot, 'tenure', None), 'value', '')
-    if status == 'enclosed':
-        return 0.0
-    if status == 'leasehold':
-        return 0.5
-    return 1.0
+    """Estimate named, usable subsistence access."""
+    from livelihood_access import effective_access
+    return effective_access(worker, region, 'commons_food')
 
 
 def evaluate_offer(worker: Any, firm: Any, region: Any, turn: int,
@@ -44,7 +35,8 @@ def evaluate_offer(worker: Any, firm: Any, region: Any, turn: int,
     food_price = float(getattr(region, 'recipes', {}).get(Goods.food, {}).get('price', 1.0))
     outside_access = _outside_access(worker, region)
     outside_food = 4.0 * outside_access
-    due_cash = float(getattr(worker, 'cash_due_estimate', 0.0))
+    from livelihood_access import due_cash_for
+    due_cash = due_cash_for(worker.id, region, turn)
     market_tightness = (calculate_labor_market_tightness(region)
                         if tightness is None else max(0.0, float(tightness)))
     base = evaluate_worker_reservation_wage(worker, region, market_tightness)

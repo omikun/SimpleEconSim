@@ -96,6 +96,13 @@ class Region:
         self.workhouse_inmates_log: list = []  # time-series of workhouse inmate count
         self.pasture_fraction_log: list = []  # time-series of pasture fraction
         self.vagrancy_law_active: bool = False
+        self.access_rights: dict = {}
+        self._access_rights_seeded: bool = False
+        self.access_events: list = []
+        self.cash_obligations: list = []
+        self._next_obligation_id: int = 1
+        self.obligation_events: list = []
+        self.cash_tax_per_person: float = 0.0
         self.police_employed: int = 0
         self.workhouse_last_step_turn: int = -1
         self.labor_scheduler_last_turn: int = -1
@@ -429,6 +436,8 @@ class Region:
             self.gov.agent._bank_ref = self.bank
             self.gov.agent.home_currency = self.home_currency
         self.agents = agents
+        from livelihood_access import seed_access_rights
+        seed_access_rights(self)
 
     def _register_citizens(self):
         for agent in self.agents:

@@ -1050,7 +1050,7 @@ class SimServer:
 
         survey_debts = [
             {
-                'agent_id': d.get('agent_id'),
+                'agent_id': d.get('tenant_id', d.get('agent_id')),
                 'plot_id': d.get('plot_id'),
                 'fee': float(d.get('fee', 15.0)),
                 'deadline': int(d.get('deadline', 0)),
@@ -1129,6 +1129,10 @@ class SimServer:
                 continue
             f_obj = getattr(a, 'faction', None)
             f_name = f_obj.name if f_obj and hasattr(f_obj, 'name') else 'None'
+            from livelihood_access import effective_access
+            claims = [c for c in getattr(tile, 'cash_obligations', [])
+                      if c.debtor_id == a.id and c.status == 'active']
+            due = [c for c in claims if c.due_turn <= turn]
             citizens.append({
                 'id': str(a.id),
                 'age': int(a.age(turn)) if hasattr(a, 'age') else 30,
@@ -1137,6 +1141,14 @@ class SimServer:
                 'cash': round(float(getattr(a, 'cash', 0.0)), 1),
                 'hungry': bool(getattr(a, 'hungry_steps', 0) > 0),
                 'happiness': round(float(getattr(a, 'happiness', 1.0)), 2),
+                'legal_food_access': round(effective_access(a, tile, 'commons_food', official=True), 3),
+                'usable_food_access': round(effective_access(a, tile, 'commons_food'), 3),
+                'obligations': [{'id': c.id, 'origin': c.origin, 'creditor_id': c.creditor_id,
+                                 'balance': round(c.balance, 2), 'due_turn': c.due_turn}
+                                for c in claims],
+                'cash_due': round(sum(c.balance for c in due), 2),
+                'labor_regime': 'workhouse' if getattr(a, 'in_workhouse', False) else ('wage' if getattr(a, 'employer', None) else 'unemployed'),
+                'real_wage_after_deductions': round(max(0.0, float(getattr(a, 'wage', 0.0)) - sum(c.balance for c in due)), 2),
                 'faction': f_name
             })
             if len(citizens) >= 25:
@@ -1244,6 +1256,15 @@ class SimServer:
             'garrison': int(getattr(tile, 'garrison', 0)),
             'ecology': eco,
             'citizens': citizens,
+            'labor_institutions': {
+                'affected_households': len({c.debtor_id for c in getattr(tile, 'cash_obligations', []) if c.status == 'active'}),
+                'obligations': [{'id': c.id, 'debtor_id': c.debtor_id, 'creditor_id': c.creditor_id,
+                                 'origin': c.origin, 'balance': round(c.balance, 2),
+                                 'due_turn': c.due_turn, 'status': c.status}
+                                for c in getattr(tile, 'cash_obligations', [])],
+                'paid_this_turn': [e for e in getattr(tile, 'obligation_events', []) if e.get('turn', turn) == turn],
+                'cash_tax_per_person': float(getattr(tile, 'cash_tax_per_person', 0.0)),
+            },
             'charts': {
                 'economic': {
                     'prices': {'food': g_price(Goods.food), 'wood': g_price(Goods.wood), 'furniture': g_price(Goods.furniture)},

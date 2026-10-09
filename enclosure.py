@@ -16,6 +16,8 @@ Consequences of enclosure:
 
 from goods import Goods
 from land_tenure import TenureStatus, LandPlot
+from livelihood_access import (assess_obligation, effective_access, grant_access,
+                               remove_access)
 
 # Charter fee per 10% (0.10) fraction of tile enclosed (nominal administrative filing fee)
 CHARTER_FEE_PER_TENTH = 5.0
@@ -36,18 +38,26 @@ def dispossess_commoners(tile, plot: LandPlot, t: int) -> list[dict]:
     - Returns event records for logging / UI ticker.
     """
     events = []
-    serfs = [a for a in tile.agents
-             if not a.is_trader and not a.is_government
-             and not getattr(a, 'is_lord', False)
-             and a.alive]
+    serfs = [a for a in tile.agents if a.id in getattr(plot, 'tenant_ids', [])
+             and not a.is_trader and not a.is_government
+             and not getattr(a, 'is_lord', False) and a.alive]
 
     if not serfs:
         return events
 
     # Number of serfs directly dispossessed by this plot's enclosure
-    dispossessed_count = max(1, int(len(serfs) * plot.fraction))
-    for serf in serfs[:dispossessed_count]:
+    dispossessed_count = len(serfs)
+    for serf in serfs:
         serf.mem_push('mem_eviction', 1.0)
+        rights = getattr(tile, 'access_rights', {}).get(serf.id, [])
+        before = effective_access(serf, tile, 'commons_food')
+        for right in rights:
+            if right.plot_id == plot.plot_id and right.resource == 'commons_food':
+                right.usable_share = 0.0
+        after = effective_access(serf, tile, 'commons_food')
+        tile.access_events.append({'turn': t, 'person_id': serf.id, 'plot_id': plot.plot_id,
+                                   'before': round(before, 3), 'after': round(after, 3),
+                                   'cause': 'enclosure'})
 
     # Spike protest energy on tile
     protest_bump = round(plot.fraction * 5.0, 2)
@@ -137,23 +147,11 @@ def execute_enclosure(tile, plot_id: str, t: int, rent_rate: float = DEFAULT_CAS
     # Enclose the plot
     tenure.enclose_plot(plot_id, turn=t, rent_rate=rent_rate)
 
-    # Phase 1: Assess statutory surveying and hedging fees on customary tenants
-    if not hasattr(tile, 'enclosure_survey_debts'):
-        tile.enclosure_survey_debts = []
-
-    # Identify tenants on this plot
+    # Survey claims name only actual holders of this plot.
     plot_tenants = [a for a in tile.agents if a.id in getattr(plot, 'tenant_ids', []) and a.alive]
-    if not plot_tenants:
-        plot_tenants = [a for a in tile.agents if not a.is_trader and not a.is_government and not getattr(a, 'is_lord', False) and a.alive][:max(1, int(len(tile.agents) * plot.fraction))]
-
     for tenant in plot_tenants:
-        tile.enclosure_survey_debts.append({
-            'tenant_id': tenant.id,
-            'plot_id': plot_id,
-            'fee': STATUTORY_SURVEY_FEE,
-            'deadline': t + 3,
-            'enclosed_turn': t,
-        })
+        assess_obligation(tile, tenant.id, gov.agent.id, 'survey', STATUTORY_SURVEY_FEE,
+                          t + 3, collateral_plot_id=plot_id)
 
     # Dispossess serfs and log events
     events = dispossess_commoners(tile, plot, t)
@@ -182,8 +180,16 @@ def step_enclosure_survey_debts(tile, t: int) -> list[dict]:
       to the municipal treasury, and the defaulting tenant is evicted into
       SocialClass.DISPOSSESSED with mem_debt_trap and mem_eviction.
     """
+    # Legacy saves may contain the old list. Migrate once into named claims;
+    # deadlines are not foreclosures until the case system is active.
     if not hasattr(tile, 'enclosure_survey_debts') or not tile.enclosure_survey_debts:
         return []
+    for debt in tile.enclosure_survey_debts:
+        assess_obligation(tile, debt.get('tenant_id'), tile.gov.agent.id, 'survey',
+                          debt.get('fee', STATUTORY_SURVEY_FEE), debt.get('deadline', t),
+                          collateral_plot_id=debt.get('plot_id'))
+    tile.enclosure_survey_debts = []
+    return []
 
     events = []
     gov = getattr(tile, 'gov', None)

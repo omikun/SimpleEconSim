@@ -15,6 +15,7 @@ Homesteaders on wilderness tiles forage according to wilderness rules.
 """
 
 from goods import Goods
+from livelihood_access import effective_access
 
 BASE_FORAGE_YIELD = 4  # food/turn at full commons access (daily subsistence)
 
@@ -31,10 +32,7 @@ def can_forage(agent, region) -> bool:
     if (getattr(agent, 'assigned_plot_id', None) is None
             and getattr(agent, 'mem_avg', lambda *_: 0.0)('mem_eviction', 0.0) > 0):
         return False
-    tenure = getattr(region, 'tenure', None)
-    if tenure is None or tenure.commons_access <= 0.0:
-        return False
-    return True
+    return effective_access(agent, region, 'commons_food') > 0.0
 
 
 def forage_tile(region, t: int) -> int:
@@ -43,12 +41,11 @@ def forage_tile(region, t: int) -> int:
         return 0
 
     tenure = getattr(region, 'tenure', None)
-    if tenure is None or tenure.commons_access <= 0.0:
+    if tenure is None or (not getattr(region, 'wilderness', False) and not any(
+            effective_access(a, region, 'commons_food') > 0 for a in region.agents)):
         return 0
 
     fertility = region.terrain.get(Goods.food, 1.0)
-    access = tenure.commons_access
-    max_yield = max(1, int(BASE_FORAGE_YIELD * access * fertility))
     total = 0
 
     for a in region.agents:
@@ -67,6 +64,9 @@ def forage_tile(region, t: int) -> int:
 
         if not can_forage(a, region):
             continue
+
+        access = effective_access(a, region, 'commons_food')
+        max_yield = max(1, int(BASE_FORAGE_YIELD * access * fertility))
 
         # Cap at daily subsistence need (4 food)
         foraged = min(max_yield, 4)

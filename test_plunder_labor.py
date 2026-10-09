@@ -9,6 +9,8 @@ from goods import Goods
 from labor_choice import evaluate_offer, attach_worker
 from land_tenure import LandPlot, TenureStatus, TileTenure
 from foraging import forage_tile
+from livelihood_access import (assess_obligation, due_cash_for, settle_obligations,
+                               grant_access, effective_access)
 
 
 class TestPlunderLaborPhase1(unittest.TestCase):
@@ -46,12 +48,15 @@ class TestPlunderLaborPhase1(unittest.TestCase):
     def test_offer_evaluation_is_pure_and_access_changes_reservation(self):
         worker = self._worker()
         firm = self._firm(wage=2.2)
-        plot = LandPlot('p1', self.region.name, 8, 0.5, TenureStatus.FEUDAL)
+        plot = LandPlot('p1', self.region.name, 8, 0.5, TenureStatus.FEUDAL,
+                        tenant_ids=[worker.id])
         self.region.tenure.add_plot(plot)
         worker.assigned_plot_id = plot.plot_id
         before = (worker.employer, list(firm.employees), worker.output)
 
         secure = evaluate_offer(worker, firm, self.region, 1, tightness=0.5)
+        from livelihood_access import remove_access
+        remove_access(self.region, worker.id, plot.plot_id)
         worker.assigned_plot_id = None
         landless = evaluate_offer(worker, firm, self.region, 1, tightness=0.5)
 
@@ -99,6 +104,38 @@ class TestPlunderLaborPhase1(unittest.TestCase):
 
         self.assertEqual(gathered, 0)
         self.assertEqual(worker.inv_get(Goods.food, 0), 0)
+
+    def test_named_rights_and_obligations_change_choice_without_mutation(self):
+        worker = self._worker()
+        firm = self._firm(wage=2.2)
+        lord = Agent(70)
+        lord.cash = 0.0
+        self.region.agents.append(lord)
+        plot = LandPlot('p2', self.region.name, lord.id, 0.5, TenureStatus.FEUDAL,
+                        tenant_ids=[worker.id])
+        self.region.tenure.add_plot(plot)
+        grant_access(self.region, worker.id, plot.plot_id, 'commons_food')
+        self.assertGreater(effective_access(worker, self.region), 0)
+        secured = evaluate_offer(worker, firm, self.region, 1, tightness=0.5)
+        claim = assess_obligation(self.region, worker.id, lord.id, 'rent', 10, 1)
+        with_debt = evaluate_offer(worker, firm, self.region, 1, tightness=0.5)
+        self.assertEqual(claim.balance, 10)
+        self.assertEqual(due_cash_for(worker.id, self.region, 1), 10)
+        self.assertGreater(secured.reservation_wage, with_debt.reservation_wage)
+        self.assertEqual(worker.cash, 0)
+        paid = settle_obligations(self.region, 1)
+        self.assertEqual(paid[0]['paid'], 0)
+        self.assertEqual(claim.balance, 10)
+
+    def test_leasehold_access_is_half_and_enclosure_only_changes_named_holder(self):
+        worker = self._worker()
+        other = self._worker(2)
+        plot = LandPlot('lease', self.region.name, 8, 0.5, TenureStatus.LEASEHOLD,
+                        tenant_ids=[worker.id])
+        self.region.tenure.add_plot(plot)
+        grant_access(self.region, worker.id, plot.plot_id, 'commons_food')
+        self.assertAlmostEqual(effective_access(worker, self.region), 0.25)
+        self.assertEqual(effective_access(other, self.region), 0.0)
 
 
 if __name__ == '__main__':

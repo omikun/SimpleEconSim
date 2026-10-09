@@ -15,6 +15,34 @@ Conserved money transfer:
 
 from goods import Goods
 from land_tenure import TenureStatus
+from livelihood_access import assess_obligation
+
+
+def assess_rents(region, t: int) -> tuple[float, list[dict]]:
+    """Assess cash rent for named plot tenants without transferring money."""
+    tenure = getattr(region, 'tenure', None)
+    if tenure is None:
+        return 0.0, []
+    assessed, events = 0.0, []
+    for plot in sorted(tenure.plots, key=lambda p: p.plot_id):
+        if plot.tenure not in (TenureStatus.ENCLOSED, TenureStatus.LEASEHOLD):
+            continue
+        lord = next((a for a in region.agents if a.id == plot.lord_id and a.alive), None)
+        if lord is None:
+            continue
+        for tenant_id in sorted(set(getattr(plot, 'tenant_ids', []))):
+            tenant = next((a for a in region.agents if a.id == tenant_id and a.alive), None)
+            if tenant is None:
+                continue
+            amount = max(0.0, float(plot.rent_rate))
+            claim = assess_obligation(region, tenant.id, lord.id, 'rent', amount, t,
+                                      collateral_plot_id=plot.plot_id)
+            if claim:
+                assessed += amount
+                events.append({'t': t, 'event': 'RENT_ASSESSED', 'tenant_id': tenant.id,
+                               'creditor_id': lord.id, 'plot_id': plot.plot_id,
+                               'claim_id': claim.id, 'amount': round(amount, 2)})
+    return assessed, events
 
 
 def _find_agent(region, agent_id: int):
