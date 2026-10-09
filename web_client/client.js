@@ -2972,16 +2972,54 @@
     const wList = document.getElementById('workers-labor-list');
     if (wList && tile.citizens) {
       wList.innerHTML = '';
+      const institution = tile.labor_institutions || {};
+      const counts = institution.counts || {};
+      const countEl = document.getElementById('labor-regime-counts');
+      if (countEl) countEl.innerHTML = `Subsistence ${Number(counts.subsistence) || 0} · Tenants/sharecroppers ${Number(counts.tenant_sharecropper) || 0} · Wage workers ${Number(counts.wage) || 0} · Unemployed ${Number(counts.unemployed) || 0} · Compulsory ${Number(counts.compulsory) || 0}`;
+      const lawsEl = document.getElementById('labor-law-status');
+      if (lawsEl) {
+        const laws = institution.laws || {};
+        const lawNames = { vagrancy: 'Vagrancy', gathering_restriction: 'Gathering restriction', quit_penalty: 'Quit penalty', wage_cap: 'Wage cap' };
+        const activeLaws = Object.entries(laws).filter(([, status]) => status === 'enacted')
+          .map(([law]) => lawNames[law] || law);
+        lawsEl.innerHTML = `<span>Enacted laws:</span> <strong>${activeLaws.length ? activeLaws.map(escapeHtml).join(', ') : 'None'}</strong> <span class="text-dim">· ${Number(institution.affected_households) || 0} households with active claims · Enforcement $${Number(institution.enforcement_costs) || 0}</span>`;
+      }
+      const casesEl = document.getElementById('labor-enforcement-cases');
+      if (casesEl) {
+        const cases = institution.cases || [];
+        casesEl.innerHTML = cases.length
+          ? `<div class="sub-heading">Recent enforcement cases</div>${cases.slice(-5).map(c => `<div class="citizen-info">Case ${Number(c.id)} · ${escapeHtml(c.kind)} · Person ${escapeHtml(c.target_person_id)} · ${escapeHtml(c.state)}${c.outcome ? ` — ${escapeHtml(c.outcome)}` : ''}</div>`).join('')}`
+          : '<div class="citizen-info text-dim">No enforcement cases recorded.</div>';
+      }
       tile.citizens.slice(0, 10).forEach(c => {
         const row = document.createElement('div');
         row.className = 'citizen-row';
+        const obligations = (c.obligations || []).map(o => {
+          const creditor = tile.citizens.find(x => String(x.id) === String(o.creditor_id));
+          const creditorName = creditor ? creditor.career : `Agent ${o.creditor_id}`;
+          return `${escapeHtml(o.origin)} $${Number(o.balance).toFixed(2)} owed to ${escapeHtml(creditorName)}${Number(o.due_turn) <= Number(worldState?.turn) ? ' (due)' : ` (due turn ${Number(o.due_turn)})`}`;
+        });
+        const history = (c.timeline || []).slice(-3).map(e => {
+          const turn = Number(e.turn ?? e.t) || 0;
+          const kind = e.event || e.cause || e.origin || (e.paid !== undefined ? 'payment' : 'change');
+          const detail = e.paid !== undefined ? `paid $${Number(e.paid).toFixed(2)}`
+            : e.amount !== undefined ? `$${Number(e.amount).toFixed(2)}`
+            : e.quantity !== undefined ? `${Number(e.quantity)} ${escapeHtml(e.good || 'units')}`
+            : e.after !== undefined ? `access ${Math.round(Number(e.before || 0) * 100)}% → ${Math.round(Number(e.after || 0) * 100)}%`
+            : '';
+          return `T${turn} ${escapeHtml(kind)}${detail ? `: ${detail}` : ''}`;
+        });
+        const latestOffer = c.recent_reasons?.slice(-1)[0];
         row.innerHTML = `
           <div>
-            <span class="citizen-role">${escapeHtml(c.career)}</span>
-            <span class="text-dim">${Number(c.labor_hours) || 0}h • ${escapeHtml(c.ability_to_quit || 'lawful exit')}</span>
+            <span class="citizen-role">${escapeHtml(c.career)} · ${escapeHtml(c.labor_regime || 'unemployed')}</span>
+            <span class="text-dim">${Number(c.labor_hours) || 0}h at pace ${Number(c.labor_pace) || 1} • ${escapeHtml(c.ability_to_quit || 'lawful exit')}</span>
           </div>
           <div class="citizen-info">
-            Real pay: <strong class="text-gold">$${Number(c.real_wage_after_deductions) || 0}</strong> • Due: $${Number(c.cash_due) || 0} • ${escapeHtml(c.recent_reasons?.slice(-1)[0]?.reason || c.labor_regime || 'no recent offer')}
+            Food access legal/usable: ${Math.round((Number(c.legal_food_access) || 0) * 100)}% / ${Math.round((Number(c.usable_food_access) || 0) * 100)}% • Realized pay: <strong class="text-gold">$${Number(c.real_wage_after_deductions) || 0}</strong> • Cash due: $${Number(c.cash_due) || 0} • Fatigue ${Number(c.work_fatigue) || 0}
+            <div>${obligations.length ? obligations.join('<br>') : '<span class="text-dim">No named cash claims</span>'}</div>
+            <div>${latestOffer ? `Latest offer: ${latestOffer.accepted ? 'accepted' : 'rejected'} — ${escapeHtml(latestOffer.reason)} ($${Number(latestOffer.offer).toFixed(2)} offered / $${Number(latestOffer.reservation).toFixed(2)} reservation)` : 'No recent job offer recorded'}</div>
+            <div>${history.length ? history.join(' · ') : '<span class="text-dim">No recent institutional events</span>'}</div>
           </div>
         `;
         wList.appendChild(row);

@@ -186,6 +186,20 @@ def step_economy(region: Any, t: int):
     prior_agents = list(region.agents)
     next_agents = live(region, t)
     surviving_ids = {a.id for a in next_agents}
+    for firm in prior_agents:
+        if not getattr(firm, 'is_corporation', False):
+            continue
+        retained = []
+        for worker in getattr(firm, 'employees', []):
+            if getattr(worker, 'alive', True) and worker.id in surviving_ids:
+                retained.append(worker)
+            else:
+                if getattr(worker, 'employer', None) is firm:
+                    worker.employer = None
+                agreement = getattr(worker, 'labor_agreement', None)
+                if agreement is not None:
+                    agreement.active = False
+        firm.employees[:] = retained
     from livelihood_access import remove_access
     for departed in prior_agents:
         if not getattr(departed, 'alive', True) and departed.id not in surviving_ids:
