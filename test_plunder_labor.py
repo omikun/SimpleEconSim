@@ -1,4 +1,4 @@
-"""Behavior checks for the first Plunder of Labor implementation slice."""
+"""Behavior, conservation, serialization, and integration checks for labor mechanics."""
 
 import unittest
 from types import SimpleNamespace
@@ -16,9 +16,10 @@ from labor_cases import process_default_cases
 from labor_laws import submit_law_petition, decide_labor_laws, repeal_law
 from labor_contract import calculate_work_effort, ensure_labor_agreement, quit_job
 from region_finance import pay_wages
+from labor_audit import audit_labor_institutions
 
 
-class TestPlunderLaborPhase1(unittest.TestCase):
+class TestPlunderLaborMechanics(unittest.TestCase):
     def setUp(self):
         self.region = SimpleNamespace(
             name="Test Parish",
@@ -191,6 +192,13 @@ class TestPlunderLaborPhase1(unittest.TestCase):
                         tenant_ids=[debtor.id])
         self.region.tenure.add_plot(plot)
         grant_access(self.region, debtor.id, plot.plot_id, 'commons_food')
+        government = Agent(73)
+        government.cash = 5
+        officer = Agent(74)
+        officer.is_police = True
+        officer.social_class = 'constable'
+        self.region.gov = SimpleNamespace(agent=government)
+        self.region.agents.extend([government, officer])
         claim = assess_obligation(self.region, debtor.id, creditor.id, 'rent', 5, 0,
                                   collateral_plot_id=plot.plot_id)
         process_default_cases(self.region, 0)
@@ -200,6 +208,8 @@ class TestPlunderLaborPhase1(unittest.TestCase):
         process_default_cases(self.region, 1)
         self.assertNotIn(debtor.id, plot.tenant_ids)
         self.assertEqual(self.region.enforcement_cases[0].claim_id, claim.id)
+        self.assertEqual(government.cash, 4)
+        self.assertEqual(officer.cash, 1)
 
     def test_petition_does_not_enact_law_and_repeal_restores_claim(self):
         sponsor = self._worker(91)
@@ -256,6 +266,45 @@ class TestPlunderLaborPhase1(unittest.TestCase):
         self.assertIsNone(worker.employer)
         self.assertNotIn(worker, firm.employees)
         self.assertEqual(self.region.cash_obligations[0].origin, 'quit_penalty')
+
+    def test_audit_accepts_consistent_rights_jobs_and_claims(self):
+        worker = self._worker(121)
+        firm = self._firm(wage=3.0)
+        plot = LandPlot('audit', self.region.name, 8, 0.5, TenureStatus.FEUDAL,
+                        tenant_ids=[worker.id])
+        self.region.tenure.add_plot(plot)
+        grant_access(self.region, worker.id, plot.plot_id, 'commons_food')
+        claim = assess_obligation(self.region, worker.id, 8, 'rent', 1, 5)
+        self.assertIsNotNone(claim)
+        decision = evaluate_offer(worker, firm, self.region, 1, tightness=0.5)
+        self.assertTrue(attach_worker(worker, firm, 1, decision))
+        self.assertEqual(audit_labor_institutions(self.region), [])
+
+    def test_authoritative_policy_command_and_snapshot_are_json_safe(self):
+        import json
+        from sim_server import SimServer, CommandType
+        from sim_server.protocol import CommandMessage
+        server = SimServer(seed=719)
+        nation = next(n for n in server.nations if n.name == server.player_nation_name)
+        tile = nation.tiles[0]
+        result = server.execute_command(CommandMessage(CommandType.LABOR_LAW_ACTION,
+                              {'tile': tile.name, 'law': 'vagrancy', 'action': 'enact'}))
+        self.assertTrue(result['success'])
+        self.assertTrue(tile.vagrancy_law_active)
+        snapshot = SimServer.serialize_tile(tile, layout=server.layout, turn=server.turn)
+        json.dumps(snapshot)
+        self.assertIn('labor_institutions', snapshot)
+        self.assertIn('counts', snapshot['labor_institutions'])
+
+    def test_deterministic_world_survives_thirty_turns(self):
+        from sim_server import SimServer
+        server = SimServer(seed=90210)
+        for _ in range(30):
+            server.step()
+        self.assertEqual(server.turn, 30)
+        for nation in server.nations:
+            for region in nation.tiles:
+                self.assertEqual(audit_labor_institutions(region), [])
 
 
 if __name__ == '__main__':

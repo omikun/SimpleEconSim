@@ -338,6 +338,19 @@
                     </label>
                   </div>
                   <div class="toggle-control mt-2">
+                    <label for="labor-law-select">Labor law for selected tile</label>
+                    <select id="labor-law-select">
+                      <option value="vagrancy">Vagrancy</option>
+                      <option value="gathering_restriction">Gathering restriction</option>
+                      <option value="quit_penalty">Quit penalty</option>
+                      <option value="wage_cap">Wage cap</option>
+                    </select>
+                    <div class="btn-group-row mt-2">
+                      <button class="btn btn-secondary btn-sm" id="btn-labor-law-enact">Enact</button>
+                      <button class="btn btn-secondary btn-sm" id="btn-labor-law-repeal">Repeal</button>
+                    </div>
+                  </div>
+                  <div class="toggle-control mt-2">
                     <label class="switch-label">
                       <input type="checkbox" id="chk-open-borders" checked>
                       <span>Open Borders & Free Migration</span>

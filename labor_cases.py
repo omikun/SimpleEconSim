@@ -20,6 +20,9 @@ def process_default_cases(region, turn):
                                      claim.collateral_plot_id, claim.id, turn, turn + 1))
     police = max(0, int(getattr(region, 'police_employed', 0)))
     garrison = any(getattr(u, 'strength', 0) > 5 for u in getattr(region, 'military_units', []))
+    constables = sorted((a for a in getattr(region, 'agents', []) if a.alive and
+                         (getattr(a, 'is_police', False) or a.social_class == 'constable')),
+                        key=lambda a: a.id)
     resolved = []
     for case in sorted(cases, key=lambda c: c.id):
         if case.kind not in ('foreclosure', 'quit_penalty') or case.state != 'pending' or case.earliest_turn > turn:
@@ -34,6 +37,16 @@ def process_default_cases(region, turn):
         if police <= 0 and not garrison:
             case.outcome = 'pending: no enforcement capacity'
             continue
+        if police > 0:
+            gov_agent = getattr(getattr(region, 'gov', None), 'agent', None)
+            payee = next((a for a in constables if a.id not in (case.target_person_id, claim.creditor_id)), None)
+            if payee is None or gov_agent is None or gov_agent.cash < 1.0:
+                case.outcome = 'pending: no funded constable payee'
+                continue
+            gov_agent.cash -= 1.0
+            payee.cash += 1.0
+            case.officer_cost = 1.0
+            police -= 1
         debtor = by_id[case.target_person_id]
         plot = region.tenure.find_plot(case.target_plot_id) if case.target_plot_id and getattr(region, 'tenure', None) else None
         if case.kind == 'quit_penalty':

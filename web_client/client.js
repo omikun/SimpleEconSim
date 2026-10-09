@@ -2020,6 +2020,15 @@
       });
     }
 
+    const laborLawSelect = document.getElementById('labor-law-select');
+    const sendLaborLawAction = action => {
+      if (!selectedTileName || !laborLawSelect) return;
+      sendCommand('LABOR_LAW_ACTION', { tile: selectedTileName,
+        law: laborLawSelect.value, action });
+    };
+    document.getElementById('btn-labor-law-enact')?.addEventListener('click', () => sendLaborLawAction('enact'));
+    document.getElementById('btn-labor-law-repeal')?.addEventListener('click', () => sendLaborLawAction('repeal'));
+
     const chkBorders = document.getElementById('chk-open-borders');
     if (chkBorders) {
       chkBorders.addEventListener('change', () => {
@@ -2952,7 +2961,7 @@
             <span class="text-dim"> (Age ${Number(c.age) || 0})</span>
           </div>
           <div class="citizen-info">
-            Cash: <strong class="text-gold">$${Number(c.cash) || 0}</strong> • Wage: $${Number(c.wage) || 0}
+            Cash: <strong class="text-gold">$${Number(c.cash) || 0}</strong> • ${escapeHtml(c.labor_regime || 'unemployed')} • Access ${Math.round((Number(c.usable_food_access) || 0) * 100)}%
           </div>
         `;
         citList.appendChild(row);
@@ -2969,10 +2978,10 @@
         row.innerHTML = `
           <div>
             <span class="citizen-role">${escapeHtml(c.career)}</span>
-            <span class="text-dim">Shift: ${Number(c.workday) || 12}h</span>
+            <span class="text-dim">${Number(c.labor_hours) || 0}h • ${escapeHtml(c.ability_to_quit || 'lawful exit')}</span>
           </div>
           <div class="citizen-info">
-            Alienation: <strong class="text-ruby">${Number(c.alienation) || 0.2}</strong>
+            Real pay: <strong class="text-gold">$${Number(c.real_wage_after_deductions) || 0}</strong> • Due: $${Number(c.cash_due) || 0} • ${escapeHtml(c.recent_reasons?.slice(-1)[0]?.reason || c.labor_regime || 'no recent offer')}
           </div>
         `;
         wList.appendChild(row);

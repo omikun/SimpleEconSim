@@ -458,6 +458,25 @@ class SimServer:
                         setattr(target_nation, key, val)
                     return {'success': True, 'nation': target_nation.name, 'key': key, 'val': val}
 
+            elif c_type == CommandType.LABOR_LAW_ACTION:
+                target_nation = next((n for n in self.nations
+                                      if n.name == (p.get('nation') or self.player_nation_name)), None)
+                tile = self.by_name.get(p.get('tile'))
+                law, action = p.get('law'), p.get('action')
+                if target_nation is None or tile is None or tile not in target_nation.tiles:
+                    return {'success': False, 'error': 'Target tile must belong to the selected nation.'}
+                if law not in ('vagrancy', 'gathering_restriction', 'quit_penalty', 'wage_cap'):
+                    return {'success': False, 'error': 'Unknown labor law.'}
+                if action not in ('enact', 'repeal'):
+                    return {'success': False, 'error': 'Action must be enact or repeal.'}
+                from labor_laws import set_labor_law
+                status = 'enacted' if action == 'enact' else 'repealed'
+                set_labor_law(tile, law, status)
+                self.push_ticker(self.turn, 'LABOR_LAW',
+                                 f"{target_nation.name} {action}ed {law.replace('_', ' ')} in {tile.name}.",
+                                 (245, 210, 90))
+                return {'success': True, 'tile': tile.name, 'law': law, 'status': status}
+
             elif c_type == CommandType.DIPLOMATIC_ACTION:
                 action = p.get('action')
                 target = p.get('target')
@@ -1133,6 +1152,24 @@ class SimServer:
             claims = [c for c in getattr(tile, 'cash_obligations', [])
                       if c.debtor_id == a.id and c.status == 'active']
             due = [c for c in claims if c.due_turn <= turn]
+            agreement = getattr(a, 'labor_agreement', None)
+            decisions = [d for d in getattr(tile, 'labor_decision_log', [])
+                         if d.get('worker_id') == a.id][-3:]
+            timeline = [e for e in (getattr(tile, 'access_events', [])
+                                     + getattr(tile, 'obligation_events', [])
+                                     + getattr(tile, 'lien_events', [])
+                                     + getattr(tile, 'crop_share_events', [])
+                                     + getattr(tile, 'labor_events', []))
+                        if e.get('person_id', e.get('debtor_id', e.get('worker_id', e.get('tenant_id')))) == a.id][-8:]
+            if getattr(a, 'in_workhouse', False):
+                labor_regime = 'workhouse'
+            elif getattr(a, 'employer', None) is not None:
+                labor_regime = 'wage+tenant' if getattr(a, 'assigned_plot_id', None) else 'wage'
+            elif getattr(a, 'assigned_plot_id', None):
+                labor_regime = 'sharecropper' if any(x.active and x.tenant_id == a.id and x.type == 'crop_share'
+                                                     for x in getattr(tile, 'tenancy_agreements', [])) else 'tenant/subsistence'
+            else:
+                labor_regime = 'unemployed'
             citizens.append({
                 'id': str(a.id),
                 'age': int(a.age(turn)) if hasattr(a, 'age') else 30,
@@ -1147,8 +1184,20 @@ class SimServer:
                                  'balance': round(c.balance, 2), 'due_turn': c.due_turn}
                                 for c in claims],
                 'cash_due': round(sum(c.balance for c in due), 2),
-                'labor_regime': 'workhouse' if getattr(a, 'in_workhouse', False) else ('wage' if getattr(a, 'employer', None) else 'unemployed'),
-                'real_wage_after_deductions': round(max(0.0, float(getattr(a, 'wage', 0.0)) - sum(c.balance for c in due)), 2),
+                'labor_regime': labor_regime,
+                'labor_hours': round(float(getattr(agreement, 'hours', getattr(a, 'shift_hours', 0.0))), 1),
+                'labor_pace': round(float(getattr(agreement, 'pace', 1.0)), 2),
+                'real_wage_after_deductions': round(max(0.0, float(getattr(a, 'realized_wage', 0.0))
+                                                       - float(getattr(a, 'authorized_deductions', 0.0))), 2),
+                'ability_to_quit': 'penalty claim may apply' if getattr(tile, 'labor_laws', {}).get('quit_penalty') == 'enacted' else 'lawful exit',
+                'recent_reasons': [{'turn': int(d.get('turn', 0)), 'reason': str(d.get('reason', '')),
+                                    'accepted': bool(d.get('accepted', False)),
+                                    'offer': float(d.get('offer', 0.0)),
+                                    'reservation': float(d.get('reservation', 0.0))}
+                                   for d in decisions],
+                'timeline': timeline,
+                'work_fatigue': round(float(getattr(a, 'work_fatigue', 0.0)), 2),
+                'alienation': round(float(getattr(a, 'alienation', 0.0)), 2),
                 'faction': f_name
             })
             if len(citizens) >= 25:
@@ -1228,6 +1277,15 @@ class SimServer:
         purchased_series = (getattr(tile, 'food_purchased_log', []) or [])[-30:]
         rent_series = [round(float(r), 1) for r in (getattr(tile, 'rent_collected_log', []) or [])][-30:]
         arrears_series = [round(float(a), 1) for a in (getattr(tile, 'rent_arrears_log', []) or [])][-30:]
+        living_people = [a for a in getattr(tile, 'agents', []) if a.alive and not a.is_trader
+                         and not a.is_government and not a.is_corporation and not getattr(a, 'is_lord', False)]
+        labor_counts = {
+            'subsistence': sum(1 for a in living_people if a.employer is None and a.assigned_plot_id and not getattr(a, 'in_workhouse', False)),
+            'tenant_sharecropper': sum(1 for a in living_people if any(x.active and x.tenant_id == a.id for x in getattr(tile, 'tenancy_agreements', []))),
+            'wage': sum(1 for a in living_people if a.employer is not None),
+            'unemployed': sum(1 for a in living_people if a.employer is None and not a.assigned_plot_id and not getattr(a, 'in_workhouse', False)),
+            'compulsory': sum(1 for a in living_people if getattr(a, 'in_workhouse', False)),
+        }
 
         return {
             'name': tile.name,
@@ -1257,12 +1315,18 @@ class SimServer:
             'ecology': eco,
             'citizens': citizens,
             'labor_institutions': {
+                'counts': labor_counts,
                 'affected_households': len({c.debtor_id for c in getattr(tile, 'cash_obligations', []) if c.status == 'active'}),
                 'obligations': [{'id': c.id, 'debtor_id': c.debtor_id, 'creditor_id': c.creditor_id,
                                  'origin': c.origin, 'balance': round(c.balance, 2),
                                  'due_turn': c.due_turn, 'status': c.status}
                                 for c in getattr(tile, 'cash_obligations', [])],
                 'paid_this_turn': [e for e in getattr(tile, 'obligation_events', []) if e.get('turn', turn) == turn],
+                'cases': [{'id': c.id, 'kind': c.kind, 'target_person_id': c.target_person_id,
+                           'state': c.state, 'outcome': c.outcome, 'officer_cost': c.officer_cost}
+                          for c in getattr(tile, 'enforcement_cases', [])],
+                'enforcement_costs': round(sum(c.officer_cost for c in getattr(tile, 'enforcement_cases', [])), 2),
+                'laws': dict(getattr(tile, 'labor_laws', {})),
                 'cash_tax_per_person': float(getattr(tile, 'cash_tax_per_person', 0.0)),
             },
             'charts': {
