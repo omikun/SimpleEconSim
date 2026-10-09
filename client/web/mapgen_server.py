@@ -30,6 +30,9 @@ import pygame
 import numpy as np
 from PIL import Image
 
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 from polygon_map import PolygonMapGenerator
 from render_island_micropolys import (
@@ -325,7 +328,9 @@ REGNUM_SURF_CACHE: Dict[Tuple, pygame.Surface] = {}
 # ---------------------------------------------------------------------------
 # Persistent Save Slots Storage & Versioning
 # ---------------------------------------------------------------------------
-SLOTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "saved_slots")
+SLOTS_DIR = os.path.join(PROJECT_ROOT, "saved_slots")
+if not os.path.exists(SLOTS_DIR):
+    SLOTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "saved_slots")
 os.makedirs(SLOTS_DIR, exist_ok=True)
 CURRENT_SLOT_SCHEMA_VERSION = 1
 
@@ -1021,8 +1026,12 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def serve_index(self):
-        html_path = os.path.join(os.path.dirname(__file__), "web", "index.html")
-        if not os.path.exists(html_path):
+        candidates = [
+            os.path.join(PROJECT_ROOT, "web", "index.html"),
+            os.path.join(os.path.dirname(__file__), "web", "index.html"),
+        ]
+        html_path = next((p for p in candidates if os.path.exists(p)), None)
+        if not html_path:
             self.send_error(404, "index.html not found")
             return
 
@@ -1793,7 +1802,7 @@ def run_server(host: str = "0.0.0.0", port: int = 8080):
         server.server_close()
 
 
-if __name__ == "__main__":
+def main():
     import argparse
 
     parser = argparse.ArgumentParser(description="Mapgen2 Terrain Explorer Web Server")
@@ -1802,3 +1811,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     run_server(host=args.host, port=args.port)
+
+
+if __name__ == "__main__":
+    main()
