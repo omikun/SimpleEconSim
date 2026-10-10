@@ -5,6 +5,7 @@ import unittest
 from goods import Goods
 import forex as fx
 from labor_frontier_market import settle_markets, start_machinery_project
+from labor_frontier_labor import apply_action
 from scenario_labor_frontier_rivalry import DISTRICTS, create_world, step_world
 
 
@@ -85,6 +86,78 @@ class LaborFrontierRivalryTest(unittest.TestCase):
         settle_markets(world, 2)
         self.assertEqual(firm.machinery_level, 2)
         self.assertEqual(firm.inv_get(Goods.iron, 0), 0)
+        self.assertEqual(world['scenario_state']['machinery_projects'][0]['status'], 'complete')
+
+    def test_petition_closes_only_named_rights_after_paid_patrol_and_repeals(self):
+        world = create_world(seed=612)
+        step_world(world)
+        record = world['scenario_state']['restrictions']['Meridian']
+        self.assertEqual(record['status'], 'proposed')
+        border = world['tiles'][1]
+        initial_rights = sum(right.usable_share > 0 for rights in border.access_rights.values()
+                             for right in rights if right.resource == 'commons_food')
+        ok, _ = apply_action(world, 'approve_petition')
+        self.assertTrue(ok)
+        self.assertFalse(apply_action(world, 'protect_access')[0])
+        self.assertEqual(initial_rights, sum(right.usable_share > 0
+                                              for rights in border.access_rights.values()
+                                              for right in rights if right.resource == 'commons_food'))
+        step_world(world)
+        self.assertEqual(record['status'], 'active')
+        self.assertEqual(record['last_patrol_paid_turn'], 2)
+        self.assertEqual(0, sum(right.usable_share > 0 for rights in border.access_rights.values()
+                                for right in rights if right.resource == 'commons_food'))
+        self.assertTrue(apply_action(world, 'protect_access')[0])
+        self.assertEqual(initial_rights, sum(right.usable_share > 0
+                                              for rights in border.access_rights.values()
+                                              for right in rights if right.resource == 'commons_food'))
+        self.assertEqual(border.police_employed, 0)
+
+    def test_protective_choices_use_real_owner_public_and_food_reserves(self):
+        world = create_world(seed=617)
+        nation = world['nations'][0]
+        firm = next(a for a in world['tiles'][0].agents
+                    if a.is_corporation and a.output == Goods.cloth)
+        owner_cash, public_cash = firm.owner.cash, nation.government.agent.cash
+        ok, _ = apply_action(world, 'cofund_machinery')
+        self.assertTrue(ok)
+        self.assertEqual(firm.owner.cash, owner_cash - 30)
+        self.assertEqual(nation.government.agent.cash, public_cash - 15)
+        self.assertFalse(apply_action(world, 'release_relief')[0])
+        step_world(world)
+        food_before = nation.government.food_inventory
+        self.assertTrue(apply_action(world, 'release_relief')[0])
+        self.assertEqual(nation.government.food_inventory, food_before - 6)
+
+    def test_coercion_and_protection_change_labor_and_paid_orders(self):
+        results = {}
+        for choice in ('approve_petition', 'protect_access'):
+            world = create_world(seed=612)
+            step_world(world)
+            self.assertTrue(apply_action(world, choice)[0])
+            for _ in range(3):
+                step_world(world)
+            border = world['tiles'][1]
+            estate = next(a for a in border.agents
+                          if a.is_corporation and a.output == Goods.cotton)
+            results[choice] = (len(estate.employees),
+                               world['scenario_state']['market_summary']['Meridian']['units_sold'],
+                               sum(right.usable_share > 0 for rights in border.access_rights.values()
+                                   for right in rights if right.resource == 'commons_food'))
+        self.assertGreater(results['approve_petition'][0], results['protect_access'][0])
+        self.assertGreater(results['approve_petition'][1], results['protect_access'][1])
+        self.assertLess(results['approve_petition'][2], results['protect_access'][2])
+
+    def test_protected_machinery_path_regains_orders(self):
+        world = create_world(seed=612)
+        step_world(world)
+        self.assertTrue(apply_action(world, 'protect_access')[0])
+        step_world(world)
+        self.assertTrue(apply_action(world, 'cofund_machinery')[0])
+        step_world(world)
+        step_world(world)
+        self.assertGreater(world['scenario_state']['market_summary']['Meridian']['units_sold'], 0)
+        self.assertEqual(world['scenario_state']['restrictions']['Meridian']['status'], 'rejected')
         self.assertEqual(world['scenario_state']['machinery_projects'][0]['status'], 'complete')
 
 

@@ -25,6 +25,8 @@ def can_forage(agent, region) -> bool:
     and the tile has commons access > 0."""
     if getattr(agent, 'is_lord', False):
         return False
+    if getattr(agent, 'social_class', None) == 'constable':
+        return False
     if agent.is_trader or agent.is_corporation or agent.is_government:
         return False
     if getattr(agent, 'employer', None) is not None:

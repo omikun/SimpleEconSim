@@ -25,6 +25,14 @@ def initialize_market(world):
                       if _ordinary(a)][:14]
         for region in world['tiles'] if region.scenario_location == 'capital'
     }
+    # These funded household orders are an explicit starting endowment. Their
+    # balances are counted in the initial currency stock and never refilled.
+    for region in world['tiles']:
+        buyer_ids = state['cloth_buyer_ids'].get(region.name, ())
+        for person in region.agents:
+            if person.id in buyer_ids:
+                person.cash += 120.0
+    state['initial_buyer_endowment_each'] = 120.0
     state['market_sales'] = []
     state['market_summary'] = {}
     state['firm_statements'] = {}
@@ -33,7 +41,7 @@ def initialize_market(world):
     state['machinery_projects'] = []
 
 
-def start_machinery_project(world, nation_name, turn):
+def start_machinery_project(world, nation_name, turn, public_contribution=15):
     """Owner and government fund a two-turn project with physical inputs."""
     state = world['scenario_state']
     matches = [(region, firm) for region, firm in _firms(world)
@@ -46,8 +54,12 @@ def start_machinery_project(world, nation_name, turn):
         return False, 'Machinery project already active.'
     owner = firm.owner
     gov = region.owner_nation.government.agent
-    if owner is None or owner.cash < 30 or gov.cash < 15:
-        return False, 'Owner needs 30 cash and sovereign treasury needs 15.'
+    public_contribution = float(public_contribution)
+    if public_contribution not in (0.0, 15.0):
+        return False, 'Unsupported funding split.'
+    owner_share = 45.0 - public_contribution
+    if owner is None or owner.cash < owner_share or gov.cash < public_contribution:
+        return False, f'Owner needs {owner_share:g} cash and sovereign treasury needs {public_contribution:g}.'
     sellers = {}
     for good, amount in ((Goods.iron, 2), (Goods.coal, 1)):
         seller = next((a for a in region.agents if a.alive and a is not firm and
@@ -59,8 +71,8 @@ def start_machinery_project(world, nation_name, turn):
     coal_cost = region.recipes[Goods.coal]['price']
     if iron_cost + coal_cost + 8 > 45:
         return False, 'Input prices exceed the funded 45 cash budget.'
-    owner.cash -= 30
-    gov.cash -= 15
+    owner.cash -= owner_share
+    gov.cash -= public_contribution
     firm.cash += 45
     for good, amount, price in ((Goods.iron, 2, iron_cost),
                                 (Goods.coal, 1, coal_cost)):
@@ -74,7 +86,7 @@ def start_machinery_project(world, nation_name, turn):
     artisan.cash += 8
     project = {'nation': nation_name, 'firm_id': firm.id, 'start_turn': turn,
                'due_turn': turn + 2, 'status': 'active',
-               'owner_paid': 30, 'public_paid': 15,
+               'owner_paid': owner_share, 'public_paid': public_contribution,
                'iron_supplier_id': sellers[Goods.iron].id,
                'coal_supplier_id': sellers[Goods.coal].id}
     state['machinery_projects'].append(project)
@@ -131,7 +143,8 @@ def _buy_cotton(world, turn):
         while wanted > 0:
             offers = []
             for field in world['tiles']:
-                if field.scenario_location != 'borderland':
+                if (field.scenario_location != 'borderland' or
+                        field.owner_nation is not mill_region.owner_nation):
                     continue
                 path = _route(field, mill_region)
                 if path is None:
@@ -139,8 +152,10 @@ def _buy_cotton(world, turn):
                 freight = FREIGHT_PER_EDGE * (len(path) - 1)
                 for grower in field.agents:
                     if grower.alive and grower.output == Goods.cotton and grower.inv_get(Goods.cotton, 0) > 0:
-                        offers.append((field.recipes[Goods.cotton]['price'] + freight,
-                                       field.name, grower.id, field, grower, freight))
+                        ask = (1.5 + 0.12 * grower.wage if grower.is_corporation
+                               else field.recipes[Goods.cotton]['price'])
+                        offers.append((ask + freight, field.name, grower.id,
+                                       field, grower, freight))
             if not offers:
                 break
             delivered, _, _, field, grower, freight = min(offers, key=lambda row: row[:3])
@@ -155,7 +170,11 @@ def _buy_cotton(world, turn):
             if carrier is not None:
                 carrier.cash += freight
             grower.inv_add(Goods.cotton, -1)
+            old_stock = firm.inv_get(Goods.cotton, 0)
+            old_cost = firm.cost_get(Goods.cotton, 3.0)
             firm.inv_add(Goods.cotton, 1)
+            firm.cost_set(Goods.cotton,
+                          (old_stock * old_cost + delivered) / (old_stock + 1))
             wanted -= 1
             purchases.append({'turn': turn, 'mill': mill_region.name,
                               'origin': field.name, 'grower_id': grower.id,
@@ -166,9 +185,12 @@ def _buy_cotton(world, turn):
 def _cloth_ask(region, firm):
     recipe = region.recipes[Goods.cloth]
     # Posted terms derive from the real wage offer and productive recipe.
+    productive_slots = float(recipe['production']) * (
+        1.0 + 0.20 * min(3, max(0, firm.machinery_level - firm.broken_machinery - 1)))
+    cotton_cost = firm.cost_get(Goods.cotton, region.recipes[Goods.cotton]['price'])
     return round(8.0 + float(firm.wage) * 0.7
-                 + (2.0 * region.recipes[Goods.cotton]['price'])
-                 / max(1.0, float(recipe['production'])), 3)
+                 + (2.0 * cotton_cost)
+                 / max(1.0, productive_slots), 3)
 
 
 def _sell_cloth(world, turn):
@@ -178,7 +200,7 @@ def _sell_cloth(world, turn):
         buyers = [a for a in market.agents
                   if a.id in state['cloth_buyer_ids'].get(market.name, ()) and _ordinary(a)]
         for buyer in sorted(buyers, key=lambda a: a.id):
-            if buyer.inv_get(Goods.cloth, 0) >= 2:
+            if buyer.inv_get(Goods.cloth, 0) >= 1:
                 continue
             offers = []
             for source, firm in _firms(world):
@@ -218,7 +240,7 @@ def _sell_cloth(world, turn):
 
 
 def _consume_worn_cloth(world, turn):
-    if turn % 4 != 0:
+    if turn % 2 != 0:
         return 0
     used = 0
     buyer_ids = world['scenario_state']['cloth_buyer_ids']

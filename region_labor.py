@@ -192,7 +192,8 @@ def hire_workers(region, t):
             if len(a.employees) >= a.max_employees:
                 break
             decision = evaluate_offer(c, a, region, t, tightness=tightness)
-            if not decision.accepted and decision.reason == 'insufficient_wage' and tightness > 1.0:
+            if (not getattr(region, 'scenario_owner_policy', False) and not decision.accepted
+                    and decision.reason == 'insufficient_wage' and tightness > 1.0):
                 target_wage = min(effective_max, decision.reservation_wage)
                 if target_wage > a.wage and a.cash > (payroll + target_wage) * 1.2:
                     a.wage = target_wage
@@ -219,6 +220,8 @@ def hire_workers(region, t):
 
 def adjust_wages(region, t):
     """Adjust firm wages dynamically based on labor tightness, MRPL ceiling, and cash."""
+    if getattr(region, 'scenario_owner_policy', False):
+        return
     tightness = calculate_labor_market_tightness(region)
     is_statute = getattr(region, 'statute_of_laborers', False)
     wage_cap = getattr(region, 'maximum_wage_cap', None) if is_statute else None

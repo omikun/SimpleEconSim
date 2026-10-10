@@ -46,6 +46,26 @@ def _new_firm(region, owner, *, wage, capital):
     return firm
 
 
+def _new_cotton_estate(region, owner):
+    firm = Agent(0)
+    seed_traits(firm)
+    firm.is_corporation = True
+    firm.company_name = f'{region.name} Cotton Estate'
+    firm.output = Goods.cotton
+    firm.owner = owner
+    firm.region = region.name
+    firm.home_currency = region.home_currency
+    firm._bank_ref = region.bank
+    firm.cash = min(45.0, max(0.0, owner.cash))
+    owner.cash -= firm.cash
+    owner.company_owned = firm
+    firm.wage = 1.15
+    firm.max_employees = 6
+    region.agents.append(firm)
+    region.owner_nation.government._add_citizen(firm)
+    return firm
+
+
 def create_world(seed: int = 612) -> dict:
     """Build only four ticking districts; no sandbox world is built or discarded."""
     random.seed(seed)
@@ -70,6 +90,8 @@ def create_world(seed: int = 612) -> dict:
         if index in (1, 2):
             setup_capitalism_institutions(region)
             seed_access_rights(region)
+            estate_owner = next(a for a in region.agents if getattr(a, 'is_lord', False))
+            _new_cotton_estate(region, estate_owner)
             for grower in region.agents[1:6]:
                 grower.output = Goods.cotton
                 grower.inv_add(Goods.cotton, 3)  # Starting physical crop stock.
@@ -78,6 +100,7 @@ def create_world(seed: int = 612) -> dict:
             firm = _new_firm(region, owner, wage=2.4 if index == 0 else 2.2,
                              capital=65.0 if index == 0 else 75.0)
             firm.inv_add(Goods.cotton, 12)  # Starting raw material reserve.
+            firm.cost_set(Goods.cotton, 3.0)
             suppliers = [a for a in region.agents if a is not owner and not a.is_corporation
                          and not a.is_trader and not a.is_government]
             suppliers[0].output = Goods.iron
@@ -112,6 +135,8 @@ def create_world(seed: int = 612) -> dict:
     interpreter.initialize_scenario(world)
     from labor_frontier_market import initialize_market
     initialize_market(world)
+    from labor_frontier_labor import initialize_labor
+    initialize_labor(world)
     world["currency_totals"] = {player.currency: fx.audit_currency_total(tiles, player.currency)}
     return world
 
@@ -143,4 +168,6 @@ def advance_after_engine(world: dict, turn: int) -> None:
     """Run scenario settlements after the sole authoritative economy tick."""
     from labor_frontier_market import settle_markets
     settle_markets(world, turn)
+    from labor_frontier_labor import advance_labor_and_owner
+    advance_labor_and_owner(world, turn)
     get_interpreter().advance_turn(world, turn)
