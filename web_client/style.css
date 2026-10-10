@@ -1978,8 +1978,16 @@ input[type="range"] {
 .labor-timeline span { color: #e3c683; }
 
 @media (max-width: 650px) {
-  .scenario-pressures-ribbon.labor-scenario-ribbon { width: calc(100vw - 24px); }
+  /* The mobile tool rail occupies the left edge of the map viewport. */
+  .scenario-pressures-ribbon.labor-scenario-ribbon {
+    left: 8px;
+    width: min(390px, calc(100vw - 76px));
+  }
   .labor-scenario-scroll { max-height: min(65vh, 620px); }
+}
+
+@media (max-width: 420px) {
+  .labor-actions { grid-template-columns: minmax(0, 1fr); }
 }
 
 .pressure-pill {

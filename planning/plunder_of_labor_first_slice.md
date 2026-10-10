@@ -1,6 +1,6 @@
 # First slice: Labor, Territory, and Rivalry
 
-Status: implementation plan, 2026-10-10. This specializes [the AI and UI plan](plunder_of_labor_ai_and_ui_plan.md) around the player's stated strategic tension. Proposed numbers are tuning inputs, not historical estimates. Implement S0–S6 in order and commit after each gate. The deliverable is a complete small scenario playable in web and desktop.
+Status: S0–S6 implemented and automated checks completed, 2026-10-10; human playtest pending. This specializes [the AI and UI plan](plunder_of_labor_ai_and_ui_plan.md) around the player's stated strategic tension. Proposed numbers are tuning inputs, not historical estimates. The deliverable is a complete small scenario playable in web and desktop.
 
 ## 1. Player promise and completion target
 
@@ -167,3 +167,11 @@ The first release must demonstrate these **fixture outcomes**, not force all of 
 - **Rival restraint:** the neighbor sees insufficient gain or supply, chooses industry or a standstill, and does not invade merely because the scenario reached a particular turn.
 
 Stop scope at two countries, one cross-border market competition, one pressure mechanism, one productive alternative, one land front, and one treaty family. Leave new debt traps, cartels, navies, multiple alliances, arms industries, covert action, and other historical labor mechanisms for later slices. Preserve the wider mechanism registry as future work. The first milestone succeeds when protecting livelihoods, expanding extraction, and keeping pace with a rival are connected choices the player understands and wants to explore again.
+
+## 10. Implementation validation record
+
+- Seed 612 uses a physical starting granary of 60 units per state. The four-person garrisons remain staffed through turn 16 in a passive run; relief and recruitment draw from that same finite stock. A 30-turn continuation conserves the common currency to floating-point precision, preserves enlisted IDs, and ends with unsupplied forces discharged rather than invented replacements.
+- Comparative runs with the same buyers and seed show three different policies by turn 8: waiting sells 14 Meridian cloth, protecting access and cofunding machinery sells 42, and approving closure sells 41 while closing named commons rights and paying patrol costs. The protected and coercive routes maintain four border soldiers at that point. These numbers are fixture observations, not guaranteed outcomes for every seed.
+- The focused scenario and neighboring labor/scenario suites pass 70 tests. A world snapshot round trip preserves a pending petition and active contracts, and its displayed deadline remains actionable. Desktop rendering and web decision execution were smoke-tested; a mobile viewport fits the decision panel, and Enter activates its toggle and a decision.
+- The older M5 multi-currency sandbox conservation test still reports a cross-currency shift. This bounded scenario deliberately uses one shared currency and its audit passes; the broader currency issue remains separate work.
+- No human formative playtest was available. Clarity of the strategic objective and whether the choices are enjoyable remain unvalidated until players try the 20-turn scenario.

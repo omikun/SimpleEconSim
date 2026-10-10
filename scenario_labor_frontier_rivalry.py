@@ -108,8 +108,11 @@ def create_world(seed: int = 612) -> dict:
             suppliers[0].inv_add(Goods.iron_ore, 8)
             suppliers[1].output = Goods.coal
             suppliers[1].inv_add(Goods.coal, 3)
-    player.government.food_inventory = 18
-    rival.government.food_inventory = 18
+    # Both states begin with a physical granary. Four border soldiers consume
+    # four units each turn; this stock keeps a garrison credible across the
+    # scenario while relief, recruitment, and expeditions shorten its runway.
+    player.government.food_inventory = 60
+    rival.government.food_inventory = 60
     player.scenario_personnel = True
     rival.scenario_personnel = True
     for left, right in zip(tiles, tiles[1:]):
@@ -157,7 +160,8 @@ def create_world(seed: int = 612) -> dict:
 def step_world(world: dict) -> list:
     """Advance the authoritative engine once, then read scenario outcomes."""
     turn = int(world["turn"]) + 1
-    if world["scenario_state"].get("ending"):
+    if (world["scenario_state"].get("ending")
+            and not world["scenario_state"].get("audit_mode")):
         return []
     events = world["events"]
     violations, _ = sim_engine.step_turn(
@@ -185,4 +189,5 @@ def advance_after_engine(world: dict, turn: int) -> None:
     advance_labor_and_owner(world, turn)
     from labor_frontier_rivalry import advance_rival
     advance_rival(world, turn)
-    get_interpreter().advance_turn(world, turn)
+    if not world['scenario_state'].get('audit_mode'):
+        get_interpreter().advance_turn(world, turn)

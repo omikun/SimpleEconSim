@@ -180,7 +180,7 @@ def _advance_restriction(world, nation_name, turn):
     if record is None:
         return
     border = world['by_name'][record['region']]
-    if record['status'] == 'proposed' and turn >= record['deadline_turn']:
+    if record['status'] == 'proposed' and turn > record['deadline_turn']:
         record['status'] = 'expired'
         record['retry_after'] = turn + 4
         _set_petition_status(border, record, 'expired')

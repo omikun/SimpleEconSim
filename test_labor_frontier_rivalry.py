@@ -1,5 +1,6 @@
 """Focused behavior checks for the authored labor and border rivalry slice."""
 
+import pickle
 import unittest
 
 from goods import Goods
@@ -299,6 +300,90 @@ class LaborFrontierRivalryTest(unittest.TestCase):
         bypass = server.execute_command(CommandMessage(
             CommandType.RECRUIT_UNIT, {'tile': 'Meridian Fields', 'soldiers': 50}))
         self.assertFalse(bypass['success'])
+
+    def test_protected_investment_competes_without_closing_commons(self):
+        branches = {}
+        for policy in ('protect', 'coerce', 'wait'):
+            world = create_world(seed=612)
+            step_world(world)
+            if policy != 'wait':
+                action = 'protect_access' if policy == 'protect' else 'approve_petition'
+                self.assertTrue(apply_action(world, action)[0])
+            step_world(world)
+            if policy == 'protect':
+                self.assertTrue(apply_action(world, 'cofund_machinery')[0])
+            for _ in range(6):
+                self.assertEqual(step_world(world), [])
+            state = world['scenario_state']
+            rights = sum(right.usable_share > 0
+                         for rows in world['tiles'][1].access_rights.values()
+                         for right in rows if right.resource == 'commons_food')
+            branches[policy] = {
+                'sales': sum(row['seller_nation'] == 'Meridian'
+                             for row in state['market_sales']),
+                'rights': rights,
+                'public_cash': world['nations'][0].government.agent.cash,
+                'soldiers': sum(u.soldiers for u in world['nations'][0].military_units),
+            }
+        self.assertGreater(branches['protect']['sales'], branches['wait']['sales'])
+        self.assertGreater(branches['protect']['rights'], branches['coerce']['rights'])
+        self.assertGreater(branches['coerce']['public_cash'], branches['protect']['public_cash'])
+        self.assertEqual(branches['protect']['soldiers'], 4)
+        self.assertEqual(branches['coerce']['soldiers'], 4)
+
+    def test_snapshot_preserves_petition_deadline_contracts_and_next_turn(self):
+        world = create_world(seed=612)
+        self.assertEqual(step_world(world), [])
+        pending = world['scenario_state']['restrictions']['Meridian']
+        self.assertEqual(pending['status'], 'proposed')
+        self.assertEqual(pending['deadline_turn'], 3)
+        restored = pickle.loads(pickle.dumps(world))
+        self.assertEqual(restored['scenario_state']['restrictions']['Meridian']['deadline_turn'], 3)
+        self.assertTrue(apply_action(restored, 'approve_petition')[0])
+        self.assertEqual(step_world(restored), [])
+        self.assertEqual(restored['turn'], 2)
+        self.assertEqual(restored['scenario_state']['restrictions']['Meridian']['status'], 'active')
+        for region in restored['tiles']:
+            for person in region.agents:
+                agreement = getattr(person, 'labor_agreement', None)
+                if agreement is not None and agreement.active and person.employer is not None:
+                    self.assertEqual(agreement.firm_id, person.employer.id)
+
+    def test_petition_is_actionable_through_its_displayed_deadline(self):
+        world = create_world(seed=612)
+        for _ in range(3):
+            self.assertEqual(step_world(world), [])
+        record = world['scenario_state']['restrictions']['Meridian']
+        self.assertEqual(world['turn'], record['deadline_turn'])
+        self.assertEqual(record['status'], 'proposed')
+        self.assertTrue(apply_action(world, 'protect_access')[0])
+
+        expired = create_world(seed=612)
+        for _ in range(4):
+            self.assertEqual(step_world(expired), [])
+        self.assertEqual(expired['scenario_state']['restrictions']['Meridian']['status'],
+                         'expired')
+
+    def test_thirty_turn_audit_preserves_cash_people_contracts_and_supply(self):
+        world = create_world(seed=612)
+        world['scenario_state']['audit_mode'] = True
+        baseline = fx.audit_currency_total(world['tiles'], world['currencies'][0])
+        for turn in range(1, 31):
+            self.assertEqual(step_world(world), [], f'engine violations on turn {turn}')
+            people = {a.id: a for tile in world['tiles'] for a in tile.agents}
+            enlisted = [person_id for nation in world['nations']
+                        for unit in nation.military_units for person_id in unit.person_ids]
+            self.assertEqual(len(enlisted), len(set(enlisted)))
+            self.assertTrue(set(enlisted).issubset(people))
+            for person_id in enlisted:
+                self.assertEqual(people[person_id].military_unit_id is not None, True)
+                self.assertIsNone(people[person_id].employer)
+            self.assertTrue(all(n.government.food_inventory >= 0 for n in world['nations']))
+            self.assertAlmostEqual(
+                fx.audit_currency_total(world['tiles'], world['currencies'][0]),
+                baseline, places=3)
+            self.assertEqual([len(n.tiles) for n in world['nations']], [2, 2])
+        self.assertEqual(world['turn'], 30)
 
 
 if __name__ == "__main__":

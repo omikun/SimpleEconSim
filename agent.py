@@ -272,13 +272,19 @@ class Agent:
             super().__setattr__(name, value)
         except AttributeError:
             if name.startswith('bid_') or name.startswith('ask_'):
-                cb = getattr(self, '_custom_bids', None)
+                try:
+                    cb = object.__getattribute__(self, '_custom_bids')
+                except AttributeError:
+                    cb = None
                 if cb is None:
                     cb = {}
                     super().__setattr__('_custom_bids', cb)
                 cb[name] = value
             else:
-                extra = getattr(self, '_extra_attrs', None)
+                try:
+                    extra = object.__getattribute__(self, '_extra_attrs')
+                except AttributeError:
+                    extra = None
                 if extra is None:
                     extra = {}
                     super().__setattr__('_extra_attrs', extra)
@@ -286,11 +292,17 @@ class Agent:
 
     def __getattr__(self, name):
         if name.startswith('bid_') or name.startswith('ask_'):
-            cb = getattr(self, '_custom_bids', None)
+            try:
+                cb = object.__getattribute__(self, '_custom_bids')
+            except AttributeError:
+                cb = None
             if cb and name in cb:
                 return cb[name]
             return 0.0
-        extra = getattr(self, '_extra_attrs', None)
+        try:
+            extra = object.__getattribute__(self, '_extra_attrs')
+        except AttributeError:
+            extra = None
         if extra and name in extra:
             return extra[name]
         raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
