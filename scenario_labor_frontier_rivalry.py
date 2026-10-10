@@ -60,11 +60,12 @@ def create_world(seed: int = 612) -> dict:
         region.elevation = 0.12
         region.biome = "plains"
         region.wilderness = False
+        region.scenario_owner_policy = True
         region.cash_tax_per_person = 0.15
         region.recipes[Goods.cotton]["price"] = 3.0
         region.recipes[Goods.cloth]["input"] = Goods.cotton
         region.recipes[Goods.cloth]["numInput"] = 2
-        region.recipes[Goods.cloth]["production"] = 3
+        region.recipes[Goods.cloth]["production"] = 3 if index < 2 else 4
         region.recipes[Goods.cloth]["price"] = 13.0
         if index in (1, 2):
             setup_capitalism_institutions(region)
@@ -77,6 +78,13 @@ def create_world(seed: int = 612) -> dict:
             firm = _new_firm(region, owner, wage=2.4 if index == 0 else 2.2,
                              capital=65.0 if index == 0 else 75.0)
             firm.inv_add(Goods.cotton, 12)  # Starting raw material reserve.
+            suppliers = [a for a in region.agents if a is not owner and not a.is_corporation
+                         and not a.is_trader and not a.is_government]
+            suppliers[0].output = Goods.iron
+            suppliers[0].inv_add(Goods.iron, 4)
+            suppliers[0].inv_add(Goods.iron_ore, 8)
+            suppliers[1].output = Goods.coal
+            suppliers[1].inv_add(Goods.coal, 3)
     player.government.food_inventory = 18
     rival.government.food_inventory = 18
     for left, right in zip(tiles, tiles[1:]):
@@ -102,6 +110,8 @@ def create_world(seed: int = 612) -> dict:
     }
     interpreter = get_interpreter()
     interpreter.initialize_scenario(world)
+    from labor_frontier_market import initialize_market
+    initialize_market(world)
     world["currency_totals"] = {player.currency: fx.audit_currency_total(tiles, player.currency)}
     return world
 
@@ -121,9 +131,16 @@ def step_world(world: dict) -> list:
     )
     world["turn"] = turn
     world["violations"] = violations
-    get_interpreter().advance_turn(world, turn)
+    advance_after_engine(world, turn)
     world["currency_totals"] = {
         currency: fx.audit_currency_total(world["tiles"], currency)
         for currency in world["currencies"]
     }
     return violations
+
+
+def advance_after_engine(world: dict, turn: int) -> None:
+    """Run scenario settlements after the sole authoritative economy tick."""
+    from labor_frontier_market import settle_markets
+    settle_markets(world, turn)
+    get_interpreter().advance_turn(world, turn)

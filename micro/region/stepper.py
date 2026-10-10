@@ -88,12 +88,12 @@ def step_economy(region: Any, t: int):
         from economy import LaborMobilityScheduler
         region.labor_scheduler = LaborMobilityScheduler()
 
-    has_new_items = region.elite_planner.check_new_market_items(region)
-    for a in list(region.agents):
-        if region.elite_planner.should_run_planning(a, region, t, has_new_items):
-            region.elite_planner.plan_and_execute_elite(a, region, t)
-
-    region.labor_scheduler.step_labor_cohort(region, t)
+    if not getattr(region, 'scenario_owner_policy', False):
+        has_new_items = region.elite_planner.check_new_market_items(region)
+        for a in list(region.agents):
+            if region.elite_planner.should_run_planning(a, region, t, has_new_items):
+                region.elite_planner.plan_and_execute_elite(a, region, t)
+        region.labor_scheduler.step_labor_cohort(region, t)
     audit_cash(region, t, "labour_done")
 
     # Workers allocate this turn to paid work or subsistence foraging, not both.

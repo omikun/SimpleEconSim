@@ -165,6 +165,8 @@ def produce_corporation(region, agent, recipe, output, num_agents_per_good, loca
     if working_machinery < 1:
         # If all machinery broken by sabotage, manual labor has 50% productivity penalty
         production_per_slot *= 0.5
+    elif working_machinery > 1:
+        production_per_slot *= 1.0 + 0.20 * min(3, working_machinery - 1)
 
     chance = 1.0
     if agent.hungry_steps > 0:

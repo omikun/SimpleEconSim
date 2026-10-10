@@ -149,8 +149,10 @@ class SimServer:
             )
             self.violations = violations
             if self.scenario_id == 'labor_frontier_rivalry':
-                from scenario_labor_frontier_rivalry import get_interpreter
-                get_interpreter().advance_turn(self.get_world_dict(), t)
+                from scenario_labor_frontier_rivalry import advance_after_engine
+                advance_after_engine(self.get_world_dict(), t)
+                self.currency_totals = {c: fx.audit_currency_total(self.tiles, c)
+                                        for c in self.currencies}
 
             if claim_events:
                 self.pair_orders = [(r, o) for r in self.tiles for o in self.tiles if o is not r
