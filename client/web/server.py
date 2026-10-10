@@ -845,8 +845,10 @@ if __name__ == '__main__':
     parser.add_argument('--nation-seed', type=int, default=None, help="Nation seed")
     parser.add_argument('--topology', type=str, default='voronoi', choices=['voronoi', 'hex'],
                         help="World topology: 'voronoi' (irregular polygons) or 'hex' (honeycomb)")
+    parser.add_argument('--scenario', choices=['labor-frontier-rivalry'], default=None)
     args = parser.parse_args()
 
     sim = SimServer(seed=args.seed, terrain_seed=args.terrain_seed, nation_seed=args.nation_seed,
-                    topology=args.topology)
+                    topology=args.topology,
+                    scenario_id='labor_frontier_rivalry' if args.scenario else None)
     run_web_server(sim_server=sim, host=args.host, port=args.port, wait_forever=True)

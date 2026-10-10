@@ -28,7 +28,10 @@ class SimServer:
 
     def __init__(self, seed: Optional[int] = None, terrain_seed: Optional[int] = None,
                  nation_seed: Optional[int] = None,
-                 topology: Optional[str] = None):
+                 topology: Optional[str] = None, scenario_id: Optional[str] = None):
+        self.scenario_id = scenario_id
+        if scenario_id == 'labor_frontier_rivalry':
+            topology = 'hex'
         if topology in ('voronoi', 'hex'):
             from world_config import set_map_topology
             set_map_topology(topology)
@@ -63,19 +66,30 @@ class SimServer:
         with self._lock:
             from world_config import is_voronoi_topology, VORONOI_WIDTH, VORONOI_HEIGHT
             self.topology = "voronoi" if is_voronoi_topology() else "hex"
-            tiles, nations, _grid = build_world(
-                seed=self.seed,
-                terrain_seed=self.terrain_seed,
-                nation_seed=self.nation_seed
-            )
-            assign_world_identities(tiles, nations, seed=self.nation_seed)
+            scenario_world = None
+            if self.scenario_id == 'labor_frontier_rivalry':
+                from scenario_labor_frontier_rivalry import create_world
+                scenario_world = create_world(seed=612 if self.seed is None else self.seed)
+                tiles, nations, _grid = scenario_world['tiles'], scenario_world['nations'], None
+                self.topology = 'hex'
+            else:
+                tiles, nations, _grid = build_world(
+                    seed=self.seed, terrain_seed=self.terrain_seed,
+                    nation_seed=self.nation_seed)
+                assign_world_identities(tiles, nations, seed=self.nation_seed)
 
             self.tiles = tiles
             self.nations = nations
             self.currencies = [n.currency for n in nations if getattr(n, 'currency', None)]
             self.hex_size = HEX_SIZE
 
-            if self.topology == "voronoi":
+            if scenario_world is not None:
+                self.layout = scenario_world['layout']
+                self.reverse_layout = {v: k for k, v in self.layout.items()}
+                self.bbox = hex_bbox(self.layout, HEX_SIZE)
+                self.gen = None
+                self.scenario_state = scenario_world['scenario_state']
+            elif self.topology == "voronoi":
                 self.layout = {t.name: getattr(t, 'centroid', (0.0, 0.0)) for t in tiles}
                 self.reverse_layout = {}
                 self.bbox = (0.0, 0.0, VORONOI_WIDTH, VORONOI_HEIGHT)
@@ -134,6 +148,9 @@ class SimServer:
                 ledger_exempt=True
             )
             self.violations = violations
+            if self.scenario_id == 'labor_frontier_rivalry':
+                from scenario_labor_frontier_rivalry import get_interpreter
+                get_interpreter().advance_turn(self.get_world_dict(), t)
 
             if claim_events:
                 self.pair_orders = [(r, o) for r in self.tiles for o in self.tiles if o is not r
@@ -878,6 +895,8 @@ class SimServer:
                 'terrain_seed': self.terrain_seed,
                 'nation_seed': self.nation_seed,
                 'player_nation_name': self.player_nation_name,
+                'scenario_id': self.scenario_id,
+                'scenario_state': getattr(self, 'scenario_state', {}),
             }
 
     def _collect_progress_suite(self) -> Dict[str, Any]:

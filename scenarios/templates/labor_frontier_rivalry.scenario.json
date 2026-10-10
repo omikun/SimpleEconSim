@@ -1,0 +1,30 @@
+{
+  "format": "regnum.scenario.v2",
+  "id": "labor_frontier_rivalry",
+  "meta": {
+    "title": "Labor, Territory, and Rivalry",
+    "year": 1800,
+    "horizon_turns": 20,
+    "briefing": "Two neighboring states compete to sell cloth and hold an inhabited cotton borderland. Industrial investment, labor rights, household food, and supplied armies all draw on real resources.",
+    "actors": ["Meridian", "Vesper"]
+  },
+  "roles": {
+    "actors": {
+      "$player": {"type": "player", "filter": {"name": "Meridian"}},
+      "$rival": {"type": "foreign", "filter": {"name": "Vesper"}}
+    },
+    "geography": {}
+  },
+  "modules": {},
+  "pressures": [],
+  "actions": [],
+  "branches": {},
+  "outcomes": [
+    {
+      "id": "contested_border",
+      "title": "A Contested Settlement",
+      "summary": "The two states have reached the end of this crisis. Compare their household security, sales, treasury, and ability to supply the border before judging the settlement.",
+      "when": "turn >= horizon_turns"
+    }
+  ]
+}

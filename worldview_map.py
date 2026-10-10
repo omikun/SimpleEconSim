@@ -1376,7 +1376,9 @@ def draw_hex_map(surface, world, font, font_small):
         world['_cached_topo_surface'] = topo_surf
         world['_map_generation_done'] = True
         world['loading_modal'] = None
-        if not world.get('_cached_from_disk', False) and not getattr(terrain_renderer, 'used_gpu', False) and not _is_voronoi:
+        if (world.get('scenario_id') != 'labor_frontier_rivalry' and
+                not world.get('_cached_from_disk', False) and
+                not getattr(terrain_renderer, 'used_gpu', False) and not _is_voronoi):
             from world_cache import save_map_cache
             save_map_cache(world, topo_surf)
             world['_cached_from_disk'] = True

@@ -23,6 +23,28 @@ def get_reverse_layout():
 
 def build_world_view(seed=None, terrain_seed=None, nation_seed=None, scenario_id=None):
     """Build the 9x9 hex world + prepare viewer state."""
+    if scenario_id == 'labor_frontier_rivalry':
+        from world_config import set_map_topology
+        set_map_topology('hex')
+        from scenario_labor_frontier_rivalry import create_world
+        world = create_world(seed=612 if seed is None else seed)
+        world.update({
+            'reverse': {v: k for k, v in world['layout'].items()},
+            'gen': None, 'slot_1_state': {},
+            'cam': {'ox': 0.0, 'oy': 0.0, 'zoom': 1.0, 'pitch': 0.0},
+            'selected_region': world['tiles'][1],
+            'selected_nation': world['nations'][0],
+            'hover_region': None, 'frame': 0, 'view': 0, 'window': 100,
+            'violations': [], 'ticker_events': [], 'scope': 'tile',
+            'help_open': False, 'help_scroll': 0, 'map_layer': 'overview',
+            'layers_collapsed': True, 'panel_tab': 'charts', 'left_panel': None,
+            'last_left_panel': 'build', 'policy_scope': 'tile',
+            'policy_feedback': None, 'seed': seed, 'terrain_seed': terrain_seed,
+            'nation_seed': nation_seed, 'ui_mode': get_ui_mode(),
+            'guided_analysis_open': False, 'settings_open': False,
+        })
+        reset_cam(world)
+        return world
     from scenario_egypt_1877 import SCENARIO, is_scenario_id
     if is_scenario_id(scenario_id):
         seeds = SCENARIO['seeds']
@@ -124,6 +146,9 @@ def ticker_push(world, t, kind, text, color, n=140):
 
 def step_world(world):
     """Advance one turn of the engine via sim_engine."""
+    if world.get('scenario_id') == 'labor_frontier_rivalry':
+        from scenario_labor_frontier_rivalry import step_world as step_scenario
+        return step_scenario(world)
     if world.get('scenario_id') == 'egypt_1877' and world.get('scenario_state', {}).get('ending'):
         world['playing'] = False
         return world.get('violations', [])

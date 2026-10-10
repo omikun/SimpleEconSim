@@ -308,7 +308,8 @@ def reload_world(args=None):
     seed = getattr(args, 'seed', None)
     terrain_seed = getattr(args, 'terrain_seed', None)
     nation_seed = getattr(args, 'nation_seed', None)
-    scenario_id = 'egypt_1877' if getattr(args, 'scenario', None) == 'egypt-1877' else None
+    scenario_id = {'egypt-1877': 'egypt_1877',
+                   'labor-frontier-rivalry': 'labor_frontier_rivalry'}.get(getattr(args, 'scenario', None))
 
     world = build_world_view(seed=seed, terrain_seed=terrain_seed, nation_seed=nation_seed,
                              scenario_id=scenario_id)
@@ -324,7 +325,7 @@ def reload_world(args=None):
     # Flush per-tile label offset cache so stale keys from the old world don't accumulate
     world.pop('_label_offsets', None)
 
-    label = "Egypt 1877 scenario" if scenario_id else "world"
+    label = scenario_id or "world"
     print(f"[worldview] Restarted {label} from scratch — generating new map.")
     return world
 
@@ -359,10 +360,11 @@ def main():
     parser.add_argument('--nation-seed', type=int, default=None, help='Starting nations selection and placement seed')
     parser.add_argument('--ui-mode', choices=('guided', 'advanced'), default=None,
                         help='UI composition override (guided or advanced)')
-    parser.add_argument('--scenario', choices=('egypt-1877',), default=None,
-                        help='Start the authored Egypt 1877 crisis scenario')
+    parser.add_argument('--scenario', choices=('egypt-1877', 'labor-frontier-rivalry'), default=None,
+                        help='Start an authored scenario')
     args = parser.parse_args()
-    scenario_id = 'egypt_1877' if args.scenario == 'egypt-1877' else None
+    scenario_id = {'egypt-1877': 'egypt_1877',
+                   'labor-frontier-rivalry': 'labor_frontier_rivalry'}.get(args.scenario)
     if args.ui_mode:
         from world_config import set_ui_mode
         set_ui_mode(args.ui_mode, persist=False)
