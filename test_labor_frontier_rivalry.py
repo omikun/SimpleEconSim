@@ -214,6 +214,69 @@ class LaborFrontierRivalryTest(unittest.TestCase):
         self.assertAlmostEqual(cash_before,
                                fx.audit_currency_total(world['tiles'], world['currencies'][0]))
 
+    def test_border_attack_requires_declaration_and_paid_local_force(self):
+        from army import recruit_unit
+        from labor_frontier_rivalry import apply_border_action
+        world = create_world(seed=621)
+        player, rival = world['nations']
+        self.assertFalse(apply_border_action(world, 'attack_border', player.name, 0)[0])
+        self.assertIsNotNone(recruit_unit(player, world['tiles'][1], 4, wage=2, t=0))
+        original_ids = {a.id for tile in world['tiles'] for a in tile.agents}
+        cash_before = fx.audit_currency_total(world['tiles'], world['currencies'][0])
+        self.assertTrue(apply_border_action(world, 'declare_border_war', player.name, 0)[0])
+        self.assertFalse(apply_border_action(world, 'attack_border', player.name, 0)[0])
+        ok, message = apply_border_action(world, 'attack_border', player.name, 1)
+        self.assertTrue(ok, message)
+        self.assertIs(world['tiles'][2].owner_nation, player)
+        self.assertFalse(rival.military_units)
+        surviving_ids = {a.id for tile in world['tiles'] for a in tile.agents}
+        self.assertTrue(surviving_ids.issubset(original_ids))
+        self.assertAlmostEqual(cash_before,
+                               fx.audit_currency_total(world['tiles'], world['currencies'][0]))
+
+    def test_standstill_and_rival_restraint_have_a_visible_reason(self):
+        from labor_frontier_rivalry import apply_border_action
+        world = create_world(seed=622)
+        self.assertTrue(apply_border_action(world, 'propose_standstill', 'Meridian', 0)[0])
+        self.assertFalse(apply_border_action(world, 'declare_border_war', 'Meridian', 0)[0])
+        step_world(world)
+        self.assertIn(world['scenario_state']['rival_plan']['goal'],
+                      ('hold', 'invest', 'approve_petition', 'protect_access'))
+        self.assertTrue(world['scenario_state']['rival_plan']['reason'])
+
+    def test_rival_announces_mobilization_before_war(self):
+        from army import recruit_unit
+        from labor_frontier_rivalry import advance_rival
+        from diplomacy import get_diplomacy
+        world = create_world(seed=623)
+        rival = world['nations'][1]
+        self.assertIsNotNone(recruit_unit(rival, world['tiles'][2], 4, wage=2, t=0))
+        advance_rival(world, 1)
+        self.assertEqual(world['scenario_state']['rival_plan']['goal'], 'mobilize')
+        self.assertFalse(get_diplomacy().are_at_war('Meridian', 'Vesper'))
+        advance_rival(world, 2)
+        self.assertTrue(get_diplomacy().are_at_war('Meridian', 'Vesper'))
+        self.assertEqual(world['scenario_state']['war_declared_turn'], 2)
+
+    def test_captured_cotton_pays_new_sovereign_only_when_sold(self):
+        from army import recruit_unit
+        from labor_frontier_rivalry import apply_border_action
+        world = create_world(seed=624)
+        player = world['nations'][0]
+        self.assertIsNotNone(recruit_unit(player, world['tiles'][1], 4, wage=2, t=0))
+        self.assertTrue(apply_border_action(world, 'declare_border_war', 'Meridian', 0)[0])
+        self.assertTrue(apply_border_action(world, 'attack_border', 'Meridian', 1)[0])
+        for grower in world['tiles'][1].agents:
+            if grower.output == Goods.cotton:
+                grower.inv_add(Goods.cotton, -grower.inv_get(Goods.cotton, 0))
+        cash_before = player.government.agent.cash
+        settle_markets(world, 2)
+        captured_sales = [row for row in world['scenario_state']['cotton_purchases']
+                          if row['origin'] == 'Vesper Fields']
+        self.assertTrue(captured_sales)
+        self.assertTrue(all(row['tax_nation'] == 'Meridian' for row in captured_sales))
+        self.assertGreater(player.government.agent.cash, cash_before)
+
 
 if __name__ == "__main__":
     unittest.main()

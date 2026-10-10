@@ -139,6 +139,8 @@ def create_world(seed: int = 612) -> dict:
     initialize_market(world)
     from labor_frontier_labor import initialize_labor
     initialize_labor(world)
+    from labor_frontier_rivalry import initialize_rivalry
+    initialize_rivalry(world)
     from army import recruit_unit
     for nation, border in ((player, tiles[1]), (rival, tiles[2])):
         unit = recruit_unit(nation, border, 4, wage=2.0, t=0)
@@ -181,4 +183,6 @@ def advance_after_engine(world: dict, turn: int) -> None:
     settle_markets(world, turn)
     from labor_frontier_labor import advance_labor_and_owner
     advance_labor_and_owner(world, turn)
+    from labor_frontier_rivalry import advance_rival
+    advance_rival(world, turn)
     get_interpreter().advance_turn(world, turn)

@@ -435,9 +435,11 @@ class MoveArmyIntent(Intent):
 
         # Combat resolution
         defenders = [u for u in getattr(target_owner, 'military_units', []) if u.region_name == to_tile.name]
-        battle = resolve_battle([unit], defenders)
+        attackers = ([u for u in nation.military_units if u.region_name == from_tile.name
+                      and u.soldiers > 0] if unit.scenario_personnel else [unit])
+        battle = resolve_battle(attackers, defenders)
         if unit.scenario_personnel:
-            settle_battle_casualties([unit, *defenders], list(tiles_by_name.values()),
+            settle_battle_casualties([*attackers, *defenders], list(tiles_by_name.values()),
                                     list(nations_by_name.values()), t)
 
         if battle['conquered']:
@@ -446,14 +448,18 @@ class MoveArmyIntent(Intent):
             if unit.scenario_personnel:
                 for defender in list(defenders):
                     discharge_unit(defender, list(tiles_by_name.values()), target_owner)
-            if hasattr(from_tile, 'military_units') and unit in from_tile.military_units:
-                from_tile.military_units.remove(unit)
-            if not hasattr(to_tile, 'military_units'):
-                to_tile.military_units = []
-            to_tile.military_units.append(unit)
-            if unit.scenario_personnel:
-                move_enlisted_people(unit, from_tile, to_tile)
-            unit.region_name = to_tile.name
+            for attacker in attackers:
+                if attacker.soldiers <= 0:
+                    discharge_unit(attacker, list(tiles_by_name.values()), nation)
+                    continue
+                if hasattr(from_tile, 'military_units') and attacker in from_tile.military_units:
+                    from_tile.military_units.remove(attacker)
+                if not hasattr(to_tile, 'military_units'):
+                    to_tile.military_units = []
+                to_tile.military_units.append(attacker)
+                if attacker.scenario_personnel:
+                    move_enlisted_people(attacker, from_tile, to_tile)
+                attacker.region_name = to_tile.name
             self.status = 'completed'
             msg = f"VICTORY: Unit {unit.unit_id} conquered {self.to_region} from {target_owner.name} (Casualties: Atk -{battle['atk_losses']}, Def -{battle['def_losses']})."
         elif battle['winner'] == 'attacker':
@@ -975,5 +981,4 @@ class EscalateCaisseIntent(Intent):
         self.status = 'completed' if ok else 'failed'
         self.logs.append(msg)
         return ok, msg
-
 

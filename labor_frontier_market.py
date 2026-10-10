@@ -10,6 +10,7 @@ from goods import Goods
 
 FREIGHT_PER_EDGE = 0.15
 CLOTH_TAX_RATE = 0.06
+COTTON_TAX_RATE = 0.04
 MAX_DELIVERED_CLOTH_PRICE = 12.5
 
 
@@ -170,7 +171,10 @@ def _buy_cotton(world, turn):
                 break
             price = delivered - freight
             firm.cash -= delivered
-            grower.cash += price
+            tax = round(price * COTTON_TAX_RATE, 6)
+            grower.cash += price - tax
+            field.gov.agent.cash += tax
+            field.gov.record_income(turn, 'cotton_sales_tax', tax)
             if carrier is not None:
                 carrier.cash += freight
             grower.inv_add(Goods.cotton, -1)
@@ -182,7 +186,8 @@ def _buy_cotton(world, turn):
             wanted -= 1
             purchases.append({'turn': turn, 'mill': mill_region.name,
                               'origin': field.name, 'grower_id': grower.id,
-                              'firm_id': firm.id, 'price': price, 'freight': freight})
+                              'firm_id': firm.id, 'price': price, 'freight': freight,
+                              'public_tax': tax, 'tax_nation': field.owner_nation.name})
     return purchases
 
 
@@ -266,11 +271,11 @@ def _consume_worn_cloth(world, turn):
     return used
 
 
-def _sweep_sales_tax(world, sales):
+def _sweep_sales_tax(world, sales, purchases=()):
     # Municipalities remit only collected scenario sales tax; the rest of
     # their cash, including household taxes, stays available locally.
     due = defaultdict(float)
-    for sale in sales:
+    for sale in [*sales, *purchases]:
         due[sale['origin']] += sale['public_tax'] * 0.5
     transfers = []
     for region in world['tiles']:
@@ -292,7 +297,7 @@ def settle_markets(world, turn):
     consumed = _consume_worn_cloth(world, turn)
     purchases = _buy_cotton(world, turn)
     sales = _sell_cloth(world, turn)
-    transfers = _sweep_sales_tax(world, sales)
+    transfers = _sweep_sales_tax(world, sales, purchases)
     cash_after = fx.audit_currency_total(world['tiles'], currency)
     if abs(cash_after - cash_before) > 1e-4:
         world.setdefault('violations', []).append((turn, currency, cash_after - cash_before))

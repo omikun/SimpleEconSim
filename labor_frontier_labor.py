@@ -278,6 +278,11 @@ def apply_action(world, action_id, nation_name=None):
         'cofund_machinery': lambda: start_machinery_project(world, nation_name, turn),
         'release_relief': lambda: _relief(world, nation_name, turn),
     }
+    from labor_frontier_rivalry import apply_border_action
+    for border_action in ('recruit_border', 'declare_border_war', 'attack_border',
+                          'propose_standstill', 'offer_peace'):
+        handlers[border_action] = lambda selected=border_action: apply_border_action(
+            world, selected, nation_name, turn)
     if action_id not in handlers:
         return False, f'Unknown scenario action: {action_id}'
     success, message = handlers[action_id]()
