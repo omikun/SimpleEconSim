@@ -40,10 +40,12 @@ def build_world_view(seed=None, terrain_seed=None, nation_seed=None, scenario_id
             'layers_collapsed': True, 'panel_tab': 'charts', 'left_panel': None,
             'last_left_panel': 'build', 'policy_scope': 'tile',
             'policy_feedback': None, 'seed': seed, 'terrain_seed': terrain_seed,
-            'nation_seed': nation_seed, 'ui_mode': get_ui_mode(),
+            'nation_seed': nation_seed, 'ui_mode': 'guided',
             'guided_analysis_open': False, 'settings_open': False,
         })
         reset_cam(world)
+        world['cam'].update({'pitch': 0.0, 'yaw': 0.0,
+                             'ox': 250.0, 'oy': 430.0, 'zoom': 1.65})
         return world
     from scenario_egypt_1877 import SCENARIO, is_scenario_id
     if is_scenario_id(scenario_id):

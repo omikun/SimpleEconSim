@@ -11,6 +11,9 @@ from client.desktop.hud.ui import get_font
 
 def scenario_pressures(world: dict) -> list[dict]:
     """Build a compact set of readable national pressures from current sim state."""
+    if world.get('scenario_id') == 'labor_frontier_rivalry':
+        from labor_frontier_projection import project
+        return project(world)['pressures']
     if world.get('scenario_id') == 'egypt_1877':
         return _egypt_scenario_pressures(world)
     nation = world.get('selected_nation')
@@ -103,7 +106,10 @@ def draw_guided_header(surface, world: dict, font_small, mouse_pos=None) -> None
     """Draw turn objective and simple composition controls above the map."""
     pygame.draw.rect(surface, (21, 25, 34), (0, TOP_BAR_H, MAP_RIGHT, 48))
     pygame.draw.line(surface, (64, 73, 94), (0, TOP_BAR_H + 47), (MAP_RIGHT, TOP_BAR_H + 47), 1)
-    title = font_small.render('EGYPT 1877  •  Protect food access, preserve government capacity', True, (235, 225, 190))
+    objective = ('LABOR & FRONTIER  •  Compete for markets, territory, and citizens’ livelihoods'
+                 if world.get('scenario_id') == 'labor_frontier_rivalry' else
+                 'EGYPT 1877  •  Protect food access, preserve government capacity')
+    title = font_small.render(objective, True, (235, 225, 190))
     surface.blit(title, (18, TOP_BAR_H + 7))
     turn = world.get('turn', 0)
     turn_text = font_small.render(f'Turn {turn} / 20', True, ACCENT)
@@ -120,7 +126,7 @@ def draw_guided_header(surface, world: dict, font_small, mouse_pos=None) -> None
         pygame.draw.rect(surface, ACCENT if hover else (76, 88, 112), rect, 1, border_radius=4)
         text = font_small.render(label, True, TEXT)
         surface.blit(text, text.get_rect(center=(rect[0] + rect[2] // 2, rect[1] + rect[3] // 2)))
-    scenario_ended = world.get('scenario_id') == 'egypt_1877' and bool(world.get('scenario_state', {}).get('ending'))
+    scenario_ended = bool(world.get('scenario_state', {}).get('ending'))
     controls = [((MAP_RIGHT - 326, TOP_BAR_H + 9, 46, 28), 'play_pause', 'Pause' if world.get('playing') else 'Play'),
                 ((MAP_RIGHT - 274, TOP_BAR_H + 9, 42, 28), 'step_next', 'Next')]
     for rect, action, label in controls:
@@ -143,6 +149,9 @@ def draw_guided_header(surface, world: dict, font_small, mouse_pos=None) -> None
 
 def draw_pressure_panel(surface, world: dict, mouse_pos=None) -> None:
     """Show three priority pressures in a narrow readable right-side stack."""
+    if world.get('scenario_id') == 'labor_frontier_rivalry':
+        _draw_labor_scenario_panel(surface, world, mouse_pos)
+        return
     if world.get('scenario_id') == 'egypt_1877':
         _draw_egypt_scenario_panel(surface, world, mouse_pos=mouse_pos)
         return
@@ -229,6 +238,81 @@ def _scenario_font(pixel_size: float):
     """Request a font that renders at the pixel size used by this panel."""
     # get_font applies a 0.65 calibration for the rest of the interface.
     return get_font(max(9, math.ceil(pixel_size / 0.65)))
+
+
+def _draw_labor_scenario_panel(surface, world, mouse_pos=None):
+    from labor_frontier_projection import project
+    from ui_targets import register_target
+    info = project(world)
+    x, y, w = MAP_RIGHT + 10, TOP_BAR_H + 14, WIDTH - MAP_RIGHT - 20
+    h = HEIGHT - TOP_BAR_H - TICKER_H - 28
+    pygame.draw.rect(surface, (25, 28, 38), (x, y, w, h), border_radius=7)
+    pygame.draw.rect(surface, (58, 66, 86), (x, y, w, h), 1, border_radius=7)
+    head, body, tiny = _scenario_font(19), _scenario_font(13), _scenario_font(10)
+    yy = y + 10
+    surface.blit(head.render(info['scenario_name'], True, TEXT), (x + 11, yy))
+    yy += 27
+    surface.blit(body.render(f"Turn {info['turn']}/20 · One decision per turn", True, ACCENT), (x + 11, yy))
+    yy += 25
+    if info['debrief']:
+        for key in ('title', 'summary', 'people', 'capacity', 'commitments'):
+            for line in _wrap_text(info['debrief'][key], body, w - 25):
+                surface.blit(body.render(line, True, TEXT), (x + 11, yy))
+                yy += 19
+            yy += 8
+        return
+    tones = {'urgent': (226, 102, 94), 'warning': (225, 178, 87), 'good': (112, 205, 145)}
+    for card in info['pressures']:
+        rect = pygame.Rect(x + 8, yy, w - 16, 72)
+        color = tones.get(card['tone'], ACCENT)
+        pygame.draw.rect(surface, (34, 38, 51), rect, border_radius=5)
+        pygame.draw.rect(surface, color, rect, 1, border_radius=5)
+        surface.blit(body.render(card['title'], True, color), (rect.x + 7, rect.y + 5))
+        for idx, line in enumerate(_wrap_text(card['value'], tiny, rect.w - 14)[:2]):
+            surface.blit(tiny.render(line, True, TEXT), (rect.x + 7, rect.y + 25 + idx * 12))
+        for idx, line in enumerate(_wrap_text(card['cause'], tiny, rect.w - 14)[:2]):
+            surface.blit(tiny.render(line, True, DIM), (rect.x + 7, rect.y + 47 + idx * 11))
+        yy += 76
+    district_line = ' | '.join(f"{d['name'].split()[0]}:{d['owner'][0]} {d['units']}u"
+                               for d in info['districts'])
+    surface.blit(tiny.render(district_line, True, ACCENT), (x + 10, yy + 3))
+    yy += 23
+    surface.blit(body.render('Decisions', True, TEXT), (x + 10, yy))
+    yy += 20
+    mx, my = mouse_pos if mouse_pos else (-1, -1)
+    actions = info['actions']
+    button_w = (w - 23) // 2
+    hovered_detail = None
+    for idx, action in enumerate(actions):
+        col, row = idx % 2, idx // 2
+        rect = (x + 8 + col * (button_w + 7), yy + row * 47, button_w, 43)
+        enabled = action['enabled']
+        if enabled:
+            register_target(world, rect, ('scenario_action', action['id']), scope='guided')
+        hover = rect[0] <= mx <= rect[0] + rect[2] and rect[1] <= my <= rect[1] + rect[3]
+        if hover:
+            hovered_detail = action['detail'] if enabled else action['reason']
+        pygame.draw.rect(surface, (52, 66, 88) if enabled and hover else
+                         (37, 44, 59) if enabled else (30, 33, 42), rect, border_radius=4)
+        pygame.draw.rect(surface, ACCENT if enabled else (53, 58, 70), rect, 1, border_radius=4)
+        surface.blit(tiny.render(action['label'], True, TEXT if enabled else DIM),
+                     (rect[0] + 5, rect[1] + 3))
+        detail = action['detail'] if enabled else action['reason']
+        for line_idx, line in enumerate(_wrap_text(detail, tiny, button_w - 10)[:2]):
+            surface.blit(tiny.render(line, True, DIM),
+                         (rect[0] + 5, rect[1] + 18 + line_idx * 11))
+    yy += 5 * 47 + 3
+    latest = info['timeline'][-1]['text'] if info['timeline'] else 'Advance a turn to see owners and households respond.'
+    for line in _wrap_text(latest, tiny, w - 20)[:2]:
+        surface.blit(tiny.render(line, True, ACCENT), (x + 10, yy))
+        yy += 12
+    if hovered_detail:
+        for idx, line in enumerate(_wrap_text(hovered_detail, tiny, w - 22)[:2]):
+            surface.blit(tiny.render(line, True, TEXT), (x + 10, y + h - 54 + idx * 12))
+    feedback = world.get('scenario_feedback', '')
+    if feedback:
+        for line in _wrap_text(feedback, tiny, w - 20)[:2]:
+            surface.blit(tiny.render(line, True, TEXT), (x + 10, y + h - 26))
 
 
 def _draw_egypt_scenario_panel(surface, world: dict, mouse_pos=None) -> None:
@@ -394,7 +478,10 @@ def draw_guided_frame(surface, world: dict, font, font_small, mouse_pos=None) ->
     draw_pressure_panel(surface, world, mouse_pos=mouse_pos)
     draw_ticker(surface, world, font_small)
 
-    notice = get_font(16).render('Egypt 1877 • Generated Nile and coast; outline is schematic', True, DIM)
+    notice_text = ('Labor & frontier • Select a district for residents, production, and border context'
+                   if world.get('scenario_id') == 'labor_frontier_rivalry' else
+                   'Egypt 1877 • Generated Nile and coast; outline is schematic')
+    notice = get_font(16).render(notice_text, True, DIM)
     surface.blit(notice, (18, HEIGHT - TICKER_H - 24))
 
     if world.get('guided_analysis_open'):
@@ -460,6 +547,9 @@ def guided_ui_hit(pos, world: dict) -> bool:
         return False
     action = target.action
     if isinstance(action, tuple) and action[0] == 'set_ui_mode':
+        if world.get('scenario_id') == 'labor_frontier_rivalry' and action[1] != 'guided':
+            world['scenario_feedback'] = 'This 20-turn scenario uses the shared decision panel.'
+            return True
         from world_config import set_ui_mode
         world['ui_mode'] = set_ui_mode(action[1])
     elif action == 'open_settings':
@@ -469,7 +559,7 @@ def guided_ui_hit(pos, world: dict) -> bool:
     elif action == 'toggle_guided_analysis':
         world['guided_analysis_open'] = not world.get('guided_analysis_open', False)
     elif action == 'play_pause':
-        ended = world.get('scenario_id') == 'egypt_1877' and bool(world.get('scenario_state', {}).get('ending'))
+        ended = bool(world.get('scenario_state', {}).get('ending'))
         if not ended:
             world['playing'] = not world.get('playing', False)
     elif action == 'step_next':
@@ -480,7 +570,10 @@ def guided_ui_hit(pos, world: dict) -> bool:
         world['analysis_tab'] = action[1]
         world['guided_analysis_open'] = True
     elif isinstance(action, tuple) and action[0] == 'scenario_action':
-        from scenario_egypt_1877 import apply_action
+        if world.get('scenario_id') == 'labor_frontier_rivalry':
+            from labor_frontier_labor import apply_action
+        else:
+            from scenario_egypt_1877 import apply_action
         ok, message = apply_action(world, action[1])
         world['scenario_feedback'] = message
         if not ok:

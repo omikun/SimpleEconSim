@@ -1172,7 +1172,12 @@ def draw_hex_map(surface, world, font, font_small):
                 slot_state = {}
             world['_slot_state_cache'] = slot_state
 
-    if _is_voronoi and world.get('scenario_id') == 'egypt_1877':
+    if world.get('scenario_id') == 'labor_frontier_rivalry':
+        topo_surf = pygame.Surface((512, 512))
+        topo_surf.fill((32, 43, 49))
+        world['_map_generation_done'] = True
+        world['loading_modal'] = None
+    elif _is_voronoi and world.get('scenario_id') == 'egypt_1877':
         # The campaign's terrain is built by the full 3D renderer below. Its
         # schematic geography must not load the sandbox's 2D terrain snapshot.
         topo_surf = None
@@ -1536,7 +1541,7 @@ def draw_hex_map(surface, world, font, font_small):
 
     # 4. Text, City Titles, Stats Lines, and Badges (DYNAMIC OVERLAP-AWARE CULLING)
     layer_mode = world.get('map_layer', 'overview')
-    guided_scenario_map = world.get('scenario_id') == 'egypt_1877' and world.get('ui_mode') == 'guided'
+    guided_scenario_map = world.get('scenario_id') in ('egypt_1877', 'labor_frontier_rivalry') and world.get('ui_mode') == 'guided'
 
     label_candidates = []
 
@@ -1550,7 +1555,8 @@ def draw_hex_map(surface, world, font, font_small):
 
         is_nat_cap = False
         is_prov_cap = False
-        raw_city = (scenario_role if scenario_role
+        labor_map = world.get('scenario_id') == 'labor_frontier_rivalry'
+        raw_city = (region.name if labor_map else scenario_role if scenario_role
                     else getattr(region, 'display_name', getattr(region, 'city_name', region.name)))
         if not is_ocean:
             is_nat_cap = getattr(region, 'is_national_capital', False) or (owner and owner.tiles and region == owner.tiles[0])
@@ -1582,11 +1588,21 @@ def draw_hex_map(surface, world, font, font_small):
                 continue
 
         line1, line2, line3, c1, c2, c3 = tile_stats(region, layer_mode=layer_mode, world=world)
-        if guided_scenario_map:
+        if labor_map:
+            units = sum(u.soldiers for u in getattr(region, 'military_units', []))
+            commons = sum(right.usable_share > 0 for rights in getattr(region, 'access_rights', {}).values()
+                          for right in rights if right.resource == 'commons_food')
+            line1 = f'{owner.name if owner else "Unclaimed"} · {units} soldiers'
+            line2 = f'{commons} commons rights' if scenario_role == 'borderland' else 'Cloth market'
+            line3 = ''
+        elif guided_scenario_map:
             line1 = line2 = line3 = ''
 
         # Compute label bounding box
-        if scenario_role:
+        if labor_map:
+            w = max(110, name_font.size(city_title)[0] + 12)
+            box = pygame.Rect(cx - w // 2, cy - 29, w, 60)
+        elif scenario_role:
             w = max(70, name_font.size(city_title)[0] + 16)
             box = pygame.Rect(cx - w // 2, cy - 18, w, 28)
         elif not is_ocean:
@@ -1750,7 +1766,11 @@ def draw_hex_map(surface, world, font, font_small):
         line1, line2, line3 = cand['line1'], cand['line2'], cand['line3']
         c1, c2, c3 = cand['c1'], cand['c2'], cand['c3']
 
-        if guided_scenario_map and getattr(region, 'scenario_location', None) and not is_ocean:
+        if world.get('scenario_id') == 'labor_frontier_rivalry' and not is_ocean:
+            draw_text_with_shadow(label_surface, name_font, city_title, (cx, cy - 20), (242, 239, 205))
+            draw_text_with_shadow(label_surface, font_small, line1, (cx, cy), (221, 235, 247))
+            draw_text_with_shadow(label_surface, font_small, line2, (cx, cy + 18), (234, 204, 135))
+        elif guided_scenario_map and getattr(region, 'scenario_location', None) and not is_ocean:
             label_color = (255, 238, 172) if getattr(region, 'scenario_location', '') == 'Cairo' else (220, 240, 250)
             draw_text_with_shadow(label_surface, name_font, city_title, (cx, cy - 10), label_color)
         elif not is_ocean:

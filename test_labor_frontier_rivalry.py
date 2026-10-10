@@ -277,6 +277,29 @@ class LaborFrontierRivalryTest(unittest.TestCase):
         self.assertTrue(all(row['tax_nation'] == 'Meridian' for row in captured_sales))
         self.assertGreater(player.government.agent.cash, cash_before)
 
+    def test_clients_share_projection_actions_and_server_budget(self):
+        from client.desktop.panels.scenario_ui import scenario_pressures
+        from labor_frontier_projection import project
+        from sim_server.sim_server import SimServer
+        from sim_server.protocol import CommandMessage, CommandType
+        desktop = create_world(seed=625)
+        self.assertEqual(scenario_pressures(desktop), project(desktop)['pressures'])
+        server = SimServer(seed=625, scenario_id='labor_frontier_rivalry')
+        info = server._collect_scenario_info()
+        self.assertEqual([card['title'] for card in info['pressures']],
+                         ['Livelihoods', 'Economic position', 'Border power'])
+        self.assertEqual({a['id'] for a in info['actions']},
+                         {a['id'] for a in project(desktop)['actions']})
+        first = server.execute_command(CommandMessage(
+            CommandType.SCENARIO_ACTION, {'action_id': 'release_relief'}))
+        self.assertTrue(first['success'], first)
+        second = server.execute_command(CommandMessage(
+            CommandType.SCENARIO_ACTION, {'action_id': 'cofund_machinery'}))
+        self.assertFalse(second['success'])
+        bypass = server.execute_command(CommandMessage(
+            CommandType.RECRUIT_UNIT, {'tile': 'Meridian Fields', 'soldiers': 50}))
+        self.assertFalse(bypass['success'])
+
 
 if __name__ == "__main__":
     unittest.main()

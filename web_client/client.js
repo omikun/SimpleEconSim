@@ -21,7 +21,7 @@
   const api = stateSync.createStateSync({
     async onCommandResult(result) {
       if (!result.success) {
-        showToast(result.error || 'Command failed.', true);
+        showToast(result.error || result.message || 'Command failed.', true);
       } else {
         if (result.message) showToast(result.message);
         await fetchState(true);
@@ -34,6 +34,8 @@
 
   // Global World & Simulation State
   let worldState = null;
+  let laborPanelCollapsed = false;
+  let laborMapConfigured = false;
   let selectedTileName = null;
   let selectedTileDetail = null;
   let isPlaying = false;
@@ -1012,11 +1014,13 @@
       if (el) el.textContent = val;
     };
 
-    const trCash = Math.round(macro.treasury_cash || 0);
+    const laborInfo = worldState.scenario_info?.scenario_name === 'Labor, Territory, and Rivalry'
+      ? worldState.scenario_info : null;
+    const trCash = Math.round(Number(laborInfo?.sovereign_cash ?? macro.treasury_cash ?? 0));
     const trFood = Math.round(macro.treasury_food !== undefined ? macro.treasury_food : (macro.granary_food || 0));
     setVal('val-treasury', `$${trCash.toLocaleString()}`);
     setVal('val-food', trFood.toLocaleString());
-    setVal('val-pop', (macro.population || 0).toLocaleString());
+    setVal('val-pop', Number(laborInfo?.resident_count ?? macro.population ?? 0).toLocaleString());
     setVal('val-gdp', `$${Math.round(macro.gdp || 0).toLocaleString()}`);
     setVal('val-gini', (macro.gini || 0).toFixed(2));
     setVal('val-trade', `$${Math.round(macro.trade_balance || 0).toLocaleString()}`);
@@ -1616,6 +1620,69 @@
   function updateScenarioPressures() {
     if (!scenarioPressuresRibbon || !worldState) return;
     const sc = worldState.scenario_info;
+    if (sc && sc.scenario_name === 'Labor, Territory, and Rivalry') {
+      if (!laborMapConfigured) {
+        laborMapConfigured = true;
+        useTerrainImage = false;
+        is3DMode = false;
+        if (btnToggle3D) {
+          btnToggle3D.textContent = '2D';
+          btnToggle3D.classList.remove('active');
+        }
+        if (btnTogglePipeline) btnTogglePipeline.querySelector('.btn-text').textContent = 'Pipeline: Flat';
+        centerCameraOnWorld();
+      }
+      const previousScroll = scenarioPressuresRibbon.querySelector('.labor-scenario-scroll')?.scrollTop || 0;
+      const cards = (sc.pressures || []).map(card => `
+        <section class="labor-pressure ${safeClassToken(card.tone || '')}">
+          <h4>${escapeHtml(card.title)}</h4>
+          <strong>${escapeHtml(card.value)}</strong>
+          <p>${escapeHtml(card.cause)}</p>
+        </section>`).join('');
+      const districts = (sc.districts || []).map(d =>
+        `<span class="labor-district" title="${escapeHtml(d.people)} residents, ${escapeHtml(d.commons_rights)} usable commons rights">
+          ${escapeHtml(d.name)} · ${escapeHtml(d.owner)} · ${escapeHtml(d.units)} soldiers</span>`).join('');
+      const actions = (sc.actions || []).map(action => `
+        <button type="button" class="labor-action" data-action="${escapeHtml(action.id)}"
+          ${action.enabled ? '' : 'disabled'} title="${escapeHtml(action.enabled ? action.detail : action.reason)}">
+          <strong>${escapeHtml(action.label)}</strong>
+          <span>${escapeHtml(action.enabled ? action.detail : action.reason)}</span>
+        </button>`).join('');
+      const timeline = (sc.timeline || []).slice(-3).reverse().map(entry =>
+        `<li><span>T${Number(entry.turn) || 0}</span> ${escapeHtml(entry.text || '')}</li>`).join('');
+      const debrief = sc.debrief ? `
+        <div class="labor-debrief"><h3>${escapeHtml(sc.debrief.title)}</h3>
+          <p>${escapeHtml(sc.debrief.summary)}</p><p>${escapeHtml(sc.debrief.people)}</p>
+          <p>${escapeHtml(sc.debrief.capacity)}</p><p>${escapeHtml(sc.debrief.commitments)}</p></div>` : '';
+      scenarioPressuresRibbon.classList.remove('hidden');
+      scenarioPressuresRibbon.classList.add('labor-scenario-ribbon');
+      scenarioPressuresRibbon.innerHTML = `
+        <div class="labor-scenario-panel" role="region" aria-label="Labor and frontier decisions">
+          <button type="button" class="labor-panel-toggle" aria-expanded="${!laborPanelCollapsed}">
+            <strong>Labor, Territory, and Rivalry</strong><span>T${Number(sc.turn) || 0}/20 ${laborPanelCollapsed ? '▾' : '▴'}</span>
+          </button>
+          ${laborPanelCollapsed ? '' : `<div class="labor-scenario-scroll">
+            <p class="labor-mandate">${escapeHtml(sc.mandate || '')}</p>
+            ${debrief || `${cards}<div class="labor-districts">${districts}</div>
+              <h4>One decision this turn</h4><div class="labor-actions">${actions}</div>
+              <h4>Recent consequences</h4><ol class="labor-timeline">${timeline}</ol>`}
+          </div>`}
+        </div>`;
+      scenarioPressuresRibbon.querySelector('.labor-panel-toggle')?.addEventListener('click', () => {
+        laborPanelCollapsed = !laborPanelCollapsed;
+        updateScenarioPressures();
+      });
+      scenarioPressuresRibbon.querySelectorAll('.labor-action').forEach(button => {
+        button.addEventListener('click', () => sendCommand('SCENARIO_ACTION', {
+          action_id: button.dataset.action
+        }));
+      });
+      const scroller = scenarioPressuresRibbon.querySelector('.labor-scenario-scroll');
+      if (scroller) scroller.scrollTop = previousScroll;
+      return;
+    }
+    scenarioPressuresRibbon.classList.remove('labor-scenario-ribbon');
+    laborMapConfigured = false;
     if (!sc || (!sc.pressure_text && !sc.countdown_turns && !sc.pressures)) {
       scenarioPressuresRibbon.classList.add('hidden');
       return;

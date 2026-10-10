@@ -35,6 +35,7 @@ class CommandType(str, Enum):
     EMERGENCY_OVERRUN_SUBSIDY = "EMERGENCY_OVERRUN_SUBSIDY"
     RELOAD_WORLD = "RELOAD_WORLD"
     GET_STATE = "GET_STATE"
+    SCENARIO_ACTION = "SCENARIO_ACTION"
 
 
 class ServerEvent(str, Enum):

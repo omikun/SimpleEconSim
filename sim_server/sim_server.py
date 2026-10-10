@@ -127,6 +127,9 @@ class SimServer:
     def step(self) -> int:
         """Advance the simulation by exactly one turn."""
         with self._lock:
+            if (self.scenario_id == 'labor_frontier_rivalry'
+                    and getattr(self, 'scenario_state', {}).get('ending')):
+                return self.turn
             self.turn += 1
             t = self.turn
 
@@ -353,6 +356,20 @@ class SimServer:
             self.state_revision += 1
             c_type = cmd.cmd_type
             p = cmd.payload
+
+            if self.scenario_id == 'labor_frontier_rivalry':
+                if c_type == CommandType.SCENARIO_ACTION:
+                    from labor_frontier_labor import apply_action
+                    ok, message = apply_action(self.get_world_dict(), p.get('action_id'))
+                    self.push_ticker(self.turn, 'DECISION', message,
+                                     (120, 240, 150) if ok else (240, 90, 90))
+                    return {'success': ok, 'message': message, 'turn': self.turn}
+                allowed = {CommandType.STEP, CommandType.PLAY, CommandType.PAUSE,
+                           CommandType.SET_SPEED, CommandType.RELOAD_WORLD,
+                           CommandType.SELECT_REGION, CommandType.GET_STATE}
+                if c_type not in allowed:
+                    return {'success': False, 'error':
+                            'Use this scenario’s decisions; one major action is available per turn.'}
 
             if c_type == CommandType.STEP:
                 new_turn = self.step()
@@ -1004,6 +1021,9 @@ class SimServer:
     def _collect_scenario_info(self) -> Dict[str, Any]:
         """Collect scenario pressures and guided objectives."""
         try:
+            if self.scenario_id == 'labor_frontier_rivalry':
+                from labor_frontier_projection import project
+                return project(self.get_world_dict())
             from worldview_scenario_ui import scenario_pressures
             w_dict = self.get_world_dict()
             pressures = scenario_pressures(w_dict)

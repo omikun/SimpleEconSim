@@ -956,6 +956,10 @@ def draw_action_button(surface, rect, label, font_small, mx, my, disabled=False,
 
 def actions_tab_hit(pos, box_x, box_y, world):
     """Handle click interactions inside Sovereign Actions Suite."""
+    if world.get('scenario_id') == 'labor_frontier_rivalry':
+        world['scenario_feedback'] = 'Use the scenario decisions for this campaign.'
+        world['actions_open'] = False
+        return True
     if world is not None:
         from ui_targets import find_target
         t = find_target(world, pos, scope='actions')
