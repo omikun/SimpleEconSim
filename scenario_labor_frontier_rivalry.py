@@ -110,6 +110,8 @@ def create_world(seed: int = 612) -> dict:
             suppliers[1].inv_add(Goods.coal, 3)
     player.government.food_inventory = 18
     rival.government.food_inventory = 18
+    player.scenario_personnel = True
+    rival.scenario_personnel = True
     for left, right in zip(tiles, tiles[1:]):
         left.add_neighbor(right)
         right.add_neighbor(left)
@@ -137,6 +139,15 @@ def create_world(seed: int = 612) -> dict:
     initialize_market(world)
     from labor_frontier_labor import initialize_labor
     initialize_labor(world)
+    from army import recruit_unit
+    for nation, border in ((player, tiles[1]), (rival, tiles[2])):
+        unit = recruit_unit(nation, border, 4, wage=2.0, t=0)
+        if unit is None:
+            raise RuntimeError(f'Could not enlist the starting {nation.name} border unit')
+        unit.is_garrison = True
+    world['scenario_state']['starting_person_ids'] = sorted(
+        a.id for region in tiles for a in region.agents
+        if not a.is_corporation and not a.is_government and not a.is_trader)
     world["currency_totals"] = {player.currency: fx.audit_currency_total(tiles, player.currency)}
     return world
 

@@ -50,7 +50,8 @@ def evaluate_offer(worker: Any, firm: Any, region: Any, turn: int,
     if (not getattr(worker, 'alive', True) or getattr(worker, 'is_trader', False)
             or getattr(worker, 'is_government', False) or getattr(worker, 'is_corporation', False)
             or getattr(worker, 'is_lord', False) or getattr(worker, 'in_workhouse', False)
-            or getattr(worker, 'social_class', None) == 'constable'):
+            or getattr(worker, 'social_class', None) == 'constable'
+            or getattr(worker, 'military_unit_id', None)):
         reason = 'unavailable'
     elif getattr(worker, 'employer', None) not in (None, firm):
         reason = 'unavailable'

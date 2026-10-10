@@ -27,6 +27,8 @@ def can_forage(agent, region) -> bool:
         return False
     if getattr(agent, 'social_class', None) == 'constable':
         return False
+    if getattr(agent, 'military_unit_id', None):
+        return False
     if agent.is_trader or agent.is_corporation or agent.is_government:
         return False
     if getattr(agent, 'employer', None) is not None:

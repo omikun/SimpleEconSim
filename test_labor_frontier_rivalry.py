@@ -135,7 +135,7 @@ class LaborFrontierRivalryTest(unittest.TestCase):
             world = create_world(seed=612)
             step_world(world)
             self.assertTrue(apply_action(world, choice)[0])
-            for _ in range(3):
+            for _ in range(5):
                 step_world(world)
             border = world['tiles'][1]
             estate = next(a for a in border.agents
@@ -159,6 +159,60 @@ class LaborFrontierRivalryTest(unittest.TestCase):
         self.assertGreater(world['scenario_state']['market_summary']['Meridian']['units_sold'], 0)
         self.assertEqual(world['scenario_state']['restrictions']['Meridian']['status'], 'rejected')
         self.assertEqual(world['scenario_state']['machinery_projects'][0]['status'], 'complete')
+
+    def test_enlisted_pay_food_and_desertion_keep_person_ids(self):
+        from army import step_armies
+        world = create_world(seed=618)
+        nation, border = world['nations'][0], world['tiles'][1]
+        unit = nation.military_units[0]
+        original_ids = {a.id for tile in world['tiles'] for a in tile.agents}
+        soldier_cash = {a.id: a.cash for a in border.agents if a.id in unit.person_ids}
+        food_before = nation.government.food_inventory
+        events = step_armies(world['tiles'], world['nations'], 1)
+        self.assertEqual(nation.government.food_inventory, food_before - 4)
+        self.assertTrue(all(a.cash == soldier_cash[a.id] + 2 for a in border.agents
+                            if a.id in unit.person_ids))
+        self.assertTrue(any(event['event'] == 'ARMY_UPKEEP' for event in events))
+        nation.government.agent.cash = 0
+        nation.government.food_inventory = 0
+        for turn in range(2, 8):
+            step_armies(world['tiles'], world['nations'], turn)
+        self.assertEqual(original_ids, {a.id for tile in world['tiles'] for a in tile.agents})
+        self.assertTrue(any(a.military_unit_id is None for a in border.agents
+                            if a.id in soldier_cash))
+
+    def test_battle_casualties_pass_through_probate(self):
+        from army import resolve_battle, settle_battle_casualties
+        world = create_world(seed=619)
+        player_unit = world['nations'][0].military_units[0]
+        rival_unit = world['nations'][1].military_units[0]
+        cash_before = fx.audit_currency_total(world['tiles'], world['currencies'][0])
+        battle = resolve_battle([player_unit], [rival_unit])
+        lost_ids = set(player_unit.casualty_ids + rival_unit.casualty_ids)
+        self.assertEqual(len(lost_ids), battle['atk_losses'] + battle['def_losses'])
+        self.assertEqual(set(settle_battle_casualties(
+            [player_unit, rival_unit], world['tiles'], world['nations'], 1)), lost_ids)
+        self.assertTrue(lost_ids.isdisjoint({a.id for tile in world['tiles'] for a in tile.agents}))
+        self.assertAlmostEqual(cash_before,
+                               fx.audit_currency_total(world['tiles'], world['currencies'][0]))
+
+    def test_adjacent_unit_move_carries_the_same_people_and_assets(self):
+        from intents import MoveArmyIntent
+        world = create_world(seed=620)
+        nation = world['nations'][0]
+        unit = nation.military_units[0]
+        border, capital = world['tiles'][1], world['tiles'][0]
+        selected = list(unit.person_ids)
+        cash_before = fx.audit_currency_total(world['tiles'], world['currencies'][0])
+        ok, _ = MoveArmyIntent(nation.name, unit.unit_id, border.name,
+                               capital.name).execute(world['by_name'],
+                                                     {n.name: n for n in world['nations']}, 1)
+        self.assertTrue(ok)
+        self.assertEqual(unit.region_name, capital.name)
+        self.assertTrue(set(selected).issubset({a.id for a in capital.agents}))
+        self.assertTrue(set(selected).isdisjoint({a.id for a in border.agents}))
+        self.assertAlmostEqual(cash_before,
+                               fx.audit_currency_total(world['tiles'], world['currencies'][0]))
 
 
 if __name__ == "__main__":

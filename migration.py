@@ -152,6 +152,8 @@ def migrate_one(t, source, agent, destination):
       4. stamp the cooldown.
     Returns True on success.
     """
+    if getattr(agent, 'military_unit_id', None):
+        return False
     # 1. Liquid cash: origin deposit -> hand cash (kept by the agent).
     #    Capture the origin currency FIRST - by the time enter_wilderness
     #    runs, home_currency is already None on a wilderness landing, so

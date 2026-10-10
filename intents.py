@@ -21,7 +21,8 @@ from typing import TYPE_CHECKING
 from goods import Goods
 from buildings import BUILDING_RECIPES, ConstructionProject
 from agent import Agent, seed_traits, initialize_agent
-from army import MilitaryUnit, recruit_unit, resolve_battle
+from army import (MilitaryUnit, recruit_unit, resolve_battle, move_enlisted_people,
+                  settle_battle_casualties, discharge_unit)
 from diplomacy import get_diplomacy, TreatyType
 
 if TYPE_CHECKING:
@@ -381,6 +382,19 @@ class MoveArmyIntent(Intent):
         unit = next((u for u in units if u.unit_id == self.unit_id), None)
         if unit is None:
             return False, f"Unit '{self.unit_id}' not found in nation's army."
+        if unit.region_name != from_tile.name or unit.soldiers <= 0:
+            return False, "Unit is not stationed at the origin or has no soldiers."
+        if getattr(nation, 'scenario_personnel', False):
+            if from_tile.owner_nation is not nation:
+                return False, "Origin is outside national supply jurisdiction."
+            if to_tile.owner_nation is None:
+                return False, "This scenario does not permit settlement by army movement."
+            if (to_tile.owner_nation is not nation and
+                    to_tile.scenario_location != 'borderland'):
+                return False, "Only the border district can be contested."
+            people = {a.id for a in from_tile.agents if a.alive}
+            if not set(unit.person_ids).issubset(people):
+                return False, "Enlisted people are absent from the origin."
 
         return True, "Valid"
 
@@ -406,6 +420,8 @@ class MoveArmyIntent(Intent):
             if not hasattr(to_tile, 'military_units'):
                 to_tile.military_units = []
             to_tile.military_units.append(unit)
+            if unit.scenario_personnel:
+                move_enlisted_people(unit, from_tile, to_tile)
             unit.region_name = to_tile.name
             self.status = 'completed'
             msg = f"Unit {unit.unit_id} moved from {self.from_region} to {self.to_region}."
@@ -420,15 +436,23 @@ class MoveArmyIntent(Intent):
         # Combat resolution
         defenders = [u for u in getattr(target_owner, 'military_units', []) if u.region_name == to_tile.name]
         battle = resolve_battle([unit], defenders)
+        if unit.scenario_personnel:
+            settle_battle_casualties([unit, *defenders], list(tiles_by_name.values()),
+                                    list(nations_by_name.values()), t)
 
         if battle['conquered']:
             # Territorial transfer
             target_owner.transfer_tile(to_tile, nation)
+            if unit.scenario_personnel:
+                for defender in list(defenders):
+                    discharge_unit(defender, list(tiles_by_name.values()), target_owner)
             if hasattr(from_tile, 'military_units') and unit in from_tile.military_units:
                 from_tile.military_units.remove(unit)
             if not hasattr(to_tile, 'military_units'):
                 to_tile.military_units = []
             to_tile.military_units.append(unit)
+            if unit.scenario_personnel:
+                move_enlisted_people(unit, from_tile, to_tile)
             unit.region_name = to_tile.name
             self.status = 'completed'
             msg = f"VICTORY: Unit {unit.unit_id} conquered {self.to_region} from {target_owner.name} (Casualties: Atk -{battle['atk_losses']}, Def -{battle['def_losses']})."
@@ -951,6 +975,5 @@ class EscalateCaisseIntent(Intent):
         self.status = 'completed' if ok else 'failed'
         self.logs.append(msg)
         return ok, msg
-
 
 

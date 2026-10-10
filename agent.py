@@ -99,6 +99,7 @@ class Agent:
         'memory',
         # ---- Military & Combat Experience (M4.5 / M5.8) ----
         'military_xp',
+        'military_unit_id',
         # ---- P1: Feudal land tenure & enclosure ----
         'is_lord', 'land_plots', 'assigned_plot_id',
         'food_foraged', 'food_purchased',
@@ -140,6 +141,7 @@ class Agent:
         self.died_of_starvation = False
         self.cash = 0
         self.military_xp = 0.0
+        self.military_unit_id = None
         # Inventory as list indexed by good.value — not a dict
         self.inventory = [0] * _NUM_GOODS
         self.cost_basis = [0.0] * _NUM_GOODS

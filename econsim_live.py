@@ -119,7 +119,7 @@ def Live(t, agents, context: LiveContext):
     employer_cache = build_employer_cache(agents)
     rand.reset()
     for agent in agents:
-        if agent.is_corporation or agent.is_government:
+        if agent.is_corporation or agent.is_government or getattr(agent, 'military_unit_id', None):
             new_agents.append(agent)
             continue
         number_food_consumed, number_wood_consumed, number_furniture_consumed = consume_goods(

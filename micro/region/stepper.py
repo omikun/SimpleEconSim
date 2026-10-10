@@ -57,7 +57,8 @@ def step_economy(region: Any, t: int):
     if fixed_tax and getattr(region, 'gov', None) is not None:
         for person in sorted(region.agents, key=lambda a: a.id):
             if (person.alive and not person.is_trader and not person.is_government
-                    and not person.is_corporation and not getattr(person, 'is_lord', False)):
+                    and not person.is_corporation and not getattr(person, 'is_lord', False)
+                    and not getattr(person, 'military_unit_id', None)):
                 assess_obligation(region, person.id, region.gov.agent.id, 'cash_tax',
                                   fixed_tax, t)
 

@@ -166,7 +166,7 @@ def produce_corporation(region, agent, recipe, output, num_agents_per_good, loca
         # If all machinery broken by sabotage, manual labor has 50% productivity penalty
         production_per_slot *= 0.5
     elif working_machinery > 1:
-        production_per_slot *= 1.0 + 0.20 * min(3, working_machinery - 1)
+        production_per_slot *= 1.0 + 0.40 * min(3, working_machinery - 1)
 
     chance = 1.0
     if agent.hungry_steps > 0:
@@ -325,7 +325,8 @@ def produce(region, t):
             num_agents_per_good[g] = 0
     local_total_production = defaultdict(int)
     for a in region.agents:
-        if a.employer or a.output == Goods.gov or a.is_trader or a.output == Goods.none or a.output not in region.recipes:
+        if (a.employer or a.output == Goods.gov or a.is_trader or a.output == Goods.none
+                or a.output not in region.recipes or getattr(a, 'military_unit_id', None)):
             continue
         if getattr(a, 'is_striking', False) or getattr(a, 'in_revolt', False):
             continue

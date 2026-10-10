@@ -55,6 +55,8 @@ def deposit_excess(region, agent, all_goods_price):
 
 def decide_borrow_deposit(region, agents, all_goods_price, food_price, t):
     for a in agents:
+        if getattr(a, 'military_unit_id', None):
+            continue
         _tm.borrow_if_needed(t, a, bank=region.bank)
         _tm.PayLoans(a, bank=region.bank)
         borrow_food(region, a, food_price)
@@ -317,7 +319,8 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
         region._cached_hungry_sorted = sorted(
             agents, key=lambda a: a.hungry_steps, reverse=True)
         region._cached_hungry_turn = t
-    buyers = region._cached_hungry_sorted
+    buyers = [a for a in region._cached_hungry_sorted
+              if not getattr(a, 'military_unit_id', None)]
 
     cash_collected = 0.0
     units = 0
@@ -572,6 +575,8 @@ def trade(region, t):
     total_asks = {g: 0 for g in goods_goods}
     total_bids = {g: 0 for g in goods_goods}
     for a in agents:
+        if getattr(a, 'military_unit_id', None):
+            continue
         ar = recipes.get(a.output, {})
         is_emp = a.employer is not None
         mult = a.consumption_multiplier

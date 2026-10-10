@@ -42,6 +42,7 @@ def incorporate(region, t):
     new_companies = []
     for a in region.agents:
         if (a.employer or a.is_corporation or a.cash <= 400 or a.company_owned
+            or getattr(a, 'military_unit_id', None)
             or getattr(a, 'is_government', False) or getattr(a, 'is_lord', False)
             or a.output == Goods.gov):
             continue
@@ -186,7 +187,8 @@ def hire_workers(region, t):
 
         candidates = [x for x in region.agents if getattr(x, 'alive', True)
                       and x.employer is None and not x.is_corporation and x != a
-                      and not getattr(x, 'is_lord', False)]
+                      and not getattr(x, 'is_lord', False)
+                      and not getattr(x, 'military_unit_id', None)]
 
         for c in candidates:
             if len(a.employees) >= a.max_employees:

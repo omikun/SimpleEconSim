@@ -136,6 +136,11 @@ def _firms(world):
             and str(a.company_name).endswith('Textile Mill')]
 
 
+def _cotton_ask(field, grower):
+    return (1.5 + 0.12 * grower.wage if grower.is_corporation
+            else field.recipes[Goods.cotton]['price'])
+
+
 def _buy_cotton(world, turn):
     purchases = []
     for mill_region, firm in _firms(world):
@@ -152,8 +157,7 @@ def _buy_cotton(world, turn):
                 freight = FREIGHT_PER_EDGE * (len(path) - 1)
                 for grower in field.agents:
                     if grower.alive and grower.output == Goods.cotton and grower.inv_get(Goods.cotton, 0) > 0:
-                        ask = (1.5 + 0.12 * grower.wage if grower.is_corporation
-                               else field.recipes[Goods.cotton]['price'])
+                        ask = _cotton_ask(field, grower)
                         offers.append((ask + freight, field.name, grower.id,
                                        field, grower, freight))
             if not offers:
@@ -186,8 +190,17 @@ def _cloth_ask(region, firm):
     recipe = region.recipes[Goods.cloth]
     # Posted terms derive from the real wage offer and productive recipe.
     productive_slots = float(recipe['production']) * (
-        1.0 + 0.20 * min(3, max(0, firm.machinery_level - firm.broken_machinery - 1)))
+        1.0 + 0.40 * min(3, max(0, firm.machinery_level - firm.broken_machinery - 1)))
     cotton_cost = firm.cost_get(Goods.cotton, region.recipes[Goods.cotton]['price'])
+    local_offers = [
+        _cotton_ask(field, grower) + FREIGHT_PER_EDGE
+        for field in region.neighbors.values()
+        if field.owner_nation is region.owner_nation and field.scenario_location == 'borderland'
+        for grower in field.agents
+        if grower.alive and grower.output == Goods.cotton and grower.inv_get(Goods.cotton, 0) > 0
+    ]
+    if local_offers:
+        cotton_cost = min(cotton_cost, min(local_offers))
     return round(8.0 + float(firm.wage) * 0.7
                  + (2.0 * cotton_cost)
                  / max(1.0, productive_slots), 3)
