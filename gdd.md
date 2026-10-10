@@ -106,6 +106,14 @@ Along with accounting for every penny in the economy down to the cent, the supre
 
 ---
 
+### 1.4 The Player's Strategic Conflict: Livelihoods, Expansion, and Rival Power
+
+The player trades expansion in the exploitation of labor and territory against the livelihoods of citizens while neighboring nations compete economically and militarily. Protecting access to land or improving work terms affects the cost and availability of labor; industrial output affects paid sales and real fiscal receipts; military power requires people, pay, food, and reachable supply. Rivals face the same constraints and may invest, negotiate, defend, or exploit an opportunity to expand. Private profits support national power only through actual investment, taxation, or other transfers.
+
+Territorial expansion can secure productive land, resources, markets, and revenue, while adding residents, recurrent military costs, disrupted livelihoods, and political resistance. A domestic settlement must be sustainable under external competition. The player can pursue conquest and extraction, productive compromise, defense and diplomacy, or another feasible combination; consequences follow the underlying flows rather than a guaranteed punishment for any one policy. Evaluate relative economic and military position alongside household security, effective rights, sovereignty, and future commitments.
+
+The next labor-system playable slice is [Labor, Territory, and Rivalry](planning/plunder_of_labor_first_slice.md): a separate, bounded two-nation scenario with one domestic labor pressure mechanism, a productive alternative, paid export competition, and a contestable inhabited border. Its implementation order and acceptance gates specialize the [labor AI and UI plan](planning/plunder_of_labor_ai_and_ui_plan.md). Egypt retains its existing introductory campaign and outcome rules.
+
 ## 2. Design Pillars
 
 ### Pillar 1: Conserved Value as the Indictment of Capital
