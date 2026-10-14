@@ -18,6 +18,7 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass, field
 from enum import Enum
+from war_logic import PeaceOffer, WarAim, WarRecord, WarSide
 
 
 class TreatyType(str, Enum):
@@ -64,6 +65,7 @@ class DiplomacySystem:
         self.betrayal_memory: dict[tuple[str, str], list[dict]] = {}
         # Active wars: set of sorted pairs (NationA, NationB)
         self.active_wars: set[tuple[str, str]] = set()
+        self.war_records: dict[tuple[str, str], WarRecord] = {}
         # Diplomatic event log (state archive)
         self.diplomacy_log: list[dict] = []
 
@@ -270,7 +272,8 @@ class DiplomacySystem:
         return self._pair_key(n1, n2) in self.active_wars
 
     def declare_war(self, aggressor: str, target: str, t: int = 0,
-                    reason: str = "territorial dispute") -> list[dict]:
+                    reason: str = "territorial dispute", aim: WarAim | None = None,
+                    nations: dict | None = None) -> list[dict]:
         """Declare war between aggressor and target.
 
         Breaks all treaties with target, triggers defensive alliances, sets relations to -1.0.
@@ -281,6 +284,7 @@ class DiplomacySystem:
             return events
 
         self.active_wars.add(war_key)
+        self._start_war_record(aggressor, target, t, aim, nations)
         self.set_relation(aggressor, target, -1.0)
 
         # Break any active bilateral treaties with target
@@ -308,6 +312,7 @@ class DiplomacySystem:
             ally_war_key = self._pair_key(ally, aggressor)
             if ally_war_key not in self.active_wars:
                 self.active_wars.add(ally_war_key)
+                self._start_war_record(aggressor, ally, t, WarAim('limited'), nations)
                 self.set_relation(ally, aggressor, -1.0)
                 call_event = {
                     't': t,
@@ -322,11 +327,78 @@ class DiplomacySystem:
 
         return events
 
+    def _start_war_record(self, aggressor, target, t, aim, nations):
+        nations = nations or {}
+        attacker, defender = nations.get(aggressor), nations.get(target)
+
+        def tiles(nation):
+            return {r.name for r in nation.tiles} if nation else set()
+
+        attack_tiles, defense_tiles = tiles(attacker), tiles(defender)
+        attack_aim = aim or WarAim()
+        sides = {
+            aggressor: WarSide(aims=[attack_aim], initial_tiles=attack_tiles,
+                               initial_enemy_tiles=defense_tiles,
+                               initial_regime=(getattr(defender, 'regime_type', ''),
+                                               getattr(defender, 'ruling_faction', None))),
+            target: WarSide(aims=[WarAim('defend')], initial_tiles=defense_tiles,
+                            initial_enemy_tiles=attack_tiles,
+                            initial_regime=(getattr(attacker, 'regime_type', ''),
+                                            getattr(attacker, 'ruling_faction', None))),
+        }
+        self.war_records[self._pair_key(aggressor, target)] = WarRecord(
+            self._pair_key(aggressor, target), t, sides)
+
+    def get_war(self, n1: str, n2: str) -> WarRecord | None:
+        return self.war_records.get(self._pair_key(n1, n2))
+
+    def wars_for(self, nation_name: str) -> list[WarRecord]:
+        return [war for key, war in self.war_records.items()
+                if key in self.active_wars and nation_name in key]
+
+    def record_battle(self, attacker: str, defender: str,
+                      attacker_losses: int, defender_losses: int) -> None:
+        war = self.get_war(attacker, defender)
+        if war is None:
+            return
+        war.battle_losses[attacker] = war.battle_losses.get(attacker, 0) + attacker_losses
+        war.battle_losses[defender] = war.battle_losses.get(defender, 0) + defender_losses
+
+    def propose_peace(self, proposer: str, recipient: str, t: int = 0) -> dict:
+        war = self.get_war(proposer, recipient)
+        if war is None or not self.are_at_war(proposer, recipient):
+            return {'success': False, 'message': 'These nations are not at war.'}
+        if war.pending_offer is not None:
+            return {'success': False, 'message': 'A peace offer already awaits a reply.'}
+        war.pending_offer = PeaceOffer(proposer, recipient, t)
+        war.sides[proposer].last_offer_turn = t
+        message = f'{proposer} offered {recipient} peace on the current territorial line.'
+        self.diplomacy_log.append({'t': t, 'event': 'PEACE_OFFERED',
+                                   'parties': [proposer, recipient], 'message': message})
+        return {'success': True, 'message': message}
+
+    def respond_peace(self, recipient: str, proposer: str, accept: bool,
+                      t: int = 0) -> dict:
+        war = self.get_war(recipient, proposer)
+        offer = war.pending_offer if war else None
+        if offer is None or offer.recipient != recipient or offer.proposer != proposer:
+            return {'success': False, 'message': 'No matching peace offer exists.'}
+        if t <= offer.turn:
+            return {'success': False, 'message': 'The other side replies next turn.'}
+        if accept:
+            return self.sign_peace(proposer, recipient, t=t)
+        war.pending_offer = None
+        message = f'{recipient} rejected {proposer}\'s peace offer.'
+        self.diplomacy_log.append({'t': t, 'event': 'PEACE_REJECTED',
+                                   'parties': [proposer, recipient], 'message': message})
+        return {'success': True, 'message': message}
+
     def sign_peace(self, n1: str, n2: str, t: int = 0, world: dict | None = None) -> dict:
         """End war between n1 and n2, evaluated under relative military leverage."""
         war_key = self._pair_key(n1, n2)
         if war_key in self.active_wars:
             self.active_wars.remove(war_key)
+            self.war_records.pop(war_key, None)
             self.set_relation(n1, n2, -0.2)
             indemnity_note = ""
             if world and world.get('nations'):

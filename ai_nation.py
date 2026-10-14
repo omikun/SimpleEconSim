@@ -19,7 +19,10 @@ from diplomacy import DiplomacySystem, TreatyType, get_diplomacy
 from army import MilitaryUnit, recruit_unit
 from intents import (RecruitArmyIntent, MoveArmyIntent, ProposeTreatyIntent,
                      BreakTreatyIntent, DeclareWarIntent, BuildIntent,
-                     SubsidizeContractorIntent)
+                     SubsidizeContractorIntent, ProposePeaceIntent,
+                     RespondPeaceIntent)
+from war_logic import (aim_secured, attack_forecasts, effective_strength,
+                       supply_runway)
 
 
 class NationPolicyAI:
@@ -317,11 +320,87 @@ class NationPolicyAI:
     # Main AI Turn Step
     # ------------------------------------------------------------------
 
+    def evaluate_peace_offer(self, war, enemy) -> bool:
+        """Accept a current-control ceasefire when it beats continued fighting."""
+        own = war.sides[self.nation.name]
+        enemy_side = war.sides[enemy.name]
+        lost_tiles = len(own.initial_tiles - {r.name for r in self.nation.tiles})
+        gained_tiles = len(enemy_side.initial_tiles & {r.name for r in self.nation.tiles})
+        own_power = effective_strength(self.nation)
+        enemy_power = effective_strength(enemy)
+        runway = supply_runway(self.nation)
+
+        # The offered ceasefire makes no new regime demand.  Existing lost
+        # territory is costly, while avoiding another unsupplied campaign has
+        # immediate value.  An unfulfilled regime-change goal also costs the
+        # attacker if it accepts early.
+        accept_value = (0.25 + 0.35 * gained_tiles - 0.55 * lost_tiles
+                        + (0.55 if runway < 2.0 else 0.0))
+        if any(a.kind == 'regime_change' for a in own.aims) and not aim_secured(
+                self.nation, enemy, own):
+            accept_value -= 1.25
+        continue_value = (0.35 * own_power / max(1.0, own_power + enemy_power)
+                          - 0.10 * min(3, own.recent_losses)
+                          - (0.30 if runway < 2.0 else 0.0))
+        return accept_value >= continue_value + 0.10
+
+    def choose_war_intent(self, war, enemy, t: int):
+        side = war.sides[self.nation.name]
+        offer = war.pending_offer
+        if offer is not None:
+            if offer.recipient == self.nation.name and t > offer.turn:
+                return RespondPeaceIntent(
+                    self.nation.name, offer.proposer,
+                    self.evaluate_peace_offer(war, enemy),
+                    submitted_turn=t, regime_type=self.nation.regime_type)
+            return None
+
+        # Give the defender a response turn after declaration.
+        if t <= war.declared_turn:
+            return None
+        secured = aim_secured(self.nation, enemy, side)
+        exhausted = side.posture == 'culminated'
+        if (secured or exhausted) and t - side.last_offer_turn >= 3:
+            return ProposePeaceIntent(self.nation.name, enemy.name,
+                                      submitted_turn=t,
+                                      regime_type=self.nation.regime_type)
+
+        if side.posture != 'viable':
+            return None
+        forecasts = attack_forecasts(self.nation, enemy, side)
+        if forecasts and forecasts[0]['progress'] > forecasts[0]['cost'] + 0.15:
+            best = forecasts[0]
+            return MoveArmyIntent(self.nation.name, best['unit_id'],
+                                  best['from'], best['to'],
+                                  submitted_turn=t,
+                                  regime_type=self.nation.regime_type)
+        return None
+
     def decide_turn(self, t: int, all_tiles: list, all_nations: list,
                     diplomacy: DiplomacySystem) -> list[object]:
         """Evaluate situations and submit strategic Intents for this turn."""
         submitted = []
         treasury = self.nation.treasury()
+
+        # At most one active war decision per turn.  Peace replies precede
+        # attack selection; the intent executor resolves accepted replies
+        # before troop movements, regardless of nation iteration order.
+        for war in diplomacy.wars_for(self.nation.name):
+            enemy_name = war.enemy_of(self.nation.name)
+            enemy = next((n for n in all_nations if n.name == enemy_name), None)
+            if enemy is None:
+                continue
+            if any(isinstance(pending, (MoveArmyIntent, ProposePeaceIntent,
+                                        RespondPeaceIntent)) and
+                   getattr(pending, 'target_nation_name',
+                           getattr(pending, 'proposer_name', enemy_name)) == enemy_name
+                   for pending in self.nation.intents):
+                continue
+            intent = self.choose_war_intent(war, enemy, t)
+            if intent is not None:
+                self.nation.submit_intent(intent, t)
+                submitted.append(intent)
+                break
 
         # 1. Military Defense & Vulnerability Checks (M5.2)
         for tile in self.nation.tiles:

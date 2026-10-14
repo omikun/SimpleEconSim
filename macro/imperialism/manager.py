@@ -549,7 +549,8 @@ class ImperialismManager:
 
         events = diplomacy.declare_war(
             creditor.name, debtor.name, t,
-            reason=f"Debt-Enforcement War (gunboat collection of defaulted sovereign debt)"
+            reason=f"Debt-Enforcement War (gunboat collection of defaulted sovereign debt)",
+            nations={n.name: n for n in world.get('nations', [])}
         )
 
         from client.desktop.engine import ticker_push
@@ -729,7 +730,8 @@ class ImperialismManager:
             diplomacy.adjust_relation(creditor_name, nation.name, -1.0)
             diplomacy.declare_war(
                 creditor_name, nation.name, t,
-                reason="Revolutionary debt repudiation and expulsion of imperial assets"
+                reason="Revolutionary debt repudiation and expulsion of imperial assets",
+                nations={n.name: n for n in world.get('nations', [])}
             )
 
         from client.desktop.engine import ticker_push

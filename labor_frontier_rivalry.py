@@ -5,6 +5,7 @@ from __future__ import annotations
 from army import recruit_unit
 from diplomacy import TreatyType, get_diplomacy
 from intents import DeclareWarIntent, MoveArmyIntent
+from war_logic import WarAim
 from labor_frontier_labor import _approve, _protect, _event
 from labor_frontier_market import start_machinery_project
 
@@ -23,6 +24,7 @@ def initialize_rivalry(world):
     diplomacy = get_diplomacy()
     pair = diplomacy._pair_key('Meridian', 'Vesper')
     diplomacy.active_wars.discard(pair)
+    diplomacy.war_records.pop(pair, None)
     diplomacy.treaties = [t for t in diplomacy.treaties
                           if {t.nation_a, t.nation_b} != {'Meridian', 'Vesper'}]
     diplomacy.betrayal_memory.pop(('Meridian', 'Vesper'), None)
@@ -92,7 +94,8 @@ def apply_border_action(world, action_id, nation_name, turn):
         if not _can_supply(nation, home):
             return False, 'The border force lacks food or two payrolls of cash.'
         ok, message = DeclareWarIntent(nation.name, opponent.name,
-                                       reason='limited border contest').execute(
+                                       reason='limited border contest',
+                                       aim=WarAim('border_tile', target.name)).execute(
                                            world['by_name'], {n.name: n for n in world['nations']}, turn)
         if not ok:
             return False, message

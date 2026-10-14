@@ -1058,7 +1058,9 @@ def actions_tab_hit(pos, box_x, box_y, world):
                     res = diplomacy.sign_peace(active_n.name, other.name, t=t)
                     world['action_feedback'] = (res.get('message', 'Peace signed.'), GREEN if res.get('success') else RED, t)
                 else:
-                    events = diplomacy.declare_war(active_n.name, other.name, t=t, reason="Sovereign declaration of war")
+                    events = diplomacy.declare_war(active_n.name, other.name, t=t,
+                                                   reason="Sovereign declaration of war",
+                                                   nations={n.name: n for n in world['nations']})
                     msg = events[0]['message'] if events else f"State of war declared between {active_n.name} and {other.name}."
                     world['action_feedback'] = (msg, RED, t)
                 return True

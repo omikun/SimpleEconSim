@@ -530,7 +530,9 @@ class SimServer:
                     res = dip.break_treaty(source, target, t_type, self.turn)
                     ok, msg = res['success'], res['message']
                 elif action == 'declare_war':
-                    events = dip.declare_war(source, target, self.turn, reason=p.get('reason', 'Geopolitical confrontation'))
+                    events = dip.declare_war(source, target, self.turn,
+                                             reason=p.get('reason', 'Geopolitical confrontation'),
+                                             nations={n.name: n for n in self.nations})
                     ok, msg = True, f"War declared on {target} by {source}."
                 else:
                     return {'success': False, 'error': f"Unknown diplomatic action '{action}'."}

@@ -19,6 +19,7 @@ from claims import check_and_apply_claims
 from intents import step_intents_and_construction
 from army import step_armies
 from diplomacy import get_diplomacy
+from war_logic import apply_political_shocks, update_wars
 import ledger
 
 
@@ -140,6 +141,7 @@ def step_turn(t: int, tiles: list, nations: list = None,
 
     # 10. National Regimes (elections, coups, legitimacy)
     for n in nations:
+        apply_political_shocks(diplomacy, n, t)
         step_regime(n, t)
     if on_phase:
         on_phase('regime')
@@ -160,6 +162,11 @@ def step_turn(t: int, tiles: list, nations: list = None,
                     on_event(t, kind, f"Military event on {ev.get('unit_id', '')}")
     if on_phase:
         on_phase('military')
+
+    # The next AI turn reads a snapshot of completed battles, politics and
+    # supplies; no side gets an advantage from nation iteration order.
+    if nations:
+        update_wars(diplomacy, nations, t)
 
     # 10c. Global Diplomacy & Relations Drift
     if nations:

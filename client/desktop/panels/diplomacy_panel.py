@@ -436,7 +436,9 @@ def diplomacy_panel_hit(pos: tuple[int, int], world: dict) -> bool:
             diplomacy.sign_peace(active_n.name, target_n.name, t)
             ticker_push(world, t, 'DIPLOMACY', f"Peace restored between {active_n.name} and {target_n.name}.", (120, 220, 130))
         else:
-            diplomacy.declare_war(active_n.name, target_n.name, t, reason="Sovereign border declaration")
+            diplomacy.declare_war(active_n.name, target_n.name, t,
+                                  reason="Sovereign border declaration",
+                                  nations={n.name: n for n in world['nations']})
             ticker_push(world, t, 'WAR', f"WAR DECLARED: {active_n.name} declared war on {target_n.name}!", RED)
         return True
     btn_y += btn_h + 6

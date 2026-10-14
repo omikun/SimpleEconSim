@@ -24,6 +24,7 @@ from agent import Agent, seed_traits, initialize_agent
 from army import (MilitaryUnit, recruit_unit, resolve_battle, move_enlisted_people,
                   settle_battle_casualties, discharge_unit)
 from diplomacy import get_diplomacy, TreatyType
+from war_logic import WarAim
 
 if TYPE_CHECKING:
     from region import Region
@@ -438,6 +439,8 @@ class MoveArmyIntent(Intent):
         attackers = ([u for u in nation.military_units if u.region_name == from_tile.name
                       and u.soldiers > 0] if unit.scenario_personnel else [unit])
         battle = resolve_battle(attackers, defenders)
+        diplomacy.record_battle(nation.name, target_owner.name,
+                                battle['atk_losses'], battle['def_losses'])
         if unit.scenario_personnel:
             settle_battle_casualties([*attackers, *defenders], list(tiles_by_name.values()),
                                     list(nations_by_name.values()), t)
@@ -521,10 +524,12 @@ class DeclareWarIntent(Intent):
     """Intent to declare war against a foreign nation."""
 
     def __init__(self, nation_name: str, target_nation_name: str, reason: str = "",
-                 submitted_turn: int = 0, regime_type: str = 'autocracy'):
+                 submitted_turn: int = 0, regime_type: str = 'autocracy',
+                 aim: WarAim | None = None):
         super().__init__(nation_name, 'DECLARE_WAR', submitted_turn, regime_type)
         self.target_nation_name = target_nation_name
         self.reason = reason or "Geopolitical confrontation"
+        self.aim = aim or WarAim()
 
     def execute(self, tiles_by_name: dict[str, Region],
                 nations_by_name: dict[str, Nation], t: int) -> tuple[bool, str]:
@@ -534,11 +539,46 @@ class DeclareWarIntent(Intent):
 
         diplomacy = get_diplomacy()
         events = diplomacy.declare_war(self.nation_name, self.target_nation_name,
-                                       t=t, reason=self.reason)
+                                       t=t, reason=self.reason, aim=self.aim,
+                                       nations=nations_by_name)
         self.status = 'completed'
         msg = f"War declared on {self.target_nation_name} by {self.nation_name}."
         self.logs.append(msg)
         return True, msg
+
+
+class ProposePeaceIntent(Intent):
+    """Offer a ceasefire recognizing actual current territorial control."""
+
+    def __init__(self, nation_name: str, target_nation_name: str,
+                 submitted_turn: int = 0, regime_type: str = 'autocracy'):
+        super().__init__(nation_name, 'PROPOSE_PEACE', submitted_turn, regime_type)
+        self.target_nation_name = target_nation_name
+
+    def execute(self, tiles_by_name, nations_by_name, t):
+        result = get_diplomacy().propose_peace(self.nation_name,
+                                               self.target_nation_name, t)
+        self.status = 'completed' if result['success'] else 'rejected'
+        self.logs.append(result['message'])
+        return result['success'], result['message']
+
+
+class RespondPeaceIntent(Intent):
+    """Accept or reject a previously offered ceasefire."""
+
+    def __init__(self, nation_name: str, proposer_name: str, accept: bool,
+                 submitted_turn: int = 0, regime_type: str = 'autocracy'):
+        super().__init__(nation_name, 'RESPOND_PEACE', submitted_turn, regime_type)
+        self.proposer_name = proposer_name
+        self.accept = accept
+
+    def execute(self, tiles_by_name, nations_by_name, t):
+        result = get_diplomacy().respond_peace(self.nation_name,
+                                               self.proposer_name,
+                                               self.accept, t)
+        self.status = 'completed' if result['success'] else 'rejected'
+        self.logs.append(result['message'])
+        return result['success'], result['message']
 
 
 # =====================================================================
@@ -551,10 +591,26 @@ def step_intents_and_construction(t: int, tiles: list, nations: list, on_event=N
     tiles_by_name = {r.name: r for r in tiles}
     nations_by_name = {n.name: n for n in nations}
 
-    # 1. Step pending intents per nation
+    # 1. Resolve accepted ceasefires before movement or battle.  Pending
+    # parliamentary approval remains pending; all intents still step once.
+    for nation in nations:
+        for intent in list(getattr(nation, 'intents', [])):
+            if not isinstance(intent, RespondPeaceIntent) or not intent.accept:
+                continue
+            sub_events = intent.step(tiles_by_name, nations_by_name, t)
+            events.extend(sub_events)
+            if on_event:
+                for ev in sub_events:
+                    on_event(t, ev['event'], ev['message'])
+            if intent.status in ('completed', 'rejected', 'failed'):
+                nation.intents.remove(intent)
+
+    # 2. Step pending intents per nation
     for nation in nations:
         intents = getattr(nation, 'intents', [])
         for intent in list(intents):
+            if isinstance(intent, RespondPeaceIntent) and intent.accept:
+                continue
             sub_events = intent.step(tiles_by_name, nations_by_name, t)
             events.extend(sub_events)
             if on_event:
@@ -981,4 +1037,3 @@ class EscalateCaisseIntent(Intent):
         self.status = 'completed' if ok else 'failed'
         self.logs.append(msg)
         return ok, msg
-
