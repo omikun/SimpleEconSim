@@ -1,6 +1,6 @@
 """
 externalities.py — Ecological Metabolic Rift, Soil Depletion, Fertilizer/Pesticide Tradeoffs,
-and Industrial Pollution for REGNUM.
+and Industrial Pollution for Call of Capital.
 
 Models:
 1. Metabolic Rift & Soil Fertility:

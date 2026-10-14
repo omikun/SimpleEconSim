@@ -185,5 +185,4 @@
     createStore
   });
   root.CoCStateStore = CoCStateStore;
-  root.RegnumStateStore = CoCStateStore;
 })(typeof globalThis !== 'undefined' ? globalThis : window);

@@ -1,5 +1,5 @@
 """
-terrain_edges.py — Procedural Geographic Edge Connectivity & Trade Barriers for REGNUM.
+terrain_edges.py — Procedural Geographic Edge Connectivity & Trade Barriers for Call of Capital.
 
 Dictates overland and fluvial trade connectivity between adjacent hex tiles based on
 procedural 3D elevation relief, sheer cliffs, alpine ridges, natural passes, and river flows.

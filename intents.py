@@ -1,5 +1,5 @@
 """
-intents.py — Modular Player and AI Intent (Command) Engine for REGNUM.
+intents.py — Modular Player and AI Intent (Command) Engine for Call of Capital.
 
 Provides a unified Command Pattern architecture:
 - Human players (via UI / client) and AI brains submit `Intent` instances.

@@ -1,5 +1,5 @@
 """
-ui_icons.py — High-Definition Procedural Icon Renderer for REGNUM.
+ui_icons.py — High-Definition Procedural Icon Renderer for Call of Capital.
 
 Generates crisp, anti-aliased, color-coded pixel vector icon surfaces that render
 reliably across all operating systems without relying on OS emoji fonts:

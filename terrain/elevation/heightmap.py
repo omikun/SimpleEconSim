@@ -1,5 +1,5 @@
 """
-terrain/elevation/heightmap.py — Continuous Landmass, Elevation, and Biomes for REGNUM.
+terrain/elevation/heightmap.py — Continuous Landmass, Elevation, and Biomes for Call of Capital.
 """
 
 import math

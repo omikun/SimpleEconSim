@@ -1,4 +1,4 @@
-# REGNUM — Priority Action Items
+# Call of Capital — Priority Action Items
 
 Per-phase, prioritized task list. Work items are ordered top-to-bottom within each phase.
 Every item has an acceptance check. The standing invariant for ALL phases:

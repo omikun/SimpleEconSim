@@ -1,7 +1,7 @@
 """
 worldview_actions.py — Interactive Player Command, Diplomacy, Military, and Construction UI.
 
-Provides an interactive Sovereign Control Suite for REGNUM:
+Provides an interactive Sovereign Control Suite for Call of Capital:
 - Tab 1: Global Diplomacy & Treaties (Bilateral relations, Trade Pacts, NAPs, Defensive Alliances, Betrayals, Wars)
 - Tab 2: Military Operations & Defense (Garrison recruitment, Troop movements, Combat orders, Deserter stats)
 - Tab 3: Strategic Intents & Physical Construction (Commissioning Farms, Mills, Workshops, Granaries)

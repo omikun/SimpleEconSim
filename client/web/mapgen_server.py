@@ -44,7 +44,7 @@ from render_island_micropolys import (
 from goods import Goods
 from sim_world_voronoi import build_world_voronoi
 from render_voronoi_geopolitics import render_voronoi_geopolitics
-from render_regnum_terrain import render_regnum_terrain
+from render_coc_terrain import render_coc_terrain
 
 # ---------------------------------------------------------------------------
 # Dedicated Thread-Affinity Worker for Headless ModernGL GPU Execution
@@ -322,7 +322,7 @@ def get_cached_geopolitics(
     return tiles, nations
 
 
-REGNUM_SURF_CACHE: Dict[Tuple, pygame.Surface] = {}
+COC_SURF_CACHE: Dict[Tuple, pygame.Surface] = {}
 
 
 # ---------------------------------------------------------------------------
@@ -1084,7 +1084,7 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
         rot_pitch = float(q.get("rot_pitch", [0.0])[0])
         rot_yaw = float(q.get("rot_yaw", [0.0])[0])
 
-        # REGNUM Photorealistic Graphics Knobs
+        # Call of Capital Photorealistic Graphics Knobs
         show_canopy = q.get("show_canopy", ["true"])[0].lower() in ("true", "1", "yes")
         canopy_density = float(q.get("canopy_density", [0.85])[0])
         crown_size = float(q.get("crown_size", [5.0])[0])
@@ -1336,9 +1336,9 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
                     if e.v0 and e.v1:
                         col = (60, 90, 130) if (e.d0 and e.d0.water and e.d1 and e.d1.water) else (140, 160, 190)
                         pygame.draw.line(surf, col, (e.v0.x, e.v0.y), (e.v1.x, e.v1.y), 1)
-            elif mode in ("photorealistic", "regnum", "topographic", "realistic"):
-                used_engine = "regnum-topo"
-                regnum_key = (
+            elif mode in ("photorealistic", "coc", "topographic", "realistic"):
+                used_engine = "coc-topo"
+                coc_key = (
                     id(gen), size,
                     show_canopy, round(canopy_density, 2), round(crown_size, 1),
                     forest_shadows, forest_clearings, riparian_trees,
@@ -1358,10 +1358,10 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
                     round(sun_azimuth, 1), round(sun_elevation, 1),
                     frame
                 )
-                if regnum_key in REGNUM_SURF_CACHE:
-                    surf = REGNUM_SURF_CACHE[regnum_key]
+                if coc_key in COC_SURF_CACHE:
+                    surf = COC_SURF_CACHE[coc_key]
                 else:
-                    surf = render_regnum_terrain(
+                    surf = render_coc_terrain(
                         gen=gen,
                         width=size,
                         height=size,
@@ -1410,9 +1410,9 @@ class MapgenHTTPHandler(BaseHTTPRequestHandler):
                         sun_elevation=sun_elevation,
                         frame=frame,
                     )
-                    if len(REGNUM_SURF_CACHE) >= MAX_CACHE_ENTRIES:
-                        REGNUM_SURF_CACHE.pop(next(iter(REGNUM_SURF_CACHE)))
-                    REGNUM_SURF_CACHE[regnum_key] = surf
+                    if len(COC_SURF_CACHE) >= MAX_CACHE_ENTRIES:
+                        COC_SURF_CACHE.pop(next(iter(COC_SURF_CACHE)))
+                    COC_SURF_CACHE[coc_key] = surf
 
             elif mode == "geopolitics":
                 tiles, nations = get_cached_geopolitics(

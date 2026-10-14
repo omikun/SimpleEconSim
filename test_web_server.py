@@ -18,11 +18,8 @@ from sim_server.sim_server import SimServer
 from sim_server.web_server import (
     CoCHTTPRequestHandler,
     CoCWebServer,
-    RegnumHTTPRequestHandler,
-    RegnumWebServer,
     get_local_ip,
 )
-
 
 class MockCoCServer:
     """Mock HTTP server context for dispatching requests without opening external sockets."""
@@ -31,10 +28,6 @@ class MockCoCServer:
         self.sim_server = sim_server
         self.base_url = base_url
         self.api_token = 'test-token'
-
-
-MockRegnumServer = MockCoCServer
-
 
 class MockHttpRequestHandler(CoCHTTPRequestHandler):
     """Executes CoCHTTPRequestHandler methods in-memory using BytesIO streams."""
@@ -77,7 +70,6 @@ class MockHttpRequestHandler(CoCHTTPRequestHandler):
             return raw[idx + len(boundary):]
         return raw
 
-
 class TestQRCodeGenerator(unittest.TestCase):
     """Test pure-Python dependency-free QR code generation."""
 
@@ -105,13 +97,12 @@ class TestQRCodeGenerator(unittest.TestCase):
         self.assertIn('<rect', svg)
         self.assertIn('viewBox="0 0 240 240"', svg)
 
-
 class TestWebServerEndpoints(unittest.TestCase):
     """Test HTTP static file serving, REST API endpoints, and simulation state commands."""
 
     def setUp(self):
         self.sim = SimServer(seed=4242)
-        self.mock_server = MockRegnumServer(self.sim)
+        self.mock_server = MockCoCServer(self.sim)
 
     def test_local_ip_resolution(self):
         ip = get_local_ip()
@@ -128,7 +119,6 @@ class TestWebServerEndpoints(unittest.TestCase):
         self.assertIn('map-canvas', body)
         self.assertIn('drawer', body)
         self.assertIn('window.COC_API_TOKEN="test-token"', body)
-        self.assertIn('window.REGNUM_API_TOKEN="test-token"', body)
 
     def test_serve_css(self):
         handler = MockHttpRequestHandler(self.mock_server, 'GET', '/style.css')
@@ -152,7 +142,6 @@ class TestWebServerEndpoints(unittest.TestCase):
         self.assertIn('javascript', handler.response_headers.get('content-type', ''))
         body = handler.get_body().decode('utf-8')
         self.assertIn('CoCUIUtils', body)
-        self.assertIn('RegnumUIUtils', body)
         self.assertIn('escapeHtml', body)
 
     def test_serve_state_sync_module(self):
@@ -161,7 +150,6 @@ class TestWebServerEndpoints(unittest.TestCase):
         self.assertIn('javascript', handler.response_headers.get('content-type', ''))
         body = handler.get_body().decode('utf-8')
         self.assertIn('CoCStateSync', body)
-        self.assertIn('RegnumStateSync', body)
 
     def test_serve_hex_geometry_module(self):
         handler = MockHttpRequestHandler(self.mock_server, 'GET', '/hex_geometry.js')
@@ -169,7 +157,6 @@ class TestWebServerEndpoints(unittest.TestCase):
         self.assertIn('javascript', handler.response_headers.get('content-type', ''))
         body = handler.get_body().decode('utf-8')
         self.assertIn('CoCHexGeometry', body)
-        self.assertIn('RegnumHexGeometry', body)
 
     def test_serve_chart_renderer_module(self):
         handler = MockHttpRequestHandler(self.mock_server, 'GET', '/chart_renderer.js')
@@ -177,7 +164,6 @@ class TestWebServerEndpoints(unittest.TestCase):
         self.assertIn('javascript', handler.response_headers.get('content-type', ''))
         body = handler.get_body().decode('utf-8')
         self.assertIn('CoCCharts', body)
-        self.assertIn('RegnumCharts', body)
 
     def test_serve_help_content_module(self):
         handler = MockHttpRequestHandler(self.mock_server, 'GET', '/help_content.js')
@@ -185,7 +171,6 @@ class TestWebServerEndpoints(unittest.TestCase):
         self.assertIn('javascript', handler.response_headers.get('content-type', ''))
         body = handler.get_body().decode('utf-8')
         self.assertIn('CoCHelpContent', body)
-        self.assertIn('RegnumHelpContent', body)
 
     def test_get_qr_svg_endpoint(self):
         handler = MockHttpRequestHandler(self.mock_server, 'GET', '/api/qr.svg')
@@ -258,7 +243,7 @@ class TestWebServerEndpoints(unittest.TestCase):
         command_body = json.dumps({'cmd_type': 'PAUSE', 'payload': {}}).encode()
         command = MockHttpRequestHandler(
             self.mock_server, 'POST', '/api/command',
-            headers={'Content-Length': str(len(command_body)), 'X-REGNUM-Token': 'test-token'}, body=command_body
+            headers={'Content-Length': str(len(command_body)), 'X-COC-Token': 'test-token'}, body=command_body
         )
         self.assertEqual(command.response_status, 200)
         after_command = MockHttpRequestHandler(
@@ -328,16 +313,10 @@ class TestWebServerEndpoints(unittest.TestCase):
         self.assertEqual(data.get('turn'), initial_turn + 1)
         self.assertEqual(self.sim.turn, initial_turn + 1)
 
-        # Also verify backwards compatibility with X-REGNUM-Token
-        handler2 = MockHttpRequestHandler(self.mock_server, 'POST', '/api/command',
-                                          headers={'Content-Length': len(body), 'X-REGNUM-Token': 'test-token'}, body=body)
-        self.assertEqual(handler2.response_status, 200)
-        self.assertEqual(self.sim.turn, initial_turn + 2)
-
     def test_api_command_play_pause(self):
         body = json.dumps({'cmd_type': 'PLAY'}).encode('utf-8')
         handler = MockHttpRequestHandler(self.mock_server, 'POST', '/api/command',
-                                         headers={'Content-Length': len(body), 'X-REGNUM-Token': 'test-token'}, body=body)
+                                         headers={'Content-Length': len(body), 'X-COC-Token': 'test-token'}, body=body)
         self.assertEqual(handler.response_status, 200)
         data = json.loads(handler.get_body().decode('utf-8'))
         self.assertTrue(data.get('playing'))
@@ -345,7 +324,7 @@ class TestWebServerEndpoints(unittest.TestCase):
 
         body = json.dumps({'cmd_type': 'PAUSE'}).encode('utf-8')
         handler = MockHttpRequestHandler(self.mock_server, 'POST', '/api/command',
-                                         headers={'Content-Length': len(body), 'X-REGNUM-Token': 'test-token'}, body=body)
+                                         headers={'Content-Length': len(body), 'X-COC-Token': 'test-token'}, body=body)
         self.assertEqual(handler.response_status, 200)
         data = json.loads(handler.get_body().decode('utf-8'))
         self.assertFalse(data.get('playing'))
@@ -354,7 +333,7 @@ class TestWebServerEndpoints(unittest.TestCase):
     def test_api_command_invalid(self):
         body = json.dumps({'cmd_type': 'INVALID_CMD'}).encode('utf-8')
         handler = MockHttpRequestHandler(self.mock_server, 'POST', '/api/command',
-                                         headers={'Content-Length': len(body), 'X-REGNUM-Token': 'test-token'}, body=body)
+                                         headers={'Content-Length': len(body), 'X-COC-Token': 'test-token'}, body=body)
         self.assertEqual(handler.response_status, 400)
 
     def test_api_command_requires_token(self):
@@ -370,7 +349,7 @@ class TestWebServerEndpoints(unittest.TestCase):
         body = json.dumps({'cmd_type': 'STEP', 'payload': []}).encode('utf-8')
         handler = MockHttpRequestHandler(
             self.mock_server, 'POST', '/api/command',
-            headers={'Content-Length': len(body), 'X-REGNUM-Token': 'test-token'}, body=body,
+            headers={'Content-Length': len(body), 'X-COC-Token': 'test-token'}, body=body,
         )
         self.assertEqual(handler.response_status, 400)
         self.assertEqual(self.sim.turn, 0)
@@ -378,20 +357,20 @@ class TestWebServerEndpoints(unittest.TestCase):
     def test_api_command_rejects_oversized_body(self):
         handler = MockHttpRequestHandler(
             self.mock_server, 'POST', '/api/command',
-            headers={'Content-Length': str(1024 * 1024 + 1), 'X-REGNUM-Token': 'test-token'},
+            headers={'Content-Length': str(1024 * 1024 + 1), 'X-COC-Token': 'test-token'},
         )
         self.assertEqual(handler.response_status, 413)
 
     def test_api_command_reports_malformed_request_body(self):
         malformed_json = MockHttpRequestHandler(
             self.mock_server, 'POST', '/api/command',
-            headers={'Content-Length': '1', 'X-REGNUM-Token': 'test-token'}, body=b'{',
+            headers={'Content-Length': '1', 'X-COC-Token': 'test-token'}, body=b'{',
         )
         self.assertEqual(malformed_json.response_status, 400)
 
         malformed_length = MockHttpRequestHandler(
             self.mock_server, 'POST', '/api/command',
-            headers={'Content-Length': 'one', 'X-REGNUM-Token': 'test-token'}, body=b'',
+            headers={'Content-Length': 'one', 'X-COC-Token': 'test-token'}, body=b'',
         )
         self.assertEqual(malformed_length.response_status, 400)
 
@@ -406,7 +385,6 @@ class TestWebServerEndpoints(unittest.TestCase):
 
         post_handler = MockHttpRequestHandler(self.mock_server, 'POST', '/api/shutdown')
         self.assertEqual(post_handler.response_status, 403)
-
 
     def test_voronoi_topology_serialization(self):
         from sim_server.sim_server import SimServer
@@ -433,13 +411,12 @@ class TestWebServerEndpoints(unittest.TestCase):
         self.assertIsInstance(detail.get('neighbors'), list)
 
         # HTTP request endpoint test with Voronoi mock server
-        mock_voronoi_server = MockRegnumServer(voronoi_sim)
+        mock_voronoi_server = MockCoCServer(voronoi_sim)
         handler = MockHttpRequestHandler(mock_voronoi_server, 'GET', '/api/state')
         self.assertEqual(handler.response_status, 200)
         data = json.loads(handler.get_body().decode('utf-8'))
         self.assertEqual(data.get('topology'), 'voronoi')
         self.assertGreaterEqual(len(data.get('tiles', [])), 80)
-
 
 if __name__ == '__main__':
     unittest.main()

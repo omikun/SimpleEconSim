@@ -394,7 +394,7 @@ Use a small number of readable headline indicators—household security, state c
 
 ### 10.0.1 Modular UI and System Preference
 
-Keep the existing full interface as the **Advanced** configuration. Add a separate **Guided** composition for Egypt's Grain and Debt Crisis using reusable UI components rather than deleting, duplicating, or simplifying the underlying simulation panels. The configuration is selected in System/Settings and stored as `ui_mode`; it is not tied to map topology, save data, or difficulty. A developer may override it with `REGNUM_UI_MODE=guided|advanced` (or the equivalent CLI option).
+Keep the existing full interface as the **Advanced** configuration. Add a separate **Guided** composition for Egypt's Grain and Debt Crisis using reusable UI components rather than deleting, duplicating, or simplifying the underlying simulation panels. The configuration is selected in System/Settings and stored as `ui_mode`; it is not tied to map topology, save data, or difficulty. A developer may override it with `COC_UI_MODE=guided|advanced` (or the equivalent CLI option).
 
 UI composition is a thin layer over shared components: scenario briefing, objective/turn tracker, priority-pressure cards, contextual action chooser, analysis drawer, map overlays, and existing detail panels. Guided mode presents its scenario components first and groups specialist panels under **Analysis**. Advanced mode keeps the current navigation and panel layout. Both modes must expose the same legal actions and simulation detail, preserve selection and turn state when switched, and remain compatible with mouse, keyboard, and save/load. Scenario-specific content belongs in scenario data; reusable rendering and interaction logic belongs in UI modules.
 

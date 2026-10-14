@@ -1,4 +1,4 @@
-# REGNUM — Session Progress
+# Call of Capital — Session Progress
 
 **Topic (2026-08-17):** Provinces (shared gov/bank/charity across tiles), random seeding, per-tile vs per-nation sidebar stats, province highlight.
 Agreement: **commit after each phase** (no push), refactor-first, every milestone gated on 0 SUPPLY SHIFT.

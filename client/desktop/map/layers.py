@@ -1,5 +1,5 @@
 """
-worldview_layers.py — Bottom-Left Map Info Layer Drop-Up Dock for REGNUM.
+worldview_layers.py — Bottom-Left Map Info Layer Drop-Up Dock for Call of Capital.
 
 Allows switching between 6 rich information layers across the hex map:
 1. Overview (Default) — General summary of elevation, population, and food prices

@@ -1,5 +1,5 @@
 """
-worldview_seasonal_clock.py — Interactive 10-Turn Seasonal Agricultural Clock HUD for REGNUM.
+worldview_seasonal_clock.py — Interactive 10-Turn Seasonal Agricultural Clock HUD for Call of Capital.
 
 Renders:
 1. Current Year & 10-Turn Season Phase (Spring 🌱, Summer ☀️, Autumn 🌾, Frost 🍂, Deep Winter ❄️).

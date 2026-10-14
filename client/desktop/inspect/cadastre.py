@@ -1,5 +1,5 @@
 """
-worldview_cadastre.py — Visual Plot Inspector & Estate Cadastre UI for REGNUM.
+worldview_cadastre.py — Visual Plot Inspector & Estate Cadastre UI for Call of Capital.
 
 Provides an interactive estate cadastre and land tenure inspection panel in the right sidebar:
   1. Parish Land Summary (Commons Usufruct %, Feudal Manorial %, Enclosed Private %, Pasture vs Arable).

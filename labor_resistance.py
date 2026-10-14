@@ -1,6 +1,6 @@
 """
 labor_resistance.py — Wildcat strikes, collective withholding, Luddite sabotage,
-and physical machinery replacement accounting for REGNUM.
+and physical machinery replacement accounting for Call of Capital.
 
 Sabotage physically destroys machinery units that MUST be replaced and paid for
 by the firm (cash + physical materials) before factory capacity can recover.

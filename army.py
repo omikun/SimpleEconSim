@@ -1,5 +1,5 @@
 """
-army.py — Military units, garrisons, recruitment, and battle resolution for REGNUM (M4.5 / M5).
+army.py — Military units, garrisons, recruitment, and battle resolution for Call of Capital (M4.5 / M5).
 
 Provides:
 - MilitaryUnit: represents a deployed army or garrison stationed on a tile.

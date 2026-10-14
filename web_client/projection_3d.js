@@ -339,5 +339,4 @@
   });
 
   root.CoCProjection3D = CoCProjection3D;
-  root.RegnumProjection3D = CoCProjection3D;
 })(typeof globalThis !== 'undefined' ? globalThis : window);

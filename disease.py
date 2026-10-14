@@ -1,5 +1,5 @@
 """
-disease.py — REGNUM Phase 3 Epidemiological & Medical Economics Engine.
+disease.py — Call of Capital Phase 3 Epidemiological & Medical Economics Engine.
 
 Models:
 1. Disease contraction driven by environmental degradation and metabolic rift:

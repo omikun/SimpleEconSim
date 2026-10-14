@@ -765,7 +765,7 @@ class PolygonMapGenerator:
         ambient_intensity: float = 1.0,
         height_exaggeration: float = 1.5,
     ) -> None:
-        """Compute physically-based BRDF illumination matching REGNUM's GPU shader pipeline.
+        """Compute physically-based BRDF illumination matching Call of Capital's GPU shader pipeline.
 
         Applies:
         - 3D Surface Normals N = normalize(-dHx * kh, -dHy * kh, 1.0)

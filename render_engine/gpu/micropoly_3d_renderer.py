@@ -632,7 +632,7 @@ void main() {
 # ── Renderer Class ─────────────────────────────────────────────────────────────
 
 class Micropoly3DRenderer:
-    """High-performance ModernGL 3D GPU Perspective Renderer for REGNUM."""
+    """High-performance ModernGL 3D GPU Perspective Renderer for Call of Capital."""
 
     def __init__(self):
         if not MODERNGL_AVAILABLE:

@@ -19,7 +19,7 @@ TopologyType = Literal["voronoi", "hex"]
 _DEFAULT_TOPOLOGY: TopologyType = "voronoi"
 
 # Runtime active topology
-_ACTIVE_TOPOLOGY: TopologyType = (os.environ.get("COC_TOPOLOGY") or os.environ.get("REGNUM_TOPOLOGY") or _DEFAULT_TOPOLOGY).lower()
+_ACTIVE_TOPOLOGY: TopologyType = (os.environ.get("COC_TOPOLOGY") or _DEFAULT_TOPOLOGY).lower()
 if _ACTIVE_TOPOLOGY not in ("voronoi", "hex"):
     _ACTIVE_TOPOLOGY = _DEFAULT_TOPOLOGY
 
@@ -63,19 +63,16 @@ HEX_SIZE = 50.0
 
 UIMode = Literal["guided", "advanced"]
 _DEFAULT_UI_MODE: UIMode = "advanced"
-_LEGACY_UI_SETTINGS_PATH = os.path.join(os.path.expanduser("~"), ".regnum", "ui_settings.json")
-_COC_UI_SETTINGS_PATH = os.path.join(os.path.expanduser("~"), ".coc", "ui_settings.json")
-_UI_SETTINGS_PATH = _COC_UI_SETTINGS_PATH if (os.path.exists(_COC_UI_SETTINGS_PATH) or not os.path.exists(_LEGACY_UI_SETTINGS_PATH)) else _LEGACY_UI_SETTINGS_PATH
+_UI_SETTINGS_PATH = os.path.join(os.path.expanduser("~"), ".coc", "ui_settings.json")
 
 
 def get_ui_mode() -> UIMode:
     """Return the configured UI composition (environment override, then user setting)."""
-    override = (os.environ.get("COC_UI_MODE") or os.environ.get("REGNUM_UI_MODE") or "").strip().lower()
+    override = (os.environ.get("COC_UI_MODE") or "").strip().lower()
     if override in ("guided", "advanced"):
         return override
     try:
-        settings_path = _COC_UI_SETTINGS_PATH if os.path.exists(_COC_UI_SETTINGS_PATH) else _UI_SETTINGS_PATH
-        with open(settings_path, "r", encoding="utf-8") as settings_file:
+        with open(_UI_SETTINGS_PATH, "r", encoding="utf-8") as settings_file:
             mode = json.load(settings_file).get("ui_mode", _DEFAULT_UI_MODE)
         return mode if mode in ("guided", "advanced") else _DEFAULT_UI_MODE
     except (OSError, ValueError, TypeError):

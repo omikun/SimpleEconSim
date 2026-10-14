@@ -43,5 +43,4 @@
   }
 
   root.CoCHexGeometry = Object.freeze({ axialToPixel, pixelToAxial, axialRound, drawHexPolygon });
-  root.RegnumHexGeometry = root.CoCHexGeometry;
 })(typeof globalThis !== 'undefined' ? globalThis : window);

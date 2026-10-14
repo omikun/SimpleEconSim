@@ -9,15 +9,15 @@
   'use strict';
 
   const DEFAULT_HEX_SIZE = 50.0;
-  const uiUtils = window.CoCUIUtils || window.RegnumUIUtils;
+  const uiUtils = window.CoCUIUtils;
   const { escapeHtml, safeClassToken, safeCssColor } = uiUtils;
-  const hexGeo = window.CoCHexGeometry || window.RegnumHexGeometry;
+  const hexGeo = window.CoCHexGeometry;
   const { axialToPixel, pixelToAxial, drawHexPolygon } = hexGeo || {};
-  const voronoiGeo = window.CoCVoronoiGeometry || window.RegnumVoronoiGeometry;
+  const voronoiGeo = window.CoCVoronoiGeometry;
   const { pointInPolygon, polygonBBox, polygonCentroid, drawPolygonPath } = voronoiGeo || {};
-  const projection3D = window.CoCProjection3D || window.RegnumProjection3D;
+  const projection3D = window.CoCProjection3D;
   const { getCameraMVP, projectPoint3D, projectPolygon3D, screenToWorldRay, intersectRayPlane, computePitchYaw } = projection3D || {};
-  const stateSync = window.CoCStateSync || window.RegnumStateSync;
+  const stateSync = window.CoCStateSync;
   const api = stateSync.createStateSync({
     async onCommandResult(result) {
       if (!result.success) {
@@ -533,7 +533,7 @@
     const mvp = getCameraMVP(camObj, w, h);
     if (!mvp) return;
 
-    const tradeAnim = window.CoCTradeAnimator || window.RegnumTradeAnimator;
+    const tradeAnim = window.CoCTradeAnimator;
     const projectedGeom = [];
 
     // Pass 1: Voronoi 3D Polygons Projection, Biome Fill, Nation Tint, Layer Overlay & Borders
@@ -718,7 +718,7 @@
       renderHexBadges(ctx, tile, x, y, 35.0);
     }
 
-    const tradeAnim = window.CoCTradeAnimator || window.RegnumTradeAnimator;
+    const tradeAnim = window.CoCTradeAnimator;
     if (showTradeRoutes && tradeAnim && worldState.trade_network) {
       tradeAnim.drawTradeRoutes(ctx, worldState.trade_network, tileByName, 0, camZoom);
     }
@@ -882,7 +882,7 @@
       });
 
       // Overland Trade Route Network Lines & Smooth 60fps Flow Particles
-      const tradeAnim = window.CoCTradeAnimator || window.RegnumTradeAnimator;
+      const tradeAnim = window.CoCTradeAnimator;
       if (showTradeRoutes && tradeAnim) {
         tradeAnim.drawTradeRoutes(ctx, worldState.trade_network, tileByName, hexRadius, camZoom);
       }
@@ -2828,7 +2828,7 @@
     if (!container) return;
     container.innerHTML = '';
 
-    const charts = window.CoCCharts || window.RegnumCharts;
+    const charts = window.CoCCharts;
     const chartCatalog = charts.getChartCatalog();
 
     const chips = chartCatalog[activeChartMode] || chartCatalog.economic;
@@ -2865,7 +2865,7 @@
       values = worldState.history[activeChartMetric] || [];
     }
 
-    const charts = window.CoCCharts || window.RegnumCharts;
+    const charts = window.CoCCharts;
     const legend = charts.drawHistoricalChart(
       chartCanvas, values, activeChartMetric, window.devicePixelRatio || 1
     );
@@ -3359,7 +3359,7 @@
       container.appendChild(visGrid);
 
       setTimeout(() => {
-        const visPyramid = window.CoCVisPyramid || window.RegnumVisPyramid;
+        const visPyramid = window.CoCVisPyramid;
         if (visPyramid) {
           visPyramid.drawWealthPyramid(cPyramid, { data, macro: worldState ? worldState.macro : null });
           const gini = (worldState && worldState.macro && worldState.macro.gini) || 0.42;
@@ -3423,7 +3423,7 @@
       container.appendChild(visGrid);
 
       setTimeout(() => {
-        const visRadarAttractor = window.CoCVisRadarAttractor || window.RegnumVisRadarAttractor;
+        const visRadarAttractor = window.CoCVisRadarAttractor;
         if (visRadarAttractor) {
           const shiftHours = (worldState && worldState.workday_hours) || 12.0;
           const unrest = (worldState && worldState.macro && worldState.macro.unrest_energy) || 1.5;
@@ -3510,7 +3510,7 @@
       container.appendChild(visGrid);
 
       setTimeout(() => {
-        const visCircuits = window.CoCVisCircuits || window.RegnumVisCircuits;
+        const visCircuits = window.CoCVisCircuits;
         if (visCircuits) {
           const macro = (worldState && worldState.macro) || {};
           const gdp = macro.gdp || 1000;
@@ -3688,7 +3688,7 @@
 
   function renderHelpContent() {
     const container = document.getElementById('help-content-container');
-    const helpContent = window.CoCHelpContent || window.RegnumHelpContent;
+    const helpContent = window.CoCHelpContent;
     if (container && helpContent) container.innerHTML = helpContent.renderHelpPage(activeHelpPage, worldState);
   }
 
@@ -4017,12 +4017,12 @@
 
   async function restartWebServer() {
     const button = document.getElementById('btn-restart-server');
-    const token = window.COC_API_TOKEN || window.REGNUM_API_TOKEN || '';
+    const token = window.COC_API_TOKEN || '';
     if (button) { button.disabled = true; button.textContent = 'Restarting web server…'; }
     try {
       const response = await fetch('/api/restart', {
         method: 'POST',
-        headers: { 'X-COC-Token': token, 'X-REGNUM-Token': token }
+        headers: { 'X-COC-Token': token }
       });
       if (!response.ok) throw new Error(`Server returned ${response.status}`);
       closeSettingsModal();
@@ -4404,7 +4404,7 @@
     pollTimer = setInterval(fetchState, 1000);
 
     // Independent 60fps Animation Loop for Smooth Trade Commodity Flows
-    const tradeAnim = window.CoCTradeAnimator || window.RegnumTradeAnimator;
+    const tradeAnim = window.CoCTradeAnimator;
     if (tradeAnim) {
       const tradeTicker = tradeAnim.createAnimationTicker(() => {
         if (showTradeArrows && worldState && worldState.trade_network && worldState.trade_network.flows && worldState.trade_network.flows.length > 0) {

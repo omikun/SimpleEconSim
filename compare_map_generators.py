@@ -68,7 +68,7 @@ def benchmark_single_threaded_latency(n_runs: int = 10) -> Dict[str, Any]:
         avg_ms = ((time.perf_counter() - t0) / n_runs) * 1000.0
         poly_results[num_pts] = avg_ms
 
-    # 3. Polygon map on REGNUM hex grid adapter
+    # 3. Polygon map on Call of Capital hex grid adapter
     t0 = time.perf_counter()
     for seed in range(n_runs):
         tiles = create_mock_island_tiles(seed=100 + seed, rows=9, cols=9)
@@ -231,7 +231,7 @@ def render_comparison_figure(
     # 1. Heightmap Elevation Visualization (Hex World)
     ax1 = fig.add_subplot(gs[0, 0])
     ax1.set_facecolor('#0f172a')
-    ax1.set_title("1A. Current fBm Heightmap (REGNUM 9x9)", color=title_color, fontsize=11, fontweight='bold')
+    ax1.set_title("1A. Current fBm Heightmap (Call of Capital 9x9)", color=title_color, fontsize=11, fontweight='bold')
     # Generate mock world
     tiles_hm = create_mock_island_tiles(seed=42, rows=9, cols=9)
     apply_heightmap_to_world(tiles_hm, seed=42, grid_rows=9, grid_cols=9)
@@ -405,10 +405,10 @@ def main() -> None:
     # 1. Benchmark Single-Threaded Latency
     print("\n[1/3] Benchmarking single-threaded latency...")
     latency_data = benchmark_single_threaded_latency(n_runs=8)
-    print(f"  - Heightmap Generator (9x9 REGNUM): {latency_data['heightmap_ms']:.2f} ms")
+    print(f"  - Heightmap Generator (9x9 Call of Capital): {latency_data['heightmap_ms']:.2f} ms")
     for pts, ms in latency_data['polygon_by_points_ms'].items():
         print(f"  - Polygon Map Generator ({pts} Voronoi points): {ms:.2f} ms")
-    print(f"  - Polygon Map -> REGNUM Hex Grid Adapter: {latency_data['polygon_adapter_ms']:.2f} ms")
+    print(f"  - Polygon Map -> Call of Capital Hex Grid Adapter: {latency_data['polygon_adapter_ms']:.2f} ms")
 
     # 2. Benchmark Parallel Scaling
     print("\n[2/3] Benchmarking multi-core parallel scaling...")

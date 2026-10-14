@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-M1 gate: behavior-drift validation for the REGNUM M1 milestone.
+M1 gate: behavior-drift validation for the Call of Capital M1 milestone.
 
 Runs the 3-tile ring (A-B-C-A) for 300 turns across 3 seeds and asserts:
   - per-currency conservation (0 SUPPLY SHIFT over the 5.0 threshold),

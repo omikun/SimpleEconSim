@@ -1,5 +1,5 @@
 """
-construction_politics.py — Emergent Construction Companies, Labor Politics & Dynamic Infrastructure for REGNUM.
+construction_politics.py — Emergent Construction Companies, Labor Politics & Dynamic Infrastructure for Call of Capital.
 
 Implements:
 1. Zero Companies at Game Start: No construction contractors exist initially.

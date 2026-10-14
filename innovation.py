@@ -1,5 +1,5 @@
 """
-innovation.py — Induced Innovation, Learning-by-Doing & Technology Diffusion Engine for REGNUM.
+innovation.py — Induced Innovation, Learning-by-Doing & Technology Diffusion Engine for Call of Capital.
 
 Implements real-world technological evolution:
 1. Learning-by-Doing: Practical economic output accumulates domain experience:

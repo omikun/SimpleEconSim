@@ -1,5 +1,5 @@
 """
-terrain — Modular Geography, Cartography, Elevation, Biomes, and Meshes for REGNUM.
+terrain — Modular Geography, Cartography, Elevation, Biomes, and Meshes for Call of Capital.
 """
 
 from terrain.mesh import Center, Corner, Edge, NoisyEdges

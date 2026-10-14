@@ -1,5 +1,5 @@
 """
-heightmap.py — Continuous Landmass, Elevation, and Biomes for REGNUM.
+heightmap.py — Continuous Landmass, Elevation, and Biomes for Call of Capital.
 
 Facade module re-exporting from terrain.elevation.
 """

@@ -21,12 +21,12 @@ from goods import Goods
 class TestScenarioEmpireOfCotton(unittest.TestCase):
 
     def test_01_spec_loading_and_validation(self):
-        """Verify scenario JSON specification conforms to regnum.scenario.v2."""
+        """Verify scenario JSON specification conforms to coc.scenario.v2."""
         self.assertTrue(TEMPLATE_PATH.exists(), f"Template not found at {TEMPLATE_PATH}")
         spec = load_scenario_spec(TEMPLATE_PATH)
 
         self.assertEqual(spec.id, 'empire_of_cotton')
-        self.assertEqual(spec.format, 'regnum.scenario.v2')
+        self.assertEqual(spec.format, 'coc.scenario.v2')
         self.assertEqual(spec.meta['year'], 1780)
         self.assertIn('capitalism', spec.modules)
         self.assertEqual(len(spec.pressures), 3)

@@ -1,5 +1,5 @@
 """
-REGNUM V1/V2 — Pygame hex-map viewer for 2x3 layout.
+Call of Capital V1/V2 — Pygame hex-map viewer for 2x3 layout.
 Thin presentation layer reusing modular worldview and sim_engine components.
 """
 
@@ -215,7 +215,7 @@ def _draw_panel(surface, world, font, font_small):
     panel_h = HEIGHT - 20 - d
     pygame.draw.rect(surface, PANEL_BG,
                      (PANEL_LEFT - 10, 10 + d, panel_w + 4, panel_h))
-    title = font.render("REGNUM — Hex View", True, ACCENT)
+    title = font.render("Call of Capital — Hex View", True, ACCENT)
     surface.blit(title, (PANEL_LEFT, 20 + d))
     t_ = world['turn']
     turn_line = font_small.render(f"Turn: {t_}  win={world['window']}t", True, TEXT)

@@ -1,5 +1,5 @@
 """
-REGNUM V1/V2 — Pygame hex-map viewer for 2x3 layout.
+Call of Capital V1/V2 — Pygame hex-map viewer for 2x3 layout.
 Thin presentation layer reusing modular worldview and sim_engine components.
 """
 

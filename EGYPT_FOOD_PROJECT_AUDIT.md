@@ -1,6 +1,6 @@
 # Nile repair playability checkpoint
 
-Run `MPLCONFIGDIR=/private/tmp/regnum-mpl venv/bin/python audit_egypt_food_project.py output.json`. The two paths fund a Nile Delta channel repair on turn 1, retain exports on turn 2, and answer the Caisse's payment windows. The second also requisitions private food on turn 5 and releases public meals on turn 7. They are seeded examples; repeated worlds in one process are not yet identical, so differences between their final totals are **not** a controlled estimate of either action's effect.
+Run `MPLCONFIGDIR=/private/tmp/coc-mpl venv/bin/python audit_egypt_food_project.py output.json`. The two paths fund a Nile Delta channel repair on turn 1, retain exports on turn 2, and answer the Caisse's payment windows. The second also requisitions private food on turn 5 and releases public meals on turn 7. They are seeded examples; repeated worlds in one process are not yet identical, so differences between their final totals are **not** a controlled estimate of either action's effect.
 
 The repair transfers 45 treasury units to three local workers, needs two staffed turns, and then pays two units per turn in upkeep. It modifies the actual food-yield calculation in the named district. In one replay the turn-4 low-Nile harvest used a 1.80 yield factor, produced 120 food units, and 18 of 131 local households were underfed. The private warehouse held 60 units after buying from producers. The owner's purchase and its cash transfer are logged; additional production did not automatically reach poorer households.
 

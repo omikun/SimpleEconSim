@@ -1,5 +1,5 @@
 """
-render_engine — Dedicated, standalone graphics & rendering engine for REGNUM.
+render_engine — Dedicated, standalone graphics & rendering engine for Call of Capital.
 
 Completely decoupled from economic simulation logic. Can be driven by
 the game client or run independently via the graphics dev sandbox.

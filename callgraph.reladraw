@@ -32,7 +32,7 @@ node support_utils "Diagnostics, Analytics & Tooling"  right of meso_institution
 // --- Constituent Modules & Classes ---
 // Subsystem: Authoritative Server & Network Protocol
 node server_net.sim_server_sim_server "sim_server.py / [dim]class SimServer[/dim]"
-node server_net.sim_server_web_server "web_server.py / [dim]class RegnumHTTPRequestHandler, RegnumWebServer[/dim]"
+node server_net.sim_server_web_server "web_server.py / [dim]class CoCHTTPRequestHandler, CoCWebServer[/dim]"
 node server_net.sim_server_protocol "protocol.py / [dim]class CommandType, ServerEvent, CommandMessage[/dim]"
 node server_net.sim_server_server_cli "server_cli.py"
 node server_net.sim_server_qr_code "qr_code.py / [dim]class QRCode[/dim]"
@@ -95,7 +95,7 @@ node render_engine.render_engine_gpu_settings "settings.py"
 node render_engine.render_engine_gpu_shaders "shaders.py"
 node render_engine.render_dev_viewer "render_dev_viewer.py / [dim]class MockTile, Slider[/dim]"
 node render_engine.render_island_micropolys "render_island_micropolys.py"
-node render_engine.render_regnum_terrain "render_regnum_terrain.py"
+node render_engine.render_coc_terrain "render_coc_terrain.py"
 node render_engine.render_voronoi_geopolitics "render_voronoi_geopolitics.py"
 node render_engine.render_engine___init__ "__init__.py"
 node render_engine.render_engine_gpu___init__ "__init__.py"

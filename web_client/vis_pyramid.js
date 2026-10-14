@@ -198,5 +198,4 @@
 
   const CoCVisPyramid = Object.freeze({ drawWealthPyramid, drawLorenzCurve });
   root.CoCVisPyramid = CoCVisPyramid;
-  root.RegnumVisPyramid = CoCVisPyramid;
 })(typeof globalThis !== 'undefined' ? globalThis : window);

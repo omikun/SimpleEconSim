@@ -110,5 +110,4 @@
     renderList
   });
   root.CoCDOM = CoCDOM;
-  root.RegnumDOM = CoCDOM;
 })(typeof globalThis !== 'undefined' ? globalThis : window);

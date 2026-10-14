@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-regime.py — Regime orchestrator for REGNUM (M3.4 / M3.6).
+regime.py — Regime orchestrator for Call of Capital (M3.4 / M3.6).
 
 Ties elections (election.py) and coups (coup.py) to a Nation's per-turn
 lifecycle:

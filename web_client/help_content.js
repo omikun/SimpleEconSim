@@ -26,7 +26,7 @@
     }
     if (page !== '3') return '';
 
-    const uiUtils = root.CoCUIUtils || root.RegnumUIUtils;
+    const uiUtils = root.CoCUIUtils;
     const { escapeHtml, safeCssColor } = uiUtils;
     const nations = Array.isArray(world.nations) ? world.nations : [];
     return `
@@ -50,5 +50,4 @@
 
   const CoCHelpContent = Object.freeze({ renderHelpPage });
   root.CoCHelpContent = CoCHelpContent;
-  root.RegnumHelpContent = CoCHelpContent;
 })(typeof globalThis !== 'undefined' ? globalThis : window);

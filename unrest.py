@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-unrest.py — Escalation ladder + repression for REGNUM M2.5/M2.6.
+unrest.py — Escalation ladder + repression for Call of Capital M2.5/M2.6.
 
 Pure gameplay logic consuming per-tile signals (factions, protest energy,
 gov policy knobs) and generating CONSUMED/TRANSFERRED effects:

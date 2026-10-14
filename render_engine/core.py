@@ -15,7 +15,7 @@ from render_engine.hex_renderer import HexRenderer
 
 
 class RenderEngine:
-    """Standalone Graphics & Rendering Engine for REGNUM."""
+    """Standalone Graphics & Rendering Engine for Call of Capital."""
 
     def __init__(self, width=WIDTH, height=HEIGHT, map_right=MAP_RIGHT,
                  top_bar_h=TOP_BAR_H, ticker_h=TICKER_H):

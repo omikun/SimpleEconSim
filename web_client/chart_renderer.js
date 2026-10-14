@@ -95,5 +95,4 @@
 
   const CoCCharts = Object.freeze({ getChartCatalog, drawHistoricalChart });
   root.CoCCharts = CoCCharts;
-  root.RegnumCharts = CoCCharts;
 })(typeof globalThis !== 'undefined' ? globalThis : window);

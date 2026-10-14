@@ -1,5 +1,5 @@
 """
-tile_resources.py — Procedural Natural Resource Endowments for REGNUM.
+tile_resources.py — Procedural Natural Resource Endowments for Call of Capital.
 
 Assigns natural resource deposits to tiles based on topography (elevation),
 hydrology (rivers/coasts), and biomes:

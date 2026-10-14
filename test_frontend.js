@@ -85,7 +85,6 @@ test('Hex Geometry Module (hex_geometry.js)', (t) => {
   const geo = ctx.window.CoCHexGeometry;
 
   assert.ok(geo, 'CoCHexGeometry must be exported');
-  assert.equal(ctx.window.RegnumHexGeometry, geo, 'RegnumHexGeometry alias must match CoCHexGeometry');
   assert.equal(typeof geo.axialToPixel, 'function');
   assert.equal(typeof geo.pixelToAxial, 'function');
 
@@ -111,7 +110,6 @@ test('Safe DOM Builder Module (dom_builder.js)', (t) => {
   const dom = ctx.window.CoCDOM;
 
   assert.ok(dom, 'CoCDOM must be exported');
-  assert.equal(ctx.window.RegnumDOM, dom, 'RegnumDOM alias must match CoCDOM');
 
   // Test element creation with attributes & children
   let clicked = false;
@@ -146,7 +144,6 @@ test('Reactive State Store Module (state_store.js)', (t) => {
   });
 
   assert.ok(store, 'Store must be created');
-  assert.ok(ctx.window.RegnumStateStore, 'RegnumStateStore alias must exist');
   assert.equal(store.getState().initialCustomKey, 123);
 
   let tileEventData = null;
@@ -176,7 +173,6 @@ test('Overland Trade Animator Module (trade_animator.js)', (t) => {
   const animator = ctx.window.CoCTradeAnimator;
 
   assert.ok(animator, 'CoCTradeAnimator must be exported');
-  assert.equal(ctx.window.RegnumTradeAnimator, animator, 'RegnumTradeAnimator alias must match CoCTradeAnimator');
   assert.equal(typeof animator.drawTradeRoutes, 'function');
   assert.equal(typeof animator.drawTradeFlowParticles, 'function');
   assert.equal(typeof animator.createAnimationTicker, 'function');
@@ -234,11 +230,8 @@ test('Comparison Suite Visualizers (vis_pyramid.js, vis_radar_attractor.js, vis_
   loadScript('web_client/vis_circuits.js', ctx);
 
   assert.ok(ctx.window.CoCVisPyramid, 'CoCVisPyramid must be defined');
-  assert.ok(ctx.window.RegnumVisPyramid, 'RegnumVisPyramid alias must be defined');
   assert.ok(ctx.window.CoCVisRadarAttractor, 'CoCVisRadarAttractor must be defined');
-  assert.ok(ctx.window.RegnumVisRadarAttractor, 'RegnumVisRadarAttractor alias must be defined');
   assert.ok(ctx.window.CoCVisCircuits, 'CoCVisCircuits must be defined');
-  assert.ok(ctx.window.RegnumVisCircuits, 'RegnumVisCircuits alias must be defined');
 
   const mockCanvas = {
     getContext: () => ({
@@ -292,16 +285,12 @@ test('UI Utils, Chart Renderer, Help Content, and State Sync Modules', (t) => {
   loadScript('web_client/state_sync.js', ctx);
 
   assert.ok(ctx.window.CoCUIUtils, 'CoCUIUtils must be defined');
-  assert.equal(ctx.window.RegnumUIUtils, ctx.window.CoCUIUtils);
 
   assert.ok(ctx.window.CoCCharts, 'CoCCharts must be defined');
-  assert.equal(ctx.window.RegnumCharts, ctx.window.CoCCharts);
 
   assert.ok(ctx.window.CoCHelpContent, 'CoCHelpContent must be defined');
-  assert.equal(ctx.window.RegnumHelpContent, ctx.window.CoCHelpContent);
 
   assert.ok(ctx.window.CoCStateSync, 'CoCStateSync must be defined');
-  assert.equal(ctx.window.RegnumStateSync, ctx.window.CoCStateSync);
 });
 
 test('Voronoi Geometry Module (voronoi_geometry.js)', (t) => {
@@ -310,7 +299,6 @@ test('Voronoi Geometry Module (voronoi_geometry.js)', (t) => {
 
   const vg = ctx.window.CoCVoronoiGeometry;
   assert.ok(vg, 'CoCVoronoiGeometry must be exported');
-  assert.equal(ctx.window.RegnumVoronoiGeometry, vg, 'RegnumVoronoiGeometry alias must match');
 
   // Test rectangle polygon [[0, 0], [100, 0], [100, 100], [0, 100]]
   const poly = [[0, 0], [100, 0], [100, 100], [0, 100]];
@@ -352,7 +340,6 @@ test('3D Perspective Projection Engine (projection_3d.js)', (t) => {
 
   const p3d = ctx.window.CoCProjection3D;
   assert.ok(p3d, 'CoCProjection3D must be exported');
-  assert.equal(ctx.window.RegnumProjection3D, p3d, 'RegnumProjection3D alias must match');
 
   // Dynamic Civ-style Zoom interpolation
   const closeUp = p3d.computePitchYaw(2.5);

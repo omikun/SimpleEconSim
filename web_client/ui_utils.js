@@ -21,5 +21,4 @@
   }
 
   root.CoCUIUtils = Object.freeze({ escapeHtml, safeClassToken, safeCssColor });
-  root.RegnumUIUtils = root.CoCUIUtils;
 })(typeof globalThis !== 'undefined' ? globalThis : window);

@@ -8,11 +8,11 @@ constants; eager exports here would create a package initialization cycle.
 
 from importlib import import_module
 
-__all__ = ['RegnumWebServer', 'run_web_server', 'GameClient', 'desktop']
+__all__ = ['CoCWebServer', 'run_web_server', 'GameClient', 'desktop']
 
 
 def __getattr__(name):
-    if name in ('RegnumWebServer', 'run_web_server'):
+    if name in ('CoCWebServer', 'run_web_server'):
         module = import_module('client.web')
         return getattr(module, name)
     if name == 'GameClient':

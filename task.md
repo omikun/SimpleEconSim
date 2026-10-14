@@ -5,7 +5,7 @@ Last updated: 2026-08-13 · HEAD: `aaec56e` + M3 (local; nothing pushed)
 ## M0 — Nation & Tiles (committed, PASSING)
 
 **Commit chain** (all local, not pushed):
-- `ecbc772` — GDD + `priority_tasks.md` (REGNUM strategy game design)
+- `ecbc772` — GDD + `priority_tasks.md` (Call of Capital strategy game design)
 - `f222b71` — **M0: Nation & Tiles** — nation.py, terrain hooks, adjacency + multi-route,
   ownership, sim_ring.py + sim_nation.py, tile-map sketch, **FX conservation audit fixes**
   (9 files, +1101/−57)
@@ -190,7 +190,7 @@ capital structure instead of any silent write-off:
 - Both PNGs render; gov income decomposition row present
 
 ## Potential follow-ups (not yet requested / open)
-1. **M1? (next milestone)** — see `priority_tasks.md` / `gdd.md` for REGNUM roadmap.
+1. **M1? (next milestone)** — see `priority_tasks.md` / `gdd.md` for Call of Capital roadmap.
    Natural continuations: **currency-union / intra-nation trade** (M0 deferred it),
    more tile shapes (non-grid), nation-level AI vs regime_type, war/conquest, tech tree.
 2. **Region_A long-horizon trader extinction (300t)** — pre-existing, structural:

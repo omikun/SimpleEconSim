@@ -220,5 +220,4 @@
 
   const CoCVisRadarAttractor = Object.freeze({ drawAlienationRadar, drawRebellionAttractor });
   root.CoCVisRadarAttractor = CoCVisRadarAttractor;
-  root.RegnumVisRadarAttractor = CoCVisRadarAttractor;
 })(typeof globalThis !== 'undefined' ? globalThis : window);

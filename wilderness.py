@@ -1,5 +1,5 @@
 """
-v3_wilderness — unclaimed-tile mechanics for the REGNUM tile game.
+v3_wilderness — unclaimed-tile mechanics for the Call of Capital tile game.
 
 Every behavior that only applies to UNCLAIMED (wilderness) tiles lives here,
 keeping region.py lean.  Functions take a Region instance (duck-typed), so

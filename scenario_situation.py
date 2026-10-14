@@ -15,7 +15,7 @@ EFFECT_FIELDS = frozenset({
 
 
 def _validate_template(data: dict) -> None:
-    if data.get('format') not in ('coc.situation.v1', 'regnum.situation.v1') or not isinstance(data.get('branches'), dict):
+    if data.get('format') != 'coc.situation.v1' or not isinstance(data.get('branches'), dict):
         raise ValueError('Unsupported situation scenario format.')
     naval_rules = data.get('naval_crisis', {})
     for key in ('british_squadron_strength', 'alexandria_battery_strength',

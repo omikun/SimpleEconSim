@@ -1,5 +1,5 @@
 """
-sim_engine.py — Canonical turn-stepping engine for REGNUM simulations.
+sim_engine.py — Canonical turn-stepping engine for Call of Capital simulations.
 
 Coordinates the multi-layered turn pipeline across:
   1. World / Inter-tile Layer: pending imports, routes, parked goods, trade settlement,

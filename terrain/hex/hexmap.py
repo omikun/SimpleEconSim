@@ -1,5 +1,5 @@
 """
-HexMap — axial hex geometry + the M0 2x3 tile layout (REGNUM V1).
+HexMap — axial hex geometry + the M0 2x3 tile layout (Call of Capital V1).
 
 Pure geometry module (no pygame, no simulation imports) so it can be tested
 headlessly and reused by any renderer.

@@ -1,5 +1,5 @@
 """
-worldview_progress_panel.py — Unified Progress & Development Drawer for REGNUM.
+worldview_progress_panel.py — Unified Progress & Development Drawer for Call of Capital.
 
 Displays everything being:
 1. Built: Active & stalled construction projects (progress %, turns left, stalled status & reasons, contractor).

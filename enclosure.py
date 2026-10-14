@@ -1,5 +1,5 @@
 """
-enclosure.py — Feudal Enclosure & Dispossession Engine for REGNUM.
+enclosure.py — Feudal Enclosure & Dispossession Engine for Call of Capital.
 
 Under the Enclosure Act, a lord petitions the crown to strip customary
 usufruct rights from their feudal estate. The crown grants an enclosure

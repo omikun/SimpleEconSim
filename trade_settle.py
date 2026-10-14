@@ -1,5 +1,5 @@
 """
-trade_settle.py — trader wilderness settlement (v3_wilderness, REGNUM).
+trade_settle.py — trader wilderness settlement (v3_wilderness, Call of Capital).
 
 Rulings locked with the user (2026-08-13):
   - Traders are a NO-INTEREST wilderness bank.  A trader sells goods to

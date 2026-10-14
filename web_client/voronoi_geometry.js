@@ -118,5 +118,4 @@
   });
 
   root.CoCVoronoiGeometry = CoCVoronoiGeometry;
-  root.RegnumVoronoiGeometry = CoCVoronoiGeometry;
 })(typeof globalThis !== 'undefined' ? globalThis : window);

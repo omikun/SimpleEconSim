@@ -1,5 +1,5 @@
 """
-world_names.py — Realistic Global Geographical Naming Database for REGNUM.
+world_names.py — Realistic Global Geographical Naming Database for Call of Capital.
 
 Hierarchical database of 10 top populous nations/countries, each containing:
 - 10 prominent states / provinces

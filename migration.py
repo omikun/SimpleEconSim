@@ -1,5 +1,5 @@
 """
-migration.py — real agent movement for v3_wilderness (REGNUM).
+migration.py — real agent movement for v3_wilderness (Call of Capital).
 
 M1.5 emitted a score-only migration intent log; this module turns that into
 ACTUAL conserved movement.  Each turn, a claimed tile under pressure pushes a

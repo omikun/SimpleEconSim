@@ -64,7 +64,7 @@ class CoCHTTPRequestHandler(BaseHTTPRequestHandler):
 
     def _authorized_mutation(self) -> bool:
         expected = getattr(self.server, 'api_token', '')
-        provided = self.headers.get('X-COC-Token') or self.headers.get('X-REGNUM-Token', '')
+        provided = self.headers.get('X-COC-Token', '')
         if expected and secrets.compare_digest(provided, expected):
             return True
         self._send_error_json(403, 'Missing or invalid API token')
@@ -213,7 +213,7 @@ class CoCHTTPRequestHandler(BaseHTTPRequestHandler):
                 token = getattr(self.server, 'api_token', '')
                 content = content.replace(
                     b'</head>',
-                    f'<script>window.COC_API_TOKEN="{token}";window.REGNUM_API_TOKEN="{token}";</script></head>'.encode('ascii'),
+                    f'<script>window.COC_API_TOKEN="{token}";</script></head>'.encode('ascii'),
                     1,
                 )
             self.send_header('Content-Length', str(len(content)))
@@ -816,11 +816,6 @@ class CoCWebServer:
         print("=" * 56)
         print("  Controls on phone: 1-finger pan, pinch-zoom, tap hex to inspect.")
         print("=" * 56 + "\n")
-
-
-# Backwards compatibility aliases
-RegnumWebServer = CoCWebServer
-RegnumHTTPRequestHandler = CoCHTTPRequestHandler
 
 
 def run_web_server(sim_server: Optional['SimServer'] = None, host: str = '0.0.0.0', port: int = 8080,

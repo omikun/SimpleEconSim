@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-coup.py — Regime coups for the REGNUM tile game (M3.5).
+coup.py — Regime coups for the Call of Capital tile game (M3.5).
 
 Pure gameplay module.  A coup is an extra-constitutional regime change led by
 a "general": an ambitious, popular (charismatic) and personally-loyal adult

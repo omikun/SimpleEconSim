@@ -1,5 +1,5 @@
 """
-Nation — sovereign wrapper around a Government for the REGNUM tile game (M0).
+Nation — sovereign wrapper around a Government for the Call of Capital tile game (M0).
 
 A Nation owns one sovereign Government and a list of tiles (Region objects).
 It is deliberately dependency-light: it imports `government` and `region` (for

@@ -1,6 +1,6 @@
 """
 alienation.py — Psychological alienation, physiological health attrition,
-despair, and mass entertainment pacification for REGNUM.
+despair, and mass entertainment pacification for Call of Capital.
 
 Models the Marxian 4-dimensional alienation vector, cumulative bodily wear & tear,
 and the cultural pacification role of mass entertainment for capital accumulation.

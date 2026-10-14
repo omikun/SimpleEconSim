@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-REGNUM v3_wilderness — 9x9 hex headless world (M0.5-style driver).
+Call of Capital v3_wilderness — 9x9 hex headless world (M0.5-style driver).
 
 Three Nations each claim a CONTIGUOUS hex cluster (Alpha=3, Beta=4, Gamma=5
 tiles; 100 agents / tile).  The rest of the 81-tile honeycomb is UNCLAIMED

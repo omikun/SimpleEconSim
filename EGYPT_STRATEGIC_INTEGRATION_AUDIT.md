@@ -5,9 +5,9 @@ Date: 2026-10-04. Scope: Phase 6 of [the strategic loop plan](EGYPT_STRATEGIC_LO
 ## Reproduction
 
 ```sh
-PYTHONHASHSEED=0 MPLCONFIGDIR=/private/tmp/regnum-mpl venv/bin/python audit_egypt_strategic_integration.py --suite --output /private/tmp/egypt_strategic_integration_verified_final.json
-PYTHONHASHSEED=0 MPLCONFIGDIR=/private/tmp/regnum-mpl venv/bin/python -m unittest test_scenario_playthroughs -q
-MPLCONFIGDIR=/private/tmp/regnum-mpl venv/bin/python -m unittest test_scenario_projects test_scenario_presentation test_scenario_debt test_scenario_diplomacy -q
+PYTHONHASHSEED=0 MPLCONFIGDIR=/private/tmp/coc-mpl venv/bin/python audit_egypt_strategic_integration.py --suite --output /private/tmp/egypt_strategic_integration_verified_final.json
+PYTHONHASHSEED=0 MPLCONFIGDIR=/private/tmp/coc-mpl venv/bin/python -m unittest test_scenario_playthroughs -q
+MPLCONFIGDIR=/private/tmp/coc-mpl venv/bin/python -m unittest test_scenario_projects test_scenario_presentation test_scenario_debt test_scenario_diplomacy -q
 ```
 
 The audit runs each campaign in a separate process. The replay helper resets the bond market, imperialism manager, agent IDs, and campaign random stream. Its fiscal variants transfer up to 40 units between Cairo and a real private household without creating cash. The two Nile variants set the Delta and Upper Egypt yield modifiers to 0.25 or 0.55 through turn 12. The matrix covers 35 complete paths: 16 ending routes, a food-access continuation, 16 opening-project and political routes under paired Nile/fiscal conditions, and two favorable payment routes. Both Python hash seeds 0 and 1 occur in the matrix.

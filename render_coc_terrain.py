@@ -1,7 +1,7 @@
 """
-render_regnum_terrain.py — Photorealistic REGNUM Topographic Renderer for Mapgen2.
+render_coc_terrain.py — Photorealistic Call of Capital Topographic Renderer for Mapgen2.
 
-Ports all graphical shader passes from REGNUM's topographic engine onto Mapgen2
+Ports all graphical shader passes from Call of Capital's topographic engine onto Mapgen2
 polygonal worlds, including:
 1. 2D Volumetric Forest Canopy (crown stamps, dome relief, AO, drop shadows, interior clearings, riparian woods)
 2. Optical Ocean Water (Beer-Lambert depth extinction, 4-octave wave ripples, sun glints, coastal surf foam)
@@ -75,7 +75,7 @@ def _cellhash(ai: np.ndarray, bi: np.ndarray, salt: int, seed: int) -> np.ndarra
     return NOISE_TBL[(h >> np.int64(8)).astype(np.int64), (h & np.int64(255)).astype(np.int64)]
 
 
-def render_regnum_terrain(
+def render_coc_terrain(
     gen: PolygonMapGenerator,
     width: int = 512,
     height: int = 512,
@@ -131,7 +131,7 @@ def render_regnum_terrain(
     sun_elevation: float = 42.0,
     frame: int = 0,
 ) -> pygame.Surface:
-    """Render a Mapgen2 polygonal world using the photorealistic REGNUM topographic rendering pipeline."""
+    """Render a Mapgen2 polygonal world using the photorealistic Call of Capital topographic rendering pipeline."""
     # 1. World Mesh Coordinates
     seed = getattr(gen, "seed", 42)
     world_w, world_h = float(gen.width), float(gen.height)
@@ -753,7 +753,3 @@ def render_regnum_terrain(
     # Pygame expects (width, height, 3) where array is indexed (x, y)
     surf = pygame.surfarray.make_surface(np.transpose(img_uint8, (1, 0, 2)))
     return surf
-
-
-# Backwards compatibility alias
-render_coc_terrain = render_regnum_terrain

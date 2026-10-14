@@ -1,5 +1,5 @@
 """
-buildings.py — Modular Buildings and Construction Projects for REGNUM.
+buildings.py — Modular Buildings and Construction Projects for Call of Capital.
 
 Implements the physical construction and operational loop:
 1. Sovereign / AI funds a project by hiring an emergent contractor corporation.

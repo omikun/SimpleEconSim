@@ -36,7 +36,7 @@ This folder contains the generic scenario engine and modular simulation dynamics
 
 ## 2. Directory Structure
 
-- [`schema.py`](schema.py): Data models (`ScenarioSpec`, `ActionSpec`, `ReactionSpec`) and schema validation for `regnum.scenario.v2`.
+- [`schema.py`](schema.py): Data models (`ScenarioSpec`, `ActionSpec`, `ReactionSpec`) and schema validation for `coc.scenario.v2`.
 - [`evaluator.py`](evaluator.py): AST-based sandboxed expression evaluator for preconditions, metrics, and triggers.
 - [`effects.py`](effects.py): Effect dispatcher enforcing **strict conservation of cash and physical goods** while adjusting macro metrics.
 - [`interpreter.py`](interpreter.py): The `ScenarioInterpreter` engine managing role bindings, turn stepping, action execution, delayed reactions, modals, and debrief classification.

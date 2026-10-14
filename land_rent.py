@@ -1,5 +1,5 @@
 """
-land_rent.py — Cash Rent Collection for Enclosed Plots in REGNUM.
+land_rent.py — Cash Rent Collection for Enclosed Plots in Call of Capital.
 
 On ENCLOSED (and LEASEHOLD) plots, the feudal in-kind tribute is abolished
 and replaced by mandatory cash rent.

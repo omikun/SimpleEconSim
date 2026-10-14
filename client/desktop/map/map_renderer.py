@@ -1,5 +1,5 @@
 """
-worldview_map.py — Realistic Topographic Elevation Hex Map Rendering for REGNUM.
+worldview_map.py — Realistic Topographic Elevation Hex Map Rendering for Call of Capital.
 
 Renders realistic procedural terrain heightmaps with:
 - Deep & Shallow Ocean with water ripples and depth colormaps

@@ -1,5 +1,5 @@
 """
-ai_nation.py — AI Sovereign Brain, Terrain Valuation, Vulnerability, and Alliances for REGNUM (M5).
+ai_nation.py — AI Sovereign Brain, Terrain Valuation, Vulnerability, and Alliances for Call of Capital (M5).
 
 Provides:
 - NationPolicyAI: strategic brain for an AI-controlled Nation.

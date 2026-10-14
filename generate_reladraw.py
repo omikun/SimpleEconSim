@@ -58,7 +58,7 @@ subsystems = [
         'render_engine.gpu.fallback_pipeline', 'render_engine.gpu.mesh_brdf_pipeline',
         'render_engine.gpu.micropoly_3d_renderer', 'render_engine.gpu.moderngl_pipeline',
         'render_engine.gpu.settings', 'render_engine.gpu.shaders', 'render_dev_viewer',
-        'render_island_micropolys', 'render_regnum_terrain', 'render_voronoi_geopolitics',
+        'render_island_micropolys', 'render_coc_terrain', 'render_voronoi_geopolitics',
         'render_engine.__init__', 'render_engine.gpu.__init__'
     ]),
     ('orchestration', 'Simulation Orchestration & Lifecycle', 'orchestration', [

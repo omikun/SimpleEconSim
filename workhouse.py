@@ -1,5 +1,5 @@
 """
-workhouse.py — Parish Workhouse & Vagrancy Enforcement Engine for REGNUM.
+workhouse.py — Parish Workhouse & Vagrancy Enforcement Engine for Call of Capital.
 
 Implements the English Poor Laws & Workhouse System:
 1. New vagrancy arrests require an active law and funded enforcement capacity.

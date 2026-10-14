@@ -186,5 +186,4 @@
 
   const CoCVisCircuits = Object.freeze({ drawCircuitSankey, drawTRPFCurve });
   root.CoCVisCircuits = CoCVisCircuits;
-  root.RegnumVisCircuits = CoCVisCircuits;
 })(typeof globalThis !== 'undefined' ? globalThis : window);

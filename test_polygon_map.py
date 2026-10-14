@@ -9,7 +9,7 @@ Verifies:
 - Moisture diffusion & Whittaker biome distribution
 - Spatial KD-Tree queries
 - Determinism and multi-core parallel generation
-- REGNUM hex grid adapter compatibility
+- Call of Capital hex grid adapter compatibility
 """
 
 import math
@@ -264,7 +264,7 @@ class TestPolygonMapBiomesAndQueries(unittest.TestCase):
 
 
 class TestParallelAndWorldIntegration(unittest.TestCase):
-    """Test seed determinism, parallel batch generation, and REGNUM hex world adapter."""
+    """Test seed determinism, parallel batch generation, and Call of Capital hex world adapter."""
 
     def test_seed_determinism(self):
         """Identical seeds must yield identical dual graphs and statistics."""
@@ -328,7 +328,7 @@ class TestParallelAndWorldIntegration(unittest.TestCase):
                 self.assertTrue(curr.water or curr.ocean)
 
     def test_apply_polygon_map_to_world(self):
-        """Adapter must successfully populate REGNUM hex tiles with terrain attributes."""
+        """Adapter must successfully populate Call of Capital hex tiles with terrain attributes."""
         tiles = create_mock_island_tiles(seed=999, rows=9, cols=9)
         gen = apply_polygon_map_to_world(tiles, seed=999, grid_rows=9, grid_cols=9, num_points=300)
 

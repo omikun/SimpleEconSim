@@ -1,5 +1,5 @@
 """
-worldview_left_dock.py — Unified Left Dock & Drawer Navigation Manager for REGNUM.
+worldview_left_dock.py — Unified Left Dock & Drawer Navigation Manager for Call of Capital.
 
 Manages all left-hand drawers docked on the left of the hex map:
 1. [🔨 Build Menu (B)]

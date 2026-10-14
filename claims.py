@@ -1,5 +1,5 @@
 """
-claims.py — frontier claim mechanics for v3_wilderness (REGNUM).
+claims.py — frontier claim mechanics for v3_wilderness (Call of Capital).
 
 Each turn, each unclaimed wilderness tile checks whether homesteaders
 have established a majority originating from a specific nation.

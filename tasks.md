@@ -1,4 +1,4 @@
-# REGNUM — Task Handoff (2026-08-11)
+# Call of Capital — Task Handoff (2026-08-11)
 
 HEAD: f627d5f (T1 committed; never push). M1 committed on top (never push).
 Invariant: 0 LEAK / 0 SUPPLY SHIFT / no BANK INSOLVENCY.

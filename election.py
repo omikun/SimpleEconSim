@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-election.py — Regime elections for the REGNUM tile game (M3.1–M3.3).
+election.py — Regime elections for the Call of Capital tile game (M3.1–M3.3).
 
 Pure gameplay module.  It GENERATES candidates (from agent charisma + faction
 membership), lets a treasury finance campaigns (conserved transfer: tile-gov

@@ -1,5 +1,5 @@
 """
-worldview_citizens.py — Changing Status of Citizens Visualizer for REGNUM.
+worldview_citizens.py — Changing Status of Citizens Visualizer for Call of Capital.
 
 Provides interactive visualizations and time-series charts of citizen status
 across individual Cities/Tiles and Sovereign Nations:

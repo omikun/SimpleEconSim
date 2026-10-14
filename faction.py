@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-faction.py — Factions for the REGNUM tile game (M2.1).
+faction.py — Factions for the Call of Capital tile game (M2.1).
 
 Pure state module: a Faction is a named interest group with overlapping
 agent membership (one agent can belong to many factions), ranked policy

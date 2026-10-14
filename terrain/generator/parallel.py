@@ -83,7 +83,7 @@ def apply_polygon_map_to_world(
     num_points: int = 800,
     island_shape: str = 'radial',
 ) -> PolygonMapGenerator:
-    """Sample polygonal geography onto the REGNUM 9x9 hex tile grid.
+    """Sample polygonal geography onto the Call of Capital 9x9 hex tile grid.
     
     Provides 100% plug-and-play parity with apply_heightmap_to_world in heightmap.py.
     """

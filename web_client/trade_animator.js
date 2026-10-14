@@ -5,7 +5,7 @@
 (function (root) {
   'use strict';
 
-  const hexGeo = root.CoCHexGeometry || root.RegnumHexGeometry;
+  const hexGeo = root.CoCHexGeometry;
   const { axialToPixel } = hexGeo || {};
 
   function getTilePos(tile, hexRadius, projectFn) {
@@ -159,5 +159,4 @@
     createAnimationTicker
   });
   root.CoCTradeAnimator = CoCTradeAnimator;
-  root.RegnumTradeAnimator = CoCTradeAnimator;
 })(typeof globalThis !== 'undefined' ? globalThis : window);

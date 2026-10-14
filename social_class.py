@@ -1,5 +1,5 @@
 """
-social_class.py — Dynamic Social Class Engine for REGNUM.
+social_class.py — Dynamic Social Class Engine for Call of Capital.
 
 Classes are not static labels assigned at birth; they emerge dynamically
 from each agent's real, objective relation to property, land, and capital:

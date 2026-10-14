@@ -1,4 +1,4 @@
-"""Schema definitions and validation for regnum.scenario.v2 specifications."""
+"""Schema definitions and validation for coc.scenario.v2 specifications."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 
 
-SUPPORTED_FORMATS = frozenset({'regnum.scenario.v2', 'regnum.situation.v1'})
+SUPPORTED_FORMATS = frozenset({'coc.scenario.v2', 'coc.situation.v1'})
 
 RECOGNIZED_EFFECT_KEYS = frozenset({
     'confidence_delta',
@@ -121,7 +121,7 @@ class ScenarioSpec:
 
 
 def validate_scenario_dict(data: dict) -> None:
-    """Validate a parsed scenario dictionary against regnum.scenario.v2 rules."""
+    """Validate a parsed scenario dictionary against coc.scenario.v2 rules."""
     fmt = data.get('format')
     if fmt not in SUPPORTED_FORMATS:
         raise ValueError(f'Unsupported scenario format "{fmt}". Expected one of: {sorted(SUPPORTED_FORMATS)}')
@@ -192,7 +192,7 @@ def load_scenario_spec(source: str | Path | dict) -> ScenarioSpec:
     validate_scenario_dict(data)
 
     scenario_id = data.get('id') or data.get('scenario_id', 'unknown_scenario')
-    fmt = data.get('format', 'regnum.scenario.v2')
+    fmt = data.get('format', 'coc.scenario.v2')
     meta = data.get('meta', {})
     if not meta and 'title' in data:
         meta = {

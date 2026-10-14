@@ -1,6 +1,6 @@
 # Egypt strategic-loop baseline and design cards
 
-Run `MPLCONFIGDIR=/private/tmp/regnum-mpl venv/bin/python audit_egypt_strategy_baseline.py output.json` to reproduce this snapshot of the current working tree. The four scripts use one seeded opening and UI-valid actions. They show reachable outcomes and pacing, not a balance guarantee across seeds or a human playtest.
+Run `MPLCONFIGDIR=/private/tmp/coc-mpl venv/bin/python audit_egypt_strategy_baseline.py output.json` to reproduce this snapshot of the current working tree. The four scripts use one seeded opening and UI-valid actions. They show reachable outcomes and pacing, not a balance guarantee across seeds or a human playtest.
 
 | Path | Last action | Unused major-decision turns | Final underfed households | Treasury | Caisse claim | Ending |
 | --- | ---: | ---: | ---: | ---: | ---: | --- |

@@ -1,5 +1,5 @@
 """
-diplomacy.py — Bilateral Relations, Treaties, Alliances, and Betrayal Memory for REGNUM (M5.4–M5.7).
+diplomacy.py — Bilateral Relations, Treaties, Alliances, and Betrayal Memory for Call of Capital (M5.4–M5.7).
 
 Provides:
 - DiplomacySystem: Global / inter-nation diplomatic state tracking bilateral relations (-1.0 to 1.0).

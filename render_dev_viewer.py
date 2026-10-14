@@ -1,5 +1,5 @@
 """
-render_dev_viewer.py — Standalone Graphics Development Viewer & Sandbox for REGNUM.
+render_dev_viewer.py — Standalone Graphics Development Viewer & Sandbox for Call of Capital.
 
 Runs the RenderEngine purely for graphics iteration without loading or ticking
 any economic simulation models. Features GPU-accelerated and CPU fallback pipelines,

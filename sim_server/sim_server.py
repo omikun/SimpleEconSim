@@ -24,7 +24,7 @@ from sim_server.protocol import CommandType, CommandMessage, ServerEvent
 
 
 class SimServer:
-    """Authoritative headless simulation server for REGNUM."""
+    """Authoritative headless simulation server for Call of Capital."""
 
     def __init__(self, seed: Optional[int] = None, terrain_seed: Optional[int] = None,
                  nation_seed: Optional[int] = None,

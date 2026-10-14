@@ -1210,7 +1210,7 @@
       micropoly_grain: true,
       micropoly_blend: 0.0,
       micropoly_creases: false,
-      // REGNUM Photorealistic Topographic Knobs
+      // Call of Capital Photorealistic Topographic Knobs
       show_canopy: true,
       canopy_density: 0.85,
       crown_size: 5.0,
@@ -3081,7 +3081,7 @@
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
         syncTerrainTexture();
-        const isPhotoreal = (state.mode === 'photorealistic' || state.mode === 'coc' || state.mode === 'regnum');
+        const isPhotoreal = (state.mode === 'photorealistic' || state.mode === 'coc');
         const useTex = isPhotoreal && hasTerrainTexture;
 
         const shadowModeInt = (curShadowMode === 'shadow_map') ? 1 : (curShadowMode === 'ray_trace') ? 2 : 0;
@@ -3428,7 +3428,7 @@
         completeProgress();
         isMeshFetching = false;
 
-        const isPhotoreal = (state.mode === 'photorealistic' || state.mode === 'coc' || state.mode === 'regnum');
+        const isPhotoreal = (state.mode === 'photorealistic' || state.mode === 'coc');
         const is3D = (Math.abs(state.rot_pitch) > 0.5 || Math.abs(state.rot_yaw) > 0.5 || isRotating);
         if ((state.engine === 'gpu' && state.mode === 'micropolys') || (isPhotoreal && is3D) || isRotating) {
           gpuCanvas.style.display = 'block';
@@ -3537,7 +3537,7 @@
       state.rot_yaw = 0.0;
       updateRotHud();
       saveCurrentSettings();
-      if (state.mode === 'photorealistic' || state.mode === 'coc' || state.mode === 'regnum') {
+      if (state.mode === 'photorealistic' || state.mode === 'coc') {
         gpuCanvas.style.display = 'none';
         mapImg.style.display = 'block';
       } else {
@@ -3592,7 +3592,7 @@
       if (e.target.closest('.zoom-hud') || e.target.closest('.inspect-card') || e.target.closest('.rot-hud')) return;
       hasMoved = false;
 
-      const isPhotoreal = (state.mode === 'photorealistic' || state.mode === 'coc' || state.mode === 'regnum');
+      const isPhotoreal = (state.mode === 'photorealistic' || state.mode === 'coc');
       const isRotatableMode = (state.mode === 'micropolys' || isPhotoreal);
       const is3D = (Math.abs(state.rot_pitch) > 0.5 || Math.abs(state.rot_yaw) > 0.5);
       const isRightClick = (e.button === 2);
@@ -3686,7 +3686,7 @@
             // In top-down view, display 2D map
             gpuCanvas.style.display = 'none';
             mapImg.style.display = 'block';
-            if (state.mode !== 'photorealistic' && state.mode !== 'coc' && state.mode !== 'regnum') {
+            if (state.mode !== 'photorealistic' && state.mode !== 'coc') {
               triggerUpdate(false);
             }
           }
@@ -3731,7 +3731,7 @@
       if (e.touches.length === 1) {
         hasMoved = false;
         isPinching = false;
-        const isPhotoreal = (state.mode === 'photorealistic' || state.mode === 'coc' || state.mode === 'regnum');
+        const isPhotoreal = (state.mode === 'photorealistic' || state.mode === 'coc');
         const isRotatableMode = (state.mode === 'micropolys' || isPhotoreal);
         const is3D = (Math.abs(state.rot_pitch) > 0.5 || Math.abs(state.rot_yaw) > 0.5);
         const shouldRotate = (dragMode === 'rotate') || (dragMode === 'auto' && (isRotatableMode || is3D));
@@ -3840,7 +3840,7 @@
           } else if (!is3D) {
             gpuCanvas.style.display = 'none';
             mapImg.style.display = 'block';
-            if (state.mode !== 'photorealistic' && state.mode !== 'coc' && state.mode !== 'regnum') {
+            if (state.mode !== 'photorealistic' && state.mode !== 'coc') {
               triggerUpdate(false);
             }
           }
@@ -3987,10 +3987,10 @@
 
         let engineLabel = 'CPU Mesh';
         if (engHdr === 'gpu') engineLabel = '⚡ ModernGL GPU';
-        else if (engHdr === 'coc-topo' || engHdr === 'regnum-topo' || state.mode === 'photorealistic' || state.mode === 'coc' || state.mode === 'regnum') engineLabel = '🎨 Call of Capital (CoC) Topo';
+        else if (engHdr === 'coc-topo' || state.mode === 'photorealistic' || state.mode === 'coc') engineLabel = '🎨 Call of Capital (CoC) Topo';
         else if (engHdr) engineLabel = engHdr;
         perfStatus.textContent = `${engineLabel} • Computed in ${lastTerrainComputeTimeStr} • Seed ${state.seed}`;
-        if (state.mode === 'photorealistic' || state.mode === 'coc' || state.mode === 'regnum') {
+        if (state.mode === 'photorealistic' || state.mode === 'coc') {
           polyBadge.textContent = 'Photorealistic Topo';
         } else if (engHdr === 'gpu') {
           polyBadge.textContent = `${resHdr} UHD`;
@@ -4115,7 +4115,7 @@
     });
 
     // Toggle and Slider Wiring Utilities for Enhancements
-    function wireRegnumToggle(id, stateKey, onPrefix = '', offPrefix = '') {
+    function wireCoCToggle(id, stateKey, onPrefix = '', offPrefix = '') {
       const el = document.getElementById(id);
       if (!el) return;
       el.addEventListener('click', () => {
@@ -4129,7 +4129,7 @@
       });
     }
 
-    function wireRegnumSlider(id, key, valId, fmtFn = v => `${v}`) {
+    function wireCoCSlider(id, key, valId, fmtFn = v => `${v}`) {
       const slider = document.getElementById(id);
       const valDisp = document.getElementById(valId);
       if (!slider) return;
@@ -4142,15 +4142,15 @@
     }
 
     // Micropoly Enhancements Wiring
-    wireRegnumToggle('toggle-mp-trees', 'micropoly_trees');
-    wireRegnumSlider('slider-tree-density', 'tree_density', 'val-tree-density', v => `${Number(v) >= 10 ? Math.round(v) : Number(v).toFixed(1)}x`);
+    wireCoCToggle('toggle-mp-trees', 'micropoly_trees');
+    wireCoCSlider('slider-tree-density', 'tree_density', 'val-tree-density', v => `${Number(v) >= 10 ? Math.round(v) : Number(v).toFixed(1)}x`);
 
-    wireRegnumToggle('toggle-mp-waves', 'micropoly_waves');
-    wireRegnumSlider('slider-wave-intensity', 'wave_intensity', 'val-wave-intensity', v => `${v.toFixed(2)}x`);
-    wireRegnumSlider('slider-wave-speed', 'wave_speed', 'val-wave-speed', v => `${v.toFixed(2)}x`);
-    wireRegnumSlider('slider-wave-period', 'wave_period', 'val-wave-period', v => `${v.toFixed(2)}x`);
-    wireRegnumSlider('slider-foam-coverage', 'foam_coverage', 'val-foam-coverage', v => `${v.toFixed(2)}x`);
-    wireRegnumSlider('slider-wave-desync', 'wave_desync', 'val-wave-desync', v => `${v.toFixed(2)}x`);
+    wireCoCToggle('toggle-mp-waves', 'micropoly_waves');
+    wireCoCSlider('slider-wave-intensity', 'wave_intensity', 'val-wave-intensity', v => `${v.toFixed(2)}x`);
+    wireCoCSlider('slider-wave-speed', 'wave_speed', 'val-wave-speed', v => `${v.toFixed(2)}x`);
+    wireCoCSlider('slider-wave-period', 'wave_period', 'val-wave-period', v => `${v.toFixed(2)}x`);
+    wireCoCSlider('slider-foam-coverage', 'foam_coverage', 'val-foam-coverage', v => `${v.toFixed(2)}x`);
+    wireCoCSlider('slider-wave-desync', 'wave_desync', 'val-wave-desync', v => `${v.toFixed(2)}x`);
 
     const WAVE_MODE_DESCS = {
       option_a: {
@@ -4209,12 +4209,12 @@
       });
     });
 
-    wireRegnumToggle('toggle-mp-strata', 'micropoly_strata');
-    wireRegnumToggle('toggle-mp-parcels', 'micropoly_parcels');
-    wireRegnumToggle('toggle-mp-grain', 'micropoly_grain');
+    wireCoCToggle('toggle-mp-strata', 'micropoly_strata');
+    wireCoCToggle('toggle-mp-parcels', 'micropoly_parcels');
+    wireCoCToggle('toggle-mp-grain', 'micropoly_grain');
 
-    wireRegnumSlider('slider-mp-blend', 'micropoly_blend', 'val-mp-blend', v => `${Math.round(v * 100)}%`);
-    wireRegnumToggle('toggle-mp-creases', 'micropoly_creases');
+    wireCoCSlider('slider-mp-blend', 'micropoly_blend', 'val-mp-blend', v => `${Math.round(v * 100)}%`);
+    wireCoCToggle('toggle-mp-creases', 'micropoly_creases');
 
     // Shape Buttons
     document.querySelectorAll('#shape-bar .btn-segment').forEach(btn => {
@@ -4309,7 +4309,7 @@
         micropoly_grain: true,
         micropoly_blend: 0.0,
         micropoly_creases: false,
-        // REGNUM Photorealistic Topographic Graphical Features
+        // Call of Capital Photorealistic Topographic Graphical Features
         show_canopy: true,
         canopy_density: 0.85,
         crown_size: 5.0,
@@ -4682,8 +4682,8 @@
         }
       }
 
-      // REGNUM Graphical Features Sync
-      const setRegnumToggle = (id, active, onPrefix = '', offPrefix = '') => {
+      // Call of Capital Graphical Features Sync
+      const setCoCToggle = (id, active, onPrefix = '', offPrefix = '') => {
         const el = document.getElementById(id);
         if (el) {
           el.classList.toggle('active', !!active);
@@ -4694,12 +4694,12 @@
       };
 
       // Micropoly Enhancements Sync
-      setRegnumToggle('toggle-mp-trees', state.micropoly_trees !== false);
+      setCoCToggle('toggle-mp-trees', state.micropoly_trees !== false);
       const td = Number(state.tree_density !== undefined ? state.tree_density : 1.0);
       setSlider('slider-tree-density', td);
       setVal('val-tree-density', `${td >= 10 ? Math.round(td) : td.toFixed(1)}x`);
 
-      setRegnumToggle('toggle-mp-waves', state.micropoly_waves !== false);
+      setCoCToggle('toggle-mp-waves', state.micropoly_waves !== false);
       setSlider('slider-wave-intensity', state.wave_intensity !== undefined ? state.wave_intensity : 1.0);
       setVal('val-wave-intensity', `${Number(state.wave_intensity !== undefined ? state.wave_intensity : 1.0).toFixed(2)}x`);
       setSlider('slider-wave-speed', state.wave_speed !== undefined ? state.wave_speed : 0.65);
@@ -4714,14 +4714,14 @@
       setSegment('#wave-mode-bar .btn-segment', 'data-mode', effectiveMode);
       updateWaveModeDisplay();
 
-      setRegnumToggle('toggle-mp-strata', state.micropoly_strata !== false);
-      setRegnumToggle('toggle-mp-parcels', state.micropoly_parcels !== false);
-      setRegnumToggle('toggle-mp-grain', state.micropoly_grain !== false);
+      setCoCToggle('toggle-mp-strata', state.micropoly_strata !== false);
+      setCoCToggle('toggle-mp-parcels', state.micropoly_parcels !== false);
+      setCoCToggle('toggle-mp-grain', state.micropoly_grain !== false);
 
       setSlider('slider-mp-blend', state.micropoly_blend !== undefined ? state.micropoly_blend : 0.0);
       setVal('val-mp-blend', `${Math.round((state.micropoly_blend !== undefined ? state.micropoly_blend : 0.0) * 100)}%`);
 
-      setRegnumToggle('toggle-mp-creases', !!state.micropoly_creases);
+      setCoCToggle('toggle-mp-creases', !!state.micropoly_creases);
 
       updateRotHud();
     }
@@ -4913,7 +4913,7 @@
       micropoly_grain: true,
       micropoly_blend: 0.0,
       micropoly_creases: false,
-      // REGNUM Graphical Features
+      // Call of Capital Graphical Features
       show_canopy: true,
       canopy_density: 0.85,
       crown_size: 5.0,
@@ -5106,7 +5106,7 @@
           body: JSON.stringify({ name: `slot_${exportSlot}_terrain_3d.png`, image: dataUrl3D })
         });
 
-        // 2. Render top-down view (pitch 0, yaw 0) for REGNUM dynamic Civ zoom
+        // 2. Render top-down view (pitch 0, yaw 0) for Call of Capital dynamic Civ zoom
         state.rot_pitch = 0.0;
         state.rot_yaw = 0.0;
         renderClientGPU();

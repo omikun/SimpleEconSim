@@ -1,5 +1,5 @@
 """
-game_client — Client application architecture for REGNUM.
+game_client — Client application architecture for Call of Capital.
 
 Manages player input, UI panel state, communication with SimServer,
 and visual presentation via RenderEngine.
