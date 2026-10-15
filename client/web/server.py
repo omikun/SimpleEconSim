@@ -100,6 +100,27 @@ class CoCHTTPRequestHandler(BaseHTTPRequestHandler):
                 self._send_error_json(500, f"Error serializing world state: {e}")
             return
 
+        # Download the complete evidence trail of this live run.
+        elif path == '/api/collective-trace':
+            try:
+                from collective_report import current_trace_text
+                sim = self.server.sim_server
+                with sim._lock:
+                    body = current_trace_text(sim.get_world_dict(), seed=sim.seed,
+                                              scenario=sim.scenario_id).encode('utf-8')
+                    turn = sim.turn
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/x-ndjson; charset=utf-8')
+                self.send_header('Content-Disposition',
+                                 f'attachment; filename="collective-run-turn-{turn}.jsonl"')
+                self.send_header('Cache-Control', 'no-store')
+                self.send_header('Content-Length', str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+            except Exception as e:
+                self._send_error_json(500, f'Error exporting collective trace: {e}')
+            return
+
         # 2. API: Single Tile Details
         elif path == '/api/tile':
             tile_name = query.get('name', [None])[0]

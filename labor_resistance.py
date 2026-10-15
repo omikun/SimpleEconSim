@@ -7,7 +7,6 @@ by the firm (cash + physical materials) before factory capacity can recover.
 """
 
 from __future__ import annotations
-from dataclasses import dataclass
 from goods import Goods
 from random_cache import rand
 
@@ -16,75 +15,10 @@ MACHINERY_WOOD_REQUIRED = 2
 MACHINERY_FURNITURE_REQUIRED = 1
 
 
-@dataclass
-class StrikeRecord:
-    """Record of an active strike in a corporation."""
-    firm_id: int
-    turn_started: int
-    num_strikers: int
-    demand_hours: float
-    demand_wage: float
-
-
 def evaluate_strikes(region, t: int):
-    """Evaluate firm-level strike actions and collective bargaining.
-
-    Workers with high class consciousness and alienation vote to strike
-    if shifts are grueling (>10h) or wages are below subsistence.
-    """
-    firms = [a for a in getattr(region, 'agents', [])
-             if getattr(a, 'is_corporation', False) and len(getattr(a, 'employees', [])) > 0]
-
-    for firm in firms:
-        employees = firm.employees
-        if not employees:
-            continue
-
-        # Count strike votes among workers
-        votes_for_strike = 0
-        statute_active = getattr(region, 'statute_of_laborers', False)
-        wage_cap = getattr(region, 'maximum_wage_cap', 1.20)
-        food_price = region.recipes.get(Goods.food, {}).get('price', 1.0) if hasattr(region, 'recipes') else 1.0
-        statute_strike_boost = 0.0
-        if statute_active:
-            statute_strike_boost = 0.40 if food_price > wage_cap else 0.25
-
-        for emp in employees:
-            c = getattr(emp, 'class_consciousness', 0.0)
-            alien = getattr(emp, 'alienation', 0.0)
-            shift = getattr(emp, 'shift_hours', 8.0)
-
-            # Threshold for collective militancy
-            strike_pressure = c * 0.5 + alien * 0.4 + (0.3 if shift > 10.0 else 0.0) + statute_strike_boost
-            if strike_pressure > 0.55:
-                votes_for_strike += 1
-
-        strike_ratio = votes_for_strike / len(employees)
-
-        # Majority strike vote triggers a walkout
-        if strike_ratio >= 0.50:
-            for emp in employees:
-                emp.is_striking = True
-            firm.is_on_strike = True
-
-            # Firm response logic:
-            # 1. Concession: If firm has high cash and wants to avoid shutdown, concede
-            payroll = len(employees) * firm.wage
-            if firm.cash > payroll * 6 and firm.shift_hours > 10.0:
-                # Concede to shorter shift or slight wage increase
-                firm.shift_hours = max(8.0, firm.shift_hours - 1.0)
-                for emp in employees:
-                    emp.shift_hours = firm.shift_hours
-                    emp.is_striking = False
-                firm.is_on_strike = False
-        else:
-            # Strike fizzles or breaks; workers return
-            for emp in employees:
-                if getattr(emp, 'is_striking', False):
-                    # Starvation discipline forces workers back if hungry
-                    if getattr(emp, 'hungry_steps', 0) > 0 or strike_ratio < 0.25:
-                        emp.is_striking = False
-            firm.is_on_strike = any(getattr(e, 'is_striking', False) for e in employees)
+    """Resolve organization and participation for every living corporation."""
+    from collective_action import step_collectives
+    step_collectives(region, t)
 
 
 def evaluate_sabotage(region, t: int) -> int:

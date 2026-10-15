@@ -2,6 +2,8 @@
 
 Status: ready for sequential implementation, 2026-10-14. Follow the rules in [`agent.md`](../agent.md) and the equations and historical limits in [Railway strikes, collective power, and independence](railway_strikes_and_independence.md). This plan targets the main simulation. Each numbered phase ends in one reviewable commit. Do not push.
 
+General corporate implementation now follows [Corporate collective action](corporate_collective_action_implementation.md). This railway-specific sequence is retained as historical design context.
+
 ## Outcome and scope
 
 First deliver a playable factory strike in the existing `labor_frontier_rivalry` scenario: workers may organize and withhold labor, survive through real support, settle funded demands, and retain organization afterward. Then add a separate, longer colonial railway scenario in which transport disruption, cross-sector alliances, constitutional reform, and independence can emerge. The existing four-district scenario lasts 20 turns and has no staffed railway or colonial authority, so it must not pretend to reproduce 1947–60 Senegal.
@@ -22,7 +24,7 @@ No score directly creates sales, goods, money, law, territory, or sovereignty. E
 | General strike | `agents/resistance/manager.py` sets `Route.is_blocked_by_strike` and can freeze routes. | Specify precedence between the new staffed rail capacity and this broader general strike. An existing full general strike still takes effect. One dispute must not be scored as two unrelated victories. |
 | Cargo | `transporter.py:Route` owns pending and in-transit cargo; `sim_engine.py` advances routes after each tile economy. | Never remove cargo to represent delay. `capacity_per_unit` currently affects congestion delay, not units shipped per turn. Add a separate quantitative throughput limit for rail. |
 | Scenario state | `scenario_labor_frontier_rivalry.py`, `labor_frontier_labor.py`, `labor_frontier_projection.py`. | Use a feature flag and an authoritative registry reachable by the regional step. Keep the one-major-decision budget for player actions. |
-| Desktop and web | `client/desktop/panels/scenario_ui.py`, `client/web/static/client.js`, `web_client/client.js`, `sim_server/sim_server.py:serialize_world`. | Project from one read-only Python function. The served web bundle is `client/web/static/client.js`; update both JS copies if both remain in use. Avoid independent JS estimates of the political score. |
+| Desktop and web | `client/desktop/panels/scenario_ui.py`, `web_client/client.js`, `sim_server/sim_server.py:serialize_world`. | Project from one read-only Python function. `client/web/static` is a symlink to `web_client`; edit the tracked `web_client` files. Avoid independent JS estimates of the political score. |
 | Political jurisdiction | `nation.py:Nation.transfer_tile` reparents citizenship and tile ownership. | Audit currency, region government, taxes, claims, army, treaties, and existing obligations before reusing it for independence. |
 
 Before editing any phase, inspect `git status --short`. Do not stage unrelated work or generated saved slots. For a new persistent `Agent` attribute, check its `__slots__` and `_extra_attrs`; prefer storing organization and event records in the scenario registry with stable person/firm IDs. Keep a single physical cash or food balance in its existing owner account. Use only seeded choices and stable ID ordering. Write a commit-message file under `tmp/`, then `git commit -F <file>`.

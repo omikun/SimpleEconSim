@@ -21,6 +21,8 @@ from innovation import get_innovation_system, TECH_CATALOG
 from client.desktop.map.map_renderer import NATION_COLORS, get_nation_color
 from world_names import assign_world_identities
 from sim_server.protocol import CommandType, CommandMessage, ServerEvent
+from collective_action import organization_summary, recent_collective_events
+from collective_politics import political_summary
 
 
 class SimServer:
@@ -1093,6 +1095,9 @@ class SimServer:
                 'biome': getattr(tile, 'biome', 'plains'),
                 'is_ocean': bool(getattr(tile, 'is_ocean', False)),
                 'population': len(getattr(tile, 'agents', [])),
+                'active_collective_strikes': sum(
+                    bool(org.active_strike_id)
+                    for org in getattr(tile, 'collective_organizations', {}).values()),
                 'gdp': round(float(tile.gdp_log[-1]), 1) if getattr(tile, 'gdp_log', None) else 0.0,
                 'protest_energy': round(float(tile.protest_energy_log[-1]), 2) if getattr(tile, 'protest_energy_log', None) else 0.0,
                 'buildings_count': len(getattr(tile, 'buildings', [])),
@@ -1371,6 +1376,11 @@ class SimServer:
                 'enforcement_costs': round(sum(c.officer_cost for c in getattr(tile, 'enforcement_cases', [])), 2),
                 'laws': dict(getattr(tile, 'labor_laws', {})),
                 'cash_tax_per_person': float(getattr(tile, 'cash_tax_per_person', 0.0)),
+            },
+            'collective_action': {
+                'organizations': organization_summary(tile),
+                'events': recent_collective_events(tile, 16),
+                'politics': political_summary(tile),
             },
             'charts': {
                 'economic': {

@@ -258,6 +258,27 @@ def _relief(world, nation_name, turn):
     return True, 'Three residents receive two food units each; reserve falls by six.'
 
 
+def _support_strikers(world, nation_name, turn):
+    from collective_action import transfer_public_food
+    nation = next(n for n in world['nations'] if n.name == nation_name)
+    candidates = []
+    for region in nation.tiles:
+        for firm_id, org in getattr(region, 'collective_organizations', {}).items():
+            if org.active_strike_id:
+                candidates.append((org.strikes[-1].started_turn, region.name, firm_id, region))
+    if not candidates:
+        return False, 'No active corporate strike in your territory.'
+    if nation.government.food_inventory <= 0:
+        return False, 'The public food reserve is empty.'
+    _, _, firm_id, region = min(candidates)
+    moved = transfer_public_food(region, nation, turn, firm_id, maximum=6)
+    if not moved:
+        return False, 'No current participant can receive food.'
+    _event(world, turn, 'RELIEF', f'{nation_name} delivers {moved} public food to '
+           f'workers striking at {region.name}.', firm_id=firm_id, food_units=moved)
+    return True, f'{moved} stored food units reach named strikers; reserve falls by {moved}.'
+
+
 def apply_action(world, action_id, nation_name=None):
     """One major player decision per turn, shared by desktop and server."""
     if world.get('scenario_id') != 'labor_frontier_rivalry':
@@ -277,6 +298,7 @@ def apply_action(world, action_id, nation_name=None):
         'fair_terms': lambda: _fair_terms(world, nation_name, turn),
         'cofund_machinery': lambda: start_machinery_project(world, nation_name, turn),
         'release_relief': lambda: _relief(world, nation_name, turn),
+        'support_strikers': lambda: _support_strikers(world, nation_name, turn),
     }
     from labor_frontier_rivalry import apply_border_action
     for border_action in ('recruit_border', 'declare_border_war', 'attack_border',

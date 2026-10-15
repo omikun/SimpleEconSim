@@ -97,14 +97,8 @@ def step_economy(region: Any, t: int):
         region.labor_scheduler.step_labor_cohort(region, t)
     audit_cash(region, t, "labour_done")
 
-    # Workers allocate this turn to paid work or subsistence foraging, not both.
-    _forage.forage_tile(region, t)
-
-    # Capital goods machinery depreciation (operational wear-and-tear)
-    from economy import apply_machinery_depreciation
-    apply_machinery_depreciation(region, t)
-
-    # Workplace resistance: strikes, sabotage, and machinery repairs (P2.3)
+    # Workplace participation must be decided before food allocation and output.
+    # Existing strike records are stored by firm ID and survive save/load.
     from labor_resistance import step_workplace_resistance
     res_info = step_workplace_resistance(region, t)
     region.strikers_log.append(res_info['strikers'])
@@ -112,8 +106,19 @@ def step_economy(region: Any, t: int):
     region.sabotage_log.append(res_info['smashed_this_turn'])
     audit_cash(region, t, "resistance_done")
 
+    # Workers allocate this turn to paid work or subsistence foraging, not both.
+    _forage.forage_tile(region, t)
+
+    # Capital goods machinery depreciation (operational wear-and-tear)
+    from economy import apply_machinery_depreciation
+    apply_machinery_depreciation(region, t)
+
     # Production
+    from collective_action import record_production
+    firm_inventory_before = {a.id: a.inv_get(a.output, 0) for a in region.agents
+                             if a.alive and a.is_corporation}
     _prod.produce(region, t)
+    record_production(region, t, firm_inventory_before)
     audit_cash(region, t, "produce_done")
 
     # Feudal tribute: lords collect in-kind share of harvest from serfs
@@ -137,7 +142,11 @@ def step_economy(region: Any, t: int):
     audit_cash(region, t, "trade_done")
 
     # Wages & Profits
+    from collective_action import record_payroll_and_review
+    worker_cash_before = {a.id: a.cash for a in region.agents
+                          if a.alive and not a.is_corporation}
     _fin.pay_wages(region, t)
+    record_payroll_and_review(region, t, worker_cash_before)
     _fin.redeem_company_scrip(region, t)
     audit_cash(region, t, "wages_done")
 
@@ -210,6 +219,8 @@ def step_economy(region: Any, t: int):
                     plot.tenant_ids.remove(departed.id)
     region.agents = next_agents
     region.trader_agents = [a for a in region.agents if a.is_trader]
+    from collective_action import record_essential_needs
+    record_essential_needs(region, t)
     audit_cash(region, t, "live_done")
 
     # Dynamic social class evaluation (P1.4)

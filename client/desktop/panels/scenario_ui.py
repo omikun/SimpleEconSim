@@ -301,7 +301,7 @@ def _draw_labor_scenario_panel(surface, world, mouse_pos=None):
         for line_idx, line in enumerate(_wrap_text(detail, tiny, button_w - 10)[:2]):
             surface.blit(tiny.render(line, True, DIM),
                          (rect[0] + 5, rect[1] + 18 + line_idx * 11))
-    yy += 5 * 47 + 3
+    yy += ((len(actions) + 1) // 2) * 47 + 3
     latest = info['timeline'][-1]['text'] if info['timeline'] else 'Advance a turn to see owners and households respond.'
     for line in _wrap_text(latest, tiny, w - 20)[:2]:
         surface.blit(tiny.render(line, True, ACCENT), (x + 10, yy))

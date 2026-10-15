@@ -6,6 +6,8 @@ from goods import Goods
 from diplomacy import get_diplomacy
 from labor_frontier_labor import _districts, _firm, RELIEF_UNITS
 from labor_frontier_rivalry import _border_strength, _runway
+from collective_action import organization_summary, recent_collective_events
+from collective_politics import political_summary
 
 
 def _ordinary(person):
@@ -51,13 +53,22 @@ def project(world):
     ending = bool(state.get('ending'))
     record = state.get('restrictions', {}).get(player.name)
     record_status = record['status'] if record else 'none'
+    collective_orgs = [{**row, 'region': region.name,
+                        'nation': region.owner_nation.name if region.owner_nation else None}
+                       for region in world['tiles'] for row in organization_summary(region)]
+    collective_events = [row for region in world['tiles']
+                         for row in recent_collective_events(region, 12)]
+    collective_events.sort(key=lambda row: (row['turn'], row['region'], row['id']))
+    active_collectives = sum(bool(row['active_strike_id']) and row['nation'] == player.name
+                             for row in collective_orgs)
     war = get_diplomacy().are_at_war(player.name, rival.name)
     standstill = max(0, int(state.get('standstill_until', 0)) - turn)
     status = ('War declared' if war else
               f'Standstill: {standstill} turns' if standstill else 'No border pact')
     cards = [
         {'title': 'Livelihoods',
-         'value': f'{len(people) - hungry}/{len(people)} fed · {rights} usable commons rights',
+         'value': (f'{len(people) - hungry}/{len(people)} fed · {rights} usable commons rights'
+                   + (f' · {active_collectives} corporate strikes' if active_collectives else '')),
          'cause': f'{paid} residents have paid work or service; {surviving_initial}/{len(initial)} starting residents survive across both states.',
          'tone': 'urgent' if hungry > len(people) * .2 else 'warning' if rights == 0 else 'good'},
         {'title': 'Economic position',
@@ -93,6 +104,10 @@ def project(world):
                            'Three border residents receive two food each; troops share this reserve.',
                            bool(border and food >= RELIEF_UNITS),
                            'Need a held border and six food in the public reserve.', 'Livelihoods'))
+    actions.append(_action('support_strikers', 'Support striking workers',
+                           'Deliver up to six existing public food units to participants in the oldest active strike.',
+                           bool(active_collectives and food > 0),
+                           'Requires an active strike and food in the public reserve.', 'Livelihoods'))
     actions.append(_action('recruit_border', 'Recruit four residents',
                            'Offer wage 2 each; first payroll 8; four rations per turn.',
                            bool(border and treasury >= max(8, 4 * upkeep) and food >= 4),
@@ -132,10 +147,20 @@ def project(world):
                    'people': f'{len(people) - hungry}/{len(people)} Meridian residents fed; {surviving_initial}/{len(initial)} starting residents survive across both states.',
                    'capacity': f'Treasury {treasury:.0f}, food {food}, border strength {force:.1f}, payroll runway {runway:.1f} turns.',
                    'commitments': f'{len([p for p in state.get("machinery_projects", ()) if p["status"] == "active"])} machinery projects active; border status: {status}.'}
+    combined_timeline = list(state.get('timeline', [])[-8:])
+    combined_timeline.extend({'turn': row['turn'], 'kind': row['kind'],
+                              'text': row['message'], 'event_id': row['id']}
+                             for row in collective_events[-8:])
+    combined_timeline.sort(key=lambda row: (row['turn'], row.get('event_id', '')))
     return {'scenario_name': 'Labor, Territory, and Rivalry',
             'mandate': 'Compete for cloth markets and territory while protecting or exploiting citizens.',
             'turn': turn, 'horizon_turns': 20, 'countdown_turns': max(0, 20 - turn),
-            'pressures': cards, 'actions': actions, 'timeline': state.get('timeline', [])[-8:],
+            'pressures': cards, 'actions': actions, 'timeline': combined_timeline[-8:],
+            'collective_info': {'organizations': collective_orgs,
+                                'active_strikes': active_collectives,
+                                'events': collective_events[-20:],
+                                'politics': {region.name: political_summary(region)
+                                             for region in world['tiles']}},
             'districts': districts, 'debrief': debrief, 'ending': ending,
             'major_action_spent': spent, 'sovereign_cash': round(treasury, 3),
             'resident_count': len(people), 'active': True}

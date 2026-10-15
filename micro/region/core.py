@@ -107,6 +107,11 @@ class Region:
         self.cash_obligations: list = []
         self._next_obligation_id: int = 1
         self.obligation_events: list = []
+        # Corporation collective bargaining; entries use stable person/firm IDs.
+        # The event sequence is retained for deterministic run reconstruction.
+        self.collective_organizations: dict = {}
+        self.collective_log: list = []
+        self._next_collective_event_id: int = 1
         self.tenancy_agreements: list = []
         self.enforcement_cases: list = []
         self._next_case_id: int = 1

@@ -3036,6 +3036,33 @@
     }
 
     // Labor & Alienation Breakdown
+    const collective = tile.collective_action || {};
+    const orgList = document.getElementById('collective-organization-list');
+    if (orgList) {
+      const orgs = collective.organizations || [];
+      const politics = collective.politics || {};
+      const politicalLine = politics.colonial_authority
+        ? `<div class="citizen-info">Constitutional coalition: ${Number(politics.covered_residents) || 0}/${Number(politics.eligible_residents) || 0} residents · Agenda strength ${Number(politics.mobilization_index) || 0} (index, not odds of independence)</div>`
+        : '';
+      orgList.innerHTML = (orgs.length ? orgs.map(org => {
+        const strike = org.latest_strike || {};
+        const details = strike.id
+          ? `<div class="citizen-info text-dim">Latest ${escapeHtml(strike.status)}: ${Number(strike.participants) || 0}/${Number(strike.eligible) || 0} workers · demanded $${Number(strike.target_wage).toFixed(2)} and ${Number(strike.target_hours).toFixed(1)} hours${strike.review_turn ? ` · review T${Number(strike.review_turn)}` : ''}${strike.victory !== null && strike.victory !== undefined ? ` · delivered ${Math.round(Number(strike.victory) * 100)}%` : ''}</div>`
+          : '';
+        return `<div class="citizen-info"><strong>${escapeHtml(org.firm_name)}</strong> · ${Number(org.members) || 0} members
+          · Organization ${Math.round((Number(org.organization) || 0) * 100)}%
+          · Confidence ${Math.round((Number(org.confidence) || 0) * 100)}%
+          ${org.active_strike_id ? '· Strike active' : ''}</div>${details}`;
+      }).join('')
+        : '<span class="text-dim">No corporation has organized here.</span>') + politicalLine;
+    }
+    const eventList = document.getElementById('collective-event-list');
+    if (eventList) {
+      const events = (collective.events || []).slice(-8).reverse();
+      eventList.innerHTML = events.length ? events.map(ev => `
+        <div class="citizen-info">T${Number(ev.turn) || 0} · ${escapeHtml(ev.firm_name)} · ${escapeHtml(ev.message || ev.kind)}</div>`).join('')
+        : '<span class="text-dim">No collective action recorded.</span>';
+    }
     const wList = document.getElementById('workers-labor-list');
     if (wList && tile.citizens) {
       wList.innerHTML = '';

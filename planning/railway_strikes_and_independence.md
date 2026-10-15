@@ -4,6 +4,8 @@ Status: proposed design, 2026-10-14. This document adds no runtime behavior. It 
 
 Execution steps: [Implementation plan](railway_strikes_implementation_plan.md).
 
+The active implementation generalizes the strike rules to [all corporations](corporate_collective_action_implementation.md).
+
 ## Historical basis and limits
 
 The October 1947–March 1948 railway strike involved roughly 20,000 workers across French West Africa, including Senegal. That is a federation-wide count. It interrupted most rail traffic for about five and a half months. Workers pursued nondiscrimination and a common employment structure. Community support sustained the struggle; professional gains could also separate railwaymen from other workers. Politicians subsequently recognized their electoral importance. These are the central tensions in [Frederick Cooper, “Our Strike” (1996)](https://doi.org/10.1017/S0021853700034800).

@@ -73,6 +73,13 @@ def evaluate_uprising_pressure(nation, t: int) -> List[Dict[str, Any]]:
         # If capitalist regime has superior force, crush strike with armed strikebreaking
         if ruling in ('Bourgeoisie', 'Gentry') and strikebreaker_force >= strike_force and strikebreaker_force > 15.0:
             for tile in tiles:
+                from collective_politics import record_authority_incident
+                affected = [a.id for a in getattr(tile, 'agents', [])
+                            if getattr(a, 'is_striking', False) and getattr(a, 'alive', True)]
+                if affected:
+                    record_authority_incident(
+                        tile, t, f'{nation.name}:{t}:armed_strikebreaking', nation,
+                        affected, repression=.5, attribution=1.0)
                 for a in getattr(tile, 'agents', []):
                     if getattr(a, 'is_striking', False):
                         a.is_striking = False
@@ -93,8 +100,23 @@ def evaluate_uprising_pressure(nation, t: int) -> List[Dict[str, Any]]:
             # State lacks coercive capacity to break the strike, or has pro-worker ruling faction -> Concession!
             # Step 1: Enact Ten-Hour Act if not already enacted
             if not getattr(nation, 'ten_hour_act', False):
+                prior_hours = {a.id: float(getattr(a, 'shift_hours', 8.0))
+                               for tile in tiles for a in getattr(tile, 'agents', [])
+                               if getattr(a, 'is_corporation', False)}
                 ok, msg = enact_ten_hour_act(nation)
                 if ok:
+                    from collective_politics import record_authority_incident
+                    for tile in tiles:
+                        affected = [employee.id for firm in getattr(tile, 'agents', [])
+                                    if getattr(firm, 'is_corporation', False)
+                                    and float(getattr(firm, 'shift_hours', 8.0))
+                                    < prior_hours.get(firm.id, 8.0)
+                                    for employee in getattr(firm, 'employees', [])
+                                    if getattr(employee, 'alive', True)]
+                        if affected:
+                            record_authority_incident(
+                                tile, t, f'{nation.name}:{t}:ten_hour_act', nation,
+                                affected, reform=.5, attribution=1.0)
                     # Concession cools down worker unrest
                     for tile in tiles:
                         tile.unrest_level = max(0.0, getattr(tile, 'unrest_level', 0.0) - 0.25)
@@ -465,4 +487,3 @@ def emergency_granary_relief(target, food_amount: float = 25.0) -> Tuple[bool, s
         tile.famine_outbreak_turns = 0  # Resets famine outbreak progression!
 
     return True, f"EMERGENCY RELIEF: Distributed grain to {total_fed} starving citizens; halted famine immune collapse."
-

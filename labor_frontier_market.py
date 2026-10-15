@@ -301,8 +301,9 @@ def settle_markets(world, turn):
     cash_after = fx.audit_currency_total(world['tiles'], currency)
     if abs(cash_after - cash_before) > 1e-4:
         world.setdefault('violations', []).append((turn, currency, cash_after - cash_before))
-    state['market_sales'] = (state['market_sales'] + sales)[-300:]
-    state['cotton_purchases'] = (state['cotton_purchases'] + purchases)[-300:]
+    # Preserve the full paid-transaction history for run reconstruction.
+    state['market_sales'].extend(sales)
+    state['cotton_purchases'].extend(purchases)
     summary = {}
     statements = {}
     for region, firm in _firms(world):

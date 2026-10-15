@@ -260,6 +260,17 @@ class TestWebServerEndpoints(unittest.TestCase):
         self.assertEqual(changed.response_status, 200)
         self.assertNotEqual(json.loads(changed.get_body())['version'], command_version)
 
+    def test_download_collective_trace_of_current_run(self):
+        self.sim.step()
+        handler = MockHttpRequestHandler(self.mock_server, 'GET', '/api/collective-trace')
+        self.assertEqual(handler.response_status, 200)
+        self.assertIn('application/x-ndjson', handler.response_headers['content-type'])
+        self.assertIn('attachment', handler.response_headers['content-disposition'])
+        rows = [json.loads(line) for line in handler.get_body().splitlines()]
+        self.assertEqual(rows[0]['source'], 'run')
+        self.assertEqual(rows[0]['final_turn'], self.sim.turn)
+        self.assertEqual(rows[0]['event_count'], len(rows) - 1)
+
     def test_api_terrain_png(self):
         handler = MockHttpRequestHandler(self.mock_server, 'GET', '/api/terrain.png')
         self.assertEqual(handler.response_status, 200)
