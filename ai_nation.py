@@ -381,6 +381,7 @@ class NationPolicyAI:
         """Evaluate situations and submit strategic Intents for this turn."""
         submitted = []
         treasury = self.nation.treasury()
+        considered = [{'candidate': 'do_nothing', 'feasible': True, 'score': 0.0}]
 
         # At most one active war decision per turn.  Peace replies precede
         # attack selection; the intent executor resolves accepted replies
@@ -397,6 +398,9 @@ class NationPolicyAI:
                    for pending in self.nation.intents):
                 continue
             intent = self.choose_war_intent(war, enemy, t)
+            considered.append({'candidate': 'war_response', 'target': enemy_name,
+                               'feasible': intent is not None,
+                               'reason': 'active war and no pending response'})
             if intent is not None:
                 self.nation.submit_intent(intent, t)
                 submitted.append(intent)
@@ -405,6 +409,9 @@ class NationPolicyAI:
         # 1. Military Defense & Vulnerability Checks (M5.2)
         for tile in self.nation.tiles:
             vuln, reason = self.evaluate_tile_vulnerability(tile, all_nations, diplomacy)
+            considered.append({'candidate': 'recruit_defense', 'tile': tile.name,
+                               'score': vuln, 'feasible': vuln > 0.5 and treasury['total'] >= 30.0,
+                               'reason': reason})
             if vuln > 0.5 and treasury['total'] >= 30.0:
                 # Recruit local garrison / reinforcement
                 intent = RecruitArmyIntent(
@@ -419,15 +426,22 @@ class NationPolicyAI:
 
         # 2. Diplomatic Intents (M5.4–M5.7)
         dip_intents = self.evaluate_diplomacy(all_nations, diplomacy, t)
+        considered.append({'candidate': 'diplomacy', 'feasible': bool(dip_intents),
+                           'reason': 'policy evaluation returned intents' if dip_intents else 'no diplomatic intent'})
         for intent in dip_intents:
             self.nation.submit_intent(intent, t)
             submitted.append(intent)
 
         # 3. Emergency Contractor Subsidies (Avert Navvy Layoffs & Riots)
+        if treasury['total'] < 120.0:
+            considered.append({'candidate': 'contractor_subsidy', 'feasible': False,
+                               'reason': 'treasury below 120', 'treasury': treasury['total']})
         if treasury['total'] >= 120.0:
             for tile in self.nation.tiles:
                 for proj in getattr(tile, 'construction_projects', []):
                     if proj.status == 'stalled' or (proj.contractor and proj.contractor.cash < 5.0):
+                        considered.append({'candidate': 'contractor_subsidy', 'project': proj.project_id,
+                                           'feasible': True, 'amount': 100.0})
                         sub_intent = SubsidizeContractorIntent(
                             nation_name=self.nation.name,
                             project_id=proj.project_id,
@@ -440,6 +454,9 @@ class NationPolicyAI:
                         break
 
         # 4. Public Works Infrastructure Procurement (Respond to Contractor Lobbying & Bottlenecks)
+        if treasury['total'] < 320.0 or submitted:
+            considered.append({'candidate': 'public_works', 'feasible': False,
+                               'reason': 'treasury below 320' if treasury['total'] < 320.0 else 'another intent already submitted'})
         if treasury['total'] >= 320.0 and len(submitted) == 0:
             for tile in self.nation.tiles:
                 has_turnpike = any(b.name == 'turnpike_road' for b in getattr(tile, 'buildings', []))
@@ -453,6 +470,8 @@ class NationPolicyAI:
                         target_recipe = 'barge_canal'
 
                     if target_recipe:
+                        considered.append({'candidate': 'public_works', 'tile': tile.name,
+                                           'feasible': True, 'building': target_recipe})
                         build_intent = BuildIntent(
                             nation_name=self.nation.name,
                             region_name=tile.name,
@@ -465,6 +484,9 @@ class NationPolicyAI:
                         break
 
         # 5. Market-Driven Feudal Enclosure & Pasture Allocation
+        if t < 3:
+            considered.append({'candidate': 'enclose_commons', 'feasible': False,
+                               'reason': 'turn below 3'})
         if t >= 3:
             for tile in self.nation.tiles:
                 tenure = getattr(tile, 'tenure', None)
@@ -484,6 +506,10 @@ class NationPolicyAI:
                         fee = calculate_charter_fee(plot)
                         lord = next((a for a in tile.agents if a.id == plot.lord_id), None)
                         if lord and lord.cash >= fee:
+                            considered.append({'candidate': 'enclose_commons', 'tile': tile.name,
+                                               'feasible': True, 'grain_price': p_grain,
+                                               'wool_price': p_wool, 'protest_energy': pe,
+                                               'lord_cash': lord.cash, 'charter_fee': fee})
                             # Dynamic Land Use: Pasture if wool price is strong vs grain
                             if (p_wool / max(0.5, p_grain)) >= 1.8:
                                 plot.production_type = 'pasture'
@@ -502,4 +528,15 @@ class NationPolicyAI:
                             submitted.append(intent)
                             break
 
+        from run_trace import emit
+        if self.nation.tiles:
+            decision_id = emit(self.nation.tiles[0], kind='nation_ai_decision',
+                 record_class='decision', phase='strategy',
+                 subject={'type': 'nation', 'id': self.nation.name},
+                 inputs={'treasury_total': treasury['total'],
+                         'considered': considered,
+                         'selected': [type(intent).__name__ for intent in submitted],
+                         'submitted_count': len(submitted)})
+            for intent in submitted:
+                intent._decision_event_id = decision_id
         return submitted

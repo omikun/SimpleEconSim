@@ -23,6 +23,9 @@ from world_names import assign_world_identities
 from sim_server.protocol import CommandType, CommandMessage, ServerEvent
 from collective_action import organization_summary, recent_collective_events
 from collective_politics import political_summary
+from metric_catalog import grievance_breakdown, protest_band
+from run_trace import RunTrace
+from pathlib import Path
 
 
 class SimServer:
@@ -125,6 +128,14 @@ class SimServer:
                     'turns': [], 'treasury': [], 'gdp': [], 'pop': [], 'food_price': [], 'unrest': []
                 }
             self._record_history(0)
+            run_id = f'{self.instance_id}-{self.world_generation}'
+            trace_path = Path(__file__).resolve().parents[1] / 'tmp' / 'traces' / f'{run_id}.jsonl'
+            self.run_trace = RunTrace(trace_path, run_id, seed=self.seed,
+                                      scenario=self.scenario_id)
+            for tile in self.tiles:
+                tile._run_trace = self.run_trace
+            from trace_snapshots import sample
+            self._trace_previous = sample(self.tiles, self.nations)
 
     def step(self) -> int:
         """Advance the simulation by exactly one turn."""
@@ -175,6 +186,10 @@ class SimServer:
                 pass
 
             self._record_history(t)
+            from trace_snapshots import record
+            record(self)
+            if self.tiles:
+                self.run_trace.checkpoint(self.tiles[0]._collective_trace_clock)
             self.state_revision += 1
             self._broadcast(ServerEvent.TURN_ADVANCED, {'turn': t})
             return t
@@ -223,17 +238,7 @@ class SimServer:
         unrest_prev = (sum(r.protest_energy_log[-2] if getattr(r, 'protest_energy_log', None) and len(r.protest_energy_log) >= 2 else (r.protest_energy_log[-1] if getattr(r, 'protest_energy_log', None) else 0.0) for r in tiles) / max(1, len(tiles))) if tiles else 0.0
         d_unrest = unrest_cur - unrest_prev
 
-        stage = "Calm"
-        if unrest_cur >= 9.5:
-            stage = "Takeover"
-        elif unrest_cur >= 8.0:
-            stage = "Compromise"
-        elif unrest_cur >= 6.5:
-            stage = "Mob/Riot"
-        elif unrest_cur >= 4.0:
-            stage = "Protest"
-        elif unrest_cur >= 2.0:
-            stage = "Unrest"
+        stage = protest_band(unrest_cur)
 
         avg_gini = 0.0
         for r in tiles:
@@ -305,7 +310,7 @@ class SimServer:
             'unrest_stage': stage,
             'unrest_delta': round(float(d_unrest), 2),
             'gini': round(float(avg_gini), 2),
-            'gini_delta': 0.0,
+            'gini_delta': None,
             'cost_of_living': round(float(col_cur), 2),
             'exports': round(float(exports_cur), 1),
             'imports': round(float(imports_cur), 1),
@@ -1094,7 +1099,7 @@ class SimServer:
                 'elevation_meters': float(getattr(tile, 'elevation_meters', 0.0)),
                 'biome': getattr(tile, 'biome', 'plains'),
                 'is_ocean': bool(getattr(tile, 'is_ocean', False)),
-                'population': len(getattr(tile, 'agents', [])),
+                'population': tile.total_population[-1] if getattr(tile, 'total_population', None) else len(getattr(tile, 'agents', [])),
                 'active_collective_strikes': sum(
                     bool(org.active_strike_id)
                     for org in getattr(tile, 'collective_organizations', {}).values()),
@@ -1438,7 +1443,7 @@ class SimServer:
                 'surplus_value': sv,
                 'rate_of_exploitation': roe,
             },
-            'population': len(getattr(tile, 'agents', [])),
+            'population': tile.total_population[-1] if getattr(tile, 'total_population', None) else len(getattr(tile, 'agents', [])),
         }
 
     def serialize_world(self, compact: bool = False) -> Dict[str, Any]:
@@ -1616,6 +1621,13 @@ class SimServer:
                 def _safe_l(lst, d=0.0):
                     return lst[-1] if (lst is not None and len(lst) > 0) else d
 
+                def _protest_row(name, regions):
+                    energy = (sum(_safe_l(getattr(tile, 'protest_energy_log', None), 0.0)
+                                  for tile in regions) / max(1, len(regions)))
+                    return {'name': name, 'unrest': round(energy, 2),
+                            'metric_id': 'politics.protest_energy',
+                            **grievance_breakdown(regions)}
+
                 for n in self.nations:
                     m = next((nm for nm in nations_summary if nm['name'] == n.name), {})
                     c_tiles = getattr(n, 'tiles', [])
@@ -1637,10 +1649,10 @@ class SimServer:
                     comparison_suite['tab3_forex']['banking'].append({
                         'name': n.name, 'province': n.name, 'nation': n.name,
                         'currency': getattr(n, 'currency', 'USD'),
-                        'neer': round(float(getattr(n, 'neer', 1.0)), 2),
-                        'reserves': round(float(getattr(n, 'central_bank_reserves', 1000.0)), 0),
+                        'neer': None,
+                        'reserves': None,
                         'deposits': round(float(bank_dep), 0),
-                        'liquidity': round(float(bank_dep * 0.8), 0)
+                        'liquidity': None
                     })
 
                     # Country Extraction
@@ -1656,11 +1668,8 @@ class SimServer:
                     })
 
                     # Country Protest
-                    tot_p = sum(_safe_l(getattr(t, 'protest_energy_log', None), 0.0) for t in c_tiles)
-                    comparison_suite['tab5_protest']['by_country'].append({
-                        'name': n.name, 'unrest': round(tot_p, 2),
-                        'overwork': 35.0, 'enclosure': 25.0, 'hunger': 20.0, 'strikes': 10.0, 'state': 5.0, 'inequality': 5.0
-                    })
+                    comparison_suite['tab5_protest']['by_country'].append(
+                        _protest_row(n.name, c_tiles))
 
                     # Country Ecology
                     avg_f = sum(getattr(t, 'soil_fertility', 1.0) for t in c_tiles) / max(1, len(c_tiles)) * 100.0
@@ -1677,15 +1686,18 @@ class SimServer:
                         p_tiles = getattr(prov, 'tiles', [])
                         if not p_tiles: continue
 
-                        pop_prov = sum(len(getattr(t, 'agents', [])) for t in p_tiles)
+                        pop_prov = sum(t.total_population[-1] if getattr(t, 'total_population', None)
+                                       else len(getattr(t, 'agents', [])) for t in p_tiles)
                         gdp_prov = round(sum(_safe_l(getattr(t, 'real_gdp_output_log', None), 0.0) for t in p_tiles), 1)
                         cash_prov = round(prov.gov.agent.cash if hasattr(prov, 'gov') and hasattr(prov.gov, 'agent') else 0.0, 1)
 
                         comparison_suite['tab1_macro']['by_province'].append({
                             'name': prov.name, 'nation': n.name, 'regime_type': getattr(n, 'regime_type', 'Monarchy'),
                             'treasury_cash': cash_prov, 'population': pop_prov, 'gdp': gdp_prov,
-                            'unrest_stage': m.get('unrest_stage', 'Calm'), 'credit_rating': m.get('credit_rating', 'BBB'),
-                            'treasury_delta': 0.0
+                            'unrest_stage': protest_band(sum(_safe_l(getattr(t, 'protest_energy_log', None), 0.0)
+                                                               for t in p_tiles) / max(1, len(p_tiles))),
+                            'credit_rating': m.get('credit_rating', 'BBB'),
+                            'treasury_delta': None
                         })
 
                         p_food_p = round(sum(_safe_l(t.price_log.get(Goods.food), 1.0) for t in p_tiles) / max(1, len(p_tiles)), 2)
@@ -1709,10 +1721,8 @@ class SimServer:
                             'attrition': round(sum(_safe_l(getattr(t, 'health_attrition_log', None), 0.0) for t in p_tiles) / max(1, len(p_tiles)) * 1000.0, 1)
                         })
 
-                        comparison_suite['tab5_protest']['by_province'].append({
-                            'name': prov.name, 'unrest': round(sum(_safe_l(getattr(t, 'protest_energy_log', None), 0.0) for t in p_tiles), 2),
-                            'overwork': 35.0, 'enclosure': 25.0, 'hunger': 20.0, 'strikes': 10.0, 'state': 5.0, 'inequality': 5.0
-                        })
+                        comparison_suite['tab5_protest']['by_province'].append(
+                            _protest_row(prov.name, p_tiles))
 
                         comparison_suite['tab6_ecology']['by_province'].append({
                             'name': prov.name,
@@ -1724,21 +1734,22 @@ class SimServer:
 
                         # City / Tile Level
                         for t in p_tiles:
-                            t_pop = len(getattr(t, 'agents', []))
+                            t_pop = t.total_population[-1] if getattr(t, 'total_population', None) else len(getattr(t, 'agents', []))
                             t_gdp = round(_safe_l(getattr(t, 'real_gdp_output_log', None), 0.0), 1)
                             t_cash = round(t.gov.agent.cash if hasattr(t, 'gov') and hasattr(t.gov, 'agent') else 0.0, 1)
 
                             comparison_suite['tab1_macro']['by_tile'].append({
                                 'name': t.display_name or t.name, 'nation': n.name, 'province': prov.name,
-                                'regime_type': getattr(t, 'biome', 'Plains'),
+                                'regime_type': getattr(n, 'regime_type', 'Monarchy'),
                                 'treasury_cash': t_cash, 'population': t_pop, 'gdp': t_gdp,
-                                'unrest_stage': 'Calm' if getattr(t, 'protest_energy', 0) < 1 else ('Riot' if getattr(t, 'protest_energy', 0) > 3 else 'Unrest'),
+                                'unrest_stage': protest_band(_safe_l(getattr(t, 'protest_energy_log', None), 0.0)),
                                 'credit_rating': m.get('credit_rating', 'BBB'),
-                                'treasury_delta': 0.0
+                                'treasury_delta': None
                             })
 
                             comparison_suite['tab2_goods']['by_tile'].append({
                                 'province': f"{t.display_name or t.name} ({prov.name})", 'nation': n.name,
+                                'tile_id': t.name,
                                 'food_output': round(_safe_l(t.production_log.get(Goods.food), 0.0), 1),
                                 'wood_output': round(_safe_l(t.production_log.get(Goods.wood), 0.0), 1),
                                 'furniture_output': round(_safe_l(t.production_log.get(Goods.furniture), 0.0), 1),
@@ -1756,11 +1767,8 @@ class SimServer:
                                 'attrition': round(_safe_l(getattr(t, 'health_attrition_log', None), 0.0) * 1000.0, 1)
                             })
 
-                            comparison_suite['tab5_protest']['by_tile'].append({
-                                'name': t.display_name or t.name,
-                                'unrest': round(_safe_l(getattr(t, 'protest_energy_log', None), 0.0), 2),
-                                'overwork': 40.0, 'enclosure': 20.0, 'hunger': 25.0, 'strikes': 5.0, 'state': 5.0, 'inequality': 5.0
-                            })
+                            comparison_suite['tab5_protest']['by_tile'].append(
+                                _protest_row(t.display_name or t.name, [t]))
 
                             comparison_suite['tab6_ecology']['by_tile'].append({
                                 'name': t.display_name or t.name,

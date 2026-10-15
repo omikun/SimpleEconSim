@@ -269,6 +269,18 @@ def accumulate_grievances(region, t):
         'total': total_g,
         'protest': 0.0,
     })
+    from run_trace import emit
+    emit(region, kind='grievance_sources', record_class='calculation',
+         subject={'type': 'tile', 'id': region.name},
+         metric_id='politics.grievance', unit='score', after=total_g,
+         formula_id='factions.grievance_sources.v1',
+         inputs={'raw_sources': sources, 'faction_additions': adds,
+                 'grievance_scale': grievance_scale, 'hungry_now': hungry_now,
+                 'hunger_memory': mem_hunger, 'trauma_memory': trauma,
+                 'gini': gini, 'tax_rate': tax, 'unemployment_share': unemp,
+                 'eviction_memory': eviction, 'average_shift_hours': avg_shift,
+                 'accident_count': accident_count, 'strikers': strikers_count,
+                 'average_corporate_wage': avg_wage, 'wage_statute': statute_active})
 
     return adds
 
@@ -295,5 +307,14 @@ def step_factions(region, t):
     region.faction_grievance_log.append(gv)
     pe = protest_energy(adds)
     region.protest_energy_log.append(pe)
+    from run_trace import emit
+    emit(region, kind='protest_energy_update', record_class='calculation',
+         subject={'type': 'tile', 'id': region.name},
+         metric_id='politics.protest_energy', unit='score',
+         before=region.protest_energy_log[-2] if len(region.protest_energy_log) > 1 else 0.0,
+         after=pe, formula_id='factions.protest_energy.v1',
+         inputs={'faction_additions': adds, 'average_addition':
+                 sum(adds.values()) / len(adds) if adds else 0.0},
+         constraints={'floor': 0.0, 'cap': 10.0})
     if region.grievance_sources_log:
         region.grievance_sources_log[-1]['protest'] = pe

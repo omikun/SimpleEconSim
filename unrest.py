@@ -140,7 +140,8 @@ def _takeover(region, t, mob):
     legitimacy_pressure = 1.0 - smoothstep(0.10, 0.55, float(owner.legitimacy))
     crowd_pressure = smoothstep(0.03, 0.20, mob / max(1, len(region.agents)))
     attempt_chance = legitimacy_pressure * crowd_pressure
-    if attempt_chance > 0 and rand.random() < attempt_chance:
+    attempt_draw = rand.random() if attempt_chance > 0 else None
+    if attempt_draw is not None and attempt_draw < attempt_chance:
         # Garrison combat check: armed soldiers defend the state seat
         garrison_force = sum(u.strength * smoothstep(0.0, 0.6, float(getattr(u, 'morale', 1.0)))
                              for u in getattr(region, 'military_units', [])
@@ -148,14 +149,25 @@ def _takeover(region, t, mob):
         mob_force = mob * 1.5
 
         repel_chance = garrison_force / max(1.0, garrison_force + mob_force)
-        if repel_chance > 0 and rand.random() < repel_chance:
+        repel_draw = rand.random() if repel_chance > 0 else None
+        if repel_draw is not None and repel_draw < repel_chance:
             # Garrison repels the insurrection!
             for a in region.agents:
                 if not a.is_corporation and not a.is_government and a.hungry_steps > 0:
                     a.mem_push('mem_casualties', 1.0)
                     a.mem_push('mem_promises', 0.5)
             if hasattr(region, 'protest_energy_log') and region.protest_energy_log:
+                energy_before = region.protest_energy_log[-1]
                 region.protest_energy_log[-1] = max(2.0, region.protest_energy_log[-1] - 2.5)
+                from run_trace import emit
+                emit(region, kind='garrison_repels_takeover', record_class='outcome',
+                     subject={'type': 'tile', 'id': region.name},
+                     metric_id='politics.protest_energy', unit='score',
+                     before=energy_before, after=region.protest_energy_log[-1],
+                     formula_id='unrest.garrison_repel.v1',
+                     inputs={'attempt_chance': attempt_chance, 'attempt_draw': attempt_draw,
+                             'repel_chance': repel_chance, 'repel_draw': repel_draw,
+                             'garrison_force': garrison_force, 'mob_force': mob_force})
             return False
 
         # Garrison overwhelmed or disbanded
@@ -166,7 +178,20 @@ def _takeover(region, t, mob):
         if biggest.kind == 'political':
             owner.regime_type = 'autocracy' if owner.regime_type == 'democracy' \
                 else 'democracy'
+        from run_trace import emit
+        emit(region, kind='takeover_succeeded', record_class='outcome',
+             subject={'type': 'nation', 'id': owner.name},
+             metric_id='politics.legitimacy', unit='ratio', after=owner.legitimacy,
+             inputs={'attempt_chance': attempt_chance, 'attempt_draw': attempt_draw,
+                     'repel_chance': repel_chance, 'repel_draw': repel_draw,
+                     'garrison_force': garrison_force, 'mob_force': mob_force,
+                     'new_regime': owner.regime_type})
         return True
+    from run_trace import emit
+    emit(region, kind='takeover_attempt_failed', record_class='outcome',
+         subject={'type': 'tile', 'id': region.name},
+         inputs={'attempt_chance': attempt_chance, 'attempt_draw': attempt_draw,
+                 'mob_size': mob})
     return False
 
 
@@ -206,6 +231,14 @@ def step_unrest(region, t):
 
     # Record in a log for the viewer (pure state).
     region.unrest_log.append(events)
+    from run_trace import emit
+    emit(region, kind='unrest_roll', record_class='outcome',
+         subject={'type': 'tile', 'id': region.name},
+         metric_id='politics.unrest_event', unit='stage', after=events['stage'],
+         formula_id='unrest.intensities.v1',
+         inputs={'energy': energy, 'intensities': intensity, 'mob_size': mob,
+                 'effective_mob': effective_mob, 'rng_draw': roll if intensity['unrest'] > 0 else None,
+                 'rng_stream': 'unrest.rand', 'result': events})
     return events
 
 

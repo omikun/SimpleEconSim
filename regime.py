@@ -62,6 +62,7 @@ def _avg_faction_support(nation):
 
 def track_legitimacy(nation):
     """M3.4: drift legitimacy toward the population's faction support."""
+    fed_ratio = None
     if getattr(nation, 'regime_type', '') == 'commune':
         # Commune legitimacy is based on worker-peasant well-being & commons access
         tiles = getattr(nation, 'tiles', [])
@@ -78,6 +79,16 @@ def track_legitimacy(nation):
         target = _avg_faction_support(nation)
     cur = getattr(nation, 'legitimacy', 0.6)
     nation.legitimacy = _clamp(cur + (target - cur) * LEGITIMACY_DRIFT, 0.0, 1.0)
+    if nation.tiles:
+        from run_trace import emit
+        emit(nation.tiles[0], kind='legitimacy_drift', record_class='calculation',
+             subject={'type': 'nation', 'id': nation.name},
+             metric_id='politics.legitimacy', unit='ratio',
+             before=cur, after=nation.legitimacy,
+             formula_id='regime.legitimacy_target_drift.v1',
+             inputs={'target': target, 'drift_rate': LEGITIMACY_DRIFT,
+                     'regime_type': nation.regime_type, 'fed_ratio': fed_ratio},
+             constraints={'floor': 0.0, 'cap': 1.0})
 
 
 def apply_platform(nation, candidate):
@@ -169,8 +180,16 @@ def step_regime(nation, t, rng=None):
     events = []
 
     # 1. Coup
-    general, fires = coup_chance(nation, t,
-                                 rng if rng is not None else random.random())
+    coup_draw = rng if rng is not None else random.random()
+    general, fires = coup_chance(nation, t, coup_draw)
+    if nation.tiles:
+        from run_trace import emit
+        emit(nation.tiles[0], kind='coup_check', record_class='outcome',
+             subject={'type': 'nation', 'id': nation.name},
+             inputs={'rng_draw': coup_draw, 'rng_stream': 'regime.random',
+                     'general_id': getattr(general, 'id', None),
+                     'fired': fires, 'legitimacy': nation.legitimacy,
+                     'regime_type': nation.regime_type})
     if fires and general is not None:
         deposed = getattr(nation, 'ruling_faction', None)
         ev = execute_coup(nation, t, general, deposed_faction=deposed)

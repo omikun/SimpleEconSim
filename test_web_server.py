@@ -179,6 +179,20 @@ class TestWebServerEndpoints(unittest.TestCase):
         body = handler.get_body()
         self.assertTrue(body.startswith(b'<svg'))
 
+    def test_trace_query_and_download(self):
+        self.sim.step()
+        tile = self.sim.tiles[0].name
+        query = urllib.parse.urlencode({'turn': 1, 'entity': f'tile:{tile}',
+                                        'metric': 'goods.price', 'limit': 5})
+        handler = MockHttpRequestHandler(self.mock_server, 'GET', f'/api/trace?{query}')
+        self.assertEqual(handler.response_status, 200)
+        payload = json.loads(handler.get_body())
+        self.assertTrue(payload['events'])
+        self.assertLessEqual(len(payload['events']), 5)
+        handler = MockHttpRequestHandler(self.mock_server, 'GET', '/api/trace/download')
+        self.assertEqual(handler.response_status, 200)
+        self.assertIn(b'"run_id"', handler.get_body())
+
     def test_api_world_state(self):
         handler = MockHttpRequestHandler(self.mock_server, 'GET', '/api/state')
         self.assertEqual(handler.response_status, 200)

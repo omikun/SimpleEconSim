@@ -246,9 +246,13 @@ def import_ask_price(region, trader, good):
     return max(0.05, ask)
 
 
-def update_price_ref(region, good, demand_ratio):
+def update_price_ref(region, good, demand_ratio, *, local_asks=None,
+                     imported_asks=None, bids=None):
     """Bounded move-toward-target price reference WITH supply scarcity."""
+    from run_trace import emit
     ref = region._price_ref[good]
+    old_ref = ref
+    old_display_price = region.recipes.get(good, {}).get('price', ref)
     inflation = 0.25 * math.tanh(demand_ratio - 1.0)
     maxinv = region.recipes.get(good, {}).get('maxinv', 10)
     producers = [a for a in region.agents
@@ -262,11 +266,15 @@ def update_price_ref(region, good, demand_ratio):
     influence = inflation + 0.30 * scarcity
     influence = max(-0.35, min(0.50, influence))
     target = ref * (1.0 + influence)
-    ref = ref + (target - ref) * 0.25
+    blended = ref + (target - ref) * 0.25
+    ref = blended
     recent = region._trade_prices.get(good, [])[-12:]
+    recent_event_ids = getattr(region, '_trade_price_event_ids', {}).get(good, [])[-12:]
+    vwap = None
     if recent:
         vwap = sum(recent) / len(recent)
         ref = 0.7 * ref + 0.3 * vwap
+    after_vwap = ref
     r = region.recipes.get(good, {})
     cost_floor = 1.0
     if r.get('numInput', 0) > 0 and r.get('production', 0) > 0:
@@ -277,6 +285,22 @@ def update_price_ref(region, good, demand_ratio):
     region._price_ref[good] = ref
     if good in region.recipes:
         region.recipes[good]['price'] = ref
+    emit(region, kind='market_price_update', record_class='calculation',
+         subject={'type': 'tile', 'id': region.name, 'good': good.name},
+         metric_id='goods.price', unit='local_currency_per_unit',
+         before=old_display_price, after=ref, formula_id='market.reference.v1',
+         cause_event_ids=recent_event_ids,
+         inputs={'demand_ratio': demand_ratio, 'local_asks': local_asks,
+                 'imported_asks': imported_asks, 'bids': bids,
+                 'prior_reference': old_ref,
+                 'producer_count': len(producers), 'average_producer_inventory': avg_inv,
+                 'max_inventory': maxinv, 'scarcity': scarcity,
+                 'inflation_term': inflation, 'bounded_influence': influence,
+                 'target': target, 'move_blend': blended,
+                 'recent_market_price_samples': list(recent), 'vwap': vwap,
+                 'after_vwap': after_vwap, 'input_cost_floor': cost_floor},
+         constraints={'active_floor': cost_floor if after_vwap < cost_floor else None,
+                      'active_cap': 50.0 if max(cost_floor, after_vwap) > 50.0 else None})
 
 
 def gather_import_pool(region, good):
@@ -325,6 +349,7 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
     cash_collected = 0.0
     units = 0
     prices = []
+    sale_event_ids = []
     imp_units = 0
     imp_value = 0.0
     bi = 0
@@ -342,6 +367,10 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
                 bi += 1
                 continue
             cost = take * ask
+            buyer_cash_before = buyer.cash
+            seller_cash_before = seller.cash
+            seller_wallet_before = _fx.fx_balance(seller, region.home_currency)
+            gov_cash_before = region.gov.agent.cash if getattr(region, 'gov', None) is not None else None
             buyer.cash -= cost
             if is_import:
                 if not getattr(seller, 'alive', True):
@@ -409,6 +438,23 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
                 if good == Goods.food:
                     buyer.food_purchased += int(take)
             cash_collected += cost
+            from run_trace import emit
+            sale_id = emit(region, kind='paid_market_sale', record_class='transfer',
+                           subject={'type': 'tile', 'id': region.name, 'good': good.name},
+                           metric_id='goods.sold', unit='units', before=0, after=take,
+                           inputs={'buyer_id': buyer.id, 'seller_id': seller.id,
+                                   'imported': is_import, 'parked': is_parked,
+                                   'unit_price': ask, 'total_paid': cost,
+                                   'buyer_cash_before': buyer_cash_before,
+                                   'buyer_cash_after': buyer.cash,
+                                   'seller_cash_delta': seller.cash - seller_cash_before,
+                                   'seller_local_wallet_delta':
+                                   _fx.fx_balance(seller, region.home_currency) - seller_wallet_before,
+                                   'government_cash_delta':
+                                   region.gov.agent.cash - gov_cash_before
+                                   if gov_cash_before is not None else None})
+            if sale_id is not None:
+                sale_event_ids.append(sale_id)
             units += take
             prices.extend([ask] * int(take))
             remaining -= take
@@ -416,6 +462,20 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
                 bi += 1
     region._auction_import_sales[good] = (imp_units, imp_value)
     realized = sum(prices) / len(prices) if prices else ref
+    from run_trace import emit
+    summary_id = emit(region, kind='market_clearing_summary', record_class='calculation',
+                      subject={'type': 'tile', 'id': region.name, 'good': good.name},
+                      metric_id='goods.sold', unit='units', after=units,
+                      formula_id='market.discriminatory_clear.v1',
+                      inputs={'offered_asks': total_asks, 'submitted_bids': total_bids,
+                              'cash_collected': cash_collected, 'import_units': imp_units,
+                              'import_value': imp_value, 'realized_or_reference_price': realized,
+                              'no_paid_sale': not bool(prices)},
+                      cause_event_ids=sale_event_ids)
+    if summary_id is not None:
+        recent_ids = region.__dict__.setdefault('_trade_price_event_ids', {}).setdefault(good, [])
+        recent_ids.append(summary_id)
+        del recent_ids[:-12]
     return units, cash_collected, realized
 
 
@@ -511,7 +571,9 @@ def legacy_sell(region, askers, good, price, t, total_bought, total_cash_purchas
 
 
 def price_decay(region, good):
+    from run_trace import emit
     r = region.recipes[good]
+    before = r['price']
     cost_to_make = 1.0
     if r.get('numInput', 0) > 0 and r.get('production', 0) > 0:
         input_cost = region.recipes[r['input']]['price']
@@ -519,11 +581,19 @@ def price_decay(region, good):
     if r['price'] > cost_to_make * 1.05:
         r['price'] = max(cost_to_make, r['price'] * 0.95)
     r['price'] = max(cost_to_make, r['price'])
+    emit(region, kind='market_price_decay', record_class='calculation',
+         subject={'type': 'tile', 'id': region.name, 'good': good.name},
+         metric_id='goods.price', unit='local_currency_per_unit',
+         before=before, after=r['price'], formula_id='market.decay.v1',
+         inputs={'decay_factor': 0.95, 'input_cost_floor': cost_to_make},
+         constraints={'active_floor': cost_to_make if r['price'] == cost_to_make else None})
 
 
 def set_price(region, demand_ratio, good):
+    from run_trace import emit
     r = region.recipes[good]
     price = r['price']
+    before = price
     fundamental_cost = 1.0
     if r.get('numInput', 0) > 0 and r.get('production', 0) > 0:
         input_cost = region.recipes[r['input']]['price']
@@ -544,11 +614,19 @@ def set_price(region, demand_ratio, good):
     min_price_floor = fundamental_cost * 1.10 if r.get('numInput', 0) > 0 else max(living_cost_floor, 0.10)
     price = max(min_price_floor, price, 0.1)
     r['price'] = price
+    emit(region, kind='transport_price_update', record_class='calculation',
+         subject={'type': 'tile', 'id': region.name, 'good': good.name},
+         metric_id='goods.price', unit='local_currency_per_unit',
+         before=before, after=price, formula_id='market.transport.v1',
+         inputs={'demand_ratio': demand_ratio, 'fundamental_cost': fundamental_cost,
+                 'food_price': food_price, 'living_cost_floor': living_cost_floor},
+         constraints={'min_price_floor': min_price_floor})
     return price
 
 
 def trade(region, t):
     """Run market trading session for goods and transport services."""
+    from run_trace import emit
     all_goods_price = region.all_goods_price
     food_price = region.food_price
     if getattr(region, 'province', None) is None:
@@ -608,20 +686,39 @@ def trade(region, t):
         region.demand_ratio_log[good].append(demand_ratio)
         region.demand_log[good].append(tb)
         region.supply_log[good].append(price_ta)
+        from run_trace import emit
+        market_subject = {'type': 'tile', 'id': region.name, 'good': good.name}
+        emit(region, kind='market_demand_total', record_class='calculation',
+             subject=market_subject, metric_id='goods.demand', unit='units_offered',
+             after=tb, formula_id='market.sum_bids.v1',
+             inputs={'active_agents': len(agents)})
+        emit(region, kind='market_supply_total', record_class='calculation',
+             subject=market_subject, metric_id='goods.supply', unit='units_offered',
+             after=price_ta, formula_id='market.local_plus_imports.v1',
+             inputs={'local_asks': ta, 'imported_asks': imp_total})
         if max_demand_ratio < demand_ratio and tb > 0:
             max_demand_ratio = demand_ratio
             most_demand_good = good
-        update_price_ref(region, good, demand_ratio)
+        update_price_ref(region, good, demand_ratio, local_asks=ta,
+                         imported_asks=imp_total, bids=tb)
         ref = region._price_ref[good]
         price = ref
         if min(price_ta, tb) == 0:
             region._auction_import_sales[good] = (0, 0.0)
+            from run_trace import emit
+            emit(region, kind='market_no_trade', record_class='observation',
+                 subject={'type': 'tile', 'id': region.name, 'good': good.name},
+                 metric_id='goods.sold', unit='units', after=0,
+                 inputs={'local_asks': ta, 'imported_asks': imp_total,
+                         'bids': tb, 'reason': 'no bids or no offers'})
             continue
         total_bought, tcash, realized = clear_discriminatory(
             region, good, ref, price_ta, tb, imp_pool, agents, t)
         region.sold_log[good].append(total_bought)
         region._trade_prices[good].append(realized)
         total_sold = total_bought
+        charity_bought = 0
+        gov_bought = 0
         askers = sorted(agents, key=lambda a: a.ask, reverse=True)
 
         # Charity food purchase
@@ -630,7 +727,6 @@ def trade(region, t):
             if charity_bid > 0:
                 food_askers = [a for a in askers if a.output == Goods.food
                                and a.inv_get(Goods.food, 0) > 2]
-                charity_bought = 0
                 for seller in food_askers:
                     if charity_bid <= 0 or region.charity.cash < price:
                         break
@@ -643,6 +739,11 @@ def trade(region, t):
                         seller.cash += bought * price
                         region.charity.pay_for_food(bought * price)
                         region.charity.receive_food(bought)
+                        emit(region, kind='charity_food_purchase', record_class='transfer',
+                             subject={'type': 'tile', 'id': region.name, 'good': good.name},
+                             metric_id='goods.sold', unit='units', before=0, after=bought,
+                             inputs={'seller_id': seller.id, 'buyer': 'charity',
+                                     'unit_price': price, 'paid': bought * price})
                         charity_bid -= bought
                         charity_bought += bought
                 if charity_bought > 0:
@@ -657,7 +758,6 @@ def trade(region, t):
                 if gov_bid > 0:
                     gov_askers = [a for a in askers if a.output == Goods.food
                                    and a.inv_get(Goods.food, 0) > 2]
-                    gov_bought = 0
                     for seller in gov_askers:
                         if gov_bid <= 0 or region.gov.agent.cash < price:
                             break
@@ -671,6 +771,11 @@ def trade(region, t):
                             seller.cash += bought * price
                             region.gov.pay_for_food(bought * price)
                             region.gov.receive_food(bought)
+                            emit(region, kind='government_food_purchase', record_class='transfer',
+                                 subject={'type': 'tile', 'id': region.name, 'good': good.name},
+                                 metric_id='goods.sold', unit='units', before=0, after=bought,
+                                 inputs={'seller_id': seller.id, 'buyer': 'government',
+                                         'unit_price': price, 'paid': bought * price})
                             gov_bid -= bought
                             gov_bought += bought
                     if gov_bought > 0:
@@ -679,6 +784,12 @@ def trade(region, t):
                         loginfo(t, f"Government({region.gov.name}) bought "
                                 f"{gov_bought} food at ${price:.2f}")
                 region.gov.deposit_remaining(region.bank)
+        emit(region, kind='market_total_units_sold', record_class='calculation',
+             subject={'type': 'tile', 'id': region.name, 'good': good.name},
+             metric_id='goods.sold', unit='units', after=region.sold_log[good][-1],
+             formula_id='market.clear_plus_public_buyers.v1',
+             inputs={'private_units': total_bought, 'charity_units': charity_bought,
+                     'government_units': gov_bought})
 
     # ---- Phase B: trade transport ----
     transport_price = recipes[Goods.transport]['price']
@@ -699,6 +810,13 @@ def trade(region, t):
         region.demand_ratio_log[Goods.transport].append(dr)
         region.demand_log[Goods.transport].append(tr_bids)
         region.supply_log[Goods.transport].append(tr_asks)
+        transport_subject = {'type': 'tile', 'id': region.name, 'good': Goods.transport.name}
+        emit(region, kind='transport_demand_total', record_class='calculation',
+             subject=transport_subject, metric_id='goods.demand',
+             unit='units_offered', after=tr_bids, formula_id='market.sum_transport_bids.v1')
+        emit(region, kind='transport_supply_total', record_class='calculation',
+             subject=transport_subject, metric_id='goods.supply',
+             unit='units_offered', after=tr_asks, formula_id='market.sum_transport_asks.v1')
         if max_demand_ratio < dr and tr_bids > 0:
             max_demand_ratio = dr
         price = set_price(region, dr, Goods.transport)
@@ -710,5 +828,10 @@ def trade(region, t):
             region.sold_log[Goods.transport].append(total_sold)
         else:
             region.sold_log[Goods.transport].append(0)
+        emit(region, kind='transport_units_sold', record_class='calculation',
+             subject=transport_subject, metric_id='goods.sold', unit='units',
+             after=region.sold_log[Goods.transport][-1],
+             formula_id='market.legacy_transport_clear.v1',
+             inputs={'bids': tr_bids, 'asks': tr_asks})
 
     region.most_demand = most_demand_good

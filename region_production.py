@@ -124,7 +124,8 @@ def terrain_bonus(region, good, t: int | None = None):
     return base * mult
 
 
-def produce_corporation(region, agent, recipe, output, num_agents_per_good, local_total_production):
+def produce_corporation(region, agent, recipe, output, num_agents_per_good,
+                        local_total_production, receipt_ids=None):
     """Run production logic for a corporate employer."""
     # P2.3: Striking or revolting workers withhold living labor power
     working_employees = [e for e in agent.employees if not getattr(e, 'is_striking', False) and not getattr(e, 'in_revolt', False)]
@@ -157,7 +158,8 @@ def produce_corporation(region, agent, recipe, output, num_agents_per_good, loca
                                     + max(0.0, agreement.pace - 1.0) * 0.20 - 0.05)
         employee.workplace_accident = agreement.hours >= 14.0 or agreement.pace >= 1.75
     shift_mult = sum(effort_factors) / len(effort_factors) if effort_factors else calculate_shift_multiplier(getattr(agent, 'shift_hours', 8.0))
-    production_per_slot = base_production * synergy * terrain_bonus(region, output) * shift_mult
+    terrain_mult = terrain_bonus(region, output)
+    production_per_slot = base_production * synergy * terrain_mult * shift_mult
 
     machinery = getattr(agent, 'machinery_level', 1)
     broken = getattr(agent, 'broken_machinery', 0)
@@ -181,14 +183,36 @@ def produce_corporation(region, agent, recipe, output, num_agents_per_good, loca
         successful_slots = sum(1 for v in vals if v < chance)
     if successful_slots:
         inputs_cost = 0.0
+        inputs_used = 0
         if recipe.get('numInput', 0) > 0:
             inputs_used = successful_slots * recipe['numInput']
             agent.inv_add(recipe['input'], -inputs_used)
             input_price = region.recipes.get(recipe['input'], {}).get('price', 1.0)
             inputs_cost = inputs_used * input_price
         num_output = int(successful_slots * production_per_slot) or 1
+        inventory_before = agent.inv_get(output, 0)
         agent.inv_add(output, num_output)
         local_total_production[output] = local_total_production.get(output, 0) + num_output
+        from run_trace import emit
+        event_id = emit(region, kind='firm_production', record_class='outcome',
+                        subject={'type': 'agent', 'id': agent.id, 'tile': region.name,
+                                 'good': output.name},
+                        metric_id='goods.production', unit='units', before=0,
+                        after=num_output, formula_id='production.corporation.v1',
+                        inputs={'employees': len(agent.employees),
+                                'working_employees': num_employees,
+                                'active_slots': active_slots, 'successful_slots': successful_slots,
+                                'slot_draws': list(vals), 'success_probability': chance,
+                                'base_production': base_production, 'synergy': synergy,
+                                'terrain_multiplier': terrain_mult,
+                                'shift_multiplier': shift_mult,
+                                'working_machinery': working_machinery,
+                                'production_per_slot': production_per_slot,
+                                'inputs_used': inputs_used,
+                                'inventory_before': inventory_before,
+                                'inventory_after': agent.inv_get(output, 0)})
+        if receipt_ids is not None and event_id is not None:
+            receipt_ids.append(event_id)
 
         # P2.1: Surplus value extraction accounting (s/v)
         wages_paid = len(agent.employees) * getattr(agent, 'wage', 1.0)
@@ -271,7 +295,8 @@ def compute_and_record_firm_footprint(agent, region, output, num_output, inputs_
         pass
 
 
-def produce_independent(region, agent, recipe, output, num_agents_per_good, local_total_production):
+def produce_independent(region, agent, recipe, output, num_agents_per_good,
+                        local_total_production, receipt_ids=None):
     """Run production logic for an independent sole craftsman."""
     max_inventory = recipe['maxinv']
     if agent.inv_get(output, 0) / max_inventory >= 1:
@@ -302,8 +327,23 @@ def produce_independent(region, agent, recipe, output, num_agents_per_good, loca
                 agent.inv_add(recipe['input'], -recipe['numInput'])
                 input_price = region.recipes.get(recipe['input'], {}).get('price', 1.0)
                 inputs_cost = recipe['numInput'] * input_price
-            num_output = int(recipe['production'] * terrain_bonus(region, output))
+            terrain_mult = terrain_bonus(region, output)
+            num_output = int(recipe['production'] * terrain_mult)
             compute_and_record_firm_footprint(agent, region, output, num_output, inputs_cost, 0.0)
+        if made:
+            from run_trace import emit
+            event_id = emit(region, kind='independent_production', record_class='outcome',
+                            subject={'type': 'agent', 'id': agent.id, 'tile': region.name,
+                                     'good': output.name},
+                            metric_id='goods.production', unit='units', before=0,
+                            after=num_output, formula_id='production.independent.v1',
+                            inputs={'draw': rand_val, 'success_probability': chance,
+                                    'base_production': recipe['production'],
+                                    'terrain_multiplier': terrain_mult,
+                                    'inputs_used': recipe['numInput'] if recipe['numInput'] > 0 else 0,
+                                    'inventory_before': agent.inv_get(output, 0)})
+            if receipt_ids is not None and event_id is not None:
+                receipt_ids.append(event_id)
     agent.inv_add(output, num_output)
     local_total_production[output] = local_total_production.get(output, 0) + num_output
     if num_output > 0:
@@ -324,6 +364,7 @@ def produce(region, t):
         if g not in num_agents_per_good:
             num_agents_per_good[g] = 0
     local_total_production = defaultdict(int)
+    receipt_ids = {}
     for a in region.agents:
         if (a.employer or a.output == Goods.gov or a.is_trader or a.output == Goods.none
                 or a.output not in region.recipes or getattr(a, 'military_unit_id', None)):
@@ -332,15 +373,18 @@ def produce(region, t):
             continue
         r = region.recipes[a.output]
         if a.is_corporation and len(a.employees) > 0:
-            produce_corporation(region, a, r, a.output, num_agents_per_good, local_total_production)
+            produce_corporation(region, a, r, a.output, num_agents_per_good,
+                                local_total_production, receipt_ids.setdefault(a.output, []))
         else:
-            produce_independent(region, a, r, a.output, num_agents_per_good, local_total_production)
+            produce_independent(region, a, r, a.output, num_agents_per_good,
+                                local_total_production, receipt_ids.setdefault(a.output, []))
 
     if getattr(region, 'scenario_grain_holder_id', None) is not None:
         from scenario_political_economy import hold_after_harvest
         hold_after_harvest(region, t)
 
     # Phase 1: Pastoral wool / fiber yield for landlords on pasture plots
+    wool_yield_total = 0
     tenure = getattr(region, 'tenure', None)
     if tenure is not None:
         for plot in getattr(tenure, 'plots', []):
@@ -354,10 +398,12 @@ def produce(region, t):
                     wool_yield = max(1, int(4 * plot.fraction * terrain_bonus(region, Goods.wool)))
                     lord.inv_add(Goods.wool, wool_yield)
                     local_total_production[Goods.wool] += wool_yield
+                    wool_yield_total += wool_yield
 
     # Phase 3: Granary buffer stock management across 10-turn agricultural year
     year_turn = t % 10
     food_made = local_total_production.get(Goods.food, 0)
+    granary_release_units = 0
     if not hasattr(region, 'granary_stock'):
         region.granary_stock = 25.0
 
@@ -369,8 +415,20 @@ def produce(region, t):
         # Winter / early spring lean season: granary releases buffer food into local production
         buffer_out = min(4.0, region.granary_stock * 0.20)
         region.granary_stock = max(0.0, region.granary_stock - buffer_out)
-        local_total_production[Goods.food] += int(buffer_out)
+        granary_release_units = int(buffer_out)
+        local_total_production[Goods.food] += granary_release_units
 
     for g in region.goods:
         if g != Goods.gov:
             region.production_log[g].append(local_total_production[g])
+            from run_trace import emit
+            emit(region, kind='tile_production_total', record_class='calculation',
+                 subject={'type': 'tile', 'id': region.name, 'good': g.name},
+                 metric_id='goods.production', unit='units_per_turn',
+                 after=local_total_production[g],
+                 formula_id='production.sum_receipts.v1',
+                 inputs={'producer_count': num_agents_per_good.get(g, 0),
+                         'granary_stock': getattr(region, 'granary_stock', None),
+                         'wool_from_pasture': wool_yield_total if g == Goods.wool else 0,
+                         'granary_release_units': granary_release_units if g == Goods.food else 0},
+                 cause_event_ids=receipt_ids.get(g, []))

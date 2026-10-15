@@ -69,6 +69,9 @@ class Intent:
              nations_by_name: dict[str, Nation], t: int) -> list[dict]:
         """Step intent state; handle parliamentary approval countdown and execution."""
         events = []
+        status_before = self.status
+        nation = nations_by_name.get(self.nation_name)
+        treasury_before = nation.treasury()['total'] if nation is not None else None
         if self.status == 'pending_approval':
             if self.approval_delay > 0:
                 self.approval_delay -= 1
@@ -98,6 +101,21 @@ class Intent:
                 'message': msg
             })
 
+        if nation is not None and nation.tiles:
+            from run_trace import emit
+            emit(nation.tiles[0], kind='intent_execution', record_class='outcome',
+                 phase='strategy', subject={'type': 'nation', 'id': self.nation_name},
+                 operation_id=self.intent_id,
+                 decision_id=getattr(self, '_decision_event_id', None),
+                 inputs={'intent_type': self.intent_type, 'status_before': status_before,
+                         'status_after': self.status,
+                         'approval_delay_after': self.approval_delay,
+                         'treasury_before': treasury_before,
+                         'treasury_after': nation.treasury()['total'],
+                         'events': [{'event': ev.get('event'),
+                                     'success': ev.get('success'),
+                                     'message': ev.get('message')}
+                                    for ev in events]})
         return events
 
 

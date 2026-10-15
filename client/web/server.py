@@ -100,6 +100,56 @@ class CoCHTTPRequestHandler(BaseHTTPRequestHandler):
                 self._send_error_json(500, f"Error serializing world state: {e}")
             return
 
+        elif path == '/api/trace':
+            try:
+                sim = self.server.sim_server
+                turn_text = query.get('turn', [None])[0]
+                turn = int(turn_text) if turn_text is not None else None
+                offset = max(0, int(query.get('offset', ['0'])[0]))
+                limit = max(1, min(200, int(query.get('limit', ['50'])[0])))
+                entity = query.get('entity', [None])[0]
+                subject = None
+                if entity:
+                    entity_type, separator, entity_id = entity.partition(':')
+                    if not separator or entity_type not in ('tile', 'nation') or not entity_id:
+                        self._send_error_json(400, 'Entity must be tile:name or nation:name')
+                        return
+                    subject = {'type': entity_type, 'id': entity_id}
+                metric_id = query.get('metric', [None])[0]
+                with sim._lock:
+                    result = sim.run_trace.query(turn=turn, subject=subject,
+                                                 metric_id=metric_id,
+                                                 offset=offset, limit=limit)
+                body = json.dumps(result, allow_nan=False).encode('utf-8')
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.send_header('Cache-Control', 'no-store')
+                self.send_header('Content-Length', str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+            except (ValueError, TypeError) as exc:
+                self._send_error_json(400, f'Invalid trace query: {exc}')
+            except Exception as exc:
+                self._send_error_json(500, f'Error querying trace: {exc}')
+            return
+
+        elif path == '/api/trace/download':
+            try:
+                sim = self.server.sim_server
+                with sim._lock:
+                    body = sim.run_trace.path.read_bytes()
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/x-ndjson; charset=utf-8')
+                self.send_header('Content-Disposition',
+                                 f'attachment; filename="run-{sim.run_trace.run_id}.jsonl"')
+                self.send_header('Cache-Control', 'no-store')
+                self.send_header('Content-Length', str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+            except Exception as exc:
+                self._send_error_json(500, f'Error exporting trace: {exc}')
+            return
+
         # Download the complete evidence trail of this live run.
         elif path == '/api/collective-trace':
             try:

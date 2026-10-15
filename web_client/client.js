@@ -3222,13 +3222,14 @@
         <tbody>
           ${data.map(n => {
             const isPlayer = (n.name === worldState.player_nation || n.nation === worldState.player_nation);
-            const tDelta = (n.treasury_delta >= 0) ? `<span class="delta-pos">+${Math.round(n.treasury_delta || 0)}</span>` : `<span class="delta-neg">${Math.round(n.treasury_delta || 0)}</span>`;
+            const tDelta = n.treasury_delta == null ? '—' : (n.treasury_delta >= 0) ? `<span class="delta-pos">+${Math.round(n.treasury_delta)}</span>` : `<span class="delta-neg">${Math.round(n.treasury_delta)}</span>`;
             let actionBtn = '—';
             if (isCountry && !isPlayer) {
               actionBtn = `<button class="btn btn-secondary btn-xs btn-switch-nat" data-nat="${escapeHtml(n.name)}">Assume Control</button>`;
             } else if (isTile) {
               actionBtn = `<button class="btn btn-secondary btn-xs btn-goto-tile" data-tile="${escapeHtml(n.name)}">Focus</button>`;
             }
+            if (isCountry) actionBtn += ` <button class="btn btn-secondary btn-xs btn-ai-why" data-nat="${escapeHtml(n.name)}">Why AI?</button>`;
             return `
               <tr>
                 <td><strong style="color:${safeCssColor(n.flag_color)}">${isCountry ? '👑 ' : (isProv ? '🏛️ ' : '🏙️ ')}${escapeHtml(n.name)}</strong> ${isPlayer ? '<span class="card-badge mastered">YOU</span>' : ''}</td>
@@ -3264,6 +3265,43 @@
         });
       });
       container.appendChild(table);
+      if (isCountry) {
+        const detail = document.createElement('div');
+        detail.className = 'card';
+        detail.hidden = true;
+        container.appendChild(detail);
+        table.querySelectorAll('.btn-ai-why').forEach(button => {
+          button.addEventListener('click', async () => {
+            detail.hidden = false;
+            detail.textContent = 'Loading AI decision…';
+            try {
+              const params = new URLSearchParams({ turn: String(worldState.turn || 0),
+                entity: `nation:${button.dataset.nat}`, limit: '100' });
+              const response = await fetch(`/api/trace?${params}`);
+              if (!response.ok) throw new Error(`HTTP ${response.status}`);
+              const rows = (await response.json()).events || [];
+              const decision = rows.find(e => e.kind === 'nation_ai_decision');
+              if (!decision) {
+                detail.textContent = 'Explanation unavailable: no AI decision was recorded for this nation and turn.';
+                return;
+              }
+              const selected = (decision.inputs.selected || []).join(', ') || 'No intent submitted';
+              const rejected = (decision.inputs.considered || [])
+                .filter(c => c.feasible === false).slice(0, 4)
+                .map(c => `${c.candidate}: ${c.reason || 'unavailable'}`).join('; ');
+              const executed = rows.filter(e => e.kind === 'intent_execution')
+                .map(e => `${e.inputs.intent_type} ${e.inputs.status_after}`).join('; ');
+              detail.innerHTML = `<h4>${escapeHtml(button.dataset.nat)} · Turn ${Number(decision.turn)}</h4>
+                <p>Chosen: ${escapeHtml(selected)}.</p>
+                <p>Rejected or blocked: ${escapeHtml(rejected || 'none recorded')}.</p>
+                <p>Execution: ${escapeHtml(executed || 'no intent execution recorded')}.</p>
+                <p>Event ${escapeHtml(decision.event_id)}</p>`;
+            } catch (error) {
+              detail.textContent = `Could not load AI explanation: ${error.message}`;
+            }
+          });
+        });
+      }
 
     } else if (activeCompareTab === '2') {
       // Tab 2: Goods Market & Provincial Output Table
@@ -3290,13 +3328,47 @@
               <td class="text-green">${Number(p.food_output) || 0} t</td>
               <td>${Number(p.wood_output) || 0} t</td>
               <td class="text-gold">${Number(p.furniture_output) || 0} t</td>
-              <td>$${Number(p.food_price || 0).toFixed(2)}</td>
+              <td>$${Number(p.food_price || 0).toFixed(2)} ${p.tile_id ? `<button class="btn btn-secondary btn-xs btn-price-why" data-tile="${escapeHtml(p.tile_id)}">Why?</button>` : ''}</td>
               <td>${Number(p.stockpiles) || 0} units</td>
             </tr>
           `).join('')}
         </tbody>
       `;
       container.appendChild(table);
+      if (isTile) {
+        const detail = document.createElement('div');
+        detail.className = 'card';
+        detail.hidden = true;
+        container.appendChild(detail);
+        table.querySelectorAll('.btn-price-why').forEach(button => {
+          button.addEventListener('click', async () => {
+            detail.hidden = false;
+            detail.textContent = 'Loading price calculation…';
+            try {
+              const params = new URLSearchParams({ turn: String(worldState.turn || 0),
+                entity: `tile:${button.dataset.tile}`, metric: 'goods.price', limit: '100' });
+              const response = await fetch(`/api/trace?${params}`);
+              if (!response.ok) throw new Error(`HTTP ${response.status}`);
+              const result = await response.json();
+              const event = (result.events || []).find(e => e.kind === 'market_price_update'
+                && e.subject && e.subject.good === 'food');
+              if (!event) {
+                detail.textContent = 'Explanation unavailable for this turn. The price calculation was not recorded.';
+                return;
+              }
+              const i = event.inputs || {};
+              const c = event.constraints || {};
+              detail.innerHTML = `<h4>Why food price changed · Turn ${Number(event.turn)}</h4>
+                <p>Reference price: $${Number(event.value_before).toFixed(3)} → $${Number(event.value_after).toFixed(3)} per unit.</p>
+                <p>Buy bids ${Number(i.bids || 0).toFixed(1)} units; local asks ${Number(i.local_asks || 0).toFixed(1)}; imported asks ${Number(i.imported_asks || 0).toFixed(1)}. Demand divided by available asks: ${Number(i.demand_ratio).toFixed(2)}.</p>
+                <p>Producer inventory averaged ${Number(i.average_producer_inventory).toFixed(1)} units. Scarcity term ${Number(i.scarcity).toFixed(3)}; market influence ${Number(i.bounded_influence).toFixed(3)}. Recent paid price average: ${i.vwap == null ? 'none' : '$' + Number(i.vwap).toFixed(3)}.</p>
+                <p>Input cost floor $${Number(i.input_cost_floor).toFixed(3)}${c.active_floor == null ? ' (inactive)' : ' (active)'}. Source: ${escapeHtml(event.formula_id || 'unknown')} · event ${escapeHtml(event.event_id)}.</p>`;
+            } catch (error) {
+              detail.textContent = `Could not load price explanation: ${error.message}`;
+            }
+          });
+        });
+      }
 
     } else if (activeCompareTab === '3') {
       // Tab 3: Forex & Banking Matrix
@@ -3327,9 +3399,9 @@
                 <td>${escapeHtml(b.nation)}</td>
                 <td><span class="badge-currency">${escapeHtml(b.currency || 'USD')}</span></td>
                 <td class="text-gold">$${Math.round(b.deposits || 0).toLocaleString()}</td>
-                <td class="text-cyan">$${Math.round(b.liquidity || 0).toLocaleString()}</td>
-                <td class="text-green">$${Math.round(b.reserves || 0).toLocaleString()}</td>
-                <td><strong>${b.neer !== undefined ? Number(b.neer).toFixed(2) : '1.00'}</strong></td>
+                <td class="text-cyan">${b.liquidity == null ? '—' : '$' + Math.round(b.liquidity).toLocaleString()}</td>
+                <td class="text-green">${b.reserves == null ? '—' : '$' + Math.round(b.reserves).toLocaleString()}</td>
+                <td><strong>${b.neer == null ? '—' : Number(b.neer).toFixed(2)}</strong></td>
               </tr>
             `).join('')}
           </tbody>
@@ -3468,17 +3540,17 @@
             <tr>
               <th style="width: 20%;">${isCountry ? 'Nation' : (isProv ? 'Province' : 'City / Tile')}</th>
               <th style="width: 15%;">Unrest Score</th>
-              <th style="width: 65%;">Cause Breakdown (Overwork / Enclosure / Hunger / Strikes / Repression / Inequality)</th>
+              <th style="width: 65%;">Grievance Sources (Overwork / Enclosure / Hunger / Labor / State / Inequality & Jobs)</th>
             </tr>
           </thead>
           <tbody>
             ${data.map(p => {
-              const ow = p.overwork || 35;
-              const enc = p.enclosure || 25;
-              const hg = p.hunger || 20;
-              const stk = p.strikes || 10;
-              const rep = p.state || 5;
-              const ineq = p.inequality || 5;
+              const ow = Number(p.overwork ?? 0);
+              const enc = Number(p.enclosure ?? 0);
+              const hg = Number(p.hunger ?? 0);
+              const stk = Number(p.strikes ?? 0);
+              const rep = Number(p.state ?? 0);
+              const ineq = Number(p.inequality ?? 0);
               const unrestVal = Number(p.unrest || 0).toFixed(1);
               const badgeCls = unrestVal > 3 ? 'riot' : (unrestVal > 1 ? 'unrest' : 'calm');
               return `
@@ -3490,17 +3562,17 @@
                       <div class="stacked-segment" style="width: ${ow}%; background: #ef4444;" title="Overwork ${ow}%"></div>
                       <div class="stacked-segment" style="width: ${enc}%; background: #f59e0b;" title="Enclosure ${enc}%"></div>
                       <div class="stacked-segment" style="width: ${hg}%; background: #10b981;" title="Hunger ${hg}%"></div>
-                      <div class="stacked-segment" style="width: ${stk}%; background: #06b6d4;" title="Strikes ${stk}%"></div>
-                      <div class="stacked-segment" style="width: ${rep}%; background: #a855f7;" title="Repression ${rep}%"></div>
-                      <div class="stacked-segment" style="width: ${ineq}%; background: #ec4899;" title="Inequality ${ineq}%"></div>
+                      <div class="stacked-segment" style="width: ${stk}%; background: #06b6d4;" title="Labor ${stk}%"></div>
+                      <div class="stacked-segment" style="width: ${rep}%; background: #a855f7;" title="State ${rep}%"></div>
+                      <div class="stacked-segment" style="width: ${ineq}%; background: #ec4899;" title="Inequality and jobs ${ineq}%"></div>
                     </div>
                     <div style="display:flex; flex-wrap:wrap; gap:10px; font-size:0.68rem; margin-top:4px; opacity:0.85;">
                       <span><span style="color:#ef4444">■</span> Overwork ${ow}%</span>
                       <span><span style="color:#f59e0b">■</span> Enclosure ${enc}%</span>
                       <span><span style="color:#10b981">■</span> Hunger ${hg}%</span>
-                      <span><span style="color:#06b6d4">■</span> Strikes ${stk}%</span>
-                      <span><span style="color:#a855f7">■</span> Repression ${rep}%</span>
-                      <span><span style="color:#ec4899">■</span> Inequality ${ineq}%</span>
+                      <span><span style="color:#06b6d4">■</span> Labor ${stk}%</span>
+                      <span><span style="color:#a855f7">■</span> State ${rep}%</span>
+                      <span><span style="color:#ec4899">■</span> Inequality &amp; jobs ${ineq}%</span>
                     </div>
                   </td>
                 </tr>

@@ -39,8 +39,19 @@ def step_economy(region: Any, t: int):
     from secular_climate import get_secular_climate
     region.secular_climate = get_secular_climate(t)
     col_clim = region.secular_climate.get('col_modifier', 1.0)
+    col_before = getattr(region, 'cost_of_living', None)
     region.cost_of_living = max(0.1, (4 * food_price + 1 * wood_price + 0.25 * furn_price)
                                 * region.col_multiplier * col_clim)
+    from run_trace import emit
+    emit(region, kind='cost_of_living_calculation', record_class='calculation',
+         subject={'type': 'tile', 'id': region.name},
+         metric_id='living.cost_of_living', unit='local_currency_per_basket',
+         before=col_before, after=region.cost_of_living,
+         formula_id='living.basket_prices_climate.v1',
+         inputs={'food_price': food_price, 'wood_price': wood_price,
+                 'furniture_price': furn_price, 'basket_weights': [4, 1, 0.25],
+                 'regional_multiplier': region.col_multiplier,
+                 'climate_multiplier': col_clim}, constraints={'floor': 0.1})
     region.food_price = food_price
     region.all_goods_price = food_price + wood_price + furn_price
     record_start(region)
@@ -271,6 +282,13 @@ def step_economy(region: Any, t: int):
         region.gov.seal_income(t)
 
     region.total_population.append(sum(v[-1] for v in region.population_log.values()))
+    emit(region, kind='population_count_calculation', record_class='calculation',
+         subject={'type': 'tile', 'id': region.name},
+         metric_id='people.population', unit='people',
+         before=region.total_population[-2] if len(region.total_population) > 1 else None,
+         after=region.total_population[-1], formula_id='population.sum_professions.v1',
+         inputs={'by_profession': {g.name if hasattr(g, 'name') else str(g): history[-1]
+                                   for g, history in region.population_log.items() if history}})
     region.cost_of_living_log.append(region.cost_of_living)
     region.tenure_log.append(region.tenure.commons_access)
     region.food_foraged_log.append(sum(getattr(a, 'food_foraged', 0) for a in region.agents))
@@ -400,12 +418,23 @@ def live(region: Any, t: int):
 
 def log_gdp(region: Any):
     total = 0
+    terms = {}
     for g in region.goods:
         if g != Goods.gov:
             value = region.production_log[g][-1] * region.recipes[g]['price']
             total += value
             region.gdp_by_profession_log[g].append(value)
+            terms[g.name if hasattr(g, 'name') else str(g)] = {
+                'units': region.production_log[g][-1],
+                'reference_price': region.recipes[g]['price'], 'value': value}
     region.gdp_log.append(total)
+    from run_trace import emit
+    emit(region, kind='nominal_gdp_calculation', record_class='calculation',
+         subject={'type': 'tile', 'id': region.name},
+         metric_id='economy.gdp_nominal', unit='local_currency_per_turn',
+         before=region.gdp_log[-2] if len(region.gdp_log) > 1 else None,
+         after=total, formula_id='gdp.sum_output_times_reference_price.v1',
+         inputs={'goods': terms})
 
 
 def log_metrics(region: Any, t: int):
@@ -451,6 +480,14 @@ def log_metrics(region: Any, t: int):
             region.gini_log[g].append(region.gini_log[g][-1] if region.gini_log[g] else 0)
         if g != Goods.gov:
             region.inventory_log[g].append(total_inv_by_output.get(g, 0.0))
+            from run_trace import emit
+            emit(region, kind='producer_inventory_total', record_class='calculation',
+                 subject={'type': 'tile', 'id': region.name, 'good': g.name},
+                 metric_id='goods.producer_inventory', unit='units',
+                 after=region.inventory_log[g][-1],
+                 formula_id='inventory.sum_producer_holdings.v1',
+                 inputs={'holdings': [{'agent_id': a.id, 'units': a.inv_get(g, 0)}
+                                     for a in grp]})
             non_prod = [a.inv_get(g, 0) for a in agents if a.output != g and not a.is_trader]
             region.per_capita_inventory[g].append(mean(non_prod) if non_prod else 0)
             region.price_log[g].append(region.recipes[g]['price'])

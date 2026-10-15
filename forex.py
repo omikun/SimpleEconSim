@@ -138,7 +138,7 @@ class ForexDesk:
                           'rate': rate})
         return qty
 
-    def clear_book(self):
+    def clear_book(self, trace_region=None):
         """Match crossed orders inside the bank's rate band.
 
         A bid (buy foreign) at rate B crosses an ask (sell foreign) at rate A
@@ -192,6 +192,16 @@ class ForexDesk:
             fx_sub(atrader, self.other, qty)
             moved = before - fx_balance(atrader, self.other)
             fx_add(btrader, self.other, moved)
+            if trace_region is not None:
+                from run_trace import emit
+                emit(trace_region, kind='fx_order_match', record_class='transfer',
+                     phase='trade', subject={'type': 'fx_desk', 'id': trace_region.name,
+                                             'base_currency': self.home,
+                                             'quote_currency': self.other},
+                     inputs={'buyer_id': btrader.id, 'seller_id': atrader.id,
+                             'foreign_quantity': moved, 'home_price_per_foreign': price,
+                             'home_paid': moved * price, 'bid_rate': b['rate'],
+                             'ask_rate': a['rate']})
             total_home += moved * price
             b['qty'] -= moved
             a['qty'] -= moved
@@ -234,7 +244,8 @@ class ForexDesk:
     # Reserve-pressure update (managed float)
     # ------------------------------------------------------------------
 
-    def update(self, t, bank=None, fx_regime='managed', ppp_target=None):
+    def update(self, t, bank=None, fx_regime='managed', ppp_target=None,
+               trace_region=None):
         """Adjust mid from reserve pressure and record history.
 
         *fixed*: mid pinned at 1.0 (parity) — convertibility still reserve-capped.
@@ -248,6 +259,7 @@ class ForexDesk:
         bank = bank if bank is not None else self.bank
         if bank is None:
             return self.mid
+        old_mid = self.mid
 
         # Mean-revert the domestic FX pool toward a fraction of deposits so
         # the desk doesn't permanently exhaust its ability to pay out.
@@ -257,11 +269,14 @@ class ForexDesk:
             bank.fx_pool += 0.0
 
         reserves = bank.foreign_reserves.get(self.other, 0.0)
+        ratio = reserves / self.target_reserves if self.target_reserves > 0 else 1.0
+        pressure = 0.0
+        ppp_gap = 0.0
+        pre_band = self.mid
 
         if fx_regime == 'fixed':
             self.mid = 1.0
         else:
-            ratio = reserves / self.target_reserves if self.target_reserves > 0 else 1.0
             # Drain (ratio < 1) -> foreign scarce -> mid up (home weakens),
             # discouraging imports and encouraging exports / repatriation.
             # Log-space BOUNDED step: can't overshoot the band in one turn.
@@ -274,9 +289,27 @@ class ForexDesk:
             if self.ppp_target > 0:
                 ppp_gap = math.log(self.ppp_target / max(0.01, self.mid))
                 new_mid *= math.exp(0.005 * ppp_gap)
+            pre_band = new_mid
             self.mid = max(self.band[0], min(self.band[1], new_mid))
 
         self.log.append((t, self.mid, reserves))
+        if trace_region is not None:
+            from run_trace import emit
+            emit(trace_region, kind='fx_mid_update', record_class='calculation',
+                 subject={'type': 'fx_desk', 'id': trace_region.name,
+                          'base_currency': self.home, 'quote_currency': self.other},
+                 metric_id='fx.bilateral_mid', unit='home_currency_per_foreign_currency',
+                 before=old_mid, after=self.mid, formula_id='forex.reserve_ppp.v1',
+                 inputs={'regime': fx_regime, 'domestic_fx_pool': bank.fx_pool,
+                         'deposits': deposits, 'target_pool': target_pool,
+                         'partner_reserves': reserves, 'target_reserves': self.target_reserves,
+                         'reserve_ratio': ratio, 'pressure_term': pressure,
+                         'ppp_target': self.ppp_target, 'ppp_gap': ppp_gap,
+                         'pre_band_mid': pre_band},
+                 constraints={'band': list(self.band),
+                              'active': 'fixed_parity' if fx_regime == 'fixed' else
+                              ('lower_band' if pre_band < self.band[0] else
+                               'upper_band' if pre_band > self.band[1] else None)})
         return self.mid
 
 
@@ -284,7 +317,7 @@ class ForexDesk:
 # Bank-level conversion (booked on the Bank for conservation transparency)
 # =============================================================================
 
-def sell_fx_to_bank(bank, trader, currency, amount, rate):
+def sell_fx_to_bank(bank, trader, currency, amount, rate, trace_region=None):
     """Trader sells *currency* (foreign) to the bank; bank pays home currency.
 
     Constraint: bank's domestic FX pool (fx_pool) caps the payout.
@@ -292,7 +325,12 @@ def sell_fx_to_bank(bank, trader, currency, amount, rate):
     bank fx_pool -home; trader cash +home.  Both currencies conserved.
     Returns home amount actually paid.
     """
-    amount = min(amount, fx_balance(trader, currency))
+    requested = amount
+    trader_cash_before = trader.cash
+    trader_fx_before = fx_balance(trader, currency)
+    pool_before = bank.fx_pool
+    reserves_before = bank.foreign_reserves.get(currency, 0.0)
+    amount = min(amount, trader_fx_before)
     if amount <= 0:
         return 0.0
     home = amount * rate
@@ -306,16 +344,35 @@ def sell_fx_to_bank(bank, trader, currency, amount, rate):
     bank.foreign_reserves[currency] += amount
     bank.fx_pool -= home
     trader.cash += home
+    if trace_region is not None:
+        from run_trace import emit
+        emit(trace_region, kind='fx_conversion_executed', record_class='transfer',
+             phase='trade', subject={'type': 'agent', 'id': trader.id, 'tile': trace_region.name},
+             inputs={'direction': 'sell_foreign', 'foreign_currency': currency,
+                     'home_currency': trace_region.home_currency,
+                     'requested_foreign': requested, 'executed_foreign': amount,
+                     'rate_home_per_foreign': rate, 'home_paid': home,
+                     'trader_cash_before': trader_cash_before, 'trader_cash_after': trader.cash,
+                     'trader_fx_before': trader_fx_before,
+                     'trader_fx_after': fx_balance(trader, currency),
+                     'bank_fx_pool_before': pool_before, 'bank_fx_pool_after': bank.fx_pool,
+                     'bank_foreign_reserves_before': reserves_before,
+                     'bank_foreign_reserves_after': bank.foreign_reserves[currency]})
     return home
 
 
-def buy_fx_from_bank(bank, trader, currency, amount, rate):
+def buy_fx_from_bank(bank, trader, currency, amount, rate, trace_region=None):
     """Trader buys *currency* (foreign) from the bank, paying home currency.
 
     Constraint: bank's foreign reserves cap the sale.
     Returns amount of foreign currency actually bought.
     """
-    amount = min(amount, bank.foreign_reserves.get(currency, 0.0))
+    requested = amount
+    trader_cash_before = trader.cash
+    trader_fx_before = fx_balance(trader, currency)
+    pool_before = bank.fx_pool
+    reserves_before = bank.foreign_reserves.get(currency, 0.0)
+    amount = min(amount, reserves_before)
     if amount <= 0:
         return 0.0
     home = amount * rate
@@ -328,6 +385,20 @@ def buy_fx_from_bank(bank, trader, currency, amount, rate):
     bank.foreign_reserves[currency] -= amount
     bank.fx_pool += home
     trader.cash -= home
+    if trace_region is not None:
+        from run_trace import emit
+        emit(trace_region, kind='fx_conversion_executed', record_class='transfer',
+             phase='trade', subject={'type': 'agent', 'id': trader.id, 'tile': trace_region.name},
+             inputs={'direction': 'buy_foreign', 'foreign_currency': currency,
+                     'home_currency': trace_region.home_currency,
+                     'requested_foreign': requested, 'executed_foreign': amount,
+                     'rate_home_per_foreign': rate, 'home_paid': home,
+                     'trader_cash_before': trader_cash_before, 'trader_cash_after': trader.cash,
+                     'trader_fx_before': trader_fx_before,
+                     'trader_fx_after': fx_balance(trader, currency),
+                     'bank_fx_pool_before': pool_before, 'bank_fx_pool_after': bank.fx_pool,
+                     'bank_foreign_reserves_before': reserves_before,
+                     'bank_foreign_reserves_after': bank.foreign_reserves[currency]})
     return amount
 
 
@@ -347,7 +418,7 @@ def repatriate_trader(trader, region, t):
     if bal <= 0:
         return 0.0
     rate = desk.buy_rate()
-    home = sell_fx_to_bank(region.bank, trader, desk.other, bal, rate)
+    home = sell_fx_to_bank(region.bank, trader, desk.other, bal, rate, region)
     if home > 0:
         trader._trader_revenue += home
         return home
@@ -405,7 +476,7 @@ def convert_non_trader_wallets(agents, region, t=0):
             elif getattr(region, 'forex', None) is not None and region.forex.other == foreign_cur:
                 rate = region.forex.buy_rate()
 
-            paid = sell_fx_to_bank(bank, a, foreign_cur, bal, rate)
+            paid = sell_fx_to_bank(bank, a, foreign_cur, bal, rate, region)
             total_converted += paid
     return total_converted
 
@@ -645,7 +716,7 @@ def cycle_market(region_a, region_b, t=0):
                 desk.post_order('bid', trader, qty, rate)
 
         # ---- Clear the book (wallet-to-wallet, conserved) ----
-        matched = desk.clear_book()
+        matched = desk.clear_book(region)
         result[region.name] = matched
 
         # ---- Desk last resort: repatriate residual asks ----
@@ -660,7 +731,7 @@ def cycle_market(region_a, region_b, t=0):
             if qty <= 0:
                 continue
             bought = buy_fx_from_bank(bank, trader, other, qty,
-                                      desk.sell_rate())
+                                      desk.sell_rate(), region)
             if bought > 0:
                 order['qty'] -= bought
         # Drop fully-filled bids and STALE asks (trader's wallet was drained
@@ -699,7 +770,7 @@ def _cycle_one_desk(region, partner, desk, t):
             desk.post_order('bid', trader, qty, rate)
 
     # ---- Clear the book (wallet-to-wallet, conserved) ----
-    matched = desk.clear_book()
+    matched = desk.clear_book(region)
 
     # ---- Desk last resort: repatriate residual asks ----
     for trader in region.trader_agents:
@@ -708,7 +779,7 @@ def _cycle_one_desk(region, partner, desk, t):
         bal = fx_balance(trader, other)
         if bal > 0:
             rate = desk.buy_rate()
-            home = sell_fx_to_bank(bank, trader, other, bal, rate)
+            home = sell_fx_to_bank(bank, trader, other, bal, rate, region)
             if home > 0:
                 trader._trader_revenue += home
 
@@ -720,7 +791,7 @@ def _cycle_one_desk(region, partner, desk, t):
         qty = order['qty']
         if qty <= 0:
             continue
-        bought = buy_fx_from_bank(bank, trader, other, qty, desk.sell_rate())
+        bought = buy_fx_from_bank(bank, trader, other, qty, desk.sell_rate(), region)
         if bought > 0:
             order['qty'] -= bought
 

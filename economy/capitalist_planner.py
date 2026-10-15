@@ -230,6 +230,40 @@ class EliteCapitalistPlanner:
         return None
 
     def plan_and_execute_elite(self, agent: Any, region: Any, t: int) -> Dict[str, Any]:
+        """Trace the evaluated plan and its observed execution without a second AI pass."""
+        from run_trace import emit
+        cash_before = float(agent.cash)
+        candidates = [
+            {'candidate': 'do_nothing', 'feasible': True},
+            {'candidate': 'luxury_purchase', 'feasible': cash_before >= 25.0,
+             'reason': 'cash threshold 25'},
+            {'candidate': 'capital_investment',
+             'feasible': cash_before >= 150.0 and not getattr(agent, 'is_lord', False),
+             'reason': 'cash threshold 150 and non-lord'},
+            {'candidate': 'spatial_trade', 'feasible': bool(getattr(region, 'neighbors', {}))},
+        ]
+        result = self._plan_and_execute_elite(agent, region, t)
+        reported_details = result.get('details', {})
+        scalar_details = {str(key): value for key, value in reported_details.items()
+                          if value is None or isinstance(value, (str, int, float, bool))}
+        subject = {'type': 'agent', 'id': agent.id, 'tile': region.name}
+        decision_id = emit(region, kind='corporation_ai_decision', record_class='decision',
+                           phase='local', subject=subject,
+                           inputs={'opening_cash': cash_before, 'candidates': candidates,
+                                   'selected': result.get('action_taken') or 'do_nothing',
+                                   'shadow_cash_price': result.get('shadow_price_cash')})
+        emit(region, kind='corporation_ai_outcome', record_class='outcome',
+             phase='local', subject=subject, metric_id='economy.cash',
+             unit=getattr(region, 'home_currency', 'local_currency'),
+             before=cash_before, after=float(agent.cash),
+             decision_id=decision_id,
+             inputs={'action': result.get('action_taken') or 'do_nothing',
+                     'details': scalar_details,
+                     'omitted_detail_keys': sorted(str(key) for key, value in reported_details.items()
+                                                   if value is not None and not isinstance(value, (str, int, float, bool)))})
+        return result
+
+    def _plan_and_execute_elite(self, agent: Any, region: Any, t: int) -> Dict[str, Any]:
         """Formulate and execute a multi-step conversion or investment plan for an elite agent."""
         self._last_plan_turn[agent.id] = t
         TransformationGraph.step_pending_capacity_decay(region, t)

@@ -1,0 +1,85 @@
+"""Definitions and provenance for metrics exposed by the simulation.
+
+Unknown legacy histories are inventoried as unexplained rather than assigned
+an invented calculation. Chart rounding happens after these definitions.
+"""
+
+from __future__ import annotations
+
+
+METRICS = {
+    'goods.price': ('tile/good', 'local_currency_per_unit', 'region_market.update_price_ref/price_decay/set_price'),
+    'goods.production': ('tile/good', 'units_per_turn', 'region_production.produce'),
+    'goods.producer_inventory': ('tile/good', 'units', 'micro.region.stepper.log_metrics'),
+    'goods.demand': ('tile/good', 'units_offered', 'region_market.trade'),
+    'goods.supply': ('tile/good', 'units_offered', 'region_market.trade'),
+    'goods.sold': ('tile/good', 'units', 'region_market.trade'),
+    'living.cost_of_living': ('tile', 'local_currency_per_basket', 'micro.region.stepper.step_economy'),
+    'people.population': ('tile', 'people', 'micro.region.stepper.log_metrics'),
+    'people.hungry': ('tile', 'people', 'micro.region.stepper.log_metrics'),
+    'economy.gdp_nominal': ('tile', 'local_currency_per_turn', 'micro.region.stepper.log_gdp'),
+    'economy.cash': ('tile', 'local_currency', 'micro.region.stepper.log_metrics'),
+    'economy.gini': ('tile/cohort', 'ratio', 'micro.region.stepper.log_metrics'),
+    'labor.exploitation_rate': ('tile', 'ratio', 'labor_contract.aggregate_tile_surplus'),
+    'labor.strikers': ('tile', 'people', 'labor_resistance.step_workplace_resistance'),
+    'politics.grievance': ('tile/faction', 'score', 'region_factions.accumulate_grievances'),
+    'politics.protest_energy': ('tile', 'score', 'region_factions.protest_energy'),
+    'politics.unrest_event': ('tile', 'category', 'unrest.step_unrest'),
+    'politics.legitimacy': ('nation', 'ratio', 'regime.track_legitimacy'),
+    'fx.bilateral_mid': ('tile/partner', 'home_currency_per_foreign_currency', 'forex.ForexDesk.update'),
+    'finance.treasury': ('nation', 'local_currency', 'nation.Nation.treasury'),
+    'ecology.soil_fertility': ('tile', 'ratio', 'externalities.step_tile_externalities'),
+    'ecology.pollution_air': ('tile', 'index', 'externalities.step_tile_externalities'),
+    'health.disease_cases': ('tile/disease', 'people', 'disease.step_medical_care'),
+    'trade.balance': ('tile', 'local_currency_per_turn', 'sim_engine.step_turn'),
+}
+
+
+def inventory_region_histories(region):
+    """List all live legacy history fields, including those not yet explained."""
+    known = {name.split('.')[-1] for name in METRICS}
+    rows = []
+    for field in sorted(vars(region)):
+        if field.endswith('_log') or field.endswith('_history'):
+            rows.append({'field': field, 'coverage': 'mapped' if field.removesuffix('_log') in known
+                         else 'unexplained'})
+    return rows
+
+
+def protest_band(energy):
+    value = float(energy)
+    if value >= 9.5:
+        return 'Takeover'
+    if value >= 8:
+        return 'Compromise'
+    if value >= 6.5:
+        return 'Mob/Riot'
+    if value >= 4:
+        return 'Protest'
+    if value >= 2:
+        return 'Unrest'
+    return 'Calm'
+
+
+def grievance_breakdown(tiles):
+    """Sum observed raw source scores, then derive six display shares."""
+    raw = {}
+    for tile in tiles:
+        history = getattr(tile, 'grievance_sources_log', ())
+        if not history:
+            continue
+        for key, value in history[-1].get('raw', {}).items():
+            raw[key] = raw.get(key, 0.0) + float(value)
+    grouped = {
+        'overwork': raw.get('overworked', 0.0),
+        'enclosure': raw.get('rent_enclosure', 0.0),
+        'hunger': raw.get('hunger', 0.0),
+        'strikes': (raw.get('labor_resistance', 0.0)
+                    + raw.get('wage_inflation', 0.0)
+                    + raw.get('wage_suppression', 0.0)),
+        'state': raw.get('tax', 0.0) + raw.get('repression', 0.0),
+        'inequality': raw.get('inequality', 0.0) + raw.get('unemployment', 0.0),
+    }
+    total = sum(grouped.values())
+    return {key: (100.0 * value / total if total else 0.0)
+            for key, value in grouped.items()}

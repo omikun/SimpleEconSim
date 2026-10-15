@@ -32,7 +32,10 @@ def step_turn(t: int, tiles: list, nations: list = None,
     (t, currency, unaccounted_shift) tuples.
     """
     from collective_trace_clock import attach_clock
-    attach_clock(tiles)
+    trace_clock = attach_clock(tiles)
+    if trace_clock is not None:
+        trace_clock['turn'] = t
+        trace_clock['phase'] = 'strategy'
     if nations is None:
         nations = []
     if currencies is None:
@@ -75,6 +78,8 @@ def step_turn(t: int, tiles: list, nations: list = None,
         r._auction_import_sales = {}
 
     # 2. Stepping: Provinces first (shared institutions), then independent tiles
+    if trace_clock is not None:
+        trace_clock['phase'] = 'local'
     _provinces = [p for n in nations for p in getattr(n, 'provinces', [])]
     _prov_tiles = {r.name: r for p in _provinces for r in p.tiles}
     for p in _provinces:
@@ -87,6 +92,8 @@ def step_turn(t: int, tiles: list, nations: list = None,
         on_phase('local')
 
     # 3. Advance routes and deliver in-transit cargo
+    if trace_clock is not None:
+        trace_clock['phase'] = 'trade'
     for r in tiles:
         for rt in r._all_routes():
             rt.advance()
@@ -142,6 +149,8 @@ def step_turn(t: int, tiles: list, nations: list = None,
         on_phase('trade')
 
     # 10. National Regimes (elections, coups, legitimacy)
+    if trace_clock is not None:
+        trace_clock['phase'] = 'regime'
     for n in nations:
         apply_political_shocks(diplomacy, n, t)
         step_regime(n, t)
@@ -203,11 +212,14 @@ def step_turn(t: int, tiles: list, nations: list = None,
         pass
 
     # 11. Forex desks update & PPP tracking
+    if trace_clock is not None:
+        trace_clock['phase'] = 'forex'
     for r, other in pair_orders:
         desk = r.forex_desks.get(other.name)
         if desk is not None:
             ppp = max(0.1, other.cost_of_living) / max(0.1, r.cost_of_living)
-            desk.update(0, bank=r.bank, fx_regime='managed', ppp_target=ppp)
+            desk.update(t, bank=r.bank, fx_regime='managed', ppp_target=ppp,
+                        trace_region=r)
             if getattr(r, 'destination_region', None) is other:
                 desk.save_rate(r)
 
