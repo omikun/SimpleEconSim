@@ -3235,7 +3235,7 @@
                 <td><strong style="color:${safeCssColor(n.flag_color)}">${isCountry ? '👑 ' : (isProv ? '🏛️ ' : '🏙️ ')}${escapeHtml(n.name)}</strong> ${isPlayer ? '<span class="card-badge mastered">YOU</span>' : ''}</td>
                 ${!isCountry ? `<td>${escapeHtml(n.nation || '—')}</td>` : `<td>${escapeHtml(n.regime_type || 'Monarchy')}</td>`}
                 ${isTile ? `<td>${escapeHtml(n.province || '—')}</td>` : ''}
-                <td class="text-gold">$${Math.round(n.treasury_cash || 0).toLocaleString()} ${tDelta}</td>
+                <td class="text-gold">$${Math.round(n.treasury_cash || 0).toLocaleString()} ${tDelta} ${isCountry ? `<button class="btn btn-secondary btn-xs btn-treasury-why" data-nat="${escapeHtml(n.name)}">Why $?</button>` : ''}</td>
                 <td>${(n.population || 0).toLocaleString()}</td>
                 <td class="text-cyan">$${Math.round(n.gdp || 0).toLocaleString()}</td>
                 <td><span class="badge-unrest ${safeClassToken((n.unrest_stage || 'calm').toLowerCase(), 'calm')}">${escapeHtml(n.unrest_stage || 'Calm')}</span></td>
@@ -3298,6 +3298,38 @@
                 <p>Event ${escapeHtml(decision.event_id)}</p>`;
             } catch (error) {
               detail.textContent = `Could not load AI explanation: ${error.message}`;
+            }
+          });
+        });
+        table.querySelectorAll('.btn-treasury-why').forEach(button => {
+          button.addEventListener('click', async () => {
+            detail.hidden = false;
+            detail.textContent = 'Loading treasury movements…';
+            try {
+              const params = new URLSearchParams({ turn: String(worldState.turn || 0),
+                entity: `nation:${button.dataset.nat}`, limit: '100' });
+              const response = await fetch(`/api/trace?${params}`);
+              if (!response.ok) throw new Error(`HTTP ${response.status}`);
+              const rows = (await response.json()).events || [];
+              const reconciliation = rows.find(e => e.kind === 'treasury_reconciliation');
+              if (!reconciliation) {
+                detail.textContent = 'Explanation unavailable: no treasury reconciliation was recorded for this turn.';
+                return;
+              }
+              const i = reconciliation.inputs || {};
+              const known = Object.entries(i.flow_totals_by_kind || {})
+                .map(([kind, amount]) => `${kind}: ${Number(amount).toFixed(2)}`).join('; ') || 'none';
+              const residual = Number(i.unattributed_residual || 0);
+              const phases = rows.filter(e => e.kind === 'treasury_phase_delta')
+                .map(e => `${e.phase}: ${Number(e.delta).toFixed(2)}`).join('; ');
+              detail.innerHTML = `<h4>${escapeHtml(button.dataset.nat)} treasury · Turn ${Number(reconciliation.turn)}</h4>
+                <p>${Number(reconciliation.value_before).toFixed(2)} → ${Number(reconciliation.value_after).toFixed(2)} ${escapeHtml(reconciliation.unit || '')}.</p>
+                <p>Recorded transfers: ${Number(i.known_flow_total || 0).toFixed(2)} from ${escapeHtml(known)}.</p>
+                <p>Movement by phase: ${escapeHtml(phases || 'none recorded')}.</p>
+                <p>${Math.abs(residual) < 0.000001 ? 'All movement is attributed to recorded flows.' : `Unattributed movement: ${residual.toFixed(2)}. Some treasury transfer sources have not been instrumented yet.`}</p>
+                <p>Event ${escapeHtml(reconciliation.event_id)}</p>`;
+            } catch (error) {
+              detail.textContent = `Could not load treasury explanation: ${error.message}`;
             }
           });
         });

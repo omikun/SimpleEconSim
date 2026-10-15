@@ -781,6 +781,15 @@ def trade(region, t):
                     if gov_bought > 0:
                         total_sold += gov_bought
                         region.sold_log[good][-1] += gov_bought
+                        owner = getattr(region, 'owner_nation', None)
+                        if owner is not None:
+                            emit(region, kind='government_food_spending',
+                                 record_class='transfer',
+                                 subject={'type': 'nation', 'id': owner.name},
+                                 metric_id='finance.treasury_flow', unit=owner.currency,
+                                 after=-(gov_bought * price),
+                                 inputs={'tile': region.name, 'quantity': gov_bought,
+                                         'unit_price': price})
                         loginfo(t, f"Government({region.gov.name}) bought "
                                 f"{gov_bought} food at ${price:.2f}")
                 region.gov.deposit_remaining(region.bank)

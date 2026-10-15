@@ -452,6 +452,7 @@ class Government:
         """Credit import-tariff revenue. Splits 80% to National Sovereign and 20% to local port tile."""
         if amount <= 0:
             return
+        gross_amount = amount
         owner_nation = getattr(region, 'owner_nation', None) if region else None
         if owner_nation:
             try:
@@ -473,6 +474,17 @@ class Government:
         else:
             self.agent.cash += amount
             self.record_income(t, 'tariff', amount)
+        if owner_nation is not None and region is not None:
+            from run_trace import emit
+            emit(region, kind='tariff_collected', record_class='transfer',
+                 subject={'type': 'nation', 'id': owner_nation.name},
+                 metric_id='finance.treasury_flow', unit=owner_nation.currency,
+                 after=amount,
+                 inputs={'gross_tariff': gross_amount,
+                         'net_after_interception': amount,
+                         'national_share': nat_share if nat_gov is not None and nat_gov is not self else 0.0,
+                         'local_share': local_share if nat_gov is not None and nat_gov is not self else amount,
+                         'tile': region.name})
 
     def record_income(self, t, source, amount):
         """Accumulate a per-turn income amount under *source*.

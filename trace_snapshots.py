@@ -73,6 +73,25 @@ def record(server):
         for nation in server.nations:
             members = [tile.name for tile in nation.tiles]
             treasury = nation.treasury()
+            old_treasury = previous.get(('finance.treasury', nation.name))
+            if old_treasury is not None:
+                actual_delta = treasury['total'] - old_treasury[2]
+                flows = server.run_trace._treasury_flows.get(nation.name, [])
+                known_delta = sum(flow['amount'] for flow in flows)
+                by_kind = {}
+                for flow in flows:
+                    by_kind[flow['kind']] = by_kind.get(flow['kind'], 0.0) + flow['amount']
+                server.run_trace.emit(clock, kind='treasury_reconciliation',
+                                      record_class='audit', phase='snapshot',
+                                      subject={'type': 'nation', 'id': nation.name},
+                                      metric_id='finance.treasury', unit=nation.currency,
+                                      before=old_treasury[2], after=treasury['total'],
+                                      confidence='exact' if abs(actual_delta - known_delta) < 1e-8
+                                      else 'unknown',
+                                      inputs={'known_flow_total': known_delta,
+                                              'unattributed_residual': actual_delta - known_delta,
+                                              'flow_totals_by_kind': by_kind},
+                                      cause_event_ids=[flow['event_id'] for flow in flows])
             server.run_trace.emit(clock, kind='treasury_components',
                                   record_class='observation', phase='snapshot',
                                   subject={'type': 'nation', 'id': nation.name},

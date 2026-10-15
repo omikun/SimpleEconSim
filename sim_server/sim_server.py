@@ -167,6 +167,8 @@ class SimServer:
             if self.scenario_id == 'labor_frontier_rivalry':
                 from scenario_labor_frontier_rivalry import advance_after_engine
                 advance_after_engine(self.get_world_dict(), t)
+                from trace_phase import treasury_boundary
+                treasury_boundary(self.tiles, self.nations, 'scenario_after_hook')
                 self.currency_totals = {c: fx.audit_currency_total(self.tiles, c)
                                         for c in self.currencies}
 
@@ -184,6 +186,8 @@ class SimServer:
                 get_bond_market().step(self.get_world_dict(), t)
             except Exception:
                 pass
+            from trace_phase import treasury_boundary
+            treasury_boundary(self.tiles, self.nations, 'bond_market')
 
             self._record_history(t)
             from trace_snapshots import record

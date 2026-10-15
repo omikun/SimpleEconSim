@@ -27,6 +27,7 @@ class RunTrace:
         self._active_turn = None
         self._calculated = set()
         self._calculated_values = {}
+        self._treasury_flows = {}
         self.path.parent.mkdir(parents=True, exist_ok=True)
         if self.path.exists():
             raise FileExistsError(self.path)
@@ -52,6 +53,7 @@ class RunTrace:
             self._active_turn = clock.get('turn', 0)
             self._calculated.clear()
             self._calculated_values.clear()
+            self._treasury_flows.clear()
         row = {'schema_version': SCHEMA_VERSION, 'run_id': self.run_id,
                'branch_id': self.branch_id, 'event_id': f'{self.run_id}:{sequence}',
                'sequence': sequence, 'turn': clock.get('turn', 0),
@@ -81,6 +83,12 @@ class RunTrace:
             self._calculated.add(provenance_key)
             if after is not None:
                 self._calculated_values[provenance_key] = after
+        if metric_id == 'finance.treasury_flow' and subject is not None:
+            nation_id = subject.get('id') if subject.get('type') == 'nation' else None
+            if nation_id is not None:
+                flows = self._treasury_flows.setdefault(nation_id, [])
+                flows.append({'event_id': row['event_id'], 'amount': after,
+                              'kind': kind})
         try:
             self._append(row)
         except OSError as exc:

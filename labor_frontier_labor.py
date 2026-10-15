@@ -200,6 +200,13 @@ def _advance_restriction(world, nation_name, turn):
         return
     border.gov.agent.cash -= PATROL_COST
     officer.cash += PATROL_COST
+    from run_trace import emit
+    emit(border, kind='commons_patrol_payroll', record_class='transfer',
+         phase='scenario_labor', subject={'type': 'nation', 'id': nation_name},
+         metric_id='finance.treasury_flow', unit=border.owner_nation.currency,
+         after=-PATROL_COST,
+         inputs={'tile': border.name, 'officer_id': officer.id,
+                 'rights_affected': len(record['rights_snapshot'])})
     for row in record['rights_snapshot']:
         right = _find_right(border, row['person_id'], row['plot_id'])
         if right is not None and right.legal_share == 0:
@@ -231,6 +238,13 @@ def _fair_terms(world, nation_name, turn):
     firm.owner.cash -= 20
     gov.cash -= 10
     firm.cash += 30
+    from run_trace import emit
+    emit(capital, kind='fair_terms_public_funding', record_class='transfer',
+         phase='scenario_labor', subject={'type': 'nation', 'id': nation_name},
+         metric_id='finance.treasury_flow', unit=capital.owner_nation.currency,
+         after=-10.0,
+         inputs={'tile': capital.name, 'firm_id': firm.id,
+                 'owner_contribution': 20.0, 'new_wage': offer})
     firm.wage = offer
     from labor_contract import ensure_labor_agreement
     for worker in firm.employees:

@@ -75,6 +75,16 @@ def start_machinery_project(world, nation_name, turn, public_contribution=15):
     owner.cash -= owner_share
     gov.cash -= public_contribution
     firm.cash += 45
+    if public_contribution > 0:
+        from run_trace import emit
+        emit(region, kind='machinery_public_funding', record_class='transfer',
+             phase='scenario_market',
+             subject={'type': 'nation', 'id': nation_name},
+             metric_id='finance.treasury_flow', unit=region.owner_nation.currency,
+             after=-public_contribution,
+             inputs={'tile': region.name, 'firm_id': firm.id,
+                     'owner_contribution': owner_share,
+                     'public_contribution': public_contribution})
     for good, amount, price in ((Goods.iron, 2, iron_cost),
                                 (Goods.coal, 1, coal_cost)):
         seller = sellers[good]
@@ -175,6 +185,15 @@ def _buy_cotton(world, turn):
             grower.cash += price - tax
             field.gov.agent.cash += tax
             field.gov.record_income(turn, 'cotton_sales_tax', tax)
+            from run_trace import emit
+            emit(field, kind='scenario_cotton_sales_tax', record_class='transfer',
+                 phase='scenario_market',
+                 subject={'type': 'nation', 'id': field.owner_nation.name},
+                 metric_id='finance.treasury_flow', unit=field.owner_nation.currency,
+                 after=tax,
+                 inputs={'tile': field.name, 'grower_id': grower.id,
+                         'firm_id': firm.id, 'cotton_price': price,
+                         'freight': freight, 'tax_rate': COTTON_TAX_RATE})
             if carrier is not None:
                 carrier.cash += freight
             grower.inv_add(Goods.cotton, -1)
@@ -249,6 +268,15 @@ def _sell_cloth(world, turn):
             firm.cash -= tax
             source.gov.agent.cash += tax
             source.gov.record_income(turn, 'cloth_sales_tax', tax)
+            from run_trace import emit
+            emit(source, kind='scenario_cloth_sales_tax', record_class='transfer',
+                 phase='scenario_market',
+                 subject={'type': 'nation', 'id': source.owner_nation.name},
+                 metric_id='finance.treasury_flow', unit=source.owner_nation.currency,
+                 after=tax,
+                 inputs={'tile': source.name, 'firm_id': firm.id,
+                         'buyer_id': buyer.id, 'cloth_price': ask,
+                         'freight': freight, 'tax_rate': CLOTH_TAX_RATE})
             from collective_trace_clock import stamp
             sales.append(stamp(source, {'turn': turn, 'origin': source.name,
                           'seller_nation': source.owner_nation.name,

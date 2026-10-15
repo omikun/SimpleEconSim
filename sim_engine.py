@@ -38,6 +38,8 @@ def step_turn(t: int, tiles: list, nations: list = None,
         trace_clock['phase'] = 'strategy'
     if nations is None:
         nations = []
+    from trace_phase import treasury_boundary
+    treasury_boundary(tiles, nations, 'turn_start')
     if currencies is None:
         currencies = [n.currency for n in nations if getattr(n, 'currency', None)]
         if not currencies:
@@ -60,6 +62,7 @@ def step_turn(t: int, tiles: list, nations: list = None,
     # 0b. Strategic Intents & Construction Projects
     if nations:
         step_intents_and_construction(t, tiles, nations, on_event=on_event)
+    treasury_boundary(tiles, nations, 'projects')
     if on_phase:
         on_phase('projects')
 
@@ -90,6 +93,7 @@ def step_turn(t: int, tiles: list, nations: list = None,
         r.step(t)
     if on_phase:
         on_phase('local')
+    treasury_boundary(tiles, nations, 'local')
 
     # 3. Advance routes and deliver in-transit cargo
     if trace_clock is not None:
@@ -147,6 +151,7 @@ def step_turn(t: int, tiles: list, nations: list = None,
                 settle_wilderness(trader, other, t)
     if on_phase:
         on_phase('trade')
+    treasury_boundary(tiles, nations, 'trade')
 
     # 10. National Regimes (elections, coups, legitimacy)
     if trace_clock is not None:
@@ -156,6 +161,7 @@ def step_turn(t: int, tiles: list, nations: list = None,
         step_regime(n, t)
     if on_phase:
         on_phase('regime')
+    treasury_boundary(tiles, nations, 'regime')
 
     # 10b. Military Upkeep & Supplies
     if nations:
@@ -224,6 +230,7 @@ def step_turn(t: int, tiles: list, nations: list = None,
                 desk.save_rate(r)
 
     # 12. Currency Audits & Ledger Destruction Accounting
+    treasury_boundary(tiles, nations, 'forex_and_diplomacy')
     for c in currencies:
         delta = fx.audit_currency_total(tiles, c) - curr_before[c]
         recorded = ledger.cleared(t, c) if ledger_exempt else 0.0

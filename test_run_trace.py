@@ -50,6 +50,10 @@ class RunTraceTests(unittest.TestCase):
             self.assertEqual(page['total'], 3)
             self.assertEqual(page['events'][0]['value_after'], 1)
             self.assertEqual(page['events'][0]['event_id'], 'fixture:2')
+            trace.emit(clock, kind='tax', record_class='transfer',
+                       subject={'type': 'nation', 'id': 'A'},
+                       metric_id='finance.treasury_flow', after=5.0)
+            self.assertEqual(trace._treasury_flows['A'][0]['amount'], 5.0)
             trace.checkpoint(clock)
             self.assertEqual(verify(trace.path)['checkpoints'], 1)
 

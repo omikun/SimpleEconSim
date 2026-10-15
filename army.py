@@ -319,6 +319,15 @@ def step_armies(tiles: list, nations: list, t: int = 0) -> list[dict]:
                 _procure_rations(n, unit, region)
             wages, food, supplied, deserters = unit.pay_and_feed(
                 gov, bank, t, people_by_id=people_by_id, supply_access=supply_access)
+            if region is not None and wages > 0:
+                from run_trace import emit
+                emit(region, kind='army_payroll', record_class='transfer',
+                     phase='military', subject={'type': 'nation', 'id': n.name},
+                     metric_id='finance.treasury_flow', unit=n.currency,
+                     after=-wages,
+                     inputs={'unit_id': unit.unit_id, 'soldiers': unit.soldiers,
+                             'wages_paid': wages, 'food_consumed': food,
+                             'fully_supplied': supplied})
             if unit.scenario_personnel:
                 for person_id in unit.deserter_ids:
                     person = people_by_id.get(person_id)

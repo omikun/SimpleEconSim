@@ -9,9 +9,17 @@ from pathlib import Path
 def coverage(path):
     counts = defaultdict(lambda: {'snapshots': 0, 'changed': 0,
                                   'explained': 0, 'unexplained': 0})
+    treasury_reconciliations = {'turns': 0, 'fully_attributed': 0,
+                                'unattributed_absolute_total': 0.0}
     with Path(path).open(encoding='utf-8') as stream:
         for line in stream:
             row = json.loads(line)
+            if row.get('kind') == 'treasury_reconciliation':
+                treasury_reconciliations['turns'] += 1
+                residual = row.get('inputs', {}).get('unattributed_residual', 0.0)
+                treasury_reconciliations['unattributed_absolute_total'] += abs(residual)
+                if abs(residual) < 1e-8:
+                    treasury_reconciliations['fully_attributed'] += 1
             if row.get('kind') != 'metric_snapshot':
                 continue
             metric_id = row['metric_id']
@@ -23,7 +31,9 @@ def coverage(path):
                     entry['explained'] += 1
                 else:
                     entry['unexplained'] += 1
-    return dict(sorted(counts.items()))
+    result = dict(sorted(counts.items()))
+    result['_treasury_reconciliation'] = treasury_reconciliations
+    return result
 
 
 def main():

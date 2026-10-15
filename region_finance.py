@@ -9,6 +9,17 @@ from logger import loginfo, logwarning
 from labor_contract import ensure_labor_agreement
 
 
+def _trace_treasury_flow(region, kind, amount, inputs):
+    nation = getattr(region, 'owner_nation', None)
+    if nation is None or amount == 0:
+        return
+    from run_trace import emit
+    emit(region, kind=kind, record_class='transfer',
+         subject={'type': 'nation', 'id': nation.name},
+         metric_id='finance.treasury_flow', unit=nation.currency,
+         after=amount, inputs={'tile': region.name, **inputs})
+
+
 def pay_wages(region, t):
     """Firms pay wages to their employees (sovereign cash or company scrip under Truck System)."""
     owner = getattr(region, 'owner_nation', None)
@@ -249,6 +260,9 @@ def collect_tax(region, t):
                 bank.Withdraw(gov, payment - gov.cash)
             gov.cash -= payment
             loan.pay(payment)
+            _trace_treasury_flow(region, 'government_loan_service', -payment,
+                                 {'loan_principal_remaining_before': remaining,
+                                  'amount_due': amount_due})
         if loan.isPaid():
             gov.loans.remove(loan)
             if loan in bank.loans:
@@ -361,6 +375,10 @@ def collect_tax(region, t):
         'provincial': turn_prov_tax,
         'national': turn_nat_tax,
     })
+    _trace_treasury_flow(region, 'income_tax_collected', tax_collected,
+                         {'municipal': turn_tile_tax, 'provincial': turn_prov_tax,
+                          'national': turn_nat_tax, 'tax_rate': region.gov.tax_rate,
+                          'deficit_before_tax': deficit, 'taxpayer_count': top_count})
 
     # ---- 4. If still short, borrow from the bank ----
     gap = max(0.0, deficit - tax_collected)
@@ -369,6 +387,9 @@ def collect_tax(region, t):
         before_liab = bank.total_liabilities
         bank.Borrow(t, gov, gap)
         borrowed = bank.total_liabilities - before_liab
+        _trace_treasury_flow(region, 'government_bank_borrowing', borrowed,
+                             {'requested_gap': gap, 'bank_liabilities_before': before_liab,
+                              'bank_liabilities_after': bank.total_liabilities})
         if borrowed > 0:
             loginfo(t, f"Government({region.gov.name}) borrowed ${borrowed:.2f} "
                     f"to cover deficit (gap ${gap:.2f})")

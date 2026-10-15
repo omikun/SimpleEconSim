@@ -28,6 +28,10 @@ food prices; the national Macro tab has a **Why AI?** button.
   protest energy have member tile values and aggregation rules.
 - Bilateral FX mid changes record reserve ratio, pressure, PPP, regime, and
   band; bank conversions and trader order matches record actual transfers.
+- Treasury phase boundaries, tax receipts, tariffs, government borrowing and
+  loan service, food spending, army payroll, and scenario sales taxes are
+  recorded as signed flows. End-of-turn reconciliation shows any unattributed
+  residual rather than assigning it to a plausible source.
 - Nation AI records evaluated gates and submitted intents; intent outcomes
   link back to the decision. Elite planning records selected action and cash
   outcome. Candidate details for elite plans are still partial.
@@ -37,7 +41,8 @@ food prices; the national Macro tab has a **Why AI?** button.
 The coverage checker reports a changed snapshot as unexplained when its final
 value does not match a recorded calculation. Treasury snapshots show cash and
 deposit components, but treasury transfers are not yet comprehensively
-instrumented. Bank lending, bonds, rents, migration, disease, ecology, war,
+instrumented. Bank lending outside government deficit loans, bonds, rents,
+migration, disease, ecology, war,
 construction, and several scenario operations still need mutation-point
 records. The current metric catalog does not yet cover every displayed field;
 the UI shows unavailable comparison placeholders as such. Desktop charts do
@@ -48,5 +53,6 @@ The 20-turn labor scenario run used for the first coverage gate recorded
 9,043 rows in 5.3 MB, with 20 valid checkpoints and no currency-audit
 violations. Tracing on and off produced the same sampled state SHA-256.
 All changed snapshots in that run matched calculation records except treasury
-(40 changes). A calculation match establishes the displayed value and its
+(40 changes). Its trace now narrows the movement to turn phases and known
+flows, with a residual for remaining sources. A calculation match establishes the displayed value and its
 immediate inputs; it does not by itself establish every upstream cause.
