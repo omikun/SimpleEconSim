@@ -31,6 +31,8 @@ def step_turn(t: int, tiles: list, nations: list = None,
     Returns (violations, claim_events) where violations is a list of
     (t, currency, unaccounted_shift) tuples.
     """
+    from collective_trace_clock import attach_clock
+    attach_clock(tiles)
     if nations is None:
         nations = []
     if currencies is None:

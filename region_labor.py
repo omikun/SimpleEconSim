@@ -146,12 +146,12 @@ def evaluate_worker_reservation_wage(worker, region, tightness: float) -> float:
 
 
 def _record_labor_decision(region, decision):
-    """Keep a bounded audit trail of offers accepted or refused."""
+    """Keep the full audit trail of offers accepted or refused."""
     log = getattr(region, 'labor_decision_log', None)
     if log is None:
         region.labor_decision_log = []
         log = region.labor_decision_log
-    log.append({
+    row = {
         'turn': decision.turn,
         'worker_id': decision.worker_id,
         'firm_id': decision.firm_id,
@@ -159,9 +159,9 @@ def _record_labor_decision(region, decision):
         'reason': decision.reason,
         'offer': round(decision.offered_wage, 4),
         'reservation': round(decision.reservation_wage, 4),
-    })
-    if len(log) > 500:
-        del log[:-500]
+    }
+    from collective_trace_clock import stamp
+    log.append(stamp(region, row))
 
 
 def hire_workers(region, t):

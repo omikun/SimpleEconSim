@@ -94,6 +94,8 @@ def evaluate_uprising_pressure(nation, t: int) -> List[Dict[str, Any]]:
                 'strike_force': strike_force,
                 'msg': f"ARMED REPRESSION: {nation.name} deployed troops and police to crush mass strikes! (Force: {strikebreaker_force:.1f} vs Strikers: {strike_force:.1f})",
             }
+            from collective_trace_clock import stamp
+            stamp(tiles[0], ev)
             events.append(ev)
             nation.regime_log.append(ev)
         else:
@@ -129,6 +131,8 @@ def evaluate_uprising_pressure(nation, t: int) -> List[Dict[str, Any]]:
                         'unrest': avg_unrest,
                         'msg': "Mass strikes and economic paralysis forced the government to pass the Ten-Hour Act!",
                     }
+                    from collective_trace_clock import stamp
+                    stamp(tiles[0], ev)
                     events.append(ev)
                     nation.regime_log.append(ev)
             # Step 2: If Ten-Hour Act already passed, enact Factory Safety Act
@@ -145,6 +149,8 @@ def evaluate_uprising_pressure(nation, t: int) -> List[Dict[str, Any]]:
                         'strike_rate': strike_rate,
                         'msg': "Labor unrest forced the government to mandate Factory Safety Standards!",
                     }
+                    from collective_trace_clock import stamp
+                    stamp(tiles[0], ev)
                     events.append(ev)
                     nation.regime_log.append(ev)
 

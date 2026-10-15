@@ -38,8 +38,10 @@ def initialize_labor(world):
 
 def _event(world, turn, kind, text, **data):
     row = {'turn': turn, 'kind': kind, 'text': text, **data}
+    from collective_trace_clock import stamp
+    stamp(world['tiles'][0], row)
     state = world['scenario_state']
-    state['timeline'] = (state['timeline'] + [row])[-120:]
+    state['timeline'].append(row)
     return row
 
 

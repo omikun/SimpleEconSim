@@ -39,10 +39,16 @@ def trace_rows(world):
             rows.append((int(row.get('turn', 0)), 0, tile_index, ordinal,
                          {'source': 'labor_offer', 'region': region.name, **row}))
     for nation_index, nation in enumerate(world.get('nations', ())):
+        seen_sequences = set()
         for ordinal, row in enumerate(getattr(nation, 'regime_log', ())):
             if row.get('kind') not in ('armed_strikebreaking', 'ten_hour_act_concession',
                                        'factory_safety_concession'):
                 continue
+            sequence = row.get('sequence')
+            if sequence is not None and sequence in seen_sequences:
+                continue
+            if sequence is not None:
+                seen_sequences.add(sequence)
             rows.append((int(row.get('turn', 0)), 5, nation_index, ordinal,
                          {'source': 'national_labor_policy', **row}))
     state = world.get('scenario_state', {})
@@ -52,7 +58,11 @@ def trace_rows(world):
         for ordinal, row in enumerate(state.get(field, ())):
             rows.append((int(row.get('turn', 0)), phase, 0, ordinal,
                          {'source': source, **row}))
-    rows.sort(key=lambda entry: entry[:4])
+    # The shared sequence is the exact append order of newly stamped ledgers.
+    # Older saved rows use the documented approximate phase order.
+    rows.sort(key=lambda entry: (entry[0], 0, int(entry[4]['sequence']), entry[2])
+              if entry[4].get('sequence') is not None
+              else (entry[0], 1, entry[1], entry[2], entry[3]))
     return [row for _, _, _, _, row in rows]
 
 
@@ -69,7 +79,8 @@ def export_trace(world, path, *, seed=None, scenario=None):
 def _trace_text(world, rows, *, seed=None, scenario=None):
     header = {'source': 'run', 'schema': 1, 'seed': seed,
               'scenario': scenario or world.get('scenario_id'),
-              'final_turn': int(world.get('turn', 0)), 'event_count': len(rows)}
+              'final_turn': int(world.get('turn', 0)), 'event_count': len(rows),
+              'ordered_rows': sum('sequence' in row for row in rows)}
     return ''.join(json.dumps(row, sort_keys=True, default=str) + '\n'
                    for row in (header, *rows))
 

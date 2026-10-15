@@ -184,10 +184,11 @@ def _buy_cotton(world, turn):
             firm.cost_set(Goods.cotton,
                           (old_stock * old_cost + delivered) / (old_stock + 1))
             wanted -= 1
-            purchases.append({'turn': turn, 'mill': mill_region.name,
+            from collective_trace_clock import stamp
+            purchases.append(stamp(field, {'turn': turn, 'mill': mill_region.name,
                               'origin': field.name, 'grower_id': grower.id,
                               'firm_id': firm.id, 'price': price, 'freight': freight,
-                              'public_tax': tax, 'tax_nation': field.owner_nation.name})
+                              'public_tax': tax, 'tax_nation': field.owner_nation.name}))
     return purchases
 
 
@@ -248,12 +249,13 @@ def _sell_cloth(world, turn):
             firm.cash -= tax
             source.gov.agent.cash += tax
             source.gov.record_income(turn, 'cloth_sales_tax', tax)
-            sales.append({'turn': turn, 'origin': source.name,
+            from collective_trace_clock import stamp
+            sales.append(stamp(source, {'turn': turn, 'origin': source.name,
                           'seller_nation': source.owner_nation.name,
                           'market': market.name, 'buyer_id': buyer.id,
                           'firm_id': firm.id, 'mill_receipt': ask,
                           'delivered_price': delivered, 'freight': freight,
-                          'public_tax': tax})
+                          'public_tax': tax}))
     return sales
 
 

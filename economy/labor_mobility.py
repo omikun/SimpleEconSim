@@ -115,12 +115,12 @@ class LaborMobilityScheduler:
                 if log is None:
                     region.labor_decision_log = []
                     log = region.labor_decision_log
-                log.append({'turn': t, 'worker_id': worker.id, 'firm_id': best_firm.id,
+                row = {'turn': t, 'worker_id': worker.id, 'firm_id': best_firm.id,
                             'accepted': decision.accepted, 'reason': decision.reason,
                             'offer': round(decision.offered_wage, 4),
-                            'reservation': round(decision.reservation_wage, 4)})
-                if len(log) > 500:
-                    del log[:-500]
+                            'reservation': round(decision.reservation_wage, 4)}
+                from collective_trace_clock import stamp
+                log.append(stamp(region, row))
                 if decision.accepted and attach_worker(worker, best_firm, t, decision):
                     reallocations.append({
                         'agent_id': worker.id,

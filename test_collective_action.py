@@ -111,6 +111,10 @@ class CollectiveActionTest(unittest.TestCase):
             rows = [json.loads(line) for line in path.read_text().splitlines()]
         self.assertEqual(count, len(rows) - 1)
         self.assertEqual(rows[0]['schema'], 1)
+        sequences = [row['sequence'] for row in rows[1:] if 'sequence' in row]
+        self.assertEqual(sequences, sorted(sequences))
+        self.assertEqual(len(sequences), len(set(sequences)))
+        self.assertEqual(rows[0]['ordered_rows'], len(sequences))
         self.assertTrue(any(row.get('kind') == 'public_support_transfer' for row in rows))
         self.assertTrue(any(row.get('kind') == 'strike_started' for row in rows))
 
