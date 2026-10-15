@@ -2,6 +2,8 @@
 
 Status: proposed design, 2026-10-14. This document adds no runtime behavior. It extends the [labor AI plan](plunder_of_labor_ai_and_ui_plan.md); the existing 20-turn [first slice](plunder_of_labor_first_slice.md) remains its own bounded scenario.
 
+Execution steps: [Implementation plan](railway_strikes_implementation_plan.md).
+
 ## Historical basis and limits
 
 The October 1947–March 1948 railway strike involved roughly 20,000 workers across French West Africa, including Senegal. That is a federation-wide count. It interrupted most rail traffic for about five and a half months. Workers pursued nondiscrimination and a common employment structure. Community support sustained the struggle; professional gains could also separate railwaymen from other workers. Politicians subsequently recognized their electoral importance. These are the central tensions in [Frederick Cooper, “Our Strike” (1996)](https://doi.org/10.1017/S0021853700034800).
@@ -61,7 +63,7 @@ Union funds and community support transfer existing cash or food. Subsistence ac
 
 Show projected endurance as the earliest household shortfall under the proposed distribution, plus the number of households already short. An aggregate fund balance must not conceal unequal access. Forecast ranges must account for changing prices and donation uncertainty.
 
-Set these event inputs from observed history, all in [0,1]:
+Set these event inputs from observed history, all in [0,1]. In the current first slice, which has no shared household budget, use participant-person-periods for S/H and label the UI accordingly. Use household-periods only in a scenario with actual shared accounts and consumption:
 
 - P: average participant labor-hours divided by eligible labor-hours over the strike.
 - S: fraction of participating household-periods whose essential needs were met through their own resources or delivered mutual aid.
