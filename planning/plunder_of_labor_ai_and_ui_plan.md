@@ -2,6 +2,8 @@
 
 ## Goal and scope
 
+Related proposed extension: [Railway strikes, collective power, and independence](railway_strikes_and_independence.md) translates the 1947–48 French West African railway strike into persistent organization, settlement credibility, and political coalition mechanics. It is a design, not implemented behavior.
+
 **Strategic direction, updated 2026-10-10:** The player trades expansion in the exploitation of labor and territory against citizens' livelihoods, while neighboring nations compete for markets, resources, and military advantage. Domestic production and private profit matter strategically through actual investment, tax receipts, supplies, and funded forces. A country can protect its citizens yet lose leverage abroad; it can expand and grow richer while impoverishing people or becoming unable to sustain its commitments. This tension defines the first playable slice in [Labor, Territory, and Rivalry](plunder_of_labor_first_slice.md).
 
 Give firms, landlords, creditors, households, and governments distinct decisions. A household with a workable livelihood should usually prefer to keep it unless a job offers a better *reliable* life. An employer wants the lowest **feasible total cost per saleable unit**, which can mean better pay, a machine, a lease, a political petition, or contraction. When profits are squeezed, owners may try to change households' alternatives or their bargaining power. They must pay for the attempt, can fail, and cannot enact law themselves. The player should be able to follow a decision from motive through target, legal stage, household response, and realized outcome.
