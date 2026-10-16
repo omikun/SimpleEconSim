@@ -59,6 +59,9 @@ the FX matrix has a **Why?** button for each quoted currency pair.
 - Sovereign bond purchases, proceeds, domestic underwriting, coupons,
   maturities, defaults, and early redemptions record signed nation treasury
   flows and the bond terms; municipal sewer underwriting records its project.
+- Campaign Caisse debt records principal revisions, concessions, defaults,
+  creditor collection assignments, payments, and signed Egypt/creditor treasury
+  flows for assigned revenue interception.
 - Construction steps record material purchases, required and available inputs,
   navvy hiring and pay, progress multipliers, stall causes, and completion.
 - Battles record initial strengths, casualties, winner, and conquest. War-side
@@ -81,9 +84,8 @@ the FX matrix has a **Why?** button for each quoted currency pair.
 The coverage checker reports a changed snapshot as unexplained when its final
 value does not match a recorded calculation. Treasury snapshots show cash and
 deposit components, but treasury transfers are not yet comprehensively
-instrumented. Scenario Caisse bond adjustments and several scenario
-operations still need mutation-point records. Some secondary and elite AI
-candidate details remain partial. The current metric
+instrumented. Several scenario operations still need mutation-point records.
+Some secondary and elite AI candidate details remain partial. The current metric
 catalog does not yet cover every displayed field;
 `inventory_region_histories()` labels legacy series as instrumented or
 untraced so a missing probe is visible during development.

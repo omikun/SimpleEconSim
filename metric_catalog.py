@@ -45,7 +45,7 @@ METRICS = {
     'finance.treasury': ('nation', 'local_currency', 'nation.Nation.treasury'),
     'finance.sovereign_bond': ('nation', 'local_currency', 'sovereign_bonds.SovereignBondMarket'),
     'finance.treasury_flow': ('nation', 'signed_local_currency', 'sovereign_bonds.SovereignBondMarket and treasury operations'),
-    'finance.obligation_balance': ('tile/obligation', 'local_currency', 'livelihood_access.settle_obligations'),
+    'finance.obligation_balance': ('tile or nation/obligation', 'local_currency', 'livelihood_access.settle_obligations and scenario_debt'),
     'finance.obligation_payment': ('tile/origin', 'local_currency', 'livelihood_access.settle_obligations'),
     'finance.rent_collected': ('tile', 'local_currency', 'micro.region.stepper.settle_obligations'),
     'finance.rent_arrears': ('tile', 'local_currency', 'micro.region.stepper.active_rent_claims'),

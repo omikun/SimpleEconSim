@@ -62,6 +62,32 @@ def _entry(world, kind, amount, **details):
     })
 
 
+def _trace_debt(world, kind, bond=None, *, before=None, after=None,
+                flow_nation=None, flow_amount=None, **inputs):
+    """Trace campaign debt mutations and their actual sovereign cash transfers."""
+    from run_trace import emit
+    if bond is not None and (before is not None or after is not None):
+        debtor = _nation(world, bond.issuer_nation)
+        if debtor and debtor.tiles:
+            emit(debtor.tiles[0], kind=f'caisse_{kind}', record_class='outcome',
+                 phase='scenario_debt',
+                 subject={'type': 'nation/obligation', 'id': bond.bond_id},
+                 metric_id='finance.obligation_balance', unit=debtor.currency,
+                 before=before, after=after,
+                 formula_id='scenario.caisse_principal_change.v1',
+                 inputs={'issuer': bond.issuer_nation, 'creditor': bond.holder_nation,
+                         'bond_purpose': bond.bond_purpose, **inputs})
+    if flow_nation is not None and flow_amount is not None and flow_nation.tiles:
+        emit(flow_nation.tiles[0], kind=f'caisse_{kind}', record_class='transfer',
+             phase='scenario_debt',
+             subject={'type': 'nation', 'id': flow_nation.name},
+             metric_id='finance.treasury_flow', unit=flow_nation.currency,
+             after=flow_amount,
+             inputs={'counterparty': inputs.get('counterparty'),
+                     'bond_id': bond.bond_id if bond else None,
+                     'debt_event': kind, **inputs})
+
+
 def revise(world, amount, due_turn=None):
     """Change the unsettled obligation without creating or paying cash."""
     active = [bond for bond in bonds(world) if bond.status in ('active', 'defaulted')]
@@ -70,8 +96,11 @@ def revise(world, amount, due_turn=None):
     per_creditor = round(float(amount) / len(active), 2)
     remaining = round(float(amount), 2)
     for index, bond in enumerate(active):
+        principal_before = bond.principal
         bond.principal = per_creditor if index < len(active) - 1 else remaining
         remaining -= bond.principal
+        _trace_debt(world, 'obligation_revision', bond, before=principal_before,
+                    after=bond.principal, scheduled_amount=amount, due_turn=due_turn)
     state = world['scenario_state']
     state['scheduled_remittance'] = round(float(amount), 2)
     if due_turn is not None:
@@ -90,9 +119,13 @@ def adjust_service(world, amount, due_turn=None):
     if active and abs(delta) > .001:
         remaining = delta
         for index, bond in enumerate(active):
+            principal_before = bond.principal
             share = round(delta / len(active), 2) if index < len(active) - 1 else remaining
             remaining -= share
             bond.principal = round(max(0.0, bond.principal + share), 2)
+            _trace_debt(world, 'service_revision', bond, before=principal_before,
+                        after=bond.principal, scheduled_before=old,
+                        scheduled_after=new, due_turn=due_turn)
     state['scheduled_remittance'] = new
     if due_turn is not None:
         state['payment_window_turn'] = int(due_turn)
@@ -109,9 +142,12 @@ def write_down(world, amount):
         return 0.0
     remaining = amount
     for index, bond in enumerate(active):
+        principal_before = bond.principal
         share = round(amount * bond.principal / owed, 2) if index < len(active) - 1 else remaining
         remaining -= share
         bond.principal = round(max(0.0, bond.principal - share), 2)
+        _trace_debt(world, 'principal_concession', bond, before=principal_before,
+                    after=bond.principal, forgiven_amount=share)
         _entry(world, 'concession', share, creditor=bond.holder_nation, bond_id=bond.bond_id)
         if bond.principal <= .01:
             bond.principal = 0.0
@@ -127,10 +163,14 @@ def reinstate_claim(world, amount, due_turn):
         return
     remaining = round(float(amount), 2)
     for index, bond in enumerate(contracts):
+        principal_before = bond.principal
         share = round(float(amount) / len(contracts), 2) if index < len(contracts) - 1 else remaining
         remaining -= share
         bond.principal = round(bond.principal + share, 2)
         bond.status = 'active'
+        _trace_debt(world, 'conditional_write_down_revoked', bond,
+                    before=principal_before, after=bond.principal,
+                    restored_amount=share, due_turn=due_turn)
     state = world['scenario_state']
     state['scheduled_remittance'] = outstanding(world)
     state['payment_window_turn'] = int(due_turn)
@@ -151,6 +191,13 @@ def set_collection_assignment(world, per_turn, origin):
         'creditors': {bond.holder_nation: bond.principal for bond in bonds(world)
                       if bond.principal > 0},
     } if cap and remaining > .01 else None)
+    for bond in bonds(world):
+        _trace_debt(world, 'collection_assignment', bond,
+                    before=bond.principal, after=bond.principal,
+                    origin=origin, active=state['collection_assignment'] is not None,
+                    per_turn_cap=cap,
+                    assigned_revenue_sources=state.get('assigned_revenues', {}),
+                    outstanding_principal=remaining)
 
 
 def pay(world, amount, kind='payment', forgive_remainder=False):
@@ -163,6 +210,7 @@ def pay(world, amount, kind='payment', forgive_remainder=False):
         return False, 'The treasury cannot cover this debt payment.'
     remaining = amount
     for index, bond in enumerate(contracts):
+        principal_before = bond.principal
         share = round(amount * bond.principal / owed, 2) if index < len(contracts) - 1 else remaining
         remaining -= share
         creditor = _nation(world, bond.holder_nation)
@@ -171,6 +219,11 @@ def pay(world, amount, kind='payment', forgive_remainder=False):
         egypt.government.agent.cash -= share
         creditor.government.agent.cash += share
         bond.principal = round(max(0.0, bond.principal - share), 2)
+        _trace_debt(world, kind, bond, before=principal_before, after=bond.principal,
+                    flow_nation=egypt, flow_amount=-share,
+                    counterparty=creditor.name, amount=share)
+        _trace_debt(world, kind, bond, flow_nation=creditor, flow_amount=share,
+                    counterparty=egypt.name, amount=share)
         _entry(world, kind, share, creditor=creditor.name, bond_id=bond.bond_id)
         if bond.principal <= 0.01:
             bond.principal = 0.0
@@ -178,9 +231,13 @@ def pay(world, amount, kind='payment', forgive_remainder=False):
     if forgive_remainder:
         for bond in contracts:
             if bond.principal > 0:
+                principal_before = bond.principal
                 _entry(world, 'concession', bond.principal,
                        creditor=bond.holder_nation, bond_id=bond.bond_id)
                 bond.principal = 0.0
+                _trace_debt(world, 'settlement_concession', bond,
+                            before=principal_before, after=0.0,
+                            forgiven_amount=principal_before)
             bond.status = 'redeemed'
     _sync_registered_defaults(world)
     state = world['scenario_state']
@@ -211,6 +268,8 @@ def default(world):
     for bond in bonds(world):
         if bond.status == 'active':
             bond.status = 'defaulted'
+        _trace_debt(world, 'default', bond, before=bond.principal,
+                    after=bond.principal, status=bond.status)
         if bond.bond_id not in existing:
             manager.register_default(bond, world, int(world['turn']))
     _entry(world, 'default', outstanding(world))
@@ -241,6 +300,7 @@ def intercept_assigned_revenue(world, government, source, gross, turn):
     owed = sum(bond.principal for bond in contracts)
     unpaid = amount
     for index, bond in enumerate(contracts):
+        principal_before = bond.principal
         allocation = round(amount * bond.principal / owed, 6) if index < len(contracts) - 1 else unpaid
         unpaid -= allocation
         creditor = _nation(world, bond.holder_nation)
@@ -249,6 +309,14 @@ def intercept_assigned_revenue(world, government, source, gross, turn):
         government.agent.cash -= allocation
         creditor.government.agent.cash += allocation
         bond.principal = round(max(0.0, bond.principal - allocation), 6)
+        debtor_nation = _nation(world, bond.issuer_nation)
+        _trace_debt(world, 'assigned_revenue', bond, before=principal_before,
+                    after=bond.principal, flow_nation=debtor_nation,
+                    flow_amount=-allocation, counterparty=creditor.name,
+                    source=source, amount=allocation, turn=turn)
+        _trace_debt(world, 'assigned_revenue', bond, flow_nation=creditor,
+                    flow_amount=allocation, counterparty=bond.issuer_nation,
+                    source=source, amount=allocation, turn=turn)
         _entry(world, 'assigned_revenue', allocation, turn=turn, source=source,
                creditor=creditor.name, bond_id=bond.bond_id)
         if bond.principal <= 0.01:
