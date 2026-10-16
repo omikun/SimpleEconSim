@@ -425,10 +425,10 @@ def step_medical_care(region, t: int, rand_gen=None) -> dict:
                  'public_healthcare': is_public_healthcare,
                  'germ_theory': has_germ_theory, 'pharmaceutical_chemistry': has_pharma,
                  'universal_healthcare': has_universal, 'clinic_present': has_clinic})
-    emit(region, kind='disease_fatalities_observed', record_class='calculation',
+    emit(region, kind='disease_fatalities_observed', record_class='observation',
          subject={'type': 'tile', 'id': region.name},
          metric_id='health.fatalities', unit='people', after=fatalities,
-         inputs={'cause_detail': 'fatalities accumulated by demographic mortality earlier this turn'})
+         inputs={'source': 'demographics.estate mortality accumulator'})
     emit(region, kind='disease_untreated_cases_observed', record_class='calculation',
          subject={'type': 'tile', 'id': region.name},
          metric_id='health.untreated_cases', unit='cases', after=untreated_count,

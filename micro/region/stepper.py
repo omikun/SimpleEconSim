@@ -171,6 +171,27 @@ def step_economy(region: Any, t: int):
                    if c.origin == 'rent' and c.status == 'active')
     region.rent_collected_log.append(rent_coll)
     region.rent_arrears_log.append(rent_arr)
+    from run_trace import emit
+    rent_settlements = [event for event in claim_events if event['origin'] == 'rent']
+    emit(region, kind='rent_collection_summary', record_class='calculation',
+         subject={'type': 'tile', 'id': region.name},
+         metric_id='finance.rent_collected', unit='local_currency',
+         after=rent_coll, formula_id='rent.obligation_settlement.v1',
+         inputs={'paid_claims': rent_settlements,
+                 'active_rent_arrears': rent_arr,
+                 'active_rent_claim_count': sum(
+                     1 for claim in getattr(region, 'cash_obligations', [])
+                     if claim.origin == 'rent' and claim.status == 'active')})
+    emit(region, kind='rent_arrears_summary', record_class='calculation',
+         subject={'type': 'tile', 'id': region.name},
+         metric_id='finance.rent_arrears', unit='local_currency',
+         after=rent_arr, formula_id='rent.active_obligations.v1',
+         inputs={'active_rent_claims': [
+             {'obligation_id': claim.id, 'debtor_id': claim.debtor_id,
+              'creditor_id': claim.creditor_id, 'balance': claim.balance,
+              'due_turn': claim.due_turn}
+             for claim in getattr(region, 'cash_obligations', [])
+             if claim.origin == 'rent' and claim.status == 'active']})
     pasture_f = region.tenure.pasture_fraction if hasattr(region, 'tenure') and region.tenure else 0.0
     region.pasture_fraction_log.append(pasture_f)
     audit_cash(region, t, "rent_done")

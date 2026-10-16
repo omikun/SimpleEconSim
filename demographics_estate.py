@@ -377,19 +377,22 @@ def handle_death(ctx, t, agent, agents):
     from nutrition import starvation_hazard
     agent.died_of_starvation = False
     hazard = starvation_hazard(agent)
-    starved = hazard > 0 and rand.random() < hazard
+    starvation_draw = rand.random() if hazard > 0 else None
+    starved = hazard > 0 and starvation_draw < hazard
     if not starved:
         base_death_prob = [0.0002, 0.0003, 0.0007, 0.0013, 0.0025,
                             0.006, 0.013, 0.027, 0.06, 0.13]
         import government as govmod
         government = govmod.find_government_for_agent(agent)
+        age_base_prob = base_death_prob[min(agent.age(t) // 15, 9)]
         if government is not None:
             adjusted_prob = government.get_death_probability(
-                agent, base_death_prob[min(agent.age(t) // 15, 9)])
+                agent, age_base_prob)
         else:
-            adjusted_prob = base_death_prob[min(agent.age(t) // 15, 9)]
+            adjusted_prob = age_base_prob
 
         agent_age = agent.age(t)
+        wealth_discount = 1.0
         if agent_age < 105 and adjusted_prob > 0:
             col = ctx.cost_of_living
             wealth = agent.wealth()
@@ -404,9 +407,11 @@ def handle_death(ctx, t, agent, agents):
                     wealth_factor = wealth_factor * (1 - fade) + parent_wealth_factor * fade
                 mortality_discount = 1.0 - (1.0 - wealth_factor) * age_weight
                 adjusted_prob *= mortality_discount
+                wealth_discount = mortality_discount
 
         current_pop = len(agents)
         threshold = ctx.carrying_capacity * 0.85
+        crowding_factor = 1.0
         if current_pop > threshold:
             overage = current_pop - threshold
             crowding_factor = 1.0 + (overage / (ctx.carrying_capacity * 0.15)) * 4.0
@@ -418,7 +423,7 @@ def handle_death(ctx, t, agent, agents):
             adjusted_prob *= (1.0 + min(3.0, attrition * 1.5))
 
         # P3: Active epidemic diseases compound mortality risk
-        active_dis = getattr(agent, 'diseases', [])
+        active_dis = getattr(agent, 'diseases', []) or []
         if active_dis:
             if 'pestilence' in active_dis:
                 # Acute lethal plague: 35% base mortality per turn, scaled by hunger
@@ -429,13 +434,40 @@ def handle_death(ctx, t, agent, agents):
 
         if is_last_of_profession(agent, agents, ctx):
             return False
-        if rand.random() > adjusted_prob:
+        death_draw = rand.random()
+        died = death_draw <= adjusted_prob
+        if active_dis or attrition > 0.0 or died:
+            from run_trace import emit
+            emit(ctx, kind='mortality_assessment', record_class='outcome',
+                 subject={'type': 'tile', 'id': getattr(ctx, 'name', 'unknown'),
+                          'agent_id': getattr(agent, 'id', None)},
+                 metric_id='health.mortality_risk', unit='probability',
+                 before=age_base_prob, after=adjusted_prob,
+                 formula_id='mortality.age_wealth_crowding_health.v1',
+                 inputs={'age': agent_age, 'age_base_probability': age_base_prob,
+                         'wealth': float(agent.wealth()), 'cost_of_living': ctx.cost_of_living,
+                         'wealth_discount': wealth_discount,
+                         'population': current_pop, 'crowding_threshold': threshold,
+                         'crowding_factor': crowding_factor, 'health_attrition': attrition,
+                         'active_diseases': list(active_dis),
+                         'hungry_steps': getattr(agent, 'hungry_steps', 0),
+                         'death_draw': death_draw, 'died': died})
+        if not died:
             return False
         agent.alive = False
         if active_dis and hasattr(ctx, 'disease_fatalities_this_turn'):
             ctx.disease_fatalities_this_turn += 1
         loginfo(t, agent.name(), 'has died due to age')
     else:
+        from run_trace import emit
+        emit(ctx, kind='starvation_death_assessment', record_class='outcome',
+             subject={'type': 'tile', 'id': getattr(ctx, 'name', 'unknown'),
+                      'agent_id': getattr(agent, 'id', None)},
+             metric_id='health.starvation_hazard', unit='probability',
+             after=hazard, formula_id='mortality.starvation_hazard.v1',
+             inputs={'starvation_draw': starvation_draw,
+                     'hungry_steps': getattr(agent, 'hungry_steps', 0),
+                     'died': True})
         logdebug(t, agent.name(), 'has starved to death')
         agent.alive = False
         agent.died_of_starvation = True

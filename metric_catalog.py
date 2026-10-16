@@ -31,6 +31,10 @@ METRICS = {
     'politics.legitimacy': ('nation', 'ratio', 'regime.track_legitimacy'),
     'fx.bilateral_mid': ('tile/partner', 'home_currency_per_foreign_currency', 'forex.ForexDesk.update'),
     'finance.treasury': ('nation', 'local_currency', 'nation.Nation.treasury'),
+    'finance.obligation_balance': ('tile/obligation', 'local_currency', 'livelihood_access.settle_obligations'),
+    'finance.obligation_payment': ('tile/origin', 'local_currency', 'livelihood_access.settle_obligations'),
+    'finance.rent_collected': ('tile', 'local_currency', 'micro.region.stepper.settle_obligations'),
+    'finance.rent_arrears': ('tile', 'local_currency', 'micro.region.stepper.active_rent_claims'),
     'ecology.soil_fertility': ('tile', 'ratio', 'externalities.step_tile_externalities'),
     'ecology.nutrition_density': ('tile', 'ratio', 'externalities.step_tile_externalities'),
     'ecology.pollution_air': ('tile', 'index', 'externalities.step_tile_externalities'),
@@ -39,6 +43,8 @@ METRICS = {
     'health.disease_cases': ('tile/disease', 'people', 'disease.step_medical_care'),
     'health.disease_incidence': ('tile/agent', 'cases', 'disease.step_agent_disease_onset'),
     'health.attrition': ('tile/agent', 'attrition_points', 'disease.step_agent_disease_onset'),
+    'health.mortality_risk': ('tile/agent', 'probability', 'demographics_estate.handle_death'),
+    'health.starvation_hazard': ('tile/agent', 'probability', 'demographics_estate.handle_death'),
     'health.medical_treatment': ('tile/agent/disease', 'treatment', 'disease.step_medical_care'),
     'health.medical_spending': ('tile', 'local_currency', 'disease.step_medical_care'),
     'health.untreated_cases': ('tile', 'cases', 'disease.step_medical_care'),
@@ -70,6 +76,8 @@ LEGACY_HISTORY_TO_METRIC = {
     'medical_spending_public_log': 'health.medical_spending',
     'untreated_cases_log': 'health.untreated_cases',
     'disease_fatalities_log': 'health.fatalities',
+    'rent_collected_log': 'finance.rent_collected',
+    'rent_arrears_log': 'finance.rent_arrears',
 }
 
 TRACE_INSTRUMENTED = set(LEGACY_HISTORY_TO_METRIC.values()) | {

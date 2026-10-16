@@ -44,7 +44,7 @@ def sample(tiles, nations):
         disease_cases = {disease: sum(
             1 for person in tile.agents
             if getattr(person, 'alive', True)
-            and disease in getattr(person, 'diseases', []))
+            and disease in (getattr(person, 'diseases', []) or []))
             for disease in ('malnutrition', 'waterborne', 'respiratory', 'chemical', 'pestilence')}
         for disease, count in disease_cases.items():
             values[('health.disease_cases', tile.name, disease)] = (
@@ -63,6 +63,13 @@ def sample(tiles, nations):
             if history:
                 values[(metric_id, tile.name)] = (
                     tile_subject, unit, float(history[-1]))
+        for metric_id, field in (
+                ('finance.rent_collected', 'rent_collected_log'),
+                ('finance.rent_arrears', 'rent_arrears_log')):
+            history = getattr(tile, field, ())
+            if history:
+                values[(metric_id, tile.name)] = (
+                    tile_subject, 'local_currency', float(history[-1]))
         if getattr(tile, 'gdp_log', None):
             values[('economy.gdp_nominal', tile.name)] = (
                 tile_subject, 'local_currency_per_turn', float(tile.gdp_log[-1]))

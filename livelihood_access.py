@@ -96,6 +96,16 @@ def assess_obligation(region, debtor_id, creditor_id, origin, amount, due_turn,
     item = CashObligation(oid, int(debtor_id), int(creditor_id), str(origin), amount,
                           amount, max(0.0, float(interest_rate)), int(due_turn), collateral_plot_id)
     region.cash_obligations.append(item)
+    from run_trace import emit
+    emit(region, kind='obligation_assessed', record_class='outcome',
+         subject={'type': 'tile', 'id': region.name,
+                  'obligation_id': item.id, 'origin': item.origin},
+         metric_id='finance.obligation_balance', unit='local_currency',
+         after=item.balance, formula_id='obligation.assessment.v1',
+         inputs={'debtor_id': item.debtor_id, 'creditor_id': item.creditor_id,
+                 'origin': item.origin, 'assessed_amount': amount,
+                 'interest_rate': item.interest_rate, 'due_turn': item.due_turn,
+                 'collateral_plot_id': item.collateral_plot_id})
     return item
 
 
@@ -120,6 +130,7 @@ def accrue_obligations(region, turn):
 
 def settle_obligations(region, turn):
     _ensure(region)
+    prior_balances = {claim.id: float(claim.balance) for claim in region.cash_obligations}
     accrue_obligations(region, turn)
     by_id = {int(a.id): a for a in getattr(region, 'agents', [])}
     events = []
@@ -142,6 +153,27 @@ def settle_obligations(region, turn):
                        'creditor_id': claim.creditor_id, 'origin': claim.origin,
                        'turn': turn,
                        'paid': round(paid, 2), 'balance': round(claim.balance, 2)})
+        from run_trace import emit
+        emit(region, kind='obligation_settlement', record_class='outcome',
+             subject={'type': 'tile', 'id': region.name,
+                      'obligation_id': claim.id, 'origin': claim.origin},
+             metric_id='finance.obligation_balance', unit='local_currency',
+             before=prior_balances.get(claim.id, claim.balance), after=claim.balance,
+             inputs={'debtor_id': claim.debtor_id, 'creditor_id': claim.creditor_id,
+                     'due_turn': claim.due_turn, 'settled_turn': turn,
+                     'balance_before_accrual': prior_balances.get(claim.id, claim.balance),
+                     'balance_after_accrual_before_payment': claim.balance + paid,
+                     'interest_rate': claim.interest_rate, 'paid': paid,
+                     'debtor_cash_before_payment': debtor.cash + paid,
+                     'payment_shortfall': max(0.0, claim.balance),
+                     'status_after': claim.status})
+        if paid > 0:
+            emit(region, kind='obligation_payment', record_class='transfer',
+                 subject={'type': 'tile', 'id': region.name, 'origin': claim.origin},
+                 metric_id='finance.obligation_payment', unit='local_currency', after=paid,
+                 inputs={'obligation_id': claim.id, 'debtor_id': claim.debtor_id,
+                         'creditor_id': claim.creditor_id, 'due_turn': claim.due_turn,
+                         'origin': claim.origin, 'balance_remaining': claim.balance})
     region.obligation_events = (getattr(region, 'obligation_events', []) + events)[-500:]
     return events
 
