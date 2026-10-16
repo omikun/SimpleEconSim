@@ -201,6 +201,17 @@ class TestWebClientParity(unittest.TestCase):
         self.assertIn('fx_matrix', cs['tab3_forex'])
         self.assertGreater(len(cs['tab3_forex']['banking']), 0)
         self.assertGreater(len(cs['tab3_forex']['fx_matrix']), 0)
+        for home_nation in self.sim.nations:
+            for foreign_nation in self.sim.nations:
+                home, foreign = home_nation.currency, foreign_nation.currency
+                displayed = cs['tab3_forex']['fx_matrix'][home][foreign]
+                if home == foreign:
+                    self.assertEqual(displayed, 1.0)
+                    continue
+                quotes = [desk.mid for tile in home_nation.tiles
+                          for desk in getattr(tile, 'forex_desks', {}).values()
+                          if desk.home == home and desk.other == foreign]
+                self.assertEqual(displayed, sum(quotes) / len(quotes) if quotes else None)
 
     def test_progress_suite_serialization(self):
         w = self.sim.serialize_world()
@@ -306,4 +317,3 @@ class TestWebClientParity(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-

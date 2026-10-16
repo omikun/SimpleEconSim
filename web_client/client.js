@@ -3439,12 +3439,12 @@
           </tbody>
         </table>
 
-        <h4 class="sub-heading mt-3">Bilateral Sovereign Foreign Exchange (FX) Matrix</h4>
+        <h4 class="sub-heading mt-3">Bilateral FX quotes (home units per 1 foreign unit)</h4>
         ${currs.length > 0 ? `
           <table class="table">
             <thead>
               <tr>
-                <th>Base \\ Quote</th>
+                <th>Home \\ Foreign</th>
                 ${currs.map(c => `<th>${escapeHtml(c)}</th>`).join('')}
               </tr>
             </thead>
@@ -3453,16 +3453,49 @@
                 <tr>
                   <td><strong>${escapeHtml(base)}</strong></td>
                   ${currs.map(quote => {
-                    const rate = fxMatrix[base] && fxMatrix[base][quote] !== undefined ? fxMatrix[base][quote] : 1.0;
-                    return `<td>${base === quote ? '<span style="opacity:0.5;">1.000</span>' : `<span class="text-gold font-mono">${Number(rate).toFixed(3)}</span>`}</td>`;
+                    const rate = fxMatrix[base] ? fxMatrix[base][quote] : null;
+                    return `<td>${base === quote ? '<span style="opacity:0.5;">1.000</span>' : rate == null ? '—' : `<span class="text-gold font-mono">${Number(rate).toFixed(3)}</span> <button class="btn btn-secondary btn-xs btn-fx-why" data-home="${escapeHtml(base)}" data-foreign="${escapeHtml(quote)}">Why?</button>`}</td>`;
                   }).join('')}
                 </tr>
               `).join('')}
             </tbody>
           </table>
-        ` : `<div class="empty-state">All foreign exchange clearings currently settled at par (1.000).</div>`}
+        ` : `<div class="empty-state">No bilateral FX quotes are available.</div>`}
       `;
       container.appendChild(div);
+      const fxDetail = document.createElement('div');
+      fxDetail.className = 'card';
+      fxDetail.hidden = true;
+      container.appendChild(fxDetail);
+      div.querySelectorAll('.btn-fx-why').forEach(button => {
+        button.addEventListener('click', async () => {
+          const home = button.dataset.home;
+          const foreign = button.dataset.foreign;
+          fxDetail.hidden = false;
+          fxDetail.textContent = `Loading ${home}/${foreign} FX explanation…`;
+          try {
+            const params = new URLSearchParams({ turn: String(worldState.turn || 0),
+              base: home, quote: foreign, metric: 'fx.bilateral_mid', limit: '200' });
+            const response = await fetch(`/api/trace?${params}`);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const rows = (await response.json()).events || [];
+            const events = rows.filter(event => event.kind === 'fx_mid_update');
+            if (!events.length) {
+              fxDetail.textContent = `Explanation unavailable: no ${home}/${foreign} desk update was recorded for this turn.`;
+              return;
+            }
+            fxDetail.innerHTML = `<h4>${escapeHtml(home)} per ${escapeHtml(foreign)} · Turn ${Number(events[0].turn)}</h4>
+              ${events.map(event => {
+                const i = event.inputs || {};
+                const c = event.constraints || {};
+                const cap = c.active ? ` Band constraint: ${escapeHtml(c.active)} of ${JSON.stringify(c.band || [])}.` : '';
+                return `<p>${escapeHtml(event.subject?.id || 'Desk')}: ${Number(event.value_before).toFixed(4)} → ${Number(event.value_after).toFixed(4)}. Regime ${escapeHtml(i.regime || 'unknown')}; reserve ratio ${Number(i.reserve_ratio || 0).toFixed(3)}, reserve pressure ${Number(i.pressure_term || 0).toFixed(4)}, PPP target ${i.ppp_target == null ? 'unavailable' : Number(i.ppp_target).toFixed(4)}, PPP gap ${Number(i.ppp_gap || 0).toFixed(4)}.${cap} Event ${escapeHtml(event.event_id || '')}.</p>`;
+              }).join('')}`;
+          } catch (error) {
+            fxDetail.textContent = `Could not load FX explanation: ${error.message}`;
+          }
+        });
+      });
 
     } else if (activeCompareTab === '4') {
       // Tab 4: Class Wealth Extraction Table & Canvas Visualizers

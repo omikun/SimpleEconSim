@@ -1789,8 +1789,14 @@ class SimServer:
                     fx_m[c1] = {}
                     for n2 in self.nations:
                         c2 = getattr(n2, 'currency', n2.name[:3].upper())
-                        rate = round((len(n1.tiles) / max(1, len(n2.tiles))), 2) if n1 != n2 else 1.0
-                        fx_m[c1][c2] = rate
+                        if c1 == c2:
+                            fx_m[c1][c2] = 1.0
+                            continue
+                        desks = [desk for tile in n1.tiles
+                                 for desk in getattr(tile, 'forex_desks', {}).values()
+                                 if getattr(desk, 'home', None) == c1
+                                 and getattr(desk, 'other', None) == c2]
+                        fx_m[c1][c2] = (sum(desk.mid for desk in desks) / len(desks)) if desks else None
                 comparison_suite['tab3_forex']['fx_matrix'] = fx_m
 
             except Exception as e:

@@ -10,9 +10,16 @@ from random_cache import rand
 
 def migration_intent_score(region):
     """Compute a per-tile migration intent score (M1.5)."""
+    return migration_intent_components(region)['score']
+
+
+def migration_intent_components(region):
+    """Return the score and observable inputs used by the migration pressure gate."""
     agents = region.agents
     if not agents:
-        return 0.0
+        return {'score': 0.0, 'average_wage_memory': 0.0, 'wage_intent': 0.0,
+                'local_food_price': None, 'average_neighbor_food_price': None,
+                'food_price_differential': 0.0, 'average_risk_tolerance': 0.0}
     wage_scores = []
     for a in agents:
         avg = getattr(a, 'mem_avg', lambda k, d=0.0: d)('mem_wages', None)
@@ -36,7 +43,12 @@ def migration_intent_score(region):
                 diff = max(0.0, (local_food - avg_neighbor) / max(1.0, avg_neighbor))
     risk = sum(getattr(a, 'risk_tolerance', 0.5) for a in agents) / len(agents)
     score = wage_intent * 0.5 + diff * (0.5 + risk)
-    return max(0.0, min(10.0, score))
+    return {'score': max(0.0, min(10.0, score)),
+            'average_wage_memory': avg_wage, 'wage_intent': wage_intent,
+            'local_food_price': float(local_food) if region.neighbors else None,
+            'average_neighbor_food_price': (sum(neighbor_prices) / len(neighbor_prices)
+                                            if region.neighbors and neighbor_prices else None),
+            'food_price_differential': diff, 'average_risk_tolerance': risk}
 
 
 def add_neighbor(region, other, t=0):

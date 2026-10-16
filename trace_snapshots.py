@@ -32,6 +32,15 @@ def sample(tiles, nations):
         if tile.unrest_log:
             values[('politics.unrest_event', tile.name)] = (
                 tile_subject, 'stage', tile.unrest_log[-1].get('stage', 'calm'))
+        for metric_id, field, unit in (
+                ('ecology.soil_fertility', 'soil_fertility', 'ratio'),
+                ('ecology.nutrition_density', 'nutrition_density', 'ratio'),
+                ('ecology.pollution_air', 'pollution_air', 'index'),
+                ('ecology.pollution_water', 'pollution_water', 'index'),
+                ('ecology.pollution_soil', 'pollution_soil', 'index')):
+            if hasattr(tile, field):
+                values[(metric_id, tile.name)] = (
+                    tile_subject, unit, float(getattr(tile, field)))
         if getattr(tile, 'gdp_log', None):
             values[('economy.gdp_nominal', tile.name)] = (
                 tile_subject, 'local_currency_per_turn', float(tile.gdp_log[-1]))

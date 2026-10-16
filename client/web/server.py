@@ -115,6 +115,15 @@ class CoCHTTPRequestHandler(BaseHTTPRequestHandler):
                         self._send_error_json(400, 'Entity must be tile:name or nation:name')
                         return
                     subject = {'type': entity_type, 'id': entity_id}
+                base_currency = query.get('base', [None])[0]
+                quote_currency = query.get('quote', [None])[0]
+                if base_currency or quote_currency:
+                    subject = dict(subject or {})
+                    subject['type'] = 'fx_desk'
+                    if base_currency:
+                        subject['base_currency'] = base_currency
+                    if quote_currency:
+                        subject['quote_currency'] = quote_currency
                 metric_id = query.get('metric', [None])[0]
                 with sim._lock:
                     result = sim.run_trace.query(turn=turn, subject=subject,
@@ -137,15 +146,24 @@ class CoCHTTPRequestHandler(BaseHTTPRequestHandler):
             try:
                 sim = self.server.sim_server
                 with sim._lock:
-                    body = sim.run_trace.path.read_bytes()
+                    trace_path = sim.run_trace.path
+                    trace_size = trace_path.stat().st_size
+                    run_id = sim.run_trace.run_id
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/x-ndjson; charset=utf-8')
                 self.send_header('Content-Disposition',
-                                 f'attachment; filename="run-{sim.run_trace.run_id}.jsonl"')
+                                 f'attachment; filename="run-{run_id}.jsonl"')
                 self.send_header('Cache-Control', 'no-store')
-                self.send_header('Content-Length', str(len(body)))
+                self.send_header('Content-Length', str(trace_size))
                 self.end_headers()
-                self.wfile.write(body)
+                remaining = trace_size
+                with trace_path.open('rb') as stream:
+                    while remaining > 0:
+                        chunk = stream.read(min(65536, remaining))
+                        if not chunk:
+                            break
+                        self.wfile.write(chunk)
+                        remaining -= len(chunk)
             except Exception as exc:
                 self._send_error_json(500, f'Error exporting trace: {exc}')
             return

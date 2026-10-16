@@ -14,7 +14,8 @@ venv/bin/python trace_coverage.py --run tmp/traces/RUN.jsonl
 The web client queries `/api/trace?turn=12&entity=tile:Delta&metric=goods.price`
 with `offset` and `limit` for paging. `/api/trace/download` exports the live
 JSONL. In the Comparison view, the tile Goods tab has a **Why?** button for
-food prices; the national Macro tab has a **Why AI?** button.
+food prices; the national Macro tab has **Why AI?** and **Why $** buttons;
+the FX matrix has a **Why?** button for each quoted currency pair.
 
 ## Recorded with exact calculation or operation inputs
 
@@ -28,6 +29,13 @@ food prices; the national Macro tab has a **Why AI?** button.
   protest energy have member tile values and aggregation rules.
 - Bilateral FX mid changes record reserve ratio, pressure, PPP, regime, and
   band; bank conversions and trader order matches record actual transfers.
+- Soil fertility and food nutrition updates record farming intensity, crop
+  practices, enclosure, fertilizer, regeneration, and bounds. Air, water, and
+  soil pollution updates record emissions, controls, dispersion, runoff, and
+  downstream river advection; ecological metrics are sampled at turn end.
+- Migration pressure gates record wage memory, food price differentials, risk,
+  threshold results, eligible pool sizes, and each resident's departure or
+  arrival, including destination and carried wealth.
 - Treasury phase boundaries, tax receipts, tariffs, government borrowing and
   loan service, food spending, army payroll, and scenario sales taxes are
   recorded as signed flows. End-of-turn reconciliation shows any unattributed
@@ -42,17 +50,18 @@ The coverage checker reports a changed snapshot as unexplained when its final
 value does not match a recorded calculation. Treasury snapshots show cash and
 deposit components, but treasury transfers are not yet comprehensively
 instrumented. Bank lending outside government deficit loans, bonds, rents,
-migration, disease, ecology, war,
-construction, and several scenario operations still need mutation-point
-records. The current metric catalog does not yet cover every displayed field;
-the UI shows unavailable comparison placeholders as such. Desktop charts do
+migration, disease and health attrition, war, construction, and several
+scenario operations still need mutation-point records. The current metric
+catalog does not yet cover every displayed field;
+`inventory_region_histories()` labels legacy series as instrumented or
+untraced so a missing probe is visible during development.
+The UI shows unavailable comparison placeholders as such. Desktop charts do
 not yet have a trace drilldown, and save/rebranch and a persistent query index
 are not implemented. The file is queried by scanning JSONL.
 
-The 20-turn labor scenario run used for the first coverage gate recorded
-9,043 rows in 5.3 MB, with 20 valid checkpoints and no currency-audit
-violations. Tracing on and off produced the same sampled state SHA-256.
-All changed snapshots in that run matched calculation records except treasury
-(40 changes). Its trace now narrows the movement to turn phases and known
-flows, with a residual for remaining sources. A calculation match establishes the displayed value and its
-immediate inputs; it does not by itself establish every upstream cause.
+The first 20-turn labor scenario coverage run recorded 9,043 rows in 5.3 MB,
+with 20 valid checkpoints and no currency-audit violations. Tracing on and off
+produced the same sampled state SHA-256. This run predates the later treasury
+and ecology probes, so its row count and coverage are a baseline rather than a
+current measurement. A calculation match establishes the displayed value and
+its immediate inputs; it does not by itself establish every upstream cause.

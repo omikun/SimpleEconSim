@@ -211,7 +211,25 @@ def run_migrations(t, regions, rng=None):
             continue
         if getattr(source, 'gov', None) is None:
             continue
-        score = source._migration_intent_score()
+        from region_logistics import migration_intent_components
+        pressure = migration_intent_components(source)
+        score = pressure['score']
+        from run_trace import emit
+        intent_event = emit(source, kind='migration_push_decision', record_class='calculation',
+                            subject={'type': 'tile', 'id': source.name},
+                            metric_id='people.migration_pressure', unit='score',
+                            after=score, formula_id='migration.pressure_gate.v1',
+                            inputs={'threshold': MIGRATION_PRESSURE_THRESHOLD,
+                                    'population': len(source.agents),
+                                    'wage_memory_average': pressure['average_wage_memory'],
+                                    'wage_distress_term': pressure['wage_intent'],
+                                    'local_food_price': pressure['local_food_price'],
+                                    'neighbor_food_price_average': pressure['average_neighbor_food_price'],
+                                    'food_price_differential': pressure['food_price_differential'],
+                                    'risk_tolerance_average': pressure['average_risk_tolerance'],
+                                    'formula': '0.5*wage_distress + food_price_differential*(0.5+risk)'},
+                            constraints={'threshold': MIGRATION_PRESSURE_THRESHOLD,
+                                         'passed': score >= MIGRATION_PRESSURE_THRESHOLD})
         if score < MIGRATION_PRESSURE_THRESHOLD:
             continue
         pool = [
@@ -226,19 +244,66 @@ def run_migrations(t, regions, rng=None):
             and t - getattr(a, 'last_migration_turn', 0) >= MIGRATION_COOLDOWN
         ]
         if not pool:
+            emit(source, kind='migration_no_eligible_residents', record_class='outcome',
+                 subject={'type': 'tile', 'id': source.name},
+                 metric_id='people.migration', unit='people', before=len(source.agents),
+                 after=len(source.agents), cause_event_ids=[intent_event] if intent_event else [],
+                 inputs={'intent_score': score, 'eligible_residents': 0})
             continue
         rng.shuffle(pool)
         moved = 0
+        no_destination = 0
+        rejected = 0
         for agent in pool:
             if moved >= MIGRATION_MAX_PER_TILE:
                 break
             dest = _pick_destination(source, agent)
             if dest is None:
+                no_destination += 1
                 continue
             via = 'homestead' if getattr(dest, 'wilderness', False) else 'settle'
+            source_population = len(source.agents)
+            destination_population = (getattr(dest, 'wilderness_pop', 0)
+                                      + sum(1 for resident in getattr(dest, 'agents', [])
+                                            if getattr(resident, 'is_homesteader', False))
+                                      if getattr(dest, 'wilderness', False)
+                                      else len(dest.agents))
+            carried_wealth = float(agent.wealth())
+            carried_cash = float(getattr(agent, 'cash', 0.0))
             if migrate_one(t, source, agent, dest):
+                emit(source, kind='migration_departure', record_class='outcome',
+                     subject={'type': 'tile', 'id': source.name},
+                     metric_id='people.migration', unit='people',
+                     before=source_population, after=len(source.agents),
+                     cause_event_ids=[intent_event] if intent_event else [],
+                     inputs={'agent_id': agent.id, 'destination': dest.name, 'via': via,
+                             'intent_score': score, 'eligible_pool_size': len(pool),
+                             'selection': 'shuffled_eligible_pool',
+                             'wealth_before': carried_wealth, 'cash_before': carried_cash})
+                emit(dest, kind='migration_arrival', record_class='outcome',
+                     subject={'type': 'tile', 'id': dest.name},
+                     metric_id='people.migration_in', unit='people',
+                     before=destination_population,
+                     after=(getattr(dest, 'wilderness_pop', 0)
+                            + sum(1 for resident in getattr(dest, 'agents', [])
+                                  if getattr(resident, 'is_homesteader', False))
+                            if getattr(dest, 'wilderness', False) else len(dest.agents)),
+                     cause_event_ids=[intent_event] if intent_event else [],
+                     inputs={'agent_id': agent.id, 'origin': source.name, 'via': via,
+                             'wealth_carried': carried_wealth, 'cash_before': carried_cash})
                 events.append({'t': t, 'agent_id': agent.id,
                                'from': source.name, 'to': dest.name,
-                               'via': via})
+                               'via': via, 'intent_score': score,
+                               'eligible_pool_size': len(pool)})
                 moved += 1
+            else:
+                rejected += 1
+        emit(source, kind='migration_push_result', record_class='outcome',
+             subject={'type': 'tile', 'id': source.name},
+             metric_id='people.migration', unit='people', before=0, after=moved,
+             cause_event_ids=[intent_event] if intent_event else [],
+             inputs={'intent_score': score, 'eligible_pool_size': len(pool),
+                     'movement_limit': MIGRATION_MAX_PER_TILE,
+                     'no_valid_destination_count': no_destination,
+                     'movement_rejected_count': rejected})
     return events

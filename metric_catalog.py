@@ -17,6 +17,9 @@ METRICS = {
     'living.cost_of_living': ('tile', 'local_currency_per_basket', 'micro.region.stepper.step_economy'),
     'people.population': ('tile', 'people', 'micro.region.stepper.log_metrics'),
     'people.hungry': ('tile', 'people', 'micro.region.stepper.log_metrics'),
+    'people.migration_pressure': ('tile', 'score', 'region_logistics.migration_intent_components'),
+    'people.migration': ('tile', 'people', 'migration.run_migrations'),
+    'people.migration_in': ('tile', 'people', 'migration.run_migrations'),
     'economy.gdp_nominal': ('tile', 'local_currency_per_turn', 'micro.region.stepper.log_gdp'),
     'economy.cash': ('tile', 'local_currency', 'micro.region.stepper.log_metrics'),
     'economy.gini': ('tile/cohort', 'ratio', 'micro.region.stepper.log_metrics'),
@@ -29,20 +32,49 @@ METRICS = {
     'fx.bilateral_mid': ('tile/partner', 'home_currency_per_foreign_currency', 'forex.ForexDesk.update'),
     'finance.treasury': ('nation', 'local_currency', 'nation.Nation.treasury'),
     'ecology.soil_fertility': ('tile', 'ratio', 'externalities.step_tile_externalities'),
+    'ecology.nutrition_density': ('tile', 'ratio', 'externalities.step_tile_externalities'),
     'ecology.pollution_air': ('tile', 'index', 'externalities.step_tile_externalities'),
+    'ecology.pollution_water': ('tile', 'index', 'externalities.step_tile_externalities'),
+    'ecology.pollution_soil': ('tile', 'index', 'externalities.step_tile_externalities'),
     'health.disease_cases': ('tile/disease', 'people', 'disease.step_medical_care'),
     'trade.balance': ('tile', 'local_currency_per_turn', 'sim_engine.step_turn'),
+}
+
+LEGACY_HISTORY_TO_METRIC = {
+    'price_log': 'goods.price',
+    'production_log': 'goods.production',
+    'inventory_log': 'goods.producer_inventory',
+    'demand_log': 'goods.demand',
+    'supply_log': 'goods.supply',
+    'sold_log': 'goods.sold',
+    'gdp_log': 'economy.gdp_nominal',
+    'cost_of_living_log': 'living.cost_of_living',
+    'total_population': 'people.population',
+    'protest_energy_log': 'politics.protest_energy',
+    'unrest_log': 'politics.unrest_event',
+    'grievance_sources_log': 'politics.grievance',
+    'soil_fertility_log': 'ecology.soil_fertility',
+    'nutrition_density_log': 'ecology.nutrition_density',
+    'pollution_air_log': 'ecology.pollution_air',
+    'pollution_water_log': 'ecology.pollution_water',
+    'pollution_soil_log': 'ecology.pollution_soil',
+    'migration_intent_log': 'people.migration_pressure',
+}
+
+TRACE_INSTRUMENTED = set(LEGACY_HISTORY_TO_METRIC.values()) | {
+    'fx.bilateral_mid', 'politics.legitimacy',
 }
 
 
 def inventory_region_histories(region):
     """List all live legacy history fields, including those not yet explained."""
-    known = {name.split('.')[-1] for name in METRICS}
     rows = []
     for field in sorted(vars(region)):
-        if field.endswith('_log') or field.endswith('_history'):
-            rows.append({'field': field, 'coverage': 'mapped' if field.removesuffix('_log') in known
-                         else 'unexplained'})
+        if field.endswith('_log') or field.endswith('_history') or field in LEGACY_HISTORY_TO_METRIC:
+            metric_id = LEGACY_HISTORY_TO_METRIC.get(field)
+            rows.append({'field': field, 'metric_id': metric_id,
+                         'coverage': 'instrumented' if metric_id in TRACE_INSTRUMENTED
+                         else 'untraced'})
     return rows
 
 

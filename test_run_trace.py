@@ -8,7 +8,7 @@ from types import SimpleNamespace
 from goods import Goods
 from region_market import update_price_ref
 from run_trace import RunTrace, verify
-from trace_report import report, render
+from trace_report import report, render, diff_snapshots
 
 
 class RunTraceTests(unittest.TestCase):
@@ -56,6 +56,11 @@ class RunTraceTests(unittest.TestCase):
             self.assertEqual(trace._treasury_flows['A'][0]['amount'], 5.0)
             trace.checkpoint(clock)
             self.assertEqual(verify(trace.path)['checkpoints'], 1)
+            left = [{'kind': 'metric_snapshot', 'turn': 1,
+                     'subject': {'type': 'tile', 'id': 'A'},
+                     'metric_id': 'goods.price', 'value_after': 2.0}]
+            right = [{**left[0], 'value_after': 2.5}]
+            self.assertEqual(diff_snapshots(left, right)[0]['difference'], 0.5)
 
     def test_fx_formula_records_reserves_and_ppp(self):
         from forex import ForexDesk
@@ -78,6 +83,10 @@ class RunTraceTests(unittest.TestCase):
         from sim_server.sim_server import SimServer
         server = SimServer(seed=612, terrain_seed=612, nation_seed=612,
                            scenario_id='labor_frontier_rivalry')
+        from metric_catalog import inventory_region_histories
+        inventory = {row['field']: row for row in inventory_region_histories(server.tiles[0])}
+        self.assertEqual(inventory['gdp_log']['coverage'], 'instrumented')
+        self.assertEqual(inventory['bank_cash_log']['coverage'], 'untraced')
         server.step()
         rows = server.run_trace.query(turn=1, limit=200)['events']
         kinds = {row['kind'] for row in rows}

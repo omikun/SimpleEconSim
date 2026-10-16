@@ -55,6 +55,26 @@ def render(row):
     return '\n'.join(lines)
 
 
+def diff_snapshots(left_rows, right_rows):
+    """Compare observed values in two runs; this does not establish causation."""
+    def keyed(rows):
+        return {(row.get('turn'), json.dumps(row.get('subject'), sort_keys=True),
+                 row.get('metric_id')): row
+                for row in rows if row.get('kind') == 'metric_snapshot'}
+    left = keyed(left_rows)
+    right = keyed(right_rows)
+    changes = []
+    for key in sorted(left.keys() & right.keys()):
+        a = left[key].get('value_after')
+        b = right[key].get('value_after')
+        if a != b:
+            changes.append({'turn': key[0], 'subject': json.loads(key[1]),
+                            'metric_id': key[2], 'left': a, 'right': b,
+                            'difference': b - a if isinstance(a, (int, float))
+                            and isinstance(b, (int, float)) else None})
+    return changes
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--run', required=True, type=Path)
@@ -62,13 +82,23 @@ def main():
     parser.add_argument('--entity')
     parser.add_argument('--metric')
     parser.add_argument('--verify', action='store_true', help='verify turn checkpoints')
+    parser.add_argument('--compare-run', type=Path,
+                        help='compare matched snapshots in another run (in-game counterfactual)')
     args = parser.parse_args()
     if args.verify:
         from run_trace import verify
         check = verify(args.run)
         print(f"Verified {check['rows']} rows and {check['checkpoints']} checkpoints")
-    for row in report(args.run, turn=args.turn, entity=args.entity, metric=args.metric):
-        print(render(row))
+    rows = report(args.run, turn=args.turn, entity=args.entity, metric=args.metric)
+    if args.compare_run:
+        other = report(args.compare_run, turn=args.turn,
+                       entity=args.entity, metric=args.metric)
+        print('In-game run comparison; differing values alone do not prove a cause.')
+        for change in diff_snapshots(rows, other):
+            print(json.dumps(change, sort_keys=True, allow_nan=False))
+    else:
+        for row in rows:
+            print(render(row))
 
 
 if __name__ == '__main__':

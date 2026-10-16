@@ -50,6 +50,14 @@ def step_tile_externalities(region, t: int) -> dict:
     if not hasattr(region, 'is_nitrate_depleted'):
         region.is_nitrate_depleted = False
 
+    before_ecology = {
+        'soil_fertility': region.soil_fertility,
+        'nutrition_density': region.nutrition_density,
+        'pollution_air': region.pollution_air,
+        'pollution_water': region.pollution_water,
+        'pollution_soil': region.pollution_soil,
+    }
+
     # Check installed buildings and nation techs for ecological modifiers
     b_names = [getattr(b, 'name', '') for b in getattr(region, 'buildings', [])]
     has_sewer = 'trunk_sewer' in b_names
@@ -187,6 +195,7 @@ def step_tile_externalities(region, t: int) -> dict:
 
     # Downstream Hydrological Advection along River Corridors
     advected_downstream = 0.0
+    downstream_tiles = []
     try:
         from terrain_edges import get_edge_manager
         em = get_edge_manager()
@@ -201,7 +210,23 @@ def step_tile_externalities(region, t: int) -> dict:
                 advected_downstream = (region.pollution_water + raw_water_emission) * advection_frac
                 per_tile_advection = advected_downstream / len(downstream_tiles)
                 for dt in downstream_tiles:
-                    dt.pollution_water = min(100.0, getattr(dt, 'pollution_water', 0.0) + per_tile_advection)
+                    water_before = getattr(dt, 'pollution_water', 0.0)
+                    dt.pollution_water = min(100.0, water_before + per_tile_advection)
+                    from run_trace import emit
+                    emit(dt, kind='pollution_downstream_advection', record_class='calculation',
+                         subject={'type': 'tile', 'id': dt.name},
+                         metric_id='ecology.pollution_water', unit='index',
+                         before=water_before, after=dt.pollution_water,
+                         formula_id='ecology.downstream_advection.v1',
+                         inputs={'source_tile': region.name,
+                                 'source_pollution_before_emission': before_ecology['pollution_water'],
+                                 'source_emission': raw_water_emission,
+                                 'source_total_advection': advected_downstream,
+                                 'downstream_tile_count': len(downstream_tiles),
+                                 'advection_fraction': advection_frac,
+                                 'tile_share': per_tile_advection},
+                         constraints={'upper_cap': 100.0,
+                                      'active_cap': dt.pollution_water >= 100.0})
 
                     # Riparian Diplomatic Grievance & Casus Belli
                     owner_dt = getattr(dt, 'owner_nation', None)
@@ -257,6 +282,57 @@ def step_tile_externalities(region, t: int) -> dict:
     region.pollution_air_log.append(region.pollution_air)
     region.pollution_water_log.append(region.pollution_water)
     region.pollution_soil_log.append(region.pollution_soil)
+
+    from run_trace import emit
+    subject = {'type': 'tile', 'id': region.name}
+    emit(region, kind='soil_fertility_update', record_class='calculation',
+         subject=subject, metric_id='ecology.soil_fertility', unit='ratio',
+         before=before_ecology['soil_fertility'], after=region.soil_fertility,
+         formula_id='ecology.soil_balance.v1',
+         inputs={'extraction_rate': extraction_rate, 'regeneration_rate': regen_rate,
+                 'farming_regime': regime, 'enclosed_fraction': enclosed,
+                 'food_producers': food_producers, 'farm_corporations': farm_corps,
+                 'fertilizer_used': use_fert, 'rotation': has_rotation,
+                 'agroecology': has_agroecology, 'conservation_reserve': has_conservation,
+                 'conservation_subsidy': bool(getattr(region, 'soil_conservation_subsidy', False))},
+         constraints={'lower_bound': 0.20, 'upper_bound': max_fertility})
+    emit(region, kind='nutrition_density_update', record_class='calculation',
+         subject=subject, metric_id='ecology.nutrition_density', unit='ratio',
+         before=before_ecology['nutrition_density'], after=region.nutrition_density,
+         formula_id='ecology.nutrition_transition.v1',
+         inputs={'target_density': target_nutrition, 'blend_fraction': 0.25,
+                 'fertilizer_used': use_fert, 'farming_regime': regime,
+                 'soil_fertility': region.soil_fertility})
+    emit(region, kind='pollution_air_update', record_class='calculation',
+         subject=subject, metric_id='ecology.pollution_air', unit='index',
+         before=before_ecology['pollution_air'], after=region.pollution_air,
+         formula_id='ecology.air_emissions_dispersion.v1',
+         inputs={'industrial_producers': industrial_producers,
+                 'raw_emission_after_controls': raw_air_emission,
+                 'smoke_scrubber': has_scrubber, 'coal_intensifier':
+                 ('coal_coking' in unlocked_techs or 'steam_engines' in unlocked_techs),
+                 'dispersion_fraction': 0.15},
+         constraints={'lower_bound': 0.0, 'upper_bound': 100.0})
+    emit(region, kind='pollution_water_update', record_class='calculation',
+         subject=subject, metric_id='ecology.pollution_water', unit='index',
+         before=before_ecology['pollution_water'], after=region.pollution_water,
+         formula_id='ecology.water_emissions_advection.v1',
+         inputs={'urban_emission': urban_waste, 'industrial_emission': ind_water_waste,
+                 'fertilizer_runoff': fert_runoff, 'raw_emission': raw_water_emission,
+                 'downstream_advection': advected_downstream,
+                 'dispersion_fraction': 0.12, 'sewer': has_sewer,
+                 'filtration_or_clean_water_act': has_filtration or getattr(region, 'clean_water_act', False),
+                 'downstream_tiles': [dt.name for dt in downstream_tiles]},
+         constraints={'lower_bound': 0.0, 'upper_bound': 100.0})
+    emit(region, kind='pollution_soil_update', record_class='calculation',
+         subject=subject, metric_id='ecology.pollution_soil', unit='index',
+         before=before_ecology['pollution_soil'], after=region.pollution_soil,
+         formula_id='ecology.soil_toxins_biodegradation.v1',
+         inputs={'pesticide_runoff': pesticide_runoff,
+                 'scrubber_sludge': sludge_generated,
+                 'raw_soil_emission': raw_soil_emission,
+                 'biodegradation_fraction': 0.08},
+         constraints={'lower_bound': 0.0, 'upper_bound': 100.0})
 
     return get_tile_metabolic_state(region)
 
