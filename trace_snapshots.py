@@ -41,6 +41,28 @@ def sample(tiles, nations):
             if hasattr(tile, field):
                 values[(metric_id, tile.name)] = (
                     tile_subject, unit, float(getattr(tile, field)))
+        disease_cases = {disease: sum(
+            1 for person in tile.agents
+            if getattr(person, 'alive', True)
+            and disease in getattr(person, 'diseases', []))
+            for disease in ('malnutrition', 'waterborne', 'respiratory', 'chemical', 'pestilence')}
+        for disease, count in disease_cases.items():
+            values[('health.disease_cases', tile.name, disease)] = (
+                {**tile_subject, 'disease': disease}, 'people', count)
+        private_medical = getattr(tile, 'medical_spending_private_log', ())
+        public_medical = getattr(tile, 'medical_spending_public_log', ())
+        if private_medical or public_medical:
+            private_cost = float(private_medical[-1]) if private_medical else 0.0
+            public_cost = float(public_medical[-1]) if public_medical else 0.0
+            values[('health.medical_spending', tile.name)] = (
+                tile_subject, 'local_currency', private_cost + public_cost)
+        for metric_id, field, unit in (
+                ('health.untreated_cases', 'untreated_cases_log', 'cases'),
+                ('health.fatalities', 'disease_fatalities_log', 'people')):
+            history = getattr(tile, field, ())
+            if history:
+                values[(metric_id, tile.name)] = (
+                    tile_subject, unit, float(history[-1]))
         if getattr(tile, 'gdp_log', None):
             values[('economy.gdp_nominal', tile.name)] = (
                 tile_subject, 'local_currency_per_turn', float(tile.gdp_log[-1]))

@@ -36,6 +36,10 @@ the FX matrix has a **Why?** button for each quoted currency pair.
 - Migration pressure gates record wage memory, food price differentials, risk,
   threshold results, eligible pool sizes, and each resident's departure or
   arrival, including destination and carried wealth.
+- Disease onset records exposure inputs and RNG draws; treatment records
+  provider, payer, cure chance, outcome, and unaffordable cases. Post-treatment
+  case counts, spending, untreated cases, and fatalities are sampled. Public
+  treatment payments that leave government cash enter treasury reconciliation.
 - Treasury phase boundaries, tax receipts, tariffs, government borrowing and
   loan service, food spending, army payroll, and scenario sales taxes are
   recorded as signed flows. End-of-turn reconciliation shows any unattributed
@@ -49,9 +53,10 @@ the FX matrix has a **Why?** button for each quoted currency pair.
 The coverage checker reports a changed snapshot as unexplained when its final
 value does not match a recorded calculation. Treasury snapshots show cash and
 deposit components, but treasury transfers are not yet comprehensively
-instrumented. Bank lending outside government deficit loans, bonds, rents,
-migration, disease and health attrition, war, construction, and several
-scenario operations still need mutation-point records. The current metric
+instrumented. Bank lending outside government deficit loans, bonds, rent flows,
+migration, non-disease health attrition and mortality attribution,
+trade-transmitted infection, war, construction, and several scenario
+operations still need mutation-point records. The current metric
 catalog does not yet cover every displayed field;
 `inventory_region_histories()` labels legacy series as instrumented or
 untraced so a missing probe is visible during development.

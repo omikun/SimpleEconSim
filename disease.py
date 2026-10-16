@@ -107,6 +107,16 @@ def step_agent_disease_onset(agent, region, rand_gen=None) -> list[str]:
     has_germ_theory = 'germ_theory_antisepsis' in unlocked
     has_pharma = 'pharmaceutical_chemistry' in unlocked
     has_biopest = 'biological_pest_control' in unlocked
+    attrition_before = float(getattr(agent, 'health_attrition', 0.0))
+    risk_checks = {}
+    diseases_before = list(current_diseases)
+
+    def test_risk(disease, risk, cap):
+        draw = r.random()
+        bounded_risk = min(cap, risk)
+        risk_checks[disease] = {'risk': risk, 'capped_risk': bounded_risk,
+                                'draw': draw, 'contracted': draw < bounded_risk}
+        return draw < bounded_risk
 
     # 1. Malnutrition & Scurvy
     if DIS_MALNUTRITION not in current_diseases:
@@ -114,7 +124,7 @@ def step_agent_disease_onset(agent, region, rand_gen=None) -> list[str]:
         hungry = getattr(agent, 'hungry_steps', 0)
         if nutr < 0.85 or hungry > 0:
             risk = 0.05 * max(0.0, 1.0 - nutr) + 0.08 * hungry
-            if r.random() < min(0.60, risk):
+            if test_risk(DIS_MALNUTRITION, risk, 0.60):
                 current_diseases.append(DIS_MALNUTRITION)
 
     # 2. Waterborne Cholera / Dysentery
@@ -126,7 +136,7 @@ def step_agent_disease_onset(agent, region, rand_gen=None) -> list[str]:
                 base_risk = (p_water - 20.0) * 0.0040
                 if has_germ_theory:
                     base_risk *= 0.35  # 65% reduction from sanitation & antisepsis
-                if r.random() < min(0.50, base_risk):
+                if test_risk(DIS_WATERBORNE, base_risk, 0.50):
                     current_diseases.append(DIS_WATERBORNE)
 
     # 3. Respiratory Smog Bronchitis
@@ -134,7 +144,7 @@ def step_agent_disease_onset(agent, region, rand_gen=None) -> list[str]:
         p_air = getattr(region, 'pollution_air', 0.0)
         if p_air > 15.0:
             base_risk = (p_air - 15.0) * 0.0035
-            if r.random() < min(0.50, base_risk):
+            if test_risk(DIS_RESPIRATORY, base_risk, 0.50):
                 current_diseases.append(DIS_RESPIRATORY)
 
     # 4. Chemical Pesticide Toxicity
@@ -151,7 +161,7 @@ def step_agent_disease_onset(agent, region, rand_gen=None) -> list[str]:
                 base_risk += (residue - 25.0) * 0.002
             if has_pharma:
                 base_risk *= 0.50
-            if r.random() < min(0.60, base_risk):
+            if test_risk(DIS_CHEMICAL, base_risk, 0.60):
                 current_diseases.append(DIS_CHEMICAL)
 
     # 5. The Great Pestilence (Black Death) Contagion
@@ -174,7 +184,7 @@ def step_agent_disease_onset(agent, region, rand_gen=None) -> list[str]:
             if has_germ_theory:
                 base_risk *= 0.25
 
-            if r.random() < min(0.70, base_risk):
+            if test_risk(DIS_PESTILENCE, base_risk, 0.70):
                 current_diseases.append(DIS_PESTILENCE)
 
     # Compound health wear from all active diseases
@@ -183,6 +193,41 @@ def step_agent_disease_onset(agent, region, rand_gen=None) -> list[str]:
         wear = 0.025 * len(current_diseases) + extra_pest
         agent.health_attrition = min(2.5, getattr(agent, 'health_attrition', 0.0) + wear)
         agent.despair = min(1.0, getattr(agent, 'despair', 0.0) + 0.03 * len(current_diseases) + (0.10 if extra_pest else 0.0))
+
+    newly_contracted = [disease for disease in current_diseases
+                        if disease not in diseases_before]
+    if risk_checks or newly_contracted or current_diseases:
+        from run_trace import emit
+        emit(region, kind='disease_onset_assessment', record_class='outcome',
+             subject={'type': 'tile', 'id': region.name,
+                      'agent_id': getattr(agent, 'id', None)},
+             metric_id='health.disease_incidence', unit='cases',
+             before=len(diseases_before), after=len(current_diseases),
+             inputs={'risk_checks': risk_checks, 'newly_contracted': newly_contracted,
+                     'active_diseases': list(current_diseases),
+                     'nutrition_density': getattr(region, 'nutrition_density', 1.0),
+                     'hungry_steps': getattr(agent, 'hungry_steps', 0),
+                     'water_pollution': getattr(region, 'pollution_water', 0.0),
+                     'air_pollution': getattr(region, 'pollution_air', 0.0),
+                     'pesticide_residue': getattr(region, 'pesticide_residue', 0.0),
+                     'sewer': any(getattr(b, 'name', '') == 'trunk_sewer'
+                                  for b in getattr(region, 'buildings', [])),
+                     'germ_theory': has_germ_theory, 'pharmaceutical_chemistry': has_pharma,
+                     'biological_pest_control': has_biopest},
+             formula_id='disease.exposure_risk.v1')
+    attrition_after = float(getattr(agent, 'health_attrition', 0.0))
+    if attrition_after != attrition_before:
+        from run_trace import emit
+        emit(region, kind='disease_health_attrition', record_class='calculation',
+             subject={'type': 'tile', 'id': region.name,
+                      'agent_id': getattr(agent, 'id', None)},
+             metric_id='health.attrition', unit='attrition_points',
+             before=attrition_before, after=attrition_after,
+             formula_id='disease.compound_wear.v1',
+             inputs={'active_diseases': list(current_diseases),
+                     'disease_count': len(current_diseases),
+                     'pestilence_extra_wear': 0.08 if DIS_PESTILENCE in current_diseases else 0.0,
+                     'wear_cap': 2.5})
 
     return current_diseases
 
@@ -224,7 +269,9 @@ def step_medical_care(region, t: int, rand_gen=None) -> dict:
     spending_priv = 0.0
     spending_pub = 0.0
     treated_count = 0
+    public_treated_count = 0
     untreated_count = 0
+    public_transfers = 0.0
 
     gov = getattr(region, 'gov', None)
     gov_agent = getattr(gov, 'agent', None) if gov else None
@@ -259,14 +306,29 @@ def step_medical_care(region, t: int, rand_gen=None) -> dict:
                 gov_agent.cash -= cost_per_cure
                 if provider and provider != gov_agent:
                     provider.cash += cost_per_cure
+                    public_transfers += cost_per_cure
                 else:
                     gov_agent.cash += cost_per_cure  # Self-administered municipal hospital
 
                 spending_pub += cost_per_cure
                 treated_count += 1
+                public_treated_count += 1
                 a.medical_treatments_count = getattr(a, 'medical_treatments_count', 0) + 1
 
-                if r.random() < effective_cure:
+                cure_draw = r.random()
+                cured = cure_draw < effective_cure
+                from run_trace import emit
+                emit(region, kind='medical_treatment', record_class='outcome',
+                     subject={'type': 'tile', 'id': region.name,
+                              'agent_id': getattr(a, 'id', None), 'disease': dis},
+                     metric_id='health.medical_treatment', unit='treatment',
+                     before=1, after=0 if cured else 1,
+                     formula_id='medicine.cure_chance.v1',
+                     inputs={'payer': 'public', 'treatment_cost': cost_per_cure,
+                             'effective_cure_chance': effective_cure,
+                             'cure_draw': cure_draw, 'provider_id': getattr(provider, 'id', None),
+                             'provider_is_treasury': provider == gov_agent})
+                if cured:
                     cured_this_turn.append(dis)
                     a.health_attrition = max(0.0, getattr(a, 'health_attrition', 0.0) - 0.15)
             elif a.cash >= cost_per_cure:
@@ -282,7 +344,19 @@ def step_medical_care(region, t: int, rand_gen=None) -> dict:
                 treated_count += 1
                 a.medical_treatments_count = getattr(a, 'medical_treatments_count', 0) + 1
 
-                if r.random() < effective_cure:
+                cure_draw = r.random()
+                cured = cure_draw < effective_cure
+                from run_trace import emit
+                emit(region, kind='medical_treatment', record_class='outcome',
+                     subject={'type': 'tile', 'id': region.name,
+                              'agent_id': getattr(a, 'id', None), 'disease': dis},
+                     metric_id='health.medical_treatment', unit='treatment',
+                     before=1, after=0 if cured else 1,
+                     formula_id='medicine.cure_chance.v1',
+                     inputs={'payer': 'patient', 'treatment_cost': cost_per_cure,
+                             'effective_cure_chance': effective_cure,
+                             'cure_draw': cure_draw, 'provider_id': getattr(provider, 'id', None)})
+                if cured:
                     cured_this_turn.append(dis)
                     a.health_attrition = max(0.0, getattr(a, 'health_attrition', 0.0) - 0.10)
             else:
@@ -290,6 +364,15 @@ def step_medical_care(region, t: int, rand_gen=None) -> dict:
                 untreated_count += 1
                 a.health_attrition = min(2.5, getattr(a, 'health_attrition', 0.0) + 0.04)
                 a.despair = min(1.0, getattr(a, 'despair', 0.0) + 0.05)
+                from run_trace import emit
+                emit(region, kind='medical_treatment_unaffordable', record_class='outcome',
+                     subject={'type': 'tile', 'id': region.name,
+                              'agent_id': getattr(a, 'id', None), 'disease': dis},
+                     metric_id='health.medical_treatment', unit='treatment',
+                     before=1, after=1,
+                     inputs={'treatment_cost': cost_per_cure, 'patient_cash': a.cash,
+                             'public_care_available': is_public_healthcare,
+                             'public_funds_available': gov_agent.cash if gov_agent else 0.0})
 
         for c in cured_this_turn:
             if c in a.diseases:
@@ -318,6 +401,47 @@ def step_medical_care(region, t: int, rand_gen=None) -> dict:
     region.medical_spending_public_log.append(spending_pub)
     region.untreated_cases_log.append(untreated_count)
     region.disease_fatalities_log.append(fatalities)
+
+    from run_trace import emit
+    post_treatment_cases = {disease: sum(
+        1 for person in agents
+        if getattr(person, 'alive', True) and disease in getattr(person, 'diseases', []))
+        for disease in ALL_DISEASES}
+    for disease, case_count in post_treatment_cases.items():
+        emit(region, kind='disease_cases_observed', record_class='calculation',
+             subject={'type': 'tile', 'id': region.name, 'disease': disease},
+             metric_id='health.disease_cases', unit='people', after=case_count,
+             inputs={'disease': disease, 'counted_after_treatment': True})
+    emit(region, kind='medical_care_summary', record_class='calculation',
+         subject={'type': 'tile', 'id': region.name},
+         metric_id='health.medical_spending', unit='local_currency',
+         after=spending_priv + spending_pub,
+         formula_id='medicine.regional_spending.v1',
+         inputs={'private_spending': spending_priv, 'public_spending': spending_pub,
+                 'public_transfer_outflow': public_transfers,
+                 'treated_cases': treated_count, 'untreated_cases': untreated_count,
+                 'disease_cases_before_treatment': counts,
+                 'cost_per_cure': cost_per_cure, 'cure_chance': cure_chance,
+                 'public_healthcare': is_public_healthcare,
+                 'germ_theory': has_germ_theory, 'pharmaceutical_chemistry': has_pharma,
+                 'universal_healthcare': has_universal, 'clinic_present': has_clinic})
+    emit(region, kind='disease_fatalities_observed', record_class='calculation',
+         subject={'type': 'tile', 'id': region.name},
+         metric_id='health.fatalities', unit='people', after=fatalities,
+         inputs={'cause_detail': 'fatalities accumulated by demographic mortality earlier this turn'})
+    emit(region, kind='disease_untreated_cases_observed', record_class='calculation',
+         subject={'type': 'tile', 'id': region.name},
+         metric_id='health.untreated_cases', unit='cases', after=untreated_count,
+         inputs={'public_healthcare': is_public_healthcare,
+                 'cost_per_cure': cost_per_cure, 'public_funds_available':
+                 gov_agent.cash if gov_agent else 0.0})
+    if public_transfers and nation:
+        emit(region, kind='public_healthcare_spending', record_class='transfer',
+             subject={'type': 'nation', 'id': nation.name},
+             metric_id='finance.treasury_flow', unit=nation.currency,
+             after=-public_transfers,
+             inputs={'region': region.name, 'treated_cases': public_treated_count,
+                     'provider_transfers': public_transfers})
 
     return {
         'cases': counts,

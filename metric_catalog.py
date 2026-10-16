@@ -37,6 +37,12 @@ METRICS = {
     'ecology.pollution_water': ('tile', 'index', 'externalities.step_tile_externalities'),
     'ecology.pollution_soil': ('tile', 'index', 'externalities.step_tile_externalities'),
     'health.disease_cases': ('tile/disease', 'people', 'disease.step_medical_care'),
+    'health.disease_incidence': ('tile/agent', 'cases', 'disease.step_agent_disease_onset'),
+    'health.attrition': ('tile/agent', 'attrition_points', 'disease.step_agent_disease_onset'),
+    'health.medical_treatment': ('tile/agent/disease', 'treatment', 'disease.step_medical_care'),
+    'health.medical_spending': ('tile', 'local_currency', 'disease.step_medical_care'),
+    'health.untreated_cases': ('tile', 'cases', 'disease.step_medical_care'),
+    'health.fatalities': ('tile', 'people', 'disease.step_medical_care'),
     'trade.balance': ('tile', 'local_currency_per_turn', 'sim_engine.step_turn'),
 }
 
@@ -59,6 +65,11 @@ LEGACY_HISTORY_TO_METRIC = {
     'pollution_water_log': 'ecology.pollution_water',
     'pollution_soil_log': 'ecology.pollution_soil',
     'migration_intent_log': 'people.migration_pressure',
+    'disease_cases_log': 'health.disease_cases',
+    'medical_spending_private_log': 'health.medical_spending',
+    'medical_spending_public_log': 'health.medical_spending',
+    'untreated_cases_log': 'health.untreated_cases',
+    'disease_fatalities_log': 'health.fatalities',
 }
 
 TRACE_INSTRUMENTED = set(LEGACY_HISTORY_TO_METRIC.values()) | {
