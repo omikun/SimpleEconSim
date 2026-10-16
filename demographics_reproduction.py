@@ -34,8 +34,10 @@ def handle_reproduction(ctx, t, agent, agents, new_agents):
             living_children = sum(1 for d in agent.descendants if d.alive)
             birth_prob *= math.exp(-max(0.0, living_children - desired_children) / 2.0)
 
-    if agent.last_reproduction + ctx.birth_gap < t and rand.random() < birth_prob \
-       and agent.inv_get(Goods.food, 0) >= 2:
+    eligible_to_reproduce = agent.last_reproduction + ctx.birth_gap < t
+    reproduction_draw = rand.random() if eligible_to_reproduce else None
+    has_birth_food = agent.inv_get(Goods.food, 0) >= 2
+    if eligible_to_reproduce and reproduction_draw < birth_prob and has_birth_food:
         if ctx.max_agents > 0 and len(agents) + len(new_agents) >= ctx.max_agents:
             return 0
 
@@ -47,8 +49,30 @@ def handle_reproduction(ctx, t, agent, agents, new_agents):
                 p_water = getattr(reg, 'pollution_water', 0.0)
                 if p_water > 20.0:
                     survival_prob = max(0.35, 1.0 - (p_water - 20.0) * 0.008)
-                    if rand.random() > survival_prob:
+                    mortality_draw = rand.random()
+                    if mortality_draw > survival_prob:
+                        fatalities_before = getattr(reg, 'infant_fatalities_this_turn', 0)
                         reg.infant_fatalities_this_turn = getattr(reg, 'infant_fatalities_this_turn', 0) + 1
+                        try:
+                            from run_trace import emit
+                            emit(reg, kind='infant_mortality', record_class='outcome',
+                                 phase='demographics',
+                                 subject={'type': 'tile', 'id': reg.name},
+                                 metric_id='health.infant_fatalities', unit='people',
+                                 before=fatalities_before,
+                                 after=reg.infant_fatalities_this_turn,
+                                 formula_id='demographics.water_contamination_infant_mortality.v1',
+                                 inputs={'parent_id': getattr(agent, 'id', None),
+                                         'water_pollution': p_water,
+                                         'sewer_present': has_sewer,
+                                         'pollution_threshold': 20.0,
+                                         'base_survival_probability': survival_prob,
+                                         'mortality_draw': mortality_draw,
+                                         'birth_probability': birth_prob,
+                                         'reproduction_draw': reproduction_draw,
+                                         'parent_food': agent.inv_get(Goods.food, 0)})
+                        except (TypeError, ValueError):
+                            pass
                         agent.last_reproduction = t
                         food_to_give = min(1, agent.inv_get(Goods.food))
                         agent.inv_add(Goods.food, -food_to_give)
@@ -108,6 +132,24 @@ def handle_reproduction(ctx, t, agent, agents, new_agents):
             new_agent._birth_parent_wealth = wealth_val
             new_agent._birth_protection_until = t + max(25, min(100, int(cash)))
         new_agents.append(new_agent)
+        if reg is not None:
+            try:
+                from run_trace import emit
+                emit(reg, kind='birth', record_class='outcome', phase='demographics',
+                     subject={'type': 'tile', 'id': reg.name},
+                     metric_id='people.births', unit='people', before=0, after=1,
+                     formula_id='demographics.fertility_and_food_gate.v1',
+                     inputs={'parent_id': getattr(agent, 'id', None),
+                             'birth_probability': birth_prob,
+                             'reproduction_draw': reproduction_draw,
+                             'birth_gap_elapsed': eligible_to_reproduce,
+                             'parent_food_before_transfer': agent.inv_get(Goods.food, 0) + food_to_give,
+                             'new_agent_id': getattr(new_agent, 'id', None),
+                             'new_agent_profession': getattr(output, 'name', str(output)),
+                             'new_agent_cash': cash,
+                             'new_agent_food': food_to_give})
+            except (TypeError, ValueError):
+                pass
         if government is not None:
             government.provide_baby_bonus(t, agent, new_agent)
         if government is not None:

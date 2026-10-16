@@ -535,7 +535,15 @@ def log_metrics(region: Any, t: int):
             for g in [Goods.food, Goods.wood, Goods.furniture]
         )
     region.pipeline_depth_log.append(pipeline_qty)
-    region.infant_fatalities_log.append(getattr(region, 'infant_fatalities_this_turn', 0))
+    infant_fatalities = getattr(region, 'infant_fatalities_this_turn', 0)
+    region.infant_fatalities_log.append(infant_fatalities)
+    from run_trace import emit
+    emit(region, kind='infant_fatalities_turn_total', record_class='calculation',
+         phase='demographics', subject={'type': 'tile', 'id': region.name},
+         metric_id='health.infant_fatalities', unit='people_per_turn',
+         before=0, after=infant_fatalities,
+         formula_id='demographics.infant_fatalities_sum.v1',
+         inputs={'deaths_recorded_during_turn': infant_fatalities})
     region.infant_fatalities_this_turn = 0
 
 

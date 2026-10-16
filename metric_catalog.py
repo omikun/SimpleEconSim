@@ -16,6 +16,7 @@ METRICS = {
     'goods.sold': ('tile/good', 'units', 'region_market.trade'),
     'living.cost_of_living': ('tile', 'local_currency_per_basket', 'micro.region.stepper.step_economy'),
     'people.population': ('tile', 'people', 'micro.region.stepper.log_metrics'),
+    'people.births': ('tile', 'people_per_turn', 'demographics_reproduction.handle_reproduction'),
     'people.hungry': ('tile', 'people', 'micro.region.stepper.log_metrics'),
     'people.migration_pressure': ('tile', 'score', 'region_logistics.migration_intent_components'),
     'people.migration': ('tile', 'people', 'migration.run_migrations'),
@@ -63,6 +64,9 @@ METRICS = {
     'health.medical_spending': ('tile', 'local_currency', 'disease.step_medical_care'),
     'health.untreated_cases': ('tile', 'cases', 'disease.step_medical_care'),
     'health.fatalities': ('tile', 'people', 'disease.step_medical_care'),
+    'health.infant_fatalities': ('tile', 'people_per_turn', 'demographics_reproduction.handle_reproduction'),
+    'health.trade_contagion': ('tile/route', 'state', 'disease.step_trade_epidemic_transmission'),
+    'health.trade_infection': ('tile/agent', 'cases', 'disease.step_trade_epidemic_transmission'),
     'trade.balance': ('tile', 'local_currency_per_turn', 'sim_engine.step_turn'),
 }
 
@@ -90,12 +94,14 @@ LEGACY_HISTORY_TO_METRIC = {
     'medical_spending_public_log': 'health.medical_spending',
     'untreated_cases_log': 'health.untreated_cases',
     'disease_fatalities_log': 'health.fatalities',
+    'infant_fatalities_log': 'health.infant_fatalities',
     'rent_collected_log': 'finance.rent_collected',
     'rent_arrears_log': 'finance.rent_arrears',
 }
 
 TRACE_INSTRUMENTED = set(LEGACY_HISTORY_TO_METRIC.values()) | {
-    'fx.bilateral_mid', 'politics.legitimacy',
+    'fx.bilateral_mid', 'politics.legitimacy', 'people.births',
+    'health.trade_contagion', 'health.trade_infection',
 }
 
 

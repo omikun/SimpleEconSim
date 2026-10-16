@@ -42,6 +42,12 @@ the FX matrix has a **Why?** button for each quoted currency pair.
   treatment payments that leave government cash enter treasury reconciliation.
 - Non-fatal health attrition records each agent's air, water, pesticide, soil,
   and nutrition contributions, alongside their pollution and food exposures.
+- Birth outcomes record the fertility gate, existing random draw, parent food,
+  and newborn endowment. Water-contamination infant deaths record the water
+  level, sewer condition, survival probability, mortality draw, and turn total.
+- Trade-borne plague records route contagion loading probability and draw,
+  quarantine blocks, cargo availability, vulnerable population, and the
+  selected newly infected person.
 - Named cash obligations record assessment basis, due date, debtor and creditor,
   interest, payment, balance remaining, and rent collected or outstanding.
 - Bank credit records requested and approved amounts, reserve capacity, frozen
@@ -70,10 +76,9 @@ the FX matrix has a **Why?** button for each quoted currency pair.
 The coverage checker reports a changed snapshot as unexplained when its final
 value does not match a recorded calculation. Treasury snapshots show cash and
 deposit components, but treasury transfers are not yet comprehensively
-instrumented. Sovereign bond cashflows outside war reparations,
-infant mortality and nation-level death
-aggregation, trade-transmitted infection, and several scenario
-operations still need mutation-point records. The current metric
+instrumented. Sovereign bond cashflows outside war reparations, nation-level
+death aggregation, and several scenario operations still need mutation-point
+records. The current metric
 catalog does not yet cover every displayed field;
 `inventory_region_histories()` labels legacy series as instrumented or
 untraced so a missing probe is visible during development.

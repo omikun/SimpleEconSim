@@ -518,8 +518,28 @@ def step_trade_epidemic_transmission(tiles: list, t: int, world: dict | None = N
                 if rt.is_frozen or getattr(rt, 'is_quarantined', False):
                     continue
                 inf_rate = active_pest / max(1, len(getattr(r, 'agents', [])))
-                if rng.random() < min(0.95, 0.30 + inf_rate * 1.5):
+                load_probability = min(0.95, 0.30 + inf_rate * 1.5)
+                load_draw = rng.random()
+                contagion_before = bool(getattr(rt, 'has_contagion', False))
+                if load_draw < load_probability:
                     rt.has_contagion = True
+                try:
+                    from run_trace import emit
+                    emit(r, kind='trade_contagion_loading', record_class='calculation',
+                         phase='disease_transmission',
+                         subject={'type': 'tile/route', 'id': f'{r.name}->{partner_name}'},
+                         metric_id='health.trade_contagion', unit='probability',
+                         before=contagion_before, after=bool(getattr(rt, 'has_contagion', False)),
+                         formula_id='disease.trade_contagion_load.v1',
+                         inputs={'active_infected_people': active_pest,
+                                 'source_population': len(getattr(r, 'agents', [])),
+                                 'infection_rate': inf_rate,
+                                 'load_probability': load_probability,
+                                 'random_draw': load_draw,
+                                 'route_frozen': bool(getattr(rt, 'is_frozen', False)),
+                                 'route_quarantined': bool(getattr(rt, 'is_quarantined', False))})
+                except (TypeError, ValueError):
+                    pass
 
         # 2. Arrival & Infection at Destination
         for partner_name, rt in routes.items():
@@ -532,6 +552,20 @@ def step_trade_epidemic_transmission(tiles: list, t: int, world: dict | None = N
             # Check if destination or route has active Quarantine / Cordon Sanitaire
             if getattr(dst, 'quarantine_active', False) or getattr(rt, 'is_quarantined', False):
                 rt.has_contagion = False
+                try:
+                    from run_trace import emit
+                    emit(dst, kind='trade_contagion_quarantine_block', record_class='outcome',
+                         phase='disease_transmission',
+                         subject={'type': 'tile/route', 'id': f'{r.name}->{dst.name}'},
+                         metric_id='health.trade_contagion', unit='state', before=True, after=False,
+                         formula_id='disease.trade_quarantine_block.v1',
+                         inputs={'source_region': r.name, 'destination_region': dst.name,
+                                 'destination_quarantine': bool(getattr(dst, 'quarantine_active', False)),
+                                 'route_quarantine': bool(getattr(rt, 'is_quarantined', False)),
+                                 'delivered_this_turn': bool(getattr(rt, 'delivered_this_turn', None)),
+                                 'in_transit': bool(getattr(rt, 'in_transit', None))})
+                except (TypeError, ValueError):
+                    pass
                 ev = {
                     't': t,
                     'type': 'QUARANTINE_BLOCK',
@@ -554,6 +588,23 @@ def step_trade_epidemic_transmission(tiles: list, t: int, world: dict | None = N
                     patient.diseases.append(DIS_PESTILENCE)
                     dst.active_pestilence_count = sum(1 for a in getattr(dst, 'agents', []) if DIS_PESTILENCE in getattr(a, 'diseases', []))
                     rt.has_contagion = False
+                    try:
+                        from run_trace import emit
+                        emit(dst, kind='trade_transmitted_infection', record_class='outcome',
+                             phase='disease_transmission',
+                             subject={'type': 'tile/agent', 'id': str(getattr(patient, 'id', 'unknown'))},
+                             metric_id='health.trade_infection', unit='cases', before=0, after=1,
+                             formula_id='disease.trade_cargo_transmission.v1',
+                             inputs={'source_region': r.name, 'destination_region': dst.name,
+                                     'route_id': f'{r.name}->{dst.name}',
+                                     'cargo_delivered': bool(getattr(rt, 'delivered_this_turn', None)),
+                                     'cargo_in_transit': bool(getattr(rt, 'in_transit', None)),
+                                     'vulnerable_people': len(vulnerable),
+                                     'infected_people_at_source': active_pest,
+                                     'patient_id': str(getattr(patient, 'id', 'unknown')),
+                                     'infected_people_after': dst.active_pestilence_count})
+                    except (TypeError, ValueError):
+                        pass
                     ev = {
                         't': t,
                         'type': 'PLAGUE_TRANSMISSION',
