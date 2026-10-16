@@ -4,6 +4,11 @@ The live server writes one JSONL file per world generation to `tmp/traces/`. A
 bounded recent ring supports live inspection. Every completed turn has a hash
 checkpoint. The old collective report remains available separately.
 
+Next work is specified in the [completion plan](causal_trace_completion_plan.md),
+with correctness validation first and all-goods price fluctuation tracing as the
+first feature. Entries below describe installed probes, not uniformly verified
+end-to-end causal coverage.
+
 ## Inspect a run
 
 ```bash
@@ -45,8 +50,9 @@ the FX matrix has a **Why?** button for each quoted currency pair.
 - Birth outcomes record the fertility gate, existing random draw, parent food,
   and newborn endowment. Water-contamination infant deaths record the water
   level, sewer condition, survival probability, mortality draw, and turn total.
-- Every death records the person's cause and health context. Turn-end tile and
-  national death totals sum those mutations across member regions.
+- Demographic deaths record risk context and a provisional cause label.
+  Tile/national totals currently cover that path only; combat and repression
+  deaths and the counter-reset timing require the completion plan's corrections.
 - Trade-borne plague records route contagion loading probability and draw,
   quarantine blocks, cargo availability, vulnerable population, and the
   selected newly infected person.
@@ -82,8 +88,16 @@ the FX matrix has a **Why?** button for each quoted currency pair.
   margins, voyage ROIs, legislative/operator feasibility, return estimates,
   and cash outcome. Spatial exports, inventory liquidation, and some
   investment alternatives remain partial.
+  The candidate snapshot is a separate preflight evaluation; it must be replaced
+  or validated before describing those alternatives as the planner's actual
+  evaluated choices.
 
 ## Known gaps
+
+Price coverage needs dynamic snapshots for all goods, legacy and scenario quote
+paths, distinct reference/ask/delivered/paid prices, formula replay, and complete
+upstream links. The existing `vwap` input is an unweighted recent-sample mean.
+The web price inspector currently requests food records only.
 
 The coverage checker reports a changed snapshot as unexplained when its final
 value does not match a recorded calculation. Treasury snapshots show cash and
