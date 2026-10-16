@@ -113,6 +113,56 @@ class RunTraceTests(unittest.TestCase):
             self.assertTrue(all(replay_event(row)['matches'] for row in rows))
             self.assertAlmostEqual(rows[1]['constraints']['active_floor'], 5.7)
 
+    def test_food_rise_and_fall_replay_on_separate_turns(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            trace = RunTrace(Path(tmp) / 'food.jsonl', 'food')
+            clock = {'next': 1, 'turn': 1, 'phase': 'local'}
+            producer = SimpleNamespace(output=Goods.food, is_trader=False,
+                                       inv_get=lambda _good, _fallback: 10.0)
+            region = SimpleNamespace(name='Delta', recipes={Goods.food: {
+                'price': 2.0, 'maxinv': 10}}, _price_ref={Goods.food: 2.0},
+                _trade_prices={}, agents=[producer], _collective_trace_clock=clock,
+                _run_trace=trace, home_currency='D')
+            update_price_ref(region, Goods.food, 5.0,
+                             local_asks=1, imported_asks=0, bids=5)
+            rise = trace.query(turn=1, metric_id='goods.price')['events'][0]
+            self.assertGreater(rise['value_after'], rise['value_before'])
+            self.assertTrue(replay_event(rise)['matches'])
+            clock['turn'] = 2
+            update_price_ref(region, Goods.food, 0.0,
+                             local_asks=1, imported_asks=0, bids=0)
+            fall = trace.query(turn=2, metric_id='goods.price')['events'][0]
+            self.assertLess(fall['value_after'], fall['value_before'])
+            self.assertTrue(replay_event(fall)['matches'])
+
+    def test_cloth_quote_change_is_queryable_at_each_turn(self):
+        from labor_frontier_market import _cloth_ask
+        with tempfile.TemporaryDirectory() as tmp:
+            trace = RunTrace(Path(tmp) / 'cloth.jsonl', 'cloth')
+            clock = {'next': 1, 'turn': 1, 'phase': 'scenario_market'}
+            region = SimpleNamespace(name='Mill', recipes={
+                Goods.cloth: {'production': 3}, Goods.cotton: {'price': 3.0}},
+                neighbors={}, home_currency='D', _collective_trace_clock=clock,
+                _run_trace=trace)
+            firm = SimpleNamespace(id='mill-1', wage=2.0, machinery_level=1,
+                                   broken_machinery=0,
+                                   cost_get=lambda _good, _fallback: 3.0)
+            first = _cloth_ask(region, firm)
+            clock['turn'] = 2
+            firm.wage = 4.0
+            second = _cloth_ask(region, firm)
+            self.assertGreater(second, first)
+            old_row = trace.query(turn=1, subject={'type': 'tile', 'id': 'Mill',
+                                                    'good': 'cloth'},
+                                  metric_id='goods.seller_ask')['events'][0]
+            new_row = trace.query(turn=2, subject={'type': 'tile', 'id': 'Mill',
+                                                    'good': 'cloth'},
+                                  metric_id='goods.seller_ask')['events'][0]
+            self.assertEqual((old_row['value_after'], new_row['value_after']),
+                             (first, second))
+            self.assertTrue(replay_event(old_row)['matches'])
+            self.assertTrue(replay_event(new_row)['matches'])
+
     def test_dynamic_price_snapshot_and_read_only_death_sample(self):
         from trace_snapshots import sample
         tile = SimpleNamespace(name='Delta', recipes={Goods.cotton: {'price': 3.0}},
