@@ -375,6 +375,7 @@ def zero_out_dead_agent(ctx, agent):
 def handle_death(ctx, t, agent, agents):
     """Determine if agent dies (starvation or old age). Clean up assets."""
     from nutrition import starvation_hazard
+    trace_region = getattr(ctx, 'source_region', None) or ctx
     agent.died_of_starvation = False
     hazard = starvation_hazard(agent)
     starvation_draw = rand.random() if hazard > 0 else None
@@ -438,8 +439,8 @@ def handle_death(ctx, t, agent, agents):
         died = death_draw <= adjusted_prob
         if active_dis or attrition > 0.0 or died:
             from run_trace import emit
-            emit(ctx, kind='mortality_assessment', record_class='outcome',
-                 subject={'type': 'tile', 'id': getattr(ctx, 'name', 'unknown'),
+            emit(trace_region, kind='mortality_assessment', record_class='outcome',
+                 subject={'type': 'tile', 'id': getattr(trace_region, 'name', 'unknown'),
                           'agent_id': getattr(agent, 'id', None)},
                  metric_id='health.mortality_risk', unit='probability',
                  before=age_base_prob, after=adjusted_prob,
@@ -460,8 +461,8 @@ def handle_death(ctx, t, agent, agents):
         loginfo(t, agent.name(), 'has died due to age')
     else:
         from run_trace import emit
-        emit(ctx, kind='starvation_death_assessment', record_class='outcome',
-             subject={'type': 'tile', 'id': getattr(ctx, 'name', 'unknown'),
+        emit(trace_region, kind='starvation_death_assessment', record_class='outcome',
+             subject={'type': 'tile', 'id': getattr(trace_region, 'name', 'unknown'),
                       'agent_id': getattr(agent, 'id', None)},
              metric_id='health.starvation_hazard', unit='probability',
              after=hazard, formula_id='mortality.starvation_hazard.v1',
@@ -472,20 +473,20 @@ def handle_death(ctx, t, agent, agents):
         agent.alive = False
         agent.died_of_starvation = True
 
-    ctx.deaths_this_turn = getattr(ctx, 'deaths_this_turn', 0) + 1
+    trace_region.deaths_this_turn = getattr(trace_region, 'deaths_this_turn', 0) + 1
     death_cause = ('starvation' if starved else
                    'disease' if getattr(agent, 'diseases', None) else 'age_or_health')
-    deaths_by_cause = getattr(ctx, 'deaths_by_cause_this_turn', None)
+    deaths_by_cause = getattr(trace_region, 'deaths_by_cause_this_turn', None)
     if deaths_by_cause is None:
         deaths_by_cause = {}
-        ctx.deaths_by_cause_this_turn = deaths_by_cause
+        trace_region.deaths_by_cause_this_turn = deaths_by_cause
     deaths_by_cause[death_cause] = deaths_by_cause.get(death_cause, 0) + 1
     from run_trace import emit
-    emit(ctx, kind='person_died', record_class='outcome', phase='demographics',
+    emit(trace_region, kind='person_died', record_class='outcome', phase='demographics',
          subject={'type': 'tile/agent', 'id': str(getattr(agent, 'id', 'unknown'))},
          metric_id='people.deaths', unit='people', before=1, after=0,
          formula_id='demographics.death_mutation.v1',
-         inputs={'tile': getattr(ctx, 'name', 'unknown'),
+         inputs={'tile': getattr(trace_region, 'name', 'unknown'),
                  'agent_id': str(getattr(agent, 'id', 'unknown')),
                  'death_cause': death_cause,
                  'age': agent.age(t),

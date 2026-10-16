@@ -2,9 +2,12 @@
 
 import tempfile
 import unittest
+from contextlib import ExitStack
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
+from agent import Agent, initialize_agent
 from goods import Goods
 from region_market import update_price_ref, price_decay
 from run_trace import RunTrace, verify
@@ -13,6 +16,40 @@ from trace_report import report, render, diff_snapshots
 
 
 class RunTraceTests(unittest.TestCase):
+    def test_starvation_death_uses_region_trace_and_snapshot_counter(self):
+        from demographics_estate import handle_death
+
+        with tempfile.TemporaryDirectory() as tmp:
+            trace = RunTrace(Path(tmp) / 'deaths.ctr', 'deaths')
+            clock = {'next': 1, 'turn': 7, 'phase': 'local'}
+            region = SimpleNamespace(name='Delta', deaths_this_turn=0,
+                                     deaths_by_cause_this_turn={},
+                                     _collective_trace_clock=clock, _run_trace=trace)
+            context = SimpleNamespace(source_region=region)
+            person = Agent(0)
+            initialize_agent(person, Goods.food, 0, 0, 0)
+            person.calorie_deficit_kcal = 2000.0
+            person.energy_reserve_kcal = 0.0
+            with ExitStack() as patches:
+                patches.enter_context(patch('demographics_estate.rand.random', return_value=0.0))
+                for helper in ('cleanup_dead_agent_links', 'handle_company_inheritance',
+                               'reclaim_dead_route_cargo', 'escheat_dead_parked_goods',
+                               'handle_debt_inheritance', 'handle_wealth_inheritance',
+                               'zero_out_dead_agent'):
+                    patches.enter_context(patch(f'demographics_estate.{helper}'))
+                patches.enter_context(patch('demographics_estate.living_descendants_recursive',
+                                            return_value=[]))
+                self.assertTrue(handle_death(context, 7, person, [person]))
+
+            self.assertEqual(region.deaths_this_turn, 1)
+            self.assertEqual(region.deaths_by_cause_this_turn, {'starvation': 1})
+            rows = trace.query(turn=7)['events']
+            self.assertEqual([row['kind'] for row in rows],
+                             ['starvation_death_assessment', 'person_died'])
+            self.assertEqual(rows[0]['subject']['id'], 'Delta')
+            self.assertEqual(rows[1]['inputs']['tile'], 'Delta')
+            self.assertEqual(rows[1]['inputs']['death_cause'], 'starvation')
+
     def test_price_formula_replays_from_recorded_terms(self):
         with tempfile.TemporaryDirectory() as tmp:
             trace = RunTrace(Path(tmp) / 'run.ctr', 'fixture', seed=1)
