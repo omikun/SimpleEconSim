@@ -472,6 +472,27 @@ def handle_death(ctx, t, agent, agents):
         agent.alive = False
         agent.died_of_starvation = True
 
+    ctx.deaths_this_turn = getattr(ctx, 'deaths_this_turn', 0) + 1
+    death_cause = ('starvation' if starved else
+                   'disease' if getattr(agent, 'diseases', None) else 'age_or_health')
+    deaths_by_cause = getattr(ctx, 'deaths_by_cause_this_turn', None)
+    if deaths_by_cause is None:
+        deaths_by_cause = {}
+        ctx.deaths_by_cause_this_turn = deaths_by_cause
+    deaths_by_cause[death_cause] = deaths_by_cause.get(death_cause, 0) + 1
+    from run_trace import emit
+    emit(ctx, kind='person_died', record_class='outcome', phase='demographics',
+         subject={'type': 'tile/agent', 'id': str(getattr(agent, 'id', 'unknown'))},
+         metric_id='people.deaths', unit='people', before=1, after=0,
+         formula_id='demographics.death_mutation.v1',
+         inputs={'tile': getattr(ctx, 'name', 'unknown'),
+                 'agent_id': str(getattr(agent, 'id', 'unknown')),
+                 'death_cause': death_cause,
+                 'age': agent.age(t),
+                 'active_diseases': list(getattr(agent, 'diseases', []) or []),
+                 'health_attrition': getattr(agent, 'health_attrition', 0.0),
+                 'starvation_hazard': hazard if starved else 0.0})
+
     cleanup_dead_agent_links(agent)
     handle_company_inheritance(t, agent)
     living_descendants = living_descendants_recursive(agent)

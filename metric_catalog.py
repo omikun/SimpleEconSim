@@ -16,6 +16,7 @@ METRICS = {
     'goods.sold': ('tile/good', 'units', 'region_market.trade'),
     'living.cost_of_living': ('tile', 'local_currency_per_basket', 'micro.region.stepper.step_economy'),
     'people.population': ('tile', 'people', 'micro.region.stepper.log_metrics'),
+    'people.deaths': ('tile/agent or nation', 'people_per_turn', 'demographics_estate.handle_death and trace_snapshots'),
     'people.births': ('tile', 'people_per_turn', 'demographics_reproduction.handle_reproduction'),
     'people.hungry': ('tile', 'people', 'micro.region.stepper.log_metrics'),
     'people.migration_pressure': ('tile', 'score', 'region_logistics.migration_intent_components'),
@@ -103,7 +104,7 @@ LEGACY_HISTORY_TO_METRIC = {
 
 TRACE_INSTRUMENTED = set(LEGACY_HISTORY_TO_METRIC.values()) | {
     'fx.bilateral_mid', 'politics.legitimacy', 'people.births',
-    'finance.sovereign_bond', 'finance.treasury_flow',
+    'finance.sovereign_bond', 'finance.treasury_flow', 'people.deaths',
     'health.trade_contagion', 'health.trade_infection',
 }
 

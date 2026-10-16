@@ -26,6 +26,8 @@ def sample(tiles, nations):
         values[('people.population', tile.name)] = (
             tile_subject, 'people', tile.total_population[-1]
             if getattr(tile, 'total_population', None) else len(tile.agents))
+        values[('people.deaths', tile.name)] = (
+            tile_subject, 'people_per_turn', int(getattr(tile, 'deaths_this_turn', 0)))
         if tile.protest_energy_log:
             values[('politics.protest_energy', tile.name)] = (
                 tile_subject, 'score', float(tile.protest_energy_log[-1]))
@@ -93,6 +95,9 @@ def sample(tiles, nations):
             subject, 'people', sum(tile.total_population[-1]
                                    if getattr(tile, 'total_population', None) else len(tile.agents)
                                    for tile in members))
+        values[('people.deaths', nation.name)] = (
+            subject, 'people_per_turn',
+            sum(int(getattr(tile, 'deaths_this_turn', 0)) for tile in members))
         values[('economy.gdp_nominal', nation.name)] = (
             subject, nation.currency + '_per_turn',
             sum(tile.gdp_log[-1] if getattr(tile, 'gdp_log', None) else 0.0
@@ -150,6 +155,8 @@ def record(server):
             for metric_id, unit, values_by_tile, reducer in (
                     ('people.population', 'people',
                      [current[('people.population', tile)][2] for tile in members], 'sum'),
+                    ('people.deaths', 'people_per_turn',
+                     [current[('people.deaths', tile)][2] for tile in members], 'sum'),
                     ('economy.gdp_nominal', nation.currency + '_per_turn',
                      [current.get(('economy.gdp_nominal', tile), (None, None, 0.0))[2]
                       for tile in members], 'sum'),
@@ -162,17 +169,28 @@ def record(server):
                 key = (metric_id, nation.name)
                 if key not in current:
                     continue
+                aggregate_inputs = {
+                    'member_tiles': members,
+                    'member_values': values_by_tile,
+                    'denominator': max(1, len(members)) if reducer == 'mean' else None}
+                if metric_id == 'people.deaths':
+                    by_cause = {}
+                    for tile in nation.tiles:
+                        for cause, count in getattr(tile, 'deaths_by_cause_this_turn', {}).items():
+                            by_cause[cause] = by_cause.get(cause, 0) + count
+                    aggregate_inputs['deaths_by_cause'] = by_cause
                 server.run_trace.emit(clock, kind='national_aggregate',
                                       record_class='calculation', phase='snapshot',
                                       subject={'type': 'nation', 'id': nation.name},
                                       metric_id=metric_id, unit=unit,
                                       after=current[key][2],
                                       formula_id=f'aggregate.{reducer}.v1',
-                                      inputs={'member_tiles': members,
-                                              'member_values': values_by_tile,
-                                              'denominator': max(1, len(members)) if reducer == 'mean' else None})
+                                      inputs=aggregate_inputs)
         for key, (subject, unit, after) in current.items():
             before = previous[key][2] if key in previous else None
             server.run_trace.snapshot(clock, subject=subject, metric_id=key[0],
                                       unit=unit, before=before, after=after)
     server._trace_previous = current
+    for tile in server.tiles:
+        tile.deaths_this_turn = 0
+        tile.deaths_by_cause_this_turn = {}

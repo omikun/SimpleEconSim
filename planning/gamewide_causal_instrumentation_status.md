@@ -45,6 +45,8 @@ the FX matrix has a **Why?** button for each quoted currency pair.
 - Birth outcomes record the fertility gate, existing random draw, parent food,
   and newborn endowment. Water-contamination infant deaths record the water
   level, sewer condition, survival probability, mortality draw, and turn total.
+- Every death records the person's cause and health context. Turn-end tile and
+  national death totals sum those mutations across member regions.
 - Trade-borne plague records route contagion loading probability and draw,
   quarantine blocks, cargo availability, vulnerable population, and the
   selected newly infected person.
@@ -79,9 +81,9 @@ the FX matrix has a **Why?** button for each quoted currency pair.
 The coverage checker reports a changed snapshot as unexplained when its final
 value does not match a recorded calculation. Treasury snapshots show cash and
 deposit components, but treasury transfers are not yet comprehensively
-instrumented. Scenario Caisse bond adjustments, nation-level death
-aggregation, and several scenario operations still need mutation-point
-records. The current metric
+instrumented. Scenario Caisse bond adjustments and several scenario
+operations still need mutation-point records. Some secondary and elite AI
+candidate details remain partial. The current metric
 catalog does not yet cover every displayed field;
 `inventory_region_histories()` labels legacy series as instrumented or
 untraced so a missing probe is visible during development.

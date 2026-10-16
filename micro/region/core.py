@@ -170,6 +170,8 @@ class Region:
         self.disease_fatalities_this_turn: int = 0
         self.infant_fatalities_this_turn: int = 0
         self.infant_fatalities_log: list = []
+        self.deaths_this_turn: int = 0
+        self.deaths_by_cause_this_turn: dict = {}
         self.granary_stock: float = 25.0  # physical buffer stock smoothing seasonal harvests
         self.farming_regime: str = 'rotation'  # 'rotation' (Four-Field) | 'intensive' (Monoculture) | 'feudal'
         self.public_healthcare_decree: bool = False  # municipal healthcare mandate
