@@ -125,6 +125,10 @@ class CoCHTTPRequestHandler(BaseHTTPRequestHandler):
                     if quote_currency:
                         subject['quote_currency'] = quote_currency
                 metric_id = query.get('metric', [None])[0]
+                good = query.get('good', [None])[0]
+                if good:
+                    subject = dict(subject or {})
+                    subject['good'] = good
                 with sim._lock:
                     result = sim.run_trace.query(turn=turn, subject=subject,
                                                  metric_id=metric_id,

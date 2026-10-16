@@ -270,15 +270,18 @@ def update_price_ref(region, good, demand_ratio, *, local_asks=None,
     ref = blended
     recent = region._trade_prices.get(good, [])[-12:]
     recent_event_ids = getattr(region, '_trade_price_event_ids', {}).get(good, [])[-12:]
-    vwap = None
+    sample_mean = None
     if recent:
-        vwap = sum(recent) / len(recent)
-        ref = 0.7 * ref + 0.3 * vwap
+        sample_mean = sum(recent) / len(recent)
+        ref = 0.7 * ref + 0.3 * sample_mean
     after_vwap = ref
     r = region.recipes.get(good, {})
     cost_floor = 1.0
+    input_good = r.get('input') if r.get('numInput', 0) > 0 else None
+    input_price = (region.recipes[input_good]['price'] if input_good is not None
+                   and r.get('production', 0) > 0 else None)
     if r.get('numInput', 0) > 0 and r.get('production', 0) > 0:
-        cost_floor = max(0.1, (r['numInput'] * region.recipes[r['input']]['price'])
+        cost_floor = max(0.1, (r['numInput'] * input_price)
                          / r['production'])
     ref = max(cost_floor, ref)
     ref = max(0.1, min(50.0, ref))
@@ -297,8 +300,18 @@ def update_price_ref(region, good, demand_ratio, *, local_asks=None,
                  'max_inventory': maxinv, 'scarcity': scarcity,
                  'inflation_term': inflation, 'bounded_influence': influence,
                  'target': target, 'move_blend': blended,
-                 'recent_market_price_samples': list(recent), 'vwap': vwap,
-                 'after_vwap': after_vwap, 'input_cost_floor': cost_floor},
+                 'recent_market_price_samples': list(recent),
+                 'recent_sample_mean': sample_mean, 'vwap': sample_mean,
+                 'after_sample_blend': after_vwap, 'after_vwap': after_vwap,
+                 'input_good': input_good.name if input_good is not None else None,
+                 'input_price': input_price,
+                 'input_quantity': r.get('numInput', 0),
+                 'production_quantity': r.get('production', 0),
+                 'input_cost_floor': cost_floor,
+                 'prior_display_price': old_display_price,
+                 'new_internal_reference': ref,
+                 'price_basis': 'displayed_recipe_reference',
+                 'currency': getattr(region, 'home_currency', None)},
          constraints={'active_floor': cost_floor if after_vwap < cost_floor else None,
                       'active_cap': 50.0 if max(cost_floor, after_vwap) > 50.0 else None})
 
@@ -323,6 +336,7 @@ def gather_import_pool(region, good):
 def clear_discriminatory(region, good, ref, total_asks, total_bids,
                          imp_pool, agents, t):
     """Cheapest-first pay-as-bid clear for one good."""
+    from run_trace import emit
     book = []
     for a in agents:
         if a.output != good or getattr(a, 'is_trader', False) or not getattr(a, 'alive', True):
@@ -438,7 +452,6 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
                 if good == Goods.food:
                     buyer.food_purchased += int(take)
             cash_collected += cost
-            from run_trace import emit
             sale_id = emit(region, kind='paid_market_sale', record_class='transfer',
                            subject={'type': 'tile', 'id': region.name, 'good': good.name},
                            metric_id='goods.sold', unit='units', before=0, after=take,
@@ -455,6 +468,13 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
                                    if gov_cash_before is not None else None})
             if sale_id is not None:
                 sale_event_ids.append(sale_id)
+            emit(region, kind='paid_market_unit_price', record_class='observation',
+                 subject={'type': 'tile', 'id': region.name, 'good': good.name},
+                 metric_id='goods.transaction_price', unit='local_currency_per_unit',
+                 after=ask, cause_event_ids=[sale_id] if sale_id else [],
+                 inputs={'quantity': take, 'total_paid': cost,
+                         'buyer_id': buyer.id, 'seller_id': seller.id,
+                         'imported': is_import, 'currency': region.home_currency})
             units += take
             prices.extend([ask] * int(take))
             remaining -= take
@@ -462,7 +482,15 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
                 bi += 1
     region._auction_import_sales[good] = (imp_units, imp_value)
     realized = sum(prices) / len(prices) if prices else ref
-    from run_trace import emit
+    if units > 0:
+        emit(region, kind='market_transaction_vwap', record_class='calculation',
+             subject={'type': 'tile', 'id': region.name, 'good': good.name},
+             metric_id='goods.transaction_vwap', unit='local_currency_per_unit',
+             after=cash_collected / units,
+             formula_id='market.transaction_vwap.v1',
+             cause_event_ids=sale_event_ids,
+             inputs={'total_paid': cash_collected, 'quantity': units,
+                     'currency': region.home_currency})
     summary_id = emit(region, kind='market_clearing_summary', record_class='calculation',
                       subject={'type': 'tile', 'id': region.name, 'good': good.name},
                       metric_id='goods.sold', unit='units', after=units,
@@ -585,7 +613,13 @@ def price_decay(region, good):
          subject={'type': 'tile', 'id': region.name, 'good': good.name},
          metric_id='goods.price', unit='local_currency_per_unit',
          before=before, after=r['price'], formula_id='market.decay.v1',
-         inputs={'decay_factor': 0.95, 'input_cost_floor': cost_to_make},
+         inputs={'prior_display_price': before,
+                 'prior_internal_reference': region._price_ref.get(good),
+                 'new_internal_reference': region._price_ref.get(good),
+                 'trigger': 'no_bids_and_no_asks', 'threshold_multiplier': 1.05,
+                 'decay_factor': 0.95, 'input_cost_floor': cost_to_make,
+                 'price_basis': 'displayed_recipe_reference',
+                 'currency': getattr(region, 'home_currency', None)},
          constraints={'active_floor': cost_to_make if r['price'] == cost_to_make else None})
 
 

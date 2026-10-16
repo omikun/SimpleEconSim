@@ -8,7 +8,11 @@ from __future__ import annotations
 
 
 METRICS = {
-    'goods.price': ('tile/good', 'local_currency_per_unit', 'region_market.update_price_ref/price_decay/set_price'),
+    'goods.price': ('tile/good', 'local_currency_per_unit', 'displayed recipe reference price; region_market and legacy price writers'),
+    'goods.seller_ask': ('tile/good/seller', 'local_currency_per_unit', 'posted offer at evaluation'),
+    'goods.delivered_quote': ('tile/good/buyer/seller', 'local_currency_per_unit', 'offer including delivery costs'),
+    'goods.transaction_price': ('tile/good/buyer/seller', 'local_currency_per_unit', 'paid settlement price'),
+    'goods.transaction_vwap': ('tile/good', 'local_currency_per_unit', 'quantity-weighted mean of paid settlements'),
     'goods.production': ('tile/good', 'units_per_turn', 'region_production.produce'),
     'goods.producer_inventory': ('tile/good', 'units', 'micro.region.stepper.log_metrics'),
     'goods.demand': ('tile/good', 'units_offered', 'region_market.trade'),
@@ -16,7 +20,7 @@ METRICS = {
     'goods.sold': ('tile/good', 'units', 'region_market.trade'),
     'living.cost_of_living': ('tile', 'local_currency_per_basket', 'micro.region.stepper.step_economy'),
     'people.population': ('tile', 'people', 'micro.region.stepper.log_metrics'),
-    'people.deaths': ('tile/agent or nation', 'people_per_turn', 'demographics_estate.handle_death and trace_snapshots'),
+    'people.deaths': ('tile/agent or nation', 'people_per_turn', 'demographics_estate.handle_death only; violent deaths not yet covered'),
     'people.births': ('tile', 'people_per_turn', 'demographics_reproduction.handle_reproduction'),
     'people.hungry': ('tile', 'people', 'micro.region.stepper.log_metrics'),
     'people.migration_pressure': ('tile', 'score', 'region_logistics.migration_intent_components'),

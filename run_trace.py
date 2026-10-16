@@ -28,6 +28,7 @@ class RunTrace:
         self._calculated = set()
         self._calculated_values = {}
         self._treasury_flows = {}
+        self._price_mutations = {}
         self.path.parent.mkdir(parents=True, exist_ok=True)
         if self.path.exists():
             raise FileExistsError(self.path)
@@ -54,6 +55,7 @@ class RunTrace:
             self._calculated.clear()
             self._calculated_values.clear()
             self._treasury_flows.clear()
+            self._price_mutations.clear()
         row = {'schema_version': SCHEMA_VERSION, 'run_id': self.run_id,
                'branch_id': self.branch_id, 'event_id': f'{self.run_id}:{sequence}',
                'sequence': sequence, 'turn': clock.get('turn', 0),
@@ -83,6 +85,9 @@ class RunTrace:
             self._calculated.add(provenance_key)
             if after is not None:
                 self._calculated_values[provenance_key] = after
+        if metric_id == 'goods.price' and record_class == 'calculation' and subject:
+            price_key = (subject.get('id'), subject.get('good'))
+            self._price_mutations.setdefault(price_key, []).append(row)
         if metric_id == 'finance.treasury_flow' and subject is not None:
             nation_id = subject.get('id') if subject.get('type') == 'nation' else None
             if nation_id is not None:
@@ -98,7 +103,8 @@ class RunTrace:
 
     def snapshot(self, clock, *, subject, metric_id, unit, before, after):
         key = (metric_id, json.dumps(subject, sort_keys=True))
-        explained = key in self._calculated_values and self._calculated_values[key] == after
+        explained = (self.write_error is None and key in self._calculated_values
+                     and self._calculated_values[key] == after)
         event_id = self.emit(clock, kind='metric_snapshot', record_class='observation',
                              subject=subject, metric_id=metric_id, unit=unit,
                              before=before, after=after,
@@ -110,6 +116,39 @@ class RunTrace:
                       subject=subject, metric_id=metric_id, unit=unit,
                       before=before, after=after, source='metric_catalog')
         return event_id
+
+    def price_bridge(self, clock, *, subject, before, after, unit):
+        """Reconcile ordered displayed-price writes within the current turn."""
+        mutations = self._price_mutations.get((subject['id'], subject['good']), ())
+        steps = []
+        current = before
+        gaps = []
+        for row in mutations:
+            opening = row.get('value_before')
+            closing = row.get('value_after')
+            if current is not None and opening != current:
+                gaps.append({'event_id': row['event_id'], 'expected_opening': current,
+                             'recorded_opening': opening})
+            if opening is not None and closing is not None:
+                steps.append({'event_id': row['event_id'], 'kind': row['kind'],
+                              'before': opening, 'after': closing,
+                              'difference': closing - opening})
+            current = closing
+        if current != after:
+            gaps.append({'expected_closing': after, 'recorded_closing': current})
+        reconciled = not gaps and self.write_error is None
+        change = after - before if before is not None else None
+        return self.emit(clock, kind='price_bridge', record_class='audit',
+                         subject=subject, metric_id='goods.price', unit=unit,
+                         before=before, after=after,
+                         confidence='exact' if reconciled else 'unknown',
+                         explanation_status='ordered_writes_reconciled' if reconciled
+                         else 'mutation_chain_incomplete',
+                         inputs={'steps': steps, 'gaps': gaps,
+                                 'absolute_change': change,
+                                 'percent_change': 100 * change / before
+                                 if change is not None and before != 0 else None},
+                         cause_event_ids=[row['event_id'] for row in mutations])
 
     def checkpoint(self, clock):
         """End a turn with a count and hash of every preceding JSONL row."""

@@ -8,6 +8,7 @@ from types import SimpleNamespace
 from goods import Goods
 from region_market import update_price_ref
 from run_trace import RunTrace, verify
+from price_trace import replay_event
 from trace_report import report, render, diff_snapshots
 
 
@@ -34,10 +35,14 @@ class RunTraceTests(unittest.TestCase):
             expected = min(50.0, max(0.1, terms['input_cost_floor'], terms['after_vwap']))
             self.assertAlmostEqual(row['value_after'], expected)
             self.assertAlmostEqual(region._price_ref[Goods.food], expected)
+            self.assertTrue(replay_event(row)['matches'])
+            self.assertEqual(terms['recent_sample_mean'], 2.3)
             self.assertEqual(row['sequence'], 1)
             self.assertIn('prior_reference', render(row))
             self.assertEqual(len(report(trace.path, turn=7, entity='tile:Delta',
                                         metric='goods.price')), 1)
+            self.assertEqual(len(report(trace.path, turn=7, entity='tile:Delta',
+                                        metric='goods.price', good='wood')), 0)
 
     def test_pagination_and_typed_json(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -61,6 +66,57 @@ class RunTraceTests(unittest.TestCase):
                      'metric_id': 'goods.price', 'value_after': 2.0}]
             right = [{**left[0], 'value_after': 2.5}]
             self.assertEqual(diff_snapshots(left, right)[0]['difference'], 0.5)
+
+    def test_price_bridge_tracks_order_and_exposes_gaps(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            trace = RunTrace(Path(tmp) / 'bridge.jsonl', 'bridge')
+            clock = {'next': 1, 'turn': 1, 'phase': 'local'}
+            subject = {'type': 'tile', 'id': 'Delta', 'good': 'food'}
+            trace.emit(clock, kind='market_price_update', record_class='calculation',
+                       subject=subject, metric_id='goods.price', before=2, after=3)
+            trace.emit(clock, kind='market_price_decay', record_class='calculation',
+                       subject=subject, metric_id='goods.price', before=3, after=2.5)
+            trace.price_bridge(clock, subject=subject, before=2, after=2.5,
+                               unit='local_currency_per_unit')
+            bridge = trace.query(subject=subject, metric_id='goods.price')['events'][-1]
+            self.assertEqual([step['difference'] for step in bridge['inputs']['steps']],
+                             [1, -0.5])
+            self.assertEqual(bridge['explanation_status'], 'ordered_writes_reconciled')
+            trace.price_bridge(clock, subject=subject, before=1, after=2.5,
+                               unit='local_currency_per_unit')
+            gap = trace.query(subject=subject, metric_id='goods.price')['events'][-1]
+            self.assertEqual(gap['explanation_status'], 'mutation_chain_incomplete')
+
+    def test_dynamic_price_snapshot_and_read_only_death_sample(self):
+        from trace_snapshots import sample
+        tile = SimpleNamespace(name='Delta', recipes={Goods.cotton: {'price': 3.0}},
+                               total_population=[4], deaths_this_turn=2,
+                               deaths_by_cause_this_turn={'disease': 2},
+                               protest_energy_log=[], unrest_log=[], agents=[],
+                               construction_projects=[], cost_of_living=1.0)
+        first = sample([tile], [])
+        second = sample([tile], [])
+        self.assertEqual(first, second)
+        self.assertEqual(first[('goods.price', 'Delta', 'cotton')][2], 3.0)
+        self.assertEqual(tile.deaths_this_turn, 2)
+
+    def test_scenario_quote_replays_and_paid_price_is_separate(self):
+        from sim_server.sim_server import SimServer
+        server = SimServer(seed=613, terrain_seed=613, nation_seed=613,
+                           scenario_id='labor_frontier_rivalry')
+        server.step()
+        asks = server.run_trace.query(turn=1, metric_id='goods.seller_ask',
+                                      limit=10000)['events']
+        self.assertTrue(any(row['subject']['good'] == 'cloth' for row in asks))
+        self.assertTrue(any(row['subject']['good'] == 'cotton' for row in asks))
+        self.assertTrue(all(replay_event(row)['matches'] for row in asks))
+        delivered = server.run_trace.query(turn=1, metric_id='goods.delivered_quote',
+                                           limit=10000)['events']
+        self.assertTrue(all(replay_event(row)['matches'] for row in delivered))
+        paid = server.run_trace.query(turn=1, metric_id='goods.transaction_price',
+                                      limit=10000)['events']
+        self.assertTrue(paid)
+        self.assertTrue(all(row['value_after'] > 0 for row in paid))
 
     def test_fx_formula_records_reserves_and_ppp(self):
         from forex import ForexDesk
@@ -88,7 +144,7 @@ class RunTraceTests(unittest.TestCase):
         self.assertEqual(inventory['gdp_log']['coverage'], 'instrumented')
         self.assertEqual(inventory['bank_cash_log']['coverage'], 'untraced')
         server.step()
-        rows = server.run_trace.query(turn=1, limit=200)['events']
+        rows = server.run_trace.query(turn=1, limit=10000)['events']
         kinds = {row['kind'] for row in rows}
         self.assertIn('market_price_update', kinds)
         self.assertIn('unrest_roll', kinds)
@@ -98,6 +154,10 @@ class RunTraceTests(unittest.TestCase):
         self.assertEqual(server.turn, 5)
         self.assertTrue(server.run_trace.query(turn=5, metric_id='goods.price')['events'])
         self.assertEqual(verify(server.run_trace.path)['checkpoints'], 5)
+        price_rows = server.run_trace.query(metric_id='goods.price', limit=10000)['events']
+        replayed = [replay_event(row) for row in price_rows]
+        self.assertTrue(all(result['matches'] for result in replayed if result))
+        self.assertTrue(any(row['kind'] == 'price_bridge' for row in price_rows))
 
 
 if __name__ == '__main__':

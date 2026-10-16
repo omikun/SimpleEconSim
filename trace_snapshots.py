@@ -7,8 +7,9 @@ def sample(tiles, nations):
     values = {}
     for tile in tiles:
         tile_subject = {'type': 'tile', 'id': tile.name}
-        for good in (Goods.food, Goods.wood, Goods.furniture, Goods.transport):
-            recipe = tile.recipes.get(good)
+        for good, recipe in tile.recipes.items():
+            if not isinstance(good, Goods):
+                continue
             if recipe is not None and 'price' in recipe:
                 subject = {**tile_subject, 'good': good.name}
                 values[('goods.price', tile.name, good.name)] = (
@@ -188,9 +189,9 @@ def record(server):
                                       inputs=aggregate_inputs)
         for key, (subject, unit, after) in current.items():
             before = previous[key][2] if key in previous else None
+            if key[0] == 'goods.price':
+                server.run_trace.price_bridge(clock, subject=subject,
+                                              before=before, after=after, unit=unit)
             server.run_trace.snapshot(clock, subject=subject, metric_id=key[0],
                                       unit=unit, before=before, after=after)
     server._trace_previous = current
-    for tile in server.tiles:
-        tile.deaths_this_turn = 0
-        tile.deaths_by_cause_this_turn = {}

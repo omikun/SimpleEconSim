@@ -9,7 +9,7 @@ import json
 from pathlib import Path
 
 
-def report(path, *, turn=None, entity=None, metric=None):
+def report(path, *, turn=None, entity=None, metric=None, good=None):
     subject_type, _, subject_id = entity.partition(':') if entity else (None, None, None)
     if entity and (not subject_type or not subject_id):
         raise ValueError('entity must be type:id')
@@ -28,6 +28,8 @@ def report(path, *, turn=None, entity=None, metric=None):
                 continue
             subject = row.get('subject', {})
             if entity and (subject.get('type'), subject.get('id')) != (subject_type, subject_id):
+                continue
+            if good is not None and subject.get('good') != good:
                 continue
             rows.append(row)
     return rows
@@ -81,6 +83,7 @@ def main():
     parser.add_argument('--turn', type=int)
     parser.add_argument('--entity')
     parser.add_argument('--metric')
+    parser.add_argument('--good', help='filter a named good, such as food or cloth')
     parser.add_argument('--verify', action='store_true', help='verify turn checkpoints')
     parser.add_argument('--compare-run', type=Path,
                         help='compare matched snapshots in another run (in-game counterfactual)')
@@ -89,10 +92,11 @@ def main():
         from run_trace import verify
         check = verify(args.run)
         print(f"Verified {check['rows']} rows and {check['checkpoints']} checkpoints")
-    rows = report(args.run, turn=args.turn, entity=args.entity, metric=args.metric)
+    rows = report(args.run, turn=args.turn, entity=args.entity, metric=args.metric,
+                  good=args.good)
     if args.compare_run:
         other = report(args.compare_run, turn=args.turn,
-                       entity=args.entity, metric=args.metric)
+                       entity=args.entity, metric=args.metric, good=args.good)
         print('In-game run comparison; differing values alone do not prove a cause.')
         for change in diff_snapshots(rows, other):
             print(json.dumps(change, sort_keys=True, allow_nan=False))

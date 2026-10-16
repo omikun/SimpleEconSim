@@ -2901,10 +2901,83 @@
     const pricesGrid = document.getElementById('market-prices-grid');
     if (pricesGrid && tile.market_prices) {
       pricesGrid.innerHTML = '';
+      const previousDetail = document.getElementById('market-price-trace-detail');
+      if (previousDetail) previousDetail.remove();
       Object.entries(tile.market_prices).forEach(([g, price]) => {
         const item = document.createElement('div');
         item.className = 'price-item';
-        item.innerHTML = `<div class="p-name">${escapeHtml(g)}</div><div class="p-val">$${Number(price).toFixed(2)}</div>`;
+        item.innerHTML = `<div class="p-name">${escapeHtml(g)}</div><div class="p-val">$${Number(price).toFixed(2)}</div><button type="button" class="btn btn-secondary btn-xs">Why?</button>`;
+        item.querySelector('button').addEventListener('click', () => {
+          const detail = document.createElement('div');
+          detail.id = 'market-price-trace-detail';
+          detail.className = 'card';
+          detail.innerHTML = `<h4>${escapeHtml(g)} price history</h4><label>Turn <input type="number" min="1" max="${Number(worldState.turn || 1)}" value="${Number(worldState.turn || 1)}" style="width:5rem"></label> <label>Price <select><option value="goods.price">Reference</option><option value="goods.seller_ask">Seller asks</option><option value="goods.delivered_quote">Delivered quotes</option><option value="goods.transaction_price">Paid</option><option value="goods.transaction_vwap">Paid average</option></select></label> <button type="button" class="btn btn-secondary btn-xs">Show price history</button><div class="price-trace-result" aria-live="polite"></div>`;
+          const old = document.getElementById(detail.id);
+          if (old) old.remove();
+          pricesGrid.parentElement.appendChild(detail);
+          const turnInput = detail.querySelector('input');
+          const priceKind = detail.querySelector('select');
+          const output = detail.querySelector('.price-trace-result');
+          const load = async () => {
+            const turn = Number(turnInput.value);
+            if (!Number.isInteger(turn) || turn < 1 || turn > Number(worldState.turn || 0)) {
+              output.textContent = 'Choose a completed turn.';
+              return;
+            }
+            output.textContent = 'Loading price records…';
+            try {
+              const params = new URLSearchParams({turn: String(turn), entity: `tile:${tile.name}`,
+                good: g, metric: priceKind.value, limit: '200'});
+              const response = await fetch(`/api/trace?${params}`);
+              if (!response.ok) throw new Error(`HTTP ${response.status}`);
+              const result = await response.json();
+              const rows = result.events || [];
+              const bridge = priceKind.value === 'goods.price'
+                ? rows.find(row => row.kind === 'price_bridge') : null;
+              const writes = priceKind.value === 'goods.price'
+                ? rows.filter(row => row.record_class === 'calculation')
+                : rows.filter(row => row.kind !== 'metric_snapshot');
+              output.innerHTML = '';
+              if (bridge) {
+                const line = document.createElement('p');
+                const oldValue = bridge.value_before == null ? 'unknown' : Number(bridge.value_before).toFixed(3);
+                const newValue = Number(bridge.value_after).toFixed(3);
+                const pct = bridge.inputs && bridge.inputs.percent_change;
+                line.textContent = `${oldValue} → ${newValue} ${bridge.unit || 'per unit'}; ${pct == null ? 'percent change unavailable' : pct.toFixed(1) + '%'} · ${bridge.explanation_status}`;
+                output.appendChild(line);
+              }
+              if (!writes.length) {
+                const line = document.createElement('p');
+                line.textContent = priceKind.value === 'goods.price'
+                  ? 'No reference-price update was recorded for this good in this turn.'
+                  : 'No quotes or purchases of this kind were recorded in this turn.';
+                output.appendChild(line);
+              }
+              for (const row of writes) {
+                const line = document.createElement('p');
+                const i = row.inputs || {};
+                const terms = priceKind.value !== 'goods.price'
+                  ? Object.entries(i).filter(([key]) => ['wage', 'cotton_cost', 'productive_slots', 'freight', 'quantity', 'buyer_cash', 'affordable'].includes(key)).map(([key, value]) => `${key} ${value}`).join(', ')
+                  : row.kind === 'market_price_update'
+                  ? `bids ${i.bids ?? '?'}, local asks ${i.local_asks ?? '?'}, imported asks ${i.imported_asks ?? '?'}, inventory ${i.average_producer_inventory ?? '?'}, recent sample mean ${i.recent_sample_mean ?? 'none'}, cost floor ${i.input_cost_floor ?? '?'}`
+                  : row.kind === 'market_price_decay' ? `no orders; decay factor ${i.decay_factor}, cost floor ${i.input_cost_floor}`
+                  : `demand ratio ${i.demand_ratio ?? '?'}; floor ${row.constraints?.min_price_floor ?? '?'}`;
+                const valueText = row.value_before == null
+                  ? `${Number(row.value_after).toFixed(3)}`
+                  : `${Number(row.value_before).toFixed(3)} → ${Number(row.value_after).toFixed(3)}`;
+                line.textContent = `${row.kind}: ${valueText}. ${terms}. ${row.event_id}`;
+                output.appendChild(line);
+              }
+              if (result.total > rows.length) {
+                const line = document.createElement('p');
+                line.textContent = `${result.total - rows.length} further records exist; use the trace download for the full history.`;
+                output.appendChild(line);
+              }
+            } catch (error) { output.textContent = `Could not load price records: ${error.message}`; }
+          };
+          detail.querySelector('button').addEventListener('click', load);
+          load();
+        });
         pricesGrid.appendChild(item);
       });
     }
@@ -3378,7 +3451,7 @@
             detail.textContent = 'Loading price calculation…';
             try {
               const params = new URLSearchParams({ turn: String(worldState.turn || 0),
-                entity: `tile:${button.dataset.tile}`, metric: 'goods.price', limit: '100' });
+                entity: `tile:${button.dataset.tile}`, good: 'food', metric: 'goods.price', limit: '100' });
               const response = await fetch(`/api/trace?${params}`);
               if (!response.ok) throw new Error(`HTTP ${response.status}`);
               const result = await response.json();
@@ -3393,7 +3466,7 @@
               detail.innerHTML = `<h4>Why food price changed · Turn ${Number(event.turn)}</h4>
                 <p>Reference price: $${Number(event.value_before).toFixed(3)} → $${Number(event.value_after).toFixed(3)} per unit.</p>
                 <p>Buy bids ${Number(i.bids || 0).toFixed(1)} units; local asks ${Number(i.local_asks || 0).toFixed(1)}; imported asks ${Number(i.imported_asks || 0).toFixed(1)}. Demand divided by available asks: ${Number(i.demand_ratio).toFixed(2)}.</p>
-                <p>Producer inventory averaged ${Number(i.average_producer_inventory).toFixed(1)} units. Scarcity term ${Number(i.scarcity).toFixed(3)}; market influence ${Number(i.bounded_influence).toFixed(3)}. Recent paid price average: ${i.vwap == null ? 'none' : '$' + Number(i.vwap).toFixed(3)}.</p>
+                <p>Producer inventory averaged ${Number(i.average_producer_inventory).toFixed(1)} units. Scarcity term ${Number(i.scarcity).toFixed(3)}; market influence ${Number(i.bounded_influence).toFixed(3)}. Recent price sample mean: ${i.recent_sample_mean == null ? 'none' : '$' + Number(i.recent_sample_mean).toFixed(3)}.</p>
                 <p>Input cost floor $${Number(i.input_cost_floor).toFixed(3)}${c.active_floor == null ? ' (inactive)' : ' (active)'}. Source: ${escapeHtml(event.formula_id || 'unknown')} · event ${escapeHtml(event.event_id)}.</p>`;
             } catch (error) {
               detail.textContent = `Could not load price explanation: ${error.message}`;

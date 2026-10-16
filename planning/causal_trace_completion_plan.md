@@ -261,3 +261,23 @@ cloth quote change, each inspectable at a historical turn. Include all goods
 in the catalog/snapshot enumeration now; follow with the full upstream chains.
 This delivers useful price explanations early while the remaining fiscal,
 scenario, AI and persistence work proceeds in the listed order.
+
+### Progress recorded 2026-10-16
+
+- All priced recipe goods now receive end-of-turn reference snapshots, including
+  cotton and cloth. An ordered bridge lists the observed reference writes and
+  reports a gap when opening or closing values do not reconcile.
+- Main market reference, decay, cotton asks, cloth asks, delivered scenario
+  quotes and paid transaction averages have pure replay checks. Scenario asks
+  and delivered quotes are captured during evaluation; paid prices are emitted
+  only after settlement. The main market keeps its existing unweighted recent
+  sample algorithm and labels it as a mean.
+- The web tile panel and CLI can select a good and earlier turn. The web panel
+  separates reference, seller ask, delivered quote, paid price and paid average.
+  The API accepts a good filter. Death counters now reset at the engine turn
+  boundary, so taking a snapshot does not clear them.
+- This is the first slice, not completion of Phases 0–6. Legacy standalone
+  pricing, transport replay, source-to-order chains, comprehensive mortality,
+  treasury reconciliation, AI evaluation evidence, chart-point/desktop parity,
+  persistence and performance gates remain open. Current price bridges check
+  ordered writes; they do not yet prove every upstream cause.

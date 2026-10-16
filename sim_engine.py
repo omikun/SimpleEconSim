@@ -38,6 +38,11 @@ def step_turn(t: int, tiles: list, nations: list = None,
         trace_clock['phase'] = 'strategy'
     if nations is None:
         nations = []
+    # Per-turn counters belong to the simulation boundary. Snapshot/reporting
+    # must remain read-only, including when invoked more than once.
+    for tile in tiles:
+        tile.deaths_this_turn = 0
+        tile.deaths_by_cause_this_turn = {}
     from trace_phase import treasury_boundary
     treasury_boundary(tiles, nations, 'turn_start')
     if currencies is None:
