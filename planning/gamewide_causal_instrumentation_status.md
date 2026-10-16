@@ -44,6 +44,8 @@ the FX matrix has a **Why?** button for each quoted currency pair.
   interest, payment, balance remaining, and rent collected or outstanding.
 - Bank credit records requested and approved amounts, reserve capacity, frozen
   status, rates, borrower type, and repayments split into principal and interest.
+- Construction steps record material purchases, required and available inputs,
+  navvy hiring and pay, progress multipliers, stall causes, and completion.
 - Treasury phase boundaries, tax receipts, tariffs, government borrowing and
   loan service, food spending, army payroll, and scenario sales taxes are
   recorded as signed flows. End-of-turn reconciliation shows any unattributed
@@ -61,7 +63,7 @@ value does not match a recorded calculation. Treasury snapshots show cash and
 deposit components, but treasury transfers are not yet comprehensively
 instrumented. Bank deposit interest and crisis write-downs, bonds,
 environmental health attrition, infant mortality and nation-level death
-aggregation, trade-transmitted infection, war, construction, and several scenario
+aggregation, trade-transmitted infection, war, and several scenario
 operations still need mutation-point records. The current metric
 catalog does not yet cover every displayed field;
 `inventory_region_histories()` labels legacy series as instrumented or

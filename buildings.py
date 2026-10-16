@@ -383,11 +383,17 @@ class ConstructionProject:
         if self.status in ('completed', 'cancelled'):
             return None
 
+        progress_before = float(self.progress_pct)
+        status_before = self.status
+        contractor_cash_before = (float(self.contractor.cash)
+                                  if self.contractor is not None else 0.0)
         self.turns_elapsed += 1
 
         # 1. Physical Material Procurement Loop
         req_goods = getattr(self.recipe, 'required_goods', {}) or {}
         missing_materials = False
+        materials_spend = 0.0
+        materials_bought = {}
         if self.contractor is not None:
             for g, needed in req_goods.items():
                 cur_deliv = self.materials_delivered.get(g, 0)
@@ -402,12 +408,17 @@ class ConstructionProject:
                         total_cost = buy_qty * p
                         self.contractor.cash -= total_cost
                         self.materials_delivered[g] = cur_deliv + buy_qty
+                        materials_spend += total_cost
+                        materials_bought[getattr(g, 'name', str(g))] = buy_qty
                     else:
                         missing_materials = True
 
         # 2. Navvy Recruitment & Wage Payroll Loop
         req_workers = max(1, getattr(self.recipe, 'construction_workers', 2))
         living_navvies = []
+        recruited_ids = []
+        wages_paid = 0.0
+        wages_unpaid = 0
         agents_by_id = {a.id: a for a in getattr(self.region, 'agents', []) if getattr(a, 'alive', True)}
         for nid in self.navvy_ids:
             if nid in agents_by_id:
@@ -431,6 +442,7 @@ class ConstructionProject:
                     c.social_class = 'proletarian'
                     self.navvy_ids.append(c.id)
                     living_navvies.append(c)
+                    recruited_ids.append(c.id)
                     if not hasattr(self.contractor, 'employees'):
                         self.contractor.employees = []
                     if c not in self.contractor.employees:
@@ -442,15 +454,45 @@ class ConstructionProject:
                 if self.contractor.cash >= navvy_wage:
                     self.contractor.cash -= navvy_wage
                     w.cash += navvy_wage
+                    wages_paid += navvy_wage
                 else:
                     # Contractor broke: unable to pay full wages
                     w.mem_push('mem_unemployment', 1.0)
+                    wages_unpaid += 1
 
         # 3. Dynamic Progress Multipliers
         total_req_mat = sum(req_goods.values()) if req_goods else 0
         total_deliv_mat = sum(self.materials_delivered.get(g, 0) for g in req_goods) if total_req_mat > 0 else 0
         m_resource = (total_deliv_mat / total_req_mat) if total_req_mat > 0 else 1.0
         m_labor = min(1.5, len(self.navvy_ids) / req_workers)
+        base_progress_per_turn = 0.0
+
+        def trace_step():
+            from run_trace import emit
+            emit(self.region, kind='construction_project_step', record_class='calculation',
+                 subject={'type': 'tile', 'id': self.region.name,
+                          'project_id': self.project_id},
+                 metric_id='construction.progress', unit='percent',
+                 before=progress_before, after=self.progress_pct,
+                 formula_id='construction.material_labor_progress.v1',
+                 constraints={'resource_factor_floor': 0.2,
+                              'labor_factor_ceiling': 1.5, 'progress_cap': 100.0},
+                 inputs={'recipe': self.recipe.name, 'status_before': status_before,
+                         'status_after': self.status, 'stall_reason': self.stall_reason,
+                         'turns_elapsed': self.turns_elapsed, 'total_turns': self.total_turns,
+                         'resource_factor': m_resource, 'labor_factor': m_labor,
+                         'base_progress': base_progress_per_turn,
+                         'required_materials': {getattr(g, 'name', str(g)): qty
+                                                for g, qty in req_goods.items()},
+                         'delivered_materials': {getattr(g, 'name', str(g)): qty
+                                                for g, qty in self.materials_delivered.items()},
+                         'materials_bought_this_turn': materials_bought,
+                         'materials_spend': materials_spend,
+                         'required_workers': req_workers, 'navvy_ids': list(self.navvy_ids),
+                         'recruited_ids': recruited_ids, 'wages_paid': wages_paid,
+                         'unpaid_worker_count': wages_unpaid,
+                         'contractor_cash_before': contractor_cash_before,
+                         'contractor_cash_after': self.contractor.cash if self.contractor else 0.0})
 
         # Check for Stalling
         if total_req_mat > 0 and total_deliv_mat == 0:
@@ -459,6 +501,7 @@ class ConstructionProject:
             msg = (f"[STALLED] Construction of {self.recipe.display_name} in {self.region.name} "
                    f"halted: missing physical construction materials on local market.")
             self.events.append({'t': t, 'event': 'STALLED', 'message': msg})
+            trace_step()
             if world is not None:
                 try:
                     from client.desktop.engine import ticker_push
@@ -473,6 +516,7 @@ class ConstructionProject:
             msg = (f"[STALLED] Construction of {self.recipe.display_name} in {self.region.name} "
                    f"halted: zero active navvies employed.")
             self.events.append({'t': t, 'event': 'STALLED', 'message': msg})
+            trace_step()
             return None
 
         # Active construction progress
@@ -528,7 +572,10 @@ class ConstructionProject:
                     ticker_push(world, t, 'CONSTRUCT', msg, (100, 230, 140))
                 except Exception:
                     pass
+            trace_step()
             return building
+
+        trace_step()
 
         return None
 

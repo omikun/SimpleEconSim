@@ -70,6 +70,12 @@ def sample(tiles, nations):
             if history:
                 values[(metric_id, tile.name)] = (
                     tile_subject, 'local_currency', float(history[-1]))
+        for project in getattr(tile, 'construction_projects', []):
+            if getattr(project, 'status', '') in ('completed', 'cancelled'):
+                continue
+            project_subject = {**tile_subject, 'project_id': project.project_id}
+            values[('construction.progress', tile.name, project.project_id)] = (
+                project_subject, 'percent', float(project.progress_pct))
         if getattr(tile, 'gdp_log', None):
             values[('economy.gdp_nominal', tile.name)] = (
                 tile_subject, 'local_currency_per_turn', float(tile.gdp_log[-1]))

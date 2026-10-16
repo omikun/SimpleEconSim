@@ -29,6 +29,7 @@ METRICS = {
     'labor.payroll_funding': ('tile/firm', 'workers', 'region_labor.borrow_or_layoff'),
     'labor.firm_incorporation': ('tile/firm', 'local_currency', 'region_labor.incorporate'),
     'labor.corporate_wage': ('tile/firm', 'local_currency_per_turn', 'region_labor.adjust_wages'),
+    'construction.progress': ('tile/project', 'percent', 'buildings.ConstructionProject.step'),
     'politics.grievance': ('tile/faction', 'score', 'region_factions.accumulate_grievances'),
     'politics.protest_energy': ('tile', 'score', 'region_factions.protest_energy'),
     'politics.unrest_event': ('tile', 'category', 'unrest.step_unrest'),
