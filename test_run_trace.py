@@ -36,6 +36,7 @@ class RunTraceTests(unittest.TestCase):
             self.assertAlmostEqual(row['value_after'], expected)
             self.assertAlmostEqual(region._price_ref[Goods.food], expected)
             self.assertTrue(replay_event(row)['matches'])
+            self.assertTrue(row['formula_replay']['matches'])
             self.assertEqual(terms['recent_sample_mean'], 2.3)
             self.assertEqual(row['sequence'], 1)
             self.assertIn('prior_reference', render(row))
@@ -87,6 +88,24 @@ class RunTraceTests(unittest.TestCase):
             gap = trace.query(subject=subject, metric_id='goods.price')['events'][-1]
             self.assertEqual(gap['explanation_status'], 'mutation_chain_incomplete')
 
+    def test_formula_mismatch_cannot_receive_exact_bridge(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            trace = RunTrace(Path(tmp) / 'mismatch.jsonl', 'mismatch')
+            clock = {'next': 1, 'turn': 1, 'phase': 'local'}
+            subject = {'type': 'tile', 'id': 'Delta', 'good': 'food'}
+            trace.emit(clock, kind='market_price_decay', record_class='calculation',
+                       subject=subject, metric_id='goods.price', before=2, after=9,
+                       formula_id='market.decay.v1',
+                       inputs={'prior_display_price': 2, 'input_cost_floor': 1,
+                               'input_quantity': 0, 'production_quantity': 0})
+            row = trace.query(metric_id='goods.price')['events'][0]
+            self.assertFalse(row['formula_replay']['matches'])
+            self.assertEqual(row['confidence'], 'unknown')
+            trace.price_bridge(clock, subject=subject, before=2, after=9,
+                               unit='local_currency_per_unit')
+            bridge = trace.query(metric_id='goods.price')['events'][-1]
+            self.assertEqual(bridge['explanation_status'], 'mutation_chain_incomplete')
+
     def test_no_order_decay_and_furniture_input_floor_replay(self):
         with tempfile.TemporaryDirectory() as tmp:
             trace = RunTrace(Path(tmp) / 'floors.jsonl', 'floors')
@@ -111,6 +130,7 @@ class RunTraceTests(unittest.TestCase):
             rows = trace.query(metric_id='goods.price')['events']
             self.assertEqual(len(rows), 2)
             self.assertTrue(all(replay_event(row)['matches'] for row in rows))
+            self.assertTrue(all(row['formula_replay']['matches'] for row in rows))
             self.assertAlmostEqual(rows[1]['constraints']['active_floor'], 5.7)
 
     def test_food_rise_and_fall_replay_on_separate_turns(self):

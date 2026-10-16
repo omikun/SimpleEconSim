@@ -287,3 +287,6 @@ local seller asks and import quotes now record replayable formulas. The import
 quote records the FX buy rate, tariff, drawback, margin and destination price
 ceiling used at evaluation. Targeted tests cover no-order decay and a furniture
 input-cost floor. Legacy standalone pricing remains outside the live recorder.
+Supported price formulas now carry an in-record replay result. A mismatch
+downgrades confidence and makes its turn bridge incomplete; it cannot be shown
+as a verified explanation merely because the final price was recorded.

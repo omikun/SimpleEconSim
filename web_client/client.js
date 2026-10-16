@@ -2965,7 +2965,10 @@
                 const valueText = row.value_before == null
                   ? `${Number(row.value_after).toFixed(3)}`
                   : `${Number(row.value_before).toFixed(3)} → ${Number(row.value_after).toFixed(3)}`;
-                line.textContent = `${row.kind}: ${valueText}. ${terms}. ${row.event_id}`;
+                const replay = row.formula_replay
+                  ? (row.formula_replay.matches ? 'formula verified' : 'formula mismatch')
+                  : 'formula verification unavailable';
+                line.textContent = `${row.kind}: ${valueText}. ${terms}. ${replay}. ${row.event_id}`;
                 output.appendChild(line);
               }
               if (result.total > rows.length) {

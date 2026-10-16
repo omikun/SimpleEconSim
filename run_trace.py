@@ -79,9 +79,19 @@ class RunTrace:
             if value is not None:
                 row[key] = value
         row.update(extra)
+        if formula_id is not None and metric_id in (
+                'goods.price', 'goods.seller_ask', 'goods.delivered_quote',
+                'goods.transaction_vwap'):
+            from price_trace import replay_event
+            replay = replay_event(row)
+            if replay is not None:
+                row['formula_replay'] = replay
+                if not replay['matches']:
+                    row['confidence'] = 'unknown'
         provenance_key = (metric_id, json.dumps(subject, sort_keys=True)
                           if subject is not None else None)
-        if record_class in ('calculation', 'transfer', 'outcome'):
+        if record_class in ('calculation', 'transfer', 'outcome') and row.get(
+                'formula_replay', {}).get('matches', True):
             self._calculated.add(provenance_key)
             if after is not None:
                 self._calculated_values[provenance_key] = after
@@ -126,6 +136,9 @@ class RunTrace:
         for row in mutations:
             opening = row.get('value_before')
             closing = row.get('value_after')
+            if row.get('formula_replay', {}).get('matches') is False:
+                gaps.append({'event_id': row['event_id'],
+                             'reason': 'formula_replay_mismatch'})
             if current is not None and opening != current:
                 gaps.append({'event_id': row['event_id'], 'expected_opening': current,
                              'recorded_opening': opening})
