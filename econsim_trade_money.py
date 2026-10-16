@@ -109,10 +109,21 @@ class Bank():
         """Real countable net worth: capital + deposits - loans outstanding."""
         return self.capital + self.total_deposits - self.total_liabilities
 
-    def Borrow(self, t, agent, amount):
+    def Borrow(self, t, agent, amount, trace_region=None):
         if getattr(self, 'is_frozen', False):
             loginfo(t, "Borrowing blocked: Bank is under Corralito deposit freeze.")
+            if trace_region is not None:
+                from run_trace import emit
+                emit(trace_region, kind='bank_loan_denied', record_class='outcome',
+                     subject={'type': 'tile', 'id': trace_region.name,
+                              'agent_id': getattr(agent, 'id', None)},
+                     metric_id='finance.bank_loan', unit='local_currency',
+                     before=0.0, after=0.0,
+                     inputs={'requested_amount': float(amount), 'reason': 'bank_frozen',
+                             'bank_capital': self.capital, 'bank_liabilities': self.total_liabilities,
+                             'bank_deposits': self.total_deposits})
             return 0
+        requested_amount = float(amount)
         borrowable_amount = ((self.capital + self.total_deposits)
                              * (1 - self.reserve_fraction)
                              - self.total_liabilities)
@@ -121,12 +132,38 @@ class Bank():
                 " deposit and $", self.total_liabilities,
                 "borrowable: $", borrowable_amount, " lending: $", amount)
         if amount <= 0:
+            if trace_region is not None:
+                from run_trace import emit
+                emit(trace_region, kind='bank_loan_denied', record_class='outcome',
+                     subject={'type': 'tile', 'id': trace_region.name,
+                              'agent_id': getattr(agent, 'id', None)},
+                     metric_id='finance.bank_loan', unit='local_currency',
+                     before=0.0, after=0.0,
+                     inputs={'requested_amount': requested_amount,
+                             'borrowable_amount': borrowable_amount,
+                             'reason': 'capacity_exhausted',
+                             'bank_capital': self.capital, 'bank_liabilities': self.total_liabilities,
+                             'bank_deposits': self.total_deposits})
             return amount
         loan = Loan(self, agent, amount, self.interest_rate)
         agent.cash += amount
         agent.loans.append(loan)
         self.loans.append(loan)
         self.total_liabilities += amount
+        if trace_region is not None:
+            from run_trace import emit
+            emit(trace_region, kind='bank_loan_issued', record_class='transfer',
+                 subject={'type': 'tile', 'id': trace_region.name,
+                          'agent_id': getattr(agent, 'id', None)},
+                 metric_id='finance.bank_loan', unit='local_currency', after=amount,
+                 inputs={'requested_amount': requested_amount,
+                         'borrowable_amount': borrowable_amount,
+                         'reserve_fraction': self.reserve_fraction,
+                         'interest_rate': self.interest_rate,
+                         'borrower_is_corporation': bool(getattr(agent, 'is_corporation', False)),
+                         'borrower_is_government': bool(getattr(agent, 'is_government', False)),
+                         'bank_capital': self.capital, 'bank_liabilities_after': self.total_liabilities,
+                         'bank_deposits': self.total_deposits})
         return amount
 
     def pay_principle(self, amount):
@@ -243,12 +280,12 @@ class Bank():
 bank = Bank()
 
 
-def Borrow(t, agent, food_price, bank):
+def Borrow(t, agent, food_price, bank, trace_region=None):
     amount = food_price * 1.2
-    bank.Borrow(t, agent, amount)
+    bank.Borrow(t, agent, amount, trace_region=trace_region)
 
 
-def borrow_if_needed(t, agent, bank=None):
+def borrow_if_needed(t, agent, bank=None, trace_region=None):
     if bank is None:
         bank = globals().get('bank', None)
         if bank is None:
@@ -256,10 +293,10 @@ def borrow_if_needed(t, agent, bank=None):
     wealth = agent.wealth()
     if wealth < agent.owed_this_turn():
         needed = agent.owed_this_turn() - wealth
-        Borrow(t, agent, needed * 2, bank)
+        Borrow(t, agent, needed * 2, bank, trace_region=trace_region)
 
 
-def PayLoans(agent, bank=None):
+def PayLoans(agent, bank=None, trace_region=None):
     if bank is None:
         bank = globals().get('bank', None)
         if bank is None:
@@ -267,6 +304,9 @@ def PayLoans(agent, bank=None):
     total_wealth = agent.cash + bank.deposits[agent]
     remaining_wealth = total_wealth
     total_paid = 0
+    active_loans = list(agent.loans)
+    interest_before = sum(loan.interest_paid for loan in active_loans)
+    principal_before = sum(loan.principle_paid for loan in active_loans)
     for loan in agent.loans:
         # Conservation guard: never pay more than the agent actually holds.
         # A negative remaining_wealth (overdrawn agent) must not produce a
@@ -285,6 +325,20 @@ def PayLoans(agent, bank=None):
             bank.Withdraw(agent, needed_from_bank)
         agent.cash -= total_paid
     agent.loans = [l for l in agent.loans if not l.isPaid()]
+    if total_paid > 0 and trace_region is not None:
+        from run_trace import emit
+        emit(trace_region, kind='bank_loan_repayment', record_class='transfer',
+             subject={'type': 'tile', 'id': trace_region.name,
+                      'agent_id': getattr(agent, 'id', None)},
+             metric_id='finance.bank_loan_repayment', unit='local_currency',
+             after=total_paid,
+             inputs={'principal_repaid': sum(loan.principle_paid for loan in active_loans)
+                     - principal_before,
+                     'interest_paid': sum(loan.interest_paid for loan in active_loans)
+                     - interest_before,
+                     'cash_after': agent.cash,
+                     'deposits_after': bank.deposits.get(agent, 0),
+                     'remaining_loan_count': len(agent.loans)})
 
 
 # =============================================================================

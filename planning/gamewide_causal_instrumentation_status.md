@@ -42,6 +42,8 @@ the FX matrix has a **Why?** button for each quoted currency pair.
   treatment payments that leave government cash enter treasury reconciliation.
 - Named cash obligations record assessment basis, due date, debtor and creditor,
   interest, payment, balance remaining, and rent collected or outstanding.
+- Bank credit records requested and approved amounts, reserve capacity, frozen
+  status, rates, borrower type, and repayments split into principal and interest.
 - Treasury phase boundaries, tax receipts, tariffs, government borrowing and
   loan service, food spending, army payroll, and scenario sales taxes are
   recorded as signed flows. End-of-turn reconciliation shows any unattributed
@@ -55,7 +57,7 @@ the FX matrix has a **Why?** button for each quoted currency pair.
 The coverage checker reports a changed snapshot as unexplained when its final
 value does not match a recorded calculation. Treasury snapshots show cash and
 deposit components, but treasury transfers are not yet comprehensively
-instrumented. Bank lending outside government deficit loans, bonds,
+instrumented. Bank deposit interest and crisis write-downs, bonds,
 environmental health attrition, infant mortality and nation-level death
 aggregation, trade-transmitted infection, war, construction, and several scenario
 operations still need mutation-point records. The current metric

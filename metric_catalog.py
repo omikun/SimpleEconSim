@@ -35,6 +35,8 @@ METRICS = {
     'finance.obligation_payment': ('tile/origin', 'local_currency', 'livelihood_access.settle_obligations'),
     'finance.rent_collected': ('tile', 'local_currency', 'micro.region.stepper.settle_obligations'),
     'finance.rent_arrears': ('tile', 'local_currency', 'micro.region.stepper.active_rent_claims'),
+    'finance.bank_loan': ('tile/agent', 'local_currency', 'econsim_trade_money.Bank.Borrow'),
+    'finance.bank_loan_repayment': ('tile/agent', 'local_currency', 'econsim_trade_money.PayLoans'),
     'ecology.soil_fertility': ('tile', 'ratio', 'externalities.step_tile_externalities'),
     'ecology.nutrition_density': ('tile', 'ratio', 'externalities.step_tile_externalities'),
     'ecology.pollution_air': ('tile', 'index', 'externalities.step_tile_externalities'),

@@ -76,7 +76,8 @@ def repair_and_replace_machinery(firm, region, t: int):
         # Firm attempts to borrow from the bank to finance equipment replacement
         bank = getattr(region, 'bank', None)
         if bank is not None:
-            bank.Borrow(t, firm, MACHINERY_REPLACEMENT_CASH - firm.cash)
+            bank.Borrow(t, firm, MACHINERY_REPLACEMENT_CASH - firm.cash,
+                        trace_region=region)
 
     if firm.cash >= MACHINERY_REPLACEMENT_CASH:
         wood_avail = firm.inv_get(Goods.wood, 0)

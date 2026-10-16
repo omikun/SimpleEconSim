@@ -385,7 +385,7 @@ def collect_tax(region, t):
     region.gov.borrow_log.append(gap)
     if gap > 0.01:
         before_liab = bank.total_liabilities
-        bank.Borrow(t, gov, gap)
+        bank.Borrow(t, gov, gap, trace_region=region)
         borrowed = bank.total_liabilities - before_liab
         _trace_treasury_flow(region, 'government_bank_borrowing', borrowed,
                              {'requested_gap': gap, 'bank_liabilities_before': before_liab,

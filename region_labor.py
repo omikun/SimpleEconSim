@@ -26,7 +26,7 @@ def borrow_or_layoff(region, t):
             continue
         total_wage = len(a.employees) * a.wage
         if a.cash < total_wage:
-            region.bank.Borrow(t, a, total_wage - a.cash)
+            region.bank.Borrow(t, a, total_wage - a.cash, trace_region=region)
         while a.cash < total_wage and len(a.employees) > 0:
             e = a.employees.pop()
             e.employer = None
@@ -64,7 +64,7 @@ def incorporate(region, t):
         shortfall = max(0, startup_target - equity)
         loaned = 0.0
         if shortfall > 0:
-            loaned = region.bank.Borrow(t, company, shortfall)
+            loaned = region.bank.Borrow(t, company, shortfall, trace_region=region)
         a.cash -= equity
         company.cash = equity + loaned
         sector_wages = [x.wage for x in region.agents if x.is_corporation and x.output == a.output and x.wage > 0]

@@ -20,7 +20,7 @@ def borrow_food(region, agent, food_price):
         if bank_balance > 0:
             region.bank.Withdraw(agent, min(bank_balance, food_price - agent.cash))
         if agent.cash < food_price:
-            region.bank.Borrow(0, agent, food_price)
+            region.bank.Borrow(0, agent, food_price, trace_region=region)
 
 
 def borrow_inputs(region, agent):
@@ -34,7 +34,7 @@ def borrow_inputs(region, agent):
     if bank_balance > 0:
         region.bank.Withdraw(agent, min(bank_balance, cost - agent.cash))
     if agent.cash < cost:
-        region.bank.Borrow(0, agent, cost - agent.cash)
+        region.bank.Borrow(0, agent, cost - agent.cash, trace_region=region)
 
 
 def deposit_excess(region, agent, all_goods_price):
@@ -57,8 +57,8 @@ def decide_borrow_deposit(region, agents, all_goods_price, food_price, t):
     for a in agents:
         if getattr(a, 'military_unit_id', None):
             continue
-        _tm.borrow_if_needed(t, a, bank=region.bank)
-        _tm.PayLoans(a, bank=region.bank)
+        _tm.borrow_if_needed(t, a, bank=region.bank, trace_region=region)
+        _tm.PayLoans(a, bank=region.bank, trace_region=region)
         borrow_food(region, a, food_price)
         borrow_inputs(region, a)
         deposit_excess(region, a, all_goods_price)
@@ -66,7 +66,7 @@ def decide_borrow_deposit(region, agents, all_goods_price, food_price, t):
             trader_reserve = region.cost_of_living * 5
             total_liquid = a.cash + region.bank.deposits.get(a, 0)
             if total_liquid < trader_reserve:
-                region.bank.Borrow(t, a, trader_reserve - total_liquid)
+                region.bank.Borrow(t, a, trader_reserve - total_liquid, trace_region=region)
             dest = a.destination_region
             if dest is not None:
                 fee = (dest.gov.get_trade_fee_multiplier()
@@ -81,7 +81,7 @@ def decide_borrow_deposit(region, agents, all_goods_price, food_price, t):
                         target = local * 15 + trader_reserve
                         total_liquid = a.cash + region.bank.deposits.get(a, 0)
                         if total_liquid < target:
-                            region.bank.Borrow(t, a, target - total_liquid)
+                            region.bank.Borrow(t, a, target - total_liquid, trace_region=region)
                         break
         a.remainingCash = a.cash
 
