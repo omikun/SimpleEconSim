@@ -78,8 +78,10 @@ the FX matrix has a **Why?** button for each quoted currency pair.
 - Nation AI records evaluated gates and submitted intents; intent outcomes
   link back to the decision. Firm decisions record worker offers and refusals,
   wage adjustments, payroll borrowing and layoffs, and incorporation finance.
-  Elite planning records selected action and cash outcome. Candidate details
-  for elite plans are still partial.
+  Elite planning records selected action, luxury prices and sellers, sector
+  margins, voyage ROIs, legislative/operator feasibility, return estimates,
+  and cash outcome. Spatial exports, inventory liquidation, and some
+  investment alternatives remain partial.
 
 ## Known gaps
 

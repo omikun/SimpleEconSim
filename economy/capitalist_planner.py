@@ -12,6 +12,7 @@ Theoretical Grounding (Sven Beckert / Werner Sombart):
 """
 
 from __future__ import annotations
+import math
 from typing import List, Dict, Any, Optional, Tuple
 from goods import Goods
 from economy.transformation_graph import TransformationGraph, CommoditySpec, TransformationOperator
@@ -197,6 +198,122 @@ class EliteCapitalistPlanner:
 
         return None
 
+    def _elite_candidate_snapshot(self, agent: Any, region: Any, shadow_cash: float) -> List[Dict[str, Any]]:
+        """Capture the actionable alternatives and gates used by elite planning."""
+        candidates = [{'candidate': 'do_nothing', 'feasible': True,
+                       'priority': 'fallback'}]
+        cash = float(getattr(agent, 'cash', 0.0))
+        for good, price, prestige, quantity in self.get_market_luxuries(region):
+            seller = next((person for person in getattr(region, 'agents', [])
+                           if person.id != agent.id and getattr(person, 'alive', True)
+                           and person.inv_get(good, 0) > 0), None)
+            candidates.append({
+                'candidate': 'luxury_purchase', 'good': getattr(good, 'name', str(good)),
+                'feasible': bool(cash >= 25.0 and cash >= price and seller),
+                'reason': ('ready seller and cash available' if seller and cash >= price
+                           else 'requires a live seller and enough cash'),
+                'seller_id': str(seller.id) if seller else None,
+                'price': float(price), 'prestige': float(prestige),
+                'available_quantity': int(quantity),
+                'prestige_per_cash': float(prestige) / max(1.0, float(price))})
+
+        recipes = getattr(region, 'recipes', {})
+        sectors = []
+        for good, recipe in recipes.items():
+            if good in (Goods.gov, Goods.none, Goods.foreign_luxuries):
+                continue
+            if recipe.get('is_luxury') and recipe.get('numInput', 0) == 0:
+                continue
+            output_price = float(recipe.get('price', 1.0))
+            input_good = recipe.get('input')
+            input_price = float(recipes.get(input_good, {}).get('price', 0.0)) \
+                if recipe.get('numInput', 0) > 0 else 0.0
+            margin = (output_price * recipe.get('production', 1.0)
+                      - input_price * recipe.get('numInput', 0))
+            if not math.isfinite(float(margin)):
+                continue
+            sectors.append({'good': getattr(good, 'name', str(good)),
+                             'estimated_margin': float(margin),
+                             'output_price': output_price, 'input_price': input_price})
+        sectors.sort(key=lambda row: row['estimated_margin'], reverse=True)
+        for sector in sectors[:8]:
+            candidates.append({'candidate': 'capital_investment',
+                               'feasible': cash >= 150.0 and not getattr(agent, 'is_lord', False),
+                               'reason': 'cash threshold 150 and non-lord', **sector})
+
+        trade_manager = getattr(region, 'trade_manager', None)
+        if trade_manager is not None:
+            for circuit in getattr(trade_manager, 'circuits', {}).values():
+                try:
+                    arbitrage = trade_manager.evaluate_dynamic_arbitrage(circuit, region)
+                    can_charter, charter_reason = trade_manager.can_charter_voyage(
+                        agent, region, circuit)
+                except (AttributeError, KeyError, TypeError, ValueError):
+                    continue
+                roi = float(arbitrage.get('roi', 0.0))
+                if not math.isfinite(roi):
+                    continue
+                pioneer = getattr(circuit, 'status', '') == 'DORMANT_UNEXPLORED'
+                score = roi + (0.2 if pioneer else 0.0)
+                candidates.append({'candidate': 'triangular_trade_voyage',
+                                   'circuit_id': str(getattr(circuit, 'circuit_id', 'unknown')),
+                                   'feasible': bool(arbitrage.get('viable') and can_charter),
+                                   'reason': str(charter_reason), 'roi': roi,
+                                   'pioneer_bonus': 0.2 if pioneer else 0.0,
+                                   'effective_score': score, 'selection_threshold': 0.20})
+
+        for neighbor_name, neighbor in getattr(region, 'neighbors', {}).items():
+            for good, price, prestige, quantity in self.get_market_luxuries(neighbor):
+                if agent.inv_get(good, 0) > 0:
+                    continue
+                total_cost = float(price) + 2.0
+                seller = next((person for person in getattr(neighbor, 'agents', [])
+                               if getattr(person, 'alive', True) and person.inv_get(good, 0) > 0), None)
+                candidates.append({'candidate': 'spatial_luxury_import',
+                                   'neighbor': str(neighbor_name),
+                                   'good': getattr(good, 'name', str(good)),
+                                   'feasible': bool(seller and cash >= 30.0 and cash >= total_cost),
+                                   'reason': 'requires cash threshold and neighbor seller',
+                                   'price': float(price), 'haulage_fee': 2.0,
+                                   'available_quantity': int(quantity)})
+
+        for operator_id in ('petition_statute_of_laborers', 'enforce_vagrancy_decree',
+                            'maintain_repair_machinery', 'construct_machinery',
+                            'mandate_plantation_labor_gang', 'procure_captive_labor',
+                            'chartered_frontier_conquest'):
+            operator = TransformationGraph.get_operator(operator_id)
+            if operator is None:
+                continue
+            try:
+                feasible, reason = operator.can_agent_execute(agent, region)
+                net_return = (operator.estimate_net_return(agent, region, shadow_cash)
+                              if feasible else None)
+                if net_return is not None and not math.isfinite(float(net_return)):
+                    net_return = None
+            except (AttributeError, KeyError, TypeError, ValueError):
+                feasible, reason, net_return = False, 'candidate evaluation unavailable', None
+            candidates.append({'candidate': operator_id, 'feasible': bool(feasible),
+                               'reason': str(reason), 'estimated_net_return': net_return,
+                               'cash': cash, 'shadow_cash_price': float(shadow_cash)})
+
+        if getattr(agent, 'is_lord', False):
+            for operator in TransformationGraph.all_operators():
+                if operator.category not in ('enclosure', 'corvee', 'artisan', 'war_capitalism'):
+                    continue
+                try:
+                    feasible, reason = operator.can_agent_execute(agent, region)
+                    net_return = (operator.estimate_net_return(agent, region, shadow_cash)
+                                  if feasible else None)
+                    if net_return is not None and not math.isfinite(float(net_return)):
+                        net_return = None
+                except (AttributeError, KeyError, TypeError, ValueError):
+                    feasible, reason, net_return = False, 'candidate evaluation unavailable', None
+                candidates.append({'candidate': operator.id, 'category': operator.category,
+                                   'feasible': bool(feasible), 'reason': str(reason),
+                                   'estimated_net_return': net_return,
+                                   'selection_threshold': 5.0})
+        return candidates
+
     def evaluate_triangular_trade_voyage(self, agent: Any, region: Any, t: int) -> Optional[Dict[str, Any]]:
         """Evaluate chartering an oceanic merchant voyage on discovered trade circuits."""
         trade_mgr = getattr(region, 'trade_manager', None)
@@ -233,15 +350,9 @@ class EliteCapitalistPlanner:
         """Trace the evaluated plan and its observed execution without a second AI pass."""
         from run_trace import emit
         cash_before = float(agent.cash)
-        candidates = [
-            {'candidate': 'do_nothing', 'feasible': True},
-            {'candidate': 'luxury_purchase', 'feasible': cash_before >= 25.0,
-             'reason': 'cash threshold 25'},
-            {'candidate': 'capital_investment',
-             'feasible': cash_before >= 150.0 and not getattr(agent, 'is_lord', False),
-             'reason': 'cash threshold 150 and non-lord'},
-            {'candidate': 'spatial_trade', 'feasible': bool(getattr(region, 'neighbors', {}))},
-        ]
+        TransformationGraph.step_pending_capacity_decay(region, t)
+        shadow_cash = self.calculate_shadow_price_cash(agent, region)
+        candidates = self._elite_candidate_snapshot(agent, region, shadow_cash)
         result = self._plan_and_execute_elite(agent, region, t)
         reported_details = result.get('details', {})
         scalar_details = {str(key): value for key, value in reported_details.items()
@@ -250,8 +361,14 @@ class EliteCapitalistPlanner:
         decision_id = emit(region, kind='corporation_ai_decision', record_class='decision',
                            phase='local', subject=subject,
                            inputs={'opening_cash': cash_before, 'candidates': candidates,
+                                   'consideration_order': [
+                                       'luxury_purchase', 'triangular_trade', 'spatial_trade',
+                                       'class_legislation', 'lord_transformation',
+                                       'machinery', 'captured_labor', 'capital_investment',
+                                       'inventory_liquidation', 'do_nothing'],
                                    'selected': result.get('action_taken') or 'do_nothing',
-                                   'shadow_cash_price': result.get('shadow_price_cash')})
+                                   'shadow_cash_price': shadow_cash,
+                                   'neighbors': sorted(getattr(region, 'neighbors', {}).keys())})
         emit(region, kind='corporation_ai_outcome', record_class='outcome',
              phase='local', subject=subject, metric_id='economy.cash',
              unit=getattr(region, 'home_currency', 'local_currency'),
@@ -266,7 +383,6 @@ class EliteCapitalistPlanner:
     def _plan_and_execute_elite(self, agent: Any, region: Any, t: int) -> Dict[str, Any]:
         """Formulate and execute a multi-step conversion or investment plan for an elite agent."""
         self._last_plan_turn[agent.id] = t
-        TransformationGraph.step_pending_capacity_decay(region, t)
         shadow_cash = self.calculate_shadow_price_cash(agent, region)
         luxuries = self.get_market_luxuries(region)
         result = {
