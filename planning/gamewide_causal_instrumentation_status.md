@@ -49,8 +49,10 @@ the FX matrix has a **Why?** button for each quoted currency pair.
   recorded as signed flows. End-of-turn reconciliation shows any unattributed
   residual rather than assigning it to a plausible source.
 - Nation AI records evaluated gates and submitted intents; intent outcomes
-  link back to the decision. Elite planning records selected action and cash
-  outcome. Candidate details for elite plans are still partial.
+  link back to the decision. Firm decisions record worker offers and refusals,
+  wage adjustments, payroll borrowing and layoffs, and incorporation finance.
+  Elite planning records selected action and cash outcome. Candidate details
+  for elite plans are still partial.
 
 ## Known gaps
 

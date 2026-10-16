@@ -24,7 +24,11 @@ def borrow_or_layoff(region, t):
     for a in region.agents:
         if not a.is_corporation or len(a.employees) == 0:
             continue
+        employees_before = len(a.employees)
+        cash_before = float(a.cash)
         total_wage = len(a.employees) * a.wage
+        payroll_required = total_wage
+        liabilities_before = region.bank.total_liabilities
         if a.cash < total_wage:
             region.bank.Borrow(t, a, total_wage - a.cash, trace_region=region)
         while a.cash < total_wage and len(a.employees) > 0:
@@ -35,6 +39,16 @@ def borrow_or_layoff(region, t):
             a.is_corporation = False
             if a.owner:
                 a.owner.company_owned = None
+        from run_trace import emit
+        emit(region, kind='corporate_payroll_funding_decision', record_class='outcome',
+             subject={'type': 'tile', 'id': region.name, 'firm_id': a.id},
+             metric_id='labor.payroll_funding', unit='workers',
+             before=employees_before, after=len(a.employees),
+             inputs={'cash_before': cash_before, 'cash_after': a.cash,
+                     'wage': a.wage, 'payroll_required': payroll_required,
+                     'bank_credit_received': region.bank.total_liabilities - liabilities_before,
+                     'layoffs': employees_before - len(a.employees),
+                     'firm_survives': bool(a.is_corporation)})
 
 
 def incorporate(region, t):
@@ -75,6 +89,16 @@ def incorporate(region, t):
         company.shift_hours = 8.0
         company.safety_investment = getattr(region, 'safety_mandate', 0.0)
         new_companies.append(company)
+        from run_trace import emit
+        emit(region, kind='corporate_incorporation', record_class='outcome',
+             subject={'type': 'tile', 'id': region.name, 'firm_id': company.id},
+             metric_id='labor.firm_incorporation', unit='local_currency',
+             before=0.0, after=company.cash,
+             inputs={'founder_id': a.id,
+                     'output_good': getattr(company.output, 'name', str(company.output)),
+                     'founder_equity': equity, 'bank_financing': loaned,
+                     'startup_target': startup_target, 'food_price': food_price,
+                     'initial_wage': company.wage, 'max_employees': company.max_employees})
     return new_companies
 
 
@@ -162,6 +186,15 @@ def _record_labor_decision(region, decision):
     }
     from collective_trace_clock import stamp
     log.append(stamp(region, row))
+    from run_trace import emit
+    emit(region, kind='labor_offer_decision', record_class='outcome',
+         subject={'type': 'tile', 'id': region.name,
+                  'worker_id': decision.worker_id, 'firm_id': decision.firm_id},
+         metric_id='labor.hiring_decision', unit='accepted',
+         after=1 if decision.accepted else 0,
+         inputs={'reason': decision.reason, 'offered_wage': decision.offered_wage,
+                 'reservation_wage': decision.reservation_wage,
+                 'scenario_owner_policy': bool(getattr(region, 'scenario_owner_policy', False))})
 
 
 def hire_workers(region, t):
@@ -237,6 +270,8 @@ def adjust_wages(region, t):
         payroll = current_workers * a.wage
         mrpl_ceiling = calculate_firm_wage_ceiling(a, region)
         effective_max = min(mrpl_ceiling, wage_cap) if wage_cap is not None else mrpl_ceiling
+        wage_before = float(a.wage)
+        decision_reason = 'no_change'
 
         # 1. ACUTE LABOR SHORTAGE (Tightness > 1.0)
         if tightness > 1.0:
@@ -247,19 +282,46 @@ def adjust_wages(region, t):
                 shortage_intensity = min(3.0, tightness - 1.0)
                 bid_increment = max(0.10, a.wage * 0.10 * shortage_intensity)
                 a.wage = min(effective_max, a.wage + bid_increment)
+                decision_reason = 'labor_shortage_raise'
+            elif needs_raise:
+                decision_reason = 'shortage_raise_blocked_by_cash_or_ceiling'
+            else:
+                decision_reason = 'shortage_no_raise_needed'
         # 2. PROFITABLE EXPANSION in balanced market
         elif a.cash > payroll * 5 and has_vacancies:
             if a.wage < effective_max:
                 a.wage = min(effective_max, a.wage * 1.02)
+                decision_reason = 'profitable_vacancy_expansion'
+            else:
+                decision_reason = 'expansion_at_mrpl_ceiling'
         # 3. LABOR SURPLUS (Tightness < 0.8): Downward pressure only if cash constrained
         elif tightness < 0.8 and a.cash < payroll * 2.5 and current_workers > 0:
             food_price = region.recipes.get(Goods.food, {}).get('price', 1.0)
             subsistence_floor = food_price * 1.0
             a.wage = max(subsistence_floor, a.wage * 0.96)
+            decision_reason = 'cash_constrained_labor_surplus_cut'
 
         # 4. Enforce legal maximum wage cap if statute is active
         if wage_cap is not None and a.wage > wage_cap:
             a.wage = wage_cap
+            decision_reason = 'statutory_wage_cap'
+
+        from run_trace import emit
+        emit(region, kind='corporate_wage_decision', record_class='calculation',
+             subject={'type': 'tile', 'id': region.name, 'firm_id': a.id},
+             metric_id='labor.corporate_wage', unit='local_currency_per_turn',
+             before=wage_before, after=float(a.wage),
+             formula_id='labor.tightness_mrpl_cash_policy.v1',
+             inputs={'decision_reason': decision_reason,
+                     'labor_market_tightness': tightness,
+                     'worker_count': current_workers,
+                     'vacancies': max(0, a.max_employees - current_workers),
+                     'cash': a.cash, 'payroll': payroll,
+                     'mrpl_wage_ceiling': mrpl_ceiling,
+                     'effective_wage_ceiling': effective_max,
+                     'reservation_wage': evaluate_worker_reservation_wage(None, region, tightness),
+                     'wage_cap': wage_cap,
+                     'food_price': region.recipes.get(Goods.food, {}).get('price', 1.0)})
 
 
 def run_labour(region, t):
