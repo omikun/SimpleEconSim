@@ -15,6 +15,27 @@ from logger import loginfo, logwarning, logdebug
 import econsim_trade_money as trade
 
 
+def _trace_public_transfer(government, kind, amount, recipients, **inputs):
+    """Trace public cash transfers at their treasury mutation point."""
+    regions = getattr(government, 'regions', [])
+    region = next((candidate for candidate in regions
+                   if getattr(candidate, '_run_trace', None) is not None),
+                  regions[0] if regions else None)
+    if region is None:
+        return
+    nation = getattr(region, 'owner_nation', None)
+    subject = ({'type': 'nation', 'id': nation.name} if nation is not None
+               else {'type': 'tile', 'id': getattr(region, 'name', government.name)})
+    unit = getattr(nation, 'currency', None) or getattr(region, 'home_currency', None) or 'local_currency'
+    from run_trace import emit
+    emit(region, kind=kind, record_class='transfer', phase='government',
+         subject=subject, metric_id='finance.treasury_flow', unit=unit,
+         after=-float(amount),
+         inputs={'government': government.name,
+                 'recipients': [str(item) for item in recipients],
+                 'recipient_count': len(recipients), 'amount': float(amount), **inputs})
+
+
 class Government:
     """A government entity with its own Agent for proper bank interactions.
 
@@ -181,6 +202,9 @@ class Government:
             return 0.0
         self.agent.cash -= self.baby_bonus_amount
         parent.cash += self.baby_bonus_amount
+        _trace_public_transfer(self, 'baby_bonus_paid', self.baby_bonus_amount,
+                              [parent.id], newborn_id=str(newborn.id),
+                              amount_per_recipient=self.baby_bonus_amount)
         loginfo(t, f"Government({self.name}) paid ${self.baby_bonus_amount:.2f} baby bonus to "
                 f"{parent.name()} for newborn {newborn.name()}")
         return self.baby_bonus_amount
@@ -200,6 +224,7 @@ class Government:
             return 0.0
 
         total = 0.0
+        scaled_for_shortfall = False
         for agent in agents:
             if agent.is_corporation or agent.alive is False:
                 continue
@@ -213,6 +238,7 @@ class Government:
             logdebug(t, f"Government({self.name}) distributed ${total:.2f} UBI "
                      f"to {len([a for a in agents if self._is_citizen(a) and not a.is_corporation])} citizens")
         elif total > 0:
+            scaled_for_shortfall = True
             # Gov can't fully fund — distribute whatever is available
             shortfall = total - self.agent.cash
             # Scale down proportionally
@@ -229,6 +255,13 @@ class Government:
             self.agent.cash = 0.0
             logwarning(t, f"Government({self.name}) UBI shortfall ${shortfall:.2f}, scaled payments")
             total -= shortfall
+        if total > 0:
+            recipients = [agent.id for agent in agents
+                          if not agent.is_corporation and agent.alive is not False
+                          and self._is_citizen(agent)]
+            _trace_public_transfer(self, 'ubi_distributed', total, recipients,
+                                   scheduled_per_person=self.ubi_amount_per_turn,
+                                   scaled_for_shortfall=scaled_for_shortfall)
         return total
 
     # ------------------------------------------------------------------
@@ -363,6 +396,7 @@ class Government:
             return 0.0
 
         total = 0.0
+        recipients = []
         for agent in agents:
             if agent.is_corporation or agent.alive is False:
                 continue
@@ -377,11 +411,15 @@ class Government:
                 self.agent.cash -= pay
                 agent.cash += pay
                 total += pay
+                recipients.append(agent.id)
 
             agent._parental_leave_turns_remaining = remaining - 1
             logdebug(t, f"Government({self.name}) paid ${pay:.2f} parental leave to "
                      f"{agent.name()} ({agent._parental_leave_turns_remaining} turns remaining)")
 
+        if total > 0:
+            _trace_public_transfer(self, 'parental_leave_paid', total, recipients,
+                                   amount_per_turn=self.parental_leave_amount_per_turn)
         return total
 
     # ------------------------------------------------------------------
@@ -665,6 +703,10 @@ class Government:
             total_distributed += welfare
 
         self.agent.cash -= total_distributed
+        _trace_public_transfer(self, 'welfare_distributed', total_distributed,
+                               [agent.id for agent in starving_agents],
+                               minimum_reserve=min_reserve,
+                               eligible_starving=len(starving_agents))
         logdebug(t, f"Government({self.name}) distributed ${total_distributed:.2f} welfare "
                     f"to {len(starving_agents)} agents")
         return total_distributed

@@ -62,6 +62,8 @@ the FX matrix has a **Why?** button for each quoted currency pair.
 - Campaign Caisse debt records principal revisions, concessions, defaults,
   creditor collection assignments, payments, and signed Egypt/creditor treasury
   flows for assigned revenue interception.
+- Public baby bonuses, scaled UBI, parental leave, and welfare record the
+  treasury outflow, recipients, policy rate, and any funding shortfall.
 - Construction steps record material purchases, required and available inputs,
   navvy hiring and pay, progress multipliers, stall causes, and completion.
 - Battles record initial strengths, casualties, winner, and conquest. War-side
