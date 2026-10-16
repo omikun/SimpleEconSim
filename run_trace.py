@@ -1,7 +1,7 @@
 """Append-only, typed causal records for a simulation run.
 
-The recorder keeps a bounded UI window. The JSONL file is the source of truth
-for older turns; read failures never affect simulation state.
+New .ctr files use compact DEFLATE storage; existing .jsonl files are readable.
+The recorder keeps a bounded UI window and a durable event stream.
 """
 
 from __future__ import annotations
@@ -10,6 +10,7 @@ from collections import deque
 import hashlib
 import json
 from pathlib import Path
+from trace_codec import CompactTraceWriter, iter_payloads
 
 
 SCHEMA_VERSION = 1
@@ -32,15 +33,24 @@ class RunTrace:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         if self.path.exists():
             raise FileExistsError(self.path)
+        self._compact_writer = (CompactTraceWriter(self.path)
+                                if self.path.suffix == '.ctr' else None)
         self._append({'schema_version': SCHEMA_VERSION, 'record_class': 'metadata',
                       'run_id': self.run_id, 'branch_id': self.branch_id,
-                      'seed': seed, 'scenario': scenario})
+                      'seed': seed, 'scenario': scenario,
+                      'storage_format': 'deflate-sync-v1' if self._compact_writer
+                      else 'jsonl-v1'})
 
     def _append(self, row):
         # No default=str: unsupported values are instrumentation errors.
+        if self.write_error is not None:
+            raise OSError(self.write_error)
         payload = json.dumps(row, sort_keys=True, separators=(',', ':'), allow_nan=False)
-        with self.path.open('a', encoding='utf-8') as stream:
-            stream.write(payload + '\n')
+        if self._compact_writer is not None:
+            self._compact_writer.append(payload)
+        else:
+            with self.path.open('a', encoding='utf-8') as stream:
+                stream.write(payload + '\n')
         self.count += 1
         self.digest = hashlib.sha256((self.digest + payload).encode('utf-8')).hexdigest()
 
@@ -164,7 +174,7 @@ class RunTrace:
                          cause_event_ids=[row['event_id'] for row in mutations])
 
     def checkpoint(self, clock):
-        """End a turn with a count and hash of every preceding JSONL row."""
+        """End a turn with a count and hash of every preceding decoded row."""
         return self.emit(clock, kind='turn_checkpoint', record_class='audit',
                          phase='checkpoint', count_before=self.count,
                          sha256_before=self.digest)
@@ -173,22 +183,21 @@ class RunTrace:
     def query(self, *, turn=None, subject=None, metric_id=None, offset=0, limit=100):
         found = []
         matched = 0
-        with self.path.open(encoding='utf-8') as stream:
-            for line in stream:
-                row = json.loads(line)
-                if row.get('record_class') == 'metadata':
-                    continue
-                if turn is not None and row.get('turn') != turn:
-                    continue
-                if subject is not None and not all(
-                        row.get('subject', {}).get(key) == value
-                        for key, value in subject.items()):
-                    continue
-                if metric_id is not None and row.get('metric_id') != metric_id:
-                    continue
-                if matched >= offset and len(found) < limit:
-                    found.append(row)
-                matched += 1
+        for payload in iter_payloads(self.path):
+            row = json.loads(payload)
+            if row.get('record_class') == 'metadata':
+                continue
+            if turn is not None and row.get('turn') != turn:
+                continue
+            if subject is not None and not all(
+                    row.get('subject', {}).get(key) == value
+                    for key, value in subject.items()):
+                continue
+            if metric_id is not None and row.get('metric_id') != metric_id:
+                continue
+            if matched >= offset and len(found) < limit:
+                found.append(row)
+            matched += 1
         return {'events': found, 'total': matched, 'offset': offset,
                 'limit': limit, 'write_error': self.write_error}
 
@@ -198,16 +207,14 @@ def verify(path):
     digest = '0' * 64
     count = 0
     checkpoints = 0
-    with Path(path).open(encoding='utf-8') as stream:
-        for number, line in enumerate(stream, 1):
-            row = json.loads(line)
-            if row.get('kind') == 'turn_checkpoint':
-                if row.get('count_before') != count or row.get('sha256_before') != digest:
-                    raise ValueError(f'broken checkpoint at line {number}')
-                checkpoints += 1
-            payload = line.rstrip('\n')
-            digest = hashlib.sha256((digest + payload).encode('utf-8')).hexdigest()
-            count += 1
+    for number, payload in enumerate(iter_payloads(path), 1):
+        row = json.loads(payload)
+        if row.get('kind') == 'turn_checkpoint':
+            if row.get('count_before') != count or row.get('sha256_before') != digest:
+                raise ValueError(f'broken checkpoint at line {number}')
+            checkpoints += 1
+        digest = hashlib.sha256((digest + payload).encode('utf-8')).hexdigest()
+        count += 1
     return {'rows': count, 'checkpoints': checkpoints, 'sha256': digest}
 
 

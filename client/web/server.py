@@ -148,26 +148,37 @@ class CoCHTTPRequestHandler(BaseHTTPRequestHandler):
 
         elif path == '/api/trace/download':
             try:
+                from trace_codec import decoded_size, is_compact, iter_payloads
                 sim = self.server.sim_server
                 with sim._lock:
                     trace_path = sim.run_trace.path
-                    trace_size = trace_path.stat().st_size
                     run_id = sim.run_trace.run_id
-                self.send_response(200)
-                self.send_header('Content-Type', 'application/x-ndjson; charset=utf-8')
-                self.send_header('Content-Disposition',
-                                 f'attachment; filename="run-{run_id}.jsonl"')
-                self.send_header('Cache-Control', 'no-store')
-                self.send_header('Content-Length', str(trace_size))
-                self.end_headers()
-                remaining = trace_size
-                with trace_path.open('rb') as stream:
-                    while remaining > 0:
-                        chunk = stream.read(min(65536, remaining))
-                        if not chunk:
-                            break
-                        self.wfile.write(chunk)
-                        remaining -= len(chunk)
+                    compact = query.get('format', ['jsonl'])[0] == 'compact'
+                    raw_compact = compact and is_compact(trace_path)
+                    download_extension = 'ctr' if raw_compact else 'jsonl'
+                    body_size = (trace_path.stat().st_size if raw_compact
+                                 else decoded_size(trace_path))
+                    self.send_response(200)
+                    self.send_header('Content-Type',
+                                     'application/octet-stream' if raw_compact
+                                     else 'application/x-ndjson; charset=utf-8')
+                    self.send_header('Content-Disposition',
+                                     f'attachment; filename="run-{run_id}.{download_extension}"')
+                    self.send_header('Cache-Control', 'no-store')
+                    self.send_header('Content-Length', str(body_size))
+                    self.end_headers()
+                    if raw_compact:
+                        with trace_path.open('rb') as stream:
+                            remaining = body_size
+                            while remaining > 0:
+                                chunk = stream.read(min(65536, remaining))
+                                if not chunk:
+                                    break
+                                self.wfile.write(chunk)
+                                remaining -= len(chunk)
+                    else:
+                        for payload in iter_payloads(trace_path):
+                            self.wfile.write(payload.encode('utf-8') + b'\n')
             except Exception as exc:
                 self._send_error_json(500, f'Error exporting trace: {exc}')
             return

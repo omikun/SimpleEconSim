@@ -192,6 +192,14 @@ class TestWebServerEndpoints(unittest.TestCase):
         handler = MockHttpRequestHandler(self.mock_server, 'GET', '/api/trace/download')
         self.assertEqual(handler.response_status, 200)
         self.assertIn(b'"run_id"', handler.get_body())
+        decoded_rows = [json.loads(line) for line in handler.get_body().splitlines()]
+        self.assertEqual(decoded_rows[-1]['kind'], 'turn_checkpoint')
+        compact = MockHttpRequestHandler(self.mock_server, 'GET',
+                                         '/api/trace/download?format=compact')
+        self.assertEqual(compact.response_status, 200)
+        self.assertTrue(compact.get_body().startswith(b'COCTRACE2\n'))
+        self.assertLess(len(compact.get_body()), len(handler.get_body()))
+        self.assertTrue(compact.response_headers['content-disposition'].endswith('.ctr"'))
 
     def test_api_world_state(self):
         handler = MockHttpRequestHandler(self.mock_server, 'GET', '/api/state')

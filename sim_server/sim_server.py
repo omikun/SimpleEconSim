@@ -129,7 +129,7 @@ class SimServer:
                 }
             self._record_history(0)
             run_id = f'{self.instance_id}-{self.world_generation}'
-            trace_path = Path(__file__).resolve().parents[1] / 'tmp' / 'traces' / f'{run_id}.jsonl'
+            trace_path = Path(__file__).resolve().parents[1] / 'tmp' / 'traces' / f'{run_id}.ctr'
             self.run_trace = RunTrace(trace_path, run_id, seed=self.seed,
                                       scenario=self.scenario_id)
             for tile in self.tiles:
