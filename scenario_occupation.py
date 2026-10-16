@@ -232,11 +232,28 @@ def resolve_capital(world, response_id):
         cairo = next(tile for tile in egypt.tiles if getattr(tile, 'scenario_location', '') == 'Cairo')
         defenders = [unit for unit in getattr(cairo, 'military_units', [])
                      if unit.nation_name == 'Egypt' and unit.soldiers > 0]
+        soldiers_before = sum(unit.soldiers for unit in attackers + defenders)
+        attack_strength_before = sum(unit.strength for unit in attackers)
+        defense_strength_before = sum(unit.strength for unit in defenders) * 1.35
         battle = resolve_battle(attackers, defenders, defense_bonus=1.35)
+        from run_trace import emit
+        emit(cairo, kind='war_battle_outcome', record_class='outcome', phase='scenario',
+             subject={'type': 'tile', 'id': cairo.name,
+                      'attacker': 'Britain', 'defender': 'Egypt'},
+             metric_id='war.battle', unit='soldiers', before=soldiers_before,
+             after=sum(unit.soldiers for unit in attackers + defenders),
+             inputs={'attack_strength_before': attack_strength_before,
+                     'defense_strength_before': defense_strength_before,
+                     'defense_bonus': 1.35, 'location': 'Cairo', **battle})
         battle.update(location='Cairo', turn=int(world['turn']))
         state['campaign']['battles'].append(battle)
         if battle['winner'] == 'attacker':
             state['campaign']['territorial_control']['Cairo'] = 'Britain'
+            emit(cairo, kind='war_territory_transfer', record_class='outcome', phase='scenario',
+                 subject={'type': 'tile', 'id': cairo.name},
+                 metric_id='war.territory_control', before='Egypt', after='Britain',
+                 inputs={'battle_winner': battle['winner'], 'location': 'Cairo',
+                         'operation': 'capital_defense'})
             _move_occupation_force_to_cairo(world)
             claim_institutions(world)
             _event(world, f'British troops take Cairo; British losses {battle["atk_losses"]}, Egyptian losses {battle["def_losses"]}.')

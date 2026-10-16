@@ -46,6 +46,9 @@ the FX matrix has a **Why?** button for each quoted currency pair.
   status, rates, borrower type, and repayments split into principal and interest.
 - Construction steps record material purchases, required and available inputs,
   navvy hiring and pay, progress multipliers, stall causes, and completion.
+- Battles record initial strengths, casualties, winner, and conquest. War-side
+  cohesion and posture updates expose supply runway, territorial losses, and
+  political shocks; peace reparations enter treasury reconciliation.
 - Treasury phase boundaries, tax receipts, tariffs, government borrowing and
   loan service, food spending, army payroll, and scenario sales taxes are
   recorded as signed flows. End-of-turn reconciliation shows any unattributed
@@ -63,7 +66,8 @@ value does not match a recorded calculation. Treasury snapshots show cash and
 deposit components, but treasury transfers are not yet comprehensively
 instrumented. Bank deposit interest and crisis write-downs, bonds,
 environmental health attrition, infant mortality and nation-level death
-aggregation, trade-transmitted infection, war, and several scenario
+aggregation, trade-transmitted infection, some diplomacy relation drift,
+and several scenario
 operations still need mutation-point records. The current metric
 catalog does not yet cover every displayed field;
 `inventory_region_histories()` labels legacy series as instrumented or

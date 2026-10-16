@@ -179,6 +179,9 @@ def update_wars(diplomacy, nations: list, turn: int) -> None:
             if nation is None or enemy is None:
                 continue
             side = war.sides[name]
+            cohesion_before = side.cohesion
+            posture_before = side.posture
+            pending_shock_before = side.pending_political_shock
             losses = war.battle_losses.get(name, 0)
             side.recent_losses = losses
             side.casualties += losses
@@ -198,12 +201,39 @@ def update_wars(diplomacy, nations: list, turn: int) -> None:
             side.last_lost_tile_count = lost_homeland
             threatened = any(a.kind == 'regime_change'
                              for a in war.sides[war.enemy_of(name)].aims)
+            support = governing_support(nation, threatened)
             side.cohesion = clamp(0.65 * side.cohesion +
-                                  0.35 * governing_support(nation, threatened) - shock)
+                                  0.35 * support - shock)
             if side.cohesion < 0.30 and shock >= 0.08:
                 side.pending_political_shock = max(side.pending_political_shock,
                                                    min(0.25, shock))
                 side.reason = 'Battlefield losses threaten the governing coalition.'
+            if nation.tiles:
+                from run_trace import emit
+                subject = {'type': 'nation', 'id': name, 'opponent': enemy.name}
+                emit(nation.tiles[0], kind='war_cohesion_update', record_class='calculation',
+                     phase='military', subject=subject, metric_id='war.cohesion',
+                     unit='ratio', before=cohesion_before, after=side.cohesion,
+                     formula_id='war.cohesion_losses_support.v1',
+                     inputs={'recent_losses': losses, 'cumulative_casualties': side.casualties,
+                             'starting_force_estimate': starting_force,
+                             'battle_shock': shock, 'lost_homeland_tiles': lost_homeland,
+                             'threatened_by_regime_change': threatened,
+                             'governing_support': support,
+                             'supply_runway': supply_runway(nation),
+                             'posture_before': posture_before,
+                             'classified_posture': new_posture,
+                             'posture_after': side.posture,
+                             'pending_political_shock_before': pending_shock_before,
+                             'pending_political_shock_after': side.pending_political_shock,
+                             'reason': side.reason},
+                     constraints={'lower_bound': 0.0, 'upper_bound': 1.0})
+                if side.posture != posture_before:
+                    emit(nation.tiles[0], kind='war_posture_change', record_class='outcome',
+                         phase='military', subject=subject, metric_id='war.posture',
+                         before=posture_before, after=side.posture,
+                         inputs={'supply_runway': supply_runway(nation),
+                                 'recent_losses': losses, 'reason': side.reason})
         war.battle_losses.clear()
 
 
@@ -215,7 +245,17 @@ def apply_political_shocks(diplomacy, nation, turn: int) -> None:
             shocks.append(side.pending_political_shock)
             side.pending_political_shock = 0.0
     if shocks:
+        legitimacy_before = nation.legitimacy
         loss = min(0.30, sum(shocks))
         nation.legitimacy = clamp(nation.legitimacy - loss)
         nation.regime_log.append({'t': turn, 'kind': 'war_government_crisis',
                                   'legitimacy_loss': loss})
+        if nation.tiles:
+            from run_trace import emit
+            emit(nation.tiles[0], kind='war_legitimacy_shock', record_class='calculation',
+                 phase='regime', subject={'type': 'nation', 'id': nation.name},
+                 metric_id='politics.legitimacy', unit='ratio',
+                 before=legitimacy_before, after=nation.legitimacy,
+                 formula_id='war.pending_coalition_shock.v1',
+                 inputs={'pending_shocks': shocks, 'total_loss': loss},
+                 constraints={'lower_bound': 0.0, 'upper_bound': 1.0})

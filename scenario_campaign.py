@@ -118,7 +118,19 @@ def _battle(world, location):
         project_bonus = 55.0 * effectiveness(world, 'canal_line', location)
         integrity += project_bonus
     bonus = 1.0 + integrity / 100 * .5
+    soldiers_before = troops + sum(unit.soldiers for unit in defenders)
+    attack_strength_before = attackers.strength
+    defense_strength_before = sum(unit.strength for unit in defenders) * bonus
     outcome = resolve_battle([attackers], defenders, defense_bonus=bonus)
+    from run_trace import emit
+    emit(tile, kind='war_battle_outcome', record_class='outcome', phase='scenario',
+         subject={'type': 'tile', 'id': tile.name, 'attacker': 'Britain', 'defender': 'Egypt'},
+         metric_id='war.battle', unit='soldiers', before=soldiers_before,
+         after=attackers.soldiers + sum(unit.soldiers for unit in defenders),
+         inputs={'attack_strength_before': attack_strength_before,
+                 'defense_strength_before': defense_strength_before,
+                 'defense_bonus': bonus, 'location': location,
+                 'project_defense_bonus': project_bonus, **outcome})
     fleet['transports'] = attackers.soldiers
     outcome.update(location=location, turn=int(world['turn']),
                    egyptian_defenders=sum(unit.soldiers for unit in defenders),
@@ -129,6 +141,11 @@ def _battle(world, location):
         damage_project(world, 'canal_line', location, .35)
     if outcome['winner'] == 'attacker':
         state['territorial_control'][location] = 'Britain'
+        emit(tile, kind='war_territory_transfer', record_class='outcome', phase='scenario',
+             subject={'type': 'tile', 'id': tile.name}, metric_id='war.territory_control',
+             before='Egypt', after='Britain',
+             inputs={'battle_winner': outcome['winner'], 'location': location,
+                     'operation': 'guided_landing'})
         state['expedition']['stage'] = 'foothold'
         state['expedition']['foothold_turn'] = int(world['turn'])
         britain.military_units.append(attackers)

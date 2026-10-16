@@ -456,7 +456,25 @@ class MoveArmyIntent(Intent):
         defenders = [u for u in getattr(target_owner, 'military_units', []) if u.region_name == to_tile.name]
         attackers = ([u for u in nation.military_units if u.region_name == from_tile.name
                       and u.soldiers > 0] if unit.scenario_personnel else [unit])
+        attacker_strength_before = sum(u.strength for u in attackers)
+        defender_strength_before = sum(u.strength for u in defenders)
+        soldiers_before = sum(u.soldiers for u in attackers + defenders)
         battle = resolve_battle(attackers, defenders)
+        from run_trace import emit
+        battle_event_id = emit(to_tile, kind='war_battle_outcome', record_class='outcome',
+                               phase='strategy',
+                               subject={'type': 'tile', 'id': to_tile.name,
+                                        'attacker': nation.name, 'defender': target_owner.name},
+                               metric_id='war.battle', unit='soldiers',
+                               before=soldiers_before,
+                               after=sum(u.soldiers for u in attackers + defenders),
+                               operation_id=self.intent_id,
+                               decision_id=getattr(self, '_decision_event_id', None),
+                               inputs={'attacker_unit_ids': [u.unit_id for u in attackers],
+                                       'defender_unit_ids': [u.unit_id for u in defenders],
+                                       'attacker_strength_before': attacker_strength_before,
+                                       'defender_strength_before': defender_strength_before,
+                                       'defense_bonus': 1.2, **battle})
         diplomacy.record_battle(nation.name, target_owner.name,
                                 battle['atk_losses'], battle['def_losses'])
         if unit.scenario_personnel:
@@ -466,6 +484,18 @@ class MoveArmyIntent(Intent):
         if battle['conquered']:
             # Territorial transfer
             target_owner.transfer_tile(to_tile, nation)
+            emit(to_tile, kind='war_territory_transfer',
+                 record_class='outcome', phase='strategy',
+                 subject={'type': 'tile', 'id': to_tile.name},
+                 metric_id='war.territory_control',
+                 before=target_owner.name, after=nation.name,
+                 operation_id=self.intent_id,
+                 decision_id=getattr(self, '_decision_event_id', None),
+                 cause_event_ids=[battle_event_id] if battle_event_id else [],
+                 inputs={'attacker': nation.name,
+                         'previous_owner': target_owner.name,
+                         'battle_winner': battle['winner'],
+                         'remaining_defender_strength': battle['remaining_def_strength']})
             if unit.scenario_personnel:
                 for defender in list(defenders):
                     discharge_unit(defender, list(tiles_by_name.values()), target_owner)

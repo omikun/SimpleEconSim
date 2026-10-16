@@ -424,6 +424,21 @@ class DiplomacySystem:
                                 v_gov.agent.cash -= indemnity
                                 vic_gov.agent.cash += indemnity
                                 indemnity_note = f" {vanquished.name} paid ${indemnity:.0f} war reparations to {victor.name}."
+                                from run_trace import emit
+                                for side_nation, delta, flow_kind in (
+                                        (vanquished, -indemnity, 'war_reparations_paid'),
+                                        (victor, indemnity, 'war_reparations_received')):
+                                    if side_nation.tiles:
+                                        emit(side_nation.tiles[0], kind=flow_kind,
+                                             record_class='transfer', phase='strategy',
+                                             subject={'type': 'nation', 'id': side_nation.name},
+                                             metric_id='finance.treasury_flow',
+                                             unit=side_nation.currency, after=delta,
+                                             inputs={'counterparty': (victor.name if side_nation is vanquished
+                                                                      else vanquished.name),
+                                                     'peace_parties': [n1, n2],
+                                                     'relative_strength': {'victor': s1 if victor is n1_obj else s2,
+                                                                           'vanquished': s2 if vanquished is n2_obj else s1}})
 
             event = {
                 't': t,
