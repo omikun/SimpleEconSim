@@ -679,7 +679,7 @@ class SovereignBondMarket:
                         if issuer_banks:
                             share_c = coupon / len(issuer_banks)
                             for b_inst in issuer_banks:
-                            b_inst.pay_interest(share_c)
+                                b_inst.pay_interest(share_c)
                     _trace_bond(issuer, 'sovereign_bond_coupon_paid', t, bond,
                                 treasury_delta=-remaining_coupon,
                                 coupon_total=coupon, resident_contributions=funds_collected,
