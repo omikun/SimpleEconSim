@@ -192,34 +192,56 @@ class Bank():
         self.total_deposits -= amount
         self.deposits[agent] -= amount
 
-    def write_down_bonds(self, loss_amount: float) -> bool:
+    def write_down_bonds(self, loss_amount: float, trace_region=None) -> bool:
         """Absorb sovereign debt default losses against bank Tier-1 capital.
 
         If capital is depleted (<= 0), triggers emergency Corralito deposit freeze.
         """
+        capital_before = self.capital
         self.capital -= loss_amount
         self.cumulative_writedowns += loss_amount
         if self.capital <= 0.0:
             self.is_frozen = True
+        if trace_region is not None:
+            from run_trace import emit
+            emit(trace_region, kind='bank_bond_write_down', record_class='outcome',
+                 subject={'type': 'tile', 'id': trace_region.name},
+                 metric_id='finance.bank_capital', unit='local_currency',
+                 before=capital_before, after=self.capital,
+                 inputs={'loss_amount': loss_amount,
+                         'cumulative_writedowns': self.cumulative_writedowns,
+                         'deposit_freeze_after': self.is_frozen})
         return self.is_frozen
 
-    def recapitalize(self, amount: float) -> bool:
+    def recapitalize(self, amount: float, trace_region=None) -> bool:
         """Inject recapitalization funds into bank capital.
 
         If capital is restored (> 0), lifts emergency deposit freeze.
         """
+        capital_before = self.capital
         self.capital += amount
         if self.capital > 0.0:
             self.is_frozen = False
             self.frozen_turns = 0
+        if trace_region is not None:
+            from run_trace import emit
+            emit(trace_region, kind='bank_recapitalization', record_class='outcome',
+                 subject={'type': 'tile', 'id': trace_region.name},
+                 metric_id='finance.bank_capital', unit='local_currency',
+                 before=capital_before, after=self.capital,
+                 inputs={'injection': amount, 'deposit_freeze_after': self.is_frozen})
         return not self.is_frozen
 
-    def apply_bail_in_haircut(self, haircut_pct: float = 0.25, exemption_floor: float = 50.0) -> float:
+    def apply_bail_in_haircut(self, haircut_pct: float = 0.25, exemption_floor: float = 50.0,
+                              trace_region=None) -> float:
         """Execute a Cyprus-style statutory bail-in haircut on large deposits.
 
         Converts uninsured deposit liabilities into Tier-1 shareholder equity.
         """
         total_haircut = 0.0
+        affected = []
+        capital_before = self.capital
+        deposits_before = self.total_deposits
         for agent, dep in list(self.deposits.items()):
             if dep > exemption_floor:
                 excess = dep - exemption_floor
@@ -229,6 +251,8 @@ class Bank():
                     self.total_deposits -= cut
                     self.capital += cut
                     total_haircut += cut
+                    affected.append({'agent_id': getattr(agent, 'id', None),
+                                     'deposit_before': dep, 'haircut': cut})
                     # Psychological and grievance impact on depositor
                     if hasattr(agent, 'despair'):
                         agent.despair = min(1.0, getattr(agent, 'despair', 0.0) + 0.20)
@@ -237,9 +261,22 @@ class Bank():
         if self.capital > 0.0:
             self.is_frozen = False
             self.frozen_turns = 0
+        if trace_region is not None:
+            from run_trace import emit
+            emit(trace_region, kind='bank_depositor_bail_in', record_class='outcome',
+                 subject={'type': 'tile', 'id': trace_region.name},
+                 metric_id='finance.bank_capital', unit='local_currency',
+                 before=capital_before, after=self.capital,
+                 inputs={'haircut_fraction': haircut_pct,
+                         'exemption_floor': exemption_floor,
+                         'total_haircut': total_haircut,
+                         'deposits_before': deposits_before,
+                         'deposits_after': self.total_deposits,
+                         'affected_depositors': affected,
+                         'deposit_freeze_after': self.is_frozen})
         return total_haircut
 
-    def PayDepositInterest(self, agents):
+    def PayDepositInterest(self, agents, trace_region=None):
         """Pay interest to all depositors based on their deposit balance.
 
         Interest rate is reduced as deposit ratio increases (Fix F).  Payout is
@@ -248,6 +285,8 @@ class Bank():
         dict.  Capped to 60% of estimated loan interest (bank keeps 40% margin)
         and to available capital so capital never turns negative.
         """
+        capital_before = self.capital
+        total_interest_before = self.total_deposit_interest_paid
         circulating_cash = max(1, sum(agent.cash for agent in agents))
         deposit_ratio = self.total_deposits / circulating_cash
         if deposit_ratio < 5:
@@ -274,6 +313,19 @@ class Bank():
                     self.capital -= interest
                     self.total_deposit_interest_paid += interest
                     total_payout += interest
+        if trace_region is not None:
+            from run_trace import emit
+            emit(trace_region, kind='bank_deposit_interest_payout', record_class='transfer',
+                 subject={'type': 'tile', 'id': trace_region.name},
+                 metric_id='finance.bank_deposit_interest', unit='local_currency',
+                 after=total_payout,
+                 inputs={'deposit_interest_rate': self.deposit_interest_rate,
+                         'deposit_ratio': deposit_ratio,
+                         'estimated_loan_interest': estimated_loan_interest,
+                         'payout_cap': max_total_payout,
+                         'capital_before': capital_before, 'capital_after': self.capital,
+                         'cumulative_interest_paid_before': total_interest_before,
+                         'cumulative_interest_paid_after': self.total_deposit_interest_paid})
         return total_payout
 
 

@@ -470,11 +470,23 @@ class DiplomacySystem:
         for i, n1 in enumerate(n_list):
             for n2 in n_list[i + 1:]:
                 if self.are_at_war(n1, n2):
+                    prior = self.get_relation(n1, n2)
                     self.set_relation(n1, n2, -1.0)
+                    nation_obj1 = next((n for n in nations if n.name == n1), None)
+                    if nation_obj1 and nation_obj1.tiles:
+                        from run_trace import emit
+                        emit(nation_obj1.tiles[0], kind='diplomacy_war_relation_lock',
+                             record_class='calculation', phase='strategy',
+                             subject={'type': 'nation_pair', 'id': n1, 'other': n2},
+                             metric_id='diplomacy.relation', unit='ratio',
+                             before=prior, after=-1.0,
+                             formula_id='diplomacy.active_war_lock.v1',
+                             inputs={'active_war': True})
                     continue
 
                 cur_rel = self.get_relation(n1, n2)
                 drift = 0.0
+                ideology_drift = 0.0
 
                 # 1. Ideological distance
                 nation_obj1 = next((n for n in nations if n.name == n1), None)
@@ -482,9 +494,10 @@ class DiplomacySystem:
                 if nation_obj1 and nation_obj2:
                     # Match regime types & ruling factions
                     if nation_obj1.regime_type == nation_obj2.regime_type:
-                        drift += 0.005
+                        ideology_drift = 0.005
                     else:
-                        drift -= 0.005
+                        ideology_drift = -0.005
+                    drift += ideology_drift
 
                 # 2. Trade intimacy
                 trade_volume = 0.0
@@ -510,7 +523,29 @@ class DiplomacySystem:
                     drift -= 0.01 * total_betrayals
 
                 # Apply gradual drift towards target
-                self.adjust_relation(n1, n2, drift)
+                after = self.adjust_relation(n1, n2, drift)
+                if nation_obj1 and nation_obj1.tiles:
+                    from run_trace import emit
+                    emit(nation_obj1.tiles[0], kind='diplomacy_relation_drift',
+                         record_class='calculation', phase='strategy',
+                         subject={'type': 'nation_pair', 'id': n1, 'other': n2},
+                         metric_id='diplomacy.relation', unit='ratio',
+                         before=cur_rel, after=after,
+                         formula_id='diplomacy.ideology_trade_treaty_memory.v1',
+                         inputs={'ideology_drift': ideology_drift,
+                                 'trade_volume': trade_volume,
+                                 'trade_drift': 0.01 if trade_volume > 50.0 else 0.0,
+                                 'defensive_alliance': self.has_treaty(n1, n2,
+                                     TreatyType.DEFENSIVE_ALLIANCE.value),
+                                 'trade_pact': self.has_treaty(n1, n2,
+                                     TreatyType.TRADE_PACT.value),
+                                 'active_treaty_drift': 0.02 if self.has_treaty(n1, n2,
+                                     TreatyType.DEFENSIVE_ALLIANCE.value) else
+                                     (0.01 if self.has_treaty(n1, n2, TreatyType.TRADE_PACT.value) else 0.0),
+                                 'betrayals': total_betrayals,
+                                 'betrayal_drift': -0.01 * total_betrayals,
+                                 'requested_drift': drift},
+                         constraints={'lower_bound': -1.0, 'upper_bound': 1.0})
 
 
 # Global singleton instance for shared simulation access

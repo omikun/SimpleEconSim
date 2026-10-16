@@ -142,7 +142,8 @@ class Province:
         for r in self.tiles:
             r.step_economy(t)
         if bank is not None:
-            bank.PayDepositInterest(all_agents)
+            bank.PayDepositInterest(all_agents,
+                                    trace_region=self.tiles[0] if self.tiles else None)
         if charity is not None:
             charity.distribute_food(t, all_agents)
         if gov is not None:
@@ -321,4 +322,3 @@ def partition_contiguous_graph(nodes, neighbors_func, nparts: int, rng=None, pos
         ri += 1
 
     return parts
-

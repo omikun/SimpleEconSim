@@ -132,7 +132,16 @@ def recapitalize_domestic_banks(nation: Nation, target_capital: float = 500.0) -
     gov_agent.cash -= total_cost
     for b in troubled_banks:
         shortfall = max(0.0, target_capital - b.capital)
-        b.recapitalize(shortfall)
+        trace_region = next((tile for tile in nation.tiles if tile.bank is b), nation.tiles[0])
+        b.recapitalize(shortfall, trace_region=trace_region)
+
+    from run_trace import emit
+    emit(nation.tiles[0], kind='bank_recapitalization_funding', record_class='transfer',
+         subject={'type': 'nation', 'id': nation.name},
+         metric_id='finance.treasury_flow', unit=nation.currency,
+         after=-total_cost,
+         inputs={'bank_count': len(troubled_banks), 'target_capital': target_capital,
+                 'source': 'sovereign_treasury'})
 
     return True, f"Injected ${total_cost:,.0f} recapitalization into {len(troubled_banks)} domestic banks! All deposit freezes lifted."
 
@@ -151,7 +160,11 @@ def enact_deposit_bailin_haircut(nation: Nation, haircut_pct: float = 0.25, exem
     if not frozen_banks:
         return False, "No domestic banks are currently insolvent or frozen; bail-in resolution not permitted."
 
-    total_haircut = sum(b.apply_bail_in_haircut(haircut_pct, exemption_floor) for b in frozen_banks)
+    total_haircut = 0.0
+    for bank in frozen_banks:
+        trace_region = next((tile for tile in nation.tiles if tile.bank is bank), nation.tiles[0])
+        total_haircut += bank.apply_bail_in_haircut(haircut_pct, exemption_floor,
+                                                   trace_region=trace_region)
 
     # Political and Class fallout
     if hasattr(nation, 'factions'):

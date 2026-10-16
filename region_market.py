@@ -630,7 +630,7 @@ def trade(region, t):
     all_goods_price = region.all_goods_price
     food_price = region.food_price
     if getattr(region, 'province', None) is None:
-        region.bank.PayDepositInterest(region.agents)
+        region.bank.PayDepositInterest(region.agents, trace_region=region)
 
     dest = region.destination_region
     if dest is not None and dest.gov is not None:

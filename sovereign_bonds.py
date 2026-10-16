@@ -566,12 +566,13 @@ class SovereignBondMarket:
                     self.isrb.rating_modifiers[issuer.name] = -3
                     self.isrb.modifier_expiry[issuer.name] = t + 25
                     if bond.holder_nation == "Domestic Commercial Banks":
-                        issuer_banks = [r.bank for r in getattr(issuer, 'tiles', []) if getattr(r, 'bank', None)]
+                        issuer_banks = [(r, r.bank) for r in getattr(issuer, 'tiles', [])
+                                        if getattr(r, 'bank', None)]
                         if issuer_banks:
                             loss_share = bond.principal / len(issuer_banks)
-                            for b_inst in issuer_banks:
+                            for bank_tile, b_inst in issuer_banks:
                                 was_frozen = getattr(b_inst, 'is_frozen', False)
-                                b_inst.write_down_bonds(loss_share)
+                                b_inst.write_down_bonds(loss_share, trace_region=bank_tile)
                                 b_inst.sovereign_bonds_held = [x for x in getattr(b_inst, 'sovereign_bonds_held', []) if x.get('bond_id') != bond.bond_id]
                                 if getattr(b_inst, 'is_frozen', False) and not was_frozen:
                                     from client.desktop.engine import ticker_push
@@ -625,12 +626,13 @@ class SovereignBondMarket:
                     self.isrb.rating_modifiers[issuer.name] = -3
                     self.isrb.modifier_expiry[issuer.name] = t + 25
                     if bond.holder_nation == "Domestic Commercial Banks":
-                        issuer_banks = [r.bank for r in getattr(issuer, 'tiles', []) if getattr(r, 'bank', None)]
+                        issuer_banks = [(r, r.bank) for r in getattr(issuer, 'tiles', [])
+                                        if getattr(r, 'bank', None)]
                         if issuer_banks:
                             loss_share = bond.principal / len(issuer_banks)
-                            for b_inst in issuer_banks:
+                            for bank_tile, b_inst in issuer_banks:
                                 was_frozen = getattr(b_inst, 'is_frozen', False)
-                                b_inst.write_down_bonds(loss_share)
+                                b_inst.write_down_bonds(loss_share, trace_region=bank_tile)
                                 b_inst.sovereign_bonds_held = [x for x in getattr(b_inst, 'sovereign_bonds_held', []) if x.get('bond_id') != bond.bond_id]
                                 if getattr(b_inst, 'is_frozen', False) and not was_frozen:
                                     from client.desktop.engine import ticker_push

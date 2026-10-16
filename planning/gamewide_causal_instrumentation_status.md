@@ -44,11 +44,15 @@ the FX matrix has a **Why?** button for each quoted currency pair.
   interest, payment, balance remaining, and rent collected or outstanding.
 - Bank credit records requested and approved amounts, reserve capacity, frozen
   status, rates, borrower type, and repayments split into principal and interest.
+- Deposit interest, sovereign default write-downs, recapitalization, and bail-ins
+  record capital changes, affected depositors, freeze state, and funding source.
 - Construction steps record material purchases, required and available inputs,
   navvy hiring and pay, progress multipliers, stall causes, and completion.
 - Battles record initial strengths, casualties, winner, and conquest. War-side
   cohesion and posture updates expose supply runway, territorial losses, and
   political shocks; peace reparations enter treasury reconciliation.
+- Bilateral diplomacy changes show ideology, trade volume, treaty pull, and
+  betrayal memory; active wars explain relation locks.
 - Treasury phase boundaries, tax receipts, tariffs, government borrowing and
   loan service, food spending, army payroll, and scenario sales taxes are
   recorded as signed flows. End-of-turn reconciliation shows any unattributed
@@ -64,10 +68,9 @@ the FX matrix has a **Why?** button for each quoted currency pair.
 The coverage checker reports a changed snapshot as unexplained when its final
 value does not match a recorded calculation. Treasury snapshots show cash and
 deposit components, but treasury transfers are not yet comprehensively
-instrumented. Bank deposit interest and crisis write-downs, bonds,
+instrumented. Sovereign bond cashflows outside war reparations,
 environmental health attrition, infant mortality and nation-level death
-aggregation, trade-transmitted infection, some diplomacy relation drift,
-and several scenario
+aggregation, trade-transmitted infection, and several scenario
 operations still need mutation-point records. The current metric
 catalog does not yet cover every displayed field;
 `inventory_region_histories()` labels legacy series as instrumented or
