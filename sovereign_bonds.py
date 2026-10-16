@@ -19,6 +19,33 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from nation import Nation
 
+
+def _trace_bond(nation, kind, t, bond, *, treasury_delta=None, **inputs):
+    """Record a sovereign debt event against its nation and treasury."""
+    tiles = getattr(nation, 'tiles', [])
+    if not tiles:
+        return
+    from run_trace import emit
+    data = {'bond_id': bond.bond_id, 'issuer': bond.issuer_nation,
+            'holder': bond.holder_nation, 'principal': bond.principal,
+            'coupon_rate': bond.coupon_rate, 'maturity_turn': bond.maturity_turn,
+            'status': bond.status, 'purpose': bond.bond_purpose}
+    data.update(inputs)
+    emit(tiles[0], kind=kind, record_class='transfer' if treasury_delta is not None else 'outcome',
+         phase='finance', subject={'type': 'nation', 'id': nation.name},
+         metric_id='finance.sovereign_bond', unit=nation.currency,
+         after=bond.principal, formula_id='finance.sovereign_bond_lifecycle.v1',
+         inputs=data)
+    if treasury_delta is not None:
+        emit(tiles[0], kind=kind, record_class='transfer', phase='finance',
+             subject={'type': 'nation', 'id': nation.name},
+             metric_id='finance.treasury_flow', unit=nation.currency,
+             after=treasury_delta,
+             inputs={'bond_id': bond.bond_id, 'bond_event': kind,
+                     'counterparty': bond.holder_nation if nation.name == bond.issuer_nation
+                     else bond.issuer_nation, 'principal': bond.principal,
+                     'purpose': bond.bond_purpose, **inputs})
+
 # Standardized Credit Rating Tiers and Base Per-Turn Yield Rates (aligned with in-game bank loan rate ~0.10%/turn)
 RATING_TIERS = ["AAA", "AA", "A", "BBB", "BB", "B", "CCC"]
 RATING_BASE_YIELDS = {
@@ -308,6 +335,12 @@ class SovereignBondMarket:
         )
         self.bonds.append(bond)
         offering.status = "filled"
+        _trace_bond(buyer, 'sovereign_bond_purchase', t, bond,
+                    treasury_delta=-offering.principal,
+                    counterparty=issuer.name, offering_id=offering.offering_id)
+        _trace_bond(issuer, 'sovereign_bond_proceeds', t, bond,
+                    treasury_delta=offering.principal,
+                    counterparty=buyer.name, offering_id=offering.offering_id)
 
         from client.desktop.engine import ticker_push
         ticker_push(
@@ -352,6 +385,11 @@ class SovereignBondMarket:
             status="active"
         )
         self.bonds.append(bond)
+        if holder:
+            _trace_bond(holder, 'sovereign_bond_purchase', t, bond,
+                        treasury_delta=-principal, counterparty=issuer.name)
+        _trace_bond(issuer, 'sovereign_bond_proceeds', t, bond,
+                    treasury_delta=principal, counterparty=holder_name)
         return True, f"Issued {duration_turns}t Sovereign Bond #{bond_id} for ${principal:.0f} ({rating} @ {yield_rate*100:.2f}%/t).", bond
 
     def redeem_bond_early(self, bond_id: str, world: dict, t: int) -> tuple[bool, str]:
@@ -375,6 +413,11 @@ class SovereignBondMarket:
             holder.government.agent.cash += bond.principal
 
         bond.status = "redeemed"
+        _trace_bond(issuer, 'sovereign_bond_early_redemption', t, bond,
+                    treasury_delta=-bond.principal, counterparty=bond.holder_nation)
+        if holder:
+            _trace_bond(holder, 'sovereign_bond_redemption_received', t, bond,
+                        treasury_delta=bond.principal, counterparty=issuer.name)
         return True, f"Redeemed Sovereign Bond #{bond_id} for ${bond.principal:.0f}."
 
     def get_bonds_held_by(self, nation_name: str) -> list[SovereignBond]:
@@ -430,6 +473,10 @@ class SovereignBondMarket:
             target_tile_name=tile.name
         )
         self.bonds.append(bond)
+        _trace_bond(issuer, 'municipal_sewer_bond_underwritten', t, bond,
+                    contractor_id=getattr(contractor, 'id', None),
+                    target_tile=tile.name, project_id=proj.project_id,
+                    funding_amount=principal)
 
         msg = (f"🏛️ MUNICIPAL SEWER BOND: {issuer.name} issued ${principal:.0f} Municipal Revenue Bond #{bond_id} "
                f"to construct the Bazalgette Intercepting Sewer Network in {tile.name}!")
@@ -505,6 +552,10 @@ class SovereignBondMarket:
                     )
                     self.bonds.append(bond)
                     offering.status = "filled"
+                    _trace_bond(issuer, 'sovereign_bond_domestic_underwrite', t, bond,
+                                treasury_delta=offering.principal,
+                                counterparty='Domestic Commercial Banks',
+                                offering_id=offering.offering_id)
                     # Register bond holding across issuer's domestic commercial banks
                     issuer_banks = [r.bank for r in getattr(issuer, 'tiles', []) if getattr(r, 'bank', None)]
                     if issuer_banks:
@@ -554,6 +605,13 @@ class SovereignBondMarket:
                                 b_inst.capital += share_p
                                 b_inst.sovereign_bonds_held = [x for x in getattr(b_inst, 'sovereign_bonds_held', []) if x.get('bond_id') != bond.bond_id]
                     bond.status = "matured"
+                    _trace_bond(issuer, 'sovereign_bond_maturity_paid', t, bond,
+                                treasury_delta=-bond.principal,
+                                counterparty=bond.holder_nation)
+                    if holder:
+                        _trace_bond(holder, 'sovereign_bond_maturity_received', t, bond,
+                                    treasury_delta=bond.principal,
+                                    counterparty=issuer.name)
                     from client.desktop.engine import ticker_push
                     ticker_push(
                         world, t, 'FINANCE',
@@ -563,6 +621,8 @@ class SovereignBondMarket:
                 else:
                     # Sovereign Default on Principal
                     bond.status = "defaulted"
+                    _trace_bond(issuer, 'sovereign_bond_principal_default', t, bond,
+                                principal_loss=bond.principal)
                     self.isrb.rating_modifiers[issuer.name] = -3
                     self.isrb.modifier_expiry[issuer.name] = t + 25
                     if bond.holder_nation == "Domestic Commercial Banks":
@@ -619,10 +679,20 @@ class SovereignBondMarket:
                         if issuer_banks:
                             share_c = coupon / len(issuer_banks)
                             for b_inst in issuer_banks:
-                                b_inst.pay_interest(share_c)
+                            b_inst.pay_interest(share_c)
+                    _trace_bond(issuer, 'sovereign_bond_coupon_paid', t, bond,
+                                treasury_delta=-remaining_coupon,
+                                coupon_total=coupon, resident_contributions=funds_collected,
+                                counterparty=bond.holder_nation)
+                    if holder:
+                        _trace_bond(holder, 'sovereign_bond_coupon_received', t, bond,
+                                    treasury_delta=coupon, counterparty=issuer.name)
                 else:
                     # Default on Coupon
                     bond.status = "defaulted"
+                    _trace_bond(issuer, 'sovereign_bond_coupon_default', t, bond,
+                                coupon_due=coupon, available_treasury_cash=issuer.government.agent.cash,
+                                resident_contributions=funds_collected)
                     self.isrb.rating_modifiers[issuer.name] = -3
                     self.isrb.modifier_expiry[issuer.name] = t + 25
                     if bond.holder_nation == "Domestic Commercial Banks":
