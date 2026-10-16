@@ -15,7 +15,7 @@ from logger import loginfo, logwarning, logdebug
 import econsim_trade_money as trade
 
 
-def _trace_public_transfer(government, kind, amount, recipients, **inputs):
+def _trace_public_transfer(government, kind, amount, recipients, *, outflow=True, **inputs):
     """Trace public cash transfers at their treasury mutation point."""
     regions = getattr(government, 'regions', [])
     region = next((candidate for candidate in regions
@@ -30,7 +30,7 @@ def _trace_public_transfer(government, kind, amount, recipients, **inputs):
     from run_trace import emit
     emit(region, kind=kind, record_class='transfer', phase='government',
          subject=subject, metric_id='finance.treasury_flow', unit=unit,
-         after=-float(amount),
+         after=-float(amount) if outflow else float(amount),
          inputs={'government': government.name,
                  'recipients': [str(item) for item in recipients],
                  'recipient_count': len(recipients), 'amount': float(amount), **inputs})
@@ -483,6 +483,8 @@ class Government:
         if amount > 0:
             self.agent.cash += amount
             self.record_income(t, 'tax', amount)
+            _trace_public_transfer(self, 'legacy_tax_collected', amount, [],
+                                   outflow=False, tax_source='legacy_collect_tax')
             loginfo(t, f"Government({self.name}) collected ${amount:.2f} in taxes")
         return amount
 
