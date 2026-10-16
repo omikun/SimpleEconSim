@@ -1,4 +1,4 @@
-"""Inspect compact or legacy JSONL causal records from a run.
+"""Inspect or decode compact causal records from a run.
 
 Example: venv/bin/python trace_report.py --run tmp/traces/RUN.ctr \
     --turn 12 --entity tile:Delta --metric goods.price

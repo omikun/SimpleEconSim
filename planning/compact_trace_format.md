@@ -1,15 +1,14 @@
 # Compact causal trace
 
-New simulation runs write `tmp/traces/<run-id>.ctr`. Existing `.jsonl` traces
-still open in the same reader. The event schema, IDs, sequence, formulas, and
-turn checkpoints are unchanged when decoded.
+Simulation runs write `tmp/traces/<run-id>.ctr`. The event schema, IDs,
+sequence, formulas, and turn checkpoints are unchanged when decoded.
 
 The compact file starts with `COCTRACE2\n`, followed by a continuous raw
 DEFLATE stream of UTF-8 JSON lines. Each event ends in a synchronous flush,
 so completed records can be queried before the run ends. The reader rejects a
 truncated final flush or incomplete JSON line. Checkpoints continue to hash
-the decoded canonical JSON payloads, so verification has the same meaning in
-both formats. This format uses only Python's standard library.
+the decoded canonical JSON payloads. This format uses only Python's standard
+library. JSONL is an export format; the reader accepts only `.ctr` input.
 
 ## Read or decode
 

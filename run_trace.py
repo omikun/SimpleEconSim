@@ -1,8 +1,4 @@
-"""Append-only, typed causal records for a simulation run.
-
-New .ctr files use compact DEFLATE storage; existing .jsonl files are readable.
-The recorder keeps a bounded UI window and a durable event stream.
-"""
+"""Append-only, typed causal records in compact .ctr files."""
 
 from __future__ import annotations
 
@@ -19,6 +15,8 @@ SCHEMA_VERSION = 1
 class RunTrace:
     def __init__(self, path, run_id, *, seed=None, scenario=None, recent_limit=256):
         self.path = Path(path)
+        if self.path.suffix != '.ctr':
+            raise ValueError('causal trace path must end in .ctr')
         self.run_id = str(run_id)
         self.branch_id = 'main'
         self.recent = deque(maxlen=recent_limit)
@@ -33,24 +31,18 @@ class RunTrace:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         if self.path.exists():
             raise FileExistsError(self.path)
-        self._compact_writer = (CompactTraceWriter(self.path)
-                                if self.path.suffix == '.ctr' else None)
+        self._compact_writer = CompactTraceWriter(self.path)
         self._append({'schema_version': SCHEMA_VERSION, 'record_class': 'metadata',
                       'run_id': self.run_id, 'branch_id': self.branch_id,
                       'seed': seed, 'scenario': scenario,
-                      'storage_format': 'deflate-sync-v1' if self._compact_writer
-                      else 'jsonl-v1'})
+                      'storage_format': 'deflate-sync-v1'})
 
     def _append(self, row):
         # No default=str: unsupported values are instrumentation errors.
         if self.write_error is not None:
             raise OSError(self.write_error)
         payload = json.dumps(row, sort_keys=True, separators=(',', ':'), allow_nan=False)
-        if self._compact_writer is not None:
-            self._compact_writer.append(payload)
-        else:
-            with self.path.open('a', encoding='utf-8') as stream:
-                stream.write(payload + '\n')
+        self._compact_writer.append(payload)
         self.count += 1
         self.digest = hashlib.sha256((self.digest + payload).encode('utf-8')).hexdigest()
 

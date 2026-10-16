@@ -15,7 +15,7 @@ from trace_report import report, render, diff_snapshots
 class RunTraceTests(unittest.TestCase):
     def test_price_formula_replays_from_recorded_terms(self):
         with tempfile.TemporaryDirectory() as tmp:
-            trace = RunTrace(Path(tmp) / 'run.jsonl', 'fixture', seed=1)
+            trace = RunTrace(Path(tmp) / 'run.ctr', 'fixture', seed=1)
             clock = {'next': 1, 'turn': 7, 'phase': 'local'}
             producer = SimpleNamespace(output=Goods.food, is_trader=False,
                                        inv_get=lambda _good, _fallback: 2.0)
@@ -47,7 +47,7 @@ class RunTraceTests(unittest.TestCase):
 
     def test_pagination_and_typed_json(self):
         with tempfile.TemporaryDirectory() as tmp:
-            trace = RunTrace(Path(tmp) / 'run.jsonl', 'fixture')
+            trace = RunTrace(Path(tmp) / 'run.ctr', 'fixture')
             clock = {'next': 1, 'turn': 1, 'phase': 'test'}
             for value in range(3):
                 trace.emit(clock, kind='snapshot', subject={'type': 'tile', 'id': 'A'},
@@ -70,7 +70,7 @@ class RunTraceTests(unittest.TestCase):
 
     def test_price_bridge_tracks_order_and_exposes_gaps(self):
         with tempfile.TemporaryDirectory() as tmp:
-            trace = RunTrace(Path(tmp) / 'bridge.jsonl', 'bridge')
+            trace = RunTrace(Path(tmp) / 'bridge.ctr', 'bridge')
             clock = {'next': 1, 'turn': 1, 'phase': 'local'}
             subject = {'type': 'tile', 'id': 'Delta', 'good': 'food'}
             trace.emit(clock, kind='market_price_update', record_class='calculation',
@@ -90,7 +90,7 @@ class RunTraceTests(unittest.TestCase):
 
     def test_formula_mismatch_cannot_receive_exact_bridge(self):
         with tempfile.TemporaryDirectory() as tmp:
-            trace = RunTrace(Path(tmp) / 'mismatch.jsonl', 'mismatch')
+            trace = RunTrace(Path(tmp) / 'mismatch.ctr', 'mismatch')
             clock = {'next': 1, 'turn': 1, 'phase': 'local'}
             subject = {'type': 'tile', 'id': 'Delta', 'good': 'food'}
             trace.emit(clock, kind='market_price_decay', record_class='calculation',
@@ -108,7 +108,7 @@ class RunTraceTests(unittest.TestCase):
 
     def test_no_order_decay_and_furniture_input_floor_replay(self):
         with tempfile.TemporaryDirectory() as tmp:
-            trace = RunTrace(Path(tmp) / 'floors.jsonl', 'floors')
+            trace = RunTrace(Path(tmp) / 'floors.ctr', 'floors')
             clock = {'next': 1, 'turn': 2, 'phase': 'local'}
             recipes = {Goods.food: {'price': 3.0, 'maxinv': 10},
                        Goods.furniture: {'price': 1.0, 'maxinv': 10,
@@ -135,7 +135,7 @@ class RunTraceTests(unittest.TestCase):
 
     def test_food_rise_and_fall_replay_on_separate_turns(self):
         with tempfile.TemporaryDirectory() as tmp:
-            trace = RunTrace(Path(tmp) / 'food.jsonl', 'food')
+            trace = RunTrace(Path(tmp) / 'food.ctr', 'food')
             clock = {'next': 1, 'turn': 1, 'phase': 'local'}
             producer = SimpleNamespace(output=Goods.food, is_trader=False,
                                        inv_get=lambda _good, _fallback: 10.0)
@@ -158,7 +158,7 @@ class RunTraceTests(unittest.TestCase):
     def test_cloth_quote_change_is_queryable_at_each_turn(self):
         from labor_frontier_market import _cloth_ask
         with tempfile.TemporaryDirectory() as tmp:
-            trace = RunTrace(Path(tmp) / 'cloth.jsonl', 'cloth')
+            trace = RunTrace(Path(tmp) / 'cloth.ctr', 'cloth')
             clock = {'next': 1, 'turn': 1, 'phase': 'scenario_market'}
             region = SimpleNamespace(name='Mill', recipes={
                 Goods.cloth: {'production': 3}, Goods.cotton: {'price': 3.0}},
@@ -217,7 +217,7 @@ class RunTraceTests(unittest.TestCase):
     def test_fx_formula_records_reserves_and_ppp(self):
         from forex import ForexDesk
         with tempfile.TemporaryDirectory() as tmp:
-            trace = RunTrace(Path(tmp) / 'run.jsonl', 'fx-fixture')
+            trace = RunTrace(Path(tmp) / 'run.ctr', 'fx-fixture')
             clock = {'next': 1, 'turn': 4, 'phase': 'forex'}
             region = SimpleNamespace(name='Delta', _collective_trace_clock=clock,
                                      _run_trace=trace)

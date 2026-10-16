@@ -293,5 +293,5 @@ as a verified explanation merely because the final price was recorded.
 
 The storage portion of Phase 6 now has a compact `.ctr` event stream and a
 streaming reader; see [the format and decode commands](compact_trace_format.md).
-Legacy JSONL files remain readable. Resume/branch state, a rebuildable query
-index, and longer performance gates are still pending.
+Legacy JSONL traces were removed and their input path was retired. Resume/branch
+state, a rebuildable query index, and longer performance gates are still pending.

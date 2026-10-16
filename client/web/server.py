@@ -148,26 +148,25 @@ class CoCHTTPRequestHandler(BaseHTTPRequestHandler):
 
         elif path == '/api/trace/download':
             try:
-                from trace_codec import decoded_size, is_compact, iter_payloads
+                from trace_codec import decoded_size, iter_payloads
                 sim = self.server.sim_server
                 with sim._lock:
                     trace_path = sim.run_trace.path
                     run_id = sim.run_trace.run_id
                     compact = query.get('format', ['jsonl'])[0] == 'compact'
-                    raw_compact = compact and is_compact(trace_path)
-                    download_extension = 'ctr' if raw_compact else 'jsonl'
-                    body_size = (trace_path.stat().st_size if raw_compact
+                    download_extension = 'ctr' if compact else 'jsonl'
+                    body_size = (trace_path.stat().st_size if compact
                                  else decoded_size(trace_path))
                     self.send_response(200)
                     self.send_header('Content-Type',
-                                     'application/octet-stream' if raw_compact
+                                     'application/octet-stream' if compact
                                      else 'application/x-ndjson; charset=utf-8')
                     self.send_header('Content-Disposition',
                                      f'attachment; filename="run-{run_id}.{download_extension}"')
                     self.send_header('Cache-Control', 'no-store')
                     self.send_header('Content-Length', str(body_size))
                     self.end_headers()
-                    if raw_compact:
+                    if compact:
                         with trace_path.open('rb') as stream:
                             remaining = body_size
                             while remaining > 0:

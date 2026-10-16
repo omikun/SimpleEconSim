@@ -1,4 +1,4 @@
-"""Compact trace storage, decode, and legacy compatibility."""
+"""Compact trace storage and decoding."""
 
 import json
 from pathlib import Path
@@ -42,16 +42,16 @@ class TraceCodecTests(unittest.TestCase):
             self.assertEqual([json.loads(line) for line in exported.read_text().splitlines()],
                              decoded)
 
-    def test_old_jsonl_still_reads_and_torn_compact_tail_fails(self):
+    def test_jsonl_input_rejected_and_torn_compact_tail_fails(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            legacy = RunTrace(root / 'old.jsonl', 'old')
+            legacy = root / 'old.jsonl'
+            legacy.write_text('{"kind":"legacy"}\n', encoding='utf-8')
+            with self.assertRaisesRegex(ValueError, 'unsupported causal trace format'):
+                list(iter_payloads(legacy))
+            with self.assertRaisesRegex(ValueError, 'must end in .ctr'):
+                RunTrace(legacy, 'old')
             clock = {'next': 1, 'turn': 1, 'phase': 'test'}
-            legacy.emit(clock, kind='legacy', metric_id='goods.price', after=2)
-            legacy.checkpoint(clock)
-            self.assertEqual(verify(legacy.path)['checkpoints'], 1)
-            self.assertEqual(len(list(iter_payloads(legacy.path))), 3)
-
             compact = RunTrace(root / 'new.ctr', 'new')
             compact.emit(clock, kind='new', metric_id='goods.price', after=2)
             path = compact.path

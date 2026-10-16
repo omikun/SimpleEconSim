@@ -3,7 +3,7 @@
 Version 1 stores UTF-8 JSON lines in one raw DEFLATE stream. Every appended
 record ends with Z_SYNC_FLUSH, making all completed records readable before the
 writer closes. The four-byte flush marker also detects a torn final write.
-Existing plain JSONL traces remain readable without conversion.
+Decoded JSONL is an export format; input must use the compact container.
 """
 
 from __future__ import annotations
@@ -15,11 +15,6 @@ import zlib
 MAGIC = b'COCTRACE2\n'
 SYNC_MARKER = b'\x00\x00\xff\xff'
 READ_CHUNK = 65536
-
-
-def is_compact(path):
-    with Path(path).open('rb') as stream:
-        return stream.read(len(MAGIC)) == MAGIC
 
 
 class CompactTraceWriter:
@@ -39,20 +34,12 @@ class CompactTraceWriter:
 
 
 def iter_payloads(path):
-    """Yield canonical JSON payload strings from compact or old JSONL traces."""
+    """Yield canonical JSON payload strings from a compact trace."""
     path = Path(path)
     with path.open('rb') as stream:
         header = stream.read(len(MAGIC))
         if header != MAGIC:
-            stream.seek(0)
-            for number, raw in enumerate(stream, 1):
-                if not raw.endswith(b'\n'):
-                    raise ValueError(f'truncated JSONL record at line {number}')
-                try:
-                    yield raw[:-1].decode('utf-8')
-                except UnicodeDecodeError as exc:
-                    raise ValueError(f'invalid UTF-8 at line {number}') from exc
-            return
+            raise ValueError('unsupported causal trace format; expected a compact .ctr file')
 
         decoder = zlib.decompressobj(-15)
         pending = b''
