@@ -40,6 +40,8 @@ the FX matrix has a **Why?** button for each quoted currency pair.
   provider, payer, cure chance, outcome, and unaffordable cases. Post-treatment
   case counts, spending, untreated cases, and fatalities are sampled. Public
   treatment payments that leave government cash enter treasury reconciliation.
+- Non-fatal health attrition records each agent's air, water, pesticide, soil,
+  and nutrition contributions, alongside their pollution and food exposures.
 - Named cash obligations record assessment basis, due date, debtor and creditor,
   interest, payment, balance remaining, and rent collected or outstanding.
 - Bank credit records requested and approved amounts, reserve capacity, frozen
@@ -69,7 +71,7 @@ The coverage checker reports a changed snapshot as unexplained when its final
 value does not match a recorded calculation. Treasury snapshots show cash and
 deposit components, but treasury transfers are not yet comprehensively
 instrumented. Sovereign bond cashflows outside war reparations,
-environmental health attrition, infant mortality and nation-level death
+infant mortality and nation-level death
 aggregation, trade-transmitted infection, and several scenario
 operations still need mutation-point records. The current metric
 catalog does not yet cover every displayed field;

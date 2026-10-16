@@ -347,28 +347,48 @@ def apply_environmental_health_wear(region):
         if not getattr(a, 'alive', True) or getattr(a, 'is_corporation', False) or getattr(a, 'is_government', False):
             continue
 
-        attrition_delta = 0.0
+        attrition_sources = {'air_pollution': 0.0, 'water_pollution': 0.0,
+                             'direct_pesticide_exposure': 0.0, 'soil_toxicity': 0.0,
+                             'low_nutrition': 0.0}
 
         # 1. Smog inhalation (particulate matter & sulfur)
         if region.pollution_air > 15.0:
-            attrition_delta += 0.0015 * (region.pollution_air - 15.0)
+            attrition_sources['air_pollution'] = 0.0015 * (region.pollution_air - 15.0)
 
         # 2. Contaminated drinking water (cholera, heavy metals)
         if region.pollution_water > 20.0:
-            attrition_delta += 0.0020 * (region.pollution_water - 20.0)
+            attrition_sources['water_pollution'] = 0.0020 * (region.pollution_water - 20.0)
 
         # 3. Direct pesticide exposure (agricultural laborers handle toxic spray)
         if use_pest and not has_clean_pest and getattr(a, 'output', None) == Goods.food:
-            attrition_delta += 0.040  # Acute chemical toxicity on farmworkers
+            attrition_sources['direct_pesticide_exposure'] = 0.040
         elif region.pollution_soil > 25.0:
-            attrition_delta += 0.0015 * (region.pollution_soil - 25.0)
+            attrition_sources['soil_toxicity'] = 0.0015 * (region.pollution_soil - 25.0)
 
         # 4. Poor food nutritional density (micronutrient deficiency)
         if region.nutrition_density < 0.85:
-            attrition_delta += 0.025 * (1.0 - region.nutrition_density)
+            attrition_sources['low_nutrition'] = 0.025 * (1.0 - region.nutrition_density)
 
+        attrition_delta = sum(attrition_sources.values())
         if attrition_delta > 0.0:
-            a.health_attrition = getattr(a, 'health_attrition', 0.0) + attrition_delta
+            attrition_before = float(getattr(a, 'health_attrition', 0.0))
+            a.health_attrition = attrition_before + attrition_delta
+            from run_trace import emit
+            emit(region, kind='environmental_health_attrition', record_class='calculation',
+                 subject={'type': 'tile', 'id': region.name,
+                          'agent_id': getattr(a, 'id', None)},
+                 metric_id='health.attrition', unit='attrition_points',
+                 before=attrition_before, after=a.health_attrition,
+                 formula_id='health.environmental_exposure_wear.v1',
+                 inputs={'attrition_delta': attrition_delta,
+                         'source_components': attrition_sources,
+                         'air_pollution': region.pollution_air,
+                         'water_pollution': region.pollution_water,
+                         'soil_toxicity': region.pollution_soil,
+                         'nutrition_density': region.nutrition_density,
+                         'pesticide_use': use_pest,
+                         'biological_pest_control': has_clean_pest,
+                         'agent_output': getattr(getattr(a, 'output', None), 'name', None)})
 
 
 def get_tile_metabolic_state(region) -> dict:
