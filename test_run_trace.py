@@ -6,7 +6,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from goods import Goods
-from region_market import update_price_ref
+from region_market import update_price_ref, price_decay
 from run_trace import RunTrace, verify
 from price_trace import replay_event
 from trace_report import report, render, diff_snapshots
@@ -87,6 +87,32 @@ class RunTraceTests(unittest.TestCase):
             gap = trace.query(subject=subject, metric_id='goods.price')['events'][-1]
             self.assertEqual(gap['explanation_status'], 'mutation_chain_incomplete')
 
+    def test_no_order_decay_and_furniture_input_floor_replay(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            trace = RunTrace(Path(tmp) / 'floors.jsonl', 'floors')
+            clock = {'next': 1, 'turn': 2, 'phase': 'local'}
+            recipes = {Goods.food: {'price': 3.0, 'maxinv': 10},
+                       Goods.furniture: {'price': 1.0, 'maxinv': 10,
+                                         'input': Goods.food, 'numInput': 2,
+                                         'production': 1}}
+            producer = SimpleNamespace(output=Goods.furniture, is_trader=False,
+                                       inv_get=lambda _good, _fallback: 10.0)
+            region = SimpleNamespace(name='Delta', recipes=recipes,
+                                     _price_ref={Goods.food: 3.0,
+                                                 Goods.furniture: 1.0},
+                                     _trade_prices={}, agents=[producer],
+                                     _collective_trace_clock=clock, _run_trace=trace,
+                                     home_currency='D')
+            price_decay(region, Goods.food)
+            self.assertAlmostEqual(recipes[Goods.food]['price'], 2.85)
+            update_price_ref(region, Goods.furniture, 0.1,
+                             local_asks=10, imported_asks=0, bids=1)
+            self.assertAlmostEqual(recipes[Goods.furniture]['price'], 5.7)
+            rows = trace.query(metric_id='goods.price')['events']
+            self.assertEqual(len(rows), 2)
+            self.assertTrue(all(replay_event(row)['matches'] for row in rows))
+            self.assertAlmostEqual(rows[1]['constraints']['active_floor'], 5.7)
+
     def test_dynamic_price_snapshot_and_read_only_death_sample(self):
         from trace_snapshots import sample
         tile = SimpleNamespace(name='Delta', recipes={Goods.cotton: {'price': 3.0}},
@@ -158,6 +184,10 @@ class RunTraceTests(unittest.TestCase):
         replayed = [replay_event(row) for row in price_rows]
         self.assertTrue(all(result['matches'] for result in replayed if result))
         self.assertTrue(any(row['kind'] == 'price_bridge' for row in price_rows))
+        for metric in ('goods.seller_ask', 'goods.delivered_quote'):
+            quotes = server.run_trace.query(metric_id=metric, limit=10000)['events']
+            self.assertTrue(all(replay_event(row)['matches'] for row in quotes
+                                if replay_event(row)))
 
 
 if __name__ == '__main__':

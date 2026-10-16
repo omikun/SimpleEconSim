@@ -277,7 +277,13 @@ scenario, AI and persistence work proceeds in the listed order.
   The API accepts a good filter. Death counters now reset at the engine turn
   boundary, so taking a snapshot does not clear them.
 - This is the first slice, not completion of Phases 0–6. Legacy standalone
-  pricing, transport replay, source-to-order chains, comprehensive mortality,
+  pricing, source-to-order chains, comprehensive mortality,
   treasury reconciliation, AI evaluation evidence, chart-point/desktop parity,
   persistence and performance gates remain open. Current price bridges check
   ordered writes; they do not yet prove every upstream cause.
+
+Follow-up in the same slice: transport price changes and the live market's
+local seller asks and import quotes now record replayable formulas. The import
+quote records the FX buy rate, tariff, drawback, margin and destination price
+ceiling used at evaluation. Targeted tests cover no-order decay and a furniture
+input-cost floor. Legacy standalone pricing remains outside the live recorder.

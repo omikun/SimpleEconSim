@@ -33,10 +33,29 @@ def replay_reference(inputs):
 
 def replay_decay(inputs):
     price = inputs['prior_display_price']
-    floor = inputs['input_cost_floor']
+    if inputs.get('input_quantity', 0) > 0 and inputs.get('production_quantity', 0) > 0:
+        floor = inputs['input_quantity'] * inputs['input_price'] / inputs['production_quantity']
+    else:
+        floor = 1.0
     if price > floor * 1.05:
         price = max(floor, price * 0.95)
     return max(floor, price)
+
+
+def replay_transport(inputs):
+    ratio = inputs['demand_ratio']
+    price = inputs['prior_display_price']
+    if ratio >= 1:
+        price *= 1.01 + (1.20 - 1.01) * min(5.0, ratio - 1) / 5.0
+    elif ratio < 0.2:
+        price *= 0.90 + (0.95 - 0.90) * ratio / 0.2
+    elif ratio < 0.5:
+        price *= 0.95 + (1.0 - 0.95) * (ratio - 0.2) / 0.3
+    if inputs['input_quantity'] > 0:
+        floor = inputs['fundamental_cost'] * 1.10
+    else:
+        floor = max(inputs['living_cost_floor'], 0.10)
+    return max(floor, price, 0.1)
 
 
 def replay_event(row):
@@ -45,6 +64,24 @@ def replay_event(row):
         expected = replay_reference(row['inputs'])['final']
     elif formula == 'market.decay.v1':
         expected = replay_decay(row['inputs'])
+    elif formula == 'market.transport.v1':
+        expected = replay_transport(row['inputs'])
+    elif formula == 'market.local_ask.v1':
+        i = row['inputs']
+        scarcity = 1.4 - 0.4 * max(0.0, min(1.0, i['stock']
+                                                   / max(1, i['max_inventory'])))
+        urgency = max(0.0, 1.0 - 0.12 * i['hungry_steps'])
+        factor = max(i['urgency_min'], min(i['urgency_max'], scarcity * urgency))
+        expected = i['reference'] * factor
+    elif formula == 'market.import_ask.v1':
+        i = row['inputs']
+        denom = max(0.05, (1.0 - i['tariff'] * (1.0 - i['drawback']))
+                    * i['fx_buy_rate'])
+        expected = i['home_cost'] * (1.0 + i['margin']) / denom
+        if i['destination_reference'] > 0:
+            expected = min(expected, i['destination_reference']
+                           * (1.0 + i['minimum_import_margin']))
+        expected = max(0.05, expected)
     elif formula == 'scenario.cotton_ask.v1':
         i = row['inputs']
         expected = (i['base'] + i['wage_coefficient'] * i['wage']

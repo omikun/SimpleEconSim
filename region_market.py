@@ -214,7 +214,20 @@ def calculate_ask_price(region, agent, good, ref):
     urgency = max(0.0, 1.0 - 0.12 * hungry)
     mult = scarcity * urgency
     mult = max(region.ASK_URGENCY_MIN, min(region.ASK_URGENCY_MAX, mult))
-    return ref * mult
+    ask = ref * mult
+    from run_trace import emit
+    emit(region, kind='local_seller_ask', record_class='calculation',
+         subject={'type': 'tile', 'id': region.name, 'good': good.name,
+                  'seller_id': agent.id},
+         metric_id='goods.seller_ask', unit='local_currency_per_unit',
+         after=ask, formula_id='market.local_ask.v1',
+         inputs={'reference': ref, 'stock': stock, 'max_inventory': maxinv,
+                 'hungry_steps': hungry, 'scarcity_multiplier': scarcity,
+                 'urgency_multiplier': urgency, 'bounded_multiplier': mult,
+                 'urgency_min': region.ASK_URGENCY_MIN,
+                 'urgency_max': region.ASK_URGENCY_MAX,
+                 'currency': region.home_currency})
+    return ask
 
 
 def import_ask_price(region, trader, good):
@@ -243,7 +256,22 @@ def import_ask_price(region, trader, good):
     if dest_price > 0:
         cap = dest_price * (1.0 + region.IMPORT_MARGIN_MIN)
         ask = min(ask, cap)
-    return max(0.05, ask)
+    ask = max(0.05, ask)
+    from run_trace import emit
+    emit(region, kind='import_delivered_quote', record_class='calculation',
+         subject={'type': 'tile', 'id': region.name, 'good': good.name,
+                  'seller_id': trader.id},
+         metric_id='goods.delivered_quote', unit='local_currency_per_unit',
+         after=ask, formula_id='market.import_ask.v1',
+         inputs={'source_tile': src_region.name if src_region is not None else None,
+                 'home_cost': cost_home, 'margin': margin,
+                 'tariff': tariff, 'drawback': drawback,
+                 'effective_tariff': effective_tariff,
+                 'fx_buy_rate': buy_rate, 'denominator': denom,
+                 'destination_reference': dest_price,
+                 'minimum_import_margin': region.IMPORT_MARGIN_MIN,
+                 'currency': region.home_currency})
+    return ask
 
 
 def update_price_ref(region, good, demand_ratio, *, local_asks=None,
@@ -603,9 +631,11 @@ def price_decay(region, good):
     r = region.recipes[good]
     before = r['price']
     cost_to_make = 1.0
+    input_good = r.get('input') if r.get('numInput', 0) > 0 else None
+    input_price = (region.recipes[input_good]['price'] if input_good is not None
+                   and r.get('production', 0) > 0 else None)
     if r.get('numInput', 0) > 0 and r.get('production', 0) > 0:
-        input_cost = region.recipes[r['input']]['price']
-        cost_to_make = (r['numInput'] * input_cost) / r['production']
+        cost_to_make = (r['numInput'] * input_price) / r['production']
     if r['price'] > cost_to_make * 1.05:
         r['price'] = max(cost_to_make, r['price'] * 0.95)
     r['price'] = max(cost_to_make, r['price'])
@@ -618,6 +648,10 @@ def price_decay(region, good):
                  'new_internal_reference': region._price_ref.get(good),
                  'trigger': 'no_bids_and_no_asks', 'threshold_multiplier': 1.05,
                  'decay_factor': 0.95, 'input_cost_floor': cost_to_make,
+                 'input_good': input_good.name if input_good is not None else None,
+                 'input_price': input_price,
+                 'input_quantity': r.get('numInput', 0),
+                 'production_quantity': r.get('production', 0),
                  'price_basis': 'displayed_recipe_reference',
                  'currency': getattr(region, 'home_currency', None)},
          constraints={'active_floor': cost_to_make if r['price'] == cost_to_make else None})
@@ -629,9 +663,11 @@ def set_price(region, demand_ratio, good):
     price = r['price']
     before = price
     fundamental_cost = 1.0
+    input_good = r.get('input') if r.get('numInput', 0) > 0 else None
+    input_price = (region.recipes[input_good]['price'] if input_good is not None
+                   and r.get('production', 0) > 0 else None)
     if r.get('numInput', 0) > 0 and r.get('production', 0) > 0:
-        input_cost = region.recipes[r['input']]['price']
-        fundamental_cost = (r['numInput'] * input_cost) / r['production']
+        fundamental_cost = (r['numInput'] * input_price) / r['production']
     food_price = region.food_price
     living_cost_floor = (4 * food_price) / max(1, r.get('production', 1))
 
@@ -652,8 +688,14 @@ def set_price(region, demand_ratio, good):
          subject={'type': 'tile', 'id': region.name, 'good': good.name},
          metric_id='goods.price', unit='local_currency_per_unit',
          before=before, after=price, formula_id='market.transport.v1',
-         inputs={'demand_ratio': demand_ratio, 'fundamental_cost': fundamental_cost,
-                 'food_price': food_price, 'living_cost_floor': living_cost_floor},
+         inputs={'prior_display_price': before, 'demand_ratio': demand_ratio,
+                 'fundamental_cost': fundamental_cost, 'food_price': food_price,
+                 'living_cost_floor': living_cost_floor,
+                 'input_good': input_good.name if input_good is not None else None,
+                 'input_price': input_price,
+                 'input_quantity': r.get('numInput', 0),
+                 'production_quantity': r.get('production', 1),
+                 'currency': region.home_currency},
          constraints={'min_price_floor': min_price_floor})
     return price
 
