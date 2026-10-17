@@ -321,7 +321,7 @@ class RunTraceTests(unittest.TestCase):
                 self.assertEqual(worker.output, Goods.wood)
                 self.assertEqual(worker.last_career_switch, 12)
                 self.assertEqual(worker.mem_last('mem_career_history'), 'food')
-                rows = trace.query(turn=12, metric_id='labor.career_choice')['events']
+                rows = trace.query(turn=12, metric_id='labor.occupation_change')['events']
                 self.assertEqual(len(rows), 1)
                 row = rows[0]
                 self.assertEqual(row['value_before'], 'food')

@@ -244,17 +244,21 @@ def apply_career_switch(region: Any, worker: Any, new_output: Any, turn: int, *,
                         constraints: dict | None = None) -> bool:
     """Authoritative occupation mutation with tenure tracking and causal trace emission."""
     from goods import Goods
-    old_output = getattr(worker, 'output', None)
+    old_output = getattr(worker, 'primary_livelihood', None)
     old_name = getattr(old_output, 'name', str(old_output)) if old_output is not None else 'none'
     new_name = getattr(new_output, 'name', str(new_output)) if new_output is not None else 'none'
     prev_switch_turn = int(getattr(worker, 'last_career_switch', 0))
     prior_tenure = max(0, int(turn) - prev_switch_turn)
-    changed = (old_output != new_output)
+    changed = old_output != new_output
     if not changed:
+        if not getattr(worker, 'military_unit_id', None):
+            worker.output = new_output
         return False
     if changed and old_output not in (None, Goods.none, Goods.gov) and hasattr(worker, 'mem_push'):
         worker.mem_push('mem_career_history', old_name)
     worker.output = new_output
+    worker.primary_livelihood = new_output
+    worker.livelihood_started_turn = int(turn)
     worker.last_career_switch = int(turn)
     if changed and region is not None:
         from run_trace import emit
@@ -273,11 +277,32 @@ def apply_career_switch(region: Any, worker: Any, new_output: Any, turn: int, *,
         emit(region, kind=kind, record_class=record_class,
              subject={'type': 'agent', 'id': worker.id,
                       'tile': getattr(region, 'name', 'unknown')},
-             metric_id='labor.career_choice', unit='occupation',
+             metric_id='labor.occupation_change', unit='occupation',
              before=old_name, after=new_name,
              formula_id=formula_id, inputs=payload,
              constraints=constraints)
     return changed
+
+
+def record_labor_status(region: Any, worker: Any, turn: int, *,
+                        before: str, after: str, reason: str,
+                        employer_before: Any = None,
+                        employer_after: Any = None) -> None:
+    """Record a job or service spell without changing primary livelihood."""
+    if region is None or (before == after and employer_before == employer_after):
+        return
+    from run_trace import emit
+    emit(region, kind='labor_status_change', record_class='outcome',
+         subject={'type': 'agent', 'id': worker.id,
+                  'tile': getattr(region, 'name', 'unknown')},
+         metric_id='labor.status_change', unit='status',
+         before=before, after=after,
+         formula_id='labor.status_transition.v1',
+         inputs={'reason': reason, 'turn': int(turn),
+                 'employer_before': getattr(employer_before, 'id', None),
+                 'employer_after': getattr(employer_after, 'id', None),
+                 'primary_livelihood': getattr(
+                     getattr(worker, 'primary_livelihood', None), 'name', None)})
 
 
 def attach_worker(worker: Any, firm: Any, turn: int, decision: LaborDecision,
@@ -318,6 +343,12 @@ def attach_worker(worker: Any, firm: Any, turn: int, decision: LaborDecision,
             'offered_wage': decision.offered_wage,
             'reservation_wage': decision.reservation_wage,
         },
+    )
+    record_labor_status(
+        region, worker, turn,
+        before='employed' if old_employer is not None else 'independent',
+        after='employed', reason='hired_by_firm',
+        employer_before=old_employer, employer_after=firm,
     )
     from labor_contract import ensure_labor_agreement
     agreement = ensure_labor_agreement(worker, firm, turn)

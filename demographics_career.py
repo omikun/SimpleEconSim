@@ -76,7 +76,6 @@ def grant_apprenticeship_subsidy(agent, output, t, ctx):
     else:
         actual = 0.0
     agent.cash += actual
-    agent.inv_set(Goods.food, max(agent.inv_get(Goods.food, 0), 4))
     if actual > 0:
         loginfo(t, f"{agent.name()} apprenticeship to {ctx.profession[output]}, "
                 f"subsidy ${actual:.0f}")
@@ -133,6 +132,12 @@ def handle_career_switching(ctx, t, agent, agents,
     if getattr(agent, 'is_native_child', False) and agent.age(t) < 14:
         return 0, number_of_switches
     s_reg = getattr(ctx, 'source_region', None)
+    if (getattr(agent, 'primary_livelihood', None) is None
+            and agent.output not in (Goods.none, Goods.gov)):
+        from labor_choice import apply_career_switch
+        apply_career_switch(s_reg, agent, agent.output, t,
+                            kind='youth_livelihood_entry', reason='adult_entry',
+                            record_class='outcome')
     if s_reg is not None and getattr(s_reg, 'labor_scheduler_last_turn', None) == t:
         return 0, number_of_switches
     is_employee = getattr(agent, 'employer', None) is not None

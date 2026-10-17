@@ -169,6 +169,9 @@ def recruit_unit(nation, region, soldier_count: int, wage: float = 1.0,
         for person in eligible[:soldier_count]:
             person.military_unit_id = unit_id
             person.output = Goods.gov
+            from labor_choice import record_labor_status
+            record_labor_status(region, person, t, before='independent',
+                                after='military', reason='enlisted')
 
     region.military_units.append(unit)
     nation.military_units.append(unit)
@@ -230,6 +233,11 @@ def discharge_unit(unit, tiles, nation):
         if person is not None and person.alive:
             person.military_unit_id = None
             person.output = Goods[unit.prior_outputs.get(person_id, 'none')]
+            from labor_choice import record_labor_status
+            home = next((region for region in tiles if person in region.agents), None)
+            if home is not None:
+                record_labor_status(home, person, int(getattr(home, '_last_turn', 0) or 0),
+                                    before='military', after='independent', reason='discharged')
     unit.person_ids.clear()
     unit.soldiers = 0
     if unit in nation.military_units:
@@ -350,6 +358,9 @@ def step_armies(tiles: list, nations: list, t: int = 0) -> list[dict]:
                     if person is not None and person.alive:
                         person.military_unit_id = None
                         person.output = Goods[unit.prior_outputs.get(person_id, 'none')]
+                        from labor_choice import record_labor_status
+                        record_labor_status(region, person, t, before='military',
+                                            after='independent', reason='deserted')
                         person.military_xp = max(person.military_xp, unit.veteran_xp)
                         events.append({'t': t, 'unit_id': unit.unit_id,
                                        'event': 'DESERTER_REABSORBED',
@@ -391,6 +402,10 @@ def step_armies(tiles: list, nations: list, t: int = 0) -> list[dict]:
                         wild_tile = random.choice(wild_neighbors)
                         deserter_agent.region = wild_tile.name
                         deserter_agent.home_currency = region.home_currency
+                        from labor_choice import apply_career_switch
+                        apply_career_switch(wild_tile, deserter_agent, Goods.food, t,
+                                            kind='deserter_livelihood_entry',
+                                            reason='homesteading', record_class='outcome')
                         wd.enter_wilderness(wild_tile, deserter_agent, t)
                         wild_tile.agents.append(deserter_agent)
                         events.append({
@@ -408,7 +423,12 @@ def step_armies(tiles: list, nations: list, t: int = 0) -> list[dict]:
                         deserter_agent.region = region.name
                         deserter_agent.home_currency = region.home_currency
                         deserter_agent._bank_ref = getattr(region, 'bank', None)
-                        deserter_agent.output = random.choice([Goods.food, Goods.wood, Goods.furniture])
+                        from labor_choice import apply_career_switch
+                        apply_career_switch(
+                            region, deserter_agent,
+                            random.choice([Goods.food, Goods.wood, Goods.furniture]), t,
+                            kind='deserter_livelihood_entry', reason='civilian_reabsorption',
+                            record_class='outcome')
                         region.agents.append(deserter_agent)
                         if hasattr(gov, '_add_citizen'):
                             gov._add_citizen(deserter_agent)

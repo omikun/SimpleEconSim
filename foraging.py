@@ -70,6 +70,8 @@ def forage_tile(region, t: int) -> int:
                 a.inv_add(Goods.food, 1)
                 a.last_forage_turn = t
                 a.food_foraged += 1
+                a.temporary_work_share = 0.05
+                _record_activity(region, a, t, 1)
                 total += 1
             continue
 
@@ -85,6 +87,20 @@ def forage_tile(region, t: int) -> int:
             a.inv_add(Goods.food, foraged)
             a.food_foraged += foraged
             a.last_forage_turn = t
+            a.temporary_work_share = min(0.25, foraged / 16.0)
+            _record_activity(region, a, t, foraged)
             total += foraged
 
     return total
+
+
+def _record_activity(region, agent, turn, food_units):
+    from run_trace import emit
+    emit(region, kind='commons_foraging', record_class='outcome',
+         subject={'type': 'agent', 'id': agent.id, 'tile': region.name},
+         metric_id='labor.temporary_activity', unit='turn_share',
+         after=agent.temporary_work_share,
+         formula_id='commons.forage_activity.v1',
+         inputs={'food_units': food_units, 'good': Goods.food.name,
+                 'access': round(effective_access(agent, region, 'commons_food'), 4),
+                 'turn': turn})

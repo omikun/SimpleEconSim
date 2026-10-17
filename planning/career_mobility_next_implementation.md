@@ -156,6 +156,17 @@ temporary activity cannot duplicate a full day's output; firm rosters,
 contracts, goods, and cash reconcile. Run the Phase A person ledger after
 these changes and require zero unexplained flows. **Commit B.**
 
+**Phase B implementation note (2026-10-17):** Human agents now hold a primary
+livelihood and episode start. Career transitions change that field once;
+employment, trading, enlistment, and workhouse custody emit separate status
+events. Trader entry no longer creates food, and apprenticeship grants no
+longer top up food without a transfer. Commons foraging records food and a
+bounded turn share, which reduces independent production opportunity. The
+50-turn seed-777 ledger reconciles with zero unknown flows and validates every
+firm roster each turn. Focused livelihood tests and the labor frontier scenario
+suite pass. This phase establishes status accounting; the feasible opportunity
+set and strategic balance are Phase C and D work.
+
 ## Phase C — Give agents feasible livelihood choices
 
 **Primary files:** `economy/labor_mobility.py`, `labor_choice.py`,

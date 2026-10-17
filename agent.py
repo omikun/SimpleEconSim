@@ -58,7 +58,7 @@ class Agent:
         'emergency_food_units',
         'died_of_starvation', 'cash', 'remainingCash',
         'inventory', 'cost_basis',
-        'last_career_switch', 'last_reproduction',
+        'last_career_switch', 'primary_livelihood', 'livelihood_started_turn', 'last_reproduction',
         'loans',
         'employer', 'employees', 'is_corporation', 'wage', 'hired_at',
         'owner', 'company_owned', 'max_employees',
@@ -102,7 +102,7 @@ class Agent:
         'military_unit_id',
         # ---- P1: Feudal land tenure & enclosure ----
         'is_lord', 'land_plots', 'assigned_plot_id',
-        'food_foraged', 'food_purchased',
+        'food_foraged', 'food_purchased', 'temporary_work_share',
         'social_class', 'in_workhouse',
         # ---- P2: Labor commodification, alienation & psychology ----
         'shift_hours', 'safety_investment',
@@ -149,6 +149,8 @@ class Agent:
         self.inventory = [0] * _NUM_GOODS
         self.cost_basis = [0.0] * _NUM_GOODS
         self.last_career_switch = 0
+        self.primary_livelihood = None
+        self.livelihood_started_turn = None
         self.last_reproduction = 0
         self.loans = []
         self.employer = None
@@ -237,6 +239,7 @@ class Agent:
         self.land_plots = []                 # list of plot_id strings
         self.assigned_plot_id = None         # plot_id string of the plot this serf/tenant is bound to
         self.food_foraged = 0                # food gathered from commons this turn
+        self.temporary_work_share = 0.0
         self.food_purchased = 0              # food bought on market this turn
         self.social_class = None             # computed each turn (SocialClass enum value)
         self.in_workhouse = False            # true if arrested for vagrancy and confined to Parish Workhouse
@@ -471,6 +474,9 @@ class Agent:
 def initialize_agent(agent, output, number_input, number_food, cash, delta=0):
     """Set an agent's output, cash, and inventory using the global recipes dict."""
     agent.output = output
+    if not agent.is_native_child and not (agent.is_corporation or agent.is_government):
+        agent.primary_livelihood = output if output not in (Goods.none, Goods.gov) else None
+        agent.livelihood_started_turn = agent.birth_round
     agent.cash = cash
     recipe = st.recipes.get(output, {})
     input_com = recipe.get('input', Goods.none)

@@ -14,6 +14,10 @@ def cleanup_labor(region):
     living_set = set(region.agents)
     for a in region.agents:
         if a.employer and a.employer not in living_set:
+            from labor_choice import record_labor_status
+            record_labor_status(region, a, int(getattr(region, '_last_turn', 0) or 0),
+                                before='employed', after='independent',
+                                reason='employer_removed', employer_before=a.employer)
             a.employer = None
         if a.is_corporation:
             a.employees = [e for e in a.employees if e in living_set and e.employer == a]
@@ -34,6 +38,13 @@ def borrow_or_layoff(region, t):
         while a.cash < total_wage and len(a.employees) > 0:
             e = a.employees.pop()
             e.employer = None
+            agreement = getattr(e, 'labor_agreement', None)
+            if agreement is not None:
+                agreement.active = False
+            from labor_choice import record_labor_status
+            record_labor_status(region, e, t, before='employed',
+                                after='independent', reason='payroll_layoff',
+                                employer_before=a)
             total_wage = len(a.employees) * a.wage
         if len(a.employees) == 0 and a.cash <= 20.0:
             a.is_corporation = False

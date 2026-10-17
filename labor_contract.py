@@ -97,6 +97,9 @@ def quit_job(worker, region, turn, penalty=0.0):
     if worker in getattr(firm, 'employees', []):
         firm.employees.remove(worker)
     worker.employer = None
+    from labor_choice import record_labor_status
+    record_labor_status(region, worker, turn, before='employed', after='independent',
+                        reason='quit_job', employer_before=firm)
     agreement = getattr(worker, 'labor_agreement', None)
     if agreement is not None:
         agreement.active = False

@@ -85,6 +85,7 @@ def step_economy(region: Any, t: int):
     # Clear per-agent wealth caches and reset food source counters
     for a in region.agents:
         a.food_foraged = 0
+        a.temporary_work_share = 0.0
         a.food_purchased = 0
         a.clear_wealth_cache()
 

@@ -118,7 +118,17 @@ def process_vagrancy_cases(region, turn):
             constable.cash += 1.0
             capacity -= 1
             case.officer_cost = 1.0
+        former_employer = target.employer
+        if former_employer is not None:
+            if target in getattr(former_employer, 'employees', []):
+                former_employer.employees.remove(target)
+            target.employer = None
         target.in_workhouse = True
+        from labor_choice import record_labor_status
+        record_labor_status(region, target, turn,
+                            before='employed' if former_employer is not None else 'independent',
+                            after='workhouse', reason='funded_vagrancy_hearing',
+                            employer_before=former_employer)
         target.social_class = 'dispossessed'
         target.mem_push('mem_workhouse', 1.0)
         case.state, case.outcome = 'resolved', 'confined after funded vagrancy hearing'

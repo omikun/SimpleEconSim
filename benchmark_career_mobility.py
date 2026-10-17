@@ -21,6 +21,7 @@ class PersonState:
     career: str
     employer_id: int | None
     adult: bool
+    status: str = 'independent'
 
 
 def snapshot(server, turn):
@@ -38,9 +39,15 @@ def snapshot(server, turn):
             adult = not (getattr(person, 'is_native_child', False)
                          and person.age(turn) < 14)
             employer = getattr(person, 'employer', None)
+            status = ('military' if getattr(person, 'military_unit_id', None) else
+                      'trader' if getattr(person, 'is_trader', False) else
+                      'workhouse' if getattr(person, 'in_workhouse', False) else
+                      'employed' if employer is not None else 'independent')
+            primary = getattr(person, 'primary_livelihood', None)
             people[person.id] = PersonState(
-                person, nation, tile.name, person.output.name,
-                employer.id if employer is not None else None, adult)
+                person, nation, tile.name,
+                primary.name if primary is not None else 'none',
+                employer.id if employer is not None else None, adult, status)
     return people
 
 
@@ -48,6 +55,26 @@ def entity_roles(server):
     return {a.id: ('corporation' if a.is_corporation else
                    'government' if a.is_government else 'person')
             for tile in server.tiles for a in tile.agents}
+
+
+def validate_employment_rosters(server, turn):
+    """Every employed person has exactly one matching firm roster entry."""
+    people = [a for tile in server.tiles for a in tile.agents
+              if a.alive and not a.is_corporation and not a.is_government]
+    for worker in people:
+        firm = worker.employer
+        if firm is not None and (not firm.alive or worker not in firm.employees
+                                or firm.employees.count(worker) != 1):
+            raise AssertionError(f'turn {turn}: worker {worker.id} has unmatched employer')
+    for tile in server.tiles:
+        for firm in tile.agents:
+            if not firm.is_corporation:
+                continue
+            seen = set()
+            for worker in firm.employees:
+                if worker.id in seen or worker.employer is not firm or not worker.alive:
+                    raise AssertionError(f'turn {turn}: firm {firm.id} has invalid roster')
+                seen.add(worker.id)
 
 
 def compare_people(before, after, server, turn, prior_roles=None):
@@ -80,11 +107,14 @@ def compare_people(before, after, server, turn, prior_roles=None):
             flows[country]['dependent_person_years'] += 1
             continue
         flows[country]['adult_person_years'] += 1
+        flows[country][f'{now.status}_adult_years'] += 1
         if prior is not None and prior.adult:
             if prior.career != now.career:
                 flows[country]['occupation_changes'] += 1
             if prior.employer_id != now.employer_id:
                 flows[country]['employer_changes'] += 1
+            if prior.status != now.status:
+                flows[country]['status_changes'] += 1
 
     for person_id, prior in before.items():
         if person_id in after:
@@ -169,12 +199,14 @@ def benchmark(turns=50, seed=777, *, trace=False):
         server.run_trace.checkpoint = lambda _clock: None
 
     before = snapshot(server, 0)
+    validate_employment_rosters(server, 0)
     prior_roles = entity_roles(server)
     totals = defaultdict(Counter)
     unexplained = []
     event_reconciliation = []
     for turn in range(1, turns + 1):
         server.step()
+        validate_employment_rosters(server, turn)
         after = snapshot(server, turn)
         changes, unknown = compare_people(before, after, server, turn, prior_roles)
         for nation, counts in changes.items():

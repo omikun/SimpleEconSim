@@ -308,6 +308,7 @@ def produce_independent(region, agent, recipe, output, num_agents_per_good,
     num_output = 0
     if has_inputs and recipe.get('production', 0) > 0:
         chance = 1.0
+        chance *= max(0.0, 1.0 - float(getattr(agent, 'temporary_work_share', 0.0)))
         if agent.hungry_steps > 0:
             chance *= 1 / (1 + agent.hungry_steps * 0.2)
         if output in (Goods.food, Goods.wood):

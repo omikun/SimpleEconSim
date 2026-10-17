@@ -210,17 +210,12 @@ def exit_trader(region, agent):
         if loan.isPaid():
             agent.loans.pop(0)
 
-    # 5. Zero remaining trade state and reset to food producer
-    from labor_choice import apply_career_switch
+    # 5. End the trade spell; the person's prior livelihood remains intact.
+    from labor_choice import record_labor_status
     turn = int(getattr(region, '_last_turn', 0) or 0)
     agent.is_trader = False
-    apply_career_switch(
-        region, agent, Goods.food, turn,
-        kind='trader_exit_career_switch',
-        reason='unprofitable_trader_exit',
-        record_class='outcome',
-        formula_id='logistics.trader_exit.v1',
-    )
+    record_labor_status(region, agent, turn, before='trader', after='independent',
+                        reason='unprofitable_trader_exit')
     agent.trade_good = None
     agent.employer = None
 
@@ -260,7 +255,7 @@ def process_trader_exits(region, t, agents):
 
 def make_trader_internal(region, agent):
     """Set an agent's fields to make them a trader."""
-    from labor_choice import apply_career_switch
+    from labor_choice import record_labor_status
     turn = int(getattr(region, '_last_turn', 0) or 0)
     best_good = Goods.food
     best_gap = -1.0
@@ -271,17 +266,21 @@ def make_trader_internal(region, agent):
             if gap > best_gap:
                 best_gap = gap
                 best_good = g
+    old_employer = agent.employer
+    if old_employer is not None:
+        if agent in getattr(old_employer, 'employees', []):
+            old_employer.employees.remove(agent)
+        agreement = getattr(agent, 'labor_agreement', None)
+        if agreement is not None:
+            agreement.active = False
+    agent.employer = None
     agent.is_trader = True
     agent.home_region = region.name
     agent.destination_region = region.destination_region
-    apply_career_switch(
-        region, agent, Goods.food, turn,
-        kind='trader_entry_career_switch',
-        reason='entered_trading',
-        record_class='outcome',
-        formula_id='logistics.trader_entry.v1',
-        inputs={'trade_good': getattr(best_good, 'name', str(best_good))},
-    )
+    record_labor_status(region, agent, turn,
+                        before='employed' if old_employer is not None else 'independent',
+                        after='trader', reason='entered_trading',
+                        employer_before=old_employer)
     agent.trade_good = best_good
     for g in Goods:
         if g == Goods.none:
@@ -291,5 +290,3 @@ def make_trader_internal(region, agent):
     agent.parked_foreign = {}
     for rt in all_routes(region):
         rt.reclaim(agent)
-    agent.inv_set(Goods.food, max(agent.inv_get(Goods.food, 0), 4))
-    agent.employer = None

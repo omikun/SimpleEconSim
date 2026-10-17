@@ -49,6 +49,9 @@ def step_workhouse(region, t: int) -> list[dict]:
         for a in getattr(region, 'agents', []):
             if getattr(a, 'in_workhouse', False):
                 a.in_workhouse = False
+                from labor_choice import record_labor_status
+                record_labor_status(region, a, t, before='workhouse',
+                                    after='independent', reason='workhouse_closed')
         return []
 
     events = []
@@ -83,6 +86,10 @@ def step_workhouse(region, t: int) -> list[dict]:
     for inmate in inmates:
         if inmate.employer is not None or getattr(inmate, 'is_lord', False):
             inmate.in_workhouse = False
+            from labor_choice import record_labor_status
+            record_labor_status(region, inmate, t, before='workhouse',
+                                after='employed' if inmate.employer is not None else 'independent',
+                                reason='workhouse_release', employer_after=inmate.employer)
         else:
             active_inmates.append(inmate)
 
@@ -161,6 +168,9 @@ def step_workhouse(region, t: int) -> list[dict]:
         for inmate in starving_inmates:
             if inmate.hungry_steps >= 3:
                 inmate.in_workhouse = False
+                from labor_choice import record_labor_status
+                record_labor_status(region, inmate, t, before='workhouse',
+                                    after='independent', reason='workhouse_food_failure')
 
     events.append({
         't': t,
