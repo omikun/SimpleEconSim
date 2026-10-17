@@ -372,6 +372,8 @@ def produce(region, t):
         if getattr(a, 'is_striking', False) or getattr(a, 'in_revolt', False):
             continue
         r = region.recipes[a.output]
+        if r.get('import_only', False):
+            continue
         if a.is_corporation and len(a.employees) > 0:
             produce_corporation(region, a, r, a.output, num_agents_per_good,
                                 local_total_production, receipt_ids.setdefault(a.output, []))

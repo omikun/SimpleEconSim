@@ -73,6 +73,8 @@ class TransformationOperator:
 
     def can_agent_execute(self, agent: Any, region: Any) -> Tuple[bool, str]:
         """Check if *agent* in *region* can execute this operator."""
+        if self.category == 'enclosure' and getattr(region, 'food_enclosure_moratorium', False):
+            return False, "Food security policy suspends enclosure"
         if self.requires_lord and not getattr(agent, 'is_lord', False):
             return False, "Requires feudal lord status"
         if self.requires_capitalist and getattr(agent, 'cash', 0.0) < self.cash_cost:

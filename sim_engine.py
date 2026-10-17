@@ -43,6 +43,10 @@ def step_turn(t: int, tiles: list, nations: list = None,
     for tile in tiles:
         tile.deaths_this_turn = 0
         tile.deaths_by_cause_this_turn = {}
+        tile.emergency_grain_levy_units = 0
+        for agent in getattr(tile, 'agents', []):
+            agent.food_levy_cap_this_turn = None
+            agent.food_levied_this_turn = 0
     from trace_phase import treasury_boundary
     treasury_boundary(tiles, nations, 'turn_start')
     if currencies is None:
@@ -127,6 +131,13 @@ def step_turn(t: int, tiles: list, nations: list = None,
 
     # 7. Migrations
     mig_events = run_migrations(t, tiles)
+    # Movement can invalidate an employer's cached worker list even when the
+    # person's employment reference was already cleared. Keep both sides of
+    # the contract consistent at the end of the migration phase.
+    from region_labor import cleanup_labor
+    for region in tiles:
+        if getattr(region, 'agents', None):
+            cleanup_labor(region)
     if on_event:
         for ev in mig_events:
             on_event(t, 'MIGRATE',

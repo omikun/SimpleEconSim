@@ -66,6 +66,7 @@ class Province:
         self.name = name
         self.nation = nation
         self.tiles: list = []
+        self.food_shipments: list[dict] = []
         if recipes is None:
             import econsim_states
             recipes = econsim_states.recipes
@@ -137,6 +138,9 @@ class Province:
         bank = self.bank
         charity = self.charity
         gov = self.gov
+        from food_logistics import deliver_province_food, dispatch_province_food
+        deliver_province_food(self, t)
+        dispatch_province_food(self, t)
         if charity is not None and bank is not None:
             charity.collect_donations(t, all_agents, bank)
         for r in self.tiles:

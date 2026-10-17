@@ -98,6 +98,20 @@ def input_good(region, agent):
     return region.recipes[agent.output].get('input', Goods.none)
 
 
+def food_reserve_units(agent):
+    """Food a living grower keeps for the next meal before offering surplus."""
+    from nutrition import appetite_units
+    return max(4, appetite_units(agent))
+
+
+def emergency_food_surplus(agent):
+    """Food a public buyer may purchase without taking a person's next meal."""
+    if not agent.alive or agent.is_government:
+        return 0
+    reserve = 0 if agent.is_corporation else food_reserve_units(agent)
+    return max(0, agent.inv_get(Goods.food, 0) - reserve)
+
+
 def calculate_bid(region, agent, good, good_price, current_desired, agent_recipe, is_employee, mult):
     if good == Goods.transport and not agent.is_trader:
         return 0
@@ -131,6 +145,11 @@ def calculate_bid(region, agent, good, good_price, current_desired, agent_recipe
         affordable = spendable // good_price
         bid = min(space, affordable)
         return max(0, bid)
+    if (good == Goods.food and agent.output == Goods.food
+            and not agent.is_corporation and not agent.is_government):
+        missing_meal = max(0, food_reserve_units(agent) - agent.inv_get(Goods.food, 0))
+        affordable = int(agent.remainingCash // good_price) if good_price > 0 else missing_meal
+        return min(missing_meal, max(0, affordable))
     if not is_employee and input_good(region, agent) == good:
         num_employees = len(agent.employees) if agent.is_corporation else 0
         desired = max(0, agent_recipe['numInput'] * (1 + num_employees) - agent.inv_get(good, 0))
@@ -181,7 +200,7 @@ def calculate_ask(region, agent, good, good_price, is_employee):
         if agent.output == good and agent_recipe.get('numInput', 0) > 0 and agent_recipe.get('production', 0) > 0:
             cost_to_make = (agent_recipe['numInput'] * agent.cost_get(agent_recipe['input'], 0)) / agent_recipe['production']
         if good == Goods.food and agent.output == Goods.food:
-            return max(0, agent.inv_get(good, 0) - 2)
+            return max(0, agent.inv_get(good, 0) - food_reserve_units(agent))
         elif good_price >= cost_to_make:
             return max(0, agent.inv_get(good, 0))
     return 0
@@ -754,7 +773,10 @@ def trade(region, t):
         ta = total_asks[good]
         tb = total_bids[good]
         imp_pool, imp_total = gather_import_pool(region, good)
-        if ta == 0 and imp_total == 0 and tb == 0:
+        emergency_surplus = (sum(emergency_food_surplus(a) for a in agents)
+                             if good == Goods.food and getattr(region.gov, 'emergency_food_policy', False)
+                             else 0)
+        if ta == 0 and imp_total == 0 and tb == 0 and emergency_surplus == 0:
             price_decay(region, good)
             continue
         price_ta = ta + imp_total
@@ -787,9 +809,14 @@ def trade(region, t):
                  metric_id='goods.sold', unit='units', after=0,
                  inputs={'local_asks': ta, 'imported_asks': imp_total,
                          'bids': tb, 'reason': 'no bids or no offers'})
-            continue
-        total_bought, tcash, realized = clear_discriminatory(
-            region, good, ref, price_ta, tb, imp_pool, agents, t)
+            if good != Goods.food or (ta == 0 and emergency_surplus == 0):
+                continue
+            # A cash-poor population can make zero private bids. Public food
+            # procurement must still be able to buy locally offered grain.
+            total_bought, realized = 0, ref
+        else:
+            total_bought, _tcash, realized = clear_discriminatory(
+                region, good, ref, price_ta, tb, imp_pool, agents, t)
         region.sold_log[good].append(total_bought)
         region._trade_prices[good].append(realized)
         total_sold = total_bought
@@ -802,11 +829,11 @@ def trade(region, t):
             charity_bid = region.charity.bid_food(price, desires[good], region.bank)
             if charity_bid > 0:
                 food_askers = [a for a in askers if a.output == Goods.food
-                               and a.inv_get(Goods.food, 0) > 2]
+                               and a.inv_get(Goods.food, 0) > food_reserve_units(a)]
                 for seller in food_askers:
                     if charity_bid <= 0 or region.charity.cash < price:
                         break
-                    available = seller.inv_get(Goods.food, 0) - 2
+                    available = seller.inv_get(Goods.food, 0) - food_reserve_units(seller)
                     if available <= 0:
                         continue
                     bought = min(charity_bid, available, int(region.charity.cash / price))
@@ -830,14 +857,27 @@ def trade(region, t):
 
             # Government food purchase
             if hasattr(region, 'gov'):
+                if region.gov.emergency_food_policy:
+                    from nutrition import appetite_units
+                    region.gov.emergency_meal_target = sum(
+                        max(0, appetite_units(a) - a.inv_get(Goods.food, 0))
+                        for a in agents if a.alive and not a.is_corporation
+                        and not a.is_government and not getattr(a, 'military_unit_id', None))
                 gov_bid = region.gov.bid_food(price, desires[good], region.bank)
                 if gov_bid > 0:
-                    gov_askers = [a for a in askers if a.output == Goods.food
-                                   and a.inv_get(Goods.food, 0) > 2]
+                    if region.gov.emergency_food_policy:
+                        gov_askers = sorted(
+                            (a for a in agents if emergency_food_surplus(a) > 0),
+                            key=lambda a: (-emergency_food_surplus(a), a.id))
+                    else:
+                        gov_askers = [a for a in askers if a.output == Goods.food
+                                       and a.inv_get(Goods.food, 0) > food_reserve_units(a)]
                     for seller in gov_askers:
                         if gov_bid <= 0 or region.gov.agent.cash < price:
                             break
-                        available = seller.inv_get(Goods.food, 0) - 2
+                        available = (emergency_food_surplus(seller)
+                                     if region.gov.emergency_food_policy else
+                                     seller.inv_get(Goods.food, 0) - food_reserve_units(seller))
                         if available <= 0:
                             continue
                         bought = min(gov_bid, available,
@@ -850,8 +890,10 @@ def trade(region, t):
                             emit(region, kind='government_food_purchase', record_class='transfer',
                                  subject={'type': 'tile', 'id': region.name, 'good': good.name},
                                  metric_id='goods.sold', unit='units', before=0, after=bought,
-                                 inputs={'seller_id': seller.id, 'buyer': 'government',
-                                         'unit_price': price, 'paid': bought * price})
+                                     inputs={'seller_id': seller.id, 'buyer': 'government',
+                                             'unit_price': price, 'paid': bought * price,
+                                             'emergency_surplus': region.gov.emergency_food_policy,
+                                             'seller_occupation': seller.output.name})
                             gov_bid -= bought
                             gov_bought += bought
                     if gov_bought > 0:

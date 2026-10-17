@@ -128,6 +128,9 @@ def handle_reproduction(ctx, t, agent, agents, new_agents):
             ctx.bank.Withdraw(agent, min(need, ctx.bank.deposits.get(agent, 0)))
         agent.cash -= cash
         initialize_agent(new_agent, output, number_input, food_to_give, cash)
+        if reg is not None:
+            from livelihood_access import inherit_customary_access
+            inherit_customary_access(reg, agent, new_agent, t)
         if wealth_val > cost_of_living * 4:
             new_agent._birth_parent_wealth = wealth_val
             new_agent._birth_protection_until = t + max(25, min(100, int(cash)))

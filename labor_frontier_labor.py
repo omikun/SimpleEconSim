@@ -192,6 +192,11 @@ def _advance_restriction(world, nation_name, turn):
         return
     if turn < record.get('effective_turn', turn):
         return
+    # Local tax receipts are routinely deposited during the economy tick.
+    # A patrol should not lapse while its public account can pay for it.
+    if border.gov.agent.cash < PATROL_COST:
+        border.bank.Withdraw(border.gov.agent,
+                             PATROL_COST - border.gov.agent.cash)
     officer = _choose_officer(border, record) if border.gov.agent.cash >= PATROL_COST else None
     if officer is None:
         _restore_rights(border, record, legal=False)

@@ -3289,6 +3289,7 @@
             ${isTile ? `<th>Province</th>` : ''}
             <th>Treasury ($)</th>
             <th>Population</th>
+            <th>Food access</th>
             <th>GDP ($)</th>
             <th>Unrest</th>
             <th>ISRB Rating</th>
@@ -3313,6 +3314,7 @@
                 ${isTile ? `<td>${escapeHtml(n.province || '—')}</td>` : ''}
                 <td class="text-gold">$${Math.round(n.treasury_cash || 0).toLocaleString()} ${tDelta} ${isCountry ? `<button class="btn btn-secondary btn-xs btn-treasury-why" data-nat="${escapeHtml(n.name)}">Why $?</button>` : ''}</td>
                 <td>${(n.population || 0).toLocaleString()}</td>
+                <td>${n.food_security ? `${Number(n.food_security.underfed || 0).toLocaleString()} underfed${Number(n.food_security.emergency_tiles || 0) ? ` · emergency in ${Number(n.food_security.emergency_tiles)} districts` : ''}${Number(n.food_security.enclosure_moratoria || 0) ? ` · commons protected in ${Number(n.food_security.enclosure_moratoria)} districts` : ''}${Number(n.food_security.aid_units_last_turn || 0) ? ` · ${Number(n.food_security.aid_units_last_turn).toLocaleString()} food units delivered` : ''}${Number(n.food_security.levy_units_last_turn || 0) ? ` · ${Number(n.food_security.levy_units_last_turn).toLocaleString()} levied` : ''}` : '—'}</td>
                 <td class="text-cyan">$${Math.round(n.gdp || 0).toLocaleString()}</td>
                 <td><span class="badge-unrest ${safeClassToken((n.unrest_stage || 'calm').toLowerCase(), 'calm')}">${escapeHtml(n.unrest_stage || 'Calm')}</span></td>
                 <td><strong class="text-gold">${escapeHtml(n.credit_rating || 'BBB')}</strong></td>
@@ -3367,8 +3369,13 @@
                 .map(c => `${c.candidate}: ${c.reason || 'unavailable'}`).join('; ');
               const executed = rows.filter(e => e.kind === 'intent_execution')
                 .map(e => `${e.inputs.intent_type} ${e.inputs.status_after}`).join('; ');
+              const foodResponse = (decision.inputs.food_security || [])
+                .filter(f => f.emergency || f.enclosure_moratorium)
+                .map(f => `${f.tile}: ${f.diagnosis.replaceAll('_', ' ')}, ${f.underfed_residents}/${f.residents} underfed, $${Number(f.funding_transferred || 0).toFixed(0)} transferred${f.enclosure_moratorium ? ', commons protected until food harvest is reliable' : ''}`)
+                .join('; ');
               detail.innerHTML = `<h4>${escapeHtml(button.dataset.nat)} · Turn ${Number(decision.turn)}</h4>
                 <p>Chosen: ${escapeHtml(selected)}.</p>
+                <p>Food response: ${escapeHtml(foodResponse || 'no emergency policy')}.</p>
                 <p>Rejected or blocked: ${escapeHtml(rejected || 'none recorded')}.</p>
                 <p>Execution: ${escapeHtml(executed || 'no intent execution recorded')}.</p>
                 <p>Event ${escapeHtml(decision.event_id)}</p>`;

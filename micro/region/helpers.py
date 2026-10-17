@@ -80,7 +80,7 @@ _recipes_init = {
     Goods.foreign_luxuries: {
         'commodity': Goods.foreign_luxuries, 'production': 1, 'price': 100.0, 'numInput': 0,
         'maxtotalprod': 100, 'maxinv': 5,
-        'is_luxury': True, 'prestige_rating': 25.0,
+        'is_luxury': True, 'prestige_rating': 25.0, 'import_only': True,
     },
     Goods.gov: {
         'commodity': Goods.gov, 'production': 0, 'numInput': 0, 'price': 1,

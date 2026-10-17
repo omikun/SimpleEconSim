@@ -155,6 +155,8 @@ def accumulate_grievances(region, t):
                 gini = max(gini, (2 * wsum) / (n * s) - (n + 1) / n)
     # tax (effective)
     tax = region.gov.tax_rate
+    levy_units = float(getattr(region, 'emergency_grain_levy_units', 0.0))
+    levy_score = min(3.0, 2.0 * levy_units / max(1, len(agents)))
     # unemployment
     adults = [a for a in agents
               if not a.is_corporation and not a.is_government
@@ -235,6 +237,10 @@ def accumulate_grievances(region, t):
             f.add_grievance('repression', trauma_score)
             f.add_grievance('enclosure', eviction_score * 1.5)
             f.add_grievance('labor', labor_grievance * 1.5)
+        owner_levy = (2.0 if f.name in ('Gentry', 'Bourgeoisie') else
+                      0.5 if f.name == 'Peasantry' else 0.25)
+        f.add_grievance('grain_levy', levy_score * owner_levy)
+        n_add += levy_score * owner_levy
         adds[f.name] = n_add
 
     if grievance_scale != 1.0:
@@ -252,6 +258,7 @@ def accumulate_grievances(region, t):
         'labor_resistance': float(accident_score + strike_score),
         'unemployment': float(unemp),
         'tax': float(tax),
+        'grain_levy': float(levy_score),
         'repression': float(trauma_score),
         'inequality': float(gini),
         'wage_inflation': float(wage_panic_score),

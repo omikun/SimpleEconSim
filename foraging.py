@@ -17,7 +17,9 @@ Homesteaders on wilderness tiles forage according to wilderness rules.
 from goods import Goods
 from livelihood_access import effective_access
 
-BASE_FORAGE_YIELD = 4  # food/turn at full commons access (daily subsistence)
+# A typical shared half-plot right (effective access 0.5) can supply the
+# four-unit daily meal. Smaller, leasehold, or enclosed rights yield less.
+BASE_FORAGE_YIELD = 8
 
 
 def can_forage(agent, region) -> bool:

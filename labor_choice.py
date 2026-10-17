@@ -34,7 +34,10 @@ def evaluate_offer(worker: Any, firm: Any, region: Any, turn: int,
     offer = max(0.0, float(getattr(firm, 'wage', 0.0) if wage is None else wage))
     food_price = float(getattr(region, 'recipes', {}).get(Goods.food, {}).get('price', 1.0))
     outside_access = _outside_access(worker, region)
-    outside_food = 4.0 * outside_access
+    from foraging import BASE_FORAGE_YIELD
+    fertility = float(getattr(region, 'terrain', {}).get(Goods.food, 1.0))
+    outside_food = (min(4.0, float(max(1, int(BASE_FORAGE_YIELD * outside_access * fertility))))
+                    if outside_access > 0 else 0.0)
     from livelihood_access import due_cash_for
     due_cash = due_cash_for(worker.id, region, turn)
     market_tightness = (calculate_labor_market_tightness(region)
@@ -44,6 +47,8 @@ def evaluate_offer(worker: Any, firm: Any, region: Any, turn: int,
         0.75 * food_price,
         base + 0.5 * food_price * outside_access
         - min(0.4 * base, 0.05 * max(0.0, due_cash)),
+        outside_food * food_price
+        - min(0.25 * outside_food * food_price, 0.05 * max(0.0, due_cash)),
     )
 
     reason = 'accepted'

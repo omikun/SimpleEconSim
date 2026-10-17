@@ -71,6 +71,34 @@ def transfer_access(region, from_person_id, to_person_id, plot_id, source='trans
         grant_access(region, to_person_id, plot_id, r.resource, r.legal_share, r.usable_share, source)
 
 
+def inherit_customary_access(region, parent, child, turn):
+    """Register a newborn in a living household's usable customary plot."""
+    _ensure(region)
+    seed_access_rights(region)
+    plot_id = getattr(parent, 'assigned_plot_id', None)
+    plot = (region.tenure.find_plot(plot_id)
+            if plot_id and getattr(region, 'tenure', None) is not None else None)
+    if (plot is None or plot.tenure == TenureStatus.ENCLOSED
+            or parent.id not in plot.tenant_ids):
+        return False
+    parent_rights = [right for right in region.access_rights.get(parent.id, [])
+                     if right.plot_id == plot_id and right.usable_share > 0]
+    if not parent_rights:
+        return False
+    child.assigned_plot_id = plot_id
+    if child.id not in plot.tenant_ids:
+        plot.tenant_ids.append(child.id)
+    transfer_access(region, parent.id, child.id, plot_id, source='customary_inheritance')
+    from run_trace import emit
+    emit(region, kind='customary_access_inherited', record_class='transfer',
+         phase='demographics',
+         subject={'type': 'agent', 'id': child.id, 'tile': region.name},
+         metric_id='land.customary_inheritance', unit='right', after=1,
+         inputs={'turn': turn, 'parent_id': parent.id, 'plot_id': plot_id,
+                 'resources': [right.resource for right in parent_rights]})
+    return True
+
+
 def remove_access(region, person_id, plot_id=None):
     _ensure(region)
     rights = region.access_rights.get(int(person_id), [])

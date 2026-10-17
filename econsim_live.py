@@ -104,6 +104,12 @@ def Live(t, agents, context: LiveContext):
     for government in ctx.governments:
         government.process_parental_leave(t, agents)
 
+    # Public grain purchased in the market is delivered before households eat
+    # and before a calorie deficit can cause death this turn.
+    for government in ctx.governments:
+        government.provide_food_aid(t, agents, ctx.food_price,
+                                    region=ctx.source_region)
+
     # 2. Career bottleneck analysis
     choices_list = [g for g in ctx.goods if g != Goods.gov]
     bottleneck_weights = compute_bottleneck_weights(ctx, agents, choices_list)
@@ -138,11 +144,8 @@ def Live(t, agents, context: LiveContext):
         else:
             new_agents.append(agent)
 
-    # 4. Post-life-cycle government food aid & welfare
+    # 4. Post-life-cycle welfare
     food_price = ctx.food_price
-    for government in ctx.governments:
-        government.provide_food_aid(t, new_agents, food_price)
-
     if ctx.default_gov is not None:
         reserve = ctx.default_gov.target_food_reserve * food_price * 2
         ctx.default_gov.distribute_welfare(t, new_agents, min_reserve=reserve)

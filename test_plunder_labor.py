@@ -269,7 +269,7 @@ class TestPlunderLaborMechanics(unittest.TestCase):
 
     def test_audit_accepts_consistent_rights_jobs_and_claims(self):
         worker = self._worker(121)
-        firm = self._firm(wage=3.0)
+        firm = self._firm(wage=9.5)
         plot = LandPlot('audit', self.region.name, 8, 0.5, TenureStatus.FEUDAL,
                         tenant_ids=[worker.id])
         self.region.tenure.add_plot(plot)

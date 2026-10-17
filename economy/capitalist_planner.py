@@ -109,6 +109,10 @@ class EliteCapitalistPlanner:
         # 1. Spatial Luxury Import: If local has 0 luxury, but neighbor has luxury for sale
         if agent.cash >= 30.0:
             for n_name, neighbor in neighbors.items():
+                # This direct local-cash path has no FX settlement. Foreign
+                # purchases must use the priced route/forex trade system.
+                if neighbor.home_currency != region.home_currency:
+                    continue
                 n_luxuries = self.get_market_luxuries(neighbor)
                 for good, price, prestige, qty in n_luxuries:
                     total_cost = price + 2.0  # including haulage fee
@@ -130,11 +134,15 @@ class EliteCapitalistPlanner:
 
         # 2. Spatial Raw Material Input Import for Local Manufacturing:
         company = getattr(agent, 'company_owned', None)
-        if company and getattr(company, 'is_corporation', False) and company.alive:
+        if (company and getattr(company, 'is_corporation', False) and company.alive
+                and company in region.agents
+                and company.home_currency == region.home_currency):
             recipe = region.recipes.get(company.output, {})
             input_good = recipe.get('input')
             if input_good and company.inv_get(input_good, 0) < recipe.get('numInput', 1) * 2:
                 for n_name, neighbor in neighbors.items():
+                    if neighbor.home_currency != region.home_currency:
+                        continue
                     n_price = float(neighbor.recipes.get(input_good, {}).get('price', 5.0))
                     seller = next((a for a in neighbor.agents if a.alive and a.inv_get(input_good, 0) > 0), None)
                     if seller and company.cash >= n_price * 4:
@@ -156,6 +164,8 @@ class EliteCapitalistPlanner:
             if held > 0 and g != Goods.food:
                 p_local = float(region.recipes.get(g, {}).get('price', 1.0))
                 for n_name, neighbor in neighbors.items():
+                    if neighbor.home_currency != region.home_currency:
+                        continue
                     p_neighbor = float(neighbor.recipes.get(g, {}).get('price', 1.0))
                     if p_neighbor >= p_local + 2.0:
                         buyer = next((a for a in neighbor.agents if a.alive and a.cash >= p_neighbor), None)
@@ -469,7 +479,21 @@ class EliteCapitalistPlanner:
                 else:
                     # Generic operator inventory transformation
                     if best_op.cash_cost > 0:
+                        # Generic cash costs are local permit and service
+                        # fees. Keep the payment in the monetary system.
+                        if getattr(region, 'gov', None) is None:
+                            return result
                         agent.cash -= best_op.cash_cost
+                        region.gov.agent.cash += best_op.cash_cost
+                        from run_trace import emit
+                        emit(region, kind='elite_operator_fee',
+                             record_class='transfer', phase='labor',
+                             subject={'type': 'agent', 'id': agent.id},
+                             metric_id='finance.operator_fee',
+                             unit=region.home_currency,
+                             after=best_op.cash_cost,
+                             inputs={'operator': best_op.id,
+                                     'recipient_id': region.gov.agent.id})
                     for g, q in best_op.output_goods.items():
                         agent.inv_add(g, int(q))
                     result['action_taken'] = f'OPERATOR_EXECUTED_{best_op.id.upper()}'
@@ -566,7 +590,9 @@ class EliteCapitalistPlanner:
 
             # Invest in existing firm or found new corporation
             company = getattr(agent, 'company_owned', None)
-            if company and getattr(company, 'is_corporation', False) and company.alive:
+            if (company and getattr(company, 'is_corporation', False) and company.alive
+                    and company in region.agents
+                    and company.home_currency == region.home_currency):
                 # Capital injection to expand workforce & machinery
                 injection = min(agent.cash * 0.4, 50.0)
                 agent.cash -= injection
@@ -577,7 +603,8 @@ class EliteCapitalistPlanner:
                 result['action_taken'] = 'CAPITAL_EXPANSION'
                 result['details'] = {'company_id': company.id, 'injection': injection, 'new_wage': company.wage}
                 return result
-            elif agent.cash >= 300.0 and not getattr(agent, 'employer', None) and best_sector:
+            elif (company is None and agent.cash >= 300.0
+                  and not getattr(agent, 'employer', None) and best_sector):
                 # Incorporate firm in highest-margin sector
                 from agent import Agent, seed_traits
                 comp = Agent(t)

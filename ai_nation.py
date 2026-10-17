@@ -379,9 +379,14 @@ class NationPolicyAI:
     def decide_turn(self, t: int, all_tiles: list, all_nations: list,
                     diplomacy: DiplomacySystem) -> list[object]:
         """Evaluate situations and submit strategic Intents for this turn."""
+        from food_security import enact_nation_food_response
+        food_responses = enact_nation_food_response(self.nation, t)
+        food_emergency = any(row['emergency'] for row in food_responses)
         submitted = []
         treasury = self.nation.treasury()
         considered = [{'candidate': 'do_nothing', 'feasible': True, 'score': 0.0}]
+        considered.extend({'candidate': 'food_security', **row}
+                          for row in food_responses)
 
         # At most one active war decision per turn.  Peace replies precede
         # attack selection; the intent executor resolves accepted replies
@@ -429,6 +434,10 @@ class NationPolicyAI:
         considered.append({'candidate': 'diplomacy', 'feasible': bool(dip_intents),
                            'reason': 'policy evaluation returned intents' if dip_intents else 'no diplomatic intent'})
         for intent in dip_intents:
+            if food_emergency and isinstance(intent, DeclareWarIntent):
+                considered.append({'candidate': 'declare_war', 'feasible': False,
+                                   'reason': 'food emergency raises the cost of an offensive'})
+                continue
             self.nation.submit_intent(intent, t)
             submitted.append(intent)
 
@@ -436,7 +445,7 @@ class NationPolicyAI:
         if treasury['total'] < 120.0:
             considered.append({'candidate': 'contractor_subsidy', 'feasible': False,
                                'reason': 'treasury below 120', 'treasury': treasury['total']})
-        if treasury['total'] >= 120.0:
+        if treasury['total'] >= 120.0 and not food_emergency:
             for tile in self.nation.tiles:
                 for proj in getattr(tile, 'construction_projects', []):
                     if proj.status == 'stalled' or (proj.contractor and proj.contractor.cash < 5.0):
@@ -454,10 +463,12 @@ class NationPolicyAI:
                         break
 
         # 4. Public Works Infrastructure Procurement (Respond to Contractor Lobbying & Bottlenecks)
-        if treasury['total'] < 320.0 or submitted:
+        if treasury['total'] < 320.0 or submitted or food_emergency:
             considered.append({'candidate': 'public_works', 'feasible': False,
-                               'reason': 'treasury below 320' if treasury['total'] < 320.0 else 'another intent already submitted'})
-        if treasury['total'] >= 320.0 and len(submitted) == 0:
+                               'reason': ('food emergency' if food_emergency else
+                                          'treasury below 320' if treasury['total'] < 320.0
+                                          else 'another intent already submitted')})
+        if treasury['total'] >= 320.0 and len(submitted) == 0 and not food_emergency:
             for tile in self.nation.tiles:
                 has_turnpike = any(b.name == 'turnpike_road' for b in getattr(tile, 'buildings', []))
                 has_canal = any(b.name == 'barge_canal' for b in getattr(tile, 'buildings', []))
@@ -487,8 +498,16 @@ class NationPolicyAI:
         if t < 3:
             considered.append({'candidate': 'enclose_commons', 'feasible': False,
                                'reason': 'turn below 3'})
-        if t >= 3:
+        if t >= 3 and food_emergency:
+            considered.append({'candidate': 'enclose_commons', 'feasible': False,
+                               'reason': 'food emergency threatens current livelihoods'})
+        if t >= 3 and not food_emergency:
             for tile in self.nation.tiles:
+                if getattr(tile, 'food_enclosure_moratorium', False):
+                    considered.append({'candidate': 'enclose_commons', 'tile': tile.name,
+                                       'feasible': False,
+                                       'reason': 'food harvest has not replaced customary access'})
+                    continue
                 tenure = getattr(tile, 'tenure', None)
                 if not tenure:
                     continue
@@ -535,6 +554,7 @@ class NationPolicyAI:
                  subject={'type': 'nation', 'id': self.nation.name},
                  inputs={'treasury_total': treasury['total'],
                          'considered': considered,
+                         'food_security': food_responses,
                          'selected': [type(intent).__name__ for intent in submitted],
                          'submitted_count': len(submitted)})
             for intent in submitted:

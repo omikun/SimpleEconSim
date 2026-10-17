@@ -18,11 +18,13 @@ METRICS = {
     'goods.demand': ('tile/good', 'units_offered', 'region_market.trade'),
     'goods.supply': ('tile/good', 'units_offered', 'region_market.trade'),
     'goods.sold': ('tile/good', 'units', 'region_market.trade'),
+    'goods.food_aid': ('tile/government', 'units', 'government.Government.provide_food_aid'),
     'living.cost_of_living': ('tile', 'local_currency_per_basket', 'micro.region.stepper.step_economy'),
     'people.population': ('tile', 'people', 'micro.region.stepper.log_metrics'),
     'people.deaths': ('tile/agent or nation', 'people_per_turn', 'demographics_estate.handle_death only; violent deaths not yet covered'),
     'people.births': ('tile', 'people_per_turn', 'demographics_reproduction.handle_reproduction'),
     'people.hungry': ('tile', 'people', 'micro.region.stepper.log_metrics'),
+    'people.food_security': ('tile', 'residents', 'food_security.diagnose_tile'),
     'people.migration_pressure': ('tile', 'score', 'region_logistics.migration_intent_components'),
     'people.migration': ('tile', 'people', 'migration.run_migrations'),
     'people.migration_in': ('tile', 'people', 'migration.run_migrations'),
@@ -32,6 +34,7 @@ METRICS = {
     'labor.exploitation_rate': ('tile', 'ratio', 'labor_contract.aggregate_tile_surplus'),
     'labor.strikers': ('tile', 'people', 'labor_resistance.step_workplace_resistance'),
     'labor.hiring_decision': ('tile/firm/worker', 'accepted', 'region_labor.hire_workers'),
+    'labor.career_choice': ('tile/worker', 'occupation', 'economy.labor_mobility.LaborMobilityScheduler'),
     'labor.payroll_funding': ('tile/firm', 'workers', 'region_labor.borrow_or_layoff'),
     'labor.firm_incorporation': ('tile/firm', 'local_currency', 'region_labor.incorporate'),
     'labor.corporate_wage': ('tile/firm', 'local_currency_per_turn', 'region_labor.adjust_wages'),
@@ -49,6 +52,12 @@ METRICS = {
     'finance.treasury': ('nation', 'local_currency', 'nation.Nation.treasury'),
     'finance.sovereign_bond': ('nation', 'local_currency', 'sovereign_bonds.SovereignBondMarket'),
     'finance.treasury_flow': ('nation', 'signed_local_currency', 'sovereign_bonds.SovereignBondMarket and treasury operations'),
+    'finance.internal_transfer': ('nation/tile', 'local_currency', 'food_security.enact_nation_food_response'),
+    'finance.operator_fee': ('tile/agent', 'local_currency', 'economy.capitalist_planner.EliteCapitalistPlanner'),
+    'labor.subsistence_exit': ('tile/agent', 'worker', 'economy.labor_mobility.LaborMobilityScheduler'),
+    'goods.emergency_levy': ('tile/government', 'units', 'government.Government._levy_emergency_food'),
+    'goods.provincial_relief': ('province/tile', 'units', 'food_logistics.dispatch_province_food'),
+    'land.customary_inheritance': ('tile/agent', 'right', 'livelihood_access.inherit_customary_access'),
     'finance.obligation_balance': ('tile or nation/obligation', 'local_currency', 'livelihood_access.settle_obligations and scenario_debt'),
     'finance.obligation_payment': ('tile/origin', 'local_currency', 'livelihood_access.settle_obligations'),
     'finance.rent_collected': ('tile', 'local_currency', 'micro.region.stepper.settle_obligations'),
@@ -110,6 +119,9 @@ TRACE_INSTRUMENTED = set(LEGACY_HISTORY_TO_METRIC.values()) | {
     'fx.bilateral_mid', 'politics.legitimacy', 'people.births',
     'finance.sovereign_bond', 'finance.treasury_flow', 'people.deaths',
     'health.trade_contagion', 'health.trade_infection',
+    'goods.food_aid', 'people.food_security', 'labor.career_choice',
+    'finance.internal_transfer', 'finance.operator_fee', 'labor.subsistence_exit',
+    'goods.emergency_levy', 'goods.provincial_relief', 'land.customary_inheritance',
 }
 
 
@@ -156,7 +168,8 @@ def grievance_breakdown(tiles):
         'strikes': (raw.get('labor_resistance', 0.0)
                     + raw.get('wage_inflation', 0.0)
                     + raw.get('wage_suppression', 0.0)),
-        'state': raw.get('tax', 0.0) + raw.get('repression', 0.0),
+        'state': raw.get('tax', 0.0) + raw.get('grain_levy', 0.0)
+                 + raw.get('repression', 0.0),
         'inequality': raw.get('inequality', 0.0) + raw.get('unemployment', 0.0),
     }
     total = sum(grouped.values())

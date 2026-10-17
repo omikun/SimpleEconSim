@@ -23,6 +23,54 @@ from goods import Goods
 from labor_choice import evaluate_offer, attach_worker
 
 
+def potential_commons_food(worker: Any, region: Any) -> int:
+    """Meal a worker could gather after leaving paid work."""
+    from foraging import BASE_FORAGE_YIELD
+    from livelihood_access import effective_access
+
+    access = effective_access(worker, region, 'commons_food')
+    fertility = getattr(region, 'terrain', {}).get(Goods.food, 1.0)
+    return min(4, max(0, int(BASE_FORAGE_YIELD * access * fertility)))
+
+
+def independent_return(region: Any, worker: Any, good: Goods,
+                       producer_count: int) -> tuple[float, str]:
+    """Expected *reachable* cash sales plus food kept for the worker's meal.
+
+    Recipe prices alone are not income. A new independent producer can sell
+    only into a market that actually cleared in recent turns; firms can still
+    recruit workers into emerging sectors through a funded wage offer.
+    """
+    recipe = getattr(region, 'recipes', {}).get(good, {})
+    if recipe.get('import_only') or recipe.get('production', 0) <= 0:
+        return 0.0, 'not locally producible'
+    if good not in (Goods.food, Goods.wood, Goods.furniture):
+        return 0.0, 'no independent local market'
+    input_qty = float(recipe.get('numInput', 0))
+    input_good = recipe.get('input')
+    input_cost = 0.0
+    if input_qty:
+        input_price = float(region.recipes.get(input_good, {}).get('price', 0.0))
+        if input_price <= 0 or worker.inv_get(input_good, 0) < input_qty and worker.cash < input_price * input_qty:
+            return 0.0, 'inputs inaccessible'
+        input_cost = input_price * input_qty
+    recent_sales = list(getattr(region, 'sold_log', {}).get(good, []))[-3:]
+    sales_per_producer = ((sum(recent_sales) / len(recent_sales)) / max(1, producer_count)
+                          if recent_sales else 0.0)
+    yield_units = float(recipe['production'])
+    price = float(recipe.get('price', 0.0))
+    retained_food = min(4.0, yield_units) if good == Goods.food else 0.0
+    saleable = max(0.0, yield_units - retained_food)
+    expected_sales = min(saleable, sales_per_producer) * price
+    # Avoiding a lethal calorie deficit is worth more than its market price
+    # to someone who has actually been hungry. This is a household utility
+    # term, not an invented cash receipt.
+    hunger_value = (min(40.0, 8.0 * max(0.0, float(worker.hungry_steps)))
+                    if good == Goods.food else 0.0)
+    subsistence_value = retained_food * price + hunger_value
+    return max(0.0, expected_sales + subsistence_value - input_cost), 'realized market and own meal'
+
+
 class LaborMobilityScheduler:
     """Manages time-sliced execution of non-elite agents and career reallocation."""
 
@@ -78,10 +126,11 @@ class LaborMobilityScheduler:
         emergency_fast_path = [
             a for a in non_elites
             if a.id not in active_ids
-            and getattr(a, 'employer', None) is None
-            and (getattr(a, 'hungry_steps', 0) > 0
-                 or getattr(a, 'social_class', None) == 'dispossessed'
-                 or getattr(a, 'mem_avg', lambda *_: 0.0)('mem_eviction', 0.0) > 0)
+            and (getattr(a, 'hungry_steps', 0) >= 2
+                 or (getattr(a, 'employer', None) is None
+                     and (getattr(a, 'hungry_steps', 0) > 0
+                          or getattr(a, 'social_class', None) == 'dispossessed'
+                          or getattr(a, 'mem_avg', lambda *_: 0.0)('mem_eviction', 0.0) > 0)))
         ]
 
         # Prioritize emergency fast-path workers first to fill urgent vacancies
@@ -99,7 +148,36 @@ class LaborMobilityScheduler:
         # Sort firms by highest wage offered
         firms_with_vacancies.sort(key=lambda f: f.wage, reverse=True)
 
+        producer_counts = {}
+        for person in getattr(region, 'agents', []):
+            if (person.alive and person.employer is None and not person.is_trader
+                    and not person.is_corporation):
+                producer_counts[person.output] = producer_counts.get(person.output, 0) + 1
+
         for worker, is_emergency in execution_queue:
+            # A repeatedly hungry worker with a usable commons right can
+            # recover food by leaving a job that keeps them from foraging.
+            # Contract penalties remain named, enforceable obligations.
+            firm = getattr(worker, 'employer', None)
+            if firm is not None and worker.hungry_steps >= 2:
+                possible_food = potential_commons_food(worker, region)
+                if possible_food >= 2 and worker.inv_get(Goods.food, 0) < 4:
+                    from labor_contract import quit_job
+                    penalty = max(0.0, float(worker.wage) * 2.0)
+                    outcome = quit_job(worker, region, t, penalty=penalty)
+                    if outcome['success']:
+                        from run_trace import emit
+                        emit(region, kind='subsistence_job_exit',
+                             record_class='decision', phase='labor',
+                             subject={'type': 'agent', 'id': worker.id,
+                                      'tile': region.name},
+                             metric_id='labor.subsistence_exit', unit='worker',
+                             after=1,
+                             inputs={'firm_id': firm.id, 'hungry_steps': worker.hungry_steps,
+                                     'wage': worker.wage, 'food_price': region.recipes[Goods.food]['price'],
+                                     'potential_commons_food': possible_food,
+                                     'quit_penalty_claim_id': outcome.get('claim_id')})
+                        continue
             # 1. Dispossessed Serf or Unemployed Seeking Wage Work
             is_dispossessed = (getattr(worker, 'assigned_plot_id', None) is None
                                and (getattr(worker, 'social_class', None) == 'dispossessed'
@@ -107,7 +185,11 @@ class LaborMobilityScheduler:
             is_unemployed = getattr(worker, 'employer', None) is None
 
             # If unemployed and vacancies exist, apply to highest paying firm
-            if is_unemployed and firms_with_vacancies:
+            if (is_unemployed and firms_with_vacancies
+                    and not (getattr(getattr(region, 'gov', None), 'emergency_food_policy', False)
+                             and worker.hungry_steps > 0
+                             and worker.inv_get(Goods.food, 0) < 4
+                             and potential_commons_food(worker, region) >= 2)):
                 best_firm = firms_with_vacancies[0]
                 old_output = worker.output
                 decision = evaluate_offer(worker, best_firm, region, t)
@@ -122,6 +204,7 @@ class LaborMobilityScheduler:
                 from collective_trace_clock import stamp
                 log.append(stamp(region, row))
                 if decision.accepted and attach_worker(worker, best_firm, t, decision):
+                    producer_counts[old_output] = max(0, producer_counts.get(old_output, 0) - 1)
                     reallocations.append({
                         'agent_id': worker.id,
                         'type': 'HIRED_BY_FIRM',
@@ -143,29 +226,33 @@ class LaborMobilityScheduler:
                 best_good = None
                 best_return = -999.0
 
+                candidate_scores = []
                 for g, r in recipes.items():
                     if g in (Goods.gov, Goods.none):
                         continue
-                    p = float(r.get('price', 1.0))
-                    yield_units = float(r.get('production', 1.0))
-                    input_cost = 0.0
-                    if r.get('numInput', 0) > 0 and r.get('input') in recipes:
-                        input_cost = r['numInput'] * float(recipes[r['input']].get('price', 1.0))
-                    expected_net = (p * yield_units) - input_cost
+                    expected_net, basis = independent_return(
+                        region, worker, g, producer_counts.get(g, 0))
 
                     # If dispossessed, penalize food farming because they lack fields
                     if is_dispossessed and g == Goods.food:
                         expected_net *= 0.25
+                    candidate_scores.append({'good': g.name, 'return': round(expected_net, 3),
+                                             'basis': basis})
 
                     if expected_net > best_return:
                         best_return = expected_net
                         best_good = g
 
                 # If another profession offers significantly higher returns, switch!
-                if best_good and best_good != worker.output and best_return > 1.5:
+                current_return = next((row['return'] for row in candidate_scores
+                                       if row['good'] == worker.output.name), 0.0)
+                if (best_good and best_good != worker.output
+                        and best_return > max(1.5, current_return * 1.25)):
                     old_output = worker.output
                     worker.output = best_good
                     worker.last_career_switch = t
+                    producer_counts[old_output] = max(0, producer_counts.get(old_output, 0) - 1)
+                    producer_counts[best_good] = producer_counts.get(best_good, 0) + 1
                     reallocations.append({
                         'agent_id': worker.id,
                         'type': 'INDEPENDENT_SWITCH',
@@ -174,6 +261,17 @@ class LaborMobilityScheduler:
                         'expected_return': best_return,
                         'is_emergency_fast_path': is_emergency,
                     })
+                    from run_trace import emit
+                    emit(region, kind='independent_career_decision',
+                         record_class='decision',
+                         subject={'type': 'agent', 'id': worker.id, 'tile': region.name},
+                         metric_id='labor.career_choice', unit='occupation',
+                         inputs={'old_profession': old_output.name,
+                                 'new_profession': best_good.name,
+                                 'expected_return': best_return,
+                                 'current_return': current_return,
+                                 'emergency': is_emergency,
+                                 'candidates': candidate_scores})
 
         region.labor_scheduler_last_turn = t
         elapsed_sec = time.perf_counter() - start_time

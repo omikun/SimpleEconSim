@@ -69,6 +69,7 @@ def build_world_view(seed=None, terrain_seed=None, nation_seed=None, scenario_id
     world = {
         'tiles': tiles,
         'nations': nations,
+        'player_nation_name': nations[0].name if nations else None,
         'currencies': currencies,
         'pair_orders': pair_orders,
         'by_name': by_name,
@@ -137,6 +138,15 @@ def step_world(world):
     if world.get('scenario_id') == 'egypt_1877' and world.get('scenario_state', {}).get('ending'):
         world['playing'] = False
         return world.get('violations', [])
+    if not world.get('scenario_id'):
+        from ai_nation import NationPolicyAI
+        player_name = world.get('player_nation_name')
+        for nation in world.get('nations', []):
+            if nation.name == player_name:
+                if isinstance(nation.ai, NationPolicyAI):
+                    nation.ai = None
+            elif nation.ai is None:
+                nation.ai = NationPolicyAI(nation)
     t = world['turn'] + 1
     tiles = world['tiles']
     currencies = world['currencies']

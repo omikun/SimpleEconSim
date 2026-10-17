@@ -154,6 +154,13 @@ class Government:
         self.food_aid_min_coverage = 0.1
         # Maximum fraction to feed (capped even with ample funds)
         self.food_aid_max_coverage = 0.5
+        # Sovereign food-security policy. The public buyer and aid path may
+        # cover an actual meal gap when an AI or player enables emergency aid.
+        self.emergency_food_policy = False
+        self.emergency_meal_target = 0
+        self.food_aid_last_turn = 0
+        self._food_aid_turn = -1
+        self.food_levy_last_turn = 0
 
         # ========== Fiscal Policy Configuration ==========
         # Tax rate applied to top 10% taxable income (0.05 - 0.75 range).
@@ -573,7 +580,9 @@ class Government:
         Gov tries to maintain target_food_reserve as a buffer. Withdraws
         cash from bank as needed.
         """
-        max_inventory = self.target_food_reserve * 2  # cap at 2x target
+        emergency_target = (max(0, int(self.emergency_meal_target))
+                            if self.emergency_food_policy else 0)
+        max_inventory = max(self.target_food_reserve * 2, emergency_target)
         space = max_inventory - self.food_inventory
         if space <= 0:
             return 0
@@ -583,8 +592,10 @@ class Government:
             return 0
 
         affordable = gov_wealth // food_price
-        needed = max(0, self.target_food_reserve - self.food_inventory)
-        potential_bid = min(space, affordable, current_desired, needed)
+        needed = max(0, max(self.target_food_reserve, emergency_target) - self.food_inventory)
+        purchase_limit = (max(current_desired, emergency_target)
+                          if self.emergency_food_policy else current_desired)
+        potential_bid = min(space, affordable, purchase_limit, needed)
         if potential_bid <= 0:
             return 0
 
@@ -615,8 +626,8 @@ class Government:
     #  Food Aid (post-lifecycle, uses inventory + scales by funds)
     # ==================================================================
 
-    def provide_food_aid(self, t, agents, food_price):
-        """Give 1 food per starving agent, scaled by available reserves.
+    def provide_food_aid(self, t, agents, food_price, region=None):
+        """Move public food to residents before this turn's meal and mortality.
 
         Coverage ranges from food_aid_min_coverage (0.1) to
         food_aid_max_coverage (0.5) depending on how much excess
@@ -628,10 +639,38 @@ class Government:
         Returns total food given.
         """
         child_max_age = self.get_child_food_aid_max_age()
+        if getattr(self, '_food_aid_turn', -1) != t:
+            self.food_aid_last_turn = 0
+            self.food_levy_last_turn = 0
+            self._food_aid_turn = t
+        if self.emergency_food_policy and region is not None:
+            self._levy_emergency_food(t, agents, region)
+        inventory_before = self.food_inventory
+        transfers = []
 
         # Separate candidates: children and starving agents
         candidates = [a for a in agents
                       if not a.is_corporation and not a.is_government]
+        if self.emergency_food_policy:
+            from nutrition import appetite_units
+            needy = sorted((a for a in candidates
+                            if a.inv_get(Goods.food, 0) < appetite_units(a)),
+                           key=lambda a: (-a.hungry_steps, a.energy_reserve_kcal,
+                                          a.inv_get(Goods.food, 0), a.id))
+            for agent in needy:
+                if self.food_inventory <= 0:
+                    break
+                missing = max(0, appetite_units(agent) - agent.inv_get(Goods.food, 0))
+                given = min(missing, self.food_inventory)
+                if given:
+                    self.food_inventory -= given
+                    agent.inv_add(Goods.food, given)
+                    transfers.append({'agent_id': agent.id, 'units': given})
+            total_food_given = inventory_before - self.food_inventory
+            self.food_aid_last_turn += total_food_given
+            self._trace_food_aid(t, inventory_before, transfers, region)
+            return total_food_given
+
         children = [a for a in candidates
                     if a.age(t) <= child_max_age and a.hungry_steps == 0]
         starving = [a for a in candidates if a.hungry_steps > 0]
@@ -645,6 +684,7 @@ class Government:
             self.food_inventory -= 1
             child.inv_add(Goods.food, 1)
             total_food_given += 1
+            transfers.append({'agent_id': child.id, 'units': 1})
             loginfo(t, f"Government({self.name}) child food aid to {child.name()}")
 
         # 2. Determine how many starving to feed based on available surplus
@@ -672,6 +712,7 @@ class Government:
                 self.food_inventory -= 1
                 agent.inv_add(Goods.food, 1)
                 total_food_given += 1
+                transfers.append({'agent_id': agent.id, 'units': 1})
                 loginfo(t, f"Government({self.name}) food aid to {agent.name()} "
                         f"(hungry_steps={agent.hungry_steps})")
 
@@ -680,7 +721,79 @@ class Government:
                     f"(remaining inventory: {self.food_inventory}, "
                     f"cash: ${self.agent.cash:.2f})")
 
+        self._trace_food_aid(t, inventory_before, transfers, region)
+        self.food_aid_last_turn += total_food_given
         return total_food_given
+
+    def _levy_emergency_food(self, t, agents, region):
+        """Collect a bounded in-kind surplus tax for residents' current meals."""
+        from food_levy import levy_capacity, record_levy
+        from nutrition import appetite_units
+        from run_trace import emit
+
+        residents = [a for a in agents if a.alive and not a.is_corporation
+                     and not a.is_government and not getattr(a, 'military_unit_id', None)]
+        meal_gap = sum(max(0, appetite_units(a) - a.inv_get(Goods.food, 0))
+                       for a in residents)
+        needed = max(0, meal_gap - self.food_inventory)
+        if needed == 0:
+            return 0
+        donors = []
+        for a in agents:
+            if (not a.alive or a.is_government
+                    or getattr(a, 'military_unit_id', None)):
+                continue
+            reserve = 0 if a.is_corporation else appetite_units(a)
+            surplus = max(0, a.inv_get(Goods.food, 0) - reserve)
+            if surplus > 0:
+                donors.append((a, surplus))
+        donors.sort(key=lambda row: (-int(row[0].is_corporation), -row[1], row[0].id))
+        inventory_before = self.food_inventory
+        levies = []
+        for donor, surplus in donors:
+            if needed <= 0:
+                break
+            reserve = 0 if donor.is_corporation else appetite_units(donor)
+            taken = min(needed, levy_capacity(donor, reserve))
+            if taken <= 0:
+                continue
+            donor.inv_add(Goods.food, -taken)
+            record_levy(donor, taken)
+            self.food_inventory += taken
+            needed -= taken
+            levies.append({'donor_id': donor.id, 'units': taken,
+                           'corporation': bool(donor.is_corporation)})
+        collected = self.food_inventory - inventory_before
+        if collected:
+            self.food_levy_last_turn += collected
+            region.emergency_grain_levy_units = (
+                getattr(region, 'emergency_grain_levy_units', 0) + collected)
+            emit(region, kind='emergency_food_levy', record_class='transfer',
+                 phase='livelihood',
+                 subject={'type': 'tile', 'id': region.name, 'good': Goods.food.name},
+                 metric_id='goods.emergency_levy', unit='units',
+                 before=inventory_before, after=self.food_inventory,
+                 inputs={'turn': t, 'meal_gap_units': meal_gap,
+                         'units_collected': collected,
+                         'donor_cap_fraction': 0.25,
+                         'donors': levies})
+        return collected
+
+    def _trace_food_aid(self, t, inventory_before, transfers, region=None):
+        if not transfers:
+            return
+        from run_trace import emit
+        if region is None:
+            region = next((r for r in self.regions if getattr(r, 'gov', None) is self), None)
+        if region is None:
+            return
+        emit(region, kind='government_food_aid', record_class='transfer',
+             subject={'type': 'tile', 'id': region.name, 'good': Goods.food.name},
+             metric_id='goods.food_aid', unit='units',
+             before=inventory_before, after=self.food_inventory,
+             inputs={'turn': t, 'emergency': self.emergency_food_policy,
+                     'units_delivered': inventory_before - self.food_inventory,
+                     'recipients': transfers})
 
     def distribute_welfare(self, t, agents, min_reserve=0):
         """Distribute all excess cash above min_reserve to starving agents.

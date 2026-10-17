@@ -33,8 +33,10 @@ class SimServer:
 
     def __init__(self, seed: Optional[int] = None, terrain_seed: Optional[int] = None,
                  nation_seed: Optional[int] = None,
-                 topology: Optional[str] = None, scenario_id: Optional[str] = None):
+                 topology: Optional[str] = None, scenario_id: Optional[str] = None,
+                 autoplay_nations: bool = False):
         self.scenario_id = scenario_id
+        self.autoplay_nations = bool(autoplay_nations)
         if scenario_id == 'labor_frontier_rivalry':
             topology = 'hex'
         if topology in ('voronoi', 'hex'):
@@ -122,6 +124,7 @@ class SimServer:
             self.playing = False
             self._ticker_events.clear()
             self.player_nation_name = self.nations[0].name if self.nations else None
+            self._configure_nation_ai()
             self._nation_history = {}
             for n in self.nations:
                 self._nation_history[n.name] = {
@@ -136,6 +139,19 @@ class SimServer:
                 tile._run_trace = self.run_trace
             from trace_snapshots import sample
             self._trace_previous = sample(self.tiles, self.nations)
+
+    def _configure_nation_ai(self):
+        """Run sovereign AI for rivals while leaving the selected nation to the player."""
+        if self.scenario_id is not None:
+            return
+        from ai_nation import NationPolicyAI
+        for nation in self.nations:
+            should_control = (self.autoplay_nations
+                              or nation.name != self.player_nation_name)
+            if should_control and nation.ai is None:
+                nation.ai = NationPolicyAI(nation)
+            elif not should_control and isinstance(nation.ai, NationPolicyAI):
+                nation.ai = None
 
     def step(self) -> int:
         """Advance the simulation by exactly one turn."""
@@ -228,6 +244,19 @@ class SimServer:
         tr = n.treasury()
         tr_cur = tr['total']
         tr_food = tr['food']
+        from food_security import diagnose_tile
+        food_tiles = [diagnose_tile(tile) for tile in tiles]
+        food_residents = sum(row['residents'] for row in food_tiles)
+        food_underfed = sum(row['underfed_residents'] for row in food_tiles)
+        food_emergency_tiles = sum(bool(getattr(tile.gov, 'emergency_food_policy', False))
+                                   for tile in tiles)
+        food_enclosure_moratoria = sum(bool(getattr(tile, 'food_enclosure_moratorium', False))
+                                       for tile in tiles)
+        food_governments = list({id(tile.gov): tile.gov for tile in tiles}.values())
+        food_aid_units = sum(int(getattr(gov, 'food_aid_last_turn', 0))
+                             for gov in food_governments)
+        food_levy_units = sum(int(getattr(gov, 'food_levy_last_turn', 0))
+                              for gov in food_governments)
 
         pop_cur = sum(r.total_population[-1] if getattr(r, 'total_population', None) else len(r.agents) for r in tiles)
         pop_prev = sum(r.total_population[-2] if getattr(r, 'total_population', None) and len(r.total_population) >= 2 else (r.total_population[-1] if getattr(r, 'total_population', None) else len(r.agents)) for r in tiles)
@@ -301,6 +330,16 @@ class SimServer:
             'treasury_cash': round(float(tr_cur), 1),
             'treasury_delta': round(float(d_tr), 1),
             'treasury_food': int(tr_food),
+            'food_security': {
+                'residents': food_residents,
+                'underfed': food_underfed,
+                'underfed_share': round(food_underfed / max(1, food_residents), 4),
+                'emergency_tiles': food_emergency_tiles,
+                'enclosure_moratoria': food_enclosure_moratoria,
+                'aid_units_last_turn': food_aid_units,
+                'levy_units_last_turn': food_levy_units,
+                'tiles': food_tiles,
+            },
             'treasury_upkeep': round(float(tot_upkeep), 1),
             'military_upkeep': round(float(mil_upkeep), 1),
             'debt_upkeep': round(float(coupons_owed), 1),
@@ -409,6 +448,7 @@ class SimServer:
                 target_nation = p.get('nation')
                 if any(n.name == target_nation for n in self.nations):
                     self.player_nation_name = target_nation
+                    self._configure_nation_ai()
                     self.push_ticker(self.turn, 'SOVEREIGN', f"Assumed sovereign control of {target_nation}.", (140, 210, 255))
                     return {'success': True, 'nation': target_nation}
                 return {'success': False, 'error': f"Nation '{target_nation}' not found."}

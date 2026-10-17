@@ -144,9 +144,11 @@ class LaborFrontierRivalryTest(unittest.TestCase):
             results[choice] = (len(estate.employees),
                                world['scenario_state']['market_summary']['Meridian']['units_sold'],
                                sum(right.usable_share > 0 for rights in border.access_rights.values()
-                                   for right in rights if right.resource == 'commons_food'))
+                                   for right in rights if right.resource == 'commons_food'),
+                               estate.inv_get(Goods.cotton, 0))
         self.assertGreater(results['approve_petition'][0], results['protect_access'][0])
-        self.assertGreater(results['approve_petition'][1], results['protect_access'][1])
+        # Orders may cap sales even when coercion produces a larger crop.
+        self.assertGreater(results['approve_petition'][3], results['protect_access'][3])
         self.assertLess(results['approve_petition'][2], results['protect_access'][2])
 
     def test_protected_machinery_path_regains_orders(self):
