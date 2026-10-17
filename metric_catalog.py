@@ -34,7 +34,7 @@ METRICS = {
     'labor.exploitation_rate': ('tile', 'ratio', 'labor_contract.aggregate_tile_surplus'),
     'labor.strikers': ('tile', 'people', 'labor_resistance.step_workplace_resistance'),
     'labor.hiring_decision': ('tile/firm/worker', 'accepted', 'region_labor.hire_workers'),
-    'labor.career_choice': ('tile/worker', 'occupation', 'economy.labor_mobility.LaborMobilityScheduler'),
+    'labor.career_choice': ('tile/worker', 'occupation', 'labor_choice.apply_career_switch and economy.labor_mobility.LaborMobilityScheduler'),
     'labor.payroll_funding': ('tile/firm', 'workers', 'region_labor.borrow_or_layoff'),
     'labor.firm_incorporation': ('tile/firm', 'local_currency', 'region_labor.incorporate'),
     'labor.corporate_wage': ('tile/firm', 'local_currency_per_turn', 'region_labor.adjust_wages'),

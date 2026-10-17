@@ -296,6 +296,39 @@ class RunTraceTests(unittest.TestCase):
             self.assertTrue(all(replay_event(row)['matches'] for row in quotes
                                 if replay_event(row)))
 
+    def test_career_switch_emits_typed_trace_event(self):
+        from labor_choice import apply_career_switch
+        with tempfile.TemporaryDirectory() as tmp:
+            trace = RunTrace(Path(tmp) / 'career.ctr', 'career-fixture')
+            clock = {'next': 1, 'turn': 12, 'phase': 'local'}
+            region = SimpleNamespace(name='Delta', _collective_trace_clock=clock,
+                                     _run_trace=trace)
+            worker = Agent(42)
+            initialize_agent(worker, Goods.food, 0, 0, 0)
+            worker.birth_round = -10
+            worker.last_career_switch = 4
+            switched = apply_career_switch(
+                region, worker, Goods.wood, 12,
+                reason='INDEPENDENT_SWITCH',
+                formula_id='labor.career_switch.v2',
+                inputs={'current_income': 1.2, 'target_income': 2.5},
+                constraints={'min_cooldown_turns': 4},
+            )
+            self.assertTrue(switched)
+            self.assertEqual(worker.output, Goods.wood)
+            self.assertEqual(worker.last_career_switch, 12)
+            self.assertEqual(worker.mem_last('mem_career_history'), 'food')
+            rows = trace.query(turn=12, metric_id='labor.career_choice')['events']
+            self.assertEqual(len(rows), 1)
+            row = rows[0]
+            self.assertEqual(row['value_before'], 'food')
+            self.assertEqual(row['value_after'], 'wood')
+            self.assertEqual(row['inputs']['prior_tenure'], 8)
+            self.assertEqual(row['inputs']['age'], 22)
+            self.assertEqual(row['inputs']['reason'], 'INDEPENDENT_SWITCH')
+            self.assertEqual(row['constraints']['min_cooldown_turns'], 4)
+
 
 if __name__ == '__main__':
     unittest.main()
+

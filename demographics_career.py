@@ -93,8 +93,10 @@ def build_employer_cache(agents):
     return cache
 
 
-def handle_job_seeking(t, agent, employer_cache):
+def handle_job_seeking(t, agent, employer_cache, region=None):
     """Independent struggling agents actively seek employment."""
+    if region is not None and getattr(region, 'labor_scheduler_last_turn', None) == t:
+        return
     is_employee = getattr(agent, 'employer', None) is not None
     if is_employee or getattr(agent, 'is_corporation', False):
         return
@@ -108,25 +110,42 @@ def handle_job_seeking(t, agent, employer_cache):
     employers = employer_cache.get(agent.output, [])
     if employers:
         employer = rand.choice(employers)
-        agent.employer = employer
-        agent.hired_at = t
-        employer.employees.append(agent)
-        loginfo(t, agent.name(), 'sought employment at', employer.name(),
-                'wage', employer.wage)
+        if region is not None:
+            from labor_choice import evaluate_offer, attach_worker
+            decision = evaluate_offer(agent, employer, region, t)
+            if decision.accepted and attach_worker(agent, employer, t, decision, region=region):
+                loginfo(t, agent.name(), 'sought employment at', employer.name(),
+                        'wage', employer.wage)
+        else:
+            agent.employer = employer
+            agent.hired_at = t
+            agent.wage = employer.wage
+            employer.employees.append(agent)
+            loginfo(t, agent.name(), 'sought employment at', employer.name(),
+                    'wage', employer.wage)
 
 
 def handle_career_switching(ctx, t, agent, agents,
                             choices_list, bottleneck_weights, number_of_switches):
-    """Emergency / mobility career changes for independent agents."""
+    """Emergency / mobility career changes for independent agents (legacy fallback when scheduler inactive)."""
+    s_reg = getattr(ctx, 'source_region', None)
+    if s_reg is not None and getattr(s_reg, 'labor_scheduler_last_turn', None) == t:
+        return 0, number_of_switches
     is_employee = getattr(agent, 'employer', None) is not None
     if is_employee or number_of_switches >= ctx.max_career_switches:
         return 0, number_of_switches
+    from labor_choice import apply_career_switch
     hunger_pressure = 1.0 - math.exp(-max(0.0, float(agent.hungry_steps)) / 2.0)
-    if agent.output != Goods.food and hunger_pressure > 0:
+    if agent.output != Goods.food and hunger_pressure > 0 and (t - getattr(agent, 'last_career_switch', 0) >= 2):
         if rand.random() < 0.55 * hunger_pressure:
             logdebug(t, agent.name(), 'EMERGENCY! switching to farmer')
-            agent.output = Goods.food
-            agent.last_career_switch = t
+            apply_career_switch(
+                s_reg, agent, Goods.food, t,
+                kind='demographic_career_switch',
+                reason='emergency_hunger_to_food',
+                formula_id='demographics.hunger_career_switch.v1',
+                inputs={'hungry_steps': int(agent.hungry_steps), 'hunger_pressure': hunger_pressure},
+            )
             number_of_switches += 1
             return 0, number_of_switches
     if hunger_pressure > 0 and (t - getattr(agent, 'last_career_switch', 0) > 10):
@@ -135,8 +154,13 @@ def handle_career_switching(ctx, t, agent, agents,
         if ctx.most_demand != Goods.gov and agent.output != ctx.most_demand:
             logdebug(t, agent.name(), 'hungry, switching to in-demand career:',
                      ctx.profession[ctx.most_demand])
-            agent.output = ctx.most_demand
-            agent.last_career_switch = t
+            apply_career_switch(
+                s_reg, agent, ctx.most_demand, t,
+                kind='demographic_career_switch',
+                reason='hungry_most_demand',
+                formula_id='demographics.most_demand_switch.v1',
+                inputs={'hungry_steps': int(agent.hungry_steps), 'hunger_pressure': hunger_pressure},
+            )
             number_of_switches += 1
             return 0, number_of_switches
     elif agent.cash < 20 and (t - getattr(agent, 'last_career_switch', 0) > 10):
@@ -146,14 +170,22 @@ def handle_career_switching(ctx, t, agent, agents,
                 if endangered and rand.random() < 0.5:
                     output = rand.choice(endangered)
                     grant_apprenticeship_subsidy(agent, output, t, ctx)
+                    reason = 'endangered_apprenticeship'
                 else:
                     output = learned_switch_choice(
                         ctx, agent, choices_list, bottleneck_weights)
-                agent.output = output
-                logdebug(t, agent.name(), 'poor, exploring learned career:',
-                         ctx.profession[agent.output])
-                agent.last_career_switch = t
-                number_of_switches += 1
+                    reason = 'learned_switch_choice'
+                if output != agent.output:
+                    apply_career_switch(
+                        s_reg, agent, output, t,
+                        kind='demographic_career_switch',
+                        reason=reason,
+                        formula_id='demographics.learned_career_switch.v1',
+                        inputs={'cash': float(agent.cash)},
+                    )
+                    logdebug(t, agent.name(), 'poor, exploring learned career:',
+                             ctx.profession[agent.output])
+                    number_of_switches += 1
                 return 0, number_of_switches
         elif ctx.most_demand != Goods.gov and agent.output != ctx.most_demand:
             target = ctx.most_demand
@@ -174,7 +206,14 @@ def handle_career_switching(ctx, t, agent, agents,
                     target = input_good
                     logdebug(t, agent.name(), 'redirected to bottleneck input:',
                              ctx.profession[target])
-            agent.output = target
-            agent.last_career_switch = t
-            number_of_switches += 1
+            if target != agent.output:
+                apply_career_switch(
+                    s_reg, agent, target, t,
+                    kind='demographic_career_switch',
+                    reason='bottleneck_or_most_demand',
+                    formula_id='demographics.bottleneck_redirect.v1',
+                    inputs={'cash': float(agent.cash)},
+                )
+                number_of_switches += 1
     return 0, number_of_switches
+

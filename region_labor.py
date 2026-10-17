@@ -235,7 +235,7 @@ def hire_workers(region, t):
                     decision = evaluate_offer(c, a, region, t, tightness=tightness)
             _record_labor_decision(region, decision)
             if decision.accepted:
-                attach_worker(c, a, t, decision)
+                attach_worker(c, a, t, decision, region=region)
 
         # If still have vacancies and no unattached candidates, consider poaching
         if len(a.employees) < a.max_employees and (not candidates or tightness > 1.2):
@@ -249,7 +249,7 @@ def hire_workers(region, t):
                     decision = evaluate_offer(target, a, region, t, wage=offer_wage,
                                               tightness=tightness)
                     _record_labor_decision(region, decision)
-                    if decision.accepted and attach_worker(target, a, t, decision):
+                    if decision.accepted and attach_worker(target, a, t, decision, region=region):
                         a.wage = max(a.wage, offer_wage)
 
 

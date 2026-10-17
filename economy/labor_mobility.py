@@ -20,7 +20,7 @@ from __future__ import annotations
 import time
 from typing import List, Dict, Any, Optional
 from goods import Goods
-from labor_choice import evaluate_offer, attach_worker
+from labor_choice import evaluate_offer, attach_worker, apply_career_switch
 
 
 def potential_commons_food(worker: Any, region: Any) -> int:
@@ -154,6 +154,11 @@ class LaborMobilityScheduler:
                     and not person.is_corporation):
                 producer_counts[person.output] = producer_counts.get(person.output, 0) + 1
 
+        building_staff_ids = {
+            aid for b in getattr(region, 'buildings', [])
+            for aid in getattr(b, 'staff_ids', [])
+        }
+
         for worker, is_emergency in execution_queue:
             # A repeatedly hungry worker with a usable commons right can
             # recover food by leaving a job that keeps them from foraging.
@@ -203,7 +208,7 @@ class LaborMobilityScheduler:
                             'reservation': round(decision.reservation_wage, 4)}
                 from collective_trace_clock import stamp
                 log.append(stamp(region, row))
-                if decision.accepted and attach_worker(worker, best_firm, t, decision):
+                if decision.accepted and attach_worker(worker, best_firm, t, decision, region=region):
                     producer_counts[old_output] = max(0, producer_counts.get(old_output, 0) - 1)
                     reallocations.append({
                         'agent_id': worker.id,
@@ -218,6 +223,10 @@ class LaborMobilityScheduler:
                     if len(best_firm.employees) >= best_firm.max_employees:
                         firms_with_vacancies.pop(0)
                     continue
+
+            # Retain non-starving operational building staff in their assigned facility role
+            if worker.id in building_staff_ids and getattr(worker, 'hungry_steps', 0) < 2:
+                continue
 
             # 2. Independent Craftsman / Commoner Career Switch:
             # If independent and not bound to a lord, evaluate market returns across professions
@@ -249,8 +258,19 @@ class LaborMobilityScheduler:
                 if (best_good and best_good != worker.output
                         and best_return > max(1.5, current_return * 1.25)):
                     old_output = worker.output
-                    worker.output = best_good
-                    worker.last_career_switch = t
+                    apply_career_switch(
+                        region, worker, best_good, t,
+                        kind='independent_career_decision',
+                        reason='independent_return_maximization',
+                        record_class='decision',
+                        formula_id='labor.independent_career_return.v1',
+                        inputs={
+                            'expected_return': best_return,
+                            'current_return': current_return,
+                            'emergency': is_emergency,
+                            'candidates': candidate_scores,
+                        },
+                    )
                     producer_counts[old_output] = max(0, producer_counts.get(old_output, 0) - 1)
                     producer_counts[best_good] = producer_counts.get(best_good, 0) + 1
                     reallocations.append({
@@ -261,17 +281,6 @@ class LaborMobilityScheduler:
                         'expected_return': best_return,
                         'is_emergency_fast_path': is_emergency,
                     })
-                    from run_trace import emit
-                    emit(region, kind='independent_career_decision',
-                         record_class='decision',
-                         subject={'type': 'agent', 'id': worker.id, 'tile': region.name},
-                         metric_id='labor.career_choice', unit='occupation',
-                         inputs={'old_profession': old_output.name,
-                                 'new_profession': best_good.name,
-                                 'expected_return': best_return,
-                                 'current_return': current_return,
-                                 'emergency': is_emergency,
-                                 'candidates': candidate_scores})
 
         region.labor_scheduler_last_turn = t
         elapsed_sec = time.perf_counter() - start_time

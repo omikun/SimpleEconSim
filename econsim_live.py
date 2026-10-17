@@ -135,7 +135,7 @@ def Live(t, agents, context: LiveContext):
         number_food_consumed, number_of_switches = handle_career_switching(
             ctx, t, agent, agents, choices_list, bottleneck_weights, number_of_switches
         )
-        handle_job_seeking(t, agent, employer_cache)
+        handle_job_seeking(t, agent, employer_cache, region=ctx.source_region)
         number_food_consumed = handle_reproduction(ctx, t, agent, agents, new_agents)
         died = handle_death(ctx, t, agent, agents)
         if died:

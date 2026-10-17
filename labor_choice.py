@@ -77,7 +77,47 @@ def evaluate_offer(worker: Any, firm: Any, region: Any, turn: int,
     )
 
 
-def attach_worker(worker: Any, firm: Any, turn: int, decision: LaborDecision) -> bool:
+def apply_career_switch(region: Any, worker: Any, new_output: Any, turn: int, *,
+                        kind: str = 'career_switch', reason: str = 'career_switch',
+                        record_class: str = 'decision', formula_id: str | None = None,
+                        inputs: dict | None = None,
+                        constraints: dict | None = None) -> bool:
+    """Authoritative occupation mutation with tenure tracking and causal trace emission."""
+    from goods import Goods
+    old_output = getattr(worker, 'output', None)
+    old_name = getattr(old_output, 'name', str(old_output)) if old_output is not None else 'none'
+    new_name = getattr(new_output, 'name', str(new_output)) if new_output is not None else 'none'
+    prev_switch_turn = int(getattr(worker, 'last_career_switch', 0))
+    prior_tenure = max(0, int(turn) - prev_switch_turn)
+    changed = (old_output != new_output)
+    if changed and old_output not in (None, Goods.none, Goods.gov) and hasattr(worker, 'mem_push'):
+        worker.mem_push('mem_career_history', old_name)
+    worker.output = new_output
+    worker.last_career_switch = int(turn)
+    if changed and region is not None:
+        from run_trace import emit
+        age = worker.age(turn) if callable(getattr(worker, 'age', None)) else 0
+        payload = {
+            'old_profession': old_name,
+            'new_profession': new_name,
+            'reason': reason,
+            'age': int(age),
+            'prior_tenure': prior_tenure,
+        }
+        if inputs:
+            payload.update(inputs)
+        emit(region, kind=kind, record_class=record_class,
+             subject={'type': 'agent', 'id': worker.id,
+                      'tile': getattr(region, 'name', 'unknown')},
+             metric_id='labor.career_choice', unit='occupation',
+             before=old_name, after=new_name,
+             formula_id=formula_id, inputs=payload,
+             constraints=constraints)
+    return changed
+
+
+def attach_worker(worker: Any, firm: Any, turn: int, decision: LaborDecision,
+                  region: Any = None) -> bool:
     """Apply a previously accepted offer, keeping both employment references aligned."""
     if (not decision.accepted or decision.worker_id != worker.id
             or decision.firm_id != firm.id or decision.turn != turn):
@@ -101,8 +141,18 @@ def attach_worker(worker: Any, firm: Any, turn: int, decision: LaborDecision) ->
     worker.hired_at = turn
     worker.wage = decision.offered_wage
     worker.shift_hours = getattr(firm, 'shift_hours', 8.0)
-    worker.output = firm.output
-    worker.last_career_switch = turn
+    apply_career_switch(
+        region, worker, firm.output, turn,
+        kind='firm_hire_career_switch',
+        reason='hired_by_firm',
+        record_class='outcome',
+        formula_id='labor.firm_hire_attachment.v1',
+        inputs={
+            'firm_id': firm.id,
+            'offered_wage': decision.offered_wage,
+            'reservation_wage': decision.reservation_wage,
+        },
+    )
     from labor_contract import ensure_labor_agreement
     agreement = ensure_labor_agreement(worker, firm, turn)
     agreement.start_turn = int(turn)
@@ -110,3 +160,4 @@ def attach_worker(worker: Any, firm: Any, turn: int, decision: LaborDecision) ->
     agreement.pay_rate = float(decision.offered_wage)
     agreement.pay_mode = 'scrip' if getattr(firm, 'pay_mode', 'cash') == 'scrip' else 'cash'
     return True
+

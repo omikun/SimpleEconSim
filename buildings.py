@@ -315,13 +315,17 @@ class Building:
 
         total_req = sum(req.values())
         agents_by_id = {a.id: a for a in getattr(region, 'agents', []) if getattr(a, 'alive', True)}
-        self.staff_ids = [aid for aid in self.staff_ids if aid in agents_by_id]
+        self.staff_ids = [
+            aid for aid in self.staff_ids
+            if aid in agents_by_id and agents_by_id[aid].output in req
+        ]
 
         current_by_good = {}
         for aid in self.staff_ids:
             a = agents_by_id[aid]
             current_by_good[a.output] = current_by_good.get(a.output, 0) + 1
 
+        from labor_choice import apply_career_switch
         for good, needed in req.items():
             have = current_by_good.get(good, 0)
             if have < needed:
@@ -330,12 +334,28 @@ class Building:
                     if getattr(a, 'alive', True)
                     and not getattr(a, 'is_corporation', False)
                     and not getattr(a, 'is_government', False)
+                    and not getattr(a, 'is_lord', False)
+                    and not getattr(a, 'is_trader', False)
+                    and not getattr(a, 'military_unit_id', None)
                     and a.employer is None
                     and a.id not in self.staff_ids
-                    and (a.output == good or a.output == Goods.none or a.output == Goods.food)
+                    and (a.output == good
+                         or a.output == Goods.none
+                         or (a.output == Goods.food
+                             and getattr(a, 'hungry_steps', 0) == 0
+                             and (t - getattr(a, 'last_career_switch', 0) >= 8)))
                 ]
+                candidates.sort(key=lambda a: (0 if a.output == good else 1 if a.output == Goods.none else 2, a.id))
                 for c in candidates[:(needed - have)]:
-                    c.output = good
+                    if c.output != good:
+                        apply_career_switch(
+                            region, c, good, t,
+                            kind='building_staff_assignment',
+                            reason=f'staff_{self.name}',
+                            record_class='outcome',
+                            formula_id='buildings.operational_staffing.v1',
+                            inputs={'building': self.name, 'required_staff': needed},
+                        )
                     self.staff_ids.append(c.id)
                     current_by_good[good] = current_by_good.get(good, 0) + 1
 

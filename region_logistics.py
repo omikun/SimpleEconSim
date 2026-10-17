@@ -211,8 +211,16 @@ def exit_trader(region, agent):
             agent.loans.pop(0)
 
     # 5. Zero remaining trade state and reset to food producer
+    from labor_choice import apply_career_switch
+    turn = int(getattr(region, '_last_turn', 0) or 0)
     agent.is_trader = False
-    agent.output = Goods.food
+    apply_career_switch(
+        region, agent, Goods.food, turn,
+        kind='trader_exit_career_switch',
+        reason='unprofitable_trader_exit',
+        record_class='outcome',
+        formula_id='logistics.trader_exit.v1',
+    )
     agent.trade_good = None
     agent.employer = None
 
@@ -252,6 +260,8 @@ def process_trader_exits(region, t, agents):
 
 def make_trader_internal(region, agent):
     """Set an agent's fields to make them a trader."""
+    from labor_choice import apply_career_switch
+    turn = int(getattr(region, '_last_turn', 0) or 0)
     best_good = Goods.food
     best_gap = -1.0
     dest = region.destination_region
@@ -264,7 +274,14 @@ def make_trader_internal(region, agent):
     agent.is_trader = True
     agent.home_region = region.name
     agent.destination_region = region.destination_region
-    agent.output = Goods.food
+    apply_career_switch(
+        region, agent, Goods.food, turn,
+        kind='trader_entry_career_switch',
+        reason='entered_trading',
+        record_class='outcome',
+        formula_id='logistics.trader_entry.v1',
+        inputs={'trade_good': getattr(best_good, 'name', str(best_good))},
+    )
     agent.trade_good = best_good
     for g in Goods:
         if g == Goods.none:
