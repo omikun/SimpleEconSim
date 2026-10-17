@@ -2,6 +2,12 @@
 
 Date: 2026-10-16
 
+**Follow-up audit:** Phases 1–4 and two related market commits have been
+implemented. [The follow-up plan](career_mobility_followup_plan.md) evaluates
+their combined outcome and supersedes this document's numerical calibration
+targets. In particular, the default world has **ten turns per displayed year**,
+so the annual rates cited below cannot be used as per-turn targets.
+
 ## 1. Empirical Audit of Recent Simulation Traces
 
 ### 1.1 Career Switching Frequencies in Recent Traces
