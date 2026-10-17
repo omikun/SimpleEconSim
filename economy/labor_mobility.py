@@ -74,9 +74,23 @@ def independent_return(region: Any, worker: Any, good: Goods,
         smoothed_sales = 0.0
     is_incumbent = getattr(worker, 'output', None) == good
     effective_producers = max(1, producer_count if is_incumbent else producer_count + 1)
+    input_supply_factor = 1.0
+    if input_qty > 0 and input_good is not None:
+        recent_in_prod = list(getattr(region, 'production_log', {}).get(input_good, []))[-4:]
+        recent_in_sold = list(getattr(region, 'sold_log', {}).get(input_good, []))[-4:]
+        in_hist = recent_in_prod or recent_in_sold
+        if in_hist:
+            avg_in_avail = max(
+                sum(recent_in_prod) / len(recent_in_prod) if recent_in_prod else 0.0,
+                sum(recent_in_sold) / len(recent_in_sold) if recent_in_sold else 0.0,
+            )
+            total_in_needed = max(1.0, effective_producers * input_qty)
+            input_supply_factor = min(1.0, avg_in_avail / total_in_needed)
+            if not is_incumbent and input_supply_factor < 0.75 and worker.inv_get(input_good, 0) < input_qty:
+                return 0.0, 'input supply bottleneck'
     sales_per_producer = smoothed_sales / effective_producers if recent_sales else 0.0
     tenure_mult = occupational_tenure_multiplier(worker, good, cur_turn)
-    yield_units = float(recipe['production']) * tenure_mult
+    yield_units = float(recipe['production']) * tenure_mult * input_supply_factor
     price = float(recipe.get('price', 0.0))
     retained_food = min(4.0, yield_units) if good == Goods.food else 0.0
     saleable = max(0.0, yield_units - retained_food)
@@ -166,11 +180,10 @@ class LaborMobilityScheduler:
             num_in = float(rec.get('numInput', 0))
             in_good = rec.get('input')
             if num_in > 0 and in_good is not None and not getattr(region, 'scenario_owner_policy', False):
-                in_price = float(recipes_map.get(in_good, {}).get('price', 1.0))
-                payroll_reserve = len(getattr(f, 'employees', [])) * float(getattr(f, 'wage', 1.0))
-                affordable_in = max(0.0, float(getattr(f, 'cash', 0.0)) - payroll_reserve) / max(0.1, in_price)
-                avail = float(f.inv_get(in_good, 0)) + affordable_in
-                return min(max_emp, max(2, int(avail // num_in) + 1))
+                avail = float(f.inv_get(in_good, 0))
+                if avail <= 0 and len(getattr(f, 'employees', [])) == 0:
+                    return max_emp
+                return min(max_emp, max(2, int(avail // num_in) + 2))
             return max_emp
 
         firms_with_vacancies = [

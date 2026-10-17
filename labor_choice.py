@@ -60,9 +60,11 @@ def evaluate_offer(worker: Any, firm: Any, region: Any, turn: int,
         or getattr(worker, 'mem_avg', lambda *_: 0.0)('mem_eviction', 0.0) > 0
     )
     is_acute_hunger = getattr(worker, 'hungry_steps', 0) >= 3
-    _, min_cooldown, age_factor = career_switch_hurdle_and_cooldown(
+    hurdle_mult, min_cooldown, age_factor = career_switch_hurdle_and_cooldown(
         worker, turn, is_emergency=(is_dispossessed or is_acute_hunger)
     )
+    if is_occupation_change and not (is_dispossessed or is_acute_hunger) and age_factor > 0.0:
+        reservation *= max(1.0, min(2.5, hurdle_mult * 0.90))
 
     last_switch = int(getattr(worker, 'last_career_switch', 0))
     turns_since_switch = int(turn) - last_switch
