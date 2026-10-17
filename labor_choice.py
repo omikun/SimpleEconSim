@@ -154,6 +154,65 @@ def career_switch_hurdle_and_cooldown(
     return hurdle_multiplier, min_cooldown, age_factor
 
 
+def occupational_tenure_turns(worker: Any, good: Any, turn: int) -> int:
+    """Return effective occupational tenure turns in *good* (continuous or retained)."""
+    if getattr(worker, 'output', None) == good:
+        last_switch = int(getattr(worker, 'last_career_switch', 0))
+        return max(0, int(turn) - last_switch)
+    good_name = getattr(good, 'name', str(good))
+    history = getattr(worker, 'memory', {}).get('mem_career_history', [])
+    prior_episodes = sum(1 for entry in history if entry == good_name)
+    return min(4, prior_episodes * 2)
+
+
+def occupational_tenure_multiplier(worker: Any, good: Any, turn: int) -> float:
+    """Return occupation-specific human capital productivity multiplier (Kambourov & Manovskii 2009).
+
+    - Incumbent occupation: +2%/turn continuous tenure up to +20% (1.20x at 10+ turns).
+    - Previously practiced occupation in mem_career_history: +4% per prior spell up to +8% (1.08x).
+    - Unfamiliar occupation: 1.00x.
+    """
+    tenure = occupational_tenure_turns(worker, good, turn)
+    if getattr(worker, 'output', None) == good:
+        return 1.0 + min(0.20, 0.02 * max(0, tenure))
+    return 1.0 + min(0.08, 0.02 * max(0, tenure))
+
+
+def skill_tier_for_good(good: Any) -> int:
+    """Classify goods into 3 occupational skill & capital tiers."""
+    from goods import Goods
+    if good in (Goods.food, Goods.wood):
+        return 1
+    if good == Goods.furniture:
+        return 2
+    return 3
+
+
+def can_enter_independent_trade(
+    worker: Any, good: Any, input_cost: float, turn: int = 0
+) -> tuple[bool, str]:
+    """Check whether *worker* can enter *good* as an independent sole producer."""
+    if getattr(worker, 'output', None) == good:
+        return True, 'incumbent'
+    tier = skill_tier_for_good(good)
+    if tier == 1:
+        return True, 'tier1_open'
+    if tier == 2:
+        good_name = getattr(good, 'name', str(good))
+        history = getattr(worker, 'memory', {}).get('mem_career_history', [])
+        if good_name in history:
+            return True, 'prior_craft_experience'
+        cash = float(getattr(worker, 'cash', 0.0))
+        prod = float(getattr(worker, 'productivity', 0.5))
+        age = career_lifecycle_age(worker, turn)
+        if cash >= max(6.0, input_cost * 2.0) and prod >= 0.55:
+            return True, 'artisan_workshop_capital'
+        if 14 <= age <= 24 and prod >= 0.62 and cash >= input_cost * 1.25:
+            return True, 'youth_craft_apprenticeship'
+        return False, 'artisan tool/skill barrier'
+    return False, 'no independent local market'
+
+
 def apply_career_switch(region: Any, worker: Any, new_output: Any, turn: int, *,
                         kind: str = 'career_switch', reason: str = 'career_switch',
                         record_class: str = 'decision', formula_id: str | None = None,

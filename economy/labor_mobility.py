@@ -25,6 +25,8 @@ from labor_choice import (
     attach_worker,
     apply_career_switch,
     career_switch_hurdle_and_cooldown,
+    occupational_tenure_multiplier,
+    can_enter_independent_trade,
 )
 
 
@@ -39,7 +41,7 @@ def potential_commons_food(worker: Any, region: Any) -> int:
 
 
 def independent_return(region: Any, worker: Any, good: Goods,
-                       producer_count: int) -> tuple[float, str]:
+                       producer_count: int, turn: int | None = None) -> tuple[float, str]:
     """Expected *reachable* cash sales plus food kept for the worker's meal.
 
     Recipe prices alone are not income. A new independent producer can sell
@@ -59,10 +61,15 @@ def independent_return(region: Any, worker: Any, good: Goods,
         if input_price <= 0 or worker.inv_get(input_good, 0) < input_qty and worker.cash < input_price * input_qty:
             return 0.0, 'inputs inaccessible'
         input_cost = input_price * input_qty
+    cur_turn = int(turn if turn is not None else (getattr(region, '_last_turn', 0) or 0))
+    allowed, gate_reason = can_enter_independent_trade(worker, good, input_cost, cur_turn)
+    if not allowed:
+        return 0.0, gate_reason
     recent_sales = list(getattr(region, 'sold_log', {}).get(good, []))[-3:]
     sales_per_producer = ((sum(recent_sales) / len(recent_sales)) / max(1, producer_count)
                           if recent_sales else 0.0)
-    yield_units = float(recipe['production'])
+    tenure_mult = occupational_tenure_multiplier(worker, good, cur_turn)
+    yield_units = float(recipe['production']) * tenure_mult
     price = float(recipe.get('price', 0.0))
     retained_food = min(4.0, yield_units) if good == Goods.food else 0.0
     saleable = max(0.0, yield_units - retained_food)
@@ -249,7 +256,7 @@ class LaborMobilityScheduler:
                     if g in (Goods.gov, Goods.none):
                         continue
                     expected_net, basis = independent_return(
-                        region, worker, g, producer_counts.get(g, 0))
+                        region, worker, g, producer_counts.get(g, 0), turn=t)
 
                     # If dispossessed, penalize food farming because they lack fields
                     if is_dispossessed and g == Goods.food:
@@ -267,6 +274,7 @@ class LaborMobilityScheduler:
                 if (best_good and best_good != worker.output
                         and best_return > max(1.5, current_return * hurdle_mult)):
                     old_output = worker.output
+                    incumbent_tenure_mult = occupational_tenure_multiplier(worker, old_output, t)
                     apply_career_switch(
                         region, worker, best_good, t,
                         kind='independent_career_decision',
@@ -277,6 +285,7 @@ class LaborMobilityScheduler:
                             'expected_return': best_return,
                             'current_return': current_return,
                             'hurdle_multiplier': round(hurdle_mult, 4),
+                            'incumbent_tenure_multiplier': round(incumbent_tenure_mult, 4),
                             'emergency': is_emergency,
                             'candidates': candidate_scores,
                         },

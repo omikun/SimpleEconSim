@@ -328,7 +328,10 @@ def produce_independent(region, agent, recipe, output, num_agents_per_good,
                 input_price = region.recipes.get(recipe['input'], {}).get('price', 1.0)
                 inputs_cost = recipe['numInput'] * input_price
             terrain_mult = terrain_bonus(region, output)
-            num_output = int(recipe['production'] * terrain_mult)
+            from labor_choice import occupational_tenure_multiplier
+            cur_turn = int(getattr(region, '_last_turn', 0) or 0)
+            tenure_mult = occupational_tenure_multiplier(agent, output, cur_turn)
+            num_output = int(round(recipe['production'] * terrain_mult * tenure_mult))
             compute_and_record_firm_footprint(agent, region, output, num_output, inputs_cost, 0.0)
         if made:
             from run_trace import emit
@@ -340,6 +343,7 @@ def produce_independent(region, agent, recipe, output, num_agents_per_good,
                             inputs={'draw': rand_val, 'success_probability': chance,
                                     'base_production': recipe['production'],
                                     'terrain_multiplier': terrain_mult,
+                                    'tenure_multiplier': round(tenure_mult, 4),
                                     'inputs_used': recipe['numInput'] if recipe['numInput'] > 0 else 0,
                                     'inventory_before': agent.inv_get(output, 0)})
             if receipt_ids is not None and event_id is not None:

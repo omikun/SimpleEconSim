@@ -368,6 +368,36 @@ class RunTraceTests(unittest.TestCase):
         finally:
             agent_mod._agentid_counter[0] = saved_id
 
+    def test_occupational_tenure_and_skill_tier_gating(self):
+        import agent as agent_mod
+        from labor_choice import (
+            occupational_tenure_multiplier,
+            can_enter_independent_trade,
+        )
+        saved_id = agent_mod._agentid_counter[0]
+        try:
+            worker = Agent(0)
+            initialize_agent(worker, Goods.food, 0, 0, 2)
+            worker.last_career_switch = 0
+            worker.productivity = 0.45
+            # 10 turns of continuous tenure in food gives +20% (1.20x), while unfamiliar wood is 1.00x
+            self.assertAlmostEqual(occupational_tenure_multiplier(worker, Goods.food, 10), 1.20)
+            self.assertAlmostEqual(occupational_tenure_multiplier(worker, Goods.wood, 10), 1.00)
+
+            # Without capital/tools or prior joinery experience, Tier 2 furniture entry is gated
+            allowed, reason = can_enter_independent_trade(worker, Goods.furniture, input_cost=2.0, turn=10)
+            self.assertFalse(allowed)
+            self.assertEqual(reason, 'artisan tool/skill barrier')
+
+            # Prior experience in mem_career_history unlocks Tier 2 craft re-entry and retains partial tenure
+            worker.mem_push('mem_career_history', 'furniture')
+            allowed2, reason2 = can_enter_independent_trade(worker, Goods.furniture, input_cost=2.0, turn=10)
+            self.assertTrue(allowed2)
+            self.assertEqual(reason2, 'prior_craft_experience')
+            self.assertAlmostEqual(occupational_tenure_multiplier(worker, Goods.furniture, 10), 1.04)
+        finally:
+            agent_mod._agentid_counter[0] = saved_id
+
 
 if __name__ == '__main__':
     unittest.main()
