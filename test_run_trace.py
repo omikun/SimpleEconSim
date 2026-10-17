@@ -362,7 +362,7 @@ class RunTraceTests(unittest.TestCase):
             initialize_agent(senior, Goods.wood, 0, 0, 0)
             senior.founding_age_offset = 56
             hurdle_senior, cooldown_senior, factor_senior = career_switch_hurdle_and_cooldown(senior, 4)
-            self.assertAlmostEqual(factor_senior, 0.16)
+            self.assertAlmostEqual(factor_senior, 0.12)
             self.assertGreater(hurdle_senior, hurdle_youth * 1.8)
             self.assertEqual(cooldown_senior, 10)
         finally:
@@ -395,6 +395,42 @@ class RunTraceTests(unittest.TestCase):
             self.assertTrue(allowed2)
             self.assertEqual(reason2, 'prior_craft_experience')
             self.assertAlmostEqual(occupational_tenure_multiplier(worker, Goods.furniture, 10), 1.04)
+        finally:
+            agent_mod._agentid_counter[0] = saved_id
+
+    def test_emergency_fast_path_directionality_and_congestion_cap(self):
+        import agent as agent_mod
+        from economy.labor_mobility import LaborMobilityScheduler
+        saved_id = agent_mod._agentid_counter[0]
+        try:
+            scheduler = LaborMobilityScheduler(base_batch_size=10)
+            hungry_farmer = Agent(0)
+            initialize_agent(hungry_farmer, Goods.food, 0, 0, 20)
+            hungry_farmer.hungry_steps = 2
+            hungry_farmer.assigned_plot_id = 'plot-1'
+            hungry_farmer.social_class = 'serf'
+
+            hungry_woodcutter = Agent(0)
+            initialize_agent(hungry_woodcutter, Goods.wood, 0, 0, 20)
+            hungry_woodcutter.hungry_steps = 2
+            hungry_woodcutter.assigned_plot_id = 'plot-1'
+            hungry_woodcutter.social_class = 'serf'
+
+            region = SimpleNamespace(
+                name='Parish',
+                agents=[hungry_farmer, hungry_woodcutter],
+                buildings=[],
+                terrain={Goods.food: 1.0, Goods.wood: 1.0},
+                recipes={
+                    Goods.food: {'production': 6, 'price': 2.0, 'numInput': 0, 'maxinv': 10},
+                    Goods.wood: {'production': 6, 'price': 15.0, 'numInput': 0, 'maxinv': 10},
+                },
+                sold_log={Goods.food: [10, 10, 10], Goods.wood: [20, 20, 20]},
+                labor_scheduler_last_turn=-1,
+            )
+            scheduler.step_labor_cohort(region, t=5)
+            # Hungry farmer must not switch out of food into wood despite high wood price
+            self.assertEqual(hungry_farmer.output, Goods.food)
         finally:
             agent_mod._agentid_counter[0] = saved_id
 

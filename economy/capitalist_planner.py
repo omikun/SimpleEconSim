@@ -581,9 +581,20 @@ class EliteCapitalistPlanner:
                     continue
                 if r.get('is_luxury') and r.get('numInput', 0) == 0:
                     continue
+                if r.get('import_only'):
+                    continue
                 p_out = float(r.get('price', 1.0))
-                p_in = float(recipes.get(r.get('input'), {}).get('price', 0.0)) if r.get('numInput', 0) > 0 else 0.0
-                margin = (p_out * r.get('production', 1.0)) - (p_in * r.get('numInput', 0))
+                req_qty = float(r.get('numInput', 0))
+                in_good = r.get('input')
+                p_in = float(recipes.get(in_good, {}).get('price', 0.0)) if req_qty > 0 else 0.0
+                margin = (p_out * r.get('production', 1.0)) - (p_in * req_qty)
+                if req_qty > 0 and in_good is not None:
+                    local_supply = (
+                        sum(p.inv_get(in_good, 0) for p in getattr(region, 'agents', []) if getattr(p, 'alive', True))
+                        + sum(1 for p in getattr(region, 'agents', []) if getattr(p, 'alive', True) and getattr(p, 'output', None) == in_good)
+                    )
+                    if local_supply < req_qty:
+                        margin *= 0.05
                 if margin > best_profit_margin:
                     best_profit_margin = margin
                     best_sector = g

@@ -24,6 +24,7 @@ from labor_choice import (
     evaluate_offer,
     attach_worker,
     apply_career_switch,
+    career_lifecycle_age,
     career_switch_hurdle_and_cooldown,
     occupational_tenure_multiplier,
     can_enter_independent_trade,
@@ -65,9 +66,15 @@ def independent_return(region: Any, worker: Any, good: Goods,
     allowed, gate_reason = can_enter_independent_trade(worker, good, input_cost, cur_turn)
     if not allowed:
         return 0.0, gate_reason
-    recent_sales = list(getattr(region, 'sold_log', {}).get(good, []))[-3:]
-    sales_per_producer = ((sum(recent_sales) / len(recent_sales)) / max(1, producer_count)
-                          if recent_sales else 0.0)
+    recent_sales = list(getattr(region, 'sold_log', {}).get(good, []))[-6:]
+    if recent_sales:
+        weights = [idx + 1 for idx in range(len(recent_sales))]
+        smoothed_sales = sum(s * w for s, w in zip(recent_sales, weights)) / sum(weights)
+    else:
+        smoothed_sales = 0.0
+    is_incumbent = getattr(worker, 'output', None) == good
+    effective_producers = max(1, producer_count if is_incumbent else producer_count + 1)
+    sales_per_producer = smoothed_sales / effective_producers if recent_sales else 0.0
     tenure_mult = occupational_tenure_multiplier(worker, good, cur_turn)
     yield_units = float(recipe['production']) * tenure_mult
     price = float(recipe.get('price', 0.0))
@@ -145,15 +152,29 @@ class LaborMobilityScheduler:
                           or getattr(a, 'mem_avg', lambda *_: 0.0)('mem_eviction', 0.0) > 0)))
         ]
 
-        # Prioritize emergency fast-path workers first to fill urgent vacancies
-        execution_queue = [(a, True) for a in emergency_fast_path] + [(a, False) for a in active_cohort]
+        # Prioritize emergency fast-path workers first, ordering younger entrants before seniors
+        emergency_fast_path.sort(key=lambda a: career_lifecycle_age(a, t))
+        active_cohort_sorted = sorted(active_cohort, key=lambda a: career_lifecycle_age(a, t))
+        execution_queue = [(a, True) for a in emergency_fast_path] + [(a, False) for a in active_cohort_sorted]
 
         reallocations = []
+        recipes_map = getattr(region, 'recipes', {})
+
+        def _firm_effective_cap(f: Any) -> int:
+            max_emp = int(getattr(f, 'max_employees', 10))
+            rec = recipes_map.get(getattr(f, 'output', None), {})
+            num_in = float(rec.get('numInput', 0))
+            in_good = rec.get('input')
+            if num_in > 0 and in_good is not None and not getattr(region, 'scenario_owner_policy', False):
+                avail = float(f.inv_get(in_good, 0))
+                return min(max_emp, max(2, int(avail // num_in) + 2))
+            return max_emp
+
         firms_with_vacancies = [
             f for f in getattr(region, 'agents', [])
             if getattr(f, 'is_corporation', False)
             and getattr(f, 'alive', True)
-            and len(getattr(f, 'employees', [])) < getattr(f, 'max_employees', 10)
+            and len(getattr(f, 'employees', [])) < _firm_effective_cap(f)
             and getattr(f, 'wage', 0.0) > 0.0
             and getattr(f, 'cash', 0.0) >= getattr(f, 'wage', 1.0)
         ]
@@ -170,6 +191,8 @@ class LaborMobilityScheduler:
             aid for b in getattr(region, 'buildings', [])
             for aid in getattr(b, 'staff_ids', [])
         }
+        switches_into_good: Dict[Any, int] = {}
+        max_non_food_entry = max(1, min(3, int(0.15 * max(1, len(active_cohort)))))
 
         for worker, is_emergency in execution_queue:
             # A repeatedly hungry worker with a usable commons right can
@@ -232,7 +255,7 @@ class LaborMobilityScheduler:
                         'was_dispossessed': is_dispossessed,
                         'is_emergency_fast_path': is_emergency,
                     })
-                    if len(best_firm.employees) >= best_firm.max_employees:
+                    if len(best_firm.employees) >= _firm_effective_cap(best_firm):
                         firms_with_vacancies.pop(0)
                     continue
 
@@ -242,18 +265,33 @@ class LaborMobilityScheduler:
 
             # 2. Independent Craftsman / Commoner Career Switch:
             # If independent and not bound to a lord, evaluate market returns across professions
+            is_acute_emergency = is_emergency and (is_dispossessed or getattr(worker, 'hungry_steps', 0) >= 3)
             hurdle_mult, min_cooldown, age_factor = career_switch_hurdle_and_cooldown(
-                worker, t, is_emergency=is_emergency)
-            turns_since_switch = t - int(getattr(worker, 'last_career_switch', 0))
-            if (is_unemployed and age_factor > 0.0
-                    and (is_emergency or turns_since_switch >= min_cooldown)):
+                worker, t, is_emergency=is_acute_emergency)
+            last_switch_turn = int(getattr(worker, 'last_career_switch', 0))
+            turns_since_switch = t - last_switch_turn
+            emergency_ready = is_acute_emergency and (last_switch_turn == 0 or turns_since_switch >= 4)
+            regular_ready = turns_since_switch >= min_cooldown
+            if is_unemployed and age_factor > 0.0 and (regular_ready or emergency_ready):
+                # Hungry landed farmers must not abandon food farming for non-food crafts
+                if getattr(worker, 'hungry_steps', 0) > 0 and not is_dispossessed and worker.output == Goods.food:
+                    continue
                 recipes = getattr(region, 'recipes', {})
                 best_good = None
                 best_return = -999.0
+                prior_prof = worker.mem_last('mem_career_history') if hasattr(worker, 'mem_last') else None
 
                 candidate_scores = []
                 for g, r in recipes.items():
                     if g in (Goods.gov, Goods.none):
+                        continue
+                    # Emergency fast-path for hungry workers (non-dispossessed) only allows moving into food
+                    if (not regular_ready and getattr(worker, 'hungry_steps', 0) > 0
+                            and not is_dispossessed and g not in (Goods.food, worker.output)):
+                        continue
+                    # Per-turn congestion damping on non-food craft entry
+                    if (g != worker.output and g != Goods.food
+                            and switches_into_good.get(g, 0) >= max_non_food_entry):
                         continue
                     expected_net, basis = independent_return(
                         region, worker, g, producer_counts.get(g, 0), turn=t)
@@ -261,6 +299,10 @@ class LaborMobilityScheduler:
                     # If dispossessed, penalize food farming because they lack fields
                     if is_dispossessed and g == Goods.food:
                         expected_net *= 0.25
+                    # Anti-ping-pong hysteresis: penalize switching back to the immediately prior craft
+                    if (g != worker.output and prior_prof == g.name
+                            and not (g == Goods.food and getattr(worker, 'hungry_steps', 0) >= 2)):
+                        expected_net *= 0.72
                     candidate_scores.append({'good': g.name, 'return': round(expected_net, 3),
                                              'basis': basis})
 
@@ -292,10 +334,12 @@ class LaborMobilityScheduler:
                         constraints={
                             'min_cooldown_turns': min_cooldown,
                             'required_return_ratio': round(hurdle_mult, 4),
+                            'max_non_food_entry_per_turn': max_non_food_entry,
                         },
                     )
                     producer_counts[old_output] = max(0, producer_counts.get(old_output, 0) - 1)
                     producer_counts[best_good] = producer_counts.get(best_good, 0) + 1
+                    switches_into_good[best_good] = switches_into_good.get(best_good, 0) + 1
                     reallocations.append({
                         'agent_id': worker.id,
                         'type': 'INDEPENDENT_SWITCH',

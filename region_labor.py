@@ -199,16 +199,30 @@ def _record_labor_decision(region, decision):
 
 def hire_workers(region, t):
     """Firms hire unemployed workers or poach from competitors based on wage offers."""
+    from labor_choice import career_lifecycle_age
     tightness = calculate_labor_market_tightness(region)
     is_statute = getattr(region, 'statute_of_laborers', False)
     wage_cap = getattr(region, 'maximum_wage_cap', None) if is_statute else None
+
+    building_staff_ids = {
+        aid for b in getattr(region, 'buildings', [])
+        for aid in getattr(b, 'staff_ids', [])
+    }
 
     # Sort firms with vacancies by cash and wage (higher paying firms get hiring priority)
     firms = [a for a in region.agents if getattr(a, 'is_corporation', False) and len(getattr(a, 'employees', [])) < getattr(a, 'max_employees', 10)]
     firms.sort(key=lambda f: (f.wage, f.cash), reverse=True)
 
     for a in firms:
-        vacancies = getattr(a, 'max_employees', 10) - len(a.employees)
+        rec = getattr(region, 'recipes', {}).get(getattr(a, 'output', None), {})
+        num_in = float(rec.get('numInput', 0))
+        in_good = rec.get('input')
+        if num_in > 0 and in_good is not None and not getattr(region, 'scenario_owner_policy', False):
+            avail = float(a.inv_get(in_good, 0))
+            effective_cap = min(int(getattr(a, 'max_employees', 10)), max(2, int(avail // num_in) + 2))
+        else:
+            effective_cap = int(getattr(a, 'max_employees', 10))
+        vacancies = effective_cap - len(a.employees)
         if vacancies <= 0:
             continue
         payroll = len(a.employees) * a.wage
@@ -221,16 +235,25 @@ def hire_workers(region, t):
         candidates = [x for x in region.agents if getattr(x, 'alive', True)
                       and x.employer is None and not x.is_corporation and x != a
                       and not getattr(x, 'is_lord', False)
-                      and not getattr(x, 'military_unit_id', None)]
+                      and not getattr(x, 'military_unit_id', None)
+                      and (x.id not in building_staff_ids or getattr(x, 'hungry_steps', 0) >= 2)]
+        candidates.sort(key=lambda c: (
+            0 if getattr(c, 'output', None) == getattr(a, 'output', None) else 1,
+            0 if (getattr(c, 'social_class', None) == 'dispossessed' or getattr(c, 'hungry_steps', 0) > 0) else 1,
+            career_lifecycle_age(c, t),
+        ))
 
         for c in candidates:
-            if len(a.employees) >= a.max_employees:
+            if len(a.employees) >= effective_cap:
+                break
+            payroll = len(a.employees) * a.wage
+            if a.cash <= (payroll + a.wage) * 1.2:
                 break
             decision = evaluate_offer(c, a, region, t, tightness=tightness)
             if (not getattr(region, 'scenario_owner_policy', False) and not decision.accepted
                     and decision.reason == 'insufficient_wage' and tightness > 1.0):
                 target_wage = min(effective_max, decision.reservation_wage)
-                if target_wage > a.wage and a.cash > (payroll + target_wage) * 1.2:
+                if target_wage > a.wage and a.cash > (len(a.employees) * target_wage + target_wage) * 1.2:
                     a.wage = target_wage
                     decision = evaluate_offer(c, a, region, t, tightness=tightness)
             _record_labor_decision(region, decision)
@@ -238,13 +261,14 @@ def hire_workers(region, t):
                 attach_worker(c, a, t, decision, region=region)
 
         # If still have vacancies and no unattached candidates, consider poaching
-        if len(a.employees) < a.max_employees and (not candidates or tightness > 1.2):
+        if len(a.employees) < effective_cap and (not candidates or tightness > 1.2):
             poachable = [e for e in region.agents if getattr(e, 'alive', True) and e.employer and e.employer != a
                          and getattr(e.employer, 'is_corporation', False) and len(e.employer.employees) > 1]
             if poachable:
                 target = rand.choice(poachable)
                 old_employer = target.employer
                 offer_wage = max(old_employer.wage * 1.15, a.wage * 1.08)
+                payroll = len(a.employees) * a.wage
                 if offer_wage <= effective_max and a.cash > (payroll + offer_wage) * 2:
                     decision = evaluate_offer(target, a, region, t, wage=offer_wage,
                                               tightness=tightness)
