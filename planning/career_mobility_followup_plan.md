@@ -2,6 +2,11 @@
 
 Date: 2026-10-16
 
+**Next execution plan:** [Career mobility: next implementation plan](career_mobility_next_implementation.md)
+turns the remaining population reconciliation, occupation/job separation,
+feasible livelihood choice, and player-facing validation into four gated
+commits. This document retains the historical evidence and earlier audit.
+
 ## Decision
 
 Keep the recent reduction in rapid career changes, but rebuild the next pass
