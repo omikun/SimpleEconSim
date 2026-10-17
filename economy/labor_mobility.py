@@ -20,7 +20,12 @@ from __future__ import annotations
 import time
 from typing import List, Dict, Any, Optional
 from goods import Goods
-from labor_choice import evaluate_offer, attach_worker, apply_career_switch
+from labor_choice import (
+    evaluate_offer,
+    attach_worker,
+    apply_career_switch,
+    career_switch_hurdle_and_cooldown,
+)
 
 
 def potential_commons_food(worker: Any, region: Any) -> int:
@@ -230,7 +235,11 @@ class LaborMobilityScheduler:
 
             # 2. Independent Craftsman / Commoner Career Switch:
             # If independent and not bound to a lord, evaluate market returns across professions
-            if is_unemployed and (is_emergency or (t - getattr(worker, 'last_career_switch', 0) >= 4)):
+            hurdle_mult, min_cooldown, age_factor = career_switch_hurdle_and_cooldown(
+                worker, t, is_emergency=is_emergency)
+            turns_since_switch = t - int(getattr(worker, 'last_career_switch', 0))
+            if (is_unemployed and age_factor > 0.0
+                    and (is_emergency or turns_since_switch >= min_cooldown)):
                 recipes = getattr(region, 'recipes', {})
                 best_good = None
                 best_return = -999.0
@@ -256,19 +265,24 @@ class LaborMobilityScheduler:
                 current_return = next((row['return'] for row in candidate_scores
                                        if row['good'] == worker.output.name), 0.0)
                 if (best_good and best_good != worker.output
-                        and best_return > max(1.5, current_return * 1.25)):
+                        and best_return > max(1.5, current_return * hurdle_mult)):
                     old_output = worker.output
                     apply_career_switch(
                         region, worker, best_good, t,
                         kind='independent_career_decision',
                         reason='independent_return_maximization',
                         record_class='decision',
-                        formula_id='labor.independent_career_return.v1',
+                        formula_id='labor.independent_career_return.v2',
                         inputs={
                             'expected_return': best_return,
                             'current_return': current_return,
+                            'hurdle_multiplier': round(hurdle_mult, 4),
                             'emergency': is_emergency,
                             'candidates': candidate_scores,
+                        },
+                        constraints={
+                            'min_cooldown_turns': min_cooldown,
+                            'required_return_ratio': round(hurdle_mult, 4),
                         },
                     )
                     producer_counts[old_output] = max(0, producer_counts.get(old_output, 0) - 1)

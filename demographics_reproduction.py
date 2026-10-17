@@ -108,6 +108,11 @@ def handle_reproduction(ctx, t, agent, agents, new_agents):
         if output != Goods.gov and ctx.recipes[output]['maxtotalprod'] + 5 \
            <= ctx.production_log[output][-1]:
             output = Goods.gov
+        if (reg is not None and getattr(reg, 'labor_scheduler_last_turn', -1) >= 0
+                and output not in (Goods.food, Goods.wood, Goods.furniture)):
+            output = (agent.output
+                      if agent.output in (Goods.food, Goods.wood, Goods.furniture)
+                      else Goods.food)
         logdebug(t, "new agent of ", output)
         number_input = 0
         wealth_val = abs(agent.wealth())
@@ -128,6 +133,7 @@ def handle_reproduction(ctx, t, agent, agents, new_agents):
             ctx.bank.Withdraw(agent, min(need, ctx.bank.deposits.get(agent, 0)))
         agent.cash -= cash
         initialize_agent(new_agent, output, number_input, food_to_give, cash)
+        new_agent.last_career_switch = int(t)
         if reg is not None:
             from livelihood_access import inherit_customary_access
             inherit_customary_access(reg, agent, new_agent, t)

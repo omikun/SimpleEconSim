@@ -358,6 +358,7 @@ class Region:
             seed_traits(lord)
             lord.is_lord = True
             lord.ambition = max(lord.ambition, 0.6)
+            lord.founding_age_offset = 25 + ((int(lord.id) * 19) % 35)
             lord.region = self.name
             lord._bank_ref = self.bank
             lord.home_currency = self.home_currency
@@ -397,6 +398,7 @@ class Region:
                 cash = 40 + random.randint(0, 40)
                 initialize_agent(serf, prof, 10, 2, cash)
                 seed_traits(serf)
+                serf.founding_age_offset = 18 + ((int(serf.id) * 17) % 38)
                 serf.region = self.name
                 serf._bank_ref = self.bank
                 serf.home_currency = self.home_currency
@@ -416,6 +418,7 @@ class Region:
             initialize_agent(artisan, prof, 10, 2, 100 + random.randint(0, 50))
             seed_traits(artisan)
             artisan.productivity = max(artisan.productivity, 0.6)
+            artisan.founding_age_offset = 24 + ((int(artisan.id) * 13) % 34)
             artisan.region = self.name
             artisan._bank_ref = self.bank
             artisan.home_currency = self.home_currency
@@ -434,6 +437,7 @@ class Region:
                 trader.output = Goods.food
                 trader.trade_good = trade_good
                 seed_traits(trader)
+                trader.founding_age_offset = 22 + ((int(trader.id) * 11) % 34)
                 trader.home_region = self.name
                 trader.region = self.name
                 trader.cash = 200.0

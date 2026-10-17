@@ -77,6 +77,83 @@ def evaluate_offer(worker: Any, firm: Any, region: Any, turn: int,
     )
 
 
+def career_lifecycle_age(worker: Any, turn: int) -> int:
+    """Return effective lifecycle age in turns for career mobility decisions.
+
+    Founding adults (birth_round == 0) carry a deterministic founding_age_offset
+    so the initial population spans young, prime-age, and senior workers without
+    altering legacy birth_round == 0 checks elsewhere. Newborns (birth_round > 0)
+    progress through childhood (0..13), youth entry (14..24), prime age (25..39),
+    mid-career (40..54), and senior age (55+).
+    """
+    founding_offset = int(getattr(worker, 'founding_age_offset', 0))
+    birth_round = int(getattr(worker, 'birth_round', 0))
+    if birth_round < 0:
+        return max(0, int(turn) - birth_round)
+    if birth_round > 0:
+        return max(0, int(turn) - birth_round + founding_offset)
+    if founding_offset > 0:
+        return founding_offset + max(0, int(turn))
+    if callable(getattr(worker, 'age', None)) and int(turn) >= 14:
+        return max(0, int(worker.age(turn)))
+    return 22 + max(0, int(turn))
+
+
+def career_mobility_age_factor(worker: Any, turn: int) -> float:
+    """Empirical lifecycle occupational mobility multiplier phi(age).
+
+    Calibrated to Topel & Ward (1992) and Kambourov & Manovskii (2008):
+    - Childhood (<14, native-born): 0.0 (locked to household trade)
+    - Youth exploration (14..24): 1.35 (highest occupational experimentation)
+    - Prime working age (25..39): 0.80 (moderate mobility)
+    - Mid-career (40..54): 0.40 (established craft attachment)
+    - Senior / master (55+): 0.16 (near-zero voluntary switching)
+    """
+    age = career_lifecycle_age(worker, turn)
+    if int(getattr(worker, 'birth_round', 0)) > 0 and age < 14:
+        return 0.0
+    if age <= 24:
+        return 1.35
+    if age <= 39:
+        return 0.80
+    if age <= 54:
+        return 0.40
+    return 0.16
+
+
+def career_switch_hurdle_and_cooldown(
+    worker: Any, turn: int, *, is_emergency: bool = False
+) -> tuple[float, int, float]:
+    """Return (hurdle_multiplier, min_cooldown_turns, age_factor) for a worker."""
+    age = career_lifecycle_age(worker, turn)
+    age_factor = career_mobility_age_factor(worker, turn)
+    if age_factor <= 0.0:
+        if is_emergency and getattr(worker, 'hungry_steps', 0) >= 2:
+            return 1.25, 2, 0.5
+        return float('inf'), max(1, 14 - age), 0.0
+
+    ambition = float(getattr(worker, 'ambition', 0.5))
+    risk_tol = float(getattr(worker, 'risk_tolerance', 0.5))
+    trait_mod = 0.85 + 0.30 * (1.0 - 0.5 * (ambition + risk_tol))
+    required_gain = (0.25 / age_factor) * trait_mod
+    hurdle_multiplier = 1.0 + required_gain
+
+    birth_round = int(getattr(worker, 'birth_round', 0))
+    last_switch = int(getattr(worker, 'last_career_switch', 0))
+    # One-time low-friction youth entry when reaching apprenticeship age 14..16
+    if birth_round > 0 and 14 <= age <= 16 and last_switch <= birth_round:
+        min_cooldown = 0
+    elif age <= 24:
+        min_cooldown = 4
+    elif age <= 39:
+        min_cooldown = 5
+    elif age <= 54:
+        min_cooldown = 7
+    else:
+        min_cooldown = 10
+    return hurdle_multiplier, min_cooldown, age_factor
+
+
 def apply_career_switch(region: Any, worker: Any, new_output: Any, turn: int, *,
                         kind: str = 'career_switch', reason: str = 'career_switch',
                         record_class: str = 'decision', formula_id: str | None = None,
@@ -96,12 +173,14 @@ def apply_career_switch(region: Any, worker: Any, new_output: Any, turn: int, *,
     worker.last_career_switch = int(turn)
     if changed and region is not None:
         from run_trace import emit
-        age = worker.age(turn) if callable(getattr(worker, 'age', None)) else 0
+        age = career_lifecycle_age(worker, turn)
+        age_factor = career_mobility_age_factor(worker, turn)
         payload = {
             'old_profession': old_name,
             'new_profession': new_name,
             'reason': reason,
             'age': int(age),
+            'age_mobility_factor': round(age_factor, 4),
             'prior_tenure': prior_tenure,
         }
         if inputs:

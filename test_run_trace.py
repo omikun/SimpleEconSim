@@ -297,36 +297,76 @@ class RunTraceTests(unittest.TestCase):
                                 if replay_event(row)))
 
     def test_career_switch_emits_typed_trace_event(self):
+        import agent as agent_mod
         from labor_choice import apply_career_switch
-        with tempfile.TemporaryDirectory() as tmp:
-            trace = RunTrace(Path(tmp) / 'career.ctr', 'career-fixture')
-            clock = {'next': 1, 'turn': 12, 'phase': 'local'}
-            region = SimpleNamespace(name='Delta', _collective_trace_clock=clock,
-                                     _run_trace=trace)
-            worker = Agent(42)
-            initialize_agent(worker, Goods.food, 0, 0, 0)
-            worker.birth_round = -10
-            worker.last_career_switch = 4
-            switched = apply_career_switch(
-                region, worker, Goods.wood, 12,
-                reason='INDEPENDENT_SWITCH',
-                formula_id='labor.career_switch.v2',
-                inputs={'current_income': 1.2, 'target_income': 2.5},
-                constraints={'min_cooldown_turns': 4},
-            )
-            self.assertTrue(switched)
-            self.assertEqual(worker.output, Goods.wood)
-            self.assertEqual(worker.last_career_switch, 12)
-            self.assertEqual(worker.mem_last('mem_career_history'), 'food')
-            rows = trace.query(turn=12, metric_id='labor.career_choice')['events']
-            self.assertEqual(len(rows), 1)
-            row = rows[0]
-            self.assertEqual(row['value_before'], 'food')
-            self.assertEqual(row['value_after'], 'wood')
-            self.assertEqual(row['inputs']['prior_tenure'], 8)
-            self.assertEqual(row['inputs']['age'], 22)
-            self.assertEqual(row['inputs']['reason'], 'INDEPENDENT_SWITCH')
-            self.assertEqual(row['constraints']['min_cooldown_turns'], 4)
+        saved_id = agent_mod._agentid_counter[0]
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                trace = RunTrace(Path(tmp) / 'career.ctr', 'career-fixture')
+                clock = {'next': 1, 'turn': 12, 'phase': 'local'}
+                region = SimpleNamespace(name='Delta', _collective_trace_clock=clock,
+                                         _run_trace=trace)
+                worker = Agent(42)
+                initialize_agent(worker, Goods.food, 0, 0, 0)
+                worker.birth_round = -10
+                worker.last_career_switch = 4
+                switched = apply_career_switch(
+                    region, worker, Goods.wood, 12,
+                    reason='INDEPENDENT_SWITCH',
+                    formula_id='labor.career_switch.v2',
+                    inputs={'current_income': 1.2, 'target_income': 2.5},
+                    constraints={'min_cooldown_turns': 4},
+                )
+                self.assertTrue(switched)
+                self.assertEqual(worker.output, Goods.wood)
+                self.assertEqual(worker.last_career_switch, 12)
+                self.assertEqual(worker.mem_last('mem_career_history'), 'food')
+                rows = trace.query(turn=12, metric_id='labor.career_choice')['events']
+                self.assertEqual(len(rows), 1)
+                row = rows[0]
+                self.assertEqual(row['value_before'], 'food')
+                self.assertEqual(row['value_after'], 'wood')
+                self.assertEqual(row['inputs']['prior_tenure'], 8)
+                self.assertEqual(row['inputs']['age'], 22)
+                self.assertAlmostEqual(row['inputs']['age_mobility_factor'], 1.35)
+                self.assertEqual(row['inputs']['reason'], 'INDEPENDENT_SWITCH')
+                self.assertEqual(row['constraints']['min_cooldown_turns'], 4)
+        finally:
+            agent_mod._agentid_counter[0] = saved_id
+
+    def test_lifecycle_age_curve_and_childhood_lock(self):
+        import agent as agent_mod
+        from labor_choice import (
+            career_lifecycle_age,
+            career_mobility_age_factor,
+            career_switch_hurdle_and_cooldown,
+        )
+        saved_id = agent_mod._agentid_counter[0]
+        try:
+            child = Agent(5)
+            initialize_agent(child, Goods.food, 0, 0, 0)
+            child.last_career_switch = 5
+            self.assertEqual(career_lifecycle_age(child, 12), 7)
+            self.assertEqual(career_mobility_age_factor(child, 12), 0.0)
+            hurdle_child, cooldown_child, _ = career_switch_hurdle_and_cooldown(child, 12)
+            self.assertEqual(hurdle_child, float('inf'))
+            self.assertEqual(cooldown_child, 7)
+
+            # At age 15 (turn 20), child enters youth exploration window with zero initial cooldown
+            hurdle_youth, cooldown_youth, factor_youth = career_switch_hurdle_and_cooldown(child, 20)
+            self.assertAlmostEqual(factor_youth, 1.35)
+            self.assertEqual(cooldown_youth, 0)
+
+            # Senior founder (founding_age_offset=56) has much higher hurdle and cooldown than youth
+            senior = Agent(0)
+            initialize_agent(senior, Goods.wood, 0, 0, 0)
+            senior.founding_age_offset = 56
+            hurdle_senior, cooldown_senior, factor_senior = career_switch_hurdle_and_cooldown(senior, 4)
+            self.assertAlmostEqual(factor_senior, 0.16)
+            self.assertGreater(hurdle_senior, hurdle_youth * 1.8)
+            self.assertEqual(cooldown_senior, 10)
+        finally:
+            agent_mod._agentid_counter[0] = saved_id
 
 
 if __name__ == '__main__':
