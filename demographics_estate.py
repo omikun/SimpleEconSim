@@ -372,8 +372,36 @@ def zero_out_dead_agent(ctx, agent):
         dead_w.clear()
 
 
+def settle_external_death(region, t, agent, cause):
+    """Record and probate a death caused by combat or political violence."""
+    from types import SimpleNamespace
+    from person_death import record_person_death
+    if not record_person_death(region, agent, t, cause, phase='politics'):
+        return False
+    if getattr(region, 'bank', None) is None:
+        # Minimal scenario/test tiles have no probate ledger.
+        charity = getattr(region, 'charity', None)
+        if charity is not None:
+            charity.agent.cash += agent.cash
+            agent.cash = 0.0
+        return True
+    ctx = SimpleNamespace(bank=region.bank, default_gov=getattr(region, 'gov', None),
+                          charity=getattr(region, 'charity', None), source_region=region)
+    cleanup_dead_agent_links(agent)
+    handle_company_inheritance(t, agent)
+    heirs = living_descendants_recursive(agent)
+    reclaim_dead_route_cargo(ctx, agent)
+    escheat_dead_parked_goods(ctx, agent)
+    handle_debt_inheritance(ctx, t, agent, heirs)
+    handle_wealth_inheritance(ctx, t, agent, heirs)
+    zero_out_dead_agent(ctx, agent)
+    return True
+
+
 def handle_death(ctx, t, agent, agents):
     """Determine if agent dies (starvation or old age). Clean up assets."""
+    if not agent.alive:
+        return False
     from nutrition import starvation_hazard
     trace_region = getattr(ctx, 'source_region', None) or ctx
     agent.died_of_starvation = False
@@ -473,26 +501,14 @@ def handle_death(ctx, t, agent, agents):
         agent.alive = False
         agent.died_of_starvation = True
 
-    trace_region.deaths_this_turn = getattr(trace_region, 'deaths_this_turn', 0) + 1
     death_cause = ('starvation' if starved else
                    'disease' if getattr(agent, 'diseases', None) else 'age_or_health')
-    deaths_by_cause = getattr(trace_region, 'deaths_by_cause_this_turn', None)
-    if deaths_by_cause is None:
-        deaths_by_cause = {}
-        trace_region.deaths_by_cause_this_turn = deaths_by_cause
-    deaths_by_cause[death_cause] = deaths_by_cause.get(death_cause, 0) + 1
-    from run_trace import emit
-    emit(trace_region, kind='person_died', record_class='outcome', phase='demographics',
-         subject={'type': 'tile/agent', 'id': str(getattr(agent, 'id', 'unknown'))},
-         metric_id='people.deaths', unit='people', before=1, after=0,
-         formula_id='demographics.death_mutation.v1',
-         inputs={'tile': getattr(trace_region, 'name', 'unknown'),
-                 'agent_id': str(getattr(agent, 'id', 'unknown')),
-                 'death_cause': death_cause,
-                 'age': agent.age(t),
-                 'active_diseases': list(getattr(agent, 'diseases', []) or []),
-                 'health_attrition': getattr(agent, 'health_attrition', 0.0),
-                 'starvation_hazard': hazard if starved else 0.0})
+    from person_death import record_person_death
+    record_person_death(trace_region, agent, t, death_cause,
+                        inputs={'age': agent.age(t),
+                                'active_diseases': list(getattr(agent, 'diseases', []) or []),
+                                'health_attrition': getattr(agent, 'health_attrition', 0.0),
+                                'starvation_hazard': hazard if starved else 0.0})
 
     cleanup_dead_agent_links(agent)
     handle_company_inheritance(t, agent)

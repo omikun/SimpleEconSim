@@ -41,6 +41,7 @@ def step_turn(t: int, tiles: list, nations: list = None,
     # Per-turn counters belong to the simulation boundary. Snapshot/reporting
     # must remain read-only, including when invoked more than once.
     for tile in tiles:
+        tile.births_this_turn = 0
         tile.deaths_this_turn = 0
         tile.deaths_by_cause_this_turn = {}
         tile.emergency_grain_levy_units = 0

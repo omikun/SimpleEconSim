@@ -135,6 +135,8 @@ def Live(t, agents, context: LiveContext):
     employer_cache = build_employer_cache(agents)
     rand.reset()
     for agent in agents:
+        if not agent.alive:
+            continue
         if agent.is_corporation or agent.is_government or getattr(agent, 'military_unit_id', None):
             new_agents.append(agent)
             continue

@@ -99,6 +99,18 @@ and zero unexplained person flows at all three levels. The ledger's death
 count agrees with all registered-person death events, including violence.
 Only then use the benchmark for calibration. **Commit A.**
 
+**Phase A implementation note (2026-10-17):** The benchmark now observes all
+world tiles, including wilderness, and distinguishes migration, death, birth,
+and person/entity role conversion. Birth and death counters audit same-turn
+events. Demographic, combat, and political deaths share an idempotent person
+death record. `trace_report.py --person-id ID` retrieves named events from a
+compact trace. The seed-777 50-turn fast run reports zero unknown exits and
+zero unmatched birth/death events; a two-turn traced run verified its compact
+checkpoints. Person counts are also sampled as `people.residents`, distinct
+from legacy agent-count-oriented `people.population`. Two sequential 50-turn
+seed-777 runs with fixed `PYTHONHASHSEED=0` and `MPLCONFIGDIR` produced identical
+benchmark JSON and zero ledger failures.
+
 ## Phase B — Separate occupation from employer and temporary activity
 
 **Primary files:** `agent.py`, `labor_choice.py`, `labor_contract.py`,

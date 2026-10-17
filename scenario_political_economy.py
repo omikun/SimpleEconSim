@@ -304,6 +304,19 @@ def _foreclose(world, tile, cultivator, row):
                 target.agents.append(cultivator)
                 cultivator.region = target.name
                 cultivator._bank_ref = target.bank
+                from run_trace import emit
+                emit(tile, kind='scenario_person_departure', record_class='outcome',
+                     phase='scenario', subject={'type': 'tile/agent', 'id': str(cultivator.id)},
+                     metric_id='people.migration', unit='people', before=1, after=0,
+                     formula_id='scenario.cultivator_migration.v1',
+                     inputs={'agent_id': cultivator.id, 'origin': tile.name,
+                             'destination': target.name})
+                emit(target, kind='scenario_person_arrival', record_class='outcome',
+                     phase='scenario', subject={'type': 'tile/agent', 'id': str(cultivator.id)},
+                     metric_id='people.migration_in', unit='people', before=0, after=1,
+                     formula_id='scenario.cultivator_migration.v1',
+                     inputs={'agent_id': cultivator.id, 'origin': tile.name,
+                             'destination': target.name})
                 record['migrated_to'] = target.name
                 jobs = open_jobs(target)
                 if jobs:

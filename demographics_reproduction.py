@@ -146,6 +146,7 @@ def handle_reproduction(ctx, t, agent, agents, new_agents):
             new_agent._birth_protection_until = t + max(25, min(100, int(cash)))
         new_agents.append(new_agent)
         if reg is not None:
+            reg.births_this_turn = getattr(reg, 'births_this_turn', 0) + 1
             try:
                 from run_trace import emit
                 emit(reg, kind='birth', record_class='outcome', phase='demographics',

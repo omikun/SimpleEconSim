@@ -495,12 +495,9 @@ class PopularResistanceManager:
             survivors = participants[kill_count:]
 
             # Conserve any wealth of victims into heirs or charity
-            charity = getattr(tile, 'charity', None)
+            from demographics_estate import settle_external_death
             for v in victims:
-                v.alive = False
-                if v.cash > 0 and charity and hasattr(charity, 'agent'):
-                    charity.agent.cash += v.cash
-                    v.cash = 0.0
+                settle_external_death(tile, t, v, 'state_violence')
                 setattr(v, 'in_revolt', False)
                 setattr(v, 'is_striking', False)
 
@@ -532,12 +529,9 @@ class PopularResistanceManager:
         victims = participants[:kill_count]
         survivors = participants[kill_count:]
 
-        charity = getattr(tile, 'charity', None)
+        from demographics_estate import settle_external_death
         for v in victims:
-            v.alive = False
-            if v.cash > 0 and charity and hasattr(charity, 'agent'):
-                charity.agent.cash += v.cash
-                v.cash = 0.0
+            settle_external_death(tile, t, v, 'political_clash')
             setattr(v, 'in_revolt', False)
             setattr(v, 'is_striking', False)
 
@@ -1058,14 +1052,11 @@ class PopularResistanceManager:
             state.leader_id = None
             return False, "Target leader was already dead or missing.", {}
 
-        # Conserve leader's personal wealth
-        leader.alive = False
+        # Use the same person ledger and probate path as other violent deaths.
+        from demographics_estate import settle_external_death
+        settle_external_death(tile, t, leader, 'assassination')
         setattr(leader, 'in_revolt', False)
         setattr(leader, 'is_striking', False)
-        charity = getattr(tile, 'charity', None)
-        if getattr(leader, 'cash', 0.0) > 0 and charity and hasattr(charity, 'agent'):
-            charity.agent.cash += leader.cash
-            leader.cash = 0.0
 
         sympathizers = [
             a for a in getattr(tile, 'agents', [])

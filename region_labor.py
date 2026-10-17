@@ -37,6 +37,13 @@ def borrow_or_layoff(region, t):
             total_wage = len(a.employees) * a.wage
         if len(a.employees) == 0 and a.cash <= 20.0:
             a.is_corporation = False
+            from run_trace import emit
+            emit(region, kind='person_role_conversion', record_class='outcome',
+                 phase='labor', subject={'type': 'tile/agent', 'id': str(a.id)},
+                 metric_id='people.role', unit='role', before='corporation',
+                 after='person', formula_id='labor.firm_dissolution.v1',
+                 inputs={'agent_id': a.id, 'tile': region.name,
+                         'cash': float(a.cash), 'employees': len(a.employees)})
             if a.owner:
                 a.owner.company_owned = None
         from run_trace import emit

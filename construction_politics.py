@@ -68,6 +68,12 @@ def find_or_emerge_contractor(region: Region, budget: float, t: int) -> Agent:
         founder = eligible_candidates[0]
         founder.is_construction_company = True
         founder.is_corporation = True
+        from run_trace import emit
+        emit(region, kind='person_role_conversion', record_class='outcome',
+             phase='labor', subject={'type': 'tile/agent', 'id': str(founder.id)},
+             metric_id='people.role', unit='role', before='person',
+             after='corporation', formula_id='construction.founder_conversion.v1',
+             inputs={'agent_id': founder.id, 'tile': region.name})
         founder.social_class = 'contractor'
         founder_name = getattr(founder, 'name', f"Citizen #{founder.id}")
         founder.company_name = f"{founder_name}'s Contracting Syndicate"

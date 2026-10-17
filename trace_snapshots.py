@@ -29,6 +29,12 @@ def sample(tiles, nations):
             if getattr(tile, 'total_population', None) else len(tile.agents))
         values[('people.deaths', tile.name)] = (
             tile_subject, 'people_per_turn', int(getattr(tile, 'deaths_this_turn', 0)))
+        values[('people.births', tile.name)] = (
+            tile_subject, 'people_per_turn', int(getattr(tile, 'births_this_turn', 0)))
+        values[('people.residents', tile.name)] = (
+            tile_subject, 'people', sum(
+                1 for person in tile.agents if person.alive
+                and not person.is_corporation and not person.is_government))
         if tile.protest_energy_log:
             values[('politics.protest_energy', tile.name)] = (
                 tile_subject, 'score', float(tile.protest_energy_log[-1]))
@@ -99,6 +105,12 @@ def sample(tiles, nations):
         values[('people.deaths', nation.name)] = (
             subject, 'people_per_turn',
             sum(int(getattr(tile, 'deaths_this_turn', 0)) for tile in members))
+        values[('people.births', nation.name)] = (
+            subject, 'people_per_turn',
+            sum(int(getattr(tile, 'births_this_turn', 0)) for tile in members))
+        values[('people.residents', nation.name)] = (
+            subject, 'people',
+            sum(values[('people.residents', tile.name)][2] for tile in members))
         values[('economy.gdp_nominal', nation.name)] = (
             subject, nation.currency + '_per_turn',
             sum(tile.gdp_log[-1] if getattr(tile, 'gdp_log', None) else 0.0
@@ -120,6 +132,23 @@ def record(server):
     clock = getattr(server.tiles[0], '_collective_trace_clock', None) if server.tiles else None
     if clock is not None:
         clock['phase'] = 'snapshot'
+        for tile in server.tiles:
+            for metric_id, field, formula_id in (
+                    ('people.births', 'births_this_turn', 'people.registered_births.v1'),
+                    ('people.deaths', 'deaths_this_turn', 'people.registered_deaths.v1')):
+                server.run_trace.emit(
+                    clock, kind='person_event_count', record_class='calculation',
+                    phase='snapshot', subject={'type': 'tile', 'id': tile.name},
+                    metric_id=metric_id, unit='people_per_turn',
+                    after=int(getattr(tile, field, 0)), formula_id=formula_id,
+                    inputs={'deaths_by_cause': getattr(tile, 'deaths_by_cause_this_turn', {})}
+                    if metric_id == 'people.deaths' else {})
+            server.run_trace.emit(
+                clock, kind='living_person_count', record_class='calculation',
+                phase='snapshot', subject={'type': 'tile', 'id': tile.name},
+                metric_id='people.residents', unit='people',
+                after=current[('people.residents', tile.name)][2],
+                formula_id='people.living_nonentity_agents.v1')
         for nation in server.nations:
             members = [tile.name for tile in nation.tiles]
             treasury = nation.treasury()
@@ -158,6 +187,10 @@ def record(server):
                      [current[('people.population', tile)][2] for tile in members], 'sum'),
                     ('people.deaths', 'people_per_turn',
                      [current[('people.deaths', tile)][2] for tile in members], 'sum'),
+                    ('people.births', 'people_per_turn',
+                     [current[('people.births', tile)][2] for tile in members], 'sum'),
+                    ('people.residents', 'people',
+                     [current[('people.residents', tile)][2] for tile in members], 'sum'),
                     ('economy.gdp_nominal', nation.currency + '_per_turn',
                      [current.get(('economy.gdp_nominal', tile), (None, None, 0.0))[2]
                       for tile in members], 'sum'),

@@ -12,7 +12,7 @@ import sys
 from trace_codec import decoded_size, iter_payloads
 
 
-def report(path, *, turn=None, entity=None, metric=None, good=None):
+def report(path, *, turn=None, entity=None, metric=None, good=None, person_id=None):
     subject_type, _, subject_id = entity.partition(':') if entity else (None, None, None)
     if entity and (not subject_type or not subject_id):
         raise ValueError('entity must be type:id')
@@ -29,6 +29,13 @@ def report(path, *, turn=None, entity=None, metric=None, good=None):
         if metric is not None and row.get('metric_id') != metric:
             continue
         subject = row.get('subject', {})
+        if person_id is not None:
+            inputs = row.get('inputs', {}) or {}
+            identifiers = [subject.get('id'), subject.get('agent_id')]
+            identifiers.extend(inputs.get(key) for key in (
+                'agent_id', 'person_id', 'worker_id', 'founder_id', 'new_agent_id'))
+            if str(person_id) not in {str(value) for value in identifiers if value is not None}:
+                continue
         if entity and (subject.get('type'), subject.get('id')) != (subject_type, subject_id):
             continue
         if good is not None and subject.get('good') != good:
@@ -86,6 +93,8 @@ def main():
     parser.add_argument('--entity')
     parser.add_argument('--metric')
     parser.add_argument('--good', help='filter a named good, such as food or cloth')
+    parser.add_argument('--person-id', type=int,
+                        help='show records naming this person as subject or actor')
     parser.add_argument('--decode-jsonl', metavar='OUTPUT',
                         help='losslessly decode the whole run to OUTPUT, or - for stdout')
     parser.add_argument('--storage-stats', action='store_true',
@@ -118,10 +127,11 @@ def main():
         check = verify(args.run)
         print(f"Verified {check['rows']} rows and {check['checkpoints']} checkpoints")
     rows = report(args.run, turn=args.turn, entity=args.entity, metric=args.metric,
-                  good=args.good)
+                  good=args.good, person_id=args.person_id)
     if args.compare_run:
         other = report(args.compare_run, turn=args.turn,
-                       entity=args.entity, metric=args.metric, good=args.good)
+                       entity=args.entity, metric=args.metric, good=args.good,
+                       person_id=args.person_id)
         print('In-game run comparison; differing values alone do not prove a cause.')
         for change in diff_snapshots(rows, other):
             print(json.dumps(change, sort_keys=True, allow_nan=False))

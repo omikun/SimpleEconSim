@@ -256,6 +256,19 @@ def move_enlisted_people(unit, origin, destination):
         person.region = destination.name
         person.home_currency = destination.home_currency
         person._bank_ref = destination.bank
+        from run_trace import emit
+        emit(origin, kind='enlisted_person_departure', record_class='outcome',
+             phase='military', subject={'type': 'tile/agent', 'id': str(person.id)},
+             metric_id='people.migration', unit='people', before=1, after=0,
+             formula_id='army.enlisted_transfer.v1',
+             inputs={'agent_id': person.id, 'origin': origin.name,
+                     'destination': destination.name})
+        emit(destination, kind='enlisted_person_arrival', record_class='outcome',
+             phase='military', subject={'type': 'tile/agent', 'id': str(person.id)},
+             metric_id='people.migration_in', unit='people', before=0, after=1,
+             formula_id='army.enlisted_transfer.v1',
+             inputs={'agent_id': person.id, 'origin': origin.name,
+                     'destination': destination.name})
 
 
 def settle_battle_casualties(units, tiles, nations, t):
@@ -272,7 +285,10 @@ def settle_battle_casualties(units, tiles, nations, t):
             person, region = by_id[person_id]
             ctx = SimpleNamespace(bank=region.bank, default_gov=region.gov,
                                   charity=None, source_region=region)
-            person.alive = False
+            from person_death import record_person_death
+            record_person_death(region, person, t, 'combat',
+                                inputs={'military_unit_id': getattr(unit, 'id', None)},
+                                phase='military')
             cleanup_dead_agent_links(person)
             handle_company_inheritance(t, person)
             heirs = living_descendants_recursive(person)
