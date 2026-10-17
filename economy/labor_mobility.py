@@ -166,8 +166,11 @@ class LaborMobilityScheduler:
             num_in = float(rec.get('numInput', 0))
             in_good = rec.get('input')
             if num_in > 0 and in_good is not None and not getattr(region, 'scenario_owner_policy', False):
-                avail = float(f.inv_get(in_good, 0))
-                return min(max_emp, max(2, int(avail // num_in) + 2))
+                in_price = float(recipes_map.get(in_good, {}).get('price', 1.0))
+                payroll_reserve = len(getattr(f, 'employees', [])) * float(getattr(f, 'wage', 1.0))
+                affordable_in = max(0.0, float(getattr(f, 'cash', 0.0)) - payroll_reserve) / max(0.1, in_price)
+                avail = float(f.inv_get(in_good, 0)) + affordable_in
+                return min(max_emp, max(2, int(avail // num_in) + 1))
             return max_emp
 
         firms_with_vacancies = [

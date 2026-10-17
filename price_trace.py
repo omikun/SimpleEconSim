@@ -9,9 +9,14 @@ import math
 
 def replay_reference(inputs):
     prior = inputs['prior_reference']
-    inflation = 0.25 * math.tanh(inputs['demand_ratio'] - 1.0)
-    scarcity = max(0.0, min(1.0, 1.0 - inputs['average_producer_inventory']
-                             / max(0.1, inputs['max_inventory'] * 0.6)))
+    demand_ratio = inputs['demand_ratio']
+    inflation = 0.25 * math.tanh(demand_ratio - 1.0)
+    raw_scarcity = max(-0.6, min(1.0, 1.0 - inputs['average_producer_inventory']
+                                 / max(0.1, inputs['max_inventory'] * 0.5)))
+    if raw_scarcity > 0.0:
+        scarcity = raw_scarcity * max(0.0, min(1.0, (demand_ratio - 1.0) / 0.50))
+    else:
+        scarcity = raw_scarcity * max(0.0, min(1.0, 1.15 - demand_ratio))
     influence = max(-0.35, min(0.50, inflation + 0.30 * scarcity))
     target = prior * (1.0 + influence)
     move = prior + (target - prior) * 0.25
@@ -68,8 +73,8 @@ def replay_event(row):
         expected = replay_transport(row['inputs'])
     elif formula == 'market.local_ask.v1':
         i = row['inputs']
-        scarcity = 1.4 - 0.4 * max(0.0, min(1.0, i['stock']
-                                                   / max(1, i['max_inventory'])))
+        scarcity = 1.10 - 0.30 * max(0.0, min(1.0, i['stock']
+                                                     / max(1, i['max_inventory'])))
         urgency = max(0.0, 1.0 - 0.12 * i['hungry_steps'])
         factor = max(i['urgency_min'], min(i['urgency_max'], scarcity * urgency))
         expected = i['reference'] * factor

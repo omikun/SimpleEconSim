@@ -152,25 +152,63 @@ def calculate_bid(region, agent, good, good_price, current_desired, agent_recipe
         return min(missing_meal, max(0, affordable))
     if not is_employee and input_good(region, agent) == good:
         num_employees = len(agent.employees) if agent.is_corporation else 0
-        desired = max(0, agent_recipe['numInput'] * (1 + num_employees) - agent.inv_get(good, 0))
+        desired = max(0, agent_recipe['numInput'] * 2 * (1 + num_employees) - agent.inv_get(good, 0))
         if mult > 1.0:
             desired = int(desired * mult)
         affordable = agent.remainingCash // good_price if good_price > 0 else desired
         return int(min(desired, affordable))
     elif (is_employee or agent.output != good) and agent.remainingCash > good_price:
-        max_inventory_limit = agent_recipe['maxinv']
+        if good == Goods.food:
+            max_inventory_limit = agent_recipe['maxinv']
+            if agent.is_corporation:
+                max_inventory_limit *= (1 + len(agent.employees))
+            if mult > 1.0:
+                max_inventory_limit = int(max_inventory_limit * min(mult, 3.0))
+            num_storable = max(0, max_inventory_limit - agent.inv_get(good, 0))
+            base_desire = min(current_desired, agent.remainingCash // good_price)
+            bid = min(int(base_desire * mult), num_storable)
+            return max(0, min(bid, num_storable))
+        spendable = max(0.0, agent.remainingCash - 2.0 * getattr(region, 'food_price', 1.0))
+        if spendable < good_price:
+            return 0
+        if good == Goods.wood:
+            max_inventory_limit = 3 if mult <= 1.5 else int(3 * min(mult, 2.5))
+            eff_desired = min(current_desired, 2)
+        elif good == Goods.furniture:
+            max_inventory_limit = max(2, int(3 * min(mult, 3.0)))
+            eff_desired = min(current_desired, 2)
+        else:
+            if mult <= 1.05 and not getattr(agent, 'is_lord', False):
+                return 0
+            max_inventory_limit = max(2, int(2 * min(mult, 3.0)))
+            eff_desired = min(current_desired, 2)
         if agent.is_corporation:
             max_inventory_limit *= (1 + len(agent.employees))
-        if mult > 1.0:
-            max_inventory_limit = int(max_inventory_limit * min(mult, 3.0))
         num_storable = max(0, max_inventory_limit - agent.inv_get(good, 0))
-        base_desire = min(current_desired, agent.remainingCash // good_price)
-        bid = min(int(base_desire * mult), num_storable)
-        if mult > 2.0 and good != Goods.food:
-            extra = min(int(current_desired * (mult - 1.0)), agent.remainingCash // good_price) if good_price > 0 else 0
-            bid += min(extra, num_storable - bid)
+        base_desire = min(eff_desired, int(spendable // good_price)) if good_price > 0 else eff_desired
+        bid = min(int(max(base_desire, base_desire * mult)), num_storable)
         return max(0, min(bid, num_storable))
     return 0
+
+
+def excess_non_producer_saleable(region, agent, good):
+    """Return excess inventory a non-producer household/lord can sell on the market."""
+    if (getattr(agent, 'is_trader', False) or getattr(agent, 'is_government', False)
+            or agent.output == good or agent.output == Goods.gov
+            or good in (Goods.food, Goods.transport, Goods.gov, Goods.none)):
+        return 0
+    if input_good(region, agent) == good:
+        return 0
+    stock = int(agent.inv_get(good, 0))
+    if stock <= 0:
+        return 0
+    if good == Goods.wood:
+        reserve = 3
+    elif good == Goods.furniture:
+        reserve = 2
+    else:
+        reserve = 0
+    return max(0, stock - reserve)
 
 
 def calculate_ask(region, agent, good, good_price, is_employee):
@@ -193,7 +231,7 @@ def calculate_ask(region, agent, good, good_price, is_employee):
     if is_employee:
         return 0
     if agent.output != good and agent.output != Goods.gov:
-        return 0 if agent.inv_get(good, 0) <= 0 else 0
+        return excess_non_producer_saleable(region, agent, good)
     if agent.output == good or (agent.output == Goods.gov and agent.inv_get(good, 0) > 0):
         cost_to_make = 0.0
         agent_recipe = region.recipes.get(good, {})
@@ -228,7 +266,7 @@ def calculate_ask_price(region, agent, good, ref):
     stock = agent.inv_get(good, 0)
     maxinv = region.recipes.get(good, {}).get('maxinv', 10)
     ratio = stock / max(1, maxinv)
-    scarcity = 1.4 - 0.4 * max(0.0, min(1.0, ratio))
+    scarcity = 1.10 - 0.30 * max(0.0, min(1.0, ratio))
     hungry = getattr(agent, 'hungry_steps', 0)
     urgency = max(0.0, 1.0 - 0.12 * hungry)
     mult = scarcity * urgency
@@ -295,7 +333,7 @@ def import_ask_price(region, trader, good):
 
 def update_price_ref(region, good, demand_ratio, *, local_asks=None,
                      imported_asks=None, bids=None):
-    """Bounded move-toward-target price reference WITH supply scarcity."""
+    """Bounded move-toward-target price reference WITH demand-gated supply scarcity."""
     from run_trace import emit
     ref = region._price_ref[good]
     old_ref = ref
@@ -308,7 +346,11 @@ def update_price_ref(region, good, demand_ratio, *, local_asks=None,
         avg_inv = sum(a.inv_get(good, 0) for a in producers) / len(producers)
     else:
         avg_inv = 0.0
-    scarcity = max(0.0, min(1.0, 1.0 - avg_inv / max(0.1, maxinv * 0.6)))
+    raw_scarcity = max(-0.6, min(1.0, 1.0 - avg_inv / max(0.1, maxinv * 0.5)))
+    if raw_scarcity > 0.0:
+        scarcity = raw_scarcity * max(0.0, min(1.0, (demand_ratio - 1.0) / 0.50))
+    else:
+        scarcity = raw_scarcity * max(0.0, min(1.0, 1.15 - demand_ratio))
 
     influence = inflation + 0.30 * scarcity
     influence = max(-0.35, min(0.50, influence))
@@ -386,11 +428,14 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
     from run_trace import emit
     book = []
     for a in agents:
-        if a.output != good or getattr(a, 'is_trader', False) or not getattr(a, 'alive', True):
+        if getattr(a, 'is_trader', False) or not getattr(a, 'alive', True):
             continue
-        qty = a.inventory[good.value]
-        if good == Goods.food:
-            qty = max(0, qty - 2)
+        if a.output == good:
+            qty = a.inventory[good.value]
+            if good == Goods.food:
+                qty = max(0, qty - 2)
+        else:
+            qty = excess_non_producer_saleable(region, a, good)
         if qty > 0:
             book.append([calculate_ask_price(region, a, good, ref), qty, a, False])
     for item in imp_pool:
@@ -406,6 +451,19 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
         region._cached_hungry_turn = t
     buyers = [a for a in region._cached_hungry_sorted
               if not getattr(a, 'military_unit_id', None)]
+    if good != Goods.food:
+        buyers.sort(key=lambda a: (
+            0 if input_good(region, a) == good else (1 if getattr(a, 'is_trader', False) else 2),
+            -getattr(a, 'hungry_steps', 0)
+        ))
+    bid_attr = f'bid_{good.name}'
+    has_explicit_bids = any(hasattr(a, bid_attr) for a in buyers)
+    rem_bids = {
+        a.id: int(getattr(a, bid_attr, 0)) if has_explicit_bids else total_bids
+        for a in buyers
+    }
+    if has_explicit_bids:
+        buyers = [a for a in buyers if rem_bids.get(a.id, 0) > 0]
 
     cash_collected = 0.0
     units = 0
@@ -422,8 +480,12 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
         remaining = qty
         while remaining > 0 and units < total_bids and bi < len(buyers):
             buyer = buyers[bi]
-            afford = int(buyer.cash / ask) if ask > 0 else 0
-            take = min(remaining, max(0, afford))
+            want = rem_bids.get(buyer.id, 0)
+            if want <= 0 or buyer is seller:
+                bi += 1
+                continue
+            afford = int(buyer.cash / ask) if ask > 0 else want
+            take = min(remaining, want, max(0, afford), total_bids - units)
             if take <= 0:
                 bi += 1
                 continue
@@ -495,6 +557,11 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
                                               / total_q) if total_q > 0 else ask)
                         buyer.inventory_export[good.value] += export
             else:
+                old_q = buyer.inv_get(good, 0)
+                old_c = buyer.cost_get(good, 0)
+                total_q = old_q + take
+                buyer.cost_set(good, ((old_q * old_c + take * ask)
+                                      / total_q) if total_q > 0 else ask)
                 buyer.inv_add(good, take)
                 if good == Goods.food:
                     buyer.food_purchased += int(take)
@@ -525,7 +592,8 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
             units += take
             prices.extend([ask] * int(take))
             remaining -= take
-            if buyer.cash < ask:
+            rem_bids[buyer.id] = want - take
+            if buyer.cash < ask or rem_bids[buyer.id] <= 0:
                 bi += 1
     region._auction_import_sales[good] = (imp_units, imp_value)
     realized = sum(prices) / len(prices) if prices else ref
@@ -735,20 +803,46 @@ def trade(region, t):
 
     decide_borrow_deposit(region, region.agents, all_goods_price, food_price, t)
 
-    # ---- Phase A: trade food, wood, furniture ----
+    # ---- Phase A: trade food, wood, furniture, and active local goods ----
     recipes = region.recipes
     agents = region.agents
     goods_goods = [Goods.food, Goods.wood, Goods.furniture]
+    for g in getattr(region, 'goods', []):
+        if (g in goods_goods or g in (Goods.gov, Goods.none, Goods.transport)
+                or g not in recipes or recipes[g].get('import_only', False)):
+            continue
+        has_market_activity = any(
+            getattr(a, 'alive', True) and (
+                a.output == g
+                or a.inv_get(g, 0) > 0
+                or input_good(region, a) == g
+            )
+            for a in agents
+        ) or bool((getattr(region, 'pending_imports', None) or {}).get(g))
+        if has_market_activity:
+            goods_goods.append(g)
+            region._price_ref.setdefault(g, max(0.1, recipes[g].get('price', 1.0)))
+            region.demand_ratio_log.setdefault(g, [])
+            region.demand_log.setdefault(g, [])
+            region.supply_log.setdefault(g, [])
+            region.sold_log.setdefault(g, [])
+
     desired_food = 16
     desired_wood = 10
     desired_furn = max(1, int(16 / max(1, recipes[Goods.furniture]['price'])))
     desires = {Goods.food: desired_food, Goods.wood: desired_wood,
                Goods.furniture: desired_furn}
+    for g in goods_goods:
+        if g not in desires:
+            desires[g] = max(1, int(12 / max(1.0, recipes[g]['price'])))
     prices = {g: recipes[g]['price'] for g in goods_goods}
     total_asks = {g: 0 for g in goods_goods}
     total_bids = {g: 0 for g in goods_goods}
     for a in agents:
         if getattr(a, 'military_unit_id', None):
+            for g in goods_goods:
+                setattr(a, f'bid_{g.name}', 0)
+                setattr(a, f'ask_{g.name}', 0)
             continue
         ar = recipes.get(a.output, {})
         is_emp = a.employer is not None

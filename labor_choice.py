@@ -51,22 +51,18 @@ def evaluate_offer(worker: Any, firm: Any, region: Any, turn: int,
         - min(0.25 * outside_food * food_price, 0.05 * max(0.0, due_cash)),
     )
 
-    is_occupation_change = getattr(worker, 'output', None) not in (
-        None, Goods.none, getattr(firm, 'output', None)
+    is_occupation_change = (
+        getattr(firm, 'output', None) not in (None, Goods.none)
+        and getattr(worker, 'output', None) not in (None, Goods.none, getattr(firm, 'output', None))
     )
     is_dispossessed = (
         getattr(worker, 'social_class', None) == 'dispossessed'
         or getattr(worker, 'mem_avg', lambda *_: 0.0)('mem_eviction', 0.0) > 0
     )
     is_acute_hunger = getattr(worker, 'hungry_steps', 0) >= 3
-    hurdle_mult, min_cooldown, age_factor = career_switch_hurdle_and_cooldown(
+    _, min_cooldown, age_factor = career_switch_hurdle_and_cooldown(
         worker, turn, is_emergency=(is_dispossessed or is_acute_hunger)
     )
-    if is_occupation_change:
-        if not (is_dispossessed or is_acute_hunger):
-            reservation *= max(1.0, hurdle_mult * 0.90)
-        elif career_lifecycle_age(worker, turn) >= 50:
-            reservation *= 1.35
 
     last_switch = int(getattr(worker, 'last_career_switch', 0))
     turns_since_switch = int(turn) - last_switch
@@ -80,12 +76,12 @@ def evaluate_offer(worker: Any, firm: Any, region: Any, turn: int,
             or getattr(worker, 'social_class', None) == 'constable'
             or getattr(worker, 'military_unit_id', None)):
         reason = 'unavailable'
-    elif career_mobility_age_factor(worker, turn) <= 0.0:
+    elif age_factor <= 0.0:
         reason = 'unavailable'
     elif getattr(worker, 'employer', None) not in (None, firm):
         reason = 'unavailable'
     elif (is_occupation_change and last_switch > 0
-          and turns_since_switch < (4 if (is_dispossessed or is_acute_hunger) else min_cooldown)):
+          and turns_since_switch < (2 if (is_dispossessed or is_acute_hunger) else min_cooldown)):
         reason = 'unavailable'
     elif not getattr(firm, 'alive', True) or not getattr(firm, 'is_corporation', False):
         reason = 'unavailable'

@@ -434,6 +434,69 @@ class RunTraceTests(unittest.TestCase):
         finally:
             agent_mod._agentid_counter[0] = saved_id
 
+    def test_market_stabilization_input_priority_and_scarcity_gating(self):
+        import agent as agent_mod
+        from region_market import clear_discriminatory, excess_non_producer_saleable
+        saved_id = agent_mod._agentid_counter[0]
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                trace = RunTrace(Path(tmp) / 'market_stab.ctr', 'market-stab')
+                clock = {'next': 1, 'turn': 3, 'phase': 'local'}
+                # 1. Even when producer inventory is 0, oversupply (demand_ratio = 0.5) must deflate price
+                empty_producer = SimpleNamespace(output=Goods.wood, is_trader=False,
+                                                 inv_get=lambda _good, _fallback: 0.0)
+                region = SimpleNamespace(
+                    name='Delta',
+                    recipes={
+                        Goods.wood: {'price': 5.0, 'maxinv': 10, 'numInput': 0, 'production': 4},
+                        Goods.furniture: {'price': 12.0, 'maxinv': 10, 'input': Goods.wood,
+                                          'numInput': 2, 'production': 4},
+                    },
+                    _price_ref={Goods.wood: 5.0, Goods.furniture: 12.0},
+                    _trade_prices={},
+                    _auction_import_sales={},
+                    ASK_URGENCY_MIN=0.6,
+                    ASK_URGENCY_MAX=1.3,
+                    agents=[empty_producer],
+                    _collective_trace_clock=clock,
+                    _run_trace=trace,
+                    home_currency='D',
+                )
+                update_price_ref(region, Goods.wood, 0.5, local_asks=10, imported_asks=0, bids=5)
+                row = trace.query(turn=3, metric_id='goods.price')['events'][0]
+                self.assertLess(row['value_after'], row['value_before'])
+                self.assertEqual(row['inputs']['scarcity'], 0.0)
+                self.assertTrue(replay_event(row)['matches'])
+
+                # 2. Productive input buyers (furniture maker) get wood before hungry farmers
+                #    and former woodcutters (now farmers) can sell excess wood above reserve (3)
+                former_woodcutter = Agent(0)
+                initialize_agent(former_woodcutter, Goods.food, 0, 0, 10)
+                former_woodcutter.inv_set(Goods.wood, 5)  # 2 excess above 3 reserve
+                self.assertEqual(excess_non_producer_saleable(region, former_woodcutter, Goods.wood), 2)
+
+                hungry_farmer = Agent(0)
+                initialize_agent(hungry_farmer, Goods.food, 0, 0, 50)
+                hungry_farmer.hungry_steps = 4
+                hungry_farmer.bid_wood = 2
+
+                joiner = Agent(0)
+                initialize_agent(joiner, Goods.furniture, 0, 0, 50)
+                joiner.hungry_steps = 0
+                joiner.bid_wood = 2
+
+                region.agents = [former_woodcutter, hungry_farmer, joiner]
+                units, _, _ = clear_discriminatory(
+                    region, Goods.wood, 2.0, total_asks=2, total_bids=4,
+                    imp_pool=[], agents=region.agents, t=3
+                )
+                self.assertEqual(units, 2)
+                self.assertEqual(joiner.inv_get(Goods.wood, 0), 2)
+                self.assertEqual(hungry_farmer.inv_get(Goods.wood, 0), 0)
+                self.assertEqual(former_woodcutter.inv_get(Goods.wood, 0), 3)
+        finally:
+            agent_mod._agentid_counter[0] = saved_id
+
 
 if __name__ == '__main__':
     unittest.main()
