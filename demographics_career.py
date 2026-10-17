@@ -95,6 +95,8 @@ def build_employer_cache(agents):
 
 def handle_job_seeking(t, agent, employer_cache, region=None):
     """Independent struggling agents actively seek employment."""
+    if getattr(agent, 'is_native_child', False) and agent.age(t) < 14:
+        return
     if region is not None and getattr(region, 'labor_scheduler_last_turn', None) == t:
         return
     is_employee = getattr(agent, 'employer', None) is not None
@@ -128,6 +130,8 @@ def handle_job_seeking(t, agent, employer_cache, region=None):
 def handle_career_switching(ctx, t, agent, agents,
                             choices_list, bottleneck_weights, number_of_switches):
     """Emergency / mobility career changes for independent agents (legacy fallback when scheduler inactive)."""
+    if getattr(agent, 'is_native_child', False) and agent.age(t) < 14:
+        return 0, number_of_switches
     s_reg = getattr(ctx, 'source_region', None)
     if s_reg is not None and getattr(s_reg, 'labor_scheduler_last_turn', None) == t:
         return 0, number_of_switches
@@ -216,4 +220,3 @@ def handle_career_switching(ctx, t, agent, agents,
                 )
                 number_of_switches += 1
     return 0, number_of_switches
-

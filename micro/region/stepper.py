@@ -31,6 +31,11 @@ import social_class as _sclass
 def step_economy(region: Any, t: int):
     """Per-tile economy and institutional flows."""
     legacy = getattr(region, 'province', None) is None
+    region._last_turn = t
+
+    from nutrition import update_dependent_need
+    for person in region.agents:
+        update_dependent_need(person, t)
 
     rand.reset()
     food_price = region.recipes[Goods.food]['price']
@@ -69,7 +74,8 @@ def step_economy(region: Any, t: int):
         for person in sorted(region.agents, key=lambda a: a.id):
             if (person.alive and not person.is_trader and not person.is_government
                     and not person.is_corporation and not getattr(person, 'is_lord', False)
-                    and not getattr(person, 'military_unit_id', None)):
+                    and not getattr(person, 'military_unit_id', None)
+                    and not (getattr(person, 'is_native_child', False) and person.age(t) < 14)):
                 assess_obligation(region, person.id, region.gov.agent.id, 'cash_tax',
                                   fixed_tax, t)
 
@@ -420,12 +426,14 @@ def live(region: Any, t: int):
             parent = agent.parent
             if (parent is not None and parent.is_trader
                     and not agent.is_trader
+                    and not (getattr(agent, 'is_native_child', False) and agent.age(t) < 14)
                     and trader_count < max_traders
                     and rand.random() < 0.5):
                 _logistics.make_trader_internal(region, agent)
                 trader_count += 1
                 loginfo(t, f"{agent.name()} inherited trader from parent {parent.name()}")
             elif (not agent.is_trader
+                  and not (getattr(agent, 'is_native_child', False) and agent.age(t) < 14)
                   and has_arbitrage
                   and (agent.cash < 20 or agent.hungry_steps > 0)
                   and trader_count < max_traders

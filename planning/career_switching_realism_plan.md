@@ -5,8 +5,10 @@ Date: 2026-10-16
 **Follow-up audit:** Phases 1–4 and two related market commits have been
 implemented. [The follow-up plan](career_mobility_followup_plan.md) evaluates
 their combined outcome and supersedes this document's numerical calibration
-targets. In particular, the default world has **ten turns per displayed year**,
-so the annual rates cited below cannot be used as per-turn targets.
+targets. The [game time design](game_time_design.md) explicitly keeps **one
+agent year per turn** alongside **ten turns per seasonal cycle**. Historical
+annual mobility evidence can inform one-turn agent choices when the occupation
+definition and eligible population match.
 
 ## 1. Empirical Audit of Recent Simulation Traces
 

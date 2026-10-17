@@ -93,3 +93,27 @@ def consume_daily_food(agent):
                 break
     record_intake(agent, eaten)
     return eaten
+
+
+def transfer_dependent_food(agents, turn):
+    """Share existing household food with under-14 children before eating."""
+    from nutrition import appetite_units
+    residents = set(agents)
+    total = recipients = 0
+    children = sorted(
+        (a for a in agents if getattr(a, 'is_native_child', False)
+         and a.alive and a.age(turn) < 14), key=lambda a: a.id)
+    for child in children:
+        parent = child.parent
+        if parent not in residents or not parent.alive or parent.region != child.region:
+            continue
+        missing = max(0, appetite_units(child) - child.inv_get(Goods.food, 0)
+                      - max(0, int(getattr(child, 'emergency_food_units', 0))))
+        available = max(0, parent.inv_get(Goods.food, 0) - 1)
+        amount = min(missing, available)
+        if amount:
+            parent.inv_add(Goods.food, -amount)
+            child.inv_add(Goods.food, amount)
+            total += amount
+            recipients += 1
+    return total, recipients

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from goods import Goods
+from nutrition import basic_food_units
 
 
 def forecast_commons_food(person, tile) -> int:
@@ -26,11 +27,13 @@ def diagnose_tile(tile) -> dict:
     food_in_hands = sum(max(0, a.inv_get(Goods.food, 0)) for a in residents)
     forage = {a.id: forecast_commons_food(a, tile) for a in residents}
     forecast_forage = sum(forage.values())
-    minimum_meal = 4 * population
-    missing_meals = sum(max(0, 4 - a.inv_get(Goods.food, 0) - forage[a.id])
+    minimum_meal = sum(basic_food_units(a) for a in residents)
+    missing_meals = sum(max(0, basic_food_units(a) - a.inv_get(Goods.food, 0) - forage[a.id])
                         for a in residents)
     underfed = sum(a.calorie_deficit_kcal > 0 for a in residents)
     producers = sum(a.output == Goods.food and a.employer is None
+                    and not (getattr(a, 'is_native_child', False)
+                             and a.age(getattr(tile, '_last_turn', 0)) < 14)
                     for a in residents)
     production_log = getattr(tile, 'production_log', {}).get(Goods.food, [])
     estimated_harvest = (production_log[-1] if production_log else

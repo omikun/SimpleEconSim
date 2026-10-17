@@ -122,7 +122,7 @@ class LaborMobilityScheduler:
         # Cap n between 2 and 10 for smooth cyclical interleaving
         return min(10, n)
 
-    def get_non_elites(self, region: Any) -> List[Any]:
+    def get_non_elites(self, region: Any, turn: int | None = None) -> List[Any]:
         """Filter region agents to all living non-elite agents (commoners, serfs, workers)."""
         return [
             a for a in getattr(region, 'agents', [])
@@ -130,6 +130,8 @@ class LaborMobilityScheduler:
             and not getattr(a, 'is_lord', False)
             and not getattr(a, 'is_government', False)
             and not getattr(a, 'is_corporation', False)
+            and not (turn is not None and getattr(a, 'is_native_child', False)
+                     and a.age(turn) < 14)
             and getattr(a, 'cash', 0.0) < 150.0
         ]
 
@@ -139,7 +141,7 @@ class LaborMobilityScheduler:
         if getattr(region, 'labor_scheduler_last_turn', None) == t:
             return {'t': t, 'cohort_size': 0, 'n_groups': self._n_groups,
                     'elapsed_sec': 0.0, 'reallocations': [], 'already_processed': True}
-        non_elites = self.get_non_elites(region)
+        non_elites = self.get_non_elites(region, t)
         total_non_elites = len(non_elites)
 
         if total_non_elites == 0:

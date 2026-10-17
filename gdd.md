@@ -14,6 +14,15 @@
 **Engine Basis:** SimpleEconSim (`sim_world.py`, `region.py`, `forex.py`, `sovereign_bonds.py`, `unrest.py`, `buildings.py`, `wealth_lineage.py`, `transporter.py`).
 Each region is a living simulation of individual human agents who possess cash, debts, skills, kin lineage, memory, and physical needs. Every transfer of money, resource, or labor is strictly conserved down to the penny. The accounting audit is not just an invariant—it is an indictment.
 
+**Game time:** A turn advances each agent by **one lifecycle year** for age,
+career tenure, apprenticeship, reproduction, and other personal decisions.
+Agriculture and weather use a separate **ten-turn seasonal cycle**: phase
+`turn % 10` and displayed seasonal year `turn // 10 + 1`. This is an intentional
+gameplay abstraction; one complete crop cycle spans ten agent years. Annual
+historical career rates therefore correspond to one agent turn after matching
+the eligible adult population, and are never divided by ten. The full rule and
+implementation plan are in [Game time design](planning/game_time_design.md).
+
 ---
 
 ## 1. Executive Concept & Philosophical Thesis

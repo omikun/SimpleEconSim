@@ -111,20 +111,17 @@ def career_lifecycle_age(worker: Any, turn: int) -> int:
     progress through childhood (0..13), youth entry (14..24), prime age (25..39),
     mid-career (40..54), and senior age (55+).
     """
+    from game_time import agent_elapsed_years
     founding_offset = int(getattr(worker, 'founding_age_offset', 0))
     birth_round = int(getattr(worker, 'birth_round', 0))
+    elapsed = agent_elapsed_years(birth_round, turn)
+    if getattr(worker, 'is_native_child', False):
+        return elapsed
     if birth_round < 0:
         return max(0, int(turn) - birth_round)
-    if birth_round > 0 and (
-        getattr(worker, 'parent', None) is not None
-        or int(getattr(worker, 'last_career_switch', 0)) == birth_round
-    ):
-        return max(0, int(turn) - birth_round + founding_offset)
     if founding_offset > 0:
-        return founding_offset + max(0, int(turn))
-    if callable(getattr(worker, 'age', None)) and int(turn) >= 14 and birth_round == 0:
-        return max(0, int(worker.age(turn)))
-    return 22 + max(0, int(turn))
+        return founding_offset + elapsed
+    return 22 + elapsed
 
 
 def career_mobility_age_factor(worker: Any, turn: int) -> float:
@@ -138,11 +135,7 @@ def career_mobility_age_factor(worker: Any, turn: int) -> float:
     - Senior / master (55+): 0.12 (near-zero voluntary switching)
     """
     age = career_lifecycle_age(worker, turn)
-    birth_round = int(getattr(worker, 'birth_round', 0))
-    is_native_child = birth_round > 0 and (
-        getattr(worker, 'parent', None) is not None
-        or int(getattr(worker, 'last_career_switch', 0)) == birth_round
-    )
+    is_native_child = bool(getattr(worker, 'is_native_child', False))
     if is_native_child and age < 14:
         return 0.0
     if age <= 24:
@@ -161,8 +154,6 @@ def career_switch_hurdle_and_cooldown(
     age = career_lifecycle_age(worker, turn)
     age_factor = career_mobility_age_factor(worker, turn)
     if age_factor <= 0.0:
-        if is_emergency and getattr(worker, 'hungry_steps', 0) >= 3:
-            return 1.25, 4, 0.5
         return float('inf'), max(1, 14 - age), 0.0
 
     ambition = float(getattr(worker, 'ambition', 0.5))
@@ -174,7 +165,7 @@ def career_switch_hurdle_and_cooldown(
     birth_round = int(getattr(worker, 'birth_round', 0))
     last_switch = int(getattr(worker, 'last_career_switch', 0))
     # One-time low-friction youth entry when reaching apprenticeship age 14..16
-    if birth_round > 0 and 14 <= age <= 16 and last_switch <= birth_round:
+    if getattr(worker, 'is_native_child', False) and 14 <= age <= 16 and last_switch <= birth_round:
         min_cooldown = 0
     elif age <= 24:
         min_cooldown = 4
@@ -259,6 +250,8 @@ def apply_career_switch(region: Any, worker: Any, new_output: Any, turn: int, *,
     prev_switch_turn = int(getattr(worker, 'last_career_switch', 0))
     prior_tenure = max(0, int(turn) - prev_switch_turn)
     changed = (old_output != new_output)
+    if not changed:
+        return False
     if changed and old_output not in (None, Goods.none, Goods.gov) and hasattr(worker, 'mem_push'):
         worker.mem_push('mem_career_history', old_name)
     worker.output = new_output
@@ -333,4 +326,3 @@ def attach_worker(worker: Any, firm: Any, turn: int, decision: LaborDecision,
     agreement.pay_rate = float(decision.offered_wage)
     agreement.pay_mode = 'scrip' if getattr(firm, 'pay_mode', 'cash') == 'scrip' else 'cash'
     return True
-

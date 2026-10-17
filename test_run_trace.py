@@ -345,6 +345,7 @@ class RunTraceTests(unittest.TestCase):
         try:
             child = Agent(5)
             initialize_agent(child, Goods.food, 0, 0, 0)
+            child.is_native_child = True
             child.last_career_switch = 5
             self.assertEqual(career_lifecycle_age(child, 12), 7)
             self.assertEqual(career_mobility_age_factor(child, 12), 0.0)
@@ -500,4 +501,3 @@ class RunTraceTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-

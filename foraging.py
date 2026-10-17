@@ -25,6 +25,9 @@ BASE_FORAGE_YIELD = 8
 def can_forage(agent, region) -> bool:
     """Agent can forage if: not a lord, not employed, not trader/corp/gov,
     and the tile has commons access > 0."""
+    if (getattr(agent, 'is_native_child', False)
+            and agent.age(getattr(region, '_last_turn', 0)) < 14):
+        return False
     if getattr(agent, 'is_lord', False):
         return False
     if getattr(agent, 'social_class', None) == 'constable':
@@ -55,6 +58,8 @@ def forage_tile(region, t: int) -> int:
     total = 0
 
     for a in region.agents:
+        if getattr(a, 'is_native_child', False) and a.age(t) < 14:
+            continue
         # Check if homesteader on wilderness
         if getattr(region, 'wilderness', False):
             if not getattr(a, 'is_homesteader', False):

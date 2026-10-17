@@ -5,7 +5,9 @@ Date: 2026-10-16
 ## Decision
 
 Keep the recent reduction in rapid career changes, but rebuild the next pass
-around **livelihoods, job spells, and the game's clock**. A resident can work
+around **livelihoods and job spells**. The [game time design](game_time_design.md)
+sets one agent year per turn while seasonal production cycles every ten turns.
+A resident can work
 for a different employer, forage in the off-season, or take a temporary
 hauling job without permanently changing their primary occupation. Changing
 from a cultivator to a joiner should normally require a credible opportunity,
@@ -16,12 +18,11 @@ single global switch rate.
 
 ## Historical anchors and limits
 
-- The default world has ten turns per year (`sim_server/sim_server.py` and
-  `region_production.py`). Modern annual observations must therefore be
-  converted to a ten-turn hazard before comparison. If the annual probability
-  is `p_year`, the corresponding constant per-turn hazard is
-  `1 - (1 - p_year) ** (1 / 10)`; a 10% per-turn flow compounds to about 65%
-  over ten turns.
+- **One turn is one year for an agent**: age, career tenure, and an annual
+  occupational transition rate advance once per turn. Seasons use a separate
+  ten-turn cycle (`region_production.py`, `sim_server/sim_server.py`). An agent
+  ages ten years during one complete seasonal cycle. Do not convert annual
+  labor rates using the seasonal cycle length.
 - The U.S. Census/BLS reported **8.7% of workers changed occupation from
   January 1972 to January 1973**. Its report says movement was more common
   between related occupations and less common among occupations with invested
@@ -82,8 +83,8 @@ The current run has far less hunger, but agriculture absorbs nearly all
 population growth. Turn-50 GDP was about 1,820 / 4,289 / 3,967 for the U.S. /
 China / Japan, compared with 5,344 / 9,619 / 10,970 in the older run. This is
 not a clean GDP effect estimate: market pricing, population, production and
-career rules all changed. Living residents rose from 1,192 to 3,740 in only
-five displayed years, so child production and reproduction also confound the
+career rules all changed. Living residents rose from 1,192 to 3,740 in
+50 agent years; child production and reproduction also confound the
 career counts. It is a balance warning that the game may have
 traded volatile industrialization for near-universal farming. Mean food
 reference prices were pinned at 1.00 in all three countries throughout the
@@ -106,14 +107,13 @@ What the commits do well:
 
 What still needs repair:
 
-1. **Wrong time conversion.** `career_lifecycle_age()` increments effective
-   age by one *year* each turn although the game displays ten turns per year.
-   A child reaches the current career-entry age of 14 after 14 turns (1.4
-   displayed years), and a 35-year-old founder becomes 85 in five displayed
-   years. The previous plan's 1.5–3.5% **per-turn** goal similarly mistook
-   annual evidence for turn evidence. The current 1.1% per resident-turn is
-   roughly 10% per displayed year if the flow were stable, before correcting
-   the denominator to eligible adults.
+1. **Clock semantics need to be explicit.** The current `career_lifecycle_age()`
+   correctly advances one agent year each turn, but the UI's seasonal year
+   advances only every ten turns. The previous follow-up incorrectly treated
+   the seasonal label as the agent lifecycle clock. The current 1.1% switch
+   rate per resident-turn is already a per-agent-year rate, though its
+   denominator includes children and other ineligible residents. Never tune
+   the rate by multiplying by ten.
 2. **Child roles remain cosmetic.** `region_production.produce()` does not
    check career-entry age, and `demographics_reproduction.handle_reproduction()`
    checks birth spacing but no age. Newly born residents can still produce
@@ -146,15 +146,16 @@ What still needs repair:
 
 ## Implementation phases
 
-### Phase 0 — Establish the clock and a reliable baseline
+### Phase 0 — Name both clocks and establish a reliable baseline
 
 **Files:** `labor_choice.py`, `agent.py`, `demographics_reproduction.py`,
 `region_production.py`, `sim_server/sim_server.py`, analysis runner and tests.
 
-1. Define one `TURNS_PER_YEAR = 10` calendar helper, with tests around the
-   year boundary. Keep elapsed turns for production and contracts, but derive
-   `career_age_years = founding_age_years + (turn - birth_turn)/10` for every
-   person. Do not change `Agent.age()` globally until its callers are audited.
+1. Add explicit `agent_age_years()` and `seasonal_cycle_phase()` helpers (or
+   equally clear names) and test both clocks. Keep the existing career age
+   increment of **one per turn** and the existing ten-phase crop season. Do
+   not introduce a generic `TURNS_PER_YEAR` constant or divide age by ten.
+   Preserve contract and demographic durations in agent turns.
 2. Distinguish founding adults, native-born children, and scenario-created
    adults with explicit age/year metadata. Remove the `birth_round` and
    `last_career_switch` heuristic that infers whether an agent is a child.
@@ -168,8 +169,9 @@ What still needs repair:
    person-years for external comparisons, and all-adult person-years for the
    game's broad livelihood transition rate. Store the code version and seed.
 
-**Gate:** A 50-turn game advances five displayed years and every age gate
-agrees with that clock. The same runner repeats exactly. Every stock change
+**Gate:** A 50-turn game advances fifty agent years and five seasonal cycles;
+every age gate agrees with the agent clock. The same runner repeats exactly.
+Every stock change
 reconciles with births, deaths, migration and categorized transitions.
 
 ### Phase 1 — Separate occupation, job, and seasonal activity
@@ -245,8 +247,8 @@ under matched seeds: protected subsistence and profitable wage expansion.
    and migration. Provide individual histories on inspection.
 2. Use historical evidence as *order-of-magnitude and shape* checks, not a
    mandatory global quota. For initial tuning, measure ordinary broad
-   occupation changes over **ten turns** and compare with a declared game
-   target of roughly 3–8% of eligible adults per displayed year, with higher
+   occupation changes over **one agent turn/year** and compare with a declared
+   game target of roughly 3–8% of eligible adults per agent year, with higher
    youth and shock rates. This range is a starting design target, not an
    estimate for nineteenth-century China, Japan, or the United States.
    Expect many employer and seasonal-work changes without primary-occupation
@@ -254,7 +256,8 @@ under matched seeds: protected subsistence and profitable wage expansion.
    actual production and livelihoods, not only switch count.
 3. Run multiple paired seeds under land protection, enclosure, cash tax,
    wages, mechanization, harvest failure and relief. Report adult switch
-   rates, reversals within a year, food/calorie security, occupation shares,
+   rates, reversals within an agent year or over short multi-turn spans,
+   food/calorie security, occupation shares,
    input availability, real wages, profits, output, GDP, unrest and deaths.
    Include a replay test for every occupation mutation source. Recheck the
    price trace: a price pinned at 1.00 despite a shock needs an explanation
@@ -274,8 +277,31 @@ freeze industrial development.
 ## First implementation slice
 
 Start with **Phase 0 and the narrow mutation invariant from Phase 1**:
-central calendar helper; correct career age in years; explicit native-child
-flag; no full adult production/reproduction by infants; same-output calls do
+explicit dual-clock helpers; preserve one-year-per-turn career age; explicit
+native-child flag; no full adult production/reproduction by infants; same-output calls do
 not reset tenure; and a benchmark that separates adult occupation changes
 from employment changes. This makes every later rate and age comparison
 interpretable before tuning hurdles, prices or additional career paths.
+
+### First-slice status (2026-10-17)
+
+The two-clock rule is recorded in the main `gdd.md` and
+`game_time_design.md`. The first code pass adds explicit native-child status,
+age-scaled dependent food need, conserved parent-to-child food sharing,
+under-14 production/foraging/hiring exclusions, dependent-aware food security
+forecasts, an under-18 reproduction gate,
+and a no-op for same-trade career mutations. `benchmark_career_mobility.py`
+counts adult occupation and employer changes separately over 50 agent years.
+
+In the seed-777 default three-nation run, adult occupation changes were
+1.52% (United States), 1.21% (China), and 1.50% (Japan) per adult agent-year;
+adult food-career shares still ended at 77.7%, 90.4%, and 86.0%. Reported
+starvation deaths were 9, 0, and 0. The child gate did not make nonfarm
+livelihoods viable, and the United States result needs food-balance review.
+The benchmark's `exits` counts
+people missing from the next snapshot; they must **not** be interpreted as
+reported deaths. Before calibrating flows, categorize every exit route and
+reconcile person stocks with births, deaths, migration, and role conversion.
+Then continue with Phase 1's occupation/job distinction and Phase 2's
+feasible livelihood choices. These are the remaining gates, not conclusions
+established by the first slice.

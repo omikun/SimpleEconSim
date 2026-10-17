@@ -16,10 +16,11 @@ except ImportError:
 import math
 
 def season_mult(t: int | None) -> float:
-    """10-turn yearly biological productivity curve (t % 10)."""
+    """Ten-phase seasonal productivity curve, separate from agent age years."""
     if t is None:
         return 1.0
-    year_turn = t % 10
+    from game_time import seasonal_cycle_phase
+    year_turn = seasonal_cycle_phase(t)
     # Peak at autumn harvest (t%10 == 4-6), trough at winter (t%10 == 9, 0)
     return max(0.45, 1.0 + 0.45 * math.sin(2.0 * math.pi * (year_turn - 2) / 10.0))
 
@@ -362,6 +363,8 @@ def produce(region, t):
     region.production_receipts = []
     num_agents_per_good = {}
     for a in region.agents:
+        if getattr(a, 'is_native_child', False) and a.age(t) < 14:
+            continue
         if not a.is_trader and a.output != Goods.gov and a.output != Goods.none and a.output in region.recipes:
             num_agents_per_good[a.output] = num_agents_per_good.get(a.output, 0) + 1
     for g in region.goods:
@@ -372,6 +375,8 @@ def produce(region, t):
     for a in region.agents:
         if (a.employer or a.output == Goods.gov or a.is_trader or a.output == Goods.none
                 or a.output not in region.recipes or getattr(a, 'military_unit_id', None)):
+            continue
+        if getattr(a, 'is_native_child', False) and a.age(t) < 14:
             continue
         if getattr(a, 'is_striking', False) or getattr(a, 'in_revolt', False):
             continue
@@ -407,7 +412,8 @@ def produce(region, t):
                     wool_yield_total += wool_yield
 
     # Phase 3: Granary buffer stock management across 10-turn agricultural year
-    year_turn = t % 10
+    from game_time import seasonal_cycle_phase
+    year_turn = seasonal_cycle_phase(t)
     food_made = local_total_production.get(Goods.food, 0)
     granary_release_units = 0
     if not hasattr(region, 'granary_stock'):

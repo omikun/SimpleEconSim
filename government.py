@@ -312,12 +312,13 @@ class Government:
         self._last_immigration_turn = t
 
         # Eligible resident adults (non-corp, non-gov) we can split off.
+        from labor_choice import career_lifecycle_age
         parents = [a for a in agents
                    if getattr(a, 'alive', True)
                    and not getattr(a, 'is_corporation', False)
                    and not getattr(a, 'is_government', False)
                    and not getattr(a, 'is_trader', False)
-                   and a.age(t) > 20
+                   and career_lifecycle_age(a, t) > 20
                    and a.cash > 40]
         if not parents:
             return []
@@ -332,6 +333,7 @@ class Government:
             share = max(0.0, share)
 
             immigrant = Agent(t)
+            immigrant.founding_age_offset = 22 + ((int(immigrant.id) * 11) % 24)
             immigrant.parent = parent
             # v3: homeland inherited from the sponsor (set once; never re-pointed).
             immigrant.origin_nation = getattr(parent, 'origin_nation', None)
@@ -672,7 +674,8 @@ class Government:
             return total_food_given
 
         children = [a for a in candidates
-                    if a.age(t) <= child_max_age and a.hungry_steps == 0]
+                    if getattr(a, 'is_native_child', False)
+                    and a.age(t) <= child_max_age and a.hungry_steps == 0]
         starving = [a for a in candidates if a.hungry_steps > 0]
 
         total_food_given = 0

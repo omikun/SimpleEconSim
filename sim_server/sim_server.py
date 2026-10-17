@@ -1006,7 +1006,8 @@ class SimServer:
     def _calc_seasonal_info(self) -> Dict[str, Any]:
         """Calculate live seasonal timeline, biological crop multiplier, and buffer stats."""
         import math
-        t_mod = self.turn % 10
+        from game_time import seasonal_cycle_phase, seasonal_cycle_year
+        t_mod = seasonal_cycle_phase(self.turn)
         mult = 1.0 + 0.45 * math.sin(2.0 * math.pi * (t_mod - 2) / 10.0)
         pct_delta = int(round((mult - 1.0) * 100))
 
@@ -1032,7 +1033,7 @@ class SimServer:
 
         return {
             'turn': self.turn,
-            'year': (self.turn // 10) + 1,
+            'year': seasonal_cycle_year(self.turn),
             'turn_in_year': t_mod,
             'name': meta[1],
             'icon': meta[2],

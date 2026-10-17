@@ -50,7 +50,7 @@ class Agent:
     """
 
     __slots__ = (
-        'id', 'birth_round', 'alive', 'parent', 'descendants',
+        'id', 'birth_round', 'is_native_child', 'alive', 'parent', 'descendants',
         'bid', 'ask',
         'output',
         'hungry_steps', 'calorie_need_kcal', 'last_calories_eaten',
@@ -125,6 +125,9 @@ class Agent:
     def __init__(self, t):
         self.id = _next_agent_id()
         self.birth_round = t
+        # Only in-simulation births set this; immigrants and scenario-created
+        # people can begin as adults at any turn.
+        self.is_native_child = False
         self.alive = True
         self.parent = None
         self.descendants = []

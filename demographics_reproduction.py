@@ -12,6 +12,8 @@ from random_cache import rand
 
 def handle_reproduction(ctx, t, agent, agents, new_agents):
     """Handle birth of new agents."""
+    if getattr(agent, 'is_native_child', False) and agent.age(t) < 18:
+        return 0
     number_food_consumed = 0
     from nutrition import INITIAL_RESERVE_KCAL, deficit_fraction
     import government as govmod
@@ -80,6 +82,8 @@ def handle_reproduction(ctx, t, agent, agents, new_agents):
 
         agent.last_reproduction = t
         new_agent = Agent(t)
+        new_agent.is_native_child = True
+        new_agent.calorie_need_kcal = 1000.0
         new_agent.parent = agent
         new_agent.origin_nation = getattr(agent, 'origin_nation', None)
         new_agent.home_currency = (getattr(ctx.source_region, 'home_currency', None)

@@ -101,7 +101,7 @@ def input_good(region, agent):
 def food_reserve_units(agent):
     """Food a living grower keeps for the next meal before offering surplus."""
     from nutrition import appetite_units
-    return max(4, appetite_units(agent))
+    return appetite_units(agent)
 
 
 def emergency_food_surplus(agent):

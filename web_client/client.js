@@ -1516,7 +1516,7 @@
       nameEl.textContent = `${sName} (${cycleTurn + 1}/10)`;
       nameEl.style.color = season.color || '#10b981';
     }
-    if (yearEl) yearEl.textContent = `Yr ${yr}`;
+    if (yearEl) yearEl.textContent = `Crop yr ${yr}`;
     if (multEl) {
       multEl.textContent = multStr;
       multEl.className = multPct >= 0 ? 'seasonal-mult text-green' : 'seasonal-mult text-ruby';
@@ -1571,11 +1571,15 @@
     seasonalPopover.innerHTML = `
       <div class="popover-header">
         <div class="popover-title-row">
-          <span>${s.season_icon || '🌱'} ${escapeHtml(s.season_name || 'Spring')} (Year ${yr})</span>
+          <span>${s.season_icon || '🌱'} ${escapeHtml(s.season_name || 'Spring')} (Crop year ${yr})</span>
         </div>
         <button class="popover-close-btn" id="seasonal-popover-close">&times;</button>
       </div>
       <div class="popover-body">
+        <div class="popover-row">
+          <span class="row-label">Agent lifecycle</span>
+          <span class="row-val text-dim">1 year per turn; 10 turns per crop cycle</span>
+        </div>
         <div class="popover-row">
           <span class="row-label">Bio Agricultural Yield</span>
           <span class="row-val ${multPct >= 0 ? 'text-green' : 'text-ruby'} font-bold">${multStr}</span>

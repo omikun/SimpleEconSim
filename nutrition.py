@@ -16,13 +16,28 @@ MAX_RESERVE_KCAL = 160000.0
 KCAL_PER_KG_FAT = 7700.0
 
 
+def basic_food_units(agent) -> int:
+    """Food units needed to cover this agent's ordinary calorie requirement."""
+    return max(1, math.ceil(float(getattr(agent, 'calorie_need_kcal', DAILY_NEED_KCAL))
+                            / CALORIES_PER_FOOD))
+
+
 def appetite_units(agent) -> int:
     """Wealth and depleted reserves raise desired intake on a smooth curve."""
+    base = basic_food_units(agent)
     wealth = max(1.0, float(getattr(agent, 'consumption_multiplier', 1.0)))
     reserve = max(0.0, float(getattr(agent, 'energy_reserve_kcal', INITIAL_RESERVE_KCAL)))
     luxury = 6.0 * (1.0 - math.exp(-(wealth - 1.0) / 3.0))
     catch_up = 2.0 * (1.0 - math.exp(-max(0.0, INITIAL_RESERVE_KCAL - reserve) / INITIAL_RESERVE_KCAL))
-    return min(12, max(4, round(4.0 + luxury + catch_up)))
+    return min(12, max(base, round(base + luxury + catch_up)))
+
+
+def update_dependent_need(agent, turn: int) -> None:
+    """Age dependent food needs on the agent clock, before market bidding."""
+    if not getattr(agent, 'is_native_child', False):
+        return
+    age = agent.age(turn)
+    agent.calorie_need_kcal = 1000.0 if age < 5 else (1500.0 if age < 14 else DAILY_NEED_KCAL)
 
 
 def record_intake(agent, food_units: float) -> None:
