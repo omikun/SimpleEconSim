@@ -1126,6 +1126,12 @@ def trade(region, t):
                              metric_id='goods.sold', unit='units', before=0, after=bought,
                              inputs={'seller_id': seller.id, 'buyer': 'charity',
                                      'unit_price': price, 'paid': bought * price})
+                        from economy.actor_accounts import record as record_economic_event
+                        record_economic_event(
+                            region, 'spot_sale', turn=t, recipient_id=seller.id,
+                            good=good, quantity=bought, amount=bought * price,
+                            detail={'unit_price': price, 'public_buyer': 'charity',
+                                    'seller_receipt': bought * price})
                         charity_bid -= bought
                         charity_bought += bought
                 if charity_bought > 0:
@@ -1173,6 +1179,15 @@ def trade(region, t):
                                              'unit_price': price, 'paid': bought * price,
                                              'emergency_surplus': region.gov.emergency_food_policy,
                                              'seller_occupation': seller.output.name})
+                            from economy.actor_accounts import record as record_economic_event
+                            record_economic_event(
+                                region, 'spot_sale', turn=t,
+                                payer_id=region.gov.agent.id, recipient_id=seller.id,
+                                good=good, quantity=bought, amount=bought * price,
+                                detail={'unit_price': price,
+                                        'public_buyer': 'government',
+                                        'emergency_surplus': region.gov.emergency_food_policy,
+                                        'seller_receipt': bought * price})
                             gov_bid -= bought
                             gov_bought += bought
                     if gov_bought > 0:

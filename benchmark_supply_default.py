@@ -43,15 +43,32 @@ def run(turns=50, seed=4242):
                                      'reported': [str(row) for row in bad]})
     accounts = [row for tile in tiles for row in getattr(tile, 'actor_turn_accounts', [])]
     tile_by_name = {tile.name: tile for tile in tiles}
+    actor_by_key = {(tile.name, actor.id): actor for tile in tiles for actor in tile.agents}
+    account_history = [row for tile in tiles
+                       for row in getattr(tile, 'actor_account_history', [])]
     def event_kinds(account):
         tile = tile_by_name.get(account['tile'])
         events = [e for e in getattr(tile, 'economic_events', [])
-                  if e['turn'] == turns and account['actor_id'] in
+                  if e['turn'] == account['turn'] and account['actor_id'] in
                   (e.get('payer_id'), e.get('recipient_id'))]
         return {kind: sum(e['kind'] == kind for e in events)
                 for kind in sorted({e['kind'] for e in events})}
     firms = [row for row in accounts if row['type'] == 'corporation']
     growers = [row for row in accounts if row['type'] == 'grower']
+    def actor_profile(account):
+        actor = actor_by_key.get((account['tile'], account['actor_id']))
+        if actor is None:
+            return {}
+        return {'government': bool(getattr(actor, 'is_government', False)),
+                'charity': bool(getattr(actor, 'is_charity', False)),
+                'trader': bool(getattr(actor, 'is_trader', False)),
+                'corporation': bool(getattr(actor, 'is_corporation', False)),
+                'lord': bool(getattr(actor, 'is_lord', False)),
+                'output': getattr(getattr(actor, 'output', None), 'name', None),
+                'employer_id': getattr(getattr(actor, 'employer', None), 'id', None),
+                'owner_id': getattr(getattr(actor, 'owner', None), 'id', None),
+                'social_class': getattr(actor, 'social_class', None),
+                'home_currency': getattr(actor, 'home_currency', None)}
     return {'turns': turns, 'seed': seed, 'nations': len(nations), 'tiles': len(tiles),
             'violations': len(violations),
             'violation_details': [str(v) for v in violations[:5]],
@@ -75,11 +92,20 @@ def run(turns=50, seed=4242):
                                                  for a in accounts), 2),
             'largest_unposted_cash_accounts': [
                 {'tile': a['tile'], 'actor': a['actor_name'], 'type': a['type'],
+                 'actor_id': a['actor_id'], 'profile': actor_profile(a),
                  'cash_change': a['cash_change'], 'posted_change': a['posted_cash_change'],
                  'unposted_change': a['unposted_cash_change'],
                  'posted_event_kinds': event_kinds(a)}
                 for a in sorted(accounts, key=lambda row: abs(row['unposted_cash_change']),
                                 reverse=True)[:8]],
+            'largest_unposted_cash_turns': [
+                {'turn': a['turn'], 'tile': a['tile'], 'actor': a['actor_name'],
+                 'actor_id': a['actor_id'], 'type': a['type'],
+                 'unposted_change': a['unposted_cash_change'],
+                 'posted_event_kinds': event_kinds(a)}
+                for a in sorted(account_history,
+                                key=lambda row: abs(row['unposted_cash_change']),
+                                reverse=True)[:12]],
             'cotton_spot_units_last_turn': sum(e['quantity'] for tile in tiles
                                                for e in getattr(tile, 'market_trade_events', [])
                                                if e['good'] == Goods.cotton.name and e['turn'] == turns)}

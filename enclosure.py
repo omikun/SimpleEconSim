@@ -132,8 +132,16 @@ def execute_enclosure(tile, plot_id: str, t: int, rent_rate: float = DEFAULT_CAS
             recipients = [a for a in tile.agents if getattr(a, 'alive', True) and not getattr(a, 'is_government', False) and a.id != lord.id]
             if recipients:
                 recipients[0].cash += 10.0
+                bailiff_recipient_id = recipients[0].id
             else:
                 gov.agent.cash += 10.0
+                bailiff_recipient_id = gov.agent.id
+            from economy.actor_accounts import record as record_economic_event
+            record_economic_event(
+                tile, 'bailiff_service', turn=t, payer_id=lord.id,
+                recipient_id=bailiff_recipient_id, amount=10.0,
+                asset_id=plot.plot_id,
+                detail={'reason': 'enclosure enforcement'})
 
     if pe >= 3.0 and not has_garrison and police_count == 0 and not bailiff_hired:
         # Enclosure defied by commoners!
@@ -143,6 +151,11 @@ def execute_enclosure(tile, plot_id: str, t: int, rent_rate: float = DEFAULT_CAS
     # Conserved financial transfer: lord pays the crown
     lord.cash -= fee
     gov.agent.cash += fee
+    from economy.actor_accounts import record as record_economic_event
+    record_economic_event(
+        tile, 'enclosure_charter_fee', turn=t, payer_id=lord.id,
+        recipient_id=gov.agent.id, amount=fee, asset_id=plot.plot_id,
+        detail={'fraction': plot.fraction})
 
     # Enclose the plot
     tenure.enclose_plot(plot_id, turn=t, rent_rate=rent_rate)

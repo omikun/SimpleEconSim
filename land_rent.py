@@ -151,6 +151,11 @@ def collect_rents(region, t: int) -> tuple[float, float, list[dict]]:
                 tenant.cash -= can_pay
                 lord.cash += can_pay
                 plot_collected += can_pay
+                from economy.actor_accounts import record as record_economic_event
+                record_economic_event(
+                    region, 'cash_rent', turn=t, payer_id=tenant.id,
+                    recipient_id=lord.id, amount=can_pay, asset_id=plot.plot_id,
+                    detail={'rent_rate': rent_rate, 'tenure': plot.tenure.value})
             shortfall = rent_rate - can_pay
             if shortfall > 0:
                 plot_arrears += shortfall

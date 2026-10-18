@@ -49,6 +49,29 @@ class SupplyControlActorFixtureTests(unittest.TestCase):
 
 
 class ActorAccountTests(unittest.TestCase):
+    def test_cash_rent_transfer_is_in_actor_cash_bridge(self):
+        from land_rent import collect_rents
+        from land_tenure import LandPlot, TenureStatus, TileTenure
+        region = Region()
+        lord, tenant = Person(8, 20), Person(3, 10)
+        lord.is_trader = tenant.is_trader = False
+        lord.is_lord = True
+        plot = LandPlot(plot_id='rent-plot', tile_name='test', lord_id=lord.id,
+                        fraction=1.0, tenure=TenureStatus.ENCLOSED,
+                        rent_rate=4.0, tenant_ids=[tenant.id])
+        region.agents = [lord, tenant]
+        region.tenure = TileTenure(plots=[plot])
+        region.protest_energy_log = [0.0]
+        begin_turn(region, 1)
+
+        collect_rents(region, 1)
+        rows = {a['actor_id']: a for a in seal_turn(region, 1)}
+
+        self.assertEqual(rows[tenant.id]['cash_change'], -0.5)
+        self.assertEqual(rows[tenant.id]['posted_cash_change'], -0.5)
+        self.assertEqual(rows[lord.id]['cash_change'], 0.5)
+        self.assertEqual(rows[lord.id]['posted_cash_change'], 0.5)
+
     def test_contract_cash_and_debt_credit_are_separate(self):
         from crop_credit import settle_offtake_contracts
         region = Region()

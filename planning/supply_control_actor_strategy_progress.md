@@ -32,18 +32,23 @@ already fun or balanced; that still needs player feedback.
   named cash, crop receipts, food, debt, supply offers, and relevant rights.
   Statements label cost coverage as incomplete. Web additionally shows scrip
   balances and cash movement not yet matched to journal postings.
-- Recent 50-turn default runs created 119–145 firm and 283–294 grower account
-  rows, and 10–13 supply proposals, with no active contracts/charters at the
-  end. The latest post-bank-adapter run (seed 4242) still had $17,367.46 in the
-  final-turn sum of absolute unmatched actor cash movements. Earlier seeds
-  ranged from $21,015 to $31,338 before those adapters, so full per-actor cash
-  reconciliation remains open. Some
+- Earlier 50-turn default runs created 119–145 firm and 283–294 grower account
+  rows, and 10–13 supply proposals. The latest seed-labeled repeat created 196
+  firm and 466 grower rows, with 18 proposals and one active contract. Repeated
+  runs labeled seed 4242 also show unmatched cash totals of $26,790.38,
+  $17,298.00, and $17,367.46. Earlier seeds ranged from $21,015 to $31,338
+  before those adapters, so full per-actor cash reconciliation remains open. Some
   unmatched movement is from legacy systems that have not been connected to this
   journal; do not read the displayed recorded result as complete profit. The
-  benchmark names the eight largest unmatched actors and their posted event
-  kinds. In the latest run the largest gaps were $1,776 for a resident and
-  $1,580 for a corporation, giving the next instrumentation pass concrete
-  targets.
+  benchmark names the eight largest unmatched actors, their roles, and posted
+  event kinds. The latest run's largest gaps are $1,657 and $1,655 for the same trader on
+  turns 49 and 50, then $1,344 and $1,319 for employed residents. Direct charity
+  and government food purchases now post actor transfers. Repeated seed-labeled
+  runs differ substantially in firm/grower counts, contracts, and market
+  outcomes, so benchmark determinism needs a separate check before comparing
+  single-seed totals as an effect measure.
+- Cash rent, enclosure charter fees, and bailiff services now post named actor
+  transfers. The bailiff's $10 cost is tracked as its own enforcement expense.
 - Bank deposits/withdrawals, loan issuance/repayment, deposit interest, and
   deposit haircuts now post named events. Turn accounts expose bank savings,
   outstanding bank principal, company-store debt, and distinct repayment and
@@ -144,9 +149,12 @@ already fun or balanced; that still needs player feedback.
   FX and tariff conversions also remain separate cash legs rather than a fully
   normalized per-shipment delivered-cost calculation.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_supply_control_actor_strategy test_supply_rights test_market_auction test_market_routes test_web_client_parity test_truck_system_and_scrip` — 67 tests passed after bank debt, company-store debt, campaign-currency, and linked shipment additions.
+- `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_market_auction test_supply_control_actor_strategy test_phase1_enclosure_expansions` — 43 tests passed after cash-rent, enclosure-fee, and public food-purchase postings.
+- `node --check web_client/client.js` and `git diff --check` — passed after the same changes.
 - `node --check web_client/client.js` — passed.
 - `git diff --check` — passed.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python benchmark_supply_rivalry.py` — 12 matched runs, zero reported currency violations.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python benchmark_supply_rivalry.py 812 813 814` — repeated after shipment linking; all 12 branches still report zero currency violations.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python benchmark_supply_default.py 50 <seed>` — 50 turns completed with zero currency violations for seeds 4242, 4243, and 4244 after the campaign-transfer fix.
+- `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python benchmark_supply_default.py 50 4242` — latest repeat completed with zero currency violations and $26,790.38 final-turn unmatched cash movement. The benchmark now shows the largest unmatched actor-turn rows; the latest top row was trader 1716 on turns 49–50 with opposite-signed movements near $1,656, a target for tracing route/FX cash handling.
 - Full `unittest discover` was attempted but this environment's native pygame/OpenGL tests crashed the Python process (exit 139) before a summary could be produced; the focused simulation, rights, auction, route, and web parity suite remains green.
