@@ -223,7 +223,9 @@ district relief, tax relief, settlement, and repression actions now record
 success/failure reasons and measured effects. National
 treasury, bank, household, firm, and goods-by-currency reconciliations remain
 incomplete. Several scenario operations still need mutation-point records.
-Some secondary and elite AI candidate details remain partial. The current metric
+Nation and capitalist AI decisions record most evaluated candidates, selections,
+and outcomes. The labor scheduler now exposes its cohort gate; some scenario and
+diplomacy AI candidate details remain partial. The current metric
 catalog does not yet cover every displayed field;
 `inventory_region_histories()` labels legacy series as instrumented or
 untraced so a missing probe is visible during development.
@@ -423,3 +425,10 @@ present. Five fixtures cover shortage, trader stock, routine-noise suppression,
 death linkage, and trace-on/off parity; 69 food, nutrition, life-cycle, district,
 and trace tests passed. Compilation and `git diff --check` passed. Household cash
 affordability, non-food consumption, and other aid channels remain open.
+
+The labor scheduler now records round-robin cohort selection, deferred workers,
+and the hunger, unemployment, dispossession, or eviction reasons for emergency
+bypass. Worker wage and livelihood decisions link to the schedule event. Three
+focused fixtures and 29 scheduler, capitalist-planner, and rivalry tests passed.
+Compilation and `git diff --check` passed. Scenario and diplomacy candidate logs
+remain partial.

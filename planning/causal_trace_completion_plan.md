@@ -796,3 +796,15 @@ suppression, starvation-death linkage, and trace-on/off parity. Sixty-nine food,
 nutrition, life-cycle, district, and run-trace tests passed. Compilation and
 `git diff --check` passed. Household cash affordability, non-food consumption,
 and other support channels remain.
+
+Phase 4 follow-up, 2026-10-18: the labor scheduler now records the round-robin
+cohort selected, who was deferred, and which hunger, unemployment,
+dispossession, or eviction conditions caused an emergency bypass. Per-worker
+wage and livelihood decisions link back to the schedule record, making the
+evaluation cadence visible alongside the already traced candidate scores.
+
+Verification: three dedicated fixtures cover ordinary deferral, emergency
+bypass and its causes, repeated-call gating, and trace-on/off state parity.
+Twenty-nine scheduler, capitalist-planner, and rivalry tests passed. Compilation
+and `git diff --check` passed. Other scenario and diplomacy AI candidate details
+remain incomplete.

@@ -31,6 +31,30 @@ from labor_choice import (
 )
 
 
+def _trace_scheduler_gate(region, *, turn, outcome, total_non_elites,
+                          group_count, active_group_index=None,
+                          active_agent_ids=(), emergency_agent_reasons=(),
+                          execution_agent_ids=(), deferred_count=0):
+    from run_trace import emit
+
+    return emit(
+        region, kind='labor_scheduler_gate', record_class='decision',
+        phase='labor', subject={'type': 'tile', 'id': region.name},
+        metric_id='labor.cohort_schedule', unit='workers',
+        before=int(total_non_elites), after=len(execution_agent_ids),
+        formula_id='labor.round_robin_emergency_cohort.v1',
+        inputs={'turn': int(turn), 'outcome': outcome,
+                'total_non_elite_workers': int(total_non_elites),
+                'group_count': int(group_count),
+                'active_group_index': active_group_index,
+                'active_cohort_agent_ids': [int(agent_id)
+                                            for agent_id in active_agent_ids],
+                'emergency_agent_reasons': list(emergency_agent_reasons),
+                'execution_order_agent_ids': [int(agent_id)
+                                              for agent_id in execution_agent_ids],
+                'deferred_worker_count': int(deferred_count)})
+
+
 def potential_commons_food(worker: Any, region: Any) -> int:
     """Meal a worker could gather after leaving paid work."""
     from foraging import BASE_FORAGE_YIELD
@@ -163,6 +187,9 @@ class LaborMobilityScheduler:
         """Execute labor mobility and profession decisions for the active cohort on turn t."""
         start_time = time.perf_counter()
         if getattr(region, 'labor_scheduler_last_turn', None) == t:
+            _trace_scheduler_gate(
+                region, turn=t, outcome='already_processed_this_turn',
+                total_non_elites=0, group_count=self._n_groups)
             return {'t': t, 'cohort_size': 0, 'n_groups': self._n_groups,
                     'elapsed_sec': 0.0, 'reallocations': [], 'already_processed': True}
         non_elites = self.get_non_elites(region, t)
@@ -170,6 +197,9 @@ class LaborMobilityScheduler:
 
         if total_non_elites == 0:
             region.labor_scheduler_last_turn = t
+            _trace_scheduler_gate(
+                region, turn=t, outcome='no_eligible_non_elite_workers',
+                total_non_elites=0, group_count=1)
             return {'t': t, 'cohort_size': 0, 'n_groups': 1, 'elapsed_sec': 0.0, 'reallocations': []}
 
         self._n_groups = self.calculate_n_groups(total_non_elites)
@@ -196,6 +226,31 @@ class LaborMobilityScheduler:
         emergency_fast_path.sort(key=lambda a: career_lifecycle_age(a, t))
         active_cohort_sorted = sorted(active_cohort, key=lambda a: career_lifecycle_age(a, t))
         execution_queue = [(a, True) for a in emergency_fast_path] + [(a, False) for a in active_cohort_sorted]
+        emergency_reasons = []
+        for worker in emergency_fast_path:
+            reasons = []
+            if getattr(worker, 'hungry_steps', 0) >= 2:
+                reasons.append('acute_hunger')
+            if (getattr(worker, 'employer', None) is None
+                    and getattr(worker, 'hungry_steps', 0) > 0):
+                reasons.append('unemployed_hunger')
+            if (getattr(worker, 'employer', None) is None
+                    and getattr(worker, 'social_class', None) == 'dispossessed'):
+                reasons.append('unemployed_dispossessed')
+            if (getattr(worker, 'employer', None) is None
+                    and getattr(worker, 'mem_avg', lambda *_: 0.0)(
+                        'mem_eviction', 0.0) > 0):
+                reasons.append('unemployed_eviction_memory')
+            emergency_reasons.append({'agent_id': int(worker.id),
+                                      'reasons': reasons})
+        cohort_event_id = _trace_scheduler_gate(
+            region, turn=t, outcome='cohort_selected',
+            total_non_elites=total_non_elites, group_count=self._n_groups,
+            active_group_index=active_group_idx,
+            active_agent_ids=[worker.id for worker in active_cohort_sorted],
+            emergency_agent_reasons=emergency_reasons,
+            execution_agent_ids=[worker.id for worker, _ in execution_queue],
+            deferred_count=total_non_elites - len(execution_queue))
 
         reallocations = []
         recipes_map = getattr(region, 'recipes', {})
@@ -256,7 +311,9 @@ class LaborMobilityScheduler:
                              inputs={'firm_id': firm.id, 'hungry_steps': worker.hungry_steps,
                                      'wage': worker.wage, 'food_price': region.recipes[Goods.food]['price'],
                                      'potential_commons_food': possible_food,
-                                     'quit_penalty_claim_id': outcome.get('claim_id')})
+                                     'quit_penalty_claim_id': outcome.get('claim_id')},
+                             cause_event_ids=[cohort_event_id]
+                             if cohort_event_id else None)
                         continue
             # 1. Dispossessed Serf or Unemployed Seeking Wage Work
             is_dispossessed = (getattr(worker, 'assigned_plot_id', None) is None
@@ -314,7 +371,9 @@ class LaborMobilityScheduler:
                      after='hired' if hired else 'no_offer_accepted',
                      formula_id='labor.funded_offer_search.v1',
                      inputs={'offers': offer_rows, 'offers_truncated':
-                             max(0, len(firms_with_vacancies) - len(offer_rows))})
+                             max(0, len(firms_with_vacancies) - len(offer_rows))},
+                     cause_event_ids=[cohort_event_id]
+                     if cohort_event_id else None)
                 if hired:
                     continue
 
@@ -398,7 +457,9 @@ class LaborMobilityScheduler:
                              'hurdle': round(hurdle_mult, 4),
                              'options': ranked_options[:8],
                              'options_omitted': max(0, len(ranked_options) - 8),
-                             'emergency': is_emergency})
+                             'emergency': is_emergency},
+                     cause_event_ids=[cohort_event_id]
+                     if cohort_event_id else None)
                 if (best_good and best_good != worker.output
                         and best_return > max(1.5, current_return * hurdle_mult)):
                     old_output = worker.output
@@ -422,6 +483,8 @@ class LaborMobilityScheduler:
                             'required_return_ratio': round(hurdle_mult, 4),
                             'capacity_basis': 'observed_sales_and_recipe_output',
                         },
+                        cause_event_ids=[cohort_event_id]
+                        if cohort_event_id else None,
                     )
                     producer_counts[old_output] = max(0, producer_counts.get(old_output, 0) - 1)
                     producer_counts[best_good] = producer_counts.get(best_good, 0) + 1

@@ -253,7 +253,8 @@ def apply_career_switch(region: Any, worker: Any, new_output: Any, turn: int, *,
                         kind: str = 'career_switch', reason: str = 'career_switch',
                         record_class: str = 'decision', formula_id: str | None = None,
                         inputs: dict | None = None,
-                        constraints: dict | None = None) -> bool:
+                        constraints: dict | None = None,
+                        cause_event_ids: list[str] | None = None) -> bool:
     """Authoritative occupation mutation with tenure tracking and causal trace emission."""
     from goods import Goods
     old_output = getattr(worker, 'primary_livelihood', None)
@@ -301,7 +302,8 @@ def apply_career_switch(region: Any, worker: Any, new_output: Any, turn: int, *,
              metric_id='labor.occupation_change', unit='occupation',
              before=old_name, after=new_name,
              formula_id=formula_id, inputs=payload,
-             constraints=constraints)
+             constraints=constraints,
+             cause_event_ids=cause_event_ids)
     return changed
 
 
