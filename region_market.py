@@ -132,7 +132,8 @@ def calculate_bid(region, agent, good, good_price, current_desired, agent_recipe
             t_cost = transport_cost_per_unit(region)
             if net_foreign <= (good_price + t_cost) * (1.0 + min_margin):
                 return 0
-        max_trader_inventory = agent_recipe['maxinv']
+        max_trader_inventory = region.recipes.get(good, {}).get(
+            'maxinv', agent_recipe.get('maxinv', 10))
         total_holding = agent.inv_get(good, 0) + agent.inventory_export[good.value] + agent.inventory_foreign[good.value]
         for rt in all_routes(region):
             total_holding += rt.holdings_of(agent).get(good, 0)
@@ -247,7 +248,8 @@ def calculate_transport_bid(region, agent, transport_price):
     if not agent.is_trader:
         return 0
     capacity = region.recipes[Goods.transport]['capacity']
-    total_export = sum(agent.inventory_export[g.value] for g in [Goods.food, Goods.wood, Goods.furniture])
+    from world_trade import TRADE_GOODS
+    total_export = sum(agent.inventory_export[g.value] for g in TRADE_GOODS)
     if total_export <= 0:
         return 0
     needed = max(1, (total_export + capacity - 1) // capacity)
@@ -320,7 +322,10 @@ def calculate_bid_limit(region, agent, good, ref, demand_ratio, quantity):
             desk = region.forex_desks.get(dest.name) or getattr(region, 'forex', None)
             fx_rate = desk.buy_rate() if desk is not None else region.exchange_rate
             fee = dest.gov.get_trade_fee_multiplier() if dest.gov is not None else region._trade_fee_mult
-            destination_value = dest.recipes.get(good, {}).get('price', 0.0) * fee * fx_rate
+            tariff = (getattr(dest.gov, 'import_tariff_rate', 0.0)
+                      if getattr(dest.gov, 'import_tariff_enabled', False) else 0.0)
+            destination_value = (dest.recipes.get(good, {}).get('price', 0.0)
+                                 * fee * fx_rate * (1.0 - tariff))
             limit = min(limit, max(0.0, destination_value - transport_cost_per_unit(region)))
 
     available_cash = max(0.0, getattr(agent, 'cash', 0.0))
@@ -1001,8 +1006,11 @@ def trade(region, t):
                     desk = region.forex_desks.get(dest.name) or getattr(region, 'forex', None)
                     fx_rate = desk.buy_rate() if desk is not None else region.exchange_rate
                     fee = dest.gov.get_trade_fee_multiplier() if dest.gov is not None else region._trade_fee_mult
+                    tariff = (getattr(dest.gov, 'import_tariff_rate', 0.0)
+                              if getattr(dest.gov, 'import_tariff_enabled', False) else 0.0)
                     trader_net_value = (dest.recipes.get(good, {}).get('price', 0.0)
-                                        * fee * fx_rate - transport_cost_per_unit(region))
+                                        * fee * fx_rate * (1.0 - tariff)
+                                        - transport_cost_per_unit(region))
             from run_trace import emit
             emit(region, kind='local_buyer_bid', record_class='calculation',
                  subject={'type': 'tile', 'id': region.name, 'good': good.name,

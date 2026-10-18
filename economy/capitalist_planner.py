@@ -101,61 +101,13 @@ class EliteCapitalistPlanner:
         return (t % 5 == 0)
 
     def evaluate_spatial_trade(self, agent: Any, region: Any, t: int) -> Optional[Dict[str, Any]]:
-        """Evaluate inter-regional trade opportunities across neighboring tiles (Sven Beckert macro trade)."""
-        neighbors = getattr(region, 'neighbors', {})
-        if not neighbors:
-            return None
+        """Spatial sales clear through trader routes and the destination auction.
 
-        # 1. Spatial Luxury Import: If local has 0 luxury, but neighbor has luxury for sale
-        if agent.cash >= 30.0:
-            for n_name, neighbor in neighbors.items():
-                # This direct local-cash path has no FX settlement. Foreign
-                # purchases must use the priced route/forex trade system.
-                if neighbor.home_currency != region.home_currency:
-                    continue
-                n_luxuries = self.get_market_luxuries(neighbor)
-                for good, price, prestige, qty in n_luxuries:
-                    total_cost = price + 2.0  # including haulage fee
-                    if agent.cash >= total_cost and agent.inv_get(good, 0) == 0:
-                        seller = next((a for a in neighbor.agents if a.alive and a.inv_get(good, 0) > 0), None)
-                        if seller:
-                            agent.cash -= total_cost
-                            seller.cash += price
-                            seller.inv_add(good, -1)
-                            agent.inv_add(good, 1)
-                            gov = getattr(region, 'gov', None)
-                            if gov and gov.agent:
-                                gov.agent.cash += 2.0
-                            return {
-                                'action_taken': 'SPATIAL_LUXURY_IMPORT',
-                                'details': {'good': good.name if hasattr(good, 'name') else str(good),
-                                            'neighbor': n_name, 'price': price, 'total_cost': total_cost}
-                            }
-
-        # 2. Spatial Export of Finished Goods to High-Price Neighbor:
-        for g in getattr(region, 'goods', []):
-            held = agent.inv_get(g, 0)
-            if held > 0 and g != Goods.food:
-                p_local = float(region.recipes.get(g, {}).get('price', 1.0))
-                for n_name, neighbor in neighbors.items():
-                    if neighbor.home_currency != region.home_currency:
-                        continue
-                    p_neighbor = float(neighbor.recipes.get(g, {}).get('price', 1.0))
-                    if p_neighbor >= p_local + 2.0:
-                        buyer = next((a for a in neighbor.agents if a.alive and a.cash >= p_neighbor), None)
-                        if buyer:
-                            export_qty = min(held, max(1, int(buyer.cash // p_neighbor)))
-                            sale_val = export_qty * p_neighbor
-                            buyer.cash -= sale_val
-                            agent.cash += sale_val
-                            agent.inv_add(g, -export_qty)
-                            buyer.inv_add(g, export_qty)
-                            return {
-                                'action_taken': 'SPATIAL_EXPORT',
-                                'details': {'good': g.name if hasattr(g, 'name') else str(g),
-                                            'neighbor': n_name, 'quantity': export_qty, 'revenue': sale_val}
-                            }
-
+        Kept as a no-op compatibility seam for the elite planner. Direct
+        neighbor-to-neighbor inventory edits bypass freight, FX, and market
+        prices; route traders now respond to profitable destinations and
+        input shortages instead.
+        """
         return None
 
     def evaluate_class_legislation(self, agent: Any, region: Any, t: int) -> Optional[Dict[str, Any]]:

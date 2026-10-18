@@ -273,11 +273,8 @@ class TestCapitalistPropagation(unittest.TestCase):
         self.assertTrue(getattr(self.tile, 'statute_of_laborers', False))
         self.assertLessEqual(firm.wage, 1.50)
 
-    def test_08_macro_spatial_interregional_trade(self):
-        """Verify elite agents evaluate spatial trade pipelines with neighboring tiles.
-        
-        Imports luxuries and raw materials from neighbors to fuel local consumption and production.
-        """
+    def test_08_elite_planner_does_not_bypass_route_auctions(self):
+        """Cross-region inventory only moves through trader routes and auctions."""
         planner = EliteCapitalistPlanner()
         from region_logistics import add_neighbor
 
@@ -299,15 +296,12 @@ class TestCapitalistPropagation(unittest.TestCase):
         initialize_agent(lord, Goods.food, 0, 10, 150.0)
         lord.inv_set(Goods.foreign_luxuries, 0)
 
-        # Lord executes spatial inter-regional trade
+        lord_cash_before = lord.cash
         res = planner.evaluate_spatial_trade(lord, self.tile, t=5)
-        self.assertIsNotNone(res)
-        self.assertEqual(res['action_taken'], 'SPATIAL_LUXURY_IMPORT')
-        self.assertEqual(res['details']['neighbor'], 'Dorset')
-
-        # Lord now holds the imported luxury
-        self.assertEqual(lord.inv_get(Goods.foreign_luxuries, 0), 1)
-        self.assertEqual(seller.inv_get(Goods.foreign_luxuries, 0), 2)
+        self.assertIsNone(res)
+        self.assertEqual(lord.cash, lord_cash_before)
+        self.assertEqual(lord.inv_get(Goods.foreign_luxuries, 0), 0)
+        self.assertEqual(seller.inv_get(Goods.foreign_luxuries, 0), 3)
 
     def test_09_rational_expectations_cobweb_damping(self):
         """Verify rational expected prices damp cobweb overproduction cycles.
@@ -771,5 +765,4 @@ class TestCapitalistPropagation(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-
 

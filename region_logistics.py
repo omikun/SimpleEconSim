@@ -79,20 +79,20 @@ def transport_cost_per_unit(region):
 
 
 def repoint_traders(region):
-    """Re-point each trader at the best-margin neighbour (M0.3)."""
+    """Route traders toward profitable neighbors, including requested inputs."""
     if not region.neighbors:
         return
+    from world_trade import TRADE_GOODS
+    base_freight = transport_cost_per_unit(region)
     for trader in region.trader_agents:
-        if not getattr(trader, 'is_trader', False):
+        if not getattr(trader, 'is_trader', False) or not getattr(trader, 'alive', True):
             continue
-        good = trader.trade_good or Goods.food
-        local_price = region.recipes.get(good, {}).get('price', 0.0)
-        transport_cost = transport_cost_per_unit(region)
-        floor = (local_price + transport_cost) * (1.0 + region.IMPORT_MARGIN_MIN)
         best = None
         best_score = -1e18
         for name, other in region.neighbors.items():
             if not other or getattr(other, 'recipes', None) is None:
+                continue
+            if name not in region.routes:
                 continue
             from terrain_edges import get_edge_manager
             em = get_edge_manager()
@@ -101,20 +101,52 @@ def repoint_traders(region):
                 continue
             desk = region.forex_desks.get(name)
             rate = desk.buy_rate() if desk is not None else 1.0
-            dest_price = other.recipes.get(good, {}).get('price', 0.0)
-            net_foreign = (dest_price * rate) / max(0.2, frict)
-            score = net_foreign - floor
-            if score > best_score:
-                best_score = score
-                best = other
+            gov = getattr(other, 'gov', None)
+            fee = gov.get_trade_fee_multiplier() if gov is not None else 1.0
+            tariff = (getattr(gov, 'import_tariff_rate', 0.0)
+                      if gov is not None and getattr(gov, 'import_tariff_enabled', False)
+                      else 0.0)
+            for good in TRADE_GOODS:
+                if good not in region.recipes or good not in other.recipes:
+                    continue
+                local_price = float(region.recipes[good].get('price', 0.0))
+                dest_price = float(other.recipes[good].get('price', 0.0))
+                if local_price <= 0 or dest_price <= 0:
+                    continue
+                freight = base_freight * max(0.2, frict)
+                net_receipt = dest_price * rate * fee * (1.0 - tariff)
+                unit_margin = net_receipt - local_price - freight
+                if unit_margin <= local_price * region.IMPORT_MARGIN_MIN:
+                    continue
+                requested = 0
+                for company in getattr(other, 'agents', ()):
+                    if (not getattr(company, 'alive', True)
+                            or not getattr(company, 'is_corporation', False)):
+                        continue
+                    recipe = other.recipes.get(company.output, {})
+                    if recipe.get('input') != good:
+                        continue
+                    target = float(recipe.get('numInput', 0)) * 2 * (1 + len(company.employees))
+                    shortfall = max(0.0, target - company.inv_get(good, 0))
+                    affordable = (company.cash / max(0.05, dest_price)
+                                  if dest_price > 0 else 0.0)
+                    requested += int(min(shortfall, affordable))
+                # Input demand selects among otherwise profitable routes and
+                # gives firms' missing materials a visible supply response.
+                demand_bonus = min(local_price * 0.20,
+                                   local_price * 0.05 * requested)
+                score = unit_margin - local_price * region.IMPORT_MARGIN_MIN + demand_bonus
+                if score > best_score:
+                    best_score = score
+                    best = (other, good)
         if best is None or best_score <= 0:
             continue
-        if best is not getattr(trader, 'destination_region', None):
-            trader.destination_region = best
+        trader.destination_region, trader.trade_good = best
 
 
 def post_exports_to_route(region):
     """Move all traders' export inventory onto their destination Route."""
+    from world_trade import TRADE_GOODS
     if not all_routes(region):
         return
     for trader in region.trader_agents:
@@ -128,7 +160,7 @@ def post_exports_to_route(region):
             route = region.route
         if route is None:
             continue
-        for g in [Goods.food, Goods.wood, Goods.furniture]:
+        for g in TRADE_GOODS:
             qty = trader.inventory_export[g.value]
             if g == Goods.food:
                 export_fraction = max(0.0, min(1.0, float(getattr(region, 'food_export_fraction', 1.0))))
@@ -163,9 +195,10 @@ def exit_trader(region, agent):
     for rt in all_routes(region):
         rt.reclaim(agent)
 
+    from world_trade import TRADE_GOODS
     # 2. Gather all tradable lots (export + foreign + parked)
     lots = []
-    for g in [Goods.food, Goods.wood, Goods.furniture]:
+    for g in TRADE_GOODS:
         qty = (agent.inventory_export[g.value]
                + agent.inventory_foreign[g.value]
                + agent.parked_total(g))
@@ -261,7 +294,10 @@ def make_trader_internal(region, agent):
     best_gap = -1.0
     dest = region.destination_region
     if dest is not None:
-        for g in [Goods.food, Goods.wood, Goods.furniture]:
+        from world_trade import TRADE_GOODS
+        for g in TRADE_GOODS:
+            if g not in dest.recipes or g not in region.recipes:
+                continue
             gap = dest.recipes[g]['price'] - region.recipes[g]['price']
             if gap > best_gap:
                 best_gap = gap

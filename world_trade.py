@@ -32,7 +32,10 @@ def route_for(region, partner):
     return getattr(region, 'route', None)
 
 
-GOODS_T1 = (Goods.food, Goods.wood, Goods.furniture)
+TRADE_GOODS = tuple(g for g in Goods
+                    if g not in (Goods.none, Goods.gov, Goods.transport))
+# Kept as an import alias for older callers; routes now carry all commodities.
+GOODS_T1 = TRADE_GOODS
 T1_MARGIN_MIN = 0.05
 
 
@@ -48,12 +51,18 @@ def pending_imports(dest, src):
     """
     pend = {}
     for trader in src.trader_agents:
+        if not getattr(trader, 'is_trader', False) or not getattr(trader, 'alive', True):
+            continue
         if getattr(trader, 'destination_region', None) is dest:
-            for g in GOODS_T1:
+            for g in TRADE_GOODS:
+                if g not in getattr(dest, 'recipes', {}):
+                    continue
                 qty = trader.inventory_foreign[g.value]
                 if qty > 0:
                     pend.setdefault(g, []).append((trader, qty, False))
-        for g in GOODS_T1:
+        for g in TRADE_GOODS:
+            if g not in getattr(dest, 'recipes', {}):
+                continue
             qty = trader.parked_get(dest.name, g, 0)
             if qty > 0:
                 pend.setdefault(g, []).append((trader, qty, True))
@@ -113,7 +122,7 @@ def resolve_parked(regions):
                     continue
                 if dest.name not in x.neighbors:
                     continue
-                for g in GOODS_T1:
+                for g in TRADE_GOODS:
                     qty = bucket[g.value]
                     if qty <= 0:
                         continue
@@ -155,16 +164,16 @@ def settle_trade(t, destination_region, source_region):
     total_sold_quantity = 0
 
     # 1. Log what the destination's priced auction sold for us this turn.
-    for good in [Goods.food, Goods.wood, Goods.furniture]:
+    for good in TRADE_GOODS:
         aq, av = destination_region._auction_import_sales.get(good, (0, 0.0))
-        if aq > 0:
+        if aq > 0 and (good in source_region.export_vol and good in destination_region.import_vol):
             source_region.export_vol[good].append(aq)
             source_region.export_val[good].append(av)
             destination_region.import_vol[good].append(aq)
             destination_region.import_val[good].append(av)
             total_sold_quantity += aq
             total_sold_value += av
-        else:
+        elif good in source_region.export_vol and good in destination_region.import_vol:
             source_region.export_vol[good].append(0)
             source_region.export_val[good].append(0.0)
             destination_region.import_vol[good].append(0)
@@ -261,7 +270,7 @@ def check_trader_holdings(region, other, t):
         if not getattr(trader, 'is_trader', False):
             continue
         holdings = {}
-        for g in [Goods.food, Goods.wood, Goods.furniture]:
+        for g in TRADE_GOODS:
             qty = (trader.inventory_export[g.value]
                    + trader.inventory_foreign[g.value]
                    + trader.parked_total(g))

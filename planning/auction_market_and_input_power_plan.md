@@ -114,4 +114,11 @@ Make a commit after each phase that passes its gate. The first slice may be comm
 - Added `test_market_auction.py` coverage for exact offer conservation and settlement, bid below ask, food reserves, scarce-market price pressure, bid trace replay, and prevention of the direct input bypass.
 - Targeted market, food-security, and capitalist-trade tests passed. A broader run had four unrelated environment errors because `pygame` and `scipy` are unavailable; the remaining tests in those files passed.
 
-**Next:** Phase 2 replaces direct spatial luxury/output transfers with route-based, delivered-price orders and physical shipment settlement. Keep this work in its own commit so phase 1's auction behavior is reviewable independently.
+### Phase 2 — complete (2026-10-18)
+
+- Routes and pending import pools now carry every commodity except government, transport service, and `none`; cotton and industrial inputs no longer stop at the old food/wood/furniture list.
+- Traders compare reachable prices after freight, FX, tariffs, and trade fees. Profitable destination demand for a corporation's missing recipe inputs biases route selection, while the local destination firm still buys arriving stock through its auction.
+- The capitalist planner no longer transfers spatial luxury goods, input goods, or output goods directly between neighboring agents. Imports arrive through trader inventories and destination auctions.
+- Added `test_market_routes.py` for general commodity shipment, delivery into the import pool, destination auction settlement, and trader response to input shortages. These tests and the Phase 1 market tests pass. Broader geographic and UI test files have environment failures from unavailable `scipy`/`pygame`; one unrelated death-context fixture also fails.
+
+**Next:** Phase 3 makes advances/offtake, land ownership, and seasonal water allocations explicit asset and claim transfers. The political concession layer in Phase 4 will then operate on those same real rights.
