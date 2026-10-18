@@ -270,6 +270,9 @@ class Bank():
                     self.total_deposits -= cut
                     self.capital += cut
                     total_haircut += cut
+                    self._record_account_event(agent, 'bank_deposit_haircut',
+                                               float(cut), payer=True,
+                                               detail={'deposit_haircut': True})
                     affected.append({'agent_id': getattr(agent, 'id', None),
                                      'deposit_before': dep, 'haircut': cut})
                     # Psychological and grievance impact on depositor
@@ -398,6 +401,12 @@ def PayLoans(agent, bank=None, trace_region=None):
             needed_from_bank = total_paid - agent.cash
             bank.Withdraw(agent, needed_from_bank)
         agent.cash -= total_paid
+        bank._record_account_event(agent, 'bank_loan_repayment', float(total_paid),
+                                   payer=True, detail={
+                                       'principal_repaid': sum(loan.principle_paid for loan in active_loans)
+                                       - principal_before,
+                                       'interest_paid': sum(loan.interest_paid for loan in active_loans)
+                                       - interest_before}, region=trace_region)
     agent.loans = [l for l in agent.loans if not l.isPaid()]
     if total_paid > 0 and trace_region is not None:
         from run_trace import emit

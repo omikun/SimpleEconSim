@@ -111,6 +111,9 @@ def forgive_bad_debt(bank, amount, t):
                     continue
                 share = bal * (dep_absorb / pool)
                 bank.deposits[owner] = max(0.0, bal - share)
+                bank._record_account_event(owner, 'bank_deposit_haircut',
+                                           float(share), payer=True,
+                                           detail={'bad_debt_bail_in': True})
             bank.total_deposits -= dep_absorb
             logwarning(t, f"DEPOSITOR BAIL-IN: ${dep_absorb:.2f} of "
                           f"${amount:.2f} bad debt absorbed by depositors "

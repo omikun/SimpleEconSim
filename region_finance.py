@@ -304,6 +304,11 @@ def collect_tax(region, t):
                 bank.Withdraw(gov, payment - gov.cash)
             gov.cash -= payment
             loan.pay(payment)
+            from economy.actor_accounts import record as record_economic_event
+            record_economic_event(region, 'bank_loan_repayment', turn=t,
+                                  payer_id=gov.id, amount=payment,
+                                  detail={'public_debt_service': True,
+                                          'principal_remaining_before': remaining})
             _trace_treasury_flow(region, 'government_loan_service', -payment,
                                  {'loan_principal_remaining_before': remaining,
                                   'amount_due': amount_due})

@@ -3036,7 +3036,9 @@
           ? ` · bank debt $${Number(account.opening_bank_debt).toFixed(2)} → $${Number(account.closing_bank_debt).toFixed(2)}` : '';
         const deposits = Number(account.opening_bank_deposit || 0) || Number(account.closing_bank_deposit || 0)
           ? ` · deposits $${Number(account.opening_bank_deposit).toFixed(2)} → $${Number(account.closing_bank_deposit).toFixed(2)}` : '';
-        row.textContent = `${account.actor_name}: ${earned}${delivered} · cash $${Number(account.opening_cash).toFixed(2)} → $${Number(account.closing_cash).toFixed(2)}${scrip} · food ${account.opening_food} → ${account.closing_food} · debt $${Number(account.opening_debt).toFixed(2)} → $${Number(account.closing_debt).toFixed(2)}${bankDebt}${deposits}${unposted}. Recorded costs may be incomplete.`;
+        const companyDebt = Number(account.opening_company_debt || 0) || Number(account.closing_company_debt || 0)
+          ? ` · company debt $${Number(account.opening_company_debt).toFixed(2)} → $${Number(account.closing_company_debt).toFixed(2)}` : '';
+        row.textContent = `${account.actor_name}: ${earned}${delivered} · cash $${Number(account.opening_cash).toFixed(2)} → $${Number(account.closing_cash).toFixed(2)}${scrip} · food ${account.opening_food} → ${account.closing_food} · debt $${Number(account.opening_debt).toFixed(2)} → $${Number(account.closing_debt).toFixed(2)}${companyDebt}${bankDebt}${deposits}${unposted}. Recorded costs may be incomplete.`;
         supplyDetails.appendChild(row);
       }
 

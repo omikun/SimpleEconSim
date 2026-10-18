@@ -44,6 +44,7 @@ def begin_turn(region, turn):
                'bank_debt': sum(max(0.0, float(loan.principle) - float(loan.principle_paid))
                                 for loan in getattr(bank, 'loans', [])
                                 if loan.agent is a) if bank else 0.0,
+               'company_debt': float(getattr(a, 'company_debt', 0.0)),
                'food': int(a.inv_get(Goods.food, 0)),
                'inventory': {g.name: int(a.inv_get(g, 0)) for g in getattr(region, 'recipes', {})},
                'debt': sum(float(c.balance) for c in getattr(region, 'cash_obligations', [])
@@ -96,7 +97,7 @@ def seal_turn(region, turn):
                          and e['kind'] == 'input_consumed')
         prior = opening[actor.id]
         noncash = ('production', 'input_consumed', 'scrip_wage',
-                   'scrip_store_sale', 'scrip_food_credit')
+                   'scrip_store_sale', 'scrip_food_credit', 'bank_deposit_haircut')
         cash_in = sum((e['detail'].get('seller_receipt', e['amount'])
                        if e['kind'] == 'spot_sale' else e['amount'])
                       for e in own if e['recipient_id'] == actor.id
@@ -110,6 +111,10 @@ def seal_turn(region, turn):
                           and e['kind'] == 'fx_conversion')
         fx_paid = sum(e['amount'] for e in own if e['payer_id'] == actor.id
                       and e['kind'] == 'fx_conversion')
+        bank_loan_repayment = sum(e['amount'] for e in own if e['payer_id'] == actor.id
+                                  and e['kind'] == 'bank_loan_repayment')
+        bank_deposit_loss = sum(e['amount'] for e in own if e['payer_id'] == actor.id
+                                and e['kind'] == 'bank_deposit_haircut')
         for_lease = [p.plot_id for p in getattr(getattr(region, 'tenure', None), 'plots', [])
                      if getattr(p, 'controlled_by_id', None) == actor.id]
         debt = sum(float(c.balance) for c in getattr(region, 'cash_obligations', [])
@@ -118,6 +123,7 @@ def seal_turn(region, turn):
         bank_deposit = float(bank.deposits.get(actor, 0.0)) if bank else 0.0
         bank_debt = sum(max(0.0, float(loan.principle) - float(loan.principle_paid))
                         for loan in getattr(bank, 'loans', []) if loan.agent is actor) if bank else 0.0
+        company_debt = float(getattr(actor, 'company_debt', 0.0))
         output = getattr(actor, 'output', None)
         output_name = _name(output)
         produced = sum(e['quantity'] for e in events if e['recipient_id'] == actor.id
@@ -139,6 +145,8 @@ def seal_turn(region, turn):
             'owner_financing_received': round(financing, 2),
             'fx_converted_in': round(fx_received, 2),
             'fx_converted_out': round(fx_paid, 2),
+            'bank_loan_repayment_cash': round(bank_loan_repayment, 2),
+            'bank_deposit_loss': round(bank_deposit_loss, 2),
             'opening_food': prior['food'], 'closing_food': int(actor.inv_get(Goods.food, 0)),
             'food_intake': round(float(getattr(actor, 'last_calories_eaten', 0.0)) / 500.0, 2),
             'opening_debt': round(prior['debt'], 2), 'closing_debt': round(debt, 2),
@@ -146,6 +154,8 @@ def seal_turn(region, turn):
             'closing_bank_deposit': round(bank_deposit, 2),
             'opening_bank_debt': round(prior['bank_debt'], 2),
             'closing_bank_debt': round(bank_debt, 2),
+            'opening_company_debt': round(prior['company_debt'], 2),
+            'closing_company_debt': round(company_debt, 2),
             'sales_cash': round(receipts, 2), 'crop_value': round(crop_value, 2),
             'purchases_cash': round(purchases, 2), 'wages_cash': round(wages, 2),
             'delivered_input_purchase_cash': round(delivered_input_spend, 2),

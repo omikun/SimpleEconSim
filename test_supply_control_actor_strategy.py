@@ -94,16 +94,22 @@ class ActorAccountTests(unittest.TestCase):
         region = Region()
         worker, firm = Person(3, 0), Person(8, 20, Goods.cloth)
         firm.is_corporation = True
+        worker.company_debt = 0.0
         region.agents = [worker, firm]
         begin_turn(region, 5)
         worker.scrip_wallet = 6.0
         record(region, 'scrip_wage', turn=5, payer_id=firm.id,
                recipient_id=worker.id, amount=6,
                detail={'tender': 'company_scrip'})
+        worker.company_debt = 4.5
+        record(region, 'scrip_food_credit', turn=5, payer_id=firm.id,
+               recipient_id=worker.id, amount=4.5, debt_credit=4.5,
+               detail={'tender': 'company_store_credit'})
         rows = {a['actor_id']: a for a in seal_turn(region, 5)}
         self.assertEqual(rows[firm.id]['wages_cash'], 0)
         self.assertEqual(rows[worker.id]['cash_change'], 0)
         self.assertEqual(rows[worker.id]['scrip_change'], 6)
+        self.assertEqual(rows[worker.id]['closing_company_debt'], 4.5)
         self.assertEqual(rows[firm.id]['unposted_cash_change'], 0)
 
     def test_foreign_exchange_conversion_is_in_cash_bridge(self):
@@ -143,6 +149,7 @@ class ActorAccountTests(unittest.TestCase):
         from econsim_trade_money import Bank
         region = Region()
         actor = Person(3, 20)
+        actor.loans = []
         region.agents = [actor]
         bank = Bank()
         bank._attached_regions = [region]
@@ -150,12 +157,19 @@ class ActorAccountTests(unittest.TestCase):
         begin_turn(region, 8)
         bank.Deposit(actor, 10)
         bank.Withdraw(actor, 4)
+        bank.Borrow(8, actor, 100)
+        from econsim_trade_money import PayLoans
+        PayLoans(actor, bank=bank)
+        bank.apply_bail_in_haircut(haircut_pct=.25, exemption_floor=1)
         account = next(a for a in seal_turn(region, 8) if a['actor_id'] == actor.id)
-        self.assertEqual(actor.cash, 14)
-        self.assertEqual(bank.deposits[actor], 6)
-        self.assertEqual(account['cash_change'], -6)
-        self.assertEqual(account['posted_cash_change'], -6)
-        self.assertEqual(account['closing_bank_deposit'], 6)
+        self.assertAlmostEqual(actor.cash, 112.9)
+        self.assertEqual(bank.deposits[actor], 4.75)
+        self.assertAlmostEqual(account['cash_change'], 92.9)
+        self.assertAlmostEqual(account['posted_cash_change'], 92.9)
+        self.assertEqual(account['closing_bank_deposit'], 4.75)
+        self.assertEqual(account['bank_deposit_loss'], 1.25)
+        self.assertEqual(account['closing_bank_debt'], 99)
+        self.assertAlmostEqual(account['bank_loan_repayment_cash'], 1.1)
 
 
 class PoliticalCampaignCurrencyTests(unittest.TestCase):

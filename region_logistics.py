@@ -294,6 +294,10 @@ def exit_trader(region, agent):
             break
         agent.cash -= payment
         loan.pay(payment)
+        from economy.actor_accounts import record as record_economic_event
+        record_economic_event(region, 'bank_loan_repayment', turn=getattr(region, '_last_turn', 0),
+                              payer_id=agent.id, amount=payment,
+                              detail={'trader_exit_settlement': True})
         if loan.isPaid():
             agent.loans.pop(0)
 

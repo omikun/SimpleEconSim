@@ -32,19 +32,23 @@ already fun or balanced; that still needs player feedback.
   named cash, crop receipts, food, debt, supply offers, and relevant rights.
   Statements label cost coverage as incomplete. Web additionally shows scrip
   balances and cash movement not yet matched to journal postings.
-- Recent 50-turn default runs created 145 firm and 294 grower account rows,
-  10–13 supply proposals, and no active contracts/charters at the end. Across
-  seeds 4242–4244, final-turn sums of absolute unmatched actor cash movements
-  ranged from $21,015 to $31,338, showing that a full per-actor cash bridge is
-  not complete. Some
+- Recent 50-turn default runs created 119–145 firm and 283–294 grower account
+  rows, and 10–13 supply proposals, with no active contracts/charters at the
+  end. The latest post-bank-adapter run (seed 4242) still had $17,367.46 in the
+  final-turn sum of absolute unmatched actor cash movements. Earlier seeds
+  ranged from $21,015 to $31,338 before those adapters, so full per-actor cash
+  reconciliation remains open. Some
   unmatched movement is from legacy systems that have not been connected to this
   journal; do not read the displayed recorded result as complete profit. The
-  benchmark now names the eight largest unmatched actors; the top absolute gap
-  was $1,713.25 for a grower and $1,463.82 for a corporation, giving the next
-  instrumentation pass concrete targets.
-- Bank deposit/withdrawal, loan issuance, and deposit interest now post named
-  cash events; turn accounts separately expose bank deposits and outstanding
-  bank principal. Loan repayment, default, and write-down adapters remain open.
+  benchmark names the eight largest unmatched actors and their posted event
+  kinds. In the latest run the largest gaps were $1,776 for a resident and
+  $1,580 for a corporation, giving the next instrumentation pass concrete
+  targets.
+- Bank deposits/withdrawals, loan issuance/repayment, deposit interest, and
+  deposit haircuts now post named events. Turn accounts expose bank savings,
+  outstanding bank principal, company-store debt, and distinct repayment and
+  haircut totals. Heirless bad-debt bail-ins are also journaled. Broader loan
+  defaults/write-offs and all foreign inheritance paths remain open.
 - Remaining gate work: complete loan repayment/default and
   farmgate-to-route-to-import accounting for every cargo source. The latest
   default runs also expose large unposted actor cash changes; scrip, FX, and
@@ -139,7 +143,7 @@ already fun or balanced; that still needs player feedback.
   gathered, and parked/re-routed legacy cargo does not retain the same link.
   FX and tariff conversions also remain separate cash legs rather than a fully
   normalized per-shipment delivered-cost calculation.
-- `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_supply_control_actor_strategy test_supply_rights test_market_auction test_market_routes test_web_client_parity` — 63 tests passed after bank account, campaign-currency, and linked shipment-lot additions.
+- `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_supply_control_actor_strategy test_supply_rights test_market_auction test_market_routes test_web_client_parity test_truck_system_and_scrip` — 67 tests passed after bank debt, company-store debt, campaign-currency, and linked shipment additions.
 - `node --check web_client/client.js` — passed.
 - `git diff --check` — passed.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python benchmark_supply_rivalry.py` — 12 matched runs, zero reported currency violations.
