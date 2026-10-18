@@ -220,7 +220,7 @@ consumption records distinguish wealth use, stockpile drawdown, and stochastic
 wear. Elite luxury consumption records inventory drawdown, per-good prestige
 ratings and saturation gains, status-tier changes, and the capped decay that
 applies when no prestige goods are consumed. Other untraced imperial claim
-paths, additional household support channels, other subsidies, remaining
+paths, additional household support channels, other subsidies, additional
 police enforcement transfers and any recurring police upkeep mechanic,
 remaining military service costs, and many scenario costs still need complete
 transfer contracts. Egypt's
@@ -1205,3 +1205,20 @@ trace-on/off state parity. Obligation, enforcement, enclosure, labor, cadastre,
 and metric-catalog suites passed (45 tests); compilation and `git diff --check`
 passed. Production assesses rent as named claims; the standalone direct rent
 collector is not called by the production stepper.
+
+Phase 3/4 follow-up, 2026-10-18: assassination contracts now trace the leader,
+active-plot, and treasury funding gates; the exact treasury-to-constable or
+treasury-to-charity payment; and the commissioned plot. If the existing logic
+debits funds without a recipient, the trace records a policy expenditure with
+an explicit missing cash payee instead of inventing a credit. The active plot
+keeps a stable operation key (not an event ID) for cross-turn lookup. Each
+detection check records its actual random draw, risk, and remaining duration;
+the blown, target-missing, decapitation, or martyrdom outcome is recorded. The
+final outcome links to the registered death row, whose optional trace-ID return
+path keeps event IDs local to the trace.
+
+Verification: traced and untraced commissioning, decapitation, martyrdom, and
+detection fixtures match for game state and RNG state. The assassination,
+rebellion, metric-catalog, person-death, food-intake, and run-trace suites
+passed (53 tests); the medical/disease regression script, compilation, and
+`git diff --check` passed.

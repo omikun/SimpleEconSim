@@ -44,6 +44,53 @@ def _safe_ticker_push(world: dict | None, t: int, category: str, msg: str, color
 
 from agents.resistance.models import AssassinationPlot, RebellionConfig, ResistanceState
 
+
+def _trace_assassination_detection(tile, turn, plot, draw, turns_before):
+    from run_trace import emit
+
+    detected = bool(draw < plot.detection_risk_per_turn
+                    and plot.turns_remaining > 0)
+    reason = ('plot_detected_before_strike' if detected else
+              'strike_due' if plot.turns_remaining <= 0 else 'plot_remains_hidden')
+    return emit(
+        tile, kind='assassination_detection_check', record_class='decision',
+        phase='politics',
+        subject={'type': 'tile/agent', 'id': str(plot.target_leader_id),
+                 'tile': tile.name},
+        metric_id='politics.assassination_detection', unit='boolean',
+        before=False, after=detected,
+        formula_id='assassination.plot_detection.v1',
+        inputs={'turn': int(turn), 'operation_id': getattr(plot, 'operation_id', None),
+                'target_leader_id': int(plot.target_leader_id),
+                'detection_draw': float(draw),
+                'detection_risk': float(plot.detection_risk_per_turn),
+                'turns_remaining_before': int(turns_before),
+                'turns_remaining_after': int(plot.turns_remaining),
+                'reason_code': reason})
+
+
+def _trace_assassination_outcome(tile, turn, plot, outcome, *,
+                                 status_before, status_after, inputs=None,
+                                 cause_event_ids=None):
+    from run_trace import emit
+
+    target_id = getattr(plot, 'target_leader_id', None)
+    return emit(
+        tile, kind='assassination_plot_outcome', record_class='outcome',
+        phase='politics',
+        subject={'type': 'tile/agent',
+                 'id': str(target_id) if target_id is not None else 'unknown',
+                 'tile': tile.name},
+        metric_id='politics.assassination_outcome', unit='status',
+        before=status_before, after=status_after,
+        formula_id='assassination.plot_outcome.v1',
+        inputs={'turn': int(turn), 'operation_id': getattr(plot, 'operation_id', None),
+                'target_leader_id': target_id,
+                'target_leader_name': getattr(plot, 'target_leader_name', None),
+                'outcome': outcome, **(inputs or {})},
+        cause_event_ids=cause_event_ids)
+
+
 class PopularResistanceManager:
     """Orchestrates anti-enclosure revolts, general strikes, barricades, and commune transitions."""
 
@@ -186,15 +233,32 @@ class PopularResistanceManager:
         # Check active covert assassination plot if movement is already mobilized (dormant movements advance plot in step_rebellion_fermentation)
         if state.enclosure_stage != "dormant" and state.active_plot and state.active_plot.status == "in_progress":
             plot = state.active_plot
+            turns_before = plot.turns_remaining
             plot.turns_remaining -= 1
+            detection_draw = random.random()
+            detection_event_id = _trace_assassination_detection(
+                tile, t, plot, detection_draw, turns_before)
 
-            if random.random() < plot.detection_risk_per_turn and plot.turns_remaining > 0:
+            if detection_draw < plot.detection_risk_per_turn and plot.turns_remaining > 0:
+                charisma_before = None
+                charisma_after = None
                 plot.status = "blown"
                 state.active_plot = None
                 leader = next((a for a in getattr(tile, 'agents', []) if a.id == state.leader_id and getattr(a, 'alive', True)), None)
                 if leader:
+                    charisma_before = float(getattr(leader, 'charisma', 0.5))
                     leader.charisma = min(1.0, getattr(leader, 'charisma', 0.5) + 0.15)
                     state.leader_charisma = leader.charisma
+                    charisma_after = float(leader.charisma)
+                _trace_assassination_outcome(
+                    tile, t, plot, 'plot_blown', status_before='in_progress',
+                    status_after='blown',
+                    inputs={'detection_draw': float(detection_draw),
+                            'detection_risk': float(plot.detection_risk_per_turn),
+                            'leader_charisma_before': charisma_before,
+                            'leader_charisma_after': charisma_after},
+                    cause_event_ids=([detection_event_id]
+                                     if detection_event_id else None))
                 ev = {
                     'turn': t,
                     'kind': 'ASSASSINATION_PLOT_BLOWN',
@@ -208,7 +272,10 @@ class PopularResistanceManager:
                 if world:
                     _safe_ticker_push(world, t, 'ALERT', f"⚠️ {ev['msg']}", (240, 80, 80))
             elif plot.turns_remaining <= 0:
-                ok, msg, data = self.resolve_assassination_strike(tile, t, world)
+                ok, msg, data = self.resolve_assassination_strike(
+                    tile, t, world,
+                    cause_event_ids=([detection_event_id]
+                                     if detection_event_id else None))
                 ev = {
                     'turn': t,
                     'kind': 'ASSASSINATION_STRIKE_RESOLVED',
@@ -1053,15 +1120,32 @@ class PopularResistanceManager:
         # Check active covert assassination plot
         if state.active_plot and state.active_plot.status == "in_progress":
             plot = state.active_plot
+            turns_before = plot.turns_remaining
             plot.turns_remaining -= 1
+            detection_draw = random.random()
+            detection_event_id = _trace_assassination_detection(
+                tile, t, plot, detection_draw, turns_before)
 
-            if random.random() < plot.detection_risk_per_turn and plot.turns_remaining > 0:
+            if detection_draw < plot.detection_risk_per_turn and plot.turns_remaining > 0:
+                charisma_before = None
+                charisma_after = None
                 plot.status = "blown"
                 state.active_plot = None
                 leader = next((a for a in getattr(tile, 'agents', []) if a.id == state.leader_id and getattr(a, 'alive', True)), None)
                 if leader:
+                    charisma_before = float(getattr(leader, 'charisma', 0.5))
                     leader.charisma = min(1.0, getattr(leader, 'charisma', 0.5) + 0.15)
                     state.leader_charisma = leader.charisma
+                    charisma_after = float(leader.charisma)
+                _trace_assassination_outcome(
+                    tile, t, plot, 'plot_blown', status_before='in_progress',
+                    status_after='blown',
+                    inputs={'detection_draw': float(detection_draw),
+                            'detection_risk': float(plot.detection_risk_per_turn),
+                            'leader_charisma_before': charisma_before,
+                            'leader_charisma_after': charisma_after},
+                    cause_event_ids=([detection_event_id]
+                                     if detection_event_id else None))
                 ev = {
                     'turn': t,
                     'kind': 'ASSASSINATION_PLOT_BLOWN',
@@ -1075,7 +1159,10 @@ class PopularResistanceManager:
                 if world:
                     _safe_ticker_push(world, t, 'ALERT', f"⚠️ {ev['msg']}", (240, 80, 80))
             elif plot.turns_remaining <= 0:
-                ok, msg, data = self.resolve_assassination_strike(tile, t, world)
+                ok, msg, data = self.resolve_assassination_strike(
+                    tile, t, world,
+                    cause_event_ids=([detection_event_id]
+                                     if detection_event_id else None))
                 ev = {
                     'turn': t,
                     'kind': 'ASSASSINATION_STRIKE_RESOLVED',
@@ -1189,24 +1276,155 @@ class PopularResistanceManager:
         """
         state = self.get_state(tile.name)
         leader = self._find_or_emerge_leader(tile)
+        rgov = getattr(tile, 'gov', None)
+        gov_agent = rgov.agent if rgov and hasattr(rgov, 'agent') else None
+        gov_cash = float(gov_agent.cash) if gov_agent is not None else 0.0
+        existing_plot = bool(state.active_plot
+                             and state.active_plot.status == 'in_progress')
         if not leader:
+            reason = 'no_active_rebellion_leader'
+        elif existing_plot:
+            reason = 'assassination_plot_already_active'
+        elif gov_agent is None:
+            reason = 'municipal_treasury_missing'
+        elif gov_cash < operative_funds:
+            reason = 'insufficient_municipal_treasury'
+        else:
+            reason = 'funding_available'
+        operation_sequence = int(getattr(tile, '_next_economic_event_id', 1))
+        operation_id = (f'assassination-plot:{tile.name}:{int(t)}:'
+                        f'{getattr(leader, "id", "unknown")}:'
+                        f'{operation_sequence}')
+        from run_trace import emit as emit_trace
+        funding_decision_event_id = emit_trace(
+            tile, kind='assassination_plot_funding_decision',
+            record_class='decision', phase='policy_action',
+            subject={'type': 'tile/agent',
+                     'id': str(getattr(leader, 'id', operation_id)),
+                     'tile': tile.name},
+            metric_id='politics.assassination_funding', unit='boolean',
+            before=False, after=(reason == 'funding_available'),
+            formula_id='assassination.plot_funding_gate.v1',
+            inputs={'operation_id': operation_id,
+                    'reason_code': reason,
+                    'leader_found': leader is not None,
+                    'leader_id': str(leader.id) if leader else None,
+                    'active_plot_before': existing_plot,
+                    'municipal_treasury_present': gov_agent is not None,
+                    'municipal_treasury_cash_before': gov_cash,
+                    'funding_required': float(operative_funds),
+                    'cash_shortfall': max(0.0, float(operative_funds) - gov_cash),
+                    'turn': int(t)})
+        if reason == 'no_active_rebellion_leader':
             return False, f"No active rebellion leader identified in {tile.name}.", {}
 
-        if state.active_plot and state.active_plot.status == "in_progress":
+        if reason == 'assassination_plot_already_active':
             return False, f"An assassination operation is already underway against {state.leader_name} in {tile.name}.", {}
 
-        rgov = getattr(tile, 'gov', None)
-        gov_cash = rgov.agent.cash if (rgov and hasattr(rgov, 'agent')) else 0.0
-        if gov_cash < operative_funds:
+        if reason in ('municipal_treasury_missing', 'insufficient_municipal_treasury'):
             return False, f"Insufficient municipal treasury funds (${gov_cash:.2f} < ${operative_funds:.2f}) to finance an assassination contract.", {}
 
         # Conserved funds transfer
+        treasury_cash_before = float(gov_agent.cash)
+        police_agents = [a for a in getattr(tile, 'agents', [])
+                         if getattr(a, 'is_police', False)
+                         or getattr(a, 'social_class', '') == 'constable']
+        payee = police_agents[0] if police_agents else None
+        payee_type = 'constable_wallet' if payee is not None else None
+        if payee is None:
+            charity = getattr(tile, 'charity', None)
+            if charity is not None and hasattr(charity, 'agent'):
+                payee = charity.agent
+                payee_type = 'charity_wallet'
+        payee_cash_before = float(payee.cash) if payee is not None else None
         rgov.agent.cash -= operative_funds
-        police_agents = [a for a in getattr(tile, 'agents', []) if getattr(a, 'is_police', False) or getattr(a, 'social_class', '') == 'constable']
-        if police_agents:
-            police_agents[0].cash += operative_funds
-        elif getattr(tile, 'charity', None) and hasattr(tile.charity, 'agent'):
-            tile.charity.agent.cash += operative_funds
+        if payee is not None:
+            payee.cash += operative_funds
+
+        currency = (getattr(gov_agent, 'home_currency', None)
+                    or getattr(tile, 'home_currency', None)
+                    or 'local_currency')
+        from economy.actor_accounts import record as record_economic_event
+        journal_event = record_economic_event(
+            tile, 'assassination_contract_funding', turn=t,
+            payer_id=gov_agent.id,
+            recipient_id=getattr(payee, 'id', None) if payee is not None else None,
+            amount=operative_funds, asset_id=operation_id,
+            source_id=operation_id, currency=currency,
+            detail={'target_leader_id': int(leader.id),
+                    'recipient_type': payee_type,
+                    'uncredited_debit': payee is None})
+
+        if payee is not None:
+            from finance_trace import (account_ref, cash_transfer_contract,
+                                       emit_cash_transfer)
+            payee_currency = (getattr(payee, 'home_currency', None)
+                              or getattr(tile, 'home_currency', None)
+                              or currency)
+            funding_contract = cash_transfer_contract(
+                operation_id, 'assassination_contract_funding',
+                amount=operative_funds, currency=currency,
+                payer_account=account_ref(
+                    'government_wallet', str(gov_agent.id), currency,
+                    tile=tile.name,
+                    balance_before=treasury_cash_before,
+                    balance_after=float(gov_agent.cash),
+                    balance_scope='cash_wallet'),
+                payee_account=account_ref(
+                    payee_type, str(payee.id), payee_currency,
+                    tile=tile.name,
+                    balance_before=payee_cash_before,
+                    balance_after=float(payee.cash),
+                    balance_scope='cash_wallet'),
+                counterparty_leg_status='both_cash_balances_captured',
+                mutation_reference={'turn': int(t), 'tile': tile.name,
+                                    'target_leader_id': int(leader.id)},
+                currency_conversion_applied=False,
+                unconverted_currency_mismatch=(currency != payee_currency))
+            funding_event_id = emit_cash_transfer(
+                tile, kind='assassination_contract_funding',
+                contract=funding_contract, phase='policy_action',
+                subject={'type': 'tile/operation', 'id': operation_id,
+                         'tile': tile.name},
+                inputs={'turn': int(t), 'target_leader_id': int(leader.id),
+                        'recipient_type': payee_type,
+                        'recipient_id': str(payee.id),
+                        'actor_account_event_id': journal_event['id']},
+                cause_event_ids=([funding_decision_event_id]
+                                 if funding_decision_event_id else None))
+        else:
+            from finance_trace import account_ref, transfer_contract
+            from run_trace import emit
+            funding_contract = transfer_contract(
+                operation_id, 'assassination_contract_funding', side='payer',
+                amount=float(operative_funds), amount_currency=currency,
+                payer_account=account_ref(
+                    'government_wallet', str(gov_agent.id), currency,
+                    tile=tile.name,
+                    balance_before=treasury_cash_before,
+                    balance_after=float(gov_agent.cash),
+                    balance_scope='cash_wallet'),
+                payee_account={'type': 'unmodeled_assassination_operatives',
+                               'id': operation_id,
+                               'cash_balance_captured': False},
+                local_cash_leg_amount=float(operative_funds),
+                local_cash_leg_currency=currency,
+                counterparty_leg_status='policy_expenditure_no_cash_payee',
+                source='assassination_contract_funding', turn=int(t))
+            funding_event_id = emit(
+                tile, kind='assassination_contract_uncredited_expenditure',
+                record_class='transfer', phase='policy_action',
+                subject={'type': 'tile/operation', 'id': operation_id,
+                         'tile': tile.name},
+                metric_id='finance.policy_expenditure', unit=currency,
+                after=-float(operative_funds),
+                inputs={'operation_id': operation_id,
+                        'target_leader_id': int(leader.id),
+                        'actor_account_event_id': journal_event['id'],
+                        'reason_code': 'existing_logic_has_no_recipient',
+                        'transfer_contract': funding_contract},
+                cause_event_ids=([funding_decision_event_id]
+                                 if funding_decision_event_id else None))
 
         if turns_delay is None:
             turns_delay = random.randint(2, 4)
@@ -1221,9 +1439,31 @@ class PopularResistanceManager:
             total_turns=turns_delay,
             funding_allocated=operative_funds,
             detection_risk_per_turn=0.10,
-            status="in_progress"
+            status="in_progress",
+            operation_id=operation_id
         )
         state.active_plot = plot
+
+        emit_trace(
+            tile, kind='assassination_plot_commissioned',
+            record_class='outcome', phase='policy_action',
+            subject={'type': 'tile/operation', 'id': operation_id,
+                     'tile': tile.name},
+            metric_id='politics.assassination_plot', unit='status',
+            before='inactive', after='in_progress',
+            formula_id='assassination.plot_commission.v1',
+            inputs={'operation_id': operation_id, 'turn': int(t),
+                    'target_leader_id': int(leader.id),
+                    'target_leader_name': state.leader_name,
+                    'funding_allocated': float(operative_funds),
+                    'currency': currency, 'recipient_type': payee_type,
+                    'recipient_id': str(payee.id) if payee is not None else None,
+                    'recipient_cash_credited': payee is not None,
+                    'turns_delay': int(turns_delay),
+                    'detection_risk_per_turn': 0.10},
+            cause_event_ids=[event_id for event_id in
+                             (funding_decision_event_id, funding_event_id)
+                             if event_id])
 
         msg = f"Covert assassination contract commissioned against {state.leader_name} in {tile.name} (${operative_funds:.2f} disbursed, striking in ~{turns_delay} turns)."
         if world:
@@ -1231,18 +1471,40 @@ class PopularResistanceManager:
 
         return True, msg, {'turns_delay': turns_delay, 'funding': operative_funds, 'target_id': leader.id}
 
-    def resolve_assassination_strike(self, tile: Region, t: int, world: dict | None = None) -> Tuple[bool, str, Dict[str, Any]]:
+    def resolve_assassination_strike(self, tile: Region, t: int,
+                                     world: dict | None = None,
+                                     cause_event_ids=None) -> Tuple[bool, str, Dict[str, Any]]:
         """Resolve an assassination strike on the leader: Decapitation vs. Martyrdom Cascade."""
         state = self.get_state(tile.name)
+        plot = state.active_plot
+        status_before = getattr(plot, 'status', 'in_progress')
         leader = next((a for a in getattr(tile, 'agents', []) if a.id == state.leader_id and getattr(a, 'alive', True)), None)
         if not leader:
             state.active_plot = None
             state.leader_id = None
+            if plot is not None:
+                _trace_assassination_outcome(
+                    tile, t, plot, 'target_missing',
+                    status_before=status_before, status_after='target_missing',
+                    inputs={'death_recorded': False},
+                    cause_event_ids=cause_event_ids)
             return False, "Target leader was already dead or missing.", {}
+        if plot is None:
+            from types import SimpleNamespace
+            plot = SimpleNamespace(
+                target_leader_id=leader.id,
+                target_leader_name=state.leader_name,
+                operation_id=None, status='in_progress')
 
         # Use the same person ledger and probate path as other violent deaths.
         from demographics_estate import settle_external_death
-        settle_external_death(tile, t, leader, 'assassination')
+        death_trace_event_ids = []
+        operation_id = getattr(plot, 'operation_id', None)
+        death_recorded = settle_external_death(
+            tile, t, leader, 'assassination',
+            death_trace_event_ids=death_trace_event_ids,
+            death_trace_inputs=({'assassination_operation_id': operation_id}
+                                if operation_id else None))
         setattr(leader, 'in_revolt', False)
         setattr(leader, 'is_striking', False)
 
@@ -1287,6 +1549,18 @@ class PopularResistanceManager:
             msg = f"SHADOW STRIKE: Rebel leader {state.leader_name} was assassinated in {tile.name}! Without organizational roots, the movement shatters and followers scatter."
             if world:
                 _safe_ticker_push(world, t, 'MILITARY', f"🗡️ {msg}", (180, 120, 120))
+            _trace_assassination_outcome(
+                tile, t, plot, 'decapitation',
+                status_before=status_before,
+                status_after='struck_decapitation',
+                inputs={'death_recorded': bool(death_recorded),
+                        'followers_before': int(F),
+                        'sympathizer_capacity': int(K),
+                        'critical_follower_threshold': int(F_crit),
+                        'terror_cooldown_after': int(state.terror_cooldown)},
+                cause_event_ids=[event_id for event_id in
+                                 [*(cause_event_ids or []),
+                                  *death_trace_event_ids] if event_id])
             return True, msg, {'outcome': 'decapitation', 'leader_name': state.leader_name, 'followers_before': F, 'f_crit': F_crit}
 
         # Case 2: Martyrdom Cascade (F >= F_crit)
@@ -1326,6 +1600,21 @@ class PopularResistanceManager:
         msg = f"🔥 BLOOD OF THE MARTYR! {state.martyrs[-1]} was assassinated in {tile.name}! Public outrage explodes, surging {len(state.followers)} followers into immediate open revolt!"
         if world:
             _safe_ticker_push(world, t, 'ALERT', f"⚔️ {msg}", (255, 40, 40))
+
+        _trace_assassination_outcome(
+            tile, t, plot, 'martyrdom', status_before=status_before,
+            status_after='struck_martyrdom',
+            inputs={'death_recorded': bool(death_recorded),
+                    'followers_before': int(F),
+                    'followers_after': len(state.followers),
+                    'sympathizer_capacity': int(K),
+                    'critical_follower_threshold': int(F_crit),
+                    'martyrdom_multiplier_after': float(
+                        state.martyrdom_multiplier),
+                    'unrest_after': float(tile.unrest_level)},
+            cause_event_ids=[event_id for event_id in
+                             [*(cause_event_ids or []),
+                              *death_trace_event_ids] if event_id])
 
         return True, msg, {'outcome': 'martyrdom', 'leader_name': state.martyrs[-1], 'followers_now': len(state.followers), 'f_crit': F_crit, 'multiplier': state.martyrdom_multiplier}
 

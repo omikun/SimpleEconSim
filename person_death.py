@@ -2,7 +2,7 @@
 
 
 def record_person_death(region, person, turn: int, cause: str, *, inputs=None,
-                        phase='demographics') -> bool:
+                        phase='demographics', trace_event_ids=None) -> bool:
     """Mark and trace a death once; probate remains with the calling subsystem."""
     if getattr(person, 'death_recorded_turn', None) is not None:
         return False
@@ -25,12 +25,15 @@ def record_person_death(region, person, turn: int, cause: str, *, inputs=None,
             intake_event_id = latest_intake(person.id)
             if intake_event_id:
                 cause_event_ids = [intake_event_id]
-    emit(region, kind='person_died', record_class='outcome', phase=phase,
-         subject={'type': 'tile/agent', 'id': str(person.id)},
-         metric_id='people.deaths', unit='people', before=1, after=0,
-         formula_id='people.registered_death.v1',
-         inputs={'tile': getattr(region, 'name', None),
-                 'agent_id': str(person.id),
-                 'death_cause': cause, **(inputs or {})},
-         cause_event_ids=cause_event_ids)
+    event_id = emit(
+        region, kind='person_died', record_class='outcome', phase=phase,
+        subject={'type': 'tile/agent', 'id': str(person.id)},
+        metric_id='people.deaths', unit='people', before=1, after=0,
+        formula_id='people.registered_death.v1',
+        inputs={'tile': getattr(region, 'name', None),
+                'agent_id': str(person.id),
+                'death_cause': cause, **(inputs or {})},
+        cause_event_ids=cause_event_ids)
+    if event_id and trace_event_ids is not None:
+        trace_event_ids.append(event_id)
     return True

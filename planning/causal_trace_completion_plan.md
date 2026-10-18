@@ -1616,3 +1616,20 @@ debtor/creditor balances, journal linkage, and the complete settlement-to-cash
 transfer chain. Obligation, enforcement, enclosure, labor, cadastre, and
 metric-catalog tests passed (45 tests); compilation and `git diff --check`
 passed.
+
+## Phase 3/4 follow-up — Trace covert assassination funding and outcomes
+
+Record the actual target/treasury funding gate, operative-fund transfer, and
+commissioned plot. Capture exact balances when the money reaches a constable
+or charity. Preserve the current no-recipient debit as an explicit expense
+with no credited counterparty. Give the active plot a stable operation key so
+later detection and strike records can be queried across turns without storing
+trace event IDs in the plot. Record the actual per-turn detection draw and
+chance, then link the death record to the resulting decapitation or martyrdom
+outcome.
+
+Verification: trace-on/off commissioning, decapitation, martyrdom, and
+blown-plot fixtures match for state and RNG progression. The assassination,
+rebellion, metric-catalog, person-death, food-intake, and run-trace suites
+passed (53 tests); the medical/disease regression script, compilation, and
+`git diff --check` passed.

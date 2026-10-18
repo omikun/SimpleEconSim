@@ -16,6 +16,8 @@ class AssassinationPlot:
     funding_allocated: float
     detection_risk_per_turn: float = 0.12
     status: str = "in_progress"  # 'in_progress' | 'struck_decapitation' | 'struck_martyrdom' | 'blown' | 'aborted'
+    # Stable business-operation key for cross-turn lookup, not a trace event ID.
+    operation_id: str | None = None
 
 
 @dataclass
@@ -61,5 +63,3 @@ class ResistanceState:
     fermentation_turns: int = 0
     martyrs: List[str] = field(default_factory=list)
     active_plot: Optional[AssassinationPlot] = None
-
-

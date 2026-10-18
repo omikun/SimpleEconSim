@@ -1425,11 +1425,15 @@ def zero_out_dead_agent(ctx, agent, *, t=None, cause_event_ids=None):
                 cause_event_ids=cause_event_ids or None)
 
 
-def settle_external_death(region, t, agent, cause):
+def settle_external_death(region, t, agent, cause, *, death_trace_event_ids=None,
+                          death_trace_inputs=None):
     """Record and probate a death caused by combat or political violence."""
     from types import SimpleNamespace
     from person_death import record_person_death
-    if not record_person_death(region, agent, t, cause, phase='politics'):
+    if not record_person_death(
+            region, agent, t, cause, phase='politics',
+            inputs=death_trace_inputs,
+            trace_event_ids=death_trace_event_ids):
         return False
     cleanup_dead_agent_links(agent, region, t)
     handle_company_inheritance(t, agent, region)
