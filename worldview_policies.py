@@ -208,6 +208,192 @@ def _trace_provincial_policy_expenditure(world, target, action_id, trace, *,
         cause_event_ids=([trace['event_id']] if trace.get('event_id') else None))
 
 
+def _execute_city_emergency_food(world, target):
+    cost = 50.0
+    government = getattr(target, 'gov', None)
+    bank = getattr(target, 'bank', None)
+    owner = getattr(target, 'owner_nation', None)
+    region = _policy_trace_region(world, target)
+    operation_id = _policy_operation_id(world, target, 'city_emergency_food', region)
+    currency = (getattr(target, 'home_currency', None)
+                or getattr(owner, 'currency', None) or 'local_currency')
+    candidates = []
+    source = None
+    payer = None
+    payer_type = None
+    payer_balance_before = None
+
+    government_available = (float(government.agent.cash)
+                            if government and hasattr(government, 'agent') else None)
+    government_tested = government_available is not None
+    candidates.append({'source': 'city_government_cash',
+                       'evaluated': government_tested,
+                       'available_cash': government_available,
+                       'sufficient': bool(government_tested
+                                          and government_available >= cost)})
+    if government_tested and government_available >= cost:
+        source, payer_type = 'city_government_cash', 'municipal_treasury'
+        payer = government.agent
+        payer_balance_before = government_available
+    else:
+        bank_available = (float(bank.capital)
+                          if bank is not None and hasattr(bank, 'capital') else None)
+        bank_tested = bank_available is not None
+        candidates.append({'source': 'tile_bank_capital',
+                           'evaluated': bank_tested,
+                           'available_cash': bank_available,
+                           'sufficient': bool(bank_tested and bank_available >= cost)})
+        if bank_tested and bank_available >= cost:
+            source, payer_type = 'tile_bank_capital', 'commercial_bank_capital'
+            payer = bank
+            payer_balance_before = bank_available
+        elif owner is not None:
+            owner_treasury_cash = float(owner.treasury()['cash'])
+            candidates.append({'source': 'owner_national_treasury',
+                               'evaluated': True,
+                               'available_cash': owner_treasury_cash,
+                               'sufficient': owner_treasury_cash >= cost})
+            if owner_treasury_cash >= cost:
+                payer = owner.tiles[0].gov.agent
+                source, payer_type = 'owner_national_treasury', 'national_treasury'
+                payer_balance_before = float(payer.cash)
+
+    funding_reason = ('funded_by_priority_source' if source is not None
+                      else 'no_candidate_source_can_cover_cost')
+    funding_event_id = None
+    expenditure_event_id = None
+    if region is not None:
+        from run_trace import emit
+        funding_event_id = emit(
+            region, kind='city_emergency_food_funding_decision',
+            record_class='decision', phase='policy_action',
+            subject={'type': 'tile/action', 'id': target.name},
+            metric_id='scenario.city_emergency_food_funding', unit='funded',
+            after=source is not None,
+            inputs={'operation_id': operation_id,
+                    'turn': int(world.get('turn', 0)), 'action_id': 'city_emergency_food',
+                    'amount_requested': cost, 'source_priority': [
+                        'city_government_cash', 'tile_bank_capital',
+                        'owner_national_treasury'],
+                    'candidate_sources': candidates,
+                    'selected_source': source,
+                    'source_balance_before': payer_balance_before,
+                    'cash_shortfall': (max(0.0, cost -
+                                           max([row['available_cash'] or 0.0
+                                                for row in candidates], default=0.0))
+                                       if source is None else 0.0),
+                    'funded': source is not None, 'reason': funding_reason,
+                    'food_distribution_occurs_without_funding': True})
+
+    source_balance_after = payer_balance_before
+    if source == 'city_government_cash':
+        payer.cash -= cost
+        source_balance_after = float(payer.cash)
+    elif source == 'tile_bank_capital':
+        payer.capital -= cost
+        source_balance_after = float(payer.capital)
+    elif source == 'owner_national_treasury':
+        payer.cash -= cost
+        source_balance_after = float(payer.cash)
+
+    if region is not None and source is not None:
+        from finance_trace import account_ref, transfer_contract
+        from run_trace import emit
+        payer_id = str(getattr(payer, 'id', getattr(payer, 'name', source)))
+        contract = transfer_contract(
+            operation_id, 'city_emergency_food_aid', side='payer',
+            amount=cost, amount_currency=currency,
+            payer_account=account_ref(
+                payer_type, payer_id, currency, tile=target.name,
+                balance_before=payer_balance_before,
+                balance_after=source_balance_after,
+                balance_scope=('bank.capital' if source == 'tile_bank_capital'
+                               else 'government_agent.cash')),
+            payee_account={'type': 'public_food_aid_service',
+                           'id': target.name, 'cash_balance_captured': False},
+            local_cash_leg_amount=cost, local_cash_leg_currency=currency,
+            counterparty_leg_status='food_aid_service_no_cash_payee',
+            source=source, turn=int(world.get('turn', 0)),
+            cash_source_priority=candidates)
+        expenditure_event_id = emit(
+            region, kind='city_emergency_food_policy_expenditure',
+            record_class='transfer', phase='policy_action',
+            subject={'type': 'tile', 'id': target.name},
+            metric_id='finance.policy_expenditure', unit=currency,
+            after=-cost,
+            inputs={'operation_id': operation_id, 'source': source,
+                    'transfer_contract': contract},
+            cause_event_ids=([funding_event_id] if funding_event_id else None))
+
+    recipients = [agent for agent in target.agents
+                  if not agent.is_corporation and not agent.is_government
+                  and agent.hungry_steps > 0][:30]
+    recipient_rows = []
+    for index, agent in enumerate(recipients):
+        inventory_before = float(agent.inv_get(Goods.food, 0))
+        hungry_before = int(agent.hungry_steps)
+        alive = bool(getattr(agent, 'alive', True))
+        agent.inv_add(Goods.food, 1)
+        agent.hungry_steps = 0
+        inventory_after = float(agent.inv_get(Goods.food, 0))
+        recipient_row = {
+            'agent_id': str(agent.id),
+            'inventory_food_before': inventory_before,
+            'inventory_food_after': inventory_after,
+            'hungry_steps_before': hungry_before,
+            'hungry_steps_after': int(agent.hungry_steps),
+            'alive': alive,
+        }
+        recipient_rows.append(recipient_row)
+        if region is not None:
+            from run_trace import emit
+            emit(
+                region, kind='city_emergency_food_recipient_outcome',
+                record_class='outcome', phase='policy_action',
+                subject={'type': 'agent', 'id': str(agent.id), 'tile': target.name},
+                metric_id='goods.city_emergency_food_creation',
+                before=inventory_before, after=inventory_after, unit='food_units',
+                inputs={'operation_id': operation_id,
+                        'turn': int(world.get('turn', 0)),
+                        'source': 'policy_action_created_food_without_stock_debit',
+                        'recipient_rank': index + 1,
+                        'recipient_selection_rule':
+                        'first 30 tile agents excluding government and corporations with hungry_steps above zero',
+                        **recipient_row,
+                        'funding_event_id': funding_event_id,
+                        'cash_expenditure_event_id': expenditure_event_id},
+                cause_event_ids=([expenditure_event_id] if expenditure_event_id else
+                                 [funding_event_id] if funding_event_id else None))
+
+    if region is not None:
+        from run_trace import emit
+        emit(
+            region, kind='city_emergency_food_policy_outcome',
+            record_class='outcome', phase='policy_action',
+            subject={'type': 'tile/action', 'id': target.name},
+            metric_id='scenario.city_emergency_food_action',
+            after=len(recipient_rows), unit='households',
+            inputs={'operation_id': operation_id,
+                    'turn': int(world.get('turn', 0)),
+                    'cost_requested': cost,
+                    'cash_paid': cost if source is not None else 0.0,
+                    'selected_source': source,
+                    'source_balance_before': payer_balance_before,
+                    'source_balance_after': source_balance_after,
+                    'funding_reason': funding_reason,
+                    'recipient_count': len(recipient_rows),
+                    'food_units_created': len(recipient_rows),
+                    'stock_debit_recorded': False,
+                    'recipient_ids': [row['agent_id'] for row in recipient_rows],
+                    'policy_message': 'Emergency food aid distributed',
+                    'funding_event_id': funding_event_id,
+                    'cash_expenditure_event_id': expenditure_event_id},
+            cause_event_ids=([event_id for event_id in
+                              (funding_event_id, expenditure_event_id) if event_id]
+                             or None))
+    world['policy_feedback'] = (f"Emergency food aid distributed in {target.name}!", GREEN)
+
+
 def draw_policies_panel(surface, world, region, font, font_small, mouse_pos=None):
     """Draw the Governance & Policies interactive panel in the right sidebar."""
     global _ACTION_BUTTONS, _SCOPE_TABS
@@ -877,21 +1063,7 @@ def _execute_policy_action(world, act_id, target):
 
     # City Emergency Food Aid
     elif act_id == 'city_emergency_food':
-        owner = getattr(target, 'owner_nation', None)
-        cost = 50.0
-        gov = getattr(target, 'gov', None)
-        if gov and hasattr(gov, 'agent') and gov.agent.cash >= cost:
-            gov.agent.cash -= cost
-        elif getattr(target, 'bank', None) and target.bank.capital >= cost:
-            target.bank.capital -= cost
-        elif owner and owner.treasury()['cash'] >= cost:
-            owner.tiles[0].gov.agent.cash -= cost
-        # Distribute 30 food to starving agents
-        recipients = [a for a in target.agents if not a.is_corporation and not a.is_government and a.hungry_steps > 0]
-        for a in recipients[:30]:
-            a.inv_add(Goods.food, 1)
-            a.hungry_steps = 0
-        world['policy_feedback'] = (f"Emergency food aid distributed in {target.name}!", GREEN)
+        _execute_city_emergency_food(world, target)
 
     # City Garrison Recruitment
     elif act_id == 'city_recruit_garrison':

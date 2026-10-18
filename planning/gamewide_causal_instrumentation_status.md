@@ -691,3 +691,20 @@ Verification: four dedicated policy-transfer fixtures, the existing provincial
 grant conservation test, and the UI policy-action execution test passed (6
 total). Compilation and `git diff --check` passed. City food aid, guano subsidy,
 and other world-policy cash mutations remain open.
+
+City emergency food aid now logs the existing source priority across municipal
+government cash, tile-bank capital, and the owner nation's treasury. The funding
+decision records every tested source, the selected account and balance, or the
+shortfall when none can cover the $50 cost. Funded aid records the exact debit
+as a public-service expense without a cash payee. Each selected household has
+an outcome for food inventory and hunger before and after the action. The trace
+explicitly identifies food creation without a stock debit. It also preserves
+and exposes two current behaviors: aid still creates food if no source can
+fund it, and a funded action spends the full cost even when no hungry household
+qualifies.
+
+Verification: five dedicated source-priority, fallback, unfunded-aid,
+zero-recipient, and trace-on/off parity tests plus four provincial policy trace
+tests and the existing policy-action UI test passed (10 total). Compilation and
+`git diff --check` passed. The national guano subsidy and other world-policy
+cash mutations remain open.

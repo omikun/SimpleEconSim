@@ -1062,3 +1062,18 @@ Verification: four dedicated policy-transfer fixtures, the existing provincial
 grant conservation test, and the UI policy-action execution test passed (6
 total). Compilation and `git diff --check` passed. City food aid, guano subsidy,
 and other world-policy cash mutations remain open for audit.
+
+Phase 3 follow-up, 2026-10-18: city emergency food aid now records the
+municipal-to-bank-to-national funding priority, tested source balances, exact
+funding decision and shortfall, and the selected payer's cash debit. Each
+recipient's food inventory and hunger state is recorded, with cause links to
+the funding and expense when present. The trace labels the household food as
+created without an inventory stock debit. The current unfunded food creation
+and funded zero-recipient spending behaviors remain intact and are made
+inspectable. Added funding, action, and food-creation metrics to the catalog.
+
+Verification: five dedicated city-food tests, four existing provincial policy
+trace tests, and the existing policy-action UI test passed (10 total), covering
+all three funding sources, an unfunded action, no qualifying recipients, and
+trace-on/off state parity. Compilation and `git diff --check` passed. The
+national guano subsidy and remaining world-policy cash mutations remain open.
