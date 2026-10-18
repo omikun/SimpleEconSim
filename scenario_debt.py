@@ -81,7 +81,7 @@ def _trace_debt(world, kind, bond=None, *, before=None, after=None,
                  inputs={'issuer': bond.issuer_nation, 'creditor': bond.holder_nation,
                          'bond_purpose': bond.bond_purpose, **inputs})
     if flow_nation is not None and flow_amount is not None and flow_nation.tiles:
-        from finance_trace import account_ref, transfer_contract
+        from finance_trace import account_ref, emit_treasury_leg, transfer_contract
         currency = (getattr(flow_nation, 'currency', None)
                     or getattr(flow_nation.tiles[0], 'home_currency', None)
                     or getattr(bond, 'currency', None) or 'USD')
@@ -119,15 +119,14 @@ def _trace_debt(world, kind, bond=None, *, before=None, after=None,
             counterparty_leg_status='paired_nation_leg_uses_same_operation_id',
             mutation_reference={'bond_id': bond.bond_id if bond else None,
                                 'debt_event': kind, 'turn': turn})
-        emit(flow_nation.tiles[0], kind=f'caisse_{kind}', record_class='transfer',
-             phase='scenario_debt',
-             subject={'type': 'nation', 'id': flow_nation.name},
-             metric_id='finance.treasury_flow', unit=currency,
-             after=flow_amount,
-             inputs={'counterparty': inputs.get('counterparty'),
-                     'bond_id': bond.bond_id if bond else None,
-                     'debt_event': kind, **inputs,
-                     'transfer_contract': contract})
+        emit_treasury_leg(
+            flow_nation.tiles[0], kind=f'caisse_{kind}',
+            nation_name=flow_nation.name, currency=currency,
+            signed_amount=flow_amount, contract=contract,
+            phase='scenario_debt',
+            inputs={'counterparty': inputs.get('counterparty'),
+                    'bond_id': bond.bond_id if bond else None,
+                    'debt_event': kind, **inputs})
 
 
 def revise(world, amount, due_turn=None):

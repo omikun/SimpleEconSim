@@ -4,6 +4,7 @@ import unittest
 
 import pygame
 
+from goods import Goods
 from scenario_projects import (advance, cancel_project, damage_project,
                                draw_map_overlay, effectiveness, get_project,
                                record_food_results, repair_project, start_project,
@@ -11,6 +12,18 @@ from scenario_projects import (advance, cancel_project, damage_project,
                                advance_grain_entitlement)
 from scenario_egypt_1877 import apply_action, build_debrief
 from worldview_engine import build_world_view
+
+
+class MemoryTrace:
+    def __init__(self):
+        self.rows = []
+
+    def emit(self, clock, **row):
+        sequence = clock['next']
+        clock['next'] += 1
+        event_id = f'test:{sequence}'
+        self.rows.append({'event_id': event_id, **row})
+        return event_id
 
 
 class StrategicProjectTests(unittest.TestCase):
@@ -54,6 +67,30 @@ class StrategicProjectTests(unittest.TestCase):
         self.assertTrue(cancel_project(self.world, 'nile_repair', 'Nile Delta')[0])
         self.assertEqual(effectiveness(self.world, 'nile_repair', 'Nile Delta'), 0)
 
+    def test_project_payroll_records_treasury_and_worker_cash_legs(self):
+        tile = next(tile for tile in self.egypt.tiles
+                    if getattr(tile, 'scenario_location', None) == 'Nile Delta')
+        trace = MemoryTrace()
+        clock = {'turn': 1, 'phase': 'scenario_projects', 'next': 1}
+        tile._run_trace = trace
+        tile._collective_trace_clock = clock
+        treasury_before = float(self.egypt.government.agent.cash)
+
+        ok, _ = start_project(self.world, 'nile_repair', 'Nile Delta')
+        self.assertTrue(ok)
+        flows = [row for row in trace.rows
+                 if row.get('metric_id') == 'finance.treasury_flow'
+                 and row.get('kind') == 'scenario_construction_wage']
+        self.assertEqual(len(flows), 3)
+        self.assertAlmostEqual(sum(row['after'] for row in flows), -45.0)
+        self.assertAlmostEqual(flows[0]['inputs']['transfer_contract']
+                               ['payer_account']['balance_before'], treasury_before)
+        self.assertEqual(
+            {row['inputs']['worker_id'] for row in flows},
+            set(get_project(self.world, 'nile_repair', 'Nile Delta')['worker_ids']))
+        self.assertTrue(all(row['inputs']['transfer_contract']['contract_version'] ==
+                            'treasury_transfer.v1' for row in flows))
+
     def test_occupation_stops_work_and_overlay_supports_both_modes(self):
         ok, _ = start_project(self.world, 'revenue_office', 'Alexandria')
         self.assertTrue(ok)
@@ -96,13 +133,15 @@ class StrategicProjectTests(unittest.TestCase):
         self.assertIn('underfed', report)
 
     def test_grain_entitlement_consumes_real_owner_food_and_pays_carriers(self):
-        from goods import Goods
-
         for tile in self.egypt.tiles:
             for agent in tile.agents:
                 agent.calorie_deficit_kcal = 0
         delta = next(tile for tile in self.egypt.tiles
                      if getattr(tile, 'scenario_location', '') == 'Nile Delta')
+        trace = MemoryTrace()
+        clock = {'turn': 2, 'phase': 'scenario_projects', 'next': 1}
+        delta._run_trace = trace
+        delta._collective_trace_clock = clock
         owner = next(agent for agent in delta.agents if getattr(agent, 'is_lord', False))
         recipient = next(agent for agent in delta.agents
                          if not agent.is_government and not agent.is_corporation
@@ -124,6 +163,13 @@ class StrategicProjectTests(unittest.TestCase):
         self.assertAlmostEqual(self._egypt_cash(), cash_before, places=4)
         self.assertEqual(food_before - sum(agent.inv_get(Goods.food, 0)
                                            for tile in self.egypt.tiles for agent in tile.agents), 2)
+        food_transfer = next(row for row in trace.rows
+                             if row.get('metric_id') ==
+                             'goods.food_entitlement_transfer')
+        self.assertEqual(food_transfer['after'], 2)
+        self.assertEqual(food_transfer['inputs']['source_inventory_after'],
+                         food_transfer['inputs']['source_inventory_before'] - 2)
+        self.assertTrue(food_transfer.get('cause_event_ids'))
         self.assertTrue(apply_action(self.world, 'end_grain_entitlement')[0])
 
     def test_reserve_recall_moves_local_cash_once_and_leaves_operating_floor(self):
@@ -134,6 +180,11 @@ class StrategicProjectTests(unittest.TestCase):
         self.assertTrue(local)
         for government in local.values():
             government.agent.cash = 70
+        trace = MemoryTrace()
+        clock = {'turn': 1, 'phase': 'scenario_projects', 'next': 1}
+        for tile in self.egypt.tiles:
+            tile._run_trace = trace
+            tile._collective_trace_clock = clock
         accounts = [self.egypt.government, *local.values()]
         cash_before = sum(government.agent.cash for government in accounts)
         capacity = reserve_recall_capacity(self.world)
@@ -145,6 +196,18 @@ class StrategicProjectTests(unittest.TestCase):
         self.assertAlmostEqual(sum(government.agent.cash for government in accounts), cash_before)
         self.assertTrue(all(government.agent.cash >= 20 for government in local.values()))
         self.assertEqual(reserve_recall_capacity(self.world), 0)
+        transfer_rows = [row for row in trace.rows
+                          if row.get('kind') in (
+                              'district_reserve_recall_payer',
+                              'district_reserve_recall_payee')]
+        self.assertEqual(len(transfer_rows), len(local) * 2)
+        grouped = {}
+        for row in transfer_rows:
+            contract = row['inputs']['transfer_contract']
+            grouped.setdefault(contract['operation_id'], []).append(row)
+        self.assertEqual(len(grouped), len(local))
+        self.assertTrue(all(abs(sum(row['after'] for row in rows)) < 1e-9
+                            for rows in grouped.values()))
         self.world['turn'] = 2
         self.assertFalse(apply_action(self.world, 'recall_district_reserves')[0])
 

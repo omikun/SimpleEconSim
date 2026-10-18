@@ -472,6 +472,26 @@ inputs, so tracing adds no random draws or economic state changes.
 Verification: 80 focused government-transfer, supply-control, live trace, and
 campaign-debt tests passed. The fixture checked outgoing and incoming balance
 direction and the shared contract version. Compilation and `git diff --check`
-passed. Tariffs, emergency levies, grain spending, bank recapitalization,
-scenario carrier/project flows, and household/firm transfers still need the
-contract or a documented non-cash explanation.
+passed. Tariffs, emergency levies, other grain purchases, bank
+recapitalization, occupation/tribute flows, inheritance, and household/firm
+transfers still need the contract or a documented non-cash explanation.
+
+Phase 3 follow-up, 2026-10-18: a shared treasury-leg emitter now keeps the
+versioned transfer contract consistent across bonds, Caisse receipts, public
+benefits, and Egypt scenario projects. Project construction, upkeep, and repair
+wages link the Egyptian treasury balance to each worker's before/after cash.
+District reserve recalls and central revenue remittances record both sides of
+the same-nation movement; paired `finance.treasury_flow` legs net to zero in
+national reconciliation. Grain entitlement records each carrier payment and
+the paired in-kind food transfer from the owner's inventory to recipient
+calories/deficit, with the carrier payment linked as supporting evidence.
+
+Verification: 46 government-transfer, scenario-project transfer, Caisse,
+sovereign-bond, and live trace tests passed. Focused fixtures verified exact
+worker balances, paired recall/remittance legs, and food inventory/calorie
+changes; compilation and `git diff --check` passed. The existing broad
+`test_scenario_projects` integration fixture could not initialize its Egypt
+world because `shape_nile_delta` raised “Egypt's river needs a second coastal
+outlet for its delta”; this occurs during map generation before the changed
+transfer code runs. Project transfer checks therefore use small deterministic
+fixtures until that separate generation failure is resolved.

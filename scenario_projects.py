@@ -9,6 +9,7 @@ from __future__ import annotations
 from math import ceil
 from typing import Any
 
+from finance_trace import account_ref, emit_treasury_leg, transfer_contract
 from goods import Goods
 from nutrition import CALORIES_PER_FOOD, deficit_fraction, feed_emergency_meal
 
@@ -74,6 +75,62 @@ def _workers(tile, count: int) -> list:
     return people[:count]
 
 
+def _record_person_cash_payment(region, nation, *, operation_id, kind, amount,
+                                person, turn, treasury_before, treasury_after,
+                                person_before, person_after, references):
+    currency = getattr(nation, 'currency', None) or 'local_currency'
+    recipient_currency = getattr(region, 'home_currency', None) or currency
+    payer = account_ref(
+        'nation_treasury', nation.name, currency,
+        subaccount='government_agent.cash', balance_before=treasury_before,
+        balance_after=treasury_after, balance_scope='government_agent.cash')
+    payee = account_ref(
+        'agent', person.id, recipient_currency,
+        balance_before=person_before, balance_after=person_after,
+        balance_scope='cash')
+    contract = transfer_contract(
+        operation_id, kind, side='payer', amount=amount,
+        amount_currency=currency, payer_account=payer, payee_account=payee,
+        local_cash_leg_amount=amount, local_cash_leg_currency=currency,
+        counterparty_leg_status='recipient_cash_balance_captured',
+        mutation_reference={**references, 'person_id': person.id,
+                            'turn': turn, 'payment_kind': kind})
+    return emit_treasury_leg(
+        region, kind=f'scenario_{kind}', nation_name=nation.name,
+        currency=currency, signed_amount=-amount, contract=contract,
+        phase='scenario_projects', inputs={**references, 'person_id': person.id,
+                                           'turn': turn})
+
+
+def _record_internal_cash_transfer(region, nation, *, operation_id, kind,
+                                   amount, payer_name, payer_balance_before,
+                                   payer_balance_after, payee_name,
+                                   payee_balance_before, payee_balance_after,
+                                   turn, payer_type='municipal_government',
+                                   payee_type='sovereign_government'):
+    currency = getattr(nation, 'currency', None) or 'local_currency'
+    payer = account_ref(
+        payer_type, payer_name, currency, subaccount='government_agent.cash',
+        balance_before=payer_balance_before, balance_after=payer_balance_after,
+        balance_scope='government_agent.cash')
+    payee = account_ref(
+        payee_type, payee_name, currency, subaccount='government_agent.cash',
+        balance_before=payee_balance_before, balance_after=payee_balance_after,
+        balance_scope='government_agent.cash')
+    for side, signed_amount in (('payer', -amount), ('payee', amount)):
+        contract = transfer_contract(
+            operation_id, kind, side=side, amount=amount,
+            amount_currency=currency, payer_account=payer, payee_account=payee,
+            local_cash_leg_amount=amount, local_cash_leg_currency=currency,
+            counterparty_leg_status='paired_internal_transfer_same_nation',
+            mutation_reference={'turn': turn, 'operation': kind})
+        emit_treasury_leg(
+            region, kind=f'{kind}_{side}', nation_name=nation.name,
+            currency=currency, signed_amount=signed_amount, contract=contract,
+            phase='scenario_projects',
+            inputs={'turn': turn, 'operation_id': operation_id})
+
+
 def _pay_workers(world: dict, project: dict, amount: float, kind: str) -> bool:
     egypt = _nation(world, 'Egypt')
     treasury = egypt.government.agent
@@ -86,8 +143,19 @@ def _pay_workers(world: dict, project: dict, amount: float, kind: str) -> bool:
     share = round(amount / len(workers), 6)
     for index, worker in enumerate(workers):
         wage = share if index < len(workers) - 1 else round(amount - share * (len(workers) - 1), 6)
+        treasury_before = float(treasury.cash)
+        worker_before = float(worker.cash)
         treasury.cash -= wage
         worker.cash += wage
+        _record_person_cash_payment(
+            tile, egypt, operation_id=(
+                f"project:{project['id']}:{world['turn']}:{kind}:{worker.id}:"
+                f'{treasury_before:.6f}'),
+            kind=kind, amount=wage, person=worker, turn=int(world['turn']),
+            treasury_before=treasury_before, treasury_after=float(treasury.cash),
+            person_before=worker_before, person_after=float(worker.cash),
+            references={'project_id': project['id'], 'worker_id': worker.id,
+                        'site': project['site']})
         _state(world)['payments'].append({
             'turn': int(world['turn']), 'kind': kind, 'project': project['id'],
             'payer': 'Egypt', 'recipient_id': worker.id, 'amount': wage,
@@ -247,12 +315,25 @@ def recall_district_reserves(world: dict) -> tuple[bool, str]:
         amount = round(min(remaining, max(0.0, float(gov.agent.cash) - 20.0)), 6)
         if amount <= 0:
             continue
+        payer_before = float(gov.agent.cash)
+        payee_before = float(egypt.government.agent.cash)
         gov.agent.cash -= amount
         egypt.government.agent.cash += amount
+        operation_id = (f'reserve-recall:{int(world["turn"])}:{gov.name}:'
+                        f'{payer_before:.6f}:{amount:.6f}')
+        _record_internal_cash_transfer(
+            tiles[0], egypt, operation_id=operation_id,
+            kind='district_reserve_recall', amount=amount,
+            payer_name=gov.name, payer_balance_before=payer_before,
+            payer_balance_after=float(gov.agent.cash), payee_name=egypt.name,
+            payee_balance_before=payee_before,
+            payee_balance_after=float(egypt.government.agent.cash),
+            turn=int(world['turn']))
         remaining -= amount
         for tile in tiles:
             tile.unrest_level = min(1.0, float(getattr(tile, 'unrest_level', 0.0)) + .02)
-        receipts.append({'districts': [getattr(tile, 'scenario_location', tile.name)
+        receipts.append({'operation_id': operation_id,
+                         'districts': [getattr(tile, 'scenario_location', tile.name)
                                         for tile in tiles],
                          'amount': amount, 'collector': gov.name})
         if remaining < .01:
@@ -290,6 +371,7 @@ def advance_grain_entitlement(world: dict) -> None:
                         key=lambda agent: (-deficit_fraction(agent), float(agent.cash), agent.id))
     moved = helped = 0
     transport_paid = 0.0
+    payment_sequence = 0
     economy = world['scenario_state']['political_economy']
     for person in recipients:
         need = ceil(float(person.calorie_deficit_kcal) / CALORIES_PER_FOOD)
@@ -304,6 +386,7 @@ def advance_grain_entitlement(world: dict) -> None:
             units = min(need, surplus, int(treasury.cash / .05))
             if units <= 0:
                 break
+            owner_food_before = int(owner.inv_get(Goods.food, 0))
             owner.inv_add(Goods.food, -units)
             if economy['warehouse_by_tile'].get(tile.name) == owner.id:
                 reserved = min(int(economy['private_reserve_by_tile'].get(tile.name, 0)),
@@ -312,16 +395,54 @@ def advance_grain_entitlement(world: dict) -> None:
                 tile.scenario_grain_reserved_units = reserved
             carrier = carriers[tile.name]
             fee = round(units * .05, 6)
+            treasury_before = float(treasury.cash)
+            carrier_before = float(carrier.cash)
             treasury.cash -= fee
             carrier.cash += fee
             transport_paid += fee
+            payment_sequence += 1
+            grain_transfer_id = (f'grain-entitlement:{turn}:{tile.name}:{owner.id}:'
+                                 f'{person.id}:{payment_sequence}')
+            carrier_event_id = _record_person_cash_payment(
+                tile, egypt, operation_id=f'{grain_transfer_id}:carrier-wage',
+                kind='grain_carrier_wage', amount=fee, person=carrier,
+                turn=turn, treasury_before=treasury_before,
+                treasury_after=float(treasury.cash),
+                person_before=carrier_before, person_after=float(carrier.cash),
+                references={'grain_transfer_id': grain_transfer_id,
+                            'food_owner_id': owner.id,
+                            'food_recipient_id': person.id,
+                            'food_units': units})
+            deficit_before = float(person.calorie_deficit_kcal)
+            eaten_before = float(person.last_calories_eaten)
             feed_emergency_meal(person, units)
+            from run_trace import emit
+            emit(tile, kind='grain_entitlement_food_transfer',
+                 record_class='transfer', phase='scenario_projects',
+                 subject={'type': 'agent', 'id': person.id},
+                 metric_id='goods.food_entitlement_transfer', unit='food_units',
+                 after=units,
+                 inputs={'operation_id': grain_transfer_id,
+                         'food_owner_id': owner.id,
+                         'food_recipient_id': person.id,
+                         'carrier_id': carrier.id,
+                         'source_tile': tile.name,
+                         'source_inventory_before': owner_food_before,
+                         'source_inventory_after': int(owner.inv_get(Goods.food, 0)),
+                         'recipient_deficit_before_kcal': deficit_before,
+                         'recipient_deficit_after_kcal': float(person.calorie_deficit_kcal),
+                         'recipient_calories_eaten_before': eaten_before,
+                         'recipient_calories_eaten_after': float(person.last_calories_eaten),
+                         'carrier_wage_operation_id': f'{grain_transfer_id}:carrier-wage'},
+                 cause_event_ids=[carrier_event_id] if carrier_event_id else None)
             moved += units
             received += units
             need -= units
             economy['grain_transactions'].append({
                 'turn': turn, 'tile': tile.name, 'kind': 'grain_entitlement',
+                'operation_id': grain_transfer_id,
                 'units': units, 'cash': 0.0, 'owner_id': owner.id,
+                'recipient_id': person.id, 'carrier_id': carrier.id,
             })
         if received:
             helped += 1
@@ -355,12 +476,26 @@ def allocate_revenue(world: dict, government, source: str, net: float, turn: int
                        float(government.agent.cash)), 6)
     if amount <= 0:
         return net
+    payer_before = float(government.agent.cash)
+    payee_before = float(egypt.government.agent.cash)
     government.agent.cash -= amount
     egypt.government.agent.cash += amount
+    districts = [tile.name for tile in egypt.tiles if tile.gov is government]
+    region = next(tile for tile in egypt.tiles if tile.gov is government)
+    operation_id = (f'central-remittance:{int(turn)}:{source}:{government.name}:'
+                    f'{payer_before:.6f}:{amount:.6f}')
+    _record_internal_cash_transfer(
+        region, egypt, operation_id=operation_id,
+        kind='central_revenue_remittance', amount=amount,
+        payer_name=government.name, payer_type='district_government',
+        payer_balance_before=payer_before,
+        payer_balance_after=float(government.agent.cash), payee_name=egypt.name,
+        payee_balance_before=payee_before,
+        payee_balance_after=float(egypt.government.agent.cash), turn=int(turn))
     central = egypt.government._income_pending
     central[source] = central.get(source, 0.0) + amount
-    districts = [tile.name for tile in egypt.tiles if tile.gov is government]
     _state(world)['revenue_reports'].append({
+        'operation_id': operation_id,
         'turn': int(turn), 'source': source,
         'payer': 'Egyptian taxpayers' if source == 'tax' else 'tariff-paying merchants',
         'districts': districts,

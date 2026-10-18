@@ -132,6 +132,11 @@ the FX matrix has a **Why?** button for each quoted currency pair.
 - Campaign Caisse debt records principal revisions, concessions, defaults,
   creditor collection assignments, payments, and signed Egypt/creditor treasury
   flows for assigned revenue interception.
+- Egypt project construction, upkeep, and repair wages include treasury and
+  worker cash balances. District reserve recalls and revenue-office remittances
+  record paired operation IDs whose signed treasury legs net to zero. Grain
+  entitlement links each carrier wage to the owner's food inventory reduction
+  and the recipient's calorie/deficit change.
 - Public baby bonuses, scaled UBI, parental leave, welfare, and legacy tax
   receipts use `treasury_transfer.v1`, including treasury cash before/after,
   recipient IDs, and scale/funding details. Group-benefit recipient balances
@@ -176,15 +181,14 @@ The coverage checker reports a changed snapshot as unexplained when its final
 value does not match a recorded calculation. Per-profession headcount snapshots
 are sparse: unchanged counts, including zero categories, are omitted while the
 membership-change calculation records retain before/after counts and agent IDs.
-Treasury snapshots show cash and deposit components. Bond account transfers
-and several public-benefit transfers now have operation IDs and balance
-evidence, but project payroll, carrier fees, reserve recalls, central
-remittances, canal tolls, occupation seizures, tribute, tariff receipts,
-emergency levies, tax recovery, grain purchases, subsidies, repression
-spending, inheritance, and many scenario costs still need the shared transfer
-contract. National
-treasury, bank, household, firm, and goods-by-currency reconciliations remain
-incomplete. Several scenario operations still need mutation-point records.
+Treasury snapshots show cash and deposit components. Bond, Caisse, public
+benefit, and Egypt project payroll/recall/remittance transfers now have
+operation IDs and balance evidence. Canal tolls, occupation seizures, tribute,
+tariff receipts, emergency levies, tax recovery, other grain purchases,
+subsidies, repression spending, inheritance, and many scenario costs still
+need the shared transfer contract. National treasury, bank, household, firm,
+and goods-by-currency reconciliations remain incomplete. Several scenario
+operations still need mutation-point records.
 Some secondary and elite AI candidate details remain partial. The current metric
 catalog does not yet cover every displayed field;
 `inventory_region_histories()` labels legacy series as instrumented or
@@ -207,3 +211,10 @@ treasury movement. Municipal sewer funding exposed a recorded contractor cash
 increase without a source-account debit; this remains a traced accounting
 defect or explicit creation rule to resolve, not an inferred conserved
 transfer.
+
+The Phase 3 transfer tests now cover 46 public, project, Caisse, bond, and live
+trace cases. Isolated Egypt fixtures verify worker pay balances, paired
+district-to-Cairo movements, and grain stock/calorie changes. The broad Egypt
+project integration fixture still stops during deterministic world generation:
+`shape_nile_delta` cannot find a second coastal outlet. No changed transfer code
+runs before that failure.

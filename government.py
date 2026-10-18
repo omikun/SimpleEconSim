@@ -39,7 +39,7 @@ def _trace_public_transfer(government, kind, amount, recipients, *, outflow=True
     local_cash_after = float(government.agent.cash)
     local_cash_before = (local_cash_after + float(amount) if outflow
                          else local_cash_after - float(amount))
-    from finance_trace import account_ref, transfer_contract
+    from finance_trace import account_ref, emit_treasury_leg, transfer_contract
     treasury_account = account_ref(
         'government_treasury', getattr(nation, 'name', government.name), unit,
         subaccount='government_agent.cash', balance_before=local_cash_before,
@@ -62,15 +62,13 @@ def _trace_public_transfer(government, kind, amount, recipients, *, outflow=True
                                  else 'revenue_source_aggregate_only'),
         mutation_reference={'government': government.name, 'turn': turn,
                             'kind': kind})
-    from run_trace import emit
-    emit(region, kind=kind, record_class='transfer', phase='government',
-         subject=subject, metric_id='finance.treasury_flow', unit=unit,
-         after=-float(amount) if outflow else float(amount),
-         inputs={'government': government.name,
-                 'recipients': recipient_ids,
-                 'recipient_count': len(recipient_ids), 'amount': float(amount),
-                 'operation_id': operation_id, 'turn': turn,
-                 'transfer_contract': contract, **inputs})
+    emit_treasury_leg(
+        region, kind=kind, nation_name=subject['id'], currency=unit,
+        signed_amount=-float(amount) if outflow else float(amount),
+        contract=contract, phase='government', subject_type=subject['type'],
+        inputs={'government': government.name, 'recipients': recipient_ids,
+                'recipient_count': len(recipient_ids), 'amount': float(amount),
+                'turn': turn, **inputs})
 
 
 def _record_public_cash_transfer(region, turn, kind, payer, recipient, amount,

@@ -15,7 +15,7 @@ import uuid
 import random
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
-from finance_trace import account_ref, transfer_contract
+from finance_trace import account_ref, emit_treasury_leg, transfer_contract
 
 if TYPE_CHECKING:
     from nation import Nation
@@ -122,15 +122,14 @@ def _trace_bond(nation, kind, t, bond, *, treasury_delta=None, **inputs):
          after=bond.principal, formula_id='finance.sovereign_bond_lifecycle.v1',
          inputs=data)
     if treasury_delta is not None:
-        emit(tiles[0], kind=kind, record_class='transfer', phase='finance',
-             subject={'type': 'nation', 'id': nation.name},
-             metric_id='finance.treasury_flow', unit=nation.currency,
-             after=treasury_delta,
-             inputs={'bond_id': bond.bond_id, 'bond_event': kind,
-                     'counterparty': bond.holder_nation if nation.name == bond.issuer_nation
-                     else bond.issuer_nation, 'principal': bond.principal,
-                     'purpose': bond.bond_purpose, **inputs,
-                     'transfer_contract': transfer})
+        emit_treasury_leg(
+            tiles[0], kind=kind, nation_name=nation.name,
+            currency=nation.currency, signed_amount=treasury_delta,
+            contract=transfer, phase='finance',
+            inputs={'bond_id': bond.bond_id, 'bond_event': kind,
+                    'counterparty': bond.holder_nation if nation.name == bond.issuer_nation
+                    else bond.issuer_nation, 'principal': bond.principal,
+                    'purpose': bond.bond_purpose, **inputs})
 
 # Standardized Credit Rating Tiers and Base Per-Turn Yield Rates (aligned with in-game bank loan rate ~0.10%/turn)
 RATING_TIERS = ["AAA", "AA", "A", "BBB", "BB", "B", "CCC"]
