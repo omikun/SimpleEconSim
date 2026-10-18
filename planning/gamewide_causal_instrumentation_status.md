@@ -1137,3 +1137,16 @@ links to the receipt. The paired amounts net to zero within the nation.
 Verification: the traced/untraced food-security fixtures retain identical
 balances and policy results. The focused response, paired-leg, and metric
 catalog tests passed (3 tests); compilation and `git diff --check` passed.
+
+Phase 3 follow-up, 2026-10-18: private and public medical-care payments now
+emit exact `finance.cash_transfer` contracts with patient/government and
+provider wallet balances. Treatment outcomes link to their payment records;
+the public spending aggregate links to its actual provider transfers. The
+medical spending summary separates treatment costs from cash that actually
+changed accounts, identifying self-administered care without creating a
+fictitious transfer.
+
+Verification: three tests cover private payment, public payment, and public
+self-administration, each checking trace-on/off state parity and event links.
+Those tests and the metric-catalog audit passed (4 tests); compilation and
+`git diff --check` passed.

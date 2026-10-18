@@ -238,6 +238,47 @@ def step_medical_care(region, t: int, rand_gen=None) -> dict:
     Ensures strict cash conservation (0 LEAK / 0 SUPPLY SHIFT).
     """
     r = rand_gen or random
+    from finance_trace import (account_ref, cash_transfer_contract,
+                               emit_cash_transfer)
+    from run_trace import emit
+
+    def trace_medical_payment(payer, payee, patient, disease, amount,
+                              payer_type, payer_before, payee_before,
+                              operation_id, journal_event):
+        currency = (getattr(region, 'home_currency', None)
+                    or 'local_currency')
+        payer_currency = (getattr(payer, 'home_currency', None)
+                          or currency)
+        payee_currency = (getattr(payee, 'home_currency', None)
+                          or currency)
+        contract = cash_transfer_contract(
+            operation_id, 'medical_care_payment', amount=float(amount),
+            currency=currency,
+            payer_account=account_ref(
+                'government_wallet' if payer_type == 'public' else 'agent_wallet',
+                str(payer.id), payer_currency, agent_id=str(payer.id),
+                tile=region.name, balance_before=float(payer_before),
+                balance_after=float(payer.cash), balance_scope='cash_wallet'),
+            payee_account=account_ref(
+                'medical_provider_wallet', str(payee.id), payee_currency,
+                agent_id=str(payee.id), tile=region.name,
+                balance_before=float(payee_before),
+                balance_after=float(payee.cash), balance_scope='cash_wallet'),
+            counterparty_leg_status='both_cash_balances_captured',
+            payer_type=payer_type, patient_id=str(patient.id),
+            disease=disease)
+        return emit_cash_transfer(
+            region, kind='medical_care_payment', contract=contract,
+            phase='healthcare',
+            subject={'type': 'tile/operation', 'id': operation_id,
+                     'tile': region.name},
+            inputs={'turn': int(t), 'payer_type': payer_type,
+                    'patient_id': str(patient.id), 'disease': disease,
+                    'provider_id': str(payee.id),
+                    'operation_id': operation_id,
+                    'actor_account_event_id': journal_event['id']
+                    if journal_event is not None else None})
+
     agents = [a for a in getattr(region, 'agents', [])
               if getattr(a, 'alive', True) and not getattr(a, 'is_corporation', False)]
 
@@ -272,6 +313,10 @@ def step_medical_care(region, t: int, rand_gen=None) -> dict:
     public_treated_count = 0
     untreated_count = 0
     public_transfers = 0.0
+    private_transfers = 0.0
+    non_transfer_treatments = 0
+    public_transfer_event_ids = []
+    medical_transfer_event_ids = []
 
     gov = getattr(region, 'gov', None)
     gov_agent = getattr(gov, 'agent', None) if gov else None
@@ -291,7 +336,7 @@ def step_medical_care(region, t: int, rand_gen=None) -> dict:
 
         # Attempt to treat each active disease
         cured_this_turn = []
-        for dis in list(dis_list):
+        for disease_index, dis in enumerate(list(dis_list)):
             effective_cure = cure_chance
             if dis == DIS_PESTILENCE:
                 if has_pharma or has_clinic:
@@ -303,19 +348,37 @@ def step_medical_care(region, t: int, rand_gen=None) -> dict:
 
             if is_public_healthcare and gov_agent and gov_agent.cash >= cost_per_cure:
                 # Publicly funded care: treasury pays, zero out-of-pocket for citizen
+                cash_transfer_event_id = None
+                actor_account_event = None
+                operation_id = None
+                cash_settlement = 'self_administered_no_net_cash_transfer'
+                payer_cash_before = float(gov_agent.cash)
                 gov_agent.cash -= cost_per_cure
                 if provider and provider != gov_agent:
+                    provider_cash_before = float(provider.cash)
                     provider.cash += cost_per_cure
                     public_transfers += cost_per_cure
                     from economy.actor_accounts import record as record_economic_event
-                    record_economic_event(
+                    operation_id = (f'medical-care:{region.name}:{int(t)}:'
+                                    f'{a.id}:{dis}:{disease_index}:public')
+                    actor_account_event = record_economic_event(
                         region, 'medical_care', turn=t,
                         payer_id=gov_agent.id, recipient_id=provider.id,
                         amount=cost_per_cure,
+                        source_id=operation_id,
                         detail={'patient_id': a.id, 'disease': dis,
                                 'payer': 'government'})
+                    cash_transfer_event_id = trace_medical_payment(
+                        gov_agent, provider, a, dis, cost_per_cure, 'public',
+                        payer_cash_before, provider_cash_before, operation_id,
+                        actor_account_event)
+                    cash_settlement = 'government_to_provider_cash_transfer'
+                    if cash_transfer_event_id is not None:
+                        public_transfer_event_ids.append(cash_transfer_event_id)
+                        medical_transfer_event_ids.append(cash_transfer_event_id)
                 else:
                     gov_agent.cash += cost_per_cure  # Self-administered municipal hospital
+                    non_transfer_treatments += 1
 
                 spending_pub += cost_per_cure
                 treated_count += 1
@@ -324,7 +387,6 @@ def step_medical_care(region, t: int, rand_gen=None) -> dict:
 
                 cure_draw = r.random()
                 cured = cure_draw < effective_cure
-                from run_trace import emit
                 emit(region, kind='medical_treatment', record_class='outcome',
                      subject={'type': 'tile', 'id': region.name,
                               'agent_id': getattr(a, 'id', None), 'disease': dis},
@@ -334,24 +396,49 @@ def step_medical_care(region, t: int, rand_gen=None) -> dict:
                      inputs={'payer': 'public', 'treatment_cost': cost_per_cure,
                              'effective_cure_chance': effective_cure,
                              'cure_draw': cure_draw, 'provider_id': getattr(provider, 'id', None),
-                             'provider_is_treasury': provider == gov_agent})
+                             'provider_is_treasury': provider == gov_agent,
+                             'cash_settlement': cash_settlement,
+                             'cash_transfer_event_id': cash_transfer_event_id,
+                             'operation_id': operation_id,
+                             'actor_account_event_id': actor_account_event['id']
+                             if actor_account_event is not None else None},
+                     cause_event_ids=([cash_transfer_event_id]
+                                      if cash_transfer_event_id else None))
                 if cured:
                     cured_this_turn.append(dis)
                     a.health_attrition = max(0.0, getattr(a, 'health_attrition', 0.0) - 0.15)
             elif a.cash >= cost_per_cure:
                 # Private out-of-pocket medical bill: patient pays
+                cash_transfer_event_id = None
+                actor_account_event = None
+                operation_id = None
+                cash_settlement = 'no_external_provider_cash_transfer'
+                payer_cash_before = float(a.cash)
                 a.cash -= cost_per_cure
                 if provider and provider != a:
+                    provider_cash_before = float(provider.cash)
                     provider.cash += cost_per_cure
                     from economy.actor_accounts import record as record_economic_event
-                    record_economic_event(
+                    operation_id = (f'medical-care:{region.name}:{int(t)}:'
+                                    f'{a.id}:{dis}:{disease_index}:private')
+                    actor_account_event = record_economic_event(
                         region, 'medical_care', turn=t,
                         payer_id=a.id, recipient_id=provider.id,
                         amount=cost_per_cure,
+                        source_id=operation_id,
                         detail={'patient_id': a.id, 'disease': dis,
                                 'payer': 'patient'})
+                    cash_transfer_event_id = trace_medical_payment(
+                        a, provider, a, dis, cost_per_cure, 'private',
+                        payer_cash_before, provider_cash_before, operation_id,
+                        actor_account_event)
+                    private_transfers += cost_per_cure
+                    if cash_transfer_event_id is not None:
+                        medical_transfer_event_ids.append(cash_transfer_event_id)
+                    cash_settlement = 'patient_to_provider_cash_transfer'
                 else:
                     a.cash += cost_per_cure  # Self-purchase of folk remedy
+                    non_transfer_treatments += 1
 
                 spending_priv += cost_per_cure
                 a.medical_expenses_paid = getattr(a, 'medical_expenses_paid', 0.0) + cost_per_cure
@@ -360,7 +447,6 @@ def step_medical_care(region, t: int, rand_gen=None) -> dict:
 
                 cure_draw = r.random()
                 cured = cure_draw < effective_cure
-                from run_trace import emit
                 emit(region, kind='medical_treatment', record_class='outcome',
                      subject={'type': 'tile', 'id': region.name,
                               'agent_id': getattr(a, 'id', None), 'disease': dis},
@@ -369,7 +455,14 @@ def step_medical_care(region, t: int, rand_gen=None) -> dict:
                      formula_id='medicine.cure_chance.v1',
                      inputs={'payer': 'patient', 'treatment_cost': cost_per_cure,
                              'effective_cure_chance': effective_cure,
-                             'cure_draw': cure_draw, 'provider_id': getattr(provider, 'id', None)})
+                             'cure_draw': cure_draw, 'provider_id': getattr(provider, 'id', None),
+                             'cash_settlement': cash_settlement,
+                             'cash_transfer_event_id': cash_transfer_event_id,
+                             'operation_id': operation_id,
+                             'actor_account_event_id': actor_account_event['id']
+                             if actor_account_event is not None else None},
+                     cause_event_ids=([cash_transfer_event_id]
+                                      if cash_transfer_event_id else None))
                 if cured:
                     cured_this_turn.append(dis)
                     a.health_attrition = max(0.0, getattr(a, 'health_attrition', 0.0) - 0.10)
@@ -378,7 +471,6 @@ def step_medical_care(region, t: int, rand_gen=None) -> dict:
                 untreated_count += 1
                 a.health_attrition = min(2.5, getattr(a, 'health_attrition', 0.0) + 0.04)
                 a.despair = min(1.0, getattr(a, 'despair', 0.0) + 0.05)
-                from run_trace import emit
                 emit(region, kind='medical_treatment_unaffordable', record_class='outcome',
                      subject={'type': 'tile', 'id': region.name,
                               'agent_id': getattr(a, 'id', None), 'disease': dis},
@@ -433,12 +525,16 @@ def step_medical_care(region, t: int, rand_gen=None) -> dict:
          formula_id='medicine.regional_spending.v1',
          inputs={'private_spending': spending_priv, 'public_spending': spending_pub,
                  'public_transfer_outflow': public_transfers,
+                 'private_transfer_outflow': private_transfers,
+                 'actual_cash_transfer_outflow': public_transfers + private_transfers,
+                 'non_transfer_treatment_count': non_transfer_treatments,
                  'treated_cases': treated_count, 'untreated_cases': untreated_count,
                  'disease_cases_before_treatment': counts,
                  'cost_per_cure': cost_per_cure, 'cure_chance': cure_chance,
                  'public_healthcare': is_public_healthcare,
                  'germ_theory': has_germ_theory, 'pharmaceutical_chemistry': has_pharma,
-                 'universal_healthcare': has_universal, 'clinic_present': has_clinic})
+                 'universal_healthcare': has_universal, 'clinic_present': has_clinic},
+         cause_event_ids=medical_transfer_event_ids or None)
     emit(region, kind='disease_fatalities_observed', record_class='observation',
          subject={'type': 'tile', 'id': region.name},
          metric_id='health.fatalities', unit='people', after=fatalities,
@@ -457,7 +553,8 @@ def step_medical_care(region, t: int, rand_gen=None) -> dict:
              metric_id='finance.treasury_flow', unit=nation.currency,
              after=-public_transfers,
              inputs={'region': region.name, 'treated_cases': public_treated_count,
-                     'provider_transfers': public_transfers})
+                     'provider_transfers': public_transfers},
+             cause_event_ids=public_transfer_event_ids or None)
 
     return {
         'cases': counts,

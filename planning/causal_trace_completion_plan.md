@@ -1541,3 +1541,18 @@ assessment links to that receipt.
 Verification: traced and untraced fixtures produce identical treasury and
 municipal balances. Focused food-security, paired-leg, and metric-catalog tests
 passed (3 tests); compilation and `git diff --check` passed.
+
+## Phase 3 follow-up — Trace medical-care cash settlement
+
+Public treasury payments and private patient payments to external providers now
+record exact wallet balances through `finance.cash_transfer`. Each treatment
+outcome links to its payment, and the public spending aggregate links to all
+provider transfers. Self-administered treatment is labeled as a cost with no
+net account transfer, so the trace does not fabricate a counterparty payment.
+The regional medical-spending summary separates modeled treatment cost from
+actual cash transferred.
+
+Verification: focused fixtures cover private care, public care, and
+self-administered public care with trace-on/off state parity, exact balances,
+and causal links. Those tests and metric-catalog coverage passed (4 tests);
+compilation and `git diff --check` passed.
