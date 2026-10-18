@@ -399,6 +399,28 @@ def handle_debt_inheritance(ctx, t, agent, living_descendants):
                              region=region, debtor=agent)
 
 
+def _record_wallet_estate_flow(region, t, agent, recipient_id, currency, amount,
+                               kind, settlement, detail=None,
+                               payer_is_decedent=True):
+    if region is None or amount <= 0:
+        return
+    from economy.actor_accounts import record as record_economic_event
+    record_economic_event(
+        region, kind, turn=t,
+        payer_id=agent.id if payer_is_decedent else None,
+        recipient_id=recipient_id,
+        amount=amount, currency=currency,
+        detail={'settlement': settlement, **(detail or {})})
+    from run_trace import emit
+    emit(region, kind=f'estate_{kind}', record_class='transfer', phase='demographics',
+         subject={'type': 'agent', 'id': agent.id, 'tile': region.name},
+         metric_id=f'finance.{kind}', unit=currency, after=float(amount),
+         inputs={'payer_id': agent.id if payer_is_decedent else None,
+                 'recipient_id': recipient_id, 'currency': currency,
+                 'amount': float(amount), 'settlement': settlement,
+                 **(detail or {})})
+
+
 def handle_wealth_inheritance(ctx, t, agent, living_descendants):
     """Distribute remaining cash, deposits, and inventory to heirs or government/charity."""
     inheritance_cash = agent.cash
@@ -419,28 +441,65 @@ def handle_wealth_inheritance(ctx, t, agent, living_descendants):
             inherited_cash = cash_share + extra_cash
             if getattr(descendent, '_bank_ref', None) is ctx.bank and ctx.bank is not None:
                 descendent.cash += inherited_cash
+                settlement = 'cash'
             elif decedent_currency:
+                wallet_before = fx.fx_balance(descendent, decedent_currency)
                 fx.fx_add(descendent, decedent_currency, inherited_cash)
+                wallet_after = fx.fx_balance(descendent, decedent_currency)
+                settlement = 'foreign_wallet'
             else:
                 descendent.cash += inherited_cash
+                settlement = 'cash'
             if inherited_cash > 0 and getattr(ctx, 'source_region', None) is not None:
                 from economy.actor_accounts import record as record_economic_event
-                record_economic_event(
-                    ctx.source_region, 'inheritance', turn=t,
-                    payer_id=agent.id, recipient_id=descendent.id,
-                    amount=inherited_cash, currency=decedent_currency,
-                    detail={'heir_count': num_heirs,
-                            'settlement': 'cash' if getattr(descendent, '_bank_ref', None)
-                            is ctx.bank and ctx.bank is not None else 'foreign_wallet'})
+                if settlement == 'foreign_wallet':
+                    # The decedent pays cash while the heir receives a wallet
+                    # asset; separate legs keep the cash bridge from counting
+                    # that wallet balance as cash income.
+                    cash_event = record_economic_event(
+                        ctx.source_region, 'inheritance', turn=t,
+                        payer_id=agent.id, amount=inherited_cash,
+                        currency=decedent_currency,
+                        detail={'heir_count': num_heirs,
+                                'settlement': 'cash_to_foreign_wallet',
+                                'intended_recipient_id': descendent.id})
+                    _record_wallet_estate_flow(
+                        ctx.source_region, t, agent, descendent.id, decedent_currency,
+                        wallet_after - wallet_before, 'foreign_wallet_inheritance',
+                        'cash_to_foreign_wallet',
+                        {'heir_count': num_heirs,
+                         'source_cash_event_id': cash_event['id'],
+                         'recipient_wallet_before': wallet_before,
+                         'recipient_wallet_after': wallet_after},
+                        payer_is_decedent=False)
+                else:
+                    record_economic_event(
+                        ctx.source_region, 'inheritance', turn=t,
+                        payer_id=agent.id, recipient_id=descendent.id,
+                        amount=inherited_cash, currency=decedent_currency,
+                        detail={'heir_count': num_heirs, 'settlement': 'cash'})
 
         dead_w = getattr(agent, 'wallets', None)
         if dead_w:
             for currency, bal in list(dead_w.items()):
                 if bal <= 0:
                     continue
-                wallet_share = bal / num_heirs
-                for descendent in living_descendants:
+                remaining = float(bal)
+                for index, descendent in enumerate(living_descendants):
+                    wallet_share = (remaining if index == num_heirs - 1
+                                    else float(bal) / num_heirs)
+                    wallet_before = fx.fx_balance(descendent, currency)
                     fx.fx_add(descendent, currency, wallet_share)
+                    transferred = fx.fx_balance(descendent, currency) - wallet_before
+                    _record_wallet_estate_flow(
+                        getattr(ctx, 'source_region', None), t, agent, descendent.id,
+                        currency, transferred, 'foreign_wallet_inheritance',
+                        'death_estate_wallet',
+                        {'heir_count': num_heirs,
+                         'decedent_wallet_before': float(bal),
+                         'recipient_wallet_before': wallet_before,
+                         'recipient_wallet_after': fx.fx_balance(descendent, currency)})
+                    remaining -= wallet_share
                 dead_w[currency] = 0.0
 
         for g_enum in Goods:
@@ -505,10 +564,23 @@ def handle_wealth_inheritance(ctx, t, agent, living_descendants):
                 if bal <= 0:
                     continue
                 if government is not None:
+                    wallet_before = fx.fx_balance(government.agent, currency)
                     fx.fx_add(government.agent, currency, bal)
+                    transferred = fx.fx_balance(government.agent, currency) - wallet_before
+                    _record_wallet_estate_flow(
+                        getattr(ctx, 'source_region', None), t, agent,
+                        government.agent.id, currency, transferred,
+                        'foreign_wallet_inheritance', 'heirless_estate_wallet',
+                        {'destination': 'government',
+                         'recipient_wallet_before': wallet_before,
+                         'recipient_wallet_after': fx.fx_balance(government.agent, currency)})
                 else:
                     from ledger import record as _rec_dest2
                     _rec_dest2(t, currency, bal, 'heirless-no-state-wallet')
+                    _record_wallet_estate_flow(
+                        getattr(ctx, 'source_region', None), t, agent, None,
+                        currency, bal, 'foreign_wallet_escheat',
+                        'heirless-no-state-wallet', {'destination': 'ledger'})
                 dead_w[currency] = 0.0
 
         if inheritance_deposits > 0:

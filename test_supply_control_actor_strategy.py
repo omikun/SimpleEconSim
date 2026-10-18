@@ -294,6 +294,8 @@ class ActorAccountTests(unittest.TestCase):
         from agent import Agent
         decedent, heir = Agent(7), Agent(7)
         decedent.cash = 40
+        decedent.wallets = {'EUR': 20.0}
+        heir.wallets = {'EUR': 2.0}
         decedent.descendants = [heir]
         heir._bank_ref = bank
         region.agents = [decedent, heir]
@@ -309,6 +311,134 @@ class ActorAccountTests(unittest.TestCase):
         self.assertEqual(rows[decedent.id]['posted_cash_change'], -40)
         self.assertEqual(rows[heir.id]['posted_cash_change'], 40)
         self.assertEqual(rows[heir.id]['unposted_cash_change'], 0)
+        self.assertEqual(rows[decedent.id]['wallet_change_by_currency'], {'EUR': -20.0})
+        self.assertEqual(rows[heir.id]['wallet_change_by_currency'], {'EUR': 20.0})
+        self.assertEqual(rows[heir.id]['foreign_wallet_inherited'], {'EUR': 20.0})
+        self.assertEqual(rows[heir.id]['posted_cash_change'], 40)
+        self.assertEqual(region.economic_events[-1]['kind'], 'foreign_wallet_inheritance')
+
+    def test_heirless_foreign_wallet_is_recorded_as_government_receipt(self):
+        from demographics_estate import handle_wealth_inheritance
+        from types import SimpleNamespace
+        from agent import Agent
+        region = Region()
+        bank = SimpleNamespace(deposits={}, loans=[])
+        decedent, government_agent = Agent(8), Agent(9)
+        decedent.wallets = {'EUR': 13.0}
+        government_agent.wallets = {}
+        government = SimpleNamespace(agent=government_agent, probate_fee_rate=0.0)
+        region.bank = bank
+        region.agents = [decedent, government_agent]
+        begin_turn(region, 8)
+
+        handle_wealth_inheritance(
+            SimpleNamespace(bank=bank, default_gov=government, charity=None,
+                            source_region=region),
+            8, decedent, [])
+        rows = {row['actor_id']: row for row in seal_turn(region, 8)}
+
+        self.assertEqual(government_agent.wallets['EUR'], 13.0)
+        self.assertEqual(rows[government_agent.id]['foreign_wallet_inherited'],
+                         {'EUR': 13.0})
+        self.assertEqual(rows[government_agent.id]['wallet_change_by_currency'],
+                         {'EUR': 13.0})
+        self.assertEqual(rows[decedent.id]['foreign_wallet_escheated'], {})
+        self.assertEqual(rows[government_agent.id]['posted_cash_change'], 0)
+
+    def test_heirless_foreign_wallet_without_government_is_explicit_escheat(self):
+        from demographics_estate import handle_wealth_inheritance
+        from types import SimpleNamespace
+        from agent import Agent
+        region = Region()
+        bank = SimpleNamespace(deposits={}, loans=[])
+        decedent = Agent(14)
+        decedent.wallets = {'EUR': 9.0}
+        region.bank = bank
+        region.agents = [decedent]
+        begin_turn(region, 12)
+
+        handle_wealth_inheritance(
+            SimpleNamespace(bank=bank, default_gov=None, charity=None,
+                            source_region=region),
+            12, decedent, [])
+        rows = {row['actor_id']: row for row in seal_turn(region, 12)}
+        event = next(event for event in region.economic_events
+                     if event['kind'] == 'foreign_wallet_escheat')
+
+        self.assertEqual(decedent.wallets['EUR'], 0.0)
+        self.assertEqual(rows[decedent.id]['foreign_wallet_escheated'], {'EUR': 9.0})
+        self.assertEqual(rows[decedent.id]['wallet_change_by_currency'], {'EUR': -9.0})
+        self.assertIsNone(event['recipient_id'])
+        self.assertEqual(event['detail']['destination'], 'ledger')
+
+    def test_estate_cash_paid_into_heir_wallet_reconciles_as_two_currency_legs(self):
+        from demographics_estate import handle_wealth_inheritance
+        from types import SimpleNamespace
+        from agent import Agent
+        region = Region()
+        region.home_currency = 'USD'
+        bank = SimpleNamespace(deposits={}, loans=[])
+        decedent, heir = Agent(10), Agent(11)
+        decedent.cash = 25.0
+        heir.cash = 3.0
+        heir.wallets = {'EUR': 2.0}
+        region.bank = bank
+        region.agents = [decedent, heir]
+        begin_turn(region, 9)
+
+        handle_wealth_inheritance(
+            SimpleNamespace(bank=bank, default_gov=None, charity=None,
+                            source_region=region),
+            9, decedent, [heir])
+        decedent.cash = 0.0
+        rows = {row['actor_id']: row for row in seal_turn(region, 9)}
+        events = [event for event in region.economic_events if event['turn'] == 9]
+
+        self.assertEqual(heir.cash, 3.0)
+        self.assertEqual(heir.wallets['USD'], 25.0)
+        self.assertEqual(rows[decedent.id]['posted_cash_change'], -25.0)
+        self.assertEqual(rows[decedent.id]['unposted_cash_change'], 0.0)
+        self.assertEqual(rows[heir.id]['posted_cash_change'], 0.0)
+        self.assertEqual(rows[heir.id]['foreign_wallet_inherited'], {'USD': 25.0})
+        self.assertEqual(rows[heir.id]['wallet_change_by_currency'], {'USD': 25.0})
+        cash_leg = next(event for event in events if event['kind'] == 'inheritance')
+        wallet_leg = next(event for event in events
+                          if event['kind'] == 'foreign_wallet_inheritance')
+        self.assertIsNone(cash_leg['recipient_id'])
+        self.assertEqual(wallet_leg['detail']['source_cash_event_id'], cash_leg['id'])
+
+    def test_foreign_wallet_inheritance_is_visible_on_heir_tile_account(self):
+        from demographics_estate import handle_wealth_inheritance
+        from types import SimpleNamespace
+        from agent import Agent
+        source, heir_region = Region(), Region()
+        source.name = 'Source'
+        heir_region.name = 'Heir Home'
+        source.home_currency = 'USD'
+        bank = SimpleNamespace(deposits={}, loans=[])
+        source.bank = bank
+        decedent, heir = Agent(12), Agent(13)
+        decedent.wallets = {'EUR': 18.0}
+        heir.wallets = {}
+        source.agents = [decedent]
+        heir_region.agents = [heir]
+        province = SimpleNamespace(tiles=[source, heir_region])
+        source.province = heir_region.province = province
+        begin_turn(source, 10)
+        begin_turn(heir_region, 10)
+
+        handle_wealth_inheritance(
+            SimpleNamespace(bank=bank, default_gov=None, charity=None,
+                            source_region=source),
+            10, decedent, [heir])
+        account = next(row for row in seal_turn(
+            heir_region, 10, event_regions=[source, heir_region])
+                       if row['actor_id'] == heir.id)
+
+        self.assertEqual(account['foreign_wallet_inherited'], {'EUR': 18.0})
+        self.assertEqual(account['wallet_change_by_currency'], {'EUR': 18.0})
+        self.assertEqual(account['cash_change'], 0.0)
+        self.assertEqual(account['posted_cash_change'], 0.0)
 
     def test_cash_rent_transfer_is_in_actor_cash_bridge(self):
         from land_rent import collect_rents

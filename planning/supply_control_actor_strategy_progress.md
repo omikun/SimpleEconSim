@@ -46,9 +46,10 @@ already fun or balanced; that still needs player feedback.
   zero currency violations and zero unmatched cash across all actor-turn
   statements. This verifies the current default scenario sample; broader
   scenario coverage and long-run statement-history checks remain outstanding.
-- Cash statements describe observed transfers, not complete profit. Loan
-  write-offs, foreign-currency wallet legs, and noncash asset changes remain
-  separate accounting surfaces and still need their own coverage.
+- Cash statements describe observed transfers, not complete profit. Estate
+  foreign-wallet inheritance and escheat now have separate currency records and
+  opening/closing wallet balances; non-estate credit losses, sovereign
+  write-downs, and other noncash asset changes still need coverage.
 - Cash rent, enclosure charter fees, and bailiff services now post named actor
   transfers. The bailiff's $10 cost is tracked as its own enforcement expense.
 - Estate cash distributed to heirs, government, or charity now posts as named
@@ -64,11 +65,13 @@ already fun or balanced; that still needs player feedback.
   heirless principal write-offs. The write-off event names how much was absorbed
   by bank capital, depositors, and treasury recapitalization; actor summaries
   keep debt amounts grouped by currency.
-- Remaining gate work: extend coverage to non-estate credit losses and sovereign
-  write-downs, foreign-wallet inheritance and other non-probate currency legs,
-  and farmgate-to-route-to-import accounting for all cargo sources. The tested
-  default runs close the actor cash bridge, but they do not prove complete
-  balance-sheet or operating-profit coverage.
+- Remaining gate work: extend coverage to non-estate credit losses, sovereign
+  write-downs, and other non-probate currency legs. Paid market purchases now
+  link cargo from named sellers through route legs to destination fills;
+  scenario-seeded or legacy cargo and fully normalized FX, freight, and tariff
+  delivered cost remain open. The tested default runs close the actor cash
+  bridge, but they do not prove complete balance-sheet or operating-profit
+  coverage.
 
 ## Phase 2 — grower and title-holder agency: implemented, deeper law/remedy work out of scope
 
@@ -174,6 +177,12 @@ already fun or balanced; that still needs player feedback.
   or other flows without a settled market event remains explicitly unlinked.
   FX and tariff conversions remain separate cash legs rather than a fully
   normalized per-shipment delivered-cost calculation.
+- Deaths that distribute foreign wallets now record one event per currency and
+  beneficiary. Cash inherited directly into a wallet has a linked cash debit
+  and noncash wallet receipt, so the actor cash bridge does not count it twice.
+  Accounts show opening/closing wallet balances and currency changes; province
+  event aggregation makes cross-tile heirs visible. Heirless government
+  receipts and no-government escheats are recorded separately.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_supply_control_actor_strategy test_supply_rights test_market_auction test_market_routes test_web_client_parity test_truck_system_and_scrip` — 67 tests passed after bank debt, company-store debt, campaign-currency, and linked shipment additions.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_run_trace test_market_auction test_supply_control_actor_strategy test_phase1_enclosure_expansions` — 34 tests passed after inheritance, cash-rent, enclosure-fee, and public food-purchase postings.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_supply_control_actor_strategy.ActorAccountTests test_supply_control_actor_strategy.SupplyControlActorFixtureTests test_phase1_enclosure_expansions` — 29 tests passed after shared-province cash postings and alienation-flow instrumentation.
@@ -184,6 +193,8 @@ already fun or balanced; that still needs player feedback.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_market_routes test_market_auction test_supply_control_actor_strategy.ActorAccountTests test_run_trace` — passed after purchase-to-seller acquisition links and route cost weighting.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_supply_control_actor_strategy test_supply_rights test_market_auction test_market_routes test_web_client_parity test_truck_system_and_scrip test_run_trace` — 103 tests passed after acquisition links; focused compile and diff checks passed.
 - Repeating `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python benchmark_supply_default.py 50 4242` after acquisition-link tracking again completed 50 turns with zero currency violations and zero unmatched actor cash across actor-turn statements.
+- `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_supply_control_actor_strategy test_supply_rights test_market_auction test_market_routes test_web_client_parity test_truck_system_and_scrip test_run_trace test_trace_codec` — 109 tests passed after foreign-wallet inheritance and escheat coverage; `git diff --check` and targeted compile checks passed.
+- `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python benchmark_supply_default.py 50 4242` — repeated after foreign-wallet accounting; the 50-turn run reported zero currency violations and zero unmatched actor cash across actor-turn statements.
 - `git diff --check` and `venv/bin/python -m compileall -q transporter.py world_trade.py region_market.py region_logistics.py economy/actor_accounts.py` — passed for the shipment-provenance slice.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python benchmark_supply_default.py 50 4242` — default three-nation 50-turn run completed with zero currency violations, zero unmatched cash on turn 50, and zero unmatched cash across actor-turn statements.
 - `node --check web_client/client.js` and `git diff --check` — passed after the same changes.

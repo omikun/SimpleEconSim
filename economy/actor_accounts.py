@@ -11,7 +11,8 @@ from goods import Goods
 _NONCASH_EVENTS = {'production', 'input_consumed', 'scrip_wage',
                    'scrip_store_sale', 'scrip_food_credit', 'bank_deposit_haircut',
                    'bank_debt_inheritance', 'bank_debt_writeoff',
-                   'foreign_wallet_debt_payment'}
+                   'foreign_wallet_debt_payment', 'foreign_wallet_inheritance',
+                   'foreign_wallet_escheat'}
 
 
 def recorded_cash_delta(events, actor_id):
@@ -63,6 +64,9 @@ def begin_turn(region, turn):
     region._economic_opening = {
         a.id: {'cash': float(getattr(a, 'cash', 0.0)),
                'scrip': float(getattr(a, 'scrip_wallet', 0.0)),
+               'wallets': {str(currency): float(amount)
+                           for currency, amount in
+                           (getattr(a, 'wallets', None) or {}).items()},
                'bank_deposit': float(bank.deposits.get(a, 0.0)) if bank else 0.0,
                'bank_debt': sum(max(0.0, float(loan.principle) - float(loan.principle_paid))
                                 for loan in getattr(bank, 'loans', [])
@@ -136,9 +140,19 @@ def seal_turn(region, turn, event_regions=None):
         prior = opening.get(actor.id, {
             'cash': 0.0, 'scrip': 0.0, 'bank_deposit': 0.0,
             'bank_debt': 0.0, 'company_debt': 0.0, 'food': 0,
-            'inventory': {}, 'debt': 0.0, 'title_plots': [],
+            'wallets': {}, 'inventory': {}, 'debt': 0.0, 'title_plots': [],
             'water_units': 0.0,
         })
+        closing_wallets = {str(currency): float(amount)
+                           for currency, amount in
+                           (getattr(actor, 'wallets', None) or {}).items()}
+        wallet_change_by_currency = {
+            currency: round(closing_wallets.get(currency, 0.0)
+                            - prior.get('wallets', {}).get(currency, 0.0), 2)
+            for currency in sorted(set(closing_wallets) | set(prior.get('wallets', {})))
+            if round(closing_wallets.get(currency, 0.0)
+                     - prior.get('wallets', {}).get(currency, 0.0), 2) != 0
+        }
         cash_in = sum((e['detail'].get('seller_receipt', e['amount'])
                        if e['kind'] == 'spot_sale' else e['amount'])
                       for e in cash_own if e['recipient_id'] == actor.id
@@ -175,6 +189,20 @@ def seal_turn(region, turn, event_regions=None):
                 currency = event.get('currency') or 'unknown'
                 foreign_wallet_debt_paid[currency] = (
                     foreign_wallet_debt_paid.get(currency, 0.0) + event['amount'])
+        foreign_wallet_inherited = {}
+        for event in cash_own:
+            if (event['recipient_id'] == actor.id
+                    and event['kind'] == 'foreign_wallet_inheritance'):
+                currency = event.get('currency') or 'unknown'
+                foreign_wallet_inherited[currency] = (
+                    foreign_wallet_inherited.get(currency, 0.0) + event['amount'])
+        foreign_wallet_escheated = {}
+        for event in cash_own:
+            if (event['payer_id'] == actor.id
+                    and event['kind'] == 'foreign_wallet_escheat'):
+                currency = event.get('currency') or 'unknown'
+                foreign_wallet_escheated[currency] = (
+                    foreign_wallet_escheated.get(currency, 0.0) + event['amount'])
         bank_deposit_loss = sum(e['amount'] for e in own if e['payer_id'] == actor.id
                                 and e['kind'] == 'bank_deposit_haircut')
         for_lease = [p.plot_id for p in getattr(getattr(region, 'tenure', None), 'plots', [])
@@ -201,6 +229,9 @@ def seal_turn(region, turn, event_regions=None):
             'opening_scrip': round(prior['scrip'], 2),
             'closing_scrip': round(float(getattr(actor, 'scrip_wallet', 0.0)), 2),
             'scrip_change': round(float(getattr(actor, 'scrip_wallet', 0.0)) - prior['scrip'], 2),
+            'opening_wallets': dict(sorted(prior.get('wallets', {}).items())),
+            'closing_wallets': dict(sorted(closing_wallets.items())),
+            'wallet_change_by_currency': wallet_change_by_currency,
             'cash_change': round(float(actor.cash) - prior['cash'], 2),
             'posted_cash_change': round(cash_in - cash_out, 2),
             'unposted_cash_change': round(observed_cash_change - (cash_in - cash_out), 2),
@@ -219,6 +250,12 @@ def seal_turn(region, turn, event_regions=None):
             'foreign_wallet_debt_paid': {
                 currency: round(amount, 2)
                 for currency, amount in sorted(foreign_wallet_debt_paid.items())},
+            'foreign_wallet_inherited': {
+                currency: round(amount, 2)
+                for currency, amount in sorted(foreign_wallet_inherited.items())},
+            'foreign_wallet_escheated': {
+                currency: round(amount, 2)
+                for currency, amount in sorted(foreign_wallet_escheated.items())},
             'bank_deposit_loss': round(bank_deposit_loss, 2),
             'opening_food': prior['food'], 'closing_food': int(actor.inv_get(Goods.food, 0)),
             'food_intake': round(float(getattr(actor, 'last_calories_eaten', 0.0)) / 500.0, 2),
