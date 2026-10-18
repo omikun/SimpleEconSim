@@ -1656,3 +1656,30 @@ Verification: 27 policy trace, public-aid, provincial, guano, frontier, and
 metric-catalog tests passed, as did the focused City/Province/Nation policy UI
 action test. The broader GUI module could not complete because its renderer
 failed to create an OpenGL context. Compilation and `git diff --check` passed.
+
+## Phase 3 follow-up — Trace public construction funding (implemented)
+
+Instrument `BuildIntent` from the initial funding gate through project
+commissioning. Use the intent ID as the stable operation key. Record the actual
+source order and exact contribution legs for municipal and national wallets,
+sister-tile wallets, their bank deposits, and target-bank capital. Capture
+requested and settled deposit withdrawals separately, with bank and government
+cash/deposit balances plus withdrawal event links. On shortfall, record the
+wallet rollback and any bank settlement that remained in place. Link the
+contractor payment's exact recipient balance to the funding decision and
+commissioned project. Mark the aggregate payer as a virtual pool with
+itemized sources rather than inventing a pooled account balance.
+
+Preserve current behavior in this instrumentation slice. In particular, test
+and expose the frozen-bank case where the deposit withdrawal settles below the
+requested amount but the government wallet is debited by the request. Any fix
+to overdraft, settlement, or rollback rules needs a separate mechanics change.
+
+Verification: traced/untraced cash and bank-deposit fixtures match for game
+and RNG state. Frozen-bank and shortfall fixtures reconcile requested versus
+settled withdrawals, wallet deficit, rollback, remaining bank settlement, and
+contractor payment/no-payment. BuildIntent, trace-catalog, and run-trace suites
+passed (34 tests). The construction suite had one unrelated textile staffing
+failure: `operational_efficiency` was exactly 0.2 where the test expects above
+0.2, including when isolated. The focused multi-tier construction test,
+compilation, and `git diff --check` passed.

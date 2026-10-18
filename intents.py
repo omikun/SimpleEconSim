@@ -161,19 +161,62 @@ class BuildIntent(Intent):
     def execute(self, tiles_by_name: dict[str, Region],
                 nations_by_name: dict[str, Nation], t: int) -> tuple[bool, str]:
         valid, reason = self.validate(tiles_by_name, nations_by_name, t)
+        nation = nations_by_name.get(self.nation_name)
+        region = tiles_by_name.get(self.region_name)
+        trace_region = region or (nation.tiles[0] if nation and nation.tiles else None)
+        from run_trace import emit
+
         if not valid:
             self.status = 'rejected'
+            if trace_region is not None:
+                emit(trace_region, kind='construction_funding_decision',
+                     record_class='outcome', phase='strategy',
+                     subject={'type': 'tile/intent', 'id': self.intent_id,
+                              'tile': getattr(trace_region, 'name', None)},
+                     metric_id='construction.funding_decision', unit='funded',
+                     before=None, after=False, operation_id=self.intent_id,
+                     decision_id=getattr(self, '_decision_event_id', None),
+                     inputs={'operation_id': self.intent_id,
+                             'intent_type': self.intent_type,
+                             'nation': self.nation_name,
+                             'target_region': self.region_name,
+                             'building_type': self.building_type,
+                             'validation_passed': False,
+                             'reason': reason, 'source_legs': [],
+                             'contractor_payment_made': False})
             return False, f"BuildIntent rejected: {reason}"
 
-        nation = nations_by_name[self.nation_name]
-        region = tiles_by_name[self.region_name]
+        # The operation key is the intent ID, stable across its funding,
+        # contractor payment, project, and intent-execution records.
+        operation_id = self.intent_id
         recipe = BUILDING_RECIPES[self.building_type]
         cost = recipe.cost
 
         # 1. Procure funds from government (conserved transfer across sovereign treasury pool)
         treasury = nation.treasury()
+        treasury_total_before = float(treasury['total'])
         remaining_needed = cost
         funding_sources = []
+        source_legs = []
+        bank_withdrawal_event_ids = []
+
+        funding_plan_event_id = emit(
+            region, kind='construction_funding_plan',
+            record_class='calculation', phase='strategy',
+            subject={'type': 'tile/intent', 'id': self.intent_id,
+                     'tile': region.name},
+            operation_id=operation_id,
+            decision_id=getattr(self, '_decision_event_id', None),
+            inputs={'nation': nation.name, 'target_region': region.name,
+                    'building_type': self.building_type,
+                    'amount_required': float(cost),
+                    'treasury_total_before': treasury_total_before,
+                    'source_priority': [
+                        'target_municipal_cash_then_deposits',
+                        'national_government_cash_then_deposits',
+                        'sister_tile_government_cash_then_deposits_in_tile_order',
+                        'target_bank_capital'],
+                    'rollback_on_shortfall': True})
 
         # Try tile regional government first, then national government, then sister tiles
         rgov = getattr(region, 'gov', None)
@@ -193,9 +236,22 @@ class BuildIntent(Intent):
             # Cash on hand
             if g.agent.cash > 0:
                 take = min(remaining_needed, g.agent.cash)
+                cash_before = float(g.agent.cash)
                 g.agent.cash -= take
                 remaining_needed -= take
                 funding_sources.append((g.agent, take))
+                source_legs.append({
+                    'source_kind': 'government_wallet_cash',
+                    'government_scope': ('national' if g is nation.government
+                                         else 'municipal_or_sister_tile'),
+                    'government_name': getattr(g, 'name', None),
+                    'account_id': getattr(g.agent, 'id', None),
+                    'currency': getattr(g.agent, 'home_currency',
+                                        getattr(region, 'home_currency', None)),
+                    'amount_applied': float(take),
+                    'amount_counted_toward_project': float(take),
+                    'cash_before': cash_before,
+                    'cash_after': float(g.agent.cash)})
 
             # Bank deposits
             if remaining_needed > 0.001:
@@ -205,33 +261,194 @@ class BuildIntent(Intent):
                         dep = bank.deposits[g.agent]
                         take_dep = min(remaining_needed, dep)
                         if take_dep > 0:
-                            bank.Withdraw(g.agent, take_dep, trace_region=b_tile, t=t,
-                                          reason='public_project_funding')
+                            cash_before = float(g.agent.cash)
+                            deposit_before = float(bank.deposits[g.agent])
+                            bank_total_before = float(bank.total_deposits)
+                            withdrawal_ids = []
+                            settled = bank.Withdraw(
+                                g.agent, take_dep, trace_region=b_tile, t=t,
+                                reason='public_project_funding',
+                                trace_event_ids=withdrawal_ids)
                             g.agent.cash -= take_dep
                             remaining_needed -= take_dep
                             funding_sources.append((g.agent, take_dep))
+                            bank_withdrawal_event_ids.extend(withdrawal_ids)
+                            source_legs.append({
+                                'source_kind': 'government_bank_deposit',
+                                'government_scope': ('national' if g is nation.government
+                                                     else 'municipal_or_sister_tile'),
+                                'government_name': getattr(g, 'name', None),
+                                'account_id': getattr(g.agent, 'id', None),
+                                'bank_id': f'bank:{b_tile.name}',
+                                'currency': getattr(b_tile, 'home_currency', None),
+                                'government_cash_debit_requested': float(take_dep),
+                                'amount_counted_toward_project': float(take_dep),
+                                'bank_withdrawal_requested': float(take_dep),
+                                'bank_withdrawal_settled': float(settled),
+                                'bank_deposit_before': deposit_before,
+                                'bank_deposit_after': float(bank.deposits[g.agent]),
+                                'bank_total_deposits_before': bank_total_before,
+                                'bank_total_deposits_after': float(bank.total_deposits),
+                                'government_cash_before': cash_before,
+                                'government_cash_after_bank_withdrawal':
+                                    float(cash_before + settled),
+                                'government_cash_after_funding_debit':
+                                    float(g.agent.cash),
+                                'withdrawal_event_ids': withdrawal_ids,
+                                'unsettled_withdrawal_request':
+                                    float(max(0.0, take_dep - settled)),
+                                'government_wallet_overdraft_after_funding':
+                                    float(max(0.0, -g.agent.cash))})
                     if remaining_needed <= 0.001:
                         break
 
         # If slightly short but regional bank exists, allow deficit overdraft/borrowing
+        bank = getattr(region, 'bank', None)
         if remaining_needed > 0.01:
-            bank = getattr(region, 'bank', None)
-            if bank is not None and getattr(bank, 'capital', 0.0) >= remaining_needed:
-                bank.capital -= remaining_needed
+            capital_before = (float(getattr(bank, 'capital', 0.0))
+                              if bank is not None else None)
+            if bank is not None and capital_before >= remaining_needed:
+                capital_used = float(remaining_needed)
+                bank.capital -= capital_used
+                source_legs.append({
+                    'source_kind': 'target_bank_capital',
+                    'bank_id': f'bank:{region.name}',
+                    'currency': getattr(region, 'home_currency', None),
+                    'amount_applied': capital_used,
+                    'amount_counted_toward_project': capital_used,
+                    'capital_before': capital_before,
+                    'capital_after': float(bank.capital),
+                    'capital_available': capital_before,
+                    'eligible': True})
                 remaining_needed = 0.0
             else:
+                if bank is not None:
+                    source_legs.append({
+                        'source_kind': 'target_bank_capital',
+                        'bank_id': f'bank:{region.name}',
+                        'currency': getattr(region, 'home_currency', None),
+                        'amount_requested': float(remaining_needed),
+                        'amount_applied': 0.0,
+                        'amount_counted_toward_project': 0.0,
+                        'capital_before': capital_before,
+                        'capital_after': capital_before,
+                        'capital_available': capital_before,
+                        'eligible': False})
                 # Rollback partial withdrawals
+                rollback_legs = []
                 for src_agent, amt in funding_sources:
+                    cash_before_rollback = float(src_agent.cash)
                     src_agent.cash += amt
+                    rollback_legs.append({
+                        'account_id': getattr(src_agent, 'id', None),
+                        'amount_restored': float(amt),
+                        'cash_before': cash_before_rollback,
+                        'cash_after': float(src_agent.cash)})
                 self.status = 'rejected'
+                treasury_total_after = float(nation.treasury()['total'])
+                decision_causes = ([funding_plan_event_id]
+                                   if funding_plan_event_id else [])
+                decision_causes.extend(bank_withdrawal_event_ids)
+                emit(region, kind='construction_funding_decision',
+                     record_class='outcome', phase='strategy',
+                     subject={'type': 'tile/intent', 'id': self.intent_id,
+                              'tile': region.name},
+                     metric_id='construction.funding_decision', unit='funded',
+                     before=None, after=False, operation_id=operation_id,
+                     decision_id=getattr(self, '_decision_event_id', None),
+                     cause_event_ids=decision_causes or None,
+                     inputs={'operation_id': operation_id,
+                             'intent_type': self.intent_type,
+                             'nation': nation.name,
+                             'target_region': region.name,
+                             'building_type': self.building_type,
+                             'amount_required': float(cost),
+                             'amount_counted_before_rollback':
+                                 float(cost - remaining_needed),
+                             'remaining_gap': float(remaining_needed),
+                             'treasury_total_before': treasury_total_before,
+                             'treasury_total_after_rollback': treasury_total_after,
+                             'source_legs': source_legs,
+                             'rollback_legs': rollback_legs,
+                             'bank_withdrawal_event_ids': bank_withdrawal_event_ids,
+                             'contractor_payment_made': False,
+                             'failure_reason': 'insufficient_accessible_funds',
+                             'note': ('Wallet withdrawals were restored. Any bank deposit '
+                                      'withdrawal remains settled because the existing '
+                                      'rollback only restores government wallet cash.')})
                 return False, f"BuildIntent failed: Insufficient treasury cash (${treasury['total']:.2f} < ${cost:.2f})."
+
+        treasury_total_after_funding = float(nation.treasury()['total'])
+        decision_causes = ([funding_plan_event_id]
+                           if funding_plan_event_id else [])
+        decision_causes.extend(bank_withdrawal_event_ids)
+        funding_decision_event_id = emit(
+            region, kind='construction_funding_decision',
+            record_class='outcome', phase='strategy',
+            subject={'type': 'tile/intent', 'id': self.intent_id,
+                     'tile': region.name},
+            metric_id='construction.funding_decision', unit='funded',
+            before=None, after=True, operation_id=operation_id,
+            decision_id=getattr(self, '_decision_event_id', None),
+            cause_event_ids=decision_causes or None,
+            inputs={'operation_id': operation_id,
+                    'intent_type': self.intent_type,
+                    'nation': nation.name, 'target_region': region.name,
+                    'building_type': self.building_type,
+                    'amount_required': float(cost),
+                    'amount_counted_for_project': float(cost),
+                    'remaining_gap': 0.0,
+                    'treasury_total_before': treasury_total_before,
+                    'treasury_total_after_funding': treasury_total_after_funding,
+                    'source_legs': source_legs,
+                    'bank_withdrawal_event_ids': bank_withdrawal_event_ids,
+                    'contractor_payment_made': False,
+                    'funding_order': ('each municipal/national/sister government wallet '
+                                      'then its tile-bank deposits, followed by '
+                                      'target-bank capital')})
 
         # 2. Hire or emerge contractor corporation
         from construction_politics import find_or_emerge_contractor
         contractor = find_or_emerge_contractor(region, cost, t)
 
         # 3. Conserved transfer: Gov pays contractor
+        contractor_cash_before = float(contractor.cash)
         contractor.cash += cost
+        contractor_cash_after = float(contractor.cash)
+        transfer_contract = {
+            'operation_type': 'public_construction_funding',
+            'operation_id': operation_id,
+            'amount': float(cost),
+            'currency': getattr(region, 'home_currency', None),
+            'payer_account': {
+                'type': 'multi_source_public_funding_pool',
+                'id': operation_id,
+                'cash_balance_captured': False,
+                'source_legs': source_legs,
+                'note': ('Composite source only; the game has no pooled wallet. '
+                         'See itemized government and bank source legs.')},
+            'payee_account': {
+                'type': 'contractor_wallet',
+                'id': contractor.id,
+                'balance_before': contractor_cash_before,
+                'balance_after': contractor_cash_after}}
+        payment_causes = [funding_decision_event_id]
+        payment_causes.extend(bank_withdrawal_event_ids)
+        payment_event_id = emit(
+            region, kind='construction_contractor_payment',
+            record_class='transfer', phase='strategy',
+            subject={'type': 'tile/contractor', 'id': str(contractor.id),
+                     'tile': region.name},
+            metric_id='finance.cash_transfer',
+            unit=getattr(region, 'home_currency', None) or 'local_currency',
+            before=contractor_cash_before, after=contractor_cash_after,
+            operation_id=operation_id,
+            cause_event_ids=payment_causes,
+            inputs={'transfer_contract': transfer_contract,
+                    'funding_decision_event_id': funding_decision_event_id,
+                    'bank_withdrawal_event_ids': bank_withdrawal_event_ids,
+                    'project_id': f'proj_{self.intent_id}',
+                    'contractor_id': contractor.id})
 
         # 4. Spawn ConstructionProject
         project = ConstructionProject(
@@ -253,6 +470,27 @@ class BuildIntent(Intent):
         nation.construction_projects.append(project)
 
         self.status = 'in_progress'
+        emit(region, kind='construction_project_commissioned',
+             record_class='outcome', phase='strategy',
+             subject={'type': 'tile/project', 'id': project.project_id,
+                      'tile': region.name},
+             metric_id='construction.project_commission', unit='projects',
+             before=0, after=1, operation_id=operation_id,
+             decision_id=getattr(self, '_decision_event_id', None),
+             cause_event_ids=[funding_decision_event_id, payment_event_id],
+             inputs={'operation_id': operation_id,
+                     'project_id': project.project_id,
+                     'nation': nation.name, 'region': region.name,
+                     'building_type': self.building_type,
+                     'building_name': recipe.display_name,
+                     'amount_paid': float(cost),
+                     'contractor_id': contractor.id,
+                     'contractor_cash_before': contractor_cash_before,
+                     'contractor_cash_after': contractor_cash_after,
+                     'project_status': project.status,
+                     'estimated_duration_turns': project.total_turns,
+                     'funding_decision_event_id': funding_decision_event_id,
+                     'payment_event_id': payment_event_id})
         msg = (f"Commissioned {recipe.display_name} in {region.name}: paid ${cost:.2f} to contractor. "
                f"Estimated duration: {project.total_turns} turns ({project.base_turns} base + {project.overrun_turns} weather/accidents).")
         self.logs.append(msg)

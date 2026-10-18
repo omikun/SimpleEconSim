@@ -1243,3 +1243,25 @@ Verification: 27 policy trace, public-aid, provincial, guano, frontier, and
 metric-catalog tests passed. The focused City/Province/Nation policy UI action
 test also passed; the broader GUI module could not complete because its renderer
 failed to create an OpenGL context. Compilation and `git diff --check` passed.
+
+Phase 3 follow-up, 2026-10-18: public construction now traces its ordered
+government cash and bank-deposit source legs, target-bank capital fallback,
+shortfall rollback, contractor payment, and project commissioning under the
+BuildIntent operation ID. Each bank-deposit leg records the amount requested,
+the amount the bank settled, resulting wallet/deposit balances, and the linked
+withdrawal event. The payment contract itemizes contributors and marks the
+composite payer as a virtual pool without a captured wallet balance. A frozen
+bank fixture exposes the current behavior where a $300 request settles only
+$5, the wallet is debited by $300 and falls to -$295, and the project still
+receives its full contractor payment. This is recorded as existing behavior;
+the mechanics were not changed.
+
+Verification: traced/untraced cash and deposit construction fixtures match,
+including game and RNG state. The frozen-deposit trace checks requested versus
+settled funds, wallet deficit, and payment. A shortfall fixture verifies cash
+rollback, the remaining settled bank withdrawal, and that no contractor payment
+occurs. BuildIntent, trace-catalog, and run-trace suites passed (34 tests).
+Construction regressions passed except the existing textile staffing test,
+which fails its `operational_efficiency > 0.2` assertion at exactly 0.2 even
+when run alone. The focused multi-tier grant and construction test passed.
+Compilation and `git diff --check` passed.
