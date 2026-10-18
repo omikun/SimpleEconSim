@@ -165,7 +165,7 @@ def step_turn(t: int, tiles: list, nations: list = None,
             if not any(getattr(a, 'is_homesteader', False) for a in other.agents):
                 continue
             for trader in r.trader_agents:
-                settle_wilderness(trader, other, t)
+                settle_wilderness(trader, other, t, source_region=r)
     if on_phase:
         on_phase('trade')
     treasury_boundary(tiles, nations, 'trade')

@@ -119,11 +119,20 @@ already fun or balanced; that still needs player feedback.
   movement and the firm's opening/closing owner loan. Election campaign
   spending similarly records treasury outflow and the candidate's cash or
   wallet receipt, with the payment route and balances in the compact trace.
+- Wilderness trader settlements now record the trader's cash debit and each
+  homesteader's wallet receipt as linked transfer legs. Goods advanced to
+  homesteaders and harvested food/wood collected by traders have separate
+  quantity records with their reference prices. Actor statements reconcile the
+  trader's cash movement and each resident's wallet movement. This records the
+  current settlement rules without adding debt: despite older comments calling
+  the goods an advance or loan, this code path does not create a homesteader
+  liability or trader receivable.
 - Remaining gate work: audit other non-estate credit losses and non-probate
   cash-to-wallet legs outside these paths; decide how unpaid wage claims behave
-  when the firm or worker exits. Scenario-seeded or legacy cargo can still
-  lack a settled source cost. The tested default runs close the actor cash
-  bridge, but they do not prove complete balance-sheet or operating-profit
+  when the firm or worker exits; decide whether wilderness inventory advances
+  should create a repayable debt claim. Scenario-seeded or legacy cargo can
+  still lack a settled source cost. The tested default runs close the actor
+  cash bridge, but they do not prove complete balance-sheet or operating-profit
   coverage.
 
 ## Phase 2 — grower and title-holder agency: implemented, deeper law/remedy work out of scope
@@ -228,6 +237,16 @@ already fun or balanced; that still needs player feedback.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_supply_control_actor_strategy test_supply_rights test_market_auction test_market_routes test_web_client_parity test_truck_system_and_scrip test_run_trace test_trace_codec test_banking_contagion test_plunder_labor test_frontier_policies test_owner_currency_transfers` — 143 tests passed.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python benchmark_supply_default.py 50 4242` — 50 turns completed with zero currency violations and zero unmatched actor cash at the end or across actor-turn statements.
 - `node --check web_client/client.js`, targeted Python compilation, and `git diff --check` — passed for the owner and election transfer changes.
+- Wilderness trader settlement now posts linked trader-cash and homesteader-wallet
+  legs, plus valued goods-advance and output-collection records. The actor-account
+  test checks both cash closure and wallet receipts; compact traces point back to
+  tile-qualified journal rows.
+- `venv/bin/python -m unittest test_wilderness_trade_accounting` — 1 test passed
+  for frontier goods movement, trader cash reconciliation, homesteader wallet
+  receipts, and trace-to-journal references.
+- `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_wilderness_trade_accounting test_owner_currency_transfers test_frontier_policies test_supply_control_actor_strategy test_market_routes test_market_auction test_run_trace test_trace_codec` — 85 tests passed.
+- `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python benchmark_supply_default.py 50 4242` — the default three-nation 50-turn run completed with zero currency violations and zero unmatched actor cash on the final turn or across actor-turn statements.
+- `venv/bin/python -m py_compile trade_settle.py sim_engine.py economy/actor_accounts.py metric_catalog.py test_wilderness_trade_accounting.py` and `git diff --check` — passed.
 - Domestic-bank sovereign bond principal and coupon defaults now create one
   economic journal event per affected tile bank, linked to the bond ID and
   issuer. Compact trace records the default kind, missed payment amount, actual

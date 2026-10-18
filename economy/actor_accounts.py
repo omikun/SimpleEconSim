@@ -15,6 +15,8 @@ _NONCASH_EVENTS = {'production', 'input_consumed', 'scrip_wage',
                    'tax_arrears_writeoff', 'cash_obligation_writeoff',
                    'wage_arrears_accrued', 'foreign_wallet_grant',
                    'wallet_transfer_in', 'wallet_transfer_out',
+                   'wilderness_goods_advance',
+                   'wilderness_goods_collection',
                    'foreign_wallet_debt_payment', 'foreign_wallet_inheritance',
                    'foreign_wallet_escheat'}
 

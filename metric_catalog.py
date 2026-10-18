@@ -114,6 +114,8 @@ METRICS = {
     'health.trade_contagion': ('tile/route', 'state', 'disease.step_trade_epidemic_transmission'),
     'health.trade_infection': ('tile/agent', 'cases', 'disease.step_trade_epidemic_transmission'),
     'trade.balance': ('tile', 'local_currency_per_turn', 'sim_engine.step_turn'),
+    'trade.wilderness_settlement': ('trader/homesteader', 'currency', 'trade_settle.settle_wilderness'),
+    'trade.wilderness_goods': ('wilderness/trader/homesteader', 'units', 'trade_settle.settle_wilderness'),
 }
 
 LEGACY_HISTORY_TO_METRIC = {
