@@ -972,3 +972,20 @@ trace tests, and nine M5 AI regression tests passed (17 total). Trace-on/off
 scores and reason text match; treaty exclusions, weighted threat calculation,
 metric registration, final-decision linkage, compilation, and `git diff --check`
 were checked.
+
+Phase 4 follow-up, 2026-10-18: elite corporate planning now emits a compact
+market novelty scan, a per-region planner-phase gate, and a per-eligible-elite
+planning gate. The phase gate records when scenario owner-policy mode disables
+the standard planner. The scan reports new and removed goods; the agent gate
+names the first trigger that allowed planning (new item, same-turn supply
+proposal, same-turn concession, or five-turn cadence), or records `not_due`,
+and links novelty-triggered runs to the scan.
+The previously emitted `market.supply_strategy` metric is now present in the
+metric catalog alongside these new gate metrics. Non-elites remain outside the
+planning candidate trace to avoid logging ordinary households as skipped firms.
+
+Verification: five dedicated planner-gate tests and 63 existing capitalist
+propagation and supply-control tests passed (68 total). Tests cover each gate,
+scenario suppression, novelty event linkage, trace-on/off cadence parity,
+JSON-safe records, metric registration, compilation, and `git diff --check`.
+Planner return values and the existing five-turn/trigger cadence are unchanged.

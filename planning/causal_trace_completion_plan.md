@@ -1348,3 +1348,22 @@ Verification: two dedicated border-vulnerability tests, six nation-policy
 trace tests, and nine M5 AI regression tests passed (17 total). Trace-on/off
 scores match; alliance exclusions, formula inputs, metric registration, final
 decision links, compilation, and `git diff --check` were checked.
+
+## Phase 4 follow-up — Explain corporate planning cadence
+
+The elite planner now records a region-level phase gate, one novelty scan, and
+a planning gate for each eligible elite. The phase gate names the scenario
+owner-policy mode that suppresses the standard planner. The scan records newly
+available and removed goods. The agent gate captures the first trigger
+considered successful: market novelty, same-turn supply-proposal activity,
+same-turn concession activity, or the existing five-turn cadence. Otherwise it
+records `not_due`. Novelty-triggered planning links directly to its scan event.
+Ordinary non-elites are filtered before tracing so the log does not emit one
+routine skip per household. The existing `market.supply_strategy` metric has
+also been registered in the metric catalog; planning rules and results are
+unchanged.
+
+Verification: five planner-gate tests and 63 existing capitalist propagation
+and supply-control tests passed (68 total). Trace-on/off cadence parity,
+scenario suppression, trigger precedence, novelty links, JSON-safe records,
+catalog registration, compilation, and `git diff --check` passed.

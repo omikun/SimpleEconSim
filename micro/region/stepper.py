@@ -153,7 +153,9 @@ def step_economy(region: Any, t: int):
         from economy import LaborMobilityScheduler
         region.labor_scheduler = LaborMobilityScheduler()
 
-    if not getattr(region, 'scenario_owner_policy', False):
+    planner_enabled = not getattr(region, 'scenario_owner_policy', False)
+    region.elite_planner.record_planning_phase_gate(region, t, planner_enabled)
+    if planner_enabled:
         has_new_items = region.elite_planner.check_new_market_items(region)
         for a in list(region.agents):
             if region.elite_planner.should_run_planning(a, region, t, has_new_items):

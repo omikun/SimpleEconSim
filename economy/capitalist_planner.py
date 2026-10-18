@@ -23,6 +23,7 @@ class EliteCapitalistPlanner:
 
     def __init__(self):
         self._known_market_goods: Dict[str, set] = {}
+        self._last_market_novelty_trace: Dict[int, Tuple[int, str]] = {}
         self._last_plan_turn: Dict[int, int] = {}
         self._active_plans: Dict[int, Dict[str, Any]] = {}
 
@@ -58,9 +59,34 @@ class EliteCapitalistPlanner:
         new_items = current - known
         if new_items:
             self._known_market_goods[reg_name] = current
-            return True
-        self._known_market_goods[reg_name] = current
-        return False
+            has_new_items = True
+        else:
+            self._known_market_goods[reg_name] = current
+            has_new_items = False
+
+        from run_trace import emit
+        clock = getattr(region, '_collective_trace_clock', None)
+        novelty_event_id = emit(
+            region, kind='elite_market_novelty_scan',
+            record_class='calculation', phase='local',
+            subject={'type': 'tile', 'id': reg_name},
+            metric_id='market.elite_market_novelty', unit='goods',
+            after=len(new_items), formula_id='elite.market_novelty.v1',
+            inputs={
+                'previously_known_count': len(known),
+                'currently_available_count': len(current),
+                'new_goods': sorted(getattr(g, 'value', getattr(g, 'name', str(g)))
+                                    for g in new_items),
+                'removed_goods': sorted(getattr(g, 'value', getattr(g, 'name', str(g)))
+                                        for g in known - current),
+                'market_has_new_items': has_new_items,
+            })
+        if novelty_event_id is not None and clock is not None:
+            self._last_market_novelty_trace[id(region)] = (
+                int(clock.get('turn', 0)), novelty_event_id)
+        elif id(region) in self._last_market_novelty_trace:
+            self._last_market_novelty_trace.pop(id(region), None)
+        return has_new_items
 
     def calculate_shadow_price_cash(self, agent: Any, region: Any) -> float:
         """Calculate dynamic shadow price of cash (lambda_cash) based on luxury desires."""
@@ -93,18 +119,83 @@ class EliteCapitalistPlanner:
         return False
 
     def should_run_planning(self, agent: Any, region: Any, t: int, market_has_new_items: bool) -> bool:
-        """Check user cadence constraint: every 5 turns or when a new item enters market."""
+        """Check the elite, novelty, proposal, concession, and five-turn gates."""
         if not self.is_elite(agent, region):
             return False
+        reason = None
+        considered_gates = ['elite_eligibility']
+        matched_trigger = None
         if market_has_new_items:
-            return True
-        if any(e.get('turn') == t and e.get('buyer_id') == agent.id
-               for e in getattr(region, 'supply_proposal_events', [])):
-            return True
-        if any(e.get('turn') == t and e.get('sponsor_id') == agent.id
-               for e in getattr(region, 'concession_events', [])):
-            return True
-        return (t % 5 == 0)
+            reason = 'new_market_item'
+            considered_gates.append('market_novelty')
+        else:
+            considered_gates.append('market_novelty')
+            matched_trigger = next((e for e in getattr(region, 'supply_proposal_events', [])
+                                    if e.get('turn') == t
+                                    and e.get('buyer_id') == agent.id), None)
+            considered_gates.append('same_turn_supply_proposal')
+            if matched_trigger is not None:
+                reason = 'same_turn_supply_proposal'
+            else:
+                matched_trigger = next((e for e in getattr(region, 'concession_events', [])
+                                        if e.get('turn') == t
+                                        and e.get('sponsor_id') == agent.id), None)
+                considered_gates.append('same_turn_concession')
+                if matched_trigger is not None:
+                    reason = 'same_turn_concession'
+                else:
+                    considered_gates.append('five_turn_cadence')
+                    reason = 'five_turn_cadence' if t % 5 == 0 else 'not_due'
+
+        should_run = reason != 'not_due'
+        from run_trace import emit
+        clock = getattr(region, '_collective_trace_clock', None)
+        novelty_trace = self._last_market_novelty_trace.get(id(region))
+        cause_event_ids = None
+        if (market_has_new_items and novelty_trace is not None and clock is not None
+                and novelty_trace[0] == int(clock.get('turn', 0))):
+            cause_event_ids = [novelty_trace[1]]
+        trigger_detail = None
+        if matched_trigger is not None:
+            trigger_detail = {
+                key: matched_trigger.get(key)
+                for key in ('proposal_id', 'petition_id', 'kind', 'status', 'reason')
+                if key in matched_trigger
+            }
+        emit(region, kind='elite_planning_gate', record_class='decision',
+             phase='local', subject={'type': 'agent', 'id': agent.id,
+                                     'tile': getattr(region, 'name', 'default')},
+             metric_id='market.elite_planning_gate', unit='boolean',
+             after=int(should_run), formula_id='elite.planning_cadence.v1',
+             cause_event_ids=cause_event_ids,
+             inputs={
+                 'turn': int(t),
+                 'eligible_elite': True,
+                 'market_has_new_items': bool(market_has_new_items),
+                 'considered_gates': considered_gates,
+                 'reason': reason,
+                 'matched_trigger': trigger_detail,
+                 'cadence_modulus': 5,
+                 'turn_remainder': int(t) % 5,
+             })
+        return should_run
+
+    def record_planning_phase_gate(self, region: Any, t: int,
+                                   planning_enabled: bool) -> None:
+        """Record whether the caller enabled the elite planner for this region."""
+        from run_trace import emit
+        scenario_owner_policy = bool(getattr(region, 'scenario_owner_policy', False))
+        emit(region, kind='elite_planner_phase_gate', record_class='decision',
+             phase='local', subject={'type': 'tile',
+                                     'id': getattr(region, 'name', 'default')},
+             metric_id='market.elite_planner_phase_gate', unit='boolean',
+             after=int(bool(planning_enabled)),
+             formula_id='elite.planning_phase_gate.v1',
+             inputs={'turn': int(t),
+                     'enabled': bool(planning_enabled),
+                     'scenario_owner_policy': scenario_owner_policy,
+                     'reason': ('scenario_owner_policy' if scenario_owner_policy
+                                else 'standard_economy_planner_enabled')})
 
     def evaluate_spatial_trade(self, agent: Any, region: Any, t: int) -> Optional[Dict[str, Any]]:
         """Spatial sales clear through trader routes and the destination auction.
