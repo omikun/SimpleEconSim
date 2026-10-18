@@ -5,7 +5,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from agent import Agent, initialize_agent
-from economy.actor_accounts import seal_turn
+from economy.actor_accounts import begin_turn, recorded_cash_delta, seal_turn
 from forex import ForexDesk, fx_balance
 from goods import Goods
 from region_logistics import post_exports_to_route, repoint_traders
@@ -145,6 +145,71 @@ class MarketRouteTests(unittest.TestCase):
         self.assertEqual(detail['route_history'], ['Upland->Lowland'])
         self.assertEqual(trader.parked_get(parked_tile.name, Goods.cotton), 0)
         self.assertEqual(trader.import_lots[0]['quantity'], 0)
+
+    def test_foreign_import_sale_separates_cash_and_wallet_receipts(self):
+        source = SimpleNamespace(
+            name='Upland', home_currency='EUR', routes={}, neighbors={},
+            transport_delay=1, forex_desks={}, forex=None,
+            recipes={Goods.cotton: {'price': 5.0}}, trader_agents=[])
+        destination = SimpleNamespace(
+            name='Lowland', home_currency='USD',
+            recipes={Goods.cotton: {'price': 10.0},
+                     Goods.cloth: {'price': 20.0, 'input': Goods.cotton,
+                                   'numInput': 2, 'production': 4}},
+            neighbors={source.name: source}, destination_region=source,
+            forex_desks={}, forex=None, exchange_rate=1.0,
+            _trade_fee_mult=1.0, gov=None, IMPORT_MARGIN_MIN=0.05,
+            IMPORT_MARGIN_MAX=0.30, _auction_import_sales={},
+            pending_imports={}, economic_events=[], market_trade_events=[],
+            agents=[], bank=None, province=None, tenure=None,
+            cash_obligations=[], _next_economic_event_id=1)
+        trader = self._trader(source, destination, qty=3)
+        trader.home_currency = 'EUR'
+        trader.inventory_export[Goods.cotton.value] = 0
+        trader.inventory_foreign[Goods.cotton.value] = 3
+        buyer = Agent(0)
+        initialize_agent(buyer, Goods.cloth, 0, 0, 100.0)
+        buyer.is_corporation = True
+        buyer.inv_set(Goods.cotton, 0)
+        destination.agents = [trader, buyer]
+        imports = pending_imports(destination, source)
+        begin_turn(destination, 1)
+
+        clear_discriminatory(
+            destination, Goods.cotton, 10.0, total_asks=3, total_bids=3,
+            imp_pool=imports[Goods.cotton], agents=[buyer], t=1,
+            local_orders={'sellers': [], 'buyers': [
+                {'agent': buyer, 'quantity': 3, 'limit_price': 10.0},
+            ]})
+
+        sale = next(event for event in destination.economic_events
+                    if event['kind'] == 'spot_sale')
+        wallet_receipt = next(event for event in destination.economic_events
+                              if event['kind'] == 'wallet_transfer_in')
+        accounts = {row['actor_id']: row for row in
+                    seal_turn(destination, 1, event_regions=[destination])}
+        trader_account = accounts[trader.id]
+        buyer_account = accounts[buyer.id]
+
+        self.assertGreater(sale['amount'], 0.0)
+        self.assertEqual(sale['detail']['cash_receipt'], 0.0)
+        self.assertAlmostEqual(sale['detail']['wallet_receipt'], sale['amount'])
+        self.assertAlmostEqual(wallet_receipt['amount'], sale['amount'])
+        self.assertEqual(wallet_receipt['source_id'], sale['id'])
+        self.assertEqual(wallet_receipt['detail']['payment_kind'],
+                         'imported_market_sale')
+        self.assertAlmostEqual(recorded_cash_delta(destination.economic_events,
+                                                   trader.id), 0.0)
+        self.assertAlmostEqual(trader_account['cash_change'], 0.0)
+        self.assertAlmostEqual(trader_account['posted_cash_change'], 0.0)
+        self.assertAlmostEqual(trader_account['unposted_cash_change'], 0.0)
+        self.assertAlmostEqual(
+            trader_account['wallet_change_by_currency']['USD'],
+            round(sale['amount'], 2))
+        self.assertAlmostEqual(
+            trader_account['wallet_transfer_in_by_currency']['USD'],
+            round(sale['amount'], 2))
+        self.assertAlmostEqual(buyer_account['unposted_cash_change'], 0.0)
 
     def test_import_quote_and_paid_lot_trace_include_fx_freight_and_drawback(self):
         source = SimpleNamespace(name='Source', home_currency='USD', forex_desks={},

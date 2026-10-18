@@ -721,9 +721,10 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
                 buyer.inv_add(good, take)
                 if good == Goods.food:
                     buyer.food_purchased += int(take)
-            seller_receipt_amount = (
-                seller.cash - seller_cash_before
-                + _fx.fx_balance(seller, region.home_currency) - seller_wallet_before)
+            seller_cash_receipt = float(seller.cash - seller_cash_before)
+            seller_wallet_receipt = float(
+                _fx.fx_balance(seller, region.home_currency) - seller_wallet_before)
+            seller_receipt_amount = seller_cash_receipt + seller_wallet_receipt
             shipment_cost_detail = {}
             if is_import:
                 cost_currency = source_currency or getattr(seller, 'home_currency', None)
@@ -796,7 +797,7 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
                                    'buyer_cash_after': buyer.cash,
                                    'seller_cash_delta': seller.cash - seller_cash_before,
                                    'seller_local_wallet_delta':
-                                   _fx.fx_balance(seller, region.home_currency) - seller_wallet_before,
+                                   seller_wallet_receipt,
                                    'government_cash_delta':
                                    region.gov.agent.cash - gov_cash_before
                                    if gov_cash_before is not None else None})
@@ -844,9 +845,32 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
                         'route_history': route_history,
                         'source_acquisitions': sold_source_acquisitions,
                         'seller_receipt': seller_receipt_amount,
+                        'cash_receipt': seller_cash_receipt,
+                        'wallet_receipt': seller_wallet_receipt,
                         'government_receipt':
                             (region.gov.agent.cash - gov_cash_before)
                             if gov_cash_before is not None else 0.0})
+            if seller_wallet_receipt > 0:
+                wallet_transfer_id = (
+                    f'market-wallet-receipt:{int(t)}:{region.name}:'
+                    f'{economic_event["id"]}')
+                record_economic_event(
+                    region, 'wallet_transfer_in', turn=t,
+                    recipient_id=seller.id, amount=seller_wallet_receipt,
+                    asset_id=wallet_transfer_id, source_id=economic_event['id'],
+                    currency=region.home_currency,
+                    detail={'transfer_id': wallet_transfer_id,
+                            'sale_event_id': economic_event['id'],
+                            'trace_event_id': sale_id,
+                            'payment_kind': 'imported_market_sale',
+                            'tender': 'destination_currency_wallet',
+                            'seller_id': seller.id, 'buyer_id': buyer.id,
+                            'good': good.name, 'quantity': int(take),
+                            'unit_price': float(unit_price),
+                            'total_paid': float(cost),
+                            'seller_cash_receipt': seller_cash_receipt,
+                            'wallet_receipt': seller_wallet_receipt,
+                            'currency': region.home_currency})
             if exported_acquisition_qty > 0:
                 from economy.inventory_provenance import record_trader_acquisition
                 record_trader_acquisition(

@@ -127,6 +127,12 @@ already fun or balanced; that still needs player feedback.
   current settlement rules without adding debt: despite older comments calling
   the goods an advance or loan, this code path does not create a homesteader
   liability or trader receivable.
+- Imported auction sales now keep the seller's total proceeds while splitting
+  actual cash receipts from destination-currency wallet receipts. FX proceeds
+  post a linked noncash wallet event, and the actor cash bridge counts only the
+  seller's hand-cash portion. These wallet events are currently stored on the
+  destination tile; a remote trader's home-tile statement does not yet join
+  events across separate provinces.
 - Remaining gate work: audit other non-estate credit losses and non-probate
   cash-to-wallet legs outside these paths; decide how unpaid wage claims behave
   when the firm or worker exits; decide whether wilderness inventory advances
@@ -247,6 +253,9 @@ already fun or balanced; that still needs player feedback.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_wilderness_trade_accounting test_owner_currency_transfers test_frontier_policies test_supply_control_actor_strategy test_market_routes test_market_auction test_run_trace test_trace_codec` — 85 tests passed.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python benchmark_supply_default.py 50 4242` — the default three-nation 50-turn run completed with zero currency violations and zero unmatched actor cash on the final turn or across actor-turn statements.
 - `venv/bin/python -m py_compile trade_settle.py sim_engine.py economy/actor_accounts.py metric_catalog.py test_wilderness_trade_accounting.py` and `git diff --check` — passed.
+- `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_market_routes test_market_auction test_supply_control_actor_strategy test_wilderness_trade_accounting` — 63 tests passed, including a foreign-currency auction receipt that now changes the trader wallet without falsely posting cash.
+- `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python benchmark_supply_default.py 50 4242` — the default three-nation 50-turn run completed with zero currency violations and zero unmatched actor cash on the final turn or across actor-turn statements.
+- `venv/bin/python -m py_compile region_market.py economy/actor_accounts.py benchmark_supply_default.py test_market_routes.py` and `git diff --check` — passed.
 - Domestic-bank sovereign bond principal and coupon defaults now create one
   economic journal event per affected tile bank, linked to the bond ID and
   issuer. Compact trace records the default kind, missed payment amount, actual

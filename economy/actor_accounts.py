@@ -81,7 +81,8 @@ def recorded_cash_delta(events, actor_id):
         if event['kind'] in _NONCASH_EVENTS:
             continue
         if event['recipient_id'] == actor_id:
-            delta += (event['detail'].get('seller_receipt', event['amount'])
+            delta += (event['detail'].get(
+                'cash_receipt', event['detail'].get('seller_receipt', event['amount']))
                       if event['kind'] == 'spot_sale' else event['amount'])
         if event['payer_id'] == actor_id:
             delta -= event['amount']
@@ -177,7 +178,8 @@ def seal_turn(region, turn, event_regions=None):
     for actor in getattr(region, 'agents', []):
         own = by_actor.get(actor.id, [])
         cash_own = cash_by_actor.get(actor.id, own)
-        receipts = sum((e['detail'].get('seller_receipt', e['amount'])
+        receipts = sum((e['detail'].get(
+                            'cash_receipt', e['detail'].get('seller_receipt', e['amount']))
                         if e['kind'] == 'spot_sale' else e['amount'])
                        for e in own if e['recipient_id'] == actor.id
                        and e['kind'] in ('spot_sale', 'contract_delivery'))
@@ -218,7 +220,8 @@ def seal_turn(region, turn, event_regions=None):
             if round(closing_wallets.get(currency, 0.0)
                      - prior.get('wallets', {}).get(currency, 0.0), 2) != 0
         }
-        cash_in = sum((e['detail'].get('seller_receipt', e['amount'])
+        cash_in = sum((e['detail'].get(
+                           'cash_receipt', e['detail'].get('seller_receipt', e['amount']))
                        if e['kind'] == 'spot_sale' else e['amount'])
                       for e in cash_own if e['recipient_id'] == actor.id
                       and e['kind'] not in _NONCASH_EVENTS)
