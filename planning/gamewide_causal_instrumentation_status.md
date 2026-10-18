@@ -1114,3 +1114,16 @@ Verification: two focused fixtures cover exact recipient and charity balances,
 the linked aggregate, empty-stock noise suppression, and trace-on/off state
 parity. The charity trace, supply-control actor, run-trace, and metric-catalog
 coverage suites passed (78 tests); compilation and `git diff --check` passed.
+
+Phase 3 follow-up, 2026-10-18: charity donations now emit `finance.cash_transfer`
+records for corporate and wealthy individual gifts. Each transfer includes
+donor and charity wallet balances, corporate retained earnings where relevant,
+the actor-account journal event, and the charity's funding need. Donations
+funded from bank deposits link to the exact withdrawal and preserve requested
+versus settled amounts.
+
+Verification: a dedicated traced/untraced fixture checks corporate and
+individual balances, retained earnings, bank deposits, transfer contracts,
+withdrawal causality, and final charity reserves. Donation regressions and the
+metric-catalog callsite audit passed (3 tests); compilation and
+`git diff --check` passed.

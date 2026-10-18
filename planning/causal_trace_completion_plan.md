@@ -1516,3 +1516,16 @@ Verification: two fixtures cover exact inventory legs, aggregate cause links,
 empty-stock noise suppression, and trace-on/off state parity. The focused
 charity test plus supply-control, run-trace, and metric-catalog coverage suites
 passed (78 tests); compilation and `git diff --check` passed.
+
+## Phase 3 follow-up — Trace charity donation funding
+
+Corporate and wealthy-individual gifts to charity now produce
+`finance.cash_transfer` records with both wallet balances and the matching
+actor-account journal row. Corporate gifts include retained-earnings balances.
+When an individual draws on deposits to donate, the gift links to the bank
+withdrawal and records the requested and settled funding amounts.
+
+Verification: traced and untraced fixtures produce identical balances. Focused
+tests verify both donor types, exact wallet and deposit changes, withdrawal
+causality, the existing donation journal behavior, and metric catalog coverage
+(3 tests); compilation and `git diff --check` passed.

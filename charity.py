@@ -111,22 +111,73 @@ class Charity:
         regions = tuple(regions or getattr(bank, '_attached_regions', ()) or ())
         institution_region = regions[0] if regions else None
 
-        def post_donation(donor, donation, source):
+        def post_donation(donor, donation, source, *, donor_cash_before,
+                          charity_cash_before, retained_earnings_before=None,
+                          bank_withdrawal_event_ids=(),
+                          bank_funding_requested=0.0,
+                          bank_funding_settled=0.0):
             # A Province charity can collect from donors in several tiles. Put
             # each posting in the donor's own journal so their turn statement
             # can reconcile even when the shared institution runs once.
             donor_region = next((region for region in regions
                                  if donor in getattr(region, 'agents', ())), None)
             if donor_region is None:
-                return
+                return None
+            currency = (getattr(donor_region, 'home_currency', None)
+                        or 'local_currency')
+            operation_id = (f'charity-donation:{self.name}:{int(t)}:'
+                            f'{donor_region.name}:{donor.id}')
             from economy.actor_accounts import record as record_economic_event
-            record_economic_event(
+            journal_event = record_economic_event(
                 donor_region, 'charity_donation', turn=t,
                 payer_id=donor.id, recipient_id=self.agent.id, amount=donation,
-                currency=getattr(donor_region, 'home_currency', None),
+                currency=currency, source_id=operation_id,
                 detail={'donor_type': source, 'charity': self.name,
                         'charity_agent_id': self.agent.id,
-                        'charity_wealth_before': round(char_wealth, 2)})
+                        'charity_wealth_before': round(char_wealth, 2),
+                        'bank_funding_requested': float(bank_funding_requested),
+                        'bank_funding_settled': float(bank_funding_settled)})
+            from finance_trace import (account_ref, cash_transfer_contract,
+                                      emit_cash_transfer)
+            donor_currency = (getattr(donor, 'home_currency', None)
+                              or currency)
+            charity_currency = (getattr(self.agent, 'home_currency', None)
+                                or currency)
+            contract = cash_transfer_contract(
+                operation_id, 'charity_donation', amount=float(donation),
+                currency=currency,
+                payer_account=account_ref(
+                    'agent_wallet', str(donor.id), donor_currency,
+                    agent_id=str(donor.id), tile=donor_region.name,
+                    balance_before=float(donor_cash_before),
+                    balance_after=float(donor.cash), balance_scope='cash_wallet'),
+                payee_account=account_ref(
+                    'charity_wallet', self.name, charity_currency,
+                    charity_agent_id=str(self.agent.id),
+                    balance_before=float(charity_cash_before),
+                    balance_after=float(self.agent.cash),
+                    balance_scope='cash_wallet'),
+                counterparty_leg_status='both_cash_balances_captured',
+                donor_type=source,
+                bank_withdrawal_event_ids=list(bank_withdrawal_event_ids))
+            return emit_cash_transfer(
+                donor_region, kind='charity_donation', contract=contract,
+                phase='welfare',
+                subject={'type': 'tile/operation', 'id': operation_id,
+                         'tile': donor_region.name},
+                inputs={'turn': int(t), 'donor_id': str(donor.id),
+                        'donor_type': source, 'charity_name': self.name,
+                        'charity_agent_id': str(self.agent.id),
+                        'operation_id': operation_id,
+                        'charity_wealth_before': round(char_wealth, 2),
+                        'retained_earnings_before': retained_earnings_before,
+                        'retained_earnings_after': getattr(
+                            donor, 'retained_earnings', None),
+                        'bank_funding_requested': float(bank_funding_requested),
+                        'bank_funding_settled': float(bank_funding_settled),
+                        'actor_account_event_id': journal_event['id']
+                        if journal_event is not None else None},
+                cause_event_ids=list(bank_withdrawal_event_ids) or None)
 
         # ---- Corporate donations ----
         corps = [a for a in agents if a.is_corporation]
@@ -137,11 +188,18 @@ class Charity:
             donate_pct = self.corp_donate_emergency_pct if low_cash else self.corp_donate_normal_pct
             donation = min(retained * donate_pct, corp.cash)
             if donation > 0:
+                donor_cash_before = float(corp.cash)
+                retained_before = float(corp.retained_earnings)
+                charity_cash_before = float(self.agent.cash)
                 corp.cash -= donation
                 corp.retained_earnings -= donation
                 self.agent.cash += donation
                 total_donated += donation
-                post_donation(corp, donation, 'corporation')
+                post_donation(
+                    corp, donation, 'corporation',
+                    donor_cash_before=donor_cash_before,
+                    charity_cash_before=charity_cash_before,
+                    retained_earnings_before=retained_before)
                 loginfo(t, f"{self.name} received ${donation:.2f} corp donation from {corp.name()}")
 
         # ---- Wealthy individual donations ----
@@ -164,13 +222,25 @@ class Charity:
             from_bank = min(donation, max(0, donation - agent.cash), bank.deposits.get(agent, 0))
             donor_region = next((region for region in regions
                                  if agent in getattr(region, 'agents', ())), None)
+            bank_withdrawal_event_ids = []
+            bank_funding_settled = 0.0
             if from_bank > 0:
-                bank.Withdraw(agent, from_bank, trace_region=donor_region, t=t,
-                              reason='charity_donation')
+                bank_funding_settled = bank.Withdraw(
+                    agent, from_bank, trace_region=donor_region, t=t,
+                    reason='charity_donation',
+                    trace_event_ids=bank_withdrawal_event_ids)
+            donor_cash_before = float(agent.cash)
+            charity_cash_before = float(self.agent.cash)
             agent.cash -= donation
             self.agent.cash += donation
             total_donated += donation
-            post_donation(agent, donation, 'wealthy_individual')
+            post_donation(
+                agent, donation, 'wealthy_individual',
+                donor_cash_before=donor_cash_before,
+                charity_cash_before=charity_cash_before,
+                bank_withdrawal_event_ids=bank_withdrawal_event_ids,
+                bank_funding_requested=from_bank,
+                bank_funding_settled=bank_funding_settled)
             loginfo(t, f"{self.name} received ${donation:.2f} donation from {agent.name()}")
 
         # Store bank reference on agent so total_liquid property works
