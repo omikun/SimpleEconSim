@@ -68,6 +68,21 @@ def _state(fixture):
 
 
 class WorldviewCityEmergencyFoodTraceTests(unittest.TestCase):
+    def test_desktop_policy_dispatch_records_the_same_food_aid_trace(self):
+        from client.desktop.panels.policies import _execute_policy_action as desktop_action
+        fixture = _fixture(municipal_cash=70, bank_capital=90,
+                           national_wallet=100, hungry_count=2)
+
+        desktop_action(fixture[0], 'city_emergency_food', fixture[1])
+
+        self.assertEqual(fixture[1].gov.agent.cash, 20.0)
+        funding = next(row for row in fixture[3].rows
+                       if row.get('kind') == 'city_emergency_food_funding_decision')
+        recipients = [row for row in fixture[3].rows
+                      if row.get('kind') == 'city_emergency_food_recipient_outcome']
+        self.assertEqual(funding['inputs']['selected_source'], 'city_government_cash')
+        self.assertEqual(len(recipients), 2)
+
     def test_municipal_source_priority_and_household_creation_match_untraced(self):
         plain = _fixture(municipal_cash=70, bank_capital=90,
                          national_wallet=100, hungry_count=32, traced=False)

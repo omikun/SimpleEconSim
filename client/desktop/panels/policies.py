@@ -690,6 +690,13 @@ def policy_panel_hit(pos, world):
 
 def _execute_policy_action(world, act_id, target):
     """Execute the triggered policy action with full conservation guarantees."""
+    # These policy actions share their traced implementation with the web
+    # client so both entry points produce the same causal records.
+    if act_id in {'city_emergency_food', 'prov_equalization_grant',
+                  'prov_soil_conservation', 'nat_subsidize_guano_import'}:
+        from worldview_policies import _execute_policy_action as execute_shared
+        return execute_shared(world, act_id, target)
+
     # City Tax Adjustment
     if act_id == 'city_tax_cut':
         target.gov.tax_rate = max(0.0, target.gov.tax_rate - 0.02)
@@ -701,24 +708,6 @@ def _execute_policy_action(world, act_id, target):
         cur = getattr(target.gov, 'ubi_enabled', False)
         target.gov.ubi_enabled = not cur
         world['policy_feedback'] = (f"UBI {'Enabled' if not cur else 'Disabled'} in {target.name}.", GREEN if not cur else DIM)
-
-    # City Emergency Food Aid
-    elif act_id == 'city_emergency_food':
-        owner = getattr(target, 'owner_nation', None)
-        cost = 50.0
-        gov = getattr(target, 'gov', None)
-        if gov and hasattr(gov, 'agent') and gov.agent.cash >= cost:
-            gov.agent.cash -= cost
-        elif getattr(target, 'bank', None) and target.bank.capital >= cost:
-            target.bank.capital -= cost
-        elif owner and owner.treasury()['cash'] >= cost:
-            owner.tiles[0].gov.agent.cash -= cost
-        # Distribute 30 food to starving agents
-        recipients = [a for a in target.agents if not a.is_corporation and not a.is_government and a.hungry_steps > 0]
-        for a in recipients[:30]:
-            a.inv_add(Goods.food, 1)
-            a.hungry_steps = 0
-        world['policy_feedback'] = (f"Emergency food aid distributed in {target.name}!", GREEN)
 
     # City Garrison Recruitment
     elif act_id == 'city_recruit_garrison':
@@ -841,21 +830,6 @@ def _execute_policy_action(world, act_id, target):
         ticker_push(world, world['turn'], 'HEALTH', f"Healthcare {state} in {target.name}.", (100, 210, 255))
 
     # Province Actions
-    elif act_id == 'prov_equalization_grant':
-        tiles = getattr(target, 'tiles', [])
-        prov_gov = getattr(target, 'gov', None)
-        cost = 200.0
-        on_hand = prov_gov.agent.cash if prov_gov and hasattr(prov_gov, 'agent') else 0.0
-        if on_hand >= cost:
-            if tiles:
-                poorest = min(tiles, key=lambda r: (r.bank.capital if getattr(r, 'bank', None) else 0.0) + (r.gov.agent.cash if getattr(r, 'gov', None) and hasattr(r.gov, 'agent') else 0.0))
-                prov_gov.agent.cash -= cost
-                poorest.gov.agent.cash += cost
-                world['policy_feedback'] = (f"Disbursed $200 grant from province treasury to {poorest.name}!", GREEN)
-                from client.desktop.engine import ticker_push
-                ticker_push(world, world['turn'], 'POLICY', f"Equalization grant: $200 transferred from {target.name} to {poorest.name}.", (130, 220, 160))
-        else:
-            world['policy_feedback'] = (f"Insufficient provincial treasury funds (${on_hand:.1f} < $200.0).", RED)
     elif act_id == 'prov_harmonize_taxes':
         tiles = getattr(target, 'tiles', [])
         if tiles:
@@ -865,20 +839,6 @@ def _execute_policy_action(world, act_id, target):
             world['policy_feedback'] = (f"Harmonized province taxes at {avg_tax*100:.1f}%.", GREEN)
     elif act_id == 'prov_standardize_routes':
         world['policy_feedback'] = (f"Standardized transport routes for {target.name}!", (200, 230, 150))
-    elif act_id == 'prov_soil_conservation':
-        prov_gov = getattr(target, 'gov', None)
-        cost = 150.0
-        on_hand = prov_gov.agent.cash if prov_gov and hasattr(prov_gov, 'agent') else 0.0
-        if on_hand >= cost:
-            prov_gov.agent.cash -= cost
-            for r in getattr(target, 'tiles', []):
-                r.soil_fertility = min(1.50, getattr(r, 'soil_fertility', 1.0) + 0.10)
-            world['policy_feedback'] = (f"Soil conservation grant deployed across {target.name}!", (130, 220, 160))
-            from client.desktop.engine import ticker_push
-            ticker_push(world, world['turn'], 'POLICY', f"Soil conservation subsidies funded in {target.name} (+10% Fertility).", (130, 220, 160))
-        else:
-            world['policy_feedback'] = ("Insufficient provincial treasury funds.", RED)
-
     # Nation Actions
     elif act_id.startswith('nat_tax_'):
         rate = float(act_id.split('_')[-1]) / 100.0
@@ -1013,33 +973,6 @@ def _execute_policy_action(world, act_id, target):
         world['policy_feedback'] = (msg, (245, 180, 50) if new_val else (120, 240, 150))
         from client.desktop.engine import ticker_push
         ticker_push(world, world['turn'], 'POLICY', msg, (245, 180, 50) if new_val else (120, 240, 150))
-    elif act_id == 'nat_subsidize_guano_import':
-        cost = 100.0
-        gov_agent = target.government.agent
-        if gov_agent.cash < cost:
-            world['policy_feedback'] = (f"Insufficient Treasury: Requires ${cost:.0f} (Current: ${gov_agent.cash:.0f}).", (240, 80, 80))
-            return
-        coastal_tiles = [r for r in getattr(target, 'tiles', []) if getattr(r, 'is_coast', False) or any(getattr(n, 'is_water', False) for n in getattr(r, 'neighbors', {}).values())]
-        if not coastal_tiles:
-            world['policy_feedback'] = ("No coastal port tiles exist to receive guano blockade runners!", (240, 80, 80))
-            return
-        gov_agent.cash -= cost
-        share_cost = cost / len(coastal_tiles)
-        for r in coastal_tiles:
-            r.fertilizer_stock = min(80.0, getattr(r, 'fertilizer_stock', 12.0) + 20.0)
-            r.is_nitrate_depleted = False
-            traders = [a for a in getattr(r, 'agents', []) if getattr(a, 'is_trader', False)]
-            if traders:
-                traders[0].cash += share_cost
-            elif r.agents:
-                r.agents[0].cash += share_cost
-            else:
-                gov_agent.cash += share_cost
-        msg = f"Blockade Runner Chartered! Disbursed ${cost:.0f} to deliver +20t emergency guano to coastal ports."
-        world['policy_feedback'] = (msg, (120, 240, 150))
-        from client.desktop.engine import ticker_push
-        ticker_push(world, world['turn'], 'POLICY', msg, (120, 240, 150))
-
     # Frontier Actions
     elif act_id == 'frontier_expedition':
         from frontier_policies import launch_frontier_expedition

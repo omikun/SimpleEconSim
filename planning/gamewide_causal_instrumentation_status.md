@@ -724,3 +724,14 @@ trace tests, and the existing policy-action UI test passed (21 total). Coverage
 includes trace-on/off parity, insufficient funds, no ports, capped delivery,
 recipient priority, and an unoccupied-port treasury refund. Compilation and
 `git diff --check` passed. Other world-policy cash mutations remain open.
+
+The desktop policy dispatcher had separate, untraced copies of city emergency
+food aid, provincial equalization and soil conservation, and national guano
+subsidies. It now delegates those actions to the same instrumented implementation
+used by the web client; the duplicate desktop mutations were removed. This keeps
+the trace semantics and action effects consistent across client entry points.
+
+Verification: six city-food trace tests, five provincial-policy trace tests,
+five guano trace tests, and the existing policy-action UI test passed (17
+total). The desktop-specific cases confirm traces are emitted for each shared
+action family. Compilation and `git diff --check` passed.

@@ -55,6 +55,18 @@ def _state(fixture):
 
 
 class WorldviewGuanoSubsidyTraceTests(unittest.TestCase):
+    def test_desktop_policy_dispatch_records_guano_cash_and_goods_flows(self):
+        from client.desktop.panels.policies import _execute_policy_action as desktop_action
+        fixture = _fixture(treasury_cash=200)
+
+        desktop_action(fixture[0], 'nat_subsidize_guano_import', fixture[1])
+
+        self.assertEqual(fixture[1].government.agent.cash, 100.0)
+        self.assertTrue(any(row.get('kind') == 'national_guano_subsidy_treasury_debit'
+                            for row in fixture[3].rows))
+        self.assertTrue(any(row.get('kind') == 'national_guano_import_delivery'
+                            for row in fixture[3].rows))
+
     def test_funded_subsidy_traces_exact_allocations_delivery_and_storage_cap(self):
         trader_a = _agent('merchant-a', cash=10, trader=True)
         trader_b = _agent('merchant-b', cash=30, trader=True)

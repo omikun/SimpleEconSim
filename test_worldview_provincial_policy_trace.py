@@ -56,6 +56,23 @@ def _state(fixture):
 
 
 class WorldviewProvincialPolicyTraceTests(unittest.TestCase):
+    def test_desktop_policy_dispatch_uses_traced_provincial_actions(self):
+        from client.desktop.panels.policies import _execute_policy_action as desktop_action
+        grant = _province_fixture(treasury_cash=300.0)
+
+        desktop_action(grant[0], 'prov_equalization_grant', grant[1])
+
+        self.assertEqual(grant[1].gov.agent.cash, 100.0)
+        self.assertTrue(any(row.get('kind') == 'provincial_equalization_grant_receipt'
+                            for row in grant[3].rows))
+
+        soil = _province_fixture(treasury_cash=200.0)
+        desktop_action(soil[0], 'prov_soil_conservation', soil[1])
+
+        self.assertEqual(soil[1].gov.agent.cash, 50.0)
+        self.assertTrue(any(row.get('kind') == 'provincial_policy_expenditure'
+                            for row in soil[3].rows))
+
     def test_equalization_pairs_exact_treasury_debit_and_selected_tile_receipt(self):
         plain = _province_fixture(traced=False)
         traced = _province_fixture(traced=True)
