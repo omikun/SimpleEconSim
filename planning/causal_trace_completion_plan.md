@@ -847,5 +847,21 @@ bank-funded partial payroll, morale effects, and trace-on/off parity. Twenty-
 four military, banking, AI, and Phase 4 tests passed, along with the focused
 enlisted-personnel upkeep test. The broader labor-frontier module has four
 failing action assertions and two errors in petition/protection fixtures; its
-enlisted upkeep test passes. Police payroll/maintenance and other military
-costs remain open.
+enlisted upkeep test passes. Per-case enforcement payments are now recorded;
+recurring police patrol payroll/maintenance and other military costs remain
+open.
+
+Phase 4 follow-up, 2026-10-18: labor debt-collection and vagrancy enforcement
+now trace when cases are opened and which rules qualify them. Hearing outcomes
+record claim settlement, debtor presence, collateral occupancy, enforcement
+capacity, and public funding gates. Paid hearings include exact government-
+to-constable balance legs; foreclosure records the tenant and access-right
+changes. Vagrancy records the law/workhouse gate and links eligibility,
+payment, and the resulting workhouse status change. The trace distinguishes
+garrison enforcement from a paid constable hearing.
+
+Verification: four dedicated fixtures check transfer reconciliation, stable
+case reasons, cause links, and trace-on/off parity. Sixty-six labor-mechanics,
+enclosure/workhouse, and causal-trace tests passed. Compilation and
+`git diff --check` passed. Recurring commons-patrol payroll and other police
+maintenance remain to instrument.

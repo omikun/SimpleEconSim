@@ -467,4 +467,23 @@ shortfall effects, and trace-on/off parity. Twenty-four military, banking,
 AI, and Phase 4 tests passed, as did the focused enlisted-personnel upkeep
 regression. The broader labor-frontier module still has four failing action
 assertions and two errors in petition/protection fixtures; its enlisted upkeep
-test passes. Police payroll/maintenance and other military costs remain open.
+test passes. Per-case police enforcement fees and outcomes are now traced, but
+recurring police patrol payroll/maintenance and other military cost categories
+remain open.
+
+Labor debt and vagrancy enforcement now records case creation and the rule
+that made each case eligible. Hearing outcomes expose settled or missing
+claims, absent debtors, lost collateral occupancy, missing force, and treasury
+or constable funding failures. A funded foreclosure or penalty hearing records
+the exact government-to-constable cash transfer; foreclosure records the
+tenant and access-right changes. Vagrancy records the active-law/workhouse
+gate, whether poverty or dispossession qualified the person, the constable
+payment, and the resulting workhouse status change with links back to the gate,
+eligibility decision, and transfer. Garrison-backed actions are distinguished
+from paid constable actions.
+
+Four dedicated fixtures verify cash-account reconciliation, candidate and
+gate reasons, case-to-payment-to-status cause links, and trace-on/off parity.
+Sixty-six labor-mechanics, enclosure/workhouse, and causal-trace regression
+tests passed, along with compilation and `git diff --check`. Recurring commons
+patrol payroll and broader police maintenance remain uninstrumented.

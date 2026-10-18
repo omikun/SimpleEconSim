@@ -310,7 +310,8 @@ def apply_career_switch(region: Any, worker: Any, new_output: Any, turn: int, *,
 def record_labor_status(region: Any, worker: Any, turn: int, *,
                         before: str, after: str, reason: str,
                         employer_before: Any = None,
-                        employer_after: Any = None) -> None:
+                        employer_after: Any = None,
+                        cause_event_ids: list[str] | None = None) -> None:
     """Record a job or service spell without changing primary livelihood."""
     if region is None or (before == after and employer_before == employer_after):
         return
@@ -331,7 +332,8 @@ def record_labor_status(region: Any, worker: Any, turn: int, *,
                  'employer_before': getattr(employer_before, 'id', None),
                  'employer_after': getattr(employer_after, 'id', None),
                  'primary_livelihood': getattr(
-                     getattr(worker, 'primary_livelihood', None), 'name', None)})
+                     getattr(worker, 'primary_livelihood', None), 'name', None)},
+         cause_event_ids=cause_event_ids)
 
 
 def attach_worker(worker: Any, firm: Any, turn: int, decision: LaborDecision,
