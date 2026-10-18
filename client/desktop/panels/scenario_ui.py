@@ -14,6 +14,9 @@ def scenario_pressures(world: dict) -> list[dict]:
     if world.get('scenario_id') == 'labor_frontier_rivalry':
         from labor_frontier_projection import project
         return project(world)['pressures']
+    if world.get('scenario_id') == 'supply_rivalry':
+        from scenario_supply_rivalry import project
+        return project(world)['pressures']
     if world.get('scenario_id') == 'egypt_1877':
         return _egypt_scenario_pressures(world)
     nation = world.get('selected_nation')
@@ -108,6 +111,8 @@ def draw_guided_header(surface, world: dict, font_small, mouse_pos=None) -> None
     pygame.draw.line(surface, (64, 73, 94), (0, TOP_BAR_H + 47), (MAP_RIGHT, TOP_BAR_H + 47), 1)
     objective = ('LABOR & FRONTIER  •  Compete for markets, territory, and citizens’ livelihoods'
                  if world.get('scenario_id') == 'labor_frontier_rivalry' else
+                 'COTTON SUPPLY  •  Secure inputs while protecting grower livelihoods'
+                 if world.get('scenario_id') == 'supply_rivalry' else
                  'EGYPT 1877  •  Protect food access, preserve government capacity')
     title = font_small.render(objective, True, (235, 225, 190))
     surface.blit(title, (18, TOP_BAR_H + 7))
@@ -149,7 +154,7 @@ def draw_guided_header(surface, world: dict, font_small, mouse_pos=None) -> None
 
 def draw_pressure_panel(surface, world: dict, mouse_pos=None) -> None:
     """Show three priority pressures in a narrow readable right-side stack."""
-    if world.get('scenario_id') == 'labor_frontier_rivalry':
+    if world.get('scenario_id') in ('labor_frontier_rivalry', 'supply_rivalry'):
         _draw_labor_scenario_panel(surface, world, mouse_pos)
         return
     if world.get('scenario_id') == 'egypt_1877':
@@ -241,7 +246,10 @@ def _scenario_font(pixel_size: float):
 
 
 def _draw_labor_scenario_panel(surface, world, mouse_pos=None):
-    from labor_frontier_projection import project
+    if world.get('scenario_id') == 'supply_rivalry':
+        from scenario_supply_rivalry import project
+    else:
+        from labor_frontier_projection import project
     from ui_targets import register_target
     info = project(world)
     x, y, w = MAP_RIGHT + 10, TOP_BAR_H + 14, WIDTH - MAP_RIGHT - 20
@@ -254,7 +262,7 @@ def _draw_labor_scenario_panel(surface, world, mouse_pos=None):
     yy += 27
     surface.blit(body.render(f"Turn {info['turn']}/20 · One decision per turn", True, ACCENT), (x + 11, yy))
     yy += 25
-    if info['debrief']:
+    if info.get('debrief'):
         for key in ('title', 'summary', 'people', 'capacity', 'commitments'):
             for line in _wrap_text(info['debrief'][key], body, w - 25):
                 surface.blit(body.render(line, True, TEXT), (x + 11, yy))
@@ -547,7 +555,7 @@ def guided_ui_hit(pos, world: dict) -> bool:
         return False
     action = target.action
     if isinstance(action, tuple) and action[0] == 'set_ui_mode':
-        if world.get('scenario_id') == 'labor_frontier_rivalry' and action[1] != 'guided':
+        if world.get('scenario_id') in ('labor_frontier_rivalry', 'supply_rivalry') and action[1] != 'guided':
             world['scenario_feedback'] = 'This 20-turn scenario uses the shared decision panel.'
             return True
         from world_config import set_ui_mode
@@ -572,6 +580,8 @@ def guided_ui_hit(pos, world: dict) -> bool:
     elif isinstance(action, tuple) and action[0] == 'scenario_action':
         if world.get('scenario_id') == 'labor_frontier_rivalry':
             from labor_frontier_labor import apply_action
+        elif world.get('scenario_id') == 'supply_rivalry':
+            from scenario_supply_rivalry import apply_action
         else:
             from scenario_egypt_1877 import apply_action
         ok, message = apply_action(world, action[1])

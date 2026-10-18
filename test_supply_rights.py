@@ -9,6 +9,7 @@ from market_concessions import (decide_concession_petitions, filter_chartered_bi
                                 submit_concession_petition)
 from supply_rights import (acquire_water_right, allocate_seasonal_water,
                            transfer_plot_title, water_yield_factor)
+from supply_proposals import propose, decide
 
 
 class Person:
@@ -69,7 +70,11 @@ class SupplyRightsTests(unittest.TestCase):
   def test_land_title_transfer_pays_seller_and_preserves_tenant_rights(self):
     region = Region()
     seller, buyer = Person(1, 0), Person(9, 100)
-    ev = transfer_plot_title(region, seller, buyer, 'p1', 30, turn=4)
+    region.agents = [seller, buyer]
+    proposal = propose(region, 'land_sale', buyer, seller, turn=3,
+                       price=30, plot_id='p1')
+    decide(region, 4)
+    ev = proposal['result']
     self.assertEqual(ev['basis'], 'voluntary_sale')
     self.assertEqual(region.tenure.find_plot('p1').lord_id, 9)
     self.assertEqual(region.tenure.find_plot('p1').tenant_ids, [3])
@@ -82,7 +87,10 @@ class SupplyRightsTests(unittest.TestCase):
     region.agents = [seller, buyer]
     allocate_seasonal_water(region, 1)
     before = water_yield_factor(region, SimpleNamespace(assigned_plot_id='p1'))
-    ev = acquire_water_right(region, seller, buyer, 'p1', 'p2', units=.5, price=20, turn=2)
+    proposal = propose(region, 'water_right', buyer, seller, turn=1,
+                       from_plot_id='p1', to_plot_id='p2', units=.5, price=20)
+    decide(region, 2)
+    ev = proposal['result']
     self.assertEqual(ev['units'], .5)
     allocation = allocate_seasonal_water(region, 2)
     self.assertEqual((allocation['p1'], allocation['p2']), (.5, 1.5))
@@ -94,7 +102,7 @@ class SupplyRightsTests(unittest.TestCase):
   def test_offtake_delivers_only_real_harvest_and_mutates_spot_receipt(self):
     region = Region()
     grower, mill = Person(3), Person(8, 20)
-    grower.inventory[Goods.food] = 5
+    grower.inventory[Goods.food] = 7
     region.agents = [grower, mill]
     region.production_receipts = [{'turn': 2, 'person_id': 3, 'good': Goods.food, 'quantity': 5}]
     region.cash_obligations = [SimpleNamespace(id=7, balance=4.0, status='active')]
@@ -104,7 +112,7 @@ class SupplyRightsTests(unittest.TestCase):
     }]
     events = settle_offtake_contracts(region, 2)
     self.assertEqual(events[0]['quantity'], 3)
-    self.assertEqual((grower.inv_get(Goods.food), mill.inv_get(Goods.food)), (2, 3))
+    self.assertEqual((grower.inv_get(Goods.food), mill.inv_get(Goods.food)), (4, 3))
     self.assertEqual(region.production_receipts[0]['quantity'], 2)
     self.assertEqual((grower.cash, mill.cash), (2, 18))
     self.assertEqual(region.cash_obligations[0].balance, 0)
@@ -139,7 +147,9 @@ class SupplyRightsTests(unittest.TestCase):
     region = Region()
     seller, buyer = Person(1), Person(9, 50)
     region.agents = [seller, buyer]
-    acquire_water_right(region, seller, buyer, 'p1', 'p2', .25, 5, 1)
+    propose(region, 'water_right', buyer, seller, turn=0,
+            from_plot_id='p1', to_plot_id='p2', units=.25, price=5)
+    decide(region, 1)
     region.offtake_contracts = [{'id': 7, 'good': 'cotton', 'grower_id': 3,
                                  'lender_id': 9, 'remaining': 4, 'status': 'active',
                                  'due_turn': 8}]

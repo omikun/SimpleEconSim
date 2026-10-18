@@ -4,7 +4,13 @@ from __future__ import annotations
 from goods import Goods
 
 
-TYPES = frozenset({'advance_offtake', 'land_lease', 'land_sale', 'water_right'})
+TYPES = frozenset({'advance_offtake', 'crop_advance', 'land_lease', 'land_sale', 'water_right'})
+
+
+def authorized(region, proposal_id, buyer_id, seller_id, kinds):
+    return any(p['id'] == proposal_id and p['status'] == 'accepted'
+               and p['buyer_id'] == buyer_id and p['seller_id'] == seller_id
+               and p['kind'] in kinds for p in getattr(region, 'supply_proposals', []))
 
 
 def _agents(region):
@@ -24,19 +30,22 @@ def _valid(region, proposal):
     if price < 0 or buyer.cash < price:
         return False, 'buyer_funds'
     kind = proposal['kind']
-    if kind == 'advance_offtake':
+    if kind in ('advance_offtake', 'crop_advance'):
         plot = region.tenure.find_plot(proposal['plot_id']) if getattr(region, 'tenure', None) else None
         good = _good(region, proposal['good'])
         if plot is None or good is None or seller.id not in plot.tenant_ids or seller.output != good:
             return False, 'cultivator_or_plot_changed'
-        if int(proposal['quantity']) <= 0 or float(proposal['unit_price']) <= 0:
-            return False, 'invalid_crop_terms'
-        committed = sum(int(c.get('remaining', 0)) for c in getattr(region, 'offtake_contracts', [])
-                        if c.get('status') == 'active' and c.get('grower_id') == seller.id
-                        and c.get('good') == proposal['good'])
-        expected = max(1, int(region.recipes[good].get('production', 4)))
-        if committed + int(proposal['quantity']) > expected:
-            return False, 'harvest_already_pledged'
+        if kind == 'advance_offtake':
+            if int(proposal['quantity']) <= 0 or float(proposal['unit_price']) <= 0:
+                return False, 'invalid_crop_terms'
+            committed = sum(int(c.get('remaining', 0)) for c in getattr(region, 'offtake_contracts', [])
+                            if c.get('status') == 'active' and c.get('grower_id') == seller.id
+                            and c.get('good') == proposal['good'])
+            expected = max(1, int(region.recipes[good].get('production', 4)))
+            if good == Goods.food:
+                expected = max(0, expected - 4)
+            if committed + int(proposal['quantity']) > expected:
+                return False, 'harvest_already_pledged'
     elif kind in ('land_lease', 'land_sale'):
         plot = region.tenure.find_plot(proposal['plot_id']) if getattr(region, 'tenure', None) else None
         if plot is None or plot.lord_id != seller.id or seller.is_government:
@@ -53,6 +62,12 @@ def _valid(region, proposal):
         if not any(r.holder_id == seller.id and r.plot_id == proposal['from_plot_id']
                    and r.units >= units for r in region.water_rights):
             return False, 'water_right_unavailable'
+        source = next(r for r in region.water_rights if r.holder_id == seller.id
+                      and r.plot_id == proposal['from_plot_id'] and r.units >= units)
+        if source.units - units < .5 and any(a.output == Goods.food and
+                                            getattr(a, 'assigned_plot_id', None) == source.plot_id
+                                            for a in region.agents):
+            return False, 'protected_food_water_minimum'
         if region.tenure.find_plot(proposal['to_plot_id']) is None:
             return False, 'target_plot_unavailable'
     return True, 'eligible'
@@ -64,6 +79,9 @@ def propose(region, kind, buyer, seller, *, turn, price, **terms):
         return None
     proposal = {'id': int(getattr(region, '_next_supply_proposal_id', 1)),
                 'kind': kind, 'buyer_id': buyer.id, 'seller_id': seller.id,
+                'buyer_name': getattr(buyer, 'company_name', None) or
+                              getattr(buyer, 'display_name', None) or f'Actor {buyer.id}',
+                'seller_name': getattr(seller, 'display_name', None) or f'Actor {seller.id}',
                 'created_turn': int(turn), 'decision_turn': int(turn) + 1,
                 'expiry_turn': int(turn) + 3, 'price': max(0.0, float(price)),
                 'status': 'proposed', 'round': 0, **terms}
@@ -92,17 +110,17 @@ def reservation(region, proposal):
         return float('inf'), {'reason': 'seller_unavailable'}
     kind = proposal['kind']
     food_price = float(region.recipes.get(Goods.food, {}).get('price', 1.0))
-    if kind == 'advance_offtake':
+    if kind in ('advance_offtake', 'crop_advance'):
         good = _good(region, proposal['good'])
         spot = float(region.recipes.get(good, {}).get('price', 1.0))
-        quantity = int(proposal['quantity'])
+        quantity = int(proposal.get('quantity', 0))
         existing = sum(float(c.balance) for c in getattr(region, 'cash_obligations', [])
                        if c.debtor_id == seller.id and c.status == 'active')
         food_shortfall = max(0.0, 4.0 - seller.inv_get(Goods.food, 0)) * food_price
         liquidity_need = max(0.0, existing + food_shortfall - max(0.0, seller.cash))
         advance = float(proposal['price'])
         liquidity_value = min(advance * .4, liquidity_need * .5)
-        outside = quantity * spot
+        outside = quantity * spot if kind == 'advance_offtake' else 0.0
         return max(.01, outside - liquidity_value), {
             'spot_quote': spot, 'quantity': quantity, 'cash': float(seller.cash),
             'debt_due': existing, 'food_shortfall_value': food_shortfall,
@@ -135,17 +153,28 @@ def _settle(region, proposal, turn):
                                interest_rate=proposal.get('interest_rate', 0.0),
                                lien_share=proposal.get('lien_share', .5),
                                offtake_quantity=proposal['quantity'],
-                               offtake_price=proposal['unit_price'])
+                               offtake_price=proposal['unit_price'],
+                               accepted_proposal_id=proposal['id'])
+        return {'claim_id': result.id} if result is not None else None
+    if kind == 'crop_advance':
+        from crop_credit import offer_advance
+        result = offer_advance(buyer, seller, region, proposal['price'],
+                               proposal['due_turn'], proposal['plot_id'],
+                               interest_rate=proposal.get('interest_rate', 0.0),
+                               lien_share=proposal.get('lien_share', .5),
+                               accepted_proposal_id=proposal['id'])
         return {'claim_id': result.id} if result is not None else None
     if kind in ('land_lease', 'land_sale'):
         from supply_rights import transfer_plot_title
         return transfer_plot_title(region, seller, buyer, proposal['plot_id'],
                                    proposal['price'], turn=turn,
-                                   lease_turns=proposal.get('lease_turns', 0))
+                                   lease_turns=proposal.get('lease_turns', 0),
+                                   accepted_proposal_id=proposal['id'])
     from supply_rights import acquire_water_right
     return acquire_water_right(region, seller, buyer, proposal['from_plot_id'],
                                proposal['to_plot_id'], proposal['units'],
-                               proposal['price'], turn)
+                               proposal['price'], turn,
+                               accepted_proposal_id=proposal['id'])
 
 
 def decide(region, turn):
@@ -161,6 +190,7 @@ def decide(region, turn):
             proposal['status'] = 'rejected'
         elif proposal['status'] == 'countered':
             if float(proposal.get('max_price', proposal['price'])) >= proposal['price']:
+                proposal['status'] = 'accepted'
                 result = _settle(region, proposal, turn)
                 proposal['status'] = 'settled' if result is not None else 'rejected'
                 proposal['result'] = result
@@ -174,11 +204,12 @@ def decide(region, turn):
             offered = (float(proposal['quantity']) * float(proposal['unit_price'])
                        if proposal['kind'] == 'advance_offtake' else proposal['price'])
             if offered + 1e-9 >= minimum:
+                proposal['status'] = 'accepted'
                 result = _settle(region, proposal, turn)
                 proposal['status'] = 'settled' if result is not None else 'rejected'
                 proposal['result'] = result
                 reason = 'seller_accepted' if result is not None else 'settlement_failed'
-            elif offered >= minimum * .75 and proposal['kind'] != 'advance_offtake':
+            elif offered >= minimum * .75 and proposal['kind'] not in ('advance_offtake', 'crop_advance'):
                 proposal['status'] = 'countered'
                 proposal['round'] = 1
                 proposal['price'] = round(minimum, 2)

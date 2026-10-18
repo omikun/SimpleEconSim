@@ -5,7 +5,11 @@ from livelihood_access import assess_obligation
 
 def offer_advance(lender, cultivator, region, amount, due_turn, collateral_plot_id,
                   interest_rate=0.0, lien_share=0.5, offtake_quantity=0,
-                  offtake_price=None):
+                  offtake_price=None, accepted_proposal_id=None):
+    from supply_proposals import authorized
+    if not authorized(region, accepted_proposal_id, lender.id, cultivator.id,
+                      ('advance_offtake', 'crop_advance')):
+        return None
     amount = max(0.0, float(amount))
     plot = getattr(region, 'tenure', None)
     plot = plot.find_plot(collateral_plot_id) if plot is not None else None
@@ -70,6 +74,8 @@ def settle_offtake_contracts(region, turn):
         available = sum(max(0, int(r['quantity'])) for r in receipts
                         if r['person_id'] == grower.id and r['good'] == good)
         take = min(available, int(contract.get('remaining', 0)))
+        if good_name == 'food':
+            take = min(take, max(0, int(grower.inv_get(good, 0)) - 4))
         claim = next((c for c in getattr(region, 'cash_obligations', [])
                       if c.id == contract['claim_id']), None)
         if take <= 0:

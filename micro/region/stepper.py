@@ -34,6 +34,11 @@ def step_economy(region: Any, t: int):
     region._last_turn = t
     from supply_rights import expire_land_leases
     expire_land_leases(region, t)
+    for firm in getattr(region, 'agents', []):
+        if getattr(firm, 'supply_pause_until', 0) and t >= firm.supply_pause_until:
+            firm.max_employees = int(getattr(firm, '_supply_prior_max_employees',
+                                             getattr(firm, 'max_employees', 0)))
+            firm.supply_pause_until = 0
 
     from nutrition import update_dependent_need
     for person in region.agents:

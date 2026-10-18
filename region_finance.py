@@ -50,6 +50,11 @@ def pay_wages(region, t):
                     e.realized_wage = wage_nominal
                     e.mem_push('mem_wages', wage_nominal)
                     a.scrip_issued += wage_nominal
+                    from economy.actor_accounts import record as record_economic_event
+                    record_economic_event(region, 'scrip_wage', turn=t,
+                                          payer_id=a.id, recipient_id=e.id,
+                                          amount=wage_nominal,
+                                          detail={'tender': 'company_scrip'})
                 else:
                     # Legal tender cash payment
                     wage_to_pay = min(a.cash, wage_nominal)
@@ -112,6 +117,11 @@ def redeem_company_scrip(region, t):
                                     seller.cash += cost
                                     seller.inv_add(Goods.food, -qty)
                                     a.inv_add(Goods.food, qty)
+                                    from economy.actor_accounts import record as record_economic_event
+                                    record_economic_event(region, 'store_inventory_purchase', turn=t,
+                                                          payer_id=a.id, recipient_id=seller.id,
+                                                          good=Goods.food, quantity=qty, amount=cost,
+                                                          detail={'tender': 'cash', 'store_markup': tommy_markup})
                                     needed_to_buy -= qty
                                     if needed_to_buy <= 0:
                                         break
@@ -123,6 +133,13 @@ def redeem_company_scrip(region, t):
                         a.scrip_redeemed += total_cost
                         a.inv_add(Goods.food, -available)
                         e.inv_add(Goods.food, available)
+                        from economy.actor_accounts import record as record_economic_event
+                        record_economic_event(region, 'scrip_store_sale', turn=t,
+                                              payer_id=e.id, recipient_id=a.id,
+                                              good=Goods.food, quantity=available,
+                                              amount=total_cost,
+                                              detail={'tender': 'company_scrip',
+                                                      'unit_price': tommy_price})
                         e.food_purchased = getattr(e, 'food_purchased', 0) + available
                         food_needed -= available
 
@@ -133,6 +150,13 @@ def redeem_company_scrip(region, t):
                     e.inv_add(Goods.food, 1)
                     e.food_purchased = getattr(e, 'food_purchased', 0) + 1
                     e.company_debt += tommy_price
+                    from economy.actor_accounts import record as record_economic_event
+                    record_economic_event(region, 'scrip_food_credit', turn=t,
+                                          payer_id=a.id, recipient_id=e.id,
+                                          good=Goods.food, quantity=1,
+                                          amount=tommy_price, debt_credit=tommy_price,
+                                          detail={'tender': 'company_store_credit',
+                                                  'company_debt_after': e.company_debt})
                     e.despair = min(1.0, getattr(e, 'despair', 0.0) + 0.15)
                     e.alienation = min(1.0, getattr(e, 'alienation', 0.0) + 0.10)
                     try:

@@ -37,7 +37,7 @@ class SimServer:
                  autoplay_nations: bool = False):
         self.scenario_id = scenario_id
         self.autoplay_nations = bool(autoplay_nations)
-        if scenario_id == 'labor_frontier_rivalry':
+        if scenario_id in ('labor_frontier_rivalry', 'supply_rivalry'):
             topology = 'hex'
         if topology in ('voronoi', 'hex'):
             from world_config import set_map_topology
@@ -77,6 +77,11 @@ class SimServer:
             if self.scenario_id == 'labor_frontier_rivalry':
                 from scenario_labor_frontier_rivalry import create_world
                 scenario_world = create_world(seed=612 if self.seed is None else self.seed)
+                tiles, nations, _grid = scenario_world['tiles'], scenario_world['nations'], None
+                self.topology = 'hex'
+            elif self.scenario_id == 'supply_rivalry':
+                from scenario_supply_rivalry import create_world
+                scenario_world = create_world(seed=812 if self.seed is None else self.seed)
                 tiles, nations, _grid = scenario_world['tiles'], scenario_world['nations'], None
                 self.topology = 'hex'
             else:
@@ -156,7 +161,7 @@ class SimServer:
     def step(self) -> int:
         """Advance the simulation by exactly one turn."""
         with self._lock:
-            if (self.scenario_id == 'labor_frontier_rivalry'
+            if (self.scenario_id in ('labor_frontier_rivalry', 'supply_rivalry')
                     and getattr(self, 'scenario_state', {}).get('ending')):
                 return self.turn
             self.turn += 1
@@ -185,6 +190,11 @@ class SimServer:
                 advance_after_engine(self.get_world_dict(), t)
                 from trace_phase import treasury_boundary
                 treasury_boundary(self.tiles, self.nations, 'scenario_after_hook')
+                self.currency_totals = {c: fx.audit_currency_total(self.tiles, c)
+                                        for c in self.currencies}
+            elif self.scenario_id == 'supply_rivalry':
+                from scenario_supply_rivalry import advance_after_engine
+                advance_after_engine(self.get_world_dict(), t)
                 self.currency_totals = {c: fx.audit_currency_total(self.tiles, c)
                                         for c in self.currencies}
 
@@ -406,6 +416,13 @@ class SimServer:
             self.state_revision += 1
             c_type = cmd.cmd_type
             p = cmd.payload
+
+            if self.scenario_id == 'supply_rivalry' and c_type == CommandType.SCENARIO_ACTION:
+                from scenario_supply_rivalry import apply_action
+                ok, message = apply_action(self.get_world_dict(), p.get('action_id'))
+                self.push_ticker(self.turn, 'SUPPLY', message,
+                                 (120, 240, 150) if ok else (240, 90, 90))
+                return {'success': ok, 'message': message, 'turn': self.turn}
 
             if self.scenario_id == 'labor_frontier_rivalry':
                 if c_type == CommandType.SCENARIO_ACTION:
@@ -1163,6 +1180,9 @@ class SimServer:
         try:
             if self.scenario_id == 'labor_frontier_rivalry':
                 from labor_frontier_projection import project
+                return project(self.get_world_dict())
+            if self.scenario_id == 'supply_rivalry':
+                from scenario_supply_rivalry import project
                 return project(self.get_world_dict())
             from worldview_scenario_ui import scenario_pressures
             w_dict = self.get_world_dict()

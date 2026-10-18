@@ -1624,7 +1624,7 @@
   function updateScenarioPressures() {
     if (!scenarioPressuresRibbon || !worldState) return;
     const sc = worldState.scenario_info;
-    if (sc && sc.scenario_name === 'Labor, Territory, and Rivalry') {
+    if (sc && ['Labor, Territory, and Rivalry', 'Cotton Supply Rivalry'].includes(sc.scenario_name)) {
       if (!laborMapConfigured) {
         laborMapConfigured = true;
         useTerrainImage = false;
@@ -1661,9 +1661,9 @@
       scenarioPressuresRibbon.classList.remove('hidden');
       scenarioPressuresRibbon.classList.add('labor-scenario-ribbon');
       scenarioPressuresRibbon.innerHTML = `
-        <div class="labor-scenario-panel" role="region" aria-label="Labor and frontier decisions">
+        <div class="labor-scenario-panel" role="region" aria-label="${escapeHtml(sc.scenario_name)} decisions">
           <button type="button" class="labor-panel-toggle" aria-expanded="${!laborPanelCollapsed}">
-            <strong>Labor, Territory, and Rivalry</strong><span>T${Number(sc.turn) || 0}/20 ${laborPanelCollapsed ? '▾' : '▴'}</span>
+            <strong>${escapeHtml(sc.scenario_name)}</strong><span>T${Number(sc.turn) || 0}/${Number(sc.horizon_turns) || 20} ${laborPanelCollapsed ? '▾' : '▴'}</span>
           </button>
           ${laborPanelCollapsed ? '' : `<div class="labor-scenario-scroll">
             <p class="labor-mandate">${escapeHtml(sc.mandate || '')}</p>
@@ -3026,7 +3026,11 @@
         const earned = account.type === 'grower'
           ? `crop value $${Number(account.crop_value).toFixed(2)} · cash receipts $${Number(account.sales_cash).toFixed(2)}`
           : `sales cash $${Number(account.sales_cash).toFixed(2)} · input used $${Number(account.input_consumed_cost).toFixed(2)} · wages $${Number(account.wages_cash).toFixed(2)}`;
-        row.textContent = `${account.actor_name}: ${earned} · cash $${Number(account.opening_cash).toFixed(2)} → $${Number(account.closing_cash).toFixed(2)} · food ${account.opening_food} → ${account.closing_food} · debt $${Number(account.opening_debt).toFixed(2)} → $${Number(account.closing_debt).toFixed(2)}. Recorded costs may be incomplete.`;
+        const unposted = Math.abs(Number(account.unposted_cash_change || 0)) > 0.01
+          ? ` · $${Number(account.unposted_cash_change).toFixed(2)} cash change outside this account` : '';
+        const scrip = Math.abs(Number(account.scrip_change || 0)) > 0.01
+          ? ` · scrip $${Number(account.opening_scrip).toFixed(2)} → $${Number(account.closing_scrip).toFixed(2)}` : '';
+        row.textContent = `${account.actor_name}: ${earned} · cash $${Number(account.opening_cash).toFixed(2)} → $${Number(account.closing_cash).toFixed(2)}${scrip} · food ${account.opening_food} → ${account.closing_food} · debt $${Number(account.opening_debt).toFixed(2)} → $${Number(account.closing_debt).toFixed(2)}${unposted}. Recorded costs may be incomplete.`;
         supplyDetails.appendChild(row);
       }
 
@@ -3055,7 +3059,7 @@
         const item = document.createElement('div');
         item.className = 'market-control-detail';
         const decision = proposal.reservation_value == null ? '' : ` · seller outside value $${Number(proposal.reservation_value).toFixed(2)}`;
-        item.textContent = `Offer #${proposal.id}: ${proposal.kind.replaceAll('_', ' ')} from ${names.get(Number(proposal.buyer_id)) || `Actor ${proposal.buyer_id}`} to ${names.get(Number(proposal.seller_id)) || `Actor ${proposal.seller_id}`} · ${proposal.status}${decision} · due turn ${proposal.decision_turn}.`;
+        item.textContent = `Offer #${proposal.id}: ${proposal.kind.replaceAll('_', ' ')} from ${proposal.buyer_name || names.get(Number(proposal.buyer_id)) || `Actor ${proposal.buyer_id}`} to ${proposal.seller_name || names.get(Number(proposal.seller_id)) || `Actor ${proposal.seller_id}`} · ${proposal.status}${decision} · due turn ${proposal.decision_turn}.`;
         supplyDetails.appendChild(item);
       }
       for (const charter of charters) {

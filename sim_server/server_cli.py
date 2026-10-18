@@ -31,7 +31,7 @@ def main():
     parser.add_argument('--host', type=str, default='0.0.0.0', help="Host for web server (default: 0.0.0.0)")
     parser.add_argument('--topology', type=str, default='voronoi', choices=['voronoi', 'hex'],
                         help="World topology: 'voronoi' (irregular polygons) or 'hex' (honeycomb)")
-    parser.add_argument('--scenario', choices=['labor-frontier-rivalry'], default=None)
+    parser.add_argument('--scenario', choices=['labor-frontier-rivalry', 'supply-rivalry'], default=None)
     args = parser.parse_args()
 
     print("==================================================")
@@ -41,7 +41,8 @@ def main():
 
     server = SimServer(seed=args.seed, terrain_seed=args.terrain_seed, nation_seed=args.nation_seed,
                        topology=args.topology,
-                       scenario_id='labor_frontier_rivalry' if args.scenario else None)
+                       scenario_id={'labor-frontier-rivalry': 'labor_frontier_rivalry',
+                                    'supply-rivalry': 'supply_rivalry'}.get(args.scenario))
     print(f"[Server] Initialized world with {len(server.tiles)} tiles, {len(server.nations)} nations.")
 
     def on_server_event(ev_type, data):

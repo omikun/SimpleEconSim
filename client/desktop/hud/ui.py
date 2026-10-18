@@ -1138,11 +1138,13 @@ def draw_panel(surface, world, font, font_small, mouse_pos=None):
                                  if c.get('status') == 'active')
         pending_charters = sum(1 for c in getattr(region, 'concession_petitions', [])
                                if c.get('status') == 'proposed')
+        pending_offers = sum(1 for c in getattr(region, 'supply_proposals', [])
+                             if c.get('status') in ('proposed', 'countered'))
         supply_line = font_small.render(
             f"Supply control: water {water_alloc:.1f}/{water_capacity:.1f} | "
             f"contracts {active_advances} | land leases {active_land_leases} | "
-            f"charters {active_charters} | petitions {pending_charters}",
-            True, (220, 190, 125) if active_advances or active_land_leases or active_charters or pending_charters else DIM)
+            f"charters {active_charters} | petitions {pending_charters} | offers {pending_offers}",
+            True, (220, 190, 125) if active_advances or active_land_leases or active_charters or pending_charters or pending_offers else DIM)
         surface.blit(supply_line, (PANEL_LEFT, y_cursor))
         y_cursor += 16
         firm_account = next((a for a in getattr(region, 'actor_turn_accounts', [])
@@ -1154,6 +1156,15 @@ def draw_panel(surface, world, font, font_small, mouse_pos=None):
                 f"wages ${firm_account['wages_cash']:.1f} (recorded costs)",
                 True, (150, 210, 220))
             surface.blit(account_line, (PANEL_LEFT, y_cursor))
+            y_cursor += 16
+        if pending_offers:
+            offer = next(c for c in region.supply_proposals
+                         if c.get('status') in ('proposed', 'countered'))
+            offer_line = font_small.render(
+                f"Offer #{offer['id']}: {offer['kind'].replace('_', ' ')} | "
+                f"{offer.get('seller_name', offer['seller_id'])} decides T{offer['decision_turn']}",
+                True, (220, 190, 125))
+            surface.blit(offer_line, (PANEL_LEFT, y_cursor))
             y_cursor += 16
         latest_trade = next((event for event in reversed(getattr(region, 'market_trade_events', []))
                              if event.get('turn') == getattr(region, '_last_turn', -1)), None)

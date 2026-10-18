@@ -154,7 +154,13 @@ class TestPlunderLaborMechanics(unittest.TestCase):
                         tenant_ids=[farmer.id])
         self.region.tenure.add_plot(plot)
         cash_before = lender.cash + farmer.cash
-        claim = offer_advance(lender, farmer, self.region, 8, 1, 'farm', lien_share=0.5)
+        from supply_proposals import propose, decide
+        proposal = propose(self.region, 'crop_advance', lender, farmer, turn=0,
+                           price=8, due_turn=1, plot_id='farm', good='food',
+                           lien_share=0.5)
+        decide(self.region, 1)
+        claim = next(c for c in self.region.cash_obligations
+                     if c.id == proposal['result']['claim_id'])
         self.assertIsNotNone(claim)
         self.assertEqual(lender.cash + farmer.cash, cash_before)
         farmer.inv_add(Goods.food, 4)  # old stores are not a current harvest receipt

@@ -38,6 +38,7 @@ def begin_turn(region, turn):
     region._economic_opening_turn = int(turn)
     region._economic_opening = {
         a.id: {'cash': float(getattr(a, 'cash', 0.0)),
+               'scrip': float(getattr(a, 'scrip_wallet', 0.0)),
                'food': int(a.inv_get(Goods.food, 0)),
                'inventory': {g.name: int(a.inv_get(g, 0)) for g in getattr(region, 'recipes', {})},
                'debt': sum(float(c.balance) for c in getattr(region, 'cash_obligations', [])
@@ -55,11 +56,15 @@ def seal_turn(region, turn):
         return getattr(region, 'actor_turn_accounts', [])
     opening = getattr(region, '_economic_opening', {})
     events = [e for e in getattr(region, 'economic_events', []) if e['turn'] == turn]
+    by_actor = {}
+    for event in events:
+        for ident in {event['payer_id'], event['recipient_id']} - {None}:
+            by_actor.setdefault(ident, []).append(event)
     accounts = []
     for actor in getattr(region, 'agents', []):
         if actor.id not in opening:
             continue
-        own = [e for e in events if actor.id in (e['payer_id'], e['recipient_id'])]
+        own = by_actor.get(actor.id, [])
         receipts = sum((e['detail'].get('seller_receipt', e['amount'])
                         if e['kind'] == 'spot_sale' else e['amount'])
                        for e in own if e['recipient_id'] == actor.id
@@ -78,6 +83,15 @@ def seal_turn(region, turn):
         input_used = sum(e['amount'] for e in own if e['payer_id'] == actor.id
                          and e['kind'] == 'input_consumed')
         prior = opening[actor.id]
+        noncash = ('production', 'input_consumed', 'scrip_wage',
+                   'scrip_store_sale', 'scrip_food_credit')
+        cash_in = sum((e['detail'].get('seller_receipt', e['amount'])
+                       if e['kind'] == 'spot_sale' else e['amount'])
+                      for e in own if e['recipient_id'] == actor.id
+                      and e['kind'] not in noncash)
+        cash_out = sum(e['amount'] for e in own if e['payer_id'] == actor.id
+                       and e['kind'] not in noncash)
+        observed_cash_change = float(actor.cash) - prior['cash']
         financing = sum(e['amount'] for e in own if e['recipient_id'] == actor.id
                         and e['kind'] == 'owner_financing')
         for_lease = [p.plot_id for p in getattr(getattr(region, 'tenure', None), 'plots', [])
@@ -96,7 +110,12 @@ def seal_turn(region, turn):
                     'grower' if output in (Goods.food, Goods.cotton, Goods.sugar, Goods.tobacco) else 'other',
             'output': output_name, 'opening_cash': round(prior['cash'], 2),
             'closing_cash': round(float(actor.cash), 2),
+            'opening_scrip': round(prior['scrip'], 2),
+            'closing_scrip': round(float(getattr(actor, 'scrip_wallet', 0.0)), 2),
+            'scrip_change': round(float(getattr(actor, 'scrip_wallet', 0.0)) - prior['scrip'], 2),
             'cash_change': round(float(actor.cash) - prior['cash'], 2),
+            'posted_cash_change': round(cash_in - cash_out, 2),
+            'unposted_cash_change': round(observed_cash_change - (cash_in - cash_out), 2),
             'owner_financing_received': round(financing, 2),
             'opening_food': prior['food'], 'closing_food': int(actor.inv_get(Goods.food, 0)),
             'food_intake': round(float(getattr(actor, 'last_calories_eaten', 0.0)) / 500.0, 2),

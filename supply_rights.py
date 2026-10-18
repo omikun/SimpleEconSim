@@ -10,8 +10,13 @@ class WaterRight:
     units: float
 
 
-def transfer_plot_title(region, seller, buyer, plot_id, price, turn=None, lease_turns=0):
+def transfer_plot_title(region, seller, buyer, plot_id, price, turn=None, lease_turns=0,
+                        accepted_proposal_id=None):
     """Voluntary title sale or fixed-term lease; tenants and tenure survive."""
+    from supply_proposals import authorized
+    kind = 'land_lease' if int(lease_turns) > 0 else 'land_sale'
+    if not authorized(region, accepted_proposal_id, buyer.id, seller.id, (kind,)):
+        return None
     plot = getattr(region, 'tenure', None)
     plot = plot.find_plot(plot_id) if plot is not None else None
     price = max(0.0, float(price))
@@ -92,8 +97,11 @@ def expire_land_leases(region, turn):
 
 
 def acquire_water_right(region, seller, buyer, from_plot_id, to_plot_id,
-                        units=0.25, price=0.0, turn=None):
+                        units=0.25, price=0.0, turn=None, accepted_proposal_id=None):
     """Buy a quantified seasonal allocation and redirect it between named plots."""
+    from supply_proposals import authorized
+    if not authorized(region, accepted_proposal_id, buyer.id, seller.id, ('water_right',)):
+        return None
     _seed_water_rights(region)
     units, price = max(0.0, float(units)), max(0.0, float(price))
     source = next((r for r in region.water_rights if r.plot_id == from_plot_id

@@ -23,16 +23,20 @@ def get_reverse_layout():
 
 def build_world_view(seed=None, terrain_seed=None, nation_seed=None, scenario_id=None):
     """Build the 9x9 hex world + prepare viewer state."""
-    if scenario_id == 'labor_frontier_rivalry':
+    if scenario_id in ('labor_frontier_rivalry', 'supply_rivalry'):
         from world_config import set_map_topology
         set_map_topology('hex')
-        from scenario_labor_frontier_rivalry import create_world
-        world = create_world(seed=612 if seed is None else seed)
+        if scenario_id == 'supply_rivalry':
+            from scenario_supply_rivalry import create_world
+            world = create_world(seed=812 if seed is None else seed)
+        else:
+            from scenario_labor_frontier_rivalry import create_world
+            world = create_world(seed=612 if seed is None else seed)
         world.update({
             'reverse': {v: k for k, v in world['layout'].items()},
             'gen': None, 'slot_1_state': {},
             'cam': {'ox': 0.0, 'oy': 0.0, 'zoom': 1.0, 'pitch': 0.0},
-            'selected_region': world['tiles'][1],
+            'selected_region': world['tiles'][0] if scenario_id == 'supply_rivalry' else world['tiles'][1],
             'selected_nation': world['nations'][0],
             'hover_region': None, 'frame': 0, 'view': 0, 'window': 100,
             'violations': [], 'ticker_events': [], 'scope': 'tile',
@@ -150,6 +154,9 @@ def step_world(world):
     """Advance one turn of the engine via sim_engine."""
     if world.get('scenario_id') == 'labor_frontier_rivalry':
         from scenario_labor_frontier_rivalry import step_world as step_scenario
+        return step_scenario(world)
+    if world.get('scenario_id') == 'supply_rivalry':
+        from scenario_supply_rivalry import step_world as step_scenario
         return step_scenario(world)
     if world.get('scenario_id') == 'egypt_1877' and world.get('scenario_state', {}).get('ending'):
         world['playing'] = False

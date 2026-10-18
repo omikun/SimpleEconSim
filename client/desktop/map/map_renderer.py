@@ -1541,7 +1541,7 @@ def draw_hex_map(surface, world, font, font_small):
 
     # 4. Text, City Titles, Stats Lines, and Badges (DYNAMIC OVERLAP-AWARE CULLING)
     layer_mode = world.get('map_layer', 'overview')
-    guided_scenario_map = world.get('scenario_id') in ('egypt_1877', 'labor_frontier_rivalry') and world.get('ui_mode') == 'guided'
+    guided_scenario_map = world.get('scenario_id') in ('egypt_1877', 'labor_frontier_rivalry', 'supply_rivalry') and world.get('ui_mode') == 'guided'
 
     label_candidates = []
 

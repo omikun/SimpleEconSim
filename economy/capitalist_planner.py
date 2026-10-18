@@ -98,6 +98,12 @@ class EliteCapitalistPlanner:
             return False
         if market_has_new_items:
             return True
+        if any(e.get('turn') == t and e.get('buyer_id') == agent.id
+               for e in getattr(region, 'supply_proposal_events', [])):
+            return True
+        if any(e.get('turn') == t and e.get('sponsor_id') == agent.id
+               for e in getattr(region, 'concession_events', [])):
+            return True
         return (t % 5 == 0)
 
     def evaluate_spatial_trade(self, agent: Any, region: Any, t: int) -> Optional[Dict[str, Any]]:
@@ -152,9 +158,11 @@ class EliteCapitalistPlanner:
                   * float(recipe.get('price', 1.0)) - price * float(recipe.get('numInput', 0))
                   - float(getattr(agent, 'wage', 0.0)) * max(1, len(getattr(agent, 'employees', []))))
         if margin <= 0:
-            return [{'candidate': 'reduce_or_pause_output', 'feasible': True,
+            return [{'candidate': 'reduce_or_pause_output', 'feasible': bool(getattr(agent, 'employees', [])),
                      'good': good.name, 'shortage': shortage, 'estimated_margin': margin,
-                     'score': 0.0, 'reason': 'input cost and payroll exceed expected output receipts'}]
+                     'score': max(0.0, -margin) + float(getattr(agent, 'wage', 0.0))
+                     * len(getattr(agent, 'employees', [])),
+                     'reason': 'input cost and payroll exceed expected output receipts'}]
         urgency = min(1.0, shortage / needed)
         options = []
         active_contract = any(c.get('status') == 'active' and c.get('lender_id') == agent.id
@@ -169,7 +177,7 @@ class EliteCapitalistPlanner:
                         'grower_id': grower.id if grower else None,
                         'plot_id': getattr(grower, 'assigned_plot_id', None) if grower else None,
                         'advance': advance, 'quantity': min(3, shortage),
-                        'unit_price': price, 'shortage': shortage,
+                        'unit_price': round(price * .8, 2), 'shortage': shortage,
                         'estimated_margin': margin,
                         'score': urgency * min(1.0, margin / max(1.0, price * needed)) * 1.2,
                         'reason': 'fund a named grower and reserve part of the next harvest'})
@@ -221,12 +229,29 @@ class EliteCapitalistPlanner:
                         'shortage': shortage,
                         'score': urgency * min(.75, margin / max(1.0, price * needed)) * .5,
                         'reason': 'ask the government to restrict competing processors; approval is uncertain'})
-        return options
+        from economy.supply_strategy import value_options
+        return value_options(agent, region, options)
 
     def _execute_input_control(self, agent: Any, region: Any, t: int) -> Optional[Dict[str, Any]]:
+        active_plan = self._active_plans.get(agent.id)
+        if active_plan and active_plan.get('proposal_id') is not None:
+            proposal = next((p for p in getattr(region, 'supply_proposals', [])
+                             if p['id'] == active_plan['proposal_id']), None)
+            if proposal and proposal['status'] in ('proposed', 'countered'):
+                return None
+            if proposal:
+                active_plan['status'] = proposal['status']
+                active_plan['outcome_turn'] = t
         options = self._input_control_options(agent, region)
         viable = [row for row in options if row.get('feasible') and row.get('score', 0) > .08]
         if not viable:
+            if options:
+                from run_trace import emit
+                emit(region, kind='supply_strategy_decision', record_class='decision',
+                     subject={'type': 'agent', 'id': agent.id},
+                     metric_id='market.supply_strategy', unit='candidate',
+                     after='spot_or_route', formula_id='supply.incremental_owner_value.v1',
+                     inputs={'candidates': options, 'selected': 'spot_or_route'})
             return None
         # Contracts are reversible and deliver material next harvest; leases and
         # charters have longer consequences and need materially higher pressure.
@@ -235,7 +260,22 @@ class EliteCapitalistPlanner:
                                      'exclusive_processing_charter': 2}.get(row['candidate'], 9)))
         best = viable[0]
         good = next(g for g in region.recipes if g.name == best['good'])
-        if best['candidate'] == 'advance_offtake':
+        if best['candidate'] == 'reduce_or_pause_output':
+            worker_ids = []
+            for worker in list(getattr(agent, 'employees', [])):
+                worker_ids.append(worker.id)
+                if getattr(worker, 'employer', None) is agent:
+                    worker.employer = None
+                agreement = getattr(worker, 'labor_agreement', None)
+                if agreement is not None:
+                    agreement.active = False
+            agent.employees.clear()
+            agent._supply_prior_max_employees = int(getattr(agent, 'max_employees', 0))
+            agent.max_employees = 0
+            agent.supply_pause_until = t + 5
+            details = {'worker_ids': worker_ids, 'resume_turn': t + 5,
+                       'estimated_margin': best['estimated_margin']}
+        elif best['candidate'] == 'advance_offtake':
             grower = next(a for a in region.agents if a.id == best['grower_id'])
             from supply_proposals import propose
             proposal = propose(region, 'advance_offtake', agent, grower,
@@ -272,6 +312,23 @@ class EliteCapitalistPlanner:
             if petition is None:
                 return None
             details = petition
+        self._active_plans[agent.id] = {'candidate': best['candidate'],
+                                        'target_id': best.get('grower_id', best.get('plot_id')),
+                                        'created_turn': t, 'review_turn': t + 5,
+                                        'proposal_id': details.get('id') if isinstance(details, dict)
+                                        and best['candidate'] in ('advance_offtake',
+                                                                   'acquire_water_right',
+                                                                   'lease_input_land') else None,
+                                        'budget': best.get('advance', best.get('price', best.get('fee', 0))),
+                                        'status': 'active'}
+        from run_trace import emit
+        emit(region, kind='supply_strategy_decision', record_class='decision',
+             subject={'type': 'agent', 'id': agent.id},
+             metric_id='market.supply_strategy', unit='candidate',
+             after=best['candidate'], formula_id='supply.incremental_owner_value.v1',
+             inputs={'candidates': options, 'selected': best['candidate'],
+                     'runner_up': viable[1]['candidate'] if len(viable) > 1 else 'spot_or_route',
+                     'details': details})
         return {'action_taken': best['candidate'].upper(), 'details': details,
                 'selected_score': best['score'], 'candidate_options': options}
 

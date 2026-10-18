@@ -403,6 +403,10 @@ def produce(region, t):
         if a.is_corporation and len(a.employees) > 0:
             produce_corporation(region, a, r, a.output, num_agents_per_good,
                                 local_total_production, receipt_ids.setdefault(a.output, []))
+        elif a.is_corporation:
+            # A company with no workers cannot produce as an independent
+            # craftsperson; that path previously created unpaid mill output.
+            continue
         else:
             produce_independent(region, a, r, a.output, num_agents_per_good,
                                 local_total_production, receipt_ids.setdefault(a.output, []))
