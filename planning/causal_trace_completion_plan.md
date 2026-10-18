@@ -1077,3 +1077,19 @@ trace tests, and the existing policy-action UI test passed (10 total), covering
 all three funding sources, an unfunded action, no qualifying recipients, and
 trace-on/off state parity. Compilation and `git diff --check` passed. The
 national guano subsidy and remaining world-policy cash mutations remain open.
+
+Phase 3 follow-up, 2026-10-18: the national guano blockade-runner subsidy now
+records treasury affordability and coastal-port gates, the exact treasury
+debit, every merchant or local-agent receipt, and refunds when a coastal tile
+has no agents. Its outcome reconciles allocations against the gross $100 cost.
+Each port records fertilizer stock and nitrate-depletion changes, including the
+actual delivery after the existing 80-unit stock cap. The trace preserves the
+existing no-charge paths for insufficient cash and no eligible ports. Added
+funding, port, subsidy, cash-receipt, stock, depletion, and delivery metrics.
+
+Verification: four dedicated guano tests, all seven fertilizer supply and
+blockade tests, five city-food tests, four provincial-policy tests, and the
+existing policy-action UI test passed (21 total), including trace-on/off
+parity, underfunding, no ports, stock caps, recipient priority, and refunds.
+Compilation and `git diff --check` passed. Other world-policy cash mutations
+remain open.

@@ -394,6 +394,331 @@ def _execute_city_emergency_food(world, target):
     world['policy_feedback'] = (f"Emergency food aid distributed in {target.name}!", GREEN)
 
 
+def _execute_national_guano_subsidy(world, target):
+    cost = 100.0
+    gov_agent = target.government.agent
+    treasury_before = float(gov_agent.cash)
+    tiles = list(getattr(target, 'tiles', []))
+    region = _policy_trace_region(world, target)
+    operation_id = _policy_operation_id(
+        world, target, 'nat_subsidize_guano_import', region)
+    currency = (getattr(target, 'currency', None)
+                or getattr(region, 'home_currency', None) or 'local_currency')
+    funding_event_id = None
+    ports_event_id = None
+    if region is not None:
+        from run_trace import emit
+        funding_event_id = emit(
+            region, kind='national_guano_funding_decision',
+            record_class='decision', phase='policy_action',
+            subject={'type': 'nation/action', 'id': target.name},
+            metric_id='scenario.national_guano_funding', unit='funded',
+            after=treasury_before >= cost,
+            inputs={'operation_id': operation_id,
+                    'turn': int(world.get('turn', 0)),
+                    'action_id': 'nat_subsidize_guano_import',
+                    'cost_requested': cost,
+                    'treasury_before': treasury_before,
+                    'cash_shortfall': max(0.0, cost - treasury_before),
+                    'coastal_port_search_performed': treasury_before >= cost,
+                    'funded': treasury_before >= cost,
+                    'reason': ('treasury_funds_guano_subsidy'
+                               if treasury_before >= cost
+                               else 'treasury_cash_below_cost')})
+    if treasury_before < cost:
+        world['policy_feedback'] = (
+            f"Insufficient Treasury: Requires ${cost:.0f} (Current: ${gov_agent.cash:.0f}).",
+            (240, 80, 80))
+        return
+
+    coastal_tiles = [
+        tile for tile in tiles
+        if (getattr(tile, 'is_coast', False)
+            or any(getattr(neighbor, 'is_water', False)
+                   for neighbor in getattr(tile, 'neighbors', {}).values()))]
+    if region is not None:
+        from run_trace import emit
+        ports_event_id = emit(
+            region, kind='national_guano_port_availability',
+            record_class='decision', phase='policy_action',
+            subject={'type': 'nation/action', 'id': target.name},
+            metric_id='scenario.national_guano_ports', unit='coastal_tiles',
+            after=len(coastal_tiles),
+            inputs={'operation_id': operation_id,
+                    'turn': int(world.get('turn', 0)),
+                    'eligible_tile_ids': [tile.name for tile in coastal_tiles],
+                    'eligible_tile_count': len(coastal_tiles),
+                    'selection_rule':
+                    'nation tiles marked coastal or adjacent to a water neighbor',
+                    'treasury_gate_event_id': funding_event_id,
+                    'available': bool(coastal_tiles),
+                    'reason': ('coastal_ports_available' if coastal_tiles
+                               else 'no_coastal_port_tiles')},
+            cause_event_ids=([funding_event_id] if funding_event_id else None))
+    if not coastal_tiles:
+        world['policy_feedback'] = (
+            "No coastal port tiles exist to receive guano blockade runners!",
+            (240, 80, 80))
+        return
+
+    gov_agent.cash -= cost
+    treasury_after_debit = float(gov_agent.cash)
+    share_cost = cost / len(coastal_tiles)
+    expenditure_event_id = None
+    if region is not None:
+        from finance_trace import account_ref, transfer_contract
+        from run_trace import emit
+        payer_account = account_ref(
+            'national_treasury', str(getattr(gov_agent, 'id', target.name)),
+            currency, nation_id=target.name,
+            balance_before=treasury_before, balance_after=treasury_after_debit,
+            balance_scope='government_agent.cash')
+        contract = transfer_contract(
+            operation_id, 'national_guano_import_subsidy', side='payer',
+            amount=cost, amount_currency=currency,
+            payer_account=payer_account,
+            payee_account={'type': 'guano_import_allocation',
+                           'id': target.name,
+                           'cash_balance_captured': False},
+            local_cash_leg_amount=cost, local_cash_leg_currency=currency,
+            counterparty_leg_status=
+            'allocated_to_coastal_agent_receipts_or_treasury_refunds',
+            source='nat_subsidize_guano_import',
+            coastal_tile_count=len(coastal_tiles),
+            per_tile_cash_share=share_cost,
+            turn=int(world.get('turn', 0)))
+        expenditure_event_id = emit(
+            region, kind='national_guano_subsidy_treasury_debit',
+            record_class='transfer', phase='policy_action',
+            subject={'type': 'nation/treasury', 'id': target.name},
+            metric_id='finance.policy_expenditure', unit=currency,
+            after=-cost,
+            inputs={'operation_id': operation_id,
+                    'treasury_balance_after': treasury_after_debit,
+                    'transfer_contract': contract},
+            cause_event_ids=([funding_event_id, ports_event_id]
+                             if funding_event_id and ports_event_id else
+                             [event_id for event_id in
+                              (funding_event_id, ports_event_id) if event_id]
+                             or None))
+
+    delivered_total = 0.0
+    paid_total = 0.0
+    refund_total = 0.0
+    recipient_rows = []
+    for tile in coastal_tiles:
+        stock_existed = hasattr(tile, 'fertilizer_stock')
+        stock_before = float(getattr(tile, 'fertilizer_stock', 12.0))
+        depleted_before = bool(getattr(tile, 'is_nitrate_depleted', False))
+        tile.fertilizer_stock = min(80.0, stock_before + 20.0)
+        tile.is_nitrate_depleted = False
+        stock_after = float(tile.fertilizer_stock)
+        delivery = stock_after - stock_before
+        delivered_total += delivery
+
+        traders = [agent for agent in getattr(tile, 'agents', [])
+                   if getattr(agent, 'is_trader', False)]
+        recipients = traders[:1] if traders else list(tile.agents[:1])
+        recipient = recipients[0] if recipients else None
+        receipt_event_id = None
+        refund_event_id = None
+        if recipient is not None:
+            cash_before = float(recipient.cash)
+            recipient.cash += share_cost
+            cash_after = float(recipient.cash)
+            paid_total += share_cost
+            recipient_type = ('trader' if traders else 'local_agent')
+            recipient_row = {'tile_id': tile.name,
+                             'recipient_id': str(getattr(recipient, 'id',
+                                                         None)
+                                                 or getattr(recipient, 'name',
+                                                            'unknown')),
+                             'recipient_type': recipient_type,
+                             'amount': share_cost,
+                             'cash_before': cash_before,
+                             'cash_after': cash_after,
+                             'destination': 'selected_tile_agent'}
+            recipient_rows.append(recipient_row)
+            if region is not None:
+                from finance_trace import account_ref, transfer_contract
+                from run_trace import emit
+                payee_currency = (getattr(recipient, 'home_currency', None)
+                                  or currency)
+                allocation_contract = transfer_contract(
+                    operation_id, 'national_guano_import_allocation', side='payee',
+                    amount=share_cost, amount_currency=currency,
+                    payer_account={'type': 'guano_import_allocation',
+                                   'id': target.name, 'currency': currency,
+                                   'cash_balance_captured': False},
+                    payee_account=account_ref(
+                        recipient_type, recipient_row['recipient_id'],
+                        payee_currency, tile=tile.name,
+                        balance_before=cash_before, balance_after=cash_after,
+                        balance_scope='agent.cash'),
+                    local_cash_leg_amount=share_cost,
+                    local_cash_leg_currency=payee_currency,
+                    counterparty_leg_status=
+                    'allocated_from_aggregate_national_treasury_debit',
+                    source='nat_subsidize_guano_import',
+                    turn=int(world.get('turn', 0)))
+                receipt_event_id = emit(
+                    region, kind='national_guano_import_payment_receipt',
+                    record_class='transfer', phase='policy_action',
+                    subject={'type': 'tile/agent',
+                             'id': recipient_row['recipient_id'],
+                             'tile': tile.name},
+                    metric_id='finance.policy_payment_receipt',
+                    unit=payee_currency, after=share_cost,
+                    inputs={'operation_id': operation_id,
+                            'cash_balance_after': cash_after,
+                            'recipient_type': recipient_type,
+                            'transfer_contract': allocation_contract},
+                    cause_event_ids=([expenditure_event_id]
+                                     if expenditure_event_id else None))
+        else:
+            treasury_refund_before = float(gov_agent.cash)
+            gov_agent.cash += share_cost
+            treasury_refund_after = float(gov_agent.cash)
+            refund_total += share_cost
+            recipient_row = {'tile_id': tile.name,
+                             'recipient_id': str(getattr(gov_agent, 'id',
+                                                         target.name)),
+                             'recipient_type': 'national_treasury_refund',
+                             'amount': share_cost,
+                             'cash_before': treasury_refund_before,
+                             'cash_after': treasury_refund_after,
+                             'destination': 'no_tile_agent_refund'}
+            recipient_rows.append(recipient_row)
+            if region is not None:
+                from finance_trace import account_ref, transfer_contract
+                from run_trace import emit
+                refund_contract = transfer_contract(
+                    operation_id, 'national_guano_import_refund', side='payee',
+                    amount=share_cost, amount_currency=currency,
+                    payer_account={'type': 'guano_import_allocation',
+                                   'id': target.name, 'currency': currency,
+                                   'cash_balance_captured': False},
+                    payee_account=account_ref(
+                        'national_treasury', recipient_row['recipient_id'],
+                        currency, nation_id=target.name,
+                        balance_before=treasury_refund_before,
+                        balance_after=treasury_refund_after,
+                        balance_scope='government_agent.cash'),
+                    local_cash_leg_amount=share_cost,
+                    local_cash_leg_currency=currency,
+                    counterparty_leg_status=
+                    'unspent_tile_share_refunded_to_national_treasury',
+                    source='nat_subsidize_guano_import',
+                    turn=int(world.get('turn', 0)))
+                refund_event_id = emit(
+                    region, kind='national_guano_import_treasury_refund',
+                    record_class='transfer', phase='policy_action',
+                    subject={'type': 'nation/treasury', 'id': target.name},
+                    metric_id='finance.treasury_flow', unit=currency,
+                    after=share_cost,
+                    inputs={'operation_id': operation_id,
+                            'cash_balance_after': treasury_refund_after,
+                            'tile_id': tile.name,
+                            'transfer_contract': refund_contract},
+                    cause_event_ids=([expenditure_event_id]
+                                     if expenditure_event_id else None))
+
+        if region is not None:
+            from run_trace import emit
+            stock_event_id = emit(
+                region, kind='national_guano_fertilizer_stock_outcome',
+                record_class='outcome', phase='policy_action',
+                subject={'type': 'tile', 'id': tile.name},
+                metric_id='ecology.fertilizer_stock',
+                before=stock_before, after=stock_after,
+                unit='fertilizer_units',
+                inputs={'operation_id': operation_id,
+                        'turn': int(world.get('turn', 0)),
+                        'subsidized_delivery_requested': 20.0,
+                        'actual_stock_increase': delivery,
+                        'stock_cap': 80.0,
+                        'stock_before_attribute_existed': stock_existed,
+                        'nitrate_depleted_before': depleted_before,
+                        'nitrate_depleted_after': False,
+                        'cash_share': share_cost,
+                        'cash_destination': recipient_row['destination'],
+                        'cash_recipient_id': recipient_row['recipient_id'],
+                        'funding_event_id': funding_event_id,
+                        'port_event_id': ports_event_id,
+                        'cash_expenditure_event_id': expenditure_event_id,
+                        'cash_receipt_event_id': receipt_event_id,
+                        'cash_refund_event_id': refund_event_id},
+                cause_event_ids=([event_id for event_id in
+                                  (expenditure_event_id, receipt_event_id,
+                                   refund_event_id) if event_id] or None))
+            if delivery > 0.0:
+                emit(
+                    region, kind='national_guano_import_delivery',
+                    record_class='outcome', phase='policy_action',
+                    subject={'type': 'tile', 'id': tile.name},
+                    metric_id='goods.guano_delivery', before=0.0,
+                    after=delivery, unit='fertilizer_units',
+                    inputs={'operation_id': operation_id,
+                            'turn': int(world.get('turn', 0)),
+                            'stock_before': stock_before,
+                            'stock_after': stock_after,
+                            'requested_per_tile': 20.0,
+                            'capped_by_storage': delivery < 20.0,
+                            'nitrate_depleted_before': depleted_before,
+                            'nitrate_depleted_after': False},
+                    cause_event_ids=([stock_event_id]
+                                     if stock_event_id else None))
+            if depleted_before:
+                emit(
+                    region, kind='national_guano_nitrate_recovery',
+                    record_class='outcome', phase='policy_action',
+                    subject={'type': 'tile', 'id': tile.name},
+                    metric_id='ecology.nitrate_depletion', before=True,
+                    after=False, unit='depleted',
+                    inputs={'operation_id': operation_id,
+                            'turn': int(world.get('turn', 0)),
+                            'fertilizer_stock_after': stock_after},
+                    cause_event_ids=([stock_event_id]
+                                     if stock_event_id else None))
+
+    if region is not None:
+        from run_trace import emit
+        emit(
+            region, kind='national_guano_subsidy_outcome',
+            record_class='outcome', phase='policy_action',
+            subject={'type': 'nation/action', 'id': target.name},
+            metric_id='scenario.national_guano_subsidy',
+            before='pending', after='applied', unit='policy_result',
+            inputs={'operation_id': operation_id,
+                    'turn': int(world.get('turn', 0)),
+                    'treasury_before': treasury_before,
+                    'treasury_after': float(gov_agent.cash),
+                    'gross_cost': cost,
+                    'coastal_tile_count': len(coastal_tiles),
+                    'cash_share_per_tile': share_cost,
+                    'agent_receipt_total': paid_total,
+                    'treasury_refund_total': refund_total,
+                    'cash_shares_reconciled':
+                    abs(paid_total + refund_total - cost) < 1e-8,
+                    'fertilizer_units_requested': 20.0 * len(coastal_tiles),
+                    'fertilizer_units_added': delivered_total,
+                    'fertilizer_shortfall_from_storage_caps':
+                    20.0 * len(coastal_tiles) - delivered_total,
+                    'recipient_rows': recipient_rows,
+                    'treasury_debit_event_id': expenditure_event_id,
+                    'funding_event_id': funding_event_id,
+                    'port_event_id': ports_event_id},
+            cause_event_ids=([event_id for event_id in
+                              (funding_event_id, ports_event_id,
+                               expenditure_event_id) if event_id] or None))
+
+    msg = (f"Blockade Runner Chartered! Disbursed ${cost:.0f} to deliver "
+           f"+20t emergency guano to coastal ports.")
+    world['policy_feedback'] = (msg, (120, 240, 150))
+    from worldview_engine import ticker_push
+    ticker_push(world, world['turn'], 'POLICY', msg, (120, 240, 150))
+
+
 def draw_policies_panel(surface, world, region, font, font_small, mouse_pos=None):
     """Draw the Governance & Policies interactive panel in the right sidebar."""
     global _ACTION_BUTTONS, _SCOPE_TABS
@@ -1470,31 +1795,7 @@ def _execute_policy_action(world, act_id, target):
         from worldview_engine import ticker_push
         ticker_push(world, world['turn'], 'POLICY', msg, (245, 180, 50) if new_val else (120, 240, 150))
     elif act_id == 'nat_subsidize_guano_import':
-        cost = 100.0
-        gov_agent = target.government.agent
-        if gov_agent.cash < cost:
-            world['policy_feedback'] = (f"Insufficient Treasury: Requires ${cost:.0f} (Current: ${gov_agent.cash:.0f}).", (240, 80, 80))
-            return
-        coastal_tiles = [r for r in getattr(target, 'tiles', []) if getattr(r, 'is_coast', False) or any(getattr(n, 'is_water', False) for n in getattr(r, 'neighbors', {}).values())]
-        if not coastal_tiles:
-            world['policy_feedback'] = ("No coastal port tiles exist to receive guano blockade runners!", (240, 80, 80))
-            return
-        gov_agent.cash -= cost
-        share_cost = cost / len(coastal_tiles)
-        for r in coastal_tiles:
-            r.fertilizer_stock = min(80.0, getattr(r, 'fertilizer_stock', 12.0) + 20.0)
-            r.is_nitrate_depleted = False
-            traders = [a for a in getattr(r, 'agents', []) if getattr(a, 'is_trader', False)]
-            if traders:
-                traders[0].cash += share_cost
-            elif r.agents:
-                r.agents[0].cash += share_cost
-            else:
-                gov_agent.cash += share_cost
-        msg = f"Blockade Runner Chartered! Disbursed ${cost:.0f} to deliver +20t emergency guano to coastal ports."
-        world['policy_feedback'] = (msg, (120, 240, 150))
-        from worldview_engine import ticker_push
-        ticker_push(world, world['turn'], 'POLICY', msg, (120, 240, 150))
+        _execute_national_guano_subsidy(world, target)
 
     # Frontier Actions
     elif act_id == 'frontier_expedition':

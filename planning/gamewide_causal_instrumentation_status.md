@@ -708,3 +708,19 @@ zero-recipient, and trace-on/off parity tests plus four provincial policy trace
 tests and the existing policy-action UI test passed (10 total). Compilation and
 `git diff --check` passed. The national guano subsidy and other world-policy
 cash mutations remain open.
+
+The national guano blockade-runner subsidy now records its $100 treasury gate
+and coastal-port availability as separate decisions. The treasury debit links
+to every selected trader or local-agent receipt, with a separate treasury
+refund for any coastal tile that has no agents. The action outcome reconciles
+the cash shares to the gross cost. For each port it records fertilizer stock
+before and after, the requested 20 units, the actual delivery after the 80-unit
+storage cap, and recovery from nitrate depletion. Insufficient treasury and no
+coastal ports remain no-charge no-ops, with the existing gate order preserved.
+
+Verification: four dedicated guano tracing tests, all seven fertilizer supply
+and blockade tests, five emergency-food trace tests, four provincial policy
+trace tests, and the existing policy-action UI test passed (21 total). Coverage
+includes trace-on/off parity, insufficient funds, no ports, capped delivery,
+recipient priority, and an unoccupied-port treasury refund. Compilation and
+`git diff --check` passed. Other world-policy cash mutations remain open.
