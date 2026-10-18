@@ -67,6 +67,9 @@ METRICS = {
     'construction.progress': ('tile/project', 'percent', 'buildings.ConstructionProject.step'),
     'construction.emergency_subsidy': ('tile/project', 'local_currency', 'construction_politics.subsidize_contractor; conserved treasury grant and project resume outcome'),
     'war.battle': ('tile/attacker/defender', 'soldiers', 'army.resolve_battle'),
+    'military.upkeep': ('nation/unit', 'turn outcome', 'army.MilitaryUnit.pay_and_feed; wage and ration coverage, morale change, and desertion'),
+    'military.supply_procurement': ('nation/unit/seller', 'food_units', 'army._procure_rations; reachable seller inventory and treasury affordability'),
+    'goods.military_supply': ('nation/unit/seller', 'food_units', 'army._procure_rations and army.step_armies; exact seller-to-government ration transfers and government ration consumption'),
     'war.territory_control': ('tile', 'nation_name', 'intents.MoveArmyIntent.execute'),
     'war.cohesion': ('nation/opponent', 'ratio', 'war_logic.update_wars'),
     'war.posture': ('nation/opponent', 'category', 'war_logic.classify_posture'),
@@ -235,6 +238,7 @@ TRACE_INSTRUMENTED = set(LEGACY_HISTORY_TO_METRIC.values()) | {
     'labor.strikers', 'labor.available_worker_hours',
     'diplomacy.ai_candidates',
     'scenario.foreign_diplomacy_ai',
+    'military.upkeep', 'military.supply_procurement', 'goods.military_supply',
 }
 
 

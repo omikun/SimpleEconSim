@@ -834,3 +834,18 @@ scenario-diplomacy and geography tests passed. The broader playthrough suite
 was interrupted inside its separate-process ending-reachability matrix and has
 no complete result. Other scenario candidate gates and action outcomes remain
 incomplete.
+
+Phase 3 follow-up, 2026-10-18: military upkeep now records seller-to-government
+ration transfers with exact cash and inventory balances, links bank withdrawals
+to payroll, records government ration consumption, and explains unpaid wages,
+food shortfalls, morale loss, and desertion. Scenario-personnel cash credits
+link to the aggregate payroll debit; abstract army service is identified without
+inventing soldier wallets.
+
+Verification: two dedicated fixtures cover ration-transfer reconciliation,
+bank-funded partial payroll, morale effects, and trace-on/off parity. Twenty-
+four military, banking, AI, and Phase 4 tests passed, along with the focused
+enlisted-personnel upkeep test. The broader labor-frontier module has four
+failing action assertions and two errors in petition/protection fixtures; its
+enlisted upkeep test passes. Police payroll/maintenance and other military
+costs remain open.

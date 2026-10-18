@@ -44,7 +44,8 @@ class MilitaryUnit:
         return self.soldiers * max(0.1, self.morale) * max(0.5, self.equipment_quality) * (1.0 + 0.5 * self.veteran_xp)
 
     def pay_and_feed(self, gov, bank, t: int = 0, people_by_id=None,
-                     supply_access=True, trace_region=None) -> tuple[float, int, bool, int]:
+                     supply_access=True, trace_region=None,
+                     funding_event_ids=None, upkeep_details=None) -> tuple[float, int, bool, int]:
         """Upkeep step: withdraws wages and consumes food rations.
 
         Returns (wages_paid, food_consumed, fully_supplied).
@@ -59,13 +60,47 @@ class MilitaryUnit:
                                if pid in people_by_id and people_by_id[pid].alive]
             self.soldiers = len(self.person_ids)
             if self.soldiers <= 0:
+                if upkeep_details is not None:
+                    cash = float(gov.agent.cash)
+                    deposits = (float(getattr(bank, 'total_deposits', 0.0))
+                                if bank is not None else 0.0)
+                    food_inventory = int(getattr(gov, 'food_inventory', 0))
+                    upkeep_details.update({
+                        'unit_id': self.unit_id,
+                        'scenario_personnel': True,
+                        'soldiers_before': 0, 'soldiers_after': 0,
+                        'requested_wages': 0.0, 'wages_paid': 0.0,
+                        'unpaid_wages': 0.0,
+                        'treasury_cash_before_funding': cash,
+                        'treasury_cash_available_for_payroll': cash,
+                        'treasury_cash_after_payroll': cash,
+                        'bank_deposits_before': deposits,
+                        'bank_deposits_after': deposits,
+                        'food_inventory_before': food_inventory,
+                        'food_inventory_after': food_inventory,
+                        'food_needed': 0, 'food_consumed': 0, 'food_unmet': 0,
+                        'supply_access': bool(supply_access),
+                        'fully_supplied': True,
+                        'morale_before': float(self.morale),
+                        'morale_after': float(self.morale),
+                        'wage_ratio': 1.0, 'food_ratio': 1.0,
+                        'deserters': 0, 'deserter_agent_ids': [],
+                        'recipient_cash_credits': [],
+                    })
                 return 0.0, 0, True, 0
 
+        treasury_cash_before = float(gov.agent.cash)
+        bank_deposits_before = (float(getattr(bank, 'total_deposits', 0.0))
+                                if bank is not None else 0.0)
+        food_inventory_before = int(getattr(gov, 'food_inventory', 0))
+        morale_before = float(self.morale)
+        soldiers_before = int(self.soldiers)
         total_wage = self.soldiers * self.wage_per_soldier
         wages_paid = 0.0
 
         # Procure wage cash
         if gov.agent.cash >= total_wage:
+            cash_available_for_payroll = float(gov.agent.cash)
             gov.agent.cash -= total_wage
             wages_paid = total_wage
         else:
@@ -74,21 +109,31 @@ class MilitaryUnit:
                 needed = total_wage - gov.agent.cash
                 bank.Withdraw(
                     gov.agent, min(needed, bank.deposits.get(gov.agent, 0.0)),
-                    trace_region=trace_region, t=t, reason='military_payroll')
+                    trace_region=trace_region, t=t, reason='military_payroll',
+                    trace_event_ids=funding_event_ids)
             
+            cash_available_for_payroll = float(gov.agent.cash)
             payout = min(gov.agent.cash, total_wage)
             gov.agent.cash -= payout
             wages_paid = payout
+        cash_after_payroll = float(gov.agent.cash)
 
         # Food ration consumption
         needed_food = int(math.ceil(self.soldiers * self.food_per_soldier))
         available_food = getattr(gov, 'food_inventory', 0) if supply_access else 0
         food_consumed = min(needed_food, available_food)
         gov.food_inventory = max(0, getattr(gov, 'food_inventory', 0) - food_consumed)
+        recipient_cash_credits = []
         if self.scenario_personnel and wages_paid > 0:
             share = wages_paid / self.soldiers
             for pid in self.person_ids:
-                people_by_id[pid].cash += share
+                person = people_by_id[pid]
+                cash_before = float(person.cash)
+                person.cash += share
+                recipient_cash_credits.append({
+                    'agent_id': pid, 'amount': float(share),
+                    'cash_before': cash_before,
+                    'cash_after': float(person.cash)})
 
         # Morale updates based on fulfillment
         wage_ratio = wages_paid / max(0.01, total_wage)
@@ -113,6 +158,37 @@ class MilitaryUnit:
             if self.scenario_personnel:
                 self.deserter_ids = self.person_ids[-deserters:]
                 self.person_ids = self.person_ids[:-deserters]
+
+        if upkeep_details is not None:
+            upkeep_details.update({
+                'unit_id': self.unit_id,
+                'scenario_personnel': bool(self.scenario_personnel),
+                'soldiers_before': soldiers_before,
+                'soldiers_after': int(self.soldiers),
+                'requested_wages': float(total_wage),
+                'wages_paid': float(wages_paid),
+                'unpaid_wages': float(max(0.0, total_wage - wages_paid)),
+                'treasury_cash_before_funding': treasury_cash_before,
+                'treasury_cash_available_for_payroll': cash_available_for_payroll,
+                'treasury_cash_after_payroll': cash_after_payroll,
+                'bank_deposits_before': bank_deposits_before,
+                'bank_deposits_after': (float(getattr(bank, 'total_deposits', 0.0))
+                                        if bank is not None else 0.0),
+                'food_inventory_before': food_inventory_before,
+                'food_inventory_after': int(getattr(gov, 'food_inventory', 0)),
+                'food_needed': int(needed_food),
+                'food_consumed': int(food_consumed),
+                'food_unmet': int(max(0, needed_food - food_consumed)),
+                'supply_access': bool(supply_access),
+                'fully_supplied': bool(fully_supplied),
+                'morale_before': morale_before,
+                'morale_after': float(self.morale),
+                'wage_ratio': float(wage_ratio),
+                'food_ratio': float(food_ratio),
+                'deserters': int(deserters),
+                'deserter_agent_ids': list(self.deserter_ids),
+                'recipient_cash_credits': recipient_cash_credits,
+            })
 
         return wages_paid, food_consumed, fully_supplied, deserters
 
@@ -205,34 +281,185 @@ def _friendly_supply_regions(nation, station):
     return regions
 
 
-def _procure_rations(nation, unit, station):
+def _procure_rations(nation, unit, station, t=0, event_ids=None):
     """Move real food from reachable sellers to the sovereign reserve for pay day."""
     gov = nation.government
     needed = int(math.ceil(unit.soldiers * unit.food_per_soldier))
     target = needed * 2
-    missing = max(0, target - int(getattr(gov, 'food_inventory', 0)))
+    stock_before = int(getattr(gov, 'food_inventory', 0))
+    missing = max(0, target - stock_before)
     if not missing:
+        if station is not None:
+            from run_trace import emit
+            event_id = emit(
+                station, kind='army_ration_procurement', record_class='outcome',
+                phase='military', subject={'type': 'nation/unit',
+                                           'id': unit.unit_id,
+                                           'nation': nation.name},
+                metric_id='military.supply_procurement', unit='food_units',
+                before=stock_before, after=stock_before,
+                inputs={'turn': int(t), 'unit_id': unit.unit_id,
+                        'nation': nation.name, 'target_food_stock': target,
+                        'stock_before': stock_before, 'stock_after': stock_before,
+                        'food_purchased': 0, 'unfilled_target': 0,
+                        'outcome': 'reserve_sufficient',
+                        'reason': 'government_reserve_already_at_target',
+                        'candidate_sellers': []})
+            if event_ids is not None and event_id is not None:
+                event_ids.append(event_id)
         return 0
     bought = 0
+    total_cost = 0.0
+    candidate_sellers = []
+    procurement_event_ids = []
+    purchase_index = 0
     for region in _friendly_supply_regions(nation, station):
         price = max(0.01, float(region.recipes[Goods.food]['price']))
         for seller in sorted(region.agents, key=lambda a: a.id):
             if not seller.alive or seller.output != Goods.food or seller.is_government:
                 continue
             available = max(0, seller.inv_get(Goods.food, 0) - 2)
-            take = min(missing, available, int(gov.agent.cash / price))
+            affordable = int(gov.agent.cash / price)
+            take = min(missing, available, affordable)
             if take <= 0:
+                candidate_sellers.append({
+                    'tile': region.name, 'seller_id': seller.id,
+                    'available_above_reserve': available,
+                    'unit_price': price, 'government_affordable_units': affordable,
+                    'food_purchased': 0,
+                    'reason': ('seller_has_no_surplus_food' if available <= 0 else
+                               'government_cash_cannot_fund_one_unit')})
                 continue
+            source_food_before = int(seller.inv_get(Goods.food, 0))
+            destination_food_before = int(getattr(gov, 'food_inventory', 0))
+            seller_cash_before = float(seller.cash)
+            treasury_cash_before = float(gov.agent.cash)
+            amount = float(take * price)
             seller.inv_add(Goods.food, -take)
-            seller.cash += take * price
-            gov.agent.cash -= take * price
+            seller.cash += amount
+            gov.agent.cash -= amount
             gov.food_inventory += take
+            source_food_after = int(seller.inv_get(Goods.food, 0))
+            destination_food_after = int(getattr(gov, 'food_inventory', 0))
+            seller_cash_after = float(seller.cash)
+            treasury_cash_after = float(gov.agent.cash)
             missing -= take
             bought += take
+            total_cost += amount
+            purchase_index += 1
+            operation_id = (f'army-ration:{int(t)}:{nation.name}:{unit.unit_id}:'
+                            f'{region.name}:{seller.id}:{purchase_index}')
+            cash_event_id = source_event_id = receipt_event_id = None
+            if getattr(region, '_run_trace', None) is not None:
+                from finance_trace import (account_ref, cash_transfer_contract,
+                                           emit_cash_transfer)
+                from run_trace import emit
+                currency = (getattr(nation, 'currency', None)
+                            or getattr(region, 'home_currency', None)
+                            or 'local_currency')
+                cash_contract = cash_transfer_contract(
+                    operation_id, 'military_ration_procurement',
+                    amount=amount, currency=currency,
+                    payer_account=account_ref(
+                        'government_agent_cash', str(gov.agent.id), currency,
+                        balance_before=treasury_cash_before,
+                        balance_after=treasury_cash_after,
+                        balance_scope='cash', nation_id=nation.name),
+                    payee_account=account_ref(
+                        'agent_cash', str(seller.id), currency,
+                        balance_before=seller_cash_before,
+                        balance_after=seller_cash_after,
+                        balance_scope='cash', tile=region.name))
+                cash_event_id = emit_cash_transfer(
+                    region, kind='army_ration_cash_payment',
+                    contract=cash_contract, phase='military',
+                    subject={'type': 'tile/operation', 'id': operation_id,
+                             'tile': region.name, 'unit_id': unit.unit_id},
+                    inputs={'turn': int(t), 'nation': nation.name,
+                            'unit_id': unit.unit_id, 'seller_id': seller.id,
+                            'food_units': int(take), 'unit_price': price})
+                goods_contract = {
+                    'contract_version': 'goods_transfer.v1',
+                    'operation_id': operation_id,
+                    'operation_type': 'military_ration_procurement',
+                    'good': Goods.food.name, 'unit': 'food_units',
+                    'amount': int(take),
+                    'payer_account': account_ref(
+                        'agent_inventory', str(seller.id), Goods.food.name,
+                        balance_before=source_food_before,
+                        balance_after=source_food_after,
+                        balance_scope='inventory.food', tile=region.name),
+                    'payee_account': account_ref(
+                        'government_food_inventory', gov.name, Goods.food.name,
+                        balance_before=destination_food_before,
+                        balance_after=destination_food_after,
+                        balance_scope='food_inventory', nation_id=nation.name),
+                    'counterparty_leg_status': 'seller_and_government_food_balances_captured',
+                }
+                source_event_id = emit(
+                    region, kind='army_ration_food_source',
+                    record_class='transfer', phase='military',
+                    subject={'type': 'tile/agent', 'id': seller.id,
+                             'tile': region.name, 'good': Goods.food.name},
+                    metric_id='goods.military_supply', unit='food_units',
+                    before=source_food_before, after=source_food_after,
+                    inputs={'turn': int(t), 'operation_id': operation_id,
+                            'unit_id': unit.unit_id, 'nation': nation.name,
+                            'transfer_contract': goods_contract, 'leg': 'source'},
+                    cause_event_ids=[cash_event_id] if cash_event_id else None)
+                receipt_event_id = emit(
+                    region, kind='army_ration_food_receipt',
+                    record_class='transfer', phase='military',
+                    subject={'type': 'nation/unit', 'id': unit.unit_id,
+                             'nation': nation.name, 'good': Goods.food.name},
+                    metric_id='goods.military_supply', unit='food_units',
+                    before=destination_food_before, after=destination_food_after,
+                    inputs={'turn': int(t), 'operation_id': operation_id,
+                            'seller_id': seller.id, 'unit_id': unit.unit_id,
+                            'nation': nation.name,
+                            'transfer_contract': goods_contract, 'leg': 'destination'},
+                    cause_event_ids=[source_event_id] if source_event_id else None)
+            candidate_sellers.append({
+                'tile': region.name, 'seller_id': seller.id,
+                'available_above_reserve': available,
+                'unit_price': price, 'government_affordable_units': affordable,
+                'food_purchased': int(take), 'cash_paid': amount,
+                'reason': 'seller_selected_in_stable_id_order'})
+            for event_id in (cash_event_id, source_event_id, receipt_event_id):
+                if event_id is not None:
+                    procurement_event_ids.append(event_id)
+                    if event_ids is not None:
+                        event_ids.append(event_id)
             if missing <= 0:
                 break
         if missing <= 0:
             break
+    if station is not None:
+        from run_trace import emit
+        outcome = ('target_funded' if missing <= 0 else
+                   'partial_procurement' if bought > 0 else 'no_purchase_possible')
+        reason = ('government_reserve_replenished_to_target' if missing <= 0 else
+                  'remaining_target_blocked_by_seller_stock_or_treasury_cash'
+                  if bought > 0 else
+                  'no_surplus_seller_food_or_treasury_cash_for_one_unit')
+        event_id = emit(
+            station, kind='army_ration_procurement', record_class='outcome',
+            phase='military', subject={'type': 'nation/unit',
+                                       'id': unit.unit_id,
+                                       'nation': nation.name},
+            metric_id='military.supply_procurement', unit='food_units',
+            before=stock_before, after=int(getattr(gov, 'food_inventory', 0)),
+            formula_id='army.ration_procurement.v1',
+            inputs={'turn': int(t), 'unit_id': unit.unit_id,
+                    'nation': nation.name, 'target_food_stock': target,
+                    'stock_before': stock_before,
+                    'stock_after': int(getattr(gov, 'food_inventory', 0)),
+                    'food_purchased': int(bought), 'cash_spent': total_cost,
+                    'unfilled_target': int(missing), 'outcome': outcome,
+                    'reason': reason, 'candidate_sellers': candidate_sellers},
+            cause_event_ids=procurement_event_ids or None)
+        if event_ids is not None and event_id is not None:
+            event_ids.append(event_id)
     return bought
 
 
@@ -353,20 +580,156 @@ def step_armies(tiles: list, nations: list, t: int = 0) -> list[dict]:
             bank = getattr(region, 'bank', None) if region else getattr(gov, '_bank_ref', None)
 
             supply_access = bool(_friendly_supply_regions(n, region)) if unit.scenario_personnel else True
+            ration_event_ids = []
             if unit.scenario_personnel and supply_access:
-                _procure_rations(n, unit, region)
+                _procure_rations(n, unit, region, t=t,
+                                 event_ids=ration_event_ids)
+            funding_event_ids = []
+            upkeep_details = {}
             wages, food, supplied, deserters = unit.pay_and_feed(
                 gov, bank, t, people_by_id=people_by_id, supply_access=supply_access,
-                trace_region=region)
-            if region is not None and wages > 0:
+                trace_region=region, funding_event_ids=funding_event_ids,
+                upkeep_details=upkeep_details)
+            payroll_event_id = None
+            ration_consumption_event_id = None
+            if region is not None and getattr(region, '_run_trace', None) is not None:
+                from finance_trace import account_ref, emit_treasury_leg, transfer_contract
                 from run_trace import emit
-                emit(region, kind='army_payroll', record_class='transfer',
-                     phase='military', subject={'type': 'nation', 'id': n.name},
-                     metric_id='finance.treasury_flow', unit=n.currency,
-                     after=-wages,
-                     inputs={'unit_id': unit.unit_id, 'soldiers': unit.soldiers,
-                             'wages_paid': wages, 'food_consumed': food,
-                             'fully_supplied': supplied})
+                currency = (getattr(n, 'currency', None)
+                            or getattr(region, 'home_currency', None)
+                            or 'local_currency')
+                operation_id = f'army-payroll:{int(t)}:{n.name}:{unit.unit_id}'
+                if wages > 0:
+                    payee_status = ('person_wallet_credits_recorded_separately'
+                                    if unit.scenario_personnel else
+                                    'abstract_military_service_has_no_person_wallet')
+                    payroll_contract = transfer_contract(
+                        operation_id, 'military_payroll', side='payer',
+                        amount=wages, amount_currency=currency,
+                        payer_account=account_ref(
+                            'government_agent_cash', str(gov.agent.id), currency,
+                            balance_before=upkeep_details[
+                                'treasury_cash_available_for_payroll'],
+                            balance_after=upkeep_details[
+                                'treasury_cash_after_payroll'],
+                            balance_scope='cash', nation_id=n.name),
+                        payee_account=account_ref(
+                            'military_payroll_service', unit.unit_id, currency,
+                            nation_id=n.name,
+                            wallet_balance_status=payee_status),
+                        local_cash_leg_amount=wages,
+                        local_cash_leg_currency=currency,
+                        counterparty_leg_status=payee_status,
+                        requested_wages=upkeep_details['requested_wages'],
+                        unpaid_wages=upkeep_details['unpaid_wages'])
+                    payroll_event_id = emit_treasury_leg(
+                        region, kind='army_payroll', nation_name=n.name,
+                        currency=currency, signed_amount=-wages,
+                        contract=payroll_contract, phase='military',
+                        inputs={'turn': int(t), 'unit_id': unit.unit_id,
+                                'soldiers': upkeep_details['soldiers_before'],
+                                'wages_paid': wages,
+                                'unpaid_wages': upkeep_details['unpaid_wages'],
+                                'treasury_cash_before_funding': upkeep_details[
+                                    'treasury_cash_before_funding'],
+                                'treasury_cash_available_for_payroll': upkeep_details[
+                                    'treasury_cash_available_for_payroll'],
+                                'treasury_cash_after_payroll': upkeep_details[
+                                    'treasury_cash_after_payroll'],
+                                'bank_deposits_before': upkeep_details[
+                                    'bank_deposits_before'],
+                                'bank_deposits_after': upkeep_details[
+                                    'bank_deposits_after'],
+                                'funding_event_ids': list(funding_event_ids),
+                                'recipient_cash_credit_count': len(
+                                    upkeep_details['recipient_cash_credits']),
+                                'fully_supplied': supplied},
+                        cause_event_ids=funding_event_ids or None)
+                    for credit in upkeep_details['recipient_cash_credits']:
+                        emit(
+                            region, kind='army_payroll_recipient',
+                            record_class='transfer', phase='military',
+                            subject={'type': 'tile/agent', 'id': credit['agent_id'],
+                                     'tile': region.name},
+                            metric_id='finance.cash_transfer', unit=currency,
+                            before=credit['cash_before'], after=credit['cash_after'],
+                            inputs={'turn': int(t), 'operation_id': operation_id,
+                                    'unit_id': unit.unit_id,
+                                    'agent_id': credit['agent_id'],
+                                    'wage_share': credit['amount'],
+                                    'aggregate_payroll_event_id': payroll_event_id,
+                                    'payer_leg_status':
+                                    'included_in_aggregate_treasury_payroll'},
+                            cause_event_ids=[payroll_event_id]
+                            if payroll_event_id else None)
+                elif upkeep_details['requested_wages'] <= 0.0:
+                    payroll_event_id = emit(
+                        region, kind='army_payroll_skipped',
+                        record_class='outcome', phase='military',
+                        subject={'type': 'nation/unit', 'id': unit.unit_id,
+                                 'nation': n.name},
+                        metric_id='military.upkeep',
+                        inputs={'turn': int(t), 'unit_id': unit.unit_id,
+                                'requested_wages': 0.0, 'wages_paid': 0.0,
+                                'reason': 'no_active_soldiers'
+                                if upkeep_details['soldiers_before'] <= 0 else
+                                'no_wage_obligation'},
+                        cause_event_ids=funding_event_ids or None)
+                else:
+                    payroll_event_id = emit(
+                        region, kind='army_payroll_unpaid',
+                        record_class='outcome', phase='military',
+                        subject={'type': 'nation/unit', 'id': unit.unit_id,
+                                 'nation': n.name},
+                        metric_id='military.upkeep',
+                        inputs={'turn': int(t), 'unit_id': unit.unit_id,
+                                'requested_wages': upkeep_details.get(
+                                    'requested_wages', 0.0),
+                                'wages_paid': 0.0,
+                                'reason': 'government_cash_and_bank_funding_unavailable',
+                                'funding_event_ids': list(funding_event_ids)},
+                        cause_event_ids=funding_event_ids or None)
+                ration_consumption_event_id = emit(
+                    region, kind='army_ration_consumption',
+                    record_class='outcome', phase='military',
+                    subject={'type': 'nation/unit', 'id': unit.unit_id,
+                             'nation': n.name, 'good': Goods.food.name},
+                    metric_id='goods.military_supply', unit='food_units',
+                    before=upkeep_details['food_inventory_before'],
+                    after=upkeep_details['food_inventory_after'],
+                    formula_id='army.ration_consumption.v1',
+                    inputs={'turn': int(t), 'unit_id': unit.unit_id,
+                            'soldiers': upkeep_details['soldiers_before'],
+                            'food_needed': upkeep_details['food_needed'],
+                            'food_consumed': upkeep_details['food_consumed'],
+                            'food_unmet': upkeep_details['food_unmet'],
+                            'supply_access': supply_access,
+                            'food_inventory_before': upkeep_details[
+                                'food_inventory_before'],
+                            'food_inventory_after': upkeep_details[
+                                'food_inventory_after'],
+                            'consumption_type': 'government_ration_stock_consumption'},
+                    cause_event_ids=ration_event_ids or None)
+                upkeep_event_id = emit(
+                    region, kind='army_upkeep_outcome', record_class='outcome',
+                    phase='military', subject={'type': 'nation/unit',
+                                               'id': unit.unit_id,
+                                               'nation': n.name},
+                    metric_id='military.upkeep',
+                    inputs={'turn': int(t), **upkeep_details,
+                            'supply_access': supply_access,
+                            'procurement_event_ids': list(ration_event_ids),
+                            'payroll_event_id': payroll_event_id,
+                            'ration_consumption_event_id': ration_consumption_event_id,
+                            'supply_shortage_reason':
+                            'supply_route_unavailable'
+                            if not supply_access else
+                            'rations_below_unit_need'
+                            if not supplied else 'fully_supplied'},
+                    cause_event_ids=[event_id for event_id in
+                                     [*ration_event_ids, payroll_event_id,
+                                      ration_consumption_event_id]
+                                     if event_id is not None] or None)
             if unit.scenario_personnel:
                 for person_id in unit.deserter_ids:
                     person = people_by_id.get(person_id)

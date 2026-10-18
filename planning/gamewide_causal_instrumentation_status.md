@@ -216,8 +216,7 @@ intake records source amounts and health-state changes for food shortages,
 reserve use, trader stocks, and changing reserves; starvation deaths link to
 same-turn intake evidence. Other untraced imperial claim paths, household cash
 affordability and non-food consumption, additional support channels, other
-subsidies, military and police
-payroll/maintenance transfers,
+subsidies, police payroll/maintenance, remaining military service costs,
 inheritance, and many scenario costs still need transfer contracts. Egypt's
 district relief, tax relief, settlement, and repression actions now record
 success/failure reasons and measured effects. National
@@ -457,3 +456,15 @@ links, serialization, and trace-on/off state parity. Ten scenario-diplomacy
 and geography tests passed. The broader playthrough suite was interrupted
 inside its separate-process ending-reachability matrix, so it has no complete
 result. Other scenario candidate gates and actions remain open.
+
+Military upkeep now records reachable seller ration purchases as exact cash
+and food transfers, links bank withdrawals to payroll, and records the
+government ration stock consumed, wage/food shortfalls, morale changes, and
+desertion. Scenario personnel cash credits link to the aggregate payroll debit;
+abstract units explicitly identify the lack of individual soldier wallets.
+Two dedicated fixtures cover procurement reconciliation, bank funding,
+shortfall effects, and trace-on/off parity. Twenty-four military, banking,
+AI, and Phase 4 tests passed, as did the focused enlisted-personnel upkeep
+regression. The broader labor-frontier module still has four failing action
+assertions and two errors in petition/protection fixtures; its enlisted upkeep
+test passes. Police payroll/maintenance and other military costs remain open.

@@ -136,7 +136,7 @@ class Bank():
         trace_kind = ('bank_deposit_posted' if is_deposit else
                       'bank_withdrawal_blocked' if blocked else
                       'bank_withdrawal_posted')
-        emit(region, kind=trace_kind,
+        return emit(region, kind=trace_kind,
              record_class='transfer' if amount > 0 else 'outcome',
              phase='finance',
              subject={'type': 'bank_account', 'id': str(agent.id),
@@ -268,7 +268,7 @@ class Bank():
         return requested
 
     def Withdraw(self, agent, amount, *, trace_region=None, t=None,
-                 reason='unspecified'):
+                 reason='unspecified', trace_event_ids=None):
         requested = max(0.0, float(amount))
         region = trace_region or self._region_for_account(agent)
         cash_before = float(agent.cash)
@@ -282,11 +282,13 @@ class Bank():
         settled = float(clamp(requested, 0.0, limit))
         if settled <= 0:
             if requested > 0:
-                self._trace_cash_savings(
+                event_id = self._trace_cash_savings(
                     region, 'bank_withdrawal', agent, 0.0, requested,
                     cash_before, cash_before, deposit_before, deposit_before,
                     total_before, total_before, turn=t, reason=reason,
                     blocked=True, frozen_cap=frozen_cap)
+                if trace_event_ids is not None and event_id is not None:
+                    trace_event_ids.append(event_id)
             return 0.0
         agent.cash += settled
         self.total_deposits -= settled
@@ -305,11 +307,13 @@ class Bank():
         self._record_account_event(agent, 'bank_withdrawal', settled,
                                    recipient=True, detail=detail,
                                    region=region, turn=t)
-        self._trace_cash_savings(region, 'bank_withdrawal', agent, settled,
-                                 requested, cash_before, cash_after,
-                                 deposit_before, deposit_after,
-                                 total_before, total_after, turn=t, reason=reason,
-                                 frozen_cap=frozen_cap)
+        event_id = self._trace_cash_savings(
+            region, 'bank_withdrawal', agent, settled, requested,
+            cash_before, cash_after, deposit_before, deposit_after,
+            total_before, total_after, turn=t, reason=reason,
+            frozen_cap=frozen_cap)
+        if trace_event_ids is not None and event_id is not None:
+            trace_event_ids.append(event_id)
         return settled
 
     def write_down_bonds(self, loss_amount: float, trace_region=None, *,
