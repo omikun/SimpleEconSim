@@ -59,6 +59,15 @@ def _find_right(border, person_id, plot_id):
                  if right.plot_id == plot_id and right.resource == 'commons_food'), None)
 
 
+def _snapshot_usable_access(border, record):
+    total = 0.0
+    for row in record.get('rights_snapshot', []):
+        right = _find_right(border, row['person_id'], row['plot_id'])
+        if right is not None:
+            total += float(right.usable_share)
+    return total
+
+
 def _submit_petition(world, nation_name, turn):
     _, border = _districts(world, nation_name)
     estate = _firm(border, Goods.cotton)
@@ -119,7 +128,7 @@ def _approve(world, nation_name, turn):
     return True, f'Approved for {len(rights)} rights; patrol costs {PATROL_COST:g} cash per turn.'
 
 
-def _restore_officer(border, record):
+def _restore_officer(border, record, *, cause_event_ids=None):
     officer_id = record.get('officer_id')
     if officer_id is None:
         return
@@ -130,7 +139,8 @@ def _restore_officer(border, record):
         from labor_choice import record_labor_status
         record_labor_status(border, officer, int(getattr(border, '_last_turn', 0) or 0),
                             before='constable', after='independent',
-                            reason='enforcement_appointment_ended')
+                            reason='enforcement_appointment_ended',
+                            cause_event_ids=cause_event_ids)
     border.police_employed = 0
     record['officer_id'] = None
 
@@ -163,15 +173,26 @@ def _protect(world, nation_name, turn):
     return True, 'Commons access protected; the sponsor may seek another review later.'
 
 
-def _choose_officer(border, record):
+def _officer_candidate(border, record):
     if record.get('officer_id') is not None:
-        return next((a for a in border.agents if a.id == record['officer_id'] and a.alive), None)
+        officer = next((a for a in border.agents
+                        if a.id == record['officer_id'] and a.alive), None)
+        return officer, ('assigned_officer_available' if officer is not None
+                         else 'assigned_officer_unavailable')
     officer = next((a for a in sorted(border.agents, key=lambda a: a.id)
                     if a.alive and not a.is_trader and not a.is_corporation
                     and not a.is_government and not getattr(a, 'is_lord', False)
                     and a.employer is None), None)
+    return officer, ('new_constable_available' if officer is not None
+                     else 'no_eligible_constable')
+
+
+def _choose_officer(border, record, *, cause_event_ids=None):
+    officer, _reason = _officer_candidate(border, record)
     if officer is None:
         return None
+    if record.get('officer_id') is not None:
+        return officer
     record['officer_id'] = officer.id
     record['officer_prior_output'] = officer.output.name
     record['officer_prior_class'] = officer.social_class
@@ -180,7 +201,8 @@ def _choose_officer(border, record):
     from labor_choice import record_labor_status
     record_labor_status(border, officer, int(getattr(border, '_last_turn', 0) or 0),
                         before='independent', after='constable',
-                        reason='paid_enforcement_appointment')
+                        reason='paid_enforcement_appointment',
+                        cause_event_ids=cause_event_ids)
     border.police_employed = 1
     return officer
 
@@ -200,38 +222,175 @@ def _advance_restriction(world, nation_name, turn):
         return
     if turn < record.get('effective_turn', turn):
         return
+    status_before = record['status']
+    treasury = border.gov.agent
+    treasury_cash_before = float(treasury.cash)
+    bank = border.bank
+    bank_deposit_before = float(bank.deposits.get(treasury, 0.0))
+    bank_total_before = float(bank.total_deposits)
+    withdrawal_event_ids = []
+    withdrawal_requested = max(0.0, PATROL_COST - treasury_cash_before)
+    withdrawal_settled = 0.0
     # Local tax receipts are routinely deposited during the economy tick.
     # A patrol should not lapse while its public account can pay for it.
-    if border.gov.agent.cash < PATROL_COST:
-        border.bank.Withdraw(border.gov.agent,
-                             PATROL_COST - border.gov.agent.cash,
-                             trace_region=border, t=turn,
-                             reason='commons_patrol_payroll')
-    officer = _choose_officer(border, record) if border.gov.agent.cash >= PATROL_COST else None
-    if officer is None:
-        _restore_rights(border, record, legal=False)
-        _restore_officer(border, record)
-        record['status'] = 'suspended'
-        return
-    border.gov.agent.cash -= PATROL_COST
-    officer.cash += PATROL_COST
+    if treasury.cash < PATROL_COST:
+        withdrawal_settled = float(bank.Withdraw(
+            treasury, withdrawal_requested, trace_region=border, t=turn,
+            reason='commons_patrol_payroll',
+            trace_event_ids=withdrawal_event_ids))
+    treasury_cash_after_funding = float(treasury.cash)
+    bank_deposit_after = float(bank.deposits.get(treasury, 0.0))
+    bank_total_after = float(bank.total_deposits)
+    candidate, candidate_reason = _officer_candidate(border, record)
+    enough_treasury_cash = treasury_cash_after_funding >= PATROL_COST
+    if not enough_treasury_cash:
+        gate_reason = 'treasury_cash_below_patrol_cost'
+    elif candidate is None:
+        gate_reason = candidate_reason
+    else:
+        gate_reason = 'funded_constable_available'
     from run_trace import emit
-    emit(border, kind='commons_patrol_payroll', record_class='transfer',
+    gate_event_id = emit(
+        border, kind='commons_patrol_funding_decision',
+        record_class='decision', phase='scenario_labor',
+        subject={'type': 'tile', 'id': border.name,
+                 'nation': nation_name},
+        metric_id='labor.enforcement_patrol', unit='status',
+        before=status_before, after=gate_reason,
+        formula_id='labor.commons_patrol_gate.v1',
+        inputs={'turn': int(turn), 'nation': nation_name,
+                'tile': border.name, 'reason': gate_reason,
+                'patrol_cost': float(PATROL_COST),
+                'treasury_cash_before': treasury_cash_before,
+                'treasury_cash_after_funding': treasury_cash_after_funding,
+                'bank_withdrawal_requested': withdrawal_requested,
+                'bank_withdrawal_settled': withdrawal_settled,
+                'bank_deposit_before': bank_deposit_before,
+                'bank_deposit_after': bank_deposit_after,
+                'bank_total_deposits_before': bank_total_before,
+                'bank_total_deposits_after': bank_total_after,
+                'candidate_officer_id': getattr(candidate, 'id', None),
+                'candidate_reason': candidate_reason},
+        cause_event_ids=withdrawal_event_ids or None)
+    officer = (_choose_officer(
+        border, record,
+        cause_event_ids=([gate_event_id] if gate_event_id else None))
+        if enough_treasury_cash else None)
+    if officer is None:
+        usable_before = _snapshot_usable_access(border, record)
+        _restore_rights(border, record, legal=False)
+        _restore_officer(
+            border, record,
+            cause_event_ids=([gate_event_id] if gate_event_id else None))
+        record['status'] = 'suspended'
+        usable_after = _snapshot_usable_access(border, record)
+        emit(
+            border, kind='commons_patrol_outcome', record_class='outcome',
+            phase='scenario_labor',
+            subject={'type': 'tile', 'id': border.name,
+                     'nation': nation_name},
+            metric_id='labor.enforcement_patrol', unit='status',
+            before=status_before, after=record['status'],
+            formula_id='labor.commons_patrol_outcome.v1',
+            inputs={'turn': int(turn), 'nation': nation_name,
+                    'reason': gate_reason if enough_treasury_cash
+                    else 'treasury_cash_below_patrol_cost',
+                    'patrol_paid': False,
+                    'patrol_cost': float(PATROL_COST),
+                    'treasury_cash_before': treasury_cash_before,
+                    'treasury_cash_after_funding': treasury_cash_after_funding,
+                    'bank_withdrawal_requested': withdrawal_requested,
+                    'bank_withdrawal_settled': withdrawal_settled,
+                    'officer_candidate_id': getattr(candidate, 'id', None),
+                    'rights_snapshot_count': len(record['rights_snapshot']),
+                    'usable_access_before': usable_before,
+                    'usable_access_after': usable_after,
+                    'restriction_status_after': record['status']},
+            cause_event_ids=[event_id for event_id in
+                             [gate_event_id, *withdrawal_event_ids]
+                             if event_id] or None)
+        return
+    treasury_cash_before_payment = float(treasury.cash)
+    officer_cash_before_payment = float(officer.cash)
+    treasury.cash -= PATROL_COST
+    officer.cash += PATROL_COST
+    operation_id = f'commons-patrol:{nation_name}:{border.name}:{turn}:{officer.id}'
+    currency = getattr(border, 'home_currency', None) or border.owner_nation.currency
+    from finance_trace import (account_ref, cash_transfer_contract,
+                               emit_cash_transfer)
+    transfer_contract = cash_transfer_contract(
+        operation_id, 'commons_patrol_payroll', amount=PATROL_COST,
+        currency=currency,
+        payer_account=account_ref(
+            'government', treasury.id, currency,
+            balance_before=treasury_cash_before_payment,
+            balance_after=float(treasury.cash), balance_scope='cash'),
+        payee_account=account_ref(
+            'agent', officer.id, currency,
+            balance_before=officer_cash_before_payment,
+            balance_after=float(officer.cash), balance_scope='cash'),
+        mutation_reference={'turn': int(turn), 'tile': border.name,
+                            'officer_id': int(officer.id)})
+    payment_event_id = emit_cash_transfer(
+        border, kind='commons_patrol_cash_payment', contract=transfer_contract,
+        phase='scenario_labor',
+        subject={'type': 'tile/operation', 'id': operation_id,
+                 'tile': border.name, 'nation': nation_name},
+        inputs={'turn': int(turn), 'officer_id': int(officer.id),
+                'rights_affected': len(record['rights_snapshot'])},
+        cause_event_ids=([gate_event_id] if gate_event_id else None))
+    treasury_event_id = emit(
+        border, kind='commons_patrol_payroll', record_class='transfer',
          phase='scenario_labor', subject={'type': 'nation', 'id': nation_name},
          metric_id='finance.treasury_flow', unit=border.owner_nation.currency,
          after=-PATROL_COST,
          inputs={'tile': border.name, 'officer_id': officer.id,
-                 'rights_affected': len(record['rights_snapshot'])})
+                 'rights_affected': len(record['rights_snapshot']),
+                 'operation_id': operation_id,
+                 'signed_cash_change': -PATROL_COST,
+                 'transfer_event_id': payment_event_id,
+                 'treasury_cash_before': treasury_cash_before_payment,
+                 'treasury_cash_after': float(treasury.cash)},
+         cause_event_ids=([gate_event_id] if gate_event_id else None))
+    usable_before = _snapshot_usable_access(border, record)
     for row in record['rights_snapshot']:
         right = _find_right(border, row['person_id'], row['plot_id'])
         if right is not None and right.legal_share == 0:
             right.usable_share = 0.0
+    usable_after = _snapshot_usable_access(border, record)
     if record['status'] != 'active':
         _event(world, turn, 'ENFORCEMENT',
                f'{nation_name} pays a constable; named commons food access closes.',
                affected=len(record['rights_snapshot']))
     record['status'] = 'active'
     record['last_patrol_paid_turn'] = turn
+    emit(
+        border, kind='commons_patrol_outcome', record_class='outcome',
+        phase='scenario_labor',
+        subject={'type': 'tile', 'id': border.name, 'nation': nation_name},
+        metric_id='labor.enforcement_patrol', unit='status',
+        before=status_before, after=record['status'],
+        formula_id='labor.commons_patrol_outcome.v1',
+        inputs={'turn': int(turn), 'nation': nation_name,
+                'reason': 'patrol_funded_and_enforced',
+                'patrol_paid': True, 'patrol_cost': float(PATROL_COST),
+                'officer_id': int(officer.id),
+                'treasury_cash_before': treasury_cash_before,
+                'treasury_cash_after_funding': treasury_cash_after_funding,
+                'treasury_cash_before_payment': treasury_cash_before_payment,
+                'treasury_cash_after_payment': float(treasury.cash),
+                'bank_withdrawal_requested': withdrawal_requested,
+                'bank_withdrawal_settled': withdrawal_settled,
+                'bank_deposit_before': bank_deposit_before,
+                'bank_deposit_after': bank_deposit_after,
+                'rights_snapshot_count': len(record['rights_snapshot']),
+                'usable_access_before': usable_before,
+                'usable_access_after': usable_after,
+                'last_patrol_paid_turn': int(record['last_patrol_paid_turn'])},
+        cause_event_ids=[event_id for event_id in
+                         [gate_event_id, payment_event_id, treasury_event_id,
+                          *withdrawal_event_ids]
+                         if event_id] or None)
 
 
 def _fair_terms(world, nation_name, turn):

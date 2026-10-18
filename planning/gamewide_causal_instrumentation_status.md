@@ -486,4 +486,20 @@ Four dedicated fixtures verify cash-account reconciliation, candidate and
 gate reasons, case-to-payment-to-status cause links, and trace-on/off parity.
 Sixty-six labor-mechanics, enclosure/workhouse, and causal-trace regression
 tests passed, along with compilation and `git diff --check`. Recurring commons
-patrol payroll and broader police maintenance remain uninstrumented.
+patrol payroll is now instrumented; broader police maintenance remains open.
+
+Recurring commons patrol enforcement now records the treasury funding check,
+bank deposits requested and actually withdrawn, the selected constable, the
+balanced $3 treasury-to-officer payment, and whether restricted access became
+active or was suspended. Bank withdrawal rows cause-link to the funding
+decision; the decision links to appointment and payment; the outcome includes
+the access-share change and resulting restriction state. Partial bank funding
+is visible as a failed gate, so a suspension is not misreported as no policy
+attempt.
+
+Three dedicated fixtures cover successful bank funding, partial funding and
+suspension, missing constables, and trace-on/off parity. They pass along with
+the two frontier-policy tests, compilation, and `git diff --check`. The older
+end-to-end petition test still errors with `KeyError: Meridian` while looking
+up a restriction record after the scenario step; it fails before reaching the
+patrol handler. Broader police maintenance remains uninstrumented.

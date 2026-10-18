@@ -847,9 +847,9 @@ bank-funded partial payroll, morale effects, and trace-on/off parity. Twenty-
 four military, banking, AI, and Phase 4 tests passed, along with the focused
 enlisted-personnel upkeep test. The broader labor-frontier module has four
 failing action assertions and two errors in petition/protection fixtures; its
-enlisted upkeep test passes. Per-case enforcement payments are now recorded;
-recurring police patrol payroll/maintenance and other military costs remain
-open.
+enlisted upkeep test passes. Per-case enforcement payments and recurring
+commons-patrol payroll are now recorded; broader police maintenance and other
+military costs remain open.
 
 Phase 4 follow-up, 2026-10-18: labor debt-collection and vagrancy enforcement
 now trace when cases are opened and which rules qualify them. Hearing outcomes
@@ -863,5 +863,20 @@ garrison enforcement from a paid constable hearing.
 Verification: four dedicated fixtures check transfer reconciliation, stable
 case reasons, cause links, and trace-on/off parity. Sixty-six labor-mechanics,
 enclosure/workhouse, and causal-trace tests passed. Compilation and
-`git diff --check` passed. Recurring commons-patrol payroll and other police
-maintenance remain to instrument.
+`git diff --check` passed. Other police maintenance remains to instrument.
+
+Phase 4 follow-up, 2026-10-18: recurring commons patrol funding now records
+the local treasury balance, requested and settled bank withdrawal, whether a
+qualified officer was available, and the funded or suspended result. A funded
+patrol records exact government and constable cash balances, retains the
+treasury-flow row, and records restricted access before and after enforcement.
+Cause links connect any bank draw to the funding gate, the gate to a constable
+appointment and payment, and those operations to the restriction outcome.
+
+Verification: three dedicated fixtures cover a bank-funded patrol, an
+insufficient bank balance that suspends enforcement, missing constables, and
+trace-on/off parity. They and both frontier-policy regressions passed. The
+older end-to-end petition test still raises `KeyError: Meridian` before the
+patrol handler; the direct fixtures exercise the handler and funding paths.
+Compilation and `git diff --check` passed. Other police maintenance and
+untraced military costs remain open.
