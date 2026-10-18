@@ -1633,3 +1633,26 @@ blown-plot fixtures match for state and RNG progression. The assassination,
 rebellion, metric-catalog, person-death, food-intake, and run-trace suites
 passed (53 tests); the medical/disease regression script, compilation, and
 `git diff --check` passed.
+
+## Phase 3 follow-up — Reconcile governance-panel policy spending
+
+Route the municipal UBI, agricultural subsidy, safety patrol, provincial
+highway and healthcare actions, and national science grant through one shared
+web/desktop handler. Record each funding decision, exact payer balances, and
+the action result. Safety patrol must identify the wallet credited by its
+existing recipient-selection rule; if no living recipient exists, expose the
+cash debit as an expense without fabricating a payee. Link the resulting
+capacity and protest changes to the funding and payment evidence.
+
+Keep the current scope of each policy effect explicit in the trace. UBI's
+10-turn mandate cost and repeal state now behave the same through either
+governance panel. The other four policy costs currently have no modeled
+recipient or underlying farm, road, healthcare, or research effect; they are
+recorded as uncredited public-service expenditures rather than invented
+transfers. Modeling those programs' actual effects is separate game-mechanics
+work.
+
+Verification: 27 policy trace, public-aid, provincial, guano, frontier, and
+metric-catalog tests passed, as did the focused City/Province/Nation policy UI
+action test. The broader GUI module could not complete because its renderer
+failed to create an OpenGL context. Compilation and `git diff --check` passed.

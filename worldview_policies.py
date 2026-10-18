@@ -1460,8 +1460,349 @@ def policy_panel_hit(pos, world):
     return False
 
 
+def _execute_world_policy_spending(world, action_id, target):
+    """Run the shared treasury-funded policy actions for both clients."""
+    scopes = {
+        'city_toggle_ubi': 'tile', 'city_farm_subsidy': 'tile',
+        'city_safety_patrol': 'tile', 'prov_pave_highway': 'province',
+        'prov_healthcare': 'province', 'nat_science_prize': 'nation',
+    }
+    scope = scopes.get(action_id)
+    if scope is None:
+        return False
+
+    turn = int(world.get('turn', 0))
+    if scope == 'tile':
+        government = getattr(target, 'gov', None)
+        source = getattr(government, 'agent', None)
+        source_type = 'municipal_treasury'
+    elif scope == 'province':
+        government = getattr(target, 'gov', None)
+        source = getattr(government, 'agent', None)
+        source_type = 'provincial_treasury'
+    else:
+        government = getattr(target, 'government', None)
+        source = getattr(government, 'agent', None)
+        source_type = 'national_treasury'
+
+    trace_region = _policy_trace_region(world, target)
+    if hasattr(target, 'agents') and hasattr(target, 'name'):
+        journal_region = target
+    else:
+        journal_region = next(iter(getattr(target, 'tiles', ()) or ()), None)
+    if journal_region is None:
+        journal_region = trace_region or next(iter(world.get('tiles', ())), None)
+    sequence = int(getattr(journal_region, '_next_economic_event_id', 1))
+    target_name = str(getattr(target, 'name', 'unnamed'))
+    operation_id = (_policy_operation_id(world, target, action_id, trace_region)
+                    if trace_region is not None else None)
+    if operation_id is None:
+        operation_id = (f'policy:{action_id}:{target_name}:{turn}:'
+                        f'{getattr(journal_region, "name", "world")}:{sequence}')
+    owner = (getattr(target, 'owner_nation', None)
+             or getattr(target, 'nation', None)
+             or (target if scope == 'nation' else None))
+    currency = (getattr(target, 'home_currency', None)
+                or getattr(target, 'currency', None)
+                or getattr(owner, 'currency', None)
+                or (getattr(journal_region, 'home_currency', None)
+                    if journal_region is not None else None)
+                or 'local_currency')
+    treasury_before = (float(getattr(source, 'cash', 0.0))
+                       if source is not None else None)
+    ubi_before = bool(getattr(government, 'ubi_enabled', False)) if government else False
+    if action_id == 'city_toggle_ubi':
+        population = sum(
+            1 for agent in getattr(target, 'agents', ())
+            if not getattr(agent, 'is_corporation', False)
+            and not getattr(agent, 'is_government', False)
+            and getattr(agent, 'alive', True))
+        cost = 0.0 if ubi_before else float(population) * 50.0
+        payment_required = not ubi_before
+    else:
+        population = None
+        cost = {'city_farm_subsidy': 100.0,
+                'city_safety_patrol': 60.0,
+                'prov_pave_highway': 120.0,
+                'prov_healthcare': 150.0,
+                'nat_science_prize': 300.0}[action_id]
+        payment_required = True
+
+    affordable = (source is not None and
+                  (not payment_required or treasury_before >= cost))
+    reason = ('treasury_missing' if source is None else
+              'mandate_repeal_requires_no_payment'
+              if action_id == 'city_toggle_ubi' and ubi_before else
+              'insufficient_treasury_cash' if not affordable else
+              'treasury_funds_available')
+    funding_event_id = None
+    if trace_region is not None:
+        from run_trace import emit
+        funding_event_id = emit(
+            trace_region, kind='world_policy_funding_decision',
+            record_class='decision', phase='policy_action',
+            subject={'type': f'{scope}/action', 'id': action_id,
+                     'target': target_name},
+            metric_id='scenario.world_policy_funding', unit='approved',
+            before=False, after=bool(affordable),
+            formula_id='world_policy.treasury_gate.v1',
+            inputs={'operation_id': operation_id, 'action_id': action_id,
+                    'scope': scope, 'target': target_name, 'turn': turn,
+                    'treasury_present': source is not None,
+                    'treasury_cash_before': treasury_before,
+                    'amount_requested': cost,
+                    'payment_required': payment_required,
+                    'population_count': population,
+                    'ubi_enabled_before': ubi_before
+                    if action_id == 'city_toggle_ubi' else None,
+                    'cash_shortfall': (max(0.0, cost - (treasury_before or 0.0))
+                                       if payment_required else 0.0),
+                    'reason_code': reason})
+
+    if not affordable:
+        if source is not None and action_id != 'nat_science_prize':
+            dialog_region = (target if scope == 'tile'
+                             else world.get('selected_region'))
+            names = {
+                'city_toggle_ubi':
+                f'Universal Basic Income (10-Turn Mandate, ${cost:,.0f})',
+                'city_farm_subsidy': 'Agricultural Development Subsidy ($100)',
+                'city_safety_patrol': 'Constabulary Safety Patrol ($60)',
+                'prov_pave_highway':
+                f'Pave Regional Highway in {target_name} ($120)',
+                'prov_healthcare':
+                f'Provincial Health & Sanitation in {target_name} ($150)',
+            }
+            world['transfer_dialog'] = {
+                'open': True, 'action_kind': 'policy',
+                'policy_id': action_id, 'policy_name': names[action_id],
+                'cost': cost, 'on_hand': treasury_before,
+                'region': dialog_region,
+                'nation': getattr(dialog_region, 'owner_nation', None),
+            }
+        if trace_region is not None:
+            from run_trace import emit
+            emit(
+                trace_region, kind='world_policy_action_outcome',
+                record_class='outcome', phase='policy_action',
+                subject={'type': f'{scope}/action', 'id': action_id,
+                         'target': target_name},
+                metric_id='scenario.world_policy_action', unit='status',
+                before='pending', after='no_effect',
+                inputs={'operation_id': operation_id, 'action_id': action_id,
+                        'scope': scope, 'turn': turn, 'success': False,
+                        'reason_code': reason,
+                        'treasury_cash_before': treasury_before,
+                        'treasury_cash_after': treasury_before,
+                        'amount_paid': 0.0},
+                cause_event_ids=([funding_event_id]
+                                 if funding_event_id else None))
+        return True
+
+    if action_id == 'city_toggle_ubi' and ubi_before:
+        mandate_turns_before = int(getattr(government, 'ubi_mandate_turns_left', 0))
+        mandate_treasury_before = float(source.cash)
+        government.ubi_enabled = False
+        government.ubi_mandate_turns_left = 0
+        message = f'Repealed Universal Basic Income in {target_name}.'
+        state_before, state_after = 'enabled', 'disabled'
+        outcome = {'ubi_enabled_before': True, 'ubi_enabled_after': False,
+                   'mandate_turns_before': mandate_turns_before,
+                   'mandate_turns_after': 0, 'amount_paid': 0.0,
+                   'treasury_cash_before': mandate_treasury_before,
+                   'treasury_cash_after': float(source.cash)}
+        payment_event_id = None
+    else:
+        treasury_before = float(source.cash)
+        source.cash -= cost
+        treasury_after = float(source.cash)
+        recipient = None
+        recipient_type = None
+        recipient_tile = None
+        recipient_before = recipient_after = None
+        officers_before = officers_after = None
+        protest_before = protest_after = None
+        if action_id == 'city_safety_patrol':
+            from imperialism import _disburse_agent_funds
+            disbursement = _disburse_agent_funds(world, owner, cost)
+            if disbursement:
+                recipient = disbursement['recipient']
+                recipient_before = float(disbursement['cash_before'])
+                recipient_after = float(disbursement['cash_after'])
+                recipient_type = ('corporate_wallet'
+                                  if getattr(recipient, 'is_corporation', False)
+                                  else 'agent_wallet')
+                recipient_tile = next((tile for tile in
+                                       [*(getattr(owner, 'tiles', ()) or ()),
+                                        *world.get('tiles', ())]
+                                       if recipient in getattr(tile, 'agents', ())),
+                                      None)
+            officers_before = int(getattr(target, 'police_officers', 0))
+            target.police_officers = max(officers_before, 5)
+            protest_log = getattr(target, 'protest_energy_log', None)
+            protest_before = float(protest_log[-1]) if protest_log else None
+            if protest_log:
+                protest_log[-1] = max(0.0, protest_log[-1] - 0.40)
+            protest_after = float(protest_log[-1]) if protest_log else None
+        elif action_id == 'city_toggle_ubi':
+            government.ubi_enabled = True
+            government.ubi_mandate_turns_left = 10
+
+        journal_event = None
+        if journal_region is not None and cost > 0:
+            from economy.actor_accounts import record as record_economic_event
+            journal_event = record_economic_event(
+                journal_region, f'world_policy_{action_id}', turn=turn,
+                payer_id=getattr(source, 'id', None),
+                recipient_id=getattr(recipient, 'id', None),
+                amount=cost, asset_id=operation_id, source_id=operation_id,
+                currency=currency,
+                detail={'action_id': action_id, 'scope': scope,
+                        'target': target_name,
+                        'recipient_cash_credited': recipient is not None})
+
+        payment_event_id = None
+        if trace_region is not None and cost > 0:
+            from finance_trace import (account_ref, cash_transfer_contract,
+                                       emit_cash_transfer, transfer_contract)
+            from run_trace import emit
+            payer_account = account_ref(
+                source_type, str(getattr(source, 'id', f'{target_name}-treasury')),
+                currency, tile=target_name if scope == 'tile' else None,
+                province_id=target_name if scope == 'province' else None,
+                nation_id=target_name if scope == 'nation' else
+                getattr(owner, 'name', None),
+                balance_before=treasury_before, balance_after=treasury_after,
+                balance_scope='government_agent.cash')
+            if recipient is not None:
+                recipient_currency = (getattr(recipient, 'home_currency', None)
+                                     or getattr(recipient_tile, 'home_currency', None)
+                                     or currency)
+                contract = cash_transfer_contract(
+                    operation_id, action_id, amount=cost, currency=currency,
+                    payer_account=payer_account,
+                    payee_account=account_ref(
+                        recipient_type, str(recipient.id), recipient_currency,
+                        tile=getattr(recipient_tile, 'name', None),
+                        balance_before=recipient_before,
+                        balance_after=recipient_after,
+                        balance_scope='agent.cash'),
+                    counterparty_leg_status='both_cash_balances_captured',
+                    mutation_reference={'turn': turn, 'target': target_name})
+                payment_event_id = emit_cash_transfer(
+                    trace_region, kind='world_policy_agent_payment',
+                    contract=contract, phase='policy_action',
+                    subject={'type': 'tile/action', 'id': action_id,
+                             'tile': target_name},
+                    inputs={'action_id': action_id, 'target': target_name,
+                            'recipient_id': str(recipient.id),
+                            'recipient_tile': getattr(recipient_tile, 'name', None),
+                            'actor_account_event_id': journal_event['id']
+                            if journal_event else None},
+                    cause_event_ids=([funding_event_id]
+                                     if funding_event_id else None))
+            else:
+                contract = transfer_contract(
+                    operation_id, action_id, side='payer', amount=cost,
+                    amount_currency=currency, payer_account=payer_account,
+                    payee_account={'type': 'unmodeled_public_policy_service',
+                                   'id': action_id,
+                                   'cash_balance_captured': False},
+                    local_cash_leg_amount=cost,
+                    local_cash_leg_currency=currency,
+                    counterparty_leg_status='policy_expenditure_no_cash_payee',
+                    source=action_id, turn=turn)
+                payment_event_id = emit(
+                    trace_region, kind='world_policy_expenditure',
+                    record_class='transfer', phase='policy_action',
+                    subject={'type': f'{scope}/treasury', 'id': target_name},
+                    metric_id='finance.policy_expenditure', unit=currency,
+                    after=-cost,
+                    inputs={'operation_id': operation_id,
+                            'action_id': action_id,
+                            'actor_account_event_id': journal_event['id']
+                            if journal_event else None,
+                            'transfer_contract': contract},
+                    cause_event_ids=([funding_event_id]
+                                     if funding_event_id else None))
+
+        if action_id == 'city_toggle_ubi':
+            message = f'Enacted 10-Turn UBI in {target_name} (${cost:,.0f} budget committed).'
+            state_before, state_after = 'disabled', 'enabled'
+            outcome = {'ubi_enabled_before': False, 'ubi_enabled_after': True,
+                       'mandate_turns_after': 10, 'population_count': population,
+                       'amount_paid': cost, 'benefits_pay_on_later_turns': True}
+        elif action_id == 'city_farm_subsidy':
+            message = f'Granted $100 Agricultural Subsidy to farms in {target_name}.'
+            state_before, state_after = 'not_applied', 'appropriation_debited'
+            outcome = {'amount_paid': cost, 'recipient_cash_credited': False,
+                       'production_or_farm_state_effect_modeled': False}
+        elif action_id == 'city_safety_patrol':
+            message = (f'Deployed Public Safety Patrols in {target_name} '
+                       '(5 constables on duty, -0.40 Protest).')
+            state_before, state_after = 'current_capacity', 'patrol_enforced'
+            outcome = {'amount_paid': cost,
+                       'police_officers_before': officers_before,
+                       'police_officers_after': int(target.police_officers),
+                       'protest_energy_before': protest_before,
+                       'protest_energy_after': protest_after,
+                       'recipient_cash_credited': recipient is not None,
+                       'recipient_account_type': recipient_type,
+                       'recipient_id': str(recipient.id) if recipient else None,
+                       'recipient_tile': getattr(recipient_tile, 'name', None)}
+        elif action_id == 'prov_pave_highway':
+            message = f'Provincial Administration funded $120 Highway Maintenance in {target_name}.'
+            state_before, state_after = 'not_applied', 'appropriation_debited'
+            outcome = {'amount_paid': cost, 'recipient_cash_credited': False,
+                       'road_or_route_state_effect_modeled': False}
+        elif action_id == 'prov_healthcare':
+            message = f'Provincial Administration launched $150 Healthcare Program in {target_name}.'
+            state_before, state_after = 'not_applied', 'appropriation_debited'
+            outcome = {'amount_paid': cost, 'recipient_cash_credited': False,
+                       'health_or_service_state_effect_modeled': False}
+        else:
+            message = f'{target_name} funded a $300 Sovereign Science Grant.'
+            state_before, state_after = 'not_awarded', 'appropriation_debited'
+            outcome = {'amount_paid': cost, 'recipient_cash_credited': False,
+                       'research_or_recipient_effect_modeled': False}
+        outcome.update({'treasury_cash_before': treasury_before,
+                        'treasury_cash_after': treasury_after})
+        if journal_event:
+            outcome['actor_account_event_id'] = journal_event['id']
+
+    if trace_region is not None:
+        from run_trace import emit
+        emit(
+            trace_region, kind='world_policy_action_outcome',
+            record_class='outcome', phase='policy_action',
+            subject={'type': f'{scope}/action', 'id': action_id,
+                     'target': target_name},
+            metric_id='scenario.world_policy_action', unit='status',
+            before=state_before, after=state_after,
+            formula_id='world_policy.spending_action.v1',
+            inputs={'operation_id': operation_id, 'action_id': action_id,
+                    'scope': scope, 'turn': turn, 'success': True,
+                    'reason_code': reason, **outcome},
+            cause_event_ids=[event_id for event_id in
+                             (funding_event_id, payment_event_id)
+                             if event_id] or None)
+    world['policy_feedback'] = (message,
+                                GREEN if state_after not in ('disabled',) else DIM)
+    try:
+        from worldview_engine import ticker_push
+        category = ('HEALTH' if action_id == 'prov_healthcare' else
+                    'INNOVATION' if action_id == 'nat_science_prize' else
+                    'POLICY')
+        ticker_push(world, turn, category, message, (120, 220, 140))
+    except ImportError:
+        pass
+    return True
+
+
 def _execute_policy_action(world, act_id, target):
     """Execute the triggered policy action with full conservation guarantees."""
+    if _execute_world_policy_spending(world, act_id, target):
+        return
     # City Tax Adjustment
     if act_id == 'city_tax_cut':
         target.gov.tax_rate = max(0.0, target.gov.tax_rate - 0.02)
@@ -1469,11 +1810,6 @@ def _execute_policy_action(world, act_id, target):
     elif act_id == 'city_tax_raise':
         target.gov.tax_rate = min(0.60, target.gov.tax_rate + 0.02)
         world['policy_feedback'] = (f"Raised {target.name} tax to {target.gov.tax_rate*100:.1f}%.", (240, 200, 100))
-    elif act_id == 'city_toggle_ubi':
-        cur = getattr(target.gov, 'ubi_enabled', False)
-        target.gov.ubi_enabled = not cur
-        world['policy_feedback'] = (f"UBI {'Enabled' if not cur else 'Disabled'} in {target.name}.", GREEN if not cur else DIM)
-
     # City Emergency Food Aid
     elif act_id == 'city_emergency_food':
         _execute_city_emergency_food(world, target)

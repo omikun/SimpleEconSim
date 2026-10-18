@@ -682,6 +682,11 @@ def gov_panel_hit(pos, world) -> bool:
 
 def _execute_gov_policy(world: dict, act_id: str, target: any):
     """Execute triggered policy decree and notify world engine ticker."""
+    if act_id in {'city_toggle_ubi', 'city_farm_subsidy',
+                  'city_safety_patrol', 'prov_pave_highway',
+                  'prov_healthcare', 'nat_science_prize'}:
+        from worldview_policies import _execute_policy_action
+        return _execute_policy_action(world, act_id, target)
     t = world.get('turn', 1)
     from client.desktop.engine import ticker_push
 

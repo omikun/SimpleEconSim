@@ -219,11 +219,13 @@ the wallet basis and formula, and bank funding causes; actual wood and furniture
 consumption records distinguish wealth use, stockpile drawdown, and stochastic
 wear. Elite luxury consumption records inventory drawdown, per-good prestige
 ratings and saturation gains, status-tier changes, and the capped decay that
-applies when no prestige goods are consumed. Other untraced imperial claim
-paths, additional household support channels, other subsidies, additional
-police enforcement transfers and any recurring police upkeep mechanic,
-remaining military service costs, and many scenario costs still need complete
-transfer contracts. Egypt's
+applies when no prestige goods are consumed. Open finance work includes
+imperial claims outside the active named-obligation flow, household support
+channels beyond the documented aid, policy subsidies outside the traced set,
+other police enforcement transfers, and scenario-specific military and
+diplomatic costs. The core army wage and ration mutations are already traced.
+There is no recurring police payroll transfer in the production turn path; the
+one-shot safety-patrol payment is covered below. Egypt's
 district relief, tax relief, settlement, and repression actions now record
 success/failure reasons and measured effects. National
 treasury, bank, household, firm, and goods-by-currency reconciliations remain
@@ -1222,3 +1224,22 @@ detection fixtures match for game state and RNG state. The assassination,
 rebellion, metric-catalog, person-death, food-intake, and run-trace suites
 passed (53 tests); the medical/disease regression script, compilation, and
 `git diff --check` passed.
+
+Phase 3 follow-up, 2026-10-18: six cash-bearing governance-panel actions now
+share one traced implementation across web and desktop: city UBI, agricultural
+subsidy, safety patrol, provincial highway and healthcare spending, and the
+national science grant. Funding decisions expose the exact treasury gate;
+debits record balances and local actor-account journals. Safety patrol records
+the actual wallet chosen by the existing first-living-non-government-agent
+rule, or shows the debit as an expense if there is no recipient. Its outcome
+records police capacity and protest change. UBI enactment uses the cost-bearing
+mandate path in both panel dispatchers, and repeal resets its mandate counter.
+Farm subsidy, road maintenance, healthcare, and science spending currently
+have no modeled recipient or corresponding farm, route, health, or research
+state effect; their traces explicitly show the treasury debit and the absent
+effect.
+
+Verification: 27 policy trace, public-aid, provincial, guano, frontier, and
+metric-catalog tests passed. The focused City/Province/Nation policy UI action
+test also passed; the broader GUI module could not complete because its renderer
+failed to create an OpenGL context. Compilation and `git diff --check` passed.
