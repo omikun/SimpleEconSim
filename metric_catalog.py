@@ -20,6 +20,7 @@ METRICS = {
     'goods.supply': ('tile/good', 'units_offered', 'region_market.trade'),
     'goods.buyer_bid_quantity': ('tile/good/buyer', 'units', 'region_market.trade submitted orders; positive bids and charter restrictions'),
     'goods.seller_offer_quantity': ('tile/good/seller', 'units', 'region_market.trade submitted local offers; positive offers'),
+    'goods.zero_order_count': ('tile/good', 'orders', 'region_market.trade; zero bid and offer reason summary'),
     'goods.sold': ('tile/good', 'units', 'region_market.trade'),
     'goods.food_aid': ('tile/government', 'units', 'government.Government.provide_food_aid'),
     'living.cost_of_living': ('tile', 'local_currency_per_basket', 'micro.region.stepper.step_economy'),
@@ -172,6 +173,7 @@ TRACE_INSTRUMENTED = set(LEGACY_HISTORY_TO_METRIC.values()) | {
     'finance.internal_transfer', 'finance.operator_fee', 'labor.subsistence_exit',
     'goods.emergency_levy', 'goods.provincial_relief', 'land.customary_inheritance',
     'goods.demand_ratio', 'goods.buyer_bid_quantity', 'goods.seller_offer_quantity',
+    'goods.zero_order_count',
 }
 
 

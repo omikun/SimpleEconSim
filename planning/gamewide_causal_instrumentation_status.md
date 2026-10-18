@@ -39,7 +39,9 @@ the FX matrix has a **Why?** button for each quoted currency pair.
   cargo is labeled separately. Route loading records queue depth and
   congestion-based delay; countdown and hold events identify strike, blockade,
   and quarantine pauses. Food retention, freight affordability limits, and
-  freight payments are also recorded.
+  freight payments are also recorded. Zero bids and local offers are grouped
+  by reason per good, retain affected agent IDs and decision inputs, and link
+  to demand/supply totals.
 - The standalone `econsim.py --trace PATH.ctr` option writes price mutations,
   final snapshots and reconciled per-turn bridges. Its decay and market update
   formulas replay from captured inputs; trace-on/off one-turn checks matched
@@ -137,13 +139,11 @@ quotes, settlements, and optional standalone `econsim.py --trace` run have
 separate price records with replay checks for supported formulas. Remaining
 price work is linking production, inventories, needs, accepted orders, and
 settlements through time without implying a trade caused an earlier quote.
-Live order records currently cover positive local orders; zero-bid and
-zero-offer reasons remain missing. Imported shipment IDs now resolve across
-purchase, departure, arrival, supply, quote, and paid sale when those source
-records exist. The strike-to-output chain remains partial. The main market's
-`vwap` input is an unweighted recent-sample mean. The web inspector can filter a
-tile and selected good; historical chart points do not yet open that inspector
-directly.
+Imported shipment IDs now resolve across purchase, departure, arrival, supply,
+quote, and paid sale when those source records exist. The strike-to-output
+chain remains partial. The main market's `vwap` input is an unweighted
+recent-sample mean. The web inspector can filter a tile and selected good;
+historical chart points do not yet open that inspector directly.
 
 The coverage checker reports a changed snapshot as unexplained when its final
 value does not match a recorded calculation. Per-profession headcount snapshots

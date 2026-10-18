@@ -571,12 +571,42 @@ class RunTraceTests(unittest.TestCase):
                          if row['kind'] in ('market_demand_total',
                                             'market_supply_total',
                                             'market_demand_supply_ratio')]
+        zero_order_summaries = [row for row in rows
+                                if row['kind'] == 'market_zero_order_summary']
         self.assertTrue(buyer_orders)
         self.assertTrue(seller_orders)
         self.assertTrue(pressure_rows)
+        self.assertTrue(zero_order_summaries)
         self.assertTrue(all(replay_event(row)['matches'] for row in pressure_rows))
         self.assertTrue(all(row['formula_replay']['matches']
                             for row in market_totals))
+        for summary in zero_order_summaries:
+            inputs = summary['inputs']
+            reasons = [group['reason'] for group in
+                       inputs['buyers_by_reason'] + inputs['sellers_by_reason']]
+            evidence = [order for groups in
+                        (inputs['buyers_by_reason'], inputs['sellers_by_reason'])
+                        for group in groups for order in group['orders']]
+            self.assertNotIn('positive_quantity', reasons)
+            self.assertTrue(all('agent_id' in order for order in evidence))
+            self.assertEqual(
+                sum(group['count'] for group in inputs['buyers_by_reason']),
+                inputs['zero_buyer_count'])
+            self.assertEqual(
+                sum(group['count'] for group in inputs['sellers_by_reason']),
+                inputs['zero_seller_count'])
+            related = [row for row in rows
+                       if row.get('subject') == summary.get('subject')]
+            if inputs['zero_buyer_count']:
+                demand_total = next(row for row in related
+                                    if row['kind'] == 'market_demand_total')
+                self.assertIn(summary['event_id'],
+                              demand_total.get('cause_event_ids', []))
+            if inputs['zero_seller_count']:
+                supply_total = next(row for row in related
+                                    if row['kind'] == 'market_supply_total')
+                self.assertIn(summary['event_id'],
+                              supply_total.get('cause_event_ids', []))
         for order in seller_orders + buyer_orders:
             self.assertEqual(order['confidence'], 'exact')
         self.assertTrue(any(

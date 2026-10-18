@@ -328,19 +328,23 @@ route history, and explicit legacy-unlinked status stay on the records. Route
 loading records queue depth, capacity-per-unit, and congestion delay; progress
 and held records explain countdowns and strike, blockade, or quarantine pauses.
 Food retention, freight affordability limits, and freight settlements are
-recorded. Reasons for zero market orders and broader strike-to-output chains
-remain open.
+recorded. Zero bids and local offers now appear in one compact per-good summary,
+grouped by exact reason code and retaining the affected agent IDs and relevant
+decision inputs; market demand and supply totals link to that summary. The
+broader strike-to-output chain remains open.
 
-Verification: the focused trace, auction, route, blockade, and disease-route
-suites passed 56 tests. A seeded six-turn labor-frontier run verified that
+Verification: the focused trace, auction, route, food-security, and trade-route
+suites passed 65 tests. A seeded six-turn labor-frontier run verified that
 recorded purchase event IDs resolve through departure, arrival, imported
 supply, delivered quote, and at least one paid imported sale. A route fixture
-verified congestion delays, blockade holds, and quarantine rejection.
-Compilation and `git diff --check` passed.
-One traced labor-frontier turn wrote 2,426 total events in 125,512 compact
-bytes; 425 were market-chain events. All added cause IDs resolved within the
-run and no recorded formula failed replay. This is an initial scenario sample,
-not the 30/100-turn performance gate.
+verified congestion delays, blockade holds, and quarantine rejection. The
+six-turn trace contained 13,663 rows in 863,399 bytes, six valid checkpoints,
+zero unresolved cause IDs, and zero formula replay failures. It contained 144
+zero-order summaries covering 2,448 zero bids and 3,213 zero local offers. One
+turn of the same seeded labor-frontier scenario wrote 2,449 rows in 135,332
+bytes, up from the 2,426-row pre-summary baseline. Compilation and
+`git diff --check` passed. These are initial scenario samples, not the
+30/100-turn performance gate.
 
 Phase 0 follow-up, 2026-10-18: demographic deaths now distinguish disease
 presence from disease-attributable mortality. A disease fatality is counted
