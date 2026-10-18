@@ -635,3 +635,18 @@ the previously documented Egypt delta-generation error. Caisse transit-toll
 and granary seizures, general imperial revenue interception, household aid and
 subsistence flows, subsidies, repression costs, inheritance, and other scenario
 costs remain.
+
+Phase 3 follow-up, 2026-10-18: customs-receivership tariff interception now
+records the exact creditor treasury credit and receivership debt reduction.
+The revenue source is labeled as an aggregate with no identified source account,
+and the creditor-side no-FX behavior is visible for currency mismatches. The
+remaining national and port tariff receipts link back to the interception and
+debt events. When no creditor treasury can be found, the trace records the debt
+change and missing credit without fabricating a cash leg.
+
+Verification: three focused fixtures cover exact balances, tariff allocation,
+trace-on/off state equality, and the missing-creditor path. The 57 customs,
+imperial-debt, scenario-debt, public-transfer, and run-trace tests passed.
+Compilation and `git diff --check` passed. Caisse transit-toll and granary
+seizures, other imperial claims, household aid and subsistence flows, subsidies,
+repression costs, inheritance, and other scenario costs remain.

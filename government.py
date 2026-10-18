@@ -18,7 +18,8 @@ import econsim_trade_money as trade
 
 
 def _trace_public_transfer(government, kind, amount, recipients, *, outflow=True,
-                           trace_region=None, operation_id=None, **inputs):
+                           trace_region=None, operation_id=None,
+                           cause_event_ids=None, **inputs):
     """Trace public cash transfers at their treasury mutation point."""
     regions = getattr(government, 'regions', [])
     region = trace_region or next((candidate for candidate in regions
@@ -70,6 +71,7 @@ def _trace_public_transfer(government, kind, amount, recipients, *, outflow=True
         region, kind=kind, nation_name=subject['id'], currency=unit,
         signed_amount=-float(amount) if outflow else float(amount),
         contract=contract, phase='government', subject_type=subject['type'],
+        cause_event_ids=cause_event_ids,
         inputs={'government': government.name, 'recipients': recipient_ids,
                 'recipient_count': len(recipient_ids), 'amount': float(amount),
                 'turn': turn, **inputs})
@@ -584,13 +586,17 @@ class Government:
         owner_nation = getattr(region, 'owner_nation', None) if region else None
         intercepted = 0.0
         creditor_name = None
+        interception_event_ids = []
         if owner_nation:
             try:
                 from imperialism import get_imperialism_manager
                 imp_mgr = get_imperialism_manager()
-                amount, intercepted, creditor_name = imp_mgr.intercept_revenue(owner_nation.name, amount, t)
             except Exception:
-                pass
+                imp_mgr = None
+            if imp_mgr is not None:
+                amount, intercepted, creditor_name = imp_mgr.intercept_revenue(
+                    owner_nation.name, amount, t, trace_region=region,
+                    trace_event_ids=interception_event_ids, source='tariff')
         if amount <= 0:
             return
         nat_gov = getattr(owner_nation, 'government', None) if owner_nation else None
@@ -606,6 +612,7 @@ class Government:
             _trace_public_transfer(
                 nat_gov, 'tariff_collected', nat_share, [], outflow=False,
                 trace_region=region, operation_id=operation_id, turn=t,
+                cause_event_ids=interception_event_ids or None,
                 tariff_allocation='national', gross_tariff=gross_amount,
                 net_after_interception=amount, intercepted_tariff=intercepted,
                 interception_creditor=creditor_name
@@ -616,6 +623,7 @@ class Government:
             _trace_public_transfer(
                 self, 'tariff_collected', local_share, [], outflow=False,
                 trace_region=region, operation_id=operation_id, turn=t,
+                cause_event_ids=interception_event_ids or None,
                 tariff_allocation='local_port', gross_tariff=gross_amount,
                 net_after_interception=amount, intercepted_tariff=intercepted,
                 interception_creditor=creditor_name
@@ -628,6 +636,7 @@ class Government:
                 _trace_public_transfer(
                     self, 'tariff_collected', amount, [], outflow=False,
                     trace_region=region, operation_id=operation_id, turn=t,
+                    cause_event_ids=interception_event_ids or None,
                     tariff_allocation='single_treasury', gross_tariff=gross_amount,
                     net_after_interception=amount, intercepted_tariff=intercepted,
                     interception_creditor=creditor_name,

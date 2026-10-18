@@ -477,7 +477,8 @@ class ImperialismManager:
         return next((r for r in self.receiverships if r.debtor_nation == debtor_nation and r.status == "active"), None)
 
     def intercept_revenue(self, debtor_nation: str, gross_amount: float,
-                          t: int, world: dict | None = None) -> Tuple[float, float, Optional[str]]:
+                          t: int, world: dict | None = None, *, trace_region=None,
+                          trace_event_ids=None, source='tariff') -> Tuple[float, float, Optional[str]]:
         """Intercept a fraction of debtor revenue (tariff or sales tax) and transfer to creditor treasury.
 
         100% money conserved:
@@ -496,28 +497,104 @@ class ImperialismManager:
 
         # Conserved transfer to creditor nation treasury
         creditor_credited = False
+        credited_government = None
+        creditor_cash_before = None
+        creditor_cash_after = None
+        operation_id = (f'imperial-receivership:{rec.debtor_nation}:'
+                        f'{rec.creditor_nation}:{source}:{int(t)}:'
+                        f'{float(rec.total_collected):.6f}')
         if world:
             nations_by_name = {n.name: n for n in world.get('nations', [])}
             creditor = nations_by_name.get(rec.creditor_nation)
             if creditor and hasattr(creditor, 'government') and creditor.government:
-                creditor.government.agent.cash += actual_intercept
-                creditor.government.record_income(t, 'tariff', actual_intercept)
+                credited_government = creditor.government
+                creditor_cash_before = float(credited_government.agent.cash)
+                credited_government.agent.cash += actual_intercept
+                creditor_cash_after = float(credited_government.agent.cash)
+                credited_government.record_income(t, source, actual_intercept)
                 creditor_credited = True
 
         if not creditor_credited:
             cred_obj = getattr(rec, 'creditor_obj', None)
             if cred_obj and hasattr(cred_obj, 'government') and cred_obj.government:
-                cred_obj.government.agent.cash += actual_intercept
-                cred_obj.government.record_income(t, 'tariff', actual_intercept)
+                credited_government = cred_obj.government
+                creditor_cash_before = float(credited_government.agent.cash)
+                credited_government.agent.cash += actual_intercept
+                creditor_cash_after = float(credited_government.agent.cash)
+                credited_government.record_income(t, source, actual_intercept)
                 creditor_credited = True
             else:
                 import econsim_states
                 for g in econsim_states.governments:
                     if g.name == rec.creditor_nation:
+                        credited_government = g
+                        creditor_cash_before = float(g.agent.cash)
                         g.agent.cash += actual_intercept
-                        g.record_income(t, 'tariff', actual_intercept)
+                        creditor_cash_after = float(g.agent.cash)
+                        g.record_income(t, source, actual_intercept)
+                        creditor_credited = True
                         break
 
+        if trace_region is None:
+            candidates = list((world or {}).get('tiles', []))
+            if world is not None:
+                candidates.extend(tile for nation in world.get('nations', [])
+                                  if nation.name == rec.debtor_nation
+                                  for tile in getattr(nation, 'tiles', []))
+            trace_region = next((tile for tile in candidates
+                                 if getattr(tile, '_run_trace', None) is not None), None)
+        transfer_event_id = None
+        if trace_region is not None and credited_government is not None:
+            from finance_trace import account_ref, emit_treasury_leg, transfer_contract
+            from run_trace import emit
+            debtor_currency = (
+                getattr(getattr(trace_region, 'owner_nation', None), 'currency', None)
+                or getattr(trace_region, 'home_currency', None) or 'local_currency')
+            creditor_currency = (getattr(credited_government, 'currency', None)
+                                 or debtor_currency)
+            payee_account = account_ref(
+                'government_treasury', credited_government.name, creditor_currency,
+                nation_id=rec.creditor_nation, subaccount='government_agent.cash',
+                balance_before=creditor_cash_before,
+                balance_after=creditor_cash_after,
+                balance_scope='government_agent.cash')
+            revenue_source = account_ref(
+                'public_revenue_source', operation_id, debtor_currency,
+                balance_scope='gross_revenue_receipt',
+                balance_status='aggregate_source_not_identified')
+            contract = transfer_contract(
+                operation_id, 'customs_receivership_revenue_interception',
+                side='payee', amount=actual_intercept,
+                amount_currency=debtor_currency,
+                payer_account=revenue_source, payee_account=payee_account,
+                local_cash_leg_amount=actual_intercept,
+                local_cash_leg_currency=creditor_currency,
+                currency_conversion_applied=False,
+                counterparty_leg_status=(
+                    'gross tariff source aggregated by caller; creditor cash balance exact'),
+                counterparty_currency=creditor_currency,
+                counterparty_currency_mismatch=debtor_currency != creditor_currency,
+                mutation_reference={'turn': int(t), 'source': source,
+                                    'receivership_id': rec.receivership_id})
+            transfer_event_id = emit_treasury_leg(
+                trace_region, kind='customs_receivership_revenue_interception',
+                nation_name=rec.creditor_nation, currency=creditor_currency,
+                signed_amount=float(actual_intercept), contract=contract,
+                phase='imperialism', subject_type='nation',
+                inputs={'operation_id': operation_id, 'turn': int(t),
+                        'debtor_nation': rec.debtor_nation,
+                        'creditor_nation': rec.creditor_nation,
+                        'gross_revenue': float(gross_amount),
+                        'intercept_share': float(rec.intercept_share),
+                        'desired_intercept': float(desired_intercept),
+                        'actual_intercept': float(actual_intercept),
+                        'net_revenue_for_debtor': float(gross_amount - actual_intercept),
+                        'revenue_source': source,
+                        'remaining_debt_before': float(rec.remaining_debt),
+                        'creditor_cash_credited': True})
+
+        remaining_debt_before = float(rec.remaining_debt)
+        total_collected_before = float(rec.total_collected)
         rec.total_collected += actual_intercept
         rec.remaining_debt -= actual_intercept
 
@@ -530,6 +607,41 @@ class ImperialismManager:
                     f"✅ RECEIVERSHIP CLEARED: {debtor_nation} completed sovereign debt repayments to {rec.creditor_nation}!",
                     (120, 220, 140)
                 )
+
+        balance_event_id = None
+        if trace_region is not None:
+            from run_trace import emit
+            debtor_currency = (
+                getattr(getattr(trace_region, 'owner_nation', None), 'currency', None)
+                or getattr(trace_region, 'home_currency', None) or 'local_currency')
+            balance_event_id = emit(
+                trace_region, kind='customs_receivership_debt_balance',
+                record_class='outcome', phase='imperialism',
+                subject={'type': 'nation/receivership', 'id': rec.receivership_id,
+                         'nation': rec.debtor_nation},
+                metric_id='finance.receivership_balance', unit=debtor_currency,
+                before=remaining_debt_before, after=float(rec.remaining_debt),
+                formula_id='imperialism.customs_receivership_intercept.v1',
+                inputs={'operation_id': operation_id, 'turn': int(t),
+                        'receivership_id': rec.receivership_id,
+                        'debtor_nation': rec.debtor_nation,
+                        'creditor_nation': rec.creditor_nation,
+                        'gross_revenue': float(gross_amount),
+                        'revenue_source': source,
+                        'intercept_share': float(rec.intercept_share),
+                        'desired_intercept': float(desired_intercept),
+                        'actual_intercept': float(actual_intercept),
+                        'total_collected_before': total_collected_before,
+                        'total_collected_after': float(rec.total_collected),
+                        'creditor_cash_credited': bool(creditor_credited),
+                        'receivership_status_before': 'active',
+                        'receivership_status_after': rec.status},
+                cause_event_ids=([transfer_event_id]
+                                 if transfer_event_id is not None else None))
+        if trace_event_ids is not None:
+            trace_event_ids.extend(event_id for event_id in
+                                   (transfer_event_id, balance_event_id)
+                                   if event_id is not None)
 
         net_debtor = gross_amount - actual_intercept
         return net_debtor, actual_intercept, rec.creditor_nation

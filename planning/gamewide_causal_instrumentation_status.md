@@ -203,10 +203,10 @@ benefit, Egypt project payroll/recall/remittance, tariff transfers, and
 cadastral tax recovery now have operation IDs and balance evidence. Emergency
 food levies expose exact in-kind stock changes, and routine public grain
 purchases reconcile seller and treasury balances. Guided canal transit tolls
-are traced with the current no-conversion currency mismatch exposed. Caisse
-transit-toll and granary seizures, imperial claim intercepts outside the guided
-occupation, Egypt subsistence and household aid flows, subsidies, repression
-spending,
+and customs-receivership tariff interception are traced with no-conversion
+currency mismatches exposed. Caisse transit-toll and granary seizures and other
+untraced imperial claim paths, Egypt subsistence and household aid flows,
+subsidies, repression spending,
 inheritance, and many scenario costs still need transfer contracts. National
 treasury, bank, household, firm, and goods-by-currency reconciliations remain
 incomplete. Several scenario operations still need mutation-point records.
@@ -307,6 +307,14 @@ record cumulative toll receipts, and link the toll to the fleet's passage into
 Ismailia. Current GBP-to-EGP nominal amounts are explicitly marked as
 unconverted. Two focused tests passed, including trace-on/off state equivalence.
 The existing full geography tests remain blocked during world generation by
-the Nile delta outlet error. Caisse toll and granary seizures and general
-imperial revenue interception remain untraced, along with household aid,
-subsistence, subsidies, repression, inheritance, and other scenario transfers.
+the Nile delta outlet error.
+
+Customs-receivership tariff interception now records the creditor cash increase,
+receivership debt balance change, requested and actual share, and currency
+context. The remaining national and local tariff receipts link to the claim
+events. A missing creditor treasury appears as an uncredited balance change
+without an invented cash leg. Three focused fixtures and 57 customs,
+imperial-debt, scenario-debt, public-transfer, and run-trace tests passed,
+including trace-on/off state equivalence. Caisse transit-toll and granary
+seizures, other imperial claims, household aid and subsistence transfers,
+subsidies, repression, inheritance, and other scenario transfers remain.
