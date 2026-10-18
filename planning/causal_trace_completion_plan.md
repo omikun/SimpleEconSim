@@ -1367,3 +1367,19 @@ Verification: five planner-gate tests and 63 existing capitalist propagation
 and supply-control tests passed (68 total). Trace-on/off cadence parity,
 scenario suppression, trigger precedence, novelty links, JSON-safe records,
 catalog registration, compilation, and `git diff --check` passed.
+
+## Instrumentation registry audit — Register every emitted metric
+
+A source audit found 27 literal metric IDs with no metric-catalog definition
+and 71 emitted IDs absent from the instrumented-coverage set. The catalog now
+describes the missing crop-delivery, bid, charter, supply-offer, land/water,
+route, naval, creditor-response, resistance-capacity, and occupation-supply
+events. Every literal production trace metric is marked instrumented. A
+repository test parses production Python call sites and checks that each
+literal `metric_id` exists in both registries and that no coverage marker lacks
+a descriptor.
+
+Verification: all 266 production literal metric IDs pass the registry audit.
+The audit, market, supply-rights, route, creditor, occupation, resistance, and
+naval trace suites passed (98 tests); compilation and `git diff --check` passed.
+This changes trace metadata only.

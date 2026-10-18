@@ -989,3 +989,18 @@ propagation and supply-control tests passed (68 total). Tests cover each gate,
 scenario suppression, novelty event linkage, trace-on/off cadence parity,
 JSON-safe records, metric registration, compilation, and `git diff --check`.
 Planner return values and the existing five-turn/trigger cadence are unchanged.
+
+Catalog audit follow-up, 2026-10-18: a production-source AST audit found 27
+emitted metric IDs without decoder descriptions and 71 direct metric IDs missing
+the catalog's instrumented-coverage marker. All 27 descriptions have been added
+for crop contracts, bids, market charters and offers, land and water rights,
+routes, scenario creditor/naval outcomes, resistance capacity, and related
+events; all literal production emissions are now marked as instrumented. A
+repository test scans production Python call sites and fails if an emitted
+literal `metric_id` is absent from either registry.
+
+Verification: the catalog audit covers all 266 production literal metric IDs;
+the registry test plus the market, supply-rights, route, creditor, occupation,
+resistance, and naval trace suites passed (98 tests). `metric_catalog.py` and
+the audit test compile, and `git diff --check` passed. This closes registry
+metadata gaps without changing simulation behavior.
