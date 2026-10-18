@@ -511,3 +511,17 @@ account identities; the levy fixture confirmed donor inventory loss equals
 the government's food-stock gain. Compilation and `git diff --check` passed.
 Other grain purchases, bank recapitalization, occupation/tribute flows,
 inheritance, and household/firm transfers remain open.
+
+Phase 3 follow-up, 2026-10-18: routine government food purchases from local
+markets now record one payer/payee contract per seller, with exact government
+cash, seller cash, seller stock, and public food inventory balances. The
+treasury flow itself is the cause of the paired goods-sale record, and both
+records share the same operation ID; the former aggregate treasury deduction
+was removed to avoid counting purchases twice.
+
+Verification: the food-security, market-auction, and market-route suites passed
+33 tests. The emergency market-purchase fixture confirmed that individual
+treasury legs sum to the government's cash loss, seller receipts match those
+legs, food stocks move by the purchased quantity, and the goods event links to
+the cash event. Compilation and `git diff --check` passed. Egypt scenario
+private grain purchases, requisitions, and holder-to-household sales remain.

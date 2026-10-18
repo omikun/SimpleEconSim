@@ -145,6 +145,9 @@ the FX matrix has a **Why?** button for each quoted currency pair.
   one operation ID, including allocation and balance evidence. Emergency food
   levies record donor food inventories, protected reserves, and the matching
   government food-stock increase.
+- Routine government food purchases record per-seller cash and food inventory
+  balances. The treasury payment event links to the matching goods-sale event;
+  the previous aggregate spending record no longer double-counts the flow.
 - Construction steps record material purchases, required and available inputs,
   navvy hiring and pay, progress multipliers, stall causes, and completion.
 - Battles record initial strengths, casualties, winner, and conquest. War-side
@@ -188,11 +191,13 @@ membership-change calculation records retain before/after counts and agent IDs.
 Treasury snapshots show cash and deposit components. Bond, Caisse, public
 benefit, Egypt project payroll/recall/remittance, and tariff transfers now have
 operation IDs and balance evidence. Emergency food levies expose exact in-kind
-stock changes. Canal tolls, occupation seizures, tribute, tax recovery, other
-grain purchases, subsidies, repression spending, inheritance, and many scenario
-costs still need the shared transfer contract. National treasury, bank,
-household, firm, and goods-by-currency reconciliations remain incomplete.
-Several scenario operations still need mutation-point records.
+stock changes, and routine public grain purchases reconcile seller and treasury
+balances. Canal tolls, occupation seizures, tribute, tax recovery, Egypt
+scenario private purchases and requisitions, holder-to-household grain sales,
+subsidies, repression spending, inheritance, and many scenario costs still need
+the shared transfer contract. National treasury, bank, household, firm, and
+goods-by-currency reconciliations remain incomplete. Several scenario
+operations still need mutation-point records.
 Some secondary and elite AI candidate details remain partial. The current metric
 catalog does not yet cover every displayed field;
 `inventory_region_histories()` labels legacy series as instrumented or
@@ -227,3 +232,7 @@ Tariff and emergency levy follow-up passed 26 government-transfer,
 tariff-sharing, emergency-food, scenario-project, and fiscal-federalism tests.
 Tariff payer allocation reconciles to the two treasury credits, while the levy
 fixture balances donor stock losses against the government stock gain.
+
+Routine public grain-purchase follow-up passed 33 food-security, market-auction,
+and market-route tests. The trace now reconciles each treasury debit and seller
+credit with matching stock movement and links the cash and goods records.

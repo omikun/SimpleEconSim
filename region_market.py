@@ -1223,6 +1223,58 @@ def set_price(region, demand_ratio, good):
     return price
 
 
+def _trace_government_food_purchase(region, seller, *, quantity, unit_price,
+                                   turn, government_cash_before,
+                                   government_cash_after, seller_cash_before,
+                                   seller_cash_after, seller_food_before,
+                                   seller_food_after, public_food_before,
+                                   public_food_after, emergency_surplus):
+    """Record the exact cash and stock legs of a public food purchase."""
+    from finance_trace import account_ref, emit_treasury_leg, transfer_contract
+
+    owner = getattr(region, 'owner_nation', None)
+    currency = (getattr(owner, 'currency', None)
+                or getattr(region, 'home_currency', None) or 'local_currency')
+    clock = getattr(region, '_collective_trace_clock', {}) or {}
+    sequence = int(clock.get('next', 0))
+    operation_id = f'government-food-purchase:{region.name}:{int(turn)}:{sequence}'
+    government = region.gov
+    amount = float(quantity) * float(unit_price)
+    payer = account_ref(
+        'government_treasury', government.name, currency,
+        nation_id=getattr(owner, 'name', None),
+        subaccount='government_agent.cash',
+        balance_before=government_cash_before,
+        balance_after=government_cash_after,
+        balance_scope='government_agent.cash')
+    payee = account_ref(
+        'agent', seller.id, currency,
+        balance_before=seller_cash_before, balance_after=seller_cash_after,
+        balance_scope='cash')
+    contract = transfer_contract(
+        operation_id, 'government_food_purchase', side='payer', amount=amount,
+        amount_currency=currency, payer_account=payer, payee_account=payee,
+        local_cash_leg_amount=amount, local_cash_leg_currency=currency,
+        counterparty_leg_status='seller_cash_balance_captured',
+        mutation_reference={'turn': int(turn), 'tile': region.name,
+                            'seller_id': seller.id, 'good': Goods.food.name})
+    event_id = emit_treasury_leg(
+        region, kind='government_food_purchase',
+        nation_name=getattr(owner, 'name', region.name), currency=currency,
+        signed_amount=-amount, contract=contract, phase='market',
+        subject_type='nation' if owner is not None else 'tile',
+        inputs={'buyer': government.name, 'seller_id': seller.id,
+                'quantity': int(quantity), 'unit_price': float(unit_price),
+                'paid': amount, 'turn': int(turn),
+                'emergency_surplus': bool(emergency_surplus),
+                'seller_occupation': seller.output.name,
+                'seller_food_before': int(seller_food_before),
+                'seller_food_after': int(seller_food_after),
+                'public_food_inventory_before': int(public_food_before),
+                'public_food_inventory_after': int(public_food_after)})
+    return event_id, operation_id
+
+
 def trade(region, t):
     """Run market trading session for goods and transport services."""
     from run_trace import emit
@@ -1843,17 +1895,36 @@ def trade(region, t):
                         bought = min(gov_bid, available,
                                      int(region.gov.agent.cash / price))
                         if bought > 0:
+                            purchase_amount = bought * price
+                            government_cash_before = float(region.gov.agent.cash)
+                            seller_cash_before = float(seller.cash)
+                            seller_food_before = int(seller.inv_get(Goods.food, 0))
+                            public_food_before = int(region.gov.food_inventory)
                             seller.inv_add(Goods.food, -bought)
-                            seller.cash += bought * price
-                            region.gov.pay_for_food(bought * price)
+                            seller.cash += purchase_amount
+                            region.gov.pay_for_food(purchase_amount)
                             region.gov.receive_food(bought)
+                            purchase_event_id, purchase_operation_id = _trace_government_food_purchase(
+                                region, seller, quantity=bought, unit_price=price,
+                                turn=t, government_cash_before=government_cash_before,
+                                government_cash_after=float(region.gov.agent.cash),
+                                seller_cash_before=seller_cash_before,
+                                seller_cash_after=float(seller.cash),
+                                seller_food_before=seller_food_before,
+                                seller_food_after=int(seller.inv_get(Goods.food, 0)),
+                                public_food_before=public_food_before,
+                                public_food_after=int(region.gov.food_inventory),
+                                emergency_surplus=region.gov.emergency_food_policy)
                             emit(region, kind='government_food_purchase', record_class='transfer',
                                  subject={'type': 'tile', 'id': region.name, 'good': good.name},
                                  metric_id='goods.sold', unit='units', before=0, after=bought,
-                                     inputs={'seller_id': seller.id, 'buyer': 'government',
-                                             'unit_price': price, 'paid': bought * price,
-                                             'emergency_surplus': region.gov.emergency_food_policy,
-                                             'seller_occupation': seller.output.name})
+                                 cause_event_ids=([purchase_event_id]
+                                                  if purchase_event_id else None),
+                                 inputs={'operation_id': purchase_operation_id,
+                                         'seller_id': seller.id, 'buyer': 'government',
+                                         'unit_price': price, 'paid': purchase_amount,
+                                         'emergency_surplus': region.gov.emergency_food_policy,
+                                         'seller_occupation': seller.output.name})
                             from economy.actor_accounts import record as record_economic_event
                             record_economic_event(
                                 region, 'spot_sale', turn=t,
@@ -1868,15 +1939,6 @@ def trade(region, t):
                     if gov_bought > 0:
                         total_sold += gov_bought
                         region.sold_log[good][-1] += gov_bought
-                        owner = getattr(region, 'owner_nation', None)
-                        if owner is not None:
-                            emit(region, kind='government_food_spending',
-                                 record_class='transfer',
-                                 subject={'type': 'nation', 'id': owner.name},
-                                 metric_id='finance.treasury_flow', unit=owner.currency,
-                                 after=-(gov_bought * price),
-                                 inputs={'tile': region.name, 'quantity': gov_bought,
-                                         'unit_price': price})
                         loginfo(t, f"Government({region.gov.name}) bought "
                                 f"{gov_bought} food at ${price:.2f}")
                 region.gov.deposit_remaining(region.bank, trace_region=region, t=t)

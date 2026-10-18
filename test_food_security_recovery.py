@@ -23,6 +23,18 @@ from demographics_consumption import consume_daily_food
 from foraging import forage_tile
 
 
+class MemoryTrace:
+    def __init__(self):
+        self.rows = []
+
+    def emit(self, clock, **row):
+        sequence = clock['next']
+        clock['next'] += 1
+        event_id = f'test:{sequence}'
+        self.rows.append({'event_id': event_id, **row})
+        return event_id
+
+
 class FoodSecurityRecoveryTests(unittest.TestCase):
     def test_enclosure_buffer_requires_a_full_crop_cycle(self):
         tile = Region('Cycle', 0, 4)
@@ -188,6 +200,9 @@ class FoodSecurityRecoveryTests(unittest.TestCase):
         donor.inv_set(Goods.food, 12)
         tile.gov.emergency_food_policy = True
         tile.gov.agent.cash = 20
+        trace = MemoryTrace()
+        tile._run_trace = trace
+        tile._collective_trace_clock = {'turn': 1, 'phase': 'market', 'next': 1}
         before_cash = sum(a.cash + tile.bank.deposits.get(a, 0)
                           for a in (donor, tile.gov.agent))
         before_food = sum(a.inv_get(Goods.food, 0) for a in people) + tile.gov.food_inventory
@@ -200,6 +215,30 @@ class FoodSecurityRecoveryTests(unittest.TestCase):
                                    for a in (donor, tile.gov.agent)))
         self.assertEqual(before_food, sum(a.inv_get(Goods.food, 0) for a in people)
                          + tile.gov.food_inventory)
+        flows = [row for row in trace.rows
+                 if row.get('metric_id') == 'finance.treasury_flow'
+                 and row.get('kind') == 'government_food_purchase']
+        self.assertEqual(len(flows), 1)
+        contract = flows[0]['inputs']['transfer_contract']
+        self.assertEqual(contract['contract_version'], 'treasury_transfer.v1')
+        self.assertEqual(contract['payer_account']['balance_before']
+                         - contract['payer_account']['balance_after'],
+                         contract['amount'])
+        self.assertEqual(contract['payee_account']['balance_after']
+                         - contract['payee_account']['balance_before'],
+                         contract['amount'])
+        self.assertEqual(flows[0]['inputs']['public_food_inventory_after']
+                         - flows[0]['inputs']['public_food_inventory_before'],
+                         flows[0]['inputs']['quantity'])
+        self.assertEqual(flows[0]['inputs']['seller_food_before']
+                         - flows[0]['inputs']['seller_food_after'],
+                         flows[0]['inputs']['quantity'])
+        sale = next(row for row in trace.rows
+                    if row.get('kind') == 'government_food_purchase'
+                    and row.get('metric_id') == 'goods.sold')
+        self.assertIn(flows[0]['event_id'], sale['cause_event_ids'])
+        self.assertEqual(sale['inputs']['operation_id'],
+                         contract['operation_id'])
         tile.gov.provide_food_aid(1, people, tile.recipes[Goods.food]['price'])
         self.assertGreater(hungry.inv_get(Goods.food, 0), 0)
 
