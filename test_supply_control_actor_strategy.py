@@ -106,6 +106,23 @@ class ActorAccountTests(unittest.TestCase):
         self.assertEqual(rows[worker.id]['scrip_change'], 6)
         self.assertEqual(rows[firm.id]['unposted_cash_change'], 0)
 
+    def test_foreign_exchange_conversion_is_in_cash_bridge(self):
+        import forex
+        region = Region()
+        region.home_currency = 'USD'
+        region._last_turn = 6
+        trader = Person(3, 10)
+        trader.wallets = {'EUR': 4.0}
+        region.agents = [trader]
+        bank = SimpleNamespace(fx_pool=100.0, foreign_reserves={'EUR': 0.0})
+        begin_turn(region, 6)
+        paid = forex.sell_fx_to_bank(bank, trader, 'EUR', 4, 2,
+                                     trace_region=region)
+        account = next(a for a in seal_turn(region, 6) if a['actor_id'] == trader.id)
+        self.assertEqual(paid, 8)
+        self.assertEqual(account['fx_converted_in'], 8)
+        self.assertEqual(account['cash_change'], account['posted_cash_change'])
+
 
 class SupplyProposalTests(unittest.TestCase):
     def test_direct_settlement_without_acceptance_is_rejected(self):

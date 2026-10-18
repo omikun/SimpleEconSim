@@ -39,7 +39,7 @@ already fun or balanced; that still needs player feedback.
   unmatched movement is from legacy systems that have not been connected to this
   journal; do not read the displayed recorded result as complete profit.
 - Remaining gate work: cross-region lot/shipment links and delivered unit cost;
-  FX and bank deposit transaction adapters; verify the default run's one
+  bank deposit transaction adapters; verify the default run's one
   reported turn-21 USD audit discrepancy (-$17.61) against a per-operation
   ledger. It appeared in the benchmark run but did not recur in a separate
   direct 21-turn diagnostic, so its source is not yet established.
@@ -113,8 +113,12 @@ already fun or balanced; that still needs player feedback.
 
 ## Verification run
 
-- `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_supply_control_actor_strategy test_supply_rights test_market_auction test_market_routes test_web_client_parity` — 57 tests passed.
+- Local FX desk conversions now record their home-currency cash leg and the
+  foreign amount/rate in the same economic event; a focused account test checks
+  that this leg reconciles. Bank deposit/withdrawal adapters remain open.
+- `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_supply_control_actor_strategy test_supply_rights test_market_auction test_market_routes test_web_client_parity` — 58 tests passed after the FX and scrip account additions.
 - `node --check web_client/client.js` — passed.
 - `git diff --check` — passed.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python benchmark_supply_rivalry.py` — 12 matched runs, zero reported currency violations.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python benchmark_supply_default.py 50` — 50 turns completed; one -$17.61 USD warning (see Phase 5).
+- Full `unittest discover` was attempted but this environment's native pygame/OpenGL tests crashed the Python process (exit 139) before a summary could be produced; the focused simulation, rights, auction, route, and web parity suite remains green.

@@ -345,6 +345,13 @@ def sell_fx_to_bank(bank, trader, currency, amount, rate, trace_region=None):
     bank.fx_pool -= home
     trader.cash += home
     if trace_region is not None:
+        from economy.actor_accounts import record as record_economic_event
+        record_economic_event(trace_region, 'fx_conversion', turn=getattr(trace_region, '_last_turn', 0),
+                              recipient_id=trader.id, amount=home,
+                              currency=trace_region.home_currency,
+                              detail={'direction': 'sell_foreign', 'foreign_currency': currency,
+                                      'foreign_amount': amount, 'rate_home_per_foreign': rate,
+                                      'bank_fx_pool_delta': -home})
         from run_trace import emit
         emit(trace_region, kind='fx_conversion_executed', record_class='transfer',
              phase='trade', subject={'type': 'agent', 'id': trader.id, 'tile': trace_region.name},
@@ -386,6 +393,13 @@ def buy_fx_from_bank(bank, trader, currency, amount, rate, trace_region=None):
     bank.fx_pool += home
     trader.cash -= home
     if trace_region is not None:
+        from economy.actor_accounts import record as record_economic_event
+        record_economic_event(trace_region, 'fx_conversion', turn=getattr(trace_region, '_last_turn', 0),
+                              payer_id=trader.id, amount=home,
+                              currency=trace_region.home_currency,
+                              detail={'direction': 'buy_foreign', 'foreign_currency': currency,
+                                      'foreign_amount': amount, 'rate_home_per_foreign': rate,
+                                      'bank_fx_pool_delta': home})
         from run_trace import emit
         emit(trace_region, kind='fx_conversion_executed', record_class='transfer',
              phase='trade', subject={'type': 'agent', 'id': trader.id, 'tile': trace_region.name},

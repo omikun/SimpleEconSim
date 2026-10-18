@@ -94,6 +94,10 @@ def seal_turn(region, turn):
         observed_cash_change = float(actor.cash) - prior['cash']
         financing = sum(e['amount'] for e in own if e['recipient_id'] == actor.id
                         and e['kind'] == 'owner_financing')
+        fx_received = sum(e['amount'] for e in own if e['recipient_id'] == actor.id
+                          and e['kind'] == 'fx_conversion')
+        fx_paid = sum(e['amount'] for e in own if e['payer_id'] == actor.id
+                      and e['kind'] == 'fx_conversion')
         for_lease = [p.plot_id for p in getattr(getattr(region, 'tenure', None), 'plots', [])
                      if getattr(p, 'controlled_by_id', None) == actor.id]
         debt = sum(float(c.balance) for c in getattr(region, 'cash_obligations', [])
@@ -117,6 +121,8 @@ def seal_turn(region, turn):
             'posted_cash_change': round(cash_in - cash_out, 2),
             'unposted_cash_change': round(observed_cash_change - (cash_in - cash_out), 2),
             'owner_financing_received': round(financing, 2),
+            'fx_converted_in': round(fx_received, 2),
+            'fx_converted_out': round(fx_paid, 2),
             'opening_food': prior['food'], 'closing_food': int(actor.inv_get(Goods.food, 0)),
             'food_intake': round(float(getattr(actor, 'last_calories_eaten', 0.0)) / 500.0, 2),
             'opening_debt': round(prior['debt'], 2), 'closing_debt': round(debt, 2),
