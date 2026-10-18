@@ -162,6 +162,28 @@ def post_exports_to_route(region):
             continue
         for g in TRADE_GOODS:
             qty = trader.inventory_export[g.value]
+            permitted_qty = qty
+            charters = [c for c in getattr(region, 'market_charters', [])
+                        if c.get('status') == 'active' and c.get('type') == 'exclusive_route'
+                        and c.get('good') == getattr(g, 'value', str(g))
+                        and c.get('start_turn', 0) <= getattr(region, '_last_turn', 0) < c.get('expiry_turn', 0)]
+            if charters and qty > 0:
+                charter = sorted(charters, key=lambda c: c['id'])[0]
+                owner = getattr(trader, 'owner', None)
+                authorized = trader.id == charter['sponsor_id'] or getattr(owner, 'id', None) == charter['sponsor_id']
+                if not authorized:
+                    enforcement = max(0.0, min(1.0, float(charter.get('enforcement', .65))))
+                    permitted = int(qty * (1.0 - enforcement))
+                    charter['opposition'] = float(charter.get('opposition', 0.0)) + max(1.0, (qty - permitted) / 3.0)
+                    from run_trace import emit
+                    emit(region, kind='route_charter_enforcement', record_class='calculation',
+                         subject={'type': 'charter', 'id': charter['id']},
+                         metric_id='trade.route_licensed_quantity', unit='units',
+                         before=qty, after=permitted, formula_id='charter.route_leakage.v1',
+                         inputs={'good': g.name, 'trader_id': trader.id,
+                                 'authorized_sponsor_id': charter['sponsor_id'],
+                                 'enforcement': enforcement})
+                    permitted_qty = permitted
             if g == Goods.food:
                 export_fraction = max(0.0, min(1.0, float(getattr(region, 'food_export_fraction', 1.0))))
                 if export_fraction < 1.0 and qty > 0:
@@ -169,7 +191,9 @@ def post_exports_to_route(region):
                     retained = qty - export_qty
                     trader.inventory_export[g.value] -= retained
                     region.granary_stock = float(getattr(region, 'granary_stock', 0.0)) + retained
-                    qty = export_qty
+                    qty = min(permitted_qty, export_qty)
+            else:
+                qty = permitted_qty
             if qty > 0:
                 route.post(trader, g, qty)
 

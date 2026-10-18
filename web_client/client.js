@@ -2989,6 +2989,77 @@
       });
     }
 
+    const supplyDetails = document.getElementById('market-supply-details');
+    if (supplyDetails) {
+      supplyDetails.innerHTML = '';
+      const activity = tile.market_activity || {};
+      const names = new Map((tile.economic_actors || []).map(a => [Number(a.id), a.name]));
+      const line = document.createElement('div');
+      line.className = 'market-supply-summary';
+      const records = Object.entries(activity).filter(([, a]) =>
+        a.funded_demand || a.offered_supply || a.quantity_traded || a.physical_need);
+      line.textContent = records.length ? records.slice(0, 5).map(([good, a]) => {
+        const local = (a.trades || []).filter(t => !t.imported);
+        const delivered = (a.trades || []).filter(t => t.imported);
+        const avg = rows => rows.length ? rows.reduce((sum, t) => sum + Number(t.unit_price) * Number(t.quantity), 0)
+          / rows.reduce((sum, t) => sum + Number(t.quantity), 0) : null;
+        const localPrice = avg(local), deliveredPrice = avg(delivered);
+        const priceText = localPrice == null ? 'no local fill' : `local paid $${localPrice.toFixed(2)}`;
+        const deliveredText = deliveredPrice == null ? '' : ` · imported delivered $${deliveredPrice.toFixed(2)}`;
+        const needText = a.physical_need == null ? '' : ` · physical need ${a.physical_need}`;
+        return `${good}: ${a.offered_supply} offered / ${a.funded_demand} funded / ${a.quantity_traded} traded${needText} · ${priceText}${deliveredText}`;
+      }).join(' | ') : 'No recent orders or fills recorded for this district.';
+      supplyDetails.appendChild(line);
+
+      for (const [good, a] of records.slice(0, 3)) {
+        const actors = document.createElement('div');
+        actors.className = 'market-actor-line';
+        const top = list => (list || []).map(x => `${names.get(Number(x.agent_id)) || `Actor ${x.agent_id}`} (${x.quantity})`).join(', ') || 'none';
+        actors.textContent = `${good} buyers: ${top(a.top_buyers)} · sellers: ${top(a.top_sellers)}`;
+        supplyDetails.appendChild(actors);
+      }
+
+      const tenure = tile.tenure || {};
+      const activeContracts = tenure.offtake_contracts || [];
+      const charters = tenure.market_charters || [];
+      const rights = tenure.water_rights || [];
+      const terms = document.createElement('div');
+      terms.className = 'market-control-summary';
+      terms.textContent = `${activeContracts.length} active crop offtake contract(s) · ${charters.length} active charter(s) · ${rights.length} water right(s); seasonal allocation ${Object.values(tenure.water_allocations || {}).reduce((x, y) => x + Number(y), 0).toFixed(2)} units.`;
+      supplyDetails.appendChild(terms);
+      for (const contract of activeContracts) {
+        const item = document.createElement('div');
+        item.className = 'market-control-detail';
+        item.textContent = `${contract.good}: grower ${contract.grower_id} has ${contract.remaining}/${contract.quantity} units pledged to buyer ${contract.lender_id} at $${Number(contract.unit_price).toFixed(2)}; due turn ${contract.due_turn}.`;
+        supplyDetails.appendChild(item);
+      }
+      for (const charter of charters) {
+        const item = document.createElement('div');
+        item.className = 'market-control-detail';
+        item.textContent = `${charter.type.replaceAll('_', ' ')} for ${charter.good}, holder ${charter.sponsor_id}, enforcement ${(100 * Number(charter.enforcement)).toFixed(0)}%, opposition ${Number(charter.opposition || 0).toFixed(1)}, expires turn ${charter.expiry_turn}.`;
+        supplyDetails.appendChild(item);
+      }
+      for (const petition of (tenure.concession_petitions || []).filter(p => p.player_review)) {
+        const card = document.createElement('div');
+        card.className = 'market-petition-card';
+        const description = document.createElement('span');
+        const brief = petition.review_brief || {};
+        description.textContent = `Council decision due: ${petition.type.replaceAll('_', ' ')} for ${petition.good}, petition #${petition.id}, sponsor ${names.get(Number(petition.sponsor_id)) || petition.sponsor_id}. ${brief.expected_effect || ''} Beneficiaries: ${(brief.beneficiaries || []).join(', ') || 'unknown'}; exposed growers: ${(brief.exposed_growers || []).join(', ') || 'none identified'}. ${brief.uncertainty || ''}`;
+        card.appendChild(description);
+        for (const [decision, label] of [['approve', 'Approve'], ['reject', 'Reject']]) {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = `btn ${decision === 'approve' ? 'btn-primary' : 'btn-secondary'} btn-xs`;
+          button.textContent = label;
+          button.addEventListener('click', () => sendCommand('RESOLVE_MARKET_CHARTER', {
+            tile: tile.name, petition_id: petition.id, decision
+          }));
+          card.appendChild(button);
+        }
+        supplyDetails.appendChild(card);
+      }
+    }
+
     // Installed Buildings
     const bldList = document.getElementById('installed-buildings-list');
     if (bldList) {

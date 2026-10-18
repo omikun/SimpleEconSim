@@ -701,6 +701,82 @@ class SimServer:
                 self.push_ticker(self.turn, 'COMMONS', msg, (120, 220, 140))
                 return {'success': True, 'message': msg}
 
+            elif c_type == CommandType.TRANSFER_LAND_TITLE:
+                tile = self.by_name.get(p.get('tile') or p.get('region'))
+                if not tile:
+                    return {'success': False, 'error': 'Territory not found.'}
+                actors = {a.id: a for a in tile.agents}
+                seller, buyer = actors.get(int(p.get('seller_id', -1))), actors.get(int(p.get('buyer_id', -1)))
+                from supply_rights import transfer_plot_title
+                event = transfer_plot_title(tile, seller, buyer, str(p.get('plot_id', '')),
+                                            p.get('price', 0), self.turn, p.get('lease_turns', 0)) if seller and buyer else None
+                ok = event is not None
+                msg = (f"{event['basis'].replace('_', ' ').title()} transferred plot {event['plot_id']} for ${event['price']:,.2f}; "
+                       f"{len(event['tenants_retained'])} tenant rights retained." if ok else
+                       'Land transfer failed: check title, cash, and parties.')
+                self.push_ticker(self.turn, 'LAND', msg, (210, 180, 100) if ok else (240, 90, 90))
+                return {'success': ok, 'message': msg, 'event': event}
+
+            elif c_type == CommandType.ACQUIRE_WATER_RIGHT:
+                tile = self.by_name.get(p.get('tile') or p.get('region'))
+                if not tile:
+                    return {'success': False, 'error': 'Territory not found.'}
+                actors = {a.id: a for a in tile.agents}
+                seller, buyer = actors.get(int(p.get('seller_id', -1))), actors.get(int(p.get('buyer_id', -1)))
+                from supply_rights import acquire_water_right
+                event = acquire_water_right(tile, seller, buyer, str(p.get('from_plot_id', '')),
+                                           str(p.get('to_plot_id', '')), p.get('units', .25),
+                                           p.get('price', 0), self.turn) if seller and buyer else None
+                ok = event is not None
+                msg = (f"Transferred {event['units']:.2f} seasonal water units to plot {event['to_plot_id']} for ${event['price']:,.2f}."
+                       if ok else 'Water-right transfer failed: check right, cash, and parties.')
+                self.push_ticker(self.turn, 'WATER', msg, (90, 180, 230) if ok else (240, 90, 90))
+                return {'success': ok, 'message': msg, 'event': event}
+
+            elif c_type == CommandType.PETITION_MARKET_CHARTER:
+                tile = self.by_name.get(p.get('tile') or p.get('region'))
+                if not tile:
+                    return {'success': False, 'error': 'Territory not found.'}
+                actors = {a.id: a for a in tile.agents}
+                sponsor = actors.get(int(p.get('sponsor_id', -1)))
+                good = next((g for g in tile.recipes
+                             if getattr(g, 'name', str(g)) == str(p.get('good', ''))), None)
+                from market_concessions import submit_concession_petition
+                petition = (submit_concession_petition(sponsor, tile, good,
+                            str(p.get('charter_type', '')), p.get('fee', 10),
+                            p.get('term_turns', 10), self.turn)
+                            if sponsor and good is not None else None)
+                ok = petition is not None
+                if petition is not None:
+                    owner = getattr(tile, 'owner_nation', None)
+                    petition['player_review'] = bool(owner and owner.name == self.player_nation_name)
+                    if petition['player_review']:
+                        petition['decision_turn'] = self.turn + 2
+                msg = (f"Charter petition #{petition['id']} submitted; the council will decide next turn."
+                       if ok else 'Charter petition failed: check sponsor, commodity, fee, and charter type.')
+                self.push_ticker(self.turn, 'CHARTER', msg, (180, 140, 230) if ok else (240, 90, 90))
+                return {'success': ok, 'message': msg, 'petition': petition}
+
+            elif c_type == CommandType.RESOLVE_MARKET_CHARTER:
+                tile = self.by_name.get(p.get('tile') or p.get('region'))
+                petition_id = int(p.get('petition_id', -1))
+                decision = str(p.get('decision', ''))
+                petition = next((item for item in getattr(tile, 'concession_petitions', [])
+                                 if item['id'] == petition_id and item['status'] == 'proposed'), None) if tile else None
+                owner = getattr(tile, 'owner_nation', None) if tile else None
+                if (petition is None or decision not in ('approve', 'reject')
+                        or not petition.get('player_review')
+                        or not owner or owner.name != self.player_nation_name):
+                    return {'success': False, 'error': 'Petition is not awaiting this government\'s decision.'}
+                petition['player_decision'] = decision
+                petition['decision_turn'] = self.turn
+                from market_concessions import decide_concession_petitions
+                events = decide_concession_petitions(tile, self.turn)
+                event = next((item for item in events if item.get('petition_id') == petition_id), None)
+                msg = f"The government {decision}d charter petition #{petition_id}."
+                self.push_ticker(self.turn, 'CHARTER', msg, (120, 210, 140) if decision == 'approve' else (230, 140, 100))
+                return {'success': event is not None, 'message': msg, 'event': event}
+
             elif c_type == CommandType.PROVINCE_DECREE:
                 prov_name = p.get('province')
                 decree = p.get('decree')
@@ -1094,6 +1170,7 @@ class SimServer:
             'display_name': getattr(plot, 'display_name', plot.plot_id),
             'tile_name': plot.tile_name,
             'lord_id': plot.lord_id,
+            'controlled_by_id': getattr(plot, 'controlled_by_id', plot.lord_id),
             'fraction': float(plot.fraction),
             'tenure': plot.tenure.value if hasattr(plot.tenure, 'value') else str(plot.tenure),
             'rent_rate': float(plot.rent_rate),
@@ -1101,6 +1178,8 @@ class SimServer:
             'pasture_since': getattr(plot, 'pasture_since', -1),
             'tenant_ids': list(getattr(plot, 'tenant_ids', [])),
             'tenant_count': len(getattr(plot, 'tenant_ids', [])),
+            'tribute_rate': float(getattr(plot, 'tribute_rate', 0.0)),
+            'customary_rights_retained': getattr(plot.tenure, 'value', str(plot.tenure)) in ('feudal', 'leasehold', 'commons'),
         }
 
     @classmethod
@@ -1202,16 +1281,60 @@ class SimServer:
 
         # Market prices
         market_prices = {}
+        market_activity = {}
         for g, rec in getattr(tile, 'recipes', {}).items():
             g_name = g.name if hasattr(g, 'name') else str(g)
             if isinstance(rec, dict) and 'price' in rec:
                 market_prices[g_name] = round(float(rec['price']), 2)
+                funded = getattr(tile, 'demand_log', {}).get(g, [])
+                offered = getattr(tile, 'supply_log', {}).get(g, [])
+                traded = getattr(tile, 'sold_log', {}).get(g, [])
+                matching_trades = [e for e in getattr(tile, 'market_trade_events', [])
+                                   if e.get('turn') == turn and e.get('good') == g_name]
+                buyers = {}
+                sellers = {}
+                for event in matching_trades:
+                    buyers[event['buyer_id']] = buyers.get(event['buyer_id'], 0) + event['quantity']
+                    sellers[event['seller_id']] = sellers.get(event['seller_id'], 0) + event['quantity']
+                physical_need = None
+                if getattr(g, 'name', '') == 'food':
+                    from nutrition import appetite_units
+                    physical_need = sum(max(0, appetite_units(a) - a.inv_get(g, 0))
+                                        for a in getattr(tile, 'agents', []) if getattr(a, 'alive', True)
+                                        and not getattr(a, 'is_corporation', False)
+                                        and not getattr(a, 'is_trader', False))
+                market_activity[g_name] = {
+                    'funded_demand': int(funded[-1]) if funded else 0,
+                    'offered_supply': int(offered[-1]) if offered else 0,
+                    'quantity_traded': int(traded[-1]) if traded else 0,
+                    'physical_need': int(physical_need) if physical_need is not None else None,
+                    'top_buyers': [{'agent_id': ident, 'quantity': qty}
+                                   for ident, qty in sorted(buyers.items(), key=lambda pair: (-pair[1], pair[0]))[:3]],
+                    'top_sellers': [{'agent_id': ident, 'quantity': qty}
+                                    for ident, qty in sorted(sellers.items(), key=lambda pair: (-pair[1], pair[0]))[:3]],
+                    'trades': matching_trades,
+                }
 
         # Stockpiles
         stockpiles = {}
         for g, amt in getattr(tile, 'stockpiles', {}).items():
             g_name = g.name if hasattr(g, 'name') else str(g)
             stockpiles[g_name] = round(float(amt), 1)
+
+        economic_actors = []
+        for actor in getattr(tile, 'agents', []):
+            if not getattr(actor, 'alive', True) or not (
+                    getattr(actor, 'is_corporation', False) or getattr(actor, 'is_lord', False)
+                    or getattr(actor, 'is_trader', False)):
+                continue
+            actor_name = getattr(actor, 'display_name', None)
+            if not isinstance(actor_name, str) or not actor_name:
+                actor_name = f"Actor {actor.id}"
+            economic_actors.append({'id': int(actor.id), 'name': actor_name,
+                                    'cash': round(float(getattr(actor, 'cash', 0.0)), 2),
+                                    'output': getattr(getattr(actor, 'output', None), 'name', None),
+                                    'type': ('corporation' if getattr(actor, 'is_corporation', False)
+                                             else 'trader' if getattr(actor, 'is_trader', False) else 'landholder')})
 
         # Completed Buildings
         buildings_list = []
@@ -1448,7 +1571,9 @@ class SimServer:
             'gdp': round(gdp_val, 1),
             'protest_energy': round(unrest_val, 2),
             'market_prices': market_prices,
+            'market_activity': market_activity,
             'stockpiles': stockpiles,
+            'economic_actors': economic_actors,
             'buildings': buildings_list,
             'construction_projects': projects_list,
             'garrison': int(getattr(tile, 'garrison', 0)),
@@ -1517,6 +1642,26 @@ class SimServer:
                 'arable_fraction': float(getattr(tenure, 'arable_fraction', 0.0)) if tenure else 0.0,
                 'plots': plots_data,
                 'survey_debts': survey_debts,
+                'water_rights_initialized': bool(getattr(tile, 'water_rights_initialized', False)),
+                'water_source_capacity': float(getattr(tile, 'water_source_capacity', 0.0)),
+                'water_allocation_turn': int(getattr(tile, 'water_allocation_turn', -1)),
+                'water_allocations': dict(getattr(tile, 'water_allocations', {})),
+                'water_rights': [
+                    {'id': r.id, 'plot_id': r.plot_id, 'holder_id': r.holder_id, 'units': r.units}
+                    for r in getattr(tile, 'water_rights', [])],
+                'offtake_contracts': [dict(c) for c in getattr(tile, 'offtake_contracts', [])
+                                      if c.get('status') == 'active'],
+                'offtake_events': list(getattr(tile, 'offtake_events', [])[-20:]),
+                'land_transfer_events': list(getattr(tile, 'land_transfer_events', [])[-20:]),
+                'water_right_events': list(getattr(tile, 'water_right_events', [])[-20:]),
+                'water_allocation_events': list(getattr(tile, 'water_allocation_events', [])[-10:]),
+                'market_charters': [dict(c) for c in getattr(tile, 'market_charters', [])
+                                    if c.get('status') == 'active'],
+                'concession_petitions': [dict(c) for c in getattr(tile, 'concession_petitions', [])
+                                         if c.get('status') == 'proposed'],
+                'concession_events': list(getattr(tile, 'concession_events', [])[-20:]),
+                'land_leases': [dict(c) for c in getattr(tile, 'land_leases', [])
+                                if c.get('status') == 'active'],
             },
             'workhouse': {
                 'active': wh_active,

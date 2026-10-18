@@ -134,10 +134,150 @@ class EliteCapitalistPlanner:
 
         return None
 
+    def _input_control_options(self, agent: Any, region: Any) -> List[Dict[str, Any]]:
+        """Score practical supply-security moves for a short-input corporation."""
+        if not getattr(agent, 'is_corporation', False) or agent.output not in region.recipes:
+            return []
+        recipe = region.recipes[agent.output]
+        if recipe.get('numInput', 0) <= 0 or recipe.get('input') is None:
+            return []
+        good = recipe['input']
+        price = float(region.recipes.get(good, {}).get('price', 1.0))
+        needed = max(1, int(recipe['numInput'] * max(1, len(getattr(agent, 'employees', [])))))
+        stock = int(agent.inv_get(good, 0))
+        shortage = max(0, needed - stock)
+        if shortage <= 0:
+            return []
+        margin = (float(recipe.get('production', 1.0))
+                  * float(recipe.get('price', 1.0)) - price * float(recipe.get('numInput', 0))
+                  - float(getattr(agent, 'wage', 0.0)) * max(1, len(getattr(agent, 'employees', []))))
+        if margin <= 0:
+            return [{'candidate': 'reduce_or_pause_output', 'feasible': True,
+                     'good': good.name, 'shortage': shortage, 'estimated_margin': margin,
+                     'score': 0.0, 'reason': 'input cost and payroll exceed expected output receipts'}]
+        urgency = min(1.0, shortage / needed)
+        options = []
+        active_contract = any(c.get('status') == 'active' and c.get('lender_id') == agent.id
+                              for c in getattr(region, 'offtake_contracts', []))
+        growers = [a for a in region.agents if a.id != agent.id and getattr(a, 'alive', True)
+                   and not getattr(a, 'is_corporation', False) and a.output == good
+                   and getattr(a, 'assigned_plot_id', None)]
+        grower = min(growers, key=lambda a: (a.cash, a.id), default=None)
+        advance = min(15.0, max(3.0, price * 2.0))
+        options.append({'candidate': 'advance_offtake', 'feasible': bool(grower and not active_contract
+                          and agent.cash >= advance + 5.0), 'good': good.name,
+                        'grower_id': grower.id if grower else None,
+                        'plot_id': getattr(grower, 'assigned_plot_id', None) if grower else None,
+                        'advance': advance, 'quantity': min(3, shortage),
+                        'unit_price': price, 'shortage': shortage,
+                        'estimated_margin': margin,
+                        'score': urgency * min(1.0, margin / max(1.0, price * needed)) * 1.2,
+                        'reason': 'fund a named grower and reserve part of the next harvest'})
+
+        if grower is not None:
+            from supply_rights import _seed_water_rights
+            _seed_water_rights(region)
+            target_plot = grower.assigned_plot_id
+            rights = getattr(region, 'water_rights', [])
+            target_units = sum(r.units for r in rights if r.plot_id == target_plot)
+            water_units = min(.25, max(0.0, 1.25 - target_units))
+            water_source = next((r for r in rights if r.plot_id != target_plot and r.units >= water_units
+                                 and any(a.id == r.holder_id and a.id != agent.id
+                                         for a in region.agents)), None)
+            if water_source is not None and water_units > 0:
+                water_seller = next((a for a in region.agents if a.id == water_source.holder_id), None)
+                options.append({'candidate': 'acquire_water_right',
+                                'feasible': bool(water_seller and agent.cash >= 5.0),
+                                'good': good.name, 'grower_id': grower.id,
+                                'from_plot_id': water_source.plot_id, 'to_plot_id': target_plot,
+                                'seller_id': water_seller.id, 'units': water_units, 'price': 5.0,
+                                'shortage': shortage,
+                                'score': urgency * min(.65, margin / max(1.0, price * needed)) * .7,
+                                'reason': 'redirect a measured seasonal allocation to a named input grower'})
+
+        controlled = [p for p in getattr(getattr(region, 'tenure', None), 'plots', [])
+                      if getattr(p, 'controlled_by_id', p.lord_id) == agent.id]
+        for plot in getattr(getattr(region, 'tenure', None), 'plots', []):
+            seller = next((a for a in region.agents if a.id == plot.lord_id), None)
+            if (plot in controlled or seller is None or seller is agent or not getattr(seller, 'alive', True)
+                    or any(l.get('plot_id') == plot.plot_id and l.get('status') == 'active'
+                           for l in getattr(region, 'land_leases', []))):
+                continue
+            lease_cost = max(5.0, price * max(.25, float(plot.fraction)) * 4.0)
+            options.append({'candidate': 'lease_input_land', 'feasible': agent.cash >= lease_cost + 5,
+                            'good': good.name, 'plot_id': plot.plot_id, 'seller_id': seller.id,
+                            'price': lease_cost, 'shortage': shortage,
+                            'score': urgency * min(.8, margin / max(1.0, price * needed)) * .6,
+                            'reason': 'lease titled land while retaining named tenants and customary tenure'})
+
+        existing = [c for c in getattr(region, 'market_charters', [])
+                    if c.get('status') == 'active' and c.get('sponsor_id') == agent.id]
+        pending = [c for c in getattr(region, 'concession_petitions', [])
+                   if c.get('status') == 'proposed' and c.get('sponsor_id') == agent.id]
+        options.append({'candidate': 'exclusive_processing_charter',
+                        'feasible': (shortage >= 2 and agent.cash >= 20 and not existing and not pending
+                                     and getattr(region, 'gov', None) is not None),
+                        'good': good.name, 'fee': 10.0, 'term_turns': 10,
+                        'shortage': shortage,
+                        'score': urgency * min(.75, margin / max(1.0, price * needed)) * .5,
+                        'reason': 'ask the government to restrict competing processors; approval is uncertain'})
+        return options
+
+    def _execute_input_control(self, agent: Any, region: Any, t: int) -> Optional[Dict[str, Any]]:
+        options = self._input_control_options(agent, region)
+        viable = [row for row in options if row.get('feasible') and row.get('score', 0) > .08]
+        if not viable:
+            return None
+        # Contracts are reversible and deliver material next harvest; leases and
+        # charters have longer consequences and need materially higher pressure.
+        viable.sort(key=lambda row: (-row['score'],
+                                    {'advance_offtake': 0, 'lease_input_land': 1,
+                                     'exclusive_processing_charter': 2}.get(row['candidate'], 9)))
+        best = viable[0]
+        good = next(g for g in region.recipes if g.name == best['good'])
+        if best['candidate'] == 'advance_offtake':
+            grower = next(a for a in region.agents if a.id == best['grower_id'])
+            from crop_credit import offer_advance
+            claim = offer_advance(agent, grower, region, best['advance'], t + 1,
+                                  best['plot_id'], lien_share=.5,
+                                  offtake_quantity=best['quantity'], offtake_price=best['unit_price'])
+            if claim is None:
+                return None
+            details = {'claim_id': claim.id, 'grower_id': grower.id,
+                       'plot_id': best['plot_id'], 'good': best['good'],
+                       'advance': best['advance'], 'quantity': best['quantity'],
+                       'unit_price': best['unit_price']}
+        elif best['candidate'] == 'acquire_water_right':
+            seller = next(a for a in region.agents if a.id == best['seller_id'])
+            from supply_rights import acquire_water_right
+            event = acquire_water_right(region, seller, agent, best['from_plot_id'],
+                                        best['to_plot_id'], best['units'], best['price'], t)
+            if event is None:
+                return None
+            details = event
+        elif best['candidate'] == 'lease_input_land':
+            seller = next(a for a in region.agents if a.id == best['seller_id'])
+            from supply_rights import transfer_plot_title
+            event = transfer_plot_title(region, seller, agent, best['plot_id'], best['price'],
+                                        turn=t, lease_turns=10)
+            if event is None:
+                return None
+            details = event
+        else:
+            from market_concessions import submit_concession_petition
+            petition = submit_concession_petition(agent, region, good, 'exclusive_processing',
+                                                   best['fee'], best['term_turns'], t)
+            if petition is None:
+                return None
+            details = petition
+        return {'action_taken': best['candidate'].upper(), 'details': details,
+                'selected_score': best['score'], 'candidate_options': options}
+
     def _elite_candidate_snapshot(self, agent: Any, region: Any, shadow_cash: float) -> List[Dict[str, Any]]:
         """Capture the actionable alternatives and gates used by elite planning."""
         candidates = [{'candidate': 'do_nothing', 'feasible': True,
                        'priority': 'fallback'}]
+        candidates.extend(self._input_control_options(agent, region))
         cash = float(getattr(agent, 'cash', 0.0))
         for good, price, prestige, quantity in self.get_market_luxuries(region):
             seller = next((person for person in getattr(region, 'agents', [])
@@ -299,8 +439,8 @@ class EliteCapitalistPlanner:
                            inputs={'opening_cash': cash_before, 'candidates': candidates,
                                    'consideration_order': [
                                        'luxury_purchase', 'triangular_trade', 'spatial_trade',
-                                       'class_legislation', 'lord_transformation',
-                                       'machinery', 'captured_labor', 'capital_investment',
+                                       'class_legislation', 'lord_transformation', 'machinery',
+                                       'supply_security', 'captured_labor', 'capital_investment',
                                        'inventory_liquidation', 'do_nothing'],
                                    'selected': result.get('action_taken') or 'do_nothing',
                                    'shadow_cash_price': shadow_cash,
@@ -450,6 +590,14 @@ class EliteCapitalistPlanner:
                         result['action_taken'] = 'CONSTRUCT_MACHINERY'
                         result['details'] = exec_res
                         return result
+
+        # First maintain the productive plant; supply-control investment follows
+        # only after a damaged firm has restored its existing capacity.
+        supply_res = self._execute_input_control(agent, region, t)
+        if supply_res:
+            result['action_taken'] = supply_res['action_taken']
+            result['details'] = supply_res['details']
+            return result
 
         # ---------------------------------------------------------------------
         # 6. Non-Lord War Capitalism: Chartered Colonial Concessions & Plantation Regimes

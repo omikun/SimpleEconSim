@@ -656,6 +656,12 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
                          'imported': is_import, 'currency': region.home_currency})
             units += take
             prices.extend([unit_price] * int(take))
+            trade_events = getattr(region, 'market_trade_events', [])
+            trade_events.append({'turn': int(t), 'good': good.name, 'buyer_id': buyer.id,
+                                 'seller_id': seller.id, 'quantity': int(take),
+                                 'unit_price': float(unit_price), 'total_paid': float(cost),
+                                 'imported': bool(is_import)})
+            region.market_trade_events = trade_events[-500:]
             remaining -= take
             rem_bids[buyer.id] = want - take
             if buyer.cash < unit_price or rem_bids[buyer.id] <= 0:
@@ -943,6 +949,23 @@ def trade(region, t):
                 })
             setattr(a, f'bid_{g.name}', bid)
             setattr(a, f'ask_{g.name}', ask)
+
+    # Active state concessions alter which funded bids may legally execute.
+    # Show the remaining eligible demand in the market totals and later fills.
+    from market_concessions import filter_chartered_bids
+    for good in goods_goods:
+        submitted = local_orders[good]['buyers']
+        filtered = filter_chartered_bids(region, good, submitted, t)
+        permitted_by_id = {row['agent'].id: int(row['quantity']) for row in filtered}
+        quote = max(0.0, float(prices.get(good, 0.0)))
+        for row in submitted:
+            buyer = row['agent']
+            permitted = permitted_by_id.get(buyer.id, 0)
+            if permitted < int(row['quantity']):
+                buyer.remainingCash += (int(row['quantity']) - permitted) * quote
+                setattr(buyer, f'bid_{good.name}', permitted)
+        local_orders[good]['buyers'] = filtered
+        total_bids[good] = sum(int(row['quantity']) for row in filtered)
 
     max_demand_ratio = 0
     most_demand_good = Goods.food

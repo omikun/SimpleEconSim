@@ -1125,6 +1125,31 @@ input[type="range"] {
   color: var(--gold);
 }
 
+.market-supply-details {
+  margin-top: 8px;
+  padding: 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 5px;
+  background: var(--bg-card);
+  color: var(--text-dim);
+  font-size: 0.7rem;
+  line-height: 1.45;
+}
+.market-supply-summary { color: var(--text-main); }
+.market-actor-line, .market-control-detail { margin-top: 4px; }
+.market-control-summary { margin-top: 7px; color: var(--gold); }
+.market-petition-card {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 7px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border-color);
+  color: var(--text-main);
+}
+.market-petition-card span { flex: 1 1 100%; }
+
 .tags-list {
   display: flex;
   flex-wrap: wrap;

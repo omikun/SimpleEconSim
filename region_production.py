@@ -25,7 +25,7 @@ def season_mult(t: int | None) -> float:
     return max(0.45, 1.0 + 0.45 * math.sin(2.0 * math.pi * (year_turn - 2) / 10.0))
 
 
-def terrain_bonus(region, good, t: int | None = None):
+def terrain_bonus(region, good, t: int | None = None, producer=None):
     """Production multiplier from terrain and installed buildings for *good* (default 1.0)."""
     base = region.terrain.get(good, 1.0)
     mult = 1.0
@@ -33,6 +33,10 @@ def terrain_bonus(region, good, t: int | None = None):
         bonuses = getattr(b, 'production_bonuses', {})
         if good in bonuses:
             mult *= bonuses[good]
+
+    if good in (Goods.food, Goods.cotton, Goods.sugar, Goods.tobacco):
+        from supply_rights import water_yield_factor
+        mult *= water_yield_factor(region, producer)
 
     # P3: Metabolic Rift & Soil Fertility for agricultural food crops
     if good == Goods.food:
@@ -159,7 +163,7 @@ def produce_corporation(region, agent, recipe, output, num_agents_per_good,
                                     + max(0.0, agreement.pace - 1.0) * 0.20 - 0.05)
         employee.workplace_accident = agreement.hours >= 14.0 or agreement.pace >= 1.75
     shift_mult = sum(effort_factors) / len(effort_factors) if effort_factors else calculate_shift_multiplier(getattr(agent, 'shift_hours', 8.0))
-    terrain_mult = terrain_bonus(region, output)
+    terrain_mult = terrain_bonus(region, output, producer=agent)
     production_per_slot = base_production * synergy * terrain_mult * shift_mult
 
     machinery = getattr(agent, 'machinery_level', 1)
@@ -329,7 +333,7 @@ def produce_independent(region, agent, recipe, output, num_agents_per_good,
                 agent.inv_add(recipe['input'], -recipe['numInput'])
                 input_price = region.recipes.get(recipe['input'], {}).get('price', 1.0)
                 inputs_cost = recipe['numInput'] * input_price
-            terrain_mult = terrain_bonus(region, output)
+            terrain_mult = terrain_bonus(region, output, producer=agent)
             from labor_choice import occupational_tenure_multiplier
             cur_turn = int(getattr(region, '_last_turn', 0) or 0)
             tenure_mult = occupational_tenure_multiplier(agent, output, cur_turn)

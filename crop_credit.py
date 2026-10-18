@@ -4,7 +4,8 @@ from livelihood_access import assess_obligation
 
 
 def offer_advance(lender, cultivator, region, amount, due_turn, collateral_plot_id,
-                  interest_rate=0.0, lien_share=0.5):
+                  interest_rate=0.0, lien_share=0.5, offtake_quantity=0,
+                  offtake_price=None):
     amount = max(0.0, float(amount))
     plot = getattr(region, 'tenure', None)
     plot = plot.find_plot(collateral_plot_id) if plot is not None else None
@@ -23,11 +24,96 @@ def offer_advance(lender, cultivator, region, amount, due_turn, collateral_plot_
     claim.lien_share = max(0.0, min(1.0, float(lien_share)))
     claim.lien_good = getattr(cultivator, 'output', None)
     claim.lien_settled_turn = -1
+    if offtake_quantity > 0 and offtake_price is not None:
+        price = max(0.01, float(offtake_price))
+        quantity = max(0, int(offtake_quantity))
+        contract = {
+            'id': getattr(region, '_next_offtake_id', 1), 'lender_id': lender.id,
+            'grower_id': cultivator.id, 'plot_id': collateral_plot_id,
+            'good': getattr(claim.lien_good, 'name', str(claim.lien_good)),
+            'quantity': quantity, 'remaining': quantity, 'unit_price': price,
+            'due_turn': int(due_turn), 'claim_id': claim.id, 'status': 'active',
+            'fallback_lien_share': max(0.0, min(1.0, float(lien_share))),
+            'created_turn': getattr(region, '_last_turn', 0),
+        }
+        region._next_offtake_id = contract['id'] + 1
+        if not hasattr(region, 'offtake_contracts'):
+            region.offtake_contracts = []
+        region.offtake_contracts.append(contract)
+        claim.lien_share = 0.0  # contract delivery supersedes the generic crop lien
     region.obligation_events = (getattr(region, 'obligation_events', []) + [
         {'turn': getattr(region, '_last_turn', 0), 'event': 'advance', 'claim_id': claim.id,
          'lender_id': lender.id, 'cultivator_id': cultivator.id, 'amount': amount}
     ])[-500:]
     return claim
+
+
+def settle_offtake_contracts(region, turn):
+    """Settle contracted harvest before spot-market asks; deliver only actual crop."""
+    agents = {a.id: a for a in getattr(region, 'agents', [])}
+    receipts = getattr(region, 'production_receipts', [])
+    events = []
+    for contract in sorted(getattr(region, 'offtake_contracts', []), key=lambda c: c['id']):
+        if contract.get('status') != 'active' or contract.get('due_turn', turn) > turn:
+            continue
+        grower, buyer = agents.get(contract['grower_id']), agents.get(contract['lender_id'])
+        good_name = contract['good']
+        good = next((g for g in region.recipes if getattr(g, 'name', str(g)) == good_name), None)
+        if grower is None or buyer is None or good is None or not grower.alive or not buyer.alive:
+            continue
+        available = sum(max(0, int(r['quantity'])) for r in receipts
+                        if r['person_id'] == grower.id and r['good'] == good)
+        take = min(available, int(contract.get('remaining', 0)))
+        claim = next((c for c in getattr(region, 'cash_obligations', [])
+                      if c.id == contract['claim_id']), None)
+        if take <= 0:
+            if turn > contract.get('due_turn', turn):
+                contract['status'] = 'defaulted'
+                if claim:
+                    claim.lien_share = float(contract.get('fallback_lien_share', 0.0))
+            continue
+        due_value = take * float(contract['unit_price'])
+        credit = min(due_value, max(0.0, float(claim.balance))) if claim else 0.0
+        cash_due = due_value - credit
+        paid = min(cash_due, max(0.0, float(buyer.cash)))
+        # The prepaid portion is the contracted crop purchase; buyer cannot take
+        # more crop than its remaining cash plus the grower's outstanding credit.
+        deliver = min(take, int((credit + paid) // max(0.01, float(contract['unit_price']))))
+        if deliver <= 0:
+            continue
+        value = deliver * float(contract['unit_price'])
+        credit_used = min(value, max(0.0, float(claim.balance))) if claim else 0.0
+        cash_paid = value - credit_used
+        buyer.cash -= cash_paid
+        grower.cash += cash_paid
+        grower.inv_add(good, -deliver)
+        buyer.inv_add(good, deliver)
+        if claim:
+            claim.balance = max(0.0, claim.balance - credit_used)
+            if claim.balance <= 1e-9:
+                claim.balance = 0.0
+                claim.status = 'paid'
+        left = deliver
+        for receipt in receipts:
+            if receipt['person_id'] == grower.id and receipt['good'] == good and left:
+                used = min(left, int(receipt['quantity']))
+                receipt['quantity'] -= used
+                left -= used
+        contract['remaining'] -= deliver
+        if contract['remaining'] <= 0:
+            contract['status'] = 'fulfilled'
+        events.append({'turn': turn, 'contract_id': contract['id'], 'grower_id': grower.id,
+                       'buyer_id': buyer.id, 'good': good_name, 'quantity': deliver,
+                       'unit_price': float(contract['unit_price']), 'cash_paid': round(cash_paid, 2),
+                       'advance_credit': round(credit_used, 2), 'status': contract['status']})
+    region.offtake_events = (getattr(region, 'offtake_events', []) + events)[-500:]
+    from run_trace import emit
+    for event in events:
+        emit(region, kind='offtake_settlement', record_class='outcome',
+             subject={'type': 'contract', 'id': event['contract_id']},
+             metric_id='contract.crop_delivery', unit=event['good'], after=event['quantity'],
+             formula_id='supply.offtake.fixed_price.v1', inputs=event)
+    return events
 
 
 def create_tenancy_agreement(region, tenant, landlord, plot_id, kind='cash_rent',

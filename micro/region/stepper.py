@@ -32,6 +32,8 @@ def step_economy(region: Any, t: int):
     """Per-tile economy and institutional flows."""
     legacy = getattr(region, 'province', None) is None
     region._last_turn = t
+    from supply_rights import expire_land_leases
+    expire_land_leases(region, t)
 
     from nutrition import update_dependent_need
     for person in region.agents:
@@ -65,6 +67,8 @@ def step_economy(region: Any, t: int):
     # A labor-law petition takes effect only after its later decision window.
     from labor_laws import decide_labor_laws
     decide_labor_laws(region, t)
+    from market_concessions import decide_concession_petitions
+    decide_concession_petitions(region, t)
 
     # Named rent and fixed cash tax claims are assessed before workers compare offers.
     from livelihood_access import assess_obligation, settle_obligations
@@ -133,6 +137,8 @@ def step_economy(region: Any, t: int):
 
     # Production
     from collective_action import record_production
+    from supply_rights import allocate_seasonal_water
+    allocate_seasonal_water(region, t)
     firm_inventory_before = {a.id: a.inv_get(a.output, 0) for a in region.agents
                              if a.alive and a.is_corporation}
     _prod.produce(region, t)
@@ -150,7 +156,8 @@ def step_economy(region: Any, t: int):
     region.tribute_collected_log.append(tribute_val)
 
     # Crop liens and share tenancy claim only this turn's independently produced harvest.
-    from crop_credit import settle_crop_liens, settle_crop_shares
+    from crop_credit import settle_crop_liens, settle_crop_shares, settle_offtake_contracts
+    settle_offtake_contracts(region, t)
     settle_crop_liens(region, t)
     settle_crop_shares(region, t)
 

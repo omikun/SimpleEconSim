@@ -66,6 +66,32 @@ class TestWebClientParity(unittest.TestCase):
         self.assertIn('adult_residents', counts)
         self.assertIn('hungry_adults', counts)
         self.assertIn('livelihoods', data['labor_institutions'])
+        self.assertIn('market_activity', data)
+        self.assertIn('economic_actors', data)
+        self.assertIn('water_rights', data['tenure'])
+        self.assertIn('market_charters', data['tenure'])
+
+    def test_player_can_review_market_charter_and_inspect_supply_controls(self):
+        tile = next(t for t in self.sim.tiles
+                    if getattr(t, 'owner_nation', None)
+                    and t.owner_nation.name == self.sim.player_nation_name)
+        sponsor = tile.agents[0]
+        sponsor.cash = 100.0
+        tile.recipes.setdefault(__import__('goods').Goods.cotton, {'price': 5.0})
+        petition_result = self.sim.execute_command(CommandMessage(CommandType.PETITION_MARKET_CHARTER, {
+            'tile': tile.name, 'sponsor_id': sponsor.id, 'good': 'cotton',
+            'charter_type': 'exclusive_buying', 'fee': 10, 'term_turns': 5,
+        }))
+        self.assertTrue(petition_result['success'], petition_result)
+        petition = petition_result['petition']
+        self.assertTrue(petition['player_review'])
+        resolution = self.sim.execute_command(CommandMessage(CommandType.RESOLVE_MARKET_CHARTER, {
+            'tile': tile.name, 'petition_id': petition['id'], 'decision': 'approve',
+        }))
+        self.assertTrue(resolution['success'], resolution)
+        self.assertTrue(any(c['status'] == 'active' for c in tile.market_charters))
+        data = self.sim.serialize_tile(tile, turn=self.sim.turn)
+        self.assertTrue(data['tenure']['market_charters'])
 
     def test_build_command(self):
         p_nat = self.sim.player_nation_name

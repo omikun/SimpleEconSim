@@ -121,4 +121,26 @@ Make a commit after each phase that passes its gate. The first slice may be comm
 - The capitalist planner no longer transfers spatial luxury goods, input goods, or output goods directly between neighboring agents. Imports arrive through trader inventories and destination auctions.
 - Added `test_market_routes.py` for general commodity shipment, delivery into the import pool, destination auction settlement, and trader response to input shortages. These tests and the Phase 1 market tests pass. Broader geographic and UI test files have environment failures from unavailable `scipy`/`pygame`; one unrelated death-context fixture also fails.
 
-**Next:** Phase 3 makes advances/offtake, land ownership, and seasonal water allocations explicit asset and claim transfers. The political concession layer in Phase 4 will then operate on those same real rights.
+### Phase 3 — complete (2026-10-18)
+
+- Advances may include a named fixed-price crop offtake contract. The grower receives cash immediately; only independently recorded harvest is delivered, and contract deliveries reduce the receipt before spot asks. The paid cash plus debt credit reconcile against contract price; a missed harvest defaults and restores the ordinary lien path.
+- Voluntary plot title sales and fixed-term leases move real cash. Sales update the title holder; leases grant and expire control. Both preserve tenant and tenure/customary-right records.
+- Added plot-linked seasonal water entitlements and finite allocation from source capacity, rainfall (including the low-flood scenario modifier), and canal condition. Water rights transfer between named plots for payment and change crop yield by the plot allocation. Allocation and acquisition events carry IDs and trace inputs.
+- State snapshots expose active contracts, land leases/transfers, water allocations/rights, and histories; the world cache's pickle save/load retains these records. Added tests for cash/inventory conservation, title and tenant retention, water diversion and yield, missed claim settlement, and pickle persistence.
+- Corporate AI now scores advances/offtake, water reallocation, land lease, and exclusive-processing petitions when profitable output is input constrained.
+
+### Phase 4 — complete (2026-10-18)
+
+- Added delayed, fee-funded petitions for exclusive buying, exclusive processing, and route concessions. The government AI considers legitimacy, supplier concentration, jobs, public treasury, food pressure, and strategic goods. Player-territory petitions wait for an explicit approve/reject decision with a two-turn deadline.
+- Charters alter actual executable buyer quantities or trader route shipments, while finite enforcement permits measured leakage. Suppressed orders create opposition; severe opposition or unrest repeals a charter, and all charters expire by term.
+- Petition snapshots state beneficiaries, exposed growers, restricted rivals, alternatives, expected effects, and uncertainty. Trace records include decision score, enforcement, leakage, opposition, and expiry/repeal causes.
+- Added command and serialization coverage for petition review, buyer restrictions, route leakage, and repeal. Market settlement remains the same priced auction.
+
+### Phase 5 — complete (2026-10-18)
+
+- Corporate planning scores four input-security options and executes the highest viable choice, after repairing existing productive machinery. It records candidate feasibility and selected action through the existing AI decision/outcome trace.
+- Government decisions now produce a reviewable brief. The web client shows funded demand, offered supply, quantity traded, physical food need, paid local and imported prices, top buyers and sellers, offtake terms, seasonal water allocations, and active charters. It lets the player approve/reject petitions from their territory.
+- The desktop HUD shows local supply-control counts and the latest paid fill. Both interfaces now distinguish observed fills from the reference quote and expose named supply rights.
+- Added JSON serialization and UI action parity tests. A seeded 50-turn default three-nation run reached turn 50 across 80 tiles: food reference prices ranged $1.00–$3.63, 111 corporations were active, 5 offtake contracts and 1 charter remained active, and 600 seasonal water allocation events were recorded. The full world snapshot serialized to JSON. The compact trace recorded 1,437,703 causal events; inspection confirmed AI decisions, 104 contract settlements, 109 water-right transfers, and charter-enforcement events.
+
+**Verification note:** Focused auction, route, supply-right, capitalist-planner, web serialization, charter decision, and parity tests pass (38 tests). JavaScript syntax and Python compilation pass. A desktop render test is blocked by the host's OpenGL setup (`cannot choose pixel format`); the changed desktop HUD module compiles, and web tests pass. The 50-turn full-map run passed and its serialized snapshot is valid JSON.

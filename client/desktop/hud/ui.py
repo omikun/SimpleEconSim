@@ -1128,6 +1128,59 @@ def draw_panel(surface, world, font, font_small, mouse_pos=None):
         surface.blit(col_line, (PANEL_LEFT, y_cursor))
         y_cursor += 16
 
+        water_alloc = sum(float(v) for v in getattr(region, 'water_allocations', {}).values())
+        water_capacity = float(getattr(region, 'water_source_capacity', 0.0))
+        active_advances = sum(1 for c in getattr(region, 'offtake_contracts', [])
+                              if c.get('status') == 'active')
+        active_charters = sum(1 for c in getattr(region, 'market_charters', [])
+                              if c.get('status') == 'active')
+        pending_charters = sum(1 for c in getattr(region, 'concession_petitions', [])
+                               if c.get('status') == 'proposed')
+        supply_line = font_small.render(
+            f"Supply control: water {water_alloc:.1f}/{water_capacity:.1f} | "
+            f"contracts {active_advances} | charters {active_charters} | petitions {pending_charters}",
+            True, (220, 190, 125) if active_advances or active_charters or pending_charters else DIM)
+        surface.blit(supply_line, (PANEL_LEFT, y_cursor))
+        y_cursor += 16
+        latest_trade = next((event for event in reversed(getattr(region, 'market_trade_events', []))
+                             if event.get('turn') == getattr(region, '_last_turn', -1)), None)
+        if latest_trade:
+            fill_line = font_small.render(
+                f"Latest fill: {latest_trade['quantity']} {latest_trade['good']} @ "
+                f"{latest_trade['unit_price']:.2f} ({'route' if latest_trade['imported'] else 'local'})",
+                True, (150, 210, 220))
+            surface.blit(fill_line, (PANEL_LEFT, y_cursor))
+            y_cursor += 16
+        food_funded = getattr(region, 'demand_log', {}).get(Goods.food, [])
+        food_offered = getattr(region, 'supply_log', {}).get(Goods.food, [])
+        food_filled = getattr(region, 'sold_log', {}).get(Goods.food, [])
+        food_need = sum(1 for person in getattr(region, 'agents', [])
+                        if getattr(person, 'alive', True) and getattr(person, 'hungry_steps', 0) > 0)
+        market_line = font_small.render(
+            f"Food: {food_offered[-1] if food_offered else 0} offered / "
+            f"{food_funded[-1] if food_funded else 0} funded / "
+            f"{food_filled[-1] if food_filled else 0} filled | hungry {food_need}",
+            True, (230, 165, 125) if food_need else DIM)
+        surface.blit(market_line, (PANEL_LEFT, y_cursor))
+        y_cursor += 16
+        if active_advances:
+            contract = next(c for c in region.offtake_contracts if c.get('status') == 'active')
+            contract_line = font_small.render(
+                f"Offtake: {contract['remaining']} {contract['good']} pledged @ "
+                f"{contract['unit_price']:.2f} to buyer {contract['lender_id']}",
+                True, (220, 190, 125))
+            surface.blit(contract_line, (PANEL_LEFT, y_cursor))
+            y_cursor += 16
+        if active_charters:
+            charter = next(c for c in region.market_charters if c.get('status') == 'active')
+            charter_line = font_small.render(
+                f"Charter: {charter['type'].replace('_', ' ')} {charter['good']} · "
+                f"enforcement {float(charter.get('enforcement', 0)):.0%} · "
+                f"opposition {float(charter.get('opposition', 0)):.0f}",
+                True, (220, 160, 210))
+            surface.blit(charter_line, (PANEL_LEFT, y_cursor))
+            y_cursor += 16
+
         # Chart Category Switcher [ 📈 Macro ] [ 🌿 Ecology & Health ]
         chart_mode = world.get('tile_chart_mode', 'econ')
         btn_w = (WIDTH - PANEL_LEFT - 14) // 2
