@@ -817,3 +817,14 @@ Verification: the dedicated quarantine parity test, all five trade-route
 epidemic tests, and both labor-law trace tests passed (8 total). Compilation
 and `git diff --check` passed. Anti-truck policy effects and remaining labor-law
 transitions remain open for tracing.
+
+The Anti-Truck Act now records the decree decision, tile law states, corporate
+scrip-to-cash switches, company-debt writeoffs, debtor despair relief, and
+faction-support changes. It also records that the requested truck-system
+grievance reduction currently has no effect because `Faction.add_grievance`
+ignores negative amounts; this documents current behavior without changing it.
+
+Verification: the dedicated trace-on/off parity test, the existing scrip and
+debt-peonage regression, labor enforcement, quarantine, and labor-law trace
+tests passed (12 total). Trace metrics are catalogued and instrumented.
+Compilation and `git diff --check` passed.

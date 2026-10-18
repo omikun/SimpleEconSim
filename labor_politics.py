@@ -586,27 +586,84 @@ def enact_anti_truck_act(target) -> Tuple[bool, str]:
     - Factions: Labor/Peasant gain +15 approval, Bourgeoisie loses -10.
     """
     tiles = getattr(target, 'tiles', [target]) if hasattr(target, 'tiles') else [target]
+    trace_region, turn, operation_id = _labor_trace_context(
+        target, 'anti_truck_act')
+    target_before = bool(getattr(target, 'truck_act_enacted', False)) if trace_region is not None else None
+    snapshots = []
+    decision_event_id = None
+    if trace_region is not None:
+        for tile in tiles:
+            agents = list(getattr(tile, 'agents', []))
+            snapshots.append({
+                'law_before': bool(getattr(tile, 'truck_act_enacted', False)),
+                'corporate_pay_modes': [
+                    (agent, getattr(agent, 'pay_mode', None))
+                    for agent in agents
+                    if getattr(agent, 'is_corporation', False)],
+                'debtor_state': [
+                    (agent, float(agent.company_debt),
+                     float(getattr(agent, 'despair', 0.0)))
+                    for agent in agents
+                    if getattr(agent, 'company_debt', 0.0) > 0],
+            })
+        decision_event_id = _emit_labor_policy_event(
+            trace_region, kind='anti_truck_act_decision',
+            record_class='decision',
+            subject={'type': 'nation/action',
+                     'id': getattr(target, 'name', 'unnamed')},
+            metric_id='scenario.labor_law_gate', unit='accepted', after=True,
+            inputs={'operation_id': operation_id, 'turn': turn,
+                    'action_id': 'nat_truck_act',
+                    'law_active_before': target_before,
+                    'tile_count': len(tiles),
+                    'corporations_reviewed': sum(
+                        len(row['corporate_pay_modes']) for row in snapshots),
+                    'debtor_count': sum(len(row['debtor_state'])
+                                        for row in snapshots),
+                    'reason': 'anti_truck_decree_applied'})
     debt_discharged_total = 0.0
     peons_freed = 0
+    corporate_payment_mode_changes = 0
+    debt_event_ids = []
+    tile_event_ids = []
 
-    for tile in tiles:
+    for index, tile in enumerate(tiles):
+        tile_debt_event_ids = []
         tile.truck_act_enacted = True
         for a in getattr(tile, 'agents', []):
             if getattr(a, 'is_corporation', False):
+                payment_mode_before = (getattr(a, 'pay_mode', None)
+                                       if trace_region is not None else None)
                 a.pay_mode = "cash"
+                if (trace_region is not None
+                        and payment_mode_before != a.pay_mode):
+                    corporate_payment_mode_changes += 1
+                    _emit_labor_policy_event(
+                        trace_region, kind='anti_truck_payment_mode_outcome',
+                        subject={'type': 'corporation', 'id': str(a.id),
+                                 'tile': tile.name},
+                        metric_id='labor.company_payment_mode', unit='pay_mode',
+                        before=payment_mode_before, after='cash',
+                        inputs={'operation_id': operation_id, 'turn': turn,
+                                'law': 'anti_truck_act',
+                                'reason': 'company_scrip_outlawed'},
+                        cause_event_ids=([decision_event_id]
+                                         if decision_event_id else None))
             if getattr(a, 'company_debt', 0.0) > 0:
                 debt_before = float(a.company_debt)
+                despair_before = (float(getattr(a, 'despair', 0.0))
+                                  if trace_region is not None else None)
                 debt_discharged_total += debt_before
                 a.company_debt = 0.0
                 peons_freed += 1
                 a.despair = max(0.0, getattr(a, 'despair', 0.0) - 0.20)
                 a.mem_push('mem_promises', 1.0)
                 creditor_id = getattr(getattr(a, 'employer', None), 'id', None)
-                turn = (getattr(tile, '_collective_trace_clock', {}) or {}).get(
+                event_turn = (getattr(tile, '_collective_trace_clock', {}) or {}).get(
                     'turn', getattr(tile, '_last_turn', 0))
                 from economy.actor_accounts import record as record_economic_event
                 event = record_economic_event(
-                    tile, 'company_debt_writeoff', turn=turn,
+                    tile, 'company_debt_writeoff', turn=event_turn,
                     payer_id=a.id, recipient_id=creditor_id,
                     amount=debt_before,
                     asset_id=f'company-debt:{creditor_id or tile.name}:{a.id}',
@@ -615,25 +672,135 @@ def enact_anti_truck_act(target) -> Tuple[bool, str]:
                             'company_debt_before': debt_before,
                             'company_debt_after': 0.0})
                 from run_trace import emit
-                emit(tile, kind='company_store_debt_cancelled',
-                     record_class='outcome', phase='policy',
-                     subject={'type': 'tile', 'id': tile.name,
-                              'worker_id': a.id, 'creditor_id': creditor_id},
-                     metric_id='finance.company_debt_writeoff',
-                     unit=getattr(tile, 'home_currency', None) or 'local_currency',
-                     before=debt_before, after=0.0,
-                     inputs={'economic_event_id': event['id'],
-                             'debtor_id': a.id, 'creditor_id': creditor_id,
-                             'law': 'anti_truck_act'})
+                debt_trace_event_id = emit(
+                    tile, kind='company_store_debt_cancelled',
+                    record_class='outcome', phase='policy_action',
+                    subject={'type': 'tile', 'id': tile.name,
+                             'worker_id': a.id, 'creditor_id': creditor_id},
+                    metric_id='finance.company_debt_writeoff',
+                    unit=getattr(tile, 'home_currency', None) or 'local_currency',
+                    before=debt_before, after=0.0,
+                    inputs={'economic_event_id': event['id'],
+                            'operation_id': operation_id,
+                            'debtor_id': a.id, 'creditor_id': creditor_id,
+                            'law': 'anti_truck_act'},
+                    cause_event_ids=([decision_event_id]
+                                     if decision_event_id else None))
+                if debt_trace_event_id is not None:
+                    debt_event_ids.append(debt_trace_event_id)
+                    tile_debt_event_ids.append(debt_trace_event_id)
+                if trace_region is not None:
+                    _emit_labor_policy_event(
+                        trace_region, kind='anti_truck_despair_outcome',
+                        subject={'type': 'agent', 'id': str(a.id),
+                                 'tile': tile.name},
+                        metric_id='labor.despair', unit='ratio',
+                        before=despair_before, after=float(a.despair),
+                        inputs={'operation_id': operation_id, 'turn': turn,
+                                'company_debt_before': debt_before,
+                                'company_debt_after': 0.0,
+                                'despair_reduction_requested': 0.20,
+                                'promise_memory_seeded': 1.0},
+                        cause_event_ids=([debt_trace_event_id]
+                                         if debt_trace_event_id else
+                                         [decision_event_id]
+                                         if decision_event_id else None))
         factions = getattr(getattr(tile, 'factions', None), 'factions', {})
         for fname in ('Labor', 'Peasant', 'Commoners'):
             if fname in factions:
+                support_before = (float(factions[fname].support)
+                                  if trace_region is not None else None)
+                grievance_before = (float(factions[fname].grievances.get(
+                    'truck_system', 0.0)) if trace_region is not None else None)
                 factions[fname].support = min(1.0, factions[fname].support + 0.15)
                 factions[fname].add_grievance('truck_system', -2.0)
+                if trace_region is not None:
+                    _emit_labor_policy_event(
+                        trace_region, kind='anti_truck_faction_support_outcome',
+                        subject={'type': 'tile/faction', 'id': fname,
+                                 'tile': tile.name},
+                        metric_id='politics.faction_support', unit='ratio',
+                        before=support_before, after=float(factions[fname].support),
+                        inputs={'operation_id': operation_id, 'turn': turn,
+                                'support_change':
+                                float(factions[fname].support) - support_before,
+                                'law': 'anti_truck_act'},
+                        cause_event_ids=([decision_event_id]
+                                         if decision_event_id else None))
+                    grievance_after = float(factions[fname].grievances.get(
+                        'truck_system', 0.0))
+                    _emit_labor_policy_event(
+                        trace_region, kind='anti_truck_grievance_outcome',
+                        subject={'type': 'tile/faction', 'id': fname,
+                                 'tile': tile.name},
+                        metric_id='politics.grievance', unit='score',
+                        before=grievance_before, after=grievance_after,
+                        inputs={'operation_id': operation_id, 'turn': turn,
+                                'grievance_source': 'truck_system',
+                                'requested_grievance_change': -2.0,
+                                'actual_grievance_change':
+                                grievance_after - grievance_before,
+                                'negative_adjustment_accepted':
+                                grievance_after != grievance_before,
+                                'law': 'anti_truck_act'},
+                        cause_event_ids=([decision_event_id]
+                                         if decision_event_id else None))
         if 'Bourgeoisie' in factions:
+            support_before = (float(factions['Bourgeoisie'].support)
+                              if trace_region is not None else None)
             factions['Bourgeoisie'].support = max(0.0, factions['Bourgeoisie'].support - 0.10)
+            if trace_region is not None:
+                _emit_labor_policy_event(
+                    trace_region, kind='anti_truck_faction_support_outcome',
+                    subject={'type': 'tile/faction', 'id': 'Bourgeoisie',
+                             'tile': tile.name},
+                    metric_id='politics.faction_support', unit='ratio',
+                    before=support_before,
+                    after=float(factions['Bourgeoisie'].support),
+                    inputs={'operation_id': operation_id, 'turn': turn,
+                            'support_change':
+                            float(factions['Bourgeoisie'].support) - support_before,
+                            'law': 'anti_truck_act'},
+                    cause_event_ids=([decision_event_id]
+                                     if decision_event_id else None))
+
+        if trace_region is not None:
+            snapshot = snapshots[index]
+            tile_event_id = _emit_labor_policy_event(
+                trace_region, kind='anti_truck_tile_state_outcome',
+                subject={'type': 'tile', 'id': tile.name},
+                metric_id='labor.truck_act_state', unit='enacted',
+                before=snapshot['law_before'], after=True,
+                inputs={'operation_id': operation_id, 'turn': turn,
+                        'debt_discharged_on_tile': sum(
+                            debt for agent, debt, _despair
+                            in snapshot['debtor_state']),
+                        'peons_freed_on_tile': len(snapshot['debtor_state'])},
+                cause_event_ids=([decision_event_id] + tile_debt_event_ids
+                                 if decision_event_id else
+                                 tile_debt_event_ids or None))
+            if tile_event_id:
+                tile_event_ids.append(tile_event_id)
 
     setattr(target, 'truck_act_enacted', True)
+    if trace_region is not None:
+        _emit_labor_policy_event(
+            trace_region, kind='anti_truck_act_outcome',
+            subject={'type': 'nation/action',
+                     'id': getattr(target, 'name', 'unnamed')},
+            metric_id='scenario.anti_truck_act', unit='policy_result',
+            before=target_before, after='enacted',
+            inputs={'operation_id': operation_id, 'turn': turn,
+                    'tile_count': len(tiles),
+                    'corporate_payment_modes_changed':
+                    corporate_payment_mode_changes,
+                    'peons_freed': peons_freed,
+                    'company_debt_discharged': debt_discharged_total,
+                    'target_act_before': target_before,
+                    'target_act_after': True,
+                    'negative_truck_system_grievance_adjustment_effective': False},
+            cause_event_ids=([decision_event_id] + tile_event_ids + debt_event_ids
+                             if decision_event_id else tile_event_ids + debt_event_ids or None))
     return True, f"Anti-Truck Act enacted: Company scrip abolished! ({peons_freed} debt peons freed, ${debt_discharged_total:.0f} company debt cancelled)."
 
 

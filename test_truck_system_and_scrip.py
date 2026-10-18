@@ -154,10 +154,10 @@ class TestTruckSystemAndScrip(unittest.TestCase):
         self.assertEqual(writeoff['currency'], 'USD')
         self.assertEqual(writeoff['payer_id'], worker.id)
         self.assertEqual(writeoff['recipient_id'], corp.id)
-        self.assertEqual(tile._run_trace.rows[0]['metric_id'],
-                         'finance.company_debt_writeoff')
-        self.assertEqual(tile._run_trace.rows[0]['before'], 25.0)
-        self.assertEqual(tile._run_trace.rows[0]['after'], 0.0)
+        debt_trace = next(row for row in tile._run_trace.rows
+                          if row.get('metric_id') == 'finance.company_debt_writeoff')
+        self.assertEqual(debt_trace['before'], 25.0)
+        self.assertEqual(debt_trace['after'], 0.0)
 
         # Now verify pay_wages under enacted Truck Act:
         # Firm cannot pay in scrip even if low cash

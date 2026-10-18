@@ -1174,3 +1174,14 @@ support. The operation is explicitly recorded as a non-cash policy action.
 Verification: one dedicated quarantine parity test, all five trade-route
 epidemic tests, and two labor-law trace tests passed (8 total). Compilation and
 `git diff --check` passed. Anti-truck policy effects remain open.
+
+Phase 4 follow-up, 2026-10-18: the Anti-Truck Act now traces its decision,
+tile and national law state, corporate payment-mode changes, debt cancellation,
+debtor despair relief, and faction-support changes. It also records that the
+negative truck-grievance adjustment requested by the action is ignored by the
+current faction API, so the trace explains the unchanged grievance.
+
+Verification: the dedicated trace-on/off parity test, existing scrip and
+debt-peonage regression, labor enforcement, quarantine, and labor-law trace
+tests passed (12 total). The metric catalog and instrumented set include all
+new policy metrics. Compilation and `git diff --check` passed.
