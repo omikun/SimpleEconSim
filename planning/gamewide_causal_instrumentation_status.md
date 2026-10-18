@@ -854,3 +854,17 @@ Verification: the dedicated backlash trace tests and full supply-control actor
 strategy suite passed (47 total), including trace-on/off parity, domestic cash
 and FX-wallet conservation, candidate selection, donor thresholds, and closed
 gates. Compilation and `git diff --check` passed.
+
+Regime-driven labor-law repeal now records its gates and tile/workplace
+outcomes. This trace exposed a state mismatch in the existing mechanic: the
+nation cap returns to 16 hours, but tile `workday_cap` and `ten_hour_act` flags
+can remain at 10 hours, and firms keep their current shifts. The general
+repeal path also leaves the Statute of Laborers wage cap and Anti-Truck Act
+active; the trace lists those laws as present but untouched. This is documented
+as a gameplay consistency issue for a follow-up, separately from the completed
+observability change.
+
+Verification: two dedicated repeal tests, both existing labor-law trace tests,
+and all three statutory workday trace tests passed (7 total), including
+trace-on/off parity, stale tile and firm state, and laws outside this repeal
+path. Compilation and `git diff --check` passed.

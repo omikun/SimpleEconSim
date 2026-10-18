@@ -1213,3 +1213,17 @@ strategy suite passed (47 total), covering trace-on/off parity, cash and
 foreign-currency-wallet transfers, account conservation, candidate choice,
 liquidity thresholds, and missing-candidate/no-law gates. Compilation and
 `git diff --check` passed.
+
+Phase 4 follow-up, 2026-10-18: regime labor-law repeal now records the action
+gate, national and tile workday/safety states, and firm shift hours. It also
+reports active wage-cap and Anti-Truck laws that this general repeal function
+does not handle. Instrumentation exposed an existing consistency issue: the
+national cap is restored to 16 hours while tile `workday_cap`/`ten_hour_act`
+and firm shifts may remain at 10. Keep this behavior fix as an explicit
+gameplay follow-up rather than silently interpreting the repeal message as a
+complete workplace-level reversal.
+
+Verification: two dedicated repeal tests, two labor-law tests, and all three
+workday tests passed (7 total), with trace-on/off parity and explicit checks
+for the unreconciled tile and firm state. Compilation and `git diff --check`
+passed.

@@ -782,19 +782,163 @@ def capitalist_electoral_backlash(nation, candidates: list, t: int) -> float:
 
 def repeal_labor_laws(nation) -> Dict[str, Any]:
     """Repeal pro-labor legislation when a capitalist/reactionary regime takes power."""
+    tiles = getattr(nation, 'tiles', [])
+    trace_region, turn, operation_id = _labor_trace_context(
+        nation, 'repeal_labor_laws')
+    ten_hour_before = bool(getattr(nation, 'ten_hour_act', False))
+    national_workday_before = float(getattr(nation, 'max_workday_hours', 16.0))
+    safety_before = bool(getattr(nation, 'factory_safety_act', False))
+    repeal_workday = (ten_hour_before or national_workday_before < 14.0)
+    repeal_safety = safety_before
+    other_law_state = {
+        'statute_of_laborers_active': bool(
+            getattr(nation, 'statute_of_laborers', False)),
+        'maximum_wage_cap': (
+            float(nation.maximum_wage_cap)
+            if getattr(nation, 'maximum_wage_cap', None) is not None else None),
+        'anti_truck_act_active': bool(
+            getattr(nation, 'truck_act_enacted', False)),
+    }
+    tile_snapshots = []
+    if trace_region is not None:
+        for tile in tiles:
+            tile_workday_before = float(getattr(
+                tile, 'max_workday_hours', national_workday_before))
+            tile_workday_cap_before = getattr(tile, 'workday_cap', None)
+            if tile_workday_cap_before is None:
+                tile_workday_cap_before = tile_workday_before
+            tile_snapshots.append({
+                'tile': tile,
+                'workday_before': tile_workday_before,
+                'workday_cap_before': float(tile_workday_cap_before),
+                'ten_hour_act_before': bool(getattr(tile, 'ten_hour_act', False)),
+                'safety_before': bool(getattr(tile, 'factory_safety_act', False)),
+                'firms': [
+                    (agent, float(agent.shift_hours))
+                    for agent in getattr(tile, 'agents', [])
+                    if getattr(agent, 'is_corporation', False)
+                    and hasattr(agent, 'shift_hours')],
+            })
+    decision_event_id = None
+    if trace_region is not None:
+        decision_event_id = _emit_labor_policy_event(
+            trace_region, kind='labor_law_repeal_decision',
+            record_class='decision',
+            subject={'type': 'nation/action',
+                     'id': getattr(nation, 'name', 'unnamed')},
+            metric_id='scenario.labor_law_gate', unit='accepted',
+            before=False, after=bool(repeal_workday or repeal_safety),
+            inputs={'operation_id': operation_id, 'turn': turn,
+                    'workday_repeal_triggered': repeal_workday,
+                    'ten_hour_act_before': ten_hour_before,
+                    'national_workday_before': national_workday_before,
+                    'factory_safety_repeal_triggered': repeal_safety,
+                    'factory_safety_act_before': safety_before,
+                    'tile_count': len(tiles),
+                    'other_laws_active_but_not_handled': other_law_state,
+                    'reason': ('supported_labor_law_active'
+                               if repeal_workday or repeal_safety else
+                               'no_supported_labor_law_to_repeal')})
+
     repealed = []
-    if getattr(nation, 'ten_hour_act', False) or getattr(nation, 'max_workday_hours', 16.0) < 14.0:
+    if repeal_workday:
         nation.ten_hour_act = False
         nation.max_workday_hours = DEFAULT_WORKDAY_CAP
-        for tile in getattr(nation, 'tiles', []):
+        for tile in tiles:
             tile.max_workday_hours = DEFAULT_WORKDAY_CAP
         repealed.append("Ten-Hour Act (workday restored to 16h)")
 
-    if getattr(nation, 'factory_safety_act', False):
+    if repeal_safety:
         nation.factory_safety_act = False
-        for tile in getattr(nation, 'tiles', []):
+        for tile in tiles:
             tile.factory_safety_act = False
         repealed.append("Factory Safety Standards (regulations dismantled)")
+
+    if trace_region is not None:
+        tile_event_ids = []
+        firm_event_ids = []
+        for snapshot in tile_snapshots:
+            tile = snapshot['tile']
+            if repeal_workday:
+                tile_workday_after = float(getattr(
+                    tile, 'max_workday_hours', DEFAULT_WORKDAY_CAP))
+                tile_workday_cap_after = getattr(tile, 'workday_cap', None)
+                if tile_workday_cap_after is None:
+                    tile_workday_cap_after = tile_workday_after
+                event_id = _emit_labor_policy_event(
+                    trace_region, kind='labor_law_repeal_workday_tile_outcome',
+                    subject={'type': 'tile', 'id': tile.name},
+                    metric_id='labor.statutory_workday', unit='hours',
+                    before=snapshot['workday_before'],
+                    after=float(getattr(tile, 'max_workday_hours', 16.0)),
+                    inputs={'operation_id': operation_id, 'turn': turn,
+                            'national_ten_hour_act_before': ten_hour_before,
+                            'national_ten_hour_act_after':
+                            bool(getattr(nation, 'ten_hour_act', False)),
+                            'tile_ten_hour_act_before':
+                            snapshot['ten_hour_act_before'],
+                            'tile_ten_hour_act_after':
+                            bool(getattr(tile, 'ten_hour_act', False)),
+                            'workday_cap_before': snapshot['workday_cap_before'],
+                            'workday_cap_after':
+                            float(tile_workday_cap_after),
+                            'repeal_updates_workday_cap': False,
+                            'reason': 'repeal_sets_max_workday_hours_only'},
+                    cause_event_ids=([decision_event_id]
+                                     if decision_event_id else None))
+                if event_id:
+                    tile_event_ids.append(event_id)
+                for firm, shift_hours in snapshot['firms']:
+                    firm_event_id = _emit_labor_policy_event(
+                        trace_region, kind='labor_law_repeal_firm_shift_unchanged',
+                        subject={'type': 'tile/corporation',
+                                 'id': str(firm.id), 'tile': tile.name},
+                        metric_id='labor.corporate_shift_hours', unit='hours',
+                        before=shift_hours, after=float(firm.shift_hours),
+                        inputs={'operation_id': operation_id, 'turn': turn,
+                                'shift_hours_changed':
+                                float(firm.shift_hours) != shift_hours,
+                                'reason':
+                                'repeal_does_not_update_firm_shift_hours'},
+                        cause_event_ids=([decision_event_id]
+                                         if decision_event_id else None))
+                    if firm_event_id:
+                        firm_event_ids.append(firm_event_id)
+            if repeal_safety:
+                safety_event_id = _emit_labor_policy_event(
+                    trace_region, kind='labor_law_repeal_safety_tile_outcome',
+                    subject={'type': 'tile', 'id': tile.name},
+                    metric_id='labor.factory_safety_state', unit='enacted',
+                    before=snapshot['safety_before'],
+                    after=bool(getattr(tile, 'factory_safety_act', False)),
+                    inputs={'operation_id': operation_id, 'turn': turn,
+                            'national_safety_before': safety_before,
+                            'national_safety_after':
+                            bool(getattr(nation, 'factory_safety_act', False))},
+                    cause_event_ids=([decision_event_id]
+                                     if decision_event_id else None))
+                if safety_event_id:
+                    tile_event_ids.append(safety_event_id)
+        _emit_labor_policy_event(
+            trace_region, kind='labor_law_repeal_outcome',
+            subject={'type': 'nation/action',
+                     'id': getattr(nation, 'name', 'unnamed')},
+            metric_id='scenario.labor_law_action', unit='policy_result',
+            after='laws_repealed' if repealed else 'no_supported_laws_to_repeal',
+            inputs={'operation_id': operation_id, 'turn': turn,
+                    'repealed': list(repealed),
+                    'ten_hour_act_after':
+                    bool(getattr(nation, 'ten_hour_act', False)),
+                    'max_workday_hours_after': float(
+                        getattr(nation, 'max_workday_hours', 16.0)),
+                    'factory_safety_act_after':
+                    bool(getattr(nation, 'factory_safety_act', False)),
+                    'other_laws_active_but_not_repealed': other_law_state,
+                    'tile_event_ids': tile_event_ids,
+                    'firm_shift_event_ids': firm_event_ids},
+            cause_event_ids=([decision_event_id] + tile_event_ids + firm_event_ids
+                             if decision_event_id else
+                             tile_event_ids + firm_event_ids or None))
 
     return {
         'repealed': repealed,
