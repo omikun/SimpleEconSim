@@ -252,10 +252,62 @@ def apply_repression(region, t, cost_legitimacy=0.15, force_override=False):
     garrison_units = [u for u in getattr(region, 'military_units', []) if getattr(u, 'soldiers', 0) > 0]
     police_count = getattr(region, 'police_employed', 0)
 
+    owner = getattr(region, 'owner_nation', None)
+    legitimacy_before = (float(getattr(owner, 'legitimacy', 0.0))
+                         if owner is not None else None)
+    protest_log = getattr(region, 'protest_energy_log', None)
+    protest_before = float(protest_log[-1]) if protest_log else None
+
+    def emit_repression_outcome(outcome, seeded=0, seeded_agent_ids=()):
+        from run_trace import emit
+
+        legitimacy_after = (float(getattr(owner, 'legitimacy', 0.0))
+                            if owner is not None else None)
+        protest_after = (float(protest_log[-1]) if protest_log else None)
+        grievance_total_after = sum(
+            float(value)
+            for faction in getattr(getattr(region, 'factions', None),
+                                   'factions', {}).values()
+            for value in getattr(faction, 'grievances', {}).values())
+        clock = getattr(region, '_collective_trace_clock', {})
+        operation_id = (f"repression:{getattr(region, 'name', 'unknown')}:{int(t)}:"
+                        f"{int(clock.get('next', 0))}")
+        return emit(
+            region, kind='repression_resolved', record_class='outcome',
+            subject={'type': 'tile', 'id': region.name},
+            metric_id='politics.repression', unit='agents',
+            before=0, after=int(seeded),
+            formula_id='unrest.apply_repression.v1',
+            inputs={'operation_id': operation_id, 'turn': int(t),
+                    'outcome': outcome, 'force_override': bool(force_override),
+                    'police_employed': int(police_count),
+                    'garrison_units': [
+                        {'id': str(getattr(unit, 'unit_id',
+                                           getattr(unit, 'name', index))),
+                         'soldiers': int(getattr(unit, 'soldiers', 0)),
+                         'strength': float(getattr(unit, 'strength', 0.0))}
+                        for index, unit in enumerate(garrison_units)],
+                    'legitimacy_cost_requested': float(cost_legitimacy),
+                    'legitimacy_before': legitimacy_before,
+                    'legitimacy_after': legitimacy_after,
+                    'protest_energy_before': protest_before,
+                    'protest_energy_after': protest_after,
+                    'faction_grievance_total_before': grievance_total_before,
+                    'faction_grievance_total_after': grievance_total_after,
+                    'seeded_agent_ids': [str(agent_id)
+                                         for agent_id in seeded_agent_ids],
+                    'seeded_agent_count': int(seeded)})
+
+    grievance_total_before = sum(
+        float(value)
+        for faction in getattr(getattr(region, 'factions', None),
+                               'factions', {}).values()
+        for value in getattr(faction, 'grievances', {}).values())
+
     if not garrison_units and police_count == 0 and not force_override:
+        emit_repression_outcome('no_force_available')
         return 0
 
-    owner = getattr(region, 'owner_nation', None)
     if owner is not None:
         owner.legitimacy = max(0.0, owner.legitimacy - cost_legitimacy)
 
@@ -270,6 +322,7 @@ def apply_repression(region, t, cost_legitimacy=0.15, force_override=False):
 
     # Seed memory for casualties from armed dispersal
     seeded = 0
+    seeded_agent_ids = []
     for f in region.factions.factions.values():
         for aid in list(f.membership):
             for a in region.agents:
@@ -277,7 +330,9 @@ def apply_repression(region, t, cost_legitimacy=0.15, force_override=False):
                     a.mem_push('mem_casualties', 1.0)
                     a.mem_push('mem_promises', 1.0)
                     seeded += 1
+                    seeded_agent_ids.append(a.id)
                     break
+    emit_repression_outcome('repressed', seeded, seeded_agent_ids)
     return seeded
 
 

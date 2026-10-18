@@ -211,7 +211,8 @@ in-transit shipment inventory, haulage cash transfer and recipients or public
 stock on arrival. National Egypt maize release traces each public-stock debit
 against an individual household's queued meal ration, with allocation outcomes
 and no-op reasons. Other untraced imperial claim paths, Egypt subsistence,
-additional household support channels, subsidies, other repression spending,
+additional household support channels, subsidies, military and police
+payroll/maintenance transfers,
 inheritance, and many scenario costs still need transfer contracts. Egypt's
 district relief, tax relief, settlement, and repression actions now record
 success/failure reasons and measured effects. National
@@ -386,3 +387,10 @@ focused fixtures cover allocation, all three no-op reasons, and trace-on/off
 state parity. Thirty-two national and
 district relief, household-aid, food-security, and government-transfer tests
 passed; compilation and `git diff --check` passed.
+
+The shared repression mechanic now emits a force-use outcome for successful and
+blocked attempts. Records include police/garrison strength, legitimacy and
+protest changes, grievance reduction, and the people who receive casualty and
+broken-promise memories. Three fixtures cover forced repression, the no-force
+gate, and trace-on/off state parity; 18 repression, district-action, and coercion
+tests passed. Military and police payroll/maintenance transfers remain open.

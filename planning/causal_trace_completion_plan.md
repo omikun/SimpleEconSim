@@ -750,3 +750,14 @@ household-aid, food-security, and government-transfer tests passed. Compilation
 and `git diff --check` passed. Other public assistance and household subsistence
 flows, subsidies, repression spending, inheritance, and scenario action costs
 remain.
+
+Phase 3 follow-up, 2026-10-18: the shared repression mechanic now records when
+force is missing or used, the police/garrison present, legitimacy and protest
+changes, grievance reduction, and the people receiving casualty and broken
+promise memories. The event is emitted at the mechanic so district and other
+callers share one causal record. Military and police payroll/maintenance
+transfers remain separate fiscal gaps.
+
+Verification: three dedicated fixtures cover forced repression, the no-force
+gate, and trace-on/off state parity. Eighteen repression, district-action, and
+coercion tests passed. Compilation and `git diff --check` passed.
