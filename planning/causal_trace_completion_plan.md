@@ -820,3 +820,17 @@ intent list, final-decision cause linkage, and trace-on/off behavior parity.
 Seventeen diplomacy-AI, war-logic, and multi-nation sandbox tests passed.
 Compilation and `git diff --check` passed. Scenario diplomacy policies and
 other spatial, expansion, and AI candidate gates remain incomplete.
+
+Phase 4 follow-up, 2026-10-18: the Egypt scenario foreign-policy evaluator now
+records France's ordered policy gates, Britain's funding and protest gates,
+and the Ottoman Empire's mediation trigger. The British offer reply records
+the recovery cap, canal-access value, expedition costs, protest and canal-line
+penalties, and the treaty-versus-military comparison. The reply links to the
+British funding evaluation that informed it.
+
+Verification: two dedicated fixtures cover policy candidate rows, serialized
+trace data, cause links, offer valuation, and trace-on/off state parity. Ten
+scenario-diplomacy and geography tests passed. The broader playthrough suite
+was interrupted inside its separate-process ending-reachability matrix and has
+no complete result. Other scenario candidate gates and action outcomes remain
+incomplete.

@@ -227,15 +227,39 @@ def resupply(world, nation_name, amount=2):
 
 
 def foreign_decisions(world):
-    """Britain and France evaluate the same crisis independently each turn."""
-    from scenario_diplomacy import evaluate
-    french, british = evaluate(world)
+    """Foreign powers evaluate and record their crisis policies each turn."""
+    from scenario_diplomacy import _evaluate, _trace_decision
+    french, british, french_event_id, british_event_id = _evaluate(world)
     state = world['scenario_state']
+    naval_stage = state.get('naval_crisis', {}).get('stage', 'none')
+    ottoman_mediation = naval_stage in ('mobilizing', 'ultimatum', 'blockaded')
+    ottoman = 'offer_mediation' if ottoman_mediation else 'observe'
+    _trace_decision(
+        world, actor='Ottoman Empire', decision='respond_to_foreign_crisis',
+        policy=ottoman, cause_event_ids=([british_event_id]
+                                         if british_event_id else
+                                         [french_event_id]
+                                         if french_event_id else None),
+        inputs={
+            'naval_crisis_stage': naval_stage,
+            'candidates': [
+                {'candidate': 'offer_mediation',
+                 'eligible': ottoman_mediation,
+                 'selected': ottoman_mediation,
+                 'reason': ('active_naval_escalation'
+                            if ottoman_mediation else
+                            'no_active_naval_escalation')},
+                {'candidate': 'observe', 'eligible': not ottoman_mediation,
+                 'selected': not ottoman_mediation,
+                 'reason': ('no_active_naval_escalation'
+                            if not ottoman_mediation else
+                            'mediation_offered_during_escalation')},
+            ],
+        })
     state['geography']['diplomacy'] = {
         'Britain': british,
         'France': french,
-        'Ottoman Empire': ('offer_mediation' if state.get('naval_crisis', {}).get('stage')
-                           in ('mobilizing', 'ultimatum', 'blockaded') else 'observe'),
+        'Ottoman Empire': ottoman,
     }
     return state['geography']['diplomacy']
 

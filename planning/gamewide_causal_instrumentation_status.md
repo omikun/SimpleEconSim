@@ -225,8 +225,9 @@ treasury, bank, household, firm, and goods-by-currency reconciliations remain
 incomplete. Several scenario operations still need mutation-point records.
 Nation and capitalist AI decisions record most evaluated candidates, selections,
 and outcomes. The labor scheduler exposes its cohort gate, and nation diplomacy
-records candidate thresholds and rejection reasons. Some scenario and other AI
-candidate details remain partial. The current metric
+records candidate thresholds and rejection reasons. Egypt's French, British,
+and Ottoman scenario policies now expose their candidate gates and offer
+valuation. Other scenario and spatial AI candidate details remain partial. The current metric
 catalog does not yet cover every displayed field;
 `inventory_region_histories()` labels legacy series as instrumented or
 untraced so a missing probe is visible during development.
@@ -445,3 +446,14 @@ linkage, and trace-on/off behavior parity. Seventeen diplomacy-AI, war-logic,
 and multi-nation sandbox tests passed. Compilation and `git diff --check`
 passed. Scenario diplomacy policies and the remaining spatial, expansion, and
 other AI candidate gates still need detailed records.
+
+The Egypt foreign-diplomacy evaluator now records France's ordered policy
+gates, Britain's treasury and protest constraints, and the Ottoman Empire's
+mediation trigger. Britain's response to a French offer records the capped
+recovery, canal-access value, expedition costs, protest cost, prepared-line
+penalty, and treaty-versus-military comparison; it links to the prior British
+policy evaluation. Two dedicated fixtures verify the candidate rows, cause
+links, serialization, and trace-on/off state parity. Ten scenario-diplomacy
+and geography tests passed. The broader playthrough suite was interrupted
+inside its separate-process ending-reachability matrix, so it has no complete
+result. Other scenario candidate gates and actions remain open.

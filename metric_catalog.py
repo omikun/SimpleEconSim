@@ -82,6 +82,7 @@ METRICS = {
     'politics.faction_loyalty': ('tile/faction', 'ratio', 'banking_policy.enact_deposit_bailin_haircut'),
     'scenario.district_action': ('tile/action', 'success', 'scenario_district.apply_action; district relief, tax relief, settlement and repression outcomes'),
     'scenario.national_maize_release': ('nation/action', 'households', 'scenario_egypt_1877.apply_action release_maize; ration allocation and skipped-release outcomes'),
+    'scenario.foreign_diplomacy_ai': ('nation/decision', 'policy', 'scenario_diplomacy foreign creditor and Ottoman candidate evaluations, funding/protest gates, and British treaty-versus-expedition values'),
     'fx.bilateral_mid': ('tile/partner', 'home_currency_per_foreign_currency', 'forex.ForexDesk.update'),
     'finance.treasury': ('nation', 'local_currency', 'nation.Nation.treasury'),
     'finance.sovereign_bond': ('nation', 'local_currency', 'sovereign_bonds.SovereignBondMarket'),
@@ -233,6 +234,7 @@ TRACE_INSTRUMENTED = set(LEGACY_HISTORY_TO_METRIC.values()) | {
     'goods.national_food_price',
     'labor.strikers', 'labor.available_worker_hours',
     'diplomacy.ai_candidates',
+    'scenario.foreign_diplomacy_ai',
 }
 
 
