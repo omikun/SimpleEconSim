@@ -1487,3 +1487,18 @@ Verification: a compact trace query selects the metric and confirms the
 strike-start event remains linked to workforce availability and zero-output
 records. The run-trace, collective-action, and metric-catalog coverage suites
 passed (41 tests); compilation and `git diff --check` passed.
+
+## Phase 3 follow-up — Trace reusable naval coercion costs
+
+The generic scenario coercion module now records each blockade's treasury
+upkeep as `military.fleet_upkeep`. The record identifies the operation, amount
+requested and paid, treasury balances, currency, shortfall, and that the
+expense is a modeled cash sink without an individual recipient account.
+Insolvency withdrawal links to the failed upkeep record; a due mobilization
+also records the force ratio that turns the fleet arrival into an ultimatum.
+Trace IDs remain in the trace and do not enter scenario state.
+
+Verification: three dedicated tests cover successful upkeep, unpaid upkeep
+and linked withdrawal, and the mobilization deadline. Traced and untraced
+world state is identical. Scenario interpreter/diplomacy tests and the metric
+catalog audit passed (16 tests); compilation and `git diff --check` passed.

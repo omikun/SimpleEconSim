@@ -77,6 +77,7 @@ METRICS = {
     'military.upkeep': ('nation/unit', 'turn outcome', 'army.MilitaryUnit.pay_and_feed; wage and ration coverage, morale change, and desertion'),
     'military.garrison_morale': ('nation/unit', 'ratio', 'scenario_politics.apply_action; garrison morale change caused by officer-arrears payment'),
     'military.supply_procurement': ('nation/unit/seller', 'food_units', 'army._procure_rations; reachable seller inventory and treasury affordability'),
+    'military.fleet_upkeep': ('scenario/fleet', 'local_currency', 'scenarios.modules.coercion.CoercionModule.advance_turn; blockade operating cost, aggressor treasury affordability, paid amount, and expense-sink accounting treatment'),
     'goods.military_supply': ('nation/unit/seller', 'food_units', 'army._procure_rations and army.step_armies; exact seller-to-government ration transfers and government ration consumption'),
     'war.territory_control': ('tile', 'nation_name', 'intents.MoveArmyIntent.execute'),
     'war.cohesion': ('nation/opponent', 'ratio', 'war_logic.update_wars'),
@@ -443,7 +444,8 @@ TRACE_INSTRUMENTED = set(LEGACY_HISTORY_TO_METRIC.values()) | {
     'diplomacy.reparations_amount',
     'scenario.foreign_diplomacy_ai',
     'military.upkeep', 'military.garrison_morale',
-    'military.supply_procurement', 'goods.military_supply',
+    'military.supply_procurement', 'military.fleet_upkeep',
+    'goods.military_supply',
     # Literal metric IDs emitted by production trace call sites (catalog audit).
     'construction.progress', 'contract.crop_delivery', 'diplomacy.relation',
     'economy.cash', 'finance.bank_bond_writeoff', 'finance.bank_capital',

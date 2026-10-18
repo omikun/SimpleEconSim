@@ -1089,3 +1089,16 @@ Verification: trace queries select the collective-action metric and retain
 the strike-to-workforce causal link. The run-trace, collective-action, and
 metric-catalog coverage suites passed (41 tests); compilation and
 `git diff --check` passed.
+
+Phase 3 follow-up, 2026-10-18: the reusable scenario coercion module now
+records blockade operating costs as `military.fleet_upkeep`, including the
+aggressor treasury balance, requested and paid amounts, currency, insolvency
+shortfall, and explicit expense-sink accounting treatment because no upkeep
+recipient is modeled. Insolvency withdrawal links to that cost record, and the
+mobilization-to-ultimatum transition records the fleet-to-battery force ratio.
+Tracing does not persist event IDs into scenario state.
+
+Verification: three dedicated scenarios cover funded upkeep, insolvency and
+withdrawal linkage, and a due ultimatum; each compares traced and untraced
+state. Those tests, scenario interpreter/diplomacy regressions, and catalog
+coverage passed (16 tests); compilation and `git diff --check` passed.
