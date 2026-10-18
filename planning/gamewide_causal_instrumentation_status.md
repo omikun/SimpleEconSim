@@ -199,11 +199,12 @@ value does not match a recorded calculation. Per-profession headcount snapshots
 are sparse: unchanged counts, including zero categories, are omitted while the
 membership-change calculation records retain before/after counts and agent IDs.
 Treasury snapshots show cash and deposit components. Bond, Caisse, public
-benefit, Egypt project payroll/recall/remittance, and tariff transfers now have
-operation IDs and balance evidence. Emergency food levies expose exact in-kind
-stock changes, and routine public grain purchases reconcile seller and treasury
-balances. Canal tolls, imperial claim intercepts, tax recovery, Egypt
-subsistence and household aid flows, subsidies, repression spending,
+benefit, Egypt project payroll/recall/remittance, tariff transfers, and
+cadastral tax recovery now have operation IDs and balance evidence. Emergency
+food levies expose exact in-kind stock changes, and routine public grain
+purchases reconcile seller and treasury balances. Canal tolls, imperial claim
+intercepts outside the guided occupation, Egypt subsistence and household aid
+flows, subsidies, repression spending,
 inheritance, and many scenario costs still need transfer contracts. National
 treasury, bank, household, firm, and goods-by-currency reconciliations remain
 incomplete. Several scenario operations still need mutation-point records.
@@ -285,4 +286,15 @@ trace tests passed; compilation and `git diff --check` passed. The existing
 full Egypt occupation tests still fail during world generation because
 `shape_nile_delta` cannot find a second coastal outlet; they do not reach the
 changed occupation code. Imperial revenue claims outside this bounded scenario,
-tax recovery, household transfers, and general inheritance remain open.
+household transfers, and general inheritance remain open.
+
+Cadastral tax recovery now records household payments, arrears and missed
+assessment changes, the foreclosure hazard inputs and draw, and the auction
+settlement split between district tax revenue and cultivator refund. Use-right
+changes and linked unrest, legitimacy, and migration results are recorded; local
+treasury receipts are attributed to the district rather than folded into the
+national balance. Ninety-eight focused tests passed, including trace-on/off
+state equivalence. Full Egypt integration is still blocked before this path by
+the existing Nile delta generation error. Canal tolls, imperial revenue claims
+outside the guided occupation, household aid and subsistence transfers,
+subsidies, repression costs, inheritance, and other scenario transfers remain.

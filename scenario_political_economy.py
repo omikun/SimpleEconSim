@@ -333,11 +333,106 @@ def _sell_to_households(world, tile, owner, limit=None):
     return sold
 
 
+def _tax_currency(tile):
+    nation = getattr(tile, 'owner_nation', None)
+    return (getattr(nation, 'currency', None)
+            or getattr(tile, 'home_currency', None) or 'local_currency')
+
+
+def _trace_tax_arrears_balance(tile, agent, *, turn, operation_id,
+                               before, after, inputs=None,
+                               cause_event_ids=None):
+    from run_trace import emit
+    return emit(
+        tile, kind='cadastral_tax_arrears_balance', record_class='outcome',
+        phase='scenario_economy',
+        subject={'type': 'tile/agent', 'id': str(agent.id), 'tile': tile.name},
+        metric_id='finance.tax_arrears_balance', unit=_tax_currency(tile),
+        before=float(before), after=float(after),
+        formula_id='cadastral_tax.arrears_balance_update.v1',
+        inputs={'operation_id': operation_id, 'turn': int(turn),
+                'agent_id': agent.id, **(inputs or {})},
+        cause_event_ids=cause_event_ids)
+
+
+def _trace_cadastral_tax_payment(tile, agent, *, amount, turn,
+                                 operation_id, collection_operation_id,
+                                 cash_before, cash_after,
+                                 pool_before, pool_after, details=None):
+    if amount <= 0:
+        return None
+    currency = _tax_currency(tile)
+    payer = account_ref(
+        'agent', agent.id, currency, balance_before=float(cash_before),
+        balance_after=float(cash_after), balance_scope='cash')
+    pool = account_ref(
+        'cadastral_tax_collection_pool', collection_operation_id, currency,
+        balance_before=float(pool_before), balance_after=float(pool_after),
+        balance_scope='collected_assessment_revenue')
+    contract = cash_transfer_contract(
+        operation_id, 'cadastral_tax_payment', amount=amount, currency=currency,
+        payer_account=payer, payee_account=pool,
+        counterparty_leg_status='collected_amount_allocated_to_public_treasuries',
+        mutation_reference={'tile': tile.name, 'turn': int(turn),
+                            'collection_operation_id': collection_operation_id})
+    return emit_cash_transfer(
+        tile, kind='cadastral_tax_payment', contract=contract,
+        phase='scenario_economy',
+        subject={'type': 'tile/operation', 'id': operation_id,
+                 'agent_id': agent.id},
+        inputs={'turn': int(turn), 'assessment_operation_id': operation_id,
+                'collection_operation_id': collection_operation_id,
+                **(details or {})})
+
+
+def _trace_tax_treasury_allocation(tile, government, *, nation, tier,
+                                  amount, turn, collection_operation_id,
+                                  pool_before, pool_after, treasury_before,
+                                  treasury_after, payment_event_ids):
+    if amount <= 0:
+        return None
+    currency = _tax_currency(tile)
+    allocation_id = f'{collection_operation_id}:allocation:{tier}'
+    pool = account_ref(
+        'cadastral_tax_collection_pool', collection_operation_id, currency,
+        balance_before=float(pool_before), balance_after=float(pool_after),
+        balance_scope='collected_assessment_revenue')
+    treasury = account_ref(
+        'government_treasury', government.name, currency,
+        nation_id=getattr(nation, 'name', None), tier=tier,
+        subaccount='government_agent.cash',
+        balance_before=float(treasury_before), balance_after=float(treasury_after),
+        balance_scope='government_agent.cash')
+    contract = transfer_contract(
+        allocation_id, 'cadastral_tax_treasury_allocation', side='payee',
+        amount=amount, amount_currency=currency,
+        payer_account=pool, payee_account=treasury,
+        local_cash_leg_amount=amount, local_cash_leg_currency=currency,
+        counterparty_leg_status='household_cash_payments_recorded_individually',
+        mutation_reference={'turn': int(turn), 'tile': tile.name,
+                            'collection_operation_id': collection_operation_id,
+                            'treasury_tier': tier})
+    return emit_treasury_leg(
+        tile, kind='cadastral_tax_treasury_receipt',
+        nation_name=(getattr(nation, 'name', tile.name)
+                     if tier == 'national' else government.name), currency=currency,
+        signed_amount=float(amount), contract=contract,
+        phase='scenario_economy',
+        subject_type='nation' if tier == 'national' else 'tile',
+        cause_event_ids=payment_event_ids or None,
+        inputs={'turn': int(turn), 'collection_operation_id': collection_operation_id,
+                'treasury_tier': tier, 'household_count': len(payment_event_ids)})
+
+
 def _assess_arrears(world, tile, assessed_ids):
     econ = _economy(world)
     rate = max(0.0, float(tile.gov.tax_rate))
     turn = int(world['turn'])
     collected = 0.0
+    nation = getattr(tile, 'owner_nation', None)
+    collection_operation_id = (
+        f'cadastral-tax:{getattr(nation, "name", "local")}:{tile.name}:{turn}')
+    payment_event_ids = []
     for agent in _households(tile):
         if agent.id in assessed_ids or not agent.assigned_plot_id:
             continue
@@ -348,32 +443,97 @@ def _assess_arrears(world, tile, assessed_ids):
             continue
         row = econ['arrears'].setdefault(agent.id, {'balance': 0.0, 'missed': 0,
                                                      'plot_id': agent.assigned_plot_id})
+        arrears_before = float(row['balance'])
+        missed_before = int(row['missed'])
         due = round(row['balance'] + assessment, 2)
-        paid = min(max(0.0, float(agent.cash)), due)
+        cash_before = float(agent.cash)
+        paid = min(max(0.0, cash_before), due)
         agent.cash -= paid
+        cash_after = float(agent.cash)
+        pool_before = collected
         collected += paid
         row['balance'] = round(due - paid, 2)
         row['missed'] = row['missed'] + 1 if row['balance'] > 0 else 0
+        assessment_operation_id = (
+            f'{collection_operation_id}:household:{agent.id}')
         econ['tax_assessments'].append({'turn': turn, 'tile': tile.name,
                                         'agent_id': agent.id, 'assessed': assessment,
                                         'paid': round(paid, 2), 'arrears': row['balance']})
+        payment_event_id = _trace_cadastral_tax_payment(
+            tile, agent, amount=paid, turn=turn,
+            operation_id=assessment_operation_id,
+            collection_operation_id=collection_operation_id,
+            cash_before=cash_before, cash_after=cash_after,
+            pool_before=pool_before, pool_after=collected,
+            details={'assessed_amount': float(assessment), 'amount_due': float(due),
+                     'arrears_before': arrears_before,
+                     'arrears_after_assessment': float(row['balance']),
+                     'plot_id': agent.assigned_plot_id})
+        if payment_event_id is not None:
+            payment_event_ids.append(payment_event_id)
+        arrears_event_id = _trace_tax_arrears_balance(
+            tile, agent, turn=turn, operation_id=assessment_operation_id,
+            before=arrears_before, after=float(row['balance']),
+            inputs={'assessed_amount': float(assessment), 'paid': float(paid),
+                    'amount_due': float(due), 'missed_before': missed_before,
+                    'missed_after': int(row['missed']),
+                    'plot_id': agent.assigned_plot_id},
+            cause_event_ids=([payment_event_id] if payment_event_id is not None
+                             else None))
         # A continuous arrears hazard avoids an automatic cliff at a fixed bill.
         exposure = max(0.0, float(row['balance'])) * max(0, row['missed'] - 1)
         foreclosure_chance = 1.0 - exp(-0.01 * exposure)
         draw = Random(agent.id * 7919 + turn * 104729).random()
+        from run_trace import emit
+        risk_event_id = emit(
+            tile, kind='cadastral_foreclosure_risk_roll', record_class='calculation',
+            phase='scenario_economy',
+            subject={'type': 'tile/agent', 'id': str(agent.id), 'tile': tile.name},
+            metric_id='finance.tax_foreclosure_risk', unit='probability',
+            before=0.0, after=float(foreclosure_chance),
+            formula_id='cadastral_tax.foreclosure_exposure_hazard.v1',
+            inputs={'operation_id': assessment_operation_id,
+                    'arrears_balance': float(row['balance']),
+                    'missed_assessments': int(row['missed']),
+                    'exposure': float(exposure), 'random_draw': float(draw),
+                    'foreclosure_triggered': bool(draw < foreclosure_chance),
+                    'assessment_event_id': arrears_event_id},
+            cause_event_ids=([arrears_event_id]
+                             if arrears_event_id is not None else None))
         if draw < foreclosure_chance:
-            _foreclose(world, tile, agent, row)
+            cause_ids = [event_id for event_id in
+                         (payment_event_id, arrears_event_id, risk_event_id)
+                         if event_id is not None]
+            _foreclose(world, tile, agent, row, cause_event_ids=cause_ids)
     if collected:
         national = round(collected * NATIONAL_CADASTRAL_SHARE, 6)
         local = collected - national
-        nation = getattr(tile, 'owner_nation', None)
         if nation is not None:
+            national_before = float(nation.government.agent.cash)
             nation.government.agent.cash += national
+            national_after = float(nation.government.agent.cash)
+            pool_after_national = collected - national
+            _trace_tax_treasury_allocation(
+                tile, nation.government, nation=nation, tier='national',
+                amount=national, turn=turn,
+                collection_operation_id=collection_operation_id,
+                pool_before=collected, pool_after=pool_after_national,
+                treasury_before=national_before, treasury_after=national_after,
+                payment_event_ids=payment_event_ids)
             nation.government.record_income(turn, 'tax', national)
         else:
             local = collected
             national = 0.0
+            pool_after_national = collected
+        local_before = float(tile.gov.agent.cash)
         tile.gov.agent.cash += local
+        local_after = float(tile.gov.agent.cash)
+        _trace_tax_treasury_allocation(
+            tile, tile.gov, nation=nation, tier='municipal', amount=local,
+            turn=turn, collection_operation_id=collection_operation_id,
+            pool_before=pool_after_national, pool_after=0.0,
+            treasury_before=local_before, treasury_after=local_after,
+            payment_event_ids=payment_event_ids)
         tile.gov.record_income(turn, 'tax', local)
         if getattr(tile, 'tax_distribution_log', None):
             tile.tax_distribution_log[-1]['total'] += collected
@@ -381,10 +541,13 @@ def _assess_arrears(world, tile, assessed_ids):
             tile.tax_distribution_log[-1]['municipal'] += local
 
 
-def _foreclose(world, tile, cultivator, row):
+def _foreclose(world, tile, cultivator, row, *, cause_event_ids=None):
     plot = tile.tenure.find_plot(cultivator.assigned_plot_id) if getattr(tile, 'tenure', None) else None
     if plot is None:
         return
+    turn = int(world['turn'])
+    operation_id = (f'cadastral-foreclosure:{tile.name}:{turn}:{plot.plot_id}:'
+                    f'{cultivator.id}')
     owner = next((a for a in tile.agents if a.id == plot.lord_id), None)
     bidders = [a for a in tile.agents if a is not cultivator and a.alive
                and not a.is_government and not a.is_corporation
@@ -393,16 +556,134 @@ def _foreclose(world, tile, cultivator, row):
     buyer = max(bidders, key=lambda a: float(a.cash), default=None)
     price = min(10.0, float(buyer.cash) * .1) if buyer else 0.0
     arrears_before = float(row['balance'])
+    cash_event_ids = []
+    recovery_event_id = None
+    refund_event_id = None
     if buyer:
+        currency = _tax_currency(tile)
+        buyer_cash_before = float(buyer.cash)
+        buyer_cash_after = buyer_cash_before - price
         buyer.cash -= price
         recovery = min(price, arrears_before)
+        refund = price - recovery
+        pool_before = 0.0
+        pool_after = float(price)
+        buyer_account = account_ref(
+            'agent', buyer.id, currency, balance_before=buyer_cash_before,
+            balance_after=float(buyer.cash), balance_scope='cash')
+        pool_account = account_ref(
+            'foreclosure_settlement_pool', operation_id, currency,
+            balance_before=pool_before, balance_after=pool_after,
+            balance_scope='auction_proceeds')
+        payment_contract = cash_transfer_contract(
+            operation_id, 'tax_foreclosure_auction_payment', amount=price,
+            currency=currency, payer_account=buyer_account,
+            payee_account=pool_account,
+            counterparty_leg_status='proceeds_split_between_tax_and_cultivator',
+            allocations={'tax_recovery': float(recovery),
+                         'cultivator_refund': float(refund)})
+        payment_event_id = emit_cash_transfer(
+            tile, kind='tax_foreclosure_auction_payment',
+            contract=payment_contract, phase='scenario_economy',
+            subject={'type': 'tile/operation', 'id': operation_id,
+                     'buyer_id': buyer.id, 'cultivator_id': cultivator.id},
+            inputs={'turn': turn, 'plot_id': plot.plot_id,
+                    'auction_price': float(price), 'arrears_before': arrears_before,
+                    'tax_recovery': float(recovery),
+                    'cultivator_refund': float(refund),
+                    'eligible_bidders': [agent.id for agent in bidders],
+                    'buyer_cash_before': buyer_cash_before,
+                    'buyer_cash_after': float(buyer.cash)})
+        if payment_event_id is not None:
+            cash_event_ids.append(payment_event_id)
+        government_cash_before = float(tile.gov.agent.cash)
         tile.gov.agent.cash += recovery
+        government_cash_after = float(tile.gov.agent.cash)
+        if recovery > 0:
+            recovery_pool = account_ref(
+                'foreclosure_settlement_pool', operation_id, currency,
+                balance_before=float(price), balance_after=float(refund),
+                balance_scope='auction_proceeds')
+            treasury_account = account_ref(
+                'government_treasury', tile.gov.name, currency,
+                nation_id=getattr(getattr(tile, 'owner_nation', None), 'name', None),
+                subaccount='government_agent.cash',
+                balance_before=government_cash_before,
+                balance_after=government_cash_after,
+                balance_scope='government_agent.cash')
+            recovery_contract = transfer_contract(
+                f'{operation_id}:tax-recovery', 'tax_foreclosure_recovery',
+                side='payee', amount=recovery, amount_currency=currency,
+                payer_account=recovery_pool, payee_account=treasury_account,
+                local_cash_leg_amount=recovery, local_cash_leg_currency=currency,
+                counterparty_leg_status='buyer_auction_payment_recorded',
+                mutation_reference={'turn': turn, 'plot_id': plot.plot_id,
+                                    'foreclosure_operation_id': operation_id})
+            recovery_event_id = emit_treasury_leg(
+                tile, kind='tax_foreclosure_treasury_recovery',
+                nation_name=(getattr(getattr(tile, 'owner_nation', None), 'name', None)
+                             or tile.name), currency=currency,
+                signed_amount=float(recovery), contract=recovery_contract,
+                phase='scenario_economy',
+                subject_type='tile',
+                cause_event_ids=([payment_event_id]
+                                 if payment_event_id is not None else None),
+                inputs={'turn': turn, 'plot_id': plot.plot_id,
+                        'arrears_before': arrears_before,
+                        'auction_price': float(price), 'refund': float(refund)})
+            if recovery_event_id is not None:
+                cash_event_ids.append(recovery_event_id)
         tile.gov.record_income(int(world['turn']), 'tax', recovery)
         if getattr(tile, 'tax_distribution_log', None):
             tile.tax_distribution_log[-1]['total'] += recovery
             tile.tax_distribution_log[-1]['municipal'] += recovery
+        cultivator_cash_before = float(cultivator.cash)
         cultivator.cash += price - recovery
+        if refund > 0:
+            refund_pool = account_ref(
+                'foreclosure_settlement_pool', operation_id, currency,
+                balance_before=float(refund), balance_after=0.0,
+                balance_scope='auction_proceeds')
+            cultivator_account = account_ref(
+                'agent', cultivator.id, currency,
+                balance_before=cultivator_cash_before,
+                balance_after=float(cultivator.cash), balance_scope='cash')
+            refund_contract = cash_transfer_contract(
+                f'{operation_id}:cultivator-refund', 'tax_foreclosure_refund',
+                amount=refund, currency=currency,
+                payer_account=refund_pool, payee_account=cultivator_account,
+                counterparty_leg_status='allocated_from_buyer_auction_payment')
+            refund_event_id = emit_cash_transfer(
+                tile, kind='tax_foreclosure_cultivator_refund',
+                contract=refund_contract, phase='scenario_economy',
+                subject={'type': 'tile/operation', 'id': operation_id,
+                         'cultivator_id': cultivator.id, 'buyer_id': buyer.id},
+                inputs={'turn': turn, 'plot_id': plot.plot_id,
+                        'auction_price': float(price), 'tax_recovery': float(recovery),
+                        'refund': float(refund)},
+                cause_event_ids=([payment_event_id]
+                                 if payment_event_id is not None else None))
+            if refund_event_id is not None:
+                cash_event_ids.append(refund_event_id)
         row['balance'] = round(arrears_before - recovery, 2)
+    else:
+        recovery = 0.0
+        refund = 0.0
+        government_cash_before = float(tile.gov.agent.cash)
+        government_cash_after = government_cash_before
+
+    arrears_after = float(row['balance']) if buyer else arrears_before
+    arrears_event_id = _trace_tax_arrears_balance(
+        tile, cultivator, turn=turn, operation_id=operation_id,
+        before=arrears_before, after=arrears_after,
+        inputs={'foreclosure_recovery': float(recovery),
+                'auction_price': float(price), 'buyer_id': buyer.id if buyer else None,
+                'plot_id': plot.plot_id,
+                'arrears_remain_after_no_bid': not bool(buyer)},
+        cause_event_ids=([recovery_event_id] if recovery_event_id is not None else None))
+    if arrears_event_id is not None:
+        cash_event_ids.append(arrears_event_id)
+    tenure_before = list(plot.tenant_ids)
     if cultivator.id in plot.tenant_ids:
         plot.tenant_ids.remove(cultivator.id)
     cultivator.assigned_plot_id = None
@@ -413,16 +694,87 @@ def _foreclose(world, tile, cultivator, row):
         plot.tenant_ids.append(buyer.id)
         buyer.assigned_plot_id = plot.plot_id
     row['missed'] = 0
-    record = {'turn': int(world['turn']), 'tile': tile.name,
+    tenure_after = list(plot.tenant_ids)
+    record = {'turn': turn, 'tile': tile.name,
               'cultivator_id': cultivator.id, 'title_holder_id': owner.id if owner else plot.lord_id,
               'new_use_right_holder_id': buyer.id if buyer else None,
               'plot_id': plot.plot_id, 'arrears_before': arrears_before,
-              'arrears_after': row['balance'], 'auction_price': round(price, 2)}
+              'arrears_after': row['balance'], 'auction_price': round(price, 2),
+              'tax_recovery': float(recovery), 'cultivator_refund': float(refund),
+              'operation_id': operation_id}
     _economy(world)['tenure_transfers'].append(record)
-    tile.unrest_level = min(1.0, float(tile.unrest_level) + .03)
+    from run_trace import emit
+    land_event_id = emit(
+        tile, kind='cadastral_foreclosure_use_right_transfer',
+        record_class='outcome', phase='scenario_economy',
+        subject={'type': 'tile/plot', 'id': plot.plot_id, 'tile': tile.name},
+        metric_id='land.use_right_transfer', unit='tenant_ids',
+        before=tenure_before, after=tenure_after,
+        formula_id='cadastral_tax.foreclosure_tenant_transfer.v1',
+        inputs={'operation_id': operation_id, 'cultivator_id': cultivator.id,
+                'buyer_id': buyer.id if buyer else None,
+                'title_holder_id': owner.id if owner else plot.lord_id,
+                'plot_id': plot.plot_id, 'arrears_before': arrears_before,
+                'arrears_after': float(row['balance'])},
+        cause_event_ids=[event_id for event_id in cash_event_ids
+                         if event_id is not None] or None)
+    foreclosure_causes = list(dict.fromkeys(
+        event_id for event_id in list(cause_event_ids or []) + cash_event_ids
+        + [land_event_id] if event_id is not None))
+    foreclosure_event_id = emit(
+        tile, kind='cadastral_tax_foreclosure', record_class='outcome',
+        phase='scenario_economy',
+        subject={'type': 'tile/plot', 'id': plot.plot_id, 'tile': tile.name,
+                 'cultivator_id': cultivator.id,
+                 'buyer_id': buyer.id if buyer else None},
+        metric_id='land.tax_foreclosure', unit='plots', before=0, after=1,
+        formula_id='cadastral_tax.foreclosure_and_auction.v1',
+        inputs={'operation_id': operation_id, 'turn': turn,
+                'plot_id': plot.plot_id, 'title_holder_id': owner.id if owner else plot.lord_id,
+                'cultivator_id': cultivator.id,
+                'eligible_bidders': [{'agent_id': bidder.id,
+                                     'cash': float(bidder.cash)}
+                                    for bidder in bidders],
+                'buyer_id': buyer.id if buyer else None,
+                'auction_rule': 'highest_cash_eligible_bidder; min(10, buyer_cash*0.1)',
+                'auction_price': float(price), 'tax_recovery': float(recovery),
+                'cultivator_refund': float(refund),
+                'government_cash_before_recovery': government_cash_before,
+                'government_cash_after_recovery': government_cash_after,
+                'arrears_before': arrears_before,
+                'arrears_after': float(row['balance']),
+                'no_bid': buyer is None},
+        cause_event_ids=foreclosure_causes or None)
+    unrest_before = float(tile.unrest_level)
+    tile.unrest_level = min(1.0, unrest_before + .03)
+    unrest_after = float(tile.unrest_level)
+    emit(tile, kind='cadastral_foreclosure_unrest', record_class='outcome',
+         phase='scenario_economy',
+         subject={'type': 'tile', 'id': tile.name, 'agent_id': cultivator.id},
+         metric_id='politics.unrest_level', unit='ratio',
+         before=unrest_before,
+         after=unrest_after,
+         formula_id='cadastral_tax.foreclosure_unrest_increase.v1',
+         inputs={'operation_id': operation_id, 'foreclosure_event_id': foreclosure_event_id,
+                 'increase': .03},
+         cause_event_ids=([foreclosure_event_id]
+                          if foreclosure_event_id is not None else None))
     nation = tile.owner_nation
     if nation is not None:
+        legitimacy_before = float(nation.legitimacy)
         nation.legitimacy = max(0.0, float(nation.legitimacy) - .005)
+        emit(tile, kind='cadastral_foreclosure_legitimacy_loss',
+             record_class='outcome', phase='scenario_economy',
+             subject={'type': 'nation', 'id': nation.name,
+                      'agent_id': cultivator.id},
+             metric_id='politics.legitimacy', unit='ratio',
+             before=legitimacy_before, after=float(nation.legitimacy),
+             formula_id='cadastral_tax.foreclosure_legitimacy_loss.v1',
+             inputs={'operation_id': operation_id,
+                     'foreclosure_event_id': foreclosure_event_id,
+                     'change': float(nation.legitimacy) - legitimacy_before},
+             cause_event_ids=([foreclosure_event_id]
+                              if foreclosure_event_id is not None else None))
         destinations = [other for other in nation.tiles if other is not tile]
         def open_jobs(other):
             return [a for a in other.agents if getattr(a, 'is_corporation', False)
@@ -457,13 +809,19 @@ def _foreclose(world, tile, cultivator, row):
                      metric_id='people.migration', unit='people', before=1, after=0,
                      formula_id='scenario.cultivator_migration.v1',
                      inputs={'agent_id': cultivator.id, 'origin': tile.name,
-                             'destination': target.name})
+                             'destination': target.name,
+                             'foreclosure_operation_id': operation_id},
+                     cause_event_ids=([foreclosure_event_id]
+                                      if foreclosure_event_id is not None else None))
                 emit(target, kind='scenario_person_arrival', record_class='outcome',
                      phase='scenario', subject={'type': 'tile/agent', 'id': str(cultivator.id)},
                      metric_id='people.migration_in', unit='people', before=0, after=1,
                      formula_id='scenario.cultivator_migration.v1',
                      inputs={'agent_id': cultivator.id, 'origin': tile.name,
-                             'destination': target.name})
+                             'destination': target.name,
+                             'foreclosure_operation_id': operation_id},
+                     cause_event_ids=([foreclosure_event_id]
+                                      if foreclosure_event_id is not None else None))
                 record['migrated_to'] = target.name
                 jobs = open_jobs(target)
                 if jobs:

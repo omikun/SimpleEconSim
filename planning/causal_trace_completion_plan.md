@@ -599,3 +599,23 @@ world generation raises because `shape_nile_delta` cannot find a second coastal
 outlet. Imperial revenue claims outside this bounded occupation, tax recovery,
 general inheritance, broader household/firm transfers, and other scenario costs
 remain.
+
+Phase 3 follow-up, 2026-10-18: cadastral tax assessments now record household
+cash payments, exact national and municipal allocations, arrears changes,
+missed-assessment counts, and the deterministic foreclosure-risk roll. A
+foreclosure records the buyer's auction payment, its split into public tax
+recovery and cultivator refund, arrears recovery, use-right transfer, and linked
+unrest, legitimacy, and migration consequences. Municipal receipts are
+attributed to their district treasury, separately from national receipts. The
+existing migration path also now reads the current turn before withdrawing and
+redepositing bank funds.
+
+Verification: the assessment and auction fixtures reconcile all cash and
+arrears balances and check cause links; trace-on/off fixtures produced identical
+simulation state. The 98 focused coercion, banking, grain, occupation/tribute,
+government transfer, supply-control, and live-trace tests passed. Compilation
+and `git diff --check` passed. Full Egypt integration remains blocked earlier
+in world generation by the existing missing Nile delta outlet. Canal tolls,
+imperial revenue claims outside the guided occupation, household aid and
+subsistence flows, subsidies, repression costs, inheritance, and other scenario
+costs remain.

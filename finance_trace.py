@@ -60,7 +60,7 @@ def cash_transfer_contract(operation_id, operation_type, *, amount, currency,
 
 
 def emit_cash_transfer(region, *, kind, contract, inputs=None,
-                       phase='economy', subject=None):
+                       phase='economy', subject=None, cause_event_ids=None):
     """Emit one actor-to-actor cash transfer with both account identities."""
     from run_trace import emit
 
@@ -70,7 +70,8 @@ def emit_cash_transfer(region, *, kind, contract, inputs=None,
         metric_id='finance.cash_transfer', unit=contract['amount_currency'],
         after=float(contract['amount']),
         inputs={**(inputs or {}), 'operation_id': contract['operation_id'],
-                'transfer_contract': contract})
+                'transfer_contract': contract},
+        cause_event_ids=cause_event_ids)
 
 
 def emit_treasury_leg(region, *, kind, nation_name, currency, signed_amount,
