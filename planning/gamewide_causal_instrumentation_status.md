@@ -1004,3 +1004,16 @@ the registry test plus the market, supply-rights, route, creditor, occupation,
 resistance, and naval trace suites passed (98 tests). `metric_catalog.py` and
 the audit test compile, and `git diff --check` passed. This closes registry
 metadata gaps without changing simulation behavior.
+
+AI queryability follow-up, 2026-10-18: the final nation decision, final
+corporation plan, and intent execution outcome now carry dedicated `ai.*`
+metric IDs. This makes the candidate selection records filterable alongside
+their existing calculation and cash-outcome links. An audit of event-only
+records also found further candidates for review, including FX conversion,
+route freight/shipment lifecycle, coup checks, and takeover attempts; these
+remain readable by event kind while their metric-label coverage is evaluated.
+
+Verification: the catalog audit, nation and corporate decision trace tests,
+M5 AI regressions, capitalist propagation, and supply-control suites passed
+(86 tests). The intent execution record retains its decision link; compilation
+and `git diff --check` passed.

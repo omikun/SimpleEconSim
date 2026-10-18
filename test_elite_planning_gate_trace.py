@@ -3,6 +3,7 @@
 import json
 import unittest
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from economy.capitalist_planner import EliteCapitalistPlanner
 from metric_catalog import METRICS, TRACE_INSTRUMENTED
@@ -135,6 +136,28 @@ class ElitePlanningGateTraceTests(unittest.TestCase):
         self.assertEqual(event['after'], 0)
         self.assertEqual(event['inputs']['reason'], 'scenario_owner_policy')
         self.assertTrue(event['inputs']['scenario_owner_policy'])
+
+    def test_corporate_plan_has_queryable_decision_and_linked_cash_outcome(self):
+        planner = EliteCapitalistPlanner()
+        region, actor, trace = self.make_region(actor=Actor(17))
+        region.recipes = {}
+        region.neighbors = {}
+        region.economic_events = []
+        region.home_currency = 'crown'
+
+        with patch.object(planner, '_elite_candidate_snapshot',
+                          return_value=[{'candidate': 'do_nothing'}]), \
+                patch.object(planner, '_plan_and_execute_elite',
+                             return_value={'action_taken': None, 'details': {}}):
+            planner.plan_and_execute_elite(actor, region, 7)
+
+        decision = next(row for row in trace.rows
+                        if row.get('kind') == 'corporation_ai_decision')
+        outcome = next(row for row in trace.rows
+                       if row.get('kind') == 'corporation_ai_outcome')
+        self.assertEqual(decision['metric_id'], 'ai.elite_economic_decision')
+        self.assertEqual(decision['after'], 'do_nothing')
+        self.assertEqual(outcome['decision_id'], decision['event_id'])
 
 
 if __name__ == '__main__':

@@ -1363,6 +1363,8 @@ class NationPolicyAI:
             decision_id = emit(self.nation.tiles[0], kind='nation_ai_decision',
                  record_class='decision', phase='strategy',
                  subject={'type': 'nation', 'id': self.nation.name},
+                 metric_id='ai.nation_decision', unit='submitted_intents',
+                 after=len(submitted),
                  cause_event_ids=cause_event_ids or None,
                  inputs={'treasury_total': treasury['total'],
                          'considered': considered,

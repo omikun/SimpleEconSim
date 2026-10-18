@@ -8,7 +8,7 @@ from unittest.mock import patch
 from ai_nation import NationPolicyAI
 from diplomacy import DiplomacySystem
 from goods import Goods
-from intents import EncloseCommonsIntent, MoveArmyIntent
+from intents import EncloseCommonsIntent, Intent, MoveArmyIntent
 from war_logic import WarAim, WarRecord, WarSide
 
 
@@ -103,6 +103,25 @@ def _intent_signature(intents):
 
 
 class NationAIGateTraceTests(unittest.TestCase):
+    def test_intent_execution_is_queryable_and_links_to_ai_decision(self):
+        nation = Nation('Alpha')
+        tile = Tile('Home', nation)
+        trace = _trace_nation(nation, [tile], traced=True)
+
+        class NoOpIntent(Intent):
+            def execute(self, tiles_by_name, nations_by_name, turn):
+                return True, 'no-op completed'
+
+        intent = NoOpIntent('Alpha', 'test_no_op')
+        intent._decision_event_id = 'nation-decision-7'
+        intent.step({tile.name: tile}, {nation.name: nation}, 7)
+
+        event = next(row for row in trace.rows
+                     if row.get('kind') == 'intent_execution')
+        self.assertEqual(event['metric_id'], 'ai.intent_execution')
+        self.assertEqual(event['after'], 'approved')
+        self.assertEqual(event['decision_id'], 'nation-decision-7')
+
     def test_silent_defense_subsidy_public_works_and_enclosure_gates(self):
         nation = Nation('Alpha', cash=20.0)
         no_tenure = Tile('NoTenure', nation)
@@ -126,6 +145,7 @@ class NationAIGateTraceTests(unittest.TestCase):
             nation, tiles, [nation], diplomacy, 4, traced=True)
         decision = next(row for row in trace.rows
                         if row.get('kind') == 'nation_ai_decision')
+        self.assertEqual(decision['metric_id'], 'ai.nation_decision')
         considered = decision['inputs']['considered']
         border_event_ids = [row['event_id'] for row in trace.rows
                             if row.get('metric_id') ==

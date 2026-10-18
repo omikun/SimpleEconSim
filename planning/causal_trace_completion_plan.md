@@ -1383,3 +1383,22 @@ Verification: all 266 production literal metric IDs pass the registry audit.
 The audit, market, supply-rights, route, creditor, occupation, resistance, and
 naval trace suites passed (98 tests); compilation and `git diff --check` passed.
 This changes trace metadata only.
+
+## Phase 4 follow-up — Make final AI decisions queryable
+
+The final nation-turn decision, corporate plan selection, and nation-intent
+execution now use registered `ai.*` metric IDs. Nation decisions expose their
+submitted-intent count; corporate decisions expose the selected plan; intent
+execution exposes its resulting approval state and retains the causal link to
+the originating nation decision. Existing candidate explanations and action
+rules are unchanged.
+
+The event-only audit also identified additional high-value records for review:
+FX conversion, route freight and shipment lifecycle, regime coup checks, and
+failed takeover attempts. These events currently remain available by kind and
+operation links; metric labels for them are a remaining queryability gap.
+
+Verification: the catalog audit, nation and corporate decision trace tests,
+M5 AI regressions, capitalist propagation, and supply-control suites passed
+(86 tests). The intent execution causal link, compilation, and `git diff --check`
+passed.

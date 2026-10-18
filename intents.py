@@ -105,6 +105,8 @@ class Intent:
             from run_trace import emit
             emit(nation.tiles[0], kind='intent_execution', record_class='outcome',
                  phase='strategy', subject={'type': 'nation', 'id': self.nation_name},
+                 metric_id='ai.intent_execution', unit='intent_state',
+                 after=self.status,
                  operation_id=self.intent_id,
                  decision_id=getattr(self, '_decision_event_id', None),
                  inputs={'intent_type': self.intent_type, 'status_before': status_before,

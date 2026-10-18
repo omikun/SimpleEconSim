@@ -618,6 +618,8 @@ class EliteCapitalistPlanner:
         subject = {'type': 'agent', 'id': agent.id, 'tile': region.name}
         decision_id = emit(region, kind='corporation_ai_decision', record_class='decision',
                            phase='local', subject=subject,
+                           metric_id='ai.elite_economic_decision', unit='candidate_plan',
+                           after=result.get('action_taken') or 'do_nothing',
                            inputs={'opening_cash': cash_before, 'candidates': candidates,
                                    'consideration_order': [
                                        'luxury_purchase', 'triangular_trade', 'spatial_trade',
