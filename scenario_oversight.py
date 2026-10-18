@@ -37,27 +37,95 @@ def action(world, action_id):
     turn = int(world['turn'])
     if action_id == 'comply_oversight':
         cost = 2.0
-        if egypt.government.agent.cash < cost:
-            return False, 'The treasury needs 2 units to prepare the inspection.'
-        from scenario_gunboat import _transfer_to_households
-        if not _transfer_to_households(egypt, cost):
+        from scenario_gunboat import _emit_naval_trace, _transfer_to_households
+        payment_event_ids = []
+        if not _transfer_to_households(
+                world, egypt, cost, source='egypt_caisse_inspection_preparation',
+                phase='creditor_reaction', trace_event_ids=payment_event_ids):
+            if egypt.government.agent.cash < cost:
+                return False, 'The treasury needs 2 units to prepare the inspection.'
             return False, 'No Egyptian inspectors can be paid.'
+        confidence_before = float(state['creditor_confidence'])
+        review_before = int(agreement['review_turn'])
         state['creditor_confidence'] = min(1.0, state['creditor_confidence'] + .03)
         agreement['review_turn'] = turn + 3
+        _emit_naval_trace(
+            world, egypt,
+            kind='caisse_inspection_compliance_outcome', record_class='outcome',
+            phase='creditor_reaction',
+            subject={'type': 'scenario/nation', 'id': egypt.name},
+            metric_id='scenario.creditor_confidence',
+            before=confidence_before, after=float(state['creditor_confidence']),
+            unit='ratio',
+            inputs={'turn': turn, 'inspection_cost': cost,
+                    'review_turn_before': review_before,
+                    'review_turn_after': int(agreement['review_turn']),
+                    'cause_payment_event_ids': payment_event_ids},
+            cause_event_ids=payment_event_ids or None)
         return True, 'Egypt funded the next Caisse inspection and retained the conditional debt write-down.'
     if action_id == 'seek_narrower_oversight':
         if agreement.get('proposal') or agreement['scope'] == ['tax']:
             return False, 'The current inspection terms cannot be narrowed again.'
         cost = 20.0
-        if egypt.government.agent.cash < cost:
+        from scenario_situation import (_emit_situation_trace, _pay_creditors,
+                                        _situation_operation_id,
+                                        _trace_creditor_payment)
+        source = 'narrower_oversight_terms'
+        operation_id = _situation_operation_id(world, source)
+        treasury_before = float(egypt.government.agent.cash)
+        funding_event_id = _emit_situation_trace(
+            world, kind='oversight_negotiation_funding_decision',
+            record_class='decision', phase='creditor_reaction',
+            subject={'type': 'scenario/nation', 'id': egypt.name},
+            metric_id='scenario.creditor_response_funding',
+            inputs={'operation_id': operation_id, 'source': source,
+                    'treasury_cash_available': treasury_before,
+                    'required_cash': cost,
+                    'cash_shortfall': max(0.0, cost - treasury_before),
+                    'affordable': treasury_before >= cost,
+                    'decision': ('offer_narrower_terms' if treasury_before >= cost
+                                 else 'reject_unaffordable_offer'),
+                    'reason': ('treasury_funds_response' if treasury_before >= cost
+                               else 'treasury_cash_below_response_cost')})
+        if treasury_before < cost:
+            _emit_situation_trace(
+                world, kind='oversight_negotiation_payment_outcome',
+                record_class='outcome', phase='creditor_reaction',
+                subject={'type': 'scenario/nation', 'id': egypt.name},
+                metric_id='scenario.creditor_effects', before=treasury_before,
+                after=treasury_before,
+                inputs={'operation_id': operation_id, 'source': source,
+                        'success': False, 'reason': 'insufficient_treasury_cash',
+                        'amount_requested': cost},
+                cause_event_ids=[funding_event_id] if funding_event_id else None)
             return False, 'The treasury needs 20 units to make a narrower guarantee.'
-        egypt.government.agent.cash -= cost
         creditors = _creditors(world)
-        for creditor in creditors:
-            creditor.government.agent.cash += cost / len(creditors)
+        amount_before = float(egypt.government.agent.cash)
+        egypt.government.agent.cash -= cost
+        payments = _pay_creditors(world, cost)
+        payment_event_ids = _trace_creditor_payment(
+            world, egypt, source, operation_id, cost, amount_before,
+            float(egypt.government.agent.cash), payments,
+            cause_event_ids=[funding_event_id] if funding_event_id else None)
         state['debt_ledger'].append({'turn': turn, 'kind': 'oversight_negotiation',
                                      'amount': cost, 'creditors': [n.name for n in creditors]})
         agreement['proposal'] = {'due_turn': turn + 1, 'scope': ['tax']}
+        _emit_situation_trace(
+            world, kind='oversight_negotiation_payment_outcome',
+            record_class='outcome', phase='creditor_reaction',
+            subject={'type': 'scenario/nation', 'id': egypt.name},
+            metric_id='scenario.creditor_effects', before=amount_before,
+            after=float(egypt.government.agent.cash),
+            unit=getattr(egypt, 'currency', None) or 'local_currency',
+            inputs={'operation_id': operation_id, 'source': source,
+                    'success': True, 'reason': 'narrower_terms_proposed',
+                    'amount_paid': cost,
+                    'creditor_names': [n.name for n in creditors],
+                    'proposal_due_turn': int(agreement['proposal']['due_turn']),
+                    'payment_event_ids': payment_event_ids},
+            cause_event_ids=[event_id for event_id in
+                             ([funding_event_id] if funding_event_id else [])
+                             + payment_event_ids] or None)
         return True, 'Egypt paid 20 units to propose tax-only Caisse inspection; creditors answer next turn.'
     if action_id == 'revoke_oversight':
         from scenario_debt import reinstate_claim

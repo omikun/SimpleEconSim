@@ -309,17 +309,51 @@ def advance(world):
         return
     # Wages are paid by shared step_armies; this expedition supply cost is a
     # separate conserved transfer to households and can become unsustainable.
-    from scenario_gunboat import _transfer_to_households
+    from scenario_gunboat import _emit_naval_trace, _transfer_to_households
     supply = 2.0 + sum(unit.soldiers for unit in units) * .025
-    if not _transfer_to_households(britain, supply):
+    supply_event_ids = []
+    supply_before = float(occupation['garrison_supply_paid'])
+    if not _transfer_to_households(
+            world, britain, supply, source='british_occupation_garrison_supply',
+            phase='occupation', trace_event_ids=supply_event_ids):
+        unit_effects = []
         for unit in units:
+            morale_before = float(unit.morale)
+            soldiers_before = int(unit.soldiers)
             unit.morale = max(.1, unit.morale - .25)
             unit.soldiers = max(0, unit.soldiers - 3)
+            unit_effects.append({'unit_id': unit.unit_id,
+                                 'morale_before': morale_before,
+                                 'morale_after': float(unit.morale),
+                                 'soldiers_before': soldiers_before,
+                                 'soldiers_after': int(unit.soldiers)})
+        _emit_naval_trace(
+            world, britain,
+            kind='occupation_garrison_supply_failure', record_class='outcome',
+            phase='occupation', subject={'type': 'scenario/nation', 'id': britain.name},
+            metric_id='scenario.occupation_supply',
+            inputs={'turn': int(world['turn']), 'supply_cost': supply,
+                    'reason': 'treasury_or_recipient_unavailable',
+                    'garrison_effects': unit_effects,
+                    'garrison_withdraws': sum(unit.soldiers for unit in units) < 8},
+            cause_event_ids=supply_event_ids or None)
         if sum(unit.soldiers for unit in units) < 8:
-            withdraw(world, 'The occupying garrison runs short of supply and withdraws.', cause='unsustainable')
+            withdraw(world, 'The occupying garrison runs short of supply and withdraws.',
+                     cause='unsustainable',
+                     cause_event_ids=supply_event_ids or None)
             return
     else:
         occupation['garrison_supply_paid'] += supply
+        _emit_naval_trace(
+            world, britain,
+            kind='occupation_garrison_supply_outcome', record_class='outcome',
+            phase='occupation', subject={'type': 'scenario/nation', 'id': britain.name},
+            metric_id='scenario.occupation_supply', unit='cash',
+            before=supply_before, after=float(occupation['garrison_supply_paid']),
+            inputs={'turn': int(world['turn']), 'supply_cost': supply,
+                    'cumulative_supply_paid_before': supply_before,
+                    'cumulative_supply_paid_after': float(occupation['garrison_supply_paid'])},
+            cause_event_ids=supply_event_ids or None)
     unrest = sum(float(getattr(tile, 'unrest_level', 0)) for tile in egypt.tiles) / max(1, len(egypt.tiles))
     movement = float(state.get('politics', {}).get('nationalist_movement', 0))
     injuries = int(campaign['civilian_casualties'])
@@ -440,7 +474,7 @@ def resolve_capital(world, response_id):
     return True, world['scenario_feedback']
 
 
-def withdraw(world, reason, *, cause='other'):
+def withdraw(world, reason, *, cause='other', cause_event_ids=None):
     state = world['scenario_state']
     state['campaign']['territorial_control'].clear()
     state['occupation_start_turn'] = None
@@ -453,7 +487,8 @@ def withdraw(world, reason, *, cause='other'):
     claim_institutions(world)
     state['fiscal_autonomy'] = max(.55, float(state.get('fiscal_autonomy', 0)))
     from scenario_gunboat import withdraw as naval_withdraw
-    naval_withdraw(world, reason, cause=cause)
+    naval_withdraw(world, reason, cause=cause,
+                   cause_event_ids=cause_event_ids)
 
 
 def apply_action(world, action_id):

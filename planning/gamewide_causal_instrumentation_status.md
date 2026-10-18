@@ -613,3 +613,24 @@ fiscal-project creditor-reply tests passed (15 total), including trace-on/off
 parity. Compilation and `git diff --check` passed. Other scenario actions, household
 support channels, imperial claim paths, and cross-system reconciliations remain
 open.
+
+Guided Egypt naval and occupation force-supply costs now share a household
+transfer trace. Battery preparation, British and French squadron mobilization
+and upkeep, canal expedition supply, occupation garrison supply, and Caisse
+inspection preparation record the funding decision, shortfall or missing
+recipient, exact treasury debit and resident wallet credit, and linked outcome.
+The trace names the actual first eligible resident selected by the existing
+rule; it does not imply that the payment went to a soldier or sailor. Failed
+occupation supply links its morale and strength losses to the funding failure,
+and the resulting withdrawal or fleet outcome links to that same cause. The
+narrower-oversight action now also records Egypt's $20 payer debit and split
+British/French receipts, including the unaffordable offer gate. Cash contracts
+flag resident-wallet currency mismatches when the existing numeric transfer
+does not apply FX.
+
+Verification: five household-cost and oversight fixtures, nine existing naval
+crisis/occupation/politics fixtures, and two longer canal/occupation playthrough
+tests passed (16 total). Compilation and `git diff --check` passed. Other
+scenario transfers, household support, imperial claims, and cross-system
+reconciliations remain open. The shared currency-contract change also passed 34
+existing geography, occupation-transfer, and run-trace tests.

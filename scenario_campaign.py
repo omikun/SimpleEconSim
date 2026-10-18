@@ -182,9 +182,15 @@ def advance_expedition(world):
         from scenario_gunboat import _transfer_to_households, withdraw
         from scenario_situation import situation_template
         cost = float(situation_template()['naval_crisis']['upkeep_per_turn'])
-        if not _transfer_to_households(_nation(world, 'Britain'), cost):
+        supply_event_ids = []
+        if not _transfer_to_households(
+                world, _nation(world, 'Britain'), cost,
+                source='british_canal_expedition_supply', phase='campaign',
+                trace_event_ids=supply_event_ids):
             expedition['stage'] = 'repelled'
-            withdraw(world, 'Britain cannot supply its canal expedition; the squadron withdraws.', cause='unsustainable')
+            withdraw(world, 'Britain cannot supply its canal expedition; the squadron withdraws.',
+                     cause='unsustainable',
+                     cause_event_ids=supply_event_ids or None)
             return True
         if stage == 'marching_tel':
             message = _battle(world, 'Tel el Kebir')

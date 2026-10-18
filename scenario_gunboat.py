@@ -25,18 +25,158 @@ def _protest(world: dict, name: str) -> float:
     return float(report['energy']) if report else 0.0
 
 
-def _transfer_to_households(nation, amount: float) -> bool:
-    """Pay mobilization/supply costs to citizens instead of destroying cash."""
-    if nation is None or nation.government.agent.cash < amount:
+def _trace_region(world: dict, nation=None):
+    candidates = list(getattr(nation, 'tiles', ())) if nation is not None else []
+    candidates.extend(world.get('tiles', ()))
+    return next((tile for tile in candidates
+                 if (getattr(tile, '_run_trace', None) is not None
+                     and getattr(tile, '_collective_trace_clock', None) is not None)), None)
+
+
+def _emit_naval_trace(world: dict, nation=None, **event):
+    region = _trace_region(world, nation)
+    if region is None:
+        return None
+    from run_trace import emit
+    return emit(region, **event)
+
+
+def _transfer_to_households(world: dict, nation, amount: float, *, source: str,
+                            turn: int | None = None, cause_event_ids=None,
+                            trace_event_ids=None, phase: str = 'naval_crisis') -> bool:
+    """Pay a scenario mobilization/supply cost to the first eligible resident."""
+    turn = int(world.get('turn', 0) if turn is None else turn)
+    trace_region = _trace_region(world, nation)
+    trace_clock = (getattr(trace_region, '_collective_trace_clock', None)
+                   if trace_region is not None else None)
+    nation_name = getattr(nation, 'name', 'missing_nation')
+    operation_id = (f'scenario-household-cost:{source}:{nation_name}:'
+                    f'{turn}:{int(trace_clock.get("next", 0))}'
+                    if trace_clock is not None else None)
+    treasury = getattr(getattr(nation, 'government', None), 'agent', None)
+    treasury_cash_before = float(getattr(treasury, 'cash', 0.0)) if treasury else None
+    recipient = None
+    recipient_tile = None
+    reason = None
+    if nation is None or treasury is None:
+        reason = 'payer_nation_or_treasury_unavailable'
+    elif treasury_cash_before < amount:
+        reason = 'treasury_cash_below_cost'
+    else:
+        for tile in getattr(nation, 'tiles', ()):
+            recipient = next((agent for agent in getattr(tile, 'agents', ())
+                              if getattr(agent, 'alive', True)
+                              and not getattr(agent, 'is_government', False)
+                              and not getattr(agent, 'is_corporation', False)), None)
+            if recipient is not None:
+                recipient_tile = tile
+                break
+        if recipient is None:
+            reason = 'no_eligible_household_recipient'
+    funded = reason is None
+    funding_event_id = _emit_naval_trace(
+        world, nation,
+        kind='scenario_household_cost_funding_decision',
+        record_class='decision', phase=phase,
+        subject={'type': 'scenario/nation', 'id': nation_name},
+        metric_id='scenario.household_cost_funding',
+        inputs={'operation_id': operation_id, 'turn': turn, 'source': source,
+                'amount_requested': float(amount),
+                'treasury_cash_before': treasury_cash_before,
+                'cash_shortfall': max(0.0, float(amount)
+                                      - (treasury_cash_before or 0.0)),
+                'eligible_recipient_found': recipient is not None,
+                'recipient_selection_rule': 'first living non-government non-corporation agent in nation tile order',
+                'funded': funded,
+                'reason': reason or 'treasury_and_recipient_available'},
+        cause_event_ids=cause_event_ids)
+    if funding_event_id is not None and trace_event_ids is not None:
+        trace_event_ids.append(funding_event_id)
+    if not funded:
+        outcome_id = _emit_naval_trace(
+            world, nation,
+            kind='scenario_household_cost_outcome',
+            record_class='outcome', phase=phase,
+            subject={'type': 'scenario/nation', 'id': nation_name},
+            metric_id='scenario.household_cost_payment',
+            inputs={'operation_id': operation_id, 'turn': turn, 'source': source,
+                    'success': False, 'reason': reason,
+                    'amount_requested': float(amount),
+                    'cash_debited': 0.0, 'recipient_id': None},
+            cause_event_ids=([funding_event_id] if funding_event_id else
+                             cause_event_ids))
+        if outcome_id is not None and trace_event_ids is not None:
+            trace_event_ids.append(outcome_id)
         return False
-    recipient = next((agent for tile in nation.tiles for agent in tile.agents
-                      if getattr(agent, 'alive', True)
-                      and not getattr(agent, 'is_government', False)
-                      and not getattr(agent, 'is_corporation', False)), None)
-    if recipient is None:
-        return False
-    nation.government.agent.cash -= amount
+
+    treasury_cash_before = float(treasury.cash)
+    recipient_cash_before = float(recipient.cash)
+    treasury.cash -= amount
     recipient.cash += amount
+    treasury_cash_after = float(treasury.cash)
+    recipient_cash_after = float(recipient.cash)
+    payment_event_id = None
+    if trace_region is not None:
+        from finance_trace import account_ref, cash_transfer_contract, emit_cash_transfer
+        currency = (getattr(nation, 'currency', None)
+                    or getattr(recipient_tile, 'home_currency', None)
+                    or 'local_currency')
+        recipient_currency = (getattr(recipient, 'home_currency', None)
+                              or currency)
+        contract = cash_transfer_contract(
+            operation_id, 'scenario_household_cost', amount=float(amount),
+            currency=currency,
+            payer_account=account_ref(
+                'government_treasury', str(treasury.id), currency,
+                nation_id=nation_name, balance_before=treasury_cash_before,
+                balance_after=treasury_cash_after,
+                balance_scope='government_agent.cash'),
+            payee_account=account_ref(
+                'agent_wallet', str(recipient.id), recipient_currency,
+                agent_id=str(recipient.id), tile=recipient_tile.name,
+                balance_before=recipient_cash_before,
+                balance_after=recipient_cash_after,
+                balance_scope='cash_wallet'),
+            counterparty_leg_status='both_cash_wallets_captured',
+            source=source, turn=turn)
+        payment_event_id = emit_cash_transfer(
+            trace_region, kind='scenario_household_cost_payment',
+            contract=contract, phase=phase,
+            subject={'type': 'tile/operation', 'id': operation_id,
+                     'tile': recipient_tile.name},
+            inputs={'turn': turn, 'source': source, 'nation': nation_name,
+                    'recipient_id': str(recipient.id),
+                    'recipient_tile': recipient_tile.name,
+                    'amount_requested': float(amount),
+                    'recipient_selection_rule':
+                    'first living non-government non-corporation agent in nation tile order'},
+            cause_event_ids=([funding_event_id] if funding_event_id else
+                             cause_event_ids))
+    if payment_event_id is not None and trace_event_ids is not None:
+        trace_event_ids.append(payment_event_id)
+    outcome_id = _emit_naval_trace(
+        world, nation,
+        kind='scenario_household_cost_outcome',
+        record_class='outcome', phase=phase,
+        subject={'type': 'scenario/nation', 'id': nation_name},
+        metric_id='scenario.household_cost_payment',
+        before=treasury_cash_before, after=treasury_cash_after,
+        unit=getattr(nation, 'currency', None) or 'local_currency',
+        inputs={'operation_id': operation_id, 'turn': turn, 'source': source,
+                'success': True, 'reason': 'paid_to_household_recipient',
+                'amount_paid': float(amount),
+                'treasury_cash_before': treasury_cash_before,
+                'treasury_cash_after': treasury_cash_after,
+                'recipient_id': str(recipient.id),
+                'recipient_cash_before': recipient_cash_before,
+                'recipient_cash_after': recipient_cash_after,
+                'recipient_tile': recipient_tile.name,
+                'payment_event_id': payment_event_id},
+        cause_event_ids=([event_id for event_id in
+                          (funding_event_id, payment_event_id) if event_id]
+                         or cause_event_ids))
+    if outcome_id is not None and trace_event_ids is not None:
+        trace_event_ids.append(outcome_id)
     return True
 
 
@@ -78,13 +218,34 @@ def _remove_squadron(world: dict) -> None:
     crisis['unit_id'] = None
 
 
-def withdraw(world: dict, reason: str, *, cause: str = 'other') -> None:
+def withdraw(world: dict, reason: str, *, cause: str = 'other',
+             cause_event_ids=None) -> None:
     state = world['scenario_state']
     crisis = state['naval_crisis']
+    stage_before = crisis.get('stage', 'none')
+    fleets_before = {name: dict(fleet) for name, fleet in
+                     state.get('geography', {}).get('fleets', {}).items()}
     _remove_squadron(world)
     crisis['stage'] = 'withdrawn'
     state['naval_withdrawal_cause'] = cause
     _record(world, reason)
+    turn = int(world.get('turn', 0))
+    trace_region = _trace_region(world)
+    clock = (getattr(trace_region, '_collective_trace_clock', None)
+             if trace_region is not None else None)
+    operation_id = (f'naval-withdrawal:{turn}:{stage_before}:'
+                    f'{int(clock.get("next", 0))}' if clock is not None else None)
+    _emit_naval_trace(
+        world, kind='naval_crisis_withdrawal', record_class='outcome',
+        phase='naval_crisis',
+        subject={'type': 'scenario', 'id': 'naval_crisis'},
+        metric_id='scenario.naval_crisis_stage',
+        before=stage_before, after=crisis['stage'],
+        inputs={'operation_id': operation_id, 'turn': turn,
+                'cause': cause, 'reason': reason,
+                'fleet_state_before': fleets_before,
+                'fleet_state_after': dict(state.get('geography', {}).get('fleets', {}))},
+        cause_event_ids=cause_event_ids)
 
 
 def coastal_balance(world: dict) -> dict:
@@ -115,11 +276,27 @@ def reinforce_batteries(world: dict) -> tuple[bool, str]:
         return False, 'The Alexandria batteries cannot be reinforced now.'
     rules = situation_template()['naval_crisis']
     cost = float(rules['battery_reinforcement_cost'])
-    if not _transfer_to_households(_nation(world, 'Egypt'), cost):
+    egypt = _nation(world, 'Egypt')
+    payment_event_ids = []
+    if not _transfer_to_households(
+            world, egypt, cost, source='alexandria_battery_reinforcement',
+            trace_event_ids=payment_event_ids):
         return False, f'The treasury needs {cost:,.0f} units and local workers to prepare the batteries.'
+    strength_before = float(crisis.get('battery_strength',
+                                       rules['alexandria_battery_strength']))
     crisis['battery_strength'] = (float(rules['alexandria_battery_strength'])
                                   + float(rules['battery_reinforcement_strength']))
     crisis['reinforced'] = True
+    _emit_naval_trace(
+        world, egypt,
+        kind='naval_battery_reinforcement_outcome', record_class='outcome',
+        phase='naval_crisis', subject={'type': 'scenario/tile', 'id': 'Alexandria'},
+        metric_id='military.battery_strength', unit='strength',
+        before=strength_before, after=float(crisis['battery_strength']),
+        inputs={'turn': int(world['turn']), 'treasury_cost': cost,
+                'reinforced': True,
+                'funding_event_ids': payment_event_ids},
+        cause_event_ids=payment_event_ids or None)
     return True, f'Paid {cost:,.0f} to prepare Alexandria’s defenses; battery strength is now {crisis["battery_strength"]:.0f}.'
 
 
@@ -156,16 +333,26 @@ def advance_naval_crisis(world: dict) -> None:
             return
         from scenario_diplomacy import mobilization_cost
         british_cost = mobilization_cost(decisions['France'])
-        if not _transfer_to_households(britain, british_cost):
-            withdraw(world, 'Britain cannot finance and supply a squadron for Alexandria.', cause='unsustainable')
+        british_payment_event_ids = []
+        if not _transfer_to_households(
+                world, britain, british_cost, source='british_squadron_mobilization',
+                trace_event_ids=british_payment_event_ids):
+            withdraw(world, 'Britain cannot finance and supply a squadron for Alexandria.',
+                     cause='unsustainable',
+                     cause_event_ids=british_payment_event_ids or None)
             return
         fleet = create_fleet(world, 'Britain', guns=rules['british_squadron_strength'])
         if not move_fleet(world, 'Britain', 'Alexandria'):
-            withdraw(world, 'The British squadron lacks coal for the Alexandria passage.', cause='unsustainable')
+            withdraw(world, 'The British squadron lacks coal for the Alexandria passage.',
+                     cause='unsustainable',
+                     cause_event_ids=british_payment_event_ids or None)
             return
         french_joined = False
+        french_payment_event_ids = []
         if decisions['France'] == 'join_enforcement' and france is not None:
-            if _transfer_to_households(france, 30.0):
+            if _transfer_to_households(
+                    world, france, 30.0, source='french_squadron_mobilization',
+                    trace_event_ids=french_payment_event_ids):
                 create_fleet(world, 'France', ships=2, guns=35, coal=5, transports=0)
                 french_joined = move_fleet(world, 'France', 'Alexandria')
                 if not french_joined:
@@ -176,6 +363,20 @@ def advance_naval_crisis(world: dict) -> None:
                       french_support=decisions['France'] in ('endorse', 'join_enforcement', 'joint_guarantor'),
                       french_fleet_joined=french_joined,
                       french_fleet_ever_joined=french_joined)
+        mobilization_causes = [event_id for event_id in
+                               british_payment_event_ids + french_payment_event_ids]
+        _emit_naval_trace(
+            world, britain,
+            kind='naval_squadron_mobilization_outcome', record_class='outcome',
+            phase='naval_crisis', subject={'type': 'scenario', 'id': 'naval_crisis'},
+            metric_id='military.fleet_mobilization', before='mobilizing', after='ultimatum',
+            inputs={'turn': turn, 'british_cost': float(british_cost),
+                    'british_fleet': dict(fleet),
+                    'french_policy': decisions['France'],
+                    'french_fleet_joined': bool(french_joined),
+                    'french_payment_event_ids': french_payment_event_ids,
+                    'british_payment_event_ids': british_payment_event_ids},
+            cause_event_ids=mobilization_causes or None)
         partner = {'endorse': 'France supports the demand but sends no ships',
                    'abstain': 'France abstains', 'oppose': 'France opposes armed enforcement',
                    'mediate': 'France proposes mediation',
@@ -187,16 +388,36 @@ def advance_naval_crisis(world: dict) -> None:
         world['playing'] = False
         return
     upkeep = float(rules['upkeep_per_turn']) + (4.0 if decisions['France'] == 'oppose' else 0.0)
-    if not _transfer_to_households(britain, upkeep):
-        withdraw(world, 'Britain cannot pay the fleet’s continuing supply costs; the squadron withdraws.', cause='unsustainable')
+    british_upkeep_event_ids = []
+    if not _transfer_to_households(
+            world, britain, upkeep, source='british_fleet_upkeep',
+            trace_event_ids=british_upkeep_event_ids):
+        withdraw(world, 'Britain cannot pay the fleet’s continuing supply costs; the squadron withdraws.',
+                 cause='unsustainable',
+                 cause_event_ids=british_upkeep_event_ids or None)
         return
-    if fleet_at(world, 'France', 'Alexandria') and not _transfer_to_households(france, 6.0):
-        state['geography']['fleets'].pop('France', None)
-        crisis['french_fleet_joined'] = False
-        state['diplomatic_crisis']['french_commitment'] = 'none'
-        state['diplomatic_crisis']['french_authorization'] = {
-            'demonstrate': False, 'blockade': False, 'bombard': False}
-        _record(world, 'French naval supply fails; the French squadron withdraws while Britain remains.')
+    if fleet_at(world, 'France', 'Alexandria'):
+        french_upkeep_event_ids = []
+        if not _transfer_to_households(
+                world, france, 6.0, source='french_fleet_upkeep',
+                trace_event_ids=french_upkeep_event_ids):
+            french_fleet_before = dict(state['geography']['fleets'].get('France', {}))
+            state['geography']['fleets'].pop('France', None)
+            crisis['french_fleet_joined'] = False
+            state['diplomatic_crisis']['french_commitment'] = 'none'
+            state['diplomatic_crisis']['french_authorization'] = {
+                'demonstrate': False, 'blockade': False, 'bombard': False}
+            _record(world, 'French naval supply fails; the French squadron withdraws while Britain remains.')
+            _emit_naval_trace(
+                world, france,
+                kind='naval_french_squadron_supply_failure', record_class='outcome',
+                phase='naval_crisis', subject={'type': 'scenario/fleet', 'id': 'France'},
+                metric_id='military.fleet_presence', before='Alexandria', after='withdrawn',
+                inputs={'turn': turn, 'reason': 'treasury_or_recipient_unavailable',
+                        'fleet_state_before': french_fleet_before,
+                        'british_fleet_remains': True,
+                        'funding_event_ids': french_upkeep_event_ids},
+                cause_event_ids=french_upkeep_event_ids or None)
     resupply(world, 'Britain', 1)
     if not fleet_at(world, 'Britain', 'Alexandria'):
         withdraw(world, 'The British squadron is absent or unsupplied; the Alexandria blockade ends.', cause='unsustainable')

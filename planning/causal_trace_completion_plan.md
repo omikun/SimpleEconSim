@@ -984,3 +984,24 @@ supporting scenario-politics, occupation-settlement, occupation-transfer, and
 fiscal-project creditor-reply tests passed (15 total). Coverage includes split
 receipts, underfunding, missing creditors, currency mismatch, and trace-on/off
 state parity. Compilation and `git diff --check` passed.
+
+Phase 3 follow-up, 2026-10-18: Guided Egypt force costs now use a shared
+decision/transfer/outcome trace for the existing payment from government cash
+to the first eligible household. Covered costs include Alexandria battery
+preparation, British and French squadron mobilization and upkeep, canal
+expedition supply, occupation garrison supply, and Caisse inspection
+preparation. A funding failure records the missing cash or resident recipient
+and creates no transfer. Garrison attrition, expedition withdrawal, and fleet
+withdrawal are linked to the failed supply decision. The trace identifies the
+actual wallet recipient without claiming that the payee is a military unit.
+The narrower-oversight action also records its $20 affordability gate, Egypt
+debit, split creditor receipts, and proposal result. Cash transfer contracts
+now expose payer/payee currency mismatches and mark the existing numeric leg as
+unconverted when no FX conversion is applied.
+
+Verification: five dedicated household-cost and oversight fixtures, nine
+existing naval crisis, occupation, and politics tests, and two longer canal and
+occupation playthrough tests passed (16 total). Compilation and
+`git diff --check` passed. The shared currency-contract update also passed 34
+existing geography, occupation-transfer, and run-trace tests. Other scenario
+transfers and household aid remain open for audit.

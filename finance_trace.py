@@ -40,6 +40,10 @@ def cash_transfer_contract(operation_id, operation_type, *, amount, currency,
                            counterparty_leg_status='both_cash_balances_captured',
                            **details):
     """Build a versioned contract for cash movements between non-treasury actors."""
+    payer_currency = (payer_account or {}).get('currency')
+    payee_currency = (payee_account or {}).get('currency')
+    currency_mismatch = bool(payer_currency and payee_currency
+                             and payer_currency != payee_currency)
     contract = {
         'contract_version': 'cash_transfer.v1',
         'operation_id': operation_id,
@@ -52,7 +56,9 @@ def cash_transfer_contract(operation_id, operation_type, *, amount, currency,
         'local_cash_leg_amount': float(amount),
         'local_cash_leg_currency': currency,
         'currency_conversion_applied': False,
-        'unconverted_currency_mismatch': False,
+        'counterparty_currency_mismatch': currency_mismatch,
+        'unconverted_currency_mismatch': bool(
+            currency and payee_currency and currency != payee_currency),
         'counterparty_leg_status': counterparty_leg_status,
     }
     contract.update(details)
