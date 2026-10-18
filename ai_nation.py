@@ -220,8 +220,8 @@ class NationPolicyAI:
                            t: int = 0) -> list[object]:
         """Generate diplomatic intents (alliances, trade pacts, betrayals, wars)."""
         intents = []
-        treasury = self.nation.treasury()
         other_nations = [n for n in all_nations if n.name != self.nation.name]
+        candidate_evaluations = []
 
         # Calculate relative military strength of all nations
         mil_strengths = {
@@ -236,41 +236,111 @@ class NationPolicyAI:
         for other in other_nations:
             other_str = mil_strengths.get(other.name, 0.0)
             rel = diplomacy.get_relation(self.nation.name, other.name)
-            if other_str > my_strength * 1.4 and rel < 0.2:
+            strength_gate = other_str > my_strength * 1.4
+            relation_gate = rel < 0.2
+            eligible = strength_gate and relation_gate
+            selected = False
+            if eligible:
                 if other_str > max_threat_score:
                     max_threat_score = other_str
                     threat_nation = other
+                    selected = True
+            candidate_evaluations.append({
+                'policy': 'dominant_threat', 'target': other.name,
+                'military_strength': other_str,
+                'own_military_strength': my_strength,
+                'strength_threshold_multiplier': 1.4,
+                'strength_gate': strength_gate,
+                'relation': rel, 'relation_threshold': 0.2,
+                'relation_gate': relation_gate, 'eligible': eligible,
+                'selected': selected,
+                'reason': ('strongest_eligible_threat' if selected else
+                           'not_stronger_than_selected_threat' if eligible else
+                           'military_threshold_not_met' if not strength_gate else
+                           'relations_not_hostile_enough')})
+
+        # In the (unusual) event that later eligible candidates replaced the
+        # provisional strongest target, preserve exactly one selected row.
+        if threat_nation is not None:
+            for row in candidate_evaluations:
+                if row['policy'] == 'dominant_threat':
+                    row['selected'] = row['target'] == threat_nation.name
+                    if row['eligible'] and not row['selected']:
+                        row['reason'] = 'not_stronger_than_selected_threat'
 
         # 2. Counterbalancing Alliance Formation (M5.5)
         if threat_nation is not None:
+            alliance_selected = False
             for ally_cand in other_nations:
                 if ally_cand.name == threat_nation.name:
+                    candidate_evaluations.append({
+                        'policy': 'counterbalance_alliance',
+                        'target': ally_cand.name, 'eligible': False,
+                        'selected': False, 'reason': 'dominant_threat_excluded'})
                     continue
                 # If ally candidate also faces threat from threat_nation and is not allied
-                if not diplomacy.has_treaty(self.nation.name, ally_cand.name, TreatyType.DEFENSIVE_ALLIANCE.value):
-                    rel = diplomacy.get_relation(self.nation.name, ally_cand.name)
-                    if rel >= -0.1:  # willing to cooperate against common threat
-                        intents.append(ProposeTreatyIntent(
-                            nation_name=self.nation.name,
-                            target_nation_name=ally_cand.name,
-                            treaty_type=TreatyType.DEFENSIVE_ALLIANCE.value,
-                            submitted_turn=t,
-                            regime_type=self.nation.regime_type
-                        ))
-                        break
-
-        # 3. Bilateral Trade Pacts (M5.4)
-        for other in other_nations:
-            if not diplomacy.has_treaty(self.nation.name, other.name, TreatyType.TRADE_PACT.value):
-                rel = diplomacy.get_relation(self.nation.name, other.name)
-                if rel >= 0.1:
+                if alliance_selected:
+                    candidate_evaluations.append({
+                        'policy': 'counterbalance_alliance',
+                        'target': ally_cand.name, 'eligible': None,
+                        'selected': False,
+                        'reason': 'not_evaluated_after_first_eligible_partner'})
+                    continue
+                has_alliance = diplomacy.has_treaty(
+                    self.nation.name, ally_cand.name,
+                    TreatyType.DEFENSIVE_ALLIANCE.value)
+                rel = diplomacy.get_relation(self.nation.name, ally_cand.name)
+                relation_gate = rel >= -0.1
+                eligible = not has_alliance and relation_gate
+                selected = eligible
+                candidate_evaluations.append({
+                    'policy': 'counterbalance_alliance',
+                    'target': ally_cand.name,
+                    'dominant_threat': threat_nation.name,
+                    'has_defensive_alliance': has_alliance,
+                    'relation': rel, 'relation_threshold': -0.1,
+                    'relation_gate': relation_gate, 'eligible': eligible,
+                    'selected': selected,
+                    'reason': ('first_eligible_counterbalance_partner' if selected else
+                               'defensive_alliance_already_active' if has_alliance else
+                               'relations_too_hostile')})
+                if eligible:
                     intents.append(ProposeTreatyIntent(
                         nation_name=self.nation.name,
-                        target_nation_name=other.name,
-                        treaty_type=TreatyType.TRADE_PACT.value,
+                        target_nation_name=ally_cand.name,
+                        treaty_type=TreatyType.DEFENSIVE_ALLIANCE.value,
                         submitted_turn=t,
                         regime_type=self.nation.regime_type
                     ))
+                    alliance_selected = True
+        else:
+            candidate_evaluations.append({
+                'policy': 'counterbalance_alliance', 'eligible': False,
+                'selected': False, 'reason': 'no_dominant_threat'})
+
+        # 3. Bilateral Trade Pacts (M5.4)
+        for other in other_nations:
+            has_pact = diplomacy.has_treaty(
+                self.nation.name, other.name, TreatyType.TRADE_PACT.value)
+            rel = diplomacy.get_relation(self.nation.name, other.name)
+            relation_gate = rel >= 0.1
+            eligible = not has_pact and relation_gate
+            candidate_evaluations.append({
+                'policy': 'trade_pact', 'target': other.name,
+                'has_trade_pact': has_pact, 'relation': rel,
+                'relation_threshold': 0.1, 'relation_gate': relation_gate,
+                'eligible': eligible, 'selected': eligible,
+                'reason': ('relations_meet_trade_pact_threshold' if eligible else
+                           'trade_pact_already_active' if has_pact else
+                           'relations_below_trade_pact_threshold')})
+            if eligible:
+                intents.append(ProposeTreatyIntent(
+                    nation_name=self.nation.name,
+                    target_nation_name=other.name,
+                    treaty_type=TreatyType.TRADE_PACT.value,
+                    submitted_turn=t,
+                    regime_type=self.nation.regime_type
+                ))
 
         # 4. Betrayal & Backstabbing Re-evaluation (M5.7)
         # If an ally has become very weak and possesses high-value bottleneck resources,
@@ -279,6 +349,10 @@ class NationPolicyAI:
             partner_name = tr.partner_of(self.nation.name)
             partner = next((n for n in all_nations if n.name == partner_name), None)
             if not partner:
+                candidate_evaluations.append({
+                    'policy': 'treaty_betrayal', 'target': partner_name,
+                    'treaty_type': tr.treaty_type, 'eligible': False,
+                    'selected': False, 'reason': 'treaty_partner_not_in_current_nation_list'})
                 continue
 
             partner_str = mil_strengths.get(partner.name, 0.0)
@@ -286,7 +360,35 @@ class NationPolicyAI:
 
             # Betrayal condition: partner is crippled (low military) while self has strong militarism
             # and low loyalty, or relations collapsed into negative
-            if (partner_str < 10.0 and my_strength > 50.0 and self.personality['loyalty'] < 0.5 and rel < 0.3) or rel < -0.4:
+            weak_partner = partner_str < 10.0
+            strong_self = my_strength > 50.0
+            low_loyalty = self.personality['loyalty'] < 0.5
+            weak_partner_relation_gate = rel < 0.3
+            opportunistic_betrayal = (weak_partner and strong_self
+                                      and low_loyalty
+                                      and weak_partner_relation_gate)
+            hostile_relation = rel < -0.4
+            eligible = opportunistic_betrayal or hostile_relation
+            candidate_evaluations.append({
+                'policy': 'treaty_betrayal', 'target': partner.name,
+                'treaty_type': tr.treaty_type,
+                'partner_military_strength': partner_str,
+                'own_military_strength': my_strength,
+                'loyalty': self.personality['loyalty'],
+                'relation': rel,
+                'opportunistic_gates': {
+                    'partner_below_10_strength': weak_partner,
+                    'self_above_50_strength': strong_self,
+                    'loyalty_below_0_5': low_loyalty,
+                    'relation_below_0_3': weak_partner_relation_gate},
+                'hostile_relation_gate': {'threshold': -0.4,
+                                          'passed': hostile_relation},
+                'eligible': eligible, 'selected': eligible,
+                'reason': ('partner_weak_low_loyalty_and_relation_below_0_3'
+                           if opportunistic_betrayal else
+                           'relation_below_minus_0_4' if hostile_relation else
+                           'betrayal_threshold_not_met')})
+            if eligible:
                 intents.append(BreakTreatyIntent(
                     nation_name=self.nation.name,
                     target_nation_name=partner.name,
@@ -298,13 +400,37 @@ class NationPolicyAI:
         # 5. Ideological Blocs & War Outbreak (M5.6)
         for other in other_nations:
             if diplomacy.are_at_war(self.nation.name, other.name):
+                candidate_evaluations.append({
+                    'policy': 'ideological_war', 'target': other.name,
+                    'at_war': True, 'eligible': False, 'selected': False,
+                    'reason': 'already_at_war'})
                 continue
             rel = diplomacy.get_relation(self.nation.name, other.name)
             # Check if polarization threshold crossed (negative relation + regime opposition)
             regime_clash = (self.nation.regime_type == 'autocracy' and other.regime_type == 'democracy') or \
                            (self.nation.regime_type == 'democracy' and other.regime_type == 'autocracy')
-            
-            if rel <= -0.7 and regime_clash and my_strength > mil_strengths.get(other.name, 0.0) * 1.2:
+            relation_gate = rel <= -0.7
+            relative_strength = mil_strengths.get(other.name, 0.0)
+            strength_gate = my_strength > relative_strength * 1.2
+            eligible = relation_gate and regime_clash and strength_gate
+            candidate_evaluations.append({
+                'policy': 'ideological_war', 'target': other.name,
+                'relation': rel, 'relation_threshold': -0.7,
+                'relation_gate': relation_gate,
+                'own_regime': self.nation.regime_type,
+                'other_regime': other.regime_type,
+                'regime_clash': regime_clash,
+                'own_military_strength': my_strength,
+                'other_military_strength': relative_strength,
+                'strength_threshold_multiplier': 1.2,
+                'strength_gate': strength_gate,
+                'eligible': eligible, 'selected': eligible,
+                'reason': ('hostile_relation_regime_clash_and_strength_advantage'
+                           if eligible else
+                           'relation_not_hostile_enough' if not relation_gate else
+                           'no_autocracy_democracy_clash' if not regime_clash else
+                           'insufficient_military_advantage')})
+            if eligible:
                 # Declare war
                 intents.append(DeclareWarIntent(
                     nation_name=self.nation.name,
@@ -313,6 +439,25 @@ class NationPolicyAI:
                     submitted_turn=t,
                     regime_type=self.nation.regime_type
                 ))
+
+        self._last_diplomacy_event_id = None
+        if self.nation.tiles:
+            from run_trace import emit
+            self._last_diplomacy_event_id = emit(
+                self.nation.tiles[0], kind='nation_diplomacy_evaluation',
+                record_class='decision', phase='strategy',
+                subject={'type': 'nation', 'id': self.nation.name},
+                metric_id='diplomacy.ai_candidates',
+                inputs={
+                    'own_military_strength': my_strength,
+                    'military_strengths': mil_strengths,
+                    'candidate_evaluations': candidate_evaluations,
+                    'proposed_intents': [
+                        {'intent_type': type(intent).__name__,
+                         'target': getattr(intent, 'target_nation_name', None),
+                         'treaty_type': getattr(intent, 'treaty_type', None)}
+                        for intent in intents],
+                    'proposed_intent_count': len(intents)})
 
         return intents
 
@@ -561,6 +706,9 @@ class NationPolicyAI:
             decision_id = emit(self.nation.tiles[0], kind='nation_ai_decision',
                  record_class='decision', phase='strategy',
                  subject={'type': 'nation', 'id': self.nation.name},
+                 cause_event_ids=([self._last_diplomacy_event_id]
+                                  if getattr(self, '_last_diplomacy_event_id', None)
+                                  else None),
                  inputs={'treasury_total': treasury['total'],
                          'considered': considered,
                          'food_security': food_responses,

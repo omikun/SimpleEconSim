@@ -806,5 +806,17 @@ evaluation cadence visible alongside the already traced candidate scores.
 Verification: three dedicated fixtures cover ordinary deferral, emergency
 bypass and its causes, repeated-call gating, and trace-on/off state parity.
 Twenty-nine scheduler, capitalist-planner, and rivalry tests passed. Compilation
-and `git diff --check` passed. Other scenario and diplomacy AI candidate details
-remain incomplete.
+and `git diff --check` passed.
+
+Phase 4 follow-up, 2026-10-18: nation diplomacy evaluation now records each
+candidate gate and decision for dominant threats, counterbalancing alliances,
+trade pacts, treaty betrayal, and ideological war. The records expose
+relations, military strengths, threshold checks, eligibility, selection, and
+stable reasons. The final nation-AI decision links to the detailed diplomacy
+evaluation.
+
+Verification: two dedicated fixtures check candidate reasons, the proposed
+intent list, final-decision cause linkage, and trace-on/off behavior parity.
+Seventeen diplomacy-AI, war-logic, and multi-nation sandbox tests passed.
+Compilation and `git diff --check` passed. Scenario diplomacy policies and
+other spatial, expansion, and AI candidate gates remain incomplete.

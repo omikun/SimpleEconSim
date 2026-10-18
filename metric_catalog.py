@@ -71,6 +71,7 @@ METRICS = {
     'war.cohesion': ('nation/opponent', 'ratio', 'war_logic.update_wars'),
     'war.posture': ('nation/opponent', 'category', 'war_logic.classify_posture'),
     'diplomacy.relation': ('nation_pair', 'ratio', 'diplomacy.DiplomacySystem.update_relations'),
+    'diplomacy.ai_candidates': ('nation/foreign_nation', 'decision candidates', 'ai_nation.NationPolicyAI.evaluate_diplomacy; military threat screens, alliance partners, trade pacts, betrayal conditions and ideological war gates'),
     'politics.grievance': ('tile/faction', 'score', 'region_factions.accumulate_grievances'),
     'politics.protest_energy': ('tile', 'score', 'region_factions.protest_energy'),
     'politics.unrest_level': ('tile', 'ratio', 'scenario_political_economy.apply_action'),
@@ -231,6 +232,7 @@ TRACE_INSTRUMENTED = set(LEGACY_HISTORY_TO_METRIC.values()) | {
     'goods.national_reference_price',
     'goods.national_food_price',
     'labor.strikers', 'labor.available_worker_hours',
+    'diplomacy.ai_candidates',
 }
 
 

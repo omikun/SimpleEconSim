@@ -224,8 +224,9 @@ success/failure reasons and measured effects. National
 treasury, bank, household, firm, and goods-by-currency reconciliations remain
 incomplete. Several scenario operations still need mutation-point records.
 Nation and capitalist AI decisions record most evaluated candidates, selections,
-and outcomes. The labor scheduler now exposes its cohort gate; some scenario and
-diplomacy AI candidate details remain partial. The current metric
+and outcomes. The labor scheduler exposes its cohort gate, and nation diplomacy
+records candidate thresholds and rejection reasons. Some scenario and other AI
+candidate details remain partial. The current metric
 catalog does not yet cover every displayed field;
 `inventory_region_histories()` labels legacy series as instrumented or
 untraced so a missing probe is visible during development.
@@ -430,5 +431,17 @@ The labor scheduler now records round-robin cohort selection, deferred workers,
 and the hunger, unemployment, dispossession, or eviction reasons for emergency
 bypass. Worker wage and livelihood decisions link to the schedule event. Three
 focused fixtures and 29 scheduler, capitalist-planner, and rivalry tests passed.
-Compilation and `git diff --check` passed. Scenario and diplomacy candidate logs
-remain partial.
+Compilation and `git diff --check` passed.
+
+Nation diplomacy evaluation now traces candidate-level gates for dominant
+military threats, counterbalancing alliances, trade pacts, treaty betrayal, and
+ideological war declarations. Each row records the relevant relation and
+military thresholds, eligibility, selection, and a stable reason code. The
+final nation-AI decision links back to that diplomacy evaluation, so the
+proposed intents can be compared with what the full turn submitted.
+
+Two focused fixtures verify candidate reasons, intent agreement, final-decision
+linkage, and trace-on/off behavior parity. Seventeen diplomacy-AI, war-logic,
+and multi-nation sandbox tests passed. Compilation and `git diff --check`
+passed. Scenario diplomacy policies and the remaining spatial, expansion, and
+other AI candidate gates still need detailed records.
