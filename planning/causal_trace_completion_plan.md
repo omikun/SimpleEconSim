@@ -1294,3 +1294,22 @@ Verification: six dedicated war-intent trace tests, six existing war-logic
 tests, and four diplomacy-action tests passed. Trace-on/off attack and peace
 response intents match; calculation links, regime-change penalties, decision
 gates, metric registration, compilation, and `git diff --check` were checked.
+
+## Phase 4 follow-up — Explain expansion candidate scoring
+
+The M5.3 expansion evaluator now records every adjacent-tile eligibility gate,
+including ownership, ocean, and elevation exclusions. Candidate rows expose
+terrain and climate valuation, native population, food/wood bottleneck relief,
+settlement or conquest scoring, relation fallout, military superiority,
+the minimum plan score, and the strict iteration-order tie behavior. The final
+event identifies the selected tile or says no plan passed.
+
+The audit found that `evaluate_expansion` has no production call site: the live
+`NationPolicyAI.decide_turn` does not currently use this evaluator. The trace
+documents plans whenever the function is called but does not add autonomous
+expansion to gameplay. That remains a separate AI integration decision.
+
+Verification: six dedicated expansion trace tests, nine existing M5 AI and
+diplomacy tests, and two diplomacy-AI trace tests passed. Trace-on/off plan
+parity, settlement and conquest formulas, alliance blocking, spatial gates,
+metric registration, compilation, and `git diff --check` were checked.

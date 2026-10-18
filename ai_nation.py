@@ -92,31 +92,56 @@ class NationPolicyAI:
 
         Reads recipe modifiers (fertility/terrain), climate, and baseline output.
         """
+        return self._terrain_value_breakdown(tile)['score']
+
+    def _terrain_value_breakdown(self, tile) -> dict:
         score = 0.0
         recipes = getattr(tile, 'recipes', {})
+        good_values = []
         for g in [Goods.food, Goods.wood, Goods.furniture]:
             recipe = recipes.get(g, {})
             base_price = recipe.get('price', 10.0)
             mult = recipe.get('productivity_mult', 1.0)
-            score += base_price * mult
+            contribution = base_price * mult
+            score += contribution
+            good_values.append({'good': g.name, 'reference_price': base_price,
+                                'productivity_multiplier': mult,
+                                'score_contribution': contribution})
 
         # Climate adjustment
         climate = getattr(tile, 'climate', 'temperate')
+        climate_multiplier = 1.0
         if climate == 'cold':
-            score *= 0.8
+            climate_multiplier = 0.8
         elif climate == 'fertile':
-            score *= 1.4
+            climate_multiplier = 1.4
+        goods_score_before_climate = score
+        score *= climate_multiplier
+        climate_adjusted_goods_score = score
 
         # Native population base value
         pop = len(getattr(tile, 'agents', [])) + getattr(tile, 'wilderness_pop', 0)
-        score += min(50.0, pop * 0.5)
-        return score
+        population_score = min(50.0, pop * 0.5)
+        score += population_score
+        return {'goods': good_values,
+                'goods_score_before_climate': goods_score_before_climate,
+                'climate': climate,
+                'climate_multiplier': climate_multiplier,
+                'climate_adjusted_goods_score': climate_adjusted_goods_score,
+                'native_population': pop,
+                'population_score_cap': 50.0,
+                'population_score_per_person': 0.5,
+                'population_score': population_score,
+                'score': score}
 
     def score_bottleneck_relief(self, tile) -> float:
         """Calculate how much *tile* relieves this nation's resource bottlenecks (M5.1).
 
         Analyzes own tiles' demand_ratio_log and price_spread_log for shortages.
         """
+        return self._bottleneck_relief_breakdown(tile)['bonus']
+
+    def _bottleneck_relief_breakdown(self, tile) -> dict:
         bonus = 0.0
         own_tiles = self.nation.tiles
 
@@ -129,22 +154,62 @@ class NationPolicyAI:
 
         tile_recipes = getattr(tile, 'recipes', {})
         # If own food is expensive (> $15) and candidate tile has food advantage
-        if avg_food_price > 15.0 and tile_recipes.get(Goods.food, {}).get('productivity_mult', 1.0) > 1.2:
-            bonus += (avg_food_price - 10.0) * 3.0
+        food_price_gate = avg_food_price > 15.0
+        food_productivity = None
+        food_productivity_gate = False
+        if food_price_gate:
+            food_productivity = tile_recipes.get(
+                Goods.food, {}).get('productivity_mult', 1.0)
+            food_productivity_gate = food_productivity > 1.2
+        food_bonus = ((avg_food_price - 10.0) * 3.0
+                      if food_price_gate and food_productivity_gate else 0.0)
+        bonus += food_bonus
 
         # If own wood is expensive (> $25) and candidate tile has wood advantage
-        if avg_wood_price > 25.0 and tile_recipes.get(Goods.wood, {}).get('productivity_mult', 1.0) > 1.2:
-            bonus += (avg_wood_price - 20.0) * 2.5
+        wood_price_gate = avg_wood_price > 25.0
+        wood_productivity = None
+        wood_productivity_gate = False
+        if wood_price_gate:
+            wood_productivity = tile_recipes.get(
+                Goods.wood, {}).get('productivity_mult', 1.0)
+            wood_productivity_gate = wood_productivity > 1.2
+        wood_bonus = ((avg_wood_price - 20.0) * 2.5
+                      if wood_price_gate and wood_productivity_gate else 0.0)
+        bonus += wood_bonus
 
-        return bonus
+        return {'bonus': bonus,
+                'own_average_food_price': avg_food_price,
+                'own_average_wood_price': avg_wood_price,
+                'food_price_threshold': 15.0,
+                'food_productivity_threshold': 1.2,
+                'food_bonus_price_base': 10.0,
+                'food_bonus_price_multiplier': 3.0,
+                'candidate_food_productivity': food_productivity,
+                'food_price_gate': food_price_gate,
+                'food_productivity_gate': food_productivity_gate,
+                'food_bonus': food_bonus,
+                'wood_price_threshold': 25.0,
+                'wood_productivity_threshold': 1.2,
+                'wood_bonus_price_base': 20.0,
+                'wood_bonus_price_multiplier': 2.5,
+                'candidate_wood_productivity': wood_productivity,
+                'wood_price_gate': wood_price_gate,
+                'wood_productivity_gate': wood_productivity_gate,
+                'wood_bonus': wood_bonus}
+
+    def _candidate_tile_valuation(self, tile) -> dict:
+        terrain = self._terrain_value_breakdown(tile)
+        bottleneck = self._bottleneck_relief_breakdown(tile)
+        total = terrain['score'] + bottleneck['bonus']
+        reason = (f"Terrain score: {terrain['score']:.1f}, Bottleneck relief bonus: "
+                  f"{bottleneck['bonus']:.1f} (Total: {total:.1f})")
+        return {'score': total, 'reason': reason,
+                'terrain': terrain, 'bottleneck_relief': bottleneck}
 
     def evaluate_candidate_tile(self, tile) -> tuple[float, str]:
         """Total desirability score for acquiring *tile* with explanation string."""
-        terrain_score = self.score_terrain_value(tile)
-        bottleneck_score = self.score_bottleneck_relief(tile)
-        total = terrain_score + bottleneck_score
-        reason = f"Terrain score: {terrain_score:.1f}, Bottleneck relief bonus: {bottleneck_score:.1f} (Total: {total:.1f})"
-        return total, reason
+        valuation = self._candidate_tile_valuation(tile)
+        return valuation['score'], valuation['reason']
 
     # ------------------------------------------------------------------
     # M5.2 Vulnerability & Military Posture
@@ -202,25 +267,71 @@ class NationPolicyAI:
     def evaluate_expansion(self, all_tiles: list, all_nations: list,
                            diplomacy: DiplomacySystem) -> dict | None:
         """Find the best adjacent expansion opportunity and return plan dict (M5.3)."""
-        best_candidate = None
         best_score = -999.0
         best_plan = None
 
         # Find all adjacent non-owned tiles
         candidates = set()
+        candidate_gate_evaluations = []
         for own_tile in self.nation.tiles:
             for neighbor in own_tile.neighbors.values():
-                if getattr(neighbor, 'owner_nation', None) is not self.nation and not getattr(neighbor, 'is_ocean', False) and getattr(neighbor, 'elevation', 0.0) >= 0.0:
+                owner = getattr(neighbor, 'owner_nation', None)
+                ocean = None
+                elevation = None
+                if owner is self.nation:
+                    reason = 'already_owned'
+                    eligible = False
+                else:
+                    ocean = getattr(neighbor, 'is_ocean', False)
+                    if ocean:
+                        reason = 'ocean_tile'
+                        eligible = False
+                    else:
+                        elevation = getattr(neighbor, 'elevation', 0.0)
+                        eligible = elevation >= 0.0
+                        reason = ('adjacent_land_candidate' if eligible else
+                                  'below_sea_level')
+                candidate_gate_evaluations.append({
+                    'from_tile': own_tile.name,
+                    'candidate_tile': neighbor.name,
+                    'owner': getattr(owner, 'name', None),
+                    'is_ocean': ocean,
+                    'elevation': elevation,
+                    'eligible': eligible,
+                    'reason': reason})
+                if eligible:
                     candidates.add(neighbor)
 
-        for tile in candidates:
-            score, val_reason = self.evaluate_candidate_tile(tile)
+        candidate_evaluations = []
+        selected_candidate_index = None
+        for candidate_index, tile in enumerate(candidates):
+            valuation = self._candidate_tile_valuation(tile)
+            score, val_reason = valuation['score'], valuation['reason']
             owner = getattr(tile, 'owner_nation', None)
+            evaluation = {
+                'candidate_order_index': candidate_index,
+                'tile': tile.name,
+                'owner': getattr(owner, 'name', None),
+                'valuation_score': score,
+                'valuation_reason': val_reason,
+                'valuation_components': {
+                    'terrain': valuation['terrain'],
+                    'bottleneck_relief': valuation['bottleneck_relief']},
+                'candidate_mode_eligible': False,
+                'eligible_plan': False,
+                'selected': False}
 
             if owner is None:
                 # Wilderness / unowned tile: settlement vector
                 cost = 20.0
                 net_score = score * self.personality['expansionist'] - cost * 0.1
+                evaluation.update({
+                    'mode': 'settle', 'candidate_mode_eligible': True,
+                    'plan_score': net_score,
+                    'score_formula': 'valuation*expansionist - 20*0.1',
+                    'expansionist': self.personality['expansionist'],
+                    'settlement_cost': cost,
+                    'settlement_cost_weight': 0.1})
                 plan = {
                     'tile': tile,
                     'mode': 'settle',
@@ -239,6 +350,21 @@ class NationPolicyAI:
 
                 if own_military > enemy_military * 1.3 and not is_allied:
                     net_score = score * self.personality['militarism'] * 1.5 - fallout_penalty
+                    evaluation.update({
+                        'mode': 'conquest', 'target_nation': owner.name,
+                        'candidate_mode_eligible': True,
+                        'relation': rel, 'defensive_alliance': is_allied,
+                        'diplomatic_fallout_multiplier':
+                            100.0 if is_allied else 30.0,
+                        'diplomatic_fallout_penalty': fallout_penalty,
+                        'own_military_strength': own_military,
+                        'enemy_military_strength': enemy_military,
+                        'military_advantage_multiplier': 1.3,
+                        'military_advantage_gate': True,
+                        'militarism': self.personality['militarism'],
+                        'plan_score': net_score,
+                        'score_formula':
+                            'valuation*militarism*1.5 - diplomatic_fallout'})
                     plan = {
                         'tile': tile,
                         'mode': 'conquest',
@@ -247,11 +373,87 @@ class NationPolicyAI:
                         'reason': f"Annex {tile.name} from {owner.name} by force ({val_reason})"
                     }
                 else:
+                    evaluation.update({
+                        'mode': 'conquest', 'target_nation': owner.name,
+                        'relation': rel, 'defensive_alliance': is_allied,
+                        'diplomatic_fallout_multiplier':
+                            100.0 if is_allied else 30.0,
+                        'diplomatic_fallout_penalty': fallout_penalty,
+                        'own_military_strength': own_military,
+                        'enemy_military_strength': enemy_military,
+                        'military_advantage_multiplier': 1.3,
+                        'military_advantage_gate':
+                            own_military > enemy_military * 1.3,
+                        'candidate_mode_eligible': False,
+                        'eligible_plan': False,
+                        'reason': ('defensive_alliance_blocks_conquest'
+                                   if is_allied else
+                                   'insufficient_military_advantage')})
+                    candidate_evaluations.append(evaluation)
                     continue
 
+            plan_score_gate = plan['score'] > 5.0
+            evaluation.update({'eligible_plan': plan_score_gate,
+                               'plan_score_threshold': 5.0,
+                               'plan_score_gate': plan_score_gate,
+                               'selected': False})
             if plan['score'] > best_score and plan['score'] > 5.0:
+                if selected_candidate_index is not None:
+                    candidate_evaluations[selected_candidate_index][
+                        'selected'] = False
+                    candidate_evaluations[selected_candidate_index][
+                        'selection_result'] = 'superseded_by_higher_score'
                 best_score = plan['score']
                 best_plan = plan
+                evaluation['selected'] = True
+                evaluation['selection_result'] = 'highest_score_so_far'
+                selected_candidate_index = len(candidate_evaluations)
+            elif plan['score'] <= 5.0:
+                evaluation['selection_result'] = 'below_minimum_plan_score'
+            elif plan['score'] == best_score:
+                evaluation['selection_result'] = 'tie_kept_earlier_candidate'
+            else:
+                evaluation['selection_result'] = 'lower_score_than_selected_plan'
+            candidate_evaluations.append(evaluation)
+
+        selected_summary = ({'tile': best_plan['tile'].name,
+                             'mode': best_plan['mode'],
+                             'target_nation': best_plan.get('target_nation'),
+                             'score': best_plan['score'],
+                             'reason': best_plan['reason']}
+                            if best_plan is not None else
+                            {'tile': None, 'mode': None, 'score': None,
+                             'reason': 'no_candidate_passed_plan_gates'})
+        trace_region = next((tile for tile in self.nation.tiles
+                             if getattr(tile, '_run_trace', None) is not None
+                             and getattr(tile, '_collective_trace_clock', None)
+                             is not None), None)
+        if trace_region is not None:
+            from run_trace import emit
+            clock = trace_region._collective_trace_clock
+            trace_turn = int(clock.get('turn', 0))
+            operation_id = (f'expansion:{self.nation.name}:{trace_turn}:'
+                            f'{int(clock.get("next", 0))}')
+            emit(
+                trace_region, kind='nation_expansion_evaluation',
+                record_class='decision', phase='strategy',
+                subject={'type': 'nation', 'id': self.nation.name},
+                metric_id='expansion.ai_candidates', unit='plan',
+                after=selected_summary,
+                inputs={
+                    'operation_id': operation_id,
+                    'turn': trace_turn,
+                    'all_tile_count': len(all_tiles),
+                    'all_nation_count': len(all_nations),
+                    'candidate_gate_count': len(candidate_gate_evaluations),
+                    'candidate_gate_evaluations': candidate_gate_evaluations,
+                    'candidate_count': len(candidates),
+                    'candidate_evaluations': candidate_evaluations,
+                    'selected_plan': selected_summary,
+                    'minimum_plan_score': 5.0,
+                    'candidate_iteration_order':
+                        'existing_set_iteration; strict greater-than keeps first tie'}
+            )
 
         return best_plan
 

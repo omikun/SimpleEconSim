@@ -927,3 +927,19 @@ tests, and four diplomacy-action tests passed. Coverage includes trace-on/off
 intent parity, peace calculation causal links, regime-change rejection, attack
 forecast selection, peace proposal gates, metric registration, compilation,
 and `git diff --check`.
+
+Phase 4 follow-up, 2026-10-18: the expansion evaluator now records each
+frontier-tile gate, settlement or conquest score, terrain and population
+components, food/wood bottleneck bonuses, diplomatic fallout, military balance,
+and the strict score/tie-order reason for selecting or rejecting a plan.
+Spatial exclusions identify owned, ocean, and below-sea-level tiles.
+
+Audit finding: `evaluate_expansion` currently has no production caller; the
+active `decide_turn` path does not use this M5.3 plan. The new trace appears
+when the evaluator is called, but this work does not activate expansion or
+change AI behavior. That integration remains a gameplay/AI follow-up.
+
+Verification: six dedicated expansion trace tests, nine existing M5 AI and
+diplomacy tests, and two diplomacy-AI trace tests passed. Trace-on/off plan
+parity, settlement valuation, conquest and alliance gates, spatial exclusions,
+registered metrics, compilation, and `git diff --check` were checked.

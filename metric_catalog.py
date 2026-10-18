@@ -83,6 +83,7 @@ METRICS = {
     'war.posture': ('nation/opponent', 'category', 'war_logic.classify_posture'),
     'war.ai_intent': ('nation/opponent', 'intent', 'ai_nation.NationPolicyAI.choose_war_intent; active-war response, peace proposal, attack forecast and no-action gates'),
     'war.peace_offer_evaluation': ('nation/opponent', 'accepted', 'ai_nation.NationPolicyAI.evaluate_peace_offer; current-control ceasefire value compared with continued-war value'),
+    'expansion.ai_candidates': ('nation/tile', 'plan', 'ai_nation.NationPolicyAI.evaluate_expansion; frontier eligibility, terrain and bottleneck value, settlement/conquest gates, and strict score ranking'),
     'diplomacy.relation': ('nation_pair', 'ratio', 'diplomacy.DiplomacySystem.update_relations'),
     'diplomacy.ai_candidates': ('nation/foreign_nation', 'decision candidates', 'ai_nation.NationPolicyAI.evaluate_diplomacy; military threat screens, alliance partners, trade pacts, betrayal conditions and ideological war gates'),
     'diplomacy.treaty_decision': ('nation_pair', 'accepted', 'diplomacy.DiplomacySystem; treaty signing, breaking, cancellation and peace offer/respond gates'),
@@ -300,7 +301,7 @@ LEGACY_HISTORY_TO_METRIC = {
 TRACE_INSTRUMENTED = set(LEGACY_HISTORY_TO_METRIC.values()) | {
     'fx.bilateral_mid', 'politics.legitimacy', 'people.births', 'people.residents',
     'people.profession_population',
-    'war.ai_intent', 'war.peace_offer_evaluation',
+    'war.ai_intent', 'war.peace_offer_evaluation', 'expansion.ai_candidates',
     'finance.sovereign_bond', 'finance.treasury_flow', 'finance.cash_creation',
     'finance.cash_transfer', 'goods.grain_transfer',
     'finance.occupation_transfer', 'finance.canal_toll', 'military.fleet_position',
