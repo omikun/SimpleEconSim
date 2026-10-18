@@ -1227,3 +1227,26 @@ Verification: two dedicated repeal tests, two labor-law tests, and all three
 workday tests passed (7 total), with trace-on/off parity and explicit checks
 for the unreconciled tile and firm state. Compilation and `git diff --check`
 passed.
+
+## Phase 4 follow-up — Explain national elections
+
+The election path now records candidate-pool construction, faction leaders and
+independent candidates, candidate ranking, voter faction weights and promise
+memory, individual vote choices, vote tallies, campaign-budget eligibility and
+allocation, actual treasury transfers, and the final elected faction. Empty
+candidate pools also retain an explicit outcome. Campaign transfer events link
+to their allocation decisions; the winner record links to candidate selection
+and vote tallies.
+
+A gameplay finding is made explicit in the trace: base popularity ranks and
+limits the candidate pool and the existing first-in-order tie-break follows
+that base ranking. Campaign and capitalist backlash popularity changes occur
+after pool ordering; they do not change faction vote weights or reorder a tie.
+Campaign popularity's charisma-diluted spending formula is replayable. Treat
+any change to these election rules as a separate gameplay design change.
+
+Verification: four dedicated election tests and 45 supply-control actor
+strategy tests passed. Trace-on/off election results match, campaign cash is
+conserved, and candidate, voter, campaign-transfer, popularity-calculation,
+tally, and result events are registered. Compilation and `git diff --check`
+passed.

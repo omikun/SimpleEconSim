@@ -868,3 +868,22 @@ Verification: two dedicated repeal tests, both existing labor-law trace tests,
 and all three statutory workday trace tests passed (7 total), including
 trace-on/off parity, stale tile and firm state, and laws outside this repeal
 path. Compilation and `git diff --check` passed.
+
+Phase 4 follow-up, 2026-10-18: national elections now trace candidate-pool
+formation, faction-leader evaluations, independent fill, candidate ranking,
+each eligible voter's faction-weighted choice and broken-promise defection,
+per-candidate vote totals, campaign-budget gates and allocations, campaign
+cash transfers, and the winner/incumbent transition. The final election record
+links to its candidate pool and vote tallies; transfer rows link to each
+candidate's budget decision. Empty candidate pools also record why there was
+no winner. Campaign spending's charisma-diluted popularity formula is recorded
+separately. The trace distinguishes base popularity, which ranks and limits the
+candidate pool and supplies the existing first-in-order vote tie-break, from
+campaign/backlash popularity changes, which happen after pool ordering and do
+not enter faction vote weights.
+
+Verification: four dedicated election tests and all 45 supply-control actor
+strategy tests passed. Coverage includes trace-on/off result parity, campaign
+cash conservation, transfer-to-allocation links, candidate selection, voter
+fallbacks, broken-promise defection, and empty elections. Compilation and
+`git diff --check` passed.
