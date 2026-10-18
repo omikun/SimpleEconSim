@@ -102,10 +102,11 @@ def repoint_traders(region):
             desk = region.forex_desks.get(name)
             rate = desk.buy_rate() if desk is not None else 1.0
             gov = getattr(other, 'gov', None)
-            fee = gov.get_trade_fee_multiplier() if gov is not None else 1.0
-            tariff = (getattr(gov, 'import_tariff_rate', 0.0)
-                      if gov is not None and getattr(gov, 'import_tariff_enabled', False)
-                      else 0.0)
+            fee = (gov.get_trade_fee_multiplier(include_import_tariff=False)
+                   if gov is not None else 1.0)
+            from economy.trade_costs import import_tariff_terms
+            tariff, drawback, effective_tariff = import_tariff_terms(
+                other, getattr(region, 'home_currency', None))
             for good in TRADE_GOODS:
                 if good not in region.recipes or good not in other.recipes:
                     continue
@@ -114,7 +115,7 @@ def repoint_traders(region):
                 if local_price <= 0 or dest_price <= 0:
                     continue
                 freight = base_freight * max(0.2, frict)
-                net_receipt = dest_price * rate * fee * (1.0 - tariff)
+                net_receipt = dest_price * rate * fee * (1.0 - effective_tariff)
                 unit_margin = net_receipt - local_price - freight
                 if unit_margin <= local_price * region.IMPORT_MARGIN_MIN:
                     continue

@@ -1150,7 +1150,9 @@ def draw_panel(surface, world, font, font_small, mouse_pos=None):
         firm_account = next((a for a in getattr(region, 'actor_turn_accounts', [])
                              if a.get('type') == 'corporation' and a.get('sales_cash', 0) > 0), None)
         if firm_account:
-            delivered = (f" | imported input ${firm_account['delivered_input_unit_price']:.2f}/unit"
+            currency = firm_account.get('delivered_input_currency') or ''
+            currency_prefix = f"{currency} " if currency else ""
+            delivered = (f" | imported input {currency_prefix}{firm_account['delivered_input_unit_price']:.2f}/unit"
                          if firm_account.get('delivered_input_unit_price') is not None else "")
             account_line = font_small.render(
                 f"{firm_account['actor_name']}: paid sales ${firm_account['sales_cash']:.1f} | "
@@ -1159,6 +1161,25 @@ def draw_panel(surface, world, font, font_small, mouse_pos=None):
                 True, (150, 210, 220))
             surface.blit(account_line, (PANEL_LEFT, y_cursor))
             y_cursor += 16
+            imported_lots = firm_account.get('delivered_input_lots', [])
+            def weighted_lot_average(key):
+                rows = [lot for lot in imported_lots
+                        if lot.get(key) is not None and float(lot.get('quantity', 0)) > 0]
+                quantity = sum(float(lot['quantity']) for lot in rows)
+                return (sum(float(lot[key]) * float(lot['quantity']) for lot in rows) / quantity
+                        if quantity > 0 else None)
+            landed = weighted_lot_average('landed_cost_destination_currency')
+            duty = weighted_lot_average('import_tariff_paid_per_unit')
+            margin = weighted_lot_average('trader_landed_margin_per_unit')
+            if landed is not None:
+                cost_detail = f"Imported cost ({currency}): landed {landed:.2f}/unit"
+                if duty is not None:
+                    cost_detail += f" | duty {duty:.2f}"
+                if margin is not None:
+                    cost_detail += f" | trader margin {margin:.2f}/unit"
+                breakdown = font_small.render(cost_detail, True, (170, 195, 205))
+                surface.blit(breakdown, (PANEL_LEFT, y_cursor))
+                y_cursor += 16
         if pending_offers:
             offer = next(c for c in region.supply_proposals
                          if c.get('status') in ('proposed', 'countered'))

@@ -5,9 +5,11 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from agent import Agent, initialize_agent
+from economy.actor_accounts import seal_turn
+from forex import ForexDesk, fx_balance
 from goods import Goods
 from region_logistics import post_exports_to_route, repoint_traders
-from region_market import clear_discriminatory
+from region_market import clear_discriminatory, import_ask_price
 from transporter import Route
 from world_trade import pending_imports
 
@@ -143,6 +145,107 @@ class MarketRouteTests(unittest.TestCase):
         self.assertEqual(detail['route_history'], ['Upland->Lowland'])
         self.assertEqual(trader.parked_get(parked_tile.name, Goods.cotton), 0)
         self.assertEqual(trader.import_lots[0]['quantity'], 0)
+
+    def test_import_quote_and_paid_lot_trace_include_fx_freight_and_drawback(self):
+        source = SimpleNamespace(name='Source', home_currency='USD', forex_desks={},
+                                 forex=None, recipes={Goods.cotton: {'price': 8.0}})
+        destination_fx = ForexDesk('USD', 'EUR', mid=2.0, spread=0.0,
+                                   seed_reserves=False)
+        source.forex_desks['Port'] = destination_fx
+        destination = SimpleNamespace(name='Port')
+        trader = self._trader(source, destination, qty=2)
+        trader.home_currency = 'USD'
+        trader.inventory_foreign[Goods.cotton.value] = 2
+
+        class TariffGovernment:
+            import_tariff_enabled = True
+            import_tariff_rate = 0.10
+            import_drawback_enabled = True
+            import_drawback_rate = 0.20
+
+            def __init__(self):
+                self.agent = Agent(0)
+                initialize_agent(self.agent, Goods.gov, 0, 0, 0.0)
+                self.tariff_received = 0.0
+
+            def receive_tariff(self, _turn, amount, region=None):
+                self.agent.cash += amount
+                self.tariff_received += amount
+
+        government = TariffGovernment()
+        market = SimpleNamespace(
+            name='Port', home_currency='EUR', recipes={
+                Goods.cotton: {'price': 20.0},
+                Goods.cloth: {'price': 30.0, 'input': Goods.cotton,
+                              'numInput': 1, 'production': 1},
+            }, neighbors={source.name: source}, destination_region=source,
+            forex_desks={}, forex=None, exchange_rate=1.0, _trade_fee_mult=1.0,
+            gov=government, IMPORT_MARGIN_MIN=0.10, IMPORT_MARGIN_MAX=0.10,
+            _auction_import_sales={}, agents=[],
+        )
+        shipment_id = 'shipment-landed-cost-test'
+        lot = (trader, 2, False, shipment_id, 8.0, 2.0, 'USD',
+               'trader_cost_basis', shipment_id, source.name, [], [])
+        ask = import_ask_price(
+            market, trader, Goods.cotton, shipment_id=shipment_id,
+            source_unit_cost=8.0, freight_per_unit=2.0, source_currency='USD',
+            source_region_name=source.name, source_cost_status='trader_cost_basis')
+        expected_ask = 5.0 * 1.10 / 0.92
+        self.assertAlmostEqual(ask, expected_ask)
+
+        buyer = Agent(0)
+        initialize_agent(buyer, Goods.cloth, 1, 0, 100.0)
+        buyer.is_corporation = True
+        buyer.inv_set(Goods.cotton, 0)
+        market.agents = [buyer, trader]
+        bought, paid, _ = clear_discriminatory(
+            market, Goods.cotton, 20.0, total_asks=2, total_bids=2,
+            imp_pool=[lot], agents=market.agents, t=1,
+            local_orders={'sellers': [], 'buyers': [
+                {'agent': buyer, 'quantity': 2, 'limit_price': ask},
+            ]})
+        self.assertEqual(bought, 2)
+        self.assertAlmostEqual(paid, 2 * ask)
+        self.assertAlmostEqual(fx_balance(trader, 'EUR'), paid * 0.92)
+        self.assertAlmostEqual(government.tariff_received, paid * 0.08)
+
+        sale = next(e for e in market.economic_events if e['kind'] == 'spot_sale')
+        detail = sale['detail']
+        self.assertEqual(detail['destination_currency'], 'EUR')
+        self.assertEqual(detail['source_cost_currency'], 'USD')
+        self.assertAlmostEqual(detail['fx_source_to_destination_rate'], 0.5)
+        self.assertEqual(detail['fx_valuation_method'], 'source_home_buy_rate_inverse')
+        self.assertAlmostEqual(detail['landed_cost_source_currency'], 10.0)
+        self.assertAlmostEqual(detail['landed_cost_destination_currency'], 5.0)
+        self.assertAlmostEqual(detail['import_tariff_assessed_per_unit'], ask * 0.10)
+        self.assertAlmostEqual(detail['import_tariff_rebate_per_unit'], ask * 0.02)
+        self.assertAlmostEqual(detail['import_tariff_paid_per_unit'], ask * 0.08)
+        self.assertAlmostEqual(detail['seller_net_receipt_per_unit'], ask * 0.92)
+        self.assertAlmostEqual(detail['trader_landed_margin_per_unit'], 0.5)
+
+        accounts = seal_turn(market, 1, event_regions=[market])
+        buyer_account = next(row for row in accounts if row['actor_id'] == buyer.id)
+        delivered = buyer_account['delivered_input_lots'][0]
+        self.assertEqual(buyer_account['delivered_input_currency'], 'EUR')
+        self.assertAlmostEqual(delivered['landed_cost_destination_currency'], 5.0)
+        self.assertAlmostEqual(delivered['import_tariff_paid_per_unit'], ask * 0.08)
+        self.assertAlmostEqual(delivered['trader_landed_margin_per_unit'], 0.5)
+
+    def test_import_reference_cap_never_quotes_below_landed_break_even(self):
+        source = SimpleNamespace(name='Source', home_currency='D', forex_desks={},
+                                 forex=None, recipes={Goods.cotton: {'price': 8.0}})
+        destination = SimpleNamespace(name='Port',
+                                      recipes={Goods.cotton: {'price': 2.0}})
+        trader = self._trader(source, destination, qty=1)
+        market = self._destination_market(destination, source, {})
+        market.recipes[Goods.cotton]['price'] = 2.0
+        market.IMPORT_MARGIN_MIN = 0.10
+        market.IMPORT_MARGIN_MAX = 0.10
+        ask = import_ask_price(
+            market, trader, Goods.cotton, source_unit_cost=8.0,
+            freight_per_unit=2.0, source_currency='D',
+            source_region_name=source.name)
+        self.assertGreaterEqual(ask, 10.0)
 
     def test_trader_market_purchase_links_seller_to_final_import_sale(self):
         source = SimpleNamespace(

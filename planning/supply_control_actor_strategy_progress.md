@@ -75,13 +75,31 @@ already fun or balanced; that still needs player feedback.
   forgiveness splits the public claim between municipal and national
   treasuries, matching the tax-allocation rule. Actor statements and web tile
   inspection show these write-offs without treating them as cash movement.
+- Imported asks now use each shipment lot's source cost and paid freight,
+  converted to destination currency with the source desk's current buy quote
+  (or the destination desk's bilateral quote). The quote trace records the
+  selected cost basis, FX method, tariff and drawback, break-even, margin, and
+  whether the reference-price cap binds. A low reference cap cannot force an
+  ask below landed break-even after the effective tariff. Trader routing and
+  input bid estimates apply that tariff once, matching settlement's statutory
+  duty and drawback rules.
+- Each paid imported sale records the actual destination price, source and
+  freight cost in both currencies, FX rate and valuation basis, tariff assessed,
+  drawback returned, tariff paid, seller receipt, and estimated landed margin.
+  Delivered-input account lots expose those fields through the server API; the
+  web and desktop clients summarize landed cost, duty, and trader margin beside
+  the actual delivered unit price.
+- Stock created by old direct-buy paths, initial scenario setup, liquidation,
+  or other flows without a settled market event remains explicitly unlinked.
+  If a legacy lot lacks a bilateral FX quote, the ask trace records the parity
+  fallback used for pricing; if its acquisition cost is unknown, it remains
+  explicitly estimated or unlinked instead of being presented as a settled
+  purchase cost.
 - Remaining gate work: extend coverage to other non-estate credit losses and
-  non-probate currency legs. Paid market purchases now
-  link cargo from named sellers through route legs to destination fills;
-  scenario-seeded or legacy cargo and fully normalized FX, freight, and tariff
-  delivered cost remain open. The tested default runs close the actor cash
-  bridge, but they do not prove complete balance-sheet or operating-profit
-  coverage.
+  non-probate currency legs, including the remaining bank deposit/withdrawal
+  adapters. Scenario-seeded or legacy cargo can still lack a settled source
+  cost. The tested default runs close the actor cash bridge, but they do not
+  prove complete balance-sheet or operating-profit coverage.
 
 ## Phase 2 — grower and title-holder agency: implemented, deeper law/remedy work out of scope
 
@@ -158,6 +176,16 @@ already fun or balanced; that still needs player feedback.
 
 ## Verification run
 
+- Imported shipment asks now use lot cost plus paid freight in destination
+  currency; quote traces include FX valuation, tariff terms, break-even, margin,
+  and reference-cap behavior. Paid sales and firm account lots carry tariff,
+  drawback, seller receipt, FX, landed-cost, and trader-margin details. Both
+  clients show the destination-currency landed cost, duty, and margin beside
+  the actual imported input price.
+- `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_market_routes test_market_auction test_supply_control_actor_strategy.ActorAccountTests` — 39 tests passed, including a USD-to-EUR shipment with freight, tariff, drawback, settlement, and account-summary checks, plus a reference-cap break-even check.
+- `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_supply_control_actor_strategy test_supply_rights test_market_auction test_market_routes test_web_client_parity test_truck_system_and_scrip test_run_trace test_trace_codec test_banking_contagion` — 120 tests passed.
+- `node --check web_client/client.js`, targeted Python compilation, and `git diff --check` — passed.
+- `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python benchmark_supply_default.py 50 4242` — default three-nation 50-turn run completed with zero currency violations, zero unmatched actor cash on turn 50, and zero unmatched actor-turn cash across the run.
 - Domestic-bank sovereign bond principal and coupon defaults now create one
   economic journal event per affected tile bank, linked to the bond ID and
   issuer. Compact trace records the default kind, missed payment amount, actual

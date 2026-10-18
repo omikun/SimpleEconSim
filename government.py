@@ -489,17 +489,19 @@ class Government:
     def __repr__(self):
         return f"Government({self.name})"
 
-    def get_trade_fee_multiplier(self, source_nation: str | None = None, source_region=None):
+    def get_trade_fee_multiplier(self, source_nation: str | None = None, source_region=None,
+                                 *, include_import_tariff=True):
         """Return the net fraction of a trader's sale price they actually keep
         after all destination-region fees (recycling, tariff, ask discount).
 
         A region's traders use this when deciding whether a cross-region
-        trade is profitable.
+        trade is profitable. Callers that apply the statutory tariff and
+        drawback separately can exclude it here with ``include_import_tariff``.
         """
         m = 0.95  # base ask discount (sell at 95% of dest price)
         if self.trader_recycling_enabled:
             m *= (1 - self.trader_recycling_rate)
-        if self.import_tariff_enabled:
+        if include_import_tariff and self.import_tariff_enabled:
             discount = 0.0
             src_n = source_nation
             if src_n is None and source_region is not None:

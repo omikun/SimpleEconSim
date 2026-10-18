@@ -94,3 +94,46 @@ def acquisition_cost_summary(links, quantity):
         known_value += linked_quantity * float(unit_cost)
     weighted = known_value / known_quantity if known_quantity else None
     return min(int(quantity), known_quantity), weighted
+
+
+def source_to_destination_rate(destination, source_region_name, source_currency):
+    """Return destination-currency units per source-currency unit.
+
+    Pricing uses the source desk's current buy quote for destination-currency
+    proceeds, then inverts it to value source-currency acquisition costs. The
+    desk identity and method are returned so downstream records can explain
+    this valuation. ``None`` means the currencies cannot be normalized from
+    the available bilateral quotes.
+    """
+    destination_currency = getattr(destination, 'home_currency', None)
+    if not source_currency or not destination_currency:
+        return None, 'currency_unavailable'
+    if source_currency == destination_currency:
+        return 1.0, 'same_currency'
+
+    source_region = (getattr(destination, 'neighbors', {}) or {}).get(source_region_name)
+    source_desks = getattr(source_region, 'forex_desks', {}) or {}
+    source_desk = source_desks.get(getattr(destination, 'name', None))
+    if (source_desk is None and source_region is not None
+            and getattr(source_region, 'forex', None) is not None
+            and getattr(source_region.forex, 'other', None) == destination_currency):
+        source_desk = source_region.forex
+    if (source_desk is not None
+            and getattr(source_desk, 'home', source_currency) == source_currency
+            and getattr(source_desk, 'other', destination_currency) == destination_currency):
+        source_buy_rate = float(source_desk.buy_rate())
+        if source_buy_rate > 0:
+            return 1.0 / source_buy_rate, 'source_home_buy_rate_inverse'
+
+    destination_desks = getattr(destination, 'forex_desks', {}) or {}
+    destination_desk = destination_desks.get(source_region_name)
+    if destination_desk is None:
+        destination_desk = next((desk for desk in destination_desks.values()
+                                 if getattr(desk, 'other', None) == source_currency), None)
+    if (destination_desk is not None
+            and getattr(destination_desk, 'home', destination_currency) == destination_currency
+            and getattr(destination_desk, 'other', source_currency) == source_currency):
+        rate = float(destination_desk.buy_rate())
+        if rate > 0:
+            return rate, 'destination_home_buy_rate'
+    return None, 'bilateral_rate_unavailable'

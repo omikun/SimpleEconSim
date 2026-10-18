@@ -321,55 +321,96 @@ def calculate_bid_limit(region, agent, good, ref, demand_ratio, quantity):
         if dest is not None:
             desk = region.forex_desks.get(dest.name) or getattr(region, 'forex', None)
             fx_rate = desk.buy_rate() if desk is not None else region.exchange_rate
-            fee = dest.gov.get_trade_fee_multiplier() if dest.gov is not None else region._trade_fee_mult
-            tariff = (getattr(dest.gov, 'import_tariff_rate', 0.0)
-                      if getattr(dest.gov, 'import_tariff_enabled', False) else 0.0)
+            fee = (dest.gov.get_trade_fee_multiplier(include_import_tariff=False)
+                   if dest.gov is not None else region._trade_fee_mult)
+            from economy.trade_costs import import_tariff_terms
+            tariff, drawback, effective_tariff = import_tariff_terms(
+                dest, getattr(agent, 'home_currency', region.home_currency))
             destination_value = (dest.recipes.get(good, {}).get('price', 0.0)
-                                 * fee * fx_rate * (1.0 - tariff))
+                                 * fee * fx_rate * (1.0 - effective_tariff))
             limit = min(limit, max(0.0, destination_value - transport_cost_per_unit(region)))
 
     available_cash = max(0.0, getattr(agent, 'cash', 0.0))
     return max(0.0, min(limit, available_cash / quantity))
 
 
-def import_ask_price(region, trader, good):
-    """Import ask price calculation."""
-    cost_home = max(0.05, trader.cost_get(good, 0))
-    src_region = region.neighbors.get(getattr(trader, 'home_region', None)) \
-        or getattr(region, 'destination_region', None)
+def import_ask_price(region, trader, good, *, source_unit_cost=None,
+                     freight_per_unit=0.0, source_currency=None,
+                     source_region_name=None, shipment_id=None,
+                     source_cost_status=None):
+    """Ask for one imported lot using its landed cost and tariff terms."""
+    source_region_name = source_region_name or getattr(trader, 'home_region', None)
+    src_region = (region.neighbors.get(source_region_name)
+                  or getattr(region, 'destination_region', None))
+    if source_unit_cost is not None:
+        cost_home = float(source_unit_cost)
+        quote_cost_basis = 'shipment_lot_source_cost'
+    else:
+        cost_home = float(trader.cost_get(good, 0.0))
+        quote_cost_basis = 'trader_average_cost'
     if cost_home <= 0.05 + 1e-9 and src_region is not None:
         cost_home = max(0.05, src_region.recipes.get(good, {}).get('price', 0.0))
+        quote_cost_basis = 'source_reference_price'
+    cost_home = max(0.05, cost_home)
+    freight_per_unit = max(0.0, float(freight_per_unit or 0.0))
+    source_currency = (source_currency or getattr(src_region, 'home_currency', None)
+                       or getattr(trader, 'home_currency', None))
+    from economy.inventory_provenance import source_to_destination_rate
+    fx_source_to_destination, fx_method = source_to_destination_rate(
+        region, source_region_name, source_currency)
+    if fx_source_to_destination is None:
+        # Keep legacy shipments tradable when a bilateral desk is absent, but
+        # make the parity assumption explicit in the quote trace.
+        fx_source_to_destination = 1.0
+        fx_method = 'parity_assumed_no_bilateral_rate'
+    landed_cost_source = cost_home + freight_per_unit
+    landed_cost_destination = landed_cost_source * fx_source_to_destination
     margin = region.IMPORT_MARGIN_MIN + (
         region.IMPORT_MARGIN_MAX - region.IMPORT_MARGIN_MIN) * (
             abs(hash((trader.id, good))) % 1000) / 1000.0
-    tariff = getattr(region.gov, 'import_tariff_rate', 0.0)
-    drawback = (getattr(region.gov, 'import_drawback_rate', 0.0)
-                if getattr(region.gov, 'import_drawback_enabled', False)
-                else 0.0)
-    effective_tariff = tariff * (1.0 - drawback)
-    dest_desk = None
-    if src_region is not None:
-        dest_desk = src_region.forex_desks.get(region.name) \
-            or getattr(src_region, 'forex', None)
-    buy_rate = dest_desk.buy_rate() if dest_desk is not None else 1.0
-    denom = max(0.05, (1.0 - effective_tariff) * buy_rate)
-    ask = cost_home * (1.0 + margin) / denom
+    from economy.trade_costs import import_tariff_terms
+    tariff, drawback, effective_tariff = import_tariff_terms(
+        region, getattr(trader, 'home_currency', source_currency))
+    denom = max(0.05, 1.0 - effective_tariff)
+    break_even_ask = landed_cost_destination / denom
+    uncapped_ask = break_even_ask * (1.0 + margin)
+    ask = uncapped_ask
     dest_price = region.recipes.get(good, {}).get('price', 0.0)
+    cap = None
+    cap_binding = False
+    cap_below_break_even = False
     if dest_price > 0:
         cap = dest_price * (1.0 + region.IMPORT_MARGIN_MIN)
-        ask = min(ask, cap)
+        cap_below_break_even = cap + 1e-9 < break_even_ask
+        cap_binding = cap + 1e-9 < ask and not cap_below_break_even
+        ask = max(break_even_ask, min(ask, cap))
     ask = max(0.05, ask)
     from run_trace import emit
     emit(region, kind='import_delivered_quote', record_class='calculation',
          subject={'type': 'tile', 'id': region.name, 'good': good.name,
-                  'seller_id': trader.id},
+                  'seller_id': trader.id, 'shipment_id': shipment_id},
          metric_id='goods.delivered_quote', unit='local_currency_per_unit',
-         after=ask, formula_id='market.import_ask.v1',
+         after=ask, formula_id='market.import_ask.landed_cost.v2',
          inputs={'source_tile': src_region.name if src_region is not None else None,
-                 'home_cost': cost_home, 'margin': margin,
+                 'shipment_id': shipment_id,
+                         'source_cost_status': source_cost_status,
+                 'source_unit_cost': source_unit_cost,
+                 'quote_cost_basis_unit_cost': cost_home,
+                 'quote_cost_basis': quote_cost_basis,
+                 'freight_per_unit': freight_per_unit,
+                 'landed_cost_source_currency': landed_cost_source,
+                 'landed_cost_destination_currency': landed_cost_destination,
+                 'source_currency': source_currency,
+                 'fx_source_to_destination_rate': fx_source_to_destination,
+                 'fx_valuation_method': fx_method,
+                 'margin': margin,
                  'tariff': tariff, 'drawback': drawback,
                  'effective_tariff': effective_tariff,
-                 'fx_buy_rate': buy_rate, 'denominator': denom,
+                 'denominator': denom, 'break_even_ask': break_even_ask,
+                 'uncapped_ask': uncapped_ask,
+                 'destination_price_cap_binding': cap_binding,
+                 'destination_price_cap_below_break_even': cap_below_break_even,
+                 'destination_price_cap': cap,
                  'destination_reference': dest_price,
                  'minimum_import_margin': region.IMPORT_MARGIN_MIN,
                  'currency': region.home_currency})
@@ -491,7 +532,14 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
                 book.append([calculate_ask_price(region, a, good, ref), qty, a, False])
     for item in imp_pool:
         trader, qty = item[0], item[1]
-        ask = import_ask_price(region, trader, good)
+        ask = import_ask_price(
+            region, trader, good,
+            shipment_id=item[3] if len(item) > 3 else None,
+            source_unit_cost=item[4] if len(item) > 4 else None,
+            freight_per_unit=item[5] if len(item) > 5 else 0.0,
+            source_currency=item[6] if len(item) > 6 else None,
+            source_cost_status=item[7] if len(item) > 7 else None,
+            source_region_name=item[9] if len(item) > 9 else None)
         is_parked = item[2] if len(item) > 2 else False
         book.append([ask, qty, trader, True, is_parked,
                      *(item[3:] if len(item) > 3 else [])])
@@ -569,6 +617,9 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
             seller_cash_before = seller.cash
             seller_wallet_before = _fx.fx_balance(seller, region.home_currency)
             gov_cash_before = region.gov.agent.cash if getattr(region, 'gov', None) is not None else None
+            import_tariff_assessed = 0.0
+            import_tariff_rebate = 0.0
+            import_tariff_paid = 0.0
             buyer.cash -= cost
             sold_source_acquisitions = []
             if is_import:
@@ -587,16 +638,16 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
                     else:
                         seller.inventory_foreign[good.value] -= take
                 else:
-                    tau = getattr(region.gov, 'import_tariff_rate', 0.0) \
-                        if getattr(region.gov, 'import_tariff_enabled', False) \
-                        else 0.0
-                    drawback = getattr(region.gov, 'import_drawback_rate', 0.0) \
-                        if getattr(region.gov, 'import_drawback_enabled', False) \
-                        else 0.0
+                    from economy.trade_costs import import_tariff_terms
+                    tau, drawback, _effective_tariff = import_tariff_terms(
+                        region, getattr(seller, 'home_currency', None))
                     trader_share = cost * (1.0 - tau)
                     tariff_share = cost * tau
                     rebate = tariff_share * drawback
                     gov_share = tariff_share - rebate
+                    import_tariff_assessed = tariff_share
+                    import_tariff_rebate = rebate
+                    import_tariff_paid = gov_share
                     _fx.fx_add(seller, region.home_currency, trader_share + rebate)
                     if gov_share > 0:
                         region.gov.receive_tariff(t, gov_share, region=region)
@@ -662,6 +713,60 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
                 buyer.inv_add(good, take)
                 if good == Goods.food:
                     buyer.food_purchased += int(take)
+            seller_receipt_amount = (
+                seller.cash - seller_cash_before
+                + _fx.fx_balance(seller, region.home_currency) - seller_wallet_before)
+            shipment_cost_detail = {}
+            if is_import:
+                cost_currency = source_currency or getattr(seller, 'home_currency', None)
+                from economy.inventory_provenance import source_to_destination_rate
+                fx_source_to_destination, fx_valuation_method = source_to_destination_rate(
+                    region, source_region, cost_currency)
+                if fx_source_to_destination is None:
+                    # Match the explicit parity fallback used to make legacy lots quotable.
+                    fx_source_to_destination = 1.0
+                    fx_valuation_method = 'parity_assumed_no_bilateral_rate'
+                source_cost_destination_currency = (
+                    float(source_unit_cost) * fx_source_to_destination
+                    if source_unit_cost is not None else None)
+                freight_destination_currency = (
+                    float(freight_per_unit) * fx_source_to_destination
+                    if freight_per_unit is not None else None)
+                landed_cost_source_currency = (
+                    float(source_unit_cost) + float(freight_per_unit)
+                    if source_unit_cost is not None and freight_per_unit is not None else None)
+                landed_cost_destination_currency = (
+                    landed_cost_source_currency * fx_source_to_destination
+                    if landed_cost_source_currency is not None else None)
+                fx_basis = {
+                    'source_home_buy_rate_inverse': 'source_desk_current_buy_quote',
+                    'destination_home_buy_rate': 'destination_desk_current_buy_quote',
+                    'same_currency': 'same_currency_no_conversion',
+                    'parity_assumed_no_bilateral_rate': 'explicit_parity_fallback',
+                }.get(fx_valuation_method, 'bilateral_desk_quote')
+                shipment_cost_detail = {
+                    'destination_currency': region.home_currency,
+                    'destination_paid_unit_price': float(unit_price),
+                    'source_cost_currency': cost_currency,
+                    'source_cost_destination_currency': source_cost_destination_currency,
+                    'freight_destination_currency': freight_destination_currency,
+                    'landed_cost_source_currency': landed_cost_source_currency,
+                    'landed_cost_destination_currency': landed_cost_destination_currency,
+                    'fx_source_to_destination_rate': fx_source_to_destination,
+                    'fx_valuation_method': fx_valuation_method,
+                    'fx_valuation_basis': fx_basis,
+                    'import_tariff_assessed': import_tariff_assessed,
+                    'import_tariff_rebate': import_tariff_rebate,
+                    'import_tariff_paid': import_tariff_paid,
+                    'import_tariff_assessed_per_unit': import_tariff_assessed / take,
+                    'import_tariff_rebate_per_unit': import_tariff_rebate / take,
+                    'import_tariff_paid_per_unit': import_tariff_paid / take,
+                    'seller_net_receipt': seller_receipt_amount,
+                    'seller_net_receipt_per_unit': seller_receipt_amount / take,
+                    'trader_landed_margin_per_unit': (
+                        seller_receipt_amount / take - landed_cost_destination_currency
+                        if landed_cost_destination_currency is not None else None),
+                }
             cash_collected += cost
             sale_id = emit(region, kind='paid_market_sale', record_class='transfer',
                            subject={'type': 'tile', 'id': region.name, 'good': good.name},
@@ -678,6 +783,7 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
                                    'route_history': route_history,
                                    'source_acquisitions': sold_source_acquisitions,
                                    'unit_price': unit_price, 'total_paid': cost,
+                                   **shipment_cost_detail,
                                    'buyer_cash_before': buyer_cash_before,
                                    'buyer_cash_after': buyer.cash,
                                    'seller_cash_delta': seller.cash - seller_cash_before,
@@ -709,6 +815,7 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
                                  'freight_per_unit': freight_per_unit,
                                  'source_currency': source_currency,
                                  'source_cost_status': source_cost_status,
+                                 **shipment_cost_detail,
                                  'route_history': route_history,
                                  'source_acquisitions': sold_source_acquisitions})
             region.market_trade_events = trade_events[-500:]
@@ -723,12 +830,12 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
                         'freight_per_unit': freight_per_unit,
                         'source_currency': source_currency,
                         'source_cost_status': source_cost_status,
+                        **shipment_cost_detail,
                         'source_shipment_id': source_shipment_id,
                         'source_region': source_region,
                         'route_history': route_history,
                         'source_acquisitions': sold_source_acquisitions,
-                        'seller_receipt': seller.cash - seller_cash_before +
-                            _fx.fx_balance(seller, region.home_currency) - seller_wallet_before,
+                        'seller_receipt': seller_receipt_amount,
                         'government_receipt':
                             (region.gov.agent.cash - gov_cash_before)
                             if gov_cash_before is not None else 0.0})
@@ -1102,17 +1209,24 @@ def trade(region, t):
                                  * len(getattr(buyer, 'employees', ())))
                     input_value_ceiling = max(0.0, (output_value - payroll) / input_units)
             trader_net_value = None
+            trader_tariff_terms = None
             if getattr(buyer, 'is_trader', False):
                 dest = getattr(buyer, 'destination_region', None) or region.destination_region
                 if dest is not None:
                     desk = region.forex_desks.get(dest.name) or getattr(region, 'forex', None)
                     fx_rate = desk.buy_rate() if desk is not None else region.exchange_rate
-                    fee = dest.gov.get_trade_fee_multiplier() if dest.gov is not None else region._trade_fee_mult
-                    tariff = (getattr(dest.gov, 'import_tariff_rate', 0.0)
-                              if getattr(dest.gov, 'import_tariff_enabled', False) else 0.0)
+                    fee = (dest.gov.get_trade_fee_multiplier(include_import_tariff=False)
+                           if dest.gov is not None else region._trade_fee_mult)
+                    from economy.trade_costs import import_tariff_terms
+                    tariff_terms = import_tariff_terms(
+                        dest, getattr(buyer, 'home_currency', region.home_currency))
+                    tariff, drawback, effective_tariff = tariff_terms
                     trader_net_value = (dest.recipes.get(good, {}).get('price', 0.0)
-                                        * fee * fx_rate * (1.0 - tariff)
+                                        * fee * fx_rate * (1.0 - effective_tariff)
                                         - transport_cost_per_unit(region))
+                    trader_tariff_terms = {'statutory': tariff,
+                                           'drawback': drawback,
+                                           'effective': effective_tariff}
             from run_trace import emit
             emit(region, kind='local_buyer_bid', record_class='calculation',
                  subject={'type': 'tile', 'id': region.name, 'good': good.name,
@@ -1125,6 +1239,7 @@ def trade(region, t):
                          'quantity': qty,
                          'cash_limit': buyer.cash / qty if qty else 0.0,
                          'trader_net_value': trader_net_value,
+                         'trader_tariff_terms': trader_tariff_terms,
                          'currency': region.home_currency})
         price = ref
         if min(price_ta, tb) == 0:

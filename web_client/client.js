@@ -3037,8 +3037,31 @@
           : account.type === 'other' && hasNoncashDebtChange
             ? 'noncash debt change'
             : `sales cash $${Number(account.sales_cash).toFixed(2)} · input used $${Number(account.input_consumed_cost).toFixed(2)} · wages $${Number(account.wages_cash).toFixed(2)}`;
+        const importedLots = account.delivered_input_lots || [];
+        const lotAverage = key => {
+          const rows = importedLots.filter(lot => lot[key] != null
+            && Number.isFinite(Number(lot[key])) && Number(lot.quantity) > 0);
+          const quantity = rows.reduce((sum, lot) => sum + Number(lot.quantity), 0);
+          return quantity > 0
+            ? rows.reduce((sum, lot) => sum + Number(lot[key]) * Number(lot.quantity), 0) / quantity
+            : null;
+        };
+        const currency = account.delivered_input_currency || '';
+        const currencyAmount = value => value == null ? null
+          : `${currency ? `${currency} ` : ''}${Number(value).toFixed(2)}`;
+        const landedCost = lotAverage('landed_cost_destination_currency');
+        const sourceCost = lotAverage('source_cost_destination_currency');
+        const freightCost = lotAverage('freight_destination_currency');
+        const tariffCost = lotAverage('import_tariff_paid_per_unit');
+        const traderMargin = lotAverage('trader_landed_margin_per_unit');
+        const landedBreakdown = landedCost == null ? ''
+          : ` · landed ${currencyAmount(landedCost)}/unit`
+            + (sourceCost == null || freightCost == null ? ''
+              : ` (source ${currencyAmount(sourceCost)} + freight ${currencyAmount(freightCost)})`)
+            + (tariffCost == null ? '' : ` · duty ${currencyAmount(tariffCost)}/unit`)
+            + (traderMargin == null ? '' : ` · trader margin ${currencyAmount(traderMargin)}/unit`);
         const delivered = Number(account.delivered_input_purchase_units || 0) > 0
-          ? ` · imported input ${Number(account.delivered_input_purchase_units).toFixed(1)} at $${Number(account.delivered_input_unit_price).toFixed(2)}/unit` : '';
+          ? ` · imported input ${Number(account.delivered_input_purchase_units).toFixed(1)} at ${currencyAmount(account.delivered_input_unit_price)}/unit${landedBreakdown}` : '';
         const unposted = Math.abs(Number(account.unposted_cash_change || 0)) > 0.01
           ? ` · $${Number(account.unposted_cash_change).toFixed(2)} cash change outside this account` : '';
         const scrip = Math.abs(Number(account.scrip_change || 0)) > 0.01
