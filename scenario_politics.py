@@ -26,6 +26,31 @@ def _event(world, text):
     ticker_push(world, int(world['turn']), 'POLITICS', text, (193, 160, 220))
 
 
+def _trace_region(world, nation):
+    candidates = list(getattr(nation, 'tiles', ()))
+    candidates.extend(world.get('tiles', ()))
+    return next((tile for tile in candidates
+                 if (getattr(tile, '_run_trace', None) is not None
+                     and getattr(tile, '_collective_trace_clock', None) is not None)), None)
+
+
+def _emit_politics_trace(world, nation, **event):
+    region = _trace_region(world, nation)
+    if region is None:
+        return None
+    from run_trace import emit
+    return emit(region, **event)
+
+
+def _officer_payment_operation_id(world, nation):
+    region = _trace_region(world, nation)
+    if region is None:
+        return None
+    clock = region._collective_trace_clock
+    return (f"army-arrears:{nation.name}:{int(world.get('turn', 0))}:"
+            f"{int(clock.get('next', 0))}")
+
+
 def initialize(world):
     egypt = _egypt(world)
     rules = situation_template()['politics']
@@ -71,28 +96,238 @@ def apply_action(world, action_id):
     state = _state(world)
     egypt = _egypt(world)
     if action_id == 'pay_army_arrears':
-        if state['officers_paid']:
-            return False, 'The officer arrears package has already been funded.'
         cost = float(situation_template()['politics']['officer_pay_cost'])
-        if egypt.government.agent.cash < cost:
+        treasury = egypt.government.agent
+        treasury_before = float(treasury.cash)
+        operation_id = _officer_payment_operation_id(world, egypt)
+        turn = int(world.get('turn', 0))
+        if state['officers_paid']:
+            funding_event_id = _emit_politics_trace(
+                world, egypt,
+                kind='officer_arrears_funding_decision', record_class='decision',
+                phase='scenario_action',
+                subject={'type': 'scenario/nation', 'id': egypt.name},
+                metric_id='politics.officer_arrears_funding',
+                inputs={'operation_id': operation_id, 'turn': turn,
+                        'amount_requested': cost,
+                        'treasury_cash_before': treasury_before,
+                        'officers_paid': True, 'funded': False,
+                        'reason': 'arrears_package_already_funded'})
+            _emit_politics_trace(
+                world, egypt,
+                kind='officer_arrears_payment_outcome', record_class='outcome',
+                phase='scenario_action',
+                subject={'type': 'scenario/nation', 'id': egypt.name},
+                metric_id='scenario.officer_arrears_payment',
+                before=treasury_before, after=treasury_before,
+                unit=getattr(egypt, 'currency', None) or 'local_currency',
+                inputs={'operation_id': operation_id, 'turn': turn,
+                        'success': False, 'reason': 'arrears_package_already_funded',
+                        'cash_debited': 0.0},
+                cause_event_ids=[funding_event_id] if funding_event_id else None)
+            return False, 'The officer arrears package has already been funded.'
+
+        if treasury_before < cost:
+            funding_event_id = _emit_politics_trace(
+                world, egypt,
+                kind='officer_arrears_funding_decision', record_class='decision',
+                phase='scenario_action',
+                subject={'type': 'scenario/nation', 'id': egypt.name},
+                metric_id='politics.officer_arrears_funding',
+                inputs={'operation_id': operation_id, 'turn': turn,
+                        'amount_requested': cost,
+                        'treasury_cash_before': treasury_before,
+                        'cash_shortfall': cost - treasury_before,
+                        'officers_paid': False, 'funded': False,
+                        'reason': 'treasury_cash_below_cost'})
+            _emit_politics_trace(
+                world, egypt,
+                kind='officer_arrears_payment_outcome', record_class='outcome',
+                phase='scenario_action',
+                subject={'type': 'scenario/nation', 'id': egypt.name},
+                metric_id='scenario.officer_arrears_payment',
+                before=treasury_before, after=treasury_before,
+                unit=getattr(egypt, 'currency', None) or 'local_currency',
+                inputs={'operation_id': operation_id, 'turn': turn,
+                        'success': False, 'reason': 'insufficient_treasury_cash',
+                        'amount_requested': cost, 'cash_debited': 0.0},
+                cause_event_ids=[funding_event_id] if funding_event_id else None)
             return False, f'The treasury needs {cost:,.0f} units to pay officer arrears.'
         garrison_tile = next((tile for tile in egypt.tiles if getattr(tile, 'scenario_location', '') == 'Alexandria'), None)
-        recipients = [agent for tile in ([garrison_tile] if garrison_tile else egypt.tiles)
-                      for agent in getattr(tile, 'agents', [])
-                      if getattr(agent, 'alive', True) and not getattr(agent, 'is_government', False)
-                      and not getattr(agent, 'is_corporation', False)]
+        recipient_tiles = [garrison_tile] if garrison_tile else list(egypt.tiles)
+        selected_recipients = [
+            (tile, agent) for tile in recipient_tiles
+            for agent in getattr(tile, 'agents', [])
+            if getattr(agent, 'alive', True)
+            and not getattr(agent, 'is_government', False)
+            and not getattr(agent, 'is_corporation', False)]
+        recipients = [agent for _tile, agent in selected_recipients]
         if not recipients:
+            funding_event_id = _emit_politics_trace(
+                world, egypt,
+                kind='officer_arrears_funding_decision', record_class='decision',
+                phase='scenario_action',
+                subject={'type': 'scenario/nation', 'id': egypt.name},
+                metric_id='politics.officer_arrears_funding',
+                inputs={'operation_id': operation_id, 'turn': turn,
+                        'amount_requested': cost,
+                        'treasury_cash_before': treasury_before,
+                        'eligible_recipient_count': 0,
+                        'recipient_selection_rule':
+                        'living non-government non-corporation agents in Alexandria, or all Egyptian tiles if Alexandria is absent',
+                        'officers_paid': False, 'funded': False,
+                        'reason': 'no_household_recipients'})
+            _emit_politics_trace(
+                world, egypt,
+                kind='officer_arrears_payment_outcome', record_class='outcome',
+                phase='scenario_action',
+                subject={'type': 'scenario/nation', 'id': egypt.name},
+                metric_id='scenario.officer_arrears_payment',
+                before=treasury_before, after=treasury_before,
+                unit=getattr(egypt, 'currency', None) or 'local_currency',
+                inputs={'operation_id': operation_id, 'turn': turn,
+                        'success': False, 'reason': 'no_household_recipients',
+                        'amount_requested': cost, 'cash_debited': 0.0},
+                cause_event_ids=[funding_event_id] if funding_event_id else None)
             return False, 'No Egyptian households can receive military pay.'
-        egypt.government.agent.cash -= cost
+
+        recipient_balances = [float(agent.cash) for agent in recipients]
+        funding_event_id = _emit_politics_trace(
+            world, egypt,
+            kind='officer_arrears_funding_decision', record_class='decision',
+            phase='scenario_action',
+            subject={'type': 'scenario/nation', 'id': egypt.name},
+            metric_id='politics.officer_arrears_funding',
+            inputs={'operation_id': operation_id, 'turn': turn,
+                    'amount_requested': cost, 'treasury_cash_before': treasury_before,
+                    'eligible_recipient_count': len(recipients),
+                    'recipient_ids': [str(agent.id) for agent in recipients],
+                    'recipient_selection_rule':
+                    'living non-government non-corporation agents in Alexandria, or all Egyptian tiles if Alexandria is absent',
+                    'officers_paid': False, 'funded': True,
+                    'reason': 'treasury_and_households_available'})
+        currency = (getattr(egypt, 'currency', None)
+                    or getattr(garrison_tile, 'home_currency', None)
+                    or 'local_currency')
+        payee_balances = []
         each = cost / len(recipients)
-        for agent in recipients:
+        treasury.cash -= cost
+        treasury_after = float(treasury.cash)
+        for (recipient_tile, agent), recipient_before in zip(
+                selected_recipients, recipient_balances):
             agent.cash += each
+            recipient_currency = (getattr(agent, 'home_currency', None) or currency)
+            payee_balances.append({
+                'agent_id': str(agent.id), 'tile': recipient_tile.name,
+                'currency': recipient_currency,
+                'balance_before': recipient_before,
+                'balance_after': float(agent.cash), 'amount': each})
+        from finance_trace import account_ref, transfer_contract
+        from run_trace import emit
+        region = _trace_region(world, egypt)
+        transfer_event_id = None
+        receipt_event_ids = []
+        if region is not None:
+            payer = account_ref(
+                'government_treasury', str(treasury.id), currency,
+                nation_id=egypt.name, balance_before=treasury_before,
+                balance_after=treasury_after,
+                balance_scope='government_agent.cash')
+            payee_pool = {
+                'type': 'household_wallet_pool', 'id': operation_id,
+                'currency': currency, 'recipient_count': len(recipients),
+                'members': payee_balances,
+            }
+            payer_contract = transfer_contract(
+                operation_id, 'officer_arrears_payment', side='payer',
+                amount=cost, amount_currency=currency, payer_account=payer,
+                payee_account=payee_pool, local_cash_leg_amount=cost,
+                local_cash_leg_currency=currency,
+                counterparty_leg_status='individual_household_receipts_recorded',
+                source='egypt_officer_arrears', turn=turn)
+            transfer_event_id = emit(
+                region, kind='officer_arrears_treasury_debit',
+                record_class='transfer', phase='scenario_action',
+                subject={'type': 'scenario/nation', 'id': egypt.name},
+                metric_id='finance.treasury_flow', unit=currency,
+                after=-cost,
+                inputs={'operation_id': operation_id,
+                        'recipient_count': len(recipients),
+                        'transfer_contract': payer_contract},
+                cause_event_ids=[funding_event_id] if funding_event_id else None)
+            for agent, payment in zip(recipients, payee_balances):
+                payee_currency = payment['currency']
+                receipt_contract = transfer_contract(
+                    operation_id, 'officer_arrears_payment', side='payee',
+                    amount=each, amount_currency=currency, payer_account=payer,
+                    payee_account=account_ref(
+                        'agent_wallet', payment['agent_id'], payee_currency,
+                        tile=payment['tile'], balance_before=payment['balance_before'],
+                        balance_after=payment['balance_after'],
+                        balance_scope='cash_wallet'),
+                    local_cash_leg_amount=each,
+                    local_cash_leg_currency=payee_currency,
+                    currency_conversion_applied=False,
+                    counterparty_leg_status='paired_to_aggregate_source_debit',
+                    source='egypt_officer_arrears', turn=turn,
+                    aggregate_source_amount=cost)
+                receipt_id = emit(
+                    region, kind='officer_arrears_household_receipt',
+                    record_class='transfer', phase='scenario_action',
+                    subject={'type': 'agent', 'id': payment['agent_id'],
+                             'tile': payment['tile']},
+                    metric_id='finance.household_cash_receipt', unit=payee_currency,
+                    after=each,
+                    inputs={'operation_id': operation_id,
+                            'transfer_contract': receipt_contract},
+                    cause_event_ids=([transfer_event_id] if transfer_event_id
+                                     else None))
+                if receipt_id is not None:
+                    receipt_event_ids.append(receipt_id)
         state['officers_paid'] = True
+        loyalty_before = float(state['army_loyalty'])
         state['army_loyalty'] = _clamp(state['army_loyalty'] + 0.22)
         unit = _garrison(world)
+        morale_before = float(unit.morale) if unit else None
         if unit:
             unit.morale = _clamp(unit.morale + 0.20)
         message = f'Paid {cost:,.0f} units in officer arrears; army loyalty and garrison morale improved.'
+        outcome_id = _emit_politics_trace(
+            world, egypt,
+            kind='officer_arrears_payment_outcome', record_class='outcome',
+            phase='scenario_action',
+            subject={'type': 'scenario/nation', 'id': egypt.name},
+            metric_id='politics.army_loyalty', before=loyalty_before,
+            after=float(state['army_loyalty']), unit='ratio',
+            inputs={'operation_id': operation_id, 'turn': turn,
+                    'success': True, 'reason': 'households_paid',
+                    'amount_paid': cost, 'officer_arrears_flag': True,
+                    'garrison_id': unit.unit_id if unit else None,
+                    'garrison_morale_before': morale_before,
+                    'garrison_morale_after': float(unit.morale) if unit else None,
+                    'funding_event_id': funding_event_id,
+                    'treasury_payment_event_id': transfer_event_id,
+                    'household_receipt_event_ids': receipt_event_ids},
+            cause_event_ids=[event_id for event_id in
+                             ([funding_event_id, transfer_event_id]
+                              + receipt_event_ids) if event_id] or None)
+        if unit is not None:
+            _emit_politics_trace(
+                world, egypt,
+                kind='officer_arrears_garrison_morale_outcome',
+                record_class='outcome', phase='scenario_action',
+                subject={'type': 'nation/unit', 'id': unit.unit_id,
+                         'nation': egypt.name},
+                metric_id='military.garrison_morale',
+                before=morale_before, after=float(unit.morale), unit='ratio',
+                inputs={'operation_id': operation_id, 'turn': turn,
+                        'reason': 'officer_arrears_paid',
+                        'garrison_id': unit.unit_id,
+                        'morale_change': float(unit.morale) - morale_before,
+                        'loyalty_outcome_event_id': outcome_id},
+                cause_event_ids=([event_id for event_id in
+                                  ([funding_event_id, transfer_event_id, outcome_id]
+                                   + receipt_event_ids) if event_id] or None))
     elif action_id == 'promote_egyptian_officers':
         if state['officers_promoted']:
             return False, 'The officer promotion reform has already been enacted.'

@@ -1005,3 +1005,18 @@ occupation playthrough tests passed (16 total). Compilation and
 `git diff --check` passed. The shared currency-contract update also passed 34
 existing geography, occupation-transfer, and run-trace tests. Other scenario
 transfers and household aid remain open for audit.
+
+Phase 3 follow-up, 2026-10-18: the Guided Egypt officer-arrears action now
+records its affordability and recipient gates, exact treasury debit, and
+individual household receipts selected by the existing Alexandria-first rule.
+The arrears outcome links those transfers to the actual army-loyalty and
+garrison-morale changes. Existing no-op paths for an already-paid package,
+insufficient cash, or no eligible household produce no transfer. The new
+funding, payment, receipt, and loyalty metrics are added to the metric catalog;
+separate loyalty and garrison-morale outcomes record their before/after values.
+Receipt contracts expose any unconverted recipient-currency mismatch.
+
+Verification: four dedicated arrears-transfer fixtures, four existing Egypt
+politics tests, and all 30 run-trace tests passed (38 total). Compilation and
+`git diff --check` passed. Other scenario decisions and cash transfers remain
+open for audit.

@@ -634,3 +634,17 @@ tests passed (16 total). Compilation and `git diff --check` passed. Other
 scenario transfers, household support, imperial claims, and cross-system
 reconciliations remain open. The shared currency-contract change also passed 34
 existing geography, occupation-transfer, and run-trace tests.
+
+Egypt's one-time officer-arrears action now records its treasury affordability
+and recipient-availability gates, the exact source debit, and a receipt for
+each household paid under the existing Alexandria-first rule. Receipt rows
+expose recipient wallet balances and any unconverted currency mismatch. The
+linked political outcome records army loyalty and garrison morale changes.
+Repeat-payment, underfunded, and no-recipient attempts record no-op outcomes
+without inventing a cash transfer. These metrics are registered in the trace
+catalog, with morale and loyalty emitted as separate before/after outcomes.
+
+Verification: four dedicated arrears-transfer fixtures, four existing Egypt
+politics tests, and all 30 run-trace tests passed (38 total). Compilation and
+`git diff --check` passed. Other scenario decisions and cash transfers remain
+open.
