@@ -81,9 +81,17 @@ def recorded_cash_delta(events, actor_id):
         if event['kind'] in _NONCASH_EVENTS:
             continue
         if event['recipient_id'] == actor_id:
-            delta += (event['detail'].get(
-                'cash_receipt', event['detail'].get('seller_receipt', event['amount']))
-                      if event['kind'] == 'spot_sale' else event['amount'])
+            if event['kind'] == 'spot_sale':
+                seller_tile = event['detail'].get('seller_account_tile')
+                is_remote_receipt = (seller_tile is not None
+                                     and event.get('tile') is not None
+                                     and seller_tile != event['tile'])
+                if not is_remote_receipt:
+                    delta += event['detail'].get(
+                        'cash_receipt',
+                        event['detail'].get('seller_receipt', event['amount']))
+            else:
+                delta += event['amount']
         if event['payer_id'] == actor_id:
             delta -= event['amount']
     return delta
@@ -182,7 +190,8 @@ def seal_turn(region, turn, event_regions=None):
                             'cash_receipt', e['detail'].get('seller_receipt', e['amount']))
                         if e['kind'] == 'spot_sale' else e['amount'])
                        for e in own if e['recipient_id'] == actor.id
-                       and e['kind'] in ('spot_sale', 'contract_delivery'))
+                       and e['kind'] in ('spot_sale', 'contract_delivery',
+                                         'market_sale_cash_receipt'))
         crop_value = sum(e['amount'] + e['debt_credit'] for e in own
                          if e['recipient_id'] == actor.id
                          and e['kind'] in ('spot_sale', 'contract_delivery'))
@@ -220,11 +229,21 @@ def seal_turn(region, turn, event_regions=None):
             if round(closing_wallets.get(currency, 0.0)
                      - prior.get('wallets', {}).get(currency, 0.0), 2) != 0
         }
-        cash_in = sum((e['detail'].get(
-                           'cash_receipt', e['detail'].get('seller_receipt', e['amount']))
-                       if e['kind'] == 'spot_sale' else e['amount'])
-                      for e in cash_own if e['recipient_id'] == actor.id
-                      and e['kind'] not in _NONCASH_EVENTS)
+        cash_in = 0.0
+        for event in cash_own:
+            if (event['recipient_id'] != actor.id
+                    or event['kind'] in _NONCASH_EVENTS):
+                continue
+            if event['kind'] == 'spot_sale':
+                seller_tile = event['detail'].get('seller_account_tile')
+                if (seller_tile is not None and event.get('tile') is not None
+                        and seller_tile != event['tile']):
+                    continue
+                cash_in += event['detail'].get(
+                    'cash_receipt',
+                    event['detail'].get('seller_receipt', event['amount']))
+            else:
+                cash_in += event['amount']
         cash_out = sum(e['amount'] for e in cash_own if e['payer_id'] == actor.id
                        and e['kind'] not in _NONCASH_EVENTS)
         observed_cash_change = float(actor.cash) - prior['cash']

@@ -150,7 +150,9 @@ class MarketRouteTests(unittest.TestCase):
         source = SimpleNamespace(
             name='Upland', home_currency='EUR', routes={}, neighbors={},
             transport_delay=1, forex_desks={}, forex=None,
-            recipes={Goods.cotton: {'price': 5.0}}, trader_agents=[])
+            recipes={Goods.cotton: {'price': 5.0}}, trader_agents=[],
+            agents=[], bank=None, province=None, tenure=None,
+            cash_obligations=[], economic_events=[], _last_turn=1)
         destination = SimpleNamespace(
             name='Lowland', home_currency='USD',
             recipes={Goods.cotton: {'price': 10.0},
@@ -171,8 +173,10 @@ class MarketRouteTests(unittest.TestCase):
         initialize_agent(buyer, Goods.cloth, 0, 0, 100.0)
         buyer.is_corporation = True
         buyer.inv_set(Goods.cotton, 0)
-        destination.agents = [trader, buyer]
+        source.agents = [trader]
+        destination.agents = [buyer]
         imports = pending_imports(destination, source)
+        begin_turn(source, 1)
         begin_turn(destination, 1)
 
         clear_discriminatory(
@@ -184,11 +188,13 @@ class MarketRouteTests(unittest.TestCase):
 
         sale = next(event for event in destination.economic_events
                     if event['kind'] == 'spot_sale')
-        wallet_receipt = next(event for event in destination.economic_events
+        wallet_receipt = next(event for event in source.economic_events
                               if event['kind'] == 'wallet_transfer_in')
+        source_accounts = {row['actor_id']: row for row in
+                           seal_turn(source, 1, event_regions=[source])}
         accounts = {row['actor_id']: row for row in
                     seal_turn(destination, 1, event_regions=[destination])}
-        trader_account = accounts[trader.id]
+        trader_account = source_accounts[trader.id]
         buyer_account = accounts[buyer.id]
 
         self.assertGreater(sale['amount'], 0.0)
@@ -198,7 +204,7 @@ class MarketRouteTests(unittest.TestCase):
         self.assertEqual(wallet_receipt['source_id'], sale['id'])
         self.assertEqual(wallet_receipt['detail']['payment_kind'],
                          'imported_market_sale')
-        self.assertAlmostEqual(recorded_cash_delta(destination.economic_events,
+        self.assertAlmostEqual(recorded_cash_delta(source.economic_events,
                                                    trader.id), 0.0)
         self.assertAlmostEqual(trader_account['cash_change'], 0.0)
         self.assertAlmostEqual(trader_account['posted_cash_change'], 0.0)
@@ -210,6 +216,8 @@ class MarketRouteTests(unittest.TestCase):
             trader_account['wallet_transfer_in_by_currency']['USD'],
             round(sale['amount'], 2))
         self.assertAlmostEqual(buyer_account['unposted_cash_change'], 0.0)
+        self.assertEqual(wallet_receipt['tile'], 'Upland')
+        self.assertEqual(wallet_receipt['detail']['settlement_region'], 'Lowland')
 
     def test_import_quote_and_paid_lot_trace_include_fx_freight_and_drawback(self):
         source = SimpleNamespace(name='Source', home_currency='USD', forex_desks={},

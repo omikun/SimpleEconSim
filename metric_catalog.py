@@ -116,6 +116,7 @@ METRICS = {
     'trade.balance': ('tile', 'local_currency_per_turn', 'sim_engine.step_turn'),
     'trade.wilderness_settlement': ('trader/homesteader', 'currency', 'trade_settle.settle_wilderness'),
     'trade.wilderness_goods': ('wilderness/trader/homesteader', 'units', 'trade_settle.settle_wilderness'),
+    'trade.market_seller_settlement': ('agent/tile/counterparty', 'currency', 'region_market.clear_discriminatory'),
 }
 
 LEGACY_HISTORY_TO_METRIC = {

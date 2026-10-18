@@ -601,6 +601,8 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
         source_region = b[11] if len(b) > 11 else None
         route_history = list(b[12] if len(b) > 12 and b[12] else [])
         source_acquisitions = list(b[13] if len(b) > 13 and b[13] else [])
+        seller_home_region = b[14] if len(b) > 14 else None
+        seller_account_region = seller_home_region or region
         if qty <= 0 or units >= total_bids:
             continue
         remaining = qty
@@ -798,6 +800,7 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
                                    'seller_cash_delta': seller.cash - seller_cash_before,
                                    'seller_local_wallet_delta':
                                    seller_wallet_receipt,
+                                   'seller_account_tile': seller_account_region.name,
                                    'government_cash_delta':
                                    region.gov.agent.cash - gov_cash_before
                                    if gov_cash_before is not None else None})
@@ -824,6 +827,7 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
                                  'freight_per_unit': freight_per_unit,
                                  'source_currency': source_currency,
                                  'source_cost_status': source_cost_status,
+                                 'seller_account_tile': seller_account_region.name,
                                  **shipment_cost_detail,
                                  'route_history': route_history,
                                  'source_acquisitions': sold_source_acquisitions})
@@ -842,6 +846,7 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
                         **shipment_cost_detail,
                         'source_shipment_id': source_shipment_id,
                         'source_region': source_region,
+                        'seller_account_tile': seller_account_region.name,
                         'route_history': route_history,
                         'source_acquisitions': sold_source_acquisitions,
                         'seller_receipt': seller_receipt_amount,
@@ -850,12 +855,37 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
                         'government_receipt':
                             (region.gov.agent.cash - gov_cash_before)
                             if gov_cash_before is not None else 0.0})
+            receipt_journal_refs = []
+            if seller_cash_receipt > 0 and seller_account_region is not region:
+                cash_receipt_id = (
+                    f'market-cash-receipt:{int(t)}:{region.name}:'
+                    f'{economic_event["id"]}')
+                cash_event = record_economic_event(
+                    seller_account_region, 'market_sale_cash_receipt', turn=t,
+                    recipient_id=seller.id, amount=seller_cash_receipt,
+                    asset_id=cash_receipt_id, source_id=economic_event['id'],
+                    currency=region.home_currency,
+                    detail={'transfer_id': cash_receipt_id,
+                            'sale_event_id': economic_event['id'],
+                            'trace_event_id': sale_id,
+                            'payment_kind': 'market_sale',
+                            'tender': 'hand_cash',
+                            'seller_id': seller.id, 'buyer_id': buyer.id,
+                            'good': good.name, 'quantity': int(take),
+                            'unit_price': float(unit_price),
+                            'total_paid': float(cost),
+                            'cash_receipt': seller_cash_receipt,
+                            'currency': region.home_currency,
+                            'settlement_region': region.name})
+                receipt_journal_refs.append(
+                    {'tile': seller_account_region.name,
+                     'event_id': cash_event['id']})
             if seller_wallet_receipt > 0:
                 wallet_transfer_id = (
                     f'market-wallet-receipt:{int(t)}:{region.name}:'
                     f'{economic_event["id"]}')
-                record_economic_event(
-                    region, 'wallet_transfer_in', turn=t,
+                wallet_event = record_economic_event(
+                    seller_account_region, 'wallet_transfer_in', turn=t,
                     recipient_id=seller.id, amount=seller_wallet_receipt,
                     asset_id=wallet_transfer_id, source_id=economic_event['id'],
                     currency=region.home_currency,
@@ -870,7 +900,27 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
                             'total_paid': float(cost),
                             'seller_cash_receipt': seller_cash_receipt,
                             'wallet_receipt': seller_wallet_receipt,
-                            'currency': region.home_currency})
+                            'currency': region.home_currency,
+                            'settlement_region': region.name})
+                receipt_journal_refs.append(
+                    {'tile': seller_account_region.name,
+                     'event_id': wallet_event['id']})
+            emit(region, kind='market_seller_receipt_posted',
+                 record_class='transfer', phase='trade',
+                 subject={'type': 'agent', 'id': seller.id,
+                          'tile': seller_account_region.name},
+                 metric_id='trade.market_seller_settlement',
+                 unit=region.home_currency,
+                 cause_event_ids=[sale_id] if sale_id else [],
+                 inputs={'sale_event_id': economic_event['id'],
+                         'destination_tile': region.name,
+                         'seller_account_tile': seller_account_region.name,
+                         'seller_id': seller.id, 'buyer_id': buyer.id,
+                         'good': good.name, 'quantity': int(take),
+                         'cash_receipt': seller_cash_receipt,
+                         'wallet_receipt': seller_wallet_receipt,
+                         'currency': region.home_currency,
+                         'receipt_journal_refs': receipt_journal_refs})
             if exported_acquisition_qty > 0:
                 from economy.inventory_provenance import record_trader_acquisition
                 record_trader_acquisition(

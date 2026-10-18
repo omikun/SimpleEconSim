@@ -80,6 +80,10 @@ def run(turns=50, seed=4242):
                 if event.get('recipient_id') is not None:
                     flow['counterparties'].add(event['recipient_id'])
             if event.get('recipient_id') == account['actor_id']:
+                if (event['kind'] == 'spot_sale'
+                        and event['detail'].get('seller_account_tile', event['tile'])
+                        != event['tile']):
+                    continue
                 flow['received'] += (event['detail'].get(
                     'cash_receipt', event['detail'].get('seller_receipt', event['amount']))
                                      if event['kind'] == 'spot_sale' else event['amount'])
@@ -103,6 +107,10 @@ def run(turns=50, seed=4242):
                 if event.get('payer_id') == account['actor_id']:
                     flow['paid'] += event['amount']
                 if event.get('recipient_id') == account['actor_id']:
+                    if (event['kind'] == 'spot_sale'
+                            and event['detail'].get('seller_account_tile', tile.name)
+                            != tile.name):
+                        continue
                     flow['received'] += (event['detail'].get(
                         'cash_receipt', event['detail'].get('seller_receipt', event['amount']))
                                          if event['kind'] == 'spot_sale' else event['amount'])
