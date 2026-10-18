@@ -1190,3 +1190,18 @@ Verification: traced and untraced enclosure outcomes and balances match for
 funded enforcement, defied enclosure, and government fallback receipt. The
 enclosure, coercion, cadastre, and metric-catalog tests passed (28 tests);
 compilation and `git diff --check` passed.
+
+Phase 3 follow-up, 2026-10-18: active named-obligation payments now emit exact
+`finance.cash_transfer` contracts for debtor and creditor wallets, preserving
+the operation ID in the actor-account journal. Payment rows link to the
+interest-and-balance settlement; the existing `finance.obligation_payment`
+row links to the exact transfer. The production rent and arrears summaries
+receive local-only event-ID lists and link to their claim settlements without
+persisting trace IDs in simulation state.
+
+Verification: a partial-payment fixture checks interest accrual, both wallet
+balances, remaining claim balance, journal linkage, causal links, and
+trace-on/off state parity. Obligation, enforcement, enclosure, labor, cadastre,
+and metric-catalog suites passed (45 tests); compilation and `git diff --check`
+passed. Production assesses rent as named claims; the standalone direct rent
+collector is not called by the production stepper.

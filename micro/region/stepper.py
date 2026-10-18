@@ -221,7 +221,12 @@ def step_economy(region: Any, t: int):
     audit_cash(region, t, "profits_done")
 
     # Settle named claims after wages; receipts move debtor cash to the named creditor.
-    claim_events = settle_obligations(region, t)
+    obligation_settlement_trace_ids = {}
+    obligation_payment_trace_ids = {}
+    claim_events = settle_obligations(
+        region, t,
+        settlement_trace_event_ids_by_origin=obligation_settlement_trace_ids,
+        payment_trace_event_ids_by_origin=obligation_payment_trace_ids)
     rent_coll = sum(e['paid'] for e in claim_events if e['origin'] == 'rent')
     rent_arr = sum(c.balance for c in getattr(region, 'cash_obligations', [])
                    if c.origin == 'rent' and c.status == 'active')
@@ -237,7 +242,8 @@ def step_economy(region: Any, t: int):
                  'active_rent_arrears': rent_arr,
                  'active_rent_claim_count': sum(
                      1 for claim in getattr(region, 'cash_obligations', [])
-                     if claim.origin == 'rent' and claim.status == 'active')})
+                     if claim.origin == 'rent' and claim.status == 'active')},
+         cause_event_ids=obligation_payment_trace_ids.get('rent'))
     emit(region, kind='rent_arrears_summary', record_class='calculation',
          subject={'type': 'tile', 'id': region.name},
          metric_id='finance.rent_arrears', unit='local_currency',
@@ -247,7 +253,8 @@ def step_economy(region: Any, t: int):
               'creditor_id': claim.creditor_id, 'balance': claim.balance,
               'due_turn': claim.due_turn}
              for claim in getattr(region, 'cash_obligations', [])
-             if claim.origin == 'rent' and claim.status == 'active']})
+             if claim.origin == 'rent' and claim.status == 'active']},
+         cause_event_ids=obligation_settlement_trace_ids.get('rent'))
     pasture_f = region.tenure.pasture_fraction if hasattr(region, 'tenure') and region.tenure else 0.0
     region.pasture_fraction_log.append(pasture_f)
     audit_cash(region, t, "rent_done")

@@ -1599,3 +1599,20 @@ Verification: funded bailiff and charter payments, an unaffordable bailiff
 gate, and government fallback receipt all preserve trace-on/off game state.
 The enclosure, coercion, cadastre, and metric-catalog suites passed (28 tests);
 compilation and `git diff --check` passed.
+
+## Phase 3 follow-up — Reconcile named-obligation payments
+
+Paid rent, survey, tax, advance, and other named claims now record exact debtor
+and creditor cash balances under a stable operation ID, with actor-account
+journal linkage. The transfer points to the claim settlement that includes
+interest accrual and remaining balance; the existing obligation-payment row
+points to the transfer. Production rent collection and arrears summaries link
+to the corresponding local event IDs without writing those IDs into game
+state. Rent assessment remains a named claim; the standalone direct collector
+has no production-stepper call site.
+
+Verification: partial settlement checks trace-on/off parity, accrued claim,
+debtor/creditor balances, journal linkage, and the complete settlement-to-cash
+transfer chain. Obligation, enforcement, enclosure, labor, cadastre, and
+metric-catalog tests passed (45 tests); compilation and `git diff --check`
+passed.
