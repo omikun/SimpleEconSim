@@ -375,6 +375,17 @@ class LaborMobilityScheduler:
                 from run_trace import emit
                 ranked_options = sorted(candidate_scores,
                                         key=lambda row: (-row['return'], row['good']))
+                option_row = {'turn': int(t), 'person_id': int(worker.id),
+                              'current': worker.output.name,
+                              'current_return': round(current_return, 3),
+                              'best': best_good.name if best_good is not None else 'none',
+                              'best_return': round(best_return, 3),
+                              'hurdle': round(hurdle_mult, 4),
+                              'emergency': bool(is_emergency),
+                              'options': ranked_options[:8]}
+                decisions = getattr(region, 'livelihood_decision_events', [])
+                decisions.append(option_row)
+                region.livelihood_decision_events = decisions[-1000:]
                 emit(region, kind='worker_livelihood_options', record_class='decision',
                      phase='labor', subject={'type': 'agent', 'id': worker.id,
                                              'tile': region.name},

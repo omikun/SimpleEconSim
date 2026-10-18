@@ -1223,11 +1223,15 @@ class SimServer:
         projects_list = []
         for p in getattr(tile, 'construction_projects', []):
             p_name = getattr(p.recipe, 'display_name', getattr(p.recipe, 'name', 'Project'))
-            base_t = max(1, getattr(p.recipe, 'base_turns', 1))
-            prog = max(0.0, min(1.0, 1.0 - (p.turns_left / base_t)))
+            base_t = max(1, int(getattr(p, 'total_turns',
+                                       getattr(p.recipe, 'base_turns', 1))))
+            turns_left = int(getattr(p, 'turns_left',
+                                     getattr(p, 'turns_remaining', base_t)))
+            prog = max(0.0, min(1.0, float(getattr(p, 'progress_pct',
+                                                   100.0 * (1.0 - turns_left / base_t))) / 100.0))
             projects_list.append({
                 'name': p_name,
-                'turns_left': int(p.turns_left),
+                'turns_left': turns_left,
                 'total_turns': int(base_t),
                 'progress': round(prog * 100, 0)
             })
@@ -1253,12 +1257,17 @@ class SimServer:
             agreement = getattr(a, 'labor_agreement', None)
             decisions = [d for d in getattr(tile, 'labor_decision_log', [])
                          if d.get('worker_id') == a.id][-3:]
-            timeline = [e for e in (getattr(tile, 'access_events', [])
+            livelihood_options = [d for d in getattr(tile, 'livelihood_decision_events', [])
+                                  if d.get('person_id') == a.id][-1:]
+            timeline = sorted([e for e in (getattr(tile, 'access_events', [])
                                      + getattr(tile, 'obligation_events', [])
                                      + getattr(tile, 'lien_events', [])
                                      + getattr(tile, 'crop_share_events', [])
-                                     + getattr(tile, 'labor_events', []))
-                        if e.get('person_id', e.get('debtor_id', e.get('worker_id', e.get('tenant_id')))) == a.id][-8:]
+                                     + getattr(tile, 'labor_events', [])
+                                     + getattr(tile, 'career_events', [])
+                                     + getattr(tile, 'labor_status_events', []))
+                        if e.get('person_id', e.get('debtor_id', e.get('worker_id', e.get('tenant_id')))) == a.id],
+                             key=lambda e: int(e.get('turn', e.get('t', 0))))[-8:]
             if getattr(a, 'in_workhouse', False):
                 labor_regime = 'workhouse'
             elif getattr(a, 'employer', None) is not None:
@@ -1271,7 +1280,19 @@ class SimServer:
             citizens.append({
                 'id': str(a.id),
                 'age': int(a.age(turn)) if hasattr(a, 'age') else 30,
-                'career': getattr(a, 'career', 'Laborer') if getattr(a, 'career', None) else ('Trader' if getattr(a, 'is_trader', False) else ('Homesteader' if getattr(a, 'is_homesteader', False) else 'Citizen')),
+                'career': (getattr(getattr(a, 'primary_livelihood', None), 'name', None)
+                           or ('Trader' if getattr(a, 'is_trader', False)
+                               else 'Homesteader' if getattr(a, 'is_homesteader', False)
+                               else 'Citizen')),
+                'primary_livelihood': getattr(getattr(a, 'primary_livelihood', None), 'name', None),
+                'employment_status': ('military' if getattr(a, 'military_unit_id', None)
+                                      else 'trader' if getattr(a, 'is_trader', False)
+                                      else 'constable' if getattr(a, 'social_class', None) == 'constable'
+                                      else 'workhouse' if getattr(a, 'in_workhouse', False)
+                                      else 'employed' if a.employer is not None
+                                      else 'independent'),
+                'food_foraged': int(getattr(a, 'food_foraged', 0)),
+                'temporary_work_share': round(float(getattr(a, 'temporary_work_share', 0.0)), 2),
                 'wage': round(float(getattr(a, 'wage', 0.0)), 2),
                 'cash': round(float(getattr(a, 'cash', 0.0)), 1),
                 'hungry': bool(getattr(a, 'hungry_steps', 0) > 0),
@@ -1293,6 +1314,7 @@ class SimServer:
                                     'offer': float(d.get('offer', 0.0)),
                                     'reservation': float(d.get('reservation', 0.0))}
                                    for d in decisions],
+                'livelihood_options': livelihood_options,
                 'timeline': timeline,
                 'work_fatigue': round(float(getattr(a, 'work_fatigue', 0.0)), 2),
                 'alienation': round(float(getattr(a, 'alienation', 0.0)), 2),
@@ -1384,6 +1406,26 @@ class SimServer:
             'unemployed': sum(1 for a in living_people if a.employer is None and not a.assigned_plot_id and not getattr(a, 'in_workhouse', False)),
             'compulsory': sum(1 for a in living_people if getattr(a, 'in_workhouse', False)),
         }
+        all_residents = [a for a in getattr(tile, 'agents', []) if a.alive
+                         and not a.is_government and not a.is_corporation]
+        adult_residents = [a for a in all_residents
+                           if not (getattr(a, 'is_native_child', False) and a.age(turn) < 14)]
+        livelihood_counts = {}
+        for a in adult_residents:
+            livelihood = getattr(getattr(a, 'primary_livelihood', None), 'name', 'none')
+            livelihood_counts[livelihood] = livelihood_counts.get(livelihood, 0) + 1
+        labor_counts.update({
+            'adult_residents': len(adult_residents),
+            'traders': sum(1 for a in adult_residents if getattr(a, 'is_trader', False)),
+            'military': sum(1 for a in adult_residents if getattr(a, 'military_unit_id', None)),
+            'hungry_adults': sum(1 for a in adult_residents if getattr(a, 'hungry_steps', 0) > 0),
+            'foraging_adults': sum(1 for a in adult_residents if getattr(a, 'food_foraged', 0) > 0),
+            'average_foraged_food': round(sum(getattr(a, 'food_foraged', 0) for a in adult_residents)
+                                          / max(1, len(adult_residents)), 2),
+            'average_temporary_work_share': round(sum(getattr(a, 'temporary_work_share', 0.0)
+                                                       for a in adult_residents)
+                                                  / max(1, len(adult_residents)), 3),
+        })
 
         return {
             'name': tile.name,
@@ -1414,6 +1456,7 @@ class SimServer:
             'citizens': citizens,
             'labor_institutions': {
                 'counts': labor_counts,
+                'livelihoods': dict(sorted(livelihood_counts.items())),
                 'affected_households': len({c.debtor_id for c in getattr(tile, 'cash_obligations', []) if c.status == 'active'}),
                 'obligations': [{'id': c.id, 'debtor_id': c.debtor_id, 'creditor_id': c.creditor_id,
                                  'origin': c.origin, 'balance': round(c.balance, 2),

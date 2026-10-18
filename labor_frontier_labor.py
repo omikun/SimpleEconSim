@@ -127,6 +127,10 @@ def _restore_officer(border, record):
     if officer is not None:
         officer.output = Goods[record['officer_prior_output']]
         officer.social_class = record['officer_prior_class']
+        from labor_choice import record_labor_status
+        record_labor_status(border, officer, int(getattr(border, '_last_turn', 0) or 0),
+                            before='constable', after='independent',
+                            reason='enforcement_appointment_ended')
     border.police_employed = 0
     record['officer_id'] = None
 
@@ -173,6 +177,10 @@ def _choose_officer(border, record):
     record['officer_prior_class'] = officer.social_class
     officer.output = Goods.gov
     officer.social_class = 'constable'
+    from labor_choice import record_labor_status
+    record_labor_status(border, officer, int(getattr(border, '_last_turn', 0) or 0),
+                        before='independent', after='constable',
+                        reason='paid_enforcement_appointment')
     border.police_employed = 1
     return officer
 

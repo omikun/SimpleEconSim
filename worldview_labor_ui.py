@@ -10,6 +10,7 @@ Visualizes the labor struggle and workplace dynamics for individual Tiles and Na
 
 from __future__ import annotations
 import pygame
+from goods import Goods
 from worldview_camera import WIDTH, HEIGHT, MAP_RIGHT, TOP_BAR_H, TICKER_H
 from worldview_map import TEXT, DIM, RED, GREEN, ACCENT, HEX_EDGE
 from worldview_charts import draw_chart_grid, draw_chart_large, chart_at_pixel
@@ -152,6 +153,15 @@ def draw_labor_dashboard(surface, world, region, font, font_small, mouse_pos=Non
     scope = world.get('citizen_scope', 'tile')
     mx, my = mouse_pos if mouse_pos else (-1, -1)
 
+    def livelihood_stats(tiles):
+        adults = [a for tile in tiles for a in getattr(tile, 'agents', [])
+                  if a.alive and not a.is_corporation and not a.is_government
+                  and not (getattr(a, 'is_native_child', False) and a.age(world.get('turn', 0)) < 14)]
+        return (sum(1 for a in adults if getattr(a, 'employer', None) is not None),
+                sum(1 for a in adults if getattr(a, 'hungry_steps', 0) > 0),
+                sum(1 for a in adults if getattr(a, 'primary_livelihood', None) == Goods.food),
+                len(adults))
+
     nation = None
     if region is not None and getattr(region, 'owner_nation', None) is not None:
         nation = region.owner_nation
@@ -160,7 +170,7 @@ def draw_labor_dashboard(surface, world, region, font, font_small, mouse_pos=Non
 
     # Status summary card
     card_y = panel_top + 52
-    card_h = 76
+    card_h = 110
     pygame.draw.rect(surface, (22, 24, 34), (PANEL_LEFT + 6, card_y, PANEL_W - 12, card_h), border_radius=6)
     pygame.draw.rect(surface, (45, 52, 70), (PANEL_LEFT + 6, card_y, PANEL_W - 12, card_h), 1, border_radius=6)
 
@@ -180,6 +190,10 @@ def draw_labor_dashboard(surface, world, region, font, font_small, mouse_pos=Non
         scrip_circ = sum(sum(getattr(a, 'scrip_wallet', 0.0) for a in getattr(r, 'agents', [])) for r in nation.tiles)
         tommy_shops = sum(sum(1 for a in getattr(r, 'agents', []) if getattr(a, 'is_corporation', False) and getattr(a, 'pay_mode', 'cash') == 'scrip') for r in nation.tiles)
         debt_peons = sum(sum(1 for a in getattr(r, 'agents', []) if getattr(a, 'company_debt', 0.0) > 0.0) for r in nation.tiles)
+        paid_adults, hungry_adults, food_adults, total_adults = livelihood_stats(nation.tiles)
+        decision_events = [event for tile in nation.tiles
+                           for event in getattr(tile, 'livelihood_decision_events', [])]
+        latest_livelihood_decision = max(decision_events, key=lambda e: e.get('turn', 0), default=None)
     elif region is not None:
         city_name = getattr(region, 'display_name', getattr(region, 'city_name', region.name))
         title_txt = f"{city_name} Labor & Alienation"
@@ -195,6 +209,9 @@ def draw_labor_dashboard(surface, world, region, font, font_small, mouse_pos=Non
         scrip_circ = sum(getattr(a, 'scrip_wallet', 0.0) for a in reg_agents)
         tommy_shops = sum(1 for a in reg_agents if getattr(a, 'is_corporation', False) and getattr(a, 'pay_mode', 'cash') == 'scrip')
         debt_peons = sum(1 for a in reg_agents if getattr(a, 'company_debt', 0.0) > 0.0)
+        paid_adults, hungry_adults, food_adults, total_adults = livelihood_stats([region])
+        latest_livelihood_decision = next(
+            reversed(getattr(region, 'livelihood_decision_events', [])), None)
     else:
         title_txt = "No Region Selected"
         charts = []
@@ -205,6 +222,8 @@ def draw_labor_dashboard(surface, world, region, font, font_small, mouse_pos=Non
         scrip_circ = 0.0
         tommy_shops = 0
         debt_peons = 0
+        paid_adults = hungry_adults = food_adults = total_adults = 0
+        latest_livelihood_decision = None
 
     # Title header
     surface.blit(font_small.render(title_txt, True, (240, 140, 80)), (PANEL_LEFT + 12, card_y + 5))
@@ -231,6 +250,22 @@ def draw_labor_dashboard(surface, world, region, font, font_small, mouse_pos=Non
     truck_s = f"Scrip Circ: ${scrip_circ:,.0f} | Tommy Shops: {tommy_shops} | Debt Peons: {debt_peons}"
     scrip_col = (240, 180, 100) if (scrip_circ > 0 or debt_peons > 0) else (140, 160, 180)
     surface.blit(font_small.render(truck_s, True, scrip_col), (PANEL_LEFT + 12, card_y + 55))
+    livelihood_s = (f"Primary food livelihood: {food_adults}/{total_adults} adults | "
+                    f"Paid jobs: {paid_adults} | Hungry adults: {hungry_adults}")
+    surface.blit(font_small.render(livelihood_s, True, (190, 205, 220)),
+                 (PANEL_LEFT + 12, card_y + 71))
+    if latest_livelihood_decision:
+        ai_s = (f"Latest AI comparison: {latest_livelihood_decision['current']} → "
+                f"{latest_livelihood_decision['best']} | expected "
+                f"{latest_livelihood_decision['best_return']:.2f} vs "
+                f"{latest_livelihood_decision['current_return']:.2f}; "
+                f"hurdle {latest_livelihood_decision['hurdle']:.2f}")
+        if len(ai_s) > 82:
+            ai_s = ai_s[:79] + '...'
+    else:
+        ai_s = 'No recent agent livelihood comparison recorded'
+    surface.blit(font_small.render(ai_s, True, (190, 205, 220)),
+                 (PANEL_LEFT + 12, card_y + 88))
 
     # View Mode Switcher: [ Historical Charts ]  [ 4D Alienation Radar ]
     l_mode = world.get('labor_sub_mode', 'charts')

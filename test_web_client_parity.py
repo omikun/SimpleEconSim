@@ -59,7 +59,13 @@ class TestWebClientParity(unittest.TestCase):
         c0 = data['citizens'][0]
         self.assertIn('id', c0)
         self.assertIn('career', c0)
+        self.assertIn('primary_livelihood', c0)
+        self.assertIn('employment_status', c0)
         self.assertIn('cash', c0)
+        counts = data['labor_institutions']['counts']
+        self.assertIn('adult_residents', counts)
+        self.assertIn('hungry_adults', counts)
+        self.assertIn('livelihoods', data['labor_institutions'])
 
     def test_build_command(self):
         p_nat = self.sim.player_nation_name

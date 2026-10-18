@@ -167,11 +167,20 @@ def recruit_unit(nation, region, soldier_count: int, wage: float = 1.0,
         unit.person_ids = [a.id for a in eligible[:soldier_count]]
         unit.prior_outputs = {a.id: a.output.name for a in eligible[:soldier_count]}
         for person in eligible[:soldier_count]:
+            former_employer = getattr(person, 'employer', None)
+            if former_employer is not None and person in getattr(former_employer, 'employees', []):
+                former_employer.employees.remove(person)
+            person.employer = None
+            agreement = getattr(person, 'labor_agreement', None)
+            if agreement is not None:
+                agreement.active = False
             person.military_unit_id = unit_id
             person.output = Goods.gov
             from labor_choice import record_labor_status
-            record_labor_status(region, person, t, before='independent',
-                                after='military', reason='enlisted')
+            record_labor_status(region, person, t,
+                                before='employed' if former_employer is not None else 'independent',
+                                after='military', reason='enlisted',
+                                employer_before=former_employer)
 
     region.military_units.append(unit)
     nation.military_units.append(unit)

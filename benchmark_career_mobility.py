@@ -41,6 +41,7 @@ def snapshot(server, turn):
             employer = getattr(person, 'employer', None)
             status = ('military' if getattr(person, 'military_unit_id', None) else
                       'trader' if getattr(person, 'is_trader', False) else
+                      'constable' if getattr(person, 'social_class', None) == 'constable' else
                       'workhouse' if getattr(person, 'in_workhouse', False) else
                       'employed' if employer is not None else 'independent')
             primary = getattr(person, 'primary_livelihood', None)
@@ -202,6 +203,12 @@ def benchmark(turns=50, seed=777, *, trace=False):
     validate_employment_rosters(server, 0)
     prior_roles = entity_roles(server)
     totals = defaultdict(Counter)
+    occupation_matrices = defaultdict(Counter)
+    employer_matrices = defaultdict(Counter)
+    status_matrices = defaultdict(Counter)
+    seen_occupation_transitions = defaultdict(set)
+    reversals = Counter()
+    reason_counts = defaultdict(Counter)
     unexplained = []
     event_reconciliation = []
     for turn in range(1, turns + 1):
@@ -215,6 +222,30 @@ def benchmark(turns=50, seed=777, *, trace=False):
                                 for tile in server.tiles)
         registered_deaths = sum(int(getattr(tile, 'deaths_this_turn', 0))
                                 for tile in server.tiles)
+        for person_id in before.keys() & after.keys():
+            old, new = before[person_id], after[person_id]
+            if not (old.adult and new.adult and old.nation == new.nation):
+                continue
+            if old.career != new.career:
+                pair = (old.career, new.career)
+                occupation_matrices[old.nation][f'{pair[0]}->{pair[1]}'] += 1
+                if (pair[1], pair[0]) in seen_occupation_transitions[person_id]:
+                    reversals[old.nation] += 1
+                seen_occupation_transitions[person_id].add(pair)
+            old_employer = str(old.employer_id) if old.employer_id is not None else 'none'
+            new_employer = str(new.employer_id) if new.employer_id is not None else 'none'
+            if old_employer != new_employer:
+                employer_matrices[old.nation][f'{old_employer}->{new_employer}'] += 1
+            if old.status != new.status:
+                status_matrices[old.nation][f'{old.status}->{new.status}'] += 1
+        for tile in server.tiles:
+            for event in getattr(tile, 'career_events', []):
+                if event.get('turn') == turn:
+                    owner = getattr(tile, 'owner_nation', None)
+                    nation_name = owner.name if owner else 'Unclaimed'
+                    reason_counts[nation_name][event.get('reason', 'unknown')] += 1
+                    reason_counts[nation_name]['voluntary' if event.get('voluntary', True)
+                                             else 'forced_or_coerced'] += 1
         event_reconciliation.append({
             'turn': turn, 'registered_births': registered_births,
             'registered_deaths': registered_deaths,
@@ -269,6 +300,17 @@ def benchmark(turns=50, seed=777, *, trace=False):
                     counts['employer_changes'] / max(1, counts['adult_person_years']), 5),
             }
             for name, counts in sorted(totals.items())
+        },
+        'mobility_matrices': {
+            name: {
+                'occupation': dict(sorted(occupation_matrices[name].items())),
+                'employer': dict(sorted(employer_matrices[name].items())),
+                'status': dict(sorted(status_matrices[name].items())),
+                'occupation_reversals': reversals[name],
+                'occupation_reasons': dict(sorted(reason_counts[name].items())),
+            }
+            for name in sorted(set(occupation_matrices) | set(employer_matrices)
+                               | set(status_matrices) | set(reason_counts))
         },
     }
 

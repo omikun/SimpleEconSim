@@ -273,6 +273,14 @@ def apply_career_switch(region: Any, worker: Any, new_output: Any, turn: int, *,
     worker.livelihood_started_turn = int(turn)
     worker.last_career_switch = int(turn)
     if changed and region is not None:
+        career_events = getattr(region, 'career_events', [])
+        coercion_terms = ('forced', 'coerced', 'enclosure', 'workhouse',
+                          'military', 'debt_bound', 'penal')
+        voluntary = not any(term in str(reason).lower() for term in coercion_terms)
+        career_events.append({'turn': int(turn), 'person_id': int(worker.id),
+                              'old': old_name, 'new': new_name, 'reason': reason,
+                              'voluntary': voluntary})
+        region.career_events = career_events[-500:]
         from run_trace import emit
         age = career_lifecycle_age(worker, turn)
         age_factor = career_mobility_age_factor(worker, turn)
@@ -280,6 +288,7 @@ def apply_career_switch(region: Any, worker: Any, new_output: Any, turn: int, *,
             'old_profession': old_name,
             'new_profession': new_name,
             'reason': reason,
+            'voluntary': voluntary,
             'age': int(age),
             'age_mobility_factor': round(age_factor, 4),
             'prior_tenure': prior_tenure,
@@ -303,6 +312,12 @@ def record_labor_status(region: Any, worker: Any, turn: int, *,
     """Record a job or service spell without changing primary livelihood."""
     if region is None or (before == after and employer_before == employer_after):
         return
+    status_events = getattr(region, 'labor_status_events', [])
+    status_events.append({'turn': int(turn), 'person_id': int(worker.id),
+                          'before': before, 'after': after, 'reason': reason,
+                          'employer_before': getattr(employer_before, 'id', None),
+                          'employer_after': getattr(employer_after, 'id', None)})
+    region.labor_status_events = status_events[-500:]
     from run_trace import emit
     emit(region, kind='labor_status_change', record_class='outcome',
          subject={'type': 'agent', 'id': worker.id,

@@ -231,6 +231,8 @@ class RunTraceTests(unittest.TestCase):
         second = sample([tile], [])
         self.assertEqual(first, second)
         self.assertEqual(first[('goods.price', 'Delta', 'cotton')][2], 3.0)
+        self.assertEqual(first[('labor.hungry_adults', 'Delta')][2], 0)
+        self.assertEqual(first[('labor.temporary_work_share', 'Delta')][2], 0.0)
         self.assertEqual(tile.deaths_this_turn, 2)
 
     def test_scenario_quote_replays_and_paid_price_is_separate(self):

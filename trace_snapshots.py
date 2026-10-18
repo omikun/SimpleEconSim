@@ -35,6 +35,34 @@ def sample(tiles, nations):
             tile_subject, 'people', sum(
                 1 for person in tile.agents if person.alive
                 and not person.is_corporation and not person.is_government))
+        adults = [person for person in tile.agents if person.alive
+                  and not person.is_corporation and not person.is_government
+                  and not (getattr(person, 'is_native_child', False)
+                           and person.age(getattr(tile, '_last_turn', 0)) < 14)]
+        livelihood_counts = {}
+        status_counts = {}
+        temporary_share = 0.0
+        for person in adults:
+            livelihood = getattr(getattr(person, 'primary_livelihood', None), 'name', 'none')
+            livelihood_counts[livelihood] = livelihood_counts.get(livelihood, 0) + 1
+            status = ('military' if getattr(person, 'military_unit_id', None) else
+                      'trader' if getattr(person, 'is_trader', False) else
+                      'constable' if getattr(person, 'social_class', None) == 'constable' else
+                      'workhouse' if getattr(person, 'in_workhouse', False) else
+                      'employed' if getattr(person, 'employer', None) is not None else 'independent')
+            status_counts[status] = status_counts.get(status, 0) + 1
+            temporary_share += float(getattr(person, 'temporary_work_share', 0.0))
+        for livelihood, count in livelihood_counts.items():
+            values[('labor.primary_livelihood', tile.name, livelihood)] = (
+                {**tile_subject, 'livelihood': livelihood}, 'adults', count)
+        for status, count in status_counts.items():
+            values[('labor.employment_status', tile.name, status)] = (
+                {**tile_subject, 'status': status}, 'adults', count)
+        values[('labor.hungry_adults', tile.name)] = (
+            tile_subject, 'adults', sum(1 for person in adults
+                                        if getattr(person, 'hungry_steps', 0) > 0))
+        values[('labor.temporary_work_share', tile.name)] = (
+            tile_subject, 'adult_turn_share', temporary_share / max(1, len(adults)))
         if tile.protest_energy_log:
             values[('politics.protest_energy', tile.name)] = (
                 tile_subject, 'score', float(tile.protest_energy_log[-1]))

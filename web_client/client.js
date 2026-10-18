@@ -3149,7 +3149,14 @@
       const institution = tile.labor_institutions || {};
       const counts = institution.counts || {};
       const countEl = document.getElementById('labor-regime-counts');
-      if (countEl) countEl.innerHTML = `Subsistence ${Number(counts.subsistence) || 0} · Tenants/sharecroppers ${Number(counts.tenant_sharecropper) || 0} · Wage workers ${Number(counts.wage) || 0} · Unemployed ${Number(counts.unemployed) || 0} · Compulsory ${Number(counts.compulsory) || 0}`;
+      if (countEl) countEl.innerHTML = `Subsistence ${Number(counts.subsistence) || 0} · Tenants/sharecroppers ${Number(counts.tenant_sharecropper) || 0} · Wage ${Number(counts.wage) || 0} · Traders ${Number(counts.traders) || 0} · Military ${Number(counts.military) || 0} · Unemployed ${Number(counts.unemployed) || 0} · Compulsory ${Number(counts.compulsory) || 0}`;
+      const causeEl = document.getElementById('livelihood-cause-summary');
+      if (causeEl) {
+        const livelihoods = Object.entries(institution.livelihoods || {})
+          .sort((a, b) => Number(b[1]) - Number(a[1])).slice(0, 3)
+          .map(([name, n]) => `${escapeHtml(name)} ${Number(n) || 0}`).join(' · ');
+        causeEl.innerHTML = `Primary livelihoods: ${livelihoods || 'No adult livelihoods recorded'} · Hungry ${Number(counts.hungry_adults) || 0} · Foraging ${Number(counts.foraging_adults) || 0} (${Number(counts.average_foraged_food) || 0} food/adult) · Temporary work ${Math.round((Number(counts.average_temporary_work_share) || 0) * 100)}% of an adult turn on average`;
+      }
       const lawsEl = document.getElementById('labor-law-status');
       if (lawsEl) {
         const laws = institution.laws || {};
@@ -3175,8 +3182,10 @@
         });
         const history = (c.timeline || []).slice(-3).map(e => {
           const turn = Number(e.turn ?? e.t) || 0;
-          const kind = e.event || e.cause || e.origin || (e.paid !== undefined ? 'payment' : 'change');
+          const kind = e.reason ? (e.new ? 'livelihood change' : 'work status')
+            : e.event || e.cause || e.origin || (e.paid !== undefined ? 'payment' : 'change');
           const detail = e.paid !== undefined ? `paid $${Number(e.paid).toFixed(2)}`
+            : e.reason ? `${escapeHtml(e.before || e.old || 'none')} → ${escapeHtml(e.after || e.new || 'none')} (${escapeHtml(e.reason)})`
             : e.amount !== undefined ? `$${Number(e.amount).toFixed(2)}`
             : e.quantity !== undefined ? `${Number(e.quantity)} ${escapeHtml(e.good || 'units')}`
             : e.after !== undefined ? `access ${Math.round(Number(e.before || 0) * 100)}% → ${Math.round(Number(e.after || 0) * 100)}%`
@@ -3184,15 +3193,20 @@
           return `T${turn} ${escapeHtml(kind)}${detail ? `: ${detail}` : ''}`;
         });
         const latestOffer = c.recent_reasons?.slice(-1)[0];
+        const latestOptions = c.livelihood_options?.slice(-1)[0];
+        const optionText = latestOptions
+          ? `Considered ${escapeHtml(latestOptions.current)} → ${escapeHtml(latestOptions.best)} (${Number(latestOptions.best_return).toFixed(2)} expected vs ${Number(latestOptions.current_return).toFixed(2)} current; hurdle ${Number(latestOptions.hurdle).toFixed(2)}): ${(latestOptions.options || []).slice(0, 3).map(o => `${escapeHtml(o.good)} ${Number(o.return).toFixed(2)} (${escapeHtml(o.basis)})`).join(' · ')}`
+          : 'No recent livelihood comparison recorded';
         row.innerHTML = `
           <div>
-            <span class="citizen-role">${escapeHtml(c.career)} · ${escapeHtml(c.labor_regime || 'unemployed')}</span>
+            <span class="citizen-role">${escapeHtml(c.career)} · ${escapeHtml(c.employment_status || c.labor_regime || 'independent')}</span>
             <span class="text-dim">${Number(c.labor_hours) || 0}h at pace ${Number(c.labor_pace) || 1} • ${escapeHtml(c.ability_to_quit || 'lawful exit')}</span>
           </div>
           <div class="citizen-info">
             Food access legal/usable: ${Math.round((Number(c.legal_food_access) || 0) * 100)}% / ${Math.round((Number(c.usable_food_access) || 0) * 100)}% • Realized pay: <strong class="text-gold">$${Number(c.real_wage_after_deductions) || 0}</strong> • Cash due: $${Number(c.cash_due) || 0} • Fatigue ${Number(c.work_fatigue) || 0}
             <div>${obligations.length ? obligations.join('<br>') : '<span class="text-dim">No named cash claims</span>'}</div>
             <div>${latestOffer ? `Latest offer: ${latestOffer.accepted ? 'accepted' : 'rejected'} — ${escapeHtml(latestOffer.reason)} ($${Number(latestOffer.offer).toFixed(2)} offered / $${Number(latestOffer.reservation).toFixed(2)} reservation)` : 'No recent job offer recorded'}</div>
+            <div>${optionText}</div>
             <div>${history.length ? history.join(' · ') : '<span class="text-dim">No recent institutional events</span>'}</div>
           </div>
         `;

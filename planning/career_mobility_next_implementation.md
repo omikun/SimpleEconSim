@@ -273,6 +273,24 @@ arbitrary caps. The traced run explains population, prices, mobility, and
 deaths; both clients present matching summaries. Neither path should provide
 free food, labor, enforcement, or military strength. **Commit D.**
 
+**Phase D implementation note (2026-10-17):** The 50-turn benchmark now emits
+adult occupation, employer, and status transition matrices, reversals, entry
+counts, sales by good, food-career shares, deaths, and strict flow/roster
+validation. A paired scenario runner records three seed-matched choices and
+their food, hunger, wage, protest, and GDP outcomes. Across seeds 612–614 in
+the six-turn frontier scenario, commons protection averaged one wage worker,
+GDP 181.70, adult food stock 503.33, and protest 10.53; approving enclosure
+averaged five wage workers, GDP 227.66, food stock 437.00, and protest 12.41.
+These arms show a production and labor-supply gain with lower household food
+stock and higher protest; hunger varied by seed. The desktop labor panel shows
+primary food livelihood, paid jobs, and hunger. Web citizen details show the
+same household/status counts, recent occupation/status reasons, and job-offer
+acceptance reasons. Three default 50-turn seeds show wide outcome variation,
+including starvation deaths in seeds 778 and 779; no single-seed population or
+GDP target was tuned. The raw runs and parameters are archived under ignored
+`tmp/analysis/career_phase_d_*` files. UI parity, trace, and focused labor
+suites pass.
+
 ## Execution order
 
 Implement A before B, B before C, and C before D. If a phase's gate fails,
