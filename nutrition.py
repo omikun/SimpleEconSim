@@ -22,6 +22,24 @@ def basic_food_units(agent) -> int:
                             / CALORIES_PER_FOOD))
 
 
+def metabolic_need_factor(agent) -> float:
+    """Reduce energy use smoothly as a person's stored body energy is depleted.
+
+    The survival response bottoms out at 65% of normal need. It slows reserve
+    loss and reduces the physiological shock of an unmet meal without making
+    starvation harmless or changing the person's age-based baseline need.
+    """
+    reserve = max(0.0, float(getattr(agent, 'energy_reserve_kcal', INITIAL_RESERVE_KCAL)))
+    reserve_fraction = min(1.0, reserve / INITIAL_RESERVE_KCAL)
+    return 0.65 + 0.35 * reserve_fraction
+
+
+def effective_calorie_need(agent) -> float:
+    """Current energy need after the body's starvation adaptation."""
+    baseline = max(1.0, float(getattr(agent, 'calorie_need_kcal', DAILY_NEED_KCAL)))
+    return baseline * metabolic_need_factor(agent)
+
+
 def appetite_units(agent) -> int:
     """Wealth and depleted reserves raise desired intake on a smooth curve."""
     base = basic_food_units(agent)
@@ -29,7 +47,9 @@ def appetite_units(agent) -> int:
     reserve = max(0.0, float(getattr(agent, 'energy_reserve_kcal', INITIAL_RESERVE_KCAL)))
     luxury = 6.0 * (1.0 - math.exp(-(wealth - 1.0) / 3.0))
     catch_up = 2.0 * (1.0 - math.exp(-max(0.0, INITIAL_RESERVE_KCAL - reserve) / INITIAL_RESERVE_KCAL))
-    return min(12, max(base, round(base + luxury + catch_up)))
+    full_appetite = round(base + luxury + catch_up)
+    adapted_appetite = round(full_appetite * metabolic_need_factor(agent))
+    return min(12, max(1, adapted_appetite))
 
 
 def update_dependent_need(agent, turn: int) -> None:
@@ -42,7 +62,7 @@ def update_dependent_need(agent, turn: int) -> None:
 
 def record_intake(agent, food_units: float) -> None:
     """Use intake to update fat reserves and the unmet calorie need this turn."""
-    need = float(getattr(agent, 'calorie_need_kcal', DAILY_NEED_KCAL))
+    need = effective_calorie_need(agent)
     eaten = max(0.0, food_units) * CALORIES_PER_FOOD
     balance = eaten - need
     agent.last_calories_eaten = eaten
@@ -58,6 +78,7 @@ def record_intake(agent, food_units: float) -> None:
 def feed_emergency_meal(agent, food_units: float) -> None:
     """Apply a conserved food transfer already consumed outside the life cycle."""
     calories = max(0.0, food_units) * CALORIES_PER_FOOD
+    need = effective_calorie_need(agent)
     previous_deficit = float(getattr(agent, 'calorie_deficit_kcal', 0.0))
     agent.last_calories_eaten = float(getattr(agent, 'last_calories_eaten', 0.0)) + calories
     agent.calorie_deficit_kcal = max(0.0, previous_deficit - calories)
@@ -65,7 +86,6 @@ def feed_emergency_meal(agent, food_units: float) -> None:
     agent.calorie_surplus_kcal = float(getattr(agent, 'calorie_surplus_kcal', 0.0)) + remainder
     agent.energy_reserve_kcal = min(MAX_RESERVE_KCAL,
         float(getattr(agent, 'energy_reserve_kcal', INITIAL_RESERVE_KCAL)) + calories)
-    need = float(getattr(agent, 'calorie_need_kcal', DAILY_NEED_KCAL))
     agent.hungry_steps = max(0.0, float(agent.hungry_steps) - calories / need)
 
 
@@ -77,6 +97,8 @@ def queue_emergency_meal(agent, food_units: int) -> None:
 def starvation_hazard(agent) -> float:
     """Daily-equivalent death risk grows smoothly as body stores run out."""
     deficit = max(0.0, float(getattr(agent, 'calorie_deficit_kcal', 0.0)))
+    # Compare the adapted deficit to normal need: the lower metabolic rate
+    # should reduce acute risk as well as slow the loss of energy reserves.
     need = max(1.0, float(getattr(agent, 'calorie_need_kcal', DAILY_NEED_KCAL)))
     reserve = max(0.0, float(getattr(agent, 'energy_reserve_kcal', INITIAL_RESERVE_KCAL)))
     return min(0.8, (1.0 - math.exp(-0.7 * deficit / need)) * math.exp(-reserve / 5000.0))
@@ -87,7 +109,7 @@ def fat_kg(agent) -> float:
 
 
 def deficit_fraction(agent) -> float:
-    need = max(1.0, float(getattr(agent, 'calorie_need_kcal', DAILY_NEED_KCAL)))
+    need = effective_calorie_need(agent)
     return min(1.0, max(0.0, float(getattr(agent, 'calorie_deficit_kcal', 0.0))) / need)
 
 

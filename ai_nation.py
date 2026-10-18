@@ -504,9 +504,18 @@ class NationPolicyAI:
         if t >= 3 and not food_emergency:
             for tile in self.nation.tiles:
                 if getattr(tile, 'food_enclosure_moratorium', False):
+                    food_assessment = next((row for row in food_responses
+                                            if row.get('tile') == tile.name), {})
                     considered.append({'candidate': 'enclose_commons', 'tile': tile.name,
                                        'feasible': False,
-                                       'reason': 'food harvest has not replaced customary access'})
+                                       'reason': 'food buffer is unsafe across the full crop cycle',
+                                       'crop_cycle_turns': food_assessment.get('crop_cycle_turns'),
+                                       'observed_crop_cycle_turns': food_assessment.get('observed_crop_cycle_turns'),
+                                       'projected_crop_cycle_margin': food_assessment.get('projected_crop_cycle_margin'),
+                                       'projected_crop_cycle_margin_with_commons': food_assessment.get('projected_crop_cycle_margin_with_commons'),
+                                       'forecast_commons_cycle_food': food_assessment.get('forecast_commons_cycle_food'),
+                                       'crop_cycle_meal_demand': food_assessment.get('crop_cycle_meal_demand'),
+                                       'accessible_food_buffer': food_assessment.get('accessible_food_buffer')})
                     continue
                 tenure = getattr(tile, 'tenure', None)
                 if not tenure:

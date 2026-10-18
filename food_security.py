@@ -25,6 +25,7 @@ def diagnose_tile(tile) -> dict:
                  and not getattr(a, 'military_unit_id', None)]
     population = len(residents)
     food_in_hands = sum(max(0, a.inv_get(Goods.food, 0)) for a in residents)
+    government_food = max(0, getattr(tile.gov, 'food_inventory', 0))
     forage = {a.id: forecast_commons_food(a, tile) for a in residents}
     forecast_forage = sum(forage.values())
     minimum_meal = sum(basic_food_units(a) for a in residents)
@@ -38,14 +39,24 @@ def diagnose_tile(tile) -> dict:
     production_log = getattr(tile, 'production_log', {}).get(Goods.food, [])
     estimated_harvest = (production_log[-1] if production_log else
                          producers * tile.recipes[Goods.food]['production'] * 0.65)
-    # A one-turn windfall cannot make permanent enclosure safe. Demand three
-    # consecutive harvests that could feed residents without customary access.
-    food_buffer_proven = (len(production_log) >= 3
-                          and min(production_log[-3:]) >= minimum_meal * 1.1
+    # Require evidence across the full ten-turn crop cycle. Compare cycle
+    # production with cycle demand, then include food households can actually
+    # reach now (household/public stocks and customary foraging).
+    cycle_turns = 10
+    observed_cycle_turns = min(cycle_turns, len(production_log))
+    cycle_production = sum(production_log[-cycle_turns:])
+    cycle_demand = minimum_meal * cycle_turns
+    accessible_buffer = food_in_hands + government_food
+    projected_cycle_margin = cycle_production - cycle_demand + accessible_buffer
+    projected_with_commons_margin = (projected_cycle_margin
+                                     + forecast_forage * cycle_turns)
+    # Commons foraging helps households survive today, but cannot prove that
+    # enclosure is safe because enclosure would remove that same food route.
+    food_buffer_proven = (len(production_log) >= cycle_turns
+                          and projected_cycle_margin >= cycle_demand * 0.1
                           and underfed / max(1, population) < 0.03)
     enclosure_risk = bool(population and not food_buffer_proven
                           and getattr(getattr(tile, 'tenure', None), 'feudal_fraction', 0) > 0)
-    government_food = max(0, getattr(tile.gov, 'food_inventory', 0))
     expected_gap = max(0, minimum_meal - food_in_hands - forecast_forage
                        - estimated_harvest
                        - government_food)
@@ -76,6 +87,14 @@ def diagnose_tile(tile) -> dict:
         'government_food_units': government_food,
         'missing_meal_units': missing_meals,
         'recent_food_production': round(float(estimated_harvest), 2),
+        'crop_cycle_turns': cycle_turns,
+        'observed_crop_cycle_turns': observed_cycle_turns,
+        'crop_cycle_production': round(float(cycle_production), 2),
+        'crop_cycle_meal_demand': round(float(cycle_demand), 2),
+        'accessible_food_buffer': round(float(accessible_buffer), 2),
+        'projected_crop_cycle_margin': round(float(projected_cycle_margin), 2),
+        'forecast_commons_cycle_food': round(float(forecast_forage * cycle_turns), 2),
+        'projected_crop_cycle_margin_with_commons': round(float(projected_with_commons_margin), 2),
         'food_buffer_proven': food_buffer_proven,
         'enclosure_risk': enclosure_risk,
         'projected_supply_gap': round(float(expected_gap), 2),
@@ -136,7 +155,8 @@ def enact_nation_food_response(nation, turn: int) -> list[dict]:
                          'source_cash_after': sovereign.cash,
                          'recipient_cash_before': before_local,
                          'recipient_cash_after': gov.agent.cash})
-        response = {**assessment, 'food_policy': 'emergency_meals' if
+        response = {**assessment, 'nation': nation.name,
+                    'food_policy': 'emergency_meals' if
                     gov.emergency_food_policy else 'ordinary',
                     'enclosure_moratorium': tile.food_enclosure_moratorium,
                     'funding_transferred': round(amount, 2),

@@ -250,6 +250,9 @@ class TestCanalsWoolConstruction(unittest.TestCase):
         self.tile.tenure = TileTenure(plots=[plot])
         self.tile.recipes[Goods.wool]['price'] = 4.0  # High wool price trigger
         self.tile.recipes[Goods.food]['price'] = 1.0
+        # Enclosure is allowed only after a full crop-cycle food buffer has
+        # been demonstrated, even when wool prices strongly favor pasture.
+        self.tile.production_log[Goods.food] = [10000.0] * 10
 
         # Run AI turn
         submitted = ai.decide_turn(t=5, all_tiles=[self.tile], all_nations=[self.nation], diplomacy=diplomacy)

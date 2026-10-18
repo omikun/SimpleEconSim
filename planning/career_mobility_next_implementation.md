@@ -316,6 +316,24 @@ food intake deficit, energy reserve, personal food inventory, livelihood, and
 relief received; the current hazard event has hunger duration and random draw
 but cannot attribute an individual death to a specific access or policy gap.
 
+**Food-buffer and starvation response update (2026-10-17):** Enclosure safety
+now uses a complete ten-turn production cycle, projected meal demand, and
+household/public food stocks. Commons forage is logged separately and does
+not count as proof that enclosure is safe, since enclosure removes that same
+food route. Nation AI decision logs include the cycle margin and the reason an
+enclosure option was rejected. Starvation now lowers effective calorie need
+smoothly with body reserves, down to 65% of normal need; this slows reserve
+depletion and reduces acute starvation hazard. The trace records baseline and
+effective need, metabolic factor, calorie deficit, energy reserve, personal
+food stock, livelihood, and food aid received for fatal starvation events.
+Focused food-security, nutrition, AI, and trace tests pass. A 50-turn seed-778
+check reconciled person flows and had 315 starvation deaths. With the same
+food policy and seed but the metabolic adaptation disabled, it had 428
+starvation deaths (26% more); this isolates a survival benefit from the
+adaptation, though the absolute death rate remains high. The food policy and
+metabolic mechanic still need matched-seed balance runs before their overall
+population effect can be considered acceptable.
+
 ## Execution order
 
 Implement A before B, B before C, and C before D. If a phase's gate fails,

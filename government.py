@@ -645,6 +645,8 @@ class Government:
             self.food_aid_last_turn = 0
             self.food_levy_last_turn = 0
             self._food_aid_turn = t
+            for agent in agents:
+                agent.food_aid_received_this_turn = 0
         if self.emergency_food_policy and region is not None:
             self._levy_emergency_food(t, agents, region)
         inventory_before = self.food_inventory
@@ -667,6 +669,8 @@ class Government:
                 if given:
                     self.food_inventory -= given
                     agent.inv_add(Goods.food, given)
+                    agent.food_aid_received_this_turn = (
+                        getattr(agent, 'food_aid_received_this_turn', 0) + given)
                     transfers.append({'agent_id': agent.id, 'units': given})
             total_food_given = inventory_before - self.food_inventory
             self.food_aid_last_turn += total_food_given
@@ -714,6 +718,8 @@ class Government:
             for agent in fed:
                 self.food_inventory -= 1
                 agent.inv_add(Goods.food, 1)
+                agent.food_aid_received_this_turn = (
+                    getattr(agent, 'food_aid_received_this_turn', 0) + 1)
                 total_food_given += 1
                 transfers.append({'agent_id': agent.id, 'units': 1})
                 loginfo(t, f"Government({self.name}) food aid to {agent.name()} "

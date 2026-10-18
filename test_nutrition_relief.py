@@ -4,7 +4,8 @@ import unittest
 
 from demographics_consumption import consume_daily_food
 from goods import Goods
-from nutrition import deficit_fraction, queue_emergency_meal
+from nutrition import (deficit_fraction, effective_calorie_need, queue_emergency_meal,
+                       record_intake, starvation_hazard)
 
 
 class Household:
@@ -30,6 +31,22 @@ class Household:
 
 
 class NutritionReliefTests(unittest.TestCase):
+    def test_depleted_body_slows_calorie_burn_and_starvation_hazard(self):
+        person = Household()
+        person.energy_reserve_kcal = 0
+        self.assertEqual(effective_calorie_need(person), 1300)
+        record_intake(person, 0)
+        self.assertEqual(person.energy_reserve_kcal, 0)
+        self.assertEqual(person.calorie_deficit_kcal, 1300)
+        self.assertLess(starvation_hazard(person), 0.5)
+
+    def test_starvation_adaptation_extends_reserve_runway(self):
+        person = Household()
+        for _ in range(22):
+            record_intake(person, 0)
+        self.assertGreater(person.energy_reserve_kcal, 0)
+        self.assertLess(person.energy_reserve_kcal, 40000)
+
     def test_reserved_meal_is_eaten_once_next_turn(self):
         person = Household()
         queue_emergency_meal(person, 4)

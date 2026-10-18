@@ -1,12 +1,13 @@
 """Regression checks for the diagnosed food crisis and conserved response."""
 
 import unittest
+from unittest.mock import patch
 
 from agent import Agent, initialize_agent
 from ai_nation import NationPolicyAI
 from economy.labor_mobility import LaborMobilityScheduler, independent_return
 from economy.transformation_graph import TransformationGraph
-from food_security import enact_nation_food_response
+from food_security import diagnose_tile, enact_nation_food_response
 from food_logistics import deliver_province_food, dispatch_province_food
 from goods import Goods
 from government import Government
@@ -23,6 +24,31 @@ from foraging import forage_tile
 
 
 class FoodSecurityRecoveryTests(unittest.TestCase):
+    def test_enclosure_buffer_requires_a_full_crop_cycle(self):
+        tile = Region('Cycle', 0, 4)
+        tile.production_log[Goods.food] = [10000.0] * 9
+        partial = diagnose_tile(tile)
+        self.assertEqual(partial['observed_crop_cycle_turns'], 9)
+        self.assertFalse(partial['food_buffer_proven'])
+
+        tile.production_log[Goods.food].append(10000.0)
+        complete = diagnose_tile(tile)
+        self.assertEqual(complete['observed_crop_cycle_turns'], 10)
+        self.assertTrue(complete['food_buffer_proven'])
+        self.assertGreater(complete['projected_crop_cycle_margin'],
+                           complete['crop_cycle_meal_demand'] * 0.1)
+
+    def test_commons_food_does_not_make_enclosure_look_safe(self):
+        tile = Region('Commons Buffer', 0, 4)
+        tile.production_log[Goods.food] = [0.0] * 10
+        with patch('food_security.forecast_commons_food', return_value=10):
+            assessment = diagnose_tile(tile)
+        self.assertFalse(assessment['food_buffer_proven'])
+        self.assertEqual(assessment['accessible_food_buffer'],
+                         assessment['household_food_units'] + assessment['government_food_units'])
+        self.assertGreater(assessment['projected_crop_cycle_margin_with_commons'],
+                           assessment['projected_crop_cycle_margin'])
+
     def test_imported_luxury_is_not_a_fictitious_independent_income(self):
         tile = Region('Market', 0, 2)
         worker = next(a for a in tile.agents if not a.is_government)

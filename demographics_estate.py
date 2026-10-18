@@ -489,13 +489,23 @@ def handle_death(ctx, t, agent, agents):
         loginfo(t, agent.name(), 'has died due to age')
     else:
         from run_trace import emit
+        from nutrition import effective_calorie_need, metabolic_need_factor
         emit(trace_region, kind='starvation_death_assessment', record_class='outcome',
              subject={'type': 'tile', 'id': getattr(trace_region, 'name', 'unknown'),
                       'agent_id': getattr(agent, 'id', None)},
              metric_id='health.starvation_hazard', unit='probability',
-             after=hazard, formula_id='mortality.starvation_hazard.v1',
+             after=hazard, formula_id='mortality.starvation_hazard.v2',
              inputs={'starvation_draw': starvation_draw,
                      'hungry_steps': getattr(agent, 'hungry_steps', 0),
+                     'calorie_deficit_kcal': getattr(agent, 'calorie_deficit_kcal', 0.0),
+                     'baseline_calorie_need_kcal': getattr(agent, 'calorie_need_kcal', 2000.0),
+                     'effective_calorie_need_kcal': effective_calorie_need(agent),
+                     'metabolic_need_factor': metabolic_need_factor(agent),
+                     'energy_reserve_kcal': getattr(agent, 'energy_reserve_kcal', 0.0),
+                     'food_inventory': agent.inv_get(Goods.food, 0),
+                     'food_aid_received_this_turn': getattr(agent, 'food_aid_received_this_turn', 0),
+                     'livelihood': getattr(getattr(agent, 'primary_livelihood', None), 'name',
+                                           getattr(agent, 'primary_livelihood', None)),
                      'died': True})
         logdebug(t, agent.name(), 'has starved to death')
         agent.alive = False

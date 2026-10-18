@@ -47,6 +47,9 @@ class RunTraceTests(unittest.TestCase):
             self.assertEqual([row['kind'] for row in rows],
                              ['starvation_death_assessment', 'person_died'])
             self.assertEqual(rows[0]['subject']['id'], 'Delta')
+            self.assertIn('metabolic_need_factor', rows[0]['inputs'])
+            self.assertIn('effective_calorie_need_kcal', rows[0]['inputs'])
+            self.assertIn('food_inventory', rows[0]['inputs'])
             self.assertEqual(rows[1]['inputs']['tile'], 'Delta')
             self.assertEqual(rows[1]['inputs']['death_cause'], 'starvation')
 
