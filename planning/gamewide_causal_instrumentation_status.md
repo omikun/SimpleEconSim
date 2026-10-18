@@ -259,3 +259,15 @@ per-bank cash debits sum to the sovereign expense and link to capital increases.
 Deposit bail-in tracing passed all seven banking-contagion tests. The fixture
 verified depositor balances, matching equity, no cash movement, and the policy's
 class and legitimacy consequences.
+
+Estate bank-default tracing now covers the full loss waterfall: shareholder
+capital, each depositor's non-cash haircut, local treasury funding, and any
+unabsorbed loss that drives bank capital negative. Treasury funding records
+both the government cash debit and bank capital credit, with the writeoff
+linking its component events. The heirless-default fixture reconciles a $25
+writeoff as $4 shareholder loss, $10 depositor loss, $3 treasury recap, and $8
+residual loss. The 45 supply-control/actor-account, seven banking, 12 debt and
+coercion, seven bond, and 29 live trace tests passed. Compilation and
+`git diff --check` passed. Occupation and tribute flows, general wealth and
+inheritance transfers, broad household/firm transfers, and some scenario costs
+remain open.

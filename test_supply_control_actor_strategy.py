@@ -706,9 +706,24 @@ class ActorAccountTests(unittest.TestCase):
         from demographics_estate import handle_debt_inheritance
         from econsim_trade_money import Bank, Loan
 
+        class MemoryTrace:
+            def __init__(self):
+                self.rows = []
+
+            def emit(self, clock, **row):
+                event_id = f'test:{clock["next"]}'
+                clock['next'] += 1
+                self.rows.append({'event_id': event_id, **row})
+                return event_id
+
         region = Region()
         region.name = 'Default District'
         region.home_currency = 'USD'
+        region.owner_nation = SimpleNamespace(name='North', currency='USD')
+        trace = MemoryTrace()
+        clock = {'turn': 12, 'phase': 'demographics', 'next': 1}
+        region._run_trace = trace
+        region._collective_trace_clock = clock
         treasury, depositor, decedent = Agent(1), Agent(1), Agent(1)
         treasury.cash = 3.0
         treasury.home_currency = 'USD'
@@ -745,6 +760,47 @@ class ActorAccountTests(unittest.TestCase):
         self.assertEqual(rows[treasury.id]['cash_change'], -3.0)
         self.assertEqual(rows[treasury.id]['posted_cash_change'], -3.0)
         self.assertEqual(rows[treasury.id]['unposted_cash_change'], 0.0)
+
+        trace_rows = trace.rows
+        shareholder = next(row for row in trace_rows
+                           if row.get('kind') == 'estate_bank_shareholder_loss_absorption')
+        bailin = next(row for row in trace_rows
+                      if row.get('metric_id') == 'finance.bank_debt_bailin')
+        recap = next(row for row in trace_rows
+                     if row.get('kind') == 'estate_bank_recapitalization')
+        treasury_flow = next(row for row in trace_rows
+                             if row.get('kind') ==
+                             'estate_bank_recapitalization_funding')
+        residual = next(row for row in trace_rows
+                        if row.get('kind') == 'estate_bank_unabsorbed_loss')
+        traced_writeoff = next(row for row in trace_rows
+                               if row.get('metric_id') ==
+                               'finance.bank_debt_writeoff')
+        self.assertEqual(shareholder['before'], 4.0)
+        self.assertEqual(shareholder['after'], 0.0)
+        self.assertEqual(bailin['inputs']['transfer_contract']['amount'], 10.0)
+        self.assertFalse(bailin['inputs']['transfer_contract']['cash_movement'])
+        self.assertEqual(
+            bailin['inputs']['transfer_contract']['payer_account']['balance_before'],
+            10.0)
+        self.assertEqual(
+            bailin['inputs']['transfer_contract']['payer_account']['balance_after'],
+            0.0)
+        self.assertEqual(recap['before'], 0.0)
+        self.assertEqual(recap['after'], 3.0)
+        self.assertEqual(treasury_flow['after'], -3.0)
+        contract = treasury_flow['inputs']['transfer_contract']
+        self.assertEqual(contract['contract_version'], 'treasury_transfer.v1')
+        self.assertEqual(contract['payer_account']['balance_before'], 3.0)
+        self.assertEqual(contract['payer_account']['balance_after'], 0.0)
+        self.assertEqual(contract['payee_account']['balance_before'], 0.0)
+        self.assertEqual(contract['payee_account']['balance_after'], 3.0)
+        self.assertEqual(treasury_flow['cause_event_ids'], [recap['event_id']])
+        self.assertEqual(residual['before'], 3.0)
+        self.assertEqual(residual['after'], -5.0)
+        self.assertEqual(set(traced_writeoff['cause_event_ids']), {
+            shareholder['event_id'], bailin['event_id'], recap['event_id'],
+            treasury_flow['event_id'], residual['event_id']})
 
 
 class PoliticalCampaignCurrencyTests(unittest.TestCase):

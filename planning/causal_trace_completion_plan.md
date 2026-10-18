@@ -565,3 +565,19 @@ bourgeoisie, labor, and legitimacy changes. Compilation and `git diff --check`
 passed. Estate-driven bank recapitalization,
 occupation/tribute flows, inheritance, broader household/firm transfers, and
 other scenario costs remain.
+
+Phase 3 follow-up, 2026-10-18: estate-driven bank debt writeoffs now show the
+full seniority waterfall. Shareholder capital losses and each depositor's
+non-cash loss are recorded separately; any local treasury recapitalization is
+paired with the bank capital gain under a treasury transfer contract; any
+remaining loss explains the negative bank equity. The writeoff outcome links
+the component events and shares a stable operation ID with the economic
+ledger.
+
+Verification: the 45 supply-control and actor-account tests, seven banking
+contagion tests, 12 scenario-debt and coercion tests, seven bond-announcement
+tests, and 29 live trace tests passed. The heirless-default fixture reconciled
+the $25 loss as $4 capital, $10 depositor haircut, $3 treasury funding, and $8
+residual loss, with exact account balances and cause links. Compilation and
+`git diff --check` passed. Occupation/tribute flows, general inheritance,
+broader household/firm transfers, and other scenario costs remain.

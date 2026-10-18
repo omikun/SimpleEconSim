@@ -243,13 +243,40 @@ def forgive_bad_debt(bank, amount, t, *, region=None, debtor=None):
     if amount <= 0:
         return True
 
+    bank_agent = getattr(getattr(bank, 'gov', None), 'agent', None)
+    bank_id = getattr(bank_agent, 'id', getattr(region, 'name', 'bank'))
+    debtor_id = getattr(debtor, 'id', None)
+    tile_id = getattr(region, 'name', 'untraced')
+    operation_id = f'estate-bank-writeoff:{tile_id}:{int(t)}:{bank_id}:{debtor_id}'
+    owner_nation = getattr(region, 'owner_nation', None) if region is not None else None
+    currency = (getattr(bank_agent, 'home_currency', None)
+                or getattr(owner_nation, 'currency', None)
+                or getattr(region, 'home_currency', None) or 'local_currency')
+    component_event_ids = []
+
     # 1. Shareholders absorb first.
+    capital_before = float(bank.capital)
     capital_absorb = min(amount, max(0.0, bank.capital))
     if capital_absorb > 0:
         bank.capital -= capital_absorb
+        from run_trace import emit
+        event_id = emit(
+            region, kind='estate_bank_shareholder_loss_absorption',
+            record_class='outcome', phase='demographics',
+            subject={'type': 'tile', 'id': tile_id,
+                     'bank_id': bank_id, 'agent_id': debtor_id},
+            metric_id='finance.bank_capital', unit=currency,
+            before=capital_before, after=float(bank.capital),
+            formula_id='estate.bad_debt_shareholder_first_loss.v1',
+            inputs={'operation_id': operation_id,
+                    'principal_loss_absorbed': float(capital_absorb),
+                    'debtor_id': debtor_id})
+        if event_id is not None:
+            component_event_ids.append(event_id)
     remaining = amount - capital_absorb
     deposit_absorb = 0.0
     treasury_absorb = 0.0
+    deposits_before = float(bank.total_deposits)
 
     # 2. Depositors bailed in pro-rata.
     if remaining > 0:
@@ -261,10 +288,54 @@ def forgive_bad_debt(bank, amount, t, *, region=None, debtor=None):
                 if bal <= 0:
                     continue
                 share = bal * (dep_absorb / pool)
-                bank.deposits[owner] = max(0.0, bal - share)
+                deposit_after = max(0.0, bal - share)
+                bank.deposits[owner] = deposit_after
                 bank._record_account_event(owner, 'bank_deposit_haircut',
                                            float(share), payer=True,
-                                           detail={'bad_debt_bail_in': True})
+                                           detail={'bad_debt_bail_in': True,
+                                                   'operation_id': operation_id,
+                                                   'debtor_id': debtor_id})
+                from finance_trace import account_ref
+                from run_trace import emit
+                deposit_account = account_ref(
+                    'depositor_bank_deposit', getattr(owner, 'id', None), currency,
+                    balance_before=float(bal), balance_after=float(deposit_after),
+                    balance_scope='depositor_bank_deposit')
+                event_id = emit(
+                    region, kind='estate_bank_depositor_bail_in',
+                    record_class='transfer', phase='demographics',
+                    subject={'type': 'tile', 'id': tile_id,
+                             'bank_id': bank_id,
+                             'depositor_id': getattr(owner, 'id', None),
+                             'agent_id': debtor_id},
+                    metric_id='finance.bank_debt_bailin', unit=currency,
+                    after=float(share),
+                    formula_id='estate.bad_debt_prorata_depositor_loss.v1',
+                    inputs={'operation_id': operation_id,
+                            'transfer_contract': {
+                                'contract_version': 'bank_debt_bailin.v1',
+                                'operation_id': operation_id,
+                                'operation_type': 'deposit_loss_applied_to_estate_bad_debt',
+                                'amount': float(share),
+                                'amount_currency': currency,
+                                'side': 'depositor_asset_loss',
+                                'payer_account': deposit_account,
+                                'cash_movement': False,
+                                'currency_conversion_applied': False,
+                                'counterparty_leg_status':
+                                    'deposit_reduction_allocated_to_bank_bad_debt',
+                                'covered_bad_debt_amount': float(share),
+                                'mutation_reference': {
+                                    'bank_tile': tile_id,
+                                    'bank_id': bank_id,
+                                    'depositor_id': getattr(owner, 'id', None),
+                                    'debtor_id': debtor_id}},
+                            'deposit_before': float(bal),
+                            'deposit_after': float(deposit_after),
+                            'bad_debt_covered': float(share),
+                            'bad_debt_operation_id': operation_id})
+                if event_id is not None:
+                    component_event_ids.append(event_id)
             bank.total_deposits -= dep_absorb
             logwarning(t, f"DEPOSITOR BAIL-IN: ${dep_absorb:.2f} of "
                           f"${amount:.2f} bad debt absorbed by depositors "
@@ -273,21 +344,38 @@ def forgive_bad_debt(bank, amount, t, *, region=None, debtor=None):
 
     # 3. Tile treasury recapitalization.
     if remaining > 0:
-        treasury_absorb = recapitalize(
-            bank, remaining, t, region=region, debtor=debtor)
+        treasury_absorb, recap_event_ids = recapitalize(
+            bank, remaining, t, region=region, debtor=debtor,
+            operation_id=f'{operation_id}:treasury', return_event_ids=True)
+        component_event_ids.extend(event_id for event_id in recap_event_ids
+                                   if event_id is not None)
         remaining -= treasury_absorb
 
     # 4. Genuine bank failure -> negative equity.
     if remaining > 1e-9:
+        residual_capital_before = float(bank.capital)
         bank.capital -= remaining
+        from run_trace import emit
+        event_id = emit(
+            region, kind='estate_bank_unabsorbed_loss',
+            record_class='outcome', phase='demographics',
+            subject={'type': 'tile', 'id': tile_id,
+                     'bank_id': bank_id, 'agent_id': debtor_id},
+            metric_id='finance.bank_capital', unit=currency,
+            before=residual_capital_before, after=float(bank.capital),
+            formula_id='estate.bad_debt_residual_negative_equity.v1',
+            inputs={'operation_id': operation_id,
+                    'unabsorbed_bank_loss': float(remaining),
+                    'debtor_id': debtor_id})
+        if event_id is not None:
+            component_event_ids.append(event_id)
         logwarning(t, f"BANK FAILURE: ${remaining:.2f} heirless bad debt "
                       f"unabsorbed after seniority order — equity goes "
                       f"negative (capital ${bank.capital:.2f}).")
-    bank_currency = getattr(getattr(getattr(bank, 'gov', None), 'agent', None),
-                             'home_currency', None)
     _record_debt_event(
         region, 'bank_debt_writeoff', t, payer=debtor, amount=amount,
-        currency=bank_currency, bank=bank, detail={
+        currency=currency, bank=bank, detail={
+            'operation_id': operation_id,
             'principal_written_off': float(amount),
             'shareholder_capital_absorbed': float(capital_absorb),
             'depositor_bail_in': float(deposit_absorb),
@@ -295,59 +383,113 @@ def forgive_bad_debt(bank, amount, t, *, region=None, debtor=None):
             'unabsorbed_bank_loss': float(max(0.0, remaining)),
             'bank_capital_after': float(bank.capital),
             'bank_deposits_after': float(bank.total_deposits),
-            'debtor_id': getattr(debtor, 'id', None)})
+            'debtor_id': debtor_id})
     if region is not None:
         from run_trace import emit
-        emit(region, kind='bank_estate_debt_writeoff', record_class='outcome',
+        writeoff_event_id = emit(
+             region, kind='bank_estate_debt_writeoff', record_class='outcome',
              phase='demographics',
              subject={'type': 'tile', 'id': region.name,
-                      'agent_id': getattr(debtor, 'id', None)},
+                      'bank_id': bank_id, 'agent_id': debtor_id},
              metric_id='finance.bank_debt_writeoff',
-             unit='local_currency', before=float(amount), after=0.0,
+             unit=currency, before=float(amount), after=0.0,
              formula_id='estate.bank_bad_debt_seniority_waterfall.v1',
-             inputs={'shareholder_capital_absorbed': float(capital_absorb),
+             inputs={'operation_id': operation_id,
+                     'shareholder_capital_absorbed': float(capital_absorb),
                      'depositor_bail_in': float(deposit_absorb),
                      'treasury_recapitalization': float(treasury_absorb),
                      'unabsorbed_bank_loss': float(max(0.0, remaining)),
+                     'bank_capital_before': capital_before,
                      'bank_capital_after': float(bank.capital),
+                     'bank_deposits_before': deposits_before,
                      'bank_deposits_after': float(bank.total_deposits),
-                     'debtor_id': getattr(debtor, 'id', None)})
+                     'debtor_id': debtor_id},
+             cause_event_ids=component_event_ids or None)
     return True
 
 
-def recapitalize(bank, shortfall, t, *, region=None, debtor=None):
+def recapitalize(bank, shortfall, t, *, region=None, debtor=None,
+                 operation_id=None, return_event_ids=False):
     """Tile treasury lender-of-last-resort recapitalization (conserved)."""
     gov = getattr(bank, 'gov', None)
     if gov is None:
-        return 0.0
+        return (0.0, []) if return_event_ids else 0.0
     take = min(max(0.0, shortfall), max(0.0, gov.agent.cash))
     if take <= 0:
-        return 0.0
+        return (0.0, []) if return_event_ids else 0.0
+    treasury_before = float(gov.agent.cash)
     capital_before = float(bank.capital)
     gov.agent.cash -= take
     bank.capital += take
+    if operation_id is None:
+        operation_id = (f'estate-bank-recapitalization:{getattr(region, "name", "untraced")}:'
+                        f'{int(t)}:{getattr(gov.agent, "id", None)}:'
+                        f'{getattr(debtor, "id", None)}')
     _record_debt_event(
         region, 'bank_recapitalization', t, payer=gov.agent, amount=take,
         currency=getattr(gov.agent, 'home_currency', None), bank=bank,
-        detail={'capital_injected': float(take),
+        detail={'operation_id': operation_id,
+                'capital_injected': float(take),
                 'bank_capital_after': float(bank.capital),
                 'cause': 'heirless_estate_bad_debt',
                 'debtor_id': getattr(debtor, 'id', None)})
+    event_ids = []
     if region is not None:
+        from finance_trace import account_ref, emit_treasury_leg, transfer_contract
         from run_trace import emit
-        emit(region, kind='estate_bank_recapitalization',
+        owner_nation = getattr(region, 'owner_nation', None)
+        currency = (getattr(owner_nation, 'currency', None)
+                    or getattr(gov.agent, 'home_currency', None)
+                    or getattr(region, 'home_currency', None) or 'local_currency')
+        bank_event_id = emit(region, kind='estate_bank_recapitalization',
              record_class='transfer', phase='demographics',
              subject={'type': 'tile', 'id': region.name,
                       'agent_id': gov.agent.id},
-             metric_id='finance.bank_recapitalization', unit='local_currency',
+             metric_id='finance.bank_recapitalization', unit=currency,
              before=capital_before, after=float(bank.capital),
-             inputs={'capital_injected': float(take),
+             inputs={'operation_id': operation_id,
+                     'capital_injected': float(take),
                      'debtor_id': getattr(debtor, 'id', None),
                      'bank_capital_before': capital_before,
                      'bank_capital_after': float(bank.capital)})
+        if bank_event_id is not None:
+            event_ids.append(bank_event_id)
+        payer = account_ref(
+            'government_treasury', getattr(gov, 'name', gov.agent.id), currency,
+            subaccount='government_agent.cash', balance_before=treasury_before,
+            balance_after=float(gov.agent.cash), balance_scope='government_agent.cash')
+        payee = account_ref(
+            'bank_capital', region.name, currency,
+            balance_before=capital_before, balance_after=float(bank.capital),
+            balance_scope='capital')
+        contract = transfer_contract(
+            operation_id, 'estate_bank_recapitalization', side='payer',
+            amount=take, amount_currency=currency,
+            payer_account=payer, payee_account=payee,
+            local_cash_leg_amount=take, local_cash_leg_currency=currency,
+            counterparty_leg_status='bank_capital_balance_captured',
+            mutation_reference={'turn': int(t), 'bank_tile': region.name,
+                                'debtor_id': getattr(debtor, 'id', None),
+                                'cause': 'heirless_estate_bad_debt'})
+        flow_event_id = emit_treasury_leg(
+            region, kind='estate_bank_recapitalization_funding',
+            nation_name=(getattr(owner_nation, 'name', None)
+                         or getattr(gov, 'name', region.name)),
+            currency=currency, signed_amount=-float(take), contract=contract,
+            phase='demographics',
+            cause_event_ids=([bank_event_id] if bank_event_id is not None else None),
+            subject_type='nation' if owner_nation is not None else 'tile',
+            inputs={'bank_tile': region.name,
+                    'debtor_id': getattr(debtor, 'id', None),
+                    'treasury_before': treasury_before,
+                    'treasury_after': float(gov.agent.cash),
+                    'bank_capital_before': capital_before,
+                    'bank_capital_after': float(bank.capital)})
+        if flow_event_id is not None:
+            event_ids.append(flow_event_id)
     logwarning(t, f"RECAPITALIZATION: ${take:.2f} treasury capital injected "
                   f"into bank (capital ${bank.capital:.2f})")
-    return take
+    return (take, event_ids) if return_event_ids else take
 
 
 def loan_bank_currency(loan):
