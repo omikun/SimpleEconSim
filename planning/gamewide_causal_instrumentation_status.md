@@ -887,3 +887,29 @@ strategy tests passed. Coverage includes trace-on/off result parity, campaign
 cash conservation, transfer-to-allocation links, candidate selection, voter
 fallbacks, broken-promise defection, and empty elections. Compilation and
 `git diff --check` passed.
+
+Phase 4 follow-up, 2026-10-18: bilateral treaty and war actions now record
+acceptance gates and reason codes, treaty relation thresholds and betrayal
+penalties, signing/breaking/cancellation state, relations and betrayal-memory
+changes, war aims, treaties broken by war, and each defensive-alliance call.
+Peace offers record whether a war exists and an offer is already pending;
+responses record the next-turn timing rule, acceptance or rejection, and final
+war state. Peace signing records the fixed relation reset and the reparations
+strength threshold. When the mechanic receives the nation world, reparations
+record the 2.5-to-1 strength test, 20-strength minimum, 40% treasury share,
+$50 cap, and paired payer/recipient cash balances under one operation ID.
+
+Tracing is passed from AI intents, web actions, desktop actions, and the
+labor-frontier rivalry. Trace-only world context does not activate the existing
+alliance military gate or peace reparations mechanic when the gameplay caller
+did not supply that world; those unevaluated conditions are labeled in the
+trace. This preserves existing outcomes while making path differences visible.
+
+Verification: four dedicated diplomacy-action tests and 47 diplomacy, war,
+AI, scenario, and web-client parity tests passed. Tests cover accepted and
+rejected treaty gates, betrayal versus cancellation, defensive ally calls,
+duplicate wars, peace timing, no-world reparations behavior, actual reparations
+cash legs, trace-on/off state parity, and registered metrics. Treaty signing
+still uses an automatic threshold check rather than a recipient AI response;
+the trace records that current acceptance model explicitly. Compilation and
+`git diff --check` passed.

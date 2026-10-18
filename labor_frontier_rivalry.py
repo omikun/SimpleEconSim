@@ -139,7 +139,8 @@ def apply_border_action(world, action_id, nation_name, turn):
     elif action_id == 'offer_peace':
         if not diplomacy.are_at_war(nation.name, opponent.name):
             return False, 'There is no war to end.'
-        result = diplomacy.sign_peace(nation.name, opponent.name, t=turn)
+        result = diplomacy.sign_peace(nation.name, opponent.name, t=turn,
+                                      _trace_world=world)
         if not result['success']:
             return False, result['message']
         message = result['message']
@@ -201,7 +202,8 @@ def advance_rival(world, turn):
     diplomacy = get_diplomacy()
     if state['standstill_until'] and turn >= state['standstill_until']:
         diplomacy.cancel_treaty('Meridian', 'Vesper', NAP, t=turn,
-                                reason='Four-turn review period ended')
+                                reason='Four-turn review period ended',
+                                _trace_world=world)
         state['standstill_until'] = 0
     action, reason = _choose_rival(world, turn)
     plan = state['rival_plan']

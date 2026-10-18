@@ -1250,3 +1250,27 @@ strategy tests passed. Trace-on/off election results match, campaign cash is
 conserved, and candidate, voter, campaign-transfer, popularity-calculation,
 tally, and result events are registered. Compilation and `git diff --check`
 passed.
+
+## Phase 4 follow-up — Trace treaty, war, peace, and reparations actions
+
+Bilateral diplomacy actions now record treaty acceptance thresholds, betrayal
+penalties, state transitions, relation changes and betrayal memory. War records
+include the declared aim, relation lock, treaties broken, and every defensive
+ally's join/skip decision. Peace traces include offer gates, reply timing,
+accept/reject outcomes and the transition out of war. When provided by the
+existing gameplay call, the reparations branch exposes the 2.5-to-1 leverage
+threshold, 20-strength minimum, 40% of vanquished cash, $50 ceiling and both
+cash legs.
+
+AI intents and both clients pass a trace-only world reference so actions reach
+the recorder. That reference does not enable mechanic branches that were not
+previously passed a gameplay world: an intent peace acceptance still does not
+create reparations, and an intent treaty proposal does not gain a new military
+threshold. Those mechanics are labeled as unevaluated instead of being changed
+by instrumentation. The trace also makes the existing treaty model explicit:
+a threshold pass signs immediately, without a separate recipient AI response.
+
+Verification: four dedicated diplomacy-action tests and 47 diplomacy, war,
+AI, scenario, and web-client parity tests passed. Trace-on/off behavior parity,
+causal links, treasury conservation, serialization, registered metrics,
+compilation, and `git diff --check` were checked.

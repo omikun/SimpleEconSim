@@ -542,7 +542,9 @@ class ProposeTreatyIntent(Intent):
 
         diplomacy = get_diplomacy()
         ok, msg = diplomacy.propose_treaty(self.nation_name, self.target_nation_name,
-                                           self.treaty_type, t=t)
+                                           self.treaty_type, t=t,
+                                           _trace_world={
+                                               'nations': list(nations_by_name.values())})
         self.status = 'completed' if ok else 'rejected'
         self.logs.append(msg)
         return ok, msg
@@ -561,7 +563,9 @@ class BreakTreatyIntent(Intent):
                 nations_by_name: dict[str, Nation], t: int) -> tuple[bool, str]:
         diplomacy = get_diplomacy()
         res = diplomacy.break_treaty(self.nation_name, self.target_nation_name,
-                                     self.treaty_type, t=t)
+                                     self.treaty_type, t=t,
+                                     _trace_world={
+                                         'nations': list(nations_by_name.values())})
         ok = res['success']
         msg = res['message']
         self.status = 'completed' if ok else 'failed'
@@ -606,7 +610,9 @@ class ProposePeaceIntent(Intent):
 
     def execute(self, tiles_by_name, nations_by_name, t):
         result = get_diplomacy().propose_peace(self.nation_name,
-                                               self.target_nation_name, t)
+                                               self.target_nation_name, t,
+                                               _trace_world={
+                                                   'nations': list(nations_by_name.values())})
         self.status = 'completed' if result['success'] else 'rejected'
         self.logs.append(result['message'])
         return result['success'], result['message']
@@ -624,7 +630,9 @@ class RespondPeaceIntent(Intent):
     def execute(self, tiles_by_name, nations_by_name, t):
         result = get_diplomacy().respond_peace(self.nation_name,
                                                self.proposer_name,
-                                               self.accept, t)
+                                               self.accept, t,
+                                               _trace_world={
+                                                   'nations': list(nations_by_name.values())})
         self.status = 'completed' if result['success'] else 'rejected'
         self.logs.append(result['message'])
         return result['success'], result['message']

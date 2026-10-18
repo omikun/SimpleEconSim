@@ -603,14 +603,22 @@ class SimServer:
                 dip = get_diplomacy()
 
                 if action == 'propose_trade':
-                    ok, msg = dip.propose_treaty(source, target, TreatyType.TRADE_PACT, self.turn)
+                    ok, msg = dip.propose_treaty(
+                        source, target, TreatyType.TRADE_PACT, self.turn,
+                        _trace_world={'nations': self.nations})
                 elif action == 'propose_nap':
-                    ok, msg = dip.propose_treaty(source, target, TreatyType.NON_AGGRESSION, self.turn)
+                    ok, msg = dip.propose_treaty(
+                        source, target, TreatyType.NON_AGGRESSION, self.turn,
+                        _trace_world={'nations': self.nations})
                 elif action == 'propose_alliance':
-                    ok, msg = dip.propose_treaty(source, target, TreatyType.DEFENSIVE_ALLIANCE, self.turn)
+                    ok, msg = dip.propose_treaty(
+                        source, target, TreatyType.DEFENSIVE_ALLIANCE, self.turn,
+                        _trace_world={'nations': self.nations})
                 elif action == 'break_treaty':
                     t_type = p.get('treaty_type', TreatyType.TRADE_PACT)
-                    res = dip.break_treaty(source, target, t_type, self.turn)
+                    res = dip.break_treaty(
+                        source, target, t_type, self.turn,
+                        _trace_world={'nations': self.nations})
                     ok, msg = res['success'], res['message']
                 elif action == 'declare_war':
                     events = dip.declare_war(source, target, self.turn,

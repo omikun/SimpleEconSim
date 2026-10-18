@@ -392,6 +392,7 @@ def diplomacy_panel_hit(pos: tuple[int, int], world: dict) -> bool:
 
     diplomacy = get_diplomacy()
     t = world.get('turn', 0)
+    trace_world = {'nations': world.get('nations', [])}
     has_trade = diplomacy.has_treaty(active_n.name, target_n.name, TreatyType.TRADE_PACT.value)
     has_nap = diplomacy.has_treaty(active_n.name, target_n.name, TreatyType.NON_AGGRESSION.value)
     has_alliance = diplomacy.has_treaty(active_n.name, target_n.name, TreatyType.DEFENSIVE_ALLIANCE.value)
@@ -400,10 +401,10 @@ def diplomacy_panel_hit(pos: tuple[int, int], world: dict) -> bool:
     # 1. Trade Pact Button
     if btn_x <= mx <= btn_x + btn_w and btn_y <= my <= btn_y + btn_h and not is_war:
         if has_trade:
-            diplomacy.cancel_treaty(active_n.name, target_n.name, TreatyType.TRADE_PACT.value, t)
+            diplomacy.cancel_treaty(active_n.name, target_n.name, TreatyType.TRADE_PACT.value, t, _trace_world=trace_world)
             ticker_push(world, t, 'DIPLOMACY', f"{active_n.name} cancelled Trade Pact with {target_n.name}.", (240, 140, 60))
         else:
-            diplomacy.sign_treaty(active_n.name, target_n.name, TreatyType.TRADE_PACT.value, t)
+            diplomacy.sign_treaty(active_n.name, target_n.name, TreatyType.TRADE_PACT.value, t, _trace_world=trace_world)
             ticker_push(world, t, 'DIPLOMACY', f"{active_n.name} signed Trade Pact with {target_n.name}.", (120, 220, 130))
         return True
     btn_y += btn_h + 6
@@ -411,10 +412,10 @@ def diplomacy_panel_hit(pos: tuple[int, int], world: dict) -> bool:
     # 2. NAP Button
     if btn_x <= mx <= btn_x + btn_w and btn_y <= my <= btn_y + btn_h and not is_war:
         if has_nap:
-            diplomacy.cancel_treaty(active_n.name, target_n.name, TreatyType.NON_AGGRESSION.value, t)
+            diplomacy.cancel_treaty(active_n.name, target_n.name, TreatyType.NON_AGGRESSION.value, t, _trace_world=trace_world)
             ticker_push(world, t, 'DIPLOMACY', f"{active_n.name} cancelled Non-Aggression Pact with {target_n.name}.", (240, 140, 60))
         else:
-            diplomacy.sign_treaty(active_n.name, target_n.name, TreatyType.NON_AGGRESSION.value, t)
+            diplomacy.sign_treaty(active_n.name, target_n.name, TreatyType.NON_AGGRESSION.value, t, _trace_world=trace_world)
             ticker_push(world, t, 'DIPLOMACY', f"{active_n.name} concluded Non-Aggression Pact with {target_n.name}.", ACCENT)
         return True
     btn_y += btn_h + 6
@@ -422,10 +423,10 @@ def diplomacy_panel_hit(pos: tuple[int, int], world: dict) -> bool:
     # 3. Defensive Alliance Button
     if btn_x <= mx <= btn_x + btn_w and btn_y <= my <= btn_y + btn_h and not is_war:
         if has_alliance:
-            diplomacy.cancel_treaty(active_n.name, target_n.name, TreatyType.DEFENSIVE_ALLIANCE.value, t)
+            diplomacy.cancel_treaty(active_n.name, target_n.name, TreatyType.DEFENSIVE_ALLIANCE.value, t, _trace_world=trace_world)
             ticker_push(world, t, 'DIPLOMACY', f"{active_n.name} dissolved Defensive Alliance with {target_n.name}.", (240, 140, 60))
         else:
-            diplomacy.sign_treaty(active_n.name, target_n.name, TreatyType.DEFENSIVE_ALLIANCE.value, t)
+            diplomacy.sign_treaty(active_n.name, target_n.name, TreatyType.DEFENSIVE_ALLIANCE.value, t, _trace_world=trace_world)
             ticker_push(world, t, 'DIPLOMACY', f"{active_n.name} and {target_n.name} formed a Defensive Alliance!", (80, 200, 255))
         return True
     btn_y += btn_h + 6
@@ -433,7 +434,8 @@ def diplomacy_panel_hit(pos: tuple[int, int], world: dict) -> bool:
     # 4. War / Peace Button
     if btn_x <= mx <= btn_x + btn_w and btn_y <= my <= btn_y + btn_h:
         if is_war:
-            diplomacy.sign_peace(active_n.name, target_n.name, t)
+            diplomacy.sign_peace(active_n.name, target_n.name, t,
+                                 _trace_world=trace_world)
             ticker_push(world, t, 'DIPLOMACY', f"Peace restored between {active_n.name} and {target_n.name}.", (120, 220, 130))
         else:
             diplomacy.declare_war(active_n.name, target_n.name, t,

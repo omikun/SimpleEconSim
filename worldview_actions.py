@@ -978,6 +978,7 @@ def actions_tab_hit(pos, box_x, box_y, world):
     # Legacy fallback calculation
     mx, my = pos
     nations = world.get('nations', [])
+    trace_world = {'nations': nations}
     active_n = get_active_nation(world)
     t = world.get('turn', 1)
     diplomacy = get_diplomacy()
@@ -1029,37 +1030,38 @@ def actions_tab_hit(pos, box_x, box_y, world):
             # 1. Trade Pact Button (Top Left)
             if btn_x1 <= mx <= btn_x1 + btn_w and row1_y <= my <= row1_y + btn_h:
                 if has_trade:
-                    res = diplomacy.break_treaty(active_n.name, other.name, TreatyType.TRADE_PACT.value, t=t, reason="Sovereign decision")
+                    res = diplomacy.break_treaty(active_n.name, other.name, TreatyType.TRADE_PACT.value, t=t, reason="Sovereign decision", _trace_world=trace_world)
                     world['action_feedback'] = (res.get('message', 'Trade pact broken.'), RED, t)
                 else:
-                    ok, reason = diplomacy.propose_treaty(active_n.name, other.name, TreatyType.TRADE_PACT.value, t=t)
+                    ok, reason = diplomacy.propose_treaty(active_n.name, other.name, TreatyType.TRADE_PACT.value, t=t, _trace_world=trace_world)
                     world['action_feedback'] = (reason, GREEN if ok else RED, t)
                 return True
 
             # 2. NAP Button (Top Right)
             if btn_x2 <= mx <= btn_x2 + btn_w and row1_y <= my <= row1_y + btn_h:
                 if has_nap:
-                    res = diplomacy.break_treaty(active_n.name, other.name, TreatyType.NON_AGGRESSION.value, t=t, reason="Sovereign decision")
+                    res = diplomacy.break_treaty(active_n.name, other.name, TreatyType.NON_AGGRESSION.value, t=t, reason="Sovereign decision", _trace_world=trace_world)
                     world['action_feedback'] = (res.get('message', 'NAP broken.'), RED, t)
                 else:
-                    ok, reason = diplomacy.propose_treaty(active_n.name, other.name, TreatyType.NON_AGGRESSION.value, t=t)
+                    ok, reason = diplomacy.propose_treaty(active_n.name, other.name, TreatyType.NON_AGGRESSION.value, t=t, _trace_world=trace_world)
                     world['action_feedback'] = (reason, ACCENT if ok else RED, t)
                 return True
 
             # 3. Defensive Alliance Button (Bottom Left)
             if btn_x1 <= mx <= btn_x1 + btn_w and row2_y <= my <= row2_y + btn_h:
                 if has_alliance:
-                    res = diplomacy.break_treaty(active_n.name, other.name, TreatyType.DEFENSIVE_ALLIANCE.value, t=t, reason="Sovereign decision")
+                    res = diplomacy.break_treaty(active_n.name, other.name, TreatyType.DEFENSIVE_ALLIANCE.value, t=t, reason="Sovereign decision", _trace_world=trace_world)
                     world['action_feedback'] = (res.get('message', 'Alliance broken.'), RED, t)
                 else:
-                    ok, reason = diplomacy.propose_treaty(active_n.name, other.name, TreatyType.DEFENSIVE_ALLIANCE.value, t=t)
+                    ok, reason = diplomacy.propose_treaty(active_n.name, other.name, TreatyType.DEFENSIVE_ALLIANCE.value, t=t, _trace_world=trace_world)
                     world['action_feedback'] = (reason, (80, 200, 255) if ok else RED, t)
                 return True
 
             # 4. War / Peace Button (Bottom Right)
             if btn_x2 <= mx <= btn_x2 + btn_w and row2_y <= my <= row2_y + btn_h:
                 if is_war:
-                    res = diplomacy.sign_peace(active_n.name, other.name, t=t)
+                    res = diplomacy.sign_peace(active_n.name, other.name, t=t,
+                                               _trace_world=trace_world)
                     world['action_feedback'] = (res.get('message', 'Peace signed.'), GREEN if res.get('success') else RED, t)
                 else:
                     events = diplomacy.declare_war(active_n.name, other.name, t=t,
