@@ -750,13 +750,16 @@ class ActorAccountTests(unittest.TestCase):
 class PoliticalCampaignCurrencyTests(unittest.TestCase):
     def test_campaign_finance_keeps_nation_currency_in_candidate_wallet(self):
         from election import campaign_finance
+        from economy.actor_accounts import recorded_cash_delta
         treasury = Person(1, 50)
         treasury.home_currency = 'USD'
         candidate_actor = Person(2, 10)
         candidate_actor.home_currency = 'JPY'
         candidate_actor.wallets = {}
-        tile = SimpleNamespace(gov=SimpleNamespace(agent=treasury))
-        nation = SimpleNamespace(tiles=[tile], currency='USD')
+        tile = SimpleNamespace(gov=SimpleNamespace(agent=treasury),
+                               name='Capital', agents=[treasury, candidate_actor],
+                               home_currency='USD', economic_events=[])
+        nation = SimpleNamespace(name='United States', tiles=[tile], currency='USD')
         candidate = SimpleNamespace(agent=candidate_actor, popularity=0)
         before_usd = treasury.cash + candidate_actor.wallets.get('USD', 0)
         before_jpy = candidate_actor.cash
@@ -764,6 +767,36 @@ class PoliticalCampaignCurrencyTests(unittest.TestCase):
         self.assertEqual(spent, 20)
         self.assertEqual(treasury.cash + candidate_actor.wallets['USD'], before_usd)
         self.assertEqual(candidate_actor.cash, before_jpy)
+        spending = next(event for event in tile.economic_events
+                        if event['kind'] == 'election_campaign_spending')
+        wallet_receipt = next(event for event in tile.economic_events
+                              if event['kind'] == 'wallet_transfer_in')
+        self.assertEqual(spending['payer_id'], treasury.id)
+        self.assertEqual(wallet_receipt['recipient_id'], candidate_actor.id)
+        self.assertEqual(spending['asset_id'], wallet_receipt['asset_id'])
+        self.assertEqual(recorded_cash_delta(tile.economic_events, treasury.id), -20.0)
+        self.assertEqual(recorded_cash_delta(tile.economic_events, candidate_actor.id), 0.0)
+
+    def test_campaign_cash_recipient_gets_a_separate_cash_receipt_posting(self):
+        from election import campaign_finance
+        from economy.actor_accounts import recorded_cash_delta
+        treasury = Person(11, 50)
+        treasury.home_currency = 'USD'
+        candidate_actor = Person(12, 10)
+        candidate_actor.home_currency = 'USD'
+        tile = SimpleNamespace(gov=SimpleNamespace(agent=treasury),
+                               name='Capital', agents=[treasury, candidate_actor],
+                               home_currency='USD', economic_events=[])
+        nation = SimpleNamespace(name='United States', tiles=[tile], currency='USD')
+        candidate = SimpleNamespace(agent=candidate_actor, popularity=0)
+
+        spent, _ = campaign_finance(nation, candidate, 20, 4)
+
+        self.assertEqual(spent, 20.0)
+        self.assertEqual(treasury.cash, 30.0)
+        self.assertEqual(candidate_actor.cash, 30.0)
+        self.assertEqual(recorded_cash_delta(tile.economic_events, treasury.id), -20.0)
+        self.assertEqual(recorded_cash_delta(tile.economic_events, candidate_actor.id), 20.0)
 
     def test_backlash_moves_either_cash_or_wallet_once(self):
         from labor_politics import capitalist_electoral_backlash

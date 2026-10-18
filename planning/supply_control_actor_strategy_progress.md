@@ -113,12 +113,18 @@ already fun or balanced; that still needs player feedback.
   currency. Linked treasury-spend and wallet-grant events plus compact traces
   show the source and destination balances. This also fixes the old policy
   handler's invalid agent initialization and duplicate arrival insertion.
+- Owner-funded payroll rescues and firm-to-owner salary, dividend, and loan
+  repayment flows now distinguish hand cash from a currency-wallet leg.
+  Linked events preserve the firm cash bridge while showing the owner's wallet
+  movement and the firm's opening/closing owner loan. Election campaign
+  spending similarly records treasury outflow and the candidate's cash or
+  wallet receipt, with the payment route and balances in the compact trace.
 - Remaining gate work: audit other non-estate credit losses and non-probate
-  cash-to-wallet legs, including owner bailouts and election campaign transfers;
-  decide how unpaid wage claims behave when the firm or worker exits.
-  Scenario-seeded or legacy cargo can still lack a settled source cost. The
-  tested default runs close the actor cash bridge, but they do not prove
-  complete balance-sheet or operating-profit coverage.
+  cash-to-wallet legs outside these paths; decide how unpaid wage claims behave
+  when the firm or worker exits. Scenario-seeded or legacy cargo can still
+  lack a settled source cost. The tested default runs close the actor cash
+  bridge, but they do not prove complete balance-sheet or operating-profit
+  coverage.
 
 ## Phase 2 — grower and title-holder agency: implemented, deeper law/remedy work out of scope
 
@@ -218,6 +224,10 @@ already fun or balanced; that still needs player feedback.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python benchmark_supply_default.py 50 4242` — the default three-nation run completed with zero currency violations, zero unmatched actor cash on turn 50, and zero unmatched actor-turn cash across the run.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_frontier_policies` — 2 tests passed for treasury-funded grants, source/destination wallet journal legs, web/desktop parity, and insufficient-funds rejection.
 - `node --check web_client/client.js`, targeted Python compilation, and `git diff --check` — passed for frontier action and trace changes.
+- Owner wallet bailout, salary, repayment, and election campaign cash/wallet legs now have focused account tests; web serialization exposes the resulting owner-loan and wallet-transfer totals.
+- `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_supply_control_actor_strategy test_supply_rights test_market_auction test_market_routes test_web_client_parity test_truck_system_and_scrip test_run_trace test_trace_codec test_banking_contagion test_plunder_labor test_frontier_policies test_owner_currency_transfers` — 143 tests passed.
+- `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python benchmark_supply_default.py 50 4242` — 50 turns completed with zero currency violations and zero unmatched actor cash at the end or across actor-turn statements.
+- `node --check web_client/client.js`, targeted Python compilation, and `git diff --check` — passed for the owner and election transfer changes.
 - Domestic-bank sovereign bond principal and coupon defaults now create one
   economic journal event per affected tile bank, linked to the bond ID and
   issuer. Compact trace records the default kind, missed payment amount, actual

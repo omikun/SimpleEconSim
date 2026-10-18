@@ -58,6 +58,10 @@ class TestWebClientParity(unittest.TestCase):
             'opening_wage_arrears_payable': 3.0,
             'closing_wage_arrears_payable': 4.0,
             'wage_arrears_accrued': 1.0,
+            'opening_owner_loan': 8.0, 'closing_owner_loan': 5.0,
+            'owner_loan_repaid': 3.0,
+            'wallet_transfer_in_by_currency': {'USD': 12.0},
+            'wallet_transfer_out_by_currency': {'GBP': 7.0},
         })
         inhabited.actor_turn_accounts = accounts
         data = self.sim.serialize_tile(inhabited, turn=self.sim.turn)
@@ -85,6 +89,8 @@ class TestWebClientParity(unittest.TestCase):
         self.assertEqual(account['bank_cash_deposited'], 12.0)
         self.assertEqual(account['bank_cash_withdrawn'], 5.0)
         self.assertEqual(account['closing_wage_arrears_payable'], 4.0)
+        self.assertEqual(account['closing_owner_loan'], 5.0)
+        self.assertEqual(account['wallet_transfer_in_by_currency'], {'USD': 12.0})
         self.assertEqual(data['financial_institution']['type'], 'commercial_bank')
         self.assertIn('cumulative_bond_writeoffs', data['financial_institution'])
         self.assertIn('sovereign_bonds_held', data['financial_institution'])

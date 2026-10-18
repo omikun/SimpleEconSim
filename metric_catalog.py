@@ -94,6 +94,8 @@ METRICS = {
     'finance.bank_withdrawal': ('tile/bank/agent', 'local_currency', 'econsim_trade_money.Bank.Withdraw'),
     'finance.wage_arrears': ('tile/firm/worker', 'local_currency', 'region_finance.pay_wages'),
     'finance.frontier_expedition': ('frontier/treasury/pioneer', 'currency', 'frontier_policies.launch_frontier_expedition'),
+    'finance.owner_transfer': ('tile/firm/owner', 'currency', 'region_finance._record_owner_payment and _record_owner_funding'),
+    'finance.election_campaign': ('tile/treasury/candidate', 'currency', 'election.campaign_finance'),
     'ecology.soil_fertility': ('tile', 'ratio', 'externalities.step_tile_externalities'),
     'ecology.nutrition_density': ('tile', 'ratio', 'externalities.step_tile_externalities'),
     'ecology.pollution_air': ('tile', 'index', 'externalities.step_tile_externalities'),

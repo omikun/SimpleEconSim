@@ -149,17 +149,22 @@ def generate_candidates(nation, t):
 def campaign_finance(nation, candidate, amount, t):
     """M3.2: move treasury cash to a candidate; popularity accrues.
 
-    Transfers *amount* of cash from the nation's tile treasuries (richest
-    first) to the candidate's own cash — a conserved transfer, since both the
-    tile government agent and the candidate agent are counted in the
-    per-currency audit.  Popularity gained is charisma-diluted: a low-charisma
-    candidate converts each dollar into less popularity.
+    Transfers *amount* from the nation's tile treasuries (richest first) to
+    the candidate. If the candidate holds the nation's currency in a wallet,
+    the cash expense and wallet receipt are posted as linked legs instead of
+    reporting wallet value as hand-cash income. Popularity gained is
+    charisma-diluted: a low-charisma candidate converts each unit into less
+    popularity.
 
     Returns ``(spent, popularity_gained)``.
     """
     if amount <= 0 or candidate.agent is None:
         return 0.0, 0.0
     remaining = amount
+    candidate_tile = next(
+        (tile for tile in getattr(nation, 'tiles', [])
+         if candidate.agent in getattr(tile, 'agents', ())),
+        None)
     tiles = sorted(getattr(nation, 'tiles', []),
                    key=lambda t: getattr(getattr(t, 'gov', None), 'agent', None)
                    and t.gov.agent.cash, reverse=True) \
@@ -172,14 +177,63 @@ def campaign_finance(nation, candidate, amount, t):
         if cash <= 0:
             continue
         take = min(cash, remaining)
-        gov_agent.cash -= take
-        candidate_currency = getattr(candidate.agent, 'home_currency',
-                                     getattr(nation, 'currency', None))
-        if candidate_currency and candidate_currency != getattr(nation, 'currency', None):
-            from forex import fx_add
+        source_cash_before = float(gov_agent.cash)
+        candidate_currency = (getattr(candidate.agent, 'home_currency', None)
+                              or getattr(nation, 'currency', None))
+        wallet_settlement = bool(
+            candidate_currency
+            and candidate_currency != getattr(nation, 'currency', None))
+        if wallet_settlement:
+            from forex import fx_add, fx_balance
+            candidate_balance_before = float(
+                fx_balance(candidate.agent, nation.currency))
             fx_add(candidate.agent, nation.currency, take)
+            candidate_balance_after = float(
+                fx_balance(candidate.agent, nation.currency))
         else:
+            candidate_balance_before = float(candidate.agent.cash)
             candidate.agent.cash += take
+            candidate_balance_after = float(candidate.agent.cash)
+        gov_agent.cash -= take
+        source_cash_after = float(gov_agent.cash)
+        nation_name = getattr(nation, 'name', 'nation')
+        tile_name = getattr(tile, 'name', f'tile-{gov_agent.id}')
+        transfer_id = (f'election-campaign:{nation_name}:{t}:'
+                       f'{candidate.agent.id}:{tile_name}')
+        detail = {'transfer_id': transfer_id, 'nation': nation_name,
+                  'source_tile': tile_name,
+                  'candidate_tile': getattr(candidate_tile, 'name', tile_name),
+                  'treasury_id': gov_agent.id,
+                  'candidate_id': candidate.agent.id,
+                  'amount': float(take), 'currency': nation.currency,
+                  'tender': 'wallet' if wallet_settlement else 'cash',
+                  'treasury_cash_before': source_cash_before,
+                  'treasury_cash_after': source_cash_after,
+                  'candidate_balance_before': candidate_balance_before,
+                  'candidate_balance_after': candidate_balance_after,
+                  'reason': 'election_campaign_finance'}
+        from economy.actor_accounts import record as record_economic_event
+        record_economic_event(
+            tile, 'election_campaign_spending', turn=t,
+            payer_id=gov_agent.id, amount=take,
+            asset_id=transfer_id, source_id=transfer_id,
+            currency=nation.currency, detail=detail)
+        destination_tile = candidate_tile or tile
+        record_economic_event(
+            destination_tile,
+            'wallet_transfer_in' if wallet_settlement
+            else 'election_campaign_receipt',
+            turn=t, recipient_id=candidate.agent.id, amount=take,
+            asset_id=transfer_id, source_id=transfer_id,
+            currency=nation.currency, detail=detail)
+        from run_trace import emit
+        emit(tile, kind='election_campaign_transfer', record_class='transfer',
+             phase='policy',
+             subject={'type': 'election_campaign', 'id': transfer_id,
+                      'candidate_id': candidate.agent.id, 'tile': tile_name},
+             metric_id='finance.election_campaign', unit=nation.currency,
+             before=source_cash_before, after=source_cash_after,
+             inputs=detail)
         remaining -= take
         if remaining <= 0:
             break

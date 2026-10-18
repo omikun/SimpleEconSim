@@ -1171,6 +1171,16 @@ def draw_panel(surface, world, font, font_small, mouse_pos=None):
                     True, (225, 175, 120))
                 surface.blit(arrears_line, (PANEL_LEFT, y_cursor))
                 y_cursor += 16
+            owner_loan_open = float(firm_account.get('opening_owner_loan', 0.0))
+            owner_loan_close = float(firm_account.get('closing_owner_loan', 0.0))
+            owner_loan_repaid = float(firm_account.get('owner_loan_repaid', 0.0))
+            if owner_loan_open > 0 or owner_loan_close > 0 or owner_loan_repaid > 0:
+                owner_loan_line = font_small.render(
+                    f"Owner loan: {owner_loan_open:.1f} -> {owner_loan_close:.1f} "
+                    f"(repaid {owner_loan_repaid:.1f})",
+                    True, (200, 185, 225))
+                surface.blit(owner_loan_line, (PANEL_LEFT, y_cursor))
+                y_cursor += 16
             cash_deposited = float(firm_account.get('bank_cash_deposited', 0.0))
             cash_withdrawn = float(firm_account.get('bank_cash_withdrawn', 0.0))
             if cash_deposited > 0 or cash_withdrawn > 0:

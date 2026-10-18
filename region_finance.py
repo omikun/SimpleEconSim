@@ -217,41 +217,155 @@ def credit_owner_pay(region, owner, amount):
     the owner lives on a DIFFERENT (or wilderness) tile so the
     per-currency audit still counts the money."""
     if amount <= 0:
-        return
+        return {'tender': 'none', 'currency': None,
+                'balance_before': 0.0, 'balance_after': 0.0}
     if getattr(owner, '_bank_ref', None) is region.bank:
+        balance_before = float(owner.cash)
         owner.cash += amount
+        return {'tender': 'cash', 'currency': getattr(region, 'home_currency', None),
+                'balance_before': balance_before,
+                'balance_after': float(owner.cash)}
     else:
         if region.home_currency:
+            balance_before = float(_fx.fx_balance(owner, region.home_currency))
             _fx.fx_add(owner, region.home_currency, amount)
+            return {'tender': 'wallet', 'currency': region.home_currency,
+                    'balance_before': balance_before,
+                    'balance_after': float(_fx.fx_balance(owner, region.home_currency))}
         else:
+            balance_before = float(owner.cash)
             owner.cash += amount
+            return {'tender': 'cash', 'currency': None,
+                    'balance_before': balance_before,
+                    'balance_after': float(owner.cash)}
 
 
-def repay_owner_loan(region, agent, owner, payroll):
+def _record_owner_payment(region, kind, payer, owner, amount, settlement, t=None,
+                          owner_loan_before=None, owner_loan_after=None):
+    """Post a firm's cash payment and the owner's cash or wallet receipt."""
+    from economy.actor_accounts import record as record_economic_event
+
+    turn = int(t if t is not None else getattr(region, '_last_turn', 0))
+    currency = settlement.get('currency') or getattr(region, 'home_currency', None)
+    transfer_id = f'owner-payment:{kind}:{turn}:{payer.id}:{owner.id}'
+    detail = {'transfer_id': transfer_id, 'payment_kind': kind,
+              'tender': settlement.get('tender', 'cash'),
+              'payment_currency': currency,
+              'owner_balance_before': settlement.get('balance_before', 0.0),
+              'owner_balance_after': settlement.get('balance_after', 0.0),
+              'payer_id': payer.id, 'owner_id': owner.id}
+    if owner_loan_before is not None:
+        detail['owner_loan_before'] = float(owner_loan_before)
+    if owner_loan_after is not None:
+        detail['owner_loan_after'] = float(owner_loan_after)
+    if settlement.get('tender') == 'wallet':
+        record_economic_event(
+            region, kind, turn=turn, payer_id=payer.id, amount=amount,
+            asset_id=transfer_id, currency=currency,
+            detail={**detail, 'recipient_settlement': 'foreign_wallet'})
+        record_economic_event(
+            region, 'wallet_transfer_in', turn=turn, recipient_id=owner.id,
+            amount=amount, asset_id=transfer_id, source_id=transfer_id,
+            currency=currency, detail=detail)
+    else:
+        record_economic_event(
+            region, kind, turn=turn, payer_id=payer.id,
+            recipient_id=owner.id, amount=amount, asset_id=transfer_id,
+            currency=currency, detail=detail)
+
+    from run_trace import emit
+    payer_cash_after = float(payer.cash)
+    payer_cash_before = payer_cash_after + float(amount)
+    value_before = (detail['owner_balance_before']
+                    if settlement.get('tender') == 'wallet'
+                    else payer_cash_before)
+    value_after = (detail['owner_balance_after']
+                   if settlement.get('tender') == 'wallet'
+                   else payer_cash_after)
+    emit(region, kind='owner_payment_settled', record_class='transfer',
+         phase='finance',
+         subject={'type': 'owner_payment', 'id': transfer_id,
+                  'payer_id': payer.id, 'owner_id': owner.id,
+                  'tile': region.name},
+         metric_id='finance.owner_transfer', unit=currency or 'local_currency',
+         before=value_before, after=value_after,
+         inputs={**detail, 'amount': float(amount),
+                 'payer_cash_before': payer_cash_before,
+                 'payer_cash_after': payer_cash_after})
+
+
+def _record_owner_funding(region, owner, firm, amount, tender, currency,
+                          source_before, source_after, firm_cash_before,
+                          firm_cash_after, owner_loan_before, owner_loan_after,
+                          t):
+    """Record an owner's cash or wallet loan into a firm."""
+    from economy.actor_accounts import record as record_economic_event
+
+    turn = int(t if t is not None else getattr(region, '_last_turn', 0))
+    transfer_id = f'owner-financing:{turn}:{owner.id}:{firm.id}'
+    detail = {'transfer_id': transfer_id, 'tender': tender,
+              'currency': currency, 'amount': float(amount),
+              'owner_id': owner.id, 'firm_id': firm.id,
+              'source_balance_before': float(source_before),
+              'source_balance_after': float(source_after),
+              'firm_cash_before': float(firm_cash_before),
+              'firm_cash_after': float(firm_cash_after),
+              'owner_loan_before': float(owner_loan_before),
+              'owner_loan_after': float(owner_loan_after),
+              'reason': 'owner_payroll_bailout'}
+    if tender == 'wallet':
+        record_economic_event(
+            region, 'owner_financing', turn=turn, recipient_id=firm.id,
+            amount=amount, asset_id=transfer_id, currency=currency,
+            detail={**detail, 'funding_source': 'owner_wallet'})
+        record_economic_event(
+            region, 'wallet_transfer_out', turn=turn, payer_id=owner.id,
+            amount=amount, asset_id=transfer_id, source_id=transfer_id,
+            currency=currency, detail=detail)
+    else:
+        record_economic_event(
+            region, 'owner_financing', turn=turn, payer_id=owner.id,
+            recipient_id=firm.id, amount=amount, asset_id=transfer_id,
+            currency=currency, detail=detail)
+
+    from run_trace import emit
+    emit(region, kind='owner_financing_settled', record_class='transfer',
+         phase='finance',
+         subject={'type': 'owner_financing', 'id': transfer_id,
+                  'owner_id': owner.id, 'firm_id': firm.id,
+                  'tile': region.name},
+         metric_id='finance.owner_transfer',
+         unit=currency or 'local_currency',
+         before=float(source_before), after=float(source_after),
+         inputs=detail)
+
+
+def repay_owner_loan(region, agent, owner, payroll, t=None):
     """Repay debt owed by corporation back to its owner."""
     if agent.owner_loan <= 0:
         return
     repay = min(agent.owner_loan, max(0, agent.cash - payroll * 2))
     if repay > 0:
+        owner_loan_before = float(agent.owner_loan)
         agent.cash -= repay
-        credit_owner_pay(region, owner, repay)
+        settlement = credit_owner_pay(region, owner, repay)
         agent.owner_loan -= repay
-        from economy.actor_accounts import record as record_economic_event
-        record_economic_event(region, 'owner_loan_repayment', payer_id=agent.id,
-                              recipient_id=owner.id, amount=repay)
+        _record_owner_payment(
+            region, 'owner_loan_repayment', agent, owner, repay, settlement,
+            t=t, owner_loan_before=owner_loan_before,
+            owner_loan_after=agent.owner_loan)
 
 
-def pay_base_salary(region, agent, owner, payroll):
+def pay_base_salary(region, agent, owner, payroll, t=None):
     """Pay owner's executive base salary if cash reserve allows."""
     if agent.cash > payroll * 2 + agent.wage:
         agent.cash -= agent.wage
-        credit_owner_pay(region, owner, agent.wage)
-        from economy.actor_accounts import record as record_economic_event
-        record_economic_event(region, 'owner_salary', payer_id=agent.id,
-                              recipient_id=owner.id, amount=agent.wage)
+        settlement = credit_owner_pay(region, owner, agent.wage)
+        _record_owner_payment(region, 'owner_salary', agent, owner, agent.wage,
+                              settlement, t=t)
 
 
-def pay_profit_share(region, agent, owner, payroll):
+def pay_profit_share(region, agent, owner, payroll, t=None):
     """Distribute retained earnings / profit dividends to the owner."""
     if agent.retained_earnings <= 0 or agent.cash <= payroll * 2:
         return
@@ -261,11 +375,10 @@ def pay_profit_share(region, agent, owner, payroll):
     profit_draw = min(share_rate * agent.retained_earnings, max(0, agent.cash - payroll * 2))
     if profit_draw > 0:
         agent.cash -= profit_draw
-        credit_owner_pay(region, owner, profit_draw)
+        settlement = credit_owner_pay(region, owner, profit_draw)
         agent.retained_earnings -= profit_draw
-        from economy.actor_accounts import record as record_economic_event
-        record_economic_event(region, 'dividend', payer_id=agent.id,
-                              recipient_id=owner.id, amount=profit_draw)
+        _record_owner_payment(region, 'dividend', agent, owner, profit_draw,
+                              settlement, t=t)
         try:
             from economy.true_cost_ledger import get_true_cost_ledger
             get_true_cost_ledger().record_finance_deductions(
@@ -275,7 +388,7 @@ def pay_profit_share(region, agent, owner, payroll):
             pass
 
 
-def bailout_owner(region, agent, owner, payroll):
+def bailout_owner(region, agent, owner, payroll, t=None):
     """Owner injects cash into the firm to cover payroll shortfall."""
     if agent.cash >= payroll:
         return
@@ -284,23 +397,33 @@ def bailout_owner(region, agent, owner, payroll):
         avail = max(0.0, owner.cash - food_price * 4)
         inject = min(payroll - agent.cash, avail)
         if inject > 0:
+            source_before = float(owner.cash)
+            firm_cash_before = float(agent.cash)
+            owner_loan_before = float(agent.owner_loan)
             owner.cash -= inject
             agent.cash += inject
             agent.owner_loan += inject
-            from economy.actor_accounts import record as record_economic_event
-            record_economic_event(region, 'owner_financing', payer_id=owner.id,
-                                  recipient_id=agent.id, amount=inject)
+            _record_owner_funding(
+                region, owner, agent, inject, 'cash',
+                getattr(region, 'home_currency', None),
+                source_before, owner.cash, firm_cash_before, agent.cash,
+                owner_loan_before, agent.owner_loan, t)
     else:
         if region.home_currency:
             avail = _fx.fx_balance(owner, region.home_currency)
             inject = min(payroll - agent.cash, max(0.0, avail))
             if inject > 0:
+                source_before = float(avail)
+                firm_cash_before = float(agent.cash)
+                owner_loan_before = float(agent.owner_loan)
                 _fx.fx_add(owner, region.home_currency, -inject)
                 agent.cash += inject
                 agent.owner_loan += inject
-                from economy.actor_accounts import record as record_economic_event
-                record_economic_event(region, 'owner_financing', payer_id=owner.id,
-                                      recipient_id=agent.id, amount=inject)
+                _record_owner_funding(
+                    region, owner, agent, inject, 'wallet', region.home_currency,
+                    source_before, _fx.fx_balance(owner, region.home_currency),
+                    firm_cash_before, agent.cash, owner_loan_before,
+                    agent.owner_loan, t)
 
 
 def distribute_profits(region, t):
@@ -312,13 +435,13 @@ def distribute_profits(region, t):
             continue
         owner = a.owner
         payroll = max(1, len(a.employees) * a.wage)
-        repay_owner_loan(region, a, owner, payroll)
+        repay_owner_loan(region, a, owner, payroll, t=t)
         profit = max(0, a._delta_cash + a._delta_deposits)
         if profit > 0 or a.cash > payroll * 2:
             a.retained_earnings += profit
-        pay_base_salary(region, a, owner, payroll)
-        pay_profit_share(region, a, owner, payroll)
-        bailout_owner(region, a, owner, payroll)
+        pay_base_salary(region, a, owner, payroll, t=t)
+        pay_profit_share(region, a, owner, payroll, t=t)
+        bailout_owner(region, a, owner, payroll, t=t)
 
 
 def collect_tax(region, t):

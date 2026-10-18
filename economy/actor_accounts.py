@@ -14,6 +14,7 @@ _NONCASH_EVENTS = {'production', 'input_consumed', 'scrip_wage',
                    'company_debt_writeoff',
                    'tax_arrears_writeoff', 'cash_obligation_writeoff',
                    'wage_arrears_accrued', 'foreign_wallet_grant',
+                   'wallet_transfer_in', 'wallet_transfer_out',
                    'foreign_wallet_debt_payment', 'foreign_wallet_inheritance',
                    'foreign_wallet_escheat'}
 
@@ -128,6 +129,7 @@ def begin_turn(region, turn):
                'bank_debt': sum(max(0.0, float(loan.principle) - float(loan.principle_paid))
                                 for loan in getattr(bank, 'loans', [])
                                 if loan.agent is a) if bank else 0.0,
+               'owner_loan': float(getattr(a, 'owner_loan', 0.0)),
                'company_debt': float(getattr(a, 'company_debt', 0.0)),
                'food': int(a.inv_get(Goods.food, 0)),
                'inventory': {g.name: int(a.inv_get(g, 0)) for g in getattr(region, 'recipes', {})},
@@ -200,6 +202,7 @@ def seal_turn(region, turn, event_regions=None):
         prior = opening.get(actor.id, {
             'cash': 0.0, 'scrip': 0.0, 'bank_deposit': 0.0,
             'bank_debt': 0.0, 'company_debt': 0.0, 'food': 0,
+            'owner_loan': 0.0,
             'wallets': {}, 'inventory': {}, 'debt': 0.0, 'title_plots': [],
             'water_units': 0.0,
         })
@@ -295,6 +298,33 @@ def seal_turn(region, turn, event_regions=None):
         bank_cash_withdrawn = sum(e['amount'] for e in cash_own
                                   if e['recipient_id'] == actor.id
                                   and e['kind'] == 'bank_withdrawal')
+        wallet_transfer_in_by_currency = {}
+        for event in own:
+            if (event['recipient_id'] == actor.id
+                    and event['kind'] in ('wallet_transfer_in',
+                                          'foreign_wallet_grant')):
+                currency = event.get('currency') or 'unknown'
+                wallet_transfer_in_by_currency[currency] = (
+                    wallet_transfer_in_by_currency.get(currency, 0.0)
+                    + event['amount'])
+        wallet_transfer_out_by_currency = {}
+        for event in own:
+            if (event['payer_id'] == actor.id
+                    and event['kind'] == 'wallet_transfer_out'):
+                currency = event.get('currency') or 'unknown'
+                wallet_transfer_out_by_currency[currency] = (
+                    wallet_transfer_out_by_currency.get(currency, 0.0)
+                    + event['amount'])
+        owner_loan_repaid = sum(
+            e['amount'] for e in own
+            if e['payer_id'] == actor.id and e['kind'] == 'owner_loan_repayment')
+        owner_loan_repayment_received = sum(
+            e['amount'] for e in own
+            if (e['recipient_id'] == actor.id
+                and e['kind'] == 'owner_loan_repayment')
+            or (e['recipient_id'] == actor.id
+                and e['kind'] == 'wallet_transfer_in'
+                and e['detail'].get('payment_kind') == 'owner_loan_repayment'))
         for_lease = [p.plot_id for p in getattr(getattr(region, 'tenure', None), 'plots', [])
                      if getattr(p, 'controlled_by_id', None) == actor.id]
         debt = sum(float(c.balance) for c in getattr(region, 'cash_obligations', [])
@@ -322,6 +352,12 @@ def seal_turn(region, turn, event_regions=None):
             'opening_wallets': dict(sorted(prior.get('wallets', {}).items())),
             'closing_wallets': dict(sorted(closing_wallets.items())),
             'wallet_change_by_currency': wallet_change_by_currency,
+            'wallet_transfer_in_by_currency': {
+                currency: round(amount, 2)
+                for currency, amount in sorted(wallet_transfer_in_by_currency.items())},
+            'wallet_transfer_out_by_currency': {
+                currency: round(amount, 2)
+                for currency, amount in sorted(wallet_transfer_out_by_currency.items())},
             'cash_change': round(float(actor.cash) - prior['cash'], 2),
             'posted_cash_change': round(cash_in - cash_out, 2),
             'unposted_cash_change': round(observed_cash_change - (cash_in - cash_out), 2),
@@ -368,6 +404,10 @@ def seal_turn(region, turn, event_regions=None):
             'closing_bank_debt': round(bank_debt, 2),
             'opening_company_debt': round(prior['company_debt'], 2),
             'closing_company_debt': round(company_debt, 2),
+            'opening_owner_loan': round(prior.get('owner_loan', 0.0), 2),
+            'closing_owner_loan': round(float(getattr(actor, 'owner_loan', 0.0)), 2),
+            'owner_loan_repaid': round(owner_loan_repaid, 2),
+            'owner_loan_repayment_received': round(owner_loan_repayment_received, 2),
             'company_debt_written_off': round(company_debt_written_off, 2),
             'company_receivable_written_off': round(company_receivable_written_off, 2),
             'tax_arrears_written_off': round(tax_arrears_written_off, 2),
