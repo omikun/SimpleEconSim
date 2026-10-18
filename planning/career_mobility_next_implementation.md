@@ -291,6 +291,31 @@ GDP target was tuned. The raw runs and parameters are archived under ignored
 `tmp/analysis/career_phase_d_*` files. UI parity, trace, and focused labor
 suites pass.
 
+**Post-D food-collapse audit (2026-10-17):** A traced rerun of seed 778
+confirms that the population loss is not migration or unregistered removal:
+the person ledger records 180 starvation deaths (118 United States, 32 China,
+30 Japan), plus 83 disease deaths and 10 age/health deaths. Food-security
+assessments show a multi-turn supply deficit: at turn 30, 703 residents were
+underfed and the projected supply gap was 2,272 food units; at turn 50, 304
+were still underfed with a 902-unit projected gap. The run also recorded
+56,408 units of government food aid, so relief was active but could not cover
+the shortage. Aggregate household inventories at turn 30 were 15,127 units,
+which concealed severe individual deficits; food stocks alone are therefore
+not a sufficient safety measure. Production was 2,394 units at turn 30 and
+1,983 at turn 50, as deaths reduced the workforce and demand.
+
+The next food-policy AI slice should use a forward food buffer as a strategic
+constraint: compare expected household demand and accessible reserves against
+recent production across a full crop cycle before endorsing enclosure or
+labor reallocation away from food livelihoods. When the buffer is unsafe, the
+AI should weigh alternative responses—protect access, fund relief, or accept
+slower expansion—against wages, profits, unrest, and rival strength, and log
+the rejected options. This is a state-based constraint, not a target share of
+food workers. Improve the fatal starvation trace at the same time to include
+food intake deficit, energy reserve, personal food inventory, livelihood, and
+relief received; the current hazard event has hunger duration and random draw
+but cannot attribute an individual death to a specific access or policy gap.
+
 ## Execution order
 
 Implement A before B, B before C, and C before D. If a phase's gate fails,
