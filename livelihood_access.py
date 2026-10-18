@@ -22,8 +22,11 @@ def seed_access_rights(region):
         return
     for plot in sorted(getattr(getattr(region, 'tenure', None), 'plots', []), key=lambda p: p.plot_id):
         for person_id in sorted(set(getattr(plot, 'tenant_ids', []))):
-            grant_access(region, person_id, plot.plot_id, 'field')
+            if getattr(plot, 'production_type', 'arable') != 'pasture':
+                grant_access(region, person_id, plot.plot_id, 'field')
             grant_access(region, person_id, plot.plot_id, 'commons_food')
+            if getattr(plot, 'production_type', 'arable') == 'pasture':
+                grant_access(region, person_id, plot.plot_id, 'pasture')
     region._access_rights_seeded = True
 
 

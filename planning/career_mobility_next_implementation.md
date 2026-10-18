@@ -212,6 +212,20 @@ one-turn price noise does not erase an established occupation. A good with
 no buyer does not attract mass entry. The Phase A ledger and Phase B rosters
 still reconcile. **Commit C.**
 
+**Phase C implementation note (2026-10-17):** Independent opportunities now
+require usable field, pasture, or woodland access where relevant, physical
+field capacity, and observed buyers for nonfood goods. Candidate lists preserve
+rejection reasons in compact decision events. Hiring evaluates funded offers
+in stable wage order and continues after rejected offers; input costs are
+included in the funding gate. A hungry food-labeled worker can consider another
+livelihood after losing field access. Focused opportunity and food-security
+tests pass, as do the matched frontier branches when run with their isolated
+seed. The 50-turn seed-777 default still has 83–90% adult food livelihoods and
+low observed nonfood sales; this is a measured gameplay issue for Phase D, not
+a reason to add an arbitrary switching quota. Two repeated seeded reports match
+and retain zero unexplained flows and valid rosters. Wall-clock labor-cohort
+timing no longer changes which group acts, preserving deterministic outcomes.
+
 ## Phase D — Validate strategy and show causes to the player
 
 **Primary files:** `benchmark_career_mobility.py`, `trace_report.py`,

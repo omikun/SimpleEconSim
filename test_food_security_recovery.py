@@ -27,6 +27,13 @@ class FoodSecurityRecoveryTests(unittest.TestCase):
         tile = Region('Market', 0, 2)
         worker = next(a for a in tile.agents if not a.is_government)
         worker.cash = 10
+        plot = LandPlot('market-field', tile.name, worker.id, 0.5,
+                        TenureStatus.FEUDAL, tenant_ids=[worker.id])
+        tile.tenure.plots = []
+        tile.access_rights.clear()
+        tile._access_rights_seeded = False
+        tile.tenure.add_plot(plot)
+        worker.assigned_plot_id = plot.plot_id
         luxury_return, reason = independent_return(tile, worker, Goods.foreign_luxuries, 0)
         farming_return, _ = independent_return(tile, worker, Goods.food, 1)
         furniture_return, _ = independent_return(tile, worker, Goods.furniture, 0)

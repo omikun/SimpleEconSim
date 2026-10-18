@@ -236,9 +236,16 @@ def benchmark(turns=50, seed=777, *, trace=False):
     for nation in server.nations:
         residents = [row for row in before.values() if row.nation == nation.name]
         adults = [row for row in residents if row.adult]
+        livelihoods = Counter(row.career for row in adults)
+        sold = Counter()
+        for tile in nation.tiles:
+            for good, history in getattr(tile, 'sold_log', {}).items():
+                sold[getattr(good, 'name', str(good))] += sum(history[-10:])
         outcomes[nation.name] = {
             'living_residents': len(residents),
             'living_adults': len(adults),
+            'adult_livelihoods': dict(sorted(livelihoods.items())),
+            'last_crop_cycle_sales': dict(sorted(sold.items())),
             'adult_food_career_share': round(
                 sum(row.career == Goods.food.name for row in adults) / max(1, len(adults)), 4),
             'reported_demographic_deaths': sum(

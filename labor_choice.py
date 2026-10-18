@@ -25,6 +25,18 @@ def _outside_access(worker: Any, region: Any) -> float:
     return effective_access(worker, region, 'commons_food')
 
 
+def _input_funding_gap(firm: Any, region: Any) -> float:
+    """Cash needed for one recipe batch beyond the firm's current input stock."""
+    recipe = getattr(region, 'recipes', {}).get(getattr(firm, 'output', None), {})
+    quantity = max(0.0, float(recipe.get('numInput', 0)))
+    input_good = recipe.get('input')
+    if quantity <= 0 or input_good is None:
+        return 0.0
+    held = max(0.0, float(firm.inv_get(input_good, 0)))
+    price = max(0.0, float(getattr(region, 'recipes', {}).get(input_good, {}).get('price', 0.0)))
+    return max(0.0, quantity - held) * price
+
+
 def evaluate_offer(worker: Any, firm: Any, region: Any, turn: int,
                    wage: float | None = None, tightness: float | None = None) -> LaborDecision:
     """Return whether a worker accepts an offer without mutating simulation state."""
@@ -89,7 +101,7 @@ def evaluate_offer(worker: Any, firm: Any, region: Any, turn: int,
         reason = 'unavailable'
     elif len(getattr(firm, 'employees', [])) >= int(getattr(firm, 'max_employees', 0)):
         reason = 'no_vacancy'
-    elif offer <= 0.0 or float(getattr(firm, 'cash', 0.0)) < required_payroll:
+    elif offer <= 0.0 or float(getattr(firm, 'cash', 0.0)) < required_payroll + _input_funding_gap(firm, region):
         reason = 'unfunded'
     elif offer + 1e-9 < reservation:
         reason = 'insufficient_wage'
@@ -205,9 +217,9 @@ def occupational_tenure_multiplier(worker: Any, good: Any, turn: int) -> float:
 def skill_tier_for_good(good: Any) -> int:
     """Classify goods into 3 occupational skill & capital tiers."""
     from goods import Goods
-    if good in (Goods.food, Goods.wood):
+    if good in (Goods.food, Goods.wood, Goods.wool, Goods.cotton):
         return 1
-    if good == Goods.furniture:
+    if good in (Goods.furniture, Goods.cloth):
         return 2
     return 3
 
@@ -318,7 +330,8 @@ def attach_worker(worker: Any, firm: Any, turn: int, decision: LaborDecision,
     if (not getattr(worker, 'alive', True) or not getattr(firm, 'alive', True)
             or getattr(worker, 'in_workhouse', False)
             or len(getattr(firm, 'employees', [])) >= int(getattr(firm, 'max_employees', 0))
-            or float(getattr(firm, 'cash', 0.0)) < required_payroll):
+            or float(getattr(firm, 'cash', 0.0)) < required_payroll
+            + (_input_funding_gap(firm, region) if region is not None else 0.0)):
         return False
 
     old_employer = getattr(worker, 'employer', None)

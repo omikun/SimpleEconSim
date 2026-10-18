@@ -52,8 +52,25 @@ def independent_return(region: Any, worker: Any, good: Goods,
     recipe = getattr(region, 'recipes', {}).get(good, {})
     if recipe.get('import_only') or recipe.get('production', 0) <= 0:
         return 0.0, 'not locally producible'
-    if good not in (Goods.food, Goods.wood, Goods.furniture):
+    if good not in (Goods.food, Goods.wood, Goods.wool, Goods.cotton,
+                    Goods.furniture, Goods.cloth):
         return 0.0, 'no independent local market'
+    from livelihood_access import effective_access, due_cash_for
+    if good in (Goods.food, Goods.cotton) and effective_access(worker, region, 'field') <= 0:
+        return 0.0, 'no usable field right'
+    if good == Goods.wool and effective_access(worker, region, 'pasture') <= 0:
+        return 0.0, 'no usable pasture right'
+    if good == Goods.wood and (effective_access(worker, region, 'commons_food') <= 0
+                               and worker.inv_get(Goods.wood, 0) <= 0):
+        return 0.0, 'no reachable woodland right'
+    if good in (Goods.cotton, Goods.wool) and float(getattr(region, 'terrain', {}).get(good, 0.0)) <= 0.1:
+        return 0.0, 'terrain unsuitable'
+    incumbent = getattr(worker, 'primary_livelihood', getattr(worker, 'output', None)) == good
+    physical_output_cap = float(recipe.get('maxtotalprod', 0.0))
+    if (good in (Goods.food, Goods.cotton, Goods.wool) and not incumbent
+            and physical_output_cap > 0
+            and producer_count >= max(1, int(physical_output_cap / float(recipe['production'])))):
+        return 0.0, 'no field capacity'
     input_qty = float(recipe.get('numInput', 0))
     input_good = recipe.get('input')
     input_cost = 0.0
@@ -72,7 +89,7 @@ def independent_return(region: Any, worker: Any, good: Goods,
         smoothed_sales = sum(s * w for s, w in zip(recent_sales, weights)) / sum(weights)
     else:
         smoothed_sales = 0.0
-    is_incumbent = getattr(worker, 'output', None) == good
+    is_incumbent = incumbent
     effective_producers = max(1, producer_count if is_incumbent else producer_count + 1)
     input_supply_factor = 1.0
     if input_qty > 0 and input_good is not None:
@@ -92,7 +109,11 @@ def independent_return(region: Any, worker: Any, good: Goods,
     tenure_mult = occupational_tenure_multiplier(worker, good, cur_turn)
     yield_units = float(recipe['production']) * tenure_mult * input_supply_factor
     price = float(recipe.get('price', 0.0))
-    retained_food = min(4.0, yield_units) if good == Goods.food else 0.0
+    dependents = sum(1 for child in getattr(worker, 'descendants', [])
+                     if getattr(child, 'alive', False)
+                     and getattr(child, 'is_native_child', False)
+                     and child.age(cur_turn) < 14)
+    retained_food = min(4.0 * (1 + min(2, dependents)), yield_units) if good == Goods.food else 0.0
     saleable = max(0.0, yield_units - retained_food)
     expected_sales = min(saleable, sales_per_producer) * price
     # Avoiding a lethal calorie deficit is worth more than its market price
@@ -101,7 +122,10 @@ def independent_return(region: Any, worker: Any, good: Goods,
     hunger_value = (min(40.0, 8.0 * max(0.0, float(worker.hungry_steps)))
                     if good == Goods.food else 0.0)
     subsistence_value = retained_food * price + hunger_value
-    return max(0.0, expected_sales + subsistence_value - input_cost), 'realized market and own meal'
+    obligations = min(float(due_cash_for(worker.id, region, cur_turn)), expected_sales)
+    if good != Goods.food and expected_sales <= 0.0:
+        return 0.0, 'no observed buyer'
+    return max(0.0, expected_sales + subsistence_value - input_cost - obligations), 'observed sales, access and household food'
 
 
 class LaborMobilityScheduler:
@@ -197,7 +221,7 @@ class LaborMobilityScheduler:
             and getattr(f, 'cash', 0.0) >= getattr(f, 'wage', 1.0)
         ]
         # Sort firms by highest wage offered
-        firms_with_vacancies.sort(key=lambda f: f.wage, reverse=True)
+        firms_with_vacancies.sort(key=lambda f: (-f.wage, f.id))
 
         producer_counts = {}
         for person in getattr(region, 'agents', []):
@@ -209,8 +233,6 @@ class LaborMobilityScheduler:
             aid for b in getattr(region, 'buildings', [])
             for aid in getattr(b, 'staff_ids', [])
         }
-        switches_into_good: Dict[Any, int] = {}
-        max_non_food_entry = max(1, min(3, int(0.15 * max(1, len(active_cohort)))))
 
         for worker, is_emergency in execution_queue:
             # A repeatedly hungry worker with a usable commons right can
@@ -242,39 +264,58 @@ class LaborMobilityScheduler:
                                     or getattr(worker, 'mem_avg', lambda *_: 0.0)('mem_eviction', 0.0) > 0))
             is_unemployed = getattr(worker, 'employer', None) is None
 
-            # If unemployed and vacancies exist, apply to highest paying firm
+            # Consider every funded vacancy in stable wage order. A rejection
+            # from the highest bidder does not hide a feasible lower offer.
             if (is_unemployed and firms_with_vacancies
                     and not (getattr(getattr(region, 'gov', None), 'emergency_food_policy', False)
                              and worker.hungry_steps > 0
                              and worker.inv_get(Goods.food, 0) < 4
                              and potential_commons_food(worker, region) >= 2)):
-                best_firm = firms_with_vacancies[0]
-                old_output = worker.output
-                decision = evaluate_offer(worker, best_firm, region, t)
                 log = getattr(region, 'labor_decision_log', None)
                 if log is None:
                     region.labor_decision_log = []
                     log = region.labor_decision_log
-                row = {'turn': t, 'worker_id': worker.id, 'firm_id': best_firm.id,
-                            'accepted': decision.accepted, 'reason': decision.reason,
-                            'offer': round(decision.offered_wage, 4),
-                            'reservation': round(decision.reservation_wage, 4)}
                 from collective_trace_clock import stamp
-                log.append(stamp(region, row))
-                if decision.accepted and attach_worker(worker, best_firm, t, decision, region=region):
+                hired = False
+                offer_rows = []
+                for firm in list(firms_with_vacancies):
+                    decision = evaluate_offer(worker, firm, region, t)
+                    row = {'turn': t, 'worker_id': worker.id, 'firm_id': firm.id,
+                           'accepted': decision.accepted, 'reason': decision.reason,
+                           'offer': round(decision.offered_wage, 4),
+                           'reservation': round(decision.reservation_wage, 4)}
+                    log.append(stamp(region, row))
+                    if len(offer_rows) < 8:
+                        offer_rows.append(row)
+                    if not decision.accepted:
+                        continue
+                    old_output = worker.output
+                    if not attach_worker(worker, firm, t, decision, region=region):
+                        continue
                     producer_counts[old_output] = max(0, producer_counts.get(old_output, 0) - 1)
                     reallocations.append({
-                        'agent_id': worker.id,
-                        'type': 'HIRED_BY_FIRM',
-                        'firm_id': best_firm.id,
+                        'agent_id': worker.id, 'type': 'HIRED_BY_FIRM',
+                        'firm_id': firm.id,
                         'old_profession': old_output.name if hasattr(old_output, 'name') else str(old_output),
                         'new_profession': worker.output.name if hasattr(worker.output, 'name') else str(worker.output),
                         'wage': decision.offered_wage,
                         'was_dispossessed': is_dispossessed,
                         'is_emergency_fast_path': is_emergency,
                     })
-                    if len(best_firm.employees) >= _firm_effective_cap(best_firm):
-                        firms_with_vacancies.pop(0)
+                    if len(firm.employees) >= _firm_effective_cap(firm):
+                        firms_with_vacancies.remove(firm)
+                    hired = True
+                    break
+                from run_trace import emit
+                emit(region, kind='worker_wage_options', record_class='decision',
+                     phase='labor', subject={'type': 'agent', 'id': worker.id,
+                                             'tile': region.name},
+                     metric_id='labor.offer_options', unit='decision',
+                     after='hired' if hired else 'no_offer_accepted',
+                     formula_id='labor.funded_offer_search.v1',
+                     inputs={'offers': offer_rows, 'offers_truncated':
+                             max(0, len(firms_with_vacancies) - len(offer_rows))})
+                if hired:
                     continue
 
             # Retain non-starving operational building staff in their assigned facility role
@@ -291,8 +332,12 @@ class LaborMobilityScheduler:
             emergency_ready = is_acute_emergency and (last_switch_turn == 0 or turns_since_switch >= 4)
             regular_ready = turns_since_switch >= min_cooldown
             if is_unemployed and age_factor > 0.0 and (regular_ready or emergency_ready):
-                # Hungry landed farmers must not abandon food farming for non-food crafts
-                if getattr(worker, 'hungry_steps', 0) > 0 and not is_dispossessed and worker.output == Goods.food:
+                # Keep a viable field while hungry; loss of access permits
+                # another feasible livelihood even if the old output says food.
+                from livelihood_access import effective_access
+                if (getattr(worker, 'hungry_steps', 0) > 0 and not is_dispossessed
+                        and worker.output == Goods.food
+                        and effective_access(worker, region, 'field') > 0):
                     continue
                 recipes = getattr(region, 'recipes', {})
                 best_good = None
@@ -306,10 +351,6 @@ class LaborMobilityScheduler:
                     # Emergency fast-path for hungry workers (non-dispossessed) only allows moving into food
                     if (not regular_ready and getattr(worker, 'hungry_steps', 0) > 0
                             and not is_dispossessed and g not in (Goods.food, worker.output)):
-                        continue
-                    # Per-turn congestion damping on non-food craft entry
-                    if (g != worker.output and g != Goods.food
-                            and switches_into_good.get(g, 0) >= max_non_food_entry):
                         continue
                     expected_net, basis = independent_return(
                         region, worker, g, producer_counts.get(g, 0), turn=t)
@@ -331,6 +372,22 @@ class LaborMobilityScheduler:
                 # If another profession offers significantly higher returns, switch!
                 current_return = next((row['return'] for row in candidate_scores
                                        if row['good'] == worker.output.name), 0.0)
+                from run_trace import emit
+                ranked_options = sorted(candidate_scores,
+                                        key=lambda row: (-row['return'], row['good']))
+                emit(region, kind='worker_livelihood_options', record_class='decision',
+                     phase='labor', subject={'type': 'agent', 'id': worker.id,
+                                             'tile': region.name},
+                     metric_id='labor.livelihood_options', unit='decision',
+                     after=best_good.name if best_good is not None else 'none',
+                     formula_id='labor.observed_livelihood_search.v1',
+                     inputs={'current': worker.output.name,
+                             'current_return': current_return,
+                             'best_return': round(best_return, 3),
+                             'hurdle': round(hurdle_mult, 4),
+                             'options': ranked_options[:8],
+                             'options_omitted': max(0, len(ranked_options) - 8),
+                             'emergency': is_emergency})
                 if (best_good and best_good != worker.output
                         and best_return > max(1.5, current_return * hurdle_mult)):
                     old_output = worker.output
@@ -347,17 +404,16 @@ class LaborMobilityScheduler:
                             'hurdle_multiplier': round(hurdle_mult, 4),
                             'incumbent_tenure_multiplier': round(incumbent_tenure_mult, 4),
                             'emergency': is_emergency,
-                            'candidates': candidate_scores,
+                            'candidates': ranked_options[:8],
                         },
                         constraints={
                             'min_cooldown_turns': min_cooldown,
                             'required_return_ratio': round(hurdle_mult, 4),
-                            'max_non_food_entry_per_turn': max_non_food_entry,
+                            'capacity_basis': 'observed_sales_and_recipe_output',
                         },
                     )
                     producer_counts[old_output] = max(0, producer_counts.get(old_output, 0) - 1)
                     producer_counts[best_good] = producer_counts.get(best_good, 0) + 1
-                    switches_into_good[best_good] = switches_into_good.get(best_good, 0) + 1
                     reallocations.append({
                         'agent_id': worker.id,
                         'type': 'INDEPENDENT_SWITCH',
@@ -371,9 +427,8 @@ class LaborMobilityScheduler:
         elapsed_sec = time.perf_counter() - start_time
         self._last_execution_times.append(elapsed_sec)
 
-        # Dynamic throttling safety: If group ever exceeds 0.8s, decrease batch size
-        if elapsed_sec > 0.8:
-            self.batch_size = max(20, int(self.batch_size * 0.75))
+        # Wall-clock time is diagnostic only. Letting machine load change the
+        # batch size would change which people act on a seeded turn.
 
         return {
             't': t,

@@ -39,6 +39,8 @@ METRICS = {
     'labor.occupation_change': ('tile/worker', 'occupation', 'labor_choice.apply_career_switch'),
     'labor.status_change': ('tile/worker', 'status', 'labor_choice.record_labor_status'),
     'labor.temporary_activity': ('tile/worker', 'turn_share', 'foraging.forage_tile'),
+    'labor.offer_options': ('tile/worker', 'decision', 'economy.labor_mobility.LaborMobilityScheduler'),
+    'labor.livelihood_options': ('tile/worker', 'decision', 'economy.labor_mobility.LaborMobilityScheduler'),
     'labor.payroll_funding': ('tile/firm', 'workers', 'region_labor.borrow_or_layoff'),
     'labor.firm_incorporation': ('tile/firm', 'local_currency', 'region_labor.incorporate'),
     'labor.corporate_wage': ('tile/firm', 'local_currency_per_turn', 'region_labor.adjust_wages'),
@@ -125,6 +127,7 @@ TRACE_INSTRUMENTED = set(LEGACY_HISTORY_TO_METRIC.values()) | {
     'health.trade_contagion', 'health.trade_infection',
     'goods.food_aid', 'people.food_security', 'labor.occupation_change',
     'labor.status_change', 'labor.temporary_activity',
+    'labor.offer_options', 'labor.livelihood_options',
     'finance.internal_transfer', 'finance.operator_fee', 'labor.subsistence_exit',
     'goods.emergency_levy', 'goods.provincial_relief', 'land.customary_inheritance',
 }
