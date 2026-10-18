@@ -2,9 +2,10 @@
 Single-region economic simulation.
 
 Usage:
-    python3 econsim.py [time_steps]
+    python3 econsim.py time_steps [--trace tmp/traces/econsim.ctr]
 """
 
+import argparse
 import sys
 import random
 import math
@@ -73,7 +74,7 @@ for good in goods:
     cash_log[good] = []
     gini_log[good] = []
 
-price_log = {Goods.food: [], Goods.wood: [], Goods.furniture: [], Goods.transport: []}
+price_log = {good: [] for good in goods if good != Goods.gov}
 
 for prof in goods:
     bought_log[prof] = {}
@@ -471,7 +472,22 @@ def _owner_bailout(t, agent, owner, payroll):
 def main():
     epsilon = 1e-8
     logInit()
-    time_steps = int(sys.argv[1])
+    parser = argparse.ArgumentParser(description='Run the standalone economy simulation.')
+    parser.add_argument('time_steps', type=int)
+    parser.add_argument('--trace', dest='trace_path',
+                        help='write standalone price events to a compact .ctr trace')
+    args = parser.parse_args()
+    time_steps = args.time_steps
+    trace_context = None
+    if args.trace_path:
+        from pathlib import Path
+        from types import SimpleNamespace
+        from run_trace import RunTrace
+        trace_path = Path(args.trace_path)
+        recorder = RunTrace(trace_path, trace_path.stem, scenario='econsim')
+        trace_context = SimpleNamespace(
+            name='econsim', _run_trace=recorder,
+            _collective_trace_clock={'next': 1, 'turn': 0, 'phase': 'market'})
     agents = [Agent(0) for _ in range(number_of_agents)]
     import government as govmod
     government = govmod.create_default_government(0, initial_cash=200)
@@ -488,7 +504,8 @@ def main():
             agents.extend(new_company_agents)
         Produce(t, agents)
         trade.Trade(t, agents, recipes, demand_ratio_log, demand_log,
-                    supply_log, sold_log, bought_log)
+                    supply_log, sold_log, bought_log,
+                    trace_context=trace_context)
         PayWages(t, agents)
         distribute_owner_profits(t, agents)
         _record_delta_income(agents)
@@ -528,6 +545,10 @@ def main():
         for prof in goods:
             for good in goods:
                 bought_log[prof][good].append(0)
+        if trace_context is not None:
+            trace_context._collective_trace_clock['phase'] = 'checkpoint'
+            trace_context._run_trace.checkpoint(
+                trace_context._collective_trace_clock)
         difference = math.fabs(previous_total_cash - total_cash_log[-1])
         if difference > epsilon:
             logwarning(t, "total cash not matching", previous_total_cash,
@@ -673,13 +694,12 @@ def _plot_results(agents):
         Goods.transport: 'purple',
         Goods.gov: 'yellow',
     }
-    labels = {
-        Goods.food: 'Food',
-        Goods.wood: 'Wood',
-        Goods.furniture: 'Furniture',
-        Goods.transport: 'Transport',
-        Goods.gov: 'gov',
-    }
+    palette = ('#8354a8', '#d07036', '#478caa', '#9c4b56', '#718f4a',
+               '#ae8d31', '#5266aa', '#b0688a')
+    labels = {}
+    for index, good in enumerate(goods):
+        colors.setdefault(good, palette[index % len(palette)])
+        labels[good] = good.name.replace('_', ' ').title()
     axis_id = 0
     _plot_population(axis, axis_id, colors, labels)
     axis_id += 1
@@ -866,16 +886,13 @@ def _plot_gdp(axis, axis_id, colors, labels):
 
 
 def _plot_purchases(axis, axis_id, colors, labels):
-    titles = ["Farmer", "Logger", "Carpenter", "Gov agent"]
-    for i in range(len(titles)):
-        axis[axis_id + i].set_title(titles[i] + " Purchases")
+    professions = (Goods.food, Goods.wood, Goods.furniture, Goods.gov)
+    for i, prof in enumerate(professions):
+        axis[axis_id + i].set_title(labels[prof] + " Purchases")
         axis[axis_id + i].set_ylabel("Bought")
-    i = 0
-    for prof in goods:
         for good in goods:
             axis[axis_id + i].plot(bought_log[prof][good], label=labels[good],
                                color=colors[good])
-        i += 1
 
 
 def _print_final_stats(agents):

@@ -285,8 +285,8 @@ scenario, AI and persistence work proceeds in the listed order.
   separates reference, seller ask, delivered quote, paid price and paid average.
   The API accepts a good filter. Death counters now reset at the engine turn
   boundary, so taking a snapshot does not clear them.
-- This is the first slice, not completion of Phases 0–6. Legacy standalone
-  pricing, source-to-order chains, comprehensive mortality,
+- This is the first slice, not completion of Phases 0–6. Source-to-order chains,
+  comprehensive mortality,
   treasury reconciliation, AI evaluation evidence, chart-point/desktop parity,
   persistence and performance gates remain open. Current price bridges check
   ordered writes; they do not yet prove every upstream cause.
@@ -295,10 +295,21 @@ Follow-up in the same slice: transport price changes and the live market's
 local seller asks and import quotes now record replayable formulas. The import
 quote records the FX buy rate, tariff, drawback, margin and destination price
 ceiling used at evaluation. Targeted tests cover no-order decay and a furniture
-input-cost floor. Legacy standalone pricing remains outside the live recorder.
+input-cost floor. The standalone `econsim.py` runner can now write an opt-in
+compact price trace with `--trace`; its no-order decay and demand/producer-floor
+formulas replay from captured inputs, and each turn includes price snapshots
+and bridges. Tracing does not change standalone price results.
 Supported price formulas now carry an in-record replay result. A mismatch
 downgrades confidence and makes its turn bridge incomplete; it cannot be shown
 as a verified explanation merely because the final price was recorded.
+
+Standalone verification: the one-turn `econsim.py --trace` run produced three
+price mutations, three price snapshots, three reconciled bridges, and zero
+formula replay failures; the compact trace passed checkpoint verification. A
+seeded trace-on/off comparison matched final stats and the final RNG state.
+The run also exposed stale plot initialization for the full Goods enum; price
+histories and chart labels now cover the configured goods, and the purchase
+subplot limits its four panels to its four intended professions.
 
 Phase 0 follow-up, 2026-10-18: demographic deaths now distinguish disease
 presence from disease-attributable mortality. A disease fatality is counted

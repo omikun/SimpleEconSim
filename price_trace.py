@@ -47,6 +47,45 @@ def replay_decay(inputs):
     return max(floor, price)
 
 
+def replay_econsim_market_price(inputs):
+    """Replay the standalone econsim demand, subsistence and producer floors."""
+    price = inputs['prior_display_price']
+    ratio = inputs['demand_ratio']
+    if ratio >= 1:
+        multiplier = 1.01 + (1.20 - 1.01) * min(5.0, ratio - 1) / 5.0
+        price *= multiplier
+    elif ratio < 0.2:
+        multiplier = 0.90 + (0.95 - 0.90) * ratio / 0.2
+        price *= multiplier
+    elif ratio < 0.5:
+        multiplier = 0.95 + (1.0 - 0.95) * (ratio - 0.2) / 0.3
+        price *= multiplier
+
+    input_quantity = inputs.get('input_quantity', 0)
+    production_quantity = inputs.get('production_quantity', 0)
+    if input_quantity > 0 and production_quantity > 0:
+        fundamental_cost = (input_quantity * inputs['input_price']) / production_quantity
+    else:
+        fundamental_cost = 1.0
+    production_rate = inputs.get('production_rate', 1)
+    living_cost_floor = (4 * inputs['food_price']) / max(1, production_rate)
+    if input_quantity > 0:
+        min_price_floor = max(fundamental_cost * 1.10, living_cost_floor)
+    else:
+        min_price_floor = max(living_cost_floor, 0.10)
+
+    producer_multipliers = []
+    for producer in inputs.get('producers', ()):
+        poor_factor = max(0.2, min(1.0, producer['cash'] / 20.0))
+        hungry_factor = max(0.1, 0.8 ** producer['hungry_steps'])
+        producer_multipliers.append(poor_factor * hungry_factor)
+    if producer_multipliers:
+        dynamic_price = fundamental_cost * (
+            sum(producer_multipliers) / len(producer_multipliers))
+        price = max(price, dynamic_price)
+    return max(min_price_floor, price, 0.1)
+
+
 def replay_transport(inputs):
     ratio = inputs['demand_ratio']
     price = inputs['prior_display_price']
@@ -67,7 +106,7 @@ def replay_event(row):
     formula = row.get('formula_id')
     if formula == 'market.reference.v1':
         expected = replay_reference(row['inputs'])['final']
-    elif formula == 'market.decay.v1':
+    elif formula in ('market.decay.v1', 'econsim.price_decay.v1'):
         expected = replay_decay(row['inputs'])
     elif formula == 'market.transport.v1':
         expected = replay_transport(row['inputs'])
@@ -111,6 +150,8 @@ def replay_event(row):
             expected = min(expected, i['input_value_ceiling'])
         if i.get('trader_net_value') is not None:
             expected = min(expected, max(0.0, i['trader_net_value']))
+    elif formula == 'econsim.market_price.v1':
+        expected = replay_econsim_market_price(row['inputs'])
     else:
         return None
     actual = row['value_after']

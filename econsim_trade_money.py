@@ -563,10 +563,14 @@ def PayLoans(agent, bank=None, trace_region=None, t=None):
 # =============================================================================
 
 def Trade(t, agents, recipes, demand_ratio_log, demand_log,
-          supply_log, sold_log, bought_log):
+          supply_log, sold_log, bought_log, trace_context=None):
     previous_total_cash = get_total_cash(agents, bank)
     max_demand_ratio = 0
     goods = [Goods.food, Goods.wood, Goods.furniture]
+    opening_prices = {good: recipes[good]['price'] for good in goods}
+    if trace_context is not None:
+        clock = trace_context._collective_trace_clock
+        clock.update(turn=t, phase='market')
     number_desired = 16
     all_goods_price = sum(recipes[good]['price'] for good in goods)
     food_price = recipes[Goods.food]['price']
@@ -593,7 +597,7 @@ def Trade(t, agents, recipes, demand_ratio_log, demand_log,
                                                    0, 0)
         total_trades = min(total_asks, total_bids)
         if total_asks == 0 and total_bids == 0:
-            _price_default_decay(good, recipes)
+            _price_default_decay(good, recipes, trace_context=trace_context)
             continue
         demand_ratio = 5.0 if total_asks == 0 else total_bids / total_asks
         if max_demand_ratio < demand_ratio and total_bids > 0:
@@ -602,7 +606,8 @@ def Trade(t, agents, recipes, demand_ratio_log, demand_log,
         demand_ratio_log[good].append(demand_ratio)
         demand_log[good].append(total_bids)
         supply_log[good].append(total_asks)
-        price = set_market_price(demand_ratio, good, recipes, agents)
+        price = set_market_price(demand_ratio, good, recipes, agents,
+                                 trace_context=trace_context)
         if total_trades == 0:
             continue
         logdebug(t, "trading ", good, " at $", round(price, 2),
@@ -631,21 +636,60 @@ def Trade(t, agents, recipes, demand_ratio_log, demand_log,
                      "value:$", round(sec_value, 2))
         report_cash(t, agents, previous_total_cash, "post secondary trade " + str(good))
 
+    if trace_context is not None:
+        clock = trace_context._collective_trace_clock
+        for good in goods:
+            subject = {'type': 'simulation', 'id': 'econsim', 'good': good.name}
+            before = opening_prices[good]
+            after = recipes[good]['price']
+            trace_context._run_trace.snapshot(
+                clock, subject=subject, metric_id='goods.price',
+                unit='local_currency_per_unit', before=before, after=after)
+            trace_context._run_trace.price_bridge(
+                clock, subject=subject, before=before, after=after,
+                unit='local_currency_per_unit')
+
 
 # =============================================================================
 # PRICE DEFAULT DECAY
 # =============================================================================
 
-def _price_default_decay(good, recipes):
+def _price_default_decay(good, recipes, trace_context=None):
     """When no bids and no asks, price decays toward fundamental cost."""
     recipe = recipes[good]
+    before = recipe['price']
     cost_to_make = 1.0
+    input_good = None
+    input_cost = None
     if recipe.get('numInput', 0) > 0 and recipe.get('production', 0) > 0:
-        input_cost = recipes[recipe['input']]['price']
+        input_good = recipe['input']
+        input_cost = recipes[input_good]['price']
         cost_to_make = (recipe['numInput'] * input_cost) / recipe['production']
     if recipe['price'] > cost_to_make * 1.05:
         recipe['price'] = max(cost_to_make, recipe['price'] * 0.95)
     recipe['price'] = max(cost_to_make, recipe['price'])
+    if trace_context is not None:
+        from run_trace import emit
+        emit(trace_context, kind='econsim_market_price_decay',
+             record_class='calculation', phase='market',
+             subject={'type': 'simulation', 'id': 'econsim', 'good': good.name},
+             metric_id='goods.price', unit='local_currency_per_unit',
+             before=before, after=recipe['price'],
+             formula_id='econsim.price_decay.v1',
+             inputs={'prior_display_price': before,
+                     'prior_internal_reference': None,
+                     'new_internal_reference': None,
+                     'trigger': 'no_bids_and_no_asks',
+                     'threshold_multiplier': 1.05, 'decay_factor': 0.95,
+                     'input_cost_floor': cost_to_make,
+                     'input_good': input_good.name if input_good is not None else None,
+                     'input_price': input_cost,
+                     'input_quantity': recipe.get('numInput', 0),
+                     'production_quantity': recipe.get('production', 0),
+                     'price_basis': 'legacy_econsim_recipe_price',
+                     'currency': 'local'},
+             constraints={'active_floor': cost_to_make
+                          if recipe['price'] == cost_to_make else None})
 
 
 # =============================================================================
@@ -813,12 +857,16 @@ def bidders_buy_good(t, agents, good, bought_log, price, total_asks,
 # MARKET PRICE
 # =============================================================================
 
-def set_market_price(demand_ratio, good, recipes, agents=None):
+def set_market_price(demand_ratio, good, recipes, agents=None, trace_context=None):
     recipe = recipes[good]
     price = recipe['price']
+    before = price
     fundamental_cost = 1.0
+    input_good = None
+    input_cost = None
     if recipe.get('numInput', 0) > 0 and recipe.get('production', 0) > 0:
-        input_cost = recipes[recipe['input']]['price']
+        input_good = recipe['input']
+        input_cost = recipes[input_good]['price']
         fundamental_cost = (recipe['numInput'] * input_cost) / recipe['production']
     food_price = recipes.get(Goods.food, {}).get('price', 1.0)
     production_rate = recipe.get('production', 1)
@@ -827,27 +875,71 @@ def set_market_price(demand_ratio, good, recipes, agents=None):
         min_price_floor = max(fundamental_cost * 1.10, living_cost_floor)
     else:
         min_price_floor = max(living_cost_floor, 0.10)
+    demand_multiplier = 1.0
     if demand_ratio >= 1:
         clamped_ratio = min(5.0, demand_ratio - 1)
-        price *= lerp(1.01, 1.20, clamped_ratio / 5.0)
+        demand_multiplier = lerp(1.01, 1.20, clamped_ratio / 5.0)
+        price *= demand_multiplier
     elif demand_ratio < 0.2:
-        price *= lerp(0.90, 0.95, demand_ratio / 0.2)
+        demand_multiplier = lerp(0.90, 0.95, demand_ratio / 0.2)
+        price *= demand_multiplier
     elif demand_ratio < .5:
-        price *= lerp(0.95, 1.0, (demand_ratio - 0.2) / 0.3)
+        demand_multiplier = lerp(0.95, 1.0, (demand_ratio - 0.2) / 0.3)
+        price *= demand_multiplier
+    price_after_demand = price
+    producers = []
+    dynamic_adjusted_price = None
     if agents and good != Goods.gov:
-        producers = [a for a in agents if a.output == good]
-        if producers:
+        producer_agents = [a for a in agents if a.output == good]
+        if producer_agents:
             total_multiplier = 0
-            for a in producers:
+            for a in producer_agents:
                 poor_factor = clamp(a.cash / 20.0, 0.2, 1.0)
                 hungry_factor = max(0.1, 0.8 ** a.hungry_steps)
                 total_multiplier += poor_factor * hungry_factor
-            avg_multiplier = total_multiplier / len(producers)
+                producers.append({'cash': a.cash, 'hungry_steps': a.hungry_steps,
+                                  'poor_factor': poor_factor,
+                                  'hungry_factor': hungry_factor,
+                                  'price_multiplier': poor_factor * hungry_factor})
+            avg_multiplier = total_multiplier / len(producer_agents)
             dynamic_adjusted_price = fundamental_cost * avg_multiplier
             price = max(price, dynamic_adjusted_price)
+    price_before_floor = price
     price = max(min_price_floor, price)
     price = max(0.1, price)
     recipe['price'] = price
+    if trace_context is not None:
+        from run_trace import emit
+        emit(trace_context, kind='econsim_market_price_update',
+             record_class='calculation', phase='market',
+             subject={'type': 'simulation', 'id': 'econsim', 'good': good.name},
+             metric_id='goods.price', unit='local_currency_per_unit',
+             before=before, after=price,
+             formula_id='econsim.market_price.v1',
+             inputs={'prior_display_price': before,
+                     'prior_internal_reference': None,
+                     'new_internal_reference': None,
+                     'demand_ratio': demand_ratio,
+                     'demand_multiplier': demand_multiplier,
+                     'price_after_demand': price_after_demand,
+                     'fundamental_cost': fundamental_cost,
+                     'input_good': input_good.name if input_good is not None else None,
+                     'input_price': input_cost,
+                     'input_quantity': recipe.get('numInput', 0),
+                     'production_quantity': recipe.get('production', 0),
+                     'food_price': food_price,
+                     'production_rate': production_rate,
+                     'living_cost_floor': living_cost_floor,
+                     'min_price_floor': min_price_floor,
+                     'producers': producers,
+                     'dynamic_adjusted_price': dynamic_adjusted_price,
+                     'price_before_floor': price_before_floor,
+                     'price_basis': 'legacy_econsim_recipe_price',
+                     'currency': 'local'},
+             constraints={'min_price_floor': min_price_floor,
+                          'dynamic_price_floor': dynamic_adjusted_price,
+                          'active_floor': (min_price_floor
+                                           if price == min_price_floor else None)})
     return price
 
 

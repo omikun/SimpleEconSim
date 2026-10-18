@@ -27,6 +27,10 @@ the FX matrix has a **Why?** button for each quoted currency pair.
 - Tile market demand, supply, price reference and decay, transport price,
   private/public paid sales, producer inventory, production, nominal GDP,
   population count, and cost of living.
+- The standalone `econsim.py --trace PATH.ctr` option writes price mutations,
+  final snapshots and reconciled per-turn bridges. Its decay and market update
+  formulas replay from captured inputs; trace-on/off one-turn checks matched
+  final stats and RNG state.
 - Corporate and independent production rolls use the existing RNG draws.
   Price updates link the prior clearing summaries used as market samples.
 - Faction grievance sources, protest energy, unrest roll and takeover/garrison
@@ -115,10 +119,14 @@ the FX matrix has a **Why?** button for each quoted currency pair.
 
 ## Known gaps
 
-Price coverage needs dynamic snapshots for all goods, legacy and scenario quote
-paths, distinct reference/ask/delivered/paid prices, formula replay, and complete
-upstream links. The existing `vwap` input is an unweighted recent-sample mean.
-The web price inspector currently requests food records only.
+Reference snapshots cover priced recipe goods, and the live market, scenario
+quotes, settlements, and optional standalone `econsim.py --trace` run have
+separate price records with replay checks for supported formulas. Remaining
+price work is linking production, inventories, needs, accepted orders, and
+settlements through time without implying a trade caused an earlier quote. The
+main market's `vwap` input is an unweighted recent-sample mean. The web inspector
+can filter a tile and selected good; historical chart points do not yet open
+that inspector directly.
 
 The coverage checker reports a changed snapshot as unexplained when its final
 value does not match a recorded calculation. Per-profession headcount snapshots
@@ -133,7 +141,7 @@ catalog does not yet cover every displayed field;
 untraced so a missing probe is visible during development.
 The UI shows unavailable comparison placeholders as such. Desktop charts do
 not yet have a trace drilldown, and save/rebranch and a persistent query index
-are not implemented. The file is queried by scanning JSONL.
+are not implemented. The compact source trace is queried by scanning events.
 
 The first 20-turn labor scenario coverage run recorded 9,043 rows in 5.3 MB,
 with 20 valid checkpoints and no currency-audit violations. Tracing on and off

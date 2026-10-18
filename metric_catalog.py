@@ -8,7 +8,7 @@ from __future__ import annotations
 
 
 METRICS = {
-    'goods.price': ('tile/good', 'local_currency_per_unit', 'displayed recipe reference price; region_market and legacy price writers'),
+    'goods.price': ('tile/simulation/good', 'local_currency_per_unit', 'displayed recipe reference price; region_market and econsim_trade_money price writers'),
     'goods.seller_ask': ('tile/good/seller', 'local_currency_per_unit', 'posted offer at evaluation'),
     'goods.delivered_quote': ('tile/good/buyer/seller', 'local_currency_per_unit', 'offer including delivery costs'),
     'goods.transaction_price': ('tile/good/buyer/seller', 'local_currency_per_unit', 'paid settlement price'),

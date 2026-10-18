@@ -305,6 +305,41 @@ class RunTraceTests(unittest.TestCase):
             self.assertEqual(len(report(trace.path, turn=7, entity='tile:Delta',
                                         metric='goods.price', good='wood')), 0)
 
+    def test_standalone_price_formulas_replay_without_changing_results(self):
+        from copy import deepcopy
+        from econsim_trade_money import _price_default_decay, set_market_price
+
+        recipe_fixture = {
+            Goods.food: {'price': 2.0, 'production': 4},
+            Goods.wood: {'price': 10.0, 'input': Goods.food,
+                         'numInput': 2, 'production': 2},
+        }
+        producer = SimpleNamespace(output=Goods.wood, cash=5.0, hungry_steps=2)
+        untraced_recipes = deepcopy(recipe_fixture)
+        traced_recipes = deepcopy(recipe_fixture)
+        expected = set_market_price(0.1, Goods.wood, untraced_recipes, [producer])
+
+        with tempfile.TemporaryDirectory() as tmp:
+            trace = RunTrace(Path(tmp) / 'econsim.ctr', 'econsim', scenario='econsim')
+            clock = {'next': 1, 'turn': 0, 'phase': 'market'}
+            context = SimpleNamespace(name='econsim', _run_trace=trace,
+                                      _collective_trace_clock=clock)
+            actual = set_market_price(0.1, Goods.wood, traced_recipes,
+                                      [producer], trace_context=context)
+            self.assertEqual(actual, expected)
+            update = trace.query(metric_id='goods.price')['events'][0]
+            self.assertEqual(update['subject']['type'], 'simulation')
+            self.assertTrue(update['formula_replay']['matches'])
+            self.assertEqual(update['inputs']['producers'][0]['hungry_steps'], 2)
+
+            decay_recipes = deepcopy(recipe_fixture)
+            decay_recipes[Goods.wood]['price'] = 10.0
+            _price_default_decay(Goods.wood, decay_recipes, trace_context=context)
+            decay = trace.query(metric_id='goods.price')['events'][1]
+            self.assertEqual(decay['formula_id'], 'econsim.price_decay.v1')
+            self.assertEqual(decay['value_after'], 9.5)
+            self.assertTrue(decay['formula_replay']['matches'])
+
     def test_pagination_and_typed_json(self):
         with tempfile.TemporaryDirectory() as tmp:
             trace = RunTrace(Path(tmp) / 'run.ctr', 'fixture')
