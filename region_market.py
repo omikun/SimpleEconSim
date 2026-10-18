@@ -267,7 +267,8 @@ def calculate_transport_bid(region, agent, transport_price):
     return min(max_buy, affordable)
 
 
-def calculate_ask_price(region, agent, good, ref):
+def calculate_ask_price(region, agent, good, ref, *, offer_quantity=None,
+                        cause_event_ids=None):
     """Per-agent local ask price for output *good*."""
     if agent.is_trader or agent.output != good:
         return ref
@@ -281,14 +282,22 @@ def calculate_ask_price(region, agent, good, ref):
     mult = max(region.ASK_URGENCY_MIN, min(region.ASK_URGENCY_MAX, mult))
     ask = ref * mult
     from run_trace import emit
+    trace = getattr(region, '_run_trace', None)
+    production_event_id = (trace._turn_production_events.get(
+        (str(agent.id), good.name)) if trace is not None else None)
+    source_ids = list(cause_event_ids or ())
+    if production_event_id is not None and production_event_id not in source_ids:
+        source_ids.append(production_event_id)
     emit(region, kind='local_seller_ask', record_class='calculation',
          subject={'type': 'tile', 'id': region.name, 'good': good.name,
                   'seller_id': agent.id},
          metric_id='goods.seller_ask', unit='local_currency_per_unit',
          after=ask, formula_id='market.local_ask.v1',
+         cause_event_ids=source_ids or None,
          inputs={'reference': ref, 'stock': stock, 'max_inventory': maxinv,
                  'hungry_steps': hungry, 'scarcity_multiplier': scarcity,
                  'urgency_multiplier': urgency, 'bounded_multiplier': mult,
+                 'offer_quantity': offer_quantity,
                  'urgency_min': region.ASK_URGENCY_MIN,
                  'urgency_max': region.ASK_URGENCY_MAX,
                  'currency': region.home_currency})
@@ -426,7 +435,7 @@ def import_ask_price(region, trader, good, *, source_unit_cost=None,
 
 
 def update_price_ref(region, good, demand_ratio, *, local_asks=None,
-                     imported_asks=None, bids=None):
+                     imported_asks=None, bids=None, cause_event_ids=None):
     """Bounded move-toward-target price reference WITH demand-gated supply scarcity."""
     from run_trace import emit
     ref = region._price_ref[good]
@@ -471,11 +480,15 @@ def update_price_ref(region, good, demand_ratio, *, local_asks=None,
     region._price_ref[good] = ref
     if good in region.recipes:
         region.recipes[good]['price'] = ref
+    price_cause_ids = list(recent_event_ids)
+    for event_id in cause_event_ids or ():
+        if event_id is not None and event_id not in price_cause_ids:
+            price_cause_ids.append(event_id)
     emit(region, kind='market_price_update', record_class='calculation',
          subject={'type': 'tile', 'id': region.name, 'good': good.name},
          metric_id='goods.price', unit='local_currency_per_unit',
          before=old_display_price, after=ref, formula_id='market.reference.v1',
-         cause_event_ids=recent_event_ids,
+         cause_event_ids=price_cause_ids,
          inputs={'demand_ratio': demand_ratio, 'local_asks': local_asks,
                  'imported_asks': imported_asks, 'bids': bids,
                  'prior_reference': old_ref,
@@ -526,7 +539,15 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
             seller, qty = row['agent'], int(row['quantity'])
             if qty > 0 and getattr(seller, 'alive', True):
                 book.append([float(row['limit_price']), qty, seller, False])
+        buyer_order_event_ids = {
+            row['agent'].id: row.get('quantity_event_id')
+            for row in local_orders.get('buyers', ())}
+        seller_order_event_ids = {
+            row['agent'].id: row.get('quantity_event_id')
+            for row in local_orders.get('sellers', ())}
     else:
+        buyer_order_event_ids = {}
+        seller_order_event_ids = {}
         for a in agents:
             if getattr(a, 'is_trader', False) or not getattr(a, 'alive', True):
                 continue
@@ -782,6 +803,10 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
             sale_id = emit(region, kind='paid_market_sale', record_class='transfer',
                            subject={'type': 'tile', 'id': region.name, 'good': good.name},
                            metric_id='goods.sold', unit='units', before=0, after=take,
+                           cause_event_ids=[event_id for event_id in (
+                               buyer_order_event_ids.get(buyer.id),
+                               seller_order_event_ids.get(seller.id))
+                               if event_id is not None],
                            inputs={'buyer_id': buyer.id, 'seller_id': seller.id,
                                    'imported': is_import, 'parked': is_parked,
                                    'shipment_id': shipment_id,
@@ -1052,7 +1077,7 @@ def legacy_sell(region, askers, good, price, t, total_bought, total_cash_purchas
     return total_cash_sales, total_sold
 
 
-def price_decay(region, good):
+def price_decay(region, good, *, cause_event_ids=None):
     from run_trace import emit
     r = region.recipes[good]
     before = r['price']
@@ -1069,6 +1094,7 @@ def price_decay(region, good):
          subject={'type': 'tile', 'id': region.name, 'good': good.name},
          metric_id='goods.price', unit='local_currency_per_unit',
          before=before, after=r['price'], formula_id='market.decay.v1',
+         cause_event_ids=cause_event_ids,
          inputs={'prior_display_price': before,
                  'prior_internal_reference': region._price_ref.get(good),
                  'new_internal_reference': region._price_ref.get(good),
@@ -1178,6 +1204,7 @@ def trade(region, t):
     total_asks = {g: 0 for g in goods_goods}
     total_bids = {g: 0 for g in goods_goods}
     local_orders = {g: {'buyers': [], 'sellers': []} for g in goods_goods}
+    order_source_events = {g: {'buyers': [], 'sellers': []} for g in goods_goods}
     for a in agents:
         if not getattr(a, 'alive', True):
             for g in goods_goods:
@@ -1195,13 +1222,66 @@ def trade(region, t):
         for g in goods_goods:
             p = prices[g]
             d = desires[g]
+            cash_before_funding = float(getattr(a, 'cash', 0.0))
+            remaining_before_funding = float(getattr(a, 'remainingCash', 0.0))
+            inventory_before_order = float(a.inv_get(g, 0))
             withdraw_if_needed(region, a, p, d, t=t)
+            cash_at_bid = float(getattr(a, 'cash', 0.0))
+            remaining_at_bid = float(getattr(a, 'remainingCash', 0.0))
             bid = calculate_bid(region, a, g, p, d, ar, is_emp, mult)
             a.bid = bid
             a.remainingCash -= bid * p
             total_bids[g] += bid
             if bid > 0:
-                local_orders[g]['buyers'].append({'agent': a, 'quantity': int(bid)})
+                bid_quantity = int(bid)
+                input_commodity = input_good(region, a)
+                if getattr(a, 'is_trader', False):
+                    bid_rule = ('trader_food_need' if g == Goods.food
+                                else 'trader_export_arbitrage')
+                elif (g == Goods.food and a.output == Goods.food
+                      and not a.is_corporation and not a.is_government):
+                    bid_rule = 'grower_meal_reserve'
+                elif not is_emp and input_commodity == g:
+                    bid_rule = 'production_input_replenishment'
+                else:
+                    bid_rule = 'household_or_employer_inventory_need'
+                employee_count = len(getattr(a, 'employees', ()))
+                quantity_event_id = emit(
+                    region, kind='market_buyer_order_submitted',
+                    record_class='decision', phase='trade',
+                    subject={'type': 'tile', 'id': region.name,
+                             'good': g.name, 'buyer_id': a.id},
+                    metric_id='goods.buyer_bid_quantity', unit='units',
+                    after=bid_quantity, confidence='exact',
+                    explanation_status='submitted_order_inputs_recorded',
+                    inputs={'buyer_id': a.id, 'good': g.name,
+                            'quantity_calculated': bid,
+                            'submitted_quantity': bid_quantity,
+                            'order_rule': bid_rule,
+                            'buyer_output': getattr(a.output, 'name', str(a.output)),
+                            'input_good': getattr(input_commodity, 'name', str(input_commodity)),
+                            'input_units_per_output': ar.get('numInput', 0),
+                            'output_units_per_turn': ar.get('production', 0),
+                            'current_desired': d,
+                            'consumption_multiplier': mult,
+                            'inventory_before_order': inventory_before_order,
+                            'cash_before_funding': cash_before_funding,
+                            'remaining_cash_before_funding': remaining_before_funding,
+                            'cash_at_bid': cash_at_bid,
+                            'remaining_cash_at_bid': remaining_at_bid,
+                            'reference_price': p,
+                            'hungry_steps': getattr(a, 'hungry_steps', 0),
+                            'is_employee': is_emp,
+                            'is_corporation': bool(getattr(a, 'is_corporation', False)),
+                            'is_trader': bool(getattr(a, 'is_trader', False)),
+                            'employee_count': employee_count,
+                            'destination': getattr(getattr(a, 'destination_region', None),
+                                                   'name', None)})
+                if quantity_event_id is not None:
+                    order_source_events[g]['buyers'].append(quantity_event_id)
+                local_orders[g]['buyers'].append({
+                    'agent': a, 'quantity': bid_quantity,
+                    'quantity_event_id': quantity_event_id})
             ask = calculate_ask(region, a, g, p, is_emp)
             a.ask = ask
             # Trader export inventory is committed to the route pipeline; it
@@ -1210,10 +1290,68 @@ def trade(region, t):
             local_ask = 0 if getattr(a, 'is_trader', False) else ask
             total_asks[g] += local_ask
             if local_ask > 0:
+                stock = float(a.inv_get(g, 0))
+                if (g == Goods.food and a.id == getattr(region, 'scenario_grain_holder_id', None)
+                        and getattr(region, 'scenario_grain_policy', 'open') == 'hold'):
+                    offer_rule = 'scenario_grain_hold_policy'
+                    reserved = min(stock, max(0, int(
+                        getattr(region, 'scenario_grain_reserved_units', 0))))
+                    offer_units = max(0, int(
+                        getattr(region, 'scenario_grain_offer_units', 0)))
+                    food_reserve = None
+                elif a.output != g:
+                    offer_rule = 'nonproducer_excess_inventory'
+                    reserved = (3 if g == Goods.wood else 2
+                                if g == Goods.furniture else 0)
+                    offer_units = 0
+                    food_reserve = None
+                else:
+                    offer_rule = ('producer_food_surplus' if g == Goods.food
+                                  else 'producer_inventory')
+                    reserved = 0
+                    offer_units = 0
+                    food_reserve = food_reserve_units(a) if g == Goods.food else None
+                production_event_id = getattr(
+                    getattr(region, '_run_trace', None), '_turn_production_events', {}).get(
+                        (str(a.id), g.name))
+                source_ids = ([production_event_id]
+                              if production_event_id is not None else [])
+                seller_order_event_id = emit(
+                    region, kind='market_seller_order_submitted',
+                    record_class='decision', phase='trade',
+                    subject={'type': 'tile', 'id': region.name,
+                             'good': g.name, 'seller_id': a.id},
+                    metric_id='goods.seller_offer_quantity', unit='units',
+                    after=int(local_ask), confidence='exact',
+                    explanation_status='submitted_offer_inputs_recorded',
+                    cause_event_ids=source_ids or None,
+                    inputs={'seller_id': a.id, 'good': g.name,
+                            'quantity': int(local_ask), 'offer_rule': offer_rule,
+                            'seller_output': getattr(a.output, 'name', str(a.output)),
+                            'inventory_before_order': stock,
+                            'reserved_inventory': reserved,
+                            'food_meal_reserve': food_reserve,
+                            'scenario_offer_units': offer_units,
+                            'reference_price': p,
+                            'reference_limit_price': (max(0.05, p)
+                                                      if a.output != g else None),
+                            'producer_cost_basis': (a.cost_get(g, 0)
+                                                    if a.output == g else None),
+                            'source_stock': ('current_turn_production_plus_carried_stock'
+                                             if a.output == g else
+                                             'nonproducer_carried_or_acquired_stock'),
+                            'current_turn_production_event_id': production_event_id})
+                if seller_order_event_id is not None:
+                    order_source_events[g]['sellers'].append(seller_order_event_id)
+                seller_limit = (calculate_ask_price(
+                    region, a, g, p, offer_quantity=int(local_ask),
+                    cause_event_ids=[seller_order_event_id]
+                    if seller_order_event_id is not None else None)
+                    if a.output == g else max(0.05, p))
                 local_orders[g]['sellers'].append({
                     'agent': a, 'quantity': int(local_ask),
-                    'limit_price': calculate_ask_price(region, a, g, p)
-                    if a.output == g else max(0.05, p),
+                    'limit_price': seller_limit,
+                    'quantity_event_id': seller_order_event_id,
                 })
             setattr(a, f'bid_{g.name}', bid)
             setattr(a, f'ask_{g.name}', ask)
@@ -1226,12 +1364,53 @@ def trade(region, t):
         filtered = filter_chartered_bids(region, good, submitted, t)
         permitted_by_id = {row['agent'].id: int(row['quantity']) for row in filtered}
         quote = max(0.0, float(prices.get(good, 0.0)))
+        active_charters = [charter for charter in getattr(region, 'market_charters', [])
+                           if charter.get('status') == 'active'
+                           and charter.get('good') == getattr(good, 'value', str(good))
+                           and charter.get('start_turn', 0) <= t
+                           < charter.get('expiry_turn', 0)]
+        governing_charter = (sorted(active_charters, key=lambda row: row['id'])[0]
+                             if active_charters else None)
+        final_event_by_buyer = {}
         for row in submitted:
             buyer = row['agent']
             permitted = permitted_by_id.get(buyer.id, 0)
             if permitted < int(row['quantity']):
-                buyer.remainingCash += (int(row['quantity']) - permitted) * quote
+                released_reservation = (int(row['quantity']) - permitted) * quote
+                buyer.remainingCash += released_reservation
                 setattr(buyer, f'bid_{good.name}', permitted)
+                restricted_event_id = emit(
+                    region, kind='market_bid_restricted',
+                    record_class='decision', phase='trade',
+                    subject={'type': 'tile', 'id': region.name,
+                             'good': good.name, 'buyer_id': buyer.id},
+                    metric_id='goods.buyer_bid_quantity', unit='units',
+                    before=int(row['quantity']), after=permitted,
+                    confidence='exact',
+                    explanation_status='charter_restriction_recorded',
+                    cause_event_ids=([row['quantity_event_id']]
+                                     if row.get('quantity_event_id') else None),
+                    inputs={'reason': 'active_market_charter',
+                            'charter_id': (governing_charter.get('id')
+                                           if governing_charter else None),
+                            'charter_type': (governing_charter.get('type')
+                                             if governing_charter else None),
+                            'sponsor_id': (governing_charter.get('sponsor_id')
+                                           if governing_charter else None),
+                            'enforcement': (governing_charter.get('enforcement')
+                                            if governing_charter else None),
+                            'submitted_quantity': int(row['quantity']),
+                            'permitted_quantity': permitted,
+                            'released_cash_reservation': released_reservation,
+                            'reservation_reference_price': quote})
+                final_event_by_buyer[buyer.id] = restricted_event_id
+            else:
+                final_event_by_buyer[buyer.id] = row.get('quantity_event_id')
+        for row in filtered:
+            row['quantity_event_id'] = final_event_by_buyer.get(row['agent'].id)
+        order_source_events[good]['buyers'] = [event_id for event_id in
+                                                final_event_by_buyer.values()
+                                                if event_id is not None]
         local_orders[good]['buyers'] = filtered
         total_bids[good] = sum(int(row['quantity']) for row in filtered)
 
@@ -1245,7 +1424,38 @@ def trade(region, t):
                              if good == Goods.food and getattr(region.gov, 'emergency_food_policy', False)
                              else 0)
         if ta == 0 and imp_total == 0 and tb == 0 and emergency_surplus == 0:
-            price_decay(region, good)
+            market_subject = {'type': 'tile', 'id': region.name, 'good': good.name}
+            demand_event_id = emit(
+                region, kind='market_demand_total', record_class='calculation',
+                subject=market_subject, metric_id='goods.demand', unit='units_offered',
+                after=0, formula_id='market.sum_bids.v1',
+                cause_event_ids=order_source_events[good]['buyers'],
+                inputs={'active_agents': len(agents), 'submitted_order_count': 0,
+                        'bid_quantities': []})
+            supply_event_id = emit(
+                region, kind='market_supply_total', record_class='calculation',
+                subject=market_subject, metric_id='goods.supply', unit='units_offered',
+                after=0, formula_id='market.local_plus_imports.v1',
+                cause_event_ids=order_source_events[good]['sellers'],
+                inputs={'local_asks': 0, 'imported_asks': 0,
+                        'local_offer_count': 0, 'import_lots': []})
+            pressure_event_id = emit(
+                region, kind='market_demand_supply_ratio', record_class='calculation',
+                subject=market_subject, metric_id='goods.demand_ratio', unit='ratio',
+                after=5.0, formula_id='market.demand_supply_ratio.v1',
+                cause_event_ids=[event_id for event_id in
+                                 (demand_event_id, supply_event_id)
+                                 if event_id is not None],
+                inputs={'bids': 0, 'local_asks': 0, 'imported_asks': 0,
+                        'total_asks': 0, 'zero_supply_ratio': 5.0,
+                        'public_food_surplus_available': 0,
+                        'buyer_order_count': 0, 'local_seller_order_count': 0,
+                        'import_lot_count': 0})
+            price_decay(region, good,
+                        cause_event_ids=[event_id for event_id in
+                                         (demand_event_id, supply_event_id,
+                                          pressure_event_id)
+                                         if event_id is not None])
             continue
         price_ta = ta + imp_total
         demand_ratio = 5.0 if price_ta == 0 else tb / price_ta
@@ -1254,14 +1464,44 @@ def trade(region, t):
         region.supply_log[good].append(price_ta)
         from run_trace import emit
         market_subject = {'type': 'tile', 'id': region.name, 'good': good.name}
-        emit(region, kind='market_demand_total', record_class='calculation',
-             subject=market_subject, metric_id='goods.demand', unit='units_offered',
-             after=tb, formula_id='market.sum_bids.v1',
-             inputs={'active_agents': len(agents)})
-        emit(region, kind='market_supply_total', record_class='calculation',
-             subject=market_subject, metric_id='goods.supply', unit='units_offered',
-             after=price_ta, formula_id='market.local_plus_imports.v1',
-             inputs={'local_asks': ta, 'imported_asks': imp_total})
+        demand_event_id = emit(
+            region, kind='market_demand_total', record_class='calculation',
+            subject=market_subject, metric_id='goods.demand', unit='units_offered',
+            after=tb, formula_id='market.sum_bids.v1',
+            cause_event_ids=order_source_events[good]['buyers'],
+            inputs={'active_agents': len(agents),
+                    'submitted_order_count': len(local_orders[good]['buyers']),
+                    'bid_quantities': [
+                        {'buyer_id': row['agent'].id,
+                         'quantity': int(row['quantity'])}
+                        for row in local_orders[good]['buyers']]})
+        supply_event_id = emit(
+            region, kind='market_supply_total', record_class='calculation',
+            subject=market_subject, metric_id='goods.supply', unit='units_offered',
+            after=price_ta, formula_id='market.local_plus_imports.v1',
+            cause_event_ids=order_source_events[good]['sellers'],
+            inputs={'local_asks': ta, 'imported_asks': imp_total,
+                    'local_offer_count': len(local_orders[good]['sellers']),
+                    'import_lots': [
+                        {'trader_id': getattr(item[0], 'id', None),
+                         'quantity': int(item[1]),
+                         'parked': bool(item[2]) if len(item) > 2 else False,
+                         'shipment_id': item[3] if len(item) > 3 else None}
+                        for item in imp_pool]})
+        pressure_event_id = emit(
+            region, kind='market_demand_supply_ratio', record_class='calculation',
+            subject=market_subject, metric_id='goods.demand_ratio', unit='ratio',
+            after=demand_ratio, formula_id='market.demand_supply_ratio.v1',
+            cause_event_ids=[event_id for event_id in
+                             (demand_event_id, supply_event_id)
+                             if event_id is not None],
+            inputs={'bids': tb, 'local_asks': ta,
+                    'imported_asks': imp_total, 'total_asks': price_ta,
+                    'zero_supply_ratio': 5.0,
+                    'public_food_surplus_available': emergency_surplus,
+                    'buyer_order_count': len(local_orders[good]['buyers']),
+                    'local_seller_order_count': len(local_orders[good]['sellers']),
+                    'import_lot_count': len(imp_pool)})
         if max_demand_ratio < demand_ratio and tb > 0:
             max_demand_ratio = demand_ratio
             most_demand_good = good
@@ -1315,10 +1555,13 @@ def trade(region, t):
                           'buyer_id': buyer.id},
                  metric_id='goods.buyer_bid', unit='local_currency_per_unit',
                  after=row['limit_price'], formula_id='market.local_bid.v1',
+                 cause_event_ids=([row['quantity_event_id']]
+                                  if row.get('quantity_event_id') else None),
                  inputs={'reference': ref, 'demand_ratio': demand_ratio,
                          'demand_premium': premium, 'need_premium': need_premium,
                          'input_value_ceiling': input_value_ceiling,
                          'quantity': qty,
+                         'quantity_event_id': row.get('quantity_event_id'),
                          'cash_limit': buyer.cash / qty if qty else 0.0,
                          'trader_net_value': trader_net_value,
                          'trader_tariff_terms': trader_tariff_terms,
@@ -1330,11 +1573,15 @@ def trade(region, t):
             emit(region, kind='market_no_trade', record_class='observation',
                  subject={'type': 'tile', 'id': region.name, 'good': good.name},
                  metric_id='goods.sold', unit='units', after=0,
+                 cause_event_ids=([pressure_event_id]
+                                  if pressure_event_id is not None else None),
                  inputs={'local_asks': ta, 'imported_asks': imp_total,
                          'bids': tb, 'reason': 'no bids or no offers'})
             if good != Goods.food or (ta == 0 and emergency_surplus == 0):
                 update_price_ref(region, good, demand_ratio, local_asks=ta,
-                                 imported_asks=imp_total, bids=tb)
+                                 imported_asks=imp_total, bids=tb,
+                                 cause_event_ids=[pressure_event_id]
+                                 if pressure_event_id is not None else None)
                 continue
             # A cash-poor population can make zero private bids. Public food
             # procurement must still be able to buy locally offered grain.
@@ -1344,7 +1591,9 @@ def trade(region, t):
                 region, good, ref, price_ta, tb, imp_pool, agents, t,
                 local_orders=local_orders[good])
         update_price_ref(region, good, demand_ratio, local_asks=ta,
-                         imported_asks=imp_total, bids=tb)
+                         imported_asks=imp_total, bids=tb,
+                         cause_event_ids=[pressure_event_id]
+                         if pressure_event_id is not None else None)
         price = region._price_ref[good]
         region.sold_log[good].append(total_bought)
         region._trade_prices[good].append(realized)

@@ -560,6 +560,40 @@ class RunTraceTests(unittest.TestCase):
         self.assertIn('market_price_update', kinds)
         self.assertIn('unrest_roll', kinds)
         self.assertTrue(all(row['turn'] == 1 for row in rows))
+        rows_by_id = {row['event_id']: row for row in rows}
+        buyer_orders = [row for row in rows
+                        if row['kind'] == 'market_buyer_order_submitted']
+        seller_orders = [row for row in rows
+                         if row['kind'] == 'market_seller_order_submitted']
+        pressure_rows = [row for row in rows
+                         if row['kind'] == 'market_demand_supply_ratio']
+        market_totals = [row for row in rows
+                         if row['kind'] in ('market_demand_total',
+                                            'market_supply_total',
+                                            'market_demand_supply_ratio')]
+        self.assertTrue(buyer_orders)
+        self.assertTrue(seller_orders)
+        self.assertTrue(pressure_rows)
+        self.assertTrue(all(replay_event(row)['matches'] for row in pressure_rows))
+        self.assertTrue(all(row['formula_replay']['matches']
+                            for row in market_totals))
+        for order in seller_orders + buyer_orders:
+            self.assertEqual(order['confidence'], 'exact')
+        self.assertTrue(any(
+            order['inputs'].get('current_turn_production_event_id') in rows_by_id
+            and order['inputs']['current_turn_production_event_id']
+            in order.get('cause_event_ids', [])
+            for order in seller_orders))
+        self.assertTrue(any(
+            any(rows_by_id.get(event_id, {}).get('kind') == 'market_demand_total'
+                for event_id in row.get('cause_event_ids', []))
+            and any(rows_by_id.get(event_id, {}).get('kind') == 'market_supply_total'
+                    for event_id in row.get('cause_event_ids', []))
+            for row in pressure_rows))
+        self.assertTrue(any(
+            rows_by_id.get(event_id, {}).get('kind') == 'market_demand_supply_ratio'
+            for row in rows if row['kind'] == 'market_price_update'
+            for event_id in row.get('cause_event_ids', [])))
         for _ in range(4):
             server.step()
         self.assertEqual(server.turn, 5)

@@ -150,6 +150,16 @@ def replay_event(row):
             expected = min(expected, i['input_value_ceiling'])
         if i.get('trader_net_value') is not None:
             expected = min(expected, max(0.0, i['trader_net_value']))
+    elif formula == 'market.sum_bids.v1':
+        expected = sum(item['quantity']
+                       for item in row['inputs']['bid_quantities'])
+    elif formula == 'market.local_plus_imports.v1':
+        i = row['inputs']
+        expected = i['local_asks'] + i['imported_asks']
+    elif formula == 'market.demand_supply_ratio.v1':
+        i = row['inputs']
+        expected = (i['zero_supply_ratio'] if i['total_asks'] == 0
+                    else i['bids'] / i['total_asks'])
     elif formula == 'econsim.market_price.v1':
         expected = replay_econsim_market_price(row['inputs'])
     else:

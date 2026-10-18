@@ -16,7 +16,10 @@ METRICS = {
     'goods.production': ('tile/good', 'units_per_turn', 'region_production.produce'),
     'goods.producer_inventory': ('tile/good', 'units', 'micro.region.stepper.log_metrics'),
     'goods.demand': ('tile/good', 'units_offered', 'region_market.trade'),
+    'goods.demand_ratio': ('tile/good', 'ratio', 'region_market.trade order totals'),
     'goods.supply': ('tile/good', 'units_offered', 'region_market.trade'),
+    'goods.buyer_bid_quantity': ('tile/good/buyer', 'units', 'region_market.trade submitted orders; positive bids and charter restrictions'),
+    'goods.seller_offer_quantity': ('tile/good/seller', 'units', 'region_market.trade submitted local offers; positive offers'),
     'goods.sold': ('tile/good', 'units', 'region_market.trade'),
     'goods.food_aid': ('tile/government', 'units', 'government.Government.provide_food_aid'),
     'living.cost_of_living': ('tile', 'local_currency_per_basket', 'micro.region.stepper.step_economy'),
@@ -168,6 +171,7 @@ TRACE_INSTRUMENTED = set(LEGACY_HISTORY_TO_METRIC.values()) | {
     'labor.hungry_adults', 'labor.temporary_work_share',
     'finance.internal_transfer', 'finance.operator_fee', 'labor.subsistence_exit',
     'goods.emergency_levy', 'goods.provincial_relief', 'land.customary_inheritance',
+    'goods.demand_ratio', 'goods.buyer_bid_quantity', 'goods.seller_offer_quantity',
 }
 
 

@@ -30,6 +30,7 @@ class RunTrace:
         self._price_mutations = {}
         self._person_flow_events = {}
         self._previous_person_flow_events = {}
+        self._turn_production_events = {}
         self.path.parent.mkdir(parents=True, exist_ok=True)
         if self.path.exists():
             raise FileExistsError(self.path)
@@ -62,6 +63,7 @@ class RunTrace:
             self._price_mutations.clear()
             self._previous_person_flow_events = self._person_flow_events
             self._person_flow_events = {}
+            self._turn_production_events = {}
         row = {'schema_version': SCHEMA_VERSION, 'run_id': self.run_id,
                'branch_id': self.branch_id, 'event_id': f'{self.run_id}:{sequence}',
                'sequence': sequence, 'turn': clock.get('turn', 0),
@@ -87,7 +89,8 @@ class RunTrace:
         row.update(extra)
         if formula_id is not None and metric_id in (
                 'goods.price', 'goods.seller_ask', 'goods.delivered_quote',
-                'goods.transaction_vwap'):
+                'goods.transaction_vwap', 'goods.demand', 'goods.supply',
+                'goods.demand_ratio'):
             from price_trace import replay_event
             replay = replay_event(row)
             if replay is not None:
@@ -133,6 +136,11 @@ class RunTrace:
             if person_id is not None:
                 self._person_flow_events.setdefault(str(person_id), []).append(
                     row['event_id'])
+        if (self.write_error is None and metric_id == 'goods.production'
+                and row.get('subject', {}).get('type') == 'agent'
+                and row.get('subject', {}).get('good') is not None):
+            key = (str(row['subject'].get('id')), str(row['subject']['good']))
+            self._turn_production_events[key] = row['event_id']
         self.recent.append(row)
         return row['event_id']
 

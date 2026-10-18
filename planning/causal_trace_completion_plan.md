@@ -311,6 +311,24 @@ The run also exposed stale plot initialization for the full Goods enum; price
 histories and chart labels now cover the configured goods, and the purchase
 subplot limits its four panels to its four intended professions.
 
+Phase 2 first slice: live-market positive buyer and seller orders now retain
+the stock, need, cash, recipe, and rule context used to submit them. Producer
+offers link to same-turn production records where available; seller asks link
+to the offer, paid sales link to both submitted sides, and market totals and
+demand/supply ratios replay from their recorded inputs. The price update or
+no-order decay links to that ratio. Charter reductions record submitted and
+permitted quantities and the governing rule. This traces submitted positive
+orders; reasons why agents submitted zero orders and full route/arrival evidence
+for imported lots remain open.
+
+Verification: the focused trace, auction, and route suites passed 43 tests;
+the strengthened live-chain and standalone formula tests passed. Compilation
+and `git diff --check` passed.
+One traced labor-frontier turn wrote 2,426 total events in 125,512 compact
+bytes; 425 were market-chain events. All added cause IDs resolved within the
+run and no recorded formula failed replay. This is an initial scenario sample,
+not the 30/100-turn performance gate.
+
 Phase 0 follow-up, 2026-10-18: demographic deaths now distinguish disease
 presence from disease-attributable mortality. A disease fatality is counted
 only when the actual death draw is above the pre-disease risk and at or below

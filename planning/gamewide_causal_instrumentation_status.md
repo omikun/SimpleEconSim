@@ -27,6 +27,12 @@ the FX matrix has a **Why?** button for each quoted currency pair.
 - Tile market demand, supply, price reference and decay, transport price,
   private/public paid sales, producer inventory, production, nominal GDP,
   population count, and cost of living.
+- Live market order chains record positive buyer quantities with current stock,
+  household or input-need branch, cash availability and recipe context; local
+  seller offers record available stock and reserves. Same-turn production,
+  seller asks, accepted demand/supply totals, replayable market pressure, price
+  updates, and paid sales link through event IDs where those events exist.
+  Charter restrictions retain submitted and permitted quantities.
 - The standalone `econsim.py --trace PATH.ctr` option writes price mutations,
   final snapshots and reconciled per-turn bridges. Its decay and market update
   formulas replay from captured inputs; trace-on/off one-turn checks matched
@@ -123,10 +129,12 @@ Reference snapshots cover priced recipe goods, and the live market, scenario
 quotes, settlements, and optional standalone `econsim.py --trace` run have
 separate price records with replay checks for supported formulas. Remaining
 price work is linking production, inventories, needs, accepted orders, and
-settlements through time without implying a trade caused an earlier quote. The
-main market's `vwap` input is an unweighted recent-sample mean. The web inspector
-can filter a tile and selected good; historical chart points do not yet open
-that inspector directly.
+settlements through time without implying a trade caused an earlier quote.
+Live order records currently cover positive local orders; zero-bid and
+zero-offer reasons and complete imported-shipment route/arrival event links are
+still missing. The main market's `vwap` input is an unweighted recent-sample
+mean. The web inspector can filter a tile and selected good; historical chart
+points do not yet open that inspector directly.
 
 The coverage checker reports a changed snapshot as unexplained when its final
 value does not match a recorded calculation. Per-profession headcount snapshots
