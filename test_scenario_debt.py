@@ -6,7 +6,8 @@ from unittest.mock import patch
 
 from government import Government
 from sovereign_bonds import SovereignBondMarket
-from scenario_debt import initialize, bonds, outstanding, pay, revise, set_collection_assignment
+from scenario_debt import (initialize, bonds, outstanding, pay, revise,
+                           set_collection_assignment, intercept_assigned_revenue)
 
 
 class FakeGovernment:
@@ -21,6 +22,16 @@ class FakeNation:
         self.government = FakeGovernment(cash)
         self.tiles = []
         self.provinces = []
+
+
+class MemoryTrace:
+    def __init__(self):
+        self.rows = []
+
+    def emit(self, clock, **row):
+        sequence = clock['next']
+        clock['next'] += 1
+        self.rows.append({'event_id': f'test:{sequence}', **row})
 
 
 class ScenarioDebtTests(unittest.TestCase):
@@ -49,6 +60,38 @@ class ScenarioDebtTests(unittest.TestCase):
         self.assertEqual(outstanding(self.world), 220.0)
         self.assertEqual(self.world['scenario_state']['payment_window_turn'], 9)
         self.assertEqual([bond.maturity_turn for bond in bonds(self.world)], [21, 21])
+
+    def test_caisse_payment_pairs_treasury_legs_and_uses_currency_fallback(self):
+        trace = MemoryTrace()
+        clock = {'turn': 2, 'phase': 'scenario_debt', 'next': 1}
+        self.britain.tiles = [SimpleNamespace(home_currency='USD')]
+        self.france.tiles = [SimpleNamespace(home_currency='USD')]
+        for nation in (self.egypt, self.britain, self.france):
+            for tile in nation.tiles:
+                tile._run_trace = trace
+                tile._collective_trace_clock = clock
+
+        ok, reason = pay(self.world, 100.0)
+        self.assertTrue(ok, reason)
+        self.world['scenario_state']['creditor_levy_per_turn'] = 100.0
+        intercepted = intercept_assigned_revenue(
+            self.world, self.egypt.government, 'tax', 100.0, turn=2)
+        self.assertAlmostEqual(intercepted, 25.0)
+        flows = [row for row in trace.rows
+                 if row.get('metric_id') == 'finance.treasury_flow']
+        self.assertEqual(len(flows), 8)
+        grouped = {}
+        for row in flows:
+            contract = row['inputs']['transfer_contract']
+            grouped.setdefault(contract['operation_id'], []).append((row, contract))
+        self.assertEqual(len(grouped), 4)
+        for legs in grouped.values():
+            self.assertEqual({contract['side'] for _, contract in legs},
+                             {'payer', 'payee'})
+            self.assertAlmostEqual(sum(row['after'] for row, _ in legs), 0.0)
+            self.assertTrue(all(contract['contract_version'] ==
+                                'treasury_transfer.v1'
+                                for _, contract in legs))
 
     def test_receipts_are_capped_and_final_payment_settles_bonds(self):
         state = self.world['scenario_state']

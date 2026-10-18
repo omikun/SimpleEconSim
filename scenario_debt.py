@@ -69,23 +69,65 @@ def _trace_debt(world, kind, bond=None, *, before=None, after=None,
     if bond is not None and (before is not None or after is not None):
         debtor = _nation(world, bond.issuer_nation)
         if debtor and debtor.tiles:
+            currency = (getattr(debtor, 'currency', None)
+                        or getattr(debtor.tiles[0], 'home_currency', None)
+                        or getattr(bond, 'currency', None) or 'USD')
             emit(debtor.tiles[0], kind=f'caisse_{kind}', record_class='outcome',
                  phase='scenario_debt',
                  subject={'type': 'nation/obligation', 'id': bond.bond_id},
-                 metric_id='finance.obligation_balance', unit=debtor.currency,
+                 metric_id='finance.obligation_balance', unit=currency,
                  before=before, after=after,
                  formula_id='scenario.caisse_principal_change.v1',
                  inputs={'issuer': bond.issuer_nation, 'creditor': bond.holder_nation,
                          'bond_purpose': bond.bond_purpose, **inputs})
     if flow_nation is not None and flow_amount is not None and flow_nation.tiles:
+        from finance_trace import account_ref, transfer_contract
+        currency = (getattr(flow_nation, 'currency', None)
+                    or getattr(flow_nation.tiles[0], 'home_currency', None)
+                    or getattr(bond, 'currency', None) or 'USD')
+        amount_currency = (getattr(bond, 'currency', None) or currency)
+        counterparty_name = inputs.get('counterparty')
+        counterparty = _nation(world, counterparty_name) if counterparty_name else None
+        counterparty_currency = (getattr(counterparty, 'currency', None)
+                                 or amount_currency)
+        local_cash_after = float(flow_nation.government.agent.cash)
+        local_cash_before = local_cash_after - float(flow_amount)
+        local_account = account_ref(
+            'nation_treasury', flow_nation.name, currency,
+            subaccount='government_agent.cash', balance_before=local_cash_before,
+            balance_after=local_cash_after, balance_scope='government_agent.cash')
+        counterparty_account = account_ref(
+            'nation_treasury', counterparty_name, counterparty_currency,
+            subaccount='government_agent.cash',
+            cash_balance_status='captured_in_matching_leg'
+            if counterparty else 'counterparty_not_recorded')
+        if flow_amount < 0:
+            payer_account, payee_account, side = local_account, counterparty_account, 'payer'
+        else:
+            payer_account, payee_account, side = counterparty_account, local_account, 'payee'
+        turn = inputs.get('turn', world.get('turn', 0))
+        operation_id = inputs.get('operation_id') or (
+            f'caisse:{bond.bond_id if bond else kind}:{kind}:{turn}:'
+            f'{inputs.get("amount", abs(flow_amount))}')
+        contract = transfer_contract(
+            operation_id, f'campaign_caisse_{kind}', side=side,
+            amount=inputs.get('amount', abs(flow_amount)),
+            amount_currency=amount_currency, payer_account=payer_account,
+            payee_account=payee_account,
+            local_cash_leg_amount=abs(float(flow_amount)),
+            local_cash_leg_currency=currency,
+            counterparty_leg_status='paired_nation_leg_uses_same_operation_id',
+            mutation_reference={'bond_id': bond.bond_id if bond else None,
+                                'debt_event': kind, 'turn': turn})
         emit(flow_nation.tiles[0], kind=f'caisse_{kind}', record_class='transfer',
              phase='scenario_debt',
              subject={'type': 'nation', 'id': flow_nation.name},
-             metric_id='finance.treasury_flow', unit=flow_nation.currency,
+             metric_id='finance.treasury_flow', unit=currency,
              after=flow_amount,
              inputs={'counterparty': inputs.get('counterparty'),
                      'bond_id': bond.bond_id if bond else None,
-                     'debt_event': kind, **inputs})
+                     'debt_event': kind, **inputs,
+                     'transfer_contract': contract})
 
 
 def revise(world, amount, due_turn=None):
@@ -219,11 +261,15 @@ def pay(world, amount, kind='payment', forgive_remainder=False):
         egypt.government.agent.cash -= share
         creditor.government.agent.cash += share
         bond.principal = round(max(0.0, bond.principal - share), 2)
+        operation_id = (f'caisse:{bond.bond_id}:{kind}:{world.get("turn", 0)}:'
+                        f'{principal_before}:{bond.principal}')
         _trace_debt(world, kind, bond, before=principal_before, after=bond.principal,
                     flow_nation=egypt, flow_amount=-share,
-                    counterparty=creditor.name, amount=share)
+                    counterparty=creditor.name, amount=share,
+                    operation_id=operation_id)
         _trace_debt(world, kind, bond, flow_nation=creditor, flow_amount=share,
-                    counterparty=egypt.name, amount=share)
+                    counterparty=egypt.name, amount=share,
+                    operation_id=operation_id)
         _entry(world, kind, share, creditor=creditor.name, bond_id=bond.bond_id)
         if bond.principal <= 0.01:
             bond.principal = 0.0
@@ -310,13 +356,17 @@ def intercept_assigned_revenue(world, government, source, gross, turn):
         creditor.government.agent.cash += allocation
         bond.principal = round(max(0.0, bond.principal - allocation), 6)
         debtor_nation = _nation(world, bond.issuer_nation)
+        operation_id = (f'caisse:{bond.bond_id}:assigned_revenue:{turn}:'
+                        f'{source}:{principal_before}:{bond.principal}')
         _trace_debt(world, 'assigned_revenue', bond, before=principal_before,
                     after=bond.principal, flow_nation=debtor_nation,
                     flow_amount=-allocation, counterparty=creditor.name,
-                    source=source, amount=allocation, turn=turn)
+                    source=source, amount=allocation, turn=turn,
+                    operation_id=operation_id)
         _trace_debt(world, 'assigned_revenue', bond, flow_nation=creditor,
                     flow_amount=allocation, counterparty=bond.issuer_nation,
-                    source=source, amount=allocation, turn=turn)
+                    source=source, amount=allocation, turn=turn,
+                    operation_id=operation_id)
         _entry(world, 'assigned_revenue', allocation, turn=turn, source=source,
                creditor=creditor.name, bond_id=bond.bond_id)
         if bond.principal <= 0.01:

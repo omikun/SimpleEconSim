@@ -122,7 +122,13 @@ the FX matrix has a **Why?** button for each quoted currency pair.
   record capital changes, affected depositors, freeze state, and funding source.
 - Sovereign bond purchases, proceeds, domestic underwriting, coupons,
   maturities, defaults, and early redemptions record signed nation treasury
-  flows and the bond terms; municipal sewer underwriting records its project.
+  flows and the bond terms. These and campaign Caisse payments use the shared
+  `treasury_transfer.v1` contract, with operation IDs, payer/payee identities,
+  and government cash balances before/after. Cross-currency numeric transfers
+  flag that no conversion took place. Domestic underwriting states when bank
+  cash is not debited. Municipal sewer bond funding records the contractor
+  credit as `finance.cash_creation` and flags its missing source-side cash
+  mutation. Caisse payer and creditor legs pair under one operation ID.
 - Campaign Caisse debt records principal revisions, concessions, defaults,
   creditor collection assignments, payments, and signed Egypt/creditor treasury
   flows for assigned revenue interception.
@@ -168,9 +174,13 @@ The coverage checker reports a changed snapshot as unexplained when its final
 value does not match a recorded calculation. Per-profession headcount snapshots
 are sparse: unchanged counts, including zero categories, are omitted while the
 membership-change calculation records retain before/after counts and agent IDs.
-Treasury snapshots show cash and
-deposit components, but treasury transfers are not yet comprehensively
-instrumented. Several scenario operations still need mutation-point records.
+Treasury snapshots show cash and deposit components. Bond account transfers
+now have operation IDs and balance evidence, but project payroll, carrier fees,
+reserve recalls, central remittances, canal tolls, occupation seizures, tribute,
+tax recovery, grain purchases, subsidies, repression spending, inheritance,
+and many scenario costs still need the shared transfer contract. National
+treasury, bank, household, firm, and goods-by-currency reconciliations remain
+incomplete. Several scenario operations still need mutation-point records.
 Some secondary and elite AI candidate details remain partial. The current metric
 catalog does not yet cover every displayed field;
 `inventory_region_histories()` labels legacy series as instrumented or
@@ -185,3 +195,11 @@ produced the same sampled state SHA-256. This run predates the later treasury
 and ecology probes, so its row count and coverage are a baseline rather than a
 current measurement. A calculation match establishes the displayed value and
 its immediate inputs; it does not by itself establish every upstream cause.
+
+The Phase 3 bond and campaign-debt slice passed 32 bond, banking-contagion,
+campaign-debt, and sewer/ecology tests. Paired foreign purchases and Caisse
+receipts reconciled payer/payee cash balances and zero-sum same-currency
+treasury movement. Municipal sewer funding exposed a recorded contractor cash
+increase without a source-account debit; this remains a traced accounting
+defect or explicit creation rule to resolve, not an inferred conserved
+transfer.

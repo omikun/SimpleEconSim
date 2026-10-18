@@ -423,3 +423,39 @@ checkpoints, 76 national reference-price aggregates, four cost-of-living and
 four legacy food-history aggregates, 1,124 replayable formulas with zero
 mismatches, and zero unresolved cause IDs. This is a compact two-turn audit,
 not the 30/100-turn performance gate.
+
+Phase 3 first slice, 2026-10-18: a shared `treasury_transfer.v1` contract now
+records operation ID/type, side, amount and denomination, payer/payee accounts,
+local cash leg, conversion status, and counterparty-leg coverage. Sovereign bond
+principal purchases, proceeds,
+early redemptions, maturities, and coupons now share a stable operation ID
+across recorded nation treasury legs. Each leg records the payer and payee
+accounts, the changed government-cash balance before and after, local and bond
+currencies, the local-currency leg, and whether currency conversion occurred.
+Mixed-currency operations are flagged because the current settlement code
+moves the same numeric amount without an FX conversion. Coupon records retain
+the gross amount and resident contribution separately from the government's
+remaining cash outflow. Domestic bank underwriting identifies that the current
+simulation adds proceeds to government cash without a recorded bank cash
+debit.
+
+Campaign Caisse payments and assigned-revenue interceptions use the same
+contract, with matching IDs for payer and creditor legs and before/after
+government cash balances. The trace writer tolerates scenario nation objects
+without an explicit currency by using tile, bond, then USD fallback context.
+
+The municipal sewer bond path now records the contractor cash credit as
+`finance.cash_creation`, linked by operation ID to the bond/project. This
+exposes an accounting gap: the simulation increases contractor cash by the bond
+principal but does not mutate or record a funding-source cash account. The
+existing game behavior is unchanged; the trace makes the source-side residual
+reviewable instead of describing the movement as conserved.
+
+Verification: 32 bond-announcement, sovereign-bond, campaign-debt,
+bank-contagion, and sewer/ecology tests passed. Foreign-purchase and Caisse
+fixtures verified paired operation IDs, account balance changes, and zero net
+treasury movement for same-currency flows; a separate fixture confirmed
+unconverted currency mismatch is flagged. The municipal fixture verified the
+cash-creation record and its bond link. Compilation and `git diff --check`
+passed. Other project, tax, subsidy, inheritance, occupation, and cross-system
+transfer paths remain to be audited against the same contract.

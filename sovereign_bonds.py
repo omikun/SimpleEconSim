@@ -15,9 +15,88 @@ import uuid
 import random
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
+from finance_trace import account_ref, transfer_contract
 
 if TYPE_CHECKING:
     from nation import Nation
+
+
+_BOND_OPERATION_TYPES = {
+    'sovereign_bond_purchase': 'principal_issue',
+    'sovereign_bond_proceeds': 'principal_issue',
+    'sovereign_bond_early_redemption': 'early_principal_redemption',
+    'sovereign_bond_redemption_received': 'early_principal_redemption',
+    'sovereign_bond_maturity_paid': 'maturity_principal',
+    'sovereign_bond_maturity_received': 'maturity_principal',
+    'sovereign_bond_coupon_paid': 'coupon_payment',
+    'sovereign_bond_coupon_received': 'coupon_payment',
+    'sovereign_bond_domestic_underwrite': 'domestic_bank_underwrite',
+    'municipal_sewer_bond_underwritten': 'municipal_sewer_underwrite',
+}
+
+
+def _bond_transfer_evidence(nation, kind, t, bond, treasury_delta, inputs):
+    """Describe the cash leg without implying an unrecorded counterparty leg."""
+    operation_type = _BOND_OPERATION_TYPES.get(kind, kind)
+    operation_turn = t if operation_type == 'coupon_payment' else 'principal'
+    operation_id = f'bond:{bond.bond_id}:{operation_type}:{operation_turn}'
+    counterparty = inputs.get('counterparty')
+    local_currency = getattr(nation, 'currency', None)
+    bond_currency = getattr(bond, 'currency', None) or local_currency or 'USD'
+    local_cash_after = float(nation.government.agent.cash)
+    local_cash_before = local_cash_after - float(treasury_delta)
+    local_account = account_ref(
+        'nation_treasury', nation.name, local_currency,
+        subaccount='government_agent.cash', balance_before=local_cash_before,
+        balance_after=local_cash_after, balance_scope='government_agent.cash')
+    if counterparty == 'Domestic Commercial Banks':
+        counterparty_account = account_ref(
+            'domestic_bank_portfolio', nation.name, bond_currency,
+            cash_balance_status='not_captured')
+    else:
+        counterparty_account = account_ref(
+            'nation_treasury', counterparty, bond_currency,
+            subaccount='government_agent.cash',
+            cash_balance_status='captured_in_matching_leg'
+            if counterparty else 'counterparty_not_recorded')
+    if treasury_delta < 0:
+        payer_account, payee_account, side = local_account, counterparty_account, 'payer'
+    else:
+        payer_account, payee_account, side = counterparty_account, local_account, 'payee'
+
+    gross_amount = float(inputs.get('coupon_total', abs(treasury_delta)))
+    if operation_type in ('domestic_bank_underwrite', 'municipal_sewer_underwrite'):
+        gross_amount = float(inputs.get('funding_amount', bond.principal))
+    if operation_type == 'coupon_payment' and inputs.get('coupon_total') is not None:
+        gross_amount = float(inputs['coupon_total'])
+    funding_components = None
+    if operation_type == 'coupon_payment':
+        resident_amount = float(inputs.get('resident_contributions', 0.0))
+        funding_components = [
+            {'account_type': 'nation_treasury',
+             'amount': abs(float(treasury_delta)) if side == 'payer'
+             else max(0.0, gross_amount - resident_amount),
+             'currency': local_currency},
+            {'account_type': 'resident_households',
+             'amount': resident_amount, 'currency': bond_currency,
+             'balance_status': 'aggregate_contribution_only'}]
+    cash_creation_rule = None
+    if operation_type == 'domestic_bank_underwrite':
+        cash_creation_rule = 'simulation_adds_principal_to_nation_cash_without_bank_cash_debit'
+    return transfer_contract(
+        operation_id, operation_type, side=side, amount=gross_amount,
+        amount_currency=bond_currency, payer_account=payer_account,
+        payee_account=payee_account,
+        local_cash_leg_amount=abs(float(treasury_delta)),
+        local_cash_leg_currency=local_currency,
+        counterparty_leg_status=(
+            'bank_cash_debit_not_modelled'
+            if counterparty == 'Domestic Commercial Banks'
+            else 'paired_nation_leg_uses_same_operation_id'),
+        funding_components=funding_components,
+        cash_creation_rule=cash_creation_rule,
+        mutation_reference={'bond_id': bond.bond_id, 'event_kind': kind,
+                            'turn': t})
 
 
 def _trace_bond(nation, kind, t, bond, *, treasury_delta=None, **inputs):
@@ -29,7 +108,13 @@ def _trace_bond(nation, kind, t, bond, *, treasury_delta=None, **inputs):
     data = {'bond_id': bond.bond_id, 'issuer': bond.issuer_nation,
             'holder': bond.holder_nation, 'principal': bond.principal,
             'coupon_rate': bond.coupon_rate, 'maturity_turn': bond.maturity_turn,
-            'status': bond.status, 'purpose': bond.bond_purpose}
+            'status': bond.status, 'purpose': bond.bond_purpose,
+            'currency': getattr(bond, 'currency', None)}
+    if treasury_delta is not None:
+        transfer = _bond_transfer_evidence(nation, kind, t, bond,
+                                           treasury_delta, inputs)
+        data.update({'operation_id': transfer['operation_id'],
+                     'operation_type': transfer['operation_type']})
     data.update(inputs)
     emit(tiles[0], kind=kind, record_class='transfer' if treasury_delta is not None else 'outcome',
          phase='finance', subject={'type': 'nation', 'id': nation.name},
@@ -44,7 +129,8 @@ def _trace_bond(nation, kind, t, bond, *, treasury_delta=None, **inputs):
              inputs={'bond_id': bond.bond_id, 'bond_event': kind,
                      'counterparty': bond.holder_nation if nation.name == bond.issuer_nation
                      else bond.issuer_nation, 'principal': bond.principal,
-                     'purpose': bond.bond_purpose, **inputs})
+                     'purpose': bond.bond_purpose, **inputs,
+                     'transfer_contract': transfer})
 
 # Standardized Credit Rating Tiers and Base Per-Turn Yield Rates (aligned with in-game bank loan rate ~0.10%/turn)
 RATING_TIERS = ["AAA", "AA", "A", "BBB", "BB", "B", "CCC"]
@@ -98,6 +184,7 @@ class SovereignBond:
     status: str = "active"    # 'active' | 'matured' | 'defaulted' | 'redeemed'
     bond_purpose: str = "sovereign" # 'sovereign' | 'municipal_sewer'
     target_tile_name: str = ""
+    currency: str = "USD"
 
     @property
     def per_turn_coupon(self) -> float:
@@ -294,7 +381,8 @@ class SovereignBondMarket:
             duration_turns=duration_turns,
             issued_turn=t,
             maturity_turn=t + duration_turns,
-            status="active"
+            status="active",
+            currency=getattr(issuer_nation, 'currency', 'USD')
         )
         self.bonds.append(bond)
         return bond
@@ -331,7 +419,8 @@ class SovereignBondMarket:
             duration_turns=offering.duration_turns,
             issued_turn=t,
             maturity_turn=t + offering.duration_turns,
-            status="active"
+            status="active",
+            currency=offering.currency
         )
         self.bonds.append(bond)
         offering.status = "filled"
@@ -382,7 +471,8 @@ class SovereignBondMarket:
             duration_turns=duration_turns,
             issued_turn=t,
             maturity_turn=t + duration_turns,
-            status="active"
+            status="active",
+            currency=getattr(issuer, 'currency', 'USD')
         )
         self.bonds.append(bond)
         if holder:
@@ -453,8 +543,10 @@ class SovereignBondMarket:
         if hasattr(issuer, 'construction_projects') and proj not in issuer.construction_projects:
             issuer.construction_projects.append(proj)
 
-        # 2. Fund contractor from underwritten bond capital (strictly conserved money)
+        # 2. Credit the contractor; the source side has no cash debit in this model.
+        contractor_cash_before = float(contractor.cash)
         contractor.cash += principal
+        contractor_cash_after = float(contractor.cash)
         proj.emergency_subsidies_received = getattr(proj, 'emergency_subsidies_received', 0.0) + principal
 
         # 3. Create Bond instance held by Domestic Commercial Banks
@@ -470,10 +562,32 @@ class SovereignBondMarket:
             maturity_turn=t + duration_turns,
             status="active",
             bond_purpose="municipal_sewer",
-            target_tile_name=tile.name
+            target_tile_name=tile.name,
+            currency=getattr(issuer, 'currency', 'USD')
         )
         self.bonds.append(bond)
+        operation_id = f'bond:{bond_id}:municipal_sewer_underwrite:principal'
+        from run_trace import emit
+        emit(tile, kind='municipal_sewer_underwriting_credit_created',
+             record_class='outcome', phase='finance',
+             subject={'type': 'construction_project', 'id': proj.project_id},
+             metric_id='finance.cash_creation', unit=bond.currency,
+             after=principal,
+             inputs={'operation_id': operation_id,
+                     'bond_id': bond_id,
+                     'funding_source': 'domestic_bank_underwriting',
+                     'funding_source_balance_status': 'no_cash_debit_modelled',
+                     'recipient_account': {
+                         'type': 'contractor',
+                         'id': getattr(contractor, 'id', None),
+                         'balance_before': contractor_cash_before,
+                         'balance_after': contractor_cash_after,
+                         'currency': bond.currency},
+                     'project_id': proj.project_id,
+                     'target_tile': tile.name,
+                     'reconciliation_status': 'cash_credit_without_recorded_source_debit'})
         _trace_bond(issuer, 'municipal_sewer_bond_underwritten', t, bond,
+                    operation_id=operation_id,
                     contractor_id=getattr(contractor, 'id', None),
                     target_tile=tile.name, project_id=proj.project_id,
                     funding_amount=principal)
@@ -548,7 +662,8 @@ class SovereignBondMarket:
                         duration_turns=offering.duration_turns,
                         issued_turn=t,
                         maturity_turn=t + offering.duration_turns,
-                        status="active"
+                        status="active",
+                        currency=offering.currency
                     )
                     self.bonds.append(bond)
                     offering.status = "filled"
@@ -690,7 +805,9 @@ class SovereignBondMarket:
                                 counterparty=bond.holder_nation)
                     if holder:
                         _trace_bond(holder, 'sovereign_bond_coupon_received', t, bond,
-                                    treasury_delta=coupon, counterparty=issuer.name)
+                                    treasury_delta=coupon, counterparty=issuer.name,
+                                    coupon_total=coupon,
+                                    resident_contributions=funds_collected)
                 else:
                     # Default on Coupon
                     bond.status = "defaulted"

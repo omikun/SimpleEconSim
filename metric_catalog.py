@@ -70,6 +70,7 @@ METRICS = {
     'finance.treasury': ('nation', 'local_currency', 'nation.Nation.treasury'),
     'finance.sovereign_bond': ('nation', 'local_currency', 'sovereign_bonds.SovereignBondMarket'),
     'finance.treasury_flow': ('nation', 'signed_local_currency', 'sovereign_bonds.SovereignBondMarket and treasury operations'),
+    'finance.cash_creation': ('project/contractor', 'local_currency', 'sovereign_bonds.SovereignBondMarket municipal sewer credit; source debit not modelled'),
     'finance.internal_transfer': ('nation/tile', 'local_currency', 'food_security.enact_nation_food_response'),
     'finance.operator_fee': ('tile/agent', 'local_currency', 'economy.capitalist_planner.EliteCapitalistPlanner'),
     'labor.subsistence_exit': ('tile/agent', 'worker', 'economy.labor_mobility.LaborMobilityScheduler'),
@@ -165,7 +166,8 @@ LEGACY_HISTORY_TO_METRIC = {
 TRACE_INSTRUMENTED = set(LEGACY_HISTORY_TO_METRIC.values()) | {
     'fx.bilateral_mid', 'politics.legitimacy', 'people.births', 'people.residents',
     'people.profession_population',
-    'finance.sovereign_bond', 'finance.treasury_flow', 'people.deaths',
+    'finance.sovereign_bond', 'finance.treasury_flow', 'finance.cash_creation',
+    'people.deaths',
     'people.role',
     'health.trade_contagion', 'health.trade_infection',
     'goods.food_aid', 'people.food_security', 'labor.occupation_change',

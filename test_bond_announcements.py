@@ -17,6 +17,17 @@ from intents import IssueSovereignBondIntent, BuyForeignBondIntent
 from diplomacy import get_diplomacy
 
 
+class MemoryTrace:
+    def __init__(self):
+        self.rows = []
+
+    def emit(self, clock, **row):
+        sequence = clock['next']
+        clock['next'] += 1
+        self.rows.append({'event_id': f'test:{sequence}', **row})
+        return self.rows[-1]['event_id']
+
+
 class TestBondAnnouncements(unittest.TestCase):
 
     def setUp(self):
@@ -24,6 +35,9 @@ class TestBondAnnouncements(unittest.TestCase):
         pygame.font.init()
 
     def tearDown(self):
+        market = get_bond_market()
+        market.offerings.clear()
+        market.bonds.clear()
         pygame.quit()
 
     def test_1_turn_announcement_lifecycle(self):
@@ -91,6 +105,119 @@ class TestBondAnnouncements(unittest.TestCase):
         self.assertAlmostEqual(player_nation.government.agent.cash - player_init_cash, 500.0 - coupon, places=2)
         self.assertEqual(held_by_ai[0].issuer_nation, player_nation.name)
         self.assertEqual(held_by_ai[0].holder_nation, ai_nation.name)
+
+    def test_foreign_bond_cash_legs_share_an_auditable_operation(self):
+        world = build_world_view(seed=42)
+        issuer, buyer = world['nations'][0], world['nations'][1]
+        market = get_bond_market()
+        market.offerings.clear()
+        market.bonds.clear()
+        trace = MemoryTrace()
+        clock = {'turn': 2, 'phase': 'finance', 'next': 1}
+        for nation in world['nations']:
+            for tile in nation.tiles:
+                tile._run_trace = trace
+                tile._collective_trace_clock = clock
+
+        buyer.government.agent.cash = 2500.0
+        buyer_before = buyer.government.agent.cash
+        issuer_before = issuer.government.agent.cash
+        ok, _, offering = market.announce_bond_offering(
+            issuer, principal=500.0, duration_turns=20, t=1, world=world)
+        self.assertTrue(ok)
+        offering.status = 'live'
+        ok, _, bond = market.purchase_live_offering(
+            buyer, offering.offering_id, world, t=2)
+        self.assertTrue(ok)
+
+        flows = [row for row in trace.rows
+                 if row.get('metric_id') == 'finance.treasury_flow']
+        self.assertEqual(len(flows), 2)
+        contracts = [row['inputs']['transfer_contract'] for row in flows]
+        self.assertEqual({contract['operation_id'] for contract in contracts},
+                         {f'bond:{bond.bond_id}:principal_issue:principal'})
+        by_side = {contract['side']: contract for contract in contracts}
+        self.assertEqual(set(by_side), {'payer', 'payee'})
+        self.assertEqual(by_side['payer']['payer_account']['id'], buyer.name)
+        self.assertEqual(by_side['payee']['payee_account']['id'], issuer.name)
+        self.assertAlmostEqual(by_side['payer']['payer_account']['balance_before'],
+                               buyer_before)
+        self.assertAlmostEqual(by_side['payer']['payer_account']['balance_after'],
+                               buyer_before - 500.0)
+        self.assertAlmostEqual(by_side['payee']['payee_account']['balance_before'],
+                               issuer_before)
+        self.assertAlmostEqual(by_side['payee']['payee_account']['balance_after'],
+                               issuer_before + 500.0)
+        self.assertAlmostEqual(sum(row['after'] for row in flows), 0.0)
+
+        market.step(world, t=3)
+        coupon_flows = [row for row in trace.rows
+                        if row.get('metric_id') == 'finance.treasury_flow'
+                        and row.get('kind') in (
+                            'sovereign_bond_coupon_paid',
+                            'sovereign_bond_coupon_received')]
+        self.assertEqual(len(coupon_flows), 2)
+        coupon_contracts = [row['inputs']['transfer_contract']
+                            for row in coupon_flows]
+        self.assertEqual(len({row['operation_id'] for row in coupon_contracts}), 1)
+        self.assertTrue(all(row['funding_components'] for row in coupon_contracts))
+
+    def test_municipal_sewer_bond_names_unmatched_credit_source(self):
+        world = build_world_view(seed=42)
+        issuer = world['nations'][0]
+        tile = issuer.tiles[0]
+        market = get_bond_market()
+        market.offerings.clear()
+        market.bonds.clear()
+        trace = MemoryTrace()
+        clock = {'turn': 1, 'phase': 'finance', 'next': 1}
+        tile._run_trace = trace
+        tile._collective_trace_clock = clock
+
+        ok, _, bond = market.issue_municipal_sewer_bond(issuer, tile, t=1,
+                                                        world=world)
+        self.assertTrue(ok)
+        creation = next(row for row in trace.rows
+                        if row.get('metric_id') == 'finance.cash_creation')
+        bond_record = next(row for row in trace.rows
+                           if row.get('kind') == 'municipal_sewer_bond_underwritten')
+        self.assertEqual(creation['after'], bond.principal)
+        self.assertEqual(creation['inputs']['bond_id'], bond.bond_id)
+        self.assertEqual(creation['inputs']['reconciliation_status'],
+                         'cash_credit_without_recorded_source_debit')
+        self.assertEqual(creation['inputs']['operation_id'],
+                         bond_record['inputs']['operation_id'])
+
+    def test_unconverted_cross_currency_bond_leg_is_flagged(self):
+        world = build_world_view(seed=42)
+        issuer, buyer = world['nations'][0], world['nations'][1]
+        issuer.currency = 'USD'
+        buyer.currency = 'GBP'
+        market = get_bond_market()
+        market.offerings.clear()
+        market.bonds.clear()
+        trace = MemoryTrace()
+        clock = {'turn': 2, 'phase': 'finance', 'next': 1}
+        for nation in world['nations']:
+            for tile in nation.tiles:
+                tile._run_trace = trace
+                tile._collective_trace_clock = clock
+        buyer.government.agent.cash = 2500.0
+        ok, _, offering = market.announce_bond_offering(
+            issuer, principal=500.0, duration_turns=20, t=1, world=world)
+        self.assertTrue(ok)
+        offering.status = 'live'
+        ok, _, _ = market.purchase_live_offering(
+            buyer, offering.offering_id, world, t=2)
+        self.assertTrue(ok)
+        payer_flow = next(row for row in trace.rows
+                          if row.get('metric_id') == 'finance.treasury_flow'
+                          and row['inputs']['transfer_contract']['side'] == 'payer')
+        contract = payer_flow['inputs']['transfer_contract']
+        self.assertEqual(contract['local_cash_leg_currency'], 'GBP')
+        self.assertEqual(contract['amount_currency'], 'USD')
+        self.assertTrue(contract['unconverted_currency_mismatch'])
+        self.assertFalse(contract['currency_conversion_applied'])
 
     def test_ai_refuses_to_buy_hostile_bonds(self):
         """Verify AI will NOT buy bonds from hostile rivals or during war."""
