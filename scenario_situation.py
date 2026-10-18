@@ -58,6 +58,29 @@ def _egypt(world: dict):
                  if nation.name == world.get('player_nation_name')), None)
 
 
+def _trace_region(world: dict):
+    return next((tile for tile in world.get('tiles', [])
+                 if (getattr(tile, '_run_trace', None) is not None
+                     and getattr(tile, '_collective_trace_clock', None) is not None)), None)
+
+
+def _emit_situation_trace(world: dict, **event):
+    region = _trace_region(world)
+    if region is None:
+        return None
+    from run_trace import emit
+    return emit(region, **event)
+
+
+def _situation_operation_id(world: dict, source: str) -> str | None:
+    region = _trace_region(world)
+    if region is None:
+        return None
+    safe_source = str(source).replace(' ', '_')
+    return (f'creditor-effect:{safe_source}:{int(world.get("turn", 0))}:'
+            f'{int(region._collective_trace_clock.get("next", 0))}')
+
+
 def queue_creditor_reaction(world: dict, action_id: str) -> None:
     branch = situation_template()['branches'].get(action_id)
     if branch is None:
@@ -70,25 +93,186 @@ def queue_creditor_reaction(world: dict, action_id: str) -> None:
     })
 
 
-def _pay_creditors(world: dict, amount: float) -> None:
+def _pay_creditors(world: dict, amount: float) -> list[dict]:
     creditors = [n for n in world.get('nations', []) if n.name in ('Britain', 'France')]
+    payments = []
     if creditors:
         for creditor in creditors:
-            creditor.government.agent.cash += amount / len(creditors)
+            recipient = creditor.government.agent
+            cash_before = float(recipient.cash)
+            share = amount / len(creditors)
+            recipient.cash += share
+            payments.append({'nation': creditor, 'amount': float(share),
+                             'cash_before': cash_before,
+                             'cash_after': float(recipient.cash)})
+    return payments
 
 
-def apply_effects(world: dict, effects: dict) -> tuple[bool, str]:
+def _effect_state(nation, state: dict) -> dict:
+    return {
+        'creditor_confidence': float(state.get('creditor_confidence', 0.0)),
+        'fiscal_autonomy': float(state.get('fiscal_autonomy', 0.0)),
+        'legitimacy': float(getattr(nation, 'legitimacy', 0.0)),
+        'payment_status': state.get('payment_status'),
+        'scheduled_remittance': float(state.get('scheduled_remittance', 0.0)),
+        'deferral_count': int(state.get('deferral_count', 0)),
+        'palace_authority': (float(state['politics'].get('palace_authority', 0.0))
+                             if state.get('politics') else None),
+        'food_export_fraction_by_tile': {
+            tile.name: float(getattr(tile, 'food_export_fraction', 1.0))
+            for tile in getattr(nation, 'tiles', [])},
+    }
+
+
+def _trace_creditor_payment(world: dict, nation, source: str, operation_id,
+                            amount: float, cash_before: float, cash_after: float,
+                            payments: list[dict], cause_event_ids=None) -> list[str]:
+    region = _trace_region(world)
+    if region is None:
+        return []
+    from finance_trace import account_ref, emit_treasury_leg, transfer_contract
+    payer_currency = (getattr(nation, 'currency', None)
+                      or getattr(region, 'home_currency', None)
+                      or 'local_currency')
+    payee_names = [row['nation'].name for row in payments]
+    payee_pool = account_ref(
+        'creditor_government_pool' if payments else 'uncredited_creditor_payment',
+        ','.join(payee_names) if payee_names else 'no_eligible_creditor',
+        payer_currency,
+        balance_scope='split_receipts' if payments else 'missing_payee',
+        balance_status='see_individual_recipient_legs' if payments else
+        'treasury_cash_debited_without_creditor_receipt')
+    operation_id = operation_id or f'creditor-effect:{source}:{int(world.get("turn", 0))}'
+    payer_contract = transfer_contract(
+        operation_id, 'creditor_situation_treasury_cost', side='payer',
+        amount=amount, amount_currency=payer_currency,
+        payer_account=account_ref(
+            'government_treasury', str(nation.government.agent.id), payer_currency,
+            balance_before=cash_before, balance_after=cash_after,
+            balance_scope='government_agent.cash', nation_id=nation.name),
+        payee_account=payee_pool,
+        local_cash_leg_amount=amount, local_cash_leg_currency=payer_currency,
+        counterparty_leg_status=('split_creditor_receipts_recorded' if payments else
+                                 'treasury_debit_only_no_eligible_creditor'),
+        source=source, recipient_count=len(payments))
+    payer_event_id = emit_treasury_leg(
+        region,
+        kind=('creditor_situation_treasury_cost' if payments else
+              'creditor_situation_cost_without_recipient'),
+        nation_name=nation.name, currency=payer_currency,
+        signed_amount=-amount, contract=payer_contract,
+        phase='creditor_reaction',
+        inputs={'operation_id': operation_id, 'source': source,
+                'treasury_cash_before': cash_before,
+                'treasury_cash_after': cash_after,
+                'creditor_names': payee_names,
+                'recipient_count': len(payments),
+                'recipient_amounts': [row['amount'] for row in payments]},
+        cause_event_ids=cause_event_ids)
+    event_ids = [payer_event_id] if payer_event_id is not None else []
+    for payment in payments:
+        creditor = payment['nation']
+        creditor_currency = (getattr(creditor, 'currency', None)
+                             or payer_currency)
+        share = float(payment['amount'])
+        contract = transfer_contract(
+            operation_id, 'creditor_situation_treasury_cost', side='recipient',
+            amount=share, amount_currency=payer_currency,
+            payer_account=account_ref(
+                'government_treasury', str(nation.government.agent.id), payer_currency,
+                nation_id=nation.name, balance_scope='aggregate_source_debit',
+                balance_status='captured_on_payer_leg'),
+            payee_account=account_ref(
+                'government_treasury', str(creditor.government.agent.id),
+                creditor_currency, balance_before=payment['cash_before'],
+                balance_after=payment['cash_after'],
+                balance_scope='government_agent.cash', nation_id=creditor.name),
+            local_cash_leg_amount=share,
+            local_cash_leg_currency=creditor_currency,
+            currency_conversion_applied=False,
+            counterparty_leg_status='paired_to_aggregate_source_debit',
+            source=source, aggregate_source_amount=amount)
+        receipt_event_id = emit_treasury_leg(
+            region, kind='creditor_situation_payment_receipt',
+            nation_name=creditor.name, currency=creditor_currency,
+            signed_amount=share, contract=contract,
+            phase='creditor_reaction',
+            inputs={'operation_id': operation_id, 'source': source,
+                    'payer_nation': nation.name, 'recipient_share': share,
+                    'recipient_cash_before': payment['cash_before'],
+                    'recipient_cash_after': payment['cash_after']},
+            cause_event_ids=[payer_event_id] if payer_event_id is not None else None)
+        if receipt_event_id is not None:
+            event_ids.append(receipt_event_id)
+    return event_ids
+
+
+def apply_effects(world: dict, effects: dict, *, source: str = 'direct') -> tuple[bool, str]:
     """Apply only the bounded effects supported by situation template v1."""
+    operation_id = _situation_operation_id(world, source)
     nation = _egypt(world)
     if nation is None:
-        return False, 'The Egyptian administration is unavailable.'
+        message = 'The Egyptian administration is unavailable.'
+        _emit_situation_trace(
+            world, kind='creditor_effect_application', record_class='outcome',
+            phase='creditor_reaction',
+            subject={'type': 'scenario/nation',
+                     'id': world.get('player_nation_name', 'Egypt')},
+            metric_id='scenario.creditor_effects',
+            inputs={'operation_id': operation_id, 'source': source,
+                    'success': False, 'reason': 'player_nation_unavailable',
+                    'effects_requested': dict(effects), 'effects_applied': []})
+        return False, message
     state = world.get('scenario_state', {})
     cost = float(effects.get('treasury_cost', 0.0))
-    if cost > nation.government.agent.cash:
-        return False, f'The treasury needs {cost:,.0f} units for this response.'
+    treasury_before = float(nation.government.agent.cash)
+    cause_ids = []
+    funding_event_id = None
+    if cost > 0.0:
+        funding_event_id = _emit_situation_trace(
+            world, kind='creditor_effect_funding_decision', record_class='decision',
+            phase='creditor_reaction',
+            subject={'type': 'scenario/nation', 'id': nation.name},
+            metric_id='scenario.creditor_response_funding',
+            inputs={'operation_id': operation_id, 'source': source,
+                    'treasury_cash_available': treasury_before,
+                    'required_cash': cost,
+                    'cash_shortfall': max(0.0, cost - treasury_before),
+                    'affordable': treasury_before >= cost,
+                    'decision': ('apply_response' if treasury_before >= cost
+                                 else 'reject_response'),
+                    'reason': ('treasury_funds_response' if treasury_before >= cost
+                               else 'treasury_cash_below_response_cost')})
+        if funding_event_id is not None:
+            cause_ids.append(funding_event_id)
+    if cost > treasury_before:
+        message = f'The treasury needs {cost:,.0f} units for this response.'
+        _emit_situation_trace(
+            world, kind='creditor_effect_application', record_class='outcome',
+            phase='creditor_reaction',
+            subject={'type': 'scenario/nation', 'id': nation.name},
+            metric_id='scenario.creditor_effects', before=treasury_before,
+            after=treasury_before,
+            inputs={'operation_id': operation_id, 'source': source,
+                    'success': False, 'reason': 'insufficient_treasury_cash',
+                    'treasury_cost_requested': cost,
+                    'effects_requested': dict(effects), 'effects_applied': [],
+                    'funding_decision_event_id': funding_event_id},
+            cause_event_ids=cause_ids or None)
+        return False, message
+
+    before_state = _effect_state(nation, state)
+    payment_event_ids = []
     if cost:
+        treasury_cash_before = float(nation.government.agent.cash)
         nation.government.agent.cash -= cost
-        _pay_creditors(world, cost)
+        creditor_payments = _pay_creditors(world, cost)
+        treasury_cash_after = float(nation.government.agent.cash)
+        payment_event_ids = _trace_creditor_payment(
+            world, nation, source, operation_id, cost,
+            treasury_cash_before, treasury_cash_after, creditor_payments,
+            cause_event_ids=cause_ids or None)
+        cause_ids.extend(payment_event_ids)
     for field, delta in (('creditor_confidence', effects.get('confidence_delta', 0.0)),
                          ('fiscal_autonomy', effects.get('autonomy_delta', 0.0))):
         state[field] = max(0.0, min(1.0, float(state.get(field, 0.0)) + float(delta)))
@@ -117,6 +301,25 @@ def apply_effects(world: dict, effects: dict) -> tuple[bool, str]:
     if 'levy_per_turn' in effects:
         from scenario_debt import set_collection_assignment
         set_collection_assignment(world, effects['levy_per_turn'], origin='caisse_consent')
+    after_state = _effect_state(nation, state)
+    _emit_situation_trace(
+        world, kind='creditor_effect_application', record_class='outcome',
+        phase='creditor_reaction',
+        subject={'type': 'scenario/nation', 'id': nation.name},
+        metric_id='scenario.creditor_effects', before=treasury_before,
+        after=float(nation.government.agent.cash),
+        unit=getattr(nation, 'currency', None) or 'local_currency',
+        inputs={'operation_id': operation_id, 'source': source,
+                'success': True, 'reason': 'effects_applied',
+                'treasury_cost_requested': cost,
+                'treasury_cash_before': treasury_before,
+                'treasury_cash_after': float(nation.government.agent.cash),
+                'effects_requested': dict(effects),
+                'effects_applied': sorted(effects),
+                'state_before': before_state, 'state_after': after_state,
+                'funding_decision_event_id': funding_event_id,
+                'payment_event_ids': payment_event_ids},
+        cause_event_ids=cause_ids or None)
     return True, ''
 
 
@@ -129,7 +332,9 @@ def advance_creditor_reactions(world: dict, turn: int, ticker_push) -> None:
         if pending.get('status') != 'pending' or int(pending['due_turn']) > turn:
             continue
         reaction = situation_template()['branches'][pending['action_id']]['reaction']
-        ok, message = apply_effects(world, reaction.get('effects', {}))
+        ok, message = apply_effects(
+            world, reaction.get('effects', {}),
+            source=f"reaction:{pending['action_id']}")
         if not ok:
             state['creditor_feedback'] = message
             continue
@@ -191,7 +396,8 @@ def resolve_creditor_response(world: dict, response_id: str) -> tuple[bool, str]
         return False, f'The treasury needs {float(response.get("requires_cash", 0.0)):,.0f} units for this response.'
     from scenario_status import snapshot, record_change
     before = snapshot(world)
-    ok, message = apply_effects(world, response.get('effects', {}))
+    ok, message = apply_effects(
+        world, response.get('effects', {}), source=f'response:{response_id}')
     if not ok:
         return False, message
     record_change(world, response_id, before, snapshot(world))

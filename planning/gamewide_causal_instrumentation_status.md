@@ -591,3 +591,25 @@ Compilation and `git diff --check` passed. Code search found no separate
 recurring police payroll or maintenance transfer behind the police-capacity
 fields; that recurring cost is a missing mechanic, while other military costs,
 household aid, imperial claims, and scenario transfers remain open.
+
+The core army cash and food mutation audit found no additional untraced
+military upkeep path: `pay_and_feed` wages and ration drawdown plus
+`_procure_rations` seller payments and food receipts are already instrumented.
+`recruit_unit` changes labor assignment and unit state without charging cash or
+goods. Naval crisis, campaign recruitment, and other scenario-specific force
+costs remain in the scenario audit.
+
+Creditor situation effects now record the treasury affordability decision,
+Egypt's exact cash debit, each Britain/France receipt, and the applied policy
+effects and resulting scenario-state changes. All legs share an operation ID;
+recipient contracts expose the existing no-FX numeric transfer when currencies
+differ. A response that is unaffordable records no transfer. If no eligible
+creditor exists, the existing Egypt debit remains unchanged but is explicitly
+recorded as having no receipt leg.
+
+Verification: three focused situation-transfer fixtures plus twelve
+supporting scenario-politics, occupation-settlement, occupation-transfer, and
+fiscal-project creditor-reply tests passed (15 total), including trace-on/off
+parity. Compilation and `git diff --check` passed. Other scenario actions, household
+support channels, imperial claim paths, and cross-system reconciliations remain
+open.

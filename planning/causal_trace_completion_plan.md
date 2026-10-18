@@ -962,3 +962,25 @@ mechanic is distinct from tracing implemented transfers.
 Verification: four dedicated trace fixtures, six existing multi-turn
 enclosure tests, three commons-patrol tests, and four labor-enforcement tests
 passed (17 total). Compilation and `git diff --check` passed.
+
+Phase 3 follow-up, 2026-10-18: bounded creditor-situation treasury costs now
+record the affordability decision, Egypt's source debit, and each Britain or
+France receipt with exact government-cash balances. Shared operation IDs link
+the split receipts to the payer leg and final effect outcome. When currencies
+differ, the contract explicitly flags the existing numeric transfer as
+unconverted. Rejections record required cash and the shortfall without a
+payment. If no eligible creditor is present, the current payer-only cash
+removal is traced with its missing receipt status rather than a fabricated
+counterparty. The effect outcome records the applied response fields and
+measured state before and after.
+
+The core army mutation audit confirmed that soldier wages, ration consumption,
+and scenario ration procurement are covered by the existing military upkeep
+trace. Core recruitment creates unit and labor-status changes without a cash
+or goods purchase; other campaign force costs remain to audit.
+
+Verification: three dedicated creditor-response fixtures plus twelve
+supporting scenario-politics, occupation-settlement, occupation-transfer, and
+fiscal-project creditor-reply tests passed (15 total). Coverage includes split
+receipts, underfunding, missing creditors, currency mismatch, and trace-on/off
+state parity. Compilation and `git diff --check` passed.
