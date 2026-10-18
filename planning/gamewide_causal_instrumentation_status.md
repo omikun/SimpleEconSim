@@ -779,3 +779,18 @@ and all five existing trade-route epidemic tests passed (9 total). Coverage
 includes trace-on/off parity, affordability rejection, and capped effects.
 Compilation and `git diff --check` passed. Other labor-law state changes remain
 open for causal tracing.
+
+Statutory workday changes now log the requested delta, bounded target, legal
+8-to-16-hour range, and no-op attempts at a boundary. Applied changes record
+each tile's legal cap and Ten-Hour Act state, corporate shifts immediately
+clamped to the new cap, faction support changes, and the protest-energy
+increase when the workday expands. The action outcome links those results to
+the decision gate.
+
+Verification: all three dedicated workday-trace tests passed, including
+trace-on/off parity, a lower-cap reform, a longer-workday protest increase, and
+a boundary no-op. The existing wage-cap test passed when rerun by itself.
+A combined run of the workday, statute-of-laborers, and plunder-labor suites
+had one wage-cap assertion failure (31 of 32 passed); the same assertion passed
+in isolation, so the broader order-sensitive failure remains to diagnose.
+Compilation and `git diff --check` passed.

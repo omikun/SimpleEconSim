@@ -1142,3 +1142,16 @@ all five existing trade-route epidemic tests passed (9 total), including
 trace-on/off parity, affordability rejection, and capped effects. Compilation
 and `git diff --check` passed. Workday, safety, quarantine, wage-cap, and other
 labor-law transitions remain open for tracing.
+
+Phase 4 follow-up, 2026-10-18: statutory workday actions now trace the requested
+change, legal-range clamping and boundary gate, each tile's resulting legal
+cap, corporate shift reductions, faction support changes, and protest energy
+when shifts expand. Effect records link back to the decision gate.
+
+Verification: all three dedicated workday tests passed for shorter and longer
+shifts, corporate changes, political effects, boundary no-ops, and
+trace-on/off parity. The existing wage-cap assertion passed in isolation. A
+combined 32-test run across workday, statute-of-laborers, and plunder-labor had
+one wage-cap failure (31 passed); it passed when rerun alone, so the combined
+run's order-sensitive failure remains open. Compilation and `git diff --check`
+passed.

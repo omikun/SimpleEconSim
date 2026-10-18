@@ -31,6 +31,23 @@ UPRISING_STRIKE_THRESHOLD = 0.20
 UPRISING_UNREST_THRESHOLD = 0.60
 
 
+def _labor_trace_context(target, action_id):
+    """Find a trace host and stable operation ID for a policy mutation."""
+    candidates = [target]
+    candidates.extend(getattr(target, 'tiles', ()))
+    region = next((tile for tile in candidates
+                   if (getattr(tile, '_run_trace', None) is not None
+                       and getattr(tile, '_collective_trace_clock', None)
+                       is not None)), None)
+    if region is None:
+        return None, int(getattr(target, '_last_turn', 0)), None
+    clock = region._collective_trace_clock
+    turn = int(clock.get('turn', getattr(target, '_last_turn', 0)))
+    operation_id = (f"policy:{action_id}:{getattr(target, 'name', 'unnamed')}:"
+                    f"{turn}:{int(clock.get('next', 0))}")
+    return region, turn, operation_id
+
+
 def evaluate_uprising_pressure(nation, t: int) -> List[Dict[str, Any]]:
     """Evaluate nationwide unrest and strike pressure, forcing concessions if critical."""
     events = []
@@ -271,21 +288,97 @@ def adjust_workday_hours(target, delta_hours: float) -> Tuple[bool, str]:
       provokes Labor anger, raises protest energy. If > 10h, deactivates ten_hour_act.
     """
     cur_cap = getattr(target, 'max_workday_hours', 12.0)
-    new_cap = max(8.0, min(16.0, round(cur_cap + delta_hours, 1)))
+    unbounded_cap = round(cur_cap + delta_hours, 1)
+    new_cap = max(8.0, min(16.0, unbounded_cap))
+    trace_region, turn, operation_id = _labor_trace_context(
+        target, 'workday_adjustment')
+    gate_event_id = None
 
     if abs(new_cap - cur_cap) < 0.01:
         limit_txt = "minimum (8.0h)" if delta_hours < 0 else "maximum (16.0h)"
+        if trace_region is not None:
+            from run_trace import emit
+            gate_event_id = emit(
+                trace_region, kind='workday_adjustment_gate',
+                record_class='decision', phase='policy_action',
+                subject={'type': 'nation/action',
+                         'id': getattr(target, 'name', 'unnamed')},
+                metric_id='labor.workday_adjustment_gate', unit='applied',
+                after=False,
+                inputs={'operation_id': operation_id, 'turn': turn,
+                        'requested_delta_hours': float(delta_hours),
+                        'workday_before': float(cur_cap),
+                        'unbounded_target': unbounded_cap,
+                        'clamped_target': float(new_cap),
+                        'lower_limit_hours': 8.0, 'upper_limit_hours': 16.0,
+                        'reason': 'statutory_boundary_already_reached'})
+            emit(
+                trace_region, kind='workday_adjustment_outcome',
+                record_class='outcome', phase='policy_action',
+                subject={'type': 'nation/action',
+                         'id': getattr(target, 'name', 'unnamed')},
+                metric_id='labor.workday_adjustment',
+                before=float(cur_cap), after=float(cur_cap), unit='hours',
+                inputs={'operation_id': operation_id, 'turn': turn,
+                        'applied': False, 'reason': 'statutory_boundary',
+                        'requested_delta_hours': float(delta_hours)},
+                cause_event_ids=([gate_event_id] if gate_event_id else None))
         return False, f"Workday already at statutory {limit_txt}."
 
     tiles = getattr(target, 'tiles', [target]) if hasattr(target, 'tiles') else [target]
+    snapshots = []
     for tile in tiles:
+        snapshot = {'tile': tile}
+        if trace_region is not None:
+            corporations = [agent for agent in getattr(tile, 'agents', [])
+                            if getattr(agent, 'is_corporation', False)]
+            factions = getattr(getattr(tile, 'factions', None), 'factions', {})
+            protest_log = getattr(tile, 'protest_energy_log', None)
+            snapshot.update({
+                'workday_before': float(getattr(tile, 'max_workday_hours', cur_cap)),
+                'workday_cap_before': float(getattr(tile, 'workday_cap', cur_cap)),
+                'ten_hour_act_before': bool(getattr(tile, 'ten_hour_act', False)),
+                'corporations': [(agent, float(getattr(agent, 'shift_hours', 8.0)))
+                                 for agent in corporations],
+                'faction_support': {
+                    name: float(faction.support)
+                    for name, faction in factions.items()
+                    if hasattr(faction, 'support')},
+                'protest_before': (float(protest_log[-1])
+                                   if delta_hours > 0 and protest_log else None),
+            })
+        snapshots.append(snapshot)
+
+    if trace_region is not None:
+        from run_trace import emit
+        gate_event_id = emit(
+            trace_region, kind='workday_adjustment_gate',
+            record_class='decision', phase='policy_action',
+            subject={'type': 'nation/action',
+                     'id': getattr(target, 'name', 'unnamed')},
+            metric_id='labor.workday_adjustment_gate', unit='applied',
+            after=True,
+            inputs={'operation_id': operation_id, 'turn': turn,
+                    'requested_delta_hours': float(delta_hours),
+                    'workday_before': float(cur_cap),
+                    'unbounded_target': unbounded_cap,
+                    'clamped_target': float(new_cap),
+                    'clamped_by_statutory_limit': unbounded_cap != new_cap,
+                    'lower_limit_hours': 8.0, 'upper_limit_hours': 16.0,
+                    'tile_ids': [tile.name for tile in tiles],
+                    'direction': 'worker_protective' if delta_hours < 0
+                    else 'profit_expanding'})
+
+    tile_event_ids = []
+    for snapshot in snapshots:
+        tile = snapshot['tile']
         tile.max_workday_hours = new_cap
         tile.workday_cap = new_cap
         tile.ten_hour_act = (new_cap <= 10.0)
         # Apply to corporations immediately
-        for a in getattr(tile, 'agents', []):
-            if getattr(a, 'is_corporation', False) and getattr(a, 'shift_hours', 8.0) > new_cap:
-                a.shift_hours = new_cap
+        for agent in getattr(tile, 'agents', []):
+            if getattr(agent, 'is_corporation', False) and getattr(agent, 'shift_hours', 8.0) > new_cap:
+                agent.shift_hours = new_cap
 
         # Class faction reactions
         factions = getattr(getattr(tile, 'factions', None), 'factions', {})
@@ -307,8 +400,100 @@ def adjust_workday_hours(target, delta_hours: float) -> Tuple[bool, str]:
             if hasattr(tile, 'protest_energy_log') and tile.protest_energy_log:
                 tile.protest_energy_log[-1] = min(10.0, tile.protest_energy_log[-1] + 1.5)
 
+        if trace_region is not None:
+            from run_trace import emit
+            tile_event_id = emit(
+                trace_region, kind='workday_tile_limit_outcome',
+                record_class='outcome', phase='policy_action',
+                subject={'type': 'tile', 'id': tile.name},
+                metric_id='labor.statutory_workday',
+                before=snapshot['workday_before'], after=float(new_cap),
+                unit='hours',
+                inputs={'operation_id': operation_id, 'turn': turn,
+                        'workday_cap_before': snapshot['workday_cap_before'],
+                        'workday_cap_after': float(tile.workday_cap),
+                        'ten_hour_act_before': snapshot['ten_hour_act_before'],
+                        'ten_hour_act_after': bool(tile.ten_hour_act),
+                        'requested_delta_hours': float(delta_hours)},
+                cause_event_ids=([gate_event_id] if gate_event_id else None))
+            if tile_event_id is not None:
+                tile_event_ids.append(tile_event_id)
+
+            for agent, shift_before in snapshot['corporations']:
+                shift_after = float(getattr(agent, 'shift_hours', 8.0))
+                if shift_before == shift_after:
+                    continue
+                emit(
+                    trace_region, kind='workday_corporate_shift_outcome',
+                    record_class='outcome', phase='policy_action',
+                    subject={'type': 'corporation', 'id': str(agent.id),
+                             'tile': tile.name},
+                    metric_id='labor.corporate_shift_hours',
+                    before=shift_before, after=shift_after, unit='hours',
+                    inputs={'operation_id': operation_id, 'turn': turn,
+                            'workday_cap': float(new_cap),
+                            'reason': 'corporate_shift_exceeded_new_legal_cap'},
+                    cause_event_ids=([tile_event_id]
+                                     if tile_event_id else None))
+
+            for name, support_before in snapshot['faction_support'].items():
+                faction = factions.get(name)
+                if faction is None:
+                    continue
+                support_after = float(faction.support)
+                if support_before == support_after:
+                    continue
+                emit(
+                    trace_region, kind='workday_faction_support_outcome',
+                    record_class='outcome', phase='policy_action',
+                    subject={'type': 'tile/faction', 'id': name,
+                             'tile': tile.name},
+                    metric_id='politics.faction_support',
+                    before=support_before, after=support_after, unit='ratio',
+                    inputs={'operation_id': operation_id, 'turn': turn,
+                            'requested_delta_hours': float(delta_hours),
+                            'support_change': support_after - support_before},
+                    cause_event_ids=([tile_event_id]
+                                     if tile_event_id else None))
+
+            protest_log = getattr(tile, 'protest_energy_log', None)
+            protest_after = (float(protest_log[-1])
+                             if delta_hours > 0 and protest_log else None)
+            if (snapshot['protest_before'] is not None
+                    and protest_after != snapshot['protest_before']):
+                emit(
+                    trace_region, kind='workday_protest_energy_outcome',
+                    record_class='outcome', phase='policy_action',
+                    subject={'type': 'tile', 'id': tile.name},
+                    metric_id='politics.protest_energy',
+                    before=snapshot['protest_before'], after=protest_after,
+                    unit='score',
+                    inputs={'operation_id': operation_id, 'turn': turn,
+                            'requested_increase': 1.5,
+                            'reason': 'statutory_shift_expansion'},
+                    cause_event_ids=([tile_event_id]
+                                     if tile_event_id else None))
+
     setattr(target, 'max_workday_hours', new_cap)
     setattr(target, 'ten_hour_act', (new_cap <= 10.0))
+
+    if trace_region is not None:
+        from run_trace import emit
+        emit(
+            trace_region, kind='workday_adjustment_outcome',
+            record_class='outcome', phase='policy_action',
+            subject={'type': 'nation/action',
+                     'id': getattr(target, 'name', 'unnamed')},
+            metric_id='labor.workday_adjustment',
+            before=float(cur_cap), after=float(new_cap), unit='hours',
+            inputs={'operation_id': operation_id, 'turn': turn,
+                    'applied': True, 'requested_delta_hours': float(delta_hours),
+                    'unbounded_target': unbounded_cap,
+                    'clamped_target': float(new_cap),
+                    'tile_count': len(tiles),
+                    'tile_outcome_event_ids': tile_event_ids},
+            cause_event_ids=([gate_event_id] + tile_event_ids
+                             if gate_event_id else tile_event_ids or None))
 
     action_word = "reduced" if delta_hours < 0 else "expanded"
     ten_note = " (Ten-Hour Act achieved!)" if new_cap <= 10.0 and cur_cap > 10.0 else ""
