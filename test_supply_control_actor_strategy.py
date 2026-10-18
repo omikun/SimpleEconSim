@@ -139,6 +139,24 @@ class ActorAccountTests(unittest.TestCase):
         self.assertEqual(account['delivered_input_purchase_cash'], 12)
         self.assertEqual(account['delivered_input_unit_price'], 4)
 
+    def test_bank_deposit_and_withdrawal_reconcile_cash_and_savings(self):
+        from econsim_trade_money import Bank
+        region = Region()
+        actor = Person(3, 20)
+        region.agents = [actor]
+        bank = Bank()
+        bank._attached_regions = [region]
+        region.bank = bank
+        begin_turn(region, 8)
+        bank.Deposit(actor, 10)
+        bank.Withdraw(actor, 4)
+        account = next(a for a in seal_turn(region, 8) if a['actor_id'] == actor.id)
+        self.assertEqual(actor.cash, 14)
+        self.assertEqual(bank.deposits[actor], 6)
+        self.assertEqual(account['cash_change'], -6)
+        self.assertEqual(account['posted_cash_change'], -6)
+        self.assertEqual(account['closing_bank_deposit'], 6)
+
 
 class PoliticalCampaignCurrencyTests(unittest.TestCase):
     def test_campaign_finance_keeps_nation_currency_in_candidate_wallet(self):

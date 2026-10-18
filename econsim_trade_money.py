@@ -104,6 +104,21 @@ class Bank():
         self.subsistence_withdrawal_cap = 5.0        # max emergency withdrawal allowed per turn
         self.cumulative_writedowns = 0.0             # cumulative bond write-downs absorbed
 
+    def _region_for_account(self, agent):
+        return next((r for r in getattr(self, '_attached_regions', [])
+                     if any(a is agent for a in getattr(r, 'agents', []))), None)
+
+    def _record_account_event(self, agent, kind, amount, *, payer=False,
+                              recipient=False, detail=None, region=None):
+        region = region or self._region_for_account(agent)
+        if region is None or amount <= 0:
+            return
+        from economy.actor_accounts import record
+        turn = getattr(region, '_last_turn', getattr(region, '_economic_opening_turn', 0))
+        record(region, kind, turn=turn, payer_id=agent.id if payer else None,
+               recipient_id=agent.id if recipient else None, amount=amount,
+               detail=detail or {})
+
     @property
     def equity(self):
         """Real countable net worth: capital + deposits - loans outstanding."""
@@ -150,6 +165,8 @@ class Bank():
         agent.loans.append(loan)
         self.loans.append(loan)
         self.total_liabilities += amount
+        self._record_account_event(agent, 'bank_loan', float(amount), recipient=True,
+                                   detail={'loan_principal': amount}, region=trace_region)
         if trace_region is not None:
             from run_trace import emit
             emit(trace_region, kind='bank_loan_issued', record_class='transfer',
@@ -182,6 +199,7 @@ class Bank():
         agent.cash -= amount
         self.total_deposits += amount
         self.deposits[agent] += amount
+        self._record_account_event(agent, 'bank_deposit', float(amount), payer=True)
 
     def Withdraw(self, agent, amount):
         limit = self.deposits[agent]
@@ -191,6 +209,7 @@ class Bank():
         agent.cash += amount
         self.total_deposits -= amount
         self.deposits[agent] -= amount
+        self._record_account_event(agent, 'bank_withdrawal', float(amount), recipient=True)
 
     def write_down_bonds(self, loss_amount: float, trace_region=None) -> bool:
         """Absorb sovereign debt default losses against bank Tier-1 capital.
@@ -313,6 +332,9 @@ class Bank():
                     self.capital -= interest
                     self.total_deposit_interest_paid += interest
                     total_payout += interest
+                    self._record_account_event(agent, 'bank_deposit_interest',
+                                               float(interest), recipient=True,
+                                               detail={'funded_from_bank_capital': True})
         if trace_region is not None:
             from run_trace import emit
             emit(trace_region, kind='bank_deposit_interest_payout', record_class='transfer',

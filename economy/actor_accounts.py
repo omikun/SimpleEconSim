@@ -36,9 +36,14 @@ def begin_turn(region, turn):
         from supply_rights import _seed_water_rights
         _seed_water_rights(region)
     region._economic_opening_turn = int(turn)
+    bank = getattr(region, 'bank', None)
     region._economic_opening = {
         a.id: {'cash': float(getattr(a, 'cash', 0.0)),
                'scrip': float(getattr(a, 'scrip_wallet', 0.0)),
+               'bank_deposit': float(bank.deposits.get(a, 0.0)) if bank else 0.0,
+               'bank_debt': sum(max(0.0, float(loan.principle) - float(loan.principle_paid))
+                                for loan in getattr(bank, 'loans', [])
+                                if loan.agent is a) if bank else 0.0,
                'food': int(a.inv_get(Goods.food, 0)),
                'inventory': {g.name: int(a.inv_get(g, 0)) for g in getattr(region, 'recipes', {})},
                'debt': sum(float(c.balance) for c in getattr(region, 'cash_obligations', [])
@@ -109,6 +114,10 @@ def seal_turn(region, turn):
                      if getattr(p, 'controlled_by_id', None) == actor.id]
         debt = sum(float(c.balance) for c in getattr(region, 'cash_obligations', [])
                    if c.debtor_id == actor.id and c.status == 'active')
+        bank = getattr(region, 'bank', None)
+        bank_deposit = float(bank.deposits.get(actor, 0.0)) if bank else 0.0
+        bank_debt = sum(max(0.0, float(loan.principle) - float(loan.principle_paid))
+                        for loan in getattr(bank, 'loans', []) if loan.agent is actor) if bank else 0.0
         output = getattr(actor, 'output', None)
         output_name = _name(output)
         produced = sum(e['quantity'] for e in events if e['recipient_id'] == actor.id
@@ -133,6 +142,10 @@ def seal_turn(region, turn):
             'opening_food': prior['food'], 'closing_food': int(actor.inv_get(Goods.food, 0)),
             'food_intake': round(float(getattr(actor, 'last_calories_eaten', 0.0)) / 500.0, 2),
             'opening_debt': round(prior['debt'], 2), 'closing_debt': round(debt, 2),
+            'opening_bank_deposit': round(prior['bank_deposit'], 2),
+            'closing_bank_deposit': round(bank_deposit, 2),
+            'opening_bank_debt': round(prior['bank_debt'], 2),
+            'closing_bank_debt': round(bank_debt, 2),
             'sales_cash': round(receipts, 2), 'crop_value': round(crop_value, 2),
             'purchases_cash': round(purchases, 2), 'wages_cash': round(wages, 2),
             'delivered_input_purchase_cash': round(delivered_input_spend, 2),

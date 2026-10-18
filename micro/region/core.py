@@ -320,7 +320,15 @@ class Region:
     def bank(self):
         if getattr(self, '_institutions', None) is None:
             return None
-        return self._institutions.bank
+        bank = self._institutions.bank
+        if bank is not None:
+            attached = getattr(bank, '_attached_regions', None)
+            if attached is None:
+                attached = []
+                bank._attached_regions = attached
+            if all(r is not self for r in attached):
+                attached.append(self)
+        return bank
 
     @bank.setter
     def bank(self, value):

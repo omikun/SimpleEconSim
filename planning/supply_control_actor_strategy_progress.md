@@ -32,16 +32,20 @@ already fun or balanced; that still needs player feedback.
   named cash, crop receipts, food, debt, supply offers, and relevant rights.
   Statements label cost coverage as incomplete. Web additionally shows scrip
   balances and cash movement not yet matched to journal postings.
-- The latest 50-turn default run created 145 firm and 294 grower account rows,
-  12 supply proposals (6 settled, 6 rejected), and no active contracts/charters
-  at the end. The final-turn sum of absolute unmatched actor cash movements was
-  $22,664.76, showing that a full per-actor cash bridge is not complete. Some
+- Recent 50-turn default runs created 145 firm and 294 grower account rows,
+  10–13 supply proposals, and no active contracts/charters at the end. Across
+  seeds 4242–4244, final-turn sums of absolute unmatched actor cash movements
+  ranged from $21,015 to $31,338, showing that a full per-actor cash bridge is
+  not complete. Some
   unmatched movement is from legacy systems that have not been connected to this
   journal; do not read the displayed recorded result as complete profit. The
   benchmark now names the eight largest unmatched actors; the top absolute gap
   was $1,713.25 for a grower and $1,463.82 for a corporation, giving the next
   instrumentation pass concrete targets.
-- Remaining gate work: complete bank deposit transaction adapters and
+- Bank deposit/withdrawal, loan issuance, and deposit interest now post named
+  cash events; turn accounts separately expose bank deposits and outstanding
+  bank principal. Loan repayment, default, and write-down adapters remain open.
+- Remaining gate work: complete loan repayment/default and
   farmgate-to-route-to-import accounting for every cargo source. The latest
   default runs also expose large unposted actor cash changes; scrip, FX, and
   shipment postings cover some paths, but the full cash bridge is still open.
@@ -109,10 +113,10 @@ already fun or balanced; that still needs player feedback.
   exactly one balance; election campaign spending credits a candidate's
   nation-currency wallet when their home currency differs. Regression tests
   cover same-currency wallets and cross-currency donors/recipients.
-- After that fix, 50-turn default runs for seeds 4243 and 4244 reported zero
-  currency violations. Earlier runs of seed 4243 showed -$112.61 and -$786.98
-  USD gaps in the regime phase. Keep the phase audit in the benchmark and run
-  more seeds before closing the gate.
+- After that fix, 50-turn default runs for seeds 4242, 4243, and 4244 reported
+  zero currency violations. Earlier runs of seed 4243 showed -$112.61 and
+  -$786.98 USD gaps in the regime phase. Keep the phase audit in the benchmark
+  and continue testing more seeds before closing the gate.
 - No option has been shown to dominate across these three starts, but the
   benchmark currently reports branch outcomes rather than proving an optimal
   strategy or enjoyable balance. Outstanding checks from the plan include
@@ -135,10 +139,10 @@ already fun or balanced; that still needs player feedback.
   gathered, and parked/re-routed legacy cargo does not retain the same link.
   FX and tariff conversions also remain separate cash legs rather than a fully
   normalized per-shipment delivered-cost calculation.
-- `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_supply_control_actor_strategy test_supply_rights test_market_auction test_market_routes test_web_client_parity` — 59 tests passed after linked shipment-lot additions.
+- `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_supply_control_actor_strategy test_supply_rights test_market_auction test_market_routes test_web_client_parity` — 63 tests passed after bank account, campaign-currency, and linked shipment-lot additions.
 - `node --check web_client/client.js` — passed.
 - `git diff --check` — passed.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python benchmark_supply_rivalry.py` — 12 matched runs, zero reported currency violations.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python benchmark_supply_rivalry.py 812 813 814` — repeated after shipment linking; all 12 branches still report zero currency violations.
-- `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python benchmark_supply_default.py 50 4243` and `... 50 4244` — both latest post-fix runs completed with zero currency violations.
+- `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python benchmark_supply_default.py 50 <seed>` — 50 turns completed with zero currency violations for seeds 4242, 4243, and 4244 after the campaign-transfer fix.
 - Full `unittest discover` was attempted but this environment's native pygame/OpenGL tests crashed the Python process (exit 139) before a summary could be produced; the focused simulation, rights, auction, route, and web parity suite remains green.
