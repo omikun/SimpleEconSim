@@ -1456,3 +1456,20 @@ Verification: focused tests cover no-candidate and legitimacy gates, full
 force arithmetic, trace-on/off parity, and coup execution. Three coup trace
 tests, the coercion/GDD suite, and the metric catalog audit passed (12 tests);
 compilation and `git diff --check` passed.
+
+## Phase 4 follow-up — Explain takeover and garrison outcomes
+
+Every popular-front takeover check now produces a registered
+`politics.takeover_decision` record. It names owner and probability gates,
+legitimacy pressure, mob share and crowd pressure, attempt and repel draws,
+each defending unit's morale-adjusted contribution, casualty memory seeds,
+protest-energy reduction, and the resulting regime. Existing scalar protest
+and legitimacy records remain available; the takeover legitimacy event now
+includes its before value. Failed attempt events carry their decision metric
+directly, limiting duplicate trace rows.
+
+Verification: four takeover-specific tests cover zero-chance and ownerless
+gates, garrison repulsion and casualties, successful regime change, and
+trace-on/off parity. These tests, the collective-action and coercion/GDD
+suites, the metric catalog audit, compilation, and `git diff --check` passed
+(23 tests).

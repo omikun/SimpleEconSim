@@ -134,31 +134,92 @@ def _takeover(region, t, mob):
     Returns True if a takeover fired.
     """
     owner = getattr(region, 'owner_nation', None)
+    trace_subject = {'type': 'tile', 'id': getattr(region, 'name', 'unknown')}
+
+    def emit_decision(success, reason_code, inputs, *, kind='takeover_decision'):
+        from run_trace import emit
+        return emit(
+            region, kind=kind, record_class='outcome',
+            subject=trace_subject, metric_id='politics.takeover_decision',
+            unit='boolean', after=success,
+            formula_id='unrest.takeover_force_gate.v1',
+            inputs={'reason_code': reason_code, 'mob_size': mob,
+                    'resident_count': len(getattr(region, 'agents', [])),
+                    **inputs})
+
     if owner is None:
+        emit_decision(False, 'no_nation_owner', {},
+                      kind='takeover_attempt_failed')
         return False
 
-    legitimacy_pressure = 1.0 - smoothstep(0.10, 0.55, float(owner.legitimacy))
-    crowd_pressure = smoothstep(0.03, 0.20, mob / max(1, len(region.agents)))
+    legitimacy = float(owner.legitimacy)
+    resident_count = len(region.agents)
+    crowd_share = mob / max(1, resident_count)
+    legitimacy_pressure = 1.0 - smoothstep(0.10, 0.55, legitimacy)
+    crowd_pressure = smoothstep(0.03, 0.20, crowd_share)
     attempt_chance = legitimacy_pressure * crowd_pressure
     attempt_draw = rand.random() if attempt_chance > 0 else None
+    attempt_inputs = {
+        'legitimacy': legitimacy,
+        'legitimacy_pressure': legitimacy_pressure,
+        'legitimacy_smoothstep_range': [0.10, 0.55],
+        'crowd_share': crowd_share,
+        'crowd_pressure': crowd_pressure,
+        'crowd_smoothstep_range': [0.03, 0.20],
+        'attempt_chance': attempt_chance,
+        'attempt_draw': attempt_draw,
+        'attempt_rng_stream': 'unrest.rand',
+    }
     if attempt_draw is not None and attempt_draw < attempt_chance:
         # Garrison combat check: armed soldiers defend the state seat
-        garrison_force = sum(u.strength * smoothstep(0.0, 0.6, float(getattr(u, 'morale', 1.0)))
-                             for u in getattr(region, 'military_units', [])
-                             if getattr(u, 'soldiers', 0) > 0)
+        garrison_units = []
+        garrison_force = 0.0
+        for unit in getattr(region, 'military_units', []):
+            soldiers = getattr(unit, 'soldiers', 0)
+            if soldiers <= 0:
+                continue
+            morale = float(getattr(unit, 'morale', 1.0))
+            strength = unit.strength
+            morale_multiplier = smoothstep(0.0, 0.6, morale)
+            contribution = strength * morale_multiplier
+            garrison_force += contribution
+            garrison_units.append({
+                'unit_id': str(getattr(
+                    unit, 'unit_id', getattr(unit, 'id', 'unknown'))),
+                'soldiers': soldiers,
+                'morale': morale,
+                'strength': strength,
+                'morale_multiplier': morale_multiplier,
+                'force_contribution': contribution,
+            })
         mob_force = mob * 1.5
 
         repel_chance = garrison_force / max(1.0, garrison_force + mob_force)
         repel_draw = rand.random() if repel_chance > 0 else None
+        force_inputs = {
+            **attempt_inputs,
+            'garrison_units': garrison_units,
+            'garrison_force': garrison_force,
+            'mob_force': mob_force,
+            'repel_chance': repel_chance,
+            'repel_draw': repel_draw,
+            'repel_rng_stream': 'unrest.rand',
+        }
         if repel_draw is not None and repel_draw < repel_chance:
             # Garrison repels the insurrection!
+            casualties = []
             for a in region.agents:
                 if not a.is_corporation and not a.is_government and a.hungry_steps > 0:
                     a.mem_push('mem_casualties', 1.0)
                     a.mem_push('mem_promises', 0.5)
+                    casualties.append(str(a.id))
+            protest_before = None
+            protest_after = None
             if hasattr(region, 'protest_energy_log') and region.protest_energy_log:
                 energy_before = region.protest_energy_log[-1]
                 region.protest_energy_log[-1] = max(2.0, region.protest_energy_log[-1] - 2.5)
+                protest_before = energy_before
+                protest_after = region.protest_energy_log[-1]
                 from run_trace import emit
                 emit(region, kind='garrison_repels_takeover', record_class='outcome',
                      subject={'type': 'tile', 'id': region.name},
@@ -168,9 +229,17 @@ def _takeover(region, t, mob):
                      inputs={'attempt_chance': attempt_chance, 'attempt_draw': attempt_draw,
                              'repel_chance': repel_chance, 'repel_draw': repel_draw,
                              'garrison_force': garrison_force, 'mob_force': mob_force})
+            emit_decision(False, 'garrison_repels_mob', {
+                **force_inputs,
+                'seeded_casualty_agent_ids': casualties,
+                'seeded_casualty_count': len(casualties),
+                'protest_energy_before': protest_before,
+                'protest_energy_after': protest_after,
+            })
             return False
 
         # Garrison overwhelmed or disbanded
+        legitimacy_before = owner.legitimacy
         owner.legitimacy = 0.0
         # regime_type flips toward the largest grievance faction kind
         biggest = max(region.factions.factions.values(),
@@ -181,17 +250,27 @@ def _takeover(region, t, mob):
         from run_trace import emit
         emit(region, kind='takeover_succeeded', record_class='outcome',
              subject={'type': 'nation', 'id': owner.name},
-             metric_id='politics.legitimacy', unit='ratio', after=owner.legitimacy,
+             metric_id='politics.legitimacy', unit='ratio',
+             before=legitimacy_before, after=owner.legitimacy,
              inputs={'attempt_chance': attempt_chance, 'attempt_draw': attempt_draw,
                      'repel_chance': repel_chance, 'repel_draw': repel_draw,
                      'garrison_force': garrison_force, 'mob_force': mob_force,
                      'new_regime': owner.regime_type})
+        emit_decision(True,
+                      'garrison_overwhelmed' if garrison_force > 0
+                      else 'no_garrison_defense', {
+                          **force_inputs,
+                          'legitimacy_before': legitimacy_before,
+                          'legitimacy_after': owner.legitimacy,
+                          'new_regime': owner.regime_type,
+                          'leading_grievance_faction': biggest.name,
+                          'leading_grievance_kind': biggest.kind,
+                      })
         return True
-    from run_trace import emit
-    emit(region, kind='takeover_attempt_failed', record_class='outcome',
-         subject={'type': 'tile', 'id': region.name},
-         inputs={'attempt_chance': attempt_chance, 'attempt_draw': attempt_draw,
-                 'mob_size': mob})
+    reason_code = ('attempt_chance_zero' if attempt_draw is None
+                   else 'attempt_draw_rejected')
+    emit_decision(False, reason_code, attempt_inputs,
+                  kind='takeover_attempt_failed')
     return False
 
 

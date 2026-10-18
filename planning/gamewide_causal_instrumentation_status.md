@@ -1063,3 +1063,16 @@ Verification: three focused coup trace tests cover trace-on/off outcome parity,
 force reconstruction, legitimacy and candidate gates, and successful coup
 execution. The existing coercion/GDD tests and the full metric-catalog callsite
 audit also passed (12 tests); compilation and `git diff --check` passed.
+
+Phase 4 follow-up, 2026-10-18: popular-front takeover checks now emit the
+registered `politics.takeover_decision` metric for ownerless, gated, repelled,
+and successful outcomes. Inputs include legitimacy and mob-share pressure,
+both random draws, the per-unit garrison contributions and morale factors,
+casualty memory seeds, protest reduction, and the regime outcome. Existing
+protest-energy and legitimacy records are retained, with the latter now
+including its opening value.
+
+Verification: four takeover trace tests cover no-owner and zero-chance gates,
+force and casualty details, success/regime changes, and trace-on/off parity.
+Those tests plus collective-action, coercion/GDD, and catalog-coverage suites
+passed (23 tests); compilation and `git diff --check` passed.
