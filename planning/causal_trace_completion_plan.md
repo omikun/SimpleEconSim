@@ -650,3 +650,21 @@ imperial-debt, scenario-debt, public-transfer, and run-trace tests passed.
 Compilation and `git diff --check` passed. Caisse transit-toll and granary
 seizures, other imperial claims, household aid and subsistence flows, subsidies,
 repression costs, inheritance, and other scenario costs remain.
+
+Phase 3 follow-up, 2026-10-18: Caisse transit-toll seizures now trace the
+debtor treasury debit when it occurs, the creditor treasury credit, and the
+receivership balance change. Granary seizure records the district stock loss,
+the legacy $2-per-food-unit valuation, and the resulting creditor cash receipt;
+it explicitly says the creditor receives no food inventory. Missing payer or
+creditor legs remain visible instead of being filled with balancing records.
+
+Verification: four focused fixtures cover funded toll seizure, the legacy
+unfunded fallback, granary valuation, and trace-on/off state equality. The 61
+customs, coercion, scenario-debt, government-transfer, and live-trace tests
+passed. Compilation and `git diff --check` passed. The existing fallback rule
+credits up to $5 when the debtor cannot afford the full requested toll and does
+not debit the debtor treasury; the trace exposes this accounting defect, which
+is left as a separate gameplay correction. The manager comment mentions royalty
+seizures, but no royalty-seizure mutation exists in this path. Other imperial
+claims, household aid and subsistence flows, subsidies, repression costs,
+inheritance, and other scenario costs remain.

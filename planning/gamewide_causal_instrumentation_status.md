@@ -202,10 +202,11 @@ Treasury snapshots show cash and deposit components. Bond, Caisse, public
 benefit, Egypt project payroll/recall/remittance, tariff transfers, and
 cadastral tax recovery now have operation IDs and balance evidence. Emergency
 food levies expose exact in-kind stock changes, and routine public grain
-purchases reconcile seller and treasury balances. Guided canal transit tolls
-and customs-receivership tariff interception are traced with no-conversion
-currency mismatches exposed. Caisse transit-toll and granary seizures and other
-untraced imperial claim paths, Egypt subsistence and household aid flows,
+purchases reconcile seller and treasury balances. Guided canal transit tolls,
+customs-receivership tariff interception, Caisse toll debits, and granary stock
+seizures are traced with no-conversion currency mismatches and missing source
+legs exposed. Other untraced imperial claim paths, Egypt subsistence and
+household aid flows,
 subsidies, repression spending,
 inheritance, and many scenario costs still need transfer contracts. National
 treasury, bank, household, firm, and goods-by-currency reconciliations remain
@@ -318,3 +319,15 @@ imperial-debt, scenario-debt, public-transfer, and run-trace tests passed,
 including trace-on/off state equivalence. Caisse transit-toll and granary
 seizures, other imperial claims, household aid and subsistence transfers,
 subsidies, repression, inheritance, and other scenario transfers remain.
+
+Caisse transit-toll seizures now trace actual debtor cash debits and creditor
+credits. The legacy fallback can credit up to $5 without a debtor debit when
+the requested toll is unaffordable; the trace exposes the unbacked receipt and
+does not invent a source-side cash loss. Granary seizures trace exact food-stock
+loss, the $2-per-unit cash valuation, and the creditor's cash receipt while
+showing that no food inventory is transferred to the creditor. Four focused
+fixtures and 61 customs, coercion, debt, transfer, and live-trace tests passed,
+including trace-on/off equivalence. The manager's comment mentions royalty
+seizures, but this step has no royalty seizure implementation. Other imperial
+claims, household aid and subsistence transfers, subsidies, repression,
+inheritance, and other scenario transfers remain.

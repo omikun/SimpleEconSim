@@ -43,6 +43,114 @@ def _disburse_agent_funds(world: dict | None, creditor: Any | None, amount: floa
         recipient.cash += amount
 
 
+def _trace_caisse_cash_seizure(tile, *, debtor, creditor, operation_id, kind,
+                               amount, turn, source_cash_debited,
+                               creditor_cash_credited, debtor_cash_before=None,
+                               debtor_cash_after=None, creditor_cash_before=None,
+                               creditor_cash_after=None, source_account_type=None,
+                               source_status=None, cause_event_ids=None,
+                               details=None):
+    """Trace only the cash legs that actually mutate; expose missing legs."""
+    from finance_trace import account_ref, emit_treasury_leg, transfer_contract
+
+    debtor_currency = getattr(debtor, 'currency', None) or 'local_currency'
+    creditor_currency = getattr(creditor, 'currency', None) or debtor_currency
+    source_account = account_ref(
+        'government_treasury' if source_cash_debited else
+        (source_account_type or 'receivership_unfunded_source'),
+        getattr(getattr(debtor, 'government', None), 'name', debtor.name),
+        debtor_currency,
+        nation_id=debtor.name,
+        subaccount='government_agent.cash' if source_cash_debited else None,
+        balance_before=(float(debtor_cash_before)
+                        if source_cash_debited else None),
+        balance_after=(float(debtor_cash_after)
+                       if source_cash_debited else None),
+        balance_scope=('government_agent.cash' if source_cash_debited else
+                       'collection_source'),
+        balance_status=('exact_cash_debit' if source_cash_debited else
+                        source_status or 'no_source_cash_debit_recorded'))
+    payee_government = getattr(creditor, 'government', None) if creditor else None
+    payee_account = account_ref(
+        'government_treasury' if creditor_cash_credited else
+        'uncredited_receivership_claim',
+        getattr(payee_government, 'name', getattr(creditor, 'name', 'missing_creditor')),
+        creditor_currency, nation_id=getattr(creditor, 'name', None),
+        subaccount=('government_agent.cash' if creditor_cash_credited else None),
+        balance_before=(float(creditor_cash_before)
+                        if creditor_cash_credited else None),
+        balance_after=(float(creditor_cash_after)
+                       if creditor_cash_credited else None),
+        balance_scope=('government_agent.cash' if creditor_cash_credited else
+                       'receivable'),
+        balance_status=('exact_cash_credit' if creditor_cash_credited else
+                        'creditor_cash_credit_not_recorded'))
+    common = {
+        'amount': float(amount), 'amount_currency': debtor_currency,
+        'payer_account': source_account, 'payee_account': payee_account,
+        'counterparty_leg_status': (
+            'cash legs recorded where present; missing source or payee leg disclosed'),
+        'counterparty_currency': creditor_currency,
+        'counterparty_currency_mismatch': debtor_currency != creditor_currency,
+        'currency_conversion_applied': False,
+        'mutation_reference': {'turn': int(turn), 'operation_id': operation_id},
+    }
+    events = []
+    if source_cash_debited:
+        payer_contract = transfer_contract(
+            operation_id, kind, side='payer', local_cash_leg_amount=amount,
+            local_cash_leg_currency=debtor_currency, **common)
+        event_id = emit_treasury_leg(
+            tile, kind=f'{kind}_debtor_payment', nation_name=debtor.name,
+            currency=debtor_currency, signed_amount=-float(amount),
+            contract=payer_contract, phase='imperialism', subject_type='nation',
+            inputs={'turn': int(turn), 'operation_id': operation_id,
+                    'creditor_cash_credited': bool(creditor_cash_credited),
+                    **(details or {})})
+        if event_id is not None:
+            events.append(event_id)
+    if creditor_cash_credited:
+        payee_contract = transfer_contract(
+            operation_id, kind, side='payee', local_cash_leg_amount=amount,
+            local_cash_leg_currency=creditor_currency, **common)
+        event_id = emit_treasury_leg(
+            tile, kind=f'{kind}_creditor_receipt', nation_name=creditor.name,
+            currency=creditor_currency, signed_amount=float(amount),
+            contract=payee_contract, phase='imperialism', subject_type='nation',
+            cause_event_ids=cause_event_ids,
+            inputs={'turn': int(turn), 'operation_id': operation_id,
+                    'source_cash_debited': bool(source_cash_debited),
+                    **(details or {})})
+        if event_id is not None:
+            events.append(event_id)
+    return events
+
+
+def _trace_receivership_balance(tile, *, debtor, creditor, rec, operation_id,
+                                kind, before, after, turn, amount,
+                                cause_event_ids=None, details=None):
+    from run_trace import emit
+
+    currency = getattr(debtor, 'currency', None) or 'local_currency'
+    return emit(
+        tile, kind=f'{kind}_debt_balance', record_class='outcome',
+        phase='imperialism',
+        subject={'type': 'nation/receivership', 'id': rec.receivership_id,
+                 'nation': debtor.name},
+        metric_id='finance.receivership_balance', unit=currency,
+        before=float(before), after=float(after),
+        formula_id='imperialism.caisse_asset_seizure_debt.v1',
+        inputs={'operation_id': operation_id, 'turn': int(turn),
+                'receivership_id': rec.receivership_id,
+                'debtor_nation': debtor.name,
+                'creditor_nation': creditor.name,
+                'seizure_kind': kind, 'seizure_value': float(amount),
+                'total_collected_after': float(rec.total_collected),
+                'remaining_debt_after': float(rec.remaining_debt),
+                **(details or {})},
+        cause_event_ids=cause_event_ids)
+
+
 def evaluate_credible_takeover_threat(creditor: Any, debtor: Any, world: dict | None = None) -> ThreatAssessment:
     """Evaluate whether creditor has a credible military threat of armed takeover over debtor.
 
@@ -511,7 +619,6 @@ class ImperialismManager:
                 creditor_cash_before = float(credited_government.agent.cash)
                 credited_government.agent.cash += actual_intercept
                 creditor_cash_after = float(credited_government.agent.cash)
-                credited_government.record_income(t, source, actual_intercept)
                 creditor_credited = True
 
         if not creditor_credited:
@@ -521,7 +628,6 @@ class ImperialismManager:
                 creditor_cash_before = float(credited_government.agent.cash)
                 credited_government.agent.cash += actual_intercept
                 creditor_cash_after = float(credited_government.agent.cash)
-                credited_government.record_income(t, source, actual_intercept)
                 creditor_credited = True
             else:
                 import econsim_states
@@ -531,7 +637,6 @@ class ImperialismManager:
                         creditor_cash_before = float(g.agent.cash)
                         g.agent.cash += actual_intercept
                         creditor_cash_after = float(g.agent.cash)
-                        g.record_income(t, source, actual_intercept)
                         creditor_credited = True
                         break
 
@@ -592,6 +697,9 @@ class ImperialismManager:
                         'revenue_source': source,
                         'remaining_debt_before': float(rec.remaining_debt),
                         'creditor_cash_credited': True})
+
+        if creditor_credited:
+            credited_government.record_income(t, source, actual_intercept)
 
         remaining_debt_before = float(rec.remaining_debt)
         total_collected_before = float(rec.total_collected)
@@ -961,18 +1069,68 @@ class ImperialismManager:
                     routes = getattr(tile, 'routes', {})
                     has_toll_infra = any(getattr(r, 'has_turnpike', False) or getattr(r, 'has_canal', False) for r in routes.values())
                     if has_toll_infra or getattr(tile, 'is_coast', False):
+                        remaining_before = float(rec.remaining_debt)
+                        total_collected_before = float(rec.total_collected)
                         toll_intercept = min(10.0, rec.remaining_debt)
+                        debtor_cash_before = (float(debt_gov.agent.cash)
+                                              if debt_gov and getattr(debt_gov, 'agent', None)
+                                              else None)
+                        debtor_cash_after = debtor_cash_before
+                        source_cash_debited = False
                         if debt_gov and getattr(debt_gov, 'agent', None) and debt_gov.agent.cash >= toll_intercept:
                             debt_gov.agent.cash -= toll_intercept
+                            debtor_cash_after = float(debt_gov.agent.cash)
+                            source_cash_debited = True
                         else:
                             toll_intercept = min(5.0, rec.remaining_debt)
 
+                        creditor_cash_before = None
+                        creditor_cash_after = None
+                        creditor_cash_credited = False
                         if cred_gov and hasattr(cred_gov, 'agent'):
+                            creditor_cash_before = float(cred_gov.agent.cash)
                             cred_gov.agent.cash += toll_intercept
+                            creditor_cash_after = float(cred_gov.agent.cash)
+                            creditor_cash_credited = True
+                        operation_id = (
+                            f'caisse:{debtor.name}:{creditor.name}:toll:{int(t)}:'
+                            f'{tile.name}:{total_collected_before:.6f}')
+                        cash_event_ids = _trace_caisse_cash_seizure(
+                            tile, debtor=debtor, creditor=creditor,
+                            operation_id=operation_id, kind='caisse_transit_toll_seizure',
+                            amount=toll_intercept, turn=t,
+                            source_cash_debited=source_cash_debited,
+                            creditor_cash_credited=creditor_cash_credited,
+                            debtor_cash_before=debtor_cash_before,
+                            debtor_cash_after=debtor_cash_after,
+                            creditor_cash_before=creditor_cash_before,
+                            creditor_cash_after=creditor_cash_after,
+                            source_account_type='caisse_toll_shortfall_source',
+                            source_status=(
+                                'fallback_rule_created_receipt_without_debtor_debit'
+                                if not source_cash_debited else 'exact_cash_debit'),
+                            details={'remaining_debt_before': remaining_before,
+                                     'debtor_cash_before': debtor_cash_before,
+                                     'requested_toll_seizure': min(10.0, remaining_before),
+                                     'cash_debit_rule': 'debit requested amount only when fully affordable',
+                                     'fallback_rule': 'min(5, remaining debt); current simulation omits debtor debit',
+                                     'has_toll_infrastructure': bool(has_toll_infra),
+                                     'tile_is_coastal': bool(getattr(tile, 'is_coast', False))})
+                        if creditor_cash_credited:
                             cred_gov.record_income(t, 'tariff', toll_intercept)
                         rec.remaining_debt -= toll_intercept
                         rec.total_collected += toll_intercept
                         rec.seized_tolls += toll_intercept
+                        _trace_receivership_balance(
+                            tile, debtor=debtor, creditor=creditor, rec=rec,
+                            operation_id=operation_id, kind='caisse_transit_toll_seizure',
+                            before=remaining_before, after=rec.remaining_debt,
+                            turn=t, amount=toll_intercept,
+                            cause_event_ids=cash_event_ids or None,
+                            details={'total_collected_before': total_collected_before,
+                                     'total_collected_after': float(rec.total_collected),
+                                     'debtor_cash_debited': source_cash_debited,
+                                     'creditor_cash_credited': creditor_cash_credited})
                         if rec.remaining_debt <= 0.01:
                             rec.status = "cleared"
                             break
@@ -982,15 +1140,93 @@ class ImperialismManager:
                     for tile in getattr(debtor, 'tiles', []):
                         g_stock = getattr(tile, 'granary_stock', 0.0)
                         if g_stock >= 2.0:
+                            remaining_before = float(rec.remaining_debt)
+                            total_collected_before = float(rec.total_collected)
+                            granary_before = float(g_stock)
                             seized_grain = min(4.0, g_stock * 0.5, rec.remaining_debt / 2.0)
                             tile.granary_stock -= seized_grain
                             grain_val = seized_grain * 2.0
+                            creditor_cash_before = None
+                            creditor_cash_after = None
+                            creditor_cash_credited = False
                             if cred_gov and hasattr(cred_gov, 'agent'):
+                                creditor_cash_before = float(cred_gov.agent.cash)
                                 cred_gov.agent.cash += grain_val
+                                creditor_cash_after = float(cred_gov.agent.cash)
+                                creditor_cash_credited = True
+                            operation_id = (
+                                f'caisse:{debtor.name}:{creditor.name}:granary:{int(t)}:'
+                                f'{tile.name}:{total_collected_before:.6f}')
+                            from finance_trace import account_ref
+                            from run_trace import emit
+                            grain_contract = {
+                                'contract_version': 'goods_seizure.v1',
+                                'operation_id': operation_id,
+                                'operation_type': 'caisse_granary_asset_seizure',
+                                'good': 'food', 'amount': float(seized_grain),
+                                'unit': 'food_units',
+                                'source_account': account_ref(
+                                    'tile_granary', tile.name, 'food_units',
+                                    balance_before=granary_before,
+                                    balance_after=float(tile.granary_stock),
+                                    balance_scope='granary_stock'),
+                                'destination_status': 'seized_and_monetized',
+                                'counterparty_leg_status': (
+                                    'creditor receives cash valuation, not food inventory'),
+                            }
+                            grain_event_id = emit(
+                                tile, kind='caisse_granary_asset_seizure',
+                                record_class='outcome', phase='imperialism',
+                                subject={'type': 'tile/operation', 'id': operation_id,
+                                         'tile': tile.name},
+                                metric_id='goods.grain_transfer', unit='food_units',
+                                before=0.0, after=float(seized_grain),
+                                formula_id='imperialism.caisse_granary_valuation.v1',
+                                inputs={'operation_id': operation_id,
+                                        'turn': int(t),
+                                        'goods_seizure_contract': grain_contract,
+                                        'granary_stock_before': granary_before,
+                                        'granary_stock_after': float(tile.granary_stock),
+                                        'valuation_per_food_unit': 2.0,
+                                        'cash_value': float(grain_val),
+                                        'creditor_cash_credited': creditor_cash_credited,
+                                        'creditor_receives_food_inventory': False})
+                            cash_event_ids = _trace_caisse_cash_seizure(
+                                tile, debtor=debtor, creditor=creditor,
+                                operation_id=operation_id,
+                                kind='caisse_granary_seizure_valuation',
+                                amount=grain_val, turn=t,
+                                source_cash_debited=False,
+                                creditor_cash_credited=creditor_cash_credited,
+                                creditor_cash_before=creditor_cash_before,
+                                creditor_cash_after=creditor_cash_after,
+                                source_account_type='caisse_grain_valuation_source',
+                                source_status='converted_from_seized_granary_stock',
+                                cause_event_ids=([grain_event_id]
+                                                 if grain_event_id is not None else None),
+                                details={'seized_food_units': float(seized_grain),
+                                         'valuation_per_food_unit': 2.0,
+                                         'creditor_cash_value': float(grain_val),
+                                         'creditor_receives_food_inventory': False})
+                            if creditor_cash_credited:
                                 cred_gov.record_income(t, 'tariff', grain_val)
                             rec.remaining_debt -= grain_val
                             rec.total_collected += grain_val
                             rec.seized_granary_grain += seized_grain
+                            causes = [event_id for event_id in
+                                      ([grain_event_id] if grain_event_id is not None else [])
+                                      + cash_event_ids if event_id is not None]
+                            _trace_receivership_balance(
+                                tile, debtor=debtor, creditor=creditor, rec=rec,
+                                operation_id=operation_id,
+                                kind='caisse_granary_asset_seizure',
+                                before=remaining_before, after=rec.remaining_debt,
+                                turn=t, amount=grain_val,
+                                cause_event_ids=causes or None,
+                                details={'total_collected_before': total_collected_before,
+                                         'total_collected_after': float(rec.total_collected),
+                                         'seized_food_units': float(seized_grain),
+                                         'creditor_cash_credited': creditor_cash_credited})
                             if rec.remaining_debt <= 0.01:
                                 rec.status = "cleared"
                                 break
