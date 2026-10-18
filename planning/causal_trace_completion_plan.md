@@ -1334,3 +1334,17 @@ tests, six war-intent trace tests, two diplomacy-AI trace tests, and nine M5
 AI regression tests passed (29 total). Trace-neutral enclosure outcomes,
 candidate rejection reasons, budget and emergency gates, and war/diplomacy
 causal links were checked, along with compilation and `git diff --check`.
+
+## Phase 4 follow-up — Explain border-defense threat scores
+
+The border vulnerability calculation now records every adjacent tile and the
+reason it contributes or is excluded. Foreign neighbors include their relation,
+alliance and non-aggression state, local enemy units, enemy strength, hostility
+floor, hostility multiplier, and weighted threat. The final calculation records
+the local garrison strength, denominator, aggregate threat, formula, score, and
+reason text. Nation AI decisions link to each owned tile's calculation.
+
+Verification: two dedicated border-vulnerability tests, six nation-policy
+trace tests, and nine M5 AI regression tests passed (17 total). Trace-on/off
+scores match; alliance exclusions, formula inputs, metric registration, final
+decision links, compilation, and `git diff --check` were checked.

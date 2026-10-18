@@ -68,6 +68,30 @@ def _emit_war_ai_trace(context, *, kind, nation, enemy, metric_id, unit,
     return event_id
 
 
+def _emit_border_vulnerability_trace(tile, nation, *, after, inputs,
+                                     record_class='calculation',
+                                     formula_id=None):
+    if (getattr(tile, '_run_trace', None) is None
+            or getattr(tile, '_collective_trace_clock', None) is None):
+        return None
+    from run_trace import emit
+    clock = tile._collective_trace_clock
+    trace_turn = int(clock.get('turn', 0))
+    event_inputs = dict(inputs or {})
+    event_inputs.setdefault(
+        'operation_id',
+        f'border-vulnerability:{nation.name}:{tile.name}:{trace_turn}:'
+        f'{int(clock.get("next", 0))}')
+    event_inputs.setdefault('turn', trace_turn)
+    return emit(
+        tile, kind='nation_border_vulnerability',
+        record_class=record_class, phase='strategy',
+        subject={'type': 'nation/tile', 'id': nation.name,
+                 'tile': tile.name},
+        metric_id='military.border_vulnerability', unit='ratio',
+        after=after, inputs=event_inputs, formula_id=formula_id)
+
+
 class NationPolicyAI:
     """Strategic decision-making intelligence for one sovereign Nation."""
 
@@ -218,7 +242,13 @@ class NationPolicyAI:
     def evaluate_tile_vulnerability(self, tile, all_nations: list,
                                     diplomacy: DiplomacySystem) -> tuple[float, str]:
         """Calculate threat / vulnerability score for an owned *tile* (0.0 to 1.0) (M5.2)."""
+        self._last_border_vulnerability_event_id = None
         if getattr(tile, 'owner_nation', None) is not self.nation:
+            self._last_border_vulnerability_event_id = (
+                _emit_border_vulnerability_trace(
+                    tile, self.nation, after=0.0,
+                    inputs={'reason_code': 'tile_not_owned',
+                            'formula_evaluated': False}))
             return 0.0, "Tile not owned"
 
         # Local friendly military strength
@@ -228,10 +258,23 @@ class NationPolicyAI:
         # Hostile / rival neighbor military strength adjacent to this tile
         hostile_adjacent_strength = 0.0
         threat_sources = []
+        neighbor_evaluations = []
 
         for other in tile.neighbors.values():
             other_owner = getattr(other, 'owner_nation', None)
-            if other_owner is None or other_owner is self.nation:
+            if other_owner is None:
+                neighbor_evaluations.append({
+                    'tile': other.name, 'owner': None,
+                    'relation_evaluated': False,
+                    'military_units_evaluated': False,
+                    'reason_code': 'unowned_neighbor'})
+                continue
+            if other_owner is self.nation:
+                neighbor_evaluations.append({
+                    'tile': other.name, 'owner': other_owner.name,
+                    'relation_evaluated': False,
+                    'military_units_evaluated': False,
+                    'reason_code': 'same_nation_neighbor'})
                 continue
 
             rel = diplomacy.get_relation(self.nation.name, other_owner.name)
@@ -239,6 +282,14 @@ class NationPolicyAI:
             is_nap = diplomacy.has_treaty(self.nation.name, other_owner.name, TreatyType.NON_AGGRESSION.value)
 
             if is_allied or is_nap:
+                neighbor_evaluations.append({
+                    'tile': other.name, 'owner': other_owner.name,
+                    'relation': rel, 'relation_evaluated': True,
+                    'defensive_alliance': is_allied,
+                    'non_aggression_pact': is_nap,
+                    'military_units_evaluated': False,
+                    'reason_code': (
+                        'defensive_alliance_or_non_aggression_pact')})
                 continue
 
             # Check military units on the neighbor tile
@@ -248,16 +299,61 @@ class NationPolicyAI:
             # Weight by hostility
             hostility = max(0.2, (0.2 - rel))  # higher if relation is negative
             weighted_threat = enemy_strength * hostility
+            neighbor_evaluations.append({
+                'tile': other.name, 'owner': other_owner.name,
+                'relation': rel, 'relation_evaluated': True,
+                'defensive_alliance': is_allied,
+                'non_aggression_pact': is_nap,
+                'military_units_evaluated': True,
+                'enemy_units': [
+                    {'unit_id': getattr(unit, 'unit_id', None),
+                     'region': unit.region_name, 'strength': unit.strength}
+                    for unit in enemy_units],
+                'enemy_strength': enemy_strength,
+                'hostility_floor': 0.2,
+                'hostility': hostility,
+                'weighted_threat': weighted_threat,
+                'reason_code': ('weighted_hostile_force'
+                                if weighted_threat > 0 else
+                                'no_positive_adjacent_force')})
             if weighted_threat > 0:
                 hostile_adjacent_strength += weighted_threat
                 threat_sources.append(other_owner.name)
 
         if hostile_adjacent_strength <= 0:
-            return 0.0, "Secure border: no hostile forces detected."
-
-        vulnerability = min(1.0, hostile_adjacent_strength / max(10.0, local_strength + 10.0))
-        reason = (f"Vulnerability: {vulnerability:.2f} (Local strength: {local_strength:.1f} vs "
-                  f"Threat from {', '.join(set(threat_sources))}: {hostile_adjacent_strength:.1f})")
+            vulnerability = 0.0
+            reason = "Secure border: no hostile forces detected."
+            denominator = max(10.0, local_strength + 10.0)
+        else:
+            denominator = max(10.0, local_strength + 10.0)
+            vulnerability = min(1.0, hostile_adjacent_strength / denominator)
+            reason = (f"Vulnerability: {vulnerability:.2f} (Local strength: {local_strength:.1f} vs "
+                      f"Threat from {', '.join(set(threat_sources))}: {hostile_adjacent_strength:.1f})")
+        self._last_border_vulnerability_event_id = (
+            _emit_border_vulnerability_trace(
+                tile, self.nation, after=vulnerability,
+                record_class='calculation',
+                formula_id='military.border_vulnerability.v1',
+                inputs={
+                    'reason_code': ('hostile_adjacent_force'
+                                    if hostile_adjacent_strength > 0 else
+                                    'no_hostile_adjacent_force'),
+                    'local_units': [
+                        {'unit_id': getattr(unit, 'unit_id', None),
+                         'region': unit.region_name,
+                         'strength': unit.strength}
+                        for unit in local_units],
+                    'local_strength': local_strength,
+                    'neighbor_evaluations': neighbor_evaluations,
+                    'hostile_adjacent_strength': hostile_adjacent_strength,
+                    'threat_source_names': list(set(threat_sources)),
+                    'denominator': denominator,
+                    'denominator_floor': 10.0,
+                    'local_strength_buffer': 10.0,
+                    'vulnerability_formula':
+                        'min(1, weighted_hostile_strength / '
+                        'max(10, local_strength + 10))',
+                    'reason': reason}))
         return vulnerability, reason
 
     # ------------------------------------------------------------------
@@ -905,6 +1001,7 @@ class NationPolicyAI:
         submitted = []
         treasury = self.nation.treasury()
         war_ai_event_ids = []
+        border_vulnerability_event_ids = []
         considered = [{'candidate': 'do_nothing', 'feasible': True, 'score': 0.0}]
         considered.extend({'candidate': 'food_security', **row}
                           for row in food_responses)
@@ -953,6 +1050,10 @@ class NationPolicyAI:
         # 1. Military Defense & Vulnerability Checks (M5.2)
         for tile in self.nation.tiles:
             vuln, reason = self.evaluate_tile_vulnerability(tile, all_nations, diplomacy)
+            border_event_id = getattr(
+                self, '_last_border_vulnerability_event_id', None)
+            if border_event_id:
+                border_vulnerability_event_ids.append(border_event_id)
             vulnerability_threshold = 0.5
             treasury_threshold = 30.0
             vulnerability_gate = vuln > vulnerability_threshold
@@ -966,6 +1067,7 @@ class NationPolicyAI:
                                'treasury_total': treasury['total'],
                                'treasury_threshold': treasury_threshold,
                                'treasury_gate': treasury_gate,
+                               'threat_calculation_event_id': border_event_id,
                                'reason_code': (
                                    'vulnerability_and_treasury_gates_passed'
                                    if defense_feasible else
@@ -1255,6 +1357,9 @@ class NationPolicyAI:
             for event_id in war_ai_event_ids:
                 if event_id and event_id not in cause_event_ids:
                     cause_event_ids.append(event_id)
+            for event_id in border_vulnerability_event_ids:
+                if event_id and event_id not in cause_event_ids:
+                    cause_event_ids.append(event_id)
             decision_id = emit(self.nation.tiles[0], kind='nation_ai_decision',
                  record_class='decision', phase='strategy',
                  subject={'type': 'nation', 'id': self.nation.name},
@@ -1263,6 +1368,8 @@ class NationPolicyAI:
                          'considered': considered,
                          'food_security': food_responses,
                          'war_ai_decision_event_ids': war_ai_event_ids,
+                         'border_vulnerability_event_ids':
+                             border_vulnerability_event_ids,
                          'selected': [type(intent).__name__ for intent in submitted],
                          'submitted_count': len(submitted)})
             for intent in submitted:

@@ -959,3 +959,16 @@ blocks, action parity for enclosure, empty and unaffordable gates, project and
 infrastructure screening, and final-decision causal links. Per-neighbor threat
 weights behind border vulnerability remain a spatial tracing gap. Compilation
 and `git diff --check` passed.
+
+Phase 4 follow-up, 2026-10-18: border-vulnerability calculation now records
+each adjacent tile's ownership, relations, defensive alliance/non-aggression
+exclusion, troops present, hostility floor, and weighted threat. The local
+garrison, denominator floor, total weighted force, and final vulnerability
+formula are included. The nation-turn result links its defense candidate back
+to each tile calculation.
+
+Verification: two dedicated border-vulnerability tests, six nation-policy
+trace tests, and nine M5 AI regression tests passed (17 total). Trace-on/off
+scores and reason text match; treaty exclusions, weighted threat calculation,
+metric registration, final-decision linkage, compilation, and `git diff --check`
+were checked.

@@ -127,6 +127,13 @@ class NationAIGateTraceTests(unittest.TestCase):
         decision = next(row for row in trace.rows
                         if row.get('kind') == 'nation_ai_decision')
         considered = decision['inputs']['considered']
+        border_event_ids = [row['event_id'] for row in trace.rows
+                            if row.get('metric_id') ==
+                            'military.border_vulnerability']
+        self.assertEqual(decision['inputs'][
+            'border_vulnerability_event_ids'], border_event_ids)
+        for event_id in border_event_ids:
+            self.assertIn(event_id, decision['cause_event_ids'])
 
         defense = next(row for row in considered
                        if row.get('candidate') == 'recruit_defense')
