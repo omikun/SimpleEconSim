@@ -409,3 +409,9 @@ already fun or balanced; that still needs player feedback.
   the arithmetic still reconciles. The metric inventory now
   marks resident counts and role changes as instrumented.
 - `MPLCONFIGDIR=/private/tmp/population-bridge-tests venv/bin/python -m unittest test_run_trace test_person_flows test_web_server test_trade_route_epidemic_transmission` — 66 tests passed. A five-turn default three-nation trace emitted 20 resident bridges; all 20 reconciled and linked to source events. Targeted compilation and `git diff --check` passed.
+- Legacy population instrumentation now records profession membership changes
+  separately from the end-of-turn resident census. The trace identifies added
+  and removed agent IDs and links available career, death, migration, and role
+  events. Snapshots omit unchanged and zero-count categories to keep the new
+  series compact.
+- `MPLCONFIGDIR=/private/tmp/profession-population-tests venv/bin/python -m unittest test_run_trace test_person_flows test_web_server test_trade_route_epidemic_transmission` — 68 tests passed. In a seeded five-turn default-world run, the profession series emitted 182 events (113 changed snapshots), had no unexplained changes, and matched each tile's `total_population` history exactly. Targeted compilation and `git diff --check` passed.

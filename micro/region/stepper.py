@@ -28,10 +28,33 @@ import land_rent as _rent
 import social_class as _sclass
 
 
+def _profession_population_members(region: Any) -> dict:
+    """Capture the agents included by the local profession headcount rule."""
+    members = {getattr(group, 'name', str(group)): {} for group in region.goods}
+    members['trader'] = {}
+    for agent in getattr(region, 'agents', ()):
+        if getattr(agent, 'is_trader', False):
+            continue
+        output = getattr(agent, 'output', None)
+        if output == Goods.food:
+            group_name = Goods.food.name
+        elif output != Goods.gov and output in region.goods:
+            group_name = getattr(output, 'name', str(output))
+        else:
+            continue
+        members.setdefault(group_name, {})[getattr(agent, 'id', None)] = agent
+    for agent in getattr(region, 'trader_agents', ()):
+        members['trader'][getattr(agent, 'id', None)] = agent
+    return members
+
+
 def step_economy(region: Any, t: int):
     """Per-tile economy and institutional flows."""
     legacy = getattr(region, 'province', None) is None
     region._last_turn = t
+    if (getattr(region, '_run_trace', None) is not None
+            and not hasattr(region, '_trace_profession_members')):
+        region._trace_profession_members = _profession_population_members(region)
     from supply_rights import expire_land_leases
     expire_land_leases(region, t)
     for firm in getattr(region, 'agents', []):
@@ -506,6 +529,78 @@ def log_gdp(region: Any):
          inputs={'goods': terms})
 
 
+def _trace_profession_population(region: Any, by_output: dict) -> None:
+    """Record changing members of the legacy profession-population measure."""
+    run_trace = getattr(region, '_run_trace', None)
+    if run_trace is None:
+        return
+    previous = getattr(region, '_trace_profession_members', None)
+    current = {
+        getattr(group, 'name', str(group)): {
+            getattr(agent, 'id', None): agent for agent in agents}
+        for group, agents in by_output.items()
+    }
+    if previous is not None:
+        old_profession = {agent_id: name for name, members in previous.items()
+                          for agent_id in members}
+        new_profession = {agent_id: name for name, members in current.items()
+                          for agent_id in members}
+        flow_events = {}
+        flow_events.update(getattr(run_trace, '_previous_person_flow_events', {}))
+        flow_events.update(getattr(run_trace, '_person_flow_events', {}))
+        for group, members in by_output.items():
+            name = getattr(group, 'name', str(group))
+            old_members = previous.get(name, {})
+            new_members = current.get(name, {})
+            removed_ids = old_members.keys() - new_members.keys()
+            added_ids = new_members.keys() - old_members.keys()
+            if not removed_ids and not added_ids:
+                continue
+
+            changes = []
+            cause_ids = set()
+            for person_id in sorted(removed_ids | added_ids, key=str):
+                agent = new_members.get(person_id) or old_members.get(person_id)
+                changes.append({
+                    'agent_id': str(person_id),
+                    'from_profession': old_profession.get(person_id),
+                    'to_profession': new_profession.get(person_id),
+                    'role': ('corporation' if getattr(agent, 'is_corporation', False)
+                             else 'government' if getattr(agent, 'is_government', False)
+                             else 'trader' if getattr(agent, 'is_trader', False)
+                             else 'person'),
+                    'alive': bool(getattr(agent, 'alive', True)),
+                    'death_cause': getattr(agent, 'death_cause', None),
+                    'region': getattr(agent, 'region', None),
+                    'last_migration_turn': getattr(agent, 'last_migration_turn', None),
+                })
+                for event_id in flow_events.get(str(person_id), ()):
+                    cause_ids.add(event_id)
+
+            history = getattr(region, 'population_log', {}).get(group, ())
+            before = history[-1] if history else len(old_members)
+            after = len(members)
+            from run_trace import emit
+            emit(region, kind='profession_population_count', record_class='calculation',
+                 phase='local',
+                 subject={'type': 'tile', 'id': region.name, 'profession': name},
+                 metric_id='people.profession_population', unit='people',
+                 before=int(before), after=int(after),
+                 formula_id='population.profession_membership_count.v1',
+                 inputs={'profession': name,
+                         'counting_rule': ('all entries in trader_agents'
+                                           if name == 'trader' else
+                                           'non-trader agents whose output equals this '
+                                           'profession; government output excluded'),
+                         'added_agent_ids': sorted(map(str, added_ids)),
+                         'removed_agent_ids': sorted(map(str, removed_ids)),
+                         'membership_changes': changes,
+                         'member_count': int(after),
+                         'previous_membership_available': True},
+                 cause_event_ids=sorted(cause_ids))
+    region._trace_profession_members = current
+
+
 def log_metrics(region: Any, t: int):
     agents = region.agents
     by_output = {g: [] for g in region.goods}
@@ -535,6 +630,8 @@ def log_metrics(region: Any, t: int):
     by_output['trader'] = trader_agents
     for a in trader_agents:
         total_inv_trader += a.inv_get(Goods.food, 0) + a.inv_get(Goods.wood, 0) + a.inv_get(Goods.furniture, 0)
+
+    _trace_profession_population(region, by_output)
 
     compute_gini_this_turn = (t % 10 == 0)
 

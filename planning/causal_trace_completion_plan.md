@@ -200,10 +200,12 @@ balancing entry may erase a simulation accounting defect.
 4. Instrument violent deaths and consolidate mortality accounting without
    relabeling risk factors as proven causes. A resident census bridge now
    distinguishes births, entries, deaths, migration, person/entity role changes,
-   and territorial membership changes by tile and nation. The separate legacy
-   profession-population series and its timing/agent scope still need an
-   explicit bridge; soldiers remain included in resident counts while their
-   military status and movement are traced separately.
+   and territorial membership changes by tile and nation. The profession-count
+   population series now records per-profession member changes and their local
+   phase; its total is the recorded sum of those counts. The snapshot explicitly
+   distinguishes that pre-migration count from the end-of-turn resident census.
+   Soldiers remain included in resident counts while their military status and
+   movement are traced separately.
 5. Upgrade coverage checks to validate mutation chains, versioned formulas,
    referenced causes, covered components, missing writers and conservation.
    Report counts by scenario, subsystem and metric, not one misleading percent.
@@ -306,7 +308,16 @@ read by the disease summary. This adds evidence and corrects a counter wiring
 gap without changing mortality probabilities or random draws. Population
 bridges across living residents now reconcile births, external entries,
 cross-tile migration, deaths, role conversion, and nation membership changes;
-the profession-count series still needs its own scope and phase bridge.
+the profession-count series records its exact output/trader scope, local update
+phase, changing member IDs, and links to related death, occupation, migration,
+and role events when available. Its recorded total remains the sum of the
+profession counts, with national aggregation using current tile membership.
+The profession metric is stored sparsely: stable counts and zero-valued
+categories are omitted from snapshots, while the change calculations remain
+available. In a seeded five-turn default-world run, 182 profession events
+included 113 changed snapshots, no unexplained profession changes, and no
+mismatch between the summed profession histories and the legacy population
+series. The trace-volume check exposed and removed repeated unchanged rows.
 
 The storage portion of Phase 6 now has a compact `.ctr` event stream and a
 streaming reader; see [the format and decode commands](compact_trace_format.md).

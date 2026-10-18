@@ -211,6 +211,68 @@ class RunTraceTests(unittest.TestCase):
         self.assertFalse(row['inputs']['explanation_complete'])
         self.assertEqual(row['inputs']['flow_counts'], {'unknown_exits': 1})
 
+    def test_profession_population_changes_link_death_and_career_events(self):
+        from micro.region.stepper import _trace_profession_population
+
+        with tempfile.TemporaryDirectory() as tmp:
+            trace = RunTrace(Path(tmp) / 'profession.ctr', 'profession')
+            clock = {'next': 1, 'turn': 4, 'phase': 'local'}
+            dead = SimpleNamespace(id=1, alive=False, is_corporation=False,
+                                   is_government=False, is_trader=False,
+                                   death_cause='combat', output=Goods.food)
+            switcher = SimpleNamespace(id=2, alive=True, is_corporation=False,
+                                       is_government=False, is_trader=False,
+                                       output=Goods.wood)
+            wood_worker = SimpleNamespace(id=3, alive=True, is_corporation=False,
+                                          is_government=False, is_trader=False,
+                                          output=Goods.wood)
+            trace.emit(clock, kind='person_died', record_class='outcome',
+                       subject={'type': 'tile/agent', 'id': '1'},
+                       inputs={'agent_id': '1'})
+            trace.emit(clock, kind='demographic_career_switch',
+                       record_class='outcome',
+                       subject={'type': 'agent', 'id': 2},
+                       metric_id='labor.occupation_change', before='food', after='wood',
+                       inputs={'agent_id': 2})
+            region = SimpleNamespace(
+                name='Delta', _run_trace=trace, _collective_trace_clock=clock,
+                population_log={Goods.food: [2], Goods.wood: [1], 'trader': [0]},
+                _trace_profession_members={
+                    'food': {1: dead, 2: switcher}, 'wood': {3: wood_worker},
+                    'trader': {}},
+            )
+            _trace_profession_population(region, {
+                Goods.food: [], Goods.wood: [switcher, wood_worker],
+                'trader': []})
+            food = trace.query(metric_id='people.profession_population',
+                               subject={'type': 'tile', 'profession': 'food'})['events']
+            wood = trace.query(metric_id='people.profession_population',
+                               subject={'type': 'tile', 'profession': 'wood'})['events']
+            self.assertEqual(len(food), 1)
+            self.assertEqual((food[0]['value_before'], food[0]['value_after']), (2, 0))
+            self.assertEqual(food[0]['inputs']['removed_agent_ids'], ['1', '2'])
+            self.assertIn('profession:1', food[0]['cause_event_ids'])
+            self.assertIn('profession:2', food[0]['cause_event_ids'])
+            self.assertEqual(len(wood), 1)
+            self.assertEqual((wood[0]['value_before'], wood[0]['value_after']), (1, 2))
+            self.assertEqual(wood[0]['inputs']['added_agent_ids'], ['2'])
+            self.assertIn('profession:2', wood[0]['cause_event_ids'])
+
+    def test_snapshots_include_profession_and_trader_population_series(self):
+        from trace_snapshots import sample
+
+        tile = SimpleNamespace(
+            name='Delta', recipes={}, population_log={
+                Goods.food: [3], Goods.wood: [0], 'trader': [1]},
+            total_population=[4], agents=[], protest_energy_log=[], unrest_log=[],
+            gdp_log=[], cost_of_living=1.0, construction_projects=[])
+        values = sample([tile], [])
+        self.assertEqual(values[
+            ('people.profession_population', 'Delta', 'food')][2], 3)
+        self.assertEqual(values[
+            ('people.profession_population', 'Delta', 'trader')][2], 1)
+        self.assertNotIn(('people.profession_population', 'Delta', 'wood'), values)
+
     def test_price_formula_replays_from_recorded_terms(self):
         with tempfile.TemporaryDirectory() as tmp:
             trace = RunTrace(Path(tmp) / 'run.ctr', 'fixture', seed=1)

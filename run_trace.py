@@ -29,6 +29,7 @@ class RunTrace:
         self._treasury_flows = {}
         self._price_mutations = {}
         self._person_flow_events = {}
+        self._previous_person_flow_events = {}
         self.path.parent.mkdir(parents=True, exist_ok=True)
         if self.path.exists():
             raise FileExistsError(self.path)
@@ -59,7 +60,8 @@ class RunTrace:
             self._calculated_values.clear()
             self._treasury_flows.clear()
             self._price_mutations.clear()
-            self._person_flow_events.clear()
+            self._previous_person_flow_events = self._person_flow_events
+            self._person_flow_events = {}
         row = {'schema_version': SCHEMA_VERSION, 'run_id': self.run_id,
                'branch_id': self.branch_id, 'event_id': f'{self.run_id}:{sequence}',
                'sequence': sequence, 'turn': clock.get('turn', 0),
@@ -118,13 +120,15 @@ class RunTrace:
             'enlisted_person_departure', 'enlisted_person_arrival',
             'scenario_person_departure', 'scenario_person_arrival',
         }
-        if self.write_error is None and kind in person_flow_kinds:
+        if (self.write_error is None
+                and (kind in person_flow_kinds
+                     or metric_id in ('labor.occupation_change', 'people.role'))):
             event_inputs = row.get('inputs') or {}
             event_subject = row.get('subject') or {}
             person_id = (event_inputs.get('agent_id')
                          if event_inputs.get('agent_id') is not None else
                          event_inputs.get('new_agent_id'))
-            if person_id is None and event_subject.get('type') == 'tile/agent':
+            if person_id is None and event_subject.get('type') in ('agent', 'tile/agent'):
                 person_id = event_subject.get('id')
             if person_id is not None:
                 self._person_flow_events.setdefault(str(person_id), []).append(

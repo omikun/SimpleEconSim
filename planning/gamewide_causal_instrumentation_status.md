@@ -1,19 +1,19 @@
 # Causal run trace: implementation status
 
-The live server writes one JSONL file per world generation to `tmp/traces/`. A
-bounded recent ring supports live inspection. Every completed turn has a hash
-checkpoint. The old collective report remains available separately.
+The live server writes one compact `.ctr` file per world generation to
+`tmp/traces/`. A bounded recent ring supports live inspection. Every completed
+turn has a hash checkpoint. The old collective report remains available
+separately.
 
-Next work is specified in the [completion plan](causal_trace_completion_plan.md),
-with correctness validation first and all-goods price fluctuation tracing as the
-first feature. Entries below describe installed probes, not uniformly verified
-end-to-end causal coverage.
+Remaining work is specified in the [completion plan](causal_trace_completion_plan.md).
+Entries below describe installed probes, not uniformly verified end-to-end
+causal coverage.
 
 ## Inspect a run
 
 ```bash
-venv/bin/python trace_report.py --run tmp/traces/RUN.jsonl --turn 12 --entity tile:Delta --metric goods.price --verify
-venv/bin/python trace_coverage.py --run tmp/traces/RUN.jsonl
+venv/bin/python trace_report.py --run tmp/traces/RUN.ctr --turn 12 --entity tile:Delta --good food --metric goods.price --verify
+venv/bin/python trace_coverage.py --run tmp/traces/RUN.ctr
 ```
 
 The web client queries `/api/trace?turn=12&entity=tile:Delta&metric=goods.price`
@@ -60,9 +60,14 @@ the FX matrix has a **Why?** button for each quoted currency pair.
   consumed by the disease summary. Population bridges that reconcile opening
   residents with births, external entries, departures/arrivals, deaths, role
   conversions, and territory membership changes are emitted per tile and nation.
-  The separate profession-count population series still needs an explicit phase
-  and membership bridge; military people remain resident-counted while their
-  status and transfers are traced separately.
+  The profession-count population series is separately defined as the sum of
+  output-coded agents and traders. Per-profession count changes record entering
+  and leaving agent IDs and link deaths, career switches, migration, and role
+  changes where their events exist. These counts are recorded in the local
+  metrics phase before that turn's migration phase; the resident census is the
+  end-of-turn measure. National profession counts use territory membership at
+  snapshot time. Military people remain resident-counted while their status and
+  transfers are traced separately.
 - Trade-borne plague records route contagion loading probability and draw,
   quarantine blocks, cargo availability, vulnerable population, and the
   selected newly infected person.
@@ -116,7 +121,10 @@ upstream links. The existing `vwap` input is an unweighted recent-sample mean.
 The web price inspector currently requests food records only.
 
 The coverage checker reports a changed snapshot as unexplained when its final
-value does not match a recorded calculation. Treasury snapshots show cash and
+value does not match a recorded calculation. Per-profession headcount snapshots
+are sparse: unchanged counts, including zero categories, are omitted while the
+membership-change calculation records retain before/after counts and agent IDs.
+Treasury snapshots show cash and
 deposit components, but treasury transfers are not yet comprehensively
 instrumented. Several scenario operations still need mutation-point records.
 Some secondary and elite AI candidate details remain partial. The current metric

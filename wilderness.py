@@ -150,6 +150,12 @@ def step_wilderness(region, t):
     logs.  No conservation impact except the sanctioned foraged food.
     """
     foraged = forage(region, t)
+    if getattr(region, '_run_trace', None) is not None:
+        from micro.region.stepper import _trace_profession_population
+        profession_groups = {good: [] for good in region.goods}
+        profession_groups[Goods.food] = list(region.agents)
+        profession_groups['trader'] = []
+        _trace_profession_population(region, profession_groups)
     _align_logs(region)
     # This turn's food-production entry reflects the foraged units (GDP too).
     region.production_log[Goods.food][-1] = foraged

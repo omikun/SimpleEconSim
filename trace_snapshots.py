@@ -213,6 +213,13 @@ def sample(tiles, nations):
                     if history:
                         values[(metric_id, tile.name, good.name)] = (
                             subject, unit, float(history[-1]))
+        for profession, history in getattr(tile, 'population_log', {}).items():
+            if not history or int(history[-1]) == 0:
+                continue
+            profession_name = getattr(profession, 'name', str(profession))
+            subject = {**tile_subject, 'profession': profession_name}
+            values[('people.profession_population', tile.name, profession_name)] = (
+                subject, 'people', int(history[-1]))
         values[('people.population', tile.name)] = (
             tile_subject, 'people', tile.total_population[-1]
             if getattr(tile, 'total_population', None) else len(tile.agents))
@@ -328,6 +335,15 @@ def sample(tiles, nations):
         values[('people.residents', nation.name)] = (
             subject, 'people',
             sum(values[('people.residents', tile.name)][2] for tile in members))
+        professions = {key[2] for key in values
+                       if key[0] == 'people.profession_population'
+                       and key[1] in {tile.name for tile in members}}
+        for profession_name in professions:
+            values[('people.profession_population', nation.name, profession_name)] = (
+                {**subject, 'profession': profession_name}, 'people',
+                sum(values.get(('people.profession_population', tile.name,
+                                profession_name), (None, 'people', 0))[2]
+                    for tile in members))
         values[('economy.gdp_nominal', nation.name)] = (
             subject, nation.currency + '_per_turn',
             sum(tile.gdp_log[-1] if getattr(tile, 'gdp_log', None) else 0.0
@@ -346,6 +362,12 @@ def sample(tiles, nations):
 def record(server):
     current = sample(server.tiles, server.nations)
     previous = getattr(server, '_trace_previous', {})
+    # Keep zero-valued profession keys in the internal baseline so a later
+    # return to a profession has a real before value, without snapshotting
+    # unchanged zero categories every turn.
+    for key, (subject, unit, _before) in previous.items():
+        if key[0] == 'people.profession_population' and key not in current:
+            current[key] = (subject, unit, 0)
     current_people = resident_census(server.tiles)
     current_roles = entity_role_census(server.tiles)
     previous_people = getattr(server, '_trace_previous_people', None)
@@ -463,8 +485,34 @@ def record(server):
                                       after=current[key][2],
                                       formula_id=f'aggregate.{reducer}.v1',
                                       inputs=aggregate_inputs)
+            for key, (subject, unit, after) in current.items():
+                if (key[0] != 'people.profession_population'
+                        or subject.get('type') != 'nation'
+                        or subject.get('id') != nation.name):
+                    continue
+                profession_name = subject['profession']
+                member_values = [current.get(
+                    ('people.profession_population', tile, profession_name),
+                    (None, 'people', 0.0))[2] for tile in members]
+                prior_member_values = [previous.get(
+                    ('people.profession_population', tile, profession_name),
+                    (None, 'people', 0.0))[2] for tile in members]
+                if member_values == prior_member_values:
+                    continue
+                server.run_trace.emit(
+                    clock, kind='national_aggregate',
+                    record_class='calculation', phase='snapshot',
+                    subject=subject, metric_id='people.profession_population',
+                    unit=unit, after=after,
+                    formula_id='aggregate.sum.v1',
+                    inputs={'member_tiles': members,
+                            'member_values': member_values,
+                            'profession': profession_name,
+                            'denominator': None})
         for key, (subject, unit, after) in current.items():
             before = previous[key][2] if key in previous else None
+            if key[0] == 'people.profession_population' and before == after:
+                continue
             if key[0] == 'goods.price':
                 server.run_trace.price_bridge(clock, subject=subject,
                                               before=before, after=after, unit=unit)
