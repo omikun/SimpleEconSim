@@ -325,13 +325,18 @@ and arrival to the market's
 import supply total and delivered quote; the paid sale links to its buyer order
 and the quote actually evaluated. Shipment ownership, quantity, parked status,
 route history, and explicit legacy-unlinked status stay on the records. Route
-congestion-delay inputs, frozen-route reasons, and some export limits remain
-open.
+loading records queue depth, capacity-per-unit, and congestion delay; progress
+and held records explain countdowns and strike, blockade, or quarantine pauses.
+Food retention, freight affordability limits, and freight settlements are
+recorded. Reasons for zero market orders and broader strike-to-output chains
+remain open.
 
-Verification: the focused trace, auction, and route suites passed 44 tests.
-A seeded six-turn labor-frontier run verified that recorded purchase event IDs
-resolve through departure, arrival, imported supply, delivered quote, and at
-least one paid imported sale. Compilation and `git diff --check` passed.
+Verification: the focused trace, auction, route, blockade, and disease-route
+suites passed 56 tests. A seeded six-turn labor-frontier run verified that
+recorded purchase event IDs resolve through departure, arrival, imported
+supply, delivered quote, and at least one paid imported sale. A route fixture
+verified congestion delays, blockade holds, and quarantine rejection.
+Compilation and `git diff --check` passed.
 One traced labor-frontier turn wrote 2,426 total events in 125,512 compact
 bytes; 425 were market-chain events. All added cause IDs resolved within the
 run and no recorded formula failed replay. This is an initial scenario sample,

@@ -188,11 +188,24 @@ def post_exports_to_route(region):
             if g == Goods.food:
                 export_fraction = max(0.0, min(1.0, float(getattr(region, 'food_export_fraction', 1.0))))
                 if export_fraction < 1.0 and qty > 0:
+                    available_food_export = qty
                     export_qty = int(qty * export_fraction)
                     retained = qty - export_qty
                     trader.inventory_export[g.value] -= retained
                     region.granary_stock = float(getattr(region, 'granary_stock', 0.0)) + retained
                     qty = min(permitted_qty, export_qty)
+                    from run_trace import emit
+                    emit(region, kind='route_food_export_retained',
+                         record_class='calculation',
+                         subject={'type': 'tile', 'id': region.name, 'good': g.name},
+                         metric_id='trade.export_quantity', unit='units',
+                         before=available_food_export, after=qty,
+                         formula_id='route.food_export_fraction.v1',
+                         inputs={'trader_id': trader.id,
+                                 'food_export_fraction': export_fraction,
+                                 'charter_permitted_quantity': permitted_qty,
+                                 'retained_quantity': retained,
+                                 'granary_stock_after': region.granary_stock})
             else:
                 qty = permitted_qty
             if qty > 0:
@@ -201,13 +214,32 @@ def post_exports_to_route(region):
                 freight_unit = (max(0.0, float(transport_cost_per_unit(region)))
                                 if carrier is not None and has_transport_quote else 0.0)
                 if carrier is not None and freight_unit > 0:
-                    qty = min(qty, int(max(0.0, trader.cash) / freight_unit))
+                    submitted_qty = qty
+                    spendable_cash = max(0.0, float(trader.cash))
+                    qty = min(qty, int(spendable_cash / freight_unit))
+                    if qty < submitted_qty:
+                        from run_trace import emit
+                        emit(region, kind='route_freight_affordability_limit',
+                             record_class='calculation',
+                             subject={'type': 'tile', 'id': region.name,
+                                      'good': g.name},
+                             metric_id='trade.export_quantity', unit='units',
+                             before=submitted_qty, after=qty,
+                             formula_id='route.freight_affordability.v1',
+                             inputs={'trader_id': trader.id,
+                                     'destination': route.dst.name,
+                                     'route': route.name,
+                                     'freight_per_unit': freight_unit,
+                                     'spendable_cash': spendable_cash,
+                                     'affordable_quantity': qty})
                 unit_cost = float(trader.cost_get(g, 0.0))
                 moved = route.post(trader, g, qty, unit_cost=unit_cost,
                                    freight_per_unit=freight_unit,
                                    source_currency=getattr(region, 'home_currency', None))
                 if moved and carrier is not None and freight_unit > 0:
                     freight = moved * freight_unit
+                    trader_cash_before = float(trader.cash)
+                    carrier_cash_before = float(carrier.cash)
                     trader.cash -= freight
                     carrier.cash += freight
                     from economy.actor_accounts import record as record_economic_event
@@ -216,6 +248,32 @@ def post_exports_to_route(region):
                                           amount=freight, asset_id=route.name,
                                           detail={'destination': route.dst.name,
                                                   'unit_cost': freight_unit})
+                    from run_trace import emit
+                    shipment_id = route.pending[-1][4]
+                    trace = getattr(region, '_run_trace', None)
+                    departure_event_id = (
+                        trace.shipment_event_id(shipment_id, 'departure')
+                        if trace is not None and hasattr(trace, 'shipment_event_id')
+                        else None)
+                    emit(region, kind='route_freight_settlement',
+                         record_class='transfer',
+                         subject={'type': 'shipment', 'id': shipment_id},
+                         unit=getattr(region, 'home_currency', None),
+                         cause_event_ids=([departure_event_id]
+                                          if departure_event_id is not None else None),
+                         inputs={'operation_id': f'freight:{shipment_id}',
+                                 'route': route.name,
+                                 'source': region.name,
+                                 'destination': route.dst.name,
+                                 'good': g.name, 'quantity': moved,
+                                 'payer_id': trader.id,
+                                 'recipient_id': carrier.id,
+                                 'amount': freight,
+                                 'freight_per_unit': freight_unit,
+                                 'payer_cash_before': trader_cash_before,
+                                 'payer_cash_after': trader.cash,
+                                 'recipient_cash_before': carrier_cash_before,
+                                 'recipient_cash_after': carrier.cash})
                 if moved:
                     shipment = route.pending[-1]
                     from economy.actor_accounts import record as record_economic_event
@@ -232,20 +290,6 @@ def post_exports_to_route(region):
                                                   'source_cost_status': shipment[10],
                                                   'route_history': list(shipment[11]),
                                                   'source_acquisitions': list(shipment[12])})
-                    from run_trace import emit
-                    emit(region, kind='route_shipment_departure',
-                         record_class='observation',
-                         subject={'type': 'shipment', 'id': shipment[4]},
-                         inputs={'trader_id': trader.id, 'good': g.name,
-                                 'quantity': moved,
-                                 'source_shipment_id': shipment[8],
-                                 'source_region': shipment[9],
-                                 'source_unit_cost': unit_cost,
-                                 'freight_per_unit': freight_unit,
-                                 'source_currency': shipment[7],
-                                 'source_cost_status': shipment[10],
-                                 'route_history': list(shipment[11]),
-                                 'source_acquisitions': list(shipment[12])})
 
 
 def liquidation_price(good, cost_basis):

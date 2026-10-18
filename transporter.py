@@ -46,6 +46,12 @@ class Route:
                     or getattr(self, 'is_blockaded', False)
                     or getattr(self, 'is_quarantined', False))
 
+    def _freeze_reasons(self):
+        return [reason for reason, enabled in (
+            ('general_strike', getattr(self, 'is_blocked_by_strike', False)),
+            ('naval_blockade', getattr(self, 'is_blockaded', False)),
+            ('quarantine', getattr(self, 'is_quarantined', False))) if enabled]
+
     def post(self, trader, good, qty, *, unit_cost=None, freight_per_unit=0.0,
              source_currency=None):
         """Move ``qty`` from ``trader.inventory_export`` into this route.
@@ -53,6 +59,20 @@ class Route:
         Returns the quantity actually moved (never more than available).
         """
         if self.is_frozen:
+            if int(qty) > 0:
+                from run_trace import emit
+                emit(self.src, kind='route_shipment_post_blocked',
+                     record_class='calculation',
+                     subject={'type': 'route', 'id': self.name},
+                     metric_id='trade.route_post_quantity', unit='units',
+                     before=int(qty), after=0,
+                     formula_id='route.post_frozen.v1',
+                     inputs={'trader_id': trader.id, 'good': good.name,
+                             'source': self.src.name, 'destination': self.dst.name,
+                             'attempted_quantity': int(qty),
+                             'available_export_stock':
+                                 int(trader.inventory_export[good.value]),
+                             'block_reasons': self._freeze_reasons()})
             return 0
         qty = int(min(qty, trader.inventory_export[good.value]))
         if qty <= 0:
@@ -81,6 +101,18 @@ class Route:
                              unit_cost, float(freight_per_unit), source_currency,
                              shipment_id, self.src.name, cost_status, [self.name],
                              source_acquisitions])
+        from run_trace import emit
+        emit(self.src, kind='route_shipment_departure', record_class='observation',
+             subject={'type': 'shipment', 'id': shipment_id},
+             inputs={'trader_id': trader.id, 'good': good.name,
+                     'quantity': qty, 'source_shipment_id': shipment_id,
+                     'source_region': self.src.name, 'destination': self.dst.name,
+                     'route': self.name, 'source_unit_cost': unit_cost,
+                     'freight_per_unit': float(freight_per_unit),
+                     'source_currency': source_currency,
+                     'source_cost_status': cost_status,
+                     'route_history': [self.name],
+                     'source_acquisitions': source_acquisitions})
         return qty
 
     def post_parked(self, trader, good, qty):
@@ -91,6 +123,21 @@ class Route:
         trader.parked_foreign[src.name] -> this route's pending queue.
         """
         if self.is_frozen:
+            if int(qty) > 0:
+                from run_trace import emit
+                emit(self.src, kind='route_shipment_post_blocked',
+                     record_class='calculation',
+                     subject={'type': 'route', 'id': self.name},
+                     metric_id='trade.route_post_quantity', unit='units',
+                     before=int(qty), after=0,
+                     formula_id='route.post_frozen.v1',
+                     inputs={'trader_id': trader.id, 'good': good.name,
+                             'source': self.src.name, 'destination': self.dst.name,
+                             'source_pool': 'parked_inventory',
+                             'attempted_quantity': int(qty),
+                             'available_parked_stock': int(
+                                 trader.parked_get(self.src.name, good, 0)),
+                             'block_reasons': self._freeze_reasons()})
             return 0
         src_name = self.src.name
         qty = int(min(qty, trader.parked_get(src_name, good, 0)))
@@ -203,10 +250,45 @@ class Route:
         self.delivered_this_turn = []
         self.parked_this_turn = []
         if self.is_frozen:
+            from run_trace import emit
+            for entry in self.in_transit:
+                shipment_id = entry[5] if len(entry) > 5 else None
+                turns_left = int(entry[3])
+                subject = ({'type': 'shipment', 'id': shipment_id}
+                           if shipment_id is not None else
+                           {'type': 'route', 'id': self.name})
+                emit(self.src, kind='route_shipment_held',
+                     record_class='observation', subject=subject,
+                     metric_id='trade.route_turns_remaining', unit='turns',
+                     before=turns_left, after=turns_left,
+                     inputs={'shipment_id': shipment_id, 'route': self.name,
+                             'source': self.src.name, 'destination': self.dst.name,
+                             'good': entry[1].name, 'quantity': int(entry[2]),
+                             'turns_left': turns_left,
+                             'block_reasons': self._freeze_reasons()})
             return
         remaining = []
         for entry in self.in_transit:
+            turns_before = int(entry[3])
             entry[3] -= 1
+            shipment_id = entry[5] if len(entry) > 5 else None
+            subject = ({'type': 'shipment', 'id': shipment_id}
+                       if shipment_id is not None else
+                       {'type': 'route', 'id': self.name})
+            from run_trace import emit
+            raw_turns_after = int(entry[3])
+            emit(self.src, kind='route_shipment_progress',
+                 record_class='calculation', subject=subject,
+                 metric_id='trade.route_turns_remaining', unit='turns',
+                 before=turns_before, after=max(0, int(entry[3])),
+                 formula_id='route.transit_countdown.v1',
+                 inputs={'shipment_id': shipment_id, 'route': self.name,
+                         'source': self.src.name, 'destination': self.dst.name,
+                         'good': entry[1].name, 'quantity': int(entry[2]),
+                         'turns_before': turns_before,
+                         'raw_turns_after_decrement': raw_turns_after,
+                         'turns_after': max(0, raw_turns_after),
+                         'due_for_arrival': raw_turns_after <= 0})
             if entry[3] <= 0:
                 trader, good, qty = entry[0], entry[1], entry[2]
                 shipment_id = entry[5] if len(entry) > 5 else None
@@ -286,6 +368,23 @@ class Route:
             location = entry[3] if len(entry) > 3 else self.src.name
             delay = self.base_delay + depth // max(1, self.capacity_per_unit)
             self.in_transit.append([trader, good, qty, delay, location, *entry[4:]])
+            shipment_id = entry[4] if len(entry) > 4 else None
+            subject = ({'type': 'shipment', 'id': shipment_id}
+                       if shipment_id is not None else
+                       {'type': 'route', 'id': self.name})
+            from run_trace import emit
+            emit(self.src, kind='route_shipment_loaded',
+                 record_class='calculation', subject=subject,
+                 metric_id='trade.route_turns_remaining', unit='turns',
+                 after=delay, formula_id='route.delay.congestion.v1',
+                 inputs={'shipment_id': shipment_id, 'trader_id': trader.id,
+                         'good': good.name, 'quantity': int(qty),
+                         'source': self.src.name, 'destination': self.dst.name,
+                         'route': self.name, 'base_delay': self.base_delay,
+                         'queue_depth_before_load': int(depth),
+                         'capacity_per_unit': self.capacity_per_unit,
+                         'congestion_delay': delay - self.base_delay,
+                         'turns_left_on_load': delay})
             depth += 1
         self.pending = []
 

@@ -122,6 +122,60 @@ class MarketRouteTests(unittest.TestCase):
             self.assertIn(quote['event_id'], sale['cause_event_ids'])
             self.assertEqual(sale['inputs']['shipment_id'], shipment_id)
 
+    def test_route_trace_explains_congestion_hold_and_quarantine(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            trace = RunTrace(Path(tmp) / 'route-flow.ctr', 'route-flow')
+            clock = {'next': 1, 'turn': 1, 'phase': 'trade'}
+            source = SimpleNamespace(
+                name='Upland', home_currency='D', routes={}, neighbors={},
+                forex_desks={}, forex=None,
+                recipes={Goods.cotton: {'price': 5.0}}, trader_agents=[])
+            destination = SimpleNamespace(name='Lowland')
+            source._collective_trace_clock = clock
+            source._run_trace = trace
+            route = Route('Upland->Lowland', source, destination,
+                          base_delay=1, capacity_per_unit=1)
+            first = self._trader(source, destination, qty=1)
+            second = self._trader(source, destination, qty=1)
+            self.assertEqual(route.post(first, Goods.cotton, 1), 1)
+            self.assertEqual(route.post(second, Goods.cotton, 1), 1)
+            route.deliver_pending()
+            route.advance()
+            route.is_blockaded = True
+            route.advance()
+            route.is_blockaded = False
+            route.advance()
+
+            rows = trace.query(turn=1)['events']
+            rows_by_id = {row['event_id']: row for row in rows}
+            loaded = [row for row in rows if row['kind'] == 'route_shipment_loaded']
+            self.assertEqual([row['inputs']['turns_left_on_load'] for row in loaded],
+                             [1, 2])
+            self.assertEqual(loaded[1]['inputs']['queue_depth_before_load'], 1)
+            self.assertEqual(loaded[1]['inputs']['capacity_per_unit'], 1)
+            progress = [row for row in rows if row['kind'] == 'route_shipment_progress'
+                        and row['subject'].get('id') == loaded[1]['subject']['id']]
+            held = next(row for row in rows if row['kind'] == 'route_shipment_held')
+            self.assertEqual(held['inputs']['block_reasons'], ['naval_blockade'])
+            self.assertEqual(held['value_before'], held['value_after'])
+            self.assertTrue(progress)
+            arrival = next(row for row in rows
+                           if row['kind'] == 'route_shipment_arrival'
+                           and row['subject'].get('id') == loaded[1]['subject']['id'])
+            self.assertIn(arrival['inputs']['previous_route_event_id'],
+                          arrival['cause_event_ids'])
+            self.assertEqual(rows_by_id[arrival['inputs']['previous_route_event_id']]
+                             ['kind'], 'route_shipment_progress')
+
+            quarantined = Route('Upland->Quarantine', source,
+                                SimpleNamespace(name='Quarantine'))
+            quarantined.is_quarantined = True
+            blocked_trader = self._trader(source, quarantined.dst, qty=2)
+            self.assertEqual(quarantined.post(blocked_trader, Goods.cotton, 2), 0)
+            blocked = next(row for row in trace.query(turn=1)['events']
+                           if row['kind'] == 'route_shipment_post_blocked')
+            self.assertEqual(blocked['inputs']['block_reasons'], ['quarantine'])
+
     def test_route_carries_cotton_from_export_stock_to_import_pool(self):
         source = SimpleNamespace(name='Upland', home_currency='D', routes={}, neighbors={},
                                  transport_delay=1,
