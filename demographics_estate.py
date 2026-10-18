@@ -119,31 +119,39 @@ def _estate_deposit_allocation_trace(region, t, decedent, recipient, amount,
                                      currency, operation_id, bank,
                                      source_deposit_before, recipient_before,
                                      recipient_after, *, recipient_type='agent',
+                                     source_deposit_after=None,
                                      extra_inputs=None):
     if region is None or amount <= 0:
         return None
     from finance_trace import account_ref, transfer_contract
 
+    source_after = (float(source_deposit_before)
+                    if source_deposit_after is None
+                    else float(source_deposit_after))
+    source_closeout = source_deposit_after is None
     contract = transfer_contract(
         operation_id, 'death_estate_deposit_allocation', side='payee',
         amount=amount, amount_currency=currency,
         payer_account=account_ref(
             'bank_deposit', str(decedent.id), currency,
             balance_before=float(source_deposit_before),
-            balance_after=float(source_deposit_before),
-            source_closeout='captured_by_estate_deposit_closeout'),
+            balance_after=source_after,
+            source_closeout=('captured_by_estate_deposit_closeout'
+                             if source_closeout else None)),
         payee_account=account_ref(
             recipient_type, str(getattr(recipient, 'id', recipient)), currency,
             balance_before=float(recipient_before),
             balance_after=float(recipient_after)),
         local_cash_leg_amount=0.0, local_cash_leg_currency=currency,
-        counterparty_leg_status='beneficiary_credit_captured_source_closeout_follows',
+        counterparty_leg_status=(
+            'beneficiary_credit_captured_source_closeout_follows'
+            if source_closeout else 'source_and_beneficiary_balances_captured'),
         cash_movement=False)
     inputs = {
         'turn': t, 'decedent_id': decedent.id,
         'recipient_id': getattr(recipient, 'id', recipient),
         'source_deposit_balance_before': float(source_deposit_before),
-        'source_deposit_balance_at_allocation': float(source_deposit_before),
+        'source_deposit_balance_after': source_after,
         'bank_total_deposits_after': float(
             getattr(bank, 'total_deposits', 0.0)),
         'bank_deposit_account_sum_after': sum(
@@ -888,7 +896,7 @@ def handle_wealth_inheritance(ctx, t, agent, living_descendants):
                 reason='estate_deposit_distribution',
                 trace_event_ids=deposit_withdrawal_event_ids)
             trace_event_ids.extend(deposit_withdrawal_event_ids)
-            inheritance_cash += inheritance_deposits
+            inheritance_cash += deposit_withdrawal_settled
         num_heirs = len(living_descendants)
         cash_share = int(inheritance_cash // num_heirs)
         cash_remainder = inheritance_cash - (cash_share * num_heirs)
@@ -970,6 +978,60 @@ def handle_wealth_inheritance(ctx, t, agent, living_descendants):
                 trace_event_ids.append(allocation_id)
             if wallet_trace_id is not None:
                 trace_event_ids.append(wallet_trace_id)
+
+        remaining_deposit = float(ctx.bank.deposits.get(agent, 0.0))
+        if remaining_deposit > 0.0:
+            deposit_currency = (getattr(region, 'home_currency', None)
+                                or getattr(agent, 'home_currency', None)
+                                or 'local_currency')
+            num_heirs = len(living_descendants)
+            for index, descendent in enumerate(living_descendants):
+                source_before = float(ctx.bank.deposits.get(agent, 0.0))
+                deposit_share = (source_before if index == num_heirs - 1
+                                 else remaining_deposit / num_heirs)
+                source_after = source_before - deposit_share
+                recipient_before = float(ctx.bank.deposits.get(descendent, 0.0))
+                recipient_after = recipient_before + deposit_share
+                recipient_bank_before = getattr(descendent, '_bank_ref', None)
+                bank_total_before = float(ctx.bank.total_deposits)
+                ctx.bank.deposits[agent] = source_after
+                ctx.bank.deposits[descendent] = recipient_after
+                if getattr(descendent, '_bank_ref', None) is None:
+                    descendent._bank_ref = ctx.bank
+                if hasattr(descendent, 'clear_wealth_cache'):
+                    descendent.clear_wealth_cache()
+                deposit_event = None
+                if region is not None:
+                    from economy.actor_accounts import record as record_economic_event
+                    deposit_event = record_economic_event(
+                        region, 'bank_deposit_inheritance', turn=t,
+                        payer_id=agent.id, recipient_id=descendent.id,
+                        amount=deposit_share, asset_id=f'bank:{region.name}',
+                        source_id=f'estate:{agent.id}', currency=deposit_currency,
+                        detail={'settlement': 'deposit_reassignment',
+                                'operation_id':
+                                    f'{operation_root}:deposit:{descendent.id}:{index}',
+                                'bank_total_deposits_before': bank_total_before,
+                                'bank_total_deposits_after':
+                                    float(ctx.bank.total_deposits),
+                                'cash_movement': False})
+                allocation_id = _estate_deposit_allocation_trace(
+                    region, t, agent, descendent, deposit_share,
+                    deposit_currency,
+                    f'{operation_root}:deposit:{descendent.id}:{index}',
+                    ctx.bank, source_before, recipient_before, recipient_after,
+                    recipient_type='bank_deposit',
+                    source_deposit_after=source_after,
+                    extra_inputs={
+                        'destination': 'heir_deposit_reassignment',
+                        'frozen_bank': bool(getattr(ctx.bank, 'is_frozen', False)),
+                        'recipient_bank_reference_before': getattr(
+                            recipient_bank_before, 'name', None),
+                        'economic_event_id': (deposit_event['id']
+                                              if deposit_event else None),
+                        'cash_movement': False})
+                if allocation_id is not None:
+                    trace_event_ids.append(allocation_id)
 
         dead_w = getattr(agent, 'wallets', None)
         if dead_w:

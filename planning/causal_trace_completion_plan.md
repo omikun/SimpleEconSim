@@ -924,3 +924,15 @@ cash shares use the requested deposit even when a frozen bank settles a smaller
 withdrawal, and goods are credited to beneficiaries while remaining in the
 deceased inventory. A partial frozen-bank withdrawal can also leave the bank's
 aggregate deposit liability above the sum of account balances after closeout.
+
+Phase 3 accounting correction, 2026-10-18: probate cash distribution now uses
+the settled bank withdrawal. Any still-frozen balance transfers to heirs as a
+bank deposit rather than being treated as cash or discarded during closeout.
+Per-heir deposit reassignment records source and beneficiary balances and is
+classified as a non-cash event. The normal unfrozen path is unchanged.
+
+Verification: the frozen-bank fixture verifies the requested and settled
+withdrawal, heir cash, inherited deposit, bank total, and account-sum balances.
+Six probate-trace fixtures, 23 actor-account tests, and all 30 run-trace tests
+passed, as did compilation and `git diff --check`. The separate goods
+inventory source-debit defect remains open.

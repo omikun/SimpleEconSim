@@ -175,18 +175,26 @@ class EstateWealthTraceTests(unittest.TestCase):
                           if row.get('kind') == 'bank_withdrawal_posted')
         allocation = next(row for row in trace.rows
                           if row.get('kind') == 'estate_cash_allocated')
-        deposit_closeout = next(row for row in trace.rows
-                                if row.get('kind') == 'estate_decedent_deposit_closed')
         self.assertEqual(withdrawal['inputs']['requested_amount'], 20.0)
         self.assertEqual(withdrawal['inputs']['settled_amount'], 5.0)
         self.assertEqual(allocation['inputs']['deposit_withdrawal_settled'], 5.0)
-        self.assertEqual(allocation['inputs']['cash_pool_before_distribution'], 29.0)
-        self.assertEqual(heir.cash, 33.0)
-        self.assertEqual(deposit_closeout['inputs']['bank_deposit_account_sum_before'],
-                         15.0)
-        self.assertEqual(deposit_closeout['inputs']['bank_deposit_account_sum_after'],
-                         0.0)
+        self.assertEqual(allocation['inputs']['cash_pool_before_distribution'], 14.0)
+        self.assertEqual(heir.cash, 18.0)
+        deposit_transfer = next(row for row in trace.rows
+                                if row.get('kind') == 'estate_deposit_allocated')
+        contract = deposit_transfer['inputs']['transfer_contract']
+        self.assertEqual(contract['amount'], 15.0)
+        self.assertEqual(contract['payer_account']['balance_before'], 15.0)
+        self.assertEqual(contract['payer_account']['balance_after'], 0.0)
+        self.assertEqual(contract['payee_account']['balance_before'], 0.0)
+        self.assertEqual(contract['payee_account']['balance_after'], 15.0)
+        self.assertEqual(deposit_transfer['inputs']['destination'],
+                         'heir_deposit_reassignment')
+        self.assertTrue(deposit_transfer['inputs']['frozen_bank'])
+        self.assertNotIn(decedent, bank.deposits)
+        self.assertEqual(bank.deposits[heir], 15.0)
         self.assertEqual(bank.total_deposits, 15.0)
+        self.assertEqual(sum(bank.deposits.values()), 15.0)
 
     def test_company_succession_records_selection_rule(self):
         region, _ctx, decedent, heir, _gov, _charity, _bank, trace = _fixture(

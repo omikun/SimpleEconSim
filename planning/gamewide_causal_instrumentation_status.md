@@ -221,8 +221,9 @@ wear. Elite luxury consumption records inventory drawdown, per-good prestige
 ratings and saturation gains, status-tier changes, and the capped decay that
 applies when no prestige goods are consumed. Other untraced imperial claim
 paths, additional household support channels, other subsidies, police
-payroll/maintenance, remaining military service costs, estate closeout defects,
-and many scenario costs still need complete transfer contracts. Egypt's
+payroll/maintenance, remaining military service costs, the estate inventory
+source-debit defect, and many scenario costs still need complete transfer
+contracts. Egypt's
 district relief, tax relief, settlement, and repression actions now record
 success/failure reasons and measured effects. National
 treasury, bank, household, firm, and goods-by-currency reconciliations remain
@@ -548,3 +549,16 @@ smaller withdrawal, and the resulting residual deposit is removed from the
 account map without reducing the bank's aggregate deposit liability. Probate
 also credits goods to heirs or institutions without debiting the deceased
 inventory. These behaviors were left unchanged in this instrumentation commit.
+
+Frozen-bank probate now allocates cash only from the amount actually withdrawn.
+Any residual deposit is transferred to heirs as a non-cash bank deposit, with
+per-heir source/payee balances and a no-cash-movement journal row. The transfer
+preserves the bank's liability-to-account-sum difference, and heirs without a
+bank reference adopt the source bank for the inherited account. The ordinary
+unfrozen withdrawal-and-cash distribution remains unchanged.
+
+Verification: the frozen-withdrawal fixture now checks requested versus
+settled cash, deposit reassignment, account-sum conservation, and trace-on/off
+state parity. Six probate fixtures, 23 actor-account tests, and all 30 run-trace
+tests passed; compilation and `git diff --check` passed. The separate probate
+inventory source-debit correction remains open.

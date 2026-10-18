@@ -21,7 +21,7 @@ _NONCASH_EVENTS = {'production', 'input_consumed', 'scrip_wage',
                    'crop_lien_settlement', 'crop_share_rent',
                    'bank_fx_deposit_conversion',
                    'foreign_wallet_debt_payment', 'foreign_wallet_inheritance',
-                   'foreign_wallet_escheat'}
+                   'foreign_wallet_escheat', 'bank_deposit_inheritance'}
 
 
 def _wage_liability_totals(firm):
