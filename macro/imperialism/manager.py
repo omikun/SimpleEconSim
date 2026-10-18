@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 def _disburse_agent_funds(world: dict | None, creditor: Any | None, amount: float):
     """Conserve currency by paying hired agents/bailiffs from creditor funds into living non-gov agents."""
     if amount <= 0:
-        return
+        return None
     recipient = None
     if creditor and hasattr(creditor, 'tiles'):
         for tile in creditor.tiles:
@@ -40,7 +40,16 @@ def _disburse_agent_funds(world: dict | None, creditor: Any | None, amount: floa
             if recipient:
                 break
     if recipient:
+        cash_before = float(getattr(recipient, 'cash', 0.0))
         recipient.cash += amount
+        # Callers that only need the legacy side effect may ignore this return.
+        # Instrumented callers can identify the actual wallet that was credited.
+        return {
+            'recipient': recipient,
+            'cash_before': cash_before,
+            'cash_after': float(recipient.cash),
+        }
+    return None
 
 
 def _trace_caisse_cash_seizure(tile, *, debtor, creditor, operation_id, kind,

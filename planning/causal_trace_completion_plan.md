@@ -947,3 +947,18 @@ agent.
 Verification: seven focused probate-trace fixtures, 23 actor-account tests,
 all 30 run-trace tests, and all 25 plunder-labor tests passed. Compilation and
 `git diff --check` passed.
+
+Phase 4 follow-up, 2026-10-18: enclosure-revolt interdiction now records the
+emergency constable funding decision, the exact $60 municipal-wallet debit,
+and the actual wallet credited by the legacy disbursement rule. The record
+states that this recipient is the first living non-government agent rather
+than a named constable. The linked interdiction outcome records peaceful
+dispersal or the casualty, terror-cooldown, and legitimacy effects of a clash.
+Insufficient-funds and existing-force decisions are also visible without
+recording a payment that did not occur. No separate recurring police
+maintenance/payroll cash mutation exists in the current code; creating that
+mechanic is distinct from tracing implemented transfers.
+
+Verification: four dedicated trace fixtures, six existing multi-turn
+enclosure tests, three commons-patrol tests, and four labor-enforcement tests
+passed (17 total). Compilation and `git diff --check` passed.

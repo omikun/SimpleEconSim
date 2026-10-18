@@ -220,9 +220,10 @@ consumption records distinguish wealth use, stockpile drawdown, and stochastic
 wear. Elite luxury consumption records inventory drawdown, per-good prestige
 ratings and saturation gains, status-tier changes, and the capped decay that
 applies when no prestige goods are consumed. Other untraced imperial claim
-paths, additional household support channels, other subsidies, police
-payroll/maintenance, remaining military service costs, and many scenario costs
-still need complete transfer contracts. Egypt's
+paths, additional household support channels, other subsidies, remaining
+police enforcement transfers and any recurring police upkeep mechanic,
+remaining military service costs, and many scenario costs still need complete
+transfer contracts. Egypt's
 district relief, tax relief, settlement, and repression actions now record
 success/failure reasons and measured effects. National
 treasury, bank, household, firm, and goods-by-currency reconciliations remain
@@ -573,3 +574,20 @@ Verification: seven focused probate-trace fixtures, 23 actor-account tests,
 all 30 run-trace tests, and all 25 plunder-labor tests passed. Compilation and
 `git diff --check` passed. Remaining household/public aid, imperial claims,
 police and military maintenance, and scenario transfers are still open.
+
+Emergency constable mobilization during enclosure interdiction now records the
+$60 municipal affordability gate, exact municipal cash debit, and the actual
+recipient wallet credit selected by the existing disbursement helper. The
+trace makes clear that this helper credits the first living non-government
+agent, not a named constable, while the interdiction sets capacity to five
+officers. The final outcome links the funding decision and payment to peaceful
+dispersal, a bloody clash, or state terror, including casualties, terror
+cooldown, and legitimacy changes. Insufficient funds and existing-force paths
+record their gate and do not invent an emergency payment.
+
+Verification: four focused emergency-constable fixtures and thirteen existing
+multi-turn enclosure, commons-patrol, and labor-enforcement tests passed.
+Compilation and `git diff --check` passed. Code search found no separate
+recurring police payroll or maintenance transfer behind the police-capacity
+fields; that recurring cost is a missing mechanic, while other military costs,
+household aid, imperial claims, and scenario transfers remain open.

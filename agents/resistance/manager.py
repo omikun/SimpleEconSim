@@ -436,8 +436,65 @@ class PopularResistanceManager:
                                   force_level: str = "auto") -> Tuple[bool, str, Dict[str, Any]]:
         """Deploy employed police or military garrison to stop an active enclosure march/protest."""
         state = self.get_state(tile.name)
+        trace_clock = getattr(tile, '_collective_trace_clock', None)
+        trace_enabled = (trace_clock is not None
+                         and getattr(tile, '_run_trace', None) is not None)
+        operation_id = (f"enclosure_interdiction:{tile.name}:{int(t)}:"
+                        f"{trace_clock.get('next', 0)}" if trace_enabled else None)
+        stage_before = state.enclosure_stage
+        participant_ids_before = sorted(
+            (str(agent_id) for agent_id in state.revolt_participants))
+        owner = getattr(tile, 'owner_nation', None)
+        legitimacy_before = (float(getattr(owner, 'legitimacy', 0.0))
+                             if owner is not None else None)
+        capacity_event_id = None
+        payment_event_id = None
+
+        def record_outcome(outcome, success, details=None, casualty_ids=None):
+            if not trace_enabled:
+                return None
+            details = details or {}
+            alive_after = [str(agent.id) for agent in getattr(tile, 'agents', ())
+                           if str(agent.id) in participant_ids_before
+                           and getattr(agent, 'alive', True)]
+            cause_ids = [event_id for event_id in
+                         (capacity_event_id, payment_event_id) if event_id]
+            from run_trace import emit
+            return emit(
+                tile, kind='enclosure_revolt_interdiction_outcome',
+                record_class='outcome', phase='policy_action',
+                subject={'type': 'tile', 'id': tile.name},
+                metric_id='politics.enclosure_interdiction_outcome',
+                before=stage_before, after=state.enclosure_stage,
+                inputs={
+                    'operation_id': operation_id,
+                    'outcome': outcome,
+                    'succeeded': bool(success),
+                    'force_level': force_level,
+                    'revolt_stage_before': stage_before,
+                    'revolt_stage_after': state.enclosure_stage,
+                    'revolt_participant_ids_before': participant_ids_before,
+                    'living_participant_ids_after': alive_after,
+                    'casualty_agent_ids': sorted(str(agent_id)
+                                                 for agent_id in (casualty_ids or ())),
+                    'casualties': int(details.get('casualties', 0) or 0),
+                    'terror_cooldown_after': int(state.terror_cooldown),
+                    'legitimacy_before': legitimacy_before,
+                    'legitimacy_after': (float(getattr(owner, 'legitimacy', 0.0))
+                                         if owner is not None else None),
+                    'police_officers_after': int(getattr(tile, 'police_officers', 0) or 0),
+                    'garrison_soldiers': int(sum(
+                        getattr(unit, 'soldiers', 0)
+                        for unit in getattr(tile, 'military_units', ()))),
+                    'capacity_event_id': capacity_event_id,
+                    'mobilization_payment_event_id': payment_event_id,
+                },
+                cause_event_ids=cause_ids or None)
+
         if state.enclosure_stage in ("dormant", "leveling"):
-            return False, f"No active peasant march in {tile.name} to interdict.", {}
+            msg = f"No active peasant march in {tile.name} to interdict."
+            record_outcome('no_active_march', False)
+            return False, msg, {}
 
         # 1. Verify police or military capacity (cannot conjure police from thin air)
         rgov = getattr(tile, 'gov', None)
@@ -447,20 +504,143 @@ class PopularResistanceManager:
 
         if police_count <= 0 and garrison_soldiers <= 0:
             # Check if municipality can fund emergency constables ($60 required)
+            funding_required = 60.0
+            gov_cash_before = float(gov_cash)
+            funding_reason = ('emergency_constables_affordable'
+                              if gov_cash_before >= funding_required
+                              else 'insufficient_municipal_treasury')
+            if trace_enabled:
+                from run_trace import emit
+                capacity_event_id = emit(
+                    tile, kind='emergency_constable_funding_decision',
+                    record_class='outcome', phase='policy_action',
+                    subject={'type': 'government', 'id': tile.name},
+                    metric_id='politics.emergency_constable_funding',
+                    before=0, after=(5 if gov_cash_before >= funding_required else 0),
+                    unit='officers',
+                    inputs={'operation_id': operation_id,
+                            'reason': funding_reason,
+                            'decision': ('mobilize_emergency_constables'
+                                         if gov_cash_before >= funding_required
+                                         else 'deny_interdiction'),
+                            'municipal_treasury_cash_before': gov_cash_before,
+                            'required_cash': funding_required,
+                            'cash_shortfall': max(0.0, funding_required - gov_cash_before),
+                            'police_officers_before': int(police_count or 0),
+                            'garrison_soldiers': int(garrison_soldiers),
+                            'officers_if_funded': 5})
             if gov_cash >= 60.0:
+                gov_agent = rgov.agent
+                treasury_cash_before = float(gov_agent.cash)
                 rgov.agent.cash -= 60.0
+                treasury_cash_after = float(gov_agent.cash)
                 police_count = 5
                 setattr(tile, 'police_officers', 5)
                 from imperialism import _disburse_agent_funds
-                _disburse_agent_funds(world, getattr(tile, 'owner_nation', None), 60.0)
+                disbursement = _disburse_agent_funds(
+                    world, getattr(tile, 'owner_nation', None), 60.0)
+                if trace_enabled:
+                    from finance_trace import (account_ref, cash_transfer_contract,
+                                               emit_cash_transfer, transfer_contract)
+                    from run_trace import emit
+                    currency = (getattr(gov_agent, 'currency', None)
+                                or getattr(owner, 'currency', None)
+                                or getattr(tile, 'home_currency', None)
+                                or 'local_currency')
+                    payer_account = account_ref(
+                        'government_treasury', tile.name, currency,
+                        subaccount='municipal_government_agent.cash',
+                        balance_before=treasury_cash_before,
+                        balance_after=treasury_cash_after,
+                        balance_scope='cash_wallet',
+                        balance_status='exact_cash_debit')
+                    recipient = (disbursement or {}).get('recipient')
+                    if recipient is not None:
+                        recipient_before = float(disbursement['cash_before'])
+                        recipient_after = float(disbursement['cash_after'])
+                        recipient_currency = (getattr(recipient, 'home_currency', None)
+                                              or currency)
+                        payee_account = account_ref(
+                            'agent_wallet', str(recipient.id), recipient_currency,
+                            agent_id=str(recipient.id),
+                            balance_before=recipient_before,
+                            balance_after=recipient_after,
+                            balance_scope='cash_wallet',
+                            balance_status='exact_cash_credit',
+                            role='first_living_non_government_agent')
+                        contract = cash_transfer_contract(
+                            operation_id, 'emergency_constable_mobilization_fee',
+                            amount=60.0, currency=currency,
+                            payer_account=payer_account,
+                            payee_account=payee_account,
+                            counterparty_leg_status='both_cash_wallets_captured',
+                            officers_mobilized=5)
+                        payment_event_id = emit_cash_transfer(
+                            tile, kind='emergency_constable_mobilization_payment',
+                            contract=contract, phase='policy_action',
+                            inputs={'reason': 'municipality hired emergency constables',
+                                    'officers_mobilized': 5,
+                                    'recipient_is_named_constable': False,
+                                    'recipient_selection_rule':
+                                        'first living non-government agent'},
+                            cause_event_ids=([capacity_event_id]
+                                             if capacity_event_id else None))
+                    else:
+                        unresolved_payee = account_ref(
+                            'uncredited_agent_distribution', 'no_recipient_found',
+                            currency, balance_status='no_cash_credit_recorded')
+                        contract = transfer_contract(
+                            operation_id, 'emergency_constable_mobilization_fee',
+                            side='payer', amount=60.0, amount_currency=currency,
+                            payer_account=payer_account,
+                            payee_account=unresolved_payee,
+                            local_cash_leg_amount=60.0,
+                            local_cash_leg_currency=currency,
+                            counterparty_leg_status='municipal_cash_debited_without_agent_credit',
+                            officers_mobilized=5)
+                        payment_event_id = emit(
+                            tile, kind='emergency_constable_mobilization_uncredited',
+                            record_class='transfer', phase='policy_action',
+                            subject={'type': 'government', 'id': tile.name},
+                            metric_id='finance.treasury_flow', after=-60.0,
+                            unit=currency,
+                            inputs={'operation_id': operation_id,
+                                    'transfer_contract': contract,
+                                    'reason': 'no living non-government recipient found',
+                                    'officers_mobilized': 5},
+                            cause_event_ids=([capacity_event_id]
+                                             if capacity_event_id else None))
             else:
-                return False, f"Cannot mobilize police: {tile.name} has no constables on payroll and municipal treasury has insufficient funds ($60 required)!", {}
+                msg = (f"Cannot mobilize police: {tile.name} has no constables on payroll and "
+                       "municipal treasury has insufficient funds ($60 required)!")
+                record_outcome('insufficient_municipal_treasury', False)
+                return False, msg, {}
+        elif trace_enabled:
+            from run_trace import emit
+            capacity_event_id = emit(
+                tile, kind='enclosure_interdiction_capacity_decision',
+                record_class='outcome', phase='policy_action',
+                subject={'type': 'tile', 'id': tile.name},
+                metric_id='politics.enclosure_interdiction_capacity',
+                before=int(police_count or 0) + int(garrison_soldiers * 2),
+                after=int(police_count or 0) + int(garrison_soldiers * 2),
+                unit='enforcer_equivalents',
+                inputs={'operation_id': operation_id,
+                        'reason': ('standing_police_available' if police_count > 0
+                                   else 'military_garrison_available'),
+                        'decision': 'use_existing_enforcement_capacity',
+                        'municipal_treasury_cash': float(gov_cash),
+                        'police_officers': int(police_count or 0),
+                        'garrison_soldiers': int(garrison_soldiers),
+                        'emergency_fee_paid': 0.0})
 
         participants = [a for a in getattr(tile, 'agents', []) if a.id in state.revolt_participants and getattr(a, 'alive', True)]
         if not participants:
             state.enclosure_stage = "dormant"
             state.revolt_participants.clear()
-            return True, f"Peasant march in {tile.name} had already disbanded.", {}
+            msg = f"Peasant march in {tile.name} had already disbanded."
+            record_outcome('march_already_disbanded', True)
+            return True, msg, {}
 
         # 2. Analyze crowd violence propensity
         veteran_rioters = sum(1 for a in participants if getattr(a, 'military_xp', 0.0) > 0.1)
@@ -485,7 +665,9 @@ class PopularResistanceManager:
             msg = f"🛡️ Constables cordoned off the march in {tile.name}. Peasants dispersed peacefully without casualties."
             if world:
                 _safe_ticker_push(world, t, 'POLICY', msg, (120, 240, 150))
-            return True, msg, {'casualties': 0, 'outcome': 'peaceful'}
+            result = {'casualties': 0, 'outcome': 'peaceful'}
+            record_outcome('peaceful_dispersal', True, result)
+            return True, msg, result
 
         # Case B: Overwhelming Slaughter / State Terror (The Chilling Effect)
         # Triggered by standing army intervention or overwhelming police force
@@ -521,7 +703,10 @@ class PopularResistanceManager:
             msg = f"🩸 STATE TERROR: Armed state forces ruthlessly crushed the peasant march in {tile.name} ({kill_count} killed). A 10-turn terrorized peace smothers revolt organizing."
             if world:
                 _safe_ticker_push(world, t, 'MILITARY', msg, (240, 60, 60))
-            return True, msg, {'casualties': kill_count, 'outcome': 'terror'}
+            result = {'casualties': kill_count, 'outcome': 'terror'}
+            record_outcome('state_terror', True, result,
+                           casualty_ids=[victim.id for victim in victims])
+            return True, msg, result
 
         # Case C: Violent Clash & Martyrdom (Backfire Effect)
         # Moderate casualties create martyrs and escalate future participation
@@ -557,7 +742,10 @@ class PopularResistanceManager:
         msg = f"⚔️ BLOODY POLICE CLASH: Constables broke up the peasant march in {tile.name} ({kill_count} killed). Public outrage erupts over fallen martyrs (+60% future turnout)!"
         if world:
             _safe_ticker_push(world, t, 'ALERT', msg, (240, 80, 80))
-        return True, msg, {'casualties': kill_count, 'outcome': 'martyrdom'}
+        result = {'casualties': kill_count, 'outcome': 'martyrdom'}
+        record_outcome('bloody_clash_martyrdom', True, result,
+                       casualty_ids=[victim.id for victim in victims])
+        return True, msg, result
 
     # ------------------------------------------------------------------
     # Level 3: General Strike
