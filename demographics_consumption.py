@@ -41,6 +41,14 @@ def compute_bottleneck_weights(ctx, agents, choices_list):
 def consume_goods(ctx, agent, number_food_consumed, number_wood_consumed, number_furniture_consumed):
     """Consume non-food luxuries; nutrition is accounted for in one place."""
     mult = getattr(agent, 'consumption_multiplier', 1.0)
+    consumed_components = {}
+    inventory_before = {}
+
+    def record_consumption(good, quantity, mechanism, **evidence):
+        inventory_before.setdefault(good, int(agent.inv_get(good, 0)))
+        consumed_components.setdefault(good, []).append(
+            {'mechanism': mechanism, 'quantity': int(quantity), **evidence})
+
     if mult > 1.0:
         for luxury_good in ctx.goods:
             if luxury_good in (Goods.food, Goods.gov):
@@ -51,7 +59,15 @@ def consume_goods(ctx, agent, number_food_consumed, number_wood_consumed, number
                 consume_qty = min(max(1, int(mult * 0.5)),
                                   agent.inv_get(luxury_good, 0), 5)
                 if consume_qty > 0:
+                    stock_before = int(agent.inv_get(luxury_good, 0))
+                    inventory_before.setdefault(luxury_good, stock_before)
                     agent.inv_add(luxury_good, -consume_qty)
+                    record_consumption(
+                        luxury_good, consume_qty, 'wealth_multiplier',
+                        consumption_multiplier=float(mult),
+                        stock_before=stock_before,
+                        requested_quantity=max(1, int(mult * 0.5)),
+                        maximum_quantity=5)
                     if luxury_good == Goods.furniture:
                         number_furniture_consumed += consume_qty
                     elif luxury_good == Goods.wood:
@@ -62,13 +78,58 @@ def consume_goods(ctx, agent, number_food_consumed, number_wood_consumed, number
                             ctx.profession[luxury_good])
     if agent.inv_get(Goods.wood, 0) > 2 and get_input_commodity(agent) != Goods.wood \
        and get_output_commodity(agent) != Goods.wood:
+        stock_before = int(agent.inv_get(Goods.wood, 0))
+        inventory_before.setdefault(Goods.wood, stock_before)
         agent.inv_add(Goods.wood, -1)
+        record_consumption(Goods.wood, 1, 'wood_stockpile_drawdown',
+                           stock_before=stock_before, threshold_units=2)
         number_wood_consumed += 1
-    if agent.inv_get(Goods.furniture, 0) > 0 and get_output_commodity(agent) != Goods.furniture \
-       and rand.random() < .066:
-        agent.inv_add(Goods.furniture, -1)
-        number_furniture_consumed += 1
+    if (agent.inv_get(Goods.furniture, 0) > 0
+            and get_output_commodity(agent) != Goods.furniture):
+        furniture_draw = rand.random()
+        if furniture_draw < .066:
+            stock_before = int(agent.inv_get(Goods.furniture, 0))
+            inventory_before.setdefault(Goods.furniture, stock_before)
+            agent.inv_add(Goods.furniture, -1)
+            record_consumption(
+                Goods.furniture, 1, 'furniture_stochastic_wear',
+                stock_before=stock_before, random_draw=float(furniture_draw),
+                consumption_threshold=0.066)
+            number_furniture_consumed += 1
+    _trace_nonfood_consumption(
+        ctx, agent, inventory_before, consumed_components, mult)
     return number_food_consumed, number_wood_consumed, number_furniture_consumed
+
+
+def _trace_nonfood_consumption(ctx, agent, inventory_before, components, mult):
+    if not components:
+        return
+    region = getattr(ctx, 'source_region', None)
+    if region is None:
+        return
+    from run_trace import emit
+
+    turn = int(getattr(region, '_last_turn', 0) or 0)
+    output_good = getattr(get_output_commodity(agent), 'name', None)
+    input_good = getattr(get_input_commodity(agent), 'name', None)
+    for good in sorted(components, key=lambda item: item.value):
+        before = int(inventory_before[good])
+        after = int(agent.inv_get(good, 0))
+        emit(
+            region, kind='household_nonfood_consumption',
+            record_class='outcome', phase='demographics',
+            subject={'type': 'tile/agent/good', 'id': str(agent.id),
+                     'tile': region.name, 'good': good.name},
+            metric_id='goods.household_consumption', unit='units',
+            before=before, after=after,
+            formula_id='demographics.nonfood_consumption.v1',
+            inputs={'operation_id':
+                    f'nonfood-consumption:{region.name}:{turn}:{agent.id}:{good.name}',
+                    'turn': turn, 'agent_id': int(agent.id),
+                    'good': good.name, 'units_consumed': before - after,
+                    'consumption_multiplier': float(mult),
+                    'output_good': output_good, 'input_good': input_good,
+                    'consumption_components': components[good]})
 
 
 def _food_wallet_units(agent, wallet_name):

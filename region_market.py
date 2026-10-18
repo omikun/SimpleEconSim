@@ -90,12 +90,14 @@ def decide_borrow_deposit(region, agents, all_goods_price, food_price, t):
         a.remainingCash = a.cash
 
 
-def withdraw_if_needed(region, agent, good_price, current_desired, t=None):
+def withdraw_if_needed(region, agent, good_price, current_desired, t=None,
+                       trace_event_ids=None):
     bank_balance = region.bank.deposits.get(agent, 0)
     if bank_balance > 0 and agent.remainingCash < good_price * current_desired:
         region.bank.Withdraw(
             agent, min(bank_balance, good_price * current_desired - agent.remainingCash),
-            trace_region=region, t=t, reason='fund_market_bid')
+            trace_region=region, t=t, reason='fund_market_bid',
+            trace_event_ids=trace_event_ids)
 
 
 def input_good(region, agent):
@@ -220,6 +222,9 @@ def calculate_bid(region, agent, good, good_price, current_desired, agent_recipe
         return result(max(0, min(bid, num_storable)), reason)
     if is_employee:
         return result(0, 'employee_household_branch_not_eligible')
+    if (not is_employee and agent.output != good and good_price > 0
+            and agent.remainingCash <= good_price):
+        return result(0, 'cash_at_or_below_unit_price')
     return result(0, 'no_applicable_purchase_need')
 
 
@@ -1337,7 +1342,11 @@ def trade(region, t):
                 setattr(a, f'bid_{g.name}', 0)
                 setattr(a, f'ask_{g.name}', 0)
                 zero_order_evidence[g]['buyers'].append(
-                    {'agent_id': a.id, 'reason': 'dead_agent_not_evaluated'})
+                    {'agent_id': a.id, 'reason': 'dead_agent_not_evaluated',
+                     'cash_affordable_units_at_bid': None,
+                     'cash_affordability_basis': 'not_evaluated',
+                     'cash_affordability_formula_id': None,
+                     'cash_funding_event_ids': []})
                 zero_order_evidence[g]['sellers'].append(
                     {'agent_id': a.id, 'reason': 'dead_agent_not_evaluated'})
             continue
@@ -1346,7 +1355,12 @@ def trade(region, t):
                 setattr(a, f'bid_{g.name}', 0)
                 setattr(a, f'ask_{g.name}', 0)
                 zero_order_evidence[g]['buyers'].append(
-                    {'agent_id': a.id, 'reason': 'military_service_not_market_eligible'})
+                    {'agent_id': a.id,
+                     'reason': 'military_service_not_market_eligible',
+                     'cash_affordable_units_at_bid': None,
+                     'cash_affordability_basis': 'not_evaluated',
+                     'cash_affordability_formula_id': None,
+                     'cash_funding_event_ids': []})
                 zero_order_evidence[g]['sellers'].append(
                     {'agent_id': a.id, 'reason': 'military_service_not_market_eligible'})
             continue
@@ -1359,9 +1373,13 @@ def trade(region, t):
             cash_before_funding = float(getattr(a, 'cash', 0.0))
             remaining_before_funding = float(getattr(a, 'remainingCash', 0.0))
             inventory_before_order = float(a.inv_get(g, 0))
-            withdraw_if_needed(region, a, p, d, t=t)
+            cash_funding_event_ids = []
+            withdraw_if_needed(region, a, p, d, t=t,
+                               trace_event_ids=cash_funding_event_ids)
             cash_at_bid = float(getattr(a, 'cash', 0.0))
             remaining_at_bid = float(getattr(a, 'remainingCash', 0.0))
+            cash_affordable_units = (int(max(0.0, remaining_at_bid) // p)
+                                     if p > 0 else None)
             bid, bid_reason = calculate_bid(
                 region, a, g, p, d, ar, is_emp, mult, return_reason=True)
             a.bid = bid
@@ -1389,6 +1407,7 @@ def trade(region, t):
                     metric_id='goods.buyer_bid_quantity', unit='units',
                     after=bid_quantity, confidence='exact',
                     explanation_status='submitted_order_inputs_recorded',
+                    cause_event_ids=cash_funding_event_ids or None,
                     inputs={'buyer_id': a.id, 'good': g.name,
                             'quantity_calculated': bid,
                             'submitted_quantity': bid_quantity,
@@ -1404,6 +1423,11 @@ def trade(region, t):
                             'remaining_cash_before_funding': remaining_before_funding,
                             'cash_at_bid': cash_at_bid,
                             'remaining_cash_at_bid': remaining_at_bid,
+                            'cash_affordable_units_at_bid': cash_affordable_units,
+                            'cash_affordability_basis': 'remainingCash',
+                            'cash_affordability_formula_id':
+                                'market.cash_affordability_ceiling.v1',
+                            'cash_funding_event_ids': cash_funding_event_ids,
                             'reference_price': p,
                             'hungry_steps': getattr(a, 'hungry_steps', 0),
                             'is_employee': is_emp,
@@ -1424,6 +1448,11 @@ def trade(region, t):
                     'inventory': inventory_before_order,
                     'cash_at_bid': cash_at_bid,
                     'remaining_cash_at_bid': remaining_at_bid,
+                    'cash_affordable_units_at_bid': cash_affordable_units,
+                    'cash_affordability_basis': 'remainingCash',
+                    'cash_affordability_formula_id':
+                        'market.cash_affordability_ceiling.v1',
+                    'cash_funding_event_ids': cash_funding_event_ids,
                     'desired_quantity': d, 'reference_price': p,
                     'consumption_multiplier': mult,
                     'output_good': getattr(a.output, 'name', str(a.output)),
@@ -1587,6 +1616,10 @@ def trade(region, t):
             continue
         trace = getattr(region, '_run_trace', None)
         zero_seller_production_event_ids = []
+        zero_buyer_funding_event_ids = list(dict.fromkeys(
+            event_id for buyer_order in zero_buyers
+            for event_id in buyer_order.get('cash_funding_event_ids', ())
+            if event_id is not None))
         if trace is not None:
             for seller_order in zero_sellers:
                 production_event_id = getattr(
@@ -1602,7 +1635,8 @@ def trade(region, t):
             metric_id='goods.zero_order_count', unit='orders',
             after=len(zero_buyers) + len(zero_sellers),
             formula_id='market.zero_order_tally.v1',
-            cause_event_ids=zero_seller_production_event_ids or None,
+            cause_event_ids=(zero_seller_production_event_ids
+                             + zero_buyer_funding_event_ids or None),
             inputs={'zero_buyer_count': len(zero_buyers),
                     'zero_seller_count': len(zero_sellers),
                     'buyers_by_reason': _group_zero_order_evidence(zero_buyers),
@@ -1610,7 +1644,8 @@ def trade(region, t):
                     'positive_buyer_order_count': len(local_orders[good]['buyers']),
                     'positive_local_seller_order_count':
                         len(local_orders[good]['sellers']),
-                    'seller_production_event_ids': zero_seller_production_event_ids})
+                    'seller_production_event_ids': zero_seller_production_event_ids,
+                    'buyer_cash_funding_event_ids': zero_buyer_funding_event_ids})
         if zero_event_id is not None:
             if zero_buyers:
                 order_source_events[good]['zero_buyers'].append(zero_event_id)

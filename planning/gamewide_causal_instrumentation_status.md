@@ -214,10 +214,13 @@ and no-op reasons. Parent-to-child food sharing now reconciles both household
 inventory legs and links each transfer to its aggregate outcome. Household
 intake records source amounts and health-state changes for food shortages,
 reserve use, trader stocks, and changing reserves; starvation deaths link to
-same-turn intake evidence. Other untraced imperial claim paths, household cash
-affordability and non-food consumption, additional support channels, other
-subsidies, police payroll/maintenance, remaining military service costs,
-inheritance, and many scenario costs still need transfer contracts. Egypt's
+same-turn intake evidence. Household market bids record cash-affordable units,
+the wallet basis and formula, and bank funding causes; actual wood and furniture
+consumption records distinguish wealth use, stockpile drawdown, and stochastic
+wear. Other untraced imperial claim paths, additional household support
+channels, other subsidies, police payroll/maintenance, remaining military
+service costs, inheritance, and many scenario costs still need transfer
+contracts. Egypt's
 district relief, tax relief, settlement, and repression actions now record
 success/failure reasons and measured effects. National
 treasury, bank, household, firm, and goods-by-currency reconciliations remain
@@ -424,8 +427,21 @@ hunger changes. Routine full meals with stable health state are omitted to keep
 trace volume down. Starvation deaths link to the same-turn intake event when
 present. Five fixtures cover shortage, trader stock, routine-noise suppression,
 death linkage, and trace-on/off parity; 69 food, nutrition, life-cycle, district,
-and trace tests passed. Compilation and `git diff --check` passed. Household cash
-affordability, non-food consumption, and other aid channels remain open.
+and trace tests passed. Compilation and `git diff --check` passed.
+
+Household cash affordability now records the units affordable from `remainingCash`
+at each market bid, its formula and basis, and any bank-withdrawal event that
+funded the attempt. Both positive orders and zero-order summaries link to those
+withdrawals. Zero bids report the specific `cash_at_or_below_unit_price` reason
+when a non-employee household's remaining wallet cannot cover one unit. Actual
+wood and furniture consumption records before/after inventory and separates
+wealth-multiplier use, wood stockpile drawdown, and furniture wear, including
+the existing random draw and threshold. No bid quantity or consumption rule was
+changed; the new reason only makes an existing zero-bid condition explicit.
+Two dedicated affordability fixtures and three non-food consumption fixtures
+passed; 13 dependent-food, food-intake, and auction-market tests passed, as did
+all 30 run-trace tests. Compilation and `git diff --check` passed. Additional
+household aid channels and elite conspicuous-consumption prestige changes remain.
 
 The labor scheduler now records round-robin cohort selection, deferred workers,
 and the hunger, unemployment, dispossession, or eviction reasons for emergency

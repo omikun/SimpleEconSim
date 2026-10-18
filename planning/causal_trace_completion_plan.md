@@ -880,3 +880,19 @@ older end-to-end petition test still raises `KeyError: Meridian` before the
 patrol handler; the direct fixtures exercise the handler and funding paths.
 Compilation and `git diff --check` passed. Other police maintenance and
 untraced military costs remain open.
+
+Phase 3 follow-up, 2026-10-18: market bid records now include household cash-
+affordable units based on `remainingCash`, the basis and formula identifier,
+and any bank-withdrawal events that funded the bid. Positive orders and zero-
+order summaries link to those withdrawals. An existing household zero-bid
+case now has the explicit `cash_at_or_below_unit_price` reason; bid quantities
+and consumption rules are unchanged. Household non-food inventory use now
+records the actual wood and furniture consumed by wealth-multiplier demand,
+wood-stockpile drawdown, and stochastic furniture wear, with the observed
+random draw and threshold where applicable.
+
+Verification: two dedicated affordability fixtures and three non-food
+consumption fixtures passed, along with 13 dependent-food, food-intake, and
+auction-market tests and all 30 run-trace tests. Compilation and
+`git diff --check` passed. Other household aid channels and elite conspicuous-
+consumption prestige changes remain open.

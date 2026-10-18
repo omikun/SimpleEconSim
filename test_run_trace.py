@@ -771,6 +771,23 @@ class RunTraceTests(unittest.TestCase):
                 self.assertIn(production_id, summary.get('cause_event_ids', []))
                 self.assertEqual(rows_by_id[production_id]['metric_id'],
                                  'goods.production')
+            for funding_event_id in inputs.get(
+                    'buyer_cash_funding_event_ids', ()):
+                self.assertIn(funding_event_id, summary.get('cause_event_ids', []))
+                self.assertEqual(rows_by_id[funding_event_id]['kind'],
+                                 'bank_withdrawal_posted')
+            for group in inputs['buyers_by_reason']:
+                for zero_order in group['orders']:
+                    self.assertIn('cash_funding_event_ids', zero_order)
+                    self.assertIn('cash_affordable_units_at_bid', zero_order)
+                    self.assertIn('cash_affordability_formula_id', zero_order)
+                    if zero_order['cash_affordability_basis'] == 'remainingCash':
+                        self.assertEqual(
+                            zero_order['cash_affordability_formula_id'],
+                            'market.cash_affordability_ceiling.v1')
+                    for funding_event_id in zero_order['cash_funding_event_ids']:
+                        self.assertEqual(rows_by_id[funding_event_id]['kind'],
+                                         'bank_withdrawal_posted')
         self.assertTrue(any(
             rows_by_id.get(production_id, {}).get('kind') == 'firm_production_zero'
             for summary in zero_order_summaries
@@ -778,6 +795,12 @@ class RunTraceTests(unittest.TestCase):
                 'seller_production_event_ids', ())))
         for order in seller_orders + buyer_orders:
             self.assertEqual(order['confidence'], 'exact')
+        for order in buyer_orders:
+            funding_event_ids = order['inputs'].get('cash_funding_event_ids', [])
+            for funding_event_id in funding_event_ids:
+                self.assertIn(funding_event_id, order.get('cause_event_ids', []))
+                self.assertEqual(rows_by_id[funding_event_id]['kind'],
+                                 'bank_withdrawal_posted')
         self.assertTrue(any(
             order['inputs'].get('current_turn_production_event_id') in rows_by_id
             and order['inputs']['current_turn_production_event_id']
