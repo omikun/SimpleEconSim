@@ -1017,3 +1017,13 @@ Verification: the catalog audit, nation and corporate decision trace tests,
 M5 AI regressions, capitalist propagation, and supply-control suites passed
 (86 tests). The intent execution record retains its decision link; compilation
 and `git diff --check` passed.
+
+Trace-reader follow-up, 2026-10-18: metricless events can now be queried by
+their `kind` through `RunTrace.query`, `trace_report.py --kind`, and the web
+`/api/trace?kind=...` endpoint. This makes shipment lifecycle, FX conversion,
+coup-check, and unrest events directly filterable without assigning numeric
+metrics to categorical records.
+
+Verification: compact round-trip and CLI filtering, trace queries, and web API
+tests passed (65 tests). A metricless shipment-departure record was selected
+through all reader layers; Python compilation and `git diff --check` passed.

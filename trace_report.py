@@ -12,7 +12,8 @@ import sys
 from trace_codec import decoded_size, iter_payloads
 
 
-def report(path, *, turn=None, entity=None, metric=None, good=None, person_id=None):
+def report(path, *, turn=None, entity=None, metric=None, kind=None,
+           good=None, person_id=None):
     subject_type, _, subject_id = entity.partition(':') if entity else (None, None, None)
     if entity and (not subject_type or not subject_id):
         raise ValueError('entity must be type:id')
@@ -27,6 +28,8 @@ def report(path, *, turn=None, entity=None, metric=None, good=None, person_id=No
         if turn is not None and row.get('turn') != turn:
             continue
         if metric is not None and row.get('metric_id') != metric:
+            continue
+        if kind is not None and row.get('kind') != kind:
             continue
         subject = row.get('subject', {})
         if person_id is not None:
@@ -92,6 +95,7 @@ def main():
     parser.add_argument('--turn', type=int)
     parser.add_argument('--entity')
     parser.add_argument('--metric')
+    parser.add_argument('--kind', help='filter an event kind, including metricless records')
     parser.add_argument('--good', help='filter a named good, such as food or cloth')
     parser.add_argument('--person-id', type=int,
                         help='show records naming this person as subject or actor')
@@ -127,10 +131,12 @@ def main():
         check = verify(args.run)
         print(f"Verified {check['rows']} rows and {check['checkpoints']} checkpoints")
     rows = report(args.run, turn=args.turn, entity=args.entity, metric=args.metric,
+                  kind=args.kind,
                   good=args.good, person_id=args.person_id)
     if args.compare_run:
         other = report(args.compare_run, turn=args.turn,
-                       entity=args.entity, metric=args.metric, good=args.good,
+                       entity=args.entity, metric=args.metric, kind=args.kind,
+                       good=args.good,
                        person_id=args.person_id)
         print('In-game run comparison; differing values alone do not prove a cause.')
         for change in diff_snapshots(rows, other):

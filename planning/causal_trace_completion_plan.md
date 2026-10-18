@@ -1402,3 +1402,15 @@ Verification: the catalog audit, nation and corporate decision trace tests,
 M5 AI regressions, capitalist propagation, and supply-control suites passed
 (86 tests). The intent execution causal link, compilation, and `git diff --check`
 passed.
+
+## Trace-reader follow-up — Filter event-only records by kind
+
+The compact trace reader now supports an event-kind filter in
+`RunTrace.query`, the `trace_report.py --kind` CLI option, and the web trace
+query API. Event-only records such as FX conversions, route shipments, coup
+checks, and takeover attempts can be inspected directly even when they do not
+represent a scalar metric. Existing metric filters continue to work.
+
+Verification: compact round-trip, metricless shipment-kind filtering, trace
+query, CLI, and web API tests passed (65 tests). Python compilation and
+`git diff --check` passed.

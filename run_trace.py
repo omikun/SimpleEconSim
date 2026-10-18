@@ -348,7 +348,8 @@ class RunTrace:
                          sha256_before=self.digest)
 
 
-    def query(self, *, turn=None, subject=None, metric_id=None, offset=0, limit=100):
+    def query(self, *, turn=None, subject=None, metric_id=None, kind=None,
+              offset=0, limit=100):
         found = []
         matched = 0
         for payload in iter_payloads(self.path):
@@ -362,6 +363,8 @@ class RunTrace:
                     for key, value in subject.items()):
                 continue
             if metric_id is not None and row.get('metric_id') != metric_id:
+                continue
+            if kind is not None and row.get('kind') != kind:
                 continue
             if matched >= offset and len(found) < limit:
                 found.append(row)
