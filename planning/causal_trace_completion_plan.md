@@ -1200,3 +1200,16 @@ regression suite passed (13 total) for below-threshold behavior, armed
 strikebreaking, Ten-Hour and Factory Safety concessions, and exhausted
 concessions, with trace-on/off parity where state changes. Compilation and
 `git diff --check` passed.
+
+Phase 4 follow-up, 2026-10-18: capitalist electoral backlash now logs both
+activation gates, candidate filtering and charisma-based target selection,
+each capitalist/corporate donor decision, paired cash or FX-wallet balances
+for every donation, and the resulting popularity calculation. Receipt events
+link to prior donations when they accumulate in the same candidate account.
+The final event summarizes donors, amount, target faction, and popularity gain.
+
+Verification: the dedicated backlash tests and full supply-control actor
+strategy suite passed (47 total), covering trace-on/off parity, cash and
+foreign-currency-wallet transfers, account conservation, candidate choice,
+liquidity thresholds, and missing-candidate/no-law gates. Compilation and
+`git diff --check` passed.

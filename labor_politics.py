@@ -463,14 +463,55 @@ def capitalist_electoral_backlash(nation, candidates: list, t: int) -> float:
 
     Returns total campaign funds donated by capitalists to the opposition candidate.
     """
-    if not candidates:
-        return 0.0
-
-    # Only triggers if pro-labor legislation has threatened profits
+    trace_region, trace_turn, operation_id = _labor_trace_context(
+        nation, 'capitalist_electoral_backlash')
+    # Only triggers if pro-labor legislation has threatened profits.
+    has_candidates = bool(candidates)
     has_labor_laws = (getattr(nation, 'ten_hour_act', False) or
                       getattr(nation, 'factory_safety_act', False) or
                       getattr(nation, 'max_workday_hours', 16.0) < 14.0)
+    gate_event_id = None
+    if trace_region is not None:
+        gate_event_id = _emit_labor_policy_event(
+            trace_region, kind='capitalist_backlash_gate',
+            record_class='decision',
+            subject={'type': 'nation', 'id': getattr(nation, 'name', 'unnamed')},
+            metric_id='scenario.capitalist_backlash_gate', unit='triggered',
+            before=False, after=bool(has_candidates and has_labor_laws),
+            inputs={'operation_id': operation_id, 'turn': int(t),
+                    'trace_clock_turn': trace_turn,
+                    'candidate_count': len(candidates),
+                    'ten_hour_act_active':
+                    bool(getattr(nation, 'ten_hour_act', False)),
+                    'factory_safety_act_active':
+                    bool(getattr(nation, 'factory_safety_act', False)),
+                    'maximum_workday_hours': float(
+                        getattr(nation, 'max_workday_hours', 16.0)),
+                    'labor_law_trigger': bool(has_labor_laws),
+                    'reason': ('no_candidates' if not has_candidates else
+                               'no_pro_labor_laws' if not has_labor_laws else
+                               'capitalist_backlash_available')})
+    if not has_candidates:
+        if trace_region is not None:
+            _emit_labor_policy_event(
+                trace_region, kind='capitalist_backlash_outcome',
+                subject={'type': 'nation', 'id': getattr(nation, 'name', 'unnamed')},
+                metric_id='scenario.capitalist_backlash_outcome', unit='result',
+                after='no_candidates',
+                inputs={'operation_id': operation_id, 'turn': int(t),
+                        'total_donations': 0.0},
+                cause_event_ids=([gate_event_id] if gate_event_id else None))
+        return 0.0
     if not has_labor_laws:
+        if trace_region is not None:
+            _emit_labor_policy_event(
+                trace_region, kind='capitalist_backlash_outcome',
+                subject={'type': 'nation', 'id': getattr(nation, 'name', 'unnamed')},
+                metric_id='scenario.capitalist_backlash_outcome', unit='result',
+                after='blocked_no_pro_labor_laws',
+                inputs={'operation_id': operation_id, 'turn': int(t),
+                        'total_donations': 0.0},
+                cause_event_ids=([gate_event_id] if gate_event_id else None))
         return 0.0
 
     incumbent_faction = getattr(nation, '_incumbent_faction', None)
@@ -482,8 +523,43 @@ def capitalist_electoral_backlash(nation, candidates: list, t: int) -> float:
     # Prefer opponent backed by conservative/capitalist faction, or highest charisma
     target_cand = max(opponents, key=lambda c: getattr(c.agent, 'charisma', 0.0))
 
+    selection_event_id = None
+    if trace_region is not None:
+        selection_event_id = _emit_labor_policy_event(
+            trace_region, kind='capitalist_backlash_candidate_selection',
+            record_class='decision',
+            subject={'type': 'nation/candidate',
+                     'id': str(getattr(target_cand.agent, 'id', 'candidate'))},
+            metric_id='scenario.capitalist_backlash_selection', unit='selected',
+            after='target_selected',
+            inputs={'operation_id': operation_id, 'turn': int(t),
+                    'incumbent_faction': incumbent_faction,
+                    'opponent_candidate_count': len(opponents),
+                    'all_candidates_were_incumbent_faction': not bool(
+                        [c for c in candidates
+                         if c.backing_faction != incumbent_faction]),
+                    'selection_rule': 'highest_charisma_among_non_incumbent_candidates_or_all_candidates',
+                    'candidates': [
+                        {'agent_id': str(getattr(candidate.agent, 'id', 'candidate')),
+                         'backing_faction': candidate.backing_faction,
+                         'charisma': float(getattr(candidate.agent, 'charisma', 0.0)),
+                         'popularity': float(candidate.popularity)}
+                        for candidate in candidates],
+                    'selected_candidate_id':
+                    str(getattr(target_cand.agent, 'id', 'candidate')),
+                    'selected_faction': target_cand.backing_faction},
+            cause_event_ids=([gate_event_id] if gate_event_id else None))
+
     total_donations = 0.0
     currency = getattr(nation, 'currency', None)
+    campaign_currency = currency or 'local_currency'
+    transfer_event_ids = []
+    popularity_event_ids = []
+    donor_decision_event_ids = []
+    candidate_receipt_event_ids = {'cash': None, 'wallet': None}
+    donations_count = 0
+    candidate_popularity_before = (float(target_cand.popularity)
+                                   if trace_region is not None else None)
 
     def available_currency(agent):
         home = getattr(agent, 'home_currency', currency)
@@ -507,6 +583,12 @@ def capitalist_electoral_backlash(nation, candidates: list, t: int) -> float:
             from forex import fx_add
             fx_add(agent, currency, amount)
 
+    def holding_balance(agent, holding):
+        if holding == 'cash':
+            return float(getattr(agent, 'cash', 0.0))
+        from forex import fx_balance
+        return float(fx_balance(agent, currency))
+
     for tile in getattr(nation, 'tiles', []):
         for a in getattr(tile, 'agents', []):
             if not getattr(a, 'alive', True):
@@ -514,17 +596,149 @@ def capitalist_electoral_backlash(nation, candidates: list, t: int) -> float:
             is_capitalist = (getattr(a, 'social_class', '') in ('capitalist', 'industrialist', 'landlord', 'lord')
                              or getattr(a, 'is_corporation', False))
             liquid, holding = available_currency(a)
+            donation = (round((liquid - 20.0) * 0.15, 2)
+                        if is_capitalist and liquid > 25.0 else 0.0)
+            donor_decision_id = None
+            if trace_region is not None and is_capitalist:
+                donor_decision_id = _emit_labor_policy_event(
+                    trace_region, kind='capitalist_backlash_donor_decision',
+                    record_class='decision',
+                    subject={'type': 'agent', 'id': str(a.id), 'tile': tile.name},
+                    metric_id='scenario.capitalist_backlash_donor',
+                    unit=campaign_currency, after=donation if donation > 0.5 else 0.0,
+                    inputs={'operation_id': operation_id, 'turn': int(t),
+                            'donor_class': getattr(a, 'social_class', ''),
+                            'is_corporation': bool(
+                                getattr(a, 'is_corporation', False)),
+                            'liquid_balance': liquid,
+                            'holding': holding,
+                            'liquid_balance_threshold': 25.0,
+                            'surplus_reserve': 20.0,
+                            'donation_rate': 0.15,
+                            'minimum_donation': 0.5,
+                            'calculated_donation': donation,
+                            'eligible': bool(liquid > 25.0 and donation > 0.5),
+                            'reason': ('capitalist_surplus_available'
+                                       if liquid > 25.0 and donation > 0.5 else
+                                       'liquidity_threshold_not_met'
+                                       if liquid <= 25.0 else
+                                       'donation_below_minimum'),
+                            'target_candidate_id': str(
+                                getattr(target_cand.agent, 'id', 'candidate'))},
+                    cause_event_ids=([selection_event_id]
+                                     if selection_event_id else None))
+                if donor_decision_id:
+                    donor_decision_event_ids.append(donor_decision_id)
             if is_capitalist and liquid > 25.0:
                 # Donate 15% of surplus liquid cash to defeat the reformist incumbent
-                donation = round((liquid - 20.0) * 0.15, 2)
                 if donation > 0.5:
+                    source_balance_before = holding_balance(a, holding)
+                    recipient_home = getattr(target_cand.agent, 'home_currency', currency)
+                    recipient_holding = (
+                        'cash' if not currency or recipient_home == currency
+                        else 'wallet')
+                    recipient_balance_before = holding_balance(
+                        target_cand.agent, recipient_holding)
+                    popularity_before = float(target_cand.popularity)
                     debit_currency(a, donation, holding)
                     credit_currency(target_cand.agent, donation)
+                    source_balance_after = holding_balance(a, holding)
+                    recipient_balance_after = holding_balance(
+                        target_cand.agent, recipient_holding)
                     # Popularity boost diluted by charisma
                     charisma = getattr(target_cand.agent, 'charisma', 0.5)
                     gain = donation * (0.5 + 0.5 * charisma) * (1.0 / 1500.0)
                     target_cand.popularity += gain
                     total_donations += donation
+                    donations_count += 1
+                    if trace_region is not None:
+                        from finance_trace import account_ref, transfer_contract
+                        from run_trace import emit
+                        transfer_id = (f'capitalist-backlash:{getattr(nation, "name", "nation")}:'
+                                       f'{int(t)}:{a.id}:{target_cand.agent.id}')
+                        contract = transfer_contract(
+                            operation_id, 'capitalist_electoral_backlash',
+                            side='payer', amount=donation,
+                            amount_currency=campaign_currency,
+                            payer_account=account_ref(
+                                'agent_cash' if holding == 'cash' else 'agent_fx_wallet',
+                                str(a.id), campaign_currency, tile=tile.name,
+                                balance_before=source_balance_before,
+                                balance_after=source_balance_after,
+                                balance_scope=('cash' if holding == 'cash' else
+                                               'wallet_balance')),
+                            payee_account=account_ref(
+                                'agent_cash' if recipient_holding == 'cash'
+                                else 'agent_fx_wallet',
+                                str(target_cand.agent.id), campaign_currency,
+                                tile=tile.name,
+                                balance_before=recipient_balance_before,
+                                balance_after=recipient_balance_after,
+                                balance_scope=('cash' if recipient_holding == 'cash'
+                                               else 'wallet_balance')),
+                            local_cash_leg_amount=donation,
+                            local_cash_leg_currency=campaign_currency,
+                            currency_conversion_applied=False,
+                            counterparty_leg_status='both_account_balances_captured',
+                            transfer_id=transfer_id,
+                            source_tile=tile.name,
+                            donor_holding=holding,
+                            candidate_holding=recipient_holding,
+                            source='capitalist_electoral_backlash', turn=int(t))
+                        transfer_causes = []
+                        if donor_decision_id:
+                            transfer_causes.append(donor_decision_id)
+                        prior_receipt_id = candidate_receipt_event_ids.get(
+                            recipient_holding)
+                        if prior_receipt_id:
+                            transfer_causes.append(prior_receipt_id)
+                        if not transfer_causes and selection_event_id:
+                            transfer_causes.append(selection_event_id)
+                        transfer_event_id = emit(
+                            trace_region, kind='capitalist_backlash_donation',
+                            record_class='transfer', phase='policy_action',
+                            subject={'type': 'election_campaign',
+                                     'id': transfer_id,
+                                     'candidate_id': target_cand.agent.id,
+                                     'tile': tile.name},
+                            metric_id='finance.election_campaign',
+                            unit=campaign_currency, after=donation,
+                            inputs={'operation_id': operation_id,
+                                    'transfer_contract': contract,
+                                    'donor_id': str(a.id),
+                                    'candidate_id': str(target_cand.agent.id),
+                                    'donor_holding': holding,
+                                    'candidate_holding': recipient_holding},
+                            cause_event_ids=transfer_causes or None)
+                        if transfer_event_id:
+                            transfer_event_ids.append(transfer_event_id)
+                            candidate_receipt_event_ids[
+                                recipient_holding] = transfer_event_id
+                        popularity_event_id = _emit_labor_policy_event(
+                            trace_region,
+                            kind='capitalist_backlash_popularity_effect',
+                            subject={'type': 'nation/candidate',
+                                     'id': str(target_cand.agent.id)},
+                            metric_id='politics.candidate_popularity',
+                            unit='points', before=popularity_before,
+                            after=float(target_cand.popularity),
+                            inputs={'operation_id': operation_id,
+                                    'turn': int(t), 'donation': donation,
+                                    'charisma': float(charisma),
+                                    'charisma_dilution': 0.5 + 0.5 * charisma,
+                                    'popularity_per_dollar': 1.0 / 1500.0,
+                                    'popularity_gain': gain,
+                                    'transfer_id': transfer_id},
+                            cause_event_ids=([transfer_event_id,
+                                              donor_decision_id]
+                                             if transfer_event_id and
+                                             donor_decision_id else
+                                             [transfer_event_id]
+                                             if transfer_event_id else
+                                             [donor_decision_id]
+                                             if donor_decision_id else None))
+                        if popularity_event_id:
+                            popularity_event_ids.append(popularity_event_id)
 
     if total_donations > 0:
         ev = {
@@ -535,6 +749,33 @@ def capitalist_electoral_backlash(nation, candidates: list, t: int) -> float:
             'target_faction': target_cand.backing_faction,
         }
         nation.regime_log.append(ev)
+
+    if trace_region is not None:
+        _emit_labor_policy_event(
+            trace_region, kind='capitalist_backlash_outcome',
+            subject={'type': 'nation/candidate',
+                     'id': str(target_cand.agent.id)},
+            metric_id='scenario.capitalist_backlash_outcome', unit='result',
+            after='contributions_received' if total_donations > 0
+            else 'no_eligible_donations',
+            inputs={'operation_id': operation_id, 'turn': int(t),
+                    'candidate_id': str(target_cand.agent.id),
+                    'target_faction': target_cand.backing_faction,
+                    'donor_count': donations_count,
+                    'total_donations': total_donations,
+                    'donation_currency': campaign_currency,
+                    'candidate_popularity_before': candidate_popularity_before,
+                    'candidate_popularity_after':
+                    float(target_cand.popularity),
+                    'popularity_gain_total':
+                    float(target_cand.popularity) - candidate_popularity_before,
+                    'transfer_event_count': len(transfer_event_ids)},
+            cause_event_ids=([selection_event_id] + donor_decision_event_ids
+                             + transfer_event_ids + popularity_event_ids
+                             if selection_event_id else
+                             donor_decision_event_ids + transfer_event_ids
+                             + popularity_event_ids or
+                             ([gate_event_id] if gate_event_id else None)))
 
     return total_donations
 

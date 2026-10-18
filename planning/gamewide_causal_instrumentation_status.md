@@ -841,3 +841,16 @@ Verification: five dedicated uprising trace tests and the existing coercion
 regression suite passed (13 total), covering trace-on/off parity, armed
 strikebreaking, both concession tiers, no-crisis, and no-further-concession
 outcomes. Compilation and `git diff --check` passed.
+
+Capitalist electoral backlash now traces the pro-labor-law and candidate
+availability gates, opposition filtering and charisma-based candidate choice,
+each capitalist or corporate donor's liquidity calculation, and every cash or
+foreign-currency-wallet donation. Paired account balances record the source
+debit and candidate receipt; later receipts link to earlier deposits into the
+same candidate account. Separate records explain the charisma-adjusted
+popularity increase and aggregate campaign result.
+
+Verification: the dedicated backlash trace tests and full supply-control actor
+strategy suite passed (47 total), including trace-on/off parity, domestic cash
+and FX-wallet conservation, candidate selection, donor thresholds, and closed
+gates. Compilation and `git diff --check` passed.
