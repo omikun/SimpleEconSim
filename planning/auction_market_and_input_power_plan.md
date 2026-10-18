@@ -102,3 +102,16 @@ The desktop and web client should show the same compact market card for the sele
 Start with Phase 1 plus the Phase 2 removal of direct corporate input purchase. Use one producing district with two growers and one mill, a second mill able to enter by route, and a food reserve on one grower. The first playable result should be simple: when the second mill outbids the first for scarce cotton, the farmgate paid price rises; when a harvest falls, unfilled mill demand and the higher paid price are visible; when a grower needs a meal, its reserved food remains in inventory. A low cash buyer can lose even if it needs cotton badly. This makes later advances, land ownership, water control, and exclusive charters meaningful changes to outside options rather than arbitrary price multipliers.
 
 Make a commit after each phase that passes its gate. The first slice may be committed separately so the core price system can be reviewed before property and political mechanisms build on it.
+
+## Implementation progress
+
+### Phase 1 — complete (2026-10-18)
+
+- Local clearing consumes the order quantities assembled in `trade()` and settles at a midpoint bounded by the matched limit prices. Orders use the quote visible at submission; reference prices update after clearing.
+- Funded excess demand raises buyer limits within a cap. Food urgency can raise a household's limit; a productive input buyer is capped by expected output receipts after direct payroll; a trader is capped by estimated destination receipts after freight.
+- Dead agents and trader export inventory are excluded from local demand and supply totals. Existing food reserve logic determines the offered quantity, which is now the quantity clearing consumes.
+- Removed the capitalist planner's direct neighboring input purchase path. Cross-region corporate input access now awaits Phase 2 route settlement.
+- Added `test_market_auction.py` coverage for exact offer conservation and settlement, bid below ask, food reserves, scarce-market price pressure, bid trace replay, and prevention of the direct input bypass.
+- Targeted market, food-security, and capitalist-trade tests passed. A broader run had four unrelated environment errors because `pygame` and `scipy` are unavailable; the remaining tests in those files passed.
+
+**Next:** Phase 2 replaces direct spatial luxury/output transfers with route-based, delivered-price orders and physical shipment settlement. Keep this work in its own commit so phase 1's auction behavior is reviewable independently.

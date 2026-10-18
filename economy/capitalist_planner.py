@@ -132,33 +132,7 @@ class EliteCapitalistPlanner:
                                             'neighbor': n_name, 'price': price, 'total_cost': total_cost}
                             }
 
-        # 2. Spatial Raw Material Input Import for Local Manufacturing:
-        company = getattr(agent, 'company_owned', None)
-        if (company and getattr(company, 'is_corporation', False) and company.alive
-                and company in region.agents
-                and company.home_currency == region.home_currency):
-            recipe = region.recipes.get(company.output, {})
-            input_good = recipe.get('input')
-            if input_good and company.inv_get(input_good, 0) < recipe.get('numInput', 1) * 2:
-                for n_name, neighbor in neighbors.items():
-                    if neighbor.home_currency != region.home_currency:
-                        continue
-                    n_price = float(neighbor.recipes.get(input_good, {}).get('price', 5.0))
-                    seller = next((a for a in neighbor.agents if a.alive and a.inv_get(input_good, 0) > 0), None)
-                    if seller and company.cash >= n_price * 4:
-                        import_qty = min(seller.inv_get(input_good, 0), 4)
-                        cost = import_qty * n_price
-                        company.cash -= cost
-                        seller.cash += cost
-                        seller.inv_add(input_good, -import_qty)
-                        company.inv_add(input_good, import_qty)
-                        return {
-                            'action_taken': 'SPATIAL_INPUT_IMPORT',
-                            'details': {'good': input_good.name if hasattr(input_good, 'name') else str(input_good),
-                                        'neighbor': n_name, 'quantity': import_qty, 'cost': cost}
-                        }
-
-        # 3. Spatial Export of Finished Goods to High-Price Neighbor:
+        # 2. Spatial Export of Finished Goods to High-Price Neighbor:
         for g in getattr(region, 'goods', []):
             held = agent.inv_get(g, 0)
             if held > 0 and g != Goods.food:

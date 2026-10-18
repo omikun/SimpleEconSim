@@ -1,6 +1,4 @@
-"""
-Market clearing, pay-as-bid double auction, pricing reference updates, and bid/ask mechanics.
-"""
+"""Market clearing, order prices, reference updates, and bid/ask mechanics."""
 
 import math
 from goods import Goods
@@ -287,6 +285,48 @@ def calculate_ask_price(region, agent, good, ref):
     return ask
 
 
+def calculate_bid_limit(region, agent, good, ref, demand_ratio, quantity):
+    """Maximum price this submitted order will pay per unit.
+
+    The reference is the neutral quote. Funded excess demand raises the limit
+    gradually, allowing competing buyers to bid for scarce stock.
+    """
+    if quantity <= 0 or ref <= 0:
+        return 0.0
+    pressure = max(0.0, min(2.0, float(demand_ratio) - 1.0))
+    premium = min(0.50, pressure * 0.20)
+    need_premium = 0.0
+    if good == Goods.food and not getattr(agent, 'is_corporation', False):
+        need_premium = min(0.75, max(0.0, getattr(agent, 'hungry_steps', 0) * 0.05))
+    limit = ref * (1.0 + max(premium, need_premium))
+
+    # Bound productive buyers by output value after direct payroll. This is a
+    # ceiling, not a profit forecast: debts, transport, and unsold output can
+    # still make the recipe unprofitable.
+    if input_good(region, agent) == good:
+        recipe = region.recipes.get(agent.output, {})
+        input_units = max(0.0, float(recipe.get('numInput', 0)))
+        output_units = max(0.0, float(recipe.get('production', 0)))
+        if input_units > 0 and output_units > 0:
+            output_value = output_units * float(
+                region.recipes.get(agent.output, {}).get('price', 0.0))
+            payroll = max(0.0, float(getattr(agent, 'wage', 0.0))
+                         * len(getattr(agent, 'employees', ())))
+            limit = min(limit, max(0.0, (output_value - payroll) / input_units))
+
+    if getattr(agent, 'is_trader', False):
+        dest = getattr(agent, 'destination_region', None) or region.destination_region
+        if dest is not None:
+            desk = region.forex_desks.get(dest.name) or getattr(region, 'forex', None)
+            fx_rate = desk.buy_rate() if desk is not None else region.exchange_rate
+            fee = dest.gov.get_trade_fee_multiplier() if dest.gov is not None else region._trade_fee_mult
+            destination_value = dest.recipes.get(good, {}).get('price', 0.0) * fee * fx_rate
+            limit = min(limit, max(0.0, destination_value - transport_cost_per_unit(region)))
+
+    available_cash = max(0.0, getattr(agent, 'cash', 0.0))
+    return max(0.0, min(limit, available_cash / quantity))
+
+
 def import_ask_price(region, trader, good):
     """Import ask price calculation."""
     cost_home = max(0.05, trader.cost_get(good, 0))
@@ -423,21 +463,27 @@ def gather_import_pool(region, good):
 
 
 def clear_discriminatory(region, good, ref, total_asks, total_bids,
-                         imp_pool, agents, t):
-    """Cheapest-first pay-as-bid clear for one good."""
+                         imp_pool, agents, t, local_orders=None):
+    """Clear one good, using the exact submitted local quantities when given."""
     from run_trace import emit
     book = []
-    for a in agents:
-        if getattr(a, 'is_trader', False) or not getattr(a, 'alive', True):
-            continue
-        if a.output == good:
-            qty = a.inventory[good.value]
-            if good == Goods.food:
-                qty = max(0, qty - 2)
-        else:
-            qty = excess_non_producer_saleable(region, a, good)
-        if qty > 0:
-            book.append([calculate_ask_price(region, a, good, ref), qty, a, False])
+    if local_orders is not None:
+        for row in local_orders.get('sellers', ()):
+            seller, qty = row['agent'], int(row['quantity'])
+            if qty > 0 and getattr(seller, 'alive', True):
+                book.append([float(row['limit_price']), qty, seller, False])
+    else:
+        for a in agents:
+            if getattr(a, 'is_trader', False) or not getattr(a, 'alive', True):
+                continue
+            if a.output == good:
+                qty = a.inventory[good.value]
+                if good == Goods.food:
+                    qty = max(0, qty - 2)
+            else:
+                qty = excess_non_producer_saleable(region, a, good)
+            if qty > 0:
+                book.append([calculate_ask_price(region, a, good, ref), qty, a, False])
     for item in imp_pool:
         trader, qty = item[0], item[1]
         ask = import_ask_price(region, trader, good)
@@ -445,25 +491,34 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
         book.append([ask, qty, trader, True, is_parked])
     book.sort(key=lambda o: o[0])
 
-    if not hasattr(region, '_cached_hungry_sorted') or region._cached_hungry_turn != t:
-        region._cached_hungry_sorted = sorted(
-            agents, key=lambda a: a.hungry_steps, reverse=True)
-        region._cached_hungry_turn = t
-    buyers = [a for a in region._cached_hungry_sorted
-              if not getattr(a, 'military_unit_id', None)]
-    if good != Goods.food:
-        buyers.sort(key=lambda a: (
-            0 if input_good(region, a) == good else (1 if getattr(a, 'is_trader', False) else 2),
-            -getattr(a, 'hungry_steps', 0)
-        ))
-    bid_attr = f'bid_{good.name}'
-    has_explicit_bids = any(hasattr(a, bid_attr) for a in buyers)
-    rem_bids = {
-        a.id: int(getattr(a, bid_attr, 0)) if has_explicit_bids else total_bids
-        for a in buyers
-    }
-    if has_explicit_bids:
-        buyers = [a for a in buyers if rem_bids.get(a.id, 0) > 0]
+    bid_limits = {}
+    if local_orders is not None:
+        bid_rows = [row for row in local_orders.get('buyers', ())
+                    if int(row['quantity']) > 0 and getattr(row['agent'], 'alive', True)]
+        bid_rows.sort(key=lambda row: (-float(row['limit_price']), row['agent'].id))
+        buyers = [row['agent'] for row in bid_rows]
+        rem_bids = {row['agent'].id: int(row['quantity']) for row in bid_rows}
+        bid_limits = {row['agent'].id: float(row['limit_price']) for row in bid_rows}
+    else:
+        if not hasattr(region, '_cached_hungry_sorted') or region._cached_hungry_turn != t:
+            region._cached_hungry_sorted = sorted(
+                agents, key=lambda a: a.hungry_steps, reverse=True)
+            region._cached_hungry_turn = t
+        buyers = [a for a in region._cached_hungry_sorted
+                  if not getattr(a, 'military_unit_id', None)]
+        if good != Goods.food:
+            buyers.sort(key=lambda a: (
+                0 if input_good(region, a) == good else (1 if getattr(a, 'is_trader', False) else 2),
+                -getattr(a, 'hungry_steps', 0)
+            ))
+        bid_attr = f'bid_{good.name}'
+        has_explicit_bids = any(hasattr(a, bid_attr) for a in buyers)
+        rem_bids = {
+            a.id: int(getattr(a, bid_attr, 0)) if has_explicit_bids else total_bids
+            for a in buyers
+        }
+        if has_explicit_bids:
+            buyers = [a for a in buyers if rem_bids.get(a.id, 0) > 0]
 
     cash_collected = 0.0
     units = 0
@@ -484,12 +539,17 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
             if want <= 0 or buyer is seller:
                 bi += 1
                 continue
-            afford = int(buyer.cash / ask) if ask > 0 else want
+            bid_limit = bid_limits.get(buyer.id, float('inf'))
+            if bid_limit + 1e-9 < ask:
+                bi = len(buyers)
+                break
+            unit_price = (ask + bid_limit) / 2.0 if math.isfinite(bid_limit) else ask
+            afford = int(buyer.cash / unit_price) if unit_price > 0 else want
             take = min(remaining, want, max(0, afford), total_bids - units)
             if take <= 0:
                 bi += 1
                 continue
-            cost = take * ask
+            cost = take * unit_price
             buyer_cash_before = buyer.cash
             seller_cash_before = seller.cash
             seller_wallet_before = _fx.fx_balance(seller, region.home_currency)
@@ -541,8 +601,8 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
                     old_q = buyer.inv_get(good, 0)
                     old_c = buyer.cost_get(good, 0)
                     total_q = old_q + take
-                    buyer.cost_set(good, ((old_q * old_c + take * ask)
-                                          / total_q) if total_q > 0 else ask)
+                    buyer.cost_set(good, ((old_q * old_c + take * unit_price)
+                                          / total_q) if total_q > 0 else unit_price)
                     buyer.inventory_export[good.value] += take
                 else:
                     food_needed = max(0, 8 - buyer.inv_get(good, 0))
@@ -553,15 +613,15 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
                         old_q = buyer.inv_get(good, 0)
                         old_c = buyer.cost_get(good, 0)
                         total_q = old_q + export
-                        buyer.cost_set(good, ((old_q * old_c + export * ask)
-                                              / total_q) if total_q > 0 else ask)
+                        buyer.cost_set(good, ((old_q * old_c + export * unit_price)
+                                              / total_q) if total_q > 0 else unit_price)
                         buyer.inventory_export[good.value] += export
             else:
                 old_q = buyer.inv_get(good, 0)
                 old_c = buyer.cost_get(good, 0)
                 total_q = old_q + take
-                buyer.cost_set(good, ((old_q * old_c + take * ask)
-                                      / total_q) if total_q > 0 else ask)
+                buyer.cost_set(good, ((old_q * old_c + take * unit_price)
+                                      / total_q) if total_q > 0 else unit_price)
                 buyer.inv_add(good, take)
                 if good == Goods.food:
                     buyer.food_purchased += int(take)
@@ -571,7 +631,7 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
                            metric_id='goods.sold', unit='units', before=0, after=take,
                            inputs={'buyer_id': buyer.id, 'seller_id': seller.id,
                                    'imported': is_import, 'parked': is_parked,
-                                   'unit_price': ask, 'total_paid': cost,
+                                   'unit_price': unit_price, 'total_paid': cost,
                                    'buyer_cash_before': buyer_cash_before,
                                    'buyer_cash_after': buyer.cash,
                                    'seller_cash_delta': seller.cash - seller_cash_before,
@@ -585,15 +645,15 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
             emit(region, kind='paid_market_unit_price', record_class='observation',
                  subject={'type': 'tile', 'id': region.name, 'good': good.name},
                  metric_id='goods.transaction_price', unit='local_currency_per_unit',
-                 after=ask, cause_event_ids=[sale_id] if sale_id else [],
+                 after=unit_price, cause_event_ids=[sale_id] if sale_id else [],
                  inputs={'quantity': take, 'total_paid': cost,
                          'buyer_id': buyer.id, 'seller_id': seller.id,
                          'imported': is_import, 'currency': region.home_currency})
             units += take
-            prices.extend([ask] * int(take))
+            prices.extend([unit_price] * int(take))
             remaining -= take
             rem_bids[buyer.id] = want - take
-            if buyer.cash < ask or rem_bids[buyer.id] <= 0:
+            if buyer.cash < unit_price or rem_bids[buyer.id] <= 0:
                 bi += 1
     region._auction_import_sales[good] = (imp_units, imp_value)
     realized = sum(prices) / len(prices) if prices else ref
@@ -838,7 +898,13 @@ def trade(region, t):
     prices = {g: recipes[g]['price'] for g in goods_goods}
     total_asks = {g: 0 for g in goods_goods}
     total_bids = {g: 0 for g in goods_goods}
+    local_orders = {g: {'buyers': [], 'sellers': []} for g in goods_goods}
     for a in agents:
+        if not getattr(a, 'alive', True):
+            for g in goods_goods:
+                setattr(a, f'bid_{g.name}', 0)
+                setattr(a, f'ask_{g.name}', 0)
+            continue
         if getattr(a, 'military_unit_id', None):
             for g in goods_goods:
                 setattr(a, f'bid_{g.name}', 0)
@@ -855,9 +921,21 @@ def trade(region, t):
             a.bid = bid
             a.remainingCash -= bid * p
             total_bids[g] += bid
+            if bid > 0:
+                local_orders[g]['buyers'].append({'agent': a, 'quantity': int(bid)})
             ask = calculate_ask(region, a, g, p, is_emp)
             a.ask = ask
-            total_asks[g] += ask
+            # Trader export inventory is committed to the route pipeline; it
+            # is not a local seller offer. Foreign stock enters through the
+            # separately priced import pool below.
+            local_ask = 0 if getattr(a, 'is_trader', False) else ask
+            total_asks[g] += local_ask
+            if local_ask > 0:
+                local_orders[g]['sellers'].append({
+                    'agent': a, 'quantity': int(local_ask),
+                    'limit_price': calculate_ask_price(region, a, g, p)
+                    if a.output == g else max(0.05, p),
+                })
             setattr(a, f'bid_{g.name}', bid)
             setattr(a, f'ask_{g.name}', ask)
 
@@ -891,9 +969,53 @@ def trade(region, t):
         if max_demand_ratio < demand_ratio and tb > 0:
             max_demand_ratio = demand_ratio
             most_demand_good = good
-        update_price_ref(region, good, demand_ratio, local_asks=ta,
-                         imported_asks=imp_total, bids=tb)
-        ref = region._price_ref[good]
+        # Orders are priced against the quote visible when submitted. Discover
+        # and publish the next reference after clearing so the terms cannot
+        # change between order submission and settlement.
+        ref = prices[good]
+        for row in local_orders[good]['buyers']:
+            buyer = row['agent']
+            qty = row['quantity']
+            row['limit_price'] = calculate_bid_limit(
+                region, buyer, good, ref, demand_ratio, qty)
+            pressure = max(0.0, min(2.0, float(demand_ratio) - 1.0))
+            premium = min(0.50, pressure * 0.20)
+            need_premium = (min(0.75, max(0.0, getattr(buyer, 'hungry_steps', 0) * 0.05))
+                            if good == Goods.food and not getattr(buyer, 'is_corporation', False)
+                            else 0.0)
+            input_value_ceiling = None
+            if input_good(region, buyer) == good:
+                recipe = region.recipes.get(buyer.output, {})
+                input_units = max(0.0, float(recipe.get('numInput', 0)))
+                output_units = max(0.0, float(recipe.get('production', 0)))
+                if input_units > 0 and output_units > 0:
+                    output_value = output_units * float(
+                        region.recipes.get(buyer.output, {}).get('price', 0.0))
+                    payroll = max(0.0, float(getattr(buyer, 'wage', 0.0))
+                                 * len(getattr(buyer, 'employees', ())))
+                    input_value_ceiling = max(0.0, (output_value - payroll) / input_units)
+            trader_net_value = None
+            if getattr(buyer, 'is_trader', False):
+                dest = getattr(buyer, 'destination_region', None) or region.destination_region
+                if dest is not None:
+                    desk = region.forex_desks.get(dest.name) or getattr(region, 'forex', None)
+                    fx_rate = desk.buy_rate() if desk is not None else region.exchange_rate
+                    fee = dest.gov.get_trade_fee_multiplier() if dest.gov is not None else region._trade_fee_mult
+                    trader_net_value = (dest.recipes.get(good, {}).get('price', 0.0)
+                                        * fee * fx_rate - transport_cost_per_unit(region))
+            from run_trace import emit
+            emit(region, kind='local_buyer_bid', record_class='calculation',
+                 subject={'type': 'tile', 'id': region.name, 'good': good.name,
+                          'buyer_id': buyer.id},
+                 metric_id='goods.buyer_bid', unit='local_currency_per_unit',
+                 after=row['limit_price'], formula_id='market.local_bid.v1',
+                 inputs={'reference': ref, 'demand_ratio': demand_ratio,
+                         'demand_premium': premium, 'need_premium': need_premium,
+                         'input_value_ceiling': input_value_ceiling,
+                         'quantity': qty,
+                         'cash_limit': buyer.cash / qty if qty else 0.0,
+                         'trader_net_value': trader_net_value,
+                         'currency': region.home_currency})
         price = ref
         if min(price_ta, tb) == 0:
             region._auction_import_sales[good] = (0, 0.0)
@@ -904,13 +1026,19 @@ def trade(region, t):
                  inputs={'local_asks': ta, 'imported_asks': imp_total,
                          'bids': tb, 'reason': 'no bids or no offers'})
             if good != Goods.food or (ta == 0 and emergency_surplus == 0):
+                update_price_ref(region, good, demand_ratio, local_asks=ta,
+                                 imported_asks=imp_total, bids=tb)
                 continue
             # A cash-poor population can make zero private bids. Public food
             # procurement must still be able to buy locally offered grain.
             total_bought, realized = 0, ref
         else:
             total_bought, _tcash, realized = clear_discriminatory(
-                region, good, ref, price_ta, tb, imp_pool, agents, t)
+                region, good, ref, price_ta, tb, imp_pool, agents, t,
+                local_orders=local_orders[good])
+        update_price_ref(region, good, demand_ratio, local_asks=ta,
+                         imported_asks=imp_total, bids=tb)
+        price = region._price_ref[good]
         region.sold_log[good].append(total_bought)
         region._trade_prices[good].append(realized)
         total_sold = total_bought

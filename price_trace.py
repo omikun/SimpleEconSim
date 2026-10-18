@@ -102,6 +102,15 @@ def replay_event(row):
     elif formula == 'market.transaction_vwap.v1':
         i = row['inputs']
         expected = i['total_paid'] / i['quantity']
+    elif formula == 'market.local_bid.v1':
+        i = row['inputs']
+        expected = i['reference'] * (1.0 + max(
+            i.get('demand_premium', 0.0), i.get('need_premium', 0.0)))
+        expected = min(expected, i['cash_limit'])
+        if i.get('input_value_ceiling') is not None:
+            expected = min(expected, i['input_value_ceiling'])
+        if i.get('trader_net_value') is not None:
+            expected = min(expected, max(0.0, i['trader_net_value']))
     else:
         return None
     actual = row['value_after']
