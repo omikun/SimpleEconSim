@@ -36,7 +36,8 @@ _SCOPE_TABS = []
 
 
 def _policy_trace_region(world, target):
-    candidates = list(getattr(target, 'tiles', ()))
+    candidates = [target]
+    candidates.extend(getattr(target, 'tiles', ()))
     candidates.extend(world.get('tiles', ()))
     return next((tile for tile in candidates
                  if (getattr(tile, '_run_trace', None) is not None
@@ -392,6 +393,93 @@ def _execute_city_emergency_food(world, target):
                               (funding_event_id, expenditure_event_id) if event_id]
                              or None))
     world['policy_feedback'] = (f"Emergency food aid distributed in {target.name}!", GREEN)
+
+
+def _execute_frontier_pioneer_grant(world, target):
+    region = _policy_trace_region(world, target)
+    operation_id = _policy_operation_id(
+        world, target, 'frontier_pioneer_grant', region)
+    turn = int(world.get('turn', 0))
+    homesteaders = [agent for agent in target.agents
+                    if getattr(agent, 'is_homesteader', False)]
+    decision_event_id = None
+    if region is not None:
+        from run_trace import emit
+        decision_event_id = emit(
+            region, kind='frontier_pioneer_aid_decision',
+            record_class='decision', phase='policy_action',
+            subject={'type': 'frontier/action', 'id': target.name},
+            metric_id='scenario.frontier_pioneer_aid_gate',
+            unit='eligible_households',
+            after=len(homesteaders),
+            inputs={'operation_id': operation_id, 'turn': turn,
+                    'action_id': 'frontier_pioneer_grant',
+                    'recipient_count': len(homesteaders),
+                    'eligible_agent_ids': [str(getattr(agent, 'id',
+                                                       getattr(agent, 'name', 'unknown')))
+                                           for agent in homesteaders],
+                    'selection_rule': 'all tile agents with is_homesteader true',
+                    'food_units_per_recipient': 2.0,
+                    'displayed_policy_cost': 40.0,
+                    'cash_debited': 0.0,
+                    'stock_debit_recorded': False,
+                    'food_source': 'policy_action_created_food',
+                    'reason': ('eligible_homesteaders_present' if homesteaders
+                               else 'no_eligible_homesteaders')})
+
+    recipient_ids = []
+    food_units_created = 0.0
+    for agent in homesteaders:
+        recipient_id = str(getattr(agent, 'id',
+                                   getattr(agent, 'name', 'unknown')))
+        inventory_before = float(agent.inv_get(Goods.food, 0))
+        agent.inv_add(Goods.food, 2)
+        inventory_after = float(agent.inv_get(Goods.food, 0))
+        actual_food_added = inventory_after - inventory_before
+        food_units_created += actual_food_added
+        recipient_ids.append(recipient_id)
+        if region is not None:
+            from run_trace import emit
+            emit(
+                region, kind='frontier_pioneer_food_recipient_outcome',
+                record_class='outcome', phase='policy_action',
+                subject={'type': 'frontier_pioneer', 'id': recipient_id,
+                         'tile': target.name},
+                metric_id='goods.frontier_pioneer_food',
+                before=inventory_before, after=inventory_after,
+                unit='food_units',
+                inputs={'operation_id': operation_id, 'turn': turn,
+                        'food_units_added': actual_food_added,
+                        'alive': bool(getattr(agent, 'alive', True)),
+                        'food_source': 'policy_action_created_food',
+                        'stock_debit_recorded': False,
+                        'displayed_policy_cost': 40.0,
+                        'funding_event_id': decision_event_id},
+                cause_event_ids=([decision_event_id]
+                                 if decision_event_id else None))
+
+    if region is not None:
+        from run_trace import emit
+        emit(
+            region, kind='frontier_pioneer_aid_outcome',
+            record_class='outcome', phase='policy_action',
+            subject={'type': 'frontier/action', 'id': target.name},
+            metric_id='scenario.frontier_pioneer_aid',
+            after=food_units_created, unit='food_units',
+            inputs={'operation_id': operation_id, 'turn': turn,
+                    'recipient_count': len(recipient_ids),
+                    'recipient_ids': recipient_ids,
+                    'food_units_per_recipient': 2.0,
+                    'food_units_created': food_units_created,
+                    'stock_debit_recorded': False,
+                    'displayed_policy_cost': 40.0,
+                    'cash_debited': 0.0,
+                    'funding_event_id': decision_event_id},
+            cause_event_ids=([decision_event_id]
+                             if decision_event_id else None))
+    world['policy_feedback'] = (
+        f"Pioneer aid delivered to homesteaders in {target.name}!",
+        (200, 230, 150))
 
 
 def _execute_national_guano_subsidy(world, target):
@@ -1802,7 +1890,4 @@ def _execute_policy_action(world, act_id, target):
         from frontier_policies import launch_frontier_expedition
         launch_frontier_expedition(world, target)
     elif act_id == 'frontier_pioneer_grant':
-        for a in target.agents:
-            if getattr(a, 'is_homesteader', False):
-                a.inv_add(Goods.food, 2)
-        world['policy_feedback'] = (f"Pioneer aid delivered to homesteaders in {target.name}!", (200, 230, 150))
+        _execute_frontier_pioneer_grant(world, target)

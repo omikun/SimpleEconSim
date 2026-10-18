@@ -693,7 +693,8 @@ def _execute_policy_action(world, act_id, target):
     # These policy actions share their traced implementation with the web
     # client so both entry points produce the same causal records.
     if act_id in {'city_emergency_food', 'prov_equalization_grant',
-                  'prov_soil_conservation', 'nat_subsidize_guano_import'}:
+                  'prov_soil_conservation', 'nat_subsidize_guano_import',
+                  'frontier_pioneer_grant'}:
         from worldview_policies import _execute_policy_action as execute_shared
         return execute_shared(world, act_id, target)
 
@@ -977,8 +978,3 @@ def _execute_policy_action(world, act_id, target):
     elif act_id == 'frontier_expedition':
         from frontier_policies import launch_frontier_expedition
         launch_frontier_expedition(world, target)
-    elif act_id == 'frontier_pioneer_grant':
-        for a in target.agents:
-            if getattr(a, 'is_homesteader', False):
-                a.inv_add(Goods.food, 2)
-        world['policy_feedback'] = (f"Pioneer aid delivered to homesteaders in {target.name}!", (200, 230, 150))

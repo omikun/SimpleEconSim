@@ -1103,3 +1103,17 @@ state mutations have been removed.
 Verification: six city-food tests, five provincial-policy tests, five guano
 tests, and the policy-action UI test passed (17 total), including explicit
 desktop-dispatch trace checks. Compilation and `git diff --check` passed.
+
+Phase 3 follow-up, 2026-10-18: the frontier pioneer grant now traces its
+homesteader eligibility decision and per-agent food inventory changes. The
+aggregate outcome records the actual two food units per recipient and the
+absence of both a treasury debit and a stockpile debit. This preserves and
+makes visible the mismatch between the panel's "$40" label and the implemented
+free food creation. The trace-region lookup now recognizes a target's own trace
+context even when that frontier is not in `world['tiles']`. Desktop and web
+dispatchers share the same helper.
+
+Verification: two pioneer-aid tests, two existing frontier-expedition tests,
+six city-food tests, five provincial-policy tests, and five guano tests passed
+(20 total), covering trace-on/off parity, both clients, empty frontiers, and
+created-food accounting. Compilation and `git diff --check` passed.

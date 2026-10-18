@@ -735,3 +735,19 @@ Verification: six city-food trace tests, five provincial-policy trace tests,
 five guano trace tests, and the existing policy-action UI test passed (17
 total). The desktop-specific cases confirm traces are emitted for each shared
 action family. Compilation and `git diff --check` passed.
+
+The frontier pioneer aid action now records the eligible homesteaders, each
+recipient's food inventory before and after the two-unit grant, and the
+aggregate food created. It explicitly records that the current action debits
+neither treasury cash nor an inventory stockpile, even though the panel labels
+the action "$40". A frontier target can carry its own trace context outside
+`world['tiles']`; the policy trace lookup now checks that target directly.
+Desktop and web dispatchers share this action implementation. A frontier with
+no homesteaders logs the no-recipient result while preserving the current
+feedback text.
+
+Verification: two dedicated pioneer-aid tests, two existing frontier-expedition
+tests, six city-food tests, five provincial-policy tests, and five guano tests
+passed (20 total). Coverage includes desktop/web parity, trace-on/off parity,
+zero eligible recipients, and the absence of cash and stock debits. Compilation
+and `git diff --check` passed.
