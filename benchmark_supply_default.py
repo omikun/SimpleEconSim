@@ -26,6 +26,14 @@ def run(turns=50, seed=4242):
                                        ledger_exempt=True)
         violations.extend(bad)
     accounts = [row for tile in tiles for row in getattr(tile, 'actor_turn_accounts', [])]
+    tile_by_name = {tile.name: tile for tile in tiles}
+    def event_kinds(account):
+        tile = tile_by_name.get(account['tile'])
+        events = [e for e in getattr(tile, 'economic_events', [])
+                  if e['turn'] == turns and account['actor_id'] in
+                  (e.get('payer_id'), e.get('recipient_id'))]
+        return {kind: sum(e['kind'] == kind for e in events)
+                for kind in sorted({e['kind'] for e in events})}
     firms = [row for row in accounts if row['type'] == 'corporation']
     growers = [row for row in accounts if row['type'] == 'grower']
     return {'turns': turns, 'seed': seed, 'nations': len(nations), 'tiles': len(tiles),
@@ -51,7 +59,8 @@ def run(turns=50, seed=4242):
             'largest_unposted_cash_accounts': [
                 {'tile': a['tile'], 'actor': a['actor_name'], 'type': a['type'],
                  'cash_change': a['cash_change'], 'posted_change': a['posted_cash_change'],
-                 'unposted_change': a['unposted_cash_change']}
+                 'unposted_change': a['unposted_cash_change'],
+                 'posted_event_kinds': event_kinds(a)}
                 for a in sorted(accounts, key=lambda row: abs(row['unposted_cash_change']),
                                 reverse=True)[:8]],
             'cotton_spot_units_last_turn': sum(e['quantity'] for tile in tiles
