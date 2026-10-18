@@ -205,36 +205,51 @@ def shape_nile_delta(gen) -> None:
     mouth = main_corners[-1]
     fork = main_corners[-5]
     main_set = set(main_corners)
-    queue = [(0.0, fork.index, fork)]
-    distances = {fork: 0.0}
-    previous = {}
-    outlet = None
-    while queue:
-        cost, _, corner = heappop(queue)
-        if cost != distances[corner]:
-            continue
-        if corner.ocean:
-            separation = hypot(corner.x - mouth.x, corner.y - mouth.y)
-            if (65.0 <= separation <= 145.0 and corner.x > mouth.x + 65.0
-                    and corner.y > mouth.y - 65.0):
-                outlet = corner
-                break
-            continue
-        for neighbor in corner.adjacent:
-            if neighbor in main_set and neighbor is not fork:
+
+    def find_branch(*, allow_existing_river):
+        queue = [(0.0, fork.index, fork)]
+        distances = {fork: 0.0}
+        previous = {}
+        while queue:
+            cost, _, corner = heappop(queue)
+            if cost != distances[corner]:
                 continue
-            if neighbor.x < fork.x - 15.0 or neighbor.y < fork.y - 25.0:
+            if corner.ocean:
+                separation = hypot(corner.x - mouth.x, corner.y - mouth.y)
+                if (65.0 <= separation <= 145.0 and corner.x > mouth.x + 65.0
+                        and corner.y > mouth.y - 65.0):
+                    return corner, previous
                 continue
-            edge = next((edge for edge in corner.protrudes
-                         if edge.v0 is neighbor or edge.v1 is neighbor), None)
-            if edge is None or edge.river or (neighbor.river and neighbor is not fork):
-                continue
-            step = hypot(neighbor.x - corner.x, neighbor.y - corner.y)
-            new_cost = cost + step + max(0.0, neighbor.elevation - corner.elevation) * 80.0
-            if new_cost < distances.get(neighbor, float("inf")) and new_cost < 300.0:
-                distances[neighbor] = new_cost
-                previous[neighbor] = (corner, edge)
-                heappush(queue, (new_cost, neighbor.index, neighbor))
+            for neighbor in corner.adjacent:
+                if neighbor in main_set and neighbor is not fork:
+                    continue
+                if neighbor.x < fork.x - 15.0 or neighbor.y < fork.y - 25.0:
+                    continue
+                edge = next((edge for edge in corner.protrudes
+                             if edge.v0 is neighbor or edge.v1 is neighbor), None)
+                if edge is None:
+                    continue
+                if (not allow_existing_river
+                        and (edge.river or (neighbor.river and neighbor is not fork))):
+                    continue
+                step = hypot(neighbor.x - corner.x, neighbor.y - corner.y)
+                new_cost = (cost + step
+                            + max(0.0, neighbor.elevation - corner.elevation) * 80.0)
+                if (new_cost < distances.get(neighbor, float("inf"))
+                        and new_cost < 300.0):
+                    distances[neighbor] = new_cost
+                    previous[neighbor] = (corner, edge)
+                    heappush(queue, (new_cost, neighbor.index, neighbor))
+        return None, {}
+
+    outlet, previous = find_branch(allow_existing_river=False)
+    used_existing_river = False
+    if outlet is None:
+        # On some radial maps the intended fork is surrounded by channels from
+        # other generated rivers. Reuse the cheapest connected side channel to
+        # reach the second coast instead of rejecting the entire campaign map.
+        outlet, previous = find_branch(allow_existing_river=True)
+        used_existing_river = outlet is not None
     if outlet is None:
         raise ValueError("Egypt's river needs a second coastal outlet for its delta.")
 
@@ -249,6 +264,7 @@ def shape_nile_delta(gen) -> None:
                              float(corner.river), 1.0 if corner is outlet else 0.0)
                             for corner in branch])
     gen.scenario_nile_outlets = (mouth, outlet)
+    gen.scenario_nile_branch_reused_river = used_existing_river
 
 
 def choose_egypt_geography(tiles, gen) -> dict[str, str]:

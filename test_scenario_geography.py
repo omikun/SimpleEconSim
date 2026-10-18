@@ -29,6 +29,15 @@ class ScenarioGeographyTests(unittest.TestCase):
         self.assertAlmostEqual(before, egypt.government.agent.cash + britain.government.agent.cash)
         self.assertEqual(fleet['location'], 'Ismailia')
 
+    def test_generated_nile_delta_has_a_second_coastal_outlet(self):
+        gen = self.world['gen']
+        mouth, outlet = gen.scenario_nile_outlets
+        branch = gen.river_paths[-1]
+        self.assertNotEqual(mouth, outlet)
+        self.assertTrue(outlet.ocean)
+        self.assertEqual(branch[-1][:2], (outlet.x, outlet.y))
+        self.assertIsInstance(gen.scenario_nile_branch_reused_river, bool)
+
     def test_canal_denial_blocks_transit_but_alexandria_stays_accessible(self):
         from scenario_egypt_1877 import apply_action
         ok, _ = apply_action(self.world, 'close_canal')

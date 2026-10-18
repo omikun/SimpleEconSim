@@ -722,3 +722,17 @@ trace-on/off equivalence. Compilation and `git diff --check` passed. The broader
 Egypt campaign and playthrough suites remain unable to initialize because
 `shape_nile_delta` raises the existing missing-second-coastal-outlet error
 during world generation, before these action paths run.
+
+World-generation follow-up, 2026-10-18: the Egypt delta builder now prefers an
+unclaimed channel for its second outlet and, when the selected fork is blocked
+by generated rivers, reuses the cheapest connected side channel. The default
+seed now builds a 1,000-region map with two distinct coastal outlets. The
+campaign's closed-canal response remains the authored Alexandria reroute; an
+outdated test that expected no landing was corrected to assert that route and
+battle location.
+
+Verification: 16 campaign, geography, and district-action tests passed, as did
+12 scenario-project tests, the 70-turn historical campaign path, and the default
+world-build check. The full ending-matrix audit launched 15 separate 70-turn
+campaigns and was stopped after several minutes without output; its complete
+matrix result is still unverified. Compilation and `git diff --check` passed.

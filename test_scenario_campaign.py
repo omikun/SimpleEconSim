@@ -59,13 +59,17 @@ class ScenarioCampaignTests(unittest.TestCase):
         self.assertTrue(advance_expedition(self.world))
         self.assertEqual(self.state['campaign']['battles'][-1]['location'], 'Tel el Kebir')
 
-    def test_closed_canal_prevents_canal_order(self):
+    def test_closed_canal_reroutes_canal_defense_to_alexandria(self):
         bombard_alexandria(self.world)
         self.world['turn'] += 1
         self._landing_warning()
         self.state['geography']['canal_open'] = False
         ok, _ = resolve_landing(self.world, 'defend_canal')
-        self.assertFalse(ok)
+        self.assertTrue(ok)
+        self.assertEqual(self.state['campaign']['expedition']['route'],
+                         'Alexandria after canal denial')
+        self.assertEqual(self.state['campaign']['battles'][-1]['location'],
+                         'Alexandria')
 
 
 if __name__ == '__main__':

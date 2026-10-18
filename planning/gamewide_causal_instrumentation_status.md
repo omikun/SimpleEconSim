@@ -241,9 +241,9 @@ transfer.
 The Phase 3 transfer tests now cover 46 public, project, Caisse, bond, and live
 trace cases. Isolated Egypt fixtures verify worker pay balances, paired
 district-to-Cairo movements, and grain stock/calorie changes. The broad Egypt
-project integration fixture still stops during deterministic world generation:
-`shape_nile_delta` cannot find a second coastal outlet. No changed transfer code
-runs before that failure.
+project integration fixture stopped during deterministic world generation at
+that point in the work; a later world-generation follow-up below resolves this
+default-seed case.
 
 Tariff and emergency levy follow-up passed 26 government-transfer,
 tariff-sharing, emergency-food, scenario-project, and fiscal-federalism tests.
@@ -363,6 +363,15 @@ no-op reasons. Public relief traces Cairo's stock debit against queued household
 meal entitlements; local negotiation traces the treasury debit and individual
 recipient cash balances; tax relief records fiscal and unrest changes; repression
 records forces, memory seeds, protest and legitimacy. Seven focused fixtures and
-15 district, aid, and government-transfer tests passed. The wider campaign and
-playthrough suites remain blocked before action execution by the Nile delta
-generation error documented above.
+15 district, aid, and government-transfer tests passed.
+
+The Nile delta blocker is resolved for the authored default seed. Delta shaping
+first searches for a clean river branch, then falls back to the cheapest
+connected existing channel when generated rivers block the fork. The default
+campaign now builds 1,000 regions with two distinct coastal outlets. Closed-canal
+defense reroutes to Alexandria, matching the campaign behavior and tooltip; its
+stale test expectation was updated. Sixteen campaign, geography, and
+district-action tests passed, along with a 70-turn historical campaign path. The
+12 scenario-project tests also pass. The full ending-matrix audit, which starts
+fifteen separate 70-turn campaigns, was stopped after several minutes without
+output; complete ending coverage remains unverified.
