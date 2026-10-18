@@ -1155,3 +1155,14 @@ combined 32-test run across workday, statute-of-laborers, and plunder-labor had
 one wage-cap failure (31 passed); it passed when rerun alone, so the combined
 run's order-sensitive failure remains open. Compilation and `git diff --check`
 passed.
+
+Phase 4 follow-up, 2026-10-18: the Statute of Laborers traces its selected wage
+ceiling, each firm's immediate wage cut, and affected faction support. Repeal
+records legal-state and faction changes and makes clear that current behavior
+does not restore cut wages or clear the stored wage-cap value. Factory-safety
+mandates record their state per tile. These are traced in the shared policy
+logic for both client entry points.
+
+Verification: two dedicated labor-law tests, three workday tests, and the
+existing wage-cap enactment test passed (6 total). Compilation and
+`git diff --check` passed.

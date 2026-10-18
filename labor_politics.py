@@ -48,6 +48,23 @@ def _labor_trace_context(target, action_id):
     return region, turn, operation_id
 
 
+def _emit_labor_policy_event(region, *, kind, subject, metric_id, unit,
+                             after, inputs, before=None,
+                             cause_event_ids=None, record_class='outcome'):
+    if region is None:
+        return None
+    from run_trace import emit
+    row = {'kind': kind, 'record_class': record_class,
+           'phase': 'policy_action', 'subject': subject,
+           'metric_id': metric_id, 'unit': unit, 'after': after,
+           'inputs': inputs}
+    if before is not None:
+        row['before'] = before
+    if cause_event_ids:
+        row['cause_event_ids'] = cause_event_ids
+    return emit(region, **row)
+
+
 def evaluate_uprising_pressure(nation, t: int) -> List[Dict[str, Any]]:
     """Evaluate nationwide unrest and strike pressure, forcing concessions if critical."""
     events = []
@@ -508,9 +525,55 @@ def enact_ten_hour_act(target) -> Tuple[bool, str]:
 def enact_factory_safety_act(target) -> Tuple[bool, str]:
     """Mandate workplace safety regulations, reducing factory injury & mortality."""
     tiles = getattr(target, 'tiles', [target]) if hasattr(target, 'tiles') else [target]
+    trace_region, turn, operation_id = _labor_trace_context(
+        target, 'factory_safety_mandate')
+    target_before = (bool(getattr(target, 'factory_safety_act', False))
+                     if trace_region is not None else None)
+    tile_before = ([bool(getattr(tile, 'factory_safety_act', False))
+                    for tile in tiles] if trace_region is not None else [])
+    decision_event_id = None
+    if trace_region is not None:
+        decision_event_id = _emit_labor_policy_event(
+            trace_region, kind='factory_safety_mandate_decision',
+            record_class='decision',
+            subject={'type': 'nation/action',
+                     'id': getattr(target, 'name', 'unnamed')},
+            metric_id='scenario.labor_law_gate', unit='accepted', after=True,
+            inputs={'operation_id': operation_id, 'turn': turn,
+                    'action_id': 'nat_safety_mandate',
+                    'tile_ids': [tile.name for tile in tiles],
+                    'target_act_before': target_before,
+                    'reason': 'factory_safety_mandate_applied'})
     for tile in tiles:
         tile.factory_safety_act = True
     setattr(target, 'factory_safety_act', True)
+    tile_event_ids = []
+    if trace_region is not None:
+        for tile, before in zip(tiles, tile_before):
+            event_id = _emit_labor_policy_event(
+                trace_region, kind='factory_safety_tile_state_outcome',
+                subject={'type': 'tile', 'id': tile.name},
+                metric_id='labor.factory_safety_state', unit='enacted',
+                before=before, after=bool(tile.factory_safety_act),
+                inputs={'operation_id': operation_id, 'turn': turn,
+                        'hazard_guard_requirement': True},
+                cause_event_ids=([decision_event_id]
+                                 if decision_event_id else None))
+            if event_id:
+                tile_event_ids.append(event_id)
+        _emit_labor_policy_event(
+            trace_region, kind='factory_safety_mandate_outcome',
+            subject={'type': 'nation/action',
+                     'id': getattr(target, 'name', 'unnamed')},
+            metric_id='scenario.labor_law_action', unit='policy_result',
+            before=target_before, after=True,
+            inputs={'operation_id': operation_id, 'turn': turn,
+                    'tile_count': len(tiles),
+                    'tiles_newly_enacted': sum(not before for before in tile_before),
+                    'target_act_before': target_before,
+                    'target_act_after': True},
+            cause_event_ids=([decision_event_id] + tile_event_ids
+                             if decision_event_id else tile_event_ids or None))
     return True, "Factory Safety Mandate enacted: Machinery guards required!"
 
 
@@ -767,15 +830,69 @@ def enact_statute_of_laborers(target, wage_cap: float = 1.20) -> Tuple[bool, str
       triggers popular resistance, strikes, and bread riots.
     """
     tiles = getattr(target, 'tiles', [target]) if hasattr(target, 'tiles') else [target]
+    trace_region, turn, operation_id = _labor_trace_context(
+        target, 'statute_of_laborers')
+    target_before = bool(getattr(target, 'statute_of_laborers', False)) if trace_region is not None else None
+    target_cap_before = getattr(target, 'maximum_wage_cap', None) if trace_region is not None else None
+    snapshots = []
+    if trace_region is not None:
+        for tile in tiles:
+            factions = getattr(getattr(tile, 'factions', None), 'factions', {})
+            snapshots.append({
+                'tile': tile,
+                'law_before': bool(getattr(tile, 'statute_of_laborers', False)),
+                'cap_before': getattr(tile, 'maximum_wage_cap', None),
+                'firm_wages': [(agent, float(getattr(agent, 'wage', 0.0)))
+                               for agent in getattr(tile, 'agents', [])
+                               if getattr(agent, 'is_corporation', False)],
+                'faction_support': {
+                    name: float(faction.support)
+                    for name, faction in factions.items()
+                    if hasattr(faction, 'support')},
+            })
+        decision_event_id = _emit_labor_policy_event(
+            trace_region, kind='statute_of_laborers_decision',
+            record_class='decision',
+            subject={'type': 'nation/action',
+                     'id': getattr(target, 'name', 'unnamed')},
+            metric_id='scenario.labor_law_gate', unit='accepted', after=True,
+            inputs={'operation_id': operation_id, 'turn': turn,
+                    'action_id': 'nat_toggle_statute_of_laborers',
+                    'wage_cap': float(wage_cap),
+                    'target_law_before': target_before,
+                    'target_cap_before': target_cap_before,
+                    'tile_count': len(tiles),
+                    'firm_count_before': sum(len(row['firm_wages'])
+                                             for row in snapshots),
+                    'wage_ceiling_enforced_immediately': True})
+    else:
+        decision_event_id = None
     firms_capped = 0
+    total_wage_reduction = 0.0
 
-    for tile in tiles:
+    for index, tile in enumerate(tiles):
         tile.statute_of_laborers = True
         tile.maximum_wage_cap = wage_cap
         for a in getattr(tile, 'agents', []):
             if getattr(a, 'is_corporation', False) and getattr(a, 'wage', 0.0) > wage_cap:
+                wage_before = float(a.wage) if trace_region is not None else None
                 a.wage = wage_cap
                 firms_capped += 1
+                if trace_region is not None:
+                    reduction = wage_before - float(a.wage)
+                    total_wage_reduction += reduction
+                    _emit_labor_policy_event(
+                        trace_region, kind='statute_of_laborers_firm_wage_cap',
+                        subject={'type': 'corporation', 'id': str(a.id),
+                                 'tile': tile.name},
+                        metric_id='labor.firm_wage', unit='local_currency',
+                        before=wage_before, after=float(a.wage),
+                        inputs={'operation_id': operation_id, 'turn': turn,
+                                'wage_cap': float(wage_cap),
+                                'wage_reduction': reduction,
+                                'law': 'statute_of_laborers'},
+                        cause_event_ids=([decision_event_id]
+                                         if decision_event_id else None))
 
         factions = getattr(getattr(tile, 'factions', None), 'factions', {})
         if 'Gentry' in factions:
@@ -786,15 +903,98 @@ def enact_statute_of_laborers(target, wage_cap: float = 1.20) -> Tuple[bool, str
             if fname in factions:
                 factions[fname].support = max(0.0, factions[fname].support - 0.20)
 
+        if trace_region is not None:
+            snapshot = snapshots[index]
+            tile_event_id = _emit_labor_policy_event(
+                trace_region, kind='statute_of_laborers_tile_state_outcome',
+                subject={'type': 'tile', 'id': tile.name},
+                metric_id='labor.statute_of_laborers_state', unit='active',
+                before=snapshot['law_before'], after=True,
+                inputs={'operation_id': operation_id, 'turn': turn,
+                        'wage_cap_before': snapshot['cap_before'],
+                        'wage_cap_after': float(tile.maximum_wage_cap),
+                        'wage_cap': float(wage_cap)},
+                cause_event_ids=([decision_event_id]
+                                 if decision_event_id else None))
+            prior_support = snapshot['faction_support']
+            for name, support_before in prior_support.items():
+                faction = factions.get(name)
+                if faction is None:
+                    continue
+                support_after = float(faction.support)
+                if support_before == support_after:
+                    continue
+                _emit_labor_policy_event(
+                    trace_region, kind='statute_of_laborers_faction_effect',
+                    subject={'type': 'tile/faction', 'id': name,
+                             'tile': tile.name},
+                    metric_id='politics.faction_support', unit='ratio',
+                    before=support_before, after=support_after,
+                    inputs={'operation_id': operation_id, 'turn': turn,
+                            'support_change': support_after - support_before,
+                            'law': 'statute_of_laborers'},
+                    cause_event_ids=([tile_event_id]
+                                     if tile_event_id else None))
+
     setattr(target, 'statute_of_laborers', True)
     setattr(target, 'maximum_wage_cap', wage_cap)
+    if trace_region is not None:
+        _emit_labor_policy_event(
+            trace_region, kind='statute_of_laborers_action_outcome',
+            subject={'type': 'nation/action',
+                     'id': getattr(target, 'name', 'unnamed')},
+            metric_id='scenario.labor_law_action', unit='policy_result',
+            before=target_before, after='enacted',
+            inputs={'operation_id': operation_id, 'turn': turn,
+                    'wage_cap': float(wage_cap), 'tile_count': len(tiles),
+                    'firms_capped': firms_capped,
+                    'total_wage_reduction': total_wage_reduction,
+                    'target_cap_before': target_cap_before,
+                    'target_cap_after': float(wage_cap),
+                    'faction_support_formula':
+                    'Gentry/Bourgeoisie +0.15; Labor/Peasant/Commoners/Proletariat/Peasantry -0.20'},
+            cause_event_ids=([decision_event_id]
+                             if decision_event_id else None))
     return True, f"ROYAL DECREE: Statute of Laborers enacted! Maximum wage capped at ${wage_cap:.2f} across {len(tiles)} regions ({firms_capped} firms capped)."
 
 
 def repeal_statute_of_laborers(target) -> Tuple[bool, str]:
     """Repeal the Statutory Maximum Wage Cap, restoring free wage bargaining."""
     tiles = getattr(target, 'tiles', [target]) if hasattr(target, 'tiles') else [target]
-    for tile in tiles:
+    trace_region, turn, operation_id = _labor_trace_context(
+        target, 'repeal_statute_of_laborers')
+    target_before = bool(getattr(target, 'statute_of_laborers', False)) if trace_region is not None else None
+    target_cap = getattr(target, 'maximum_wage_cap', None) if trace_region is not None else None
+    snapshots = []
+    if trace_region is not None:
+        for tile in tiles:
+            factions = getattr(getattr(tile, 'factions', None), 'factions', {})
+            snapshots.append({
+                'tile': tile,
+                'law_before': bool(getattr(tile, 'statute_of_laborers', False)),
+                'cap_before': getattr(tile, 'maximum_wage_cap', None),
+                'firm_wages': [(agent, float(getattr(agent, 'wage', 0.0)))
+                               for agent in getattr(tile, 'agents', [])
+                               if getattr(agent, 'is_corporation', False)],
+                'faction_support': {
+                    name: float(faction.support)
+                    for name, faction in factions.items()
+                    if hasattr(faction, 'support')},
+            })
+        decision_event_id = _emit_labor_policy_event(
+            trace_region, kind='statute_of_laborers_repeal_decision',
+            record_class='decision',
+            subject={'type': 'nation/action',
+                     'id': getattr(target, 'name', 'unnamed')},
+            metric_id='scenario.labor_law_gate', unit='accepted', after=True,
+            inputs={'operation_id': operation_id, 'turn': turn,
+                    'action_id': 'nat_toggle_statute_of_laborers',
+                    'law_active_before': target_before,
+                    'retained_wage_cap_value': target_cap,
+                    'repeal_restores_wages_automatically': False})
+    else:
+        decision_event_id = None
+    for index, tile in enumerate(tiles):
         tile.statute_of_laborers = False
         factions = getattr(getattr(tile, 'factions', None), 'factions', {})
         for fname in ('Labor', 'Peasant', 'Commoners', 'Proletariat', 'Peasantry'):
@@ -805,7 +1005,57 @@ def repeal_statute_of_laborers(target) -> Tuple[bool, str]:
         if 'Bourgeoisie' in factions:
             factions['Bourgeoisie'].support = max(0.0, factions['Bourgeoisie'].support - 0.10)
 
+        if trace_region is not None:
+            snapshot = snapshots[index]
+            tile_event_id = _emit_labor_policy_event(
+                trace_region, kind='statute_of_laborers_repeal_tile_outcome',
+                subject={'type': 'tile', 'id': tile.name},
+                metric_id='labor.statute_of_laborers_state', unit='active',
+                before=snapshot['law_before'], after=False,
+                inputs={'operation_id': operation_id, 'turn': turn,
+                        'wage_cap_before': snapshot['cap_before'],
+                        'wage_cap_after': getattr(tile, 'maximum_wage_cap', None),
+                        'wage_cap_value_retained':
+                        getattr(tile, 'maximum_wage_cap', None),
+                        'firm_wages_restored': 0},
+                cause_event_ids=([decision_event_id]
+                                 if decision_event_id else None))
+            for name, support_before in snapshot['faction_support'].items():
+                faction = factions.get(name)
+                if faction is None:
+                    continue
+                support_after = float(faction.support)
+                if support_before == support_after:
+                    continue
+                _emit_labor_policy_event(
+                    trace_region, kind='statute_of_laborers_repeal_faction_effect',
+                    subject={'type': 'tile/faction', 'id': name,
+                             'tile': tile.name},
+                    metric_id='politics.faction_support', unit='ratio',
+                    before=support_before, after=support_after,
+                    inputs={'operation_id': operation_id, 'turn': turn,
+                            'support_change': support_after - support_before,
+                            'law': 'statute_of_laborers_repeal'},
+                    cause_event_ids=([tile_event_id]
+                                     if tile_event_id else None))
+
     setattr(target, 'statute_of_laborers', False)
+    if trace_region is not None:
+        _emit_labor_policy_event(
+            trace_region, kind='statute_of_laborers_repeal_outcome',
+            subject={'type': 'nation/action',
+                     'id': getattr(target, 'name', 'unnamed')},
+            metric_id='scenario.labor_law_action', unit='policy_result',
+            before=target_before, after='repealed',
+            inputs={'operation_id': operation_id, 'turn': turn,
+                    'tile_count': len(tiles),
+                    'target_wage_cap_value_retained':
+                    getattr(target, 'maximum_wage_cap', None),
+                    'wages_restored': False,
+                    'faction_support_formula':
+                    'Labor/Peasant/Commoners/Proletariat/Peasantry +0.15; Gentry/Bourgeoisie -0.10'},
+            cause_event_ids=([decision_event_id]
+                             if decision_event_id else None))
     return True, "Statute of Laborers repealed: Statutory maximum wage ceiling abolished!"
 
 

@@ -794,3 +794,16 @@ A combined run of the workday, statute-of-laborers, and plunder-labor suites
 had one wage-cap assertion failure (31 of 32 passed); the same assertion passed
 in isolation, so the broader order-sensitive failure remains to diagnose.
 Compilation and `git diff --check` passed.
+
+The Statute of Laborers now traces the selected cap, every corporate wage cut,
+and the resulting Gentry, Bourgeoisie, Labor, Peasant, and other faction-support
+changes. Repeal logs the legal-state reversal and support shifts, while showing
+that the existing code leaves the stored cap value and reduced wages untouched.
+Factory-safety enactment records each tile's mandate state. These shared
+`labor_politics` actions emit the same records regardless of which client called
+them.
+
+Verification: two dedicated law-trace tests, three workday-trace tests, and the
+existing wage-cap enactment regression passed (6 total). The repeal test checks
+that reduced wages remain reduced and the cap value remains stored after repeal.
+Compilation and `git diff --check` passed.
