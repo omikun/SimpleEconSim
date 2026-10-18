@@ -211,9 +211,12 @@ in-transit shipment inventory, haulage cash transfer and recipients or public
 stock on arrival. National Egypt maize release traces each public-stock debit
 against an individual household's queued meal ration, with allocation outcomes
 and no-op reasons. Parent-to-child food sharing now reconciles both household
-inventory legs and links each transfer to its aggregate outcome. Other untraced
-imperial claim paths, Egypt daily subsistence-intake balances, additional
-household support channels, other subsidies, military and police
+inventory legs and links each transfer to its aggregate outcome. Household
+intake records source amounts and health-state changes for food shortages,
+reserve use, trader stocks, and changing reserves; starvation deaths link to
+same-turn intake evidence. Other untraced imperial claim paths, household cash
+affordability and non-food consumption, additional support channels, other
+subsidies, military and police
 payroll/maintenance transfers,
 inheritance, and many scenario costs still need transfer contracts. Egypt's
 district relief, tax relief, settlement, and repression actions now record
@@ -409,5 +412,14 @@ Dependent children now receive per-transfer food inventory records paired with
 the parent's food debit. The household-level result links to those transfers.
 Three focused fixtures cover exact reconciliation, trace-on/off state parity,
 and lifecycle-summary linkage; 23 dependent-food, lifecycle, nutrition, and
-relief tests passed. Compilation and `git diff --check` passed. Daily intake,
-survival physiology, and other household support channels remain untraced.
+relief tests passed. Compilation and `git diff --check` passed. Household cash
+affordability, non-food consumption, and other household support channels remain.
+
+Household intake now records source quantities from ration queues, local food,
+and trader foreign/export stocks, together with deficit, energy reserve, and
+hunger changes. Routine full meals with stable health state are omitted to keep
+trace volume down. Starvation deaths link to the same-turn intake event when
+present. Five fixtures cover shortage, trader stock, routine-noise suppression,
+death linkage, and trace-on/off parity; 69 food, nutrition, life-cycle, district,
+and trace tests passed. Compilation and `git diff --check` passed. Household cash
+affordability, non-food consumption, and other aid channels remain open.

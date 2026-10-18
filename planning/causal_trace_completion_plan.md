@@ -782,5 +782,17 @@ connect the aggregate event.
 Verification: three dedicated fixtures cover exact inventory reconciliation,
 trace-on/off state parity, and linkage from the lifecycle summary. Twenty-three
 dependent-food, game-time, nutrition, national/district relief, and household-
-action tests passed. Compilation and `git diff --check` passed. Daily intake,
-survival physiology, and other household support channels remain.
+action tests passed. Compilation and `git diff --check` passed. Household cash
+affordability, non-food consumption, and other support channels remain.
+
+Phase 3 follow-up, 2026-10-18: household intake now records food source quantities
+from reserved public rations, household inventory, and traders' foreign/export
+stock, alongside caloric deficit, energy reserve, and hunger-step changes.
+Routine full meals with no changing health state are omitted to control trace
+volume. Starvation deaths link to the same-turn intake record when one exists.
+
+Verification: five dedicated fixtures cover shortage, trader stock, routine-noise
+suppression, starvation-death linkage, and trace-on/off parity. Sixty-nine food,
+nutrition, life-cycle, district, and run-trace tests passed. Compilation and
+`git diff --check` passed. Household cash affordability, non-food consumption,
+and other support channels remain.

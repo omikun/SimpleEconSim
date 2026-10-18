@@ -519,6 +519,21 @@ class RunTraceTests(unittest.TestCase):
                        inputs={'agent_id': 12})
             self.assertEqual(trace._person_flow_events, {'12': ['people:3']})
 
+    def test_current_turn_food_intake_event_is_retrievable_by_person(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            trace = RunTrace(Path(tmp) / 'food-intake.ctr', 'food-intake')
+            clock = {'next': 1, 'turn': 1, 'phase': 'demographics'}
+            event_id = trace.emit(
+                clock, kind='household_food_intake', record_class='calculation',
+                subject={'type': 'tile/agent', 'id': '52'},
+                metric_id='health.calorie_deficit', before=0.0, after=500.0,
+                inputs={'agent_id': 52})
+            self.assertEqual(trace.food_intake_event_id(52), event_id)
+            clock['turn'] = 2
+            trace.emit(clock, kind='metric_snapshot',
+                       subject={'type': 'tile', 'id': 'Delta'})
+            self.assertIsNone(trace.food_intake_event_id(52))
+
     def test_price_bridge_tracks_order_and_exposes_gaps(self):
         with tempfile.TemporaryDirectory() as tmp:
             trace = RunTrace(Path(tmp) / 'bridge.ctr', 'bridge')

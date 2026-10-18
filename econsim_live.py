@@ -145,7 +145,8 @@ def Live(t, agents, context: LiveContext):
         number_food_consumed, number_wood_consumed, number_furniture_consumed = consume_goods(
             ctx, agent, number_food_consumed, number_wood_consumed, number_furniture_consumed
         )
-        number_food_consumed += consume_daily_food(agent)
+        number_food_consumed += consume_daily_food(
+            agent, region=ctx.source_region, turn=t)
         number_food_consumed, number_of_switches = handle_career_switching(
             ctx, t, agent, agents, choices_list, bottleneck_weights, number_of_switches
         )

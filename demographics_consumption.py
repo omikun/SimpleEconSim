@@ -71,27 +71,129 @@ def consume_goods(ctx, agent, number_food_consumed, number_wood_consumed, number
     return number_food_consumed, number_wood_consumed, number_furniture_consumed
 
 
-def consume_daily_food(agent):
+def _food_wallet_units(agent, wallet_name):
+    wallet = getattr(agent, wallet_name, None)
+    if wallet is None:
+        return 0
+    try:
+        return int(wallet[Goods.food.value])
+    except (IndexError, KeyError, TypeError):
+        return 0
+
+
+def _trace_food_intake(region, agent, *, turn, outcome, desired, eaten,
+                       reserved_before, reserved_consumed, from_inventory,
+                       from_foreign, from_export, local_before, local_after,
+                       foreign_before, foreign_after, export_before, export_after,
+                       deficit_before, deficit_after,
+                       reserve_before, reserve_after, hunger_before,
+                       hunger_after, calorie_need, metabolic_factor):
+    if region is None:
+        return None
+    from run_trace import emit
+
+    operation_id = f'food-intake:{region.name}:{int(turn)}:{agent.id}'
+    return emit(
+        region, kind='household_food_intake', record_class='calculation',
+        phase='demographics',
+        subject={'type': 'tile/agent', 'id': str(agent.id),
+                 'tile': region.name, 'good': Goods.food.name},
+        metric_id='health.calorie_deficit', unit='kcal',
+        before=float(deficit_before), after=float(deficit_after),
+        formula_id='nutrition.intake_and_reserve.v1',
+        inputs={'operation_id': operation_id, 'turn': int(turn),
+                'agent_id': agent.id, 'outcome': outcome,
+                'desired_food_units': int(desired),
+                'eaten_food_units': int(eaten),
+                'food_shortfall_units': max(0, int(desired) - int(eaten)),
+                'food_sources': {
+                    'emergency_ration_queue': int(reserved_consumed),
+                    'household_inventory': int(from_inventory),
+                    'foreign_trader_inventory': int(from_foreign),
+                    'export_trader_inventory': int(from_export)},
+                'household_food_inventory_before': int(local_before),
+                'household_food_inventory_after': int(local_after),
+                'foreign_food_inventory_before': int(foreign_before),
+                'foreign_food_inventory_after': int(foreign_after),
+                'export_food_inventory_before': int(export_before),
+                'export_food_inventory_after': int(export_after),
+                'emergency_ration_units_before': int(reserved_before),
+                'emergency_ration_units_consumed': int(reserved_consumed),
+                'emergency_ration_units_returned_to_inventory': max(
+                    0, int(reserved_before) - int(reserved_consumed)),
+                'effective_calorie_need_kcal': float(calorie_need),
+                'metabolic_need_factor': float(metabolic_factor),
+                'calorie_deficit_before_kcal': float(deficit_before),
+                'calorie_deficit_after_kcal': float(deficit_after),
+                'energy_reserve_before_kcal': float(reserve_before),
+                'energy_reserve_after_kcal': float(reserve_after),
+                'hunger_steps_before': float(hunger_before),
+                'hunger_steps_after': float(hunger_after)})
+
+
+def consume_daily_food(agent, *, region=None, turn=None):
     """Eat up to the appetite curve and record exact calorie balance."""
-    from nutrition import appetite_units, record_intake
+    from nutrition import (appetite_units, effective_calorie_need,
+                          metabolic_need_factor, record_intake)
     desired = appetite_units(agent)
+    need = effective_calorie_need(agent)
+    metabolic_factor = metabolic_need_factor(agent)
+    deficit_before = float(getattr(agent, 'calorie_deficit_kcal', 0.0))
+    reserve_before = float(getattr(agent, 'energy_reserve_kcal', 0.0))
+    hunger_before = float(getattr(agent, 'hungry_steps', 0.0))
     reserved = max(0, int(getattr(agent, 'emergency_food_units', 0)))
     agent.emergency_food_units = 0
     eaten = min(desired, reserved)
-    from_inventory = min(max(0, desired - eaten), max(0, agent.inv_get(Goods.food, 0)))
+    from_reserved = eaten
+    local_before = int(agent.inv_get(Goods.food, 0))
+    foreign_before = _food_wallet_units(agent, 'inventory_foreign')
+    export_before = _food_wallet_units(agent, 'inventory_export')
+    from_inventory = min(max(0, desired - eaten), max(0, local_before))
     if from_inventory:
         agent.inv_add(Goods.food, -from_inventory)
         eaten += from_inventory
     if reserved > eaten:
         agent.inv_add(Goods.food, reserved - eaten)
+    from_foreign = from_export = 0
     if agent.is_trader and eaten < desired:
-        for stock in (agent.inventory_foreign, agent.inventory_export):
+        for wallet_name, stock in (('foreign', agent.inventory_foreign),
+                                   ('export', agent.inventory_export)):
             take = min(desired - eaten, max(0, stock[Goods.food.value]))
             stock[Goods.food.value] -= take
             eaten += take
+            if wallet_name == 'foreign':
+                from_foreign += take
+            else:
+                from_export += take
             if eaten >= desired:
                 break
     record_intake(agent, eaten)
+    local_after = int(agent.inv_get(Goods.food, 0))
+    foreign_after = _food_wallet_units(agent, 'inventory_foreign')
+    export_after = _food_wallet_units(agent, 'inventory_export')
+    deficit_after = float(getattr(agent, 'calorie_deficit_kcal', 0.0))
+    reserve_after = float(getattr(agent, 'energy_reserve_kcal', 0.0))
+    hunger_after = float(getattr(agent, 'hungry_steps', 0.0))
+    outcome = ('shortfall' if eaten < desired else
+               'surplus_intake' if reserve_after > reserve_before else
+               'needs_met')
+    if (eaten < desired or reserved > 0 or deficit_before > 0
+            or deficit_after > 0 or reserve_after != reserve_before
+            or from_foreign > 0 or from_export > 0):
+        trace_turn = (int(turn) if turn is not None
+                      else int(getattr(region, '_last_turn', 0)))
+        _trace_food_intake(
+            region, agent, turn=trace_turn, outcome=outcome,
+            desired=desired, eaten=eaten, reserved_before=reserved,
+            reserved_consumed=from_reserved, from_inventory=from_inventory,
+            from_foreign=from_foreign, from_export=from_export,
+            local_before=local_before, local_after=local_after,
+            foreign_before=foreign_before, foreign_after=foreign_after,
+            export_before=export_before, export_after=export_after,
+            deficit_before=deficit_before, deficit_after=deficit_after,
+            reserve_before=reserve_before, reserve_after=reserve_after,
+            hunger_before=hunger_before, hunger_after=hunger_after,
+            calorie_need=need, metabolic_factor=metabolic_factor)
     return eaten
 
 

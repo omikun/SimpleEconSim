@@ -33,6 +33,7 @@ class RunTrace:
         self._turn_production_events = {}
         self._turn_temporary_activity_events = {}
         self._turn_living_cost_events = {}
+        self._latest_food_intake_events = {}
         self._latest_reference_price_events = {}
         self._shipment_departure_events = {}
         self._shipment_arrival_events = {}
@@ -74,6 +75,7 @@ class RunTrace:
             self._turn_production_events = {}
             self._turn_temporary_activity_events = {}
             self._turn_living_cost_events = {}
+            self._latest_food_intake_events = {}
         row = {'schema_version': SCHEMA_VERSION, 'run_id': self.run_id,
                'branch_id': self.branch_id, 'event_id': f'{self.run_id}:{sequence}',
                'sequence': sequence, 'turn': clock.get('turn', 0),
@@ -256,6 +258,13 @@ class RunTrace:
         if (self.write_error is None and metric_id == 'living.cost_of_living'
                 and row.get('subject', {}).get('type') == 'tile'):
             self._turn_living_cost_events[str(row['subject'].get('id'))] = row['event_id']
+        if (self.write_error is None and kind == 'household_food_intake'
+                and row.get('subject', {}).get('type') == 'tile/agent'):
+            agent_id = (row.get('inputs') or {}).get('agent_id')
+            if agent_id is None:
+                agent_id = row['subject'].get('id')
+            if agent_id is not None:
+                self._latest_food_intake_events[str(agent_id)] = row['event_id']
         self.recent.append(row)
         return row['event_id']
 
@@ -275,6 +284,10 @@ class RunTrace:
     def turn_living_cost_event_id(self, tile_id):
         """Return the current-turn local basket calculation for one tile."""
         return self._turn_living_cost_events.get(str(tile_id))
+
+    def food_intake_event_id(self, agent_id):
+        """Return the current-turn food-intake calculation for one person."""
+        return self._latest_food_intake_events.get(str(agent_id))
 
     def snapshot(self, clock, *, subject, metric_id, unit, before, after):
         key = (metric_id, json.dumps(subject, sort_keys=True))
