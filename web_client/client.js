@@ -3029,9 +3029,14 @@
         const taxClaimLossAmount = Number(account.tax_receivable_written_off || 0);
         const obligationReliefAmount = Number(account.cash_obligation_written_off || 0);
         const obligationClaimLossAmount = Number(account.obligation_receivable_written_off || 0);
+        const wageArrearsPayableAmount = Number(account.closing_wage_arrears_payable || 0);
+        const wageArrearsClaimAmount = Number(account.closing_wage_arrears_claim || 0);
         const hasNoncashDebtChange = debtReliefAmount > 0 || receivableLossAmount > 0
           || taxReliefAmount > 0 || taxClaimLossAmount > 0
-          || obligationReliefAmount > 0 || obligationClaimLossAmount > 0;
+          || obligationReliefAmount > 0 || obligationClaimLossAmount > 0
+          || wageArrearsPayableAmount > 0 || wageArrearsClaimAmount > 0
+          || Number(account.wage_arrears_accrued || 0) > 0
+          || Number(account.wage_arrears_claim_accrued || 0) > 0;
         const earned = account.type === 'grower'
           ? `crop value $${Number(account.crop_value).toFixed(2)} · cash receipts $${Number(account.sales_cash).toFixed(2)}`
           : account.type === 'other' && hasNoncashDebtChange
@@ -3088,7 +3093,15 @@
           ? ` · cash obligation canceled $${obligationReliefAmount.toFixed(2)}` : '';
         const obligationClaimLoss = obligationClaimLossAmount > 0
           ? ` · creditor claim canceled $${obligationClaimLossAmount.toFixed(2)}` : '';
-        row.textContent = `${account.actor_name}: ${earned}${delivered} · cash $${Number(account.opening_cash).toFixed(2)} → $${Number(account.closing_cash).toFixed(2)}${scrip} · food ${account.opening_food} → ${account.closing_food} · debt $${Number(account.opening_debt).toFixed(2)} → $${Number(account.closing_debt).toFixed(2)}${companyDebt}${companyDebtRelief}${companyCreditLoss}${taxArrearsRelief}${taxClaimLoss}${obligationRelief}${obligationClaimLoss}${bankDebt}${deposits}${bankDepositActivity}${unposted}. Recorded costs may be incomplete.`;
+        const wageArrearsPayable = Number(account.opening_wage_arrears_payable || 0)
+          || wageArrearsPayableAmount || Number(account.wage_arrears_accrued || 0)
+          ? ` · unpaid wages owed $${Number(account.opening_wage_arrears_payable || 0).toFixed(2)} → $${wageArrearsPayableAmount.toFixed(2)} (accrued $${Number(account.wage_arrears_accrued || 0).toFixed(2)})`
+          : '';
+        const wageArrearsClaim = Number(account.opening_wage_arrears_claim || 0)
+          || wageArrearsClaimAmount || Number(account.wage_arrears_claim_accrued || 0)
+          ? ` · unpaid wage claim $${Number(account.opening_wage_arrears_claim || 0).toFixed(2)} → $${wageArrearsClaimAmount.toFixed(2)} (new claim $${Number(account.wage_arrears_claim_accrued || 0).toFixed(2)})`
+          : '';
+        row.textContent = `${account.actor_name}: ${earned}${delivered} · cash $${Number(account.opening_cash).toFixed(2)} → $${Number(account.closing_cash).toFixed(2)}${scrip} · food ${account.opening_food} → ${account.closing_food} · debt $${Number(account.opening_debt).toFixed(2)} → $${Number(account.closing_debt).toFixed(2)}${companyDebt}${companyDebtRelief}${companyCreditLoss}${taxArrearsRelief}${taxClaimLoss}${obligationRelief}${obligationClaimLoss}${wageArrearsPayable}${wageArrearsClaim}${bankDebt}${deposits}${bankDepositActivity}${unposted}. Recorded costs may be incomplete.`;
         supplyDetails.appendChild(row);
       }
 

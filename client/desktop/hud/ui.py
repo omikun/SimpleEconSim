@@ -1161,6 +1161,16 @@ def draw_panel(surface, world, font, font_small, mouse_pos=None):
                 True, (150, 210, 220))
             surface.blit(account_line, (PANEL_LEFT, y_cursor))
             y_cursor += 16
+            arrears_open = float(firm_account.get('opening_wage_arrears_payable', 0.0))
+            arrears_close = float(firm_account.get('closing_wage_arrears_payable', 0.0))
+            arrears_accrued = float(firm_account.get('wage_arrears_accrued', 0.0))
+            if arrears_open > 0 or arrears_close > 0 or arrears_accrued > 0:
+                arrears_line = font_small.render(
+                    f"Unpaid wages owed: ${arrears_open:.1f} -> ${arrears_close:.1f} "
+                    f"(new arrears ${arrears_accrued:.1f})",
+                    True, (225, 175, 120))
+                surface.blit(arrears_line, (PANEL_LEFT, y_cursor))
+                y_cursor += 16
             cash_deposited = float(firm_account.get('bank_cash_deposited', 0.0))
             cash_withdrawn = float(firm_account.get('bank_cash_withdrawn', 0.0))
             if cash_deposited > 0 or cash_withdrawn > 0:

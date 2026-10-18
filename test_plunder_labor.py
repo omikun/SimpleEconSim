@@ -260,6 +260,77 @@ class TestPlunderLaborMechanics(unittest.TestCase):
         self.assertEqual(firm.wage_liabilities[0]['amount'], 2.0)
         self.assertEqual(worker.wage_withheld, 2.0)
 
+    def test_wage_arrear_records_paired_non_cash_claim_and_cause(self):
+        from economy.actor_accounts import begin_turn, seal_turn
+
+        class Recorder:
+            def __init__(self):
+                self.rows = []
+
+            def emit(self, clock, **row):
+                self.rows.append({'turn': clock['turn'], **row})
+
+        worker = self._worker(102)
+        firm = self._firm(wage=2.0)
+        firm.cash = 0.5
+        worker.employer = firm
+        firm.employees.append(worker)
+        ensure_labor_agreement(worker, firm, 0)
+        self.region.owner_nation = SimpleNamespace(truck_act_enacted=True)
+        self.region.home_currency = 'USD'
+        self.region._collective_trace_clock = {'turn': 1, 'next': 1, 'phase': 'finance'}
+        self.region._run_trace = Recorder()
+        begin_turn(self.region, 1)
+
+        pay_wages(self.region, 1)
+        accounts = {row['actor_id']: row for row in seal_turn(self.region, 1)}
+        event = next(event for event in self.region.economic_events
+                     if event['kind'] == 'wage_arrears_accrued')
+        trace = next(row for row in self.region._run_trace.rows
+                     if row['kind'] == 'wage_arrears_accrued')
+
+        self.assertEqual(event['payer_id'], firm.id)
+        self.assertEqual(event['recipient_id'], worker.id)
+        self.assertEqual(event['amount'], 1.5)
+        self.assertEqual(event['currency'], 'USD')
+        self.assertEqual(event['detail']['reason'], 'employer_cash_below_nominal_wage')
+        self.assertEqual(accounts[firm.id]['closing_wage_arrears_payable'], 1.5)
+        self.assertEqual(accounts[firm.id]['wage_arrears_accrued'], 1.5)
+        self.assertEqual(accounts[worker.id]['closing_wage_arrears_claim'], 1.5)
+        self.assertEqual(accounts[worker.id]['wage_arrears_claim_accrued'], 1.5)
+        self.assertEqual(accounts[firm.id]['posted_cash_change'], -0.5)
+        self.assertEqual(accounts[worker.id]['posted_cash_change'], 0.5)
+        self.assertEqual(trace['metric_id'], 'finance.wage_arrears')
+        self.assertEqual(trace['before'], 0.0)
+        self.assertEqual(trace['after'], 1.5)
+        self.assertEqual(trace['inputs']['employer_cash_before'], 0.5)
+        self.assertEqual(trace['inputs']['cash_paid'], 0.5)
+
+    def test_wage_arrears_balance_survives_recent_detail_limit(self):
+        from economy.actor_accounts import begin_turn, seal_turn
+
+        worker = self._worker(103)
+        firm = self._firm(wage=2.0)
+        firm.cash = 0.0
+        worker.employer = firm
+        firm.employees.append(worker)
+        ensure_labor_agreement(worker, firm, 0)
+        self.region.owner_nation = SimpleNamespace(truck_act_enacted=True)
+
+        for turn in range(1, 502):
+            pay_wages(self.region, turn)
+        self.assertEqual(len(firm.wage_liabilities), 500)
+
+        begin_turn(self.region, 502)
+        pay_wages(self.region, 502)
+        accounts = {row['actor_id']: row for row in seal_turn(self.region, 502)}
+
+        self.assertEqual(accounts[firm.id]['opening_wage_arrears_payable'], 1002.0)
+        self.assertEqual(accounts[firm.id]['closing_wage_arrears_payable'], 1004.0)
+        self.assertEqual(accounts[firm.id]['wage_arrears_accrued'], 2.0)
+        self.assertEqual(accounts[worker.id]['opening_wage_arrears_claim'], 1002.0)
+        self.assertEqual(accounts[worker.id]['closing_wage_arrears_claim'], 1004.0)
+
     def test_quit_penalty_creates_claim_but_does_not_reattach_worker(self):
         worker = self._worker(111)
         firm = self._firm(wage=2.0)

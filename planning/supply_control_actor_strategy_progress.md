@@ -102,10 +102,17 @@ already fun or balanced; that still needs player feedback.
   withdrawals separately from the closing savings balance. Explicit tile
   context now captures internal charity operations that were previously
   omitted because the charity agent is not a resident.
+- A cash wage shortfall now creates a paired noncash employer payable and
+  worker claim. Actor statements report opening and closing arrears and new
+  accruals; compact traces explain the nominal wage, cash paid, employer cash,
+  tender rule, and claimants. Aggregate balances preserve outstanding claims
+  beyond the 500 recent detail rows. This instruments accrual only: the game
+  still has no wage-arrears repayment, write-off, or estate-settlement path.
 - Remaining gate work: audit other non-estate credit losses and non-probate
-  currency legs. Scenario-seeded or legacy cargo can still lack a settled
-  source cost. The tested default runs close the actor cash bridge, but they do
-  not prove complete balance-sheet or operating-profit coverage.
+  currency legs, and decide how unpaid wage claims behave when the firm or
+  worker exits. Scenario-seeded or legacy cargo can still lack a settled source
+  cost. The tested default runs close the actor cash bridge, but they do not
+  prove complete balance-sheet or operating-profit coverage.
 
 ## Phase 2 — grower and title-holder agency: implemented, deeper law/remedy work out of scope
 
@@ -200,6 +207,9 @@ already fun or balanced; that still needs player feedback.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_supply_control_actor_strategy test_supply_rights test_market_auction test_market_routes test_web_client_parity test_truck_system_and_scrip test_run_trace test_trace_codec test_banking_contagion` — 121 tests passed, including charity cash sweeps, actor deposit/withdrawal totals, and a frozen-withdrawal trace.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python benchmark_supply_default.py 50 4242` — the default three-nation 50-turn run completed with zero currency violations and zero unmatched actor cash on turn 50 or across actor-turn statements.
 - `node --check web_client/client.js`, targeted Python compilation, and `git diff --check` — passed.
+- `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_supply_control_actor_strategy test_supply_rights test_market_auction test_market_routes test_web_client_parity test_truck_system_and_scrip test_run_trace test_trace_codec test_banking_contagion test_plunder_labor` — 139 tests passed, including paired wage-arrears statements, causal shortfall inputs, and balance retention after the 500-row detail window.
+- `node --check web_client/client.js`, targeted Python compilation, and `git diff --check` — passed for the wage-arrears trace, account, and client changes.
+- `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python benchmark_supply_default.py 50 4242` — the default three-nation run completed with zero currency violations, zero unmatched actor cash on turn 50, and zero unmatched actor-turn cash across the run.
 - Domestic-bank sovereign bond principal and coupon defaults now create one
   economic journal event per affected tile bank, linked to the bond ID and
   issuer. Compact trace records the default kind, missed payment amount, actual

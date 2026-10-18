@@ -13,8 +13,62 @@ _NONCASH_EVENTS = {'production', 'input_consumed', 'scrip_wage',
                    'bank_debt_inheritance', 'bank_debt_writeoff',
                    'company_debt_writeoff',
                    'tax_arrears_writeoff', 'cash_obligation_writeoff',
+                   'wage_arrears_accrued',
                    'foreign_wallet_debt_payment', 'foreign_wallet_inheritance',
                    'foreign_wallet_escheat'}
+
+
+def _wage_liability_totals(firm):
+    """Return outstanding employer arrears and the matching worker claims."""
+    saved_total = getattr(firm, 'wage_arrears_balance', None)
+    saved_claims = getattr(firm, 'wage_arrears_by_worker', None)
+    if saved_total is not None and saved_claims is not None:
+        return (max(0.0, float(saved_total)),
+                {int(worker_id): max(0.0, float(amount))
+                 for worker_id, amount in saved_claims.items()
+                 if float(amount) > 0})
+
+    total = 0.0
+    claims = {}
+    for liability in getattr(firm, 'wage_liabilities', ()):
+        status = str(liability.get('status', 'unpaid')).lower()
+        if status in {'paid', 'settled', 'written_off', 'forgiven', 'cancelled'}:
+            continue
+        amount = max(0.0, float(liability.get('amount', 0.0)))
+        worker_id = liability.get('worker_id')
+        if amount <= 0 or worker_id is None:
+            continue
+        worker_id = int(worker_id)
+        total += amount
+        claims[worker_id] = claims.get(worker_id, 0.0) + amount
+    return total, claims
+
+
+def accrue_wage_arrear(firm, worker_id, amount):
+    """Update persisted liability totals while retaining only recent detail rows."""
+    amount = max(0.0, float(amount))
+    if amount <= 0:
+        return 0.0, 0.0, 0.0, 0.0
+    total, claims = _wage_liability_totals(firm)
+    worker_id = int(worker_id)
+    claim_before = claims.get(worker_id, 0.0)
+    claims[worker_id] = claim_before + amount
+    firm.wage_arrears_balance = total + amount
+    firm.wage_arrears_by_worker = claims
+    return total, total + amount, claim_before, claim_before + amount
+
+
+def _wage_arrears_by_actor(region):
+    payable = {}
+    claims = {}
+    for firm in getattr(region, 'agents', ()):
+        if not getattr(firm, 'is_corporation', False):
+            continue
+        total, worker_claims = _wage_liability_totals(firm)
+        payable[firm.id] = total
+        for worker_id, amount in worker_claims.items():
+            claims[worker_id] = claims.get(worker_id, 0.0) + amount
+    return payable, claims
 
 
 def recorded_cash_delta(events, actor_id):
@@ -63,6 +117,7 @@ def begin_turn(region, turn):
         _seed_water_rights(region)
     region._economic_opening_turn = int(turn)
     bank = getattr(region, 'bank', None)
+    wage_arrears_payable, wage_arrears_claims = _wage_arrears_by_actor(region)
     region._economic_opening = {
         a.id: {'cash': float(getattr(a, 'cash', 0.0)),
                'scrip': float(getattr(a, 'scrip_wallet', 0.0)),
@@ -78,6 +133,8 @@ def begin_turn(region, turn):
                'inventory': {g.name: int(a.inv_get(g, 0)) for g in getattr(region, 'recipes', {})},
                'debt': sum(float(c.balance) for c in getattr(region, 'cash_obligations', [])
                            if c.debtor_id == a.id and c.status == 'active'),
+               'wage_arrears_payable': wage_arrears_payable.get(a.id, 0.0),
+               'wage_arrears_claim': wage_arrears_claims.get(a.id, 0.0),
                'title_plots': [p.plot_id for p in getattr(getattr(region, 'tenure', None), 'plots', [])
                                if p.lord_id == a.id],
                'water_units': sum(float(r.units) for r in getattr(region, 'water_rights', [])
@@ -103,6 +160,7 @@ def seal_turn(region, turn, event_regions=None):
     cash_events = [event for event_region in unique_event_regions
                    for event in getattr(event_region, 'economic_events', [])
                    if event['turn'] == turn]
+    wage_arrears_payable, wage_arrears_claims = _wage_arrears_by_actor(region)
     by_actor = {}
     for event in events:
         for ident in {event['payer_id'], event['recipient_id']} - {None}:
@@ -202,6 +260,12 @@ def seal_turn(region, turn, event_regions=None):
         obligation_receivable_written_off = sum(
             e['amount'] for e in own
             if e['recipient_id'] == actor.id and e['kind'] == 'cash_obligation_writeoff')
+        wage_arrears_accrued = sum(
+            e['amount'] for e in own
+            if e['payer_id'] == actor.id and e['kind'] == 'wage_arrears_accrued')
+        wage_arrears_claim_accrued = sum(
+            e['amount'] for e in own
+            if e['recipient_id'] == actor.id and e['kind'] == 'wage_arrears_accrued')
         foreign_wallet_debt_paid = {}
         for event in own:
             if (event['payer_id'] == actor.id
@@ -286,6 +350,16 @@ def seal_turn(region, turn, event_regions=None):
             'opening_food': prior['food'], 'closing_food': int(actor.inv_get(Goods.food, 0)),
             'food_intake': round(float(getattr(actor, 'last_calories_eaten', 0.0)) / 500.0, 2),
             'opening_debt': round(prior['debt'], 2), 'closing_debt': round(debt, 2),
+            'opening_wage_arrears_payable': round(
+                prior.get('wage_arrears_payable', 0.0), 2),
+            'closing_wage_arrears_payable': round(
+                wage_arrears_payable.get(actor.id, 0.0), 2),
+            'wage_arrears_accrued': round(wage_arrears_accrued, 2),
+            'opening_wage_arrears_claim': round(
+                prior.get('wage_arrears_claim', 0.0), 2),
+            'closing_wage_arrears_claim': round(
+                wage_arrears_claims.get(actor.id, 0.0), 2),
+            'wage_arrears_claim_accrued': round(wage_arrears_claim_accrued, 2),
             'opening_bank_deposit': round(prior['bank_deposit'], 2),
             'closing_bank_deposit': round(bank_deposit, 2),
             'bank_cash_deposited': round(bank_cash_deposited, 2),

@@ -57,6 +57,7 @@ def pay_wages(region, t):
                                           detail={'tender': 'company_scrip'})
                 else:
                     # Legal tender cash payment
+                    employer_cash_before = float(a.cash)
                     wage_to_pay = min(a.cash, wage_nominal)
                     a.cash -= wage_to_pay
                     e.cash += wage_to_pay
@@ -69,10 +70,51 @@ def pay_wages(region, t):
                     e.realized_wage = wage_to_pay
                     e.wage_withheld = wage_nominal - wage_to_pay
                     if e.wage_withheld > 1e-9:
+                        from economy.actor_accounts import (accrue_wage_arrear,
+                                                            record as record_economic_event)
+                        payable_before, payable_after, claim_before, claim_after = (
+                            accrue_wage_arrear(a, e.id, e.wage_withheld))
                         liabilities = getattr(a, 'wage_liabilities', [])
                         liabilities.append({'worker_id': e.id, 'turn': t,
                                             'amount': e.wage_withheld, 'status': 'unpaid'})
                         a.wage_liabilities = liabilities[-500:]
+                        record_economic_event(
+                            region, 'wage_arrears_accrued', turn=t,
+                            payer_id=a.id, recipient_id=e.id,
+                            amount=e.wage_withheld,
+                            currency=getattr(region, 'home_currency', None),
+                            detail={'nominal_wage': wage_nominal,
+                                    'cash_paid': wage_to_pay,
+                                    'arrears_accrued': e.wage_withheld,
+                                    'employer_cash_before': employer_cash_before,
+                                    'employer_cash_after': float(a.cash),
+                                    'employer_arrears_before': payable_before,
+                                    'employer_arrears_after': payable_after,
+                                    'worker_claim_before': claim_before,
+                                    'worker_claim_after': claim_after,
+                                    'reason': 'employer_cash_below_nominal_wage'})
+                        from run_trace import emit
+                        emit(region, kind='wage_arrears_accrued',
+                             record_class='outcome', phase='finance',
+                             subject={'type': 'employment_wage_claim',
+                                      'id': f'{a.id}:{e.id}', 'tile': region.name,
+                                      'employer_id': a.id, 'worker_id': e.id},
+                             metric_id='finance.wage_arrears',
+                             unit=getattr(region, 'home_currency', None)
+                             or 'local_currency',
+                             before=payable_before, after=payable_after,
+                             formula_id='labor.wage_arrears_accrual.v1',
+                             inputs={'employer_id': a.id, 'worker_id': e.id,
+                                     'nominal_wage': wage_nominal,
+                                     'cash_paid': wage_to_pay,
+                                     'arrears_accrued': e.wage_withheld,
+                                     'employer_cash_before': employer_cash_before,
+                                     'employer_cash_after': float(a.cash),
+                                     'worker_claim_before': claim_before,
+                                     'worker_claim_after': claim_after,
+                                     'truck_act_enacted': bool(truck_act_enacted),
+                                     'pay_mode': pay_mode,
+                                     'reason': 'employer_cash_below_nominal_wage'})
                     e.mem_push('mem_wages', wage_to_pay)
 
 

@@ -92,6 +92,7 @@ METRICS = {
     'finance.bank_deposit_interest': ('tile', 'local_currency', 'econsim_trade_money.Bank.PayDepositInterest'),
     'finance.bank_deposit': ('tile/bank/agent', 'local_currency', 'econsim_trade_money.Bank.Deposit'),
     'finance.bank_withdrawal': ('tile/bank/agent', 'local_currency', 'econsim_trade_money.Bank.Withdraw'),
+    'finance.wage_arrears': ('tile/firm/worker', 'local_currency', 'region_finance.pay_wages'),
     'ecology.soil_fertility': ('tile', 'ratio', 'externalities.step_tile_externalities'),
     'ecology.nutrition_density': ('tile', 'ratio', 'externalities.step_tile_externalities'),
     'ecology.pollution_air': ('tile', 'index', 'externalities.step_tile_externalities'),

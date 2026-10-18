@@ -55,6 +55,9 @@ class TestWebClientParity(unittest.TestCase):
             'company_debt_written_off': 25.0, 'company_receivable_written_off': 0.0,
             'tax_arrears_written_off': 10.0, 'tax_receivable_written_off': 0.0,
             'bank_cash_deposited': 12.0, 'bank_cash_withdrawn': 5.0,
+            'opening_wage_arrears_payable': 3.0,
+            'closing_wage_arrears_payable': 4.0,
+            'wage_arrears_accrued': 1.0,
         })
         inhabited.actor_turn_accounts = accounts
         data = self.sim.serialize_tile(inhabited, turn=self.sim.turn)
@@ -81,6 +84,7 @@ class TestWebClientParity(unittest.TestCase):
         account = next(row for row in data['actor_accounts'] if row['actor_id'] == -999)
         self.assertEqual(account['bank_cash_deposited'], 12.0)
         self.assertEqual(account['bank_cash_withdrawn'], 5.0)
+        self.assertEqual(account['closing_wage_arrears_payable'], 4.0)
         self.assertEqual(data['financial_institution']['type'], 'commercial_bank')
         self.assertIn('cumulative_bond_writeoffs', data['financial_institution'])
         self.assertIn('sovereign_bonds_held', data['financial_institution'])
