@@ -13,7 +13,7 @@ _NONCASH_EVENTS = {'production', 'input_consumed', 'scrip_wage',
                    'bank_debt_inheritance', 'bank_debt_writeoff',
                    'company_debt_writeoff',
                    'tax_arrears_writeoff', 'cash_obligation_writeoff',
-                   'wage_arrears_accrued',
+                   'wage_arrears_accrued', 'foreign_wallet_grant',
                    'foreign_wallet_debt_payment', 'foreign_wallet_inheritance',
                    'foreign_wallet_escheat'}
 

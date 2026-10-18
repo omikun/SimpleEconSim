@@ -1042,20 +1042,8 @@ def _execute_policy_action(world, act_id, target):
 
     # Frontier Actions
     elif act_id == 'frontier_expedition':
-        # Sponsor 5 homesteaders
-        from agent import Agent, initialize_agent, seed_traits
-        from wilderness import enter_wilderness
-        sponsor_nation = world['nations'][0] if world.get('nations') else None
-        if sponsor_nation:
-            for _ in range(5):
-                a = Agent(world['turn'])
-                initialize_agent(a, world['turn'], {Goods.food: 0.6, Goods.wood: 0.4})
-                seed_traits(a)
-                a.origin_nation = sponsor_nation.name
-                enter_wilderness(a, world['turn'])
-                a.wallets[sponsor_nation.currency] = 20.0
-                target.agents.append(a)
-            world['policy_feedback'] = (f"5 {sponsor_nation.name} pioneers arrived at {target.name}!", GREEN)
+        from frontier_policies import launch_frontier_expedition
+        launch_frontier_expedition(world, target)
     elif act_id == 'frontier_pioneer_grant':
         for a in target.agents:
             if getattr(a, 'is_homesteader', False):
