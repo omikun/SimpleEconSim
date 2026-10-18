@@ -184,17 +184,50 @@ def settle_crop_liens(region, turn):
         good = getattr(claim, 'lien_good', None)
         if take <= 0 or good is None:
             continue
+        balance_before = float(claim.balance)
         tenant.inv_add(good, -take)
         creditor.inv_add(good, take)
         unit_price = float(region.recipes.get(good, {}).get('price', 1.0))
-        claim.balance = max(0.0, claim.balance - take * unit_price)
+        transferred_reference_value = take * unit_price
+        debt_credit = min(balance_before, transferred_reference_value)
+        claim.balance = max(0.0, balance_before - transferred_reference_value)
         claim.lien_settled_turn = turn
         if claim.balance <= 1e-9:
             claim.balance = 0.0
             claim.status = 'paid'
-        events.append({'turn': turn, 'claim_id': claim.id, 'debtor_id': tenant.id,
-                       'creditor_id': creditor.id, 'good': getattr(good, 'value', str(good)),
-                       'quantity': take, 'balance': round(claim.balance, 2)})
+        event = {'turn': turn, 'claim_id': claim.id, 'debtor_id': tenant.id,
+                 'creditor_id': creditor.id, 'good': getattr(good, 'value', str(good)),
+                 'quantity': take, 'unit_price': unit_price,
+                 'reference_value': transferred_reference_value,
+                 'debt_credit': debt_credit,
+                 'uncredited_value': max(0.0, transferred_reference_value - debt_credit),
+                 'balance_before': balance_before, 'balance': round(claim.balance, 2),
+                 'status': claim.status}
+        events.append(event)
+        transfer_id = f'crop-lien:{turn}:{claim.id}:{tenant.id}:{creditor.id}'
+        from economy.actor_accounts import record as record_economic_event
+        journal_event = record_economic_event(
+            region, 'crop_lien_settlement', turn=turn, payer_id=tenant.id,
+            recipient_id=creditor.id, good=good, quantity=take,
+            amount=debt_credit, debt_credit=debt_credit,
+            asset_id=claim.id, source_id=transfer_id,
+            currency=getattr(region, 'home_currency', None),
+            detail={**event, 'transfer_id': transfer_id,
+                    'lien_share': float(getattr(claim, 'lien_share', 0.0)),
+                    'valuation_basis': 'displayed_recipe_reference_price'})
+        from run_trace import emit
+        emit(region, kind='crop_lien_settlement', record_class='transfer',
+             phase='settlement',
+             subject={'type': 'crop_lien', 'id': claim.id,
+                      'tile': region.name},
+             metric_id='finance.crop_lien_settlement',
+             unit=getattr(region, 'home_currency', None),
+             before=balance_before, after=float(claim.balance),
+             formula_id='crop.lien.reference_value.v1',
+             inputs={**event, 'lien_share': float(getattr(claim, 'lien_share', 0.0)),
+                     'available_harvest': int(available),
+                     'valuation_basis': 'displayed_recipe_reference_price',
+                     'economic_event_id': journal_event['id']})
     region.lien_events = (getattr(region, 'lien_events', []) + events)[-500:]
     return events
 
@@ -218,8 +251,39 @@ def settle_crop_shares(region, turn):
             continue
         tenant.inv_add(good, -take)
         landlord.inv_add(good, take)
+        unit_price = float(region.recipes.get(good, {}).get('price', 1.0))
+        reference_value = take * unit_price
         events.append({'turn': turn, 'tenant_id': tenant.id, 'landlord_id': landlord.id,
                        'plot_id': agreement.plot_id, 'good': getattr(good, 'value', str(good)),
-                       'quantity': take})
+                       'quantity': take, 'unit_price': unit_price,
+                       'reference_value': reference_value})
+        transfer_id = f'crop-share:{turn}:{agreement.plot_id}:{tenant.id}:{landlord.id}'
+        from economy.actor_accounts import record as record_economic_event
+        event = record_economic_event(
+            region, 'crop_share_rent', turn=turn, payer_id=tenant.id,
+            recipient_id=landlord.id, good=good, quantity=take,
+            amount=reference_value, asset_id=agreement.plot_id,
+            source_id=transfer_id,
+            currency=getattr(region, 'home_currency', None),
+            detail={'transfer_id': transfer_id, 'plot_id': agreement.plot_id,
+                    'crop_share': float(agreement.crop_share),
+                    'unit_price': unit_price,
+                    'reference_value': reference_value,
+                    'valuation_basis': 'displayed_recipe_reference_price'})
+        from run_trace import emit
+        emit(region, kind='crop_share_rent_settlement', record_class='transfer',
+             phase='settlement',
+             subject={'type': 'tenancy', 'id': transfer_id,
+                      'tile': region.name},
+             metric_id='land.crop_share', unit=getattr(good, 'name', str(good)),
+             after=take, formula_id='tenancy.crop_share.harvest.v1',
+             inputs={'tenant_id': tenant.id, 'landlord_id': landlord.id,
+                     'plot_id': agreement.plot_id, 'crop': getattr(good, 'name', str(good)),
+                     'available_harvest': int(quantity), 'quantity_transferred': take,
+                     'crop_share': float(agreement.crop_share),
+                     'reference_price': unit_price,
+                     'reference_value': reference_value,
+                     'valuation_basis': 'displayed_recipe_reference_price',
+                     'economic_event_id': event['id']})
     region.crop_share_events = (getattr(region, 'crop_share_events', []) + events)[-500:]
     return events

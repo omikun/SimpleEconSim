@@ -147,6 +147,12 @@ already fun or balanced; that still needs player feedback.
   conversion of same-currency wallets now record linked cash and wallet legs.
   Both current and compatibility wilderness APIs pass tile and turn context;
   actor statements reconcile the cash side and show per-currency wallet flows.
+- Crop liens and share-tenancy rent now record in-kind harvest quantity and
+  reference value. Lien records show the actual debt credit separately from
+  any crop value transferred beyond the remaining balance; share-rent records
+  name the tenant, landlord, plot, crop share, and valuation basis. These flows
+  are excluded from cash reconciliation and appear in actor statements and the
+  web market summary.
 - Remaining gate work: audit other non-estate credit losses; decide how unpaid
   wage claims behave when the firm or worker exits; decide whether wilderness
   inventory advances should create a repayable debt claim. Scenario-seeded or
@@ -250,6 +256,9 @@ already fun or balanced; that still needs player feedback.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python benchmark_supply_default.py 50 4242` — repeated after bilateral FX journal coverage; the default three-nation run completed with zero currency violations and zero unmatched actor cash on turn 50 or across actor-turn statements.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_forex_accounting test_frontier_policies test_run_trace test_supply_control_actor_strategy test_phase1_enclosure_expansions test_wilderness_trade_accounting` — 79 tests passed after cash-to-wallet conversion accounting.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python benchmark_supply_default.py 50 4242` — repeated after wallet conversion journaling; zero currency violations, zero unmatched actor cash on turn 50, and zero unmatched actor-turn cash across the run.
+- `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_crop_credit_accounting test_forex_accounting test_supply_control_actor_strategy test_supply_rights test_web_client_parity test_phase1_enclosure_expansions test_run_trace` — 108 tests passed after crop-lien and share-rent accounting.
+- `node --check web_client/client.js`, targeted Python compilation, and `git diff --check` — passed for crop-credit actor accounts and the web summary.
+- `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python benchmark_supply_default.py 50 4242` — repeated after in-kind crop accounting; zero currency violations, zero unmatched actor cash on turn 50, and zero unmatched actor-turn cash across the run.
 - `node --check web_client/client.js`, targeted Python compilation, and `git diff --check` — passed.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_supply_control_actor_strategy test_supply_rights test_market_auction test_market_routes test_web_client_parity test_truck_system_and_scrip test_run_trace test_trace_codec test_banking_contagion test_plunder_labor` — 139 tests passed, including paired wage-arrears statements, causal shortfall inputs, and balance retention after the 500-row detail window.
 - `node --check web_client/client.js`, targeted Python compilation, and `git diff --check` — passed for the wage-arrears trace, account, and client changes.

@@ -3029,12 +3029,18 @@
         const taxClaimLossAmount = Number(account.tax_receivable_written_off || 0);
         const obligationReliefAmount = Number(account.cash_obligation_written_off || 0);
         const obligationClaimLossAmount = Number(account.obligation_receivable_written_off || 0);
+        const cropLienDebtSettled = Number(account.crop_lien_debt_settled || 0);
+        const cropLienReceivableSettled = Number(account.crop_lien_receivable_settled || 0);
+        const cropShareRentPaid = Number(account.crop_share_rent_paid || 0);
+        const cropShareRentReceived = Number(account.crop_share_rent_received || 0);
         const wageArrearsPayableAmount = Number(account.closing_wage_arrears_payable || 0);
         const wageArrearsClaimAmount = Number(account.closing_wage_arrears_claim || 0);
         const ownerLoanBalance = Number(account.closing_owner_loan || 0);
         const hasNoncashDebtChange = debtReliefAmount > 0 || receivableLossAmount > 0
           || taxReliefAmount > 0 || taxClaimLossAmount > 0
           || obligationReliefAmount > 0 || obligationClaimLossAmount > 0
+          || cropLienDebtSettled > 0 || cropLienReceivableSettled > 0
+          || cropShareRentPaid > 0 || cropShareRentReceived > 0
           || wageArrearsPayableAmount > 0 || wageArrearsClaimAmount > 0
           || Number(account.wage_arrears_accrued || 0) > 0
           || Number(account.wage_arrears_claim_accrued || 0) > 0
@@ -3043,7 +3049,7 @@
         const earned = account.type === 'grower'
           ? `crop value $${Number(account.crop_value).toFixed(2)} · cash receipts $${Number(account.sales_cash).toFixed(2)}`
           : account.type === 'other' && hasNoncashDebtChange
-            ? 'noncash debt change'
+            ? 'noncash crop or debt change'
             : `sales cash $${Number(account.sales_cash).toFixed(2)} · input used $${Number(account.input_consumed_cost).toFixed(2)} · wages $${Number(account.wages_cash).toFixed(2)}`;
         const importedLots = account.delivered_input_lots || [];
         const lotAverage = key => {
@@ -3096,6 +3102,16 @@
           ? ` · cash obligation canceled $${obligationReliefAmount.toFixed(2)}` : '';
         const obligationClaimLoss = obligationClaimLossAmount > 0
           ? ` · creditor claim canceled $${obligationClaimLossAmount.toFixed(2)}` : '';
+        const cropLien = cropLienDebtSettled > 0
+          ? ` · crop lien debt settled $${cropLienDebtSettled.toFixed(2)} in kind`
+          : cropLienReceivableSettled > 0
+            ? ` · crop lien claim settled $${cropLienReceivableSettled.toFixed(2)} in kind`
+            : '';
+        const cropShareRent = cropShareRentPaid > 0
+          ? ` · crop share rent paid in kind (reference value $${cropShareRentPaid.toFixed(2)})`
+          : cropShareRentReceived > 0
+            ? ` · crop share rent received in kind (reference value $${cropShareRentReceived.toFixed(2)})`
+            : '';
         const wageArrearsPayable = Number(account.opening_wage_arrears_payable || 0)
           || wageArrearsPayableAmount || Number(account.wage_arrears_accrued || 0)
           ? ` · unpaid wages owed $${Number(account.opening_wage_arrears_payable || 0).toFixed(2)} → $${wageArrearsPayableAmount.toFixed(2)} (accrued $${Number(account.wage_arrears_accrued || 0).toFixed(2)})`
@@ -3116,7 +3132,7 @@
         });
         const walletTransferText = walletTransferParts.length
           ? ` · ${walletTransferParts.join(' / ')}` : '';
-        row.textContent = `${account.actor_name}: ${earned}${delivered} · cash $${Number(account.opening_cash).toFixed(2)} → $${Number(account.closing_cash).toFixed(2)}${scrip} · food ${account.opening_food} → ${account.closing_food} · debt $${Number(account.opening_debt).toFixed(2)} → $${Number(account.closing_debt).toFixed(2)}${companyDebt}${companyDebtRelief}${companyCreditLoss}${taxArrearsRelief}${taxClaimLoss}${obligationRelief}${obligationClaimLoss}${wageArrearsPayable}${wageArrearsClaim}${ownerLoan}${walletTransferText}${bankDebt}${deposits}${bankDepositActivity}${unposted}. Recorded costs may be incomplete.`;
+        row.textContent = `${account.actor_name}: ${earned}${delivered} · cash $${Number(account.opening_cash).toFixed(2)} → $${Number(account.closing_cash).toFixed(2)}${scrip} · food ${account.opening_food} → ${account.closing_food} · debt $${Number(account.opening_debt).toFixed(2)} → $${Number(account.closing_debt).toFixed(2)}${companyDebt}${companyDebtRelief}${companyCreditLoss}${taxArrearsRelief}${taxClaimLoss}${obligationRelief}${obligationClaimLoss}${cropLien}${cropShareRent}${wageArrearsPayable}${wageArrearsClaim}${ownerLoan}${walletTransferText}${bankDebt}${deposits}${bankDepositActivity}${unposted}. Recorded costs may be incomplete.`;
         supplyDetails.appendChild(row);
       }
 

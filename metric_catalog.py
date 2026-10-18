@@ -120,6 +120,8 @@ METRICS = {
     'trade.away_trader_food_purchase': ('trader/seller/tile', 'currency', 'world_trade.settle_trade'),
     'trade.fx_order_match': ('tile/fx_desk/trader', 'home_currency', 'forex.ForexDesk.clear_book'),
     'finance.cash_wallet_conversion': ('tile/agent', 'currency', 'forex.walletize and forex.decash_wallet'),
+    'finance.crop_lien_settlement': ('tile/crop_lien', 'local_currency', 'crop_credit.settle_crop_liens'),
+    'land.crop_share': ('tile/tenancy', 'units', 'crop_credit.settle_crop_shares'),
 }
 
 LEGACY_HISTORY_TO_METRIC = {

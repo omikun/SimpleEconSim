@@ -17,6 +17,7 @@ _NONCASH_EVENTS = {'production', 'input_consumed', 'scrip_wage',
                    'wallet_transfer_in', 'wallet_transfer_out',
                    'wilderness_goods_advance',
                    'wilderness_goods_collection',
+                   'crop_lien_settlement', 'crop_share_rent',
                    'foreign_wallet_debt_payment', 'foreign_wallet_inheritance',
                    'foreign_wallet_escheat'}
 
@@ -287,6 +288,30 @@ def seal_turn(region, turn, event_regions=None):
         obligation_receivable_written_off = sum(
             e['amount'] for e in own
             if e['recipient_id'] == actor.id and e['kind'] == 'cash_obligation_writeoff')
+        crop_lien_debt_settled = sum(
+            e['amount'] for e in own
+            if e['payer_id'] == actor.id and e['kind'] == 'crop_lien_settlement')
+        crop_lien_receivable_settled = sum(
+            e['amount'] for e in own
+            if e['recipient_id'] == actor.id and e['kind'] == 'crop_lien_settlement')
+        crop_lien_goods_paid = sum(
+            e['quantity'] for e in own
+            if e['payer_id'] == actor.id and e['kind'] == 'crop_lien_settlement')
+        crop_lien_goods_received = sum(
+            e['quantity'] for e in own
+            if e['recipient_id'] == actor.id and e['kind'] == 'crop_lien_settlement')
+        crop_share_rent_paid = sum(
+            e['amount'] for e in own
+            if e['payer_id'] == actor.id and e['kind'] == 'crop_share_rent')
+        crop_share_rent_received = sum(
+            e['amount'] for e in own
+            if e['recipient_id'] == actor.id and e['kind'] == 'crop_share_rent')
+        crop_share_goods_paid = sum(
+            e['quantity'] for e in own
+            if e['payer_id'] == actor.id and e['kind'] == 'crop_share_rent')
+        crop_share_goods_received = sum(
+            e['quantity'] for e in own
+            if e['recipient_id'] == actor.id and e['kind'] == 'crop_share_rent')
         wage_arrears_accrued = sum(
             e['amount'] for e in own
             if e['payer_id'] == actor.id and e['kind'] == 'wage_arrears_accrued')
@@ -438,6 +463,14 @@ def seal_turn(region, turn, event_regions=None):
             'tax_receivable_written_off': round(tax_receivable_written_off, 2),
             'cash_obligation_written_off': round(cash_obligation_written_off, 2),
             'obligation_receivable_written_off': round(obligation_receivable_written_off, 2),
+            'crop_lien_debt_settled': round(crop_lien_debt_settled, 2),
+            'crop_lien_receivable_settled': round(crop_lien_receivable_settled, 2),
+            'crop_lien_goods_paid': round(crop_lien_goods_paid, 2),
+            'crop_lien_goods_received': round(crop_lien_goods_received, 2),
+            'crop_share_rent_paid': round(crop_share_rent_paid, 2),
+            'crop_share_rent_received': round(crop_share_rent_received, 2),
+            'crop_share_goods_paid': round(crop_share_goods_paid, 2),
+            'crop_share_goods_received': round(crop_share_goods_received, 2),
             'sales_cash': round(receipts, 2), 'crop_value': round(crop_value, 2),
             'purchases_cash': round(purchases, 2), 'wages_cash': round(wages, 2),
             'delivered_input_purchase_cash': round(delivered_input_spend, 2),
