@@ -542,8 +542,10 @@ def settle_battle_casualties(units, tiles, nations, t):
             handle_wage_claim_inheritance(region, t, person, heirs,
                                           region.gov, region.charity)
             handle_debt_inheritance(ctx, t, person, heirs)
-            handle_wealth_inheritance(ctx, t, person, heirs)
-            zero_out_dead_agent(ctx, person)
+            estate_trace_event_ids = handle_wealth_inheritance(
+                ctx, t, person, heirs)
+            zero_out_dead_agent(ctx, person, t=t,
+                                cause_event_ids=estate_trace_event_ids)
             person.military_unit_id = None
             region.agents.remove(person)
             region.gov.citizen_ids.discard(person.id)

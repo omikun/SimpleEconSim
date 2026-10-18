@@ -907,3 +907,20 @@ and no luxury inventory produce no trace noise.
 Verification: four focused trace fixtures and six existing triangular-trade
 and luxury tests passed (10 total). Compilation and `git diff --check` passed.
 Additional household aid channels remain open.
+
+Phase 3 follow-up, 2026-10-18: estate cash and deposit allocations now include
+beneficiaries, opening and closing account balances, probate share rules, bank
+withdrawal causes, and stable operation IDs. The terminal closeout records
+decedent cash, residual deposits, and foreign wallets, with causes linking back
+to the allocations. Goods allocation records include each recipient balance
+and the deceased source inventory. Company succession records whether the
+highest-cash descendant or oldest employee receives the firm, or why an
+unstaffed heirless firm is dissolved.
+
+Verification: six dedicated probate-trace fixtures, 23 actor-account tests,
+and all 30 run-trace tests passed. Compilation and `git diff --check` passed.
+The trace exposes two existing accounting defects for separate correction:
+cash shares use the requested deposit even when a frozen bank settles a smaller
+withdrawal, and goods are credited to beneficiaries while remaining in the
+deceased inventory. A partial frozen-bank withdrawal can also leave the bank's
+aggregate deposit liability above the sum of account balances after closeout.

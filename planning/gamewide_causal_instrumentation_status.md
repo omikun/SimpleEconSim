@@ -220,10 +220,9 @@ consumption records distinguish wealth use, stockpile drawdown, and stochastic
 wear. Elite luxury consumption records inventory drawdown, per-good prestige
 ratings and saturation gains, status-tier changes, and the capped decay that
 applies when no prestige goods are consumed. Other untraced imperial claim
-paths, additional household support
-channels, other subsidies, police payroll/maintenance, remaining military
-service costs, inheritance, and many scenario costs still need transfer
-contracts. Egypt's
+paths, additional household support channels, other subsidies, police
+payroll/maintenance, remaining military service costs, estate closeout defects,
+and many scenario costs still need complete transfer contracts. Egypt's
 district relief, tax relief, settlement, and repression actions now record
 success/failure reasons and measured effects. National
 treasury, bank, household, firm, and goods-by-currency reconciliations remain
@@ -532,3 +531,20 @@ prestige and no luxury stock emits no event. Four focused trace fixtures and
 six existing triangular-trade/luxury tests passed (10 total), along with
 compilation and `git diff --check`. Other household support channels remain
 open.
+
+Estate cash, deposit, and goods allocations now record their beneficiaries,
+account balances, probate share rules, bank withdrawal causes, and terminal
+cash/deposit/wallet closeouts. Foreign wallet detail rows link to the estate
+closeout, and company ownership succession records whether the highest-cash
+descendant or oldest employee received the firm. Goods rows include each
+beneficiary's actual inventory change and also preserve the unchanged deceased
+source inventory, making the current non-conserving rule visible.
+
+Verification: six focused probate-trace fixtures, 23 actor-account tests, and
+all 30 run-trace tests passed; compilation and `git diff --check` passed. The
+new evidence exposes two separate accounting defects for follow-up: heir cash
+allocations use the requested estate deposit even when a frozen bank settles a
+smaller withdrawal, and the resulting residual deposit is removed from the
+account map without reducing the bank's aggregate deposit liability. Probate
+also credits goods to heirs or institutions without debiting the deceased
+inventory. These behaviors were left unchanged in this instrumentation commit.

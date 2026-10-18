@@ -59,22 +59,181 @@ def cleanup_dead_agent_links(agent, region=None, t=0):
             agent.owner = None
 
 
+def _estate_trace(region, **event):
+    """Emit optional probate evidence without changing settlement state."""
+    if region is None:
+        return None
+    from run_trace import emit
+    return emit(region, **event)
+
+
+def _estate_cash_allocation_trace(region, t, decedent, recipient, amount,
+                                  currency, operation_id, settlement,
+                                  source_cash_before, recipient_before,
+                                  recipient_after, *, recipient_type='agent',
+                                  cause_event_ids=None, economic_event_id=None,
+                                  extra_inputs=None):
+    if region is None or amount <= 0:
+        return None
+    from finance_trace import account_ref, transfer_contract
+
+    source_ref = account_ref(
+        'estate_cash', str(decedent.id), currency,
+        balance_before=float(source_cash_before),
+        balance_after=float(source_cash_before),
+        source_closeout='deferred_until_zero_out_dead_agent')
+    recipient_ref = account_ref(
+        recipient_type, str(getattr(recipient, 'id', recipient)), currency,
+        balance_before=float(recipient_before),
+        balance_after=float(recipient_after))
+    contract = transfer_contract(
+        operation_id, 'death_estate_cash_allocation', side='payee',
+        amount=amount, amount_currency=currency,
+        payer_account=source_ref, payee_account=recipient_ref,
+        local_cash_leg_amount=amount, local_cash_leg_currency=currency,
+        counterparty_leg_status='source_cash_closeout_deferred',
+        settlement=settlement)
+    inputs = {
+        'turn': t, 'decedent_id': decedent.id,
+        'recipient_id': getattr(recipient, 'id', recipient),
+        'settlement': settlement, 'economic_event_id': economic_event_id,
+        'source_cash_balance_before': float(source_cash_before),
+        'source_cash_balance_not_yet_cleared': True,
+        'transfer_contract': contract,
+    }
+    inputs.update(extra_inputs or {})
+    return _estate_trace(
+        region, kind='estate_cash_allocated', record_class='outcome',
+        phase='demographics',
+        subject={'type': 'estate/beneficiary', 'id': operation_id,
+                 'tile': region.name,
+                 'decedent_id': decedent.id,
+                 'beneficiary_id': getattr(recipient, 'id', recipient)},
+        metric_id='finance.inheritance', unit=currency,
+        before=float(recipient_before), after=float(recipient_after),
+        formula_id='estate.cash_share.v1', inputs=inputs,
+        cause_event_ids=cause_event_ids or None)
+
+
+def _estate_deposit_allocation_trace(region, t, decedent, recipient, amount,
+                                     currency, operation_id, bank,
+                                     source_deposit_before, recipient_before,
+                                     recipient_after, *, recipient_type='agent',
+                                     extra_inputs=None):
+    if region is None or amount <= 0:
+        return None
+    from finance_trace import account_ref, transfer_contract
+
+    contract = transfer_contract(
+        operation_id, 'death_estate_deposit_allocation', side='payee',
+        amount=amount, amount_currency=currency,
+        payer_account=account_ref(
+            'bank_deposit', str(decedent.id), currency,
+            balance_before=float(source_deposit_before),
+            balance_after=float(source_deposit_before),
+            source_closeout='captured_by_estate_deposit_closeout'),
+        payee_account=account_ref(
+            recipient_type, str(getattr(recipient, 'id', recipient)), currency,
+            balance_before=float(recipient_before),
+            balance_after=float(recipient_after)),
+        local_cash_leg_amount=0.0, local_cash_leg_currency=currency,
+        counterparty_leg_status='beneficiary_credit_captured_source_closeout_follows',
+        cash_movement=False)
+    inputs = {
+        'turn': t, 'decedent_id': decedent.id,
+        'recipient_id': getattr(recipient, 'id', recipient),
+        'source_deposit_balance_before': float(source_deposit_before),
+        'source_deposit_balance_at_allocation': float(source_deposit_before),
+        'bank_total_deposits_after': float(
+            getattr(bank, 'total_deposits', 0.0)),
+        'bank_deposit_account_sum_after': sum(
+            float(value) for value in bank.deposits.values()),
+        'transfer_contract': contract,
+    }
+    inputs.update(extra_inputs or {})
+    return _estate_trace(
+        region, kind='estate_deposit_allocated', record_class='transfer',
+        phase='demographics',
+        subject={'type': 'estate/beneficiary', 'id': operation_id,
+                 'tile': region.name,
+                 'decedent_id': decedent.id,
+                 'beneficiary_id': getattr(recipient, 'id', recipient)},
+        metric_id='finance.estate_deposit', unit=currency,
+        before=float(recipient_before), after=float(recipient_after),
+        formula_id='estate.deposit_share.v1', inputs=inputs)
+
+
+def _estate_inventory_trace(region, t, decedent, good, amount, allocations,
+                            operation_id, destination_rule):
+    if region is None or amount <= 0:
+        return None
+    return _estate_trace(
+        region, kind='estate_inventory_allocated', record_class='outcome',
+        phase='demographics',
+        subject={'type': 'agent/good', 'id': str(decedent.id),
+                 'good': good.name, 'tile': region.name},
+        metric_id='goods.inheritance_transfer', unit='units',
+        before=amount, after=amount,
+        formula_id='estate.inventory_share.v1',
+        inputs={'turn': t, 'operation_id': operation_id,
+                'decedent_id': decedent.id, 'good': good.name,
+                'source_inventory_before': amount,
+                'source_inventory_after_allocation': amount,
+                'source_inventory_debited': False,
+                'destination_rule': destination_rule,
+                'allocations': allocations,
+                'allocated_units': sum(row['units'] for row in allocations),
+                'conservation_status':
+                    'decedent_inventory_remains_after_allocation'})
+
+
 def handle_company_inheritance(t, agent, region=None):
     """Pass company to heir when founder dies."""
     if getattr(agent, 'company_owned', None) is None:
         return
     company = agent.company_owned
+    company_id = getattr(company, 'id',
+                         getattr(company, 'company_name', 'unknown-company'))
+    previous_owner = getattr(company, 'owner', None)
     living_descendants = living_descendants_recursive(agent)
     if len(living_descendants) > 0:
         heir = max(living_descendants, key=lambda d: d.cash)
         company.owner = heir
         heir.company_owned = company
+        _estate_trace(
+            region, kind='estate_company_inherited', record_class='outcome',
+            phase='demographics',
+            subject={'type': 'company', 'id': str(company_id),
+                     'tile': getattr(region, 'name', None)},
+            metric_id='society.company_succession',
+            before=getattr(previous_owner, 'id', None),
+            after=heir.id, unit='owner_id',
+            formula_id='estate.company_owner_descendant_with_highest_cash.v1',
+            inputs={'turn': t, 'decedent_id': agent.id,
+                    'previous_owner_id': getattr(previous_owner, 'id', None),
+                    'new_owner_id': heir.id,
+                    'living_descendant_ids': [d.id for d in living_descendants],
+                    'selected_by': 'highest_current_cash'})
         logdebug(t, agent.name(), 'company', company.name(),
                  'inherited by', heir.name())
     elif company.alive and company.is_corporation and len(company.employees) > 0:
         oldest_emp = min(company.employees, key=lambda e: e.hired_at)
         company.owner = oldest_emp
         oldest_emp.company_owned = company
+        _estate_trace(
+            region, kind='estate_company_inherited', record_class='outcome',
+            phase='demographics',
+            subject={'type': 'company', 'id': str(company_id),
+                     'tile': getattr(region, 'name', None)},
+            metric_id='society.company_succession',
+            before=getattr(previous_owner, 'id', None),
+            after=oldest_emp.id, unit='owner_id',
+            formula_id='estate.company_owner_oldest_employee.v1',
+            inputs={'turn': t, 'decedent_id': agent.id,
+                    'previous_owner_id': getattr(previous_owner, 'id', None),
+                    'new_owner_id': oldest_emp.id,
+                    'employee_ids': [e.id for e in company.employees],
+                    'selected_by': 'earliest_hired_employee'})
         logdebug(t, agent.name(), 'company', company.name(),
                  'inherited by oldest employee', oldest_emp.name())
     elif company.alive and company.is_corporation:
@@ -89,6 +248,17 @@ def handle_company_inheritance(t, agent, region=None):
         company.employees = []
         company.is_corporation = False
         company.owner = None
+        _estate_trace(
+            region, kind='estate_company_dissolved', record_class='outcome',
+            phase='demographics',
+            subject={'type': 'company', 'id': str(company_id),
+                     'tile': getattr(region, 'name', None)},
+            metric_id='society.company_succession',
+            before=getattr(previous_owner, 'id', None), after=None,
+            unit='owner_id', formula_id='estate.company_dissolution_no_successor.v1',
+            inputs={'turn': t, 'decedent_id': agent.id,
+                    'previous_owner_id': getattr(previous_owner, 'id', None),
+                    'reason': 'no_living_descendants_or_employees'})
     agent.company_owned = None
 
 
@@ -679,7 +849,7 @@ def _record_wallet_estate_flow(region, t, agent, recipient_id, currency, amount,
                                kind, settlement, detail=None,
                                payer_is_decedent=True):
     if region is None or amount <= 0:
-        return
+        return None
     from economy.actor_accounts import record as record_economic_event
     record_economic_event(
         region, kind, turn=t,
@@ -688,13 +858,15 @@ def _record_wallet_estate_flow(region, t, agent, recipient_id, currency, amount,
         amount=amount, currency=currency,
         detail={'settlement': settlement, **(detail or {})})
     from run_trace import emit
-    emit(region, kind=f'estate_{kind}', record_class='transfer', phase='demographics',
-         subject={'type': 'agent', 'id': agent.id, 'tile': region.name},
-         metric_id=f'finance.{kind}', unit=currency, after=float(amount),
-         inputs={'payer_id': agent.id if payer_is_decedent else None,
-                 'recipient_id': recipient_id, 'currency': currency,
-                 'amount': float(amount), 'settlement': settlement,
-                 **(detail or {})})
+    return emit(
+        region, kind=f'estate_{kind}', record_class='transfer',
+        phase='demographics',
+        subject={'type': 'agent', 'id': agent.id, 'tile': region.name},
+        metric_id=f'finance.{kind}', unit=currency, after=float(amount),
+        inputs={'payer_id': agent.id if payer_is_decedent else None,
+                'recipient_id': recipient_id, 'currency': currency,
+                'amount': float(amount), 'settlement': settlement,
+                **(detail or {})})
 
 
 def handle_wealth_inheritance(ctx, t, agent, living_descendants):
@@ -702,12 +874,20 @@ def handle_wealth_inheritance(ctx, t, agent, living_descendants):
     inheritance_cash = agent.cash
     inheritance_deposits = ctx.bank.deposits.get(agent, 0)
     government = ctx.default_gov
+    region = getattr(ctx, 'source_region', None)
+    operation_root = f'estate-wealth:{getattr(region, "name", "untraced")}:{t}:{agent.id}'
+    trace_event_ids = []
+    deposit_withdrawal_event_ids = []
+    deposit_withdrawal_settled = 0.0
+    source_cash_opening = float(agent.cash)
     if len(living_descendants) > 0:
         if inheritance_deposits > 0:
-            ctx.bank.Withdraw(
+            deposit_withdrawal_settled = ctx.bank.Withdraw(
                 agent, inheritance_deposits,
-                trace_region=getattr(ctx, 'source_region', None), t=t,
-                reason='estate_deposit_distribution')
+                trace_region=region, t=t,
+                reason='estate_deposit_distribution',
+                trace_event_ids=deposit_withdrawal_event_ids)
+            trace_event_ids.extend(deposit_withdrawal_event_ids)
             inheritance_cash += inheritance_deposits
         num_heirs = len(living_descendants)
         cash_share = int(inheritance_cash // num_heirs)
@@ -718,6 +898,9 @@ def handle_wealth_inheritance(ctx, t, agent, living_descendants):
             if decedent_currency is None:
                 decedent_currency = getattr(agent, 'home_currency', None)
             inherited_cash = cash_share + extra_cash
+            recipient_cash_before = float(getattr(descendent, 'cash', 0.0))
+            recipient_wallet_before = (fx.fx_balance(descendent, decedent_currency)
+                                       if decedent_currency else 0.0)
             if getattr(descendent, '_bank_ref', None) is ctx.bank and ctx.bank is not None:
                 descendent.cash += inherited_cash
                 settlement = 'cash'
@@ -729,6 +912,11 @@ def handle_wealth_inheritance(ctx, t, agent, living_descendants):
             else:
                 descendent.cash += inherited_cash
                 settlement = 'cash'
+            recipient_cash_after = float(getattr(descendent, 'cash', 0.0))
+            recipient_wallet_after = (fx.fx_balance(descendent, decedent_currency)
+                                      if decedent_currency else 0.0)
+            cash_event = None
+            wallet_trace_id = None
             if inherited_cash > 0 and getattr(ctx, 'source_region', None) is not None:
                 from economy.actor_accounts import record as record_economic_event
                 if settlement == 'foreign_wallet':
@@ -742,7 +930,7 @@ def handle_wealth_inheritance(ctx, t, agent, living_descendants):
                         detail={'heir_count': num_heirs,
                                 'settlement': 'cash_to_foreign_wallet',
                                 'intended_recipient_id': descendent.id})
-                    _record_wallet_estate_flow(
+                    wallet_trace_id = _record_wallet_estate_flow(
                         ctx.source_region, t, agent, descendent.id, decedent_currency,
                         wallet_after - wallet_before, 'foreign_wallet_inheritance',
                         'cash_to_foreign_wallet',
@@ -752,11 +940,36 @@ def handle_wealth_inheritance(ctx, t, agent, living_descendants):
                          'recipient_wallet_after': wallet_after},
                         payer_is_decedent=False)
                 else:
-                    record_economic_event(
+                    cash_event = record_economic_event(
                         ctx.source_region, 'inheritance', turn=t,
                         payer_id=agent.id, recipient_id=descendent.id,
                         amount=inherited_cash, currency=decedent_currency,
                         detail={'heir_count': num_heirs, 'settlement': 'cash'})
+            allocation_id = _estate_cash_allocation_trace(
+                region, t, agent, descendent, inherited_cash,
+                decedent_currency or 'local_currency',
+                f'{operation_root}:cash:{descendent.id}', settlement,
+                source_cash_opening,
+                recipient_wallet_before if settlement == 'foreign_wallet'
+                else recipient_cash_before,
+                recipient_wallet_after if settlement == 'foreign_wallet'
+                else recipient_cash_after,
+                recipient_type=('wallet' if settlement == 'foreign_wallet'
+                                else 'agent_cash'),
+                cause_event_ids=deposit_withdrawal_event_ids,
+                economic_event_id=(cash_event.get('id') if cash_event else None),
+                extra_inputs={
+                    'cash_pool_before_distribution': float(inheritance_cash),
+                    'deposit_balance_before_withdrawal': float(inheritance_deposits),
+                    'deposit_withdrawal_requested': float(inheritance_deposits),
+                    'deposit_withdrawal_settled': float(deposit_withdrawal_settled),
+                    'allocation_includes_requested_deposit_balance': True,
+                    'share_rule': 'integer_floor_equal_shares_first_heir_receives_remainder',
+                    'heir_count': num_heirs})
+            if allocation_id is not None:
+                trace_event_ids.append(allocation_id)
+            if wallet_trace_id is not None:
+                trace_event_ids.append(wallet_trace_id)
 
         dead_w = getattr(agent, 'wallets', None)
         if dead_w:
@@ -770,7 +983,7 @@ def handle_wealth_inheritance(ctx, t, agent, living_descendants):
                     wallet_before = fx.fx_balance(descendent, currency)
                     fx.fx_add(descendent, currency, wallet_share)
                     transferred = fx.fx_balance(descendent, currency) - wallet_before
-                    _record_wallet_estate_flow(
+                    wallet_trace_id = _record_wallet_estate_flow(
                         getattr(ctx, 'source_region', None), t, agent, descendent.id,
                         currency, transferred, 'foreign_wallet_inheritance',
                         'death_estate_wallet',
@@ -778,6 +991,8 @@ def handle_wealth_inheritance(ctx, t, agent, living_descendants):
                          'decedent_wallet_before': float(bal),
                          'recipient_wallet_before': wallet_before,
                          'recipient_wallet_after': fx.fx_balance(descendent, currency)})
+                    if wallet_trace_id is not None:
+                        trace_event_ids.append(wallet_trace_id)
                     remaining -= wallet_share
                 dead_w[currency] = 0.0
 
@@ -788,54 +1003,122 @@ def handle_wealth_inheritance(ctx, t, agent, living_descendants):
             if amount == 0:
                 continue
             target_heirs = [d for d in living_descendants if d.output == g_enum]
+            destination_rule = 'matching_output_heirs'
             if not target_heirs:
                 target_heirs = living_descendants
+                destination_rule = 'all_living_descendants_no_matching_output'
             inv_share = int(amount // len(target_heirs))
             inv_remainder = amount - (inv_share * len(target_heirs))
+            allocations = []
             for i, descendent in enumerate(target_heirs):
                 extra_inv = inv_remainder if i == 0 else 0
-                descendent.inventory[g_enum.value] += inv_share + extra_inv
+                quantity = inv_share + extra_inv
+                before = descendent.inventory[g_enum.value]
+                descendent.inventory[g_enum.value] += quantity
+                allocations.append({'recipient_id': descendent.id,
+                                    'inventory_before': before,
+                                    'units': quantity,
+                                    'inventory_after':
+                                        descendent.inventory[g_enum.value],
+                                    'received_remainder': bool(extra_inv)})
+            inventory_event_id = _estate_inventory_trace(
+                region, t, agent, g_enum, amount, allocations,
+                f'{operation_root}:good:{g_enum.name}', destination_rule)
+            if inventory_event_id is not None:
+                trace_event_ids.append(inventory_event_id)
     else:
         probate = getattr(government, 'probate_fee_rate', 0.0) if government else 0.0
         gov_share = inheritance_cash * probate
         charity_share = inheritance_cash - gov_share
+        cash_currency = (getattr(agent, 'home_currency', None)
+                         or getattr(region, 'home_currency', None)
+                         or 'local_currency')
         if government is not None:
+            gov_cash_before = float(getattr(government.agent, 'cash', 0.0))
             government.agent.cash += gov_share
+            gov_cash_after = float(getattr(government.agent, 'cash', 0.0))
+            cash_event = None
             if gov_share > 0:
                 government.record_income(t, 'inheritance', gov_share)
-                if getattr(ctx, 'source_region', None) is not None:
+                if region is not None:
                     from economy.actor_accounts import record as record_economic_event
-                    record_economic_event(
-                        ctx.source_region, 'inheritance', turn=t,
+                    cash_event = record_economic_event(
+                        region, 'inheritance', turn=t,
                         payer_id=agent.id, recipient_id=government.agent.id,
-                        amount=gov_share, currency=getattr(agent, 'home_currency', None),
+                        amount=gov_share, currency=cash_currency,
                         detail={'probate_share': probate})
+                event_id = _estate_cash_allocation_trace(
+                    region, t, agent, government.agent, gov_share, cash_currency,
+                    f'{operation_root}:cash:government-probate', 'cash',
+                    source_cash_opening, gov_cash_before, gov_cash_after,
+                    cause_event_ids=deposit_withdrawal_event_ids,
+                    economic_event_id=(cash_event.get('id') if cash_event else None),
+                    extra_inputs={'probate_share': probate,
+                                  'destination': 'government'})
+                if event_id is not None:
+                    trace_event_ids.append(event_id)
         charity = getattr(ctx, 'charity', None)
         if charity is not None and charity_share > 0:
+            charity_cash_before = float(getattr(charity.agent, 'cash', 0.0))
             charity.agent.cash += charity_share
-            if getattr(ctx, 'source_region', None) is not None:
+            charity_cash_after = float(getattr(charity.agent, 'cash', 0.0))
+            cash_event = None
+            if region is not None:
                 from economy.actor_accounts import record as record_economic_event
-                record_economic_event(
-                    ctx.source_region, 'inheritance', turn=t,
+                cash_event = record_economic_event(
+                    region, 'inheritance', turn=t,
                     payer_id=agent.id, recipient_id=charity.agent.id,
-                    amount=charity_share, currency=getattr(agent, 'home_currency', None),
+                    amount=charity_share, currency=cash_currency,
                     detail={'destination': 'charity', 'probate_share': 1.0 - probate})
+            event_id = _estate_cash_allocation_trace(
+                region, t, agent, charity.agent, charity_share, cash_currency,
+                f'{operation_root}:cash:charity', 'cash', source_cash_opening,
+                charity_cash_before, charity_cash_after,
+                cause_event_ids=deposit_withdrawal_event_ids,
+                economic_event_id=(cash_event.get('id') if cash_event else None),
+                extra_inputs={'probate_share': 1.0 - probate,
+                              'destination': 'charity'})
+            if event_id is not None:
+                trace_event_ids.append(event_id)
         elif charity is None:
             if government is not None and charity_share > 0:
+                gov_cash_before = float(getattr(government.agent, 'cash', 0.0))
                 government.agent.cash += charity_share
+                gov_cash_after = float(getattr(government.agent, 'cash', 0.0))
                 government.record_income(t, 'inheritance', charity_share)
-                if getattr(ctx, 'source_region', None) is not None:
+                cash_event = None
+                if region is not None:
                     from economy.actor_accounts import record as record_economic_event
-                    record_economic_event(
-                        ctx.source_region, 'inheritance', turn=t,
+                    cash_event = record_economic_event(
+                        region, 'inheritance', turn=t,
                         payer_id=agent.id, recipient_id=government.agent.id,
-                        amount=charity_share, currency=getattr(agent, 'home_currency', None),
+                        amount=charity_share, currency=cash_currency,
                         detail={'destination': 'government',
                                 'probate_share': 1.0 - probate})
+                event_id = _estate_cash_allocation_trace(
+                    region, t, agent, government.agent, charity_share,
+                    cash_currency,
+                    f'{operation_root}:cash:government-charity-share', 'cash',
+                    source_cash_opening, gov_cash_before, gov_cash_after,
+                    cause_event_ids=deposit_withdrawal_event_ids,
+                    economic_event_id=(cash_event.get('id')
+                                       if cash_event else None),
+                    extra_inputs={'probate_share': 1.0 - probate,
+                                  'destination': 'government_fallback'})
+                if event_id is not None:
+                    trace_event_ids.append(event_id)
             elif charity_share > 0:
                 from ledger import record as _rec_dest
                 _rec_dest(t, getattr(agent, 'home_currency', None),
                           charity_share, 'heirless-no-state-cash')
+                event_id = _estate_cash_allocation_trace(
+                    region, t, agent, 'unattributed-ledger', charity_share,
+                    cash_currency, f'{operation_root}:cash:ledger',
+                    'ledger_escheat', source_cash_opening, 0.0, 0.0,
+                    recipient_type='ledger',
+                    extra_inputs={'destination': 'no_government_or_charity'})
+                if event_id is not None:
+                    trace_event_ids.append(event_id)
 
         dead_w = getattr(agent, 'wallets', None)
         if dead_w:
@@ -846,7 +1129,7 @@ def handle_wealth_inheritance(ctx, t, agent, living_descendants):
                     wallet_before = fx.fx_balance(government.agent, currency)
                     fx.fx_add(government.agent, currency, bal)
                     transferred = fx.fx_balance(government.agent, currency) - wallet_before
-                    _record_wallet_estate_flow(
+                    wallet_trace_id = _record_wallet_estate_flow(
                         getattr(ctx, 'source_region', None), t, agent,
                         government.agent.id, currency, transferred,
                         'foreign_wallet_inheritance', 'heirless_estate_wallet',
@@ -856,31 +1139,102 @@ def handle_wealth_inheritance(ctx, t, agent, living_descendants):
                 else:
                     from ledger import record as _rec_dest2
                     _rec_dest2(t, currency, bal, 'heirless-no-state-wallet')
-                    _record_wallet_estate_flow(
+                    wallet_trace_id = _record_wallet_estate_flow(
                         getattr(ctx, 'source_region', None), t, agent, None,
                         currency, bal, 'foreign_wallet_escheat',
                         'heirless-no-state-wallet', {'destination': 'ledger'})
+                if wallet_trace_id is not None:
+                    trace_event_ids.append(wallet_trace_id)
                 dead_w[currency] = 0.0
 
         if inheritance_deposits > 0:
             deposit_gov = inheritance_deposits * probate
             deposit_charity = inheritance_deposits - deposit_gov
+            deposit_allocations = []
+            deposit_event_ids = []
+            deposit_currency = (getattr(agent, 'home_currency', None)
+                                or getattr(region, 'home_currency', None)
+                                or 'local_currency')
+            bank_total_before = float(getattr(ctx.bank, 'total_deposits', 0.0))
+            bank_account_sum_before = sum(
+                float(value) for value in ctx.bank.deposits.values())
             if government is None and charity is None:
                 from ledger import record as _rec_dep
                 _rec_dep(t, getattr(agent, 'home_currency', None),
                          inheritance_deposits, 'heirless-no-state-deposit')
             if government is not None and deposit_gov > 0:
+                recipient_before = float(ctx.bank.deposits.get(government.agent, 0.0))
                 ctx.bank.deposits[government.agent] = \
                     ctx.bank.deposits.get(government.agent, 0) + deposit_gov
+                recipient_after = float(ctx.bank.deposits[government.agent])
+                deposit_allocations.append({
+                    'recipient': government.agent, 'amount': deposit_gov,
+                    'before': recipient_before, 'after': recipient_after,
+                    'destination': 'government_probate'})
                 government.record_income(t, 'inheritance', deposit_gov)
             if charity is not None and deposit_charity > 0:
+                recipient_before = float(ctx.bank.deposits.get(charity.agent, 0.0))
                 ctx.bank.deposits[charity.agent] = \
                     ctx.bank.deposits.get(charity.agent, 0) + deposit_charity
+                recipient_after = float(ctx.bank.deposits[charity.agent])
+                deposit_allocations.append({
+                    'recipient': charity.agent, 'amount': deposit_charity,
+                    'before': recipient_before, 'after': recipient_after,
+                    'destination': 'charity'})
             elif charity is None and government is not None and deposit_charity > 0:
+                recipient_before = float(ctx.bank.deposits.get(government.agent, 0.0))
                 ctx.bank.deposits[government.agent] = \
                     ctx.bank.deposits.get(government.agent, 0) + deposit_charity
+                recipient_after = float(ctx.bank.deposits[government.agent])
+                deposit_allocations.append({
+                    'recipient': government.agent, 'amount': deposit_charity,
+                    'before': recipient_before, 'after': recipient_after,
+                    'destination': 'government_charity_share_fallback'})
                 government.record_income(t, 'inheritance', deposit_charity)
             ctx.bank.deposits[agent] = 0
+            bank_total_after = float(getattr(ctx.bank, 'total_deposits', 0.0))
+            bank_account_sum_after = sum(
+                float(value) for value in ctx.bank.deposits.values())
+            for index, allocation in enumerate(deposit_allocations):
+                beneficiary = allocation['recipient']
+                event_id = _estate_deposit_allocation_trace(
+                    region, t, agent, beneficiary, allocation['amount'],
+                    deposit_currency,
+                    f'{operation_root}:deposit:{beneficiary.id}:{index}',
+                    ctx.bank, inheritance_deposits,
+                    allocation['before'], allocation['after'],
+                    recipient_type='bank_deposit',
+                    extra_inputs={
+                        'destination': allocation['destination'],
+                        'bank_total_deposits_before': bank_total_before,
+                        'bank_total_deposits_after': bank_total_after,
+                        'bank_deposit_account_sum_before': bank_account_sum_before,
+                        'bank_deposit_account_sum_after': bank_account_sum_after})
+                if event_id is not None:
+                    trace_event_ids.append(event_id)
+                    deposit_event_ids.append(event_id)
+            deposit_closeout_id = _estate_trace(
+                region, kind='estate_decedent_deposit_closed',
+                record_class='outcome', phase='demographics',
+                subject={'type': 'agent', 'id': agent.id,
+                         'tile': getattr(region, 'name', None)},
+                metric_id='finance.estate_deposit', unit=deposit_currency,
+                before=float(inheritance_deposits), after=0.0,
+                formula_id='estate.heirless_deposit_closeout.v1',
+                inputs={'turn': t, 'decedent_id': agent.id,
+                        'bank_total_deposits_before': bank_total_before,
+                        'bank_total_deposits_after': bank_total_after,
+                        'bank_deposit_account_sum_before': bank_account_sum_before,
+                        'bank_deposit_account_sum_after': bank_account_sum_after,
+                        'allocated_amount': sum(row['amount']
+                                                for row in deposit_allocations),
+                        'unallocated_amount': max(
+                            0.0, float(inheritance_deposits)
+                            - sum(row['amount'] for row in deposit_allocations)),
+                        'deposit_recipient_count': len(deposit_allocations)},
+                cause_event_ids=deposit_event_ids or None)
+            if deposit_closeout_id is not None:
+                trace_event_ids.append(deposit_closeout_id)
 
         for g_enum in Goods:
             if g_enum == Goods.none:
@@ -888,20 +1242,102 @@ def handle_wealth_inheritance(ctx, t, agent, living_descendants):
             amount = agent.inventory[g_enum.value]
             if amount <= 0:
                 continue
+            allocations = []
             if g_enum == Goods.food and charity is not None:
+                before = float(charity.food_inventory)
                 charity.receive_food(amount)
+                allocations.append({'recipient_id': charity.agent.id,
+                                    'recipient_type': 'charity_food_stock',
+                                    'inventory_before': before,
+                                    'units': amount,
+                                    'inventory_after':
+                                        float(charity.food_inventory)})
             elif government is not None:
+                before = government.agent.inventory[g_enum.value]
                 government.agent.inventory[g_enum.value] += amount
+                allocations.append({'recipient_id': government.agent.id,
+                                    'recipient_type': 'government_inventory',
+                                    'inventory_before': before,
+                                    'units': amount,
+                                    'inventory_after':
+                                        government.agent.inventory[g_enum.value]})
+            inventory_event_id = _estate_inventory_trace(
+                region, t, agent, g_enum, amount, allocations,
+                f'{operation_root}:good:{g_enum.name}',
+                'charity_food_then_government_inventory'
+                if charity is not None and g_enum == Goods.food
+                else 'government_inventory' if government is not None
+                else 'no_government_or_charity_receiver')
+            if inventory_event_id is not None:
+                trace_event_ids.append(inventory_event_id)
+    return trace_event_ids
 
 
-def zero_out_dead_agent(ctx, agent):
+def zero_out_dead_agent(ctx, agent, *, t=None, cause_event_ids=None):
     """Clear dead agent's assets so they don't leak from the cash sum."""
+    region = getattr(ctx, 'source_region', None) or ctx
+    turn = t if t is not None else getattr(region, '_last_turn', 0)
+    currency = (getattr(agent, 'home_currency', None)
+                or getattr(region, 'home_currency', None) or 'local_currency')
+    cash_before = float(getattr(agent, 'cash', 0.0))
     agent.cash = 0
+    if cash_before != 0.0:
+        _estate_trace(
+            region, kind='estate_decedent_cash_closed', record_class='outcome',
+            phase='demographics',
+            subject={'type': 'agent', 'id': agent.id,
+                     'tile': getattr(region, 'name', None)},
+            metric_id='finance.estate_cash_closeout', unit=currency,
+            before=cash_before, after=0.0,
+            formula_id='estate.decedent_cash_zeroed.v1',
+            inputs={'turn': turn, 'agent_id': agent.id,
+                    'reason': 'terminal_estate_cleanup'},
+            cause_event_ids=cause_event_ids or None)
     if agent in ctx.bank.deposits:
+        deposit_before = float(ctx.bank.deposits.get(agent, 0.0))
+        total_before = float(getattr(ctx.bank, 'total_deposits', 0.0))
+        account_sum_before = sum(float(value)
+                                 for value in ctx.bank.deposits.values())
         del ctx.bank.deposits[agent]
+        total_after = float(getattr(ctx.bank, 'total_deposits', 0.0))
+        account_sum_after = sum(float(value)
+                                for value in ctx.bank.deposits.values())
+        if deposit_before != 0.0:
+            _estate_trace(
+                region, kind='estate_decedent_deposit_closed',
+                record_class='outcome', phase='demographics',
+                subject={'type': 'agent', 'id': agent.id,
+                         'tile': getattr(region, 'name', None)},
+                metric_id='finance.estate_deposit_closeout', unit=currency,
+                before=deposit_before, after=0.0,
+                formula_id='estate.decedent_deposit_zeroed.v1',
+                inputs={'turn': turn, 'agent_id': agent.id,
+                        'bank_total_deposits_before': total_before,
+                        'bank_total_deposits_after': total_after,
+                        'bank_deposit_account_sum_before': account_sum_before,
+                        'bank_deposit_account_sum_after': account_sum_after,
+                        'bank_liability_adjustment': total_after - total_before},
+                cause_event_ids=cause_event_ids or None)
     dead_w = getattr(agent, 'wallets', None)
     if dead_w is not None:
+        wallet_balances = {str(curr): float(amount)
+                           for curr, amount in dead_w.items()
+                           if float(amount) != 0.0}
         dead_w.clear()
+        for wallet_currency, wallet_before in wallet_balances.items():
+            _estate_trace(
+                region, kind='estate_decedent_wallet_closed',
+                record_class='outcome', phase='demographics',
+                subject={'type': 'agent', 'id': agent.id,
+                         'tile': getattr(region, 'name', None),
+                         'currency': wallet_currency},
+                metric_id='finance.estate_wallet_closeout',
+                unit=wallet_currency, before=wallet_before, after=0.0,
+                formula_id='estate.decedent_wallet_zeroed.v1',
+                inputs={'turn': turn, 'agent_id': agent.id,
+                        'currency': wallet_currency,
+                        'reason': 'terminal_estate_cleanup'},
+                cause_event_ids=cause_event_ids or None)
 
 
 def settle_external_death(region, t, agent, cause):
@@ -928,8 +1364,9 @@ def settle_external_death(region, t, agent, cause):
     reclaim_dead_route_cargo(ctx, agent)
     escheat_dead_parked_goods(ctx, agent)
     handle_debt_inheritance(ctx, t, agent, heirs)
-    handle_wealth_inheritance(ctx, t, agent, heirs)
-    zero_out_dead_agent(ctx, agent)
+    estate_trace_event_ids = handle_wealth_inheritance(ctx, t, agent, heirs)
+    zero_out_dead_agent(ctx, agent, t=t,
+                        cause_event_ids=estate_trace_event_ids)
     return True
 
 
@@ -1084,6 +1521,8 @@ def handle_death(ctx, t, agent, agents):
     reclaim_dead_route_cargo(ctx, agent)
     escheat_dead_parked_goods(ctx, agent)
     handle_debt_inheritance(ctx, t, agent, living_descendants)
-    handle_wealth_inheritance(ctx, t, agent, living_descendants)
-    zero_out_dead_agent(ctx, agent)
+    estate_trace_event_ids = handle_wealth_inheritance(
+        ctx, t, agent, living_descendants)
+    zero_out_dead_agent(ctx, agent, t=t,
+                        cause_event_ids=estate_trace_event_ids)
     return True
