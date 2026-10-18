@@ -894,5 +894,16 @@ random draw and threshold where applicable.
 Verification: two dedicated affordability fixtures and three non-food
 consumption fixtures passed, along with 13 dependent-food, food-intake, and
 auction-market tests and all 30 run-trace tests. Compilation and
-`git diff --check` passed. Other household aid channels and elite conspicuous-
-consumption prestige changes remain open.
+`git diff --check` passed. Other household aid channels remain open.
+
+Phase 3 follow-up, 2026-10-18: elite luxury consumption now records inventory
+drawdown per prestige-rated good, with the good's rating, saturation multiplier,
+and sequential prestige gain. The aggregate prestige update links to those
+inventory outcomes and records status tiers before and after rounding. When no
+luxury is consumed, the decay record includes the eligible holdings checked,
+the 0.40-point decay cap, and the resulting status tier. Agents with no prestige
+and no luxury inventory produce no trace noise.
+
+Verification: four focused trace fixtures and six existing triangular-trade
+and luxury tests passed (10 total). Compilation and `git diff --check` passed.
+Additional household aid channels remain open.

@@ -217,7 +217,10 @@ reserve use, trader stocks, and changing reserves; starvation deaths link to
 same-turn intake evidence. Household market bids record cash-affordable units,
 the wallet basis and formula, and bank funding causes; actual wood and furniture
 consumption records distinguish wealth use, stockpile drawdown, and stochastic
-wear. Other untraced imperial claim paths, additional household support
+wear. Elite luxury consumption records inventory drawdown, per-good prestige
+ratings and saturation gains, status-tier changes, and the capped decay that
+applies when no prestige goods are consumed. Other untraced imperial claim
+paths, additional household support
 channels, other subsidies, police payroll/maintenance, remaining military
 service costs, inheritance, and many scenario costs still need transfer
 contracts. Egypt's
@@ -441,7 +444,7 @@ changed; the new reason only makes an existing zero-bid condition explicit.
 Two dedicated affordability fixtures and three non-food consumption fixtures
 passed; 13 dependent-food, food-intake, and auction-market tests passed, as did
 all 30 run-trace tests. Compilation and `git diff --check` passed. Additional
-household aid channels and elite conspicuous-consumption prestige changes remain.
+household aid channels remain open.
 
 The labor scheduler now records round-robin cohort selection, deferred workers,
 and the hunger, unemployment, dispossession, or eviction reasons for emergency
@@ -519,3 +522,13 @@ the two frontier-policy tests, compilation, and `git diff --check`. The older
 end-to-end petition test still errors with `KeyError: Meridian` while looking
 up a restriction record after the scenario step; it fails before reaching the
 patrol handler. Broader police maintenance remains uninstrumented.
+
+Elite conspicuous consumption now records each prestige-good inventory draw
+and links those draws to the agent's prestige change. The outcome exposes each
+good's prestige rating, saturation multiplier, sequential gain, and inventory
+before/after; no-luxury decay records the eligible holdings checked, the
+0.40-point decay cap, and the before/after status tier. An agent with no
+prestige and no luxury stock emits no event. Four focused trace fixtures and
+six existing triangular-trade/luxury tests passed (10 total), along with
+compilation and `git diff --check`. Other household support channels remain
+open.
