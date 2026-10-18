@@ -3023,10 +3023,17 @@
       const activeContracts = tenure.offtake_contracts || [];
       const charters = tenure.market_charters || [];
       const rights = tenure.water_rights || [];
+      const leases = tenure.land_leases || [];
       const terms = document.createElement('div');
       terms.className = 'market-control-summary';
-      terms.textContent = `${activeContracts.length} active crop offtake contract(s) · ${charters.length} active charter(s) · ${rights.length} water right(s); seasonal allocation ${Object.values(tenure.water_allocations || {}).reduce((x, y) => x + Number(y), 0).toFixed(2)} units.`;
+      terms.textContent = `${activeContracts.length} crop contract(s) · ${leases.length} land lease(s) · ${charters.length} charter(s) · ${rights.length} water right(s); seasonal allocation ${Object.values(tenure.water_allocations || {}).reduce((x, y) => x + Number(y), 0).toFixed(2)} units.`;
       supplyDetails.appendChild(terms);
+      for (const lease of leases) {
+        const item = document.createElement('div');
+        item.className = 'market-control-detail';
+        item.textContent = `Plot ${lease.plot_id}: owner ${lease.owner_id} leased control to ${lease.lessee_id} for $${Number(lease.payment).toFixed(2)} through turn ${lease.end_turn}.`;
+        supplyDetails.appendChild(item);
+      }
       for (const contract of activeContracts) {
         const item = document.createElement('div');
         item.className = 'market-control-detail';
@@ -3122,7 +3129,9 @@
               <div class="card-meta-row">
                 <span>Land Use: <strong>${escapeHtml(p.production_type || 'arable')}</strong></span>
                 <span>Area: ${Math.round(p.fraction * 100)}%</span>
+                <span>Title: ${p.lord_id}${Number(p.controlled_by_id) !== Number(p.lord_id) ? ` · controlled by ${p.controlled_by_id}` : ''}</span>
                 <span>Tenants: ${Number(p.bound_tenants) || 0}</span>
+                <span>${p.customary_rights_retained ? 'Customary rights retained' : 'No customary rights'}</span>
               </div>
               ${p.foreclosure_debt ? `
                 <div class="card-badge locked mt-1">⚠️ Foreclosure Debt: $${Number(p.foreclosure_debt) || 0} (Due: T+${Number(p.foreclosure_deadline) || 0})</div>

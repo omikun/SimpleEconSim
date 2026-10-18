@@ -1134,12 +1134,15 @@ def draw_panel(surface, world, font, font_small, mouse_pos=None):
                               if c.get('status') == 'active')
         active_charters = sum(1 for c in getattr(region, 'market_charters', [])
                               if c.get('status') == 'active')
+        active_land_leases = sum(1 for c in getattr(region, 'land_leases', [])
+                                 if c.get('status') == 'active')
         pending_charters = sum(1 for c in getattr(region, 'concession_petitions', [])
                                if c.get('status') == 'proposed')
         supply_line = font_small.render(
             f"Supply control: water {water_alloc:.1f}/{water_capacity:.1f} | "
-            f"contracts {active_advances} | charters {active_charters} | petitions {pending_charters}",
-            True, (220, 190, 125) if active_advances or active_charters or pending_charters else DIM)
+            f"contracts {active_advances} | land leases {active_land_leases} | "
+            f"charters {active_charters} | petitions {pending_charters}",
+            True, (220, 190, 125) if active_advances or active_land_leases or active_charters or pending_charters else DIM)
         surface.blit(supply_line, (PANEL_LEFT, y_cursor))
         y_cursor += 16
         latest_trade = next((event for event in reversed(getattr(region, 'market_trade_events', []))
