@@ -138,7 +138,7 @@ class ForexDesk:
                           'rate': rate})
         return qty
 
-    def clear_book(self, trace_region=None):
+    def clear_book(self, trace_region=None, t=None):
         """Match crossed orders inside the bank's rate band.
 
         A bid (buy foreign) at rate B crosses an ask (sell foreign) at rate A
@@ -157,6 +157,7 @@ class ForexDesk:
         bids.sort(key=lambda o: -o['rate'])
         asks.sort(key=lambda o: o['rate'])
         i = j = 0
+        match_index = 0
         _heartbeat = len(bids) + len(asks) + 1  # defensive: every iteration
         # must advance at least one pointer; cap anyway to avoid deadlock
         while i < len(bids) and j < len(asks) and _heartbeat > 0:
@@ -185,6 +186,9 @@ class ForexDesk:
                 i += 1
                 continue
             # Home leg (both are home-region traders)
+            buyer_cash_before = float(btrader.cash)
+            seller_cash_before = float(atrader.cash)
+            buyer_wallet_before = fx_balance(btrader, self.other)
             btrader.cash -= home
             atrader.cash += home
             # Foreign leg: transfer exactly what fx_sub actually removes
@@ -192,16 +196,77 @@ class ForexDesk:
             fx_sub(atrader, self.other, qty)
             moved = before - fx_balance(atrader, self.other)
             fx_add(btrader, self.other, moved)
+            buyer_wallet_after = fx_balance(btrader, self.other)
+            seller_wallet_after = fx_balance(atrader, self.other)
+            transfer_id = (
+                f'fx-order:{int(t if t is not None else getattr(trace_region, "_last_turn", 0))}:'
+                f'{getattr(trace_region, "name", self.home)}:{self.home}:{self.other}:'
+                f'{match_index}:{btrader.id}:{atrader.id}')
+            match_index += 1
+            cash_event = wallet_out_event = wallet_in_event = None
+            if trace_region is not None:
+                from economy.actor_accounts import record as record_economic_event
+                turn = int(t if t is not None else getattr(trace_region, '_last_turn', 0))
+                cash_event = record_economic_event(
+                    trace_region, 'fx_order_cash_transfer', turn=turn,
+                    payer_id=btrader.id, recipient_id=atrader.id, amount=home,
+                    asset_id=transfer_id, source_id=transfer_id,
+                    currency=self.home,
+                    detail={'transfer_id': transfer_id,
+                            'buyer_id': btrader.id, 'seller_id': atrader.id,
+                            'foreign_currency': self.other,
+                            'foreign_quantity': float(moved),
+                            'home_price_per_foreign': float(price),
+                            'home_paid': float(home),
+                            'tender': 'bilateral_fx_order'})
+                wallet_out_event = record_economic_event(
+                    trace_region, 'wallet_transfer_out', turn=turn,
+                    payer_id=atrader.id, amount=moved,
+                    asset_id=transfer_id, source_id=transfer_id,
+                    currency=self.other,
+                    detail={'transfer_id': transfer_id,
+                            'payment_kind': 'fx_order_match',
+                            'counterparty_id': btrader.id,
+                            'foreign_quantity': float(moved),
+                            'home_paid': float(home),
+                            'home_currency': self.home})
+                wallet_in_event = record_economic_event(
+                    trace_region, 'wallet_transfer_in', turn=turn,
+                    recipient_id=btrader.id, amount=moved,
+                    asset_id=transfer_id, source_id=transfer_id,
+                    currency=self.other,
+                    detail={'transfer_id': transfer_id,
+                            'payment_kind': 'fx_order_match',
+                            'counterparty_id': atrader.id,
+                            'foreign_quantity': float(moved),
+                            'home_paid': float(home),
+                            'home_currency': self.home})
             if trace_region is not None:
                 from run_trace import emit
                 emit(trace_region, kind='fx_order_match', record_class='transfer',
                      phase='trade', subject={'type': 'fx_desk', 'id': trace_region.name,
                                              'base_currency': self.home,
                                              'quote_currency': self.other},
+                     metric_id='trade.fx_order_match', unit=self.home,
                      inputs={'buyer_id': btrader.id, 'seller_id': atrader.id,
                              'foreign_quantity': moved, 'home_price_per_foreign': price,
-                             'home_paid': moved * price, 'bid_rate': b['rate'],
-                             'ask_rate': a['rate']})
+                             'home_paid': home, 'bid_rate': b['rate'],
+                             'ask_rate': a['rate'],
+                             'transfer_id': transfer_id,
+                             'buyer_cash_before': buyer_cash_before,
+                             'buyer_cash_after': float(btrader.cash),
+                             'seller_cash_before': seller_cash_before,
+                             'seller_cash_after': float(atrader.cash),
+                             'buyer_wallet_before': float(buyer_wallet_before),
+                             'buyer_wallet_after': float(buyer_wallet_after),
+                             'seller_wallet_before': float(before),
+                             'seller_wallet_after': float(seller_wallet_after),
+                             'cash_event': {'tile': trace_region.name,
+                                            'event_id': cash_event['id']},
+                             'wallet_out_event': {'tile': trace_region.name,
+                                                  'event_id': wallet_out_event['id']},
+                             'wallet_in_event': {'tile': trace_region.name,
+                                                 'event_id': wallet_in_event['id']}})
             total_home += moved * price
             b['qty'] -= moved
             a['qty'] -= moved
@@ -730,7 +795,7 @@ def cycle_market(region_a, region_b, t=0):
                 desk.post_order('bid', trader, qty, rate)
 
         # ---- Clear the book (wallet-to-wallet, conserved) ----
-        matched = desk.clear_book(region)
+        matched = desk.clear_book(region, t=t)
         result[region.name] = matched
 
         # ---- Desk last resort: repatriate residual asks ----
@@ -784,7 +849,7 @@ def _cycle_one_desk(region, partner, desk, t):
             desk.post_order('bid', trader, qty, rate)
 
     # ---- Clear the book (wallet-to-wallet, conserved) ----
-    matched = desk.clear_book(region)
+    matched = desk.clear_book(region, t=t)
 
     # ---- Desk last resort: repatriate residual asks ----
     for trader in region.trader_agents:

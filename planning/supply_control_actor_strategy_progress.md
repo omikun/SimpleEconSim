@@ -138,6 +138,11 @@ already fun or balanced; that still needs player feedback.
   destination tile. The trace links both journal legs and records the food,
   quantity, price, and before/after balances. The generalized and legacy
   two-region trade drivers use the same settlement recorder.
+- Bilateral FX order-book matches now journal the bidder's home-currency cash
+  payment and the seller-to-buyer foreign-wallet transfer as linked legs. The
+  trace records both traders' before/after cash and wallet balances, matched
+  quantity, rate, and journal references; actor statements reconcile both
+  traders' changes.
 - Remaining gate work: audit other non-estate credit losses and non-probate
   cash-to-wallet legs outside these paths; decide how unpaid wage claims behave
   when the firm or worker exits; decide whether wilderness inventory advances
@@ -238,6 +243,8 @@ already fun or balanced; that still needs player feedback.
   operations now have an explicit region and are journaled too.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_supply_control_actor_strategy test_supply_rights test_market_auction test_market_routes test_web_client_parity test_truck_system_and_scrip test_run_trace test_trace_codec test_banking_contagion` — 121 tests passed, including charity cash sweeps, actor deposit/withdrawal totals, and a frozen-withdrawal trace.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python benchmark_supply_default.py 50 4242` — the default three-nation 50-turn run completed with zero currency violations and zero unmatched actor cash on turn 50 or across actor-turn statements.
+- `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_forex_accounting test_world_trade_accounting test_market_routes test_market_auction test_run_trace test_supply_control_actor_strategy` — 82 tests passed after bilateral FX order-book settlement accounting.
+- `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python benchmark_supply_default.py 50 4242` — repeated after bilateral FX journal coverage; the default three-nation run completed with zero currency violations and zero unmatched actor cash on turn 50 or across actor-turn statements.
 - `node --check web_client/client.js`, targeted Python compilation, and `git diff --check` — passed.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_supply_control_actor_strategy test_supply_rights test_market_auction test_market_routes test_web_client_parity test_truck_system_and_scrip test_run_trace test_trace_codec test_banking_contagion test_plunder_labor` — 139 tests passed, including paired wage-arrears statements, causal shortfall inputs, and balance retention after the 500-row detail window.
 - `node --check web_client/client.js`, targeted Python compilation, and `git diff --check` — passed for the wage-arrears trace, account, and client changes.
