@@ -704,3 +704,21 @@ arrival results. Fifty-two focused food-security, provincial-relief, public-aid,
 and run-trace tests passed. Compilation and `git diff --check` passed. More
 general household subsistence, other aid channels, subsidies, repression
 spending, inheritance, and other scenario costs remain.
+
+Phase 3 follow-up, 2026-10-18: all four player district responses now emit a
+success or failure outcome with the reason and measured effects. Public relief
+records each transfer from Cairo's maize inventory into a household's queued
+next-meal entitlement. Local negotiation pairs Cairo's treasury debit with each
+recipient's cash balance and links the payment to the resulting unrest, protest,
+and grievance reductions. Tax relief records the local rate change, unrest and
+protest multiplier, legitimacy gain, and reduced extraction level. Repression
+records available forces, seeded casualty and broken-promise memories, protest
+change, and legitimacy cost. Rejected relief, unaffordable settlement, and
+repression without force record their no-op reason.
+
+Verification: seven district-action fixtures and 15 district-action,
+household-aid, and public-transfer tests passed, including cloned-state
+trace-on/off equivalence. Compilation and `git diff --check` passed. The broader
+Egypt campaign and playthrough suites remain unable to initialize because
+`shape_nile_delta` raises the existing missing-second-coastal-outlet error
+during world generation, before these action paths run.

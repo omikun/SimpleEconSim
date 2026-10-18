@@ -209,9 +209,10 @@ legs exposed. Government food aid and household mutual aid now record exact food
 inventory movements. Provincial emergency relief now traces the donor levy,
 in-transit shipment inventory, haulage cash transfer and recipients or public
 stock on arrival. Other untraced imperial claim paths, Egypt subsistence,
-additional household support channels,
-subsidies, repression spending,
-inheritance, and many scenario costs still need transfer contracts. National
+additional household support channels, subsidies, other repression spending,
+inheritance, and many scenario costs still need transfer contracts. Egypt's
+district relief, tax relief, settlement, and repression actions now record
+success/failure reasons and measured effects. National
 treasury, bank, household, firm, and goods-by-currency reconciliations remain
 incomplete. Several scenario operations still need mutation-point records.
 Some secondary and elite AI candidate details remain partial. The current metric
@@ -356,3 +357,12 @@ dedicated fixtures and 52 focused food-security, aid and trace tests passed,
 including cloned-state equivalence with tracing enabled and disabled. Broader
 household subsistence, other aid channels, subsidies, repression, inheritance,
 and other scenario transfers remain.
+
+Egypt's district action outcomes now record the four player responses and their
+no-op reasons. Public relief traces Cairo's stock debit against queued household
+meal entitlements; local negotiation traces the treasury debit and individual
+recipient cash balances; tax relief records fiscal and unrest changes; repression
+records forces, memory seeds, protest and legitimacy. Seven focused fixtures and
+15 district, aid, and government-transfer tests passed. The wider campaign and
+playthrough suites remain blocked before action execution by the Nile delta
+generation error documented above.
