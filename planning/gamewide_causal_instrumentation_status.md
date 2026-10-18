@@ -766,3 +766,16 @@ Verification: two granary trace tests and the existing relief-prevents-genesis
 test passed (3 total), covering multi-tile cumulative draw, trace-on/off parity,
 zero recipients, famine reset, and the unconsumed government food balance.
 Compilation and `git diff --check` passed.
+
+Mass entertainment subsidies now log the selected government account and
+affordability gate, exact treasury debit, and per-tile entertainment increase
+and unrest reduction. The trace records the uniform per-tile boost, the
+entertainment cap at 1.0, the unrest floor at zero, and the public-service
+expense without a modeled cash payee. Underfunded attempts record the shortfall
+and leave treasury and tile state unchanged.
+
+Verification: two dedicated entertainment-trace tests, two granary-trace tests,
+and all five existing trade-route epidemic tests passed (9 total). Coverage
+includes trace-on/off parity, affordability rejection, and capped effects.
+Compilation and `git diff --check` passed. Other labor-law state changes remain
+open for causal tracing.

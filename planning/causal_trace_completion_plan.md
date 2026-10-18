@@ -1130,3 +1130,15 @@ Verification: two dedicated granary trace tests and the existing
 relief-prevents-genesis test passed (3 total), covering cumulative draw across
 multiple tiles, trace-on/off parity, zero recipients, and famine reset.
 Compilation and `git diff --check` passed.
+
+Phase 3 follow-up, 2026-10-18: mass-entertainment subsidies now record the
+selected government account, funding gate, treasury debit, and each tile's
+entertainment and unrest changes. Inputs capture the per-tile boost, level cap,
+unrest floor, and the public-service cost with no modeled cash payee.
+Underfunded attempts record the shortfall without changing state.
+
+Verification: two dedicated entertainment-trace tests, two granary tests, and
+all five existing trade-route epidemic tests passed (9 total), including
+trace-on/off parity, affordability rejection, and capped effects. Compilation
+and `git diff --check` passed. Workday, safety, quarantine, wage-cap, and other
+labor-law transitions remain open for tracing.

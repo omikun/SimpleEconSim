@@ -395,24 +395,178 @@ def subsidize_mass_entertainment(target, cost: float = 50.0) -> Tuple[bool, str]
     Transfers funds from treasury to tile entertainment level (stifling protest energy).
     """
     gov_agent = None
+    source_type = None
     if hasattr(target, 'gov') and hasattr(target.gov, 'agent'):
         gov_agent = target.gov.agent
+        source_type = 'target_government_treasury'
     elif hasattr(target, 'tiles') and target.tiles and hasattr(target.tiles[0], 'gov'):
         gov_agent = target.tiles[0].gov.agent
+        source_type = 'first_tile_government_treasury'
+
+    trace_candidates = [target]
+    trace_candidates.extend(getattr(target, 'tiles', ()))
+    trace_region = next((tile for tile in trace_candidates
+                         if (getattr(tile, '_run_trace', None) is not None
+                             and getattr(tile, '_collective_trace_clock', None)
+                             is not None)), None)
+    trace_clock = (getattr(trace_region, '_collective_trace_clock', {})
+                   if trace_region is not None else {})
+    turn = int(trace_clock.get('turn', getattr(target, '_last_turn', 0)))
+    operation_id = None
+    funding_event_id = None
+    if trace_region is not None:
+        operation_id = (
+            f"policy:nat_subsidize_entertainment:"
+            f"{getattr(target, 'name', 'unnamed')}:{turn}:"
+            f"{int(trace_clock.get('next', 0))}")
+        from run_trace import emit
+        source_cash = float(gov_agent.cash) if gov_agent is not None else 0.0
+        funding_event_id = emit(
+            trace_region, kind='mass_entertainment_funding_decision',
+            record_class='decision', phase='policy_action',
+            subject={'type': 'nation/action',
+                     'id': getattr(target, 'name', 'unnamed')},
+            metric_id='scenario.mass_entertainment_funding', unit='funded',
+            after=bool(gov_agent is not None and source_cash >= cost),
+            inputs={'operation_id': operation_id, 'turn': turn,
+                    'action_id': 'nat_subsidize_entertainment',
+                    'cost_requested': float(cost),
+                    'source_type': source_type,
+                    'source_cash_before': source_cash,
+                    'cash_shortfall': max(0.0, float(cost) - source_cash),
+                    'funded': bool(gov_agent is not None and source_cash >= cost),
+                    'reason': ('treasury_funds_entertainment'
+                               if gov_agent is not None and source_cash >= cost
+                               else 'missing_government_treasury'
+                               if gov_agent is None
+                               else 'treasury_cash_below_cost')})
 
     if gov_agent is None or gov_agent.cash < cost:
         return False, "Insufficient government treasury funds for entertainment subsidy."
 
     # Conserved transfer: gov cash spent into local commerce / spectacle
+    treasury_before = float(gov_agent.cash)
     gov_agent.cash -= cost
+    treasury_after = float(gov_agent.cash)
+    expenditure_event_id = None
+    if trace_region is not None:
+        from finance_trace import account_ref, transfer_contract
+        from run_trace import emit
+        currency = (getattr(target, 'currency', None)
+                    or getattr(trace_region, 'home_currency', None)
+                    or 'local_currency')
+        treasury_id = str(getattr(gov_agent, 'id',
+                                  getattr(target, 'name', 'treasury')))
+        contract = transfer_contract(
+            operation_id, 'mass_entertainment_subsidy', side='payer',
+            amount=float(cost), amount_currency=currency,
+            payer_account=account_ref(
+                source_type or 'government_treasury', treasury_id, currency,
+                nation_id=getattr(target, 'name', None),
+                balance_before=treasury_before,
+                balance_after=treasury_after,
+                balance_scope='government_agent.cash'),
+            payee_account={'type': 'public_entertainment_service',
+                           'id': getattr(target, 'name', 'unnamed'),
+                           'cash_balance_captured': False},
+            local_cash_leg_amount=float(cost),
+            local_cash_leg_currency=currency,
+            counterparty_leg_status='policy_expenditure_no_cash_payee',
+            source='nat_subsidize_entertainment', turn=turn)
+        expenditure_event_id = emit(
+            trace_region, kind='mass_entertainment_policy_expenditure',
+            record_class='transfer', phase='policy_action',
+            subject={'type': 'nation/treasury',
+                     'id': getattr(target, 'name', 'unnamed')},
+            metric_id='finance.policy_expenditure', unit=currency,
+            after=-float(cost),
+            inputs={'operation_id': operation_id,
+                    'treasury_balance_after': treasury_after,
+                    'transfer_contract': contract},
+            cause_event_ids=([funding_event_id]
+                             if funding_event_id else None))
 
     tiles = getattr(target, 'tiles', [target]) if hasattr(target, 'tiles') else [target]
     boost = 0.40 / len(tiles)
+    tile_outcomes = []
+    effect_event_ids = []
     for tile in tiles:
-        cur = getattr(tile, 'entertainment_level', 0.0)
+        cur = float(getattr(tile, 'entertainment_level', 0.0))
+        unrest_before = float(getattr(tile, 'unrest_level', 0.0))
         tile.entertainment_level = min(1.0, cur + boost)
         # Immediate damping of protest energy
-        tile.unrest_level = max(0.0, getattr(tile, 'unrest_level', 0.0) - 0.15)
+        tile.unrest_level = max(0.0, unrest_before - 0.15)
+        entertainment_after = float(tile.entertainment_level)
+        unrest_after = float(tile.unrest_level)
+        tile_row = {'tile': tile.name, 'entertainment_before': cur,
+                    'entertainment_after': entertainment_after,
+                    'entertainment_target_increase': boost,
+                    'entertainment_actual_increase': entertainment_after - cur,
+                    'unrest_before': unrest_before,
+                    'unrest_after': unrest_after,
+                    'unrest_change': unrest_after - unrest_before}
+        tile_outcomes.append(tile_row)
+        if trace_region is not None:
+            from run_trace import emit
+            entertainment_event_id = emit(
+                trace_region, kind='mass_entertainment_tile_effect',
+                record_class='outcome', phase='policy_action',
+                subject={'type': 'tile', 'id': tile.name},
+                metric_id='society.entertainment_level',
+                before=cur, after=entertainment_after, unit='ratio',
+                inputs={'operation_id': operation_id, 'turn': turn,
+                        'per_tile_target_increase': boost,
+                        'actual_increase': entertainment_after - cur,
+                        'cap': 1.0,
+                        'funding_event_id': funding_event_id,
+                        'expenditure_event_id': expenditure_event_id},
+                cause_event_ids=([expenditure_event_id]
+                                 if expenditure_event_id else
+                                 [funding_event_id] if funding_event_id else None))
+            unrest_event_id = emit(
+                trace_region, kind='mass_entertainment_unrest_effect',
+                record_class='outcome', phase='policy_action',
+                subject={'type': 'tile', 'id': tile.name},
+                metric_id='politics.unrest_level',
+                before=unrest_before, after=unrest_after, unit='ratio',
+                inputs={'operation_id': operation_id, 'turn': turn,
+                        'entertainment_effect': 'subtracts 0.15 unrest, floored at zero',
+                        'funding_event_id': funding_event_id,
+                        'expenditure_event_id': expenditure_event_id},
+                cause_event_ids=([entertainment_event_id]
+                                 if entertainment_event_id else
+                                 [expenditure_event_id]
+                                 if expenditure_event_id else None))
+            effect_event_ids.extend(event_id for event_id in
+                                    (entertainment_event_id, unrest_event_id)
+                                    if event_id)
+
+    if trace_region is not None:
+        from run_trace import emit
+        emit(
+            trace_region, kind='mass_entertainment_subsidy_outcome',
+            record_class='outcome', phase='policy_action',
+            subject={'type': 'nation/action',
+                     'id': getattr(target, 'name', 'unnamed')},
+            metric_id='scenario.mass_entertainment_action',
+            after='applied', unit='policy_result',
+            inputs={'operation_id': operation_id, 'turn': turn,
+                    'cost_paid': float(cost),
+                    'source_type': source_type,
+                    'treasury_before': treasury_before,
+                    'treasury_after': treasury_after,
+                    'tile_count': len(tiles),
+                    'tile_effects': tile_outcomes,
+                    'entertainment_increases': sum(
+                        row['entertainment_actual_increase']
+                        for row in tile_outcomes),
+                    'unrest_change_total': sum(row['unrest_change']
+                                               for row in tile_outcomes),
+                    'cash_recipient': None,
+                    'expenditure_event_id': expenditure_event_id},
+            cause_event_ids=([expenditure_event_id] + effect_event_ids
+                             if expenditure_event_id else effect_event_ids
+                             or ([funding_event_id] if funding_event_id else None)))
 
     return True, f"Mass entertainment subsidized (${cost:.0f}): Pacified public unrest!"
 
