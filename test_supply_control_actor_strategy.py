@@ -455,6 +455,102 @@ class ActorAccountTests(unittest.TestCase):
         self.assertEqual(account['closing_bank_debt'], 99)
         self.assertAlmostEqual(account['bank_loan_repayment_cash'], 1.1)
 
+    def test_estate_debt_settlement_records_foreign_payment_and_inherited_principal(self):
+        from agent import Agent
+        from demographics_estate import handle_debt_inheritance
+        from econsim_trade_money import Bank, Loan
+
+        region = Region()
+        region.name = 'Estate District'
+        region.home_currency = 'USD'
+        domestic_treasury, foreign_treasury = Agent(1), Agent(1)
+        domestic_treasury.home_currency = 'USD'
+        foreign_treasury.home_currency = 'EUR'
+        domestic_bank = Bank(gov=SimpleNamespace(agent=domestic_treasury))
+        foreign_bank = Bank(gov=SimpleNamespace(agent=foreign_treasury))
+        domestic_bank._attached_regions = [region]
+        decedent, heir = Agent(1), Agent(1)
+        decedent.cash = 10.0
+        decedent.wallets = {'EUR': 10.0}
+        decedent.loans = [Loan(domestic_bank, decedent, 40.0, 0.01),
+                          Loan(foreign_bank, decedent, 50.0, 0.10)]
+        heir.loans = []
+        heir.wallets = {}
+        heir._bank_ref = domestic_bank
+        domestic_bank.loans = [decedent.loans[0]]
+        domestic_bank.total_liabilities = 40.0
+        domestic_bank.deposits[decedent] = 10.0
+        domestic_bank.total_deposits = 10.0
+        foreign_bank.loans = [decedent.loans[1]]
+        foreign_bank.total_liabilities = 50.0
+        region.bank = domestic_bank
+        region.agents = [decedent, heir, domestic_treasury]
+        begin_turn(region, 11)
+
+        handle_debt_inheritance(
+            SimpleNamespace(bank=domestic_bank, source_region=region),
+            11, decedent, [heir])
+        rows = {row['actor_id']: row for row in seal_turn(region, 11)}
+        events = [event for event in region.economic_events if event['turn'] == 11]
+
+        self.assertAlmostEqual(rows[decedent.id]['cash_change'], -10.0)
+        self.assertAlmostEqual(rows[decedent.id]['posted_cash_change'], -10.0)
+        self.assertEqual(rows[decedent.id]['foreign_wallet_debt_paid'], {'EUR': 10.0})
+        self.assertEqual(rows[heir.id]['bank_debt_inherited'],
+                         {'EUR': 45.0, 'USD': 20.4})
+        self.assertAlmostEqual(rows[heir.id]['closing_bank_debt'], 20.4)
+        self.assertEqual(rows[heir.id]['cash_change'], 0.0)
+        self.assertEqual(rows[heir.id]['unposted_cash_change'], 0.0)
+        self.assertTrue(any(event['kind'] == 'foreign_wallet_debt_payment'
+                            and event['currency'] == 'EUR' for event in events))
+        self.assertTrue(any(event['kind'] == 'bank_debt_inheritance'
+                            and event['recipient_id'] == heir.id for event in events))
+
+    def test_heirless_default_records_loss_waterfall_and_treasury_funding(self):
+        from agent import Agent
+        from demographics_estate import handle_debt_inheritance
+        from econsim_trade_money import Bank, Loan
+
+        region = Region()
+        region.name = 'Default District'
+        region.home_currency = 'USD'
+        treasury, depositor, decedent = Agent(1), Agent(1), Agent(1)
+        treasury.cash = 3.0
+        treasury.home_currency = 'USD'
+        depositor.cash = 20.0
+        decedent.cash = 0.0
+        bank = Bank(gov=SimpleNamespace(agent=treasury))
+        bank._attached_regions = [region]
+        bank.capital = 4.0
+        loan = Loan(bank, decedent, 25.0, 0.0)
+        decedent.loans = [loan]
+        bank.loans = [loan]
+        bank.total_liabilities = 25.0
+        bank.deposits[depositor] = 10.0
+        bank.total_deposits = 10.0
+        region.bank = bank
+        region.agents = [treasury, depositor, decedent]
+        begin_turn(region, 12)
+
+        handle_debt_inheritance(
+            SimpleNamespace(bank=bank, source_region=region),
+            12, decedent, [])
+        rows = {row['actor_id']: row for row in seal_turn(region, 12)}
+        events = [event for event in region.economic_events if event['turn'] == 12]
+        writeoff = next(event for event in events
+                        if event['kind'] == 'bank_debt_writeoff')
+
+        self.assertEqual(writeoff['amount'], 25.0)
+        self.assertEqual(writeoff['detail']['shareholder_capital_absorbed'], 4.0)
+        self.assertEqual(writeoff['detail']['depositor_bail_in'], 10.0)
+        self.assertEqual(writeoff['detail']['treasury_recapitalization'], 3.0)
+        self.assertEqual(writeoff['detail']['unabsorbed_bank_loss'], 8.0)
+        self.assertEqual(rows[decedent.id]['bank_debt_written_off'], {'USD': 25.0})
+        self.assertEqual(rows[depositor.id]['bank_deposit_loss'], 10.0)
+        self.assertEqual(rows[treasury.id]['cash_change'], -3.0)
+        self.assertEqual(rows[treasury.id]['posted_cash_change'], -3.0)
+        self.assertEqual(rows[treasury.id]['unposted_cash_change'], 0.0)
+
 
 class PoliticalCampaignCurrencyTests(unittest.TestCase):
     def test_campaign_finance_keeps_nation_currency_in_candidate_wallet(self):

@@ -59,12 +59,16 @@ already fun or balanced; that still needs player feedback.
 - Bank deposits/withdrawals, loan issuance/repayment, deposit interest, and
   deposit haircuts now post named events. Turn accounts expose bank savings,
   outstanding bank principal, company-store debt, and distinct repayment and
-  haircut totals. Heirless bad-debt bail-ins are also journaled. Broader loan
-  defaults/write-offs and all foreign inheritance paths remain open.
-- Remaining gate work: cover loan defaults/write-offs, every foreign-currency
-  wallet path, and farmgate-to-route-to-import accounting for all cargo sources.
-  The tested default runs close the actor cash bridge, but they do not prove
-  complete balance-sheet or operating-profit coverage.
+  haircut totals. Estate settlement now records repayment from cash/deposits,
+  repayment from foreign-currency wallets, principal transferred to heirs, and
+  heirless principal write-offs. The write-off event names how much was absorbed
+  by bank capital, depositors, and treasury recapitalization; actor summaries
+  keep debt amounts grouped by currency.
+- Remaining gate work: extend coverage to non-estate credit losses and sovereign
+  write-downs, foreign-wallet inheritance and other non-probate currency legs,
+  and farmgate-to-route-to-import accounting for all cargo sources. The tested
+  default runs close the actor cash bridge, but they do not prove complete
+  balance-sheet or operating-profit coverage.
 
 ## Phase 2 — grower and title-holder agency: implemented, deeper law/remedy work out of scope
 
@@ -158,6 +162,8 @@ already fun or balanced; that still needs player feedback.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_supply_control_actor_strategy test_supply_rights test_market_auction test_market_routes test_web_client_parity test_truck_system_and_scrip` — 67 tests passed after bank debt, company-store debt, campaign-currency, and linked shipment additions.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_run_trace test_market_auction test_supply_control_actor_strategy test_phase1_enclosure_expansions` — 34 tests passed after inheritance, cash-rent, enclosure-fee, and public food-purchase postings.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_supply_control_actor_strategy.ActorAccountTests test_supply_control_actor_strategy.SupplyControlActorFixtureTests test_phase1_enclosure_expansions` — 29 tests passed after shared-province cash postings and alienation-flow instrumentation.
+- `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_supply_control_actor_strategy.ActorAccountTests.test_estate_debt_settlement_records_foreign_payment_and_inherited_principal test_supply_control_actor_strategy.ActorAccountTests.test_heirless_default_records_loss_waterfall_and_treasury_funding` — estate repayments, multi-currency inherited debt, deposit bail-in, and treasury recapitalization postings passed.
+- `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_supply_control_actor_strategy.ActorAccountTests test_supply_control_actor_strategy.SupplyControlActorFixtureTests test_phase1_enclosure_expansions` — 31 tests passed after the estate-debt journal additions. `test_run_trace` passed all 17 tests; `test_true_cost_externalities` passed all 10 when run alone.
 - `node --check web_client/client.js` and `git diff --check` — passed after the same changes.
 - `node --check web_client/client.js` — passed.
 - `git diff --check` — passed.

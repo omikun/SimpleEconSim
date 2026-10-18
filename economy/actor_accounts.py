@@ -9,7 +9,9 @@ from goods import Goods
 
 
 _NONCASH_EVENTS = {'production', 'input_consumed', 'scrip_wage',
-                   'scrip_store_sale', 'scrip_food_credit', 'bank_deposit_haircut'}
+                   'scrip_store_sale', 'scrip_food_credit', 'bank_deposit_haircut',
+                   'bank_debt_inheritance', 'bank_debt_writeoff',
+                   'foreign_wallet_debt_payment'}
 
 
 def recorded_cash_delta(events, actor_id):
@@ -152,6 +154,27 @@ def seal_turn(region, turn, event_regions=None):
                       and e['kind'] == 'fx_conversion')
         bank_loan_repayment = sum(e['amount'] for e in own if e['payer_id'] == actor.id
                                   and e['kind'] == 'bank_loan_repayment')
+        bank_debt_inherited = {}
+        for event in own:
+            if (event['recipient_id'] == actor.id
+                    and event['kind'] == 'bank_debt_inheritance'):
+                currency = event.get('currency') or 'unknown'
+                bank_debt_inherited[currency] = (
+                    bank_debt_inherited.get(currency, 0.0) + event['amount'])
+        bank_debt_written_off = {}
+        for event in own:
+            if (event['payer_id'] == actor.id
+                    and event['kind'] == 'bank_debt_writeoff'):
+                currency = event.get('currency') or 'unknown'
+                bank_debt_written_off[currency] = (
+                    bank_debt_written_off.get(currency, 0.0) + event['amount'])
+        foreign_wallet_debt_paid = {}
+        for event in own:
+            if (event['payer_id'] == actor.id
+                    and event['kind'] == 'foreign_wallet_debt_payment'):
+                currency = event.get('currency') or 'unknown'
+                foreign_wallet_debt_paid[currency] = (
+                    foreign_wallet_debt_paid.get(currency, 0.0) + event['amount'])
         bank_deposit_loss = sum(e['amount'] for e in own if e['payer_id'] == actor.id
                                 and e['kind'] == 'bank_deposit_haircut')
         for_lease = [p.plot_id for p in getattr(getattr(region, 'tenure', None), 'plots', [])
@@ -187,6 +210,15 @@ def seal_turn(region, turn, event_regions=None):
             'fx_converted_in': round(fx_received, 2),
             'fx_converted_out': round(fx_paid, 2),
             'bank_loan_repayment_cash': round(bank_loan_repayment, 2),
+            'bank_debt_inherited': {
+                currency: round(amount, 2)
+                for currency, amount in sorted(bank_debt_inherited.items())},
+            'bank_debt_written_off': {
+                currency: round(amount, 2)
+                for currency, amount in sorted(bank_debt_written_off.items())},
+            'foreign_wallet_debt_paid': {
+                currency: round(amount, 2)
+                for currency, amount in sorted(foreign_wallet_debt_paid.items())},
             'bank_deposit_loss': round(bank_deposit_loss, 2),
             'opening_food': prior['food'], 'closing_food': int(actor.inv_get(Goods.food, 0)),
             'food_intake': round(float(getattr(actor, 'last_calories_eaten', 0.0)) / 500.0, 2),

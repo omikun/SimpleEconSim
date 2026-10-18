@@ -90,7 +90,22 @@ def deposit_pool(bank):
     return sum(bank.deposits.values())
 
 
-def forgive_bad_debt(bank, amount, t):
+def _record_debt_event(region, kind, t, *, payer=None, recipient=None,
+                       amount, currency=None, bank=None, detail=None):
+    if region is None or amount <= 0:
+        return None
+    from economy.actor_accounts import record as record_economic_event
+    bank_agent = getattr(getattr(bank, 'gov', None), 'agent', None)
+    return record_economic_event(
+        region, kind, turn=t,
+        payer_id=getattr(payer, 'id', None),
+        recipient_id=getattr(recipient, 'id', None),
+        amount=float(amount), currency=currency or getattr(region, 'home_currency', None),
+        asset_id=f'bank:{bank_agent.id}' if bank_agent is not None else None,
+        detail=detail or {})
+
+
+def forgive_bad_debt(bank, amount, t, *, region=None, debtor=None):
     """Conservation-safe heirless bad-debt forgiveness in seniority order."""
     if amount <= 0:
         return True
@@ -100,12 +115,15 @@ def forgive_bad_debt(bank, amount, t):
     if capital_absorb > 0:
         bank.capital -= capital_absorb
     remaining = amount - capital_absorb
+    deposit_absorb = 0.0
+    treasury_absorb = 0.0
 
     # 2. Depositors bailed in pro-rata.
     if remaining > 0:
         pool = deposit_pool(bank)
         dep_absorb = min(remaining, pool)
         if dep_absorb > 0:
+            deposit_absorb = dep_absorb
             for owner, bal in list(bank.deposits.items()):
                 if bal <= 0:
                     continue
@@ -122,7 +140,9 @@ def forgive_bad_debt(bank, amount, t):
 
     # 3. Tile treasury recapitalization.
     if remaining > 0:
-        remaining -= recapitalize(bank, remaining, t)
+        treasury_absorb = recapitalize(
+            bank, remaining, t, region=region, debtor=debtor)
+        remaining -= treasury_absorb
 
     # 4. Genuine bank failure -> negative equity.
     if remaining > 1e-9:
@@ -130,10 +150,39 @@ def forgive_bad_debt(bank, amount, t):
         logwarning(t, f"BANK FAILURE: ${remaining:.2f} heirless bad debt "
                       f"unabsorbed after seniority order — equity goes "
                       f"negative (capital ${bank.capital:.2f}).")
+    bank_currency = getattr(getattr(getattr(bank, 'gov', None), 'agent', None),
+                             'home_currency', None)
+    _record_debt_event(
+        region, 'bank_debt_writeoff', t, payer=debtor, amount=amount,
+        currency=bank_currency, bank=bank, detail={
+            'principal_written_off': float(amount),
+            'shareholder_capital_absorbed': float(capital_absorb),
+            'depositor_bail_in': float(deposit_absorb),
+            'treasury_recapitalization': float(treasury_absorb),
+            'unabsorbed_bank_loss': float(max(0.0, remaining)),
+            'bank_capital_after': float(bank.capital),
+            'bank_deposits_after': float(bank.total_deposits),
+            'debtor_id': getattr(debtor, 'id', None)})
+    if region is not None:
+        from run_trace import emit
+        emit(region, kind='bank_estate_debt_writeoff', record_class='outcome',
+             phase='demographics',
+             subject={'type': 'tile', 'id': region.name,
+                      'agent_id': getattr(debtor, 'id', None)},
+             metric_id='finance.bank_debt_writeoff',
+             unit='local_currency', before=float(amount), after=0.0,
+             formula_id='estate.bank_bad_debt_seniority_waterfall.v1',
+             inputs={'shareholder_capital_absorbed': float(capital_absorb),
+                     'depositor_bail_in': float(deposit_absorb),
+                     'treasury_recapitalization': float(treasury_absorb),
+                     'unabsorbed_bank_loss': float(max(0.0, remaining)),
+                     'bank_capital_after': float(bank.capital),
+                     'bank_deposits_after': float(bank.total_deposits),
+                     'debtor_id': getattr(debtor, 'id', None)})
     return True
 
 
-def recapitalize(bank, shortfall, t):
+def recapitalize(bank, shortfall, t, *, region=None, debtor=None):
     """Tile treasury lender-of-last-resort recapitalization (conserved)."""
     gov = getattr(bank, 'gov', None)
     if gov is None:
@@ -141,8 +190,28 @@ def recapitalize(bank, shortfall, t):
     take = min(max(0.0, shortfall), max(0.0, gov.agent.cash))
     if take <= 0:
         return 0.0
+    capital_before = float(bank.capital)
     gov.agent.cash -= take
     bank.capital += take
+    _record_debt_event(
+        region, 'bank_recapitalization', t, payer=gov.agent, amount=take,
+        currency=getattr(gov.agent, 'home_currency', None), bank=bank,
+        detail={'capital_injected': float(take),
+                'bank_capital_after': float(bank.capital),
+                'cause': 'heirless_estate_bad_debt',
+                'debtor_id': getattr(debtor, 'id', None)})
+    if region is not None:
+        from run_trace import emit
+        emit(region, kind='estate_bank_recapitalization',
+             record_class='transfer', phase='demographics',
+             subject={'type': 'tile', 'id': region.name,
+                      'agent_id': gov.agent.id},
+             metric_id='finance.bank_recapitalization', unit='local_currency',
+             before=capital_before, after=float(bank.capital),
+             inputs={'capital_injected': float(take),
+                     'debtor_id': getattr(debtor, 'id', None),
+                     'bank_capital_before': capital_before,
+                     'bank_capital_after': float(bank.capital)})
     logwarning(t, f"RECAPITALIZATION: ${take:.2f} treasury capital injected "
                   f"into bank (capital ${bank.capital:.2f})")
     return take
@@ -195,6 +264,7 @@ def escheat_dead_parked_goods(ctx, agent):
 
 def handle_debt_inheritance(ctx, t, agent, living_descendants):
     """Repay debt from agent's cash/deposits; remainder passed to heirs or bank."""
+    region = getattr(ctx, 'source_region', None)
     for loan in list(agent.loans):
         lcur = loan_bank_currency(loan)
         if lcur is None or lcur == getattr(ctx.source_region, 'home_currency', None):
@@ -207,19 +277,48 @@ def handle_debt_inheritance(ctx, t, agent, living_descendants):
         if bal <= 0:
             continue
         amt = min(bal, amount_to_clear)
+        principal_before = float(loan.principle_paid)
+        interest_before = float(loan.interest_paid)
         w[lcur] -= amt
         loan.pay(amt)
+        principal_paid = float(loan.principle_paid) - principal_before
+        interest_paid = float(loan.interest_paid) - interest_before
+        _record_debt_event(
+            region, 'foreign_wallet_debt_payment', t, payer=agent, amount=amt,
+            currency=lcur, bank=loan.bank,
+            detail={'settlement': 'death_estate_wallet',
+                    'bank_currency': lcur,
+                    'principal_paid': principal_paid,
+                    'interest_paid': interest_paid,
+                    'wallet_balance_after': float(w[lcur])})
+        if region is not None:
+            from run_trace import emit
+            emit(region, kind='bank_foreign_wallet_repayment',
+                 record_class='transfer', phase='demographics',
+                 subject={'type': 'agent', 'id': agent.id, 'tile': region.name},
+                 metric_id='finance.foreign_wallet_debt_payment', unit=lcur,
+                 after=float(amt),
+                 inputs={'bank_currency': lcur,
+                         'principal_paid': principal_paid,
+                         'interest_paid': interest_paid,
+                         'wallet_balance_after': float(w[lcur])})
 
     total_wealth = agent.cash + ctx.bank.deposits.get(agent, 0)
     remaining_wealth = total_wealth
     total_paid = 0
+    principal_paid = 0.0
+    interest_paid = 0.0
     for loan in agent.loans:
         if getattr(loan, 'bank', None) is not ctx.bank:
             continue
         amount_to_clear = (loan.principle - loan.principle_paid) + loan.getInterest()
         payment = min(remaining_wealth, amount_to_clear)
         if payment > 0:
+            principal_before = float(loan.principle_paid)
+            interest_before = float(loan.interest_paid)
             loan.pay(payment)
+            principal_paid += float(loan.principle_paid) - principal_before
+            interest_paid += float(loan.interest_paid) - interest_before
             total_paid += payment
             remaining_wealth -= payment
     if total_paid > 0:
@@ -227,6 +326,29 @@ def handle_debt_inheritance(ctx, t, agent, living_descendants):
             needed_from_bank = total_paid - agent.cash
             ctx.bank.Withdraw(agent, needed_from_bank)
         agent.cash -= total_paid
+        bank_currency = loan_bank_currency(next(
+            (loan for loan in agent.loans if getattr(loan, 'bank', None) is ctx.bank), None))
+        _record_debt_event(
+            region, 'bank_loan_repayment', t, payer=agent, amount=total_paid,
+            currency=bank_currency,
+            bank=ctx.bank,
+            detail={'settlement': 'death_estate_cash_and_deposits',
+                    'principal_paid': principal_paid,
+                    'interest_paid': interest_paid,
+                    'cash_after': float(agent.cash),
+                    'deposit_after': float(ctx.bank.deposits.get(agent, 0.0))})
+        if region is not None:
+            from run_trace import emit
+            emit(region, kind='estate_bank_loan_repayment',
+                 record_class='transfer', phase='demographics',
+                 subject={'type': 'agent', 'id': agent.id, 'tile': region.name},
+                 metric_id='finance.bank_loan_repayment', unit='local_currency',
+                 after=float(total_paid),
+                 inputs={'principal_paid': principal_paid,
+                         'interest_paid': interest_paid,
+                         'cash_after': float(agent.cash),
+                         'deposit_after': float(ctx.bank.deposits.get(agent, 0.0)),
+                         'settlement': 'death_estate_cash_and_deposits'})
     agent.loans = [l for l in agent.loans if not l.isPaid()]
 
     loans_by_bank = {}
@@ -242,14 +364,39 @@ def handle_debt_inheritance(ctx, t, agent, living_descendants):
         bank.loans = [l for l in bank.loans if l not in blist]
         if len(living_descendants) > 0:
             principle_share = remaining_principle / len(living_descendants)
+            unpaid_interest = sum(float(loan.getInterest()) for loan in blist)
             for descendent in living_descendants:
                 new_loan = trade.Loan(bank, descendent, principle_share,
                                       bank.interest_rate)
                 descendent.loans.append(new_loan)
                 bank.loans.append(new_loan)
                 bank.total_liabilities += principle_share
+                _record_debt_event(
+                    region, 'bank_debt_inheritance', t, payer=agent,
+                    recipient=descendent, amount=principle_share,
+                    currency=loan_bank_currency(blist[0]), bank=bank,
+                    detail={'inherited_principal': float(principle_share),
+                            'bank_currency': loan_bank_currency(blist[0]),
+                            'source_loan_count': len(blist),
+                            'unpaid_interest_not_carried':
+                                unpaid_interest / len(living_descendants),
+                            'debtor_id': agent.id})
+            if region is not None:
+                from run_trace import emit
+                emit(region, kind='bank_debt_inherited_by_heirs',
+                     record_class='outcome', phase='demographics',
+                     subject={'type': 'agent', 'id': agent.id, 'tile': region.name},
+                     metric_id='finance.bank_debt_inheritance',
+                     unit='local_currency', before=float(remaining_principle),
+                     after=float(remaining_principle),
+                     formula_id='estate.bank_debt_transfer_to_living_heirs.v1',
+                     inputs={'heir_ids': [heir.id for heir in living_descendants],
+                             'bank_currency': loan_bank_currency(blist[0]),
+                             'unpaid_interest_not_carried': unpaid_interest,
+                             'loan_count': len(blist)})
         else:
-            forgive_bad_debt(bank, remaining_principle, t)
+            forgive_bad_debt(bank, remaining_principle, t,
+                             region=region, debtor=agent)
 
 
 def handle_wealth_inheritance(ctx, t, agent, living_descendants):
