@@ -913,3 +913,17 @@ cash legs, trace-on/off state parity, and registered metrics. Treaty signing
 still uses an automatic threshold check rather than a recipient AI response;
 the trace records that current acceptance model explicitly. Compilation and
 `git diff --check` passed.
+
+Phase 4 follow-up, 2026-10-18: active-war AI decisions now expose why a nation
+waits after war is declared, waits for the other side's peace response, proposes
+peace after securing its aim or culminating, or selects an attack. Attack
+records include a bounded list of forecasts and the progress-minus-cost margin
+against the existing 0.15 threshold. Peace evaluations expose the territory,
+supply, strength, recent-loss, and regime-change terms; the final response links
+to that calculation. Tracing leaves the current AI rules unchanged.
+
+Verification: six dedicated war-intent trace tests, six existing war-logic
+tests, and four diplomacy-action tests passed. Coverage includes trace-on/off
+intent parity, peace calculation causal links, regime-change rejection, attack
+forecast selection, peace proposal gates, metric registration, compilation,
+and `git diff --check`.

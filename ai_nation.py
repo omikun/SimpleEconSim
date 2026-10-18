@@ -25,6 +25,49 @@ from war_logic import (aim_secured, attack_forecasts, effective_strength,
                        supply_runway)
 
 
+def _war_ai_trace_context(nation, enemy, war, turn, shared=None):
+    if shared is not None:
+        return shared
+    regions = list(getattr(nation, 'tiles', ())) + list(
+        getattr(enemy, 'tiles', ()))
+    region = next((tile for tile in regions
+                   if getattr(tile, '_run_trace', None) is not None
+                   and getattr(tile, '_collective_trace_clock', None) is not None),
+                  None)
+    if region is None:
+        return None
+    clock = region._collective_trace_clock
+    trace_turn = int(clock.get('turn', turn))
+    return {'region': region, 'turn': trace_turn,
+            'operation_id': (f'war-ai:{nation.name}:{enemy.name}:'
+                             f'{int(war.declared_turn)}:{trace_turn}:'
+                             f'{int(clock.get("next", 0))}'),
+            'event_ids': [], 'last_event_id': None}
+
+
+def _emit_war_ai_trace(context, *, kind, nation, enemy, metric_id, unit,
+                       after, inputs, before=None, record_class='decision',
+                       formula_id=None, cause_event_ids=None):
+    if context is None:
+        return None
+    from run_trace import emit
+    event_inputs = dict(inputs or {})
+    event_inputs.setdefault('operation_id', context['operation_id'])
+    event_inputs.setdefault('turn', context['turn'])
+    event_id = emit(
+        context['region'], kind=kind, record_class=record_class,
+        phase='strategy',
+        subject={'type': 'nation/opponent', 'id': nation.name,
+                 'opponent': enemy.name},
+        metric_id=metric_id, unit=unit, before=before, after=after,
+        inputs=event_inputs, formula_id=formula_id,
+        cause_event_ids=cause_event_ids)
+    if event_id is not None:
+        context.setdefault('event_ids', []).append(event_id)
+        context['last_event_id'] = event_id
+    return event_id
+
+
 class NationPolicyAI:
     """Strategic decision-making intelligence for one sovereign Nation."""
 
@@ -465,8 +508,12 @@ class NationPolicyAI:
     # Main AI Turn Step
     # ------------------------------------------------------------------
 
-    def evaluate_peace_offer(self, war, enemy) -> bool:
+    def evaluate_peace_offer(self, war, enemy, *, _trace_context=None) -> bool:
         """Accept a current-control ceasefire when it beats continued fighting."""
+        trace_context = _war_ai_trace_context(
+            self.nation, enemy, war, getattr(war.pending_offer, 'turn',
+                                             war.declared_turn),
+            shared=_trace_context)
         own = war.sides[self.nation.name]
         enemy_side = war.sides[enemy.name]
         lost_tiles = len(own.initial_tiles - {r.name for r in self.nation.tiles})
@@ -481,45 +528,168 @@ class NationPolicyAI:
         # attacker if it accepts early.
         accept_value = (0.25 + 0.35 * gained_tiles - 0.55 * lost_tiles
                         + (0.55 if runway < 2.0 else 0.0))
-        if any(a.kind == 'regime_change' for a in own.aims) and not aim_secured(
-                self.nation, enemy, own):
+        has_unsecured_regime_change = (
+            any(a.kind == 'regime_change' for a in own.aims)
+            and not aim_secured(self.nation, enemy, own))
+        if has_unsecured_regime_change:
             accept_value -= 1.25
         continue_value = (0.35 * own_power / max(1.0, own_power + enemy_power)
                           - 0.10 * min(3, own.recent_losses)
                           - (0.30 if runway < 2.0 else 0.0))
-        return accept_value >= continue_value + 0.10
+        accepted = accept_value >= continue_value + 0.10
+        _emit_war_ai_trace(
+            trace_context, kind='war_peace_offer_evaluation',
+            nation=self.nation, enemy=enemy,
+            metric_id='war.peace_offer_evaluation', unit='accepted',
+            after=accepted,
+            record_class='calculation',
+            formula_id='war.peace_offer_acceptance.v1',
+            inputs={
+                'decision': 'accept_current_control_ceasefire',
+                'lost_tiles': lost_tiles,
+                'gained_tiles': gained_tiles,
+                'own_effective_strength': own_power,
+                'enemy_effective_strength': enemy_power,
+                'own_power_share': own_power / max(1.0, own_power + enemy_power),
+                'supply_runway_turns': runway,
+                'low_supply_runway': runway < 2.0,
+                'recent_losses': own.recent_losses,
+                'aims': [{'kind': aim.kind, 'target': aim.target}
+                         for aim in own.aims],
+                'unsecured_regime_change_penalty_applied':
+                    has_unsecured_regime_change,
+                'accept_value_components': {
+                    'base': 0.25,
+                    'territory_gained': 0.35 * gained_tiles,
+                    'territory_lost': -0.55 * lost_tiles,
+                    'low_runway': 0.55 if runway < 2.0 else 0.0,
+                    'unsecured_regime_change':
+                        -1.25 if has_unsecured_regime_change else 0.0},
+                'accept_value': accept_value,
+                'continue_value_components': {
+                    'relative_strength': 0.35 * own_power / max(
+                        1.0, own_power + enemy_power),
+                    'recent_losses': -0.10 * min(3, own.recent_losses),
+                    'low_runway': -0.30 if runway < 2.0 else 0.0},
+                'continue_value': continue_value,
+                'required_advantage': 0.10,
+                'acceptance_threshold': continue_value + 0.10,
+                'decision_turn': trace_context.get('turn')
+                    if trace_context else None})
+        return accepted
 
     def choose_war_intent(self, war, enemy, t: int):
+        trace_context = _war_ai_trace_context(self.nation, enemy, war, t)
+
+        def record_choice(intent, reason, *, inputs=None, causes=None):
+            if intent is None:
+                selected = {'intent_type': None}
+            elif isinstance(intent, MoveArmyIntent):
+                selected = {'intent_type': type(intent).__name__,
+                            'unit_id': intent.unit_id,
+                            'from': intent.from_region, 'to': intent.to_region}
+            elif isinstance(intent, RespondPeaceIntent):
+                selected = {'intent_type': type(intent).__name__,
+                            'target': intent.proposer_name,
+                            'accept': intent.accept}
+            elif isinstance(intent, ProposePeaceIntent):
+                selected = {'intent_type': type(intent).__name__,
+                            'target': intent.target_nation_name}
+            else:
+                selected = {'intent_type': type(intent).__name__}
+            decision_inputs = dict(inputs or {})
+            decision_inputs.update({'reason': reason, 'decision_turn': t,
+                                    'war_declared_turn': war.declared_turn,
+                                    'posture': war.sides[self.nation.name].posture})
+            if trace_context is not None:
+                decision_inputs['prior_operation_event_ids'] = list(
+                    trace_context.get('event_ids', ()))
+            _emit_war_ai_trace(
+                trace_context, kind='war_ai_intent_decision',
+                nation=self.nation, enemy=enemy, metric_id='war.ai_intent',
+                unit='intent', after=selected, inputs=decision_inputs,
+                cause_event_ids=causes)
+            return intent
+
         side = war.sides[self.nation.name]
         offer = war.pending_offer
         if offer is not None:
             if offer.recipient == self.nation.name and t > offer.turn:
-                return RespondPeaceIntent(
-                    self.nation.name, offer.proposer,
-                    self.evaluate_peace_offer(war, enemy),
+                evaluation_start = (len(trace_context.get('event_ids', ()))
+                                    if trace_context is not None else 0)
+                accepted = self.evaluate_peace_offer(
+                    war, enemy, _trace_context=trace_context)
+                causes = (trace_context.get('event_ids', [])[evaluation_start:]
+                          if trace_context is not None else None)
+                intent = RespondPeaceIntent(
+                    self.nation.name, offer.proposer, accepted,
                     submitted_turn=t, regime_type=self.nation.regime_type)
-            return None
+                return record_choice(
+                    intent, 'peace_offer_evaluation',
+                    inputs={'offer_proposer': offer.proposer,
+                            'offer_recipient': offer.recipient,
+                            'offer_turn': offer.turn,
+                            'offer_terms': offer.terms,
+                            'accepted': accepted},
+                    causes=causes)
+            reason = ('offer_response_turn_not_elapsed'
+                      if offer.recipient == self.nation.name else
+                      'waiting_for_other_side_to_respond')
+            return record_choice(None, reason, inputs={
+                'offer_proposer': offer.proposer,
+                'offer_recipient': offer.recipient,
+                'offer_turn': offer.turn,
+                'offer_terms': offer.terms})
 
         # Give the defender a response turn after declaration.
         if t <= war.declared_turn:
-            return None
+            return record_choice(None, 'post_declaration_response_turn', inputs={
+                'minimum_action_turn': war.declared_turn + 1})
         secured = aim_secured(self.nation, enemy, side)
         exhausted = side.posture == 'culminated'
-        if (secured or exhausted) and t - side.last_offer_turn >= 3:
-            return ProposePeaceIntent(self.nation.name, enemy.name,
-                                      submitted_turn=t,
-                                      regime_type=self.nation.regime_type)
+        offer_cooldown_elapsed = t - side.last_offer_turn >= 3
+        if (secured or exhausted) and offer_cooldown_elapsed:
+            intent = ProposePeaceIntent(self.nation.name, enemy.name,
+                                        submitted_turn=t,
+                                        regime_type=self.nation.regime_type)
+            return record_choice(intent, 'aim_secured_or_offensive_culminated',
+                                 inputs={'aim_secured': secured,
+                                         'offensive_culminated': exhausted,
+                                         'last_offer_turn': side.last_offer_turn,
+                                         'peace_offer_cooldown_turns': 3,
+                                         'cooldown_elapsed': True})
 
         if side.posture != 'viable':
-            return None
+            return record_choice(None, 'offensive_posture_not_viable', inputs={
+                'aim_secured': secured, 'offensive_culminated': exhausted,
+                'last_offer_turn': side.last_offer_turn,
+                'peace_offer_cooldown_turns': 3,
+                'cooldown_elapsed': offer_cooldown_elapsed})
+
         forecasts = attack_forecasts(self.nation, enemy, side)
-        if forecasts and forecasts[0]['progress'] > forecasts[0]['cost'] + 0.15:
+        selected_forecast = bool(
+            forecasts and forecasts[0]['progress'] > forecasts[0]['cost'] + 0.15)
+        forecast_rows = [dict(row) for row in forecasts[:5]]
+        omitted_forecasts = max(0, len(forecasts) - len(forecast_rows))
+        forecast_inputs = {
+            'attack_forecasts': forecast_rows,
+            'forecast_count': len(forecasts),
+            'omitted_forecast_count': omitted_forecasts,
+            'attack_margin_threshold': 0.15,
+            'selected_forecast_margin': (
+                forecasts[0]['progress'] - forecasts[0]['cost']
+                if forecasts else None)}
+        if selected_forecast:
             best = forecasts[0]
-            return MoveArmyIntent(self.nation.name, best['unit_id'],
-                                  best['from'], best['to'],
-                                  submitted_turn=t,
-                                  regime_type=self.nation.regime_type)
-        return None
+            intent = MoveArmyIntent(self.nation.name, best['unit_id'],
+                                    best['from'], best['to'],
+                                    submitted_turn=t,
+                                    regime_type=self.nation.regime_type)
+            return record_choice(intent, 'best_attack_forecast_exceeds_cost_margin',
+                                 inputs=forecast_inputs)
+        reason = ('no_viable_attack_forecast' if not forecasts else
+                  'best_attack_forecast_below_cost_margin')
+        return record_choice(None, reason, inputs=forecast_inputs)
 
     def decide_turn(self, t: int, all_tiles: list, all_nations: list,
                     diplomacy: DiplomacySystem) -> list[object]:

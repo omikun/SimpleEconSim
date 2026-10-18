@@ -1274,3 +1274,23 @@ Verification: four dedicated diplomacy-action tests and 47 diplomacy, war,
 AI, scenario, and web-client parity tests passed. Trace-on/off behavior parity,
 causal links, treasury conservation, serialization, registered metrics,
 compilation, and `git diff --check` were checked.
+
+## Phase 4 follow-up — Explain active-war AI orders
+
+The active-war chooser now records every return path: waiting on the
+post-declaration turn, waiting for the opponent to answer, peace response,
+peace proposal, non-viable posture, forecast-based movement, or no viable
+attack. Attack decisions retain up to five ordered forecasts and show the
+existing progress-minus-cost test against the 0.15 margin. Ceasefire evaluation
+records its territory, supply, power, recent-loss, and unfulfilled
+regime-change terms, along with the accept-versus-continue comparison. The
+selected peace response links back to its calculation event.
+
+This is instrumentation only: war intent ordering, offer evaluation, and
+thresholds are unchanged. The operation IDs group each chooser and its
+calculation, while event IDs preserve the direct causal edge.
+
+Verification: six dedicated war-intent trace tests, six existing war-logic
+tests, and four diplomacy-action tests passed. Trace-on/off attack and peace
+response intents match; calculation links, regime-change penalties, decision
+gates, metric registration, compilation, and `git diff --check` were checked.
