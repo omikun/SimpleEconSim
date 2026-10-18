@@ -128,6 +128,89 @@ class RunTraceTests(unittest.TestCase):
         self.assertEqual(baseline[3]['inputs']['death_cause'], 'age_or_health')
         self.assertFalse(baseline[2]['inputs']['disease_attributed_by_threshold_crossing'])
 
+    def test_resident_population_bridge_reconciles_lifecycle_and_migration(self):
+        from trace_snapshots import resident_population_bridges
+
+        nation = SimpleNamespace(name='A')
+        departed = SimpleNamespace(id=1, alive=True, is_corporation=False,
+                                   is_government=False, region='Beta')
+        dead = SimpleNamespace(id=2, alive=False, is_corporation=False,
+                               is_government=False, death_region='Alpha',
+                               death_cause='combat')
+        converted = SimpleNamespace(id=3, alive=True, is_corporation=True,
+                                    is_government=False, region='Alpha')
+        newborn = SimpleNamespace(id=4, alive=True, is_corporation=False,
+                                  is_government=False, is_native_child=True,
+                                  birth_round=9, parent=None)
+        alpha = SimpleNamespace(name='Alpha', owner_nation=nation,
+                                agents=[converted])
+        beta = SimpleNamespace(name='Beta', owner_nation=nation,
+                               agents=[departed, newborn])
+        previous = {
+            1: {'agent': departed, 'tile': 'Alpha', 'nation': 'A'},
+            2: {'agent': dead, 'tile': 'Alpha', 'nation': 'A'},
+            3: {'agent': converted, 'tile': 'Alpha', 'nation': 'A'},
+        }
+        current = {
+            1: {'agent': departed, 'tile': 'Beta', 'nation': 'A'},
+            4: {'agent': newborn, 'tile': 'Beta', 'nation': 'A'},
+        }
+        bridges = resident_population_bridges(
+            previous, current,
+            {1: 'person', 2: 'person', 3: 'person'},
+            [alpha, beta], 9,
+            {'1': ['run:10'], '2': ['run:11'], '4': ['run:12']})
+        tile_bridges = {row['id']: row for row in bridges if row['scope'] == 'tile'}
+        self.assertEqual(tile_bridges['Alpha']['before'], 3)
+        self.assertEqual(tile_bridges['Alpha']['after'], 0)
+        self.assertEqual(tile_bridges['Alpha']['inputs']['flow_counts'], {
+            'departures': 1, 'deaths': 1, 'role_conversions_out': 1})
+        self.assertTrue(tile_bridges['Alpha']['inputs']['reconciled'])
+        self.assertEqual(tile_bridges['Beta']['before'], 0)
+        self.assertEqual(tile_bridges['Beta']['after'], 2)
+        self.assertEqual(tile_bridges['Beta']['inputs']['flow_counts'], {
+            'arrivals': 1, 'births': 1})
+        self.assertEqual(tile_bridges['Beta']['cause_event_ids'], ['run:10', 'run:12'])
+        national = next(row for row in bridges if row['scope'] == 'nation')
+        self.assertEqual(national['before'], 3)
+        self.assertEqual(national['after'], 2)
+        self.assertTrue(national['inputs']['reconciled'])
+
+    def test_resident_population_bridge_separates_territorial_membership(self):
+        from trace_snapshots import resident_population_bridges
+
+        resident = SimpleNamespace(id=7, alive=True, is_corporation=False,
+                                   is_government=False)
+        tile = SimpleNamespace(name='Delta', owner_nation=SimpleNamespace(name='B'),
+                               agents=[resident])
+        previous = {7: {'agent': resident, 'tile': 'Delta', 'nation': 'A'}}
+        current = {7: {'agent': resident, 'tile': 'Delta', 'nation': 'B'}}
+        bridges = resident_population_bridges(
+            previous, current, {7: 'person'}, [tile], 10)
+        national = {row['id']: row for row in bridges if row['scope'] == 'nation'}
+        self.assertEqual(national['A']['inputs']['flow_counts'], {'departures': 1})
+        self.assertEqual(national['B']['inputs']['flow_counts'], {'arrivals': 1})
+        self.assertEqual(
+            national['B']['inputs']['flows']['arrivals'][0]['basis'],
+            'territorial_membership_change')
+        self.assertTrue(all(row['inputs']['reconciled'] for row in national.values()))
+
+    def test_resident_population_bridge_downgrades_unknown_exit(self):
+        from trace_snapshots import resident_population_bridges
+
+        resident = SimpleNamespace(id=8, alive=True, is_corporation=False,
+                                   is_government=False)
+        tile = SimpleNamespace(name='Delta', owner_nation=SimpleNamespace(name='A'),
+                               agents=[])
+        previous = {8: {'agent': resident, 'tile': 'Delta', 'nation': 'A'}}
+        bridges = resident_population_bridges(
+            previous, {}, {8: 'person'}, [tile], 11)
+        row = next(row for row in bridges
+                   if row['scope'] == 'tile' and row['id'] == 'Delta')
+        self.assertTrue(row['inputs']['reconciled'])
+        self.assertFalse(row['inputs']['explanation_complete'])
+        self.assertEqual(row['inputs']['flow_counts'], {'unknown_exits': 1})
+
     def test_price_formula_replays_from_recorded_terms(self):
         with tempfile.TemporaryDirectory() as tmp:
             trace = RunTrace(Path(tmp) / 'run.ctr', 'fixture', seed=1)
@@ -182,6 +265,24 @@ class RunTraceTests(unittest.TestCase):
                      'metric_id': 'goods.price', 'value_after': 2.0}]
             right = [{**left[0], 'value_after': 2.5}]
             self.assertEqual(diff_snapshots(left, right)[0]['difference'], 0.5)
+
+    def test_person_flow_event_ids_are_indexed_per_turn(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            trace = RunTrace(Path(tmp) / 'people.ctr', 'people')
+            clock = {'next': 1, 'turn': 1, 'phase': 'demographics'}
+            trace.emit(clock, kind='birth', record_class='outcome',
+                       subject={'type': 'tile', 'id': 'Delta'},
+                       inputs={'new_agent_id': 12})
+            trace.emit(clock, kind='person_died', record_class='outcome',
+                       subject={'type': 'tile/agent', 'id': '13'},
+                       inputs={'agent_id': '13'})
+            self.assertEqual(trace._person_flow_events,
+                             {'12': ['people:1'], '13': ['people:2']})
+            clock['turn'] = 2
+            trace.emit(clock, kind='migration_arrival', record_class='outcome',
+                       subject={'type': 'tile', 'id': 'Delta'},
+                       inputs={'agent_id': 12})
+            self.assertEqual(trace._person_flow_events, {'12': ['people:3']})
 
     def test_price_bridge_tracks_order_and_exposes_gaps(self):
         with tempfile.TemporaryDirectory() as tmp:

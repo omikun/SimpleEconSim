@@ -401,3 +401,11 @@ already fun or balanced; that still needs player feedback.
   is written on the tile that the medical summary reads; the previous context
   lookup could leave it at zero. Probabilities and draws are unchanged.
 - `MPLCONFIGDIR=/private/tmp/mortality-trace-mpl venv/bin/python -m unittest test_run_trace test_trade_route_epidemic_transmission test_person_flows test_war_logic test_metabolic_rift_and_riparian_ecology` — 43 tests passed. Targeted compilation and `git diff --check` passed.
+- Resident census bridges now reconcile end-of-turn living residents by tile
+  and nation: births, external entries, movement, deaths and causes, entity-role
+  conversions, and changes in territorial membership are separate terms.
+  Bridge rows link to retained birth/death/movement/role-conversion event IDs;
+  unclassified exits are listed separately and downgrade confidence even when
+  the arithmetic still reconciles. The metric inventory now
+  marks resident counts and role changes as instrumented.
+- `MPLCONFIGDIR=/private/tmp/population-bridge-tests venv/bin/python -m unittest test_run_trace test_person_flows test_web_server test_trade_route_epidemic_transmission` — 66 tests passed. A five-turn default three-nation trace emitted 20 resident bridges; all 20 reconciled and linked to source events. Targeted compilation and `git diff --check` passed.

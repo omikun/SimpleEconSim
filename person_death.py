@@ -9,6 +9,7 @@ def record_person_death(region, person, turn: int, cause: str, *, inputs=None,
     person.alive = False
     person.death_cause = str(cause)
     person.death_recorded_turn = int(turn)
+    person.death_region = getattr(region, 'name', None)
     region.deaths_this_turn = getattr(region, 'deaths_this_turn', 0) + 1
     counts = getattr(region, 'deaths_by_cause_this_turn', None)
     if counts is None:

@@ -40,10 +40,13 @@ reference quote separately from what buyers actually paid.
   before the real planner. It also truncates sectors to eight. Its feasibility
   labels omit some later cash/return gates. These are prospective alternatives,
   not proof that the real planner evaluated every one of them.
-- New death totals count `demographics_estate.handle_death()` only. Combat and
-  repression/assassination paths also set `alive = False`. Infant losses are
-  separate events and must not be subtracted from an already living population.
-  The death counters currently reset in trace reporting, which also needs repair.
+- The first death probe counted only `demographics_estate.handle_death()`;
+  subsequent work added the shared registered-person path for combat,
+  repression, and assassination. Infant losses stay separate from resident
+  deaths. Disease presence remains risk evidence unless its modifier crosses
+  the actual death-draw threshold.
+  Death counters now reset at the simulation turn boundary, so repeated
+  snapshots do not mutate them.
 - `RunTrace.snapshot()` checks only the latest recorded value. It does not
   validate the formula, preceding mutations, or component provenance. Events
   marked `outcome` are automatically described as exact even where the supplied
@@ -195,8 +198,12 @@ balancing entry may erase a simulation accounting defect.
    elections/coups/claims, and scenario sovereignty/institutional control.
    Derived statistics need membership, weights, refresh cadence and components.
 4. Instrument violent deaths and consolidate mortality accounting without
-   relabeling risk factors as proven causes. Population bridges distinguish
-   births, deaths, migration, soldiers, corporate agents and ownership changes.
+   relabeling risk factors as proven causes. A resident census bridge now
+   distinguishes births, entries, deaths, migration, person/entity role changes,
+   and territorial membership changes by tile and nation. The separate legacy
+   profession-population series and its timing/agent scope still need an
+   explicit bridge; soldiers remain included in resident counts while their
+   military status and movement are traced separately.
 5. Upgrade coverage checks to validate mutation chains, versioned formulas,
    referenced causes, covered components, missing writers and conservation.
    Report counts by scenario, subsystem and metric, not one misleading percent.
@@ -297,7 +304,9 @@ only when the actual death draw is above the pre-disease risk and at or below
 the disease-adjusted risk. The summary counter is updated on the source tile
 read by the disease summary. This adds evidence and corrects a counter wiring
 gap without changing mortality probabilities or random draws. Population
-bridges across births, migration, deaths, and role changes are still pending.
+bridges across living residents now reconcile births, external entries,
+cross-tile migration, deaths, role conversion, and nation membership changes;
+the profession-count series still needs its own scope and phase bridge.
 
 The storage portion of Phase 6 now has a compact `.ctr` event stream and a
 streaming reader; see [the format and decode commands](compact_trace_format.md).

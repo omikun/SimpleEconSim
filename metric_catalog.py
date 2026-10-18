@@ -21,7 +21,7 @@ METRICS = {
     'goods.food_aid': ('tile/government', 'units', 'government.Government.provide_food_aid'),
     'living.cost_of_living': ('tile', 'local_currency_per_basket', 'micro.region.stepper.step_economy'),
     'people.population': ('tile', 'people', 'micro.region.stepper.log_metrics'),
-    'people.residents': ('tile or nation', 'people', 'trace_snapshots.sample'),
+    'people.residents': ('tile/nation', 'people', 'trace_snapshots resident census bridge'),
     'people.deaths': ('tile/agent or nation', 'people_per_turn', 'person_death.record_person_death'),
     'people.births': ('tile', 'people_per_turn', 'demographics_reproduction.handle_reproduction'),
     'people.role': ('tile/agent', 'role', 'construction_politics.find_or_emerge_contractor and region_labor.borrow_or_layoff'),
@@ -155,8 +155,9 @@ LEGACY_HISTORY_TO_METRIC = {
 }
 
 TRACE_INSTRUMENTED = set(LEGACY_HISTORY_TO_METRIC.values()) | {
-    'fx.bilateral_mid', 'politics.legitimacy', 'people.births',
+    'fx.bilateral_mid', 'politics.legitimacy', 'people.births', 'people.residents',
     'finance.sovereign_bond', 'finance.treasury_flow', 'people.deaths',
+    'people.role',
     'health.trade_contagion', 'health.trade_infection',
     'goods.food_aid', 'people.food_security', 'labor.occupation_change',
     'labor.status_change', 'labor.temporary_activity',

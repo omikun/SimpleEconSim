@@ -58,7 +58,11 @@ the FX matrix has a **Why?** button for each quoted currency pair.
   as disease-attributable only when the actual draw exceeds pre-disease risk but
   falls within disease-adjusted risk. The counter is recorded on the source tile
   consumed by the disease summary. Population bridges that reconcile opening
-  residents with births, deaths, migration, and role changes remain open work.
+  residents with births, external entries, departures/arrivals, deaths, role
+  conversions, and territory membership changes are emitted per tile and nation.
+  The separate profession-count population series still needs an explicit phase
+  and membership bridge; military people remain resident-counted while their
+  status and transfers are traced separately.
 - Trade-borne plague records route contagion loading probability and draw,
   quarantine blocks, cargo availability, vulnerable population, and the
   selected newly infected person.

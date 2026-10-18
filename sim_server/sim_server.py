@@ -146,8 +146,11 @@ class SimServer:
                 tile._collective_trace_clock = setup_clock
             for tile in self.tiles:
                 fx.flush_pending_trader_float_traces(tile)
-            from trace_snapshots import sample
+            from trace_snapshots import (entity_role_census, resident_census,
+                                         sample)
             self._trace_previous = sample(self.tiles, self.nations)
+            self._trace_previous_people = resident_census(self.tiles)
+            self._trace_previous_roles = entity_role_census(self.tiles)
 
     def _configure_nation_ai(self):
         """Run sovereign AI for rivals while leaving the selected nation to the player."""

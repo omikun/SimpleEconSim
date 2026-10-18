@@ -3,6 +3,182 @@
 from goods import Goods
 
 
+def _agent_role(agent):
+    if getattr(agent, 'is_corporation', False):
+        return 'corporation'
+    if getattr(agent, 'is_government', False):
+        return 'government'
+    return 'person'
+
+
+def resident_census(tiles):
+    """Capture immutable location fields for the living resident population."""
+    census = {}
+    for tile in tiles:
+        owner = getattr(tile, 'owner_nation', None)
+        nation = getattr(owner, 'name', None) or 'Unclaimed'
+        for person in getattr(tile, 'agents', ()):
+            if (not getattr(person, 'alive', True)
+                    or getattr(person, 'is_corporation', False)
+                    or getattr(person, 'is_government', False)):
+                continue
+            person_id = getattr(person, 'id', None)
+            if person_id in census:
+                raise AssertionError(f'duplicate living person id {person_id}')
+            census[person_id] = {'agent': person, 'tile': tile.name, 'nation': nation}
+    return census
+
+
+def entity_role_census(tiles):
+    """Remember entity roles so person/corporation conversions are visible."""
+    return {getattr(agent, 'id', None): _agent_role(agent)
+            for tile in tiles for agent in getattr(tile, 'agents', ())}
+
+
+def resident_population_bridges(previous, current, previous_roles, tiles, turn,
+                                flow_event_ids=None):
+    """Reconcile resident census changes for tiles and territorial nations.
+
+    Residents are living agents excluding corporations and governments. The
+    bridge uses identity and location changes rather than inferring deaths from
+    disappearance. The observed census difference must equal its classified
+    births, entries, movements, deaths, and role conversions; anything else is
+    retained as an explicit unknown exit or residual.
+    """
+    from collections import Counter, defaultdict
+
+    tiles_by_name = {tile.name: tile for tile in tiles}
+    tile_nations = {
+        tile.name: (getattr(getattr(tile, 'owner_nation', None), 'name', None)
+                    or 'Unclaimed') for tile in tiles}
+    current_agents = {}
+    for tile in tiles:
+        for agent in getattr(tile, 'agents', ()):
+            current_agents[getattr(agent, 'id', None)] = {
+                'agent': agent, 'tile': tile.name,
+                'nation': tile_nations[tile.name], 'role': _agent_role(agent)}
+
+    sources = flow_event_ids or {}
+    tile_flows = defaultdict(lambda: defaultdict(list))
+    nation_flows = defaultdict(lambda: defaultdict(list))
+
+    def add(table, location, kind, person_id, **details):
+        item = {'agent_id': str(person_id), **details}
+        for event_id in sources.get(str(person_id), ()):
+            item.setdefault('cause_event_ids', []).append(event_id)
+        table[location][kind].append(item)
+
+    def movement(person_id, old, new):
+        if old['tile'] != new['tile']:
+            add(tile_flows, old['tile'], 'departures', person_id,
+                destination=new['tile'])
+            add(tile_flows, new['tile'], 'arrivals', person_id,
+                origin=old['tile'])
+        if old['nation'] != new['nation']:
+            basis = ('cross_tile_migration' if old['tile'] != new['tile']
+                     else 'territorial_membership_change')
+            add(nation_flows, old['nation'], 'departures', person_id,
+                destination=new['nation'], basis=basis,
+                origin_tile=old['tile'], destination_tile=new['tile'])
+            add(nation_flows, new['nation'], 'arrivals', person_id,
+                origin=old['nation'], basis=basis,
+                origin_tile=old['tile'], destination_tile=new['tile'])
+
+    def death_location(prior, agent):
+        location = (getattr(agent, 'death_region', None)
+                    or getattr(agent, 'region', None))
+        if location not in tiles_by_name:
+            location = prior['tile']
+        return {'tile': location, 'nation': tile_nations.get(location, prior['nation'])}
+
+    for person_id in previous.keys() | current.keys():
+        prior = previous.get(person_id)
+        now = current.get(person_id)
+        if prior is None:
+            if previous_roles.get(person_id) in ('corporation', 'government'):
+                add(tile_flows, now['tile'], 'role_conversions_in', person_id,
+                    from_role=previous_roles[person_id])
+                add(nation_flows, now['nation'], 'role_conversions_in', person_id,
+                    from_role=previous_roles[person_id], tile=now['tile'])
+            elif (getattr(now['agent'], 'is_native_child', False)
+                  and getattr(now['agent'], 'birth_round', None) == turn):
+                add(tile_flows, now['tile'], 'births', person_id,
+                    parent_id=getattr(getattr(now['agent'], 'parent', None), 'id', None))
+                add(nation_flows, now['nation'], 'births', person_id,
+                    tile=now['tile'])
+            else:
+                add(tile_flows, now['tile'], 'external_entries', person_id)
+                add(nation_flows, now['nation'], 'external_entries', person_id,
+                    tile=now['tile'])
+            continue
+
+        if now is not None:
+            movement(person_id, prior, now)
+            continue
+
+        agent = prior['agent']
+        raw = current_agents.get(person_id)
+        if not getattr(agent, 'alive', True):
+            destination = death_location(prior, agent)
+            movement(person_id, prior, destination)
+            cause = getattr(agent, 'death_cause', None) or 'unclassified'
+            add(tile_flows, destination['tile'], 'deaths', person_id,
+                death_cause=cause)
+            add(nation_flows, destination['nation'], 'deaths', person_id,
+                death_cause=cause, tile=destination['tile'])
+        elif raw is not None and raw['role'] in ('corporation', 'government'):
+            movement(person_id, prior, raw)
+            add(tile_flows, raw['tile'], 'role_conversions_out', person_id,
+                to_role=raw['role'])
+            add(nation_flows, raw['nation'], 'role_conversions_out', person_id,
+                to_role=raw['role'], tile=raw['tile'])
+        else:
+            add(tile_flows, prior['tile'], 'unknown_exits', person_id)
+            add(nation_flows, prior['nation'], 'unknown_exits', person_id,
+                tile=prior['tile'])
+
+    def bridge_rows(before_counts, after_counts, flows, scope):
+        rows = []
+        for location in sorted(before_counts.keys() | after_counts.keys() | flows.keys()):
+            before = int(before_counts[location])
+            after = int(after_counts[location])
+            entries = flows.get(location, {})
+            counts = {kind: len(people) for kind, people in entries.items()}
+            expected = (before + counts.get('births', 0)
+                        + counts.get('external_entries', 0)
+                        + counts.get('arrivals', 0)
+                        + counts.get('role_conversions_in', 0)
+                        - counts.get('departures', 0)
+                        - counts.get('deaths', 0)
+                        - counts.get('role_conversions_out', 0)
+                        - counts.get('unknown_exits', 0))
+            residual = after - expected
+            unknown_exits = counts.get('unknown_exits', 0)
+            explanation_complete = residual == 0 and unknown_exits == 0
+            if before == after and not any(counts.values()):
+                continue
+            event_ids = sorted({event_id for people in entries.values()
+                                for item in people
+                                for event_id in item.get('cause_event_ids', ())})
+            rows.append({
+                'scope': scope, 'id': location, 'before': before, 'after': after,
+                'inputs': {'turn': int(turn), 'flows': dict(entries),
+                           'flow_counts': counts, 'expected_after': expected,
+                           'unexplained_residual': residual,
+                           'explanation_complete': explanation_complete,
+                           'reconciled': residual == 0,
+                           'resident_definition': 'living agents excluding corporations and governments'},
+                'cause_event_ids': event_ids})
+        return rows
+
+    before_tile = Counter(row['tile'] for row in previous.values())
+    after_tile = Counter(row['tile'] for row in current.values())
+    before_nation = Counter(row['nation'] for row in previous.values())
+    after_nation = Counter(row['nation'] for row in current.values())
+    return (bridge_rows(before_tile, after_tile, tile_flows, 'tile')
+            + bridge_rows(before_nation, after_nation, nation_flows, 'nation'))
+
+
 def sample(tiles, nations):
     values = {}
     for tile in tiles:
@@ -170,9 +346,35 @@ def sample(tiles, nations):
 def record(server):
     current = sample(server.tiles, server.nations)
     previous = getattr(server, '_trace_previous', {})
+    current_people = resident_census(server.tiles)
+    current_roles = entity_role_census(server.tiles)
+    previous_people = getattr(server, '_trace_previous_people', None)
+    previous_roles = getattr(server, '_trace_previous_roles', {})
     clock = getattr(server.tiles[0], '_collective_trace_clock', None) if server.tiles else None
     if clock is not None:
         clock['phase'] = 'snapshot'
+        if previous_people is not None:
+            for bridge in resident_population_bridges(
+                    previous_people, current_people, previous_roles, server.tiles,
+                    clock.get('turn', 0),
+                    getattr(server.run_trace, '_person_flow_events', {})):
+                server.run_trace.emit(
+                    clock, kind='resident_population_bridge', record_class='audit',
+                    phase='snapshot',
+                    subject={'type': bridge['scope'], 'id': bridge['id']},
+                    metric_id='people.residents', unit='people',
+                    before=bridge['before'], after=bridge['after'],
+                    formula_id='population.resident_census_bridge.v1',
+                    inputs=bridge['inputs'],
+                    cause_event_ids=bridge['cause_event_ids'],
+                    confidence=('exact' if bridge['inputs']['explanation_complete']
+                                else 'unknown'),
+                    explanation_status=(
+                        'flows_reconciled'
+                        if bridge['inputs']['explanation_complete'] else
+                        'unknown_exit_present'
+                        if bridge['inputs']['reconciled'] else
+                        'unexplained_population_residual'))
         for tile in server.tiles:
             for metric_id, field, formula_id in (
                     ('people.births', 'births_this_turn', 'people.registered_births.v1'),
@@ -269,3 +471,5 @@ def record(server):
             server.run_trace.snapshot(clock, subject=subject, metric_id=key[0],
                                       unit=unit, before=before, after=after)
     server._trace_previous = current
+    server._trace_previous_people = current_people
+    server._trace_previous_roles = current_roles
