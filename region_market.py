@@ -354,7 +354,7 @@ def calculate_bid_limit(region, agent, good, ref, demand_ratio, quantity):
 def import_ask_price(region, trader, good, *, source_unit_cost=None,
                      freight_per_unit=0.0, source_currency=None,
                      source_region_name=None, shipment_id=None,
-                     source_cost_status=None):
+                     source_cost_status=None, return_event_id=False):
     """Ask for one imported lot using its landed cost and tariff terms."""
     source_region_name = source_region_name or getattr(trader, 'home_region', None)
     src_region = (region.neighbors.get(source_region_name)
@@ -403,14 +403,29 @@ def import_ask_price(region, trader, good, *, source_unit_cost=None,
         ask = max(break_even_ask, min(ask, cap))
     ask = max(0.05, ask)
     from run_trace import emit
-    emit(region, kind='import_delivered_quote', record_class='calculation',
+    trace = getattr(region, '_run_trace', None)
+    arrival_event_id = (trace.shipment_event_id(shipment_id, 'arrival')
+                        if trace is not None
+                        and hasattr(trace, 'shipment_event_id') else None)
+    if shipment_id is None:
+        arrival_status = 'unlinked_legacy_cargo'
+    elif arrival_event_id is None:
+        arrival_status = 'arrival_trace_missing'
+    else:
+        arrival_status = 'linked_to_shipment_arrival'
+    quote_event_id = emit(
+         region, kind='import_delivered_quote', record_class='calculation',
          subject={'type': 'tile', 'id': region.name, 'good': good.name,
                   'seller_id': trader.id, 'shipment_id': shipment_id},
          metric_id='goods.delivered_quote', unit='local_currency_per_unit',
          after=ask, formula_id='market.import_ask.landed_cost.v2',
+         cause_event_ids=[arrival_event_id] if arrival_event_id is not None else None,
          inputs={'source_tile': src_region.name if src_region is not None else None,
                  'shipment_id': shipment_id,
-                         'source_cost_status': source_cost_status,
+                 'arrival_event_id': arrival_event_id,
+                 'arrival_evidence_status': arrival_status,
+                 'owner_trader_id': trader.id,
+                 'source_cost_status': source_cost_status,
                  'source_unit_cost': source_unit_cost,
                  'quote_cost_basis_unit_cost': cost_home,
                  'quote_cost_basis': quote_cost_basis,
@@ -431,7 +446,7 @@ def import_ask_price(region, trader, good, *, source_unit_cost=None,
                  'destination_reference': dest_price,
                  'minimum_import_margin': region.IMPORT_MARGIN_MIN,
                  'currency': region.home_currency})
-    return ask
+    return (ask, quote_event_id) if return_event_id else ask
 
 
 def update_price_ref(region, good, demand_ratio, *, local_asks=None,
@@ -561,17 +576,18 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
                 book.append([calculate_ask_price(region, a, good, ref), qty, a, False])
     for item in imp_pool:
         trader, qty = item[0], item[1]
-        ask = import_ask_price(
+        ask, quote_event_id = import_ask_price(
             region, trader, good,
             shipment_id=item[3] if len(item) > 3 else None,
             source_unit_cost=item[4] if len(item) > 4 else None,
             freight_per_unit=item[5] if len(item) > 5 else 0.0,
             source_currency=item[6] if len(item) > 6 else None,
             source_cost_status=item[7] if len(item) > 7 else None,
-            source_region_name=item[9] if len(item) > 9 else None)
+            source_region_name=item[9] if len(item) > 9 else None,
+            return_event_id=True)
         is_parked = item[2] if len(item) > 2 else False
         book.append([ask, qty, trader, True, is_parked,
-                     *(item[3:] if len(item) > 3 else [])])
+                     *(item[3:] if len(item) > 3 else []), quote_event_id])
     book.sort(key=lambda o: o[0])
 
     bid_limits = {}
@@ -623,6 +639,7 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
         route_history = list(b[12] if len(b) > 12 and b[12] else [])
         source_acquisitions = list(b[13] if len(b) > 13 and b[13] else [])
         seller_home_region = b[14] if len(b) > 14 else None
+        import_quote_event_id = b[15] if len(b) > 15 else None
         seller_account_region = seller_home_region or region
         if qty <= 0 or units >= total_bids:
             continue
@@ -805,7 +822,8 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
                            metric_id='goods.sold', unit='units', before=0, after=take,
                            cause_event_ids=[event_id for event_id in (
                                buyer_order_event_ids.get(buyer.id),
-                               seller_order_event_ids.get(seller.id))
+                               seller_order_event_ids.get(seller.id),
+                               import_quote_event_id if is_import else None)
                                if event_id is not None],
                            inputs={'buyer_id': buyer.id, 'seller_id': seller.id,
                                    'imported': is_import, 'parked': is_parked,
@@ -1471,23 +1489,42 @@ def trade(region, t):
             cause_event_ids=order_source_events[good]['buyers'],
             inputs={'active_agents': len(agents),
                     'submitted_order_count': len(local_orders[good]['buyers']),
-                    'bid_quantities': [
-                        {'buyer_id': row['agent'].id,
-                         'quantity': int(row['quantity'])}
-                        for row in local_orders[good]['buyers']]})
+                        'bid_quantities': [
+                            {'buyer_id': row['agent'].id,
+                             'quantity': int(row['quantity'])}
+                            for row in local_orders[good]['buyers']]})
+        trace = getattr(region, '_run_trace', None)
+        import_lots = []
+        import_arrival_event_ids = []
+        for item in imp_pool:
+            shipment_id = item[3] if len(item) > 3 else None
+            arrival_event_id = (trace.shipment_event_id(shipment_id, 'arrival')
+                                if trace is not None
+                                and hasattr(trace, 'shipment_event_id') else None)
+            if arrival_event_id is not None:
+                import_arrival_event_ids.append(arrival_event_id)
+            import_lots.append({
+                'trader_id': getattr(item[0], 'id', None),
+                'quantity': int(item[1]),
+                'parked': bool(item[2]) if len(item) > 2 else False,
+                'shipment_id': shipment_id,
+                'arrival_event_id': arrival_event_id,
+                'arrival_evidence_status': (
+                    'linked_to_shipment_arrival' if arrival_event_id is not None
+                    else ('unlinked_legacy_cargo' if shipment_id is None
+                          else 'arrival_trace_missing'))})
+        supply_cause_event_ids = list(order_source_events[good]['sellers'])
+        supply_cause_event_ids.extend(
+            event_id for event_id in import_arrival_event_ids
+            if event_id not in supply_cause_event_ids)
         supply_event_id = emit(
             region, kind='market_supply_total', record_class='calculation',
             subject=market_subject, metric_id='goods.supply', unit='units_offered',
             after=price_ta, formula_id='market.local_plus_imports.v1',
-            cause_event_ids=order_source_events[good]['sellers'],
+            cause_event_ids=supply_cause_event_ids,
             inputs={'local_asks': ta, 'imported_asks': imp_total,
                     'local_offer_count': len(local_orders[good]['sellers']),
-                    'import_lots': [
-                        {'trader_id': getattr(item[0], 'id', None),
-                         'quantity': int(item[1]),
-                         'parked': bool(item[2]) if len(item) > 2 else False,
-                         'shipment_id': item[3] if len(item) > 3 else None}
-                        for item in imp_pool]})
+                    'import_lots': import_lots})
         pressure_event_id = emit(
             region, kind='market_demand_supply_ratio', record_class='calculation',
             subject=market_subject, metric_id='goods.demand_ratio', unit='ratio',

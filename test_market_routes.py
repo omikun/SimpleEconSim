@@ -1,6 +1,8 @@
 """Commodity shipments move through routes before entering destination auctions."""
 
 import unittest
+import tempfile
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -10,6 +12,7 @@ from forex import ForexDesk, fx_balance
 from goods import Goods
 from region_logistics import post_exports_to_route, repoint_traders
 from region_market import clear_discriminatory, import_ask_price
+from run_trace import RunTrace
 from transporter import Route
 from world_trade import pending_imports
 
@@ -36,6 +39,88 @@ class MarketRouteTests(unittest.TestCase):
             IMPORT_MARGIN_MIN=0.05, IMPORT_MARGIN_MAX=0.30,
             _auction_import_sales={}, pending_imports=imports,
         )
+
+    def test_trace_links_shipment_arrival_quote_and_paid_sale(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            trace = RunTrace(Path(tmp) / 'imports.ctr', 'import-chain')
+            clock = {'next': 1, 'turn': 2, 'phase': 'trade'}
+            source = SimpleNamespace(
+                name='Upland', home_currency='D', neighbors={}, forex_desks={},
+                forex=None, recipes={Goods.cotton: {'price': 5.0}})
+            destination = SimpleNamespace(
+                name='Lowland', home_currency='D', recipes={Goods.cotton: {'price': 10.0}})
+            trader = self._trader(source, destination, qty=0)
+            shipment_id = 'Upland->Lowland:trace-test'
+            source_sale_id = trace.emit(
+                clock, kind='paid_market_sale', record_class='transfer',
+                subject={'type': 'tile', 'id': source.name, 'good': 'cotton'},
+                inputs={'buyer_id': trader.id, 'seller_id': 44,
+                        'unit_price': 5.0, 'total_paid': 15.0})
+            departure_id = trace.emit(
+                clock, kind='route_shipment_departure',
+                subject={'type': 'shipment', 'id': shipment_id},
+                inputs={'trader_id': trader.id, 'good': 'cotton', 'quantity': 3,
+                        'source_acquisitions': [{
+                            'quantity': 3, 'purchase_trace_event_id': source_sale_id,
+                        }]})
+            departure_row = next(
+                row for row in trace.query(turn=2)['events']
+                if row['kind'] == 'route_shipment_departure')
+            self.assertEqual(departure_row['cause_event_ids'], [source_sale_id])
+            self.assertEqual(
+                departure_row['inputs']['source_acquisition_event_ids'],
+                [source_sale_id])
+            arrival_id = trace.emit(
+                clock, kind='route_shipment_arrival',
+                subject={'type': 'shipment', 'id': shipment_id},
+                inputs={'trader_id': trader.id, 'good': 'cotton', 'quantity': 3})
+            arrival_row = next(
+                row for row in trace.query(turn=2)['events']
+                if row['kind'] == 'route_shipment_arrival')
+            self.assertEqual(arrival_row['cause_event_ids'], [departure_id])
+
+            trader.inventory_foreign[Goods.cotton.value] = 3
+            trader.import_lots = [{
+                'shipment_id': shipment_id, 'destination': destination.name,
+                'good': Goods.cotton.name, 'quantity': 3,
+                'unit_cost': 5.0, 'freight_per_unit': 0.0,
+                'source_currency': 'D', 'source_cost_status': 'trader_cost_basis',
+                'source_shipment_id': shipment_id, 'source_region': source.name,
+                'route_history': ['Upland->Lowland'], 'source_acquisitions': [],
+                'parked': False,
+            }]
+            market = self._destination_market(
+                destination, source,
+                {Goods.cotton: [(trader, 3, False, shipment_id, 5.0, 0.0,
+                                  'D', 'trader_cost_basis', shipment_id,
+                                  source.name, ['Upland->Lowland'], [], source)]})
+            market._collective_trace_clock = clock
+            market._run_trace = trace
+            buyer = Agent(0)
+            initialize_agent(buyer, Goods.cloth, 2, 0, 100.0)
+            buyer.is_corporation = True
+            buyer.inv_set(Goods.cotton, 0)
+            clear_discriminatory(
+                market, Goods.cotton, 10.0, total_asks=3, total_bids=3,
+                imp_pool=market.pending_imports[Goods.cotton], agents=[buyer], t=2,
+                local_orders={'sellers': [], 'buyers': [
+                    {'agent': buyer, 'quantity': 3, 'limit_price': 10.0},
+                ]})
+
+            rows = trace.query(turn=2)['events']
+            by_id = {row['event_id']: row for row in rows}
+            arrival = by_id[arrival_id]
+            quote = next(row for row in rows
+                         if row['kind'] == 'import_delivered_quote')
+            sale = next(row for row in rows
+                        if row['kind'] == 'paid_market_sale'
+                        and row.get('inputs', {}).get('imported'))
+            self.assertEqual(arrival['cause_event_ids'], [departure_id])
+            self.assertIn(arrival_id, quote['cause_event_ids'])
+            self.assertEqual(quote['inputs']['arrival_event_id'], arrival_id)
+            self.assertEqual(quote['inputs']['owner_trader_id'], trader.id)
+            self.assertIn(quote['event_id'], sale['cause_event_ids'])
+            self.assertEqual(sale['inputs']['shipment_id'], shipment_id)
 
     def test_route_carries_cotton_from_export_stock_to_import_pool(self):
         source = SimpleNamespace(name='Upland', home_currency='D', routes={}, neighbors={},

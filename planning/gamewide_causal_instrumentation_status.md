@@ -32,7 +32,11 @@ the FX matrix has a **Why?** button for each quoted currency pair.
   seller offers record available stock and reserves. Same-turn production,
   seller asks, accepted demand/supply totals, replayable market pressure, price
   updates, and paid sales link through event IDs where those events exist.
-  Charter restrictions retain submitted and permitted quantities.
+  Charter restrictions retain submitted and permitted quantities. Imported
+  sales now trace source acquisitions through route departure and arrival,
+  imported supply totals, delivered quotes, and settlement. Each shipment ID
+  keeps its owner, quantity, route history, and parked state; legacy unlinked
+  cargo is labeled separately.
 - The standalone `econsim.py --trace PATH.ctr` option writes price mutations,
   final snapshots and reconciled per-turn bridges. Its decay and market update
   formulas replay from captured inputs; trace-on/off one-turn checks matched
@@ -131,10 +135,12 @@ separate price records with replay checks for supported formulas. Remaining
 price work is linking production, inventories, needs, accepted orders, and
 settlements through time without implying a trade caused an earlier quote.
 Live order records currently cover positive local orders; zero-bid and
-zero-offer reasons and complete imported-shipment route/arrival event links are
-still missing. The main market's `vwap` input is an unweighted recent-sample
-mean. The web inspector can filter a tile and selected good; historical chart
-points do not yet open that inspector directly.
+zero-offer reasons remain missing. Imported shipment IDs now resolve across
+purchase, departure, arrival, supply, quote, and paid sale when those source
+records exist. Route congestion delay inputs, blocked-route reasons, and some
+export limits still need event records. The main market's `vwap` input is an
+unweighted recent-sample mean. The web inspector can filter a tile and selected
+good; historical chart points do not yet open that inspector directly.
 
 The coverage checker reports a changed snapshot as unexplained when its final
 value does not match a recorded calculation. Per-profession headcount snapshots

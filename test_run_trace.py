@@ -594,11 +594,59 @@ class RunTraceTests(unittest.TestCase):
             rows_by_id.get(event_id, {}).get('kind') == 'market_demand_supply_ratio'
             for row in rows if row['kind'] == 'market_price_update'
             for event_id in row.get('cause_event_ids', [])))
-        for _ in range(4):
+        for _ in range(5):
             server.step()
-        self.assertEqual(server.turn, 5)
-        self.assertTrue(server.run_trace.query(turn=5, metric_id='goods.price')['events'])
-        self.assertEqual(verify(server.run_trace.path)['checkpoints'], 5)
+        self.assertEqual(server.turn, 6)
+        self.assertTrue(server.run_trace.query(turn=6, metric_id='goods.price')['events'])
+        self.assertEqual(verify(server.run_trace.path)['checkpoints'], 6)
+        all_rows = server.run_trace.query(limit=100000)['events']
+        all_rows_by_id = {row['event_id']: row for row in all_rows}
+        departures = [row for row in all_rows
+                      if row['kind'] == 'route_shipment_departure']
+        arrivals = [row for row in all_rows
+                    if row['kind'] == 'route_shipment_arrival']
+        self.assertTrue(departures)
+        self.assertTrue(arrivals)
+        self.assertTrue(any(row.get('inputs', {}).get('source_acquisition_event_ids')
+                            and row['inputs']['source_acquisition_event_ids']
+                            for row in departures))
+        for departure in departures:
+            for event_id in departure.get('inputs', {}).get(
+                    'source_acquisition_event_ids', ()):
+                self.assertIn(event_id, departure.get('cause_event_ids', []))
+                self.assertIn(event_id, all_rows_by_id)
+        for arrival in arrivals:
+            departure_id = arrival['inputs']['departure_event_id']
+            self.assertEqual(arrival['inputs']['departure_link_status'], 'linked')
+            self.assertIn(departure_id, arrival.get('cause_event_ids', []))
+            self.assertEqual(all_rows_by_id[departure_id]['kind'],
+                             'route_shipment_departure')
+        imported_supply = [row for row in all_rows
+                           if row['kind'] == 'market_supply_total'
+                           and any(lot.get('arrival_event_id') for lot in
+                                   row.get('inputs', {}).get('import_lots', []))]
+        self.assertTrue(imported_supply)
+        for supply in imported_supply:
+            for lot in supply['inputs']['import_lots']:
+                arrival_id = lot.get('arrival_event_id')
+                if arrival_id is not None:
+                    self.assertIn(arrival_id, supply.get('cause_event_ids', []))
+                    self.assertEqual(all_rows_by_id[arrival_id]['kind'],
+                                     'route_shipment_arrival')
+        imported_quotes = [row for row in all_rows
+                           if row['kind'] == 'import_delivered_quote'
+                           and row.get('inputs', {}).get('arrival_event_id')]
+        self.assertTrue(imported_quotes)
+        for quote in imported_quotes:
+            self.assertIn(quote['inputs']['arrival_event_id'],
+                          quote.get('cause_event_ids', []))
+        imported_sales = [row for row in all_rows
+                          if row['kind'] == 'paid_market_sale'
+                          and row.get('inputs', {}).get('imported')]
+        self.assertTrue(imported_sales)
+        quote_ids = {row['event_id'] for row in imported_quotes}
+        self.assertTrue(any(quote_ids.intersection(row.get('cause_event_ids', []))
+                            for row in imported_sales))
         price_rows = server.run_trace.query(metric_id='goods.price', limit=10000)['events']
         replayed = [replay_event(row) for row in price_rows]
         self.assertTrue(all(result['matches'] for result in replayed if result))

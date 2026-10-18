@@ -319,11 +319,19 @@ demand/supply ratios replay from their recorded inputs. The price update or
 no-order decay links to that ratio. Charter reductions record submitted and
 permitted quantities and the governing rule. This traces submitted positive
 orders; reasons why agents submitted zero orders and full route/arrival evidence
-for imported lots remain open.
+remain open. Imported shipment provenance now links a source acquisition
+purchase to route departure when its trace ID exists, departure to arrival,
+and arrival to the market's
+import supply total and delivered quote; the paid sale links to its buyer order
+and the quote actually evaluated. Shipment ownership, quantity, parked status,
+route history, and explicit legacy-unlinked status stay on the records. Route
+congestion-delay inputs, frozen-route reasons, and some export limits remain
+open.
 
-Verification: the focused trace, auction, and route suites passed 43 tests;
-the strengthened live-chain and standalone formula tests passed. Compilation
-and `git diff --check` passed.
+Verification: the focused trace, auction, and route suites passed 44 tests.
+A seeded six-turn labor-frontier run verified that recorded purchase event IDs
+resolve through departure, arrival, imported supply, delivered quote, and at
+least one paid imported sale. Compilation and `git diff --check` passed.
 One traced labor-frontier turn wrote 2,426 total events in 125,512 compact
 bytes; 425 were market-chain events. All added cause IDs resolved within the
 run and no recorded formula failed replay. This is an initial scenario sample,

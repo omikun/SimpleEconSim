@@ -31,6 +31,9 @@ class RunTrace:
         self._person_flow_events = {}
         self._previous_person_flow_events = {}
         self._turn_production_events = {}
+        self._shipment_departure_events = {}
+        self._shipment_arrival_events = {}
+        self._known_event_ids = set()
         self.path.parent.mkdir(parents=True, exist_ok=True)
         if self.path.exists():
             raise FileExistsError(self.path)
@@ -87,6 +90,46 @@ class RunTrace:
             if value is not None:
                 row[key] = value
         row.update(extra)
+        shipment_id = ((row.get('subject') or {}).get('id')
+                       if (row.get('subject') or {}).get('type') == 'shipment'
+                       else None)
+        if kind == 'route_shipment_departure':
+            event_inputs = dict(row.get('inputs') or {})
+            source_acquisition_event_ids = []
+            source_acquisition_ids_missing = []
+            for acquisition in event_inputs.get('source_acquisitions') or ():
+                acquisition_event_id = (acquisition or {}).get(
+                    'purchase_trace_event_id')
+                if acquisition_event_id is None:
+                    continue
+                if acquisition_event_id in self._known_event_ids:
+                    source_acquisition_event_ids.append(acquisition_event_id)
+                else:
+                    source_acquisition_ids_missing.append(acquisition_event_id)
+            event_inputs['source_acquisition_event_ids'] = source_acquisition_event_ids
+            event_inputs['source_acquisition_trace_status'] = (
+                'linked' if source_acquisition_event_ids
+                else 'referenced_trace_event_missing'
+                if source_acquisition_ids_missing else 'no_trace_link_recorded')
+            row['inputs'] = event_inputs
+            causes = list(row.get('cause_event_ids') or ())
+            for acquisition_event_id in source_acquisition_event_ids:
+                if acquisition_event_id not in causes:
+                    causes.append(acquisition_event_id)
+            if causes:
+                row['cause_event_ids'] = causes
+        if kind == 'route_shipment_arrival' and shipment_id is not None:
+            departure_event_id = self._shipment_departure_events.get(str(shipment_id))
+            if departure_event_id is not None:
+                causes = list(row.get('cause_event_ids') or ())
+                if departure_event_id not in causes:
+                    causes.append(departure_event_id)
+                row['cause_event_ids'] = causes
+            event_inputs = dict(row.get('inputs') or {})
+            event_inputs['departure_event_id'] = departure_event_id
+            event_inputs['departure_link_status'] = (
+                'linked' if departure_event_id is not None else 'departure_trace_missing')
+            row['inputs'] = event_inputs
         if formula_id is not None and metric_id in (
                 'goods.price', 'goods.seller_ask', 'goods.delivered_quote',
                 'goods.transaction_vwap', 'goods.demand', 'goods.supply',
@@ -117,6 +160,13 @@ class RunTrace:
             self._append(row)
         except OSError as exc:
             self.write_error = str(exc)
+        if self.write_error is None and shipment_id is not None:
+            if kind == 'route_shipment_departure':
+                self._shipment_departure_events[str(shipment_id)] = row['event_id']
+            elif kind == 'route_shipment_arrival':
+                self._shipment_arrival_events[str(shipment_id)] = row['event_id']
+        if self.write_error is None:
+            self._known_event_ids.add(row['event_id'])
         person_flow_kinds = {
             'birth', 'person_died', 'person_role_conversion',
             'migration_departure', 'migration_arrival',
@@ -143,6 +193,16 @@ class RunTrace:
             self._turn_production_events[key] = row['event_id']
         self.recent.append(row)
         return row['event_id']
+
+    def shipment_event_id(self, shipment_id, event_kind='arrival'):
+        """Find the latest recorded route event for a shipment, if available."""
+        if shipment_id is None:
+            return None
+        events = {
+            'departure': self._shipment_departure_events,
+            'arrival': self._shipment_arrival_events,
+        }.get(event_kind)
+        return events.get(str(shipment_id)) if events is not None else None
 
     def snapshot(self, clock, *, subject, metric_id, unit, before, after):
         key = (metric_id, json.dumps(subject, sort_keys=True))
