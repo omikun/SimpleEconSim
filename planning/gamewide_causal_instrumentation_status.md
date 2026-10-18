@@ -202,9 +202,11 @@ Treasury snapshots show cash and deposit components. Bond, Caisse, public
 benefit, Egypt project payroll/recall/remittance, tariff transfers, and
 cadastral tax recovery now have operation IDs and balance evidence. Emergency
 food levies expose exact in-kind stock changes, and routine public grain
-purchases reconcile seller and treasury balances. Canal tolls, imperial claim
-intercepts outside the guided occupation, Egypt subsistence and household aid
-flows, subsidies, repression spending,
+purchases reconcile seller and treasury balances. Guided canal transit tolls
+are traced with the current no-conversion currency mismatch exposed. Caisse
+transit-toll and granary seizures, imperial claim intercepts outside the guided
+occupation, Egypt subsistence and household aid flows, subsidies, repression
+spending,
 inheritance, and many scenario costs still need transfer contracts. National
 treasury, bank, household, firm, and goods-by-currency reconciliations remain
 incomplete. Several scenario operations still need mutation-point records.
@@ -295,6 +297,16 @@ changes and linked unrest, legitimacy, and migration results are recorded; local
 treasury receipts are attributed to the district rather than folded into the
 national balance. Ninety-eight focused tests passed, including trace-on/off
 state equivalence. Full Egypt integration is still blocked before this path by
-the existing Nile delta generation error. Canal tolls, imperial revenue claims
-outside the guided occupation, household aid and subsistence transfers,
+the existing Nile delta generation error. Caisse toll and granary seizures,
+imperial revenue claims outside the guided occupation, household aid and
+subsistence transfers,
 subsidies, repression costs, inheritance, and other scenario transfers remain.
+
+Guided Suez transit tolls now pair the payer and recipient treasury balances,
+record cumulative toll receipts, and link the toll to the fleet's passage into
+Ismailia. Current GBP-to-EGP nominal amounts are explicitly marked as
+unconverted. Two focused tests passed, including trace-on/off state equivalence.
+The existing full geography tests remain blocked during world generation by
+the Nile delta outlet error. Caisse toll and granary seizures and general
+imperial revenue interception remain untraced, along with household aid,
+subsistence, subsidies, repression, inheritance, and other scenario transfers.

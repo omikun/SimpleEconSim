@@ -7,6 +7,91 @@ Guided play issues strategic orders while the shared terrain remains procedural.
 from __future__ import annotations
 
 
+def _trace_canal_toll(world, payer, payee, *, amount, turn, origin, destination,
+                      total_before, total_after, payer_before, payer_after,
+                      payee_before, payee_after):
+    """Record the simulated canal toll, including its unconverted currency legs."""
+    from finance_trace import account_ref, emit_treasury_leg, transfer_contract
+    from run_trace import emit
+
+    trace_region = next((tile for tile in getattr(payee, 'tiles', [])
+                         if getattr(tile, '_run_trace', None) is not None), None)
+    if trace_region is None:
+        trace_region = next((tile for tile in world.get('tiles', [])
+                             if getattr(tile, '_run_trace', None) is not None), None)
+    if trace_region is None:
+        return None
+
+    payer_currency = getattr(payer, 'currency', None) or 'local_currency'
+    payee_currency = getattr(payee, 'currency', None) or 'local_currency'
+    operation_id = (f'canal-toll:{int(turn)}:{payer.name}:{origin}:{destination}:'
+                    f'{float(total_before):.6f}')
+    payer_cash = account_ref(
+        'government_treasury', payer.government.name, payer_currency,
+        nation_id=payer.name, subaccount='government_agent.cash',
+        balance_before=float(payer_before), balance_after=float(payer_after),
+        balance_scope='government_agent.cash')
+    payee_cash = account_ref(
+        'government_treasury', payee.government.name, payee_currency,
+        nation_id=payee.name, subaccount='government_agent.cash',
+        balance_before=float(payee_before), balance_after=float(payee_after),
+        balance_scope='government_agent.cash')
+    currency_details = {
+        'counterparty_currency': payee_currency,
+        'counterparty_currency_mismatch': payer_currency != payee_currency,
+        'currency_conversion_applied': False,
+        'mutation_reference': {'turn': int(turn), 'origin': origin,
+                               'destination': destination},
+    }
+    common = {
+        'amount': float(amount), 'amount_currency': payer_currency,
+        'payer_account': payer_cash,
+        'payee_account': payee_cash, 'local_cash_leg_amount': float(amount),
+        'counterparty_leg_status': 'both_treasury_balances_recorded',
+        **currency_details,
+    }
+    payer_contract = transfer_contract(
+        operation_id, 'canal_transit_toll', side='payer',
+        local_cash_leg_currency=payer_currency, **common)
+    payee_contract = transfer_contract(
+        operation_id, 'canal_transit_toll', side='payee',
+        local_cash_leg_currency=payee_currency, **common)
+    payer_event_id = emit_treasury_leg(
+        trace_region, kind='canal_transit_toll_payment',
+        nation_name=payer.name, currency=payer_currency,
+        signed_amount=-float(amount), contract=payer_contract,
+        phase='scenario_geography',
+        inputs={'turn': int(turn), 'origin': origin,
+                'destination': destination, 'operation_id': operation_id})
+    payee_event_id = emit_treasury_leg(
+        trace_region, kind='canal_transit_toll_receipt',
+        nation_name=payee.name, currency=payee_currency,
+        signed_amount=float(amount), contract=payee_contract,
+        phase='scenario_geography',
+        inputs={'turn': int(turn), 'origin': origin,
+                'destination': destination, 'operation_id': operation_id})
+    causes = [event_id for event_id in (payer_event_id, payee_event_id)
+              if event_id is not None]
+    return emit(
+        trace_region, kind='canal_transit_toll_assessment',
+        record_class='outcome', phase='scenario_geography',
+        subject={'type': 'nation_pair/operation', 'id': operation_id},
+        metric_id='finance.canal_toll', unit=payer_currency,
+        before=float(total_before), after=float(total_after),
+        formula_id='scenario.canal_transit_toll.v1',
+        inputs={'operation_id': operation_id, 'turn': int(turn),
+                'payer_nation': payer.name, 'payee_nation': payee.name,
+                'origin': origin, 'destination': destination,
+                'amount': float(amount), 'amount_currency': payer_currency,
+                'payer_balance_before': float(payer_before),
+                'payer_balance_after': float(payer_after),
+                'payee_balance_before': float(payee_before),
+                'payee_balance_after': float(payee_after),
+                'currency_conversion_applied': False,
+                'counterparty_currency_mismatch': payer_currency != payee_currency},
+        cause_event_ids=causes or None)
+
+
 ROUTES = {
     'Mediterranean': ('Alexandria', 'Port Said'),
     'Alexandria': ('Mediterranean', 'Nile Delta'),
@@ -84,17 +169,53 @@ def move_fleet(world, nation_name, destination):
         return False  # These are army routes, not navigable fleet positions.
     if destination == 'Ismailia' and not canal_access(world, nation_name):
         return False
+    toll_event_id = None
+    origin = fleet['location']
     if destination == 'Ismailia' and nation_name != 'Egypt':
         payer = next((n for n in world['nations'] if n.name == nation_name), None)
         egypt = next((n for n in world['nations'] if n.name == 'Egypt'), None)
         toll = 2.0
         if payer is None or egypt is None or payer.government.agent.cash < toll:
             return False
+        payer_before = float(payer.government.agent.cash)
+        egypt_before = float(egypt.government.agent.cash)
+        total_before = float(geography['canal_tolls_collected'])
         payer.government.agent.cash -= toll
         egypt.government.agent.cash += toll
         geography['canal_tolls_collected'] += toll
+        toll_event_id = _trace_canal_toll(
+            world, payer, egypt, amount=toll,
+            turn=int(world.get('turn', 0)), origin=origin,
+            destination=destination, total_before=total_before,
+            total_after=float(geography['canal_tolls_collected']),
+            payer_before=payer_before,
+            payer_after=float(payer.government.agent.cash),
+            payee_before=egypt_before,
+            payee_after=float(egypt.government.agent.cash))
+    coal_before = int(fleet['coal'])
     fleet['coal'] -= 1
     fleet['location'] = destination
+    from run_trace import emit
+    trace_region = next((tile for tile in world.get('tiles', [])
+                         if getattr(tile, '_run_trace', None) is not None), None)
+    if trace_region is None:
+        for nation in world.get('nations', []):
+            trace_region = next((tile for tile in getattr(nation, 'tiles', [])
+                                 if getattr(tile, '_run_trace', None) is not None), None)
+            if trace_region is not None:
+                break
+    emit(
+        trace_region, kind='scenario_fleet_movement', record_class='outcome',
+        phase='scenario_geography',
+        subject={'type': 'nation/fleet', 'id': nation_name},
+        metric_id='military.fleet_position', unit='site',
+        before=origin, after=destination,
+        formula_id='scenario.fleet_movement_gate.v1',
+        inputs={'nation': nation_name, 'coal_before': coal_before,
+                'coal_after': int(fleet['coal']), 'supplied': bool(fleet['supplied']),
+                'toll_required': destination == 'Ismailia' and nation_name != 'Egypt',
+                'toll_event_id': toll_event_id},
+        cause_event_ids=([toll_event_id] if toll_event_id is not None else None))
     return True
 
 

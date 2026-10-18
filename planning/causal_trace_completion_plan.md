@@ -615,7 +615,23 @@ arrears balances and check cause links; trace-on/off fixtures produced identical
 simulation state. The 98 focused coercion, banking, grain, occupation/tribute,
 government transfer, supply-control, and live-trace tests passed. Compilation
 and `git diff --check` passed. Full Egypt integration remains blocked earlier
-in world generation by the existing missing Nile delta outlet. Canal tolls,
-imperial revenue claims outside the guided occupation, household aid and
+in world generation by the existing missing Nile delta outlet. Guided Suez
+transit tolls, imperial revenue claims outside the guided occupation, household
+aid and subsistence flows, subsidies, repression costs, inheritance, and other
+scenario costs remain.
+
+Phase 3 follow-up, 2026-10-18: guided canal transit now records paired payer and
+recipient treasury balances, a cumulative toll event, and the resulting fleet
+movement. It retains the simulation's nominal transfer across GBP and EGP and
+marks that no currency conversion occurred, so the mismatch is visible in the
+trace. The event uses a deterministic operation ID derived from the turn,
+crossing, payer, and prior toll total.
+
+Verification: two focused toll-trace tests passed. They checked both account
+balances, shared operation IDs, the cross-currency no-conversion flag, movement
+cause links, and trace-on/off state equality. Compilation and `git diff --check`
+passed. The four existing end-to-end geography tests remain blocked by
+the previously documented Egypt delta-generation error. Caisse transit-toll
+and granary seizures, general imperial revenue interception, household aid and
 subsistence flows, subsidies, repression costs, inheritance, and other scenario
 costs remain.
