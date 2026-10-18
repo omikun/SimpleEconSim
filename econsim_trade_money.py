@@ -211,25 +211,56 @@ class Bank():
         self.deposits[agent] -= amount
         self._record_account_event(agent, 'bank_withdrawal', float(amount), recipient=True)
 
-    def write_down_bonds(self, loss_amount: float, trace_region=None) -> bool:
+    def write_down_bonds(self, loss_amount: float, trace_region=None, *,
+                         bond_id=None, issuer_nation=None, default_kind='sovereign_default',
+                         defaulted_amount=None, turn=None) -> bool:
         """Absorb sovereign debt default losses against bank Tier-1 capital.
 
         If capital is depleted (<= 0), triggers emergency Corralito deposit freeze.
         """
+        loss_amount = float(loss_amount)
         capital_before = self.capital
+        deposit_freeze_before = bool(getattr(self, 'is_frozen', False))
         self.capital -= loss_amount
         self.cumulative_writedowns += loss_amount
         if self.capital <= 0.0:
             self.is_frozen = True
+        region = trace_region or next(iter(getattr(self, '_attached_regions', ())), None)
+        details = {
+            'institution_id': f"bank:{getattr(region, 'name', 'unknown')}",
+            'bond_id': bond_id,
+            'issuer_nation': issuer_nation,
+            'default_kind': default_kind,
+            'defaulted_amount': float(defaulted_amount)
+            if defaulted_amount is not None else None,
+            'loss_amount': loss_amount,
+            'capital_before': capital_before,
+            'capital_after': self.capital,
+            'equity_before': capital_before + self.total_deposits - self.total_liabilities,
+            'equity_after': self.equity,
+            'deposits': float(self.total_deposits),
+            'liabilities': float(self.total_liabilities),
+            'cumulative_writedowns': float(self.cumulative_writedowns),
+            'deposit_freeze_before': deposit_freeze_before,
+            'deposit_freeze_after': bool(self.is_frozen),
+        }
+        if region is not None:
+            from economy.actor_accounts import record
+            record(region, 'bank_bond_writeoff', turn=turn,
+                   amount=loss_amount, asset_id=bond_id,
+                   detail={key: value for key, value in details.items() if value is not None})
         if trace_region is not None:
             from run_trace import emit
             emit(trace_region, kind='bank_bond_write_down', record_class='outcome',
                  subject={'type': 'tile', 'id': trace_region.name},
                  metric_id='finance.bank_capital', unit='local_currency',
                  before=capital_before, after=self.capital,
-                 inputs={'loss_amount': loss_amount,
-                         'cumulative_writedowns': self.cumulative_writedowns,
-                         'deposit_freeze_after': self.is_frozen})
+                 inputs=details)
+            emit(trace_region, kind='bank_bond_asset_impaired', record_class='outcome',
+                 subject={'type': 'tile', 'id': trace_region.name,
+                          'bond_id': bond_id, 'issuer': issuer_nation},
+                 metric_id='finance.bank_bond_writeoff', unit='local_currency',
+                 after=loss_amount, inputs=details)
         return self.is_frozen
 
     def recapitalize(self, amount: float, trace_region=None) -> bool:

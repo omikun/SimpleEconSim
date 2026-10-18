@@ -1579,6 +1579,31 @@ class SimServer:
                                                        for a in adult_residents)
                                                   / max(1, len(adult_residents)), 3),
         })
+        bank = getattr(tile, 'bank', None)
+        financial_institution = None
+        if bank is not None:
+            capital = float(getattr(bank, 'capital', 0.0))
+            deposits = float(getattr(bank, 'total_deposits', 0.0))
+            liabilities = float(getattr(bank, 'total_liabilities', 0.0))
+            financial_institution = {
+                'type': 'commercial_bank',
+                'currency': getattr(tile, 'home_currency', None),
+                'capital': round(capital, 2),
+                'equity': round(capital + deposits - liabilities, 2),
+                'deposits': round(deposits, 2),
+                'liabilities': round(liabilities, 2),
+                'cumulative_bond_writeoffs': round(float(
+                    getattr(bank, 'cumulative_writedowns', 0.0)), 2),
+                'deposit_frozen': bool(getattr(bank, 'is_frozen', False)),
+                'foreign_reserves': {
+                    str(currency): round(float(amount), 2)
+                    for currency, amount in getattr(bank, 'foreign_reserves', {}).items()},
+                'sovereign_bonds_held': [
+                    {'bond_id': row.get('bond_id'),
+                     'principal': round(float(row.get('principal', 0.0)), 2),
+                     'coupon': round(float(row.get('coupon', 0.0)), 4)}
+                    for row in getattr(bank, 'sovereign_bonds_held', [])],
+            }
 
         return {
             'name': tile.name,
@@ -1610,6 +1635,7 @@ class SimServer:
                  (row['event_ids'] or row['sales_cash'] or row['crop_value'])),
                 key=lambda row: (-row['crop_value'] - row['sales_cash'], row['actor_id']))[:20],
             'economic_events': list(getattr(tile, 'economic_events', [])[-20:]),
+            'financial_institution': financial_institution,
             'buildings': buildings_list,
             'construction_projects': projects_list,
             'garrison': int(getattr(tile, 'garrison', 0)),

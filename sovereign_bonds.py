@@ -632,7 +632,11 @@ class SovereignBondMarket:
                             loss_share = bond.principal / len(issuer_banks)
                             for bank_tile, b_inst in issuer_banks:
                                 was_frozen = getattr(b_inst, 'is_frozen', False)
-                                b_inst.write_down_bonds(loss_share, trace_region=bank_tile)
+                                b_inst.write_down_bonds(
+                                    loss_share, trace_region=bank_tile,
+                                    bond_id=bond.bond_id, issuer_nation=issuer.name,
+                                    default_kind='principal_default',
+                                    defaulted_amount=bond.principal, turn=t)
                                 b_inst.sovereign_bonds_held = [x for x in getattr(b_inst, 'sovereign_bonds_held', []) if x.get('bond_id') != bond.bond_id]
                                 if getattr(b_inst, 'is_frozen', False) and not was_frozen:
                                     from client.desktop.engine import ticker_push
@@ -702,7 +706,11 @@ class SovereignBondMarket:
                             loss_share = bond.principal / len(issuer_banks)
                             for bank_tile, b_inst in issuer_banks:
                                 was_frozen = getattr(b_inst, 'is_frozen', False)
-                                b_inst.write_down_bonds(loss_share, trace_region=bank_tile)
+                                b_inst.write_down_bonds(
+                                    loss_share, trace_region=bank_tile,
+                                    bond_id=bond.bond_id, issuer_nation=issuer.name,
+                                    default_kind='coupon_default',
+                                    defaulted_amount=coupon, turn=t)
                                 b_inst.sovereign_bonds_held = [x for x in getattr(b_inst, 'sovereign_bonds_held', []) if x.get('bond_id') != bond.bond_id]
                                 if getattr(b_inst, 'is_frozen', False) and not was_frozen:
                                     from client.desktop.engine import ticker_push

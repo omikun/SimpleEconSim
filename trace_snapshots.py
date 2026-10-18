@@ -7,6 +7,19 @@ def sample(tiles, nations):
     values = {}
     for tile in tiles:
         tile_subject = {'type': 'tile', 'id': tile.name}
+        bank = getattr(tile, 'bank', None)
+        if bank is not None:
+            capital = float(getattr(bank, 'capital', 0.0))
+            deposits = float(getattr(bank, 'total_deposits', 0.0))
+            liabilities = float(getattr(bank, 'total_liabilities', 0.0))
+            for metric_id, value in (
+                    ('finance.bank_capital', capital),
+                    ('finance.bank_equity', capital + deposits - liabilities),
+                    ('finance.bank_deposits', deposits),
+                    ('finance.bank_liabilities', liabilities),
+                    ('finance.bank_cumulative_writedowns', float(
+                        getattr(bank, 'cumulative_writedowns', 0.0)))):
+                values[(metric_id, tile.name)] = (tile_subject, 'local_currency', value)
         for good, recipe in tile.recipes.items():
             if not isinstance(good, Goods):
                 continue

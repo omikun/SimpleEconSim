@@ -68,6 +68,9 @@ class TestWebClientParity(unittest.TestCase):
         self.assertIn('livelihoods', data['labor_institutions'])
         self.assertIn('market_activity', data)
         self.assertIn('economic_actors', data)
+        self.assertEqual(data['financial_institution']['type'], 'commercial_bank')
+        self.assertIn('cumulative_bond_writeoffs', data['financial_institution'])
+        self.assertIn('sovereign_bonds_held', data['financial_institution'])
         self.assertIn('water_rights', data['tenure'])
         self.assertIn('market_charters', data['tenure'])
 

@@ -16,6 +16,26 @@ from trace_report import report, render, diff_snapshots
 
 
 class RunTraceTests(unittest.TestCase):
+    def test_bank_balance_sheet_is_snapshotted(self):
+        from econsim_trade_money import Bank
+        from trace_snapshots import sample
+
+        bank = Bank()
+        bank.total_deposits = 37.0
+        bank.total_liabilities = 12.0
+        bank.cumulative_writedowns = 8.0
+        tile = SimpleNamespace(
+            name='Delta', recipes={}, agents=[], total_population=[],
+            protest_energy_log=[], unrest_log=[], construction_projects=[],
+            gdp_log=[], cost_of_living=1.0, bank=bank)
+
+        values = sample([tile], [])
+        self.assertEqual(values[('finance.bank_capital', 'Delta')][2], 2000.0)
+        self.assertEqual(values[('finance.bank_equity', 'Delta')][2], 2025.0)
+        self.assertEqual(values[('finance.bank_deposits', 'Delta')][2], 37.0)
+        self.assertEqual(values[('finance.bank_liabilities', 'Delta')][2], 12.0)
+        self.assertEqual(values[('finance.bank_cumulative_writedowns', 'Delta')][2], 8.0)
+
     def test_starvation_death_uses_region_trace_and_snapshot_counter(self):
         from demographics_estate import handle_death
 

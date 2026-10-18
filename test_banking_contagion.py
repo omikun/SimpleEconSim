@@ -115,6 +115,47 @@ class TestBankingContagion(unittest.TestCase):
         # tile1 capital: 1000 - 1250 = -250.0
         self.assertLessEqual(self.tile1.bank.capital, 0.0)
         self.assertTrue(self.tile1.bank.is_frozen)
+        writeoff = next(event for event in self.tile1.economic_events
+                        if event['kind'] == 'bank_bond_writeoff')
+        self.assertEqual(writeoff['asset_id'], 'bnd_crisis')
+        self.assertEqual(writeoff['turn'], 20)
+        self.assertEqual(writeoff['detail']['issuer_nation'], self.nation.name)
+        self.assertEqual(writeoff['detail']['default_kind'], 'principal_default')
+        self.assertEqual(writeoff['amount'], 1250.0)
+
+    def test_bond_write_down_records_auditable_financial_trace(self):
+        class Recorder:
+            def __init__(self):
+                self.rows = []
+
+            def emit(self, clock, **row):
+                self.rows.append({'turn': clock['turn'], **row})
+
+        tile = self.tile1
+        tile._collective_trace_clock = {'turn': 12, 'next': 1, 'phase': 'finance'}
+        tile._run_trace = Recorder()
+        was_frozen = tile.bank.write_down_bonds(
+            250.0, trace_region=tile, bond_id='bnd_audit',
+            issuer_nation=self.nation.name, default_kind='coupon_default',
+            defaulted_amount=5.0, turn=12)
+
+        event = tile.economic_events[-1]
+        self.assertFalse(was_frozen)
+        self.assertEqual(event['kind'], 'bank_bond_writeoff')
+        self.assertEqual(event['asset_id'], 'bnd_audit')
+        self.assertEqual(event['amount'], 250.0)
+        self.assertEqual(event['currency'], getattr(tile, 'home_currency', None))
+        self.assertEqual(event['detail']['defaulted_amount'], 5.0)
+        self.assertEqual(event['detail']['capital_before'], 2000.0)
+        self.assertEqual(event['detail']['capital_after'], 1750.0)
+        self.assertEqual(event['detail']['equity_before'], 2000.0)
+        self.assertEqual(event['detail']['equity_after'], 1750.0)
+        self.assertEqual([row['metric_id'] for row in tile._run_trace.rows],
+                         ['finance.bank_capital', 'finance.bank_bond_writeoff'])
+        writeoff_trace = tile._run_trace.rows[1]
+        self.assertEqual(writeoff_trace['after'], 250.0)
+        self.assertEqual(writeoff_trace['inputs']['bond_id'], 'bnd_audit')
+        self.assertEqual(writeoff_trace['inputs']['default_kind'], 'coupon_default')
 
     def test_corralito_credit_crunch_and_withdrawal_clamp(self):
         bank = self.tile1.bank

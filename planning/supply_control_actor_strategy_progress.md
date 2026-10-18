@@ -48,8 +48,10 @@ already fun or balanced; that still needs player feedback.
   scenario coverage and long-run statement-history checks remain outstanding.
 - Cash statements describe observed transfers, not complete profit. Estate
   foreign-wallet inheritance and escheat now have separate currency records and
-  opening/closing wallet balances; non-estate credit losses, sovereign
-  write-downs, and other noncash asset changes still need coverage.
+  opening/closing wallet balances. Domestic-bank losses on sovereign defaults
+  now have named bond write-off events and before/after capital and equity
+  evidence; non-estate credit losses and other noncash asset changes still need
+  coverage.
 - Cash rent, enclosure charter fees, and bailiff services now post named actor
   transfers. The bailiff's $10 cost is tracked as its own enforcement expense.
 - Estate cash distributed to heirs, government, or charity now posts as named
@@ -65,8 +67,8 @@ already fun or balanced; that still needs player feedback.
   heirless principal write-offs. The write-off event names how much was absorbed
   by bank capital, depositors, and treasury recapitalization; actor summaries
   keep debt amounts grouped by currency.
-- Remaining gate work: extend coverage to non-estate credit losses, sovereign
-  write-downs, and other non-probate currency legs. Paid market purchases now
+- Remaining gate work: extend coverage to non-estate credit losses and other
+  non-probate currency legs. Paid market purchases now
   link cargo from named sellers through route legs to destination fills;
   scenario-seeded or legacy cargo and fully normalized FX, freight, and tariff
   delivered cost remain open. The tested default runs close the actor cash
@@ -147,6 +149,20 @@ already fun or balanced; that still needs player feedback.
   human playtest feedback.
 
 ## Verification run
+
+- Domestic-bank sovereign bond principal and coupon defaults now create one
+  economic journal event per affected tile bank, linked to the bond ID and
+  issuer. Compact trace records the default kind, missed payment amount, actual
+  bank asset loss, capital/equity before and after, deposits, liabilities,
+  cumulative write-downs, and deposit-freeze transition. End-turn snapshots
+  capture bank capital, equity, deposits, liabilities, and cumulative write-
+  downs; tile inspection exposes the institution balance sheet and held
+  sovereign tranches. Existing behavior is preserved: coupon default still
+  writes down the held bond's allocated principal, which the new records make
+  explicit for later tuning.
+- `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_supply_control_actor_strategy test_supply_rights test_market_auction test_market_routes test_web_client_parity test_truck_system_and_scrip test_run_trace test_trace_codec test_banking_contagion` — 116 tests passed.
+- `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python benchmark_supply_default.py 50 4242` — default three-nation run completed 50 turns with zero currency violations, zero unposted actor cash on turn 50, and zero unposted actor-turn cash across the run.
+- `git diff --check` and targeted Python compilation passed for the bank, bond, snapshot, serializer, and test changes.
 
 - Local FX desk conversions now record their home-currency cash leg and the
   foreign amount/rate in the same economic event; a focused account test checks
