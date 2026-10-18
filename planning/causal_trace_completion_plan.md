@@ -1035,3 +1035,16 @@ Verification: six dedicated arrears/dynamics fixtures, four existing Egypt
 politics tests, and all 30 run-trace tests passed (40 total). Compilation and
 `git diff --check` passed. Political response actions and remaining scenario
 cash transfers remain open.
+
+Phase 4 follow-up, 2026-10-18: Guided Egypt's dynastic and officer-movement
+responses now log the selected option, available responses, and compact state
+summaries before and after the choice. Every changed national political metric
+links to the response outcome; the palace-repression choice records each
+territory's unrest increase from the army-loyalty formula. Attempts made
+without a pending crisis or with an unavailable response produce no-op gate
+records. New response and gate metric IDs are registered in the trace catalog.
+
+Verification: nine dedicated arrears, dynamics, and response fixtures, four
+existing Egypt politics tests, and all 30 run-trace tests passed (43 total).
+Compilation and `git diff --check` passed. Other scenario response systems
+and non-Guided policy transfers remain open.

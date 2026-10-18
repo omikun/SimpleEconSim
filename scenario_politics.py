@@ -65,6 +65,66 @@ def _political_evaluation_id(world, nation):
             f"{int(region._collective_trace_clock.get('next', 0))}")
 
 
+def _response_state_snapshot(world, nation):
+    politics = _state(world)
+    scenario = world.get('scenario_state', {})
+    unrest_by_tile = {
+        str(getattr(tile, 'name', index)):
+        float(getattr(tile, 'unrest_level', 0.0))
+        for index, tile in enumerate(nation.tiles)
+    }
+    unrest_values = list(unrest_by_tile.values())
+    return {
+        'political': {
+            'ruler': politics['ruler'],
+            'governing_coalition': politics['governing_coalition'],
+            'officer_access': float(politics['officer_access']),
+            'army_loyalty': float(politics['army_loyalty']),
+            'palace_authority': float(politics['palace_authority']),
+            'civilian_support': float(politics['civilian_support']),
+            'nationalist_movement': float(politics['nationalist_movement']),
+            'cabinet_authority': float(politics['cabinet_authority']),
+            'representative_cabinet': bool(politics['representative_cabinet']),
+            'controllers_dismissed': bool(politics['controllers_dismissed']),
+            'officers_promoted': bool(politics['officers_promoted']),
+            'deposition_resolved': bool(politics['deposition_resolved']),
+            'crisis_resolved': bool(politics['crisis_resolved']),
+        },
+        'scenario': {
+            'fiscal_autonomy': float(scenario.get('fiscal_autonomy', 1.0)),
+            'creditor_confidence': float(scenario.get('creditor_confidence', 0.0)),
+            'chapter': int(scenario.get('chapter', 1)),
+        },
+        'legitimacy': float(getattr(nation, 'legitimacy', 0.0)),
+        'unrest_by_tile': unrest_by_tile,
+        'unrest_summary': {
+            'tile_count': len(unrest_values),
+            'mean': sum(unrest_values) / max(1, len(unrest_values)),
+            'minimum': min(unrest_values) if unrest_values else None,
+            'maximum': max(unrest_values) if unrest_values else None,
+        },
+    }
+
+
+def _trace_political_response_gate(world, nation, kind, response_id,
+                                   available_response_ids, reason):
+    if nation is None:
+        return None
+    turn = int(world.get('turn', 0))
+    operation_id = _political_evaluation_id(world, nation)
+    return _emit_politics_trace(
+        world, nation,
+        kind='scenario_political_response_gate_evaluation',
+        record_class='decision', phase='scenario_politics',
+        subject={'type': 'scenario/nation', 'id': nation.name},
+        metric_id='scenario.political_response_gate', unit='available',
+        after=False,
+        inputs={'operation_id': operation_id, 'turn': turn,
+                'crisis_kind': kind, 'response_id': response_id,
+                'available_response_ids': list(available_response_ids),
+                'available': False, 'reason': reason})
+
+
 def initialize(world):
     egypt = _egypt(world)
     rules = situation_template()['politics']
@@ -641,14 +701,39 @@ def resolve(world, response_id):
     warning = world.get('scenario_warning_modal') or {}
     kind = warning.get('kind')
     if kind not in ('dynastic_crisis', 'officer_movement'):
+        _trace_political_response_gate(
+            world, _egypt(world), kind, response_id, (),
+            'no_political_transition_awaiting_decision')
         return False, 'There is no political transition awaiting a decision.'
-    if response_id not in {item['id'] for item in response_options(world, kind)}:
+    available_response_ids = [item['id'] for item in response_options(world, kind)]
+    if response_id not in available_response_ids:
+        _trace_political_response_gate(
+            world, _egypt(world), kind, response_id, available_response_ids,
+            'response_unavailable_for_crisis')
         return False, 'That political response is unavailable.'
     state = _state(world)
     scenario = world['scenario_state']
     egypt = _egypt(world)
     from scenario_status import snapshot, record_change
     before = snapshot(world)
+    political_before = _response_state_snapshot(world, egypt)
+    turn = int(world.get('turn', 0))
+    operation_id = _political_evaluation_id(world, egypt)
+    decision_event_id = _emit_politics_trace(
+        world, egypt,
+        kind='scenario_political_response_decision', record_class='decision',
+        phase='scenario_politics',
+        subject={'type': 'scenario/nation', 'id': egypt.name},
+        metric_id='scenario.political_response', before=kind,
+        after=response_id, unit='response',
+        inputs={'operation_id': operation_id, 'turn': turn,
+                'crisis_kind': kind, 'response_id': response_id,
+                'available_response_ids': [item['id']
+                                           for item in response_options(world, kind)],
+                'political_state_before': {
+                    key: value for key, value in political_before.items()
+                    if key != 'unrest_by_tile'},
+                'unrest_before': political_before['unrest_summary']})
     if kind == 'dynastic_crisis':
         state['deposition_resolved'] = True
         if response_id == 'defend_ismail':
@@ -692,6 +777,100 @@ def resolve(world, response_id):
             message = 'The palace resists the movement; weak army loyalty makes repression costly.'
     from scenario_egypt_1877 import enter_chapter_two
     enter_chapter_two(world, 'succession' if kind == 'dynastic_crisis' else 'officer movement')
+    political_after = _response_state_snapshot(world, egypt)
+    response_event_id = _emit_politics_trace(
+        world, egypt,
+        kind='scenario_political_response_applied', record_class='outcome',
+        phase='scenario_politics',
+        subject={'type': 'scenario/nation', 'id': egypt.name},
+        metric_id='scenario.political_response', before='pending',
+        after=response_id, unit='response',
+        inputs={'operation_id': operation_id, 'turn': turn,
+                'crisis_kind': kind, 'response_id': response_id,
+                'message': message,
+                'political_state_before': {
+                    key: value for key, value in political_before.items()
+                    if key != 'unrest_by_tile'},
+                'political_state_after': {
+                    key: value for key, value in political_after.items()
+                    if key != 'unrest_by_tile'},
+                'unrest_before': political_before['unrest_summary'],
+                'unrest_after': political_after['unrest_summary']},
+        cause_event_ids=[decision_event_id] if decision_event_id else None)
+    response_metrics = {
+        'army_loyalty': ('politics.army_loyalty', 'ratio'),
+        'palace_authority': ('politics.palace_authority', 'ratio'),
+        'civilian_support': ('politics.civilian_support', 'ratio'),
+        'nationalist_movement': ('politics.nationalist_movement', 'ratio'),
+        'cabinet_authority': ('politics.cabinet_authority', 'ratio'),
+        'legitimacy': ('politics.legitimacy', 'ratio'),
+        'fiscal_autonomy': ('scenario.fiscal_autonomy', 'ratio'),
+        'creditor_confidence': ('scenario.creditor_confidence', 'ratio'),
+    }
+    scalar_before = {
+        **political_before['political'],
+        **political_before['scenario'],
+        'legitimacy': political_before['legitimacy'],
+    }
+    scalar_after = {
+        **political_after['political'],
+        **political_after['scenario'],
+        'legitimacy': political_after['legitimacy'],
+    }
+    for field, (metric_id, unit_name) in response_metrics.items():
+        if scalar_before[field] == scalar_after[field]:
+            continue
+        _emit_politics_trace(
+            world, egypt,
+            kind='scenario_political_response_metric_outcome',
+            record_class='outcome', phase='scenario_politics',
+            subject={'type': 'scenario/nation/metric', 'id': egypt.name,
+                     'metric': field},
+            metric_id=metric_id, before=scalar_before[field],
+            after=scalar_after[field], unit=unit_name,
+            inputs={'operation_id': operation_id, 'turn': turn,
+                    'crisis_kind': kind, 'response_id': response_id,
+                    'response_event_id': response_event_id},
+            cause_event_ids=([response_event_id] if response_event_id else
+                             [decision_event_id] if decision_event_id else None))
+    for field, metric_id in (
+            ('ruler', 'scenario.ruler_transition'),
+            ('governing_coalition', 'scenario.governing_coalition')):
+        before_value = political_before['political'][field]
+        after_value = political_after['political'][field]
+        if before_value == after_value:
+            continue
+        _emit_politics_trace(
+            world, egypt,
+            kind='scenario_political_response_category_outcome',
+            record_class='outcome', phase='scenario_politics',
+            subject={'type': 'scenario/nation/metric', 'id': egypt.name,
+                     'metric': field},
+            metric_id=metric_id, before=before_value, after=after_value,
+            unit='category',
+            inputs={'operation_id': operation_id, 'turn': turn,
+                    'crisis_kind': kind, 'response_id': response_id,
+                    'response_event_id': response_event_id},
+            cause_event_ids=([response_event_id] if response_event_id else
+                             [decision_event_id] if decision_event_id else None))
+    for tile_name, unrest_before in political_before['unrest_by_tile'].items():
+        unrest_after = political_after['unrest_by_tile'].get(tile_name, unrest_before)
+        if unrest_before == unrest_after:
+            continue
+        _emit_politics_trace(
+            world, egypt,
+            kind='scenario_political_response_unrest_outcome',
+            record_class='outcome', phase='scenario_politics',
+            subject={'type': 'tile', 'id': tile_name},
+            metric_id='politics.unrest_level', before=unrest_before,
+            after=unrest_after, unit='ratio',
+            inputs={'operation_id': operation_id, 'turn': turn,
+                    'crisis_kind': kind, 'response_id': response_id,
+                    'army_loyalty': float(state['army_loyalty']),
+                    'unrest_formula': 'clamp(before + 0.12 * (1 - army_loyalty))',
+                    'response_event_id': response_event_id},
+            cause_event_ids=([response_event_id] if response_event_id else
+                             [decision_event_id] if decision_event_id else None))
     _event(world, message)
     from scenario_history import record as record_history
     record_history(world, message, historical_parallel=response_id in ('accept_tawfiq', 'support_urabi'))

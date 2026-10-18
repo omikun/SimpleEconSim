@@ -663,3 +663,16 @@ Verification: six dedicated arrears/dynamics fixtures, four existing Egypt
 politics tests, and all 30 run-trace tests passed (40 total). Compilation and
 `git diff --check` passed. Political response actions and remaining scenario
 cash transfers still need audit.
+
+Guided Egypt's dynastic and officer-movement response choices now record the
+selected option, crisis context, available options, and political state before
+and after the response. Changed ruler, coalition, legitimacy, autonomy,
+creditor confidence, support, loyalty, authority, and nationalist-movement
+metrics link back to the selected response. The palace-response path records
+the exact unrest change by territory and its army-loyalty formula. Attempts
+without a pending crisis or with an unavailable option record a no-op gate.
+
+Verification: nine dedicated arrears, dynamics, and response fixtures, four
+existing Egypt politics tests, and all 30 run-trace tests passed (43 total).
+Compilation and `git diff --check` passed. Other scenario actions and non-Guided
+policy transfers remain open.

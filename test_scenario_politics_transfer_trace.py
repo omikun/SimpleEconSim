@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from metric_catalog import METRICS, TRACE_INSTRUMENTED
 from scenario_politics import advance as advance_politics
 from scenario_politics import apply_action
+from scenario_politics import resolve as resolve_political_response
 
 
 class MemoryTrace:
@@ -100,6 +101,19 @@ def _dynamics_state(fixture):
         'army_loyalty', 'civilian_support', 'nationalist_movement',
         'palace_authority', 'cabinet_authority')}, unit.morale,
         world.get('scenario_warning_modal'), world.get('playing'))
+
+
+def _scenario_world_with_trace(seed=22):
+    from worldview_engine import build_world_view
+
+    world = build_world_view(seed=seed, scenario_id='egypt_1877')
+    nation = world['selected_nation']
+    tile = nation.tiles[0]
+    trace = MemoryTrace()
+    tile._run_trace = trace
+    tile._collective_trace_clock = {
+        'turn': int(world.get('turn', 0)), 'phase': 'scenario_politics', 'next': 1}
+    return world, nation, trace
 
 
 class ScenarioPoliticsTransferTraceTests(unittest.TestCase):
@@ -247,6 +261,100 @@ class ScenarioPoliticsTransferTraceTests(unittest.TestCase):
                          ['dynastic_crisis', 'officer_movement'])
         self.assertFalse(gates[0]['after'])
         self.assertTrue(gates[1]['after'])
+
+    def test_constitutional_response_traces_choice_and_political_state_changes(self):
+        world, egypt, trace = _scenario_world_with_trace()
+        world['scenario_warning_modal'] = {'kind': 'dynastic_crisis'}
+        state = world['scenario_state']['politics']
+        state['palace_authority'] = 0.50
+        world['scenario_state']['fiscal_autonomy'] = 0.50
+        autonomy_before = world['scenario_state']['fiscal_autonomy']
+        palace_before = state['palace_authority']
+        civilian_before = state['civilian_support']
+
+        success, _message = resolve_political_response(
+            world, 'constitutional_compromise')
+
+        self.assertTrue(success)
+        decision = next(row for row in trace.rows
+                        if row.get('kind') == 'scenario_political_response_decision')
+        applied = next(row for row in trace.rows
+                       if row.get('kind') == 'scenario_political_response_applied')
+        self.assertEqual(decision['before'], 'dynastic_crisis')
+        self.assertEqual(decision['after'], 'constitutional_compromise')
+        self.assertEqual(applied['cause_event_ids'], [decision['event_id']])
+        changes = [row for row in trace.rows
+                   if row.get('kind') ==
+                   'scenario_political_response_metric_outcome']
+        changed = {row['metric_id']: (row['before'], row['after'])
+                   for row in changes}
+        self.assertAlmostEqual(changed['scenario.fiscal_autonomy'][1],
+                               autonomy_before + 0.10)
+        self.assertAlmostEqual(changed['politics.palace_authority'][1],
+                               palace_before + 0.20)
+        self.assertAlmostEqual(changed['politics.civilian_support'][1],
+                               civilian_before + 0.10)
+        categories = [row for row in trace.rows
+                      if row.get('kind') ==
+                      'scenario_political_response_category_outcome']
+        self.assertEqual({row['metric_id'] for row in categories}, {
+            'scenario.ruler_transition', 'scenario.governing_coalition'})
+        for row in trace.rows:
+            metric_id = row.get('metric_id')
+            if metric_id:
+                self.assertIn(metric_id, METRICS)
+                self.assertIn(metric_id, TRACE_INSTRUMENTED)
+
+    def test_backing_palace_traces_per_tile_unrest_effect_from_army_loyalty(self):
+        world, egypt, trace = _scenario_world_with_trace(seed=23)
+        world['scenario_warning_modal'] = {'kind': 'officer_movement'}
+        state = world['scenario_state']['politics']
+        state['army_loyalty'] = 0.4
+        tiles = egypt.tiles[:2]
+        if len(tiles) < 2:
+            self.skipTest('Egypt scenario needs at least two tiles for territorial unrest trace.')
+        tiles[0].unrest_level = 0.2
+        tiles[1].unrest_level = 0.95
+        unrest_before = {tile.name: float(getattr(tile, 'unrest_level', 0.0))
+                         for tile in egypt.tiles}
+
+        success, _message = resolve_political_response(world, 'back_palace')
+
+        self.assertTrue(success)
+        response = next(row for row in trace.rows
+                        if row.get('kind') == 'scenario_political_response_applied')
+        unrest_events = [row for row in trace.rows
+                         if row.get('kind') ==
+                         'scenario_political_response_unrest_outcome']
+        self.assertEqual({row['subject']['id'] for row in unrest_events},
+                         {name for name, value in unrest_before.items() if value < 1.0})
+        self.assertTrue(all(row['cause_event_ids'] == [response['event_id']]
+                            for row in unrest_events))
+        by_tile = {row['subject']['id']: row for row in unrest_events}
+        self.assertAlmostEqual(by_tile[tiles[0].name]['after'], 0.272)
+        self.assertEqual(by_tile[tiles[1].name]['after'], 1.0)
+        self.assertEqual(by_tile[tiles[0].name]['inputs']['army_loyalty'], 0.4)
+
+    def test_unavailable_political_responses_record_noop_gates(self):
+        no_crisis = _fixture()
+        self.assertFalse(resolve_political_response(
+            no_crisis[0], 'accept_tawfiq')[0])
+        no_crisis_gate = next(row for row in no_crisis[7].rows
+                              if row.get('kind') ==
+                              'scenario_political_response_gate_evaluation')
+        self.assertEqual(no_crisis_gate['inputs']['reason'],
+                         'no_political_transition_awaiting_decision')
+        self.assertFalse(no_crisis_gate['after'])
+
+        invalid = _fixture()
+        invalid[0]['scenario_warning_modal'] = {'kind': 'dynastic_crisis'}
+        self.assertFalse(resolve_political_response(invalid[0], 'invalid_response')[0])
+        invalid_gate = next(row for row in invalid[7].rows
+                            if row.get('kind') ==
+                            'scenario_political_response_gate_evaluation')
+        self.assertEqual(invalid_gate['inputs']['reason'],
+                         'response_unavailable_for_crisis')
+        self.assertIn('accept_tawfiq', invalid_gate['inputs']['available_response_ids'])
 
 
 if __name__ == '__main__':
