@@ -89,7 +89,7 @@ METRICS = {
     'goods.emergency_levy': ('tile/government', 'units', 'government.Government._levy_emergency_food'),
     'goods.feudal_tribute': ('tile/serf/lord/good', 'units', 'feudal_tribute.collect_tribute'),
     'goods.grain_transfer': ('tile/operation', 'food_units', 'scenario_political_economy grain movement'),
-    'goods.provincial_relief': ('province/tile', 'units', 'food_logistics.dispatch_province_food'),
+    'goods.provincial_relief': ('province/tile/agent/shipment', 'food_units', 'food_logistics.dispatch_province_food and deliver_province_food; exact donor, in-transit cargo, recipient and public-stock inventory legs'),
     'land.customary_inheritance': ('tile/agent', 'right', 'livelihood_access.inherit_customary_access'),
     'land.use_right_transfer': ('tile/plot', 'tenant_ids', 'scenario_political_economy._foreclose'),
     'land.tax_foreclosure': ('tile/plot/agent', 'foreclosure_events', 'scenario_political_economy._foreclose'),

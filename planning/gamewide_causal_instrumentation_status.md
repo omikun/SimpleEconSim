@@ -206,8 +206,10 @@ purchases reconcile seller and treasury balances. Guided canal transit tolls,
 customs-receivership tariff interception, Caisse toll debits, and granary stock
 seizures are traced with no-conversion currency mismatches and missing source
 legs exposed. Government food aid and household mutual aid now record exact food
-inventory movements. Other untraced imperial claim paths, Egypt subsistence,
-additional household aid channels,
+inventory movements. Provincial emergency relief now traces the donor levy,
+in-transit shipment inventory, haulage cash transfer and recipients or public
+stock on arrival. Other untraced imperial claim paths, Egypt subsistence,
+additional household support channels,
 subsidies, repression spending,
 inheritance, and many scenario costs still need transfer contracts. National
 treasury, bank, household, firm, and goods-by-currency reconciliations remain
@@ -343,3 +345,14 @@ including trace-on/off equivalence. The manager's comment mentions royalty
 seizures, but this step has no royalty seizure implementation. Other imperial
 claims, household aid and subsistence transfers, subsidies, repression,
 inheritance, and other scenario transfers remain.
+
+Provincial emergency relief now reconciles donor food inventories with in-transit
+cargo, pairs the government haulage debit with every hauler's cash increase, and
+traces arrival into resident inventories or destination public stock. Stable
+shipment operation IDs connect the dispatch and later arrival; trace event IDs
+are not stored in simulation state. Outcome events explain when a candidate
+shipment is skipped because no route exists or haulage is unaffordable. Four
+dedicated fixtures and 52 focused food-security, aid and trace tests passed,
+including cloned-state equivalence with tracing enabled and disabled. Broader
+household subsistence, other aid channels, subsidies, repression, inheritance,
+and other scenario transfers remain.

@@ -684,3 +684,23 @@ is left as a separate gameplay correction. The manager comment mentions royalty
 seizures, but no royalty-seizure mutation exists in this path. Other imperial
 claims, household aid and subsistence flows, subsidies, repression costs,
 inheritance, and other scenario costs remain.
+
+Phase 3 follow-up, 2026-10-18: provincial emergency relief now records each
+surplus-food donor debit into the shipment's in-transit cargo balance, the
+government-funded haulage payment with the government's cash debit and every
+hauler's cash increase, and each arrival transfer from cargo to residents or
+the destination's public food inventory. Dispatch events link donor and payment
+legs; arrival events link the recipient and public-stock legs back to the stable
+shipment operation ID. Shipments retain that deterministic ID so the later
+arrival can be matched to dispatch without storing a trace event ID in game
+state. Explicit outcome events record when an eligible transfer is skipped
+because there is no route or the government cannot afford the haulage request.
+A cash leg is emitted only for actual hauler payments.
+
+Verification: four dedicated fixtures reconcile donor food, cargo, wage cash,
+resident food and fallback public stock, and check the unaffordable dispatch
+outcome. A cloned-state check confirms tracing does not change dispatch or
+arrival results. Fifty-two focused food-security, provincial-relief, public-aid,
+and run-trace tests passed. Compilation and `git diff --check` passed. More
+general household subsistence, other aid channels, subsidies, repression
+spending, inheritance, and other scenario costs remain.
