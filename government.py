@@ -67,7 +67,7 @@ def _trace_public_transfer(government, kind, amount, recipients, *, outflow=True
                                  else 'revenue_source_aggregate_only'),
         mutation_reference={'government': government.name, 'turn': turn,
                             'kind': kind})
-    emit_treasury_leg(
+    return emit_treasury_leg(
         region, kind=kind, nation_name=subject['id'], currency=unit,
         signed_amount=-float(amount) if outflow else float(amount),
         contract=contract, phase='government', subject_type=subject['type'],
@@ -78,14 +78,55 @@ def _trace_public_transfer(government, kind, amount, recipients, *, outflow=True
 
 
 def _record_public_cash_transfer(region, turn, kind, payer, recipient, amount,
-                                 detail=None):
+                                 detail=None, cause_event_ids=None):
     if region is None or amount <= 0:
-        return
+        return None
+    operation_id = (f'public-benefit:{region.name}:{int(turn)}:{kind}:'
+                    f'{getattr(payer, "id", "government")}:'
+                    f'{getattr(recipient, "id", "recipient")}')
+    currency = (getattr(region, 'home_currency', None) or 'local_currency')
+    payer_currency = (getattr(payer, 'home_currency', None) or currency)
+    recipient_currency = (getattr(recipient, 'home_currency', None) or currency)
+    recipient_cash_after = float(getattr(recipient, 'cash', 0.0))
+    recipient_cash_before = recipient_cash_after - float(amount)
+    aggregate_linked = bool(cause_event_ids)
     from economy.actor_accounts import record as record_economic_event
-    record_economic_event(
+    journal_event = record_economic_event(
         region, kind, turn=turn, payer_id=getattr(payer, 'id', None),
         recipient_id=getattr(recipient, 'id', None), amount=amount,
-        currency=getattr(region, 'home_currency', None), detail=detail or {})
+        source_id=operation_id, currency=currency, detail=detail or {})
+    from finance_trace import account_ref, cash_transfer_contract, emit_cash_transfer
+    contract = cash_transfer_contract(
+        operation_id, kind, amount=float(amount), currency=currency,
+        payer_account=account_ref(
+            'government_wallet', str(getattr(payer, 'id', 'government')),
+            payer_currency, agent_id=str(getattr(payer, 'id', 'government')),
+            balance_status=('see_linked_aggregate_treasury_leg'
+                            if aggregate_linked
+                            else 'aggregate_treasury_leg_not_recorded'),
+            aggregate_treasury_event_ids=list(cause_event_ids or [])),
+        payee_account=account_ref(
+            'agent_wallet', str(getattr(recipient, 'id', 'recipient')),
+            recipient_currency, agent_id=str(getattr(recipient, 'id', 'recipient')),
+            tile=region.name, balance_before=recipient_cash_before,
+            balance_after=recipient_cash_after, balance_scope='cash_wallet'),
+        counterparty_leg_status=(
+            'exact_recipient_wallet_and_linked_aggregate_payer_balance'
+            if aggregate_linked else
+            'exact_recipient_wallet_payer_aggregate_balance_unavailable'),
+        benefit_kind=kind)
+    return emit_cash_transfer(
+        region, kind=f'{kind}_recipient_payment', contract=contract,
+        phase='government',
+        subject={'type': 'agent', 'id': str(getattr(recipient, 'id', 'recipient')),
+                 'tile': region.name},
+        inputs={'turn': int(turn), 'benefit_kind': kind,
+                'government_name': (detail or {}).get('government'),
+                'recipient_id': str(getattr(recipient, 'id', 'recipient')),
+                'actor_account_event_id': journal_event['id']
+                if journal_event is not None else None,
+                'payment_detail': detail or {}},
+        cause_event_ids=cause_event_ids)
 
 
 class Government:
@@ -261,13 +302,14 @@ class Government:
             return 0.0
         self.agent.cash -= self.baby_bonus_amount
         parent.cash += self.baby_bonus_amount
+        treasury_event_id = _trace_public_transfer(
+            self, 'baby_bonus_paid', self.baby_bonus_amount, [parent.id],
+            newborn_id=str(newborn.id),
+            amount_per_recipient=self.baby_bonus_amount, turn=t)
         _record_public_cash_transfer(
             region, t, 'baby_bonus', self.agent, parent, self.baby_bonus_amount,
-            {'newborn_id': newborn.id, 'government': self.name})
-        _trace_public_transfer(self, 'baby_bonus_paid', self.baby_bonus_amount,
-                              [parent.id], newborn_id=str(newborn.id),
-                              amount_per_recipient=self.baby_bonus_amount,
-                              turn=t)
+            {'newborn_id': newborn.id, 'government': self.name},
+            cause_event_ids=([treasury_event_id] if treasury_event_id else None))
         loginfo(t, f"Government({self.name}) paid ${self.baby_bonus_amount:.2f} baby bonus to "
                 f"{parent.name()} for newborn {newborn.name()}")
         return self.baby_bonus_amount
@@ -326,10 +368,10 @@ class Government:
             recipients = [agent.id for agent in agents
                           if not agent.is_corporation and agent.alive is not False
                           and self._is_citizen(agent)]
-            _trace_public_transfer(self, 'ubi_distributed', total, recipients,
-                                   scheduled_per_person=self.ubi_amount_per_turn,
-                                   scaled_for_shortfall=scaled_for_shortfall,
-                                   turn=t)
+            treasury_event_id = _trace_public_transfer(
+                self, 'ubi_distributed', total, recipients,
+                scheduled_per_person=self.ubi_amount_per_turn,
+                scaled_for_shortfall=scaled_for_shortfall, turn=t)
             for agent in agents:
                 if not agent.is_corporation and agent.alive is not False \
                         and self._is_citizen(agent):
@@ -338,7 +380,9 @@ class Government:
                         self.ubi_amount_per_turn * paid_fraction,
                         {'scheduled_per_person': self.ubi_amount_per_turn,
                          'scaled_for_shortfall': scaled_for_shortfall,
-                         'government': self.name})
+                         'government': self.name},
+                        cause_event_ids=([treasury_event_id]
+                                         if treasury_event_id else None))
         return total
 
     # ------------------------------------------------------------------
@@ -499,14 +543,16 @@ class Government:
                      f"{agent.name()} ({agent._parental_leave_turns_remaining} turns remaining)")
 
         if total > 0:
-            _trace_public_transfer(self, 'parental_leave_paid', total, recipients,
-                                   amount_per_turn=self.parental_leave_amount_per_turn,
-                                   turn=t)
+            treasury_event_id = _trace_public_transfer(
+                self, 'parental_leave_paid', total, recipients,
+                amount_per_turn=self.parental_leave_amount_per_turn, turn=t)
             for agent, pay in payments:
                 _record_public_cash_transfer(
                     region, t, 'parental_leave', self.agent, agent, pay,
                     {'scheduled_per_turn': self.parental_leave_amount_per_turn,
-                     'government': self.name})
+                     'government': self.name},
+                    cause_event_ids=([treasury_event_id]
+                                     if treasury_event_id else None))
         return total
 
     # ------------------------------------------------------------------
@@ -1087,17 +1133,21 @@ class Government:
         for agent in starving_agents:
             agent.cash += welfare
             total_distributed += welfare
+
+        self.agent.cash -= total_distributed
+        treasury_event_id = _trace_public_transfer(
+            self, 'welfare_distributed', total_distributed,
+            [agent.id for agent in starving_agents],
+            minimum_reserve=min_reserve,
+            eligible_starving=len(starving_agents), turn=t)
+        for agent in starving_agents:
             _record_public_cash_transfer(
                 region, t, 'welfare_payment', self.agent, agent, welfare,
                 {'minimum_reserve': min_reserve,
                  'eligible_starving': len(starving_agents),
-                 'government': self.name})
-
-        self.agent.cash -= total_distributed
-        _trace_public_transfer(self, 'welfare_distributed', total_distributed,
-                               [agent.id for agent in starving_agents],
-                               minimum_reserve=min_reserve,
-                               eligible_starving=len(starving_agents), turn=t)
+                 'government': self.name},
+                cause_event_ids=([treasury_event_id]
+                                 if treasury_event_id else None))
         logdebug(t, f"Government({self.name}) distributed ${total_distributed:.2f} welfare "
                     f"to {len(starving_agents)} agents")
         return total_distributed

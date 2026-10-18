@@ -1556,3 +1556,16 @@ Verification: focused fixtures cover private care, public care, and
 self-administered public care with trace-on/off state parity, exact balances,
 and causal links. Those tests and metric-catalog coverage passed (4 tests);
 compilation and `git diff --check` passed.
+
+## Phase 3 follow-up — Trace public household cash benefits
+
+The shared public-transfer journal now also emits per-recipient cash-transfer
+rows for baby bonuses, UBI, parental leave, and starvation welfare. Each row
+shows the exact household wallet change and links to the aggregate treasury
+outflow, which remains the authoritative source-side balance record. Scaled
+UBI and partial parental-leave payments record what was actually paid.
+
+Verification: traced and untraced fixtures match for all four policies,
+including short-funded UBI and leave. Existing government-transfer,
+provincial-policy, and metric-catalog suites passed (12 tests); compilation and
+`git diff --check` passed.

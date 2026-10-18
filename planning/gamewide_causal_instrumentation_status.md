@@ -1150,3 +1150,15 @@ Verification: three tests cover private payment, public payment, and public
 self-administration, each checking trace-on/off state parity and event links.
 Those tests and the metric-catalog audit passed (4 tests); compilation and
 `git diff --check` passed.
+
+Phase 3 follow-up, 2026-10-18: baby bonuses, scaled or full UBI, parental leave,
+and starvation welfare now emit one `finance.cash_transfer` receipt per
+household. Each receipt records the exact recipient wallet before and after,
+the amount actually paid, the actor-account journal ID, and a link to the
+aggregate treasury leg. The contract marks payer balances as aggregate evidence
+instead of inventing per-recipient treasury snapshots.
+
+Verification: three traced/untraced fixtures cover all four benefit paths,
+including a partially funded UBI and parental-leave shortfall. Existing
+government transfer and provincial policy tests plus metric-catalog coverage
+passed (12 tests); compilation and `git diff --check` passed.
