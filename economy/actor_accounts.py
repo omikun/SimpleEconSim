@@ -74,6 +74,13 @@ def seal_turn(region, turn):
                          and e['kind'] in ('spot_sale', 'contract_delivery'))
         purchases = sum(e['amount'] for e in own if e['payer_id'] == actor.id
                         and e['kind'] in ('spot_sale', 'contract_delivery'))
+        recipe_input = getattr(region, 'recipes', {}).get(getattr(actor, 'output', None), {}).get('input')
+        delivered_imports = [e for e in own if e['payer_id'] == actor.id
+                             and e['kind'] == 'spot_sale'
+                             and e['good'] == _name(recipe_input)
+                             and e['detail'].get('imported', False)]
+        delivered_input_spend = sum(e['amount'] for e in delivered_imports)
+        delivered_input_units = sum(e['quantity'] for e in delivered_imports)
         wages = sum(e['amount'] for e in own if e['payer_id'] == actor.id
                     and e['kind'] == 'wage')
         other_costs = sum(e['amount'] for e in own if e['payer_id'] == actor.id
@@ -128,6 +135,10 @@ def seal_turn(region, turn):
             'opening_debt': round(prior['debt'], 2), 'closing_debt': round(debt, 2),
             'sales_cash': round(receipts, 2), 'crop_value': round(crop_value, 2),
             'purchases_cash': round(purchases, 2), 'wages_cash': round(wages, 2),
+            'delivered_input_purchase_cash': round(delivered_input_spend, 2),
+            'delivered_input_purchase_units': round(delivered_input_units, 2),
+            'delivered_input_unit_price': round(delivered_input_spend / delivered_input_units, 2)
+            if delivered_input_units else None,
             'other_costs_cash': round(other_costs, 2),
             'input_consumed_cost': round(input_used, 2),
             'operating_result_recorded': round(receipts - wages - other_costs - input_used, 2),

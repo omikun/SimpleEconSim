@@ -1150,10 +1150,12 @@ def draw_panel(surface, world, font, font_small, mouse_pos=None):
         firm_account = next((a for a in getattr(region, 'actor_turn_accounts', [])
                              if a.get('type') == 'corporation' and a.get('sales_cash', 0) > 0), None)
         if firm_account:
+            delivered = (f" | imported input ${firm_account['delivered_input_unit_price']:.2f}/unit"
+                         if firm_account.get('delivered_input_unit_price') is not None else "")
             account_line = font_small.render(
                 f"{firm_account['actor_name']}: paid sales ${firm_account['sales_cash']:.1f} | "
                 f"input used ${firm_account['input_consumed_cost']:.1f} | "
-                f"wages ${firm_account['wages_cash']:.1f} (recorded costs)",
+                f"wages ${firm_account['wages_cash']:.1f}{delivered} (recorded costs)",
                 True, (150, 210, 220))
             surface.blit(account_line, (PANEL_LEFT, y_cursor))
             y_cursor += 16

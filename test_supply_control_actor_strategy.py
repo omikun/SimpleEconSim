@@ -123,6 +123,22 @@ class ActorAccountTests(unittest.TestCase):
         self.assertEqual(account['fx_converted_in'], 8)
         self.assertEqual(account['cash_change'], account['posted_cash_change'])
 
+    def test_imported_input_reports_actual_destination_fill_price(self):
+        region = Region()
+        firm = Person(8, 50, Goods.cloth)
+        firm.is_corporation = True
+        region.agents = [firm]
+        region.recipes[Goods.cloth] = {'input': Goods.cotton}
+        begin_turn(region, 7)
+        firm.cash -= 12
+        record(region, 'spot_sale', turn=7, payer_id=firm.id, recipient_id=3,
+               good=Goods.cotton, quantity=3, amount=12,
+               detail={'unit_price': 4, 'imported': True})
+        account = next(a for a in seal_turn(region, 7) if a['actor_id'] == firm.id)
+        self.assertEqual(account['delivered_input_purchase_units'], 3)
+        self.assertEqual(account['delivered_input_purchase_cash'], 12)
+        self.assertEqual(account['delivered_input_unit_price'], 4)
+
 
 class SupplyProposalTests(unittest.TestCase):
     def test_direct_settlement_without_acceptance_is_rejected(self):

@@ -116,7 +116,11 @@ already fun or balanced; that still needs player feedback.
 - Local FX desk conversions now record their home-currency cash leg and the
   foreign amount/rate in the same economic event; a focused account test checks
   that this leg reconciles. Bank deposit/withdrawal adapters remain open.
-- `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_supply_control_actor_strategy test_supply_rights test_market_auction test_market_routes test_web_client_parity` — 58 tests passed after the FX and scrip account additions.
+- Imported input fills now expose the actual destination paid unit price in the
+  actor account and both client summaries. This is the delivered market fill
+  price; it is not yet linked to the exact source farmgate lot and route freight
+  events, so a full shipment cost bridge is still open.
+- `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_supply_control_actor_strategy test_supply_rights test_market_auction test_market_routes test_web_client_parity` — 59 tests passed after FX, scrip, and delivered-price account additions.
 - `node --check web_client/client.js` — passed.
 - `git diff --check` — passed.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python benchmark_supply_rivalry.py` — 12 matched runs, zero reported currency violations.
