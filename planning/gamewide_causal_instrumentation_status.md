@@ -828,3 +828,16 @@ Verification: the dedicated trace-on/off parity test, the existing scrip and
 debt-peonage regression, labor enforcement, quarantine, and labor-law trace
 tests passed (12 total). Trace metrics are catalogued and instrumented.
 Compilation and `git diff --check` passed.
+
+National uprising handling now records the strike-rate and unrest threshold
+calculation, the military and police strength comparison, the ruling faction,
+and the selected repression or concession branch. Effects record strikers
+cleared, memory seeds, authority-incident coverage, unrest reductions, and
+legitimacy gains. The trace also explains when thresholds are missed or both
+labor concessions have already been enacted. Class consciousness is measured
+by the legacy calculation but does not currently affect this decision.
+
+Verification: five dedicated uprising trace tests and the existing coercion
+regression suite passed (13 total), covering trace-on/off parity, armed
+strikebreaking, both concession tiers, no-crisis, and no-further-concession
+outcomes. Compilation and `git diff --check` passed.

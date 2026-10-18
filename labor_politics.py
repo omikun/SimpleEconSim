@@ -72,10 +72,14 @@ def evaluate_uprising_pressure(nation, t: int) -> List[Dict[str, Any]]:
     if not tiles:
         return events
 
+    trace_region, trace_turn, operation_id = _labor_trace_context(
+        nation, 'uprising_pressure')
+
     total_workers = 0
     total_strikers = 0
     total_unrest = 0.0
     total_consciousness = 0.0
+    tile_trace_before = []
 
     for tile in tiles:
         workers = [a for a in getattr(tile, 'agents', [])
@@ -88,6 +92,15 @@ def evaluate_uprising_pressure(nation, t: int) -> List[Dict[str, Any]]:
         c_vals = [getattr(a, 'class_consciousness', 0.0) for a in workers]
         if c_vals:
             total_consciousness += sum(c_vals) / len(c_vals)
+        if trace_region is not None:
+            tile_trace_before.append({
+                'tile': tile,
+                'worker_count': len(workers),
+                'striker_count': len(strikers),
+                'unrest': float(getattr(tile, 'unrest_level', 0.0)),
+                'class_consciousness_average':
+                    sum(c_vals) / len(c_vals) if c_vals else 0.0,
+            })
 
     avg_unrest = total_unrest / len(tiles)
     strike_rate = (total_strikers / total_workers) if total_workers > 0 else 0.0
@@ -96,31 +109,191 @@ def evaluate_uprising_pressure(nation, t: int) -> List[Dict[str, Any]]:
     # Crisis evaluated against Coercive Strikebreaking Capacity:
     is_crisis = (strike_rate >= UPRISING_STRIKE_THRESHOLD or avg_unrest >= UPRISING_UNREST_THRESHOLD)
 
+    pressure_event_id = None
+    if trace_region is not None:
+        pressure_event_id = _emit_labor_policy_event(
+            trace_region, kind='uprising_pressure_gate',
+            record_class='decision',
+            subject={'type': 'nation', 'id': getattr(nation, 'name', 'unnamed')},
+            metric_id='scenario.uprising_gate', unit='triggered',
+            before=False, after=bool(is_crisis),
+            inputs={'operation_id': operation_id, 'turn': int(t),
+                    'trace_clock_turn': trace_turn,
+                    'worker_count': total_workers,
+                    'striker_count': total_strikers,
+                    'strike_rate': strike_rate,
+                    'strike_rate_threshold': UPRISING_STRIKE_THRESHOLD,
+                    'strike_rate_triggered':
+                    strike_rate >= UPRISING_STRIKE_THRESHOLD,
+                    'average_unrest': avg_unrest,
+                    'average_unrest_threshold': UPRISING_UNREST_THRESHOLD,
+                    'average_unrest_triggered':
+                    avg_unrest >= UPRISING_UNREST_THRESHOLD,
+                    'average_class_consciousness': avg_consciousness,
+                    'class_consciousness_used_in_gate': False,
+                    'tiles': [{'tile_id': row['tile'].name,
+                               'workers': row['worker_count'],
+                               'strikers': row['striker_count'],
+                               'unrest': row['unrest'],
+                               'class_consciousness_average':
+                               row['class_consciousness_average']}
+                              for row in tile_trace_before],
+                    'reason': ('strike_or_unrest_threshold_reached'
+                               if is_crisis else 'below_both_thresholds')})
+
+    if not is_crisis:
+        if trace_region is not None:
+            response_id = _emit_labor_policy_event(
+                trace_region, kind='uprising_response_decision',
+                record_class='decision',
+                subject={'type': 'nation',
+                         'id': getattr(nation, 'name', 'unnamed')},
+                metric_id='scenario.uprising_response', unit='response',
+                after='no_crisis',
+                inputs={'operation_id': operation_id, 'turn': int(t),
+                        'trace_clock_turn': trace_turn,
+                        'reason': 'pressure_gate_not_triggered'},
+                cause_event_ids=([pressure_event_id]
+                                 if pressure_event_id else None))
+            _emit_labor_policy_event(
+                trace_region, kind='uprising_response_outcome',
+                subject={'type': 'nation',
+                         'id': getattr(nation, 'name', 'unnamed')},
+                metric_id='scenario.uprising_outcome', unit='action_result',
+                after='no_action',
+                inputs={'operation_id': operation_id, 'turn': int(t),
+                        'trace_clock_turn': trace_turn,
+                        'legacy_events_emitted': 0},
+                cause_event_ids=([response_id] if response_id else None))
+        return events
+
     if is_crisis:
         ruling = getattr(nation, 'ruling_faction', '')
         # Capitalist/landlord regimes attempt armed strikebreaking if forces are available
-        total_military_strength = sum(u.strength for u in getattr(nation, 'military_units', [])
-                                      if getattr(u, 'soldiers', 0) > 0 and getattr(u, 'morale', 1.0) >= 0.40)
+        eligible_units = [u for u in getattr(nation, 'military_units', [])
+                          if getattr(u, 'soldiers', 0) > 0
+                          and getattr(u, 'morale', 1.0) >= 0.40]
+        total_military_strength = sum(u.strength for u in eligible_units)
         police_strength = sum(getattr(tile, 'police_employed', 0) * 3.0 for tile in tiles)
         strikebreaker_force = total_military_strength + police_strength
         strike_force = total_strikers * 1.5
+        use_armed_repression = (
+            ruling in ('Bourgeoisie', 'Gentry')
+            and strikebreaker_force >= strike_force
+            and strikebreaker_force > 15.0)
+        if use_armed_repression:
+            planned_response = 'armed_strikebreaking'
+            response_reason = 'capitalist_force_threshold_met'
+        elif not getattr(nation, 'ten_hour_act', False):
+            planned_response = 'ten_hour_act_concession'
+            response_reason = 'strikebreaking_unavailable_or_ruling_faction_concedes'
+        elif not getattr(nation, 'factory_safety_act', False):
+            planned_response = 'factory_safety_concession'
+            response_reason = 'ten_hour_act_active_and_safety_mandate_available'
+        else:
+            planned_response = 'no_additional_concession_available'
+            response_reason = 'labor_concessions_already_enacted'
+        response_decision_id = None
+        if trace_region is not None:
+            response_decision_id = _emit_labor_policy_event(
+                trace_region, kind='uprising_response_decision',
+                record_class='decision',
+                subject={'type': 'nation',
+                         'id': getattr(nation, 'name', 'unnamed')},
+                metric_id='scenario.uprising_response', unit='response',
+                after=planned_response,
+                inputs={'operation_id': operation_id, 'turn': int(t),
+                        'ruling_faction': ruling,
+                        'military_strength_eligible': total_military_strength,
+                        'eligible_military_units': [
+                            {'unit_id': str(getattr(unit, 'name',
+                                                    getattr(unit, 'id', 'unit'))),
+                             'strength': float(unit.strength),
+                             'soldiers': int(getattr(unit, 'soldiers', 0)),
+                             'morale': float(getattr(unit, 'morale', 1.0))}
+                            for unit in eligible_units],
+                        'police_strength': police_strength,
+                        'police_contributions': [
+                            {'tile_id': tile.name,
+                             'officers': int(getattr(tile, 'police_employed', 0)),
+                             'strength': float(getattr(tile, 'police_employed', 0)) * 3.0}
+                            for tile in tiles],
+                        'strikebreaker_force': strikebreaker_force,
+                        'strike_force': strike_force,
+                        'force_sufficient': strikebreaker_force >= strike_force,
+                        'minimum_force_required': 15.0,
+                        'ten_hour_act_active':
+                        bool(getattr(nation, 'ten_hour_act', False)),
+                        'factory_safety_act_active':
+                        bool(getattr(nation, 'factory_safety_act', False)),
+                        'reason': response_reason},
+                cause_event_ids=([pressure_event_id]
+                                 if pressure_event_id else None))
 
         # If capitalist regime has superior force, crush strike with armed strikebreaking
-        if ruling in ('Bourgeoisie', 'Gentry') and strikebreaker_force >= strike_force and strikebreaker_force > 15.0:
-            for tile in tiles:
+        if use_armed_repression:
+            tile_event_ids = []
+            for index, tile in enumerate(tiles):
+                unrest_before = (tile_trace_before[index]['unrest']
+                                 if trace_region is not None else None)
                 from collective_politics import record_authority_incident
                 affected = [a.id for a in getattr(tile, 'agents', [])
                             if getattr(a, 'is_striking', False) and getattr(a, 'alive', True)]
+                authority_affected_count = 0
                 if affected:
-                    record_authority_incident(
+                    authority_affected_count = record_authority_incident(
                         tile, t, f'{nation.name}:{t}:armed_strikebreaking', nation,
                         affected, repression=.5, attribution=1.0)
+                cleared_strike_ids = []
                 for a in getattr(tile, 'agents', []):
                     if getattr(a, 'is_striking', False):
+                        cleared_strike_ids.append(str(a.id))
                         a.is_striking = False
                         a.mem_push('mem_casualties', 1.0)
                         a.mem_push('mem_promises', 1.0)
                 tile.unrest_level = max(0.0, getattr(tile, 'unrest_level', 0.0) - 0.15)
+                if trace_region is not None:
+                    workers_after = [a for a in getattr(tile, 'agents', [])
+                                     if getattr(a, 'social_class', '') in (
+                                         'proletarian', 'serf', 'tenant',
+                                         'dispossessed')
+                                     and getattr(a, 'alive', True)]
+                    strikers_after = sum(
+                        1 for worker in workers_after
+                        if getattr(worker, 'is_striking', False))
+                    before = tile_trace_before[index]
+                    strike_event_id = _emit_labor_policy_event(
+                        trace_region, kind='uprising_strikebreaking_tile_effect',
+                        subject={'type': 'tile', 'id': tile.name},
+                        metric_id='labor.strikers', unit='people',
+                        before=before['striker_count'], after=strikers_after,
+                        inputs={'operation_id': operation_id, 'turn': int(t),
+                                'eligible_workers': before['worker_count'],
+                                'strike_statuses_cleared': len(cleared_strike_ids),
+                                'cleared_agent_ids': cleared_strike_ids,
+                                'casualty_memory_seeded': len(cleared_strike_ids),
+                                'promise_memory_seeded': len(cleared_strike_ids),
+                                'authority_incident_affected_residents':
+                                authority_affected_count,
+                                'authority_repression': 0.5},
+                        cause_event_ids=([response_decision_id]
+                                         if response_decision_id else None))
+                    unrest_event_id = _emit_labor_policy_event(
+                        trace_region, kind='uprising_strikebreaking_unrest_effect',
+                        subject={'type': 'tile', 'id': tile.name},
+                        metric_id='politics.unrest_level', unit='ratio',
+                        before=unrest_before,
+                        after=float(getattr(tile, 'unrest_level', 0.0)),
+                        inputs={'operation_id': operation_id, 'turn': int(t),
+                                'requested_reduction': 0.15,
+                                'floor': 0.0,
+                                'actual_change': float(tile.unrest_level)
+                                - unrest_before},
+                        cause_event_ids=([response_decision_id]
+                                         if response_decision_id else None))
+                    tile_event_ids.extend(event_id for event_id in
+                                          (strike_event_id, unrest_event_id)
+                                          if event_id)
             ev = {
                 'kind': 'armed_strikebreaking',
                 'turn': t,
@@ -133,8 +306,30 @@ def evaluate_uprising_pressure(nation, t: int) -> List[Dict[str, Any]]:
             stamp(tiles[0], ev)
             events.append(ev)
             nation.regime_log.append(ev)
+            if trace_region is not None:
+                _emit_labor_policy_event(
+                    trace_region, kind='uprising_response_outcome',
+                    subject={'type': 'nation',
+                             'id': getattr(nation, 'name', 'unnamed')},
+                    metric_id='scenario.uprising_outcome',
+                    unit='action_result', after='armed_strikebreaking_applied',
+                    inputs={'operation_id': operation_id, 'turn': int(t),
+                            'response': planned_response,
+                            'tile_count': len(tiles),
+                            'strikers_cleared': total_strikers,
+                            'legacy_events_emitted': 1},
+                    cause_event_ids=([response_decision_id] + tile_event_ids
+                                     if response_decision_id else
+                                     tile_event_ids or None))
         else:
             # State lacks coercive capacity to break the strike, or has pro-worker ruling faction -> Concession!
+            response_applied = False
+            response_message = None
+            unrest_reduction = 0.0
+            legitimacy_change = 0.0
+            authority_reform_residents = 0
+            legitimacy_before = (float(getattr(nation, 'legitimacy', 0.5))
+                                 if trace_region is not None else None)
             # Step 1: Enact Ten-Hour Act if not already enacted
             if not getattr(nation, 'ten_hour_act', False):
                 prior_hours = {a.id: float(getattr(a, 'shift_hours', 8.0))
@@ -151,13 +346,17 @@ def evaluate_uprising_pressure(nation, t: int) -> List[Dict[str, Any]]:
                                     for employee in getattr(firm, 'employees', [])
                                     if getattr(employee, 'alive', True)]
                         if affected:
-                            record_authority_incident(
+                            authority_reform_residents += record_authority_incident(
                                 tile, t, f'{nation.name}:{t}:ten_hour_act', nation,
                                 affected, reform=.5, attribution=1.0)
                     # Concession cools down worker unrest
                     for tile in tiles:
                         tile.unrest_level = max(0.0, getattr(tile, 'unrest_level', 0.0) - 0.25)
                     nation.legitimacy = min(1.0, getattr(nation, 'legitimacy', 0.5) + 0.15)
+                    response_applied = True
+                    response_message = msg
+                    unrest_reduction = 0.25
+                    legitimacy_change = 0.15
                     ev = {
                         'kind': 'ten_hour_act_concession',
                         'turn': t,
@@ -177,6 +376,10 @@ def evaluate_uprising_pressure(nation, t: int) -> List[Dict[str, Any]]:
                     for tile in tiles:
                         tile.unrest_level = max(0.0, getattr(tile, 'unrest_level', 0.0) - 0.20)
                     nation.legitimacy = min(1.0, getattr(nation, 'legitimacy', 0.5) + 0.10)
+                    response_applied = True
+                    response_message = msg
+                    unrest_reduction = 0.20
+                    legitimacy_change = 0.10
                     ev = {
                         'kind': 'factory_safety_concession',
                         'turn': t,
@@ -188,6 +391,69 @@ def evaluate_uprising_pressure(nation, t: int) -> List[Dict[str, Any]]:
                     stamp(tiles[0], ev)
                     events.append(ev)
                     nation.regime_log.append(ev)
+            if trace_region is not None:
+                effect_event_ids = []
+                for index, tile in enumerate(tiles):
+                    unrest_before = tile_trace_before[index]['unrest']
+                    unrest_after = float(getattr(tile, 'unrest_level', 0.0))
+                    event_id = _emit_labor_policy_event(
+                        trace_region, kind='uprising_concession_unrest_effect',
+                        subject={'type': 'tile', 'id': tile.name},
+                        metric_id='politics.unrest_level', unit='ratio',
+                        before=unrest_before, after=unrest_after,
+                        inputs={'operation_id': operation_id, 'turn': int(t),
+                                'response': planned_response,
+                                'requested_reduction': unrest_reduction,
+                                'floor': 0.0,
+                                'actual_change': unrest_after - unrest_before,
+                                'concession_applied': response_applied},
+                        cause_event_ids=([response_decision_id]
+                                         if response_decision_id else None))
+                    if event_id:
+                        effect_event_ids.append(event_id)
+                if response_applied and legitimacy_change:
+                    legitimacy_event_id = _emit_labor_policy_event(
+                        trace_region, kind='uprising_concession_legitimacy_effect',
+                        subject={'type': 'nation',
+                                 'id': getattr(nation, 'name', 'unnamed')},
+                        metric_id='politics.legitimacy', unit='ratio',
+                        before=legitimacy_before,
+                        after=float(getattr(nation, 'legitimacy', 0.5)),
+                        inputs={'operation_id': operation_id, 'turn': int(t),
+                                'response': planned_response,
+                                'requested_increase': legitimacy_change,
+                                'authority_reform_residents':
+                                authority_reform_residents},
+                        cause_event_ids=([response_decision_id]
+                                         if response_decision_id else None))
+                    if legitimacy_event_id:
+                        effect_event_ids.append(legitimacy_event_id)
+                outcome = (f'{planned_response}_applied' if response_applied
+                           else 'concession_not_applied'
+                           if planned_response != 'no_additional_concession_available'
+                           else 'no_additional_concession_available')
+                _emit_labor_policy_event(
+                    trace_region, kind='uprising_response_outcome',
+                    subject={'type': 'nation',
+                             'id': getattr(nation, 'name', 'unnamed')},
+                    metric_id='scenario.uprising_outcome',
+                    unit='action_result', after=outcome,
+                    inputs={'operation_id': operation_id, 'turn': int(t),
+                            'response': planned_response,
+                            'response_applied': response_applied,
+                            'response_message': response_message,
+                            'unrest_reduction_requested': unrest_reduction,
+                            'legitimacy_increase_requested': legitimacy_change,
+                            'legitimacy_after':
+                            float(getattr(nation, 'legitimacy', 0.5)),
+                            'ten_hour_act_active':
+                            bool(getattr(nation, 'ten_hour_act', False)),
+                            'factory_safety_act_active':
+                            bool(getattr(nation, 'factory_safety_act', False)),
+                            'legacy_events_emitted': len(events)},
+                    cause_event_ids=([response_decision_id] + effect_event_ids
+                                     if response_decision_id else
+                                     effect_event_ids or None))
 
     return events
 

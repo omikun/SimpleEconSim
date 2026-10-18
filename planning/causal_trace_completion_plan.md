@@ -1185,3 +1185,18 @@ Verification: the dedicated trace-on/off parity test, existing scrip and
 debt-peonage regression, labor enforcement, quarantine, and labor-law trace
 tests passed (12 total). The metric catalog and instrumented set include all
 new policy metrics. Compilation and `git diff --check` passed.
+
+Phase 4 follow-up, 2026-10-18: national uprising evaluation now emits the
+strike-rate/unrest gate, the coercive-force comparison (eligible troop units
+and police contributions), and the ruling-faction response choice. Per-tile
+records explain strike clearing, memory seeds, authority-incident coverage,
+and unrest changes. Concession outcomes record the unrest and legitimacy
+effects and identify when both available concessions were already enacted.
+Class consciousness remains diagnostic input only because the existing gate
+does not use it.
+
+Verification: five dedicated uprising tests and the existing coercion
+regression suite passed (13 total) for below-threshold behavior, armed
+strikebreaking, Ten-Hour and Factory Safety concessions, and exhausted
+concessions, with trace-on/off parity where state changes. Compilation and
+`git diff --check` passed.
