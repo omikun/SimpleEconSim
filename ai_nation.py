@@ -781,6 +781,7 @@ class NationPolicyAI:
         return accepted
 
     def choose_war_intent(self, war, enemy, t: int):
+        self._last_war_ai_event_ids = []
         trace_context = _war_ai_trace_context(self.nation, enemy, war, t)
 
         def record_choice(intent, reason, *, inputs=None, causes=None):
@@ -806,11 +807,13 @@ class NationPolicyAI:
             if trace_context is not None:
                 decision_inputs['prior_operation_event_ids'] = list(
                     trace_context.get('event_ids', ()))
-            _emit_war_ai_trace(
+            event_id = _emit_war_ai_trace(
                 trace_context, kind='war_ai_intent_decision',
                 nation=self.nation, enemy=enemy, metric_id='war.ai_intent',
                 unit='intent', after=selected, inputs=decision_inputs,
                 cause_event_ids=causes)
+            if event_id is not None:
+                self._last_war_ai_event_ids.append(event_id)
             return intent
 
         side = war.sides[self.nation.name]
@@ -901,6 +904,7 @@ class NationPolicyAI:
         food_emergency = any(row['emergency'] for row in food_responses)
         submitted = []
         treasury = self.nation.treasury()
+        war_ai_event_ids = []
         considered = [{'candidate': 'do_nothing', 'feasible': True, 'score': 0.0}]
         considered.extend({'candidate': 'food_security', **row}
                           for row in food_responses)
@@ -912,17 +916,35 @@ class NationPolicyAI:
             enemy_name = war.enemy_of(self.nation.name)
             enemy = next((n for n in all_nations if n.name == enemy_name), None)
             if enemy is None:
+                considered.append({'candidate': 'war_response',
+                                   'target': enemy_name, 'feasible': False,
+                                   'reason': 'enemy_not_in_current_nation_list'})
                 continue
-            if any(isinstance(pending, (MoveArmyIntent, ProposePeaceIntent,
-                                        RespondPeaceIntent)) and
-                   getattr(pending, 'target_nation_name',
-                           getattr(pending, 'proposer_name', enemy_name)) == enemy_name
-                   for pending in self.nation.intents):
+            pending_response = next((pending for pending in self.nation.intents
+                                     if isinstance(pending, (
+                                         MoveArmyIntent, ProposePeaceIntent,
+                                         RespondPeaceIntent)) and
+                                     getattr(pending, 'target_nation_name',
+                                             getattr(pending, 'proposer_name',
+                                                     enemy_name)) == enemy_name),
+                                    None)
+            if pending_response is not None:
+                considered.append({'candidate': 'war_response',
+                                   'target': enemy_name, 'feasible': False,
+                                   'pending_intent': type(
+                                       pending_response).__name__,
+                                   'reason': 'war_response_already_pending'})
                 continue
             intent = self.choose_war_intent(war, enemy, t)
+            war_ai_event_ids.extend(getattr(self,
+                                            '_last_war_ai_event_ids', ()))
             considered.append({'candidate': 'war_response', 'target': enemy_name,
                                'feasible': intent is not None,
-                               'reason': 'active war and no pending response'})
+                               'intent_type': (type(intent).__name__
+                                               if intent is not None else None),
+                               'reason': ('active_war_intent_selected'
+                                          if intent is not None else
+                                          'active_war_has_no_feasible_intent')})
             if intent is not None:
                 self.nation.submit_intent(intent, t)
                 submitted.append(intent)
@@ -931,10 +953,26 @@ class NationPolicyAI:
         # 1. Military Defense & Vulnerability Checks (M5.2)
         for tile in self.nation.tiles:
             vuln, reason = self.evaluate_tile_vulnerability(tile, all_nations, diplomacy)
+            vulnerability_threshold = 0.5
+            treasury_threshold = 30.0
+            vulnerability_gate = vuln > vulnerability_threshold
+            treasury_gate = treasury['total'] >= treasury_threshold
+            defense_feasible = vulnerability_gate and treasury_gate
             considered.append({'candidate': 'recruit_defense', 'tile': tile.name,
-                               'score': vuln, 'feasible': vuln > 0.5 and treasury['total'] >= 30.0,
-                               'reason': reason})
-            if vuln > 0.5 and treasury['total'] >= 30.0:
+                               'score': vuln, 'feasible': defense_feasible,
+                               'reason': reason,
+                               'vulnerability_threshold': vulnerability_threshold,
+                               'vulnerability_gate': vulnerability_gate,
+                               'treasury_total': treasury['total'],
+                               'treasury_threshold': treasury_threshold,
+                               'treasury_gate': treasury_gate,
+                               'reason_code': (
+                                   'vulnerability_and_treasury_gates_passed'
+                                   if defense_feasible else
+                                   'vulnerability_below_threshold'
+                                   if not vulnerability_gate else
+                                   'treasury_below_recruitment_cost')})
+            if defense_feasible:
                 # Recruit local garrison / reinforcement
                 intent = RecruitArmyIntent(
                     nation_name=self.nation.name,
@@ -961,13 +999,49 @@ class NationPolicyAI:
         # 3. Emergency Contractor Subsidies (Avert Navvy Layoffs & Riots)
         if treasury['total'] < 120.0:
             considered.append({'candidate': 'contractor_subsidy', 'feasible': False,
-                               'reason': 'treasury below 120', 'treasury': treasury['total']})
+                               'reason': 'treasury below 120',
+                               'reason_code': 'treasury_below_threshold',
+                               'treasury': treasury['total'],
+                               'treasury_threshold': 120.0})
+        elif food_emergency:
+            considered.append({'candidate': 'contractor_subsidy',
+                               'feasible': False,
+                               'reason': 'food emergency prioritizes household relief',
+                               'reason_code': 'food_emergency'})
         if treasury['total'] >= 120.0 and not food_emergency:
             for tile in self.nation.tiles:
-                for proj in getattr(tile, 'construction_projects', []):
-                    if proj.status == 'stalled' or (proj.contractor and proj.contractor.cash < 5.0):
-                        considered.append({'candidate': 'contractor_subsidy', 'project': proj.project_id,
-                                           'feasible': True, 'amount': 100.0})
+                projects = getattr(tile, 'construction_projects', [])
+                if not projects:
+                    considered.append({
+                        'candidate': 'contractor_subsidy', 'tile': tile.name,
+                        'feasible': False,
+                        'reason_code': 'no_construction_projects'})
+                for proj in projects:
+                    stalled = proj.status == 'stalled'
+                    contractor_cash = None
+                    contractor_cash_gate = False
+                    if stalled:
+                        subsidy_reason = 'project_stalled'
+                    else:
+                        contractor = proj.contractor
+                        if contractor:
+                            contractor_cash = contractor.cash
+                            contractor_cash_gate = contractor_cash < 5.0
+                        subsidy_reason = (
+                            'contractor_cash_below_threshold'
+                            if contractor_cash_gate else
+                            'contractor_missing' if not contractor else
+                            'contractor_cash_sufficient')
+                    if stalled or (proj.contractor and contractor_cash_gate):
+                        considered.append({'candidate': 'contractor_subsidy',
+                                           'tile': tile.name,
+                                           'project': proj.project_id,
+                                           'feasible': True,
+                                           'reason_code': subsidy_reason,
+                                           'project_status': proj.status,
+                                           'contractor_cash': contractor_cash,
+                                           'contractor_cash_threshold': 5.0,
+                                           'amount': 100.0})
                         sub_intent = SubsidizeContractorIntent(
                             nation_name=self.nation.name,
                             project_id=proj.project_id,
@@ -978,46 +1052,84 @@ class NationPolicyAI:
                         self.nation.submit_intent(sub_intent, t)
                         submitted.append(sub_intent)
                         break
+                    considered.append({'candidate': 'contractor_subsidy',
+                                       'tile': tile.name,
+                                       'project': proj.project_id,
+                                       'feasible': False,
+                                       'reason_code': subsidy_reason,
+                                       'project_status': proj.status,
+                                       'contractor_cash': contractor_cash,
+                                       'contractor_cash_threshold': 5.0})
 
         # 4. Public Works Infrastructure Procurement (Respond to Contractor Lobbying & Bottlenecks)
         if treasury['total'] < 320.0 or submitted or food_emergency:
             considered.append({'candidate': 'public_works', 'feasible': False,
+                               'reason_code': (
+                                   'food_emergency' if food_emergency else
+                                   'treasury_below_threshold'
+                                   if treasury['total'] < 320.0 else
+                                   'another_intent_already_submitted'),
                                'reason': ('food emergency' if food_emergency else
                                           'treasury below 320' if treasury['total'] < 320.0
-                                          else 'another intent already submitted')})
+                                          else 'another intent already submitted'),
+                               'treasury_total': treasury['total'],
+                               'treasury_threshold': 320.0,
+                               'treasury_gate': treasury['total'] >= 320.0,
+                               'food_emergency': food_emergency,
+                               'submitted_intent_count': len(submitted)})
         if treasury['total'] >= 320.0 and len(submitted) == 0 and not food_emergency:
+            public_works_tile_count = 0
             for tile in self.nation.tiles:
+                public_works_tile_count += 1
                 has_turnpike = any(b.name == 'turnpike_road' for b in getattr(tile, 'buildings', []))
                 has_canal = any(b.name == 'barge_canal' for b in getattr(tile, 'buildings', []))
                 has_proj = any(p.status in ('in_progress', 'stalled') for p in getattr(tile, 'construction_projects', []))
+                target_recipe = None
                 if not has_proj:
-                    target_recipe = None
                     if not has_turnpike:
                         target_recipe = 'turnpike_road'
                     elif not has_canal:
                         target_recipe = 'barge_canal'
 
-                    if target_recipe:
-                        considered.append({'candidate': 'public_works', 'tile': tile.name,
-                                           'feasible': True, 'building': target_recipe})
-                        build_intent = BuildIntent(
-                            nation_name=self.nation.name,
-                            region_name=tile.name,
-                            building_type=target_recipe,
-                            submitted_turn=t,
-                            regime_type=self.nation.regime_type
-                        )
-                        self.nation.submit_intent(build_intent, t)
-                        submitted.append(build_intent)
-                        break
+                feasible = target_recipe is not None
+                considered.append({
+                    'candidate': 'public_works', 'tile': tile.name,
+                    'feasible': feasible,
+                    'reason_code': (
+                        'first_missing_infrastructure_selected' if feasible else
+                        'active_construction_project' if has_proj else
+                        'turnpike_and_canal_present'),
+                    'has_turnpike': has_turnpike,
+                    'has_canal': has_canal,
+                    'active_construction_project': has_proj,
+                    'building': target_recipe})
+                if feasible:
+                    build_intent = BuildIntent(
+                        nation_name=self.nation.name,
+                        region_name=tile.name,
+                        building_type=target_recipe,
+                        submitted_turn=t,
+                        regime_type=self.nation.regime_type
+                    )
+                    self.nation.submit_intent(build_intent, t)
+                    submitted.append(build_intent)
+                    break
+            if public_works_tile_count == 0:
+                considered.append({'candidate': 'public_works',
+                                   'feasible': False,
+                                   'reason_code': 'nation_has_no_tiles'})
 
         # 5. Market-Driven Feudal Enclosure & Pasture Allocation
         if t < 3:
             considered.append({'candidate': 'enclose_commons', 'feasible': False,
-                               'reason': 'turn below 3'})
+                               'reason': 'turn below 3',
+                               'reason_code': 'turn_below_policy_gate',
+                               'turn': t, 'minimum_turn': 3})
         if t >= 3 and food_emergency:
             considered.append({'candidate': 'enclose_commons', 'feasible': False,
-                               'reason': 'food emergency threatens current livelihoods'})
+                               'reason': 'food emergency threatens current livelihoods',
+                               'reason_code': 'food_emergency',
+                               'turn': t, 'minimum_turn': 3})
         if t >= 3 and not food_emergency:
             for tile in self.nation.tiles:
                 if getattr(tile, 'food_enclosure_moratorium', False):
@@ -1026,6 +1138,7 @@ class NationPolicyAI:
                     considered.append({'candidate': 'enclose_commons', 'tile': tile.name,
                                        'feasible': False,
                                        'reason': 'food buffer is unsafe across the full crop cycle',
+                                       'reason_code': 'food_crop_cycle_moratorium',
                                        'crop_cycle_turns': food_assessment.get('crop_cycle_turns'),
                                        'observed_crop_cycle_turns': food_assessment.get('observed_crop_cycle_turns'),
                                        'projected_crop_cycle_margin': food_assessment.get('projected_crop_cycle_margin'),
@@ -1036,30 +1149,74 @@ class NationPolicyAI:
                     continue
                 tenure = getattr(tile, 'tenure', None)
                 if not tenure:
+                    considered.append({'candidate': 'enclose_commons',
+                                       'tile': tile.name, 'feasible': False,
+                                       'reason_code': 'no_tenure_system'})
                     continue
                 feudal = tenure.feudal_plots()
                 if not feudal:
+                    considered.append({'candidate': 'enclose_commons',
+                                       'tile': tile.name, 'feasible': False,
+                                       'reason_code': 'no_feudal_plots'})
                     continue
                 pe = tile.protest_energy_log[-1] if getattr(tile, 'protest_energy_log', None) else 0.0
                 if pe < 4.5:
                     p_grain = tile.recipes.get(Goods.food, {}).get('price', 1.0)
                     p_wool = tile.recipes.get(Goods.wool, {}).get('price', 3.5)
                     # Enclosure triggered when grain >= 1.6 or wool >= 3.5
-                    if p_grain >= 1.6 or p_wool >= 3.5 or (t % 5 == 0):
+                    grain_price_gate = p_grain >= 1.6
+                    wool_price_gate = p_wool >= 3.5
+                    scheduled_turn_gate = t % 5 == 0
+                    price_or_schedule_gate = (grain_price_gate or
+                                              wool_price_gate or
+                                              scheduled_turn_gate)
+                    trigger_inputs = {
+                        'grain_price': p_grain,
+                        'grain_price_threshold': 1.6,
+                        'grain_price_gate': grain_price_gate,
+                        'wool_price': p_wool,
+                        'wool_price_threshold': 3.5,
+                        'wool_price_gate': wool_price_gate,
+                        'scheduled_turn_gate': scheduled_turn_gate,
+                        'turn_schedule_modulus': 5,
+                        'protest_energy': pe,
+                        'protest_energy_threshold': 4.5,
+                        'protest_energy_gate': True}
+                    if price_or_schedule_gate:
                         plot = feudal[0]
                         from enclosure import calculate_charter_fee
                         fee = calculate_charter_fee(plot)
                         lord = next((a for a in tile.agents if a.id == plot.lord_id), None)
-                        if lord and lord.cash >= fee:
-                            considered.append({'candidate': 'enclose_commons', 'tile': tile.name,
-                                               'feasible': True, 'grain_price': p_grain,
-                                               'wool_price': p_wool, 'protest_energy': pe,
-                                               'lord_cash': lord.cash, 'charter_fee': fee})
+                        lord_cash = lord.cash if lord else None
+                        landlord_cash_gate = bool(lord and lord_cash >= fee)
+                        evaluation = {
+                            'candidate': 'enclose_commons', 'tile': tile.name,
+                            'feasible': landlord_cash_gate,
+                            'reason_code': (
+                                'enclosure_selected'
+                                if landlord_cash_gate else
+                                'lord_not_found' if lord is None else
+                                'lord_cannot_afford_charter_fee'),
+                            'selected_plot': plot.plot_id,
+                            'landlord_id': plot.lord_id,
+                            'landlord_found': lord is not None,
+                            'landlord_cash': lord_cash,
+                            'charter_fee': fee,
+                            'landlord_cash_gate': landlord_cash_gate,
+                            'price_or_schedule_gate': True,
+                            **trigger_inputs}
+                        considered.append(evaluation)
+                        if landlord_cash_gate:
                             # Dynamic Land Use: Pasture if wool price is strong vs grain
-                            if (p_wool / max(0.5, p_grain)) >= 1.8:
-                                plot.production_type = 'pasture'
-                            else:
-                                plot.production_type = 'arable'
+                            wool_to_grain_ratio = p_wool / max(0.5, p_grain)
+                            production_type = (
+                                'pasture' if wool_to_grain_ratio >= 1.8 else
+                                'arable')
+                            evaluation.update({
+                                'wool_to_grain_ratio': wool_to_grain_ratio,
+                                'pasture_ratio_threshold': 1.8,
+                                'selected_production_type': production_type})
+                            plot.production_type = production_type
 
                             from intents import EncloseCommonsIntent
                             intent = EncloseCommonsIntent(
@@ -1072,18 +1229,40 @@ class NationPolicyAI:
                             self.nation.submit_intent(intent, t)
                             submitted.append(intent)
                             break
+                    else:
+                        considered.append({
+                            'candidate': 'enclose_commons',
+                            'tile': tile.name, 'feasible': False,
+                            'reason_code': 'market_and_schedule_gates_not_met',
+                            'price_or_schedule_gate': False,
+                            **trigger_inputs})
+                else:
+                    considered.append({
+                        'candidate': 'enclose_commons',
+                        'tile': tile.name, 'feasible': False,
+                        'reason_code': 'protest_energy_at_or_above_threshold',
+                        'price_checks_performed': False,
+                        'protest_energy': pe,
+                        'protest_energy_threshold': 4.5,
+                        'protest_energy_gate': False})
 
         from run_trace import emit
         if self.nation.tiles:
+            cause_event_ids = []
+            diplomacy_event_id = getattr(self, '_last_diplomacy_event_id', None)
+            if diplomacy_event_id:
+                cause_event_ids.append(diplomacy_event_id)
+            for event_id in war_ai_event_ids:
+                if event_id and event_id not in cause_event_ids:
+                    cause_event_ids.append(event_id)
             decision_id = emit(self.nation.tiles[0], kind='nation_ai_decision',
                  record_class='decision', phase='strategy',
                  subject={'type': 'nation', 'id': self.nation.name},
-                 cause_event_ids=([self._last_diplomacy_event_id]
-                                  if getattr(self, '_last_diplomacy_event_id', None)
-                                  else None),
+                 cause_event_ids=cause_event_ids or None,
                  inputs={'treasury_total': treasury['total'],
                          'considered': considered,
                          'food_security': food_responses,
+                         'war_ai_decision_event_ids': war_ai_event_ids,
                          'selected': [type(intent).__name__ for intent in submitted],
                          'submitted_count': len(submitted)})
             for intent in submitted:

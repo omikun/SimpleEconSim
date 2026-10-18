@@ -943,3 +943,19 @@ Verification: six dedicated expansion trace tests, nine existing M5 AI and
 diplomacy tests, and two diplomacy-AI trace tests passed. Trace-on/off plan
 parity, settlement valuation, conquest and alliance gates, spatial exclusions,
 registered metrics, compilation, and `git diff --check` were checked.
+
+Phase 4 follow-up, 2026-10-18: active nation-turn policy records now include
+explicit failure codes and threshold inputs for defensive recruitment,
+contractor subsidies, public works, and enclosure. Project status/cash gates,
+per-tile infrastructure readiness, commons tenure, protest, market/schedule
+triggers, landlord affordability, and pasture selection are retained in the
+existing nation decision record. The final nation decision directly links to
+war-intent evaluation events as well as diplomacy evaluation.
+
+Verification: six dedicated nation-policy trace tests, six expansion trace
+tests, six war-intent trace tests, two diplomacy-AI trace tests, and nine M5
+AI regression tests passed (29 total). Coverage includes food-emergency
+blocks, action parity for enclosure, empty and unaffordable gates, project and
+infrastructure screening, and final-decision causal links. Per-neighbor threat
+weights behind border vulnerability remain a spatial tracing gap. Compilation
+and `git diff --check` passed.

@@ -1313,3 +1313,24 @@ Verification: six dedicated expansion trace tests, nine existing M5 AI and
 diplomacy tests, and two diplomacy-AI trace tests passed. Trace-on/off plan
 parity, settlement and conquest formulas, alliance blocking, spatial gates,
 metric registration, compilation, and `git diff --check` were checked.
+
+## Phase 4 follow-up — Complete active nation policy gates
+
+The live nation-turn decision summary now explains silent skips in defense,
+contractor subsidies, public works, and commons enclosure. It includes the
+recruitment treasury/vulnerability thresholds, each construction project's
+stalled and contractor-cash status, infrastructure already present or under
+construction, tenure and protest exclusions, grain/wool/scheduled-turn
+enclosure triggers, landlord affordability, and the resulting pasture/arable
+choice. Food emergencies are named where they suppress spending or enclosure.
+The final nation decision also links to detailed war-AI choice events.
+
+This preserves current policies. `NationPolicyAI.evaluate_expansion` remains
+unused by the live turn method, and the per-neighbor weighting behind border
+vulnerability still needs its own trace record.
+
+Verification: six dedicated nation-policy trace tests, six expansion trace
+tests, six war-intent trace tests, two diplomacy-AI trace tests, and nine M5
+AI regression tests passed (29 total). Trace-neutral enclosure outcomes,
+candidate rejection reasons, budget and emergency gates, and war/diplomacy
+causal links were checked, along with compilation and `git diff --check`.
