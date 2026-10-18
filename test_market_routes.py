@@ -144,6 +144,91 @@ class MarketRouteTests(unittest.TestCase):
         self.assertEqual(trader.parked_get(parked_tile.name, Goods.cotton), 0)
         self.assertEqual(trader.import_lots[0]['quantity'], 0)
 
+    def test_trader_market_purchase_links_seller_to_final_import_sale(self):
+        source = SimpleNamespace(
+            name='Upland', home_currency='D', neighbors={}, forex_desks={}, forex=None,
+            recipes={Goods.cotton: {'price': 5.0}}, _trade_fee_mult=1.0,
+            IMPORT_MARGIN_MIN=0.05, IMPORT_MARGIN_MAX=0.30,
+            _auction_import_sales={}, gov=None)
+        source_trace_rows = []
+        source._collective_trace_clock = {'next': 1, 'turn': 1, 'phase': 'trade'}
+
+        def collect_source_trace(clock, **row):
+            clock['next'] += 1
+            source_trace_rows.append(row)
+            return f'test:{clock["next"]}'
+
+        source._run_trace = SimpleNamespace(emit=collect_source_trace)
+        destination = SimpleNamespace(name='Lowland', recipes={Goods.cotton: {'price': 12.0}})
+        trader = self._trader(source, destination, qty=0)
+        grower = Agent(2)
+        initialize_agent(grower, Goods.cotton, 4, 0, 10.0)
+
+        clear_discriminatory(
+            source, Goods.cotton, 5.0, total_asks=4, total_bids=4,
+            imp_pool=[], agents=[grower, trader], t=1,
+            local_orders={
+                'sellers': [{'agent': grower, 'quantity': 4, 'limit_price': 5.0}],
+                'buyers': [{'agent': trader, 'quantity': 4, 'limit_price': 9.0}],
+            })
+        self.assertEqual(trader.inventory_export[Goods.cotton.value], 4)
+        purchase = next(e for e in source.economic_events if e['kind'] == 'spot_sale')
+        self.assertEqual(purchase['payer_id'], trader.id)
+        self.assertEqual(purchase['recipient_id'], grower.id)
+        acquisition = trader.trade_acquisition_lots[0]
+        self.assertEqual(acquisition['acquisition_event'],
+                         {'tile': source.name, 'id': purchase['id']})
+        self.assertEqual(acquisition['purchase_trace_event_id'], purchase['source_id'])
+        self.assertTrue(any(row.get('kind') == 'paid_market_sale'
+                            for row in source_trace_rows))
+        self.assertEqual(acquisition['source_seller_id'], grower.id)
+        self.assertEqual(acquisition['unit_cost'], 7.0)
+
+        route = Route('Upland->Lowland', source, destination, base_delay=1)
+        self.assertEqual(route.post(trader, Goods.cotton, 4), 4)
+        pending = route.pending[0]
+        self.assertEqual(pending[5], 7.0)
+        self.assertEqual(pending[10], 'market_purchase_linked')
+        self.assertEqual(pending[12][0]['acquisition_event'], acquisition['acquisition_event'])
+        route.deliver_pending()
+        route.advance()
+        imports = pending_imports(destination, source)
+        self.assertEqual(imports[Goods.cotton][0][11][0]['source_seller_id'], grower.id)
+
+        market = self._destination_market(destination, source, imports)
+        buyer = Agent(3)
+        initialize_agent(buyer, Goods.cloth, 2, 0, 100.0)
+        buyer.is_corporation = True
+        clear_discriminatory(
+            market, Goods.cotton, 12.0, total_asks=4, total_bids=4,
+            imp_pool=imports[Goods.cotton], agents=[buyer], t=2,
+            local_orders={'sellers': [], 'buyers': [
+                {'agent': buyer, 'quantity': 4, 'limit_price': 12.0},
+            ]})
+        sale = next(e for e in market.economic_events if e['kind'] == 'spot_sale')
+        link = sale['detail']['source_acquisitions'][0]
+        self.assertEqual(link['acquisition_event'], acquisition['acquisition_event'])
+        self.assertEqual(link['source_seller_id'], grower.id)
+        self.assertEqual(link['source_region'], source.name)
+        self.assertEqual(link['quantity'], 4)
+
+    def test_mixed_tracked_and_legacy_stock_keeps_partial_cost_provenance(self):
+        source = SimpleNamespace(name='Upland', home_currency='D')
+        destination = SimpleNamespace(name='Lowland')
+        trader = self._trader(source, destination, qty=4)
+        trader.cost_set(Goods.cotton, 6.0)
+        trader.trade_acquisition_lots = [{
+            'good': Goods.cotton.name, 'quantity': 2, 'unit_cost': 4.0,
+            'acquisition_event': {'tile': 'Upland', 'id': 11},
+            'status': 'market_purchase_recorded'}]
+        route = Route('Upland->Lowland', source, destination)
+        route.post(trader, Goods.cotton, 4)
+        pending = route.pending[0]
+        self.assertEqual(pending[5], 6.0)
+        self.assertEqual(pending[10], 'partially_linked_market_purchases')
+        self.assertEqual([row['quantity'] for row in pending[12]], [2, 2])
+        self.assertEqual(pending[12][1]['status'], 'unlinked_legacy_cargo')
+
     def test_rerouted_parked_shipment_retains_source_link_and_route_history(self):
         source = SimpleNamespace(name='Upland', home_currency='D', routes={}, neighbors={},
                                  forex_desks={}, forex=None,
@@ -235,11 +320,34 @@ class MarketRouteTests(unittest.TestCase):
         destination = SimpleNamespace(name='Lowland')
         route = Route('Upland->Lowland', source, destination)
         trader = self._trader(source, destination, qty=7)
+        trader.trade_acquisition_lots = [{
+            'good': Goods.cotton.name, 'quantity': 5, 'unit_cost': 4.0,
+            'acquisition_event': {'tile': 'Upland', 'id': 8},
+            'status': 'market_purchase_recorded'}]
         self.assertEqual(route.post(trader, Goods.cotton, 5, unit_cost=5.0), 5)
         self.assertEqual(trader.inventory_export[Goods.cotton.value], 2)
+        self.assertEqual(route.pending[0][5], 4.0)
         route.reclaim(trader)
         self.assertEqual(trader.inventory_export[Goods.cotton.value], 7)
         self.assertEqual(route.pending, [])
+        self.assertEqual(trader.trade_acquisition_lots[0]['quantity'], 5)
+        self.assertEqual(trader.trade_acquisition_lots[0]['acquisition_event']['id'], 8)
+
+    def test_reclaim_restores_acquisition_links_from_in_transit_cargo(self):
+        source = SimpleNamespace(name='Upland', home_currency='D')
+        destination = SimpleNamespace(name='Lowland')
+        route = Route('Upland->Lowland', source, destination)
+        trader = self._trader(source, destination, qty=4)
+        trader.trade_acquisition_lots = [{
+            'good': Goods.cotton.name, 'quantity': 4, 'unit_cost': 6.0,
+            'acquisition_event': {'tile': 'Upland', 'id': 9},
+            'status': 'market_purchase_recorded'}]
+        route.post(trader, Goods.cotton, 4)
+        route.deliver_pending()
+        route.reclaim(trader)
+        self.assertEqual(trader.inventory_export[Goods.cotton.value], 4)
+        self.assertEqual(trader.trade_acquisition_lots[0]['quantity'], 4)
+        self.assertEqual(trader.trade_acquisition_lots[0]['acquisition_event']['id'], 9)
 
     def test_trader_repoints_toward_profitable_requested_input(self):
         source = SimpleNamespace(

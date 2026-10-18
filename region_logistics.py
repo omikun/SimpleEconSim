@@ -229,7 +229,8 @@ def post_exports_to_route(region):
                                                   'source_shipment_id': shipment[8],
                                                   'source_region': shipment[9],
                                                   'source_cost_status': shipment[10],
-                                                  'route_history': list(shipment[11])})
+                                                  'route_history': list(shipment[11]),
+                                                  'source_acquisitions': list(shipment[12])})
                     from run_trace import emit
                     emit(region, kind='route_shipment_departure',
                          record_class='observation',
@@ -242,7 +243,8 @@ def post_exports_to_route(region):
                                  'freight_per_unit': freight_unit,
                                  'source_currency': shipment[7],
                                  'source_cost_status': shipment[10],
-                                 'route_history': list(shipment[11])})
+                                 'route_history': list(shipment[11]),
+                                 'source_acquisitions': list(shipment[12])})
 
 
 def liquidation_price(good, cost_basis):
@@ -302,6 +304,7 @@ def exit_trader(region, agent):
         agent.inventory_export[good.value] = 0
         agent.inventory_foreign[good.value] = 0
         agent.parked_foreign = {}
+    agent.trade_acquisition_lots = []
 
     # 4. Pay down loans with all remaining liquid cash
     while agent.cash > 0 and agent.loans:
@@ -398,6 +401,7 @@ def make_trader_internal(region, agent):
             continue
         agent.inventory_export[g.value] = 0
         agent.inventory_foreign[g.value] = 0
+    agent.trade_acquisition_lots = []
     agent.parked_foreign = {}
     for rt in all_routes(region):
         rt.reclaim(agent)

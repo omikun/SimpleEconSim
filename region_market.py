@@ -544,6 +544,7 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
         source_shipment_id = b[10] if len(b) > 10 else shipment_id
         source_region = b[11] if len(b) > 11 else None
         route_history = list(b[12] if len(b) > 12 and b[12] else [])
+        source_acquisitions = list(b[13] if len(b) > 13 and b[13] else [])
         if qty <= 0 or units >= total_bids:
             continue
         remaining = qty
@@ -569,6 +570,7 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
             seller_wallet_before = _fx.fx_balance(seller, region.home_currency)
             gov_cash_before = region.gov.agent.cash if getattr(region, 'gov', None) is not None else None
             buyer.cash -= cost
+            sold_source_acquisitions = []
             if is_import:
                 if not getattr(seller, 'alive', True):
                     if getattr(region, 'gov', None) is not None:
@@ -605,14 +607,28 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
                 imp_units += take
                 imp_value += cost
                 if shipment_id is not None:
+                    found_lot = False
                     for lot in getattr(seller, 'import_lots', []):
                         if lot.get('shipment_id') == shipment_id:
                             lot['quantity'] = max(0, int(lot.get('quantity', 0)) - take)
+                            from economy.inventory_provenance import consume_acquisition_links
+                            sold_source_acquisitions = consume_acquisition_links(
+                                lot.get('source_acquisitions', []), take)
+                            found_lot = True
                             break
+                    if not found_lot:
+                        from economy.inventory_provenance import consume_acquisition_links
+                        sold_source_acquisitions = consume_acquisition_links(
+                            source_acquisitions, take)
+                else:
+                    from economy.inventory_provenance import consume_acquisition_links
+                    sold_source_acquisitions = consume_acquisition_links(
+                        source_acquisitions, take)
             else:
                 seller.cash += cost
                 seller.inventory[good.value] -= take
 
+            exported_acquisition_qty = 0
             if getattr(buyer, 'is_trader', False):
                 if good == Goods.transport:
                     buyer.inv_add(good, take)
@@ -623,6 +639,7 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
                     buyer.cost_set(good, ((old_q * old_c + take * unit_price)
                                           / total_q) if total_q > 0 else unit_price)
                     buyer.inventory_export[good.value] += take
+                    exported_acquisition_qty = take
                 else:
                     food_needed = max(0, 8 - buyer.inv_get(good, 0))
                     keep = min(food_needed, take)
@@ -635,6 +652,7 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
                         buyer.cost_set(good, ((old_q * old_c + export * unit_price)
                                               / total_q) if total_q > 0 else unit_price)
                         buyer.inventory_export[good.value] += export
+                        exported_acquisition_qty = export
             else:
                 old_q = buyer.inv_get(good, 0)
                 old_c = buyer.cost_get(good, 0)
@@ -658,6 +676,7 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
                                    'source_currency': source_currency,
                                    'source_cost_status': source_cost_status,
                                    'route_history': route_history,
+                                   'source_acquisitions': sold_source_acquisitions,
                                    'unit_price': unit_price, 'total_paid': cost,
                                    'buyer_cash_before': buyer_cash_before,
                                    'buyer_cash_after': buyer.cash,
@@ -690,27 +709,38 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
                                  'freight_per_unit': freight_per_unit,
                                  'source_currency': source_currency,
                                  'source_cost_status': source_cost_status,
-                                 'route_history': route_history})
+                                 'route_history': route_history,
+                                 'source_acquisitions': sold_source_acquisitions})
             region.market_trade_events = trade_events[-500:]
             from economy.actor_accounts import record as record_economic_event
-            record_economic_event(region, 'spot_sale', turn=t, payer_id=buyer.id,
-                                  recipient_id=seller.id, good=good, quantity=take,
-                                  amount=cost, source_id=sale_id,
-                                          detail={'unit_price': unit_price, 'imported': bool(is_import),
-                                          'parked': bool(is_parked),
-                                          'shipment_id': shipment_id,
-                                          'source_unit_cost': source_unit_cost,
-                                          'freight_per_unit': freight_per_unit,
-                                          'source_currency': source_currency,
-                                          'source_cost_status': source_cost_status,
-                                          'source_shipment_id': source_shipment_id,
-                                          'source_region': source_region,
-                                          'route_history': route_history,
-                                          'seller_receipt': seller.cash - seller_cash_before +
-                                              _fx.fx_balance(seller, region.home_currency) - seller_wallet_before,
-                                          'government_receipt':
-                                              (region.gov.agent.cash - gov_cash_before)
-                                              if gov_cash_before is not None else 0.0})
+            economic_event = record_economic_event(
+                region, 'spot_sale', turn=t, payer_id=buyer.id,
+                recipient_id=seller.id, good=good, quantity=take,
+                amount=cost, source_id=sale_id,
+                detail={'unit_price': unit_price, 'imported': bool(is_import),
+                        'parked': bool(is_parked), 'shipment_id': shipment_id,
+                        'source_unit_cost': source_unit_cost,
+                        'freight_per_unit': freight_per_unit,
+                        'source_currency': source_currency,
+                        'source_cost_status': source_cost_status,
+                        'source_shipment_id': source_shipment_id,
+                        'source_region': source_region,
+                        'route_history': route_history,
+                        'source_acquisitions': sold_source_acquisitions,
+                        'seller_receipt': seller.cash - seller_cash_before +
+                            _fx.fx_balance(seller, region.home_currency) - seller_wallet_before,
+                        'government_receipt':
+                            (region.gov.agent.cash - gov_cash_before)
+                            if gov_cash_before is not None else 0.0})
+            if exported_acquisition_qty > 0:
+                from economy.inventory_provenance import record_trader_acquisition
+                record_trader_acquisition(
+                    buyer, good, exported_acquisition_qty, unit_price, economic_event,
+                    source_region=region.name, source_seller_id=seller.id,
+                    source_currency=region.home_currency,
+                    purchase_trace_event_id=sale_id,
+                    parent_shipment_id=shipment_id,
+                    parent_source_shipment_id=source_shipment_id)
             remaining -= take
             rem_bids[buyer.id] = want - take
             if buyer.cash < unit_price or rem_bids[buyer.id] <= 0:

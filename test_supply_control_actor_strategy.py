@@ -427,7 +427,9 @@ class ActorAccountTests(unittest.TestCase):
                        'source_cost_status': 'trader_cost_basis',
                        'source_shipment_id': 'Upland->Port:1',
                        'source_region': 'Upland',
-                       'route_history': ['Upland->Port']})
+                       'route_history': ['Upland->Port'],
+                       'source_acquisitions': [{'quantity': 3, 'unit_cost': 2,
+                                                'source_seller_id': 5}]})
         account = next(a for a in seal_turn(region, 7) if a['actor_id'] == firm.id)
         self.assertEqual(account['delivered_input_purchase_units'], 3)
         self.assertEqual(account['delivered_input_purchase_cash'], 12)
@@ -437,6 +439,7 @@ class ActorAccountTests(unittest.TestCase):
         self.assertEqual(delivered['source_shipment_id'], 'Upland->Port:1')
         self.assertEqual(delivered['source_region'], 'Upland')
         self.assertEqual(delivered['route_history'], ['Upland->Port'])
+        self.assertEqual(delivered['source_acquisitions'][0]['source_seller_id'], 5)
 
     def test_bank_deposit_and_withdrawal_reconcile_cash_and_savings(self):
         from econsim_trade_money import Bank

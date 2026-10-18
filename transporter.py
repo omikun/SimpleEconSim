@@ -58,6 +58,10 @@ class Route:
         if qty <= 0:
             return 0
         trader.inventory_export[good.value] -= qty
+        from economy.inventory_provenance import (
+            acquisition_cost_summary, take_trader_acquisition_links)
+        source_acquisitions = take_trader_acquisition_links(trader, good, qty)
+        linked_quantity, linked_cost = acquisition_cost_summary(source_acquisitions, qty)
         # M0.3: every shipment carries its current tile location; starts at
         # the source tile, ready for multi-hop paths on a future map.
         shipment_id = f'{self.name}:{self._next_shipment_id}'
@@ -66,10 +70,17 @@ class Route:
             unit_cost = float(trader.cost_get(good, 0.0))
         unit_cost = float(unit_cost)
         source_currency = source_currency or getattr(self.src, 'home_currency', None)
-        cost_status = 'trader_cost_basis' if unit_cost > 0 else 'unknown_cost_basis'
+        if linked_quantity == qty and linked_cost is not None:
+            unit_cost = linked_cost
+            cost_status = 'market_purchase_linked'
+        elif linked_quantity > 0:
+            cost_status = 'partially_linked_market_purchases'
+        else:
+            cost_status = 'trader_cost_basis' if unit_cost > 0 else 'unknown_cost_basis'
         self.pending.append([trader, good, qty, self.src.name, shipment_id,
                              unit_cost, float(freight_per_unit), source_currency,
-                             shipment_id, self.src.name, cost_status, [self.name]])
+                             shipment_id, self.src.name, cost_status, [self.name],
+                             source_acquisitions])
         return qty
 
     def post_parked(self, trader, good, qty):
@@ -101,13 +112,17 @@ class Route:
             self._next_shipment_id += 1
             history = list(lot.get('route_history') or [])
             history.append(self.name)
+            from economy.inventory_provenance import consume_acquisition_links
+            source_acquisitions = consume_acquisition_links(
+                lot.get('source_acquisitions', []), moved)
             self.pending.append([
                 trader, good, moved, src_name, shipment_id,
                 lot.get('unit_cost'), float(lot.get('freight_per_unit') or 0.0),
                 lot.get('source_currency'),
                 lot.get('source_shipment_id') or lot.get('shipment_id'),
                 lot.get('source_region') or src_name,
-                lot.get('source_cost_status') or 'unlinked_legacy_cargo', history])
+                lot.get('source_cost_status') or 'unlinked_legacy_cargo', history,
+                source_acquisitions])
             from economy.actor_accounts import record as record_economic_event
             record_economic_event(self.src, 'shipment_departure', payer_id=trader.id,
                                   good=good, quantity=moved, asset_id=shipment_id,
@@ -121,7 +136,8 @@ class Route:
                                           'freight_per_unit': lot.get('freight_per_unit'),
                                           'source_cost_status': lot.get('source_cost_status') or
                                               'unlinked_legacy_cargo',
-                                          'route_history': history})
+                                          'route_history': history,
+                                          'source_acquisitions': source_acquisitions})
             from run_trace import emit
             emit(self.src, kind='route_shipment_departure', record_class='observation',
                  subject={'type': 'shipment', 'id': shipment_id},
@@ -134,14 +150,17 @@ class Route:
                          'source_currency': lot.get('source_currency'),
                          'source_cost_status': lot.get('source_cost_status') or
                              'unlinked_legacy_cargo',
-                         'route_history': history})
+                         'route_history': history,
+                         'source_acquisitions': source_acquisitions})
             remaining -= moved
         if remaining > 0:
             shipment_id = f'{self.name}:{self._next_shipment_id}'
             self._next_shipment_id += 1
             self.pending.append([trader, good, remaining, src_name, shipment_id,
                                  None, 0.0, getattr(self.src, 'home_currency', None),
-                                 None, src_name, 'unlinked_legacy_cargo', [self.name]])
+                                 None, src_name, 'unlinked_legacy_cargo', [self.name],
+                                 [{'quantity': remaining,
+                                   'status': 'unlinked_legacy_cargo'}]])
             from economy.actor_accounts import record as record_economic_event
             record_economic_event(self.src, 'shipment_departure', payer_id=trader.id,
                                   good=good, quantity=remaining, asset_id=shipment_id,
@@ -152,7 +171,10 @@ class Route:
                                           'source_unit_cost': None,
                                           'freight_per_unit': 0.0,
                                           'source_cost_status': 'unlinked_legacy_cargo',
-                                          'route_history': [self.name]})
+                                          'route_history': [self.name],
+                                          'source_acquisitions': [
+                                              {'quantity': remaining,
+                                               'status': 'unlinked_legacy_cargo'}]})
             from run_trace import emit
             emit(self.src, kind='route_shipment_departure', record_class='observation',
                  subject={'type': 'shipment', 'id': shipment_id},
@@ -162,7 +184,10 @@ class Route:
                          'freight_per_unit': 0.0,
                          'source_currency': getattr(self.src, 'home_currency', None),
                          'source_cost_status': 'unlinked_legacy_cargo',
-                         'route_history': [self.name]})
+                         'route_history': [self.name],
+                         'source_acquisitions': [
+                             {'quantity': remaining,
+                              'status': 'unlinked_legacy_cargo'}]})
         return qty
 
     # ------------------------------------------------------------------
@@ -193,6 +218,7 @@ class Route:
                 source_cost_status = (entry[11] if len(entry) > 11 else
                                       ('trader_cost_basis' if unit_cost else 'unknown_cost_basis'))
                 route_history = list(entry[12] if len(entry) > 12 and entry[12] else [self.name])
+                source_acquisitions = list(entry[13] if len(entry) > 13 and entry[13] else [])
                 # T1: the cargo matures HERE (this route's dst) no matter what.
                 # If the trader re-pointed away, park it instead of letting it
                 # ride the trader's new destination.
@@ -214,7 +240,9 @@ class Route:
                                  'source_currency': source_currency,
                                  'source_region': source_region,
                                  'source_cost_status': source_cost_status,
-                                 'route_history': route_history, 'parked': parked})
+                                 'route_history': route_history,
+                                 'source_acquisitions': source_acquisitions,
+                                 'parked': parked})
                     trader.import_lots = lots[-500:]
                     from economy.actor_accounts import record as record_economic_event
                     record_economic_event(self.src, 'shipment_arrival',
@@ -229,6 +257,7 @@ class Route:
                                                   'source_region': source_region,
                                                   'source_cost_status': source_cost_status,
                                                   'route_history': route_history,
+                                                  'source_acquisitions': source_acquisitions,
                                                   'parked': parked})
                     from run_trace import emit
                     emit(self.src, kind='route_shipment_arrival',
@@ -243,6 +272,7 @@ class Route:
                                  'source_currency': source_currency,
                                  'source_cost_status': source_cost_status,
                                  'route_history': route_history,
+                                 'source_acquisitions': source_acquisitions,
                                  'parked': parked})
             else:
                 remaining.append(entry)
@@ -289,6 +319,9 @@ class Route:
         for entry in self.in_transit:
             if entry[0] is trader:
                 trader.inventory_export[entry[1].value] += entry[2]
+                from economy.inventory_provenance import restore_trader_acquisition_links
+                restore_trader_acquisition_links(
+                    trader, entry[1], entry[13] if len(entry) > 13 else [])
             else:
                 kept.append(entry)
         self.in_transit = kept
@@ -297,6 +330,9 @@ class Route:
         for entry in self.pending:
             if entry[0] is trader:
                 trader.inventory_export[entry[1].value] += entry[2]
+                from economy.inventory_provenance import restore_trader_acquisition_links
+                restore_trader_acquisition_links(
+                    trader, entry[1], entry[12] if len(entry) > 12 else [])
             else:
                 pending.append(entry)
         self.pending = pending

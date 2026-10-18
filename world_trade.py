@@ -43,6 +43,9 @@ def pending_imports(dest, src):
     """Goods that *src*'s traders have physically delivered to *dest*.
 
     Returns {Goods.good: [(trader, qty, is_parked, ...provenance), ...]}.
+    Provenance fields after those first three values are the active route-leg
+    shipment ID, source unit cost, freight and currency, cost status, original
+    shipment ID, source region, route history, and acquisition links.
       - Active pool: ``inventory_foreign`` lots whose current destination is
         *dest* (same rule as the legacy two-region helper) -> is_parked=False.
       - Parked pool (T1): lots that matured at *dest* after the trader
@@ -71,12 +74,13 @@ def pending_imports(dest, src):
                                                    lot.get('source_cost_status'),
                                                    lot.get('source_shipment_id'),
                                                    lot.get('source_region'),
-                                                   list(lot.get('route_history') or [])))
+                                                   list(lot.get('route_history') or []),
+                                                   list(lot.get('source_acquisitions') or [])))
                 qty = max(0, int(trader.inventory_foreign[g.value]) - lot_qty)
                 if qty > 0:
                     pend.setdefault(g, []).append((trader, qty, False, None, None,
                                                    None, None, 'unlinked_legacy_cargo',
-                                                   None, None, []))
+                                                   None, None, [], []))
         for g in TRADE_GOODS:
             if g not in getattr(dest, 'recipes', {}):
                 continue
@@ -93,12 +97,13 @@ def pending_imports(dest, src):
                                                lot.get('source_cost_status'),
                                                lot.get('source_shipment_id'),
                                                lot.get('source_region'),
-                                               list(lot.get('route_history') or [])))
+                                               list(lot.get('route_history') or []),
+                                               list(lot.get('source_acquisitions') or [])))
             qty = max(0, int(trader.parked_get(dest.name, g, 0)) - lot_qty)
             if qty > 0:
                 pend.setdefault(g, []).append((trader, qty, True, None, None, None,
                                                None, 'unlinked_legacy_cargo', None,
-                                               None, []))
+                                               None, [], []))
     return pend
 
 
