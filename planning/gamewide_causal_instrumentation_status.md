@@ -676,3 +676,18 @@ Verification: nine dedicated arrears, dynamics, and response fixtures, four
 existing Egypt politics tests, and all 30 run-trace tests passed (43 total).
 Compilation and `git diff --check` passed. Other scenario actions and non-Guided
 policy transfers remain open.
+
+The province policy panel now traces equalization-grant funding and the
+province's least-liquid tile selection, including the balance score used for
+each candidate. Successful grants record the matched provincial cash debit and
+municipal treasury receipt; insufficient funds and empty provinces record
+no-op outcomes. Soil-conservation spending records its provincial cash debit
+as a public-service expenditure with no modeled cash recipient, then records
+each changed tile's fertility. The existing funded-empty-province case remains
+visible as spending without a land effect. Funding and outcome metrics are in
+the metric catalog.
+
+Verification: four dedicated policy-transfer fixtures, the existing provincial
+grant conservation test, and the UI policy-action execution test passed (6
+total). Compilation and `git diff --check` passed. City food aid, guano subsidy,
+and other world-policy cash mutations remain open.

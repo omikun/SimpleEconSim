@@ -35,6 +35,179 @@ _ACTION_BUTTONS = []
 _SCOPE_TABS = []
 
 
+def _policy_trace_region(world, target):
+    candidates = list(getattr(target, 'tiles', ()))
+    candidates.extend(world.get('tiles', ()))
+    return next((tile for tile in candidates
+                 if (getattr(tile, '_run_trace', None) is not None
+                     and getattr(tile, '_collective_trace_clock', None) is not None)), None)
+
+
+def _policy_operation_id(world, target, action_id, region):
+    if region is None:
+        return None
+    clock = region._collective_trace_clock
+    return (f"policy:{action_id}:{getattr(target, 'name', 'unnamed')}:"
+            f"{int(world.get('turn', 0))}:{int(clock.get('next', 0))}")
+
+
+def _trace_policy_funding(world, target, action_id, *, cost, source_cash,
+                          affordable, reason, funded=None, recipient_count=None,
+                          decision_inputs=None):
+    region = _policy_trace_region(world, target)
+    operation_id = _policy_operation_id(world, target, action_id, region)
+    if region is None:
+        return {'region': None, 'operation_id': None, 'event_id': None}
+    from run_trace import emit
+    nation = (getattr(target, 'nation', None)
+              or next((getattr(tile, 'owner_nation', None)
+                       for tile in getattr(target, 'tiles', ())
+                       if getattr(tile, 'owner_nation', None) is not None), None))
+    currency = (getattr(target, 'currency', None)
+                or getattr(nation, 'currency', None)
+                or getattr(region, 'home_currency', None)
+                or 'local_currency')
+    inputs = {
+        'operation_id': operation_id, 'turn': int(world.get('turn', 0)),
+        'action_id': action_id, 'amount_requested': float(cost),
+        'source_cash_before': float(source_cash),
+        'cash_shortfall': max(0.0, float(cost) - float(source_cash)),
+        'affordable': bool(affordable),
+        'funded': bool(affordable if funded is None else funded),
+        'recipient_count': recipient_count,
+        'reason': reason,
+    }
+    inputs.update(decision_inputs or {})
+    event_id = emit(
+        region, kind='provincial_policy_funding_decision',
+        record_class='decision', phase='policy_action',
+        subject={'type': 'province', 'id': getattr(target, 'name', 'unnamed')},
+        metric_id='scenario.provincial_policy_funding', unit='funded',
+        after=inputs['funded'], inputs=inputs)
+    return {'region': region, 'operation_id': operation_id,
+            'event_id': event_id, 'currency': currency,
+            'turn': int(world.get('turn', 0))}
+
+
+def _emit_policy_outcome(trace, target, action_id, *, success, reason,
+                         before=None, after=None, cause_event_ids=None,
+                         inputs=None):
+    region = trace.get('region')
+    if region is None:
+        return None
+    from run_trace import emit
+    return emit(
+        region, kind='provincial_policy_action_outcome',
+        record_class='outcome', phase='policy_action',
+        subject={'type': 'province', 'id': getattr(target, 'name', 'unnamed')},
+        metric_id='scenario.provincial_policy_action',
+        before='pending', after='applied' if success else 'no_effect',
+        unit='policy_result',
+        inputs={'operation_id': trace.get('operation_id'),
+                'turn': trace.get('turn'), 'action_id': action_id,
+                'success': bool(success), 'reason': reason,
+                'source_cash_before': before,
+                'source_cash_after': after,
+                **(inputs or {})},
+        cause_event_ids=cause_event_ids)
+
+
+def _trace_provincial_internal_transfer(world, target, recipient_tile, *,
+                                        action_id, trace, amount,
+                                        payer_before, payer_after,
+                                        payee_before, payee_after):
+    region = trace.get('region')
+    if region is None:
+        return None, None
+    from finance_trace import account_ref, transfer_contract
+    from run_trace import emit
+    nation = (getattr(target, 'nation', None)
+              or getattr(recipient_tile, 'owner_nation', None))
+    currency = (trace.get('currency')
+                or getattr(recipient_tile, 'home_currency', None)
+                or 'local_currency')
+    payer_agent = target.gov.agent
+    payee_agent = recipient_tile.gov.agent
+    operation_id = trace['operation_id']
+    common = {
+        'amount': float(amount), 'amount_currency': currency,
+        'payer_account': account_ref(
+            'provincial_treasury', str(payer_agent.id), currency,
+            province_id=target.name, nation_id=getattr(nation, 'name', None),
+            balance_before=float(payer_before), balance_after=float(payer_after),
+            balance_scope='government_agent.cash'),
+        'payee_account': account_ref(
+            'municipal_treasury', str(payee_agent.id),
+            getattr(recipient_tile, 'home_currency', None) or currency,
+            tile=recipient_tile.name, nation_id=getattr(nation, 'name', None),
+            balance_before=float(payee_before), balance_after=float(payee_after),
+            balance_scope='government_agent.cash'),
+        'local_cash_leg_amount': float(amount),
+        'counterparty_leg_status': 'paired_internal_transfer_same_nation',
+        'source': action_id, 'turn': int(world.get('turn', 0)),
+    }
+    payer_contract = transfer_contract(
+        operation_id, 'provincial_equalization_grant', side='payer',
+        local_cash_leg_currency=currency, **common)
+    payer_event_id = emit(
+        region, kind='provincial_equalization_grant_debit',
+        record_class='transfer', phase='policy_action',
+        subject={'type': 'province', 'id': target.name},
+        metric_id='finance.internal_transfer', unit=currency, after=-float(amount),
+        inputs={'operation_id': operation_id,
+                'transfer_contract': payer_contract},
+        cause_event_ids=([trace['event_id']] if trace.get('event_id') else None))
+    payee_contract = transfer_contract(
+        operation_id, 'provincial_equalization_grant', side='payee',
+        local_cash_leg_currency=(getattr(recipient_tile, 'home_currency', None)
+                                 or currency), **common)
+    payee_event_id = emit(
+        region, kind='provincial_equalization_grant_receipt',
+        record_class='transfer', phase='policy_action',
+        subject={'type': 'tile/treasury', 'id': recipient_tile.name},
+        metric_id='finance.internal_transfer',
+        unit=getattr(recipient_tile, 'home_currency', None) or currency,
+        after=float(amount),
+        inputs={'operation_id': operation_id,
+                'transfer_contract': payee_contract},
+        cause_event_ids=[payer_event_id] if payer_event_id else None)
+    return payer_event_id, payee_event_id
+
+
+def _trace_provincial_policy_expenditure(world, target, action_id, trace, *,
+                                         amount, payer_before, payer_after,
+                                         service):
+    region = trace.get('region')
+    if region is None:
+        return None
+    from finance_trace import account_ref, transfer_contract
+    from run_trace import emit
+    payer_agent = target.gov.agent
+    currency = trace.get('currency') or 'local_currency'
+    operation_id = trace['operation_id']
+    contract = transfer_contract(
+        operation_id, action_id, side='payer', amount=float(amount),
+        amount_currency=currency,
+        payer_account=account_ref(
+            'provincial_treasury', str(payer_agent.id), currency,
+            province_id=target.name,
+            balance_before=float(payer_before), balance_after=float(payer_after),
+            balance_scope='government_agent.cash'),
+        payee_account={'type': 'public_policy_service', 'id': target.name,
+                        'service': service, 'cash_balance_captured': False},
+        local_cash_leg_amount=float(amount), local_cash_leg_currency=currency,
+        counterparty_leg_status='policy_expenditure_no_cash_payee',
+        source=action_id, turn=int(world.get('turn', 0)))
+    return emit(
+        region, kind='provincial_policy_expenditure', record_class='transfer',
+        phase='policy_action', subject={'type': 'province', 'id': target.name},
+        metric_id='finance.policy_expenditure', unit=currency,
+        after=-float(amount),
+        inputs={'operation_id': operation_id, 'service': service,
+                'transfer_contract': contract},
+        cause_event_ids=([trace['event_id']] if trace.get('event_id') else None))
+
+
 def draw_policies_panel(surface, world, region, font, font_small, mouse_pos=None):
     """Draw the Governance & Policies interactive panel in the right sidebar."""
     global _ACTION_BUTTONS, _SCOPE_TABS
@@ -846,15 +1019,70 @@ def _execute_policy_action(world, act_id, target):
         prov_gov = getattr(target, 'gov', None)
         cost = 200.0
         on_hand = prov_gov.agent.cash if prov_gov and hasattr(prov_gov, 'agent') else 0.0
+        affordable = on_hand >= cost
+        funded = affordable and bool(tiles)
+        trace = _trace_policy_funding(
+            world, target, act_id, cost=cost, source_cash=on_hand,
+            affordable=affordable, funded=funded,
+            reason=('treasury_and_recipient_available' if funded else
+                    'no_province_tiles' if affordable else
+                    'treasury_cash_below_cost'),
+            recipient_count=len(tiles),
+            decision_inputs={'recipient_selection_rule':
+                             'minimum local bank capital plus municipal treasury cash',
+                             'tile_asset_scores': [
+                                 {'tile': tile.name,
+                                  'bank_capital': float(tile.bank.capital)
+                                  if getattr(tile, 'bank', None) else 0.0,
+                                  'municipal_cash': float(tile.gov.agent.cash)
+                                  if (getattr(tile, 'gov', None)
+                                      and hasattr(tile.gov, 'agent')) else 0.0}
+                                 for tile in tiles]})
         if on_hand >= cost:
             if tiles:
                 poorest = min(tiles, key=lambda r: (r.bank.capital if getattr(r, 'bank', None) else 0.0) + (r.gov.agent.cash if getattr(r, 'gov', None) and hasattr(r.gov, 'agent') else 0.0))
+                payer_before = float(prov_gov.agent.cash)
+                payee_before = float(poorest.gov.agent.cash)
                 prov_gov.agent.cash -= cost
                 poorest.gov.agent.cash += cost
+                payer_event_id, payee_event_id = _trace_provincial_internal_transfer(
+                    world, target, poorest, action_id=act_id, trace=trace,
+                    amount=cost, payer_before=payer_before,
+                    payer_after=float(prov_gov.agent.cash),
+                    payee_before=payee_before,
+                    payee_after=float(poorest.gov.agent.cash))
+                _emit_policy_outcome(
+                    trace, target, act_id, success=True,
+                    reason='grant_paid_to_lowest_liquid_assets_tile',
+                    before=payer_before, after=float(prov_gov.agent.cash),
+                    cause_event_ids=[event_id for event_id in
+                                     (trace.get('event_id'), payer_event_id,
+                                      payee_event_id) if event_id] or None,
+                    inputs={'amount_paid': cost,
+                            'recipient_tile': poorest.name,
+                            'recipient_selection_score':
+                            (float(poorest.bank.capital)
+                             if getattr(poorest, 'bank', None) else 0.0)
+                            + payee_before,
+                            'recipient_cash_before': payee_before,
+                            'recipient_cash_after': float(poorest.gov.agent.cash)})
                 world['policy_feedback'] = (f"Disbursed $200 grant from province treasury to {poorest.name}!", GREEN)
                 from worldview_engine import ticker_push
                 ticker_push(world, world['turn'], 'POLICY', f"Equalization grant: $200 transferred from {target.name} to {poorest.name}.", (130, 220, 160))
+            else:
+                _emit_policy_outcome(
+                    trace, target, act_id, success=False,
+                    reason='no_province_tiles', before=float(on_hand),
+                    after=float(on_hand),
+                    cause_event_ids=[trace['event_id']] if trace.get('event_id') else None,
+                    inputs={'amount_requested': cost, 'tile_count': 0})
         else:
+            _emit_policy_outcome(
+                trace, target, act_id, success=False,
+                reason='insufficient_provincial_treasury',
+                before=float(on_hand), after=float(on_hand),
+                cause_event_ids=[trace['event_id']] if trace.get('event_id') else None,
+                inputs={'amount_requested': cost, 'cash_shortfall': cost - on_hand})
             world['policy_feedback'] = (f"Insufficient provincial treasury funds (${on_hand:.1f} < $200.0).", RED)
     elif act_id == 'prov_harmonize_taxes':
         tiles = getattr(target, 'tiles', [])
@@ -869,14 +1097,70 @@ def _execute_policy_action(world, act_id, target):
         prov_gov = getattr(target, 'gov', None)
         cost = 150.0
         on_hand = prov_gov.agent.cash if prov_gov and hasattr(prov_gov, 'agent') else 0.0
+        tiles = list(getattr(target, 'tiles', []))
+        funded = on_hand >= cost
+        trace = _trace_policy_funding(
+            world, target, act_id, cost=cost, source_cash=on_hand,
+            affordable=funded, funded=funded,
+            reason='treasury_funds_soil_conservation' if funded
+            else 'treasury_cash_below_cost', recipient_count=len(tiles),
+            decision_inputs={'fertility_before_by_tile': {
+                tile.name: float(getattr(tile, 'soil_fertility', 1.0))
+                for tile in tiles}})
         if on_hand >= cost:
+            payer_before = float(prov_gov.agent.cash)
             prov_gov.agent.cash -= cost
-            for r in getattr(target, 'tiles', []):
-                r.soil_fertility = min(1.50, getattr(r, 'soil_fertility', 1.0) + 0.10)
+            expenditure_event_id = _trace_provincial_policy_expenditure(
+                world, target, act_id, trace, amount=cost,
+                payer_before=payer_before,
+                payer_after=float(prov_gov.agent.cash),
+                service='soil_conservation')
+            fertility_changes = []
+            trace_region = _policy_trace_region(world, target)
+            for region in tiles:
+                before_fertility = float(getattr(region, 'soil_fertility', 1.0))
+                region.soil_fertility = min(1.50, before_fertility + 0.10)
+                after_fertility = float(region.soil_fertility)
+                fertility_changes.append({'tile': region.name,
+                                          'before': before_fertility,
+                                          'after': after_fertility})
+                if before_fertility == after_fertility or trace_region is None:
+                    continue
+                from run_trace import emit
+                emit(
+                    trace_region, kind='provincial_soil_conservation_outcome',
+                    record_class='outcome', phase='policy_action',
+                    subject={'type': 'tile', 'id': region.name},
+                    metric_id='ecology.soil_fertility',
+                    before=before_fertility, after=after_fertility, unit='ratio',
+                    inputs={'operation_id': trace.get('operation_id'),
+                            'turn': int(world.get('turn', 0)),
+                            'province': target.name,
+                            'funding_event_id': trace.get('event_id'),
+                            'expenditure_event_id': expenditure_event_id},
+                    cause_event_ids=([expenditure_event_id]
+                                     if expenditure_event_id else None))
+            _emit_policy_outcome(
+                trace, target, act_id, success=True,
+                reason='policy_cost_paid_and_land_changes_applied' if tiles
+                else 'policy_cost_paid_without_province_tiles',
+                before=payer_before, after=float(prov_gov.agent.cash),
+                cause_event_ids=[event_id for event_id in
+                                 (trace.get('event_id'), expenditure_event_id)
+                                 if event_id] or None,
+                inputs={'amount_paid': cost, 'tile_count': len(tiles),
+                        'fertility_changes': fertility_changes})
             world['policy_feedback'] = (f"Soil conservation grant deployed across {target.name}!", (130, 220, 160))
             from worldview_engine import ticker_push
             ticker_push(world, world['turn'], 'POLICY', f"Soil conservation subsidies funded in {target.name} (+10% Fertility).", (130, 220, 160))
         else:
+            _emit_policy_outcome(
+                trace, target, act_id, success=False,
+                reason='insufficient_provincial_treasury',
+                before=float(on_hand), after=float(on_hand),
+                cause_event_ids=[trace['event_id']] if trace.get('event_id') else None,
+                inputs={'amount_requested': cost, 'cash_shortfall': cost - on_hand,
+                        'fertility_unchanged': True})
             world['policy_feedback'] = ("Insufficient provincial treasury funds.", RED)
 
     # Nation Actions

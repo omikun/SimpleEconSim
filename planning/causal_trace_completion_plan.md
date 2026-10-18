@@ -1048,3 +1048,17 @@ Verification: nine dedicated arrears, dynamics, and response fixtures, four
 existing Egypt politics tests, and all 30 run-trace tests passed (43 total).
 Compilation and `git diff --check` passed. Other scenario response systems
 and non-Guided policy transfers remain open.
+
+Phase 3 follow-up, 2026-10-18: the province equalization-grant policy now logs
+the treasury gate, every candidate tile's bank and local-treasury balances,
+the selected least-liquid recipient, and paired source/recipient government
+cash legs. Soil conservation logs the provincial affordability gate and the
+treasury debit as an explicitly identified public-service expenditure without
+a modeled cash payee. Each actual fertility change links to that cost; a funded
+province with no tiles records the existing spend with no land effect. Added
+funding and action metrics are catalogued.
+
+Verification: four dedicated policy-transfer fixtures, the existing provincial
+grant conservation test, and the UI policy-action execution test passed (6
+total). Compilation and `git diff --check` passed. City food aid, guano subsidy,
+and other world-policy cash mutations remain open for audit.
