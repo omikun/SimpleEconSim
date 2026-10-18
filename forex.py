@@ -644,7 +644,8 @@ def connect_regions(region_a, region_b, t=0):
     return desk_a, desk_b
 
 
-def _give_working_capital(trader, bank, currency, amount, rate):
+def _give_working_capital(trader, bank, currency, amount, rate,
+                          trace_region=None, t=None):
     """Trader buys *amount* of foreign *currency* from its home bank.
 
     Conservation-safe replacement for the old free seed: home money moves
@@ -655,6 +656,11 @@ def _give_working_capital(trader, bank, currency, amount, rate):
     """
     if amount <= 0:
         return 0.0
+    cash_before = float(trader.cash)
+    deposit_before = float(bank.deposits.get(trader, 0.0))
+    wallet_before = float(fx_balance(trader, currency))
+    fx_pool_before = float(bank.fx_pool)
+    reserves_before = float(bank.foreign_reserves.get(currency, 0.0))
     amount = min(amount, bank.foreign_reserves.get(currency, 0.0))
     if amount <= 0:
         return 0.0
@@ -677,6 +683,74 @@ def _give_working_capital(trader, bank, currency, amount, rate):
     # Foreign leg: reserves -> wallet
     bank.foreign_reserves[currency] -= amount
     fx_add(trader, currency, amount)
+    if trace_region is not None:
+        from economy.actor_accounts import record as record_economic_event
+        turn = int(t if t is not None else getattr(trace_region, '_last_turn', 0))
+        next_event_id = int(getattr(trace_region, '_next_economic_event_id', 1))
+        transfer_id = (f'trader-float:{turn}:{trace_region.name}:'
+                       f'{trader.id}:{currency}:{next_event_id}')
+        detail = {
+            'transfer_id': transfer_id, 'direction': 'seed_foreign_float',
+            'payment_kind': 'initial_trader_working_capital',
+            'home_currency': getattr(trace_region, 'home_currency', None),
+            'foreign_currency': currency, 'foreign_amount': float(amount),
+            'home_amount': float(home), 'rate_home_per_foreign': float(rate),
+            'cash_paid': float(home_cash), 'deposit_paid': float(from_deposit),
+            'trader_cash_before': cash_before,
+            'trader_cash_after': float(trader.cash),
+            'trader_deposit_before': deposit_before,
+            'trader_deposit_after': float(bank.deposits.get(trader, 0.0)),
+            'trader_wallet_before': wallet_before,
+            'trader_wallet_after': float(fx_balance(trader, currency)),
+            'bank_fx_pool_before': fx_pool_before,
+            'bank_fx_pool_after': float(bank.fx_pool),
+            'bank_foreign_reserves_before': reserves_before,
+            'bank_foreign_reserves_after': float(
+                bank.foreign_reserves.get(currency, 0.0)),
+        }
+        cash_event = None
+        if home_cash > 0:
+            cash_event = record_economic_event(
+                trace_region, 'fx_conversion', turn=turn,
+                payer_id=trader.id, amount=home_cash,
+                asset_id=transfer_id, source_id=transfer_id,
+                currency=getattr(trace_region, 'home_currency', None),
+                detail={**detail, 'home_tender': 'hand_cash'})
+        deposit_event = None
+        if from_deposit > 0:
+            deposit_event = record_economic_event(
+                trace_region, 'bank_fx_deposit_conversion', turn=turn,
+                payer_id=trader.id, amount=from_deposit,
+                asset_id=transfer_id, source_id=transfer_id,
+                currency=getattr(trace_region, 'home_currency', None),
+                detail={**detail, 'home_tender': 'bank_deposit'})
+        wallet_event = record_economic_event(
+            trace_region, 'wallet_transfer_in', turn=turn,
+            recipient_id=trader.id, amount=amount,
+            asset_id=transfer_id, source_id=transfer_id,
+            currency=currency, detail=detail)
+        trace_record = {
+            'kind': 'fx_trader_float_seeded', 'record_class': 'transfer',
+            'phase': 'setup',
+            'subject': {'type': 'agent', 'id': trader.id,
+                        'tile': trace_region.name},
+            'metric_id': 'trade.fx_trader_float', 'unit': currency,
+            'before': wallet_before,
+            'after': float(fx_balance(trader, currency)),
+            'formula_id': 'fx.trader_float.funded.v1',
+            'inputs': {
+                **detail,
+                'cash_event': {'tile': trace_region.name,
+                               'event_id': cash_event['id']} if cash_event else None,
+                'deposit_event': {'tile': trace_region.name,
+                                 'event_id': deposit_event['id']} if deposit_event else None,
+                'wallet_event': {'tile': trace_region.name,
+                                 'event_id': wallet_event['id']}}}
+        from run_trace import emit
+        if emit(trace_region, **trace_record) is None:
+            pending = getattr(trace_region, '_pending_trader_float_traces', [])
+            pending.append(trace_record)
+            trace_region._pending_trader_float_traces = pending
     return amount
 
 
@@ -699,9 +773,25 @@ def seed_trader_wallet(region, partner, t=0, desk=None):
     for a in region.agents:
         if not getattr(a, 'is_trader', False):
             continue
-        total += _give_working_capital(a, region.bank, partner.home_currency,
-                                       100.0, desk.sell_rate())
+        total += _give_working_capital(
+            a, region.bank, partner.home_currency, 100.0, desk.sell_rate(),
+            trace_region=region, t=t)
     return total
+
+
+def flush_pending_trader_float_traces(region):
+    """Write setup float records once the live recorder and clock are attached."""
+    pending = list(getattr(region, '_pending_trader_float_traces', ()))
+    if not pending:
+        return 0
+    from run_trace import emit
+    written = 0
+    for trace_record in pending:
+        if emit(region, **trace_record) is not None:
+            written += 1
+    if written == len(pending):
+        region._pending_trader_float_traces = []
+    return written
 
 
 def connect_desks(region, partner, t=0):

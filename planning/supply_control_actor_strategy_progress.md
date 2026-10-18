@@ -143,6 +143,11 @@ already fun or balanced; that still needs player feedback.
   trace records both traders' before/after cash and wallet balances, matched
   quantity, rate, and journal references; actor statements reconcile both
   traders' changes.
+- Initial trader float is now recorded as a funded setup conversion: the cash
+  and deposit contributions, bank FX pool/reserve changes, and foreign-wallet
+  receipt share one transfer ID. Since world generation seeds this before the
+  live trace attaches, the server flushes those records into the turn-zero
+  trace; actor statements count only the hand-cash portion as cash outflow.
 - Wilderness entry, settlement on claimed land, migration, and treasury
   conversion of same-currency wallets now record linked cash and wallet legs.
   Both current and compatibility wilderness APIs pass tile and turn context;
@@ -259,6 +264,8 @@ already fun or balanced; that still needs player feedback.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_crop_credit_accounting test_forex_accounting test_supply_control_actor_strategy test_supply_rights test_web_client_parity test_phase1_enclosure_expansions test_run_trace` — 108 tests passed after crop-lien and share-rent accounting.
 - `node --check web_client/client.js`, targeted Python compilation, and `git diff --check` — passed for crop-credit actor accounts and the web summary.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python benchmark_supply_default.py 50 4242` — repeated after in-kind crop accounting; zero currency violations, zero unmatched actor cash on turn 50, and zero unmatched actor-turn cash across the run.
+- `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_forex_accounting test_world_trade_accounting test_web_client_parity test_run_trace test_supply_control_actor_strategy test_market_routes` — 102 tests passed after initial trader-float accounting; a focused live-server test confirms float records appear in the turn-zero compact trace.
+- `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python benchmark_supply_default.py 50 4242` — repeated after initial float accounting; zero currency violations, zero unmatched actor cash on turn 50, and zero unmatched actor-turn cash across the run.
 - `node --check web_client/client.js`, targeted Python compilation, and `git diff --check` — passed.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_supply_control_actor_strategy test_supply_rights test_market_auction test_market_routes test_web_client_parity test_truck_system_and_scrip test_run_trace test_trace_codec test_banking_contagion test_plunder_labor` — 139 tests passed, including paired wage-arrears statements, causal shortfall inputs, and balance retention after the 500-row detail window.
 - `node --check web_client/client.js`, targeted Python compilation, and `git diff --check` — passed for the wage-arrears trace, account, and client changes.

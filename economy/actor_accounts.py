@@ -18,6 +18,7 @@ _NONCASH_EVENTS = {'production', 'input_consumed', 'scrip_wage',
                    'wilderness_goods_advance',
                    'wilderness_goods_collection',
                    'crop_lien_settlement', 'crop_share_rent',
+                   'bank_fx_deposit_conversion',
                    'foreign_wallet_debt_payment', 'foreign_wallet_inheritance',
                    'foreign_wallet_escheat'}
 
@@ -253,7 +254,11 @@ def seal_turn(region, turn, event_regions=None):
         fx_received = sum(e['amount'] for e in own if e['recipient_id'] == actor.id
                           and e['kind'] == 'fx_conversion')
         fx_paid = sum(e['amount'] for e in own if e['payer_id'] == actor.id
-                      and e['kind'] == 'fx_conversion')
+                      and e['kind'] in ('fx_conversion', 'bank_fx_deposit_conversion'))
+        bank_deposit_fx_converted_out = sum(
+            e['amount'] for e in own
+            if e['payer_id'] == actor.id
+            and e['kind'] == 'bank_fx_deposit_conversion')
         bank_loan_repayment = sum(e['amount'] for e in own if e['payer_id'] == actor.id
                                   and e['kind'] == 'bank_loan_repayment')
         bank_debt_inherited = {}
@@ -415,6 +420,8 @@ def seal_turn(region, turn, event_regions=None):
             'owner_financing_received': round(financing, 2),
             'fx_converted_in': round(fx_received, 2),
             'fx_converted_out': round(fx_paid, 2),
+            'bank_deposit_fx_converted_out': round(
+                bank_deposit_fx_converted_out, 2),
             'bank_loan_repayment_cash': round(bank_loan_repayment, 2),
             'bank_debt_inherited': {
                 currency: round(amount, 2)

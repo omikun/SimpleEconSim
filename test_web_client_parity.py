@@ -35,6 +35,22 @@ class TestWebClientParity(unittest.TestCase):
         self.assertIn('tariff_rate', macro)
         self.assertIn('credit_rating', macro)
 
+    def test_initial_trader_float_is_written_to_turn_zero_trace(self):
+        seeded = [event for tile in self.sim.tiles
+                  for event in getattr(tile, 'economic_events', [])
+                  if event['kind'] == 'wallet_transfer_in'
+                  and event.get('detail', {}).get('payment_kind')
+                  == 'initial_trader_working_capital']
+        self.assertGreater(len(seeded), 0)
+        traces = [row for row in self.sim.run_trace.recent
+                  if row.get('kind') == 'fx_trader_float_seeded']
+        self.assertEqual(len(traces), len(seeded))
+        wallet_event_ids = {event['id'] for event in seeded}
+        self.assertEqual(
+            {row['inputs']['wallet_event']['event_id'] for row in traces},
+            wallet_event_ids)
+        self.assertTrue(all(row['turn'] == 0 for row in traces))
+
     def test_history_series(self):
         # Step a few turns
         for _ in range(3):

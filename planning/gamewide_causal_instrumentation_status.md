@@ -33,7 +33,8 @@ the FX matrix has a **Why?** button for each quoted currency pair.
   result, and legitimacy drift. National population, GDP, cost of living, and
   protest energy have member tile values and aggregation rules.
 - Bilateral FX mid changes record reserve ratio, pressure, PPP, regime, and
-  band; bank conversions and trader order matches record actual transfers.
+  band; bank conversions, funded turn-zero trader floats, bilateral order
+  matches, and same-currency cash/wallet conversions record actual transfers.
 - Soil fertility and food nutrition updates record farming intensity, crop
   practices, enclosure, fertilizer, regeneration, and bounds. Air, water, and
   soil pollution updates record emissions, controls, dispersion, runoff, and

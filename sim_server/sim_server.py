@@ -140,8 +140,12 @@ class SimServer:
             trace_path = Path(__file__).resolve().parents[1] / 'tmp' / 'traces' / f'{run_id}.ctr'
             self.run_trace = RunTrace(trace_path, run_id, seed=self.seed,
                                       scenario=self.scenario_id)
+            setup_clock = {'turn': 0, 'phase': 'setup', 'next': 1}
             for tile in self.tiles:
                 tile._run_trace = self.run_trace
+                tile._collective_trace_clock = setup_clock
+            for tile in self.tiles:
+                fx.flush_pending_trader_float_traces(tile)
             from trace_snapshots import sample
             self._trace_previous = sample(self.tiles, self.nations)
 

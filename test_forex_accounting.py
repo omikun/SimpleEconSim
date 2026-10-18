@@ -4,7 +4,8 @@ from types import SimpleNamespace
 
 from agent import Agent
 from economy.actor_accounts import begin_turn, seal_turn
-from forex import ForexDesk, fx_add
+from forex import (ForexDesk, flush_pending_trader_float_traces, fx_add,
+                   seed_trader_wallet)
 from wilderness import enter_claimed, enter_wilderness
 
 
@@ -123,6 +124,50 @@ class ForexAccountingTests(unittest.TestCase):
         self.assertAlmostEqual(claimed_account['unposted_cash_change'], 0.0)
         self.assertAlmostEqual(claimed_account['fx_converted_in'], 12.0)
         self.assertEqual(cash_from_wallet['asset_id'], wallet_out['asset_id'])
+
+    def test_initial_trader_float_links_cash_deposit_and_foreign_reserve(self):
+        trader = Agent(0)
+        trader.is_trader = True
+        trader.home_currency = 'A'
+        trader.cash = 10.0
+        bank = SimpleNamespace(
+            deposits={trader: 50.0}, total_deposits=50.0,
+            fx_pool=0.0, foreign_reserves={'B': 100.0}, loans=[])
+        region = SimpleNamespace(
+            name='FloatHome', home_currency='A', agents=[trader], bank=bank,
+            cash_obligations=[], tenure=None, recipes={}, province=None,
+            economic_events=[], _last_turn=0)
+        begin_turn(region, 0)
+        desk = ForexDesk('A', 'B', mid=1.0, spread=0.0,
+                         seed_reserves=False)
+        amount = seed_trader_wallet(
+            region, SimpleNamespace(home_currency='B'), t=0, desk=desk)
+
+        recorder = Recorder()
+        region._collective_trace_clock = {'turn': 0, 'phase': 'setup', 'next': 1}
+        region._run_trace = recorder
+        self.assertEqual(flush_pending_trader_float_traces(region), 1)
+        account = {row['actor_id']: row for row in seal_turn(region, 0)}[trader.id]
+        events = {event['kind']: event for event in region.economic_events}
+        trace = recorder.rows[0]
+
+        self.assertAlmostEqual(amount, 60.0)
+        self.assertAlmostEqual(trader.cash, 0.0)
+        self.assertAlmostEqual(bank.deposits[trader], 0.0)
+        self.assertAlmostEqual(trader.wallets['B'], 60.0)
+        self.assertAlmostEqual(bank.fx_pool, 60.0)
+        self.assertAlmostEqual(bank.foreign_reserves['B'], 40.0)
+        self.assertAlmostEqual(account['unposted_cash_change'], 0.0)
+        self.assertAlmostEqual(account['fx_converted_out'], 60.0)
+        self.assertAlmostEqual(account['bank_deposit_fx_converted_out'], 50.0)
+        self.assertAlmostEqual(account['wallet_transfer_in_by_currency']['B'], 60.0)
+        self.assertEqual(events['fx_conversion']['amount'], 10.0)
+        self.assertEqual(events['bank_fx_deposit_conversion']['amount'], 50.0)
+        self.assertEqual(events['fx_conversion']['asset_id'],
+                         events['wallet_transfer_in']['asset_id'])
+        self.assertEqual(trace['metric_id'], 'trade.fx_trader_float')
+        self.assertEqual(trace['inputs']['deposit_event']['event_id'],
+                         events['bank_fx_deposit_conversion']['id'])
 
 
 if __name__ == '__main__':
