@@ -201,7 +201,10 @@ def post_exports_to_route(region):
                                 if carrier is not None and has_transport_quote else 0.0)
                 if carrier is not None and freight_unit > 0:
                     qty = min(qty, int(max(0.0, trader.cash) / freight_unit))
-                moved = route.post(trader, g, qty)
+                unit_cost = float(trader.cost_get(g, 0.0))
+                moved = route.post(trader, g, qty, unit_cost=unit_cost,
+                                   freight_per_unit=freight_unit,
+                                   source_currency=getattr(region, 'home_currency', None))
                 if moved and carrier is not None and freight_unit > 0:
                     freight = moved * freight_unit
                     trader.cash -= freight
@@ -212,6 +215,17 @@ def post_exports_to_route(region):
                                           amount=freight, asset_id=route.name,
                                           detail={'destination': route.dst.name,
                                                   'unit_cost': freight_unit})
+                if moved:
+                    shipment = route.pending[-1]
+                    from economy.actor_accounts import record as record_economic_event
+                    record_economic_event(region, 'shipment_departure',
+                                          payer_id=trader.id, good=g, quantity=moved,
+                                          asset_id=shipment[4],
+                                          currency=getattr(region, 'home_currency', None),
+                                          detail={'destination': route.dst.name,
+                                                  'source_unit_cost': unit_cost,
+                                                  'freight_per_unit': freight_unit,
+                                                  'shipment_id': shipment[4]})
 
 
 def liquidation_price(good, cost_basis):

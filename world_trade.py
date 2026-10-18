@@ -57,7 +57,17 @@ def pending_imports(dest, src):
             for g in TRADE_GOODS:
                 if g not in getattr(dest, 'recipes', {}):
                     continue
-                qty = trader.inventory_foreign[g.value]
+                lots = [lot for lot in getattr(trader, 'import_lots', [])
+                        if lot.get('destination') == dest.name and lot.get('good') == g.name
+                        and int(lot.get('quantity', 0)) > 0]
+                lot_qty = sum(int(lot['quantity']) for lot in lots)
+                for lot in lots:
+                    pend.setdefault(g, []).append((trader, int(lot['quantity']), False,
+                                                   lot.get('shipment_id'),
+                                                   lot.get('unit_cost'),
+                                                   lot.get('freight_per_unit'),
+                                                   lot.get('source_currency')))
+                qty = max(0, int(trader.inventory_foreign[g.value]) - lot_qty)
                 if qty > 0:
                     pend.setdefault(g, []).append((trader, qty, False))
         for g in TRADE_GOODS:

@@ -462,7 +462,7 @@ def gather_import_pool(region, good):
         trader, qty = e[0], e[1]
         is_parked = e[2] if len(e) > 2 else False
         if qty > 0 and getattr(trader, 'is_trader', False):
-            pool.append([trader, qty, is_parked])
+            pool.append(list(e))
             total += qty
     return pool, total
 
@@ -493,7 +493,8 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
         trader, qty = item[0], item[1]
         ask = import_ask_price(region, trader, good)
         is_parked = item[2] if len(item) > 2 else False
-        book.append([ask, qty, trader, True, is_parked])
+        book.append([ask, qty, trader, True, is_parked,
+                     *(item[3:7] if len(item) > 3 else [])])
     book.sort(key=lambda o: o[0])
 
     bid_limits = {}
@@ -535,6 +536,10 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
     for b in book:
         ask, qty, seller, is_import = b[0], b[1], b[2], b[3]
         is_parked = b[4] if len(b) > 4 else False
+        shipment_id = b[5] if len(b) > 5 else None
+        source_unit_cost = b[6] if len(b) > 6 else None
+        freight_per_unit = b[7] if len(b) > 7 else None
+        source_currency = b[8] if len(b) > 8 else None
         if qty <= 0 or units >= total_bids:
             continue
         remaining = qty
@@ -595,6 +600,11 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
                         seller.inventory_foreign[good.value] -= take
                 imp_units += take
                 imp_value += cost
+                if shipment_id is not None:
+                    for lot in getattr(seller, 'import_lots', []):
+                        if lot.get('shipment_id') == shipment_id:
+                            lot['quantity'] = max(0, int(lot.get('quantity', 0)) - take)
+                            break
             else:
                 seller.cash += cost
                 seller.inventory[good.value] -= take
@@ -660,14 +670,19 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
             trade_events.append({'turn': int(t), 'good': good.name, 'buyer_id': buyer.id,
                                  'seller_id': seller.id, 'quantity': int(take),
                                  'unit_price': float(unit_price), 'total_paid': float(cost),
-                                 'imported': bool(is_import)})
+                                 'imported': bool(is_import),
+                                 'shipment_id': shipment_id})
             region.market_trade_events = trade_events[-500:]
             from economy.actor_accounts import record as record_economic_event
             record_economic_event(region, 'spot_sale', turn=t, payer_id=buyer.id,
                                   recipient_id=seller.id, good=good, quantity=take,
                                   amount=cost, source_id=sale_id,
-                                  detail={'unit_price': unit_price, 'imported': bool(is_import),
+                                          detail={'unit_price': unit_price, 'imported': bool(is_import),
                                           'parked': bool(is_parked),
+                                          'shipment_id': shipment_id,
+                                          'source_unit_cost': source_unit_cost,
+                                          'freight_per_unit': freight_per_unit,
+                                          'source_currency': source_currency,
                                           'seller_receipt': seller.cash - seller_cash_before +
                                               _fx.fx_balance(seller, region.home_currency) - seller_wallet_before,
                                           'government_receipt':

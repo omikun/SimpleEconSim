@@ -32,17 +32,16 @@ already fun or balanced; that still needs player feedback.
   named cash, crop receipts, food, debt, supply offers, and relevant rights.
   Statements label cost coverage as incomplete. Web additionally shows scrip
   balances and cash movement not yet matched to journal postings.
-- A 50-turn default run created 115 firm and 264 grower account rows, 11 supply
-  proposals (10 settled, 1 rejected), and no active contracts/charters at the
-  end. The final-turn sum of absolute unmatched actor cash movements was
-  $14,850.19, showing that a full per-actor cash bridge is not complete. Some
+- The latest 50-turn default run created 145 firm and 294 grower account rows,
+  12 supply proposals (6 settled, 6 rejected), and no active contracts/charters
+  at the end. The final-turn sum of absolute unmatched actor cash movements was
+  $22,664.76, showing that a full per-actor cash bridge is not complete. Some
   unmatched movement is from legacy systems that have not been connected to this
   journal; do not read the displayed recorded result as complete profit.
-- Remaining gate work: cross-region lot/shipment links and delivered unit cost;
-  bank deposit transaction adapters; verify the default run's one
-  reported turn-21 USD audit discrepancy (-$17.61) against a per-operation
-  ledger. It appeared in the benchmark run but did not recur in a separate
-  direct 21-turn diagnostic, so its source is not yet established.
+- Remaining gate work: complete bank deposit transaction adapters and
+  farmgate-to-route-to-import accounting for every cargo source. An earlier
+  benchmark run reported a turn-21 USD discrepancy (-$17.61), but the direct
+  diagnostic and the latest 50-turn run did not reproduce it.
 
 ## Phase 2 — grower and title-holder agency: implemented, deeper law/remedy work out of scope
 
@@ -101,28 +100,35 @@ already fun or balanced; that still needs player feedback.
   and canal outcomes. Branches diverge stochastically after actions, so these
   results are descriptive, not clean causal estimates.
 - Each of the 12 rivalry benchmark runs reported zero currency violations. The
-  50-turn default run reported one turn-21 USD discrepancy of -$17.61. The
-  direct 21-turn diagnostic did not reproduce it, so Phase 5's audit gate is
-  still open. Investigate the exact nondeterministic branch/transaction before
-  treating that run as clean.
+  latest 50-turn default run also reported zero: CNY unchanged, JPY +$0.01, USD
+  -$0.01. The earlier -$17.61 discrepancy remains intermittent and warrants
+  more controlled seeds before the audit gate can close.
 - No option has been shown to dominate across these three starts, but the
   benchmark currently reports branch outcomes rather than proving an optimal
   strategy or enjoyable balance. Outstanding checks from the plan include
-  delivered-cost shipment links, multi-seed corporate decision quality, more
-  exploit cases, and human playtest feedback.
+  complete multi-seed corporate decision quality, more exploit cases, and
+  human playtest feedback.
 
 ## Verification run
 
 - Local FX desk conversions now record their home-currency cash leg and the
   foreign amount/rate in the same economic event; a focused account test checks
   that this leg reconciles. Bank deposit/withdrawal adapters remain open.
-- Imported input fills now expose the actual destination paid unit price in the
-  actor account and both client summaries. This is the delivered market fill
-  price; it is not yet linked to the exact source farmgate lot and route freight
-  events, so a full shipment cost bridge is still open.
-- `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_supply_control_actor_strategy test_supply_rights test_market_auction test_market_routes test_web_client_parity` — 59 tests passed after FX, scrip, and delivered-price account additions.
+- Route shipments now carry a stable shipment ID plus the trader's source cost
+  basis, freight per unit, and source currency. Arrival makes a matching
+  import-lot record; destination auction fills decrement that lot and link the
+  paid destination price back to it. The actor account and both clients show
+  actual imported input unit prices; the account also exposes shipment IDs,
+  source cost, and freight as separate values.
+- The source cost is the trader's weighted acquisition cost at posting. It is
+  not yet a complete named farmgate receipt ledger for every way cargo can be
+  gathered, and parked/re-routed legacy cargo does not retain the same link.
+  FX and tariff conversions also remain separate cash legs rather than a fully
+  normalized per-shipment delivered-cost calculation.
+- `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_supply_control_actor_strategy test_supply_rights test_market_auction test_market_routes test_web_client_parity` — 59 tests passed after linked shipment-lot additions.
 - `node --check web_client/client.js` — passed.
 - `git diff --check` — passed.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python benchmark_supply_rivalry.py` — 12 matched runs, zero reported currency violations.
-- `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python benchmark_supply_default.py 50` — 50 turns completed; one -$17.61 USD warning (see Phase 5).
+- `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python benchmark_supply_rivalry.py 812 813 814` — repeated after shipment linking; all 12 branches still report zero currency violations.
+- `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python benchmark_supply_default.py 50` — latest 50-turn run completed with zero currency violations (see Phase 5 for the earlier intermittent warning).
 - Full `unittest discover` was attempted but this environment's native pygame/OpenGL tests crashed the Python process (exit 139) before a summary could be produced; the focused simulation, rights, auction, route, and web parity suite remains green.

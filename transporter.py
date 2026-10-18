@@ -33,6 +33,7 @@ class Route:
         self.in_transit = []    # en route:        [trader, good, qty, turns_left, location]
         self.delivered_this_turn = []   # (trader, good, qty) matured this turn
         self.parked_this_turn = []      # (trader, good, qty) matured into parked_foreign
+        self._next_shipment_id = 1
 
     # ------------------------------------------------------------------
     # Posting
@@ -45,7 +46,8 @@ class Route:
                     or getattr(self, 'is_blockaded', False)
                     or getattr(self, 'is_quarantined', False))
 
-    def post(self, trader, good, qty):
+    def post(self, trader, good, qty, *, unit_cost=None, freight_per_unit=0.0,
+             source_currency=None):
         """Move ``qty`` from ``trader.inventory_export`` into this route.
 
         Returns the quantity actually moved (never more than available).
@@ -58,7 +60,13 @@ class Route:
         trader.inventory_export[good.value] -= qty
         # M0.3: every shipment carries its current tile location; starts at
         # the source tile, ready for multi-hop paths on a future map.
-        self.pending.append([trader, good, qty, self.src.name])
+        shipment_id = f'{self.name}:{self._next_shipment_id}'
+        self._next_shipment_id += 1
+        if unit_cost is None:
+            unit_cost = float(trader.cost_get(good, 0.0))
+        self.pending.append([trader, good, qty, self.src.name, shipment_id,
+                             float(unit_cost), float(freight_per_unit),
+                             source_currency or getattr(self.src, 'home_currency', None)])
         return qty
 
     def post_parked(self, trader, good, qty):
@@ -97,6 +105,10 @@ class Route:
             entry[3] -= 1
             if entry[3] <= 0:
                 trader, good, qty = entry[0], entry[1], entry[2]
+                shipment_id = entry[5] if len(entry) > 5 else None
+                unit_cost = entry[6] if len(entry) > 6 else None
+                freight_per_unit = entry[7] if len(entry) > 7 else 0.0
+                source_currency = entry[8] if len(entry) > 8 else None
                 # T1: the cargo matures HERE (this route's dst) no matter what.
                 # If the trader re-pointed away, park it instead of letting it
                 # ride the trader's new destination.
@@ -106,6 +118,23 @@ class Route:
                 else:
                     trader.inventory_foreign[good.value] += qty
                     self.delivered_this_turn.append((trader, good, qty))
+                    if shipment_id is not None:
+                        lots = getattr(trader, 'import_lots', [])
+                        lots.append({'shipment_id': shipment_id, 'good': good.name,
+                                     'destination': self.dst.name, 'quantity': qty,
+                                     'unit_cost': unit_cost, 'freight_per_unit': freight_per_unit,
+                                     'source_currency': source_currency,
+                                     'source_region': self.src.name})
+                        trader.import_lots = lots[-500:]
+                        from economy.actor_accounts import record as record_economic_event
+                        record_economic_event(self.src, 'shipment_arrival',
+                                              payer_id=trader.id, good=good,
+                                              quantity=qty, asset_id=shipment_id,
+                                              currency=source_currency,
+                                              detail={'destination': self.dst.name,
+                                                      'source_unit_cost': unit_cost,
+                                                      'freight_per_unit': freight_per_unit,
+                                                      'shipment_id': shipment_id})
             else:
                 remaining.append(entry)
         self.in_transit = remaining
@@ -117,7 +146,7 @@ class Route:
             trader, good, qty = entry[0], entry[1], entry[2]
             location = entry[3] if len(entry) > 3 else self.src.name
             delay = self.base_delay + depth // max(1, self.capacity_per_unit)
-            self.in_transit.append([trader, good, qty, delay, location])
+            self.in_transit.append([trader, good, qty, delay, location, *entry[4:]])
             depth += 1
         self.pending = []
 

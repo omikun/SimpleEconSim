@@ -139,6 +139,13 @@ def seal_turn(region, turn):
             'delivered_input_purchase_units': round(delivered_input_units, 2),
             'delivered_input_unit_price': round(delivered_input_spend / delivered_input_units, 2)
             if delivered_input_units else None,
+            'delivered_input_lots': [
+                {'event_id': e['id'], 'shipment_id': e['detail'].get('shipment_id'),
+                 'quantity': e['quantity'], 'paid_unit_price': e['detail'].get('unit_price'),
+                 'source_unit_cost': e['detail'].get('source_unit_cost'),
+                 'freight_per_unit': e['detail'].get('freight_per_unit'),
+                 'source_currency': e['detail'].get('source_currency')}
+                for e in delivered_imports],
             'other_costs_cash': round(other_costs, 2),
             'input_consumed_cost': round(input_used, 2),
             'operating_result_recorded': round(receipts - wages - other_costs - input_used, 2),

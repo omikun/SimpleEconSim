@@ -34,7 +34,9 @@ class MarketRouteTests(unittest.TestCase):
 
         post_exports_to_route(source)
         self.assertEqual(trader.inventory_export[Goods.cotton.value], 0)
-        self.assertEqual(route.pending[0][1:], [Goods.cotton, 3, source.name])
+        self.assertEqual(route.pending[0][1:4], [Goods.cotton, 3, source.name])
+        shipment_id = route.pending[0][4]
+        self.assertEqual(route.pending[0][5], 5.0)
 
         route.deliver_pending()
         route.advance()
@@ -44,7 +46,7 @@ class MarketRouteTests(unittest.TestCase):
                           'numInput': 2, 'production': 4},
         }
         imports = pending_imports(destination, source)
-        self.assertEqual(imports[Goods.cotton], [(trader, 3, False)])
+        self.assertEqual(imports[Goods.cotton][0][:4], (trader, 3, False, shipment_id))
         self.assertEqual(trader.inventory_foreign[Goods.cotton.value], 3)
 
         destination_market = SimpleNamespace(
@@ -69,7 +71,13 @@ class MarketRouteTests(unittest.TestCase):
         self.assertGreater(paid, 0)
         self.assertEqual(buyer.inv_get(Goods.cotton, 0), 3)
         self.assertEqual(trader.inventory_foreign[Goods.cotton.value], 0)
+        self.assertEqual(trader.import_lots[0]['quantity'], 0)
         self.assertEqual(destination_market._auction_import_sales[Goods.cotton], (3, paid))
+        imported_sale = next(e for e in destination_market.economic_events
+                             if e['kind'] == 'spot_sale')
+        self.assertEqual(imported_sale['detail']['shipment_id'], shipment_id)
+        self.assertEqual(imported_sale['detail']['source_unit_cost'], 5.0)
+        self.assertAlmostEqual(imported_sale['detail']['unit_price'], paid / 3)
 
     def test_trader_repoints_toward_profitable_requested_input(self):
         source = SimpleNamespace(
