@@ -157,6 +157,11 @@ def settle_trade(t, destination_region, source_region):
                     if available <= 0:
                         continue
                     take = min(available, to_buy - bought)
+                    trader_cash_before = float(trader.cash)
+                    trader_wallet_before = fx.fx_balance(trader, dest_currency)
+                    seller_cash_before = float(seller.cash)
+                    trader_food_before = int(trader.inv_get(Goods.food, 0))
+                    seller_food_before = int(seller.inv_get(Goods.food, 0))
                     seller.inv_add(Goods.food, -take)
                     seller.cash += take * food_price
                     if use_fx:
@@ -164,6 +169,15 @@ def settle_trade(t, destination_region, source_region):
                     else:
                         trader.cash -= take * food_price
                     trader.inv_add(Goods.food, take)
+                    from world_trade import record_away_trader_food_purchase
+                    record_away_trader_food_purchase(
+                        source_region, destination_region, trader, seller, t,
+                        take, food_price, use_fx=use_fx,
+                        trader_cash_before=trader_cash_before,
+                        trader_wallet_before=trader_wallet_before,
+                        seller_cash_before=seller_cash_before,
+                        trader_food_before=trader_food_before,
+                        seller_food_before=seller_food_before)
                     bought += take
 
     # 3. Post leftover foreign earnings as ASKs on the home desk's order book

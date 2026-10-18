@@ -133,6 +133,11 @@ already fun or balanced; that still needs player feedback.
   seller's hand-cash portion. The buyer-side sale stays on the destination
   ledger, while the seller receipt posts to the trader's home tile; the trace
   links both ledgers to the same sale.
+- Away traders who spend foreign wallet balances on destination food now post
+  the wallet debit on their home tile and the seller's cash receipt on the
+  destination tile. The trace links both journal legs and records the food,
+  quantity, price, and before/after balances. The generalized and legacy
+  two-region trade drivers use the same settlement recorder.
 - Remaining gate work: audit other non-estate credit losses and non-probate
   cash-to-wallet legs outside these paths; decide how unpaid wage claims behave
   when the firm or worker exits; decide whether wilderness inventory advances
@@ -258,6 +263,9 @@ already fun or balanced; that still needs player feedback.
 - `venv/bin/python -m py_compile region_market.py economy/actor_accounts.py benchmark_supply_default.py test_market_routes.py` and `git diff --check` — passed.
 - Cross-tile imported sales now post the seller's cash or wallet receipt on the source tile, linked to the destination purchase. The 63-test trade/accounting suite and the 50-turn default benchmark were repeated after this change; the benchmark still reports zero currency violations and zero unmatched actor cash.
 - `venv/bin/python -m py_compile world_trade.py region_market.py economy/actor_accounts.py benchmark_supply_default.py metric_catalog.py test_market_routes.py` and `git diff --check` — passed.
+- `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_world_trade_accounting test_market_routes test_market_auction test_triangular_trade_and_luxuries test_supply_control_actor_strategy test_wilderness_trade_accounting` — 70 tests passed. Away-trader wallet purchases reconcile the home-tile wallet debit and destination seller cash receipt.
+- `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python benchmark_supply_default.py 50 4242` — 50 turns completed with zero currency violations and zero unmatched actor cash on the final turn or across actor-turn statements.
+- `venv/bin/python -m py_compile world_trade.py econsim_two_region.py metric_catalog.py test_world_trade_accounting.py` and `git diff --check` — passed.
 - Domestic-bank sovereign bond principal and coupon defaults now create one
   economic journal event per affected tile bank, linked to the bond ID and
   issuer. Compact trace records the default kind, missed payment amount, actual

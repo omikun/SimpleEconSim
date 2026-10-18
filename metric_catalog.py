@@ -117,6 +117,7 @@ METRICS = {
     'trade.wilderness_settlement': ('trader/homesteader', 'currency', 'trade_settle.settle_wilderness'),
     'trade.wilderness_goods': ('wilderness/trader/homesteader', 'units', 'trade_settle.settle_wilderness'),
     'trade.market_seller_settlement': ('agent/tile/counterparty', 'currency', 'region_market.clear_discriminatory'),
+    'trade.away_trader_food_purchase': ('trader/seller/tile', 'currency', 'world_trade.settle_trade'),
 }
 
 LEGACY_HISTORY_TO_METRIC = {

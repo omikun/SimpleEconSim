@@ -110,6 +110,83 @@ def pending_imports(dest, src):
     return pend
 
 
+def record_away_trader_food_purchase(source_region, destination_region, trader,
+                                    seller, turn, quantity, unit_price, *,
+                                    use_fx, trader_cash_before,
+                                    trader_wallet_before, seller_cash_before,
+                                    trader_food_before, seller_food_before):
+    """Journal an away trader's food purchase and its cash or wallet tender."""
+    from economy.actor_accounts import record as record_economic_event
+    from run_trace import emit
+
+    amount = float(quantity) * float(unit_price)
+    ident = int(getattr(destination_region, '_next_trader_food_transfer_id', 1))
+    destination_region._next_trader_food_transfer_id = ident + 1
+    transfer_id = (f'trader-food:{int(turn)}:{source_region.name}:'
+                   f'{destination_region.name}:{ident}')
+    trader_cash_after = float(trader.cash)
+    seller_cash_after = float(seller.cash)
+    trader_wallet_after = fx.fx_balance(trader, destination_region.home_currency)
+    detail = {
+        'transfer_id': transfer_id,
+        'payment_kind': 'away_trader_food_purchase',
+        'tender': 'foreign_wallet' if use_fx else 'hand_cash',
+        'source_tile': source_region.name,
+        'destination_tile': destination_region.name,
+        'trader_id': trader.id,
+        'seller_id': seller.id,
+        'good': Goods.food.name,
+        'quantity': int(quantity),
+        'unit_price': float(unit_price),
+        'amount': amount,
+        'currency': destination_region.home_currency,
+        'trader_cash_before': float(trader_cash_before),
+        'trader_cash_after': trader_cash_after,
+        'trader_wallet_before': float(trader_wallet_before),
+        'trader_wallet_after': float(trader_wallet_after),
+        'seller_cash_before': float(seller_cash_before),
+        'seller_cash_after': seller_cash_after,
+        'trader_food_before': int(trader_food_before),
+        'trader_food_after': int(trader.inv_get(Goods.food, 0)),
+        'seller_food_before': int(seller_food_before),
+        'seller_food_after': int(seller.inv_get(Goods.food, 0)),
+    }
+    wallet_event = None
+    if use_fx:
+        wallet_event = record_economic_event(
+            source_region, 'wallet_transfer_out', turn=turn,
+            payer_id=trader.id, amount=amount, asset_id=transfer_id,
+            source_id=transfer_id, currency=destination_region.home_currency,
+            detail={**detail, 'settlement_leg': 'trader_wallet_debit'})
+    sale_event = record_economic_event(
+        destination_region, 'spot_sale', turn=turn,
+        payer_id=None if use_fx else trader.id, recipient_id=seller.id,
+        good=Goods.food, quantity=quantity, amount=amount,
+        asset_id=transfer_id, source_id=transfer_id,
+        currency=destination_region.home_currency,
+        detail={**detail, 'cash_receipt': amount,
+                'seller_receipt': amount, 'wallet_receipt': 0.0,
+                'away_trader_purchase': True})
+    emit(destination_region, kind='away_trader_food_purchase',
+         record_class='transfer', phase='trade',
+         subject={'type': 'tile', 'id': destination_region.name,
+                  'good': Goods.food.name, 'buyer_id': trader.id,
+                  'seller_id': seller.id},
+         metric_id='trade.away_trader_food_purchase',
+         unit=destination_region.home_currency,
+         before=(float(trader_wallet_before) if use_fx
+                 else float(trader_cash_before)),
+         after=(float(trader_wallet_after) if use_fx
+                else trader_cash_after),
+         inputs={**detail,
+                 'sale_event': {'tile': destination_region.name,
+                                'event_id': sale_event['id']},
+                 'wallet_event': ({'tile': source_region.name,
+                                   'event_id': wallet_event['id']}
+                                  if wallet_event is not None else None)})
+    return transfer_id
+
+
 def _net_foreign_home(trader, region, all_regions, good):
     """*region*'s price for *good* expressed in the trader's home currency.
 
@@ -244,6 +321,11 @@ def settle_trade(t, destination_region, source_region):
                     if available <= 0:
                         continue
                     take = min(available, to_buy - bought)
+                    trader_cash_before = float(trader.cash)
+                    trader_wallet_before = fx.fx_balance(trader, dest_currency)
+                    seller_cash_before = float(seller.cash)
+                    trader_food_before = int(trader.inv_get(Goods.food, 0))
+                    seller_food_before = int(seller.inv_get(Goods.food, 0))
                     seller.inv_add(Goods.food, -take)
                     seller.cash += take * food_price
                     if use_fx:
@@ -251,6 +333,14 @@ def settle_trade(t, destination_region, source_region):
                     else:
                         trader.cash -= take * food_price
                     trader.inv_add(Goods.food, take)
+                    record_away_trader_food_purchase(
+                        source_region, destination_region, trader, seller, t,
+                        take, food_price, use_fx=use_fx,
+                        trader_cash_before=trader_cash_before,
+                        trader_wallet_before=trader_wallet_before,
+                        seller_cash_before=seller_cash_before,
+                        trader_food_before=trader_food_before,
+                        seller_food_before=seller_food_before)
                     bought += take
 
     # 3. Post leftover foreign earnings as ASKs on the home desk for this
