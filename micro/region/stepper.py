@@ -182,6 +182,7 @@ def step_economy(region: Any, t: int):
                           if a.alive and not a.is_corporation}
     _fin.pay_wages(region, t)
     record_payroll_and_review(region, t, worker_cash_before)
+    _fin.settle_wage_arrears(region, t)
     _fin.redeem_company_scrip(region, t)
     audit_cash(region, t, "wages_done")
 

@@ -102,12 +102,16 @@ already fun or balanced; that still needs player feedback.
   withdrawals separately from the closing savings balance. Explicit tile
   context now captures internal charity operations that were previously
   omitted because the charity agent is not a resident.
-- A cash wage shortfall now creates a paired noncash employer payable and
-  worker claim. Actor statements report opening and closing arrears and new
-  accruals; compact traces explain the nominal wage, cash paid, employer cash,
-  tender rule, and claimants. Aggregate balances preserve outstanding claims
-  beyond the 500 recent detail rows. This instruments accrual only: the game
-  still has no wage-arrears repayment, write-off, or estate-settlement path.
+- A cash wage shortfall creates a paired noncash employer payable and worker
+  claim. Actor statements report opening and closing arrears and new accruals;
+  compact traces explain the nominal wage, cash paid, employer cash, tender
+  rule, and claimants. Aggregate balances preserve claims beyond the 500 recent
+  detail rows. After current payroll review, firms now repay old claims from
+  cash above a one-payroll reserve, oldest claim first. Cash and wallet
+  settlements link the employer debit to the worker receipt, update the
+  liability balance, and trace the before/after claim. Both clients show new
+  arrears and repayments. Firm/worker exit, write-off, and estate-transfer
+  handling remain to be implemented.
 - The frontier expedition now debits its advertised 100-unit cost from the
   sponsor treasury and funds five 20-unit pioneer wallets in the sponsor
   currency. Linked treasury-spend and wallet-grant events plus compact traces
@@ -382,4 +386,6 @@ already fun or balanced; that still needs player feedback.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python benchmark_supply_default.py 50 <seed>` — 50 turns completed with zero currency violations for seeds 4242, 4243, and 4244 after the campaign-transfer fix.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python benchmark_supply_default.py 50 4242` — two fresh-process runs after seeding the global RNG matched across counts, proposals, prices, cash audit, and unmatched accounts; both reported zero currency violations and $15,700.70 unmatched actor cash. After estate-transfer postings, the deterministic run still had zero violations and $15,606.81 unmatched actor cash. The benchmark also shows the largest unmatched actor-turn rows for targeted tracing.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python benchmark_supply_default.py 50 4242` — seed 4242 completed 50 turns with zero currency violations, zero unmatched cash on turn 50, zero unmatched cash across all actor-turn statements, and zero actor-turn statements above the 1-cent threshold. Seeds 4243 and 4244 also completed with zero currency violations and zero unmatched cash on turn 50.
+- `MPLCONFIGDIR=/private/tmp/wage-arrears-mpl venv/bin/python -m unittest test_plunder_labor test_web_client_parity` — 43 tests passed after wage-arrears repayment and UI account updates. `node --check web_client/client.js`, targeted Python compilation, and `git diff --check` passed.
+- `MPLCONFIGDIR=/private/tmp/wage-arrears-mpl venv/bin/python benchmark_supply_default.py 50 4242` — default three-nation run reached turn 50 on 80 tiles with zero currency violations and zero unmatched actor cash on turn 50 or across all actor-turn statements.
 - Full `unittest discover` was attempted but this environment's native pygame/OpenGL tests crashed the Python process (exit 139) before a summary could be produced; the focused simulation, rights, auction, route, and web parity suite remains green.

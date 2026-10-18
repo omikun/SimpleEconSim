@@ -1148,7 +1148,11 @@ def draw_panel(surface, world, font, font_small, mouse_pos=None):
         surface.blit(supply_line, (PANEL_LEFT, y_cursor))
         y_cursor += 16
         firm_account = next((a for a in getattr(region, 'actor_turn_accounts', [])
-                             if a.get('type') == 'corporation' and a.get('sales_cash', 0) > 0), None)
+                             if a.get('type') == 'corporation'
+                             and (a.get('sales_cash', 0) > 0
+                                  or a.get('wage_arrears_accrued', 0) > 0
+                                  or a.get('wage_arrears_payable_paid', 0) > 0
+                                  or a.get('closing_wage_arrears_payable', 0) > 0)), None)
         if firm_account:
             currency = firm_account.get('delivered_input_currency') or ''
             currency_prefix = f"{currency} " if currency else ""
@@ -1164,10 +1168,11 @@ def draw_panel(surface, world, font, font_small, mouse_pos=None):
             arrears_open = float(firm_account.get('opening_wage_arrears_payable', 0.0))
             arrears_close = float(firm_account.get('closing_wage_arrears_payable', 0.0))
             arrears_accrued = float(firm_account.get('wage_arrears_accrued', 0.0))
-            if arrears_open > 0 or arrears_close > 0 or arrears_accrued > 0:
+            arrears_paid = float(firm_account.get('wage_arrears_payable_paid', 0.0))
+            if arrears_open > 0 or arrears_close > 0 or arrears_accrued > 0 or arrears_paid > 0:
                 arrears_line = font_small.render(
                     f"Unpaid wages owed: ${arrears_open:.1f} -> ${arrears_close:.1f} "
-                    f"(new arrears ${arrears_accrued:.1f})",
+                    f"(new ${arrears_accrued:.1f}, repaid ${arrears_paid:.1f})",
                     True, (225, 175, 120))
                 surface.blit(arrears_line, (PANEL_LEFT, y_cursor))
                 y_cursor += 16

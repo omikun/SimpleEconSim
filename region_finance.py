@@ -118,6 +118,140 @@ def pay_wages(region, t):
                     e.mem_push('mem_wages', wage_to_pay)
 
 
+def settle_wage_arrears(region, t, *, firm_id=None, liquidating=False):
+    """Pay old wage claims from cash beyond the next payroll reserve.
+
+    On liquidation, any available firm cash is available to wage claimants.
+    The return value contains the settled claims; each transfer updates the
+    employer's liability and the worker's cash or currency wallet.
+    """
+    from economy.actor_accounts import (
+        _wage_liability_totals, record as record_economic_event,
+        settle_wage_arrear,
+    )
+    by_id = {int(person.id): person for person in getattr(region, 'agents', ())}
+    firms = [firm for firm in getattr(region, 'agents', ())
+             if getattr(firm, 'is_corporation', False)
+             and (liquidating or getattr(firm, 'alive', True))
+             and (firm_id is None or firm.id == firm_id)]
+    if firm_id is not None and not any(firm.id == firm_id for firm in firms):
+        firm = by_id.get(int(firm_id))
+        if (firm is not None and getattr(firm, 'is_corporation', False)
+                and (liquidating or getattr(firm, 'alive', True))):
+            firms.append(firm)
+    payments = []
+    for firm in firms:
+        total, claims = _wage_liability_totals(firm)
+        if total <= 0 or not claims:
+            continue
+        payroll_reserve = 0.0
+        if not liquidating:
+            from labor_contract import ensure_labor_agreement
+            for employee in getattr(firm, 'employees', ()):
+                if not getattr(employee, 'alive', True) or getattr(employee, 'is_striking', False) or getattr(employee, 'in_revolt', False):
+                    continue
+                agreement = ensure_labor_agreement(employee, firm, t)
+                payroll_reserve += max(0.0, float(agreement.pay_rate))
+        available_cash = max(0.0, float(firm.cash) - payroll_reserve)
+        if available_cash <= 1e-9:
+            continue
+        liability_rows = list(getattr(firm, 'wage_liabilities', ()))
+        first_turn = {}
+        for row in liability_rows:
+            worker_id = int(row.get('worker_id', -1))
+            if worker_id not in claims or str(row.get('status', 'unpaid')).lower() in {
+                    'paid', 'settled', 'written_off', 'forgiven', 'cancelled', 'inherited'}:
+                continue
+            first_turn[worker_id] = min(first_turn.get(worker_id, int(row.get('turn', 0))),
+                                        int(row.get('turn', 0)))
+        for worker_id in sorted(claims, key=lambda ident: (first_turn.get(ident, t), ident)):
+            if available_cash <= 1e-9:
+                break
+            worker = by_id.get(int(worker_id))
+            if worker is None or not getattr(worker, 'alive', True):
+                continue
+            claim_before = float(claims[worker_id])
+            paid = min(claim_before, available_cash)
+            if paid <= 1e-9:
+                continue
+            firm_cash_before = float(firm.cash)
+            worker_cash_before = float(worker.cash)
+            currency = getattr(region, 'home_currency', None)
+            use_wallet = bool(currency and getattr(worker, '_bank_ref', None)
+                              is not getattr(region, 'bank', None))
+            wallet_before = None
+            if use_wallet:
+                wallet_before = float(_fx.fx_balance(worker, currency))
+                _fx.fx_add(worker, currency, paid)
+            else:
+                worker.cash += paid
+            firm.cash -= paid
+            total_before, total_after, claim_before, claim_after, settled = (
+                settle_wage_arrear(firm, worker_id, paid))
+            if settled <= 0:
+                # State is checked before changing either balance, so this is
+                # only a defensive guard for corrupt or stale claim records.
+                firm.cash += paid
+                if use_wallet:
+                    _fx.fx_sub(worker, currency, paid)
+                else:
+                    worker.cash -= paid
+                continue
+            transfer_id = f'wage-arrears:{t}:{firm.id}:{worker.id}:{len(payments)}'
+            detail = {
+                'transfer_id': transfer_id, 'payment_kind': 'wage_arrears_paid',
+                'employer_id': firm.id, 'worker_id': worker.id,
+                'currency': currency, 'amount': float(settled),
+                'employer_cash_before': firm_cash_before,
+                'employer_cash_after': float(firm.cash),
+                'worker_cash_before': worker_cash_before,
+                'worker_cash_after': float(worker.cash),
+                'claim_before': float(claim_before),
+                'claim_after': float(claim_after),
+                'employer_payable_before': float(total_before),
+                'employer_payable_after': float(total_after),
+                'payroll_reserve': float(payroll_reserve),
+                'liquidation': bool(liquidating),
+            }
+            cash_event = record_economic_event(
+                region, 'wage_arrears_paid', turn=t, payer_id=firm.id,
+                recipient_id=None if use_wallet else worker.id,
+                amount=settled, asset_id=transfer_id, source_id=transfer_id,
+                currency=currency,
+                detail={**detail, 'settlement': 'foreign_wallet' if use_wallet else 'cash'})
+            wallet_event = None
+            if use_wallet:
+                wallet_event = record_economic_event(
+                    region, 'wallet_transfer_in', turn=t,
+                    recipient_id=worker.id, amount=settled,
+                    asset_id=transfer_id, source_id=transfer_id,
+                    currency=currency,
+                    detail={**detail, 'payment_kind': 'wage_arrears_paid',
+                            'wallet_before': wallet_before,
+                            'wallet_after': float(_fx.fx_balance(worker, currency))})
+            from run_trace import emit
+            emit(region, kind='wage_arrears_repaid', record_class='transfer',
+                 phase='finance',
+                 subject={'type': 'employment_wage_claim',
+                          'id': f'{firm.id}:{worker.id}', 'tile': region.name,
+                          'employer_id': firm.id, 'worker_id': worker.id},
+                 metric_id='finance.wage_arrears', unit=currency or 'local_currency',
+                 before=float(claim_before), after=float(claim_after),
+                 formula_id='labor.wage_arrears.repayment.v1',
+                 inputs={**detail, 'cash_event': {'tile': region.name,
+                                                  'event_id': cash_event['id']},
+                         'wallet_event': ({'tile': region.name,
+                                           'event_id': wallet_event['id']}
+                                          if wallet_event else None),
+                         'reason': ('firm_liquidation' if liquidating else
+                                    'surplus_after_current_payroll')})
+            payments.append({'firm_id': firm.id, 'worker_id': worker.id,
+                             'amount': settled, 'claim_after': claim_after,
+                             'transfer_id': transfer_id})
+            available_cash -= settled
+    return payments
+
+
 def redeem_company_scrip(region, t):
     """Workers redeem company scrip at the employer's company store ('Tommy Shop') for marked-up food.
 

@@ -1646,7 +1646,15 @@ class SimServer:
                      or row.get('crop_lien_debt_settled', 0.0)
                      or row.get('crop_lien_receivable_settled', 0.0)
                      or row.get('crop_share_rent_paid', 0.0)
-                     or row.get('crop_share_rent_received', 0.0))),
+                     or row.get('crop_share_rent_received', 0.0)
+                     or row.get('opening_wage_arrears_payable', 0.0)
+                     or row.get('closing_wage_arrears_payable', 0.0)
+                     or row.get('opening_wage_arrears_claim', 0.0)
+                     or row.get('closing_wage_arrears_claim', 0.0)
+                     or row.get('wage_arrears_accrued', 0.0)
+                     or row.get('wage_arrears_payable_paid', 0.0)
+                     or row.get('wage_arrears_claim_accrued', 0.0)
+                     or row.get('wage_arrears_claim_paid', 0.0))),
                 key=lambda row: (-row['crop_value'] - row['sales_cash']
                                  - row.get('crop_lien_receivable_settled', 0.0)
                                  - row.get('crop_share_rent_received', 0.0)

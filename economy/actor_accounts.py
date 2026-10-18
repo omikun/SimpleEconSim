@@ -37,9 +37,11 @@ def _wage_liability_totals(firm):
     claims = {}
     for liability in getattr(firm, 'wage_liabilities', ()):
         status = str(liability.get('status', 'unpaid')).lower()
-        if status in {'paid', 'settled', 'written_off', 'forgiven', 'cancelled'}:
+        if status in {'paid', 'settled', 'written_off', 'forgiven', 'cancelled',
+                      'inherited'}:
             continue
-        amount = max(0.0, float(liability.get('amount', 0.0)))
+        amount = max(0.0, float(liability.get('amount', 0.0))
+                     - float(liability.get('paid_amount', 0.0)))
         worker_id = liability.get('worker_id')
         if amount <= 0 or worker_id is None:
             continue
@@ -61,6 +63,47 @@ def accrue_wage_arrear(firm, worker_id, amount):
     firm.wage_arrears_balance = total + amount
     firm.wage_arrears_by_worker = claims
     return total, total + amount, claim_before, claim_before + amount
+
+
+def settle_wage_arrear(firm, worker_id, amount):
+    """Reduce one worker's wage claim and the matching firm liability."""
+    total, claims = _wage_liability_totals(firm)
+    worker_id = int(worker_id)
+    claim_before = claims.get(worker_id, 0.0)
+    settled = min(max(0.0, float(amount)), claim_before)
+    if settled <= 0:
+        return total, total, claim_before, claim_before, 0.0
+    claim_after = max(0.0, claim_before - settled)
+    if claim_after <= 1e-9:
+        claims.pop(worker_id, None)
+    else:
+        claims[worker_id] = claim_after
+    firm.wage_arrears_balance = max(0.0, total - settled)
+    firm.wage_arrears_by_worker = claims
+
+    remaining_payment = settled
+    liabilities = list(getattr(firm, 'wage_liabilities', ()))
+    matching = sorted(
+        (row for row in liabilities
+         if int(row.get('worker_id', -1)) == worker_id
+         and str(row.get('status', 'unpaid')).lower()
+         not in {'paid', 'settled', 'written_off', 'forgiven', 'cancelled',
+                 'inherited'}),
+        key=lambda row: (int(row.get('turn', 0)),))
+    for row in matching:
+        original = max(0.0, float(row.get('amount', 0.0)))
+        already_paid = max(0.0, float(row.get('paid_amount', 0.0)))
+        outstanding = max(0.0, original - already_paid)
+        applied = min(remaining_payment, outstanding)
+        if applied <= 0:
+            continue
+        row['paid_amount'] = already_paid + applied
+        remaining_payment -= applied
+        row['status'] = 'paid' if row['paid_amount'] + 1e-9 >= original else 'partial'
+        if remaining_payment <= 1e-9:
+            break
+    firm.wage_liabilities = liabilities[-500:]
+    return total, firm.wage_arrears_balance, claim_before, claim_after, settled
 
 
 def _wage_arrears_by_actor(region):
@@ -323,6 +366,15 @@ def seal_turn(region, turn, event_regions=None):
         wage_arrears_claim_accrued = sum(
             e['amount'] for e in own
             if e['recipient_id'] == actor.id and e['kind'] == 'wage_arrears_accrued')
+        wage_arrears_payable_paid = sum(
+            e['amount'] for e in own
+            if e['payer_id'] == actor.id and e['kind'] == 'wage_arrears_paid')
+        wage_arrears_claim_paid = sum(
+            e['amount'] for e in own
+            if (e['recipient_id'] == actor.id and e['kind'] == 'wage_arrears_paid')
+            or (e['recipient_id'] == actor.id
+                and e['kind'] == 'wallet_transfer_in'
+                and e['detail'].get('payment_kind') == 'wage_arrears_paid'))
         foreign_wallet_debt_paid = {}
         for event in own:
             if (event['payer_id'] == actor.id
@@ -447,11 +499,13 @@ def seal_turn(region, turn, event_regions=None):
             'closing_wage_arrears_payable': round(
                 wage_arrears_payable.get(actor.id, 0.0), 2),
             'wage_arrears_accrued': round(wage_arrears_accrued, 2),
+            'wage_arrears_payable_paid': round(wage_arrears_payable_paid, 2),
             'opening_wage_arrears_claim': round(
                 prior.get('wage_arrears_claim', 0.0), 2),
             'closing_wage_arrears_claim': round(
                 wage_arrears_claims.get(actor.id, 0.0), 2),
             'wage_arrears_claim_accrued': round(wage_arrears_claim_accrued, 2),
+            'wage_arrears_claim_paid': round(wage_arrears_claim_paid, 2),
             'opening_bank_deposit': round(prior['bank_deposit'], 2),
             'closing_bank_deposit': round(bank_deposit, 2),
             'bank_cash_deposited': round(bank_cash_deposited, 2),
