@@ -146,3 +146,5 @@ Make a commit after each phase that passes its gate. The first slice may be comm
 - Land concentration HHI was unchanged at 0.0312; water-right holder HHI shifted from 0.0278 to 0.0215. These are coarse ownership proxies across the whole map; the UI also exposes plot-level owners, lessees, holders, and allocations for local interpretation.
 
 **Verification note:** Focused auction, route, supply-right, capitalist-planner, web serialization, charter decision, and parity tests pass (38 tests). JavaScript syntax and Python compilation pass. A desktop render test is blocked by the host's OpenGL setup (`cannot choose pixel format`); the changed desktop HUD module compiles, and web tests pass. Both 50-turn comparison worlds completed, and the full serialized world snapshot is valid JSON.
+
+**Next implementation plan:** [Supply control: grower choice, actor accounts, and strategic play](supply_control_actor_strategy_plan.md) defines the actor-level ledger, consent and negotiation flow, common AI valuation, playable rival-buyer scenario, UI, and balance gates needed to judge the completed mechanisms in play.
