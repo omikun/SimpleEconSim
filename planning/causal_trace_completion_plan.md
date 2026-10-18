@@ -1473,3 +1473,17 @@ gates, garrison repulsion and casualties, successful regime change, and
 trace-on/off parity. These tests, the collective-action and coercion/GDD
 suites, the metric catalog audit, compilation, and `git diff --check` passed
 (23 tests).
+
+## Phase 4 follow-up — Query collective-action observations
+
+All dynamic collective-action event kinds now carry the registered
+`labor.collective_action` metric, with the event kind as its categorical value.
+Existing facts, narrative message, organization and strike identifiers, and
+links between collective-action records and production/workforce events are
+preserved. This lets trace reports group the full strike lifecycle without
+replacing the event-specific `kind` field.
+
+Verification: a compact trace query selects the metric and confirms the
+strike-start event remains linked to workforce availability and zero-output
+records. The run-trace, collective-action, and metric-catalog coverage suites
+passed (41 tests); compilation and `git diff --check` passed.

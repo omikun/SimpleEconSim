@@ -62,6 +62,19 @@ class RunTraceTests(unittest.TestCase):
 
             strike = _event(region, 4, 'strike_started', firm,
                             strike_id='delta-strike', participant_ids=[worker.id])
+            collective_event = trace.recent[-1]
+            self.assertEqual(collective_event['metric_id'],
+                             'labor.collective_action')
+            self.assertEqual(collective_event['value_after'], 'strike_started')
+            self.assertEqual(collective_event['inputs']['collective_kind'],
+                             'strike_started')
+            self.assertEqual(collective_event['subject']['tile'], 'Delta')
+            self.assertEqual(strike['trace_event_id'],
+                             collective_event['event_id'])
+            query = trace.query(metric_id='labor.collective_action', turn=4)
+            self.assertEqual(query['total'], 1)
+            self.assertEqual(query['events'][0]['event_id'],
+                             collective_event['event_id'])
             workforce_ids = record_workforce_availability(region, 4)
             workforce = trace.recent[-1]
             receipt_ids = []

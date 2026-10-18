@@ -1076,3 +1076,16 @@ Verification: four takeover trace tests cover no-owner and zero-chance gates,
 force and casualty details, success/regime changes, and trace-on/off parity.
 Those tests plus collective-action, coercion/GDD, and catalog-coverage suites
 passed (23 tests); compilation and `git diff --check` passed.
+
+Phase 4 follow-up, 2026-10-18: dynamic collective-action observations now
+share the registered `labor.collective_action` metric, with the precise event
+kind as its categorical value and the existing event facts, message, firm,
+strike, and causal links preserved. This makes organization votes, strike
+lifecycle, firm offers, production observations, support transfers, payroll,
+and settlement reviews queryable under one metric without changing their
+event-specific kinds.
+
+Verification: trace queries select the collective-action metric and retain
+the strike-to-workforce causal link. The run-trace, collective-action, and
+metric-catalog coverage suites passed (41 tests); compilation and
+`git diff --check` passed.

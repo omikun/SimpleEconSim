@@ -99,6 +99,8 @@ def _event(region, t, kind, firm, *, strike_id=None, message='', **facts):
         from run_trace import emit
         trace_event_id = emit(
             region, kind=f'labor_collective_{kind}', record_class='observation',
+            metric_id='labor.collective_action', unit='event_kind', after=kind,
+            formula_id='collective_action.event.v1',
             subject={'type': 'agent', 'id': int(firm_id), 'tile': region.name},
             confidence='exact', cause_event_ids=cause_event_ids or None,
             inputs={'collective_event_id': event_id, 'collective_kind': kind,
