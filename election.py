@@ -173,7 +173,13 @@ def campaign_finance(nation, candidate, amount, t):
             continue
         take = min(cash, remaining)
         gov_agent.cash -= take
-        candidate.agent.cash += take
+        candidate_currency = getattr(candidate.agent, 'home_currency',
+                                     getattr(nation, 'currency', None))
+        if candidate_currency and candidate_currency != getattr(nation, 'currency', None):
+            from forex import fx_add
+            fx_add(candidate.agent, nation.currency, take)
+        else:
+            candidate.agent.cash += take
         remaining -= take
         if remaining <= 0:
             break

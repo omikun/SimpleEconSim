@@ -12,6 +12,8 @@ from world_names import assign_world_identities
 
 
 def run(turns=50, seed=4242):
+    import ledger
+    ledger.reset()
     tiles, nations, _ = build_world(seed=seed, terrain_seed=seed, nation_seed=seed)
     assign_world_identities(tiles, nations, seed=seed)
     pairs = [(r, o) for r in tiles for o in r.neighbors.values()
@@ -20,11 +22,25 @@ def run(turns=50, seed=4242):
     currencies = [n.currency for n in nations]
     start_cash = {c: forex.audit_currency_total(tiles, c) for c in currencies}
     violations = []
+    violation_phases = []
     for turn in range(1, turns + 1):
+        previous = {c: forex.audit_currency_total(tiles, c) for c in currencies}
+        phase_deltas = {}
+        def on_phase(name):
+            nonlocal previous
+            current = {c: forex.audit_currency_total(tiles, c) for c in currencies}
+            phase_deltas[name] = {c: round(current[c] - previous[c], 4) for c in currencies}
+            previous = current
         bad, _ = sim_engine.step_turn(turn, tiles, nations=nations,
                                        pair_orders=pairs, currencies=currencies,
-                                       ledger_exempt=True)
+                                       ledger_exempt=True, on_phase=on_phase)
+        current = {c: forex.audit_currency_total(tiles, c) for c in currencies}
+        phase_deltas['post_resistance_forex_audit'] = {
+            c: round(current[c] - previous[c], 4) for c in currencies}
         violations.extend(bad)
+        if bad:
+            violation_phases.append({'turn': turn, 'phase_deltas': phase_deltas,
+                                     'reported': [str(row) for row in bad]})
     accounts = [row for tile in tiles for row in getattr(tile, 'actor_turn_accounts', [])]
     tile_by_name = {tile.name: tile for tile in tiles}
     def event_kinds(account):
@@ -39,6 +55,7 @@ def run(turns=50, seed=4242):
     return {'turns': turns, 'seed': seed, 'nations': len(nations), 'tiles': len(tiles),
             'violations': len(violations),
             'violation_details': [str(v) for v in violations[:5]],
+            'violation_phases': violation_phases[:5],
             'currency_start': {k: round(v, 2) for k, v in start_cash.items()},
             'currency_end': {c: round(forex.audit_currency_total(tiles, c), 2)
                              for c in currencies},
@@ -70,4 +87,5 @@ def run(turns=50, seed=4242):
 
 if __name__ == '__main__':
     turns = int(sys.argv[1]) if len(sys.argv) > 1 else 50
-    print(json.dumps(run(turns), sort_keys=True))
+    seed = int(sys.argv[2]) if len(sys.argv) > 2 else 4242
+    print(json.dumps(run(turns, seed), sort_keys=True))

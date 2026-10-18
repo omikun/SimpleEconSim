@@ -182,24 +182,43 @@ def capitalist_electoral_backlash(nation, candidates: list, t: int) -> float:
     target_cand = max(opponents, key=lambda c: getattr(c.agent, 'charisma', 0.0))
 
     total_donations = 0.0
+    currency = getattr(nation, 'currency', None)
+
+    def available_currency(agent):
+        home = getattr(agent, 'home_currency', currency)
+        if not currency or home == currency:
+            return max(0.0, float(getattr(agent, 'cash', 0.0))), 'cash'
+        from forex import fx_balance
+        return max(0.0, float(fx_balance(agent, currency))), 'wallet'
+
+    def debit_currency(agent, amount, holding):
+        if holding == 'cash':
+            agent.cash -= amount
+        else:
+            from forex import fx_sub
+            fx_sub(agent, currency, amount)
+
+    def credit_currency(agent, amount):
+        home = getattr(agent, 'home_currency', currency)
+        if not currency or home == currency:
+            agent.cash += amount
+        else:
+            from forex import fx_add
+            fx_add(agent, currency, amount)
+
     for tile in getattr(nation, 'tiles', []):
         for a in getattr(tile, 'agents', []):
             if not getattr(a, 'alive', True):
                 continue
             is_capitalist = (getattr(a, 'social_class', '') in ('capitalist', 'industrialist', 'landlord', 'lord')
                              or getattr(a, 'is_corporation', False))
-            if is_capitalist and a.cash > 25.0:
+            liquid, holding = available_currency(a)
+            if is_capitalist and liquid > 25.0:
                 # Donate 15% of surplus liquid cash to defeat the reformist incumbent
-                donation = round((a.cash - 20.0) * 0.15, 2)
+                donation = round((liquid - 20.0) * 0.15, 2)
                 if donation > 0.5:
-                    a.cash -= donation
-                    target_cand.agent.cash += donation
-                    curr = getattr(nation, 'currency', None)
-                    if curr:
-                        if getattr(a, 'wallets', None) and curr in a.wallets:
-                            a.wallets[curr] -= donation
-                        if getattr(target_cand.agent, 'wallets', None) and curr in target_cand.agent.wallets:
-                            target_cand.agent.wallets[curr] += donation
+                    debit_currency(a, donation, holding)
+                    credit_currency(target_cand.agent, donation)
                     # Popularity boost diluted by charisma
                     charisma = getattr(target_cand.agent, 'charisma', 0.5)
                     gain = donation * (0.5 + 0.5 * charisma) * (1.0 / 1500.0)

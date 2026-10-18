@@ -140,6 +140,72 @@ class ActorAccountTests(unittest.TestCase):
         self.assertEqual(account['delivered_input_unit_price'], 4)
 
 
+class PoliticalCampaignCurrencyTests(unittest.TestCase):
+    def test_campaign_finance_keeps_nation_currency_in_candidate_wallet(self):
+        from election import campaign_finance
+        treasury = Person(1, 50)
+        treasury.home_currency = 'USD'
+        candidate_actor = Person(2, 10)
+        candidate_actor.home_currency = 'JPY'
+        candidate_actor.wallets = {}
+        tile = SimpleNamespace(gov=SimpleNamespace(agent=treasury))
+        nation = SimpleNamespace(tiles=[tile], currency='USD')
+        candidate = SimpleNamespace(agent=candidate_actor, popularity=0)
+        before_usd = treasury.cash + candidate_actor.wallets.get('USD', 0)
+        before_jpy = candidate_actor.cash
+        spent, _ = campaign_finance(nation, candidate, 20, 4)
+        self.assertEqual(spent, 20)
+        self.assertEqual(treasury.cash + candidate_actor.wallets['USD'], before_usd)
+        self.assertEqual(candidate_actor.cash, before_jpy)
+
+    def test_backlash_moves_either_cash_or_wallet_once(self):
+        from labor_politics import capitalist_electoral_backlash
+        tile = SimpleNamespace(agents=[])
+        donor = Person(1, 100)
+        donor.social_class = 'capitalist'
+        donor.home_currency = 'USD'
+        donor.wallets = {'USD': 80}
+        candidate_actor = Person(2, 10)
+        candidate_actor.home_currency = 'USD'
+        candidate_actor.wallets = {'USD': 5}
+        tile.agents = [donor, candidate_actor]
+        candidate = SimpleNamespace(agent=candidate_actor,
+                                    backing_faction='Proletariat', popularity=0)
+        nation = SimpleNamespace(ten_hour_act=True, currency='USD', tiles=[tile],
+                                 _incumbent_faction='Proletariat', regime_log=[])
+        before = donor.cash + donor.wallets['USD'] + candidate_actor.cash + candidate_actor.wallets['USD']
+        amount = capitalist_electoral_backlash(nation, [candidate], 4)
+        after = donor.cash + donor.wallets['USD'] + candidate_actor.cash + candidate_actor.wallets['USD']
+        self.assertAlmostEqual(amount, 12)
+        self.assertAlmostEqual(after, before)
+        self.assertAlmostEqual(donor.cash, 88)
+        self.assertAlmostEqual(donor.wallets['USD'], 80)
+        self.assertAlmostEqual(candidate_actor.cash, 22)
+        self.assertAlmostEqual(candidate_actor.wallets['USD'], 5)
+
+    def test_cross_currency_backlash_uses_existing_nation_currency_wallet(self):
+        from labor_politics import capitalist_electoral_backlash
+        tile = SimpleNamespace(agents=[])
+        donor = Person(1, 100)
+        donor.social_class = 'capitalist'
+        donor.home_currency = 'JPY'
+        donor.wallets = {'USD': 80}
+        candidate_actor = Person(2, 10)
+        candidate_actor.home_currency = 'JPY'
+        candidate_actor.wallets = {}
+        tile.agents = [donor, candidate_actor]
+        candidate = SimpleNamespace(agent=candidate_actor,
+                                    backing_faction='Proletariat', popularity=0)
+        nation = SimpleNamespace(ten_hour_act=True, currency='USD', tiles=[tile],
+                                 _incumbent_faction='Proletariat', regime_log=[])
+        before_usd = donor.wallets['USD']
+        before_jpy = donor.cash + candidate_actor.cash
+        amount = capitalist_electoral_backlash(nation, [candidate], 4)
+        self.assertAlmostEqual(amount, 9)
+        self.assertAlmostEqual(donor.wallets['USD'] + candidate_actor.wallets['USD'], before_usd)
+        self.assertAlmostEqual(donor.cash + candidate_actor.cash, before_jpy)
+
+
 class SupplyProposalTests(unittest.TestCase):
     def test_direct_settlement_without_acceptance_is_rejected(self):
         from crop_credit import offer_advance

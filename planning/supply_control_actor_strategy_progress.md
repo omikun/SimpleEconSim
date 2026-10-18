@@ -42,9 +42,9 @@ already fun or balanced; that still needs player feedback.
   was $1,713.25 for a grower and $1,463.82 for a corporation, giving the next
   instrumentation pass concrete targets.
 - Remaining gate work: complete bank deposit transaction adapters and
-  farmgate-to-route-to-import accounting for every cargo source. An earlier
-  benchmark run reported a turn-21 USD discrepancy (-$17.61), but the direct
-  diagnostic and the latest 50-turn run did not reproduce it.
+  farmgate-to-route-to-import accounting for every cargo source. The latest
+  default runs also expose large unposted actor cash changes; scrip, FX, and
+  shipment postings cover some paths, but the full cash bridge is still open.
 
 ## Phase 2 — grower and title-holder agency: implemented, deeper law/remedy work out of scope
 
@@ -103,9 +103,16 @@ already fun or balanced; that still needs player feedback.
   and canal outcomes. Branches diverge stochastically after actions, so these
   results are descriptive, not clean causal estimates.
 - Each of the 12 rivalry benchmark runs reported zero currency violations. The
-  latest 50-turn default run also reported zero: CNY unchanged, JPY +$0.01, USD
-  -$0.01. The earlier -$17.61 discrepancy remains intermittent and warrants
-  more controlled seeds before the audit gate can close.
+  phase-level default audit found the prior currency leak in
+  `capitalist_electoral_backlash`: a donation was debited/credited in cash and
+  also changed wallets, sometimes below zero or double-counting. It now moves
+  exactly one balance; election campaign spending credits a candidate's
+  nation-currency wallet when their home currency differs. Regression tests
+  cover same-currency wallets and cross-currency donors/recipients.
+- After that fix, 50-turn default runs for seeds 4243 and 4244 reported zero
+  currency violations. Earlier runs of seed 4243 showed -$112.61 and -$786.98
+  USD gaps in the regime phase. Keep the phase audit in the benchmark and run
+  more seeds before closing the gate.
 - No option has been shown to dominate across these three starts, but the
   benchmark currently reports branch outcomes rather than proving an optimal
   strategy or enjoyable balance. Outstanding checks from the plan include
@@ -133,5 +140,5 @@ already fun or balanced; that still needs player feedback.
 - `git diff --check` — passed.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python benchmark_supply_rivalry.py` — 12 matched runs, zero reported currency violations.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python benchmark_supply_rivalry.py 812 813 814` — repeated after shipment linking; all 12 branches still report zero currency violations.
-- `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python benchmark_supply_default.py 50` — latest 50-turn run completed with zero currency violations (see Phase 5 for the earlier intermittent warning).
+- `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python benchmark_supply_default.py 50 4243` and `... 50 4244` — both latest post-fix runs completed with zero currency violations.
 - Full `unittest discover` was attempted but this environment's native pygame/OpenGL tests crashed the Python process (exit 139) before a summary could be produced; the focused simulation, rights, auction, route, and web parity suite remains green.
