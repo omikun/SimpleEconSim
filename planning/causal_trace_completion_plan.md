@@ -761,3 +761,14 @@ transfers remain separate fiscal gaps.
 Verification: three dedicated fixtures cover forced repression, the no-force
 gate, and trace-on/off state parity. Eighteen repression, district-action, and
 coercion tests passed. Compilation and `git diff --check` passed.
+
+Phase 3 follow-up, 2026-10-18: emergency construction overrun grants now pair
+the national treasury debit with the contractor credit, link that transfer to
+the project outcome, and record why grants are rejected. The record includes
+the project resume and cumulative subsidy amount. Other policy subsidies still
+need their own modeled payee or explicit unmodeled-service treatment.
+
+Verification: four focused fixtures plus the existing overrun-subsidy regression
+passed. In the full 12-test construction module, 11 passed and an unrelated
+staffing assertion failed because efficiency was exactly 0.2 rather than above
+0.2. Compilation and `git diff --check` passed.

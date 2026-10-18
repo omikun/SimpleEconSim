@@ -112,20 +112,123 @@ def calculate_contractor_political_power(contractor: Agent) -> float:
     return (cash * 0.01) + (workers * 2.0) + (completed * 3.0)
 
 
+def _trace_contractor_subsidy(project, nation, *, operation_id, turn, success,
+                              reason, amount, treasury_before,
+                              contractor_before, treasury_after=None,
+                              contractor_after=None, status_before=None,
+                              status_after=None, transfer_event_id=None,
+                              subsidies_before=None):
+    region = getattr(project, 'region', None)
+    if region is None:
+        return None
+    from run_trace import emit
+
+    return emit(
+        region, kind='construction_subsidy_resolved', record_class='outcome',
+        subject={'type': 'tile/project', 'id': project.project_id,
+                 'tile': region.name},
+        metric_id='construction.emergency_subsidy', unit='local_currency',
+        before=0.0, after=float(amount) if success else 0.0,
+        formula_id='construction.emergency_subsidy.v1',
+        inputs={'operation_id': operation_id, 'turn': int(turn),
+                'success': bool(success), 'reason': reason,
+                'nation': nation.name, 'project_id': project.project_id,
+                'contractor_id': (getattr(project.contractor, 'id', None)),
+                'amount_requested': float(amount),
+                'treasury_cash_before': treasury_before,
+                'treasury_cash_after': treasury_after,
+                'contractor_cash_before': contractor_before,
+                'contractor_cash_after': contractor_after,
+                'project_status_before': status_before,
+                'project_status_after': status_after,
+                'subsidies_received_before': float(
+                    getattr(project, 'emergency_subsidies_received', 0.0)
+                    if subsidies_before is None else subsidies_before),
+                'subsidies_received_after': float(getattr(
+                    project, 'emergency_subsidies_received', 0.0)),
+                'subsidy_transfer_event_id': transfer_event_id},
+        cause_event_ids=[transfer_event_id] if transfer_event_id else None)
+
+
 def subsidize_contractor(project: ConstructionProject, amount: float, nation: Nation, world: dict = None) -> tuple[bool, str]:
     """Transfers emergency overrun grant from Treasury to contractor to avert bankruptcy and layoffs."""
     contractor = project.contractor
+    region = getattr(project, 'region', None)
+    turn = int(world.get('turn', 0)) if isinstance(world, dict) else int(
+        getattr(project, 'started_turn', 0))
+    subsidies_before = float(getattr(project, 'emergency_subsidies_received', 0.0))
+    status_before = getattr(project, 'status', None)
+    contractor_before = (float(contractor.cash) if contractor is not None
+                         else None)
+    gov = getattr(nation, 'government', None)
+    gov_agent = getattr(gov, 'agent', None)
+    treasury_before = (float(gov_agent.cash) if gov_agent is not None else None)
+    operation_id = (f'construction-subsidy:{project.project_id}:{turn}:'
+                    f'{subsidies_before:.2f}:{float(amount):.2f}')
+
     if contractor is None:
+        _trace_contractor_subsidy(
+            project, nation, operation_id=operation_id, turn=turn,
+            success=False, reason='project_has_no_contractor', amount=amount,
+            treasury_before=treasury_before, contractor_before=None,
+            treasury_after=treasury_before, contractor_after=None,
+            status_before=status_before, status_after=status_before)
         return False, "Project has no contractor to subsidize."
 
-    gov = getattr(nation, 'government', None)
-    if gov is None or gov.agent.cash < amount:
-        return False, f"Insufficient treasury cash (${getattr(gov.agent, 'cash', 0.0):.2f} < ${amount:.2f})."
+    if gov_agent is None or treasury_before < amount:
+        on_hand = treasury_before if treasury_before is not None else 0.0
+        _trace_contractor_subsidy(
+            project, nation, operation_id=operation_id, turn=turn,
+            success=False, reason='insufficient_treasury_cash', amount=amount,
+            treasury_before=treasury_before, contractor_before=contractor_before,
+            treasury_after=treasury_before, contractor_after=contractor_before,
+            status_before=status_before, status_after=status_before)
+        return False, f"Insufficient treasury cash (${on_hand:.2f} < ${amount:.2f})."
 
     # Conserved transfer: Treasury -> Contractor
-    gov.agent.cash -= amount
+    currency = (getattr(nation, 'currency', None)
+                or getattr(region, 'home_currency', None) or 'local_currency')
+    contractor_currency = getattr(contractor, 'home_currency', None) or currency
+    gov_cash_before = float(gov_agent.cash)
+    contractor_cash_before = float(contractor.cash)
+    gov_agent.cash -= amount
     contractor.cash += amount
-    project.emergency_subsidies_received = getattr(project, 'emergency_subsidies_received', 0.0) + amount
+    project.emergency_subsidies_received = subsidies_before + amount
+
+    transfer_event_id = None
+    if region is not None:
+        from finance_trace import (account_ref, cash_transfer_contract,
+                                   emit_cash_transfer)
+        payer = account_ref(
+            'nation_treasury', nation.name, currency,
+            balance_before=gov_cash_before, balance_after=float(gov_agent.cash),
+            balance_scope='spendable_cash')
+        payee = account_ref(
+            'construction_contractor', str(contractor.id), contractor_currency,
+            balance_before=contractor_cash_before,
+            balance_after=float(contractor.cash), balance_scope='cash')
+        contract = cash_transfer_contract(
+            operation_id, 'construction_overrun_subsidy', amount=amount,
+            currency=currency, payer_account=payer, payee_account=payee,
+            counterparty_leg_status='treasury debit and contractor credit captured',
+            mutation_reference={'turn': turn, 'project_id': project.project_id,
+                                'tile': region.name},
+            payee_currency=contractor_currency,
+            currency_conversion_applied=False,
+            unconverted_currency_mismatch=(contractor_currency != currency))
+        transfer_event_id = emit_cash_transfer(
+            region, kind='construction_overrun_subsidy_payment',
+            contract=contract, phase='policy_action',
+            subject={'type': 'tile/project', 'id': project.project_id,
+                     'tile': region.name},
+            inputs={'turn': turn, 'contractor_id': contractor.id,
+                    'treasury_cash_before': gov_cash_before,
+                    'treasury_cash_after': float(gov_agent.cash),
+                    'contractor_cash_before': contractor_cash_before,
+                    'contractor_cash_after': float(contractor.cash),
+                    'subsidies_received_before': subsidies_before,
+                    'subsidies_received_after': float(
+                        project.emergency_subsidies_received)})
 
     # Resume project if stalled
     if project.status == 'stalled':
@@ -136,6 +239,17 @@ def subsidize_contractor(project: ConstructionProject, amount: float, nation: Na
     msg = (f"[SUBSIDY GRANTED] Injected ${amount:.0f} overrun grant into {comp_name} "
            f"for {project.recipe.display_name}. Navvy layoffs averted; construction resumed.")
     project.events.append({'t': getattr(world, 'get', lambda k, d=0: 0)('turn', 0), 'event': 'SUBSIDY', 'message': msg})
+
+    _trace_contractor_subsidy(
+        project, nation, operation_id=operation_id, turn=turn, success=True,
+        reason='subsidy_paid', amount=amount,
+        treasury_before=gov_cash_before,
+        contractor_before=contractor_cash_before,
+        treasury_after=float(gov_agent.cash),
+        contractor_after=float(contractor.cash), status_before=status_before,
+        status_after=project.status,
+        transfer_event_id=transfer_event_id,
+        subsidies_before=subsidies_before)
 
     if world is not None:
         try:

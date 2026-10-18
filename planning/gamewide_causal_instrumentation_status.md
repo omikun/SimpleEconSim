@@ -211,7 +211,7 @@ in-transit shipment inventory, haulage cash transfer and recipients or public
 stock on arrival. National Egypt maize release traces each public-stock debit
 against an individual household's queued meal ration, with allocation outcomes
 and no-op reasons. Other untraced imperial claim paths, Egypt subsistence,
-additional household support channels, subsidies, military and police
+additional household support channels, other subsidies, military and police
 payroll/maintenance transfers,
 inheritance, and many scenario costs still need transfer contracts. Egypt's
 district relief, tax relief, settlement, and repression actions now record
@@ -394,3 +394,11 @@ protest changes, grievance reduction, and the people who receive casualty and
 broken-promise memories. Three fixtures cover forced repression, the no-force
 gate, and trace-on/off state parity; 18 repression, district-action, and coercion
 tests passed. Military and police payroll/maintenance transfers remain open.
+
+Emergency construction overrun grants now reconcile the national treasury debit
+with the contractor credit and link the cash transfer to the project outcome,
+including rejected-grant reasons and stalled-project resumption. Four dedicated
+fixtures and the existing overrun-subsidy regression passed. The full 12-test
+construction module had one unrelated staffing threshold failure at exactly
+0.2 efficiency; the other 11 tests passed. Other policy subsidies and military
+and police payroll/maintenance transfers remain open.
