@@ -3,6 +3,7 @@ import unittest
 from types import SimpleNamespace
 
 from metric_catalog import METRICS, TRACE_INSTRUMENTED
+from scenario_politics import advance as advance_politics
 from scenario_politics import apply_action
 
 
@@ -58,6 +59,47 @@ def _state(fixture):
     return (treasury.cash, tuple(agent.cash for agent in residents),
             politics['officers_paid'], politics['army_loyalty'], unit.morale,
             tuple(world['ticker_events']), tuple(politics['events']))
+
+
+def _dynamics_fixture(*, traced=True):
+    resident = SimpleNamespace(
+        id=21, alive=True, is_government=False, is_corporation=False,
+        is_trader=False, calorie_need_kcal=600.0,
+        calorie_deficit_kcal=300.0)
+    tile = SimpleNamespace(name='Alexandria', unrest_level=0.4,
+                           agents=[resident])
+    unit = SimpleNamespace(unit_id='egypt_alexandria_garrison', morale=0.5)
+    nation = SimpleNamespace(name='Egypt', tiles=[tile], military_units=[unit])
+    politics = {
+        'ruler': 'Ismail Pasha', 'governing_coalition': 'palace',
+        'officer_access': 0.35, 'army_loyalty': 0.70,
+        'palace_authority': 0.80, 'civilian_support': 0.20,
+        'nationalist_movement': 0.20, 'cabinet_authority': 0.20,
+        'officers_promoted': False, 'representative_cabinet': False,
+        'controllers_dismissed': False, 'crisis_resolved': False,
+        'deposition_resolved': False, 'garrison_id': unit.unit_id,
+        'events': [],
+    }
+    scenario = {'politics': politics, 'fiscal_autonomy': 0.80,
+                'extraction_level': 0.60,
+                'naval_crisis': {'stage': 'blockaded'},
+                'creditor_reactions': []}
+    trace = MemoryTrace()
+    if traced:
+        tile._run_trace = trace
+        tile._collective_trace_clock = {'turn': 5, 'phase': 'scenario_politics',
+                                        'next': 1}
+    world = {'turn': 5, 'nations': [nation], 'tiles': [tile],
+             'scenario_state': scenario, 'ticker_events': [], 'playing': True}
+    return world, nation, tile, resident, unit, politics, trace
+
+
+def _dynamics_state(fixture):
+    world, _nation, _tile, _resident, unit, politics, _trace = fixture
+    return ({key: politics[key] for key in (
+        'army_loyalty', 'civilian_support', 'nationalist_movement',
+        'palace_authority', 'cabinet_authority')}, unit.morale,
+        world.get('scenario_warning_modal'), world.get('playing'))
 
 
 class ScenarioPoliticsTransferTraceTests(unittest.TestCase):
@@ -138,6 +180,73 @@ class ScenarioPoliticsTransferTraceTests(unittest.TestCase):
         self.assertEqual(outcome['inputs']['reason'], 'arrears_package_already_funded')
         self.assertFalse(any(row.get('record_class') == 'transfer'
                              for row in fixture[7].rows))
+
+    def test_turn_dynamics_trace_each_formula_input_and_changed_political_metric(self):
+        plain = _dynamics_fixture(traced=False)
+        traced = _dynamics_fixture(traced=True)
+
+        advance_politics(plain[0])
+        advance_politics(traced[0])
+
+        self.assertEqual(_dynamics_state(plain), _dynamics_state(traced))
+        calculation = next(row for row in traced[6].rows
+                           if row.get('kind') == 'scenario_politics_dynamics_calculation')
+        inputs = calculation['inputs']
+        self.assertEqual(inputs['model'], 'egypt_political_support.v1')
+        self.assertEqual(inputs['population_inputs']['eligible_household_count'], 1)
+        self.assertAlmostEqual(inputs['population_inputs']['mean_hunger_fraction'], 0.5)
+        self.assertAlmostEqual(inputs['population_inputs']['mean_unrest'], 0.4)
+        self.assertAlmostEqual(inputs['military_inputs']['naval_loyalty_penalty'], 0.3)
+        self.assertAlmostEqual(inputs['foreign_control_inputs']['foreign_control'], 0.2)
+        self.assertAlmostEqual(inputs['intermediate_values']['loyalty_target'], 0.0825)
+        self.assertAlmostEqual(inputs['intermediate_values']['nationalist_grievance'],
+                               0.46076)
+        outcomes = [row for row in traced[6].rows
+                    if row.get('kind') == 'scenario_politics_metric_outcome']
+        self.assertEqual({row['metric_id'] for row in outcomes}, {
+            'politics.army_loyalty', 'politics.civilian_support',
+            'politics.nationalist_movement', 'politics.palace_authority'})
+        self.assertTrue(all(row['cause_event_ids'] == [calculation['event_id']]
+                            for row in outcomes))
+        gate_rows = [row for row in traced[6].rows
+                     if row.get('kind') == 'scenario_political_crisis_gate_evaluation']
+        self.assertEqual([(row['inputs']['gate'], row['after']) for row in gate_rows],
+                         [('dynastic_crisis', False), ('officer_movement', False)])
+        for row in traced[6].rows:
+            metric_id = row.get('metric_id')
+            if metric_id:
+                self.assertIn(metric_id, METRICS)
+                self.assertIn(metric_id, TRACE_INSTRUMENTED)
+
+    def test_dynastic_and_officer_crisis_gates_record_trigger_conditions(self):
+        dynastic = _dynamics_fixture()
+        dynastic[5]['palace_authority'] = 0.61
+        dynastic[0]['scenario_state']['fiscal_autonomy'] = 0.20
+        advance_politics(dynastic[0])
+        self.assertEqual(dynastic[0]['scenario_warning_modal']['kind'],
+                         'dynastic_crisis')
+        dynastic_gate = next(row for row in dynastic[6].rows
+                             if row.get('kind') ==
+                             'scenario_political_crisis_gate_evaluation')
+        self.assertTrue(dynastic_gate['after'])
+        self.assertEqual(dynastic_gate['inputs']['gate'], 'dynastic_crisis')
+        self.assertTrue(dynastic_gate['inputs']['conditions']['dismissal_reaction_pending']
+                        is False)
+
+        officer = _dynamics_fixture()
+        officer[5]['palace_authority'] = 0.95
+        officer[5]['nationalist_movement'] = 0.54
+        officer[5]['army_loyalty'] = 0.58
+        officer[0]['scenario_state']['fiscal_autonomy'] = 1.0
+        advance_politics(officer[0])
+        self.assertEqual(officer[0]['scenario_warning_modal']['kind'],
+                         'officer_movement')
+        gates = [row for row in officer[6].rows
+                 if row.get('kind') == 'scenario_political_crisis_gate_evaluation']
+        self.assertEqual([row['inputs']['gate'] for row in gates],
+                         ['dynastic_crisis', 'officer_movement'])
+        self.assertFalse(gates[0]['after'])
+        self.assertTrue(gates[1]['after'])
 
 
 if __name__ == '__main__':

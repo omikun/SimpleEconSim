@@ -1020,3 +1020,18 @@ Verification: four dedicated arrears-transfer fixtures, four existing Egypt
 politics tests, and all 30 run-trace tests passed (38 total). Compilation and
 `git diff --check` passed. Other scenario decisions and cash transfers remain
 open for audit.
+
+Phase 4 follow-up, 2026-10-18: Guided Egypt's annual political-support update
+now emits a compact formula calculation with household hunger, mean/min/max
+territorial unrest, garrison morale, officer access, foreign control,
+extraction, naval pressure, ruler and cabinet conditions, formula coefficients,
+intermediate targets, and state values before and after. Changed loyalty,
+civilian-support, nationalist-movement, palace-authority, and cabinet-authority
+metrics link to that calculation. Dynastic-succession and officer-movement
+threshold evaluations record their actual values and trigger results. New
+metrics are registered in the catalog.
+
+Verification: six dedicated arrears/dynamics fixtures, four existing Egypt
+politics tests, and all 30 run-trace tests passed (40 total). Compilation and
+`git diff --check` passed. Political response actions and remaining scenario
+cash transfers remain open.

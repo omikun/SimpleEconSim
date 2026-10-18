@@ -51,6 +51,20 @@ def _officer_payment_operation_id(world, nation):
             f"{int(clock.get('next', 0))}")
 
 
+def _political_state_values(state):
+    return {key: float(state[key]) for key in (
+        'army_loyalty', 'civilian_support', 'nationalist_movement',
+        'palace_authority', 'cabinet_authority')}
+
+
+def _political_evaluation_id(world, nation):
+    region = _trace_region(world, nation)
+    if region is None:
+        return None
+    return (f"scenario-politics:{nation.name}:{int(world.get('turn', 0))}:"
+            f"{int(region._collective_trace_clock.get('next', 0))}")
+
+
 def initialize(world):
     egypt = _egypt(world)
     rules = situation_template()['politics']
@@ -367,6 +381,7 @@ def advance(world):
     state = _state(world)
     scenario = world['scenario_state']
     egypt = _egypt(world)
+    state_before = _political_state_values(state)
     unit = _garrison(world)
     morale = float(unit.morale) if unit else 0.0
     people = [person for tile in egypt.tiles for person in tile.agents
@@ -375,46 +390,225 @@ def advance(world):
               and not getattr(person, 'is_trader', False)]
     from nutrition import deficit_fraction
     hunger = sum(deficit_fraction(person) for person in people) / max(1, len(people))
-    unrest = sum(float(getattr(tile, 'unrest_level', 0.0)) for tile in egypt.tiles) / max(1, len(egypt.tiles))
-    foreign_control = 1.0 - float(scenario.get('fiscal_autonomy', 1.0))
-    extraction = min(1.0, float(scenario.get('extraction_level', 0)))
+    unrest_values = [float(getattr(tile, 'unrest_level', 0.0))
+                     for tile in egypt.tiles]
+    unrest = sum(unrest_values) / max(1, len(egypt.tiles))
+    fiscal_autonomy = float(scenario.get('fiscal_autonomy', 1.0))
+    foreign_control = 1.0 - fiscal_autonomy
+    extraction_raw = float(scenario.get('extraction_level', 0))
+    extraction = min(1.0, extraction_raw)
     naval_stage = scenario.get('naval_crisis', {}).get('stage')
     naval_coercion = (0.30 if naval_stage == 'blockaded' else
                      0.12 if naval_stage == 'ultimatum' else 0.0)
-    new_loyalty = (0.15 + 0.45 * morale + 0.25 * state['officer_access']
-                   - 0.20 * foreign_control - 0.10 * unrest - naval_coercion)
+    loyalty_formula_inputs = {
+        'base': 0.15, 'morale_coefficient': 0.45,
+        'officer_access_coefficient': 0.25,
+        'foreign_control_penalty': 0.20,
+        'unrest_penalty': 0.10,
+    }
+    loyalty_target = (loyalty_formula_inputs['base']
+                      + loyalty_formula_inputs['morale_coefficient'] * morale
+                      + loyalty_formula_inputs['officer_access_coefficient']
+                      * float(state['officer_access'])
+                      - loyalty_formula_inputs['foreign_control_penalty']
+                      * foreign_control
+                      - loyalty_formula_inputs['unrest_penalty'] * unrest
+                      - naval_coercion)
+    ruler_loyalty_modifier = 0.0
     if state['ruler'] == 'Tawfiq Pasha' and state['controllers_dismissed'] and not state['officers_promoted']:
-        new_loyalty -= .16  # Unreformed officers distrust a palace restored amid foreign pressure.
-    state['army_loyalty'] = _clamp(0.65 * state['army_loyalty'] + 0.35 * new_loyalty)
+        ruler_loyalty_modifier = -0.16  # Unreformed officers distrust a restored palace.
+        loyalty_target += ruler_loyalty_modifier
+    state['army_loyalty'] = _clamp(0.65 * state['army_loyalty']
+                                   + 0.35 * loyalty_target)
     civilian_target = (0.12 + 0.35 * unrest + 0.28 * hunger + 0.15 * extraction
                        + (0.12 if state['representative_cabinet'] else 0.0))
-    state['civilian_support'] = _clamp(0.7 * state['civilian_support'] + 0.3 * civilian_target)
+    state['civilian_support'] = _clamp(0.7 * state['civilian_support']
+                                      + 0.3 * civilian_target)
     grievance = (0.24 * foreign_control + 0.20 * (1.0 - state['officer_access'])
-                 + 0.16 * (1.0 - state['army_loyalty']) + 0.14 * state['civilian_support'])
-    if naval_stage in ('mobilizing', 'ultimatum', 'blockaded'):
-        grievance += 0.16
+                 + 0.16 * (1.0 - state['army_loyalty'])
+                 + 0.14 * state['civilian_support'])
+    naval_grievance_bonus = (0.16 if naval_stage in
+                             ('mobilizing', 'ultimatum', 'blockaded') else 0.0)
+    grievance += naval_grievance_bonus
+    movement_delta = max(-0.025, grievance * 0.20 - 0.025)
     state['nationalist_movement'] = _clamp(state['nationalist_movement']
-                                          + max(-0.025, grievance * 0.20 - 0.025))
+                                          + movement_delta)
+    palace_authority_delta = (-0.025 * foreign_control - 0.03 * unrest
+                              - (0.035 if naval_stage == 'blockaded' else 0.0))
     state['palace_authority'] = _clamp(state['palace_authority']
-                                      - 0.025 * foreign_control - 0.03 * unrest
-                                      - (0.035 if naval_stage == 'blockaded' else 0.0))
+                                      + palace_authority_delta)
+    cabinet_authority_delta = (0.01 if state['representative_cabinet'] else 0.0)
     state['cabinet_authority'] = _clamp(state['cabinet_authority']
-                                       + (0.01 if state['representative_cabinet'] else 0.0))
+                                       + cabinet_authority_delta)
+    state_after = _political_state_values(state)
+    turn = int(world.get('turn', 0))
+    operation_id = _political_evaluation_id(world, egypt)
+    evaluation_event_id = _emit_politics_trace(
+        world, egypt,
+        kind='scenario_politics_dynamics_calculation', record_class='calculation',
+        phase='scenario_politics',
+        subject={'type': 'scenario/nation', 'id': egypt.name},
+        metric_id='scenario.politics_dynamics',
+        inputs={
+            'operation_id': operation_id, 'turn': turn,
+            'model': 'egypt_political_support.v1',
+            'population_inputs': {
+                'eligible_household_count': len(people),
+                'mean_hunger_fraction': hunger,
+                'territory_count': len(unrest_values),
+                'mean_unrest': unrest,
+                'minimum_tile_unrest': min(unrest_values) if unrest_values else None,
+                'maximum_tile_unrest': max(unrest_values) if unrest_values else None,
+            },
+            'military_inputs': {
+                'garrison_id': unit.unit_id if unit else None,
+                'garrison_morale': morale,
+                'officer_access': float(state['officer_access']),
+                'naval_stage': naval_stage,
+                'naval_loyalty_penalty': naval_coercion,
+            },
+            'foreign_control_inputs': {
+                'fiscal_autonomy': fiscal_autonomy,
+                'foreign_control': foreign_control,
+                'extraction_raw': extraction_raw,
+                'extraction_used': extraction,
+            },
+            'political_conditions': {
+                'ruler': state['ruler'],
+                'controllers_dismissed': bool(state['controllers_dismissed']),
+                'officers_promoted': bool(state['officers_promoted']),
+                'representative_cabinet': bool(state['representative_cabinet']),
+                'ruler_loyalty_modifier': ruler_loyalty_modifier,
+            },
+            'formula_coefficients': {
+                'army_loyalty': loyalty_formula_inputs,
+                'army_loyalty_previous_weight': 0.65,
+                'army_loyalty_target_weight': 0.35,
+                'civilian_support_previous_weight': 0.70,
+                'civilian_support_target_weight': 0.30,
+                'civilian_target': {
+                    'base': 0.12, 'unrest': 0.35, 'hunger': 0.28,
+                    'extraction': 0.15, 'representative_cabinet_bonus': 0.12,
+                },
+                'nationalist_grievance': {
+                    'foreign_control': 0.24, 'officer_access_deficit': 0.20,
+                    'army_loyalty_deficit': 0.16, 'civilian_support': 0.14,
+                    'naval_crisis_bonus': 0.16,
+                },
+                'nationalist_movement': {
+                    'grievance_weight': 0.20, 'base_decay': 0.025,
+                    'minimum_delta': -0.025,
+                },
+                'palace_authority': {
+                    'foreign_control_penalty': 0.025,
+                    'unrest_penalty': 0.03,
+                    'blockade_penalty': 0.035,
+                },
+                'cabinet_authority': {
+                    'representative_cabinet_growth': 0.01,
+                },
+            },
+            'intermediate_values': {
+                'loyalty_target': loyalty_target,
+                'civilian_support_target': civilian_target,
+                'nationalist_grievance': grievance,
+                'naval_grievance_bonus_applied': naval_grievance_bonus,
+                'nationalist_movement_delta': movement_delta,
+                'palace_authority_delta': palace_authority_delta,
+                'cabinet_authority_delta': cabinet_authority_delta,
+            },
+            'political_state_before': state_before,
+            'political_state_after': state_after,
+            'crisis_gates_skipped': bool(world.get('scenario_warning_modal')),
+        })
+    outcome_metrics = {
+        'army_loyalty': ('politics.army_loyalty', 'ratio'),
+        'civilian_support': ('politics.civilian_support', 'ratio'),
+        'nationalist_movement': ('politics.nationalist_movement', 'ratio'),
+        'palace_authority': ('politics.palace_authority', 'ratio'),
+        'cabinet_authority': ('politics.cabinet_authority', 'ratio'),
+    }
+    for field, (metric_id, unit_name) in outcome_metrics.items():
+        if state_before[field] == state_after[field]:
+            continue
+        _emit_politics_trace(
+            world, egypt,
+            kind='scenario_politics_metric_outcome', record_class='outcome',
+            phase='scenario_politics',
+            subject={'type': 'scenario/nation/metric', 'id': egypt.name,
+                     'metric': field},
+            metric_id=metric_id, before=state_before[field],
+            after=state_after[field], unit=unit_name,
+            inputs={'operation_id': operation_id, 'turn': turn,
+                    'calculation_event_id': evaluation_event_id,
+                    'formula_output': field},
+            cause_event_ids=[evaluation_event_id] if evaluation_event_id else None)
     if world.get('scenario_warning_modal'):
         return
     rules = situation_template()['politics']
-    if (not state['deposition_resolved'] and state['ruler'] == 'Ismail Pasha'
-            and state['palace_authority'] <= rules['deposition_authority_threshold']
-            and (scenario.get('fiscal_autonomy', 1.0) <= rules['deposition_autonomy_threshold']
-                 or (state['controllers_dismissed']
-                     and any(item.get('action_id') == 'dismiss_foreign_controllers'
-                             for item in scenario.get('creditor_reactions', []))))):
+    restoration_reaction_pending = (
+        any(item.get('action_id') == 'dismiss_foreign_controllers'
+            for item in scenario.get('creditor_reactions', []))
+        if state['controllers_dismissed'] else False)
+    dynastic_gate_inputs = {
+        'deposition_resolved': bool(state['deposition_resolved']),
+        'ruler': state['ruler'],
+        'expected_ruler': 'Ismail Pasha',
+        'palace_authority': float(state['palace_authority']),
+        'palace_authority_threshold': float(rules['deposition_authority_threshold']),
+        'fiscal_autonomy': fiscal_autonomy,
+        'fiscal_autonomy_threshold': float(rules['deposition_autonomy_threshold']),
+        'controllers_dismissed': bool(state['controllers_dismissed']),
+        'dismissal_reaction_pending': restoration_reaction_pending,
+    }
+    dynastic_triggered = (
+        not state['deposition_resolved'] and state['ruler'] == 'Ismail Pasha'
+        and state['palace_authority'] <= rules['deposition_authority_threshold']
+        and (fiscal_autonomy <= rules['deposition_autonomy_threshold']
+             or (state['controllers_dismissed'] and restoration_reaction_pending)))
+    dynastic_gate_event_id = _emit_politics_trace(
+        world, egypt,
+        kind='scenario_political_crisis_gate_evaluation', record_class='decision',
+        phase='scenario_politics',
+        subject={'type': 'scenario/nation', 'id': egypt.name},
+        metric_id='scenario.political_crisis_gate', unit='triggered',
+        after=dynastic_triggered,
+        inputs={'operation_id': operation_id, 'turn': turn,
+                'gate': 'dynastic_crisis', 'triggered': dynastic_triggered,
+                'conditions': dynastic_gate_inputs},
+        cause_event_ids=[evaluation_event_id] if evaluation_event_id else None)
+    if dynastic_triggered:
         world['scenario_warning_modal'] = {'kind': 'dynastic_crisis'}
         world['playing'] = False
         _event(world, 'Ismail’s palace has lost authority under creditor pressure; the succession is contested.')
-    elif (not state['crisis_resolved']
-          and state['nationalist_movement'] >= rules['movement_threshold']
-          and state['army_loyalty'] <= rules['army_loyalty_threshold']):
+        return
+    officer_movement_triggered = (
+        not state['crisis_resolved']
+        and state['nationalist_movement'] >= rules['movement_threshold']
+        and state['army_loyalty'] <= rules['army_loyalty_threshold'])
+    officer_gate_event_id = _emit_politics_trace(
+        world, egypt,
+        kind='scenario_political_crisis_gate_evaluation', record_class='decision',
+        phase='scenario_politics',
+        subject={'type': 'scenario/nation', 'id': egypt.name},
+        metric_id='scenario.political_crisis_gate', unit='triggered',
+        after=officer_movement_triggered,
+        inputs={'operation_id': operation_id, 'turn': turn,
+                'gate': 'officer_movement',
+                'triggered': officer_movement_triggered,
+                'conditions': {
+                    'crisis_resolved': bool(state['crisis_resolved']),
+                    'nationalist_movement': float(state['nationalist_movement']),
+                    'movement_threshold': float(rules['movement_threshold']),
+                    'army_loyalty': float(state['army_loyalty']),
+                    'army_loyalty_threshold': float(rules['army_loyalty_threshold']),
+                }},
+        cause_event_ids=([evaluation_event_id, dynastic_gate_event_id]
+                         if evaluation_event_id and dynastic_gate_event_id else
+                         [event_id for event_id in
+                          (evaluation_event_id, dynastic_gate_event_id) if event_id]
+                         or None))
+    if officer_movement_triggered:
         world['scenario_warning_modal'] = {'kind': 'officer_movement'}
         world['playing'] = False
         _event(world, 'Egyptian officers and civilian supporters demand a change in governing authority.')

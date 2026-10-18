@@ -648,3 +648,18 @@ Verification: four dedicated arrears-transfer fixtures, four existing Egypt
 politics tests, and all 30 run-trace tests passed (38 total). Compilation and
 `git diff --check` passed. Other scenario decisions and cash transfers remain
 open.
+
+Guided Egypt's recurring political-support calculation now records its actual
+formula inputs and intermediates: mean household hunger, territorial unrest
+summary, garrison morale, officer access, fiscal autonomy, extraction, naval
+pressure, ruler/cabinet conditions, and the resulting loyalty, support,
+grievance, movement, and authority values. Changed political metrics emit
+before/after outcomes linked to that calculation. Dynastic-succession and
+officer-movement gates record their measured thresholds and whether they
+triggered, with links back to the turn calculation. The trace catalog includes
+the added scenario and political metrics.
+
+Verification: six dedicated arrears/dynamics fixtures, four existing Egypt
+politics tests, and all 30 run-trace tests passed (40 total). Compilation and
+`git diff --check` passed. Political response actions and remaining scenario
+cash transfers still need audit.
