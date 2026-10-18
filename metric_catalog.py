@@ -119,6 +119,7 @@ METRICS = {
     'trade.market_seller_settlement': ('agent/tile/counterparty', 'currency', 'region_market.clear_discriminatory'),
     'trade.away_trader_food_purchase': ('trader/seller/tile', 'currency', 'world_trade.settle_trade'),
     'trade.fx_order_match': ('tile/fx_desk/trader', 'home_currency', 'forex.ForexDesk.clear_book'),
+    'finance.cash_wallet_conversion': ('tile/agent', 'currency', 'forex.walletize and forex.decash_wallet'),
 }
 
 LEGACY_HISTORY_TO_METRIC = {

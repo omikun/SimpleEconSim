@@ -71,7 +71,58 @@ def fx_clear(a):
         w.clear()
 
 
-def walletize(a, currency):
+def _record_cash_wallet_conversion(a, currency, amount, direction, region,
+                                  cash_before, cash_after, wallet_before,
+                                  wallet_after, t=None):
+    """Journal a same-currency move between an agent's cash and wallet."""
+    if region is None or amount <= 0:
+        return None
+    from economy.actor_accounts import record as record_economic_event
+    turn = int(t if t is not None else getattr(region, '_last_turn', 0))
+    next_event_id = int(getattr(region, '_next_economic_event_id', 1))
+    transfer_id = (f'cash-wallet:{turn}:{region.name}:{a.id}:{currency}:'
+                   f'{direction}:{next_event_id}')
+    detail = {'transfer_id': transfer_id, 'direction': direction,
+              'currency': currency, 'amount': float(amount),
+              'cash_before': float(cash_before), 'cash_after': float(cash_after),
+              'wallet_before': float(wallet_before),
+              'wallet_after': float(wallet_after)}
+    if direction == 'cash_to_wallet':
+        cash_event = record_economic_event(
+            region, 'fx_conversion', turn=turn, payer_id=a.id,
+            amount=amount, asset_id=transfer_id, source_id=transfer_id,
+            currency=currency, detail=detail)
+        wallet_event = record_economic_event(
+            region, 'wallet_transfer_in', turn=turn, recipient_id=a.id,
+            amount=amount, asset_id=transfer_id, source_id=transfer_id,
+            currency=currency, detail=detail)
+    else:
+        cash_event = record_economic_event(
+            region, 'fx_conversion', turn=turn, recipient_id=a.id,
+            amount=amount, asset_id=transfer_id, source_id=transfer_id,
+            currency=currency, detail=detail)
+        wallet_event = record_economic_event(
+            region, 'wallet_transfer_out', turn=turn, payer_id=a.id,
+            amount=amount, asset_id=transfer_id, source_id=transfer_id,
+            currency=currency, detail=detail)
+    from run_trace import emit
+    emit(region, kind='cash_wallet_conversion', record_class='transfer',
+         phase='finance', subject={'type': 'agent', 'id': a.id,
+                                   'tile': region.name},
+         metric_id='finance.cash_wallet_conversion', unit=currency,
+         before=float(cash_before), after=float(cash_after),
+         inputs={'direction': direction, 'amount': float(amount),
+                 'currency': currency, 'transfer_id': transfer_id,
+                 'wallet_before': float(wallet_before),
+                 'wallet_after': float(wallet_after),
+                 'cash_event': {'tile': region.name,
+                                'event_id': cash_event['id']},
+                 'wallet_event': {'tile': region.name,
+                                  'event_id': wallet_event['id']}})
+    return transfer_id
+
+
+def walletize(a, currency, trace_region=None, t=None):
     """Move an agent's hand cash into its FX wallet for *currency* (v3).
 
     Wilderness tiles have no bank and no domestic currency, so resident
@@ -82,12 +133,18 @@ def walletize(a, currency):
     """
     cash = a.cash
     if cash > 0:
+        cash_before = float(a.cash)
+        wallet_before = float(fx_balance(a, currency))
         a.cash = 0.0
         fx_add(a, currency, cash)
+        _record_cash_wallet_conversion(
+            a, currency, cash, 'cash_to_wallet', trace_region,
+            cash_before, float(a.cash), wallet_before,
+            float(fx_balance(a, currency)), t=t)
     return cash
 
 
-def decash_wallet(a, currency):
+def decash_wallet(a, currency, trace_region=None, t=None):
     """Move an agent's FX wallet balance for *currency* back to hand cash (v3).
 
     Inverse of :func:`walletize`.  Used when a wilderness tile is claimed (the
@@ -96,8 +153,14 @@ def decash_wallet(a, currency):
     """
     bal = fx_balance(a, currency)
     if bal > 0:
+        cash_before = float(a.cash)
+        wallet_before = float(bal)
         fx_sub(a, currency, bal)
         a.cash += bal
+        _record_cash_wallet_conversion(
+            a, currency, bal, 'wallet_to_cash', trace_region,
+            cash_before, float(a.cash), wallet_before,
+            float(fx_balance(a, currency)), t=t)
     return bal
 
 
@@ -541,7 +604,7 @@ def convert_non_trader_wallets(agents, region, t=0):
             continue
         for foreign_cur, bal in list(w.items()):
             if foreign_cur == home_currency:
-                decash_wallet(a, home_currency)
+                decash_wallet(a, home_currency, trace_region=region, t=t)
                 continue
             if bal <= 0:
                 continue

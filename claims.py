@@ -244,7 +244,8 @@ def check_and_apply_claims(t, tiles, nations):
                 a._bank_ref = prov.bank
                 a.home_currency = target_nation.currency
                 # De-cash holdings of this nation's currency from wallet to hand cash
-                fx.decash_wallet(a, target_nation.currency)
+                fx.decash_wallet(a, target_nation.currency,
+                                 trace_region=tile, t=t)
                 prov.gov._add_citizen(a)
 
             # 3b. Frontier bank founding charter (conserved): the settlers pool

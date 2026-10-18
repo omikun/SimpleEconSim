@@ -38,7 +38,8 @@ def enter_wilderness(region, agent, t):
         return 0.0
     moved = 0.0
     if agent.cash > 0 and agent.home_currency:
-        moved = fx.walletize(agent, agent.home_currency)
+        moved = fx.walletize(agent, agent.home_currency,
+                             trace_region=region, t=t)
     agent.is_homesteader = True
     agent.homestead_since = t
     agent.last_forage_turn = t
@@ -69,11 +70,12 @@ def enter_claimed(region, agent, t):
     """
     # Preserve origin-currency holdings before the residence currency changes.
     if agent.cash > 0 and agent.home_currency:
-        fx.walletize(agent, agent.home_currency)
+        fx.walletize(agent, agent.home_currency, trace_region=region, t=t)
     agent.is_homesteader = False
     agent.homestead_since = None
     if region.home_currency:
-        fx.decash_wallet(agent, region.home_currency)
+        fx.decash_wallet(agent, region.home_currency,
+                         trace_region=region, t=t)
         agent.home_currency = region.home_currency
     agent._bank_ref = region.bank
     agent.region = region.name

@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from agent import Agent
 from economy.actor_accounts import begin_turn, seal_turn
 from forex import ForexDesk, fx_add
+from wilderness import enter_claimed, enter_wilderness
 
 
 class Recorder:
@@ -74,6 +75,54 @@ class ForexAccountingTests(unittest.TestCase):
         self.assertEqual(trace['metric_id'], 'trade.fx_order_match')
         self.assertAlmostEqual(trace['inputs']['home_paid'], cash_event['amount'])
         self.assertEqual(trace['inputs']['wallet_in_event']['event_id'], wallet_in['id'])
+
+    def test_wilderness_cash_wallet_transitions_post_linked_conversion_legs(self):
+        agent = Agent(0)
+        agent.home_currency = 'USD'
+        agent.cash = 12.0
+        wilderness = SimpleNamespace(
+            name='Frontier', home_currency=None, wilderness=True,
+            is_ocean=False, elevation=0.0, agents=[agent], cash_obligations=[],
+            tenure=None, recipes={}, bank=None, province=None,
+            economic_events=[], _last_turn=1)
+        recorder = Recorder()
+        wilderness._collective_trace_clock = {'turn': 1, 'phase': 'move', 'next': 1}
+        wilderness._run_trace = recorder
+
+        begin_turn(wilderness, 1)
+        enter_wilderness(wilderness, agent, 1)
+
+        frontier_account = {row['actor_id']: row for row in seal_turn(wilderness, 1)}[agent.id]
+        cash_to_wallet = [event for event in wilderness.economic_events
+                          if event['kind'] == 'fx_conversion']
+        wallet_in = [event for event in wilderness.economic_events
+                     if event['kind'] == 'wallet_transfer_in']
+        self.assertEqual(agent.cash, 0.0)
+        self.assertAlmostEqual(agent.wallets['USD'], 12.0)
+        self.assertAlmostEqual(frontier_account['unposted_cash_change'], 0.0)
+        self.assertAlmostEqual(frontier_account['fx_converted_out'], 12.0)
+        self.assertEqual(cash_to_wallet[0]['asset_id'], wallet_in[0]['asset_id'])
+        self.assertEqual(recorder.rows[0]['metric_id'], 'finance.cash_wallet_conversion')
+
+        claimed = SimpleNamespace(
+            name='Claimed', home_currency='USD', wilderness=False,
+            agents=[agent], cash_obligations=[], tenure=None, recipes={},
+            bank=None, province=None, economic_events=[], _last_turn=2)
+        claimed._collective_trace_clock = {'turn': 2, 'phase': 'move', 'next': 1}
+        claimed._run_trace = recorder
+        begin_turn(claimed, 2)
+        enter_claimed(claimed, agent, 2)
+
+        claimed_account = {row['actor_id']: row for row in seal_turn(claimed, 2)}[agent.id]
+        cash_from_wallet = next(event for event in claimed.economic_events
+                                if event['kind'] == 'fx_conversion')
+        wallet_out = next(event for event in claimed.economic_events
+                          if event['kind'] == 'wallet_transfer_out')
+        self.assertAlmostEqual(agent.cash, 12.0)
+        self.assertAlmostEqual(agent.wallets.get('USD', 0.0), 0.0)
+        self.assertAlmostEqual(claimed_account['unposted_cash_change'], 0.0)
+        self.assertAlmostEqual(claimed_account['fx_converted_in'], 12.0)
+        self.assertEqual(cash_from_wallet['asset_id'], wallet_out['asset_id'])
 
 
 if __name__ == '__main__':

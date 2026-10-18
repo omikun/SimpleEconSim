@@ -165,7 +165,7 @@ def migrate_one(t, source, agent, destination):
     origin_currency = source.home_currency or getattr(agent, 'home_currency', None)
     _withdraw_origin(source, agent, t=t)
     if agent.cash > 0 and origin_currency:
-        fx.walletize(agent, origin_currency)
+        fx.walletize(agent, origin_currency, trace_region=source, t=t)
 
     # 2. Detach from origin.
     if agent in source.agents:

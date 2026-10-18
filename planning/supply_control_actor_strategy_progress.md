@@ -143,13 +143,16 @@ already fun or balanced; that still needs player feedback.
   trace records both traders' before/after cash and wallet balances, matched
   quantity, rate, and journal references; actor statements reconcile both
   traders' changes.
-- Remaining gate work: audit other non-estate credit losses and non-probate
-  cash-to-wallet legs outside these paths; decide how unpaid wage claims behave
-  when the firm or worker exits; decide whether wilderness inventory advances
-  should create a repayable debt claim. Scenario-seeded or legacy cargo can
-  still lack a settled source cost. The tested default runs close the actor
-  cash bridge, but they do not prove complete balance-sheet or operating-profit
-  coverage.
+- Wilderness entry, settlement on claimed land, migration, and treasury
+  conversion of same-currency wallets now record linked cash and wallet legs.
+  Both current and compatibility wilderness APIs pass tile and turn context;
+  actor statements reconcile the cash side and show per-currency wallet flows.
+- Remaining gate work: audit other non-estate credit losses; decide how unpaid
+  wage claims behave when the firm or worker exits; decide whether wilderness
+  inventory advances should create a repayable debt claim. Scenario-seeded or
+  legacy cargo can still lack a settled source cost. The tested default runs
+  close the actor cash bridge, but they do not prove complete balance-sheet or
+  operating-profit coverage.
 
 ## Phase 2 — grower and title-holder agency: implemented, deeper law/remedy work out of scope
 
@@ -245,6 +248,8 @@ already fun or balanced; that still needs player feedback.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python benchmark_supply_default.py 50 4242` — the default three-nation 50-turn run completed with zero currency violations and zero unmatched actor cash on turn 50 or across actor-turn statements.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_forex_accounting test_world_trade_accounting test_market_routes test_market_auction test_run_trace test_supply_control_actor_strategy` — 82 tests passed after bilateral FX order-book settlement accounting.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python benchmark_supply_default.py 50 4242` — repeated after bilateral FX journal coverage; the default three-nation run completed with zero currency violations and zero unmatched actor cash on turn 50 or across actor-turn statements.
+- `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_forex_accounting test_frontier_policies test_run_trace test_supply_control_actor_strategy test_phase1_enclosure_expansions test_wilderness_trade_accounting` — 79 tests passed after cash-to-wallet conversion accounting.
+- `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python benchmark_supply_default.py 50 4242` — repeated after wallet conversion journaling; zero currency violations, zero unmatched actor cash on turn 50, and zero unmatched actor-turn cash across the run.
 - `node --check web_client/client.js`, targeted Python compilation, and `git diff --check` — passed.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_supply_control_actor_strategy test_supply_rights test_market_auction test_market_routes test_web_client_parity test_truck_system_and_scrip test_run_trace test_trace_codec test_banking_contagion test_plunder_labor` — 139 tests passed, including paired wage-arrears statements, causal shortfall inputs, and balance retention after the 500-row detail window.
 - `node --check web_client/client.js`, targeted Python compilation, and `git diff --check` — passed for the wage-arrears trace, account, and client changes.
