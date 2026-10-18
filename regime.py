@@ -182,18 +182,22 @@ def step_regime(nation, t, rng=None):
     # 1. Coup
     coup_draw = rng if rng is not None else random.random()
     general, fires, coup_inputs = assess_coup(nation, t, coup_draw)
+    coup_decision_event_id = None
     if nation.tiles:
         from run_trace import emit
-        emit(nation.tiles[0], kind='coup_check', record_class='outcome',
-             subject={'type': 'nation', 'id': nation.name},
-             metric_id='politics.coup_decision', unit='boolean',
-             after=fires, formula_id='coup.force_balance.v1',
-             inputs={**coup_inputs, 'rng_draw': coup_draw,
-                     'rng_stream': 'regime.random', 'fired': fires,
-                     'regime_type': nation.regime_type})
+        coup_decision_event_id = emit(
+            nation.tiles[0], kind='coup_check', record_class='outcome',
+            subject={'type': 'nation', 'id': nation.name},
+            metric_id='politics.coup_decision', unit='boolean',
+            after=fires, formula_id='coup.force_balance.v1',
+            inputs={**coup_inputs, 'rng_draw': coup_draw,
+                    'rng_stream': 'regime.random', 'fired': fires,
+                    'regime_type': nation.regime_type})
     if fires and general is not None:
         deposed = getattr(nation, 'ruling_faction', None)
-        ev = execute_coup(nation, t, general, deposed_faction=deposed)
+        ev = execute_coup(
+            nation, t, general, deposed_faction=deposed,
+            decision_event_id=coup_decision_event_id)
         nation.ruling_faction = None
         _record_opposition(nation, deposed)
         events.append({'kind': 'coup', **ev})

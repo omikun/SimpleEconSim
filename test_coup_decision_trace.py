@@ -20,7 +20,8 @@ class MemoryTrace:
         return event_id
 
 
-def _world(*, traced, legitimacy=0.2, general=True, units=(), gov_cash=10.0):
+def _world(*, traced, legitimacy=0.2, general=True, units=(), gov_cash=10.0,
+           tile_gov_cash=0.0):
     agents = []
     if general:
         agents.append(SimpleNamespace(
@@ -30,7 +31,9 @@ def _world(*, traced, legitimacy=0.2, general=True, units=(), gov_cash=10.0):
             mem_push=lambda *_args: None))
     tile = SimpleNamespace(
         name='Capital', agents=agents,
-        gov=SimpleNamespace(agent=SimpleNamespace(cash=0.0)))
+        home_currency='NRC',
+        gov=SimpleNamespace(agent=SimpleNamespace(
+            id='tile-government', cash=float(tile_gov_cash))))
     trace = MemoryTrace()
     if traced:
         tile._run_trace = trace
@@ -114,16 +117,24 @@ class CoupDecisionTraceTests(unittest.TestCase):
                 self.assertEqual(row['inputs']['rng_draw'], 0.25)
 
     def test_successful_force_comparison_preserves_coup_execution(self):
-        nation, trace, general = _world(
-            traced=True, gov_cash=0.0,
-            units=())
-        general.ambition = 1.0
-        general.charisma = 1.0
-        general.loyalty = 1.0
-        general.cash = 100.0
+        worlds = [
+            _world(traced=False, gov_cash=0.0, tile_gov_cash=35.0),
+            _world(traced=True, gov_cash=0.0, tile_gov_cash=35.0),
+        ]
+        outcomes = []
+        for nation, _trace, general in worlds:
+            general.ambition = 1.0
+            general.charisma = 1.0
+            general.loyalty = 1.0
+            general.cash = 100.0
+            events = step_regime(nation, 5, rng=0.5)
+            outcomes.append((events, nation.regime_type, nation.legitimacy,
+                             nation.ruling_faction,
+                             nation.tiles[0].gov.agent.cash, general.cash))
+        self.assertEqual(outcomes[0], outcomes[1])
+        self.assertEqual(outcomes[1][-2:], (0.0, 135.0))
 
-        events = step_regime(nation, 5, rng=0.5)
-
+        nation, trace, _general = worlds[1]
         row = next(row for row in trace.rows
                    if row.get('kind') == 'coup_check')
         self.assertTrue(row['after'])
@@ -135,6 +146,29 @@ class CoupDecisionTraceTests(unittest.TestCase):
         self.assertEqual(nation.regime_type, 'autocracy')
         self.assertEqual(nation.legitimacy, 0.3)
         self.assertIsNone(nation.ruling_faction)
+
+        seizure = next(row for row in trace.rows
+                       if row.get('kind') == 'coup_treasury_seizure')
+        contract = seizure['inputs']['transfer_contract']
+        self.assertEqual(seizure['metric_id'], 'finance.cash_transfer')
+        self.assertEqual(contract['payer_account']['balance_before'], 35.0)
+        self.assertEqual(contract['payer_account']['balance_after'], 0.0)
+        self.assertEqual(contract['payee_account']['balance_before'], 100.0)
+        self.assertEqual(contract['payee_account']['balance_after'], 135.0)
+        self.assertEqual(seizure['cause_event_ids'], [row['event_id']])
+        self.assertEqual(
+            next(event for event in nation.tiles[0].economic_events
+                 if event['kind'] == 'coup_treasury_seizure')['source_id'],
+            contract['operation_id'])
+
+        execution = next(row for row in trace.rows
+                         if row.get('kind') == 'coup_executed')
+        self.assertEqual(execution['metric_id'], 'politics.coup_execution')
+        self.assertEqual(execution['inputs']['seized_treasury_cash'], 35.0)
+        self.assertEqual(execution['inputs']['legitimacy_before'], 0.2)
+        self.assertEqual(execution['inputs']['legitimacy_after'], 0.3)
+        self.assertEqual(execution['cause_event_ids'],
+                         [row['event_id'], seizure['event_id']])
 
 
 if __name__ == '__main__':

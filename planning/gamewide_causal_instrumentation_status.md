@@ -1162,3 +1162,14 @@ Verification: three traced/untraced fixtures cover all four benefit paths,
 including a partially funded UBI and parental-leave shortfall. Existing
 government transfer and provincial policy tests plus metric-catalog coverage
 passed (12 tests); compilation and `git diff --check` passed.
+
+Phase 3/4 follow-up, 2026-10-18: successful coups now record each tile's exact
+treasury-to-general cash seizure as `finance.cash_transfer`, linked to the
+force-comparison decision. A registered `politics.coup_execution` outcome
+records the regime and legitimacy result, amount seized, purge count, and links
+to the decision and seizure rows. Trace IDs remain local to the trace.
+
+Verification: the successful-coup fixture checks per-account balances, actor
+journal linkage, decision/seizure/outcome causality, and trace-on/off state
+parity. Coup decision and metric-catalog tests passed (4 tests); compilation
+and `git diff --check` passed.

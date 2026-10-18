@@ -1569,3 +1569,15 @@ Verification: traced and untraced fixtures match for all four policies,
 including short-funded UBI and leave. Existing government-transfer,
 provincial-policy, and metric-catalog suites passed (12 tests); compilation and
 `git diff --check` passed.
+
+## Phase 3/4 follow-up — Trace coup seizure and regime outcome
+
+Each tile-government balance transferred during a successful coup now has an
+exact cash-transfer contract into the general's wallet and an actor-account
+journal entry. Seizure rows link to the force decision. The `politics.coup_execution`
+outcome records the regime transition, legitimacy reset, seizure total, and
+purge count, linked to both the decision and the individual seizure rows.
+
+Verification: the success fixture checks exact balances and all causal links,
+with identical traced/untraced cash and regime state. Coup decision and metric
+catalog tests passed (4 tests); compilation and `git diff --check` passed.

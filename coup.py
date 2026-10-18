@@ -202,7 +202,8 @@ def coup_chance(nation, t, rng=None):
     return general, fires
 
 
-def seize_treasury(nation, general, t):
+def seize_treasury(nation, general, t, *, decision_event_id=None,
+                   trace_event_ids=None):
     """M3.5: transfer all tile-government cash to the coup leader (conserved).
 
     Returns the total amount seized.
@@ -215,9 +216,59 @@ def seize_treasury(nation, general, t):
         cash = max(0.0, gov_agent.cash)
         if cash <= 0:
             continue
+        government_cash_before = float(gov_agent.cash)
+        general_cash_before = float(general.cash)
         gov_agent.cash -= cash
         general.cash += cash
         total += cash
+        operation_id = (f'coup-treasury:{nation.name}:{int(t)}:'
+                        f'{tile.name}:{general.id}')
+        currency = (getattr(tile, 'home_currency', None)
+                    or getattr(nation, 'currency', None)
+                    or 'local_currency')
+        general_currency = (getattr(general, 'home_currency', None)
+                            or currency)
+        from economy.actor_accounts import record as record_economic_event
+        journal_event = record_economic_event(
+            tile, 'coup_treasury_seizure', turn=t,
+            payer_id=gov_agent.id, recipient_id=general.id, amount=cash,
+            source_id=operation_id, currency=currency,
+            detail={'nation': nation.name, 'tile': tile.name,
+                    'general_id': general.id, 'reason': 'successful_coup'})
+        from finance_trace import (account_ref, cash_transfer_contract,
+                                   emit_cash_transfer)
+        contract = cash_transfer_contract(
+            operation_id, 'coup_treasury_seizure', amount=cash,
+            currency=currency,
+            payer_account=account_ref(
+                'government_wallet', str(gov_agent.id), currency,
+                agent_id=str(gov_agent.id), tile=tile.name,
+                nation_id=nation.name,
+                balance_before=government_cash_before,
+                balance_after=float(gov_agent.cash),
+                balance_scope='cash_wallet'),
+            payee_account=account_ref(
+                'general_wallet', str(general.id), general_currency,
+                agent_id=str(general.id), tile=tile.name,
+                balance_before=general_cash_before,
+                balance_after=float(general.cash),
+                balance_scope='cash_wallet'),
+            counterparty_leg_status='both_cash_balances_captured',
+            political_operation='coup', nation=nation.name, tile=tile.name)
+        transfer_event_id = emit_cash_transfer(
+            tile, kind='coup_treasury_seizure', contract=contract,
+            phase='politics',
+            subject={'type': 'nation/operation', 'id': operation_id,
+                     'nation': nation.name, 'tile': tile.name},
+            inputs={'turn': int(t), 'nation': nation.name,
+                    'general_id': str(general.id), 'tile': tile.name,
+                    'operation_id': operation_id,
+                    'actor_account_event_id': journal_event['id']
+                    if journal_event is not None else None},
+            cause_event_ids=([decision_event_id]
+                             if decision_event_id else None))
+        if trace_event_ids is not None and transfer_event_id is not None:
+            trace_event_ids.append(transfer_event_id)
     return total
 
 
@@ -244,7 +295,8 @@ def _purge(nation, t, deposed_faction):
     return seeded
 
 
-def execute_coup(nation, t, general, deposed_faction=None):
+def execute_coup(nation, t, general, deposed_faction=None, *,
+                 decision_event_id=None):
     """Run a coup: seize the treasury, flip the regime, purge the old elite.
 
     - ``seized``: total treasury cash moved to the general (conserved).
@@ -260,12 +312,36 @@ def execute_coup(nation, t, general, deposed_faction=None):
     deposed = deposed_faction if deposed_faction is not None \
         else getattr(nation, '_incumbent_faction', None)
 
-    seized = seize_treasury(nation, general, t)
+    seizure_event_ids = []
+    legitimacy_before = float(getattr(nation, 'legitimacy', 0.3))
+    seized = seize_treasury(
+        nation, general, t, decision_event_id=decision_event_id,
+        trace_event_ids=seizure_event_ids)
     purged = _purge(nation, t, deposed)
 
     nation.regime_type = 'autocracy'
     nation.legitimacy = 0.3
     nation._incumbent_faction = None
+
+    if nation.tiles:
+        from run_trace import emit
+        cause_event_ids = ([decision_event_id] if decision_event_id else [])
+        cause_event_ids.extend(seizure_event_ids)
+        emit(nation.tiles[0], kind='coup_executed', record_class='outcome',
+             phase='politics',
+             subject={'type': 'nation', 'id': nation.name},
+             metric_id='politics.coup_execution', unit='boolean',
+             before=False, after=True, formula_id='coup.execution.v1',
+             inputs={'turn': int(t), 'general_id': str(general.id),
+                     'deposed_faction': deposed,
+                     'old_regime': old_regime,
+                     'new_regime': nation.regime_type,
+                     'legitimacy_before': legitimacy_before,
+                     'legitimacy_after': float(nation.legitimacy),
+                     'seized_treasury_cash': float(seized),
+                     'purged_member_count': int(purged),
+                     'seizure_event_ids': seizure_event_ids},
+             cause_event_ids=cause_event_ids or None)
 
     return {
         'turn': t,

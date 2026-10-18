@@ -112,6 +112,7 @@ METRICS = {
     'politics.takeover_decision': ('tile/nation', 'boolean', 'unrest._takeover; legitimacy and crowd-pressure gates, attempt and repel draws, garrison unit contributions, casualty and protest effects, and regime outcome'),
     'politics.legitimacy': ('nation', 'ratio', 'regime.track_legitimacy'),
     'politics.coup_decision': ('nation', 'boolean', 'coup.assess_coup and regime.step_regime; legitimacy and candidate gates, general traits and cash, defector and loyalist forces, treasury mobilization, RNG margin, and strict force comparison'),
+    'politics.coup_execution': ('nation', 'boolean', 'coup.execute_coup; treasury seizure, regime and legitimacy result, and purge count linked to the successful decision'),
     'politics.army_loyalty': ('nation', 'ratio', 'scenario_politics.apply_action; officer arrears payment effect on army loyalty and garrison morale'),
     'politics.civilian_support': ('nation', 'ratio', 'scenario_politics.advance; household hunger, unrest, extraction, and representative-cabinet target with smoothed support'),
     'politics.nationalist_movement': ('nation', 'ratio', 'scenario_politics.advance; grievance accumulation from foreign control, officer access, army loyalty, civilian support, and naval pressure'),
@@ -345,6 +346,7 @@ LEGACY_HISTORY_TO_METRIC = {
 
 TRACE_INSTRUMENTED = set(LEGACY_HISTORY_TO_METRIC.values()) | {
     'fx.bilateral_mid', 'politics.legitimacy', 'politics.coup_decision',
+    'politics.coup_execution',
     'people.births', 'people.residents',
     'people.profession_population',
     'war.ai_intent', 'war.peace_offer_evaluation', 'military.border_vulnerability',
