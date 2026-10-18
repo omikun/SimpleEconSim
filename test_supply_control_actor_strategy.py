@@ -49,6 +49,32 @@ class SupplyControlActorFixtureTests(unittest.TestCase):
 
 
 class ActorAccountTests(unittest.TestCase):
+    def test_inherited_cash_is_posted_between_decedent_and_heir(self):
+        from demographics_estate import handle_wealth_inheritance
+        from types import SimpleNamespace
+        region = Region()
+        region.home_currency = 'USD'
+        bank = SimpleNamespace(deposits={}, loans=[])
+        region.bank = bank
+        from agent import Agent
+        decedent, heir = Agent(7), Agent(7)
+        decedent.cash = 40
+        decedent.descendants = [heir]
+        heir._bank_ref = bank
+        region.agents = [decedent, heir]
+        begin_turn(region, 7)
+
+        context = SimpleNamespace(bank=bank, default_gov=None,
+                                  charity=None, source_region=region)
+        handle_wealth_inheritance(context, 7, decedent, [heir])
+        decedent.cash = 0
+        rows = {a['actor_id']: a for a in seal_turn(region, 7)}
+
+        self.assertEqual(heir.cash, 40)
+        self.assertEqual(rows[decedent.id]['posted_cash_change'], -40)
+        self.assertEqual(rows[heir.id]['posted_cash_change'], 40)
+        self.assertEqual(rows[heir.id]['unposted_cash_change'], 0)
+
     def test_cash_rent_transfer_is_in_actor_cash_bridge(self):
         from land_rent import collect_rents
         from land_tenure import LandPlot, TenureStatus, TileTenure

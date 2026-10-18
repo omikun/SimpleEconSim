@@ -269,13 +269,22 @@ def handle_wealth_inheritance(ctx, t, agent, living_descendants):
             decedent_currency = getattr(ctx.source_region, 'home_currency', None) if getattr(ctx, 'source_region', None) else None
             if decedent_currency is None:
                 decedent_currency = getattr(agent, 'home_currency', None)
+            inherited_cash = cash_share + extra_cash
             if getattr(descendent, '_bank_ref', None) is ctx.bank and ctx.bank is not None:
-                descendent.cash += cash_share + extra_cash
+                descendent.cash += inherited_cash
             elif decedent_currency:
-                fx.fx_add(descendent, decedent_currency,
-                          cash_share + extra_cash)
+                fx.fx_add(descendent, decedent_currency, inherited_cash)
             else:
-                descendent.cash += cash_share + extra_cash
+                descendent.cash += inherited_cash
+            if inherited_cash > 0 and getattr(ctx, 'source_region', None) is not None:
+                from economy.actor_accounts import record as record_economic_event
+                record_economic_event(
+                    ctx.source_region, 'inheritance', turn=t,
+                    payer_id=agent.id, recipient_id=descendent.id,
+                    amount=inherited_cash, currency=decedent_currency,
+                    detail={'heir_count': num_heirs,
+                            'settlement': 'cash' if getattr(descendent, '_bank_ref', None)
+                            is ctx.bank and ctx.bank is not None else 'foreign_wallet'})
 
         dead_w = getattr(agent, 'wallets', None)
         if dead_w:
@@ -309,13 +318,35 @@ def handle_wealth_inheritance(ctx, t, agent, living_descendants):
             government.agent.cash += gov_share
             if gov_share > 0:
                 government.record_income(t, 'inheritance', gov_share)
+                if getattr(ctx, 'source_region', None) is not None:
+                    from economy.actor_accounts import record as record_economic_event
+                    record_economic_event(
+                        ctx.source_region, 'inheritance', turn=t,
+                        payer_id=agent.id, recipient_id=government.agent.id,
+                        amount=gov_share, currency=getattr(agent, 'home_currency', None),
+                        detail={'probate_share': probate})
         charity = getattr(ctx, 'charity', None)
         if charity is not None and charity_share > 0:
             charity.agent.cash += charity_share
+            if getattr(ctx, 'source_region', None) is not None:
+                from economy.actor_accounts import record as record_economic_event
+                record_economic_event(
+                    ctx.source_region, 'inheritance', turn=t,
+                    payer_id=agent.id, recipient_id=charity.agent.id,
+                    amount=charity_share, currency=getattr(agent, 'home_currency', None),
+                    detail={'destination': 'charity', 'probate_share': 1.0 - probate})
         elif charity is None:
             if government is not None and charity_share > 0:
                 government.agent.cash += charity_share
                 government.record_income(t, 'inheritance', charity_share)
+                if getattr(ctx, 'source_region', None) is not None:
+                    from economy.actor_accounts import record as record_economic_event
+                    record_economic_event(
+                        ctx.source_region, 'inheritance', turn=t,
+                        payer_id=agent.id, recipient_id=government.agent.id,
+                        amount=charity_share, currency=getattr(agent, 'home_currency', None),
+                        detail={'destination': 'government',
+                                'probate_share': 1.0 - probate})
             elif charity_share > 0:
                 from ledger import record as _rec_dest
                 _rec_dest(t, getattr(agent, 'home_currency', None),

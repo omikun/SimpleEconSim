@@ -47,6 +47,11 @@ already fun or balanced; that still needs player feedback.
   turns. Direct charity and government food purchases now post actor transfers.
 - Cash rent, enclosure charter fees, and bailiff services now post named actor
   transfers. The bailiff's $10 cost is tracked as its own enforcement expense.
+- Estate cash distributed to heirs, government, or charity now posts as named
+  inheritance transfers with source currency and destination details. This
+  reduced the deterministic seed's final-turn unmatched sum from $15,700.70 to
+  $15,606.81; the largest remaining gaps are unchanged, so inheritance was a
+  real but secondary source.
 - Bank deposits/withdrawals, loan issuance/repayment, deposit interest, and
   deposit haircuts now post named events. Turn accounts expose bank savings,
   outstanding bank principal, company-store debt, and distinct repayment and
@@ -147,12 +152,12 @@ already fun or balanced; that still needs player feedback.
   FX and tariff conversions also remain separate cash legs rather than a fully
   normalized per-shipment delivered-cost calculation.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_supply_control_actor_strategy test_supply_rights test_market_auction test_market_routes test_web_client_parity test_truck_system_and_scrip` — 67 tests passed after bank debt, company-store debt, campaign-currency, and linked shipment additions.
-- `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_market_auction test_supply_control_actor_strategy test_phase1_enclosure_expansions` — 43 tests passed after cash-rent, enclosure-fee, and public food-purchase postings.
+- `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_run_trace test_market_auction test_supply_control_actor_strategy test_phase1_enclosure_expansions` — 34 tests passed after inheritance, cash-rent, enclosure-fee, and public food-purchase postings.
 - `node --check web_client/client.js` and `git diff --check` — passed after the same changes.
 - `node --check web_client/client.js` — passed.
 - `git diff --check` — passed.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python benchmark_supply_rivalry.py` — 12 matched runs, zero reported currency violations.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python benchmark_supply_rivalry.py 812 813 814` — repeated after shipment linking; all 12 branches still report zero currency violations.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python benchmark_supply_default.py 50 <seed>` — 50 turns completed with zero currency violations for seeds 4242, 4243, and 4244 after the campaign-transfer fix.
-- `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python benchmark_supply_default.py 50 4242` — two fresh-process runs after seeding the global RNG matched across counts, proposals, prices, cash audit, and unmatched accounts; both reported zero currency violations and $15,700.70 unmatched actor cash. The benchmark also shows the largest unmatched actor-turn rows for targeted tracing.
+- `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python benchmark_supply_default.py 50 4242` — two fresh-process runs after seeding the global RNG matched across counts, proposals, prices, cash audit, and unmatched accounts; both reported zero currency violations and $15,700.70 unmatched actor cash. After estate-transfer postings, the deterministic run still had zero violations and $15,606.81 unmatched actor cash. The benchmark also shows the largest unmatched actor-turn rows for targeted tracing.
 - Full `unittest discover` was attempted but this environment's native pygame/OpenGL tests crashed the Python process (exit 139) before a summary could be produced; the focused simulation, rights, auction, route, and web parity suite remains green.
