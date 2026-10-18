@@ -132,8 +132,10 @@ the FX matrix has a **Why?** button for each quoted currency pair.
 - Campaign Caisse debt records principal revisions, concessions, defaults,
   creditor collection assignments, payments, and signed Egypt/creditor treasury
   flows for assigned revenue interception.
-- Public baby bonuses, scaled UBI, parental leave, and welfare record the
-  treasury outflow, recipients, policy rate, and any funding shortfall.
+- Public baby bonuses, scaled UBI, parental leave, welfare, and legacy tax
+  receipts use `treasury_transfer.v1`, including treasury cash before/after,
+  recipient IDs, and scale/funding details. Group-benefit recipient balances
+  are marked as not individually captured.
 - Construction steps record material purchases, required and available inputs,
   navvy hiring and pay, progress multipliers, stall causes, and completion.
 - Battles record initial strengths, casualties, winner, and conquest. War-side
@@ -175,10 +177,12 @@ value does not match a recorded calculation. Per-profession headcount snapshots
 are sparse: unchanged counts, including zero categories, are omitted while the
 membership-change calculation records retain before/after counts and agent IDs.
 Treasury snapshots show cash and deposit components. Bond account transfers
-now have operation IDs and balance evidence, but project payroll, carrier fees,
-reserve recalls, central remittances, canal tolls, occupation seizures, tribute,
-tax recovery, grain purchases, subsidies, repression spending, inheritance,
-and many scenario costs still need the shared transfer contract. National
+and several public-benefit transfers now have operation IDs and balance
+evidence, but project payroll, carrier fees, reserve recalls, central
+remittances, canal tolls, occupation seizures, tribute, tariff receipts,
+emergency levies, tax recovery, grain purchases, subsidies, repression
+spending, inheritance, and many scenario costs still need the shared transfer
+contract. National
 treasury, bank, household, firm, and goods-by-currency reconciliations remain
 incomplete. Several scenario operations still need mutation-point records.
 Some secondary and elite AI candidate details remain partial. The current metric

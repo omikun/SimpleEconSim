@@ -7,6 +7,8 @@ pronatalist measures, enabling/disabling specific mechanisms at runtime.
 
 import math
 import random
+import hashlib
+import json
 
 import econsim_states
 from agent import Agent, initialize_agent, seed_traits
@@ -27,13 +29,48 @@ def _trace_public_transfer(government, kind, amount, recipients, *, outflow=True
     subject = ({'type': 'nation', 'id': nation.name} if nation is not None
                else {'type': 'tile', 'id': getattr(region, 'name', government.name)})
     unit = getattr(nation, 'currency', None) or getattr(region, 'home_currency', None) or 'local_currency'
+    recipient_ids = [str(getattr(item, 'id', item)) for item in recipients]
+    turn = inputs.pop('turn', getattr(region, '_last_turn', 0))
+    fingerprint = json.dumps({'government': government.name, 'kind': kind,
+                              'turn': turn, 'amount': float(amount),
+                              'recipients': sorted(recipient_ids), 'inputs': inputs},
+                             sort_keys=True, separators=(',', ':'))
+    operation_id = 'public:' + hashlib.sha256(fingerprint.encode('utf-8')).hexdigest()[:16]
+    local_cash_after = float(government.agent.cash)
+    local_cash_before = (local_cash_after + float(amount) if outflow
+                         else local_cash_after - float(amount))
+    from finance_trace import account_ref, transfer_contract
+    treasury_account = account_ref(
+        'government_treasury', getattr(nation, 'name', government.name), unit,
+        subaccount='government_agent.cash', balance_before=local_cash_before,
+        balance_after=local_cash_after, balance_scope='government_agent.cash')
+    external_account = account_ref(
+        'agent_group' if outflow else 'public_revenue_source', operation_id, unit,
+        member_count=len(recipient_ids) if outflow else None,
+        member_ids=recipient_ids if outflow else None,
+        balance_status='individual_balances_not_captured' if outflow
+        else 'source_accounts_not_identified')
+    if outflow:
+        payer_account, payee_account, side = treasury_account, external_account, 'payer'
+    else:
+        payer_account, payee_account, side = external_account, treasury_account, 'payee'
+    contract = transfer_contract(
+        operation_id, kind, side=side, amount=amount, amount_currency=unit,
+        payer_account=payer_account, payee_account=payee_account,
+        local_cash_leg_amount=amount, local_cash_leg_currency=unit,
+        counterparty_leg_status=('recipient_ids_listed' if outflow
+                                 else 'revenue_source_aggregate_only'),
+        mutation_reference={'government': government.name, 'turn': turn,
+                            'kind': kind})
     from run_trace import emit
     emit(region, kind=kind, record_class='transfer', phase='government',
          subject=subject, metric_id='finance.treasury_flow', unit=unit,
          after=-float(amount) if outflow else float(amount),
          inputs={'government': government.name,
-                 'recipients': [str(item) for item in recipients],
-                 'recipient_count': len(recipients), 'amount': float(amount), **inputs})
+                 'recipients': recipient_ids,
+                 'recipient_count': len(recipient_ids), 'amount': float(amount),
+                 'operation_id': operation_id, 'turn': turn,
+                 'transfer_contract': contract, **inputs})
 
 
 def _record_public_cash_transfer(region, turn, kind, payer, recipient, amount,
@@ -225,7 +262,8 @@ class Government:
             {'newborn_id': newborn.id, 'government': self.name})
         _trace_public_transfer(self, 'baby_bonus_paid', self.baby_bonus_amount,
                               [parent.id], newborn_id=str(newborn.id),
-                              amount_per_recipient=self.baby_bonus_amount)
+                              amount_per_recipient=self.baby_bonus_amount,
+                              turn=t)
         loginfo(t, f"Government({self.name}) paid ${self.baby_bonus_amount:.2f} baby bonus to "
                 f"{parent.name()} for newborn {newborn.name()}")
         return self.baby_bonus_amount
@@ -286,7 +324,8 @@ class Government:
                           and self._is_citizen(agent)]
             _trace_public_transfer(self, 'ubi_distributed', total, recipients,
                                    scheduled_per_person=self.ubi_amount_per_turn,
-                                   scaled_for_shortfall=scaled_for_shortfall)
+                                   scaled_for_shortfall=scaled_for_shortfall,
+                                   turn=t)
             for agent in agents:
                 if not agent.is_corporation and agent.alive is not False \
                         and self._is_citizen(agent):
@@ -457,7 +496,8 @@ class Government:
 
         if total > 0:
             _trace_public_transfer(self, 'parental_leave_paid', total, recipients,
-                                   amount_per_turn=self.parental_leave_amount_per_turn)
+                                   amount_per_turn=self.parental_leave_amount_per_turn,
+                                   turn=t)
             for agent, pay in payments:
                 _record_public_cash_transfer(
                     region, t, 'parental_leave', self.agent, agent, pay,
@@ -529,7 +569,8 @@ class Government:
             self.agent.cash += amount
             self.record_income(t, 'tax', amount)
             _trace_public_transfer(self, 'legacy_tax_collected', amount, [],
-                                   outflow=False, tax_source='legacy_collect_tax')
+                                   outflow=False, tax_source='legacy_collect_tax',
+                                   turn=t)
             loginfo(t, f"Government({self.name}) collected ${amount:.2f} in taxes")
         return amount
 
@@ -875,7 +916,7 @@ class Government:
         _trace_public_transfer(self, 'welfare_distributed', total_distributed,
                                [agent.id for agent in starving_agents],
                                minimum_reserve=min_reserve,
-                               eligible_starving=len(starving_agents))
+                               eligible_starving=len(starving_agents), turn=t)
         logdebug(t, f"Government({self.name}) distributed ${total_distributed:.2f} welfare "
                     f"to {len(starving_agents)} agents")
         return total_distributed

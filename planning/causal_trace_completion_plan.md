@@ -459,3 +459,19 @@ unconverted currency mismatch is flagged. The municipal fixture verified the
 cash-creation record and its bond link. Compilation and `git diff --check`
 passed. Other project, tax, subsidy, inheritance, occupation, and cross-system
 transfer paths remain to be audited against the same contract.
+
+Phase 3 follow-up, 2026-10-18: the shared transfer contract now covers
+government baby bonuses, UBI, parental leave, welfare, and legacy tax receipts.
+Each event records a stable operation ID, payer/payee account roles, currency,
+the government cash balance before and after, and recipient IDs where available.
+For group benefits the individual recipient balances are explicitly marked as
+not captured; actor-level cash events remain separate evidence. Transfer IDs
+are deterministic from the government, turn, amount, recipients, and decision
+inputs, so tracing adds no random draws or economic state changes.
+
+Verification: 80 focused government-transfer, supply-control, live trace, and
+campaign-debt tests passed. The fixture checked outgoing and incoming balance
+direction and the shared contract version. Compilation and `git diff --check`
+passed. Tariffs, emergency levies, grain spending, bank recapitalization,
+scenario carrier/project flows, and household/firm transfers still need the
+contract or a documented non-cash explanation.
