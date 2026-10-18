@@ -1027,3 +1027,14 @@ metrics to categorical records.
 Verification: compact round-trip and CLI filtering, trace queries, and web API
 tests passed (65 tests). A metricless shipment-departure record was selected
 through all reader layers; Python compilation and `git diff --check` passed.
+
+Phase 3 follow-up, 2026-10-18: direct bank FX conversions now carry the
+`trade.fx_conversion` metric and record the trader's foreign-wallet balance
+before and after the exchange. Both directions retain the executed foreign
+amount, conversion rate, home-currency payment, and bank FX-pool and reserve
+balances, complementing the existing bilateral-rate and order-book traces.
+
+Verification: the FX accounting and trace-registry suites passed (35 tests).
+Tests cover sell-foreign and buy-foreign wallet deltas, home settlement, bank
+pool/reserve movements, and metric registration; compilation and
+`git diff --check` passed.

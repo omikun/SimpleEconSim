@@ -4,8 +4,9 @@ from types import SimpleNamespace
 
 from agent import Agent
 from economy.actor_accounts import begin_turn, seal_turn
-from forex import (ForexDesk, flush_pending_trader_float_traces, fx_add,
-                   seed_trader_wallet)
+from econsim_trade_money import Bank
+from forex import (ForexDesk, buy_fx_from_bank, flush_pending_trader_float_traces,
+                   fx_add, seed_trader_wallet, sell_fx_to_bank)
 from wilderness import enter_claimed, enter_wilderness
 
 
@@ -21,6 +22,44 @@ class Recorder:
 
 
 class ForexAccountingTests(unittest.TestCase):
+    def test_bank_fx_conversions_trace_foreign_wallet_delta_in_both_directions(self):
+        trader = Agent(0)
+        trader.is_trader = True
+        trader.home_currency = 'A'
+        trader.cash = 2.0
+        fx_add(trader, 'B', 5.0)
+        bank = Bank()
+        bank.fx_pool = 20.0
+        bank.foreign_reserves['B'] = 0.0
+        region = SimpleNamespace(
+            name='FXHome', home_currency='A', agents=[trader],
+            cash_obligations=[], economic_events=[], _last_turn=2)
+        recorder = Recorder()
+        region._collective_trace_clock = {
+            'turn': 2, 'phase': 'trade', 'next': 1}
+        region._run_trace = recorder
+
+        self.assertAlmostEqual(sell_fx_to_bank(bank, trader, 'B', 4.0, 2.0,
+                                               trace_region=region), 8.0)
+        self.assertAlmostEqual(buy_fx_from_bank(bank, trader, 'B', 2.0, 2.0,
+                                                trace_region=region), 2.0)
+
+        events = [row for row in recorder.rows
+                  if row['kind'] == 'fx_conversion_executed']
+        self.assertEqual(len(events), 2)
+        self.assertEqual([row['inputs']['direction'] for row in events],
+                         ['sell_foreign', 'buy_foreign'])
+        self.assertEqual(events[0]['metric_id'], 'trade.fx_conversion')
+        self.assertEqual((events[0]['before'], events[0]['after']), (5.0, 1.0))
+        self.assertEqual((events[1]['before'], events[1]['after']), (1.0, 3.0))
+        self.assertEqual((events[0]['unit'], events[1]['unit']), ('B', 'B'))
+        self.assertEqual(events[0]['inputs']['home_paid'], 8.0)
+        self.assertEqual((events[0]['inputs']['bank_fx_pool_before'],
+                          events[0]['inputs']['bank_fx_pool_after']), (20.0, 12.0))
+        self.assertEqual((events[1]['inputs']['bank_fx_pool_before'],
+                          events[1]['inputs']['bank_fx_pool_after']), (12.0, 16.0))
+        self.assertEqual((bank.fx_pool, bank.foreign_reserves['B']), (16.0, 2.0))
+
     def test_matched_order_posts_cash_and_bilateral_wallet_legs(self):
         buyer = Agent(0)
         buyer.is_trader = True

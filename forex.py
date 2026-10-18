@@ -483,6 +483,9 @@ def sell_fx_to_bank(bank, trader, currency, amount, rate, trace_region=None):
         from run_trace import emit
         emit(trace_region, kind='fx_conversion_executed', record_class='transfer',
              phase='trade', subject={'type': 'agent', 'id': trader.id, 'tile': trace_region.name},
+             metric_id='trade.fx_conversion', unit=currency,
+             before=trader_fx_before, after=fx_balance(trader, currency),
+             formula_id='forex.bank_conversion.v1',
              inputs={'direction': 'sell_foreign', 'foreign_currency': currency,
                      'home_currency': trace_region.home_currency,
                      'requested_foreign': requested, 'executed_foreign': amount,
@@ -531,6 +534,9 @@ def buy_fx_from_bank(bank, trader, currency, amount, rate, trace_region=None):
         from run_trace import emit
         emit(trace_region, kind='fx_conversion_executed', record_class='transfer',
              phase='trade', subject={'type': 'agent', 'id': trader.id, 'tile': trace_region.name},
+             metric_id='trade.fx_conversion', unit=currency,
+             before=trader_fx_before, after=fx_balance(trader, currency),
+             formula_id='forex.bank_conversion.v1',
              inputs={'direction': 'buy_foreign', 'foreign_currency': currency,
                      'home_currency': trace_region.home_currency,
                      'requested_foreign': requested, 'executed_foreign': amount,

@@ -1414,3 +1414,17 @@ represent a scalar metric. Existing metric filters continue to work.
 Verification: compact round-trip, metricless shipment-kind filtering, trace
 query, CLI, and web API tests passed (65 tests). Python compilation and
 `git diff --check` passed.
+
+## Phase 3 follow-up — Trace bank FX conversions
+
+Bank-mediated foreign-currency purchases and sales now use a registered
+`trade.fx_conversion` metric. The metric shows the trader's foreign-wallet
+balance before and after; inputs retain direction, requested and executed
+amounts, rate, home-currency settlement, and bank pool/reserve balances. This
+adds a direct transaction record to the existing bilateral exchange-rate and
+matched-order traces without changing conversion rules.
+
+Verification: FX accounting and trace-registry suites passed (35 tests),
+including both transaction directions, wallet deltas, home-currency payment,
+bank pool/reserve movements, catalog registration, compilation, and
+`git diff --check`.
