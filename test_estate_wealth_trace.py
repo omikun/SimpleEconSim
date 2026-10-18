@@ -100,7 +100,12 @@ class EstateWealthTraceTests(unittest.TestCase):
                              if row.get('kind') == 'estate_decedent_cash_closed')
         food = next(row for row in trace.rows
                     if row.get('metric_id') == 'goods.inheritance_transfer'
+                    and row.get('kind') == 'estate_inventory_allocated'
                     and row.get('subject', {}).get('good') == 'food')
+        food_closeout = next(row for row in trace.rows
+                             if row.get('kind') ==
+                             'estate_decedent_inventory_closed'
+                             and row.get('subject', {}).get('good') == 'food')
 
         self.assertIn(withdrawal['event_id'], cash['cause_event_ids'])
         self.assertEqual(cash['inputs']['deposit_withdrawal_requested'], 10.0)
@@ -114,7 +119,9 @@ class EstateWealthTraceTests(unittest.TestCase):
         self.assertEqual(food['after'], 5)
         self.assertEqual(food['inputs']['allocations'][0]['units'], 5)
         self.assertFalse(food['inputs']['source_inventory_debited'])
-        self.assertEqual(decedent.inventory[Goods.food.value], 5)
+        self.assertIn(food['event_id'], food_closeout['cause_event_ids'])
+        self.assertEqual((food_closeout['before'], food_closeout['after']), (5, 0))
+        self.assertEqual(decedent.inventory[Goods.food.value], 0)
         self.assertEqual(heir.inventory[Goods.food.value], 5)
         self.assertNotIn(decedent, bank.deposits)
 
@@ -151,6 +158,7 @@ class EstateWealthTraceTests(unittest.TestCase):
         self.assertEqual(sum(bank.deposits.values()), 10.0)
         food = next(row for row in trace.rows
                     if row.get('metric_id') == 'goods.inheritance_transfer'
+                    and row.get('kind') == 'estate_inventory_allocated'
                     and row.get('subject', {}).get('good') == 'food')
         self.assertEqual(food['inputs']['allocations'][0]['recipient_type'],
                          'charity_food_stock')
@@ -162,7 +170,8 @@ class EstateWealthTraceTests(unittest.TestCase):
                          'government_inventory')
         self.assertEqual(government.agent.inventory[Goods.wood.value], 3)
         self.assertEqual(charity.food_inventory, 5)
-        self.assertEqual(decedent.inventory[Goods.food.value], 5)
+        self.assertEqual(decedent.inventory[Goods.food.value], 0)
+        self.assertEqual(decedent.inventory[Goods.wood.value], 0)
 
     def test_frozen_bank_records_requested_and_settled_probate_draw(self):
         region, ctx, decedent, heir, _gov, _charity, bank, trace = _fixture(
@@ -232,6 +241,28 @@ class EstateWealthTraceTests(unittest.TestCase):
         self.assertEqual(traced[6].total_deposits, plain[6].total_deposits)
         self.assertEqual(dict(traced[6].deposits), dict(plain[6].deposits))
 
+    def test_unallocated_goods_are_explicitly_cleared_at_estate_closeout(self):
+        region, ctx, decedent, _heir, _gov, _charity, _bank, trace = _fixture(
+            heirs=False, deposits=0.0)
+        ctx.default_gov = None
+        ctx.charity = None
+
+        event_ids = handle_wealth_inheritance(ctx, 7, decedent, [])
+        zero_out_dead_agent(ctx, decedent, t=7, cause_event_ids=event_ids)
+
+        allocations = [row for row in trace.rows
+                       if row.get('kind') == 'estate_inventory_allocated']
+        closeouts = [row for row in trace.rows
+                     if row.get('kind') == 'estate_decedent_inventory_closed']
+        self.assertEqual({row['subject']['good'] for row in allocations},
+                         {'food', 'wood'})
+        self.assertTrue(all(not row['inputs']['allocations']
+                            for row in allocations))
+        self.assertEqual({row['subject']['good'] for row in closeouts},
+                         {'food', 'wood'})
+        self.assertEqual(decedent.inventory[Goods.food.value], 0)
+        self.assertEqual(decedent.inventory[Goods.wood.value], 0)
+
     def test_estate_allocation_events_round_trip_compact_trace(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / 'estate.ctr'
@@ -250,7 +281,11 @@ class EstateWealthTraceTests(unittest.TestCase):
             allocations = trace.query(metric_id='finance.inheritance')
             goods = trace.query(metric_id='goods.inheritance_transfer')
             self.assertEqual(allocations['total'], 1)
-            self.assertEqual(goods['total'], 2)
+            self.assertEqual(goods['total'], 4)
+            self.assertEqual(
+                {row['kind'] for row in goods['events']},
+                {'estate_inventory_allocated',
+                 'estate_decedent_inventory_closed'})
             self.assertEqual(verify(path)['rows'], trace.count)
 
 

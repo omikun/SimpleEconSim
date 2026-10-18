@@ -936,3 +936,14 @@ withdrawal, heir cash, inherited deposit, bank total, and account-sum balances.
 Six probate-trace fixtures, 23 actor-account tests, and all 30 run-trace tests
 passed, as did compilation and `git diff --check`. The separate goods
 inventory source-debit defect remains open.
+
+Phase 3 accounting correction, 2026-10-18: probate now clears each deceased
+agent's remaining goods after distributing the estate. The per-good source
+debit links back to the distribution outcome. Goods with no heir, government,
+or charity destination are explicitly shown as unallocated before the source
+inventory closes, rather than remaining attached to an inaccessible deceased
+agent.
+
+Verification: seven focused probate-trace fixtures, 23 actor-account tests,
+all 30 run-trace tests, and all 25 plunder-labor tests passed. Compilation and
+`git diff --check` passed.

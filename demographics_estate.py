@@ -1400,6 +1400,29 @@ def zero_out_dead_agent(ctx, agent, *, t=None, cause_event_ids=None):
                         'currency': wallet_currency,
                         'reason': 'terminal_estate_cleanup'},
                 cause_event_ids=cause_event_ids or None)
+    inventory = getattr(agent, 'inventory', None)
+    if inventory is not None:
+        for good in Goods:
+            if good == Goods.none:
+                continue
+            inventory_before = inventory[good.value]
+            if inventory_before <= 0:
+                continue
+            inventory[good.value] = 0
+            _estate_trace(
+                region, kind='estate_decedent_inventory_closed',
+                record_class='outcome', phase='demographics',
+                subject={'type': 'agent/good', 'id': str(agent.id),
+                         'good': good.name,
+                         'tile': getattr(region, 'name', None)},
+                metric_id='goods.inheritance_transfer', unit='units',
+                before=inventory_before, after=0,
+                formula_id='estate.decedent_inventory_zeroed.v1',
+                inputs={'turn': turn, 'agent_id': agent.id,
+                        'good': good.name,
+                        'inventory_removed': inventory_before,
+                        'reason': 'terminal_estate_cleanup'},
+                cause_event_ids=cause_event_ids or None)
 
 
 def settle_external_death(region, t, agent, cause):

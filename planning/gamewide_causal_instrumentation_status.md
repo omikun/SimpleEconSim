@@ -221,9 +221,8 @@ wear. Elite luxury consumption records inventory drawdown, per-good prestige
 ratings and saturation gains, status-tier changes, and the capped decay that
 applies when no prestige goods are consumed. Other untraced imperial claim
 paths, additional household support channels, other subsidies, police
-payroll/maintenance, remaining military service costs, the estate inventory
-source-debit defect, and many scenario costs still need complete transfer
-contracts. Egypt's
+payroll/maintenance, remaining military service costs, and many scenario costs
+still need complete transfer contracts. Egypt's
 district relief, tax relief, settlement, and repression actions now record
 success/failure reasons and measured effects. National
 treasury, bank, household, firm, and goods-by-currency reconciliations remain
@@ -562,3 +561,15 @@ settled cash, deposit reassignment, account-sum conservation, and trace-on/off
 state parity. Six probate fixtures, 23 actor-account tests, and all 30 run-trace
 tests passed; compilation and `git diff --check` passed. The separate probate
 inventory source-debit correction remains open.
+
+Probate now clears each deceased agent's remaining goods inventory after the
+distribution decision. Per-good source-debit outcomes link back to the
+allocation record; if the government, charity, or heirs receive nothing, the
+closeout still records the unallocated goods being removed from the deceased
+estate. This prevents inherited goods from remaining duplicated in the dead
+agent's inaccessible inventory.
+
+Verification: seven focused probate-trace fixtures, 23 actor-account tests,
+all 30 run-trace tests, and all 25 plunder-labor tests passed. Compilation and
+`git diff --check` passed. Remaining household/public aid, imperial claims,
+police and military maintenance, and scenario transfers are still open.
