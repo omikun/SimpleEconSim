@@ -99,6 +99,12 @@ def incorporate(region, t):
             loaned = region.bank.Borrow(t, company, shortfall, trace_region=region)
         a.cash -= equity
         company.cash = equity + loaned
+        if equity > 0:
+            from economy.actor_accounts import record as record_economic_event
+            record_economic_event(
+                region, 'startup_equity', turn=t, payer_id=a.id,
+                recipient_id=company.id, amount=equity,
+                detail={'company_output': getattr(company.output, 'name', str(company.output))})
         sector_wages = [x.wage for x in region.agents if x.is_corporation and x.output == a.output and x.wage > 0]
         company.wage = max(sector_wages) * 1.05 if sector_wages else max(1.0, food_price * 1.5)
         company.max_employees = rand.randint(10, 25)
@@ -382,4 +388,11 @@ def run_labour(region, t):
                 if cost > 0.0:
                     a.cash -= cost
                     region.gov.agent.cash += cost
+                    from economy.actor_accounts import record as record_economic_event
+                    record_economic_event(
+                        region, 'safety_investment', turn=t,
+                        payer_id=a.id, recipient_id=region.gov.agent.id,
+                        amount=cost,
+                        detail={'workers_covered': len(a.employees),
+                                'per_worker_investment': safety_inv})
     return new_companies

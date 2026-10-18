@@ -36,6 +36,17 @@ def _trace_public_transfer(government, kind, amount, recipients, *, outflow=True
                  'recipient_count': len(recipients), 'amount': float(amount), **inputs})
 
 
+def _record_public_cash_transfer(region, turn, kind, payer, recipient, amount,
+                                 detail=None):
+    if region is None or amount <= 0:
+        return
+    from economy.actor_accounts import record as record_economic_event
+    record_economic_event(
+        region, kind, turn=turn, payer_id=getattr(payer, 'id', None),
+        recipient_id=getattr(recipient, 'id', None), amount=amount,
+        currency=getattr(region, 'home_currency', None), detail=detail or {})
+
+
 class Government:
     """A government entity with its own Agent for proper bank interactions.
 
@@ -193,7 +204,7 @@ class Government:
     # ------------------------------------------------------------------
     #  1. Baby Bonus  (Singapore / Hungary / France)
     # ------------------------------------------------------------------
-    def provide_baby_bonus(self, t, parent, newborn):
+    def provide_baby_bonus(self, t, parent, newborn, region=None):
         """Transfer a one-time cash bonus to the parent after childbirth.
 
         Args:
@@ -209,6 +220,9 @@ class Government:
             return 0.0
         self.agent.cash -= self.baby_bonus_amount
         parent.cash += self.baby_bonus_amount
+        _record_public_cash_transfer(
+            region, t, 'baby_bonus', self.agent, parent, self.baby_bonus_amount,
+            {'newborn_id': newborn.id, 'government': self.name})
         _trace_public_transfer(self, 'baby_bonus_paid', self.baby_bonus_amount,
                               [parent.id], newborn_id=str(newborn.id),
                               amount_per_recipient=self.baby_bonus_amount)
@@ -219,7 +233,7 @@ class Government:
     # ------------------------------------------------------------------
     #  2. Universal Basic Income  (Alaska / Finland)
     # ------------------------------------------------------------------
-    def distribute_ubi(self, t, agents):
+    def distribute_ubi(self, t, agents, region=None):
         """Give every eligible non-corp citizen a per-turn cash amount.
 
         Args:
@@ -232,6 +246,7 @@ class Government:
 
         total = 0.0
         scaled_for_shortfall = False
+        paid_fraction = 1.0
         for agent in agents:
             if agent.is_corporation or agent.alive is False:
                 continue
@@ -251,6 +266,7 @@ class Government:
             # Scale down proportionally
             if self.agent.cash > 0:
                 scale = self.agent.cash / total
+                paid_fraction = scale
                 for agent in agents:
                     if agent.is_corporation or agent.alive is False:
                         continue
@@ -259,6 +275,8 @@ class Government:
                     agent.cash -= self.ubi_amount_per_turn  # undo
                     paid = self.ubi_amount_per_turn * scale
                     agent.cash += paid
+            else:
+                paid_fraction = 0.0
             self.agent.cash = 0.0
             logwarning(t, f"Government({self.name}) UBI shortfall ${shortfall:.2f}, scaled payments")
             total -= shortfall
@@ -269,6 +287,15 @@ class Government:
             _trace_public_transfer(self, 'ubi_distributed', total, recipients,
                                    scheduled_per_person=self.ubi_amount_per_turn,
                                    scaled_for_shortfall=scaled_for_shortfall)
+            for agent in agents:
+                if not agent.is_corporation and agent.alive is not False \
+                        and self._is_citizen(agent):
+                    _record_public_cash_transfer(
+                        region, t, 'ubi_payment', self.agent, agent,
+                        self.ubi_amount_per_turn * paid_fraction,
+                        {'scheduled_per_person': self.ubi_amount_per_turn,
+                         'scaled_for_shortfall': scaled_for_shortfall,
+                         'government': self.name})
         return total
 
     # ------------------------------------------------------------------
@@ -395,7 +422,7 @@ class Government:
         loginfo(t, f"Government({self.name}) granted {self.parental_leave_duration} turns of "
                 f"parental leave to {parent.name()}")
 
-    def process_parental_leave(self, t, agents):
+    def process_parental_leave(self, t, agents, region=None):
         """Pay parental leave cash to all eligible parents and decrement their counter.
 
         Returns:
@@ -406,6 +433,7 @@ class Government:
 
         total = 0.0
         recipients = []
+        payments = []
         for agent in agents:
             if agent.is_corporation or agent.alive is False:
                 continue
@@ -421,6 +449,7 @@ class Government:
                 agent.cash += pay
                 total += pay
                 recipients.append(agent.id)
+                payments.append((agent, pay))
 
             agent._parental_leave_turns_remaining = remaining - 1
             logdebug(t, f"Government({self.name}) paid ${pay:.2f} parental leave to "
@@ -429,6 +458,11 @@ class Government:
         if total > 0:
             _trace_public_transfer(self, 'parental_leave_paid', total, recipients,
                                    amount_per_turn=self.parental_leave_amount_per_turn)
+            for agent, pay in payments:
+                _record_public_cash_transfer(
+                    region, t, 'parental_leave', self.agent, agent, pay,
+                    {'scheduled_per_turn': self.parental_leave_amount_per_turn,
+                     'government': self.name})
         return total
 
     # ------------------------------------------------------------------
@@ -804,7 +838,7 @@ class Government:
                      'units_delivered': inventory_before - self.food_inventory,
                      'recipients': transfers})
 
-    def distribute_welfare(self, t, agents, min_reserve=0):
+    def distribute_welfare(self, t, agents, min_reserve=0, region=None):
         """Distribute all excess cash above min_reserve to starving agents.
 
         Args:
@@ -825,6 +859,11 @@ class Government:
         for agent in starving_agents:
             agent.cash += welfare
             total_distributed += welfare
+            _record_public_cash_transfer(
+                region, t, 'welfare_payment', self.agent, agent, welfare,
+                {'minimum_reserve': min_reserve,
+                 'eligible_starving': len(starving_agents),
+                 'government': self.name})
 
         self.agent.cash -= total_distributed
         _trace_public_transfer(self, 'welfare_distributed', total_distributed,

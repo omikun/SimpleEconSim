@@ -97,13 +97,13 @@ def Live(t, agents, context: LiveContext):
 
     # 1. Pre-life-cycle government transfers
     for government in ctx.governments:
-        government.distribute_ubi(t, agents)
+        government.distribute_ubi(t, agents, region=ctx.source_region)
     for government in ctx.governments:
         immigrants = government.spawn_immigrants(t, agents)
         if immigrants:
             agents.extend(immigrants)
     for government in ctx.governments:
-        government.process_parental_leave(t, agents)
+        government.process_parental_leave(t, agents, region=ctx.source_region)
 
     # Public grain purchased in the market is delivered before households eat
     # and before a calorie deficit can cause death this turn.
@@ -160,7 +160,8 @@ def Live(t, agents, context: LiveContext):
     food_price = ctx.food_price
     if ctx.default_gov is not None:
         reserve = ctx.default_gov.target_food_reserve * food_price * 2
-        ctx.default_gov.distribute_welfare(t, new_agents, min_reserve=reserve)
+        ctx.default_gov.distribute_welfare(t, new_agents, min_reserve=reserve,
+                                           region=ctx.source_region)
 
     # 5. Logging
     for good in ctx.goods:

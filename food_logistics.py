@@ -159,9 +159,41 @@ def dispatch_province_food(province, turn):
             if not haulers:
                 haulers = _residents(source)
             haulers = sorted(haulers, key=lambda a: a.id)[:5]
+            shipment_id = f'{province.name}:{turn}:{len(dispatched) + 1}'
             if haulers:
+                payments = []
                 for hauler in haulers:
-                    hauler.cash += cost / len(haulers)
+                    payment = cost / len(haulers)
+                    hauler.cash += payment
+                    payments.append((hauler, payment))
+                from economy.actor_accounts import record as record_economic_event
+                gov_region = next((region for region in province.tiles
+                                   if gov.agent in getattr(region, 'agents', ())), source)
+                shipment_detail = {'shipment_id': shipment_id,
+                                   'shipment_source': source.name,
+                                   'shipment_destination': destination.name,
+                                   'shipment_units': taken,
+                                   'hauler_count': len(haulers),
+                                   'total_haulage_payment': cost}
+                if gov_region is source:
+                    for hauler, payment in payments:
+                        record_economic_event(
+                            source, 'provincial_food_haulage', turn=turn,
+                            payer_id=gov.agent.id, recipient_id=hauler.id,
+                            good=Goods.food, quantity=taken, amount=payment,
+                            source_id=shipment_id, detail=shipment_detail)
+                else:
+                    record_economic_event(
+                        gov_region, 'provincial_food_haulage', turn=turn,
+                        payer_id=gov.agent.id, amount=cost, source_id=shipment_id,
+                        detail={**shipment_detail,
+                                'recipient_ids': [hauler.id for hauler, _ in payments]})
+                    for hauler, payment in payments:
+                        record_economic_event(
+                            source, 'provincial_food_haulage', turn=turn,
+                            recipient_id=hauler.id, good=Goods.food,
+                            quantity=taken, amount=payment, source_id=shipment_id,
+                            detail={**shipment_detail, 'payer_id': gov.agent.id})
             else:
                 gov.agent.cash += cost
             shipment = {'source': source.name,

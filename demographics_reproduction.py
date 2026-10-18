@@ -137,6 +137,13 @@ def handle_reproduction(ctx, t, agent, agents, new_agents):
             ctx.bank.Withdraw(agent, min(need, ctx.bank.deposits.get(agent, 0)))
         agent.cash -= cash
         initialize_agent(new_agent, output, number_input, food_to_give, cash)
+        if cash > 0 and reg is not None:
+            from economy.actor_accounts import record as record_economic_event
+            record_economic_event(
+                reg, 'birth_endowment', turn=t, payer_id=agent.id,
+                recipient_id=new_agent.id, amount=cash,
+                detail={'newborn_food': food_to_give,
+                        'parent_id': agent.id})
         new_agent.last_career_switch = int(t)
         if reg is not None:
             from livelihood_access import inherit_customary_access
@@ -165,7 +172,7 @@ def handle_reproduction(ctx, t, agent, agents, new_agents):
             except (TypeError, ValueError):
                 pass
         if government is not None:
-            government.provide_baby_bonus(t, agent, new_agent)
+            government.provide_baby_bonus(t, agent, new_agent, region=reg)
         if government is not None:
             government.grant_parental_leave(t, agent)
     return number_food_consumed

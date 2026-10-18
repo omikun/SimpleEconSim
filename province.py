@@ -138,11 +138,15 @@ class Province:
         bank = self.bank
         charity = self.charity
         gov = self.gov
+        from economy.actor_accounts import begin_turn
+        for region in self.tiles:
+            region._last_turn = t
+            begin_turn(region, t)
         from food_logistics import deliver_province_food, dispatch_province_food
         deliver_province_food(self, t)
         dispatch_province_food(self, t)
         if charity is not None and bank is not None:
-            charity.collect_donations(t, all_agents, bank)
+            charity.collect_donations(t, all_agents, bank, regions=self.tiles)
         for r in self.tiles:
             r.step_economy(t)
         if bank is not None:
@@ -152,6 +156,10 @@ class Province:
             charity.distribute_food(t, all_agents)
         if gov is not None:
             gov.seal_income(t)
+        from economy.actor_accounts import seal_turn
+        for region in self.tiles:
+            region._audit_cash(t, 'province_settlement_done')
+            seal_turn(region, t, event_regions=self.tiles)
 
 
 def partition_contiguous(cells, layout, nparts, rng=None):

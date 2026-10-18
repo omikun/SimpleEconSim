@@ -104,7 +104,8 @@ def step_economy(region: Any, t: int):
 
     # Charity donations
     if legacy:
-        region.charity.collect_donations(t, region.agents, region.bank)
+        region.charity.collect_donations(t, region.agents, region.bank,
+                                         regions=(region,))
         audit_cash(region, t, "charity_done")
 
     # Labor market
@@ -300,6 +301,7 @@ def step_economy(region: Any, t: int):
     # Epidemics & Medical Economics (P3)
     from disease import step_tile_diseases
     step_tile_diseases(region, t)
+    audit_cash(region, t, "disease_done")
 
     # True Cost & Externalities Ledger Finalization
     try:
@@ -355,8 +357,9 @@ def step_economy(region: Any, t: int):
         if difference > 1e-8:
             logwarning(t, f"Region '{region.name}' cash: {region.total_cash_log[-2]:.2f}->{region.total_cash_log[-1]:.2f} (d={difference:.2f})")
 
-    from economy.actor_accounts import seal_turn
-    seal_turn(region, t)
+    if getattr(region, 'province', None) is None:
+        from economy.actor_accounts import seal_turn
+        seal_turn(region, t)
 
     if t % 100 == 0:
         circulating_cash = sum(a.cash for a in region.agents)
@@ -368,6 +371,22 @@ def step_economy(region: Any, t: int):
 
 def audit_cash(region: Any, t: int, label: str):
     """Log all cash components when anomalies occur."""
+    current_actor_cash = {a.id: float(a.cash) for a in region.agents}
+    if getattr(region, '_actor_cash_phase_turn', None) != int(t):
+        region._actor_cash_phase_turn = int(t)
+        region._actor_cash_phase_snapshot = current_actor_cash
+        region._actor_cash_phase_changes = {}
+    else:
+        previous_actor_cash = getattr(region, '_actor_cash_phase_snapshot', {})
+        phase_changes = getattr(region, '_actor_cash_phase_changes', {})
+        for actor_id in set(previous_actor_cash) | set(current_actor_cash):
+            change = current_actor_cash.get(actor_id, 0.0) - previous_actor_cash.get(actor_id, 0.0)
+            if abs(change) > 1e-9:
+                rows = phase_changes.setdefault(actor_id, [])
+                rows.append({'phase': label, 'cash_change': round(change, 4)})
+        region._actor_cash_phase_changes = phase_changes
+        region._actor_cash_phase_snapshot = current_actor_cash
+
     agent_cash = sum(a.cash for a in region.agents)
     deposits = region.bank.total_deposits
     liabilities = region.bank.total_liabilities

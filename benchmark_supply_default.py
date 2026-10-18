@@ -53,11 +53,61 @@ def run(turns=50, seed=4242):
                        for row in getattr(tile, 'actor_account_history', [])]
     def event_kinds(account):
         tile = tile_by_name.get(account['tile'])
-        events = [e for e in getattr(tile, 'economic_events', [])
+        province = getattr(tile, 'province', None)
+        event_regions = getattr(province, 'tiles', ()) or (tile,)
+        events = [e for event_region in event_regions
+                  for e in getattr(event_region, 'economic_events', [])
                   if e['turn'] == account['turn'] and account['actor_id'] in
                   (e.get('payer_id'), e.get('recipient_id'))]
         return {kind: sum(e['kind'] == kind for e in events)
                 for kind in sorted({e['kind'] for e in events})}
+    def event_flows(account):
+        tile = tile_by_name.get(account['tile'])
+        province = getattr(tile, 'province', None)
+        event_regions = getattr(province, 'tiles', ()) or (tile,)
+        events = [e for event_region in event_regions
+                  for e in getattr(event_region, 'economic_events', [])
+                  if e['turn'] == account['turn'] and account['actor_id'] in
+                  (e.get('payer_id'), e.get('recipient_id'))]
+        flows = {}
+        for event in events:
+            flow = flows.setdefault(event['kind'], {'count': 0, 'paid': 0.0,
+                                                    'received': 0.0,
+                                                    'counterparties': set()})
+            flow['count'] += 1
+            if event.get('payer_id') == account['actor_id']:
+                flow['paid'] += event['amount']
+                if event.get('recipient_id') is not None:
+                    flow['counterparties'].add(event['recipient_id'])
+            if event.get('recipient_id') == account['actor_id']:
+                flow['received'] += (event['detail'].get('seller_receipt', event['amount'])
+                                     if event['kind'] == 'spot_sale' else event['amount'])
+                if event.get('payer_id') is not None:
+                    flow['counterparties'].add(event['payer_id'])
+        return {kind: {'count': value['count'], 'paid': round(value['paid'], 2),
+                       'received': round(value['received'], 2),
+                       'counterparties': sorted(value['counterparties'])}
+                for kind, value in sorted(flows.items())}
+    def cross_tile_event_flows(account):
+        flows = {}
+        for tile in tiles:
+            for event in getattr(tile, 'economic_events', []):
+                if event['turn'] != account['turn'] or account['actor_id'] not in (
+                        event.get('payer_id'), event.get('recipient_id')):
+                    continue
+                flow = flows.setdefault(event['kind'], {'locations': set(), 'count': 0,
+                                                        'paid': 0.0, 'received': 0.0})
+                flow['locations'].add(tile.name)
+                flow['count'] += 1
+                if event.get('payer_id') == account['actor_id']:
+                    flow['paid'] += event['amount']
+                if event.get('recipient_id') == account['actor_id']:
+                    flow['received'] += (event['detail'].get('seller_receipt', event['amount'])
+                                         if event['kind'] == 'spot_sale' else event['amount'])
+        return {kind: {'locations': sorted(value['locations']), 'count': value['count'],
+                       'paid': round(value['paid'], 2),
+                       'received': round(value['received'], 2)}
+                for kind, value in sorted(flows.items())}
     firms = [row for row in accounts if row['type'] == 'corporation']
     growers = [row for row in accounts if row['type'] == 'grower']
     def actor_profile(account):
@@ -72,6 +122,7 @@ def run(turns=50, seed=4242):
                 'output': getattr(getattr(actor, 'output', None), 'name', None),
                 'employer_id': getattr(getattr(actor, 'employer', None), 'id', None),
                 'owner_id': getattr(getattr(actor, 'owner', None), 'id', None),
+                'registered_region': getattr(actor, 'region', None),
                 'social_class': getattr(actor, 'social_class', None),
                 'home_currency': getattr(actor, 'home_currency', None)}
     return {'turns': turns, 'seed': seed, 'nations': len(nations), 'tiles': len(tiles),
@@ -95,19 +146,35 @@ def run(turns=50, seed=4242):
             'grower_crop_value_last_turn': round(sum(a['crop_value'] for a in growers), 2),
             'unposted_cash_last_turn': round(sum(abs(a['unposted_cash_change'])
                                                  for a in accounts), 2),
+            'unposted_cash_history_abs': round(sum(
+                abs(a['unposted_cash_change']) for a in account_history), 2),
+            'unposted_cash_actor_turns_nonzero': sum(
+                abs(a['unposted_cash_change']) > 0.01 for a in account_history),
+            'largest_unposted_cash_any_turn': max(
+                account_history,
+                key=lambda row: abs(row['unposted_cash_change']),
+                default=None),
             'largest_unposted_cash_accounts': [
                 {'tile': a['tile'], 'actor': a['actor_name'], 'type': a['type'],
                  'actor_id': a['actor_id'], 'profile': actor_profile(a),
                  'cash_change': a['cash_change'], 'posted_change': a['posted_cash_change'],
                  'unposted_change': a['unposted_cash_change'],
-                 'posted_event_kinds': event_kinds(a)}
+                 'opening_bank_deposit': a['opening_bank_deposit'],
+                 'closing_bank_deposit': a['closing_bank_deposit'],
+                 'cash_phase_changes': a['cash_phase_changes'],
+                 'posted_event_kinds': event_kinds(a),
+                 'posted_event_flows': event_flows(a),
+                 'cross_tile_event_flows': cross_tile_event_flows(a)}
                 for a in sorted(accounts, key=lambda row: abs(row['unposted_cash_change']),
                                 reverse=True)[:8]],
             'largest_unposted_cash_turns': [
                 {'turn': a['turn'], 'tile': a['tile'], 'actor': a['actor_name'],
                  'actor_id': a['actor_id'], 'type': a['type'],
                  'unposted_change': a['unposted_cash_change'],
-                 'posted_event_kinds': event_kinds(a)}
+                 'cash_change': a['cash_change'],
+                 'cash_phase_changes': a['cash_phase_changes'],
+                 'posted_event_kinds': event_kinds(a),
+                 'posted_event_flows': event_flows(a)}
                 for a in sorted(account_history,
                                 key=lambda row: abs(row['unposted_cash_change']),
                                 reverse=True)[:12]],

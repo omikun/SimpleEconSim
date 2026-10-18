@@ -8,6 +8,24 @@ from __future__ import annotations
 from goods import Goods
 
 
+_NONCASH_EVENTS = {'production', 'input_consumed', 'scrip_wage',
+                   'scrip_store_sale', 'scrip_food_credit', 'bank_deposit_haircut'}
+
+
+def recorded_cash_delta(events, actor_id):
+    """Return cash movement represented by journal events for one actor."""
+    delta = 0.0
+    for event in events:
+        if event['kind'] in _NONCASH_EVENTS:
+            continue
+        if event['recipient_id'] == actor_id:
+            delta += (event['detail'].get('seller_receipt', event['amount'])
+                      if event['kind'] == 'spot_sale' else event['amount'])
+        if event['payer_id'] == actor_id:
+            delta -= event['amount']
+    return delta
+
+
 def _name(good):
     return getattr(good, 'name', str(good)) if good is not None else None
 
@@ -32,6 +50,9 @@ def record(region, kind, *, turn=None, payer_id=None, recipient_id=None,
 
 
 def begin_turn(region, turn):
+    if (getattr(region, '_economic_opening_turn', None) == int(turn)
+            and getattr(region, '_economic_opening', None) is not None):
+        return
     if getattr(region, 'tenure', None) is not None:
         from supply_rights import _seed_water_rights
         _seed_water_rights(region)
@@ -56,21 +77,36 @@ def begin_turn(region, turn):
         for a in getattr(region, 'agents', []) if getattr(a, 'alive', True)}
 
 
-def seal_turn(region, turn):
+def seal_turn(region, turn, event_regions=None):
     """Seal observable results once; repeated snapshots cannot alter accounts."""
     if getattr(region, '_economic_sealed_turn', -1) == turn:
         return getattr(region, 'actor_turn_accounts', [])
     opening = getattr(region, '_economic_opening', {})
     events = [e for e in getattr(region, 'economic_events', []) if e['turn'] == turn]
+    if event_regions is None:
+        province = getattr(region, 'province', None)
+        event_regions = getattr(province, 'tiles', ()) or (region,)
+    unique_event_regions = []
+    for event_region in event_regions:
+        if all(event_region is not existing for existing in unique_event_regions):
+            unique_event_regions.append(event_region)
+    if all(region is not event_region for event_region in unique_event_regions):
+        unique_event_regions.append(region)
+    cash_events = [event for event_region in unique_event_regions
+                   for event in getattr(event_region, 'economic_events', [])
+                   if event['turn'] == turn]
     by_actor = {}
     for event in events:
         for ident in {event['payer_id'], event['recipient_id']} - {None}:
             by_actor.setdefault(ident, []).append(event)
+    cash_by_actor = {}
+    for event in cash_events:
+        for ident in {event['payer_id'], event['recipient_id']} - {None}:
+            cash_by_actor.setdefault(ident, []).append(event)
     accounts = []
     for actor in getattr(region, 'agents', []):
-        if actor.id not in opening:
-            continue
         own = by_actor.get(actor.id, [])
+        cash_own = cash_by_actor.get(actor.id, own)
         receipts = sum((e['detail'].get('seller_receipt', e['amount'])
                         if e['kind'] == 'spot_sale' else e['amount'])
                        for e in own if e['recipient_id'] == actor.id
@@ -95,15 +131,18 @@ def seal_turn(region, turn):
         # production-consumption posting; never expense purchases twice.
         input_used = sum(e['amount'] for e in own if e['payer_id'] == actor.id
                          and e['kind'] == 'input_consumed')
-        prior = opening[actor.id]
-        noncash = ('production', 'input_consumed', 'scrip_wage',
-                   'scrip_store_sale', 'scrip_food_credit', 'bank_deposit_haircut')
+        prior = opening.get(actor.id, {
+            'cash': 0.0, 'scrip': 0.0, 'bank_deposit': 0.0,
+            'bank_debt': 0.0, 'company_debt': 0.0, 'food': 0,
+            'inventory': {}, 'debt': 0.0, 'title_plots': [],
+            'water_units': 0.0,
+        })
         cash_in = sum((e['detail'].get('seller_receipt', e['amount'])
                        if e['kind'] == 'spot_sale' else e['amount'])
-                      for e in own if e['recipient_id'] == actor.id
-                      and e['kind'] not in noncash)
-        cash_out = sum(e['amount'] for e in own if e['payer_id'] == actor.id
-                       and e['kind'] not in noncash)
+                      for e in cash_own if e['recipient_id'] == actor.id
+                      and e['kind'] not in _NONCASH_EVENTS)
+        cash_out = sum(e['amount'] for e in cash_own if e['payer_id'] == actor.id
+                       and e['kind'] not in _NONCASH_EVENTS)
         observed_cash_change = float(actor.cash) - prior['cash']
         financing = sum(e['amount'] for e in own if e['recipient_id'] == actor.id
                         and e['kind'] == 'owner_financing')
@@ -142,6 +181,8 @@ def seal_turn(region, turn):
             'cash_change': round(float(actor.cash) - prior['cash'], 2),
             'posted_cash_change': round(cash_in - cash_out, 2),
             'unposted_cash_change': round(observed_cash_change - (cash_in - cash_out), 2),
+            'cash_phase_changes': list(
+                getattr(region, '_actor_cash_phase_changes', {}).get(actor.id, ())),
             'owner_financing_received': round(financing, 2),
             'fx_converted_in': round(fx_received, 2),
             'fx_converted_out': round(fx_paid, 2),
@@ -184,6 +225,8 @@ def seal_turn(region, turn):
             'closing_water_units': round(sum(float(r.units) for r in getattr(region, 'water_rights', [])
                                              if r.holder_id == actor.id), 3),
             'event_ids': [e['id'] for e in own[-30:]],
+            'cash_event_refs': [{'tile': e['tile'], 'id': e['id']}
+                                for e in cash_own[-30:]],
         })
     region.actor_turn_accounts = accounts
     region._economic_sealed_turn = int(turn)

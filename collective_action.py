@@ -383,6 +383,12 @@ def transfer_support(region, t, donor_id, recipient_id, *, cash=0.0, food=0):
         return False
     donor.cash -= cash
     recipient.cash += cash
+    if cash > 0:
+        from economy.actor_accounts import record as record_economic_event
+        record_economic_event(
+            region, 'strike_support', turn=t, payer_id=donor.id,
+            recipient_id=recipient.id, amount=cash,
+            detail={'strike_id': strike.id, 'support_type': 'cash'})
     if food:
         donor.inv_add(Goods.food, -food)
         recipient.inv_add(Goods.food, food)

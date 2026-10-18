@@ -292,6 +292,10 @@ class TestPhase1EnclosureExpansions(unittest.TestCase):
         self.assertEqual(pauper.inv_get(Goods.food, 0), 1)
         self.assertEqual(seller.inv_get(Goods.food, 0), 0)
         self.assertEqual(seller.cash, 5.0 + tile.food_price)
+        self.assertTrue(any(event['kind'] == 'workhouse_food_purchase'
+                            and event['payer_id'] == tile.gov.agent.id
+                            and event['recipient_id'] == seller.id
+                            for event in tile.economic_events))
         self.assertEqual(sum(a.inv_get(Goods.food, 0) for a in tile.agents), food_before)
         self.assertAlmostEqual(sum(a.cash for a in tile.agents), cash_before)
 

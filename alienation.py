@@ -156,6 +156,15 @@ def process_despair_spending(agent, region, t: int):
                 region.gov.agent.cash += spend
             else:
                 agent.cash += spend  # refund if nowhere to transfer
+                return
+            recipient = target if recipients else region.gov.agent
+            from economy.actor_accounts import record as record_economic_event
+            record_economic_event(
+                region, 'despair_spending', turn=t,
+                payer_id=agent.id, recipient_id=recipient.id, amount=spend,
+                detail={'despair': round(despair, 4),
+                        'alienation': round(alienation, 4),
+                        'hungry': bool(getattr(agent, 'hungry_steps', 0) > 0)})
 
 
 def update_class_consciousness(agent, region, entertainment_level: float, t: int) -> float:
@@ -214,13 +223,20 @@ def apply_mass_entertainment_pacifier(region, t: int):
     # Collect ticket / spectacle fees from workers who attended entertainment
     # (conserved: worker cash -> firm owners or gov treasury)
     for a in getattr(region, 'agents', [])[:20]:
-        if getattr(a, 'alive', True) and not getattr(a, 'is_corporation', False) and a.cash >= 3.0:
+        if (getattr(a, 'alive', True) and not getattr(a, 'is_corporation', False)
+                and not getattr(a, 'is_government', False) and a.cash >= 3.0):
             fee = min(0.50, a.cash - 2.0)
             if fee > 0:
                 a.cash -= fee
                 # Transfer fee to entertainment venue owner or gov
                 if getattr(region, 'gov', None) and getattr(region.gov, 'agent', None):
                     region.gov.agent.cash += fee
+                    from economy.actor_accounts import record as record_economic_event
+                    record_economic_event(
+                        region, 'entertainment_fee', turn=t,
+                        payer_id=a.id, recipient_id=region.gov.agent.id, amount=fee,
+                        detail={'entertainment_level': float(ent_level),
+                                'fee_cap': 0.50})
                 else:
                     a.cash += fee
 

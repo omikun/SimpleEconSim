@@ -124,6 +124,12 @@ def step_workhouse(region, t: int) -> list[dict]:
             seller.inv_add(Goods.food, -1)
             gov_agent.cash -= food_price
             seller.cash += food_price
+            from economy.actor_accounts import record as record_economic_event
+            record_economic_event(
+                region, 'workhouse_food_purchase', turn=t,
+                payer_id=gov_agent.id, recipient_id=seller.id,
+                good=Goods.food, quantity=1, amount=food_price,
+                detail={'inmate_id': inmate.id})
             gov_agent.inv_add(Goods.food, 1)
             food_provided += 1
             remaining -= 1

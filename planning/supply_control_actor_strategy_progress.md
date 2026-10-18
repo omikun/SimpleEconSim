@@ -19,7 +19,7 @@ already fun or balanced; that still needs player feedback.
   independent-producer path. Bare leases retain tenant cultivation, so the AI
   treats them as no guaranteed input supply.
 
-## Phase 1 — actor accounts: core implemented, full reconciliation pending
+## Phase 1 — actor accounts: tested cash bridge reconciles, broader coverage pending
 
 - `economy/actor_accounts.py` creates stable local settlement IDs, opening
   snapshots, bounded event history, and sealed actor-turn statements. It records
@@ -32,19 +32,23 @@ already fun or balanced; that still needs player feedback.
   named cash, crop receipts, food, debt, supply offers, and relevant rights.
   Statements label cost coverage as incomplete. Web additionally shows scrip
   balances and cash movement not yet matched to journal postings.
-- Before this update, seed-labeled default runs varied sharply because the
-  benchmark seeded world generation but not Python's global simulation RNG. The
-  harness now seeds both. Two fresh-process 50-turn runs for seed 4242 matched
-  exactly: 149 firms, 299 growers, 20 proposals, 11 settled proposals, and
-  $15,700.70 in final-turn unmatched cash movements. Earlier seed runs ranged
-  from $21,015 to $31,338 before the cash adapters; full per-actor cash
-  reconciliation remains open. Some
-  unmatched movement is from legacy systems that have not been connected to this
-  journal; do not read the displayed recorded result as complete profit. The
-  benchmark names the eight largest unmatched actors, their roles, and posted
-  event kinds. In the deterministic run the largest gaps are $866 for an
-  employed resident and $832 for a serf, followed by $790 and $771 on earlier
-  turns. Direct charity and government food purchases now post actor transfers.
+- The benchmark seeds both world generation and Python's global simulation RNG.
+  Before the cash-adapter work, two fresh-process 50-turn runs for seed 4242
+  matched at $15,700.70 in final-turn unmatched actor cash. The audit now checks
+  every actor-turn as well as reporting the largest current and historical gaps.
+- The cash bridge now includes company formation and planning transfers, strike
+  support and machinery repair, workhouse food purchases, medical care, charity
+  donations, inheritance, welfare, UBI, parental leave, baby bonuses, birth
+  endowments, provincial food-haulage wages, and alienation spending and fees.
+  Shared province actors read cash postings from every member tile, with tile
+  and event references retained in their statements.
+- In fresh 50-turn default runs, seeds 4242, 4243, and 4244 each completed with
+  zero currency violations and zero unmatched cash across all actor-turn
+  statements. This verifies the current default scenario sample; broader
+  scenario coverage and long-run statement-history checks remain outstanding.
+- Cash statements describe observed transfers, not complete profit. Loan
+  write-offs, foreign-currency wallet legs, and noncash asset changes remain
+  separate accounting surfaces and still need their own coverage.
 - Cash rent, enclosure charter fees, and bailiff services now post named actor
   transfers. The bailiff's $10 cost is tracked as its own enforcement expense.
 - Estate cash distributed to heirs, government, or charity now posts as named
@@ -57,10 +61,10 @@ already fun or balanced; that still needs player feedback.
   outstanding bank principal, company-store debt, and distinct repayment and
   haircut totals. Heirless bad-debt bail-ins are also journaled. Broader loan
   defaults/write-offs and all foreign inheritance paths remain open.
-- Remaining gate work: complete loan repayment/default and
-  farmgate-to-route-to-import accounting for every cargo source. The latest
-  default runs also expose large unposted actor cash changes; scrip, FX, and
-  shipment postings cover some paths, but the full cash bridge is still open.
+- Remaining gate work: cover loan defaults/write-offs, every foreign-currency
+  wallet path, and farmgate-to-route-to-import accounting for all cargo sources.
+  The tested default runs close the actor cash bridge, but they do not prove
+  complete balance-sheet or operating-profit coverage.
 
 ## Phase 2 — grower and title-holder agency: implemented, deeper law/remedy work out of scope
 
@@ -153,6 +157,7 @@ already fun or balanced; that still needs player feedback.
   normalized per-shipment delivered-cost calculation.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_supply_control_actor_strategy test_supply_rights test_market_auction test_market_routes test_web_client_parity test_truck_system_and_scrip` — 67 tests passed after bank debt, company-store debt, campaign-currency, and linked shipment additions.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_run_trace test_market_auction test_supply_control_actor_strategy test_phase1_enclosure_expansions` — 34 tests passed after inheritance, cash-rent, enclosure-fee, and public food-purchase postings.
+- `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_supply_control_actor_strategy.ActorAccountTests test_supply_control_actor_strategy.SupplyControlActorFixtureTests test_phase1_enclosure_expansions` — 29 tests passed after shared-province cash postings and alienation-flow instrumentation.
 - `node --check web_client/client.js` and `git diff --check` — passed after the same changes.
 - `node --check web_client/client.js` — passed.
 - `git diff --check` — passed.
@@ -160,4 +165,5 @@ already fun or balanced; that still needs player feedback.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python benchmark_supply_rivalry.py 812 813 814` — repeated after shipment linking; all 12 branches still report zero currency violations.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python benchmark_supply_default.py 50 <seed>` — 50 turns completed with zero currency violations for seeds 4242, 4243, and 4244 after the campaign-transfer fix.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python benchmark_supply_default.py 50 4242` — two fresh-process runs after seeding the global RNG matched across counts, proposals, prices, cash audit, and unmatched accounts; both reported zero currency violations and $15,700.70 unmatched actor cash. After estate-transfer postings, the deterministic run still had zero violations and $15,606.81 unmatched actor cash. The benchmark also shows the largest unmatched actor-turn rows for targeted tracing.
+- `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python benchmark_supply_default.py 50 4242` — seed 4242 completed 50 turns with zero currency violations, zero unmatched cash on turn 50, zero unmatched cash across all actor-turn statements, and zero actor-turn statements above the 1-cent threshold. Seeds 4243 and 4244 also completed with zero currency violations and zero unmatched cash on turn 50.
 - Full `unittest discover` was attempted but this environment's native pygame/OpenGL tests crashed the Python process (exit 139) before a summary could be produced; the focused simulation, rights, auction, route, and web parity suite remains green.

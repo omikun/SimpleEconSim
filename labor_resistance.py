@@ -104,8 +104,20 @@ def repair_and_replace_machinery(firm, region, t: int):
                 split = needed_cash / len(carpenters)
                 for c in carpenters:
                     c.cash += split
+                    from economy.actor_accounts import record as record_economic_event
+                    record_economic_event(
+                        region, 'strike_machinery_repair', turn=t,
+                        payer_id=firm.id, recipient_id=c.id, amount=split,
+                        detail={'firm_id': firm.id, 'repair_cost': needed_cash})
             elif getattr(region, 'gov', None) and getattr(region.gov, 'agent', None):
                 region.gov.agent.cash += needed_cash
+                from economy.actor_accounts import record as record_economic_event
+                record_economic_event(
+                    region, 'strike_machinery_repair', turn=t,
+                    payer_id=firm.id, recipient_id=region.gov.agent.id,
+                    amount=needed_cash,
+                    detail={'firm_id': firm.id, 'repair_cost': needed_cash,
+                            'recipient': 'treasury'})
             else:
                 firm.cash += needed_cash  # refund if no recipient exists
 

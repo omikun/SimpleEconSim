@@ -49,6 +49,241 @@ class SupplyControlActorFixtureTests(unittest.TestCase):
 
 
 class ActorAccountTests(unittest.TestCase):
+    def test_strike_support_cash_is_posted(self):
+        from agent import Agent
+        from collective_action import (CollectiveOrganization, CollectiveStrike,
+                                       transfer_support)
+        region = Region()
+        donor, worker, firm = Agent(1), Agent(1), Agent(1)
+        donor.cash, worker.cash = 12.0, 0.0
+        donor.inv_add(Goods.food, 2)
+        firm.is_corporation = True
+        firm.employees = [worker]
+        worker.employer = firm
+        strike = CollectiveStrike(
+            id='test-strike', firm_id=firm.id, started_turn=1,
+            eligible_ids=(worker.id,), participant_ids=(worker.id,),
+            baseline_wage=1.0, target_wage=2.0,
+            baseline_hours=8.0, target_hours=8.0,
+            baseline_food_price=2.0)
+        org = CollectiveOrganization(
+            firm_id=firm.id, strikes=[strike], active_strike_id=strike.id)
+        region.agents = [donor, worker, firm]
+        region.collective_organizations = {firm.id: org}
+        begin_turn(region, 1)
+
+        self.assertTrue(transfer_support(region, 1, donor.id, worker.id, cash=2.0))
+        rows = {row['actor_id']: row for row in seal_turn(region, 1)}
+
+        self.assertEqual(rows[donor.id]['posted_cash_change'], -2.0)
+        self.assertEqual(rows[worker.id]['posted_cash_change'], 2.0)
+        self.assertEqual(rows[worker.id]['unposted_cash_change'], 0.0)
+
+    def test_charity_donations_are_posted_in_each_donors_tile_journal(self):
+        from agent import Agent
+        from charity import Charity
+        from econsim_trade_money import Bank
+
+        region = Region()
+        region.home_currency = 'USD'
+        region.cash_obligations = []
+        bank = Bank()
+        bank._attached_regions = [region]
+        region.bank = bank
+        charity = Charity(region.name, region.recipes)
+        firm, wealthy = Agent(1), Agent(1)
+        firm.is_corporation = True
+        firm.cash = 20.0
+        firm.retained_earnings = 100.0
+        wealthy.cash = 1000.0
+        residents = [Agent(1) for _ in range(5)]
+        for person in residents:
+            person.hungry_steps = 1
+        region.agents = [firm, wealthy, *residents]
+        begin_turn(region, 1)
+
+        charity.collect_donations(1, region.agents, bank, regions=(region,))
+        rows = {row['actor_id']: row for row in seal_turn(region, 1)}
+        donations = [event for event in region.economic_events
+                     if event['kind'] == 'charity_donation']
+
+        self.assertEqual(sum(event['amount'] for event in donations), 46.0)
+        self.assertEqual(rows[firm.id]['cash_change'], -10.0)
+        self.assertEqual(rows[firm.id]['posted_cash_change'], -10.0)
+        self.assertEqual(rows[firm.id]['unposted_cash_change'], 0.0)
+        self.assertEqual(rows[wealthy.id]['cash_change'], -36.0)
+        self.assertEqual(rows[wealthy.id]['posted_cash_change'], -36.0)
+        self.assertEqual(rows[wealthy.id]['unposted_cash_change'], 0.0)
+
+    def test_shared_province_actor_cash_uses_member_tile_postings(self):
+        from agent import Agent
+
+        treasury_region = Region()
+        treasury_region.name = 'Treasury District'
+        probate_region = Region()
+        probate_region.name = 'Probate District'
+        treasury = Agent(1)
+        treasury.is_government = True
+        decedent = Agent(1)
+        treasury_region.agents = [treasury]
+        probate_region.agents = [decedent]
+        begin_turn(treasury_region, 9)
+
+        treasury.cash += 42.5
+        record(probate_region, 'inheritance', turn=9, payer_id=decedent.id,
+               recipient_id=treasury.id, amount=42.5,
+               detail={'destination': 'shared_province_treasury'})
+        rows = {row['actor_id']: row for row in
+                seal_turn(treasury_region, 9,
+                          event_regions=(treasury_region, probate_region))}
+
+        self.assertEqual(rows[treasury.id]['cash_change'], 42.5)
+        self.assertEqual(rows[treasury.id]['posted_cash_change'], 42.5)
+        self.assertEqual(rows[treasury.id]['unposted_cash_change'], 0.0)
+        self.assertTrue(any(ref['tile'] == 'Probate District'
+                            for ref in rows[treasury.id]['cash_event_refs']))
+
+    def test_alienation_spending_and_entertainment_fees_reconcile(self):
+        from test_supply_rights import Person
+        from alienation import (apply_mass_entertainment_pacifier,
+                                process_despair_spending)
+
+        region = Region()
+        worker = Person(101, 20)
+        worker.alienation = 1.0
+        worker.hungry_steps = 0
+        worker.employer = None
+        worker.is_trader = False
+        merchant = Person(102, 20, Goods.furniture)
+        merchant.employer = None
+        merchant.is_trader = False
+        treasury = Person(103, 100, Goods.gov)
+        treasury.is_government = True
+        region.gov = SimpleNamespace(agent=treasury)
+        region.agents = [worker, merchant, treasury]
+        region.entertainment_level = 1.0
+        begin_turn(region, 10)
+
+        process_despair_spending(worker, region, 10)
+        apply_mass_entertainment_pacifier(region, 10)
+        rows = {row['actor_id']: row for row in seal_turn(region, 10)}
+        events = [event for event in region.economic_events if event['turn'] == 10]
+
+        self.assertEqual({event['kind'] for event in events},
+                         {'despair_spending', 'entertainment_fee'})
+        self.assertEqual(rows[worker.id]['cash_change'], -2.0)
+        self.assertEqual(rows[worker.id]['posted_cash_change'], -2.0)
+        self.assertEqual(rows[merchant.id]['cash_change'], 1.0)
+        self.assertEqual(rows[merchant.id]['posted_cash_change'], 1.0)
+        self.assertEqual(rows[treasury.id]['cash_change'], 1.0)
+        self.assertEqual(rows[treasury.id]['posted_cash_change'], 1.0)
+        self.assertTrue(all(row['unposted_cash_change'] == 0.0
+                            for row in rows.values()))
+
+    def test_actor_statement_keeps_cash_changes_by_simulation_phase(self):
+        from micro.region.stepper import audit_cash
+
+        region = Region()
+        actor = Person(31, 10)
+        region.agents = [actor]
+        region.bank = SimpleNamespace(deposits={}, loans=[], total_deposits=0,
+                                      total_liabilities=0, equity=100)
+        region.charity = SimpleNamespace(agent=SimpleNamespace(cash=0))
+        region.cash_obligations = []
+        begin_turn(region, 2)
+        audit_cash(region, 2, 'step_start')
+        actor.cash += 7
+        audit_cash(region, 2, 'welfare_done')
+        account = next(row for row in seal_turn(region, 2)
+                       if row['actor_id'] == actor.id)
+
+        self.assertEqual(account['cash_phase_changes'], [
+            {'phase': 'welfare_done', 'cash_change': 7.0}])
+
+    def test_elite_action_cash_delta_is_journaled_with_its_decision(self):
+        from agent import Agent
+
+        region = Region()
+        region.goods = list(Goods)
+        region.cash_obligations = []
+        buyer, seller = Agent(1), Agent(1)
+        buyer.cash, seller.cash = 50.0, 10.0
+        region.agents = [buyer, seller]
+        begin_turn(region, 3)
+        planner = EliteCapitalistPlanner()
+        planner._elite_candidate_snapshot = lambda *_args: []
+
+        def buy_luxury(agent, _region, _turn):
+            agent.cash -= 12.0
+            seller.cash += 12.0
+            return {'action_taken': 'PURCHASE_LUXURY',
+                    'details': {'good': 'furniture', 'seller_id': seller.id}}
+
+        planner._plan_and_execute_elite = buy_luxury
+        planner.plan_and_execute_elite(buyer, region, 3)
+        rows = {row['actor_id']: row for row in seal_turn(region, 3)}
+        event = next(event for event in region.economic_events
+                     if event['kind'] == 'capitalist_action_cash')
+
+        self.assertEqual(event['payer_id'], buyer.id)
+        self.assertEqual(event['recipient_id'], seller.id)
+        self.assertEqual(event['detail']['action'], 'PURCHASE_LUXURY')
+        self.assertEqual(rows[buyer.id]['unposted_cash_change'], 0.0)
+        self.assertEqual(rows[seller.id]['unposted_cash_change'], 0.0)
+
+    def test_turn_account_includes_a_company_founded_after_opening_snapshot(self):
+        region = Region()
+        region.cash_obligations = []
+        founder, company = Person(8, 100), Person(9, 0, Goods.cloth)
+        company.is_corporation = True
+        region.agents = [founder]
+        begin_turn(region, 4)
+        founder.cash -= 30
+        company.cash = 30
+        region.agents.append(company)
+        record(region, 'startup_equity', turn=4, payer_id=founder.id,
+               recipient_id=company.id, amount=30)
+
+        rows = {row['actor_id']: row for row in seal_turn(region, 4)}
+
+        self.assertEqual(rows[company.id]['opening_cash'], 0.0)
+        self.assertEqual(rows[company.id]['cash_change'], 30.0)
+        self.assertEqual(rows[company.id]['unposted_cash_change'], 0.0)
+
+    def test_government_welfare_and_ubi_transfers_reconcile_both_accounts(self):
+        from agent import Agent
+        from government import Government
+
+        for transfer_kind in ('ubi_payment', 'welfare_payment'):
+            with self.subTest(transfer_kind=transfer_kind):
+                region = Region()
+                region.home_currency = 'USD'
+                region.cash_obligations = []
+                region.bank = SimpleNamespace(deposits={}, loans=[])
+                government = Government('Test Government', 0, initial_cash=100.0)
+                recipient = Agent(1)
+                recipient.hungry_steps = 1
+                if transfer_kind == 'ubi_payment':
+                    government.ubi_enabled = True
+                    government.ubi_amount_per_turn = 7.0
+                    government._add_citizen(recipient)
+                region.agents = [government.agent, recipient]
+                begin_turn(region, 1)
+
+                if transfer_kind == 'ubi_payment':
+                    government.distribute_ubi(1, region.agents, region=region)
+                else:
+                    government.distribute_welfare(1, region.agents, region=region)
+
+                rows = {row['actor_id']: row for row in seal_turn(region, 1)}
+                event = next(event for event in region.economic_events
+                             if event['kind'] == transfer_kind)
+                amount = event['amount']
+                self.assertEqual(rows[recipient.id]['posted_cash_change'], amount)
+                self.assertEqual(rows[recipient.id]['unposted_cash_change'], 0.0)
+                self.assertEqual(rows[government.agent.id]['posted_cash_change'], -amount)
+                self.assertEqual(rows[government.agent.id]['unposted_cash_change'], 0.0)
+
     def test_inherited_cash_is_posted_between_decedent_and_heir(self):
         from demographics_estate import handle_wealth_inheritance
         from types import SimpleNamespace

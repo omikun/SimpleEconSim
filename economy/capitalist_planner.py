@@ -484,12 +484,44 @@ class EliteCapitalistPlanner:
     def plan_and_execute_elite(self, agent: Any, region: Any, t: int) -> Dict[str, Any]:
         """Trace the evaluated plan and its observed execution without a second AI pass."""
         from run_trace import emit
+        from economy.actor_accounts import record as record_economic_event
+        from economy.actor_accounts import recorded_cash_delta
         cash_before = float(agent.cash)
+        existing_events = {event['id'] for event in getattr(region, 'economic_events', [])
+                           if event['turn'] == t}
         TransformationGraph.step_pending_capacity_decay(region, t)
         shadow_cash = self.calculate_shadow_price_cash(agent, region)
         candidates = self._elite_candidate_snapshot(agent, region, shadow_cash)
         result = self._plan_and_execute_elite(agent, region, t)
         reported_details = result.get('details', {})
+        cash_after = float(agent.cash)
+        new_events = [event for event in getattr(region, 'economic_events', [])
+                      if event['turn'] == t and event['id'] not in existing_events]
+        unjournaled_cash_change = cash_after - cash_before - recorded_cash_delta(
+            new_events, agent.id)
+        if abs(unjournaled_cash_change) > 1e-6:
+            counterparty_id = next((reported_details.get(key)
+                                    for key in ('seller_id', 'buyer_id', 'company_id',
+                                                'target_firm_id', 'recipient_id')
+                                    if isinstance(reported_details.get(key), int)
+                                    and reported_details.get(key) != agent.id), None)
+            payer_id = agent.id if unjournaled_cash_change < 0 else counterparty_id
+            recipient_id = counterparty_id if unjournaled_cash_change < 0 else agent.id
+            scalar_detail = {str(key): value for key, value in reported_details.items()
+                             if value is None or isinstance(value, (str, int, float, bool))}
+            record_economic_event(
+                region, 'capitalist_action_cash', turn=t,
+                payer_id=payer_id, recipient_id=recipient_id,
+                amount=abs(unjournaled_cash_change),
+                detail={'action': result.get('action_taken') or 'do_nothing',
+                        'agent_id': agent.id,
+                        'counterparty_id': counterparty_id,
+                        'observed_cash_before': cash_before,
+                        'observed_cash_after': cash_after,
+                        'already_recorded_cash_change': recorded_cash_delta(
+                            new_events, agent.id),
+                        'action_cash_change': cash_after - cash_before,
+                        'action_details': scalar_detail})
         scalar_details = {str(key): value for key, value in reported_details.items()
                           if value is None or isinstance(value, (str, int, float, bool))}
         subject = {'type': 'agent', 'id': agent.id, 'tile': region.name}
@@ -507,7 +539,7 @@ class EliteCapitalistPlanner:
         emit(region, kind='corporation_ai_outcome', record_class='outcome',
              phase='local', subject=subject, metric_id='economy.cash',
              unit=getattr(region, 'home_currency', 'local_currency'),
-             before=cash_before, after=float(agent.cash),
+             before=cash_before, after=cash_after,
              decision_id=decision_id,
              inputs={'action': result.get('action_taken') or 'do_nothing',
                      'details': scalar_details,
@@ -791,7 +823,9 @@ class EliteCapitalistPlanner:
                         agent.inv_add(g, -sale_qty)
                         buyer.inv_add(g, sale_qty)
                         result['action_taken'] = f'LIQUIDATE_{g.name.upper()}'
-                        result['details'] = {'good': g.name, 'quantity': sale_qty, 'cash_received': trade_cash}
+                        result['details'] = {'good': g.name, 'quantity': sale_qty,
+                                             'cash_received': trade_cash,
+                                             'buyer_id': buyer.id}
                         return result
 
         return result

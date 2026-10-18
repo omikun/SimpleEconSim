@@ -80,7 +80,7 @@ class Charity:
     # Donations
     # ------------------------------------------------------------------
 
-    def collect_donations(self, t, agents, bank):
+    def collect_donations(self, t, agents, bank, regions=None):
         """Collect donations from corporations and wealthy individuals.
 
         After collection, all cash is deposited into the bank
@@ -105,6 +105,25 @@ class Charity:
 
         total_donated = 0.0
 
+        regions = tuple(regions or ())
+
+        def post_donation(donor, donation, source):
+            # A Province charity can collect from donors in several tiles. Put
+            # each posting in the donor's own journal so their turn statement
+            # can reconcile even when the shared institution runs once.
+            donor_region = next((region for region in regions
+                                 if donor in getattr(region, 'agents', ())), None)
+            if donor_region is None:
+                return
+            from economy.actor_accounts import record as record_economic_event
+            record_economic_event(
+                donor_region, 'charity_donation', turn=t,
+                payer_id=donor.id, recipient_id=self.agent.id, amount=donation,
+                currency=getattr(donor_region, 'home_currency', None),
+                detail={'donor_type': source, 'charity': self.name,
+                        'charity_agent_id': self.agent.id,
+                        'charity_wealth_before': round(char_wealth, 2)})
+
         # ---- Corporate donations ----
         corps = [a for a in agents if a.is_corporation]
         for corp in corps:
@@ -118,6 +137,7 @@ class Charity:
                 corp.retained_earnings -= donation
                 self.agent.cash += donation
                 total_donated += donation
+                post_donation(corp, donation, 'corporation')
                 loginfo(t, f"{self.name} received ${donation:.2f} corp donation from {corp.name()}")
 
         # ---- Wealthy individual donations ----
@@ -143,6 +163,7 @@ class Charity:
             agent.cash -= donation
             self.agent.cash += donation
             total_donated += donation
+            post_donation(agent, donation, 'wealthy_individual')
             loginfo(t, f"{self.name} received ${donation:.2f} donation from {agent.name()}")
 
         # Store bank reference on agent so total_liquid property works

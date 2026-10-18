@@ -307,6 +307,13 @@ def step_medical_care(region, t: int, rand_gen=None) -> dict:
                 if provider and provider != gov_agent:
                     provider.cash += cost_per_cure
                     public_transfers += cost_per_cure
+                    from economy.actor_accounts import record as record_economic_event
+                    record_economic_event(
+                        region, 'medical_care', turn=t,
+                        payer_id=gov_agent.id, recipient_id=provider.id,
+                        amount=cost_per_cure,
+                        detail={'patient_id': a.id, 'disease': dis,
+                                'payer': 'government'})
                 else:
                     gov_agent.cash += cost_per_cure  # Self-administered municipal hospital
 
@@ -336,6 +343,13 @@ def step_medical_care(region, t: int, rand_gen=None) -> dict:
                 a.cash -= cost_per_cure
                 if provider and provider != a:
                     provider.cash += cost_per_cure
+                    from economy.actor_accounts import record as record_economic_event
+                    record_economic_event(
+                        region, 'medical_care', turn=t,
+                        payer_id=a.id, recipient_id=provider.id,
+                        amount=cost_per_cure,
+                        detail={'patient_id': a.id, 'disease': dis,
+                                'payer': 'patient'})
                 else:
                     a.cash += cost_per_cure  # Self-purchase of folk remedy
 
