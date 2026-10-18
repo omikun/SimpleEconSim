@@ -1166,3 +1166,11 @@ logic for both client entry points.
 Verification: two dedicated labor-law tests, three workday tests, and the
 existing wage-cap enactment test passed (6 total). Compilation and
 `git diff --check` passed.
+
+Phase 4 follow-up, 2026-10-18: trade-quarantine enactment and repeal now trace
+the nation/tile state, each route's closure or reopening, and affected faction
+support. The operation is explicitly recorded as a non-cash policy action.
+
+Verification: one dedicated quarantine parity test, all five trade-route
+epidemic tests, and two labor-law trace tests passed (8 total). Compilation and
+`git diff --check` passed. Anti-truck policy effects remain open.

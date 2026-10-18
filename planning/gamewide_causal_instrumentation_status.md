@@ -807,3 +807,13 @@ Verification: two dedicated law-trace tests, three workday-trace tests, and the
 existing wage-cap enactment regression passed (6 total). The repeal test checks
 that reduced wages remain reduced and the cap value remains stored after repeal.
 Compilation and `git diff --check` passed.
+
+Trade quarantine enactment and repeal now trace nation and tile flags, every
+route's quarantine state, and the faction-support changes. The records show
+which routes were closed or reopened and link them to the policy transition.
+This action has no cash leg.
+
+Verification: the dedicated quarantine parity test, all five trade-route
+epidemic tests, and both labor-law trace tests passed (8 total). Compilation
+and `git diff --check` passed. Anti-truck policy effects and remaining labor-law
+transitions remain open for tracing.

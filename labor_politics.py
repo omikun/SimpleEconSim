@@ -1069,9 +1069,45 @@ def enact_trade_quarantine(target) -> Tuple[bool, str]:
     - Freezes commercial profits (-0.15 Bourgeoisie approval).
     """
     tiles = getattr(target, 'tiles', [target]) if hasattr(target, 'tiles') else [target]
+    trace_region, turn, operation_id = _labor_trace_context(
+        target, 'trade_quarantine')
+    target_before = bool(getattr(target, 'quarantine_active', False)) if trace_region is not None else None
+    snapshots = []
+    if trace_region is not None:
+        for tile in tiles:
+            routes = getattr(tile, 'routes', {})
+            factions = getattr(getattr(tile, 'factions', None), 'factions', {})
+            snapshots.append({
+                'tile': tile,
+                'quarantine_before': bool(getattr(tile, 'quarantine_active', False)),
+                'routes': [(route, str(getattr(route, 'id',
+                                             getattr(route, 'route_id',
+                                                     f'{tile.name}:{index}'))),
+                             bool(getattr(route, 'is_quarantined', False)))
+                            for index, route in enumerate(routes.values())],
+                'faction_support': {
+                    name: float(faction.support)
+                    for name, faction in factions.items()
+                    if hasattr(faction, 'support')},
+            })
+        decision_event_id = _emit_labor_policy_event(
+            trace_region, kind='trade_quarantine_decision',
+            record_class='decision',
+            subject={'type': 'nation/action',
+                     'id': getattr(target, 'name', 'unnamed')},
+            metric_id='scenario.trade_quarantine_gate', unit='accepted',
+            after=True,
+            inputs={'operation_id': operation_id, 'turn': turn,
+                    'action_id': 'nat_toggle_quarantine',
+                    'quarantine_active_before': target_before,
+                    'tile_count': len(tiles),
+                    'route_count': sum(len(row['routes']) for row in snapshots),
+                    'reason': 'quarantine_enacted'})
+    else:
+        decision_event_id = None
     routes_quarantined = 0
 
-    for tile in tiles:
+    for index, tile in enumerate(tiles):
         tile.quarantine_active = True
         routes = getattr(tile, 'routes', {})
         for rt in routes.values():
@@ -1085,14 +1121,103 @@ def enact_trade_quarantine(target) -> Tuple[bool, str]:
             if fname in factions:
                 factions[fname].support = min(1.0, factions[fname].support + 0.10)
 
+        if trace_region is not None:
+            snapshot = snapshots[index]
+            tile_event_id = _emit_labor_policy_event(
+                trace_region, kind='trade_quarantine_tile_outcome',
+                subject={'type': 'tile', 'id': tile.name},
+                metric_id='trade.quarantine_state', unit='active',
+                before=snapshot['quarantine_before'], after=True,
+                inputs={'operation_id': operation_id, 'turn': turn,
+                        'route_count': len(snapshot['routes'])},
+                cause_event_ids=([decision_event_id]
+                                 if decision_event_id else None))
+            for route, route_id, route_before in snapshot['routes']:
+                _emit_labor_policy_event(
+                    trace_region, kind='trade_route_quarantine_outcome',
+                    subject={'type': 'route', 'id': route_id,
+                             'tile': tile.name},
+                    metric_id='trade.route_quarantine', unit='active',
+                    before=route_before,
+                    after=bool(getattr(route, 'is_quarantined', False)),
+                    inputs={'operation_id': operation_id, 'turn': turn,
+                            'reason': 'cordon_sanitaire'},
+                    cause_event_ids=([tile_event_id]
+                                     if tile_event_id else None))
+            for name, support_before in snapshot['faction_support'].items():
+                faction = factions.get(name)
+                if faction is None:
+                    continue
+                support_after = float(faction.support)
+                if support_before == support_after:
+                    continue
+                _emit_labor_policy_event(
+                    trace_region, kind='trade_quarantine_faction_effect',
+                    subject={'type': 'tile/faction', 'id': name,
+                             'tile': tile.name},
+                    metric_id='politics.faction_support', unit='ratio',
+                    before=support_before, after=support_after,
+                    inputs={'operation_id': operation_id, 'turn': turn,
+                            'support_change': support_after - support_before,
+                            'reason': 'trade_quarantine'},
+                    cause_event_ids=([tile_event_id]
+                                     if tile_event_id else None))
+
     setattr(target, 'quarantine_active', True)
+    if trace_region is not None:
+        _emit_labor_policy_event(
+            trace_region, kind='trade_quarantine_action_outcome',
+            subject={'type': 'nation/action',
+                     'id': getattr(target, 'name', 'unnamed')},
+            metric_id='scenario.trade_quarantine_action', unit='policy_result',
+            before=target_before, after='enacted',
+            inputs={'operation_id': operation_id, 'turn': turn,
+                    'target_quarantine_active_after': True,
+                    'tile_count': len(tiles), 'routes_quarantined': routes_quarantined},
+            cause_event_ids=([decision_event_id]
+                             if decision_event_id else None))
     return True, f"CORDON SANITAIRE: Trade Quarantine enacted! {routes_quarantined} commercial routes quarantined across {len(tiles)} regions."
 
 
 def repeal_trade_quarantine(target) -> Tuple[bool, str]:
     """Repeal the Trade Quarantine, reopening commercial shipping corridors."""
     tiles = getattr(target, 'tiles', [target]) if hasattr(target, 'tiles') else [target]
-    for tile in tiles:
+    trace_region, turn, operation_id = _labor_trace_context(
+        target, 'repeal_trade_quarantine')
+    target_before = bool(getattr(target, 'quarantine_active', False)) if trace_region is not None else None
+    snapshots = []
+    if trace_region is not None:
+        for tile in tiles:
+            routes = getattr(tile, 'routes', {})
+            factions = getattr(getattr(tile, 'factions', None), 'factions', {})
+            snapshots.append({
+                'tile': tile,
+                'quarantine_before': bool(getattr(tile, 'quarantine_active', False)),
+                'routes': [(route, str(getattr(route, 'id',
+                                             getattr(route, 'route_id',
+                                                     f'{tile.name}:{index}'))),
+                             bool(getattr(route, 'is_quarantined', False)))
+                            for index, route in enumerate(routes.values())],
+                'faction_support': {
+                    name: float(faction.support)
+                    for name, faction in factions.items()
+                    if hasattr(faction, 'support')},
+            })
+        decision_event_id = _emit_labor_policy_event(
+            trace_region, kind='trade_quarantine_repeal_decision',
+            record_class='decision',
+            subject={'type': 'nation/action',
+                     'id': getattr(target, 'name', 'unnamed')},
+            metric_id='scenario.trade_quarantine_gate', unit='accepted',
+            after=True,
+            inputs={'operation_id': operation_id, 'turn': turn,
+                    'action_id': 'nat_toggle_quarantine',
+                    'quarantine_active_before': target_before,
+                    'route_count': sum(len(row['routes']) for row in snapshots),
+                    'reason': 'quarantine_repealed'})
+    else:
+        decision_event_id = None
+    for index, tile in enumerate(tiles):
         tile.quarantine_active = False
         routes = getattr(tile, 'routes', {})
         for rt in routes.values():
@@ -1102,7 +1227,62 @@ def repeal_trade_quarantine(target) -> Tuple[bool, str]:
         if 'Bourgeoisie' in factions:
             factions['Bourgeoisie'].support = min(1.0, factions['Bourgeoisie'].support + 0.10)
 
+        if trace_region is not None:
+            snapshot = snapshots[index]
+            tile_event_id = _emit_labor_policy_event(
+                trace_region, kind='trade_quarantine_repeal_tile_outcome',
+                subject={'type': 'tile', 'id': tile.name},
+                metric_id='trade.quarantine_state', unit='active',
+                before=snapshot['quarantine_before'], after=False,
+                inputs={'operation_id': operation_id, 'turn': turn,
+                        'route_count': len(snapshot['routes'])},
+                cause_event_ids=([decision_event_id]
+                                 if decision_event_id else None))
+            for route, route_id, route_before in snapshot['routes']:
+                _emit_labor_policy_event(
+                    trace_region, kind='trade_route_quarantine_repeal_outcome',
+                    subject={'type': 'route', 'id': route_id,
+                             'tile': tile.name},
+                    metric_id='trade.route_quarantine', unit='active',
+                    before=route_before,
+                    after=bool(getattr(route, 'is_quarantined', False)),
+                    inputs={'operation_id': operation_id, 'turn': turn,
+                            'reason': 'commercial_route_reopened'},
+                    cause_event_ids=([tile_event_id]
+                                     if tile_event_id else None))
+            for name, support_before in snapshot['faction_support'].items():
+                faction = factions.get(name)
+                if faction is None:
+                    continue
+                support_after = float(faction.support)
+                if support_before == support_after:
+                    continue
+                _emit_labor_policy_event(
+                    trace_region, kind='trade_quarantine_repeal_faction_effect',
+                    subject={'type': 'tile/faction', 'id': name,
+                             'tile': tile.name},
+                    metric_id='politics.faction_support', unit='ratio',
+                    before=support_before, after=support_after,
+                    inputs={'operation_id': operation_id, 'turn': turn,
+                            'support_change': support_after - support_before,
+                            'reason': 'trade_quarantine_repeal'},
+                    cause_event_ids=([tile_event_id]
+                                     if tile_event_id else None))
+
     setattr(target, 'quarantine_active', False)
+    if trace_region is not None:
+        _emit_labor_policy_event(
+            trace_region, kind='trade_quarantine_repeal_outcome',
+            subject={'type': 'nation/action',
+                     'id': getattr(target, 'name', 'unnamed')},
+            metric_id='scenario.trade_quarantine_action', unit='policy_result',
+            before=target_before, after='repealed',
+            inputs={'operation_id': operation_id, 'turn': turn,
+                    'target_quarantine_active_after': False,
+                    'tile_count': len(tiles),
+                    'routes_reopened': sum(len(row['routes']) for row in snapshots)},
+            cause_event_ids=([decision_event_id]
+                             if decision_event_id else None))
     return True, "Trade Quarantine repealed: Commercial transport corridors reopened."
 
 
