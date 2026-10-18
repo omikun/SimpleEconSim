@@ -1502,3 +1502,17 @@ Verification: three dedicated tests cover successful upkeep, unpaid upkeep
 and linked withdrawal, and the mobilization deadline. Traced and untraced
 world state is identical. Scenario interpreter/diplomacy tests and the metric
 catalog audit passed (16 tests); compilation and `git diff --check` passed.
+
+## Phase 3 follow-up — Trace charity food redistribution
+
+Charity distributions now record each food unit leaving the charity stock and
+arriving in a named recipient's inventory. The trace distinguishes hungry
+adults from young recipients and links the individual transfers to an aggregate
+aid outcome that records the randomized hungry selection, recipient groups,
+and stock remaining. No event is emitted when the charity has no stock, which
+keeps routine zero-aid turns out of the log.
+
+Verification: two fixtures cover exact inventory legs, aggregate cause links,
+empty-stock noise suppression, and trace-on/off state parity. The focused
+charity test plus supply-control, run-trace, and metric-catalog coverage suites
+passed (78 tests); compilation and `git diff --check` passed.

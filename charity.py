@@ -245,11 +245,20 @@ class Charity:
     # Food distribution
     # ------------------------------------------------------------------
 
-    def distribute_food(self, t, agents):
+    def distribute_food(self, t, agents, *, regions=None, trace_region=None):
         """Give 1 food per agent to ~1/3 of hungry agents (randomized), then
         to young agents from any remaining inventory."""
         if self.food_inventory <= 0:
             return
+
+        regions = tuple(regions or ())
+        if trace_region is not None and not regions:
+            regions = (trace_region,)
+        trace_region = next((region for region in regions
+                             if getattr(region, '_run_trace', None) is not None
+                             and getattr(region, '_collective_trace_clock', None)
+                             is not None), None)
+        stock_before_distribution = self.food_inventory
 
         hungry = [a for a in agents if a.alive and a.hungry_steps > 0
                   and not a.is_corporation]
@@ -267,14 +276,58 @@ class Charity:
 
         recipients = 0
         food_given = 0
+        recipient_event_ids = []
+        recipient_ids = []
+        hungry_recipient_ids = []
+        young_recipient_ids = []
 
-        for recipient in selected + young:
+        for selection_index, recipient in enumerate(selected + young):
             if self.food_inventory <= 0:
                 break
+            stock_before = self.food_inventory
+            recipient_food_before = recipient.inv_get(Goods.food, 0)
             self.food_inventory -= 1
             recipient.inv_add(Goods.food, 1)
+            stock_after = self.food_inventory
+            recipient_food_after = recipient.inv_get(Goods.food, 0)
             food_given += 1
             recipients += 1
+            recipient_ids.append(str(recipient.id))
+            aid_group = 'hungry' if recipient.hungry_steps > 0 else 'young'
+            if aid_group == 'hungry':
+                hungry_recipient_ids.append(str(recipient.id))
+            else:
+                young_recipient_ids.append(str(recipient.id))
+            if trace_region is not None:
+                actual_recipient_region = next(
+                    (region for region in regions
+                     if recipient in getattr(region, 'agents', ())), None)
+                from run_trace import emit
+                operation_id = (f'charity-food-distribution:{self.name}:{int(t)}:'
+                                f'{str(recipient.id)}:{selection_index}')
+                event_id = emit(
+                    trace_region,
+                    kind='charity_food_aid_recipient', record_class='transfer',
+                    phase='welfare',
+                    subject={'type': 'tile/agent', 'id': str(recipient.id),
+                             'tile': getattr(actual_recipient_region,
+                                             'name', 'unknown')},
+                    metric_id='goods.charity_food_distribution',
+                    unit='food_units', before=0, after=1,
+                    formula_id='charity.food_distribution_transfer.v1',
+                    inputs={'operation_id': operation_id,
+                            'charity_name': self.name,
+                            'recipient_id': str(recipient.id),
+                            'recipient_group': aid_group,
+                            'food_amount': 1,
+                            'charity_inventory_before': stock_before,
+                            'charity_inventory_after': stock_after,
+                            'recipient_inventory_before': recipient_food_before,
+                            'recipient_inventory_after': recipient_food_after,
+                            'hungry_steps_before': int(recipient.hungry_steps),
+                            'recipient_selection_index': selection_index})
+                if event_id is not None:
+                    recipient_event_ids.append(event_id)
             if recipient.hungry_steps > 0:
                 loginfo(t, f"{self.name} gave 1 food to hungry {recipient.name()} "
                         f"(hungry_steps={recipient.hungry_steps})")
@@ -284,6 +337,30 @@ class Charity:
 
         self.log["food_distributed"] += food_given
         self.log["recipients"] += recipients
+
+        if food_given > 0 and trace_region is not None:
+            from run_trace import emit
+            emit(
+                trace_region, kind='charity_food_aid',
+                record_class='outcome', phase='welfare',
+                subject={'type': 'province/charity', 'id': self.name},
+                metric_id='goods.charity_food_aid', unit='food_units',
+                before=0, after=food_given,
+                formula_id='charity.food_aid_allocation.v1',
+                inputs={'operation_id':
+                        f'charity-food-distribution:{self.name}:{int(t)}',
+                        'food_inventory_before': stock_before_distribution,
+                        'food_inventory_after': self.food_inventory,
+                        'hungry_candidates': len(hungry),
+                        'hungry_selection_limit': max_feed,
+                        'selected_hungry_ids': [str(a.id) for a in selected],
+                        'young_candidates': len(young),
+                        'hungry_recipient_ids': hungry_recipient_ids,
+                        'young_recipient_ids': young_recipient_ids,
+                        'recipients': recipient_ids,
+                        'food_given': food_given,
+                        'randomized_hungry_selection': len(hungry) > max_feed},
+                cause_event_ids=recipient_event_ids or None)
 
         if food_given > 0 and t % 50 == 0:
             print(f"  {self.name}: distributed {food_given} food to {recipients} agents "

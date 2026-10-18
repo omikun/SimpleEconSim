@@ -345,7 +345,7 @@ def step_economy(region: Any, t: int):
 
     # Charity food distribution
     if legacy:
-        region.charity.distribute_food(t, region.agents)
+        region.charity.distribute_food(t, region.agents, regions=(region,))
         audit_cash(region, t, "charity_food_done")
 
     # Metrics, Factions & Unrest

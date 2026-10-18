@@ -1102,3 +1102,15 @@ Verification: three dedicated scenarios cover funded upkeep, insolvency and
 withdrawal linkage, and a due ultimatum; each compares traced and untraced
 state. Those tests, scenario interpreter/diplomacy regressions, and catalog
 coverage passed (16 tests); compilation and `git diff --check` passed.
+
+Phase 3 follow-up, 2026-10-18: charity food allocations now record each exact
+charity-stock debit and household food credit with the recipient's age/hunger
+group and tile. An aggregate `goods.charity_food_aid` outcome links to the
+individual distribution rows and records the selected hungry recipients,
+young-recipient pass, and remaining charity stock. Empty-stock turns stay
+quiet to limit routine trace volume.
+
+Verification: two focused fixtures cover exact recipient and charity balances,
+the linked aggregate, empty-stock noise suppression, and trace-on/off state
+parity. The charity trace, supply-control actor, run-trace, and metric-catalog
+coverage suites passed (78 tests); compilation and `git diff --check` passed.

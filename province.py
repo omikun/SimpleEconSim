@@ -153,7 +153,7 @@ class Province:
             bank.PayDepositInterest(all_agents,
                                     trace_region=self.tiles[0] if self.tiles else None)
         if charity is not None:
-            charity.distribute_food(t, all_agents)
+            charity.distribute_food(t, all_agents, regions=self.tiles)
         if gov is not None:
             gov.seal_income(t)
         from economy.actor_accounts import seal_turn
