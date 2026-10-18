@@ -1581,3 +1581,21 @@ purge count, linked to both the decision and the individual seizure rows.
 Verification: the success fixture checks exact balances and all causal links,
 with identical traced/untraced cash and regime state. Coup decision and metric
 catalog tests passed (4 tests); compilation and `git diff --check` passed.
+
+## Phase 3 follow-up — Trace enclosure enforcement payments
+
+The active charter path records bailiff service and charter-fee payments as
+exact actor cash transfers, with both wallet balances, currency, and the
+matching actor-account journal entry. A force decision captures protest,
+available garrison/police, the bailiff cash requirement, and whether the lord
+can fund it. A granted or resisted enclosure result links to the decision and
+settlements that led to it.
+
+The old survey-debt payment/auction branch is unreachable after legacy claims
+are migrated to named obligations. Instrument obligation settlement at its
+active case-system owner; do not revive or duplicate the migration-only code.
+
+Verification: funded bailiff and charter payments, an unaffordable bailiff
+gate, and government fallback receipt all preserve trace-on/off game state.
+The enclosure, coercion, cadastre, and metric-catalog suites passed (28 tests);
+compilation and `git diff --check` passed.

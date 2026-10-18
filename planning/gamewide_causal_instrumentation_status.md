@@ -1173,3 +1173,20 @@ Verification: the successful-coup fixture checks per-account balances, actor
 journal linkage, decision/seizure/outcome causality, and trace-on/off state
 parity. Coup decision and metric-catalog tests passed (4 tests); compilation
 and `git diff --check` passed.
+
+Phase 3 follow-up, 2026-10-18: enclosure enforcement and charter settlements now
+record exact bailiff and landlord-to-government wallet transfers, including
+actor-account journal IDs and currency. The bailiff affordability decision
+records protest, existing force, cash requirement, and recipient; successful
+enclosure outcomes link the force decision and both payments. Defied attempts
+record the unaffordable-force gate without inventing a transfer.
+
+The legacy `enclosure_survey_debts` loop migrates old saves into named
+obligations and returns before its historical payment/auction branch. This
+change instruments the active charter-payment path only; later obligation
+settlement remains owned by the named-obligation/case trace.
+
+Verification: traced and untraced enclosure outcomes and balances match for
+funded enforcement, defied enclosure, and government fallback receipt. The
+enclosure, coercion, cadastre, and metric-catalog tests passed (28 tests);
+compilation and `git diff --check` passed.
