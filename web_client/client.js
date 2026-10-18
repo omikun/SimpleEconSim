@@ -3025,10 +3025,17 @@
         row.className = 'market-actor-line';
         const debtReliefAmount = Number(account.company_debt_written_off || 0);
         const receivableLossAmount = Number(account.company_receivable_written_off || 0);
+        const taxReliefAmount = Number(account.tax_arrears_written_off || 0);
+        const taxClaimLossAmount = Number(account.tax_receivable_written_off || 0);
+        const obligationReliefAmount = Number(account.cash_obligation_written_off || 0);
+        const obligationClaimLossAmount = Number(account.obligation_receivable_written_off || 0);
+        const hasNoncashDebtChange = debtReliefAmount > 0 || receivableLossAmount > 0
+          || taxReliefAmount > 0 || taxClaimLossAmount > 0
+          || obligationReliefAmount > 0 || obligationClaimLossAmount > 0;
         const earned = account.type === 'grower'
           ? `crop value $${Number(account.crop_value).toFixed(2)} · cash receipts $${Number(account.sales_cash).toFixed(2)}`
-          : account.type === 'other' && debtReliefAmount > 0
-            ? 'company debt relief (noncash)'
+          : account.type === 'other' && hasNoncashDebtChange
+            ? 'noncash debt change'
             : `sales cash $${Number(account.sales_cash).toFixed(2)} · input used $${Number(account.input_consumed_cost).toFixed(2)} · wages $${Number(account.wages_cash).toFixed(2)}`;
         const delivered = Number(account.delivered_input_purchase_units || 0) > 0
           ? ` · imported input ${Number(account.delivered_input_purchase_units).toFixed(1)} at $${Number(account.delivered_input_unit_price).toFixed(2)}/unit` : '';
@@ -3046,7 +3053,15 @@
           ? ` · company debt discharged $${debtReliefAmount.toFixed(2)}` : '';
         const companyCreditLoss = receivableLossAmount > 0
           ? ` · store receivable written off $${receivableLossAmount.toFixed(2)}` : '';
-        row.textContent = `${account.actor_name}: ${earned}${delivered} · cash $${Number(account.opening_cash).toFixed(2)} → $${Number(account.closing_cash).toFixed(2)}${scrip} · food ${account.opening_food} → ${account.closing_food} · debt $${Number(account.opening_debt).toFixed(2)} → $${Number(account.closing_debt).toFixed(2)}${companyDebt}${companyDebtRelief}${companyCreditLoss}${bankDebt}${deposits}${unposted}. Recorded costs may be incomplete.`;
+        const taxArrearsRelief = taxReliefAmount > 0
+          ? ` · tax arrears forgiven $${taxReliefAmount.toFixed(2)}` : '';
+        const taxClaimLoss = taxClaimLossAmount > 0
+          ? ` · public tax claim written off $${taxClaimLossAmount.toFixed(2)}` : '';
+        const obligationRelief = obligationReliefAmount > 0
+          ? ` · cash obligation canceled $${obligationReliefAmount.toFixed(2)}` : '';
+        const obligationClaimLoss = obligationClaimLossAmount > 0
+          ? ` · creditor claim canceled $${obligationClaimLossAmount.toFixed(2)}` : '';
+        row.textContent = `${account.actor_name}: ${earned}${delivered} · cash $${Number(account.opening_cash).toFixed(2)} → $${Number(account.closing_cash).toFixed(2)}${scrip} · food ${account.opening_food} → ${account.closing_food} · debt $${Number(account.opening_debt).toFixed(2)} → $${Number(account.closing_debt).toFixed(2)}${companyDebt}${companyDebtRelief}${companyCreditLoss}${taxArrearsRelief}${taxClaimLoss}${obligationRelief}${obligationClaimLoss}${bankDebt}${deposits}${unposted}. Recorded costs may be incomplete.`;
         supplyDetails.appendChild(row);
       }
 

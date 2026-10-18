@@ -53,6 +53,7 @@ class TestWebClientParity(unittest.TestCase):
             'actor_id': -999, 'actor_name': 'Company debt relief test worker',
             'type': 'other', 'event_ids': [1], 'sales_cash': 0.0, 'crop_value': 0.0,
             'company_debt_written_off': 25.0, 'company_receivable_written_off': 0.0,
+            'tax_arrears_written_off': 10.0, 'tax_receivable_written_off': 0.0,
         })
         inhabited.actor_turn_accounts = accounts
         data = self.sim.serialize_tile(inhabited, turn=self.sim.turn)

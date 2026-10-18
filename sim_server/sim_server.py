@@ -1632,12 +1632,20 @@ class SimServer:
             'actor_accounts': sorted(
                 (dict(row) for row in getattr(tile, 'actor_turn_accounts', [])
                  if ((row['type'] in ('corporation', 'grower') and
-                      (row['event_ids'] or row['sales_cash'] or row['crop_value']))
+                     (row['event_ids'] or row['sales_cash'] or row['crop_value']))
                      or row.get('company_debt_written_off', 0.0)
-                     or row.get('company_receivable_written_off', 0.0))),
+                     or row.get('company_receivable_written_off', 0.0)
+                     or row.get('tax_arrears_written_off', 0.0)
+                     or row.get('tax_receivable_written_off', 0.0)
+                     or row.get('cash_obligation_written_off', 0.0)
+                     or row.get('obligation_receivable_written_off', 0.0))),
                 key=lambda row: (-row['crop_value'] - row['sales_cash']
                                  - row.get('company_debt_written_off', 0.0)
                                  - row.get('company_receivable_written_off', 0.0),
+                                 -row.get('tax_arrears_written_off', 0.0)
+                                 -row.get('tax_receivable_written_off', 0.0)
+                                 -row.get('cash_obligation_written_off', 0.0)
+                                 -row.get('obligation_receivable_written_off', 0.0),
                                  row['actor_id']))[:20],
             'economic_events': list(getattr(tile, 'economic_events', [])[-20:]),
             'financial_institution': financial_institution,

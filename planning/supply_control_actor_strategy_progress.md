@@ -70,7 +70,12 @@ already fun or balanced; that still needs player feedback.
 - The Anti-Truck Act's company-store debt cancellation is recorded as a paired
   noncash event: workers see the liability discharged, the employer sees its
   store receivable written off, and neither side gets a false cash movement.
-- Remaining gate work: extend coverage to non-estate credit losses and other
+- Egypt scenario cadastral arrears relief and the generic cash-obligation
+  cancellation helper now record noncash debtor/creditor write-offs. Arrears
+  forgiveness splits the public claim between municipal and national
+  treasuries, matching the tax-allocation rule. Actor statements and web tile
+  inspection show these write-offs without treating them as cash movement.
+- Remaining gate work: extend coverage to other non-estate credit losses and
   non-probate currency legs. Paid market purchases now
   link cargo from named sellers through route legs to destination fills;
   scenario-seeded or legacy cargo and fully normalized FX, freight, and tariff
@@ -169,9 +174,16 @@ already fun or balanced; that still needs player feedback.
 - The Anti-Truck Act now links a debt write-off event to worker and employer
   statements, records the law and currency in the causal trace, and shows the
   worker relief or firm receivable loss in the web actor-account summary.
+- District arrears relief now writes down the household liability and the
+  matching municipal/national tax claims; direct cancellation of a named cash
+  obligation records the debtor and creditor losses. Both are noncash journal
+  events with causal trace entries and actor-account totals.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_supply_control_actor_strategy test_supply_rights test_market_auction test_market_routes test_web_client_parity test_truck_system_and_scrip test_run_trace test_trace_codec test_banking_contagion` — 116 tests passed after the Anti-Truck Act ledger addition.
 - `node --check web_client/client.js`, targeted Python compilation, and
   `git diff --check` passed for the Anti-Truck Act ledger and display changes.
+- `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_supply_control_actor_strategy test_supply_rights test_market_auction test_market_routes test_web_client_parity test_truck_system_and_scrip test_run_trace test_trace_codec test_banking_contagion` — 118 tests passed after cadastral arrears and obligation-cancellation coverage.
+- `node --check web_client/client.js`, targeted Python compilation, and
+  `git diff --check` passed for the new debt-writeoff paths.
 
 - Local FX desk conversions now record their home-currency cash leg and the
   foreign amount/rate in the same economic event; a focused account test checks

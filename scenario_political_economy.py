@@ -512,9 +512,50 @@ def apply_action(world, nation, action_id, tile=None):
         forgiven = 0.0
         for agent in debtors:
             row = econ['arrears'][agent.id]
-            forgiven += row['balance']
+            balance_before = float(row['balance'])
+            missed_before = int(row.get('missed', 0))
+            forgiven += balance_before
+            national_share = (round(balance_before * NATIONAL_CADASTRAL_SHARE, 6)
+                              if getattr(tile, 'owner_nation', None) is not None else 0.0)
+            local_share = balance_before - national_share
+            allocations = (
+                ('municipal', getattr(getattr(tile, 'gov', None), 'agent', None), local_share),
+                ('national', getattr(getattr(nation, 'government', None), 'agent', None), national_share),
+            )
+            event_ids = []
+            from economy.actor_accounts import record as record_economic_event
+            for tier, creditor, amount in allocations:
+                if creditor is None or amount <= 0.0:
+                    continue
+                event = record_economic_event(
+                    tile, 'tax_arrears_writeoff', turn=int(world['turn']),
+                    payer_id=agent.id, recipient_id=creditor.id,
+                    amount=amount,
+                    asset_id=f'scenario-tax-arrears:{agent.id}:{tier}',
+                    currency=getattr(tile, 'home_currency', None) or nation.currency,
+                    detail={'origin': 'cadastral_tax', 'creditor_tier': tier,
+                            'action': 'district_arrears_relief',
+                            'balance_before': balance_before,
+                            'balance_after': 0.0})
+                event_ids.append(event['id'])
             row['balance'] = 0.0
             row['missed'] = 0
+            from run_trace import emit
+            emit(tile, kind='tax_arrears_forgiven', record_class='outcome',
+                 phase='scenario_policy',
+                 subject={'type': 'tile', 'id': tile.name,
+                          'agent_id': agent.id},
+                 metric_id='finance.tax_arrears_writeoff',
+                 unit=getattr(tile, 'home_currency', None) or nation.currency,
+                 before=balance_before, after=0.0,
+                 inputs={'debtor_id': agent.id,
+                         'creditor_tiers': [tier for tier, creditor, amount in allocations
+                                            if creditor is not None and amount > 0.0],
+                         'municipal_writeoff': local_share,
+                         'national_writeoff': national_share,
+                         'missed_assessments': missed_before,
+                         'economic_event_ids': event_ids,
+                         'action': 'district_arrears_relief'})
         tile.gov.tax_rate = max(0.0, float(tile.gov.tax_rate) - .03)
         nation.legitimacy = min(1.0, float(nation.legitimacy) + .015)
         return True, f'Forgave {forgiven:.1f} unpaid cadastral taxes for {len(debtors)} cultivators in {_name(tile)}; the next assessments fall.'

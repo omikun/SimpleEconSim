@@ -219,7 +219,32 @@ def cancel_obligation(region, obligation_id):
     _ensure(region)
     for claim in region.cash_obligations:
         if claim.id == int(obligation_id) and claim.status == 'active':
+            balance_before = float(claim.balance)
+            turn = (getattr(region, '_collective_trace_clock', {}) or {}).get(
+                'turn', getattr(region, '_last_turn', 0))
+            event = None
+            if balance_before > 0.0:
+                from economy.actor_accounts import record as record_economic_event
+                event = record_economic_event(
+                    region, 'cash_obligation_writeoff', turn=turn,
+                    payer_id=claim.debtor_id, recipient_id=claim.creditor_id,
+                    amount=balance_before, asset_id=claim.id,
+                    detail={'origin': claim.origin, 'due_turn': claim.due_turn,
+                            'balance_before': balance_before,
+                            'balance_after': 0.0,
+                            'collateral_plot_id': claim.collateral_plot_id})
             claim.status = 'canceled'
             claim.balance = 0.0
+            from run_trace import emit
+            emit(region, kind='cash_obligation_cancelled', record_class='outcome',
+                 subject={'type': 'tile', 'id': region.name,
+                          'obligation_id': claim.id, 'origin': claim.origin},
+                 metric_id='finance.obligation_writeoff',
+                 unit=getattr(region, 'home_currency', None) or 'local_currency',
+                 before=balance_before, after=0.0,
+                 inputs={'debtor_id': claim.debtor_id,
+                         'creditor_id': claim.creditor_id,
+                         'origin': claim.origin, 'turn': turn,
+                         'economic_event_id': event.get('id') if event else None})
             return True
     return False

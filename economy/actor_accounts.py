@@ -12,6 +12,7 @@ _NONCASH_EVENTS = {'production', 'input_consumed', 'scrip_wage',
                    'scrip_store_sale', 'scrip_food_credit', 'bank_deposit_haircut',
                    'bank_debt_inheritance', 'bank_debt_writeoff',
                    'company_debt_writeoff',
+                   'tax_arrears_writeoff', 'cash_obligation_writeoff',
                    'foreign_wallet_debt_payment', 'foreign_wallet_inheritance',
                    'foreign_wallet_escheat'}
 
@@ -189,6 +190,18 @@ def seal_turn(region, turn, event_regions=None):
         company_receivable_written_off = sum(
             e['amount'] for e in own
             if e['recipient_id'] == actor.id and e['kind'] == 'company_debt_writeoff')
+        tax_arrears_written_off = sum(
+            e['amount'] for e in own
+            if e['payer_id'] == actor.id and e['kind'] == 'tax_arrears_writeoff')
+        tax_receivable_written_off = sum(
+            e['amount'] for e in own
+            if e['recipient_id'] == actor.id and e['kind'] == 'tax_arrears_writeoff')
+        cash_obligation_written_off = sum(
+            e['amount'] for e in own
+            if e['payer_id'] == actor.id and e['kind'] == 'cash_obligation_writeoff')
+        obligation_receivable_written_off = sum(
+            e['amount'] for e in own
+            if e['recipient_id'] == actor.id and e['kind'] == 'cash_obligation_writeoff')
         foreign_wallet_debt_paid = {}
         for event in own:
             if (event['payer_id'] == actor.id
@@ -275,6 +288,10 @@ def seal_turn(region, turn, event_regions=None):
             'closing_company_debt': round(company_debt, 2),
             'company_debt_written_off': round(company_debt_written_off, 2),
             'company_receivable_written_off': round(company_receivable_written_off, 2),
+            'tax_arrears_written_off': round(tax_arrears_written_off, 2),
+            'tax_receivable_written_off': round(tax_receivable_written_off, 2),
+            'cash_obligation_written_off': round(cash_obligation_written_off, 2),
+            'obligation_receivable_written_off': round(obligation_receivable_written_off, 2),
             'sales_cash': round(receipts, 2), 'crop_value': round(crop_value, 2),
             'purchases_cash': round(purchases, 2), 'wages_cash': round(wages, 2),
             'delivered_input_purchase_cash': round(delivered_input_spend, 2),

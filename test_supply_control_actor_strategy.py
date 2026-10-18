@@ -49,6 +49,42 @@ class SupplyControlActorFixtureTests(unittest.TestCase):
 
 
 class ActorAccountTests(unittest.TestCase):
+    def test_cancelled_cash_obligation_records_noncash_debtor_and_creditor_loss(self):
+        from livelihood_access import assess_obligation, cancel_obligation
+
+        region = Region()
+        region.home_currency = 'USD'
+        debtor, creditor = Person(31, 0), Person(32, 0)
+        region.agents = [debtor, creditor]
+        region._last_turn = 6
+        class Recorder:
+            def __init__(self):
+                self.rows = []
+
+            def emit(self, clock, **row):
+                self.rows.append({'turn': clock['turn'], **row})
+
+        region._collective_trace_clock = {'turn': 6, 'next': 1, 'phase': 'finance'}
+        region._run_trace = Recorder()
+        claim = assess_obligation(region, debtor.id, creditor.id, 'rent', 20, 6)
+        begin_turn(region, 6)
+
+        self.assertTrue(cancel_obligation(region, claim.id))
+        rows = {row['actor_id']: row for row in seal_turn(region, 6)}
+        self.assertEqual(rows[debtor.id]['opening_debt'], 20.0)
+        self.assertEqual(rows[debtor.id]['closing_debt'], 0.0)
+        self.assertEqual(rows[debtor.id]['cash_obligation_written_off'], 20.0)
+        self.assertEqual(rows[creditor.id]['obligation_receivable_written_off'], 20.0)
+        self.assertEqual(rows[debtor.id]['cash_change'], 0.0)
+        writeoff = next(event for event in region.economic_events
+                        if event['kind'] == 'cash_obligation_writeoff')
+        self.assertEqual(writeoff['asset_id'], claim.id)
+        self.assertEqual(writeoff['currency'], 'USD')
+        self.assertEqual(region._run_trace.rows[-1]['metric_id'],
+                         'finance.obligation_writeoff')
+        self.assertEqual(region._run_trace.rows[-1]['before'], 20.0)
+        self.assertEqual(region._run_trace.rows[-1]['after'], 0.0)
+
     def test_strike_support_cash_is_posted(self):
         from agent import Agent
         from collective_action import (CollectiveOrganization, CollectiveStrike,
@@ -758,6 +794,63 @@ class PoliticalCampaignCurrencyTests(unittest.TestCase):
         self.assertAlmostEqual(amount, 9)
         self.assertAlmostEqual(donor.wallets['USD'] + candidate_actor.wallets['USD'], before_usd)
         self.assertAlmostEqual(donor.cash + candidate_actor.cash, before_jpy)
+
+
+class PoliticalEconomyWriteoffTests(unittest.TestCase):
+    def test_cadastral_arrears_relief_records_noncash_debtor_and_public_losses(self):
+        from agent import Agent
+        from economy.actor_accounts import begin_turn, seal_turn
+        from scenario_political_economy import apply_action
+
+        region = Region()
+        region.name = 'District'
+        region.home_currency = 'USD'
+        debtor = Person(31, 0)
+        local_treasury, national_treasury = Agent(1), Agent(1)
+        local_treasury.is_government = True
+        national_treasury.is_government = True
+        region.agents = [debtor, local_treasury, national_treasury]
+        region.gov = SimpleNamespace(agent=local_treasury, tax_rate=0.20)
+        nation = SimpleNamespace(currency='USD', tiles=[region], legitimacy=0.5,
+                                 government=SimpleNamespace(agent=national_treasury))
+        region.owner_nation = nation
+        world = {'turn': 5, 'scenario_state': {'political_economy': {
+            'arrears': {debtor.id: {'balance': 40.0, 'missed': 3,
+                                    'plot_id': 'p1'}},
+            'collective_by_tile': {region.name: {}},
+        }}}
+
+        class Recorder:
+            def __init__(self):
+                self.rows = []
+
+            def emit(self, clock, **row):
+                self.rows.append({'turn': clock['turn'], **row})
+
+        region._last_turn = 5
+        region._collective_trace_clock = {'turn': 5, 'next': 1,
+                                          'phase': 'scenario_policy'}
+        region._run_trace = Recorder()
+        begin_turn(region, 5)
+        ok, _ = apply_action(world, nation, 'district_arrears_relief', region)
+
+        self.assertTrue(ok)
+        accounts = {row['actor_id']: row for row in seal_turn(region, 5)}
+        self.assertEqual(accounts[debtor.id]['tax_arrears_written_off'], 40.0)
+        self.assertEqual(accounts[debtor.id]['cash_change'], 0.0)
+        self.assertEqual(accounts[local_treasury.id]['tax_receivable_written_off'], 30.0)
+        self.assertEqual(accounts[national_treasury.id]['tax_receivable_written_off'], 10.0)
+        events = [event for event in region.economic_events
+                  if event['kind'] == 'tax_arrears_writeoff']
+        self.assertEqual(sum(event['amount'] for event in events), 40.0)
+        self.assertEqual({event['detail']['creditor_tier'] for event in events},
+                         {'municipal', 'national'})
+        self.assertEqual(world['scenario_state']['political_economy']['arrears']
+                         [debtor.id]['balance'], 0.0)
+        self.assertEqual(region._run_trace.rows[0]['metric_id'],
+                         'finance.tax_arrears_writeoff')
+        self.assertEqual(region._run_trace.rows[0]['before'], 40.0)
+        self.assertEqual(region._run_trace.rows[0]['inputs']['missed_assessments'], 3)
 
 
 class SupplyProposalTests(unittest.TestCase):
