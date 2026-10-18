@@ -210,8 +210,10 @@ inventory movements. Provincial emergency relief now traces the donor levy,
 in-transit shipment inventory, haulage cash transfer and recipients or public
 stock on arrival. National Egypt maize release traces each public-stock debit
 against an individual household's queued meal ration, with allocation outcomes
-and no-op reasons. Other untraced imperial claim paths, Egypt subsistence,
-additional household support channels, other subsidies, military and police
+and no-op reasons. Parent-to-child food sharing now reconciles both household
+inventory legs and links each transfer to its aggregate outcome. Other untraced
+imperial claim paths, Egypt daily subsistence-intake balances, additional
+household support channels, other subsidies, military and police
 payroll/maintenance transfers,
 inheritance, and many scenario costs still need transfer contracts. Egypt's
 district relief, tax relief, settlement, and repression actions now record
@@ -402,3 +404,10 @@ fixtures and the existing overrun-subsidy regression passed. The full 12-test
 construction module had one unrelated staffing threshold failure at exactly
 0.2 efficiency; the other 11 tests passed. Other policy subsidies and military
 and police payroll/maintenance transfers remain open.
+
+Dependent children now receive per-transfer food inventory records paired with
+the parent's food debit. The household-level result links to those transfers.
+Three focused fixtures cover exact reconciliation, trace-on/off state parity,
+and lifecycle-summary linkage; 23 dependent-food, lifecycle, nutrition, and
+relief tests passed. Compilation and `git diff --check` passed. Daily intake,
+survival physiology, and other household support channels remain untraced.

@@ -95,11 +95,58 @@ def consume_daily_food(agent):
     return eaten
 
 
-def transfer_dependent_food(agents, turn):
+def _trace_dependent_food_transfer(region, *, operation_id, turn, parent, child,
+                                  amount, parent_before, parent_after,
+                                  child_before, child_after, needed_units):
+    if region is None:
+        return None
+    from finance_trace import account_ref
+    from run_trace import emit
+
+    contract = {
+        'contract_version': 'goods_transfer.v1',
+        'operation_id': operation_id,
+        'operation_type': 'dependent_household_food_transfer',
+        'good': Goods.food.name,
+        'unit': 'food_units',
+        'amount': int(amount),
+        'payer_account': account_ref(
+            'agent_inventory', str(parent.id), 'food_units',
+            balance_before=int(parent_before), balance_after=int(parent_after),
+            balance_scope='inventory.food'),
+        'payee_account': account_ref(
+            'agent_inventory', str(child.id), 'food_units',
+            balance_before=int(child_before), balance_after=int(child_after),
+            balance_scope='inventory.food'),
+        'delivery_status': 'delivered_to_child_inventory',
+        'counterparty_leg_status': 'both_household_food_inventories_captured',
+    }
+    return emit(
+        region, kind='dependent_food_inventory_transfer',
+        record_class='transfer', phase='demographics',
+        subject={'type': 'tile/parent/child', 'id': operation_id,
+                 'tile': region.name, 'parent_id': parent.id,
+                 'child_id': child.id, 'good': Goods.food.name},
+        metric_id='goods.dependent_food_transfer', unit='food_units',
+        before=0, after=int(amount),
+        formula_id='demographics.dependent_food_transfer.v1',
+        inputs={'operation_id': operation_id, 'turn': int(turn),
+                'parent_id': parent.id, 'child_id': child.id,
+                'child_need_units': int(needed_units),
+                'parent_food_before': int(parent_before),
+                'parent_food_after': int(parent_after),
+                'child_food_before': int(child_before),
+                'child_food_after': int(child_after),
+                'transfer_contract': contract})
+
+
+def transfer_dependent_food(agents, turn, *, region=None,
+                            return_event_ids=False):
     """Share existing household food with under-14 children before eating."""
     from nutrition import appetite_units
     residents = set(agents)
     total = recipients = 0
+    transfer_event_ids = []
     children = sorted(
         (a for a in agents if getattr(a, 'is_native_child', False)
          and a.alive and a.age(turn) < 14), key=lambda a: a.id)
@@ -112,8 +159,26 @@ def transfer_dependent_food(agents, turn):
         available = max(0, parent.inv_get(Goods.food, 0) - 1)
         amount = min(missing, available)
         if amount:
+            parent_before = int(parent.inv_get(Goods.food, 0))
+            child_before = int(child.inv_get(Goods.food, 0))
             parent.inv_add(Goods.food, -amount)
             child.inv_add(Goods.food, amount)
+            region_name = (getattr(region, 'name', None)
+                           or getattr(child, 'region', 'unknown'))
+            operation_id = (f'dependent-food:{region_name}:'
+                            f'{int(turn)}:{parent.id}:{child.id}')
+            event_id = _trace_dependent_food_transfer(
+                region, operation_id=operation_id, turn=turn,
+                parent=parent, child=child, amount=amount,
+                parent_before=parent_before,
+                parent_after=int(parent.inv_get(Goods.food, 0)),
+                child_before=child_before,
+                child_after=int(child.inv_get(Goods.food, 0)),
+                needed_units=missing)
+            if event_id:
+                transfer_event_ids.append(event_id)
             total += amount
             recipients += 1
+    if return_event_ids:
+        return total, recipients, transfer_event_ids
     return total, recipients

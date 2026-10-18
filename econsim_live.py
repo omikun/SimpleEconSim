@@ -111,14 +111,16 @@ def Live(t, agents, context: LiveContext):
         government.provide_food_aid(t, agents, ctx.food_price,
                                     region=ctx.source_region)
 
-    food_shared, children_fed = transfer_dependent_food(agents, t)
+    food_shared, children_fed, food_transfer_event_ids = transfer_dependent_food(
+        agents, t, region=ctx.source_region, return_event_ids=True)
     if ctx.source_region is not None and food_shared:
         from run_trace import emit
         emit(ctx.source_region, kind='household_food_transfer', record_class='outcome',
              phase='demographics', subject={'type': 'tile', 'id': ctx.source_region.name},
              metric_id='food.household_transfer', unit='food_units', after=food_shared,
              formula_id='demographics.parent_child_food_transfer.v1',
-             inputs={'dependent_recipients': children_fed})
+             inputs={'dependent_recipients': children_fed},
+             cause_event_ids=food_transfer_event_ids or None)
 
     # 2. Career bottleneck analysis
     choices_list = [g for g in ctx.goods if g != Goods.gov]

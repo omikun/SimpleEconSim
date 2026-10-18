@@ -772,3 +772,15 @@ Verification: four focused fixtures plus the existing overrun-subsidy regression
 passed. In the full 12-test construction module, 11 passed and an unrelated
 staffing assertion failed because efficiency was exactly 0.2 rather than above
 0.2. Compilation and `git diff --check` passed.
+
+Phase 3 follow-up, 2026-10-18: dependent children now receive per-transfer food
+inventory records paired with the parent's inventory debit. The aggregate
+household transfer links to those records. Existing callers can keep the
+two-value return; the lifecycle requests transfer IDs only when it needs to
+connect the aggregate event.
+
+Verification: three dedicated fixtures cover exact inventory reconciliation,
+trace-on/off state parity, and linkage from the lifecycle summary. Twenty-three
+dependent-food, game-time, nutrition, national/district relief, and household-
+action tests passed. Compilation and `git diff --check` passed. Daily intake,
+survival physiology, and other household support channels remain.
