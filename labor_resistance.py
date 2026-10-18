@@ -130,6 +130,85 @@ def repair_and_replace_machinery(firm, region, t: int):
             firm.machinery_level = getattr(firm, 'machinery_level', 0) + 1
 
 
+def record_workforce_availability(region, t: int):
+    """Record employee hours available to each firm before production."""
+    from run_trace import emit
+    from labor_contract import MAX_LEGAL_SHIFT_HOURS
+
+    trace = getattr(region, '_run_trace', None)
+    if trace is None or getattr(region, '_collective_trace_clock', None) is None:
+        return {}
+    workforce_event_ids = {}
+    collective_event_ids = {}
+    for event in getattr(region, 'collective_log', ()):
+        if event.get('turn') != t or event.get('trace_event_id') is None:
+            continue
+        collective_event_ids.setdefault(event.get('firm_id'), []).append(
+            event['trace_event_id'])
+    for firm in getattr(region, 'agents', ()):
+        if not getattr(firm, 'is_corporation', False):
+            continue
+        employees = list(getattr(firm, 'employees', ()))
+        working = [employee for employee in employees
+                   if not getattr(employee, 'is_striking', False)
+                   and not getattr(employee, 'in_revolt', False)]
+
+        def scheduled_hours(employee):
+            agreement = getattr(employee, 'labor_agreement', None)
+            if (agreement is not None and getattr(agreement, 'active', False)
+                    and getattr(agreement, 'firm_id', None) == firm.id):
+                hours = float(agreement.hours)
+            else:
+                hours = float(getattr(employee, 'shift_hours',
+                                      getattr(firm, 'shift_hours', 8.0)))
+            return max(0.0, hours)
+
+        worker_rows = []
+        for employee in employees:
+            hours = scheduled_hours(employee)
+            status = ('striking' if getattr(employee, 'is_striking', False) else
+                      'in_revolt' if getattr(employee, 'in_revolt', False) else
+                      'available')
+            worker_rows.append({'agent_id': employee.id, 'status': status,
+                                'scheduled_hours': hours,
+                                'effective_hours': min(MAX_LEGAL_SHIFT_HOURS, hours)
+                                if status == 'available' else 0.0})
+        scheduled_total = sum(row['scheduled_hours'] for row in worker_rows)
+        capped_schedule_total = sum(min(MAX_LEGAL_SHIFT_HOURS, row['scheduled_hours'])
+                                    for row in worker_rows)
+        available_total = sum(row['effective_hours'] for row in worker_rows)
+        cause_ids = collective_event_ids.get(firm.id, [])
+        event_id = emit(
+            region, kind='labor_workforce_availability', record_class='calculation',
+            phase='local',
+            subject={'type': 'agent', 'id': firm.id, 'tile': region.name},
+            metric_id='labor.available_worker_hours', unit='hours',
+            before=capped_schedule_total, after=available_total,
+            formula_id='labor.workforce_availability.v1',
+            cause_event_ids=cause_ids or None,
+            inputs={'firm_id': firm.id,
+                    'output_good': getattr(getattr(firm, 'output', None), 'name', None),
+                    'employee_count': len(employees),
+                    'working_employee_count': len(working),
+                    'striking_employee_ids': [employee.id for employee in employees
+                                              if getattr(employee, 'is_striking', False)],
+                    'revolting_employee_ids': [employee.id for employee in employees
+                                               if getattr(employee, 'in_revolt', False)],
+                    'worker_hours': worker_rows,
+                    'scheduled_worker_hours': scheduled_total,
+                    'legally_capped_scheduled_worker_hours': capped_schedule_total,
+                    'available_worker_hours': available_total,
+                    'withheld_worker_hours': capped_schedule_total - available_total,
+                    'wage': float(getattr(firm, 'wage', 0.0)),
+                    'machinery_level': int(getattr(firm, 'machinery_level', 0)),
+                    'broken_machinery': int(getattr(firm, 'broken_machinery', 0)),
+                    'collective_event_ids': cause_ids})
+        if event_id is not None:
+            workforce_event_ids[firm.id] = event_id
+    region._labor_workforce_event_ids = workforce_event_ids
+    return workforce_event_ids
+
+
 def step_workplace_resistance(region, t: int) -> dict:
     """Run turn of strikes, sabotage, and machinery repairs on a tile."""
     evaluate_strikes(region, t)
@@ -140,6 +219,8 @@ def step_workplace_resistance(region, t: int) -> dict:
     for f in firms:
         repair_and_replace_machinery(f, region, t)
 
+    workforce_event_ids = record_workforce_availability(region, t)
+
     # Aggregate tile resistance metrics
     total_strikers = sum(1 for a in getattr(region, 'agents', [])
                          if getattr(a, 'is_striking', False) and getattr(a, 'alive', True))
@@ -149,6 +230,7 @@ def step_workplace_resistance(region, t: int) -> dict:
     return {
         'strikers': total_strikers,
         'active_strikes': active_strikes,
+        'workforce_event_ids': workforce_event_ids,
         'smashed_this_turn': smashed,
         'broken_machinery': total_broken,
     }

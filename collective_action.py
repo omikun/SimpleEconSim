@@ -80,6 +80,34 @@ def _event(region, t, kind, firm, *, strike_id=None, message='', **facts):
            'strike_id': strike_id, 'message': message, 'facts': facts}
     from collective_trace_clock import stamp
     stamp(region, row)
+    trace_event_id = None
+    trace = getattr(region, '_run_trace', None)
+    if trace is not None and getattr(region, '_collective_trace_clock', None) is not None:
+        trace_links = getattr(region, '_collective_trace_event_ids', None)
+        if trace_links is None:
+            trace_links = {}
+            region._collective_trace_event_ids = trace_links
+        key = (int(firm_id), str(strike_id)) if strike_id is not None else None
+        cause_event_ids = []
+        if key is not None and trace_links.get(key) is not None:
+            cause_event_ids.append(trace_links[key])
+        if kind == 'production_observed':
+            production_event_id = getattr(trace, '_turn_production_events', {}).get(
+                (str(firm_id), str(facts.get('output_good'))))
+            if production_event_id is not None:
+                cause_event_ids.append(production_event_id)
+        from run_trace import emit
+        trace_event_id = emit(
+            region, kind=f'labor_collective_{kind}', record_class='observation',
+            subject={'type': 'agent', 'id': int(firm_id), 'tile': region.name},
+            confidence='exact', cause_event_ids=cause_event_ids or None,
+            inputs={'collective_event_id': event_id, 'collective_kind': kind,
+                    'turn': int(t), 'firm_id': int(firm_id),
+                    'firm_name': row['firm_name'], 'strike_id': strike_id,
+                    'message': message, 'facts': facts})
+        row['trace_event_id'] = trace_event_id
+        if key is not None and trace_event_id is not None:
+            trace_links[key] = trace_event_id
     region.collective_log.append(row)
     return row
 

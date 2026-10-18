@@ -36,6 +36,93 @@ class RunTraceTests(unittest.TestCase):
         self.assertEqual(values[('finance.bank_liabilities', 'Delta')][2], 12.0)
         self.assertEqual(values[('finance.bank_cumulative_writedowns', 'Delta')][2], 8.0)
 
+    def test_collective_action_withheld_hours_link_to_zero_firm_output(self):
+        from collective_action import _event
+        from labor_resistance import record_workforce_availability
+        from region import Region
+        from region_production import produce_corporation
+
+        with tempfile.TemporaryDirectory() as tmp:
+            trace = RunTrace(Path(tmp) / 'labor-output.ctr', 'labor-output')
+            clock = {'next': 1, 'turn': 4, 'phase': 'local'}
+            region = Region('Delta', 0, 1)
+            region._collective_trace_clock = clock
+            region._run_trace = trace
+            firm = Agent(0)
+            initialize_agent(firm, Goods.cloth, 0, 0, 50.0)
+            firm.is_corporation = True
+            firm.output = Goods.cloth
+            firm.company_name = 'Delta Mill'
+            worker = Agent(0)
+            initialize_agent(worker, Goods.food, 0, 0, 10.0)
+            worker.employer = firm
+            worker.is_striking = True
+            firm.employees = [worker]
+            region.agents = [firm, worker]
+
+            strike = _event(region, 4, 'strike_started', firm,
+                            strike_id='delta-strike', participant_ids=[worker.id])
+            workforce_ids = record_workforce_availability(region, 4)
+            workforce = trace.recent[-1]
+            receipt_ids = []
+            produce_corporation(region, firm, region.recipes[Goods.cloth],
+                                Goods.cloth, {Goods.cloth: 1}, {}, receipt_ids)
+            zero_output = trace.recent[-1]
+
+            self.assertEqual(workforce['metric_id'], 'labor.available_worker_hours')
+            self.assertEqual(workforce['value_after'], 0.0)
+            self.assertEqual(workforce['cause_event_ids'], [strike['trace_event_id']])
+            self.assertEqual(zero_output['kind'], 'firm_production_zero')
+            self.assertEqual(zero_output['inputs']['reason'],
+                             'all_employees_withheld_or_revolting')
+            self.assertEqual(zero_output['cause_event_ids'],
+                             [workforce_ids[firm.id]])
+            self.assertIn(zero_output['event_id'], receipt_ids)
+
+            clock.update(turn=5, phase='local')
+            worker.is_striking = False
+            firm.inv_add(Goods.wool, 4)
+            available_ids = record_workforce_availability(region, 5)
+            with patch('region_production.rand.random_n', return_value=[0.0]):
+                produce_corporation(region, firm, region.recipes[Goods.cloth],
+                                    Goods.cloth, {Goods.cloth: 1}, {})
+            production = trace.recent[-1]
+            self.assertEqual(production['kind'], 'firm_production')
+            self.assertEqual(production['cause_event_ids'],
+                             [available_ids[firm.id]])
+
+    def test_commons_work_share_explains_failed_independent_production_roll(self):
+        from region import Region
+        from region_production import produce_independent
+
+        with tempfile.TemporaryDirectory() as tmp:
+            trace = RunTrace(Path(tmp) / 'subsistence-output.ctr', 'subsistence-output')
+            clock = {'next': 1, 'turn': 5, 'phase': 'local'}
+            region = Region('Delta', 0, 1)
+            region._collective_trace_clock = clock
+            region._run_trace = trace
+            person = Agent(0)
+            initialize_agent(person, Goods.wood, 0, 0, 10.0)
+            person.output = Goods.wood
+            person.temporary_work_share = 0.25
+            activity_id = trace.emit(
+                clock, kind='commons_foraging', record_class='outcome',
+                subject={'type': 'agent', 'id': person.id, 'tile': region.name},
+                metric_id='labor.temporary_activity', after=0.25,
+                unit='turn_share', inputs={'food_units': 4})
+
+            with patch('region_production.rand.random', return_value=0.99):
+                produce_independent(
+                    region, person,
+                    {'maxinv': 10, 'numInput': 0, 'production': 2,
+                     'maxtotalprod': 100},
+                    Goods.wood, {Goods.wood: 1}, {})
+
+            zero_output = trace.recent[-1]
+            self.assertEqual(zero_output['kind'], 'independent_production_zero')
+            self.assertEqual(zero_output['cause_event_ids'], [activity_id])
+            self.assertEqual(zero_output['inputs']['temporary_work_share'], 0.25)
+
     def test_starvation_death_uses_region_trace_and_snapshot_counter(self):
         from demographics_estate import handle_death
 
@@ -580,6 +667,13 @@ class RunTraceTests(unittest.TestCase):
         self.assertTrue(all(replay_event(row)['matches'] for row in pressure_rows))
         self.assertTrue(all(row['formula_replay']['matches']
                             for row in market_totals))
+        labor_constrained_output = [row for row in rows
+                                    if row['kind'] == 'firm_production_zero'
+                                    and row.get('cause_event_ids')]
+        self.assertTrue(labor_constrained_output)
+        for production in labor_constrained_output:
+            workforce = rows_by_id[production['cause_event_ids'][0]]
+            self.assertEqual(workforce['metric_id'], 'labor.available_worker_hours')
         for summary in zero_order_summaries:
             inputs = summary['inputs']
             reasons = [group['reason'] for group in
@@ -607,6 +701,15 @@ class RunTraceTests(unittest.TestCase):
                                     if row['kind'] == 'market_supply_total')
                 self.assertIn(summary['event_id'],
                               supply_total.get('cause_event_ids', []))
+            for production_id in inputs.get('seller_production_event_ids', ()):
+                self.assertIn(production_id, summary.get('cause_event_ids', []))
+                self.assertEqual(rows_by_id[production_id]['metric_id'],
+                                 'goods.production')
+        self.assertTrue(any(
+            rows_by_id.get(production_id, {}).get('kind') == 'firm_production_zero'
+            for summary in zero_order_summaries
+            for production_id in summary['inputs'].get(
+                'seller_production_event_ids', ())))
         for order in seller_orders + buyer_orders:
             self.assertEqual(order['confidence'], 'exact')
         self.assertTrue(any(

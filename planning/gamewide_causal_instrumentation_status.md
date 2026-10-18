@@ -48,6 +48,13 @@ the FX matrix has a **Why?** button for each quoted currency pair.
   final stats and RNG state.
 - Corporate and independent production rolls use the existing RNG draws.
   Price updates link the prior clearing summaries used as market samples.
+- Collective bargaining and authority events enter the run trace and preserve
+  within-strike event order. Pre-production workforce records show scheduled,
+  capped, and available worker-hours by employee and firm. Corporate output,
+  including zero output caused by withheld labor, links to workforce evidence;
+  independent production links to commons activity when foraging took time
+  from the main occupation. Labor or subsistence production records link to
+  zero-offer summaries, market supply, demand/supply pressure, and price updates.
 - Faction grievance sources, protest energy, unrest roll and takeover/garrison
   result, and legitimacy drift. National population, GDP, cost of living, and
   protest energy have member tile values and aggregation rules.
@@ -140,8 +147,10 @@ separate price records with replay checks for supported formulas. Remaining
 price work is linking production, inventories, needs, accepted orders, and
 settlements through time without implying a trade caused an earlier quote.
 Imported shipment IDs now resolve across purchase, departure, arrival, supply,
-quote, and paid sale when those source records exist. The strike-to-output
-chain remains partial. The main market's `vwap` input is an unweighted
+quote, and paid sale when those source records exist. The core local
+strike/workforce/output/offer/price path is now linked; basket and national
+price components, territorial membership effects, and scenario price histories
+still need explicit decomposition. The main market's `vwap` input is an unweighted
 recent-sample mean. The web inspector can filter a tile and selected good;
 historical chart points do not yet open that inspector directly.
 

@@ -1533,6 +1533,16 @@ def trade(region, t):
         zero_sellers = zero_order_evidence[good]['sellers']
         if not zero_buyers and not zero_sellers:
             continue
+        trace = getattr(region, '_run_trace', None)
+        zero_seller_production_event_ids = []
+        if trace is not None:
+            for seller_order in zero_sellers:
+                production_event_id = getattr(
+                    trace, '_turn_production_events', {}).get(
+                        (str(seller_order['agent_id']), good.name))
+                if (production_event_id is not None
+                        and production_event_id not in zero_seller_production_event_ids):
+                    zero_seller_production_event_ids.append(production_event_id)
         zero_event_id = emit(
             region, kind='market_zero_order_summary', record_class='calculation',
             phase='trade',
@@ -1540,13 +1550,15 @@ def trade(region, t):
             metric_id='goods.zero_order_count', unit='orders',
             after=len(zero_buyers) + len(zero_sellers),
             formula_id='market.zero_order_tally.v1',
+            cause_event_ids=zero_seller_production_event_ids or None,
             inputs={'zero_buyer_count': len(zero_buyers),
                     'zero_seller_count': len(zero_sellers),
                     'buyers_by_reason': _group_zero_order_evidence(zero_buyers),
                     'sellers_by_reason': _group_zero_order_evidence(zero_sellers),
                     'positive_buyer_order_count': len(local_orders[good]['buyers']),
                     'positive_local_seller_order_count':
-                        len(local_orders[good]['sellers'])})
+                        len(local_orders[good]['sellers']),
+                    'seller_production_event_ids': zero_seller_production_event_ids})
         if zero_event_id is not None:
             if zero_buyers:
                 order_source_events[good]['zero_buyers'].append(zero_event_id)

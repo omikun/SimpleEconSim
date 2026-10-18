@@ -331,7 +331,8 @@ Food retention, freight affordability limits, and freight settlements are
 recorded. Zero bids and local offers now appear in one compact per-good summary,
 grouped by exact reason code and retaining the affected agent IDs and relevant
 decision inputs; market demand and supply totals link to that summary. The
-broader strike-to-output chain remains open.
+same-turn strike, available-hours, corporate-output, zero-offer summary, market
+pressure, and price-update chain is now recorded.
 
 Verification: the focused trace, auction, route, food-security, and trade-route
 suites passed 65 tests. A seeded six-turn labor-frontier run verified that
@@ -369,3 +370,26 @@ The storage portion of Phase 6 now has a compact `.ctr` event stream and a
 streaming reader; see [the format and decode commands](compact_trace_format.md).
 Legacy JSONL traces were removed and their input path was retired. Resume/branch
 state, a rebuildable query index, and longer performance gates are still pending.
+
+Phase 2 follow-up, 2026-10-18: collective bargaining and authority events now
+enter the run trace, with successive events in a strike linked together.
+Workforce availability records scheduled and capped hours, unavailable hours,
+employee status, wage, and machinery before production. Corporate production
+and labor-constrained zero output link back to that record; independently
+produced goods link to same-turn commons-foraging activity, including failed
+production rolls when subsistence work lowered the chance. Zero output rows are
+limited to labor or subsistence explanations, keeping routine full inventories
+and missing inputs in the compact market reason summaries. Those zero-output
+events are indexed like successful production, allowing no-offer summaries,
+market supply, pressure, and price updates to retain the existing cause chain.
+
+Verification: targeted strike/worker-hours/production and commons-work tests
+passed, as did the live market/price integration test. The collective-action
+suite passed after its fixture was updated to provide a second worker instead
+of assuming the scenario hires two during its first turn. A one-turn seeded
+frontier trace recorded 1,840 events (115,432 compressed bytes), including four
+workforce records, two corporate zero-output events, 34 subsistence-linked
+independent zero rolls, and 24 market zero-order summaries. All cause IDs
+resolved, the checkpoint verified, and a trace-on/off run matched semantic
+state and Python RNG state. This direct scenario runner omits the server setup
+snapshot, so its size is not directly comparable to the earlier server sample.

@@ -129,13 +129,47 @@ def terrain_bonus(region, good, t: int | None = None, producer=None):
     return base * mult
 
 
+def _record_zero_production(region, agent, output, *, kind, formula_id,
+                            reason, inputs, receipt_ids=None,
+                            cause_event_ids=None):
+    from run_trace import emit
+
+    event_id = emit(
+        region, kind=kind, record_class='outcome',
+        subject={'type': 'agent', 'id': agent.id, 'tile': region.name,
+                 'good': output.name},
+        metric_id='goods.production', unit='units', before=0, after=0,
+        formula_id=formula_id, cause_event_ids=cause_event_ids,
+        inputs={'reason': reason, 'agent_id': agent.id,
+                'output_good': output.name, **inputs})
+    if receipt_ids is not None and event_id is not None:
+        receipt_ids.append(event_id)
+    return event_id
+
+
 def produce_corporation(region, agent, recipe, output, num_agents_per_good,
                         local_total_production, receipt_ids=None):
     """Run production logic for a corporate employer."""
     # P2.3: Striking or revolting workers withhold living labor power
     working_employees = [e for e in agent.employees if not getattr(e, 'is_striking', False) and not getattr(e, 'in_revolt', False)]
     num_employees = len(working_employees)
+    workforce_event_id = getattr(region, '_labor_workforce_event_ids', {}).get(agent.id)
+    workforce_causes = ([workforce_event_id]
+                        if workforce_event_id is not None else None)
     if num_employees == 0:
+        _record_zero_production(
+            region, agent, output, kind='firm_production_zero',
+            formula_id='production.corporation_zero.v1',
+            reason=('no_employees' if not agent.employees else
+                    'all_employees_withheld_or_revolting'),
+            receipt_ids=receipt_ids, cause_event_ids=workforce_causes,
+            inputs={'employees': len(agent.employees), 'working_employees': 0,
+                    'employee_ids': [employee.id for employee in agent.employees],
+                    'striking_employee_ids': [employee.id for employee in agent.employees
+                                              if getattr(employee, 'is_striking', False)],
+                    'revolting_employee_ids': [employee.id for employee in agent.employees
+                                               if getattr(employee, 'in_revolt', False)],
+                    'workforce_event_id': workforce_event_id})
         return
     max_inventory = recipe['maxinv'] * (1 + len(agent.employees))
     if agent.inv_get(output, 0) / max_inventory >= 1:
@@ -213,8 +247,17 @@ def produce_corporation(region, agent, recipe, output, num_agents_per_good,
                                  'good': output.name},
                         metric_id='goods.production', unit='units', before=0,
                         after=num_output, formula_id='production.corporation.v1',
+                        cause_event_ids=workforce_causes,
                         inputs={'employees': len(agent.employees),
                                 'working_employees': num_employees,
+                                'working_employee_ids': [employee.id
+                                                         for employee in working_employees],
+                                'striking_employee_ids': [employee.id
+                                                          for employee in agent.employees
+                                                          if getattr(employee, 'is_striking', False)],
+                                'revolting_employee_ids': [employee.id
+                                                           for employee in agent.employees
+                                                           if getattr(employee, 'in_revolt', False)],
                                 'active_slots': active_slots, 'successful_slots': successful_slots,
                                 'slot_draws': list(vals), 'success_probability': chance,
                                 'base_production': base_production, 'synergy': synergy,
@@ -223,6 +266,7 @@ def produce_corporation(region, agent, recipe, output, num_agents_per_good,
                                 'working_machinery': working_machinery,
                                 'production_per_slot': production_per_slot,
                                 'inputs_used': inputs_used,
+                                'workforce_event_id': workforce_event_id,
                                 'inventory_before': inventory_before,
                                 'inventory_after': agent.inv_get(output, 0)})
         if receipt_ids is not None and event_id is not None:
@@ -232,6 +276,27 @@ def produce_corporation(region, agent, recipe, output, num_agents_per_good,
         wages_paid = len(agent.employees) * getattr(agent, 'wage', 1.0)
         record_surplus_value(agent, region, output, num_output, inputs_cost, wages_paid)
         compute_and_record_firm_footprint(agent, region, output, num_output, inputs_cost, wages_paid)
+    else:
+        if workforce_event_id is not None:
+            _record_zero_production(
+                region, agent, output, kind='firm_production_zero',
+                formula_id='production.corporation_zero.v1',
+                reason='all_slots_failed_random_draw', receipt_ids=receipt_ids,
+                cause_event_ids=workforce_causes,
+                inputs={'employees': len(agent.employees),
+                        'working_employees': num_employees,
+                        'working_employee_ids': [employee.id
+                                                 for employee in working_employees],
+                        'active_slots': active_slots, 'slot_draws': list(vals),
+                        'success_probability': chance,
+                        'base_production': base_production, 'synergy': synergy,
+                        'terrain_multiplier': terrain_mult,
+                        'shift_multiplier': shift_mult,
+                        'working_machinery': working_machinery,
+                        'production_per_slot': production_per_slot,
+                        'workforce_event_id': workforce_event_id,
+                        'inventory_before': agent.inv_get(output, 0),
+                        'maximum_inventory': max_inventory})
 
 
 def compute_and_record_firm_footprint(agent, region, output, num_output, inputs_cost, wages_paid, cur_turn=None):
@@ -312,6 +377,10 @@ def compute_and_record_firm_footprint(agent, region, output, num_output, inputs_
 def produce_independent(region, agent, recipe, output, num_agents_per_good,
                         local_total_production, receipt_ids=None):
     """Run production logic for an independent sole craftsman."""
+    trace = getattr(region, '_run_trace', None)
+    activity_event_id = (getattr(trace, '_turn_temporary_activity_events', {}).get(
+        str(agent.id)) if trace is not None else None)
+    activity_causes = ([activity_event_id] if activity_event_id is not None else None)
     max_inventory = recipe['maxinv']
     if agent.inv_get(output, 0) / max_inventory >= 1:
         return
@@ -319,6 +388,7 @@ def produce_independent(region, agent, recipe, output, num_agents_per_good,
     if recipe['numInput'] > 0 and agent.inv_get(recipe['input'], 0) < recipe['numInput']:
         has_inputs = False
     num_output = 0
+    inventory_before = agent.inv_get(output, 0)
     if has_inputs and recipe.get('production', 0) > 0:
         chance = 1.0
         chance *= max(0.0, 1.0 - float(getattr(agent, 'temporary_work_share', 0.0)))
@@ -355,7 +425,11 @@ def produce_independent(region, agent, recipe, output, num_agents_per_good,
                                      'good': output.name},
                             metric_id='goods.production', unit='units', before=0,
                             after=num_output, formula_id='production.independent.v1',
+                            cause_event_ids=activity_causes,
                             inputs={'draw': rand_val, 'success_probability': chance,
+                                    'temporary_work_share': float(getattr(
+                                        agent, 'temporary_work_share', 0.0)),
+                                    'activity_event_id': activity_event_id,
                                     'base_production': recipe['production'],
                                     'terrain_multiplier': terrain_mult,
                                     'tenure_multiplier': round(tenure_mult, 4),
@@ -363,6 +437,42 @@ def produce_independent(region, agent, recipe, output, num_agents_per_good,
                                     'inventory_before': agent.inv_get(output, 0)})
             if receipt_ids is not None and event_id is not None:
                 receipt_ids.append(event_id)
+        else:
+            temporary_work_share = float(getattr(agent, 'temporary_work_share', 0.0))
+            if activity_event_id is not None and temporary_work_share > 0:
+                _record_zero_production(
+                    region, agent, output, kind='independent_production_zero',
+                    formula_id='production.independent_zero.v1',
+                    reason='production_random_draw_failed', receipt_ids=receipt_ids,
+                    cause_event_ids=activity_causes,
+                    inputs={'draw': rand_val, 'success_probability': chance,
+                            'temporary_work_share': temporary_work_share,
+                            'activity_event_id': activity_event_id,
+                            'base_production': recipe['production'],
+                            'inputs_available': has_inputs,
+                            'input_good': getattr(recipe.get('input'), 'name', None),
+                            'input_quantity': recipe.get('numInput', 0),
+                            'inventory_before': inventory_before,
+                            'maximum_inventory': max_inventory})
+    else:
+        if activity_event_id is not None:
+            _record_zero_production(
+                region, agent, output, kind='independent_production_zero',
+                formula_id='production.independent_zero.v1',
+                reason=('input_material_unavailable' if not has_inputs else
+                        'nonpositive_recipe_output'), receipt_ids=receipt_ids,
+                cause_event_ids=activity_causes,
+                inputs={'temporary_work_share': float(getattr(
+                    agent, 'temporary_work_share', 0.0)),
+                        'activity_event_id': activity_event_id,
+                        'inputs_available': has_inputs,
+                        'input_good': getattr(recipe.get('input'), 'name', None),
+                        'input_quantity': recipe.get('numInput', 0),
+                        'input_inventory': (agent.inv_get(recipe['input'], 0)
+                                            if recipe.get('input') is not None else None),
+                        'recipe_production': recipe.get('production', 0),
+                        'inventory_before': inventory_before,
+                        'maximum_inventory': max_inventory})
     agent.inv_add(output, num_output)
     local_total_production[output] = local_total_production.get(output, 0) + num_output
     if num_output > 0:
@@ -396,17 +506,33 @@ def produce(region, t):
         if getattr(a, 'is_native_child', False) and a.age(t) < 14:
             continue
         if getattr(a, 'is_striking', False) or getattr(a, 'in_revolt', False):
+            source_event_ids = []
+            for event in getattr(region, 'collective_log', ()):
+                if event.get('turn') != t or event.get('trace_event_id') is None:
+                    continue
+                facts = event.get('facts', {})
+                if (a.id in facts.get('participant_ids', ())
+                        or facts.get('person_id') == a.id):
+                    source_event_ids.append(event['trace_event_id'])
+            _record_zero_production(
+                region, a, a.output, kind='independent_production_zero',
+                formula_id='production.independent_zero.v1',
+                reason=('worker_strike_withheld_labor'
+                        if getattr(a, 'is_striking', False) else
+                        'worker_revolt_withheld_labor'),
+                receipt_ids=receipt_ids.setdefault(a.output, []),
+                cause_event_ids=source_event_ids or None,
+                inputs={'temporary_work_share': float(getattr(
+                    a, 'temporary_work_share', 0.0)),
+                        'inventory_before': a.inv_get(a.output, 0),
+                        'collective_event_ids': source_event_ids})
             continue
         r = region.recipes[a.output]
         if r.get('import_only', False):
             continue
-        if a.is_corporation and len(a.employees) > 0:
+        if a.is_corporation:
             produce_corporation(region, a, r, a.output, num_agents_per_good,
                                 local_total_production, receipt_ids.setdefault(a.output, []))
-        elif a.is_corporation:
-            # A company with no workers cannot produce as an independent
-            # craftsperson; that path previously created unpaid mill output.
-            continue
         else:
             produce_independent(region, a, r, a.output, num_agents_per_good,
                                 local_total_production, receipt_ids.setdefault(a.output, []))

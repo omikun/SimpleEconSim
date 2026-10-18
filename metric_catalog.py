@@ -40,6 +40,7 @@ METRICS = {
     'economy.gini': ('tile/cohort', 'ratio', 'micro.region.stepper.log_metrics'),
     'labor.exploitation_rate': ('tile', 'ratio', 'labor_contract.aggregate_tile_surplus'),
     'labor.strikers': ('tile', 'people', 'labor_resistance.step_workplace_resistance'),
+    'labor.available_worker_hours': ('tile/firm', 'hours', 'labor_resistance.record_workforce_availability before production'),
     'labor.hiring_decision': ('tile/firm/worker', 'accepted', 'region_labor.hire_workers'),
     'labor.occupation_change': ('tile/worker', 'occupation', 'labor_choice.apply_career_switch'),
     'labor.status_change': ('tile/worker', 'status', 'labor_choice.record_labor_status'),
@@ -174,6 +175,7 @@ TRACE_INSTRUMENTED = set(LEGACY_HISTORY_TO_METRIC.values()) | {
     'goods.emergency_levy', 'goods.provincial_relief', 'land.customary_inheritance',
     'goods.demand_ratio', 'goods.buyer_bid_quantity', 'goods.seller_offer_quantity',
     'goods.zero_order_count',
+    'labor.strikers', 'labor.available_worker_hours',
 }
 
 

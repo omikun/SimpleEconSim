@@ -31,6 +31,7 @@ class RunTrace:
         self._person_flow_events = {}
         self._previous_person_flow_events = {}
         self._turn_production_events = {}
+        self._turn_temporary_activity_events = {}
         self._shipment_departure_events = {}
         self._shipment_arrival_events = {}
         self._shipment_events_by_kind = {}
@@ -69,6 +70,7 @@ class RunTrace:
             self._previous_person_flow_events = self._person_flow_events
             self._person_flow_events = {}
             self._turn_production_events = {}
+            self._turn_temporary_activity_events = {}
         row = {'schema_version': SCHEMA_VERSION, 'run_id': self.run_id,
                'branch_id': self.branch_id, 'event_id': f'{self.run_id}:{sequence}',
                'sequence': sequence, 'turn': clock.get('turn', 0),
@@ -217,6 +219,10 @@ class RunTrace:
                 and row.get('subject', {}).get('good') is not None):
             key = (str(row['subject'].get('id')), str(row['subject']['good']))
             self._turn_production_events[key] = row['event_id']
+        if (self.write_error is None and metric_id == 'labor.temporary_activity'
+                and row.get('subject', {}).get('type') == 'agent'):
+            self._turn_temporary_activity_events[
+                str(row['subject'].get('id'))] = row['event_id']
         self.recent.append(row)
         return row['event_id']
 

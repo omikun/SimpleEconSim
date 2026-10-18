@@ -21,8 +21,21 @@ class CollectiveActionTest(unittest.TestCase):
         world = create_world(seed=612)
         self.assertEqual(step_world(world), [])
         firm = next(a for region in world['tiles'] for a in region.agents
-                    if a.alive and a.is_corporation and len(a.employees) >= 2)
+                    if a.alive and a.is_corporation and a.employees)
         region = next(r for r in world['tiles'] if firm in r.agents)
+        # The scenario now hires one worker during its opening turn. Collective
+        # action needs at least two participants, so add an existing free adult
+        # to this fixture instead of depending on a particular hiring cadence.
+        while len(firm.employees) < 2:
+            worker = next(a for a in region.agents
+                          if a.alive and not a.is_corporation and not a.is_trader
+                          and not a.is_government and a.employer is None
+                          and not getattr(a, 'military_unit_id', None)
+                          and not getattr(a, 'is_native_child', False))
+            worker.employer = firm
+            worker.shift_hours = getattr(firm, 'shift_hours', 8.0)
+            worker.wage = firm.wage
+            firm.employees.append(worker)
         for worker in firm.employees:
             worker.class_consciousness = 1.0
             worker.alienation = 1.0
