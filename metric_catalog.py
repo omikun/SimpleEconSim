@@ -301,6 +301,8 @@ METRICS = {
     'trade.route_licensed_quantity': ('tile/charter/good', 'units', 'region_logistics; quantity permitted after route-charter enforcement leakage'),
     'trade.route_post_quantity': ('route/trader/good', 'units', 'transporter.Route.post; attempted shipment quantity accepted or blocked by route state'),
     'trade.route_turns_remaining': ('route/shipment', 'turns', 'transporter.Route; transit countdown or held shipment time under strike, blockade, or quarantine'),
+    'trade.shipment_quantity': ('tile/route/shipment/good', 'units', 'transporter.Route; cargo quantity departing a route or arriving at its destination, linked by shipment event IDs'),
+    'trade.route_freight_settlement': ('tile/shipment', 'local_currency', 'region_logistics.post_exports_to_route; exact freight payment from trader to carrier and linked shipment departure'),
     'water.allocation_right': ('tile/water_right', 'seasonal_units', 'supply_rights.acquire_water_right; paid transfer of seasonal allocation between named plots'),
     'water.seasonal_supply': ('tile', 'water_units', 'supply_rights.allocate_seasonal_water; source capacity scaled by rainfall and canal condition, then allocated by plot rights'),
 }
@@ -467,6 +469,7 @@ TRACE_INSTRUMENTED = set(LEGACY_HISTORY_TO_METRIC.values()) | {
     'trade.export_quantity', 'trade.fx_order_match', 'trade.fx_conversion',
     'trade.market_seller_settlement', 'trade.route_licensed_quantity',
     'trade.route_post_quantity', 'trade.route_turns_remaining',
+    'trade.shipment_quantity', 'trade.route_freight_settlement',
     'trade.wilderness_goods', 'trade.wilderness_settlement',
     'war.battle', 'war.cohesion', 'war.posture', 'war.territory_control',
     'water.allocation_right', 'water.seasonal_supply',

@@ -258,7 +258,10 @@ def post_exports_to_route(region):
                     emit(region, kind='route_freight_settlement',
                          record_class='transfer',
                          subject={'type': 'shipment', 'id': shipment_id},
+                         metric_id='trade.route_freight_settlement',
                          unit=getattr(region, 'home_currency', None),
+                         after=freight,
+                         formula_id='route.freight_settlement.v1',
                          cause_event_ids=([departure_event_id]
                                           if departure_event_id is not None else None),
                          inputs={'operation_id': f'freight:{shipment_id}',

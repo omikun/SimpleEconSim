@@ -1038,3 +1038,15 @@ Verification: the FX accounting and trace-registry suites passed (35 tests).
 Tests cover sell-foreign and buy-foreign wallet deltas, home settlement, bank
 pool/reserve movements, and metric registration; compilation and
 `git diff --check` passed.
+
+Phase 3 follow-up, 2026-10-18: route departures and arrivals now expose shipped
+quantity as `trade.shipment_quantity`, while carrier payments expose
+`trade.route_freight_settlement` with the exact currency amount and a causal
+link to the departure. The existing shipment source-purchase and arrival links
+remain intact, so the route trace now presents cargo volume and freight cost
+as queryable metrics through the shipment lifecycle.
+
+Verification: the metric registry, market-route, and run-trace suites passed
+(45 tests). The integration run exercises both departure and arrival quantities
+and confirms freight rows link to their shipment. Compilation and
+`git diff --check` passed.

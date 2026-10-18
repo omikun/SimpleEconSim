@@ -104,6 +104,7 @@ class Route:
         from run_trace import emit
         emit(self.src, kind='route_shipment_departure', record_class='observation',
              subject={'type': 'shipment', 'id': shipment_id},
+             metric_id='trade.shipment_quantity', unit='units', after=int(qty),
              inputs={'trader_id': trader.id, 'good': good.name,
                      'quantity': qty, 'source_shipment_id': shipment_id,
                      'source_region': self.src.name, 'destination': self.dst.name,
@@ -188,6 +189,7 @@ class Route:
             from run_trace import emit
             emit(self.src, kind='route_shipment_departure', record_class='observation',
                  subject={'type': 'shipment', 'id': shipment_id},
+                 metric_id='trade.shipment_quantity', unit='units', after=int(moved),
                  inputs={'trader_id': trader.id, 'good': good.name,
                          'quantity': moved, 'source_shipment_id':
                              lot.get('source_shipment_id') or lot.get('shipment_id'),
@@ -225,6 +227,7 @@ class Route:
             from run_trace import emit
             emit(self.src, kind='route_shipment_departure', record_class='observation',
                  subject={'type': 'shipment', 'id': shipment_id},
+                 metric_id='trade.shipment_quantity', unit='units', after=int(remaining),
                  inputs={'trader_id': trader.id, 'good': good.name,
                          'quantity': remaining, 'source_shipment_id': None,
                          'source_region': src_name, 'source_unit_cost': None,
@@ -345,6 +348,8 @@ class Route:
                     emit(self.src, kind='route_shipment_arrival',
                          record_class='observation',
                          subject={'type': 'shipment', 'id': shipment_id},
+                         metric_id='trade.shipment_quantity', unit='units',
+                         after=int(qty),
                          inputs={'trader_id': trader.id, 'good': good.name,
                                  'quantity': qty, 'destination': self.dst.name,
                                  'source_shipment_id': source_shipment_id,

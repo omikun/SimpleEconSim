@@ -1428,3 +1428,16 @@ Verification: FX accounting and trace-registry suites passed (35 tests),
 including both transaction directions, wallet deltas, home-currency payment,
 bank pool/reserve movements, catalog registration, compilation, and
 `git diff --check`.
+
+## Phase 3 follow-up — Quantify shipment lifecycle and freight
+
+Route departure and arrival records now expose cargo quantity through
+`trade.shipment_quantity`. Freight settlement records expose the exact payment
+through `trade.route_freight_settlement` and link to the matching departure.
+Existing source-acquisition, departure-arrival, and import-quote causal links
+are preserved.
+
+Verification: the metric-registry, market-route, and run-trace suites passed
+(45 tests). End-to-end checks reconstruct departure and arrival quantities and
+match freight payments to shipment IDs; compilation and `git diff --check`
+passed.

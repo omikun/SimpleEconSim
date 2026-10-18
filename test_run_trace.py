@@ -899,6 +899,11 @@ class RunTraceTests(unittest.TestCase):
                     if row['kind'] == 'route_shipment_arrival']
         self.assertTrue(departures)
         self.assertTrue(arrivals)
+        for shipment_event in departures + arrivals:
+            self.assertEqual(shipment_event['metric_id'],
+                             'trade.shipment_quantity')
+            self.assertEqual(shipment_event['value_after'],
+                             shipment_event['inputs']['quantity'])
         self.assertTrue(any(row.get('inputs', {}).get('source_acquisition_event_ids')
                             and row['inputs']['source_acquisition_event_ids']
                             for row in departures))
@@ -913,6 +918,16 @@ class RunTraceTests(unittest.TestCase):
             self.assertIn(departure_id, arrival.get('cause_event_ids', []))
             self.assertEqual(all_rows_by_id[departure_id]['kind'],
                              'route_shipment_departure')
+        freight_rows = [row for row in all_rows
+                        if row['kind'] == 'route_freight_settlement']
+        self.assertTrue(freight_rows)
+        for freight in freight_rows:
+            self.assertEqual(freight['metric_id'],
+                             'trade.route_freight_settlement')
+            self.assertEqual(freight['value_after'],
+                             freight['inputs']['amount'])
+            self.assertIn(freight['inputs']['operation_id'].removeprefix('freight:'),
+                          {row['subject']['id'] for row in departures})
         imported_supply = [row for row in all_rows
                            if row['kind'] == 'market_supply_total'
                            and any(lot.get('arrival_event_id') for lot in
