@@ -291,6 +291,14 @@ Supported price formulas now carry an in-record replay result. A mismatch
 downgrades confidence and makes its turn bridge incomplete; it cannot be shown
 as a verified explanation merely because the final price was recorded.
 
+Phase 0 follow-up, 2026-10-18: demographic deaths now distinguish disease
+presence from disease-attributable mortality. A disease fatality is counted
+only when the actual death draw is above the pre-disease risk and at or below
+the disease-adjusted risk. The summary counter is updated on the source tile
+read by the disease summary. This adds evidence and corrects a counter wiring
+gap without changing mortality probabilities or random draws. Population
+bridges across births, migration, deaths, and role changes are still pending.
+
 The storage portion of Phase 6 now has a compact `.ctr` event stream and a
 streaming reader; see [the format and decode commands](compact_trace_format.md).
 Legacy JSONL traces were removed and their input path was retired. Resume/branch

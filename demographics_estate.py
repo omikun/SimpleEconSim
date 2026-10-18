@@ -844,6 +844,12 @@ def handle_death(ctx, t, agent, agents):
         if attrition > 0.0:
             adjusted_prob *= (1.0 + min(3.0, attrition * 1.5))
 
+        # Preserve the risk immediately before disease modifiers so the trace
+        # can distinguish disease being present from it changing this death
+        # outcome. This observation must not alter the existing probability or
+        # random draw.
+        probability_without_disease = adjusted_prob
+
         # P3: Active epidemic diseases compound mortality risk
         active_dis = getattr(agent, 'diseases', []) or []
         if active_dis:
@@ -858,6 +864,10 @@ def handle_death(ctx, t, agent, agents):
             return False
         death_draw = rand.random()
         died = death_draw <= adjusted_prob
+        disease_attributed = bool(
+            died and active_dis
+            and death_draw > probability_without_disease
+            and death_draw <= adjusted_prob)
         if active_dis or attrition > 0.0 or died:
             from run_trace import emit
             emit(trace_region, kind='mortality_assessment', record_class='outcome',
@@ -871,14 +881,16 @@ def handle_death(ctx, t, agent, agents):
                          'wealth_discount': wealth_discount,
                          'population': current_pop, 'crowding_threshold': threshold,
                          'crowding_factor': crowding_factor, 'health_attrition': attrition,
+                         'probability_without_disease': probability_without_disease,
                          'active_diseases': list(active_dis),
                          'hungry_steps': getattr(agent, 'hungry_steps', 0),
-                         'death_draw': death_draw, 'died': died})
+                         'death_draw': death_draw, 'died': died,
+                         'disease_attributed_by_threshold_crossing': disease_attributed})
         if not died:
             return False
         agent.alive = False
-        if active_dis and hasattr(ctx, 'disease_fatalities_this_turn'):
-            ctx.disease_fatalities_this_turn += 1
+        if disease_attributed and hasattr(trace_region, 'disease_fatalities_this_turn'):
+            trace_region.disease_fatalities_this_turn += 1
         loginfo(t, agent.name(), 'has died due to age')
     else:
         from run_trace import emit
@@ -905,13 +917,17 @@ def handle_death(ctx, t, agent, agents):
         agent.died_of_starvation = True
 
     death_cause = ('starvation' if starved else
-                   'disease' if getattr(agent, 'diseases', None) else 'age_or_health')
+                   'disease' if disease_attributed else 'age_or_health')
     from person_death import record_person_death
     record_person_death(trace_region, agent, t, death_cause,
                         inputs={'age': agent.age(t),
                                 'active_diseases': list(getattr(agent, 'diseases', []) or []),
                                 'health_attrition': getattr(agent, 'health_attrition', 0.0),
-                                'starvation_hazard': hazard if starved else 0.0})
+                                'starvation_hazard': hazard if starved else 0.0,
+                                'probability_without_disease': (
+                                    probability_without_disease if not starved else None),
+                                'disease_attributed_by_threshold_crossing': (
+                                    disease_attributed if not starved else False)})
 
     cleanup_dead_agent_links(agent, trace_region, t)
     handle_company_inheritance(t, agent, trace_region)

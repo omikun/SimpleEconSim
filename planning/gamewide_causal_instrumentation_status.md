@@ -51,9 +51,14 @@ the FX matrix has a **Why?** button for each quoted currency pair.
 - Birth outcomes record the fertility gate, existing random draw, parent food,
   and newborn endowment. Water-contamination infant deaths record the water
   level, sewer condition, survival probability, mortality draw, and turn total.
-- Demographic deaths record risk context and a provisional cause label.
-  Tile/national totals currently cover that path only; combat and repression
-  deaths and the counter-reset timing require the completion plan's corrections.
+- Demographic, battlefield, state-violence, political-clash, and assassination
+  deaths share one registered-person counter and tile/national totals. Infant
+  losses remain a separate event because they were never living residents.
+  Disease presence is recorded as a risk factor; a demographic death is counted
+  as disease-attributable only when the actual draw exceeds pre-disease risk but
+  falls within disease-adjusted risk. The counter is recorded on the source tile
+  consumed by the disease summary. Population bridges that reconcile opening
+  residents with births, deaths, migration, and role changes remain open work.
 - Trade-borne plague records route contagion loading probability and draw,
   quarantine blocks, cargo availability, vulnerable population, and the
   selected newly infected person.

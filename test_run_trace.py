@@ -73,6 +73,61 @@ class RunTraceTests(unittest.TestCase):
             self.assertEqual(rows[1]['inputs']['tile'], 'Delta')
             self.assertEqual(rows[1]['inputs']['death_cause'], 'starvation')
 
+    def test_disease_fatality_requires_disease_to_cross_death_threshold(self):
+        from demographics_estate import handle_death
+
+        def resolve(death_draw, run_id):
+            with tempfile.TemporaryDirectory() as tmp:
+                trace = RunTrace(Path(tmp) / 'deaths.ctr', run_id)
+                clock = {'next': 1, 'turn': 7, 'phase': 'local'}
+                region = SimpleNamespace(
+                    name='Delta', agents=[], deaths_this_turn=0,
+                    deaths_by_cause_this_turn={}, disease_fatalities_this_turn=0,
+                    _collective_trace_clock=clock, _run_trace=trace)
+                person = Agent(-23)
+                initialize_agent(person, Goods.food, 0, 0, 0)
+                person.diseases = ['respiratory']
+                region.agents.append(person)
+                context = SimpleNamespace(
+                    source_region=region, cost_of_living=1.0,
+                    carrying_capacity=100, default_gov=None,
+                    bank=SimpleNamespace(deposits={}))
+                with ExitStack() as patches:
+                    patches.enter_context(patch(
+                        'demographics_estate.rand.random', return_value=death_draw))
+                    patches.enter_context(patch(
+                        'demographics_estate.is_last_of_profession', return_value=False))
+                    patches.enter_context(patch(
+                        'government.find_government_for_agent', return_value=None))
+                    patches.enter_context(patch(
+                        'nutrition.starvation_hazard', return_value=0.0))
+                    for helper in ('cleanup_dead_agent_links', 'handle_company_inheritance',
+                                   'reclaim_dead_route_cargo', 'escheat_dead_parked_goods',
+                                   'handle_debt_inheritance', 'handle_wealth_inheritance',
+                                   'handle_wage_claim_inheritance', 'zero_out_dead_agent'):
+                        patches.enter_context(patch(f'demographics_estate.{helper}'))
+                    patches.enter_context(patch(
+                        'demographics_estate.living_descendants_recursive',
+                        return_value=[]))
+                    self.assertTrue(handle_death(context, 7, person, [person]))
+                rows = trace.query(turn=7)['events']
+                assessment = next(row for row in rows
+                                  if row['kind'] == 'mortality_assessment')
+                death = next(row for row in rows if row['kind'] == 'person_died')
+                return (person, region, assessment, death)
+
+        # At age 30 the pre-disease risk is 0.0007; respiratory disease raises
+        # it by 45%. The same draw below the baseline is not disease-attributable.
+        crossed = resolve(0.0009, 'disease-crossing')
+        baseline = resolve(0.0005, 'disease-present')
+        self.assertTrue(crossed[0].died_of_starvation is False)
+        self.assertEqual(crossed[1].disease_fatalities_this_turn, 1)
+        self.assertEqual(crossed[3]['inputs']['death_cause'], 'disease')
+        self.assertTrue(crossed[2]['inputs']['disease_attributed_by_threshold_crossing'])
+        self.assertEqual(baseline[1].disease_fatalities_this_turn, 0)
+        self.assertEqual(baseline[3]['inputs']['death_cause'], 'age_or_health')
+        self.assertFalse(baseline[2]['inputs']['disease_attributed_by_threshold_crossing'])
+
     def test_price_formula_replays_from_recorded_terms(self):
         with tempfile.TemporaryDirectory() as tmp:
             trace = RunTrace(Path(tmp) / 'run.ctr', 'fixture', seed=1)

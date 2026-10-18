@@ -183,7 +183,7 @@ class Region:
         self.medical_spending_private_log: list = []  # private out-of-pocket medical bills ($)
         self.medical_spending_public_log: list = []  # public healthcare subsidies ($)
         self.untreated_cases_log: list = []  # impoverished sick cases unable to pay
-        self.disease_fatalities_log: list = []  # deaths from disease complications
+        self.disease_fatalities_log: list = []  # disease risk crossed the death threshold
         self.disease_fatalities_this_turn: int = 0
         self.infant_fatalities_this_turn: int = 0
         self.infant_fatalities_log: list = []

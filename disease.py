@@ -442,7 +442,9 @@ def step_medical_care(region, t: int, rand_gen=None) -> dict:
     emit(region, kind='disease_fatalities_observed', record_class='observation',
          subject={'type': 'tile', 'id': region.name},
          metric_id='health.fatalities', unit='people', after=fatalities,
-         inputs={'source': 'demographics.estate mortality accumulator'})
+         inputs={'source': 'demographics.estate mortality accumulator',
+                 'attribution_rule': 'death_draw crossed the pre-disease risk threshold '
+                                     'only after disease modifiers'})
     emit(region, kind='disease_untreated_cases_observed', record_class='calculation',
          subject={'type': 'tile', 'id': region.name},
          metric_id='health.untreated_cases', unit='cases', after=untreated_count,

@@ -395,3 +395,9 @@ already fun or balanced; that still needs player feedback.
 - `MPLCONFIGDIR=/private/tmp/wage-exit-mpl venv/bin/python benchmark_supply_default.py 50 4242` — default three-nation run reached turn 50 on 80 tiles with zero currency violations and zero unmatched actor cash on turn 50 or across all actor-turn statements.
 - An adjacent construction-suite run found one separate failure: `test_07_operational_building_staffing_and_efficiency` remains at the 0.2 efficiency floor, including when run alone. The other tests in that suite passed.
 - Full `unittest discover` was attempted but this environment's native pygame/OpenGL tests crashed the Python process (exit 139) before a summary could be produced; the focused simulation, rights, auction, route, and web parity suite remains green.
+- Disease mortality attribution now records active illness as risk evidence and
+  counts a death as disease-attributable only when the death draw crosses the
+  pre-disease threshold because of the disease modifier. The fatality counter
+  is written on the tile that the medical summary reads; the previous context
+  lookup could leave it at zero. Probabilities and draws are unchanged.
+- `MPLCONFIGDIR=/private/tmp/mortality-trace-mpl venv/bin/python -m unittest test_run_trace test_trade_route_epidemic_transmission test_person_flows test_war_logic test_metabolic_rift_and_riparian_ecology` — 43 tests passed. Targeted compilation and `git diff --check` passed.
