@@ -237,32 +237,34 @@ class EliteCapitalistPlanner:
         good = next(g for g in region.recipes if g.name == best['good'])
         if best['candidate'] == 'advance_offtake':
             grower = next(a for a in region.agents if a.id == best['grower_id'])
-            from crop_credit import offer_advance
-            claim = offer_advance(agent, grower, region, best['advance'], t + 1,
-                                  best['plot_id'], lien_share=.5,
-                                  offtake_quantity=best['quantity'], offtake_price=best['unit_price'])
-            if claim is None:
+            from supply_proposals import propose
+            proposal = propose(region, 'advance_offtake', agent, grower,
+                               turn=t, price=best['advance'], due_turn=t + 2,
+                               plot_id=best['plot_id'], good=best['good'],
+                               quantity=best['quantity'], unit_price=best['unit_price'],
+                               max_price=best['advance'])
+            if proposal is None:
                 return None
-            details = {'claim_id': claim.id, 'grower_id': grower.id,
-                       'plot_id': best['plot_id'], 'good': best['good'],
-                       'advance': best['advance'], 'quantity': best['quantity'],
-                       'unit_price': best['unit_price']}
+            details = proposal
         elif best['candidate'] == 'acquire_water_right':
             seller = next(a for a in region.agents if a.id == best['seller_id'])
-            from supply_rights import acquire_water_right
-            event = acquire_water_right(region, seller, agent, best['from_plot_id'],
-                                        best['to_plot_id'], best['units'], best['price'], t)
-            if event is None:
+            from supply_proposals import propose
+            proposal = propose(region, 'water_right', agent, seller, turn=t,
+                               price=best['price'], units=best['units'],
+                               from_plot_id=best['from_plot_id'],
+                               to_plot_id=best['to_plot_id'], max_price=best['price'] * 1.25)
+            if proposal is None:
                 return None
-            details = event
+            details = proposal
         elif best['candidate'] == 'lease_input_land':
             seller = next(a for a in region.agents if a.id == best['seller_id'])
-            from supply_rights import transfer_plot_title
-            event = transfer_plot_title(region, seller, agent, best['plot_id'], best['price'],
-                                        turn=t, lease_turns=10)
-            if event is None:
+            from supply_proposals import propose
+            proposal = propose(region, 'land_lease', agent, seller, turn=t,
+                               price=best['price'], plot_id=best['plot_id'],
+                               lease_turns=10, max_price=best['price'] * 1.25)
+            if proposal is None:
                 return None
-            details = event
+            details = proposal
         else:
             from market_concessions import submit_concession_petition
             petition = submit_concession_petition(agent, region, good, 'exclusive_processing',

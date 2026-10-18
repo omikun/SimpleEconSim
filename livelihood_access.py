@@ -199,6 +199,12 @@ def settle_obligations(region, turn):
                      'payment_shortfall': max(0.0, claim.balance),
                      'status_after': claim.status})
         if paid > 0:
+            from economy.actor_accounts import record as record_economic_event
+            record_economic_event(region, claim.origin if claim.origin in ('rent', 'cash_tax')
+                                  else 'obligation_payment', turn=turn,
+                                  payer_id=debtor.id, recipient_id=creditor.id,
+                                  amount=paid, asset_id=claim.id,
+                                  detail={'origin': claim.origin, 'balance_after': claim.balance})
             emit(region, kind='obligation_payment', record_class='transfer',
                  subject={'type': 'tile', 'id': region.name, 'origin': claim.origin},
                  metric_id='finance.obligation_payment', unit='local_currency', after=paid,

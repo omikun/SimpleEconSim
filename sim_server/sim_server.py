@@ -705,15 +705,20 @@ class SimServer:
                 tile = self.by_name.get(p.get('tile') or p.get('region'))
                 if not tile:
                     return {'success': False, 'error': 'Territory not found.'}
+                if not getattr(tile, 'owner_nation', None) or tile.owner_nation.name != self.player_nation_name:
+                    return {'success': False, 'error': 'This territory is outside player jurisdiction.'}
                 actors = {a.id: a for a in tile.agents}
                 seller, buyer = actors.get(int(p.get('seller_id', -1))), actors.get(int(p.get('buyer_id', -1)))
-                from supply_rights import transfer_plot_title
-                event = transfer_plot_title(tile, seller, buyer, str(p.get('plot_id', '')),
-                                            p.get('price', 0), self.turn, p.get('lease_turns', 0)) if seller and buyer else None
+                from supply_proposals import propose
+                lease_turns = int(p.get('lease_turns', 0))
+                event = (propose(tile, 'land_lease' if lease_turns > 0 else 'land_sale',
+                                 buyer, seller, turn=self.turn, price=p.get('price', 0),
+                                 plot_id=str(p.get('plot_id', '')), lease_turns=lease_turns,
+                                 max_price=p.get('max_price', p.get('price', 0)))
+                         if seller and buyer else None)
                 ok = event is not None
-                msg = (f"{event['basis'].replace('_', ' ').title()} transferred plot {event['plot_id']} for ${event['price']:,.2f}; "
-                       f"{len(event['tenants_retained'])} tenant rights retained." if ok else
-                       'Land transfer failed: check title, cash, and parties.')
+                msg = (f"Plot {event['plot_id']} offer #{event['id']} sent; owner decides next turn."
+                       if ok else 'Land offer failed: check title, cash, and parties.')
                 self.push_ticker(self.turn, 'LAND', msg, (210, 180, 100) if ok else (240, 90, 90))
                 return {'success': ok, 'message': msg, 'event': event}
 
@@ -721,14 +726,19 @@ class SimServer:
                 tile = self.by_name.get(p.get('tile') or p.get('region'))
                 if not tile:
                     return {'success': False, 'error': 'Territory not found.'}
+                if not getattr(tile, 'owner_nation', None) or tile.owner_nation.name != self.player_nation_name:
+                    return {'success': False, 'error': 'This territory is outside player jurisdiction.'}
                 actors = {a.id: a for a in tile.agents}
                 seller, buyer = actors.get(int(p.get('seller_id', -1))), actors.get(int(p.get('buyer_id', -1)))
-                from supply_rights import acquire_water_right
-                event = acquire_water_right(tile, seller, buyer, str(p.get('from_plot_id', '')),
-                                           str(p.get('to_plot_id', '')), p.get('units', .25),
-                                           p.get('price', 0), self.turn) if seller and buyer else None
+                from supply_proposals import propose
+                event = (propose(tile, 'water_right', buyer, seller, turn=self.turn,
+                                 price=p.get('price', 0), units=p.get('units', .25),
+                                 from_plot_id=str(p.get('from_plot_id', '')),
+                                 to_plot_id=str(p.get('to_plot_id', '')),
+                                 max_price=p.get('max_price', p.get('price', 0)))
+                         if seller and buyer else None)
                 ok = event is not None
-                msg = (f"Transferred {event['units']:.2f} seasonal water units to plot {event['to_plot_id']} for ${event['price']:,.2f}."
+                msg = (f"Water-right offer #{event['id']} sent; holder decides next turn."
                        if ok else 'Water-right transfer failed: check right, cash, and parties.')
                 self.push_ticker(self.turn, 'WATER', msg, (90, 180, 230) if ok else (240, 90, 90))
                 return {'success': ok, 'message': msg, 'event': event}
@@ -1574,6 +1584,12 @@ class SimServer:
             'market_activity': market_activity,
             'stockpiles': stockpiles,
             'economic_actors': economic_actors,
+            'actor_accounts': sorted(
+                (dict(row) for row in getattr(tile, 'actor_turn_accounts', [])
+                 if row['type'] in ('corporation', 'grower') and
+                 (row['event_ids'] or row['sales_cash'] or row['crop_value'])),
+                key=lambda row: (-row['crop_value'] - row['sales_cash'], row['actor_id']))[:20],
+            'economic_events': list(getattr(tile, 'economic_events', [])[-20:]),
             'buildings': buildings_list,
             'construction_projects': projects_list,
             'garrison': int(getattr(tile, 'garrison', 0)),
@@ -1651,6 +1667,8 @@ class SimServer:
                     for r in getattr(tile, 'water_rights', [])],
                 'offtake_contracts': [dict(c) for c in getattr(tile, 'offtake_contracts', [])
                                       if c.get('status') == 'active'],
+                'supply_proposals': [dict(c) for c in getattr(tile, 'supply_proposals', [])[-20:]],
+                'supply_proposal_events': list(getattr(tile, 'supply_proposal_events', [])[-20:]),
                 'offtake_events': list(getattr(tile, 'offtake_events', [])[-20:]),
                 'land_transfer_events': list(getattr(tile, 'land_transfer_events', [])[-20:]),
                 'water_right_events': list(getattr(tile, 'water_right_events', [])[-20:]),

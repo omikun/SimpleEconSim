@@ -191,12 +191,21 @@ def produce_corporation(region, agent, recipe, output, num_agents_per_good,
         inputs_used = 0
         if recipe.get('numInput', 0) > 0:
             inputs_used = successful_slots * recipe['numInput']
+            recorded_basis = max(0.0, float(agent.cost_get(recipe['input'], 0)))
             agent.inv_add(recipe['input'], -inputs_used)
             input_price = region.recipes.get(recipe['input'], {}).get('price', 1.0)
             inputs_cost = inputs_used * input_price
+            from economy.actor_accounts import record as record_economic_event
+            record_economic_event(region, 'input_consumed', payer_id=agent.id,
+                                  good=recipe['input'], quantity=inputs_used,
+                                  amount=inputs_used * recorded_basis,
+                                  detail={'cost_basis_known': recorded_basis > 0})
         num_output = int(successful_slots * production_per_slot) or 1
         inventory_before = agent.inv_get(output, 0)
         agent.inv_add(output, num_output)
+        from economy.actor_accounts import record as record_economic_event
+        record_economic_event(region, 'production', recipient_id=agent.id,
+                              good=output, quantity=num_output)
         local_total_production[output] = local_total_production.get(output, 0) + num_output
         from run_trace import emit
         event_id = emit(region, kind='firm_production', record_class='outcome',
@@ -357,6 +366,9 @@ def produce_independent(region, agent, recipe, output, num_agents_per_good,
     agent.inv_add(output, num_output)
     local_total_production[output] = local_total_production.get(output, 0) + num_output
     if num_output > 0:
+        from economy.actor_accounts import record as record_economic_event
+        record_economic_event(region, 'production', recipient_id=agent.id,
+                              good=output, quantity=num_output)
         region.production_receipts.append({'turn': getattr(region, '_last_turn', 0),
                                           'person_id': agent.id, 'good': output,
                                           'quantity': num_output})

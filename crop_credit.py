@@ -45,6 +45,12 @@ def offer_advance(lender, cultivator, region, amount, due_turn, collateral_plot_
         {'turn': getattr(region, '_last_turn', 0), 'event': 'advance', 'claim_id': claim.id,
          'lender_id': lender.id, 'cultivator_id': cultivator.id, 'amount': amount}
     ])[-500:]
+    from economy.actor_accounts import record as record_economic_event
+    record_economic_event(region, 'advance', payer_id=lender.id,
+                          recipient_id=cultivator.id, amount=amount,
+                          asset_id=claim.id,
+                          detail={'due_turn': int(due_turn), 'plot_id': collateral_plot_id,
+                                  'offtake_quantity': int(offtake_quantity)})
     return claim
 
 
@@ -87,6 +93,11 @@ def settle_offtake_contracts(region, turn):
         buyer.cash -= cash_paid
         grower.cash += cash_paid
         grower.inv_add(good, -deliver)
+        if hasattr(buyer, 'cost_get') and hasattr(buyer, 'cost_set'):
+            old_stock = buyer.inv_get(good, 0)
+            old_cost = buyer.cost_get(good, 0)
+            buyer.cost_set(good, ((old_stock * old_cost + value) /
+                                  max(1, old_stock + deliver)))
         buyer.inv_add(good, deliver)
         if claim:
             claim.balance = max(0.0, claim.balance - credit_used)
@@ -106,6 +117,13 @@ def settle_offtake_contracts(region, turn):
                        'buyer_id': buyer.id, 'good': good_name, 'quantity': deliver,
                        'unit_price': float(contract['unit_price']), 'cash_paid': round(cash_paid, 2),
                        'advance_credit': round(credit_used, 2), 'status': contract['status']})
+        from economy.actor_accounts import record as record_economic_event
+        record_economic_event(region, 'contract_delivery', turn=turn, payer_id=buyer.id,
+                              recipient_id=grower.id, good=good, quantity=deliver,
+                              amount=cash_paid, debt_credit=credit_used,
+                              asset_id=contract['id'],
+                              detail={'unit_price': float(contract['unit_price']),
+                                      'claim_id': contract['claim_id']})
     region.offtake_events = (getattr(region, 'offtake_events', []) + events)[-500:]
     from run_trace import emit
     for event in events:

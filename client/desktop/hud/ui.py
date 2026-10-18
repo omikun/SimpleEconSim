@@ -1145,6 +1145,16 @@ def draw_panel(surface, world, font, font_small, mouse_pos=None):
             True, (220, 190, 125) if active_advances or active_land_leases or active_charters or pending_charters else DIM)
         surface.blit(supply_line, (PANEL_LEFT, y_cursor))
         y_cursor += 16
+        firm_account = next((a for a in getattr(region, 'actor_turn_accounts', [])
+                             if a.get('type') == 'corporation' and a.get('sales_cash', 0) > 0), None)
+        if firm_account:
+            account_line = font_small.render(
+                f"{firm_account['actor_name']}: paid sales ${firm_account['sales_cash']:.1f} | "
+                f"input used ${firm_account['input_consumed_cost']:.1f} | "
+                f"wages ${firm_account['wages_cash']:.1f} (recorded costs)",
+                True, (150, 210, 220))
+            surface.blit(account_line, (PANEL_LEFT, y_cursor))
+            y_cursor += 16
         latest_trade = next((event for event in reversed(getattr(region, 'market_trade_events', []))
                              if event.get('turn') == getattr(region, '_last_turn', -1)), None)
         if latest_trade:

@@ -662,6 +662,17 @@ def clear_discriminatory(region, good, ref, total_asks, total_bids,
                                  'unit_price': float(unit_price), 'total_paid': float(cost),
                                  'imported': bool(is_import)})
             region.market_trade_events = trade_events[-500:]
+            from economy.actor_accounts import record as record_economic_event
+            record_economic_event(region, 'spot_sale', turn=t, payer_id=buyer.id,
+                                  recipient_id=seller.id, good=good, quantity=take,
+                                  amount=cost, source_id=sale_id,
+                                  detail={'unit_price': unit_price, 'imported': bool(is_import),
+                                          'parked': bool(is_parked),
+                                          'seller_receipt': seller.cash - seller_cash_before +
+                                              _fx.fx_balance(seller, region.home_currency) - seller_wallet_before,
+                                          'government_receipt':
+                                              (region.gov.agent.cash - gov_cash_before)
+                                              if gov_cash_before is not None else 0.0})
             remaining -= take
             rem_bids[buyer.id] = want - take
             if buyer.cash < unit_price or rem_bids[buyer.id] <= 0:

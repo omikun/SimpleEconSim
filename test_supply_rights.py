@@ -57,6 +57,10 @@ class SupplyRightsTests(unittest.TestCase):
     region.agents = [grower, firm]
     action = EliteCapitalistPlanner()._execute_input_control(firm, region, 3)
     self.assertEqual(action['action_taken'], 'ADVANCE_OFFTAKE')
+    self.assertEqual(firm.cash, 100)
+    self.assertEqual(grower.cash, 1)
+    from supply_proposals import decide
+    decide(region, 4)
     self.assertEqual(firm.cash, 90)
     self.assertEqual(grower.cash, 11)
     self.assertEqual(region.offtake_contracts[0]['remaining'], 2)

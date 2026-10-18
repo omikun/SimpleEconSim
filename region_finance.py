@@ -55,6 +55,11 @@ def pay_wages(region, t):
                     wage_to_pay = min(a.cash, wage_nominal)
                     a.cash -= wage_to_pay
                     e.cash += wage_to_pay
+                    if wage_to_pay > 0:
+                        from economy.actor_accounts import record as record_economic_event
+                        record_economic_event(region, 'wage', turn=t,
+                                              payer_id=a.id, recipient_id=e.id,
+                                              amount=wage_to_pay)
                     e.wages_received = wage_to_pay
                     e.realized_wage = wage_to_pay
                     e.wage_withheld = wage_nominal - wage_to_pay
@@ -165,6 +170,9 @@ def repay_owner_loan(region, agent, owner, payroll):
         agent.cash -= repay
         credit_owner_pay(region, owner, repay)
         agent.owner_loan -= repay
+        from economy.actor_accounts import record as record_economic_event
+        record_economic_event(region, 'owner_loan_repayment', payer_id=agent.id,
+                              recipient_id=owner.id, amount=repay)
 
 
 def pay_base_salary(region, agent, owner, payroll):
@@ -172,6 +180,9 @@ def pay_base_salary(region, agent, owner, payroll):
     if agent.cash > payroll * 2 + agent.wage:
         agent.cash -= agent.wage
         credit_owner_pay(region, owner, agent.wage)
+        from economy.actor_accounts import record as record_economic_event
+        record_economic_event(region, 'owner_salary', payer_id=agent.id,
+                              recipient_id=owner.id, amount=agent.wage)
 
 
 def pay_profit_share(region, agent, owner, payroll):
@@ -186,6 +197,9 @@ def pay_profit_share(region, agent, owner, payroll):
         agent.cash -= profit_draw
         credit_owner_pay(region, owner, profit_draw)
         agent.retained_earnings -= profit_draw
+        from economy.actor_accounts import record as record_economic_event
+        record_economic_event(region, 'dividend', payer_id=agent.id,
+                              recipient_id=owner.id, amount=profit_draw)
         try:
             from economy.true_cost_ledger import get_true_cost_ledger
             get_true_cost_ledger().record_finance_deductions(
@@ -207,6 +221,9 @@ def bailout_owner(region, agent, owner, payroll):
             owner.cash -= inject
             agent.cash += inject
             agent.owner_loan += inject
+            from economy.actor_accounts import record as record_economic_event
+            record_economic_event(region, 'owner_financing', payer_id=owner.id,
+                                  recipient_id=agent.id, amount=inject)
     else:
         if region.home_currency:
             avail = _fx.fx_balance(owner, region.home_currency)
@@ -215,6 +232,9 @@ def bailout_owner(region, agent, owner, payroll):
                 _fx.fx_add(owner, region.home_currency, -inject)
                 agent.cash += inject
                 agent.owner_loan += inject
+                from economy.actor_accounts import record as record_economic_event
+                record_economic_event(region, 'owner_financing', payer_id=owner.id,
+                                      recipient_id=agent.id, amount=inject)
 
 
 def distribute_profits(region, t):
@@ -327,6 +347,7 @@ def collect_tax(region, t):
                     nat_gov = getattr(owner_nation, 'government', None) if owner_nation else None
                     prov_gov = getattr(province, 'gov', None) if province else None
                     tile_gov = region.gov
+                    nat_share = prov_share = tile_share = 0.0
 
                     if nat_gov is not None and nat_gov is not tile_gov:
                         if prov_gov is not None and prov_gov is not tile_gov and prov_gov is not nat_gov:
@@ -361,9 +382,19 @@ def collect_tax(region, t):
                             turn_tile_tax += tile_share
                     else:
                         # Single-Tier / Independent
+                        tile_share = actual
                         tile_gov.agent.cash += actual
                         tile_gov.record_income(t, 'tax', actual)
                         turn_tile_tax += actual
+
+                    from economy.actor_accounts import record as record_economic_event
+                    for treasury, share in ((nat_gov, nat_share), (prov_gov, prov_share),
+                                            (tile_gov, tile_share)):
+                        if treasury is not None and share > 0:
+                            record_economic_event(region, 'tax', turn=t, payer_id=a.id,
+                                                  recipient_id=treasury.agent.id,
+                                                  amount=share,
+                                                  detail={'tax_base': taxable})
 
                     tax_collected += actual
 

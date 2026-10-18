@@ -3019,6 +3019,17 @@
         supplyDetails.appendChild(actors);
       }
 
+      const accounts = (tile.actor_accounts || []).slice(0, 5);
+      for (const account of accounts) {
+        const row = document.createElement('div');
+        row.className = 'market-actor-line';
+        const earned = account.type === 'grower'
+          ? `crop value $${Number(account.crop_value).toFixed(2)} · cash receipts $${Number(account.sales_cash).toFixed(2)}`
+          : `sales cash $${Number(account.sales_cash).toFixed(2)} · input used $${Number(account.input_consumed_cost).toFixed(2)} · wages $${Number(account.wages_cash).toFixed(2)}`;
+        row.textContent = `${account.actor_name}: ${earned} · cash $${Number(account.opening_cash).toFixed(2)} → $${Number(account.closing_cash).toFixed(2)} · food ${account.opening_food} → ${account.closing_food} · debt $${Number(account.opening_debt).toFixed(2)} → $${Number(account.closing_debt).toFixed(2)}. Recorded costs may be incomplete.`;
+        supplyDetails.appendChild(row);
+      }
+
       const tenure = tile.tenure || {};
       const activeContracts = tenure.offtake_contracts || [];
       const charters = tenure.market_charters || [];
@@ -3038,6 +3049,13 @@
         const item = document.createElement('div');
         item.className = 'market-control-detail';
         item.textContent = `${contract.good}: grower ${contract.grower_id} has ${contract.remaining}/${contract.quantity} units pledged to buyer ${contract.lender_id} at $${Number(contract.unit_price).toFixed(2)}; due turn ${contract.due_turn}.`;
+        supplyDetails.appendChild(item);
+      }
+      for (const proposal of (tenure.supply_proposals || []).slice(-5)) {
+        const item = document.createElement('div');
+        item.className = 'market-control-detail';
+        const decision = proposal.reservation_value == null ? '' : ` · seller outside value $${Number(proposal.reservation_value).toFixed(2)}`;
+        item.textContent = `Offer #${proposal.id}: ${proposal.kind.replaceAll('_', ' ')} from ${names.get(Number(proposal.buyer_id)) || `Actor ${proposal.buyer_id}`} to ${names.get(Number(proposal.seller_id)) || `Actor ${proposal.seller_id}`} · ${proposal.status}${decision} · due turn ${proposal.decision_turn}.`;
         supplyDetails.appendChild(item);
       }
       for (const charter of charters) {

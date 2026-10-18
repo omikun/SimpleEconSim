@@ -62,6 +62,8 @@ def step_economy(region: Any, t: int):
     region.food_price = food_price
     region.all_goods_price = food_price + wood_price + furn_price
     record_start(region)
+    from economy.actor_accounts import begin_turn
+    begin_turn(region, t)
     audit_cash(region, t, "step_start")
 
     # A labor-law petition takes effect only after its later decision window.
@@ -69,6 +71,8 @@ def step_economy(region: Any, t: int):
     decide_labor_laws(region, t)
     from market_concessions import decide_concession_petitions
     decide_concession_petitions(region, t)
+    from supply_proposals import decide as decide_supply_proposals
+    decide_supply_proposals(region, t)
 
     # Named rent and fixed cash tax claims are assessed before workers compare offers.
     from livelihood_access import assess_obligation, settle_obligations
@@ -345,6 +349,9 @@ def step_economy(region: Any, t: int):
         difference = math.fabs(region.total_cash_log[-2] - region.total_cash_log[-1])
         if difference > 1e-8:
             logwarning(t, f"Region '{region.name}' cash: {region.total_cash_log[-2]:.2f}->{region.total_cash_log[-1]:.2f} (d={difference:.2f})")
+
+    from economy.actor_accounts import seal_turn
+    seal_turn(region, t)
 
     if t % 100 == 0:
         circulating_cash = sum(a.cash for a in region.agents)

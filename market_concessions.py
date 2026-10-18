@@ -19,6 +19,11 @@ def submit_concession_petition(sponsor, region, good, charter_type, fee, term_tu
     fee, term_turns = max(0.0, float(fee)), max(1, int(term_turns))
     sponsor.cash -= fee
     government.cash += fee
+    from economy.actor_accounts import record as record_economic_event
+    record_economic_event(region, 'petition_fee', turn=turn,
+                          payer_id=sponsor.id, recipient_id=government.id,
+                          good=good, amount=fee,
+                          detail={'charter_type': charter_type})
     petition = {'id': int(getattr(region, '_next_concession_id', 1)),
                 'good': getattr(good, 'value', str(good)), 'type': charter_type,
                 'sponsor_id': sponsor.id, 'fee': fee, 'requested_turn': int(turn),

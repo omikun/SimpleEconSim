@@ -17,7 +17,9 @@ def transfer_plot_title(region, seller, buyer, plot_id, price, turn=None, lease_
     price = max(0.0, float(price))
     if (plot is None or seller is buyer or plot.lord_id != seller.id or
             not getattr(seller, 'alive', True) or not getattr(buyer, 'alive', True) or
-            seller.is_government or buyer.cash < price):
+            seller.is_government or buyer.cash < price or
+            any(l.get('plot_id') == plot_id and l.get('status') == 'active'
+                for l in getattr(region, 'land_leases', []))):
         return None
     seller_id = seller.id
     buyer.cash -= price
@@ -42,6 +44,12 @@ def transfer_plot_title(region, seller, buyer, plot_id, price, turn=None, lease_
              'price': price, 'basis': basis, 'tenants_retained': list(plot.tenant_ids),
              'tenure': getattr(plot.tenure, 'value', str(plot.tenure))}
     region.land_transfer_events = (getattr(region, 'land_transfer_events', []) + [event])[-500:]
+    from economy.actor_accounts import record as record_economic_event
+    record_economic_event(region, 'land_lease' if basis == 'lease' else 'land_sale',
+                          turn=event['turn'], payer_id=buyer.id,
+                          recipient_id=seller.id, amount=price, asset_id=plot_id,
+                          detail={'basis': basis, 'lease_turns': int(lease_turns),
+                                  'tenant_ids': list(plot.tenant_ids)})
     from run_trace import emit
     emit(region, kind='land_title_transfer', record_class='outcome',
          subject={'type': 'plot', 'id': plot_id}, metric_id='land.owner', unit='agent_id',
@@ -110,6 +118,11 @@ def acquire_water_right(region, seller, buyer, from_plot_id, to_plot_id,
              'to_plot_id': to_plot_id, 'seller_id': seller.id, 'buyer_id': buyer.id,
              'units': units, 'price': price}
     region.water_right_events = (getattr(region, 'water_right_events', []) + [event])[-500:]
+    from economy.actor_accounts import record as record_economic_event
+    record_economic_event(region, 'water_sale', turn=event['turn'], payer_id=buyer.id,
+                          recipient_id=seller.id, quantity=units, amount=price,
+                          asset_id=target_right.id,
+                          detail={'from_plot_id': from_plot_id, 'to_plot_id': to_plot_id})
     from run_trace import emit
     emit(region, kind='water_right_transfer', record_class='outcome',
          subject={'type': 'water_right', 'id': target_right.id},
