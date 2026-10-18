@@ -216,6 +216,17 @@ class TestBankingContagion(unittest.TestCase):
         self.assertEqual(trace['inputs']['reason'], 'panic_bank_run')
 
     def test_bank_recapitalization_bailout_decree(self):
+        class MemoryTrace:
+            def __init__(self):
+                self.rows = []
+
+            def emit(self, clock, **row):
+                sequence = clock['next']
+                clock['next'] += 1
+                event_id = f'test:{sequence}'
+                self.rows.append({'event_id': event_id, **row})
+                return event_id
+
         bank1 = self.tile1.bank
         bank1.capital = -150.0
         bank1.is_frozen = True
@@ -231,6 +242,11 @@ class TestBankingContagion(unittest.TestCase):
 
         gov = self.nation.government.agent
         gov.cash = 2000.0
+        trace = MemoryTrace()
+        clock = {'turn': 8, 'phase': 'finance', 'next': 1}
+        for tile in (self.tile1, self.tile2):
+            tile._run_trace = trace
+            tile._collective_trace_clock = clock
 
         ok, msg = recapitalize_domestic_banks(self.nation, target_capital=500.0)
         self.assertTrue(ok)
@@ -238,6 +254,32 @@ class TestBankingContagion(unittest.TestCase):
         self.assertAlmostEqual(bank1.capital, 500.0)
         self.assertAlmostEqual(bank2.capital, 500.0)
         self.assertFalse(bank1.is_frozen)  # Corralito lifted!
+        flows = [row for row in trace.rows
+                 if row.get('metric_id') == 'finance.treasury_flow'
+                 and row.get('kind') == 'bank_recapitalization_funding']
+        bank_changes = [row for row in trace.rows
+                        if row.get('kind') == 'bank_recapitalization'
+                        and row.get('metric_id') == 'finance.bank_capital']
+        self.assertEqual(len(flows), 2)
+        self.assertEqual(len(bank_changes), 2)
+        self.assertAlmostEqual(sum(row['after'] for row in flows), -1050.0)
+        by_operation = {row['inputs']['operation_id']: row for row in bank_changes}
+        self.assertEqual(set(by_operation), {
+            row['inputs']['transfer_contract']['operation_id'] for row in flows})
+        for flow in flows:
+            contract = flow['inputs']['transfer_contract']
+            bank_change = by_operation[contract['operation_id']]
+            amount = contract['amount']
+            self.assertEqual(contract['contract_version'], 'treasury_transfer.v1')
+            self.assertAlmostEqual(
+                contract['payer_account']['balance_before']
+                - contract['payer_account']['balance_after'], amount)
+            self.assertAlmostEqual(
+                contract['payee_account']['balance_after']
+                - contract['payee_account']['balance_before'], amount)
+            self.assertEqual(flow['cause_event_ids'], [bank_change['event_id']])
+            self.assertEqual(bank_change['inputs']['operation_id'],
+                             contract['operation_id'])
 
     def test_deposit_bailin_haircut_decree(self):
         bank = self.tile1.bank

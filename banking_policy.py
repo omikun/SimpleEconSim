@@ -129,20 +129,60 @@ def recapitalize_domestic_banks(nation: Nation, target_capital: float = 500.0) -
     if gov_agent.cash < total_cost:
         return False, f"Insufficient Treasury: Requires ${total_cost:,.0f} (Current: ${gov_agent.cash:,.0f})."
 
-    # Conserved transfer: Sovereign Treasury -> Bank Capital
-    gov_agent.cash -= total_cost
+    # Trace each conserved transfer separately so the treasury debit and bank
+    # capital increase can be reconciled to one operation.
+    from finance_trace import account_ref, emit_treasury_leg, transfer_contract
+
+    turn = 0
     for b in troubled_banks:
         shortfall = max(0.0, target_capital - b.capital)
         trace_region = next((tile for tile in nation.tiles if tile.bank is b), nation.tiles[0])
-        b.recapitalize(shortfall, trace_region=trace_region)
-
-    from run_trace import emit
-    emit(nation.tiles[0], kind='bank_recapitalization_funding', record_class='transfer',
-         subject={'type': 'nation', 'id': nation.name},
-         metric_id='finance.treasury_flow', unit=nation.currency,
-         after=-total_cost,
-         inputs={'bank_count': len(troubled_banks), 'target_capital': target_capital,
-                 'source': 'sovereign_treasury'})
+        clock = getattr(trace_region, '_collective_trace_clock', {}) or {}
+        turn = int(clock.get('turn', getattr(trace_region, '_last_turn', 0)))
+        operation_id = (f'bank-recapitalization:{nation.name}:{turn}:'
+                        f'{trace_region.name}')
+        treasury_before = float(gov_agent.cash)
+        bank_capital_before = float(b.capital)
+        was_frozen = bool(getattr(b, 'is_frozen', False))
+        gov_agent.cash -= shortfall
+        _solvent, bank_event_id = b.recapitalize(
+            shortfall, trace_region=trace_region, operation_id=operation_id,
+            return_event_id=True)
+        currency = (getattr(nation, 'currency', None)
+                    or getattr(trace_region, 'home_currency', None)
+                    or 'local_currency')
+        payer = account_ref(
+            'government_treasury', nation.name, currency,
+            subaccount='government_agent.cash',
+            balance_before=treasury_before, balance_after=float(gov_agent.cash),
+            balance_scope='government_agent.cash')
+        payee = account_ref(
+            'bank_capital', trace_region.name, currency,
+            balance_before=bank_capital_before, balance_after=float(b.capital),
+            balance_scope='capital')
+        contract = transfer_contract(
+            operation_id, 'bank_recapitalization', side='payer',
+            amount=shortfall, amount_currency=currency,
+            payer_account=payer, payee_account=payee,
+            local_cash_leg_amount=shortfall, local_cash_leg_currency=currency,
+            counterparty_leg_status='bank_capital_balance_captured',
+            mutation_reference={'turn': turn, 'bank_tile': trace_region.name,
+                                'target_capital': float(target_capital),
+                                'capital_increase': float(b.capital)
+                                - bank_capital_before})
+        emit_treasury_leg(
+            trace_region, kind='bank_recapitalization_funding',
+            nation_name=nation.name, currency=currency,
+            signed_amount=-shortfall, contract=contract,
+            phase='banking_policy', cause_event_ids=(
+                [bank_event_id] if bank_event_id is not None else None),
+            inputs={'bank_tile': trace_region.name, 'bank_count': len(troubled_banks),
+                    'target_capital': float(target_capital),
+                    'capital_before': bank_capital_before,
+                    'capital_after': float(b.capital),
+                    'was_frozen': was_frozen,
+                    'is_frozen_after': bool(getattr(b, 'is_frozen', False)),
+                    'source': 'sovereign_treasury'})
 
     return True, f"Injected ${total_cost:,.0f} recapitalization into {len(troubled_banks)} domestic banks! All deposit freezes lifted."
 

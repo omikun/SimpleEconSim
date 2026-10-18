@@ -538,5 +538,17 @@ Verification: nine focused grain/project transfer tests passed. Five scenario
 grain tests checked both sides of private purchases and sales, public treasury
 purchases, unpaid seizure, linked unrest/legitimacy changes, and equal
 simulation outcomes with tracing enabled or disabled. Compilation and
-`git diff --check` passed. Bank recapitalization, occupation/tribute flows,
+`git diff --check` passed.
+
+Phase 3 follow-up, 2026-10-18: sovereign bank rescues now emit one transfer per
+bank, pairing each treasury debit with the bank-capital increase. Bank-capital
+outcomes and treasury flows share an operation ID, and the treasury record
+links directly to its capital-change cause. The previous total-only treasury
+debit was removed so reconciliation counts each rescue exactly once.
+
+Verification: 21 banking-contagion, debt-enforcement, and bond-announcement
+tests passed. The two-bank rescue fixture reconciled its $1,050 total debit to
+the individual $650 and $400 capital increases, with both account balances and
+cause links checked. Compilation and `git diff --check` passed. Estate-driven
+bank recapitalization, statutory bail-ins, occupation/tribute flows,
 inheritance, broader household/firm transfers, and other scenario costs remain.

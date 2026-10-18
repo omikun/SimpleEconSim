@@ -120,6 +120,9 @@ the FX matrix has a **Why?** button for each quoted currency pair.
   status, rates, borrower type, and repayments split into principal and interest.
 - Deposit interest, sovereign default write-downs, recapitalization, and bail-ins
   record capital changes, affected depositors, freeze state, and funding source.
+- Sovereign bank recaps now pair each treasury debit with its bank-capital
+  increase under a shared operation ID and link the cash record to the capital
+  change. The transfer is split per bank for accurate reconciliation.
 - Sovereign bond purchases, proceeds, domestic underwriting, coupons,
   maturities, defaults, and early redemptions record signed nation treasury
   flows and the bond terms. These and campaign Caisse payments use the shared
@@ -244,3 +247,7 @@ with the four project-transfer fixtures, nine focused tests passed. Private
 harvest purchases, household sales, government purchases, and requisitions now
 link cash and goods legs. Trace-on and trace-off harvest transactions preserve
 the same balances, stock, history row, and operation ID.
+
+Sovereign bank recapitalization passed seven banking tests and 21 combined
+banking, debt-enforcement, and bond tests. The two-bank fixture confirms that
+per-bank cash debits sum to the sovereign expense and link to capital increases.

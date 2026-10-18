@@ -364,7 +364,8 @@ class Bank():
                  after=loss_amount, inputs=details)
         return self.is_frozen
 
-    def recapitalize(self, amount: float, trace_region=None) -> bool:
+    def recapitalize(self, amount: float, trace_region=None, *,
+                     operation_id=None, return_event_id=False):
         """Inject recapitalization funds into bank capital.
 
         If capital is restored (> 0), lifts emergency deposit freeze.
@@ -374,14 +375,18 @@ class Bank():
         if self.capital > 0.0:
             self.is_frozen = False
             self.frozen_turns = 0
+        event_id = None
         if trace_region is not None:
             from run_trace import emit
-            emit(trace_region, kind='bank_recapitalization', record_class='outcome',
-                 subject={'type': 'tile', 'id': trace_region.name},
-                 metric_id='finance.bank_capital', unit='local_currency',
-                 before=capital_before, after=self.capital,
-                 inputs={'injection': amount, 'deposit_freeze_after': self.is_frozen})
-        return not self.is_frozen
+            event_id = emit(
+                trace_region, kind='bank_recapitalization', record_class='outcome',
+                subject={'type': 'tile', 'id': trace_region.name},
+                metric_id='finance.bank_capital', unit='local_currency',
+                before=capital_before, after=self.capital,
+                inputs={'injection': amount, 'deposit_freeze_after': self.is_frozen,
+                        'operation_id': operation_id})
+        result = not self.is_frozen
+        return (result, event_id) if return_event_id else result
 
     def apply_bail_in_haircut(self, haircut_pct: float = 0.25, exemption_floor: float = 50.0,
                               trace_region=None) -> float:
