@@ -148,6 +148,9 @@ the FX matrix has a **Why?** button for each quoted currency pair.
 - Routine government food purchases record per-seller cash and food inventory
   balances. The treasury payment event links to the matching goods-sale event;
   the previous aggregate spending record no longer double-counts the flow.
+- Egypt scenario harvest purchases, private warehouse sales, public purchases,
+  and requisitions have linked cash and goods events with exact actor inventories.
+  Unpaid requisitions also link the resulting unrest and legitimacy changes.
 - Construction steps record material purchases, required and available inputs,
   navvy hiring and pay, progress multipliers, stall causes, and completion.
 - Battles record initial strengths, casualties, winner, and conquest. War-side
@@ -193,11 +196,10 @@ benefit, Egypt project payroll/recall/remittance, and tariff transfers now have
 operation IDs and balance evidence. Emergency food levies expose exact in-kind
 stock changes, and routine public grain purchases reconcile seller and treasury
 balances. Canal tolls, occupation seizures, tribute, tax recovery, Egypt
-scenario private purchases and requisitions, holder-to-household grain sales,
-subsidies, repression spending, inheritance, and many scenario costs still need
-the shared transfer contract. National treasury, bank, household, firm, and
-goods-by-currency reconciliations remain incomplete. Several scenario
-operations still need mutation-point records.
+subsistence and household aid flows, subsidies, repression spending,
+inheritance, and many scenario costs still need transfer contracts. National
+treasury, bank, household, firm, and goods-by-currency reconciliations remain
+incomplete. Several scenario operations still need mutation-point records.
 Some secondary and elite AI candidate details remain partial. The current metric
 catalog does not yet cover every displayed field;
 `inventory_region_histories()` labels legacy series as instrumented or
@@ -236,3 +238,9 @@ fixture balances donor stock losses against the government stock gain.
 Routine public grain-purchase follow-up passed 33 food-security, market-auction,
 and market-route tests. The trace now reconciles each treasury debit and seller
 credit with matching stock movement and links the cash and goods records.
+
+Egypt scenario grain tracing passed four deterministic transaction fixtures;
+with the four project-transfer fixtures, nine focused tests passed. Private
+harvest purchases, household sales, government purchases, and requisitions now
+link cash and goods legs. Trace-on and trace-off harvest transactions preserve
+the same balances, stock, history row, and operation ID.

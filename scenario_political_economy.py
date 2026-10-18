@@ -5,6 +5,9 @@ from __future__ import annotations
 from math import exp
 from random import Random
 
+from finance_trace import (account_ref, cash_transfer_contract,
+                           emit_cash_transfer, emit_treasury_leg,
+                           transfer_contract)
 from goods import Goods
 from nutrition import deficit_fraction
 
@@ -111,10 +114,92 @@ def district_snapshot(world, tile):
             'mutual_aid_meals': int(collective.get('mutual_aid_meals', 0))}
 
 
-def _record_grain(world, tile, kind, units, cash, owner_id, turn=None):
-    _economy(world)['grain_transactions'].append({
+def _record_grain(world, tile, kind, units, cash, owner_id, turn=None,
+                  operation_ids=None):
+    row = {
         'turn': int(world['turn'] if turn is None else turn), 'tile': tile.name, 'kind': kind,
-        'units': int(units), 'cash': round(float(cash), 2), 'owner_id': owner_id})
+        'units': int(units), 'cash': round(float(cash), 2), 'owner_id': owner_id}
+    if operation_ids:
+        row['operation_ids'] = list(operation_ids)
+    _economy(world)['grain_transactions'].append(row)
+
+
+def _grain_operation_id(tile, turn, kind, goods_payer_id, goods_payee_id):
+    """Return an operation ID independent of whether optional tracing is on."""
+    return (f'grain:{tile.name}:{int(turn)}:{kind}:'
+            f'{goods_payer_id}:{goods_payee_id}')
+
+
+def _emit_grain_stock_transfer(tile, *, operation_id, operation_type, units,
+                               payer_account, payee_account, turn,
+                               cash_transfer_status, cash_event_id=None,
+                               details=None):
+    from run_trace import emit
+
+    contract = {
+        'contract_version': 'goods_transfer.v1',
+        'operation_id': operation_id,
+        'operation_type': operation_type,
+        'good': Goods.food.name,
+        'unit': 'food_units',
+        'amount': int(units),
+        'payer_account': payer_account,
+        'payee_account': payee_account,
+        'cash_transfer_status': cash_transfer_status,
+        'counterparty_leg_status': 'both_food_inventory_balances_captured',
+    }
+    inputs = {'operation_id': operation_id, 'transfer_contract': contract,
+              'turn': int(turn), **(details or {})}
+    return emit(
+        tile, kind=f'{operation_type}_food', record_class='transfer',
+        phase='scenario_economy',
+        subject={'type': 'tile', 'id': tile.name, 'good': Goods.food.name},
+        metric_id='goods.grain_transfer', unit='food_units', before=0,
+        after=int(units), inputs=inputs,
+        cause_event_ids=[cash_event_id] if cash_event_id else None)
+
+
+def _emit_private_grain_trade(tile, *, operation_id, operation_type, turn,
+                              units, amount, payer, payee,
+                              payer_cash_before, payer_cash_after,
+                              payee_cash_before, payee_cash_after,
+                              goods_payer_id, goods_payee_id,
+                              goods_payer_before, goods_payer_after,
+                              goods_payee_before, goods_payee_after,
+                              details=None):
+    currency = getattr(tile, 'home_currency', None) or 'local_currency'
+    payer_cash = account_ref(
+        'agent', payer.id, currency, balance_before=payer_cash_before,
+        balance_after=payer_cash_after, balance_scope='cash')
+    payee_cash = account_ref(
+        'agent', payee.id, currency, balance_before=payee_cash_before,
+        balance_after=payee_cash_after, balance_scope='cash')
+    cash_contract = cash_transfer_contract(
+        operation_id, operation_type, amount=amount, currency=currency,
+        payer_account=payer_cash, payee_account=payee_cash,
+        counterparty_leg_status='both_cash_balances_captured',
+        mutation_reference={'turn': int(turn), 'tile': tile.name,
+                            'food_units': int(units)})
+    cash_event_id = emit_cash_transfer(
+        tile, kind=f'{operation_type}_payment', contract=cash_contract,
+        phase='scenario_economy',
+        inputs={'turn': int(turn), 'food_units': int(units),
+                'unit_price': float(amount) / max(1, int(units)),
+                **(details or {})})
+    payer_goods = account_ref(
+        'agent_inventory', goods_payer_id, 'food_units',
+        balance_before=int(goods_payer_before),
+        balance_after=int(goods_payer_after), balance_scope='inventory.food')
+    payee_goods = account_ref(
+        'agent_inventory', goods_payee_id, 'food_units',
+        balance_before=int(goods_payee_before),
+        balance_after=int(goods_payee_after), balance_scope='inventory.food')
+    _emit_grain_stock_transfer(
+        tile, operation_id=operation_id, operation_type=operation_type,
+        units=units, payer_account=payer_goods, payee_account=payee_goods,
+        turn=turn, cash_transfer_status='cash_transfer.v1',
+        cash_event_id=cash_event_id, details=details)
+    return operation_id
 
 
 def _buy_harvest(world, tile, owner, turn):
@@ -127,6 +212,7 @@ def _buy_harvest(world, tile, owner, turn):
         desire *= 0.20
     price = _price(tile)
     bought = 0
+    operation_ids = []
     room = max(0, WAREHOUSE_CAPACITY_PER_DISTRICT - _reserved(world, tile))
     for producer in sorted((a for a in tile.agents if a is not owner
                             and getattr(a, 'alive', True) and a.output == Goods.food),
@@ -136,14 +222,41 @@ def _buy_harvest(world, tile, owner, turn):
         if units <= 0:
             continue
         cost = units * price
+        owner_cash_before = float(owner.cash)
+        producer_cash_before = float(producer.cash)
+        producer_food_before = int(producer.inv_get(Goods.food, 0))
+        owner_food_before = int(owner.inv_get(Goods.food, 0))
         producer.inv_add(Goods.food, -units)
         producer.cash += cost
         owner.inv_add(Goods.food, units)
         owner.cash -= cost
+        operation_id = _grain_operation_id(
+            tile, turn, 'private_harvest_purchase', producer.id, owner.id)
+        operation_ids.append(_emit_private_grain_trade(
+            tile, operation_id=operation_id,
+            operation_type='private_harvest_purchase', turn=turn,
+            units=units, amount=cost, payer=owner, payee=producer,
+            payer_cash_before=owner_cash_before,
+            payer_cash_after=float(owner.cash),
+            payee_cash_before=producer_cash_before,
+            payee_cash_after=float(producer.cash),
+            goods_payer_id=producer.id, goods_payee_id=owner.id,
+            goods_payer_before=producer_food_before,
+            goods_payer_after=int(producer.inv_get(Goods.food, 0)),
+            goods_payee_before=owner_food_before,
+            goods_payee_after=int(owner.inv_get(Goods.food, 0)),
+            details={'owner_id': owner.id, 'producer_id': producer.id,
+                     'unit_price': price, 'purchase_reason': 'harvest_withholding',
+                     'household_hunger_pressure': hungry,
+                     'owner_buy_share': desire, 'producer_surplus_before': surplus,
+                     'owner_cash_affordable_units': int(owner_cash_before / price),
+                     'warehouse_room_before': max(0, room - bought),
+                     'per_producer_purchase_cap': 8}))
         bought += units
     if bought:
         _set_reserved(world, tile, _reserved(world, tile) + bought)
-        _record_grain(world, tile, 'private_purchase', bought, bought * price, owner.id, turn=turn)
+        _record_grain(world, tile, 'private_purchase', bought, bought * price,
+                      owner.id, turn=turn, operation_ids=operation_ids)
 
 
 def hold_after_harvest(tile, turn):
@@ -169,6 +282,7 @@ def _sell_to_households(world, tile, owner, limit=None):
     price = _price(tile)
     reserved_before = _reserved(world, tile)
     sold = 0
+    operation_ids = []
     buyers = sorted(_households(tile), key=lambda a: (-deficit_fraction(a), a.cash))
     for buyer in buyers:
         if owner.inv_get(Goods.food, 0) <= 0 or (limit is not None and sold >= limit):
@@ -179,14 +293,43 @@ def _sell_to_households(world, tile, owner, limit=None):
             units = min(units, limit - sold)
         if units <= 0:
             continue
-        buyer.cash -= units * price
-        owner.cash += units * price
+        amount = units * price
+        buyer_cash_before = float(buyer.cash)
+        owner_cash_before = float(owner.cash)
+        owner_food_before = int(owner.inv_get(Goods.food, 0))
+        buyer_food_before = int(buyer.inv_get(Goods.food, 0))
+        buyer.cash -= amount
+        owner.cash += amount
         owner.inv_add(Goods.food, -units)
         buyer.inv_add(Goods.food, units)
+        operation_id = _grain_operation_id(
+            tile, int(world['turn']), 'private_household_grain_sale',
+            owner.id, buyer.id)
+        operation_ids.append(_emit_private_grain_trade(
+            tile, operation_id=operation_id,
+            operation_type='private_household_grain_sale',
+            turn=int(world['turn']), units=units, amount=amount,
+            payer=buyer, payee=owner,
+            payer_cash_before=buyer_cash_before, payer_cash_after=float(buyer.cash),
+            payee_cash_before=owner_cash_before, payee_cash_after=float(owner.cash),
+            goods_payer_id=owner.id, goods_payee_id=buyer.id,
+            goods_payer_before=owner_food_before,
+            goods_payer_after=int(owner.inv_get(Goods.food, 0)),
+            goods_payee_before=buyer_food_before,
+            goods_payee_after=int(buyer.inv_get(Goods.food, 0)),
+            details={'owner_id': owner.id, 'buyer_id': buyer.id,
+                     'unit_price': price, 'sale_reason': 'private_warehouse_release',
+                     'buyer_need_units': need,
+                     'buyer_cash_affordable_units': int(buyer_cash_before / price),
+                     'warehouse_stock_before': owner_food_before,
+                     'buyer_food_deficit_fraction': deficit_fraction(buyer),
+                     'remaining_release_limit': (None if limit is None
+                                                 else max(0, limit - sold))}))
         sold += units
     if sold:
         _set_reserved(world, tile, max(0, reserved_before - sold))
-        _record_grain(world, tile, 'market_sale', sold, sold * price, owner.id)
+        _record_grain(world, tile, 'market_sale', sold, sold * price,
+                      owner.id, operation_ids=operation_ids)
     return sold
 
 
@@ -446,6 +589,67 @@ def _fiscal_report(world, nation, turn):
     _economy(world)['fiscal_reports'].append(report)
 
 
+def _emit_public_grain_acquisition(nation, tile, owner, *, action_id, turn,
+                                  units, cash_amount, treasury_before,
+                                  treasury_after, owner_cash_before,
+                                  owner_cash_after, owner_food_before,
+                                  owner_food_after, public_food_before,
+                                  public_food_after, details=None):
+    currency = (getattr(nation, 'currency', None)
+                or getattr(tile, 'home_currency', None) or 'local_currency')
+    operation_type = ('public_grain_purchase' if cash_amount > 0
+                      else 'private_grain_requisition')
+    operation_id = _grain_operation_id(
+        tile, turn, operation_type, owner.id, nation.name)
+    cash_event_id = None
+    if cash_amount > 0:
+        payer = account_ref(
+            'government_treasury', nation.name, currency,
+            subaccount='government_agent.cash',
+            balance_before=treasury_before, balance_after=treasury_after,
+            balance_scope='government_agent.cash')
+        payee = account_ref(
+            'agent', owner.id, currency,
+            balance_before=owner_cash_before, balance_after=owner_cash_after,
+            balance_scope='cash')
+        contract = transfer_contract(
+            operation_id, operation_type, side='payer', amount=cash_amount,
+            amount_currency=currency, payer_account=payer, payee_account=payee,
+            local_cash_leg_amount=cash_amount, local_cash_leg_currency=currency,
+            counterparty_leg_status='warehouse_owner_cash_balance_captured',
+            mutation_reference={'turn': int(turn), 'tile': tile.name,
+                                'action_id': action_id, 'owner_id': owner.id})
+        cash_event_id = emit_treasury_leg(
+            tile, kind='scenario_public_grain_purchase',
+            nation_name=nation.name, currency=currency,
+            signed_amount=-float(cash_amount), contract=contract,
+            phase='scenario_economy',
+            inputs={'action_id': action_id, 'owner_id': owner.id,
+                    'food_units': int(units), 'paid': float(cash_amount),
+                    **(details or {})})
+    payer_goods = account_ref(
+        'private_warehouse', owner.id, 'food_units',
+        balance_before=int(owner_food_before),
+        balance_after=int(owner_food_after), balance_scope='warehouse_food')
+    payee_goods = account_ref(
+        'government_food_inventory', nation.name, 'food_units',
+        balance_before=int(public_food_before),
+        balance_after=int(public_food_after), balance_scope='food_inventory')
+    goods_event_id = _emit_grain_stock_transfer(
+        tile, operation_id=operation_id, operation_type=operation_type,
+        units=units, payer_account=payer_goods, payee_account=payee_goods,
+        turn=turn,
+        cash_transfer_status=('treasury_transfer.v1' if cash_amount > 0
+                              else 'not_paid_requisition'),
+        cash_event_id=cash_event_id,
+        details={'action_id': action_id, 'owner_id': owner.id,
+                 'cash_amount': float(cash_amount),
+                 'warehouse_owner_cash_before': float(owner_cash_before),
+                 'warehouse_owner_cash_after': float(owner_cash_after),
+                 **(details or {})})
+    return operation_id, goods_event_id
+
+
 def apply_action(world, nation, action_id, tile=None):
     econ = _economy(world)
     treasury = nation.government.agent
@@ -475,6 +679,8 @@ def apply_action(world, nation, action_id, tile=None):
         available = min(total, 80)
         bought = 0
         paid = 0.0
+        operation_ids = []
+        grain_event_ids = []
         for region in nation.tiles:
             owner = _holder(world, region)
             if owner is None:
@@ -485,6 +691,11 @@ def apply_action(world, nation, action_id, tile=None):
                         int(treasury.cash / price) if price else available)
             if units <= 0:
                 continue
+            owner_food_before = int(owner.inv_get(Goods.food, 0))
+            owner_cash_before = float(owner.cash)
+            treasury_before = float(treasury.cash)
+            public_food_before = int(nation.government.food_inventory)
+            unrest_before = float(getattr(region, 'unrest_level', 0.0))
             owner.inv_add(Goods.food, -units)
             _set_reserved(world, region, reserved_before - units)
             nation.government.food_inventory += units
@@ -492,18 +703,73 @@ def apply_action(world, nation, action_id, tile=None):
                 treasury.cash -= units * price
                 owner.cash += units * price
                 paid += units * price
-            _record_grain(world, region, 'public_buy' if price else 'requisition', units,
-                          units * price, owner.id)
             if not price:
-                region.unrest_level = min(1.0, float(region.unrest_level) + .04)
+                region.unrest_level = min(1.0, unrest_before + .04)
+            operation_id, grain_event_id = _emit_public_grain_acquisition(
+                nation, region, owner, action_id=action_id,
+                turn=int(world['turn']), units=units, cash_amount=units * price,
+                treasury_before=treasury_before, treasury_after=float(treasury.cash),
+                owner_cash_before=owner_cash_before,
+                owner_cash_after=float(owner.cash),
+                owner_food_before=owner_food_before,
+                owner_food_after=int(owner.inv_get(Goods.food, 0)),
+                public_food_before=public_food_before,
+                public_food_after=int(nation.government.food_inventory),
+                details={'unit_price': price, 'warehouse_reserve_before': reserved_before,
+                         'warehouse_reserve_after': _reserved(world, region),
+                         'treasury_cash_before': treasury_before,
+                         'treasury_affordable_units': (
+                             int(treasury_before / price) if price > 0 else None),
+                         'price_premium_over_local_food': (
+                             price / _price(region) if price > 0 else None),
+                         'unrest_before': unrest_before,
+                         'unrest_after': float(region.unrest_level)})
+            operation_ids.append(operation_id)
+            if grain_event_id is not None:
+                grain_event_ids.append(grain_event_id)
+            if not price:
+                from run_trace import emit
+                emit(region, kind='grain_requisition_unrest',
+                     record_class='outcome', phase='scenario_economy',
+                     subject={'type': 'tile', 'id': region.name},
+                     metric_id='politics.unrest_level', unit='ratio',
+                     before=unrest_before, after=float(region.unrest_level),
+                     formula_id='scenario.private_grain_requisition.unrest.v1',
+                     inputs={'operation_id': operation_id,
+                             'requisitioned_units': units,
+                             'unrest_added': float(region.unrest_level) - unrest_before},
+                     cause_event_ids=[grain_event_id] if grain_event_id else None)
             bought += units
+            _record_grain(world, region, 'public_buy' if price else 'requisition', units,
+                          units * price, owner.id, operation_ids=[operation_id])
         if not bought:
             return False, 'The treasury cannot afford the available grain.'
         world['scenario_state']['public_maize_stock_units'] = nation.government.food_inventory
+        from run_trace import emit
         if action_id == 'requisition_private_grain':
+            legitimacy_before = float(nation.legitimacy)
             nation.legitimacy = max(0.0, float(nation.legitimacy) - .04)
+            emit(nation.tiles[0], kind='grain_requisition_legitimacy',
+                 record_class='outcome', phase='scenario_economy',
+                 subject={'type': 'nation', 'id': nation.name},
+                 metric_id='politics.legitimacy', unit='ratio',
+                 before=legitimacy_before, after=float(nation.legitimacy),
+                 formula_id='scenario.private_grain_requisition.legitimacy.v1',
+                 inputs={'operation_ids': operation_ids, 'requisitioned_units': bought,
+                         'legitimacy_loss': legitimacy_before - float(nation.legitimacy)},
+                 cause_event_ids=grain_event_ids or None)
             return True, f'Requisitioned {bought} private maize units for public relief; owners protest and legitimacy fell.'
+        legitimacy_before = float(nation.legitimacy)
         nation.legitimacy = min(1.0, float(nation.legitimacy) + .01)
+        emit(nation.tiles[0], kind='grain_purchase_legitimacy',
+             record_class='outcome', phase='scenario_economy',
+             subject={'type': 'nation', 'id': nation.name},
+             metric_id='politics.legitimacy', unit='ratio',
+             before=legitimacy_before, after=float(nation.legitimacy),
+             formula_id='scenario.private_grain_purchase.legitimacy.v1',
+             inputs={'operation_ids': operation_ids, 'purchased_units': bought,
+                     'legitimacy_gain': float(nation.legitimacy) - legitimacy_before},
+             cause_event_ids=grain_event_ids or None)
         return True, f'Bought {bought} private maize units for {paid:.1f} treasury units; owners received the cash.'
     if tile is None:
         return False, 'Select an Egyptian district first.'

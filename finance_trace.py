@@ -35,6 +35,44 @@ def transfer_contract(operation_id, operation_type, *, side, amount,
     return contract
 
 
+def cash_transfer_contract(operation_id, operation_type, *, amount, currency,
+                           payer_account, payee_account,
+                           counterparty_leg_status='both_cash_balances_captured',
+                           **details):
+    """Build a versioned contract for cash movements between non-treasury actors."""
+    contract = {
+        'contract_version': 'cash_transfer.v1',
+        'operation_id': operation_id,
+        'operation_type': operation_type,
+        'side': 'payer',
+        'amount': float(amount),
+        'amount_currency': currency,
+        'payer_account': payer_account,
+        'payee_account': payee_account,
+        'local_cash_leg_amount': float(amount),
+        'local_cash_leg_currency': currency,
+        'currency_conversion_applied': False,
+        'unconverted_currency_mismatch': False,
+        'counterparty_leg_status': counterparty_leg_status,
+    }
+    contract.update(details)
+    return contract
+
+
+def emit_cash_transfer(region, *, kind, contract, inputs=None,
+                       phase='economy', subject=None):
+    """Emit one actor-to-actor cash transfer with both account identities."""
+    from run_trace import emit
+
+    return emit(
+        region, kind=kind, record_class='transfer', phase=phase,
+        subject=subject or {'type': 'tile', 'id': region.name},
+        metric_id='finance.cash_transfer', unit=contract['amount_currency'],
+        after=float(contract['amount']),
+        inputs={**(inputs or {}), 'operation_id': contract['operation_id'],
+                'transfer_contract': contract})
+
+
 def emit_treasury_leg(region, *, kind, nation_name, currency, signed_amount,
                       contract, phase='finance', inputs=None,
                       subject_type='nation'):

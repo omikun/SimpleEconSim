@@ -509,8 +509,8 @@ project, and fiscal-federalism tests passed. Tariff fixtures confirmed the
 80/20 allocation nets to the actual receipts and uses distinct government
 account identities; the levy fixture confirmed donor inventory loss equals
 the government's food-stock gain. Compilation and `git diff --check` passed.
-Other grain purchases, bank recapitalization, occupation/tribute flows,
-inheritance, and household/firm transfers remain open.
+Bank recapitalization, occupation/tribute flows, inheritance, and broader
+household/firm transfers remain open.
 
 Phase 3 follow-up, 2026-10-18: routine government food purchases from local
 markets now record one payer/payee contract per seller, with exact government
@@ -523,5 +523,20 @@ Verification: the food-security, market-auction, and market-route suites passed
 33 tests. The emergency market-purchase fixture confirmed that individual
 treasury legs sum to the government's cash loss, seller receipts match those
 legs, food stocks move by the purchased quantity, and the goods event links to
-the cash event. Compilation and `git diff --check` passed. Egypt scenario
-private grain purchases, requisitions, and holder-to-household sales remain.
+the cash event. Compilation and `git diff --check` passed.
+
+Phase 3 follow-up, 2026-10-18: Egyptian private harvest purchases, warehouse
+sales to households, public purchases from private stores, and unpaid
+requisitions now emit linked cash and goods transfer contracts. Cash and stock
+events share a deterministic operation ID derived from the transaction parties,
+tile, turn, and type, so enabling trace does not change scenario state or IDs.
+Requisitions identify the absent payment, record household stock seizure, and
+link the added district unrest and national legitimacy loss to the requisition.
+Aggregate grain-debrief rows keep their existing totals and list operation IDs.
+
+Verification: nine focused grain/project transfer tests passed. Five scenario
+grain tests checked both sides of private purchases and sales, public treasury
+purchases, unpaid seizure, linked unrest/legitimacy changes, and equal
+simulation outcomes with tracing enabled or disabled. Compilation and
+`git diff --check` passed. Bank recapitalization, occupation/tribute flows,
+inheritance, broader household/firm transfers, and other scenario costs remain.
