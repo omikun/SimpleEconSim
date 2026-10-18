@@ -586,7 +586,8 @@ def _collect_top_tax(t, agents):
                 agent.cash -= cash_taken
                 deposit_taken = min(bank_balance, actual_tax - cash_taken)
                 if deposit_taken > 0:
-                    trade.bank.Withdraw(agent, deposit_taken)
+                    trade.bank.Withdraw(agent, deposit_taken, t=t,
+                                        reason='legacy_income_tax')
                     agent.cash -= deposit_taken
             agent.tax_loss_carryforward = 0.0
             if econsim_states.default_government is not None:

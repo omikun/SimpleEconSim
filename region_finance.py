@@ -301,7 +301,8 @@ def collect_tax(region, t):
         payment = min(amount_due, available)
         if payment > 0:
             if gov.cash < payment:
-                bank.Withdraw(gov, payment - gov.cash)
+                bank.Withdraw(gov, payment - gov.cash, trace_region=region, t=t,
+                              reason='government_debt_service')
             gov.cash -= payment
             loan.pay(payment)
             from economy.actor_accounts import record as record_economic_event
@@ -359,7 +360,8 @@ def collect_tax(region, t):
                         a.cash -= cash_taken
                         deposit_taken = min(bank_balance, actual - cash_taken)
                         if deposit_taken > 0:
-                            bank.Withdraw(a, deposit_taken)
+                            bank.Withdraw(a, deposit_taken, trace_region=region, t=t,
+                                          reason='income_tax_payment')
                             a.cash -= deposit_taken
                         try:
                             from economy.true_cost_ledger import get_true_cost_ledger

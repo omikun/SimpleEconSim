@@ -76,7 +76,8 @@ def evaluate_banking_contagion(nation: Nation, world: dict | None = None, t: int
             if dep > 5.0 and getattr(agent, 'alive', True) and not getattr(agent, 'is_government', False):
                 run_amount = min(dep * 0.20, dep - 5.0)
                 if run_amount > 0:
-                    b.Withdraw(agent, run_amount)
+                    b.Withdraw(agent, run_amount, trace_region=tile, t=t,
+                               reason='panic_bank_run')
                     total_run += run_amount
 
         if total_run > 0:

@@ -125,7 +125,7 @@ def _pick_destination(source, agent):
     return best_foreign or best_same
 
 
-def _withdraw_origin(origin, agent):
+def _withdraw_origin(origin, agent, t=None):
     """Empty the agent's deposit at the ORIGIN bank into hand cash (transfer).
 
     The destination re-registers the agent with its own bank; keeping the
@@ -137,7 +137,8 @@ def _withdraw_origin(origin, agent):
         return
     dep = bank.deposits.get(agent, 0)
     if dep > 0:
-        bank.Withdraw(agent, dep)
+        bank.Withdraw(agent, dep, trace_region=origin, t=t,
+                      reason='migration_deposit_portability')
 
 
 def migrate_one(t, source, agent, destination):
@@ -162,7 +163,7 @@ def migrate_one(t, source, agent, destination):
     # Origin tile's currency is authoritative (the agent physically held
     # cash there) - agent.home_currency may be None for legacy orphans.
     origin_currency = source.home_currency or getattr(agent, 'home_currency', None)
-    _withdraw_origin(source, agent)
+    _withdraw_origin(source, agent, t=t)
     if agent.cash > 0 and origin_currency:
         fx.walletize(agent, origin_currency)
 

@@ -178,6 +178,43 @@ class TestBankingContagion(unittest.TestCase):
         self.assertEqual(bank.deposits[depositor], 195.0)
         self.assertEqual(bank.total_deposits, 195.0)  # Conserved
 
+    def test_frozen_withdrawal_trace_records_cap_and_reason(self):
+        class Recorder:
+            def __init__(self):
+                self.rows = []
+
+            def emit(self, clock, **row):
+                self.rows.append({'turn': clock['turn'], **row})
+
+        tile = self.tile1
+        tile.home_currency = 'USD'
+        tile._collective_trace_clock = {'turn': 7, 'next': 1, 'phase': 'finance'}
+        tile._run_trace = Recorder()
+        bank = tile.bank
+        bank.capital = -100.0
+        bank.is_frozen = True
+        depositor = Agent(1)
+        depositor.cash = 0.0
+        bank.deposits[depositor] = 200.0
+        bank.total_deposits = 200.0
+
+        settled = bank.Withdraw(depositor, 50.0, trace_region=tile, t=7,
+                                reason='panic_bank_run')
+
+        self.assertEqual(settled, 5.0)
+        event = tile.economic_events[-1]
+        self.assertEqual(event['kind'], 'bank_withdrawal')
+        self.assertEqual(event['asset_id'], 'bank:City1')
+        self.assertEqual(event['detail']['requested_amount'], 50.0)
+        self.assertEqual(event['detail']['settled_amount'], 5.0)
+        self.assertEqual(event['detail']['reason'], 'panic_bank_run')
+        trace = tile._run_trace.rows[-1]
+        self.assertEqual(trace['kind'], 'bank_withdrawal_posted')
+        self.assertEqual(trace['inputs']['frozen_withdrawal_cap'], 5.0)
+        self.assertEqual(trace['inputs']['requested_amount'], 50.0)
+        self.assertEqual(trace['inputs']['settled_amount'], 5.0)
+        self.assertEqual(trace['inputs']['reason'], 'panic_bank_run')
+
     def test_bank_recapitalization_bailout_decree(self):
         bank1 = self.tile1.bank
         bank1.capital = -150.0

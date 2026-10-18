@@ -152,8 +152,12 @@ def dispatch_province_food(province, turn):
             if taken == 0:
                 continue
             cost = taken * unit_cost
+            gov_region = next((region for region in province.tiles
+                               if gov.agent in getattr(region, 'agents', ())), source)
             if gov.agent.cash < cost:
-                province.bank.Withdraw(gov.agent, cost - gov.agent.cash)
+                province.bank.Withdraw(
+                    gov.agent, cost - gov.agent.cash, trace_region=gov_region,
+                    t=turn, reason='provincial_food_haulage')
             gov.agent.cash -= cost
             haulers = [a for a in _residents(source) if a.output == Goods.transport]
             if not haulers:
@@ -167,8 +171,6 @@ def dispatch_province_food(province, turn):
                     hauler.cash += payment
                     payments.append((hauler, payment))
                 from economy.actor_accounts import record as record_economic_event
-                gov_region = next((region for region in province.tiles
-                                   if gov.agent in getattr(region, 'agents', ())), source)
                 shipment_detail = {'shipment_id': shipment_id,
                                    'shipment_source': source.name,
                                    'shipment_destination': destination.name,

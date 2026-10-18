@@ -142,8 +142,14 @@ class ActorAccountTests(unittest.TestCase):
         rows = {row['actor_id']: row for row in seal_turn(region, 1)}
         donations = [event for event in region.economic_events
                      if event['kind'] == 'charity_donation']
+        charity_bank_deposit = next(event for event in region.economic_events
+                                    if event['kind'] == 'bank_deposit')
 
         self.assertEqual(sum(event['amount'] for event in donations), 46.0)
+        self.assertEqual(charity_bank_deposit['payer_id'], charity.agent.id)
+        self.assertEqual(charity_bank_deposit['detail']['reason'],
+                         'charity_donation_reserve')
+        self.assertEqual(bank.deposits[charity.agent], 46.0)
         self.assertEqual(rows[firm.id]['cash_change'], -10.0)
         self.assertEqual(rows[firm.id]['posted_cash_change'], -10.0)
         self.assertEqual(rows[firm.id]['unposted_cash_change'], 0.0)
@@ -617,8 +623,10 @@ class ActorAccountTests(unittest.TestCase):
         bank._attached_regions = [region]
         region.bank = bank
         begin_turn(region, 8)
-        bank.Deposit(actor, 10)
-        bank.Withdraw(actor, 4)
+        bank.Deposit(actor, 10, trace_region=region, t=8,
+                     reason='test_cash_sweep')
+        bank.Withdraw(actor, 4, trace_region=region, t=8,
+                      reason='test_market_funding')
         bank.Borrow(8, actor, 100)
         from econsim_trade_money import PayLoans
         PayLoans(actor, bank=bank)
@@ -629,9 +637,18 @@ class ActorAccountTests(unittest.TestCase):
         self.assertAlmostEqual(account['cash_change'], 92.9)
         self.assertAlmostEqual(account['posted_cash_change'], 92.9)
         self.assertEqual(account['closing_bank_deposit'], 4.75)
+        self.assertEqual(account['bank_cash_deposited'], 10.0)
+        self.assertEqual(account['bank_cash_withdrawn'], 4.0)
         self.assertEqual(account['bank_deposit_loss'], 1.25)
         self.assertEqual(account['closing_bank_debt'], 99)
         self.assertAlmostEqual(account['bank_loan_repayment_cash'], 1.1)
+        deposit_event = next(event for event in region.economic_events
+                             if event['kind'] == 'bank_deposit')
+        withdrawal_event = next(event for event in region.economic_events
+                                if event['kind'] == 'bank_withdrawal')
+        self.assertEqual(deposit_event['detail']['reason'], 'test_cash_sweep')
+        self.assertEqual(withdrawal_event['detail']['reason'], 'test_market_funding')
+        self.assertEqual(deposit_event['asset_id'], f'bank:{region.name}')
 
     def test_estate_debt_settlement_records_foreign_payment_and_inherited_principal(self):
         from agent import Agent

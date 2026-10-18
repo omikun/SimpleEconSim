@@ -3070,6 +3070,10 @@
           ? ` · bank debt $${Number(account.opening_bank_debt).toFixed(2)} → $${Number(account.closing_bank_debt).toFixed(2)}` : '';
         const deposits = Number(account.opening_bank_deposit || 0) || Number(account.closing_bank_deposit || 0)
           ? ` · deposits $${Number(account.opening_bank_deposit).toFixed(2)} → $${Number(account.closing_bank_deposit).toFixed(2)}` : '';
+        const bankDepositActivity = Number(account.bank_cash_deposited || 0) > 0
+          || Number(account.bank_cash_withdrawn || 0) > 0
+          ? ` · bank cash moved: $${Number(account.bank_cash_deposited || 0).toFixed(2)} deposited / $${Number(account.bank_cash_withdrawn || 0).toFixed(2)} withdrawn`
+          : '';
         const companyDebt = Number(account.opening_company_debt || 0) || Number(account.closing_company_debt || 0)
           ? ` · company debt $${Number(account.opening_company_debt).toFixed(2)} → $${Number(account.closing_company_debt).toFixed(2)}` : '';
         const companyDebtRelief = debtReliefAmount > 0
@@ -3084,7 +3088,7 @@
           ? ` · cash obligation canceled $${obligationReliefAmount.toFixed(2)}` : '';
         const obligationClaimLoss = obligationClaimLossAmount > 0
           ? ` · creditor claim canceled $${obligationClaimLossAmount.toFixed(2)}` : '';
-        row.textContent = `${account.actor_name}: ${earned}${delivered} · cash $${Number(account.opening_cash).toFixed(2)} → $${Number(account.closing_cash).toFixed(2)}${scrip} · food ${account.opening_food} → ${account.closing_food} · debt $${Number(account.opening_debt).toFixed(2)} → $${Number(account.closing_debt).toFixed(2)}${companyDebt}${companyDebtRelief}${companyCreditLoss}${taxArrearsRelief}${taxClaimLoss}${obligationRelief}${obligationClaimLoss}${bankDebt}${deposits}${unposted}. Recorded costs may be incomplete.`;
+        row.textContent = `${account.actor_name}: ${earned}${delivered} · cash $${Number(account.opening_cash).toFixed(2)} → $${Number(account.closing_cash).toFixed(2)}${scrip} · food ${account.opening_food} → ${account.closing_food} · debt $${Number(account.opening_debt).toFixed(2)} → $${Number(account.closing_debt).toFixed(2)}${companyDebt}${companyDebtRelief}${companyCreditLoss}${taxArrearsRelief}${taxClaimLoss}${obligationRelief}${obligationClaimLoss}${bankDebt}${deposits}${bankDepositActivity}${unposted}. Recorded costs may be incomplete.`;
         supplyDetails.appendChild(row);
       }
 

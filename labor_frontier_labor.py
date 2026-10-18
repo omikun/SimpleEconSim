@@ -204,7 +204,9 @@ def _advance_restriction(world, nation_name, turn):
     # A patrol should not lapse while its public account can pay for it.
     if border.gov.agent.cash < PATROL_COST:
         border.bank.Withdraw(border.gov.agent,
-                             PATROL_COST - border.gov.agent.cash)
+                             PATROL_COST - border.gov.agent.cash,
+                             trace_region=border, t=turn,
+                             reason='commons_patrol_payroll')
     officer = _choose_officer(border, record) if border.gov.agent.cash >= PATROL_COST else None
     if officer is None:
         _restore_rights(border, record, legal=False)

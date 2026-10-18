@@ -203,7 +203,8 @@ class BuildIntent(Intent):
                         dep = bank.deposits[g.agent]
                         take_dep = min(remaining_needed, dep)
                         if take_dep > 0:
-                            bank.Withdraw(g.agent, take_dep)
+                            bank.Withdraw(g.agent, take_dep, trace_region=b_tile, t=t,
+                                          reason='public_project_funding')
                             g.agent.cash -= take_dep
                             remaining_needed -= take_dep
                             funding_sources.append((g.agent, take_dep))
@@ -744,7 +745,8 @@ def execute_fiscal_transfer_and_build(world, nation_name: str, region_name: str,
                     dep = bank.deposits[ogov.agent]
                     take_dep = min(transfer_amount - gathered, dep)
                     if take_dep > 0:
-                        bank.Withdraw(ogov.agent, take_dep)
+                        bank.Withdraw(ogov.agent, take_dep, trace_region=ot, t=t,
+                                      reason='provincial_budget_transfer')
                         ogov.agent.cash -= take_dep
                         rgov.agent.cash += take_dep
                         gathered += take_dep

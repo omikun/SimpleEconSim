@@ -134,7 +134,9 @@ def handle_reproduction(ctx, t, agent, agents, new_agents):
             cash = min(agent.cash, max(int(wealth_val ** 0.72), 1))
         if cash > agent.cash:
             need = cash - agent.cash
-            ctx.bank.Withdraw(agent, min(need, ctx.bank.deposits.get(agent, 0)))
+            ctx.bank.Withdraw(
+                agent, min(need, ctx.bank.deposits.get(agent, 0)),
+                trace_region=reg, t=t, reason='birth_endowment_funding')
         agent.cash -= cash
         initialize_agent(new_agent, output, number_input, food_to_give, cash)
         if cash > 0 and reg is not None:

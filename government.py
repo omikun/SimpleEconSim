@@ -612,7 +612,8 @@ class Government:
     #  Food Purchasing (called by region._trade, like charity)
     # ==================================================================
 
-    def bid_food(self, food_price, current_desired, bank):
+    def bid_food(self, food_price, current_desired, bank, *,
+                 trace_region=None, t=None):
         """Return the quantity of food this government wants to buy this turn.
 
         Gov tries to maintain target_food_reserve as a buffer. Withdraws
@@ -643,7 +644,8 @@ class Government:
             from_bank = min(needed_cash - self.agent.cash,
                             bank.deposits.get(self.agent, 0))
             if from_bank > 0:
-                bank.Withdraw(self.agent, from_bank)
+                bank.Withdraw(self.agent, from_bank, trace_region=trace_region,
+                              t=t, reason='government_food_purchase')
 
         return potential_bid
 
@@ -655,10 +657,12 @@ class Government:
         """Deduct cash for food purchased."""
         self.agent.cash -= cost
 
-    def deposit_remaining(self, bank):
+    def deposit_remaining(self, bank, *, trace_region=None, t=None):
         """Deposit leftover hand cash back into bank."""
         if self.agent.cash > 0:
-            bank.Deposit(self.agent, self.agent.cash)
+            bank.Deposit(self.agent, self.agent.cash,
+                         trace_region=trace_region, t=t,
+                         reason='government_post_market_cash_sweep')
 
     # ==================================================================
     #  Food Aid (post-lifecycle, uses inventory + scales by funds)

@@ -1161,6 +1161,15 @@ def draw_panel(surface, world, font, font_small, mouse_pos=None):
                 True, (150, 210, 220))
             surface.blit(account_line, (PANEL_LEFT, y_cursor))
             y_cursor += 16
+            cash_deposited = float(firm_account.get('bank_cash_deposited', 0.0))
+            cash_withdrawn = float(firm_account.get('bank_cash_withdrawn', 0.0))
+            if cash_deposited > 0 or cash_withdrawn > 0:
+                bank_activity = font_small.render(
+                    f"Bank cash moved: ${cash_deposited:.1f} deposited / "
+                    f"${cash_withdrawn:.1f} withdrawn",
+                    True, (170, 195, 205))
+                surface.blit(bank_activity, (PANEL_LEFT, y_cursor))
+                y_cursor += 16
             imported_lots = firm_account.get('delivered_input_lots', [])
             def weighted_lot_average(key):
                 rows = [lot for lot in imported_lots

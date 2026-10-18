@@ -225,6 +225,12 @@ def seal_turn(region, turn, event_regions=None):
                     foreign_wallet_escheated.get(currency, 0.0) + event['amount'])
         bank_deposit_loss = sum(e['amount'] for e in own if e['payer_id'] == actor.id
                                 and e['kind'] == 'bank_deposit_haircut')
+        bank_cash_deposited = sum(e['amount'] for e in cash_own
+                                  if e['payer_id'] == actor.id
+                                  and e['kind'] == 'bank_deposit')
+        bank_cash_withdrawn = sum(e['amount'] for e in cash_own
+                                  if e['recipient_id'] == actor.id
+                                  and e['kind'] == 'bank_withdrawal')
         for_lease = [p.plot_id for p in getattr(getattr(region, 'tenure', None), 'plots', [])
                      if getattr(p, 'controlled_by_id', None) == actor.id]
         debt = sum(float(c.balance) for c in getattr(region, 'cash_obligations', [])
@@ -282,6 +288,8 @@ def seal_turn(region, turn, event_regions=None):
             'opening_debt': round(prior['debt'], 2), 'closing_debt': round(debt, 2),
             'opening_bank_deposit': round(prior['bank_deposit'], 2),
             'closing_bank_deposit': round(bank_deposit, 2),
+            'bank_cash_deposited': round(bank_cash_deposited, 2),
+            'bank_cash_withdrawn': round(bank_cash_withdrawn, 2),
             'opening_bank_debt': round(prior['bank_debt'], 2),
             'closing_bank_debt': round(bank_debt, 2),
             'opening_company_debt': round(prior['company_debt'], 2),

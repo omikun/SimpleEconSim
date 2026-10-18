@@ -298,8 +298,12 @@ def _foreclose(world, tile, cultivator, row):
                     cultivator.is_striking = False
                 deposit = float(tile.bank.deposits.get(cultivator, 0.0))
                 if deposit > 0:
-                    tile.bank.Withdraw(cultivator, deposit)
-                    target.bank.Deposit(cultivator, deposit)
+                    tile.bank.Withdraw(
+                        cultivator, deposit, trace_region=tile, t=turn,
+                        reason='scenario_migration_deposit_withdrawal')
+                    target.bank.Deposit(
+                        cultivator, deposit, trace_region=target, t=turn,
+                        reason='scenario_migration_deposit_redeposit')
                 tile.agents.remove(cultivator)
                 target.agents.append(cultivator)
                 cultivator.region = target.name

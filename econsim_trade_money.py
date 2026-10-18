@@ -109,15 +109,58 @@ class Bank():
                      if any(a is agent for a in getattr(r, 'agents', []))), None)
 
     def _record_account_event(self, agent, kind, amount, *, payer=False,
-                              recipient=False, detail=None, region=None):
+                              recipient=False, detail=None, region=None,
+                              turn=None):
         region = region or self._region_for_account(agent)
         if region is None or amount <= 0:
-            return
+            return None
         from economy.actor_accounts import record
-        turn = getattr(region, '_last_turn', getattr(region, '_economic_opening_turn', 0))
-        record(region, kind, turn=turn, payer_id=agent.id if payer else None,
+        event_turn = (turn if turn is not None else
+                      getattr(region, '_last_turn',
+                              getattr(region, '_economic_opening_turn', 0)))
+        return record(region, kind, turn=event_turn, payer_id=agent.id if payer else None,
                recipient_id=agent.id if recipient else None, amount=amount,
+               asset_id=f"bank:{region.name}",
+               currency=getattr(region, 'home_currency', None),
                detail=detail or {})
+
+    def _trace_cash_savings(self, region, kind, agent, amount, requested,
+                            cash_before, cash_after, deposit_before,
+                            deposit_after, total_before, total_after,
+                            *, turn=None, reason='unspecified', blocked=False,
+                            frozen_cap=None):
+        if region is None:
+            return
+        from run_trace import emit
+        is_deposit = kind == 'bank_deposit'
+        trace_kind = ('bank_deposit_posted' if is_deposit else
+                      'bank_withdrawal_blocked' if blocked else
+                      'bank_withdrawal_posted')
+        emit(region, kind=trace_kind,
+             record_class='transfer' if amount > 0 else 'outcome',
+             phase='finance',
+             subject={'type': 'bank_account', 'id': str(agent.id),
+                      'tile': region.name},
+             metric_id='finance.bank_deposit' if is_deposit else 'finance.bank_withdrawal',
+             unit=getattr(region, 'home_currency', None) or 'local_currency',
+             before=deposit_before, after=deposit_after,
+             formula_id='bank.cash_to_deposit.v1' if is_deposit else
+                        'bank.deposit_to_cash.v1',
+             inputs={'agent_id': agent.id,
+                     'institution_id': f'bank:{region.name}',
+                     'requested_amount': float(requested),
+                     'settled_amount': float(amount),
+                     'reason': reason,
+                     'cash_before': float(cash_before),
+                     'cash_after': float(cash_after),
+                     'deposit_before': float(deposit_before),
+                     'deposit_after': float(deposit_after),
+                     'bank_deposits_before': float(total_before),
+                     'bank_deposits_after': float(total_after),
+                     'turn': int(turn) if turn is not None else None,
+                     'bank_frozen': bool(getattr(self, 'is_frozen', False)),
+                     'frozen_withdrawal_cap': frozen_cap,
+                     'blocked': bool(blocked)})
 
     @property
     def equity(self):
@@ -194,22 +237,80 @@ class Bank():
         self.capital += amount
         self.total_interest_earned += amount
 
-    def Deposit(self, agent, amount):
-        assert (agent.cash >= amount)
-        agent.cash -= amount
-        self.total_deposits += amount
-        self.deposits[agent] += amount
-        self._record_account_event(agent, 'bank_deposit', float(amount), payer=True)
+    def Deposit(self, agent, amount, *, trace_region=None, t=None,
+                reason='unspecified'):
+        requested = float(amount)
+        if requested <= 0:
+            return 0.0
+        assert agent.cash >= requested
+        region = trace_region or self._region_for_account(agent)
+        cash_before = float(agent.cash)
+        deposit_before = float(self.deposits[agent])
+        total_before = float(self.total_deposits)
+        agent.cash -= requested
+        self.total_deposits += requested
+        self.deposits[agent] += requested
+        cash_after = float(agent.cash)
+        deposit_after = float(self.deposits[agent])
+        total_after = float(self.total_deposits)
+        detail = {'requested_amount': requested, 'settled_amount': requested,
+                  'reason': reason, 'cash_before': cash_before,
+                  'cash_after': cash_after, 'deposit_before': deposit_before,
+                  'deposit_after': deposit_after,
+                  'bank_deposits_before': total_before,
+                  'bank_deposits_after': total_after}
+        self._record_account_event(agent, 'bank_deposit', requested, payer=True,
+                                   detail=detail, region=region, turn=t)
+        self._trace_cash_savings(region, 'bank_deposit', agent, requested,
+                                 requested, cash_before, cash_after,
+                                 deposit_before, deposit_after,
+                                 total_before, total_after, turn=t, reason=reason)
+        return requested
 
-    def Withdraw(self, agent, amount):
-        limit = self.deposits[agent]
+    def Withdraw(self, agent, amount, *, trace_region=None, t=None,
+                 reason='unspecified'):
+        requested = max(0.0, float(amount))
+        region = trace_region or self._region_for_account(agent)
+        cash_before = float(agent.cash)
+        deposit_before = float(self.deposits[agent])
+        total_before = float(self.total_deposits)
+        limit = deposit_before
+        frozen_cap = None
         if getattr(self, 'is_frozen', False):
-            limit = min(limit, getattr(self, 'subsistence_withdrawal_cap', 5.0))
-        amount = clamp(amount, 0, limit)
-        agent.cash += amount
-        self.total_deposits -= amount
-        self.deposits[agent] -= amount
-        self._record_account_event(agent, 'bank_withdrawal', float(amount), recipient=True)
+            frozen_cap = float(getattr(self, 'subsistence_withdrawal_cap', 5.0))
+            limit = min(limit, frozen_cap)
+        settled = float(clamp(requested, 0.0, limit))
+        if settled <= 0:
+            if requested > 0:
+                self._trace_cash_savings(
+                    region, 'bank_withdrawal', agent, 0.0, requested,
+                    cash_before, cash_before, deposit_before, deposit_before,
+                    total_before, total_before, turn=t, reason=reason,
+                    blocked=True, frozen_cap=frozen_cap)
+            return 0.0
+        agent.cash += settled
+        self.total_deposits -= settled
+        self.deposits[agent] -= settled
+        cash_after = float(agent.cash)
+        deposit_after = float(self.deposits[agent])
+        total_after = float(self.total_deposits)
+        detail = {'requested_amount': requested, 'settled_amount': settled,
+                  'reason': reason, 'cash_before': cash_before,
+                  'cash_after': cash_after, 'deposit_before': deposit_before,
+                  'deposit_after': deposit_after,
+                  'bank_deposits_before': total_before,
+                  'bank_deposits_after': total_after,
+                  'bank_frozen': bool(getattr(self, 'is_frozen', False)),
+                  'frozen_withdrawal_cap': frozen_cap}
+        self._record_account_event(agent, 'bank_withdrawal', settled,
+                                   recipient=True, detail=detail,
+                                   region=region, turn=t)
+        self._trace_cash_savings(region, 'bank_withdrawal', agent, settled,
+                                 requested, cash_before, cash_after,
+                                 deposit_before, deposit_after,
+                                 total_before, total_after, turn=t, reason=reason,
+                                 frozen_cap=frozen_cap)
+        return settled
 
     def write_down_bonds(self, loss_amount: float, trace_region=None, *,
                          bond_id=None, issuer_nation=None, default_kind='sovereign_default',
@@ -404,7 +505,7 @@ def borrow_if_needed(t, agent, bank=None, trace_region=None):
         Borrow(t, agent, needed * 2, bank, trace_region=trace_region)
 
 
-def PayLoans(agent, bank=None, trace_region=None):
+def PayLoans(agent, bank=None, trace_region=None, t=None):
     if bank is None:
         bank = globals().get('bank', None)
         if bank is None:
@@ -430,14 +531,16 @@ def PayLoans(agent, bank=None, trace_region=None):
     if total_paid > 0:
         if total_paid > agent.cash:
             needed_from_bank = total_paid - agent.cash
-            bank.Withdraw(agent, needed_from_bank)
+            bank.Withdraw(agent, needed_from_bank, trace_region=trace_region,
+                          t=t, reason='bank_loan_repayment')
         agent.cash -= total_paid
         bank._record_account_event(agent, 'bank_loan_repayment', float(total_paid),
                                    payer=True, detail={
                                        'principal_repaid': sum(loan.principle_paid for loan in active_loans)
                                        - principal_before,
                                        'interest_paid': sum(loan.interest_paid for loan in active_loans)
-                                       - interest_before}, region=trace_region)
+                                       - interest_before}, region=trace_region,
+                                   turn=t)
     agent.loans = [l for l in agent.loans if not l.isPaid()]
     if total_paid > 0 and trace_region is not None:
         from run_trace import emit
@@ -554,7 +657,7 @@ def gather_bids_asks(t, agents, good, good_price, number_desired, recipes,
     for agent in agents:
         agent_rec = recipes[agent.output]
         is_employee = getattr(agent, 'employer', None) is not None
-        _withdraw_if_low_cash(agent, good_price, number_desired, bank)
+        _withdraw_if_low_cash(agent, good_price, number_desired, bank, t=t)
         mult = getattr(agent, 'consumption_multiplier', 1.0)
         bid = _compute_bid(agent, good, good_price, number_desired, agent_rec,
                            is_employee, mult, recipes)
@@ -571,14 +674,15 @@ def gather_bids_asks(t, agents, good, good_price, number_desired, recipes,
     return total_asks, total_bids
 
 
-def _withdraw_if_low_cash(agent, good_price, number_desired, bank):
+def _withdraw_if_low_cash(agent, good_price, number_desired, bank, t=None):
     """Withdraw from bank deposits if cash is low for purchasing."""
     bank_balance = bank.deposits.get(agent, 0)
     if bank_balance > 0:
         desired_cash = good_price * number_desired
         if agent.remainingCash < desired_cash:
             needed = desired_cash - agent.remainingCash
-            bank.Withdraw(agent, min(bank_balance, needed))
+            bank.Withdraw(agent, min(bank_balance, needed), t=t,
+                          reason='market_bid')
 
 
 def _compute_bid(agent, good, good_price, number_desired, agent_rec, is_employee,
@@ -755,7 +859,7 @@ def decide_borrow_deposit(agents, all_goods_price, bank, food_price,
                           previous_total_cash, t):
     for agent in agents:
         borrow_if_needed(t, agent, bank=bank)
-        PayLoans(agent, bank=bank)
+        PayLoans(agent, bank=bank, t=t)
         _maybe_borrow_food_money(t, agent, food_price, bank)
         _maybe_borrow_inputs(t, agent, bank)
         _deposit_excess_cash(t, agent, all_goods_price, bank)
@@ -772,7 +876,8 @@ def _maybe_borrow_food_money(t, agent, food_price, bank):
         bank_balance = bank.deposits.get(agent, 0)
         if bank_balance > 0:
             needed = food_price - agent.cash
-            bank.Withdraw(agent, min(bank_balance, needed))
+            bank.Withdraw(agent, min(bank_balance, needed), t=t,
+                          reason='food_purchase_liquidity')
         if agent.cash < food_price:
             Borrow(t, agent, food_price, bank)
 
@@ -792,7 +897,8 @@ def _maybe_borrow_inputs(t, agent, bank):
     bank_balance = bank.deposits.get(agent, 0)
     if bank_balance > 0:
         amount_needed = cost - agent.cash
-        bank.Withdraw(agent, min(bank_balance, amount_needed))
+        bank.Withdraw(agent, min(bank_balance, amount_needed), t=t,
+                      reason='production_input_liquidity')
     if agent.cash < cost:
         amount_needed = cost - agent.cash
         bank.Borrow(t, agent, amount_needed)
@@ -809,7 +915,7 @@ def _deposit_excess_cash(t, agent, all_goods_price, bank):
     excess_deposit_capacity = max(0, max_deposits - current_deposits)
     if agent.cash > cash_floor and excess_deposit_capacity > 0:
         amount = min(agent.cash - cash_floor, excess_deposit_capacity)
-        bank.Deposit(agent, amount)
+        bank.Deposit(agent, amount, t=t, reason='excess_cash_sweep')
 
 
 # =============================================================================

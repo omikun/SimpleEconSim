@@ -62,19 +62,22 @@ class Charity:
         deposit = bank.deposits.get(self.agent, 0) if bank else 0
         return self.agent.cash + deposit
 
-    def deposit_all(self, bank):
+    def deposit_all(self, bank, *, trace_region=None, t=None):
         """Move all hand cash into bank deposits."""
         if self.agent.cash > 0:
-            bank.Deposit(self.agent, self.agent.cash)
+            bank.Deposit(self.agent, self.agent.cash, trace_region=trace_region,
+                         t=t, reason='charity_cash_sweep')
 
-    def withdraw_for_purchase(self, bank, needed):
+    def withdraw_for_purchase(self, bank, needed, *, trace_region=None, t=None):
         """Ensure agent has at least *needed* cash for a purchase."""
         if self.agent.cash >= needed:
             return
         shortfall = needed - self.agent.cash
         available = bank.deposits.get(self.agent, 0)
         if available > 0:
-            bank.Withdraw(self.agent, min(available, shortfall))
+            bank.Withdraw(self.agent, min(available, shortfall),
+                          trace_region=trace_region, t=t,
+                          reason='charity_food_purchase')
 
     # ------------------------------------------------------------------
     # Donations
@@ -105,7 +108,8 @@ class Charity:
 
         total_donated = 0.0
 
-        regions = tuple(regions or ())
+        regions = tuple(regions or getattr(bank, '_attached_regions', ()) or ())
+        institution_region = regions[0] if regions else None
 
         def post_donation(donor, donation, source):
             # A Province charity can collect from donors in several tiles. Put
@@ -158,8 +162,11 @@ class Charity:
             donate_pct = self.wealthy_donate_emergency_pct if low_cash else self.wealthy_donate_normal_pct
             donation = min(excess * donate_pct, agent.cash + bank.deposits.get(agent, 0))
             from_bank = min(donation, max(0, donation - agent.cash), bank.deposits.get(agent, 0))
+            donor_region = next((region for region in regions
+                                 if agent in getattr(region, 'agents', ())), None)
             if from_bank > 0:
-                bank.Withdraw(agent, from_bank)
+                bank.Withdraw(agent, from_bank, trace_region=donor_region, t=t,
+                              reason='charity_donation')
             agent.cash -= donation
             self.agent.cash += donation
             total_donated += donation
@@ -171,7 +178,9 @@ class Charity:
 
         # Deposit all collected cash
         if self.agent.cash > 0:
-            bank.Deposit(self.agent, self.agent.cash)
+            bank.Deposit(self.agent, self.agent.cash,
+                         trace_region=institution_region, t=t,
+                         reason='charity_donation_reserve')
 
         self.log["donations_collected"] += total_donated
         if total_donated > 0 and t % 50 == 0:
@@ -183,7 +192,8 @@ class Charity:
     # Food bidding & purchase (called by region._trade)
     # ------------------------------------------------------------------
 
-    def bid_food(self, food_price, current_desired, bank):
+    def bid_food(self, food_price, current_desired, bank, *,
+                 trace_region=None, t=None):
         """Return the quantity of food this charity wants to buy this turn.
 
         Withdraws enough cash from the bank to cover the bid if needed.
@@ -207,7 +217,7 @@ class Charity:
 
         # Withdraw enough to cover the bid
         needed = potential_bid * food_price
-        self.withdraw_for_purchase(bank, needed)
+        self.withdraw_for_purchase(bank, needed, trace_region=trace_region, t=t)
 
         return potential_bid
 
@@ -224,10 +234,12 @@ class Charity:
     # Post-trade deposit
     # ------------------------------------------------------------------
 
-    def deposit_remaining(self, bank):
+    def deposit_remaining(self, bank, *, trace_region=None, t=None):
         """Deposit any leftover hand cash back into the bank."""
         if self.agent.cash > 0:
-            bank.Deposit(self.agent, self.agent.cash)
+            bank.Deposit(self.agent, self.agent.cash,
+                         trace_region=trace_region, t=t,
+                         reason='charity_post_market_cash_sweep')
 
     # ------------------------------------------------------------------
     # Food distribution

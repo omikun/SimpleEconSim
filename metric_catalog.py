@@ -90,6 +90,8 @@ METRICS = {
     'finance.foreign_wallet_escheat': ('tile/agent', 'currency', 'demographics_estate.handle_wealth_inheritance'),
     'finance.bank_recapitalization': ('tile', 'local_currency', 'demographics_estate.recapitalize'),
     'finance.bank_deposit_interest': ('tile', 'local_currency', 'econsim_trade_money.Bank.PayDepositInterest'),
+    'finance.bank_deposit': ('tile/bank/agent', 'local_currency', 'econsim_trade_money.Bank.Deposit'),
+    'finance.bank_withdrawal': ('tile/bank/agent', 'local_currency', 'econsim_trade_money.Bank.Withdraw'),
     'ecology.soil_fertility': ('tile', 'ratio', 'externalities.step_tile_externalities'),
     'ecology.nutrition_density': ('tile', 'ratio', 'externalities.step_tile_externalities'),
     'ecology.pollution_air': ('tile', 'index', 'externalities.step_tile_externalities'),

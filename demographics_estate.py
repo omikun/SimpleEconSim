@@ -324,7 +324,8 @@ def handle_debt_inheritance(ctx, t, agent, living_descendants):
     if total_paid > 0:
         if total_paid > agent.cash:
             needed_from_bank = total_paid - agent.cash
-            ctx.bank.Withdraw(agent, needed_from_bank)
+            ctx.bank.Withdraw(agent, needed_from_bank, trace_region=region, t=t,
+                              reason='estate_bank_debt_service')
         agent.cash -= total_paid
         bank_currency = loan_bank_currency(next(
             (loan for loan in agent.loans if getattr(loan, 'bank', None) is ctx.bank), None))
@@ -428,7 +429,10 @@ def handle_wealth_inheritance(ctx, t, agent, living_descendants):
     government = ctx.default_gov
     if len(living_descendants) > 0:
         if inheritance_deposits > 0:
-            ctx.bank.Withdraw(agent, inheritance_deposits)
+            ctx.bank.Withdraw(
+                agent, inheritance_deposits,
+                trace_region=getattr(ctx, 'source_region', None), t=t,
+                reason='estate_deposit_distribution')
             inheritance_cash += inheritance_deposits
         num_heirs = len(living_descendants)
         cash_share = int(inheritance_cash // num_heirs)

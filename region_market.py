@@ -8,7 +8,7 @@ import forex as _fx
 from region_logistics import all_routes, transport_cost_per_unit
 
 
-def borrow_food(region, agent, food_price):
+def borrow_food(region, agent, food_price, t=None):
     from nutrition import food_credit_pressure
     from random_cache import rand
     pressure = food_credit_pressure(agent)
@@ -16,12 +16,14 @@ def borrow_food(region, agent, food_price):
        and pressure > 0 and rand.random() < pressure:
         bank_balance = region.bank.deposits.get(agent, 0)
         if bank_balance > 0:
-            region.bank.Withdraw(agent, min(bank_balance, food_price - agent.cash))
+            region.bank.Withdraw(
+                agent, min(bank_balance, food_price - agent.cash),
+                trace_region=region, t=t, reason='food_purchase_liquidity')
         if agent.cash < food_price:
             region.bank.Borrow(0, agent, food_price, trace_region=region)
 
 
-def borrow_inputs(region, agent):
+def borrow_inputs(region, agent, t=None):
     r = region.recipes.get(agent.output)
     if not r or r.get('numInput', 0) <= 0:
         return
@@ -30,12 +32,14 @@ def borrow_inputs(region, agent):
         return
     bank_balance = region.bank.deposits.get(agent, 0)
     if bank_balance > 0:
-        region.bank.Withdraw(agent, min(bank_balance, cost - agent.cash))
+        region.bank.Withdraw(
+            agent, min(bank_balance, cost - agent.cash),
+            trace_region=region, t=t, reason='production_input_liquidity')
     if agent.cash < cost:
         region.bank.Borrow(0, agent, cost - agent.cash, trace_region=region)
 
 
-def deposit_excess(region, agent, all_goods_price):
+def deposit_excess(region, agent, all_goods_price, t=None):
     mult = agent.consumption_multiplier
     total_liquid = agent.cash + region.bank.deposits.get(agent, 0)
     current_deposits = region.bank.deposits.get(agent, 0)
@@ -48,7 +52,9 @@ def deposit_excess(region, agent, all_goods_price):
     max_deposits = max(0.0, total_liquid - cash_floor) * deposit_fraction
     excess = max(0, max_deposits - current_deposits)
     if agent.cash > cash_floor and excess > 0:
-        region.bank.Deposit(agent, min(agent.cash - cash_floor, excess))
+        region.bank.Deposit(
+            agent, min(agent.cash - cash_floor, excess),
+            trace_region=region, t=t, reason='excess_cash_sweep')
 
 
 def decide_borrow_deposit(region, agents, all_goods_price, food_price, t):
@@ -56,10 +62,10 @@ def decide_borrow_deposit(region, agents, all_goods_price, food_price, t):
         if getattr(a, 'military_unit_id', None):
             continue
         _tm.borrow_if_needed(t, a, bank=region.bank, trace_region=region)
-        _tm.PayLoans(a, bank=region.bank, trace_region=region)
-        borrow_food(region, a, food_price)
-        borrow_inputs(region, a)
-        deposit_excess(region, a, all_goods_price)
+        _tm.PayLoans(a, bank=region.bank, trace_region=region, t=t)
+        borrow_food(region, a, food_price, t=t)
+        borrow_inputs(region, a, t=t)
+        deposit_excess(region, a, all_goods_price, t=t)
         if a.is_trader:
             trader_reserve = region.cost_of_living * 5
             total_liquid = a.cash + region.bank.deposits.get(a, 0)
@@ -84,10 +90,12 @@ def decide_borrow_deposit(region, agents, all_goods_price, food_price, t):
         a.remainingCash = a.cash
 
 
-def withdraw_if_needed(region, agent, good_price, current_desired):
+def withdraw_if_needed(region, agent, good_price, current_desired, t=None):
     bank_balance = region.bank.deposits.get(agent, 0)
     if bank_balance > 0 and agent.remainingCash < good_price * current_desired:
-        region.bank.Withdraw(agent, min(bank_balance, good_price * current_desired - agent.remainingCash))
+        region.bank.Withdraw(
+            agent, min(bank_balance, good_price * current_desired - agent.remainingCash),
+            trace_region=region, t=t, reason='fund_market_bid')
 
 
 def input_good(region, agent):
@@ -1113,7 +1121,7 @@ def trade(region, t):
         for g in goods_goods:
             p = prices[g]
             d = desires[g]
-            withdraw_if_needed(region, a, p, d)
+            withdraw_if_needed(region, a, p, d, t=t)
             bid = calculate_bid(region, a, g, p, d, ar, is_emp, mult)
             a.bid = bid
             a.remainingCash -= bid * p
@@ -1273,7 +1281,8 @@ def trade(region, t):
 
         # Charity food purchase
         if good == Goods.food:
-            charity_bid = region.charity.bid_food(price, desires[good], region.bank)
+            charity_bid = region.charity.bid_food(
+                price, desires[good], region.bank, trace_region=region, t=t)
             if charity_bid > 0:
                 food_askers = [a for a in askers if a.output == Goods.food
                                and a.inv_get(Goods.food, 0) > food_reserve_units(a)]
@@ -1306,7 +1315,7 @@ def trade(region, t):
                     total_sold += charity_bought
                     region.sold_log[good][-1] += charity_bought
                     loginfo(t, f"{region.charity.name} bought {charity_bought} food at ${price:.2f}")
-            region.charity.deposit_remaining(region.bank)
+            region.charity.deposit_remaining(region.bank, trace_region=region, t=t)
 
             # Government food purchase
             if hasattr(region, 'gov'):
@@ -1316,7 +1325,8 @@ def trade(region, t):
                         max(0, appetite_units(a) - a.inv_get(Goods.food, 0))
                         for a in agents if a.alive and not a.is_corporation
                         and not a.is_government and not getattr(a, 'military_unit_id', None))
-                gov_bid = region.gov.bid_food(price, desires[good], region.bank)
+                gov_bid = region.gov.bid_food(
+                    price, desires[good], region.bank, trace_region=region, t=t)
                 if gov_bid > 0:
                     if region.gov.emergency_food_policy:
                         gov_askers = sorted(
@@ -1372,7 +1382,7 @@ def trade(region, t):
                                          'unit_price': price})
                         loginfo(t, f"Government({region.gov.name}) bought "
                                 f"{gov_bought} food at ${price:.2f}")
-                region.gov.deposit_remaining(region.bank)
+                region.gov.deposit_remaining(region.bank, trace_region=region, t=t)
         emit(region, kind='market_total_units_sold', record_class='calculation',
              subject={'type': 'tile', 'id': region.name, 'good': good.name},
              metric_id='goods.sold', unit='units', after=region.sold_log[good][-1],

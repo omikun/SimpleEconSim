@@ -44,7 +44,7 @@ class MilitaryUnit:
         return self.soldiers * max(0.1, self.morale) * max(0.5, self.equipment_quality) * (1.0 + 0.5 * self.veteran_xp)
 
     def pay_and_feed(self, gov, bank, t: int = 0, people_by_id=None,
-                     supply_access=True) -> tuple[float, int, bool, int]:
+                     supply_access=True, trace_region=None) -> tuple[float, int, bool, int]:
         """Upkeep step: withdraws wages and consumes food rations.
 
         Returns (wages_paid, food_consumed, fully_supplied).
@@ -72,7 +72,9 @@ class MilitaryUnit:
             # Try withdrawing from bank
             if bank is not None:
                 needed = total_wage - gov.agent.cash
-                bank.Withdraw(gov.agent, min(needed, bank.deposits.get(gov.agent, 0.0)))
+                bank.Withdraw(
+                    gov.agent, min(needed, bank.deposits.get(gov.agent, 0.0)),
+                    trace_region=trace_region, t=t, reason='military_payroll')
             
             payout = min(gov.agent.cash, total_wage)
             gov.agent.cash -= payout
@@ -351,7 +353,8 @@ def step_armies(tiles: list, nations: list, t: int = 0) -> list[dict]:
             if unit.scenario_personnel and supply_access:
                 _procure_rations(n, unit, region)
             wages, food, supplied, deserters = unit.pay_and_feed(
-                gov, bank, t, people_by_id=people_by_id, supply_access=supply_access)
+                gov, bank, t, people_by_id=people_by_id, supply_access=supply_access,
+                trace_region=region)
             if region is not None and wages > 0:
                 from run_trace import emit
                 emit(region, kind='army_payroll', record_class='transfer',

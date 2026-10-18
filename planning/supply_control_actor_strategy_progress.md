@@ -95,11 +95,17 @@ already fun or balanced; that still needs player feedback.
   fallback used for pricing; if its acquisition cost is unknown, it remains
   explicitly estimated or unlinked instead of being presented as a settled
   purchase cost.
-- Remaining gate work: extend coverage to other non-estate credit losses and
-  non-probate currency legs, including the remaining bank deposit/withdrawal
-  adapters. Scenario-seeded or legacy cargo can still lack a settled source
-  cost. The tested default runs close the actor cash bridge, but they do not
-  prove complete balance-sheet or operating-profit coverage.
+- Bank deposits and withdrawals now carry a named institution, depositor,
+  reason, requested and settled amounts, cash and savings balances before and
+  after, and bank-wide deposit totals. Frozen withdrawals show the cap and any
+  blocked amount. Actor accounts and both clients report per-turn deposits and
+  withdrawals separately from the closing savings balance. Explicit tile
+  context now captures internal charity operations that were previously
+  omitted because the charity agent is not a resident.
+- Remaining gate work: audit other non-estate credit losses and non-probate
+  currency legs. Scenario-seeded or legacy cargo can still lack a settled
+  source cost. The tested default runs close the actor cash bridge, but they do
+  not prove complete balance-sheet or operating-profit coverage.
 
 ## Phase 2 — grower and title-holder agency: implemented, deeper law/remedy work out of scope
 
@@ -186,6 +192,14 @@ already fun or balanced; that still needs player feedback.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_supply_control_actor_strategy test_supply_rights test_market_auction test_market_routes test_web_client_parity test_truck_system_and_scrip test_run_trace test_trace_codec test_banking_contagion` — 120 tests passed.
 - `node --check web_client/client.js`, targeted Python compilation, and `git diff --check` — passed.
 - `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python benchmark_supply_default.py 50 4242` — default three-nation 50-turn run completed with zero currency violations, zero unmatched actor cash on turn 50, and zero unmatched actor-turn cash across the run.
+- Bank deposit and withdrawal journal events now link to the bank institution
+  and carry caller reason, requested/settled amount, and before/after cash and
+  savings balances. The compact trace shows frozen-withdrawal caps. Actor
+  statements include total deposits and withdrawals; charity's internal bank
+  operations now have an explicit region and are journaled too.
+- `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python -m unittest test_supply_control_actor_strategy test_supply_rights test_market_auction test_market_routes test_web_client_parity test_truck_system_and_scrip test_run_trace test_trace_codec test_banking_contagion` — 121 tests passed, including charity cash sweeps, actor deposit/withdrawal totals, and a frozen-withdrawal trace.
+- `MPLCONFIGDIR=/private/tmp/codex-mpl venv/bin/python benchmark_supply_default.py 50 4242` — the default three-nation 50-turn run completed with zero currency violations and zero unmatched actor cash on turn 50 or across actor-turn statements.
+- `node --check web_client/client.js`, targeted Python compilation, and `git diff --check` — passed.
 - Domestic-bank sovereign bond principal and coupon defaults now create one
   economic journal event per affected tile bank, linked to the bond ID and
   issuer. Compact trace records the default kind, missed payment amount, actual
@@ -215,7 +229,11 @@ already fun or balanced; that still needs player feedback.
 
 - Local FX desk conversions now record their home-currency cash leg and the
   foreign amount/rate in the same economic event; a focused account test checks
-  that this leg reconciles. Bank deposit/withdrawal adapters remain open.
+  that this leg reconciles. Bank deposit and withdrawal traces now record why
+  cash moved between a named actor and savings; frozen-bank traces distinguish
+  requested and settled amounts and expose the subsistence cap. Internal
+  charity deposits/withdrawals use explicit tile context so they appear even
+  though the charity agent is not in the resident list.
 - Route shipments now carry a stable shipment ID plus the trader's source cost
   basis, freight per unit, and source currency. Arrival makes a matching
   import-lot record; destination auction fills decrement that lot and link the
