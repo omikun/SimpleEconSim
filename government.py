@@ -17,12 +17,13 @@ from logger import loginfo, logwarning, logdebug
 import econsim_trade_money as trade
 
 
-def _trace_public_transfer(government, kind, amount, recipients, *, outflow=True, **inputs):
+def _trace_public_transfer(government, kind, amount, recipients, *, outflow=True,
+                           trace_region=None, operation_id=None, **inputs):
     """Trace public cash transfers at their treasury mutation point."""
     regions = getattr(government, 'regions', [])
-    region = next((candidate for candidate in regions
-                   if getattr(candidate, '_run_trace', None) is not None),
-                  regions[0] if regions else None)
+    region = trace_region or next((candidate for candidate in regions
+                                  if getattr(candidate, '_run_trace', None) is not None),
+                                 regions[0] if regions else None)
     if region is None:
         return
     nation = getattr(region, 'owner_nation', None)
@@ -35,13 +36,16 @@ def _trace_public_transfer(government, kind, amount, recipients, *, outflow=True
                               'turn': turn, 'amount': float(amount),
                               'recipients': sorted(recipient_ids), 'inputs': inputs},
                              sort_keys=True, separators=(',', ':'))
-    operation_id = 'public:' + hashlib.sha256(fingerprint.encode('utf-8')).hexdigest()[:16]
+    operation_id = (operation_id or 'public:'
+                    + hashlib.sha256(fingerprint.encode('utf-8')).hexdigest()[:16])
     local_cash_after = float(government.agent.cash)
     local_cash_before = (local_cash_after + float(amount) if outflow
                          else local_cash_after - float(amount))
     from finance_trace import account_ref, emit_treasury_leg, transfer_contract
     treasury_account = account_ref(
-        'government_treasury', getattr(nation, 'name', government.name), unit,
+        'government_treasury', government.name, unit,
+        nation_id=getattr(nation, 'name', None),
+        government_name=government.name,
         subaccount='government_agent.cash', balance_before=local_cash_before,
         balance_after=local_cash_after, balance_scope='government_agent.cash')
     external_account = account_ref(
@@ -578,6 +582,8 @@ class Government:
             return
         gross_amount = amount
         owner_nation = getattr(region, 'owner_nation', None) if region else None
+        intercepted = 0.0
+        creditor_name = None
         if owner_nation:
             try:
                 from imperialism import get_imperialism_manager
@@ -588,27 +594,47 @@ class Government:
         if amount <= 0:
             return
         nat_gov = getattr(owner_nation, 'government', None) if owner_nation else None
+        operation_id = None
+        if region is not None:
+            clock = getattr(region, '_collective_trace_clock', {}) or {}
+            sequence = int(clock.get('next', 0))
+            operation_id = f'tariff:{region.name}:{int(t)}:{sequence}'
         if nat_gov is not None and nat_gov is not self:
             nat_share = round(amount * 0.80, 6)
             local_share = amount - nat_share
             nat_gov.agent.cash += nat_share
+            _trace_public_transfer(
+                nat_gov, 'tariff_collected', nat_share, [], outflow=False,
+                trace_region=region, operation_id=operation_id, turn=t,
+                tariff_allocation='national', gross_tariff=gross_amount,
+                net_after_interception=amount, intercepted_tariff=intercepted,
+                interception_creditor=creditor_name
+                if owner_nation else None, national_share=nat_share,
+                local_share=local_share, source='import_customs')
             nat_gov.record_income(t, 'tariff', nat_share)
             self.agent.cash += local_share
+            _trace_public_transfer(
+                self, 'tariff_collected', local_share, [], outflow=False,
+                trace_region=region, operation_id=operation_id, turn=t,
+                tariff_allocation='local_port', gross_tariff=gross_amount,
+                net_after_interception=amount, intercepted_tariff=intercepted,
+                interception_creditor=creditor_name
+                if owner_nation else None, national_share=nat_share,
+                local_share=local_share, source='import_customs')
             self.record_income(t, 'tariff', local_share)
         else:
             self.agent.cash += amount
+            if owner_nation is not None and region is not None:
+                _trace_public_transfer(
+                    self, 'tariff_collected', amount, [], outflow=False,
+                    trace_region=region, operation_id=operation_id, turn=t,
+                    tariff_allocation='single_treasury', gross_tariff=gross_amount,
+                    net_after_interception=amount, intercepted_tariff=intercepted,
+                    interception_creditor=creditor_name,
+                    national_share=amount if nat_gov is self else 0.0,
+                    local_share=amount if nat_gov is not self else 0.0,
+                    source='import_customs')
             self.record_income(t, 'tariff', amount)
-        if owner_nation is not None and region is not None:
-            from run_trace import emit
-            emit(region, kind='tariff_collected', record_class='transfer',
-                 subject={'type': 'nation', 'id': owner_nation.name},
-                 metric_id='finance.treasury_flow', unit=owner_nation.currency,
-                 after=amount,
-                 inputs={'gross_tariff': gross_amount,
-                         'net_after_interception': amount,
-                         'national_share': nat_share if nat_gov is not None and nat_gov is not self else 0.0,
-                         'local_share': local_share if nat_gov is not None and nat_gov is not self else amount,
-                         'tile': region.name})
 
     def record_income(self, t, source, amount):
         """Accumulate a per-turn income amount under *source*.
@@ -842,7 +868,9 @@ class Government:
             if needed <= 0:
                 break
             reserve = 0 if donor.is_corporation else appetite_units(donor)
-            taken = min(needed, levy_capacity(donor, reserve))
+            food_before = int(donor.inv_get(Goods.food, 0))
+            levy_capacity_before = levy_capacity(donor, reserve)
+            taken = min(needed, levy_capacity_before)
             if taken <= 0:
                 continue
             donor.inv_add(Goods.food, -taken)
@@ -850,19 +878,52 @@ class Government:
             self.food_inventory += taken
             needed -= taken
             levies.append({'donor_id': donor.id, 'units': taken,
-                           'corporation': bool(donor.is_corporation)})
+                           'corporation': bool(donor.is_corporation),
+                           'food_before': food_before,
+                           'food_after': int(donor.inv_get(Goods.food, 0)),
+                           'protected_reserve_units': reserve,
+                           'available_surplus_before': max(0, food_before - reserve),
+                           'levy_capacity_before': levy_capacity_before})
         collected = self.food_inventory - inventory_before
         if collected:
             self.food_levy_last_turn += collected
             region.emergency_grain_levy_units = (
                 getattr(region, 'emergency_grain_levy_units', 0) + collected)
+            clock = getattr(region, '_collective_trace_clock', {}) or {}
+            sequence = int(clock.get('next', 0))
+            operation_id = f'emergency-food-levy:{region.name}:{int(t)}:{sequence}'
+            levy_contract = {
+                'contract_version': 'goods_transfer.v1',
+                'operation_id': operation_id,
+                'operation_type': 'emergency_food_levy',
+                'good': Goods.food.name,
+                'unit': 'units',
+                'amount': int(collected),
+                'payer_account': {
+                    'type': 'agent_group', 'id': operation_id,
+                    'member_count': len(levies),
+                    'member_ids': [str(row['donor_id']) for row in levies],
+                    'balance_scope': 'individual_food_inventory',
+                },
+                'payee_account': {
+                    'type': 'government_food_inventory', 'id': self.name,
+                    'balance_before': int(inventory_before),
+                    'balance_after': int(self.food_inventory),
+                    'balance_scope': 'food_inventory',
+                },
+                'donor_legs': levies,
+                'counterparty_leg_status': 'donor_and_public_inventory_balances_captured',
+            }
             emit(region, kind='emergency_food_levy', record_class='transfer',
                  phase='livelihood',
                  subject={'type': 'tile', 'id': region.name, 'good': Goods.food.name},
                  metric_id='goods.emergency_levy', unit='units',
                  before=inventory_before, after=self.food_inventory,
-                 inputs={'turn': t, 'meal_gap_units': meal_gap,
+                 inputs={'turn': t, 'operation_id': operation_id,
+                         'transfer_contract': levy_contract,
+                         'meal_gap_units': meal_gap,
                          'units_collected': collected,
+                         'remaining_meal_gap_units': needed,
                          'donor_cap_fraction': 0.25,
                          'donors': levies})
         return collected

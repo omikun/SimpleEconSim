@@ -167,8 +167,9 @@ estate transfers, government/bank helpers.
 1. Use one transfer contract: operation ID, payer/payee accounts, currencies,
    amount, opening/closing balances, reason, and state mutation references.
    Enumerate project payroll, carrier fees, reserve recalls, central remittances,
-   canal tolls, occupation seizures, tribute, tax recovery, grain purchases,
-   subsidies, repression spending, inheritance, and scenario action costs.
+   tariff receipts, emergency in-kind levies, canal tolls, occupation seizures,
+   tribute, tax recovery, grain purchases, subsidies, repression spending,
+   inheritance, and scenario action costs.
 2. Internal municipal/provincial/sovereign transfers change account components
    but net to zero for the same national treasury. Cross-border receipts and
    payments have linked sides. Preserve operation IDs to prevent duplicates.
@@ -472,9 +473,9 @@ inputs, so tracing adds no random draws or economic state changes.
 Verification: 80 focused government-transfer, supply-control, live trace, and
 campaign-debt tests passed. The fixture checked outgoing and incoming balance
 direction and the shared contract version. Compilation and `git diff --check`
-passed. Tariffs, emergency levies, other grain purchases, bank
-recapitalization, occupation/tribute flows, inheritance, and household/firm
-transfers still need the contract or a documented non-cash explanation.
+passed. Other grain purchases, bank recapitalization, occupation/tribute flows,
+inheritance, and household/firm transfers still need the contract or a
+documented non-cash explanation.
 
 Phase 3 follow-up, 2026-10-18: a shared treasury-leg emitter now keeps the
 versioned transfer contract consistent across bonds, Caisse receipts, public
@@ -495,3 +496,18 @@ world because `shape_nile_delta` raised “Egypt's river needs a second coastal
 outlet for its delta”; this occurs during map generation before the changed
 transfer code runs. Project transfer checks therefore use small deterministic
 fixtures until that separate generation failure is resolved.
+
+Phase 3 follow-up, 2026-10-18: import tariff receipts now record separate
+national and port-government treasury credits under one operation ID, with
+exact recipient balances and the gross, intercepted, and allocated amounts.
+Emergency food levies now record a `goods_transfer.v1` contract, the public
+food-stock change, each donor's inventory change and protected reserve, and the
+remaining meal gap after collection.
+
+Verification: 26 government-transfer, tariff-sharing, emergency-food, scenario
+project, and fiscal-federalism tests passed. Tariff fixtures confirmed the
+80/20 allocation nets to the actual receipts and uses distinct government
+account identities; the levy fixture confirmed donor inventory loss equals
+the government's food-stock gain. Compilation and `git diff --check` passed.
+Other grain purchases, bank recapitalization, occupation/tribute flows,
+inheritance, and household/firm transfers remain open.

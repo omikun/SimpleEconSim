@@ -141,6 +141,10 @@ the FX matrix has a **Why?** button for each quoted currency pair.
   receipts use `treasury_transfer.v1`, including treasury cash before/after,
   recipient IDs, and scale/funding details. Group-benefit recipient balances
   are marked as not individually captured.
+- Tariff receipts record separate national and local-port treasury credits under
+  one operation ID, including allocation and balance evidence. Emergency food
+  levies record donor food inventories, protected reserves, and the matching
+  government food-stock increase.
 - Construction steps record material purchases, required and available inputs,
   navvy hiring and pay, progress multipliers, stall causes, and completion.
 - Battles record initial strengths, casualties, winner, and conquest. War-side
@@ -182,13 +186,13 @@ value does not match a recorded calculation. Per-profession headcount snapshots
 are sparse: unchanged counts, including zero categories, are omitted while the
 membership-change calculation records retain before/after counts and agent IDs.
 Treasury snapshots show cash and deposit components. Bond, Caisse, public
-benefit, and Egypt project payroll/recall/remittance transfers now have
-operation IDs and balance evidence. Canal tolls, occupation seizures, tribute,
-tariff receipts, emergency levies, tax recovery, other grain purchases,
-subsidies, repression spending, inheritance, and many scenario costs still
-need the shared transfer contract. National treasury, bank, household, firm,
-and goods-by-currency reconciliations remain incomplete. Several scenario
-operations still need mutation-point records.
+benefit, Egypt project payroll/recall/remittance, and tariff transfers now have
+operation IDs and balance evidence. Emergency food levies expose exact in-kind
+stock changes. Canal tolls, occupation seizures, tribute, tax recovery, other
+grain purchases, subsidies, repression spending, inheritance, and many scenario
+costs still need the shared transfer contract. National treasury, bank,
+household, firm, and goods-by-currency reconciliations remain incomplete.
+Several scenario operations still need mutation-point records.
 Some secondary and elite AI candidate details remain partial. The current metric
 catalog does not yet cover every displayed field;
 `inventory_region_histories()` labels legacy series as instrumented or
@@ -218,3 +222,8 @@ district-to-Cairo movements, and grain stock/calorie changes. The broad Egypt
 project integration fixture still stops during deterministic world generation:
 `shape_nile_delta` cannot find a second coastal outlet. No changed transfer code
 runs before that failure.
+
+Tariff and emergency levy follow-up passed 26 government-transfer,
+tariff-sharing, emergency-food, scenario-project, and fiscal-federalism tests.
+Tariff payer allocation reconciles to the two treasury credits, while the levy
+fixture balances donor stock losses against the government stock gain.
