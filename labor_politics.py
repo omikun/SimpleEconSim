@@ -19,6 +19,7 @@ or within-nation transfers between agents or gov treasuries.
 from __future__ import annotations
 
 from typing import Tuple, List, Dict, Any, Optional
+from goods import Goods
 
 #: Default statutory workday cap before reform
 DEFAULT_WORKDAY_CAP = 16.0
@@ -520,20 +521,147 @@ def emergency_granary_relief(target, food_amount: float = 25.0) -> Tuple[bool, s
     """Release municipal/sovereign granary reserves to feed starving citizens and halt pestilence."""
     tiles = getattr(target, 'tiles', [target]) if hasattr(target, 'tiles') else [target]
     total_fed = 0
+    trace_region = next((tile for tile in [target, *tiles]
+                         if (getattr(tile, '_run_trace', None) is not None
+                             and getattr(tile, '_collective_trace_clock', None)
+                             is not None)), None)
+    trace_clock = (getattr(trace_region, '_collective_trace_clock', {})
+                   if trace_region is not None else {})
+    turn = int(trace_clock.get('turn', getattr(target, '_last_turn', 0)))
+    operation_id = None
+    if trace_region is not None:
+        operation_id = (
+            f"policy:nat_emergency_granary:{getattr(target, 'name', 'unnamed')}:"
+            f"{turn}:{int(trace_clock.get('next', 0))}")
+    gate_event_ids = []
+    stock_event_ids = []
+    total_grain_debited = 0.0
 
     for tile in tiles:
         gov = getattr(tile, 'gov', None)
         food_stock = getattr(gov, 'food_inventory', 0.0) if gov else 0.0
         # Check regional granary buffer stock
-        granary_stock = getattr(tile, 'granary_stock', 0.0)
+        granary_stock = float(getattr(tile, 'granary_stock', 0.0))
+        depleted_before = (int(getattr(tile, 'famine_outbreak_turns', 0))
+                           if trace_region is not None else None)
 
         # Distribute available grain to hungry agents
         hungry_agents = [a for a in getattr(tile, 'agents', []) if getattr(a, 'alive', True) and getattr(a, 'hungry_steps', 0) > 0]
-        for a in hungry_agents[:int(food_amount)]:
-            a.hungry_steps = 0
-            total_fed += 1
+        recipients = hungry_agents[:int(food_amount)]
+        gate_event_id = None
+        if trace_region is not None:
+            from run_trace import emit
+            gate_event_id = emit(
+                trace_region, kind='national_granary_relief_tile_gate',
+                record_class='decision', phase='policy_action',
+                subject={'type': 'tile/action', 'id': tile.name},
+                metric_id='scenario.granary_relief_gate', unit='eligible',
+                after=bool(recipients),
+                inputs={'operation_id': operation_id, 'turn': turn,
+                        'action_id': 'nat_emergency_granary',
+                        'tile_id': tile.name,
+                        'hungry_alive_count': len(hungry_agents),
+                        'recipient_count': len(recipients),
+                        'recipient_limit_per_tile': int(food_amount),
+                        'recipient_ids': [str(agent.id) for agent in recipients],
+                        'treasury_food_inventory_observed': float(food_stock),
+                        'treasury_food_inventory_consumed': False,
+                        'granary_stock_before': granary_stock,
+                        'cumulative_fed_before_tile': total_fed,
+                        'reason': ('hungry_households_selected' if recipients
+                                   else 'no_living_hungry_households')})
+            if gate_event_id is not None:
+                gate_event_ids.append(gate_event_id)
 
-        tile.granary_stock = max(0.0, granary_stock - total_fed * 0.5)
+        for agent in recipients:
+            hunger_before = int(agent.hungry_steps)
+            food_inventory_before = (float(agent.inv_get(Goods.food, 0))
+                                     if trace_region is not None else None)
+            agent.hungry_steps = 0
+            total_fed += 1
+            if trace_region is not None:
+                from run_trace import emit
+                emit(
+                    trace_region, kind='national_granary_relief_household_outcome',
+                    record_class='outcome', phase='policy_action',
+                    subject={'type': 'agent', 'id': str(agent.id),
+                             'tile': tile.name},
+                    metric_id='health.hunger_steps',
+                    before=hunger_before, after=int(agent.hungry_steps),
+                    unit='turns',
+                    inputs={'operation_id': operation_id, 'turn': turn,
+                            'hungry_steps_before': hunger_before,
+                            'hungry_steps_after': int(agent.hungry_steps),
+                            'food_inventory_before': food_inventory_before,
+                            'food_inventory_after':
+                            float(agent.inv_get(Goods.food, 0)),
+                            'food_inventory_changed': False,
+                            'alive': bool(getattr(agent, 'alive', True)),
+                            'granary_gate_event_id': gate_event_id},
+                    cause_event_ids=([gate_event_id]
+                                     if gate_event_id else None))
+
+        # Preserve cumulative-fed debit semantics: each tile draws half a unit
+        # per hungry household fed so far in this nation-wide pass.
+        requested_stock_draw = total_fed * 0.5
+        tile.granary_stock = max(0.0, granary_stock - requested_stock_draw)
+        granary_stock_after = float(tile.granary_stock)
+        actual_stock_draw = granary_stock - granary_stock_after
+        total_grain_debited += actual_stock_draw
         tile.famine_outbreak_turns = 0  # Resets famine outbreak progression!
+
+        if trace_region is not None:
+            from run_trace import emit
+            stock_event_id = emit(
+                trace_region, kind='national_granary_stock_outcome',
+                record_class='outcome', phase='policy_action',
+                subject={'type': 'tile', 'id': tile.name},
+                metric_id='goods.granary_stock',
+                before=granary_stock, after=granary_stock_after,
+                unit='grain_units',
+                inputs={'operation_id': operation_id, 'turn': turn,
+                        'tile_id': tile.name,
+                        'cumulative_households_fed': total_fed,
+                        'stock_draw_formula': 'cumulative_households_fed * 0.5',
+                        'requested_stock_draw': requested_stock_draw,
+                        'actual_stock_draw': actual_stock_draw,
+                        'granary_stock_shortfall':
+                        requested_stock_draw - actual_stock_draw,
+                        'granary_gate_event_id': gate_event_id},
+                cause_event_ids=([gate_event_id] if gate_event_id else None))
+            if stock_event_id is not None:
+                stock_event_ids.append(stock_event_id)
+            if depleted_before:
+                emit(
+                    trace_region, kind='national_granary_famine_progression_reset',
+                    record_class='outcome', phase='policy_action',
+                    subject={'type': 'tile', 'id': tile.name},
+                    metric_id='health.famine_outbreak_progression',
+                    before=depleted_before, after=0, unit='turns',
+                    inputs={'operation_id': operation_id, 'turn': turn,
+                            'tile_id': tile.name,
+                            'households_fed_on_tile': len(recipients)},
+                    cause_event_ids=([stock_event_id]
+                                     if stock_event_id else
+                                     [gate_event_id] if gate_event_id else None))
+
+    if trace_region is not None:
+        from run_trace import emit
+        emit(
+            trace_region, kind='national_granary_relief_outcome',
+            record_class='outcome', phase='policy_action',
+            subject={'type': 'nation/action', 'id': getattr(target, 'name', 'unnamed')},
+            metric_id='scenario.granary_relief_action',
+            after=total_fed, unit='households',
+            inputs={'operation_id': operation_id, 'turn': turn,
+                    'tile_count': len(tiles), 'households_fed': total_fed,
+                    'food_amount_limit_per_tile': int(food_amount),
+                    'cumulative_grain_stock_debited': total_grain_debited,
+                    'funding_source': 'existing_tile_granary_stock',
+                    'government_food_inventory_used': False,
+                    'hunger_steps_reset_without_inventory_food_transfer': True,
+                    'tile_gate_event_ids': gate_event_ids,
+                    'tile_stock_event_ids': stock_event_ids},
+            cause_event_ids=stock_event_ids or gate_event_ids or None)
 
     return True, f"EMERGENCY RELIEF: Distributed grain to {total_fed} starving citizens; halted famine immune collapse."

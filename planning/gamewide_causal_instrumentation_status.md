@@ -751,3 +751,18 @@ tests, six city-food tests, five provincial-policy tests, and five guano tests
 passed (20 total). Coverage includes desktop/web parity, trace-on/off parity,
 zero eligible recipients, and the absence of cash and stock debits. Compilation
 and `git diff --check` passed.
+
+National emergency granary relief now records each tile's living hungry
+candidate set, selected households, hunger-step resets, granary stock change,
+and famine-progression reset. It records the existing cumulative draw rule:
+each tile's requested draw uses the total households fed so far across the
+current nation-wide pass. The trace also shows that the government's separate
+food inventory is only observed, not consumed, and that household food
+inventories remain unchanged when hunger is reset. No-eligible-household
+actions still reset famine progression and are now visible as zero-recipient
+outcomes.
+
+Verification: two granary trace tests and the existing relief-prevents-genesis
+test passed (3 total), covering multi-tile cumulative draw, trace-on/off parity,
+zero recipients, famine reset, and the unconsumed government food balance.
+Compilation and `git diff --check` passed.

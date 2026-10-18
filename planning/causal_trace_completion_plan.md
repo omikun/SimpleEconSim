@@ -1117,3 +1117,16 @@ Verification: two pioneer-aid tests, two existing frontier-expedition tests,
 six city-food tests, five provincial-policy tests, and five guano tests passed
 (20 total), covering trace-on/off parity, both clients, empty frontiers, and
 created-food accounting. Compilation and `git diff --check` passed.
+
+Phase 3 follow-up, 2026-10-18: national emergency granary relief now records
+per-tile hungry-household selection, per-agent hunger reset, exact granary stock
+change, and famine-progression reset. Inputs disclose the existing cumulative
+stock draw formula, the separate government food balance that is not consumed,
+and the fact that hunger resets without adding food to household inventory.
+Zero-recipient actions still reset famine progression and now emit an explicit
+no-recipient outcome.
+
+Verification: two dedicated granary trace tests and the existing
+relief-prevents-genesis test passed (3 total), covering cumulative draw across
+multiple tiles, trace-on/off parity, zero recipients, and famine reset.
+Compilation and `git diff --check` passed.
